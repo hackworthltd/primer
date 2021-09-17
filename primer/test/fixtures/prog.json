@@ -1,0 +1,202 @@
+{
+    "progTypes": [
+        {
+            "typeDefName": {
+                "unName": "T"
+            },
+            "typeDefConstructors": [
+                {
+                    "valConArgs": [
+                        {
+                            "contents": [
+                                [],
+                                {
+                                    "contents": [
+                                        [],
+                                        {
+                                            "unName": "b"
+                                        }
+                                    ],
+                                    "tag": "TCon"
+                                },
+                                {
+                                    "contents": [
+                                        [],
+                                        {
+                                            "unName": "a"
+                                        }
+                                    ],
+                                    "tag": "TCon"
+                                }
+                            ],
+                            "tag": "TApp"
+                        },
+                        {
+                            "contents": [
+                                [],
+                                {
+                                    "unName": "Nat"
+                                }
+                            ],
+                            "tag": "TCon"
+                        }
+                    ],
+                    "valConName": {
+                        "unName": "C"
+                    }
+                }
+            ],
+            "typeDefNameHints": [],
+            "typeDefParameters": [
+                [
+                    {
+                        "unName": "a"
+                    },
+                    {
+                        "tag": "KType"
+                    }
+                ],
+                [
+                    {
+                        "unName": "b"
+                    },
+                    {
+                        "contents": [
+                            {
+                                "tag": "KType"
+                            },
+                            {
+                                "tag": "KType"
+                            }
+                        ],
+                        "tag": "KFun"
+                    }
+                ]
+            ]
+        }
+    ],
+    "progSmartHoles": {
+        "tag": "SmartHoles"
+    },
+    "progDefs": [
+        [
+            {
+                "unID": 1
+            },
+            {
+                "defExpr": {
+                    "contents": [
+                        {
+                            "unID": 0
+                        },
+                        {
+                            "contents": {
+                                "contents": [],
+                                "tag": "TEmptyHole"
+                            },
+                            "tag": "TCSynthed"
+                        },
+                        null
+                    ],
+                    "tag": "EmptyHole"
+                },
+                "defType": {
+                    "contents": [
+                        {
+                            "unID": 0
+                        },
+                        {
+                            "tag": "KType"
+                        },
+                        null
+                    ],
+                    "tag": "TEmptyHole"
+                },
+                "defName": {
+                    "unName": "main"
+                },
+                "defID": {
+                    "unID": 1
+                }
+            }
+        ]
+    ],
+    "progLog": {
+        "unlog": [
+            [
+                {
+                    "contents": [
+                        {
+                            "contents": {
+                                "tag": "Child1"
+                            },
+                            "tag": "Move"
+                        }
+                    ],
+                    "tag": "BodyAction"
+                }
+            ]
+        ]
+    },
+    "progSelection": {
+        "selectedNode": {
+            "nodeId": {
+                "unID": 0
+            },
+            "meta": {
+                "Left": [
+                    {
+                        "unID": 0
+                    },
+                    {
+                        "contents": {
+                            "contents": [],
+                            "tag": "TEmptyHole"
+                        },
+                        "tag": "TCSynthed"
+                    },
+                    null
+                ]
+            },
+            "nodeType": {
+                "tag": "BodyNode"
+            }
+        },
+        "selectedDef": {
+            "defExpr": {
+                "contents": [
+                    {
+                        "unID": 0
+                    },
+                    {
+                        "contents": {
+                            "contents": [],
+                            "tag": "TEmptyHole"
+                        },
+                        "tag": "TCSynthed"
+                    },
+                    null
+                ],
+                "tag": "EmptyHole"
+            },
+            "defType": {
+                "contents": [
+                    {
+                        "unID": 0
+                    },
+                    {
+                        "tag": "KType"
+                    },
+                    null
+                ],
+                "tag": "TEmptyHole"
+            },
+            "defName": {
+                "unName": "main"
+            },
+            "defID": {
+                "unID": 1
+            }
+        }
+    }
+}

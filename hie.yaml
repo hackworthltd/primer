@@ -1,0 +1,14 @@
+cradle:
+  cabal:
+    - path: ./primer/src
+      component: "lib:primer"
+    - path: ./primer/test
+      component: "primer-test"
+
+    - path: ./primer-selda/src
+      component: "lib:primer-selda"
+
+    - path: ./primer-service/src
+      component: "lib:primer-service"
+    - path: ./primer-service/exe
+      component: "exe:primer-service"
