@@ -1,0 +1,74 @@
+{
+    "typeDefName": {
+        "unName": "T"
+    },
+    "typeDefConstructors": [
+        {
+            "valConArgs": [
+                {
+                    "contents": [
+                        [],
+                        {
+                            "contents": [
+                                [],
+                                {
+                                    "unName": "b"
+                                }
+                            ],
+                            "tag": "TCon"
+                        },
+                        {
+                            "contents": [
+                                [],
+                                {
+                                    "unName": "a"
+                                }
+                            ],
+                            "tag": "TCon"
+                        }
+                    ],
+                    "tag": "TApp"
+                },
+                {
+                    "contents": [
+                        [],
+                        {
+                            "unName": "Nat"
+                        }
+                    ],
+                    "tag": "TCon"
+                }
+            ],
+            "valConName": {
+                "unName": "C"
+            }
+        }
+    ],
+    "typeDefNameHints": [],
+    "typeDefParameters": [
+        [
+            {
+                "unName": "a"
+            },
+            {
+                "tag": "KType"
+            }
+        ],
+        [
+            {
+                "unName": "b"
+            },
+            {
+                "contents": [
+                    {
+                        "tag": "KType"
+                    },
+                    {
+                        "tag": "KType"
+                    }
+                ],
+                "tag": "KFun"
+            }
+        ]
+    ]
+}

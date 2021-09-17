@@ -1,0 +1,157 @@
+cabal-version: 2.4
+name:          primer
+version:       0.7.0.0
+license:       AGPL-3.0-or-later
+license-file:  COPYING
+copyright:     (c) 2021 Hackworth Ltd
+maintainer:    src@hackworthltd.com
+author:        Hackworth Ltd <src@hackworthltd.com>
+stability:     experimental
+synopsis:      A framework for structured editing.
+category:      Editor
+
+library
+  exposed-modules:
+    Control.Monad.Fresh
+    Primer.Action
+    Primer.API
+    Primer.App
+    Primer.Core
+    Primer.Core.DSL
+    Primer.Core.Transform
+    Primer.Core.Utils
+    Primer.Database
+    Primer.Eval
+    Primer.EvalFull
+    Primer.Name
+    Primer.Questions
+    Primer.Refine
+    Primer.Subst
+    Primer.Typecheck
+    Primer.Unification
+    Primer.Zipper
+    Primer.ZipperCxt
+
+  hs-source-dirs:     src
+  other-modules:
+    Control.Monad.NestedError
+    Primer.JSON
+
+  default-language:   Haskell2010
+  default-extensions:
+    DataKinds
+    DeriveDataTypeable
+    DeriveGeneric
+    DerivingStrategies
+    DerivingVia
+    FlexibleContexts
+    FlexibleInstances
+    GeneralizedNewtypeDeriving
+    LambdaCase
+    MultiParamTypeClasses
+    OverloadedStrings
+    ScopedTypeVariables
+
+  ghc-options:
+    -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
+    -Wcompat -Widentities -Wredundant-constraints -fhide-source-paths
+
+  build-depends:
+    , aeson              >=1.5.2.0  && <=1.6
+    , base               >=4.12     && <=4.16
+    , bytestring         >=0.10.8.2 && <=0.12
+    , containers         >=0.6.0.1  && <=0.7
+    , deriving-aeson     >=0.2      && <=0.3
+    , exceptions         >=0.10.4   && <=0.11
+    , generic-optics     >=2.0      && <=2.3
+    , list-t             >=1.0      && <=1.1
+    , megaparsec         >=8.0.0    && <=9.2
+    , mtl                >=2.2.2    && <=2.3
+    , optics             >=0.4      && <=0.5
+    , recursion-schemes  >=5.1.3    && <=5.3
+    , semigroups         >=0.19.1   && <=0.20
+    , stm                >=2.5      && <=2.6
+    , stm-containers     >=1.1      && <=1.3
+    , text               >=1.2.3.2  && <=1.3
+    , transformers       >=0.5.6.2  && <=0.7
+    , uniplate           >=1.6      && <=1.7
+    , uuid               >=1.3      && <=1.4
+
+test-suite primer-test
+  type:               exitcode-stdio-1.0
+  main-is:            Test.hs
+  hs-source-dirs:     test
+  other-modules:
+    Gen.Core.Raw
+    Gen.Core.Typed
+    TestM
+    Tests.Action
+    Tests.Action.Capture
+    Tests.Action.Prog
+    Tests.AlphaEquality
+    Tests.Database
+    Tests.Eval
+    Tests.EvalFull
+    Tests.FreeVars
+    Tests.Gen.Core.Typed
+    Tests.Question
+    Tests.Refine
+    Tests.Serialisation
+    Tests.Subst
+    Tests.Transform
+    Tests.Typecheck
+    Tests.Unification
+    Tests.Zipper
+    Tests.Zipper.BindersAbove
+
+  default-language:   Haskell2010
+  default-extensions:
+    DataKinds
+    DeriveDataTypeable
+    DeriveGeneric
+    DerivingStrategies
+    DerivingVia
+    FlexibleContexts
+    FlexibleInstances
+    GeneralizedNewtypeDeriving
+    LambdaCase
+    MultiParamTypeClasses
+    OverloadedStrings
+    ScopedTypeVariables
+
+  ghc-options:
+    -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
+    -Wcompat -Widentities -Wredundant-constraints -fhide-source-paths
+    -threaded -rtsopts -with-rtsopts=-N
+
+  if impl(ghcjs)
+    buildable: False
+
+  else
+    build-depends:
+      , aeson
+      , aeson-pretty       ^>=0.8.8
+      , base
+      , containers
+      , filepath
+      , generic-optics
+      , hedgehog           ^>=1.0.2
+      , hedgehog-classes   ^>=0.2.4.1
+      , hspec              ^>=2.7.1
+      , hspec-megaparsec   ^>=2.1.0
+      , hw-hspec-hedgehog  ^>=0.1.0.9
+      , mmorph             ^>=1.1.5
+      , mtl
+      , optics
+      , primer
+      , tasty              ^>=1.4.1
+      , tasty-discover     ^>=4.2.2
+      , tasty-golden       ^>=2.3.4
+      , tasty-hedgehog     ^>=1.1.0
+      , tasty-hunit        ^>=0.10.0
+      , text
+      , uniplate
+
+--TODO This currently breaks with haskell.nix, so we manually add it to `flake.nix` instead.
+-- See: https://github.com/input-output-hk/haskell.nix/issues/839
+-- build-tool-depends: tasty-discover:tasty-discover ^>=4.2.2

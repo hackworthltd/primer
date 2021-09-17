@@ -1,0 +1,8 @@
+status = [
+  "ci/hydra:hackworthltd:primer%:required"
+]
+timeout_sec = 3600
+# Disabled for now.
+#required_approvals = 1
+block_labels = [ "WIP", "Do not merge" ]
+delete_merged_branches = true

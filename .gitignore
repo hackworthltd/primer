@@ -3,6 +3,7 @@
 .tramp_history
 .\#*
 \#*\#
+.dir-locals.el
 
 # vim
 *.swp
