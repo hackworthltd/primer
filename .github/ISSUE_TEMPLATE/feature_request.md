@@ -2,7 +2,7 @@
 name: Feature request
 about: Propose a new feature, with a specification
 title: ''
-labels: enhancement triage
+labels: enhancement, triage
 assignees: ''
 
 ---
