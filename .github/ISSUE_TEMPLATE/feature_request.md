@@ -2,10 +2,16 @@
 name: Feature request
 about: Propose a new feature, with a specification
 title: ''
-labels: enhancement
+labels: enhancement triage
 assignees: ''
 
 ---
+
+Thank you for helping us improve our software!
+
+**Before filing your feature request, please read and acknowledge the following by checking all the boxes:**
+
+- [ ] I have read the project's [code of conduct](https://github.com/hackworthltd/primer/blob/main/CODE_OF_CONDUCT.md), and by submitting this feature request, I agree to follow it.
 
 ## Description
 
@@ -31,7 +37,7 @@ This is a feature request.
 
 ## Discussion
 
-<*If there's a GitHub Discussions topic where this feature has been/is being discussed, link it here.*>
+<*If there's a GitHub Discussions topic or a GitHub Issue where this feature has been/is being discussed, link it here.*>
 
 ## Future work
 
