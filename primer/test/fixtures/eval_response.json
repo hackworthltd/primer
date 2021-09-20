@@ -1,0 +1,104 @@
+{
+  "evalRespRedexes": [
+    {
+      "unID": 0
+    },
+    {
+      "unID": 1
+    }
+  ],
+  "evalRespExpr": {
+    "contents": [
+      {
+        "unID": 0
+      },
+      {
+        "contents": {
+          "contents": [],
+          "tag": "TEmptyHole"
+        },
+        "tag": "TCSynthed"
+      },
+      null
+    ],
+    "tag": "EmptyHole"
+  },
+  "evalRespDetail": {
+    "contents": {
+      "types": [
+        {
+          "contents": [
+            {
+              "unID": 0
+            },
+            {
+              "tag": "KType"
+            },
+            null
+          ],
+          "tag": "TEmptyHole"
+        },
+        {
+          "contents": [
+            {
+              "unID": 0
+            },
+            {
+              "tag": "KType"
+            },
+            null
+          ],
+          "tag": "TEmptyHole"
+        }
+      ],
+      "letID": {
+        "unID": 0
+      },
+      "lambdaID": {
+        "unID": 0
+      },
+      "bodyID": {
+        "unID": 0
+      },
+      "bindingName": {
+        "unName": "x"
+      },
+      "before": {
+        "contents": [
+          {
+            "unID": 0
+          },
+          {
+            "contents": {
+              "contents": [],
+              "tag": "TEmptyHole"
+            },
+            "tag": "TCSynthed"
+          },
+          null
+        ],
+        "tag": "EmptyHole"
+      },
+      "argID": {
+        "unID": 0
+      },
+      "after": {
+        "contents": [
+          {
+            "unID": 0
+          },
+          {
+            "contents": {
+              "contents": [],
+              "tag": "TEmptyHole"
+            },
+            "tag": "TCSynthed"
+          },
+          null
+        ],
+        "tag": "EmptyHole"
+      }
+    },
+    "tag": "BetaReduction"
+  }
+}
