@@ -6,13 +6,13 @@ module Primer.Name (
   unsafeMkName,
 ) where
 
+import Foreword
+
 import Control.Monad.Fresh (MonadFresh, fresh)
 import qualified Data.Char as C
 import Data.Data (Data)
 import qualified Data.Set as S
-import Data.String (IsString)
-import Data.Text (Text, pack)
-import GHC.Generics (Generic)
+import Data.String (String)
 import Numeric.Natural (Natural)
 import Primer.JSON
 
@@ -43,7 +43,7 @@ freshName avoid = go
   where
     go = do
       NC n <- fresh
-      let s = Name $ pack $ genAlpha n
+      let s = Name $ toS $ genAlpha n
       if s `S.member` avoid
         then go
         else pure s
@@ -53,6 +53,9 @@ freshName avoid = go
 --
 -- >>> map genAlpha [0, 1, 30, 31]
 -- ["a", "b", "e1", "f1"]
+--
+-- Note: replace this use of `String`. See:
+-- https://github.com/hackworthltd/primer/issues/149
 genAlpha :: Natural -> String
 genAlpha n =
   let c = C.chr $ fromInteger $ toInteger (97 + (n `mod` 26))

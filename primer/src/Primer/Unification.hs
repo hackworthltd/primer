@@ -3,14 +3,10 @@
 
 module Primer.Unification (InternalUnifyError (..), unify) where
 
-import Control.Monad.Except (ExceptT, MonadError, runExceptT, throwError)
+import Foreword
+
 import Control.Monad.Fresh (MonadFresh)
-import Control.Monad.Reader (MonadReader, ReaderT, asks, local, runReaderT)
-import Control.Monad.State (MonadState, StateT, execStateT, get, gets, put)
-import Data.Either (isRight)
 import qualified Data.Map as M
-import Data.Maybe (fromMaybe)
-import Data.Monoid (All (All, getAll), Ap (Ap, getAp))
 import qualified Data.Set as S
 import Optics (anyOf, getting, over, set)
 import Primer.Core (
@@ -116,8 +112,8 @@ isSameVar n m = do
     (Nothing, Nothing) -> n == m -- both from the global context
     _ -> False -- locally-bound (forall) vars never unify with a variable from the context
 
-swap :: Env -> Env
-swap e = e{boundVarsL = boundVarsR e, boundVarsR = boundVarsL e}
+swapEnv :: Env -> Env
+swapEnv e = e{boundVarsL = boundVarsR e, boundVarsR = boundVarsL e}
 
 bind :: Name -> Name -> Env -> Env
 bind n m e =
@@ -141,15 +137,15 @@ unify' vx@(TVar _ x) vy@(TVar _ y) = do
   eq <- isSameVar x y
   case (ux, uy, eq) of
     (_, _, True) -> pure ()
-    (True, True, _) -> if x < y then unifyVar x vy else local swap $ unifyVar y vx -- ensure unify S T == unify T S
+    (True, True, _) -> if x < y then unifyVar x vy else local swapEnv $ unifyVar y vx -- ensure unify S T == unify T S
     (True, _, _) -> unifyVar x vy
-    (False, True, _) -> local swap $ unifyVar y vx
+    (False, True, _) -> local swapEnv $ unifyVar y vx
     (False, False, False) -> throwError $ NotUnify vx vy
 unify' vx@(TVar _ x) t =
   isUnifVar x >>= \case
     True -> unifyVar x t
     False -> throwError $ NotUnify vx t
-unify' s vy@(TVar _ _) = local swap $ unify' vy s
+unify' s vy@(TVar _ _) = local swapEnv $ unify' vy s
 unify' (TCon _ n) (TCon _ m) | n == m = pure ()
 unify' (TFun _ s1 t1) (TFun _ s2 t2) = unify' s1 s2 >> unify' t1 t2
 -- Doing first-order unification, as applications are only constructor-like

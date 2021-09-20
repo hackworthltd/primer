@@ -46,7 +46,8 @@
 --           throwError' SpecificError :: MonadError Bool m => m a
 module Control.Monad.NestedError where
 
-import Control.Monad.Except
+import Foreword
+
 import Data.Generics.Sum.Typed
 
 -- | This class is like MonadError but is parameterised by two error

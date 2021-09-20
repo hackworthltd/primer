@@ -30,6 +30,8 @@ module Primer.API (
   flushSessions,
 ) where
 
+import Foreword
+
 import Control.Concurrent.STM (
   STM,
   TBQueue,
@@ -38,11 +40,7 @@ import Control.Concurrent.STM (
   takeTMVar,
   writeTBQueue,
  )
-import Control.Monad.Catch (Exception, MonadThrow, throwM)
-import Control.Monad.IO.Class (MonadIO, liftIO)
-import Control.Monad.Reader (ReaderT, asks)
-import Data.Bifunctor (second)
-import Data.Text (Text)
+import Control.Monad.Catch (MonadThrow, throwM)
 import qualified ListT (toList)
 import Primer.App (
   App,
@@ -136,7 +134,7 @@ data SessionOp a where
 -- cause a deadlock!
 withSession' :: (MonadIO m, MonadThrow m) => SessionId -> SessionOp a -> PrimerM m a
 withSession' sid op = do
-  handle <- sessionsTransaction $ \ss q -> do
+  hndl <- sessionsTransaction $ \ss q -> do
     query <- StmMap.lookup sid ss
     case query of
       Nothing -> do
@@ -166,7 +164,7 @@ withSession' sid op = do
                   StmMap.insert (SessionData appl newName) sid ss
                   writeTBQueue q $ Database.UpdateName sid newName
                   pure $ Right (fromSessionName newName)
-  case handle of
+  case hndl of
     Left callback -> do
       -- The session was missing from the in-memory database. Once we
       -- get here, we know we've made the database load request, so

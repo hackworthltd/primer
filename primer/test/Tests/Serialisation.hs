@@ -2,10 +2,12 @@
 
 module Tests.Serialisation where
 
+import Foreword hiding (log)
+
 import Data.Aeson hiding (Error, Result, Success)
 import Data.Aeson.Encode.Pretty (encodePretty)
-import Data.Functor
 import qualified Data.Map.Strict as Map
+import Data.String (String)
 import Primer.Action (Action (Move, SetCursor), ActionError (IDNotFound), Movement (Child1))
 import Primer.App (
   Log (..),
@@ -38,7 +40,6 @@ import System.FilePath (takeBaseName)
 import Test.Tasty
 import Test.Tasty.Golden
 import Test.Tasty.HUnit
-import Prelude hiding (log)
 
 -- | Check that encoding the value produces the file.
 test_encode :: TestTree

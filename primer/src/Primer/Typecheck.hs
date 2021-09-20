@@ -55,23 +55,16 @@ module Primer.Typecheck (
   localTyVars,
 ) where
 
-import Control.Applicative (liftA2)
-import Control.Monad (unless, zipWithM, (<=<))
-import Control.Monad.Except (catchError)
+import Foreword
+
 import Control.Monad.Fresh (MonadFresh (..))
 import Control.Monad.NestedError (MonadNestedError (..))
-import Control.Monad.Reader (MonadReader, ReaderT, asks, local, reader, runReaderT)
-import Data.Bifunctor (first, second)
-import Data.Foldable (foldrM)
 import Data.Functor.Compose (Compose (Compose), getCompose)
 import Data.Generics.Product (HasType, position, typed)
-import Data.List (find, foldl')
 import qualified Data.Map as M
-import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
-import Data.Maybe (isJust)
 import qualified Data.Set as S
-import GHC.Generics (Generic)
+import Data.String (String)
 import Optics (Lens', over, set, view, (%))
 import Primer.Core (
   Bind' (..),
@@ -119,6 +112,8 @@ type ExprT = Expr' (Meta TypeCache) (Meta Kind)
 
 type TypeT = Type' (Meta Kind)
 
+-- We should replace this use of `String`. See:
+-- https://github.com/hackworthltd/primer/issues/149
 data TypeError
   = InternalError String
   | UnknownVariable Name

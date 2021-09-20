@@ -1,6 +1,7 @@
 module Gen.Core.Raw where
 
-import Control.Monad.State (StateT, evalStateT, get, put, runStateT)
+import Foreword
+
 import Hedgehog hiding (Var, check)
 import qualified Hedgehog.Gen as Gen
 import qualified Hedgehog.Range as Range

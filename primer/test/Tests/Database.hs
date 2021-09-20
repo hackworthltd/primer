@@ -1,6 +1,7 @@
 module Tests.Database where
 
-import Data.Text (Text)
+import Foreword
+
 import qualified Data.Text as Text
 import Primer.Database (
   defaultSessionName,
@@ -65,7 +66,7 @@ test_modified =
             "   \nfoo bar baz  \n  "
             "foo bar baz"
         ]
-    , let tooLong = Text.pack . concat $ replicate 7 ['0' .. '9']
+    , let tooLong = toS . concat $ replicate 7 ['0' .. '9']
        in testSessionName
             "truncate at 64"
             tooLong

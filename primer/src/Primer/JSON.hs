@@ -3,12 +3,11 @@
 
 module Primer.JSON (CustomJSON (..), VJSON, VJSONPrefix, ToJSON, FromJSON, ToJSONKey, FromJSONKey) where
 
+import Foreword
+
 import Data.Aeson (FromJSONKey, ToJSONKey)
-import Data.Char (toLower)
 import Data.List (stripPrefix)
-import Data.Proxy (Proxy (Proxy))
 import Deriving.Aeson
-import GHC.TypeLits (KnownSymbol, symbolVal)
 
 -- | A type for 'Primer' style JSON encoding.
 -- All our types use this, so we generate consistent encodings for the whole

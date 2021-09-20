@@ -3,9 +3,9 @@
 
 module Tests.Action.Prog where
 
-import Control.Monad.Except (ExceptT, MonadError, runExceptT)
+import Foreword
+
 import Control.Monad.Fresh
-import Control.Monad.State (MonadState, StateT, runStateT)
 import qualified Data.Map.Strict as Map
 import Optics
 import Primer.Action (
@@ -151,7 +151,7 @@ unit_create_def = progActionTest defaultEmptyProg [CreateDef $ Just "newDef"] $
 
 unit_create_typedef :: Assertion
 unit_create_typedef =
-  let list =
+  let lst =
         TypeDef
           { typeDefName = "List"
           , typeDefParameters = [("a", KType)]
@@ -168,12 +168,12 @@ unit_create_typedef =
           , typeDefConstructors = [ValCon "Node" [TVar () "a", TApp () (TCon () "List") (TApp () (TCon () "Tree") (TVar () "a"))]]
           , typeDefNameHints = ["xs", "ys", "zs"]
           }
-   in progActionTest defaultEmptyProg [AddTypeDef list, AddTypeDef tree] $
+   in progActionTest defaultEmptyProg [AddTypeDef lst, AddTypeDef tree] $
         expectSuccess $
           \_ prog' -> do
             case progTypes prog' of
-              [list', tree'] -> do
-                list @=? list'
+              [lst', tree'] -> do
+                lst @=? lst'
                 tree @=? tree'
               _ -> assertFailure $ show $ progTypes prog'
 

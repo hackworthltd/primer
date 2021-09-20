@@ -2,12 +2,9 @@
 
 module Tests.Unification where
 
-import Control.Monad (when)
-import Control.Monad.Except (runExceptT)
+import Foreword hiding (diff)
+
 import Control.Monad.Fresh (MonadFresh)
-import Control.Monad.Reader (ask, asks, local)
-import Data.Either (isLeft)
-import Data.Foldable (forM_)
 import Data.Graph (SCC (AcyclicSCC), stronglyConnComp)
 import qualified Data.Map as M
 import qualified Data.Set as S
@@ -61,10 +58,10 @@ defaultCxt :: Cxt
 defaultCxt = buildTypingContext defaultTypeDefs mempty NoSmartHoles
 
 unify' :: (MonadFresh NameCounter m, MonadFresh ID m) => Cxt -> S.Set Name -> Type -> Type -> m (Maybe (M.Map Name Type))
-unify' cxt uvs s t = fmap (either crash id) $ runExceptT $ unify cxt uvs s t
+unify' cxt uvs s t = fmap (either crash identity) $ runExceptT $ unify cxt uvs s t
   where
     -- If we run across a bug whilst testing, crash loudly
-    crash = error . ("InternalUnifyError: " <>) . show
+    crash = panic . ("InternalUnifyError: " <>) . show
 
 -- unify [] [] Int Int = Just []
 unit_Int_refl :: Assertion
@@ -370,9 +367,9 @@ genCxtExtendingLocalUVs = do
     go i uvs = do
       (uvsE, cxtE) <-
         Gen.choice
-          [ (\n k -> (id, extendLocalCxtTy (n, k))) <$> freshNameForCxt <*> genWTKind
+          [ (\n k -> (identity, extendLocalCxtTy (n, k))) <$> freshNameForCxt <*> genWTKind
           , (\n k -> ((M.singleton n k <>), extendLocalCxtTy (n, k))) <$> freshNameForCxt <*> genWTKind
-          , (\n t -> (id, extendLocalCxt (n, t))) <$> freshNameForCxt <*> genWTType KType
+          , (\n t -> (identity, extendLocalCxt (n, t))) <$> freshNameForCxt <*> genWTType KType
           ]
       local cxtE $ go (i - 1) $ uvsE uvs
 

@@ -10,8 +10,9 @@ module Primer.ZipperCxt (
   forgetMetadata,
 ) where
 
+import Foreword
+
 import Data.Generics.Product (Param (..), param, position)
-import Data.Maybe (fromMaybe)
 import qualified Data.Set as Set
 import Optics (set, view, (^.))
 import Primer.Core (

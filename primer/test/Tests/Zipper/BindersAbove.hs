@@ -1,9 +1,8 @@
 -- | Tests for 'Primer.Zipper.bindersAbove'.
 module Tests.Zipper.BindersAbove where
 
-import Control.Monad (foldM)
-import Control.Monad.Except (runExceptT)
-import Control.Monad.Reader (runReaderT)
+import Foreword
+
 import qualified Data.Set as S
 import Primer.Action (
   Movement (..),

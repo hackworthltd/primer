@@ -9,12 +9,10 @@ module Primer.Questions (
   generateNameTy,
 ) where
 
-import Control.Monad.Reader (MonadReader, asks)
-import Data.List (sort)
-import Data.Map.Strict (Map)
+import Foreword
+
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
-import Data.Text (pack)
 import Primer.Action (mkAvoidForFreshName, mkAvoidForFreshNameTy)
 import Primer.Core (
   Def (..),
@@ -111,8 +109,10 @@ getAvoidSetTy z = do
 uniquify :: Set.Set Name -> [Name] -> [Name]
 uniquify avoid ns = map snd $ sort $ map go ns
   where
-    go n = head [(i, f n i) | i <- [0 ..], f n i `Set.notMember` avoid]
+    -- Replace use of `unsafeHead` here. See:
+    -- https://github.com/hackworthltd/primer/issues/147
+    go n = unsafeHead [(i, f n i) | i <- [0 ..], f n i `Set.notMember` avoid]
     f :: Name -> Integer -> Name
     f n = \case
       0 -> n
-      i -> unsafeMkName $ unName n <> pack (show i)
+      i -> unsafeMkName $ unName n <> show i

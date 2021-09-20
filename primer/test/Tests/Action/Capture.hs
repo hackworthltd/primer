@@ -1,6 +1,8 @@
 -- | Tests for actions handling variable capture.
 module Tests.Action.Capture where
 
+import Foreword
+
 import Primer.Action (
   Action (..),
   ActionError (NameCapture, NeedEmptyHole),

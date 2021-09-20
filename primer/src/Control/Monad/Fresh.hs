@@ -2,11 +2,7 @@
 
 module Control.Monad.Fresh (MonadFresh (..)) where
 
-import Control.Monad.Except (ExceptT)
-import Control.Monad.Reader (ReaderT)
-import Control.Monad.State (StateT)
-import Control.Monad.Trans (lift)
-import Data.Monoid (Ap (Ap))
+import Foreword
 
 -- | This class gives access to a method @fresh@ which generates a new, unique
 --  value of type i.

@@ -1,7 +1,8 @@
 -- | Tests for Primer.Zipper
 module Tests.Zipper where
 
-import Control.Monad (forM_)
+import Foreword
+
 import Data.Generics.Uniplate.Data (para)
 import Gen.Core.Raw (
   evalExprGen,

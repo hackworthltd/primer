@@ -86,6 +86,11 @@
                   doHoogle = true;
                 }
                 {
+                  # mtl-compat doesn't generate HIE files.
+                  # https://github.com/input-output-hk/haskell.nix/issues/1242
+                  packages.mtl-compat.writeHieFiles = false;
+                }
+                {
                   #TODO This shouldn't be necessary - see the commented-out `build-tool-depends` in primer.cabal.
                   packages.primer.components.tests.primer-test.build-tools = [ final.haskell-nix.haskellPackages.tasty-discover ];
                 }

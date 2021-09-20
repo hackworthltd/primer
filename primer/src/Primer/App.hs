@@ -42,46 +42,23 @@ module Primer.App (
   EvalFullResp (..),
 ) where
 
-import Control.Applicative ((<|>))
-import Control.Monad (foldM)
-import Control.Monad.Except (
-  Except,
-  ExceptT,
-  MonadError,
-  runExcept,
-  runExceptT,
-  throwError,
- )
+import Foreword
+
 import Control.Monad.Fresh (MonadFresh (..))
-import Control.Monad.Reader (
-  MonadReader,
-  ReaderT,
-  asks,
-  runReader,
-  runReaderT,
- )
-import Control.Monad.State (MonadState, StateT, gets, modify, put, runStateT)
 import Data.Aeson (
   ToJSON (toEncoding),
   defaultOptions,
   genericToEncoding,
  )
-import Data.Bifunctor (bimap)
 import Data.Bitraversable (bimapM)
 import Data.Data (Data)
-import Data.Functor ((<&>))
 import Data.Generics.Product (position)
 import Data.Generics.Uniplate.Zipper (
   fromZipper,
  )
-import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
-import Data.Maybe (fromMaybe)
-import Data.Monoid (Last (Last, getLast))
 import qualified Data.Set as Set
-import Data.Text (Text, pack)
-import GHC.Generics
-import Optics (Lens', re, traverseOf, view, (%), (&), (.~), (^.), _Left, _Right)
+import Optics (Lens', re, traverseOf, view, (%), (.~), (^.), _Left, _Right)
 import Primer.Action (
   Action,
   ActionError (IDNotFound),
@@ -456,7 +433,7 @@ applyProgAction prog mdefID = \case
       --   data T (T : *) = T
       -- but the TC rejects it.
       -- see https://github.com/hackworthltd/primer/issues/3)
-      Left err -> throwError $ TypeDefError $ pack $ show err
+      Left err -> throwError $ TypeDefError $ show err
       Right _ -> pure (prog{progTypes = progTypes prog <> [td]}, mdefID)
   BodyAction actions -> do
     withDef mdefID prog $ \def -> do
@@ -739,7 +716,9 @@ getSharedScopeTy l r =
   let idsR = case r of
         Right r' -> getID r' : foldAbove ((: []) . getID . current) r'
         Left r' -> getID r' : foldAbove ((: []) . getID . current) (focusOnlyType r') <> (getID (unfocusType r') : foldAbove ((: []) . getID . current) r')
-      rID = head idsR
+      -- Replae use of `unsafeHead` here. See:
+      -- https://github.com/hackworthltd/primer/issues/147
+      rID = unsafeHead idsR
       idsL = case l of
         Right l' -> getID l' : foldAbove ((: []) . getID . current) l'
         Left l' -> getID l' : foldAbove ((: []) . getID . current) (focusOnlyType l') <> (getID (unfocusType l') : foldAbove ((: []) . getID . current) l')

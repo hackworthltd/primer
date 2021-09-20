@@ -1,10 +1,9 @@
 -- | Tests for Question logic
 module Tests.Question where
 
-import Control.Monad ((>=>))
-import Control.Monad.Reader (runReader)
-import Data.Function (on)
-import Data.List (nub, nubBy, sort)
+import Foreword hiding (diff)
+
+import Data.List (nub, nubBy)
 import Gen.Core.Raw (evalExprGen, genID, genKind, genName, genType)
 import Hedgehog hiding (check)
 import Hedgehog.Classes

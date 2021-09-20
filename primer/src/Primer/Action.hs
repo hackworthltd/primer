@@ -14,20 +14,14 @@ module Primer.Action (
   mkAvoidForFreshNameTy,
 ) where
 
-import Control.Monad (foldM, unless, when, (>=>))
-import Control.Monad.Except (MonadError, catchError, runExceptT, throwError)
+import Foreword
+
 import Control.Monad.Fresh (MonadFresh)
-import Control.Monad.Reader (MonadReader, asks, runReaderT)
 import Data.Aeson (Value)
-import Data.Function ((&))
-import Data.Functor ((<&>))
 import Data.Generics.Product (typed)
-import Data.List (delete, findIndex, foldl')
-import Data.Map.Strict (Map)
+import Data.List (delete, findIndex, lookup)
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as S
-import Data.Text (Text, pack)
-import GHC.Generics
 import Optics (set, (%), (?~))
 import Primer.Core (
   Def (..),
@@ -536,9 +530,9 @@ getVarType ast = \case
   Left local' ->
     -- our Cxt in the monad does not care about the local context, we have to extract it from the zipper.
     -- See https://github.com/hackworthltd/primer/issues/11
-    let local = unsafeMkName local'
+    let l = unsafeMkName local'
         (tycxt, tmcxt) = localVariablesInScopeExpr (Left ast)
-     in pure $ case (lookup local tmcxt, lookup local tycxt) of
+     in pure $ case (lookup l tmcxt, lookup l tycxt) of
           (Just t, _) -> Right t
           (Nothing, Just _) -> Left "That's a type var!"
           (Nothing, Nothing) -> Left "unknown local"
@@ -591,7 +585,7 @@ mkRefinedApplication cxt e eTy tgtTy' = do
     runExceptT (refine cxt tgtTy eTy) >>= \case
       -- Errors are only internal failures. Refinement failing is signaled with
       -- a Maybe
-      Left err -> throwError $ InternalFailure $ pack $ show err
+      Left err -> throwError $ InternalFailure $ show err
       Right x -> pure $ fst <$> x
   case mInst of
     -- See Note [No valid refinement]
@@ -728,8 +722,8 @@ constructCase ze = do
     -- unfocuses to top-level before synthesising, and then searches
     -- for the correct focus afterwards.
     Nothing ->
-      let handle _ = throwError $ CustomFailure ConstructCase "failed to synthesise the type of the scrutinee"
-       in synthZ (InExpr ze) `catchError` handle >>= \case
+      let handler _ = throwError $ CustomFailure ConstructCase "failed to synthesise the type of the scrutinee"
+       in synthZ (InExpr ze) `catchError` handler >>= \case
             Nothing -> throwError $ CustomFailure ConstructCase "internal error when synthesising the type of the scruntinee: focused expression went missing after typechecking"
             Just (InType _) -> throwError $ CustomFailure ConstructCase "internal error when synthesising the type of the scruntinee: focused expression changed into a type after typechecking"
             Just (InBind _) -> throwError $ CustomFailure ConstructCase "internal error: scrutinee became a binding after synthesis"
@@ -763,7 +757,7 @@ constructCase ze = do
         -- options when running actions and running other TC passes...
         TC.NoSmartHoles -> throwError $ CustomFailure ConstructCase "can only construct case on a term with hole type when using the \"smart\" TC"
         TC.SmartHoles -> flip replace ze <$> case_ (pure $ target ze) []
-    _ -> throwError $ CustomFailure ConstructCase ("can only construct case on expression with type a exactly saturated ADT, not " <> pack (show ty))
+    _ -> throwError $ CustomFailure ConstructCase ("can only construct case on expression with type a exactly saturated ADT, not " <> show ty)
 
 -- | Replace @x@ with @y@ in @λx. e@
 renameLam :: ActionM m => Text -> ExprZ -> m ExprZ

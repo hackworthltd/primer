@@ -7,7 +7,8 @@ module Primer.Core.Transform (
   removeAnn,
 ) where
 
-import Data.Bifunctor (second)
+import Foreword
+
 import Data.Data (Data)
 import Data.Generics.Uniplate.Data (descendM)
 import Primer.Core (CaseBranch' (..), Expr' (..), Type' (..), bindName)

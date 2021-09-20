@@ -40,13 +40,13 @@ module Primer.Core (
   bindName,
 ) where
 
+import Foreword
+
 import Data.Aeson (Value)
 import Data.Data (Data)
 import Data.Generics.Product
 import Data.Generics.Uniplate.Data ()
 import Data.Generics.Uniplate.Zipper (Zipper, hole, replaceHole)
-import Data.List (foldl')
-import GHC.Generics hiding (Meta)
 import Optics (Lens', Traversal, lens, set, view, (%))
 import Primer.JSON
 import Primer.Name (Name)

@@ -1,8 +1,8 @@
 module Tests.Eval where
 
-import Control.Monad.Except (runExceptT)
+import Foreword
+
 import qualified Data.Map.Strict as Map
-import Data.Set (Set)
 import qualified Data.Set as Set
 import Optics (over, (^.))
 import Primer.Core (

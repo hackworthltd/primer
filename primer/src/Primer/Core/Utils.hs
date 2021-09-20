@@ -6,7 +6,8 @@ module Primer.Core.Utils (
   noHoles,
 ) where
 
-import Control.Monad ((<=<))
+import Foreword
+
 import Control.Monad.Fresh (MonadFresh)
 import Data.Data (Data)
 import Data.Generics.Uniplate.Data (universe)

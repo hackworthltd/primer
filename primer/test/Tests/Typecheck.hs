@@ -1,11 +1,9 @@
 -- | Tests for the typechecker
 module Tests.Typecheck where
 
-import Control.Applicative (liftA2)
-import Control.Monad.Except (ExceptT, MonadError, runExceptT)
+import Foreword
+
 import Control.Monad.Fresh (MonadFresh)
-import Control.Monad.Reader (MonadReader, ReaderT, runReaderT)
-import Data.Function (on)
 import Gen.Core.Raw (
   evalExprGen,
   genName,
