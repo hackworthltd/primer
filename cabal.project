@@ -8,4 +8,4 @@ packages:
 optimization: 0
 
 package primer
-  test-options: "--size-cutoff=10000000000"
+  test-options: "--size-cutoff=32768"
