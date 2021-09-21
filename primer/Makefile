@@ -12,7 +12,7 @@ configure:
 check:	test
 
 test:
-	cabal test --test-options=--size-cutoff=10000000000
+	cabal test
 
 # Run the encoding tests, and update any files which differ from the expected result.
 generate-fixtures:
