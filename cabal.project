@@ -6,3 +6,6 @@ packages:
   primer-service
 
 optimization: 0
+
+package primer
+  test-options: "--size-cutoff=32768"
