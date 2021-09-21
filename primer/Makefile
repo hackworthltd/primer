@@ -12,7 +12,7 @@ configure:
 check:	test
 
 test:
-	TASTY_SIZE_CUTOFF=10000000000 cabal test
+	cabal test --test-options=--size-cutoff=10000000000
 
 # Run the encoding tests, and update any files which differ from the expected result.
 generate-fixtures:
