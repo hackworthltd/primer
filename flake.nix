@@ -248,8 +248,9 @@
           fourmolu = "latest";
           cabal-edit = "latest";
           cabal-fmt = "latest";
-          #TODO This shouldn't be necessary - see the commented-out `build-tool-depends` in primer.cabal.
+          #TODO Explicitly requiring tasty-discover shouldn't be necessary - see the commented-out `build-tool-depends` in primer.cabal.
           tasty-discover = "latest";
+          weeder = "latest";
         };
 
         buildInputs = (with pkgs; [
