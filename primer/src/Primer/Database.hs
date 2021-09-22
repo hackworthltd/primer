@@ -19,28 +19,21 @@ module Primer.Database (
   serve,
 ) where
 
-import Control.Applicative (Alternative)
+import Foreword
+
 import Control.Concurrent.STM (
   TBQueue,
   TMVar,
-  atomically,
   putTMVar,
   readTBQueue,
  )
-import Control.Monad (MonadPlus, forever)
 import Control.Monad.Catch (MonadCatch, MonadMask, MonadThrow)
 import Control.Monad.Cont (MonadCont)
-import Control.Monad.Except (MonadError)
 import Control.Monad.Fix (MonadFix)
-import Control.Monad.IO.Class (MonadIO, liftIO)
-import Control.Monad.Reader (MonadReader, ReaderT, ask)
-import Control.Monad.State (MonadState)
+import Control.Monad.STM (atomically)
 import Control.Monad.Trans (MonadTrans)
 import Control.Monad.Writer (MonadWriter)
 import Control.Monad.Zip (MonadZip)
-import Data.Bifunctor (second)
-import Data.Maybe (fromMaybe)
-import Data.Text (Text)
 import qualified Data.Text as Text (
   strip,
   take,
@@ -49,7 +42,6 @@ import qualified Data.Text as Text (
 import Data.UUID (UUID)
 import qualified Data.UUID as UUID (toText)
 import Data.UUID.V4 (nextRandom)
-import GHC.Generics (Generic)
 import qualified ListT (toList)
 import Primer.App (App (..))
 import qualified StmContainers.Map as StmMap

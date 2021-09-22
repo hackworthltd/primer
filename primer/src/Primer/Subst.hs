@@ -10,11 +10,10 @@ module Primer.Subst (
   substTys,
 ) where
 
+import Foreword
+
 import Control.Monad.Fresh (MonadFresh)
-import Data.Bifunctor (first)
-import Data.Foldable (foldrM)
 import qualified Data.Map.Strict as M
-import Data.Set (Set)
 import qualified Data.Set as S
 import Data.Set.Optics (setOf)
 import Optics (Fold, Traversal, getting, summing, to, traversalVL, (%), _2)

@@ -1,5 +1,7 @@
 module Tests.AlphaEquality where
 
+import Foreword
+
 import Gen.Core.Raw (
   evalExprGen,
   genName,

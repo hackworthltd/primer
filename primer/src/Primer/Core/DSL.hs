@@ -30,8 +30,9 @@ module Primer.Core.DSL (
   S,
 ) where
 
+import Foreword
+
 import Control.Monad.Fresh (MonadFresh, fresh)
-import Control.Monad.State (MonadState, State, get, put, runState)
 import Optics (set)
 import Primer.Core (
   Bind' (..),

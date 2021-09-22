@@ -23,18 +23,12 @@ module Primer.Eval (
   findNodeByID,
 ) where
 
-import Control.Monad (when, (>=>))
-import Control.Monad.Except (MonadError, runExceptT, throwError)
+import Foreword
+
 import Control.Monad.Fresh (MonadFresh, fresh)
-import Data.Foldable (foldrM)
 import Data.Generics.Product (position)
-import Data.List (find)
-import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
-import Data.Set (Set)
 import qualified Data.Set as Set
-import Data.Text (pack)
-import GHC.Generics (Generic)
 import Optics (set, traverseOf, view, (%), (^.))
 import Primer.Core (
   Bind' (..),
@@ -310,7 +304,7 @@ redexes = go mempty
             -- If it was, it would be a different x and we'd cause variable capture if we
             -- substituted e into the λ body.
             App _ e1@(Letrec _ x _ _ Lam{}) e4 ->
-              (self `unless` Set.member x (freeVars e4)) <> go locals e1 <> go locals e4
+              (self `munless` Set.member x (freeVars e4)) <> go locals e1 <> go locals e4
             -- f x
             App _ e1 e2 -> go locals e1 <> go locals e2
             APP _ e@LAM{} t -> self <> go locals e <> goType locals t
@@ -318,7 +312,7 @@ redexes = go mempty
             -- (letrec x : T = Λ ...) e
             -- This is the same as the letrec case above, but for Λ
             APP _ e1@(Letrec _ x _ _ LAM{}) e4 ->
-              (self `unless` Set.member x (freeVarsTy e4)) <> go locals e1 <> goType locals e4
+              (self `munless` Set.member x (freeVarsTy e4)) <> go locals e1 <> goType locals e4
             APP _ e t -> go locals e <> goType locals t
             Var _ x
               | Set.member x locals -> self
@@ -327,15 +321,15 @@ redexes = go mempty
             -- Note that x is in scope in e2 but not e1.
             Let _ x e1 e2 ->
               let locals' = Set.insert x locals
-               in go locals e1 <> go locals' e2 <> (self `unless` Set.member x (freeVars e2))
+               in go locals e1 <> go locals' e2 <> (self `munless` Set.member x (freeVars e2))
             -- Whereas here, x is in scope in both e1 and e2.
             Letrec _ x e1 t e2 ->
               let locals' = Set.insert x locals
-               in go locals' e1 <> go locals' e2 <> goType locals t <> (self `unless` Set.member x (freeVars e2))
+               in go locals' e1 <> go locals' e2 <> goType locals t <> (self `munless` Set.member x (freeVars e2))
             -- As with Let, x is in scope in e but not in t
             LetType _ x _t e ->
               let locals' = Set.insert x locals
-               in go locals' e <> self `unless` Set.member x (freeVars e)
+               in go locals' e <> self `munless` Set.member x (freeVars e)
             Lam _ x e -> go (Set.delete x locals) e
             LAM _ x e -> go (Set.delete x locals) e
             EmptyHole{} -> mempty
@@ -391,7 +385,7 @@ makeSafeLetBinding name others body = go 0
   where
     go :: Int -> (Name, Expr)
     go n =
-      let newName = unsafeMkName $ unName name <> pack (show n)
+      let newName = unsafeMkName $ unName name <> show n
        in if Set.member newName others
             then go (n + 1)
             else case renameVar name newName body of
@@ -718,7 +712,7 @@ regenerateExprIDs =
   traverseOf (_exprMeta % _id) (const fresh)
     >=> traverseOf (_exprTypeMeta % _id) (const fresh)
 
--- | @x `unless` b@ is `x` if `b` is 'False', otherwise it is 'mempty'.
+-- | @x `munless` b@ is `x` if `b` is 'False', otherwise it is 'mempty'.
 -- It's like 'Control.Monad.unless' but for Monoids rather than Applicatives.
-unless :: Monoid a => a -> Bool -> a
-unless x b = if b then mempty else x
+munless :: Monoid a => a -> Bool -> a
+munless x b = if b then mempty else x

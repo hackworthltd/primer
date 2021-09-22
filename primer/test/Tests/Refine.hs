@@ -2,12 +2,10 @@
 
 module Tests.Refine where
 
-import Control.Monad (when)
-import Control.Monad.Except (runExceptT)
+import Foreword hiding (diff)
+
 import Control.Monad.Fresh (MonadFresh)
-import Control.Monad.Reader (ask, asks)
 import qualified Data.Map as M
-import Data.Maybe (catMaybes, mapMaybe)
 import qualified Data.Set as S
 import Gen.Core.Typed (
   forAllT,
@@ -60,10 +58,10 @@ defaultCxt :: Cxt
 defaultCxt = buildTypingContext defaultTypeDefs mempty NoSmartHoles
 
 refine' :: (MonadFresh NameCounter m, MonadFresh ID m) => Cxt -> Type -> Type -> m (Maybe ([Inst], Type))
-refine' cxt s t = fmap (either crash id) $ runExceptT $ refine cxt s t
+refine' cxt s t = fmap (either crash identity) $ runExceptT $ refine cxt s t
   where
     -- If we run across a bug whilst testing, crash loudly
-    crash = error . ("InternalUnifyError: " <>) . show
+    crash = panic . ("InternalUnifyError: " <>) . show
 
 -- refine [...,a:*] a a = Just ([],a)
 unit_var_refl :: Assertion
@@ -274,9 +272,9 @@ hprop_matches = withDiscards 2000 $
           _ -> failure
       _ -> discard
   where
-    inst1 (TFun _ s t) (InstApp s') | s == s' = pure (id, t)
+    inst1 (TFun _ s t) (InstApp s') | s == s' = pure (identity, t)
     inst1 (TForall _ a k t) (InstUnconstrainedAPP b k') | k == k' = (extendLocalCxtTy (b, k),) <$> substTy a (TVar () b) t
-    inst1 (TForall _ a _ t) (InstAPP s) = (id,) <$> substTy a s t
+    inst1 (TForall _ a _ t) (InstAPP s) = (identity,) <$> substTy a s t
     inst1 _ _ = failure
 
 -- if refine cxt tgt s = Just (is,ty)   =>  (? : s) $ <stuff checking against is>  ∈ ty[instantiation vars substituted appropriately] ~ tgt

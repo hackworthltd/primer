@@ -1,6 +1,8 @@
 -- | Tests for action application.
 module Tests.Action where
 
+import Foreword
+
 import Data.Generics.Uniplate.Data (universe)
 import Gen.Core.Raw (
   evalExprGen,

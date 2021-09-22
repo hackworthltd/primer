@@ -44,10 +44,9 @@ module Primer.Zipper (
   bindersBelowTy,
 ) where
 
-import Control.Applicative ((<|>))
+import Foreword
+
 import Data.Data (Data)
-import Data.Function ((&))
-import Data.Functor ((<&>))
 import Data.Generics.Product (field, position)
 import Data.Generics.Sum (_Ctor)
 import Data.Generics.Uniplate.Data ()
@@ -60,7 +59,6 @@ import Data.Generics.Uniplate.Zipper (
 import qualified Data.Generics.Uniplate.Zipper as Z
 import Data.List as List (delete)
 import qualified Data.Set as S
-import GHC.Generics (Generic)
 import Optics (
   filteredBy,
   ifolded,
@@ -372,11 +370,6 @@ foldBelow :: (IsZipper za a, Monoid m) => (a -> m) -> za -> m
 foldBelow f z = f (target z) <> maybe mempty go (farthest left <$> down z)
   where
     go z' = f (target z') <> maybe mempty go (farthest left <$> down z') <> maybe mempty go (right z')
-
--- | @guarded f x@ returns @Just x@ if @f x@ is @True@.
-guarded :: (a -> Bool) -> a -> Maybe a
-guarded f x | f x = Just x
-guarded _ _ = Nothing
 
 -- Gets all binders that scope over the focussed subtree
 bindersAbove :: ExprZ -> S.Set Name

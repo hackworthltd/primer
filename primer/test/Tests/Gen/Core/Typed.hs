@@ -5,11 +5,9 @@
 -- generate well-typed terms
 module Tests.Gen.Core.Typed where
 
-import Control.Monad.Except (runExceptT)
-import Control.Monad.Morph (lift)
-import Control.Monad.Reader (ask, local)
+import Foreword hiding (diff)
+
 import qualified Data.Map as M
-import GHC.Stack (HasCallStack, withFrozenCallStack)
 import Gen.Core.Typed (
   WT,
   genChk,

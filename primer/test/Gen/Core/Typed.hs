@@ -18,17 +18,11 @@ module Gen.Core.Typed (
   freshNameForCxt,
 ) where
 
-import Control.Monad (replicateM)
-import Control.Monad.Except (runExceptT)
+import Foreword
+
 import Control.Monad.Fresh (MonadFresh, fresh)
-import Control.Monad.Morph (hoist, lift)
-import Control.Monad.Reader (MonadReader, ReaderT, ask, asks, local, runReaderT)
-import Control.Monad.State (MonadState)
-import Data.Bifunctor (first, second)
-import Data.Functor ((<&>))
+import Control.Monad.Morph (hoist)
 import qualified Data.Map as M
-import Data.Maybe (catMaybes)
-import Data.Traversable (for)
 import Hedgehog (
   GenT,
   MonadGen,
@@ -159,7 +153,7 @@ genSyns ty = do
             cxt <- ask
             runExceptT (refine cxt ty hT) >>= \case
               -- This error case indicates a bug. Crash and fail loudly!
-              Left err -> error $ "Internal refine/unify error: " ++ show err
+              Left err -> panic $ "Internal refine/unify error: " <> show err
               Right Nothing -> pure Nothing
               Right (Just (inst, instTy)) -> do
                 (sb, is) <- genInstApp inst

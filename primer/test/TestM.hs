@@ -1,8 +1,9 @@
 -- A test monad for generating names and IDs and typechecking
 module TestM (TestM, evalTestM) where
 
+import Foreword
+
 import Control.Monad.Fresh
-import Control.Monad.State (MonadState, State, get, put, runState)
 import Primer.Core (ID (..))
 import Primer.Name (NameCounter)
 

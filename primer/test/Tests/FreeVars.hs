@@ -1,5 +1,7 @@
 module Tests.FreeVars where
 
+import Foreword
+
 import qualified Data.Set as Set
 import Primer.Core (Kind (KType))
 import Primer.Core.DSL

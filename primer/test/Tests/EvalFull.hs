@@ -1,13 +1,13 @@
 module Tests.EvalFull where
 
-import Control.Monad (when, zipWithM_)
+import Foreword hiding (unlines)
+
 import Control.Monad.Fresh (fresh)
-import Control.Monad.Reader (asks)
-import Data.Function (on)
 import Data.Generics.Uniplate.Data (universe)
 import Data.List ((\\))
 import qualified Data.Map as M
 import qualified Data.Set as S
+import Data.String (unlines)
 import Gen.Core.Typed (WT, forAllT, genChk, genSyn, genWTType, propertyWT)
 import Hedgehog hiding (test)
 import qualified Hedgehog.Gen as Gen
@@ -142,8 +142,8 @@ unit_8 =
         isEven <- lam "x" $ case_ (var "x") [branch "Zero" [] $ con "True", branch "Succ" [("n", Nothing)] $ global oddID `app` var "n"]
         isOdd <- lam "x" $ case_ (var "x") [branch "Zero" [] $ con "False", branch "Succ" [("n", Nothing)] $ global evenID `app` var "n"]
         let mkList t = foldr (\x xs -> con "Cons" `aPP` t `app` x `app` xs) (con "Nil" `aPP` t)
-        let list = mkList (tcon "Nat") $ take n $ iterate (con "Succ" `app`) (con "Zero")
-        expr <- global mapID `aPP` tcon "Nat" `aPP` tcon "Bool" `app` global evenID `app` list
+        let lst = mkList (tcon "Nat") $ take n $ iterate (con "Succ" `app`) (con "Zero")
+        expr <- global mapID `aPP` tcon "Nat" `aPP` tcon "Bool" `app` global evenID `app` lst
         let mapDef = Def mapID "map" map_ mapTy
         let evenDef = Def evenID "even" isEven evenTy
         let oddDef = Def oddID "odd" isOdd oddTy
@@ -182,8 +182,8 @@ unit_9 =
         isEven <- lam "x" $ case_ (var "x") [branch "Zero" [] $ con "True", branch "Succ" [("n", Nothing)] $ global oddID `app` var "n"]
         isOdd <- lam "x" $ case_ (var "x") [branch "Zero" [] $ con "False", branch "Succ" [("n", Nothing)] $ global evenID `app` var "n"]
         let mkList t = foldr (\x xs -> con "Cons" `aPP` t `app` x `app` xs) (con "Nil" `aPP` t)
-        let list = mkList (tcon "Nat") $ take n $ iterate (con "Succ" `app`) (con "Zero")
-        expr <- global mapID `aPP` tcon "Nat" `aPP` tcon "Bool" `app` global evenID `app` list
+        let lst = mkList (tcon "Nat") $ take n $ iterate (con "Succ" `app`) (con "Zero")
+        expr <- global mapID `aPP` tcon "Nat" `aPP` tcon "Bool" `app` global evenID `app` lst
         let mapDef = Def mapID "map" map_ mapTy
         let evenDef = Def evenID "even" isEven evenTy
         let oddDef = Def oddID "odd" isOdd oddTy

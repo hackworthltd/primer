@@ -1,5 +1,7 @@
 module Tests.Subst where
 
+import Foreword
+
 import Optics (set)
 import Primer.Core (
   Kind (KType),

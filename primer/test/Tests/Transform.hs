@@ -1,6 +1,7 @@
 module Tests.Transform where
 
-import Data.Function (on)
+import Foreword
+
 import Optics (over, view)
 import Primer.Core
 import Primer.Core.DSL

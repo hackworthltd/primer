@@ -17,16 +17,14 @@ module Primer.EvalFull (
 -- (Perhaps we should just run a TC pass after each step?)
 -- See https://github.com/hackworthltd/primer/issues/6
 
+import Foreword
+
 import Control.Monad.Fresh (MonadFresh)
 import Data.Data (Data)
-import Data.Either (rights)
-import Data.Foldable (foldrM)
-import Data.Functor ((<&>))
-import Data.List (find, unfoldr)
 import qualified Data.Map as M
 import qualified Data.Set as S
 import Data.Set.Optics (setOf)
-import GHC.Generics (Generic)
+import GHC.Err (error)
 import Numeric.Natural (Natural)
 import Optics (Fold, anyOf, getting, hasn't, set, summing, (%), _1, _2)
 import Primer.Core (
@@ -311,19 +309,19 @@ findRedex ::
   Maybe (m RedexWithContext)
 findRedex tydefs globals dir = go . focus
   where
-    -- it may be nice to use First and write <> rather than <||>, but down returns a maybe, so the monadic binds work better if go returns Maybe rather than First...
-    Nothing <||> y = y
-    x@(Just _) <||> _ = x
+    -- it may be nice to use First and write <> rather than <<||>>, but down returns a maybe, so the monadic binds work better if go returns Maybe rather than First...
+    Nothing <<||>> y = y
+    x@(Just _) <<||>> _ = x
     eachChild z f = case down z of
       Nothing -> Nothing
       Just z' ->
         let children = z' : unfoldr (fmap (\x -> (x, x)) . right) z'
-         in foldr ((<||>) . f) Nothing children
+         in foldr ((<<||>>) . f) Nothing children
     eachChildWithBinding z f = case down z of
       Nothing -> Nothing
       Just z' ->
         let children = z' : unfoldr (fmap (\x -> (x, x)) . right) z'
-         in foldr (\c acc -> f (getBoundHere (target z) (Just $ target c)) c <||> acc) Nothing children
+         in foldr (\c acc -> f (getBoundHere (target z) (Just $ target c)) c <<||>> acc) Nothing children
     go ez
       | Just (n, l, bz) <- viewLet ez = pure <$> goLet n l bz
       | Just mr <- viewRedex tydefs globals (focusDir dir ez) (target ez) = Just $ RExpr ez <$> mr
@@ -334,7 +332,7 @@ findRedex tydefs globals dir = go . focus
     goLet :: Name -> Local -> ExprZ -> Maybe RedexWithContext
     goLet n l ez =
       goSubst n l ez
-        <||> (up ez <&> \letz -> RExpr letz $ ElideLet n l (target ez))
+        <<||>> (up ez <&> \letz -> RExpr letz $ ElideLet n l (target ez))
     goSubst :: Name -> Local -> ExprZ -> Maybe RedexWithContext
     goSubst n l ez = case target ez of
       -- We've found one
@@ -358,7 +356,7 @@ findRedex tydefs globals dir = go . focus
       _
         | Just (m, l', bz') <- viewLet ez, m /= n, anyOf _freeVarsLocal (== m) l -> goLet m l' bz'
         -- Otherwise recurse into subexpressions (including let bindings) and types (if appropriate)
-        | LLetType t <- l -> eachChildWithBinding ez rec <||> (focusType ez >>= goSubstTy n t)
+        | LLetType t <- l -> eachChildWithBinding ez rec <<||>> (focusType ez >>= goSubstTy n t)
         | otherwise -> eachChildWithBinding ez rec
       where
         rec bs z
@@ -372,6 +370,8 @@ findRedex tydefs globals dir = go . focus
               Lam m x e -> RExpr z' $ RenameBindingsLam m x e fvs
               LAM m x e -> RExpr z' $ RenameBindingsLAM m x e fvs
               Case m s brs -> RExpr z' $ RenameBindingsCase m s brs fvs
+              -- We should replace this with a proper exception. See:
+              -- https://github.com/hackworthltd/primer/issues/148
               e -> error $ "Internal Error: something other than Lam/LAM/Case was a binding: " ++ show e
           | otherwise = goSubst n l z
     goSubstTy :: Name -> Type -> TypeZ -> Maybe RedexWithContext
@@ -425,6 +425,8 @@ runRedex = \case
             let binds' = zipWith f binds rn
             rhs' <- foldrM (\(v, w) -> let_ v (var w) . pure) rhs $ rights rn
             pure $ Case m s $ brs0 ++ CaseBranch ctor binds' rhs' : brs1
+    -- We should replace this with a proper exception. See:
+    -- https://github.com/hackworthltd/primer/issues/148
     | otherwise -> error "Internal Error: RenameBindingsCase found no applicable branches"
 
 runRedexTy :: (MonadFresh ID m, MonadFresh NameCounter m) => RedexType -> m Type

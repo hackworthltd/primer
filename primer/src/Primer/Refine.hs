@@ -1,8 +1,8 @@
 module Primer.Refine (refine, Inst (..)) where
 
-import Control.Monad.Except (MonadError)
+import Foreword
+
 import Control.Monad.Fresh (MonadFresh)
-import Data.Either (rights)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import Primer.Core (Type' (TForall, TFun, TVar))
