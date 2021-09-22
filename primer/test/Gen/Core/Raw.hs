@@ -1,4 +1,12 @@
-module Gen.Core.Raw where
+module Gen.Core.Raw (
+  runExprGen,
+  evalExprGen,
+  genID,
+  genName,
+  genKind,
+  genType,
+  genExpr,
+) where
 
 import Control.Monad.State (StateT, evalStateT, get, put, runStateT)
 import Hedgehog hiding (Var, check)
