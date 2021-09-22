@@ -45,6 +45,8 @@
         in
         builtins.trace "Nix Primer version is ${v}" v;
 
+      ghcVersion = "ghc8107";
+
       forAllSupportedSystems = flake-utils.lib.eachSystem [
         "x86_64-linux"
         "x86_64-darwin"
@@ -60,7 +62,7 @@
         (final: prev:
           let
             primer = final.haskell-nix.cabalProject {
-              compiler-nix-name = "ghc8107";
+              compiler-nix-name = ghcVersion;
               src = ./.;
               modules = [
                 {
@@ -95,7 +97,7 @@
 
             ghcjsPrimer = final.haskell-nix.cabalProject {
               cabalProjectFileName = "cabal.ghcjs.project";
-              compiler-nix-name = "ghc8107";
+              compiler-nix-name = ghcVersion;
               src = ./.;
               modules = [
                 {
@@ -184,7 +186,7 @@
         let
           # Override the default nix-pre-commit-hooks tools with the version
           # we're using.
-          haskellNixTools = pkgs.haskell-nix.tools "ghc8107" {
+          haskellNixTools = pkgs.haskell-nix.tools ghcVersion {
             hlint = "latest";
             fourmolu = "latest";
             cabal-fmt = "latest";
