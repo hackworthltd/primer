@@ -10,4 +10,8 @@ $(targets):
 	$(MAKE) -C primer-selda $@
 	$(MAKE) -C primer-service $@
 
-.PHONY: $(targets)
+weeder:
+	cabal build all --enable-benchmarks --enable-tests
+	weeder
+
+.PHONY: $(targets) weeder
