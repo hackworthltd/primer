@@ -182,6 +182,37 @@
 
       primerFlake = pkgs.primer.flake { };
 
+      weeder =
+        let
+          weederTool = pkgs.haskell-nix.tool ghcVersion "weeder" "latest";
+          getLibHIE = package:
+            pkgs.lib.optional (package.components ? library)
+              { name = "${package.identifier.name}-library"; path = package.components.library.hie; };
+          getHIE = package: component: pkgs.lib.lists.map
+            (cn: {
+              name = "${package.identifier.name}-${component}-${cn}";
+              path = package.components.${component}.${cn}.hie;
+            })
+            (builtins.attrNames package.components.${component});
+          getHIEs = package:
+            getLibHIE package
+            ++ pkgs.lib.concatMap (getHIE package)
+              [ "benchmarks" "exes" "sublibs" "tests" ];
+          primer-packages = pkgs.haskell-nix.haskellLib.selectProjectPackages pkgs.primer;
+        in
+        pkgs.runCommand "weeder"
+          {
+            weederConfig = ./weeder.dhall;
+            allHieFiles = pkgs.linkFarm
+              "primer-hie-files"
+              (pkgs.lib.concatMap getHIEs (builtins.attrValues primer-packages));
+          }
+          ''
+            export XDG_CACHE_HOME=$(mktemp -d)
+            ${weederTool}/bin/weeder --config $weederConfig --hie-directory $allHieFiles
+            touch $out
+          '';
+
       pre-commit-hooks =
         let
           # Override the default nix-pre-commit-hooks tools with the version
@@ -228,6 +259,7 @@
       checks =
         {
           source-code-checks = pre-commit-hooks;
+          weeder = weeder;
         }
         // primerFlake.checks;
 
