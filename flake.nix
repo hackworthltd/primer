@@ -210,6 +210,7 @@
           ''
             export XDG_CACHE_HOME=$(mktemp -d)
             ${weederTool}/bin/weeder --config $weederConfig --hie-directory $allHieFiles
+            echo "No issues found."
             touch $out
           '';
 

@@ -13,5 +13,6 @@ $(targets):
 weeder:
 	cabal build all --enable-benchmarks --enable-tests
 	weeder
+	@echo "No issues found."
 
 .PHONY: $(targets) weeder
