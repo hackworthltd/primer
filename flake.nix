@@ -45,6 +45,8 @@
         in
         builtins.trace "Nix Primer version is ${v}" v;
 
+      ghcVersion = "ghc8107";
+
       forAllSupportedSystems = flake-utils.lib.eachSystem [
         "x86_64-linux"
         "x86_64-darwin"
@@ -60,7 +62,7 @@
         (final: prev:
           let
             primer = final.haskell-nix.cabalProject {
-              compiler-nix-name = "ghc8107";
+              compiler-nix-name = ghcVersion;
               src = ./.;
               modules = [
                 {
@@ -100,7 +102,7 @@
 
             ghcjsPrimer = final.haskell-nix.cabalProject {
               cabalProjectFileName = "cabal.ghcjs.project";
-              compiler-nix-name = "ghc8107";
+              compiler-nix-name = ghcVersion;
               src = ./.;
               modules = [
                 {
@@ -185,11 +187,43 @@
 
       primerFlake = pkgs.primer.flake { };
 
+      weeder =
+        let
+          weederTool = pkgs.haskell-nix.tool ghcVersion "weeder" "latest";
+          getLibHIE = package:
+            pkgs.lib.optional (package.components ? library)
+              { name = "${package.identifier.name}-library"; path = package.components.library.hie; };
+          getHIE = package: component: pkgs.lib.lists.map
+            (cn: {
+              name = "${package.identifier.name}-${component}-${cn}";
+              path = package.components.${component}.${cn}.hie;
+            })
+            (builtins.attrNames package.components.${component});
+          getHIEs = package:
+            getLibHIE package
+            ++ pkgs.lib.concatMap (getHIE package)
+              [ "benchmarks" "exes" "sublibs" "tests" ];
+          primer-packages = pkgs.haskell-nix.haskellLib.selectProjectPackages pkgs.primer;
+        in
+        pkgs.runCommand "weeder"
+          {
+            weederConfig = ./weeder.dhall;
+            allHieFiles = pkgs.linkFarm
+              "primer-hie-files"
+              (pkgs.lib.concatMap getHIEs (builtins.attrValues primer-packages));
+          }
+          ''
+            export XDG_CACHE_HOME=$(mktemp -d)
+            ${weederTool}/bin/weeder --config $weederConfig --hie-directory $allHieFiles
+            echo "No issues found."
+            touch $out
+          '';
+
       pre-commit-hooks =
         let
           # Override the default nix-pre-commit-hooks tools with the version
           # we're using.
-          haskellNixTools = pkgs.haskell-nix.tools "ghc8107" {
+          haskellNixTools = pkgs.haskell-nix.tools ghcVersion {
             hlint = "latest";
             fourmolu = "latest";
             cabal-fmt = "latest";
@@ -231,6 +265,7 @@
       checks =
         {
           source-code-checks = pre-commit-hooks;
+          weeder = weeder;
         }
         // primerFlake.checks;
 
@@ -251,8 +286,9 @@
           fourmolu = "latest";
           cabal-edit = "latest";
           cabal-fmt = "latest";
-          #TODO This shouldn't be necessary - see the commented-out `build-tool-depends` in primer.cabal.
+          #TODO Explicitly requiring tasty-discover shouldn't be necessary - see the commented-out `build-tool-depends` in primer.cabal.
           tasty-discover = "latest";
+          weeder = "latest";
         };
 
         buildInputs = (with pkgs; [

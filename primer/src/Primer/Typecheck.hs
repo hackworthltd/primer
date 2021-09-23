@@ -25,8 +25,6 @@ module Primer.Typecheck (
   TypeError (..),
   typeOf,
   maybeTypeOf,
-  idOf,
-  matchesArrowType,
   matchArrowType,
   matchForallType,
   decomposeTAppCon,
@@ -73,7 +71,6 @@ import Primer.Core (
   Expr,
   Expr' (..),
   ExprMeta,
-  HasID (_id),
   ID,
   Kind (..),
   Meta (..),
@@ -235,10 +232,6 @@ maybeTypeOf = view _maybeTypecache
 -- | Get the type of an Expr
 typeOf :: HasType TypeCache a => Expr' a b -> TypeCache
 typeOf = view _typecache
-
--- | Get the ID of an Expr or Type
-idOf :: HasID a => a -> ID
-idOf = view _id
 
 -- | Extend the metadata of an 'Expr' or 'Type'
 -- (usually with a 'TypeCache' or 'Kind')
@@ -814,10 +807,6 @@ matchArrowType (TEmptyHole _) = pure (TEmptyHole (), TEmptyHole ())
 matchArrowType (THole _ _) = pure (TEmptyHole (), TEmptyHole ())
 matchArrowType (TFun _ a b) = pure (a, b)
 matchArrowType _ = Nothing
-
--- | True if matchArrowType returns a matching type.
-matchesArrowType :: Type -> Bool
-matchesArrowType = isJust . matchArrowType
 
 -- | Checks if a type can be hole-refined to a forall, and if so returns the
 -- forall'd version.

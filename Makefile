@@ -10,4 +10,9 @@ $(targets):
 	$(MAKE) -C primer-selda $@
 	$(MAKE) -C primer-service $@
 
-.PHONY: $(targets)
+weeder:
+	cabal build all --enable-benchmarks --enable-tests
+	weeder
+	@echo "No issues found."
+
+.PHONY: $(targets) weeder

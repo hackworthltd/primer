@@ -403,9 +403,6 @@ hprop_type_preservation = withTests 1000 $
 
 -- * Utilities
 
-unit :: PropertyT IO () -> Property
-unit = withTests 1 . property
-
 evalFullTest :: ID -> M.Map Name TypeDef -> M.Map ID Def -> TerminationBound -> Dir -> Expr -> Either EvalFullError Expr
 evalFullTest id_ tydefs globals n d e = evalTestM id_ $ evalFull tydefs globals n d e
 
@@ -436,11 +433,6 @@ genDirTmGlobs = do
           <$> generateTypeIDs defTy <*> (generateIDs =<< genChk defTy)
   globs <- forAllT $ M.traverseWithKey genDef globTypes
   pure (dir, t, ty, globs)
-
--- | Like '===' but specifically for expressions.
--- Ignores IDs, but remembers metadata (like cached types)
-(~==) :: Expr -> Expr -> Assertion
-x ~== y = on (@?=) (set _ids 0) x y
 
 _ids :: Traversal' Expr ID
 _ids = (_exprMeta % _id) `adjoin` (_exprTypeMeta % _id)
