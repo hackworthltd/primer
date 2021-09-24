@@ -1,15 +1,12 @@
 name: Update Nix dependencies
 
-on: workflow_dispatch
-
-# on:
-#   schedule:
-#     - cron: '0 3 * * *'
+on:
+  schedule:
+    - cron: '0 3 * * *'
 
 jobs:
-  update-dependencies:
-    #runs-on: ubuntu-latest
-    runs-on: [self-hosted, linux]
+  update-nix-dependencies:
+    runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v2.3.4
       with:
