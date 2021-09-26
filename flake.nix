@@ -295,6 +295,9 @@
           nixpkgs-fmt
           sqlite
           postgresql
+
+          # For Language Server support.
+          nodejs-16_x
         ]) ++ [
           (
             pkgs.haskell.lib.justStaticExecutables
