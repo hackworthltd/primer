@@ -4,6 +4,7 @@ packages:
   primer
   primer-selda
   primer-service
+  primer-api
 
 optimization: 0
 
