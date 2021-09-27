@@ -1,4 +1,12 @@
-module Gen.Core.Raw where
+module Gen.Core.Raw (
+  runExprGen,
+  evalExprGen,
+  genID,
+  genName,
+  genKind,
+  genType,
+  genExpr,
+) where
 
 import Foreword
 

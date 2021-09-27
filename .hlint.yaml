@@ -14,3 +14,13 @@
 - ignore:
     name: "Use let"
     within: Main
+- warn:
+    name: "Use explicit module export list"
+- warn:
+    name: "Use module export list"
+- ignore:
+    name: "Use explicit module export list"
+    within: Tests.**
+- ignore:
+    name: "Use module export list"
+    within: Tests.**
