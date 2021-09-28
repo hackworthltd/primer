@@ -11,3 +11,18 @@ swagger.json :
 
 $(swagger-targets) : static-swgen-% : swagger.json
 	openapi-generator-cli generate -i $< -o ts-swagger-generated/$* -g $*
+
+.PHONY: ats-gen
+ats-gen:
+	cabal run -v0 ats > ats-gen.ts
+
+.DEFAULT_GOAL := all
+.PHONY: all
+
+all : static-swagger-gen ats-gen
+
+.PHONY: clean
+clean : 
+	-rm swagger.json
+	-rm -r ts-swagger-generated
+	-rm ats-gen.ts
