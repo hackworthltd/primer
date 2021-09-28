@@ -34,8 +34,10 @@ module Primer.Core (
   TypeMeta,
   Meta (Meta),
   _exprMeta,
+  _exprMetaLens,
   _exprTypeMeta,
   _typeMeta,
+  _typeMetaLens,
   defaultTypeDefs,
   bindName,
 ) where
@@ -149,6 +151,10 @@ data Expr' a b
 _exprMeta :: forall a b c. Traversal (Expr' a b) (Expr' c b) a c
 _exprMeta = param @1
 
+-- | A lens on to the metadata of an expression.
+_exprMetaLens :: Lens' (Expr' a b) a
+_exprMetaLens = position @1
+
 -- | A traversal over the type metadata of an expression
 _exprTypeMeta :: forall a b c. Traversal (Expr' a b) (Expr' a c) b c
 _exprTypeMeta = param @0
@@ -203,6 +209,10 @@ data Type' a
 -- | A traversal over the metadata of a type
 _typeMeta :: Traversal (Type' a) (Type' b) a b
 _typeMeta = param @0
+
+-- | A lens on to the metadata of a type.
+_typeMetaLens :: Lens' (Type' a) a
+_typeMetaLens = position @1
 
 -- | Core kinds.
 data Kind = KHole | KType | KFun Kind Kind

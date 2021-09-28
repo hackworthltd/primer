@@ -58,7 +58,7 @@ import Data.Generics.Uniplate.Zipper (
  )
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
-import Optics (Lens', re, traverseOf, view, (%), (.~), (^.), _Left, _Right)
+import Optics (re, traverseOf, view, (%), (.~), (^.), _Left, _Right)
 import Primer.Action (
   Action,
   ActionError (IDNotFound),
@@ -80,9 +80,11 @@ import Primer.Core (
   defaultTypeDefs,
   getID,
   _exprMeta,
+  _exprMetaLens,
   _exprTypeMeta,
   _id,
   _typeMeta,
+  _typeMetaLens,
  )
 import Primer.Eval (EvalDetail, EvalError)
 import qualified Primer.Eval as Eval
@@ -888,9 +890,3 @@ copyPasteBody p (fromDefId, fromId) toDefId setup = do
       let newSel = NodeSelection BodyNode (getID $ target pasted) (pasted ^. _target % _exprMetaLens % re _Left)
       let finalProg = p{progDefs = newDefs, progSelection = Just (Selection newDef $ Just newSel)}
       tcWholeProg finalProg
-
-_typeMetaLens :: Lens' (Type' a) a
-_typeMetaLens = position @1
-
-_exprMetaLens :: Lens' (Expr' a b) a
-_exprMetaLens = position @1
