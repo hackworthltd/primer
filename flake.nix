@@ -295,6 +295,7 @@
           nixpkgs-fmt
           sqlite
           postgresql
+          openapi-generator-cli
         ]) ++ [
           (
             pkgs.haskell.lib.justStaticExecutables

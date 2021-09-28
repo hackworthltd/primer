@@ -10,6 +10,7 @@ import Servant.OpenApi
 -- | API for serving @swagger.json@.
 type SwaggerAPI = "swagger.json" :> Get '[JSON] OpenApi
 
+-- TODO: this is duplicated in Swagger.hs
 -- | Swagger spec for API.
 swaggerInfo :: OpenApi
 swaggerInfo = toOpenApi (Proxy @API)
