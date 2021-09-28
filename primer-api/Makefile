@@ -12,6 +12,11 @@ swagger.json :
 $(swagger-targets) : static-swgen-% : swagger.json
 	openapi-generator-cli generate -i $< -o ts-swagger-generated/$* -g $*
 
+.PHONY: static-swgen-typescript-axios-standalone
+static-swgen-typescript-axios-standalone : static-swgen-%-standalone : swagger.json
+	openapi-generator-cli generate -i $< -o ts-swagger-generated/$*-standalone -g $* -p withSeparateModelsAndApi=true --api-package apiPackage --model-package modelPackage
+
+
 .PHONY: ats-gen
 ats-gen:
 	cabal run -v0 ats > ats-gen.ts
@@ -19,7 +24,7 @@ ats-gen:
 .DEFAULT_GOAL := all
 .PHONY: all
 
-all : static-swagger-gen ats-gen
+all : static-swagger-gen ats-gen static-swgen-typescript-axios-standalone
 
 .PHONY: clean
 clean : 
