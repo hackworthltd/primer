@@ -7,66 +7,67 @@ copyright:     (c) 2021 Hackworth Ltd
 maintainer:    src@hackworthltd.com
 author:        Hackworth Ltd <src@hackworthltd.com>
 stability:     experimental
-synopsis:      A playground for working out how to document an api and export types and docs nicely
+synopsis:
+  A playground for working out how to document an api and export types and docs nicely
 
 executable swagger
   default-language:   Haskell2010
-  hs-source-dirs: exe
-  main-is: Swagger.hs
+  hs-source-dirs:     exe
+  main-is:            Swagger.hs
   default-extensions:
     DataKinds
     OverloadedLabels
     OverloadedStrings
-    TypeApplications
     TypeOperators
+
   build-depends:
-    , base               >=4.12     && <=4.16
-    , aeson-pretty       >=0.8.8    && <0.8.9
-    , bytestring         >=0.10.8.2 && <=0.12
+    , aeson-pretty      >=0.8.8    && <0.8.9
+    , base              >=4.12     && <=4.16
+    , bytestring        >=0.10.8.2 && <=0.12
+    , openapi3          >=3.1.0    && <3.1.1
+    , optics            >=0.4      && <=0.5
     , primer-api
-    , openapi3           >=3.1.0    && <3.1.1
-    , optics             >=0.4      && <=0.5
-    , servant-openapi3   >=2.0.1.2  && <2.0.1.3
+    , servant-openapi3  >=2.0.1.2  && <2.0.1.3
 
 executable serve
   default-language:   Haskell2010
-  hs-source-dirs: exe
-  main-is: Serve.hs
+  hs-source-dirs:     exe
+  main-is:            Serve.hs
   default-extensions:
     DataKinds
     OverloadedLabels
     OverloadedStrings
-    TypeApplications
     TypeOperators
+
   build-depends:
-    , base               >=4.12     && <=4.16
+    , base              >=4.12    && <=4.16
+    , openapi3          >=3.1.0   && <3.1.1
+    , optics            >=0.4     && <=0.5
     , primer-api
-    , openapi3           >=3.1.0    && <3.1.1
-    , optics             >=0.4      && <=0.5
-    , servant-openapi3   >=2.0.1.2  && <2.0.1.3
-    , servant-server     >=0.18.3   && <0.18.4
-    , warp               >=3.3.17   && <3.3.18
+    , servant-openapi3  >=2.0.1.2 && <2.0.1.3
+    , servant-server    >=0.18.3  && <0.18.4
+    , warp              >=3.3.17  && <3.3.18
 
 executable ats
   default-language:   Haskell2010
-  hs-source-dirs: exe
-  main-is: ATS.hs
+  hs-source-dirs:     exe
+  main-is:            ATS.hs
   default-extensions:
     DataKinds
     OverloadedLabels
     OverloadedStrings
-    TypeApplications
     TypeOperators
+
   build-depends:
-    , base               >=4.12     && <=4.16
-    , aeson              >=1.5.2.0  && <=1.6
-    , aeson-pretty       >=0.8.8    && <0.8.9
-    , aeson-typescript   >=0.3.0.1  && <0.3.0.2
-    , bytestring         >=0.10.8.2 && <=0.12
+    , aeson             >=1.5.2.0  && <=1.6
+    , aeson-pretty      >=0.8.8    && <0.8.9
+    , aeson-typescript  >=0.3.0.1  && <0.3.0.2
+    , base              >=4.12     && <=4.16
+    , bytestring        >=0.10.8.2 && <=0.12
+    , openapi3          >=3.1.0    && <3.1.1
+    , optics            >=0.4      && <=0.5
     , primer-api
-    , openapi3           >=3.1.0    && <3.1.1
-    , optics             >=0.4      && <=0.5
-    , servant-openapi3   >=2.0.1.2  && <2.0.1.3
+    , servant-openapi3  >=2.0.1.2  && <2.0.1.3
 
 library
   exposed-modules:
@@ -75,7 +76,6 @@ library
 
   hs-source-dirs:     src
   other-modules:
-
   default-language:   Haskell2010
   default-extensions:
     NoImplicitPrelude
