@@ -1,4 +1,5 @@
 {-# LANGUAGE DeriveFunctor #-}
+{-# LANGUAGE OverloadedLabels #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE UndecidableInstances #-}
 
@@ -20,6 +21,8 @@ module Primer.Core (
   Type' (..),
   TypeCache (..),
   TypeCacheBoth (..),
+  _chkedAt,
+  _synthed,
   Kind (..),
   TypeDef (..),
   typeDefKind,
@@ -33,6 +36,7 @@ module Primer.Core (
   ExprMeta,
   TypeMeta,
   Meta (Meta),
+  _type,
   _exprMeta,
   _exprMetaLens,
   _exprTypeMeta,
@@ -40,6 +44,7 @@ module Primer.Core (
   _typeMetaLens,
   defaultTypeDefs,
   bindName,
+  _bindMeta,
 ) where
 
 import Foreword
@@ -49,7 +54,7 @@ import Data.Data (Data)
 import Data.Generics.Product
 import Data.Generics.Uniplate.Data ()
 import Data.Generics.Uniplate.Zipper (Zipper, hole, replaceHole)
-import Optics (Lens', Traversal, lens, set, view, (%))
+import Optics (AffineFold, Lens, Lens', Traversal, afailing, lens, set, view, (%))
 import Primer.JSON
 import Primer.Name (Name)
 
@@ -68,6 +73,14 @@ instance FromJSONKey ID
 data Meta a = Meta ID a (Maybe Value)
   deriving (Generic, Eq, Show, Data, Functor)
   deriving (FromJSON, ToJSON) via VJSON (Meta a)
+
+-- This lens is called 'type' because 'a' is most commonly a Type, but it will
+-- work for any 'a'.
+_type :: Lens (Meta a) (Meta b) a b
+_type =
+  lens
+    (\(Meta _ v _) -> v)
+    (\(Meta i _ m) w -> Meta i w m)
 
 -- | Typechecking will add metadata to each node describing its type.
 -- Some nodes are purely synthesised, some are purely checked, and some
@@ -92,6 +105,16 @@ data TypeCache
 data TypeCacheBoth = TCBoth {tcChkedAt :: Type' (), tcSynthed :: Type' ()}
   deriving (Eq, Show, Generic, Data)
   deriving (FromJSON, ToJSON) via VJSON TypeCacheBoth
+
+--TODO `_chkedAt` and `_synthed` should be `AffineTraversal`s - see https://github.com/well-typed/optics/pull/393
+
+-- | An affine fold getting TCChkedAt or TCEmb's chked-at field
+_chkedAt :: AffineFold TypeCache (Type' ())
+_chkedAt = #_TCChkedAt `afailing` (#_TCEmb % #tcChkedAt)
+
+-- | An affine fold getting TCSynthed or TCEmb's synthed field
+_synthed :: AffineFold TypeCache (Type' ())
+_synthed = #_TCSynthed `afailing` (#_TCEmb % #tcSynthed)
 
 -- Expression metadata. Each expression is annotated with a type (populated by
 -- the typechecker). These types aren't part of the program so they themselves
@@ -183,6 +206,13 @@ data Bind' a = Bind a Name
 
 bindName :: Bind' a -> Name
 bindName (Bind _ n) = n
+
+-- | A type-modifying lens for the metadata of a Bind.
+_bindMeta :: forall a b. Lens (Bind' a) (Bind' b) a b
+_bindMeta =
+  lens
+    (\(Bind m _) -> m)
+    (\(Bind _ n) m' -> Bind m' n)
 
 -- | Core types.
 --  Type variables are currently represented as text, and we have no compile-time
