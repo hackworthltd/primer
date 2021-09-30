@@ -17,5 +17,6 @@ weeder:
 
 openapi.json: build
 	cabal run -v0 primer-service:exe:primer-openapi > $@
+	openapi-generator-cli validate --recommend -i $@
 
 .PHONY: $(targets) weeder

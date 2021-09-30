@@ -226,6 +226,13 @@
             touch $out
           '';
 
+      openapi-validate = pkgs.runCommand "openapi-validate" { }
+        ''
+          ${pkgs.openapi-generator-cli}/bin/openapi-generator-cli validate --recommend -i ${pkgs.primer-openapi-spec}
+          echo "No issues found."
+          touch $out
+        '';
+
       pre-commit-hooks =
         let
           # Override the default nix-pre-commit-hooks tools with the version
@@ -273,6 +280,7 @@
         {
           source-code-checks = pre-commit-hooks;
           weeder = weeder;
+          openapi-validate = openapi-validate;
         }
         // primerFlake.checks;
 
@@ -302,6 +310,7 @@
           nixpkgs-fmt
           sqlite
           postgresql
+          openapi-generator-cli
 
           # For Language Server support.
           nodejs-16_x
