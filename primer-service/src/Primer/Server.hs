@@ -124,7 +124,13 @@ import WaiAppStatic.Types (MaxAge (NoMaxAge), StaticSettings (ssIndices, ssMaxAg
 -- To be able to format these large types nicely, we disable ormolu and align them manually.
 {- ORMOLU_DISABLE -}
 
-type API =
+-- | 'OpenAPI' is the portion of our API that is documented with an exported
+-- OpenAPI3 spec.
+-- 'LegacyAPI' is everything else.
+-- Over time, the 'LegacyAPI' should shrink as we improve our documentation.
+type API = OpenAPI :<|> LegacyAPI
+
+type OpenAPI =
   "api" :> (
     -- POST /api/sessions
     --   create a new session on the backend, returning its id
@@ -138,15 +144,17 @@ type API =
     --   testing. Note that in a production system, this endpoint should
     --   obviously be authentication-scoped and only return the list of
     --   sessions that the caller is authorized to see.
-  :<|> QueryFlag "inMemory" :> "sessions" :> Get '[JSON] [(SessionId, Text)]
+  :<|> QueryFlag "inMemory" :> "sessions" :> Get '[JSON] [(SessionId, Text)])
 
+type LegacyAPI =
+  "api" :> (
     -- POST /api/copy-session
     --   Copy the session whose ID is given in the request body to a
     --   new session, and return the new session ID. Note that this
     --   method can be called at any time and is not part of the
     --   session-specific API, as it's not scoped by the current
     --   session ID like those methods are.
-  :<|> "copy-session" :> ReqBody '[JSON] SessionId :> Post '[JSON] SessionId
+    "copy-session" :> ReqBody '[JSON] SessionId :> Post '[JSON] SessionId
 
     -- GET /api/version
     --   Get the current git version of the server
@@ -330,25 +338,25 @@ hoistPrimer e = hoistServer api nt server
     handler (DatabaseErr msg) = pure $ Left $ err500{errBody = (LT.encodeUtf8 . LT.fromStrict) msg}
 
 server :: ServerT API (PrimerM IO)
-server =
-  ( newSession
-      :<|> listSessions
-      :<|> copySession
-      :<|> getVersion
-      :<|> ( \sid ->
-              getProgram sid
-                :<|> getSessionName sid
-                :<|> renameSession sid
-                :<|> edit sid
-                :<|> (variablesInScope sid :<|> generateNames sid)
-                :<|> evalStep sid
-                :<|> evalFull sid
-                :<|> testEndpoints
-           )
-  )
-    :<|> flushSessions'
-    :<|> serveStaticFiles
+server = openAPIServer :<|> legacyServer
   where
+    openAPIServer = newSession :<|> listSessions
+    legacyServer =
+      ( copySession
+          :<|> getVersion
+          :<|> ( \sid ->
+                  getProgram sid
+                    :<|> getSessionName sid
+                    :<|> renameSession sid
+                    :<|> edit sid
+                    :<|> (variablesInScope sid :<|> generateNames sid)
+                    :<|> evalStep sid
+                    :<|> evalFull sid
+                    :<|> testEndpoints
+               )
+      )
+        :<|> flushSessions'
+        :<|> serveStaticFiles
     -- We need to convert '()' from the API to 'NoContent'
     flushSessions' = flushSessions >> pure NoContent
 
