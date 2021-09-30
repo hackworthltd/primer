@@ -15,4 +15,7 @@ weeder:
 	weeder
 	@echo "No issues found."
 
+openapi.json: build
+	cabal run -v0 primer-service:exe:primer-openapi > $@
+
 .PHONY: $(targets) weeder

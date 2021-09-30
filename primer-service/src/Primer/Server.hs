@@ -4,6 +4,7 @@
 -- | An HTTP service for the Primer API.
 module Primer.Server (
   serve,
+  openAPIInfo,
 ) where
 
 import Control.Concurrent.STM (
@@ -15,6 +16,7 @@ import Control.Monad.Catch (catch)
 import Control.Monad.Except (ExceptT (..))
 import Control.Monad.Reader (runReaderT)
 import Data.Function ((&))
+import Data.OpenApi (OpenApi)
 import Data.Streaming.Network.Internal (HostPreference (HostIPv4Only))
 import Data.Text (Text)
 import qualified Data.Text.Lazy as LT (fromStrict)
@@ -88,6 +90,7 @@ import qualified Primer.Database as Database (
 import Primer.Eval (BetaReductionDetail (..), EvalDetail (..))
 import Primer.EvalFull (Dir (Syn))
 import Primer.Name (Name)
+import Primer.OpenAPI ()
 import Primer.Typecheck (TypeError (TypeDoesNotMatchArrow))
 import Servant (
   Get,
@@ -113,6 +116,7 @@ import Servant (
   (:>),
  )
 import qualified Servant (serve)
+import Servant.OpenApi (toOpenApi)
 import Servant.Server.StaticFiles (serveDirectoryWith)
 import WaiAppStatic.Storage.Filesystem (defaultWebAppSettings)
 import WaiAppStatic.Types (MaxAge (NoMaxAge), StaticSettings (ssIndices, ssMaxAge, ssRedirectToIndex), unsafeToPiece)
@@ -266,6 +270,9 @@ type TestAPI = (
 -- The second endpoint accepts a value of the given type as JSON and
 -- responds with the value it was given, re-encoded as JSON.
 type Test a = Get '[JSON] a :<|> (ReqBody '[JSON] a :> Post '[JSON] a)
+
+openAPIInfo :: OpenApi
+openAPIInfo = toOpenApi (Proxy :: Proxy OpenAPI)
 
 serveStaticFiles :: ServerT Raw (PrimerM IO)
 serveStaticFiles =

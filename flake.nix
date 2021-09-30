@@ -121,7 +121,7 @@
               crossPlatforms = p: [ p.ghcjs ];
             };
 
-            # Ensure these scripts get built for all supported
+            # Ensure these scripts (and datafile) get built for all supported
             # platforms by overriding their `meta.platforms`.
             # Otherwise, they'll only be built for Linux.
 
@@ -140,14 +140,21 @@
               (drv: {
                 meta.platforms = final.lib.platforms.all;
               });
+
+            primer-openapi-spec = (final.runCommand "primer-openapi" { }
+              "${final.primer-openapi}/bin/primer-openapi > $out").overrideAttrs
+              (drv: {
+                meta.platforms = final.lib.platforms.all;
+              });
           in
           {
             inherit primer;
             inherit ghcjsPrimer;
 
             primer-service = primerFlake.packages."primer-service:exe:primer-service";
+            primer-openapi = primerFlake.packages."primer-service:exe:primer-openapi";
 
-            inherit run-primer run-primer-local-pgsql create-local-pgsql-db;
+            inherit run-primer run-primer-local-pgsql create-local-pgsql-db primer-openapi-spec;
           }
         )
       ];
@@ -252,7 +259,7 @@
         (hacknix.lib.flakes.filterPackagesByPlatform system
           ({
             inherit (pkgs) primer-service;
-            inherit (pkgs) run-primer run-primer-local-pgsql create-local-pgsql-db;
+            inherit (pkgs) run-primer run-primer-local-pgsql create-local-pgsql-db primer-openapi-spec;
           })
         )
         // ghcjsPrimerFlake.packages
