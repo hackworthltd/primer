@@ -1,4 +1,5 @@
 {-# LANGUAGE GADTs #-}
+{-# LANGUAGE OverloadedLabels #-}
 {-# LANGUAGE TypeOperators #-}
 
 -- | An HTTP service for the Primer API.
@@ -28,6 +29,7 @@ import Network.Wai.Handler.Warp (
   setPort,
  )
 import qualified Network.Wai.Handler.Warp as Warp (runSettings)
+import Optics ((%), (.~), (?~))
 import Primer.API (
   Env (..),
   PrimerErr (..),
@@ -272,7 +274,11 @@ type TestAPI = (
 type Test a = Get '[JSON] a :<|> (ReqBody '[JSON] a :> Post '[JSON] a)
 
 openAPIInfo :: OpenApi
-openAPIInfo = toOpenApi (Proxy :: Proxy OpenAPI)
+openAPIInfo =
+  toOpenApi (Proxy :: Proxy OpenAPI)
+    & #info % #title .~ "Primer backend API"
+    & #info % #description ?~ "A backend service implementing a pedagogic functional programming language."
+    & #info % #version .~ "0.7"
 
 serveStaticFiles :: ServerT Raw (PrimerM IO)
 serveStaticFiles =
