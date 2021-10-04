@@ -30,6 +30,7 @@ import Primer.API (
   Env (..),
   PrimerErr (..),
   PrimerM,
+  Session,
   copySession,
   edit,
   evalFull,
@@ -144,7 +145,7 @@ type OpenAPI =
     --   testing. Note that in a production system, this endpoint should
     --   obviously be authentication-scoped and only return the list of
     --   sessions that the caller is authorized to see.
-  :<|> QueryFlag "inMemory" :> "sessions" :> Get '[JSON] [(SessionId, Text)])
+  :<|> QueryFlag "inMemory" :> "sessions" :> Get '[JSON] [Session])
 
 type LegacyAPI =
   "api" :> (

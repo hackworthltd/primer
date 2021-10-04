@@ -15,6 +15,7 @@ module Primer.API (
   Env (..),
   PrimerM,
   PrimerErr (..),
+  Session (..),
   newSession,
   copySession,
   listSessions,
@@ -93,6 +94,7 @@ import qualified Primer.Database as Database (
     Success
   ),
  )
+import Primer.JSON (CustomJSON (CustomJSON), FromJSON, ToJSON, VJSON)
 import Primer.Name (Name)
 import qualified StmContainers.Map as StmMap
 
@@ -213,9 +215,13 @@ copySession srcId = do
     writeTBQueue q $ Database.Insert nextSID (sessionApp copy) (sessionName copy)
     pure nextSID
 
+data Session = Session {id :: SessionId, name :: Text}
+  deriving (Generic)
+  deriving (FromJSON, ToJSON) via VJSON Session
+
 -- If the input is 'False', return all sessions in the database;
 -- otherwise, only the in-memory sessions.
-listSessions :: (MonadIO m) => Bool -> PrimerM m [(SessionId, Text)]
+listSessions :: (MonadIO m) => Bool -> PrimerM m [Session]
 listSessions False = do
   q <- asks dbOpQueue
   callback <- liftIO $
@@ -224,10 +230,20 @@ listSessions False = do
       writeTBQueue q $ Database.ListSessions cb
       return cb
   ss <- liftIO $ atomically $ takeTMVar callback
-  pure $ second fromSessionName <$> ss
+  pure $
+    map
+      ( \(sId, sName) ->
+          Session{id = sId, name = fromSessionName sName}
+      )
+      ss
 listSessions _ = sessionsTransaction $ \ss _ -> do
   kvs <- ListT.toList $ StmMap.listT ss
-  pure $ second (fromSessionName . sessionName) <$> kvs
+  pure $
+    map
+      ( \(sId, sData) ->
+          Session{id = sId, name = fromSessionName $ sessionName sData}
+      )
+      kvs
 
 getVersion :: (Monad m) => PrimerM m Version
 getVersion = asks version
