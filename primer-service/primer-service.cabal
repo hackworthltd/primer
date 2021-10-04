@@ -12,7 +12,10 @@ category:      Web
 
 library
   exposed-modules:    Primer.Server
-  other-modules:      Primer.OpenAPI
+  other-modules:
+    Primer.OpenAPI
+    Servant.OpenApi.OperationId
+
   hs-source-dirs:     src
   default-language:   Haskell2010
   default-extensions:

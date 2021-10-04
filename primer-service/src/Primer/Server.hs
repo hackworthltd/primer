@@ -120,6 +120,7 @@ import Servant (
  )
 import qualified Servant (serve)
 import Servant.OpenApi (toOpenApi)
+import Servant.OpenApi.OperationId (OpId)
 import Servant.Server.StaticFiles (serveDirectoryWith)
 import WaiAppStatic.Storage.Filesystem (defaultWebAppSettings)
 import WaiAppStatic.Types (MaxAge (NoMaxAge), StaticSettings (ssIndices, ssMaxAge, ssRedirectToIndex), unsafeToPiece)
@@ -144,7 +145,7 @@ type OpenAPI =
     --   create a new session on the backend, returning its id
     "sessions" :> ReqBody '[JSON] InitialApp :>
     Summary "Create a new session" :>
-    Post '[JSON] SessionId
+    OpId "createSession" Post '[JSON] SessionId
 
     -- GET /api/sessions
     --   Get a list of all sessions and their
@@ -156,7 +157,7 @@ type OpenAPI =
     --   sessions that the caller is authorized to see.
   :<|> QueryFlag "inMemory" :> "sessions" :>
     Summary "List sessions" :>
-    Get '[JSON] [Session])
+    OpId "getSessionList" Get '[JSON] [Session])
 
 type LegacyAPI =
   "api" :> (
