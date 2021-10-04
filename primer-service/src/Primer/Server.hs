@@ -111,6 +111,7 @@ import Servant (
   ServerError,
   ServerT,
   Strict,
+  Summary,
   err500,
   errBody,
   hoistServer,
@@ -141,7 +142,9 @@ type OpenAPI =
   "api" :> (
     -- POST /api/sessions
     --   create a new session on the backend, returning its id
-    "sessions" :> ReqBody '[JSON] InitialApp :> Post '[JSON] SessionId
+    "sessions" :> ReqBody '[JSON] InitialApp :>
+    Summary "Create a new session" :>
+    Post '[JSON] SessionId
 
     -- GET /api/sessions
     --   Get a list of all sessions and their
@@ -151,7 +154,9 @@ type OpenAPI =
     --   testing. Note that in a production system, this endpoint should
     --   obviously be authentication-scoped and only return the list of
     --   sessions that the caller is authorized to see.
-  :<|> QueryFlag "inMemory" :> "sessions" :> Get '[JSON] [Session])
+  :<|> QueryFlag "inMemory" :> "sessions" :>
+    Summary "List sessions" :>
+    Get '[JSON] [Session])
 
 type LegacyAPI =
   "api" :> (
