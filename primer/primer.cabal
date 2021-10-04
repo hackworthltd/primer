@@ -15,6 +15,7 @@ library
     Control.Monad.Fresh
     Foreword
     Primer.Action
+    Primer.Action.Priorities
     Primer.API
     Primer.App
     Primer.Core
