@@ -1,4 +1,6 @@
 {-# LANGUAGE ConstraintKinds #-}
+{-# LANGUAGE DeriveFunctor #-}
+{-# LANGUAGE GADTs #-}
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE TypeApplications #-}
 
@@ -6,6 +8,8 @@ module Primer.Action (
   Action (..),
   ActionError (..),
   Movement (..),
+  Question (..),
+  ProgAction (..),
   applyActionsToBody,
   applyActionsToTypeSig,
   applyActionsToExpr,
@@ -29,6 +33,7 @@ import Primer.Core (
   Expr' (..),
   HasMetadata (_metadata),
   ID,
+  Kind,
   Type,
   Type' (..),
   TypeCache (..),
@@ -236,6 +241,53 @@ data ActionError
     RefineError Text
   deriving (Eq, Show, Generic)
   deriving (FromJSON, ToJSON) via VJSON ActionError
+
+-- | The type of questions which return information about the program, but do not
+-- modify it.
+data Question a where
+  -- Given the ID of a definition and the ID of a type or expression in that
+  -- definition, what variables are in scope at the expression?
+  -- Nested pairs: to make serialisation to PS work easily
+  VariablesInScope :: ID -> ID -> Question (([(Name, Kind)], [(Name, Type' ())]), [(ID, Name, Type' ())])
+  GenerateName ::
+    ID ->
+    ID ->
+    Either (Maybe (Type' ())) (Maybe Kind) ->
+    Question [Name]
+
+-- | High level actions
+-- These actions move around the whole program or modify definitions
+data ProgAction
+  = -- | Move the cursor to the definition with the given ID
+    MoveToDef ID
+  | -- | Rename the definition with the given ID
+    RenameDef ID Text
+  | -- | Create a new definition
+    CreateDef (Maybe Text)
+  | -- | Delete a new definition
+    DeleteDef ID
+  | -- | Add a new type definition
+    AddTypeDef TypeDef
+  | -- | Execute a sequence of actions on the body of the definition
+    BodyAction [Action]
+  | -- | Execute a sequence of actions on the type annotation of the definition
+    SigAction [Action]
+  | SetSmartHoles SmartHoles
+  | -- | CopyPaste (d,i) as
+    --   remembers the tree in def d, node i
+    --   runs actions as (in the currently selected def), which should end up in a hole
+    --   and then tries to paste the remembered subtree
+    --   This rather complex setup enables encoding 'raise' operations,
+    --     f s ~> f
+    --   where we remember f, then delete f s, then paste f back
+    --   as well as allowing cross-definition copy+paste
+    --   whilst letting the backend avoid remembering the 'copied' thing in some state.
+    --   The cursor is left on the root of the inserted subtree, which may or may not be inside a hole and/or annotation.
+    --   At the start of the actions, the cursor starts at the root of the definition's type/expression
+    CopyPasteSig (ID, ID) [Action]
+  | CopyPasteBody (ID, ID) [Action]
+  deriving (Eq, Show, Generic)
+  deriving (FromJSON, ToJSON) via VJSON ProgAction
 
 -- | A shorthand for the constraints needed when applying actions
 type ActionM m =
@@ -812,9 +864,10 @@ renameLet y ze = case target ze of
       (Nothing, _) -> throwError NameCapture
       (_, Nothing) -> throwError NameCapture
 
-renameCaseBinding :: ActionM m => Text -> CaseBindZ -> m CaseBindZ
+renameCaseBinding :: forall m. ActionM m => Text -> CaseBindZ -> m CaseBindZ
 renameCaseBinding y caseBind = updateCaseBind caseBind $ \bind bindings rhs -> do
-  let failure = throwError . CustomFailure (RenameCaseBinding y)
+  let failure :: Text -> m a
+      failure = throwError . CustomFailure (RenameCaseBinding y)
   let y' = unsafeMkName y
 
   -- Check that 'y' doesn't clash with any of the other branch bindings
