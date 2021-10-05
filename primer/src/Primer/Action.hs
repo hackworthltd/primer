@@ -16,6 +16,14 @@ module Primer.Action (
   moveExpr,
   mkAvoidForFreshName,
   mkAvoidForFreshNameTy,
+  OfferedAction (..),
+  FunctionFiltering (..),
+  UserInput (..),
+  ActionInput (..),
+  ActionName (..),
+  Level (..),
+  nameString,
+  uniquifyDefName,
 ) where
 
 import Foreword
@@ -26,6 +34,7 @@ import Data.Generics.Product (typed)
 import Data.List (delete, findIndex, lookup)
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as S
+import qualified Data.Text as T
 import Optics (set, (%), (?~))
 import Primer.Core (
   Def (..),
@@ -118,6 +127,108 @@ import Primer.Zipper (
   _target,
  )
 import Primer.ZipperCxt (localVariablesInScopeExpr)
+
+-- An OfferedAction is an option that we show to the user.
+-- It may require some user input (e.g. to choose what to name a binder, or
+-- choose which variable to insert).
+-- If picked, it will submit a particular set of actions to the backend.
+data OfferedAction = OfferedAction
+  { name :: ActionName
+  , description :: Text
+  , input :: ActionInput
+  , priority :: Int
+  , -- XXX dhess: this is a hack so that we can render "destructive"
+    -- actions differently than the others. I suggest we find a better
+    -- way to do this in the new frontend.
+    destructive :: Bool
+  }
+
+-- | Filter on variables and constructors according to whether they
+-- | have a function type.
+data FunctionFiltering
+  = Everything
+  | OnlyFunctions
+  | NoFunctions
+
+-- Further user input is sometimes required to construct an action.
+-- For example, when inserting a constructor the user must tell us what
+-- constructor.
+-- This type models that input and the corresponding output.
+-- Currently we can only take a single input per action - in the future this
+-- may need to be extended to support multiple inputs.
+-- This type is parameterised because we may need it for other things in
+-- future, and because it lets us derive a useful functor instance.
+data UserInput a
+  = ChooseConstructor FunctionFiltering (Text -> a)
+  | ChooseTypeConstructor (Text -> a)
+  | -- ChooseOrEnterName: Renders a choice between some options (as buttons),
+    -- plus a textbox to manually enter a name
+    ChooseOrEnterName
+      -- prompt: prompt to show the user,
+      -- e.g. "choose a name, or enter your own"
+      { prompt :: Text
+      , -- A bunch of options
+        options :: [Name]
+      , -- What to do with whatever name is chosen
+        choose :: Name -> a
+      }
+  | ChooseVariable FunctionFiltering (Either Text ID -> a)
+  | ChooseTypeVariable (Text -> a)
+  deriving (Functor)
+
+data ActionInput where
+  InputRequired :: UserInput [ProgAction] -> ActionInput
+  NoInputRequired :: [ProgAction] -> ActionInput
+  AskQuestion :: Question a -> (a -> ActionInput) -> ActionInput
+
+-- | Some actions' names are meant to be rendered as code, others as
+-- | prose.
+data ActionName
+  = Code Text
+  | Prose Text
+
+-- | The current programming "level". This setting determines which
+-- | actions are displayed to the student, the labels on UI elements,
+-- | etc.
+data Level
+  = -- | Bare minimum features to define sum types, and functions on
+    -- | those types using simple pattern matching.
+    Beginner
+  | -- | Function application & monomorphic HoF. (Support for the latter
+    -- | should probably be split into a separate level.)
+    Intermediate
+  | -- | All features.
+    Expert
+
+-- | Sigh, yes, this is required so that Safari doesn't try to
+-- | autocomplete these fields with your contact data.
+-- |
+-- | See
+-- | https://stackoverflow.com/questions/43058018/how-to-disable-autocomplete-in-address-fields-for-safari
+-- |
+-- | Note that, according to a comment in the above StackOverflow
+-- | post, this is screenreader-safe.
+nameString :: Text
+nameString = "n" <> T.singleton '\x200C' <> "ame"
+
+-- | Given a definition name and a program, return a unique variant of
+-- | that name. Note that if no definition of the given name already
+-- | exists in the program, this function will return the same name
+-- | it's been given.
+-- |
+-- | Note: this is not concurrency-safe! There's probably no
+-- | reasonable way to do this atomically without also creating the
+-- | definition at the same time.
+uniquifyDefName :: Text -> Map ID Def -> Text
+uniquifyDefName name' defs =
+  if notElem name' avoid
+    then name'
+    else
+      let go i = if notElem (name' <> "_" <> show i) avoid then (name' <> "_" <> show i) else go (i + 1)
+       in go (1 :: Int)
+  where
+    avoid :: [Text]
+    avoid = Map.elems $ map (unName . defName) defs
 
 -- | Core actions.
 --  These describe edits to the core AST.
