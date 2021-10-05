@@ -133,13 +133,17 @@ import WaiAppStatic.Types (MaxAge (NoMaxAge), StaticSettings (ssIndices, ssMaxAg
 -- To be able to format these large types nicely, we disable ormolu and align them manually.
 {- ORMOLU_DISABLE -}
 
--- | 'OpenAPI' is the portion of our API that is documented with an exported
--- OpenAPI3 spec.
--- 'LegacyAPI' is everything else.
--- Over time, the 'LegacyAPI' should shrink as we improve our documentation.
-type API = OpenAPI :<|> LegacyAPI
+type API =
+       "openapi.json" :> Get '[JSON] OpenApi
+  :<|> PrimerAPI
 
-type OpenAPI =
+-- | 'PrimerOpenAPI' is the portion of our API that is documented with an exported
+-- OpenAPI3 spec.
+-- 'PrimerLegacyAPI' is everything else.
+-- Over time, the 'PrimerLegacyAPI' should shrink as we improve our documentation.
+type PrimerAPI = PrimerOpenAPI :<|> PrimerLegacyAPI
+
+type PrimerOpenAPI =
   "api" :> (
     -- POST /api/sessions
     --   create a new session on the backend, returning its id
@@ -159,7 +163,7 @@ type OpenAPI =
     Summary "List sessions" :>
     OpId "getSessionList" Get '[JSON] [Session])
 
-type LegacyAPI =
+type PrimerLegacyAPI =
   "api" :> (
     -- POST /api/copy-session
     --   Copy the session whose ID is given in the request body to a
@@ -281,7 +285,7 @@ type Test a = Get '[JSON] a :<|> (ReqBody '[JSON] a :> Post '[JSON] a)
 
 openAPIInfo :: OpenApi
 openAPIInfo =
-  toOpenApi (Proxy :: Proxy OpenAPI)
+  toOpenApi (Proxy :: Proxy PrimerOpenAPI)
     & #info % #title .~ "Primer backend API"
     & #info % #description ?~ "A backend service implementing a pedagogic functional programming language."
     & #info % #version .~ "0.7"
@@ -344,11 +348,14 @@ testEndpoints =
           , betaTypes = Just (ty, ty)
           }
 
+primerApi :: Proxy PrimerAPI
+primerApi = Proxy
+
 api :: Proxy API
 api = Proxy
 
-hoistPrimer :: Env -> Server API
-hoistPrimer e = hoistServer api nt server
+hoistPrimer :: Env -> Server PrimerAPI
+hoistPrimer e = hoistServer primerApi nt primerServer
   where
     nt :: PrimerM IO a -> Handler a
     nt m = Handler $ ExceptT $ catch (Right <$> runReaderT m e) handler
@@ -357,8 +364,8 @@ hoistPrimer e = hoistServer api nt server
     handler :: PrimerErr -> IO (Either ServerError a)
     handler (DatabaseErr msg) = pure $ Left $ err500{errBody = (LT.encodeUtf8 . LT.fromStrict) msg}
 
-server :: ServerT API (PrimerM IO)
-server = openAPIServer :<|> legacyServer
+primerServer :: ServerT PrimerAPI (PrimerM IO)
+primerServer = openAPIServer :<|> legacyServer
   where
     openAPIServer = newSession :<|> listSessions
     legacyServer =
@@ -380,10 +387,13 @@ server = openAPIServer :<|> legacyServer
     -- We need to convert '()' from the API to 'NoContent'
     flushSessions' = flushSessions >> pure NoContent
 
+server :: Env -> Server API
+server e = pure openAPIInfo :<|> hoistPrimer e
+
 serve :: Sessions -> TBQueue Database.Op -> Version -> Int -> IO ()
 serve ss q v port = do
   putStrLn $ "Starting server on port " <> show port
-  Warp.runSettings warpSettings $ noCache $ Servant.serve api $ hoistPrimer $ Env ss q v
+  Warp.runSettings warpSettings $ noCache $ Servant.serve api $ server $ Env ss q v
   where
     -- By default Warp will try to bind on either IPv4 or IPv6, whichever is
     -- available.
