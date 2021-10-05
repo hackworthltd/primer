@@ -199,32 +199,6 @@ actionsForBinding l defId toProgAction b =
           }
     ]
 
--- Find a node in the AST by its ID
-findNode :: forall a b. ID -> Expr' (Meta a) (Meta b) -> Maybe (SomeNode a b)
-findNode id expr
-  | expr ^. _exprMetaLens % _id == id = Just (ExprNode expr)
-  | otherwise = case expr of
-    Hole _ e -> findNode id e
-    EmptyHole _ -> Nothing
-    Ann _ e t -> findNode id e <|> (TypeNode <$> findType id t)
-    App _ a b -> findNode id a <|> findNode id b
-    APP _ a b -> findNode id a <|> (TypeNode <$> findType id b)
-    Con _ _ -> Nothing
-    Lam _ _ e -> findNode id e
-    LAM _ _ e -> findNode id e
-    Var _ _ -> Nothing
-    GlobalVar _ _ -> Nothing
-    Let _ _ a b -> findNode id a <|> findNode id b
-    Letrec _ _ a ta b -> findNode id a <|> (TypeNode <$> findType id ta) <|> findNode id b
-    LetType _ _ t e -> (TypeNode <$> findType id t) <|> findNode id e
-    Case _ e branches ->
-      let (Alt inBranches) =
-            flip foldMap branches $
-              \(CaseBranch _ binds rhs) ->
-                Alt (findNode id rhs)
-                  <> foldMap (Alt . map CaseBindNode . findBind id) binds
-       in findNode id e <|> inBranches
-
 -- Find a node in the AST by its ID, and also return its parent
 findNodeWithParent :: forall a b. ID -> Expr' (Meta a) (Meta b) -> Maybe (SomeNode a b, Maybe (SomeNode a b))
 findNodeWithParent id x = go x Nothing
