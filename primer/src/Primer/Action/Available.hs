@@ -70,7 +70,7 @@ actionsForDef ::
   Level ->
   Map ID Def -> -- only used to generate a unique name for a duplicate definition
   Def ->
-  [OfferedAction]
+  [OfferedAction [ProgAction]]
 actionsForDef l defs def =
   [ OfferedAction
       { name = Prose "r"
@@ -117,7 +117,7 @@ actionsForDefBody ::
   Def ->
   ID ->
   Expr ->
-  [OfferedAction]
+  [OfferedAction [ProgAction]]
 actionsForDefBody l def id expr =
   let toProgAction actions = [MoveToDef (defID def), BodyAction actions]
 
@@ -136,13 +136,16 @@ actionsForDefBody l def id expr =
                 Nothing -> [] -- at root already, cannot raise
                 Just (ExprNode (Hole _ _)) -> [] -- in a NE hole, don't offer raise (as hole will probably just be recreated)
                 _ -> [raiseAction']
-           in basicActionsForExpr l (defID def) toProgAction e <> raiseAction
+           in (toProgAction <<$>> basicActionsForExpr l (defID def) e) <> raiseAction
         Just (TypeNode t, p) ->
           let raiseAction = case p of
                 Just (ExprNode _) -> [] -- at the root of an annotation, so cannot raise
                 _ -> [raiseAction']
-           in basicActionsForType l (defID def) toProgAction t <> compoundActionsForType l toProgAction t <> raiseAction
-        Just (CaseBindNode b, _) -> actionsForBinding l (defID def) toProgAction b
+           in ( toProgAction
+                  <<$>> (basicActionsForType l (defID def) t <> compoundActionsForType l t)
+              )
+                <> raiseAction
+        Just (CaseBindNode b, _) -> toProgAction <<$>> actionsForBinding l (defID def) b
 
 -- Given a Type and the ID of a node in it, return the possible actions that can be applied to it
 actionsForDefSig ::
@@ -150,7 +153,7 @@ actionsForDefSig ::
   Def ->
   ID ->
   Type ->
-  [OfferedAction]
+  [OfferedAction [ProgAction]]
 actionsForDefSig l def id ty =
   let toProgAction actions = [MoveToDef (defID def), SigAction actions]
 
@@ -168,21 +171,23 @@ actionsForDefSig l def id ty =
             ]
    in case findType id ty of
         Nothing -> mempty
-        Just t -> basicActionsForType l (defID def) toProgAction t <> compoundActionsForType l toProgAction t <> raiseAction
+        Just t ->
+          ( toProgAction
+              <<$>> (basicActionsForType l (defID def) t <> compoundActionsForType l t)
+          )
+            <> raiseAction
 
 -- Bindings support just one action: renaming.
 actionsForBinding ::
   Level ->
   ID ->
-  ([Action] -> [ProgAction]) ->
   Bind' (Meta (Maybe TypeCache)) ->
-  [OfferedAction]
-actionsForBinding l defId toProgAction b =
+  [OfferedAction [Action]]
+actionsForBinding l defId b =
   realise
     b
-    toProgAction
     (b ^. _bindMeta)
-    [ \p toProgAction' m' ->
+    [ \p m' ->
         OfferedAction
           { name = Prose "r"
           , description = "Rename this pattern variable"
@@ -191,7 +196,6 @@ actionsForBinding l defId toProgAction b =
                 defId
                 (Left $ b ^? _bindMeta % _type % _Just % _chkedAt)
                 (\n -> [RenameCaseBinding n])
-                toProgAction'
                 m'
                 ("Choose a new " <> nameString <> " for the pattern variable")
           , priority = P.rename l
@@ -266,8 +270,8 @@ findBind id bind
   | bind ^. _bindMeta % _id == id = Just bind
   | otherwise = Nothing
 
--- An ActionSpec is an OfferedAction that needs the current definition (if any)
--- and metadata in order to be used. Typically this is because it starts with
+-- An ActionSpec is an OfferedAction that needs
+-- metadata in order to be used. Typically this is because it starts with
 -- SetCursor, which needs an ID.
 --
 -- Type parameter 'p' is a ghost parameter that provides some type
@@ -276,26 +280,26 @@ findBind id bind
 -- 'Type's). The argument of type 'p' in the type signature is not
 -- used other than to provide proof that you have a value of type 'p'.
 type ActionSpec p a =
-  p -> ([Action] -> [ProgAction]) -> Meta a -> OfferedAction
+  p -> Meta a -> OfferedAction [Action]
 
 -- From multiple actions, construct an ActionSpec which starts with SetCursor
 action :: forall a p. ActionName -> Text -> Int -> Bool -> [Action] -> ActionSpec p a
-action name description priority destructive as p toProgAction m =
+action name description priority destructive as p m =
   OfferedAction
     { name
     , description
-    , input = NoInputRequired $ toProgAction $ SetCursor (m ^. _id) : as
+    , input = NoInputRequired $ SetCursor (m ^. _id) : as
     , priority
     , destructive
     }
 
 -- Construct an ActionSpec which requires some input, and then starts with SetCursor
 actionWithInput :: forall a p. ActionName -> Text -> Int -> Bool -> UserInput [Action] -> ActionSpec p a
-actionWithInput name description priority destructive input p toProgAction m =
+actionWithInput name description priority destructive input p m =
   OfferedAction
     { name
     , description
-    , input = InputRequired $ map (\as -> toProgAction (SetCursor (m ^. _id) : as)) input
+    , input = InputRequired $ map (\as -> (SetCursor (m ^. _id) : as)) input
     , priority
     , destructive
     }
@@ -309,38 +313,35 @@ actionWithNames ::
   ID ->
   Either (Maybe (Type' ())) (Maybe Kind) ->
   (Text -> [Action]) ->
-  ([Action] -> [ProgAction]) ->
   Meta a ->
   Text ->
-  ActionInput
-actionWithNames defId tk k toProgAction m prompt =
+  ActionInput [Action]
+actionWithNames defId tk k m prompt =
   AskQuestion (GenerateName defId (m ^. _id) tk) $ \options ->
     InputRequired $
       ChooseOrEnterName
         { prompt
         , options
-        , choose = \n -> toProgAction $ SetCursor (m ^. _id) : k (unName n)
+        , choose = \n -> SetCursor (m ^. _id) : k (unName n)
         }
 
--- A set of ActionSpecs can be realised by providing them with metadata and a
--- ProgAction wrapper (i.e. BodyAction or SigAction).
-realise :: forall a p. p -> ([Action] -> [ProgAction]) -> Meta a -> [ActionSpec p a] -> [OfferedAction]
-realise p wrapper m as = map (\a -> a p wrapper m) as
+-- A set of ActionSpecs can be realised by providing them with metadata.
+realise :: forall a p. p -> Meta a -> [ActionSpec p a] -> [OfferedAction [Action]]
+realise p m as = map (\a -> a p m) as
 
 -- Given an expression, determine what basic actions it supports
 -- Specific projections may provide other actions not listed here
-basicActionsForExpr :: Level -> ID -> ([Action] -> [ProgAction]) -> Expr -> [OfferedAction]
-basicActionsForExpr l defID toProgAction expr = case expr of
-  EmptyHole m -> realise expr toProgAction m $ universalActions m <> emptyHoleActions m
-  Hole m _ -> realise expr toProgAction m $ defaultActions m <> holeActions
-  Ann m _ _ -> realise expr toProgAction m $ defaultActions m <> annotationActions
-  Lam m _ _ -> realise expr toProgAction m $ defaultActions m <> lambdaActions m
-  LAM m _ _ -> realise expr toProgAction m $ defaultActions m <> bigLambdaActions m
-  Let m _ e _ -> realise expr toProgAction m $ defaultActions m <> letActions m (e ^? _exprMetaLens % _type % _Just % _synthed)
-  Letrec m _ _ t _ -> realise expr toProgAction m $ defaultActions m <> letRecActions m (Just t)
-  e -> realise expr toProgAction (e ^. _exprMetaLens) $ defaultActions (e ^. _exprMetaLens)
+basicActionsForExpr :: Level -> ID -> Expr -> [OfferedAction [Action]]
+basicActionsForExpr l defID expr = case expr of
+  EmptyHole m -> realise expr m $ universalActions m <> emptyHoleActions m
+  Hole m _ -> realise expr m $ defaultActions m <> holeActions
+  Ann m _ _ -> realise expr m $ defaultActions m <> annotationActions
+  Lam m _ _ -> realise expr m $ defaultActions m <> lambdaActions m
+  LAM m _ _ -> realise expr m $ defaultActions m <> bigLambdaActions m
+  Let m _ e _ -> realise expr m $ defaultActions m <> letActions m (e ^? _exprMetaLens % _type % _Just % _synthed)
+  Letrec m _ _ t _ -> realise expr m $ defaultActions m <> letRecActions m (Just t)
+  e -> realise expr (e ^. _exprMetaLens) $ defaultActions (e ^. _exprMetaLens)
   where
-    insertVariable :: forall a. ActionSpec Expr a
     insertVariable =
       let filterVars = case l of
             Beginner -> NoFunctions
@@ -351,7 +352,6 @@ basicActionsForExpr l defID toProgAction expr = case expr of
               Right id_ -> [ConstructGlobalVar id_]
 
     -- If we have a useful type, offer the refine action, otherwise offer the
-    -- saturate action.
     offerRefined :: ExprMeta -> Bool
     offerRefined m = case m ^? _type % _Just % _chkedAt of
       Just (TEmptyHole _) -> False
@@ -387,7 +387,7 @@ basicActionsForExpr l defID toProgAction expr = case expr of
       Expert -> "Pattern match"
 
     makeLambda :: forall a. Meta (Maybe TypeCache) -> ActionSpec Expr a
-    makeLambda m p toProgAction' m' =
+    makeLambda m p m' =
       OfferedAction
         { name = Code "λx"
         , description = "Make a function with an input"
@@ -396,7 +396,6 @@ basicActionsForExpr l defID toProgAction expr = case expr of
               defID
               (Left $ join $ m ^? _type % _Just % _chkedAt % to lamVarTy)
               (\n -> [ConstructLam $ Just n])
-              toProgAction'
               m'
               ("Choose a " <> nameString <> " for the input variable")
         , priority = P.makeLambda l
@@ -404,7 +403,7 @@ basicActionsForExpr l defID toProgAction expr = case expr of
         }
 
     makeTypeAbstraction :: forall a. ExprMeta -> ActionSpec Expr a
-    makeTypeAbstraction m p toProgAction' m' =
+    makeTypeAbstraction m p m' =
       OfferedAction
         { name = Code "Λx"
         , description = "Make a type abstraction"
@@ -413,7 +412,6 @@ basicActionsForExpr l defID toProgAction expr = case expr of
               defID
               (Right $ join $ m ^? _type % _Just % _chkedAt % to lAMVarKind)
               (\n -> [ConstructLAM $ Just n])
-              toProgAction'
               m'
               ("Choose a " <> nameString <> " for the bound type variable")
         , priority = P.makeTypeAbstraction l
@@ -445,7 +443,7 @@ basicActionsForExpr l defID toProgAction expr = case expr of
         $ ChooseConstructor OnlyFunctions (\c -> [if offerRefined m then ConstructRefinedCon c else ConstructSaturatedCon c])
 
     makeLetBinding :: forall a. ActionSpec Expr a
-    makeLetBinding p toProgAction' m' =
+    makeLetBinding p m' =
       OfferedAction
         { name = (Code "=")
         , description = "Make a let binding"
@@ -454,7 +452,6 @@ basicActionsForExpr l defID toProgAction expr = case expr of
               defID
               (Left Nothing)
               (\n -> [ConstructLet $ Just n])
-              toProgAction'
               m'
               ("Choose a " <> nameString <> " for the new let binding")
         , priority = P.makeLet l
@@ -462,7 +459,7 @@ basicActionsForExpr l defID toProgAction expr = case expr of
         }
 
     makeLetrec :: forall a. ActionSpec Expr a
-    makeLetrec p toProgAction' m' =
+    makeLetrec p m' =
       OfferedAction
         { name = (Code "=,=")
         , description = "Make a recursive let binding"
@@ -471,7 +468,6 @@ basicActionsForExpr l defID toProgAction expr = case expr of
               defID
               (Left Nothing)
               (\n -> [ConstructLetrec $ Just n])
-              toProgAction'
               m'
               ("Choose a " <> nameString <> " for the new let binding")
         , priority = P.makeLetrec l
@@ -488,7 +484,7 @@ basicActionsForExpr l defID toProgAction expr = case expr of
     removeAnnotation = action (Prose "⌫:") "Remove this annotation" (P.removeAnnotation l) True [RemoveAnn]
 
     renameVariable :: forall a. ExprMeta -> ActionSpec Expr a
-    renameVariable m p toProgAction' m' =
+    renameVariable m p m' =
       OfferedAction
         { name = (Prose "r")
         , description = "Rename this input variable"
@@ -497,7 +493,6 @@ basicActionsForExpr l defID toProgAction expr = case expr of
               defID
               (Left $ join $ m ^? _type % _Just % _chkedAt % to lamVarTy)
               (\n -> [RenameLam n])
-              toProgAction'
               m'
               ("Choose a new " <> nameString <> " for the input variable")
         , priority = P.rename l
@@ -505,7 +500,7 @@ basicActionsForExpr l defID toProgAction expr = case expr of
         }
 
     renameTypeVariable :: forall a. ExprMeta -> ActionSpec Expr a
-    renameTypeVariable m p toProgAction' m' =
+    renameTypeVariable m p m' =
       OfferedAction
         { name = (Prose "r")
         , description = "Rename this type variable"
@@ -514,7 +509,6 @@ basicActionsForExpr l defID toProgAction expr = case expr of
               defID
               (Right $ join $ m ^? _type % _Just % _chkedAt % to lAMVarKind)
               (\n -> [RenameLAM n])
-              toProgAction'
               m'
               ("Choose a new " <> nameString <> " for the type variable")
         , priority = P.rename l
@@ -525,7 +519,7 @@ basicActionsForExpr l defID toProgAction expr = case expr of
     makeLetRecursive = action (Prose "rec") "Make this let recursive" (P.makeLetRecursive l) False [ConvertLetToLetrec]
 
     renameLet :: forall a b. Maybe (Type' b) -> ActionSpec Expr a
-    renameLet t p toProgAction' m' =
+    renameLet t p m' =
       OfferedAction
         { name = Prose "r"
         , description = "Rename this let binding"
@@ -534,7 +528,6 @@ basicActionsForExpr l defID toProgAction expr = case expr of
               defID
               (Left $ set (_Just % _typeMeta) () t)
               (\n -> [RenameLet n])
-              toProgAction'
               m'
               ("Choose a new " <> nameString <> " for the let binding")
         , priority = P.rename l
@@ -627,11 +620,11 @@ basicActionsForExpr l defID toProgAction expr = case expr of
 
 -- Given a type, determine what basic actions it supports
 -- Specific projections may provide other actions not listed here
-basicActionsForType :: Level -> ID -> ([Action] -> [ProgAction]) -> Type -> [OfferedAction]
-basicActionsForType l defID toProgAction ty = case ty of
-  TEmptyHole m -> realise ty toProgAction m $ universalActions <> emptyHoleActions
-  TForall m _ k _ -> realise ty toProgAction m $ defaultActions <> forAllActions k
-  t -> realise ty toProgAction (t ^. _typeMetaLens) defaultActions
+basicActionsForType :: Level -> ID -> Type -> [OfferedAction [Action]]
+basicActionsForType l defID ty = case ty of
+  TEmptyHole m -> realise ty m $ universalActions <> emptyHoleActions
+  TForall m _ k _ -> realise ty m $ defaultActions <> forAllActions k
+  t -> realise ty (t ^. _typeMetaLens) defaultActions
   where
     -- We arbitrarily choose that the "construct a function type" action places the focused expression
     -- on the domain (left) side of the arrow.
@@ -639,7 +632,7 @@ basicActionsForType l defID toProgAction ty = case ty of
     constructFunctionType = action (Code "→") "Construct a function type" (P.constructFunction l) False [ConstructArrowL, Move Child1]
 
     constructPolymorphicType :: forall a. ActionSpec Type a
-    constructPolymorphicType p toProgAction' m' =
+    constructPolymorphicType p m' =
       OfferedAction
         { name = (Code "∀")
         , description = "Construct a polymorphic type"
@@ -648,7 +641,6 @@ basicActionsForType l defID toProgAction ty = case ty of
               defID
               (Right Nothing)
               (\n -> [ConstructTForall (Just n), Move Child1])
-              toProgAction'
               m'
               ("Choose a " <> nameString <> " for the bound type variable")
         , priority = P.constructForall l
@@ -665,7 +657,7 @@ basicActionsForType l defID toProgAction ty = case ty of
     useTypeVariable = actionWithInput (Code "t") "Use a type variable" (P.useTypeVar l) False $ ChooseTypeVariable (\v -> [ConstructTVar v])
 
     renameTypeVariable :: forall a. Kind -> ActionSpec Type a
-    renameTypeVariable k p toProgAction' m' =
+    renameTypeVariable k p m' =
       OfferedAction
         { name = (Prose "r")
         , description = "Rename this type variable"
@@ -674,7 +666,6 @@ basicActionsForType l defID toProgAction ty = case ty of
               defID
               (Right $ Just k)
               (\n -> [RenameForall n])
-              toProgAction'
               m'
               ("Choose a new " <> nameString <> " for the bound type variable")
         , priority = P.rename l
@@ -716,9 +707,9 @@ basicActionsForType l defID toProgAction ty = case ty of
 
 -- These actions are more involved than the basic actions.
 -- They may involve moving around the AST and performing several basic actions.
-compoundActionsForType :: forall a. Level -> ([Action] -> [ProgAction]) -> Type' (Meta a) -> [OfferedAction]
-compoundActionsForType l toProgAction ty = case ty of
-  TFun m a b -> realise ty toProgAction m [addFunctionArgument a b]
+compoundActionsForType :: forall a. Level -> Type' (Meta a) -> [OfferedAction [Action]]
+compoundActionsForType l ty = case ty of
+  TFun m a b -> realise ty m [addFunctionArgument a b]
   _ -> []
   where
     -- This action traverses the function type and adds a function arrow to the end of it,

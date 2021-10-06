@@ -1,6 +1,7 @@
 {-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE GADTs #-}
+{-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE TypeApplications #-}
 
@@ -132,16 +133,17 @@ import Primer.ZipperCxt (localVariablesInScopeExpr)
 -- It may require some user input (e.g. to choose what to name a binder, or
 -- choose which variable to insert).
 -- If picked, it will submit a particular set of actions to the backend.
-data OfferedAction = OfferedAction
+data OfferedAction a = OfferedAction
   { name :: ActionName
   , description :: Text
-  , input :: ActionInput
+  , input :: ActionInput a
   , priority :: Int
   , -- XXX dhess: this is a hack so that we can render "destructive"
     -- actions differently than the others. I suggest we find a better
     -- way to do this in the new frontend.
     destructive :: Bool
   }
+  deriving (Functor)
 
 -- | Filter on variables and constructors according to whether they
 -- | have a function type.
@@ -176,10 +178,11 @@ data UserInput a
   | ChooseTypeVariable (Text -> a)
   deriving (Functor)
 
-data ActionInput where
-  InputRequired :: UserInput [ProgAction] -> ActionInput
-  NoInputRequired :: [ProgAction] -> ActionInput
-  AskQuestion :: Question a -> (a -> ActionInput) -> ActionInput
+data ActionInput a where
+  InputRequired :: UserInput a -> ActionInput a
+  NoInputRequired :: a -> ActionInput a
+  AskQuestion :: Question r -> (r -> ActionInput a) -> ActionInput a
+deriving instance Functor ActionInput
 
 -- | Some actions' names are meant to be rendered as code, others as
 -- | prose.
