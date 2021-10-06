@@ -187,7 +187,7 @@ actionsForBinding l defId b =
   realise
     b
     (b ^. _bindMeta)
-    [ \p m' ->
+    [ \_p m' ->
         OfferedAction
           { name = Prose "r"
           , description = "Rename this pattern variable"
@@ -284,7 +284,7 @@ type ActionSpec p a =
 
 -- From multiple actions, construct an ActionSpec which starts with SetCursor
 action :: forall a p. ActionName -> Text -> Int -> Bool -> [Action] -> ActionSpec p a
-action name description priority destructive as p m =
+action name description priority destructive as _p m =
   OfferedAction
     { name
     , description
@@ -295,7 +295,7 @@ action name description priority destructive as p m =
 
 -- Construct an ActionSpec which requires some input, and then starts with SetCursor
 actionWithInput :: forall a p. ActionName -> Text -> Int -> Bool -> UserInput [Action] -> ActionSpec p a
-actionWithInput name description priority destructive input p m =
+actionWithInput name description priority destructive input _p m =
   OfferedAction
     { name
     , description
@@ -387,7 +387,7 @@ basicActionsForExpr l defID expr = case expr of
       Expert -> "Pattern match"
 
     makeLambda :: forall a. Meta (Maybe TypeCache) -> ActionSpec Expr a
-    makeLambda m p m' =
+    makeLambda m _p m' =
       OfferedAction
         { name = Code "λx"
         , description = "Make a function with an input"
@@ -403,7 +403,7 @@ basicActionsForExpr l defID expr = case expr of
         }
 
     makeTypeAbstraction :: forall a. ExprMeta -> ActionSpec Expr a
-    makeTypeAbstraction m p m' =
+    makeTypeAbstraction m _p m' =
       OfferedAction
         { name = Code "Λx"
         , description = "Make a type abstraction"
@@ -443,7 +443,7 @@ basicActionsForExpr l defID expr = case expr of
         $ ChooseConstructor OnlyFunctions (\c -> [if offerRefined m then ConstructRefinedCon c else ConstructSaturatedCon c])
 
     makeLetBinding :: forall a. ActionSpec Expr a
-    makeLetBinding p m' =
+    makeLetBinding _p m' =
       OfferedAction
         { name = (Code "=")
         , description = "Make a let binding"
@@ -459,7 +459,7 @@ basicActionsForExpr l defID expr = case expr of
         }
 
     makeLetrec :: forall a. ActionSpec Expr a
-    makeLetrec p m' =
+    makeLetrec _p m' =
       OfferedAction
         { name = (Code "=,=")
         , description = "Make a recursive let binding"
@@ -484,7 +484,7 @@ basicActionsForExpr l defID expr = case expr of
     removeAnnotation = action (Prose "⌫:") "Remove this annotation" (P.removeAnnotation l) True [RemoveAnn]
 
     renameVariable :: forall a. ExprMeta -> ActionSpec Expr a
-    renameVariable m p m' =
+    renameVariable m _p m' =
       OfferedAction
         { name = (Prose "r")
         , description = "Rename this input variable"
@@ -500,7 +500,7 @@ basicActionsForExpr l defID expr = case expr of
         }
 
     renameTypeVariable :: forall a. ExprMeta -> ActionSpec Expr a
-    renameTypeVariable m p m' =
+    renameTypeVariable m _p m' =
       OfferedAction
         { name = (Prose "r")
         , description = "Rename this type variable"
@@ -519,7 +519,7 @@ basicActionsForExpr l defID expr = case expr of
     makeLetRecursive = action (Prose "rec") "Make this let recursive" (P.makeLetRecursive l) False [ConvertLetToLetrec]
 
     renameLet :: forall a b. Maybe (Type' b) -> ActionSpec Expr a
-    renameLet t p m' =
+    renameLet t _p m' =
       OfferedAction
         { name = Prose "r"
         , description = "Rename this let binding"
@@ -632,7 +632,7 @@ basicActionsForType l defID ty = case ty of
     constructFunctionType = action (Code "→") "Construct a function type" (P.constructFunction l) False [ConstructArrowL, Move Child1]
 
     constructPolymorphicType :: forall a. ActionSpec Type a
-    constructPolymorphicType p m' =
+    constructPolymorphicType _p m' =
       OfferedAction
         { name = (Code "∀")
         , description = "Construct a polymorphic type"
@@ -657,7 +657,7 @@ basicActionsForType l defID ty = case ty of
     useTypeVariable = actionWithInput (Code "t") "Use a type variable" (P.useTypeVar l) False $ ChooseTypeVariable (\v -> [ConstructTVar v])
 
     renameTypeVariable :: forall a. Kind -> ActionSpec Type a
-    renameTypeVariable k p m' =
+    renameTypeVariable k _p m' =
       OfferedAction
         { name = (Prose "r")
         , description = "Rename this type variable"
