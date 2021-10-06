@@ -338,8 +338,8 @@ basicActionsForExpr l defID expr = case expr of
   Ann m _ _ -> realise expr m $ defaultActions m <> annotationActions
   Lam m _ _ -> realise expr m $ defaultActions m <> lambdaActions m
   LAM m _ _ -> realise expr m $ defaultActions m <> bigLambdaActions m
-  Let m _ e _ -> realise expr m $ defaultActions m <> letActions m (e ^? _exprMetaLens % _type % _Just % _synthed)
-  Letrec m _ _ t _ -> realise expr m $ defaultActions m <> letRecActions m (Just t)
+  Let m _ e _ -> realise expr m $ defaultActions m <> letActions (e ^? _exprMetaLens % _type % _Just % _synthed)
+  Letrec m _ _ t _ -> realise expr m $ defaultActions m <> letRecActions (Just t)
   e -> realise expr (e ^. _exprMetaLens) $ defaultActions (e ^. _exprMetaLens)
   where
     insertVariable =
@@ -571,14 +571,14 @@ basicActionsForExpr l defID expr = case expr of
       Intermediate -> []
       Expert -> [renameTypeVariable m]
 
-    letActions :: forall a b. ExprMeta -> Maybe (Type' b) -> [ActionSpec Expr a]
-    letActions m t =
+    letActions :: forall a b. Maybe (Type' b) -> [ActionSpec Expr a]
+    letActions t =
       [ renameLet t
       , makeLetRecursive
       ]
 
-    letRecActions :: forall a b. ExprMeta -> Maybe (Type' b) -> [ActionSpec Expr a]
-    letRecActions m t = [renameLet t]
+    letRecActions :: forall a b. Maybe (Type' b) -> [ActionSpec Expr a]
+    letRecActions t = [renameLet t]
 
     -- Actions for every expression node
     universalActions :: forall a. ExprMeta -> [ActionSpec Expr a]
