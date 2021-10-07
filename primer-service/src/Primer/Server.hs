@@ -1,9 +1,11 @@
 {-# LANGUAGE GADTs #-}
+{-# LANGUAGE OverloadedLabels #-}
 {-# LANGUAGE TypeOperators #-}
 
 -- | An HTTP service for the Primer API.
 module Primer.Server (
   serve,
+  openAPIInfo,
 ) where
 
 import Control.Concurrent.STM (
@@ -15,6 +17,7 @@ import Control.Monad.Catch (catch)
 import Control.Monad.Except (ExceptT (..))
 import Control.Monad.Reader (runReaderT)
 import Data.Function ((&))
+import Data.OpenApi (OpenApi)
 import Data.Streaming.Network.Internal (HostPreference (HostIPv4Only))
 import Data.Text (Text)
 import qualified Data.Text.Lazy as LT (fromStrict)
@@ -26,6 +29,7 @@ import Network.Wai.Handler.Warp (
   setPort,
  )
 import qualified Network.Wai.Handler.Warp as Warp (runSettings)
+import Optics ((%), (.~), (?~))
 import Primer.API (
   Env (..),
   PrimerErr (..),
@@ -77,6 +81,7 @@ import Primer.Core (
  )
 import Primer.Core.DSL (app, branch, case_, create, emptyHole, tEmptyHole, tfun)
 import Primer.Database (
+  Session,
   SessionId,
   Sessions,
   Version,
@@ -87,6 +92,7 @@ import qualified Primer.Database as Database (
 import Primer.Eval (BetaReductionDetail (..), EvalDetail (..))
 import Primer.EvalFull (Dir (Syn))
 import Primer.Name (Name)
+import Primer.OpenAPI ()
 import Primer.Typecheck (TypeError (TypeDoesNotMatchArrow))
 import Servant (
   Get,
@@ -105,6 +111,7 @@ import Servant (
   ServerError,
   ServerT,
   Strict,
+  Summary,
   err500,
   errBody,
   hoistServer,
@@ -112,6 +119,8 @@ import Servant (
   (:>),
  )
 import qualified Servant (serve)
+import Servant.OpenApi (toOpenApi)
+import Servant.OpenApi.OperationId (OpId)
 import Servant.Server.StaticFiles (serveDirectoryWith)
 import WaiAppStatic.Storage.Filesystem (defaultWebAppSettings)
 import WaiAppStatic.Types (MaxAge (NoMaxAge), StaticSettings (ssIndices, ssMaxAge, ssRedirectToIndex), unsafeToPiece)
@@ -125,10 +134,22 @@ import WaiAppStatic.Types (MaxAge (NoMaxAge), StaticSettings (ssIndices, ssMaxAg
 {- ORMOLU_DISABLE -}
 
 type API =
+       "openapi.json" :> Get '[JSON] OpenApi
+  :<|> PrimerAPI
+
+-- | 'PrimerOpenAPI' is the portion of our API that is documented with an exported
+-- OpenAPI3 spec.
+-- 'PrimerLegacyAPI' is everything else.
+-- Over time, the 'PrimerLegacyAPI' should shrink as we improve our documentation.
+type PrimerAPI = PrimerOpenAPI :<|> PrimerLegacyAPI
+
+type PrimerOpenAPI =
   "api" :> (
     -- POST /api/sessions
     --   create a new session on the backend, returning its id
-    "sessions" :> ReqBody '[JSON] InitialApp :> Post '[JSON] SessionId
+    "sessions" :> ReqBody '[JSON] InitialApp :>
+    Summary "Create a new session" :>
+    OpId "createSession" Post '[JSON] SessionId
 
     -- GET /api/sessions
     --   Get a list of all sessions and their
@@ -138,15 +159,19 @@ type API =
     --   testing. Note that in a production system, this endpoint should
     --   obviously be authentication-scoped and only return the list of
     --   sessions that the caller is authorized to see.
-  :<|> QueryFlag "inMemory" :> "sessions" :> Get '[JSON] [(SessionId, Text)]
+  :<|> QueryFlag "inMemory" :> "sessions" :>
+    Summary "List sessions" :>
+    OpId "getSessionList" Get '[JSON] [Session])
 
+type PrimerLegacyAPI =
+  "api" :> (
     -- POST /api/copy-session
     --   Copy the session whose ID is given in the request body to a
     --   new session, and return the new session ID. Note that this
     --   method can be called at any time and is not part of the
     --   session-specific API, as it's not scoped by the current
     --   session ID like those methods are.
-  :<|> "copy-session" :> ReqBody '[JSON] SessionId :> Post '[JSON] SessionId
+    "copy-session" :> ReqBody '[JSON] SessionId :> Post '[JSON] SessionId
 
     -- GET /api/version
     --   Get the current git version of the server
@@ -258,6 +283,13 @@ type TestAPI = (
 -- responds with the value it was given, re-encoded as JSON.
 type Test a = Get '[JSON] a :<|> (ReqBody '[JSON] a :> Post '[JSON] a)
 
+openAPIInfo :: OpenApi
+openAPIInfo =
+  toOpenApi (Proxy :: Proxy PrimerOpenAPI)
+    & #info % #title .~ "Primer backend API"
+    & #info % #description ?~ "A backend service implementing a pedagogic functional programming language."
+    & #info % #version .~ "0.7"
+
 serveStaticFiles :: ServerT Raw (PrimerM IO)
 serveStaticFiles =
   -- Static file settings. Sane defaults, plus:
@@ -316,11 +348,14 @@ testEndpoints =
           , betaTypes = Just (ty, ty)
           }
 
+primerApi :: Proxy PrimerAPI
+primerApi = Proxy
+
 api :: Proxy API
 api = Proxy
 
-hoistPrimer :: Env -> Server API
-hoistPrimer e = hoistServer api nt server
+hoistPrimer :: Env -> Server PrimerAPI
+hoistPrimer e = hoistServer primerApi nt primerServer
   where
     nt :: PrimerM IO a -> Handler a
     nt m = Handler $ ExceptT $ catch (Right <$> runReaderT m e) handler
@@ -329,33 +364,36 @@ hoistPrimer e = hoistServer api nt server
     handler :: PrimerErr -> IO (Either ServerError a)
     handler (DatabaseErr msg) = pure $ Left $ err500{errBody = (LT.encodeUtf8 . LT.fromStrict) msg}
 
-server :: ServerT API (PrimerM IO)
-server =
-  ( newSession
-      :<|> listSessions
-      :<|> copySession
-      :<|> getVersion
-      :<|> ( \sid ->
-              getProgram sid
-                :<|> getSessionName sid
-                :<|> renameSession sid
-                :<|> edit sid
-                :<|> (variablesInScope sid :<|> generateNames sid)
-                :<|> evalStep sid
-                :<|> evalFull sid
-                :<|> testEndpoints
-           )
-  )
-    :<|> flushSessions'
-    :<|> serveStaticFiles
+primerServer :: ServerT PrimerAPI (PrimerM IO)
+primerServer = openAPIServer :<|> legacyServer
   where
+    openAPIServer = newSession :<|> listSessions
+    legacyServer =
+      ( copySession
+          :<|> getVersion
+          :<|> ( \sid ->
+                  getProgram sid
+                    :<|> getSessionName sid
+                    :<|> renameSession sid
+                    :<|> edit sid
+                    :<|> (variablesInScope sid :<|> generateNames sid)
+                    :<|> evalStep sid
+                    :<|> evalFull sid
+                    :<|> testEndpoints
+               )
+      )
+        :<|> flushSessions'
+        :<|> serveStaticFiles
     -- We need to convert '()' from the API to 'NoContent'
     flushSessions' = flushSessions >> pure NoContent
+
+server :: Env -> Server API
+server e = pure openAPIInfo :<|> hoistPrimer e
 
 serve :: Sessions -> TBQueue Database.Op -> Version -> Int -> IO ()
 serve ss q v port = do
   putStrLn $ "Starting server on port " <> show port
-  Warp.runSettings warpSettings $ noCache $ Servant.serve api $ hoistPrimer $ Env ss q v
+  Warp.runSettings warpSettings $ noCache $ Servant.serve api $ server $ Env ss q v
   where
     -- By default Warp will try to bind on either IPv4 or IPv6, whichever is
     -- available.

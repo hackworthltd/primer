@@ -6,6 +6,7 @@ module Primer.Database (
   safeMkSessionName,
   fromSessionName,
   defaultSessionName,
+  Session (..),
   SessionData (..),
   Sessions,
   newSessionId,
@@ -44,6 +45,7 @@ import qualified Data.UUID as UUID (toText)
 import Data.UUID.V4 (nextRandom)
 import qualified ListT (toList)
 import Primer.App (App (..))
+import Primer.JSON (CustomJSON (CustomJSON), ToJSON, VJSON)
 import qualified StmContainers.Map as StmMap
 
 -- | A Primer version.
@@ -65,6 +67,7 @@ type SessionId = UUID
 -- 'mkSessionName'.
 newtype SessionName = SessionName Text
   deriving (Generic, Eq, Show, Read)
+  deriving newtype (ToJSON)
 
 -- Ugh, this doesn't work. See
 -- https://github.com/valderman/selda/issues/13
@@ -116,6 +119,12 @@ fromSessionName (SessionName t) = t
 defaultSessionName :: SessionName
 defaultSessionName = SessionName "Untitled Program"
 
+-- | Bulk-queryable per-session information
+-- See also 'SessionData'.
+data Session = Session {id :: SessionId, name :: SessionName}
+  deriving (Generic)
+  deriving (ToJSON) via VJSON Session
+
 -- | Per-session information.
 data SessionData = SessionData
   { -- | The session's 'App'.
@@ -158,7 +167,7 @@ data Op
     LoadSession !SessionId !Sessions !(TMVar OpStatus)
   | -- | Get the list of all sessions (and their names) in the
     -- database.
-    ListSessions !(TMVar [(SessionId, SessionName)])
+    ListSessions !(TMVar [Session])
 
 -- | A config for the 'serve' computation.
 data ServiceCfg = ServiceCfg
@@ -188,7 +197,7 @@ class (Monad m) => MonadDb m where
   -- | Get a list of all session IDs and their names.
   --
   -- Corresponds to the 'ListSessions' operation.
-  listSessions :: m [(SessionId, SessionName)]
+  listSessions :: m [Session]
 
   -- | Query a session ID from the database.
   --
@@ -239,7 +248,7 @@ instance (MonadIO m) => MonadDb (NullDbT m) where
   listSessions = do
     ss <- ask
     kvs <- liftIO $ atomically $ ListT.toList $ StmMap.listT ss
-    pure $ second sessionName <$> kvs
+    pure $ uncurry Session . second sessionName <$> kvs
   querySessionId _ sid = pure $ Left $ "No such session ID " <> UUID.toText sid
 
 -- | The database service computation.

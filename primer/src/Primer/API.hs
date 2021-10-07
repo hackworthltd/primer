@@ -71,6 +71,7 @@ import Primer.Core (
   Type',
  )
 import Primer.Database (
+  Session (Session),
   SessionData (..),
   SessionId,
   Sessions,
@@ -215,7 +216,7 @@ copySession srcId = do
 
 -- If the input is 'False', return all sessions in the database;
 -- otherwise, only the in-memory sessions.
-listSessions :: (MonadIO m) => Bool -> PrimerM m [(SessionId, Text)]
+listSessions :: (MonadIO m) => Bool -> PrimerM m [Session]
 listSessions False = do
   q <- asks dbOpQueue
   callback <- liftIO $
@@ -223,11 +224,10 @@ listSessions False = do
       cb <- newEmptyTMVar
       writeTBQueue q $ Database.ListSessions cb
       return cb
-  ss <- liftIO $ atomically $ takeTMVar callback
-  pure $ second fromSessionName <$> ss
+  liftIO $ atomically $ takeTMVar callback
 listSessions _ = sessionsTransaction $ \ss _ -> do
   kvs <- ListT.toList $ StmMap.listT ss
-  pure $ second (fromSessionName . sessionName) <$> kvs
+  pure $ uncurry Session . second sessionName <$> kvs
 
 getVersion :: (Monad m) => PrimerM m Version
 getVersion = asks version
