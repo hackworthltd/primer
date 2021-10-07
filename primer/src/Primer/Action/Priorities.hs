@@ -28,7 +28,34 @@
 -- when building a new definition's expression. (Arguably we should
 -- similarly promote 'makeTypeAbstraction' at intermediate and
 -- expert levels, but we don't currently implement this.)
-module Primer.Action.Priorities where
+module Primer.Action.Priorities (
+  makeLambda,
+  useVar,
+  useValueCon,
+  makeCase,
+  useSaturatedValueCon,
+  useFunction,
+  makeLet,
+  makeLetRecursive,
+  makeLetrec,
+  applyFunction,
+  applyType,
+  makeTypeAbstraction,
+  annotateExpr,
+  removeAnnotation,
+  finishHole,
+  enterHole,
+  constructFunction,
+  addInput,
+  useTypeVar,
+  useTypeCon,
+  constructTypeApp,
+  constructForall,
+  rename,
+  duplicate,
+  raise,
+  delete,
+) where
 
 import Foreword
 

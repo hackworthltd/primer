@@ -81,7 +81,7 @@ actionsForDef l defs def =
             ChooseOrEnterName
               { prompt = "Enter a new " <> nameString <> " for the definition"
               , options = []
-              , choose = (\name -> [RenameDef (defID def) (unName name)])
+              , choose = \name -> [RenameDef (defID def) (unName name)]
               }
       , priority = P.rename l
       , destructive = False
@@ -159,17 +159,15 @@ actionsForDefSig l def id ty =
   let toProgAction actions = [MoveToDef (defID def), SigAction actions]
 
       raiseAction =
-        if id == defType def ^. _typeMetaLens % _id
-          then [] -- at root already, cannot raise
-          else
-            [ OfferedAction
-                { name = Prose "↑"
-                , description = "Replace parent with this subtree"
-                , input = NoInputRequired [MoveToDef (defID def), CopyPasteSig (defID def, id) [SetCursor id, Move Parent, Delete]]
-                , priority = P.raise l
-                , destructive = True
-                }
-            ]
+        [ OfferedAction
+          { name = Prose "↑"
+          , description = "Replace parent with this subtree"
+          , input = NoInputRequired [MoveToDef (defID def), CopyPasteSig (defID def, id) [SetCursor id, Move Parent, Delete]]
+          , priority = P.raise l
+          , destructive = True
+          }
+        | id /= defType def ^. _typeMetaLens % _id
+        ]
    in case findType id ty of
         Nothing -> mempty
         Just t ->
@@ -300,7 +298,7 @@ actionWithInput name description priority destructive input _p m =
   OfferedAction
     { name
     , description
-    , input = InputRequired $ map (\as -> (SetCursor (m ^. _id) : as)) input
+    , input = InputRequired $ map (\as -> SetCursor (m ^. _id) : as) input
     , priority
     , destructive
     }
@@ -328,7 +326,7 @@ actionWithNames defId tk k m prompt =
 
 -- | A set of ActionSpecs can be realised by providing them with metadata.
 realise :: forall a p. p -> Meta a -> [ActionSpec p a] -> [OfferedAction [Action]]
-realise p m as = map (\a -> a p m) as
+realise p m = map (\a -> a p m)
 
 -- | Given an expression, determine what basic actions it supports
 -- Specific projections may provide other actions not listed here
@@ -446,7 +444,7 @@ basicActionsForExpr l defID expr = case expr of
     makeLetBinding :: forall a. ActionSpec Expr a
     makeLetBinding _p m' =
       OfferedAction
-        { name = (Code "=")
+        { name = Code "="
         , description = "Make a let binding"
         , input =
             actionWithNames
@@ -462,7 +460,7 @@ basicActionsForExpr l defID expr = case expr of
     makeLetrec :: forall a. ActionSpec Expr a
     makeLetrec _p m' =
       OfferedAction
-        { name = (Code "=,=")
+        { name = Code "=,="
         , description = "Make a recursive let binding"
         , input =
             actionWithNames
@@ -487,7 +485,7 @@ basicActionsForExpr l defID expr = case expr of
     renameVariable :: forall a. ExprMeta -> ActionSpec Expr a
     renameVariable m _p m' =
       OfferedAction
-        { name = (Prose "r")
+        { name = Prose "r"
         , description = "Rename this input variable"
         , input =
             actionWithNames
@@ -503,7 +501,7 @@ basicActionsForExpr l defID expr = case expr of
     renameTypeVariable :: forall a. ExprMeta -> ActionSpec Expr a
     renameTypeVariable m _p m' =
       OfferedAction
-        { name = (Prose "r")
+        { name = Prose "r"
         , description = "Rename this type variable"
         , input =
             actionWithNames
@@ -635,7 +633,7 @@ basicActionsForType l defID ty = case ty of
     constructPolymorphicType :: forall a. ActionSpec Type a
     constructPolymorphicType _p m' =
       OfferedAction
-        { name = (Code "∀")
+        { name = Code "∀"
         , description = "Construct a polymorphic type"
         , input =
             actionWithNames
@@ -660,7 +658,7 @@ basicActionsForType l defID ty = case ty of
     renameTypeVariable :: forall a. Kind -> ActionSpec Type a
     renameTypeVariable k _p m' =
       OfferedAction
-        { name = (Prose "r")
+        { name = Prose "r"
         , description = "Rename this type variable"
         , input =
             actionWithNames

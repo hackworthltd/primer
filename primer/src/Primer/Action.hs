@@ -224,10 +224,10 @@ nameString = "n" <> T.singleton '\x200C' <> "ame"
 -- definition at the same time.
 uniquifyDefName :: Text -> Map ID Def -> Text
 uniquifyDefName name' defs =
-  if notElem name' avoid
+  if name' `notElem` avoid
     then name'
     else
-      let go i = if notElem (name' <> "_" <> show i) avoid then (name' <> "_" <> show i) else go (i + 1)
+      let go i = if (name' <> "_" <> show i) `notElem` avoid then name' <> "_" <> show i else go (i + 1)
        in go (1 :: Int)
   where
     avoid :: [Text]
