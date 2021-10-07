@@ -1,33 +1,33 @@
 -- | Action priorities. Smaller values are higher priority. They can
--- | be indexed by 'Level', but we currently don't use that
--- | functionality.
--- |
--- | The values chosen here are relatively arbitrary, though we expect
--- | the higher priority actions to be used more often than lower
--- | priority actions. Exceptions to the rule are:
--- |
--- | - 'makeCase': this is used very early in beginner lessons, so we
--- | make it easy to find near the top of the list. See
--- | https://github.com/hackworthltd/vonnegut/issues/786
--- |
--- | - Delete: we always put this last, because it's destructive.
--- |
--- | Expression actions.
--- |
--- | For reference, the expectation is that variable,
--- | constructor-with-argument, and nullary constructor uses will be
--- | the most frequently used actions; followed by function
--- | application; then special forms like @case@, @let@, etc. Note
--- | that we put the @$@ variant of function application fairly low on
--- | the list because most of the time we expect students to use our
--- | special @f $ ?@ action, instead.
--- |
--- | Besides the special case of 'delete' going last as mentioned
--- | above, we also make one other exception: 'makeLambda' goes first,
--- | because it's the first thing students will typically want to do
--- | when building a new definition's expression. (Arguably we should
--- | similarly promote 'makeTypeAbstraction' at intermediate and
--- | expert levels, but we don't currently implement this.)
+-- be indexed by 'Level', but we currently don't use that
+-- functionality.
+--
+-- The values chosen here are relatively arbitrary, though we expect
+-- the higher priority actions to be used more often than lower
+-- priority actions. Exceptions to the rule are:
+--
+-- - 'makeCase': this is used very early in beginner lessons, so we
+-- make it easy to find near the top of the list. See
+-- https://github.com/hackworthltd/vonnegut/issues/786
+--
+-- - Delete: we always put this last, because it's destructive.
+--
+-- Expression actions.
+--
+-- For reference, the expectation is that variable,
+-- constructor-with-argument, and nullary constructor uses will be
+-- the most frequently used actions; followed by function
+-- application; then special forms like @case@, @let@, etc. Note
+-- that we put the @$@ variant of function application fairly low on
+-- the list because most of the time we expect students to use our
+-- special @f $ ?@ action, instead.
+--
+-- Besides the special case of 'delete' going last as mentioned
+-- above, we also make one other exception: 'makeLambda' goes first,
+-- because it's the first thing students will typically want to do
+-- when building a new definition's expression. (Arguably we should
+-- similarly promote 'makeTypeAbstraction' at intermediate and
+-- expert levels, but we don't currently implement this.)
 module Primer.Action.Priorities where
 
 import Foreword

@@ -129,7 +129,7 @@ import Primer.Zipper (
  )
 import Primer.ZipperCxt (localVariablesInScopeExpr)
 
--- An OfferedAction is an option that we show to the user.
+-- | An OfferedAction is an option that we show to the user.
 -- It may require some user input (e.g. to choose what to name a binder, or
 -- choose which variable to insert).
 -- If picked, it will submit a particular set of actions to the backend.
@@ -146,13 +146,13 @@ data OfferedAction a = OfferedAction
   deriving (Functor)
 
 -- | Filter on variables and constructors according to whether they
--- | have a function type.
+-- have a function type.
 data FunctionFiltering
   = Everything
   | OnlyFunctions
   | NoFunctions
 
--- Further user input is sometimes required to construct an action.
+-- | Further user input is sometimes required to construct an action.
 -- For example, when inserting a constructor the user must tell us what
 -- constructor.
 -- This type models that input and the corresponding output.
@@ -163,15 +163,15 @@ data FunctionFiltering
 data UserInput a
   = ChooseConstructor FunctionFiltering (Text -> a)
   | ChooseTypeConstructor (Text -> a)
-  | -- ChooseOrEnterName: Renders a choice between some options (as buttons),
+  | -- | Renders a choice between some options (as buttons),
     -- plus a textbox to manually enter a name
     ChooseOrEnterName
-      -- prompt: prompt to show the user,
-      -- e.g. "choose a name, or enter your own"
-      { prompt :: Text
-      , -- A bunch of options
+      { -- | prompt: prompt to show the user,
+        -- e.g. "choose a name, or enter your own"
+        prompt :: Text
+      , -- | A bunch of options
         options :: [Name]
-      , -- What to do with whatever name is chosen
+      , -- | What to do with whatever name is chosen
         choose :: Name -> a
       }
   | ChooseVariable FunctionFiltering (Either Text ID -> a)
@@ -185,43 +185,43 @@ data ActionInput a where
 deriving instance Functor ActionInput
 
 -- | Some actions' names are meant to be rendered as code, others as
--- | prose.
+-- prose.
 data ActionName
   = Code Text
   | Prose Text
 
 -- | The current programming "level". This setting determines which
--- | actions are displayed to the student, the labels on UI elements,
--- | etc.
+-- actions are displayed to the student, the labels on UI elements,
+-- etc.
 data Level
   = -- | Bare minimum features to define sum types, and functions on
-    -- | those types using simple pattern matching.
+    -- those types using simple pattern matching.
     Beginner
   | -- | Function application & monomorphic HoF. (Support for the latter
-    -- | should probably be split into a separate level.)
+    -- should probably be split into a separate level.)
     Intermediate
   | -- | All features.
     Expert
 
 -- | Sigh, yes, this is required so that Safari doesn't try to
--- | autocomplete these fields with your contact data.
--- |
--- | See
--- | https://stackoverflow.com/questions/43058018/how-to-disable-autocomplete-in-address-fields-for-safari
--- |
--- | Note that, according to a comment in the above StackOverflow
--- | post, this is screenreader-safe.
+-- autocomplete these fields with your contact data.
+--
+-- See
+-- https://stackoverflow.com/questions/43058018/how-to-disable-autocomplete-in-address-fields-for-safari
+--
+-- Note that, according to a comment in the above StackOverflow
+-- post, this is screenreader-safe.
 nameString :: Text
 nameString = "n" <> T.singleton '\x200C' <> "ame"
 
 -- | Given a definition name and a program, return a unique variant of
--- | that name. Note that if no definition of the given name already
--- | exists in the program, this function will return the same name
--- | it's been given.
--- |
--- | Note: this is not concurrency-safe! There's probably no
--- | reasonable way to do this atomically without also creating the
--- | definition at the same time.
+-- that name. Note that if no definition of the given name already
+-- exists in the program, this function will return the same name
+-- it's been given.
+--
+-- Note: this is not concurrency-safe! There's probably no
+-- reasonable way to do this atomically without also creating the
+-- definition at the same time.
 uniquifyDefName :: Text -> Map ID Def -> Text
 uniquifyDefName name' defs =
   if notElem name' avoid

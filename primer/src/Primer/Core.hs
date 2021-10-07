@@ -74,7 +74,7 @@ data Meta a = Meta ID a (Maybe Value)
   deriving (Generic, Eq, Show, Data, Functor)
   deriving (FromJSON, ToJSON) via VJSON (Meta a)
 
--- This lens is called 'type' because 'a' is most commonly a Type, but it will
+-- | This lens is called 'type' because 'a' is most commonly a Type, but it will
 -- work for any 'a'.
 _type :: Lens (Meta a) (Meta b) a b
 _type =

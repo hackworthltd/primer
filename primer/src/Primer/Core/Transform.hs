@@ -91,7 +91,7 @@ unfoldAPP = second reverse . go
     go e = (e, [])
 
 -- | Split a function type into an array of argument types and the result type.
--- | Takes two arguments: the lhs and rhs of the topmost function node.
+-- Takes two arguments: the lhs and rhs of the topmost function node.
 unfoldFun :: Type' a -> Type' a -> (NonEmpty (Type' a), Type' a)
 unfoldFun a (TFun _ b c) =
   let (argTypes, resultType) = unfoldFun b c

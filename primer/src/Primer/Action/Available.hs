@@ -63,12 +63,13 @@ import Primer.Name (unName)
 data SomeNode a b
   = ExprNode (Expr' (Meta a) (Meta b))
   | TypeNode (Type' (Meta b))
-  | -- If/when we model all bindings with 'Bind'', we will want to generalise this.
+  | -- | If/when we model all bindings with 'Bind'', we will want to generalise this.
     CaseBindNode (Bind' (Meta a))
 
 actionsForDef ::
   Level ->
-  Map ID Def -> -- only used to generate a unique name for a duplicate definition
+  -- | only used to generate a unique name for a duplicate definition
+  Map ID Def ->
   Def ->
   [OfferedAction [ProgAction]]
 actionsForDef l defs def =
@@ -111,7 +112,7 @@ actionsForDef l defs def =
       }
   ]
 
--- Given the body of a Def and the ID of a node in it, return the possible actions that can be applied to it
+-- | Given the body of a Def and the ID of a node in it, return the possible actions that can be applied to it
 actionsForDefBody ::
   Level ->
   Def ->
@@ -147,7 +148,7 @@ actionsForDefBody l def id expr =
                 <> raiseAction
         Just (CaseBindNode b, _) -> toProgAction <<$>> actionsForBinding l (defID def) b
 
--- Given a Type and the ID of a node in it, return the possible actions that can be applied to it
+-- | Given a Type and the ID of a node in it, return the possible actions that can be applied to it
 actionsForDefSig ::
   Level ->
   Def ->
@@ -177,7 +178,7 @@ actionsForDefSig l def id ty =
           )
             <> raiseAction
 
--- Bindings support just one action: renaming.
+-- | Bindings support just one action: renaming.
 actionsForBinding ::
   Level ->
   ID ->
@@ -203,7 +204,7 @@ actionsForBinding l defId b =
           }
     ]
 
--- Find a node in the AST by its ID, and also return its parent
+-- | Find a node in the AST by its ID, and also return its parent
 findNodeWithParent :: forall a b. ID -> Expr' (Meta a) (Meta b) -> Maybe (SomeNode a b, Maybe (SomeNode a b))
 findNodeWithParent id x = go x Nothing
   where
@@ -235,7 +236,7 @@ findNodeWithParent id x = go x Nothing
       Just (t', Nothing) -> Just (TypeNode t', Just (ExprNode p))
       Just (t', Just p') -> Just (TypeNode t', Just (TypeNode p'))
 
--- Find a sub-type in a larger type by its ID.
+-- | Find a sub-type in a larger type by its ID.
 findType :: forall b. ID -> Type' (Meta b) -> Maybe (Type' (Meta b))
 findType id ty
   | ty ^. _typeMetaLens % _id == id = Just ty
@@ -248,7 +249,7 @@ findType id ty
     TApp _ a b -> findType id a <|> findType id b
     TForall _ _ _ t -> findType id t
 
--- Find a sub-type in a larger type by its ID. Also returning its parent
+-- | Find a sub-type in a larger type by its ID. Also returning its parent
 findTypeWithParent :: forall b. ID -> Type' (Meta b) -> Maybe (Type' (Meta b), Maybe (Type' (Meta b)))
 findTypeWithParent id x = go x Nothing
   where
@@ -270,7 +271,7 @@ findBind id bind
   | bind ^. _bindMeta % _id == id = Just bind
   | otherwise = Nothing
 
--- An ActionSpec is an OfferedAction that needs
+-- | An ActionSpec is an OfferedAction that needs
 -- metadata in order to be used. Typically this is because it starts with
 -- SetCursor, which needs an ID.
 --
@@ -282,7 +283,7 @@ findBind id bind
 type ActionSpec p a =
   p -> Meta a -> OfferedAction [Action]
 
--- From multiple actions, construct an ActionSpec which starts with SetCursor
+-- | From multiple actions, construct an ActionSpec which starts with SetCursor
 action :: forall a p. ActionName -> Text -> Int -> Bool -> [Action] -> ActionSpec p a
 action name description priority destructive as _p m =
   OfferedAction
@@ -293,7 +294,7 @@ action name description priority destructive as _p m =
     , destructive
     }
 
--- Construct an ActionSpec which requires some input, and then starts with SetCursor
+-- | Construct an ActionSpec which requires some input, and then starts with SetCursor
 actionWithInput :: forall a p. ActionName -> Text -> Int -> Bool -> UserInput [Action] -> ActionSpec p a
 actionWithInput name description priority destructive input _p m =
   OfferedAction
@@ -304,7 +305,7 @@ actionWithInput name description priority destructive input _p m =
     , destructive
     }
 
--- Construct an ActionSpec which requires the user to select from a bunch of
+-- | Construct an ActionSpec which requires the user to select from a bunch of
 -- generated names for the current location (or specify their own), and starts
 -- with SetCursor. Requires the definition id (not the node's id: that is
 -- controlled by the ActionSpec)
@@ -325,11 +326,11 @@ actionWithNames defId tk k m prompt =
         , choose = \n -> SetCursor (m ^. _id) : k (unName n)
         }
 
--- A set of ActionSpecs can be realised by providing them with metadata.
+-- | A set of ActionSpecs can be realised by providing them with metadata.
 realise :: forall a p. p -> Meta a -> [ActionSpec p a] -> [OfferedAction [Action]]
 realise p m as = map (\a -> a p m) as
 
--- Given an expression, determine what basic actions it supports
+-- | Given an expression, determine what basic actions it supports
 -- Specific projections may provide other actions not listed here
 basicActionsForExpr :: Level -> ID -> Expr -> [OfferedAction [Action]]
 basicActionsForExpr l defID expr = case expr of
@@ -618,7 +619,7 @@ basicActionsForExpr l defID expr = case expr of
     defaultActions :: forall a. ExprMeta -> [ActionSpec Expr a]
     defaultActions m = universalActions m <> [deleteExpr]
 
--- Given a type, determine what basic actions it supports
+-- | Given a type, determine what basic actions it supports
 -- Specific projections may provide other actions not listed here
 basicActionsForType :: Level -> ID -> Type -> [OfferedAction [Action]]
 basicActionsForType l defID ty = case ty of
@@ -705,7 +706,7 @@ basicActionsForType l defID ty = case ty of
     defaultActions :: forall a. [ActionSpec Type a]
     defaultActions = universalActions <> [deleteType]
 
--- These actions are more involved than the basic actions.
+-- | These actions are more involved than the basic actions.
 -- They may involve moving around the AST and performing several basic actions.
 compoundActionsForType :: forall a. Level -> Type' (Meta a) -> [OfferedAction [Action]]
 compoundActionsForType l ty = case ty of
