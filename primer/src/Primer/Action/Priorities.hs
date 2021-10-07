@@ -45,12 +45,16 @@ module Primer.Action.Priorities (
   removeAnnotation,
   finishHole,
   enterHole,
+
+  -- * Type actions.
   constructFunction,
   addInput,
   useTypeVar,
   useTypeCon,
   constructTypeApp,
   constructForall,
+
+  -- * Generic actions.
   rename,
   duplicate,
   raise,
@@ -109,7 +113,6 @@ finishHole _ = 500
 enterHole :: Level -> Int
 enterHole _ = 501
 
--- | Type actions.
 constructFunction :: Level -> Int
 constructFunction _ = 5
 
@@ -128,7 +131,6 @@ constructTypeApp _ = 20
 constructForall :: Level -> Int
 constructForall _ = 40
 
--- | Generic actions.
 rename :: Level -> Int
 rename _ = 200
 
