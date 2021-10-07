@@ -6,8 +6,8 @@ module Primer.OpenAPI (
 ) where
 
 import Data.OpenApi (ToSchema)
-import Primer.API (Session)
 import Primer.App (InitialApp)
+import Primer.Database (Session, SessionName)
 
 -- $orphanInstances
 --
@@ -16,5 +16,6 @@ import Primer.App (InitialApp)
 -- build primer with ghcjs, because openapi3 transitively depends on network,
 -- which ghcjs currently cannot build.
 
+instance ToSchema SessionName
 instance ToSchema Session
 instance ToSchema InitialApp

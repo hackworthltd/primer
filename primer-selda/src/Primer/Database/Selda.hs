@@ -40,6 +40,7 @@ import Database.Selda (
 import GHC.Generics (Generic)
 import Primer.Database (
   MonadDb (..),
+  Session (Session),
   SessionData (..),
   Version,
   fromSessionName,
@@ -113,11 +114,11 @@ instance MonadDb (SeldaM b) where
       session <- select sessions
       order (session ! #uuid) ascending
       return (session ! #uuid :*: session ! #name)
-    pure $ tuple <$> ss
+    pure $ safeMkSession <$> ss
     where
       -- See comment in 'querySessionId' re: dealing with invalid
       -- session names loaded from the database.
-      tuple (s :*: n) = (s, safeMkSessionName n)
+      safeMkSession (s :*: n) = Session s (safeMkSessionName n)
 
   -- Note: we ignore the stored Primer version for now.
   querySessionId _ sid = do

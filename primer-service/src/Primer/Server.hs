@@ -34,7 +34,6 @@ import Primer.API (
   Env (..),
   PrimerErr (..),
   PrimerM,
-  Session,
   copySession,
   edit,
   evalFull,
@@ -82,6 +81,7 @@ import Primer.Core (
  )
 import Primer.Core.DSL (app, branch, case_, create, emptyHole, tEmptyHole, tfun)
 import Primer.Database (
+  Session,
   SessionId,
   Sessions,
   Version,
