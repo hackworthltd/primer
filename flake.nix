@@ -279,8 +279,7 @@
       checks =
         {
           source-code-checks = pre-commit-hooks;
-          weeder = weeder;
-          openapi-validate = openapi-validate;
+          inherit weeder openapi-validate;
         }
         // primerFlake.checks;
 
