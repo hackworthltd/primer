@@ -175,6 +175,8 @@ _exprMeta :: forall a b c. Traversal (Expr' a b) (Expr' c b) a c
 _exprMeta = param @1
 
 -- | A lens on to the metadata of an expression.
+-- Note that unlike '_exprMeta', this is shallow i.e. it does not recurse in to sub-expressions.
+-- And for this reason, it cannot be type-changing.
 _exprMetaLens :: Lens' (Expr' a b) a
 _exprMetaLens = position @1
 
@@ -241,6 +243,8 @@ _typeMeta :: Traversal (Type' a) (Type' b) a b
 _typeMeta = param @0
 
 -- | A lens on to the metadata of a type.
+-- Note that unlike '_typeMeta', this is shallow i.e. it does not recurse in to sub-expressions.
+-- And for this reason, it cannot be type-changing.
 _typeMetaLens :: Lens' (Type' a) a
 _typeMetaLens = position @1
 
