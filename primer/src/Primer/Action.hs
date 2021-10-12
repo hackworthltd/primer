@@ -166,14 +166,12 @@ data UserInput a
   | -- | Renders a choice between some options (as buttons),
     -- plus a textbox to manually enter a name
     ChooseOrEnterName
-      { -- | prompt: prompt to show the user,
-        -- e.g. "choose a name, or enter your own"
-        prompt :: Text
-      , -- | A bunch of options
-        options :: [Name]
-      , -- | What to do with whatever name is chosen
-        choose :: Name -> a
-      }
+      Text
+      -- ^ Prompt to show the user, e.g. "choose a name, or enter your own"
+      [Name]
+      -- ^ A bunch of options
+      (Name -> a)
+      -- ^ What to do with whatever name is chosen
   | ChooseVariable FunctionFiltering (Either Text ID -> a)
   | ChooseTypeVariable (Text -> a)
   deriving (Functor)

@@ -80,10 +80,9 @@ actionsForDef l defs def =
       , input =
           InputRequired $
             ChooseOrEnterName
-              { prompt = "Enter a new " <> nameString <> " for the definition"
-              , options = []
-              , choose = \name -> [RenameDef (defID def) (unName name)]
-              }
+              ("Enter a new " <> nameString <> " for the definition")
+              []
+              (\name -> [RenameDef (defID def) (unName name)])
       , priority = P.rename l
       , actionType = Primary
       }
@@ -320,10 +319,9 @@ actionWithNames defId tk k m prompt =
   AskQuestion (GenerateName defId (m ^. _id) tk) $ \options ->
     InputRequired $
       ChooseOrEnterName
-        { prompt
-        , options
-        , choose = \n -> SetCursor (m ^. _id) : k (unName n)
-        }
+        prompt
+        options
+        (\n -> SetCursor (m ^. _id) : k (unName n))
 
 -- | A set of ActionSpecs can be realised by providing them with metadata.
 realise :: forall a p. p -> Meta a -> [ActionSpec p a] -> [OfferedAction [Action]]
