@@ -1,4 +1,5 @@
 {-# LANGUAGE DeriveFunctor #-}
+{-# LANGUAGE OverloadedLabels #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE UndecidableInstances #-}
 
@@ -20,6 +21,8 @@ module Primer.Core (
   Type' (..),
   TypeCache (..),
   TypeCacheBoth (..),
+  _chkedAt,
+  _synthed,
   Kind (..),
   TypeDef (..),
   typeDefKind,
@@ -33,11 +36,15 @@ module Primer.Core (
   ExprMeta,
   TypeMeta,
   Meta (Meta),
+  _type,
   _exprMeta,
+  _exprMetaLens,
   _exprTypeMeta,
   _typeMeta,
+  _typeMetaLens,
   defaultTypeDefs,
   bindName,
+  _bindMeta,
 ) where
 
 import Foreword
@@ -47,7 +54,7 @@ import Data.Data (Data)
 import Data.Generics.Product
 import Data.Generics.Uniplate.Data ()
 import Data.Generics.Uniplate.Zipper (Zipper, hole, replaceHole)
-import Optics (Lens', Traversal, lens, set, view, (%))
+import Optics (AffineFold, Lens, Lens', Traversal, afailing, lens, set, view, (%))
 import Primer.JSON
 import Primer.Name (Name)
 
@@ -66,6 +73,11 @@ instance FromJSONKey ID
 data Meta a = Meta ID a (Maybe Value)
   deriving (Generic, Eq, Show, Data, Functor)
   deriving (FromJSON, ToJSON) via VJSON (Meta a)
+
+-- | This lens is called 'type' because 'a' is most commonly a Type, but it will
+-- work for any 'a'.
+_type :: Lens (Meta a) (Meta b) a b
+_type = position @2
 
 -- | Typechecking will add metadata to each node describing its type.
 -- Some nodes are purely synthesised, some are purely checked, and some
@@ -90,6 +102,18 @@ data TypeCache
 data TypeCacheBoth = TCBoth {tcChkedAt :: Type' (), tcSynthed :: Type' ()}
   deriving (Eq, Show, Generic, Data)
   deriving (FromJSON, ToJSON) via VJSON TypeCacheBoth
+
+--TODO `_chkedAt` and `_synthed` should be `AffineTraversal`s,
+-- but there is currently no `failing` for AffineTraversals, only for AffineFolds (`afailing`).
+-- See https://github.com/well-typed/optics/pull/393
+
+-- | An affine fold getting TCChkedAt or TCEmb's chked-at field
+_chkedAt :: AffineFold TypeCache (Type' ())
+_chkedAt = #_TCChkedAt `afailing` (#_TCEmb % #tcChkedAt)
+
+-- | An affine fold getting TCSynthed or TCEmb's synthed field
+_synthed :: AffineFold TypeCache (Type' ())
+_synthed = #_TCSynthed `afailing` (#_TCEmb % #tcSynthed)
 
 -- Expression metadata. Each expression is annotated with a type (populated by
 -- the typechecker). These types aren't part of the program so they themselves
@@ -149,6 +173,12 @@ data Expr' a b
 _exprMeta :: forall a b c. Traversal (Expr' a b) (Expr' c b) a c
 _exprMeta = param @1
 
+-- | A lens on to the metadata of an expression.
+-- Note that unlike '_exprMeta', this is shallow i.e. it does not recurse in to sub-expressions.
+-- And for this reason, it cannot be type-changing.
+_exprMetaLens :: Lens' (Expr' a b) a
+_exprMetaLens = position @1
+
 -- | A traversal over the type metadata of an expression
 _exprTypeMeta :: forall a b c. Traversal (Expr' a b) (Expr' a c) b c
 _exprTypeMeta = param @0
@@ -178,6 +208,10 @@ data Bind' a = Bind a Name
 bindName :: Bind' a -> Name
 bindName (Bind _ n) = n
 
+-- | A type-modifying lens for the metadata of a Bind.
+_bindMeta :: forall a b. Lens (Bind' a) (Bind' b) a b
+_bindMeta = position @1
+
 -- | Core types.
 --  Type variables are currently represented as text, and we have no compile-time
 --  checks on scoping. We may want to introduce de Bruijn indices or use
@@ -203,6 +237,12 @@ data Type' a
 -- | A traversal over the metadata of a type
 _typeMeta :: Traversal (Type' a) (Type' b) a b
 _typeMeta = param @0
+
+-- | A lens on to the metadata of a type.
+-- Note that unlike '_typeMeta', this is shallow i.e. it does not recurse in to sub-expressions.
+-- And for this reason, it cannot be type-changing.
+_typeMetaLens :: Lens' (Type' a) a
+_typeMetaLens = position @1
 
 -- | Core kinds.
 data Kind = KHole | KType | KFun Kind Kind

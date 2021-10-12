@@ -4,6 +4,7 @@ module Primer.Core.Transform (
   renameTyVarExpr,
   unfoldApp,
   unfoldAPP,
+  unfoldFun,
   removeAnn,
 ) where
 
@@ -11,6 +12,7 @@ import Foreword
 
 import Data.Data (Data)
 import Data.Generics.Uniplate.Data (descendM)
+import qualified Data.List.NonEmpty as NE
 import Primer.Core (CaseBranch' (..), Expr' (..), Type' (..), bindName)
 import Primer.Name (Name)
 
@@ -87,6 +89,14 @@ unfoldAPP = second reverse . go
   where
     go (APP _ f x) = let (g, args) = go f in (g, x : args)
     go e = (e, [])
+
+-- | Split a function type into an array of argument types and the result type.
+-- Takes two arguments: the lhs and rhs of the topmost function node.
+unfoldFun :: Type' a -> Type' a -> (NonEmpty (Type' a), Type' a)
+unfoldFun a (TFun _ b c) =
+  let (argTypes, resultType) = unfoldFun b c
+   in (NE.cons a argTypes, resultType)
+unfoldFun a t = (pure a, t)
 
 -- | Remove any outer annotations from an expression
 removeAnn :: Expr' a b -> Expr' a b

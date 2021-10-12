@@ -1,4 +1,7 @@
 {-# LANGUAGE ConstraintKinds #-}
+{-# LANGUAGE DeriveFunctor #-}
+{-# LANGUAGE GADTs #-}
+{-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE TypeApplications #-}
 
@@ -6,12 +9,20 @@ module Primer.Action (
   Action (..),
   ActionError (..),
   Movement (..),
+  ProgAction (..),
   applyActionsToBody,
   applyActionsToTypeSig,
   applyActionsToExpr,
   moveExpr,
-  mkAvoidForFreshName,
-  mkAvoidForFreshNameTy,
+  OfferedAction (..),
+  ActionType (..),
+  FunctionFiltering (..),
+  UserInput (..),
+  ActionInput (..),
+  ActionName (..),
+  Level (..),
+  nameString,
+  uniquifyDefName,
 ) where
 
 import Foreword
@@ -21,7 +32,7 @@ import Data.Aeson (Value)
 import Data.Generics.Product (typed)
 import Data.List (delete, findIndex, lookup)
 import qualified Data.Map.Strict as Map
-import qualified Data.Set as S
+import qualified Data.Text as T
 import Optics (set, (%), (?~))
 import Primer.Core (
   Def (..),
@@ -66,9 +77,15 @@ import Primer.Core.DSL (
 import Primer.Core.Transform (renameTyVar, renameTyVarExpr, renameVar)
 import Primer.Core.Utils (forgetTypeIDs, generateTypeIDs)
 import Primer.JSON
-import Primer.Name (Name, NameCounter, freshName, unName, unsafeMkName)
+import Primer.Name (Name, NameCounter, unName, unsafeMkName)
+import Primer.Name.Fresh (
+  isFresh,
+  isFreshTy,
+  mkFreshName,
+  mkFreshNameTy,
+ )
+import Primer.Questions (Question)
 import Primer.Refine (Inst (InstAPP, InstApp, InstUnconstrainedAPP), refine)
-import Primer.Subst (freeVars, freeVarsTy)
 import Primer.Typecheck (
   SmartHoles,
   TypeError,
@@ -90,15 +107,10 @@ import Primer.Zipper (
   IsZipper,
   Loc (..),
   TypeZ,
-  bindersAbove,
-  bindersAboveTypeZ,
-  bindersBelow,
-  bindersBelowTy,
   down,
   focus,
   focusLoc,
   focusOn,
-  focusOnlyType,
   focusType,
   locToEither,
   replace,
@@ -113,6 +125,107 @@ import Primer.Zipper (
   _target,
  )
 import Primer.ZipperCxt (localVariablesInScopeExpr)
+
+-- | An OfferedAction is an option that we show to the user.
+-- It may require some user input (e.g. to choose what to name a binder, or
+-- choose which variable to insert).
+-- If picked, it will submit a particular set of actions to the backend.
+data OfferedAction a = OfferedAction
+  { name :: ActionName
+  , description :: Text
+  , input :: ActionInput a
+  , priority :: Int
+  , -- | Used primarily for display purposes.
+    actionType :: ActionType
+  }
+  deriving (Functor)
+
+-- We will probably add more constructors in future.
+data ActionType
+  = Primary
+  | Destructive
+
+-- | Filter on variables and constructors according to whether they
+-- have a function type.
+data FunctionFiltering
+  = Everything
+  | OnlyFunctions
+  | NoFunctions
+
+-- | Further user input is sometimes required to construct an action.
+-- For example, when inserting a constructor the user must tell us what
+-- constructor.
+-- This type models that input and the corresponding output.
+-- Currently we can only take a single input per action - in the future this
+-- may need to be extended to support multiple inputs.
+-- This type is parameterised because we may need it for other things in
+-- future, and because it lets us derive a useful functor instance.
+data UserInput a
+  = ChooseConstructor FunctionFiltering (Text -> a)
+  | ChooseTypeConstructor (Text -> a)
+  | -- | Renders a choice between some options (as buttons),
+    -- plus a textbox to manually enter a name
+    ChooseOrEnterName
+      Text
+      -- ^ Prompt to show the user, e.g. "choose a name, or enter your own"
+      [Name]
+      -- ^ A bunch of options
+      (Name -> a)
+      -- ^ What to do with whatever name is chosen
+  | ChooseVariable FunctionFiltering (Either Text ID -> a)
+  | ChooseTypeVariable (Text -> a)
+  deriving (Functor)
+
+data ActionInput a where
+  InputRequired :: UserInput a -> ActionInput a
+  NoInputRequired :: a -> ActionInput a
+  AskQuestion :: Question r -> (r -> ActionInput a) -> ActionInput a
+deriving instance Functor ActionInput
+
+-- | Some actions' names are meant to be rendered as code, others as
+-- prose.
+data ActionName
+  = Code Text
+  | Prose Text
+
+-- | The current programming "level". This setting determines which
+-- actions are displayed to the student, the labels on UI elements,
+-- etc.
+data Level
+  = -- | Bare minimum features to define sum types, and functions on
+    -- those types using simple pattern matching.
+    Beginner
+  | -- | Function application & monomorphic HoF. (Support for the latter
+    -- should probably be split into a separate level.)
+    Intermediate
+  | -- | All features.
+    Expert
+
+-- | Sigh, yes, this is required so that Safari doesn't try to
+-- autocomplete these fields with your contact data.
+--
+-- See
+-- https://stackoverflow.com/questions/43058018/how-to-disable-autocomplete-in-address-fields-for-safari
+--
+-- Note that, according to a comment in the above StackOverflow
+-- post, this is screenreader-safe.
+nameString :: Text
+nameString = "n" <> T.singleton '\x200C' <> "ame"
+
+-- | Given a definition name and a program, return a unique variant of
+-- that name. Note that if no definition of the given name already
+-- exists in the program, this function will return the same name
+-- it's been given.
+uniquifyDefName :: Text -> Map ID Def -> Text
+uniquifyDefName name' defs =
+  if name' `notElem` avoid
+    then name'
+    else
+      let go i = if (name' <> "_" <> show i) `notElem` avoid then name' <> "_" <> show i else go (i + 1)
+       in go (1 :: Int)
+  where
+    avoid :: [Text]
+    avoid = Map.elems $ map (unName . defName) defs
 
 -- | Core actions.
 --  These describe edits to the core AST.
@@ -236,6 +349,40 @@ data ActionError
     RefineError Text
   deriving (Eq, Show, Generic)
   deriving (FromJSON, ToJSON) via VJSON ActionError
+
+-- | High level actions
+-- These actions move around the whole program or modify definitions
+data ProgAction
+  = -- | Move the cursor to the definition with the given ID
+    MoveToDef ID
+  | -- | Rename the definition with the given ID
+    RenameDef ID Text
+  | -- | Create a new definition
+    CreateDef (Maybe Text)
+  | -- | Delete a new definition
+    DeleteDef ID
+  | -- | Add a new type definition
+    AddTypeDef TypeDef
+  | -- | Execute a sequence of actions on the body of the definition
+    BodyAction [Action]
+  | -- | Execute a sequence of actions on the type annotation of the definition
+    SigAction [Action]
+  | SetSmartHoles SmartHoles
+  | -- | CopyPaste (d,i) as
+    --   remembers the tree in def d, node i
+    --   runs actions as (in the currently selected def), which should end up in a hole
+    --   and then tries to paste the remembered subtree
+    --   This rather complex setup enables encoding 'raise' operations,
+    --     f s ~> f
+    --   where we remember f, then delete f s, then paste f back
+    --   as well as allowing cross-definition copy+paste
+    --   whilst letting the backend avoid remembering the 'copied' thing in some state.
+    --   The cursor is left on the root of the inserted subtree, which may or may not be inside a hole and/or annotation.
+    --   At the start of the actions, the cursor starts at the root of the definition's type/expression
+    CopyPasteSig (ID, ID) [Action]
+  | CopyPasteBody (ID, ID) [Action]
+  deriving (Eq, Show, Generic)
+  deriving (FromJSON, ToJSON) via VJSON ProgAction
 
 -- | A shorthand for the constraints needed when applying actions
 type ActionM m =
@@ -812,9 +959,10 @@ renameLet y ze = case target ze of
       (Nothing, _) -> throwError NameCapture
       (_, Nothing) -> throwError NameCapture
 
-renameCaseBinding :: ActionM m => Text -> CaseBindZ -> m CaseBindZ
+renameCaseBinding :: forall m. ActionM m => Text -> CaseBindZ -> m CaseBindZ
 renameCaseBinding y caseBind = updateCaseBind caseBind $ \bind bindings rhs -> do
-  let failure = throwError . CustomFailure (RenameCaseBinding y)
+  let failure :: Text -> m a
+      failure = throwError . CustomFailure (RenameCaseBinding y)
   let y' = unsafeMkName y
 
   -- Check that 'y' doesn't clash with any of the other branch bindings
@@ -885,54 +1033,3 @@ renameForall b zt = case target zt of
           throwError NameCapture
   _ ->
     throwError $ CustomFailure (RenameForall b) "the focused expression is not a forall type"
-
--- Check that a name is fresh for an expression. I.e. it does not
--- occur as a free variables, and thus binding it will not capture
--- a variable.
--- However, it may shadow a binding in more global scope that happens not to
--- be used in the expression, or a binding in the expression may shadow the
--- name.
-isFresh :: Name -> Expr -> Bool
-isFresh v e = v `S.notMember` freeVars e
-
-isFreshTy :: Name -> Type -> Bool
-isFreshTy v t = v `S.notMember` freeVarsTy t
-
--- We make a fresh name that is appropriate for binding here (i.e. wrapping the
--- target of the zipper).
--- To avoid variable capture we must avoid any name free in the focussed expr;
--- this is important for correctness.
--- To avoid shadowing any other variable we should avoid any more-globally bound
--- name (i.e. "up" in the zipper); this is not a correctness concern, but a
--- usability concern: we don't want automatically generated names inducing
--- shadowing.
--- To avoid being shadowed we should avoid any names bound in the focussed
--- expr; this is also a usability concern only.
---
--- NB: the free names of the target are a subset of the more-globally bound
--- names, so we don't need to explicitly worry about them.
---
--- Because of implementation details, locally bound variables are in a
--- different namespace than top-level definitions and from term/type
--- constructors. However, for the sake of non-confusingness, we don't care
--- about that here. Thus when we avoid more-globally bound names, we will also
--- include globally-scoped things.
-mkFreshName :: ActionM m => ExprZ -> m Name
-mkFreshName e = freshName =<< mkAvoidForFreshName e
-
-mkAvoidForFreshName :: MonadReader TC.Cxt m => ExprZ -> m (S.Set Name)
-mkAvoidForFreshName e = do
-  let moreGlobal = bindersAbove e
-      moreLocal = bindersBelow e
-  globals <- TC.getGlobalNames
-  pure $ S.unions [moreGlobal, moreLocal, globals]
-
-mkFreshNameTy :: ActionM m => TypeZ -> m Name
-mkFreshNameTy t = freshName =<< mkAvoidForFreshNameTy t
-
-mkAvoidForFreshNameTy :: MonadReader TC.Cxt m => TypeZ -> m (S.Set Name)
-mkAvoidForFreshNameTy t = do
-  let moreGlobal = bindersAboveTypeZ t
-      moreLocal = bindersBelowTy $ focusOnlyType t
-  globals <- TC.getGlobalNames
-  pure $ S.unions [moreGlobal, moreLocal, globals]

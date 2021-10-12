@@ -58,20 +58,21 @@ import Data.Generics.Uniplate.Zipper (
  )
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
-import Optics (Lens', re, traverseOf, view, (%), (.~), (^.), _Left, _Right)
+import Optics (re, traverseOf, view, (%), (.~), (^.), _Left, _Right)
 import Primer.Action (
   Action,
   ActionError (IDNotFound),
+  ProgAction (..),
   applyActionsToBody,
   applyActionsToTypeSig,
  )
+
 import Primer.Core (
   Def (..),
   Expr,
   Expr' (EmptyHole, Var),
   ExprMeta,
   ID (..),
-  Kind,
   Meta (..),
   Type,
   Type' (TEmptyHole, TVar),
@@ -80,9 +81,11 @@ import Primer.Core (
   defaultTypeDefs,
   getID,
   _exprMeta,
+  _exprMetaLens,
   _exprTypeMeta,
   _id,
   _typeMeta,
+  _typeMetaLens,
  )
 import Primer.Eval (EvalDetail, EvalError)
 import qualified Primer.Eval as Eval
@@ -90,6 +93,7 @@ import Primer.EvalFull (Dir, EvalFullError (TimedOut), TerminationBound, evalFul
 import Primer.JSON
 import Primer.Name (Name, NameCounter, freshName, unsafeMkName)
 import Primer.Questions (
+  Question (..),
   generateNameExpr,
   generateNameTy,
   variablesInScopeExpr,
@@ -197,53 +201,6 @@ data MutationRequest
   | Edit [ProgAction]
   deriving (Eq, Show, Generic)
   deriving (FromJSON, ToJSON) via VJSON MutationRequest
-
--- | The type of questions which return information about the program, but do not
--- modify it.
-data Question a where
-  -- Given the ID of a definition and the ID of a type or expression in that
-  -- definition, what variables are in scope at the expression?
-  -- Nested pairs: to make serialisation to PS work easily
-  VariablesInScope :: ID -> ID -> Question (([(Name, Kind)], [(Name, Type' ())]), [(ID, Name, Type' ())])
-  GenerateName ::
-    ID ->
-    ID ->
-    Either (Maybe (Type' ())) (Maybe Kind) ->
-    Question [Name]
-
--- | High level actions
--- These actions move around the whole program or modify definitions
-data ProgAction
-  = -- | Move the cursor to the definition with the given ID
-    MoveToDef ID
-  | -- | Rename the definition with the given ID
-    RenameDef ID Text
-  | -- | Create a new definition
-    CreateDef (Maybe Text)
-  | -- | Delete a new definition
-    DeleteDef ID
-  | -- | Add a new type definition
-    AddTypeDef TypeDef
-  | -- | Execute a sequence of actions on the body of the definition
-    BodyAction [Action]
-  | -- | Execute a sequence of actions on the type annotation of the definition
-    SigAction [Action]
-  | SetSmartHoles SmartHoles
-  | -- | CopyPaste (d,i) as
-    --   remembers the tree in def d, node i
-    --   runs actions as (in the currently selected def), which should end up in a hole
-    --   and then tries to paste the remembered subtree
-    --   This rather complex setup enables encoding 'raise' operations,
-    --     f s ~> f
-    --   where we remember f, then delete f s, then paste f back
-    --   as well as allowing cross-definition copy+paste
-    --   whilst letting the backend avoid remembering the 'copied' thing in some state.
-    --   The cursor is left on the root of the inserted subtree, which may or may not be inside a hole and/or annotation.
-    --   At the start of the actions, the cursor starts at the root of the definition's type/expression
-    CopyPasteSig (ID, ID) [Action]
-  | CopyPasteBody (ID, ID) [Action]
-  deriving (Eq, Show, Generic)
-  deriving (FromJSON, ToJSON) via VJSON ProgAction
 
 data ProgError
   = NoDefSelected
@@ -888,9 +845,3 @@ copyPasteBody p (fromDefId, fromId) toDefId setup = do
       let newSel = NodeSelection BodyNode (getID $ target pasted) (pasted ^. _target % _exprMetaLens % re _Left)
       let finalProg = p{progDefs = newDefs, progSelection = Just (Selection newDef $ Just newSel)}
       tcWholeProg finalProg
-
-_typeMetaLens :: Lens' (Type' a) a
-_typeMetaLens = position @1
-
-_exprMetaLens :: Lens' (Expr' a b) a
-_exprMetaLens = position @1
