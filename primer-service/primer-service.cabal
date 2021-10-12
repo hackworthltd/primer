@@ -14,6 +14,7 @@ library
   exposed-modules:    Primer.Server
   other-modules:
     Primer.OpenAPI
+    Primer.Pagination
     Servant.OpenApi.OperationId
 
   hs-source-dirs:     src

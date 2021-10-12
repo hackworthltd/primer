@@ -1,1 +1,1 @@
-{ roots = [ "^Main.main$" ], type-class-roots = False }
+{ roots = [ "^Main.main$" ], type-class-roots = True }
