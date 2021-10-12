@@ -44,6 +44,7 @@ library
     , mtl                >=2.2.2   && <=2.3
     , openapi3           ^>=3.1.0
     , optics             ^>=0.4
+    , pagination         ^>=0.2.2
     , primer             ^>=0.7
     , selda              ^>=0.5
     , servant            ^>=0.18
