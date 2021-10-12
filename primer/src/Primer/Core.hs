@@ -77,10 +77,7 @@ data Meta a = Meta ID a (Maybe Value)
 -- | This lens is called 'type' because 'a' is most commonly a Type, but it will
 -- work for any 'a'.
 _type :: Lens (Meta a) (Meta b) a b
-_type =
-  lens
-    (\(Meta _ v _) -> v)
-    (\(Meta i _ m) w -> Meta i w m)
+_type = position @2
 
 -- | Typechecking will add metadata to each node describing its type.
 -- Some nodes are purely synthesised, some are purely checked, and some
@@ -211,10 +208,7 @@ bindName (Bind _ n) = n
 
 -- | A type-modifying lens for the metadata of a Bind.
 _bindMeta :: forall a b. Lens (Bind' a) (Bind' b) a b
-_bindMeta =
-  lens
-    (\(Bind m _) -> m)
-    (\(Bind _ n) m' -> Bind m' n)
+_bindMeta = position @1
 
 -- | Core types.
 --  Type variables are currently represented as text, and we have no compile-time
