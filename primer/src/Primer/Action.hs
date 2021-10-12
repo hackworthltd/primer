@@ -15,8 +15,6 @@ module Primer.Action (
   applyActionsToTypeSig,
   applyActionsToExpr,
   moveExpr,
-  mkAvoidForFreshName,
-  mkAvoidForFreshNameTy,
   OfferedAction (..),
   ActionType (..),
   FunctionFiltering (..),
@@ -35,7 +33,6 @@ import Data.Aeson (Value)
 import Data.Generics.Product (typed)
 import Data.List (delete, findIndex, lookup)
 import qualified Data.Map.Strict as Map
-import qualified Data.Set as S
 import qualified Data.Text as T
 import Optics (set, (%), (?~))
 import Primer.Core (
@@ -82,9 +79,14 @@ import Primer.Core.DSL (
 import Primer.Core.Transform (renameTyVar, renameTyVarExpr, renameVar)
 import Primer.Core.Utils (forgetTypeIDs, generateTypeIDs)
 import Primer.JSON
-import Primer.Name (Name, NameCounter, freshName, unName, unsafeMkName)
+import Primer.Name (Name, NameCounter, unName, unsafeMkName)
+import Primer.Name.Fresh (
+  isFresh,
+  isFreshTy,
+  mkFreshName,
+  mkFreshNameTy,
+ )
 import Primer.Refine (Inst (InstAPP, InstApp, InstUnconstrainedAPP), refine)
-import Primer.Subst (freeVars, freeVarsTy)
 import Primer.Typecheck (
   SmartHoles,
   TypeError,
@@ -106,15 +108,10 @@ import Primer.Zipper (
   IsZipper,
   Loc (..),
   TypeZ,
-  bindersAbove,
-  bindersAboveTypeZ,
-  bindersBelow,
-  bindersBelowTy,
   down,
   focus,
   focusLoc,
   focusOn,
-  focusOnlyType,
   focusType,
   locToEither,
   replace,
@@ -1052,54 +1049,3 @@ renameForall b zt = case target zt of
           throwError NameCapture
   _ ->
     throwError $ CustomFailure (RenameForall b) "the focused expression is not a forall type"
-
--- Check that a name is fresh for an expression. I.e. it does not
--- occur as a free variables, and thus binding it will not capture
--- a variable.
--- However, it may shadow a binding in more global scope that happens not to
--- be used in the expression, or a binding in the expression may shadow the
--- name.
-isFresh :: Name -> Expr -> Bool
-isFresh v e = v `S.notMember` freeVars e
-
-isFreshTy :: Name -> Type -> Bool
-isFreshTy v t = v `S.notMember` freeVarsTy t
-
--- We make a fresh name that is appropriate for binding here (i.e. wrapping the
--- target of the zipper).
--- To avoid variable capture we must avoid any name free in the focussed expr;
--- this is important for correctness.
--- To avoid shadowing any other variable we should avoid any more-globally bound
--- name (i.e. "up" in the zipper); this is not a correctness concern, but a
--- usability concern: we don't want automatically generated names inducing
--- shadowing.
--- To avoid being shadowed we should avoid any names bound in the focussed
--- expr; this is also a usability concern only.
---
--- NB: the free names of the target are a subset of the more-globally bound
--- names, so we don't need to explicitly worry about them.
---
--- Because of implementation details, locally bound variables are in a
--- different namespace than top-level definitions and from term/type
--- constructors. However, for the sake of non-confusingness, we don't care
--- about that here. Thus when we avoid more-globally bound names, we will also
--- include globally-scoped things.
-mkFreshName :: ActionM m => ExprZ -> m Name
-mkFreshName e = freshName =<< mkAvoidForFreshName e
-
-mkAvoidForFreshName :: MonadReader TC.Cxt m => ExprZ -> m (S.Set Name)
-mkAvoidForFreshName e = do
-  let moreGlobal = bindersAbove e
-      moreLocal = bindersBelow e
-  globals <- TC.getGlobalNames
-  pure $ S.unions [moreGlobal, moreLocal, globals]
-
-mkFreshNameTy :: ActionM m => TypeZ -> m Name
-mkFreshNameTy t = freshName =<< mkAvoidForFreshNameTy t
-
-mkAvoidForFreshNameTy :: MonadReader TC.Cxt m => TypeZ -> m (S.Set Name)
-mkAvoidForFreshNameTy t = do
-  let moreGlobal = bindersAboveTypeZ t
-      moreLocal = bindersBelowTy $ focusOnlyType t
-  globals <- TC.getGlobalNames
-  pure $ S.unions [moreGlobal, moreLocal, globals]

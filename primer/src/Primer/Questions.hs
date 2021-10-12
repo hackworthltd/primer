@@ -13,7 +13,6 @@ import Foreword
 
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
-import Primer.Action (mkAvoidForFreshName, mkAvoidForFreshNameTy)
 import Primer.Core (
   Def (..),
   ID,
@@ -22,6 +21,7 @@ import Primer.Core (
   TypeDef (typeDefNameHints),
  )
 import Primer.Name (Name, unName, unsafeMkName)
+import Primer.Name.Fresh (mkAvoidForFreshName, mkAvoidForFreshNameTy)
 import Primer.Typecheck (Cxt, decomposeTAppCon, getGlobalNames, typeDefs)
 import Primer.Zipper (
   ExprZ,
