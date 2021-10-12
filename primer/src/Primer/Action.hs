@@ -218,10 +218,6 @@ nameString = "n" <> T.singleton '\x200C' <> "ame"
 -- that name. Note that if no definition of the given name already
 -- exists in the program, this function will return the same name
 -- it's been given.
---
--- Note: this is not concurrency-safe! There's probably no
--- reasonable way to do this atomically without also creating the
--- definition at the same time.
 uniquifyDefName :: Text -> Map ID Def -> Text
 uniquifyDefName name' defs =
   if name' `notElem` avoid
