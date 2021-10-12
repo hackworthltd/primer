@@ -103,7 +103,9 @@ data TypeCacheBoth = TCBoth {tcChkedAt :: Type' (), tcSynthed :: Type' ()}
   deriving (Eq, Show, Generic, Data)
   deriving (FromJSON, ToJSON) via VJSON TypeCacheBoth
 
---TODO `_chkedAt` and `_synthed` should be `AffineTraversal`s - see https://github.com/well-typed/optics/pull/393
+--TODO `_chkedAt` and `_synthed` should be `AffineTraversal`s,
+-- but there is currently no `failing` for AffineTraversals, only for AffineFolds (`afailing`).
+-- See https://github.com/well-typed/optics/pull/393
 
 -- | An affine fold getting TCChkedAt or TCEmb's chked-at field
 _chkedAt :: AffineFold TypeCache (Type' ())
