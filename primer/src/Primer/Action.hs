@@ -18,6 +18,7 @@ module Primer.Action (
   mkAvoidForFreshName,
   mkAvoidForFreshNameTy,
   OfferedAction (..),
+  ActionType (..),
   FunctionFiltering (..),
   UserInput (..),
   ActionInput (..),
@@ -138,12 +139,15 @@ data OfferedAction a = OfferedAction
   , description :: Text
   , input :: ActionInput a
   , priority :: Int
-  , -- XXX dhess: this is a hack so that we can render "destructive"
-    -- actions differently than the others. I suggest we find a better
-    -- way to do this in the new frontend.
-    destructive :: Bool
+  , -- | Used primarily for display purposes.
+    actionType :: ActionType
   }
   deriving (Functor)
+
+-- We will probably add more constructors in future.
+data ActionType
+  = Primary
+  | Destructive
 
 -- | Filter on variables and constructors according to whether they
 -- have a function type.

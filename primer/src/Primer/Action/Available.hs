@@ -22,6 +22,7 @@ import Primer.Action (
   Action (..),
   ActionInput (..),
   ActionName (..),
+  ActionType (..),
   FunctionFiltering (..),
   Level (..),
   Movement (..),
@@ -84,7 +85,7 @@ actionsForDef l defs def =
               , choose = \name -> [RenameDef (defID def) (unName name)]
               }
       , priority = P.rename l
-      , destructive = False
+      , actionType = Primary
       }
   , OfferedAction
       { name = Prose "d"
@@ -101,14 +102,14 @@ actionsForDef l defs def =
                 , CopyPasteBody (defID def, bodyID) []
                 ]
       , priority = P.duplicate l
-      , destructive = False
+      , actionType = Primary
       }
   , OfferedAction
       { name = Prose "⌫"
       , description = "Delete this definition"
       , input = NoInputRequired [DeleteDef $ defID def]
       , priority = P.delete l
-      , destructive = True
+      , actionType = Destructive
       }
   ]
 
@@ -128,7 +129,7 @@ actionsForDefBody l def id expr =
           , description = "Replace parent with this subtree"
           , input = NoInputRequired [MoveToDef (defID def), CopyPasteBody (defID def, id) [SetCursor id, Move Parent, Delete]]
           , priority = P.raise l
-          , destructive = True
+          , actionType = Destructive
           }
    in case findNodeWithParent id expr of
         Nothing -> mempty
@@ -164,7 +165,7 @@ actionsForDefSig l def id ty =
           , description = "Replace parent with this subtree"
           , input = NoInputRequired [MoveToDef (defID def), CopyPasteSig (defID def, id) [SetCursor id, Move Parent, Delete]]
           , priority = P.raise l
-          , destructive = True
+          , actionType = Destructive
           }
         | id /= defType def ^. _typeMetaLens % _id
         ]
@@ -198,7 +199,7 @@ actionsForBinding l defId b =
                 m'
                 ("Choose a new " <> nameString <> " for the pattern variable")
           , priority = P.rename l
-          , destructive = False
+          , actionType = Primary
           }
     ]
 
@@ -282,25 +283,25 @@ type ActionSpec p a =
   p -> Meta a -> OfferedAction [Action]
 
 -- | From multiple actions, construct an ActionSpec which starts with SetCursor
-action :: forall a p. ActionName -> Text -> Int -> Bool -> [Action] -> ActionSpec p a
-action name description priority destructive as _p m =
+action :: forall a p. ActionName -> Text -> Int -> ActionType -> [Action] -> ActionSpec p a
+action name description priority actionType as _p m =
   OfferedAction
     { name
     , description
     , input = NoInputRequired $ SetCursor (m ^. _id) : as
     , priority
-    , destructive
+    , actionType
     }
 
 -- | Construct an ActionSpec which requires some input, and then starts with SetCursor
-actionWithInput :: forall a p. ActionName -> Text -> Int -> Bool -> UserInput [Action] -> ActionSpec p a
-actionWithInput name description priority destructive input _p m =
+actionWithInput :: forall a p. ActionName -> Text -> Int -> ActionType -> UserInput [Action] -> ActionSpec p a
+actionWithInput name description priority actionType input _p m =
   OfferedAction
     { name
     , description
     , input = InputRequired $ map (\as -> SetCursor (m ^. _id) : as) input
     , priority
-    , destructive
+    , actionType
     }
 
 -- | Construct an ActionSpec which requires the user to select from a bunch of
@@ -345,7 +346,7 @@ basicActionsForExpr l defID expr = case expr of
       let filterVars = case l of
             Beginner -> NoFunctions
             _ -> Everything
-       in actionWithInput (Code "x") "Use a variable" (P.useVar l) False $
+       in actionWithInput (Code "x") "Use a variable" (P.useVar l) Primary $
             ChooseVariable filterVars $ \case
               Left name -> [ConstructVar name]
               Right id_ -> [ConstructGlobalVar id_]
@@ -363,22 +364,22 @@ basicActionsForExpr l defID expr = case expr of
     -- We put the same labels on each.
     insertVariableSaturatedRefined :: forall a. ExprMeta -> ActionSpec Expr a
     insertVariableSaturatedRefined m =
-      actionWithInput (Code "f $ ?") "Apply a function to arguments" (P.useFunction l) False $
+      actionWithInput (Code "f $ ?") "Apply a function to arguments" (P.useFunction l) Primary $
         ChooseVariable OnlyFunctions $ \case
           Left name -> [if offerRefined m then InsertRefinedVar name else InsertSaturatedVar name]
           Right id_ -> [if offerRefined m then InsertRefinedGlobalVar id_ else InsertSaturatedGlobalVar id_]
 
     annotateExpression :: forall a. ActionSpec Expr a
-    annotateExpression = action (Code ":") "Annotate this expression with a type" (P.annotateExpr l) False [ConstructAnn]
+    annotateExpression = action (Code ":") "Annotate this expression with a type" (P.annotateExpr l) Primary [ConstructAnn]
 
     applyFunction :: forall a. ActionSpec Expr a
-    applyFunction = action (Code "$") "Apply function" (P.applyFunction l) False [ConstructApp, Move Child2]
+    applyFunction = action (Code "$") "Apply function" (P.applyFunction l) Primary [ConstructApp, Move Child2]
 
     applyType :: forall a. ActionSpec Expr a
-    applyType = action (Code "@") "Apply type" (P.applyType l) False [ConstructAPP, EnterType]
+    applyType = action (Code "@") "Apply type" (P.applyType l) Destructive [ConstructAPP, EnterType]
 
     patternMatch :: forall a. ActionSpec Expr a
-    patternMatch = action (Code "m") patternMatchProse (P.makeCase l) False [ConstructCase]
+    patternMatch = action (Code "m") patternMatchProse (P.makeCase l) Destructive [ConstructCase]
 
     patternMatchProse = case l of
       Beginner -> "Match a variable with its value"
@@ -398,7 +399,7 @@ basicActionsForExpr l defID expr = case expr of
               m'
               ("Choose a " <> nameString <> " for the input variable")
         , priority = P.makeLambda l
-        , destructive = False
+        , actionType = Primary
         }
 
     makeTypeAbstraction :: forall a. ExprMeta -> ActionSpec Expr a
@@ -414,7 +415,7 @@ basicActionsForExpr l defID expr = case expr of
               m'
               ("Choose a " <> nameString <> " for the bound type variable")
         , priority = P.makeTypeAbstraction l
-        , destructive = False
+        , actionType = Primary
         }
 
     useValueConstructor :: forall a. ActionSpec Expr a
@@ -426,7 +427,7 @@ basicActionsForExpr l defID expr = case expr of
             (Code "V")
             "Use a value constructor"
             (P.useValueCon l)
-            False
+            Primary
             $ ChooseConstructor filterCtors (\c -> [ConstructCon c])
 
     -- NB: Exactly one of the saturated and refined actions will be available
@@ -438,7 +439,7 @@ basicActionsForExpr l defID expr = case expr of
         (Code "V $ ?")
         "Apply a value constructor to arguments"
         (P.useSaturatedValueCon l)
-        False
+        Primary
         $ ChooseConstructor OnlyFunctions (\c -> [if offerRefined m then ConstructRefinedCon c else ConstructSaturatedCon c])
 
     makeLetBinding :: forall a. ActionSpec Expr a
@@ -454,7 +455,7 @@ basicActionsForExpr l defID expr = case expr of
               m'
               ("Choose a " <> nameString <> " for the new let binding")
         , priority = P.makeLet l
-        , destructive = False
+        , actionType = Primary
         }
 
     makeLetrec :: forall a. ActionSpec Expr a
@@ -470,17 +471,17 @@ basicActionsForExpr l defID expr = case expr of
               m'
               ("Choose a " <> nameString <> " for the new let binding")
         , priority = P.makeLetrec l
-        , destructive = False
+        , actionType = Primary
         }
 
     enterHole :: forall a. ActionSpec Expr a
-    enterHole = action (Prose "h") "Make this hole into a non-empty hole" (P.enterHole l) False [EnterHole]
+    enterHole = action (Prose "h") "Make this hole into a non-empty hole" (P.enterHole l) Primary [EnterHole]
 
     finishHole :: forall a. ActionSpec Expr a
-    finishHole = action (Prose "e") "Convert this into a normal expression" (P.finishHole l) False [FinishHole]
+    finishHole = action (Prose "e") "Convert this into a normal expression" (P.finishHole l) Primary [FinishHole]
 
     removeAnnotation :: forall a. ActionSpec Expr a
-    removeAnnotation = action (Prose "⌫:") "Remove this annotation" (P.removeAnnotation l) True [RemoveAnn]
+    removeAnnotation = action (Prose "⌫:") "Remove this annotation" (P.removeAnnotation l) Destructive [RemoveAnn]
 
     renameVariable :: forall a. ExprMeta -> ActionSpec Expr a
     renameVariable m _p m' =
@@ -495,7 +496,7 @@ basicActionsForExpr l defID expr = case expr of
               m'
               ("Choose a new " <> nameString <> " for the input variable")
         , priority = P.rename l
-        , destructive = False
+        , actionType = Primary
         }
 
     renameTypeVariable :: forall a. ExprMeta -> ActionSpec Expr a
@@ -511,11 +512,11 @@ basicActionsForExpr l defID expr = case expr of
               m'
               ("Choose a new " <> nameString <> " for the type variable")
         , priority = P.rename l
-        , destructive = False
+        , actionType = Primary
         }
 
     makeLetRecursive :: forall a. ActionSpec Expr a
-    makeLetRecursive = action (Prose "rec") "Make this let recursive" (P.makeLetRecursive l) False [ConvertLetToLetrec]
+    makeLetRecursive = action (Prose "rec") "Make this let recursive" (P.makeLetRecursive l) Primary [ConvertLetToLetrec]
 
     renameLet :: forall a b. Maybe (Type' b) -> ActionSpec Expr a
     renameLet t _p m' =
@@ -530,11 +531,11 @@ basicActionsForExpr l defID expr = case expr of
               m'
               ("Choose a new " <> nameString <> " for the let binding")
         , priority = P.rename l
-        , destructive = False
+        , actionType = Primary
         }
 
     deleteExpr :: forall a. ActionSpec Expr a
-    deleteExpr = action (Prose "⌫") "Delete this expression" (P.delete l) True [Delete]
+    deleteExpr = action (Prose "⌫") "Delete this expression" (P.delete l) Destructive [Delete]
 
     emptyHoleActions :: forall a. ExprMeta -> [ActionSpec Expr a]
     emptyHoleActions m = case l of
@@ -628,7 +629,7 @@ basicActionsForType l defID ty = case ty of
     -- We arbitrarily choose that the "construct a function type" action places the focused expression
     -- on the domain (left) side of the arrow.
     constructFunctionType :: forall a. ActionSpec Type a
-    constructFunctionType = action (Code "→") "Construct a function type" (P.constructFunction l) False [ConstructArrowL, Move Child1]
+    constructFunctionType = action (Code "→") "Construct a function type" (P.constructFunction l) Primary [ConstructArrowL, Move Child1]
 
     constructPolymorphicType :: forall a. ActionSpec Type a
     constructPolymorphicType _p m' =
@@ -643,17 +644,17 @@ basicActionsForType l defID ty = case ty of
               m'
               ("Choose a " <> nameString <> " for the bound type variable")
         , priority = P.constructForall l
-        , destructive = False
+        , actionType = Primary
         }
 
     constructTypeApplication :: forall a. ActionSpec Type a
-    constructTypeApplication = action (Code "$") "Construct a type application" (P.constructTypeApp l) False [ConstructTApp, Move Child1]
+    constructTypeApplication = action (Code "$") "Construct a type application" (P.constructTypeApp l) Primary [ConstructTApp, Move Child1]
 
     useTypeConstructor :: forall a. ActionSpec Type a
-    useTypeConstructor = actionWithInput (Code "T") "Use a type constructor" (P.useTypeCon l) False $ ChooseTypeConstructor (\t -> [ConstructTCon t])
+    useTypeConstructor = actionWithInput (Code "T") "Use a type constructor" (P.useTypeCon l) Primary $ ChooseTypeConstructor (\t -> [ConstructTCon t])
 
     useTypeVariable :: forall a. ActionSpec Type a
-    useTypeVariable = actionWithInput (Code "t") "Use a type variable" (P.useTypeVar l) False $ ChooseTypeVariable (\v -> [ConstructTVar v])
+    useTypeVariable = actionWithInput (Code "t") "Use a type variable" (P.useTypeVar l) Primary $ ChooseTypeVariable (\v -> [ConstructTVar v])
 
     renameTypeVariable :: forall a. Kind -> ActionSpec Type a
     renameTypeVariable k _p m' =
@@ -668,11 +669,11 @@ basicActionsForType l defID ty = case ty of
               m'
               ("Choose a new " <> nameString <> " for the bound type variable")
         , priority = P.rename l
-        , destructive = False
+        , actionType = Primary
         }
 
     deleteType :: forall a. ActionSpec Type a
-    deleteType = action (Prose "⌫") "Delete this type" (P.delete l) True [Delete]
+    deleteType = action (Prose "⌫") "Delete this type" (P.delete l) Destructive [Delete]
 
     emptyHoleActions :: forall a. [ActionSpec Type a]
     emptyHoleActions = case l of
@@ -721,4 +722,4 @@ compoundActionsForType l ty = case ty of
           moveToLastArg = replicate (NE.length argTypes) (Move Child2)
 
           moveBack = replicate (NE.length argTypes) (Move Parent)
-       in action (Code "→A→") "Add an input to this function" (P.addInput l) False $ moveToLastArg <> [ConstructArrowR] <> moveBack
+       in action (Code "→A→") "Add an input to this function" (P.addInput l) Primary $ moveToLastArg <> [ConstructArrowR] <> moveBack
