@@ -28,7 +28,6 @@ import Primer.Action (
   Movement (..),
   OfferedAction (..),
   ProgAction (..),
-  Question (..),
   UserInput (..),
   nameString,
   uniquifyDefName,
@@ -58,6 +57,7 @@ import Primer.Core (
  )
 import Primer.Core.Transform (unfoldFun)
 import Primer.Name (unName)
+import Primer.Questions (Question (..))
 
 -- | An AST node tagged with its "sort" - i.e. if it's a type or expression or binding etc.
 -- This is probably useful elsewhere, but we currently just need it here

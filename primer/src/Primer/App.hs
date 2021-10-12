@@ -63,10 +63,10 @@ import Primer.Action (
   Action,
   ActionError (IDNotFound),
   ProgAction (..),
-  Question (..),
   applyActionsToBody,
   applyActionsToTypeSig,
  )
+
 import Primer.Core (
   Def (..),
   Expr,
@@ -93,6 +93,7 @@ import Primer.EvalFull (Dir, EvalFullError (TimedOut), TerminationBound, evalFul
 import Primer.JSON
 import Primer.Name (Name, NameCounter, freshName, unsafeMkName)
 import Primer.Questions (
+  Question (..),
   generateNameExpr,
   generateNameTy,
   variablesInScopeExpr,

@@ -1,6 +1,9 @@
+{-# LANGUAGE GADTs #-}
+
 -- Logic for answering API questions
 
 module Primer.Questions (
+  Question (..),
   variablesInScopeExpr,
   variablesInScopeTy,
   ShadowedVarsExpr (..), -- only exported for testing
@@ -38,6 +41,19 @@ import Primer.ZipperCxt (
   forgetMetadata,
   variablesInScopeTy,
  )
+
+-- | The type of questions which return information about the program, but do not
+-- modify it.
+data Question a where
+  -- Given the ID of a definition and the ID of a type or expression in that
+  -- definition, what variables are in scope at the expression?
+  -- Nested pairs: to make serialisation to PS work easily
+  VariablesInScope :: ID -> ID -> Question (([(Name, Kind)], [(Name, Type' ())]), [(ID, Name, Type' ())])
+  GenerateName ::
+    ID ->
+    ID ->
+    Either (Maybe (Type' ())) (Maybe Kind) ->
+    Question [Name]
 
 -- | Collect the typing context for the focused node.
 -- We do this by walking back up the tree, collecting variables as we cross

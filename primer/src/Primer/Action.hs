@@ -9,7 +9,6 @@ module Primer.Action (
   Action (..),
   ActionError (..),
   Movement (..),
-  Question (..),
   ProgAction (..),
   applyActionsToBody,
   applyActionsToTypeSig,
@@ -41,7 +40,6 @@ import Primer.Core (
   Expr' (..),
   HasMetadata (_metadata),
   ID,
-  Kind,
   Type,
   Type' (..),
   TypeCache (..),
@@ -86,6 +84,7 @@ import Primer.Name.Fresh (
   mkFreshName,
   mkFreshNameTy,
  )
+import Primer.Questions (Question)
 import Primer.Refine (Inst (InstAPP, InstApp, InstUnconstrainedAPP), refine)
 import Primer.Typecheck (
   SmartHoles,
@@ -352,19 +351,6 @@ data ActionError
     RefineError Text
   deriving (Eq, Show, Generic)
   deriving (FromJSON, ToJSON) via VJSON ActionError
-
--- | The type of questions which return information about the program, but do not
--- modify it.
-data Question a where
-  -- Given the ID of a definition and the ID of a type or expression in that
-  -- definition, what variables are in scope at the expression?
-  -- Nested pairs: to make serialisation to PS work easily
-  VariablesInScope :: ID -> ID -> Question (([(Name, Kind)], [(Name, Type' ())]), [(ID, Name, Type' ())])
-  GenerateName ::
-    ID ->
-    ID ->
-    Either (Maybe (Type' ())) (Maybe Kind) ->
-    Question [Name]
 
 -- | High level actions
 -- These actions move around the whole program or modify definitions
