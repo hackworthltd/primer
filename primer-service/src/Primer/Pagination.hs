@@ -1,3 +1,4 @@
+{-# LANGUAGE ApplicativeDo #-}
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE OverloadedLabels #-}
 {-# LANGUAGE TypeApplications #-}
@@ -8,6 +9,7 @@
 module Primer.Pagination (
   PaginationParams,
   Pagination (..),
+  Paginated,
   -- 'Positive' is abstract. Do not export its constructor.
   Positive (getPositive),
   mkPositive,
@@ -17,12 +19,14 @@ module Primer.Pagination (
 import Foreword
 
 import qualified Control.Monad.Catch.Pure as CatchPure
-import Data.OpenApi (ToParamSchema, toParamSchema)
+import Data.Aeson (ToJSON)
+import Data.OpenApi (ToParamSchema, ToSchema, toParamSchema)
 import Data.Pagination (mkPagination, paginate, paginatedItems)
 import qualified Data.Pagination as P
 import Numeric.Natural (Natural)
 import Optics ((?~))
-import Primer.API (OffsetLimit (OL, limit, offset), Paginated (extract, total))
+import Primer.API (OffsetLimit (OL, limit, offset), extract, total)
+import qualified Primer.API as API
 import Servant (
   DefaultErrorFormatters,
   ErrorFormatters,
@@ -80,6 +84,30 @@ instance
 instance HasOpenApi (PP api) => HasOpenApi (PaginationParams :> api) where
   toOpenApi _ = toOpenApi (Proxy @(PP api))
 
+-- | An endpoint returning paginated data will also return some metadata.
+-- 'Paginated' wraps up both the data and metadata.
+data Paginated a = Paginated
+  { meta :: PaginatedMeta
+  , items :: [a]
+  }
+  deriving (Generic)
+
+instance ToJSON a => ToJSON (Paginated a)
+instance ToSchema a => ToSchema (Paginated a)
+
+-- Many of the fields of PaginatedMeta "should" be Positive,
+-- but that is not exposed by the pagination package.
+data PaginatedMeta = PM
+  { totalItems, pageSize, firstPage :: Natural
+  , prevPage :: Maybe Natural
+  , thisPage :: Natural
+  , nextPage :: Maybe Natural
+  , lastPage :: Natural
+  }
+  deriving (Generic)
+instance ToJSON PaginatedMeta
+instance ToSchema PaginatedMeta
+
 -- | Take arguments @pageSize@ and @pageIndex@. Wraps 'mkPagination' in a
 -- exception-free interface when the inputs are known to be positive.
 mkPosPagination :: Positive -> Positive -> P.Pagination
@@ -97,10 +125,26 @@ mkPosPagination sz idx =
 
 -- | Extract a page, defaulting the page size to infinity (technically, the
 -- total number of entries in the backing list).
-pagedDefaultAll :: Functor m => Pagination -> Paginated m a -> m [a]
+pagedDefaultAll :: Functor m => Pagination -> API.Paginated m a -> m (Paginated a)
 pagedDefaultAll pOpts pg =
   let total' = fromIntegral $ total pg
       sz = fromMaybe (Pos 1) $ size pOpts <|> mkPositive total'
       pOpts' = mkPosPagination sz (page pOpts)
       getElts' offset limit = extract pg $ OL{offset, limit}
-   in paginatedItems <$> paginate pOpts' total' getElts'
+   in do
+        paged <- paginate pOpts' total' getElts'
+        pure $
+          Paginated
+            { items = paginatedItems paged
+            , meta =
+                let i = P.pageIndex $ P.paginatedPagination paged
+                 in PM
+                      { totalItems = P.paginatedItemsTotal paged
+                      , pageSize = P.pageSize $ P.paginatedPagination paged
+                      , firstPage = 1
+                      , prevPage = if P.hasPrevPage paged then Just $ i - 1 else Nothing
+                      , thisPage = i
+                      , nextPage = if P.hasNextPage paged then Just $ i + 1 else Nothing
+                      , lastPage = P.paginatedPagesTotal paged
+                      }
+            }
