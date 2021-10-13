@@ -94,7 +94,7 @@ import Primer.Eval (BetaReductionDetail (..), EvalDetail (..))
 import Primer.EvalFull (Dir (Syn))
 import Primer.Name (Name)
 import Primer.OpenAPI ()
-import Primer.Pagination (Paginated, PaginationParams, pagedDefaultAll)
+import Primer.Pagination (Paginated, PaginationParams, pagedDefaultClamp)
 import Primer.Typecheck (TypeError (TypeDoesNotMatchArrow))
 import Servant (
   Get,
@@ -372,7 +372,7 @@ primerServer = openAPIServer :<|> legacyServer
   where
     openAPIServer =
       newSession
-        :<|> \b p -> pagedDefaultAll p =<< listSessions b
+        :<|> \b p -> pagedDefaultClamp 100 p =<< listSessions b
     legacyServer =
       ( copySession
           :<|> getVersion

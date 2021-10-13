@@ -13,7 +13,7 @@ module Primer.Pagination (
   -- 'Positive' is abstract. Do not export its constructor.
   Positive (getPositive),
   mkPositive,
-  pagedDefaultAll,
+  pagedDefaultClamp,
 ) where
 
 import Foreword
@@ -123,12 +123,20 @@ mkPosPagination sz idx =
         Left _ -> error "mkPagination should only throw PaginationException, and will not for positive inputs"
         Right pg -> pg
 
--- | Extract a page, defaulting the page size to infinity (technically, the
--- total number of entries in the backing list).
-pagedDefaultAll :: Functor m => Pagination -> API.Paginated m a -> m (Paginated a)
-pagedDefaultAll pOpts pg =
+-- | Extract a page, defaulting and clamping the page size to the given
+-- argument (or @1@, if the clamp is @0@).
+pagedDefaultClamp ::
+  Functor m =>
+  Natural ->
+  Pagination ->
+  API.Paginated m a ->
+  m (Paginated a)
+pagedDefaultClamp def pOpts pg =
   let total' = fromIntegral $ total pg
-      sz = fromMaybe (Pos 1) $ size pOpts <|> mkPositive total'
+      sz =
+        fromMaybe (Pos 1) $
+          (guarded ((<= def) . getPositive) =<< size pOpts)
+            <|> mkPositive def
       pOpts' = mkPosPagination sz (page pOpts)
       getElts' offset limit = extract pg $ OL{offset, limit}
    in do
