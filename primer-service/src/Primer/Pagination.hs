@@ -49,7 +49,11 @@ mkPositive :: Natural -> Maybe Positive
 mkPositive a = if a > 0 then Just (Pos a) else Nothing
 
 instance FromHttpApiData Positive where
-  parseUrlPiece x = parseUrlPiece x >>= maybeToEither ("Non-positive value: " <> x) . mkPositive
+  parseUrlPiece x = do
+    i :: Integer <- parseUrlPiece x
+    if i > 0
+      then Right $ Pos (fromInteger i)
+      else Left $ "Non-positive value: " <> x
 
 instance ToParamSchema Positive where
   toParamSchema _ = toParamSchema (Proxy @Natural) & #exclusiveMinimum ?~ True
