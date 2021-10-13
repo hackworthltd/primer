@@ -44,6 +44,7 @@ import Primer.Database (
   SessionData (..),
   Version,
   fromSessionName,
+  pageList,
   safeMkSessionName,
  )
 
@@ -109,12 +110,12 @@ instance MonadDb (SeldaM b) where
       (\session -> session ! #uuid .== literal s)
       (\session -> session `with` [#gitversion := literal v, #name := literal (fromSessionName n)])
 
-  listSessions = do
+  listSessions ol = do
     ss <- query $ do
       session <- select sessions
       order (session ! #uuid) ascending
       return (session ! #uuid :*: session ! #name)
-    pure $ safeMkSession <$> ss
+    pure $ pageList ol $ safeMkSession <$> ss
     where
       -- See comment in 'querySessionId' re: dealing with invalid
       -- session names loaded from the database.

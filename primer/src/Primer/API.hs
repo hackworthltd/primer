@@ -1,5 +1,4 @@
 {-# LANGUAGE GADTs #-}
-{-# LANGUAGE NamedFieldPuns #-}
 
 -- | The Primer API.
 --
@@ -16,8 +15,6 @@ module Primer.API (
   Env (..),
   PrimerM,
   PrimerErr (..),
-  Paginated (..),
-  OffsetLimit (..),
   newSession,
   copySession,
   listSessions,
@@ -74,6 +71,8 @@ import Primer.Core (
   Type',
  )
 import Primer.Database (
+  OffsetLimit,
+  Page,
   Session (Session),
   SessionData (..),
   SessionId,
@@ -82,6 +81,7 @@ import Primer.Database (
   defaultSessionName,
   fromSessionName,
   newSessionId,
+  pageList,
   safeMkSessionName,
  )
 import qualified Primer.Database as Database (
@@ -217,38 +217,25 @@ copySession srcId = do
     writeTBQueue q $ Database.Insert nextSID (sessionApp copy) (sessionName copy)
     pure nextSID
 
--- | Helpers for APIs returning paginated lists.
--- Instead of returning @[a]@, one should return @Paginated m a@,
--- which contains the total number of items in the backing store,
--- and a monadic action to extract some portion of them (based on an
--- offset and limit).
-data Paginated m a = Paginated {total :: Int, extract :: OffsetLimit -> m [a]}
-
-data OffsetLimit = OL {offset :: Int, limit :: Int}
-
-extractList :: Applicative m => [a] -> OffsetLimit -> m [a]
-extractList xs (OL{offset, limit}) = pure $ genericTake limit $ genericDrop offset xs
-
 -- If the input is 'False', return all sessions in the database;
 -- otherwise, only the in-memory sessions.
 --
 -- Currently the pagination support is "extract the whole list from the DB,
 -- then select a portion". This should be improved to only extract the
 -- appropriate section from the DB in the first place.
-listSessions :: (MonadIO m) => Bool -> PrimerM m (Paginated (PrimerM m) Session)
-listSessions False = do
+listSessions :: (MonadIO m) => Bool -> OffsetLimit -> PrimerM m (Page Session)
+listSessions False ol = do
   q <- asks dbOpQueue
   callback <- liftIO $
     atomically $ do
       cb <- newEmptyTMVar
-      writeTBQueue q $ Database.ListSessions cb
+      writeTBQueue q $ Database.ListSessions ol cb
       return cb
-  sessions <- liftIO $ atomically $ takeTMVar callback
-  pure $ Paginated{total = length sessions, extract = extractList sessions}
-listSessions _ = sessionsTransaction $ \ss _ -> do
+  liftIO $ atomically $ takeTMVar callback
+listSessions _ ol = sessionsTransaction $ \ss _ -> do
   kvs' <- ListT.toList $ StmMap.listT ss
   let kvs = uncurry Session . second sessionName <$> kvs'
-  pure $ Paginated{total = length kvs, extract = extractList kvs}
+  pure $ pageList ol kvs
 
 getVersion :: (Monad m) => PrimerM m Version
 getVersion = asks version

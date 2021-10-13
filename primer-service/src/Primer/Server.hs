@@ -372,7 +372,7 @@ primerServer = openAPIServer :<|> legacyServer
   where
     openAPIServer =
       newSession
-        :<|> \b p -> pagedDefaultClamp 100 p =<< listSessions b
+        :<|> \b p -> pagedDefaultClamp 100 p $ listSessions b
     legacyServer =
       ( copySession
           :<|> getVersion

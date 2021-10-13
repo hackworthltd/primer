@@ -1,3 +1,5 @@
+{-# LANGUAGE NamedFieldPuns #-}
+
 module Primer.Database (
   SessionId,
   -- 'SessionName' is abstract. Do not export its constructors.
@@ -12,6 +14,9 @@ module Primer.Database (
   newSessionId,
   Op (..),
   OpStatus (..),
+  OffsetLimit (..),
+  Page (..),
+  pageList,
   ServiceCfg (..),
   MonadDb (..),
   NullDbT (..),
@@ -167,7 +172,7 @@ data Op
     LoadSession !SessionId !Sessions !(TMVar OpStatus)
   | -- | Get the list of all sessions (and their names) in the
     -- database.
-    ListSessions !(TMVar [Session])
+    ListSessions !OffsetLimit !(TMVar (Page Session))
 
 -- | A config for the 'serve' computation.
 data ServiceCfg = ServiceCfg
@@ -176,6 +181,22 @@ data ServiceCfg = ServiceCfg
   , -- | The running version of Primer.
     version :: Version
   }
+
+-- | A 'Page' is a portion of the results of some DB query, along with the
+-- total number of results.
+data Page a = Page {total :: Int, pageContents :: [a]}
+
+-- | Enable extracting a subset of the results of a query, for later
+-- pagination.
+data OffsetLimit = OL {offset :: !Int, limit :: Maybe Int}
+
+-- | If one has all the results at hand, it is trivial to extract a page.
+pageList :: OffsetLimit -> [a] -> Page a
+pageList (OL{offset, limit}) xs =
+  Page
+    { total = length xs
+    , pageContents = maybe identity take limit $ drop offset xs
+    }
 
 -- | A monad type class for Primer database operations.
 class (Monad m) => MonadDb m where
@@ -194,10 +215,10 @@ class (Monad m) => MonadDb m where
   -- Corresponds to the 'UpdateName' operation.
   updateSessionName :: Version -> SessionId -> SessionName -> m ()
 
-  -- | Get a list of all session IDs and their names.
+  -- | Get a page of the list of all session IDs and their names.
   --
   -- Corresponds to the 'ListSessions' operation.
-  listSessions :: m [Session]
+  listSessions :: OffsetLimit -> m (Page Session)
 
   -- | Query a session ID from the database.
   --
@@ -245,10 +266,10 @@ instance (MonadIO m) => MonadDb (NullDbT m) where
   insertSession _ _ _ _ = pure ()
   updateSessionApp _ _ _ = pure ()
   updateSessionName _ _ _ = pure ()
-  listSessions = do
+  listSessions ol = do
     ss <- ask
     kvs <- liftIO $ atomically $ ListT.toList $ StmMap.listT ss
-    pure $ uncurry Session . second sessionName <$> kvs
+    pure $ pageList ol $ uncurry Session . second sessionName <$> kvs
   querySessionId _ sid = pure $ Left $ "No such session ID " <> UUID.toText sid
 
 -- | The database service computation.
@@ -265,8 +286,8 @@ serve cfg =
           Insert s a n -> insertSession v s a n
           UpdateApp s a -> updateSessionApp v s a
           UpdateName s n -> updateSessionName v s n
-          ListSessions result -> do
-            ss <- listSessions
+          ListSessions ol result -> do
+            ss <- listSessions ol
             liftIO $ atomically $ putTMVar result ss
           -- Note that we split the in-memory session insertion (i.e.,
           -- the 'StmMap.insert') and the signal to the caller (i.e.,

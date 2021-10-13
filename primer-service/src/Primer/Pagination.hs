@@ -18,15 +18,14 @@ module Primer.Pagination (
 
 import Foreword
 
-import qualified Control.Monad.Catch.Pure as CatchPure
 import Data.Aeson (ToJSON)
-import Data.OpenApi (ToParamSchema, ToSchema, toParamSchema)
-import Data.Pagination (mkPagination, paginate, paginatedItems)
-import qualified Data.Pagination as P
-import Numeric.Natural (Natural)
+import Data.OpenApi (ToParamSchema, ToSchema, declareNamedSchema, toParamSchema)
+import Data.OpenApi.Internal.Schema (plain)
 import Optics ((?~))
-import Primer.API (OffsetLimit (OL, limit, offset), extract, total)
-import qualified Primer.API as API
+import Primer.Database (
+  OffsetLimit (OL, limit, offset),
+  Page (Page, pageContents, total),
+ )
 import Servant (
   DefaultErrorFormatters,
   ErrorFormatters,
@@ -43,20 +42,24 @@ import Servant.OpenApi (HasOpenApi (toOpenApi))
 -- | Guarantees its contents is strictly positive.
 -- @getPositive x > 0@ is always true (because the only way to create one is
 -- via the 'mkPositive' smart constructor.
-newtype Positive = Pos {getPositive :: Natural}
+newtype Positive = Pos {getPositive :: Int}
+  deriving (Eq, Ord)
+  deriving newtype (ToJSON)
 
-mkPositive :: Natural -> Maybe Positive
+mkPositive :: Int -> Maybe Positive
 mkPositive a = if a > 0 then Just (Pos a) else Nothing
 
 instance FromHttpApiData Positive where
-  parseUrlPiece x = do
-    i :: Integer <- parseUrlPiece x
-    if i > 0
-      then Right $ Pos (fromInteger i)
-      else Left $ "Non-positive value: " <> x
+  parseUrlPiece x = parseUrlPiece x >>= maybeToEither ("Non-positive value: " <> x) . mkPositive
 
 instance ToParamSchema Positive where
-  toParamSchema _ = toParamSchema (Proxy @Natural) & #exclusiveMinimum ?~ True
+  toParamSchema _ =
+    toParamSchema (Proxy @Int)
+      & #minimum ?~ 0
+      & #exclusiveMinimum ?~ True
+
+instance ToSchema Positive where
+  declareNamedSchema = plain . toParamSchema
 
 data PaginationParams
 
@@ -99,64 +102,58 @@ data Paginated a = Paginated
 instance ToJSON a => ToJSON (Paginated a)
 instance ToSchema a => ToSchema (Paginated a)
 
--- Many of the fields of PaginatedMeta "should" be Positive,
--- but that is not exposed by the pagination package.
+-- Used solely for nice bounds in schema
+newtype NonNeg = NonNeg Int
+  deriving newtype (ToJSON)
+instance ToParamSchema NonNeg where
+  toParamSchema _ = toParamSchema (Proxy @Int) & #minimum ?~ 0
+instance ToSchema NonNeg where
+  declareNamedSchema = plain . toParamSchema
+
 data PaginatedMeta = PM
-  { totalItems, pageSize, firstPage :: Natural
-  , prevPage :: Maybe Natural
-  , thisPage :: Natural
-  , nextPage :: Maybe Natural
-  , lastPage :: Natural
+  { totalItems :: NonNeg
+  , pageSize :: Positive
+  , firstPage :: Positive
+  , prevPage :: Maybe Positive
+  , thisPage :: Positive
+  , nextPage :: Maybe Positive
+  , lastPage :: Positive
   }
   deriving (Generic)
 instance ToJSON PaginatedMeta
 instance ToSchema PaginatedMeta
 
--- | Take arguments @pageSize@ and @pageIndex@. Wraps 'mkPagination' in a
--- exception-free interface when the inputs are known to be positive.
-mkPosPagination :: Positive -> Positive -> P.Pagination
-mkPosPagination sz idx =
-  -- It is awkward that mkPagination throws errors since we know they will not be
-  -- thrown in this case.
-  let pg' = mkPagination (getPositive sz) (getPositive idx)
-      pg'' =
-        pg' `CatchPure.catch` \case
-          P.ZeroPageSize -> error "Positive Natural cannot be zero"
-          P.ZeroPageIndex -> error "Positive Natural cannot be zero"
-   in case CatchPure.runCatch pg'' of
-        Left _ -> error "mkPagination should only throw PaginationException, and will not for positive inputs"
-        Right pg -> pg
-
--- | Extract a page, defaulting and clamping the page size to the given
--- argument (or @1@, if the clamp is @0@).
+-- | Run a paginated query, where we default an unspecified pageSize to the
+-- given 'Int' (or @1@ if non-positive), similarly we clamp a given pageSize to
+-- be at most the given 'Int'.
 pagedDefaultClamp ::
   Functor m =>
-  Natural ->
+  Int ->
   Pagination ->
-  API.Paginated m a ->
+  (OffsetLimit -> m (Page a)) ->
   m (Paginated a)
-pagedDefaultClamp def pOpts pg =
-  let total' = fromIntegral $ total pg
-      sz =
-        fromMaybe (Pos 1) $
-          (guarded ((<= def) . getPositive) =<< size pOpts)
-            <|> mkPositive def
-      pOpts' = mkPosPagination sz (page pOpts)
-      getElts' offset limit = extract pg $ OL{offset, limit}
-   in do
-        paged <- paginate pOpts' total' getElts'
-        pure $
-          Paginated
-            { items = paginatedItems paged
-            , meta =
-                let i = P.pageIndex $ P.paginatedPagination paged
-                 in PM
-                      { totalItems = P.paginatedItemsTotal paged
-                      , pageSize = P.pageSize $ P.paginatedPagination paged
-                      , firstPage = 1
-                      , prevPage = if P.hasPrevPage paged then Just $ i - 1 else Nothing
-                      , thisPage = i
-                      , nextPage = if P.hasNextPage paged then Just $ i + 1 else Nothing
-                      , lastPage = P.paginatedPagesTotal paged
-                      }
-            }
+pagedDefaultClamp def' pg f =
+  let def = fromMaybe (Pos 1) $ mkPositive def'
+      sz = fromMaybe def $ guarded (<= def) =<< size pg
+      sz' = getPositive sz
+      pageIdx = getPositive (page pg)
+      off = sz' * (pageIdx - 1)
+      thePage = f $ OL{offset = off, limit = Just sz'}
+      info Page{total, pageContents} =
+        let (full, leftover) = total `quotRem` sz'
+            lastPage = full + if leftover == 0 then 0 else 1
+         in Paginated
+              { meta =
+                  PM
+                    { totalItems = NonNeg (max 0 total)
+                    , pageSize = sz
+                    , firstPage = Pos 1
+                    , prevPage = mkPositive =<< guarded (>= 1) (pageIdx - 1)
+                    , thisPage = page pg
+                    , nextPage = mkPositive =<< guarded (<= lastPage) (pageIdx + 1)
+                    , -- if there are no items, we report firstPage = lastPage = 1
+                      lastPage = fromMaybe (Pos 1) $ mkPositive lastPage
+                    }
+              , items = pageContents
+              }
+   in info <$> thePage
