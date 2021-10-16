@@ -47,6 +47,12 @@
 
       ghcVersion = "ghc8107";
 
+      # We must keep the weeder version in sync with the version of
+      # GHC we're using.
+      #
+      # Weeder 2.2.0 is the last one that uses GHC 8.10.x.
+      weederVersion = "2.2.0";
+
       forAllSupportedSystems = flake-utils.lib.eachSystem [
         "x86_64-linux"
         "x86_64-darwin"
@@ -196,7 +202,7 @@
 
       weeder =
         let
-          weederTool = pkgs.haskell-nix.tool ghcVersion "weeder" "latest";
+          weederTool = pkgs.haskell-nix.tool ghcVersion "weeder" weederVersion;
           getLibHIE = package:
             pkgs.lib.optional (package.components ? library)
               { name = "${package.identifier.name}-library"; path = package.components.library.hie; };
@@ -302,7 +308,7 @@
           cabal-fmt = "latest";
           #TODO Explicitly requiring tasty-discover shouldn't be necessary - see the commented-out `build-tool-depends` in primer.cabal.
           tasty-discover = "latest";
-          weeder = "latest";
+          weeder = weederVersion;
         };
 
         buildInputs = (with pkgs; [
