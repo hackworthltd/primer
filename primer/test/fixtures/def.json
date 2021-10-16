@@ -15,6 +15,12 @@
         ],
         "tag": "EmptyHole"
     },
+    "defID": {
+        "unID": 1
+    },
+    "defName": {
+        "unName": "main"
+    },
     "defType": {
         "contents": [
             {
@@ -26,11 +32,5 @@
             null
         ],
         "tag": "TEmptyHole"
-    },
-    "defName": {
-        "unName": "main"
-    },
-    "defID": {
-        "unID": 1
     }
 }

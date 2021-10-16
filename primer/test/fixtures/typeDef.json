@@ -1,7 +1,4 @@
 {
-    "typeDefName": {
-        "unName": "T"
-    },
     "typeDefConstructors": [
         {
             "valConArgs": [
@@ -44,6 +41,9 @@
             }
         }
     ],
+    "typeDefName": {
+        "unName": "T"
+    },
     "typeDefNameHints": [],
     "typeDefParameters": [
         [
