@@ -139,6 +139,7 @@ test-suite primer-test
       , aeson
       , aeson-pretty       ^>=0.8.8
       , base
+      , bytestring
       , containers
       , filepath
       , generic-optics

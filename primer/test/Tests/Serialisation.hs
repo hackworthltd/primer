@@ -5,7 +5,12 @@ module Tests.Serialisation where
 import Foreword hiding (log)
 
 import Data.Aeson hiding (Error, Result, Success)
-import Data.Aeson.Encode.Pretty (encodePretty)
+import Data.Aeson.Encode.Pretty (
+  Config (confCompare),
+  defConfig,
+  encodePretty',
+ )
+import Data.ByteString.Lazy as BL
 import qualified Data.Map.Strict as Map
 import Data.String (String)
 import Primer.Action (Action (Move, SetCursor), ActionError (IDNotFound), Movement (Child1))
@@ -47,6 +52,11 @@ test_encode =
   testGroup "encode" $
     fixtures <&> \(Fixture x path) ->
       goldenVsString (takeBaseName path) path (pure $ encodePretty x)
+  where
+    -- TODO: put this in Foreword. See:
+    -- https://github.com/hackworthltd/primer/issues/139#issuecomment-944906914
+    encodePretty :: ToJSON a => a -> BL.ByteString
+    encodePretty = encodePretty' $ defConfig{confCompare = compare}
 
 -- | Check that decoding the file produces the value.
 test_decode :: TestTree
