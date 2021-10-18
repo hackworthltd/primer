@@ -14,6 +14,17 @@ module Primer.Pagination (
   Positive (getPositive),
   mkPositive,
   pagedDefaultClamp,
+  -- the following are exposed for testing
+  meta,
+  totalItems,
+  pageSize,
+  firstPage,
+  prevPage,
+  thisPage,
+  nextPage,
+  lastPage,
+  getNonNeg,
+  items,
 ) where
 
 import Foreword
@@ -109,6 +120,9 @@ instance ToParamSchema NonNeg where
   toParamSchema _ = toParamSchema (Proxy @Int) & #minimum ?~ 0
 instance ToSchema NonNeg where
   declareNamedSchema = plain . toParamSchema
+
+getNonNeg :: NonNeg -> Int
+getNonNeg (NonNeg i) = i
 
 data PaginatedMeta = PM
   { totalItems :: NonNeg

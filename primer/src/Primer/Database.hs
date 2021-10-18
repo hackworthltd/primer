@@ -127,7 +127,7 @@ defaultSessionName = SessionName "Untitled Program"
 -- | Bulk-queryable per-session information
 -- See also 'SessionData'.
 data Session = Session {id :: SessionId, name :: SessionName}
-  deriving (Generic)
+  deriving (Show, Eq, Generic)
   deriving (ToJSON) via VJSON Session
 
 -- | Per-session information.

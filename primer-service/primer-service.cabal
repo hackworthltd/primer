@@ -11,10 +11,12 @@ synopsis:      A web service for the Primer API.
 category:      Web
 
 library
-  exposed-modules:    Primer.Server
+  exposed-modules:
+    Primer.Pagination
+    Primer.Server
+
   other-modules:
     Primer.OpenAPI
-    Primer.Pagination
     Servant.OpenApi.OperationId
 
   hs-source-dirs:     src
@@ -127,3 +129,46 @@ executable primer-openapi
     , base
     , bytestring      ^>=0.10.8.2
     , primer-service
+
+test-suite service-test
+  type:               exitcode-stdio-1.0
+  main-is:            Test.hs
+  hs-source-dirs:     test
+  other-modules:      Tests.Pagination
+  default-language:   Haskell2010
+  default-extensions:
+    NoImplicitPrelude
+    DataKinds
+    DeriveDataTypeable
+    DeriveGeneric
+    DerivingStrategies
+    DerivingVia
+    FlexibleContexts
+    FlexibleInstances
+    GeneralizedNewtypeDeriving
+    LambdaCase
+    MultiParamTypeClasses
+    OverloadedStrings
+    ScopedTypeVariables
+
+  ghc-options:
+    -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
+    -Wcompat -Widentities -Wredundant-constraints -fhide-source-paths
+    -threaded -rtsopts -with-rtsopts=-N
+
+  build-depends:
+    , base
+    , primer
+    , primer-selda
+    , primer-service
+    , selda           ^>=0.5
+    , selda-sqlite    ^>=0.1.7.1
+    , tasty           ^>=1.4.1
+    , tasty-discover  ^>=4.2.2
+    , tasty-hunit     ^>=0.10.0
+    , temporary       ^>=1.3
+    , uuid            ^>=1.3
+
+--TODO This currently breaks with haskell.nix, so we manually add it to `flake.nix` instead.
+-- See: https://github.com/input-output-hk/haskell.nix/issues/839
+-- build-tool-depends: tasty-discover:tasty-discover ^>=4.2.2

@@ -5,6 +5,8 @@
 module Primer.Database.Selda (
   MonadDb (..),
   initialize,
+  sessions, -- exported for testing
+  SessionRow (..), -- exported for testing
 ) where
 
 import qualified Data.Aeson as Aeson (
