@@ -8,7 +8,7 @@ jobs:
   update-nix-dependencies:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v2.3.4
+    - uses: actions/checkout@v2.3.5
       with:
         # Nix Flakes doesn't work on shallow clones
         fetch-depth: 0
