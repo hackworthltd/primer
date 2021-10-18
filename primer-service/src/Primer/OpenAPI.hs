@@ -6,8 +6,11 @@ module Primer.OpenAPI (
 ) where
 
 import Data.OpenApi (ToSchema)
+import Primer.API (Def, Prog, Tree)
 import Primer.App (InitialApp)
+import Primer.Core (ID)
 import Primer.Database (Session, SessionName)
+import Primer.Name (Name)
 
 -- $orphanInstances
 --
@@ -19,3 +22,8 @@ import Primer.Database (Session, SessionName)
 instance ToSchema SessionName
 instance ToSchema Session
 instance ToSchema InitialApp
+instance ToSchema ID
+instance ToSchema Name
+instance ToSchema Tree
+instance ToSchema Def
+instance ToSchema Prog

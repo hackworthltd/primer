@@ -96,6 +96,7 @@ test-suite primer-test
     Tests.Action.Capture
     Tests.Action.Prog
     Tests.AlphaEquality
+    Tests.API
     Tests.Database
     Tests.Eval
     Tests.EvalFull
