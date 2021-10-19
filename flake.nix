@@ -102,6 +102,11 @@
                   #TODO This shouldn't be necessary - see the commented-out `build-tool-depends` in primer.cabal.
                   packages.primer.components.tests.primer-test.build-tools = [ final.haskell-nix.haskellPackages.tasty-discover ];
                 }
+                {
+                  #TODO Haskell.nix would ideally pick this up from `cabal.project`.
+                  # See: https://github.com/input-output-hk/haskell.nix/issues/1149#issuecomment-946664684
+                  packages.primer.components.tests.primer-test.testFlags = [ "--size-cutoff=32768" ];
+                }
               ];
             };
             primerFlake = primer.flake { };
