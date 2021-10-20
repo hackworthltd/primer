@@ -1,5 +1,3 @@
-#TODO this needs to be here (project root) due to HLS: https://github.com/haskell/haskell-language-server/issues/1260
-
 # We need to disable HLint in Test.hs, since HLS runs it over the processed source, which is unsurprisingly unidiomatic.
 #TODO
     # It'd be simpler to just disable these via a comment in the source file.
