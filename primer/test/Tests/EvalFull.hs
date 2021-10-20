@@ -350,7 +350,7 @@ unit_hole_ann_case =
 
 -- | Resuming evaluation is the same as running it for longer in the first place
 hprop_resume :: Property
-hprop_resume = withDiscards 1000 $
+hprop_resume = withDiscards 2000 $
   propertyWT (buildTypingContext defaultTypeDefs mempty NoSmartHoles) $ do
     tds <- asks typeDefs
     (dir, t, _, globs) <- genDirTmGlobs

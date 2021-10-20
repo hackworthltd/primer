@@ -5,6 +5,8 @@
 module Primer.Database.Selda (
   MonadDb (..),
   initialize,
+  sessions, -- exported for testing
+  SessionRow (..), -- exported for testing
 ) where
 
 import qualified Data.Aeson as Aeson (
@@ -12,6 +14,7 @@ import qualified Data.Aeson as Aeson (
   encode,
  )
 import Data.ByteString.Lazy as BL hiding (take)
+import Data.Maybe (fromMaybe)
 import Data.Text (Text)
 import Data.UUID (UUID)
 import qualified Data.UUID as UUID (toText)
@@ -37,9 +40,12 @@ import Database.Selda (
   (.==),
   (:*:) (..),
  )
+import qualified Database.Selda as Selda
 import GHC.Generics (Generic)
 import Primer.Database (
   MonadDb (..),
+  OffsetLimit (limit, offset),
+  Page (Page, pageContents, total),
   Session (Session),
   SessionData (..),
   Version,
@@ -109,12 +115,24 @@ instance MonadDb (SeldaM b) where
       (\session -> session ! #uuid .== literal s)
       (\session -> session `with` [#gitversion := literal v, #name := literal (fromSessionName n)])
 
-  listSessions = do
-    ss <- query $ do
-      session <- select sessions
-      order (session ! #uuid) ascending
-      return (session ! #uuid :*: session ! #name)
-    pure $ safeMkSession <$> ss
+  listSessions ol = do
+    n' <- query $
+      Selda.aggregate $ do
+        session <- select sessions
+        return $ Selda.count $ session ! #uuid
+    let n = case n' of
+          [n''] -> n''
+          -- something has gone terribly wrong: selda will return a singleton
+          -- for a 'count' query. For now, return a default value.
+          -- TODO: this should log an error and cause a HTTP 5xx code to be,
+          -- returned. See https://github.com/hackworthltd/primer/issues/179
+          _ -> 0
+    ss <- query $
+      Selda.limit (offset ol) (fromMaybe n $ limit ol) $ do
+        session <- select sessions
+        order (session ! #uuid) ascending
+        return (session ! #uuid :*: session ! #name)
+    pure $ Page{total = n, pageContents = safeMkSession <$> ss}
     where
       -- See comment in 'querySessionId' re: dealing with invalid
       -- session names loaded from the database.

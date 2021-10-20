@@ -101,6 +101,7 @@
                 {
                   #TODO This shouldn't be necessary - see the commented-out `build-tool-depends` in primer.cabal.
                   packages.primer.components.tests.primer-test.build-tools = [ final.haskell-nix.haskellPackages.tasty-discover ];
+                  packages.primer-service.components.tests.service-test.build-tools = [ final.haskell-nix.haskellPackages.tasty-discover ];
                 }
                 {
                   #TODO Haskell.nix would ideally pick this up from `cabal.project`.

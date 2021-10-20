@@ -13,6 +13,7 @@ import Control.Concurrent.STM (
  )
 
 --import Control.Exception (try)
+
 import Control.Monad.Catch (catch)
 import Control.Monad.Except (ExceptT (..))
 import Control.Monad.Reader (runReaderT)
@@ -93,6 +94,7 @@ import Primer.Eval (BetaReductionDetail (..), EvalDetail (..))
 import Primer.EvalFull (Dir (Syn))
 import Primer.Name (Name)
 import Primer.OpenAPI ()
+import Primer.Pagination (Paginated, PaginationParams, pagedDefaultClamp)
 import Primer.Typecheck (TypeError (TypeDoesNotMatchArrow))
 import Servant (
   Get,
@@ -160,8 +162,9 @@ type PrimerOpenAPI =
     --   obviously be authentication-scoped and only return the list of
     --   sessions that the caller is authorized to see.
   :<|> QueryFlag "inMemory" :> "sessions" :>
+    PaginationParams :>
     Summary "List sessions" :>
-    OpId "getSessionList" Get '[JSON] [Session])
+    OpId "getSessionList" Get '[JSON] (Paginated Session))
 
 type PrimerLegacyAPI =
   "api" :> (
@@ -367,7 +370,9 @@ hoistPrimer e = hoistServer primerApi nt primerServer
 primerServer :: ServerT PrimerAPI (PrimerM IO)
 primerServer = openAPIServer :<|> legacyServer
   where
-    openAPIServer = newSession :<|> listSessions
+    openAPIServer =
+      newSession
+        :<|> \b p -> pagedDefaultClamp 100 p $ listSessions b
     legacyServer =
       ( copySession
           :<|> getVersion

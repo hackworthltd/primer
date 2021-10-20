@@ -71,6 +71,8 @@ import Primer.Core (
   Type',
  )
 import Primer.Database (
+  OffsetLimit,
+  Page,
   Session (Session),
   SessionData (..),
   SessionId,
@@ -79,6 +81,7 @@ import Primer.Database (
   defaultSessionName,
   fromSessionName,
   newSessionId,
+  pageList,
   safeMkSessionName,
  )
 import qualified Primer.Database as Database (
@@ -216,18 +219,23 @@ copySession srcId = do
 
 -- If the input is 'False', return all sessions in the database;
 -- otherwise, only the in-memory sessions.
-listSessions :: (MonadIO m) => Bool -> PrimerM m [Session]
-listSessions False = do
+--
+-- Currently the pagination support is "extract the whole list from the DB,
+-- then select a portion". This should be improved to only extract the
+-- appropriate section from the DB in the first place.
+listSessions :: (MonadIO m) => Bool -> OffsetLimit -> PrimerM m (Page Session)
+listSessions False ol = do
   q <- asks dbOpQueue
   callback <- liftIO $
     atomically $ do
       cb <- newEmptyTMVar
-      writeTBQueue q $ Database.ListSessions cb
+      writeTBQueue q $ Database.ListSessions ol cb
       return cb
   liftIO $ atomically $ takeTMVar callback
-listSessions _ = sessionsTransaction $ \ss _ -> do
-  kvs <- ListT.toList $ StmMap.listT ss
-  pure $ uncurry Session . second sessionName <$> kvs
+listSessions _ ol = sessionsTransaction $ \ss _ -> do
+  kvs' <- ListT.toList $ StmMap.listT ss
+  let kvs = uncurry Session . second sessionName <$> kvs'
+  pure $ pageList ol kvs
 
 getVersion :: (Monad m) => PrimerM m Version
 getVersion = asks version
