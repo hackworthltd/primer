@@ -1,9 +1,7 @@
 {
     "defExpr": {
         "contents": [
-            {
-                "unID": 0
-            },
+            0,
             {
                 "contents": {
                     "contents": [],
@@ -15,17 +13,11 @@
         ],
         "tag": "EmptyHole"
     },
-    "defID": {
-        "unID": 1
-    },
-    "defName": {
-        "unName": "main"
-    },
+    "defID": 1,
+    "defName": "main",
     "defType": {
         "contents": [
-            {
-                "unID": 0
-            },
+            0,
             {
                 "tag": "KType"
             },

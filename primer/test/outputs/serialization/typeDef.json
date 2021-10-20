@@ -8,18 +8,14 @@
                         {
                             "contents": [
                                 [],
-                                {
-                                    "unName": "b"
-                                }
+                                "b"
                             ],
                             "tag": "TCon"
                         },
                         {
                             "contents": [
                                 [],
-                                {
-                                    "unName": "a"
-                                }
+                                "a"
                             ],
                             "tag": "TCon"
                         }
@@ -29,35 +25,25 @@
                 {
                     "contents": [
                         [],
-                        {
-                            "unName": "Nat"
-                        }
+                        "Nat"
                     ],
                     "tag": "TCon"
                 }
             ],
-            "valConName": {
-                "unName": "C"
-            }
+            "valConName": "C"
         }
     ],
-    "typeDefName": {
-        "unName": "T"
-    },
+    "typeDefName": "T",
     "typeDefNameHints": [],
     "typeDefParameters": [
         [
-            {
-                "unName": "a"
-            },
+            "a",
             {
                 "tag": "KType"
             }
         ],
         [
-            {
-                "unName": "b"
-            },
+            "b",
             {
                 "contents": [
                     {

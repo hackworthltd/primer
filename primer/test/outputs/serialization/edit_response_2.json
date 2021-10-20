@@ -1,48 +1,35 @@
 {
     "contents": {
-        "progDefs": [
-            [
-                {
-                    "unID": 1
+        "progDefs": {
+            "1": {
+                "defExpr": {
+                    "contents": [
+                        0,
+                        {
+                            "contents": {
+                                "contents": [],
+                                "tag": "TEmptyHole"
+                            },
+                            "tag": "TCSynthed"
+                        },
+                        null
+                    ],
+                    "tag": "EmptyHole"
                 },
-                {
-                    "defExpr": {
-                        "contents": [
-                            {
-                                "unID": 0
-                            },
-                            {
-                                "contents": {
-                                    "contents": [],
-                                    "tag": "TEmptyHole"
-                                },
-                                "tag": "TCSynthed"
-                            },
-                            null
-                        ],
-                        "tag": "EmptyHole"
-                    },
-                    "defID": {
-                        "unID": 1
-                    },
-                    "defName": {
-                        "unName": "main"
-                    },
-                    "defType": {
-                        "contents": [
-                            {
-                                "unID": 0
-                            },
-                            {
-                                "tag": "KType"
-                            },
-                            null
-                        ],
-                        "tag": "TEmptyHole"
-                    }
+                "defID": 1,
+                "defName": "main",
+                "defType": {
+                    "contents": [
+                        0,
+                        {
+                            "tag": "KType"
+                        },
+                        null
+                    ],
+                    "tag": "TEmptyHole"
                 }
-            ]
-        ],
+            }
+        },
         "progLog": {
             "unlog": [
                 [
@@ -64,9 +51,7 @@
             "selectedDef": {
                 "defExpr": {
                     "contents": [
-                        {
-                            "unID": 0
-                        },
+                        0,
                         {
                             "contents": {
                                 "contents": [],
@@ -78,17 +63,11 @@
                     ],
                     "tag": "EmptyHole"
                 },
-                "defID": {
-                    "unID": 1
-                },
-                "defName": {
-                    "unName": "main"
-                },
+                "defID": 1,
+                "defName": "main",
                 "defType": {
                     "contents": [
-                        {
-                            "unID": 0
-                        },
+                        0,
                         {
                             "tag": "KType"
                         },
@@ -100,9 +79,7 @@
             "selectedNode": {
                 "meta": {
                     "Left": [
-                        {
-                            "unID": 0
-                        },
+                        0,
                         {
                             "contents": {
                                 "contents": [],
@@ -113,9 +90,7 @@
                         null
                     ]
                 },
-                "nodeId": {
-                    "unID": 0
-                },
+                "nodeId": 0,
                 "nodeType": {
                     "tag": "BodyNode"
                 }
@@ -135,18 +110,14 @@
                                     {
                                         "contents": [
                                             [],
-                                            {
-                                                "unName": "b"
-                                            }
+                                            "b"
                                         ],
                                         "tag": "TCon"
                                     },
                                     {
                                         "contents": [
                                             [],
-                                            {
-                                                "unName": "a"
-                                            }
+                                            "a"
                                         ],
                                         "tag": "TCon"
                                     }
@@ -156,35 +127,25 @@
                             {
                                 "contents": [
                                     [],
-                                    {
-                                        "unName": "Nat"
-                                    }
+                                    "Nat"
                                 ],
                                 "tag": "TCon"
                             }
                         ],
-                        "valConName": {
-                            "unName": "C"
-                        }
+                        "valConName": "C"
                     }
                 ],
-                "typeDefName": {
-                    "unName": "T"
-                },
+                "typeDefName": "T",
                 "typeDefNameHints": [],
                 "typeDefParameters": [
                     [
-                        {
-                            "unName": "a"
-                        },
+                        "a",
                         {
                             "tag": "KType"
                         }
                     ],
                     [
-                        {
-                            "unName": "b"
-                        },
+                        "b",
                         {
                             "contents": [
                                 {

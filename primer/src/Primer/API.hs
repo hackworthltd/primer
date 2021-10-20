@@ -297,9 +297,12 @@ instance ToJSON Tree
 -- (this is expected to evolve as we flesh out the API)
 data Prog = Prog
   { types :: [Name]
-  , -- We don't use Map ID Def, as the openapi instance of map is broken (goes
-    -- via list of pairs, and openapi3 cannot represent hetrogenous tuples!)
-    -- See https://github.com/biocad/openapi3/issues/31
+  , -- We don't use Map ID Def, as the JSON encoding would be as an object,
+    -- where keys are IDs converted to strings and we have no nice way of
+    -- saying "all the keys of this object should parse as numbers". Similarly,
+    -- it is rather redundant as each Def carries a defID field (which is
+    -- encoded as a number), and it is difficult to enforce that "the keys of
+    -- this object match the defID field of the corresponding value".
     defs :: [Def]
   }
   deriving (Generic)

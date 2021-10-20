@@ -64,11 +64,8 @@ newtype ID = ID {unID :: Int}
   -- The Ord and Enum instances are useful for tests but we may remove them in
   -- future, so don't use them in app code.
   deriving newtype (Show, Num, Ord, Enum)
-  deriving (FromJSON, ToJSON) via VJSON ID
-
-instance ToJSONKey ID
-
-instance FromJSONKey ID
+  deriving newtype (FromJSON, ToJSON)
+  deriving newtype (ToJSONKey, FromJSONKey)
 
 data Meta a = Meta ID a (Maybe Value)
   deriving (Generic, Eq, Show, Data, Functor)
