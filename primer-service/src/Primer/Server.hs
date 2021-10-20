@@ -197,7 +197,7 @@ type SAPI = (
 
     -- GET /api/program
     --   Get the current program state
-    "program" :> Get '[JSON] (Result ProgError Prog)
+    "program" :> Get '[JSON] Prog
 
     -- GET /api/session-name
     --   Get the current session name.

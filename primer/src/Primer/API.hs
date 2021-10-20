@@ -256,8 +256,8 @@ liftEditAppM h sid = withSession' sid (EditApp $ runEditAppM h)
 liftQueryAppM :: (MonadIO m, MonadThrow m) => QueryAppM a -> SessionId -> PrimerM m (Result ProgError a)
 liftQueryAppM h sid = withSession' sid (QueryApp $ runQueryAppM h)
 
-getProgram :: (MonadIO m, MonadThrow m) => SessionId -> PrimerM m (Result ProgError Prog)
-getProgram = liftQueryAppM handleGetProgramRequest
+getProgram :: (MonadIO m, MonadThrow m) => SessionId -> PrimerM m Prog
+getProgram sid = withSession' sid $ QueryApp handleGetProgramRequest
 
 edit :: (MonadIO m, MonadThrow m) => SessionId -> MutationRequest -> PrimerM m (Result ProgError Prog)
 edit sid req = liftEditAppM (handleMutationRequest req) sid
