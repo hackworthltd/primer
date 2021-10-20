@@ -12,8 +12,6 @@ import Control.Concurrent.STM (
   TBQueue,
  )
 
---import Control.Exception (try)
-
 import Control.Monad.Catch (catch)
 import Control.Monad.Except (ExceptT (..))
 import Control.Monad.Reader (runReaderT)
