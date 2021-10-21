@@ -40,7 +40,7 @@ library
     -Wcompat -Widentities -Wredundant-constraints -fhide-source-paths
 
   build-depends:
-    , aeson              >=1.5.2.0 && <=1.6
+    , aeson              ^>=2
     , base               >=4.12    && <=4.16
     , exceptions         >=0.10.4  && <=0.11
     , http-media         >=0.8     && <=0.9

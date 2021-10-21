@@ -4,3 +4,21 @@ packages:
   primer
 
 optimization: 0
+
+-- https://github.com/informatikr/aeson-pretty/pull/37
+source-repository-package
+  type: git
+  location: https://github.com/informatikr/aeson-pretty
+  tag: e902ab866bb41d990b66af3644aeb352ff7aaf6f
+  --sha256: 08pc8043ps0zn0nkxy9mabdzglcn7ywgybi3x8az399l0qgjwzv8
+
+allow-newer:
+  hedgehog-classes:aeson,
+  openapi3:aeson,
+  selda-json:aeson,
+  servant-openapi3:aeson,
+  servant-server:aeson,
+  servant:aeson,
+
+  ghcjs-base:aeson,
+  jsaddle:aeson,
