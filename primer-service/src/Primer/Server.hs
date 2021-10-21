@@ -64,7 +64,6 @@ import Primer.App (
   Prog,
   ProgAction (BodyAction, MoveToDef),
   ProgError (NoDefSelected),
-  Result (..),
   newProg,
  )
 import Primer.Core (
@@ -204,7 +203,6 @@ type SOpenAPI = (
     "program" :> Get '[JSON] API.Prog
   )
 
-
 -- | The session-specific bits of the api
 -- (legacy version)
 type SAPI = (
@@ -220,7 +218,7 @@ type SAPI = (
 
     -- POST /api/edit
     --   Submit an action, returning an updated program state
-  :<|> "edit" :> ReqBody '[JSON] MutationRequest :> Post '[JSON] (Result ProgError Prog)
+  :<|> "edit" :> ReqBody '[JSON] MutationRequest :> Post '[JSON] (Either ProgError Prog)
 
     -- POST /question
     --   Submit a qestion, returning the answer or an error.
@@ -233,7 +231,7 @@ type SAPI = (
     --   Ask what variables are in scope for the given node ID
     "variables-in-scope"
       :> ReqBody '[JSON] (ID, ID)
-      :> Post '[JSON] (Result ProgError (([(Name, Kind)], [(Name, Type' ())]), [(ID, Name, Type' ())]))
+      :> Post '[JSON] (Either ProgError (([(Name, Kind)], [(Name, Type' ())]), [(ID, Name, Type' ())]))
 
     -- POST /question/generate-names
     --   Ask for a list of possible names for a binding at the given location.
@@ -241,16 +239,16 @@ type SAPI = (
     -- body, which isn't well supported for GET requests.
     :<|> "generate-names"
       :> ReqBody '[JSON] ((ID, ID), Either (Maybe (Type' ())) (Maybe Kind))
-      :> Post '[JSON] (Result ProgError [Name])
+      :> Post '[JSON] (Either ProgError [Name])
     )
 
     -- POST /eval-step
     --   Perform one step of evaluation on the given expression.
-  :<|> "eval-step" :> ReqBody '[JSON] EvalReq :> Post '[JSON] (Result ProgError EvalResp)
+  :<|> "eval-step" :> ReqBody '[JSON] EvalReq :> Post '[JSON] (Either ProgError EvalResp)
 
     -- POST /eval
     --   Evaluate the given expression to normal form (or time out).
-   :<|> "eval" :> ReqBody '[JSON] EvalFullReq :> Post '[JSON] (Result ProgError EvalFullResp)
+   :<|> "eval" :> ReqBody '[JSON] EvalFullReq :> Post '[JSON] (Either ProgError EvalFullResp)
 
     -- GET /api/test/<type>
     --   Get an arbitrary value of that type

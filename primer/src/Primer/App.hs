@@ -24,7 +24,6 @@ module Primer.App (
   tcWholeProg,
   ProgAction (..),
   ProgError (..),
-  Result (..),
   Question (..),
   handleQuestion,
   handleGetProgramRequest,
@@ -51,7 +50,6 @@ import Data.Aeson (
   genericToEncoding,
  )
 import Data.Bitraversable (bimapM)
-import Data.Data (Data)
 import Data.Generics.Product (position)
 import Data.Generics.Uniplate.Zipper (
   fromZipper,
@@ -180,16 +178,6 @@ data NodeSelection = NodeSelection
 data NodeType = BodyNode | SigNode
   deriving (Eq, Show, Generic)
   deriving (ToJSON, FromJSON) via VJSON NodeType
-
--- | The API result type
--- This represents the type of all API results.
--- It's just Either with a different name, because we need to define our own
--- Encode/Decode instances on the frontend.
-data Result a b
-  = Error a
-  | Success b
-  deriving (Eq, Show, Generic, Data)
-  deriving (FromJSON, ToJSON) via VJSON (Result a b)
 
 -- | The type of requests which can mutate the application state.
 --
@@ -476,10 +464,10 @@ handleUndoRequest = do
     [] -> pure prog
     (_ : as) -> do
       case runEditAppM (replay (reverse as)) start of
-        (Success _, app') -> do
+        (Right _, app') -> do
           put app'
           gets appProg
-        (Error err, _) -> throwError err
+        (Left err, _) -> throwError err
 
 -- Replay a series of actions, updating the app state with the new program
 replay :: MonadEditApp m => [[ProgAction]] -> m ()
@@ -517,10 +505,10 @@ newtype EditAppM a = EditAppM (StateT App (Except ProgError) a)
 
 -- | Run an 'EditAppM' action, returning a result and an updated
 -- 'App'.
-runEditAppM :: EditAppM a -> App -> (Result ProgError a, App)
+runEditAppM :: EditAppM a -> App -> (Either ProgError a, App)
 runEditAppM (EditAppM m) appState = case runExcept (runStateT m appState) of
-  Left err -> (Error err, appState)
-  Right (res, appState') -> (Success res, appState')
+  Left err -> (Left err, appState)
+  Right (res, appState') -> (Right res, appState')
 
 -- | The 'QueryApp' monad.
 --
@@ -530,10 +518,10 @@ newtype QueryAppM a = QueryAppM (ReaderT App (Except ProgError) a)
   deriving newtype (Functor, Applicative, Monad, MonadReader App, MonadError ProgError)
 
 -- | Run a 'QueryAppM' action, returning a result.
-runQueryAppM :: QueryAppM a -> App -> Result ProgError a
+runQueryAppM :: QueryAppM a -> App -> Either ProgError a
 runQueryAppM (QueryAppM m) appState = case runExcept (runReaderT m appState) of
-  Left err -> Error err
-  Right res -> Success res
+  Left err -> Left err
+  Right res -> Right res
 
 -- | We use this type to remember which "new app" was used to
 -- initialize the session. We need this so that program resets and

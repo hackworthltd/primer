@@ -4,7 +4,7 @@ module Tests.Serialization where
 
 import Foreword hiding (log)
 
-import Data.Aeson hiding (Error, Result, Success)
+import Data.Aeson hiding (Error, Success)
 import Data.Aeson.Encode.Pretty (
   Config (confCompare),
   defConfig,
@@ -21,7 +21,6 @@ import Primer.App (
   Prog (..),
   ProgAction (BodyAction, MoveToDef),
   ProgError (NoDefSelected),
-  Result (..),
   Selection (..),
  )
 import Primer.Core (
@@ -138,6 +137,6 @@ fixtures =
       , mkFixture "selection" selection
       , mkFixture
           "edit_response_1"
-          (Error actionError :: Result ActionError Prog)
-      , mkFixture "edit_response_2" (Success prog :: Result ActionError Prog)
+          (Left actionError :: Either ActionError Prog)
+      , mkFixture "edit_response_2" (Right prog :: Either ActionError Prog)
       ]

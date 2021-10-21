@@ -20,7 +20,6 @@ import Primer.App (
   Prog (..),
   ProgAction (..),
   ProgError (..),
-  Result (..),
   Selection (..),
   handleEditRequest,
   newApp,
@@ -358,8 +357,8 @@ unit_copy_paste_duplicate = do
       actions = [MoveToDef toDef, CopyPasteSig (fromDef, fromType) [], CopyPasteBody (fromDef, fromExpr) []]
       (result, _) = runAppTestM maxID a $ (,) <$> tcWholeProg p <*> handleEditRequest actions
   case result of
-    Error e -> assertFailure $ show e
-    Success (tcp, r) ->
+    Left e -> assertFailure $ show e
+    Right (tcp, r) ->
       -- use the typechecked input p, as the result will have had a typecheck run, so
       -- we need the cached kinds to match up
       let src = Map.lookup fromDef (progDefs tcp)
@@ -399,8 +398,8 @@ unit_copy_paste_type_scoping = do
       actions = [MoveToDef defID, CopyPasteSig (defID, srcID) [Move Child1, Move Child2, Move Child1]]
       (result, _) = runAppTestM maxID a $ (,) <$> tcWholeProg pExpected <*> handleEditRequest actions
   case result of
-    Error e -> assertFailure $ show e
-    Success (tcpExpected, r) ->
+    Left e -> assertFailure $ show e
+    Right (tcpExpected, r) ->
       -- use the typechecked input p, as the result will have had a typecheck run, so
       -- we need the cached kinds to match up
       let clearIDs = set (traversed % _defIDs) 0
@@ -425,8 +424,8 @@ unit_raise = do
       actions = [MoveToDef defID, CopyPasteSig (defID, srcID) [Move Child1, Delete]]
       (result, _) = runAppTestM maxID a $ (,) <$> tcWholeProg pExpected <*> handleEditRequest actions
   case result of
-    Error e -> assertFailure $ show e
-    Success (tcpExpected, r) ->
+    Left e -> assertFailure $ show e
+    Right (tcpExpected, r) ->
       -- use the typechecked input p, as the result will have had a typecheck run, so
       -- we need the cached kinds to match up
       let clearIDs = set (traversed % _defIDs) 0
@@ -467,8 +466,8 @@ unit_copy_paste_expr_1 = do
       actions = [MoveToDef defID, CopyPasteBody (defID, srcID) [Move Child1, Move Child1, Move (Branch "Nil")]]
       (result, _) = runAppTestM maxID a $ (,) <$> tcWholeProg pExpected <*> handleEditRequest actions
   case result of
-    Error e -> assertFailure $ show e
-    Success (tcpExpected, r) ->
+    Left e -> assertFailure $ show e
+    Right (tcpExpected, r) ->
       -- use the typechecked input p, as the result will have had a typecheck run, so
       -- we need the cached kinds to match up
       let clearIDs = set (traversed % _defIDs) 0
@@ -492,8 +491,8 @@ unit_copy_paste_ann = do
       actions = [MoveToDef toDef, CopyPasteBody (fromDef, fromAnn) [EnterType]]
   let (result, _) = runAppTestM maxID a $ (,) <$> tcWholeProg p <*> handleEditRequest actions
   case result of
-    Error e -> assertFailure $ show e
-    Success (tcp, r) ->
+    Left e -> assertFailure $ show e
+    Right (tcp, r) ->
       -- use the typechecked input p, as the result will have had a typecheck run, so
       -- we need the cached kinds to match up
       let src = Map.lookup fromDef (progDefs tcp)
@@ -520,8 +519,8 @@ unit_copy_paste_ann2sig = do
       actions = [MoveToDef defID, CopyPasteSig (defID, srcID) []]
       (result, _) = runAppTestM maxID a $ (,) <$> tcWholeProg pExpected <*> handleEditRequest actions
   case result of
-    Error e -> assertFailure $ show e
-    Success (tcpExpected, r) ->
+    Left e -> assertFailure $ show e
+    Right (tcpExpected, r) ->
       -- use the typechecked input p, as the result will have had a typecheck run, so
       -- we need the cached kinds to match up
       let clearIDs = set (traversed % _defIDs) 0
@@ -544,8 +543,8 @@ unit_copy_paste_sig2ann = do
       actions = [MoveToDef defID, CopyPasteBody (defID, srcID) [ConstructAnn, EnterType]]
       (result, _) = runAppTestM maxID a $ (,) <$> tcWholeProg pExpected <*> handleEditRequest actions
   case result of
-    Error e -> assertFailure $ show e
-    Success (tcpExpected, r) ->
+    Left e -> assertFailure $ show e
+    Right (tcpExpected, r) ->
       -- use the typechecked input p, as the result will have had a typecheck run, so
       -- we need the cached kinds to match up
       let clearIDs = set (traversed % _defIDs) 0
@@ -581,18 +580,18 @@ _defIDs = #defID `adjoin` #defExpr % (_exprMeta % _id `adjoin` _exprTypeMeta % _
 
 -- Tests that the result is successful, and then applies the given test to the returned program
 -- The test takes two arguments: the original input program and the output program
-expectSuccess :: (Prog -> Prog -> Assertion) -> Prog -> Result ProgError Prog -> Assertion
+expectSuccess :: (Prog -> Prog -> Assertion) -> Prog -> Either ProgError Prog -> Assertion
 expectSuccess f p = \case
-  Success r -> f p r
-  Error e -> assertFailure $ show e
+  Right r -> f p r
+  Left e -> assertFailure $ show e
 
-expectError :: (ProgError -> Assertion) -> Prog -> Result ProgError Prog -> Assertion
+expectError :: (ProgError -> Assertion) -> Prog -> Either ProgError Prog -> Assertion
 expectError f _ = \case
-  Success r -> assertFailure $ show r
-  Error e -> f e
+  Right r -> assertFailure $ show r
+  Left e -> f e
 
 -- Run the given ProgActions against the given Prog, and pass the result to the given test function
-progActionTest :: S Prog -> [ProgAction] -> (Prog -> Result ProgError Prog -> Assertion) -> Assertion
+progActionTest :: S Prog -> [ProgAction] -> (Prog -> Either ProgError Prog -> Assertion) -> Assertion
 progActionTest inputProg actions testOutput = do
   let (prog, maxID) = create inputProg
   let a = newEmptyApp{appProg = prog}
@@ -609,8 +608,8 @@ newtype AppTestM a = AppTestM {unAppTestM :: StateT App (ExceptT ProgError TestM
     , MonadError ProgError
     )
 
-runAppTestM :: ID -> App -> AppTestM a -> (Result ProgError a, App)
+runAppTestM :: ID -> App -> AppTestM a -> (Either ProgError a, App)
 runAppTestM startID a m =
   case evalTestM startID $ runExceptT $ flip runStateT a $ unAppTestM m of
-    Left err -> (Error err, a)
-    Right (res, app') -> (Success res, app')
+    Left err -> (Left err, a)
+    Right (res, app') -> (Right res, app')

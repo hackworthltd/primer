@@ -1,5 +1,5 @@
 {
-    "contents": {
+    "Right": {
         "progDefs": {
             "1": {
                 "defExpr": {
@@ -161,6 +161,5 @@
                 ]
             }
         ]
-    },
-    "tag": "Success"
+    }
 }
