@@ -27,3 +27,6 @@ allow-newer:
   servant-openapi3:aeson,
   servant-server:aeson,
   servant:aeson,
+
+constraints:
+  aeson +ordered-keymap,

@@ -22,3 +22,6 @@ allow-newer:
 
   ghcjs-base:aeson,
   jsaddle:aeson,
+
+constraints:
+  aeson +ordered-keymap,
