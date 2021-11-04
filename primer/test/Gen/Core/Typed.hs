@@ -3,6 +3,11 @@
 {-# LANGUAGE ApplicativeDo #-}
 {-# LANGUAGE TupleSections #-}
 
+-- |
+-- This module generates well-typed terms and types.
+-- It is however, slow and the distribution is not very even.
+--
+-- For quickly generating non-well-typed-or-scoped terms, see "Gen.Core.Raw".
 module Gen.Core.Typed (
   WT,
   genWTType,
