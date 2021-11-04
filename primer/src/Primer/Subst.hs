@@ -76,6 +76,7 @@ alphaEqTy :: Type' () -> Type' () -> Bool
 alphaEqTy = go mempty mempty
   where
     go _ _ (TEmptyHole _) (TEmptyHole _) = True
+    go p q (THole _ s) (THole _ t) = go p q s t
     go _ _ (TCon _ n) (TCon _ m) = n == m
     go p q (TFun _ a b) (TFun _ c d) = go p q a c && go p q b d
     go p q (TVar _ n) (TVar _ m) = p ! n == q ! m
