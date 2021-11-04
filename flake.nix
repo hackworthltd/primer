@@ -16,6 +16,8 @@
 
     pre-commit-hooks-nix.url = github:cachix/pre-commit-hooks.nix;
     pre-commit-hooks-nix.inputs.nixpkgs.follows = "nixpkgs";
+    # Fixes aarch64-darwin support.
+    pre-commit-hooks-nix.inputs.flake-utils.follows = "flake-utils";
   };
 
   outputs =
@@ -56,6 +58,7 @@
       forAllSupportedSystems = flake-utils.lib.eachSystem [
         "x86_64-linux"
         "x86_64-darwin"
+        "aarch64-darwin"
       ];
 
       forAllTestSystems = flake-utils.lib.eachSystem [
@@ -100,8 +103,8 @@
                 }
                 {
                   #TODO This shouldn't be necessary - see the commented-out `build-tool-depends` in primer.cabal.
-                  packages.primer.components.tests.primer-test.build-tools = [ final.haskell-nix.haskellPackages.tasty-discover ];
-                  packages.primer-service.components.tests.service-test.build-tools = [ final.haskell-nix.haskellPackages.tasty-discover ];
+                  packages.primer.components.tests.primer-test.build-tools = [ final.haskell-nix.snapshots."lts-18.9".tasty-discover ];
+                  packages.primer-service.components.tests.service-test.build-tools = [ final.haskell-nix.snapshots."lts-18.9".tasty-discover ];
                 }
                 {
                   #TODO Haskell.nix would ideally pick this up from `cabal.project`.
@@ -281,7 +284,6 @@
             inherit (pkgs) run-primer run-primer-local-pgsql create-local-pgsql-db primer-openapi-spec;
           })
         )
-        // ghcjsPrimerFlake.packages
         // primerFlake.packages;
 
       # Notes:
@@ -325,12 +327,7 @@
 
           # For Language Server support.
           nodejs-16_x
-        ]) ++ [
-          (
-            pkgs.haskell.lib.justStaticExecutables
-              pkgs.haskellPackages.structured-haskell-mode
-          )
-        ];
+        ]);
 
         shellHook = ''
           export HIE_HOOGLE_DATABASE="$(cat $(${pkgs.which}/bin/which hoogle) | sed -n -e 's|.*--database \(.*\.hoo\).*|\1|p')"
