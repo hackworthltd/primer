@@ -79,11 +79,11 @@ import Primer.App (
 import qualified Primer.App as App
 import Primer.Core (
   Expr,
-  Expr' (APP, Ann, Con, LetType, Letrec, Var),
+  Expr' (APP, Ann, GlobalVar, LetType, Letrec),
   ID,
   Kind,
   Type,
-  Type' (TCon, TVar),
+  Type' (TForall),
   defExpr,
   defID,
   defName,
@@ -346,9 +346,8 @@ viewTreeExpr :: Expr -> Tree
 viewTreeExpr = U.para $ \e exprChildren ->
   let c = toS $ showConstr $ toConstr e
       n = case e of
-        Con _ n' -> c <> " " <> unName n'
-        Var _ n' -> c <> " " <> unName n'
-        _ -> c
+        GlobalVar _ i -> c <> " " <> show i
+        _ -> unwords $ c : map unName (U.childrenBi e)
       -- add info about type children
       allChildren = case e of
         Ann _ _ ty -> exprChildren ++ [viewTreeType ty]
@@ -364,9 +363,8 @@ viewTreeType :: Type -> Tree
 viewTreeType = U.para $ \e allChildren ->
   let c = toS $ showConstr $ toConstr e
       n = case e of
-        TCon _ n' -> c <> " " <> unName n'
-        TVar _ n' -> c <> " " <> unName n'
-        _ -> c
+        TForall _ m k _ -> c <> " " <> unName m <> ":" <> show k
+        _ -> unwords $ c : map unName (U.childrenBi e)
    in Tree (getID e) n allChildren
 
 edit :: (MonadIO m, MonadThrow m) => SessionId -> MutationRequest -> PrimerM m (Result ProgError App.Prog)
