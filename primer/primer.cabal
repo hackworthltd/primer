@@ -92,6 +92,7 @@ test-suite primer-test
     Gen.Core.Typed
     TestM
     Tests.Action
+    Tests.Action.Available
     Tests.Action.Capture
     Tests.Action.Prog
     Tests.AlphaEquality
@@ -141,6 +142,7 @@ test-suite primer-test
       , base
       , bytestring
       , containers
+      , extra              ^>=1.7.10
       , filepath
       , generic-optics
       , hedgehog           ^>=1.0.2
@@ -151,6 +153,7 @@ test-suite primer-test
       , mmorph             ^>=1.1.5
       , mtl
       , optics
+      , pretty-simple      ^>=4.0.0
       , primer
       , protolude
       , tasty              ^>=1.4.1

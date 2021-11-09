@@ -1,14 +1,24 @@
 cradle:
-  cabal:
-    - path: ./primer/src
-      component: "lib:primer"
-    - path: ./primer/test
-      component: "primer-test"
+  multi:
+    # ignore test files
+    - path: ./primer/test/outputs
+      config:
+        cradle:
+          none:
 
-    - path: ./primer-selda/src
-      component: "lib:primer-selda"
+    - path: .
+      config:
+        cradle:
+          cabal:
+            - path: ./primer/src
+              component: "lib:primer"
+            - path: ./primer/test
+              component: "primer-test"
 
-    - path: ./primer-service/src
-      component: "lib:primer-service"
-    - path: ./primer-service/exe
-      component: "exe:primer-service"
+            - path: ./primer-selda/src
+              component: "lib:primer-selda"
+
+            - path: ./primer-service/src
+              component: "lib:primer-service"
+            - path: ./primer-service/exe
+              component: "exe:primer-service"
