@@ -70,7 +70,7 @@ test_decode =
 data Fixture = forall a. (Eq a, Show a, FromJSON a, ToJSON a) => Fixture a FilePath
 
 mkFixture :: (Eq a, Show a, ToJSON a, FromJSON a) => String -> a -> Fixture
-mkFixture name x = Fixture x ("test/fixtures/" <> name <> ".json")
+mkFixture name x = Fixture x ("test/outputs/fixtures/" <> name <> ".json")
 
 -- | A list of fixtures we will test.
 -- When you add a new type to the API, add the corresponding fixture here.
