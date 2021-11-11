@@ -1,3 +1,9 @@
+-- |
+-- This module generates "raw" terms and types.
+-- That is, syntax trees which are not (necessarily) well-typed, or even well-scoped.
+-- It is however, fast and has good coverage properties.
+--
+-- For generating well-typed terms, see "Gen.Core.Typed".
 module Gen.Core.Raw (
   runExprGen,
   evalExprGen,
@@ -14,6 +20,8 @@ import Hedgehog hiding (Var, check)
 import qualified Hedgehog.Gen as Gen
 import qualified Hedgehog.Range as Range
 import Primer.Core (
+  Bind' (Bind),
+  CaseBranch' (CaseBranch),
   Expr,
   Expr' (..),
   ID (..),
@@ -33,7 +41,21 @@ evalExprGen :: ID -> ExprGen a -> Gen a
 evalExprGen i m = evalStateT m i
 
 genExpr :: ExprGen Expr
-genExpr = Gen.recursive Gen.choice [genEmptyHole, genCon] [genHole, genAnn, genApp]
+genExpr =
+  Gen.recursive
+    Gen.choice
+    [genEmptyHole, genCon, genVar, genGlobalVar]
+    [ genHole
+    , genAnn
+    , genApp
+    , genAPP
+    , genLam
+    , genLAM
+    , genLet
+    , genLetType
+    , genLetrec
+    , genCase
+    ]
 
 genEmptyHole :: ExprGen Expr
 genEmptyHole = EmptyHole <$> genMeta
@@ -47,23 +69,55 @@ genAnn = Ann <$> genMeta <*> genExpr <*> genType
 genApp :: ExprGen Expr
 genApp = App <$> genMeta <*> genExpr <*> genExpr
 
+genAPP :: ExprGen Expr
+genAPP = APP <$> genMeta <*> genExpr <*> genType
+
 genCon :: ExprGen Expr
 genCon = Con <$> genMeta <*> genName
 
--- | Note: we currently don't generate @TVar@, @TApp@ or @TForall@, because most
--- of the system doesn't support them.
+genLam :: ExprGen Expr
+genLam = Lam <$> genMeta <*> genName <*> genExpr
+
+genLAM :: ExprGen Expr
+genLAM = LAM <$> genMeta <*> genName <*> genExpr
+
+genVar :: ExprGen Expr
+genVar = Var <$> genMeta <*> genName
+
+genGlobalVar :: ExprGen Expr
+genGlobalVar = GlobalVar <$> genMeta <*> genID
+
+genLet :: ExprGen Expr
+genLet = Let <$> genMeta <*> genName <*> genExpr <*> genExpr
+
+genLetType :: ExprGen Expr
+genLetType = LetType <$> genMeta <*> genName <*> genType <*> genExpr
+
+genLetrec :: ExprGen Expr
+genLetrec = Letrec <$> genMeta <*> genName <*> genExpr <*> genType <*> genExpr
+
+genCase :: ExprGen Expr
+genCase = Case <$> genMeta <*> genExpr <*> Gen.list (Range.linear 0 5) genBranch
+  where
+    genBranch = CaseBranch <$> genName <*> Gen.list (Range.linear 0 5) genBind <*> genExpr
+    genBind = Bind <$> genMeta <*> genName
+
 genType :: ExprGen Type
 genType =
   Gen.recursive
     Gen.choice
     [ TEmptyHole <$> genMeta
     , TCon <$> genMeta <*> genName
+    , TVar <$> genMeta <*> genName
     ]
-    [ TFun <$> genMeta <*> genType <*> genType
+    [ THole <$> genMeta <*> genType
+    , TFun <$> genMeta <*> genType <*> genType
+    , TApp <$> genMeta <*> genType <*> genType
+    , TForall <$> genMeta <*> genName <*> genKind <*> genType
     ]
 
 genKind :: ExprGen Kind
-genKind = Gen.recursive Gen.choice [pure KType] [KFun <$> genKind <*> genKind]
+genKind = Gen.recursive Gen.choice [pure KType, pure KHole] [KFun <$> genKind <*> genKind]
 
 genMeta :: ExprGen (Meta (Maybe a))
 genMeta = Meta <$> genID <*> pure Nothing <*> pure Nothing
