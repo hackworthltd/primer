@@ -187,6 +187,7 @@ deriving instance Functor ActionInput
 data ActionName
   = Code Text
   | Prose Text
+  deriving (Eq, Show)
 
 -- | The current programming "level". This setting determines which
 -- actions are displayed to the student, the labels on UI elements,
@@ -200,6 +201,7 @@ data Level
     Intermediate
   | -- | All features.
     Expert
+  deriving (Eq, Show, Enum, Bounded)
 
 -- | Sigh, yes, this is required so that Safari doesn't try to
 -- autocomplete these fields with your contact data.

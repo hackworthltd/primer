@@ -159,7 +159,7 @@ data Expr' a b
 
 -- Note [Case]
 -- We use a list for compatibility and ease of JSON
--- serialisation/deserialisation.
+-- serialization/deserialization.
 -- It would potentially be worth moving to some other structure here.
 --
 -- INVARIANT: branches are sorted in order of constructor in data declaration

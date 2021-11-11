@@ -14,9 +14,11 @@ check:	test
 test:
 	cabal test
 
-# Run the encoding tests, and update any files which differ from the expected result.
-generate-fixtures:
-	cabal run primer-test -- -p Serialisation.encode --accept
+# Update any test files which differ from the expected result.
+serialization-outputs:
+	cabal run primer-test -- -p Serialization.encode --accept
+available-action-outputs:
+	cabal run primer-test -- -p Action.Available --accept
 
 docs:
 	cabal haddock

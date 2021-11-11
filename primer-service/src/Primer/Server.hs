@@ -305,8 +305,8 @@ serveStaticFiles =
           }
    in serveDirectoryWith settings
 
--- These endpoints (de)serialise different types in the API, to help
--- with testing (de)serialisation code.
+-- These endpoints (de)serialize different types in the API, to help
+-- with testing (de)serialization code.
 testEndpoints :: ServerT TestAPI (PrimerM IO)
 testEndpoints =
   mkTest Child1
