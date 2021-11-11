@@ -66,7 +66,7 @@ test_1 =
     ((defExpr, defType), defID) = create $ (,) <$> e <*> t
     t =
       tfun
-        (tcon "")
+        (tcon "Nat")
         ( tforall
             "a"
             KType
