@@ -47,7 +47,7 @@ import Primer.ZipperCxt (
 data Question a where
   -- Given the ID of a definition and the ID of a type or expression in that
   -- definition, what variables are in scope at the expression?
-  -- Nested pairs: to make serialisation to PS work easily
+  -- Nested pairs: to make serialization to PS work easily
   VariablesInScope :: ID -> ID -> Question (([(Name, Kind)], [(Name, Type' ())]), [(ID, Name, Type' ())])
   GenerateName ::
     ID ->

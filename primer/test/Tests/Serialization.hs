@@ -1,6 +1,6 @@
 {-# LANGUAGE ExistentialQuantification #-}
 
-module Tests.Serialisation where
+module Tests.Serialization where
 
 import Foreword hiding (log)
 
@@ -65,7 +65,7 @@ test_decode =
     fixtures <&> \(Fixture x path) ->
       testCase (takeBaseName path) $ either assertFailure (x @=?) =<< eitherDecodeFileStrict path
 
--- | A fixture holds some value which is JSON serialisable and path to a
+-- | A fixture holds some value which is JSON serializable and path to a
 -- fixture file which should contain a JSON representation of that value.
 data Fixture = forall a. (Eq a, Show a, FromJSON a, ToJSON a) => Fixture a FilePath
 

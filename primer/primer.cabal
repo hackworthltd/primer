@@ -103,7 +103,7 @@ test-suite primer-test
     Tests.Gen.Core.Typed
     Tests.Question
     Tests.Refine
-    Tests.Serialisation
+    Tests.Serialization
     Tests.Subst
     Tests.Transform
     Tests.Typecheck

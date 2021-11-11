@@ -16,7 +16,7 @@ test:
 
 # Run the encoding tests, and update any files which differ from the expected result.
 generate-fixtures:
-	cabal run primer-test -- -p Serialisation.encode --accept
+	cabal run primer-test -- -p Serialization.encode --accept
 
 docs:
 	cabal haddock
