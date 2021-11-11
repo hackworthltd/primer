@@ -273,7 +273,9 @@
             inherit (pkgs) nixpkgs-fmt;
           } // haskellNixTools;
 
-          excludes = [ ];
+          excludes = [
+            "primer/test/outputs"
+          ];
         };
     in
     {
