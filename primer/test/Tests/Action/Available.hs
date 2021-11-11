@@ -167,35 +167,32 @@ data Output = Output
 mkTests :: Def -> TestTree
 mkTests def =
   let testName = T.unpack $ unName $ defName def
-   in testGroup
-        testName
-        $ map
-          ( \level ->
-              let defActions = map name $ actionsForDef level mempty def
-                  bodyActions =
-                    map
-                      ( \id ->
-                          ( id
-                          , map name $ actionsForDefBody level def id (defExpr def)
-                          )
-                      )
-                      . toListOf (_exprMeta % _id `adjoin` _exprTypeMeta % _id)
-                      $ defExpr def
-                  sigActions =
-                    map
-                      ( \id ->
-                          ( id
-                          , map name $ actionsForDefSig level def id (defType def)
-                          )
-                      )
-                      . toListOf (_typeMeta % _id)
-                      $ defType def
-               in goldenVsString (show level) ("test/outputs/available-actions" </> testName </> show level <> ".hs") $
-                    pure . BS.fromStrict . encodeUtf8 . TL.toStrict . pShowNoColor $
-                      Output
-                        { defActions
-                        , bodyActions
-                        , sigActions
-                        }
-          )
-          enumerate
+   in testGroup testName $
+        enumerate
+          <&> \level ->
+            let defActions = map name $ actionsForDef level mempty def
+                bodyActions =
+                  map
+                    ( \id ->
+                        ( id
+                        , map name $ actionsForDefBody level def id (defExpr def)
+                        )
+                    )
+                    . toListOf (_exprMeta % _id `adjoin` _exprTypeMeta % _id)
+                    $ defExpr def
+                sigActions =
+                  map
+                    ( \id ->
+                        ( id
+                        , map name $ actionsForDefSig level def id (defType def)
+                        )
+                    )
+                    . toListOf (_typeMeta % _id)
+                    $ defType def
+             in goldenVsString (show level) ("test/outputs/available-actions" </> testName </> show level <> ".hs") $
+                  pure . BS.fromStrict . encodeUtf8 . TL.toStrict . pShowNoColor $
+                    Output
+                      { defActions
+                      , bodyActions
+                      , sigActions
+                      }
