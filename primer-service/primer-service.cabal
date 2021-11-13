@@ -15,11 +15,11 @@ library
     Primer.Pagination
     Primer.Server
 
+  hs-source-dirs:     src
   other-modules:
     Primer.OpenAPI
     Servant.OpenApi.OperationId
 
-  hs-source-dirs:     src
   default-language:   Haskell2010
   default-extensions:
     DataKinds
@@ -40,13 +40,13 @@ library
     -Wcompat -Widentities -Wredundant-constraints -fhide-source-paths
 
   build-depends:
-    , aeson              >=1.5.2.0 && <=1.6
-    , base               >=4.12    && <=4.16
+    , aeson              >=1.5.2.0 && <=2.1
+    , base               >=4.12    && <=4.17
     , exceptions         >=0.10.4  && <=0.11
     , http-media         >=0.8     && <=0.9
     , mtl                >=2.2.2   && <=2.3
-    , openapi3           ^>=3.1.0
-    , optics             ^>=0.4
+    , openapi3           >=3.1.0   && <=3.2
+    , optics             >=0.4     && <=0.5
     , primer             ^>=0.7
     , selda              ^>=0.5
     , servant            ^>=0.18
