@@ -64,7 +64,6 @@ import Primer.App (
   ProgError,
   QueryAppM,
   Question (..),
-  Result (..),
   handleEvalFullRequest,
   handleEvalRequest,
   handleGetProgramRequest,
@@ -269,12 +268,12 @@ renameSession sid n = withSession' sid $ RenameSession n
 
 -- Run an 'EditAppM' action, using the given session ID to look up and
 -- pass in the app state for that session.
-liftEditAppM :: (MonadIO m, MonadThrow m) => EditAppM a -> SessionId -> PrimerM m (Result ProgError a)
+liftEditAppM :: (MonadIO m, MonadThrow m) => EditAppM a -> SessionId -> PrimerM m (Either ProgError a)
 liftEditAppM h sid = withSession' sid (EditApp $ runEditAppM h)
 
 -- Run a 'QueryAppM' action, using the given session ID to look up and
 -- pass in the app state for that session.
-liftQueryAppM :: (MonadIO m, MonadThrow m) => QueryAppM a -> SessionId -> PrimerM m (Result ProgError a)
+liftQueryAppM :: (MonadIO m, MonadThrow m) => QueryAppM a -> SessionId -> PrimerM m (Either ProgError a)
 liftQueryAppM h sid = withSession' sid (QueryApp $ runQueryAppM h)
 
 getProgram :: (MonadIO m, MonadThrow m) => SessionId -> PrimerM m Prog
@@ -367,22 +366,22 @@ viewTreeType = U.para $ \e allChildren ->
         _ -> unwords $ c : map unName (U.childrenBi e)
    in Tree (getID e) n allChildren
 
-edit :: (MonadIO m, MonadThrow m) => SessionId -> MutationRequest -> PrimerM m (Result ProgError App.Prog)
+edit :: (MonadIO m, MonadThrow m) => SessionId -> MutationRequest -> PrimerM m (Either ProgError App.Prog)
 edit sid req = liftEditAppM (handleMutationRequest req) sid
 
-variablesInScope :: (MonadIO m, MonadThrow m) => SessionId -> (ID, ID) -> PrimerM m (Result ProgError (([(Name, Kind)], [(Name, Type' ())]), [(ID, Name, Type' ())]))
+variablesInScope :: (MonadIO m, MonadThrow m) => SessionId -> (ID, ID) -> PrimerM m (Either ProgError (([(Name, Kind)], [(Name, Type' ())]), [(ID, Name, Type' ())]))
 variablesInScope sid (defid, exprid) =
   liftQueryAppM (handleQuestion (VariablesInScope defid exprid)) sid
 
-generateNames :: (MonadIO m, MonadThrow m) => SessionId -> ((ID, ID), Either (Maybe (Type' ())) (Maybe Kind)) -> PrimerM m (Result ProgError [Name])
+generateNames :: (MonadIO m, MonadThrow m) => SessionId -> ((ID, ID), Either (Maybe (Type' ())) (Maybe Kind)) -> PrimerM m (Either ProgError [Name])
 generateNames sid ((defid, exprid), tk) =
   liftQueryAppM (handleQuestion $ GenerateName defid exprid tk) sid
 
-evalStep :: (MonadIO m, MonadThrow m) => SessionId -> EvalReq -> PrimerM m (Result ProgError EvalResp)
+evalStep :: (MonadIO m, MonadThrow m) => SessionId -> EvalReq -> PrimerM m (Either ProgError EvalResp)
 evalStep sid req =
   liftEditAppM (handleEvalRequest req) sid
 
-evalFull :: (MonadIO m, MonadThrow m) => SessionId -> EvalFullReq -> PrimerM m (Result ProgError EvalFullResp)
+evalFull :: (MonadIO m, MonadThrow m) => SessionId -> EvalFullReq -> PrimerM m (Either ProgError EvalFullResp)
 evalFull sid req =
   liftEditAppM (handleEvalFullRequest req) sid
 
