@@ -292,7 +292,7 @@ focusNode prog defid nodeid =
             Just x -> pure x
 
 -- | Handle a request to retrieve the current program
-handleGetProgramRequest :: MonadQueryApp m => m Prog
+handleGetProgramRequest :: MonadReader App m => m Prog
 handleGetProgramRequest = asks appProg
 
 -- | Handle a request to mutate the app state

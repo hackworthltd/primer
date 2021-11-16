@@ -19,6 +19,9 @@ module Primer.API (
   copySession,
   listSessions,
   getVersion,
+  Tree,
+  Prog,
+  Def,
   getProgram,
   getSessionName,
   renameSession,
@@ -28,6 +31,9 @@ module Primer.API (
   evalStep,
   evalFull,
   flushSessions,
+  -- viewTree*: only exported for testing
+  viewTreeType,
+  viewTreeExpr,
 ) where
 
 import Foreword
@@ -41,6 +47,10 @@ import Control.Concurrent.STM (
   writeTBQueue,
  )
 import Control.Monad.Catch (MonadThrow, throwM)
+import Data.Aeson (ToJSON)
+import Data.Data (showConstr, toConstr)
+import qualified Data.Generics.Uniplate.Data as U
+import qualified Data.Map as Map
 import qualified ListT (toList)
 import Primer.App (
   App,
@@ -51,7 +61,6 @@ import Primer.App (
   EvalResp (..),
   InitialApp,
   MutationRequest,
-  Prog,
   ProgError,
   QueryAppM,
   Question (..),
@@ -62,13 +71,25 @@ import Primer.App (
   handleMutationRequest,
   handleQuestion,
   initialApp,
+  progDefs,
+  progTypes,
   runEditAppM,
   runQueryAppM,
  )
+import qualified Primer.App as App
 import Primer.Core (
+  Expr,
+  Expr' (APP, Ann, GlobalVar, LetType, Letrec),
   ID,
   Kind,
-  Type',
+  Type,
+  Type' (TForall),
+  defExpr,
+  defID,
+  defName,
+  defType,
+  getID,
+  typeDefName,
  )
 import Primer.Database (
   OffsetLimit,
@@ -97,7 +118,7 @@ import qualified Primer.Database as Database (
     Success
   ),
  )
-import Primer.Name (Name)
+import Primer.Name (Name, unName)
 import qualified StmContainers.Map as StmMap
 
 data Env = Env
@@ -256,10 +277,97 @@ liftEditAppM h sid = withSession' sid (EditApp $ runEditAppM h)
 liftQueryAppM :: (MonadIO m, MonadThrow m) => QueryAppM a -> SessionId -> PrimerM m (Result ProgError a)
 liftQueryAppM h sid = withSession' sid (QueryApp $ runQueryAppM h)
 
-getProgram :: (MonadIO m, MonadThrow m) => SessionId -> PrimerM m (Result ProgError Prog)
-getProgram = liftQueryAppM handleGetProgramRequest
+getProgram :: (MonadIO m, MonadThrow m) => SessionId -> PrimerM m Prog
+getProgram sid = withSession' sid $ QueryApp $ viewProg . handleGetProgramRequest
 
-edit :: (MonadIO m, MonadThrow m) => SessionId -> MutationRequest -> PrimerM m (Result ProgError Prog)
+-- | A frontend will be mostly concerned with rendering, and does not need the
+-- full complexity of our AST for that task. 'Tree' is a simplified view with
+-- just enough information to render nicely.
+-- (NB: currently this is just a first draft, and is expected to evolve.)
+data Tree = Tree
+  { nodeId :: ID
+  , label :: Text
+  , childTrees :: [Tree]
+  }
+  deriving (Show, Eq, Generic)
+
+instance ToJSON Tree
+
+-- | This type is the API's view of a 'App.Prog'
+-- (this is expected to evolve as we flesh out the API)
+data Prog = Prog
+  { types :: [Name]
+  , -- We don't use Map ID Def, as the JSON encoding would be as an object,
+    -- where keys are IDs converted to strings and we have no nice way of
+    -- saying "all the keys of this object should parse as numbers". Similarly,
+    -- it is rather redundant as each Def carries a defID field (which is
+    -- encoded as a number), and it is difficult to enforce that "the keys of
+    -- this object match the defID field of the corresponding value".
+    defs :: [Def]
+  }
+  deriving (Generic)
+
+instance ToJSON Prog
+
+-- | This type is the api's view of a 'Primer.Core.Def'
+-- (this is expected to evolve as we flesh out the API)
+data Def = Def
+  { id :: ID
+  , name :: Name
+  , type_ :: Tree
+  , term :: Tree
+  }
+  deriving (Generic)
+
+instance ToJSON Def
+
+viewProg :: App.Prog -> Prog
+viewProg p =
+  Prog
+    { types = typeDefName <$> progTypes p
+    , defs =
+        ( \d ->
+            Def
+              { id = defID d
+              , name = defName d
+              , type_ = viewTreeType $ defType d
+              , term = viewTreeExpr $ defExpr d
+              }
+        )
+          <$> Map.elems (progDefs p)
+    }
+
+-- | A simple method to extract 'Tree's from 'Expr's. This is injective.
+-- Currently it is designed to be simple and just enough to enable
+-- experimenting with rendering on the frontend.
+--
+-- It is expected to evolve in the future.
+viewTreeExpr :: Expr -> Tree
+viewTreeExpr = U.para $ \e exprChildren ->
+  let c = toS $ showConstr $ toConstr e
+      n = case e of
+        GlobalVar _ i -> c <> " " <> show i
+        _ -> unwords $ c : map unName (U.childrenBi e)
+      -- add info about type children
+      allChildren = case e of
+        Ann _ _ ty -> exprChildren ++ [viewTreeType ty]
+        APP _ _ ty -> exprChildren ++ [viewTreeType ty]
+        LetType _ _ ty _ -> viewTreeType ty : exprChildren
+        Letrec _ _ _ ty _ -> let (h, t) = splitAt 1 exprChildren in h ++ viewTreeType ty : t
+        -- otherwise, no type children
+        _ -> exprChildren
+   in Tree (getID e) n allChildren
+
+-- | Similar to 'viewTreeExpr', but for 'Type's
+viewTreeType :: Type -> Tree
+viewTreeType = U.para $ \e allChildren ->
+  let c = toS $ showConstr $ toConstr e
+      n = case e of
+        TForall _ m k _ -> c <> " " <> unName m <> ":" <> show k
+        _ -> unwords $ c : map unName (U.childrenBi e)
+   in Tree (getID e) n allChildren
+
+edit :: (MonadIO m, MonadThrow m) => SessionId -> MutationRequest -> PrimerM m (Result ProgError App.Prog)
 edit sid req = liftEditAppM (handleMutationRequest req) sid
 
 variablesInScope :: (MonadIO m, MonadThrow m) => SessionId -> (ID, ID) -> PrimerM m (Result ProgError (([(Name, Kind)], [(Name, Type' ())]), [(ID, Name, Type' ())]))

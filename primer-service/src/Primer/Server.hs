@@ -47,6 +47,7 @@ import Primer.API (
   renameSession,
   variablesInScope,
  )
+import qualified Primer.API as API
 import Primer.Action (
   Action (Move),
   ActionError (TypeError),
@@ -162,7 +163,11 @@ type PrimerOpenAPI =
   :<|> QueryFlag "inMemory" :> "sessions" :>
     PaginationParams :>
     Summary "List sessions" :>
-    OpId "getSessionList" Get '[JSON] (Paginated Session))
+    OpId "getSessionList" Get '[JSON] (Paginated Session)
+
+    -- The rest of the API is scoped to a particular session
+  :<|> QueryParam' '[Required, Strict] "session" SessionId :> SOpenAPI
+  )
 
 type PrimerLegacyAPI =
   "api" :> (
@@ -193,15 +198,19 @@ type PrimerLegacyAPI =
   :<|> Raw
 
 -- | The session-specific bits of the api
-type SAPI = (
-
+type SOpenAPI = (
     -- GET /api/program
     --   Get the current program state
-    "program" :> Get '[JSON] (Result ProgError Prog)
+    "program" :> Get '[JSON] API.Prog
+  )
 
+
+-- | The session-specific bits of the api
+-- (legacy version)
+type SAPI = (
     -- GET /api/session-name
     --   Get the current session name.
-  :<|> "session-name" :> Get '[JSON] Text
+       "session-name" :> Get '[JSON] Text
 
     -- PUT /api/session-name
     --   Attempt to set the current session name. Returns the new
@@ -370,13 +379,13 @@ primerServer = openAPIServer :<|> legacyServer
   where
     openAPIServer =
       newSession
-        :<|> \b p -> pagedDefaultClamp 100 p $ listSessions b
+        :<|> (\b p -> pagedDefaultClamp 100 p $ listSessions b)
+        :<|> getProgram
     legacyServer =
       ( copySession
           :<|> getVersion
           :<|> ( \sid ->
-                  getProgram sid
-                    :<|> getSessionName sid
+                  getSessionName sid
                     :<|> renameSession sid
                     :<|> edit sid
                     :<|> (variablesInScope sid :<|> generateNames sid)
