@@ -41,5 +41,6 @@ cabal.project.local*
 # SQLite
 *.sqlite
 
-# generated file
+# generated files
 /openapi.json
+/axios-bindings/
