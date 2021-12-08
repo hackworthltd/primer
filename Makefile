@@ -19,4 +19,7 @@ openapi.json: build
 	cabal run -v0 primer-service:exe:primer-openapi > $@
 	openapi-generator-cli validate --recommend -i $@
 
-.PHONY: $(targets) weeder
+axios-bindings: openapi.json
+	openapi-generator-cli generate -i openapi.json -o axios-bindings -g typescript-axios
+
+.PHONY: $(targets) weeder axios-bindings
