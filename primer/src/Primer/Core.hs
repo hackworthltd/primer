@@ -1,5 +1,6 @@
 {-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE OverloadedLabels #-}
+{-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE UndecidableInstances #-}
 
@@ -26,6 +27,9 @@ module Primer.Core (
   Kind (..),
   TypeDef (..),
   typeDefKind,
+  PrimCon (..),
+  PrimFun (..),
+  PrimFunError (..),
   ValCon (..),
   valConType,
   boolDef,
@@ -49,6 +53,7 @@ module Primer.Core (
 
 import Foreword
 
+import Control.Monad.Fresh (MonadFresh)
 import Data.Aeson (Value)
 import Data.Data (Data)
 import Data.Generics.Product
@@ -151,6 +156,7 @@ data Expr' a b
     LetType a Name (Type' b) (Expr' a b)
   | Letrec a Name (Expr' a b) (Type' b) (Expr' a b)
   | Case a (Expr' a b) [CaseBranch' a b] -- See Note [Case]
+  | PrimCon a PrimCon
   deriving (Eq, Show, Data, Generic)
   deriving (FromJSON, ToJSON) via VJSON (Expr' a b)
 
@@ -312,6 +318,27 @@ data Def = Def
   }
   deriving (Eq, Show, Generic)
   deriving (FromJSON, ToJSON) via VJSON Def
+
+{- HLINT ignore "Use newtype instead of data" -}
+data PrimCon
+  = PrimChar Char
+  deriving (Eq, Show, Data, Generic)
+  deriving (FromJSON, ToJSON) via VJSON PrimCon
+
+data PrimFun = PrimFun
+  { primFunType :: forall m. MonadFresh ID m => m Type
+  , primFunDef :: forall m. MonadFresh ID m => [Expr] -> Either PrimFunError (m Expr)
+  }
+
+data PrimFunError
+  = -- | We have attempted to apply a primitive function to ill-typed args.
+    PrimFunTypeError
+      Name
+      -- ^ Function name
+      [Expr]
+      -- ^ Arguments
+  deriving (Eq, Show, Data, Generic)
+  deriving (FromJSON, ToJSON) via VJSON PrimFunError
 
 -- | User defined types
 --

@@ -16,6 +16,10 @@ module Primer.Core.DSL (
   letType,
   case_,
   branch,
+  char,
+  bool_,
+  nat,
+  maybe_,
   tEmptyHole,
   thole,
   tcon,
@@ -33,6 +37,7 @@ module Primer.Core.DSL (
 import Foreword
 
 import Control.Monad.Fresh (MonadFresh, fresh)
+import Numeric.Natural (Natural)
 import Optics (set)
 import Primer.Core (
   Bind' (..),
@@ -43,6 +48,7 @@ import Primer.Core (
   ID,
   Kind,
   Meta (..),
+  PrimCon (..),
   Type,
   Type' (..),
   TypeCache,
@@ -114,6 +120,22 @@ branch :: MonadFresh ID m => Name -> [(Name, Maybe TypeCache)] -> m Expr -> m Ca
 branch c vs e = CaseBranch c <$> mapM binding vs <*> e
   where
     binding (name, ty) = Bind <$> meta' ty <*> pure name
+
+char :: MonadFresh ID m => Char -> m Expr
+char c = PrimCon <$> meta <*> pure (PrimChar c)
+
+bool_ :: MonadFresh ID m => Bool -> m Expr
+bool_ b = con $ if b then "True" else "False"
+
+nat :: MonadFresh ID m => Natural -> m Expr
+nat = \case
+  0 -> con "Zero"
+  n -> app (con "Succ") $ nat (n - 1)
+
+maybe_ :: MonadFresh ID m => m Type -> (a -> m Expr) -> Maybe a -> m Expr
+maybe_ t f = \case
+  Nothing -> con "Nothing" `aPP` t
+  Just x -> con "Just" `aPP` t `app` f x
 
 tEmptyHole :: MonadFresh ID m => m Type
 tEmptyHole = TEmptyHole <$> meta

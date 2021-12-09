@@ -78,9 +78,10 @@ import Primer.App (
 import qualified Primer.App as App
 import Primer.Core (
   Expr,
-  Expr' (APP, Ann, GlobalVar, LetType, Letrec),
+  Expr' (APP, Ann, GlobalVar, LetType, Letrec, PrimCon),
   ID,
   Kind,
+  PrimCon (..),
   Type,
   Type' (TForall),
   defExpr,
@@ -346,6 +347,8 @@ viewTreeExpr = U.para $ \e exprChildren ->
   let c = toS $ showConstr $ toConstr e
       n = case e of
         GlobalVar _ i -> c <> " " <> show i
+        PrimCon _ pc -> case pc of
+          PrimChar c' -> show c'
         _ -> unwords $ c : map unName (U.childrenBi e)
       -- add info about type children
       allChildren = case e of
