@@ -1,4 +1,5 @@
 {-# LANGUAGE DuplicateRecordFields #-}
+{-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE TypeApplications #-}
 
 module Primer.Eval (
@@ -13,6 +14,7 @@ module Primer.Eval (
   GlobalVarInlineDetail (..),
   LetRemovalDetail (..),
   PushAppIntoLetrecDetail (..),
+  ApplyPrimFunDetail (..),
   Locals,
   Globals,
   regenerateExprIDs,
@@ -29,7 +31,7 @@ import Control.Monad.Fresh (MonadFresh, fresh)
 import Data.Generics.Product (position)
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
-import Optics (set, traverseOf, view, (%), (^.))
+import Optics (mapping, set, traverseOf, view, (%), (^.))
 import Primer.Core (
   Bind' (..),
   CaseBranch' (..),
@@ -40,6 +42,8 @@ import Primer.Core (
   ID,
   Kind,
   Meta,
+  PrimFun (..),
+  PrimFunError (..),
   Type,
   Type' (..),
   TypeCache,
@@ -48,10 +52,11 @@ import Primer.Core (
   _exprTypeMeta,
   _typeMeta,
  )
-import Primer.Core.DSL (ann, hole, letType, let_, tEmptyHole)
-import Primer.Core.Transform (removeAnn, renameVar, unfoldAPP, unfoldApp)
+import Primer.Core.DSL (ann, create, hole, letType, let_, tEmptyHole)
+import Primer.Core.Transform (removeAnn, renameVar, unfoldAPP, unfoldApp, unfoldFun)
 import Primer.JSON
 import Primer.Name (Name, unName, unsafeMkName)
+import Primer.Primitives (globalPrims)
 import Primer.Subst (freeVars, freeVarsTy)
 import Primer.Zipper (
   ExprZ,
@@ -95,6 +100,8 @@ data EvalError
   | -- | The number of bindings in a branch pattern doesn't match the number of arguments in the
     -- scrutinee.
     CaseBranchBindingLengthMismatch
+  | -- | An error occurred while evaluating a primitive function.
+    PrimFunError PrimFunError
   deriving (Eq, Show, Generic)
   deriving (FromJSON, ToJSON) via VJSON EvalError
 
@@ -116,6 +123,8 @@ data EvalDetail
     CaseReduction CaseReductionDetail
   | -- | Push the argument of an application inside a letrec
     PushAppIntoLetrec PushAppIntoLetrecDetail
+  | -- | Apply a primitive function
+    ApplyPrimFun ApplyPrimFunDetail
   deriving (Eq, Show, Generic)
   deriving (FromJSON, ToJSON) via VJSON EvalDetail
 
@@ -230,6 +239,19 @@ data PushAppIntoLetrecDetail = PushAppIntoLetrecDetail
   deriving (Eq, Show, Generic)
   deriving (FromJSON, ToJSON) via VJSONPrefix "pushAppIntoLetrec" PushAppIntoLetrecDetail
 
+data ApplyPrimFunDetail = ApplyPrimFunDetail
+  { -- | the expression before reduction
+    applyPrimFunBefore :: Expr
+  , -- | the expression after reduction
+    applyPrimFunAfter :: Expr
+  , -- | the name of the primitive function
+    applyPrimFunName :: Name
+  , -- | the IDs of the arguments to the application
+    applyPrimFunArgIDs :: [ID]
+  }
+  deriving (Eq, Show, Generic)
+  deriving (FromJSON, ToJSON) via VJSONPrefix "applyPrimFun" ApplyPrimFunDetail
+
 -- | A map from definition IDs to definitions themselves
 type Globals = Map ID Def
 
@@ -305,6 +327,20 @@ redexes = go mempty
             -- substituted e into the λ body.
             App _ e1@(Letrec _ x _ _ Lam{}) e4 ->
               (self `munless` Set.member x (freeVars e4)) <> go locals e1 <> go locals e4
+            -- Application of a primitive (fully-applied, with all arguments in normal form).
+            e@App{}
+              | (Var _ fName, args) <- unfoldApp e
+                , Just PrimFun{primFunType} <- Map.lookup fName globalPrims
+                , TFun _ lhs rhs <- fst $ create primFunType
+                , length args == length (fst $ unfoldFun lhs rhs)
+                , all isNormalForm args ->
+                self
+              where
+                isNormalForm = \case
+                  PrimCon _ _ -> True
+                  Con _ _ -> True
+                  App _ f x -> isNormalForm f && isNormalForm x
+                  _ -> False
             -- f x
             App _ e1 e2 -> go locals e1 <> go locals e2
             APP _ e@LAM{} t -> self <> go locals e <> goType locals t
@@ -344,6 +380,7 @@ redexes = go mempty
                     (Con{}, _) -> self
                     _ -> mempty
                in scrutRedex <> go locals e <> mconcat (map branchRedexes branches)
+            PrimCon{} -> mempty
     goType locals ty =
       -- A set containing just the ID of this type
       let self = Set.singleton (ty ^. _id)
@@ -479,6 +516,35 @@ tryReduceExpr globals locals = \case
             , pushAppIntoLetrecIsTypeApplication = False
             }
       )
+
+  -- apply primitive function
+  before@App{}
+    | (Var _ fName, args) <- unfoldApp before
+      , Just PrimFun{primFunDef, primFunType} <- Map.lookup fName globalPrims
+      , TFun _ lhs rhs <- fst $ create primFunType
+      , length args == length (fst $ unfoldFun lhs rhs)
+      , all isNormalForm args ->
+      case primFunDef args of
+        Left err -> throwError $ PrimFunError err
+        Right e -> do
+          expr <- e
+          pure
+            ( expr
+            , ApplyPrimFun
+                ApplyPrimFunDetail
+                  { applyPrimFunBefore = before
+                  , applyPrimFunAfter = expr
+                  , applyPrimFunName = fName
+                  , applyPrimFunArgIDs = args ^. mapping _id
+                  }
+            )
+    where
+      isNormalForm = \case
+        PrimCon _ _ -> True
+        Con _ _ -> True
+        App _ f x -> isNormalForm f && isNormalForm x
+        _ -> False
+
   -- Beta reduction of an inner application
   -- This rule is theoretically redundant but because we render nested applications with just one
   -- 'App' node in the tupled style, the user can only select the top-most application even if the
