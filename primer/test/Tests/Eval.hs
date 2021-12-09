@@ -19,6 +19,7 @@ import Primer.Core (
  )
 import Primer.Core.DSL
 import Primer.Eval (
+  ApplyPrimFunDetail (..),
   BetaReductionDetail (..),
   CaseReductionDetail (..),
   EvalDetail (..),
@@ -502,6 +503,24 @@ unit_tryReduce_case_no_matching_branch = do
       result = runTryReduce mempty mempty (expr, i)
   result @?= Left NoMatchingCaseBranch
 
+unit_tryReduce_prim :: Assertion
+unit_tryReduce_prim = do
+  let ((expr, expectedResult), i) =
+        create $
+          (,)
+            <$> var "eqChar" `app` char 'a' `app` char 'a'
+            <*> con "True"
+      result = runTryReduce mempty mempty (expr, i)
+  case result of
+    Right (expr', ApplyPrimFun detail) -> do
+      expr' ~= expectedResult
+
+      applyPrimFunBefore detail ~= expr
+      applyPrimFunAfter detail ~= expr'
+      applyPrimFunName detail @?= "eqChar"
+      applyPrimFunArgIDs detail @?= [3, 4]
+    _ -> assertFailure $ show result
+
 -- * 'findNodeByID' tests
 
 unit_findNodeByID_letrec :: Assertion
@@ -728,6 +747,18 @@ unit_redexes_case_4 =
 unit_redexes_case_5 :: Assertion
 unit_redexes_case_5 =
   redexesOf (let_ "x" (con "C") (case_ (var "x") [])) @?= Set.fromList [3]
+
+unit_redexes_prim_1 :: Assertion
+unit_redexes_prim_1 =
+  redexesOf (var "eqChar" `app` char 'a' `app` char 'b') @?= Set.fromList [0]
+
+unit_redexes_prim_2 :: Assertion
+unit_redexes_prim_2 =
+  redexesOf (var "eqChar" `app` var "a" `app` char 'b') @?= Set.empty
+
+unit_redexes_prim_3 :: Assertion
+unit_redexes_prim_3 =
+  redexesOf (var "eqChar" `app` char 'a') @?= Set.empty
 
 -- * Misc helpers
 
