@@ -443,6 +443,115 @@ hprop_type_preservation = withTests 1000 $
           (_, s') <- evalFullStepCount tds globs midSteps dir t
           test "mid " s'
 
+unit_prim_toUpper :: Assertion
+unit_prim_toUpper =
+  let ((e, r), maxID) = create $ (,) <$> app (var "toUpper") (char 'a') <*> char 'A'
+      s = evalFullTest maxID mempty mempty 10 Syn e
+   in do
+        distinctIDs s
+        s <~==> Right r
+
+unit_prim_isSpace_1 :: Assertion
+unit_prim_isSpace_1 =
+  let ((e, r), maxID) =
+        create $
+          (,)
+            <$> var "isSpace"
+              `app` char '\n'
+              <*> con "True"
+      s = evalFullTest maxID mempty mempty 2 Syn e
+   in do
+        distinctIDs s
+        s <~==> Right r
+
+unit_prim_isSpace_2 :: Assertion
+unit_prim_isSpace_2 =
+  let ((e, r), maxID) =
+        create $
+          (,)
+            <$> var "isSpace"
+              `app` char 'a'
+              <*> con "False"
+      s = evalFullTest maxID mempty mempty 2 Syn e
+   in do
+        distinctIDs s
+        s <~==> Right r
+
+hprop_prim_hex_nat :: Property
+hprop_prim_hex_nat = withTests 20 . property $ do
+  n <- forAllT $ Gen.integral $ Range.linear 0 50
+  let ne = nat n
+      ((e, r), maxID) =
+        if n <= 15
+          then
+            create $
+              (,)
+                <$> case_
+                  ( var "natToHex"
+                      `app` ne
+                  )
+                  [ branch
+                      "Nothing"
+                      []
+                      (con "Nothing")
+                  , branch
+                      "Just"
+                      [("x", Nothing)]
+                      ( var "hexToNat"
+                          `app` var "x"
+                      )
+                  ]
+                <*> (con "Just" `aPP` tcon "Nat")
+                  `app` ne
+          else
+            create $
+              (,)
+                <$> var "natToHex"
+                  `app` ne
+                <*> con "Nothing"
+                  `aPP` tcon "Char"
+      s = evalFullTest maxID (mkTypeDefMap defaultTypeDefs) mempty 7 Syn e
+  set _ids' 0 s === set _ids' 0 (Right r)
+
+unit_prim_char_eq_1 :: Assertion
+unit_prim_char_eq_1 =
+  let ((e, r), maxID) =
+        create $
+          (,)
+            <$> var "eqChar"
+              `app` char 'a'
+              `app` char 'a'
+              <*> con "True"
+      s = evalFullTest maxID mempty mempty 2 Syn e
+   in do
+        distinctIDs s
+        s <~==> Right r
+
+unit_prim_char_eq_2 :: Assertion
+unit_prim_char_eq_2 =
+  let ((e, r), maxID) =
+        create $
+          (,)
+            <$> var "eqChar"
+              `app` char 'a'
+              `app` char 'A'
+              <*> con "False"
+      s = evalFullTest maxID mempty mempty 2 Syn e
+   in do
+        distinctIDs s
+        s <~==> Right r
+
+unit_prim_char_partial :: Assertion
+unit_prim_char_partial =
+  let (e, maxID) =
+        create $
+          var "eqChar"
+            `app` char 'a'
+      s = evalFullTest maxID mempty mempty 1 Syn e
+   in do
+        distinctIDs s
+        s <~==> Right e
+
 -- * Utilities
 
 evalFullTest :: ID -> M.Map Name TypeDef -> M.Map ID Def -> TerminationBound -> Dir -> Expr -> Either EvalFullError Expr

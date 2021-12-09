@@ -228,6 +228,7 @@ findNodeWithParent id x = go x Nothing
                     Alt (go rhs (Just (ExprNode expr)))
                       <> foldMap (Alt . map (\b -> (CaseBindNode b, Just (ExprNode expr))) . findBind id) binds
              in go e (Just (ExprNode expr)) <|> inBranches
+          PrimCon{} -> Nothing
 
     goTy t p = case findTypeWithParent id t of
       Nothing -> Nothing

@@ -28,6 +28,7 @@ library
     Primer.EvalFull
     Primer.Name
     Primer.Name.Fresh
+    Primer.Primitives
     Primer.Questions
     Primer.Refine
     Primer.Subst
