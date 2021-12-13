@@ -141,7 +141,6 @@ hprop_genCxtExtending_is_extension =
       (Cxt{typeDefs = tds2, localCxt = lc2, globalCxt = gc2, smartHoles = sh2}) =
         tds1 `M.isSubmapOf` tds2
           && lc1 == lc2 -- we don't extend the locals
-          && lc1 == mempty -- and it doesn't make too much sense to do a global extension if already have locals in scope
           && gc1 `M.isSubmapOf` gc2
           && sh1 == sh2
     extendsLocal
