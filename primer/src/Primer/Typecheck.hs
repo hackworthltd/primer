@@ -74,6 +74,7 @@ import Primer.Core (
   ID,
   Kind (..),
   Meta (..),
+  PrimCon (..),
   Type' (..),
   TypeCache (..),
   TypeCacheBoth (..),
@@ -91,6 +92,7 @@ import Primer.Core.DSL (branch, emptyHole, meta, meta')
 import Primer.Core.Utils (forgetTypeIDs, generateTypeIDs)
 import Primer.JSON (CustomJSON (CustomJSON), FromJSON, ToJSON, VJSON)
 import Primer.Name (Name, NameCounter, freshName)
+import Primer.Primitives (globalPrimTypes)
 import Primer.Subst (alphaEqTy, substTy)
 
 -- | Typechecking takes as input an Expr with 'Maybe Type' annotations and
@@ -147,6 +149,8 @@ data Cxt = Cxt
   { smartHoles :: SmartHoles
   , -- | invariant: the key matches the 'typeDefName' inside the 'TypeDef'
     typeDefs :: M.Map Name TypeDef
+  , -- | primitive types
+    primTypes :: M.Map Name Kind
   , -- | local variables
     localCxt :: Map Name KindOrType
   , -- | global variables (i.e. IDs of top-level definitions)
@@ -192,6 +196,7 @@ initialCxt sh =
   Cxt
     { smartHoles = sh
     , typeDefs = mempty
+    , primTypes = globalPrimTypes
     , localCxt = mempty
     , globalCxt = mempty
     }
@@ -470,6 +475,10 @@ synth = \case
     -- Extend the context with the binding, and synthesise the body
     (bT, b') <- local ctx' $ synth b
     pure $ annSynth4 bT i Letrec x a' tA' b'
+  PrimCon i pc ->
+    case pc of
+      PrimChar c ->
+        pure $ annSynth0 (TCon () "Char") i (\m -> PrimCon m $ PrimChar c)
   e ->
     asks smartHoles >>= \case
       NoSmartHoles -> throwError' $ CannotSynthesiseType e
@@ -625,10 +634,13 @@ synthKind = \case
       NoSmartHoles -> pure (KHole, THole (annotate KHole m) t')
       SmartHoles -> pure (k, t')
   TCon m c -> do
-    typeDef <- asks (M.lookup c . typeDefs)
-    case typeDef of
+    typeDef <- asks (fmap typeDefKind . M.lookup c . typeDefs)
+    mk <- case typeDef of
+      Nothing -> asks (M.lookup c . primTypes)
+      Just k -> pure $ Just k
+    case mk of
+      Just k -> pure (k, TCon (annotate k m) c)
       Nothing -> throwError' $ UnknownTypeConstructor c
-      Just def -> let k = typeDefKind def in pure (k, TCon (annotate k m) c)
   TFun m a b -> do
     a' <- checkKind KType a
     b' <- checkKind KType b
