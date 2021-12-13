@@ -27,6 +27,7 @@ import Primer.Core (
   ID (..),
   Kind (..),
   Meta (..),
+  PrimCon (..),
   Type,
   Type' (..),
  )
@@ -55,6 +56,7 @@ genExpr =
     , genLetType
     , genLetrec
     , genCase
+    , genPrim
     ]
 
 genEmptyHole :: ExprGen Expr
@@ -101,6 +103,11 @@ genCase = Case <$> genMeta <*> genExpr <*> Gen.list (Range.linear 0 5) genBranch
   where
     genBranch = CaseBranch <$> genName <*> Gen.list (Range.linear 0 5) genBind <*> genExpr
     genBind = Bind <$> genMeta <*> genName
+
+genPrim :: ExprGen Expr
+genPrim = PrimCon <$> genMeta <*> genPrimCon
+  where
+    genPrimCon = PrimChar <$> Gen.unicodeAll
 
 genType :: ExprGen Type
 genType =
