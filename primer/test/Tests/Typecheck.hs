@@ -434,6 +434,14 @@ unit_prim_char :: Assertion
 unit_prim_char =
   expectTyped $ ann (char 'a') (tcon "Char")
 
+unit_prim_fun :: Assertion
+unit_prim_fun =
+  expectTyped $ ann (var "hexToNat") (tfun (tcon "Char") (tapp (tcon "Maybe") (tcon "Nat")))
+
+unit_prim_fun_applied :: Assertion
+unit_prim_fun_applied =
+  expectTyped $ ann (app (var "hexToNat") (char 'a')) (tapp (tcon "Maybe") (tcon "Nat"))
+
 -- * Helpers
 
 expectTyped :: TypecheckTestM Expr -> Assertion
