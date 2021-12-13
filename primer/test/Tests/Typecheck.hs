@@ -430,6 +430,10 @@ unit_smart_type_remove_5 =
   thole (tapp (tcon "List") tEmptyHole)
     `smartSynthKindGives` tapp (tcon "List") tEmptyHole
 
+unit_prim_char :: Assertion
+unit_prim_char =
+  expectTyped $ ann (char 'a') (tcon "Char")
+
 -- * Helpers
 
 expectTyped :: TypecheckTestM Expr -> Assertion
