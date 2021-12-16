@@ -328,8 +328,8 @@ redexes = go mempty
             App _ e1@(Letrec _ x _ _ Lam{}) e4 ->
               (self `munless` Set.member x (freeVars e4)) <> go locals e1 <> go locals e4
             -- Application of a primitive (fully-applied, with all arguments in normal form).
-            e@App{}
-              | (Var _ fName, args) <- unfoldApp e
+            App{}
+              | (Var _ fName, args) <- unfoldApp expr
                 , Just PrimFun{primFunType} <- Map.lookup fName globalPrims
                 , TFun _ lhs rhs <- fst $ create primFunType
                 , length args == length (fst $ unfoldFun lhs rhs)
