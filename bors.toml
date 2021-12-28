@@ -1,5 +1,5 @@
 status = [
-  "ci/hydra:hackworthltd:primer%:required"
+  "buildkite/primer/required"
 ]
 timeout_sec = 3600
 # Disabled for now.
