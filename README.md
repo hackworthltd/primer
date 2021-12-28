@@ -1,3 +1,5 @@
+[![Build status](https://badge.buildkite.com/7a9fd1213265a375385deec0a418bc4a6f26b17b7f4efe3cad.svg?branch=main)](https://buildkite.com/hackworthltd/primer)
+
 # Primer
 
 Primer is a pedagogical functional programming language. This
