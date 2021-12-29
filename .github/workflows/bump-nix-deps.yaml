@@ -2,7 +2,8 @@ name: Update Nix dependencies
 
 on:
   schedule:
-    - cron: '0 3 * * *'
+    # 3 am every Saturday.
+    - cron: '0 3 * * 6'
 
 jobs:
   update-nix-dependencies:
