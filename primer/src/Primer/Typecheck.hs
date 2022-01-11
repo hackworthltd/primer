@@ -198,8 +198,11 @@ initialCxt sh =
     { smartHoles = sh
     , typeDefs = mempty
     , primTypes = globalPrimTypes
-    , localCxt = T . set _typeMeta () . fst . create . primFunType <$> globalPrims
-    , globalCxt = mempty
+    , localCxt = mempty
+    , globalCxt =
+        Map.fromList
+          . map (\(n, f) -> let (t, i) = create $ primFunType f in (i, (n, set _typeMeta () t)))
+          $ Map.toList globalPrims
     }
 
 -- | Construct an initial typing context, with all given definitions in scope as global variables.
