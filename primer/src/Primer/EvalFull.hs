@@ -165,8 +165,8 @@ evalFullStepCount tydefs env n d = go 0
     go s expr
       | s >= n = pure (s, Left $ TimedOut expr)
       | otherwise = case step tydefs env d expr of
-        Nothing -> pure (s, Right expr) -- this is a normal form
-        Just me -> me >>= go (s + 1)
+          Nothing -> pure (s, Right expr) -- this is a normal form
+          Just me -> me >>= go (s + 1)
 
 -- The 'Dir' argument only affects what happens if the root is an annotation:
 -- do we keep it (Syn) or remove it (Chk). I.e. is an upsilon reduction allowed
@@ -236,17 +236,17 @@ viewCaseRedex tydefs = \case
   -- do a BETA reduction)!
   Case _ (Ann _ expr ty) brs
     | Just (c, _, as, xs, e) <- extract expr brs
-      , Just argTys <- instantiateCon ty c ->
-      formCaseRedex (Left ty) c argTys as xs e
+    , Just argTys <- instantiateCon ty c ->
+        formCaseRedex (Left ty) c argTys as xs e
   -- In the constructors-are-synthesisable case, we don't have the benefit of
   -- an explicit annotation, and have to work out the type based off the name
   -- of the constructor.
   Case _ expr brs
     | Just (c, tyargs, args, patterns, br) <- extract expr brs
-      , Just (_, tydef) <- lookupConstructor tydefs c
-      , ty <- foldl (\t a -> TApp () t $ set _typeMeta () a) (TCon () (typeDefName tydef)) (take (length $ typeDefParameters tydef) tyargs)
-      , Just argTys <- instantiateCon ty c ->
-      formCaseRedex (Right ty) c argTys args patterns br
+    , Just (_, tydef) <- lookupConstructor tydefs c
+    , ty <- foldl (\t a -> TApp () t $ set _typeMeta () a) (TCon () (typeDefName tydef)) (take (length $ typeDefParameters tydef) tyargs)
+    , Just argTys <- instantiateCon ty c ->
+        formCaseRedex (Right ty) c argTys args patterns br
   _ -> Nothing
   where
     extract expr brs =
@@ -261,8 +261,8 @@ viewCaseRedex tydefs = \case
             _ -> Nothing
     instantiateCon ty c
       | Right (_, instVCs) <- instantiateValCons' tydefs $ set _typeMeta () ty
-        , Just (_, argTys) <- find ((== c) . fst) instVCs =
-        Just argTys
+      , Just (_, argTys) <- find ((== c) . fst) instVCs =
+          Just argTys
       | otherwise = Nothing
     formCaseRedex ty c argTys args patterns br = pure $ do
       argTys' <- sequence argTys
@@ -365,14 +365,14 @@ findRedex tydefs globals dir = go . focus
           -- If we are substituting x->y in e.g. λy.x, we rename the y to avoid capture
           -- This may recompute the FV set of l quite a lot. We could be more efficient here!
           | fvs <- setOf _freeVarsLocal l
-            , not $ S.null $ fvs `S.intersection` bs =
-            up z <&> \z' -> case target z' of
-              Lam m x e -> RExpr z' $ RenameBindingsLam m x e fvs
-              LAM m x e -> RExpr z' $ RenameBindingsLAM m x e fvs
-              Case m s brs -> RExpr z' $ RenameBindingsCase m s brs fvs
-              -- We should replace this with a proper exception. See:
-              -- https://github.com/hackworthltd/primer/issues/148
-              e -> error $ "Internal Error: something other than Lam/LAM/Case was a binding: " ++ show e
+          , not $ S.null $ fvs `S.intersection` bs =
+              up z <&> \z' -> case target z' of
+                Lam m x e -> RExpr z' $ RenameBindingsLam m x e fvs
+                LAM m x e -> RExpr z' $ RenameBindingsLAM m x e fvs
+                Case m s brs -> RExpr z' $ RenameBindingsCase m s brs fvs
+                -- We should replace this with a proper exception. See:
+                -- https://github.com/hackworthltd/primer/issues/148
+                e -> error $ "Internal Error: something other than Lam/LAM/Case was a binding: " ++ show e
           | otherwise = goSubst n l z
     goSubstTy :: Name -> Type -> TypeZ -> Maybe RedexWithContext
     goSubstTy n t tz = case target tz of
@@ -385,8 +385,8 @@ findRedex tydefs globals dir = go . focus
         -- If we are substituting x->y in forall y.s, we rename the y to avoid capture
         -- As we don't have 'let's in types, this is a big step
         | fvs <- freeVarsTy t
-          , m `S.member` fvs ->
-          pure $ RType tz $ RenameForall i m k s fvs
+        , m `S.member` fvs ->
+            pure $ RType tz $ RenameForall i m k s fvs
       _ -> eachChild tz (goSubstTy n t)
 
 -- TODO: deal with metadata. https://github.com/hackworthltd/primer/issues/6
@@ -417,14 +417,14 @@ runRedex = \case
     LAM m y <$> let_ x (var y) (pure e)
   RenameBindingsCase m s brs avoid
     | (brs0, CaseBranch ctor binds rhs : brs1) <- break (\(CaseBranch _ bs _) -> any ((`S.member` avoid) . bindName) bs) brs ->
-      let bns = map bindName binds
-          avoid' = avoid <> freeVars rhs <> S.fromList bns
-       in do
-            rn <- traverse (\b -> if b `S.member` avoid then Right . (b,) <$> freshName avoid' else pure $ Left b) bns
-            let f b@(Bind i _) = \case Left _ -> b; Right (_, w) -> Bind i w
-            let binds' = zipWith f binds rn
-            rhs' <- foldrM (\(v, w) -> let_ v (var w) . pure) rhs $ rights rn
-            pure $ Case m s $ brs0 ++ CaseBranch ctor binds' rhs' : brs1
+        let bns = map bindName binds
+            avoid' = avoid <> freeVars rhs <> S.fromList bns
+         in do
+              rn <- traverse (\b -> if b `S.member` avoid then Right . (b,) <$> freshName avoid' else pure $ Left b) bns
+              let f b@(Bind i _) = \case Left _ -> b; Right (_, w) -> Bind i w
+              let binds' = zipWith f binds rn
+              rhs' <- foldrM (\(v, w) -> let_ v (var w) . pure) rhs $ rights rn
+              pure $ Case m s $ brs0 ++ CaseBranch ctor binds' rhs' : brs1
     -- We should replace this with a proper exception. See:
     -- https://github.com/hackworthltd/primer/issues/148
     | otherwise -> error "Internal Error: RenameBindingsCase found no applicable branches"
@@ -453,6 +453,6 @@ renameTy a b = go
       t@(TForall m c k s)
         | c == a -> pure t
         | c == b ->
-          freshName (S.singleton a <> S.singleton b <> freeVarsTy s) >>= \c' ->
-            renameTy c c' s >>= fmap (TForall m c' k) . go
+            freshName (S.singleton a <> S.singleton b <> freeVarsTy s) >>= \c' ->
+              renameTy c c' s >>= fmap (TForall m c' k) . go
         | otherwise -> TForall m c k <$> go s

@@ -135,8 +135,8 @@ data OfferedAction a = OfferedAction
   , description :: Text
   , input :: ActionInput a
   , priority :: Int
-  , -- | Used primarily for display purposes.
-    actionType :: ActionType
+  , actionType :: ActionType
+  -- ^ Used primarily for display purposes.
   }
   deriving (Functor)
 
@@ -599,7 +599,7 @@ moveExpr m@(Branch c) z | Case _ _ brs <- target z =
 moveExpr m@(Branch _) _ = throwError $ CustomFailure (Move m) "Move-to-branch failed: this is not a case expression"
 moveExpr Child2 z
   | Case{} <- target z =
-    throwError $ CustomFailure (Move Child2) "cannot move to 'Child2' of a case: use Branch instead"
+      throwError $ CustomFailure (Move Child2) "cannot move to 'Child2' of a case: use Branch instead"
 moveExpr m z = move m z
 
 -- | Apply a movement to a zipper
@@ -914,11 +914,11 @@ renameLam y ze = case target ze of
   Lam m x e
     | unName x == y -> pure ze
     | otherwise -> do
-      let y' = unsafeMkName y
-      case renameVar x y' e of
-        Just e' -> pure $ replace (Lam m y' e') ze
-        Nothing ->
-          throwError NameCapture
+        let y' = unsafeMkName y
+        case renameVar x y' e of
+          Just e' -> pure $ replace (Lam m y' e') ze
+          Nothing ->
+            throwError NameCapture
   _ ->
     throwError $ CustomFailure (RenameLam y) "the focused expression is not a lambda"
 
@@ -928,11 +928,11 @@ renameLAM b ze = case target ze of
   LAM m a e
     | unName a == b -> pure ze
     | otherwise -> do
-      let b' = unsafeMkName b
-      case renameTyVarExpr a b' e of
-        Just e' -> pure $ replace (LAM m b' e') ze
-        Nothing ->
-          throwError NameCapture
+        let b' = unsafeMkName b
+        case renameTyVarExpr a b' e of
+          Just e' -> pure $ replace (LAM m b' e') ze
+          Nothing ->
+            throwError NameCapture
   _ ->
     throwError $ CustomFailure (RenameLAM b) "the focused expression is not a type abstraction"
 
@@ -942,15 +942,15 @@ renameLet y ze = case target ze of
   Let m x e1 e2
     | unName x == y -> pure ze
     | otherwise -> do
-      let y' = unsafeMkName y
-      (e1', e2') <- doRename x y' e1 e2
-      pure $ replace (Let m y' e1' e2') ze
+        let y' = unsafeMkName y
+        (e1', e2') <- doRename x y' e1 e2
+        pure $ replace (Let m y' e1' e2') ze
   Letrec m x e1 t1 e2
     | unName x == y -> pure ze
     | otherwise -> do
-      let y' = unsafeMkName y
-      (e1', e2') <- doRename x y' e1 e2
-      pure $ replace (Letrec m y' e1' t1 e2') ze
+        let y' = unsafeMkName y
+        (e1', e2') <- doRename x y' e1 e2
+        pure $ replace (Letrec m y' e1' t1 e2') ze
   _ ->
     throwError $ CustomFailure (RenameLet y) "the focused expression is not a let"
   where
@@ -1028,10 +1028,10 @@ renameForall b zt = case target zt of
   TForall m a k t
     | unName a == b -> pure zt
     | otherwise -> do
-      let b' = unsafeMkName b
-      case renameTyVar a b' t of
-        Just t' -> pure $ replace (TForall m b' k t') zt
-        Nothing ->
-          throwError NameCapture
+        let b' = unsafeMkName b
+        case renameTyVar a b' t of
+          Just t' -> pure $ replace (TForall m b' k t') zt
+          Nothing ->
+            throwError NameCapture
   _ ->
     throwError $ CustomFailure (RenameForall b) "the focused expression is not a forall type"

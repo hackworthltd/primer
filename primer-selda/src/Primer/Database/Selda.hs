@@ -60,23 +60,23 @@ import Primer.Database (
 -- consisting of the session's 'App', the git version of Primer that
 -- last updated it, and the session's name.
 data SessionRow = SessionRow
-  { -- | The session's UUID.
-    uuid :: UUID
-  , -- | Primer's git version. We would prefer that this were a git
-    -- rev, but for technical reasons, it may also be a last-modified
-    -- date.
-    gitversion :: Version
-  , -- | The session's 'App'. Note that the 'App' is serialized to
-    -- JSON before being stored as a bytestring in the database.
-    app :: BL.ByteString
-  , -- | The session's name.
-    --
-    -- This should be of type 'SessionName', but Selda doesn't make it
-    -- particularly easy to derive @SqlType@ from a newtype wrapper
-    -- around 'Text', so rather than copy-pasting the 'Text' instance,
-    -- we just convert back to 'Text' before serializing to the
-    -- database.
-    name :: Text
+  { uuid :: UUID
+  -- ^ The session's UUID.
+  , gitversion :: Version
+  -- ^ Primer's git version. We would prefer that this were a git
+  -- rev, but for technical reasons, it may also be a last-modified
+  -- date.
+  , app :: BL.ByteString
+  -- ^ The session's 'App'. Note that the 'App' is serialized to
+  -- JSON before being stored as a bytestring in the database.
+  , name :: Text
+  -- ^ The session's name.
+  --
+  -- This should be of type 'SessionName', but Selda doesn't make it
+  -- particularly easy to derive @SqlType@ from a newtype wrapper
+  -- around 'Text', so rather than copy-pasting the 'Text' instance,
+  -- we just convert back to 'Text' before serializing to the
+  -- database.
   }
   deriving (Generic)
 

@@ -403,7 +403,7 @@ unit_copy_paste_type_scoping = do
       -- use the typechecked input p, as the result will have had a typecheck run, so
       -- we need the cached kinds to match up
       let clearIDs = set (traversed % _defIDs) 0
-       in --clearIDs (set (_Just % #defName) "blank" src ) @?= clearIDs (Map.lookup toDef (progDefs r))
+       in -- clearIDs (set (_Just % #defName) "blank" src ) @?= clearIDs (Map.lookup toDef (progDefs r))
           clearIDs (progDefs r) @?= clearIDs (progDefs tcpExpected)
 
 -- ∀a b.a ~> ∀a.a
@@ -453,7 +453,7 @@ unit_copy_paste_expr_1 = do
         expectPasted <- con "MakePair" `aPP` tvar "a" `aPP` tEmptyHole `app` emptyHole `app` emptyHole
         -- TODO: in the future we may want to insert let bindings for variables
         -- which are out of scope in the target, and produce something like
-        --expectPasted <- letType "b" tEmptyHole $ let_ "y" (emptyHole `ann` tvar "a") $ let_ "z" (emptyHole `ann` tvar "b") toCopy'
+        -- expectPasted <- letType "b" tEmptyHole $ let_ "y" (emptyHole `ann` tvar "a") $ let_ "z" (emptyHole `ann` tvar "b") toCopy'
         defInitial <- Def defID' "main" <$> skel emptyHole <*> pure ty
         expected <- Def defID' "main" <$> skel (pure expectPasted) <*> pure ty
         pure

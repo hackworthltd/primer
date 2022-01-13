@@ -333,15 +333,15 @@ applyProgAction prog mdefID = \case
     Just _ -> pure (prog, Just id_)
   DeleteDef id_
     | Map.member id_ (progDefs prog) -> do
-      let defs = Map.delete id_ (progDefs prog)
-          prog' = prog{progDefs = defs, progSelection = Nothing}
-      -- Run a full TC solely to ensure that no references to the removed id
-      -- remain. This is rather inefficient and could be improved in the
-      -- future.
-      runExceptT (checkEverything @TypeError NoSmartHoles (progTypes prog) (progDefs prog')) >>= \case
-        Left _ -> throwError $ DefInUse id_
-        Right _ -> pure ()
-      pure (prog', Nothing)
+        let defs = Map.delete id_ (progDefs prog)
+            prog' = prog{progDefs = defs, progSelection = Nothing}
+        -- Run a full TC solely to ensure that no references to the removed id
+        -- remain. This is rather inefficient and could be improved in the
+        -- future.
+        runExceptT (checkEverything @TypeError NoSmartHoles (progTypes prog) (progDefs prog')) >>= \case
+          Left _ -> throwError $ DefInUse id_
+          Right _ -> pure ()
+        pure (prog', Nothing)
   DeleteDef id_ -> throwError $ DefNotFound id_
   RenameDef id_ nameStr -> case Map.lookup id_ (progDefs prog) of
     Nothing -> throwError $ DefNotFound id_
@@ -634,7 +634,7 @@ copyPasteSig p (fromDefId, fromTyId) toDefId setup = do
     Left err -> throwError $ ActionError err
     Right (_, _, tgt) -> pure $ focusOnlyType tgt
   let sharedScope =
-        if fromDefId == toDefId --optimization only
+        if fromDefId == toDefId -- optimization only
           then getSharedScopeTy c $ Right tgt
           else mempty
   -- Delete unbound vars
@@ -762,7 +762,7 @@ copyPasteBody p (fromDefId, fromId) toDefId setup = do
     (Right _, InExpr _) -> throwError $ CopyPasteError "tried to paste a type into an expression"
     (Right srcT, InType tgtT) -> do
       let sharedScope =
-            if fromDefId == toDefId --optimization only
+            if fromDefId == toDefId -- optimization only
               then getSharedScopeTy srcT $ Left tgtT
               else mempty
       -- Delete unbound vars. TODO: we may want to let-bind them?
@@ -781,7 +781,7 @@ copyPasteBody p (fromDefId, fromId) toDefId setup = do
       tcWholeProg finalProg
     (Left srcE, InExpr tgtE) -> do
       let sharedScope =
-            if fromDefId == toDefId --optimization only
+            if fromDefId == toDefId -- optimization only
               then getSharedScope srcE tgtE
               else mempty
       -- Delete unbound vars. TODO: we may want to let-bind them?

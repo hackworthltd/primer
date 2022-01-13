@@ -117,16 +117,16 @@ instance HasID TypeZ where
 -- These fields are chosen to be convenient for renaming, and they may not be that useful for future
 -- actions we want to perform.
 data CaseBindZ = CaseBindZ
-  { -- | a zipper focused on the case expression
-    caseBindZExpr :: ExprZ
-  , -- | the focused binding
-    caseBindZFocus :: Bind' ExprMeta
-  , -- | the rhs of the branch
-    caseBindZRhs :: Expr
-  , -- | all other bindings in the case branch, i.e. all except the focused one
-    caseBindAllBindings :: [Bind' ExprMeta]
-  , -- | a function to update the focused binding and rhs simultaneously
-    caseBindZUpdate :: Bind' ExprMeta -> Expr -> ExprZ -> ExprZ
+  { caseBindZExpr :: ExprZ
+  -- ^ a zipper focused on the case expression
+  , caseBindZFocus :: Bind' ExprMeta
+  -- ^ the focused binding
+  , caseBindZRhs :: Expr
+  -- ^ the rhs of the branch
+  , caseBindAllBindings :: [Bind' ExprMeta]
+  -- ^ all other bindings in the case branch, i.e. all except the focused one
+  , caseBindZUpdate :: Bind' ExprMeta -> Expr -> ExprZ -> ExprZ
+  -- ^ a function to update the focused binding and rhs simultaneously
   }
   deriving (Generic)
 
@@ -317,9 +317,9 @@ focusOn i = fmap snd . search matchesID
       -- If the target has an embedded type, search the type for a match.
       -- If the target is a case expression with bindings, search each binding for a match.
       | otherwise =
-        let inType = focusType z >>= search (guarded (== i) . getID . target) <&> fst <&> InType
-            inCaseBinds = findInCaseBinds i z
-         in inType <|> inCaseBinds
+          let inType = focusType z >>= search (guarded (== i) . getID . target) <&> fst <&> InType
+              inCaseBinds = findInCaseBinds i z
+           in inType <|> inCaseBinds
 
 -- | Focus on the node with the given 'ID', if it exists in the type
 focusOnTy :: ID -> Zipper Type Type -> Maybe (Zipper Type Type)
@@ -336,10 +336,10 @@ search :: (IsZipper za a) => (za -> Maybe b) -> za -> Maybe (za, b)
 search f z
   | Just x <- f z = Just (z, x)
   | otherwise =
-    -- if the node has children, recurse on the leftmost child
-    (down z >>= search f . farthest left)
-      -- then recurse on the sibling to the right
-      <|> (right z >>= search f)
+      -- if the node has children, recurse on the leftmost child
+      (down z >>= search f . farthest left)
+        -- then recurse on the sibling to the right
+        <|> (right z >>= search f)
 
 -- | Move the zipper focus as far in one direction as possible
 farthest :: (a -> Maybe a) -> a -> a
