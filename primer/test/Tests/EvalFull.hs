@@ -352,23 +352,38 @@ unit_hole_ann_case =
 hprop_resume :: Property
 hprop_resume = withDiscards 2000 $
   propertyWT (buildTypingContext defaultTypeDefs mempty NoSmartHoles) $ do
-    tds <- asks typeDefs
     (dir, t, _, globs) <- genDirTmGlobs
-    n <- forAllT $ Gen.integral $ Range.linear 2 1000 -- Arbitrary limit here
-    (stepsFinal', sFinal) <- evalFullStepCount tds globs n dir t
-    when (stepsFinal' < 2) discard
-    let stepsFinal = case sFinal of Left _ -> stepsFinal'; Right _ -> 1 + stepsFinal'
-    m <- forAllT $ Gen.integral $ Range.constant 1 (stepsFinal - 1)
-    (stepsMid, sMid') <- evalFullStepCount tds globs m dir t
-    stepsMid === m
-    sMid <- case sMid' of
-      Left (TimedOut e) -> pure e
-      -- This should never happen: we know we are not taking enough steps to
-      -- hit a normal form (as m < stepsFinal)
-      Right e -> assert False >> pure e
-    (stepsTotal, sTotal) <- evalFullStepCount tds globs (stepsFinal - m) dir sMid
-    stepsMid + stepsTotal === stepsFinal'
-    set _ids' 0 sFinal === set _ids' 0 sTotal
+    resumeTest globs dir t
+
+-- A helper for hprop_resume, and hprop_resume_regression
+resumeTest :: Map ID Def -> Dir -> Expr -> PropertyT WT ()
+resumeTest globs dir t = do
+  tds <- asks typeDefs
+  n <- forAllT $ Gen.integral $ Range.linear 2 1000 -- Arbitrary limit here
+  (stepsFinal', sFinal) <- evalFullStepCount tds globs n dir t
+  when (stepsFinal' < 2) discard
+  let stepsFinal = case sFinal of Left _ -> stepsFinal'; Right _ -> 1 + stepsFinal'
+  m <- forAllT $ Gen.integral $ Range.constant 1 (stepsFinal - 1)
+  (stepsMid, sMid') <- evalFullStepCount tds globs m dir t
+  stepsMid === m
+  sMid <- case sMid' of
+    Left (TimedOut e) -> pure e
+    -- This should never happen: we know we are not taking enough steps to
+    -- hit a normal form (as m < stepsFinal)
+    Right e -> assert False >> pure e
+  (stepsTotal, sTotal) <- evalFullStepCount tds globs (stepsFinal - m) dir sMid
+  stepsMid + stepsTotal === stepsFinal'
+  set _ids' 0 sFinal === set _ids' 0 sTotal
+
+-- A pseudo-unit regression test: when reduction needs to create fresh names,
+-- the two reduction attempts in resumeTest should not interfere with each
+-- other's names, else we will get occasional failures in that property test.
+-- Unfortunately, this is not currently true and thus this test fails.
+hprop_resume_regression :: Property
+hprop_resume_regression = propertyWT (buildTypingContext defaultTypeDefs mempty NoSmartHoles) $ do
+  -- This indeed requires fresh names when reducing (see unit_type_preservation_rename_LAM_regression)
+  t <- lAM "a" (letrec "b" emptyHole (tvar "a") (lAM "a" emptyHole))
+  resumeTest mempty Chk t
 
 -- A regression test: previously EvalFull would rename to avoid variable
 -- capture, but would use let instead of lettype for type abstractions ("big
