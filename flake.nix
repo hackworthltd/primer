@@ -311,7 +311,6 @@
       apps = {
         inherit (pkgs) run-primer run-primer-local-pgsql create-local-pgsql-db;
       }
-      // ghcjsPrimerFlake.apps
       // primerFlake.apps;
 
       defaultApp = self.apps.${system}.run-primer;
