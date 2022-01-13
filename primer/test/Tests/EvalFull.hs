@@ -8,7 +8,7 @@ import Data.List ((\\))
 import qualified Data.Map as M
 import qualified Data.Set as S
 import Data.String (unlines)
-import Gen.Core.Typed (WT, forAllT, genChk, genSyn, genWTType, propertyWT)
+import Gen.Core.Typed (WT, forAllT, genChk, genSyn, genWTType, isolateWT, propertyWT)
 import Hedgehog hiding (test)
 import qualified Hedgehog.Gen as Gen
 import qualified Hedgehog.Range as Range
@@ -360,7 +360,14 @@ resumeTest :: Map ID Def -> Dir -> Expr -> PropertyT WT ()
 resumeTest globs dir t = do
   tds <- asks typeDefs
   n <- forAllT $ Gen.integral $ Range.linear 2 1000 -- Arbitrary limit here
-  (stepsFinal', sFinal) <- evalFullStepCount tds globs n dir t
+  -- NB: We need to run this first reduction in an isolated context
+  -- as we need to avoid it changing the fresh-name-generator state
+  -- for the next run (sMid and sTotal). This is because reduction may need
+  -- to create fresh names, and we want to test "reducing n+m steps" is
+  -- exactly the same as "reducing n steps and then further reducing m
+  -- steps" (including generated names). (A happy consequence of this is that
+  -- it is precisely the same including ids in metadata.)
+  (stepsFinal', sFinal) <- lift $ isolateWT $ evalFullStepCount tds globs n dir t
   when (stepsFinal' < 2) discard
   let stepsFinal = case sFinal of Left _ -> stepsFinal'; Right _ -> 1 + stepsFinal'
   m <- forAllT $ Gen.integral $ Range.constant 1 (stepsFinal - 1)
@@ -373,12 +380,11 @@ resumeTest globs dir t = do
     Right e -> assert False >> pure e
   (stepsTotal, sTotal) <- evalFullStepCount tds globs (stepsFinal - m) dir sMid
   stepsMid + stepsTotal === stepsFinal'
-  set _ids' 0 sFinal === set _ids' 0 sTotal
+  sFinal === sTotal
 
 -- A pseudo-unit regression test: when reduction needs to create fresh names,
 -- the two reduction attempts in resumeTest should not interfere with each
 -- other's names, else we will get occasional failures in that property test.
--- Unfortunately, this is not currently true and thus this test fails.
 hprop_resume_regression :: Property
 hprop_resume_regression = propertyWT (buildTypingContext defaultTypeDefs mempty NoSmartHoles) $ do
   -- This indeed requires fresh names when reducing (see unit_type_preservation_rename_LAM_regression)
