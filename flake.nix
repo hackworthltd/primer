@@ -364,6 +364,7 @@
         inherit (self) packages;
         inherit (self) checks;
         inherit (self) devShell;
+        inherit (self) apps;
 
         required =
           let
@@ -378,6 +379,9 @@
               checks.x86_64-linux
               checks.x86_64-darwin
               checks.aarch64-darwin
+              apps.x86_64-linux
+              apps.x86_64-darwin
+              apps.aarch64-darwin
               devShell
             ]);
             meta.description = "Required CI builds";
