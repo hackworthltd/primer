@@ -254,8 +254,17 @@
           # we're using.
           haskellNixTools = pkgs.haskell-nix.tools ghcVersion {
             hlint = "latest";
-            fourmolu = "latest";
             cabal-fmt = "latest";
+
+            # https://github.com/input-output-hk/haskell.nix/issues/1337
+            fourmolu = {
+              version = "latest";
+              modules = [
+                ({ lib, ... }: {
+                  options.nonReinstallablePkgs = lib.mkOption { apply = lib.remove "Cabal"; };
+                })
+              ];
+            };
           };
         in
         pre-commit-hooks-nix.lib.${system}.run {
@@ -313,7 +322,17 @@
           haskell-language-server = "latest";
           cabal = "latest";
           hlint = "latest";
-          fourmolu = "latest";
+
+          # https://github.com/input-output-hk/haskell.nix/issues/1337
+          fourmolu = {
+            version = "latest";
+            modules = [
+              ({ lib, ... }: {
+                options.nonReinstallablePkgs = lib.mkOption { apply = lib.remove "Cabal"; };
+              })
+            ];
+          };
+
           cabal-edit = "latest";
           cabal-fmt = "latest";
           #TODO Explicitly requiring tasty-discover shouldn't be necessary - see the commented-out `build-tool-depends` in primer.cabal.
