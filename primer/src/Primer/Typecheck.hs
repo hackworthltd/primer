@@ -65,6 +65,7 @@ import qualified Data.Set as S
 import Data.String (String)
 import Optics (Lens', over, set, view, (%))
 import Primer.Core (
+  AlgTypeDef (..),
   Bind' (..),
   CaseBranch' (..),
   Def (..),
@@ -76,14 +77,17 @@ import Primer.Core (
   Meta (..),
   PrimCon (..),
   PrimFun (..),
+  PrimTypeDef (primTypeDefName),
   Type' (..),
   TypeCache (..),
   TypeCacheBoth (..),
-  TypeDef (..),
+  TypeDef (TypeDefAlg, TypeDefPrim),
   TypeMeta,
   ValCon (valConArgs, valConName),
   bindName,
   typeDefKind,
+  typeDefName,
+  typeDefUser,
   valConType,
   _exprMeta,
   _exprTypeMeta,
@@ -93,7 +97,7 @@ import Primer.Core.DSL (branch, create, emptyHole, meta, meta')
 import Primer.Core.Utils (forgetTypeIDs, generateTypeIDs)
 import Primer.JSON (CustomJSON (CustomJSON), FromJSON, ToJSON, VJSON)
 import Primer.Name (Name, NameCounter, freshName)
-import Primer.Primitives (globalPrimTypes, globalPrims)
+import Primer.Primitives (globalPrims)
 import Primer.Subst (alphaEqTy, substTy)
 
 -- | Typechecking takes as input an Expr with 'Maybe Type' annotations and
@@ -150,8 +154,6 @@ data Cxt = Cxt
   { smartHoles :: SmartHoles
   , -- | invariant: the key matches the 'typeDefName' inside the 'TypeDef'
     typeDefs :: M.Map Name TypeDef
-  , -- | primitive types
-    primTypes :: M.Map Name Kind
   , -- | local variables
     localCxt :: Map Name KindOrType
   , -- | global variables (i.e. IDs of top-level definitions)
@@ -197,7 +199,6 @@ initialCxt sh =
   Cxt
     { smartHoles = sh
     , typeDefs = mempty
-    , primTypes = globalPrimTypes
     , localCxt = mempty
     , globalCxt =
         Map.fromList
@@ -214,7 +215,7 @@ buildTypingContext tydefs defs sh =
 -- | Create a mapping of name to typedef for fast lookup.
 -- Ensures that @typeDefName (mkTypeDefMap ! n) == n@
 mkTypeDefMap :: [TypeDef] -> Map Name TypeDef
-mkTypeDefMap defs = M.fromList $ map (\d -> (typeDefName d, d)) defs
+mkTypeDefMap defs = M.fromList $ map (\t -> (typeDefName t, t)) defs
 
 -- | A shorthand for the constraints needed when typechecking
 type TypeM e m =
@@ -294,10 +295,11 @@ checkTypeDefs tds = do
   -- Note that constructors are synthesisable, so their names must be globally
   -- unique. We need to be able to work out the type of @TCon "C"@ without any
   -- extra information.
+  let tds' = mapMaybe typeDefUser tds
   assert
-    (distinct $ concatMap (map valConName . typeDefConstructors) tds)
+    (distinct $ concatMap (map valConName . algTypeDefConstructors) tds')
     "Duplicate-ly-named constructor (perhaps in different typedefs)"
-  mapM_ checkTypeDef tds
+  mapM_ checkTypeDef tds'
   where
     -- In the core, we have many different namespaces, so the only name-clash
     -- checking we must do is
@@ -317,13 +319,13 @@ checkTypeDefs tds = do
     --   types)
 
     checkTypeDef td = do
-      let params = typeDefParameters td
-      let cons = typeDefConstructors td
+      let params = algTypeDefParameters td
+      let cons = algTypeDefConstructors td
       assert
         (distinct $ map fst params <> map valConName cons)
         "Duplicate names in one tydef: between parameter-names and constructor-names"
       assert
-        (notElem (typeDefName td) $ map fst params)
+        (notElem (algTypeDefName td) $ map fst params)
         "Duplicate names in one tydef: between type-def-name and parameter-names"
       runReaderT (mapM_ (checkKind KType <=< fakeMeta) $ concatMap valConArgs cons) $
         extendTypeDefCxt tds $
@@ -365,11 +367,11 @@ checkDef def = do
   pure $ def{defType = typeTtoType t, defExpr = exprTtoExpr e}
 
 -- We assume that constructor names are unique, returning the first one we find
-lookupConstructor :: M.Map Name TypeDef -> Name -> Maybe (ValCon, TypeDef)
+lookupConstructor :: M.Map Name TypeDef -> Name -> Maybe (ValCon, AlgTypeDef)
 lookupConstructor tyDefs c =
   let allCons = do
-        td <- M.elems tyDefs
-        vc <- typeDefConstructors td
+        Just td <- typeDefUser <$> M.elems tyDefs
+        vc <- algTypeDefConstructors td
         pure (vc, td)
    in find ((== c) . valConName . fst) allCons
 
@@ -569,6 +571,7 @@ check t = \case
             pure $ Case caseMeta scrutWrap []
       Left (TDIUnknownADT ty) -> throwError' $ InternalError $ "We somehow synthesised the unknown type " <> show ty <> " for the scrutinee of a case"
       Left (TDIMalformed wanted found) -> throwError' $ InternalError $ "invariant failed: Looked up def for " <> show wanted <> ", but found a def for " <> show found
+      Left (TDIPrim td) -> throwError' $ InternalError "that's bad"
       Left TDINotSaturated ->
         asks smartHoles >>= \case
           NoSmartHoles -> throwError' $ CannotCaseNonSaturatedADT eT
@@ -581,7 +584,7 @@ check t = \case
         let conNames = map fst expected
         sh <- asks smartHoles
         brs' <- case (branchNames == conNames, sh) of
-          (False, NoSmartHoles) -> throwError' $ WrongCaseBranches (typeDefName defT) branchNames
+          (False, NoSmartHoles) -> throwError' $ WrongCaseBranches (algTypeDefName defT) branchNames
           -- create branches with the correct name but wrong parameters,
           -- they will be fixed up in checkBranch later
           (False, SmartHoles) -> traverse (\c -> branch c [] emptyHole) conNames
@@ -638,12 +641,9 @@ synthKind = \case
       NoSmartHoles -> pure (KHole, THole (annotate KHole m) t')
       SmartHoles -> pure (k, t')
   TCon m c -> do
-    typeDef <- asks (fmap typeDefKind . M.lookup c . typeDefs)
-    mk <- case typeDef of
-      Nothing -> asks (M.lookup c . primTypes)
-      Just k -> pure $ Just k
-    case mk of
-      Just k -> pure (k, TCon (annotate k m) c)
+    typeDef <- asks (M.lookup c . typeDefs)
+    case typeDef of
+      Just def -> let k = typeDefKind def in pure (k, TCon (annotate k m) c)
       Nothing -> throwError' $ UnknownTypeConstructor c
   TFun m a b -> do
     a' <- checkKind KType a
@@ -703,8 +703,9 @@ data TypeDefError
   | TDIUnknownADT Name -- not in scope
   | TDIMalformed Name Name -- TDIMalformed T S: looking up @T@ gives a 'TypeDef' for with name @S@ different to @T@
   | TDINotSaturated -- e.g. @List@ or @List a b@ rather than @List a@
+  | TDIPrim PrimTypeDef -- is a primitive, not a user-defined type (until we have more flexible patterns we need to say (you can't split on a prim))
 
-data TypeDefInfo a = TypeDefInfo [Type' a] TypeDef -- instantiated parameters, and the typedef, i.e. [Int] are the parameters for @List Int@
+data TypeDefInfo a = TypeDefInfo [Type' a] AlgTypeDef -- instantiated parameters, and the typedef, i.e. [Int] are the parameters for @List Int@
 
 getTypeDefInfo :: MonadReader Cxt m => Type' a -> m (Either TypeDefError (TypeDefInfo a))
 getTypeDefInfo t = reader $ flip getTypeDefInfo' t . typeDefs
@@ -718,19 +719,20 @@ getTypeDefInfo' tydefs ty =
     Just (tycon, params) -> do
       case M.lookup tycon tydefs of
         Nothing -> Left $ TDIUnknownADT tycon
-        Just tydef
+        Just (TypeDefPrim t) -> Left $ TDIPrim t
+        Just (TypeDefAlg tydef)
           -- a check out of paranoia
-          | typeDefName tydef /= tycon -> Left $ TDIMalformed tycon (typeDefName tydef)
+          | algTypeDefName tydef /= tycon -> Left $ TDIMalformed tycon (algTypeDefName tydef)
           -- this check would be redundant if we were sure that the input type
           -- were of kind KType, alternatively we should do kind checking here
-          | length (typeDefParameters tydef) /= length params -> Left TDINotSaturated
+          | length (algTypeDefParameters tydef) /= length params -> Left TDINotSaturated
           | otherwise -> Right $ TypeDefInfo params tydef
 
 -- | Takes a particular instance of a parameterised type (e.g. @List Nat@), and
 -- extracts both both the raw typedef (e.g. @List a = Nil | Cons a (List a)@)
 -- and the constructors with instantiated argument types
 -- (e.g. @Nil : List Nat ; Cons : Nat -> List Nat -> List Nat@)
-instantiateValCons :: (MonadFresh NameCounter m, MonadReader Cxt m) => Type' () -> m (Either TypeDefError (TypeDef, [(Name, [Type' ()])]))
+instantiateValCons :: (MonadFresh NameCounter m, MonadReader Cxt m) => Type' () -> m (Either TypeDefError (AlgTypeDef, [(Name, [Type' ()])]))
 instantiateValCons t = do
   tds <- asks typeDefs
   let instCons = instantiateValCons' tds t
@@ -745,12 +747,12 @@ instantiateValCons t = do
 
 -- | As 'instantiateValCons', but pulls out the relevant bits of the monadic
 -- context into an argument
-instantiateValCons' :: MonadFresh NameCounter m => Map Name TypeDef -> Type' () -> Either TypeDefError (TypeDef, [(Name, [m (Type' ())])])
+instantiateValCons' :: MonadFresh NameCounter m => Map Name TypeDef -> Type' () -> Either TypeDefError (AlgTypeDef, [(Name, [m (Type' ())])])
 instantiateValCons' tyDefs t = do
   TypeDefInfo params def <- getTypeDefInfo' tyDefs t
-  let defparams = map fst $ typeDefParameters def
+  let defparams = map fst $ algTypeDefParameters def
       f c = (valConName c, map (substituteTypeVars $ zip defparams params) $ valConArgs c)
-  pure (def, map f $ typeDefConstructors def)
+  pure (def, map f $ algTypeDefConstructors def)
 
 -- | Similar to check, but for the RHS of case branches
 -- We assume that the branch is for this constructor
@@ -890,5 +892,5 @@ getGlobalNames :: MonadReader Cxt m => m (S.Set Name)
 getGlobalNames = do
   tyDefs <- asks typeDefs
   topLevel <- asks $ S.fromList . fmap fst . M.elems . globalCxt
-  let ctors = Map.foldMapWithKey (\t def -> S.fromList $ (t :) $ map valConName $ typeDefConstructors def) tyDefs
+  let ctors = Map.foldMapWithKey (\t def -> S.fromList $ (t :) $ map valConName $ maybe [] algTypeDefConstructors $ typeDefUser def) tyDefs
   pure $ S.union topLevel ctors

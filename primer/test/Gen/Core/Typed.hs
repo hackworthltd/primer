@@ -39,18 +39,22 @@ import qualified Hedgehog.Gen as Gen
 import Hedgehog.Internal.Property (forAllT)
 import qualified Hedgehog.Range as Range
 import Primer.Core (
+  AlgTypeDef (..),
   Bind' (Bind),
   CaseBranch' (CaseBranch),
   Expr' (..),
   ID,
   Kind (..),
   Type' (..),
-  TypeDef (..),
+  TypeDef (TypeDefAlg),
   ValCon (..),
-  typeDefConstructors,
+  algTypeDefConstructors,
+  algTypeDefKind,
+  algTypeDefName,
+  algTypeDefParameters,
   typeDefKind,
   typeDefName,
-  typeDefParameters,
+  typeDefUser,
   valConName,
   valConType,
  )
@@ -245,9 +249,9 @@ genSyn :: GenT WT (ExprG, TypeG)
 genSyn = genSyns (TEmptyHole ())
 
 allCons :: Cxt -> M.Map Name (Type' ())
-allCons cxt = M.fromList $ concatMap consForTyDef $ M.elems $ typeDefs cxt
+allCons cxt = M.fromList $ concatMap consForTyDef $ mapMaybe typeDefUser $ M.elems $ typeDefs cxt
   where
-    consForTyDef td = map (\vc -> (valConName vc, valConType td vc)) (typeDefConstructors td)
+    consForTyDef td = map (\vc -> (valConName vc, valConType td vc)) (algTypeDefConstructors td)
 
 genChk :: TypeG -> GenT WT ExprG
 genChk ty = do
@@ -293,12 +297,12 @@ genChk ty = do
         ]
     case_ :: WT (Maybe (GenT WT ExprG))
     case_ =
-      asks (M.elems . typeDefs) <&> \adts ->
+      asks (mapMaybe typeDefUser . M.elems . typeDefs) <&> \adts ->
         if null adts
           then Nothing
           else Just $ do
             td <- Gen.element adts
-            let t = foldr (\_ t' -> TApp () t' (TEmptyHole ())) (TCon () $ typeDefName td) (typeDefParameters td)
+            let t = foldr (\_ t' -> TApp () t' (TEmptyHole ())) (TCon () $ algTypeDefName td) (algTypeDefParameters td)
             (e, brs) <- Gen.justT $ do
               (e, eTy) <- genSyns t -- NB: this could return something only consistent with t, e.g. if t=List ?, could get eT=? Nat
               vcs' <- instantiateValCons eTy
@@ -373,7 +377,7 @@ genGlobalCxtExtension =
     forgetLocals cxt = cxt{localCxt = mempty}
 
 -- Generates a group of potentially-mutually-recursive typedefs
-genTypeDefGroup :: GenT WT [TypeDef]
+genTypeDefGroup :: GenT WT [AlgTypeDef]
 genTypeDefGroup = do
   let genParams = Gen.list (Range.linear 0 5) $ (,) <$> freshNameForCxt <*> genWTKind
   nps <- Gen.list (Range.linear 1 5) $ (,) <$> freshNameForCxt <*> genParams
@@ -381,11 +385,11 @@ genTypeDefGroup = do
   let types =
         map
           ( \(n, ps) ->
-              TypeDef
-                { typeDefName = n
-                , typeDefParameters = ps
-                , typeDefConstructors = []
-                , typeDefNameHints = []
+              AlgTypeDef
+                { algTypeDefName = n
+                , algTypeDefParameters = ps
+                , algTypeDefConstructors = []
+                , algTypeDefNameHints = []
                 }
           )
           nps
@@ -393,18 +397,18 @@ genTypeDefGroup = do
   let genCons params = Gen.list (Range.linear 0 5) $ ValCon <$> freshNameForCxt <*> genConArgs params
   let genTD (n, ps) =
         ( \cons ->
-            TypeDef
-              { typeDefName = n
-              , typeDefParameters = ps
-              , typeDefConstructors = cons
-              , typeDefNameHints = []
+            AlgTypeDef
+              { algTypeDefName = n
+              , algTypeDefParameters = ps
+              , algTypeDefConstructors = cons
+              , algTypeDefNameHints = []
               }
         )
           <$> genCons ps
   mapM genTD nps
 
-addTypeDefs :: [TypeDef] -> Cxt -> Cxt
-addTypeDefs tds cxt = cxt{typeDefs = typeDefs cxt <> mkTypeDefMap tds}
+addTypeDefs :: [AlgTypeDef] -> Cxt -> Cxt
+addTypeDefs tds cxt = cxt{typeDefs = typeDefs cxt <> mkTypeDefMap (map TypeDefAlg tds)}
 
 extendGlobals :: [(ID, (Name, TypeG))] -> Cxt -> Cxt
 extendGlobals nts cxt = cxt{globalCxt = globalCxt cxt <> M.fromList nts}

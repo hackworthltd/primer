@@ -84,6 +84,7 @@ import Primer.Core (
   PrimCon (..),
   Type,
   Type' (TForall),
+  algTypeDefName,
   defExpr,
   defID,
   defName,

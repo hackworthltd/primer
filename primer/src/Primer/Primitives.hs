@@ -2,7 +2,6 @@
 
 module Primer.Primitives (
   globalPrims,
-  globalPrimTypes,
 ) where
 
 import Foreword
@@ -11,7 +10,6 @@ import qualified Data.Map as M
 import Numeric.Natural (Natural)
 import Primer.Core (
   Expr' (App, Con, PrimCon),
-  Kind (KType),
   PrimCon (PrimChar),
   PrimFun (..),
   PrimFunError (..),
@@ -26,14 +24,6 @@ import Primer.Core.DSL (
   tfun,
  )
 import Primer.Name (Name)
-
-globalPrimTypes :: Map Name Kind
-globalPrimTypes = M.fromList [("Char", KType)]
-  where
-    -- This ensures that when we modify the constructors of `PrimCon` (i.e. we add/remove primitive types),
-    -- we are alerted that we need to update this set.
-    _ = \case
-      PrimChar _ -> ()
 
 globalPrims :: Map Name PrimFun
 globalPrims =

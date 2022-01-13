@@ -75,7 +75,7 @@ import Primer.Core (
   Type' (TEmptyHole),
   TypeCache (..),
   TypeCacheBoth (..),
-  TypeDef,
+  AlgTypeDef,
   boolDef,
  )
 import Primer.Core.DSL (app, branch, case_, create, emptyHole, tEmptyHole, tfun)
@@ -276,7 +276,7 @@ type TestAPI = (
   :<|> "progaction"    :> Test ProgAction
   :<|> "progerror"     :> Test ProgError
   :<|> "def"           :> Test Def
-  :<|> "typeDef"       :> Test TypeDef
+  :<|> "typeDef"       :> Test AlgTypeDef
   :<|> "evalReq"       :> Test EvalReq
   :<|> "evalResp"      :> Test EvalResp
   :<|> "evalFullReq"   :> Test EvalFullReq

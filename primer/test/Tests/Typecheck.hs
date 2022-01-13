@@ -14,6 +14,7 @@ import qualified Hedgehog.Gen as Gen
 import qualified Hedgehog.Range as Range
 import Optics (over, set)
 import Primer.Core (
+  AlgTypeDef (..),
   Expr,
   Expr',
   ID,
@@ -23,16 +24,16 @@ import Primer.Core (
   Type' (TApp, TCon, TForall, TFun, TVar),
   TypeCache (..),
   TypeCacheBoth (..),
-  TypeDef (..),
+  TypeDef (TypeDefAlg),
   ValCon (..),
+  algTypeDefConstructors,
+  algTypeDefKind,
   boolDef,
   defaultTypeDefs,
   eitherDef,
   listDef,
   natDef,
   setID,
-  typeDefConstructors,
-  typeDefKind,
   valConType,
   _exprMeta,
   _exprTypeMeta,
@@ -49,7 +50,7 @@ import Primer.Typecheck (
   decomposeTAppCon,
   mkTAppCon,
   synth,
-  synthKind,
+  synthKind, mkTypeDefMap
  )
 import Test.Tasty.HUnit (Assertion, assertFailure, (@?=))
 import TestM (TestM, evalTestM)
@@ -203,10 +204,10 @@ hprop_decomposeTAppCon = property $ do
 
 unit_typeDefKind :: Assertion
 unit_typeDefKind = do
-  typeDefKind boolDef @?= KType
-  typeDefKind natDef @?= KType
-  typeDefKind listDef @?= KFun KType KType
-  typeDefKind eitherDef @?= KFun KType (KFun KType KType)
+  algTypeDefKind boolDef @?= KType
+  algTypeDefKind natDef @?= KType
+  algTypeDefKind listDef @?= KFun KType KType
+  algTypeDefKind eitherDef @?= KFun KType (KFun KType KType)
 
 unit_valConType :: Assertion
 unit_valConType = do
@@ -227,7 +228,7 @@ unit_valConType = do
                 TApp () (TApp () (TCon () "Either") (TVar () "a")) (TVar () "b")
         ]
   where
-    f t = map (valConType t) (typeDefConstructors t)
+    f t = map (valConType t) (algTypeDefConstructors t)
 
 -- Nat -> Bool accepts \x . case x of Z -> True ; S _ -> False
 unit_case_isZero :: Assertion
@@ -522,9 +523,10 @@ testingTypeDefs = maybeTDef : defaultTypeDefs
 
 maybeTDef :: TypeDef
 maybeTDef =
-  TypeDef
-    { typeDefName = "MaybeT"
-    , typeDefParameters = [("m", KFun KType KType), ("a", KType)]
-    , typeDefConstructors = [ValCon "MakeMaybeT" [TApp () (TVar () "m") (TApp () (TVar () "Maybe") (TVar () "a"))]]
-    , typeDefNameHints = []
-    }
+  TypeDefAlg
+    AlgTypeDef
+      { algTypeDefName = "MaybeT"
+      , algTypeDefParameters = [("m", KFun KType KType), ("a", KType)]
+      , algTypeDefConstructors = [ValCon "MakeMaybeT" [TApp () (TVar () "m") (TApp () (TVar () "Maybe") (TVar () "a"))]]
+      , algTypeDefNameHints = []
+      }

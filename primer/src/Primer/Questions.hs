@@ -17,11 +17,12 @@ import Foreword
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 import Primer.Core (
+  AlgTypeDef (algTypeDefNameHints),
   Def (..),
   ID,
   Kind (KFun, KType),
   Type' (..),
-  TypeDef (typeDefNameHints),
+  typeDefUser,
  )
 import Primer.Name (Name, unName, unsafeMkName)
 import Primer.Name.Fresh (mkAvoidForFreshName, mkAvoidForFreshNameTy)
@@ -100,7 +101,7 @@ baseNames tk = do
   pure $ case tk of
     Left (Just ty)
       | Just c <- headCon ty
-        , Just hints@(_ : _) <- typeDefNameHints <$> Map.lookup c tys ->
+        , Just hints@(_ : _) <- fmap algTypeDefNameHints . typeDefUser =<< Map.lookup c tys ->
         hints
     Left (Just TFun{}) -> ["f", "g", "h"]
     Left _ -> ["x", "y", "z"]
