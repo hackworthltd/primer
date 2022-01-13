@@ -370,11 +370,11 @@ hprop_resume = withDiscards 2000 $
     stepsMid + stepsTotal === stepsFinal'
     set _ids' 0 sFinal === set _ids' 0 sTotal
 
--- A regression test: EvalFull renames to avoid variable capture, but uses let
--- instead of lettype for type abstractions ("big lambdas").
--- (I.e. we change 'λx.e' into 'λy.let x=y in e' and also do the same for
--- 'Λa.e' into 'Λb.let a=b in e', instead of 'Λb.lettype a=b in e'!)
--- This leads to sporadic failures in hprop_type_preservation
+-- A regression test: previously EvalFull would rename to avoid variable
+-- capture, but would use let instead of lettype for type abstractions ("big
+-- lambdas"). (I.e. we changed 'λx.e' into 'λy.let x=y in e' and also did the
+-- same for 'Λa.e' into 'Λb.let a=b in e', instead of 'Λb.lettype a=b in e'!)
+-- This would lead to sporadic failures in hprop_type_preservation
 -- ("WrongSortVariable").
 unit_type_preservation_rename_LAM_regression :: Assertion
 unit_type_preservation_rename_LAM_regression =

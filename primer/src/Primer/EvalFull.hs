@@ -66,7 +66,7 @@ import Primer.Core (
   bindName,
   _typeMeta,
  )
-import Primer.Core.DSL (ann, letType, let_, letrec, var)
+import Primer.Core.DSL (ann, letType, let_, letrec, tvar, var)
 import Primer.Core.Transform (unfoldAPP, unfoldApp)
 import Primer.Core.Utils (generateTypeIDs, noHoles)
 import Primer.Eval (regenerateExprIDs, regenerateTypeIDs)
@@ -414,7 +414,7 @@ runRedex = \case
     Lam m y <$> let_ x (var y) (pure e)
   RenameBindingsLAM m x e avoid -> do
     y <- freshName (avoid <> freeVars e)
-    LAM m y <$> let_ x (var y) (pure e)
+    LAM m y <$> letType x (tvar y) (pure e)
   RenameBindingsCase m s brs avoid
     | (brs0, CaseBranch ctor binds rhs : brs1) <- break (\(CaseBranch _ bs _) -> any ((`S.member` avoid) . bindName) bs) brs ->
         let bns = map bindName binds
