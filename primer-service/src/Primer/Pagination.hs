@@ -81,10 +81,10 @@ type PP api =
     :> api
 
 data Pagination = Pagination
-  { -- | Defaults to @1@ if not given in the query parameters
-    page :: Positive
-  , -- | Does not default, since there is no default that would work for all cases
-    size :: Maybe Positive
+  { page :: Positive
+  -- ^ Defaults to @1@ if not given in the query parameters
+  , size :: Maybe Positive
+  -- ^ Does not default, since there is no default that would work for all cases
   }
 
 instance

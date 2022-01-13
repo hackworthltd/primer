@@ -100,8 +100,8 @@ baseNames tk = do
   pure $ case tk of
     Left (Just ty)
       | Just c <- headCon ty
-        , Just hints@(_ : _) <- typeDefNameHints <$> Map.lookup c tys ->
-        hints
+      , Just hints@(_ : _) <- typeDefNameHints <$> Map.lookup c tys ->
+          hints
     Left (Just TFun{}) -> ["f", "g", "h"]
     Left _ -> ["x", "y", "z"]
     Right (Just KType) -> ["α", "β", "γ"]

@@ -144,88 +144,88 @@ data BetaReductionDetail domain codomain = BetaReductionDetail
   deriving (FromJSON, ToJSON) via VJSONPrefix "beta" (BetaReductionDetail domain codomain)
 
 data LocalVarInlineDetail = LocalVarInlineDetail
-  { -- | ID of the let expression that binds this variable
-    localVarInlineLetID :: ID
-  , -- | ID of the variable being replaced
-    localVarInlineVarID :: ID
-  , -- | Name of the variable
-    localVarInlineBindingName :: Name
-  , -- | ID of the expression or type that the variable is bound to
-    localVarInlineValueID :: ID
-  , -- | ID of the expression or type that has replaced the variable in the result
-    localVarInlineReplacementID :: ID
-  , -- | If 'True', the variable being inlined is a type variable.
-    -- Otherwise it is a term variable.
-    localVarInlineIsTypeVar :: Bool
+  { localVarInlineLetID :: ID
+  -- ^ ID of the let expression that binds this variable
+  , localVarInlineVarID :: ID
+  -- ^ ID of the variable being replaced
+  , localVarInlineBindingName :: Name
+  -- ^ Name of the variable
+  , localVarInlineValueID :: ID
+  -- ^ ID of the expression or type that the variable is bound to
+  , localVarInlineReplacementID :: ID
+  -- ^ ID of the expression or type that has replaced the variable in the result
+  , localVarInlineIsTypeVar :: Bool
+  -- ^ If 'True', the variable being inlined is a type variable.
+  -- Otherwise it is a term variable.
   }
   deriving (Eq, Show, Generic)
   deriving (FromJSON, ToJSON) via VJSONPrefix "localVarInline" LocalVarInlineDetail
 
 data GlobalVarInlineDetail = GlobalVarInlineDetail
-  { -- | The definition that the variable refers to
-    globalVarInlineDef :: Def
-  , -- | The variable being replaced
-    globalVarInlineVar :: Expr
-  , -- | The result of the reduction
-    globalVarInlineAfter :: Expr
+  { globalVarInlineDef :: Def
+  -- ^ The definition that the variable refers to
+  , globalVarInlineVar :: Expr
+  -- ^ The variable being replaced
+  , globalVarInlineAfter :: Expr
+  -- ^ The result of the reduction
   }
   deriving (Eq, Show, Generic)
   deriving (FromJSON, ToJSON) via VJSONPrefix "globalVarInline" GlobalVarInlineDetail
 
 data CaseReductionDetail = CaseReductionDetail
-  { -- | the case expression before reduction
-    caseBefore :: Expr
-  , -- | the resulting expression after reduction
-    caseAfter :: Expr
-  , -- | the ID of the target (scrutinee)
-    caseTargetID :: ID
-  , -- | the ID of the constructor node in the target
-    caseTargetCtorID :: ID
-  , -- | the name of the matching constructor
-    caseCtorName :: Name
-  , -- | the arguments to the constructor in the target
-    caseTargetArgIDs :: [ID]
-  , -- | the bindings in the case branch (one for each arg above)
-    caseBranchBindingIDs :: [ID]
-  , -- | the right hand side of the selected case branch
-    caseBranchRhsID :: ID
-  , -- | the let expressions binding each argument in the result
-    caseLetIDs :: [ID]
+  { caseBefore :: Expr
+  -- ^ the case expression before reduction
+  , caseAfter :: Expr
+  -- ^ the resulting expression after reduction
+  , caseTargetID :: ID
+  -- ^ the ID of the target (scrutinee)
+  , caseTargetCtorID :: ID
+  -- ^ the ID of the constructor node in the target
+  , caseCtorName :: Name
+  -- ^ the name of the matching constructor
+  , caseTargetArgIDs :: [ID]
+  -- ^ the arguments to the constructor in the target
+  , caseBranchBindingIDs :: [ID]
+  -- ^ the bindings in the case branch (one for each arg above)
+  , caseBranchRhsID :: ID
+  -- ^ the right hand side of the selected case branch
+  , caseLetIDs :: [ID]
+  -- ^ the let expressions binding each argument in the result
   }
   deriving (Eq, Show, Generic)
   deriving (FromJSON, ToJSON) via VJSONPrefix "case" CaseReductionDetail
 
 data LetRemovalDetail = LetRemovalDetail
-  { -- | the let expression before reduction
-    letRemovalBefore :: Expr
-  , -- | the resulting expression after reduction
-    letRemovalAfter :: Expr
-  , -- | the name of the unused bound variable
-    letRemovalBindingName :: Name
-  , -- | the full let expression
-    letRemovalLetID :: ID
-  , -- | the right hand side of the let
-    letRemovalBodyID :: ID
+  { letRemovalBefore :: Expr
+  -- ^ the let expression before reduction
+  , letRemovalAfter :: Expr
+  -- ^ the resulting expression after reduction
+  , letRemovalBindingName :: Name
+  -- ^ the name of the unused bound variable
+  , letRemovalLetID :: ID
+  -- ^ the full let expression
+  , letRemovalBodyID :: ID
+  -- ^ the right hand side of the let
   }
   deriving (Eq, Show, Generic)
   deriving (FromJSON, ToJSON) via VJSONPrefix "letRemoval" LetRemovalDetail
 
 data PushAppIntoLetrecDetail = PushAppIntoLetrecDetail
-  { -- | the expression before reduction
-    pushAppIntoLetrecBefore :: Expr
-  , -- | the expression after reduction
-    pushAppIntoLetrecAfter :: Expr
-  , -- | the ID of the argument to the application
-    pushAppIntoLetrecArgID :: ID
-  , -- | the ID of the letrec
-    pushAppIntoLetrecLetrecID :: ID
-  , -- | the ID of the lambda
-    pushAppIntoLetrecLamID :: ID
-  , -- | The name of the variable bound by the letrec
-    pushAppIntoLetrecLetBindingName :: Name
-  , -- | If 'True', the application is of a big lambda to a type.
-    -- Otherwise it is of a small lambda to a term.
-    pushAppIntoLetrecIsTypeApplication :: Bool
+  { pushAppIntoLetrecBefore :: Expr
+  -- ^ the expression before reduction
+  , pushAppIntoLetrecAfter :: Expr
+  -- ^ the expression after reduction
+  , pushAppIntoLetrecArgID :: ID
+  -- ^ the ID of the argument to the application
+  , pushAppIntoLetrecLetrecID :: ID
+  -- ^ the ID of the letrec
+  , pushAppIntoLetrecLamID :: ID
+  -- ^ the ID of the lambda
+  , pushAppIntoLetrecLetBindingName :: Name
+  -- ^ The name of the variable bound by the letrec
+  , pushAppIntoLetrecIsTypeApplication :: Bool
+  -- ^ If 'True', the application is of a big lambda to a type.
+  -- Otherwise it is of a small lambda to a term.
   }
   deriving (Eq, Show, Generic)
   deriving (FromJSON, ToJSON) via VJSONPrefix "pushAppIntoLetrec" PushAppIntoLetrecDetail
@@ -410,16 +410,16 @@ tryReduceExpr globals locals = \case
     pure
       ( expr
       , BetaReduction
-          BetaReductionDetail
-            { betaBefore = App mApp lam arg
-            , betaAfter = expr
-            , betaBindingName = x
-            , betaLambdaID = lam ^. _id
-            , betaLetID = expr ^. _id
-            , betaArgID = arg ^. _id
-            , betaBodyID = body ^. _id
-            , betaTypes = Nothing
-            }
+        BetaReductionDetail
+          { betaBefore = App mApp lam arg
+          , betaAfter = expr
+          , betaBindingName = x
+          , betaLambdaID = lam ^. _id
+          , betaLetID = expr ^. _id
+          , betaArgID = arg ^. _id
+          , betaBodyID = body ^. _id
+          , betaTypes = Nothing
+          }
       )
   -- Beta reduction (with annotation)
   -- (\x. e1 : A -> B) e2 ==> let x = e2 : A in e1 : B
@@ -450,16 +450,16 @@ tryReduceExpr globals locals = \case
     pure
       ( expr
       , BetaReduction
-          BetaReductionDetail
-            { betaBefore = App mApp annotation arg
-            , betaAfter = expr
-            , betaBindingName = x
-            , betaLambdaID = lam ^. _id
-            , betaLetID = letexpr ^. _id
-            , betaArgID = arg ^. _id
-            , betaBodyID = body ^. _id
-            , betaTypes = types
-            }
+        BetaReductionDetail
+          { betaBefore = App mApp annotation arg
+          , betaAfter = expr
+          , betaBindingName = x
+          , betaLambdaID = lam ^. _id
+          , betaLetID = letexpr ^. _id
+          , betaArgID = arg ^. _id
+          , betaBodyID = body ^. _id
+          , betaTypes = types
+          }
       )
   -- (letrec x : T = λ ...) e
   before@(App mApp (Letrec mLet x e1 t lam@Lam{}) e2) | Set.notMember x (freeVars e2) -> do
@@ -469,15 +469,15 @@ tryReduceExpr globals locals = \case
     pure
       ( expr
       , PushAppIntoLetrec
-          PushAppIntoLetrecDetail
-            { pushAppIntoLetrecBefore = before
-            , pushAppIntoLetrecAfter = expr
-            , pushAppIntoLetrecArgID = e2 ^. _id
-            , pushAppIntoLetrecLetrecID = mLet ^. _id
-            , pushAppIntoLetrecLamID = lam ^. _id
-            , pushAppIntoLetrecLetBindingName = x
-            , pushAppIntoLetrecIsTypeApplication = False
-            }
+        PushAppIntoLetrecDetail
+          { pushAppIntoLetrecBefore = before
+          , pushAppIntoLetrecAfter = expr
+          , pushAppIntoLetrecArgID = e2 ^. _id
+          , pushAppIntoLetrecLetrecID = mLet ^. _id
+          , pushAppIntoLetrecLamID = lam ^. _id
+          , pushAppIntoLetrecLetBindingName = x
+          , pushAppIntoLetrecIsTypeApplication = False
+          }
       )
   -- Beta reduction of an inner application
   -- This rule is theoretically redundant but because we render nested applications with just one
@@ -499,16 +499,16 @@ tryReduceExpr globals locals = \case
     pure
       ( expr
       , BETAReduction
-          BetaReductionDetail
-            { betaBefore = APP mAPP lam arg
-            , betaAfter = expr
-            , betaBindingName = x
-            , betaLambdaID = lam ^. _id
-            , betaLetID = expr ^. _id
-            , betaArgID = arg ^. _id
-            , betaBodyID = body ^. _id
-            , betaTypes = Nothing
-            }
+        BetaReductionDetail
+          { betaBefore = APP mAPP lam arg
+          , betaAfter = expr
+          , betaBindingName = x
+          , betaLambdaID = lam ^. _id
+          , betaLetID = expr ^. _id
+          , betaArgID = arg ^. _id
+          , betaBodyID = body ^. _id
+          , betaTypes = Nothing
+          }
       )
   -- Beta reduction of big lambda (with annotation)
   -- With the current editor K is always KType, so the annotation is a
@@ -528,16 +528,16 @@ tryReduceExpr globals locals = \case
         pure
           ( expr
           , BETAReduction
-              BetaReductionDetail
-                { betaBefore = APP mAPP annotation t
-                , betaAfter = expr
-                , betaBindingName = x
-                , betaLambdaID = lam ^. _id
-                , betaLetID = expr ^. _id
-                , betaArgID = t ^. _id
-                , betaBodyID = body ^. _id
-                , betaTypes = Just (k, b)
-                }
+            BetaReductionDetail
+              { betaBefore = APP mAPP annotation t
+              , betaAfter = expr
+              , betaBindingName = x
+              , betaLambdaID = lam ^. _id
+              , betaLetID = expr ^. _id
+              , betaArgID = t ^. _id
+              , betaBodyID = body ^. _id
+              , betaTypes = Just (k, b)
+              }
           )
       _ -> throwError $ BadBigLambdaAnnotation annotation
   -- (letrec x : T = Λ ...) e
@@ -548,15 +548,15 @@ tryReduceExpr globals locals = \case
     pure
       ( expr
       , PushAppIntoLetrec
-          PushAppIntoLetrecDetail
-            { pushAppIntoLetrecBefore = before
-            , pushAppIntoLetrecAfter = expr
-            , pushAppIntoLetrecArgID = e2 ^. _id
-            , pushAppIntoLetrecLetrecID = mLet ^. _id
-            , pushAppIntoLetrecLamID = lam ^. _id
-            , pushAppIntoLetrecLetBindingName = x
-            , pushAppIntoLetrecIsTypeApplication = True
-            }
+        PushAppIntoLetrecDetail
+          { pushAppIntoLetrecBefore = before
+          , pushAppIntoLetrecAfter = expr
+          , pushAppIntoLetrecArgID = e2 ^. _id
+          , pushAppIntoLetrecLetrecID = mLet ^. _id
+          , pushAppIntoLetrecLamID = lam ^. _id
+          , pushAppIntoLetrecLetBindingName = x
+          , pushAppIntoLetrecIsTypeApplication = True
+          }
       )
   -- Beta reduction of an inner big lambda application
   -- This rule is theoretically redundant but because we render nested applications with just one
@@ -576,11 +576,11 @@ tryReduceExpr globals locals = \case
   -- that hasn't yet been reduced.
   Var mVar x
     | Just (i, Left e) <- Map.lookup x locals -> do
-      -- Since we're duplicating @e@, we must regenerate all its IDs.
-      e' <- regenerateExprIDs e
-      pure
-        ( e'
-        , LocalVarInline
+        -- Since we're duplicating @e@, we must regenerate all its IDs.
+        e' <- regenerateExprIDs e
+        pure
+          ( e'
+          , LocalVarInline
             LocalVarInlineDetail
               { localVarInlineLetID = i
               , localVarInlineVarID = mVar ^. _id
@@ -589,7 +589,7 @@ tryReduceExpr globals locals = \case
               , localVarInlineReplacementID = e' ^. _id
               , localVarInlineIsTypeVar = False
               }
-        )
+          )
   -- Inline global variable
   -- (f = e : t) |- f ==> e : t
   GlobalVar mVar i | Just def <- Map.lookup i globals -> do
@@ -600,11 +600,11 @@ tryReduceExpr globals locals = \case
     pure
       ( expr
       , GlobalVarInline
-          GlobalVarInlineDetail
-            { globalVarInlineVar = GlobalVar mVar i
-            , globalVarInlineDef = def
-            , globalVarInlineAfter = expr
-            }
+        GlobalVarInlineDetail
+          { globalVarInlineVar = GlobalVar mVar i
+          , globalVarInlineDef = def
+          , globalVarInlineAfter = expr
+          }
       )
   -- Redundant let removal
   -- let x = e1 in e2 ==> e2    if x not free in e2
@@ -625,26 +625,26 @@ tryReduceExpr globals locals = \case
   -- corresponding argument in the scrutinee.
   Case m scrut branches
     | (expr, termArgs) <- unfoldApp (removeAnn scrut)
-      , (Con mCon c, _typeArgs) <- unfoldAPP expr ->
-      do
-        -- Find the branch with the same constructor
-        case find (\(CaseBranch n _ _) -> n == c) branches of
-          Just (CaseBranch _ binds rhs) -> do
-            -- Check that we have as many term args as bindings
-            when (length binds /= length termArgs) $ throwError CaseBranchBindingLengthMismatch
-            -- Construct a let for each bind
-            let makeLet (Bind _ x, e) rest = let_ x (pure e) (pure rest)
-            (expr', letIDs) <-
-              foldrM
-                ( \a (e, lets) -> do
-                    l <- makeLet a e
-                    pure (l, l ^. _id : lets)
-                )
-                (rhs, [])
-                (zip binds termArgs)
-            pure
-              ( expr'
-              , CaseReduction
+    , (Con mCon c, _typeArgs) <- unfoldAPP expr ->
+        do
+          -- Find the branch with the same constructor
+          case find (\(CaseBranch n _ _) -> n == c) branches of
+            Just (CaseBranch _ binds rhs) -> do
+              -- Check that we have as many term args as bindings
+              when (length binds /= length termArgs) $ throwError CaseBranchBindingLengthMismatch
+              -- Construct a let for each bind
+              let makeLet (Bind _ x, e) rest = let_ x (pure e) (pure rest)
+              (expr', letIDs) <-
+                foldrM
+                  ( \a (e, lets) -> do
+                      l <- makeLet a e
+                      pure (l, l ^. _id : lets)
+                  )
+                  (rhs, [])
+                  (zip binds termArgs)
+              pure
+                ( expr'
+                , CaseReduction
                   CaseReductionDetail
                     { caseBefore = Case m scrut branches
                     , caseAfter = expr'
@@ -656,21 +656,21 @@ tryReduceExpr globals locals = \case
                     , caseBranchRhsID = rhs ^. _id
                     , caseLetIDs = letIDs
                     }
-              )
-          Nothing -> throwError NoMatchingCaseBranch
+                )
+            Nothing -> throwError NoMatchingCaseBranch
   _ -> throwError NotRedex
   where
     mkLetRemovalDetail expr body x meta =
       pure
         ( body
         , LetRemoval
-            LetRemovalDetail
-              { letRemovalBefore = expr
-              , letRemovalAfter = body
-              , letRemovalBindingName = x
-              , letRemovalLetID = meta ^. _id
-              , letRemovalBodyID = body ^. _id
-              }
+          LetRemovalDetail
+            { letRemovalBefore = expr
+            , letRemovalAfter = body
+            , letRemovalBindingName = x
+            , letRemovalLetID = meta ^. _id
+            , letRemovalBodyID = body ^. _id
+            }
         )
 
 tryReduceType ::
@@ -686,11 +686,11 @@ tryReduceType _globals locals = \case
   -- lambda that hasn't yet been reduced.
   TVar mTVar x
     | Just (i, Right t) <- Map.lookup x locals -> do
-      -- Since we're duplicating @t@, we must regenerate all its IDs.
-      t' <- regenerateTypeIDs t
-      pure
-        ( t'
-        , LocalTypeVarInline
+        -- Since we're duplicating @t@, we must regenerate all its IDs.
+        t' <- regenerateTypeIDs t
+        pure
+          ( t'
+          , LocalTypeVarInline
             LocalVarInlineDetail
               { localVarInlineLetID = i
               , localVarInlineVarID = mTVar ^. _id
@@ -699,7 +699,7 @@ tryReduceType _globals locals = \case
               , localVarInlineReplacementID = t' ^. _id
               , localVarInlineIsTypeVar = True
               }
-        )
+          )
   _ -> throwError NotRedex
 
 -- Traverse a type, regenerating all its IDs

@@ -114,7 +114,7 @@ unit_7 =
   let (e, maxID) = create $ do
         let l = lam "x" $ var "x" `app` var "x"
         (l `ann` tEmptyHole) `app` l
-   in --in evalFullTest maxID mempty mempty 100 Syn e <~==> Left (TimedOut e)
+   in -- in evalFullTest maxID mempty mempty 100 Syn e <~==> Left (TimedOut e)
       evalFullTest maxID mempty mempty 100 Syn e <~==> Right e
 
 unit_8 :: Assertion

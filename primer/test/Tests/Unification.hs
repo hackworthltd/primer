@@ -399,7 +399,7 @@ hprop_refl = propertyWTInExtendedUVCxt defaultCxt $ \uvs -> do
   u <- unify' cxt uvs t t
   u === Just mempty
 
---unify _ [] S T  is Nothing or Just [], exactly when S = T up to holes
+-- unify _ [] S T  is Nothing or Just [], exactly when S = T up to holes
 hprop_eq :: Property
 hprop_eq = propertyWTInExtendedLocalGlobalCxt defaultCxt $ do
   cxt <- ask
@@ -428,7 +428,7 @@ hprop_only_sub_uvs = propertyWTInExtendedUVCxt defaultCxt $ \uvs -> do
     Nothing -> discard
     Just sub -> assert $ M.keysSet sub `S.isSubsetOf` uvs
 
---unify ga uvs S T = Maybe sub => S[sub] = T[sub]
+-- unify ga uvs S T = Maybe sub => S[sub] = T[sub]
 hprop_sub_unifies :: Property
 hprop_sub_unifies = propertyWTInExtendedUVCxt defaultCxt $ \uvs -> do
   cxt <- ask
@@ -443,7 +443,7 @@ hprop_sub_unifies = propertyWTInExtendedUVCxt defaultCxt $ \uvs -> do
       t' <- substTys (M.toList sub) t
       diff s' consistentTypes t'
 
---unify ga uvs S T = Maybe sub => for t/a in sub, have checkKind uvs(a) t
+-- unify ga uvs S T = Maybe sub => for t/a in sub, have checkKind uvs(a) t
 hprop_sub_checks :: Property
 hprop_sub_checks = propertyWTInExtendedUVCxt' defaultCxt $ \uvs -> do
   cxt <- ask

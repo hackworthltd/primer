@@ -195,8 +195,8 @@ hprop_decomposeTAppCon = property $ do
   ty <- forAll $ evalExprGen 0 $ set _typeMeta () <$> genType
   let dec = decomposeTAppCon ty
   -- See Note [cover]
-  --cover 30 "decomposable" $ isJust dec
-  --cover 30 "non-decomposable" $ isNothing dec
+  -- cover 30 "decomposable" $ isJust dec
+  -- cover 30 "non-decomposable" $ isNothing dec
   case dec of
     Nothing -> success
     Just (n, args) -> ty === mkTAppCon n args
@@ -302,7 +302,7 @@ unit_remove_hole_not_perfect :: Assertion
 unit_remove_hole_not_perfect =
   app (hole (con "Succ")) (con "Zero")
     `smartSynthGives` app (hole (con "Succ")) (con "Zero") -- We currently give this as output
-    --app (con "Succ") (con "Zero") -- We would prefer to see the hole removed
+    -- app (con "Succ") (con "Zero") -- We would prefer to see the hole removed
 
 -- When not using "smart" TC which automatically inserts holes etc,
 -- one would have to do a bit of dance to build a case expression, and

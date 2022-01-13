@@ -132,10 +132,10 @@ data Session = Session {id :: SessionId, name :: SessionName}
 
 -- | Per-session information.
 data SessionData = SessionData
-  { -- | The session's 'App'.
-    sessionApp :: App
-  , -- | The session's name.
-    sessionName :: SessionName
+  { sessionApp :: App
+  -- ^ The session's 'App'.
+  , sessionName :: SessionName
+  -- ^ The session's name.
   }
   deriving (Generic)
 
@@ -176,10 +176,10 @@ data Op
 
 -- | A config for the 'serve' computation.
 data ServiceCfg = ServiceCfg
-  { -- | The database operation queue.
-    opQueue :: TBQueue Op
-  , -- | The running version of Primer.
-    version :: Version
+  { opQueue :: TBQueue Op
+  -- ^ The database operation queue.
+  , version :: Version
+  -- ^ The running version of Primer.
   }
 
 -- | A 'Page' is a portion of the results of some DB query, along with the

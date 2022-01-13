@@ -209,25 +209,25 @@ findNodeWithParent id x = go x Nothing
     go expr parent
       | expr ^. _exprMetaLens % _id == id = Just (ExprNode expr, parent)
       | otherwise = case expr of
-        Hole _ e -> go e (Just (ExprNode expr))
-        EmptyHole _ -> Nothing
-        Ann _ e t -> go e (Just (ExprNode expr)) <|> goTy t expr
-        App _ a b -> go a (Just (ExprNode expr)) <|> go b (Just (ExprNode expr))
-        APP _ a b -> go a (Just (ExprNode expr)) <|> goTy b expr
-        Con _ _ -> Nothing
-        Lam _ _ e -> go e (Just (ExprNode expr))
-        LAM _ _ e -> go e (Just (ExprNode expr))
-        Var _ _ -> Nothing
-        GlobalVar _ _ -> Nothing
-        Let _ _ a b -> go a (Just (ExprNode expr)) <|> go b (Just (ExprNode expr))
-        Letrec _ _ a ta b -> go a (Just (ExprNode expr)) <|> goTy ta expr <|> go b (Just (ExprNode expr))
-        LetType _ _ t e -> goTy t expr <|> go e (Just (ExprNode expr))
-        Case _ e branches ->
-          let (Alt inBranches) = flip foldMap branches $
-                \(CaseBranch _ binds rhs) ->
-                  Alt (go rhs (Just (ExprNode expr)))
-                    <> foldMap (Alt . map (\b -> (CaseBindNode b, Just (ExprNode expr))) . findBind id) binds
-           in go e (Just (ExprNode expr)) <|> inBranches
+          Hole _ e -> go e (Just (ExprNode expr))
+          EmptyHole _ -> Nothing
+          Ann _ e t -> go e (Just (ExprNode expr)) <|> goTy t expr
+          App _ a b -> go a (Just (ExprNode expr)) <|> go b (Just (ExprNode expr))
+          APP _ a b -> go a (Just (ExprNode expr)) <|> goTy b expr
+          Con _ _ -> Nothing
+          Lam _ _ e -> go e (Just (ExprNode expr))
+          LAM _ _ e -> go e (Just (ExprNode expr))
+          Var _ _ -> Nothing
+          GlobalVar _ _ -> Nothing
+          Let _ _ a b -> go a (Just (ExprNode expr)) <|> go b (Just (ExprNode expr))
+          Letrec _ _ a ta b -> go a (Just (ExprNode expr)) <|> goTy ta expr <|> go b (Just (ExprNode expr))
+          LetType _ _ t e -> goTy t expr <|> go e (Just (ExprNode expr))
+          Case _ e branches ->
+            let (Alt inBranches) = flip foldMap branches $
+                  \(CaseBranch _ binds rhs) ->
+                    Alt (go rhs (Just (ExprNode expr)))
+                      <> foldMap (Alt . map (\b -> (CaseBindNode b, Just (ExprNode expr))) . findBind id) binds
+             in go e (Just (ExprNode expr)) <|> inBranches
 
     goTy t p = case findTypeWithParent id t of
       Nothing -> Nothing
@@ -239,13 +239,13 @@ findType :: forall b. ID -> Type' (Meta b) -> Maybe (Type' (Meta b))
 findType id ty
   | ty ^. _typeMetaLens % _id == id = Just ty
   | otherwise = case ty of
-    TEmptyHole _ -> Nothing
-    THole _ t -> findType id t
-    TCon _ _ -> Nothing
-    TVar _ _ -> Nothing
-    TFun _ a b -> findType id a <|> findType id b
-    TApp _ a b -> findType id a <|> findType id b
-    TForall _ _ _ t -> findType id t
+      TEmptyHole _ -> Nothing
+      THole _ t -> findType id t
+      TCon _ _ -> Nothing
+      TVar _ _ -> Nothing
+      TFun _ a b -> findType id a <|> findType id b
+      TApp _ a b -> findType id a <|> findType id b
+      TForall _ _ _ t -> findType id t
 
 -- | Find a sub-type in a larger type by its ID. Also returning its parent
 findTypeWithParent :: forall b. ID -> Type' (Meta b) -> Maybe (Type' (Meta b), Maybe (Type' (Meta b)))
@@ -254,13 +254,13 @@ findTypeWithParent id x = go x Nothing
     go ty parent
       | ty ^. _typeMetaLens % _id == id = Just (ty, parent)
       | otherwise = case ty of
-        TEmptyHole _ -> Nothing
-        THole _ t -> go t (Just ty)
-        TCon _ _ -> Nothing
-        TVar _ _ -> Nothing
-        TFun _ a b -> go a (Just ty) <|> go b (Just ty)
-        TApp _ a b -> go a (Just ty) <|> go b (Just ty)
-        TForall _ _ _ t -> go t (Just ty)
+          TEmptyHole _ -> Nothing
+          THole _ t -> go t (Just ty)
+          TCon _ _ -> Nothing
+          TVar _ _ -> Nothing
+          TFun _ a b -> go a (Just ty) <|> go b (Just ty)
+          TApp _ a b -> go a (Just ty) <|> go b (Just ty)
+          TForall _ _ _ t -> go t (Just ty)
 
 -- | If the given binding has the given ID, return Just that binding, otherwise return nothing.
 -- This is just a helper for 'findNode'.

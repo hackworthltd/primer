@@ -145,14 +145,14 @@ data KindOrType = K Kind | T Type
 
 data Cxt = Cxt
   { smartHoles :: SmartHoles
-  , -- | invariant: the key matches the 'typeDefName' inside the 'TypeDef'
-    typeDefs :: M.Map Name TypeDef
-  , -- | local variables
-    localCxt :: Map Name KindOrType
-  , -- | global variables (i.e. IDs of top-level definitions)
-    -- [We don't care about the name for TC purposes, but is nice to have
-    -- around when we generate names so we don't shadow top-level defs]
-    globalCxt :: Map ID (Name, Type)
+  , typeDefs :: M.Map Name TypeDef
+  -- ^ invariant: the key matches the 'typeDefName' inside the 'TypeDef'
+  , localCxt :: Map Name KindOrType
+  -- ^ local variables
+  , globalCxt :: Map ID (Name, Type)
+  -- ^ global variables (i.e. IDs of top-level definitions)
+  -- [We don't care about the name for TC purposes, but is nice to have
+  -- around when we generate names so we don't shadow top-level defs]
   }
   deriving (Show)
 
