@@ -10,6 +10,7 @@
 -- For quickly generating non-well-typed-or-scoped terms, see "Gen.Core.Raw".
 module Gen.Core.Typed (
   WT,
+  isolateWT,
   genWTType,
   genWTKind,
   genSyns,
@@ -27,6 +28,7 @@ import Foreword
 
 import Control.Monad.Fresh (MonadFresh, fresh)
 import Control.Monad.Morph (hoist)
+import Control.Monad.Reader (mapReaderT)
 import qualified Data.Map as M
 import Hedgehog (
   GenT,
@@ -76,7 +78,7 @@ import Primer.Typecheck (
   mkTypeDefMap,
   typeDefs,
  )
-import TestM (TestM, evalTestM)
+import TestM (TestM, evalTestM, isolateTestM)
 
 {-
 Generate well scoped and typed expressions.
@@ -106,6 +108,10 @@ newtype WT a = WT {unWT :: ReaderT Cxt TestM a}
     , MonadFresh NameCounter
     , MonadFresh ID
     )
+
+-- | Run an action and ignore any effect on the fresh name/id state
+isolateWT :: WT a -> WT a
+isolateWT x = WT $ mapReaderT isolateTestM $ unWT x
 
 instance MonadFresh NameCounter (GenT WT) where
   fresh = lift fresh

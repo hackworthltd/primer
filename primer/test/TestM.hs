@@ -1,5 +1,5 @@
 -- A test monad for generating names and IDs and typechecking
-module TestM (TestM, evalTestM) where
+module TestM (TestM, evalTestM, isolateTestM) where
 
 import Foreword
 
@@ -11,6 +11,14 @@ import Primer.Name (NameCounter)
 -- If we need other abilities, this will be the base monad.
 newtype TestM a = TestM {unTestM :: State Int a}
   deriving newtype (Functor, Applicative, Monad, MonadState Int)
+
+-- | Run an action and ignore any effect on the fresh name/id state
+isolateTestM :: TestM a -> TestM a
+isolateTestM m = do
+  st <- get
+  x <- m
+  put st
+  pure x
 
 evalTestM :: ID -> TestM a -> a
 evalTestM (ID id_) = fst . flip runState id_ . unTestM
