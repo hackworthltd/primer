@@ -240,14 +240,14 @@ data PushAppIntoLetrecDetail = PushAppIntoLetrecDetail
   deriving (FromJSON, ToJSON) via VJSONPrefix "pushAppIntoLetrec" PushAppIntoLetrecDetail
 
 data ApplyPrimFunDetail = ApplyPrimFunDetail
-  { -- | the expression before reduction
-    applyPrimFunBefore :: Expr
-  , -- | the expression after reduction
-    applyPrimFunAfter :: Expr
-  , -- | the name of the primitive function
-    applyPrimFunName :: Name
-  , -- | the IDs of the arguments to the application
-    applyPrimFunArgIDs :: [ID]
+  { applyPrimFunBefore :: Expr
+  -- ^ the expression before reduction
+  , applyPrimFunAfter :: Expr
+  -- ^ the expression after reduction
+  , applyPrimFunName :: Name
+  -- ^ the name of the primitive function
+  , applyPrimFunArgIDs :: [ID]
+  -- ^ the IDs of the arguments to the application
   }
   deriving (Eq, Show, Generic)
   deriving (FromJSON, ToJSON) via VJSONPrefix "applyPrimFun" ApplyPrimFunDetail
@@ -330,11 +330,11 @@ redexes = go mempty
             -- Application of a primitive (fully-applied, with all arguments in normal form).
             App{}
               | (Var _ fName, args) <- unfoldApp expr
-                , Just PrimFun{primFunType} <- Map.lookup fName globalPrims
-                , TFun _ lhs rhs <- fst $ create primFunType
-                , length args == length (fst $ unfoldFun lhs rhs)
-                , all isNormalForm args ->
-                self
+              , Just PrimFun{primFunType} <- Map.lookup fName globalPrims
+              , TFun _ lhs rhs <- fst $ create primFunType
+              , length args == length (fst $ unfoldFun lhs rhs)
+              , all isNormalForm args ->
+                  self
               where
                 isNormalForm = \case
                   PrimCon _ _ -> True
@@ -520,24 +520,24 @@ tryReduceExpr globals locals = \case
   -- apply primitive function
   before@App{}
     | (Var _ fName, args) <- unfoldApp before
-      , Just PrimFun{primFunDef, primFunType} <- Map.lookup fName globalPrims
-      , TFun _ lhs rhs <- fst $ create primFunType
-      , length args == length (fst $ unfoldFun lhs rhs)
-      , all isNormalForm args ->
-      case primFunDef args of
-        Left err -> throwError $ PrimFunError err
-        Right e -> do
-          expr <- e
-          pure
-            ( expr
-            , ApplyPrimFun
+    , Just PrimFun{primFunDef, primFunType} <- Map.lookup fName globalPrims
+    , TFun _ lhs rhs <- fst $ create primFunType
+    , length args == length (fst $ unfoldFun lhs rhs)
+    , all isNormalForm args ->
+        case primFunDef args of
+          Left err -> throwError $ PrimFunError err
+          Right e -> do
+            expr <- e
+            pure
+              ( expr
+              , ApplyPrimFun
                 ApplyPrimFunDetail
                   { applyPrimFunBefore = before
                   , applyPrimFunAfter = expr
                   , applyPrimFunName = fName
                   , applyPrimFunArgIDs = args ^. mapping _id
                   }
-            )
+              )
     where
       isNormalForm = \case
         PrimCon _ _ -> True

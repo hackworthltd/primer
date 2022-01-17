@@ -283,11 +283,11 @@ viewRedex tydefs globals dir = \case
   App _ (Ann _ (Lam _ x t) (TFun _ src tgt)) s -> pure $ pure $ Beta x t src tgt s
   e@App{}
     | (Var _ fName, args) <- unfoldApp e
-      , Just f@PrimFun{primFunType} <- M.lookup fName globalPrims
-      , TFun _ lhs rhs <- fst $ create primFunType
-      , length args == length (fst $ unfoldFun lhs rhs)
-      , all isNormalForm args ->
-      pure $ pure $ ApplyPrimFun f args
+    , Just f@PrimFun{primFunType} <- M.lookup fName globalPrims
+    , TFun _ lhs rhs <- fst $ create primFunType
+    , length args == length (fst $ unfoldFun lhs rhs)
+    , all isNormalForm args ->
+        pure $ pure $ ApplyPrimFun f args
     where
       isNormalForm = \case
         PrimCon _ _ -> True
