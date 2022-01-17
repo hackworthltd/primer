@@ -889,5 +889,8 @@ getGlobalNames :: MonadReader Cxt m => m (S.Set Name)
 getGlobalNames = do
   tyDefs <- asks typeDefs
   topLevel <- asks $ S.fromList . fmap fst . M.elems . globalCxt
-  let ctors = Map.foldMapWithKey (\t def -> S.fromList $ (t :) $ map valConName $ maybe [] algTypeDefConstructors $ typeDefAlg def) tyDefs
+  let ctors =
+        Map.foldMapWithKey
+          (\t def -> S.fromList $ (t :) $ map valConName $ maybe [] algTypeDefConstructors $ typeDefAlg def)
+          tyDefs
   pure $ S.union topLevel ctors
