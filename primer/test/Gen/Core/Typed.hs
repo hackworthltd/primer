@@ -41,6 +41,7 @@ import qualified Hedgehog.Gen as Gen
 import Hedgehog.Internal.Property (forAllT)
 import qualified Hedgehog.Range as Range
 import Primer.Core (
+  AlgTypeDef (..),
   Bind' (Bind),
   CaseBranch' (CaseBranch),
   Expr' (..),
@@ -49,7 +50,6 @@ import Primer.Core (
   Type' (..),
   TypeDef (..),
   ValCon (..),
-  typeDefConstructors,
   typeDefKind,
   typeDefName,
   typeDefParameters,
@@ -252,7 +252,9 @@ genSyn = genSyns (TEmptyHole ())
 allCons :: Cxt -> M.Map Name (Type' ())
 allCons cxt = M.fromList $ concatMap consForTyDef $ M.elems $ typeDefs cxt
   where
-    consForTyDef td = map (\vc -> (valConName vc, valConType td vc)) (typeDefConstructors td)
+    consForTyDef = \case
+      TypeDefAlg td -> map (\vc -> (valConName vc, valConType td vc)) (algTypeDefConstructors td)
+      TypeDefPrim _ -> []
 
 genChk :: TypeG -> GenT WT ExprG
 genChk ty = do
@@ -386,24 +388,26 @@ genTypeDefGroup = do
   let types =
         map
           ( \(n, ps) ->
-              TypeDef
-                { typeDefName = n
-                , typeDefParameters = ps
-                , typeDefConstructors = []
-                , typeDefNameHints = []
-                }
+              TypeDefAlg
+                AlgTypeDef
+                  { algTypeDefName = n
+                  , algTypeDefParameters = ps
+                  , algTypeDefConstructors = []
+                  , algTypeDefNameHints = []
+                  }
           )
           nps
   let genConArgs params = Gen.list (Range.linear 0 5) $ local (extendLocalCxtTys params . addTypeDefs types) $ genWTType KType -- params+types scope...
   let genCons params = Gen.list (Range.linear 0 5) $ ValCon <$> freshNameForCxt <*> genConArgs params
   let genTD (n, ps) =
         ( \cons ->
-            TypeDef
-              { typeDefName = n
-              , typeDefParameters = ps
-              , typeDefConstructors = cons
-              , typeDefNameHints = []
-              }
+            TypeDefAlg
+              AlgTypeDef
+                { algTypeDefName = n
+                , algTypeDefParameters = ps
+                , algTypeDefConstructors = cons
+                , algTypeDefNameHints = []
+                }
         )
           <$> genCons ps
   mapM genTD nps

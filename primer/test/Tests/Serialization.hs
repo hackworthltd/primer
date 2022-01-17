@@ -24,6 +24,7 @@ import Primer.App (
   Selection (..),
  )
 import Primer.Core (
+  AlgTypeDef (..),
   Def (..),
   Expr,
   Expr' (EmptyHole),
@@ -91,12 +92,13 @@ fixtures =
       def = Def{defID = 1, defName = "main", defExpr = expr, defType = TEmptyHole typeMeta}
       typeDef :: TypeDef
       typeDef =
-        TypeDef
-          { typeDefName = "T"
-          , typeDefParameters = [("a", KType), ("b", KFun KType KType)]
-          , typeDefConstructors = [ValCon "C" [TApp () (TCon () "b") (TCon () "a"), TCon () "Nat"]]
-          , typeDefNameHints = []
-          }
+        TypeDefAlg
+          AlgTypeDef
+            { algTypeDefName = "T"
+            , algTypeDefParameters = [("a", KType), ("b", KFun KType KType)]
+            , algTypeDefConstructors = [ValCon "C" [TApp () (TCon () "b") (TCon () "a"), TCon () "Nat"]]
+            , algTypeDefNameHints = []
+            }
       progerror :: ProgError
       progerror = NoDefSelected
       progaction :: ProgAction
