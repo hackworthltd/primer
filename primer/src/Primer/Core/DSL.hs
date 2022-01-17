@@ -52,10 +52,10 @@ import Primer.Core (
 import Primer.Name (Name)
 
 newtype S a = S {unS :: State ID a}
-  deriving newtype (Functor, Applicative, Monad, MonadState ID)
+  deriving newtype (Functor, Applicative, Monad)
 
 instance MonadFresh ID S where
-  fresh = do
+  fresh = S $ do
     i <- get
     put (i + 1)
     pure i

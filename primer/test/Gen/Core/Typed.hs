@@ -104,7 +104,6 @@ newtype WT a = WT {unWT :: ReaderT Cxt TestM a}
     , Applicative
     , Monad
     , MonadReader Cxt
-    , MonadState Int
     , MonadFresh NameCounter
     , MonadFresh ID
     )
