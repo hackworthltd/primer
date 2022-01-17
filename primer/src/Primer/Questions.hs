@@ -21,7 +21,7 @@ import Primer.Core (
   ID,
   Kind (KFun, KType),
   Type' (..),
-  TypeDef (typeDefNameHints),
+  typeDefNameHints,
  )
 import Primer.Name (Name, unName, unsafeMkName)
 import Primer.Name.Fresh (mkAvoidForFreshName, mkAvoidForFreshNameTy)

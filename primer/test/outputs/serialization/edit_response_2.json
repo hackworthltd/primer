@@ -101,64 +101,67 @@
         },
         "progTypes": [
             {
-                "typeDefConstructors": [
-                    {
-                        "valConArgs": [
-                            {
-                                "contents": [
-                                    [],
-                                    {
-                                        "contents": [
-                                            [],
-                                            "b"
-                                        ],
-                                        "tag": "TCon"
-                                    },
-                                    {
-                                        "contents": [
-                                            [],
-                                            "a"
-                                        ],
-                                        "tag": "TCon"
-                                    }
-                                ],
-                                "tag": "TApp"
-                            },
-                            {
-                                "contents": [
-                                    [],
-                                    "Nat"
-                                ],
-                                "tag": "TCon"
-                            }
-                        ],
-                        "valConName": "C"
-                    }
-                ],
-                "typeDefName": "T",
-                "typeDefNameHints": [],
-                "typeDefParameters": [
-                    [
-                        "a",
+                "contents": {
+                    "algTypeDefConstructors": [
                         {
-                            "tag": "KType"
-                        }
-                    ],
-                    [
-                        "b",
-                        {
-                            "contents": [
+                            "valConArgs": [
                                 {
-                                    "tag": "KType"
+                                    "contents": [
+                                        [],
+                                        {
+                                            "contents": [
+                                                [],
+                                                "b"
+                                            ],
+                                            "tag": "TCon"
+                                        },
+                                        {
+                                            "contents": [
+                                                [],
+                                                "a"
+                                            ],
+                                            "tag": "TCon"
+                                        }
+                                    ],
+                                    "tag": "TApp"
                                 },
                                 {
-                                    "tag": "KType"
+                                    "contents": [
+                                        [],
+                                        "Nat"
+                                    ],
+                                    "tag": "TCon"
                                 }
                             ],
-                            "tag": "KFun"
+                            "valConName": "C"
                         }
+                    ],
+                    "algTypeDefName": "T",
+                    "algTypeDefNameHints": [],
+                    "algTypeDefParameters": [
+                        [
+                            "a",
+                            {
+                                "tag": "KType"
+                            }
+                        ],
+                        [
+                            "b",
+                            {
+                                "contents": [
+                                    {
+                                        "tag": "KType"
+                                    },
+                                    {
+                                        "tag": "KType"
+                                    }
+                                ],
+                                "tag": "KFun"
+                            }
+                        ]
                     ]
-                ]
+                },
+                "tag": "TypeDefAlg"
             }
         ]
     }

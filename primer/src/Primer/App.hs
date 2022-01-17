@@ -74,7 +74,7 @@ import Primer.Core (
   Meta (..),
   Type,
   Type' (TEmptyHole, TVar),
-  TypeDef,
+  TypeDef (..),
   TypeMeta,
   defaultTypeDefs,
   getID,
@@ -370,7 +370,7 @@ applyProgAction prog mdefID = \case
         defs = Map.insert id_ def (progDefs prog)
     pure (prog{progDefs = defs, progSelection = Just $ Selection def Nothing}, Just id_)
   AddTypeDef td -> do
-    runExceptT @TypeError (checkTypeDefs $ progTypes prog <> [td]) >>= \case
+    runExceptT @TypeError (checkTypeDefs $ progTypes prog <> [TypeDefAlg td]) >>= \case
       -- The frontend should never let this error case happen,
       -- so we just dump out a raw string for debugging/logging purposes
       -- (This is not currently true! We should synchronise the frontend with
@@ -379,7 +379,7 @@ applyProgAction prog mdefID = \case
       -- but the TC rejects it.
       -- see https://github.com/hackworthltd/primer/issues/3)
       Left err -> throwError $ TypeDefError $ show err
-      Right _ -> pure (prog{progTypes = progTypes prog <> [td]}, mdefID)
+      Right _ -> pure (prog{progTypes = progTypes prog <> [TypeDefAlg td]}, mdefID)
   BodyAction actions -> do
     withDef mdefID prog $ \def -> do
       smartHoles <- gets $ progSmartHoles . appProg
