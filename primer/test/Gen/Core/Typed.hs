@@ -39,7 +39,7 @@ import qualified Hedgehog.Gen as Gen
 import Hedgehog.Internal.Property (forAllT)
 import qualified Hedgehog.Range as Range
 import Primer.Core (
-  AlgTypeDef (..),
+  ASTTypeDef (..),
   Bind' (Bind),
   CaseBranch' (CaseBranch),
   Expr' (..),
@@ -248,7 +248,7 @@ allCons :: Cxt -> M.Map Name (Type' ())
 allCons cxt = M.fromList $ concatMap consForTyDef $ M.elems $ typeDefs cxt
   where
     consForTyDef = \case
-      TypeDefAlg td -> map (\vc -> (valConName vc, valConType td vc)) (algTypeDefConstructors td)
+      TypeDefAST td -> map (\vc -> (valConName vc, valConType td vc)) (astTypeDefConstructors td)
       TypeDefPrim _ -> []
 
 genChk :: TypeG -> GenT WT ExprG
@@ -383,12 +383,12 @@ genTypeDefGroup = do
   let types =
         map
           ( \(n, ps) ->
-              TypeDefAlg
-                AlgTypeDef
-                  { algTypeDefName = n
-                  , algTypeDefParameters = ps
-                  , algTypeDefConstructors = []
-                  , algTypeDefNameHints = []
+              TypeDefAST
+                ASTTypeDef
+                  { astTypeDefName = n
+                  , astTypeDefParameters = ps
+                  , astTypeDefConstructors = []
+                  , astTypeDefNameHints = []
                   }
           )
           nps
@@ -396,12 +396,12 @@ genTypeDefGroup = do
   let genCons params = Gen.list (Range.linear 0 5) $ ValCon <$> freshNameForCxt <*> genConArgs params
   let genTD (n, ps) =
         ( \cons ->
-            TypeDefAlg
-              AlgTypeDef
-                { algTypeDefName = n
-                , algTypeDefParameters = ps
-                , algTypeDefConstructors = cons
-                , algTypeDefNameHints = []
+            TypeDefAST
+              ASTTypeDef
+                { astTypeDefName = n
+                , astTypeDefParameters = ps
+                , astTypeDefConstructors = cons
+                , astTypeDefNameHints = []
                 }
         )
           <$> genCons ps
