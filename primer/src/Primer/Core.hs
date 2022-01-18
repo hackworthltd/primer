@@ -356,7 +356,7 @@ data TypeDef
 -- | Definition of a primitive data type
 data PrimTypeDef = PrimTypeDef
   { primTypeDefName :: Name
-  , primTypeDefParameters :: [(Name, Kind)] -- These names scope over the constructors
+  , primTypeDefParameters :: [(Name, Kind)]
   , primTypeDefNameHints :: [Name]
   }
   deriving (Eq, Show, Generic)
