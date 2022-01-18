@@ -407,10 +407,7 @@ typeDefAlg = \case
   TypeDefPrim _ -> Nothing
   TypeDefAlg t -> Just t
 typeDefKind :: TypeDef -> Kind
-typeDefKind =
-  foldr (KFun . snd) KType . \case
-    TypeDefPrim t -> primTypeDefParameters t
-    TypeDefAlg t -> algTypeDefParameters t
+typeDefKind = foldr (KFun . snd) KType . typeDefParameters
 
 defaultTypeDefs :: [TypeDef]
 defaultTypeDefs =
