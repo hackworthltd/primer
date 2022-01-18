@@ -29,7 +29,7 @@ import GHC.Err (error)
 import Numeric.Natural (Natural)
 import Optics (Fold, anyOf, getting, hasn't, set, summing, (%), _1, _2)
 import Primer.Core (
-  AlgTypeDef (..),
+  ASTTypeDef (..),
   Bind' (Bind),
   CaseBranch,
   CaseBranch' (CaseBranch),
@@ -250,7 +250,7 @@ viewCaseRedex tydefs = \case
   Case _ expr brs
     | Just (c, tyargs, args, patterns, br) <- extract expr brs
     , Just (_, tydef) <- lookupConstructor tydefs c
-    , ty <- foldl (\t a -> TApp () t $ set _typeMeta () a) (TCon () (algTypeDefName tydef)) (take (length $ algTypeDefParameters tydef) tyargs)
+    , ty <- foldl (\t a -> TApp () t $ set _typeMeta () a) (TCon () (astTypeDefName tydef)) (take (length $ astTypeDefParameters tydef) tyargs)
     , Just argTys <- instantiateCon ty c ->
         formCaseRedex (Right ty) c argTys args patterns br
   _ -> Nothing

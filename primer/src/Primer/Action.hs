@@ -35,7 +35,7 @@ import qualified Data.Map.Strict as Map
 import qualified Data.Text as T
 import Optics (set, (%), (?~))
 import Primer.Core (
-  AlgTypeDef (..),
+  ASTTypeDef (..),
   Def (..),
   Expr,
   Expr' (..),
@@ -365,7 +365,7 @@ data ProgAction
   | -- | Delete a new definition
     DeleteDef ID
   | -- | Add a new type definition
-    AddTypeDef AlgTypeDef
+    AddTypeDef ASTTypeDef
   | -- | Execute a sequence of actions on the body of the definition
     BodyAction [Action]
   | -- | Execute a sequence of actions on the type annotation of the definition
@@ -887,7 +887,7 @@ constructCase ze = do
   -- Construct the branches of the case using the type information of the scrutinee
   getTypeDefInfo ty >>= \case
     -- If it's a fully-saturated ADT type, create a branch for each of its constructors.
-    Right (TC.TypeDefInfo _ (TypeDefAlg tydef)) ->
+    Right (TC.TypeDefInfo _ (TypeDefAST tydef)) ->
       let f c = do
             -- We replace C[e] with C[case e of D n -> ...], generating names n.
             -- (Here C represents the one-hole context in which the subterm e
@@ -899,7 +899,7 @@ constructCase ze = do
             freshHole <- emptyHole
             ns <- mapM (\t -> (,Just (TCSynthed t)) <$> mkFreshName (replace freshHole ze)) (valConArgs c)
             branch (valConName c) ns (pure freshHole)
-          brs = map f $ algTypeDefConstructors tydef
+          brs = map f $ astTypeDefConstructors tydef
        in flip replace ze <$> case_ (pure $ target ze) brs
     Left TC.TDIHoleType ->
       asks TC.smartHoles >>= \case

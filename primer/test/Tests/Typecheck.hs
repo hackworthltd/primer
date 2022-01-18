@@ -14,7 +14,7 @@ import qualified Hedgehog.Gen as Gen
 import qualified Hedgehog.Range as Range
 import Optics (over, set)
 import Primer.Core (
-  AlgTypeDef (..),
+  ASTTypeDef (..),
   Expr,
   Expr',
   ID,
@@ -26,7 +26,7 @@ import Primer.Core (
   TypeCacheBoth (..),
   TypeDef (..),
   ValCon (..),
-  algTypeDefConstructors,
+  astTypeDefConstructors,
   boolDef,
   defaultTypeDefs,
   eitherDef,
@@ -204,10 +204,10 @@ hprop_decomposeTAppCon = property $ do
 
 unit_typeDefKind :: Assertion
 unit_typeDefKind = do
-  typeDefKind (TypeDefAlg boolDef) @?= KType
-  typeDefKind (TypeDefAlg natDef) @?= KType
-  typeDefKind (TypeDefAlg listDef) @?= KFun KType KType
-  typeDefKind (TypeDefAlg eitherDef) @?= KFun KType (KFun KType KType)
+  typeDefKind (TypeDefAST boolDef) @?= KType
+  typeDefKind (TypeDefAST natDef) @?= KType
+  typeDefKind (TypeDefAST listDef) @?= KFun KType KType
+  typeDefKind (TypeDefAST eitherDef) @?= KFun KType (KFun KType KType)
 
 unit_valConType :: Assertion
 unit_valConType = do
@@ -228,7 +228,7 @@ unit_valConType = do
                 TApp () (TApp () (TCon () "Either") (TVar () "a")) (TVar () "b")
         ]
   where
-    f t = map (valConType t) (algTypeDefConstructors t)
+    f t = map (valConType t) (astTypeDefConstructors t)
 
 -- Nat -> Bool accepts \x . case x of Z -> True ; S _ -> False
 unit_case_isZero :: Assertion
@@ -519,13 +519,13 @@ runTypecheckTestM :: SmartHoles -> TypecheckTestM a -> Either TypeError a
 runTypecheckTestM sh = evalTestM 0 . flip runReaderT (buildTypingContext testingTypeDefs mempty sh) . runExceptT . unTypecheckTestM
 
 testingTypeDefs :: [TypeDef]
-testingTypeDefs = TypeDefAlg maybeTDef : defaultTypeDefs
+testingTypeDefs = TypeDefAST maybeTDef : defaultTypeDefs
 
-maybeTDef :: AlgTypeDef
+maybeTDef :: ASTTypeDef
 maybeTDef =
-  AlgTypeDef
-    { algTypeDefName = "MaybeT"
-    , algTypeDefParameters = [("m", KFun KType KType), ("a", KType)]
-    , algTypeDefConstructors = [ValCon "MakeMaybeT" [TApp () (TVar () "m") (TApp () (TVar () "Maybe") (TVar () "a"))]]
-    , algTypeDefNameHints = []
+  ASTTypeDef
+    { astTypeDefName = "MaybeT"
+    , astTypeDefParameters = [("m", KFun KType KType), ("a", KType)]
+    , astTypeDefConstructors = [ValCon "MakeMaybeT" [TApp () (TVar () "m") (TApp () (TVar () "Maybe") (TVar () "a"))]]
+    , astTypeDefNameHints = []
     }
