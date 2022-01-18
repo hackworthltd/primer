@@ -356,7 +356,7 @@ data TypeDef
 -- | Definition of a primitive data type
 data PrimTypeDef = PrimTypeDef
   { primTypeDefName :: Name
-  , primTypeDefParameters :: [(Name, Kind)]
+  , primTypeDefParameters :: [Kind]
   , primTypeDefNameHints :: [Name]
   }
   deriving (Eq, Show, Generic)
@@ -398,16 +398,16 @@ typeDefNameHints :: TypeDef -> [Name]
 typeDefNameHints = \case
   TypeDefPrim t -> primTypeDefNameHints t
   TypeDefAlg t -> algTypeDefNameHints t
-typeDefParameters :: TypeDef -> [(Name, Kind)]
+typeDefParameters :: TypeDef -> [Kind]
 typeDefParameters = \case
   TypeDefPrim t -> primTypeDefParameters t
-  TypeDefAlg t -> algTypeDefParameters t
+  TypeDefAlg t -> snd <$> algTypeDefParameters t
 typeDefAlg :: TypeDef -> Maybe AlgTypeDef
 typeDefAlg = \case
   TypeDefPrim _ -> Nothing
   TypeDefAlg t -> Just t
 typeDefKind :: TypeDef -> Kind
-typeDefKind = foldr (KFun . snd) KType . typeDefParameters
+typeDefKind = foldr KFun KType . typeDefParameters
 
 defaultTypeDefs :: [TypeDef]
 defaultTypeDefs =
