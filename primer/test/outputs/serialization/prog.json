@@ -101,7 +101,7 @@
     "progTypes": [
         {
             "contents": {
-                "algTypeDefConstructors": [
+                "astTypeDefConstructors": [
                     {
                         "valConArgs": [
                             {
@@ -135,9 +135,9 @@
                         "valConName": "C"
                     }
                 ],
-                "algTypeDefName": "T",
-                "algTypeDefNameHints": [],
-                "algTypeDefParameters": [
+                "astTypeDefName": "T",
+                "astTypeDefNameHints": [],
+                "astTypeDefParameters": [
                     [
                         "a",
                         {
@@ -160,7 +160,7 @@
                     ]
                 ]
             },
-            "tag": "TypeDefAlg"
+            "tag": "TypeDefAST"
         }
     ]
 }

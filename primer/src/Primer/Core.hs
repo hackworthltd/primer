@@ -26,12 +26,12 @@ module Primer.Core (
   _synthed,
   Kind (..),
   TypeDef (..),
-  typeDefAlg,
+  typeDefAST,
   typeDefKind,
   typeDefName,
   typeDefNameHints,
   typeDefParameters,
-  AlgTypeDef (..),
+  ASTTypeDef (..),
   PrimTypeDef (..),
   PrimCon (..),
   PrimFun (..),
@@ -349,7 +349,7 @@ data PrimFunError
 
 data TypeDef
   = TypeDefPrim PrimTypeDef
-  | TypeDefAlg AlgTypeDef
+  | TypeDefAST ASTTypeDef
   deriving (Eq, Show, Generic)
   deriving (FromJSON, ToJSON) via VJSON TypeDef
 
@@ -364,17 +364,17 @@ data PrimTypeDef = PrimTypeDef
 
 -- | Definition of an algebraic data type
 --
--- Consider the type T = AlgTypeDef "T" [("a",TYPE),("b",TYPE->TYPE)] [ValCon "C" [b a, Nat]]
+-- Consider the type T = ASTTypeDef "T" [("a",TYPE),("b",TYPE->TYPE)] [ValCon "C" [b a, Nat]]
 -- The kind of the type is TYPE{\-a-\} -> (TYPE -> TYPE){\-b-\} -> TYPE{\-always returns a type-\}
 -- The type of the constructor is C :: forall a:TYPE. forall b:(TYPE->TYPE). b a -> Nat -> T a b
-data AlgTypeDef = AlgTypeDef
-  { algTypeDefName :: Name
-  , algTypeDefParameters :: [(Name, Kind)] -- These names scope over the constructors
-  , algTypeDefConstructors :: [ValCon]
-  , algTypeDefNameHints :: [Name]
+data ASTTypeDef = ASTTypeDef
+  { astTypeDefName :: Name
+  , astTypeDefParameters :: [(Name, Kind)] -- These names scope over the constructors
+  , astTypeDefConstructors :: [ValCon]
+  , astTypeDefNameHints :: [Name]
   }
   deriving (Eq, Show, Generic)
-  deriving (FromJSON, ToJSON) via VJSON AlgTypeDef
+  deriving (FromJSON, ToJSON) via VJSON ASTTypeDef
 
 data ValCon = ValCon
   { valConName :: Name
@@ -383,36 +383,36 @@ data ValCon = ValCon
   deriving (Eq, Show, Generic)
   deriving (FromJSON, ToJSON) via VJSON ValCon
 
-valConType :: AlgTypeDef -> ValCon -> Type' ()
+valConType :: ASTTypeDef -> ValCon -> Type' ()
 valConType td vc =
-  let ret = foldl' (\t (n, _) -> TApp () t (TVar () n)) (TCon () (algTypeDefName td)) (algTypeDefParameters td)
+  let ret = foldl' (\t (n, _) -> TApp () t (TVar () n)) (TCon () (astTypeDefName td)) (astTypeDefParameters td)
       args = foldr (TFun ()) ret (valConArgs vc)
-      foralls = foldr (\(n, k) t -> TForall () n k t) args (algTypeDefParameters td)
+      foralls = foldr (\(n, k) t -> TForall () n k t) args (astTypeDefParameters td)
    in foralls
 
 typeDefName :: TypeDef -> Name
 typeDefName = \case
   TypeDefPrim t -> primTypeDefName t
-  TypeDefAlg t -> algTypeDefName t
+  TypeDefAST t -> astTypeDefName t
 typeDefNameHints :: TypeDef -> [Name]
 typeDefNameHints = \case
   TypeDefPrim t -> primTypeDefNameHints t
-  TypeDefAlg t -> algTypeDefNameHints t
+  TypeDefAST t -> astTypeDefNameHints t
 typeDefParameters :: TypeDef -> [Kind]
 typeDefParameters = \case
   TypeDefPrim t -> primTypeDefParameters t
-  TypeDefAlg t -> snd <$> algTypeDefParameters t
-typeDefAlg :: TypeDef -> Maybe AlgTypeDef
-typeDefAlg = \case
+  TypeDefAST t -> snd <$> astTypeDefParameters t
+typeDefAST :: TypeDef -> Maybe ASTTypeDef
+typeDefAST = \case
   TypeDefPrim _ -> Nothing
-  TypeDefAlg t -> Just t
+  TypeDefAST t -> Just t
 typeDefKind :: TypeDef -> Kind
 typeDefKind = foldr KFun KType . typeDefParameters
 
 defaultTypeDefs :: [TypeDef]
 defaultTypeDefs =
   map
-    TypeDefAlg
+    TypeDefAST
     [boolDef, natDef, listDef, maybeDef, pairDef, eitherDef]
     <> map
       TypeDefPrim
@@ -433,73 +433,73 @@ primTypeDefs =
       PrimChar _ -> ()
 
 -- | A definition of the Bool type
-boolDef :: AlgTypeDef
+boolDef :: ASTTypeDef
 boolDef =
-  AlgTypeDef
-    { algTypeDefName = "Bool"
-    , algTypeDefParameters = []
-    , algTypeDefConstructors =
+  ASTTypeDef
+    { astTypeDefName = "Bool"
+    , astTypeDefParameters = []
+    , astTypeDefConstructors =
         [ ValCon "True" []
         , ValCon "False" []
         ]
-    , algTypeDefNameHints = ["p", "q"]
+    , astTypeDefNameHints = ["p", "q"]
     }
 
 -- | A definition of the Nat type
-natDef :: AlgTypeDef
+natDef :: ASTTypeDef
 natDef =
-  AlgTypeDef
-    { algTypeDefName = "Nat"
-    , algTypeDefParameters = []
-    , algTypeDefConstructors =
+  ASTTypeDef
+    { astTypeDefName = "Nat"
+    , astTypeDefParameters = []
+    , astTypeDefConstructors =
         [ ValCon "Zero" []
         , ValCon "Succ" [TCon () "Nat"]
         ]
-    , algTypeDefNameHints = ["i", "j", "n", "m"]
+    , astTypeDefNameHints = ["i", "j", "n", "m"]
     }
 
 -- | A definition of the List type
-listDef :: AlgTypeDef
+listDef :: ASTTypeDef
 listDef =
-  AlgTypeDef
-    { algTypeDefName = "List"
-    , algTypeDefParameters = [("a", KType)]
-    , algTypeDefConstructors =
+  ASTTypeDef
+    { astTypeDefName = "List"
+    , astTypeDefParameters = [("a", KType)]
+    , astTypeDefConstructors =
         [ ValCon "Nil" []
         , ValCon "Cons" [TVar () "a", TApp () (TCon () "List") (TVar () "a")]
         ]
-    , algTypeDefNameHints = ["xs", "ys", "zs"]
+    , astTypeDefNameHints = ["xs", "ys", "zs"]
     }
 
 -- | A definition of the Maybe type
-maybeDef :: AlgTypeDef
+maybeDef :: ASTTypeDef
 maybeDef =
-  AlgTypeDef
-    { algTypeDefName = "Maybe"
-    , algTypeDefParameters = [("a", KType)]
-    , algTypeDefConstructors =
+  ASTTypeDef
+    { astTypeDefName = "Maybe"
+    , astTypeDefParameters = [("a", KType)]
+    , astTypeDefConstructors =
         [ ValCon "Nothing" []
         , ValCon "Just" [TVar () "a"]
         ]
-    , algTypeDefNameHints = ["mx", "my", "mz"]
+    , astTypeDefNameHints = ["mx", "my", "mz"]
     }
 
 -- | A definition of the Pair type
-pairDef :: AlgTypeDef
+pairDef :: ASTTypeDef
 pairDef =
-  AlgTypeDef
-    { algTypeDefName = "Pair"
-    , algTypeDefParameters = [("a", KType), ("b", KType)]
-    , algTypeDefConstructors = [ValCon "MakePair" [TVar () "a", TVar () "b"]]
-    , algTypeDefNameHints = []
+  ASTTypeDef
+    { astTypeDefName = "Pair"
+    , astTypeDefParameters = [("a", KType), ("b", KType)]
+    , astTypeDefConstructors = [ValCon "MakePair" [TVar () "a", TVar () "b"]]
+    , astTypeDefNameHints = []
     }
 
 -- | A definition of the Either type
-eitherDef :: AlgTypeDef
+eitherDef :: ASTTypeDef
 eitherDef =
-  AlgTypeDef
-    { algTypeDefName = "Either"
-    , algTypeDefParameters = [("a", KType), ("b", KType)]
-    , algTypeDefConstructors = [ValCon "Left" [TVar () "a"], ValCon "Right" [TVar () "b"]]
-    , algTypeDefNameHints = []
+  ASTTypeDef
+    { astTypeDefName = "Either"
+    , astTypeDefParameters = [("a", KType), ("b", KType)]
+    , astTypeDefConstructors = [ValCon "Left" [TVar () "a"], ValCon "Right" [TVar () "b"]]
+    , astTypeDefNameHints = []
     }

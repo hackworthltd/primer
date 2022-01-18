@@ -31,11 +31,11 @@ import Primer.Core (
   ID,
   Kind (KFun, KType),
   Type' (TApp, TCon, TEmptyHole, TForall, TFun, THole, TVar),
-  algTypeDefConstructors,
-  algTypeDefName,
-  algTypeDefParameters,
+  astTypeDefConstructors,
+  astTypeDefName,
+  astTypeDefParameters,
   defaultTypeDefs,
-  typeDefAlg,
+  typeDefAST,
   valConType,
  )
 import Primer.Core.Utils (forgetIDs, generateIDs, noHoles)
@@ -211,16 +211,16 @@ hprop_src_hole = propertyWTInExtendedLocalGlobalCxt defaultCxt $ do
 -- constructor types refine to their fully-applied typedef
 hprop_con :: Property
 hprop_con = propertyWTInExtendedLocalGlobalCxt defaultCxt $ do
-  tcs <- asks $ mapMaybe typeDefAlg . M.elems . typeDefs
+  tcs <- asks $ mapMaybe typeDefAST . M.elems . typeDefs
   -- NB: this only works because defaultCxt has at least one tydef with a constructor
   td <- forAllT $ Gen.element tcs
-  let cons = algTypeDefConstructors td
+  let cons = astTypeDefConstructors td
   when (null cons) discard
   vc <- forAllT $ Gen.element cons
   let src = valConType td vc
   annotateShow src
-  tgt' <- forAllT $ traverse (genWTType . snd) $ algTypeDefParameters td
-  let tgt = foldl (TApp ()) (TCon () $ algTypeDefName td) tgt'
+  tgt' <- forAllT $ traverse (genWTType . snd) $ astTypeDefParameters td
+  let tgt = foldl (TApp ()) (TCon () $ astTypeDefName td) tgt'
   annotateShow tgt
   cxt <- ask
   r <- refine' cxt tgt src

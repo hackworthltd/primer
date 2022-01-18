@@ -29,7 +29,7 @@ import Primer.App (
   tcWholeProg,
  )
 import Primer.Core (
-  AlgTypeDef (..),
+  ASTTypeDef (..),
   Def (..),
   Expr' (..),
   ID,
@@ -152,40 +152,40 @@ unit_create_def = progActionTest defaultEmptyProg [CreateDef $ Just "newDef"] $
 unit_create_typedef :: Assertion
 unit_create_typedef =
   let lst =
-        AlgTypeDef
-          { algTypeDefName = "List"
-          , algTypeDefParameters = [("a", KType)]
-          , algTypeDefConstructors =
+        ASTTypeDef
+          { astTypeDefName = "List"
+          , astTypeDefParameters = [("a", KType)]
+          , astTypeDefConstructors =
               [ ValCon "Nil" []
               , ValCon "Cons" [TVar () "a", TApp () (TCon () "List") (TVar () "a")]
               ]
-          , algTypeDefNameHints = ["xs", "ys", "zs"]
+          , astTypeDefNameHints = ["xs", "ys", "zs"]
           }
       tree =
-        AlgTypeDef
-          { algTypeDefName = "Tree"
-          , algTypeDefParameters = [("a", KType)]
-          , algTypeDefConstructors = [ValCon "Node" [TVar () "a", TApp () (TCon () "List") (TApp () (TCon () "Tree") (TVar () "a"))]]
-          , algTypeDefNameHints = ["xs", "ys", "zs"]
+        ASTTypeDef
+          { astTypeDefName = "Tree"
+          , astTypeDefParameters = [("a", KType)]
+          , astTypeDefConstructors = [ValCon "Node" [TVar () "a", TApp () (TCon () "List") (TApp () (TCon () "Tree") (TVar () "a"))]]
+          , astTypeDefNameHints = ["xs", "ys", "zs"]
           }
    in progActionTest defaultEmptyProg [AddTypeDef lst, AddTypeDef tree] $
         expectSuccess $
           \_ prog' -> do
             case progTypes prog' of
               [lst', tree'] -> do
-                TypeDefAlg lst @=? lst'
-                TypeDefAlg tree @=? tree'
+                TypeDefAST lst @=? lst'
+                TypeDefAST tree @=? tree'
               _ -> assertFailure $ show $ progTypes prog'
 
 -- "List" is unknown here
 unit_create_typedef_bad_1 :: Assertion
 unit_create_typedef_bad_1 =
   let td =
-        AlgTypeDef
-          { algTypeDefName = "Tree"
-          , algTypeDefParameters = [("a", KType)]
-          , algTypeDefConstructors = [ValCon "Node" [TVar () "a", TApp () (TCon () "List") (TApp () (TCon () "Tree") (TVar () "a"))]]
-          , algTypeDefNameHints = ["xs", "ys", "zs"]
+        ASTTypeDef
+          { astTypeDefName = "Tree"
+          , astTypeDefParameters = [("a", KType)]
+          , astTypeDefConstructors = [ValCon "Node" [TVar () "a", TApp () (TCon () "List") (TApp () (TCon () "Tree") (TVar () "a"))]]
+          , astTypeDefNameHints = ["xs", "ys", "zs"]
           }
    in progActionTest defaultEmptyProg [AddTypeDef td] $
         expectError (@?= TypeDefError "UnknownTypeConstructor \"List\"")
@@ -194,18 +194,18 @@ unit_create_typedef_bad_1 =
 unit_create_typedef_bad_2 :: Assertion
 unit_create_typedef_bad_2 =
   let td1 =
-        AlgTypeDef
-          { algTypeDefName = "T"
-          , algTypeDefParameters = []
-          , algTypeDefConstructors = []
-          , algTypeDefNameHints = []
+        ASTTypeDef
+          { astTypeDefName = "T"
+          , astTypeDefParameters = []
+          , astTypeDefConstructors = []
+          , astTypeDefNameHints = []
           }
       td2 =
-        AlgTypeDef
-          { algTypeDefName = "T"
-          , algTypeDefParameters = []
-          , algTypeDefConstructors = []
-          , algTypeDefNameHints = []
+        ASTTypeDef
+          { astTypeDefName = "T"
+          , astTypeDefParameters = []
+          , astTypeDefConstructors = []
+          , astTypeDefNameHints = []
           }
    in progActionTest defaultEmptyProg [AddTypeDef td1, AddTypeDef td2] $
         expectError (@?= TypeDefError "InternalError \"Duplicate-ly-named TypeDefs\"")
@@ -214,14 +214,14 @@ unit_create_typedef_bad_2 =
 unit_create_typedef_bad_3 :: Assertion
 unit_create_typedef_bad_3 =
   let td =
-        AlgTypeDef
-          { algTypeDefName = "T"
-          , algTypeDefParameters = []
-          , algTypeDefConstructors =
+        ASTTypeDef
+          { astTypeDefName = "T"
+          , astTypeDefParameters = []
+          , astTypeDefConstructors =
               [ ValCon "C" []
               , ValCon "C" []
               ]
-          , algTypeDefNameHints = []
+          , astTypeDefNameHints = []
           }
    in progActionTest defaultEmptyProg [AddTypeDef td] $
         expectError (@?= TypeDefError "InternalError \"Duplicate-ly-named constructor (perhaps in different typedefs)\"")
@@ -230,18 +230,18 @@ unit_create_typedef_bad_3 =
 unit_create_typedef_bad_4 :: Assertion
 unit_create_typedef_bad_4 =
   let td1 =
-        AlgTypeDef
-          { algTypeDefName = "T1"
-          , algTypeDefParameters = []
-          , algTypeDefConstructors = [ValCon "C" []]
-          , algTypeDefNameHints = []
+        ASTTypeDef
+          { astTypeDefName = "T1"
+          , astTypeDefParameters = []
+          , astTypeDefConstructors = [ValCon "C" []]
+          , astTypeDefNameHints = []
           }
       td2 =
-        AlgTypeDef
-          { algTypeDefName = "T2"
-          , algTypeDefParameters = []
-          , algTypeDefConstructors = [ValCon "C" []]
-          , algTypeDefNameHints = []
+        ASTTypeDef
+          { astTypeDefName = "T2"
+          , astTypeDefParameters = []
+          , astTypeDefConstructors = [ValCon "C" []]
+          , astTypeDefNameHints = []
           }
    in progActionTest defaultEmptyProg [AddTypeDef td1, AddTypeDef td2] $
         expectError (@?= TypeDefError "InternalError \"Duplicate-ly-named constructor (perhaps in different typedefs)\"")
@@ -250,11 +250,11 @@ unit_create_typedef_bad_4 =
 unit_create_typedef_bad_5 :: Assertion
 unit_create_typedef_bad_5 =
   let td =
-        AlgTypeDef
-          { algTypeDefName = "T"
-          , algTypeDefParameters = [("a", KType), ("a", KType)]
-          , algTypeDefConstructors = []
-          , algTypeDefNameHints = []
+        ASTTypeDef
+          { astTypeDefName = "T"
+          , astTypeDefParameters = [("a", KType), ("a", KType)]
+          , astTypeDefConstructors = []
+          , astTypeDefNameHints = []
           }
    in progActionTest defaultEmptyProg [AddTypeDef td] $
         expectError (@?= TypeDefError "InternalError \"Duplicate names in one tydef: between parameter-names and constructor-names\"")
@@ -263,11 +263,11 @@ unit_create_typedef_bad_5 =
 unit_create_typedef_bad_6 :: Assertion
 unit_create_typedef_bad_6 =
   let td =
-        AlgTypeDef
-          { algTypeDefName = "T"
-          , algTypeDefParameters = [("T", KType)]
-          , algTypeDefConstructors = []
-          , algTypeDefNameHints = []
+        ASTTypeDef
+          { astTypeDefName = "T"
+          , astTypeDefParameters = [("T", KType)]
+          , astTypeDefConstructors = []
+          , astTypeDefNameHints = []
           }
    in progActionTest defaultEmptyProg [AddTypeDef td] $
         expectError (@?= TypeDefError "InternalError \"Duplicate names in one tydef: between type-def-name and parameter-names\"")
@@ -276,11 +276,11 @@ unit_create_typedef_bad_6 =
 unit_create_typedef_bad_7 :: Assertion
 unit_create_typedef_bad_7 =
   let td =
-        AlgTypeDef
-          { algTypeDefName = "T"
-          , algTypeDefParameters = [("a", KType)]
-          , algTypeDefConstructors = [ValCon "a" []]
-          , algTypeDefNameHints = []
+        ASTTypeDef
+          { astTypeDefName = "T"
+          , astTypeDefParameters = [("a", KType)]
+          , astTypeDefConstructors = [ValCon "a" []]
+          , astTypeDefNameHints = []
           }
    in progActionTest defaultEmptyProg [AddTypeDef td] $
         expectError (@?= TypeDefError "InternalError \"Duplicate names in one tydef: between parameter-names and constructor-names\"")
@@ -289,34 +289,34 @@ unit_create_typedef_bad_7 =
 unit_create_typedef_8 :: Assertion
 unit_create_typedef_8 =
   let td =
-        AlgTypeDef
-          { algTypeDefName = "T"
-          , algTypeDefParameters = []
-          , algTypeDefConstructors = [ValCon "T" []]
-          , algTypeDefNameHints = []
+        ASTTypeDef
+          { astTypeDefName = "T"
+          , astTypeDefParameters = []
+          , astTypeDefConstructors = [ValCon "T" []]
+          , astTypeDefNameHints = []
           }
    in progActionTest defaultEmptyProg [AddTypeDef td] $
-        expectSuccess $ \_ prog' -> progTypes prog' @?= [TypeDefAlg td]
+        expectSuccess $ \_ prog' -> progTypes prog' @?= [TypeDefAST td]
 
 -- Allow clash between type name and constructor name across types
 unit_create_typedef_9 :: Assertion
 unit_create_typedef_9 =
   let td1 =
-        AlgTypeDef
-          { algTypeDefName = "T"
-          , algTypeDefParameters = []
-          , algTypeDefConstructors = [ValCon "C" []]
-          , algTypeDefNameHints = []
+        ASTTypeDef
+          { astTypeDefName = "T"
+          , astTypeDefParameters = []
+          , astTypeDefConstructors = [ValCon "C" []]
+          , astTypeDefNameHints = []
           }
       td2 =
-        AlgTypeDef
-          { algTypeDefName = "C"
-          , algTypeDefParameters = []
-          , algTypeDefConstructors = []
-          , algTypeDefNameHints = []
+        ASTTypeDef
+          { astTypeDefName = "C"
+          , astTypeDefParameters = []
+          , astTypeDefConstructors = []
+          , astTypeDefNameHints = []
           }
    in progActionTest defaultEmptyProg [AddTypeDef td1, AddTypeDef td2] $
-        expectSuccess $ \_ prog' -> progTypes prog' @?= [TypeDefAlg td1, TypeDefAlg td2]
+        expectSuccess $ \_ prog' -> progTypes prog' @?= [TypeDefAST td1, TypeDefAST td2]
 
 unit_construct_arrow_in_sig :: Assertion
 unit_construct_arrow_in_sig =

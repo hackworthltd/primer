@@ -67,7 +67,7 @@ import Primer.App (
   newProg,
  )
 import Primer.Core (
-  AlgTypeDef,
+  ASTTypeDef,
   Def (..),
   Expr,
   ID,
@@ -276,7 +276,7 @@ type TestAPI = (
   :<|> "progaction"    :> Test ProgAction
   :<|> "progerror"     :> Test ProgError
   :<|> "def"           :> Test Def
-  :<|> "typeDef"       :> Test AlgTypeDef
+  :<|> "typeDef"       :> Test ASTTypeDef
   :<|> "evalReq"       :> Test EvalReq
   :<|> "evalResp"      :> Test EvalResp
   :<|> "evalFullReq"   :> Test EvalFullReq
