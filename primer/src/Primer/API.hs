@@ -77,6 +77,7 @@ import Primer.App (
  )
 import qualified Primer.App as App
 import Primer.Core (
+  ASTDef (astDefExpr),
   Expr,
   Expr' (APP, Ann, GlobalVar, LetType, Letrec, PrimCon),
   ID,
@@ -84,7 +85,7 @@ import Primer.Core (
   PrimCon (..),
   Type,
   Type' (TForall),
-  defExpr,
+  defAST,
   defID,
   defName,
   defType,
@@ -315,7 +316,7 @@ data Def = Def
   { id :: ID
   , name :: Name
   , type_ :: Tree
-  , term :: Tree
+  , term :: Maybe Tree
   }
   deriving (Generic)
 
@@ -331,7 +332,7 @@ viewProg p =
               { id = defID d
               , name = defName d
               , type_ = viewTreeType $ defType d
-              , term = viewTreeExpr $ defExpr d
+              , term = viewTreeExpr . astDefExpr <$> defAST d
               }
         )
           <$> Map.elems (progDefs p)

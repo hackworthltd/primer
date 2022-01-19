@@ -12,6 +12,7 @@ import Optics (adjoin, toListOf, (%))
 import Primer.Action (ActionName (..), OfferedAction (name))
 import Primer.Action.Available (actionsForDef, actionsForDefBody, actionsForDefSig)
 import Primer.Core (
+  ASTDef (..),
   Def (..),
   HasID (_id),
   ID,
@@ -56,14 +57,14 @@ import Text.Pretty.Simple (pShowNoColor)
 test_1 :: TestTree
 test_1 =
   mkTests
-    Def
-      { defName = "1"
-      , defID
-      , defExpr
-      , defType
+    ASTDef
+      { astDefName = "1"
+      , astDefID
+      , astDefExpr
+      , astDefType
       }
   where
-    ((defExpr, defType), defID) = create $ (,) <$> e <*> t
+    ((astDefExpr, astDefType), astDefID) = create $ (,) <$> e <*> t
     t =
       tfun
         (tcon "Nat")
@@ -164,9 +165,9 @@ data Output = Output
   deriving (Show)
 
 -- | Golden tests for the available actions at each node of the definition, for each level.
-mkTests :: Def -> TestTree
+mkTests :: ASTDef -> TestTree
 mkTests def =
-  let testName = T.unpack $ unName $ defName def
+  let testName = T.unpack $ unName $ astDefName def
    in testGroup testName $
         enumerate
           <&> \level ->
@@ -175,20 +176,20 @@ mkTests def =
                   map
                     ( \id ->
                         ( id
-                        , map name $ actionsForDefBody level def id (defExpr def)
+                        , map name $ actionsForDefBody level def id (astDefExpr def)
                         )
                     )
                     . toListOf (_exprMeta % _id `adjoin` _exprTypeMeta % _id)
-                    $ defExpr def
+                    $ astDefExpr def
                 sigActions =
                   map
                     ( \id ->
                         ( id
-                        , map name $ actionsForDefSig level def id (defType def)
+                        , map name $ actionsForDefSig level def id (astDefType def)
                         )
                     )
                     . toListOf (_typeMeta % _id)
-                    $ defType def
+                    $ astDefType def
              in goldenVsString (show level) ("test/outputs/available-actions" </> testName </> show level <> ".hs") $
                   pure . BS.fromStrict . encodeUtf8 . TL.toStrict . pShowNoColor $
                     Output

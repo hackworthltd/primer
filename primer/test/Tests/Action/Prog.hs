@@ -29,6 +29,7 @@ import Primer.App (
   tcWholeProg,
  )
 import Primer.Core (
+  ASTDef (..),
   ASTTypeDef (..),
   Def (..),
   Expr' (..),
@@ -38,6 +39,8 @@ import Primer.Core (
   Type' (..),
   TypeDef (..),
   ValCon (..),
+  defAST,
+  defName,
   getID,
   _exprMeta,
   _exprTypeMeta,
@@ -86,7 +89,7 @@ unit_move_to_def_and_construct_let :: Assertion
 unit_move_to_def_and_construct_let =
   progActionTest defaultEmptyProg [MoveToDef 2, BodyAction [ConstructLet (Just "x")]] $
     expectSuccess $ \prog prog' ->
-      case defExpr <$> Map.lookup 2 (progDefs prog') of
+      case fmap astDefExpr . defAST =<< Map.lookup 2 (progDefs prog') of
         Just Let{} ->
           -- Check that main is unchanged
           Map.lookup 0 (progDefs prog') @?= Map.lookup 0 (progDefs prog)
@@ -144,10 +147,10 @@ unit_create_def = progActionTest defaultEmptyProg [CreateDef $ Just "newDef"] $
   expectSuccess $ \_ prog' -> do
     case Map.lookup 4 (progDefs prog') of
       Nothing -> assertFailure $ show $ progDefs prog'
-      Just def -> do
-        defID def @?= 4
-        defName def @?= "newDef"
-        defExpr def @?= EmptyHole (Meta 5 Nothing Nothing)
+      Just (DefAST def) -> do
+        astDefID def @?= 4
+        astDefName def @?= "newDef"
+        astDefExpr def @?= EmptyHole (Meta 5 Nothing Nothing)
 
 unit_create_typedef :: Assertion
 unit_create_typedef =
@@ -323,14 +326,14 @@ unit_construct_arrow_in_sig =
   progActionTest defaultEmptyProg [MoveToDef 2, SigAction [ConstructArrowL, Move Child1]] $
     expectSuccess $ \_ prog' ->
       case Map.lookup 2 (progDefs prog') of
-        Just def ->
+        Just (DefAST def) ->
           -- Check that the signature is an arrow type
-          case defType def of
+          case astDefType def of
             TFun _ lhs _ ->
               -- Check that the selection is focused on the lhs, as we instructed
               case progSelection prog' of
                 Just (Selection d (Just NodeSelection{nodeType = SigNode, nodeId})) -> do
-                  defID d @?= defID def
+                  astDefID d @?= astDefID def
                   nodeId @?= getID lhs
                 _ -> assertFailure "no selection"
             _ -> assertFailure "not a function"
@@ -342,17 +345,17 @@ unit_copy_paste_duplicate = do
         mainType <- tforall "a" KType (tvar "a" `tfun` (tcon "Maybe" `tapp` tEmptyHole))
         mainExpr <- lAM "b" $ lam "x" $ con "Just" `aPP` tvar "b" `app` var "x"
         mainID <- fresh
-        let mainDef = Def mainID "main" mainExpr mainType
+        let mainDef = DefAST $ ASTDef mainID "main" mainExpr mainType
         blankID <- fresh
-        blankDef <- Def blankID "blank" <$> emptyHole <*> tEmptyHole
+        blankDef <- ASTDef blankID "blank" <$> emptyHole <*> tEmptyHole
         pure
-          ( newProg{progDefs = Map.fromList [(mainID, mainDef), (blankID, blankDef)], progSelection = Nothing}
+          ( newProg{progDefs = Map.fromList [(mainID, mainDef), (blankID, DefAST blankDef)], progSelection = Nothing}
           , mainID
           , getID mainType
           , getID mainExpr
           , blankID
-          , getID (defType blankDef)
-          , getID (defExpr blankDef)
+          , getID (astDefType blankDef)
+          , getID (astDefExpr blankDef)
           )
   let a = newApp{appProg = p}
       actions = [MoveToDef toDef, CopyPasteSig (fromDef, fromType) [], CopyPasteBody (fromDef, fromExpr) []]

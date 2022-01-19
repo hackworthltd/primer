@@ -33,6 +33,7 @@ import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 import Optics (mapping, set, traverseOf, view, (%), (^.))
 import Primer.Core (
+  ASTDef (..),
   Bind' (..),
   CaseBranch' (..),
   Def (..),
@@ -171,7 +172,7 @@ data LocalVarInlineDetail = LocalVarInlineDetail
   deriving (FromJSON, ToJSON) via VJSONPrefix "localVarInline" LocalVarInlineDetail
 
 data GlobalVarInlineDetail = GlobalVarInlineDetail
-  { globalVarInlineDef :: Def
+  { globalVarInlineDef :: ASTDef
   -- ^ The definition that the variable refers to
   , globalVarInlineVar :: Expr
   -- ^ The variable being replaced
@@ -658,10 +659,10 @@ tryReduceExpr globals locals = \case
           )
   -- Inline global variable
   -- (f = e : t) |- f ==> e : t
-  GlobalVar mVar i | Just def <- Map.lookup i globals -> do
+  GlobalVar mVar i | Just (DefAST def) <- Map.lookup i globals -> do
     -- Since we're duplicating the definition, we must regenerate all its IDs.
-    e <- regenerateExprIDs (defExpr def)
-    t <- regenerateTypeIDs (defType def)
+    e <- regenerateExprIDs (astDefExpr def)
+    t <- regenerateTypeIDs (astDefType def)
     expr <- ann (pure e) (pure t)
     pure
       ( expr

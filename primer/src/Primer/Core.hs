@@ -56,6 +56,11 @@ module Primer.Core (
   primTypeDefs,
   bindName,
   _bindMeta,
+  defID,
+  defName,
+  defType,
+  ASTDef (..),
+  defAST,
 ) where
 
 import Foreword
@@ -316,15 +321,46 @@ instance HasMetadata (Type' TypeMeta) where
 instance HasMetadata (Bind' ExprMeta) where
   _metadata = position @1 % typed @(Maybe Value)
 
--- | A top-level definition
-data Def = Def
-  { defID :: ID
-  , defName :: Name
-  , defExpr :: Expr
-  , defType :: Type
-  }
+data Def
+  = DefPrim PrimDef
+  | DefAST ASTDef
   deriving (Eq, Show, Generic)
   deriving (FromJSON, ToJSON) via VJSON Def
+
+defID :: Def -> ID
+defID = \case
+  DefPrim d -> primDefID d
+  DefAST d -> astDefID d
+defName :: Def -> Name
+defName = \case
+  DefPrim d -> primDefName d
+  DefAST d -> astDefName d
+defType :: Def -> Type
+defType = \case
+  DefPrim d -> primDefType d
+  DefAST d -> astDefType d
+defAST :: Def -> Maybe ASTDef
+defAST = \case
+  DefPrim _ -> Nothing
+  DefAST t -> Just t
+
+-- | A top-level definition
+data ASTDef = ASTDef
+  { astDefID :: ID
+  , astDefName :: Name
+  , astDefExpr :: Expr
+  , astDefType :: Type
+  }
+  deriving (Eq, Show, Generic)
+  deriving (FromJSON, ToJSON) via VJSON ASTDef
+
+data PrimDef = PrimDef
+  { primDefName :: Name
+  , primDefType :: Type
+  , primDefID :: ID
+  }
+  deriving (Eq, Show, Generic)
+  deriving (FromJSON, ToJSON) via VJSON PrimDef
 
 {- HLINT ignore "Use newtype instead of data" -}
 data PrimCon
@@ -335,6 +371,7 @@ data PrimCon
 data PrimFun = PrimFun
   { primFunType :: forall m. MonadFresh ID m => m Type
   , primFunDef :: forall m. MonadFresh ID m => [Expr] -> Either PrimFunError (m Expr)
+  , primFunName :: Name
   }
 
 data PrimFunError

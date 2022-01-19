@@ -6,6 +6,7 @@ import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 import Optics (over, (^.))
 import Primer.Core (
+  ASTDef (..),
   Def (..),
   Expr,
   Expr',
@@ -278,8 +279,8 @@ unit_tryReduce_global_var = do
         g <- global 10
         e <- lam "x" (var "x")
         t <- tfun (tcon "A") (tcon "B")
-        pure (g, Def{defID = 10, defName = "f", defExpr = e, defType = t})
-      globals = Map.singleton 10 def
+        pure (g, ASTDef{astDefID = 10, astDefName = "f", astDefExpr = e, astDefType = t})
+      globals = Map.singleton 10 (DefAST def)
       result = runTryReduce globals mempty (expr, i)
       expectedResult = fst $ create $ ann (lam "x" (var "x")) (tfun (tcon "A") (tcon "B"))
   case result of
