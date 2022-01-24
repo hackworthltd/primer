@@ -67,6 +67,7 @@ import Primer.App (
   newProg,
  )
 import Primer.Core (
+  ASTDef (..),
   ASTTypeDef,
   Def (..),
   Expr,
@@ -332,7 +333,7 @@ testEndpoints =
     :<|> mkTest newProg
     :<|> mkTest (MoveToDef 0)
     :<|> mkTest NoDefSelected
-    :<|> mkTest (Def 1 "main" expr ty)
+    :<|> mkTest (DefAST $ ASTDef 1 "main" expr ty)
     :<|> mkTest boolDef
     :<|> mkTest EvalReq{evalReqExpr = expr, evalReqRedex = 0}
     :<|> mkTest EvalResp{evalRespExpr = expr, evalRespRedexes = [0, 1], evalRespDetail = reductionDetail}

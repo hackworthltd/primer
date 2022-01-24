@@ -29,11 +29,12 @@ import GHC.Err (error)
 import Numeric.Natural (Natural)
 import Optics (Fold, anyOf, getting, hasn't, set, summing, (%), _1, _2)
 import Primer.Core (
+  ASTDef (..),
   ASTTypeDef (..),
   Bind' (Bind),
   CaseBranch,
   CaseBranch' (CaseBranch),
-  Def (defExpr, defType),
+  Def (..),
   Expr,
   Expr' (
     APP,
@@ -101,7 +102,7 @@ newtype EvalFullError
 
 data Redex
   = -- f  ~>  e : T  where we have  f : T ; f = e  in (global) scope
-    InlineGlobal ID Def
+    InlineGlobal ID ASTDef
   | -- x  ~>  e   where we are inside the scope of a  let x = e in ...
     InlineLet Name Expr
   | -- x  ~>  letrec x:T=t in t:T   where we are inside the scope of a  letrec x : T = t in ...
@@ -280,7 +281,7 @@ viewCaseRedex tydefs = \case
 -- This spots all redexs other than InlineLet
 viewRedex :: (MonadFresh ID m, MonadFresh NameCounter m) => M.Map Name TypeDef -> M.Map ID Def -> Dir -> Expr -> Maybe (m Redex)
 viewRedex tydefs globals dir = \case
-  GlobalVar _ x | Just y <- x `M.lookup` globals -> pure $ pure $ InlineGlobal x y
+  GlobalVar _ x | Just (DefAST y) <- x `M.lookup` globals -> pure $ pure $ InlineGlobal x y
   App _ (Ann _ (Lam _ x t) (TFun _ src tgt)) s -> pure $ pure $ Beta x t src tgt s
   e@App{}
     | (Var _ fName, args) <- unfoldApp e
@@ -411,7 +412,7 @@ findRedex tydefs globals dir = go . focus
 -- TODO: deal with metadata. https://github.com/hackworthltd/primer/issues/6
 runRedex :: (MonadFresh ID m, MonadFresh NameCounter m) => Redex -> m Expr
 runRedex = \case
-  InlineGlobal _ def -> ann (regenerateExprIDs $ defExpr def) (regenerateTypeIDs $ defType def)
+  InlineGlobal _ def -> ann (regenerateExprIDs $ astDefExpr def) (regenerateTypeIDs $ astDefType def)
   InlineLet _ e -> regenerateExprIDs e
   InlineLetrec x e t -> letrec x (regenerateExprIDs e) (regenerateTypeIDs t) $ ann (regenerateExprIDs e) (regenerateTypeIDs t)
   -- let(rec/type) x = e in t  ~>  t  if e does not appear in t
