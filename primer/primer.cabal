@@ -112,6 +112,7 @@ test-suite primer-test
     Tests.Unification
     Tests.Zipper
     Tests.Zipper.BindersAbove
+    TestUtils
 
   default-language:   Haskell2010
   default-extensions:

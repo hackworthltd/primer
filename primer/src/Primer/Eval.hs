@@ -43,6 +43,7 @@ import Primer.Core (
   ID,
   Kind,
   Meta,
+  PrimDef (..),
   PrimFun (..),
   PrimFunError (..),
   Type,
@@ -53,7 +54,7 @@ import Primer.Core (
   _exprTypeMeta,
   _typeMeta,
  )
-import Primer.Core.DSL (ann, create, hole, letType, let_, tEmptyHole)
+import Primer.Core.DSL (ann, hole, letType, let_, tEmptyHole)
 import Primer.Core.Transform (removeAnn, renameVar, unfoldAPP, unfoldApp, unfoldFun)
 import Primer.JSON
 import Primer.Name (Name, unName, unsafeMkName)
@@ -309,8 +310,8 @@ findNodeByID i expr = do
       _ -> mempty
 
 -- | Return the IDs of nodes which are reducible
-redexes :: Expr -> Set ID
-redexes = go mempty
+redexes :: Map ID PrimDef -> Expr -> Set ID
+redexes primDefs = go mempty
   where
     go locals expr =
       -- A set containing just the ID of this expression
@@ -330,9 +331,8 @@ redexes = go mempty
               (self `munless` Set.member x (freeVars e4)) <> go locals e1 <> go locals e4
             -- Application of a primitive (fully-applied, with all arguments in normal form).
             App{}
-              | (Var _ fName, args) <- unfoldApp expr
-              , Just PrimFun{primFunType} <- Map.lookup fName globalPrims
-              , TFun _ lhs rhs <- fst $ create primFunType
+              | (GlobalVar _ id_, args) <- unfoldApp expr
+              , Just (TFun _ lhs rhs) <- primDefType <$> Map.lookup id_ primDefs
               , length args == length (fst $ unfoldFun lhs rhs)
               , all isNormalForm args ->
                   self
@@ -354,7 +354,9 @@ redexes = go mempty
             Var _ x
               | Set.member x locals -> self
               | otherwise -> mempty
-            GlobalVar _ _ -> self
+            GlobalVar _ id
+              | Map.member id primDefs -> mempty
+              | otherwise -> self
             -- Note that x is in scope in e2 but not e1.
             Let _ x e1 e2 ->
               let locals' = Set.insert x locals
@@ -520,12 +522,12 @@ tryReduceExpr globals locals = \case
 
   -- apply primitive function
   before@App{}
-    | (Var _ fName, args) <- unfoldApp before
-    , Just PrimFun{primFunDef, primFunType} <- Map.lookup fName globalPrims
-    , TFun _ lhs rhs <- fst $ create primFunType
+    | (GlobalVar _ id, args) <- unfoldApp before
+    , Just (DefPrim PrimDef{primDefName, primDefType = TFun _ lhs rhs}) <- Map.lookup id globals
+    , Just f <- Map.lookup primDefName globalPrims
     , length args == length (fst $ unfoldFun lhs rhs)
     , all isNormalForm args ->
-        case primFunDef args of
+        case primFunDef f args of
           Left err -> throwError $ PrimFunError err
           Right e -> do
             expr <- e
@@ -535,7 +537,7 @@ tryReduceExpr globals locals = \case
                 ApplyPrimFunDetail
                   { applyPrimFunBefore = before
                   , applyPrimFunAfter = expr
-                  , applyPrimFunName = fName
+                  , applyPrimFunName = primDefName
                   , applyPrimFunArgIDs = args ^. mapping _id
                   }
               )
