@@ -65,6 +65,7 @@ import qualified Data.Set as S
 import Data.String (String)
 import Optics (Lens', over, set, view, (%))
 import Primer.Core (
+  ASTDef (..),
   ASTTypeDef (..),
   Bind' (..),
   CaseBranch' (..),
@@ -84,6 +85,10 @@ import Primer.Core (
   TypeMeta,
   ValCon (valConArgs, valConName),
   bindName,
+  defAST,
+  defID,
+  defName,
+  defType,
   typeDefAST,
   typeDefKind,
   typeDefName,
@@ -352,16 +357,16 @@ checkEverything ::
 checkEverything sh tydefs defs = do
   checkTypeDefs tydefs
   let cxt = buildTypingContext tydefs defs sh
-  flip runReaderT cxt $ mapM checkDef defs
+  flip runReaderT cxt $ mapM (\d -> maybe (pure d) (fmap DefAST . checkDef) $ defAST d) defs
 
 -- | Typecheck a definition.
 -- This checks that the type signature is well-formed, then checks the body
 -- against the signature.
-checkDef :: TypeM e m => Def -> m Def
+checkDef :: TypeM e m => ASTDef -> m ASTDef
 checkDef def = do
-  t <- checkKind KType (defType def)
-  e <- check (forgetTypeIDs t) (defExpr def)
-  pure $ def{defType = typeTtoType t, defExpr = exprTtoExpr e}
+  t <- checkKind KType (astDefType def)
+  e <- check (forgetTypeIDs t) (astDefExpr def)
+  pure $ def{astDefType = typeTtoType t, astDefExpr = exprTtoExpr e}
 
 -- We assume that constructor names are unique, returning the first one we find
 lookupConstructor :: M.Map Name TypeDef -> Name -> Maybe (ValCon, ASTTypeDef)

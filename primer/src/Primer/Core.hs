@@ -13,6 +13,13 @@ module Primer.Core (
   CaseBranch,
   CaseBranch' (..),
   Def (..),
+  defID,
+  defName,
+  defType,
+  ASTDef (..),
+  defAST,
+  PrimDef (..),
+  defPrim,
   HasID (..),
   getID,
   setID,
@@ -316,15 +323,51 @@ instance HasMetadata (Type' TypeMeta) where
 instance HasMetadata (Bind' ExprMeta) where
   _metadata = position @1 % typed @(Maybe Value)
 
--- | A top-level definition
-data Def = Def
-  { defID :: ID
-  , defName :: Name
-  , defExpr :: Expr
-  , defType :: Type
-  }
+data Def
+  = DefPrim PrimDef
+  | DefAST ASTDef
   deriving (Eq, Show, Generic)
   deriving (FromJSON, ToJSON) via VJSON Def
+
+-- | A primitive, built-in definition
+data PrimDef = PrimDef
+  { primDefID :: ID
+  , primDefName :: Name
+  , primDefType :: Type
+  }
+  deriving (Eq, Show, Generic)
+  deriving (FromJSON, ToJSON) via VJSON PrimDef
+
+-- | A top-level definition, built from an 'Expr'
+data ASTDef = ASTDef
+  { astDefID :: ID
+  , astDefName :: Name
+  , astDefExpr :: Expr
+  , astDefType :: Type
+  }
+  deriving (Eq, Show, Generic)
+  deriving (FromJSON, ToJSON) via VJSON ASTDef
+
+defID :: Def -> ID
+defID = \case
+  DefPrim d -> primDefID d
+  DefAST d -> astDefID d
+defName :: Def -> Name
+defName = \case
+  DefPrim d -> primDefName d
+  DefAST d -> astDefName d
+defType :: Def -> Type
+defType = \case
+  DefPrim d -> primDefType d
+  DefAST d -> astDefType d
+defAST :: Def -> Maybe ASTDef
+defAST = \case
+  DefPrim _ -> Nothing
+  DefAST t -> Just t
+defPrim :: Def -> Maybe PrimDef
+defPrim = \case
+  DefPrim t -> Just t
+  DefAST _ -> Nothing
 
 {- HLINT ignore "Use newtype instead of data" -}
 data PrimCon

@@ -21,6 +21,9 @@ import Primer.Core (
   ID,
   Kind (KFun, KType),
   Type' (..),
+  defID,
+  defName,
+  defType,
   typeDefNameHints,
  )
 import Primer.Name (Name, unName, unsafeMkName)
@@ -67,7 +70,7 @@ variablesInScopeExpr ::
   ([(Name, Kind)], [(Name, Type' ())], [(ID, Name, Type' ())])
 variablesInScopeExpr defs exprOrTy =
   let locals = either extractLocalsExprZ extractLocalsTypeZ exprOrTy
-      globals = Map.elems $ fmap (\(Def id_ n _ ty) -> (id_, n, forgetMetadata ty)) defs
+      globals = Map.elems $ fmap (\d -> (defID d, defName d, forgetMetadata $ defType d)) defs
       M tyvars tmvars globs = locals <> M [] [] globals
    in (reverse tyvars, reverse tmvars, globs) -- keep most-global first
 

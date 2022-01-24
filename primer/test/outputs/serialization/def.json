@@ -1,5 +1,5 @@
 {
-    "defExpr": {
+    "astDefExpr": {
         "contents": [
             0,
             {
@@ -13,9 +13,9 @@
         ],
         "tag": "EmptyHole"
     },
-    "defID": 1,
-    "defName": "main",
-    "defType": {
+    "astDefID": 1,
+    "astDefName": "main",
+    "astDefType": {
         "contents": [
             0,
             {

@@ -39,6 +39,7 @@ module Primer.App (
   EvalResp (..),
   EvalFullReq (..),
   EvalFullResp (..),
+  lookupASTDef,
 ) where
 
 import Foreword
@@ -66,6 +67,7 @@ import Primer.Action (
  )
 
 import Primer.Core (
+  ASTDef (..),
   Def (..),
   Expr,
   Expr' (EmptyHole, Var),
@@ -76,6 +78,8 @@ import Primer.Core (
   Type' (TEmptyHole, TVar),
   TypeDef (..),
   TypeMeta,
+  defAST,
+  defName,
   defaultTypeDefs,
   getID,
   _exprMeta,
@@ -159,7 +163,7 @@ newtype Log = Log {unlog :: [[ProgAction]]}
 -- | Describes what interface element the user has selected.
 -- A definition in the left hand nav bar, and possibly a node in that definition.
 data Selection = Selection
-  { selectedDef :: Def
+  { selectedDef :: ASTDef
   , selectedNode :: Maybe NodeSelection
   }
   deriving (Eq, Show, Generic)
@@ -270,11 +274,11 @@ handleQuestion = \case
 
 focusNode :: MonadError ProgError m => Prog -> ID -> ID -> m (Either (Either ExprZ TypeZ) TypeZip)
 focusNode prog defid nodeid =
-  case Map.lookup defid (progDefs prog) of
+  case lookupASTDef defid (progDefs prog) of
     Nothing -> throwError $ DefNotFound defid
     Just def ->
-      let mzE = locToEither <$> focusOn nodeid (focus $ defExpr def)
-          mzT = focusOnTy nodeid $ focus $ defType def
+      let mzE = locToEither <$> focusOn nodeid (focus $ astDefExpr def)
+          mzT = focusOnTy nodeid $ focus $ astDefType def
        in case fmap Left mzE <|> fmap Right mzT of
             Nothing -> throwError $ ActionError (IDNotFound nodeid)
             Just x -> pure x
@@ -343,16 +347,16 @@ applyProgAction prog mdefID = \case
           Right _ -> pure ()
         pure (prog', Nothing)
   DeleteDef id_ -> throwError $ DefNotFound id_
-  RenameDef id_ nameStr -> case Map.lookup id_ (progDefs prog) of
+  RenameDef id_ nameStr -> case lookupASTDef id_ (progDefs prog) of
     Nothing -> throwError $ DefNotFound id_
     Just def -> do
       let name = unsafeMkName nameStr
-      let existingName = Map.lookupMin $ Map.filter ((== name) . defName) $ progDefs prog
+      let existingName = Map.lookupMin $ Map.filter ((== name) . astDefName) $ Map.mapMaybe defAST $ progDefs prog
       case existingName of
         Just (existingID, _) -> throwError $ DefAlreadyExists name existingID
         Nothing -> do
-          let def' = def{defName = name}
-          let defs = Map.insert (defID def') def' (progDefs prog)
+          let def' = def{astDefName = name}
+          let defs = Map.insert (astDefID def') (DefAST def') (progDefs prog)
           pure (prog{progDefs = defs, progSelection = Just $ Selection def' Nothing}, mdefID)
   CreateDef n -> do
     name <- case n of
@@ -366,8 +370,8 @@ applyProgAction prog mdefID = \case
     id_ <- fresh
     expr <- newExpr
     ty <- newType
-    let def = Def id_ name expr ty
-        defs = Map.insert id_ def (progDefs prog)
+    let def = ASTDef id_ name expr ty
+        defs = Map.insert id_ (DefAST def) (progDefs prog)
     pure (prog{progDefs = defs, progSelection = Just $ Selection def Nothing}, Just id_)
   AddTypeDef td -> do
     runExceptT @TypeError (checkTypeDefs $ progTypes prog <> [TypeDefAST td]) >>= \case
@@ -387,7 +391,7 @@ applyProgAction prog mdefID = \case
       case res of
         Left err -> throwError $ ActionError err
         Right (def', z) -> do
-          let defs = Map.insert (defID def) def' (progDefs prog)
+          let defs = Map.insert (astDefID def) (DefAST def') (progDefs prog)
               meta = bimap (view (position @1) . target) (view _typeMetaLens . target) $ locToEither z
               nodeId = either getID getID meta
           let prog' =
@@ -441,12 +445,12 @@ applyProgAction prog mdefID = \case
     Just i -> (,mdefID) <$> copyPasteBody prog fromIds i setup
 
 -- Look up the definition by its given ID, then run the given action with it
-withDef :: MonadEditApp m => Maybe ID -> Prog -> (Def -> m a) -> m a
+withDef :: MonadEditApp m => Maybe ID -> Prog -> (ASTDef -> m a) -> m a
 withDef mdefID prog f =
   case mdefID of
     Nothing -> throwError NoDefSelected
     Just defid -> do
-      case Map.lookup defid (progDefs prog) of
+      case lookupASTDef defid (progDefs prog) of
         Nothing -> throwError $ DefNotFound defid
         Just def -> f def
 
@@ -561,7 +565,7 @@ newEmptyProg :: Prog
 newEmptyProg =
   let expr = EmptyHole (Meta 1 Nothing Nothing)
       ty = TEmptyHole (Meta 2 Nothing Nothing)
-      def = Def 0 "main" expr ty
+      def = DefAST $ ASTDef 0 "main" expr ty
    in Prog
         { progTypes = []
         , progDefs = Map.singleton 0 def
@@ -645,9 +649,9 @@ copyPasteSig p (fromDefId, fromTyId) toDefId setup = do
   pasted <- case target tgt of
     TEmptyHole _ -> pure $ replace freshCopy tgt
     _ -> throwError $ CopyPasteError "copy/paste setup didn't select an empty hole"
-  let oldDef = progDefs p Map.! toDefId
-  let newDef = oldDef{defType = fromZipper pasted}
-  let newDefs = Map.insert toDefId newDef $ progDefs p
+  oldDef <- maybe (throwError $ DefNotFound toDefId) pure $ lookupASTDef toDefId (progDefs p)
+  let newDef = oldDef{astDefType = fromZipper pasted}
+  let newDefs = Map.insert toDefId (DefAST newDef) $ progDefs p
   let newSel = NodeSelection SigNode (getID $ target pasted) (pasted ^. _target % _typeMetaLens % re _Right)
   let finalProg = p{progDefs = newDefs, progSelection = Just (Selection newDef $ Just newSel)}
   tcWholeProg finalProg
@@ -711,19 +715,19 @@ tcWholeProg :: forall m. MonadEditApp m => Prog -> m Prog
 tcWholeProg p =
   let tc :: ReaderT Cxt (ExceptT ActionError m) Prog
       tc = do
-        defs' <- mapM checkDef (progDefs p)
+        defs' <- mapM (\d -> maybe (pure d) (fmap DefAST . checkDef) $ defAST d) (progDefs p)
         let p' = p{progDefs = defs'}
         -- We need to update the metadata cached in the selection
         let oldSel = progSelection p
         newSel <- case oldSel of
           Nothing -> pure Nothing
           Just s -> do
-            let defID = s ^. #selectedDef % #defID
-                updatedDef = defs' Map.! defID
+            let defID_ = s ^. #selectedDef % #astDefID
+            updatedDef <- maybe (throwError $ IDNotFound defID_) pure $ lookupASTDef defID_ defs'
             updatedNode <- case s ^. #selectedNode of
               Nothing -> pure Nothing
               Just NodeSelection{nodeType, nodeId} -> do
-                n <- runExceptT $ focusNode p' defID nodeId
+                n <- runExceptT $ focusNode p' defID_ nodeId
                 case (nodeType, n) of
                   (BodyNode, Right (Left x)) -> pure $ Just $ NodeSelection BodyNode nodeId $ bimap (view (position @1) . target) (view _typeMetaLens . target) x
                   (SigNode, Right (Right x)) -> pure $ Just $ NodeSelection SigNode nodeId $ x ^. _target % _typeMetaLens % re _Right
@@ -773,9 +777,9 @@ copyPasteBody p (fromDefId, fromId) toDefId setup = do
       pasted <- case target tgtT of
         TEmptyHole _ -> pure $ replace freshCopy tgtT
         _ -> throwError $ CopyPasteError "copy/paste setup didn't select an empty hole"
-      let oldDef = progDefs p Map.! toDefId
-      let newDef = oldDef{defExpr = unfocusExpr $ unfocusType pasted}
-      let newDefs = Map.insert toDefId newDef $ progDefs p
+      oldDef <- maybe (throwError $ DefNotFound toDefId) pure $ lookupASTDef toDefId (progDefs p)
+      let newDef = oldDef{astDefExpr = unfocusExpr $ unfocusType pasted}
+      let newDefs = Map.insert toDefId (DefAST newDef) $ progDefs p
       let newSel = NodeSelection BodyNode (getID $ target pasted) (pasted ^. _target % _typeMetaLens % re _Right)
       let finalProg = p{progDefs = newDefs, progSelection = Just (Selection newDef $ Just newSel)}
       tcWholeProg finalProg
@@ -827,9 +831,12 @@ copyPasteBody p (fromDefId, fromId) toDefId setup = do
       pasted <- case target tgtE of
         EmptyHole _ -> pure $ replace freshCopy tgtE
         _ -> throwError $ CopyPasteError "copy/paste setup didn't select an empty hole"
-      let oldDef = progDefs p Map.! toDefId
-      let newDef = oldDef{defExpr = unfocusExpr pasted}
-      let newDefs = Map.insert toDefId newDef $ progDefs p
+      oldDef <- maybe (throwError $ DefNotFound toDefId) pure $ lookupASTDef toDefId (progDefs p)
+      let newDef = oldDef{astDefExpr = unfocusExpr pasted}
+      let newDefs = Map.insert toDefId (DefAST newDef) $ progDefs p
       let newSel = NodeSelection BodyNode (getID $ target pasted) (pasted ^. _target % _exprMetaLens % re _Left)
       let finalProg = p{progDefs = newDefs, progSelection = Just (Selection newDef $ Just newSel)}
       tcWholeProg finalProg
+
+lookupASTDef :: ID -> Map ID Def -> Maybe ASTDef
+lookupASTDef id = defAST <=< Map.lookup id

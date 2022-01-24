@@ -35,6 +35,7 @@ import qualified Data.Map.Strict as Map
 import qualified Data.Text as T
 import Optics (set, (%), (?~))
 import Primer.Core (
+  ASTDef (..),
   ASTTypeDef (..),
   Def (..),
   Expr,
@@ -47,6 +48,7 @@ import Primer.Core (
   TypeCacheBoth (..),
   TypeDef (..),
   bindName,
+  defName,
   getID,
   valConArgs,
   valConName,
@@ -404,20 +406,20 @@ applyActionsToTypeSig ::
   SmartHoles ->
   [TypeDef] ->
   Map ID Def ->
-  Def ->
+  ASTDef ->
   [Action] ->
-  m (Either ActionError (Def, Map ID Def, TypeZ))
+  m (Either ActionError (ASTDef, Map ID Def, TypeZ))
 applyActionsToTypeSig smartHoles typeDefs defs def actions =
   runReaderT go (buildTypingContext typeDefs defs smartHoles)
     & runExceptT
   where
-    go :: ActionM m => m (Def, Map ID Def, TypeZ)
+    go :: ActionM m => m (ASTDef, Map ID Def, TypeZ)
     go = do
-      zt <- withWrappedType (defType def) (\zt -> foldM (flip applyActionAndSynth) (InType zt) actions)
+      zt <- withWrappedType (astDefType def) (\zt -> foldM (flip applyActionAndSynth) (InType zt) actions)
       let t = target (top zt)
-      e <- check (forgetTypeIDs t) (defExpr def)
-      let def' = def{defExpr = exprTtoExpr e, defType = t}
-          defs' = Map.insert (defID def) def' defs
+      e <- check (forgetTypeIDs t) (astDefExpr def)
+      let def' = def{astDefExpr = exprTtoExpr e, astDefType = t}
+          defs' = Map.insert (astDefID def) (DefAST def') defs
       -- The actions were applied to the type successfully, and the definition body has been
       -- typechecked against the new type.
       -- Now we need to typecheck the whole program again, to check any uses of the definition
@@ -452,21 +454,21 @@ applyActionsToBody ::
   SmartHoles ->
   [TypeDef] ->
   Map ID Def ->
-  Def ->
+  ASTDef ->
   [Action] ->
-  m (Either ActionError (Def, Loc))
+  m (Either ActionError (ASTDef, Loc))
 applyActionsToBody sh typeDefs defs def actions =
   go
     & flip runReaderT (buildTypingContext typeDefs defs sh)
     & runExceptT
   where
-    go :: ActionM m => m (Def, Loc)
+    go :: ActionM m => m (ASTDef, Loc)
     go = do
-      ze <- foldM (flip (applyActionAndCheck (defType def))) (focusLoc (defExpr def)) actions
+      ze <- foldM (flip (applyActionAndCheck (astDefType def))) (focusLoc (astDefExpr def)) actions
       let targetID = getID ze
           e = unfocus ze
-      e' <- exprTtoExpr <$> check (forgetTypeIDs (defType def)) e
-      let def' = def{defExpr = e'}
+      e' <- exprTtoExpr <$> check (forgetTypeIDs (astDefType def)) e
+      let def' = def{astDefExpr = e'}
       case focusOn targetID (focus e') of
         Nothing -> throwError $ InternalFailure "lost ID after typechecking"
         Just z -> pure (def', z)

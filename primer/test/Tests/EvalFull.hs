@@ -144,9 +144,9 @@ unit_8 =
         let mkList t = foldr (\x xs -> con "Cons" `aPP` t `app` x `app` xs) (con "Nil" `aPP` t)
         let lst = mkList (tcon "Nat") $ take n $ iterate (con "Succ" `app`) (con "Zero")
         expr <- global mapID `aPP` tcon "Nat" `aPP` tcon "Bool" `app` global evenID `app` lst
-        let mapDef = Def mapID "map" map_ mapTy
-        let evenDef = Def evenID "even" isEven evenTy
-        let oddDef = Def oddID "odd" isOdd oddTy
+        let mapDef = DefAST $ ASTDef mapID "map" map_ mapTy
+        let evenDef = DefAST $ ASTDef evenID "even" isEven evenTy
+        let oddDef = DefAST $ ASTDef oddID "odd" isOdd oddTy
         let globs = [(mapID, mapDef), (evenID, evenDef), (oddID, oddDef)]
         expect <- mkList (tcon "Bool") (take n $ cycle [con "True", con "False"]) `ann` (tcon "List" `tapp` tcon "Bool")
         pure (globs, expr, expect)
@@ -184,9 +184,9 @@ unit_9 =
         let mkList t = foldr (\x xs -> con "Cons" `aPP` t `app` x `app` xs) (con "Nil" `aPP` t)
         let lst = mkList (tcon "Nat") $ take n $ iterate (con "Succ" `app`) (con "Zero")
         expr <- global mapID `aPP` tcon "Nat" `aPP` tcon "Bool" `app` global evenID `app` lst
-        let mapDef = Def mapID "map" map_ mapTy
-        let evenDef = Def evenID "even" isEven evenTy
-        let oddDef = Def oddID "odd" isOdd oddTy
+        let mapDef = DefAST $ ASTDef mapID "map" map_ mapTy
+        let evenDef = DefAST $ ASTDef evenID "even" isEven evenTy
+        let oddDef = DefAST $ ASTDef oddID "odd" isOdd oddTy
         let globs = [(mapID, mapDef), (evenID, evenDef), (oddID, oddDef)]
         expect <- mkList (tcon "Bool") (take n $ cycle [con "True", con "False"]) `ann` (tcon "List" `tapp` tcon "Bool")
         pure (globs, expr, expect)
@@ -246,8 +246,8 @@ unit_11 =
                 lam "n" (con "MakePair" `aPP` tcon "Bool" `aPP` tcon "Nat" `app` (global evenID `app` var "n") `app` var "x")
                   `ann` ty
         expr <- expr1 `app` con "Zero"
-        let evenDef = Def evenID "even" isEven evenTy
-        let oddDef = Def oddID "odd" isOdd oddTy
+        let evenDef = DefAST $ ASTDef evenID "even" isEven evenTy
+        let oddDef = DefAST $ ASTDef oddID "odd" isOdd oddTy
         let globs = [(evenID, evenDef), (oddID, oddDef)]
         expect <-
           (con "MakePair" `aPP` tcon "Bool" `aPP` tcon "Nat" `app` con "True" `app` con "Zero")
@@ -580,7 +580,7 @@ genDirTmGlobs = do
   t <- generateIDs t'
   globTypes <- asks globalCxt
   let genDef i (n, defTy) =
-        (\ty' e -> Def{defID = i, defName = n, defType = ty', defExpr = e})
+        (\ty' e -> DefAST ASTDef{astDefID = i, astDefName = n, astDefType = ty', astDefExpr = e})
           <$> generateTypeIDs defTy <*> (generateIDs =<< genChk defTy)
   globs <- forAllT $ M.traverseWithKey genDef globTypes
   pure (dir, t, ty, globs)

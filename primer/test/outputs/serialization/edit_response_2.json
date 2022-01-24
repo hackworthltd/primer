@@ -2,32 +2,35 @@
     "Right": {
         "progDefs": {
             "1": {
-                "defExpr": {
-                    "contents": [
-                        0,
-                        {
-                            "contents": {
-                                "contents": [],
-                                "tag": "TEmptyHole"
+                "contents": {
+                    "astDefExpr": {
+                        "contents": [
+                            0,
+                            {
+                                "contents": {
+                                    "contents": [],
+                                    "tag": "TEmptyHole"
+                                },
+                                "tag": "TCSynthed"
                             },
-                            "tag": "TCSynthed"
-                        },
-                        null
-                    ],
-                    "tag": "EmptyHole"
+                            null
+                        ],
+                        "tag": "EmptyHole"
+                    },
+                    "astDefID": 1,
+                    "astDefName": "main",
+                    "astDefType": {
+                        "contents": [
+                            0,
+                            {
+                                "tag": "KType"
+                            },
+                            null
+                        ],
+                        "tag": "TEmptyHole"
+                    }
                 },
-                "defID": 1,
-                "defName": "main",
-                "defType": {
-                    "contents": [
-                        0,
-                        {
-                            "tag": "KType"
-                        },
-                        null
-                    ],
-                    "tag": "TEmptyHole"
-                }
+                "tag": "DefAST"
             }
         },
         "progLog": {
@@ -49,7 +52,7 @@
         },
         "progSelection": {
             "selectedDef": {
-                "defExpr": {
+                "astDefExpr": {
                     "contents": [
                         0,
                         {
@@ -63,9 +66,9 @@
                     ],
                     "tag": "EmptyHole"
                 },
-                "defID": 1,
-                "defName": "main",
-                "defType": {
+                "astDefID": 1,
+                "astDefName": "main",
+                "astDefType": {
                     "contents": [
                         0,
                         {

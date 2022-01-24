@@ -24,6 +24,7 @@ import Primer.App (
   Selection (..),
  )
 import Primer.Core (
+  ASTDef (..),
   ASTTypeDef (..),
   Def (..),
   Expr,
@@ -88,8 +89,8 @@ fixtures =
       expr = EmptyHole exprMeta
       log :: Log
       log = Log [[BodyAction [Move Child1]]]
-      def :: Def
-      def = Def{defID = 1, defName = "main", defExpr = expr, defType = TEmptyHole typeMeta}
+      def :: ASTDef
+      def = ASTDef{astDefID = 1, astDefName = "main", astDefExpr = expr, astDefType = TEmptyHole typeMeta}
       typeDef :: TypeDef
       typeDef =
         TypeDefAST
@@ -106,7 +107,7 @@ fixtures =
       prog =
         Prog
           { progTypes = [typeDef]
-          , progDefs = Map.singleton 1 def
+          , progDefs = Map.singleton 1 (DefAST def)
           , progSelection = Just selection
           , progSmartHoles = SmartHoles
           , progLog = log

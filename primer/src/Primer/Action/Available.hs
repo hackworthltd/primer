@@ -34,6 +34,7 @@ import Primer.Action (
  )
 import qualified Primer.Action.Priorities as P
 import Primer.Core (
+  ASTDef (..),
   Bind' (..),
   CaseBranch' (..),
   Def (..),
@@ -71,7 +72,7 @@ actionsForDef ::
   Level ->
   -- | only used to generate a unique name for a duplicate definition
   Map ID Def ->
-  Def ->
+  ASTDef ->
   [OfferedAction [ProgAction]]
 actionsForDef l defs def =
   [ OfferedAction
@@ -82,7 +83,7 @@ actionsForDef l defs def =
             ChooseOrEnterName
               ("Enter a new " <> nameString <> " for the definition")
               []
-              (\name -> [RenameDef (defID def) (unName name)])
+              (\name -> [RenameDef (astDefID def) (unName name)])
       , priority = P.rename l
       , actionType = Primary
       }
@@ -90,15 +91,15 @@ actionsForDef l defs def =
       { name = Prose "d"
       , description = "Duplicate this definition"
       , input =
-          let sigID = defType def ^. _typeMetaLens % _id
+          let sigID = astDefType def ^. _typeMetaLens % _id
 
-              bodyID = defExpr def ^. _exprMetaLens % _id
+              bodyID = astDefExpr def ^. _exprMetaLens % _id
 
-              copyName = uniquifyDefName (unName (defName def) <> "Copy") defs
+              copyName = uniquifyDefName (unName (astDefName def) <> "Copy") defs
            in NoInputRequired
                 [ CreateDef (Just copyName)
-                , CopyPasteSig (defID def, sigID) []
-                , CopyPasteBody (defID def, bodyID) []
+                , CopyPasteSig (astDefID def, sigID) []
+                , CopyPasteBody (astDefID def, bodyID) []
                 ]
       , priority = P.duplicate l
       , actionType = Primary
@@ -106,7 +107,7 @@ actionsForDef l defs def =
   , OfferedAction
       { name = Prose "⌫"
       , description = "Delete this definition"
-      , input = NoInputRequired [DeleteDef $ defID def]
+      , input = NoInputRequired [DeleteDef $ astDefID def]
       , priority = P.delete l
       , actionType = Destructive
       }
@@ -115,18 +116,18 @@ actionsForDef l defs def =
 -- | Given the body of a Def and the ID of a node in it, return the possible actions that can be applied to it
 actionsForDefBody ::
   Level ->
-  Def ->
+  ASTDef ->
   ID ->
   Expr ->
   [OfferedAction [ProgAction]]
 actionsForDefBody l def id expr =
-  let toProgAction actions = [MoveToDef (defID def), BodyAction actions]
+  let toProgAction actions = [MoveToDef (astDefID def), BodyAction actions]
 
       raiseAction' =
         OfferedAction
           { name = Prose "↑"
           , description = "Replace parent with this subtree"
-          , input = NoInputRequired [MoveToDef (defID def), CopyPasteBody (defID def, id) [SetCursor id, Move Parent, Delete]]
+          , input = NoInputRequired [MoveToDef (astDefID def), CopyPasteBody (astDefID def, id) [SetCursor id, Move Parent, Delete]]
           , priority = P.raise l
           , actionType = Destructive
           }
@@ -137,42 +138,42 @@ actionsForDefBody l def id expr =
                 Nothing -> [] -- at root already, cannot raise
                 Just (ExprNode (Hole _ _)) -> [] -- in a NE hole, don't offer raise (as hole will probably just be recreated)
                 _ -> [raiseAction']
-           in (toProgAction <<$>> basicActionsForExpr l (defID def) e) <> raiseAction
+           in (toProgAction <<$>> basicActionsForExpr l (astDefID def) e) <> raiseAction
         Just (TypeNode t, p) ->
           let raiseAction = case p of
                 Just (ExprNode _) -> [] -- at the root of an annotation, so cannot raise
                 _ -> [raiseAction']
            in ( toProgAction
-                  <<$>> (basicActionsForType l (defID def) t <> compoundActionsForType l t)
+                  <<$>> (basicActionsForType l (astDefID def) t <> compoundActionsForType l t)
               )
                 <> raiseAction
-        Just (CaseBindNode b, _) -> toProgAction <<$>> actionsForBinding l (defID def) b
+        Just (CaseBindNode b, _) -> toProgAction <<$>> actionsForBinding l (astDefID def) b
 
 -- | Given a Type and the ID of a node in it, return the possible actions that can be applied to it
 actionsForDefSig ::
   Level ->
-  Def ->
+  ASTDef ->
   ID ->
   Type ->
   [OfferedAction [ProgAction]]
 actionsForDefSig l def id ty =
-  let toProgAction actions = [MoveToDef (defID def), SigAction actions]
+  let toProgAction actions = [MoveToDef (astDefID def), SigAction actions]
 
       raiseAction =
         [ OfferedAction
           { name = Prose "↑"
           , description = "Replace parent with this subtree"
-          , input = NoInputRequired [MoveToDef (defID def), CopyPasteSig (defID def, id) [SetCursor id, Move Parent, Delete]]
+          , input = NoInputRequired [MoveToDef (astDefID def), CopyPasteSig (astDefID def, id) [SetCursor id, Move Parent, Delete]]
           , priority = P.raise l
           , actionType = Destructive
           }
-        | id /= defType def ^. _typeMetaLens % _id
+        | id /= astDefType def ^. _typeMetaLens % _id
         ]
    in case findType id ty of
         Nothing -> mempty
         Just t ->
           ( toProgAction
-              <<$>> (basicActionsForType l (defID def) t <> compoundActionsForType l t)
+              <<$>> (basicActionsForType l (astDefID def) t <> compoundActionsForType l t)
           )
             <> raiseAction
 
