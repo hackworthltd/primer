@@ -5,6 +5,7 @@ import Foreword hiding (unlines)
 import Control.Monad.Fresh (fresh)
 import Data.Generics.Uniplate.Data (universe)
 import Data.List ((\\))
+import Data.Map ((!))
 import qualified Data.Map as M
 import qualified Data.Set as S
 import Data.String (unlines)
@@ -27,6 +28,7 @@ import Primer.Typecheck (
  )
 import Test.Tasty.HUnit (Assertion, assertBool, assertFailure, (@?=))
 import TestM
+import TestUtils (withPrimDefs)
 import Tests.Gen.Core.Typed (checkTest)
 
 unit_1 :: Assertion
@@ -445,34 +447,41 @@ hprop_type_preservation = withTests 1000 $
 
 unit_prim_toUpper :: Assertion
 unit_prim_toUpper =
-  let ((e, r), maxID) = create $ (,) <$> app (var "toUpper") (char 'a') <*> char 'A'
-      s = evalFullTest maxID mempty mempty 10 Syn e
+  let ((e, r, gs), maxID) =
+        create . withPrimDefs $ \defs globals ->
+          (,,)
+            <$> app (global (defs ! "toUpper")) (char 'a')
+            <*> char 'A'
+            <*> pure (DefPrim <$> globals)
+      s = evalFullTest maxID mempty gs 10 Syn e
    in do
         distinctIDs s
         s <~==> Right r
 
 unit_prim_isSpace_1 :: Assertion
 unit_prim_isSpace_1 =
-  let ((e, r), maxID) =
-        create $
-          (,)
-            <$> var "isSpace"
+  let ((e, r, gs), maxID) =
+        create . withPrimDefs $ \defs globals ->
+          (,,)
+            <$> global (defs ! "isSpace")
               `app` char '\n'
-              <*> con "True"
-      s = evalFullTest maxID mempty mempty 2 Syn e
+            <*> con "True"
+            <*> pure (DefPrim <$> globals)
+      s = evalFullTest maxID mempty gs 2 Syn e
    in do
         distinctIDs s
         s <~==> Right r
 
 unit_prim_isSpace_2 :: Assertion
 unit_prim_isSpace_2 =
-  let ((e, r), maxID) =
-        create $
-          (,)
-            <$> var "isSpace"
+  let ((e, r, gs), maxID) =
+        create . withPrimDefs $ \defs globals ->
+          (,,)
+            <$> global (defs ! "isSpace")
               `app` char 'a'
-              <*> con "False"
-      s = evalFullTest maxID mempty mempty 2 Syn e
+            <*> con "False"
+            <*> pure (DefPrim <$> globals)
+      s = evalFullTest maxID mempty gs 2 Syn e
    in do
         distinctIDs s
         s <~==> Right r
@@ -481,73 +490,77 @@ hprop_prim_hex_nat :: Property
 hprop_prim_hex_nat = withTests 20 . property $ do
   n <- forAllT $ Gen.integral $ Range.linear 0 50
   let ne = nat n
-      ((e, r), maxID) =
+      ((e, r, gs), maxID) =
         if n <= 15
-          then
-            create $
-              (,)
-                <$> case_
-                  ( var "natToHex"
-                      `app` ne
-                  )
-                  [ branch
-                      "Nothing"
-                      []
-                      (con "Nothing")
-                  , branch
-                      "Just"
-                      [("x", Nothing)]
-                      ( var "hexToNat"
-                          `app` var "x"
-                      )
-                  ]
-                <*> (con "Just" `aPP` tcon "Nat")
-                  `app` ne
-          else
-            create $
-              (,)
-                <$> var "natToHex"
-                  `app` ne
-                <*> con "Nothing"
-                  `aPP` tcon "Char"
-      s = evalFullTest maxID (mkTypeDefMap defaultTypeDefs) mempty 7 Syn e
+          then create . withPrimDefs $ \defs globals ->
+            (,,)
+              <$> case_
+                ( global (defs ! "natToHex")
+                    `app` ne
+                )
+                [ branch
+                    "Nothing"
+                    []
+                    (con "Nothing")
+                , branch
+                    "Just"
+                    [("x", Nothing)]
+                    ( global (defs ! "hexToNat")
+                        `app` var "x"
+                    )
+                ]
+              <*> (con "Just" `aPP` tcon "Nat")
+                `app` ne
+              <*> pure (DefPrim <$> globals)
+          else create . withPrimDefs $ \defs globals ->
+            (,,)
+              <$> global (defs ! "natToHex")
+                `app` ne
+              <*> con "Nothing"
+                `aPP` tcon "Char"
+              <*> pure (DefPrim <$> globals)
+      s = evalFullTest maxID (mkTypeDefMap defaultTypeDefs) gs 7 Syn e
   set _ids' 0 s === set _ids' 0 (Right r)
 
 unit_prim_char_eq_1 :: Assertion
 unit_prim_char_eq_1 =
-  let ((e, r), maxID) =
-        create $
-          (,)
-            <$> var "eqChar"
+  let ((e, r, gs), maxID) =
+        create . withPrimDefs $ \defs globals ->
+          (,,)
+            <$> global (defs ! "eqChar")
               `app` char 'a'
               `app` char 'a'
-              <*> con "True"
-      s = evalFullTest maxID mempty mempty 2 Syn e
+            <*> con "True"
+            <*> pure (DefPrim <$> globals)
+      s = evalFullTest maxID mempty gs 2 Syn e
    in do
         distinctIDs s
         s <~==> Right r
 
 unit_prim_char_eq_2 :: Assertion
 unit_prim_char_eq_2 =
-  let ((e, r), maxID) =
-        create $
-          (,)
-            <$> var "eqChar"
+  let ((e, r, gs), maxID) =
+        create . withPrimDefs $ \defs globals ->
+          (,,)
+            <$> global (defs ! "eqChar")
               `app` char 'a'
               `app` char 'A'
-              <*> con "False"
-      s = evalFullTest maxID mempty mempty 2 Syn e
+            <*> con "False"
+            <*> pure (DefPrim <$> globals)
+      s = evalFullTest maxID mempty gs 2 Syn e
    in do
         distinctIDs s
         s <~==> Right r
 
 unit_prim_char_partial :: Assertion
 unit_prim_char_partial =
-  let (e, maxID) =
-        create $
-          var "eqChar"
-            `app` char 'a'
-      s = evalFullTest maxID mempty mempty 1 Syn e
+  let ((e, gs), maxID) =
+        create . withPrimDefs $ \defs globals ->
+          (,)
+            <$> global (defs ! "eqChar")
+              `app` char 'a'
+            <*> pure (DefPrim <$> globals)
+      s = evalFullTest maxID mempty gs 1 Syn e
    in do
         distinctIDs s
         s <~==> Right e

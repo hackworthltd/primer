@@ -77,7 +77,6 @@ import Primer.Core (
   Kind (..),
   Meta (..),
   PrimCon (..),
-  PrimFun (..),
   Type' (..),
   TypeCache (..),
   TypeCacheBoth (..),
@@ -98,11 +97,10 @@ import Primer.Core (
   _exprTypeMeta,
   _typeMeta,
  )
-import Primer.Core.DSL (branch, create, emptyHole, meta, meta')
+import Primer.Core.DSL (branch, emptyHole, meta, meta')
 import Primer.Core.Utils (forgetTypeIDs, generateTypeIDs)
 import Primer.JSON (CustomJSON (CustomJSON), FromJSON, ToJSON, VJSON)
 import Primer.Name (Name, NameCounter, freshName)
-import Primer.Primitives (globalPrims)
 import Primer.Subst (alphaEqTy, substTy)
 
 -- | Typechecking takes as input an Expr with 'Maybe Type' annotations and
@@ -204,7 +202,7 @@ initialCxt sh =
   Cxt
     { smartHoles = sh
     , typeDefs = mempty
-    , localCxt = T . set _typeMeta () . fst . create . primFunType <$> globalPrims
+    , localCxt = mempty
     , globalCxt = mempty
     }
 

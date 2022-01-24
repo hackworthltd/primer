@@ -317,6 +317,7 @@ data Def = Def
   , name :: Name
   , type_ :: Tree
   , term :: Maybe Tree
+  -- ^ definitions with no associated tree are primitives
   }
   deriving (Generic)
 

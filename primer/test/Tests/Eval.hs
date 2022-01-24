@@ -1,7 +1,10 @@
+{-# LANGUAGE TupleSections #-}
+
 module Tests.Eval where
 
 import Foreword
 
+import Data.Map ((!))
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 import Optics (over, (^.))
@@ -36,9 +39,11 @@ import Primer.Eval (
   tryReduceExpr,
   tryReduceType,
  )
+import Primer.Name (Name)
 import Primer.Zipper (target)
 import Test.Tasty.HUnit (Assertion, assertBool, assertFailure, (@?=))
 import TestM (evalTestM)
+import TestUtils (withPrimDefs)
 
 -- * 'tryReduce' tests
 
@@ -506,12 +511,13 @@ unit_tryReduce_case_no_matching_branch = do
 
 unit_tryReduce_prim :: Assertion
 unit_tryReduce_prim = do
-  let ((expr, expectedResult), i) =
-        create $
-          (,)
-            <$> var "eqChar" `app` char 'a' `app` char 'a'
+  let ((expr, expectedResult, globals), i) =
+        create . withPrimDefs $ \defs m ->
+          (,,)
+            <$> global (defs ! "eqChar") `app` char 'a' `app` char 'a'
             <*> con "True"
-      result = runTryReduce mempty mempty (expr, i)
+            <*> pure m
+      result = runTryReduce (DefPrim <$> globals) mempty (expr, i)
   case result of
     Right (expr', ApplyPrimFun detail) -> do
       expr' ~= expectedResult
@@ -519,7 +525,7 @@ unit_tryReduce_prim = do
       applyPrimFunBefore detail ~= expr
       applyPrimFunAfter detail ~= expr'
       applyPrimFunName detail @?= "eqChar"
-      applyPrimFunArgIDs detail @?= [3, 4]
+      applyPrimFunArgIDs detail @?= [29, 30]
     _ -> assertFailure $ show result
 
 -- * 'findNodeByID' tests
@@ -621,7 +627,12 @@ unit_findNodeByID_2 = do
 
 -- | A helper for these tests
 redexesOf :: S Expr -> Set ID
-redexesOf = redexes . fst . create
+redexesOf = redexes mempty . fst . create
+
+-- | A variation of 'redexesOf' for when the expression tested requires primitives to be in scope.
+-- Also provides a Map for looking up primitives' ids by name.
+redexesOfWithPrims :: (Map Name ID -> S Expr) -> Set ID
+redexesOfWithPrims x = uncurry redexes $ fst $ create $ withPrimDefs $ \defs globals -> (globals,) <$> x defs
 
 unit_redexes_con :: Assertion
 unit_redexes_con = redexesOf (con "C") @?= mempty
@@ -751,15 +762,15 @@ unit_redexes_case_5 =
 
 unit_redexes_prim_1 :: Assertion
 unit_redexes_prim_1 =
-  redexesOf (var "eqChar" `app` char 'a' `app` char 'b') @?= Set.fromList [0]
+  redexesOfWithPrims (\defs -> global (defs ! "eqChar") `app` char 'a' `app` char 'b') @?= Set.fromList [26]
 
 unit_redexes_prim_2 :: Assertion
 unit_redexes_prim_2 =
-  redexesOf (var "eqChar" `app` var "a" `app` char 'b') @?= Set.empty
+  redexesOfWithPrims (\defs -> global (defs ! "eqChar") `app` var "a" `app` char 'b') @?= Set.empty
 
 unit_redexes_prim_3 :: Assertion
 unit_redexes_prim_3 =
-  redexesOf (var "eqChar" `app` char 'a') @?= Set.empty
+  redexesOfWithPrims (\defs -> global (defs ! "eqChar") `app` char 'a') @?= Set.empty
 
 -- * Misc helpers
 

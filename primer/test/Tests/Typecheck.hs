@@ -1,9 +1,12 @@
+{-# LANGUAGE TupleSections #-}
+
 -- | Tests for the typechecker
 module Tests.Typecheck where
 
 import Foreword
 
 import Control.Monad.Fresh (MonadFresh)
+import Data.Map ((!))
 import Gen.Core.Raw (
   evalExprGen,
   genName,
@@ -15,6 +18,7 @@ import qualified Hedgehog.Range as Range
 import Optics (over, set)
 import Primer.Core (
   ASTTypeDef (..),
+  Def (..),
   Expr,
   Expr',
   ID,
@@ -40,7 +44,7 @@ import Primer.Core (
   _typeMeta,
  )
 import Primer.Core.DSL
-import Primer.Name (NameCounter)
+import Primer.Name (Name, NameCounter)
 import Primer.Typecheck (
   Cxt,
   ExprT,
@@ -54,6 +58,7 @@ import Primer.Typecheck (
  )
 import Test.Tasty.HUnit (Assertion, assertFailure, (@?=))
 import TestM (TestM, evalTestM)
+import TestUtils (withPrimDefs)
 
 unit_identity :: Assertion
 unit_identity =
@@ -437,17 +442,22 @@ unit_prim_char =
 
 unit_prim_fun :: Assertion
 unit_prim_fun =
-  expectTyped $ ann (var "hexToNat") (tfun (tcon "Char") (tapp (tcon "Maybe") (tcon "Nat")))
+  expectTypedWithPrims $ \m -> ann (global (m ! "hexToNat")) (tfun (tcon "Char") (tapp (tcon "Maybe") (tcon "Nat")))
 
 unit_prim_fun_applied :: Assertion
 unit_prim_fun_applied =
-  expectTyped $ ann (app (var "hexToNat") (char 'a')) (tapp (tcon "Maybe") (tcon "Nat"))
+  expectTypedWithPrims $ \m -> ann (app (global (m ! "hexToNat")) (char 'a')) (tapp (tcon "Maybe") (tcon "Nat"))
 
 -- * Helpers
 
 expectTyped :: TypecheckTestM Expr -> Assertion
 expectTyped m =
   case runTypecheckTestM NoSmartHoles (m >>= synth) of
+    Left err -> assertFailure $ show err
+    Right _ -> pure ()
+expectTypedWithPrims :: (Map Name ID -> TypecheckTestM Expr) -> Assertion
+expectTypedWithPrims m =
+  case runTypecheckTestMWithPrims NoSmartHoles (m >=> synth) of
     Left err -> assertFailure $ show err
     Right _ -> pure ()
 
@@ -517,6 +527,10 @@ newtype TypecheckTestM a = TypecheckTestM {unTypecheckTestM :: ExceptT TypeError
 
 runTypecheckTestM :: SmartHoles -> TypecheckTestM a -> Either TypeError a
 runTypecheckTestM sh = evalTestM 0 . flip runReaderT (buildTypingContext testingTypeDefs mempty sh) . runExceptT . unTypecheckTestM
+runTypecheckTestMWithPrims :: SmartHoles -> (Map Name ID -> TypecheckTestM a) -> Either TypeError a
+runTypecheckTestMWithPrims sh = evalTestM n . flip runReaderT (buildTypingContext testingTypeDefs defs sh) . runExceptT . unTypecheckTestM . ($ globals)
+  where
+    ((defs, globals), n) = create $ withPrimDefs $ \m1 m2 -> pure $ (,m1) $ DefPrim <$> m2
 
 testingTypeDefs :: [TypeDef]
 testingTypeDefs = TypeDefAST maybeTDef : defaultTypeDefs

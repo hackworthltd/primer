@@ -55,7 +55,8 @@ import Primer.Core (
   ExprMeta,
   ID,
   Kind,
-  PrimFun (PrimFun, primFunDef, primFunType),
+  PrimDef (..),
+  PrimFun (..),
   Type,
   Type' (
     TApp,
@@ -71,7 +72,7 @@ import Primer.Core (
   bindName,
   _typeMeta,
  )
-import Primer.Core.DSL (ann, create, letType, let_, letrec, tvar, var)
+import Primer.Core.DSL (ann, letType, let_, letrec, tvar, var)
 import Primer.Core.Transform (unfoldAPP, unfoldApp, unfoldFun)
 import Primer.Core.Utils (generateTypeIDs, noHoles)
 import Primer.Eval (regenerateExprIDs, regenerateTypeIDs)
@@ -284,9 +285,10 @@ viewRedex tydefs globals dir = \case
   GlobalVar _ x | Just (DefAST y) <- x `M.lookup` globals -> pure $ pure $ InlineGlobal x y
   App _ (Ann _ (Lam _ x t) (TFun _ src tgt)) s -> pure $ pure $ Beta x t src tgt s
   e@App{}
-    | (Var _ fName, args) <- unfoldApp e
-    , Just f@PrimFun{primFunType} <- M.lookup fName globalPrims
-    , TFun _ lhs rhs <- fst $ create primFunType
+    | (GlobalVar _ id_, args) <- unfoldApp e
+    , Just (DefPrim d) <- M.lookup id_ globals
+    , TFun _ lhs rhs <- primDefType d
+    , Just f <- M.lookup (primDefName d) globalPrims
     , length args == length (fst $ unfoldFun lhs rhs)
     , all isNormalForm args ->
         pure $ pure $ ApplyPrimFun f args
