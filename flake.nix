@@ -145,7 +145,8 @@
             postgresVolume = "postgres-primer";
             postgresContainer = "postgres-primer";
             postgresPassword = "primer-dev";
-            postgresUrl = "postgres://postgres:${postgresPassword}@localhost:5432/primer";
+            postgresBaseUrl = "postgres://postgres:${postgresPassword}@localhost:5432";
+            postgresPrimerUrl = "${postgresBaseUrl}/primer";
 
             create-postgresql-container = final.writeShellApplication {
               name = "create-postgresql-container";
@@ -180,13 +181,29 @@
               '';
             };
 
+            restore-local-db = final.writeShellApplication {
+              name = "restore-local-db";
+              runtimeInputs = with final; [
+                postgresql
+              ];
+              text = ''
+                if [[ $# -ne 1 ]]; then
+                  echo "usage: restore-local-db db.sql" >&2
+                  exit 2
+                fi
+                psql ${postgresBaseUrl} --command="DROP DATABASE primer;" || true
+                psql ${postgresBaseUrl} --command="CREATE DATABASE primer;"
+                psql ${postgresPrimerUrl} < "$1"
+              '';
+            };
+
             run-primer = final.writeShellApplication {
               name = "run-primer";
               runtimeInputs = with final; [
                 primer-service
               ];
               text = ''
-                DATABASE_URL="${postgresUrl}"
+                DATABASE_URL="${postgresPrimerUrl}"
                 export DATABASE_URL
                 primer-service serve . ${version} "$@"
               '';
@@ -208,7 +225,7 @@
             primer-openapi = primerFlake.packages."primer-service:exe:primer-openapi";
 
             inherit create-postgresql-container run-postgresql-container;
-            inherit run-primer create-local-db primer-openapi-spec;
+            inherit run-primer create-local-db restore-local-db primer-openapi-spec;
           }
         )
       ];
@@ -330,7 +347,7 @@
       packages =
         {
           inherit (pkgs) primer-service;
-          inherit (pkgs) run-primer create-local-db primer-openapi-spec;
+          inherit (pkgs) run-primer create-local-db restore-local-db primer-openapi-spec;
           inherit (pkgs) create-postgresql-container run-postgresql-container;
         }
         // primerFlake.packages;
@@ -347,7 +364,7 @@
         // primerFlake.checks;
 
       apps = {
-        inherit (pkgs) run-primer create-local-db primer-openapi-spec;
+        inherit (pkgs) run-primer create-local-db restore-local-db primer-openapi-spec;
         inherit (pkgs) create-postgresql-container run-postgresql-container;
       }
       // primerFlake.apps;
