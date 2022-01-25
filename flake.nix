@@ -136,25 +136,63 @@
               crossPlatforms = p: [ p.ghcjs ];
             };
 
-            # Ensure these scripts (and datafile) get built for all supported
-            # platforms by overriding their `meta.platforms`.
-            # Otherwise, they'll only be built for Linux.
 
-            run-primer = (final.writeShellScriptBin "run-primer"
-              "${final.primer-service}/bin/primer-service serve . ${version} $@").overrideAttrs (drv: {
-              meta.platforms = final.lib.platforms.all;
-            });
+            # Scripts for running a local PostgreSQL container in
+            # Docker, and a local primer-service instance.
 
-            run-primer-local-pgsql = (final.writeShellScriptBin "run-primer-local-pgsql"
-              "${final.primer-service}/bin/primer-service serve . ${version} --pgsql-url postgres://postgres:foobar@localhost:5432/primer $@").overrideAttrs (drv: {
-              meta.platforms = final.lib.platforms.all;
-            });
+            dockerContext = "colima-primer";
+            postgresImageTag = "postgres:13.4-alpine3.14";
+            postgresVolume = "postgres-primer";
+            postgresContainer = "postgres-primer";
+            postgresPassword = "primer-dev";
+            postgresUrl = "postgres://postgres:${postgresPassword}@localhost:5432/primer";
 
-            create-local-pgsql-db = (final.writeShellScriptBin "create-local-pgsql-db"
-              "${final.postgresql}/bin/createdb -h localhost -U postgres primer $@").overrideAttrs
-              (drv: {
-                meta.platforms = final.lib.platforms.all;
-              });
+            create-postgresql-container = final.writeShellApplication {
+              name = "create-postgresql-container";
+              runtimeInputs = with final; [
+                colima
+                docker
+              ];
+              text = ''
+                colima start --runtime docker --profile primer
+                docker --context ${dockerContext} pull ${postgresImageTag}
+                docker volume create postgres-primer
+              '';
+            };
+
+            run-postgresql-container = final.writeShellApplication {
+              name = "run-postgresql-container";
+              runtimeInputs = with final; [
+                docker
+              ];
+              text = ''
+                docker --context ${dockerContext} run --detach --name=${postgresContainer} --publish 5432:5432 --volume ${postgresVolume}:/var/lib/postgresql/data -e POSTGRES_PASSWORD="${postgresPassword}" ${postgresImageTag}
+              '';
+            };
+
+            create-local-db = final.writeShellApplication {
+              name = "create-local-db";
+              runtimeInputs = with final; [
+                postgresql
+              ];
+              text = ''
+                createdb -h localhost -U postgres primer "$@"
+              '';
+            };
+
+            run-primer = final.writeShellApplication {
+              name = "run-primer";
+              runtimeInputs = with final; [
+                primer-service
+              ];
+              text = ''
+                DATABASE_URL="${postgresUrl}"
+                export DATABASE_URL
+                primer-service serve . ${version} "$@"
+              '';
+            };
+
+            # Generate the Primer service OpenAPI 3 spec file.
 
             primer-openapi-spec = (final.runCommand "primer-openapi" { }
               "${final.primer-openapi}/bin/primer-openapi > $out").overrideAttrs
@@ -169,7 +207,8 @@
             primer-service = primerFlake.packages."primer-service:exe:primer-service";
             primer-openapi = primerFlake.packages."primer-service:exe:primer-openapi";
 
-            inherit run-primer run-primer-local-pgsql create-local-pgsql-db primer-openapi-spec;
+            inherit create-postgresql-container run-postgresql-container;
+            inherit run-primer create-local-db primer-openapi-spec;
           }
         )
       ];
@@ -289,12 +328,11 @@
     in
     {
       packages =
-        (hacknix.lib.flakes.filterPackagesByPlatform system
-          ({
-            inherit (pkgs) primer-service;
-            inherit (pkgs) run-primer run-primer-local-pgsql create-local-pgsql-db primer-openapi-spec;
-          })
-        )
+        {
+          inherit (pkgs) primer-service;
+          inherit (pkgs) run-primer create-local-db primer-openapi-spec;
+          inherit (pkgs) create-postgresql-container run-postgresql-container;
+        }
         // primerFlake.packages;
 
       # Notes:
@@ -309,7 +347,8 @@
         // primerFlake.checks;
 
       apps = {
-        inherit (pkgs) run-primer run-primer-local-pgsql create-local-pgsql-db;
+        inherit (pkgs) run-primer create-local-db primer-openapi-spec;
+        inherit (pkgs) create-postgresql-container run-postgresql-container;
       }
       // primerFlake.apps;
 
