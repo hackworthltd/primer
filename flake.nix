@@ -181,6 +181,30 @@
               '';
             };
 
+            delete-local-db = final.writeShellApplication {
+              name = "delete-local-db";
+              runtimeInputs = with final; [
+                postgresql
+              ];
+              text = ''
+                psql ${postgresBaseUrl} --command="DROP DATABASE primer;"
+              '';
+            };
+
+            dump-local-db = final.writeShellApplication {
+              name = "dump-local-db";
+              runtimeInputs = with final; [
+                coreutils
+                postgresql
+              ];
+              text = ''
+                timestamp=$(date --utc --iso-8601=seconds)
+                dumpfile="primer-$timestamp.sql"
+                pg_dump ${postgresPrimerUrl} > "$dumpfile"
+                echo "Dumped local Primer database to $dumpfile"
+              '';
+            };
+
             restore-local-db = final.writeShellApplication {
               name = "restore-local-db";
               runtimeInputs = with final; [
@@ -225,7 +249,7 @@
             primer-openapi = primerFlake.packages."primer-service:exe:primer-openapi";
 
             inherit create-postgresql-container run-postgresql-container;
-            inherit run-primer create-local-db restore-local-db primer-openapi-spec;
+            inherit run-primer create-local-db delete-local-db dump-local-db restore-local-db primer-openapi-spec;
           }
         )
       ];
@@ -347,7 +371,7 @@
       packages =
         {
           inherit (pkgs) primer-service;
-          inherit (pkgs) run-primer create-local-db restore-local-db primer-openapi-spec;
+          inherit (pkgs) run-primer create-local-db delete-local-db dump-local-db restore-local-db primer-openapi-spec;
           inherit (pkgs) create-postgresql-container run-postgresql-container;
         }
         // primerFlake.packages;
@@ -364,7 +388,7 @@
         // primerFlake.checks;
 
       apps = {
-        inherit (pkgs) run-primer create-local-db restore-local-db primer-openapi-spec;
+        inherit (pkgs) run-primer create-local-db delete-local-db dump-local-db restore-local-db primer-openapi-spec;
         inherit (pkgs) create-postgresql-container run-postgresql-container;
       }
       // primerFlake.apps;
