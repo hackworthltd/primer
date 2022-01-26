@@ -1,5 +1,6 @@
 {-# LANGUAGE DuplicateRecordFields #-}
 {-# LANGUAGE NamedFieldPuns #-}
+{-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE TypeApplications #-}
 
 module Primer.Eval (
@@ -23,6 +24,7 @@ module Primer.Eval (
   tryReduceExpr,
   tryReduceType,
   findNodeByID,
+  tryPrimFun,
 ) where
 
 import Foreword
@@ -39,6 +41,7 @@ import Primer.Core (
   Def (..),
   Expr,
   Expr' (..),
+  ExprAnyFresh (..),
   HasID (_id),
   ID,
   Kind,
@@ -50,12 +53,13 @@ import Primer.Core (
   Type' (..),
   TypeCache,
   bindName,
+  defPrim,
   _exprMeta,
   _exprTypeMeta,
   _typeMeta,
  )
 import Primer.Core.DSL (ann, hole, letType, let_, tEmptyHole)
-import Primer.Core.Transform (removeAnn, renameVar, unfoldAPP, unfoldApp, unfoldFun)
+import Primer.Core.Transform (removeAnn, renameVar, unfoldAPP, unfoldApp)
 import Primer.JSON
 import Primer.Name (Name, unName, unsafeMkName)
 import Primer.Primitives (globalPrims)
@@ -330,18 +334,7 @@ redexes primDefs = go mempty
             App _ e1@(Letrec _ x _ _ Lam{}) e4 ->
               (self `munless` Set.member x (freeVars e4)) <> go locals e1 <> go locals e4
             -- Application of a primitive (fully-applied, with all arguments in normal form).
-            App{}
-              | (GlobalVar _ id_, args) <- unfoldApp expr
-              , Just (TFun _ lhs rhs) <- primDefType <$> Map.lookup id_ primDefs
-              , length args == length (fst $ unfoldFun lhs rhs)
-              , all isNormalForm args ->
-                  self
-              where
-                isNormalForm = \case
-                  PrimCon _ _ -> True
-                  Con _ _ -> True
-                  App _ f x -> isNormalForm f && isNormalForm x
-                  _ -> False
+            App{} | Just _ <- tryPrimFun primDefs expr -> self
             -- f x
             App _ e1 e2 -> go locals e1 <> go locals e2
             APP _ e@LAM{} t -> self <> go locals e <> goType locals t
@@ -522,31 +515,18 @@ tryReduceExpr globals locals = \case
 
   -- apply primitive function
   before@App{}
-    | (GlobalVar _ id, args) <- unfoldApp before
-    , Just (DefPrim PrimDef{primDefName, primDefType = TFun _ lhs rhs}) <- Map.lookup id globals
-    , Just f <- Map.lookup primDefName globalPrims
-    , length args == length (fst $ unfoldFun lhs rhs)
-    , all isNormalForm args ->
-        case primFunDef f args of
-          Left err -> throwError $ PrimFunError err
-          Right e -> do
-            expr <- e
-            pure
-              ( expr
-              , ApplyPrimFun
-                ApplyPrimFunDetail
-                  { applyPrimFunBefore = before
-                  , applyPrimFunAfter = expr
-                  , applyPrimFunName = primDefName
-                  , applyPrimFunArgIDs = args ^. mapping _id
-                  }
-              )
-    where
-      isNormalForm = \case
-        PrimCon _ _ -> True
-        Con _ _ -> True
-        App _ f x -> isNormalForm f && isNormalForm x
-        _ -> False
+    | Just (name, args, ExprAnyFresh e) <- tryPrimFun (Map.mapMaybe defPrim globals) before -> do
+        expr <- e
+        pure
+          ( expr
+          , ApplyPrimFun
+            ApplyPrimFunDetail
+              { applyPrimFunBefore = before
+              , applyPrimFunAfter = expr
+              , applyPrimFunName = name
+              , applyPrimFunArgIDs = args ^. mapping _id
+              }
+          )
 
   -- Beta reduction of an inner application
   -- This rule is theoretically redundant but because we render nested applications with just one
@@ -785,3 +765,14 @@ regenerateExprIDs =
 -- It's like 'Control.Monad.unless' but for Monoids rather than Applicatives.
 munless :: Monoid a => a -> Bool -> a
 munless x b = if b then mempty else x
+
+-- | If this node is a reducible application of a primitive, return the name of the primitive, the arguments, and
+-- (a computation for building) the result.
+tryPrimFun :: Map ID PrimDef -> Expr -> Maybe (Name, [Expr], ExprAnyFresh)
+tryPrimFun primDefs expr
+  | (GlobalVar _ id, args) <- unfoldApp expr
+  , Just name <- primDefName <$> Map.lookup id primDefs
+  , Just PrimFun{primFunDef} <- Map.lookup name globalPrims
+  , Right e <- primFunDef args =
+      Just (name, args, e)
+  | otherwise = Nothing

@@ -42,6 +42,7 @@ module Primer.Core (
   PrimTypeDef (..),
   PrimCon (..),
   PrimFun (..),
+  ExprAnyFresh (..),
   PrimFunError (..),
   ValCon (..),
   valConType,
@@ -377,8 +378,12 @@ data PrimCon
 
 data PrimFun = PrimFun
   { primFunType :: forall m. MonadFresh ID m => m Type
-  , primFunDef :: forall m. MonadFresh ID m => [Expr] -> Either PrimFunError (m Expr)
+  , primFunDef :: [Expr] -> Either PrimFunError ExprAnyFresh
   }
+
+-- TODO with `-XImpredicativeTypes` in GHC 9.2, we can turn this in to a type synonym, then inline it
+-- see https://github.com/hackworthltd/primer/issues/189
+data ExprAnyFresh = ExprAnyFresh (forall m. MonadFresh ID m => m Expr)
 
 data PrimFunError
   = -- | We have attempted to apply a primitive function to ill-typed args.

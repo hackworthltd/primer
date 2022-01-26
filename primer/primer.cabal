@@ -69,6 +69,7 @@ library
     , containers         >=0.6.0.1  && <=0.7
     , deriving-aeson     >=0.2      && <=0.3
     , exceptions         >=0.10.4   && <=0.11
+    , extra              >=1.7.10   && <=1.8
     , generic-optics     >=2.0      && <=2.3
     , list-t             >=1.0      && <=1.1
     , megaparsec         >=8.0.0    && <=9.3
