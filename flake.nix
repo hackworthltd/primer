@@ -148,8 +148,8 @@
             postgresBaseUrl = "postgres://postgres:${postgresPassword}@localhost:5432";
             postgresPrimerUrl = "${postgresBaseUrl}/primer";
 
-            create-postgresql-container = final.writeShellApplication {
-              name = "create-postgresql-container";
+            deploy-postgresql-container = final.writeShellApplication {
+              name = "deploy-postgresql-container";
               runtimeInputs = with final; [
                 colima
                 docker
@@ -158,16 +158,27 @@
                 colima start --runtime docker --profile primer
                 docker --context ${dockerContext} pull ${postgresImageTag}
                 docker volume create postgres-primer
+                docker --context ${dockerContext} run --detach --name=${postgresContainer} --publish 5432:5432 --volume ${postgresVolume}:/var/lib/postgresql/data -e POSTGRES_PASSWORD="${postgresPassword}" ${postgresImageTag}
               '';
             };
 
-            run-postgresql-container = final.writeShellApplication {
-              name = "run-postgresql-container";
+            start-postgresql-container = final.writeShellApplication {
+              name = "start-postgresql-container";
               runtimeInputs = with final; [
                 docker
               ];
               text = ''
-                docker --context ${dockerContext} run --detach --name=${postgresContainer} --publish 5432:5432 --volume ${postgresVolume}:/var/lib/postgresql/data -e POSTGRES_PASSWORD="${postgresPassword}" ${postgresImageTag}
+                docker --context ${dockerContext} start ${postgresContainer}
+              '';
+            };
+
+            stop-postgresql-container = final.writeShellApplication {
+              name = "stop-postgresql-container";
+              runtimeInputs = with final; [
+                docker
+              ];
+              text = ''
+                docker --context ${dockerContext} stop ${postgresContainer}
               '';
             };
 
@@ -248,7 +259,7 @@
             primer-service = primerFlake.packages."primer-service:exe:primer-service";
             primer-openapi = primerFlake.packages."primer-service:exe:primer-openapi";
 
-            inherit create-postgresql-container run-postgresql-container;
+            inherit deploy-postgresql-container start-postgresql-container stop-postgresql-container;
             inherit run-primer create-local-db delete-local-db dump-local-db restore-local-db primer-openapi-spec;
           }
         )
@@ -372,7 +383,7 @@
         {
           inherit (pkgs) primer-service;
           inherit (pkgs) run-primer create-local-db delete-local-db dump-local-db restore-local-db primer-openapi-spec;
-          inherit (pkgs) create-postgresql-container run-postgresql-container;
+          inherit (pkgs) deploy-postgresql-container start-postgresql-container stop-postgresql-container;
         }
         // primerFlake.packages;
 
@@ -389,7 +400,7 @@
 
       apps = {
         inherit (pkgs) run-primer create-local-db delete-local-db dump-local-db restore-local-db primer-openapi-spec;
-        inherit (pkgs) create-postgresql-container run-postgresql-container;
+        inherit (pkgs) deploy-postgresql-container start-postgresql-container stop-postgresql-container;
       }
       // primerFlake.apps;
 

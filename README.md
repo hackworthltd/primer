@@ -24,8 +24,7 @@ system, you'll need to run the following commands from the top-level
 directory in this repo:
 
 ```sh
-nix run .#create-postgresql-container
-nix run .#run-postgresql-container
+nix run .#deploy-postgresql-container
 nix run .#create-local-db
 ```
 
@@ -41,14 +40,26 @@ Your usual Primer development workflow will look something like this:
 nix run .#run-primer
 ```
 
-Note that you'll also need to run the `run-postgresql-container`
+Note that you'll also need to run the `start-postgresql-container`
 command if the `primer-postgres` container is not already running.
 Typically, this will only happen after a reboot, or if you've manually
-stopped the container.
+stopped the container. To determine whether the container is running,
+use this command from the project's Nix shell:
+
+```sh
+docker --context colima-primer ps
+```
+
+If it's running, you should see something like this:
+
+```
+CONTAINER ID   IMAGE                      COMMAND                  CREATED        STATUS         PORTS                                       NAMES
+a818e6d5f3ef   postgres:13.4-alpine3.14   "docker-entrypoint.s…"   29 hours ago   Up 2 minutes   0.0.0.0:5432->5432/tcp, :::5432->5432/tcp   postgres-primer
+```
 
 The details of each script in this repo follow:
 
-### `create-postgresql-container`
+### `deploy-postgresql-container`
 
 This script does the following:
 
@@ -58,6 +69,8 @@ This script does the following:
   PostgreSQL that we support.
 * Creates a persistent Docker volume named `postgres-primer` to ensure
   the database is preserved across container restarts and upgrades.
+* Creates a Docker container that runs PostgreSQL and listens on
+  `localhost:5432`.
 
 Note that you do *not* need to install or run Docker in order to use
 this or any other script in this repo, as Colima provides the required
@@ -71,14 +84,16 @@ separate `colima-primer` Docker context, in order to keep the Primer
 development environment from affecting any other Docker contexts you
 may be using.
 
-(These scripts do, however, assume that localhost port 5432 is
-available for forwarding to the Primer PostgreSQL Docker container.)
+### `start-postgresql-container`
 
-### `run-postgresql-container`
+This script starts the `primer-postgres` container, assuming that it's
+previously been deployed by the `deploy-postgresql-container` command.
+The container will keep running until you reboot your host machine, or
+you stop the container yourself.
 
-This script runs the `primer-postgres` container. The container will
-keep running until you reboot your host machine, or you stop the
-container yourself.
+### `stop-postgresql-container`
+
+This script stops the `primer-postgres` container.
 
 ### `create-local-db`
 
