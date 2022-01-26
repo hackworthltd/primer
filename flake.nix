@@ -177,7 +177,7 @@
                 postgresql
               ];
               text = ''
-                createdb -h localhost -U postgres primer "$@"
+                psql ${postgresBaseUrl} --command="CREATE DATABASE primer;"
               '';
             };
 
