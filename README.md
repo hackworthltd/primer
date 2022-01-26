@@ -38,15 +38,13 @@ across reboots, and will remain on your system until you delete them.
 Your usual Primer development workflow will look something like this:
 
 ```sh
-nix run .#run-postgresql-container
 nix run .#run-primer
 ```
 
-Note that the `run-postgresql-container` is only needed if the
-`primer-postgres` container is not already running. Typically, this
-will only happen after a reboot, or if you've manually stopped the
-container. Therefore, most of the time, you can just do the `nix run
-.#run-primer` step.
+Note that you'll also need to run the `run-postgresql-container`
+command if the `primer-postgres` container is not already running.
+Typically, this will only happen after a reboot, or if you've manually
+stopped the container.
 
 The details of each script in this repo follow:
 
