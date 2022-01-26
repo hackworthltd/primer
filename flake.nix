@@ -425,6 +425,11 @@
           postgresql
           openapi-generator-cli
 
+          # For Docker support.
+          docker
+          lima
+          colima
+
           # For Language Server support.
           nodejs-16_x
         ]);
