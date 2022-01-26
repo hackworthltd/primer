@@ -10,6 +10,7 @@ import qualified Data.Map as M
 import Numeric.Natural (Natural)
 import Primer.Core (
   Expr' (App, Con, PrimCon),
+  ExprAnyFresh (..),
   PrimCon (PrimChar),
   PrimFun (..),
   PrimFunError (..),
@@ -34,7 +35,7 @@ globalPrims =
             { primFunType = tcon "Char" `tfun` tcon "Char"
             , primFunDef = \case
                 [PrimCon _ (PrimChar c)] ->
-                  Right $ char $ toUpper c
+                  Right $ ExprAnyFresh $ char $ toUpper c
                 xs -> Left $ PrimFunTypeError name xs
             }
           )
@@ -44,7 +45,7 @@ globalPrims =
             { primFunType = tcon "Char" `tfun` tcon "Bool"
             , primFunDef = \case
                 [PrimCon _ (PrimChar c)] ->
-                  Right $ bool_ $ isSpace c
+                  Right $ ExprAnyFresh $ bool_ $ isSpace c
                 xs -> Left $ PrimFunTypeError name xs
             }
           )
@@ -54,7 +55,7 @@ globalPrims =
             { primFunType = tcon "Char" `tfun` (tcon "Maybe" `tapp` tcon "Nat")
             , primFunDef = \case
                 [PrimCon _ (PrimChar c)] -> do
-                  Right $ maybe_ (tcon "Nat") nat $ digitToIntSafe c
+                  Right $ ExprAnyFresh $ maybe_ (tcon "Nat") nat $ digitToIntSafe c
                   where
                     digitToIntSafe :: Char -> Maybe Natural
                     digitToIntSafe c' = fromIntegral <$> (guard (isHexDigit c') $> digitToInt c')
@@ -67,7 +68,7 @@ globalPrims =
             { primFunType = tcon "Nat" `tfun` (tcon "Maybe" `tapp` tcon "Char")
             , primFunDef = \case
                 [exprToNat -> Just n] ->
-                  Right $ maybe_ (tcon "Char") char $ intToDigitSafe n
+                  Right $ ExprAnyFresh $ maybe_ (tcon "Char") char $ intToDigitSafe n
                   where
                     intToDigitSafe :: Natural -> Maybe Char
                     intToDigitSafe n' = guard (0 <= n && n <= 15) $> intToDigit (fromIntegral n')
@@ -80,7 +81,7 @@ globalPrims =
             { primFunType = tcon "Char" `tfun` (tcon "Char" `tfun` tcon "Bool")
             , primFunDef = \case
                 [PrimCon _ (PrimChar c1), PrimCon _ (PrimChar c2)] ->
-                  Right $ bool_ $ c1 == c2
+                  Right $ ExprAnyFresh $ bool_ $ c1 == c2
                 xs -> Left $ PrimFunTypeError name xs
             }
           )

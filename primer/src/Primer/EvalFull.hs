@@ -1,4 +1,3 @@
-{-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE OverloadedLabels #-}
 {-# LANGUAGE TupleSections #-}
 
@@ -25,6 +24,7 @@ import Data.Data (Data)
 import qualified Data.Map as M
 import qualified Data.Set as S
 import Data.Set.Optics (setOf)
+import Data.Tuple.Extra (thd3)
 import GHC.Err (error)
 import Numeric.Natural (Natural)
 import Optics (Fold, anyOf, getting, hasn't, set, summing, (%), _1, _2)
@@ -49,14 +49,12 @@ import Primer.Core (
     Let,
     LetType,
     Letrec,
-    PrimCon,
     Var
   ),
+  ExprAnyFresh (ExprAnyFresh),
   ExprMeta,
   ID,
   Kind,
-  PrimDef (..),
-  PrimFun (..),
   Type,
   Type' (
     TApp,
@@ -70,15 +68,15 @@ import Primer.Core (
   TypeDef (..),
   TypeMeta,
   bindName,
+  defPrim,
   _typeMeta,
  )
 import Primer.Core.DSL (ann, letType, let_, letrec, tvar, var)
-import Primer.Core.Transform (unfoldAPP, unfoldApp, unfoldFun)
+import Primer.Core.Transform (unfoldAPP, unfoldApp)
 import Primer.Core.Utils (generateTypeIDs, noHoles)
-import Primer.Eval (regenerateExprIDs, regenerateTypeIDs)
+import Primer.Eval (regenerateExprIDs, regenerateTypeIDs, tryPrimFun)
 import Primer.JSON (CustomJSON (CustomJSON), FromJSON, ToJSON, VJSON)
 import Primer.Name (Name, NameCounter, freshName)
-import Primer.Primitives (globalPrims)
 import Primer.Subst (freeVars, freeVarsTy, _freeVars, _freeVarsTy)
 import Primer.Typecheck (instantiateValCons', lookupConstructor)
 import Primer.Zipper (
@@ -136,7 +134,7 @@ data Redex
     RenameBindingsLam ExprMeta Name Expr (S.Set Name)
   | RenameBindingsLAM ExprMeta Name Expr (S.Set Name)
   | RenameBindingsCase ExprMeta Expr [CaseBranch] (S.Set Name)
-  | ApplyPrimFun PrimFun [Expr]
+  | ApplyPrimFun ExprAnyFresh
 
 -- there are only trivial redexes in types.
 -- Note that the let must appear in the surrounding Expr (not in a type itself)
@@ -284,20 +282,7 @@ viewRedex :: (MonadFresh ID m, MonadFresh NameCounter m) => M.Map Name TypeDef -
 viewRedex tydefs globals dir = \case
   GlobalVar _ x | Just (DefAST y) <- x `M.lookup` globals -> pure $ pure $ InlineGlobal x y
   App _ (Ann _ (Lam _ x t) (TFun _ src tgt)) s -> pure $ pure $ Beta x t src tgt s
-  e@App{}
-    | (GlobalVar _ id_, args) <- unfoldApp e
-    , Just (DefPrim d) <- M.lookup id_ globals
-    , TFun _ lhs rhs <- primDefType d
-    , Just f <- M.lookup (primDefName d) globalPrims
-    , length args == length (fst $ unfoldFun lhs rhs)
-    , all isNormalForm args ->
-        pure $ pure $ ApplyPrimFun f args
-    where
-      isNormalForm = \case
-        PrimCon _ _ -> True
-        Con _ _ -> True
-        App _ f x -> isNormalForm f && isNormalForm x
-        _ -> False
+  e@App{} -> pure . ApplyPrimFun . thd3 <$> tryPrimFun (M.mapMaybe defPrim globals) e
   APP _ (Ann _ (LAM _ a t) (TForall _ b _ ty1)) ty2 -> pure $ pure $ BETA a t b ty1 ty2
   e | Just r <- viewCaseRedex tydefs e -> Just r
   Ann _ t ty | Chk <- dir, concreteTy ty -> pure $ pure $ Upsilon t ty
@@ -450,10 +435,7 @@ runRedex = \case
     -- We should replace this with a proper exception. See:
     -- https://github.com/hackworthltd/primer/issues/148
     | otherwise -> error "Internal Error: RenameBindingsCase found no applicable branches"
-  ApplyPrimFun PrimFun{primFunDef} args ->
-    case primFunDef args of
-      Left err -> error $ show err
-      Right x -> x
+  ApplyPrimFun (ExprAnyFresh e) -> e
 
 runRedexTy :: (MonadFresh ID m, MonadFresh NameCounter m) => RedexType -> m Type
 runRedexTy (InlineLetInType _ t) = regenerateTypeIDs t
