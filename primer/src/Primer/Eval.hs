@@ -62,7 +62,7 @@ import Primer.Core.DSL (ann, hole, letType, let_, tEmptyHole)
 import Primer.Core.Transform (removeAnn, renameVar, unfoldAPP, unfoldApp)
 import Primer.JSON
 import Primer.Name (Name, unName, unsafeMkName)
-import Primer.Primitives (globalPrims)
+import Primer.Primitives (allPrimDefs)
 import Primer.Subst (freeVars, freeVarsTy)
 import Primer.Zipper (
   ExprZ,
@@ -772,7 +772,7 @@ tryPrimFun :: Map ID PrimDef -> Expr -> Maybe (Name, [Expr], ExprAnyFresh)
 tryPrimFun primDefs expr
   | (GlobalVar _ id, args) <- unfoldApp expr
   , Just name <- primDefName <$> Map.lookup id primDefs
-  , Just PrimFun{primFunDef} <- Map.lookup name globalPrims
+  , Just PrimFun{primFunDef} <- Map.lookup name allPrimDefs
   , Right e <- primFunDef args =
       Just (name, args, e)
   | otherwise = Nothing

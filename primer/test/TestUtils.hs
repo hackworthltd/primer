@@ -13,13 +13,13 @@ import Primer.Core (
   PrimFun (..),
  )
 import Primer.Name (Name)
-import Primer.Primitives (globalPrims)
+import Primer.Primitives (allPrimDefs)
 
 withPrimDefs :: MonadFresh ID m => (Map Name ID -> Map ID PrimDef -> m a) -> m a
 withPrimDefs f = do
   defs <-
     for
-      (Map.toList globalPrims)
+      (Map.toList allPrimDefs)
       (\(name, p) -> PrimDef <$> fresh <*> pure name <*> primFunType p)
   f
     (Map.fromList $ (\d -> (primDefName d, primDefID d)) <$> defs)
