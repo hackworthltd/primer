@@ -299,6 +299,8 @@ checkTypeDefs tds = do
   assert
     (distinct $ concatMap (map valConName . astTypeDefConstructors) atds)
     "Duplicate-ly-named constructor (perhaps in different typedefs)"
+  -- Note that these checks only apply to non-primitives:
+  -- duplicate type names are checked elsewhere, kinds are correct by construction, and there are no constructors.
   mapM_ checkTypeDef atds
   where
     -- In the core, we have many different namespaces, so the only name-clash
