@@ -1,7 +1,7 @@
 {-# LANGUAGE ViewPatterns #-}
 
 module Primer.Primitives (
-  globalPrims,
+  allPrimDefs,
 ) where
 
 import Foreword
@@ -26,8 +26,8 @@ import Primer.Core.DSL (
  )
 import Primer.Name (Name)
 
-globalPrims :: Map Name PrimFun
-globalPrims =
+allPrimDefs :: Map Name PrimFun
+allPrimDefs =
   M.fromList
     [ let name = "toUpper"
        in ( name
