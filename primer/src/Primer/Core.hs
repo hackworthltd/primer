@@ -328,7 +328,9 @@ data Def
 -- | A primitive, built-in definition
 data PrimDef = PrimDef
   { primDefID :: ID
+  -- ^ Used for scoping
   , primDefName :: Name
+  -- ^ Used for display, and to link to an entry in `allPrimDefs`
   , primDefType :: Type
   }
   deriving (Eq, Show, Generic)
