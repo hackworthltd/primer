@@ -9,13 +9,13 @@ import Hedgehog hiding (check)
 import Hedgehog.Classes
 import qualified Hedgehog.Gen as Gen
 import qualified Hedgehog.Range as Range
+import Primer.App (defaultTypeDefs)
 import Primer.Core (
   Expr,
   ID,
   Kind (KFun, KType),
   Type,
   Type' (TCon),
-  defaultTypeDefs,
  )
 import Primer.Core.DSL
 import Primer.Core.Utils (forgetTypeIDs)

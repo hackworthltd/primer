@@ -29,13 +29,13 @@ import Hedgehog (
   (===),
  )
 import Hedgehog.Internal.Property (forAllT)
+import Primer.App (defaultTypeDefs)
 import Primer.Core (
   Expr,
   Kind (KType),
   Meta,
   Type,
   Type',
-  defaultTypeDefs,
  )
 import Primer.Core.Utils (
   forgetIDs,

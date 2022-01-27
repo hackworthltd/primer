@@ -14,6 +14,7 @@ import Hedgehog hiding (test)
 import qualified Hedgehog.Gen as Gen
 import qualified Hedgehog.Range as Range
 import Optics
+import Primer.App (defaultTypeDefs)
 import Primer.Core
 import Primer.Core.DSL
 import Primer.Core.Utils (forgetIDs, generateIDs, generateTypeIDs)

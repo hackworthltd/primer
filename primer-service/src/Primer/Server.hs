@@ -64,6 +64,7 @@ import Primer.App (
   Prog,
   ProgAction (BodyAction, MoveToDef),
   ProgError (NoDefSelected),
+  boolDef,
   newProg,
  )
 import Primer.Core (
@@ -77,7 +78,6 @@ import Primer.Core (
   Type' (TEmptyHole),
   TypeCache (..),
   TypeCacheBoth (..),
-  boolDef,
  )
 import Primer.Core.DSL (app, branch, case_, create, emptyHole, tEmptyHole, tfun)
 import Primer.Database (

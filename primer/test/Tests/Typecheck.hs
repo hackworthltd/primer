@@ -16,6 +16,13 @@ import Hedgehog hiding (check)
 import qualified Hedgehog.Gen as Gen
 import qualified Hedgehog.Range as Range
 import Optics (over, set)
+import Primer.App (
+  boolDef,
+  defaultTypeDefs,
+  eitherDef,
+  listDef,
+  natDef,
+ )
 import Primer.Core (
   ASTTypeDef (..),
   Def (..),
@@ -31,11 +38,6 @@ import Primer.Core (
   TypeDef (..),
   ValCon (..),
   astTypeDefConstructors,
-  boolDef,
-  defaultTypeDefs,
-  eitherDef,
-  listDef,
-  natDef,
   setID,
   typeDefKind,
   valConType,
