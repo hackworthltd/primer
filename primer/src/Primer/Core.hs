@@ -380,8 +380,8 @@ data PrimFun = PrimFun
 data ExprAnyFresh = ExprAnyFresh (forall m. MonadFresh ID m => m Expr)
 
 data PrimFunError
-  = -- | We have attempted to apply a primitive function to ill-typed args.
-    PrimFunTypeError
+  = -- | We have attempted to apply a primitive function to invalid args.
+    PrimFunError
       Name
       -- ^ Function name
       [Expr]
