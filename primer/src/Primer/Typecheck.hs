@@ -76,7 +76,6 @@ import Primer.Core (
   ID,
   Kind (..),
   Meta (..),
-  PrimCon (..),
   Type' (..),
   TypeCache (..),
   TypeCacheBoth (..),
@@ -88,6 +87,7 @@ import Primer.Core (
   defID,
   defName,
   defType,
+  primConName,
   typeDefAST,
   typeDefKind,
   typeDefName,
@@ -375,6 +375,7 @@ lookupConstructor tyDefs c =
         pure (vc, td)
    in find ((== c) . valConName . fst) allCons
 
+{- HLINT ignore "Avoid lambda using `infix`" -}
 -- Note [Let expressions]
 -- Let expressions are typechecked flexibly in order to minimise the instances
 -- where an annotation must be added. Hence we can both synthesise and check
@@ -482,9 +483,7 @@ synth = \case
     (bT, b') <- local ctx' $ synth b
     pure $ annSynth4 bT i Letrec x a' tA' b'
   PrimCon i pc ->
-    case pc of
-      PrimChar c ->
-        pure $ annSynth0 (TCon () "Char") i (\m -> PrimCon m $ PrimChar c)
+    pure $ annSynth0 (TCon () $ primConName pc) i (\m -> PrimCon m pc)
   e ->
     asks smartHoles >>= \case
       NoSmartHoles -> throwError' $ CannotSynthesiseType e
