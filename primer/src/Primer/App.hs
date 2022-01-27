@@ -40,6 +40,12 @@ module Primer.App (
   EvalFullReq (..),
   EvalFullResp (..),
   lookupASTDef,
+  boolDef,
+  natDef,
+  listDef,
+  eitherDef,
+  defaultTypeDefs,
+  primTypeDefs,
 ) where
 
 import Foreword
@@ -68,23 +74,27 @@ import Primer.Action (
 
 import Primer.Core (
   ASTDef (..),
+  ASTTypeDef (..),
   Def (..),
   Expr,
   Expr' (EmptyHole, Var),
   ExprMeta,
   ID (..),
+  Kind (..),
   Meta (..),
+  PrimCon (..),
   PrimDef (..),
   PrimFun (..),
+  PrimTypeDef (..),
   Type,
-  Type' (TEmptyHole, TVar),
+  Type' (..),
   TypeDef (..),
   TypeMeta,
+  ValCon (..),
   defAST,
   defID,
   defName,
   defPrim,
-  defaultTypeDefs,
   getID,
   primDefID,
   _exprMeta,
@@ -882,3 +892,98 @@ copyPasteBody p (fromDefId, fromId) toDefId setup = do
 
 lookupASTDef :: ID -> Map ID Def -> Maybe ASTDef
 lookupASTDef id = defAST <=< Map.lookup id
+
+defaultTypeDefs :: [TypeDef]
+defaultTypeDefs =
+  map
+    TypeDefAST
+    [boolDef, natDef, listDef, maybeDef, pairDef, eitherDef]
+    <> map
+      TypeDefPrim
+      primTypeDefs
+
+primTypeDefs :: [PrimTypeDef]
+primTypeDefs =
+  [ PrimTypeDef
+      { primTypeDefName = "Char"
+      , primTypeDefParameters = []
+      , primTypeDefNameHints = ["c"]
+      }
+  ]
+  where
+    -- This ensures that when we modify the constructors of `PrimCon` (i.e. we add/remove primitive types),
+    -- we are alerted that we need to update this set.
+    _ = \case
+      PrimChar _ -> ()
+
+-- | A definition of the Bool type
+boolDef :: ASTTypeDef
+boolDef =
+  ASTTypeDef
+    { astTypeDefName = "Bool"
+    , astTypeDefParameters = []
+    , astTypeDefConstructors =
+        [ ValCon "True" []
+        , ValCon "False" []
+        ]
+    , astTypeDefNameHints = ["p", "q"]
+    }
+
+-- | A definition of the Nat type
+natDef :: ASTTypeDef
+natDef =
+  ASTTypeDef
+    { astTypeDefName = "Nat"
+    , astTypeDefParameters = []
+    , astTypeDefConstructors =
+        [ ValCon "Zero" []
+        , ValCon "Succ" [TCon () "Nat"]
+        ]
+    , astTypeDefNameHints = ["i", "j", "n", "m"]
+    }
+
+-- | A definition of the List type
+listDef :: ASTTypeDef
+listDef =
+  ASTTypeDef
+    { astTypeDefName = "List"
+    , astTypeDefParameters = [("a", KType)]
+    , astTypeDefConstructors =
+        [ ValCon "Nil" []
+        , ValCon "Cons" [TVar () "a", TApp () (TCon () "List") (TVar () "a")]
+        ]
+    , astTypeDefNameHints = ["xs", "ys", "zs"]
+    }
+
+-- | A definition of the Maybe type
+maybeDef :: ASTTypeDef
+maybeDef =
+  ASTTypeDef
+    { astTypeDefName = "Maybe"
+    , astTypeDefParameters = [("a", KType)]
+    , astTypeDefConstructors =
+        [ ValCon "Nothing" []
+        , ValCon "Just" [TVar () "a"]
+        ]
+    , astTypeDefNameHints = ["mx", "my", "mz"]
+    }
+
+-- | A definition of the Pair type
+pairDef :: ASTTypeDef
+pairDef =
+  ASTTypeDef
+    { astTypeDefName = "Pair"
+    , astTypeDefParameters = [("a", KType), ("b", KType)]
+    , astTypeDefConstructors = [ValCon "MakePair" [TVar () "a", TVar () "b"]]
+    , astTypeDefNameHints = []
+    }
+
+-- | A definition of the Either type
+eitherDef :: ASTTypeDef
+eitherDef =
+  ASTTypeDef
+    { astTypeDefName = "Either"
+    , astTypeDefParameters = [("a", KType), ("b", KType)]
+    , astTypeDefConstructors = [ValCon "Left" [TVar () "a"], ValCon "Right" [TVar () "b"]]
+    , astTypeDefNameHints = []
+    }

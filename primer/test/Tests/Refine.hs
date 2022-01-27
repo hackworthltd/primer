@@ -26,6 +26,7 @@ import Hedgehog (
  )
 import qualified Hedgehog.Gen as Gen
 import qualified Hedgehog.Range as Range
+import Primer.App (defaultTypeDefs)
 import Primer.Core (
   Expr' (APP, Ann, App, EmptyHole),
   ID,
@@ -34,7 +35,6 @@ import Primer.Core (
   astTypeDefConstructors,
   astTypeDefName,
   astTypeDefParameters,
-  defaultTypeDefs,
   typeDefAST,
   valConType,
  )

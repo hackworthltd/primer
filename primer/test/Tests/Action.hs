@@ -19,6 +19,7 @@ import Primer.Action (
   Movement (..),
   applyActionsToExpr,
  )
+import Primer.App (defaultTypeDefs)
 import Primer.Core (
   Expr,
   Expr' (..),
@@ -27,7 +28,6 @@ import Primer.Core (
   Kind (KType),
   TypeMeta,
   Value,
-  defaultTypeDefs,
   getID,
   _exprMeta,
   _exprTypeMeta,
