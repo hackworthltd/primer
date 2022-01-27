@@ -10,7 +10,7 @@ import qualified Data.Map as Map
 import Primer.Core (
   ID,
   PrimDef (..),
-  PrimFun (..),
+  primFunType,
  )
 import Primer.Name (Name)
 import Primer.Primitives (allPrimDefs)

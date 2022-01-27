@@ -43,6 +43,7 @@ module Primer.Core (
   PrimCon (..),
   primConName,
   PrimFun (..),
+  primFunType,
   ExprAnyFresh (..),
   PrimFunError (..),
   ValCon (..),
@@ -63,7 +64,7 @@ module Primer.Core (
 
 import Foreword
 
-import Control.Monad.Fresh (MonadFresh)
+import Control.Monad.Fresh (MonadFresh (fresh))
 import Data.Aeson (Value)
 import Data.Data (Data)
 import Data.Generics.Product
@@ -380,9 +381,19 @@ primConName = \case
   PrimChar _ -> "Char"
 
 data PrimFun = PrimFun
-  { primFunType :: forall m. MonadFresh ID m => m Type
+  { primFunTypes :: forall m. MonadFresh ID m => m ([Type], Type)
+  -- ^ the function's arguments and return type
   , primFunDef :: [Expr] -> Either PrimFunError ExprAnyFresh
   }
+
+primFunType :: forall m. MonadFresh ID m => PrimFun -> m Type
+primFunType pf = do
+  (args, res) <- primFunTypes pf
+  foldrM f res args
+  where
+    f x y = do
+      id <- fresh
+      pure $ TFun (Meta id Nothing Nothing) x y
 
 -- TODO with `-XImpredicativeTypes` in GHC 9.2, we can turn this in to a type synonym, then inline it
 -- see https://github.com/hackworthltd/primer/issues/189

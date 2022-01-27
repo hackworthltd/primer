@@ -7,6 +7,7 @@ module Primer.Primitives (
 
 import Foreword
 
+import Data.Bitraversable (bisequence)
 import qualified Data.Map as M
 import Numeric.Natural (Natural)
 import Primer.Core (
@@ -24,7 +25,6 @@ import Primer.Core.DSL (
   nat,
   tapp,
   tcon,
-  tfun,
  )
 import Primer.Name (Name)
 
@@ -52,7 +52,7 @@ allPrimDefs =
     [ let name = "toUpper"
        in ( name
           , PrimFun
-            { primFunType = tcon "Char" `tfun` tcon "Char"
+            { primFunTypes = sequenceTypes [tcon "Char"] $ tcon "Char"
             , primFunDef = \case
                 [PrimCon _ (PrimChar c)] ->
                   Right $ ExprAnyFresh $ char $ toUpper c
@@ -62,7 +62,7 @@ allPrimDefs =
     , let name = "isSpace"
        in ( name
           , PrimFun
-            { primFunType = tcon "Char" `tfun` tcon "Bool"
+            { primFunTypes = sequenceTypes [tcon "Char"] $ tcon "Bool"
             , primFunDef = \case
                 [PrimCon _ (PrimChar c)] ->
                   Right $ ExprAnyFresh $ bool_ $ isSpace c
@@ -72,7 +72,7 @@ allPrimDefs =
     , let name = "hexToNat"
        in ( name
           , PrimFun
-            { primFunType = tcon "Char" `tfun` (tcon "Maybe" `tapp` tcon "Nat")
+            { primFunTypes = sequenceTypes [tcon "Char"] $ tcon "Maybe" `tapp` tcon "Nat"
             , primFunDef = \case
                 [PrimCon _ (PrimChar c)] -> do
                   Right $ ExprAnyFresh $ maybe_ (tcon "Nat") nat $ digitToIntSafe c
@@ -85,7 +85,7 @@ allPrimDefs =
     , let name = "natToHex"
        in ( name
           , PrimFun
-            { primFunType = tcon "Nat" `tfun` (tcon "Maybe" `tapp` tcon "Char")
+            { primFunTypes = sequenceTypes [tcon "Nat"] $ tcon "Maybe" `tapp` tcon "Char"
             , primFunDef = \case
                 [exprToNat -> Just n] ->
                   Right $ ExprAnyFresh $ maybe_ (tcon "Char") char $ intToDigitSafe n
@@ -98,7 +98,7 @@ allPrimDefs =
     , let name = "eqChar"
        in ( name
           , PrimFun
-            { primFunType = tcon "Char" `tfun` (tcon "Char" `tfun` tcon "Bool")
+            { primFunTypes = sequenceTypes [tcon "Char", tcon "Char"] $ tcon "Bool"
             , primFunDef = \case
                 [PrimCon _ (PrimChar c1), PrimCon _ (PrimChar c2)] ->
                   Right $ ExprAnyFresh $ bool_ $ c1 == c2
@@ -107,6 +107,7 @@ allPrimDefs =
           )
     ]
   where
+    sequenceTypes args res = bisequence (sequence args, res)
     exprToNat = \case
       Con _ "Zero" -> Just 0
       App _ (Con _ "Succ") x -> succ <$> exprToNat x
