@@ -41,6 +41,7 @@ module Primer.Core (
   ASTTypeDef (..),
   PrimTypeDef (..),
   PrimCon (..),
+  primConName,
   PrimFun (..),
   ExprAnyFresh (..),
   PrimFunError (..),
@@ -369,6 +370,10 @@ data PrimCon
   = PrimChar Char
   deriving (Eq, Show, Data, Generic)
   deriving (FromJSON, ToJSON) via VJSON PrimCon
+
+primConName :: PrimCon -> Name
+primConName = \case
+  PrimChar _ -> "Char"
 
 data PrimFun = PrimFun
   { primFunType :: forall m. MonadFresh ID m => m Type
