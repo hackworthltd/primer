@@ -56,7 +56,7 @@ allPrimDefs =
             , primFunDef = \case
                 [PrimCon _ (PrimChar c)] ->
                   Right $ ExprAnyFresh $ char $ toUpper c
-                xs -> Left $ PrimFunTypeError name xs
+                xs -> Left $ PrimFunError name xs
             }
           )
     , let name = "isSpace"
@@ -66,7 +66,7 @@ allPrimDefs =
             , primFunDef = \case
                 [PrimCon _ (PrimChar c)] ->
                   Right $ ExprAnyFresh $ bool_ $ isSpace c
-                xs -> Left $ PrimFunTypeError name xs
+                xs -> Left $ PrimFunError name xs
             }
           )
     , let name = "hexToNat"
@@ -79,7 +79,7 @@ allPrimDefs =
                   where
                     digitToIntSafe :: Char -> Maybe Natural
                     digitToIntSafe c' = fromIntegral <$> (guard (isHexDigit c') $> digitToInt c')
-                xs -> Left $ PrimFunTypeError name xs
+                xs -> Left $ PrimFunError name xs
             }
           )
     , let name = "natToHex"
@@ -92,7 +92,7 @@ allPrimDefs =
                   where
                     intToDigitSafe :: Natural -> Maybe Char
                     intToDigitSafe n' = guard (0 <= n && n <= 15) $> intToDigit (fromIntegral n')
-                xs -> Left $ PrimFunTypeError name xs
+                xs -> Left $ PrimFunError name xs
             }
           )
     , let name = "eqChar"
@@ -102,7 +102,7 @@ allPrimDefs =
             , primFunDef = \case
                 [PrimCon _ (PrimChar c1), PrimCon _ (PrimChar c2)] ->
                   Right $ ExprAnyFresh $ bool_ $ c1 == c2
-                xs -> Left $ PrimFunTypeError name xs
+                xs -> Left $ PrimFunError name xs
             }
           )
     ]
