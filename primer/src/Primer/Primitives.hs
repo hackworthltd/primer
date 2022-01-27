@@ -2,6 +2,7 @@
 
 module Primer.Primitives (
   allPrimDefs,
+  allPrimTypeDefs,
 ) where
 
 import Foreword
@@ -14,6 +15,7 @@ import Primer.Core (
   PrimCon (PrimChar),
   PrimFun (..),
   PrimFunError (..),
+  PrimTypeDef (..),
  )
 import Primer.Core.DSL (
   bool_,
@@ -25,6 +27,24 @@ import Primer.Core.DSL (
   tfun,
  )
 import Primer.Name (Name)
+
+allPrimTypeDefs :: Map Name PrimTypeDef
+allPrimTypeDefs =
+  M.fromList
+    [ let name = "Char"
+       in ( name
+          , PrimTypeDef
+            { primTypeDefName = "Char"
+            , primTypeDefParameters = []
+            , primTypeDefNameHints = ["c"]
+            }
+          )
+    ]
+  where
+    -- This ensures that when we modify the constructors of `PrimCon` (i.e. we add/remove primitive types),
+    -- we are alerted that we need to update this map.
+    _ = \case
+      PrimChar _ -> ()
 
 allPrimDefs :: Map Name PrimFun
 allPrimDefs =

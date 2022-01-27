@@ -45,7 +45,6 @@ module Primer.App (
   listDef,
   eitherDef,
   defaultTypeDefs,
-  primTypeDefs,
 ) where
 
 import Foreword
@@ -82,10 +81,8 @@ import Primer.Core (
   ID (..),
   Kind (..),
   Meta (..),
-  PrimCon (..),
   PrimDef (..),
   PrimFun (..),
-  PrimTypeDef (..),
   Type,
   Type' (..),
   TypeDef (..),
@@ -110,7 +107,7 @@ import qualified Primer.Eval as Eval
 import Primer.EvalFull (Dir, EvalFullError (TimedOut), TerminationBound, evalFull)
 import Primer.JSON
 import Primer.Name (Name, NameCounter, freshName, unsafeMkName)
-import Primer.Primitives (allPrimDefs)
+import Primer.Primitives (allPrimDefs, allPrimTypeDefs)
 import Primer.Questions (
   Question (..),
   generateNameExpr,
@@ -900,21 +897,7 @@ defaultTypeDefs =
     [boolDef, natDef, listDef, maybeDef, pairDef, eitherDef]
     <> map
       TypeDefPrim
-      primTypeDefs
-
-primTypeDefs :: [PrimTypeDef]
-primTypeDefs =
-  [ PrimTypeDef
-      { primTypeDefName = "Char"
-      , primTypeDefParameters = []
-      , primTypeDefNameHints = ["c"]
-      }
-  ]
-  where
-    -- This ensures that when we modify the constructors of `PrimCon` (i.e. we add/remove primitive types),
-    -- we are alerted that we need to update this set.
-    _ = \case
-      PrimChar _ -> ()
+      (Map.elems allPrimTypeDefs)
 
 -- | A definition of the Bool type
 boolDef :: ASTTypeDef
