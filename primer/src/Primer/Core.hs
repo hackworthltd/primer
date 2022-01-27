@@ -373,6 +373,8 @@ data PrimCon
   deriving (Eq, Show, Data, Generic)
   deriving (FromJSON, ToJSON) via VJSON PrimCon
 
+-- | The name of the type to which this primitive constructor belongs.
+-- This should be a key in `allPrimTypeDefs`.
 primConName :: PrimCon -> Name
 primConName = \case
   PrimChar _ -> "Char"
