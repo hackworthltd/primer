@@ -489,7 +489,7 @@ unit_prim_isSpace_2 =
 
 hprop_prim_hex_nat :: Property
 hprop_prim_hex_nat = withTests 20 . property $ do
-  n <- forAllT $ Gen.integral $ Range.linear 0 50
+  n <- forAllT $ Gen.integral $ Range.constant 0 50
   let ne = nat n
       ((e, r, gs), maxID) =
         if n <= 15
