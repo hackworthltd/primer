@@ -124,19 +124,6 @@ branch c vs e = CaseBranch c <$> mapM binding vs <*> e
 char :: MonadFresh ID m => Char -> m Expr
 char c = PrimCon <$> meta <*> pure (PrimChar c)
 
-bool_ :: MonadFresh ID m => Bool -> m Expr
-bool_ b = con $ if b then "True" else "False"
-
-nat :: MonadFresh ID m => Natural -> m Expr
-nat = \case
-  0 -> con "Zero"
-  n -> app (con "Succ") $ nat (n - 1)
-
-maybe_ :: MonadFresh ID m => m Type -> (a -> m Expr) -> Maybe a -> m Expr
-maybe_ t f = \case
-  Nothing -> con "Nothing" `aPP` t
-  Just x -> con "Just" `aPP` t `app` f x
-
 tEmptyHole :: MonadFresh ID m => m Type
 tEmptyHole = TEmptyHole <$> meta
 
@@ -163,3 +150,15 @@ meta = meta' Nothing
 
 meta' :: MonadFresh ID m => a -> m (Meta a)
 meta' a = Meta <$> fresh <*> pure a <*> pure Nothing
+
+-- These functions rely on particular types being in scope.
+bool_ :: MonadFresh ID m => Bool -> m Expr
+bool_ b = con $ if b then "True" else "False"
+nat :: MonadFresh ID m => Natural -> m Expr
+nat = \case
+  0 -> con "Zero"
+  n -> app (con "Succ") $ nat (n - 1)
+maybe_ :: MonadFresh ID m => m Type -> (a -> m Expr) -> Maybe a -> m Expr
+maybe_ t f = \case
+  Nothing -> con "Nothing" `aPP` t
+  Just x -> con "Just" `aPP` t `app` f x
