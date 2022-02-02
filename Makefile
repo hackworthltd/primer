@@ -7,6 +7,7 @@ targets = build configure check test generate-fixtures docs clean realclean deps
 
 $(targets):
 	$(MAKE) -C primer $@
+	$(MAKE) -C primer-rel8 $@
 	$(MAKE) -C primer-selda $@
 	$(MAKE) -C primer-service $@
 
