@@ -48,7 +48,6 @@ library
     , openapi3           >=3.1.0   && <=3.2
     , optics             >=0.4     && <=0.5
     , primer             ^>=0.7
-    , selda              ^>=0.5
     , servant            ^>=0.18
     , servant-openapi3   ^>=2.0.1.2
     , servant-server     ^>=0.18
@@ -89,13 +88,11 @@ executable primer-service
     , base
     , bytestring            >=0.10.8.2 && <=0.11
     , directory             ^>=1.3
+    , hasql                 ^>=1.4.5.3
     , optparse-applicative  ^>=0.15.1.0
     , primer
-    , primer-selda          ^>=0.7
+    , primer-rel8           ^>=0.7
     , primer-service
-    , selda
-    , selda-postgresql      ^>=0.1
-    , selda-sqlite          ^>=0.1
     , stm
     , stm-containers
     , text

@@ -4,6 +4,8 @@
 module Primer.Database.Rel8.Rel8Db (
   Rel8DbT (..),
   Rel8Db,
+  runRel8DbT,
+  runRel8Db,
 ) where
 
 import Foreword hiding (filter)
@@ -81,6 +83,15 @@ newtype Rel8DbT m a = Rel8DbT {unRel8DbT :: ReaderT Connection m a}
 
 -- | The 'Rel8DbT' monad transformer applied to 'IO'.
 type Rel8Db a = Rel8DbT IO a
+
+-- | Run an action in the 'Rel8DbT' monad with the given 'Connection'.
+runRel8DbT :: Rel8DbT m a -> Connection -> m a
+runRel8DbT m = runReaderT (unRel8DbT m)
+
+-- | Run an 'IO' action in the 'Rel8Db' monad with the given
+-- 'Connection'.
+runRel8Db :: Rel8DbT IO a -> Connection -> IO a
+runRel8Db = runRel8DbT
 
 -- | A 'MonadDb' instance for 'Rel8DbT'.
 --
