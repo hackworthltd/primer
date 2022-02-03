@@ -9,12 +9,7 @@ import Control.Concurrent.STM (
 import Control.Exception (bracket)
 import Data.ByteString as BS
 import Data.ByteString.UTF8 (fromString)
-import Database.Selda.Backend (runSeldaT)
-import Database.Selda.PostgreSQL (
-  pgOpen',
-  seldaClose,
- )
-import Database.Selda.SQLite (withSQLite)
+import Hasql.Connection
 import Numeric.Natural (Natural)
 import Options.Applicative (
   Parser,
@@ -34,19 +29,18 @@ import Options.Applicative (
   progDesc,
   str,
   value,
-  (<|>),
  )
 import Primer.Database (Version)
 import qualified Primer.Database as Db (
   ServiceCfg (..),
   serve,
  )
-import qualified Primer.Database.Selda as Db (initialize)
+import Primer.Database.Rel8 (runRel8DbT)
 import Primer.Server (
   serve,
  )
 import qualified StmContainers.Map as StmMap
-import System.Directory (canonicalizePath, withCurrentDirectory)
+import System.Directory (withCurrentDirectory)
 import System.Environment (lookupEnv)
 
 {- HLINT ignore "Use newtype instead of data" -}
@@ -54,14 +48,10 @@ data GlobalOptions = GlobalOptions
   { cmd :: !Command
   }
 
-data Database
-  = SQLite FilePath
-  | PostgreSQL BS.ByteString
+data Database = PostgreSQL BS.ByteString
 
 parseDatabase :: Parser Database
-parseDatabase =
-  (SQLite <$> option str (long "sqlite-db"))
-    <|> (PostgreSQL <$> option auto (long "pgsql-url"))
+parseDatabase = PostgreSQL <$> option auto (long "pgsql-url")
 
 data Command
   = Serve FilePath Version (Maybe Database) Int Natural
@@ -83,48 +73,26 @@ cmds =
           (info serveCmd (progDesc "Run the server"))
       )
 
-defaultSQLiteDB :: FilePath
-defaultSQLiteDB = "primer.sqlite"
-
 pgUrlEnvVar :: String
 pgUrlEnvVar = "DATABASE_URL"
 
 -- | When no database flag is provided on the command line, we try
 -- first to lookup and parse the magic @DATABASE_URL@ environment
--- variable. If that's not present, we fall back on a local SQLite
--- database.
---
--- Note: this is less than ideal for production, where we should fail
--- when no valid PostgreSQL configuration exists. See
--- <https://github.com/hackworthltd/primer/issues/1>
+-- variable. If that's not present, we fail.
 defaultDb :: IO Database
 defaultDb = do
   envVar <- lookupEnv pgUrlEnvVar
   case envVar of
-    Nothing -> pure $ SQLite defaultSQLiteDB
+    Nothing -> fail "You must provide a PostgreSQL connection URL either via the command line, or by setting the DATABASE_URL environment variable."
     Just uri -> pure $ PostgreSQL $ fromString uri
 
 runDb :: Db.ServiceCfg -> Database -> IO ()
 runDb cfg =
   \case
-    SQLite path -> do
-      dbPath <- canonicalizePath path
-      withSQLite dbPath dbGo
     PostgreSQL uri ->
-      -- We don't use @withPostgreSQL@ because we have a raw URI, and
-      -- we don't want to parse it.
-      bracket (pgOpen' Nothing uri) seldaClose $ runSeldaT dbGo
+      bracket (connect uri) release $ runRel8DbT $ Db.serve cfg
   where
-    dbGo = do
-      -- For convenience, in case it doesn't already exist, we
-      -- initialize the database. If it does already exist, this
-      -- action does nothing.
-      --
-      -- TODO: better privilege separation for PostgreSQL databases
-      -- operations. See
-      -- <https://github.com/hackworthltd/primer/issues/2>
-      Db.initialize
-      Db.serve cfg
+    connect u = acquire u >>= either (fail . show) return
 
 -- The choice of which process to fork and which to run in the "main"
 -- thread doesn't particularly matter for our purposes, as far as I
