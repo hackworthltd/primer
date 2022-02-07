@@ -13,7 +13,6 @@ category:      Database
 library
   exposed-modules:
     Primer.Database.Rel8
-    Primer.Database.Rel8.OrphanInstances
     Primer.Database.Rel8.Rel8Db
     Primer.Database.Rel8.Schema
 
