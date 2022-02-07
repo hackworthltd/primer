@@ -51,8 +51,6 @@
 
       # We must keep the weeder version in sync with the version of
       # GHC we're using.
-      #
-      # Weeder 2.2.0 is the last one that uses GHC 8.10.x.
       weederVersion = "2.2.0";
 
       forAllSupportedSystems = flake-utils.lib.eachSystem [
