@@ -1,5 +1,4 @@
 {-# LANGUAGE DeriveAnyClass #-}
-{-# LANGUAGE DerivingVia #-}
 {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeFamilies #-}
@@ -11,12 +10,11 @@ module Primer.Database.Rel8.Schema (
 
 import Foreword
 
+import Data.ByteString.Lazy as BL
 import Data.UUID (UUID)
-import Primer.App (App)
 import Primer.Database (
   Version,
  )
-import Primer.Database.Rel8.OrphanInstances ()
 import Rel8 (
   Column,
   Name,
@@ -36,8 +34,9 @@ data SessionRow f = SessionRow
   -- ^ Primer's git version. We would prefer that this were a git
   -- rev, but for technical reasons, it may also be a last-modified
   -- date.
-  , app :: Column f App
-  -- ^ The session's 'App'.
+  , app :: Column f BL.ByteString
+  -- ^ The session's 'App'. Note that the 'App' is serialized to
+  -- JSON before being stored as a bytestring in the database.
   , name :: Column f Text
   -- ^ The session's name.
   }
