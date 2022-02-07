@@ -74,10 +74,6 @@ newtype SessionName = SessionName Text
   deriving (Generic, Eq, Show, Read)
   deriving newtype (ToJSON)
 
--- Ugh, this doesn't work. See
--- https://github.com/valderman/selda/issues/13
--- deriving (SqlType) via Text
-
 -- | Given some 'Text', try to convert it to a 'SessionName'.
 --
 -- This function performs the following operations on the input:
@@ -144,9 +140,6 @@ type Sessions = StmMap.Map SessionId SessionData
 
 -- | Create a new, unique session ID.
 newSessionId :: IO SessionId
--- Note: do not use "Database.Selda"s random UUID generator here. It
--- does not take pains to be cryptographically secure as "Data.UUID"
--- does, which is important for generating unpredictable UUIDs.
 newSessionId = nextRandom
 
 -- | A database operation status, for operations that need to

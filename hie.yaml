@@ -18,9 +18,6 @@ cradle:
             - path: ./primer-rel8/src
               component: "lib:primer-rel8"
 
-            - path: ./primer-selda/src
-              component: "lib:primer-selda"
-
             - path: ./primer-service/src
               component: "lib:primer-service"
             - path: ./primer-service/exe

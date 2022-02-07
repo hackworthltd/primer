@@ -4,7 +4,6 @@ let
     tmpRoots =
       [ "^Primer.Action.Available"
       , "^Primer.Action.Priorities"
-      , "^Primer.Database.Selda.initialize"
       ]
 
 let
