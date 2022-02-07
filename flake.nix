@@ -79,8 +79,14 @@
                   packages = {
                     primer.ghcOptions = [ "-Werror" ];
                     primer-rel8.ghcOptions = [ "-Werror" ];
-                    primer-selda.ghcOptions = [ "-Werror" ];
-                    primer-service.ghcOptions = [ "-Werror" ];
+                    primer-service = {
+                      ghcOptions = [ "-Werror" ];
+
+                      # The tests need PostgreSQL binaries.
+                      preCheck = ''
+                        export PATH="${final.postgresql}/bin:${"$PATH"}"
+                      '';
+                    };
                   };
                 }
                 {
@@ -434,7 +440,6 @@
 
         buildInputs = (with pkgs; [
           nixpkgs-fmt
-          sqlite
           postgresql
           openapi-generator-cli
 

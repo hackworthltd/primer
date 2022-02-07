@@ -38,9 +38,6 @@ cabal.project.local*
 *.chs.h
 .ghc.environment.*
 
-# SQLite
-*.sqlite
-
 # generated files
 /openapi.json
 /axios-bindings/
