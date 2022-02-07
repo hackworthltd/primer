@@ -4,7 +4,6 @@ module Main (main) where
 
 import Foreword hiding (
   catchJust,
-  option,
  )
 
 import Control.Concurrent.STM (

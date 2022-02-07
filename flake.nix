@@ -47,11 +47,25 @@
         in
         builtins.trace "Nix Primer version is ${v}" v;
 
-      ghcVersion = "ghc8107";
+      # Workaround for https://github.com/input-output-hk/haskell.nix/issues/1177.
+      exceptionsWorkaround = version: {
+        inherit version;
+        modules = [
+          ({ lib, ... }: {
+            reinstallableLibGhc = true;
+          })
+        ];
+      };
+
+      ghcVersion = "ghc923";
 
       # We must keep the weeder version in sync with the version of
       # GHC we're using.
-      weederVersion = "2.2.0";
+      weederVersion = "2.4.0";
+
+      # Fourmolu updates often formatting arbitrarily, and we want to
+      # have more control over this.
+      fourmoluVersion = "0.6.0.0";
 
       forAllSupportedSystems = flake-utils.lib.eachSystem [
         "x86_64-linux"
@@ -66,6 +80,11 @@
         haskell-nix.overlay
         (final: prev:
           let
+            ghc8107Tools = final.haskell-nix.tools "ghc8107" {
+              cabal-fmt = "latest";
+              cabal-edit = "latest";
+            };
+
             postgres-dev-password = "primer-dev";
             postgres-dev-base-url = "postgres://postgres:${postgres-dev-password}@localhost:5432";
             postgres-dev-primer-url = "${postgres-dev-base-url}/primer";
@@ -84,6 +103,48 @@
               compiler-nix-name = ghcVersion;
               src = ./.;
               modules = [
+                # https://github.com/input-output-hk/haskell.nix/issues/1177
+                {
+                  nonReinstallablePkgs = [
+                    "rts"
+                    "ghc-heap"
+                    "ghc-prim"
+                    "integer-gmp"
+                    "integer-simple"
+                    "base"
+                    "deepseq"
+                    "array"
+                    "ghc-boot-th"
+                    "pretty"
+                    "template-haskell"
+                    "ghc-bignum"
+                    "exceptions"
+                    "stm"
+                    "ghc-boot"
+                    "ghc"
+                    "Cabal"
+                    "Win32"
+                    "array"
+                    "binary"
+                    "bytestring"
+                    "containers"
+                    "directory"
+                    "filepath"
+                    "ghc-boot"
+                    "ghc-compact"
+                    "ghc-prim"
+                    "hpc"
+                    "mtl"
+                    "parsec"
+                    "process"
+                    "text"
+                    "time"
+                    "transformers"
+                    "unix"
+                    "xhtml"
+                    "terminfo"
+                  ];
+                }
                 {
                   # We want -Werror for Nix builds (primarily for CI).
                   packages =
@@ -166,23 +227,17 @@
                   ghcid = "latest";
                   haskell-language-server = "latest";
                   cabal = "latest";
-                  hlint = "latest";
+                  hlint = exceptionsWorkaround "latest";
+                  weeder = exceptionsWorkaround weederVersion;
 
-                  # https://github.com/input-output-hk/haskell.nix/issues/1337
-                  fourmolu = {
-                    version = "latest";
-                    modules = [
-                      ({ lib, ... }: {
-                        options.nonReinstallablePkgs = lib.mkOption { apply = lib.remove "Cabal"; };
-                      })
-                    ];
-                  };
+                  fourmolu = fourmoluVersion;
 
-                  cabal-edit = "latest";
-                  cabal-fmt = "latest";
+                  # Not yet working with GHC 9.2.2.
+                  #cabal-edit = "latest";
+                  #cabal-fmt = "latest";
+
                   #TODO Explicitly requiring tasty-discover shouldn't be necessary - see the commented-out `build-tool-depends` in primer.cabal.
                   tasty-discover = "latest";
-                  weeder = weederVersion;
                 };
 
                 buildInputs = (with final; [
@@ -214,6 +269,9 @@
                   delete-local-db
                   dump-local-db
                   restore-local-db
+
+                  ghc8107Tools.cabal-edit
+                  ghc8107Tools.cabal-fmt
                 ]);
 
                 shellHook = ''
@@ -277,6 +335,8 @@
 
             inherit primer-openapi-spec;
             inherit run-primer;
+
+            inherit (ghc8107Tools) cabal-edit cabal-fmt;
           }
         )
       ];
@@ -304,7 +364,7 @@
 
       weeder =
         let
-          weederTool = pkgs.haskell-nix.tool ghcVersion "weeder" weederVersion;
+          weederTool = pkgs.haskell-nix.tool ghcVersion "weeder" (exceptionsWorkaround weederVersion);
           getLibHIE = package:
             pkgs.lib.optional (package.components ? library)
               { name = "${package.identifier.name}-library"; path = package.components.library.hie; };
@@ -346,18 +406,11 @@
           # Override the default nix-pre-commit-hooks tools with the version
           # we're using.
           haskellNixTools = pkgs.haskell-nix.tools ghcVersion {
-            hlint = "latest";
-            cabal-fmt = "latest";
+            hlint = exceptionsWorkaround "latest";
+            fourmolu = fourmoluVersion;
 
-            # https://github.com/input-output-hk/haskell.nix/issues/1337
-            fourmolu = {
-              version = "latest";
-              modules = [
-                ({ lib, ... }: {
-                  options.nonReinstallablePkgs = lib.mkOption { apply = lib.remove "Cabal"; };
-                })
-              ];
-            };
+            # Not yet working with GHC 9.2.2.
+            #cabal-fmt = "latest";
           };
         in
         pre-commit-hooks-nix.lib.${system}.run {
@@ -373,6 +426,7 @@
           # we're using.
           tools = {
             inherit (pkgs) nixpkgs-fmt;
+            inherit (pkgs) cabal-fmt;
           } // haskellNixTools;
 
           excludes = [
