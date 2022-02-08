@@ -772,6 +772,15 @@ unit_redexes_prim_3 :: Assertion
 unit_redexes_prim_3 =
   redexesOfWithPrims (\defs -> global (defs ! "eqChar") `app` char 'a') @?= Set.empty
 
+unit_redexes_prim_ann :: Assertion
+unit_redexes_prim_ann =
+  redexesOfWithPrims expr @?= Set.singleton 26
+  where
+    expr defs =
+      global (defs ! "toUpper")
+        `ann` (tcon "Char" `tfun` tcon "Char")
+          `app` (char 'a' `ann` tcon "Char")
+
 -- * Misc helpers
 
 -- | Like '@?=' but specifically for expressions.
