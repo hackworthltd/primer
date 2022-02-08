@@ -20,6 +20,7 @@ module Primer.Core.DSL (
   bool_,
   nat,
   maybe_,
+  list_,
   tEmptyHole,
   thole,
   tcon,
@@ -162,3 +163,13 @@ maybe_ :: MonadFresh ID m => m Type -> (a -> m Expr) -> Maybe a -> m Expr
 maybe_ t f = \case
   Nothing -> con "Nothing" `aPP` t
   Just x -> con "Just" `aPP` t `app` f x
+list_ :: MonadFresh ID m => Name -> [m Expr] -> m Expr
+list_ t =
+  foldr
+    ( \a b ->
+        con "Cons"
+          `aPP` tcon t
+          `app` a
+          `app` b
+    )
+    (con "Nil" `aPP` tcon t)
