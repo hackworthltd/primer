@@ -566,6 +566,22 @@ unit_prim_char_partial =
         distinctIDs s
         s <~==> Right e
 
+unit_prim_ann :: Assertion
+unit_prim_ann =
+  let ((e, r, gs), maxID) =
+        create . withPrimDefs $ \defs globals -> do
+          (,,)
+            <$> ( global (defs ! "toUpper")
+                    `ann` (tcon "Char" `tfun` tcon "Char")
+                )
+              `app` (char 'a' `ann` tcon "Char")
+            <*> char 'A'
+            <*> pure (DefPrim <$> globals)
+      s = evalFullTest maxID (mkTypeDefMap defaultTypeDefs) gs 2 Syn e
+   in do
+        distinctIDs s
+        s <~==> Right r
+
 -- * Utilities
 
 evalFullTest :: ID -> M.Map Name TypeDef -> M.Map ID Def -> TerminationBound -> Dir -> Expr -> Either EvalFullError Expr

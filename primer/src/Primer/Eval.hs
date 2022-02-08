@@ -770,9 +770,18 @@ munless x b = if b then mempty else x
 -- (a computation for building) the result.
 tryPrimFun :: Map ID PrimDef -> Expr -> Maybe (Name, [Expr], ExprAnyFresh)
 tryPrimFun primDefs expr
-  | (GlobalVar _ id, args) <- unfoldApp expr
+  | (GlobalVar _ id, args) <- bimap stripAnns (map stripAnns) $ unfoldApp expr
   , Just name <- primDefName <$> Map.lookup id primDefs
   , Just PrimFun{primFunDef} <- Map.lookup name allPrimDefs
   , Right e <- primFunDef args =
       Just (name, args, e)
   | otherwise = Nothing
+  where
+    -- We have to be able to apply a primitive in the presence of type annotations.
+    -- This is important because other evaluation steps may introduce unnecessary annotations,
+    -- so we need to be able to ignore them (as we also do in the case of beta reduction).
+    -- During evaluation, we may choose to hide annotations anyway, so they really shouldn't make a difference to
+    -- what can be evaluated.
+    stripAnns = \case
+      Ann _ e _ -> stripAnns e
+      e -> e
