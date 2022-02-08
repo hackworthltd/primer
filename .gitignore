@@ -41,6 +41,3 @@ cabal.project.local*
 # generated files
 /openapi.json
 /axios-bindings/
-
-# Database dumps
-*.sql
