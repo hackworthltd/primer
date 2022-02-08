@@ -134,6 +134,18 @@ in this section, but for general help on how to use `sqitch` and a bit
 about how it works, see [the
 tutorial](https://sqitch.org/docs/manual/sqitchtutorial/).
 
+Note: we do not use Sqitch for any user or group permissions, nor any
+database-wide security settings in general. The reason for this is
+because we assume that for some PostgreSQL-compatible cloud database
+offerings, user provisioning and security settings may be managed out
+of band using the cloud provider's own APIs. Therefore, our Sqitch
+scripts assume that the PostgreSQL user who's running the scripts has
+all the permissions required to perform any operations included in
+those scripts, and that a [secure schema usage
+pattern](https://www.postgresql.org/docs/current/ddl-schemas.html#DDL-SCHEMAS-PATTERNS)
+has been configured out-of-band.
+
+
 ## Sqitch setup
 
 Before running any `sqitch` commands, you need to configure it with
@@ -144,6 +156,20 @@ machine where you run `sqitch`:
 sqitch config --user user.name "Your Name"
 sqitch config --user user.email your-email-address@hackworthltd.com
 ```
+
+## Add a table
+
+To add a new table to the database:
+
+1. Tell `sqitch` about the new table:
+
+```sh
+cd sqitch
+sqitch add table_name --requires appschema -n "Description of new table."
+```
+
+2. Edit the `sqitch` scripts for the new table. See [the
+tutorial](https://sqitch.org/docs/manual/sqitchtutorial/) for details.
 
 # Generating Axios bindings
 
