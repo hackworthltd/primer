@@ -99,9 +99,7 @@ This script stops the `primer-postgres` container.
 
 This script creates the `primer` database in the local PostgreSQL
 instance. This database must have been created before Primer can
-connect to it. However, Primer is responsible for creating the schema
-in the database, and it will do this automatically if the database is
-initially empty.
+connect to it.
 
 ### `run-primer`
 
@@ -130,6 +128,11 @@ hacking on Primer.
 
 We use [Sqitch](https://sqitch.org/about/) to manage our database
 schema.
+
+Most of what you need to know to use `sqitch` with Primer is included
+in this section, but for general help on how to use `sqitch` and a bit
+about how it works, see [the
+tutorial](https://sqitch.org/docs/manual/sqitchtutorial/).
 
 ## Sqitch setup
 
