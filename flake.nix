@@ -198,6 +198,61 @@
               '';
             };
 
+            deploy-local-db = final.writeShellApplication {
+              name = "deploy-local-db";
+              runtimeInputs = with final; [
+                postgresql
+                sqitch
+              ];
+              text = ''
+                cd sqitch && sqitch deploy --verify db:${postgresPrimerUrl}
+              '';
+            };
+
+            verify-local-db = final.writeShellApplication {
+              name = "verify-local-db";
+              runtimeInputs = with final; [
+                postgresql
+                sqitch
+              ];
+              text = ''
+                cd sqitch && sqitch verify db:${postgresPrimerUrl}
+              '';
+            };
+
+            revert-local-db = final.writeShellApplication {
+              name = "revert-local-db";
+              runtimeInputs = with final; [
+                postgresql
+                sqitch
+              ];
+              text = ''
+                cd sqitch && sqitch revert db:${postgresPrimerUrl}
+              '';
+            };
+
+            status-local-db = final.writeShellApplication {
+              name = "status-local-db";
+              runtimeInputs = with final; [
+                postgresql
+                sqitch
+              ];
+              text = ''
+                cd sqitch && sqitch status db:${postgresPrimerUrl}
+              '';
+            };
+
+            log-local-db = final.writeShellApplication {
+              name = "log-local-db";
+              runtimeInputs = with final; [
+                postgresql
+                sqitch
+              ];
+              text = ''
+                cd sqitch && sqitch log db:${postgresPrimerUrl}
+              '';
+            };
+
             delete-local-db = final.writeShellApplication {
               name = "delete-local-db";
               runtimeInputs = with final; [
@@ -268,7 +323,7 @@
             primer-openapi = primerFlake.packages."primer-service:exe:primer-openapi";
 
             inherit deploy-postgresql-container start-postgresql-container stop-postgresql-container;
-            inherit run-primer create-local-db delete-local-db dump-local-db restore-local-db primer-openapi-spec;
+            inherit run-primer create-local-db deploy-local-db verify-local-db revert-local-db status-local-db log-local-db delete-local-db dump-local-db restore-local-db primer-openapi-spec;
 
             inherit sqitch;
           }
@@ -392,7 +447,7 @@
       packages =
         {
           inherit (pkgs) primer-service;
-          inherit (pkgs) run-primer create-local-db delete-local-db dump-local-db restore-local-db primer-openapi-spec;
+          inherit (pkgs) run-primer create-local-db deploy-local-db verify-local-db revert-local-db status-local-db log-local-db delete-local-db dump-local-db restore-local-db primer-openapi-spec;
           inherit (pkgs) deploy-postgresql-container start-postgresql-container stop-postgresql-container;
         }
         // primerFlake.packages;
@@ -409,7 +464,7 @@
         // primerFlake.checks;
 
       apps = {
-        inherit (pkgs) run-primer create-local-db delete-local-db dump-local-db restore-local-db primer-openapi-spec;
+        inherit (pkgs) run-primer create-local-db deploy-local-db verify-local-db revert-local-db status-local-db log-local-db delete-local-db dump-local-db restore-local-db primer-openapi-spec;
         inherit (pkgs) deploy-postgresql-container start-postgresql-container stop-postgresql-container;
       }
       // primerFlake.apps;
