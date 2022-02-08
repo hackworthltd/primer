@@ -78,8 +78,9 @@ test_pagination = testCaseSteps "pagination" $ \step' ->
         --
         -- https://github.com/hackworthltd/primer/issues/242
         liftIO $ step' "Create schema"
-        sql "CREATE TABLE public.sessions ( uuid uuid NOT NULL, gitversion text NOT NULL, app bytea NOT NULL, name text NOT NULL )"
-        sql "ALTER TABLE ONLY public.sessions ADD CONSTRAINT sessions_pkey PRIMARY KEY (uuid)"
+        sql "CREATE SCHEMA primer;"
+        sql "CREATE TABLE primer.sessions ( uuid uuid NOT NULL, gitversion text NOT NULL, app bytea NOT NULL, name text NOT NULL )"
+        sql "ALTER TABLE ONLY primer.sessions ADD CONSTRAINT sessions_pkey PRIMARY KEY (uuid)"
       flip runRel8Db conn $ do
         let step = liftIO . step'
         let m = 345

@@ -227,7 +227,7 @@
                 sqitch
               ];
               text = ''
-                cd sqitch && sqitch revert db:${postgresPrimerUrl}
+                cd sqitch && sqitch revert db:${postgresPrimerUrl} "$@"
               '';
             };
 

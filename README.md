@@ -171,6 +171,10 @@ sqitch add table_name --requires appschema -n "Description of new table."
 2. Edit the `sqitch` scripts for the new table. See [the
 tutorial](https://sqitch.org/docs/manual/sqitchtutorial/) for details.
 
+Note: we follow the [same convention as the maintainer of
+Sqitch](https://github.com/sqitchers/sqitch/issues/239#issuecomment-118943207)
+when setting PostgreSQL search paths/schema prefixes in our scripts.
+
 # Generating Axios bindings
 
 We can automatically generate TypeScript Axios bindings for
