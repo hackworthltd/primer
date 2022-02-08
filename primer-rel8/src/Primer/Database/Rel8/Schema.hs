@@ -11,6 +11,7 @@ module Primer.Database.Rel8.Schema (
 import Foreword
 
 import Data.ByteString.Lazy as BL
+import Data.String (String)
 import Data.UUID (UUID)
 import Primer.Database (
   Version,
@@ -45,10 +46,14 @@ data SessionRow f = SessionRow
 
 deriving stock instance f ~ Result => Show (SessionRow f)
 
+-- Our database schema name. We need to provide this to Rel8.
+dbSchema :: Maybe String
+dbSchema = Just "primer"
+
 sessionRowSchema :: Rel8.TableSchema (SessionRow Name)
 sessionRowSchema =
   Rel8.TableSchema
     { Rel8.name = "sessions"
-    , Rel8.schema = Nothing
+    , Rel8.schema = dbSchema
     , Rel8.columns = namesFromLabels @(SessionRow Name)
     }
