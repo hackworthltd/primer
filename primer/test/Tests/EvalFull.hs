@@ -2,7 +2,7 @@ module Tests.EvalFull where
 
 import Foreword hiding (unlines)
 
-import Control.Monad.Fresh (fresh)
+import Control.Monad.Fresh (MonadFresh, fresh)
 import Data.Generics.Uniplate.Data (universe)
 import Data.List ((\\))
 import Data.Map ((!))
@@ -10,7 +10,7 @@ import qualified Data.Map as M
 import qualified Data.Set as S
 import Data.String (unlines)
 import Gen.Core.Typed (WT, forAllT, genChk, genSyn, genWTType, isolateWT, propertyWT)
-import Hedgehog hiding (test)
+import Hedgehog hiding (Var, test)
 import qualified Hedgehog.Gen as Gen
 import qualified Hedgehog.Range as Range
 import Optics
@@ -581,6 +581,49 @@ unit_prim_ann =
    in do
         distinctIDs s
         s <~==> Right r
+
+unit_prim_partial_map :: Assertion
+unit_prim_partial_map =
+  let ((e, r, gs), maxID) =
+        create . withPrimDefs $ \defs globals -> do
+          map_ <- mapDef
+          (,,)
+            <$> global (defID map_)
+              `aPP` tcon "Char"
+              `aPP` tcon "Char"
+              `app` global (defs ! "toUpper")
+              `app` list_
+                "Char"
+                [ char 'a'
+                , char 'b'
+                , char 'c'
+                ]
+            <*> list_
+              "Char"
+              [ char 'A'
+              , char 'B'
+              , char 'C'
+              ]
+              `ann` (tcon "List" `tapp` tcon "Char")
+            <*> pure (M.singleton (defID map_) map_ <> (DefPrim <$> globals))
+      s = evalFullTest maxID (mkTypeDefMap defaultTypeDefs) gs 65 Syn e
+   in do
+        distinctIDs s
+        s <~==> Right r
+  where
+    mapDef :: MonadFresh ID m => m Def
+    mapDef = do
+      mapID <- fresh
+      mapTy <- tforall "a" KType $ tforall "b" KType $ (tvar "a" `tfun` tvar "b") `tfun` ((tcon "List" `tapp` tvar "a") `tfun` (tcon "List" `tapp` tvar "b"))
+      let worker =
+            lam "xs" $
+              case_
+                (var "xs")
+                [ branch "Nil" [] $ con "Nil" `aPP` tvar "b"
+                , branch "Cons" [("y", Nothing), ("ys", Nothing)] $ con "Cons" `aPP` tvar "b" `app` (var "f" `app` var "y") `app` (var "go" `app` var "ys")
+                ]
+      map_ <- lAM "a" $ lAM "b" $ lam "f" $ letrec "go" worker ((tcon "List" `tapp` tvar "a") `tfun` (tcon "List" `tapp` tvar "b")) $ var "go"
+      pure $ DefAST $ ASTDef mapID "map" map_ mapTy
 
 -- * Utilities
 
