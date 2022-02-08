@@ -528,6 +528,26 @@ unit_tryReduce_prim = do
       applyPrimFunArgIDs detail @?= [29, 30]
     _ -> assertFailure $ show result
 
+unit_tryReduce_prim_fail_unsaturated :: Assertion
+unit_tryReduce_prim_fail_unsaturated = do
+  let ((expr, globals), i) =
+        create . withPrimDefs $ \defs m ->
+          (,)
+            <$> global (defs ! "eqChar") `app` char 'a'
+            <*> pure m
+      result = runTryReduce (DefPrim <$> globals) mempty (expr, i)
+  result @?= Left NotRedex
+
+unit_tryReduce_prim_fail_unreduced_args :: Assertion
+unit_tryReduce_prim_fail_unreduced_args = do
+  let ((expr, globals), i) =
+        create . withPrimDefs $ \defs m ->
+          (,)
+            <$> global (defs ! "eqChar") `app` char 'a' `app` (global (defs ! "toUpper") `app` char 'a')
+            <*> pure m
+      result = runTryReduce (DefPrim <$> globals) mempty (expr, i)
+  result @?= Left NotRedex
+
 -- * 'findNodeByID' tests
 
 unit_findNodeByID_letrec :: Assertion
