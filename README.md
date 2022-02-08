@@ -126,6 +126,22 @@ hacking on Primer.
   script is most useful in combination with the `dump-local-db`
   script.
 
+# Database ops
+
+We use [Sqitch](https://sqitch.org/about/) to manage our database
+schema.
+
+## Sqitch setup
+
+Before running any `sqitch` commands, you need to configure it with
+your name and email address. Note that you need only do this once per
+machine where you run `sqitch`:
+
+```sh
+sqitch config --user user.name "Your Name"
+sqitch config --user user.email your-email-address@hackworthltd.com
+```
+
 # Generating Axios bindings
 
 We can automatically generate TypeScript Axios bindings for
