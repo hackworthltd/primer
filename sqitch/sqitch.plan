@@ -3,3 +3,4 @@
 %uri=https://github.com/hackworthltd/primer
 
 appschema 2022-02-08T12:22:57Z Drew Hess <dhess@hackworthltd.com> # Initial Primer schema.
+sessions [appschema] 2022-02-08T15:03:26Z Drew Hess <dhess@hackworthltd.com> # Create the sessions table.
