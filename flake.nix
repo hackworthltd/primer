@@ -257,6 +257,8 @@
               (drv: {
                 meta.platforms = final.lib.platforms.all;
               });
+
+            sqitch = final.callPackage ./nix/pkgs/sqitch { postgresqlSupport = true; };
           in
           {
             inherit primer;
@@ -267,6 +269,8 @@
 
             inherit deploy-postgresql-container start-postgresql-container stop-postgresql-container;
             inherit run-primer create-local-db delete-local-db dump-local-db restore-local-db primer-openapi-spec;
+
+            inherit sqitch;
           }
         )
       ];
@@ -448,6 +452,10 @@
 
           # For Language Server support.
           nodejs-16_x
+
+          # sqitch
+          nix-generate-from-cpan
+          sqitch
         ]);
 
         shellHook = ''
