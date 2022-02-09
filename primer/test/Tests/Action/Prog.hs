@@ -68,8 +68,10 @@ import Primer.Core.DSL (
   var,
  )
 import Primer.Name
+import Primer.Primitives (allPrimTypeDefs)
 import Test.Tasty.HUnit (Assertion, assertBool, assertFailure, (@=?), (@?=))
 import TestM (TestM, evalTestM)
+import TestUtils (withPrimDefs)
 
 unit_empty_actions_only_change_the_log :: Assertion
 unit_empty_actions_only_change_the_log = progActionTest defaultEmptyProg [] $
@@ -151,6 +153,11 @@ unit_create_def = progActionTest defaultEmptyProg [CreateDef $ Just "newDef"] $
         astDefID def @?= 4
         astDefName def @?= "newDef"
         astDefExpr def @?= EmptyHole (Meta 5 Nothing Nothing)
+
+unit_create_def_clash_prim :: Assertion
+unit_create_def_clash_prim =
+  progActionTest defaultPrimsProg [CreateDef $ Just "toUpper"] $
+    expectError (@?= DefAlreadyExists "toUpper" 22)
 
 unit_create_typedef :: Assertion
 unit_create_typedef =
@@ -287,6 +294,19 @@ unit_create_typedef_bad_7 =
           }
    in progActionTest defaultEmptyProg [AddTypeDef td] $
         expectError (@?= TypeDefError "InternalError \"Duplicate names in one tydef: between parameter-names and constructor-names\"")
+
+-- Forbid clash between type name and name of a primitive type
+unit_create_typedef_bad_prim :: Assertion
+unit_create_typedef_bad_prim =
+  let td =
+        ASTTypeDef
+          { astTypeDefName = "Char"
+          , astTypeDefParameters = []
+          , astTypeDefConstructors = []
+          , astTypeDefNameHints = []
+          }
+   in progActionTest defaultPrimsProg [AddTypeDef td] $
+        expectError (@?= TypeDefError "InternalError \"Duplicate-ly-named TypeDefs\"")
 
 -- Allow clash between type name and constructor name in one type
 unit_create_typedef_8 :: Assertion
@@ -578,6 +598,13 @@ defaultEmptyProg = do
                       , meta = Left (Meta 1 Nothing Nothing)
                       }
           }
+
+-- `defaultEmptyProg`, plus all primitive definitions (types and terms)
+defaultPrimsProg :: MonadFresh ID m => m Prog
+defaultPrimsProg = withPrimDefs $ \_ m ->
+  over #progTypes ((TypeDefPrim <$> toList allPrimTypeDefs) <>)
+    . over #progDefs ((DefPrim <$> m) <>)
+    <$> defaultEmptyProg
 
 _defIDs :: Traversal' ASTDef ID
 _defIDs = #astDefID `adjoin` #astDefExpr % (_exprMeta % _id `adjoin` _exprTypeMeta % _id) `adjoin` #astDefType % _typeMeta % _id
