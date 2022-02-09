@@ -20,11 +20,11 @@ module Primer.Eval (
   Globals,
   regenerateExprIDs,
   regenerateTypeIDs,
+  tryPrimFun,
   -- Only exported for testing
   tryReduceExpr,
   tryReduceType,
   findNodeByID,
-  tryPrimFun,
 ) where
 
 import Foreword
