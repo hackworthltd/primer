@@ -60,7 +60,7 @@ import Primer.Core (
  )
 import Primer.Core.DSL (ann, hole, letType, let_, tEmptyHole)
 import Primer.Core.Transform (removeAnn, renameVar, unfoldAPP, unfoldApp)
-import Primer.Core.Utils (freeVars, freeVarsTy)
+import Primer.Core.Utils (concreteTy, freeVars, freeVarsTy)
 import Primer.JSON
 import Primer.Name (Name, unName, unsafeMkName)
 import Primer.Primitives (allPrimDefs)
@@ -782,6 +782,7 @@ tryPrimFun primDefs expr
     -- so we need to be able to ignore them (as we also do in the case of beta reduction).
     -- During evaluation, we may choose to hide annotations anyway, so they really shouldn't make a difference to
     -- what can be evaluated.
+    -- Note that it's only safe to remove concrete annotations, since holes can act as type-changing casts.
     stripAnns = \case
-      Ann _ e _ -> stripAnns e
+      Ann _ e t | concreteTy t -> stripAnns e
       e -> e
