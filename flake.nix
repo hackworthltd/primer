@@ -142,171 +142,7 @@
               crossPlatforms = p: [ p.ghcjs ];
             };
 
-
-            # Scripts for running a local PostgreSQL container in
-            # Docker, and a local primer-service instance.
-
-            dockerContext = "colima-primer";
-            postgresImageTag = "postgres:13.4-alpine3.14";
-            postgresVolume = "postgres-primer";
-            postgresContainer = "postgres-primer";
-            postgresPassword = "primer-dev";
-            postgresBaseUrl = "postgres://postgres:${postgresPassword}@localhost:5432";
-            postgresPrimerUrl = "${postgresBaseUrl}/primer";
-
-            deploy-postgresql-container = final.writeShellApplication {
-              name = "deploy-postgresql-container";
-              runtimeInputs = with final; [
-                colima
-                docker
-              ];
-              text = ''
-                colima start --runtime docker --profile primer
-                docker --context ${dockerContext} pull ${postgresImageTag}
-                docker volume create postgres-primer
-                docker --context ${dockerContext} run --detach --name=${postgresContainer} --publish 5432:5432 --volume ${postgresVolume}:/var/lib/postgresql/data -e POSTGRES_PASSWORD="${postgresPassword}" ${postgresImageTag}
-              '';
-            };
-
-            start-postgresql-container = final.writeShellApplication {
-              name = "start-postgresql-container";
-              runtimeInputs = with final; [
-                docker
-              ];
-              text = ''
-                docker --context ${dockerContext} start ${postgresContainer}
-              '';
-            };
-
-            stop-postgresql-container = final.writeShellApplication {
-              name = "stop-postgresql-container";
-              runtimeInputs = with final; [
-                docker
-              ];
-              text = ''
-                docker --context ${dockerContext} stop ${postgresContainer}
-              '';
-            };
-
-            create-local-db = final.writeShellApplication {
-              name = "create-local-db";
-              runtimeInputs = with final; [
-                postgresql
-              ];
-              text = ''
-                psql ${postgresBaseUrl} --command="CREATE DATABASE primer;"
-              '';
-            };
-
-            deploy-local-db = final.writeShellApplication {
-              name = "deploy-local-db";
-              runtimeInputs = with final; [
-                postgresql
-                sqitch
-              ];
-              text = ''
-                cd sqitch && sqitch deploy --verify db:${postgresPrimerUrl}
-              '';
-            };
-
-            verify-local-db = final.writeShellApplication {
-              name = "verify-local-db";
-              runtimeInputs = with final; [
-                postgresql
-                sqitch
-              ];
-              text = ''
-                cd sqitch && sqitch verify db:${postgresPrimerUrl}
-              '';
-            };
-
-            revert-local-db = final.writeShellApplication {
-              name = "revert-local-db";
-              runtimeInputs = with final; [
-                postgresql
-                sqitch
-              ];
-              text = ''
-                cd sqitch && sqitch revert db:${postgresPrimerUrl} "$@"
-              '';
-            };
-
-            status-local-db = final.writeShellApplication {
-              name = "status-local-db";
-              runtimeInputs = with final; [
-                postgresql
-                sqitch
-              ];
-              text = ''
-                cd sqitch && sqitch status db:${postgresPrimerUrl}
-              '';
-            };
-
-            log-local-db = final.writeShellApplication {
-              name = "log-local-db";
-              runtimeInputs = with final; [
-                postgresql
-                sqitch
-              ];
-              text = ''
-                cd sqitch && sqitch log db:${postgresPrimerUrl}
-              '';
-            };
-
-            delete-local-db = final.writeShellApplication {
-              name = "delete-local-db";
-              runtimeInputs = with final; [
-                postgresql
-              ];
-              text = ''
-                psql ${postgresBaseUrl} --command="DROP DATABASE primer;"
-              '';
-            };
-
-            dump-local-db = final.writeShellApplication {
-              name = "dump-local-db";
-              runtimeInputs = with final; [
-                coreutils
-                postgresql
-              ];
-              text = ''
-                timestamp=$(date --utc --iso-8601=seconds)
-                dumpfile="primer-$timestamp.sql"
-                pg_dump ${postgresPrimerUrl} > "$dumpfile"
-                echo "Dumped local Primer database to $dumpfile"
-              '';
-            };
-
-            restore-local-db = final.writeShellApplication {
-              name = "restore-local-db";
-              runtimeInputs = with final; [
-                postgresql
-              ];
-              text = ''
-                if [[ $# -ne 1 ]]; then
-                  echo "usage: restore-local-db db.sql" >&2
-                  exit 2
-                fi
-                psql ${postgresBaseUrl} --command="DROP DATABASE primer;" || true
-                psql ${postgresBaseUrl} --command="CREATE DATABASE primer;"
-                psql ${postgresPrimerUrl} < "$1"
-              '';
-            };
-
-            run-primer = final.writeShellApplication {
-              name = "run-primer";
-              runtimeInputs = with final; [
-                primer-service
-              ];
-              text = ''
-                DATABASE_URL="${postgresPrimerUrl}"
-                export DATABASE_URL
-                primer-service serve . ${version} "$@"
-              '';
-            };
-
             # Generate the Primer service OpenAPI 3 spec file.
-
             primer-openapi-spec = (final.runCommand "primer-openapi" { }
               "${final.primer-openapi}/bin/primer-openapi > $out").overrideAttrs
               (drv: {
@@ -314,18 +150,22 @@
               });
 
             sqitch = final.callPackage ./nix/pkgs/sqitch { postgresqlSupport = true; };
+
+            primer-scripts = final.lib.recurseIntoAttrs (final.callPackage ./nix/pkgs/primer-scripts { primerVersion = version; });
           in
           {
             inherit primer;
             inherit ghcjsPrimer;
 
+            inherit sqitch;
+
             primer-service = primerFlake.packages."primer-service:exe:primer-service";
             primer-openapi = primerFlake.packages."primer-service:exe:primer-openapi";
 
-            inherit deploy-postgresql-container start-postgresql-container stop-postgresql-container;
-            inherit run-primer create-local-db deploy-local-db verify-local-db revert-local-db status-local-db log-local-db delete-local-db dump-local-db restore-local-db primer-openapi-spec;
+            inherit primer-openapi-spec;
 
-            inherit sqitch;
+            inherit (primer-scripts) deploy-postgresql-container start-postgresql-container stop-postgresql-container;
+            inherit (primer-scripts) run-primer create-local-db deploy-local-db verify-local-db revert-local-db status-local-db log-local-db delete-local-db dump-local-db restore-local-db;
           }
         )
       ];
