@@ -38,10 +38,10 @@ import Primer.Core (
   typeDefAST,
   valConType,
  )
-import Primer.Core.Utils (forgetIDs, generateIDs, noHoles)
+import Primer.Core.Utils (forgetIDs, freeVarsTy, generateIDs, noHoles)
 import Primer.Name (NameCounter)
 import Primer.Refine (Inst (InstAPP, InstApp, InstUnconstrainedAPP), refine)
-import Primer.Subst (freeVarsTy, substTy, substTys)
+import Primer.Subst (substTy, substTys)
 import Primer.Typecheck (
   Cxt,
   SmartHoles (NoSmartHoles),

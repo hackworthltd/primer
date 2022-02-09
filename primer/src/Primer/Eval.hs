@@ -60,10 +60,10 @@ import Primer.Core (
  )
 import Primer.Core.DSL (ann, hole, letType, let_, tEmptyHole)
 import Primer.Core.Transform (removeAnn, renameVar, unfoldAPP, unfoldApp)
+import Primer.Core.Utils (freeVars, freeVarsTy)
 import Primer.JSON
 import Primer.Name (Name, unName, unsafeMkName)
 import Primer.Primitives (allPrimDefs)
-import Primer.Subst (freeVars, freeVarsTy)
 import Primer.Zipper (
   ExprZ,
   Loc (InExpr, InType),

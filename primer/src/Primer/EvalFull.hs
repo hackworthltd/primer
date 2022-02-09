@@ -20,14 +20,13 @@ module Primer.EvalFull (
 import Foreword
 
 import Control.Monad.Fresh (MonadFresh)
-import Data.Data (Data)
 import qualified Data.Map as M
 import qualified Data.Set as S
 import Data.Set.Optics (setOf)
 import Data.Tuple.Extra (thd3)
 import GHC.Err (error)
 import Numeric.Natural (Natural)
-import Optics (Fold, anyOf, getting, hasn't, set, summing, (%), _1, _2)
+import Optics (Fold, anyOf, getting, set, summing, (%), _1, _2)
 import Primer.Core (
   ASTDef (..),
   ASTTypeDef (..),
@@ -73,11 +72,10 @@ import Primer.Core (
  )
 import Primer.Core.DSL (ann, letType, let_, letrec, tvar, var)
 import Primer.Core.Transform (unfoldAPP, unfoldApp)
-import Primer.Core.Utils (generateTypeIDs, noHoles)
+import Primer.Core.Utils (concreteTy, freeVars, freeVarsTy, generateTypeIDs, _freeVars, _freeVarsTy)
 import Primer.Eval (regenerateExprIDs, regenerateTypeIDs, tryPrimFun)
 import Primer.JSON (CustomJSON (CustomJSON), FromJSON, ToJSON, VJSON)
 import Primer.Name (Name, NameCounter, freshName)
-import Primer.Subst (freeVars, freeVarsTy, _freeVars, _freeVarsTy)
 import Primer.Typecheck (instantiateValCons', lookupConstructor)
 import Primer.Zipper (
   ExprZ,
@@ -220,9 +218,6 @@ focusDir dirIfTop ez = case up ez of
     Case _ scrut _ | scrut == target ez -> Syn
     Hole _ _ -> Syn
     _ -> Chk
-
-concreteTy :: Data b => Type' b -> Bool
-concreteTy ty = hasn't (getting _freeVarsTy) ty && noHoles ty
 
 viewLet :: ExprZ -> Maybe (Name, Local, ExprZ)
 viewLet ez = case target ez of

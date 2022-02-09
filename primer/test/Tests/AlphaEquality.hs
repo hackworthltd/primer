@@ -15,7 +15,7 @@ import Primer.Core (
   _typeMeta,
  )
 import Primer.Core.DSL
-import Primer.Subst
+import Primer.Core.Utils (alphaEqTy)
 import Test.Tasty.HUnit hiding (assert)
 
 unit_1 :: Assertion

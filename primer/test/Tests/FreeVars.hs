@@ -5,7 +5,7 @@ import Foreword
 import qualified Data.Set as Set
 import Primer.Core (Kind (KType))
 import Primer.Core.DSL
-import Primer.Subst
+import Primer.Core.Utils
 import Test.Tasty.HUnit
 
 unit_1 :: Assertion
