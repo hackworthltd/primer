@@ -26,6 +26,7 @@ directory in this repo:
 ```sh
 nix run .#deploy-postgresql-container
 nix run .#create-local-db
+nix run .#deploy-local-db
 ```
 
 In general, you should only need to run that sequence the first time
@@ -101,6 +102,15 @@ This script creates the `primer` database in the local PostgreSQL
 instance. This database must have been created before Primer can
 connect to it.
 
+### `deploy-local-db`
+
+This script ensures your local database is using the latest schema.
+You'll need to run it anytime there's a schema change. We'll do our
+best to broadcast when this is necessary.
+
+Note that this script is safe to run at any time, even if the database
+is already using the latest schema.
+
 ### `run-primer`
 
 This script runs the Primer service and connects to the local
@@ -123,6 +133,15 @@ hacking on Primer.
   database, and then loading the dump into the new database. This
   script is most useful in combination with the `dump-local-db`
   script.
+
+* `verify-local-db` reports the differences between the latest schema
+  and the schema your local database is using.
+
+* `revert-local-db` reverts the local database to a previous schema.
+  Note that this may not always be successful. You should generally
+  only need to run this command if you're testing database schema
+  migrations. You can specify which git commit to revert to by passing
+  the following flags: `-- --to <rev>`.
 
 # Database ops
 
