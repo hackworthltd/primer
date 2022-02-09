@@ -164,6 +164,7 @@
 
             inherit primer-openapi-spec;
 
+            inherit primer-scripts;
             inherit (primer-scripts) deploy-postgresql-container start-postgresql-container stop-postgresql-container;
             inherit (primer-scripts) run-primer create-local-db deploy-local-db verify-local-db revert-local-db status-local-db log-local-db delete-local-db dump-local-db restore-local-db;
           }
@@ -351,6 +352,17 @@
           # sqitch
           nix-generate-from-cpan
           sqitch
+
+          # Local database scripts.
+          create-local-db
+          deploy-local-db
+          verify-local-db
+          revert-local-db
+          status-local-db
+          log-local-db
+          delete-local-db
+          dump-local-db
+          restore-local-db
         ]);
 
         shellHook = ''
