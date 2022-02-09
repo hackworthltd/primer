@@ -773,7 +773,7 @@ tryPrimFun primDefs expr
   | (GlobalVar _ id, args) <- bimap stripAnns (map stripAnns) $ unfoldApp expr
   , Just name <- primDefName <$> Map.lookup id primDefs
   , Just PrimFun{primFunDef} <- Map.lookup name allPrimDefs
-  , Right e <- primFunDef args =
+  , Right e <- primFunDef $ set _exprMeta () . set _exprTypeMeta () <$> args =
       Just (name, args, e)
   | otherwise = Nothing
   where
