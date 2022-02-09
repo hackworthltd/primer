@@ -33,9 +33,9 @@ import qualified Hedgehog.Gen as Gen
 import qualified Hedgehog.Range as Range
 import Primer.App (defaultTypeDefs)
 import Primer.Core (ID, Kind (KFun, KHole, KType), Type' (TApp, TCon, TEmptyHole, TForall, TFun, THole, TVar))
-import Primer.Core.Utils (forgetTypeIDs, generateTypeIDs)
+import Primer.Core.Utils (forgetTypeIDs, freeVarsTy, generateTypeIDs)
 import Primer.Name (Name, NameCounter)
-import Primer.Subst (freeVarsTy, substTys)
+import Primer.Subst (substTys)
 import Primer.Typecheck (
   Cxt,
   SmartHoles (NoSmartHoles),

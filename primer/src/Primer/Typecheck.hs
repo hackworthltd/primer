@@ -98,10 +98,10 @@ import Primer.Core (
   _typeMeta,
  )
 import Primer.Core.DSL (branch, emptyHole, meta, meta')
-import Primer.Core.Utils (forgetTypeIDs, generateTypeIDs)
+import Primer.Core.Utils (alphaEqTy, forgetTypeIDs, generateTypeIDs)
 import Primer.JSON (CustomJSON (CustomJSON), FromJSON, ToJSON, VJSON)
 import Primer.Name (Name, NameCounter, freshName)
-import Primer.Subst (alphaEqTy, substTy)
+import Primer.Subst (substTy)
 
 -- | Typechecking takes as input an Expr with 'Maybe Type' annotations and
 -- produces an Expr with 'Type' annotations - i.e. every node in the output is

@@ -102,6 +102,7 @@ import Primer.Core (
   _typeMetaLens,
  )
 import Primer.Core.DSL (create, emptyHole, tEmptyHole)
+import Primer.Core.Utils (_freeTmVars, _freeTyVars, _freeVarsTy)
 import Primer.Eval (EvalDetail, EvalError)
 import qualified Primer.Eval as Eval
 import Primer.EvalFull (Dir, EvalFullError (TimedOut), TerminationBound, evalFull)
@@ -115,7 +116,6 @@ import Primer.Questions (
   variablesInScopeExpr,
   variablesInScopeTy,
  )
-import Primer.Subst (_freeTmVars, _freeTyVars, _freeVarsTy)
 import Primer.Typecheck (
   Cxt,
   SmartHoles (NoSmartHoles, SmartHoles),
