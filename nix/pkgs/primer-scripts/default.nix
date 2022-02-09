@@ -1,0 +1,176 @@
+# Scripts for running a local PostgreSQL container in
+# Docker, and a local primer-service instance.
+
+{ writeShellApplication
+, postgresql
+, sqitch
+, coreutils
+, primer-service
+, colima
+, docker
+, primerVersion
+}:
+
+let
+
+  dockerContext = "colima-primer";
+  postgresImageTag = "postgres:13.4-alpine3.14";
+  postgresVolume = "postgres-primer";
+  postgresContainer = "postgres-primer";
+  postgresPassword = "primer-dev";
+  postgresBaseUrl = "postgres://postgres:${postgresPassword}@localhost:5432";
+  postgresPrimerUrl = "${postgresBaseUrl}/primer";
+
+in
+{
+  deploy-postgresql-container = writeShellApplication {
+    name = "deploy-postgresql-container";
+    runtimeInputs = [
+      colima
+      docker
+    ];
+    text = ''
+      colima start --runtime docker --profile primer
+      docker --context ${dockerContext} pull ${postgresImageTag}
+      docker volume create postgres-primer
+      docker --context ${dockerContext} run --detach --name=${postgresContainer} --publish 5432:5432 --volume ${postgresVolume}:/var/lib/postgresql/data -e POSTGRES_PASSWORD="${postgresPassword}" ${postgresImageTag}
+    '';
+  };
+
+  start-postgresql-container = writeShellApplication {
+    name = "start-postgresql-container";
+    runtimeInputs = [
+      docker
+    ];
+    text = ''
+      docker --context ${dockerContext} start ${postgresContainer}
+    '';
+  };
+
+  stop-postgresql-container = writeShellApplication {
+    name = "stop-postgresql-container";
+    runtimeInputs = [
+      docker
+    ];
+    text = ''
+      docker --context ${dockerContext} stop ${postgresContainer}
+    '';
+  };
+
+  create-local-db = writeShellApplication {
+    name = "create-local-db";
+    runtimeInputs = [
+      postgresql
+    ];
+    text = ''
+      psql ${postgresBaseUrl} --command="CREATE DATABASE primer;"
+    '';
+  };
+
+  deploy-local-db = writeShellApplication {
+    name = "deploy-local-db";
+    runtimeInputs = [
+      postgresql
+      sqitch
+    ];
+    text = ''
+      cd sqitch && sqitch deploy --verify db:${postgresPrimerUrl}
+    '';
+  };
+
+  verify-local-db = writeShellApplication {
+    name = "verify-local-db";
+    runtimeInputs = [
+      postgresql
+      sqitch
+    ];
+    text = ''
+      cd sqitch && sqitch verify db:${postgresPrimerUrl}
+    '';
+  };
+
+  revert-local-db = writeShellApplication {
+    name = "revert-local-db";
+    runtimeInputs = [
+      postgresql
+      sqitch
+    ];
+    text = ''
+      cd sqitch && sqitch revert db:${postgresPrimerUrl} "$@"
+    '';
+  };
+
+  status-local-db = writeShellApplication {
+    name = "status-local-db";
+    runtimeInputs = [
+      postgresql
+      sqitch
+    ];
+    text = ''
+      cd sqitch && sqitch status db:${postgresPrimerUrl}
+    '';
+  };
+
+  log-local-db = writeShellApplication {
+    name = "log-local-db";
+    runtimeInputs = [
+      postgresql
+      sqitch
+    ];
+    text = ''
+      cd sqitch && sqitch log db:${postgresPrimerUrl}
+    '';
+  };
+
+  delete-local-db = writeShellApplication {
+    name = "delete-local-db";
+    runtimeInputs = [
+      postgresql
+    ];
+    text = ''
+      psql ${postgresBaseUrl} --command="DROP DATABASE primer;"
+    '';
+  };
+
+  dump-local-db = writeShellApplication {
+    name = "dump-local-db";
+    runtimeInputs = [
+      coreutils
+      postgresql
+    ];
+    text = ''
+      timestamp=$(date --utc --iso-8601=seconds)
+      dumpfile="primer-$timestamp.sql"
+      pg_dump ${postgresPrimerUrl} > "$dumpfile"
+      echo "Dumped local Primer database to $dumpfile"
+    '';
+  };
+
+  restore-local-db = writeShellApplication {
+    name = "restore-local-db";
+    runtimeInputs = [
+      postgresql
+    ];
+    text = ''
+      if [[ $# -ne 1 ]]; then
+        echo "usage: restore-local-db db.sql" >&2
+        exit 2
+      fi
+      psql ${postgresBaseUrl} --command="DROP DATABASE primer;" || true
+      psql ${postgresBaseUrl} --command="CREATE DATABASE primer;"
+      psql ${postgresPrimerUrl} < "$1"
+    '';
+  };
+
+  run-primer = writeShellApplication {
+    name = "run-primer";
+    runtimeInputs = [
+      primer-service
+    ];
+    text = ''
+      DATABASE_URL="${postgresPrimerUrl}"
+      export DATABASE_URL
+      primer-service serve . ${primerVersion} "$@"
+    '';
+  };
+}
