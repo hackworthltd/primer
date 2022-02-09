@@ -383,7 +383,7 @@ primConName = \case
 data PrimFun = PrimFun
   { primFunTypes :: forall m. MonadFresh ID m => m ([Type], Type)
   -- ^ the function's arguments and return type
-  , primFunDef :: [Expr] -> Either PrimFunError ExprAnyFresh
+  , primFunDef :: [Expr' () ()] -> Either PrimFunError ExprAnyFresh
   }
 
 primFunType :: forall m. MonadFresh ID m => PrimFun -> m Type
@@ -404,7 +404,7 @@ data PrimFunError
     PrimFunError
       Name
       -- ^ Function name
-      [Expr]
+      [Expr' () ()]
       -- ^ Arguments
   deriving (Eq, Show, Data, Generic)
   deriving (FromJSON, ToJSON) via VJSON PrimFunError
