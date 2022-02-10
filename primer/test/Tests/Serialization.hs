@@ -1,4 +1,5 @@
 {-# LANGUAGE ExistentialQuantification #-}
+{-# LANGUAGE TypeApplications #-}
 
 module Tests.Serialization where
 
@@ -28,11 +29,12 @@ import Primer.Core (
   ASTTypeDef (..),
   Def (..),
   Expr,
-  Expr' (EmptyHole),
+  Expr' (EmptyHole, PrimCon),
   ExprMeta,
   ID (..),
   Kind (KFun, KType),
   Meta (..),
+  PrimCon (..),
   Type' (TApp, TCon, TEmptyHole),
   TypeCache (TCSynthed),
   TypeCacheBoth (TCBoth),
@@ -142,4 +144,5 @@ fixtures =
           "edit_response_1"
           (Left actionError :: Either ActionError Prog)
       , mkFixture "edit_response_2" (Right prog :: Either ActionError Prog)
+      , mkFixture "prim_char" $ PrimCon @() @() () $ PrimChar 'a'
       ]
