@@ -19,6 +19,7 @@ module Gen.Core.Typed (
   genInstApp,
   genCxtExtendingGlobal,
   genCxtExtendingLocal,
+  genPrimCon,
   forAllT,
   propertyWT,
   freshNameForCxt,
@@ -47,9 +48,11 @@ import Primer.Core (
   Expr' (..),
   ID,
   Kind (..),
+  PrimCon (..),
   Type' (..),
   TypeDef (..),
   ValCon (..),
+  primConName,
   typeDefKind,
   typeDefName,
   typeDefParameters,
@@ -159,7 +162,8 @@ genSyns ty = do
         then pure Nothing
         else pure $
           Just $ do
-            (he, hT) <- Gen.element hs
+            primCons <- (\con -> (PrimCon () con, TCon () $ primConName con)) <<$>> genPrimCon
+            (he, hT) <- Gen.element $ hs ++ primCons
             cxt <- ask
             runExceptT (refine cxt ty hT) >>= \case
               -- This error case indicates a bug. Crash and fail loudly!
@@ -443,6 +447,13 @@ genCxtExtendingLocal = do
           , curry extendLocalCxt <$> freshNameForCxt <*> genWTType KType
           ]
       local cxtE $ go (n - 1)
+
+genPrimCon :: MonadGen m => m [PrimCon]
+genPrimCon = do
+  char <- Gen.unicode
+  pure
+    [ PrimChar char
+    ]
 
 hoist' :: Applicative f => Cxt -> WT a -> f a
 hoist' cxt = pure . evalTestM 0 . flip runReaderT cxt . unWT
