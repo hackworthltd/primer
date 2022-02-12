@@ -388,10 +388,8 @@
             name = "required";
             constituents = builtins.map builtins.attrValues (with self.hydraJobs; [
               packages.x86_64-linux
-              packages.x86_64-darwin
               packages.aarch64-darwin
               checks.x86_64-linux
-              checks.x86_64-darwin
               checks.aarch64-darwin
               devShell
             ]);
