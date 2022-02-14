@@ -351,6 +351,7 @@ viewTreeExpr = U.para $ \e exprChildren ->
         GlobalVar _ i -> c <> " " <> show i
         PrimCon _ pc -> case pc of
           PrimChar c' -> show c'
+          PrimInt c' -> show c'
         _ -> unwords $ c : map unName (U.childrenBi e)
       -- add info about type children
       allChildren = case e of

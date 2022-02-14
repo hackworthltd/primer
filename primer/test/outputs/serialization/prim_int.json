@@ -1,0 +1,10 @@
+{
+    "contents": [
+        [],
+        {
+            "contents": 42,
+            "tag": "PrimInt"
+        }
+    ],
+    "tag": "PrimCon"
+}

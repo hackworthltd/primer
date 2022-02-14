@@ -17,6 +17,7 @@ module Primer.Core.DSL (
   case_,
   branch,
   char,
+  int,
   bool_,
   nat,
   maybe_,
@@ -124,6 +125,9 @@ branch c vs e = CaseBranch c <$> mapM binding vs <*> e
 
 char :: MonadFresh ID m => Char -> m Expr
 char c = PrimCon <$> meta <*> pure (PrimChar c)
+
+int :: MonadFresh ID m => Integer -> m Expr
+int n = PrimCon <$> meta <*> pure (PrimInt n)
 
 tEmptyHole :: MonadFresh ID m => m Type
 tEmptyHole = TEmptyHole <$> meta

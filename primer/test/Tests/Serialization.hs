@@ -145,4 +145,5 @@ fixtures =
           (Left actionError :: Either ActionError Prog)
       , mkFixture "edit_response_2" (Right prog :: Either ActionError Prog)
       , mkFixture "prim_char" $ PrimCon @() @() () $ PrimChar 'a'
+      , mkFixture "prim_int" $ PrimCon @() @() () $ PrimInt 42
       ]

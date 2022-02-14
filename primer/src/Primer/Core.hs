@@ -371,6 +371,7 @@ defPrim = \case
 {- HLINT ignore "Use newtype instead of data" -}
 data PrimCon
   = PrimChar Char
+  | PrimInt Integer
   deriving (Eq, Show, Data, Generic)
   deriving (FromJSON, ToJSON) via VJSON PrimCon
 
@@ -379,6 +380,7 @@ data PrimCon
 primConName :: PrimCon -> Name
 primConName = \case
   PrimChar _ -> "Char"
+  PrimInt _ -> "Int"
 
 data PrimFun = PrimFun
   { primFunTypes :: forall m. MonadFresh ID m => m ([Type], Type)
