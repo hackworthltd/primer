@@ -451,6 +451,11 @@ genPrimCon = do
   pure
     [ PrimChar char
     ]
+  where
+    -- This ensures that when we modify the constructors of `PrimCon` (i.e. we add/remove primitive types),
+    -- we are alerted that we need to update this generator.
+    _ = \case
+      PrimChar _ -> ()
 
 hoist' :: Applicative f => Cxt -> WT a -> f a
 hoist' cxt = pure . evalTestM 0 . flip runReaderT cxt . unWT
