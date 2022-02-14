@@ -159,17 +159,17 @@ genSyns ty = do
       let cons' = map (first (Con ())) $ M.toList cons
       let hs = locals' ++ globals' ++ cons'
       pure $ do
-            primCons <- (\con -> (PrimCon () con, TCon () $ primConName con)) <<$>> genPrimCon
-            (he, hT) <- Gen.element $ hs ++ primCons
-            cxt <- ask
-            runExceptT (refine cxt ty hT) >>= \case
-              -- This error case indicates a bug. Crash and fail loudly!
-              Left err -> panic $ "Internal refine/unify error: " <> show err
-              Right Nothing -> pure Nothing
-              Right (Just (inst, instTy)) -> do
-                (sb, is) <- genInstApp inst
-                let f e = \case Right tm -> App () e tm; Left ty' -> APP () e ty'
-                Just . (foldl f he is,) <$> substTys sb instTy
+        primCons <- (\con -> (PrimCon () con, TCon () $ primConName con)) <<$>> genPrimCon
+        (he, hT) <- Gen.element $ hs ++ primCons
+        cxt <- ask
+        runExceptT (refine cxt ty hT) >>= \case
+          -- This error case indicates a bug. Crash and fail loudly!
+          Left err -> panic $ "Internal refine/unify error: " <> show err
+          Right Nothing -> pure Nothing
+          Right (Just (inst, instTy)) -> do
+            (sb, is) <- genInstApp inst
+            let f e = \case Right tm -> App () e tm; Left ty' -> APP () e ty'
+            Just . (foldl f he is,) <$> substTys sb instTy
     genApp = do
       s <- genWTType KType
       (f, fTy) <- genSyns (TFun () s ty)
