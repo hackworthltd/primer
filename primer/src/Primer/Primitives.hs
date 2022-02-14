@@ -13,7 +13,7 @@ import Numeric.Natural (Natural)
 import Primer.Core (
   Expr' (App, Con, PrimCon),
   ExprAnyFresh (..),
-  PrimCon (PrimChar),
+  PrimCon (..),
   PrimFun (..),
   PrimFunError (..),
   PrimTypeDef (..),
