@@ -28,6 +28,8 @@ import Primer.Core.DSL (
  )
 import Primer.Name (Name)
 
+-- | Primitive type definitions.
+-- There should be one entry here for each constructor of `PrimCon`.
 allPrimTypeDefs :: Map Name PrimTypeDef
 allPrimTypeDefs =
   M.fromList
@@ -46,6 +48,8 @@ allPrimTypeDefs =
     _ = \case
       PrimChar _ -> ()
 
+-- | Primitive term definitions.
+-- For each of these, we should have a test that the evaluator produces expected results.
 allPrimDefs :: Map Name PrimFun
 allPrimDefs =
   M.fromList
