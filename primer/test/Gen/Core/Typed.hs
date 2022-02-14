@@ -137,7 +137,7 @@ freshNameForCxt = do
 genSyns :: TypeG -> GenT WT (ExprG, TypeG)
 genSyns ty = do
   genSpine' <- lift genSpine
-  Gen.recursive Gen.choice [genEmptyHole, genAnn] $ [genHole, genApp, genAPP, genLet] ++ catMaybes [genSpine']
+  Gen.recursive Gen.choice [genEmptyHole, genAnn] [genHole, genApp, genAPP, genLet, genSpine']
   where
     genEmptyHole = pure (EmptyHole (), TEmptyHole ())
     genAnn = do
@@ -146,9 +146,9 @@ genSyns ty = do
     genHole = do
       (e, _) <- genSyn
       pure (Hole () e, TEmptyHole ())
-    genSpine :: WT (Maybe (GenT WT (ExprG, TypeG)))
-    genSpine = fmap (fmap Gen.justT) genSpineHeadFirst
-    genSpineHeadFirst :: WT (Maybe (GenT WT (Maybe (ExprG, TypeG))))
+    genSpine :: WT (GenT WT (ExprG, TypeG))
+    genSpine = fmap Gen.justT genSpineHeadFirst
+    genSpineHeadFirst :: WT (GenT WT (Maybe (ExprG, TypeG)))
     -- todo: maybe add some lets in as post-processing? I could even add them to the locals for generation in the head
     genSpineHeadFirst = do
       localTms <- asks localTmVars
@@ -158,10 +158,7 @@ genSyns ty = do
       cons <- asks allCons
       let cons' = map (first (Con ())) $ M.toList cons
       let hs = locals' ++ globals' ++ cons'
-      if null hs
-        then pure Nothing
-        else pure $
-          Just $ do
+      pure $ do
             primCons <- (\con -> (PrimCon () con, TCon () $ primConName con)) <<$>> genPrimCon
             (he, hT) <- Gen.element $ hs ++ primCons
             cxt <- ask
