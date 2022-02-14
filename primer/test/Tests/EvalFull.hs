@@ -448,44 +448,24 @@ hprop_type_preservation = withTests 1000 $
 
 unit_prim_toUpper :: Assertion
 unit_prim_toUpper =
-  let ((e, r, gs), maxID) =
-        create . withPrimDefs $ \defs globals ->
-          (,,)
-            <$> app (global (defs ! "toUpper")) (char 'a')
-            <*> char 'A'
-            <*> pure (DefPrim <$> globals)
-      s = evalFullTest maxID mempty gs 10 Syn e
-   in do
-        distinctIDs s
-        s <~==> Right r
+  unaryPrimTest
+    "toUpper"
+    (char 'a')
+    (char 'A')
 
 unit_prim_isSpace_1 :: Assertion
 unit_prim_isSpace_1 =
-  let ((e, r, gs), maxID) =
-        create . withPrimDefs $ \defs globals ->
-          (,,)
-            <$> global (defs ! "isSpace")
-              `app` char '\n'
-            <*> con "True"
-            <*> pure (DefPrim <$> globals)
-      s = evalFullTest maxID mempty gs 2 Syn e
-   in do
-        distinctIDs s
-        s <~==> Right r
+  unaryPrimTest
+    "isSpace"
+    (char '\n')
+    (bool_ True)
 
 unit_prim_isSpace_2 :: Assertion
 unit_prim_isSpace_2 =
-  let ((e, r, gs), maxID) =
-        create . withPrimDefs $ \defs globals ->
-          (,,)
-            <$> global (defs ! "isSpace")
-              `app` char 'a'
-            <*> con "False"
-            <*> pure (DefPrim <$> globals)
-      s = evalFullTest maxID mempty gs 2 Syn e
-   in do
-        distinctIDs s
-        s <~==> Right r
+  unaryPrimTest
+    "isSpace"
+    (char 'a')
+    (bool_ False)
 
 hprop_prim_hex_nat :: Property
 hprop_prim_hex_nat = withTests 20 . property $ do
@@ -525,33 +505,19 @@ hprop_prim_hex_nat = withTests 20 . property $ do
 
 unit_prim_char_eq_1 :: Assertion
 unit_prim_char_eq_1 =
-  let ((e, r, gs), maxID) =
-        create . withPrimDefs $ \defs globals ->
-          (,,)
-            <$> global (defs ! "eqChar")
-              `app` char 'a'
-              `app` char 'a'
-            <*> con "True"
-            <*> pure (DefPrim <$> globals)
-      s = evalFullTest maxID mempty gs 2 Syn e
-   in do
-        distinctIDs s
-        s <~==> Right r
+  binaryPrimTest
+    "eqChar"
+    (char 'a')
+    (char 'a')
+    (con "True")
 
 unit_prim_char_eq_2 :: Assertion
 unit_prim_char_eq_2 =
-  let ((e, r, gs), maxID) =
-        create . withPrimDefs $ \defs globals ->
-          (,,)
-            <$> global (defs ! "eqChar")
-              `app` char 'a'
-              `app` char 'A'
-            <*> con "False"
-            <*> pure (DefPrim <$> globals)
-      s = evalFullTest maxID mempty gs 2 Syn e
-   in do
-        distinctIDs s
-        s <~==> Right r
+  binaryPrimTest
+    "eqChar"
+    (char 'a')
+    (char 'A')
+    (con "False")
 
 unit_prim_char_partial :: Assertion
 unit_prim_char_partial =
@@ -629,6 +595,34 @@ unit_prim_partial_map =
 
 evalFullTest :: ID -> M.Map Name TypeDef -> M.Map ID Def -> TerminationBound -> Dir -> Expr -> Either EvalFullError Expr
 evalFullTest id_ tydefs globals n d e = evalTestM id_ $ evalFull tydefs globals n d e
+
+unaryPrimTest :: Name -> S Expr -> S Expr -> Assertion
+unaryPrimTest f x y =
+  let ((e, r, gs), maxID) =
+        create . withPrimDefs $ \defs globals ->
+          (,,)
+            <$> global (defs ! f)
+              `app` x
+            <*> y
+            <*> pure (DefPrim <$> globals)
+      s = evalFullTest maxID mempty gs 2 Syn e
+   in do
+        distinctIDs s
+        s <~==> Right r
+binaryPrimTest :: Name -> S Expr -> S Expr -> S Expr -> Assertion
+binaryPrimTest f x y z =
+  let ((e, r, gs), maxID) =
+        create . withPrimDefs $ \defs globals ->
+          (,,)
+            <$> global (defs ! f)
+              `app` x
+              `app` y
+            <*> z
+            <*> pure (DefPrim <$> globals)
+      s = evalFullTest maxID mempty gs 2 Syn e
+   in do
+        distinctIDs s
+        s <~==> Right r
 
 -- | Generates
 --
