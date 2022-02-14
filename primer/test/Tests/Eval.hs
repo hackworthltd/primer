@@ -525,7 +525,7 @@ unit_tryReduce_prim = do
       applyPrimFunBefore detail ~= expr
       applyPrimFunAfter detail ~= expr'
       applyPrimFunName detail @?= "eqChar"
-      applyPrimFunArgIDs detail @?= [29, 30]
+      applyPrimFunArgIDs detail @?= [121, 122]
     _ -> assertFailure $ show result
 
 unit_tryReduce_prim_fail_unsaturated :: Assertion
@@ -782,7 +782,7 @@ unit_redexes_case_5 =
 
 unit_redexes_prim_1 :: Assertion
 unit_redexes_prim_1 =
-  redexesOfWithPrims (\defs -> global (defs ! "eqChar") `app` char 'a' `app` char 'b') @?= Set.fromList [26]
+  redexesOfWithPrims (\defs -> global (defs ! "eqChar") `app` char 'a' `app` char 'b') @?= Set.fromList [118]
 
 unit_redexes_prim_2 :: Assertion
 unit_redexes_prim_2 =
@@ -794,7 +794,7 @@ unit_redexes_prim_3 =
 
 unit_redexes_prim_ann :: Assertion
 unit_redexes_prim_ann =
-  redexesOfWithPrims expr @?= Set.singleton 26
+  redexesOfWithPrims expr @?= Set.singleton 118
   where
     expr defs =
       global (defs ! "toUpper")

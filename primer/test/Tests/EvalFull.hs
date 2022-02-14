@@ -532,6 +532,309 @@ unit_prim_char_partial =
         distinctIDs s
         s <~==> Right e
 
+unit_prim_int_add :: Assertion
+unit_prim_int_add =
+  binaryPrimTest
+    "Int.+"
+    (int 2)
+    (int 2)
+    (int 4)
+
+unit_prim_int_add_big :: Assertion
+unit_prim_int_add_big =
+  binaryPrimTest
+    "Int.+"
+    (int big)
+    (int big)
+    (int (36893488147419103230 :: Integer))
+  where
+    big = fromIntegral (maxBound :: Word64)
+
+unit_prim_int_sub :: Assertion
+unit_prim_int_sub =
+  binaryPrimTest
+    "Int.-"
+    (int 5)
+    (int 3)
+    (int 2)
+
+unit_prim_int_sub_negative :: Assertion
+unit_prim_int_sub_negative =
+  binaryPrimTest
+    "Int.-"
+    (int 3)
+    (int 5)
+    (int (-2))
+
+unit_prim_int_mul :: Assertion
+unit_prim_int_mul =
+  binaryPrimTest
+    "Int.×"
+    (int 3)
+    (int 2)
+    (int 6)
+
+unit_prim_int_quotient :: Assertion
+unit_prim_int_quotient =
+  binaryPrimTest
+    "Int.quotient"
+    (int 7)
+    (int 3)
+    (con "Just" `aPP` tcon "Int" `app` int 2)
+
+unit_prim_int_quotient_negative :: Assertion
+unit_prim_int_quotient_negative =
+  binaryPrimTest
+    "Int.quotient"
+    (int (-7))
+    (int 3)
+    (con "Just" `aPP` tcon "Int" `app` int (-3))
+
+unit_prim_int_quotient_zero :: Assertion
+unit_prim_int_quotient_zero =
+  binaryPrimTest
+    "Int.quotient"
+    (int (-7))
+    (int 0)
+    (con "Nothing" `aPP` tcon "Int")
+
+unit_prim_int_remainder :: Assertion
+unit_prim_int_remainder =
+  binaryPrimTest
+    "Int.remainder"
+    (int 7)
+    (int 3)
+    (con "Just" `aPP` tcon "Int" `app` int 1)
+
+unit_prim_int_remainder_negative_1 :: Assertion
+unit_prim_int_remainder_negative_1 =
+  binaryPrimTest
+    "Int.remainder"
+    (int (-7))
+    (int (-3))
+    (con "Just" `aPP` tcon "Int" `app` int (-1))
+
+unit_prim_int_remainder_negative_2 :: Assertion
+unit_prim_int_remainder_negative_2 =
+  binaryPrimTest
+    "Int.remainder"
+    (int (-7))
+    (int 3)
+    (con "Just" `aPP` tcon "Int" `app` int 2)
+
+unit_prim_int_remainder_negative_3 :: Assertion
+unit_prim_int_remainder_negative_3 =
+  binaryPrimTest
+    "Int.remainder"
+    (int 7)
+    (int (-3))
+    (con "Just" `aPP` tcon "Int" `app` int (-2))
+
+unit_prim_int_remainder_zero :: Assertion
+unit_prim_int_remainder_zero =
+  binaryPrimTest
+    "Int.remainder"
+    (int 7)
+    (int 0)
+    (con "Nothing" `aPP` tcon "Int")
+
+unit_prim_int_quot :: Assertion
+unit_prim_int_quot =
+  binaryPrimTest
+    "Int.quot"
+    (int 7)
+    (int 3)
+    (int 2)
+
+unit_prim_int_quot_negative :: Assertion
+unit_prim_int_quot_negative =
+  binaryPrimTest
+    "Int.quot"
+    (int (-7))
+    (int 3)
+    (int (-3))
+
+unit_prim_int_quot_zero :: Assertion
+unit_prim_int_quot_zero =
+  binaryPrimTest
+    "Int.quot"
+    (int (-7))
+    (int 0)
+    (int 0)
+
+unit_prim_int_rem :: Assertion
+unit_prim_int_rem =
+  binaryPrimTest
+    "Int.rem"
+    (int 7)
+    (int 3)
+    (int 1)
+
+unit_prim_int_rem_negative_1 :: Assertion
+unit_prim_int_rem_negative_1 =
+  binaryPrimTest
+    "Int.rem"
+    (int (-7))
+    (int (-3))
+    (int (-1))
+
+unit_prim_int_rem_negative_2 :: Assertion
+unit_prim_int_rem_negative_2 =
+  binaryPrimTest
+    "Int.rem"
+    (int (-7))
+    (int 3)
+    (int 2)
+
+unit_prim_int_rem_negative_3 :: Assertion
+unit_prim_int_rem_negative_3 =
+  binaryPrimTest
+    "Int.rem"
+    (int 7)
+    (int (-3))
+    (int (-2))
+
+unit_prim_int_rem_zero :: Assertion
+unit_prim_int_rem_zero =
+  binaryPrimTest
+    "Int.rem"
+    (int 7)
+    (int 0)
+    (int 7)
+
+unit_prim_int_eq_1 :: Assertion
+unit_prim_int_eq_1 =
+  binaryPrimTest
+    "Int.="
+    (int 2)
+    (int 2)
+    (bool_ True)
+
+unit_prim_int_eq_2 :: Assertion
+unit_prim_int_eq_2 =
+  binaryPrimTest
+    "Int.="
+    (int 2)
+    (int 1)
+    (bool_ False)
+
+unit_prim_int_neq_1 :: Assertion
+unit_prim_int_neq_1 =
+  binaryPrimTest
+    "Int.≠"
+    (int 2)
+    (int 2)
+    (bool_ False)
+
+unit_prim_int_neq_2 :: Assertion
+unit_prim_int_neq_2 =
+  binaryPrimTest
+    "Int.≠"
+    (int 2)
+    (int 1)
+    (bool_ True)
+
+unit_prim_int_less_than_1 :: Assertion
+unit_prim_int_less_than_1 =
+  binaryPrimTest
+    "Int.<"
+    (int 1)
+    (int 2)
+    (bool_ True)
+
+unit_prim_int_less_than_2 :: Assertion
+unit_prim_int_less_than_2 =
+  binaryPrimTest
+    "Int.<"
+    (int 1)
+    (int 1)
+    (bool_ False)
+
+unit_prim_int_less_than_or_equal_1 :: Assertion
+unit_prim_int_less_than_or_equal_1 =
+  binaryPrimTest
+    "Int.≤"
+    (int 1)
+    (int 2)
+    (bool_ True)
+
+unit_prim_int_less_than_or_equal_2 :: Assertion
+unit_prim_int_less_than_or_equal_2 =
+  binaryPrimTest
+    "Int.≤"
+    (int 1)
+    (int 1)
+    (bool_ True)
+
+unit_prim_int_less_than_or_equal_3 :: Assertion
+unit_prim_int_less_than_or_equal_3 =
+  binaryPrimTest
+    "Int.≤"
+    (int 2)
+    (int 1)
+    (bool_ False)
+
+unit_prim_int_greater_than_1 :: Assertion
+unit_prim_int_greater_than_1 =
+  binaryPrimTest
+    "Int.>"
+    (int 2)
+    (int 1)
+    (bool_ True)
+
+unit_prim_int_greater_than_2 :: Assertion
+unit_prim_int_greater_than_2 =
+  binaryPrimTest
+    "Int.>"
+    (int 1)
+    (int 1)
+    (bool_ False)
+
+unit_prim_int_greater_than_or_equal_1 :: Assertion
+unit_prim_int_greater_than_or_equal_1 =
+  binaryPrimTest
+    "Int.≥"
+    (int 1)
+    (int 2)
+    (bool_ False)
+
+unit_prim_int_greater_than_or_equal_2 :: Assertion
+unit_prim_int_greater_than_or_equal_2 =
+  binaryPrimTest
+    "Int.≥"
+    (int 1)
+    (int 1)
+    (bool_ True)
+
+unit_prim_int_greater_than_or_equal_3 :: Assertion
+unit_prim_int_greater_than_or_equal_3 =
+  binaryPrimTest
+    "Int.≥"
+    (int 2)
+    (int 1)
+    (bool_ True)
+
+unit_prim_int_toNat :: Assertion
+unit_prim_int_toNat =
+  unaryPrimTest
+    "Int.toNat"
+    (int 0)
+    (con "Just" `aPP` tcon "Nat" `app` nat 0)
+
+unit_prim_int_toNat_negative :: Assertion
+unit_prim_int_toNat_negative =
+  unaryPrimTest
+    "Int.toNat"
+    (int (-1))
+    (con "Nothing" `aPP` tcon "Nat")
+
+unit_prim_int_fromNat :: Assertion
+unit_prim_int_fromNat =
+  unaryPrimTest
+    "Int.fromNat"
+    (nat 4)
+    (int 4)
+
 unit_prim_ann :: Assertion
 unit_prim_ann =
   let ((e, r, gs), maxID) =

@@ -157,7 +157,7 @@ unit_create_def = progActionTest defaultEmptyProg [CreateDef $ Just "newDef"] $
 unit_create_def_clash_prim :: Assertion
 unit_create_def_clash_prim =
   progActionTest defaultPrimsProg [CreateDef $ Just "toUpper"] $
-    expectError (@?= DefAlreadyExists "toUpper" 22)
+    expectError (@?= DefAlreadyExists "toUpper" 114)
 
 unit_create_typedef :: Assertion
 unit_create_typedef =

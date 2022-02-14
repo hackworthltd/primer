@@ -448,14 +448,18 @@ genCxtExtendingLocal = do
 genPrimCon :: MonadGen m => m [PrimCon]
 genPrimCon = do
   char <- Gen.unicode
+  let intBound = fromIntegral (maxBound :: Word64) -- arbitrary
+  n <- Gen.integral $ Range.linear (-intBound) intBound
   pure
     [ PrimChar char
+    , PrimInt n
     ]
   where
     -- This ensures that when we modify the constructors of `PrimCon` (i.e. we add/remove primitive types),
     -- we are alerted that we need to update this generator.
     _ = \case
       PrimChar _ -> ()
+      PrimInt _ -> ()
 
 hoist' :: Applicative f => Cxt -> WT a -> f a
 hoist' cxt = pure . evalTestM 0 . flip runReaderT cxt . unWT
