@@ -1,7 +1,10 @@
 {
     "contents": [
         [],
-        "a"
+        {
+            "contents": "a",
+            "tag": "PrimChar"
+        }
     ],
     "tag": "PrimCon"
 }
