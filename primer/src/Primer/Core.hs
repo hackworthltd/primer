@@ -35,6 +35,7 @@ module Primer.Core (
   TypeDef (..),
   typeDefAST,
   typeDefKind,
+  _typeDefName,
   typeDefName,
   typeDefNameHints,
   typeDefParameters,
@@ -453,6 +454,19 @@ valConType td vc =
       args = foldr (TFun ()) ret (valConArgs vc)
       foralls = foldr (\(n, k) t -> TForall () n k t) args (astTypeDefParameters td)
    in foralls
+
+typeDefLens :: Lens' PrimTypeDef a -> Lens' ASTTypeDef a -> Lens' TypeDef a
+typeDefLens lp la = lens getter setter
+  where
+    getter = \case
+      TypeDefPrim d -> view lp d
+      TypeDefAST d -> view la d
+    setter = \case
+      TypeDefPrim d -> TypeDefPrim . flip (set lp) d
+      TypeDefAST d -> TypeDefAST . flip (set la) d
+
+_typeDefName :: Lens' TypeDef Name
+_typeDefName = typeDefLens #primTypeDefName #astTypeDefName
 
 typeDefName :: TypeDef -> Name
 typeDefName = \case

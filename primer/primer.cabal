@@ -27,6 +27,7 @@ library
     Primer.Database
     Primer.Eval
     Primer.EvalFull
+    Primer.Import
     Primer.Name
     Primer.Name.Fresh
     Primer.Primitives
@@ -35,6 +36,7 @@ library
     Primer.Subst
     Primer.Typecheck
     Primer.Unification
+    Primer.Utils
     Primer.Zipper
     Primer.ZipperCxt
 
@@ -105,6 +107,7 @@ test-suite primer-test
     Tests.EvalFull
     Tests.FreeVars
     Tests.Gen.Core.Typed
+    Tests.Import
     Tests.Primitives
     Tests.Question
     Tests.Refine

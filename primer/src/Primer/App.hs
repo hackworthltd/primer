@@ -21,8 +21,12 @@ module Primer.App (
   runEditAppM,
   runQueryAppM,
   Prog (..),
+  tcEverything,
   tcWholeProg,
   ProgAction (..),
+  ImportActionConfig (..),
+  ImportError (..),
+  importFromApp,
   ProgError (..),
   Question (..),
   handleQuestion,
@@ -45,6 +49,7 @@ module Primer.App (
   listDef,
   eitherDef,
   defaultTypeDefs,
+  MonadEditApp,
 ) where
 
 import Foreword
@@ -91,6 +96,11 @@ import Primer.Core.Utils (_freeTmVars, _freeTyVars, _freeVarsTy)
 import Primer.Eval (EvalDetail, EvalError)
 import qualified Primer.Eval as Eval
 import Primer.EvalFull (Dir, EvalFullError (TimedOut), TerminationBound, evalFull)
+import Primer.Import (
+  ImportActionConfig (..),
+  ImportError (..),
+  importFromApp',
+ )
 import Primer.JSON
 import Primer.Name (Name, NameCounter, freshName, unsafeMkName)
 import Primer.Questions (
@@ -165,6 +175,7 @@ data ProgError
     --   (However, this is not entirely true currently, see
     --    https://github.com/hackworthltd/primer/issues/3)
     TypeDefError Text
+  | ImportError ImportError
   deriving (Eq, Show, Generic)
   deriving (FromJSON, ToJSON) via VJSON ProgError
 
@@ -439,6 +450,15 @@ handleResetRequest = do
   put app
   pure $ appProg app
 
+importFromApp :: forall m. MonadEditApp m => Prog -> ImportActionConfig -> m ()
+importFromApp srcProg iac = do
+  curProg <- get
+  finalProg <- runReaderT (importFromApp' srcProg iac) curProg
+  -- We typecheck the final result, but this should pass
+  -- if the conditions in importFromApp' are satisfied
+  prog' <- tcEverything finalProg
+  modify (\s -> s{appProg = prog'})
+
 -- | A shorthand for the constraints we need when performing mutation
 -- operations on the application.
 --
@@ -598,6 +618,17 @@ loopM f a =
     Left a' -> loopM f a'
     Right b -> pure b
 
+-- | As 'tcWholeProg', but also checks type definitions
+tcEverything :: MonadEditApp m => Prog -> m Prog
+tcEverything p = do
+  x <- runExceptT $ checkTypeDefs $ progTypes p
+  case x of
+    Left e -> throwError $ ActionError e
+    Right () -> pure ()
+  tcWholeProg p
+
+-- | Checks every term definition, but not typedefs.
+-- returns the same program but with typecaches updated
 tcWholeProg :: forall m. MonadEditApp m => Prog -> m Prog
 tcWholeProg p =
   let tc :: ReaderT Cxt (ExceptT ActionError m) Prog

@@ -104,6 +104,7 @@ import Primer.Core.Utils (alphaEqTy, forgetTypeIDs, generateTypeIDs)
 import Primer.JSON (CustomJSON (CustomJSON), FromJSON, ToJSON, VJSON)
 import Primer.Name (Name, NameCounter, freshName)
 import Primer.Subst (substTy)
+import Primer.Utils (distinct)
 
 -- | Typechecking takes as input an Expr with 'Maybe Type' annotations and
 -- produces an Expr with 'Type' annotations - i.e. every node in the output is
@@ -342,14 +343,6 @@ checkTypeDefs tds = do
     -- just a yes/no answer. In this case it is fine to put nonsense in the
     -- metadata as it won't be inspected.
     fakeMeta = generateTypeIDs
-
-distinct :: Ord a => [a] -> Bool
-distinct = go mempty
-  where
-    go _ [] = True
-    go seen (x : xs)
-      | x `S.member` seen = False
-      | otherwise = go (S.insert x seen) xs
 
 -- | Check all type definitions and top-level definitions, in the empty context
 checkEverything ::
