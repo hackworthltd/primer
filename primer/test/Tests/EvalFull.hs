@@ -546,7 +546,7 @@ unit_prim_int_add_big =
     "Int.+"
     (int big)
     (int big)
-    (int (36893488147419103230 :: Integer))
+    (int (2 * big :: Integer))
   where
     big = fromIntegral (maxBound :: Word64)
 
