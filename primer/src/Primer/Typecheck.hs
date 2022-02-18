@@ -128,6 +128,9 @@ data TypeError
   | UnknownGlobalVariable ID
   | UnknownConstructor Name
   | UnknownTypeConstructor Name
+  | -- | Cannot use a PrimCon when either no type of the appropriate name is
+    -- in scope, or it is a user-defined type
+    PrimitiveTypeNotInScope Name
   | CannotSynthesiseType Expr
   | InconsistentTypes Type Type
   | TypeDoesNotMatchArrow Type
@@ -484,8 +487,27 @@ synth = \case
     -- Extend the context with the binding, and synthesise the body
     (bT, b') <- local ctx' $ synth b
     pure $ annSynth4 bT i Letrec x a' tA' b'
-  PrimCon i pc ->
-    pure $ annSynth0 (TCon () $ primConName pc) i (\m -> PrimCon m pc)
+  PrimCon i pc -> do
+    -- There is a hard-wired map 'primConName' which associates each PrimCon to
+    -- its PrimTypeDef (by name -- PrimTypeDefs have hardwired names).
+    -- However, these PrimTypeDefs may or may not be in the Cxt.
+    -- If they are not (and in that case, also if a user has defined some
+    -- other type with the same name), we should reject the use of the
+    -- primitive constructor.
+    -- Essentially, PrimCons are always-in-scope terms whose type is one of
+    -- the primitive types. Normally we ensure that the types of all global
+    -- definitions are well-kinded (in particular, only refer to types that
+    -- are in scope). This is just the analogue that check, but we have to
+    -- do it lazily (i.e. on use) for primitive constructors.
+    let tyCon = primConName pc
+    typeDef <- asks $ M.lookup tyCon . typeDefs
+    -- We expect any frontend to avoid this situation, and thus we do not
+    -- try to recover with SmartHoles
+    case typeDef of
+      Nothing -> throwError' $ PrimitiveTypeNotInScope tyCon
+      Just (TypeDefAST _) -> throwError' $ PrimitiveTypeNotInScope tyCon
+      Just (TypeDefPrim _) -> pure ()
+    pure $ annSynth0 (TCon () tyCon) i (\m -> PrimCon m pc)
   e ->
     asks smartHoles >>= \case
       NoSmartHoles -> throwError' $ CannotSynthesiseType e
