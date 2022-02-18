@@ -527,18 +527,17 @@ newtype TypecheckTestM a = TypecheckTestM {unTypecheckTestM :: ExceptT TypeError
     , MonadError TypeError
     )
 
-runTypecheckTestM :: SmartHoles -> TypecheckTestM a -> Either TypeError a
-runTypecheckTestM sh =
-  evalTestM 0
-    . flip runReaderT (buildTypingContext testingTypeDefs mempty sh)
+runTypecheckTestMFromIn :: ID -> Cxt -> TypecheckTestM a -> Either TypeError a
+runTypecheckTestMFromIn nextFresh cxt =
+  evalTestM nextFresh
+    . flip runReaderT cxt
     . runExceptT
     . unTypecheckTestM
+runTypecheckTestM :: SmartHoles -> TypecheckTestM a -> Either TypeError a
+runTypecheckTestM sh = runTypecheckTestMFromIn 0 (buildTypingContext testingTypeDefs mempty sh)
 runTypecheckTestMWithPrims :: SmartHoles -> (Map Name ID -> TypecheckTestM a) -> Either TypeError a
 runTypecheckTestMWithPrims sh =
-  evalTestM n
-    . flip runReaderT (buildTypingContext testingTypeDefs defs sh)
-    . runExceptT
-    . unTypecheckTestM
+  runTypecheckTestMFromIn n (buildTypingContext testingTypeDefs defs sh)
     . ($ globals)
   where
     ((defs, globals), n) = create $ withPrimDefs $ \m1 m2 -> pure $ (,m1) $ DefPrim <$> m2
