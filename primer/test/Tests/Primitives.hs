@@ -7,7 +7,7 @@ import Foreword
 import qualified Data.Map as M
 import Gen.Core.Typed (forAllT, genPrimCon, propertyWT)
 import Hedgehog (Property, assert)
-import Hedgehog.Gen (element)
+import Hedgehog.Gen (choice)
 import Primer.App (defaultTypeDefs)
 import Primer.Core (
   ASTTypeDef (
@@ -37,7 +37,7 @@ import Tests.Typecheck (runTypecheckTestMFromIn)
 
 hprop_all_prim_cons_have_typedef :: Property
 hprop_all_prim_cons_have_typedef = propertyWT (buildTypingContext defaultTypeDefs mempty NoSmartHoles) $ do
-  c <- forAllT $ element =<< genPrimCon
+  c <- forAllT $ (fmap fst . choice) =<< genPrimCon
   assert $ primConName c `elem` M.keys allPrimTypeDefs
 
 -- If we use a prim con, then we need the corresponding prim type

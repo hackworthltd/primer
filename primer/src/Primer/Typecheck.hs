@@ -42,6 +42,7 @@ module Primer.Typecheck (
   getGlobalNames,
   lookupGlobal,
   lookupLocal,
+  primConInScope,
   mkTypeDefMap,
   consistentKinds,
   consistentTypes,
@@ -76,6 +77,7 @@ import Primer.Core (
   ID,
   Kind (..),
   Meta (..),
+  PrimCon,
   Type' (..),
   TypeCache (..),
   TypeCacheBoth (..),
@@ -488,25 +490,10 @@ synth = \case
     (bT, b') <- local ctx' $ synth b
     pure $ annSynth4 bT i Letrec x a' tA' b'
   PrimCon i pc -> do
-    -- There is a hard-wired map 'primConName' which associates each PrimCon to
-    -- its PrimTypeDef (by name -- PrimTypeDefs have hardwired names).
-    -- However, these PrimTypeDefs may or may not be in the Cxt.
-    -- If they are not (and in that case, also if a user has defined some
-    -- other type with the same name), we should reject the use of the
-    -- primitive constructor.
-    -- Essentially, PrimCons are always-in-scope terms whose type is one of
-    -- the primitive types. Normally we ensure that the types of all global
-    -- definitions are well-kinded (in particular, only refer to types that
-    -- are in scope). This is just the analogue that check, but we have to
-    -- do it lazily (i.e. on use) for primitive constructors.
-    let tyCon = primConName pc
-    typeDef <- asks $ M.lookup tyCon . typeDefs
+    (inScope, tyCon) <- asks (primConInScope pc)
     -- We expect any frontend to avoid this situation, and thus we do not
     -- try to recover with SmartHoles
-    case typeDef of
-      Nothing -> throwError' $ PrimitiveTypeNotInScope tyCon
-      Just (TypeDefAST _) -> throwError' $ PrimitiveTypeNotInScope tyCon
-      Just (TypeDefPrim _) -> pure ()
+    unless inScope $ throwError' $ PrimitiveTypeNotInScope tyCon
     pure $ annSynth0 (TCon () tyCon) i (\m -> PrimCon m pc)
   e ->
     asks smartHoles >>= \case
@@ -524,6 +511,29 @@ synth = \case
     annSynth2 t i c = annSynth1 t i . flip c
     annSynth3 t i c = annSynth2 t i . flip c
     annSynth4 t i c = annSynth3 t i . flip c
+
+-- There is a hard-wired map 'primConName' which associates each PrimCon to
+-- its PrimTypeDef (by name -- PrimTypeDefs have hardwired names).
+-- However, these PrimTypeDefs may or may not be in the Cxt.
+-- If they are not (and in that case, also if a user has defined some
+-- other type with the same name), we should reject the use of the
+-- primitive constructor.
+-- Essentially, PrimCons are always-in-scope terms whose type is one of
+-- the primitive types. Normally we ensure that the types of all global
+-- definitions are well-kinded (in particular, only refer to types that
+-- are in scope). This is just the analogue that check, but we have to
+-- do it lazily (i.e. on use) for primitive constructors.
+--
+-- returns: whether it is in scope or not, and also the type of which it
+-- (should) construct a value
+primConInScope :: PrimCon -> Cxt -> (Bool, Name)
+primConInScope pc cxt =
+  let tyCon = primConName pc
+      typeDef = M.lookup tyCon $ typeDefs cxt
+   in case typeDef of
+        Nothing -> (False, tyCon)
+        Just (TypeDefAST _) -> (False, tyCon)
+        Just (TypeDefPrim _) -> (True, tyCon)
 
 -- | Similar to synth, but for checking rather than synthesis.
 check :: TypeM e m => Type -> Expr -> m ExprT

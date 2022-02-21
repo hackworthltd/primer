@@ -52,7 +52,6 @@ import Primer.Core (
   Type' (..),
   TypeDef (..),
   ValCon (..),
-  primConName,
   typeDefKind,
   typeDefName,
   typeDefParameters,
@@ -79,6 +78,7 @@ import Primer.Typecheck (
   matchArrowType,
   matchForallType,
   mkTypeDefMap,
+  primConInScope,
   typeDefs,
  )
 import TestM (TestM, evalTestM, isolateTestM)
@@ -137,7 +137,7 @@ freshNameForCxt = do
 genSyns :: TypeG -> GenT WT (ExprG, TypeG)
 genSyns ty = do
   genSpine' <- lift genSpine
-  Gen.recursive Gen.choice [genEmptyHole, genAnn] [genHole, genApp, genAPP, genLet, genSpine']
+  Gen.recursive Gen.choice [genEmptyHole, genAnn] $ [genHole, genApp, genAPP, genLet] ++ catMaybes [genSpine']
   where
     genEmptyHole = pure (EmptyHole (), TEmptyHole ())
     genAnn = do
@@ -146,9 +146,9 @@ genSyns ty = do
     genHole = do
       (e, _) <- genSyn
       pure (Hole () e, TEmptyHole ())
-    genSpine :: WT (GenT WT (ExprG, TypeG))
-    genSpine = fmap Gen.justT genSpineHeadFirst
-    genSpineHeadFirst :: WT (GenT WT (Maybe (ExprG, TypeG)))
+    genSpine :: WT (Maybe (GenT WT (ExprG, TypeG)))
+    genSpine = fmap (fmap Gen.justT) genSpineHeadFirst
+    genSpineHeadFirst :: WT (Maybe (GenT WT (Maybe (ExprG, TypeG))))
     -- todo: maybe add some lets in as post-processing? I could even add them to the locals for generation in the head
     genSpineHeadFirst = do
       localTms <- asks localTmVars
@@ -157,19 +157,23 @@ genSyns ty = do
       let globals' = map (first (GlobalVar ())) $ M.toList globals
       cons <- asks allCons
       let cons' = map (first (Con ())) $ M.toList cons
-      let hs = locals' ++ globals' ++ cons'
-      pure $ do
-        primCons <- (\con -> (PrimCon () con, TCon () $ primConName con)) <<$>> genPrimCon
-        (he, hT) <- Gen.element $ hs ++ primCons
-        cxt <- ask
-        runExceptT (refine cxt ty hT) >>= \case
-          -- This error case indicates a bug. Crash and fail loudly!
-          Left err -> panic $ "Internal refine/unify error: " <> show err
-          Right Nothing -> pure Nothing
-          Right (Just (inst, instTy)) -> do
-            (sb, is) <- genInstApp inst
-            let f e = \case Right tm -> App () e tm; Left ty' -> APP () e ty'
-            Just . (foldl f he is,) <$> substTys sb instTy
+      let hsPure = locals' ++ globals' ++ cons'
+      primCons <- fmap (bimap (PrimCon ()) (TCon ())) <<$>> genPrimCon
+      let hs = map pure hsPure ++ primCons
+      if null hs
+        then pure Nothing
+        else pure $
+          Just $ do
+            (he, hT) <- Gen.choice hs
+            cxt <- ask
+            runExceptT (refine cxt ty hT) >>= \case
+              -- This error case indicates a bug. Crash and fail loudly!
+              Left err -> panic $ "Internal refine/unify error: " <> show err
+              Right Nothing -> pure Nothing
+              Right (Just (inst, instTy)) -> do
+                (sb, is) <- genInstApp inst
+                let f e = \case Right tm -> App () e tm; Left ty' -> APP () e ty'
+                Just . (foldl f he is,) <$> substTys sb instTy
     genApp = do
       s <- genWTType KType
       (f, fTy) <- genSyns (TFun () s ty)
@@ -445,16 +449,22 @@ genCxtExtendingLocal = do
           ]
       local cxtE $ go (n - 1)
 
-genPrimCon :: MonadGen m => m [PrimCon]
-genPrimCon = do
-  char <- Gen.unicode
-  let intBound = fromIntegral (maxBound :: Word64) -- arbitrary
-  n <- Gen.integral $ Range.linear (-intBound) intBound
-  pure
-    [ PrimChar char
-    , PrimInt n
-    ]
+-- We have to be careful to only generate primitive constructors which are
+-- in scope (i.e. their type is in scope)
+genPrimCon :: forall mc mg. (MonadReader Cxt mc, MonadGen mg) => mc [mg (PrimCon, Name)]
+genPrimCon = catMaybes <$> sequence [genChar, genInt]
   where
+    genChar = whenInScope PrimChar 'a' Gen.unicode
+    intBound = fromIntegral (maxBound :: Word64) -- arbitrary
+    genInt = whenInScope PrimInt 0 $ Gen.integral $ Range.linear (-intBound) intBound
+    -- The 'tst' is arbitrary, only used for checking if the primcon is in scope
+    -- and does not affect the generator.
+    whenInScope :: (a -> PrimCon) -> a -> mg a -> mc (Maybe (mg (PrimCon, Name)))
+    whenInScope f tst g = do
+      s <- asks $ primConInScope (f tst)
+      pure $ case s of
+        (False, _) -> Nothing
+        (True, tc) -> Just $ (\x -> (f x, tc)) <$> g
     -- This ensures that when we modify the constructors of `PrimCon` (i.e. we add/remove primitive types),
     -- we are alerted that we need to update this generator.
     _ = \case
