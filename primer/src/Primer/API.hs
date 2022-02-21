@@ -130,7 +130,7 @@ data Env = Env
 
 type PrimerM m = ReaderT Env m
 
-{- HLINT ignore "Use newtype instead of data" -}
+{- HLINT ignore PrimerErr "Use newtype instead of data" -}
 
 -- | Primer exception class.
 data PrimerErr = DatabaseErr Text deriving (Show)

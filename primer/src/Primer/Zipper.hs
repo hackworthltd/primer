@@ -178,7 +178,7 @@ instance HasID Loc where
 -- | A location of a binding.
 -- This only covers bindings in case branches for now.
 
-{- HLINT ignore "Use newtype instead of data" -}
+{- HLINT ignore BindLoc "Use newtype instead of data" -}
 data BindLoc
   = BindCase CaseBindZ
   deriving (Generic)
