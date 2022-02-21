@@ -151,7 +151,10 @@
 
             sqitch = final.callPackage ./nix/pkgs/sqitch { postgresqlSupport = true; };
 
-            primer-scripts = final.lib.recurseIntoAttrs (final.callPackage ./nix/pkgs/primer-scripts { primerVersion = version; });
+            primer-scripts = final.lib.recurseIntoAttrs (final.callPackage ./nix/pkgs/primer-scripts {
+              sqitchDir = ./sqitch;
+              primerVersion = version;
+            });
           in
           {
             inherit primer;
