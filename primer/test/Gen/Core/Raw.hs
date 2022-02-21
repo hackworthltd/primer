@@ -107,7 +107,18 @@ genCase = Case <$> genMeta <*> genExpr <*> Gen.list (Range.linear 0 5) genBranch
 genPrim :: ExprGen Expr
 genPrim = PrimCon <$> genMeta <*> genPrimCon
   where
-    genPrimCon = PrimChar <$> Gen.unicodeAll
+    intBound = fromIntegral (maxBound :: Word64) -- arbitrary
+    genPrimCon :: (StateT ID Gen PrimCon)
+    genPrimCon =
+      Gen.choice
+        [ PrimChar <$> Gen.unicodeAll
+        , PrimInt <$> Gen.integral (Range.linear (-intBound) intBound)
+        ]
+    -- This ensures that when we modify the constructors of `PrimCon` (i.e. we add/remove primitive types),
+    -- we are alerted that we need to update this generator.
+    _ = \case
+      PrimChar _ -> ()
+      PrimInt _ -> ()
 
 genType :: ExprGen Type
 genType =
