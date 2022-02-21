@@ -12,6 +12,11 @@ import Gen.Core.Raw (
   genName,
   genType,
  )
+import Gen.Core.Typed (
+  forAllT,
+  genSyn,
+  propertyWT,
+ )
 import Hedgehog hiding (check)
 import qualified Hedgehog.Gen as Gen
 import qualified Hedgehog.Range as Range
@@ -46,6 +51,7 @@ import Primer.Core (
   _typeMeta,
  )
 import Primer.Core.DSL
+import Primer.Core.Utils (generateIDs, generateTypeIDs)
 import Primer.Name (Name, NameCounter)
 import Primer.Typecheck (
   Cxt,
@@ -61,6 +67,7 @@ import Primer.Typecheck (
 import Test.Tasty.HUnit (Assertion, assertFailure, (@?=))
 import TestM (TestM, evalTestM)
 import TestUtils (withPrimDefs)
+import Tests.Gen.Core.Typed
 
 unit_identity :: Assertion
 unit_identity =
@@ -449,6 +456,26 @@ unit_prim_fun =
 unit_prim_fun_applied :: Assertion
 unit_prim_fun_applied =
   expectTypedWithPrims $ \m -> ann (app (global (m ! "hexToNat")) (char 'a')) (tapp (tcon "Maybe") (tcon "Nat"))
+
+-- Whenever we synthesise a type, then it kind-checks against KType
+hprop_synth_well_typed_extcxt :: Property
+hprop_synth_well_typed_extcxt = withTests 1000 $
+  withDiscards 2000 $
+    propertyWTInExtendedLocalGlobalCxt (buildTypingContext defaultTypeDefs mempty NoSmartHoles) $ do
+      (e, _ty) <- forAllT genSyn
+      ty' <- generateTypeIDs . fst =<< synthTest =<< generateIDs e
+      void $ checkKindTest KType ty'
+
+-- As hprop_synth_well_typed_extcxt, but in the empty context
+-- this is in case there are problems with primitive constructors
+-- (which cannot be used unless their corresponding type is in scope)
+hprop_synth_well_typed_defcxt :: Property
+hprop_synth_well_typed_defcxt = withTests 1000 $
+  withDiscards 2000 $
+    propertyWT (buildTypingContext mempty mempty NoSmartHoles) $ do
+      (e, _ty) <- forAllT genSyn
+      ty' <- generateTypeIDs . fst =<< synthTest =<< generateIDs e
+      void $ checkKindTest KType ty'
 
 -- * Helpers
 
