@@ -143,6 +143,19 @@ hacking on Primer.
   migrations. You can specify which git commit to revert to by passing
   the following flags: `-- --to <rev>`.
 
+## A note about the Sqitch scripts
+
+Each Sqitch script bundles a copy of the Sqitch config. This means you
+can run these scripts from anywhere, Sqitch configs contribute to the
+Nix store hash for their corresponding scripts, etc.
+
+One drawback of this approach is that if you're making local changes
+to the schema, you'll need to make sure that the scripts in your Nix
+shell incorporate your changes. This won't happen automatically in
+most cases, so either you'll need to exit and re-enter the Nix shell
+via `nix develop`, or, if you're running `direnv`, you can usually run
+`touch flake.nix`.
+
 # Database ops
 
 We use [Sqitch](https://sqitch.org/about/) to manage our database

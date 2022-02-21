@@ -1,7 +1,10 @@
 # Scripts for running a local PostgreSQL container in
 # Docker, and a local primer-service instance.
 
-{ writeShellApplication
+{ stdenv
+, lib
+, makeWrapper
+, writeShellApplication
 , postgresql
 , sqitch
 , coreutils
@@ -9,6 +12,7 @@
 , colima
 , docker
 , primerVersion
+, sqitchDir
 }:
 
 let
@@ -21,6 +25,26 @@ let
   postgresBaseUrl = "postgres://postgres:${postgresPassword}@localhost:5432";
   postgresPrimerUrl = "${postgresBaseUrl}/primer";
 
+  sqitchBundle = stdenv.mkDerivation {
+    pname = "bundle-sqitch";
+    version = "1.0";
+    nativeBuildInputs = [ sqitch makeWrapper ];
+    src = sqitchDir;
+
+    buildPhase = ''
+      sqitch bundle
+    '';
+
+    installPhase = ''
+      mkdir -p $out/libexec
+      mv bundle $out/libexec/sqitch
+
+      mkdir -p $out/bin
+      makeWrapper "${sqitch}/bin/sqitch" "$out/bin/sqitch" \
+        --prefix PATH : "${lib.makeBinPath [postgresql]}" \
+        --run "cd $out/libexec/sqitch"
+    '';
+  };
 in
 {
   deploy-postgresql-container = writeShellApplication {
@@ -70,55 +94,50 @@ in
   deploy-local-db = writeShellApplication {
     name = "deploy-local-db";
     runtimeInputs = [
-      postgresql
-      sqitch
+      sqitchBundle
     ];
     text = ''
-      cd sqitch && sqitch deploy --verify db:${postgresPrimerUrl}
+      sqitch deploy --verify db:${postgresPrimerUrl}
     '';
   };
 
   verify-local-db = writeShellApplication {
     name = "verify-local-db";
     runtimeInputs = [
-      postgresql
-      sqitch
+      sqitchBundle
     ];
     text = ''
-      cd sqitch && sqitch verify db:${postgresPrimerUrl}
+      sqitch verify db:${postgresPrimerUrl}
     '';
   };
 
   revert-local-db = writeShellApplication {
     name = "revert-local-db";
     runtimeInputs = [
-      postgresql
-      sqitch
+      sqitchBundle
     ];
     text = ''
-      cd sqitch && sqitch revert db:${postgresPrimerUrl} "$@"
+      sqitch revert db:${postgresPrimerUrl} "$@"
     '';
   };
 
   status-local-db = writeShellApplication {
     name = "status-local-db";
     runtimeInputs = [
-      postgresql
-      sqitch
+      sqitchBundle
     ];
     text = ''
-      cd sqitch && sqitch status db:${postgresPrimerUrl}
+      sqitch status db:${postgresPrimerUrl}
     '';
   };
 
   log-local-db = writeShellApplication {
     name = "log-local-db";
     runtimeInputs = [
-      postgresql
-      sqitch
+      sqitchBundle
     ];
     text = ''
-      cd sqitch && sqitch log db:${postgresPrimerUrl}
+      sqitch log db:${postgresPrimerUrl}
     '';
   };
 
