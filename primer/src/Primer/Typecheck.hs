@@ -377,7 +377,7 @@ lookupConstructor tyDefs c =
         pure (vc, td)
    in find ((== c) . valConName . fst) allCons
 
-{- HLINT ignore "Avoid lambda using `infix`" -}
+{- HLINT ignore synth "Avoid lambda using `infix`" -}
 -- Note [Let expressions]
 -- Let expressions are typechecked flexibly in order to minimise the instances
 -- where an annotation must be added. Hence we can both synthesise and check

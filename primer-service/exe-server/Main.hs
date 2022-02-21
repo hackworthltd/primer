@@ -43,12 +43,12 @@ import qualified StmContainers.Map as StmMap
 import System.Directory (withCurrentDirectory)
 import System.Environment (lookupEnv)
 
-{- HLINT ignore "Use newtype instead of data" -}
+{- HLINT ignore GlobalOptions "Use newtype instead of data" -}
 data GlobalOptions = GlobalOptions
   { cmd :: !Command
   }
 
-data Database = PostgreSQL BS.ByteString
+newtype Database = PostgreSQL BS.ByteString
 
 parseDatabase :: Parser Database
 parseDatabase = PostgreSQL <$> option auto (long "pgsql-url")
