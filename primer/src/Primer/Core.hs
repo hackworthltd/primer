@@ -368,7 +368,6 @@ defPrim = \case
   DefPrim t -> Just t
   DefAST _ -> Nothing
 
-{- HLINT ignore "Use newtype instead of data" -}
 data PrimCon
   = PrimChar Char
   | PrimInt Integer
@@ -399,7 +398,7 @@ primFunType pf = do
 
 -- TODO with `-XImpredicativeTypes` in GHC 9.2, we can turn this in to a type synonym, then inline it
 -- see https://github.com/hackworthltd/primer/issues/189
-data ExprAnyFresh = ExprAnyFresh (forall m. MonadFresh ID m => m Expr)
+newtype ExprAnyFresh = ExprAnyFresh (forall m. MonadFresh ID m => m Expr)
 
 data PrimFunError
   = -- | We have attempted to apply a primitive function to invalid args.
