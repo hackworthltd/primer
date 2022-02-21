@@ -1,6 +1,6 @@
 # Adding a new primitive type to Primer
 
-See d4c4b9a for an example, where we add `Int`.
+See b0610b9 for an example, where we add `Int`.
 
 - Add a constructor to `PrimCon`.
   - Follow GHC's warnings to everywhere else that needs updating (textual name, tree rendering, type def).
