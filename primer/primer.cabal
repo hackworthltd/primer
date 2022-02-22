@@ -116,6 +116,7 @@ test-suite primer-test
     Tests.Transform
     Tests.Typecheck
     Tests.Unification
+    Tests.Uniplate
     Tests.Zipper
     Tests.Zipper.BindersAbove
     TestUtils
