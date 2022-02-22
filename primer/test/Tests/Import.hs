@@ -8,8 +8,10 @@ import Foreword
 import Optics
 import Primer.App
 import Primer.Core
+import Primer.Core.DSL
 import Primer.Name
-import Primer.Primitives (allPrimTypeDefs)
+import Primer.Primitives (allPrimDefs, allPrimTypeDefs)
+import Primer.Typecheck (mkDefMap)
 import Test.Tasty.HUnit
 
 unitDef :: ASTTypeDef
@@ -21,13 +23,52 @@ unitDef =
     , astTypeDefNameHints = []
     }
 
-srcProg :: (Applicative m) => m Prog
-srcProg =
+srcProg :: (MonadFresh ID m) => m (Prog, ID, ID)
+srcProg = do
+  plusId <- fresh
+  plusType <- tcon "Nat" `tfun` (tcon "Nat" `tfun` tcon "Nat")
+  plusExpr <-
+    lam "x" $
+      lam "y" $
+        case_
+          (var "y")
+          [ branch "Zero" [] $ var "x"
+          , branch "Succ" [("z", Nothing)] $
+              con "Succ" `app` (global plusId `app` var "x" `app` var "z")
+          ]
+  let plus =
+        ASTDef
+          { astDefID = plusId
+          , astDefName = "plus"
+          , astDefType = plusType
+          , astDefExpr = plusExpr
+          }
+  multId <- fresh
+  multType <- tcon "Nat" `tfun` (tcon "Nat" `tfun` tcon "Nat")
+  multExpr <-
+    lam "x" $
+      lam "y" $
+        case_
+          (var "y")
+          [ branch "Zero" [] $ con "Zero"
+          , branch "Succ" [("z", Nothing)] $
+              global plusId `app` var "x" `app` (global multId `app` var "x" `app` var "y")
+          ]
+  let mult =
+        ASTDef
+          { astDefID = multId
+          , astDefName = "mult"
+          , astDefType = multType
+          , astDefExpr = multExpr
+          }
   pure
-    newEmptyProg
+    ( newEmptyProg
       { progTypes = [TypeDefAST natDef]
-      , progDefs = mempty
+      , progDefs = mkDefMap $ DefAST <$> [plus, mult]
       }
+    , plusId
+    , multId
+    )
 
 srcProg2 :: (MonadFresh ID m) => (Name, Name, Name) -> (Name, Name) -> m Prog
 srcProg2 (listName, nilName, consName) (roseTyName, roseConName) = do
@@ -60,14 +101,41 @@ srcProg2 (listName, nilName, consName) (roseTyName, roseConName) = do
       , progDefs = mempty
       }
 
--- A program with all primitive types
--- and also String (which depends on "Char")
-primSrcProg :: Applicative m => m Prog
-primSrcProg =
+-- A program with all primitive types and definitions,
+-- along with a map of primitive-definition-name to primitive-definition-id
+-- and the id of one non-primitive def, that depends on
+-- primitive types "Char" and terms "eqChar", "toUpper"
+-- and also Bool and String (which depends on "Char")
+primSrcProg :: (MonadFresh ID m) => m (Prog, Map Name ID, ID)
+primSrcProg = do
+  primGlobals <- for (Map.toList allPrimDefs) $ \(n, f) -> do
+    i <- fresh
+    t <- primFunType f
+    pure (t, n, i)
+  let (primNames, primMap) = flip foldMap primGlobals $ \(t, n, i) ->
+        (Map.singleton n i, Map.singleton i $ DefPrim $ PrimDef i n t)
+  wrapperId <- fresh
+  wrapperType <- tcon "Char" `tfun` tcon "Bool"
+  wrapperExpr <-
+    lam "x" $
+      global (primNames Map.! "eqChar")
+        `app` (global (primNames Map.! "toUpper") `app` var "x")
+        `app` char 'a'
+  let wrapper =
+        ASTDef
+          { astDefID = wrapperId
+          , astDefName = "wrappedPrim"
+          , astDefType = wrapperType
+          , astDefExpr = wrapperExpr
+          }
   pure
-    newEmptyProg
-      { progTypes = map TypeDefAST [stringDef] <> map TypeDefPrim (Map.elems allPrimTypeDefs)
+    ( newEmptyProg
+      { progTypes = map TypeDefAST [boolDef, stringDef] <> map TypeDefPrim (Map.elems allPrimTypeDefs)
+      , progDefs = primMap <> Map.singleton wrapperId (DefAST wrapper)
       }
+    , primNames
+    , wrapperId
+    )
   where
     stringDef :: ASTTypeDef
     stringDef =
@@ -81,7 +149,7 @@ primSrcProg =
 -- Import without renaming works
 unit_import_import_simple :: Assertion
 unit_import_import_simple = runImportTest $ do
-  p <- srcProg
+  (p, _, _) <- srcProg
   let iac =
         IAC
           { iacImportRenamingTypes = Map.singleton "Nat" ("Nat", Map.fromList [("Zero", "Zero"), ("Succ", "Succ")])
@@ -98,7 +166,7 @@ unit_import_import_simple = runImportTest $ do
 -- We can rename types and ctors when importing
 unit_import_import_renaming :: Assertion
 unit_import_import_renaming = runImportTest $ do
-  p <- srcProg
+  (p, _, _) <- srcProg
   let iac =
         IAC
           { iacImportRenamingTypes = Map.singleton "Nat" ("N", Map.fromList [("Zero", "Z"), ("Succ", "S")])
@@ -123,7 +191,7 @@ unit_import_import_renaming = runImportTest $ do
 -- Importing and renaming primitives works
 unit_import_primitive :: Assertion
 unit_import_primitive = runImportTest $ do
-  p <- primSrcProg
+  (p, _, _) <- primSrcProg
   let iac =
         IAC
           { iacImportRenamingTypes = Map.singleton "Char" ("Char", mempty)
@@ -186,7 +254,7 @@ unit_import_rewire_deps = runImportTest $ do
 
 unit_import_rewire_primitive :: Assertion
 unit_import_rewire_primitive = runImportTest $ do
-  p <- primSrcProg
+  (p, _, _) <- primSrcProg
   let iac =
         IAC
           { iacImportRenamingTypes = Map.fromList [("Char", ("Char", mempty))]
@@ -336,7 +404,7 @@ unit_import_rewire_iso = do
       iac
   runImportTestError (RewriteCtorSrcNotExist "Nat" "Nonexistent") $ do
     _ <- handleMutationRequest $ Edit [AddTypeDef natDef]
-    p <- srcProg
+    (p, _, _) <- srcProg
     let iac =
           IAC
             { iacImportRenamingTypes = mempty
@@ -347,7 +415,7 @@ unit_import_rewire_iso = do
     importFromApp p iac
   runImportTestError (RewriteCtorTgtNotExist "Unit" "Succ") $ do
     _ <- handleMutationRequest $ Edit [AddTypeDef unitDef]
-    p <- srcProg
+    (p, _, _) <- srcProg
     let iac =
           IAC
             { iacImportRenamingTypes = mempty
@@ -358,7 +426,7 @@ unit_import_rewire_iso = do
     importFromApp p iac
   runImportTestError (DuplicateRewriteCtor "Nat" ["MkUnit"]) $ do
     _ <- handleMutationRequest $ Edit [AddTypeDef unitDef]
-    p <- srcProg
+    (p, _, _) <- srcProg
     let iac =
           IAC
             { iacImportRenamingTypes = mempty
@@ -369,7 +437,7 @@ unit_import_rewire_iso = do
     importFromApp p iac
   runImportTestError (RewrittenCtorTypeDiffers "Nat" "Succ" "Nat" "Zero") $ do
     _ <- handleMutationRequest $ Edit [AddTypeDef natDef]
-    p <- srcProg
+    (p, _, _) <- srcProg
     let iac =
           IAC
             { iacImportRenamingTypes = mempty
@@ -382,7 +450,7 @@ unit_import_rewire_iso = do
 -- cannot both import and rename the same type
 unit_import_import_rename_clash :: Assertion
 unit_import_import_rename_clash = runImportTestError (ImportRenameType "Nat") $ do
-  p <- srcProg
+  (p, _, _) <- srcProg
   let iac =
         IAC
           { iacImportRenamingTypes = Map.singleton "Nat" ("Nat", Map.fromList [("Zero", "Zero"), ("Succ", "Succ")])
@@ -396,7 +464,7 @@ unit_import_import_rename_clash = runImportTestError (ImportRenameType "Nat") $ 
 unit_import_nonexist :: Assertion
 unit_import_nonexist = do
   runImportTestError (UnknownImportedType "Nonexistent") $ do
-    p <- srcProg
+    (p, _, _) <- srcProg
     let iac =
           IAC
             { iacImportRenamingTypes = Map.singleton "Nonexistent" ("T", mempty)
@@ -406,7 +474,7 @@ unit_import_nonexist = do
             }
     importFromApp p iac
   runImportTestError (UnknownImportedCtor "Nat" "Nonexistent") $ do
-    p <- srcProg
+    (p, _, _) <- srcProg
     let iac =
           IAC
             { iacImportRenamingTypes = Map.singleton "Nat" ("Nat", Map.fromList [("Zero", "Zero"), ("Succ", "Succ"), ("Nonexistent", "C")])
@@ -416,7 +484,7 @@ unit_import_nonexist = do
             }
     importFromApp p iac
   runImportTestError (MissedImportCtor "Nat" "Succ") $ do
-    p <- srcProg
+    (p, _, _) <- srcProg
     let iac =
           IAC
             { iacImportRenamingTypes = Map.singleton "Nat" ("Nat", Map.fromList [("Zero", "Zero")])
@@ -426,7 +494,7 @@ unit_import_nonexist = do
             }
     importFromApp p iac
   runImportTestError (UnknownRewrittenSrcType "Nonexistent") $ do
-    p <- srcProg
+    (p, _, _) <- srcProg
     let iac =
           IAC
             { iacImportRenamingTypes = mempty
@@ -437,7 +505,7 @@ unit_import_nonexist = do
     importFromApp p iac
   runImportTestError (RewriteCtorSrcNotExist "Nat" "Nonexistent") $ do
     _ <- handleMutationRequest $ Edit [AddTypeDef natDef]
-    p <- srcProg
+    (p, _, _) <- srcProg
     let iac =
           IAC
             { iacImportRenamingTypes = mempty
@@ -448,7 +516,7 @@ unit_import_nonexist = do
     importFromApp p iac
   runImportTestError (RewriteCtorTgtNotExist "Unit" "Nonexistent") $ do
     _ <- handleMutationRequest $ Edit [AddTypeDef unitDef]
-    p <- srcProg
+    (p, _, _) <- srcProg
     let iac =
           IAC
             { iacImportRenamingTypes = mempty
@@ -459,7 +527,7 @@ unit_import_nonexist = do
     importFromApp p iac
   runImportTestError (MissedRewriteCtor "Nat" "Succ") $ do
     _ <- handleMutationRequest $ Edit [AddTypeDef unitDef]
-    p <- srcProg
+    (p, _, _) <- srcProg
     let iac =
           IAC
             { iacImportRenamingTypes = mempty
@@ -475,7 +543,7 @@ unit_import_rewire_cross_type :: Assertion
 unit_import_rewire_cross_type = do
   runImportTestError (RewriteCtorTgtNotExist "Unit" "Succ") $ do
     _ <- handleMutationRequest $ Edit [AddTypeDef unitDef]
-    p <- srcProg
+    (p, _, _) <- srcProg
     let iac =
           IAC
             { iacImportRenamingTypes = mempty
@@ -489,7 +557,7 @@ unit_import_rewire_cross_type = do
 unit_import_rename_prim_type :: Assertion
 unit_import_rename_prim_type = do
   runImportTestError (CannotRenamePrimitiveType "Char") $ do
-    p <- primSrcProg
+    (p, _, _) <- primSrcProg
     let iac =
           IAC
             { iacImportRenamingTypes = Map.singleton "Char" ("C", mempty)
@@ -499,7 +567,7 @@ unit_import_rename_prim_type = do
             }
     importFromApp p iac
   runImportTestError (CannotRenamePrimitiveType "Char") $ do
-    p <- primSrcProg
+    (p, _, _) <- primSrcProg
     let iac =
           IAC
             { iacImportRenamingTypes = Map.singleton "Int" ("Int", mempty)
@@ -520,7 +588,7 @@ unit_import_rename_prim_type = do
 unit_import_prim_type_ctor :: Assertion
 unit_import_prim_type_ctor = do
   runImportTestError (PrimitiveTypeHasNoCtor "Char") $ do
-    p <- primSrcProg
+    (p, _, _) <- primSrcProg
     let iac =
           IAC
             { iacImportRenamingTypes = Map.singleton "Char" ("Char", Map.singleton "a" "a")
@@ -530,7 +598,7 @@ unit_import_prim_type_ctor = do
             }
     importFromApp p iac
   runImportTestError (PrimitiveTypeHasNoCtor "Char") $ do
-    p <- primSrcProg
+    (p, _, _) <- primSrcProg
     let iac =
           IAC
             { iacImportRenamingTypes = Map.singleton "Char" ("Char", Map.singleton "a" "a")
@@ -553,7 +621,7 @@ unit_import_prim_user_type :: Assertion
 unit_import_prim_user_type = do
   runImportTestError (RewriteTypePrimitiveMismatch "Char" "Char") $ do
     _ <- handleMutationRequest $ Edit [AddTypeDef unitDef{astTypeDefName = "Char"}]
-    p <- primSrcProg
+    (p, _, _) <- primSrcProg
     let iac =
           IAC
             { iacImportRenamingTypes = mempty
@@ -563,7 +631,7 @@ unit_import_prim_user_type = do
             }
     importFromApp p iac
   runImportTestError (RewriteTypePrimitiveMismatch "Char" "Char") $ do
-    p <- primSrcProg
+    (p, _, _) <- primSrcProg
     let iac =
           IAC
             { iacImportRenamingTypes = Map.singleton "Char" ("Char", mempty)

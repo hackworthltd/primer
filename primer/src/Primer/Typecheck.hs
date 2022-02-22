@@ -44,6 +44,7 @@ module Primer.Typecheck (
   lookupLocal,
   primConInScope,
   mkTypeDefMap,
+  mkDefMap,
   consistentKinds,
   consistentTypes,
   extendLocalCxtTy,
@@ -222,6 +223,11 @@ buildTypingContext tydefs defs sh =
 -- Ensures that @typeDefName (mkTypeDefMap ! n) == n@
 mkTypeDefMap :: [TypeDef] -> Map Name TypeDef
 mkTypeDefMap defs = M.fromList $ map (\d -> (typeDefName d, d)) defs
+
+-- | Create a mapping of ID to Def for fast lookup.
+-- Helpful for use with 'buildTypingContext'
+mkDefMap :: [Def] -> Map ID Def
+mkDefMap = Map.fromList . map (\d -> (defID d, d))
 
 -- | A shorthand for the constraints needed when typechecking
 type TypeM e m =
