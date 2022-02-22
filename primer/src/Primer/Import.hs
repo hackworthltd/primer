@@ -16,7 +16,9 @@ import qualified Data.Set as Set
 import Foreword
 import Optics (
   AffineTraversal',
+  Field1 (_1),
   Field2 (_2),
+  Field3 (_3),
   traverseOf,
   traversed,
   (%),
@@ -446,6 +448,12 @@ getImportTermsFromApp curProg (srcProg, IAC{iacImportRenamingTerms, iacDepsTerms
               )
               <=< traverseOf
                 (#_Con % _2)
+                ( \origCon ->
+                    lookupOrThrow origCon conRename $
+                      ReferencedConstructorNotHandled origCon
+                )
+              <=< traverseOf
+                (#_Case % _3 % traversed % #_CaseBranch % _1)
                 ( \origCon ->
                     lookupOrThrow origCon conRename $
                       ReferencedConstructorNotHandled origCon

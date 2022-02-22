@@ -24,6 +24,16 @@ unitDef =
     , astTypeDefNameHints = []
     }
 
+natDef' :: Name -> Name -> Name -> TypeDef
+natDef' tyName zeroName succName =
+  TypeDefAST $
+    ASTTypeDef
+      { astTypeDefName = tyName
+      , astTypeDefParameters = []
+      , astTypeDefConstructors = [ValCon zeroName [], ValCon succName [TCon () tyName]]
+      , astTypeDefNameHints = astTypeDefNameHints natDef
+      }
+
 srcProg :: (MonadFresh ID m) => m (Prog, ID, ID)
 srcProg = do
   plusId <- fresh
@@ -176,30 +186,24 @@ holeFree def =
   noHoles (defType def)
     && maybe True noHolesTm (def ^? #_DefAST % #astDefExpr)
 
--- We can rename types and ctors when importing
+-- We can rename types, ctors and terms when importing
 unit_import_import_renaming :: Assertion
 unit_import_import_renaming = runImportTest $ do
-  (p, _, _) <- srcProg
+  (p, plusId, multId) <- srcProg
   let iac =
         IAC
           { iacImportRenamingTypes = Map.singleton "Nat" ("N", Map.fromList [("Zero", "Z"), ("Succ", "S")])
           , iacDepsTypes = mempty
-          , iacImportRenamingTerms = mempty
+          , iacImportRenamingTerms = Map.fromList [(plusId, "add"), (multId, "mult")]
           , iacDepsTerms = mempty
           }
   importFromApp p iac
   result <- gets appProg
   return $ do
-    progTypes result
-      @?= [ TypeDefAST $
-              ASTTypeDef
-                { astTypeDefName = "N"
-                , astTypeDefParameters = []
-                , astTypeDefConstructors = [ValCon "Z" [], ValCon "S" [TCon () "N"]]
-                , astTypeDefNameHints = astTypeDefNameHints natDef
-                }
-          ]
-    progDefs result @?= mempty
+    progTypes result @?= [natDef' "N" "Z" "S"]
+    assertBool "There are holes in the resultant program" $
+      all holeFree (Map.elems $ progDefs result)
+    defName <$> Map.elems (progDefs result) @?= ["add", "mult"]
 
 -- Importing and renaming primitives works
 unit_import_primitive :: Assertion
@@ -247,8 +251,8 @@ unit_import_ctor_type = runImportTest $ do
 -- test rewiring dependencies
 -- Here we have mimiced importing a library 'A'
 -- and then later a library 'B' which itself depends on 'A'
-unit_import_rewire_deps :: Assertion
-unit_import_rewire_deps = runImportTest $ do
+unit_import_rewire_deps_type :: Assertion
+unit_import_rewire_deps_type = runImportTest $ do
   p <- srcProg2 ("List", "Nil", "Cons") ("Rose", "MkRose")
   let listRenaming = Map.singleton "List" ("L", Map.fromList [("Nil", "Nil"), ("Cons", "Cons")])
   let iac =
@@ -301,6 +305,34 @@ unit_import_rewire_primitive = runImportTest $ do
     assertBool "There are holes in the resultant program" $
       all holeFree (Map.elems $ progDefs result)
     defName <$> Map.elems (progDefs result) @?= ["UPPER", "==", "foo"]
+
+unit_import_rewire_deps_term :: Assertion
+unit_import_rewire_deps_term = runImportTest $ do
+  (p, plusId, multId) <- srcProg
+  let natRenaming = Map.singleton "Nat" ("N", Map.fromList [("Zero", "Z"), ("Succ", "S")])
+  let iac =
+        IAC
+          { iacImportRenamingTypes = natRenaming
+          , iacDepsTypes = mempty
+          , iacImportRenamingTerms = Map.singleton plusId "add"
+          , iacDepsTerms = mempty
+          }
+  importFromApp p iac
+  addId <- gets $ defID . unsafeHead . filter ((== "add") . defName) . Map.elems . progDefs . appProg
+  let iac' =
+        IAC
+          { iacImportRenamingTypes = mempty
+          , iacDepsTypes = natRenaming
+          , iacImportRenamingTerms = Map.singleton multId "times"
+          , iacDepsTerms = Map.singleton plusId addId
+          }
+  importFromApp p iac'
+  result <- gets appProg
+  return $ do
+    progTypes result @?= [natDef' "N" "Z" "S"]
+    assertBool "There are holes in the resultant program" $
+      all holeFree (Map.elems $ progDefs result)
+    defName <$> Map.elems (progDefs result) @?= ["add", "times"]
 
 -- cannot import without deps
 unit_import_ref_not_handled :: Assertion
