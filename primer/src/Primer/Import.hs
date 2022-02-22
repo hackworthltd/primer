@@ -7,7 +7,9 @@ module Primer.Import (
   ImportActionConfig (..),
 ) where
 
+import Control.Monad.Fresh (MonadFresh (fresh))
 import Control.Monad.NestedError (MonadNestedError (throwError'))
+import Data.Data (Data)
 import Data.Generics.Uniplate.Data (transformM)
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
@@ -23,33 +25,53 @@ import Optics (
  )
 import Primer.App.Core (
   App (appProg),
-  Prog (progTypes),
+  Prog (progDefs, progTypes),
  )
 import Primer.Core (
+  Def,
+  Expr,
+  ID,
+  Meta,
   Type',
   TypeDef,
   ValCon (valConArgs, valConName),
+  astDefExpr,
   astTypeDefConstructors,
+  defName,
+  defType,
   typeDefAST,
   typeDefKind,
   typeDefName,
+  _defID,
+  _defName,
+  _defType,
+  _exprMetaLens,
+  _id,
+  _type,
   _typeDefName,
+  _typeMetaLens,
  )
-import Primer.Core.Utils (alphaEqTy)
+import Primer.Core.Utils (alphaEqTy, forgetTypeIDs, _exprTypeChildren)
 import Primer.JSON
 import Primer.Name (Name)
-import Primer.Typecheck (mkTypeDefMap)
+import Primer.Typecheck (mkDefMap, mkTypeDefMap)
 import Primer.Utils (distinct')
 
 data ImportError
   = -- | Cannot both import and rename a type
     ImportRenameType Name
+  | -- | Cannot both import and rename a term
+    ImportRenameTerm Name
   | -- | Cannot import two types under the same name, or something that clashes with an existing type
     DuplicateTypes [Name]
+  | -- | Cannot import two terms under the same name, or something that clashes with an existing term
+    DuplicateTerm [Name]
   | -- | Cannot import two ctors under the same name, or something that clashes with an existing ctors
     DuplicateCtors [Name]
   | -- | Cannot import something that does not exist
     UnknownImportedType Name
+  | -- | Cannot import something that does not exist
+    UnknownImportedTerm ID
   | -- | Cannot import something that does not exist (args: an imported type, and its non-existent constructor)
     UnknownImportedCtor Name Name
   | -- | We cannot currently rename primitive types (as the types of primitive constructors are
@@ -63,10 +85,16 @@ data ImportError
     UnknownRewrittenSrcType Name
   | -- | Cannot rewrite into a type that does not exist
     UnknownRewrittenTgtType Name
+  | -- | Cannot rewrite a dep which does not exist (although, since it cannot be referred to, nothing would go wrong if we allowed it...)
+    UnknownRewrittenSrcTerm ID
+  | -- | Cannot rewrite into a term that does not exist
+    UnknownRewrittenTgtTerm ID
   | -- | Tried to rewrite the first arg to the second, but they are of different kinds
     RewriteTypeKindMismatch Name Name
   | -- | Tried to rewrite a primitive to a non-primitive, or vice versa
     RewriteTypePrimitiveMismatch Name Name
+  | -- | Tried to rewrite the first arg to the second, but they are of different types
+    RewriteTermTypeMismatch ID ID
   | -- | Must rewrite all constructors of any rewritten type: args are type its (first) ctor that were missed
     MissedRewriteCtor Name Name
   | -- | In a rewritten type (first arg), cannot rewrite two ctors to the same thing (second arg)
@@ -79,6 +107,10 @@ data ImportError
     RewriteCtorTgtNotExist Name Name
   | -- | This type was referenced in the source, but we have neither imported it nor rewritten it
     ReferencedTypeNotHandled Name
+  | -- | This constructor was referenced in the source, but we have neither imported it nor rewritten it
+    ReferencedConstructorNotHandled Name
+  | -- | This global was referenced in the source, but we have neither imported it nor rewritten it
+    ReferencedGlobalNotHandled ID
   | -- | @RewrittenCtorTypeDiffers ty1 con1 ty2 con2@: we tried to rewrite @ty1@ into @ty2@, mapping @con1@ to @con2@, but their types do not match
     RewrittenCtorTypeDiffers Name Name Name Name
   deriving (Eq, Show, Generic)
@@ -98,6 +130,7 @@ type TypeImportDetails = Map Name (Name, Map Name Name)
 -- The values of the iacImport* maps must be free (type/term names) in the current App
 --   For types, the fst of the value must be free, and the snd map must be
 --     keys are exactly the ctors of the type in 'A', values are free constructor names
+--  Terms are similar, but simpler as they don't have any analogue to "constructor"
 -- The keys of iacDeps* must cover all free vars of the defs in 'A' named by iacImport*
 --   For types, the constructor map must be a bijection
 -- The values of iacDeps* must exist in the current App, and have the same Kind/Type (after substituting types according to iacDeps) as the key does.
@@ -112,8 +145,8 @@ type TypeImportDetails = Map Name (Name, Map Name Name)
 data ImportActionConfig = IAC
   { iacImportRenamingTypes :: TypeImportDetails
   , iacDepsTypes :: TypeImportDetails
-  , iacImportRenamingTerms :: ()
-  , iacDepsTerms :: ()
+  , iacImportRenamingTerms :: Map ID Name
+  , iacDepsTerms :: Map ID ID
   }
 
 -- | Computes the new program with a copy of the requested imports,
@@ -122,16 +155,19 @@ data ImportActionConfig = IAC
 -- See 'App.importFromApp' for a version that typechecks and updates an App
 -- state.
 importFromApp' ::
-  (MonadNestedError ImportError e m, MonadReader App m) =>
+  (MonadNestedError ImportError e m, MonadReader App m, MonadFresh ID m) =>
   Prog ->
   ImportActionConfig ->
   m Prog
 importFromApp' srcProg iac = do
   curProg <- asks appProg
-  newTypeDefs <- getImportTypesFromApp curProg (srcProg, iac)
-  pure $ curProg & #progTypes %~ (++ newTypeDefs)
+  (newTypeDefs, typeRenaming, ctorRenaming) <- getImportTypesFromApp curProg (srcProg, iac)
+  newTerms <- getImportTermsFromApp curProg (srcProg, iac) typeRenaming ctorRenaming
+  pure $
+    curProg & #progTypes %~ (++ newTypeDefs)
+      & #progDefs %~ (<> mkDefMap newTerms)
 
-getImportTypesFromApp :: forall m e. MonadNestedError ImportError e m => Prog -> (Prog, ImportActionConfig) -> m [TypeDef]
+getImportTypesFromApp :: forall m e. MonadNestedError ImportError e m => Prog -> (Prog, ImportActionConfig) -> m ([TypeDef], Map Name Name, Map Name Name)
 getImportTypesFromApp curProg (srcProg, IAC{iacImportRenamingTypes, iacDepsTypes}) =
   {- We check requirements, to give nice error messages, rather than "typechecker says no"
        - Things need to exist in srcProg:
@@ -168,7 +204,7 @@ getImportTypesFromApp curProg (srcProg, IAC{iacImportRenamingTypes, iacDepsTypes
 
     -- make renaming map, and grab the typedefs, with the new type/ctor name. NB: the argument types still need rewriting!
     let srcTypes = mkTypeDefMap $ progTypes srcProg
-    (tyrn1, _ctorrn1, tydefs) <- getAp $
+    (tyrn1, ctorrn1, tydefs) <- getAp $
       flip Map.foldMapWithKey iacImportRenamingTypes $ \srcTyName (tgtTyName, ctorMap) -> Ap $ do
         -- imported type exists in srcProg
         srcTy <-
@@ -201,7 +237,7 @@ getImportTypesFromApp curProg (srcProg, IAC{iacImportRenamingTypes, iacDepsTypes
 
     -- renaming map for deps rewriting
     let curTypes = mkTypeDefMap $ progTypes curProg
-    (tyrn2, _ctorrn2, toCheckRewriteCtorsTypes) <- getAp $
+    (tyrn2, ctorrn2, toCheckRewriteCtorsTypes) <- getAp $
       flip Map.foldMapWithKey iacDepsTypes $ \srcTyName (tgtTyName, ctorMap) -> Ap $ do
         -- the rewritten thing must exist in the imported program
         -- (nothing would go wrong if we elided this check, but it catches
@@ -271,14 +307,11 @@ getImportTypesFromApp curProg (srcProg, IAC{iacImportRenamingTypes, iacDepsTypes
     -- everywhere we see a 'TCon', replace it with its image in the 'tyrn' map
     -- (We throw an error if they do not exist in our
     -- renaming map, i.e. the imported types, or the rewritten deps)
-    let rewriteTCons :: Type' () -> m (Type' ())
-        rewriteTCons = transformM $
-          traverseOf tconName $ \tc ->
-            lookupOrThrow tc tyrn $ ReferencedTypeNotHandled tc
+    let rewriteTCons' = rewriteTCons tyrn pure
 
     -- Now check that rewritten constructors have the same type
     for_ toCheckRewriteCtorsTypes $ \(srcTy, srcCtor, tgtTy, tgtCtor) -> do
-      srcCtorArgs <- traverse rewriteTCons $ valConArgs srcCtor
+      srcCtorArgs <- traverse rewriteTCons' $ valConArgs srcCtor
       let tgtCtorArgs = valConArgs tgtCtor
       unless
         ( length srcCtorArgs == length tgtCtorArgs
@@ -292,15 +325,134 @@ getImportTypesFromApp curProg (srcProg, IAC{iacImportRenamingTypes, iacDepsTypes
             (valConName tgtCtor)
 
     -- Rename the types referenced. These are now ready to insert into curProg
-    traverseOf
-      (traversed % #_TypeDefAST % #astTypeDefConstructors % traversed % #valConArgs % traversed)
-      rewriteTCons
-      tydefs
-  where
-    lookupOrThrow :: Ord k => k -> Map k v -> ImportError -> m v
-    lookupOrThrow k m e = case m Map.!? k of
-      Nothing -> throwError' e
-      Just v -> pure v
+    rejiggedTypeDefs <-
+      traverseOf
+        (traversed % #_TypeDefAST % #astTypeDefConstructors % traversed % #valConArgs % traversed)
+        rewriteTCons'
+        tydefs
 
-    tconName :: AffineTraversal' (Type' ()) Name
+    pure (rejiggedTypeDefs, tyrn, ctorrn1 <> ctorrn2)
+
+lookupOrThrow ::
+  (MonadNestedError ImportError e m, Ord k) =>
+  k ->
+  Map k v ->
+  ImportError ->
+  m v
+lookupOrThrow k m e = case m Map.!? k of
+  Nothing -> throwError' e
+  Just v -> pure v
+
+-- Rename the types referenced:
+-- everywhere we see a 'TCon', replace it with its image in the 'tyrn' map
+-- (We throw an error if they do not exist in our
+-- renaming map, i.e. the imported types, or the rewritten deps)
+-- We also modify the metadata at each node
+rewriteTCons ::
+  (Data a, MonadNestedError ImportError e m) =>
+  Map Name Name ->
+  (a -> m a) ->
+  Type' a ->
+  m (Type' a)
+rewriteTCons tyrn f =
+  transformM $
+    traverseOf
+      tconName
+      ( \tc ->
+          lookupOrThrow tc tyrn $ ReferencedTypeNotHandled tc
+      )
+      <=< traverseOf _typeMetaLens f
+  where
+    tconName :: AffineTraversal' (Type' a) Name
     tconName = #_TCon % _2
+
+getImportTermsFromApp ::
+  forall m e.
+  (MonadFresh ID m, MonadNestedError ImportError e m) =>
+  Prog ->
+  (Prog, ImportActionConfig) ->
+  Map Name Name ->
+  Map Name Name ->
+  m [Def]
+getImportTermsFromApp curProg (srcProg, IAC{iacImportRenamingTerms, iacDepsTerms}) tconRename conRename = do
+  {- We need that:
+  - created terms are freshly named
+    (this is not necessary for the typechecker, as globals are referred to by ID,
+    and we will create fresh IDs, but we include it for consistency with manually
+    allowed actions, which forbid creating two definitions with the same name)
+  - rewritten deps exist in curProg, and have the correct type
+  - created and rewritten things exist in srcProg (and are all distinct)
+  - all referenced things (global terms,types,constructors) are
+    - either imported or rewritten for terms
+    - covered in the tconRename and conRename maps for types and constructors respectively
+  If we have those properties, the typechecker should not complain.
+  We explicitly check them so we get nicer error messages than we would get from the typechecker
+  -}
+  -- Not allowed to both import and dep-rename some type
+  for_ (Map.intersection iacImportRenamingTerms iacDepsTerms) $ throwError' . ImportRenameTerm
+
+  -- things we create have distinct names, and don't appear in curProg
+  let created = Map.elems iacImportRenamingTerms
+  let extant = fmap defName $ Map.elems $ progDefs curProg
+  case distinct' $ created ++ extant of
+    Left dups -> throwError' $ DuplicateTerm dups
+    Right _ -> pure ()
+
+  -- Create renaming map for imported terms, and grab the defs and its new name
+  (rn1, toImport) <- getAp $
+    flip Map.foldMapWithKey iacImportRenamingTerms $ \srcID tgtName -> Ap $ do
+      -- imported type exists in srcProg
+      srcDef <- lookupOrThrow srcID (progDefs srcProg) $ UnknownImportedTerm srcID
+      newID <- fresh
+      pure
+        ( Map.singleton srcID newID
+        , [(srcDef, newID, tgtName)]
+        )
+
+  -- Create renaming map for rewritten dependencies
+  rn2 <- getAp $
+    flip Map.foldMapWithKey iacDepsTerms $ \srcID tgtID -> Ap $ do
+      -- the rewritten thing must exist in the imported program
+      -- (nothing would go wrong if we elided this check, but it catches
+      -- that our caller is broken)
+      srcDef <- lookupOrThrow srcID (progDefs srcProg) $ UnknownRewrittenSrcTerm srcID
+      -- We must rewrite it to an existing term ...
+      tgtDef <- lookupOrThrow tgtID (progDefs curProg) $ UnknownRewrittenTgtTerm tgtID
+      -- ... of the same type (taking into account the renaming of types)
+      srcType' <- rewriteTCons tconRename pure $ forgetTypeIDs $ defType srcDef
+      unless (srcType' `alphaEqTy` forgetTypeIDs (defType tgtDef)) $ throwError' $ RewriteTermTypeMismatch srcID tgtID
+
+      pure $ Map.singleton srcID tgtID
+
+  let globalRename = rn1 <> rn2
+
+  -- Rename the referenced globals,constructors and types.
+  -- These are now ready to be inserted into curProg
+  for toImport $ \(def, newID, newName) -> do
+    let rejigMeta :: Meta (Maybe a) -> m (Meta (Maybe a))
+        rejigMeta m =
+          m & _type .~ Nothing
+            & traverseOf _id (const fresh)
+        rejigType = rewriteTCons tconRename rejigMeta
+    def' <- traverseOf _defType rejigType def
+    let rejigExpr :: Expr -> m Expr
+        rejigExpr =
+          transformM $
+            traverseOf
+              (#_GlobalVar % _2)
+              ( \origGlobal ->
+                  lookupOrThrow origGlobal globalRename $
+                    ReferencedGlobalNotHandled origGlobal
+              )
+              <=< traverseOf
+                (#_Con % _2)
+                ( \origCon ->
+                    lookupOrThrow origCon conRename $
+                      ReferencedConstructorNotHandled origCon
+                )
+              <=< traverseOf _exprTypeChildren rejigType
+              <=< traverseOf _exprMetaLens rejigMeta
+    def'' <- traverseOf (#_DefAST % #astDefExpr) rejigExpr def'
+    pure $
+      def'' & _defID .~ newID
+        & _defName .~ newName

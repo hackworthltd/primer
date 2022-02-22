@@ -13,8 +13,11 @@ module Primer.Core (
   CaseBranch,
   CaseBranch' (..),
   Def (..),
+  _defID,
   defID,
+  _defName,
   defName,
+  _defType,
   defType,
   ASTDef (..),
   defAST,
@@ -347,6 +350,25 @@ data ASTDef = ASTDef
   }
   deriving (Eq, Show, Generic)
   deriving (FromJSON, ToJSON) via VJSON ASTDef
+
+defLens :: Lens' PrimDef a -> Lens' ASTDef a -> Lens' Def a
+defLens lp la = lens getter setter
+  where
+    getter = \case
+      DefPrim d -> view lp d
+      DefAST d -> view la d
+    setter = \case
+      DefPrim d -> DefPrim . flip (set lp) d
+      DefAST d -> DefAST . flip (set la) d
+
+_defID :: Lens' Def ID
+_defID = defLens #primDefID #astDefID
+
+_defName :: Lens' Def Name
+_defName = defLens #primDefName #astDefName
+
+_defType :: Lens' Def Type
+_defType = defLens #primDefType #astDefType
 
 defID :: Def -> ID
 defID = \case

@@ -1,9 +1,13 @@
+{-# LANGUAGE OverloadedLabels #-}
+
 module Primer.Core.Utils (
   generateTypeIDs,
   forgetTypeIDs,
   generateIDs,
   forgetIDs,
   noHoles,
+  noHolesTm,
+  _exprTypeChildren,
   _freeTmVars,
   _freeTyVars,
   _freeVars,
@@ -22,7 +26,24 @@ import Data.Generics.Uniplate.Data (universe)
 import qualified Data.Map.Strict as M
 import qualified Data.Set as S
 import Data.Set.Optics (setOf)
-import Optics (Fold, Traversal, getting, hasn't, set, summing, to, traversalVL, traverseOf, (%), _2)
+import Optics (
+  Field3 (_3),
+  Field4 (_4),
+  Fold,
+  Traversal,
+  Traversal',
+  adjoin,
+  allOf,
+  getting,
+  hasn't,
+  set,
+  summing,
+  to,
+  traversalVL,
+  traverseOf,
+  (%),
+  _2,
+ )
 import Primer.Core (
   CaseBranch' (..),
   Expr,
@@ -66,6 +87,22 @@ noHoles t = flip all (universe t) $ \case
     KHole -> False
     _ -> True
   _ -> True
+
+-- | The immediate 'Type' children of an 'Expr'
+_exprTypeChildren :: Traversal' (Expr' a b) (Type' b)
+_exprTypeChildren =
+  #_Ann % _3
+    `adjoin` (#_APP % _3)
+    `adjoin` (#_Letrec % _4)
+    `adjoin` (#_LetType % _3)
+
+-- | Test whether an term contains any holes
+-- (empty or non-empty, or inside a type)
+noHolesTm :: (Data a, Data b) => Expr' a b -> Bool
+noHolesTm e = flip all (universe e) $ \case
+  EmptyHole{} -> False
+  Hole{} -> False
+  n -> allOf _exprTypeChildren noHoles n
 
 freeVarsTy :: Type' a -> Set Name
 freeVarsTy = setOf (getting _freeVarsTy % _2)
