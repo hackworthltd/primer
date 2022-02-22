@@ -334,6 +334,36 @@ unit_import_rewire_deps_term = runImportTest $ do
       all holeFree (Map.elems $ progDefs result)
     defName <$> Map.elems (progDefs result) @?= ["add", "times"]
 
+-- We can rewrite types with ctors in different order
+-- (recall, we enforce an ordering in case branches)
+unit_import_reorder_ctors :: Assertion
+unit_import_reorder_ctors = runImportTest $ do
+  _ <- handleMutationRequest $ Edit [AddTypeDef natDefSwap]
+  (p, plusId, _) <- srcProg
+  let iac =
+        IAC
+          { iacImportRenamingTypes = mempty
+          , iacDepsTypes = Map.singleton "Nat" ("N", Map.fromList [("Zero", "Z"), ("Succ", "S")])
+          , iacImportRenamingTerms = Map.fromList [(plusId, "add")]
+          , iacDepsTerms = mempty
+          }
+  importFromApp p iac
+  result <- gets appProg
+  return $ do
+    progTypes result
+      @?= [TypeDefAST natDefSwap]
+    assertBool "There are holes in the resultant program" $
+      all holeFree (Map.elems $ progDefs result)
+    defName <$> Map.elems (progDefs result) @?= ["add"]
+  where
+    natDefSwap =
+      ASTTypeDef
+        { astTypeDefName = "N"
+        , astTypeDefParameters = []
+        , astTypeDefConstructors = [ValCon "S" [TCon () "N"], ValCon "Z" []]
+        , astTypeDefNameHints = astTypeDefNameHints natDef
+        }
+
 -- cannot import without deps
 unit_import_ref_not_handled :: Assertion
 unit_import_ref_not_handled = do

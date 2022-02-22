@@ -11,6 +11,7 @@ import Control.Monad.Fresh (MonadFresh (fresh))
 import Control.Monad.NestedError (MonadNestedError (throwError'))
 import Data.Data (Data)
 import Data.Generics.Uniplate.Data (transformM)
+import Data.List (elemIndex)
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 import Foreword
@@ -30,6 +31,8 @@ import Primer.App.Core (
   Prog (progDefs, progTypes),
  )
 import Primer.Core (
+  CaseBranch,
+  CaseBranch' (CaseBranch),
   Def,
   Expr,
   ID,
@@ -163,13 +166,13 @@ importFromApp' ::
   m Prog
 importFromApp' srcProg iac = do
   curProg <- asks appProg
-  (newTypeDefs, typeRenaming, ctorRenaming) <- getImportTypesFromApp curProg (srcProg, iac)
-  newTerms <- getImportTermsFromApp curProg (srcProg, iac) typeRenaming ctorRenaming
+  (newTypeDefs, typeRenaming, ctorRenaming, ctorPerm) <- getImportTypesFromApp curProg (srcProg, iac)
+  newTerms <- getImportTermsFromApp curProg (srcProg, iac) typeRenaming ctorRenaming ctorPerm
   pure $
     curProg & #progTypes %~ (++ newTypeDefs)
       & #progDefs %~ (<> mkDefMap newTerms)
 
-getImportTypesFromApp :: forall m e. MonadNestedError ImportError e m => Prog -> (Prog, ImportActionConfig) -> m ([TypeDef], Map Name Name, Map Name Name)
+getImportTypesFromApp :: forall m e. MonadNestedError ImportError e m => Prog -> (Prog, ImportActionConfig) -> m ([TypeDef], Map Name Name, Map Name Name, Map [Name] [Name])
 getImportTypesFromApp curProg (srcProg, IAC{iacImportRenamingTypes, iacDepsTypes}) =
   {- We check requirements, to give nice error messages, rather than "typechecker says no"
        - Things need to exist in srcProg:
@@ -239,7 +242,7 @@ getImportTypesFromApp curProg (srcProg, IAC{iacImportRenamingTypes, iacDepsTypes
 
     -- renaming map for deps rewriting
     let curTypes = mkTypeDefMap $ progTypes curProg
-    (tyrn2, ctorrn2, toCheckRewriteCtorsTypes) <- getAp $
+    (tyrn2, ctorrn2, ctorperm, toCheckRewriteCtorsTypes) <- getAp $
       flip Map.foldMapWithKey iacDepsTypes $ \srcTyName (tgtTyName, ctorMap) -> Ap $ do
         -- the rewritten thing must exist in the imported program
         -- (nothing would go wrong if we elided this check, but it catches
@@ -255,7 +258,7 @@ getImportTypesFromApp curProg (srcProg, IAC{iacImportRenamingTypes, iacDepsTypes
         unless (typeDefKind srcTy == typeDefKind tgtTy) $
           throwError' $ RewriteTypeKindMismatch srcTyName tgtTyName
 
-        (_ctorPerm, toCheckRewriteCtorsTypes) <- case (typeDefAST srcTy, typeDefAST tgtTy) of
+        (ctorPerm, toCheckRewriteCtorsTypes) <- case (typeDefAST srcTy, typeDefAST tgtTy) of
           (Nothing, Nothing) -> do
             unless (srcTyName == tgtTyName) $ throwError' $ CannotRenamePrimitiveType srcTyName
             -- primitives have no constructors
@@ -300,6 +303,7 @@ getImportTypesFromApp curProg (srcProg, IAC{iacImportRenamingTypes, iacDepsTypes
         pure
           ( Map.singleton srcTyName tgtTyName
           , ctorMap
+          , ctorPerm
           , toCheckRewriteCtorsTypes
           )
 
@@ -333,7 +337,7 @@ getImportTypesFromApp curProg (srcProg, IAC{iacImportRenamingTypes, iacDepsTypes
         rewriteTCons'
         tydefs
 
-    pure (rejiggedTypeDefs, tyrn, ctorrn1 <> ctorrn2)
+    pure (rejiggedTypeDefs, tyrn, ctorrn1 <> ctorrn2, ctorperm)
 
 lookupOrThrow ::
   (MonadNestedError ImportError e m, Ord k) =>
@@ -375,92 +379,113 @@ getImportTermsFromApp ::
   (Prog, ImportActionConfig) ->
   Map Name Name ->
   Map Name Name ->
+  Map [Name] [Name] ->
   m [Def]
-getImportTermsFromApp curProg (srcProg, IAC{iacImportRenamingTerms, iacDepsTerms}) tconRename conRename = do
-  {- We need that:
-  - created terms are freshly named
-    (this is not necessary for the typechecker, as globals are referred to by ID,
-    and we will create fresh IDs, but we include it for consistency with manually
-    allowed actions, which forbid creating two definitions with the same name)
-  - rewritten deps exist in curProg, and have the correct type
-  - created and rewritten things exist in srcProg (and are all distinct)
-  - all referenced things (global terms,types,constructors) are
-    - either imported or rewritten for terms
-    - covered in the tconRename and conRename maps for types and constructors respectively
-  If we have those properties, the typechecker should not complain.
-  We explicitly check them so we get nicer error messages than we would get from the typechecker
-  -}
-  -- Not allowed to both import and dep-rename some type
-  for_ (Map.intersection iacImportRenamingTerms iacDepsTerms) $ throwError' . ImportRenameTerm
+getImportTermsFromApp
+  curProg
+  (srcProg, IAC{iacImportRenamingTerms, iacDepsTerms})
+  tconRename
+  conRename
+  conPerm = do
+    {- We need that:
+    - created terms are freshly named
+      (this is not necessary for the typechecker, as globals are referred to by ID,
+      and we will create fresh IDs, but we include it for consistency with manually
+      allowed actions, which forbid creating two definitions with the same name)
+    - rewritten deps exist in curProg, and have the correct type
+    - created and rewritten things exist in srcProg (and are all distinct)
+    - all referenced things (global terms,types,constructors) are
+      - either imported or rewritten for terms
+      - covered in the tconRename and conRename maps for types and constructors respectively
+    If we have those properties, the typechecker should not complain.
+    We explicitly check them so we get nicer error messages than we would get from the typechecker
+    -}
+    -- Not allowed to both import and dep-rename some type
+    for_ (Map.intersection iacImportRenamingTerms iacDepsTerms) $ throwError' . ImportRenameTerm
 
-  -- things we create have distinct names, and don't appear in curProg
-  let created = Map.elems iacImportRenamingTerms
-  let extant = fmap defName $ Map.elems $ progDefs curProg
-  case distinct' $ created ++ extant of
-    Left dups -> throwError' $ DuplicateTerm dups
-    Right _ -> pure ()
+    -- things we create have distinct names, and don't appear in curProg
+    let created = Map.elems iacImportRenamingTerms
+    let extant = fmap defName $ Map.elems $ progDefs curProg
+    case distinct' $ created ++ extant of
+      Left dups -> throwError' $ DuplicateTerm dups
+      Right _ -> pure ()
 
-  -- Create renaming map for imported terms, and grab the defs and its new name
-  (rn1, toImport) <- getAp $
-    flip Map.foldMapWithKey iacImportRenamingTerms $ \srcID tgtName -> Ap $ do
-      -- imported type exists in srcProg
-      srcDef <- lookupOrThrow srcID (progDefs srcProg) $ UnknownImportedTerm srcID
-      newID <- fresh
-      pure
-        ( Map.singleton srcID newID
-        , [(srcDef, newID, tgtName)]
-        )
+    -- Create renaming map for imported terms, and grab the defs and its new name
+    (rn1, toImport) <- getAp $
+      flip Map.foldMapWithKey iacImportRenamingTerms $ \srcID tgtName -> Ap $ do
+        -- imported type exists in srcProg
+        srcDef <- lookupOrThrow srcID (progDefs srcProg) $ UnknownImportedTerm srcID
+        newID <- fresh
+        pure
+          ( Map.singleton srcID newID
+          , [(srcDef, newID, tgtName)]
+          )
 
-  -- Create renaming map for rewritten dependencies
-  rn2 <- getAp $
-    flip Map.foldMapWithKey iacDepsTerms $ \srcID tgtID -> Ap $ do
-      -- the rewritten thing must exist in the imported program
-      -- (nothing would go wrong if we elided this check, but it catches
-      -- that our caller is broken)
-      srcDef <- lookupOrThrow srcID (progDefs srcProg) $ UnknownRewrittenSrcTerm srcID
-      -- We must rewrite it to an existing term ...
-      tgtDef <- lookupOrThrow tgtID (progDefs curProg) $ UnknownRewrittenTgtTerm tgtID
-      -- ... of the same type (taking into account the renaming of types)
-      srcType' <- rewriteTCons tconRename pure $ forgetTypeIDs $ defType srcDef
-      unless (srcType' `alphaEqTy` forgetTypeIDs (defType tgtDef)) $ throwError' $ RewriteTermTypeMismatch srcID tgtID
+    -- Create renaming map for rewritten dependencies
+    rn2 <- getAp $
+      flip Map.foldMapWithKey iacDepsTerms $ \srcID tgtID -> Ap $ do
+        -- the rewritten thing must exist in the imported program
+        -- (nothing would go wrong if we elided this check, but it catches
+        -- that our caller is broken)
+        srcDef <- lookupOrThrow srcID (progDefs srcProg) $ UnknownRewrittenSrcTerm srcID
+        -- We must rewrite it to an existing term ...
+        tgtDef <- lookupOrThrow tgtID (progDefs curProg) $ UnknownRewrittenTgtTerm tgtID
+        -- ... of the same type (taking into account the renaming of types)
+        srcType' <- rewriteTCons tconRename pure $ forgetTypeIDs $ defType srcDef
+        unless (srcType' `alphaEqTy` forgetTypeIDs (defType tgtDef)) $ throwError' $ RewriteTermTypeMismatch srcID tgtID
 
-      pure $ Map.singleton srcID tgtID
+        pure $ Map.singleton srcID tgtID
 
-  let globalRename = rn1 <> rn2
+    let globalRename = rn1 <> rn2
 
-  -- Rename the referenced globals,constructors and types.
-  -- These are now ready to be inserted into curProg
-  for toImport $ \(def, newID, newName) -> do
-    let rejigMeta :: Meta (Maybe a) -> m (Meta (Maybe a))
-        rejigMeta m =
-          m & _type .~ Nothing
-            & traverseOf _id (const fresh)
-        rejigType = rewriteTCons tconRename rejigMeta
-    def' <- traverseOf _defType rejigType def
-    let rejigExpr :: Expr -> m Expr
-        rejigExpr =
-          transformM $
-            traverseOf
-              (#_GlobalVar % _2)
-              ( \origGlobal ->
-                  lookupOrThrow origGlobal globalRename $
-                    ReferencedGlobalNotHandled origGlobal
-              )
-              <=< traverseOf
-                (#_Con % _2)
-                ( \origCon ->
-                    lookupOrThrow origCon conRename $
-                      ReferencedConstructorNotHandled origCon
+    -- Rename the referenced globals,constructors and types.
+    -- These are now ready to be inserted into curProg
+    for toImport $ \(def, newID, newName) -> do
+      let rejigMeta :: Meta (Maybe a) -> m (Meta (Maybe a))
+          rejigMeta m =
+            m & _type .~ Nothing
+              & traverseOf _id (const fresh)
+          rejigType = rewriteTCons tconRename rejigMeta
+          -- We need to rename the constructors that we branch on
+          -- and also reorder the branches to keep the invariant
+          -- that branches are in same order as constructors
+          -- declared in type def
+          rejigCaseBranches :: [CaseBranch] -> m [CaseBranch]
+          rejigCaseBranches bs =
+            let branchName = \case CaseBranch c _ _ -> c
+                cons = map branchName bs
+                perm = Map.lookup cons conPerm
+                sortToMatch = case perm of
+                  Nothing -> identity
+                  Just p -> sortOn (flip elemIndex p . branchName)
+             in sortToMatch
+                  <$> traverseOf
+                    (traversed % #_CaseBranch % _1)
+                    ( \origCon ->
+                        lookupOrThrow origCon conRename $
+                          ReferencedConstructorNotHandled origCon
+                    )
+                    bs
+      def' <- traverseOf _defType rejigType def
+      let rejigExpr :: Expr -> m Expr
+          rejigExpr =
+            transformM $
+              traverseOf
+                (#_GlobalVar % _2)
+                ( \origGlobal ->
+                    lookupOrThrow origGlobal globalRename $
+                      ReferencedGlobalNotHandled origGlobal
                 )
-              <=< traverseOf
-                (#_Case % _3 % traversed % #_CaseBranch % _1)
-                ( \origCon ->
-                    lookupOrThrow origCon conRename $
-                      ReferencedConstructorNotHandled origCon
-                )
-              <=< traverseOf _exprTypeChildren rejigType
-              <=< traverseOf _exprMetaLens rejigMeta
-    def'' <- traverseOf (#_DefAST % #astDefExpr) rejigExpr def'
-    pure $
-      def'' & _defID .~ newID
-        & _defName .~ newName
+                <=< traverseOf
+                  (#_Con % _2)
+                  ( \origCon ->
+                      lookupOrThrow origCon conRename $
+                        ReferencedConstructorNotHandled origCon
+                  )
+                <=< traverseOf (#_Case % _3) rejigCaseBranches
+                <=< traverseOf _exprTypeChildren rejigType
+                <=< traverseOf _exprMetaLens rejigMeta
+      def'' <- traverseOf (#_DefAST % #astDefExpr) rejigExpr def'
+      pure $
+        def'' & _defID .~ newID
+          & _defName .~ newName
