@@ -456,8 +456,12 @@ importFromApp srcProg iac = do
   finalProg <- runReaderT (importFromApp' srcProg iac) curProg
   -- We typecheck the final result, but this should pass
   -- if the conditions in importFromApp' are satisfied
-  prog' <- tcEverything finalProg
-  modify (\s -> s{appProg = prog'})
+  -- We make sure to do so with smartholes disabled,
+  -- as we want to error out if something has gone wrong,
+  -- rather than editing the code to make it acceptable
+  let sh = progSmartHoles finalProg
+  prog' <- tcEverything finalProg{progSmartHoles = NoSmartHoles}
+  modify (\s -> s{appProg = prog'{progSmartHoles = sh}})
 
 -- | A shorthand for the constraints we need when performing mutation
 -- operations on the application.

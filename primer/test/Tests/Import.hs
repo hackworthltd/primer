@@ -176,7 +176,8 @@ unit_import_import_simple = runImportTest $ do
     -- basically doing the import-renaming again. We instead just check
     -- we have the expected definitions, and they do not contain any holes
     -- (as one may worry would happen if they were imported badly, and then
-    -- smartholes kicked in)
+    -- smartholes kicked in - nb: we TC with smartholes off so this shouldn't
+    -- happen).
     assertBool "There are holes in the resultant program" $
       all holeFree (Map.elems $ progDefs result)
     defName <$> Map.elems (progDefs result) @?= ["plus"]
