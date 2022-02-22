@@ -86,6 +86,8 @@ unit_import_import_simple = runImportTest $ do
         IAC
           { iacImportRenamingTypes = Map.singleton "Nat" ("Nat", Map.fromList [("Zero", "Zero"), ("Succ", "Succ")])
           , iacDepsTypes = mempty
+          , iacImportRenamingTerms = mempty
+          , iacDepsTerms = mempty
           }
   importFromApp p iac
   result <- gets appProg
@@ -101,6 +103,8 @@ unit_import_import_renaming = runImportTest $ do
         IAC
           { iacImportRenamingTypes = Map.singleton "Nat" ("N", Map.fromList [("Zero", "Z"), ("Succ", "S")])
           , iacDepsTypes = mempty
+          , iacImportRenamingTerms = mempty
+          , iacDepsTerms = mempty
           }
   importFromApp p iac
   result <- gets appProg
@@ -124,6 +128,8 @@ unit_import_primitive = runImportTest $ do
         IAC
           { iacImportRenamingTypes = Map.singleton "Char" ("Char", mempty)
           , iacDepsTypes = mempty
+          , iacImportRenamingTerms = mempty
+          , iacDepsTerms = mempty
           }
   importFromApp p iac
   result <- gets appProg
@@ -143,6 +149,8 @@ unit_import_ctor_type = runImportTest $ do
                 , ("List", ("List", Map.fromList [("Nil", "Nil"), ("Cons", "Cons")]))
                 ]
           , iacDepsTypes = mempty
+          , iacImportRenamingTerms = mempty
+          , iacDepsTerms = mempty
           }
   importFromApp p iac
   result <- gets appProg
@@ -160,12 +168,16 @@ unit_import_rewire_deps = runImportTest $ do
         IAC
           { iacImportRenamingTypes = listRenaming
           , iacDepsTypes = mempty
+          , iacImportRenamingTerms = mempty
+          , iacDepsTerms = mempty
           }
   importFromApp p iac
   let iac' =
         IAC
           { iacImportRenamingTypes = Map.fromList [("Rose", ("T", Map.fromList [("MkRose", "C")]))]
           , iacDepsTypes = listRenaming
+          , iacImportRenamingTerms = mempty
+          , iacDepsTerms = mempty
           }
   importFromApp p iac'
   result <- gets appProg
@@ -179,12 +191,16 @@ unit_import_rewire_primitive = runImportTest $ do
         IAC
           { iacImportRenamingTypes = Map.fromList [("Char", ("Char", mempty))]
           , iacDepsTypes = mempty
+          , iacImportRenamingTerms = mempty
+          , iacDepsTerms = mempty
           }
   importFromApp p iac
   let iac' =
         IAC
           { iacImportRenamingTypes = Map.singleton "String" ("S", Map.fromList [("Empty", "Nil"), ("HeadAnd", "Cons")])
           , iacDepsTypes = Map.singleton "Char" ("Char", mempty)
+          , iacImportRenamingTerms = mempty
+          , iacDepsTerms = mempty
           }
   importFromApp p iac'
   result <- gets appProg
@@ -200,6 +216,8 @@ unit_import_ref_not_handled = runImportTestError (ReferencedTypeNotHandled "List
         IAC
           { iacImportRenamingTypes = Map.fromList [("Rose", ("T", Map.fromList [("MkRose", "C")]))]
           , iacDepsTypes = mempty
+          , iacImportRenamingTerms = mempty
+          , iacDepsTerms = mempty
           }
   importFromApp p iac
 
@@ -211,6 +229,8 @@ unit_import_rewire_tgt_exist = runImportTestError (UnknownRewrittenTgtType "L") 
         IAC
           { iacImportRenamingTypes = Map.fromList [("Rose", ("T", Map.fromList [("MkRose", "C")]))]
           , iacDepsTypes = Map.singleton "List" ("L", mempty)
+          , iacImportRenamingTerms = mempty
+          , iacDepsTerms = mempty
           }
   importFromApp p iac
 
@@ -223,6 +243,8 @@ unit_import_rewire_kind_match = runImportTestError (RewriteTypeKindMismatch "Lis
         IAC
           { iacImportRenamingTypes = Map.fromList [("Rose", ("T", Map.fromList [("MkRose", "C")]))]
           , iacDepsTypes = Map.singleton "List" ("Unit", mempty)
+          , iacImportRenamingTerms = mempty
+          , iacDepsTerms = mempty
           }
   importFromApp p iac
 
@@ -239,6 +261,8 @@ unit_import_name_clash = do
                   , ("Rose", ("T", Map.fromList [("MkRose", "MkRose")]))
                   ]
             , iacDepsTypes = mempty
+            , iacImportRenamingTerms = mempty
+            , iacDepsTerms = mempty
             }
     importFromApp p iac
   runImportTestError (DuplicateTypes ["Unit"]) $ do
@@ -248,6 +272,8 @@ unit_import_name_clash = do
           IAC
             { iacImportRenamingTypes = Map.fromList [("T", ("Unit", Map.fromList [("A", "A"), ("B", "B")]))]
             , iacDepsTypes = mempty
+            , iacImportRenamingTerms = mempty
+            , iacDepsTerms = mempty
             }
     importFromApp p iac
   runImportTestError (DuplicateCtors ["C"]) $ do
@@ -256,6 +282,8 @@ unit_import_name_clash = do
           IAC
             { iacImportRenamingTypes = Map.fromList [("T", ("S", Map.fromList [("A", "C"), ("B", "C")]))]
             , iacDepsTypes = mempty
+            , iacImportRenamingTerms = mempty
+            , iacDepsTerms = mempty
             }
     importFromApp p iac
   runImportTestError (DuplicateCtors ["MkUnit"]) $ do
@@ -265,6 +293,8 @@ unit_import_name_clash = do
           IAC
             { iacImportRenamingTypes = Map.fromList [("T", ("S", Map.fromList [("A", "A"), ("B", "MkUnit")]))]
             , iacDepsTypes = mempty
+            , iacImportRenamingTerms = mempty
+            , iacDepsTerms = mempty
             }
     importFromApp p iac
   where
@@ -295,6 +325,8 @@ unit_import_rewire_iso = do
           IAC
             { iacImportRenamingTypes = mempty
             , iacDepsTypes = Map.singleton "Unit" ("Nat", Map.singleton "MkUnit" "Zero")
+            , iacImportRenamingTerms = mempty
+            , iacDepsTerms = mempty
             }
     importFromApp
       newEmptyProg
@@ -309,6 +341,8 @@ unit_import_rewire_iso = do
           IAC
             { iacImportRenamingTypes = mempty
             , iacDepsTypes = Map.singleton "Nat" ("Nat", Map.fromList [("Zero", "Zero"), ("Succ", "Succ"), ("Nonexistent", "Nonexistent")])
+            , iacImportRenamingTerms = mempty
+            , iacDepsTerms = mempty
             }
     importFromApp p iac
   runImportTestError (RewriteCtorTgtNotExist "Unit" "Succ") $ do
@@ -318,6 +352,8 @@ unit_import_rewire_iso = do
           IAC
             { iacImportRenamingTypes = mempty
             , iacDepsTypes = Map.singleton "Nat" ("Unit", Map.fromList [("Zero", "MkUnit"), ("Succ", "Succ")])
+            , iacImportRenamingTerms = mempty
+            , iacDepsTerms = mempty
             }
     importFromApp p iac
   runImportTestError (DuplicateRewriteCtor "Nat" ["MkUnit"]) $ do
@@ -327,6 +363,8 @@ unit_import_rewire_iso = do
           IAC
             { iacImportRenamingTypes = mempty
             , iacDepsTypes = Map.singleton "Nat" ("Unit", Map.fromList [("Zero", "MkUnit"), ("Succ", "MkUnit")])
+            , iacImportRenamingTerms = mempty
+            , iacDepsTerms = mempty
             }
     importFromApp p iac
   runImportTestError (RewrittenCtorTypeDiffers "Nat" "Succ" "Nat" "Zero") $ do
@@ -336,6 +374,8 @@ unit_import_rewire_iso = do
           IAC
             { iacImportRenamingTypes = mempty
             , iacDepsTypes = Map.singleton "Nat" ("Nat", Map.fromList [("Zero", "Succ"), ("Succ", "Zero")])
+            , iacImportRenamingTerms = mempty
+            , iacDepsTerms = mempty
             }
     importFromApp p iac
 
@@ -347,6 +387,8 @@ unit_import_import_rename_clash = runImportTestError (ImportRenameType "Nat") $ 
         IAC
           { iacImportRenamingTypes = Map.singleton "Nat" ("Nat", Map.fromList [("Zero", "Zero"), ("Succ", "Succ")])
           , iacDepsTypes = Map.singleton "Nat" ("Nat", Map.fromList [("Zero", "Zero"), ("Succ", "Succ")])
+          , iacImportRenamingTerms = mempty
+          , iacDepsTerms = mempty
           }
   importFromApp p iac
 
@@ -359,6 +401,8 @@ unit_import_nonexist = do
           IAC
             { iacImportRenamingTypes = Map.singleton "Nonexistent" ("T", mempty)
             , iacDepsTypes = mempty
+            , iacImportRenamingTerms = mempty
+            , iacDepsTerms = mempty
             }
     importFromApp p iac
   runImportTestError (UnknownImportedCtor "Nat" "Nonexistent") $ do
@@ -367,6 +411,8 @@ unit_import_nonexist = do
           IAC
             { iacImportRenamingTypes = Map.singleton "Nat" ("Nat", Map.fromList [("Zero", "Zero"), ("Succ", "Succ"), ("Nonexistent", "C")])
             , iacDepsTypes = mempty
+            , iacImportRenamingTerms = mempty
+            , iacDepsTerms = mempty
             }
     importFromApp p iac
   runImportTestError (MissedImportCtor "Nat" "Succ") $ do
@@ -375,6 +421,8 @@ unit_import_nonexist = do
           IAC
             { iacImportRenamingTypes = Map.singleton "Nat" ("Nat", Map.fromList [("Zero", "Zero")])
             , iacDepsTypes = mempty
+            , iacImportRenamingTerms = mempty
+            , iacDepsTerms = mempty
             }
     importFromApp p iac
   runImportTestError (UnknownRewrittenSrcType "Nonexistent") $ do
@@ -383,6 +431,8 @@ unit_import_nonexist = do
           IAC
             { iacImportRenamingTypes = mempty
             , iacDepsTypes = Map.singleton "Nonexistent" ("T", mempty)
+            , iacImportRenamingTerms = mempty
+            , iacDepsTerms = mempty
             }
     importFromApp p iac
   runImportTestError (RewriteCtorSrcNotExist "Nat" "Nonexistent") $ do
@@ -392,6 +442,8 @@ unit_import_nonexist = do
           IAC
             { iacImportRenamingTypes = mempty
             , iacDepsTypes = Map.singleton "Nat" ("Nat", Map.fromList [("Zero", "Zero"), ("Succ", "Succ"), ("Nonexistent", "C")])
+            , iacImportRenamingTerms = mempty
+            , iacDepsTerms = mempty
             }
     importFromApp p iac
   runImportTestError (RewriteCtorTgtNotExist "Unit" "Nonexistent") $ do
@@ -401,6 +453,8 @@ unit_import_nonexist = do
           IAC
             { iacImportRenamingTypes = mempty
             , iacDepsTypes = Map.singleton "Nat" ("Unit", Map.fromList [("Zero", "MkUnit"), ("Succ", "Nonexistent")])
+            , iacImportRenamingTerms = mempty
+            , iacDepsTerms = mempty
             }
     importFromApp p iac
   runImportTestError (MissedRewriteCtor "Nat" "Succ") $ do
@@ -410,6 +464,8 @@ unit_import_nonexist = do
           IAC
             { iacImportRenamingTypes = mempty
             , iacDepsTypes = Map.singleton "Nat" ("Unit", Map.fromList [("Zero", "MkUnit")])
+            , iacImportRenamingTerms = mempty
+            , iacDepsTerms = mempty
             }
     importFromApp p iac
 
@@ -424,6 +480,8 @@ unit_import_rewire_cross_type = do
           IAC
             { iacImportRenamingTypes = mempty
             , iacDepsTypes = Map.singleton "Nat" ("Unit", Map.fromList [("Zero", "MkUnit"), ("Succ", "Succ")])
+            , iacImportRenamingTerms = mempty
+            , iacDepsTerms = mempty
             }
     importFromApp p iac
 
@@ -436,6 +494,8 @@ unit_import_rename_prim_type = do
           IAC
             { iacImportRenamingTypes = Map.singleton "Char" ("C", mempty)
             , iacDepsTypes = mempty
+            , iacImportRenamingTerms = mempty
+            , iacDepsTerms = mempty
             }
     importFromApp p iac
   runImportTestError (CannotRenamePrimitiveType "Char") $ do
@@ -444,12 +504,16 @@ unit_import_rename_prim_type = do
           IAC
             { iacImportRenamingTypes = Map.singleton "Int" ("Int", mempty)
             , iacDepsTypes = mempty
+            , iacImportRenamingTerms = mempty
+            , iacDepsTerms = mempty
             }
     importFromApp p iac
     let iac' =
           IAC
             { iacImportRenamingTypes = mempty
             , iacDepsTypes = Map.singleton "Char" ("Int", mempty)
+            , iacImportRenamingTerms = mempty
+            , iacDepsTerms = mempty
             }
     importFromApp p iac'
 
@@ -461,6 +525,8 @@ unit_import_prim_type_ctor = do
           IAC
             { iacImportRenamingTypes = Map.singleton "Char" ("Char", Map.singleton "a" "a")
             , iacDepsTypes = mempty
+            , iacImportRenamingTerms = mempty
+            , iacDepsTerms = mempty
             }
     importFromApp p iac
   runImportTestError (PrimitiveTypeHasNoCtor "Char") $ do
@@ -469,12 +535,16 @@ unit_import_prim_type_ctor = do
           IAC
             { iacImportRenamingTypes = Map.singleton "Char" ("Char", Map.singleton "a" "a")
             , iacDepsTypes = mempty
+            , iacImportRenamingTerms = mempty
+            , iacDepsTerms = mempty
             }
     importFromApp p iac
     let iac' =
           IAC
             { iacImportRenamingTypes = mempty
             , iacDepsTypes = Map.singleton "Char" ("Char", Map.singleton "a" "a")
+            , iacImportRenamingTerms = mempty
+            , iacDepsTerms = mempty
             }
     importFromApp p iac'
 
@@ -488,6 +558,8 @@ unit_import_prim_user_type = do
           IAC
             { iacImportRenamingTypes = mempty
             , iacDepsTypes = Map.singleton "Char" ("Char", mempty)
+            , iacImportRenamingTerms = mempty
+            , iacDepsTerms = mempty
             }
     importFromApp p iac
   runImportTestError (RewriteTypePrimitiveMismatch "Char" "Char") $ do
@@ -496,12 +568,16 @@ unit_import_prim_user_type = do
           IAC
             { iacImportRenamingTypes = Map.singleton "Char" ("Char", mempty)
             , iacDepsTypes = mempty
+            , iacImportRenamingTerms = mempty
+            , iacDepsTerms = mempty
             }
     importFromApp p iac
     let iac' =
           IAC
             { iacImportRenamingTypes = mempty
             , iacDepsTypes = Map.singleton "Char" ("Char", mempty)
+            , iacImportRenamingTerms = mempty
+            , iacDepsTerms = mempty
             }
     importFromApp p' iac'
   where

@@ -112,6 +112,8 @@ type TypeImportDetails = Map Name (Name, Map Name Name)
 data ImportActionConfig = IAC
   { iacImportRenamingTypes :: TypeImportDetails
   , iacDepsTypes :: TypeImportDetails
+  , iacImportRenamingTerms :: ()
+  , iacDepsTerms :: ()
   }
 
 -- | Computes the new program with a copy of the requested imports,
