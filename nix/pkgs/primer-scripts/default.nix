@@ -181,6 +181,17 @@ in
     '';
   };
 
+  # Run any sqitch command using the Primer schema.
+  primer-sqitch = writeShellApplication {
+    name = "primer-sqitch";
+    runtimeInputs = [
+      sqitchBundle
+    ];
+    text = ''
+      sqitch "$@"
+    '';
+  };
+
   run-primer = writeShellApplication {
     name = "run-primer";
     runtimeInputs = [

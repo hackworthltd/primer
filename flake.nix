@@ -110,7 +110,10 @@
                 {
                   #TODO This shouldn't be necessary - see the commented-out `build-tool-depends` in primer.cabal.
                   packages.primer.components.tests.primer-test.build-tools = [ final.haskell-nix.snapshots."lts-18.9".tasty-discover ];
-                  packages.primer-service.components.tests.service-test.build-tools = [ final.haskell-nix.snapshots."lts-18.9".tasty-discover ];
+                  packages.primer-service.components.tests.service-test.build-tools = [
+                    final.haskell-nix.snapshots."lts-18.9".tasty-discover
+                    final.primer-sqitch
+                  ];
                 }
                 {
                   #TODO Haskell.nix would ideally pick this up from `cabal.project`.
@@ -169,7 +172,7 @@
 
             inherit primer-scripts;
             inherit (primer-scripts) deploy-postgresql-container start-postgresql-container stop-postgresql-container;
-            inherit (primer-scripts) run-primer create-local-db deploy-local-db verify-local-db revert-local-db status-local-db log-local-db delete-local-db dump-local-db restore-local-db;
+            inherit (primer-scripts) run-primer create-local-db deploy-local-db verify-local-db revert-local-db status-local-db log-local-db delete-local-db dump-local-db restore-local-db primer-sqitch;
           }
         )
       ];
@@ -291,7 +294,7 @@
       packages =
         {
           inherit (pkgs) primer-service;
-          inherit (pkgs) run-primer create-local-db deploy-local-db verify-local-db revert-local-db status-local-db log-local-db delete-local-db dump-local-db restore-local-db primer-openapi-spec;
+          inherit (pkgs) run-primer create-local-db deploy-local-db verify-local-db revert-local-db status-local-db log-local-db delete-local-db dump-local-db restore-local-db primer-sqitch primer-openapi-spec;
           inherit (pkgs) deploy-postgresql-container start-postgresql-container stop-postgresql-container;
         }
         // primerFlake.packages;
@@ -308,7 +311,7 @@
         // primerFlake.checks;
 
       apps = {
-        inherit (pkgs) run-primer create-local-db deploy-local-db verify-local-db revert-local-db status-local-db log-local-db delete-local-db dump-local-db restore-local-db primer-openapi-spec;
+        inherit (pkgs) run-primer create-local-db deploy-local-db verify-local-db revert-local-db status-local-db log-local-db delete-local-db dump-local-db restore-local-db primer-sqitch primer-openapi-spec;
         inherit (pkgs) deploy-postgresql-container start-postgresql-container stop-postgresql-container;
       }
       // primerFlake.apps;
@@ -355,6 +358,7 @@
           # sqitch
           nix-generate-from-cpan
           sqitch
+          primer-sqitch
 
           # Local database scripts.
           create-local-db
