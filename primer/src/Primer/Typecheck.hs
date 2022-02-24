@@ -50,6 +50,7 @@ module Primer.Typecheck (
   extendLocalCxtTys,
   extendLocalCxt,
   extendLocalCxts,
+  extendGlobalCxt,
   localTmVars,
   localTyVars,
 ) where

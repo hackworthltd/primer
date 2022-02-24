@@ -17,12 +17,14 @@ import Optics
 import Primer.App (defaultTypeDefs)
 import Primer.Core
 import Primer.Core.DSL
-import Primer.Core.Utils (forgetIDs, generateIDs, generateTypeIDs)
+import Primer.Core.Utils (forgetIDs, forgetTypeIDs, generateIDs, generateTypeIDs)
 import Primer.EvalFull
 import Primer.Name
+import Primer.Primitives (allPrimDefs)
 import Primer.Typecheck (
   SmartHoles (NoSmartHoles),
   buildTypingContext,
+  extendGlobalCxt,
   globalCxt,
   mkTypeDefMap,
   typeDefs,
@@ -31,6 +33,7 @@ import Test.Tasty.HUnit (Assertion, assertBool, assertFailure, (@?=))
 import TestM
 import TestUtils (withPrimDefs)
 import Tests.Gen.Core.Typed (checkTest)
+import Prelude (error)
 
 unit_1 :: Assertion
 unit_1 =
@@ -354,9 +357,10 @@ unit_hole_ann_case =
 -- | Resuming evaluation is the same as running it for longer in the first place
 hprop_resume :: Property
 hprop_resume = withDiscards 2000 $
-  propertyWT (buildTypingContext defaultTypeDefs mempty NoSmartHoles) $ do
-    (dir, t, _, globs) <- genDirTmGlobs
-    resumeTest globs dir t
+  propertyWT (buildTypingContext defaultTypeDefs mempty NoSmartHoles) $
+    withGlobals testGlobals $ \fixedGlobs -> do
+      (dir, t, _, globs) <- genDirTmGlobs fixedGlobs
+      resumeTest globs dir t
 
 -- A helper for hprop_resume, and hprop_resume_regression
 resumeTest :: Map ID Def -> Dir -> Expr -> PropertyT WT ()
@@ -421,30 +425,31 @@ unit_type_preservation_rename_LAM_regression =
 hprop_type_preservation :: Property
 hprop_type_preservation = withTests 1000 $
   withDiscards 2000 $
-    propertyWT (buildTypingContext defaultTypeDefs mempty NoSmartHoles) $ do
-      tds <- asks typeDefs
-      (dir, t, ty, globs) <- genDirTmGlobs
-      let test msg e = do
-            s <- case e of
-              Left (TimedOut s') -> label (msg <> "TimedOut") >> pure s'
-              Right s' -> label (msg <> "NF") >> pure s'
-            if null [() | LetType{} <- universe s]
-              then do
-                annotateShow s
-                s' <- checkTest ty s
-                forgetIDs s === forgetIDs s' -- check no smart holes happened
-              else label (msg <> "skipped due to LetType") >> success
-      maxSteps <- forAllT $ Gen.integral $ Range.linear 1 1000 -- Arbitrary limit here
-      (steps, s) <- evalFullStepCount tds globs maxSteps dir t
-      -- s is often reduced to normal form
-      test "long " s
-      -- also test an intermediate point
-      if steps <= 1
-        then label "generated a normal form"
-        else do
-          midSteps <- forAllT $ Gen.integral $ Range.linear 1 (steps - 1)
-          (_, s') <- evalFullStepCount tds globs midSteps dir t
-          test "mid " s'
+    propertyWT (buildTypingContext defaultTypeDefs mempty NoSmartHoles) $
+      withGlobals testGlobals $ \fixedGlobs -> do
+        tds <- asks typeDefs
+        (dir, t, ty, globs) <- genDirTmGlobs fixedGlobs
+        let test msg e = do
+              s <- case e of
+                Left (TimedOut s') -> label (msg <> "TimedOut") >> pure s'
+                Right s' -> label (msg <> "NF") >> pure s'
+              if null [() | LetType{} <- universe s]
+                then do
+                  annotateShow s
+                  s' <- checkTest ty s
+                  forgetIDs s === forgetIDs s' -- check no smart holes happened
+                else label (msg <> "skipped due to LetType") >> success
+        maxSteps <- forAllT $ Gen.integral $ Range.linear 1 1000 -- Arbitrary limit here
+        (steps, s) <- evalFullStepCount tds globs maxSteps dir t
+        -- s is often reduced to normal form
+        test "long " s
+        -- also test an intermediate point
+        if steps <= 1
+          then label "generated a normal form"
+          else do
+            midSteps <- forAllT $ Gen.integral $ Range.linear 1 (steps - 1)
+            (_, s') <- evalFullStepCount tds globs midSteps dir t
+            test "mid " s'
 
 unit_prim_toUpper :: Assertion
 unit_prim_toUpper =
@@ -938,8 +943,13 @@ binaryPrimTest f x y z =
 --  * whether the term is synthesisable or checkable
 --
 --  * the type of the term
-genDirTmGlobs :: PropertyT WT (Dir, Expr, Type' (), M.Map ID Def)
-genDirTmGlobs = do
+--
+-- The first arg is "given" globals: in the "globals" return, we will
+-- return the corresponding ones in this list, if one exists.
+-- Thus you can specify a few particular terms you want in scope
+-- (e.g. primitives), and generate the rest.
+genDirTmGlobs :: [Def] -> PropertyT WT (Dir, Expr, Type' (), M.Map ID Def)
+genDirTmGlobs defs = do
   dir <- forAllT $ Gen.element [Chk, Syn]
   (t', ty) <- case dir of
     Chk -> do
@@ -949,11 +959,34 @@ genDirTmGlobs = do
     Syn -> forAllT genSyn
   t <- generateIDs t'
   globTypes <- asks globalCxt
-  let genDef i (n, defTy) =
-        (\ty' e -> DefAST ASTDef{astDefID = i, astDefName = n, astDefType = ty', astDefExpr = e})
-          <$> generateTypeIDs defTy <*> (generateIDs =<< genChk defTy)
+  let genDef i (n, defTy) = case find ((== n) . defName) defs of
+        Just d -> do
+          unless (forgetTypeIDs (defType d) == defTy) $
+            --  This is a bug in the calling property. Bail out loudly!
+            error "genDirTmGlobs: given def had different type to expected from context"
+          pure d
+        Nothing ->
+          (\ty' e -> DefAST ASTDef{astDefID = i, astDefName = n, astDefType = ty', astDefExpr = e})
+            <$> generateTypeIDs defTy <*> (generateIDs =<< genChk defTy)
   globs <- forAllT $ M.traverseWithKey genDef globTypes
   pure (dir, t, ty, globs)
+
+-- | Adds the global's types to the global context, and gives you access to the definitions,
+-- to e.g. pass to 'genDirTmGlobs'
+withGlobals :: WT [Def] -> ([Def] -> PropertyT WT a) -> PropertyT WT a
+withGlobals mdefs prop = do
+  defs <- lift mdefs
+  let cxtext = flip map defs $ \d -> (defID d, (defName d, forgetTypeIDs $ defType d))
+  local (extendGlobalCxt cxtext) (prop defs)
+
+-- | Some generally-useful globals to have around when testing.
+-- Currently: an AST identity function on Char and a primitive @toUpper@.
+testGlobals :: WT [Def]
+testGlobals = do
+  idCharDef <- ASTDef <$> fresh <*> pure "idChar" <*> lam "x" (var "x") <*> (tcon "Char" `tfun` tcon "Char")
+  let toUpperFun = allPrimDefs ! "toUpper"
+  toUpperDef <- PrimDef <$> fresh <*> pure "toUpper" <*> primFunType toUpperFun
+  pure [DefAST idCharDef, DefPrim toUpperDef]
 
 _ids :: Traversal' Expr ID
 _ids = (_exprMeta % _id) `adjoin` (_exprTypeMeta % _id)
