@@ -38,13 +38,13 @@ library
     -Wcompat -Widentities -Wredundant-constraints -fhide-source-paths
 
   build-depends:
-    , aeson       ^>=2.0
+    , aeson       >=2.0      && <=2.1
     , base        >=4.12     && <=4.17
     , bytestring  >=0.10.8.2 && <=0.12
     , containers  >=0.6.0.1  && <=0.7
-    , exceptions  ^>=0.10.4
-    , hasql       ^>=1.5
-    , mtl         ^>=2.2.2
+    , exceptions  >=0.10.4   && <=0.11
+    , hasql       >=1.5      && <=1.6
+    , mtl         >=2.2.2    && <=2.3
     , primer      ^>=0.7.1
     , rel8        ^>=1.3
     , text        >=1.2.3.2  && <=1.3
