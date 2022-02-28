@@ -17,8 +17,12 @@ cradle:
 
             - path: ./primer-rel8/src
               component: "lib:primer-rel8"
+            - path: ./primer-rel8/test
+              component: "primer-rel8-test"
 
             - path: ./primer-service/src
               component: "lib:primer-service"
             - path: ./primer-service/exe
               component: "exe:primer-service"
+            - path: ./primer-service/test
+              component: "service-test"

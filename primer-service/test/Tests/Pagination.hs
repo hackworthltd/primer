@@ -31,8 +31,6 @@ import Hasql.Connection (
  )
 import Primer.App (newApp)
 import Primer.Database (
-  OffsetLimit (OL, limit, offset),
-  Page (pageContents, total),
   Session (Session),
   insertSession,
   listSessions,
@@ -146,36 +144,20 @@ test_pagination = testCaseSteps "pagination" $ \step' ->
       rows <- liftIO $ sortOn name <$> traverse mkSession [1 .. m]
       forM_ rows (\SessionRow{..} -> insertSession gitversion uuid newApp (safeMkSessionName name))
       let expectedRows = map (\r -> Session (uuid r) (safeMkSessionName $ name r)) rows
-      step "Get all, offset+limit"
-      pAll <- listSessions $ OL{offset = 0, limit = Nothing}
-      total pAll @?= m
-      pageContents pAll @?= expectedRows
       step "Get all, paged"
       onePos <- maybe (assertFailure "1 is positive") pure $ mkPositive 1
       pAllPaged <- pagedDefaultClamp (m + 2) (Pagination{page = onePos, size = Nothing}) listSessions
       getMeta pAllPaged @?= (m, m + 2, 1, Nothing, 1, Nothing, 1)
       items pAllPaged @?= expectedRows
-      step "Get 25"
-      p25 <- listSessions $ OL{offset = 0, limit = Just 25}
-      total p25 @?= m
-      pageContents p25 @?= map (\r -> Session (uuid r) (safeMkSessionName $ name r)) (take 25 rows)
       step "Get 25, paged"
       p25Paged <- pagedDefaultClamp (m + 2) (Pagination{page = onePos, size = mkPositive 25}) listSessions
       getMeta p25Paged @?= (m, 25, 1, Nothing, 1, Just 2, 14)
       items p25Paged @?= take 25 expectedRows
-      step "Get 76-100"
-      p75 <- listSessions $ OL{offset = 75, limit = Just 25}
-      total p75 @?= m
-      pageContents p75 @?= map (\r -> Session (uuid r) (safeMkSessionName $ name r)) (take 25 $ drop 75 rows)
       step "Get 76-100, paged"
       fourPos <- maybe (assertFailure "4 is positive") pure $ mkPositive 4
       p75Paged <- pagedDefaultClamp (m + 2) (Pagination{page = fourPos, size = mkPositive 25}) listSessions
       getMeta p75Paged @?= (m, 25, 1, Just 3, 4, Just 5, 14)
       items p75Paged @?= take 25 (drop 75 expectedRows)
-      step "Get crossing end"
-      pLast <- listSessions $ OL{offset = m - 10, limit = Just 25}
-      total pLast @?= m
-      pageContents pLast @?= map (\r -> Session (uuid r) (safeMkSessionName $ name r)) (drop (m - 10) rows)
       step "Get crossing end, paged"
       fourteenPos <- maybe (assertFailure "14 is positive") pure $ mkPositive 14
       pLastPaged <- pagedDefaultClamp (m + 2) (Pagination{page = fourteenPos, size = mkPositive 25}) listSessions

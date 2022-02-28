@@ -110,8 +110,14 @@
                 {
                   #TODO This shouldn't be necessary - see the commented-out `build-tool-depends` in primer.cabal.
                   packages.primer.components.tests.primer-test.build-tools = [ final.haskell-nix.snapshots."lts-18.9".tasty-discover ];
+                  packages.primer-rel8.components.tests.primer-rel8-test.build-tools = [
+                    final.haskell-nix.snapshots."lts-18.9".tasty-discover
+                    final.postgresql
+                    final.primer-sqitch
+                  ];
                   packages.primer-service.components.tests.service-test.build-tools = [
                     final.haskell-nix.snapshots."lts-18.9".tasty-discover
+                    final.postgresql
                     final.primer-sqitch
                   ];
                 }
