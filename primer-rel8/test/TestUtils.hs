@@ -1,32 +1,16 @@
 module TestUtils (
   (@?=),
+  anyException,
+  assertException,
   withDbSetup,
 ) where
 
-import Foreword (
-  Alternative (empty),
-  Applicative (pure),
-  Eq,
-  IO,
-  Int,
-  MonadIO (..),
-  Monoid (mempty),
-  Semigroup ((<>)),
-  Show,
-  bracket,
-  decodeUtf8,
-  either,
-  maybe,
-  show,
-  throwIO,
-  ($),
-  (.),
-  (=<<),
-  (>=>),
- )
+import Foreword hiding (try)
 
+import Control.Monad.Catch (MonadCatch, try)
 import Data.String (String)
 import Data.Text (unpack)
+import Data.Typeable (typeOf)
 import qualified Database.PostgreSQL.Simple.Options as Options
 import Database.Postgres.Temp (
   DB,
@@ -51,6 +35,10 @@ import System.IO.Temp (withSystemTempDirectory)
 import System.Process.Typed (
   proc,
   runProcess_,
+ )
+import Test.Tasty.HUnit (
+  assertBool,
+  assertFailure,
  )
 import qualified Test.Tasty.HUnit as HUnit
 
@@ -107,3 +95,23 @@ withDbSetup f =
 (@?=) :: (MonadIO m, Eq a, Show a) => a -> a -> m ()
 x @?= y = liftIO $ x HUnit.@?= y
 infix 1 @?=
+
+type ExceptionPredicate e = (e -> Bool)
+
+assertException ::
+  (HasCallStack, Exception e, MonadIO m, MonadCatch m) =>
+  String ->
+  ExceptionPredicate e ->
+  m a ->
+  m ()
+assertException msg p action = do
+  r <- try action
+  case r of
+    Right _ -> liftIO $ assertFailure $ msg <> " should have thrown " <> exceptionType <> ", but it succeeded"
+    Left e -> liftIO $ assertBool (wrongException e) (p e)
+  where
+    wrongException e = msg <> " threw " <> show e <> ", but we expected " <> exceptionType
+    exceptionType = (show . typeOf) p
+
+anyException :: ExceptionPredicate SomeException
+anyException = const True
