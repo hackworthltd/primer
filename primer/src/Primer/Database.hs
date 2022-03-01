@@ -133,7 +133,7 @@ data SessionData = SessionData
   , sessionName :: SessionName
   -- ^ The session's name.
   }
-  deriving (Generic)
+  deriving (Show, Eq, Generic)
 
 -- | An in-memory cache of sessions. This type maps 'SessionId's to 'App's.
 type Sessions = StmMap.Map SessionId SessionData

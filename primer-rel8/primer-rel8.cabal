@@ -55,6 +55,7 @@ test-suite primer-rel8-test
   main-is:            Test.hs
   hs-source-dirs:     test
   other-modules:
+    Tests.InsertSession
     Tests.ListSessions
     TestUtils
 
