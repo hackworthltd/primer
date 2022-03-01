@@ -87,6 +87,7 @@ test-suite primer-rel8-test
     build-depends:
       , aeson
       , base
+      , exceptions
       , filepath
       , hasql
       , postgres-options  ^>=0.2
