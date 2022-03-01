@@ -1,8 +1,29 @@
 module TestUtils (
+  (@?=),
   withDbSetup,
 ) where
 
-import Foreword
+import Foreword (
+  Alternative (empty),
+  Applicative (pure),
+  Eq,
+  IO,
+  Int,
+  MonadIO (..),
+  Monoid (mempty),
+  Semigroup ((<>)),
+  Show,
+  bracket,
+  decodeUtf8,
+  either,
+  maybe,
+  show,
+  throwIO,
+  ($),
+  (.),
+  (=<<),
+  (>=>),
+ )
 
 import Data.String (String)
 import Data.Text (unpack)
@@ -31,6 +52,7 @@ import System.Process.Typed (
   proc,
   runProcess_,
  )
+import qualified Test.Tasty.HUnit as HUnit
 
 host :: String
 host = "localhost"
@@ -81,3 +103,7 @@ withDbSetup f =
                         migratedConfig <- throwEither $ cacheAction (tmpdir <> "/primer-rel8") deployDb combinedConfig
                         withConfig migratedConfig $ \db ->
                           bracket (connectDb db) release f
+
+(@?=) :: (MonadIO m, Eq a, Show a) => a -> a -> m ()
+x @?= y = liftIO $ x HUnit.@?= y
+infix 1 @?=

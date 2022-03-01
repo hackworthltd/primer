@@ -23,12 +23,10 @@ import Primer.Database.Rel8 (
 import Rel8 (Result)
 import Test.Tasty (TestTree)
 import Test.Tasty.HUnit (testCaseSteps)
-import qualified Test.Tasty.HUnit as HUnit
-import TestUtils (withDbSetup)
-
-(@?=) :: (MonadIO m, Eq a, Show a) => a -> a -> m ()
-x @?= y = liftIO $ x HUnit.@?= y
-infix 1 @?=
+import TestUtils (
+  withDbSetup,
+  (@?=),
+ )
 
 mkSession :: Int -> IO (SessionRow Result)
 mkSession n = do
