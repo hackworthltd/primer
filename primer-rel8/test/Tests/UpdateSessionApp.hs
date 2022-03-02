@@ -17,6 +17,7 @@ import Primer.Database (
   updateSessionApp,
  )
 import Primer.Database.Rel8 (
+  isUpdateAppError,
   runRel8Db,
  )
 import Test.Tasty (TestTree)
@@ -25,7 +26,6 @@ import Test.Tasty.ExpectedFailure (
  )
 import Test.Tasty.HUnit (testCaseSteps)
 import TestUtils (
-  anyException,
   assertException,
   withDbSetup,
   (@?=),
@@ -81,4 +81,4 @@ test_updateSessionApp_failure = expectFailBecause "Not yet implemented" $
         step "Attempt to update a session that hasn't yet been inserted"
         let version = "git123"
         sessionId <- liftIO newSessionId
-        assertException "updateSessionApp" anyException $ updateSessionApp version sessionId newApp
+        assertException "updateSessionApp" isUpdateAppError $ updateSessionApp version sessionId newApp
