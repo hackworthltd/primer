@@ -58,6 +58,7 @@ test-suite primer-rel8-test
     Tests.InsertSession
     Tests.ListSessions
     Tests.UpdateSessionApp
+    Tests.UpdateSessionName
     TestUtils
 
   default-language:   Haskell2010
