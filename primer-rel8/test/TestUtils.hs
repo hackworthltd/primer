@@ -2,6 +2,7 @@ module TestUtils (
   (@?=),
   anyException,
   assertException,
+  insertSessionRow,
   withDbSetup,
 ) where
 
@@ -30,6 +31,19 @@ import Hasql.Connection (
   Connection,
   acquire,
   release,
+ )
+import Hasql.Session (run, statement)
+import Primer.Database.Rel8.Schema as Schema (
+  SessionRow (..),
+  sessionRowSchema,
+ )
+import Rel8 (
+  Expr,
+  Insert (Insert, into, onConflict, returning, rows),
+  OnConflict (Abort),
+  Returning (NumberOfRowsAffected),
+  insert,
+  values,
  )
 import System.IO.Temp (withSystemTempDirectory)
 import System.Process.Typed (
@@ -115,3 +129,22 @@ assertException msg p action = do
 
 anyException :: ExceptionPredicate SomeException
 anyException = const True
+
+-- | Like @MonadDb.insertSession@, but allows us to insert things
+-- directly into the database that otherwise might not be permitted by
+-- the type system. This is useful for testing purposes.
+insertSessionRow :: Schema.SessionRow Expr -> Connection -> IO ()
+insertSessionRow row conn =
+  void $
+    flip run conn $
+      statement () $
+        insert
+          Insert
+            { into = Schema.sessionRowSchema
+            , rows =
+                values
+                  [ row
+                  ]
+            , onConflict = Abort
+            , returning = NumberOfRowsAffected
+            }
