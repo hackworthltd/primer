@@ -1,6 +1,7 @@
 module TestUtils (
   (@?=),
   anyException,
+  anyRel8DbException,
   assertException,
   insertSessionRow,
   withDbSetup,
@@ -33,6 +34,7 @@ import Hasql.Connection (
   release,
  )
 import Hasql.Session (run, statement)
+import Primer.Database.Rel8.Rel8Db (Rel8DbException)
 import Primer.Database.Rel8.Schema as Schema (
   SessionRow (..),
   sessionRowSchema,
@@ -129,6 +131,9 @@ assertException msg p action = do
 
 anyException :: ExceptionPredicate SomeException
 anyException = const True
+
+anyRel8DbException :: ExceptionPredicate Rel8DbException
+anyRel8DbException = const True
 
 -- | Like @MonadDb.insertSession@, but allows us to insert things
 -- directly into the database that otherwise might not be permitted by

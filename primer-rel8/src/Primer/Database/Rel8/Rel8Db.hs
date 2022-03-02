@@ -1,11 +1,30 @@
 {-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE DuplicateRecordFields #-}
 
+-- |
+--Module      : Primer.Database.Rel8.Rel8Db
+--Description : A database adapter for Primer using "Rel8".
+--Copyright   : (c) 2022, Hackworth Ltd
+--License     : AGPL 3.0 or later
+--Stability   : experimental
+--Portability : portable
+--
+--A "Rel8"- and @Hasql@-based implementation of 'MonadDb'.
 module Primer.Database.Rel8.Rel8Db (
+  -- * The "Rel8" database adapter
   Rel8DbT (..),
   Rel8Db,
   runRel8DbT,
   runRel8Db,
+
+  -- * Exceptions
+  Rel8DbException (..),
+  queryError,
+  isInsertError,
+  isUpdateAppError,
+  isUpdateNameError,
+  isLoadSessionError,
+  isListSessionsError,
 ) where
 
 import Foreword hiding (filter)
@@ -24,7 +43,11 @@ import Data.Functor.Contravariant ((>$<))
 import Data.UUID (UUID)
 import qualified Data.UUID as UUID (toText)
 import Hasql.Connection (Connection)
-import Hasql.Session (run, statement)
+import Hasql.Session (
+  QueryError,
+  run,
+  statement,
+ )
 import Hasql.Statement (Statement)
 import Primer.Database (
   MonadDb (..),
@@ -32,6 +55,7 @@ import Primer.Database (
   Page (Page, pageContents, total),
   Session (Session),
   SessionData (..),
+  SessionId,
   fromSessionName,
   safeMkSessionName,
  )
@@ -108,7 +132,7 @@ runRel8Db = runRel8DbT
 -- 'MonadDb' methods and are handled by Primer internally.
 instance (MonadThrow m, MonadIO m) => MonadDb (Rel8DbT m) where
   insertSession v s a n =
-    runStatement_ $
+    runStatement_ (InsertError s) $
       insert
         Insert
           { into = Schema.sessionRowSchema
@@ -126,7 +150,7 @@ instance (MonadThrow m, MonadIO m) => MonadDb (Rel8DbT m) where
           , returning = NumberOfRowsAffected
           }
   updateSessionApp v s a =
-    runStatement_ $
+    runStatement_ (UpdateAppError s) $
       update
         Update
           { target = Schema.sessionRowSchema
@@ -140,7 +164,7 @@ instance (MonadThrow m, MonadIO m) => MonadDb (Rel8DbT m) where
           , returning = NumberOfRowsAffected
           }
   updateSessionName v s n =
-    runStatement_ $
+    runStatement_ (UpdateNameError s) $
       update
         Update
           { target = Schema.sessionRowSchema
@@ -154,7 +178,7 @@ instance (MonadThrow m, MonadIO m) => MonadDb (Rel8DbT m) where
           , returning = NumberOfRowsAffected
           }
   listSessions ol = do
-    n' <- runStatement $ select numSessions
+    n' <- runStatement ListSessionsError $ select numSessions
     let n = case n' of
           -- Currently, our page size is 'Int', but Rel8 gives
           -- 'Int64'. This needs fixing, but has implications for API
@@ -172,7 +196,7 @@ instance (MonadThrow m, MonadIO m) => MonadDb (Rel8DbT m) where
           -- to be returned. See:
           -- https://github.com/hackworthltd/primer/issues/179
           _ -> 0
-    ss :: [(UUID, Text)] <- runStatement $ select $ paginatedSessionMeta ol
+    ss :: [(UUID, Text)] <- runStatement ListSessionsError $ select $ paginatedSessionMeta ol
     pure $ Page{total = n, pageContents = safeMkSession <$> ss}
     where
       -- See comment in 'querySessionId' re: dealing with invalid
@@ -183,7 +207,7 @@ instance (MonadThrow m, MonadIO m) => MonadDb (Rel8DbT m) where
   --
   -- See https://github.com/hackworthltd/primer/issues/268
   querySessionId _ sid = do
-    result <- runStatement $ select $ sessionById sid
+    result <- runStatement (LoadSessionError sid) $ select $ sessionById sid
     case result of
       [] -> return $ Left $ "No such session ID " <> UUID.toText sid
       (s : _) ->
@@ -208,12 +232,79 @@ instance (MonadThrow m, MonadIO m) => MonadDb (Rel8DbT m) where
             -- https://github.com/hackworthltd/primer/issues/179
             pure $ Right (SessionData decodedApp (safeMkSessionName $ Schema.name s))
 
--- Helper to make dealing with "Hasql.Session" easier.
+-- | Exceptions that can be thrown by 'Rel8DbT' computations.
+--
+-- This class mainly exists to wrap a @Hasql@ 'QueryError' in an
+-- 'Exception' instance, so that @Hasql@ errors can be handled by
+-- GHC's exception machinery.
+--
+-- These exceptions are thrown only for truly exceptional errors.
+-- Generally speaking, these will not be recoverable by the handler,
+-- though in some cases it may be possible to keep retrying the
+-- operation until the exceptional condition has been resolved; e.g.,
+-- when the connection to the database is temporarily severed.
+--
+-- (Non-exceptional errors are handled in-band in the 'MonadDb'
+-- interface as an 'Data.Either.Either'.)
+data Rel8DbException
+  = -- | An error occurred during an 'Insert' operation on the given
+    -- 'SessionId'.
+    InsertError SessionId QueryError
+  | -- | An error occurred during an 'UpdateApp' operation on the
+    -- given 'SessionId'.
+    UpdateAppError SessionId QueryError
+  | -- | An error occurred during an 'UpdateName' operation on the
+    -- given 'SessionId'.
+    UpdateNameError SessionId QueryError
+  | -- | An error occurred during a 'LoadSession' operation on the
+    -- given 'SessionId'.
+    LoadSessionError SessionId QueryError
+  | -- | An error occurred during a 'ListSessions' operation.
+    ListSessionsError QueryError
+  deriving (Eq, Show)
+
+instance Exception Rel8DbException
+
+-- | Extract the 'QueryError' from a 'Rel8DbException'.
+queryError :: Rel8DbException -> QueryError
+queryError (ListSessionsError e) = e
+queryError (InsertError _ e) = e
+queryError (UpdateAppError _ e) = e
+queryError (UpdateNameError _ e) = e
+queryError (LoadSessionError _ e) = e
+
+-- | 'True' if the 'Rel8DbException' is 'InsertError'.
+isInsertError :: Rel8DbException -> Bool
+isInsertError (InsertError _ _) = True
+isInsertError _ = False
+
+-- | 'True' if the 'Rel8DbException' is 'UpdateAppError'.
+isUpdateAppError :: Rel8DbException -> Bool
+isUpdateAppError (UpdateAppError _ _) = True
+isUpdateAppError _ = False
+
+-- | 'True' if the 'Rel8DbException' is 'UpdateNameError'.
+isUpdateNameError :: Rel8DbException -> Bool
+isUpdateNameError (UpdateNameError _ _) = True
+isUpdateNameError _ = False
+
+-- | 'True' if the 'Rel8DbException' is 'LoadSessionError'.
+isLoadSessionError :: Rel8DbException -> Bool
+isLoadSessionError (LoadSessionError _ _) = True
+isLoadSessionError _ = False
+
+-- | 'True' if the 'Rel8DbException' is 'ListSessionsError'.
+isListSessionsError :: Rel8DbException -> Bool
+isListSessionsError (ListSessionsError _) = True
+isListSessionsError _ = False
+
+-- Helpers to make dealing with "Hasql.Session" easier.
 --
 -- See the note on 'Rel8DbT's 'MonadDb' instance for an explanation of
 -- why we handle "Hasql.Session" exceptions the way we do.
-runStatement :: (MonadIO m, MonadThrow m, MonadReader Connection m) => Statement () a -> m a
-runStatement s = do
+
+runStatement :: (MonadIO m, MonadThrow m, MonadReader Connection m) => (QueryError -> Rel8DbException) -> Statement () a -> m a
+runStatement exc s = do
   conn <- ask
   result <- liftIO $ flip run conn $ statement () s
   case result of
@@ -221,12 +312,11 @@ runStatement s = do
       -- Something went wrong with the database or database
       -- connection. This is the responsibility of the caller to
       -- handle.
-      throwM e
+      throwM $ exc e
     Right r -> pure r
 
--- As 'runStatement', except this discards the result.
-runStatement_ :: (MonadIO m, MonadThrow m, MonadReader Connection m) => Statement () a -> m ()
-runStatement_ = void . runStatement
+runStatement_ :: (MonadIO m, MonadThrow m, MonadReader Connection m) => (QueryError -> Rel8DbException) -> Statement () a -> m ()
+runStatement_ exc = void . runStatement exc
 
 -- "Rel8" queries and other operations.
 
