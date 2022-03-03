@@ -248,10 +248,6 @@ instance (MonadThrow m, MonadIO m) => MonadDb (Rel8DbT m) where
 
 -- | Exceptions that can be thrown by 'Rel8DbT' computations.
 --
--- This class mainly exists to wrap a @Hasql@ 'QueryError' in an
--- 'Exception' instance, so that @Hasql@ errors can be handled by
--- GHC's exception machinery.
---
 -- These exceptions are thrown only for truly exceptional errors.
 -- Generally speaking, these will not be recoverable by the handler,
 -- though in some cases it may be possible to keep retrying the
