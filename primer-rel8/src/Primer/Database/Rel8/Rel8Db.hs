@@ -32,7 +32,6 @@ import Control.Monad.Zip (MonadZip)
 import qualified Data.Aeson as Aeson
 import Data.Functor.Contravariant ((>$<))
 import Data.UUID (UUID)
-import qualified Data.UUID as UUID (toText)
 import Hasql.Connection (Connection)
 import Hasql.Session (
   QueryError,
@@ -41,6 +40,7 @@ import Hasql.Session (
  )
 import Hasql.Statement (Statement)
 import Primer.Database (
+  DbError (SessionIdNotFound),
   MonadDb (..),
   OffsetLimit (OL),
   Page (Page, pageContents, total),
@@ -212,7 +212,7 @@ instance (MonadThrow m, MonadIO m) => MonadDb (Rel8DbT m) where
   querySessionId _ sid = do
     result <- runStatement (LoadSessionError sid) $ select $ sessionById sid
     case result of
-      [] -> return $ Left $ "No such session ID " <> UUID.toText sid
+      [] -> return $ Left $ SessionIdNotFound sid
       (s : _) ->
         case Aeson.eitherDecode (Schema.app s) of
           Left e -> throwM $ LoadSessionProgramDecodingError sid $ toS e

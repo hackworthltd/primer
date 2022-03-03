@@ -19,6 +19,7 @@ module Primer.Database (
   pageList,
   ServiceCfg (..),
   MonadDb (..),
+  DbError (..),
   NullDbT (..),
   NullDb,
   Version,
@@ -215,10 +216,39 @@ class (Monad m) => MonadDb m where
 
   -- | Query a session ID from the database.
   --
-  -- Returns 'Left' with a message if the query failed (session
+  -- Returns 'Left' with a 'DbError' if the query failed (session
   -- doesn't exist, version mismatch, etc.), 'Right' with the
   -- 'SessionData' if successful.
-  querySessionId :: Version -> SessionId -> m (Either Text SessionData)
+  querySessionId :: Version -> SessionId -> m (Either DbError SessionData)
+
+-- | Routine errors that can occur during 'MonadDb' computations.
+--
+-- Note that these errors represent database results that should not
+-- be considered exceptional. For example, if querying the database
+-- for a particular name or session ID returns 0 results, that might
+-- indicate that the student has provided (either directly or
+-- indirectly) invalid input; e.g., an invalid session ID. However,
+-- that result would not be considered worthy of throwing an
+-- exception, since it's not indicative of a bug or an impairment of
+-- service.
+--
+-- More serious and/or unusual errors should be handled out-of-band
+-- via GHC's exception system; i.e., by throwing an exception. As
+-- these sorts of exceptions are typically very
+-- implementation-specific, they're considered out of scope for core
+-- Primer and are left to the implementer of each specific database
+-- connector.
+--
+-- A good general rule of thumb is this: if the occurrence of the
+-- error is something we should be alerted about, then it should
+-- probably be an exception, not a 'DbError' value.
+
+{- HLINT ignore DbError "Use newtype instead of data" -}
+data DbError
+  = -- | A database operation failed because the given 'SessionId'
+    -- wasn't found in the database.
+    SessionIdNotFound SessionId
+  deriving (Eq, Show, Generic)
 
 -- | A "null" database type that effectively does nothing.
 --
@@ -263,7 +293,7 @@ instance (MonadIO m) => MonadDb (NullDbT m) where
     ss <- ask
     kvs <- liftIO $ atomically $ ListT.toList $ StmMap.listT ss
     pure $ pageList ol $ uncurry Session . second sessionName <$> kvs
-  querySessionId _ sid = pure $ Left $ "No such session ID " <> UUID.toText sid
+  querySessionId _ sid = pure $ Left $ SessionIdNotFound sid
 
 -- | The database service computation.
 --
@@ -295,7 +325,8 @@ serve cfg =
               loadSession = do
                 queryResult <- querySessionId v sid
                 case queryResult of
-                  Left msg -> return $ Failure msg
+                  Left (SessionIdNotFound s) ->
+                    return $ Failure $ "Couldn't load the requested session: no such session ID " <> UUID.toText s
                   Right sd -> do
                     liftIO $ atomically $ StmMap.insert sd sid memdb
                     return Success

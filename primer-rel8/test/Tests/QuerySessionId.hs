@@ -5,11 +5,11 @@ module Tests.QuerySessionId where
 import Foreword
 
 import qualified Data.Aeson as Aeson
-import qualified Data.UUID as UUID
 import Primer.App (
   newApp,
  )
 import Primer.Database (
+  DbError (SessionIdNotFound),
   SessionData (..),
   SessionId,
   defaultSessionName,
@@ -67,7 +67,7 @@ test_querySessionId = testCaseSteps "querySessionId corner cases" $ \step' ->
       step "Attempt to look up a session that doesn't exist"
       nonexistentSessionId <- liftIO newSessionId
       r1 <- querySessionId version nonexistentSessionId
-      r1 @?= Left ("No such session ID " <> UUID.toText nonexistentSessionId)
+      r1 @?= Left (SessionIdNotFound nonexistentSessionId)
 
       step "Attempt to fetch a session whose program is invalid"
       invalidProgramSessionId <- liftIO newSessionId
