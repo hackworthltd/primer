@@ -11,6 +11,7 @@ import Primer.App (
  )
 import Primer.Database (
   SessionData (..),
+  SessionId,
   defaultSessionName,
   fromSessionName,
   insertSession,
@@ -19,7 +20,7 @@ import Primer.Database (
   safeMkSessionName,
  )
 import Primer.Database.Rel8.Rel8Db (
-  isLoadSessionProgramDecodingError,
+  Rel8DbException (LoadSessionProgramDecodingError),
   runRel8Db,
  )
 import qualified Primer.Database.Rel8.Schema as Schema (
@@ -34,6 +35,10 @@ import TestUtils (
   withDbSetup,
   (@?=),
  )
+
+expectedError :: SessionId -> Rel8DbException -> Bool
+expectedError id_ (LoadSessionProgramDecodingError s _) = id_ == s
+expectedError _ _ = False
 
 -- Note: 'querySessionId' gets plenty of coverage in our other unit
 -- tests by virtue of the fact we use it to retrieve results that we
@@ -76,7 +81,7 @@ test_querySessionId = testCaseSteps "querySessionId corner cases" $ \step' ->
                 , Schema.name = fromSessionName invalidProgramName
                 }
       liftIO $ insertSessionRow invalidProgramRow conn
-      assertException "querySessionId" isLoadSessionProgramDecodingError $ querySessionId version invalidProgramSessionId
+      assertException "querySessionId" (expectedError invalidProgramSessionId) $ querySessionId version invalidProgramSessionId
 
       step "Attempt to fetch a session whose name is invalid"
       invalidNameSessionId <- liftIO newSessionId

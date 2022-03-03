@@ -10,6 +10,7 @@ import Primer.App (
  )
 import Primer.Database (
   SessionData (..),
+  SessionId,
   insertSession,
   newSessionId,
   querySessionId,
@@ -17,7 +18,7 @@ import Primer.Database (
   updateSessionApp,
  )
 import Primer.Database.Rel8 (
-  isUpdateAppNonExistentSession,
+  Rel8DbException (UpdateAppNonExistentSession),
   runRel8Db,
  )
 import Test.Tasty (TestTree)
@@ -27,6 +28,10 @@ import TestUtils (
   withDbSetup,
   (@?=),
  )
+
+expectedError :: SessionId -> Rel8DbException -> Bool
+expectedError id_ (UpdateAppNonExistentSession s) = s == id_
+expectedError _ _ = False
 
 test_updateSessionApp_roundtrip :: TestTree
 test_updateSessionApp_roundtrip = testCaseSteps "updateSessionApp database round-tripping" $ \step' ->
@@ -75,4 +80,4 @@ test_updateSessionApp_failure = testCaseSteps "updateSessionApp failure modes" $
       step "Attempt to update a session that hasn't yet been inserted"
       let version = "git123"
       sessionId <- liftIO newSessionId
-      assertException "updateSessionApp" isUpdateAppNonExistentSession $ updateSessionApp version sessionId newApp
+      assertException "updateSessionApp" (expectedError sessionId) $ updateSessionApp version sessionId newApp
