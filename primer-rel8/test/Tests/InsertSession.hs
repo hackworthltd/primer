@@ -10,13 +10,14 @@ import Primer.App (
  )
 import Primer.Database (
   SessionData (..),
+  SessionId,
   insertSession,
   newSessionId,
   querySessionId,
   safeMkSessionName,
  )
 import Primer.Database.Rel8.Rel8Db (
-  isInsertError,
+  Rel8DbException (InsertError),
   runRel8Db,
  )
 import Test.Tasty (TestTree)
@@ -26,6 +27,10 @@ import TestUtils (
   withDbSetup,
   (@?=),
  )
+
+expectedError :: SessionId -> Rel8DbException -> Bool
+expectedError id_ (InsertError s _) = s == id_
+expectedError _ _ = False
 
 test_insertSession_roundtrip :: TestTree
 test_insertSession_roundtrip = testCaseSteps "insertSession database round-tripping" $ \step' ->
@@ -54,15 +59,15 @@ test_insertSession_failure = testCaseSteps "insertSession failure modes" $ \step
       insertSession version sessionId newApp name
 
       step "Attempt to insert the same program and metadata again"
-      assertException "insertSession" isInsertError $ insertSession version sessionId newApp name
+      assertException "insertSession" (expectedError sessionId) $ insertSession version sessionId newApp name
 
       step "Attempt to insert a different program with the same metadata"
-      assertException "insertSession" isInsertError $ insertSession version sessionId newEmptyApp name
+      assertException "insertSession" (expectedError sessionId) $ insertSession version sessionId newEmptyApp name
 
       step "Attempt to insert the same program with a different version"
       let newVersion = "new-" <> version
-      assertException "insertSession" isInsertError $ insertSession newVersion sessionId newApp name
+      assertException "insertSession" (expectedError sessionId) $ insertSession newVersion sessionId newApp name
 
       step "Attempt to insert the same program with a different name"
       let newName = safeMkSessionName "new name"
-      assertException "insertSession" isInsertError $ insertSession version sessionId newApp newName
+      assertException "insertSession" (expectedError sessionId) $ insertSession version sessionId newApp newName

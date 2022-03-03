@@ -12,16 +12,6 @@ let
     -- these packages, but don't actually make use of ourselves.
     ignoreRoots = [
       "^Primer.Database.Rel8.Rel8Db.runRel8Db"
-    , "^Primer.Database.Rel8.Rel8Db.isListSessionsError"
-    , "^Primer.Database.Rel8.Rel8Db.isListSessionsRel8Error"
-    , "^Primer.Database.Rel8.Rel8Db.isLoadSessionError"
-    , "^Primer.Database.Rel8.Rel8Db.isUpdateAppError"
-    , "^Primer.Database.Rel8.Rel8Db.isUpdateAppConsistencyError"
-    , "^Primer.Database.Rel8.Rel8Db.isUpdateNameError"
-    , "^Primer.Database.Rel8.Rel8Db.isUpdateNameConsistencyError"
-    , "^Primer.Database.Rel8.Rel8Db.queryError"
-    , "^TestUtils.anyException"
-    , "^TestUtils.anyRel8DbException"
     ]
 
 in  { roots = [ "^Main.main$" ] # tmpRoots # ignoreRoots, type-class-roots = True }

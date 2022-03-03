@@ -19,18 +19,6 @@ module Primer.Database.Rel8.Rel8Db (
 
   -- * Exceptions
   Rel8DbException (..),
-  queryError,
-  isInsertError,
-  isUpdateAppError,
-  isUpdateAppNonExistentSession,
-  isUpdateAppConsistencyError,
-  isUpdateNameError,
-  isUpdateNameNonExistentSession,
-  isUpdateNameConsistencyError,
-  isLoadSessionError,
-  isLoadSessionProgramDecodingError,
-  isListSessionsError,
-  isListSessionsRel8Error,
 ) where
 
 import Foreword hiding (filter)
@@ -296,76 +284,6 @@ data Rel8DbException
   deriving (Eq, Show)
 
 instance Exception Rel8DbException
-
--- | Extract the 'QueryError' from a 'Rel8DbException', if there is
--- one.
-queryError :: Rel8DbException -> Maybe QueryError
-queryError (ListSessionsError e) = Just e
-queryError (InsertError _ e) = Just e
-queryError (UpdateAppError _ e) = Just e
-queryError (UpdateNameError _ e) = Just e
-queryError (LoadSessionError _ e) = Just e
-queryError (LoadSessionProgramDecodingError _ _) = Nothing
-queryError (UpdateAppNonExistentSession _) = Nothing
-queryError (UpdateNameNonExistentSession _) = Nothing
-queryError (UpdateAppConsistencyError _) = Nothing
-queryError (UpdateNameConsistencyError _) = Nothing
-queryError ListSessionsRel8Error = Nothing
-
--- | 'True' if the 'Rel8DbException' is 'InsertError'.
-isInsertError :: Rel8DbException -> Bool
-isInsertError (InsertError _ _) = True
-isInsertError _ = False
-
--- | 'True' if the 'Rel8DbException' is 'UpdateAppError'.
-isUpdateAppError :: Rel8DbException -> Bool
-isUpdateAppError (UpdateAppError _ _) = True
-isUpdateAppError _ = False
-
--- | 'True' if the 'Rel8DbException' is 'UpdateNameError'.
-isUpdateNameError :: Rel8DbException -> Bool
-isUpdateNameError (UpdateNameError _ _) = True
-isUpdateNameError _ = False
-
--- | 'True' if the 'Rel8DbException' is 'LoadSessionError'.
-isLoadSessionError :: Rel8DbException -> Bool
-isLoadSessionError (LoadSessionError _ _) = True
-isLoadSessionError _ = False
-
--- | 'True' if the 'Rel8DbException' is 'LoadSessionError'.
-isLoadSessionProgramDecodingError :: Rel8DbException -> Bool
-isLoadSessionProgramDecodingError (LoadSessionProgramDecodingError _ _) = True
-isLoadSessionProgramDecodingError _ = False
-
--- | 'True' if the 'Rel8DbException' is 'ListSessionsError'.
-isListSessionsError :: Rel8DbException -> Bool
-isListSessionsError (ListSessionsError _) = True
-isListSessionsError _ = False
-
--- | 'True' if the 'Rel8DbException' is 'ListSessionsError'.
-isListSessionsRel8Error :: Rel8DbException -> Bool
-isListSessionsRel8Error ListSessionsRel8Error = True
-isListSessionsRel8Error _ = False
-
--- | 'True' if the 'Rel8DbException' is 'UpdateAppNonExistentSession'.
-isUpdateAppNonExistentSession :: Rel8DbException -> Bool
-isUpdateAppNonExistentSession (UpdateAppNonExistentSession _) = True
-isUpdateAppNonExistentSession _ = False
-
--- | 'True' if the 'Rel8DbException' is 'UpdateAppConsistencyError'.
-isUpdateAppConsistencyError :: Rel8DbException -> Bool
-isUpdateAppConsistencyError (UpdateAppConsistencyError _) = True
-isUpdateAppConsistencyError _ = False
-
--- | 'True' if the 'Rel8DbException' is 'UpdateNameNonExistentSession'.
-isUpdateNameNonExistentSession :: Rel8DbException -> Bool
-isUpdateNameNonExistentSession (UpdateNameNonExistentSession _) = True
-isUpdateNameNonExistentSession _ = False
-
--- | 'True' if the 'Rel8DbException' is 'UpdateNameConsistencyError'.
-isUpdateNameConsistencyError :: Rel8DbException -> Bool
-isUpdateNameConsistencyError (UpdateNameConsistencyError _) = True
-isUpdateNameConsistencyError _ = False
 
 -- Helpers to make dealing with "Hasql.Session" easier.
 --
