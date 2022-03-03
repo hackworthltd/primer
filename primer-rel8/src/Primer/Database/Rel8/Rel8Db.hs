@@ -30,6 +30,7 @@ module Primer.Database.Rel8.Rel8Db (
   isLoadSessionError,
   isLoadSessionProgramDecodingError,
   isListSessionsError,
+  isListSessionsRel8Error,
 ) where
 
 import Foreword hiding (filter)
@@ -198,23 +199,17 @@ instance (MonadThrow m, MonadIO m) => MonadDb (Rel8DbT m) where
 
   listSessions ol = do
     n' <- runStatement ListSessionsError $ select numSessions
-    let n = case n' of
-          -- Currently, our page size is 'Int', but Rel8 gives
-          -- 'Int64'. This needs fixing, but has implications for API
-          -- clients, so for now we downcast, as we will not hit 2
-          -- billion rows anytime soon. See:
-          -- https://github.com/hackworthltd/primer/issues/238
-          [n''] -> fromIntegral n''
-          -- This case should never occur, as 'numSessions' should
-          -- always return a number equal to or greater than '0' (per
-          -- the Rel8 documentation). However, we have no good way to
-          -- express this invariant in the type, so we handle this
-          -- case with a default value of '0'.
-          --
-          -- TODO: this should log an error and cause an HTTP 5xx code
-          -- to be returned. See:
-          -- https://github.com/hackworthltd/primer/issues/179
-          _ -> 0
+    n <- case n' of
+      -- Currently, our page size is 'Int', but Rel8 gives
+      -- 'Int64'. This needs fixing, but has implications for API
+      -- clients, so for now we downcast, as we will not hit 2
+      -- billion rows anytime soon. See:
+      -- https://github.com/hackworthltd/primer/issues/238
+      [n''] -> pure $ fromIntegral n''
+      -- This case should never occur, as 'countRows' (used by
+      -- 'numSessions' above) should never return the empty list:
+      -- https://hackage.haskell.org/package/rel8-1.3.1.0/docs/Rel8.html#v:countRows
+      _ -> throwM ListSessionsRel8Error
     ss :: [(UUID, Text)] <- runStatement ListSessionsError $ select $ paginatedSessionMeta ol
     pure $ Page{total = n, pageContents = safeMkSession <$> ss}
     where
@@ -298,6 +293,10 @@ data Rel8DbException
     LoadSessionProgramDecodingError SessionId Text
   | -- | An error occurred during a 'ListSessions' operation.
     ListSessionsError QueryError
+  | -- | 'Rel8' returned an unexpected result during a 'ListSessions'
+    -- operation. This should never occur unless there's a bug in
+    -- 'Rel8'.
+    ListSessionsRel8Error
   deriving (Eq, Show)
 
 instance Exception Rel8DbException
@@ -315,6 +314,7 @@ queryError (UpdateAppNonExistentSession _) = Nothing
 queryError (UpdateNameNonExistentSession _) = Nothing
 queryError (UpdateAppConsistencyError _) = Nothing
 queryError (UpdateNameConsistencyError _) = Nothing
+queryError ListSessionsRel8Error = Nothing
 
 -- | 'True' if the 'Rel8DbException' is 'InsertError'.
 isInsertError :: Rel8DbException -> Bool
@@ -345,6 +345,11 @@ isLoadSessionProgramDecodingError _ = False
 isListSessionsError :: Rel8DbException -> Bool
 isListSessionsError (ListSessionsError _) = True
 isListSessionsError _ = False
+
+-- | 'True' if the 'Rel8DbException' is 'ListSessionsError'.
+isListSessionsRel8Error :: Rel8DbException -> Bool
+isListSessionsRel8Error ListSessionsRel8Error = True
+isListSessionsRel8Error _ = False
 
 -- | 'True' if the 'Rel8DbException' is 'UpdateAppNonExistentSession'.
 isUpdateAppNonExistentSession :: Rel8DbException -> Bool

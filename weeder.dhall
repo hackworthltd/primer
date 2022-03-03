@@ -13,6 +13,7 @@ let
     ignoreRoots = [
       "^Primer.Database.Rel8.Rel8Db.runRel8Db"
     , "^Primer.Database.Rel8.Rel8Db.isListSessionsError"
+    , "^Primer.Database.Rel8.Rel8Db.isListSessionsRel8Error"
     , "^Primer.Database.Rel8.Rel8Db.isLoadSessionError"
     , "^Primer.Database.Rel8.Rel8Db.isUpdateAppError"
     , "^Primer.Database.Rel8.Rel8Db.isUpdateAppConsistencyError"
