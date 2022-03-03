@@ -206,10 +206,7 @@ instance (MonadThrow m, MonadIO m) => MonadDb (Rel8DbT m) where
       -- session names loaded from the database.
       safeMkSession (s, n) = Session s (safeMkSessionName n)
 
-  -- Note: we ignore the stored Primer version for now.
-  --
-  -- See https://github.com/hackworthltd/primer/issues/268
-  querySessionId _ sid = do
+  querySessionId sid = do
     result <- runStatement (LoadSessionError sid) $ select $ sessionById sid
     case result of
       [] -> return $ Left $ SessionIdNotFound sid

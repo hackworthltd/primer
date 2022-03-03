@@ -66,7 +66,7 @@ test_querySessionId = testCaseSteps "querySessionId corner cases" $ \step' ->
 
       step "Attempt to look up a session that doesn't exist"
       nonexistentSessionId <- liftIO newSessionId
-      r1 <- querySessionId version nonexistentSessionId
+      r1 <- querySessionId nonexistentSessionId
       r1 @?= Left (SessionIdNotFound nonexistentSessionId)
 
       step "Attempt to fetch a session whose program is invalid"
@@ -81,7 +81,7 @@ test_querySessionId = testCaseSteps "querySessionId corner cases" $ \step' ->
                 , Schema.name = fromSessionName invalidProgramName
                 }
       liftIO $ insertSessionRow invalidProgramRow conn
-      assertException "querySessionId" (expectedError invalidProgramSessionId) $ querySessionId version invalidProgramSessionId
+      assertException "querySessionId" (expectedError invalidProgramSessionId) $ querySessionId invalidProgramSessionId
 
       step "Attempt to fetch a session whose name is invalid"
       invalidNameSessionId <- liftIO newSessionId
@@ -95,7 +95,7 @@ test_querySessionId = testCaseSteps "querySessionId corner cases" $ \step' ->
                 , Schema.name = invalidName
                 }
       liftIO $ insertSessionRow invalidNameRow conn
-      r3 <- querySessionId version invalidNameSessionId
+      r3 <- querySessionId invalidNameSessionId
       -- In this scenario, we should get the program back with the
       -- default session name, rather than the invalid name we used to
       -- store it in the database.
