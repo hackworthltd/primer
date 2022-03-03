@@ -114,13 +114,14 @@ runRel8Db = runRel8DbT
 
 -- | A 'MonadDb' instance for 'Rel8DbT'.
 --
--- This monad throws unexpected exceptions via its 'MonadThrow'
--- instance. Unexpected exceptions include any database errors raised
--- by "Hasql.Session". It's the responsibility of the caller to handle
--- them, as opposed to run-of-the-mill exceptions that may occur;
--- e.g., looking up a session ID that doesn't exist in the database.
--- The latter sorts of exceptions are expressed via the types of the
--- 'MonadDb' methods and are handled by Primer internally.
+-- This monad throws unexpected database-related exceptions via its
+-- 'MonadThrow' instance. These exceptions are represented via the
+-- 'Rel8DbException' type. It's the responsibility of the caller to
+-- handle them, as opposed to run-of-the-mill exceptions that may
+-- occur; e.g., looking up a session ID that doesn't exist in the
+-- database. The latter sorts of exceptions are expressed via the
+-- types of the 'MonadDb' methods and are handled by Primer
+-- internally.
 instance (MonadThrow m, MonadIO m) => MonadDb (Rel8DbT m) where
   insertSession v s a n =
     runStatement_ (InsertError s) $
@@ -241,9 +242,6 @@ instance (MonadThrow m, MonadIO m) => MonadDb (Rel8DbT m) where
 -- though in some cases it may be possible to keep retrying the
 -- operation until the exceptional condition has been resolved; e.g.,
 -- when the connection to the database is temporarily severed.
---
--- (Non-exceptional errors are handled in-band in the 'MonadDb'
--- interface as an 'Data.Either.Either'.)
 data Rel8DbException
   = -- | An error occurred during an 'Insert' operation on the given
     -- 'SessionId'.
