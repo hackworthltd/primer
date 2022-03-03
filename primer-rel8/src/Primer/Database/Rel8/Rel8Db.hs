@@ -28,6 +28,7 @@ module Primer.Database.Rel8.Rel8Db (
   isUpdateNameNonExistentSession,
   isUpdateNameConsistencyError,
   isLoadSessionError,
+  isLoadSessionProgramDecodingError,
   isListSessionsError,
 ) where
 
@@ -39,10 +40,7 @@ import Control.Monad.Fix (MonadFix)
 import Control.Monad.Trans (MonadTrans)
 import Control.Monad.Writer (MonadWriter)
 import Control.Monad.Zip (MonadZip)
-import qualified Data.Aeson as Aeson (
-  decode,
-  encode,
- )
+import qualified Data.Aeson as Aeson
 import Data.Functor.Contravariant ((>$<))
 import Data.UUID (UUID)
 import qualified Data.UUID as UUID (toText)
@@ -232,9 +230,9 @@ instance (MonadThrow m, MonadIO m) => MonadDb (Rel8DbT m) where
     case result of
       [] -> return $ Left $ "No such session ID " <> UUID.toText sid
       (s : _) ->
-        case Aeson.decode (Schema.app s) of
-          Nothing -> pure $ Left $ "Failed to decode stored program for session ID " <> UUID.toText sid
-          Just decodedApp -> do
+        case Aeson.eitherDecode (Schema.app s) of
+          Left e -> throwM $ LoadSessionProgramDecodingError sid $ toS e
+          Right decodedApp -> do
             -- Note that we have 2 choices here if the session name
             -- returned by the database is not a valid 'SessionName':
             -- either we can return a failure, or we can convert it to
@@ -294,6 +292,10 @@ data Rel8DbException
   | -- | An error occurred during a 'LoadSession' operation on the
     -- given 'SessionId'.
     LoadSessionError SessionId QueryError
+  | -- | During a 'LoadSession' operation on the given 'SessionId',
+    -- the stored program could not be decoded. The decoding error is
+    -- provided in the 'Text'.
+    LoadSessionProgramDecodingError SessionId Text
   | -- | An error occurred during a 'ListSessions' operation.
     ListSessionsError QueryError
   deriving (Eq, Show)
@@ -308,6 +310,7 @@ queryError (InsertError _ e) = Just e
 queryError (UpdateAppError _ e) = Just e
 queryError (UpdateNameError _ e) = Just e
 queryError (LoadSessionError _ e) = Just e
+queryError (LoadSessionProgramDecodingError _ _) = Nothing
 queryError (UpdateAppNonExistentSession _) = Nothing
 queryError (UpdateNameNonExistentSession _) = Nothing
 queryError (UpdateAppConsistencyError _) = Nothing
@@ -332,6 +335,11 @@ isUpdateNameError _ = False
 isLoadSessionError :: Rel8DbException -> Bool
 isLoadSessionError (LoadSessionError _ _) = True
 isLoadSessionError _ = False
+
+-- | 'True' if the 'Rel8DbException' is 'LoadSessionError'.
+isLoadSessionProgramDecodingError :: Rel8DbException -> Bool
+isLoadSessionProgramDecodingError (LoadSessionProgramDecodingError _ _) = True
+isLoadSessionProgramDecodingError _ = False
 
 -- | 'True' if the 'Rel8DbException' is 'ListSessionsError'.
 isListSessionsError :: Rel8DbException -> Bool

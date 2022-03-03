@@ -18,7 +18,10 @@ import Primer.Database (
   querySessionId,
   safeMkSessionName,
  )
-import Primer.Database.Rel8.Rel8Db (runRel8Db)
+import Primer.Database.Rel8.Rel8Db (
+  isLoadSessionProgramDecodingError,
+  runRel8Db,
+ )
 import qualified Primer.Database.Rel8.Schema as Schema (
   SessionRow (SessionRow, app, gitversion, name, uuid),
  )
@@ -26,6 +29,7 @@ import Rel8 (lit)
 import Test.Tasty (TestTree)
 import Test.Tasty.HUnit (testCaseSteps)
 import TestUtils (
+  assertException,
   insertSessionRow,
   withDbSetup,
   (@?=),
@@ -72,8 +76,7 @@ test_querySessionId = testCaseSteps "querySessionId corner cases" $ \step' ->
                 , Schema.name = fromSessionName invalidProgramName
                 }
       liftIO $ insertSessionRow invalidProgramRow conn
-      r2 <- querySessionId version invalidProgramSessionId
-      r2 @?= Left ("Failed to decode stored program for session ID " <> UUID.toText invalidProgramSessionId)
+      assertException "querySessionId" isLoadSessionProgramDecodingError $ querySessionId version invalidProgramSessionId
 
       step "Attempt to fetch a session whose name is invalid"
       invalidNameSessionId <- liftIO newSessionId
