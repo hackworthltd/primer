@@ -22,7 +22,11 @@ module Primer.Database.Rel8.Rel8Db (
   queryError,
   isInsertError,
   isUpdateAppError,
+  isUpdateAppNonExistentSession,
+  isUpdateAppConsistencyError,
   isUpdateNameError,
+  isUpdateNameNonExistentSession,
+  isUpdateNameConsistencyError,
   isLoadSessionError,
   isListSessionsError,
 ) where
@@ -149,34 +153,51 @@ instance (MonadThrow m, MonadIO m) => MonadDb (Rel8DbT m) where
           , onConflict = Abort
           , returning = NumberOfRowsAffected
           }
-  updateSessionApp v s a =
-    runStatement_ (UpdateAppError s) $
-      update
-        Update
-          { target = Schema.sessionRowSchema
-          , from = allSessions
-          , set = \_ row ->
-              row
-                { Schema.gitversion = lit v
-                , Schema.app = lit (Aeson.encode a)
-                }
-          , updateWhere = \_ row -> Schema.uuid row ==. litExpr s
-          , returning = NumberOfRowsAffected
-          }
-  updateSessionName v s n =
-    runStatement_ (UpdateNameError s) $
-      update
-        Update
-          { target = Schema.sessionRowSchema
-          , from = allSessions
-          , set = \_ row ->
-              row
-                { Schema.gitversion = lit v
-                , Schema.name = lit $ fromSessionName n
-                }
-          , updateWhere = \_ row -> Schema.uuid row ==. litExpr s
-          , returning = NumberOfRowsAffected
-          }
+
+  updateSessionApp v s a = do
+    nr <-
+      runStatement (UpdateAppError s) $
+        update
+          Update
+            { target = Schema.sessionRowSchema
+            , from = allSessions
+            , set = \_ row ->
+                row
+                  { Schema.gitversion = lit v
+                  , Schema.app = lit (Aeson.encode a)
+                  }
+            , updateWhere = \_ row -> Schema.uuid row ==. litExpr s
+            , returning = NumberOfRowsAffected
+            }
+
+    -- This operation should affect exactly one row.
+    case nr of
+      0 -> throwM $ UpdateAppNonExistentSession s
+      1 -> pure ()
+      _ -> throwM $ UpdateAppConsistencyError s
+
+  updateSessionName v s n = do
+    nr <-
+      runStatement (UpdateNameError s) $
+        update
+          Update
+            { target = Schema.sessionRowSchema
+            , from = allSessions
+            , set = \_ row ->
+                row
+                  { Schema.gitversion = lit v
+                  , Schema.name = lit $ fromSessionName n
+                  }
+            , updateWhere = \_ row -> Schema.uuid row ==. litExpr s
+            , returning = NumberOfRowsAffected
+            }
+
+    -- This operation should affect exactly one row.
+    case nr of
+      0 -> throwM $ UpdateNameNonExistentSession s
+      1 -> pure ()
+      _ -> throwM $ UpdateNameConsistencyError s
+
   listSessions ol = do
     n' <- runStatement ListSessionsError $ select numSessions
     let n = case n' of
@@ -253,9 +274,23 @@ data Rel8DbException
   | -- | An error occurred during an 'UpdateApp' operation on the
     -- given 'SessionId'.
     UpdateAppError SessionId QueryError
+  | -- | An attempt was made to 'UpdateApp' using a 'SessionId' that
+    -- doesn't exist in the database. (It must be inserted before it
+    -- can be updated.)
+    UpdateAppNonExistentSession SessionId
+  | -- | A database consistency error was detected during an
+    -- 'UpdateApp' operation on the given 'SessionId'.
+    UpdateAppConsistencyError SessionId
   | -- | An error occurred during an 'UpdateName' operation on the
     -- given 'SessionId'.
     UpdateNameError SessionId QueryError
+  | -- | An attempt was made to 'UpdateName' using a 'SessionId' that
+    -- doesn't exist in the database. (It must be inserted before it
+    -- can be updated.)
+    UpdateNameNonExistentSession SessionId
+  | -- | A database consistency error was detected during an
+    -- 'UpdateName' operation on the given 'SessionId'.
+    UpdateNameConsistencyError SessionId
   | -- | An error occurred during a 'LoadSession' operation on the
     -- given 'SessionId'.
     LoadSessionError SessionId QueryError
@@ -265,13 +300,18 @@ data Rel8DbException
 
 instance Exception Rel8DbException
 
--- | Extract the 'QueryError' from a 'Rel8DbException'.
-queryError :: Rel8DbException -> QueryError
-queryError (ListSessionsError e) = e
-queryError (InsertError _ e) = e
-queryError (UpdateAppError _ e) = e
-queryError (UpdateNameError _ e) = e
-queryError (LoadSessionError _ e) = e
+-- | Extract the 'QueryError' from a 'Rel8DbException', if there is
+-- one.
+queryError :: Rel8DbException -> Maybe QueryError
+queryError (ListSessionsError e) = Just e
+queryError (InsertError _ e) = Just e
+queryError (UpdateAppError _ e) = Just e
+queryError (UpdateNameError _ e) = Just e
+queryError (LoadSessionError _ e) = Just e
+queryError (UpdateAppNonExistentSession _) = Nothing
+queryError (UpdateNameNonExistentSession _) = Nothing
+queryError (UpdateAppConsistencyError _) = Nothing
+queryError (UpdateNameConsistencyError _) = Nothing
 
 -- | 'True' if the 'Rel8DbException' is 'InsertError'.
 isInsertError :: Rel8DbException -> Bool
@@ -297,6 +337,26 @@ isLoadSessionError _ = False
 isListSessionsError :: Rel8DbException -> Bool
 isListSessionsError (ListSessionsError _) = True
 isListSessionsError _ = False
+
+-- | 'True' if the 'Rel8DbException' is 'UpdateAppNonExistentSession'.
+isUpdateAppNonExistentSession :: Rel8DbException -> Bool
+isUpdateAppNonExistentSession (UpdateAppNonExistentSession _) = True
+isUpdateAppNonExistentSession _ = False
+
+-- | 'True' if the 'Rel8DbException' is 'UpdateAppConsistencyError'.
+isUpdateAppConsistencyError :: Rel8DbException -> Bool
+isUpdateAppConsistencyError (UpdateAppConsistencyError _) = True
+isUpdateAppConsistencyError _ = False
+
+-- | 'True' if the 'Rel8DbException' is 'UpdateNameNonExistentSession'.
+isUpdateNameNonExistentSession :: Rel8DbException -> Bool
+isUpdateNameNonExistentSession (UpdateNameNonExistentSession _) = True
+isUpdateNameNonExistentSession _ = False
+
+-- | 'True' if the 'Rel8DbException' is 'UpdateNameConsistencyError'.
+isUpdateNameConsistencyError :: Rel8DbException -> Bool
+isUpdateNameConsistencyError (UpdateNameConsistencyError _) = True
+isUpdateNameConsistencyError _ = False
 
 -- Helpers to make dealing with "Hasql.Session" easier.
 --
