@@ -1,3 +1,4 @@
+{-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE TupleSections #-}
 
 -- | Tests for the typechecker
@@ -7,6 +8,8 @@ import Foreword
 
 import Control.Monad.Fresh (MonadFresh)
 import Data.Map ((!))
+import qualified Data.Map as M
+import qualified Data.Text as T
 import Gen.Core.Raw (
   evalExprGen,
   genName,
@@ -14,6 +17,7 @@ import Gen.Core.Raw (
  )
 import Gen.Core.Typed (
   forAllT,
+  genChk,
   genSyn,
   propertyWT,
  )
@@ -32,10 +36,12 @@ import Primer.Core (
   ASTTypeDef (..),
   Def (..),
   Expr,
-  Expr',
+  Expr' (App, Con, EmptyHole, PrimCon),
+  ExprAnyFresh (ExprAnyFresh),
   ID,
   Kind (KFun, KHole, KType),
   Meta (..),
+  PrimFun (PrimFun, primFunDef, primFunTypes),
   Type,
   Type' (TApp, TCon, TForall, TFun, TVar),
   TypeCache (..),
@@ -52,19 +58,23 @@ import Primer.Core (
  )
 import Primer.Core.DSL
 import Primer.Core.Utils (generateIDs, generateTypeIDs)
-import Primer.Name (Name, NameCounter)
+import Primer.Name (Name, NameCounter, unName)
+import Primer.Primitives (allPrimDefs)
 import Primer.Typecheck (
   Cxt,
   ExprT,
   SmartHoles (NoSmartHoles, SmartHoles),
   TypeError (..),
   buildTypingContext,
+  check,
   decomposeTAppCon,
   mkTAppCon,
   synth,
   synthKind,
  )
+import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.HUnit (Assertion, assertFailure, (@?=))
+import Test.Tasty.Hedgehog (testProperty)
 import TestM (TestM, evalTestM)
 import TestUtils (withPrimDefs)
 import Tests.Gen.Core.Typed
@@ -476,6 +486,42 @@ hprop_synth_well_typed_defcxt = withTests 1000 $
       (e, _ty) <- forAllT genSyn
       ty' <- generateTypeIDs . fst =<< synthTest =<< generateIDs e
       void $ checkKindTest KType ty'
+
+test_prim_defs :: TestTree
+test_prim_defs =
+  testGroup "prim defs" $
+    M.toList allPrimDefs <&> \(name, PrimFun{primFunTypes, primFunDef}) ->
+      testProperty (T.unpack $ unName name)
+        . withTests 1
+        . withDiscards 2000
+        . propertyWT (buildTypingContext defaultTypeDefs mempty NoSmartHoles)
+        $ do
+          (targs, tres) <- primFunTypes
+          maybeArgs <- fmap sequence . forAllT $
+            for targs $ \t -> do
+              genChk (set _typeMeta () t) >>= \case
+                {-TODO it would be better if we distinguished different errors that can arise,
+                rather than having to check this pre-emptively
+                -}
+                EmptyHole _ -> pure $ Left "hole"
+                arg | not (isNormalForm arg) -> pure $ Left "not normal form"
+                e -> pure $ Right e
+          case maybeArgs of
+            Left err -> annotate err >> discard
+            Right args ->
+              case primFunDef args of
+                Right (ExprAnyFresh e') -> do
+                  e <- e'
+                  case runTypecheckTestM NoSmartHoles $ check (set _typeMeta () tres) e of
+                    Left err -> annotateShow err >> failure
+                    Right _ -> pure ()
+                Left err -> annotateShow err >> failure
+  where
+    isNormalForm = \case
+      PrimCon _ _ -> True
+      Con _ _ -> True
+      App _ f x -> isNormalForm f && isNormalForm x
+      _ -> False
 
 -- * Helpers
 
