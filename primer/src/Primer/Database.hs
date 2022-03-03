@@ -217,9 +217,8 @@ class (Monad m) => MonadDb m where
   -- | Query a session ID from the database.
   --
   -- Returns 'Left' with a 'DbError' if the query failed (session
-  -- doesn't exist, version mismatch, etc.), 'Right' with the
-  -- 'SessionData' if successful.
-  querySessionId :: Version -> SessionId -> m (Either DbError SessionData)
+  -- doesn't exist), 'Right' with the 'SessionData' if successful.
+  querySessionId :: SessionId -> m (Either DbError SessionData)
 
 -- | Routine errors that can occur during 'MonadDb' computations.
 --
@@ -293,7 +292,7 @@ instance (MonadIO m) => MonadDb (NullDbT m) where
     ss <- ask
     kvs <- liftIO $ atomically $ ListT.toList $ StmMap.listT ss
     pure $ pageList ol $ uncurry Session . second sessionName <$> kvs
-  querySessionId _ sid = pure $ Left $ SessionIdNotFound sid
+  querySessionId sid = pure $ Left $ SessionIdNotFound sid
 
 -- | The database service computation.
 --
@@ -323,7 +322,7 @@ serve cfg =
             liftIO $ atomically $ putTMVar status result
             where
               loadSession = do
-                queryResult <- querySessionId v sid
+                queryResult <- querySessionId sid
                 case queryResult of
                   Left (SessionIdNotFound s) ->
                     return $ Failure $ "Couldn't load the requested session: no such session ID " <> UUID.toText s

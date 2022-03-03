@@ -43,7 +43,7 @@ test_insertSession_roundtrip = testCaseSteps "insertSession database round-tripp
       sessionId <- liftIO newSessionId
       insertSession version sessionId newApp name
       step "Retrieve it"
-      result <- querySessionId version sessionId
+      result <- querySessionId sessionId
       result @?= Right (SessionData newApp name)
 
 test_insertSession_failure :: TestTree
