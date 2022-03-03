@@ -454,6 +454,7 @@ synth = \case
     pure $ annSynth2 t'' i Ann e' t'
   EmptyHole i -> pure $ annSynth0 (TEmptyHole ()) i EmptyHole
   -- We assume that constructor names are unique
+  -- See Note [Synthesisable constructors] in Core.hs
   Con i c -> do
     asks (flip lookupConstructor c . typeDefs) >>= \case
       Just (vc, td) -> let t = valConType td vc in pure $ annSynth1 t i Con c
