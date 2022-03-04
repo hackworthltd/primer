@@ -112,7 +112,7 @@ unit_rename_def_to_same_name_as_existing_def =
 unit_rename_def_to_same_name_as_existing_def_prim :: Assertion
 unit_rename_def_to_same_name_as_existing_def_prim =
   progActionTest defaultPrimsProg [RenameDef 2 "toUpper"] $
-    expectError (@?= DefAlreadyExists "toUpper" 114)
+    expectError (@?= DefAlreadyExists "toUpper" 118)
 
 unit_delete_def :: Assertion
 unit_delete_def =
@@ -162,7 +162,7 @@ unit_create_def = progActionTest defaultEmptyProg [CreateDef $ Just "newDef"] $
 unit_create_def_clash_prim :: Assertion
 unit_create_def_clash_prim =
   progActionTest defaultPrimsProg [CreateDef $ Just "toUpper"] $
-    expectError (@?= DefAlreadyExists "toUpper" 114)
+    expectError (@?= DefAlreadyExists "toUpper" 118)
 
 unit_create_typedef :: Assertion
 unit_create_typedef =
@@ -606,10 +606,13 @@ defaultEmptyProg = do
 
 -- `defaultEmptyProg`, plus all primitive definitions (types and terms)
 defaultPrimsProg :: MonadFresh ID m => m Prog
-defaultPrimsProg = withPrimDefs $ \_ m ->
-  over #progTypes ((TypeDefPrim <$> toList allPrimTypeDefs) <>)
-    . over #progDefs ((DefPrim <$> m) <>)
-    <$> defaultEmptyProg
+defaultPrimsProg = do
+  p <- defaultEmptyProg
+  withPrimDefs $ \_ m ->
+    pure $
+      over #progTypes ((TypeDefPrim <$> toList allPrimTypeDefs) <>)
+        . over #progDefs ((DefPrim <$> m) <>)
+        $ p
 
 _defIDs :: Traversal' ASTDef ID
 _defIDs = #astDefID `adjoin` #astDefExpr % (_exprMeta % _id `adjoin` _exprTypeMeta % _id) `adjoin` #astDefType % _typeMeta % _id
