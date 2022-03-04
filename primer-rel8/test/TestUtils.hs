@@ -5,6 +5,7 @@ module TestUtils (
   (@?=),
   assertException,
   insertSessionRow,
+  runTmpDb,
   testApp,
   withDbSetup,
 ) where
@@ -83,6 +84,10 @@ import Primer.Core.DSL (
   thole,
   tvar,
   var,
+ )
+import Primer.Database.Rel8.Rel8Db (
+  Rel8Db,
+  runRel8Db,
  )
 import Primer.Database.Rel8.Schema as Schema hiding (app)
 import Primer.Name (Name)
@@ -173,6 +178,10 @@ withDbSetup f = do
                 migratedConfig <- throwEither $ cacheAction (tmpdir <> "/" <> hash_) (deployDb port) combinedConfig
                 withConfig migratedConfig $ \db ->
                   bracket (connectDb db) release f
+
+runTmpDb :: Rel8Db () -> IO ()
+runTmpDb tests =
+  withDbSetup $ \conn -> runRel8Db tests conn
 
 (@?=) :: (MonadIO m, Eq a, Show a) => a -> a -> m ()
 x @?= y = liftIO $ x HUnit.@?= y
