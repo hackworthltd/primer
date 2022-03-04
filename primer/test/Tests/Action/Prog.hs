@@ -660,6 +660,31 @@ unit_import_reference =
         Left err -> assertFailure $ show err
         Right assertion -> assertion
 
+-- Can copy and paste from an imported module
+unit_copy_paste_import :: Assertion
+unit_copy_paste_import =
+  let (prog, maxID) = create defaultImportProg
+      a = newApp{appProg = prog}
+      test = do
+        prog' <- handleEditRequest [CreateDef Nothing]
+        case (findGlobalByName prog' "other", Map.assocs $ moduleDefs $ progModule prog') of
+          (Just (DefAST other), [(i, _)]) -> do
+            let fromDef = astDefID other
+                fromType = getID $ astDefType other
+                fromExpr = getID $ astDefExpr other
+            _ <-
+              handleEditRequest
+                [ MoveToDef i
+                , CopyPasteSig (fromDef, fromType) []
+                , CopyPasteBody (fromDef, fromExpr) []
+                ]
+            pure $ pure ()
+          (Nothing, _) -> pure $ assertFailure "Could not find the imported 'other'"
+          (Just _, _) -> pure $ assertFailure "Expected one def which was just created"
+   in case fst $ runAppTestM maxID a test of
+        Left err -> assertFailure $ show err
+        Right assertion -> assertion
+
 -- * Utilities
 
 findGlobalByName :: Prog -> Name -> Maybe Def

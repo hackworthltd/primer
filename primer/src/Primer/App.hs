@@ -338,8 +338,15 @@ handleQuestion = \case
 
 -- This only looks in the editable module, not in any imports
 focusNode :: MonadError ProgError m => Prog -> ID -> ID -> m (Either (Either ExprZ TypeZ) TypeZip)
-focusNode prog defid nodeid =
-  case lookupASTDef defid (moduleDefs $ progModule prog) of
+focusNode prog = focusNodeDefs $ moduleDefs $ progModule prog
+
+-- This looks in the editable module and also in any imports
+focusNodeImports :: MonadError ProgError m => Prog -> ID -> ID -> m (Either (Either ExprZ TypeZ) TypeZip)
+focusNodeImports prog = focusNodeDefs $ allDefs prog
+
+focusNodeDefs :: MonadError ProgError m => Map ID Def -> ID -> ID -> m (Either (Either ExprZ TypeZ) TypeZip)
+focusNodeDefs defs defid nodeid =
+  case lookupASTDef defid defs of
     Nothing -> throwError $ DefNotFound defid
     Just def ->
       let mzE = locToEither <$> focusOn nodeid (focus $ astDefExpr def)
@@ -734,7 +741,7 @@ instance MonadFresh NameCounter EditAppM where
 
 copyPasteSig :: MonadEditApp m => Prog -> (ID, ID) -> ID -> [Action] -> m Prog
 copyPasteSig p (fromDefId, fromTyId) toDefId setup = do
-  c' <- focusNode p fromDefId fromTyId
+  c' <- focusNodeImports p fromDefId fromTyId
   c <- case c' of
     Left (Left _) -> throwError $ CopyPasteError "tried to copy-paste an expression into a signature"
     Left (Right zt) -> pure $ Left zt
@@ -862,7 +869,7 @@ tcWholeProg p =
 
 copyPasteBody :: MonadEditApp m => Prog -> (ID, ID) -> ID -> [Action] -> m Prog
 copyPasteBody p (fromDefId, fromId) toDefId setup = do
-  src' <- focusNode p fromDefId fromId
+  src' <- focusNodeImports p fromDefId fromId
   -- reassociate so get Expr+(Type+Type), rather than (Expr+Type)+Type
   let src = case src' of
         Left (Left e) -> Left e
