@@ -94,6 +94,7 @@ test-suite primer-rel8-test
       , exceptions
       , filepath
       , hasql
+      , port-utils        ^>=0.2.1
       , postgres-options  ^>=0.2
       , primer
       , primer-rel8
