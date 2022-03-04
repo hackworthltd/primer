@@ -42,6 +42,7 @@ import Primer.Core (
   TypeMeta,
   ValCon (..),
  )
+import Primer.Module (Module (Module, moduleDefs, moduleTypes))
 import Primer.Name (unsafeMkName)
 import Primer.Typecheck (SmartHoles (SmartHoles))
 import System.FilePath (takeBaseName)
@@ -108,8 +109,11 @@ fixtures =
       progaction = MoveToDef 0
       prog =
         Prog
-          { progTypes = [typeDef]
-          , progDefs = Map.singleton 1 (DefAST def)
+          { progModule =
+              Module
+                { moduleTypes = [typeDef]
+                , moduleDefs = Map.singleton 1 (DefAST def)
+                }
           , progSelection = Just selection
           , progSmartHoles = SmartHoles
           , progLog = log

@@ -76,6 +76,7 @@ import Primer.Core.DSL (
   tvar,
   var,
  )
+import Primer.Module (Module (moduleDefs, moduleTypes))
 import Primer.Name
 import Primer.Primitives (allPrimTypeDefs)
 import Test.Tasty.HUnit (Assertion, assertBool, assertFailure, (@=?), (@?=))
@@ -100,18 +101,18 @@ unit_move_to_def_and_construct_let :: Assertion
 unit_move_to_def_and_construct_let =
   progActionTest defaultEmptyProg [MoveToDef 2, BodyAction [ConstructLet (Just "x")]] $
     expectSuccess $ \prog prog' ->
-      case astDefExpr <$> lookupASTDef 2 (progDefs prog') of
+      case astDefExpr <$> lookupASTDef 2 (moduleDefs $ progModule prog') of
         Just Let{} ->
           -- Check that main is unchanged
-          Map.lookup 0 (progDefs prog') @?= Map.lookup 0 (progDefs prog)
+          Map.lookup 0 (moduleDefs $ progModule prog') @?= Map.lookup 0 (moduleDefs $ progModule prog)
         _ -> assertFailure "definition not found"
 
 unit_rename_def :: Assertion
 unit_rename_def =
   progActionTest defaultEmptyProg [RenameDef 2 "foo"] $
     expectSuccess $ \_ prog' -> do
-      fmap defName (Map.lookup 2 (progDefs prog')) @?= Just "foo"
-      fmap defName (Map.lookup 0 (progDefs prog')) @?= Just "main"
+      fmap defName (Map.lookup 2 (moduleDefs $ progModule prog')) @?= Just "foo"
+      fmap defName (Map.lookup 0 (moduleDefs $ progModule prog')) @?= Just "main"
 
 unit_rename_def_to_same_name_as_existing_def :: Assertion
 unit_rename_def_to_same_name_as_existing_def =
@@ -127,8 +128,8 @@ unit_delete_def :: Assertion
 unit_delete_def =
   progActionTest defaultEmptyProg [DeleteDef 2] $
     expectSuccess $ \_ prog' -> do
-      fmap defName (Map.lookup 2 (progDefs prog')) @?= Nothing
-      fmap defName (Map.lookup 0 (progDefs prog')) @?= Just "main"
+      fmap defName (Map.lookup 2 (moduleDefs $ progModule prog')) @?= Nothing
+      fmap defName (Map.lookup 0 (moduleDefs $ progModule prog')) @?= Just "main"
 
 unit_delete_def_unknown_id :: Assertion
 unit_delete_def_unknown_id =
@@ -144,7 +145,7 @@ unit_delete_def_used_id =
 unit_delete_def_recursive :: Assertion
 unit_delete_def_recursive =
   progActionTest defaultEmptyProg [MoveToDef 0, BodyAction [ConstructGlobalVar 0], DeleteDef 0] $
-    expectSuccess $ \prog prog' -> Map.delete 0 (progDefs prog) @?= progDefs prog'
+    expectSuccess $ \prog prog' -> Map.delete 0 (moduleDefs $ progModule prog) @?= moduleDefs (progModule prog')
 
 unit_move_to_unknown_def :: Assertion
 unit_move_to_unknown_def =
@@ -161,8 +162,8 @@ unit_construct_let_without_moving_to_def_first =
 unit_create_def :: Assertion
 unit_create_def = progActionTest defaultEmptyProg [CreateDef $ Just "newDef"] $
   expectSuccess $ \_ prog' -> do
-    case lookupASTDef 4 (progDefs prog') of
-      Nothing -> assertFailure $ show $ progDefs prog'
+    case lookupASTDef 4 (moduleDefs $ progModule prog') of
+      Nothing -> assertFailure $ show $ moduleDefs $ progModule prog'
       Just def -> do
         astDefID def @?= 4
         astDefName def @?= "newDef"
@@ -195,11 +196,11 @@ unit_create_typedef =
    in progActionTest defaultEmptyProg [AddTypeDef lst, AddTypeDef tree] $
         expectSuccess $
           \_ prog' -> do
-            case progTypes prog' of
+            case moduleTypes $ progModule prog' of
               [lst', tree'] -> do
                 TypeDefAST lst @=? lst'
                 TypeDefAST tree @=? tree'
-              _ -> assertFailure $ show $ progTypes prog'
+              _ -> assertFailure $ show $ moduleTypes $ progModule prog'
 
 -- "List" is unknown here
 unit_create_typedef_bad_1 :: Assertion
@@ -333,7 +334,7 @@ unit_create_typedef_8 =
           , astTypeDefNameHints = []
           }
    in progActionTest defaultEmptyProg [AddTypeDef td] $
-        expectSuccess $ \_ prog' -> progTypes prog' @?= [TypeDefAST td]
+        expectSuccess $ \_ prog' -> moduleTypes (progModule prog') @?= [TypeDefAST td]
 
 -- Allow clash between type name and constructor name across types
 unit_create_typedef_9 :: Assertion
@@ -353,13 +354,13 @@ unit_create_typedef_9 =
           , astTypeDefNameHints = []
           }
    in progActionTest defaultEmptyProg [AddTypeDef td1, AddTypeDef td2] $
-        expectSuccess $ \_ prog' -> progTypes prog' @?= [TypeDefAST td1, TypeDefAST td2]
+        expectSuccess $ \_ prog' -> moduleTypes (progModule prog') @?= [TypeDefAST td1, TypeDefAST td2]
 
 unit_construct_arrow_in_sig :: Assertion
 unit_construct_arrow_in_sig =
   progActionTest defaultEmptyProg [MoveToDef 2, SigAction [ConstructArrowL, Move Child1]] $
     expectSuccess $ \_ prog' ->
-      case lookupASTDef 2 (progDefs prog') of
+      case lookupASTDef 2 (moduleDefs $ progModule prog') of
         Just def ->
           -- Check that the signature is an arrow type
           case astDefType def of
@@ -390,7 +391,7 @@ unit_sigaction_creates_holes =
         ]
    in progActionTest defaultPrimsProg acts $
         expectSuccess $ \_ prog' ->
-          case lookupASTDef 2 (progDefs prog') of
+          case lookupASTDef 2 (moduleDefs $ progModule prog') of
             Just def ->
               -- Check that the definition is a non-empty hole
               case astDefExpr def of
@@ -408,7 +409,8 @@ unit_copy_paste_duplicate = do
         blankID <- fresh
         blankDef <- ASTDef blankID "blank" <$> emptyHole <*> tEmptyHole
         pure
-          ( newProg{progDefs = Map.fromList [(mainID, DefAST mainDef), (blankID, DefAST blankDef)], progSelection = Nothing}
+          ( newProg{progSelection = Nothing}
+            & #progModule % #moduleDefs .~ Map.fromList [(mainID, DefAST mainDef), (blankID, DefAST blankDef)]
           , mainID
           , getID mainType
           , getID mainExpr
@@ -424,12 +426,12 @@ unit_copy_paste_duplicate = do
     Right (tcp, r) ->
       -- use the typechecked input p, as the result will have had a typecheck run, so
       -- we need the cached kinds to match up
-      let src = lookupASTDef fromDef (progDefs tcp)
+      let src = lookupASTDef fromDef (moduleDefs $ progModule tcp)
           clearIDs = set (_Just % _defIDs) 0
        in do
-            src @?= lookupASTDef fromDef (progDefs r)
-            assertBool "equal to toDef" $ src /= lookupASTDef toDef (progDefs r)
-            clearIDs (set (_Just % #astDefName) "blank" src) @?= clearIDs (lookupASTDef toDef (progDefs r))
+            src @?= lookupASTDef fromDef (moduleDefs $ progModule r)
+            assertBool "equal to toDef" $ src /= lookupASTDef toDef (moduleDefs $ progModule r)
+            clearIDs (set (_Just % #astDefName) "blank" src) @?= clearIDs (lookupASTDef toDef (moduleDefs $ progModule r))
 
 -- ∀a . (∀b,c . a -> b -> ∀d. c -> d)  -> ∀c. ?
 -- copy         ^------------------^
@@ -452,10 +454,10 @@ unit_copy_paste_type_scoping = do
         defInitial <- ASTDef defID' "main" <$> emptyHole <*> skel tEmptyHole
         expected <- ASTDef defID' "main" <$> emptyHole <*> skel (tvar "a" `tfun` tEmptyHole `tfun` tforall "d" KType (tEmptyHole `tfun` tvar "d"))
         pure
-          ( newEmptyProg{progDefs = Map.fromList [(defID', DefAST defInitial)]}
+          ( newEmptyProg & #progModule % #moduleDefs .~ Map.fromList [(defID', DefAST defInitial)]
           , defID'
           , getID toCopy
-          , newEmptyProg{progDefs = Map.fromList [(defID', DefAST expected)]}
+          , newEmptyProg & #progModule % #moduleDefs .~ Map.fromList [(defID', DefAST expected)]
           )
   let a = newEmptyApp{appProg = pInitial}
       actions = [MoveToDef defID, CopyPasteSig (defID, srcID) [Move Child1, Move Child2, Move Child1]]
@@ -467,7 +469,7 @@ unit_copy_paste_type_scoping = do
       -- we need the cached kinds to match up
       let clearIDs = set (traversed % #_DefAST % _defIDs) 0
        in -- clearIDs (set (_Just % #defName) "blank" src ) @?= clearIDs (Map.lookup toDef (progDefs r))
-          clearIDs (progDefs r) @?= clearIDs (progDefs tcpExpected)
+          clearIDs (moduleDefs $ progModule r) @?= clearIDs (moduleDefs $ progModule tcpExpected)
 
 -- ∀a b.a ~> ∀a.a
 unit_raise :: Assertion
@@ -478,10 +480,10 @@ unit_raise = do
         defInitial <- ASTDef defID' "main" <$> emptyHole <*> tforall "a" KType (tforall "b" KType $ pure toCopy)
         expected <- ASTDef defID' "main" <$> emptyHole <*> tforall "a" KType (tvar "a")
         pure
-          ( newEmptyProg{progDefs = Map.fromList [(defID', DefAST defInitial)]}
+          ( newEmptyProg & #progModule % #moduleDefs .~ Map.fromList [(defID', DefAST defInitial)]
           , defID'
           , getID toCopy
-          , newEmptyProg{progDefs = Map.fromList [(defID', DefAST expected)]}
+          , newEmptyProg & #progModule % #moduleDefs .~ Map.fromList [(defID', DefAST expected)]
           )
   let a = newEmptyApp{appProg = pInitial}
       actions = [MoveToDef defID, CopyPasteSig (defID, srcID) [Move Child1, Delete]]
@@ -492,7 +494,7 @@ unit_raise = do
       -- use the typechecked input p, as the result will have had a typecheck run, so
       -- we need the cached kinds to match up
       let clearIDs = set (traversed % #_DefAST % _defIDs) 0
-       in clearIDs (progDefs r) @?= clearIDs (progDefs tcpExpected)
+       in clearIDs (moduleDefs $ progModule r) @?= clearIDs (moduleDefs $ progModule tcpExpected)
 
 -- ∀a. List a -> ∀b. b -> Pair a b
 -- /\a . λ x . case x of Nil -> ? ; Cons y ys -> /\@b z -> Pair @a @b y z
@@ -520,10 +522,10 @@ unit_copy_paste_expr_1 = do
         defInitial <- ASTDef defID' "main" <$> skel emptyHole <*> pure ty
         expected <- ASTDef defID' "main" <$> skel (pure expectPasted) <*> pure ty
         pure
-          ( newProg{progDefs = Map.fromList [(defID', DefAST defInitial)]}
+          ( newProg & #progModule % #moduleDefs .~ Map.fromList [(defID', DefAST defInitial)]
           , defID'
           , getID toCopy
-          , newProg{progDefs = Map.fromList [(defID', DefAST expected)]}
+          , newProg & #progModule % #moduleDefs .~ Map.fromList [(defID', DefAST expected)]
           )
   let a = newApp{appProg = pInitial}
       actions = [MoveToDef defID, CopyPasteBody (defID, srcID) [Move Child1, Move Child1, Move (Branch "Nil")]]
@@ -534,7 +536,7 @@ unit_copy_paste_expr_1 = do
       -- use the typechecked input p, as the result will have had a typecheck run, so
       -- we need the cached kinds to match up
       let clearIDs = set (traversed % #_DefAST % _defIDs) 0
-       in clearIDs (progDefs r) @?= clearIDs (progDefs tcpExpected)
+       in clearIDs (moduleDefs $ progModule r) @?= clearIDs (moduleDefs $ progModule tcpExpected)
 
 unit_copy_paste_ann :: Assertion
 unit_copy_paste_ann = do
@@ -545,7 +547,7 @@ unit_copy_paste_ann = do
         blankID <- fresh
         blankDef <- ASTDef blankID "blank" <$> emptyHole `ann` tEmptyHole <*> tEmptyHole
         pure
-          ( newProg{progDefs = Map.fromList [(mainID, DefAST mainDef), (blankID, DefAST blankDef)], progSelection = Nothing}
+          ( newProg{progSelection = Nothing} & #progModule % #moduleDefs .~ Map.fromList [(mainID, DefAST mainDef), (blankID, DefAST blankDef)]
           , mainID
           , getID toCopy
           , blankID
@@ -558,12 +560,12 @@ unit_copy_paste_ann = do
     Right (tcp, r) ->
       -- use the typechecked input p, as the result will have had a typecheck run, so
       -- we need the cached kinds to match up
-      let src = lookupASTDef fromDef (progDefs tcp)
+      let src = lookupASTDef fromDef (moduleDefs $ progModule tcp)
           clearIDs = set (_Just % _defIDs) 0
        in do
-            src @?= lookupASTDef fromDef (progDefs r)
-            assertBool "equal to toDef" $ src /= lookupASTDef toDef (progDefs r)
-            clearIDs (set (_Just % #astDefName) "blank" src) @?= clearIDs (lookupASTDef toDef (progDefs r))
+            src @?= lookupASTDef fromDef (moduleDefs $ progModule r)
+            assertBool "equal to toDef" $ src /= lookupASTDef toDef (moduleDefs $ progModule r)
+            clearIDs (set (_Just % #astDefName) "blank" src) @?= clearIDs (lookupASTDef toDef (moduleDefs $ progModule r))
 
 unit_copy_paste_ann2sig :: Assertion
 unit_copy_paste_ann2sig = do
@@ -573,10 +575,10 @@ unit_copy_paste_ann2sig = do
         defInitial <- ASTDef defID' "main" <$> emptyHole `ann` pure toCopy <*> tEmptyHole
         expected <- ASTDef defID' "main" <$> emptyHole `ann` pure toCopy <*> tcon "Bool"
         pure
-          ( newProg{progDefs = Map.fromList [(defID', DefAST defInitial)]}
+          ( newProg & #progModule % #moduleDefs .~ Map.fromList [(defID', DefAST defInitial)]
           , defID'
           , getID toCopy
-          , newProg{progDefs = Map.fromList [(defID', DefAST expected)]}
+          , newProg & #progModule % #moduleDefs .~ Map.fromList [(defID', DefAST expected)]
           )
   let a = newApp{appProg = pInitial}
       actions = [MoveToDef defID, CopyPasteSig (defID, srcID) []]
@@ -587,7 +589,7 @@ unit_copy_paste_ann2sig = do
       -- use the typechecked input p, as the result will have had a typecheck run, so
       -- we need the cached kinds to match up
       let clearIDs = set (traversed % #_DefAST % _defIDs) 0
-       in clearIDs (progDefs r) @?= clearIDs (progDefs tcpExpected)
+       in clearIDs (moduleDefs $ progModule r) @?= clearIDs (moduleDefs $ progModule tcpExpected)
 
 unit_copy_paste_sig2ann :: Assertion
 unit_copy_paste_sig2ann = do
@@ -597,10 +599,10 @@ unit_copy_paste_sig2ann = do
         defInitial <- ASTDef defID' "main" <$> emptyHole <*> pure toCopy
         expected <- ASTDef defID' "main" <$> emptyHole `ann` tcon "Bool" <*> pure toCopy
         pure
-          ( newProg{progDefs = Map.fromList [(defID', DefAST defInitial)]}
+          ( newProg & #progModule % #moduleDefs .~ Map.fromList [(defID', DefAST defInitial)]
           , defID'
           , getID toCopy
-          , newProg{progDefs = Map.fromList [(defID', DefAST expected)]}
+          , newProg & #progModule % #moduleDefs .~ Map.fromList [(defID', DefAST expected)]
           )
   let a = newApp{appProg = pInitial}
       actions = [MoveToDef defID, CopyPasteBody (defID, srcID) [ConstructAnn, EnterType]]
@@ -611,7 +613,7 @@ unit_copy_paste_sig2ann = do
       -- use the typechecked input p, as the result will have had a typecheck run, so
       -- we need the cached kinds to match up
       let clearIDs = set (traversed % #_DefAST % _defIDs) 0
-       in clearIDs (progDefs r) @?= clearIDs (progDefs tcpExpected)
+       in clearIDs (moduleDefs $ progModule r) @?= clearIDs (moduleDefs $ progModule tcpExpected)
 
 -- * Utilities
 
@@ -626,8 +628,7 @@ defaultEmptyProg = do
       otherDef = ASTDef 2 "other" otherExpr otherType
    in pure $
         newEmptyProg
-          { progDefs = Map.fromList [(0, DefAST mainDef), (2, DefAST otherDef)]
-          , progSelection =
+          { progSelection =
               Just $
                 Selection mainDef $
                   Just
@@ -637,6 +638,9 @@ defaultEmptyProg = do
                       , meta = Left (Meta 1 Nothing Nothing)
                       }
           }
+          & #progModule
+          % #moduleDefs
+          .~ Map.fromList [(0, DefAST mainDef), (2, DefAST otherDef)]
 
 -- `defaultEmptyProg`, plus all primitive definitions (types and terms)
 defaultPrimsProg :: MonadFresh ID m => m Prog
@@ -644,8 +648,8 @@ defaultPrimsProg = do
   p <- defaultEmptyProg
   withPrimDefs $ \_ m ->
     pure $
-      over #progTypes ((TypeDefPrim <$> toList allPrimTypeDefs) <>)
-        . over #progDefs ((DefPrim <$> m) <>)
+      over (#progModule % #moduleTypes) ((TypeDefPrim <$> toList allPrimTypeDefs) <>)
+        . over (#progModule % #moduleDefs) ((DefPrim <$> m) <>)
         $ p
 
 _defIDs :: Traversal' ASTDef ID

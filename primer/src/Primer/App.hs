@@ -47,7 +47,7 @@ module Primer.App (
   defaultTypeDefs,
 ) where
 
-import Foreword
+import Foreword hiding (mod)
 
 import Control.Monad.Fresh (MonadFresh (..))
 import Data.Aeson (
@@ -107,6 +107,7 @@ import Primer.Eval (EvalDetail, EvalError)
 import qualified Primer.Eval as Eval
 import Primer.EvalFull (Dir, EvalFullError (TimedOut), TerminationBound, evalFull)
 import Primer.JSON
+import Primer.Module (Module (Module, moduleDefs, moduleTypes))
 import Primer.Name (Name, NameCounter, freshName, unsafeMkName)
 import Primer.Primitives (allPrimDefs, allPrimTypeDefs)
 import Primer.Questions (
@@ -156,14 +157,41 @@ import Primer.Zipper (
 --  need to send the log back and forth.
 --  But for now, to keep things simple, that's how it works.
 data Prog = Prog
-  { progTypes :: [TypeDef]
-  , progDefs :: Map ID Def -- The current program: a set of definitions indexed by ID
+  { -- In the future, we will also have some immutable imported modules
+  progModule :: Module
+  -- ^ The one editable "current" module
   , progSelection :: Maybe Selection
   , progSmartHoles :: SmartHoles
   , progLog :: Log -- The log of all actions
   }
   deriving (Eq, Show, Generic)
   deriving (FromJSON, ToJSON) via VJSON Prog
+
+-- | Get all type definitions from all modules (including imports)
+allTypes :: Prog -> [TypeDef]
+allTypes = moduleTypes . progModule
+
+-- | Get all definitions from all modules (including imports)
+allDefs :: Prog -> Map ID Def
+allDefs = moduleDefs . progModule
+
+-- | Add a definition to the editable module
+addDef :: ASTDef -> Prog -> Prog
+addDef d p =
+  let mod = progModule p
+      defs = moduleDefs mod
+      defs' = Map.insert (astDefID d) (DefAST d) defs
+      mod' = mod{moduleDefs = defs'}
+   in p{progModule = mod'}
+
+-- | Add a type definition to the editable module
+addTypeDef :: ASTTypeDef -> Prog -> Prog
+addTypeDef t p =
+  let mod = progModule p
+      tydefs = moduleTypes mod
+      tydefs' = tydefs <> [TypeDefAST t]
+      mod' = mod{moduleTypes = tydefs'}
+   in p{progModule = mod'}
 
 -- | The action log
 --  This is the canonical store of the program - we can recreate any current or
@@ -263,18 +291,21 @@ data EvalFullResp
 -- * Request handlers
 
 -- | Handle a question
+-- Note that these only consider the non-imported module as a location of which
+-- to ask a question. However, they will return variables which are in scope by
+-- dint of being imported.
 handleQuestion :: MonadQueryApp m => Question a -> m a
 handleQuestion = \case
   VariablesInScope defid exprid -> do
     node <- focusNode' defid exprid
-    progDefs <- asks $ progDefs . appProg
+    defs <- asks $ allDefs . appProg
     let (tyvars, termvars, globals) = case node of
-          Left zE -> variablesInScopeExpr progDefs zE
+          Left zE -> variablesInScopeExpr defs zE
           Right zT -> (variablesInScopeTy zT, [], [])
     pure ((tyvars, termvars), globals)
   GenerateName defid nodeid typeKind -> do
-    progTypeDefs <- asks $ progTypes . appProg
-    progDefs <- asks $ progDefs . appProg
+    progTypeDefs <- asks $ moduleTypes . progModule . appProg
+    progDefs <- asks $ moduleDefs . progModule . appProg
     names <-
       focusNode' defid nodeid <&> \case
         Left zE -> generateNameExpr typeKind zE
@@ -286,9 +317,10 @@ handleQuestion = \case
       prog <- asks appProg
       focusNode prog defid nodeid
 
+-- This only looks in the editable module, not in any imports
 focusNode :: MonadError ProgError m => Prog -> ID -> ID -> m (Either (Either ExprZ TypeZ) TypeZip)
 focusNode prog defid nodeid =
-  case lookupASTDef defid (progDefs prog) of
+  case lookupASTDef defid (moduleDefs $ progModule prog) of
     Nothing -> throwError $ DefNotFound defid
     Just def ->
       let mzE = locToEither <$> focusOn nodeid (focus $ astDefExpr def)
@@ -324,14 +356,14 @@ handleEditRequest actions = do
 handleEvalRequest :: MonadEditApp m => EvalReq -> m EvalResp
 handleEvalRequest req = do
   prog <- gets appProg
-  result <- Eval.step (progDefs prog) (evalReqExpr req) (evalReqRedex req)
+  result <- Eval.step (allDefs prog) (evalReqExpr req) (evalReqRedex req)
   case result of
     Left err -> throwError $ EvalError err
     Right (expr, detail) ->
       pure
         EvalResp
           { evalRespExpr = expr
-          , evalRespRedexes = Set.toList $ Eval.redexes (Map.mapMaybe defPrim $ progDefs prog) expr
+          , evalRespRedexes = Set.toList $ Eval.redexes (Map.mapMaybe defPrim $ allDefs prog) expr
           , evalRespDetail = detail
           }
 
@@ -339,56 +371,61 @@ handleEvalRequest req = do
 handleEvalFullRequest :: MonadEditApp m => EvalFullReq -> m EvalFullResp
 handleEvalFullRequest (EvalFullReq{evalFullReqExpr, evalFullCxtDir, evalFullMaxSteps}) = do
   prog <- gets appProg
-  result <- evalFull (mkTypeDefMap $ progTypes prog) (progDefs prog) evalFullMaxSteps evalFullCxtDir evalFullReqExpr
+  result <- evalFull (mkTypeDefMap $ allTypes prog) (allDefs prog) evalFullMaxSteps evalFullCxtDir evalFullReqExpr
   pure $ case result of
     Left (TimedOut e) -> EvalFullRespTimedOut e
     Right nf -> EvalFullRespNormal nf
 
+-- Prog actions only affect the editable module
 applyProgAction :: MonadEditApp m => Prog -> Maybe ID -> ProgAction -> m (Prog, Maybe ID)
 applyProgAction prog mdefID = \case
-  MoveToDef id_ -> case Map.lookup id_ (progDefs prog) of
+  MoveToDef id_ -> case Map.lookup id_ (moduleDefs $ progModule prog) of
     Nothing -> throwError $ DefNotFound id_
     Just _ -> pure (prog, Just id_)
   DeleteDef id_
-    | Map.member id_ (progDefs prog) -> do
-        let defs = Map.delete id_ (progDefs prog)
-            prog' = prog{progDefs = defs, progSelection = Nothing}
+    | mod <- progModule prog
+    , Map.member id_ (moduleDefs mod) -> do
+        let modDefs' = Map.delete id_ $ moduleDefs mod
+            prog' = prog{progModule = mod{moduleDefs = modDefs'}, progSelection = Nothing}
         -- Run a full TC solely to ensure that no references to the removed id
         -- remain. This is rather inefficient and could be improved in the
         -- future.
-        runExceptT (checkEverything @TypeError NoSmartHoles (progTypes prog) (progDefs prog')) >>= \case
+        -- TODO: when we add imports, we do not need to re-check those, as they will not have changed
+        runExceptT (checkEverything @TypeError NoSmartHoles (allTypes prog) (allDefs prog')) >>= \case
           Left _ -> throwError $ DefInUse id_
           Right _ -> pure ()
         pure (prog', Nothing)
   DeleteDef id_ -> throwError $ DefNotFound id_
-  RenameDef id_ nameStr -> case lookupASTDef id_ (progDefs prog) of
+  RenameDef id_ nameStr -> case lookupASTDef id_ (moduleDefs $ progModule prog) of
     Nothing -> throwError $ DefNotFound id_
     Just def -> do
-      let name = unsafeMkName nameStr
-          existingName = Map.lookupMin $ Map.filter ((== name) . defName) $ progDefs prog
+      let defs = moduleDefs $ progModule prog
+          name = unsafeMkName nameStr
+          existingName = Map.lookupMin $ Map.filter ((== name) . defName) defs
       case existingName of
         Just (existingID, _) -> throwError $ DefAlreadyExists name existingID
         Nothing -> do
+          -- Since references are by ID, which we do not change, there is no problem
+          -- if this definition is referenced anywhere
           let def' = def{astDefName = name}
-          let defs = Map.insert (astDefID def') (DefAST def') (progDefs prog)
-          pure (prog{progDefs = defs, progSelection = Just $ Selection def' Nothing}, mdefID)
+          pure (addDef def' prog{progSelection = Just $ Selection def' Nothing}, mdefID)
   CreateDef n -> do
+    let defs = moduleDefs $ progModule prog
     name <- case n of
       Just nameStr ->
         let name = unsafeMkName nameStr
-            existingName = Map.lookupMin $ Map.filter ((== name) . defName) $ progDefs prog
+            existingName = Map.lookupMin $ Map.filter ((== name) . defName) defs
          in case existingName of
               Just (existingID, _) -> throwError $ DefAlreadyExists name existingID
               Nothing -> pure name
-      Nothing -> freshName $ Set.fromList $ map defName $ Map.elems $ progDefs prog
+      Nothing -> freshName $ Set.fromList $ map defName $ Map.elems defs
     id_ <- fresh
     expr <- newExpr
     ty <- newType
     let def = ASTDef id_ name expr ty
-        defs = Map.insert id_ (DefAST def) (progDefs prog)
-    pure (prog{progDefs = defs, progSelection = Just $ Selection def Nothing}, Just id_)
+    pure (addDef def prog{progSelection = Just $ Selection def Nothing}, Just id_)
   AddTypeDef td -> do
-    runExceptT @TypeError (checkTypeDefs $ progTypes prog <> [TypeDefAST td]) >>= \case
+    runExceptT @TypeError (checkTypeDefs $ allTypes prog <> [TypeDefAST td]) >>= \case
       -- The frontend should never let this error case happen,
       -- so we just dump out a raw string for debugging/logging purposes
       -- (This is not currently true! We should synchronise the frontend with
@@ -397,44 +434,44 @@ applyProgAction prog mdefID = \case
       -- but the TC rejects it.
       -- see https://github.com/hackworthltd/primer/issues/3)
       Left err -> throwError $ TypeDefError $ show err
-      Right _ -> pure (prog{progTypes = progTypes prog <> [TypeDefAST td]}, mdefID)
+      Right _ -> pure (addTypeDef td prog, mdefID)
   BodyAction actions -> do
     withDef mdefID prog $ \def -> do
       smartHoles <- gets $ progSmartHoles . appProg
-      res <- applyActionsToBody smartHoles (progTypes prog) (progDefs prog) def actions
+      res <- applyActionsToBody smartHoles (allTypes prog) (allDefs prog) def actions
       case res of
         Left err -> throwError $ ActionError err
         Right (def', z) -> do
-          let defs = Map.insert (astDefID def) (DefAST def') (progDefs prog)
-              meta = bimap (view (position @1) . target) (view _typeMetaLens . target) $ locToEither z
+          let meta = bimap (view (position @1) . target) (view _typeMetaLens . target) $ locToEither z
               nodeId = either getID getID meta
           let prog' =
-                prog
-                  { progDefs = defs
-                  , progSelection =
-                      Just $
-                        Selection def' $
-                          Just
-                            NodeSelection
-                              { nodeType = BodyNode
-                              , nodeId
-                              , meta
-                              }
-                  }
+                addDef
+                  def'
+                  prog
+                    { progSelection =
+                        Just $
+                          Selection def' $
+                            Just
+                              NodeSelection
+                                { nodeType = BodyNode
+                                , nodeId
+                                , meta
+                                }
+                    }
           pure (prog', mdefID)
   SigAction actions -> do
     withDef mdefID prog $ \def -> do
       smartHoles <- gets $ progSmartHoles . appProg
-      res <- applyActionsToTypeSig smartHoles (progTypes prog) (progDefs prog) def actions
+      res <- applyActionsToTypeSig smartHoles (progModule prog) def actions
       case res of
         Left err -> throwError $ ActionError err
-        Right (def', defs, zt) -> do
+        Right (def', mod', zt) -> do
           let node = target zt
               meta = view _typeMetaLens node
               nodeId = getID meta
               prog' =
                 prog
-                  { progDefs = defs
+                  { progModule = mod'
                   , progSelection =
                       Just $
                         Selection def' $
@@ -459,12 +496,13 @@ applyProgAction prog mdefID = \case
     Just i -> (,mdefID) <$> copyPasteBody prog fromIds i setup
 
 -- Look up the definition by its given ID, then run the given action with it
+-- only looks in the editable module
 withDef :: MonadEditApp m => Maybe ID -> Prog -> (ASTDef -> m a) -> m a
 withDef mdefID prog f =
   case mdefID of
     Nothing -> throwError NoDefSelected
     Just defid -> do
-      case lookupASTDef defid (progDefs prog) of
+      case lookupASTDef defid (moduleDefs $ progModule prog) of
         Nothing -> throwError $ DefNotFound defid
         Just def -> f def
 
@@ -581,8 +619,11 @@ newEmptyProg =
       ty = TEmptyHole (Meta 2 Nothing Nothing)
       def = DefAST $ ASTDef 0 "main" expr ty
    in Prog
-        { progTypes = []
-        , progDefs = Map.singleton 0 def
+        { progModule =
+            Module
+              { moduleTypes = []
+              , moduleDefs = Map.singleton 0 def
+              }
         , progSelection = Nothing
         , progSmartHoles = SmartHoles
         , progLog = Log []
@@ -602,8 +643,11 @@ newEmptyApp =
 newProg :: Prog
 newProg =
   newEmptyProg
-    { progTypes = defaultTypeDefs
-    , progDefs = defaultDefs
+    { progModule =
+        Module
+          { moduleTypes = defaultTypeDefs
+          , moduleDefs = defaultDefs
+          }
     }
 
 defaultDefsNextId :: ID
@@ -682,7 +726,7 @@ copyPasteSig p (fromDefId, fromTyId) toDefId setup = do
   -- which will pick up any problems. It is better to do it in one batch,
   -- in case the intermediate state after 'setup' causes more problems
   -- than the final state does.
-  doneSetup <- withDef (Just toDefId) p $ \def -> applyActionsToTypeSig smartHoles (progTypes p) (progDefs p) def setup
+  doneSetup <- withDef (Just toDefId) p $ \def -> applyActionsToTypeSig smartHoles (progModule p) def setup
   tgt <- case doneSetup of
     Left err -> throwError $ ActionError err
     Right (_, _, tgt) -> pure $ focusOnlyType tgt
@@ -698,11 +742,10 @@ copyPasteSig p (fromDefId, fromTyId) toDefId setup = do
   pasted <- case target tgt of
     TEmptyHole _ -> pure $ replace freshCopy tgt
     _ -> throwError $ CopyPasteError "copy/paste setup didn't select an empty hole"
-  oldDef <- maybe (throwError $ DefNotFound toDefId) pure $ lookupASTDef toDefId (progDefs p)
+  oldDef <- maybe (throwError $ DefNotFound toDefId) pure $ lookupASTDef toDefId (moduleDefs $ progModule p)
   let newDef = oldDef{astDefType = fromZipper pasted}
-  let newDefs = Map.insert toDefId (DefAST newDef) $ progDefs p
   let newSel = NodeSelection SigNode (getID $ target pasted) (pasted ^. _target % _typeMetaLens % re _Right)
-  let finalProg = p{progDefs = newDefs, progSelection = Just (Selection newDef $ Just newSel)}
+  let finalProg = addDef newDef p{progSelection = Just (Selection newDef $ Just newSel)}
   tcWholeProg finalProg
 
 -- We cannot use bindersAbove as that works on names only, and different scopes
@@ -764,8 +807,9 @@ tcWholeProg :: forall m. MonadEditApp m => Prog -> m Prog
 tcWholeProg p =
   let tc :: ReaderT Cxt (ExceptT ActionError m) Prog
       tc = do
-        defs' <- mapM (\d -> maybe (pure d) (fmap DefAST . checkDef) $ defAST d) (progDefs p)
-        let p' = p{progDefs = defs'}
+        defs' <- mapM (\d -> maybe (pure d) (fmap DefAST . checkDef) $ defAST d) (moduleDefs $ progModule p)
+        let mod' = (progModule p){moduleDefs = defs'}
+        let p' = p{progModule = mod'}
         -- We need to update the metadata cached in the selection
         let oldSel = progSelection p
         newSel <- case oldSel of
@@ -789,7 +833,7 @@ tcWholeProg p =
                   }
         pure $ p'{progSelection = newSel}
    in do
-        x <- runExceptT $ runReaderT tc $ buildTypingContext (progTypes p) (progDefs p) (progSmartHoles p)
+        x <- runExceptT $ runReaderT tc $ buildTypingContext (allTypes p) (allDefs p) (progSmartHoles p)
         case x of
           Left e -> throwError $ ActionError e
           Right prog -> pure prog
@@ -805,7 +849,7 @@ copyPasteBody p (fromDefId, fromId) toDefId setup = do
   smartHoles <- gets $ progSmartHoles . appProg
   -- The Loc zipper captures all the changes, they are only reflected in the
   -- returned Def, which we thus ignore
-  doneSetup <- withDef (Just toDefId) p $ \def -> applyActionsToBody smartHoles (progTypes p) (progDefs p) def setup
+  doneSetup <- withDef (Just toDefId) p $ \def -> applyActionsToBody smartHoles (allTypes p) (allDefs p) def setup
   tgt <- case doneSetup of
     Left err -> throwError $ ActionError err
     Right (_, tgt) -> pure tgt
@@ -826,11 +870,10 @@ copyPasteBody p (fromDefId, fromId) toDefId setup = do
       pasted <- case target tgtT of
         TEmptyHole _ -> pure $ replace freshCopy tgtT
         _ -> throwError $ CopyPasteError "copy/paste setup didn't select an empty hole"
-      oldDef <- maybe (throwError $ DefNotFound toDefId) pure $ lookupASTDef toDefId (progDefs p)
+      oldDef <- maybe (throwError $ DefNotFound toDefId) pure $ lookupASTDef toDefId (moduleDefs $ progModule p)
       let newDef = oldDef{astDefExpr = unfocusExpr $ unfocusType pasted}
-      let newDefs = Map.insert toDefId (DefAST newDef) $ progDefs p
       let newSel = NodeSelection BodyNode (getID $ target pasted) (pasted ^. _target % _typeMetaLens % re _Right)
-      let finalProg = p{progDefs = newDefs, progSelection = Just (Selection newDef $ Just newSel)}
+      let finalProg = addDef newDef p{progSelection = Just (Selection newDef $ Just newSel)}
       tcWholeProg finalProg
     (Left srcE, InExpr tgtE) -> do
       let sharedScope =
@@ -880,11 +923,10 @@ copyPasteBody p (fromDefId, fromId) toDefId setup = do
       pasted <- case target tgtE of
         EmptyHole _ -> pure $ replace freshCopy tgtE
         _ -> throwError $ CopyPasteError "copy/paste setup didn't select an empty hole"
-      oldDef <- maybe (throwError $ DefNotFound toDefId) pure $ lookupASTDef toDefId (progDefs p)
+      oldDef <- maybe (throwError $ DefNotFound toDefId) pure $ lookupASTDef toDefId (moduleDefs $ progModule p)
       let newDef = oldDef{astDefExpr = unfocusExpr pasted}
-      let newDefs = Map.insert toDefId (DefAST newDef) $ progDefs p
       let newSel = NodeSelection BodyNode (getID $ target pasted) (pasted ^. _target % _exprMetaLens % re _Left)
-      let finalProg = p{progDefs = newDefs, progSelection = Just (Selection newDef $ Just newSel)}
+      let finalProg = addDef newDef p{progSelection = Just (Selection newDef $ Just newSel)}
       tcWholeProg finalProg
 
 lookupASTDef :: ID -> Map ID Def -> Maybe ASTDef
