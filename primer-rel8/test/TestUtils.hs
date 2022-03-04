@@ -1,4 +1,5 @@
 {-# LANGUAGE NamedFieldPuns #-}
+{-# LANGUAGE OverloadedStrings #-}
 
 module TestUtils (
   (@?=),
@@ -12,6 +13,7 @@ import Foreword hiding (try)
 
 import Control.Monad.Catch (MonadCatch, try)
 import Control.Monad.Fresh (MonadFresh (..))
+import Data.ByteString.Lazy.UTF8 as BL
 import qualified Data.Map.Strict as Map
 import Data.String (String)
 import Data.Text (unpack)
@@ -98,6 +100,7 @@ import Rel8 (
 import System.IO.Temp (getCanonicalTemporaryDirectory)
 import System.Process.Typed (
   proc,
+  readProcessStdout,
   runProcess_,
  )
 import Test.Tasty.HUnit (
@@ -131,6 +134,16 @@ deployDb port _ =
   let url = "db:postgres://" <> user <> ":" <> password <> "@" <> host <> ":" <> show port
    in runProcess_ $ proc "primer-sqitch" ["deploy", "--verify", url]
 
+-- | This action requires that the Sqitch script @primer-sqitch@ is in
+-- the process's path. If you run this test via Nix, Nix will
+-- guarantee that precondition.
+sqitchEventChangeId :: IO String
+sqitchEventChangeId = do
+  (status, output) <- readProcessStdout $ proc "primer-sqitch" ["plan", "--max-count=1", "--format=format:%h", "--no-headers"]
+  case status of
+    ExitFailure n -> error $ "`primer-sqitch plan` failed with exit code " <> show n
+    _ -> pure $ takeWhile (/= '\n') $ BL.toString output
+
 withDbSetup :: (Connection -> IO ()) -> IO ()
 withDbSetup f = do
   -- NOTE: there's a race where the returned port could be opened by
@@ -156,7 +169,8 @@ withDbSetup f = do
      in withDbCacheConfig cc $ \dbCache ->
           let combinedConfig = dbConfig <> cacheConfig dbCache
            in do
-                migratedConfig <- throwEither $ cacheAction (tmpdir <> "/primer-rel8") (deployDb port) combinedConfig
+                hash_ <- sqitchEventChangeId
+                migratedConfig <- throwEither $ cacheAction (tmpdir <> "/" <> hash_) (deployDb port) combinedConfig
                 withConfig migratedConfig $ \db ->
                   bracket (connectDb db) release f
 
