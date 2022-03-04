@@ -95,7 +95,7 @@ import Rel8 (
   insert,
   values,
  )
-import System.IO.Temp (withSystemTempDirectory)
+import System.IO.Temp (getCanonicalTemporaryDirectory)
 import System.Process.Typed (
   proc,
   runProcess_,
@@ -146,19 +146,19 @@ withDbSetup f = do
             , Options.password = pure password
             , Options.host = pure host
             }
-  throwEither $
-    withSystemTempDirectory "primer-tmp-postgres" $ \tmpdir ->
-      let cc =
-            defaultCacheConfig
-              { cacheTemporaryDirectory = tmpdir
-              , cacheDirectoryType = Temporary
-              }
-       in withDbCacheConfig cc $ \dbCache ->
-            let combinedConfig = dbConfig <> cacheConfig dbCache
-             in do
-                  migratedConfig <- throwEither $ cacheAction (tmpdir <> "/primer-rel8") (deployDb port) combinedConfig
-                  withConfig migratedConfig $ \db ->
-                    bracket (connectDb db) release f
+  throwEither $ do
+    tmpdir <- getCanonicalTemporaryDirectory
+    let cc =
+          defaultCacheConfig
+            { cacheTemporaryDirectory = tmpdir
+            , cacheDirectoryType = Temporary
+            }
+     in withDbCacheConfig cc $ \dbCache ->
+          let combinedConfig = dbConfig <> cacheConfig dbCache
+           in do
+                migratedConfig <- throwEither $ cacheAction (tmpdir <> "/primer-rel8") (deployDb port) combinedConfig
+                withConfig migratedConfig $ \db ->
+                  bracket (connectDb db) release f
 
 (@?=) :: (MonadIO m, Eq a, Show a) => a -> a -> m ()
 x @?= y = liftIO $ x HUnit.@?= y
