@@ -90,6 +90,7 @@ test-suite primer-rel8-test
     build-depends:
       , aeson
       , base
+      , containers
       , exceptions
       , filepath
       , hasql
