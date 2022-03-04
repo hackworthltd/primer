@@ -37,6 +37,7 @@ import Hasql.Connection (
   release,
  )
 import Hasql.Session (run, statement)
+import Network.Socket.Free (getFreePort)
 import Primer.App (
   App (..),
   InitialApp (NewApp),
@@ -105,11 +106,12 @@ import Test.Tasty.HUnit (
  )
 import qualified Test.Tasty.HUnit as HUnit
 
+-- The PostgreSQL host, username, and password can be chosen
+-- statically, but we need to choose the port dynamically in order to
+-- accommodate multiple simultaneous PostgreSQL instances.
+
 host :: String
 host = "localhost"
-
-port :: Int
-port = 5432
 
 user :: String
 user = "postgres"
@@ -124,13 +126,17 @@ connectDb =
 -- | This action requires that the Sqitch script @primer-sqitch@ is in
 -- the process's path. If you run this test via Nix, Nix will
 -- guarantee that precondition.
-deployDb :: DB -> IO ()
-deployDb _ =
+deployDb :: Int -> DB -> IO ()
+deployDb port _ =
   let url = "db:postgres://" <> user <> ":" <> password <> "@" <> host <> ":" <> show port
    in runProcess_ $ proc "primer-sqitch" ["deploy", "--verify", url]
 
 withDbSetup :: (Connection -> IO ()) -> IO ()
-withDbSetup f =
+withDbSetup f = do
+  -- NOTE: there's a race where the returned port could be opened by
+  -- another process before we can use it, but it's extremely unlikely
+  -- to be triggered.
+  port <- getFreePort
   let throwEither x = either throwIO pure =<< x
       dbConfig =
         optionsToDefaultConfig
@@ -140,20 +146,19 @@ withDbSetup f =
             , Options.password = pure password
             , Options.host = pure host
             }
-   in do
-        throwEither $
-          withSystemTempDirectory "primer-tmp-postgres" $ \tmpdir ->
-            let cc =
-                  defaultCacheConfig
-                    { cacheTemporaryDirectory = tmpdir
-                    , cacheDirectoryType = Temporary
-                    }
-             in withDbCacheConfig cc $ \dbCache ->
-                  let combinedConfig = dbConfig <> cacheConfig dbCache
-                   in do
-                        migratedConfig <- throwEither $ cacheAction (tmpdir <> "/primer-rel8") deployDb combinedConfig
-                        withConfig migratedConfig $ \db ->
-                          bracket (connectDb db) release f
+  throwEither $
+    withSystemTempDirectory "primer-tmp-postgres" $ \tmpdir ->
+      let cc =
+            defaultCacheConfig
+              { cacheTemporaryDirectory = tmpdir
+              , cacheDirectoryType = Temporary
+              }
+       in withDbCacheConfig cc $ \dbCache ->
+            let combinedConfig = dbConfig <> cacheConfig dbCache
+             in do
+                  migratedConfig <- throwEither $ cacheAction (tmpdir <> "/primer-rel8") (deployDb port) combinedConfig
+                  withConfig migratedConfig $ \db ->
+                    bracket (connectDb db) release f
 
 (@?=) :: (MonadIO m, Eq a, Show a) => a -> a -> m ()
 x @?= y = liftIO $ x HUnit.@?= y
