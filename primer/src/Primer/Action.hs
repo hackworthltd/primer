@@ -401,6 +401,7 @@ type ActionM m =
 -- Apply a sequence of actions to the type signature of a definition
 -- We apply the actions to the type, then typecheck the body of the definition against the new type.
 -- We must then typecheck the whole program to check any uses of the definition.
+-- Note that this may introduce new holes when using SmartHoles.
 applyActionsToTypeSig ::
   (MonadFresh ID m, MonadFresh NameCounter m) =>
   SmartHoles ->

@@ -9,7 +9,16 @@ import Control.Monad.Fresh
 import qualified Data.Map.Strict as Map
 import Optics
 import Primer.Action (
-  Action (ConstructAnn, ConstructArrowL, ConstructGlobalVar, ConstructLet, Delete, EnterType, Move),
+  Action (
+    ConstructAnn,
+    ConstructArrowL,
+    ConstructGlobalVar,
+    ConstructLet,
+    ConstructTCon,
+    Delete,
+    EnterType,
+    Move
+  ),
   Movement (Branch, Child1, Child2),
  )
 import Primer.App (
@@ -363,6 +372,31 @@ unit_construct_arrow_in_sig =
                 _ -> assertFailure "no selection"
             _ -> assertFailure "not a function"
         _ -> assertFailure "definition not found"
+
+unit_sigaction_creates_holes :: Assertion
+unit_sigaction_creates_holes =
+  let acts =
+        [ -- main :: Char
+          MoveToDef 0
+        , SigAction [ConstructTCon "Char"]
+        , -- other :: Char; other = main
+          MoveToDef 2
+        , SigAction [ConstructTCon "Char"]
+        , BodyAction [ConstructGlobalVar 0]
+        , -- main :: Int
+          -- We expect this to change 'other' to contain a hole
+          MoveToDef 0
+        , SigAction [Delete, ConstructTCon "Int"]
+        ]
+   in progActionTest defaultPrimsProg acts $
+        expectSuccess $ \_ prog' ->
+          case lookupASTDef 2 (progDefs prog') of
+            Just def ->
+              -- Check that the definition is a non-empty hole
+              case astDefExpr def of
+                Hole _ (GlobalVar _ 0) -> pure ()
+                _ -> assertFailure "expected {? main ?}"
+            _ -> assertFailure "definition not found"
 
 unit_copy_paste_duplicate :: Assertion
 unit_copy_paste_duplicate = do
