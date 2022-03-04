@@ -24,6 +24,7 @@ import Test.Tasty (TestTree)
 import Test.Tasty.HUnit (testCaseSteps)
 import TestUtils (
   assertException,
+  testApp,
   withDbSetup,
   (@?=),
  )
@@ -41,10 +42,10 @@ test_insertSession_roundtrip = testCaseSteps "insertSession database round-tripp
       let version = "git123"
       let name = safeMkSessionName "testNewApp"
       sessionId <- liftIO newSessionId
-      insertSession version sessionId newApp name
+      insertSession version sessionId testApp name
       step "Retrieve it"
       result <- querySessionId sessionId
-      result @?= Right (SessionData newApp name)
+      result @?= Right (SessionData testApp name)
 
 test_insertSession_failure :: TestTree
 test_insertSession_failure = testCaseSteps "insertSession failure modes" $ \step' ->

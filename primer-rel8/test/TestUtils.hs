@@ -1,13 +1,18 @@
+{-# LANGUAGE NamedFieldPuns #-}
+
 module TestUtils (
   (@?=),
   assertException,
   insertSessionRow,
+  testApp,
   withDbSetup,
 ) where
 
 import Foreword hiding (try)
 
 import Control.Monad.Catch (MonadCatch, try)
+import Control.Monad.Fresh (MonadFresh (..))
+import qualified Data.Map.Strict as Map
 import Data.String (String)
 import Data.Text (unpack)
 import Data.Typeable (typeOf)
@@ -32,9 +37,54 @@ import Hasql.Connection (
   release,
  )
 import Hasql.Session (run, statement)
-import Primer.Database.Rel8.Schema as Schema (
-  SessionRow (..),
-  sessionRowSchema,
+import Primer.App (
+  App (..),
+  InitialApp (NewApp),
+  Prog (..),
+  defaultTypeDefs,
+  newEmptyApp,
+  newEmptyProg,
+ )
+import Primer.Core (
+  ASTDef (..),
+  Def (DefAST, DefPrim),
+  ID,
+  Kind (KType),
+  PrimDef (..),
+  PrimFun,
+  defID,
+  primDefType,
+  primFunType,
+ )
+import Primer.Core.DSL (
+  aPP,
+  ann,
+  app,
+  branch,
+  case_,
+  con,
+  create,
+  emptyHole,
+  global,
+  hole,
+  lAM,
+  lam,
+  letType,
+  let_,
+  letrec,
+  tEmptyHole,
+  tapp,
+  tcon,
+  tforall,
+  tfun,
+  thole,
+  tvar,
+  var,
+ )
+import Primer.Database.Rel8.Schema as Schema hiding (app)
+import Primer.Name (Name)
+import Primer.Primitives (
+  allPrimDefs,
  )
 import Rel8 (
   Expr,
@@ -144,3 +194,150 @@ insertSessionRow row conn =
             , onConflict = Abort
             , returning = NumberOfRowsAffected
             }
+
+-- | This definition contains every construct in the Primer language.
+--
+-- TODO: this is identical to a program in the core Primer test suite,
+-- so it should be refactored into a common test library. See:
+-- https://github.com/hackworthltd/primer/issues/273
+testASTDef :: ASTDef
+testASTDef =
+  ASTDef
+    { astDefName = "1"
+    , astDefID
+    , astDefExpr
+    , astDefType
+    }
+  where
+    ((astDefExpr, astDefType), astDefID) = create $ (,) <$> e <*> t
+    t =
+      tfun
+        (tcon "Nat")
+        ( tforall
+            "a"
+            KType
+            ( tapp
+                ( thole
+                    ( tapp
+                        (tcon "List")
+                        tEmptyHole
+                    )
+                )
+                (tvar "a")
+            )
+        )
+    e =
+      let_
+        "x"
+        (con "True")
+        ( letrec
+            "y"
+            ( app
+                ( hole
+                    (con "Just")
+                )
+                ( hole
+                    (global 0)
+                )
+            )
+            ( thole
+                (tcon "Maybe")
+            )
+            ( ann
+                ( lam
+                    "i"
+                    ( lAM
+                        "β"
+                        ( app
+                            ( aPP
+                                ( letType
+                                    "b"
+                                    (tcon "Bool")
+                                    ( aPP
+                                        (con "Left")
+                                        (tvar "b")
+                                    )
+                                )
+                                (tvar "β")
+                            )
+                            ( case_
+                                (var "i")
+                                [ branch
+                                    "Zero"
+                                    []
+                                    (con "False")
+                                , branch
+                                    "Succ"
+                                    [
+                                      ( "n"
+                                      , Nothing
+                                      )
+                                    ]
+                                    ( app
+                                        ( app
+                                            emptyHole
+                                            (var "x")
+                                        )
+                                        (var "y")
+                                    )
+                                ]
+                            )
+                        )
+                    )
+                )
+                ( tfun
+                    (tcon "Nat")
+                    ( tforall
+                        "α"
+                        KType
+                        ( tapp
+                            ( tapp
+                                (tcon "Either")
+                                (tcon "Bool")
+                            )
+                            (tvar "α")
+                        )
+                    )
+                )
+            )
+        )
+
+-- | Helper function for creating test apps from a predefined list of
+-- 'ASTDef's and 'PrimFun's.
+--
+-- TODO: move this function into 'Primer.App'. See:
+-- https://github.com/hackworthltd/primer/issues/273#issuecomment-1058713380
+mkTestDefs :: [ASTDef] -> Map Name PrimFun -> (Map ID Def, ID)
+mkTestDefs astDefs primMap =
+  let (defs, nextID) = create $ do
+        primDefs <- for (Map.toList primMap) $ \(primDefName, def) -> do
+          primDefType <- primFunType def
+          primDefID <- fresh
+          pure $
+            PrimDef
+              { primDefID
+              , primDefName
+              , primDefType
+              }
+        pure $ map DefAST astDefs <> map DefPrim primDefs
+   in (Map.fromList $ (\d -> (defID d, d)) <$> defs, nextID)
+
+-- | An initial test 'App' instance that contains all default type
+-- definitions (including primitive types), all primitive functions,
+-- and a top-level definition that contains every construct in the
+-- Primer language.x
+testApp :: App
+testApp =
+  newEmptyApp
+    { appProg = testProg
+    , appInit = NewApp
+    , appIdCounter = fromEnum nextId
+    }
+  where
+    (defs, nextId) = mkTestDefs [testASTDef] allPrimDefs
+    testProg :: Prog
+    testProg =
+      newEmptyProg
+        { progTypes = defaultTypeDefs
+        , progDefs = defs
+        }

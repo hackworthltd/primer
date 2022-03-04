@@ -25,6 +25,7 @@ import Test.Tasty (TestTree)
 import Test.Tasty.HUnit (testCaseSteps)
 import TestUtils (
   assertException,
+  testApp,
   withDbSetup,
   (@?=),
  )
@@ -57,9 +58,9 @@ test_updateSessionApp_roundtrip = testCaseSteps "updateSessionApp database round
       r2 @?= Right (SessionData newEmptyApp name)
 
       step "Update it with a new app"
-      updateSessionApp newVersion sessionId newApp
+      updateSessionApp newVersion sessionId testApp
       r3 <- querySessionId sessionId
-      r3 @?= Right (SessionData newApp name)
+      r3 @?= Right (SessionData testApp name)
 
 test_updateSessionApp_failure :: TestTree
 test_updateSessionApp_failure = testCaseSteps "updateSessionApp failure modes" $ \step' ->
