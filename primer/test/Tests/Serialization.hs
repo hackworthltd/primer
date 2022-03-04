@@ -109,7 +109,8 @@ fixtures =
       progaction = MoveToDef 0
       prog =
         Prog
-          { progModule =
+          { progImports = mempty
+          , progModule =
               Module
                 { moduleTypes = [typeDef]
                 , moduleDefs = Map.singleton 1 (DefAST def)

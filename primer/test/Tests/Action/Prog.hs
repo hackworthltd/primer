@@ -7,6 +7,7 @@ import Foreword
 
 import Control.Monad.Fresh
 import qualified Data.Map.Strict as Map
+import Data.Tuple.Extra (snd3)
 import Optics
 import Primer.Action (
   Action (
@@ -29,8 +30,10 @@ import Primer.App (
   Prog (..),
   ProgAction (..),
   ProgError (..),
+  Question (VariablesInScope),
   Selection (..),
   handleEditRequest,
+  handleQuestion,
   lookupASTDef,
   newApp,
   newEmptyApp,
@@ -49,6 +52,7 @@ import Primer.Core (
   Type' (..),
   TypeDef (..),
   ValCon (..),
+  defID,
   defName,
   getID,
   _exprMeta,
@@ -76,7 +80,7 @@ import Primer.Core.DSL (
   tvar,
   var,
  )
-import Primer.Module (Module (moduleDefs, moduleTypes))
+import Primer.Module (Module (Module, moduleDefs, moduleTypes))
 import Primer.Name
 import Primer.Primitives (allPrimTypeDefs)
 import Test.Tasty.HUnit (Assertion, assertBool, assertFailure, (@=?), (@?=))
@@ -615,7 +619,51 @@ unit_copy_paste_sig2ann = do
       let clearIDs = set (traversed % #_DefAST % _defIDs) 0
        in clearIDs (moduleDefs $ progModule r) @?= clearIDs (moduleDefs $ progModule tcpExpected)
 
+-- VariablesInScope sees imported terms
+unit_import_vars :: Assertion
+unit_import_vars =
+  let (prog, maxID) = create defaultImportProg
+      a = newEmptyApp{appProg = prog}
+      test = do
+        prog' <- handleEditRequest [CreateDef Nothing]
+        case Map.assocs $ moduleDefs $ progModule prog' of
+          [(i, DefAST d)] -> do
+            a' <- get
+            (_, vs) <- runReaderT (handleQuestion (VariablesInScope i $ getID $ astDefExpr d)) a'
+            pure $
+              assertBool "VariablesInScope did not report the imported Int.+" $
+                any ((== "Int.+") . snd3) vs
+          _ -> pure $ assertFailure "Expected one def which was just created"
+   in case fst $ runAppTestM maxID a test of
+        Left err -> assertFailure $ show err
+        Right assertion -> assertion
+
+-- Can reference something in an imported module (both types and terms)
+unit_import_reference :: Assertion
+unit_import_reference =
+  let (prog, maxID) = create defaultImportProg
+      a = newEmptyApp{appProg = prog}
+      test = do
+        prog' <- handleEditRequest [CreateDef Nothing]
+        case (findGlobalByName prog' "toUpper", Map.assocs $ moduleDefs $ progModule prog') of
+          (Just toUpperDef, [(i, _)]) -> do
+            _ <-
+              handleEditRequest
+                [ MoveToDef i
+                , SigAction [ConstructTCon "Char"]
+                , BodyAction [ConstructGlobalVar $ defID toUpperDef]
+                ]
+            pure $ pure ()
+          (Nothing, _) -> pure $ assertFailure "Could not find the imported toUpper"
+          (Just _, _) -> pure $ assertFailure "Expected one def which was just created"
+   in case fst $ runAppTestM maxID a test of
+        Left err -> assertFailure $ show err
+        Right assertion -> assertion
+
 -- * Utilities
+
+findGlobalByName :: Prog -> Name -> Maybe Def
+findGlobalByName p n = find ((== n) . defName) $ concatMap (Map.elems . moduleDefs) $ progModule p : progImports p
 
 -- We use a program with two defs: "main" and "other"
 defaultEmptyProg :: MonadFresh ID m => m Prog
@@ -651,6 +699,16 @@ defaultPrimsProg = do
       over (#progModule % #moduleTypes) ((TypeDefPrim <$> toList allPrimTypeDefs) <>)
         . over (#progModule % #moduleDefs) ((DefPrim <$> m) <>)
         $ p
+
+-- has `defaultPrimsProg` as an imported module, and a blank editable module
+defaultImportProg :: MonadFresh ID m => m Prog
+defaultImportProg = do
+  p <- defaultPrimsProg
+  pure
+    p
+      { progImports = [progModule p]
+      , progModule = Module{moduleTypes = mempty, moduleDefs = mempty}
+      }
 
 _defIDs :: Traversal' ASTDef ID
 _defIDs = #astDefID `adjoin` #astDefExpr % (_exprMeta % _id `adjoin` _exprTypeMeta % _id) `adjoin` #astDefType % _typeMeta % _id

@@ -407,13 +407,20 @@ type ActionM m =
 applyActionsToTypeSig ::
   (MonadFresh ID m, MonadFresh NameCounter m) =>
   SmartHoles ->
+  [Module] ->
   Module ->
   -- | This must be one of the definitions in the @Module@
   ASTDef ->
   [Action] ->
   m (Either ActionError (ASTDef, Module, TypeZ))
-applyActionsToTypeSig smartHoles mod def actions =
-  runReaderT go (buildTypingContext (moduleTypes mod) (moduleDefs mod) smartHoles)
+applyActionsToTypeSig smartHoles imports mod def actions =
+  runReaderT
+    go
+    ( buildTypingContext
+        (concatMap moduleTypes $ mod : imports)
+        (foldMap moduleDefs $ mod : imports)
+        smartHoles
+    )
     & runExceptT
   where
     go :: ActionM m => m (ASTDef, Module, TypeZ)
@@ -428,7 +435,13 @@ applyActionsToTypeSig smartHoles mod def actions =
       -- typechecked against the new type.
       -- Now we need to typecheck the whole program again, to check any uses of the definition
       -- We make sure that the updated type is present in the global context.
-      checkedDefs <- checkEverything smartHoles (moduleTypes mod') (moduleDefs mod')
+      -- Here we just check the whole prog, including imports.
+      -- TODO: for efficiency, we should not check the immutable imports
+      checkedDefs <-
+        checkEverything
+          smartHoles
+          (concatMap moduleTypes $ mod' : imports)
+          (foldMap moduleDefs $ mod' : imports)
       pure (def', mod'{moduleDefs = checkedDefs}, zt)
     -- Actions expect that all ASTs have a top-level expression of some sort.
     -- Signatures don't have this: they're just a type.

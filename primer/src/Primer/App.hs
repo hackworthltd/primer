@@ -157,8 +157,9 @@ import Primer.Zipper (
 --  need to send the log back and forth.
 --  But for now, to keep things simple, that's how it works.
 data Prog = Prog
-  { -- In the future, we will also have some immutable imported modules
-  progModule :: Module
+  { progImports :: [Module]
+  -- ^ Some immutable imported modules
+  , progModule :: Module
   -- ^ The one editable "current" module
   , progSelection :: Maybe Selection
   , progSmartHoles :: SmartHoles
@@ -167,13 +168,31 @@ data Prog = Prog
   deriving (Eq, Show, Generic)
   deriving (FromJSON, ToJSON) via VJSON Prog
 
+-- Note [Modules]
+-- The invariant is that the @progImports@ modules are never edited, but
+-- one can insert new ones (and perhaps delete unneeded ones).
+--
+-- Currently we assume that all Names and IDs are globally unique (across
+-- all the imported and editable modules). We intend to lift this restriction
+-- shortly by introducing unique module identifiers. Since the user has no
+-- control over IDs, this means that importing modules is unsafe: either it may
+-- break this invariant, or it could fail with no way for a end-user to fix it.
+-- (Or it would have to do a lot of work to uniquify names and ids, and then
+-- bear this in mind when importing further modules that may reference these.)
+-- Since we do not yet expose any way for an end-user to import modules, this
+-- restriction is not particularly severe in practice.
+--
+-- All modules in a @Prog@ shall be well-typed, in the appropriate scope:
+-- all the imports are in one mutual dependency group
+-- the @progModule@ has all the imports in scope
+
 -- | Get all type definitions from all modules (including imports)
 allTypes :: Prog -> [TypeDef]
 allTypes = moduleTypes . progModule
 
 -- | Get all definitions from all modules (including imports)
 allDefs :: Prog -> Map ID Def
-allDefs = moduleDefs . progModule
+allDefs p = foldMap moduleDefs $ progModule p : progImports p
 
 -- | Add a definition to the editable module
 addDef :: ASTDef -> Prog -> Prog
@@ -462,7 +481,7 @@ applyProgAction prog mdefID = \case
   SigAction actions -> do
     withDef mdefID prog $ \def -> do
       smartHoles <- gets $ progSmartHoles . appProg
-      res <- applyActionsToTypeSig smartHoles (progModule prog) def actions
+      res <- applyActionsToTypeSig smartHoles (progImports prog) (progModule prog) def actions
       case res of
         Left err -> throwError $ ActionError err
         Right (def', mod', zt) -> do
@@ -619,7 +638,8 @@ newEmptyProg =
       ty = TEmptyHole (Meta 2 Nothing Nothing)
       def = DefAST $ ASTDef 0 "main" expr ty
    in Prog
-        { progModule =
+        { progImports = mempty
+        , progModule =
             Module
               { moduleTypes = []
               , moduleDefs = Map.singleton 0 def
@@ -726,7 +746,7 @@ copyPasteSig p (fromDefId, fromTyId) toDefId setup = do
   -- which will pick up any problems. It is better to do it in one batch,
   -- in case the intermediate state after 'setup' causes more problems
   -- than the final state does.
-  doneSetup <- withDef (Just toDefId) p $ \def -> applyActionsToTypeSig smartHoles (progModule p) def setup
+  doneSetup <- withDef (Just toDefId) p $ \def -> applyActionsToTypeSig smartHoles (progImports p) (progModule p) def setup
   tgt <- case doneSetup of
     Left err -> throwError $ ActionError err
     Right (_, _, tgt) -> pure $ focusOnlyType tgt
@@ -803,6 +823,8 @@ loopM f a =
     Left a' -> loopM f a'
     Right b -> pure b
 
+-- | Checks every term definition in the editable module.
+-- Does not check typedefs or imported modules.
 tcWholeProg :: forall m. MonadEditApp m => Prog -> m Prog
 tcWholeProg p =
   let tc :: ReaderT Cxt (ExceptT ActionError m) Prog
