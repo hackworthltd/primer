@@ -59,6 +59,30 @@ test_updateSessionName_roundtrip = testCaseSteps "updateSessionName database rou
     r3 <- querySessionId sessionId
     r3 @?= Right (SessionData newEmptyApp newName)
 
+    step "Update it with a Japanese name"
+    let jpName = safeMkSessionName "サンプルプログラム"
+    updateSessionName newVersion sessionId jpName
+    r4 <- querySessionId sessionId
+    r4 @?= Right (SessionData newEmptyApp jpName)
+
+    step "Update it with a simplified Chinese name"
+    let cnName = safeMkSessionName "示例程序"
+    updateSessionName newVersion sessionId cnName
+    r5 <- querySessionId sessionId
+    r5 @?= Right (SessionData newEmptyApp cnName)
+
+    step "Update it with an Arabic name"
+    let arName = safeMkSessionName "برنامج مثال"
+    updateSessionName newVersion sessionId arName
+    r6 <- querySessionId sessionId
+    r6 @?= Right (SessionData newEmptyApp arName)
+
+    step "Update it with an emoji name"
+    let emName = safeMkSessionName "😄😂🤣🤗 🦊 🦈"
+    updateSessionName newVersion sessionId emName
+    r7 <- querySessionId sessionId
+    r7 @?= Right (SessionData newEmptyApp emName)
+
 test_updateSessionName_failure :: TestTree
 test_updateSessionName_failure = testCaseSteps "updateSessionName failure modes" $ \step' ->
   runTmpDb $ do
