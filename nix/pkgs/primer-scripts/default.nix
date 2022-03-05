@@ -203,4 +203,19 @@ in
       primer-service serve . ${primerVersion} "$@"
     '';
   };
+
+
+  ## Database unit/integration tests.
+  primer-init-db-test = writeShellApplication
+    {
+      name = "primer-init-db-test";
+      runtimeInputs = [
+        sqitchBundle
+      ];
+      text = ''
+        DATABASE_URL="postgres://postgres:$POSTGRES_PASSWORD@$DOCKER_SERVICE_IP:$LOCAL_POSTGRES_PORT"
+        export DATABASE_URL
+        sqitch deploy --verify db:"$DATABASE_URL"
+      '';
+    };
 }

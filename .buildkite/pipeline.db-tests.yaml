@@ -1,0 +1,25 @@
+agents:
+  docker: "true"
+
+env:
+  # No, this is not a secret. This is just a tear-up/tear-down
+  # test database.
+  POSTGRES_PASSWORD: "primer-dev"
+  LOCAL_POSTGRES_PORT: 5432
+
+steps:
+  - label: ":postgres: Initialize database"
+    plugins:
+      - hackworthltd/docker-service#feat/configurable_lockdir:
+          lockfile-dir: "$HOME"
+          container: postgres:13
+          flags:
+            - --env=POSTGRES_PASSWORD="$POSTGRES_PASSWORD"
+
+          # Note: make sure that the PostgreSQL port isn't exposed to
+          # the outside world, as using the "host" Docker network will
+          # make the Docker PostgreSQL service listen on the host's
+          # external IP address.
+          network: host
+    command: |
+      nix run .#primer-init-db-test
