@@ -4,7 +4,7 @@ CREATE EXTENSION IF NOT EXISTS pgtap;
 RESET client_min_messages;
 
 BEGIN;
-SELECT no_plan();
+SELECT plan(27);
 
 SET search_path TO primer,public;
 
