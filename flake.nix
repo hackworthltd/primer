@@ -87,12 +87,15 @@
               postgresqlSupport = true;
             };
 
+            pg_prove = final.perlPackages.TAPParserSourceHandlerpgTAP;
+
             db-scripts = final.lib.recurseIntoAttrs (final.callPackage ./nix/pkgs/db-scripts {
               sqitchDir = ./sqitch;
             });
           in
           {
             inherit sqitch;
+            inherit pg_prove;
             inherit (db-scripts)
               deploy-postgresql-container
               start-postgresql-container
@@ -108,7 +111,9 @@
               dump-local-db
               restore-local-db
 
-              primer-sqitch;
+              primer-sqitch
+
+              primer-pgtap-tests;
           }
         )
       ];
@@ -362,7 +367,9 @@
             restore-local-db
 
             sqitch
+            pg_prove
             primer-sqitch
+            primer-pgtap-tests
 
             deploy-postgresql-container
             start-postgresql-container
@@ -442,10 +449,11 @@
           # For Language Server support.
           nodejs-16_x
 
-          # sqitch
+          # sqitch & related
           nix-generate-from-cpan
           sqitch
           primer-sqitch
+          pg_prove
 
           # Local database scripts.
           create-local-db
@@ -485,6 +493,7 @@
               packages.aarch64-darwin
               checks.x86_64-linux
               checks.aarch64-darwin
+              tests.x86_64-linux
               devShell
             ]);
             meta.description = "Required CI builds";
