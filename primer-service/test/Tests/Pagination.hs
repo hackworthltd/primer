@@ -5,7 +5,6 @@ module Tests.Pagination where
 
 import Foreword
 
-import Data.Aeson (encode)
 import Data.String (String)
 import Data.Text (unpack)
 import Data.UUID.V4 (nextRandom)
@@ -130,7 +129,7 @@ mkSession n = do
     SessionRow
       { uuid = u
       , gitversion = "test-version"
-      , app = encode newApp
+      , app = newApp
       , name = "name-" <> show n
       }
 

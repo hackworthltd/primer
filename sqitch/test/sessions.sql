@@ -27,7 +27,7 @@ SELECT col_isnt_pk(       'sessions', 'gitversion' );
 SELECT col_isnt_fk(       'sessions', 'gitversion' );
 
 SELECT has_column(        'sessions', 'app' );
-SELECT col_type_is(       'sessions', 'app', 'bytea' );
+SELECT col_type_is(       'sessions', 'app', 'jsonb' );
 SELECT col_not_null(      'sessions', 'app' );
 SELECT col_hasnt_default( 'sessions', 'app' );
 SELECT col_isnt_pk(       'sessions', 'app' );

@@ -5,3 +5,5 @@
 appschema 2022-02-08T12:22:57Z Drew Hess <dhess@hackworthltd.com> # Initial Primer schema.
 sessions [appschema] 2022-02-08T15:03:26Z Drew Hess <dhess@hackworthltd.com> # Create the sessions table.
 @v0.7.1.0 2022-02-08T22:58:10Z Drew Hess <dhess@hackworthltd.com> # Tag v0.7.1.0.
+
+migrate-app-to-jsonb [sessions appschema] 2022-03-06T21:39:29Z Drew Hess <dhess@hackworthltd.com> # Convert the app encoding to jsonb.
