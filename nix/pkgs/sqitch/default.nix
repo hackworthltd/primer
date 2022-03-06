@@ -83,7 +83,7 @@ let
         TypeTiny
         URI
         URIdb
-        libintlperl
+        libintl-perl
         namespaceautoclean
       ]);
 
