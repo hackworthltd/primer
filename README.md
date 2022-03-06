@@ -58,6 +58,13 @@ CONTAINER ID   IMAGE                      COMMAND                  CREATED      
 a818e6d5f3ef   postgres:13.4-alpine3.14   "docker-entrypoint.s…"   29 hours ago   Up 2 minutes   0.0.0.0:5432->5432/tcp, :::5432->5432/tcp   postgres-primer
 ```
 
+If it's not, then perform the following steps:
+
+```sh
+colima start --runtime docker --profile primer
+nix run .#start-posgresql-container
+```
+
 The details of each script in this repo follow:
 
 ### `deploy-postgresql-container`
