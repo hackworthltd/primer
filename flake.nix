@@ -489,7 +489,30 @@
             ]);
             meta.description = "Required CI builds";
           };
-      };
+      }
+
+      // forAllTestSystems (system: {
+        tests =
+          let
+            pkgs = pkgsFor system;
+          in
+          (hacknix.lib.testing.nixos.importFromDirectory ./nixos-tests
+            {
+              inherit system pkgs;
+              extraConfigurations = [
+                {
+                  # Note: don't include overlays.primer here, because
+                  # we don't need it for these tests, and it will
+                  # adversely affect caching.
+                  nixpkgs.overlays = with self.overlays; [
+                    lib
+                    db-scripts
+                  ];
+                }
+              ];
+            }
+            { });
+      });
 
       ciJobs = hacknix.lib.flakes.recurseIntoHydraJobs self.hydraJobs;
     };
