@@ -16,8 +16,9 @@ let
   postgresVolume = "postgres-primer";
   postgresContainer = "postgres-primer";
 
-  sqitchBundle = stdenv.mkDerivation {
-    pname = "bundle-sqitch";
+  # Run any sqitch command using the Primer schema.
+  primer-sqitch = stdenv.mkDerivation {
+    pname = "primer-sqitch";
     version = "1.0";
     nativeBuildInputs = [ sqitch makeWrapper ];
     src = sqitchDir;
@@ -31,13 +32,30 @@ let
       mv bundle $out/libexec/sqitch
 
       mkdir -p $out/bin
-      makeWrapper "${sqitch}/bin/sqitch" "$out/bin/sqitch" \
+      makeWrapper "${sqitch}/bin/sqitch" "$out/bin/primer-sqitch" \
         --prefix PATH : "${lib.makeBinPath [postgresql]}" \
         --run "cd $out/libexec/sqitch"
     '';
   };
+
+  # Bundle our PostgreSQL unit tests, to be used via `pgtap`/`pg_prove`.
+  primer-pgtap-tests = stdenv.mkDerivation {
+    pname = "primer-pgtap-tests";
+    version = "1.0";
+    src = "${sqitchDir}/test";
+
+    buildPhase = "";
+
+    installPhase = ''
+      mkdir -p $out/libexec/pgtap/test
+      mv * $out/libexec/pgtap/test
+    '';
+  };
 in
 {
+  inherit primer-sqitch;
+  inherit primer-pgtap-tests;
+
   deploy-postgresql-container = writeShellApplication {
     name = "deploy-postgresql-container";
     runtimeInputs = [
@@ -85,50 +103,50 @@ in
   deploy-local-db = writeShellApplication {
     name = "deploy-local-db";
     runtimeInputs = [
-      sqitchBundle
+      primer-sqitch
     ];
     text = ''
-      sqitch deploy --verify db:${lib.primer.postgres-dev-primer-url}
+      primer-sqitch deploy --verify db:${lib.primer.postgres-dev-primer-url}
     '';
   };
 
   verify-local-db = writeShellApplication {
     name = "verify-local-db";
     runtimeInputs = [
-      sqitchBundle
+      primer-sqitch
     ];
     text = ''
-      sqitch verify db:${lib.primer.postgres-dev-primer-url}
+      primer-sqitch verify db:${lib.primer.postgres-dev-primer-url}
     '';
   };
 
   revert-local-db = writeShellApplication {
     name = "revert-local-db";
     runtimeInputs = [
-      sqitchBundle
+      primer-sqitch
     ];
     text = ''
-      sqitch revert db:${lib.primer.postgres-dev-primer-url} "$@"
+      primer-sqitch revert db:${lib.primer.postgres-dev-primer-url} "$@"
     '';
   };
 
   status-local-db = writeShellApplication {
     name = "status-local-db";
     runtimeInputs = [
-      sqitchBundle
+      primer-sqitch
     ];
     text = ''
-      sqitch status db:${lib.primer.postgres-dev-primer-url}
+      primer-sqitch status db:${lib.primer.postgres-dev-primer-url}
     '';
   };
 
   log-local-db = writeShellApplication {
     name = "log-local-db";
     runtimeInputs = [
-      sqitchBundle
+      primer-sqitch
     ];
     text = ''
-      sqitch log db:${lib.primer.postgres-dev-primer-url}
+      primer-sqitch log db:${lib.primer.postgres-dev-primer-url}
     '';
   };
 
@@ -169,17 +187,6 @@ in
       psql ${lib.primer.postgres-dev-base-url} --command="DROP DATABASE primer;" || true
       psql ${lib.primer.postgres-dev-base-url} --command="CREATE DATABASE primer;"
       psql ${lib.primer.postgres-dev-primer-url} < "$1"
-    '';
-  };
-
-  # Run any sqitch command using the Primer schema.
-  primer-sqitch = writeShellApplication {
-    name = "primer-sqitch";
-    runtimeInputs = [
-      sqitchBundle
-    ];
-    text = ''
-      sqitch "$@"
     '';
   };
 }

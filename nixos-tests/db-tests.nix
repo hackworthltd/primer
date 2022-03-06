@@ -1,7 +1,7 @@
 { testingPython, ... }:
 with testingPython;
 makeTest {
-  name = "db-init";
+  name = "db-tests";
 
   meta = with pkgs.lib.maintainers; { maintainers = [ dhess ]; };
 
@@ -10,6 +10,8 @@ makeTest {
       services.postgresql = {
         enable = true;
         package = pkgs.postgresql_13;
+
+        extraPlugins = [ pkgs.postgresql13Packages.pgtap ];
 
         # Note: this may look odd, but keep in mind that Sqitch does
         # not create the database, only its schema. In a hosted
@@ -46,8 +48,13 @@ makeTest {
     ''
       start_all()
       server.wait_for_unit("postgresql")
+
       server.succeed(
         "${pkgs.sudo}/bin/sudo -u primer ${pkgs.primer-sqitch}/bin/primer-sqitch deploy --verify db:pg:primer"
+      )
+
+      server.succeed(
+        "${pkgs.sudo}/bin/sudo -u primer ${pkgs.pg_prove}/bin/pg_prove -v -d primer --ext .sql ${pkgs.primer-pgtap-tests}/libexec/pgtap/test/"
       )
     '';
 }
