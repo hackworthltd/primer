@@ -4,23 +4,19 @@ module Tests.QuerySessionId where
 
 import Foreword
 
-import qualified Data.Aeson as Aeson
 import Primer.App (
   newApp,
  )
 import Primer.Database (
   DbError (SessionIdNotFound),
   SessionData (..),
-  SessionId,
   defaultSessionName,
-  fromSessionName,
   insertSession,
   newSessionId,
   querySessionId,
   safeMkSessionName,
  )
 import Primer.Database.Rel8.Rel8Db (
-  Rel8DbException (LoadSessionProgramDecodingError),
   runRel8Db,
  )
 import qualified Primer.Database.Rel8.Schema as Schema (
@@ -30,15 +26,10 @@ import Rel8 (lit)
 import Test.Tasty (TestTree)
 import Test.Tasty.HUnit (testCaseSteps)
 import TestUtils (
-  assertException,
   insertSessionRow,
   withDbSetup,
   (@?=),
  )
-
-expectedError :: SessionId -> Rel8DbException -> Bool
-expectedError id_ (LoadSessionProgramDecodingError s _) = id_ == s
-expectedError _ _ = False
 
 -- Note: 'querySessionId' gets plenty of coverage in our other unit
 -- tests by virtue of the fact we use it to retrieve results that we
@@ -69,20 +60,6 @@ test_querySessionId = testCaseSteps "querySessionId corner cases" $ \step' ->
       r1 <- querySessionId nonexistentSessionId
       r1 @?= Left (SessionIdNotFound nonexistentSessionId)
 
-      step "Attempt to fetch a session whose program is invalid"
-      invalidProgramSessionId <- liftIO newSessionId
-      let invalidProgramName = safeMkSessionName "this program is broken"
-      let invalidProgramRow =
-            lit
-              Schema.SessionRow
-                { Schema.uuid = invalidProgramSessionId
-                , Schema.gitversion = version
-                , Schema.app = Aeson.encode ()
-                , Schema.name = fromSessionName invalidProgramName
-                }
-      liftIO $ insertSessionRow invalidProgramRow conn
-      assertException "querySessionId" (expectedError invalidProgramSessionId) $ querySessionId invalidProgramSessionId
-
       step "Attempt to fetch a session whose name is invalid"
       invalidNameSessionId <- liftIO newSessionId
       let invalidName = ""
@@ -91,7 +68,7 @@ test_querySessionId = testCaseSteps "querySessionId corner cases" $ \step' ->
               Schema.SessionRow
                 { Schema.uuid = invalidNameSessionId
                 , Schema.gitversion = version
-                , Schema.app = Aeson.encode newApp
+                , Schema.app = newApp
                 , Schema.name = invalidName
                 }
       liftIO $ insertSessionRow invalidNameRow conn

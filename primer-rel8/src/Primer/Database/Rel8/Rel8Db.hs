@@ -29,7 +29,6 @@ import Control.Monad.Fix (MonadFix)
 import Control.Monad.Trans (MonadTrans)
 import Control.Monad.Writer (MonadWriter)
 import Control.Monad.Zip (MonadZip)
-import qualified Data.Aeson as Aeson
 import Data.Functor.Contravariant ((>$<))
 import Data.UUID (UUID)
 import Hasql.Connection (Connection)
@@ -134,7 +133,7 @@ instance (MonadThrow m, MonadIO m) => MonadDb (Rel8DbT m) where
                     Schema.SessionRow
                       { Schema.uuid = s
                       , Schema.gitversion = v
-                      , Schema.app = Aeson.encode a
+                      , Schema.app = a
                       , Schema.name = fromSessionName n
                       }
                 ]
@@ -152,7 +151,7 @@ instance (MonadThrow m, MonadIO m) => MonadDb (Rel8DbT m) where
             , set = \_ row ->
                 row
                   { Schema.gitversion = lit v
-                  , Schema.app = lit (Aeson.encode a)
+                  , Schema.app = lit a
                   }
             , updateWhere = \_ row -> Schema.uuid row ==. litExpr s
             , returning = NumberOfRowsAffected
@@ -211,26 +210,23 @@ instance (MonadThrow m, MonadIO m) => MonadDb (Rel8DbT m) where
     case result of
       [] -> return $ Left $ SessionIdNotFound sid
       (s : _) ->
-        case Aeson.eitherDecode (Schema.app s) of
-          Left e -> throwM $ LoadSessionProgramDecodingError sid $ toS e
-          Right decodedApp -> do
-            -- Note that we have 2 choices here if the session name
-            -- returned by the database is not a valid 'SessionName':
-            -- either we can return a failure, or we can convert it to
-            -- a valid 'SessionName', possibly including a helpful
-            -- message. This situation can only ever happen if we've
-            -- made a mistake (e.g., we've changed the rules on what's
-            -- a valid 'SessionName' and didn't run a migration), or
-            -- if someone has edited the database directly, without
-            -- going through the API. In either case, it would be bad
-            -- if a student can't load their session just because a
-            -- session name was invalid, so we opt for the "convert it
-            -- to a valid 'SessionName'" strategy. For now, we elide
-            -- the helpful message.
-            --
-            -- We should probably log an event when this occurs. See:
-            -- https://github.com/hackworthltd/primer/issues/179
-            pure $ Right (SessionData decodedApp (safeMkSessionName $ Schema.name s))
+        -- Note that we have 2 choices here if the session name
+        -- returned by the database is not a valid 'SessionName':
+        -- either we can return a failure, or we can convert it to
+        -- a valid 'SessionName', possibly including a helpful
+        -- message. This situation can only ever happen if we've
+        -- made a mistake (e.g., we've changed the rules on what's
+        -- a valid 'SessionName' and didn't run a migration), or
+        -- if someone has edited the database directly, without
+        -- going through the API. In either case, it would be bad
+        -- if a student can't load their session just because a
+        -- session name was invalid, so we opt for the "convert it
+        -- to a valid 'SessionName'" strategy. For now, we elide
+        -- the helpful message.
+        --
+        -- We should probably log an event when this occurs. See:
+        -- https://github.com/hackworthltd/primer/issues/179
+        pure $ Right (SessionData (Schema.app s) (safeMkSessionName $ Schema.name s))
 
 -- | Exceptions that can be thrown by 'Rel8DbT' computations.
 --
@@ -266,10 +262,6 @@ data Rel8DbException
   | -- | An error occurred during a 'LoadSession' operation on the
     -- given 'SessionId'.
     LoadSessionError SessionId QueryError
-  | -- | During a 'LoadSession' operation on the given 'SessionId',
-    -- the stored program could not be decoded. The decoding error is
-    -- provided in the 'Text'.
-    LoadSessionProgramDecodingError SessionId Text
   | -- | An error occurred during a 'ListSessions' operation.
     ListSessionsError QueryError
   | -- | 'Rel8' returned an unexpected result during a 'ListSessions'

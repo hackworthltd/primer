@@ -5,7 +5,6 @@ module Tests.ListSessions where
 
 import Foreword
 
-import Data.Aeson (encode)
 import Data.UUID.V4 (nextRandom)
 import Primer.App (newApp)
 import Primer.Database (
@@ -34,7 +33,7 @@ mkSession n = do
     SessionRow
       { uuid = u
       , gitversion = "test-version"
-      , app = encode newApp
+      , app = newApp
       , name = "name-" <> show n
       }
 
