@@ -63,9 +63,58 @@
         "x86_64-linux"
       ];
 
-      overlay = hacknix.lib.overlays.combine [
-        haskell-nix.overlay
+      overlays.lib = final: prev:
+        let
+          postgres-dev-password = "primer-dev";
+          postgres-dev-base-url = "postgres://postgres:${postgres-dev-password}@localhost:5432";
+          postgres-dev-primer-url = "${postgres-dev-base-url}/primer";
+        in
+        {
+          lib = (prev.lib or { }) // {
+            primer = (prev.lib.primer or { }) // {
+              inherit postgres-dev-password;
+              inherit postgres-dev-base-url;
+              inherit postgres-dev-primer-url;
+            };
+          };
+        };
+
+      overlays.db-scripts = hacknix.lib.overlays.combine [
         hacknix.overlay
+        (final: prev:
+          let
+            sqitch = final.callPackage ./nix/pkgs/sqitch {
+              postgresqlSupport = true;
+            };
+
+            db-scripts = final.lib.recurseIntoAttrs (final.callPackage ./nix/pkgs/db-scripts {
+              sqitchDir = ./sqitch;
+            });
+          in
+          {
+            inherit sqitch;
+            inherit (db-scripts)
+              deploy-postgresql-container
+              start-postgresql-container
+              stop-postgresql-container
+
+              create-local-db
+              deploy-local-db
+              verify-local-db
+              revert-local-db
+              status-local-db
+              log-local-db
+              delete-local-db
+              dump-local-db
+              restore-local-db
+
+              primer-sqitch;
+          }
+        )
+      ];
+
+      overlays.primer = hacknix.lib.overlays.combine [
+        haskell-nix.overlay
         (final: prev:
           let
             primer = final.haskell-nix.cabalProject {
@@ -158,27 +207,27 @@
                 meta.platforms = final.lib.platforms.all;
               });
 
-            sqitch = final.callPackage ./nix/pkgs/sqitch { postgresqlSupport = true; };
-
-            primer-scripts = final.lib.recurseIntoAttrs (final.callPackage ./nix/pkgs/primer-scripts {
-              sqitchDir = ./sqitch;
-              primerVersion = version;
-            });
+            run-primer = final.writeShellApplication {
+              name = "run-primer";
+              runtimeInputs = [
+                final.primer-service
+              ];
+              text = ''
+                DATABASE_URL="${final.lib.primer.postgres-dev-primer-url}"
+                export DATABASE_URL
+                primer-service serve . ${version} "$@"
+              '';
+            };
           in
           {
             inherit primer;
             inherit ghcjsPrimer;
 
-            inherit sqitch;
-
             primer-service = primerFlake.packages."primer-service:exe:primer-service";
             primer-openapi = primerFlake.packages."primer-service:exe:primer-openapi";
 
             inherit primer-openapi-spec;
-
-            inherit primer-scripts;
-            inherit (primer-scripts) deploy-postgresql-container start-postgresql-container stop-postgresql-container;
-            inherit (primer-scripts) run-primer create-local-db deploy-local-db verify-local-db revert-local-db status-local-db log-local-db delete-local-db dump-local-db restore-local-db primer-sqitch;
+            inherit run-primer;
           }
         )
       ];
@@ -190,13 +239,14 @@
           allowBroken = true;
         };
         overlays = [
-          overlay
+          overlays.lib
+          overlays.db-scripts
+          overlays.primer
         ];
       };
     in
     {
-      # Note: `overlay` is not per-system like most other flake attributes.
-      inherit overlay;
+      inherit overlays;
     }
 
     // forAllSupportedSystems (system:
@@ -299,9 +349,24 @@
     {
       packages =
         {
-          inherit (pkgs) primer-service;
-          inherit (pkgs) run-primer create-local-db deploy-local-db verify-local-db revert-local-db status-local-db log-local-db delete-local-db dump-local-db restore-local-db primer-sqitch primer-openapi-spec;
-          inherit (pkgs) deploy-postgresql-container start-postgresql-container stop-postgresql-container;
+          inherit (pkgs) primer-service primer-openapi-spec run-primer;
+          inherit (pkgs)
+            create-local-db
+            deploy-local-db
+            verify-local-db
+            revert-local-db
+            status-local-db
+            log-local-db
+            delete-local-db
+            dump-local-db
+            restore-local-db
+
+            sqitch
+            primer-sqitch
+
+            deploy-postgresql-container
+            start-postgresql-container
+            stop-postgresql-container;
         }
         // primerFlake.packages;
 
@@ -317,8 +382,24 @@
         // primerFlake.checks;
 
       apps = {
-        inherit (pkgs) run-primer create-local-db deploy-local-db verify-local-db revert-local-db status-local-db log-local-db delete-local-db dump-local-db restore-local-db primer-sqitch primer-openapi-spec;
-        inherit (pkgs) deploy-postgresql-container start-postgresql-container stop-postgresql-container;
+        inherit (pkgs) run-primer primer-openapi-spec;
+
+        inherit (pkgs)
+          create-local-db
+          deploy-local-db
+          verify-local-db
+          revert-local-db
+          status-local-db
+          log-local-db
+          delete-local-db
+          dump-local-db
+          restore-local-db
+
+          primer-sqitch
+
+          deploy-postgresql-container
+          start-postgresql-container
+          stop-postgresql-container;
       }
       // primerFlake.apps;
 

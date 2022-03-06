@@ -1,6 +1,3 @@
-# Scripts for running a local PostgreSQL container in
-# Docker, and a local primer-service instance.
-
 { stdenv
 , lib
 , makeWrapper
@@ -8,22 +5,16 @@
 , postgresql
 , sqitch
 , coreutils
-, primer-service
 , colima
 , docker
-, primerVersion
 , sqitchDir
 }:
 
 let
-
   dockerContext = "colima-primer";
   postgresImageTag = "postgres:13.4-alpine3.14";
   postgresVolume = "postgres-primer";
   postgresContainer = "postgres-primer";
-  postgresPassword = "primer-dev";
-  postgresBaseUrl = "postgres://postgres:${postgresPassword}@localhost:5432";
-  postgresPrimerUrl = "${postgresBaseUrl}/primer";
 
   sqitchBundle = stdenv.mkDerivation {
     pname = "bundle-sqitch";
@@ -57,7 +48,7 @@ in
       colima start --runtime docker --profile primer
       docker --context ${dockerContext} pull ${postgresImageTag}
       docker volume create postgres-primer
-      docker --context ${dockerContext} run --detach --name=${postgresContainer} --publish 5432:5432 --volume ${postgresVolume}:/var/lib/postgresql/data -e POSTGRES_PASSWORD="${postgresPassword}" ${postgresImageTag}
+      docker --context ${dockerContext} run --detach --name=${postgresContainer} --publish 5432:5432 --volume ${postgresVolume}:/var/lib/postgresql/data -e POSTGRES_PASSWORD="${lib.primer.postgres-dev-password}" ${postgresImageTag}
     '';
   };
 
@@ -87,7 +78,7 @@ in
       postgresql
     ];
     text = ''
-      psql ${postgresBaseUrl} --command="CREATE DATABASE primer;"
+      psql ${lib.primer.postgres-dev-base-url} --command="CREATE DATABASE primer;"
     '';
   };
 
@@ -97,7 +88,7 @@ in
       sqitchBundle
     ];
     text = ''
-      sqitch deploy --verify db:${postgresPrimerUrl}
+      sqitch deploy --verify db:${lib.primer.postgres-dev-primer-url}
     '';
   };
 
@@ -107,7 +98,7 @@ in
       sqitchBundle
     ];
     text = ''
-      sqitch verify db:${postgresPrimerUrl}
+      sqitch verify db:${lib.primer.postgres-dev-primer-url}
     '';
   };
 
@@ -117,7 +108,7 @@ in
       sqitchBundle
     ];
     text = ''
-      sqitch revert db:${postgresPrimerUrl} "$@"
+      sqitch revert db:${lib.primer.postgres-dev-primer-url} "$@"
     '';
   };
 
@@ -127,7 +118,7 @@ in
       sqitchBundle
     ];
     text = ''
-      sqitch status db:${postgresPrimerUrl}
+      sqitch status db:${lib.primer.postgres-dev-primer-url}
     '';
   };
 
@@ -137,7 +128,7 @@ in
       sqitchBundle
     ];
     text = ''
-      sqitch log db:${postgresPrimerUrl}
+      sqitch log db:${lib.primer.postgres-dev-primer-url}
     '';
   };
 
@@ -147,7 +138,7 @@ in
       postgresql
     ];
     text = ''
-      psql ${postgresBaseUrl} --command="DROP DATABASE primer;"
+      psql ${lib.primer.postgres-dev-base-url} --command="DROP DATABASE primer;"
     '';
   };
 
@@ -160,7 +151,7 @@ in
     text = ''
       timestamp=$(date --utc --iso-8601=seconds)
       dumpfile="primer-$timestamp.sql"
-      pg_dump ${postgresPrimerUrl} > "$dumpfile"
+      pg_dump ${lib.primer.postgres-dev-primer-url} > "$dumpfile"
       echo "Dumped local Primer database to $dumpfile"
     '';
   };
@@ -175,9 +166,9 @@ in
         echo "usage: restore-local-db db.sql" >&2
         exit 2
       fi
-      psql ${postgresBaseUrl} --command="DROP DATABASE primer;" || true
-      psql ${postgresBaseUrl} --command="CREATE DATABASE primer;"
-      psql ${postgresPrimerUrl} < "$1"
+      psql ${lib.primer.postgres-dev-base-url} --command="DROP DATABASE primer;" || true
+      psql ${lib.primer.postgres-dev-base-url} --command="CREATE DATABASE primer;"
+      psql ${lib.primer.postgres-dev-primer-url} < "$1"
     '';
   };
 
@@ -189,18 +180,6 @@ in
     ];
     text = ''
       sqitch "$@"
-    '';
-  };
-
-  run-primer = writeShellApplication {
-    name = "run-primer";
-    runtimeInputs = [
-      primer-service
-    ];
-    text = ''
-      DATABASE_URL="${postgresPrimerUrl}"
-      export DATABASE_URL
-      primer-service serve . ${primerVersion} "$@"
     '';
   };
 }
