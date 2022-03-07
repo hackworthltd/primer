@@ -1,6 +1,6 @@
 cabal-version: 2.4
 name:          primer-service
-version:       0.7.1.0
+version:       0.7.2.0
 license:       AGPL-3.0-or-later
 license-file:  COPYING
 copyright:     (c) 2021 Hackworth Ltd
@@ -47,7 +47,7 @@ library
     , mtl                >=2.2.2   && <=2.3
     , openapi3           >=3.2     && <=3.3
     , optics             >=0.4     && <=0.5
-    , primer             ^>=0.7.1
+    , primer             ^>=0.7.2
     , servant            >=0.18    && <=0.20
     , servant-openapi3   ^>=2.0.1.2
     , servant-server     >=0.18    && <=0.20
@@ -91,7 +91,7 @@ executable primer-service
     , hasql                 ^>=1.5
     , optparse-applicative  ^>=0.17
     , primer
-    , primer-rel8           ^>=0.7.1
+    , primer-rel8           ^>=0.7.2
     , primer-service
     , stm
     , stm-containers
