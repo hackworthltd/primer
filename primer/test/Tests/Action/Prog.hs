@@ -34,6 +34,7 @@ import Primer.App (
   Selection (..),
   handleEditRequest,
   handleQuestion,
+  importModules,
   lookupASTDef,
   newApp,
   newEmptyApp,
@@ -46,7 +47,7 @@ import Primer.Core (
   ASTTypeDef (..),
   Def (..),
   Expr' (..),
-  ID,
+  ID (ID),
   Kind (KType),
   Meta (..),
   Type' (..),
@@ -80,7 +81,7 @@ import Primer.Core.DSL (
   tvar,
   var,
  )
-import Primer.Module (Module (Module, moduleDefs, moduleTypes))
+import Primer.Module (Module (moduleDefs, moduleTypes))
 import Primer.Name
 import Primer.Primitives (allPrimTypeDefs)
 import Test.Tasty.HUnit (Assertion, assertBool, assertFailure, (@=?), (@?=))
@@ -622,30 +623,30 @@ unit_copy_paste_sig2ann = do
 -- VariablesInScope sees imported terms
 unit_import_vars :: Assertion
 unit_import_vars =
-  let (prog, maxID) = create defaultImportProg
-      a = newEmptyApp{appProg = prog}
-      test = do
-        prog' <- handleEditRequest [CreateDef Nothing]
-        case Map.assocs $ moduleDefs $ progModule prog' of
+  let test = do
+        p <- defaultPrimsProg
+        importModules [progModule p]
+        gets (Map.assocs . moduleDefs . progModule . appProg) >>= \case
           [(i, DefAST d)] -> do
             a' <- get
             (_, vs) <- runReaderT (handleQuestion (VariablesInScope i $ getID $ astDefExpr d)) a'
             pure $
               assertBool "VariablesInScope did not report the imported Int.+" $
                 any ((== "Int.+") . snd3) vs
-          _ -> pure $ assertFailure "Expected one def which was just created"
-   in case fst $ runAppTestM maxID a test of
+          _ -> pure $ assertFailure "Expected one def 'main' from newEmptyApp"
+      a = newEmptyApp
+   in case fst $ runAppTestM (ID $ appIdCounter a) a test of
         Left err -> assertFailure $ show err
         Right assertion -> assertion
 
 -- Can reference something in an imported module (both types and terms)
 unit_import_reference :: Assertion
 unit_import_reference =
-  let (prog, maxID) = create defaultImportProg
-      a = newEmptyApp{appProg = prog}
-      test = do
-        prog' <- handleEditRequest [CreateDef Nothing]
-        case (findGlobalByName prog' "toUpper", Map.assocs $ moduleDefs $ progModule prog') of
+  let test = do
+        p <- defaultPrimsProg
+        importModules [progModule p]
+        prog <- gets appProg
+        case (findGlobalByName prog "toUpper", Map.assocs $ moduleDefs $ progModule prog) of
           (Just toUpperDef, [(i, _)]) -> do
             _ <-
               handleEditRequest
@@ -655,19 +656,20 @@ unit_import_reference =
                 ]
             pure $ pure ()
           (Nothing, _) -> pure $ assertFailure "Could not find the imported toUpper"
-          (Just _, _) -> pure $ assertFailure "Expected one def which was just created"
-   in case fst $ runAppTestM maxID a test of
+          (Just _, _) -> pure $ assertFailure "Expected one def 'main' from newEmptyApp"
+      a = newEmptyApp
+   in case fst $ runAppTestM (ID $ appIdCounter a) a test of
         Left err -> assertFailure $ show err
         Right assertion -> assertion
 
 -- Can copy and paste from an imported module
 unit_copy_paste_import :: Assertion
 unit_copy_paste_import =
-  let (prog, maxID) = create defaultImportProg
-      a = newApp{appProg = prog}
-      test = do
-        prog' <- handleEditRequest [CreateDef Nothing]
-        case (findGlobalByName prog' "other", Map.assocs $ moduleDefs $ progModule prog') of
+  let test = do
+        p <- defaultPrimsProg
+        importModules [progModule p]
+        prog <- gets appProg
+        case (findGlobalByName prog "other", Map.assocs $ moduleDefs $ progModule prog) of
           (Just (DefAST other), [(i, _)]) -> do
             let fromDef = astDefID other
                 fromType = getID $ astDefType other
@@ -680,8 +682,9 @@ unit_copy_paste_import =
                 ]
             pure $ pure ()
           (Nothing, _) -> pure $ assertFailure "Could not find the imported 'other'"
-          (Just _, _) -> pure $ assertFailure "Expected one def which was just created"
-   in case fst $ runAppTestM maxID a test of
+          (Just _, _) -> pure $ assertFailure "Expected one def 'main' from newEmptyApp"
+      a = newEmptyApp
+   in case fst $ runAppTestM (ID $ appIdCounter a) a test of
         Left err -> assertFailure $ show err
         Right assertion -> assertion
 
@@ -724,16 +727,6 @@ defaultPrimsProg = do
       over (#progModule % #moduleTypes) ((TypeDefPrim <$> toList allPrimTypeDefs) <>)
         . over (#progModule % #moduleDefs) ((DefPrim <$> m) <>)
         $ p
-
--- has `defaultPrimsProg` as an imported module, and a blank editable module
-defaultImportProg :: MonadFresh ID m => m Prog
-defaultImportProg = do
-  p <- defaultPrimsProg
-  pure
-    p
-      { progImports = [progModule p]
-      , progModule = Module{moduleTypes = mempty, moduleDefs = mempty}
-      }
 
 _defIDs :: Traversal' ASTDef ID
 _defIDs = #astDefID `adjoin` #astDefExpr % (_exprMeta % _id `adjoin` _exprTypeMeta % _id) `adjoin` #astDefType % _typeMeta % _id

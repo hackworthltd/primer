@@ -31,6 +31,7 @@ module Primer.App (
   handleEditRequest,
   handleEvalRequest,
   handleEvalFullRequest,
+  importModules,
   MutationRequest (..),
   Selection (..),
   NodeSelection (..),
@@ -62,10 +63,10 @@ import Data.Generics.Uniplate.Zipper (
  )
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
-import Optics (re, traverseOf, view, (%), (.~), (^.), _Left, _Right)
+import Optics (re, traverseOf, view, (%), (%~), (.~), (^.), _Left, _Right)
 import Primer.Action (
   Action,
-  ActionError (IDNotFound),
+  ActionError (IDNotFound, ImportFailed),
   ProgAction (..),
   applyActionsToBody,
   applyActionsToTypeSig,
@@ -118,6 +119,7 @@ import Primer.Questions (
   variablesInScopeTy,
  )
 import Primer.Typecheck (
+  CheckEverythingRequest (CheckEverything, toCheck, trusted),
   Cxt,
   SmartHoles (NoSmartHoles, SmartHoles),
   TypeError,
@@ -185,6 +187,24 @@ data Prog = Prog
 -- All modules in a @Prog@ shall be well-typed, in the appropriate scope:
 -- all the imports are in one mutual dependency group
 -- the @progModule@ has all the imports in scope
+
+-- | Imports some explicitly-given modules, ensuring that they are well-typed
+-- (and all their dependencies are already imported)
+importModules :: MonadEditApp m => [Module] -> m ()
+importModules ms = do
+  -- NB: we do not enforce the invariant that IDs and Names are globally unique
+  -- (see Note [Modules]), because we plan to only use this function internally
+  -- until we add unique names to modules.
+  -- This means that any call to this function should ensure that the IDs/Names
+  -- in the imported module are distinct from those already existing in the
+  -- App.
+  p <- gets appProg
+  checkedImports' <- runExceptT $ checkEverything NoSmartHoles $ CheckEverything{trusted = progImports p, toCheck = ms}
+  checkedImports <- case checkedImports' of
+    Left err -> throwError $ ActionError $ ImportFailed () err
+    Right ci -> pure ci
+  let p' = p & #progImports %~ (<> checkedImports)
+  modify (\a -> a{appProg = p'})
 
 -- | Get all type definitions from all modules (including imports)
 allTypes :: Prog -> [TypeDef]
@@ -412,12 +432,12 @@ applyProgAction prog mdefID = \case
     | mod <- progModule prog
     , Map.member id_ (moduleDefs mod) -> do
         let modDefs' = Map.delete id_ $ moduleDefs mod
-            prog' = prog{progModule = mod{moduleDefs = modDefs'}, progSelection = Nothing}
+            mod' = mod{moduleDefs = modDefs'}
+            prog' = prog{progModule = mod', progSelection = Nothing}
         -- Run a full TC solely to ensure that no references to the removed id
         -- remain. This is rather inefficient and could be improved in the
         -- future.
-        -- TODO: when we add imports, we do not need to re-check those, as they will not have changed
-        runExceptT (checkEverything @TypeError NoSmartHoles (allTypes prog) (allDefs prog')) >>= \case
+        runExceptT (checkEverything @TypeError NoSmartHoles CheckEverything{trusted = progImports prog, toCheck = [mod']}) >>= \case
           Left _ -> throwError $ DefInUse id_
           Right _ -> pure ()
         pure (prog', Nothing)
@@ -451,16 +471,21 @@ applyProgAction prog mdefID = \case
     let def = ASTDef id_ name expr ty
     pure (addDef def prog{progSelection = Just $ Selection def Nothing}, Just id_)
   AddTypeDef td -> do
-    runExceptT @TypeError (checkTypeDefs $ allTypes prog <> [TypeDefAST td]) >>= \case
-      -- The frontend should never let this error case happen,
-      -- so we just dump out a raw string for debugging/logging purposes
-      -- (This is not currently true! We should synchronise the frontend with
-      -- the typechecker rules. For instance, the form allows to create
-      --   data T (T : *) = T
-      -- but the TC rejects it.
-      -- see https://github.com/hackworthltd/primer/issues/3)
-      Left err -> throwError $ TypeDefError $ show err
-      Right _ -> pure (addTypeDef td prog, mdefID)
+    runExceptT @TypeError
+      ( runReaderT
+          (checkTypeDefs [TypeDefAST td])
+          (buildTypingContext (allTypes prog) mempty NoSmartHoles)
+      )
+      >>= \case
+        -- The frontend should never let this error case happen,
+        -- so we just dump out a raw string for debugging/logging purposes
+        -- (This is not currently true! We should synchronise the frontend with
+        -- the typechecker rules. For instance, the form allows to create
+        --   data T (T : *) = T
+        -- but the TC rejects it.
+        -- see https://github.com/hackworthltd/primer/issues/3)
+        Left err -> throwError $ TypeDefError $ show err
+        Right _ -> pure (addTypeDef td prog, mdefID)
   BodyAction actions -> do
     withDef mdefID prog $ \def -> do
       smartHoles <- gets $ progSmartHoles . appProg

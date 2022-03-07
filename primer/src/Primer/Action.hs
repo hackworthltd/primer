@@ -91,6 +91,7 @@ import Primer.Name.Fresh (
 import Primer.Questions (Question)
 import Primer.Refine (Inst (InstAPP, InstApp, InstUnconstrainedAPP), refine)
 import Primer.Typecheck (
+  CheckEverythingRequest (CheckEverything, toCheck, trusted),
   SmartHoles,
   TypeError,
   buildTypingContext,
@@ -353,6 +354,12 @@ data ActionError
     -- a bug. It does not get thrown for "no valid refinement found"
     -- - see Note [No valid refinement]
     RefineError Text
+  | -- | Importing some modules failed.
+    -- This should be impossible as long as the requested modules are well-typed
+    -- and all of their dependencies are already imported
+    ImportFailed () TypeError
+  -- The extra unit is to avoid having two constructors with a single
+  -- TypeError field, breaking our MonadNestedError machinery...
   deriving (Eq, Show, Generic)
   deriving (FromJSON, ToJSON) via VJSON ActionError
 
@@ -435,14 +442,12 @@ applyActionsToTypeSig smartHoles imports mod def actions =
       -- typechecked against the new type.
       -- Now we need to typecheck the whole program again, to check any uses of the definition
       -- We make sure that the updated type is present in the global context.
-      -- Here we just check the whole prog, including imports.
-      -- TODO: for efficiency, we should not check the immutable imports
-      checkedDefs <-
-        checkEverything
-          smartHoles
-          (concatMap moduleTypes $ mod' : imports)
-          (foldMap moduleDefs $ mod' : imports)
-      pure (def', mod'{moduleDefs = checkedDefs}, zt)
+      -- Here we just check the whole of the mutable prog, excluding imports.
+      -- (for efficiency, we need not check the type definitions, but we do not implement this optimisation)
+      checkEverything smartHoles (CheckEverything{trusted = imports, toCheck = [mod']}) >>= \case
+        [checkedMod] -> pure (def', checkedMod, zt)
+        -- This internal error will go away when we allow Progs to contain multiple mutable modules
+        _ -> throwError $ CustomFailure NoOp "Internal error: checkEverything returned a different number of module as were passed in"
     -- Actions expect that all ASTs have a top-level expression of some sort.
     -- Signatures don't have this: they're just a type.
     -- We fake it by wrapping the type in a top-level annotation node, then unwrapping afterwards.
