@@ -447,20 +447,20 @@ unit_copy_paste_duplicate = do
 -- - The d is bound within the copied subtree, so it is in-scope
 unit_copy_paste_type_scoping :: Assertion
 unit_copy_paste_type_scoping = do
-  let ((pInitial, defID, srcID, pExpected), maxID) = create $ do
+  let ((pInitial, definitionID, srcID, pExpected), maxID) = create $ do
         toCopy <- tvar "a" `tfun` tvar "b" `tfun` tforall "d" KType (tvar "c" `tfun` tvar "d")
         let skel r = tforall "a" KType $ tfun (tforall "b" KType $ tforall "c" KType $ pure toCopy) $ tforall "c" KType r
-        defID' <- fresh
-        defInitial <- ASTDef defID' "main" <$> emptyHole <*> skel tEmptyHole
-        expected <- ASTDef defID' "main" <$> emptyHole <*> skel (tvar "a" `tfun` tEmptyHole `tfun` tforall "d" KType (tEmptyHole `tfun` tvar "d"))
+        definitionID' <- fresh
+        defInitial <- ASTDef definitionID' "main" <$> emptyHole <*> skel tEmptyHole
+        expected <- ASTDef definitionID' "main" <$> emptyHole <*> skel (tvar "a" `tfun` tEmptyHole `tfun` tforall "d" KType (tEmptyHole `tfun` tvar "d"))
         pure
-          ( newEmptyProg & #progModule % #moduleDefs .~ Map.fromList [(defID', DefAST defInitial)]
-          , defID'
+          ( newEmptyProg & #progModule % #moduleDefs .~ Map.fromList [(definitionID', DefAST defInitial)]
+          , definitionID'
           , getID toCopy
-          , newEmptyProg & #progModule % #moduleDefs .~ Map.fromList [(defID', DefAST expected)]
+          , newEmptyProg & #progModule % #moduleDefs .~ Map.fromList [(definitionID', DefAST expected)]
           )
   let a = newEmptyApp{appProg = pInitial}
-      actions = [MoveToDef defID, CopyPasteSig (defID, srcID) [Move Child1, Move Child2, Move Child1]]
+      actions = [MoveToDef definitionID, CopyPasteSig (definitionID, srcID) [Move Child1, Move Child2, Move Child1]]
       (result, _) = runAppTestM maxID a $ (,) <$> tcWholeProg pExpected <*> handleEditRequest actions
   case result of
     Left e -> assertFailure $ show e
@@ -474,19 +474,19 @@ unit_copy_paste_type_scoping = do
 -- ∀a b.a ~> ∀a.a
 unit_raise :: Assertion
 unit_raise = do
-  let ((pInitial, defID, srcID, pExpected), maxID) = create $ do
-        defID' <- fresh
+  let ((pInitial, definitionID, srcID, pExpected), maxID) = create $ do
+        definitionID' <- fresh
         toCopy <- tvar "a"
-        defInitial <- ASTDef defID' "main" <$> emptyHole <*> tforall "a" KType (tforall "b" KType $ pure toCopy)
-        expected <- ASTDef defID' "main" <$> emptyHole <*> tforall "a" KType (tvar "a")
+        defInitial <- ASTDef definitionID' "main" <$> emptyHole <*> tforall "a" KType (tforall "b" KType $ pure toCopy)
+        expected <- ASTDef definitionID' "main" <$> emptyHole <*> tforall "a" KType (tvar "a")
         pure
-          ( newEmptyProg & #progModule % #moduleDefs .~ Map.fromList [(defID', DefAST defInitial)]
-          , defID'
+          ( newEmptyProg & #progModule % #moduleDefs .~ Map.fromList [(definitionID', DefAST defInitial)]
+          , definitionID'
           , getID toCopy
-          , newEmptyProg & #progModule % #moduleDefs .~ Map.fromList [(defID', DefAST expected)]
+          , newEmptyProg & #progModule % #moduleDefs .~ Map.fromList [(definitionID', DefAST expected)]
           )
   let a = newEmptyApp{appProg = pInitial}
-      actions = [MoveToDef defID, CopyPasteSig (defID, srcID) [Move Child1, Delete]]
+      actions = [MoveToDef definitionID, CopyPasteSig (definitionID, srcID) [Move Child1, Delete]]
       (result, _) = runAppTestM maxID a $ (,) <$> tcWholeProg pExpected <*> handleEditRequest actions
   case result of
     Left e -> assertFailure $ show e
@@ -502,8 +502,8 @@ unit_raise = do
 -- /\a . λ x . case x of Nil -> lettype b = ? in let y = ? : a in Pair @a @b y z ; Cons y ys -> /\@b z -> Pair @a @b y z
 unit_copy_paste_expr_1 :: Assertion
 unit_copy_paste_expr_1 = do
-  let ((pInitial, defID, srcID, pExpected), maxID) = create $ do
-        defID' <- fresh
+  let ((pInitial, definitionID, srcID, pExpected), maxID) = create $ do
+        definitionID' <- fresh
         ty <- tforall "a" KType $ (tcon "List" `tapp` tvar "a") `tfun` tforall "b" KType (tvar "b" `tfun` (tcon "Pair" `tapp` tvar "a" `tapp` tvar "b"))
         let toCopy' = con "MakePair" `aPP` tvar "a" `aPP` tvar "b" `app` var "y" `app` var "z" -- want different IDs for the two occurences in expected
         toCopy <- toCopy'
@@ -519,16 +519,16 @@ unit_copy_paste_expr_1 = do
         -- TODO: in the future we may want to insert let bindings for variables
         -- which are out of scope in the target, and produce something like
         -- expectPasted <- letType "b" tEmptyHole $ let_ "y" (emptyHole `ann` tvar "a") $ let_ "z" (emptyHole `ann` tvar "b") toCopy'
-        defInitial <- ASTDef defID' "main" <$> skel emptyHole <*> pure ty
-        expected <- ASTDef defID' "main" <$> skel (pure expectPasted) <*> pure ty
+        defInitial <- ASTDef definitionID' "main" <$> skel emptyHole <*> pure ty
+        expected <- ASTDef definitionID' "main" <$> skel (pure expectPasted) <*> pure ty
         pure
-          ( newProg & #progModule % #moduleDefs .~ Map.fromList [(defID', DefAST defInitial)]
-          , defID'
+          ( newProg & #progModule % #moduleDefs .~ Map.fromList [(definitionID', DefAST defInitial)]
+          , definitionID'
           , getID toCopy
-          , newProg & #progModule % #moduleDefs .~ Map.fromList [(defID', DefAST expected)]
+          , newProg & #progModule % #moduleDefs .~ Map.fromList [(definitionID', DefAST expected)]
           )
   let a = newApp{appProg = pInitial}
-      actions = [MoveToDef defID, CopyPasteBody (defID, srcID) [Move Child1, Move Child1, Move (Branch "Nil")]]
+      actions = [MoveToDef definitionID, CopyPasteBody (definitionID, srcID) [Move Child1, Move Child1, Move (Branch "Nil")]]
       (result, _) = runAppTestM maxID a $ (,) <$> tcWholeProg pExpected <*> handleEditRequest actions
   case result of
     Left e -> assertFailure $ show e
@@ -569,19 +569,19 @@ unit_copy_paste_ann = do
 
 unit_copy_paste_ann2sig :: Assertion
 unit_copy_paste_ann2sig = do
-  let ((pInitial, defID, srcID, pExpected), maxID) = create $ do
-        defID' <- fresh
+  let ((pInitial, definitionID, srcID, pExpected), maxID) = create $ do
+        definitionID' <- fresh
         toCopy <- tcon "Bool"
-        defInitial <- ASTDef defID' "main" <$> emptyHole `ann` pure toCopy <*> tEmptyHole
-        expected <- ASTDef defID' "main" <$> emptyHole `ann` pure toCopy <*> tcon "Bool"
+        defInitial <- ASTDef definitionID' "main" <$> emptyHole `ann` pure toCopy <*> tEmptyHole
+        expected <- ASTDef definitionID' "main" <$> emptyHole `ann` pure toCopy <*> tcon "Bool"
         pure
-          ( newProg & #progModule % #moduleDefs .~ Map.fromList [(defID', DefAST defInitial)]
-          , defID'
+          ( newProg & #progModule % #moduleDefs .~ Map.fromList [(definitionID', DefAST defInitial)]
+          , definitionID'
           , getID toCopy
-          , newProg & #progModule % #moduleDefs .~ Map.fromList [(defID', DefAST expected)]
+          , newProg & #progModule % #moduleDefs .~ Map.fromList [(definitionID', DefAST expected)]
           )
   let a = newApp{appProg = pInitial}
-      actions = [MoveToDef defID, CopyPasteSig (defID, srcID) []]
+      actions = [MoveToDef definitionID, CopyPasteSig (definitionID, srcID) []]
       (result, _) = runAppTestM maxID a $ (,) <$> tcWholeProg pExpected <*> handleEditRequest actions
   case result of
     Left e -> assertFailure $ show e
@@ -593,19 +593,19 @@ unit_copy_paste_ann2sig = do
 
 unit_copy_paste_sig2ann :: Assertion
 unit_copy_paste_sig2ann = do
-  let ((pInitial, defID, srcID, pExpected), maxID) = create $ do
-        defID' <- fresh
+  let ((pInitial, definitionID, srcID, pExpected), maxID) = create $ do
+        definitionID' <- fresh
         toCopy <- tcon "Bool"
-        defInitial <- ASTDef defID' "main" <$> emptyHole <*> pure toCopy
-        expected <- ASTDef defID' "main" <$> emptyHole `ann` tcon "Bool" <*> pure toCopy
+        defInitial <- ASTDef definitionID' "main" <$> emptyHole <*> pure toCopy
+        expected <- ASTDef definitionID' "main" <$> emptyHole `ann` tcon "Bool" <*> pure toCopy
         pure
-          ( newProg & #progModule % #moduleDefs .~ Map.fromList [(defID', DefAST defInitial)]
-          , defID'
+          ( newProg & #progModule % #moduleDefs .~ Map.fromList [(definitionID', DefAST defInitial)]
+          , definitionID'
           , getID toCopy
-          , newProg & #progModule % #moduleDefs .~ Map.fromList [(defID', DefAST expected)]
+          , newProg & #progModule % #moduleDefs .~ Map.fromList [(definitionID', DefAST expected)]
           )
   let a = newApp{appProg = pInitial}
-      actions = [MoveToDef defID, CopyPasteBody (defID, srcID) [ConstructAnn, EnterType]]
+      actions = [MoveToDef definitionID, CopyPasteBody (definitionID, srcID) [ConstructAnn, EnterType]]
       (result, _) = runAppTestM maxID a $ (,) <$> tcWholeProg pExpected <*> handleEditRequest actions
   case result of
     Left e -> assertFailure $ show e
