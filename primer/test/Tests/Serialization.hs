@@ -193,4 +193,5 @@ fixtures =
           )
       , mkFixture "prim_char" $ PrimCon @() @() () $ PrimChar 'a'
       , mkFixture "prim_int" $ PrimCon @() @() () $ PrimInt 42
+      , mkFixture "golden_file_not_checked_in" ()
       ]
