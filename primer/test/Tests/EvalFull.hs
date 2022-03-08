@@ -14,7 +14,16 @@ import Hedgehog hiding (Var, test)
 import qualified Hedgehog.Gen as Gen
 import qualified Hedgehog.Range as Range
 import Optics
-import Primer.App (defaultTypeDefs)
+import Primer.App (
+  App (appIdCounter, appProg),
+  EvalFullReq (EvalFullReq, evalFullCxtDir, evalFullMaxSteps, evalFullReqExpr),
+  EvalFullResp (EvalFullRespNormal, EvalFullRespTimedOut),
+  Prog (progModule),
+  defaultTypeDefs,
+  handleEvalFullRequest,
+  importModules,
+  newEmptyApp,
+ )
 import Primer.Core
 import Primer.Core.DSL
 import Primer.Core.Utils (forgetIDs, generateIDs, generateTypeIDs)
@@ -27,9 +36,12 @@ import Primer.Typecheck (
   mkTypeDefMap,
   typeDefs,
  )
+import Protolude.Partial (fromJust)
 import Test.Tasty.HUnit (Assertion, assertBool, assertFailure, (@?=))
 import TestM
 import TestUtils (withPrimDefs)
+import Tests.Action.Prog (defaultPrimsProg, findGlobalByName, runAppTestM)
+import Tests.Eval ((~=))
 import Tests.Gen.Core.Typed (checkTest)
 
 unit_1 :: Assertion
@@ -893,6 +905,31 @@ unit_prim_partial_map =
                 ]
       map_ <- lAM "a" $ lAM "b" $ lam "f" $ letrec "go" worker ((tcon "List" `tapp` tvar "a") `tfun` (tcon "List" `tapp` tvar "b")) $ var "go"
       pure $ DefAST $ ASTDef mapID "map" map_ mapTy
+
+-- Test that handleEvalFullRequest will reduce imported terms
+unit_eval_full_modules :: Assertion
+unit_eval_full_modules =
+  let test = do
+        p <- defaultPrimsProg
+        importModules [progModule p]
+        prog <- gets appProg
+        let toUpperId = defID $ fromJust $ findGlobalByName prog "toUpper"
+        foo <- global toUpperId `app` char 'a'
+        resp <-
+          handleEvalFullRequest
+            EvalFullReq
+              { evalFullReqExpr = foo
+              , evalFullCxtDir = Chk
+              , evalFullMaxSteps = 2
+              }
+        expect <- char 'A'
+        pure $ case resp of
+          EvalFullRespTimedOut _ -> assertFailure "EvalFull timed out"
+          EvalFullRespNormal e -> e ~= expect
+      a = newEmptyApp
+   in case fst $ runAppTestM (ID $ appIdCounter a) a test of
+        Left err -> assertFailure $ show err
+        Right assertion -> assertion
 
 -- * Utilities
 
