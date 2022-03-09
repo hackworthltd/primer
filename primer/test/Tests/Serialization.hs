@@ -193,5 +193,7 @@ fixtures =
           )
       , mkFixture "prim_char" $ PrimCon @() @() () $ PrimChar 'a'
       , mkFixture "prim_int" $ PrimCon @() @() () $ PrimInt 42
-      , mkFixture "golden_file_not_checked_in" ()
       ]
+
+test_no_golden_file :: TestTree
+test_no_golden_file = goldenVsString "no golden file" "test/outputs/serialization/nonexistent.json" (pure mempty)
