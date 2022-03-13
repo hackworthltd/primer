@@ -365,7 +365,7 @@ applyProgAction prog mdefID = \case
     Nothing -> throwError $ DefNotFound id_
     Just def -> do
       let name = unsafeMkName nameStr
-      let existingName = Map.lookupMin $ Map.filter ((== name) . astDefName) $ Map.mapMaybe defAST $ progDefs prog
+          existingName = Map.lookupMin $ Map.filter ((== name) . defName) $ progDefs prog
       case existingName of
         Just (existingID, _) -> throwError $ DefAlreadyExists name existingID
         Nothing -> do
