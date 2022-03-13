@@ -489,12 +489,14 @@
           pkgs.releaseTools.aggregate {
             name = "required";
             constituents = builtins.map builtins.attrValues (with self.hydraJobs; [
+              # Temporarily disable macOS checks.
+
               packages.x86_64-linux
-              packages.aarch64-darwin
+              #packages.aarch64-darwin
               checks.x86_64-linux
-              checks.aarch64-darwin
+              #checks.aarch64-darwin
               tests.x86_64-linux
-              devShell
+              #devShell
             ]);
             meta.description = "Required CI builds";
           };
