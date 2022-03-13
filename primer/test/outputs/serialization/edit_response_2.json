@@ -1,38 +1,6 @@
 {
     "Right": {
-        "progDefs": {
-            "1": {
-                "contents": {
-                    "astDefExpr": {
-                        "contents": [
-                            0,
-                            {
-                                "contents": {
-                                    "contents": [],
-                                    "tag": "TEmptyHole"
-                                },
-                                "tag": "TCSynthed"
-                            },
-                            null
-                        ],
-                        "tag": "EmptyHole"
-                    },
-                    "astDefID": 1,
-                    "astDefName": "main",
-                    "astDefType": {
-                        "contents": [
-                            0,
-                            {
-                                "tag": "KType"
-                            },
-                            null
-                        ],
-                        "tag": "TEmptyHole"
-                    }
-                },
-                "tag": "DefAST"
-            }
-        },
+        "progImports": [],
         "progLog": {
             "unlog": [
                 [
@@ -48,6 +16,106 @@
                         "tag": "BodyAction"
                     }
                 ]
+            ]
+        },
+        "progModule": {
+            "moduleDefs": {
+                "1": {
+                    "contents": {
+                        "astDefExpr": {
+                            "contents": [
+                                0,
+                                {
+                                    "contents": {
+                                        "contents": [],
+                                        "tag": "TEmptyHole"
+                                    },
+                                    "tag": "TCSynthed"
+                                },
+                                null
+                            ],
+                            "tag": "EmptyHole"
+                        },
+                        "astDefID": 1,
+                        "astDefName": "main",
+                        "astDefType": {
+                            "contents": [
+                                0,
+                                {
+                                    "tag": "KType"
+                                },
+                                null
+                            ],
+                            "tag": "TEmptyHole"
+                        }
+                    },
+                    "tag": "DefAST"
+                }
+            },
+            "moduleTypes": [
+                {
+                    "contents": {
+                        "astTypeDefConstructors": [
+                            {
+                                "valConArgs": [
+                                    {
+                                        "contents": [
+                                            [],
+                                            {
+                                                "contents": [
+                                                    [],
+                                                    "b"
+                                                ],
+                                                "tag": "TCon"
+                                            },
+                                            {
+                                                "contents": [
+                                                    [],
+                                                    "a"
+                                                ],
+                                                "tag": "TCon"
+                                            }
+                                        ],
+                                        "tag": "TApp"
+                                    },
+                                    {
+                                        "contents": [
+                                            [],
+                                            "Nat"
+                                        ],
+                                        "tag": "TCon"
+                                    }
+                                ],
+                                "valConName": "C"
+                            }
+                        ],
+                        "astTypeDefName": "T",
+                        "astTypeDefNameHints": [],
+                        "astTypeDefParameters": [
+                            [
+                                "a",
+                                {
+                                    "tag": "KType"
+                                }
+                            ],
+                            [
+                                "b",
+                                {
+                                    "contents": [
+                                        {
+                                            "tag": "KType"
+                                        },
+                                        {
+                                            "tag": "KType"
+                                        }
+                                    ],
+                                    "tag": "KFun"
+                                }
+                            ]
+                        ]
+                    },
+                    "tag": "TypeDefAST"
+                }
             ]
         },
         "progSelection": {
@@ -101,71 +169,6 @@
         },
         "progSmartHoles": {
             "tag": "SmartHoles"
-        },
-        "progTypes": [
-            {
-                "contents": {
-                    "astTypeDefConstructors": [
-                        {
-                            "valConArgs": [
-                                {
-                                    "contents": [
-                                        [],
-                                        {
-                                            "contents": [
-                                                [],
-                                                "b"
-                                            ],
-                                            "tag": "TCon"
-                                        },
-                                        {
-                                            "contents": [
-                                                [],
-                                                "a"
-                                            ],
-                                            "tag": "TCon"
-                                        }
-                                    ],
-                                    "tag": "TApp"
-                                },
-                                {
-                                    "contents": [
-                                        [],
-                                        "Nat"
-                                    ],
-                                    "tag": "TCon"
-                                }
-                            ],
-                            "valConName": "C"
-                        }
-                    ],
-                    "astTypeDefName": "T",
-                    "astTypeDefNameHints": [],
-                    "astTypeDefParameters": [
-                        [
-                            "a",
-                            {
-                                "tag": "KType"
-                            }
-                        ],
-                        [
-                            "b",
-                            {
-                                "contents": [
-                                    {
-                                        "tag": "KType"
-                                    },
-                                    {
-                                        "tag": "KType"
-                                    }
-                                ],
-                                "tag": "KFun"
-                            }
-                        ]
-                    ]
-                },
-                "tag": "TypeDefAST"
-            }
-        ]
+        }
     }
 }

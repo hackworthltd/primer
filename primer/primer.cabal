@@ -26,6 +26,7 @@ library
     Primer.Database
     Primer.Eval
     Primer.EvalFull
+    Primer.Module
     Primer.Name
     Primer.Name.Fresh
     Primer.Primitives

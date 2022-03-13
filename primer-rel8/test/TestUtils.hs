@@ -90,6 +90,13 @@ import Primer.Database.Rel8.Rel8Db (
   runRel8Db,
  )
 import Primer.Database.Rel8.Schema as Schema hiding (app)
+import Primer.Module (
+  Module (
+    Module,
+    moduleDefs,
+    moduleTypes
+  ),
+ )
 import Primer.Name (Name)
 import Primer.Primitives (
   allPrimDefs,
@@ -366,6 +373,9 @@ testApp =
     testProg :: Prog
     testProg =
       newEmptyProg
-        { progTypes = defaultTypeDefs
-        , progDefs = defs
+        { progModule =
+            Module
+              { moduleTypes = defaultTypeDefs
+              , moduleDefs = defs
+              }
         }
