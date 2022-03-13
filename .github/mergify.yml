@@ -1,10 +1,35 @@
 pull_request_rules:
-  - name: Automerge
+
+  - name: Merge via the default merge queue
     conditions:
       - base=main
       - label="Ready to merge"
       - "#review-threads-unresolved=0"
       - "#changes-requested-reviews-by=0"
+      - check-success="buildkite/primer/pr/required"
     actions:
-      merge:
+      queue:
+        name: default
         method: merge
+        update_method: merge
+
+  - name: Notify author on queue failure
+    conditions:
+      - 'check-failure=Queue: Embarked in merge train'
+    actions:
+      comment:
+        message: >
+          Hey @{{ author }}, this pull request failed to merge and has been
+          dequeued from the merge train.  If you believe your PR failed in
+          the merge train because of a flaky test, requeue it by commenting
+          with `@mergifyio refresh`.
+
+          More details can be found on the `Queue: Embarked in merge train`
+          check-run.
+
+queue_rules:
+  - name: default
+    allow_inplace_checks: false
+    conditions:
+      - base=main
+      - check-success="buildkite/primer/pr/required"
