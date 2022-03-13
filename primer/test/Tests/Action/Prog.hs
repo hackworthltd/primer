@@ -109,6 +109,11 @@ unit_rename_def_to_same_name_as_existing_def =
   progActionTest defaultEmptyProg [RenameDef 2 "main"] $
     expectError (@?= DefAlreadyExists "main" 0)
 
+unit_rename_def_to_same_name_as_existing_def_prim :: Assertion
+unit_rename_def_to_same_name_as_existing_def_prim =
+  progActionTest defaultPrimsProg [RenameDef 2 "toUpper"] $
+    expectError (@?= DefAlreadyExists "toUpper" 114)
+
 unit_delete_def :: Assertion
 unit_delete_def =
   progActionTest defaultEmptyProg [DeleteDef 2] $
