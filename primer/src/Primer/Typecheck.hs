@@ -1,4 +1,6 @@
 {-# LANGUAGE ConstraintKinds #-}
+{-# LANGUAGE NamedFieldPuns #-}
+{-# LANGUAGE OverloadedLabels #-}
 {-# LANGUAGE TypeApplications #-}
 
 -- | Typechecking for Core expressions.
@@ -17,6 +19,7 @@ module Primer.Typecheck (
   checkKind,
   checkTypeDefs,
   checkValidContext,
+  CheckEverythingRequest (..),
   checkEverything,
   Cxt (..),
   KindOrType (..),
@@ -65,7 +68,8 @@ import qualified Data.Map as M
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as S
 import Data.String (String)
-import Optics (Lens', over, set, view, (%))
+import Optics (Lens', over, set, traverseOf, view, (%))
+import Optics.Traversal (traversed)
 import Primer.Core (
   ASTDef (..),
   ASTTypeDef (..),
@@ -86,7 +90,6 @@ import Primer.Core (
   TypeMeta,
   ValCon (valConArgs, valConName),
   bindName,
-  defAST,
   defID,
   defName,
   defType,
@@ -103,6 +106,7 @@ import Primer.Core (
 import Primer.Core.DSL (branch, emptyHole, meta, meta')
 import Primer.Core.Utils (alphaEqTy, forgetTypeIDs, generateTypeIDs)
 import Primer.JSON (CustomJSON (CustomJSON), FromJSON, ToJSON, VJSON)
+import Primer.Module (Module (moduleDefs, moduleTypes))
 import Primer.Name (Name, NameCounter, freshName)
 import Primer.Subst (substTy)
 
@@ -202,6 +206,9 @@ localTmVars = M.mapMaybe (\case T t -> Just t; K _ -> Nothing) . localCxt
 localTyVars :: Cxt -> Map Name Kind
 localTyVars = M.mapMaybe (\case K k -> Just k; T _ -> Nothing) . localCxt
 
+noSmartHoles :: Cxt -> Cxt
+noSmartHoles cxt = cxt{smartHoles = NoSmartHoles}
+
 -- An empty typing context
 initialCxt :: SmartHoles -> Cxt
 initialCxt sh =
@@ -256,12 +263,12 @@ annotate t (Meta i _ v) = Meta i t v
 
 -- | Check a context is valid
 checkValidContext ::
-  (MonadFresh ID m, MonadFresh NameCounter m, MonadNestedError TypeError e (ReaderT Cxt m), MonadNestedError TypeError e m) =>
+  (MonadFresh ID m, MonadFresh NameCounter m, MonadNestedError TypeError e (ReaderT Cxt m)) =>
   Cxt ->
   m ()
 checkValidContext cxt = do
   let tds = typeDefs cxt
-  checkTypeDefsMap tds
+  runReaderT (checkTypeDefsMap tds) $ initialCxt NoSmartHoles
   runReaderT (checkGlobalCxt $ globalCxt cxt) $ (initialCxt NoSmartHoles){typeDefs = tds}
   checkLocalCxtTys $ localTyVars cxt
   runReaderT (checkLocalCxtTms $ localTmVars cxt) $ extendLocalCxtTys (M.toList $ localTyVars cxt) (initialCxt NoSmartHoles){typeDefs = tds}
@@ -279,7 +286,7 @@ checkValidContext cxt = do
 -- This is the same as 'checkTypeDefs', except it also checks the keys of the
 -- map are consistent with the names in the 'TypeDef's
 checkTypeDefsMap ::
-  (MonadFresh ID m, MonadFresh NameCounter m, MonadNestedError TypeError e m, MonadNestedError TypeError e (ReaderT Cxt m)) =>
+  TypeM e m =>
   Map Name TypeDef ->
   m ()
 checkTypeDefsMap tds =
@@ -287,27 +294,29 @@ checkTypeDefsMap tds =
     then checkTypeDefs $ M.elems tds
     else throwError' $ InternalError "Inconsistent names in a Map Name TypeDef"
 
--- | Check all type definitions, as one recursive group
+-- | Check all type definitions, as one recursive group, in some monadic environment
 checkTypeDefs ::
-  (MonadFresh ID m, MonadFresh NameCounter m, MonadNestedError TypeError e m, MonadNestedError TypeError e (ReaderT Cxt m)) =>
+  TypeM e m =>
   [TypeDef] ->
   m ()
 checkTypeDefs tds = do
+  existingTypes <- asks $ Map.elems . typeDefs
   -- NB: we expect the frontend to only submit acceptable typedefs, so all
   -- errors here are "internal errors" and should never be seen.
   -- (This is not quite true, see
   -- https://github.com/hackworthltd/primer/issues/3)
-  assert (distinct $ map typeDefName tds) "Duplicate-ly-named TypeDefs"
+  assert (distinct $ map typeDefName $ existingTypes <> tds) "Duplicate-ly-named TypeDefs"
   -- Note that constructors are synthesisable, so their names must be globally
   -- unique. We need to be able to work out the type of @TCon "C"@ without any
   -- extra information.
   let atds = mapMaybe typeDefAST tds
+  let allAtds = mapMaybe typeDefAST existingTypes <> atds
   assert
-    (distinct $ concatMap (map valConName . astTypeDefConstructors) atds)
+    (distinct $ concatMap (map valConName . astTypeDefConstructors) allAtds)
     "Duplicate-ly-named constructor (perhaps in different typedefs)"
   -- Note that these checks only apply to non-primitives:
   -- duplicate type names are checked elsewhere, kinds are correct by construction, and there are no constructors.
-  mapM_ checkTypeDef atds
+  local (extendTypeDefCxt tds) $ mapM_ checkTypeDef atds
   where
     -- In the core, we have many different namespaces, so the only name-clash
     -- checking we must do is
@@ -335,10 +344,8 @@ checkTypeDefs tds = do
       assert
         (notElem (astTypeDefName td) $ map fst params)
         "Duplicate names in one tydef: between type-def-name and parameter-names"
-      runReaderT (mapM_ (checkKind KType <=< fakeMeta) $ concatMap valConArgs cons) $
-        extendTypeDefCxt tds $
-          extendLocalCxtTys params $
-            initialCxt NoSmartHoles
+      local (noSmartHoles . extendLocalCxtTys params) $
+        mapM_ (checkKind KType <=< fakeMeta) $ concatMap valConArgs cons
     -- We need metadata to use checkKind, but we don't care about the output,
     -- just a yes/no answer. In this case it is fine to put nonsense in the
     -- metadata as it won't be inspected.
@@ -352,18 +359,38 @@ distinct = go mempty
       | x `S.member` seen = False
       | otherwise = go (S.insert x seen) xs
 
--- | Check all type definitions and top-level definitions, in the empty context
+data CheckEverythingRequest = CheckEverything
+  { trusted :: [Module]
+  , toCheck :: [Module]
+  }
+
+-- | Check a (mutually-recursive set of) module(s), in a given trusted
+-- environment of modules.
+-- Returns just the modules that were requested 'toCheck', with updated cached
+-- type information etc.
 checkEverything ::
   forall e m.
-  (MonadFresh ID m, MonadFresh NameCounter m, MonadNestedError TypeError e m, MonadNestedError TypeError e (ReaderT Cxt m)) =>
+  (MonadFresh ID m, MonadFresh NameCounter m, MonadNestedError TypeError e (ReaderT Cxt m)) =>
   SmartHoles ->
-  [TypeDef] ->
-  Map ID Def ->
-  m (Map ID Def)
-checkEverything sh tydefs defs = do
-  checkTypeDefs tydefs
-  let cxt = buildTypingContext tydefs defs sh
-  flip runReaderT cxt $ mapM (\d -> maybe (pure d) (fmap DefAST . checkDef) $ defAST d) defs
+  CheckEverythingRequest ->
+  m [Module]
+checkEverything sh CheckEverything{trusted, toCheck} =
+  let cxt =
+        buildTypingContext
+          (concatMap moduleTypes trusted)
+          (foldMap moduleDefs trusted)
+          sh
+   in flip runReaderT cxt $ do
+        -- Check that the definition map has the right keys
+        for_ toCheck $ \m -> flip Map.traverseWithKey (moduleDefs m) $ \i d ->
+          unless (i == defID d) $ throwError' $ InternalError "Inconsistant IDs in moduleDefs map"
+        checkTypeDefs $ concatMap moduleTypes toCheck
+        let newTypes = foldMap moduleTypes toCheck
+            newDefs =
+              foldMap (\d -> [(defID d, (defName d, forgetTypeIDs $ defType d))]) $
+                foldMap moduleDefs toCheck
+        local (extendGlobalCxt newDefs . extendTypeDefCxt newTypes) $
+          traverseOf (traversed % #moduleDefs % traversed % #_DefAST) checkDef toCheck
 
 -- | Typecheck a definition.
 -- This checks that the type signature is well-formed, then checks the body

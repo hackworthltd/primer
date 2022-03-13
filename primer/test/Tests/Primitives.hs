@@ -28,7 +28,7 @@ import Primer.Typecheck (
   TypeError (PrimitiveTypeNotInScope, UnknownTypeConstructor),
   buildTypingContext,
   checkKind,
-  checkTypeDefs,
+  checkValidContext,
   synth,
  )
 
@@ -56,7 +56,7 @@ unit_prim_con_scope = do
 unit_prim_con_scope_ast :: Assertion
 unit_prim_con_scope_ast = do
   -- Our type def is accepted
-  test (checkTypeDefs [charASTDef]) @?= Right ()
+  test (checkValidContext =<< ask) @?= Right ()
   -- Char is in scope (though the wrong kind to accept 'PrimChar's!)
   assertBool "Char is not in scope?" $
     isRight $

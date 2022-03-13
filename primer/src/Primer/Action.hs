@@ -25,7 +25,7 @@ module Primer.Action (
   uniquifyDefName,
 ) where
 
-import Foreword
+import Foreword hiding (mod)
 
 import Control.Monad.Fresh (MonadFresh)
 import Data.Aeson (Value)
@@ -80,6 +80,7 @@ import Primer.Core.DSL (
 import Primer.Core.Transform (renameTyVar, renameTyVarExpr, renameVar)
 import Primer.Core.Utils (forgetTypeIDs, generateTypeIDs)
 import Primer.JSON
+import Primer.Module (Module (moduleDefs, moduleTypes))
 import Primer.Name (Name, NameCounter, unName, unsafeMkName)
 import Primer.Name.Fresh (
   isFresh,
@@ -90,6 +91,7 @@ import Primer.Name.Fresh (
 import Primer.Questions (Question)
 import Primer.Refine (Inst (InstAPP, InstApp, InstUnconstrainedAPP), refine)
 import Primer.Typecheck (
+  CheckEverythingRequest (CheckEverything, toCheck, trusted),
   SmartHoles,
   TypeError,
   buildTypingContext,
@@ -352,6 +354,12 @@ data ActionError
     -- a bug. It does not get thrown for "no valid refinement found"
     -- - see Note [No valid refinement]
     RefineError Text
+  | -- | Importing some modules failed.
+    -- This should be impossible as long as the requested modules are well-typed
+    -- and all of their dependencies are already imported
+    ImportFailed () TypeError
+  -- The extra unit is to avoid having two constructors with a single
+  -- TypeError field, breaking our MonadNestedError machinery...
   deriving (Eq, Show, Generic)
   deriving (FromJSON, ToJSON) via VJSON ActionError
 
@@ -398,34 +406,48 @@ type ActionM m =
   , MonadReader TC.Cxt m -- has access to a typing context
   )
 
--- Apply a sequence of actions to the type signature of a definition
+-- | Apply a sequence of actions to the type signature of a definition
 -- We apply the actions to the type, then typecheck the body of the definition against the new type.
 -- We must then typecheck the whole program to check any uses of the definition.
+-- Note that this may introduce new holes when using SmartHoles, and thus we return a whole module
+-- as well as the one definition we wanted to change.
 applyActionsToTypeSig ::
   (MonadFresh ID m, MonadFresh NameCounter m) =>
   SmartHoles ->
-  [TypeDef] ->
-  Map ID Def ->
+  [Module] ->
+  Module ->
+  -- | This must be one of the definitions in the @Module@
   ASTDef ->
   [Action] ->
-  m (Either ActionError (ASTDef, Map ID Def, TypeZ))
-applyActionsToTypeSig smartHoles typeDefs defs def actions =
-  runReaderT go (buildTypingContext typeDefs defs smartHoles)
+  m (Either ActionError (ASTDef, Module, TypeZ))
+applyActionsToTypeSig smartHoles imports mod def actions =
+  runReaderT
+    go
+    ( buildTypingContext
+        (concatMap moduleTypes $ mod : imports)
+        (foldMap moduleDefs $ mod : imports)
+        smartHoles
+    )
     & runExceptT
   where
-    go :: ActionM m => m (ASTDef, Map ID Def, TypeZ)
+    go :: ActionM m => m (ASTDef, Module, TypeZ)
     go = do
       zt <- withWrappedType (astDefType def) (\zt -> foldM (flip applyActionAndSynth) (InType zt) actions)
       let t = target (top zt)
       e <- check (forgetTypeIDs t) (astDefExpr def)
       let def' = def{astDefExpr = exprTtoExpr e, astDefType = t}
-          defs' = Map.insert (astDefID def) (DefAST def') defs
+          defs' = Map.insert (astDefID def) (DefAST def') $ moduleDefs mod
+          mod' = mod{moduleDefs = defs'}
       -- The actions were applied to the type successfully, and the definition body has been
       -- typechecked against the new type.
       -- Now we need to typecheck the whole program again, to check any uses of the definition
       -- We make sure that the updated type is present in the global context.
-      checkedDefs <- checkEverything smartHoles typeDefs defs'
-      pure (def', checkedDefs, zt)
+      -- Here we just check the whole of the mutable prog, excluding imports.
+      -- (for efficiency, we need not check the type definitions, but we do not implement this optimisation)
+      checkEverything smartHoles (CheckEverything{trusted = imports, toCheck = [mod']}) >>= \case
+        [checkedMod] -> pure (def', checkedMod, zt)
+        -- This internal error will go away when we allow Progs to contain multiple mutable modules
+        _ -> throwError $ CustomFailure NoOp "Internal error: checkEverything returned a different number of module as were passed in"
     -- Actions expect that all ASTs have a top-level expression of some sort.
     -- Signatures don't have this: they're just a type.
     -- We fake it by wrapping the type in a top-level annotation node, then unwrapping afterwards.

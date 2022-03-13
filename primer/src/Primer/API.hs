@@ -70,8 +70,7 @@ import Primer.App (
   handleMutationRequest,
   handleQuestion,
   initialApp,
-  progDefs,
-  progTypes,
+  progModule,
   runEditAppM,
   runQueryAppM,
  )
@@ -119,6 +118,7 @@ import qualified Primer.Database as Database (
     Success
   ),
  )
+import Primer.Module (Module (moduleDefs, moduleTypes))
 import Primer.Name (Name, unName)
 import qualified StmContainers.Map as StmMap
 
@@ -326,7 +326,7 @@ instance ToJSON Def
 viewProg :: App.Prog -> Prog
 viewProg p =
   Prog
-    { types = typeDefName <$> progTypes p
+    { types = typeDefName <$> moduleTypes (progModule p)
     , defs =
         ( \d ->
             Def
@@ -336,7 +336,7 @@ viewProg p =
               , term = viewTreeExpr . astDefExpr <$> defAST d
               }
         )
-          <$> Map.elems (progDefs p)
+          <$> Map.elems (moduleDefs $ progModule p)
     }
 
 -- | A simple method to extract 'Tree's from 'Expr's. This is injective.

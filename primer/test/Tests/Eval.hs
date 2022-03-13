@@ -8,14 +8,25 @@ import Data.Map ((!))
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 import Optics (over, (^.))
+import Primer.App (
+  App (appIdCounter, appProg),
+  EvalReq (EvalReq, evalReqExpr, evalReqRedex),
+  EvalResp (EvalResp, evalRespExpr),
+  Prog (progModule),
+  handleEvalRequest,
+  importModules,
+  newEmptyApp,
+ )
 import Primer.Core (
   ASTDef (..),
   Def (..),
   Expr,
   Expr',
-  ID,
+  ID (ID),
   Type,
   Type',
+  defID,
+  getID,
   _exprMeta,
   _exprTypeMeta,
   _id,
@@ -41,9 +52,11 @@ import Primer.Eval (
  )
 import Primer.Name (Name)
 import Primer.Zipper (target)
+import Protolude.Partial (fromJust)
 import Test.Tasty.HUnit (Assertion, assertBool, assertFailure, (@?=))
 import TestM (evalTestM)
 import TestUtils (withPrimDefs)
+import Tests.Action.Prog (defaultPrimsProg, findGlobalByName, runAppTestM)
 
 -- * 'tryReduce' tests
 
@@ -800,6 +813,25 @@ unit_redexes_prim_ann =
       global (defs ! "toUpper")
         `ann` (tcon "Char" `tfun` tcon "Char")
           `app` (char 'a' `ann` tcon "Char")
+
+-- Test that handleEvalRequest will reduce imported terms
+unit_eval_modules :: Assertion
+unit_eval_modules =
+  let test = do
+        p <- defaultPrimsProg
+        importModules [progModule p]
+        prog <- gets appProg
+        let toUpperId = defID $ fromJust $ findGlobalByName prog "toUpper"
+        foo <- global toUpperId `app` char 'a'
+        EvalResp{evalRespExpr = e} <-
+          handleEvalRequest
+            EvalReq{evalReqExpr = foo, evalReqRedex = getID foo}
+        expect <- char 'A'
+        pure $ e ~= expect
+      a = newEmptyApp
+   in case fst $ runAppTestM (ID $ appIdCounter a) a test of
+        Left err -> assertFailure $ show err
+        Right assertion -> assertion
 
 -- * Misc helpers
 
