@@ -155,7 +155,7 @@ data Expr' a b
   | Ann a (Expr' a b) (Type' b)
   | App a (Expr' a b) (Expr' a b)
   | APP a (Expr' a b) (Type' b)
-  | Con a Name
+  | Con a Name -- See Note [Synthesisable constructors]
   | Lam a Name (Expr' a b)
   | LAM a Name (Expr' a b)
   | Var a Name
@@ -170,6 +170,39 @@ data Expr' a b
   | PrimCon a PrimCon
   deriving (Eq, Show, Data, Generic)
   deriving (FromJSON, ToJSON) via VJSON (Expr' a b)
+
+-- Note [Synthesisable constructors]
+-- Whilst our calculus is heavily inspired by bidirectional type systems
+-- (especially McBride's principled rendition), we do not treat constructors
+-- in this fashion. We view constructors as synthesisable terms
+-- ("eliminations"), rather than checkable terms ("constructions").
+-- This is for user-experience purposes: we are attempting a pedagogic
+-- system where the user-facing code is close to the core language, and
+-- we believe that the bidirectional style would be confusing and/or
+-- annoyingly restrictive in this particular instance.
+--
+-- We follow the traditional non-bidirectional view of constructors here:
+-- a constructor is a term in-and-of itself (and one can infer its type).
+-- Thus one has `Cons` is a term, and we can derive the synthesis
+-- judgement `Cons ∈ ∀a. a -> List a -> List a`.
+--
+-- For comparison, the bidirectional view would be that constructors must
+-- always be fully applied, and one can only subject them to a typechecking
+-- judgement where the type is an input.
+-- Thus `List Int ∋ Cons 2 Nil`, but `Cons` and `Cons 2` are ill-typed.
+-- Under this view, one needs to be aware of the difference between, say,
+-- a globally-defined function, and a constructor "of the same type".
+-- For example, one can partially apply an addition function and map it
+-- across a list: `map (1 +) [2,3]` is well-typed, but one cannot map
+-- the `Succ` constructor in the same way.
+-- (Notice, however, that since one will always know what type one is
+-- considering, the constructor does not need any type applications
+-- corresponding to the parameters of its datatype.)
+-- Clearly one could eta-expand, (and if necessary add an annotation) to
+-- use as constructor non-saturatedly: e.g. write `map (λn . Succ n) [2,3]`.
+--
+-- In effect, we just bake this translation into the core. To do this, we
+-- require constructor names to be unique across different types.
 
 -- Note [Case]
 -- We use a list for compatibility and ease of JSON
