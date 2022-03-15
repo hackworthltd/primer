@@ -51,6 +51,7 @@ import Primer.Eval (
   tryReduceType,
  )
 import Primer.Module (Module (Module, moduleDefs, moduleTypes))
+import Primer.Typecheck (mkTypeDefMap)
 import Primer.Zipper (target)
 import Test.Tasty.HUnit (Assertion, assertBool, assertFailure, (@?=))
 import TestM (evalTestM)
@@ -847,7 +848,7 @@ unit_eval_modules_scrutinize_imported_type =
   where
     m =
       Module
-        { moduleTypes = [TypeDefAST boolDef]
+        { moduleTypes = mkTypeDefMap [TypeDefAST boolDef]
         , moduleDefs = mempty
         }
 

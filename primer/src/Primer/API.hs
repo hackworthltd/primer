@@ -329,7 +329,7 @@ instance ToJSON Def
 viewProg :: App.Prog -> Prog
 viewProg p =
   Prog
-    { types = typeDefName <$> moduleTypes (progModule p)
+    { types = typeDefName <$> Map.elems (moduleTypes $ progModule p)
     , defs =
         ( \d ->
             Def

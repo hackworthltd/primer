@@ -46,6 +46,7 @@ import Primer.Core (
   LVarName,
   LocalName (LocalName, unLocalName),
   TmVarRef (..),
+  TyConName,
   Type,
   Type' (..),
   TypeCache (..),
@@ -427,7 +428,7 @@ applyActionsToTypeSig smartHoles imports mod def actions =
   runReaderT
     go
     ( buildTypingContext
-        (concatMap moduleTypes $ mod : imports)
+        (foldMap moduleTypes $ mod : imports)
         (foldMap moduleDefs $ mod : imports)
         smartHoles
     )
@@ -477,7 +478,7 @@ applyActionsToTypeSig smartHoles imports mod def actions =
 applyActionsToBody ::
   (MonadFresh ID m, MonadFresh NameCounter m) =>
   SmartHoles ->
-  [TypeDef] ->
+  Map TyConName TypeDef ->
   Map GVarName Def ->
   ASTDef ->
   [Action] ->
@@ -512,7 +513,7 @@ applyActionAndCheck ty action z = do
 -- This is currently only used for tests.
 -- We may need it in the future for a REPL, where we want to build standalone expressions.
 -- We take a list of the types that should be in scope for the test.
-applyActionsToExpr :: (MonadFresh ID m, MonadFresh NameCounter m) => SmartHoles -> [TypeDef] -> Expr -> [Action] -> m (Either ActionError (Either ExprZ TypeZ))
+applyActionsToExpr :: (MonadFresh ID m, MonadFresh NameCounter m) => SmartHoles -> Map TyConName TypeDef -> Expr -> [Action] -> m (Either ActionError (Either ExprZ TypeZ))
 applyActionsToExpr sh typeDefs expr actions =
   foldM (flip applyActionAndSynth) (focusLoc expr) actions -- apply all actions
     <&> locToEither

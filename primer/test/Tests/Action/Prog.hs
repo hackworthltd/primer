@@ -232,7 +232,7 @@ unit_create_typedef =
    in progActionTest defaultEmptyProg [AddTypeDef lst, AddTypeDef tree] $
         expectSuccess $
           \_ prog' -> do
-            case moduleTypes $ progModule prog' of
+            case Map.elems $ moduleTypes $ progModule prog' of
               [lst', tree'] -> do
                 TypeDefAST lst @=? lst'
                 TypeDefAST tree @=? tree'
@@ -370,7 +370,7 @@ unit_create_typedef_8 =
           , astTypeDefNameHints = []
           }
    in progActionTest defaultEmptyProg [AddTypeDef td] $
-        expectSuccess $ \_ prog' -> moduleTypes (progModule prog') @?= [TypeDefAST td]
+        expectSuccess $ \_ prog' -> Map.elems (moduleTypes (progModule prog')) @?= [TypeDefAST td]
 
 -- Allow clash between type name and constructor name across types
 unit_create_typedef_9 :: Assertion
@@ -390,7 +390,7 @@ unit_create_typedef_9 =
           , astTypeDefNameHints = []
           }
    in progActionTest defaultEmptyProg [AddTypeDef td1, AddTypeDef td2] $
-        expectSuccess $ \_ prog' -> moduleTypes (progModule prog') @?= [TypeDefAST td1, TypeDefAST td2]
+        expectSuccess $ \_ prog' -> Map.elems (moduleTypes (progModule prog')) @?= [TypeDefAST td2, TypeDefAST td1]
 
 unit_construct_arrow_in_sig :: Assertion
 unit_construct_arrow_in_sig =

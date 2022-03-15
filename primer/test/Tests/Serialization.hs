@@ -44,7 +44,7 @@ import Primer.Core (
  )
 import Primer.Module (Module (Module, moduleDefs, moduleTypes))
 import Primer.Name (unsafeMkName)
-import Primer.Typecheck (SmartHoles (SmartHoles))
+import Primer.Typecheck (SmartHoles (SmartHoles), mkTypeDefMap)
 import System.FilePath (takeBaseName)
 import Test.Tasty
 import Test.Tasty.Golden
@@ -112,7 +112,7 @@ fixtures =
           { progImports = mempty
           , progModule =
               Module
-                { moduleTypes = [typeDef]
+                { moduleTypes = mkTypeDefMap [typeDef]
                 , moduleDefs = Map.singleton (astDefName def) (DefAST def)
                 }
           , progSelection = Just selection

@@ -86,6 +86,7 @@ import Primer.Core (
   Meta (..),
   PrimDef (..),
   TmVarRef (GlobalVarRef, LocalVarRef),
+  TyConName,
   Type,
   Type' (..),
   TypeDef (..),
@@ -211,7 +212,7 @@ importModules ms = do
   modify (\a -> a{appProg = p'})
 
 -- | Get all type definitions from all modules (including imports)
-allTypes :: Prog -> [TypeDef]
+allTypes :: Prog -> Map TyConName TypeDef
 allTypes p = foldMap moduleTypes $ progModule p : progImports p
 
 -- | Get all definitions from all modules (including imports)
@@ -232,7 +233,7 @@ addTypeDef :: ASTTypeDef -> Prog -> Prog
 addTypeDef t p =
   let mod = progModule p
       tydefs = moduleTypes mod
-      tydefs' = tydefs <> [TypeDefAST t]
+      tydefs' = tydefs <> mkTypeDefMap [TypeDefAST t]
       mod' = mod{moduleTypes = tydefs'}
    in p{progModule = mod'}
 
@@ -422,7 +423,7 @@ handleEvalRequest req = do
 handleEvalFullRequest :: MonadEditApp m => EvalFullReq -> m EvalFullResp
 handleEvalFullRequest (EvalFullReq{evalFullReqExpr, evalFullCxtDir, evalFullMaxSteps}) = do
   prog <- gets appProg
-  result <- evalFull (mkTypeDefMap $ allTypes prog) (allDefs prog) evalFullMaxSteps evalFullCxtDir evalFullReqExpr
+  result <- evalFull (allTypes prog) (allDefs prog) evalFullMaxSteps evalFullCxtDir evalFullReqExpr
   pure $ case result of
     Left (TimedOut e) -> EvalFullRespTimedOut e
     Right nf -> EvalFullRespNormal nf
@@ -484,7 +485,7 @@ applyProgAction prog mdefName = \case
   AddTypeDef td -> do
     runExceptT @TypeError
       ( runReaderT
-          (checkTypeDefs [TypeDefAST td])
+          (checkTypeDefs $ mkTypeDefMap [TypeDefAST td])
           (buildTypingContext (allTypes prog) mempty NoSmartHoles)
       )
       >>= \case
@@ -684,7 +685,7 @@ newEmptyProg =
         { progImports = mempty
         , progModule =
             Module
-              { moduleTypes = []
+              { moduleTypes = mempty
               , moduleDefs = Map.singleton (defName def) def
               }
         , progSelection = Nothing
@@ -993,14 +994,15 @@ copyPasteBody p (fromDefName, fromId) toDefName setup = do
 lookupASTDef :: GVarName -> Map GVarName Def -> Maybe ASTDef
 lookupASTDef name = defAST <=< Map.lookup name
 
-defaultTypeDefs :: [TypeDef]
+defaultTypeDefs :: Map TyConName TypeDef
 defaultTypeDefs =
-  map
-    TypeDefAST
-    [boolDef, natDef, listDef, maybeDef, pairDef, eitherDef]
-    <> map
-      TypeDefPrim
-      (Map.elems allPrimTypeDefs)
+  mkTypeDefMap $
+    map
+      TypeDefAST
+      [boolDef, natDef, listDef, maybeDef, pairDef, eitherDef]
+      <> map
+        TypeDefPrim
+        (Map.elems allPrimTypeDefs)
 
 -- | A definition of the Bool type
 boolDef :: ASTTypeDef
