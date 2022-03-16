@@ -1,32 +1,5 @@
 {
-    "selectedDef": {
-        "astDefExpr": {
-            "contents": [
-                0,
-                {
-                    "contents": {
-                        "contents": [],
-                        "tag": "TEmptyHole"
-                    },
-                    "tag": "TCSynthed"
-                },
-                null
-            ],
-            "tag": "EmptyHole"
-        },
-        "astDefID": 1,
-        "astDefName": "main",
-        "astDefType": {
-            "contents": [
-                0,
-                {
-                    "tag": "KType"
-                },
-                null
-            ],
-            "tag": "TEmptyHole"
-        }
-    },
+    "selectedDef": 1,
     "selectedNode": {
         "meta": {
             "Left": [

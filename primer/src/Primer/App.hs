@@ -244,7 +244,8 @@ newtype Log = Log {unlog :: [[ProgAction]]}
 -- | Describes what interface element the user has selected.
 -- A definition in the left hand nav bar, and possibly a node in that definition.
 data Selection = Selection
-  { selectedDef :: ASTDef
+  { selectedDef :: ID
+  -- ^ the ID of some ASTDef
   , selectedNode :: Maybe NodeSelection
   }
   deriving (Eq, Show, Generic)
@@ -454,7 +455,7 @@ applyProgAction prog mdefID = \case
           -- Since references are by ID, which we do not change, there is no problem
           -- if this definition is referenced anywhere
           let def' = def{astDefName = name}
-          pure (addDef def' prog{progSelection = Just $ Selection def' Nothing}, mdefID)
+          pure (addDef def' prog{progSelection = Just $ Selection (astDefID def') Nothing}, mdefID)
   CreateDef n -> do
     let defs = moduleDefs $ progModule prog
     name <- case n of
@@ -469,7 +470,7 @@ applyProgAction prog mdefID = \case
     expr <- newExpr
     ty <- newType
     let def = ASTDef id_ name expr ty
-    pure (addDef def prog{progSelection = Just $ Selection def Nothing}, Just id_)
+    pure (addDef def prog{progSelection = Just $ Selection id_ Nothing}, Just id_)
   AddTypeDef td -> do
     runExceptT @TypeError
       ( runReaderT
@@ -501,7 +502,7 @@ applyProgAction prog mdefID = \case
                   prog
                     { progSelection =
                         Just $
-                          Selection def' $
+                          Selection (astDefID def') $
                             Just
                               NodeSelection
                                 { nodeType = BodyNode
@@ -525,7 +526,7 @@ applyProgAction prog mdefID = \case
                   { progModule = mod'
                   , progSelection =
                       Just $
-                        Selection def' $
+                        Selection (astDefID def') $
                           Just
                             NodeSelection
                               { nodeType = SigNode
@@ -797,7 +798,7 @@ copyPasteSig p (fromDefId, fromTyId) toDefId setup = do
   oldDef <- maybe (throwError $ DefNotFound toDefId) pure $ lookupASTDef toDefId (moduleDefs $ progModule p)
   let newDef = oldDef{astDefType = fromZipper pasted}
   let newSel = NodeSelection SigNode (getID $ target pasted) (pasted ^. _target % _typeMetaLens % re _Right)
-  let finalProg = addDef newDef p{progSelection = Just (Selection newDef $ Just newSel)}
+  let finalProg = addDef newDef p{progSelection = Just (Selection (astDefID newDef) $ Just newSel)}
   tcWholeProg finalProg
 
 -- We cannot use bindersAbove as that works on names only, and different scopes
@@ -869,7 +870,7 @@ tcWholeProg p =
         newSel <- case oldSel of
           Nothing -> pure Nothing
           Just s -> do
-            let defID_ = s ^. #selectedDef % #astDefID
+            let defID_ = s ^. #selectedDef
             updatedDef <- maybe (throwError $ IDNotFound defID_) pure $ lookupASTDef defID_ defs'
             updatedNode <- case s ^. #selectedNode of
               Nothing -> pure Nothing
@@ -882,7 +883,7 @@ tcWholeProg p =
             pure $
               Just $
                 Selection
-                  { selectedDef = updatedDef
+                  { selectedDef = astDefID updatedDef
                   , selectedNode = updatedNode
                   }
         pure $ p'{progSelection = newSel}
@@ -927,7 +928,7 @@ copyPasteBody p (fromDefId, fromId) toDefId setup = do
       oldDef <- maybe (throwError $ DefNotFound toDefId) pure $ lookupASTDef toDefId (moduleDefs $ progModule p)
       let newDef = oldDef{astDefExpr = unfocusExpr $ unfocusType pasted}
       let newSel = NodeSelection BodyNode (getID $ target pasted) (pasted ^. _target % _typeMetaLens % re _Right)
-      let finalProg = addDef newDef p{progSelection = Just (Selection newDef $ Just newSel)}
+      let finalProg = addDef newDef p{progSelection = Just (Selection (astDefID newDef) $ Just newSel)}
       tcWholeProg finalProg
     (Left srcE, InExpr tgtE) -> do
       let sharedScope =
@@ -980,7 +981,7 @@ copyPasteBody p (fromDefId, fromId) toDefId setup = do
       oldDef <- maybe (throwError $ DefNotFound toDefId) pure $ lookupASTDef toDefId (moduleDefs $ progModule p)
       let newDef = oldDef{astDefExpr = unfocusExpr pasted}
       let newSel = NodeSelection BodyNode (getID $ target pasted) (pasted ^. _target % _exprMetaLens % re _Left)
-      let finalProg = addDef newDef p{progSelection = Just (Selection newDef $ Just newSel)}
+      let finalProg = addDef newDef p{progSelection = Just (Selection (astDefID newDef) $ Just newSel)}
       tcWholeProg finalProg
 
 lookupASTDef :: ID -> Map ID Def -> Maybe ASTDef
