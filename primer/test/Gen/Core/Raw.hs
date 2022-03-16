@@ -87,7 +87,7 @@ genVar :: ExprGen Expr
 genVar = Var <$> genMeta <*> genName
 
 genGlobalVar :: ExprGen Expr
-genGlobalVar = GlobalVar <$> genMeta <*> genID
+genGlobalVar = GlobalVar <$> genMeta <*> genName
 
 genLet :: ExprGen Expr
 genLet = Let <$> genMeta <*> genName <*> genExpr <*> genExpr

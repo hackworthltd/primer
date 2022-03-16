@@ -1,12 +1,9 @@
-{-# LANGUAGE TupleSections #-}
-
 -- | Tests for the typechecker
 module Tests.Typecheck where
 
 import Foreword
 
 import Control.Monad.Fresh (MonadFresh)
-import Data.Map ((!))
 import Gen.Core.Raw (
   evalExprGen,
   genName,
@@ -52,7 +49,7 @@ import Primer.Core (
  )
 import Primer.Core.DSL
 import Primer.Core.Utils (generateIDs, generateTypeIDs)
-import Primer.Name (Name, NameCounter)
+import Primer.Name (NameCounter)
 import Primer.Typecheck (
   Cxt,
   ExprT,
@@ -451,11 +448,11 @@ unit_prim_char =
 
 unit_prim_fun :: Assertion
 unit_prim_fun =
-  expectTypedWithPrims $ \m -> ann (global (m ! "hexToNat")) (tfun (tcon "Char") (tapp (tcon "Maybe") (tcon "Nat")))
+  expectTypedWithPrims $ ann (global "hexToNat") (tfun (tcon "Char") (tapp (tcon "Maybe") (tcon "Nat")))
 
 unit_prim_fun_applied :: Assertion
 unit_prim_fun_applied =
-  expectTypedWithPrims $ \m -> ann (app (global (m ! "hexToNat")) (char 'a')) (tapp (tcon "Maybe") (tcon "Nat"))
+  expectTypedWithPrims $ ann (app (global "hexToNat") (char 'a')) (tapp (tcon "Maybe") (tcon "Nat"))
 
 -- Whenever we synthesise a type, then it kind-checks against KType
 hprop_synth_well_typed_extcxt :: Property
@@ -484,9 +481,9 @@ expectTyped m =
   case runTypecheckTestM NoSmartHoles (m >>= synth) of
     Left err -> assertFailure $ show err
     Right _ -> pure ()
-expectTypedWithPrims :: (Map Name ID -> TypecheckTestM Expr) -> Assertion
+expectTypedWithPrims :: TypecheckTestM Expr -> Assertion
 expectTypedWithPrims m =
-  case runTypecheckTestMWithPrims NoSmartHoles (m >=> synth) of
+  case runTypecheckTestMWithPrims NoSmartHoles (m >>= synth) of
     Left err -> assertFailure $ show err
     Right _ -> pure ()
 
@@ -562,12 +559,11 @@ runTypecheckTestMFromIn nextFresh cxt =
     . unTypecheckTestM
 runTypecheckTestM :: SmartHoles -> TypecheckTestM a -> Either TypeError a
 runTypecheckTestM sh = runTypecheckTestMFromIn 0 (buildTypingContext testingTypeDefs mempty sh)
-runTypecheckTestMWithPrims :: SmartHoles -> (Map Name ID -> TypecheckTestM a) -> Either TypeError a
+runTypecheckTestMWithPrims :: SmartHoles -> TypecheckTestM a -> Either TypeError a
 runTypecheckTestMWithPrims sh =
   runTypecheckTestMFromIn n (buildTypingContext testingTypeDefs defs sh)
-    . ($ globals)
   where
-    ((defs, globals), n) = create $ withPrimDefs $ \m1 m2 -> pure $ (,m1) $ DefPrim <$> m2
+    (defs, n) = create $ withPrimDefs $ \m -> pure $ DefPrim <$> m
 
 testingTypeDefs :: [TypeDef]
 testingTypeDefs = TypeDefAST maybeTDef : defaultTypeDefs

@@ -7,7 +7,6 @@ import Foreword
 
 import Control.Monad.Fresh
 import qualified Data.Map.Strict as Map
-import Data.Tuple.Extra (snd3)
 import Optics
 import Primer.Action (
   Action (
@@ -53,7 +52,6 @@ import Primer.Core (
   Type' (..),
   TypeDef (..),
   ValCon (..),
-  defID,
   defName,
   getID,
   _exprMeta,
@@ -96,69 +94,70 @@ unit_empty_actions_only_change_the_log = progActionTest defaultEmptyProg [] $
 -- We can move to the default def in a program
 -- (this may only exist at the start of a session)
 unit_move_to_def_main :: Assertion
-unit_move_to_def_main = progActionTest defaultEmptyProg [MoveToDef 0] $
+unit_move_to_def_main = progActionTest defaultEmptyProg [MoveToDef "main"] $
   expectSuccess $ \prog prog' ->
-    prog' @?= prog{progLog = Log [[MoveToDef 0]]}
+    prog' @?= prog{progLog = Log [[MoveToDef "main"]]}
 
 -- Expression actions are tested in ActionTest - here we just check that we can modify the correct
 -- def.
 unit_move_to_def_and_construct_let :: Assertion
 unit_move_to_def_and_construct_let =
-  progActionTest defaultEmptyProg [MoveToDef 2, BodyAction [ConstructLet (Just "x")]] $
+  progActionTest defaultEmptyProg [MoveToDef "other", BodyAction [ConstructLet (Just "x")]] $
     expectSuccess $ \prog prog' ->
-      case astDefExpr <$> lookupASTDef 2 (moduleDefs $ progModule prog') of
+      case astDefExpr <$> lookupASTDef "other" (moduleDefs $ progModule prog') of
         Just Let{} ->
           -- Check that main is unchanged
-          Map.lookup 0 (moduleDefs $ progModule prog') @?= Map.lookup 0 (moduleDefs $ progModule prog)
+          Map.lookup "main" (moduleDefs $ progModule prog') @?= Map.lookup "main" (moduleDefs $ progModule prog)
         _ -> assertFailure "definition not found"
 
 unit_rename_def :: Assertion
 unit_rename_def =
-  progActionTest defaultEmptyProg [RenameDef 2 "foo"] $
+  progActionTest defaultEmptyProg [RenameDef "other" "foo"] $
     expectSuccess $ \_ prog' -> do
-      fmap defName (Map.lookup 2 (moduleDefs $ progModule prog')) @?= Just "foo"
-      fmap defName (Map.lookup 0 (moduleDefs $ progModule prog')) @?= Just "main"
+      fmap defName (Map.lookup "other" (moduleDefs $ progModule prog')) @?= Nothing
+      fmap defName (Map.lookup "foo" (moduleDefs $ progModule prog')) @?= Just "foo"
+      fmap defName (Map.lookup "main" (moduleDefs $ progModule prog')) @?= Just "main"
 
 unit_rename_def_to_same_name_as_existing_def :: Assertion
 unit_rename_def_to_same_name_as_existing_def =
-  progActionTest defaultEmptyProg [RenameDef 2 "main"] $
-    expectError (@?= DefAlreadyExists "main" 0)
+  progActionTest defaultEmptyProg [RenameDef "main" "main"] $
+    expectError (@?= DefAlreadyExists "main")
 
 unit_rename_def_to_same_name_as_existing_def_prim :: Assertion
 unit_rename_def_to_same_name_as_existing_def_prim =
-  progActionTest defaultPrimsProg [RenameDef 2 "toUpper"] $
-    expectError (@?= DefAlreadyExists "toUpper" 118)
+  progActionTest defaultPrimsProg [RenameDef "other" "toUpper"] $
+    expectError (@?= DefAlreadyExists "toUpper")
 
 unit_delete_def :: Assertion
 unit_delete_def =
-  progActionTest defaultEmptyProg [DeleteDef 2] $
+  progActionTest defaultEmptyProg [DeleteDef "other"] $
     expectSuccess $ \_ prog' -> do
-      fmap defName (Map.lookup 2 (moduleDefs $ progModule prog')) @?= Nothing
-      fmap defName (Map.lookup 0 (moduleDefs $ progModule prog')) @?= Just "main"
+      fmap defName (Map.lookup "other" (moduleDefs $ progModule prog')) @?= Nothing
+      fmap defName (Map.lookup "main" (moduleDefs $ progModule prog')) @?= Just "main"
 
 unit_delete_def_unknown_id :: Assertion
 unit_delete_def_unknown_id =
-  progActionTest defaultEmptyProg [DeleteDef 99] $
-    expectError (@?= DefNotFound 99)
+  progActionTest defaultEmptyProg [DeleteDef "unknown"] $
+    expectError (@?= DefNotFound "unknown")
 
 unit_delete_def_used_id :: Assertion
 unit_delete_def_used_id =
-  progActionTest defaultEmptyProg [MoveToDef 0, BodyAction [ConstructGlobalVar 2], DeleteDef 2] $
-    expectError (@?= DefInUse 2)
+  progActionTest defaultEmptyProg [MoveToDef "main", BodyAction [ConstructGlobalVar "other"], DeleteDef "other"] $
+    expectError (@?= DefInUse "other")
 
 -- 'foo = foo' shouldn't count as "in use" and block deleting itself
 unit_delete_def_recursive :: Assertion
 unit_delete_def_recursive =
-  progActionTest defaultEmptyProg [MoveToDef 0, BodyAction [ConstructGlobalVar 0], DeleteDef 0] $
-    expectSuccess $ \prog prog' -> Map.delete 0 (moduleDefs $ progModule prog) @?= moduleDefs (progModule prog')
+  progActionTest defaultEmptyProg [MoveToDef "main", BodyAction [ConstructGlobalVar "main"], DeleteDef "main"] $
+    expectSuccess $ \prog prog' -> Map.delete "main" (moduleDefs $ progModule prog) @?= moduleDefs (progModule prog')
 
 unit_move_to_unknown_def :: Assertion
 unit_move_to_unknown_def =
-  progActionTest defaultEmptyProg [MoveToDef 5] $ expectError (@?= DefNotFound 5)
+  progActionTest defaultEmptyProg [MoveToDef "unknown"] $ expectError (@?= DefNotFound "unknown")
 
 unit_rename_unknown_def :: Assertion
 unit_rename_unknown_def =
-  progActionTest defaultEmptyProg [RenameDef 5 "foo"] $ expectError (@?= DefNotFound 5)
+  progActionTest defaultEmptyProg [RenameDef "unknown" "foo"] $ expectError (@?= DefNotFound "unknown")
 
 unit_construct_let_without_moving_to_def_first :: Assertion
 unit_construct_let_without_moving_to_def_first =
@@ -167,17 +166,16 @@ unit_construct_let_without_moving_to_def_first =
 unit_create_def :: Assertion
 unit_create_def = progActionTest defaultEmptyProg [CreateDef $ Just "newDef"] $
   expectSuccess $ \_ prog' -> do
-    case lookupASTDef 4 (moduleDefs $ progModule prog') of
+    case lookupASTDef "newDef" (moduleDefs $ progModule prog') of
       Nothing -> assertFailure $ show $ moduleDefs $ progModule prog'
       Just def -> do
-        astDefID def @?= 4
         astDefName def @?= "newDef"
-        astDefExpr def @?= EmptyHole (Meta 5 Nothing Nothing)
+        astDefExpr def @?= EmptyHole (Meta 4 Nothing Nothing)
 
 unit_create_def_clash_prim :: Assertion
 unit_create_def_clash_prim =
   progActionTest defaultPrimsProg [CreateDef $ Just "toUpper"] $
-    expectError (@?= DefAlreadyExists "toUpper" 118)
+    expectError (@?= DefAlreadyExists "toUpper")
 
 unit_create_typedef :: Assertion
 unit_create_typedef =
@@ -363,9 +361,9 @@ unit_create_typedef_9 =
 
 unit_construct_arrow_in_sig :: Assertion
 unit_construct_arrow_in_sig =
-  progActionTest defaultEmptyProg [MoveToDef 2, SigAction [ConstructArrowL, Move Child1]] $
+  progActionTest defaultEmptyProg [MoveToDef "other", SigAction [ConstructArrowL, Move Child1]] $
     expectSuccess $ \_ prog' ->
-      case lookupASTDef 2 (moduleDefs $ progModule prog') of
+      case lookupASTDef "other" (moduleDefs $ progModule prog') of
         Just def ->
           -- Check that the signature is an arrow type
           case astDefType def of
@@ -373,7 +371,7 @@ unit_construct_arrow_in_sig =
               -- Check that the selection is focused on the lhs, as we instructed
               case progSelection prog' of
                 Just (Selection d (Just NodeSelection{nodeType = SigNode, nodeId})) -> do
-                  d @?= astDefID def
+                  d @?= astDefName def
                   nodeId @?= getID lhs
                 _ -> assertFailure "no selection"
             _ -> assertFailure "not a function"
@@ -383,46 +381,44 @@ unit_sigaction_creates_holes :: Assertion
 unit_sigaction_creates_holes =
   let acts =
         [ -- main :: Char
-          MoveToDef 0
+          MoveToDef "main"
         , SigAction [ConstructTCon "Char"]
         , -- other :: Char; other = main
-          MoveToDef 2
+          MoveToDef "other"
         , SigAction [ConstructTCon "Char"]
-        , BodyAction [ConstructGlobalVar 0]
+        , BodyAction [ConstructGlobalVar "main"]
         , -- main :: Int
           -- We expect this to change 'other' to contain a hole
-          MoveToDef 0
+          MoveToDef "main"
         , SigAction [Delete, ConstructTCon "Int"]
         ]
    in progActionTest defaultPrimsProg acts $
         expectSuccess $ \_ prog' ->
-          case lookupASTDef 2 (moduleDefs $ progModule prog') of
+          case lookupASTDef "other" (moduleDefs $ progModule prog') of
             Just def ->
               -- Check that the definition is a non-empty hole
               case astDefExpr def of
-                Hole _ (GlobalVar _ 0) -> pure ()
+                Hole _ (GlobalVar _ "main") -> pure ()
                 _ -> assertFailure "expected {? main ?}"
             _ -> assertFailure "definition not found"
 
 unit_copy_paste_duplicate :: Assertion
 unit_copy_paste_duplicate = do
-  let ((p, fromDef, fromType, fromExpr, toDef, _toType, _toExpr), maxID) = create $ do
+  let ((p, fromType, fromExpr, _toType, _toExpr), maxID) = create $ do
         mainType <- tforall "a" KType (tvar "a" `tfun` (tcon "Maybe" `tapp` tEmptyHole))
         mainExpr <- lAM "b" $ lam "x" $ con "Just" `aPP` tvar "b" `app` var "x"
-        mainID <- fresh
-        let mainDef = ASTDef mainID "main" mainExpr mainType
-        blankID <- fresh
-        blankDef <- ASTDef blankID "blank" <$> emptyHole <*> tEmptyHole
+        let mainDef = ASTDef "main" mainExpr mainType
+        blankDef <- ASTDef "blank" <$> emptyHole <*> tEmptyHole
         pure
           ( newProg{progSelection = Nothing}
-            & #progModule % #moduleDefs .~ Map.fromList [(mainID, DefAST mainDef), (blankID, DefAST blankDef)]
-          , mainID
+            & #progModule % #moduleDefs .~ Map.fromList [("main", DefAST mainDef), ("blank", DefAST blankDef)]
           , getID mainType
           , getID mainExpr
-          , blankID
           , getID (astDefType blankDef)
           , getID (astDefExpr blankDef)
           )
+      fromDef = "main"
+      toDef = "blank"
   let a = newApp{appProg = p}
       actions = [MoveToDef toDef, CopyPasteSig (fromDef, fromType) [], CopyPasteBody (fromDef, fromExpr) []]
       (result, _) = runAppTestM maxID a $ (,) <$> tcWholeProg p <*> handleEditRequest actions
@@ -435,8 +431,8 @@ unit_copy_paste_duplicate = do
           clearIDs = set (_Just % _defIDs) 0
        in do
             src @?= lookupASTDef fromDef (moduleDefs $ progModule r)
-            assertBool "equal to toDef" $ src /= lookupASTDef toDef (moduleDefs $ progModule r)
-            clearIDs (set (_Just % #astDefName) "blank" src) @?= clearIDs (lookupASTDef toDef (moduleDefs $ progModule r))
+            assertBool "equal to toDef" $ src /= lookupASTDef "blank" (moduleDefs $ progModule r)
+            clearIDs (set (_Just % #astDefName) "blank" src) @?= clearIDs (lookupASTDef "blank" (moduleDefs $ progModule r))
 
 -- ∀a . (∀b,c . a -> b -> ∀d. c -> d)  -> ∀c. ?
 -- copy         ^------------------^
@@ -452,20 +448,18 @@ unit_copy_paste_duplicate = do
 -- - The d is bound within the copied subtree, so it is in-scope
 unit_copy_paste_type_scoping :: Assertion
 unit_copy_paste_type_scoping = do
-  let ((pInitial, definitionID, srcID, pExpected), maxID) = create $ do
+  let ((pInitial, srcID, pExpected), maxID) = create $ do
         toCopy <- tvar "a" `tfun` tvar "b" `tfun` tforall "d" KType (tvar "c" `tfun` tvar "d")
         let skel r = tforall "a" KType $ tfun (tforall "b" KType $ tforall "c" KType $ pure toCopy) $ tforall "c" KType r
-        definitionID' <- fresh
-        defInitial <- ASTDef definitionID' "main" <$> emptyHole <*> skel tEmptyHole
-        expected <- ASTDef definitionID' "main" <$> emptyHole <*> skel (tvar "a" `tfun` tEmptyHole `tfun` tforall "d" KType (tEmptyHole `tfun` tvar "d"))
+        defInitial <- ASTDef "main" <$> emptyHole <*> skel tEmptyHole
+        expected <- ASTDef "main" <$> emptyHole <*> skel (tvar "a" `tfun` tEmptyHole `tfun` tforall "d" KType (tEmptyHole `tfun` tvar "d"))
         pure
-          ( newEmptyProg & #progModule % #moduleDefs .~ Map.fromList [(definitionID', DefAST defInitial)]
-          , definitionID'
+          ( newEmptyProg & #progModule % #moduleDefs .~ Map.fromList [("main", DefAST defInitial)]
           , getID toCopy
-          , newEmptyProg & #progModule % #moduleDefs .~ Map.fromList [(definitionID', DefAST expected)]
+          , newEmptyProg & #progModule % #moduleDefs .~ Map.fromList [("main", DefAST expected)]
           )
   let a = newEmptyApp{appProg = pInitial}
-      actions = [MoveToDef definitionID, CopyPasteSig (definitionID, srcID) [Move Child1, Move Child2, Move Child1]]
+      actions = [MoveToDef "main", CopyPasteSig ("main", srcID) [Move Child1, Move Child2, Move Child1]]
       (result, _) = runAppTestM maxID a $ (,) <$> tcWholeProg pExpected <*> handleEditRequest actions
   case result of
     Left e -> assertFailure $ show e
@@ -479,19 +473,17 @@ unit_copy_paste_type_scoping = do
 -- ∀a b.a ~> ∀a.a
 unit_raise :: Assertion
 unit_raise = do
-  let ((pInitial, definitionID, srcID, pExpected), maxID) = create $ do
-        definitionID' <- fresh
+  let ((pInitial, srcID, pExpected), maxID) = create $ do
         toCopy <- tvar "a"
-        defInitial <- ASTDef definitionID' "main" <$> emptyHole <*> tforall "a" KType (tforall "b" KType $ pure toCopy)
-        expected <- ASTDef definitionID' "main" <$> emptyHole <*> tforall "a" KType (tvar "a")
+        defInitial <- ASTDef "main" <$> emptyHole <*> tforall "a" KType (tforall "b" KType $ pure toCopy)
+        expected <- ASTDef "main" <$> emptyHole <*> tforall "a" KType (tvar "a")
         pure
-          ( newEmptyProg & #progModule % #moduleDefs .~ Map.fromList [(definitionID', DefAST defInitial)]
-          , definitionID'
+          ( newEmptyProg & #progModule % #moduleDefs .~ Map.fromList [("main", DefAST defInitial)]
           , getID toCopy
-          , newEmptyProg & #progModule % #moduleDefs .~ Map.fromList [(definitionID', DefAST expected)]
+          , newEmptyProg & #progModule % #moduleDefs .~ Map.fromList [("main", DefAST expected)]
           )
   let a = newEmptyApp{appProg = pInitial}
-      actions = [MoveToDef definitionID, CopyPasteSig (definitionID, srcID) [Move Child1, Delete]]
+      actions = [MoveToDef "main", CopyPasteSig ("main", srcID) [Move Child1, Delete]]
       (result, _) = runAppTestM maxID a $ (,) <$> tcWholeProg pExpected <*> handleEditRequest actions
   case result of
     Left e -> assertFailure $ show e
@@ -507,8 +499,7 @@ unit_raise = do
 -- /\a . λ x . case x of Nil -> lettype b = ? in let y = ? : a in Pair @a @b y z ; Cons y ys -> /\@b z -> Pair @a @b y z
 unit_copy_paste_expr_1 :: Assertion
 unit_copy_paste_expr_1 = do
-  let ((pInitial, definitionID, srcID, pExpected), maxID) = create $ do
-        definitionID' <- fresh
+  let ((pInitial, srcID, pExpected), maxID) = create $ do
         ty <- tforall "a" KType $ (tcon "List" `tapp` tvar "a") `tfun` tforall "b" KType (tvar "b" `tfun` (tcon "Pair" `tapp` tvar "a" `tapp` tvar "b"))
         let toCopy' = con "MakePair" `aPP` tvar "a" `aPP` tvar "b" `app` var "y" `app` var "z" -- want different IDs for the two occurences in expected
         toCopy <- toCopy'
@@ -524,16 +515,15 @@ unit_copy_paste_expr_1 = do
         -- TODO: in the future we may want to insert let bindings for variables
         -- which are out of scope in the target, and produce something like
         -- expectPasted <- letType "b" tEmptyHole $ let_ "y" (emptyHole `ann` tvar "a") $ let_ "z" (emptyHole `ann` tvar "b") toCopy'
-        defInitial <- ASTDef definitionID' "main" <$> skel emptyHole <*> pure ty
-        expected <- ASTDef definitionID' "main" <$> skel (pure expectPasted) <*> pure ty
+        defInitial <- ASTDef "main" <$> skel emptyHole <*> pure ty
+        expected <- ASTDef "main" <$> skel (pure expectPasted) <*> pure ty
         pure
-          ( newProg & #progModule % #moduleDefs .~ Map.fromList [(definitionID', DefAST defInitial)]
-          , definitionID'
+          ( newProg & #progModule % #moduleDefs .~ Map.fromList [("main", DefAST defInitial)]
           , getID toCopy
-          , newProg & #progModule % #moduleDefs .~ Map.fromList [(definitionID', DefAST expected)]
+          , newProg & #progModule % #moduleDefs .~ Map.fromList [("main", DefAST expected)]
           )
   let a = newApp{appProg = pInitial}
-      actions = [MoveToDef definitionID, CopyPasteBody (definitionID, srcID) [Move Child1, Move Child1, Move (Branch "Nil")]]
+      actions = [MoveToDef "main", CopyPasteBody ("main", srcID) [Move Child1, Move Child1, Move (Branch "Nil")]]
       (result, _) = runAppTestM maxID a $ (,) <$> tcWholeProg pExpected <*> handleEditRequest actions
   case result of
     Left e -> assertFailure $ show e
@@ -545,48 +535,42 @@ unit_copy_paste_expr_1 = do
 
 unit_copy_paste_ann :: Assertion
 unit_copy_paste_ann = do
-  let ((p, fromDef, fromAnn, toDef), maxID) = create $ do
+  let ((p, fromAnn), maxID) = create $ do
         toCopy <- tcon "Bool"
-        mainID <- fresh
-        mainDef <- ASTDef mainID "main" <$> emptyHole `ann` pure toCopy <*> tEmptyHole
-        blankID <- fresh
-        blankDef <- ASTDef blankID "blank" <$> emptyHole `ann` tEmptyHole <*> tEmptyHole
+        mainDef <- ASTDef "main" <$> emptyHole `ann` pure toCopy <*> tEmptyHole
+        blankDef <- ASTDef "blank" <$> emptyHole `ann` tEmptyHole <*> tEmptyHole
         pure
-          ( newProg{progSelection = Nothing} & #progModule % #moduleDefs .~ Map.fromList [(mainID, DefAST mainDef), (blankID, DefAST blankDef)]
-          , mainID
+          ( newProg{progSelection = Nothing} & #progModule % #moduleDefs .~ Map.fromList [("main", DefAST mainDef), ("blank", DefAST blankDef)]
           , getID toCopy
-          , blankID
           )
   let a = newApp{appProg = p}
-      actions = [MoveToDef toDef, CopyPasteBody (fromDef, fromAnn) [EnterType]]
+      actions = [MoveToDef "blank", CopyPasteBody ("main", fromAnn) [EnterType]]
   let (result, _) = runAppTestM maxID a $ (,) <$> tcWholeProg p <*> handleEditRequest actions
   case result of
     Left e -> assertFailure $ show e
     Right (tcp, r) ->
       -- use the typechecked input p, as the result will have had a typecheck run, so
       -- we need the cached kinds to match up
-      let src = lookupASTDef fromDef (moduleDefs $ progModule tcp)
+      let src = lookupASTDef "main" (moduleDefs $ progModule tcp)
           clearIDs = set (_Just % _defIDs) 0
        in do
-            src @?= lookupASTDef fromDef (moduleDefs $ progModule r)
-            assertBool "equal to toDef" $ src /= lookupASTDef toDef (moduleDefs $ progModule r)
-            clearIDs (set (_Just % #astDefName) "blank" src) @?= clearIDs (lookupASTDef toDef (moduleDefs $ progModule r))
+            src @?= lookupASTDef "main" (moduleDefs $ progModule r)
+            assertBool "equal to blank" $ src /= lookupASTDef "blank" (moduleDefs $ progModule r)
+            clearIDs (set (_Just % #astDefName) "blank" src) @?= clearIDs (lookupASTDef "blank" (moduleDefs $ progModule r))
 
 unit_copy_paste_ann2sig :: Assertion
 unit_copy_paste_ann2sig = do
-  let ((pInitial, definitionID, srcID, pExpected), maxID) = create $ do
-        definitionID' <- fresh
+  let ((pInitial, srcID, pExpected), maxID) = create $ do
         toCopy <- tcon "Bool"
-        defInitial <- ASTDef definitionID' "main" <$> emptyHole `ann` pure toCopy <*> tEmptyHole
-        expected <- ASTDef definitionID' "main" <$> emptyHole `ann` pure toCopy <*> tcon "Bool"
+        defInitial <- ASTDef "main" <$> emptyHole `ann` pure toCopy <*> tEmptyHole
+        expected <- ASTDef "main" <$> emptyHole `ann` pure toCopy <*> tcon "Bool"
         pure
-          ( newProg & #progModule % #moduleDefs .~ Map.fromList [(definitionID', DefAST defInitial)]
-          , definitionID'
+          ( newProg & #progModule % #moduleDefs .~ Map.fromList [("main", DefAST defInitial)]
           , getID toCopy
-          , newProg & #progModule % #moduleDefs .~ Map.fromList [(definitionID', DefAST expected)]
+          , newProg & #progModule % #moduleDefs .~ Map.fromList [("main", DefAST expected)]
           )
   let a = newApp{appProg = pInitial}
-      actions = [MoveToDef definitionID, CopyPasteSig (definitionID, srcID) []]
+      actions = [MoveToDef "main", CopyPasteSig ("main", srcID) []]
       (result, _) = runAppTestM maxID a $ (,) <$> tcWholeProg pExpected <*> handleEditRequest actions
   case result of
     Left e -> assertFailure $ show e
@@ -598,19 +582,17 @@ unit_copy_paste_ann2sig = do
 
 unit_copy_paste_sig2ann :: Assertion
 unit_copy_paste_sig2ann = do
-  let ((pInitial, definitionID, srcID, pExpected), maxID) = create $ do
-        definitionID' <- fresh
+  let ((pInitial, srcID, pExpected), maxID) = create $ do
         toCopy <- tcon "Bool"
-        defInitial <- ASTDef definitionID' "main" <$> emptyHole <*> pure toCopy
-        expected <- ASTDef definitionID' "main" <$> emptyHole `ann` tcon "Bool" <*> pure toCopy
+        defInitial <- ASTDef "main" <$> emptyHole <*> pure toCopy
+        expected <- ASTDef "main" <$> emptyHole `ann` tcon "Bool" <*> pure toCopy
         pure
-          ( newProg & #progModule % #moduleDefs .~ Map.fromList [(definitionID', DefAST defInitial)]
-          , definitionID'
+          ( newProg & #progModule % #moduleDefs .~ Map.fromList [("main", DefAST defInitial)]
           , getID toCopy
-          , newProg & #progModule % #moduleDefs .~ Map.fromList [(definitionID', DefAST expected)]
+          , newProg & #progModule % #moduleDefs .~ Map.fromList [("main", DefAST expected)]
           )
   let a = newApp{appProg = pInitial}
-      actions = [MoveToDef definitionID, CopyPasteBody (definitionID, srcID) [ConstructAnn, EnterType]]
+      actions = [MoveToDef "main", CopyPasteBody ("main", srcID) [ConstructAnn, EnterType]]
       (result, _) = runAppTestM maxID a $ (,) <$> tcWholeProg pExpected <*> handleEditRequest actions
   case result of
     Left e -> assertFailure $ show e
@@ -632,7 +614,7 @@ unit_import_vars =
             (_, vs) <- runReaderT (handleQuestion (VariablesInScope i $ getID $ astDefExpr d)) a'
             pure $
               assertBool "VariablesInScope did not report the imported Int.+" $
-                any ((== "Int.+") . snd3) vs
+                any ((== "Int.+") . fst) vs
           _ -> pure $ assertFailure "Expected one def 'main' from newEmptyApp"
       a = newEmptyApp
    in case fst $ runAppTestM (ID $ appIdCounter a) a test of
@@ -652,7 +634,7 @@ unit_import_reference =
               handleEditRequest
                 [ MoveToDef i
                 , SigAction [ConstructTCon "Char"]
-                , BodyAction [ConstructGlobalVar $ defID toUpperDef]
+                , BodyAction [ConstructGlobalVar $ defName toUpperDef]
                 ]
             pure $ pure ()
           (Nothing, _) -> pure $ assertFailure "Could not find the imported toUpper"
@@ -671,7 +653,7 @@ unit_copy_paste_import =
         prog <- gets appProg
         case (findGlobalByName prog "other", Map.assocs $ moduleDefs $ progModule prog) of
           (Just (DefAST other), [(i, _)]) -> do
-            let fromDef = astDefID other
+            let fromDef = astDefName other
                 fromType = getID $ astDefType other
                 fromExpr = getID $ astDefExpr other
             _ <-
@@ -691,7 +673,7 @@ unit_copy_paste_import =
 -- * Utilities
 
 findGlobalByName :: Prog -> Name -> Maybe Def
-findGlobalByName p n = find ((== n) . defName) $ concatMap (Map.elems . moduleDefs) $ progModule p : progImports p
+findGlobalByName p n = Map.lookup n . foldMap moduleDefs $ progModule p : progImports p
 
 -- We use a program with two defs: "main" and "other"
 defaultEmptyProg :: MonadFresh ID m => m Prog
@@ -700,13 +682,13 @@ defaultEmptyProg = do
   mainType <- tEmptyHole
   otherExpr <- emptyHole
   otherType <- tEmptyHole
-  let mainDef = ASTDef 0 "main" mainExpr mainType
-      otherDef = ASTDef 2 "other" otherExpr otherType
+  let mainDef = ASTDef "main" mainExpr mainType
+      otherDef = ASTDef "other" otherExpr otherType
    in pure $
         newEmptyProg
           { progSelection =
               Just $
-                Selection (astDefID mainDef) $
+                Selection (astDefName mainDef) $
                   Just
                     NodeSelection
                       { nodeType = BodyNode
@@ -716,20 +698,20 @@ defaultEmptyProg = do
           }
           & #progModule
           % #moduleDefs
-          .~ Map.fromList [(0, DefAST mainDef), (2, DefAST otherDef)]
+          .~ Map.fromList [(astDefName mainDef, DefAST mainDef), (astDefName otherDef, DefAST otherDef)]
 
 -- `defaultEmptyProg`, plus all primitive definitions (types and terms)
 defaultPrimsProg :: MonadFresh ID m => m Prog
 defaultPrimsProg = do
   p <- defaultEmptyProg
-  withPrimDefs $ \_ m ->
+  withPrimDefs $ \m ->
     pure $
       over (#progModule % #moduleTypes) ((TypeDefPrim <$> toList allPrimTypeDefs) <>)
         . over (#progModule % #moduleDefs) ((DefPrim <$> m) <>)
         $ p
 
 _defIDs :: Traversal' ASTDef ID
-_defIDs = #astDefID `adjoin` #astDefExpr % (_exprMeta % _id `adjoin` _exprTypeMeta % _id) `adjoin` #astDefType % _typeMeta % _id
+_defIDs = #astDefExpr % (_exprMeta % _id `adjoin` _exprTypeMeta % _id) `adjoin` #astDefType % _typeMeta % _id
 
 -- Tests that the result is successful, and then applies the given test to the returned program
 -- The test takes two arguments: the original input program and the output program

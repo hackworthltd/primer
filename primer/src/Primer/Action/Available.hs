@@ -57,7 +57,7 @@ import Primer.Core (
   _typeMetaLens,
  )
 import Primer.Core.Transform (unfoldFun)
-import Primer.Name (unName)
+import Primer.Name (Name, unName)
 import Primer.Questions (Question (..))
 
 -- | An AST node tagged with its "sort" - i.e. if it's a type or expression or binding etc.
@@ -83,7 +83,7 @@ actionsForDef l defs def =
             ChooseOrEnterName
               ("Enter a new " <> nameString <> " for the definition")
               []
-              (\name -> [RenameDef (astDefID def) (unName name)])
+              (\name -> [RenameDef (astDefName def) (unName name)])
       , priority = P.rename l
       , actionType = Primary
       }
@@ -98,8 +98,8 @@ actionsForDef l defs def =
               copyName = uniquifyDefName (unName (astDefName def) <> "Copy") defs
            in NoInputRequired
                 [ CreateDef (Just copyName)
-                , CopyPasteSig (astDefID def, sigID) []
-                , CopyPasteBody (astDefID def, bodyID) []
+                , CopyPasteSig (astDefName def, sigID) []
+                , CopyPasteBody (astDefName def, bodyID) []
                 ]
       , priority = P.duplicate l
       , actionType = Primary
@@ -107,7 +107,7 @@ actionsForDef l defs def =
   , OfferedAction
       { name = Prose "⌫"
       , description = "Delete this definition"
-      , input = NoInputRequired [DeleteDef $ astDefID def]
+      , input = NoInputRequired [DeleteDef $ astDefName def]
       , priority = P.delete l
       , actionType = Destructive
       }
@@ -121,13 +121,13 @@ actionsForDefBody ::
   Expr ->
   [OfferedAction [ProgAction]]
 actionsForDefBody l def id expr =
-  let toProgAction actions = [MoveToDef (astDefID def), BodyAction actions]
+  let toProgAction actions = [MoveToDef (astDefName def), BodyAction actions]
 
       raiseAction' =
         OfferedAction
           { name = Prose "↑"
           , description = "Replace parent with this subtree"
-          , input = NoInputRequired [MoveToDef (astDefID def), CopyPasteBody (astDefID def, id) [SetCursor id, Move Parent, Delete]]
+          , input = NoInputRequired [MoveToDef (astDefName def), CopyPasteBody (astDefName def, id) [SetCursor id, Move Parent, Delete]]
           , priority = P.raise l
           , actionType = Destructive
           }
@@ -138,16 +138,16 @@ actionsForDefBody l def id expr =
                 Nothing -> [] -- at root already, cannot raise
                 Just (ExprNode (Hole _ _)) -> [] -- in a NE hole, don't offer raise (as hole will probably just be recreated)
                 _ -> [raiseAction']
-           in (toProgAction <<$>> basicActionsForExpr l (astDefID def) e) <> raiseAction
+           in (toProgAction <<$>> basicActionsForExpr l (astDefName def) e) <> raiseAction
         Just (TypeNode t, p) ->
           let raiseAction = case p of
                 Just (ExprNode _) -> [] -- at the root of an annotation, so cannot raise
                 _ -> [raiseAction']
            in ( toProgAction
-                  <<$>> (basicActionsForType l (astDefID def) t <> compoundActionsForType l t)
+                  <<$>> (basicActionsForType l (astDefName def) t <> compoundActionsForType l t)
               )
                 <> raiseAction
-        Just (CaseBindNode b, _) -> toProgAction <<$>> actionsForBinding l (astDefID def) b
+        Just (CaseBindNode b, _) -> toProgAction <<$>> actionsForBinding l (astDefName def) b
 
 -- | Given a Type and the ID of a node in it, return the possible actions that can be applied to it
 actionsForDefSig ::
@@ -157,13 +157,13 @@ actionsForDefSig ::
   Type ->
   [OfferedAction [ProgAction]]
 actionsForDefSig l def id ty =
-  let toProgAction actions = [MoveToDef (astDefID def), SigAction actions]
+  let toProgAction actions = [MoveToDef (astDefName def), SigAction actions]
 
       raiseAction =
         [ OfferedAction
           { name = Prose "↑"
           , description = "Replace parent with this subtree"
-          , input = NoInputRequired [MoveToDef (astDefID def), CopyPasteSig (astDefID def, id) [SetCursor id, Move Parent, Delete]]
+          , input = NoInputRequired [MoveToDef (astDefName def), CopyPasteSig (astDefName def, id) [SetCursor id, Move Parent, Delete]]
           , priority = P.raise l
           , actionType = Destructive
           }
@@ -173,17 +173,17 @@ actionsForDefSig l def id ty =
         Nothing -> mempty
         Just t ->
           ( toProgAction
-              <<$>> (basicActionsForType l (astDefID def) t <> compoundActionsForType l t)
+              <<$>> (basicActionsForType l (astDefName def) t <> compoundActionsForType l t)
           )
             <> raiseAction
 
 -- | Bindings support just one action: renaming.
 actionsForBinding ::
   Level ->
-  ID ->
+  Name ->
   Bind' (Meta (Maybe TypeCache)) ->
   [OfferedAction [Action]]
-actionsForBinding l defId b =
+actionsForBinding l defName b =
   realise
     b
     (b ^. _bindMeta)
@@ -193,7 +193,7 @@ actionsForBinding l defId b =
           , description = "Rename this pattern variable"
           , input =
               actionWithNames
-                defId
+                defName
                 (Left $ b ^? _bindMeta % _type % _Just % _chkedAt)
                 (\n -> [RenameCaseBinding n])
                 m'
@@ -307,18 +307,17 @@ actionWithInput name description priority actionType input _p m =
 
 -- | Construct an ActionSpec which requires the user to select from a bunch of
 -- generated names for the current location (or specify their own), and starts
--- with SetCursor. Requires the definition id (not the node's id: that is
--- controlled by the ActionSpec)
+-- with SetCursor. Requires the definition name.
 actionWithNames ::
   forall a.
-  ID ->
+  Name ->
   Either (Maybe (Type' ())) (Maybe Kind) ->
   (Text -> [Action]) ->
   Meta a ->
   Text ->
   ActionInput [Action]
-actionWithNames defId tk k m prompt =
-  AskQuestion (GenerateName defId (m ^. _id) tk) $ \options ->
+actionWithNames defName tk k m prompt =
+  AskQuestion (GenerateName defName (m ^. _id) tk) $ \options ->
     InputRequired $
       ChooseOrEnterName
         prompt
@@ -331,8 +330,8 @@ realise p m = map (\a -> a p m)
 
 -- | Given an expression, determine what basic actions it supports
 -- Specific projections may provide other actions not listed here
-basicActionsForExpr :: Level -> ID -> Expr -> [OfferedAction [Action]]
-basicActionsForExpr l defID expr = case expr of
+basicActionsForExpr :: Level -> Name -> Expr -> [OfferedAction [Action]]
+basicActionsForExpr l defName expr = case expr of
   EmptyHole m -> realise expr m $ universalActions m <> emptyHoleActions m
   Hole m _ -> realise expr m $ defaultActions m <> holeActions
   Ann m _ _ -> realise expr m $ defaultActions m <> annotationActions
@@ -349,7 +348,7 @@ basicActionsForExpr l defID expr = case expr of
        in actionWithInput (Code "x") "Use a variable" (P.useVar l) Primary $
             ChooseVariable filterVars $ \case
               Left name -> [ConstructVar name]
-              Right id_ -> [ConstructGlobalVar id_]
+              Right name -> [ConstructGlobalVar name]
 
     -- If we have a useful type, offer the refine action, otherwise offer the
     offerRefined :: ExprMeta -> Bool
@@ -393,7 +392,7 @@ basicActionsForExpr l defID expr = case expr of
         , description = "Make a function with an input"
         , input =
             actionWithNames
-              defID
+              defName
               (Left $ join $ m ^? _type % _Just % _chkedAt % to lamVarTy)
               (\n -> [ConstructLam $ Just n])
               m'
@@ -409,7 +408,7 @@ basicActionsForExpr l defID expr = case expr of
         , description = "Make a type abstraction"
         , input =
             actionWithNames
-              defID
+              defName
               (Right $ join $ m ^? _type % _Just % _chkedAt % to lAMVarKind)
               (\n -> [ConstructLAM $ Just n])
               m'
@@ -449,7 +448,7 @@ basicActionsForExpr l defID expr = case expr of
         , description = "Make a let binding"
         , input =
             actionWithNames
-              defID
+              defName
               (Left Nothing)
               (\n -> [ConstructLet $ Just n])
               m'
@@ -465,7 +464,7 @@ basicActionsForExpr l defID expr = case expr of
         , description = "Make a recursive let binding"
         , input =
             actionWithNames
-              defID
+              defName
               (Left Nothing)
               (\n -> [ConstructLetrec $ Just n])
               m'
@@ -490,7 +489,7 @@ basicActionsForExpr l defID expr = case expr of
         , description = "Rename this input variable"
         , input =
             actionWithNames
-              defID
+              defName
               (Left $ join $ m ^? _type % _Just % _chkedAt % to lamVarTy)
               (\n -> [RenameLam n])
               m'
@@ -506,7 +505,7 @@ basicActionsForExpr l defID expr = case expr of
         , description = "Rename this type variable"
         , input =
             actionWithNames
-              defID
+              defName
               (Right $ join $ m ^? _type % _Just % _chkedAt % to lAMVarKind)
               (\n -> [RenameLAM n])
               m'
@@ -525,7 +524,7 @@ basicActionsForExpr l defID expr = case expr of
         , description = "Rename this let binding"
         , input =
             actionWithNames
-              defID
+              defName
               (Left $ set (_Just % _typeMeta) () t)
               (\n -> [RenameLet n])
               m'
@@ -620,8 +619,8 @@ basicActionsForExpr l defID expr = case expr of
 
 -- | Given a type, determine what basic actions it supports
 -- Specific projections may provide other actions not listed here
-basicActionsForType :: Level -> ID -> Type -> [OfferedAction [Action]]
-basicActionsForType l defID ty = case ty of
+basicActionsForType :: Level -> Name -> Type -> [OfferedAction [Action]]
+basicActionsForType l defName ty = case ty of
   TEmptyHole m -> realise ty m $ universalActions <> emptyHoleActions
   TForall m _ k _ -> realise ty m $ defaultActions <> forAllActions k
   t -> realise ty (t ^. _typeMetaLens) defaultActions
@@ -638,7 +637,7 @@ basicActionsForType l defID ty = case ty of
         , description = "Construct a polymorphic type"
         , input =
             actionWithNames
-              defID
+              defName
               (Right Nothing)
               (\n -> [ConstructTForall (Just n), Move Child1])
               m'
@@ -663,7 +662,7 @@ basicActionsForType l defID ty = case ty of
         , description = "Rename this type variable"
         , input =
             actionWithNames
-              defID
+              defName
               (Right $ Just k)
               (\n -> [RenameForall n])
               m'

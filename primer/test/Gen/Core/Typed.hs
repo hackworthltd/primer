@@ -153,7 +153,7 @@ genSyns ty = do
     genSpineHeadFirst = do
       localTms <- asks localTmVars
       let locals' = map (first (Var ())) $ M.toList localTms
-      globals <- asks $ M.map snd . globalCxt
+      globals <- asks globalCxt
       let globals' = map (first (GlobalVar ())) $ M.toList globals
       cons <- asks allCons
       let cons' = map (first (Con ())) $ M.toList cons
@@ -374,11 +374,11 @@ genWTKind = Gen.recursive Gen.choice [pure KType] [KFun <$> genWTKind <*> genWTK
 
 -- NB: we are only generating the context entries, and so don't
 -- need definitions for the symbols!
-genGlobalCxtExtension :: GenT WT [(ID, (Name, TypeG))]
+genGlobalCxtExtension :: GenT WT [(Name, TypeG)]
 genGlobalCxtExtension =
   local forgetLocals $
     Gen.list (Range.linear 1 5) $
-      (\i n t -> (i, (n, t))) <$> fresh <*> freshNameForCxt <*> genWTType KType
+      (,) <$> freshNameForCxt <*> genWTType KType
   where
     -- we are careful to not let the globals depend on whatever locals may be in
     -- the cxt
@@ -420,7 +420,7 @@ genTypeDefGroup = do
 addTypeDefs :: [TypeDef] -> Cxt -> Cxt
 addTypeDefs tds cxt = cxt{typeDefs = typeDefs cxt <> mkTypeDefMap tds}
 
-extendGlobals :: [(ID, (Name, TypeG))] -> Cxt -> Cxt
+extendGlobals :: [(Name, TypeG)] -> Cxt -> Cxt
 extendGlobals nts cxt = cxt{globalCxt = globalCxt cxt <> M.fromList nts}
 
 -- Generate an extension of the base context (from the reader monad) with more

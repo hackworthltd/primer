@@ -44,7 +44,7 @@ unit_viewTreeExpr_injective_var =
 
 unit_viewTreeExpr_injective_globalvar :: Assertion
 unit_viewTreeExpr_injective_globalvar =
-  distinctTreeExpr (global 0) (global 1)
+  distinctTreeExpr (global "0") (global "1")
 
 unit_viewTreeExpr_injective_let :: Assertion
 unit_viewTreeExpr_injective_let =

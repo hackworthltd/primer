@@ -4,7 +4,7 @@ module Tests.Question where
 import Foreword hiding (diff)
 
 import Data.List (nub, nubBy)
-import Gen.Core.Raw (evalExprGen, genID, genKind, genName, genType)
+import Gen.Core.Raw (evalExprGen, genKind, genName, genType)
 import Hedgehog hiding (check)
 import Hedgehog.Classes
 import qualified Hedgehog.Gen as Gen
@@ -12,7 +12,6 @@ import qualified Hedgehog.Range as Range
 import Primer.App (defaultTypeDefs)
 import Primer.Core (
   Expr,
-  ID,
   Kind (KFun, KType),
   Type,
   Type' (TCon),
@@ -105,7 +104,7 @@ hprop_shadow_monoid_expr = property $ do
   label $ if lenIn == lenOut then "no shadowing" else "shadowing"
   -- We end up with fewer elements than we started with
   assert $ lenIn >= lenOut
-  let nonShNames = map fst tyV ++ map fst tmV ++ map (\(_, n, _) -> n) glV
+  let nonShNames = map fst tyV ++ map fst tmV ++ map fst glV
   annotateShow nonShNames
   -- there are no duplicate names in the output
   assert $ nub nonShNames == nonShNames
@@ -119,25 +118,25 @@ hprop_shadow_monoid_expr = property $ do
 data STE'
   = TyVar (Name, Kind)
   | TmVar (Name, Type' ())
-  | Global (ID, Name, Type' ())
+  | Global (Name, Type' ())
   deriving (Show)
 
 nameSTE' :: STE' -> Name
 nameSTE' = \case
   TyVar (n, _) -> n
   TmVar (n, _) -> n
-  Global (_, n, _) -> n
+  Global (n, _) -> n
 
 -- Generates data that could be contained in a ShadowedVarsExpr, except
 -- it may have duplicated names, and is not split into three sections,
 -- but jumbled together
 genSTE' :: Gen [STE']
 genSTE' =
-  let g = Gen.either_ genKind $ (,) <$> fmap forgetTypeIDs genType <*> Gen.maybe genID
+  let g = Gen.either_ genKind $ (,) <$> fmap forgetTypeIDs genType <*> Gen.bool
       toSTE' n = \case
         Left k -> TyVar (n, k)
-        Right (ty, Nothing) -> TmVar (n, ty)
-        Right (ty, Just i) -> Global (i, n, ty)
+        Right (ty, False) -> TmVar (n, ty)
+        Right (ty, True) -> Global (n, ty)
    in evalExprGen 0 $ Gen.list (Range.linear 0 20) $ toSTE' <$> genName <*> g
 
 genSTE :: Gen ShadowedVarsExpr

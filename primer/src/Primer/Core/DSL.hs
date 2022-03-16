@@ -97,8 +97,8 @@ con c = Con <$> meta <*> pure c
 var :: MonadFresh ID m => Name -> m Expr
 var v = Var <$> meta <*> pure v
 
-global :: MonadFresh ID m => ID -> m Expr
-global id_ = GlobalVar <$> meta <*> pure id_
+global :: MonadFresh ID m => Name -> m Expr
+global name = GlobalVar <$> meta <*> pure name
 
 lam :: MonadFresh ID m => Name -> m Expr -> m Expr
 lam v e = Lam <$> meta <*> pure v <*> e

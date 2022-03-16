@@ -13,7 +13,6 @@ module Primer.Core (
   CaseBranch,
   CaseBranch' (..),
   Def (..),
-  defID,
   defName,
   defType,
   ASTDef (..),
@@ -159,7 +158,7 @@ data Expr' a b
   | Lam a Name (Expr' a b)
   | LAM a Name (Expr' a b)
   | Var a Name
-  | GlobalVar a ID
+  | GlobalVar a Name
   | Let a Name (Expr' a b) (Expr' a b)
   | -- | LetType binds a type to a name in some expression.
     -- It is currently only constructed automatically during evaluation -
@@ -361,9 +360,7 @@ data Def
 
 -- | A primitive, built-in definition
 data PrimDef = PrimDef
-  { primDefID :: ID
-  -- ^ Used for scoping
-  , primDefName :: Name
+  { primDefName :: Name
   -- ^ Used for display, and to link to an entry in `allPrimDefs`
   , primDefType :: Type
   }
@@ -372,18 +369,13 @@ data PrimDef = PrimDef
 
 -- | A top-level definition, built from an 'Expr'
 data ASTDef = ASTDef
-  { astDefID :: ID
-  , astDefName :: Name
+  { astDefName :: Name
   , astDefExpr :: Expr
   , astDefType :: Type
   }
   deriving (Eq, Show, Generic)
   deriving (FromJSON, ToJSON) via VJSON ASTDef
 
-defID :: Def -> ID
-defID = \case
-  DefPrim d -> primDefID d
-  DefAST d -> astDefID d
 defName :: Def -> Name
 defName = \case
   DefPrim d -> primDefName d

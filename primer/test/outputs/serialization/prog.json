@@ -19,7 +19,7 @@
     },
     "progModule": {
         "moduleDefs": {
-            "1": {
+            "main": {
                 "contents": {
                     "astDefExpr": {
                         "contents": [
@@ -35,7 +35,6 @@
                         ],
                         "tag": "EmptyHole"
                     },
-                    "astDefID": 1,
                     "astDefName": "main",
                     "astDefType": {
                         "contents": [
@@ -118,7 +117,7 @@
         ]
     },
     "progSelection": {
-        "selectedDef": 1,
+        "selectedDef": "main",
         "selectedNode": {
             "meta": {
                 "Left": [

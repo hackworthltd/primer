@@ -177,7 +177,7 @@ data UserInput a
       -- ^ A bunch of options
       (Name -> a)
       -- ^ What to do with whatever name is chosen
-  | ChooseVariable FunctionFiltering (Either Text ID -> a)
+  | ChooseVariable FunctionFiltering (Either Text Name -> a)
   | ChooseTypeVariable (Text -> a)
   deriving (Functor)
 
@@ -258,13 +258,13 @@ data Action
   | -- | Construct a variable in an empty hole
     ConstructVar Text
   | -- | Construct a global variable (i.e. a reference to a definition) in an empty hole
-    ConstructGlobalVar ID
+    ConstructGlobalVar Name
   | -- | Insert a variable, with a saturated spine of term/type applications in an empty hole
     InsertSaturatedVar Text
-  | InsertSaturatedGlobalVar ID
+  | InsertSaturatedGlobalVar Name
   | -- | Insert a variable, with an infered spine of term/type applications in an empty hole
     InsertRefinedVar Text
-  | InsertRefinedGlobalVar ID
+  | InsertRefinedGlobalVar Name
   | -- | Apply the expression under the cursor
     ConstructApp
   | -- | Apply the expression under the cursor to a type
@@ -338,6 +338,7 @@ data ActionError
       -- ^ the error message
   | InternalFailure Text
   | IDNotFound ID
+  | UnknownDef Name
   | NeedEmptyHole Action Expr
   | NeedNonEmptyHole Action Expr
   | NeedAnn Action Expr
@@ -366,14 +367,14 @@ data ActionError
 -- | High level actions
 -- These actions move around the whole program or modify definitions
 data ProgAction
-  = -- | Move the cursor to the definition with the given ID
-    MoveToDef ID
-  | -- | Rename the definition with the given ID
-    RenameDef ID Text
+  = -- | Move the cursor to the definition with the given Name
+    MoveToDef Name
+  | -- | Rename the definition with the given Name
+    RenameDef Name Text
   | -- | Create a new definition
     CreateDef (Maybe Text)
   | -- | Delete a new definition
-    DeleteDef ID
+    DeleteDef Name
   | -- | Add a new type definition
     AddTypeDef ASTTypeDef
   | -- | Execute a sequence of actions on the body of the definition
@@ -392,8 +393,8 @@ data ProgAction
     --   whilst letting the backend avoid remembering the 'copied' thing in some state.
     --   The cursor is left on the root of the inserted subtree, which may or may not be inside a hole and/or annotation.
     --   At the start of the actions, the cursor starts at the root of the definition's type/expression
-    CopyPasteSig (ID, ID) [Action]
-  | CopyPasteBody (ID, ID) [Action]
+    CopyPasteSig (Name, ID) [Action]
+  | CopyPasteBody (Name, ID) [Action]
   deriving (Eq, Show, Generic)
   deriving (FromJSON, ToJSON) via VJSON ProgAction
 
@@ -436,7 +437,7 @@ applyActionsToTypeSig smartHoles imports mod def actions =
       let t = target (top zt)
       e <- check (forgetTypeIDs t) (astDefExpr def)
       let def' = def{astDefExpr = exprTtoExpr e, astDefType = t}
-          defs' = Map.insert (astDefID def) (DefAST def') $ moduleDefs mod
+          defs' = Map.insert (astDefName def) (DefAST def') $ moduleDefs mod
           mod' = mod{moduleDefs = defs'}
       -- The actions were applied to the type successfully, and the definition body has been
       -- typechecked against the new type.
@@ -475,7 +476,7 @@ applyActionsToBody ::
   (MonadFresh ID m, MonadFresh NameCounter m) =>
   SmartHoles ->
   [TypeDef] ->
-  Map ID Def ->
+  Map Name Def ->
   ASTDef ->
   [Action] ->
   m (Either ActionError (ASTDef, Loc))
@@ -561,7 +562,7 @@ applyAction' a = case a of
   EnterHole -> termAction enterHole "non-empty type holes not supported"
   FinishHole -> termAction finishHole "there are no non-empty holes in types"
   ConstructVar x -> termAction (constructVar x) "cannot construct var in type"
-  ConstructGlobalVar id_ -> termAction (constructGlobalVar id_) "cannot construct global var in type"
+  ConstructGlobalVar name' -> termAction (constructGlobalVar name') "cannot construct global var in type"
   InsertSaturatedVar x -> termAction (insertSatVar $ Left x) "cannot insert var in type"
   InsertSaturatedGlobalVar id_ -> termAction (insertSatVar $ Right id_) "cannot insert var in type"
   InsertRefinedVar x -> termAction (insertRefinedVar $ Left x) "cannot insert var in type"
@@ -668,12 +669,12 @@ constructVar x ast = case target ast of
   e -> throwError $ NeedEmptyHole (ConstructVar x) e
 
 -- TODO: error if the ID doesn't reference an in-scope definition
-constructGlobalVar :: ActionM m => ID -> ExprZ -> m ExprZ
+constructGlobalVar :: ActionM m => Name -> ExprZ -> m ExprZ
 constructGlobalVar id_ ast = case target ast of
   EmptyHole{} -> flip replace ast <$> global id_
   e -> throwError $ NeedEmptyHole (ConstructGlobalVar id_) e
 
-insertSatVar :: ActionM m => Either Text ID -> ExprZ -> m ExprZ
+insertSatVar :: ActionM m => Either Text Name -> ExprZ -> m ExprZ
 insertSatVar x ast = case target ast of
   -- TODO: for now, rely on SmartHoles to fix up the type. I think we may want
   -- to do this manually to handle running with NoSmartHoles. There is no concern
@@ -687,7 +688,7 @@ insertSatVar x ast = case target ast of
 
 -- TODO: Add some tests for this. See:
 -- https://github.com/hackworthltd/primer/issues/10
-saturatedApplication :: ActionM m => ExprZ -> Either Text ID -> m Expr
+saturatedApplication :: ActionM m => ExprZ -> Either Text Name -> m Expr
 saturatedApplication ast v = do
   (appHead, vTy) <-
     getVarType ast v >>= \case
@@ -698,7 +699,7 @@ saturatedApplication ast v = do
 getVarType ::
   MonadReader TC.Cxt m =>
   ExprZ ->
-  Either Text ID ->
+  Either Text Name ->
   m (Either Text TC.Type)
 getVarType ast = \case
   Left local' ->
@@ -710,9 +711,9 @@ getVarType ast = \case
           (Just t, _) -> Right t
           (Nothing, Just _) -> Left "That's a type var!"
           (Nothing, Nothing) -> Left "unknown local"
-  Right globalId ->
-    asks (lookupGlobal globalId) <&> \case
-      Just (_, t) -> Right t
+  Right globalName ->
+    asks (lookupGlobal globalName) <&> \case
+      Just t -> Right t
       Nothing -> Left "unknown global"
 
 mkSaturatedApplication :: MonadFresh ID m => m Expr -> TC.Type -> m Expr
@@ -722,7 +723,7 @@ mkSaturatedApplication e = \case
   TForall _ _ _ t -> mkSaturatedApplication (e `aPP` tEmptyHole) t
   _ -> e
 
-insertRefinedVar :: ActionM m => Either Text ID -> ExprZ -> m ExprZ
+insertRefinedVar :: ActionM m => Either Text Name -> ExprZ -> m ExprZ
 insertRefinedVar x ast = do
   (v, vTy) <-
     getVarType ast x >>= \case

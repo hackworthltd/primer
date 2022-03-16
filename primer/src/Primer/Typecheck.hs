@@ -90,7 +90,6 @@ import Primer.Core (
   TypeMeta,
   ValCon (valConArgs, valConName),
   bindName,
-  defID,
   defName,
   defType,
   primConName,
@@ -132,7 +131,7 @@ data TypeError
   = InternalError String
   | UnknownVariable Name
   | WrongSortVariable Name -- type var instead of term var or vice versa
-  | UnknownGlobalVariable ID
+  | UnknownGlobalVariable Name
   | UnknownConstructor Name
   | UnknownTypeConstructor Name
   | -- | Cannot use a PrimCon when either no type of the appropriate name is
@@ -169,17 +168,15 @@ data Cxt = Cxt
   -- ^ invariant: the key matches the 'typeDefName' inside the 'TypeDef'
   , localCxt :: Map Name KindOrType
   -- ^ local variables
-  , globalCxt :: Map ID (Name, Type)
+  , globalCxt :: Map Name Type
   -- ^ global variables (i.e. IDs of top-level definitions)
-  -- [We don't care about the name for TC purposes, but is nice to have
-  -- around when we generate names so we don't shadow top-level defs]
   }
   deriving (Show)
 
 lookupLocal :: Name -> Cxt -> Maybe KindOrType
 lookupLocal v cxt = M.lookup v $ localCxt cxt
 
-lookupGlobal :: ID -> Cxt -> Maybe (Name, Type)
+lookupGlobal :: Name -> Cxt -> Maybe Type
 lookupGlobal v cxt = M.lookup v $ globalCxt cxt
 
 extendLocalCxt :: (Name, Type) -> Cxt -> Cxt
@@ -194,7 +191,7 @@ extendLocalCxts x cxt = cxt{localCxt = Map.fromList (map (second T) x) <> localC
 extendLocalCxtTys :: [(Name, Kind)] -> Cxt -> Cxt
 extendLocalCxtTys x cxt = cxt{localCxt = Map.fromList (map (second K) x) <> localCxt cxt}
 
-extendGlobalCxt :: [(ID, (Name, Type))] -> Cxt -> Cxt
+extendGlobalCxt :: [(Name, Type)] -> Cxt -> Cxt
 extendGlobalCxt globals cxt = cxt{globalCxt = Map.fromList globals <> globalCxt cxt}
 
 extendTypeDefCxt :: [TypeDef] -> Cxt -> Cxt
@@ -220,9 +217,9 @@ initialCxt sh =
     }
 
 -- | Construct an initial typing context, with all given definitions in scope as global variables.
-buildTypingContext :: [TypeDef] -> Map ID Def -> SmartHoles -> Cxt
+buildTypingContext :: [TypeDef] -> Map Name Def -> SmartHoles -> Cxt
 buildTypingContext tydefs defs sh =
-  let globals = Map.elems $ fmap (\def -> (defID def, (defName def, forgetTypeIDs (defType def)))) defs
+  let globals = Map.elems $ fmap (\def -> (defName def, forgetTypeIDs (defType def))) defs
    in extendTypeDefCxt tydefs $ extendGlobalCxt globals $ initialCxt sh
 
 -- | Create a mapping of name to typedef for fast lookup.
@@ -273,7 +270,7 @@ checkValidContext cxt = do
   checkLocalCxtTys $ localTyVars cxt
   runReaderT (checkLocalCxtTms $ localTmVars cxt) $ extendLocalCxtTys (M.toList $ localTyVars cxt) (initialCxt NoSmartHoles){typeDefs = tds}
   where
-    checkGlobalCxt globs = mapM_ (checkKind KType <=< fakeMeta) $ fmap snd globs
+    checkGlobalCxt = mapM_ (checkKind KType <=< fakeMeta)
     -- a tyvar just declares its kind. There are no possible errors in kinds.
     checkLocalCxtTys _tyvars = pure ()
     checkLocalCxtTms = mapM_ (checkKind KType <=< fakeMeta)
@@ -382,12 +379,12 @@ checkEverything sh CheckEverything{trusted, toCheck} =
           sh
    in flip runReaderT cxt $ do
         -- Check that the definition map has the right keys
-        for_ toCheck $ \m -> flip Map.traverseWithKey (moduleDefs m) $ \i d ->
-          unless (i == defID d) $ throwError' $ InternalError "Inconsistant IDs in moduleDefs map"
+        for_ toCheck $ \m -> flip Map.traverseWithKey (moduleDefs m) $ \n d ->
+          unless (n == defName d) $ throwError' $ InternalError "Inconsistant names in moduleDefs map"
         checkTypeDefs $ concatMap moduleTypes toCheck
         let newTypes = foldMap moduleTypes toCheck
             newDefs =
-              foldMap (\d -> [(defID d, (defName d, forgetTypeIDs $ defType d))]) $
+              foldMap (\d -> [(defName d, forgetTypeIDs $ defType d)]) $
                 foldMap moduleDefs toCheck
         local (extendGlobalCxt newDefs . extendTypeDefCxt newTypes) $
           traverseOf (traversed % #moduleDefs % traversed % #_DefAST) checkDef toCheck
@@ -440,10 +437,10 @@ synth = \case
       Just (T t) -> pure $ annSynth1 t i Var x
       Just (K _) -> throwError' $ WrongSortVariable x
       Nothing -> throwError' (UnknownVariable x)
-  GlobalVar i id_ -> do
-    asks (lookupGlobal id_) >>= \case
-      Just (_, t) -> pure $ annSynth1 t i GlobalVar id_
-      Nothing -> throwError' (UnknownGlobalVariable id_)
+  GlobalVar i name -> do
+    asks (lookupGlobal name) >>= \case
+      Just t -> pure $ annSynth1 t i GlobalVar name
+      Nothing -> throwError' (UnknownGlobalVariable name)
   App i e1 e2 -> do
     -- Synthesise e1
     (t1, e1') <- synth e1
@@ -953,7 +950,7 @@ typeTtoType = over _typeMeta (fmap Just)
 getGlobalNames :: MonadReader Cxt m => m (S.Set Name)
 getGlobalNames = do
   tyDefs <- asks typeDefs
-  topLevel <- asks $ S.fromList . fmap fst . M.elems . globalCxt
+  topLevel <- asks $ S.fromList . M.keys . globalCxt
   let ctors =
         Map.foldMapWithKey
           (\t def -> S.fromList $ (t :) $ map valConName $ maybe [] astTypeDefConstructors $ typeDefAST def)

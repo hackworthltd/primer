@@ -258,8 +258,8 @@ data ApplyPrimFunDetail = ApplyPrimFunDetail
   deriving (Eq, Show, Generic)
   deriving (FromJSON, ToJSON) via VJSONPrefix "applyPrimFun" ApplyPrimFunDetail
 
--- | A map from definition IDs to definitions themselves
-type Globals = Map ID Def
+-- | A map from definition Names to definitions themselves
+type Globals = Map Name Def
 
 -- | A map from local variable names to the ID of their binding and their bound value.
 -- Since each entry must have a value, this only includes let(rec) bindings.
@@ -314,7 +314,7 @@ findNodeByID i expr = do
       _ -> mempty
 
 -- | Return the IDs of nodes which are reducible
-redexes :: Map ID PrimDef -> Expr -> Set ID
+redexes :: Map Name PrimDef -> Expr -> Set ID
 redexes primDefs = go mempty
   where
     go locals expr =
@@ -768,10 +768,10 @@ munless x b = if b then mempty else x
 
 -- | If this node is a reducible application of a primitive, return the name of the primitive, the arguments, and
 -- (a computation for building) the result.
-tryPrimFun :: Map ID PrimDef -> Expr -> Maybe (Name, [Expr], ExprAnyFresh)
+tryPrimFun :: Map Name PrimDef -> Expr -> Maybe (Name, [Expr], ExprAnyFresh)
 tryPrimFun primDefs expr
-  | (GlobalVar _ id, args) <- bimap stripAnns (map stripAnns) $ unfoldApp expr
-  , Just name <- primDefName <$> Map.lookup id primDefs
+  | (GlobalVar _ name, args) <- bimap stripAnns (map stripAnns) $ unfoldApp expr
+  , Map.member name primDefs
   , Just PrimFun{primFunDef} <- Map.lookup name allPrimDefs
   , Right e <- primFunDef $ set _exprMeta () . set _exprTypeMeta () <$> args =
       Just (name, args, e)

@@ -99,7 +99,7 @@ newtype EvalFullError
 
 data Redex
   = -- f  ~>  e : T  where we have  f : T ; f = e  in (global) scope
-    InlineGlobal ID ASTDef
+    InlineGlobal Name ASTDef
   | -- x  ~>  e   where we are inside the scope of a  let x = e in ...
     InlineLet Name Expr
   | -- x  ~>  letrec x:T=t in t:T   where we are inside the scope of a  letrec x : T = t in ...
@@ -145,7 +145,7 @@ data RedexType
 type TerminationBound = Natural
 
 -- A naive implementation of normal-order reduction
-evalFull :: (MonadFresh NameCounter m, MonadFresh ID m) => M.Map Name TypeDef -> M.Map ID Def -> TerminationBound -> Dir -> Expr -> m (Either EvalFullError Expr)
+evalFull :: (MonadFresh NameCounter m, MonadFresh ID m) => M.Map Name TypeDef -> M.Map Name Def -> TerminationBound -> Dir -> Expr -> m (Either EvalFullError Expr)
 evalFull tydefs env n d expr = snd <$> evalFullStepCount tydefs env n d expr
 
 -- | As 'evalFull', but also returns how many reduction steps were taken.
@@ -159,7 +159,7 @@ evalFull tydefs env n d expr = snd <$> evalFullStepCount tydefs env n d expr
 evalFullStepCount ::
   (MonadFresh NameCounter m, MonadFresh ID m) =>
   M.Map Name TypeDef ->
-  M.Map ID Def ->
+  M.Map Name Def ->
   TerminationBound ->
   Dir ->
   Expr ->
@@ -175,7 +175,7 @@ evalFullStepCount tydefs env n d = go 0
 -- The 'Dir' argument only affects what happens if the root is an annotation:
 -- do we keep it (Syn) or remove it (Chk). I.e. is an upsilon reduction allowed
 -- at the root?
-step :: (MonadFresh NameCounter m, MonadFresh ID m) => M.Map Name TypeDef -> M.Map ID Def -> Dir -> Expr -> Maybe (m Expr)
+step :: (MonadFresh NameCounter m, MonadFresh ID m) => M.Map Name TypeDef -> M.Map Name Def -> Dir -> Expr -> Maybe (m Expr)
 step tydefs g d e = case findRedex tydefs g d e of
   Nothing -> Nothing
   Just mr ->
@@ -273,7 +273,7 @@ viewCaseRedex tydefs = \case
       pure $ CaseRedex c (zip args argTys'') ty (map bindName patterns) br
 
 -- This spots all redexs other than InlineLet
-viewRedex :: (MonadFresh ID m, MonadFresh NameCounter m) => M.Map Name TypeDef -> M.Map ID Def -> Dir -> Expr -> Maybe (m Redex)
+viewRedex :: (MonadFresh ID m, MonadFresh NameCounter m) => M.Map Name TypeDef -> M.Map Name Def -> Dir -> Expr -> Maybe (m Redex)
 viewRedex tydefs globals dir = \case
   GlobalVar _ x | Just (DefAST y) <- x `M.lookup` globals -> pure $ pure $ InlineGlobal x y
   App _ (Ann _ (Lam _ x t) (TFun _ src tgt)) s -> pure $ pure $ Beta x t src tgt s
@@ -305,7 +305,7 @@ findRedex ::
   forall m.
   (MonadFresh ID m, MonadFresh NameCounter m) =>
   M.Map Name TypeDef ->
-  M.Map ID Def ->
+  M.Map Name Def ->
   Dir ->
   Expr ->
   Maybe (m RedexWithContext)

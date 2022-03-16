@@ -4,12 +4,11 @@ module Tests.Eval where
 
 import Foreword
 
-import Data.Map ((!))
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 import Optics (over, (^.))
 import Primer.App (
-  App (appIdCounter, appProg),
+  App (appIdCounter),
   EvalReq (EvalReq, evalReqExpr, evalReqRedex),
   EvalResp (EvalResp, evalRespExpr),
   Prog (progModule),
@@ -27,7 +26,6 @@ import Primer.Core (
   Type,
   Type',
   TypeDef (TypeDefAST),
-  defID,
   getID,
   _exprMeta,
   _exprTypeMeta,
@@ -53,13 +51,11 @@ import Primer.Eval (
   tryReduceType,
  )
 import Primer.Module (Module (Module, moduleDefs, moduleTypes))
-import Primer.Name (Name)
 import Primer.Zipper (target)
-import Protolude.Partial (fromJust)
 import Test.Tasty.HUnit (Assertion, assertBool, assertFailure, (@?=))
 import TestM (evalTestM)
 import TestUtils (withPrimDefs)
-import Tests.Action.Prog (defaultPrimsProg, findGlobalByName, runAppTestM)
+import Tests.Action.Prog (defaultPrimsProg, runAppTestM)
 
 -- * 'tryReduce' tests
 
@@ -297,11 +293,11 @@ unit_tryReduce_local_type_var = do
 unit_tryReduce_global_var :: Assertion
 unit_tryReduce_global_var = do
   let ((expr, def), i) = create $ do
-        g <- global 10
+        g <- global "f"
         e <- lam "x" (var "x")
         t <- tfun (tcon "A") (tcon "B")
-        pure (g, ASTDef{astDefID = 10, astDefName = "f", astDefExpr = e, astDefType = t})
-      globals = Map.singleton 10 (DefAST def)
+        pure (g, ASTDef{astDefName = "f", astDefExpr = e, astDefType = t})
+      globals = Map.singleton "f" (DefAST def)
       result = runTryReduce globals mempty (expr, i)
       expectedResult = fst $ create $ ann (lam "x" (var "x")) (tfun (tcon "A") (tcon "B"))
   case result of
@@ -528,9 +524,9 @@ unit_tryReduce_case_no_matching_branch = do
 unit_tryReduce_prim :: Assertion
 unit_tryReduce_prim = do
   let ((expr, expectedResult, globals), i) =
-        create . withPrimDefs $ \defs m ->
+        create . withPrimDefs $ \m ->
           (,,)
-            <$> global (defs ! "eqChar") `app` char 'a' `app` char 'a'
+            <$> global "eqChar" `app` char 'a' `app` char 'a'
             <*> con "True"
             <*> pure m
       result = runTryReduce (DefPrim <$> globals) mempty (expr, i)
@@ -541,15 +537,15 @@ unit_tryReduce_prim = do
       applyPrimFunBefore detail ~= expr
       applyPrimFunAfter detail ~= expr'
       applyPrimFunName detail @?= "eqChar"
-      applyPrimFunArgIDs detail @?= [121, 122]
+      applyPrimFunArgIDs detail @?= [101, 102]
     _ -> assertFailure $ show result
 
 unit_tryReduce_prim_fail_unsaturated :: Assertion
 unit_tryReduce_prim_fail_unsaturated = do
   let ((expr, globals), i) =
-        create . withPrimDefs $ \defs m ->
+        create . withPrimDefs $ \m ->
           (,)
-            <$> global (defs ! "eqChar") `app` char 'a'
+            <$> global "eqChar" `app` char 'a'
             <*> pure m
       result = runTryReduce (DefPrim <$> globals) mempty (expr, i)
   result @?= Left NotRedex
@@ -557,9 +553,9 @@ unit_tryReduce_prim_fail_unsaturated = do
 unit_tryReduce_prim_fail_unreduced_args :: Assertion
 unit_tryReduce_prim_fail_unreduced_args = do
   let ((expr, globals), i) =
-        create . withPrimDefs $ \defs m ->
+        create . withPrimDefs $ \m ->
           (,)
-            <$> global (defs ! "eqChar") `app` char 'a' `app` (global (defs ! "toUpper") `app` char 'a')
+            <$> global "eqChar" `app` char 'a' `app` (global "toUpper" `app` char 'a')
             <*> pure m
       result = runTryReduce (DefPrim <$> globals) mempty (expr, i)
   result @?= Left NotRedex
@@ -666,9 +662,8 @@ redexesOf :: S Expr -> Set ID
 redexesOf = redexes mempty . fst . create
 
 -- | A variation of 'redexesOf' for when the expression tested requires primitives to be in scope.
--- Also provides a Map for looking up primitives' ids by name.
-redexesOfWithPrims :: (Map Name ID -> S Expr) -> Set ID
-redexesOfWithPrims x = uncurry redexes $ fst $ create $ withPrimDefs $ \defs globals -> (globals,) <$> x defs
+redexesOfWithPrims :: S Expr -> Set ID
+redexesOfWithPrims x = uncurry redexes $ fst $ create $ withPrimDefs $ \globals -> (globals,) <$> x
 
 unit_redexes_con :: Assertion
 unit_redexes_con = redexesOf (con "C") @?= mempty
@@ -798,22 +793,22 @@ unit_redexes_case_5 =
 
 unit_redexes_prim_1 :: Assertion
 unit_redexes_prim_1 =
-  redexesOfWithPrims (\defs -> global (defs ! "eqChar") `app` char 'a' `app` char 'b') @?= Set.fromList [118]
+  redexesOfWithPrims (global "eqChar" `app` char 'a' `app` char 'b') @?= Set.fromList [98]
 
 unit_redexes_prim_2 :: Assertion
 unit_redexes_prim_2 =
-  redexesOfWithPrims (\defs -> global (defs ! "eqChar") `app` var "a" `app` char 'b') @?= Set.empty
+  redexesOfWithPrims (global "eqChar" `app` var "a" `app` char 'b') @?= Set.empty
 
 unit_redexes_prim_3 :: Assertion
 unit_redexes_prim_3 =
-  redexesOfWithPrims (\defs -> global (defs ! "eqChar") `app` char 'a') @?= Set.empty
+  redexesOfWithPrims (global "eqChar" `app` char 'a') @?= Set.empty
 
 unit_redexes_prim_ann :: Assertion
 unit_redexes_prim_ann =
-  redexesOfWithPrims expr @?= Set.singleton 118
+  redexesOfWithPrims expr @?= Set.singleton 98
   where
-    expr defs =
-      global (defs ! "toUpper")
+    expr =
+      global "toUpper"
         `ann` (tcon "Char" `tfun` tcon "Char")
           `app` (char 'a' `ann` tcon "Char")
 
@@ -823,9 +818,7 @@ unit_eval_modules =
   let test = do
         p <- defaultPrimsProg
         importModules [progModule p]
-        prog <- gets appProg
-        let toUpperId = defID $ fromJust $ findGlobalByName prog "toUpper"
-        foo <- global toUpperId `app` char 'a'
+        foo <- global "toUpper" `app` char 'a'
         EvalResp{evalRespExpr = e} <-
           handleEvalRequest
             EvalReq{evalReqExpr = foo, evalReqRedex = getID foo}

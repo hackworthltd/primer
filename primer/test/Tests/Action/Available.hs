@@ -58,12 +58,11 @@ test_1 =
   mkTests
     ASTDef
       { astDefName = "1"
-      , astDefID
       , astDefExpr
       , astDefType
       }
   where
-    ((astDefExpr, astDefType), astDefID) = create $ (,) <$> e <*> t
+    ((astDefExpr, astDefType), _) = create $ (,) <$> e <*> t
     t =
       tfun
         (tcon "Nat")
@@ -91,7 +90,7 @@ test_1 =
                     (con "Just")
                 )
                 ( hole
-                    (global 0)
+                    (global "0")
                 )
             )
             ( thole
