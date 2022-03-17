@@ -208,7 +208,7 @@ importModules ms = do
 
 -- | Get all type definitions from all modules (including imports)
 allTypes :: Prog -> [TypeDef]
-allTypes = moduleTypes . progModule
+allTypes p = foldMap moduleTypes $ progModule p : progImports p
 
 -- | Get all definitions from all modules (including imports)
 allDefs :: Prog -> Map ID Def

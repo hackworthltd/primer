@@ -13,6 +13,7 @@ import Primer.App (
   EvalReq (EvalReq, evalReqExpr, evalReqRedex),
   EvalResp (EvalResp, evalRespExpr),
   Prog (progModule),
+  boolDef,
   handleEvalRequest,
   importModules,
   newEmptyApp,
@@ -25,6 +26,7 @@ import Primer.Core (
   ID (ID),
   Type,
   Type',
+  TypeDef (TypeDefAST),
   defID,
   getID,
   _exprMeta,
@@ -50,6 +52,7 @@ import Primer.Eval (
   tryReduceExpr,
   tryReduceType,
  )
+import Primer.Module (Module (Module, moduleDefs, moduleTypes))
 import Primer.Name (Name)
 import Primer.Zipper (target)
 import Protolude.Partial (fromJust)
@@ -832,6 +835,28 @@ unit_eval_modules =
    in case fst $ runAppTestM (ID $ appIdCounter a) a test of
         Left err -> assertFailure $ show err
         Right assertion -> assertion
+
+-- Test that handleEvalRequest will reduce case analysis on imported types
+unit_eval_modules_scrutinize_imported_type :: Assertion
+unit_eval_modules_scrutinize_imported_type =
+  let test = do
+        importModules [m]
+        foo <- case_ (con "True") [branch "True" [] $ con "False", branch "False" [] $ con "True"]
+        EvalResp{evalRespExpr = e} <-
+          handleEvalRequest
+            EvalReq{evalReqExpr = foo, evalReqRedex = getID foo}
+        expect <- con "False"
+        pure $ e ~= expect
+      a = newEmptyApp
+   in case fst $ runAppTestM (ID $ appIdCounter a) a test of
+        Left err -> assertFailure $ show err
+        Right assertion -> assertion
+  where
+    m =
+      Module
+        { moduleTypes = [TypeDefAST boolDef]
+        , moduleDefs = mempty
+        }
 
 -- * Misc helpers
 
