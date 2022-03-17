@@ -9,6 +9,7 @@ module Gen.Core.Raw (
   evalExprGen,
   genID,
   genName,
+  genTyConName,
   genKind,
   genType,
   genExpr,
@@ -28,6 +29,7 @@ import Primer.Core (
   Kind (..),
   Meta (..),
   PrimCon (..),
+  TyConName (TCN),
   Type,
   Type' (..),
   VarRef (..),
@@ -126,7 +128,7 @@ genType =
   Gen.recursive
     Gen.choice
     [ TEmptyHole <$> genMeta
-    , TCon <$> genMeta <*> genName
+    , TCon <$> genMeta <*> genTyConName
     , TVar <$> genMeta <*> genName
     ]
     [ THole <$> genMeta <*> genType
@@ -134,6 +136,9 @@ genType =
     , TApp <$> genMeta <*> genType <*> genType
     , TForall <$> genMeta <*> genName <*> genKind <*> genType
     ]
+
+genTyConName :: ExprGen TyConName
+genTyConName = TCN <$> genName
 
 genKind :: ExprGen Kind
 genKind = Gen.recursive Gen.choice [pure KType, pure KHole] [KFun <$> genKind <*> genKind]

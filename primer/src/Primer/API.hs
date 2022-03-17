@@ -82,6 +82,7 @@ import Primer.Core (
   ID,
   Kind,
   PrimCon (..),
+  TyConName,
   Type,
   Type' (TForall),
   defAST,
@@ -296,7 +297,7 @@ instance ToJSON Tree
 -- | This type is the API's view of a 'App.Prog'
 -- (this is expected to evolve as we flesh out the API)
 data Prog = Prog
-  { types :: [Name]
+  { types :: [TyConName]
   , -- We don't use Map ID Def, as the JSON encoding would be as an object,
   -- where keys are IDs converted to strings and we have no nice way of
   -- saying "all the keys of this object should parse as numbers". Similarly,

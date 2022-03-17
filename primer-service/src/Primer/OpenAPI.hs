@@ -10,7 +10,7 @@ import Data.OpenApi (ToSchema)
 import Data.Text (Text)
 import Primer.API (Def, Prog, Tree)
 import Primer.App (InitialApp)
-import Primer.Core (ID (..))
+import Primer.Core (ID (..), TyConName)
 import Primer.Database (Session, SessionName)
 import Primer.Name (Name)
 
@@ -32,6 +32,10 @@ deriving newtype instance ToSchema ID
 -- But the JSON instance is done by GND, so we must match here...
 -- This instance works because the parameter has a phantom role!
 deriving via Text instance (ToSchema Name)
+
+-- For TyConName, we must derive ToSchema via Name,
+-- as that is how the To/FromJSON instances are derived
+deriving via Name instance (ToSchema TyConName)
 instance ToSchema Tree
 instance ToSchema Def
 instance ToSchema Prog

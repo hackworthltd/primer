@@ -1010,7 +1010,7 @@ constructArrowR zt = flip replace zt <$> tfun tEmptyHole (pure (target zt))
 
 constructTCon :: ActionM m => Text -> TypeZ -> m TypeZ
 constructTCon c zt = case target zt of
-  TEmptyHole{} -> flip replace zt <$> tcon (unsafeMkName c)
+  TEmptyHole{} -> flip replace zt <$> tcon (C.TCN $ unsafeMkName c)
   _ -> throwError $ CustomFailure (ConstructTCon c) "can only construct tcon in hole"
 
 constructTVar :: ActionM m => Text -> TypeZ -> m TypeZ

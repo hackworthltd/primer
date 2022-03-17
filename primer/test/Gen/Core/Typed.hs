@@ -49,6 +49,7 @@ import Primer.Core (
   ID,
   Kind (..),
   PrimCon (..),
+  TyConName (TCN),
   Type' (..),
   TypeDef (..),
   ValCon (..),
@@ -396,7 +397,7 @@ genTypeDefGroup = do
           ( \(n, ps) ->
               TypeDefAST
                 ASTTypeDef
-                  { astTypeDefName = n
+                  { astTypeDefName = TCN n
                   , astTypeDefParameters = ps
                   , astTypeDefConstructors = []
                   , astTypeDefNameHints = []
@@ -409,7 +410,7 @@ genTypeDefGroup = do
         ( \cons ->
             TypeDefAST
               ASTTypeDef
-                { astTypeDefName = n
+                { astTypeDefName = TCN n
                 , astTypeDefParameters = ps
                 , astTypeDefConstructors = cons
                 , astTypeDefNameHints = []
@@ -452,7 +453,7 @@ genCxtExtendingLocal = do
 
 -- We have to be careful to only generate primitive constructors which are
 -- in scope (i.e. their type is in scope)
-genPrimCon :: forall mc mg. (MonadReader Cxt mc, MonadGen mg) => mc [mg (PrimCon, Name)]
+genPrimCon :: forall mc mg. (MonadReader Cxt mc, MonadGen mg) => mc [mg (PrimCon, TyConName)]
 genPrimCon = catMaybes <$> sequence [genChar, genInt]
   where
     genChar = whenInScope PrimChar 'a' Gen.unicode
@@ -460,7 +461,7 @@ genPrimCon = catMaybes <$> sequence [genChar, genInt]
     genInt = whenInScope PrimInt 0 $ Gen.integral $ Range.linear (-intBound) intBound
     -- The 'tst' is arbitrary, only used for checking if the primcon is in scope
     -- and does not affect the generator.
-    whenInScope :: (a -> PrimCon) -> a -> mg a -> mc (Maybe (mg (PrimCon, Name)))
+    whenInScope :: (a -> PrimCon) -> a -> mg a -> mc (Maybe (mg (PrimCon, TyConName)))
     whenInScope f tst g = do
       s <- asks $ primConInScope (f tst)
       pure $ case s of

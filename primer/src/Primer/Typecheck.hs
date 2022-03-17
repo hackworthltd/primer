@@ -85,6 +85,7 @@ import Primer.Core (
   Meta (..),
   PrimCon,
   PrimDef (primDefType),
+  TyConName (unTyConName),
   Type' (..),
   TypeCache (..),
   TypeCacheBoth (..),
@@ -136,10 +137,10 @@ data TypeError
   | UnknownTypeVariable Name
   | WrongSortVariable Name -- type var instead of term var or vice versa
   | UnknownConstructor Name
-  | UnknownTypeConstructor Name
+  | UnknownTypeConstructor TyConName
   | -- | Cannot use a PrimCon when either no type of the appropriate name is
     -- in scope, or it is a user-defined type
-    PrimitiveTypeNotInScope Name
+    PrimitiveTypeNotInScope TyConName
   | CannotSynthesiseType Expr
   | InconsistentTypes Type Type
   | TypeDoesNotMatchArrow Type
@@ -148,7 +149,7 @@ data TypeError
   | CannotCaseNonADT Type
   | CannotCaseNonSaturatedADT Type
   | -- | Either wrong number, wrong constructors or wrong order. The fields are @name of the ADT@, @branches given@
-    WrongCaseBranches Name [Name]
+    WrongCaseBranches TyConName [Name]
   | CaseBranchWrongNumberPatterns
   | InconsistentKinds Kind Kind
   | KindDoesNotMatchArrow Kind
@@ -167,7 +168,7 @@ data KindOrType = K Kind | T Type
 
 data Cxt = Cxt
   { smartHoles :: SmartHoles
-  , typeDefs :: M.Map Name TypeDef
+  , typeDefs :: M.Map TyConName TypeDef
   -- ^ invariant: the key matches the 'typeDefName' inside the 'TypeDef'
   , localCxt :: Map Name KindOrType
   -- ^ local variables
@@ -239,7 +240,7 @@ buildTypingContext tydefs defs sh =
 
 -- | Create a mapping of name to typedef for fast lookup.
 -- Ensures that @typeDefName (mkTypeDefMap ! n) == n@
-mkTypeDefMap :: [TypeDef] -> Map Name TypeDef
+mkTypeDefMap :: [TypeDef] -> Map TyConName TypeDef
 mkTypeDefMap defs = M.fromList $ map (\d -> (typeDefName d, d)) defs
 
 -- | A shorthand for the constraints needed when typechecking
@@ -299,12 +300,12 @@ checkValidContext cxt = do
 -- map are consistent with the names in the 'TypeDef's
 checkTypeDefsMap ::
   TypeM e m =>
-  Map Name TypeDef ->
+  Map TyConName TypeDef ->
   m ()
 checkTypeDefsMap tds =
   if and $ M.mapWithKey (\n td -> n == typeDefName td) tds
     then checkTypeDefs $ M.elems tds
-    else throwError' $ InternalError "Inconsistent names in a Map Name TypeDef"
+    else throwError' $ InternalError "Inconsistent names in a Map TyConName TypeDef"
 
 -- | Check all type definitions, as one recursive group, in some monadic environment
 checkTypeDefs ::
@@ -354,7 +355,7 @@ checkTypeDefs tds = do
         (distinct $ map fst params <> map valConName cons)
         "Duplicate names in one tydef: between parameter-names and constructor-names"
       assert
-        (notElem (astTypeDefName td) $ map fst params)
+        (notElem (unTyConName $ astTypeDefName td) $ map fst params)
         "Duplicate names in one tydef: between type-def-name and parameter-names"
       local (noSmartHoles . extendLocalCxtTys params) $
         mapM_ (checkKind KType <=< fakeMeta) $ concatMap valConArgs cons
@@ -418,7 +419,7 @@ checkDef def = do
       pure $ DefPrim $ def'{primDefType = typeTtoType t}
 
 -- We assume that constructor names are unique, returning the first one we find
-lookupConstructor :: M.Map Name TypeDef -> Name -> Maybe (ValCon, ASTTypeDef)
+lookupConstructor :: M.Map TyConName TypeDef -> Name -> Maybe (ValCon, ASTTypeDef)
 lookupConstructor tyDefs c =
   let allCons = do
         TypeDefAST td <- M.elems tyDefs
@@ -565,7 +566,7 @@ synth = \case
 --
 -- returns: whether it is in scope or not, and also the type of which it
 -- (should) construct a value
-primConInScope :: PrimCon -> Cxt -> (Bool, Name)
+primConInScope :: PrimCon -> Cxt -> (Bool, TyConName)
 primConInScope pc cxt =
   let tyCon = primConName pc
       typeDef = M.lookup tyCon $ typeDefs cxt
@@ -771,8 +772,8 @@ checkKind k t = do
 data TypeDefError
   = TDIHoleType -- a type hole
   | TDINotADT -- e.g. a function type etc
-  | TDIUnknownADT Name -- not in scope
-  | TDIMalformed Name Name -- TDIMalformed T S: looking up @T@ gives a 'TypeDef' for with name @S@ different to @T@
+  | TDIUnknownADT TyConName -- not in scope
+  | TDIMalformed TyConName TyConName -- TDIMalformed T S: looking up @T@ gives a 'TypeDef' for with name @S@ different to @T@
   | TDINotSaturated -- e.g. @List@ or @List a b@ rather than @List a@
 
 data TypeDefInfo a = TypeDefInfo [Type' a] TypeDef -- instantiated parameters, and the typedef, i.e. [Int] are the parameters for @List Int@
@@ -780,7 +781,7 @@ data TypeDefInfo a = TypeDefInfo [Type' a] TypeDef -- instantiated parameters, a
 getTypeDefInfo :: MonadReader Cxt m => Type' a -> m (Either TypeDefError (TypeDefInfo a))
 getTypeDefInfo t = reader $ flip getTypeDefInfo' t . typeDefs
 
-getTypeDefInfo' :: Map Name TypeDef -> Type' a -> Either TypeDefError (TypeDefInfo a)
+getTypeDefInfo' :: Map TyConName TypeDef -> Type' a -> Either TypeDefError (TypeDefInfo a)
 getTypeDefInfo' _ (TEmptyHole _) = Left TDIHoleType
 getTypeDefInfo' _ (THole _ _) = Left TDIHoleType
 getTypeDefInfo' tydefs ty =
@@ -816,7 +817,7 @@ instantiateValCons t = do
 
 -- | As 'instantiateValCons', but pulls out the relevant bits of the monadic
 -- context into an argument
-instantiateValCons' :: MonadFresh NameCounter m => Map Name TypeDef -> Type' () -> Either TypeDefError (ASTTypeDef, [(Name, [m (Type' ())])])
+instantiateValCons' :: MonadFresh NameCounter m => Map TyConName TypeDef -> Type' () -> Either TypeDefError (ASTTypeDef, [(Name, [m (Type' ())])])
 instantiateValCons' tyDefs t = do
   TypeDefInfo params def <- getTypeDefInfo' tyDefs t
   case def of
@@ -874,7 +875,7 @@ substituteTypeVars :: MonadFresh NameCounter m => [(Name, Type' ())] -> Type' ()
 substituteTypeVars = flip $ foldrM (uncurry substTy)
 
 -- | Decompose @C X Y Z@ to @(C,[X,Y,Z])@
-decomposeTAppCon :: Type' a -> Maybe (Name, [Type' a])
+decomposeTAppCon :: Type' a -> Maybe (TyConName, [Type' a])
 decomposeTAppCon ty = do
   (con, args) <- go ty
   pure (con, reverse args)
@@ -886,7 +887,7 @@ decomposeTAppCon ty = do
     go _ = Nothing
 
 -- | @mkTAppCon C [X,Y,Z] = C X Y Z@
-mkTAppCon :: Name -> [Type' ()] -> Type' ()
+mkTAppCon :: TyConName -> [Type' ()] -> Type' ()
 mkTAppCon c = foldl' (TApp ()) (TCon () c)
 
 -- | Checks if a type can be unified with a function (arrow) type. Returns the
@@ -966,6 +967,6 @@ getGlobalNames = do
   topLevel <- asks $ S.fromList . M.keys . globalCxt
   let ctors =
         Map.foldMapWithKey
-          (\t def -> S.fromList $ (t :) $ map valConName $ maybe [] astTypeDefConstructors $ typeDefAST def)
+          (\t def -> S.fromList $ (unTyConName t :) $ map valConName $ maybe [] astTypeDefConstructors $ typeDefAST def)
           tyDefs
   pure $ S.union topLevel ctors

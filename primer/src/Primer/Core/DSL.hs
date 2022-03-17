@@ -52,6 +52,7 @@ import Primer.Core (
   Kind,
   Meta (..),
   PrimCon (..),
+  TyConName,
   Type,
   Type' (..),
   TypeCache,
@@ -140,7 +141,7 @@ tEmptyHole = TEmptyHole <$> meta
 thole :: MonadFresh ID m => m Type -> m Type
 thole t = THole <$> meta <*> t
 
-tcon :: MonadFresh ID m => Name -> m Type
+tcon :: MonadFresh ID m => TyConName -> m Type
 tcon t = TCon <$> meta <*> pure t
 
 tforall :: MonadFresh ID m => Name -> Kind -> m Type -> m Type
@@ -172,7 +173,7 @@ maybe_ :: MonadFresh ID m => m Type -> (a -> m Expr) -> Maybe a -> m Expr
 maybe_ t f = \case
   Nothing -> con "Nothing" `aPP` t
   Just x -> con "Just" `aPP` t `app` f x
-list_ :: MonadFresh ID m => Name -> [m Expr] -> m Expr
+list_ :: MonadFresh ID m => TyConName -> [m Expr] -> m Expr
 list_ t =
   foldr
     ( \a b ->

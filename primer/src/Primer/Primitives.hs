@@ -17,6 +17,7 @@ import Primer.Core (
   PrimFun (..),
   PrimFunError (..),
   PrimTypeDef (..),
+  TyConName,
  )
 import Primer.Core.DSL (
   aPP,
@@ -34,13 +35,13 @@ import Primer.Name (Name)
 
 -- | Primitive type definitions.
 -- There should be one entry here for each constructor of `PrimCon`.
-allPrimTypeDefs :: Map Name PrimTypeDef
+allPrimTypeDefs :: Map TyConName PrimTypeDef
 allPrimTypeDefs =
   M.fromList
     [ let name = "Char"
        in ( name
           , PrimTypeDef
-            { primTypeDefName = "Char"
+            { primTypeDefName = name
             , primTypeDefParameters = []
             , primTypeDefNameHints = ["c"]
             }
@@ -48,7 +49,7 @@ allPrimTypeDefs =
     , let name = "Int"
        in ( name
           , PrimTypeDef
-            { primTypeDefName = "Int"
+            { primTypeDefName = name
             , primTypeDefParameters = []
             , primTypeDefNameHints = ["i", "j", "k", "m", "n"]
             }

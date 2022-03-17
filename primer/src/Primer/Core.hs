@@ -26,6 +26,7 @@ module Primer.Core (
   setID,
   HasMetadata (_metadata),
   ID (ID),
+  TyConName (TCN, unTyConName),
   Type,
   Type' (..),
   TypeCache (..),
@@ -136,6 +137,14 @@ _synthed = #_TCSynthed `afailing` (#_TCEmb % #tcSynthed)
 -- modifying the AST in an action we aren't necessarily sure of the type of the
 -- nodes we're inserting.
 type ExprMeta = Meta (Maybe TypeCache)
+
+-- | A newtype wrapper around a 'Name', to track what sort of thing it refers to.
+-- This is to disambiguate names which refer to type constructors from names that
+-- refer to e.g. lambda-bound variables.
+newtype TyConName = TCN {unTyConName :: Name}
+  deriving (Eq, Ord, Show, Data, Generic)
+  deriving (IsString) via Name
+  deriving (FromJSON, ToJSON) via Name
 
 -- | The core AST.
 --  This is the canonical representation of Primer programs.  It is similar to
@@ -283,7 +292,7 @@ type TypeMeta = Meta (Maybe Kind)
 data Type' a
   = TEmptyHole a
   | THole a (Type' a)
-  | TCon a Name
+  | TCon a TyConName
   | TFun a (Type' a) (Type' a)
   | TVar a Name
   | TApp a (Type' a) (Type' a)
@@ -412,7 +421,7 @@ data PrimCon
 
 -- | The name of the type to which this primitive constructor belongs.
 -- This should be a key in `allPrimTypeDefs`.
-primConName :: PrimCon -> Name
+primConName :: PrimCon -> TyConName
 primConName = \case
   PrimChar _ -> "Char"
   PrimInt _ -> "Int"
@@ -454,7 +463,7 @@ data TypeDef
 
 -- | Definition of a primitive data type
 data PrimTypeDef = PrimTypeDef
-  { primTypeDefName :: Name
+  { primTypeDefName :: TyConName
   , primTypeDefParameters :: [Kind]
   , primTypeDefNameHints :: [Name]
   }
@@ -467,7 +476,7 @@ data PrimTypeDef = PrimTypeDef
 -- The kind of the type is TYPE{\-a-\} -> (TYPE -> TYPE){\-b-\} -> TYPE{\-always returns a type-\}
 -- The type of the constructor is C :: forall a:TYPE. forall b:(TYPE->TYPE). b a -> Nat -> T a b
 data ASTTypeDef = ASTTypeDef
-  { astTypeDefName :: Name
+  { astTypeDefName :: TyConName
   , astTypeDefParameters :: [(Name, Kind)] -- These names scope over the constructors
   , astTypeDefConstructors :: [ValCon]
   , astTypeDefNameHints :: [Name]
@@ -489,7 +498,7 @@ valConType td vc =
       foralls = foldr (\(n, k) t -> TForall () n k t) args (astTypeDefParameters td)
    in foralls
 
-typeDefName :: TypeDef -> Name
+typeDefName :: TypeDef -> TyConName
 typeDefName = \case
   TypeDefPrim t -> primTypeDefName t
   TypeDefAST t -> astTypeDefName t
