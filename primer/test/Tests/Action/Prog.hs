@@ -55,6 +55,7 @@ import Primer.Core (
   TypeDef (..),
   ValCon (..),
   VarRef (..),
+  defAST,
   defName,
   getID,
   _exprMeta,
@@ -130,6 +131,20 @@ unit_rename_def_to_same_name_as_existing_def_prim :: Assertion
 unit_rename_def_to_same_name_as_existing_def_prim =
   progActionTest defaultPrimsProg [RenameDef "other" "toUpper"] $
     expectError (@?= DefAlreadyExists "toUpper")
+
+unit_rename_def_referenced :: Assertion
+unit_rename_def_referenced =
+  progActionTest
+    defaultEmptyProg
+    [ MoveToDef "main"
+    , BodyAction [ConstructVar $ GlobalVarRef "other"]
+    , RenameDef "other" "foo"
+    ]
+    $ expectSuccess $ \_ prog' -> do
+      fmap defName (Map.lookup "other" (moduleDefs $ progModule prog')) @?= Nothing
+      fmap defName (Map.lookup "foo" (moduleDefs $ progModule prog')) @?= Just "foo"
+      fmap defName (Map.lookup "main" (moduleDefs $ progModule prog')) @?= Just "main"
+      fmap (set _exprMeta () . astDefExpr) (defAST =<< Map.lookup "main" (moduleDefs $ progModule prog')) @?= Just (Var () $ GlobalVarRef "foo")
 
 unit_delete_def :: Assertion
 unit_delete_def =
