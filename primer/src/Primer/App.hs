@@ -871,7 +871,6 @@ tcWholeProg p =
           Nothing -> pure Nothing
           Just s -> do
             let defID_ = s ^. #selectedDef
-            updatedDef <- maybe (throwError $ IDNotFound defID_) pure $ lookupASTDef defID_ defs'
             updatedNode <- case s ^. #selectedNode of
               Nothing -> pure Nothing
               Just NodeSelection{nodeType, nodeId} -> do
@@ -883,7 +882,7 @@ tcWholeProg p =
             pure $
               Just $
                 Selection
-                  { selectedDef = astDefID updatedDef
+                  { selectedDef = defID_
                   , selectedNode = updatedNode
                   }
         pure $ p'{progSelection = newSel}
