@@ -373,7 +373,7 @@ unit_construct_arrow_in_sig =
               -- Check that the selection is focused on the lhs, as we instructed
               case progSelection prog' of
                 Just (Selection d (Just NodeSelection{nodeType = SigNode, nodeId})) -> do
-                  astDefID d @?= astDefID def
+                  d @?= astDefID def
                   nodeId @?= getID lhs
                 _ -> assertFailure "no selection"
             _ -> assertFailure "not a function"
@@ -706,7 +706,7 @@ defaultEmptyProg = do
         newEmptyProg
           { progSelection =
               Just $
-                Selection mainDef $
+                Selection (astDefID mainDef) $
                   Just
                     NodeSelection
                       { nodeType = BodyNode

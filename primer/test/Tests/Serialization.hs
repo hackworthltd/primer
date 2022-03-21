@@ -121,7 +121,7 @@ fixtures =
           }
       selection :: Selection
       selection =
-        Selection def $
+        Selection (astDefID def) $
           Just
             NodeSelection
               { nodeType = BodyNode
