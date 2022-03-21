@@ -19,6 +19,7 @@ import Primer.App (
   EvalFullReq (EvalFullReq, evalFullCxtDir, evalFullMaxSteps, evalFullReqExpr),
   EvalFullResp (EvalFullRespNormal, EvalFullRespTimedOut),
   Prog (progModule),
+  boolDef,
   defaultTypeDefs,
   handleEvalFullRequest,
   importModules,
@@ -28,6 +29,7 @@ import Primer.Core
 import Primer.Core.DSL
 import Primer.Core.Utils (forgetIDs, forgetTypeIDs, generateIDs, generateTypeIDs)
 import Primer.EvalFull
+import Primer.Module (Module (Module, moduleDefs, moduleTypes))
 import Primer.Name
 import Primer.Primitives (allPrimDefs)
 import Primer.Typecheck (
@@ -935,6 +937,30 @@ unit_eval_full_modules =
    in case fst $ runAppTestM (ID $ appIdCounter a) a test of
         Left err -> assertFailure $ show err
         Right assertion -> assertion
+
+-- Test that handleEvalFullRequest will reduce case analysis of imported types
+unit_eval_full_modules_scrutinize_imported_type :: Assertion
+unit_eval_full_modules_scrutinize_imported_type =
+  let test = do
+        importModules [m]
+        foo <- case_ (con "True") [branch "True" [] $ con "False", branch "False" [] $ con "True"]
+        resp <-
+          handleEvalFullRequest
+            EvalFullReq{evalFullReqExpr = foo, evalFullCxtDir = Chk, evalFullMaxSteps = 2}
+        expect <- con "False"
+        pure $ case resp of
+          EvalFullRespTimedOut _ -> assertFailure "EvalFull timed out"
+          EvalFullRespNormal e -> e ~= expect
+      a = newEmptyApp
+   in case fst $ runAppTestM (ID $ appIdCounter a) a test of
+        Left err -> assertFailure $ show err
+        Right assertion -> assertion
+  where
+    m =
+      Module
+        { moduleTypes = [TypeDefAST boolDef]
+        , moduleDefs = mempty
+        }
 
 -- * Utilities
 
