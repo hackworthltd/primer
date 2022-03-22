@@ -253,8 +253,9 @@ afterRename' rename clearMeta fromVar toVar input output = do
 unit_unfoldApp_1 :: Assertion
 unit_unfoldApp_1 =
   let expr :: Expr' () ()
-      expr = App () (App () (App () (Con () "C") (Lam () "x" (Var () "x"))) (App () (Var () "w") (Var () "y"))) (Var () "z")
-   in unfoldApp expr @?= (Con () "C", [Lam () "x" (Var () "x"), App () (Var () "w") (Var () "y"), Var () "z"])
+      expr = App () (App () (App () (Con () "C") (Lam () "x" (v "x"))) (App () (v "w") (v "y"))) (v "z")
+      v = Var () . LocalVarRef
+   in unfoldApp expr @?= (Con () "C", [Lam () "x" (v "x"), App () (v "w") (v "y"), v "z"])
 
 unit_unfoldApp_2 :: Assertion
 unit_unfoldApp_2 =

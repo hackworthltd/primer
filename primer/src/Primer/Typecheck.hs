@@ -45,6 +45,7 @@ module Primer.Typecheck (
   getGlobalNames,
   lookupGlobal,
   lookupLocal,
+  lookupVar,
   primConInScope,
   mkTypeDefMap,
   consistentKinds,
@@ -89,6 +90,7 @@ import Primer.Core (
   TypeDef (..),
   TypeMeta,
   ValCon (valConArgs, valConName),
+  VarRef (..),
   bindName,
   defName,
   defType,
@@ -129,9 +131,9 @@ type TypeT = Type' (Meta Kind)
 -- https://github.com/hackworthltd/primer/issues/149
 data TypeError
   = InternalError String
-  | UnknownVariable Name
+  | UnknownVariable VarRef
+  | UnknownTypeVariable Name
   | WrongSortVariable Name -- type var instead of term var or vice versa
-  | UnknownGlobalVariable Name
   | UnknownConstructor Name
   | UnknownTypeConstructor Name
   | -- | Cannot use a PrimCon when either no type of the appropriate name is
@@ -178,6 +180,18 @@ lookupLocal v cxt = M.lookup v $ localCxt cxt
 
 lookupGlobal :: Name -> Cxt -> Maybe Type
 lookupGlobal v cxt = M.lookup v $ globalCxt cxt
+
+lookupVar :: VarRef -> Cxt -> Either TypeError Type
+lookupVar v cxt = case v of
+  LocalVarRef name ->
+    pure (lookupLocal name cxt) >>= \case
+      Just (T t) -> Right t
+      Just (K _) -> Left $ WrongSortVariable name
+      Nothing -> Left $ UnknownVariable v
+  GlobalVarRef name ->
+    pure (lookupGlobal name cxt) >>= \case
+      Just t -> Right t
+      Nothing -> Left $ UnknownVariable v
 
 extendLocalCxt :: (Name, Type) -> Cxt -> Cxt
 extendLocalCxt (name, ty) cxt = cxt{localCxt = Map.insert name (T ty) (localCxt cxt)}
@@ -433,14 +447,8 @@ lookupConstructor tyDefs c =
 synth :: TypeM e m => Expr -> m (Type, ExprT)
 synth = \case
   Var i x -> do
-    asks (lookupLocal x) >>= \case
-      Just (T t) -> pure $ annSynth1 t i Var x
-      Just (K _) -> throwError' $ WrongSortVariable x
-      Nothing -> throwError' (UnknownVariable x)
-  GlobalVar i name -> do
-    asks (lookupGlobal name) >>= \case
-      Just t -> pure $ annSynth1 t i GlobalVar name
-      Nothing -> throwError' (UnknownGlobalVariable name)
+    t <- either throwError' pure . lookupVar x =<< ask
+    pure $ annSynth1 t i Var x
   App i e1 e2 -> do
     -- Synthesise e1
     (t1, e1') <- synth e1
@@ -711,7 +719,7 @@ synthKind = \case
     asks (lookupLocal v) >>= \case
       Just (K k) -> pure (k, TVar (annotate k m) v)
       Just (T _) -> throwError' $ WrongSortVariable v
-      Nothing -> throwError' (UnknownVariable v)
+      Nothing -> throwError' (UnknownTypeVariable v)
   TApp ma (THole mh s) t -> do
     -- If we didn't have this special case, we might remove this hole (in a
     -- recursive call), only to reintroduce it again with a different ID

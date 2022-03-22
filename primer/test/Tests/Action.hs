@@ -28,6 +28,7 @@ import Primer.Core (
   Kind (KType),
   TypeMeta,
   Value,
+  VarRef (LocalVarRef),
   getID,
   _exprMeta,
   _exprTypeMeta,
@@ -61,13 +62,13 @@ hprop_ConstructVar_succeeds_on_hole_when_in_scope = property $ do
         NoSmartHoles
         (maxID expr)
         expr
-        [SetCursor (getID expr), Move Child1, Move Child1, ConstructVar "x"]
+        [SetCursor (getID expr), Move Child1, Move Child1, ConstructVar $ LocalVarRef "x"]
 
   -- Extract the same point in the resulting AST
   -- We should now find the variable "x"
   let result = (target . farthest down . focus) expr'
   case result of
-    Var _ x -> x === "x"
+    Var _ (LocalVarRef x) -> x === "x"
     _ -> annotateShow result >> failure
 
 -- TODO: when we can generate well typed expressions, turn this back into a
@@ -92,7 +93,7 @@ unit_1 =
   actionTest
     NoSmartHoles
     (ann (lam "x" (lam "y" (app emptyHole (var "y")))) (tfun tEmptyHole tEmptyHole))
-    [Move Child1, Move Child1, Move Child1, Move Child1, ConstructVar "x"]
+    [Move Child1, Move Child1, Move Child1, Move Child1, ConstructVar $ LocalVarRef "x"]
     (ann (lam "x" (lam "y" (app (var "x") (var "y")))) (tfun tEmptyHole tEmptyHole))
 
 -- | Constructing a variable succeeds in an empty hole
@@ -108,10 +109,10 @@ unit_2 =
     , Move Child1
     , Move Child1
     , Move Child1
-    , ConstructVar "f"
+    , ConstructVar $ LocalVarRef "f"
     , Move Parent
     , Move Child2
-    , ConstructVar "x"
+    , ConstructVar $ LocalVarRef "x"
     ]
     ( ann
         ( lam
@@ -225,7 +226,7 @@ unit_8 =
     , ExitType
     , Move Child1
     , ConstructLam (Just "x")
-    , ConstructVar "x"
+    , ConstructVar $ LocalVarRef "x"
     , Move Parent
     , Move Parent
     , ConstructApp
@@ -244,7 +245,7 @@ unit_9 =
     , ConstructCon "True"
     , Move Parent
     , Move Child2
-    , ConstructVar "x"
+    , ConstructVar $ LocalVarRef "x"
     ]
     (let_ "x" (con "True") (var "x"))
 
@@ -274,10 +275,10 @@ unit_construct_letrec =
     , ConstructTCon "Bool"
     , ExitType
     , Move Child1
-    , ConstructVar "x"
+    , ConstructVar $ LocalVarRef "x"
     , Move Parent
     , Move Child2
-    , ConstructVar "x"
+    , ConstructVar $ LocalVarRef "x"
     ]
     (letrec "x" (var "x") (tcon "Bool") (var "x"))
 
@@ -430,7 +431,7 @@ unit_case_create =
     [ Move Child1
     , Move Child1
     , EnterHole
-    , ConstructVar "x"
+    , ConstructVar $ LocalVarRef "x"
     , ConstructAnn
     , Move Child1
     , ConstructCase
@@ -502,7 +503,7 @@ unit_case_move_branch_1 =
     , ConstructCon "Zero"
     , Move Parent
     , Move (Branch "Succ")
-    , ConstructVar "n"
+    , ConstructVar $ LocalVarRef "n"
     ]
     ( ann
         ( lam "x" $
@@ -536,7 +537,7 @@ unit_case_move_branch_2 =
     , ConstructCon "Zero"
     , Move Parent
     , Move (Branch "Succ")
-    , ConstructVar "n"
+    , ConstructVar $ LocalVarRef "n"
     ]
     ( ann
         ( lam "x" $
@@ -691,7 +692,7 @@ unit_case_fill_hole_scrut =
     , Move Child1
     , Move Child1
     , Move Child1
-    , ConstructVar "x"
+    , ConstructVar $ LocalVarRef "x"
     , Move Parent
     , RemoveAnn
     ]
@@ -715,7 +716,7 @@ unit_case_create_smart_on_term =
     )
     [ Move Child1
     , Move Child1
-    , ConstructVar "x"
+    , ConstructVar $ LocalVarRef "x"
     , ConstructCase
     , Move (Branch "True")
     , ConstructCon "Zero"
@@ -743,7 +744,7 @@ unit_case_create_smart_on_hole =
     , Move Child1
     , ConstructCase
     , Move Child1
-    , ConstructVar "x"
+    , ConstructVar $ LocalVarRef "x"
     , Move Parent
     , Move (Branch "True")
     , ConstructCon "Zero"
@@ -852,7 +853,7 @@ unit_poly_1 =
     , Move Child1
     , ConstructLAM (Just "a")
     , ConstructLam (Just "x")
-    , ConstructVar "x"
+    , ConstructVar $ LocalVarRef "x"
     , Move Parent
     , Move Parent
     , Move Parent
@@ -862,7 +863,7 @@ unit_poly_1 =
     , Move Child1
     , ConstructAPP
     , Move Child1
-    , ConstructVar "id"
+    , ConstructVar $ LocalVarRef "id"
     , Move Parent
     , EnterType
     , ConstructTForall (Just "b")
@@ -876,7 +877,7 @@ unit_poly_1 =
     , ExitType
     , Move Parent
     , Move Child2
-    , ConstructVar "id"
+    , ConstructVar $ LocalVarRef "id"
     ]
     ( let_ "id" (ann (lAM "a" $ lam "x" $ var "x") (tforall "a" KType $ tfun (tvar "a") (tvar "a"))) $
         app (aPP (var "id") (tforall "b" KType $ tfun (tvar "b") (tvar "b"))) (var "id")
@@ -951,7 +952,7 @@ unit_refine_4 =
   actionTest
     NoSmartHoles
     (let_ "nil" (con "Nil") $ emptyHole `ann` (tcon "List" `tapp` tcon "Nat"))
-    [Move Child2, Move Child1, InsertRefinedVar "nil"]
+    [Move Child2, Move Child1, InsertRefinedVar $ LocalVarRef "nil"]
     (let_ "nil" (con "Nil") $ (var "nil" `aPP` tcon "Nat") `ann` (tcon "List" `tapp` tcon "Nat"))
 
 unit_refine_5 :: Assertion
@@ -959,7 +960,7 @@ unit_refine_5 =
   actionTest
     NoSmartHoles
     (let_ "nil" (con "Nil") $ emptyHole `ann` (tcon "List" `tapp` tEmptyHole))
-    [Move Child2, Move Child1, InsertRefinedVar "nil"]
+    [Move Child2, Move Child1, InsertRefinedVar $ LocalVarRef "nil"]
     (let_ "nil" (con "Nil") $ (var "nil" `aPP` tEmptyHole) `ann` (tcon "List" `tapp` tEmptyHole))
 
 -- * Helpers

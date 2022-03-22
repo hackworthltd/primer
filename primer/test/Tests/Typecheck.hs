@@ -39,6 +39,7 @@ import Primer.Core (
   TypeCacheBoth (..),
   TypeDef (..),
   ValCon (..),
+  VarRef (LocalVarRef),
   astTypeDefConstructors,
   setID,
   typeDefKind,
@@ -72,7 +73,7 @@ unit_identity =
 
 unit_undefined_variable :: Assertion
 unit_undefined_variable =
-  ann (lam "x" (var "y")) tEmptyHole `expectFailsWith` const (UnknownVariable "y")
+  ann (lam "x" (var "y")) tEmptyHole `expectFailsWith` const (UnknownVariable $ LocalVarRef "y")
 
 unit_const :: Assertion
 unit_const =
@@ -117,7 +118,7 @@ unit_let =
 unit_recursive_let :: Assertion
 unit_recursive_let =
   let_ "x" (var "x") (var "x")
-    `expectFailsWith` const (UnknownVariable "x")
+    `expectFailsWith` const (UnknownVariable $ LocalVarRef "x")
 
 -- letrec x : Bool = x in x
 unit_letrec_1 :: Assertion

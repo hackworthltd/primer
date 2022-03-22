@@ -41,7 +41,6 @@ import Primer.Core (
     App,
     Case,
     Con,
-    GlobalVar,
     Hole,
     LAM,
     Lam,
@@ -66,6 +65,7 @@ import Primer.Core (
   ),
   TypeDef (..),
   TypeMeta,
+  VarRef (..),
   bindName,
   defPrim,
   _typeMeta,
@@ -275,7 +275,7 @@ viewCaseRedex tydefs = \case
 -- This spots all redexs other than InlineLet
 viewRedex :: (MonadFresh ID m, MonadFresh NameCounter m) => M.Map Name TypeDef -> M.Map Name Def -> Dir -> Expr -> Maybe (m Redex)
 viewRedex tydefs globals dir = \case
-  GlobalVar _ x | Just (DefAST y) <- x `M.lookup` globals -> pure $ pure $ InlineGlobal x y
+  Var _ (GlobalVarRef x) | Just (DefAST y) <- x `M.lookup` globals -> pure $ pure $ InlineGlobal x y
   App _ (Ann _ (Lam _ x t) (TFun _ src tgt)) s -> pure $ pure $ Beta x t src tgt s
   e@App{} -> pure . ApplyPrimFun . thd3 <$> tryPrimFun (M.mapMaybe defPrim globals) e
   APP _ (Ann _ (LAM _ a t) (TForall _ b _ ty1)) ty2 -> pure $ pure $ BETA a t b ty1 ty2
@@ -338,7 +338,7 @@ findRedex tydefs globals dir = go . focus
     goSubst :: Name -> Local -> ExprZ -> Maybe RedexWithContext
     goSubst n l ez = case target ez of
       -- We've found one
-      Var _ x | x == n -> case l of
+      Var _ (LocalVarRef x) | x == n -> case l of
         LLet le -> pure $ RExpr ez $ InlineLet n le
         LLetrec le lt -> pure $ RExpr ez $ InlineLetrec n le lt
         -- This case should have caught by the TC: a term var is bound by a lettype

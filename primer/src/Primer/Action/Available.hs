@@ -219,7 +219,6 @@ findNodeWithParent id x = go x Nothing
           Lam _ _ e -> go e (Just (ExprNode expr))
           LAM _ _ e -> go e (Just (ExprNode expr))
           Var _ _ -> Nothing
-          GlobalVar _ _ -> Nothing
           Let _ _ a b -> go a (Just (ExprNode expr)) <|> go b (Just (ExprNode expr))
           Letrec _ _ a ta b -> go a (Just (ExprNode expr)) <|> goTy ta expr <|> go b (Just (ExprNode expr))
           LetType _ _ t e -> goTy t expr <|> go e (Just (ExprNode expr))
@@ -346,9 +345,7 @@ basicActionsForExpr l defName expr = case expr of
             Beginner -> NoFunctions
             _ -> Everything
        in actionWithInput (Code "x") "Use a variable" (P.useVar l) Primary $
-            ChooseVariable filterVars $ \case
-              Left name -> [ConstructVar name]
-              Right name -> [ConstructGlobalVar name]
+            ChooseVariable filterVars $ pure . ConstructVar
 
     -- If we have a useful type, offer the refine action, otherwise offer the
     offerRefined :: ExprMeta -> Bool
@@ -364,9 +361,7 @@ basicActionsForExpr l defName expr = case expr of
     insertVariableSaturatedRefined :: forall a. ExprMeta -> ActionSpec Expr a
     insertVariableSaturatedRefined m =
       actionWithInput (Code "f $ ?") "Apply a function to arguments" (P.useFunction l) Primary $
-        ChooseVariable OnlyFunctions $ \case
-          Left name -> [if offerRefined m then InsertRefinedVar name else InsertSaturatedVar name]
-          Right id_ -> [if offerRefined m then InsertRefinedGlobalVar id_ else InsertSaturatedGlobalVar id_]
+        ChooseVariable OnlyFunctions $ \name -> [if offerRefined m then InsertRefinedVar name else InsertSaturatedVar name]
 
     annotateExpression :: forall a. ActionSpec Expr a
     annotateExpression = action (Code ":") "Annotate this expression with a type" (P.annotateExpr l) Primary [ConstructAnn]

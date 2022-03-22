@@ -30,6 +30,7 @@ import Primer.Core (
   PrimCon (..),
   Type,
   Type' (..),
+  VarRef (..),
  )
 import Primer.Name (Name, unsafeMkName)
 
@@ -45,7 +46,7 @@ genExpr :: ExprGen Expr
 genExpr =
   Gen.recursive
     Gen.choice
-    [genEmptyHole, genCon, genVar, genGlobalVar]
+    [genEmptyHole, genCon, genLocalVar, genGlobalVar]
     [ genHole
     , genAnn
     , genApp
@@ -83,11 +84,11 @@ genLam = Lam <$> genMeta <*> genName <*> genExpr
 genLAM :: ExprGen Expr
 genLAM = LAM <$> genMeta <*> genName <*> genExpr
 
-genVar :: ExprGen Expr
-genVar = Var <$> genMeta <*> genName
+genLocalVar :: ExprGen Expr
+genLocalVar = Var <$> genMeta <*> (LocalVarRef <$> genName)
 
 genGlobalVar :: ExprGen Expr
-genGlobalVar = GlobalVar <$> genMeta <*> genName
+genGlobalVar = Var <$> genMeta <*> (GlobalVarRef <$> genName)
 
 genLet :: ExprGen Expr
 genLet = Let <$> genMeta <*> genName <*> genExpr <*> genExpr

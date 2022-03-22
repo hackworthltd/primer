@@ -63,7 +63,7 @@ import Data.Generics.Uniplate.Zipper (
  )
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
-import Optics (re, traverseOf, view, (%), (%~), (.~), (^.), _Left, _Right)
+import Optics (re, traverseOf, view, (%), (%~), (.~), (?~), (^.), _Left, _Right)
 import Primer.Action (
   Action,
   ActionError (..),
@@ -87,6 +87,7 @@ import Primer.Core (
   TypeDef (..),
   TypeMeta,
   ValCon (..),
+  VarRef (LocalVarRef),
   defAST,
   defName,
   defPrim,
@@ -100,6 +101,7 @@ import Primer.Core (
   _typeMetaLens,
  )
 import Primer.Core.DSL (create, emptyHole, tEmptyHole)
+import Primer.Core.Transform (renameVar)
 import Primer.Core.Utils (_freeTmVars, _freeTyVars, _freeVarsTy)
 import Primer.Eval (EvalDetail, EvalError)
 import qualified Primer.Eval as Eval
@@ -448,8 +450,15 @@ applyProgAction prog mdefName = \case
       if Map.member name defs
         then throwError $ DefAlreadyExists name
         else do
+          defs' <-
+            maybe (throwError $ ActionError NameCapture) pure $
+              traverse (traverseOf (#_DefAST % #astDefExpr) $ renameVar d name) (Map.delete d defs)
           let def' = def{astDefName = name}
-          pure (addDef def' prog{progSelection = Just $ Selection (astDefName def') Nothing}, mdefName)
+              prog' =
+                prog
+                  & #progSelection ?~ Selection (astDefName def') Nothing
+                  & #progModule % #moduleDefs .~ defs'
+          pure (addDef def' prog', mdefName)
   CreateDef n -> do
     let defs = moduleDefs $ progModule prog
     name <- case n of
@@ -924,7 +933,7 @@ copyPasteBody p (fromDefName, fromId) toDefName setup = do
               then getSharedScope srcE tgtE
               else mempty
       -- Delete unbound vars. TODO: we may want to let-bind them?
-      let tm (m, n) = if Set.member n sharedScope then pure $ Var m n else fresh <&> \i -> EmptyHole (Meta i Nothing Nothing)
+      let tm (m, n) = if Set.member n sharedScope then pure $ Var m $ LocalVarRef n else fresh <&> \i -> EmptyHole (Meta i Nothing Nothing)
           ty (m, n) = if Set.member n sharedScope then pure $ TVar m n else fresh <&> \i -> TEmptyHole (Meta i Nothing Nothing)
       scopedCopy <- traverseOf _freeTyVars ty =<< traverseOf _freeTmVars tm (target srcE)
       freshCopy <- traverseOf (_exprTypeMeta % _id) (const fresh) =<< traverseOf (_exprMeta % _id) (const fresh) scopedCopy

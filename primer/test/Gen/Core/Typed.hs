@@ -52,6 +52,7 @@ import Primer.Core (
   Type' (..),
   TypeDef (..),
   ValCon (..),
+  VarRef (..),
   typeDefKind,
   typeDefName,
   typeDefParameters,
@@ -152,9 +153,9 @@ genSyns ty = do
     -- todo: maybe add some lets in as post-processing? I could even add them to the locals for generation in the head
     genSpineHeadFirst = do
       localTms <- asks localTmVars
-      let locals' = map (first (Var ())) $ M.toList localTms
+      let locals' = map (first (Var () . LocalVarRef)) $ M.toList localTms
       globals <- asks globalCxt
-      let globals' = map (first (GlobalVar ())) $ M.toList globals
+      let globals' = map (first (Var () . GlobalVarRef)) $ M.toList globals
       cons <- asks allCons
       let cons' = map (first (Con ())) $ M.toList cons
       let hsPure = locals' ++ globals' ++ cons'

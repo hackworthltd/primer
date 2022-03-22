@@ -10,6 +10,8 @@ module Primer.Core (
   Expr,
   Expr' (..),
   Bind' (..),
+  VarRef (..),
+  varRefName,
   CaseBranch,
   CaseBranch' (..),
   Def (..),
@@ -157,8 +159,7 @@ data Expr' a b
   | Con a Name -- See Note [Synthesisable constructors]
   | Lam a Name (Expr' a b)
   | LAM a Name (Expr' a b)
-  | Var a Name
-  | GlobalVar a Name
+  | Var a VarRef
   | Let a Name (Expr' a b) (Expr' a b)
   | -- | LetType binds a type to a name in some expression.
     -- It is currently only constructed automatically during evaluation -
@@ -169,6 +170,16 @@ data Expr' a b
   | PrimCon a PrimCon
   deriving (Eq, Show, Data, Generic)
   deriving (FromJSON, ToJSON) via VJSON (Expr' a b)
+
+-- | A reference to a variable.
+data VarRef
+  = GlobalVarRef Name
+  | LocalVarRef Name
+  deriving (Eq, Show, Data, Generic)
+  deriving (FromJSON, ToJSON) via VJSON VarRef
+
+varRefName :: Lens' VarRef Name
+varRefName = position @1
 
 -- Note [Synthesisable constructors]
 -- Whilst our calculus is heavily inspired by bidirectional type systems

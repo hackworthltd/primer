@@ -12,9 +12,9 @@ import Primer.Action (
   Action (
     ConstructAnn,
     ConstructArrowL,
-    ConstructGlobalVar,
     ConstructLet,
     ConstructTCon,
+    ConstructVar,
     Delete,
     EnterType,
     Move
@@ -52,6 +52,7 @@ import Primer.Core (
   Type' (..),
   TypeDef (..),
   ValCon (..),
+  VarRef (..),
   defName,
   getID,
   _exprMeta,
@@ -142,13 +143,13 @@ unit_delete_def_unknown_id =
 
 unit_delete_def_used_id :: Assertion
 unit_delete_def_used_id =
-  progActionTest defaultEmptyProg [MoveToDef "main", BodyAction [ConstructGlobalVar "other"], DeleteDef "other"] $
+  progActionTest defaultEmptyProg [MoveToDef "main", BodyAction [ConstructVar $ GlobalVarRef "other"], DeleteDef "other"] $
     expectError (@?= DefInUse "other")
 
 -- 'foo = foo' shouldn't count as "in use" and block deleting itself
 unit_delete_def_recursive :: Assertion
 unit_delete_def_recursive =
-  progActionTest defaultEmptyProg [MoveToDef "main", BodyAction [ConstructGlobalVar "main"], DeleteDef "main"] $
+  progActionTest defaultEmptyProg [MoveToDef "main", BodyAction [ConstructVar $ GlobalVarRef "main"], DeleteDef "main"] $
     expectSuccess $ \prog prog' -> Map.delete "main" (moduleDefs $ progModule prog) @?= moduleDefs (progModule prog')
 
 unit_move_to_unknown_def :: Assertion
@@ -386,7 +387,7 @@ unit_sigaction_creates_holes =
         , -- other :: Char; other = main
           MoveToDef "other"
         , SigAction [ConstructTCon "Char"]
-        , BodyAction [ConstructGlobalVar "main"]
+        , BodyAction [ConstructVar $ GlobalVarRef "main"]
         , -- main :: Int
           -- We expect this to change 'other' to contain a hole
           MoveToDef "main"
@@ -398,7 +399,7 @@ unit_sigaction_creates_holes =
             Just def ->
               -- Check that the definition is a non-empty hole
               case astDefExpr def of
-                Hole _ (GlobalVar _ "main") -> pure ()
+                Hole _ (Var _ (GlobalVarRef "main")) -> pure ()
                 _ -> assertFailure "expected {? main ?}"
             _ -> assertFailure "definition not found"
 
@@ -634,7 +635,7 @@ unit_import_reference =
               handleEditRequest
                 [ MoveToDef i
                 , SigAction [ConstructTCon "Char"]
-                , BodyAction [ConstructGlobalVar $ defName toUpperDef]
+                , BodyAction [ConstructVar $ GlobalVarRef $ defName toUpperDef]
                 ]
             pure $ pure ()
           (Nothing, _) -> pure $ assertFailure "Could not find the imported toUpper"

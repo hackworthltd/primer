@@ -30,7 +30,7 @@ import Foreword hiding (mod)
 import Control.Monad.Fresh (MonadFresh)
 import Data.Aeson (Value)
 import Data.Generics.Product (typed)
-import Data.List (delete, findIndex, lookup)
+import Data.List (delete, findIndex)
 import qualified Data.Map.Strict as Map
 import qualified Data.Text as T
 import Optics (set, (%), (?~))
@@ -47,6 +47,7 @@ import Primer.Core (
   TypeCache (..),
   TypeCacheBoth (..),
   TypeDef (..),
+  VarRef (..),
   bindName,
   defName,
   getID,
@@ -63,7 +64,6 @@ import Primer.Core.DSL (
   case_,
   con,
   emptyHole,
-  global,
   hole,
   lAM,
   lam,
@@ -75,7 +75,7 @@ import Primer.Core.DSL (
   tforall,
   tfun,
   tvar,
-  var,
+  varref,
  )
 import Primer.Core.Transform (renameTyVar, renameTyVarExpr, renameVar)
 import Primer.Core.Utils (forgetTypeIDs, generateTypeIDs)
@@ -100,7 +100,7 @@ import Primer.Typecheck (
   exprTtoExpr,
   getTypeDefInfo,
   lookupConstructor,
-  lookupGlobal,
+  lookupVar,
   maybeTypeOf,
   synth,
  )
@@ -177,7 +177,7 @@ data UserInput a
       -- ^ A bunch of options
       (Name -> a)
       -- ^ What to do with whatever name is chosen
-  | ChooseVariable FunctionFiltering (Either Text Name -> a)
+  | ChooseVariable FunctionFiltering (VarRef -> a)
   | ChooseTypeVariable (Text -> a)
   deriving (Functor)
 
@@ -256,15 +256,11 @@ data Action
   | -- | Replace a non-empty hole with its contents
     FinishHole
   | -- | Construct a variable in an empty hole
-    ConstructVar Text
-  | -- | Construct a global variable (i.e. a reference to a definition) in an empty hole
-    ConstructGlobalVar Name
+    ConstructVar VarRef
   | -- | Insert a variable, with a saturated spine of term/type applications in an empty hole
-    InsertSaturatedVar Text
-  | InsertSaturatedGlobalVar Name
+    InsertSaturatedVar VarRef
   | -- | Insert a variable, with an infered spine of term/type applications in an empty hole
-    InsertRefinedVar Text
-  | InsertRefinedGlobalVar Name
+    InsertRefinedVar VarRef
   | -- | Apply the expression under the cursor
     ConstructApp
   | -- | Apply the expression under the cursor to a type
@@ -350,11 +346,11 @@ data ActionError
     NameCapture
   | -- TODO: semantic errors.
     -- https://github.com/hackworthltd/primer/issues/8
-    SaturatedApplicationError Text
+    SaturatedApplicationError (Either Text TypeError)
   | -- | @RefineError@ should never happen unless we use the API wrong or have
     -- a bug. It does not get thrown for "no valid refinement found"
     -- - see Note [No valid refinement]
-    RefineError Text
+    RefineError (Either Text TypeError)
   | -- | Importing some modules failed.
     -- This should be impossible as long as the requested modules are well-typed
     -- and all of their dependencies are already imported
@@ -562,11 +558,8 @@ applyAction' a = case a of
   EnterHole -> termAction enterHole "non-empty type holes not supported"
   FinishHole -> termAction finishHole "there are no non-empty holes in types"
   ConstructVar x -> termAction (constructVar x) "cannot construct var in type"
-  ConstructGlobalVar name' -> termAction (constructGlobalVar name') "cannot construct global var in type"
-  InsertSaturatedVar x -> termAction (insertSatVar $ Left x) "cannot insert var in type"
-  InsertSaturatedGlobalVar id_ -> termAction (insertSatVar $ Right id_) "cannot insert var in type"
-  InsertRefinedVar x -> termAction (insertRefinedVar $ Left x) "cannot insert var in type"
-  InsertRefinedGlobalVar id_ -> termAction (insertRefinedVar $ Right id_) "cannot insert var in type"
+  InsertSaturatedVar x -> termAction (insertSatVar x) "cannot insert var in type"
+  InsertRefinedVar x -> termAction (insertRefinedVar x) "cannot insert var in type"
   ConstructApp -> termAction constructApp "cannot construct app in type"
   ConstructAPP -> termAction constructAPP "cannot construct term-to-type app in type"
   ConstructAnn -> termAction constructAnn "cannot construct annotation in type"
@@ -663,18 +656,12 @@ finishHole ze = case target ze of
   Hole _ e -> pure $ replace e ze
   e -> throwError $ NeedNonEmptyHole FinishHole e
 
-constructVar :: ActionM m => Text -> ExprZ -> m ExprZ
+constructVar :: ActionM m => VarRef -> ExprZ -> m ExprZ
 constructVar x ast = case target ast of
-  EmptyHole{} -> flip replace ast <$> var (unsafeMkName x)
+  EmptyHole{} -> flip replace ast <$> varref x
   e -> throwError $ NeedEmptyHole (ConstructVar x) e
 
--- TODO: error if the ID doesn't reference an in-scope definition
-constructGlobalVar :: ActionM m => Name -> ExprZ -> m ExprZ
-constructGlobalVar id_ ast = case target ast of
-  EmptyHole{} -> flip replace ast <$> global id_
-  e -> throwError $ NeedEmptyHole (ConstructGlobalVar id_) e
-
-insertSatVar :: ActionM m => Either Text Name -> ExprZ -> m ExprZ
+insertSatVar :: ActionM m => VarRef -> ExprZ -> m ExprZ
 insertSatVar x ast = case target ast of
   -- TODO: for now, rely on SmartHoles to fix up the type. I think we may want
   -- to do this manually to handle running with NoSmartHoles. There is no concern
@@ -684,37 +671,31 @@ insertSatVar x ast = case target ast of
   -- Revisit this once we decide on a smart hole toggle strategy. See:
   -- https://github.com/hackworthltd/primer/issues/9
   EmptyHole{} -> flip replace ast <$> saturatedApplication ast x
-  e -> throwError $ NeedEmptyHole (either InsertSaturatedVar InsertSaturatedGlobalVar x) e
+  e -> throwError $ NeedEmptyHole (InsertSaturatedVar x) e
 
 -- TODO: Add some tests for this. See:
 -- https://github.com/hackworthltd/primer/issues/10
-saturatedApplication :: ActionM m => ExprZ -> Either Text Name -> m Expr
+saturatedApplication :: ActionM m => ExprZ -> VarRef -> m Expr
 saturatedApplication ast v = do
   (appHead, vTy) <-
     getVarType ast v >>= \case
-      Left err -> throwError $ SaturatedApplicationError err
-      Right t -> pure (either (var . unsafeMkName) global v, t)
+      Left err -> throwError $ SaturatedApplicationError $ Right err
+      Right t -> pure (varref v, t)
   mkSaturatedApplication appHead vTy
 
 getVarType ::
   MonadReader TC.Cxt m =>
   ExprZ ->
-  Either Text Name ->
-  m (Either Text TC.Type)
-getVarType ast = \case
-  Left local' ->
+  VarRef ->
+  m (Either TypeError TC.Type)
+getVarType ast x =
+  local extendCxt $ lookupVar x <$> ask
+  where
     -- our Cxt in the monad does not care about the local context, we have to extract it from the zipper.
     -- See https://github.com/hackworthltd/primer/issues/11
-    let l = unsafeMkName local'
-        (tycxt, tmcxt) = localVariablesInScopeExpr (Left ast)
-     in pure $ case (lookup l tmcxt, lookup l tycxt) of
-          (Just t, _) -> Right t
-          (Nothing, Just _) -> Left "That's a type var!"
-          (Nothing, Nothing) -> Left "unknown local"
-  Right globalName ->
-    asks (lookupGlobal globalName) <&> \case
-      Just t -> Right t
-      Nothing -> Left "unknown global"
+    extendCxt =
+      let (tycxt, tmcxt) = localVariablesInScopeExpr $ Left ast
+       in \cxt -> cxt{TC.localCxt = Map.fromList $ map (second TC.T) tmcxt <> map (second TC.K) tycxt}
 
 mkSaturatedApplication :: MonadFresh ID m => m Expr -> TC.Type -> m Expr
 mkSaturatedApplication e = \case
@@ -723,12 +704,12 @@ mkSaturatedApplication e = \case
   TForall _ _ _ t -> mkSaturatedApplication (e `aPP` tEmptyHole) t
   _ -> e
 
-insertRefinedVar :: ActionM m => Either Text Name -> ExprZ -> m ExprZ
+insertRefinedVar :: ActionM m => VarRef -> ExprZ -> m ExprZ
 insertRefinedVar x ast = do
   (v, vTy) <-
     getVarType ast x >>= \case
-      Left err -> throwError $ RefineError err
-      Right t -> pure (either (var . unsafeMkName) global x, t)
+      Left err -> throwError $ RefineError $ Right err
+      Right t -> pure (varref x, t)
   let tgtTyCache = maybeTypeOf $ target ast
   -- our Cxt in the monad does not care about the local context, we have to extract it from the zipper.
   -- See https://github.com/hackworthltd/primer/issues/11
@@ -737,7 +718,7 @@ insertRefinedVar x ast = do
   cxt <- asks $ TC.extendLocalCxtTys tycxt
   case target ast of
     EmptyHole{} -> flip replace ast <$> mkRefinedApplication cxt v vTy tgtTyCache
-    e -> throwError $ NeedEmptyHole (either InsertRefinedVar InsertRefinedGlobalVar x) e
+    e -> throwError $ NeedEmptyHole (InsertRefinedVar x) e
 
 {-
 Note [No valid refinement]
@@ -755,7 +736,7 @@ mkRefinedApplication cxt e eTy tgtTy' = do
   tgtTy <- case tgtTy' of
     Just (TCChkedAt t) -> pure t
     Just (TCEmb b) -> pure $ tcChkedAt b
-    _ -> throwError $ RefineError "Don't have a type we were checked at"
+    _ -> throwError $ RefineError $ Left "Don't have a type we were checked at"
   mInst <-
     runExceptT (refine cxt tgtTy eTy) >>= \case
       -- Errors are only internal failures. Refinement failing is signaled with
@@ -827,7 +808,7 @@ constructSatCon c ze = case target ze of
   EmptyHole{} -> do
     ctorType <-
       getConstructorType n >>= \case
-        Left err -> throwError $ SaturatedApplicationError err
+        Left err -> throwError $ SaturatedApplicationError $ Left err
         Right t -> pure t
     flip replace ze <$> mkSaturatedApplication (con n) ctorType
   e -> throwError $ NeedEmptyHole (ConstructCon c) e
@@ -848,7 +829,7 @@ constructRefinedCon c ze = do
   let n = unsafeMkName c
   cTy <-
     getConstructorType n >>= \case
-      Left err -> throwError $ RefineError err
+      Left err -> throwError $ RefineError $ Left err
       Right t -> pure t
   let tgtTyCache = maybeTypeOf $ target ze
   -- our Cxt in the monad does not care about the local context, we have to extract it from the zipper.
