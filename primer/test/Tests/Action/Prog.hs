@@ -12,6 +12,7 @@ import Primer.Action (
   Action (
     ConstructAnn,
     ConstructArrowL,
+    ConstructLam,
     ConstructLet,
     ConstructTCon,
     ConstructVar,
@@ -19,6 +20,7 @@ import Primer.Action (
     EnterType,
     Move
   ),
+  ActionError (NameCapture),
   Movement (Branch, Child1, Child2),
  )
 import Primer.App (
@@ -670,6 +672,11 @@ unit_copy_paste_import =
    in case fst $ runAppTestM (ID $ appIdCounter a) a test of
         Left err -> assertFailure $ show err
         Right assertion -> assertion
+
+unit_rename_def_capture :: Assertion
+unit_rename_def_capture =
+  progActionTest defaultEmptyProg [MoveToDef "other", BodyAction [ConstructLam $ Just "foo"], RenameDef "main" "foo"] $
+    expectError (@?= ActionError NameCapture)
 
 -- * Utilities
 
