@@ -51,6 +51,7 @@ import Primer.Core (
   GVarName,
   ID,
   Kind,
+  LVarName,
   Meta (..),
   PrimCon (..),
   TyConName,
@@ -62,7 +63,6 @@ import Primer.Core (
   VarRef (..),
   _metadata,
  )
-import Primer.Name (Name)
 
 newtype S a = S {unS :: State ID a}
   deriving newtype (Functor, Applicative, Monad)
@@ -99,7 +99,7 @@ ann e t = Ann <$> meta <*> e <*> t
 con :: MonadFresh ID m => ValConName -> m Expr
 con c = Con <$> meta <*> pure c
 
-lvar :: MonadFresh ID m => Name -> m Expr
+lvar :: MonadFresh ID m => LVarName -> m Expr
 lvar v = Var <$> meta <*> pure (LocalVarRef v)
 
 gvar :: MonadFresh ID m => GVarName -> m Expr
@@ -108,25 +108,25 @@ gvar name = Var <$> meta <*> pure (GlobalVarRef name)
 var :: MonadFresh ID m => VarRef -> m Expr
 var v = Var <$> meta <*> pure v
 
-lam :: MonadFresh ID m => Name -> m Expr -> m Expr
+lam :: MonadFresh ID m => LVarName -> m Expr -> m Expr
 lam v e = Lam <$> meta <*> pure v <*> e
 
-lAM :: MonadFresh ID m => Name -> m Expr -> m Expr
+lAM :: MonadFresh ID m => LVarName -> m Expr -> m Expr
 lAM v e = LAM <$> meta <*> pure v <*> e
 
-let_ :: MonadFresh ID m => Name -> m Expr -> m Expr -> m Expr
+let_ :: MonadFresh ID m => LVarName -> m Expr -> m Expr -> m Expr
 let_ v a b = Let <$> meta <*> pure v <*> a <*> b
 
-letrec :: MonadFresh ID m => Name -> m Expr -> m Type -> m Expr -> m Expr
+letrec :: MonadFresh ID m => LVarName -> m Expr -> m Type -> m Expr -> m Expr
 letrec v a tA b = Letrec <$> meta <*> pure v <*> a <*> tA <*> b
 
-letType :: MonadFresh ID m => Name -> m Type -> m Expr -> m Expr
+letType :: MonadFresh ID m => LVarName -> m Type -> m Expr -> m Expr
 letType v t e = LetType <$> meta <*> pure v <*> t <*> e
 
 case_ :: MonadFresh ID m => m Expr -> [m CaseBranch] -> m Expr
 case_ e brs = Case <$> meta <*> e <*> sequence brs
 
-branch :: MonadFresh ID m => ValConName -> [(Name, Maybe TypeCache)] -> m Expr -> m CaseBranch
+branch :: MonadFresh ID m => ValConName -> [(LVarName, Maybe TypeCache)] -> m Expr -> m CaseBranch
 branch c vs e = CaseBranch c <$> mapM binding vs <*> e
   where
     binding (name, ty) = Bind <$> meta' ty <*> pure name
@@ -146,7 +146,7 @@ thole t = THole <$> meta <*> t
 tcon :: MonadFresh ID m => TyConName -> m Type
 tcon t = TCon <$> meta <*> pure t
 
-tforall :: MonadFresh ID m => Name -> Kind -> m Type -> m Type
+tforall :: MonadFresh ID m => LVarName -> Kind -> m Type -> m Type
 tforall v k t = TForall <$> meta <*> pure v <*> pure k <*> t
 
 tfun :: MonadFresh ID m => m Type -> m Type -> m Type
@@ -155,7 +155,7 @@ tfun a b = TFun <$> meta <*> a <*> b
 tapp :: MonadFresh ID m => m Type -> m Type -> m Type
 tapp a b = TApp <$> meta <*> a <*> b
 
-tvar :: MonadFresh ID m => Name -> m Type
+tvar :: MonadFresh ID m => LVarName -> m Type
 tvar v = TVar <$> meta <*> pure v
 
 meta :: MonadFresh ID m => m (Meta (Maybe a))

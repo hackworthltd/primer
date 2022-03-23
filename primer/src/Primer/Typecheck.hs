@@ -83,6 +83,7 @@ import Primer.Core (
   GVarName (unGVarName),
   ID,
   Kind (..),
+  LVarName (LVN, unLVarName),
   Meta (..),
   PrimCon,
   PrimDef (primDefType),
@@ -109,7 +110,7 @@ import Primer.Core (
   _typeMeta,
  )
 import Primer.Core.DSL (branch, emptyHole, meta, meta')
-import Primer.Core.Utils (alphaEqTy, forgetTypeIDs, generateTypeIDs)
+import Primer.Core.Utils (alphaEqTy, forgetTypeIDs, freshLVarName, generateTypeIDs)
 import Primer.JSON (CustomJSON (CustomJSON), FromJSON, ToJSON, VJSON)
 import Primer.Module (Module (moduleDefs, moduleTypes))
 import Primer.Name (Name, NameCounter, freshName)
@@ -136,8 +137,8 @@ type TypeT = Type' (Meta Kind)
 data TypeError
   = InternalError String
   | UnknownVariable VarRef
-  | UnknownTypeVariable Name
-  | WrongSortVariable Name -- type var instead of term var or vice versa
+  | UnknownTypeVariable LVarName
+  | WrongSortVariable LVarName -- type var instead of term var or vice versa
   | UnknownConstructor ValConName
   | UnknownTypeConstructor TyConName
   | -- | Cannot use a PrimCon when either no type of the appropriate name is
@@ -172,14 +173,14 @@ data Cxt = Cxt
   { smartHoles :: SmartHoles
   , typeDefs :: M.Map TyConName TypeDef
   -- ^ invariant: the key matches the 'typeDefName' inside the 'TypeDef'
-  , localCxt :: Map Name KindOrType
+  , localCxt :: Map LVarName KindOrType
   -- ^ local variables
   , globalCxt :: Map GVarName Type
   -- ^ global variables (i.e. IDs of top-level definitions)
   }
   deriving (Show)
 
-lookupLocal :: Name -> Cxt -> Maybe KindOrType
+lookupLocal :: LVarName -> Cxt -> Maybe KindOrType
 lookupLocal v cxt = M.lookup v $ localCxt cxt
 
 lookupGlobal :: GVarName -> Cxt -> Maybe Type
@@ -197,16 +198,16 @@ lookupVar v cxt = case v of
       Just t -> Right t
       Nothing -> Left $ UnknownVariable v
 
-extendLocalCxt :: (Name, Type) -> Cxt -> Cxt
+extendLocalCxt :: (LVarName, Type) -> Cxt -> Cxt
 extendLocalCxt (name, ty) cxt = cxt{localCxt = Map.insert name (T ty) (localCxt cxt)}
 
-extendLocalCxtTy :: (Name, Kind) -> Cxt -> Cxt
+extendLocalCxtTy :: (LVarName, Kind) -> Cxt -> Cxt
 extendLocalCxtTy (name, k) cxt = cxt{localCxt = Map.insert name (K k) (localCxt cxt)}
 
-extendLocalCxts :: [(Name, Type)] -> Cxt -> Cxt
+extendLocalCxts :: [(LVarName, Type)] -> Cxt -> Cxt
 extendLocalCxts x cxt = cxt{localCxt = Map.fromList (map (second T) x) <> localCxt cxt}
 
-extendLocalCxtTys :: [(Name, Kind)] -> Cxt -> Cxt
+extendLocalCxtTys :: [(LVarName, Kind)] -> Cxt -> Cxt
 extendLocalCxtTys x cxt = cxt{localCxt = Map.fromList (map (second K) x) <> localCxt cxt}
 
 extendGlobalCxt :: [(GVarName, Type)] -> Cxt -> Cxt
@@ -215,10 +216,10 @@ extendGlobalCxt globals cxt = cxt{globalCxt = Map.fromList globals <> globalCxt 
 extendTypeDefCxt :: [TypeDef] -> Cxt -> Cxt
 extendTypeDefCxt typedefs cxt = cxt{typeDefs = mkTypeDefMap typedefs <> typeDefs cxt}
 
-localTmVars :: Cxt -> Map Name Type
+localTmVars :: Cxt -> Map LVarName Type
 localTmVars = M.mapMaybe (\case T t -> Just t; K _ -> Nothing) . localCxt
 
-localTyVars :: Cxt -> Map Name Kind
+localTyVars :: Cxt -> Map LVarName Kind
 localTyVars = M.mapMaybe (\case K k -> Just k; T _ -> Nothing) . localCxt
 
 noSmartHoles :: Cxt -> Cxt
@@ -354,10 +355,10 @@ checkTypeDefs tds = do
       let params = astTypeDefParameters td
       let cons = astTypeDefConstructors td
       assert
-        (distinct $ map fst params <> map (unValConName . valConName) cons)
+        (distinct $ map (unLVarName . fst) params <> map (unValConName . valConName) cons)
         "Duplicate names in one tydef: between parameter-names and constructor-names"
       assert
-        (notElem (unTyConName $ astTypeDefName td) $ map fst params)
+        (notElem (unTyConName $ astTypeDefName td) $ map (unLVarName . fst) params)
         "Duplicate names in one tydef: between type-def-name and parameter-names"
       local (noSmartHoles . extendLocalCxtTys params) $
         mapM_ (checkKind KType <=< fakeMeta) $ concatMap valConArgs cons
@@ -850,7 +851,7 @@ checkBranch t (vc, args) (CaseBranch nb patterns rhs) =
       (False, SmartHoles) -> do
         -- Avoid automatically generated names shadowing anything
         globals <- getGlobalNames
-        locals <- asks $ M.keysSet . localCxt
+        locals <- asks $ S.map unLVarName . M.keysSet . localCxt
         liftA2 (,) (mapM (createBinding (locals <> globals)) args) emptyHole
       -- otherwise, convert all @Maybe TypeCache@ metadata to @TypeCache@
       -- otherwise, annotate each binding with its type
@@ -863,7 +864,7 @@ checkBranch t (vc, args) (CaseBranch nb patterns rhs) =
     createBinding :: S.Set Name -> Type' () -> m (Bind' (Meta TypeCache), Type' ())
     createBinding namesInScope ty = do
       -- Avoid automatically generated names shadowing anything
-      name <- freshName namesInScope
+      name <- LVN <$> freshName namesInScope
       bind <- Bind <$> meta' (TCChkedAt ty) <*> pure name
       pure (bind, ty)
     assertCorrectCon =
@@ -873,7 +874,7 @@ checkBranch t (vc, args) (CaseBranch nb patterns rhs) =
           <> " but found branch on "
           <> show nb
 
-substituteTypeVars :: MonadFresh NameCounter m => [(Name, Type' ())] -> Type' () -> m (Type' ())
+substituteTypeVars :: MonadFresh NameCounter m => [(LVarName, Type' ())] -> Type' () -> m (Type' ())
 substituteTypeVars = flip $ foldrM (uncurry substTy)
 
 -- | Decompose @C X Y Z@ to @(C,[X,Y,Z])@
@@ -905,10 +906,10 @@ matchArrowType _ = Nothing
 -- forall'd version.
 -- NB: holes can behave as ∀(a:KType). ..., but not of any higher kind
 -- (We may revisit this later)
-matchForallType :: MonadFresh NameCounter m => Type -> m (Maybe (Name, Kind, Type))
+matchForallType :: MonadFresh NameCounter m => Type -> m (Maybe (LVarName, Kind, Type))
 -- These names will never enter the program, so we don't need to avoid shadowing
-matchForallType (TEmptyHole _) = (\n -> Just (n, KType, TEmptyHole ())) <$> freshName mempty
-matchForallType (THole _ _) = (\n -> Just (n, KType, TEmptyHole ())) <$> freshName mempty
+matchForallType (TEmptyHole _) = (\n -> Just (n, KType, TEmptyHole ())) <$> freshLVarName mempty
+matchForallType (THole _ _) = (\n -> Just (n, KType, TEmptyHole ())) <$> freshLVarName mempty
 matchForallType (TForall _ a k t) = pure $ Just (a, k, t)
 matchForallType _ = pure Nothing
 

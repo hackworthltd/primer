@@ -75,6 +75,7 @@ import Primer.Core (
   GVarName,
   ID,
   Kind (KFun, KType),
+  LVarName,
   Type,
   Type' (TEmptyHole),
   TypeCache (..),
@@ -233,7 +234,7 @@ type SAPI = (
     --   Ask what variables are in scope for the given node ID
     "variables-in-scope"
       :> ReqBody '[JSON] (GVarName, ID)
-      :> Post '[JSON] (Either ProgError (([(Name, Kind)], [(Name, Type' ())]), [(GVarName, Type' ())]))
+      :> Post '[JSON] (Either ProgError (([(LVarName, Kind)], [(LVarName, Type' ())]), [(GVarName, Type' ())]))
 
     -- POST /question/generate-names
     --   Ask for a list of possible names for a binding at the given location.

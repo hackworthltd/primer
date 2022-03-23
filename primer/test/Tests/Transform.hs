@@ -6,7 +6,6 @@ import Optics (over, view)
 import Primer.Core
 import Primer.Core.DSL
 import Primer.Core.Transform
-import Primer.Name
 import Test.Tasty.HUnit (Assertion, assertFailure, (@?=))
 
 -- When renaming we have to be careful of binding sites. If we're renaming x to
@@ -207,14 +206,14 @@ unit_cross_ann =
 unit_cross_aPP :: Assertion
 unit_cross_aPP = afterRenameCross "x" "y" (aPP emptyHole $ tvar "x") (Just $ aPP emptyHole $ tvar "y")
 
-afterRename :: Name -> Name -> S Expr -> Maybe (S Expr) -> Assertion
+afterRename :: LVarName -> LVarName -> S Expr -> Maybe (S Expr) -> Assertion
 afterRename = afterRename' renameLocalVar clearMeta
   where
     -- Clear the backend-created metadata (IDs and cached types) in the given expression
     clearMeta :: Expr' ExprMeta TypeMeta -> Expr' (Maybe Value) (Maybe Value)
     clearMeta = over _exprMeta (view _metadata) . over _exprTypeMeta (view _metadata)
 
-afterRenameTy :: Name -> Name -> S Type -> Maybe (S Type) -> Assertion
+afterRenameTy :: LVarName -> LVarName -> S Type -> Maybe (S Type) -> Assertion
 afterRenameTy = afterRename' renameTyVar clearMeta
   where
     -- Clear the backend-created metadata (IDs and cached types) in the given expression
@@ -222,7 +221,7 @@ afterRenameTy = afterRename' renameTyVar clearMeta
     clearMeta = over _typeMeta (view _metadata)
 
 -- | A helper to test the renaming of type variables inside terms
-afterRenameCross :: Name -> Name -> S Expr -> Maybe (S Expr) -> Assertion
+afterRenameCross :: LVarName -> LVarName -> S Expr -> Maybe (S Expr) -> Assertion
 afterRenameCross = afterRename' renameTyVarExpr clearMeta
   where
     -- Clear the backend-created metadata (IDs and cached types) in the given expression
@@ -231,10 +230,10 @@ afterRenameCross = afterRename' renameTyVarExpr clearMeta
 
 afterRename' ::
   (Show a, Show b, Eq a, Eq b) =>
-  (Name -> Name -> a -> Maybe a) ->
+  (LVarName -> LVarName -> a -> Maybe a) ->
   (a -> b) ->
-  Name ->
-  Name ->
+  LVarName ->
+  LVarName ->
   S a ->
   Maybe (S a) ->
   Assertion

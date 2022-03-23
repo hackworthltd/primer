@@ -54,6 +54,7 @@ import Primer.Core (
   GVarName,
   ID,
   Kind,
+  LVarName,
   TyConName,
   Type,
   Type' (
@@ -75,10 +76,10 @@ import Primer.Core (
  )
 import Primer.Core.DSL (ann, letType, let_, letrec, lvar, tvar)
 import Primer.Core.Transform (unfoldAPP, unfoldApp)
-import Primer.Core.Utils (concreteTy, freeVars, freeVarsTy, generateTypeIDs, _freeVars, _freeVarsTy)
+import Primer.Core.Utils (concreteTy, freeVars, freeVarsTy, freshLVarName, generateTypeIDs, _freeVars, _freeVarsTy)
 import Primer.Eval (regenerateExprIDs, regenerateTypeIDs, tryPrimFun)
 import Primer.JSON (CustomJSON (CustomJSON), FromJSON, ToJSON, VJSON)
-import Primer.Name (Name, NameCounter, freshName)
+import Primer.Name (NameCounter)
 import Primer.Typecheck (instantiateValCons', lookupConstructor)
 import Primer.Zipper (
   ExprZ,
@@ -104,15 +105,15 @@ data Redex
   = -- f  ~>  e : T  where we have  f : T ; f = e  in (global) scope
     InlineGlobal GVarName ASTDef
   | -- x  ~>  e   where we are inside the scope of a  let x = e in ...
-    InlineLet Name Expr
+    InlineLet LVarName Expr
   | -- x  ~>  letrec x:T=t in t:T   where we are inside the scope of a  letrec x : T = t in ...
-    InlineLetrec Name Expr Type
+    InlineLetrec LVarName Expr Type
   | -- let(rec/type) x = e in t  ~>  t  if x does not appear in t
-    ElideLet Name Local Expr
+    ElideLet LVarName Local Expr
   | -- (λx.t : S -> T) s  ~>  let x = s:S in t : T
-    Beta Name Expr Type Type Expr
+    Beta LVarName Expr Type Type Expr
   | -- (Λa.t : ∀b.T) S  ~>  lettype b = S in (lettype a = S in t) : T
-    BETA Name Expr Name Type Type
+    BETA LVarName Expr LVarName Type Type
   | -- case C as : T of ... ; C xs -> e ; ...   ~>  let xs=as:As in e for constructor C of type T, where args have types As
     -- also the non-annotated case, as we consider constructors to be synthesisable
     -- case C as of ... ; C xs -> e ; ...   ~>  let xs=as:As in e for constructor C of type T, where args have types As
@@ -121,7 +122,7 @@ data Redex
     -- reduction steps. E.g.
     --     cons ==  (Λa λx λxs. Cons @a x xs) : ∀a. a -> List a -> List a
     -- )
-    CaseRedex ValConName [(Expr, Type)] (Either Type (Type' ())) [Name] Expr
+    CaseRedex ValConName [(Expr, Type)] (Either Type (Type' ())) [LVarName] Expr
   | -- [ t : T ]  ~>  t  writing [_] for the embedding of syn into chk
     -- This only fires for concrete (non-holey, no free vars) T, as otherwise the
     -- annotation can act as a type-changing cast:
@@ -132,17 +133,17 @@ data Redex
     -- This only fires when trying to do a substitution x|->y, and we need to go
     -- under a binder and avoid variable capture.
     -- We only record what names to avoid, and do the renaming in runRedex
-    RenameBindingsLam ExprMeta Name Expr (S.Set Name)
-  | RenameBindingsLAM ExprMeta Name Expr (S.Set Name)
-  | RenameBindingsCase ExprMeta Expr [CaseBranch] (S.Set Name)
+    RenameBindingsLam ExprMeta LVarName Expr (S.Set LVarName)
+  | RenameBindingsLAM ExprMeta LVarName Expr (S.Set LVarName)
+  | RenameBindingsCase ExprMeta Expr [CaseBranch] (S.Set LVarName)
   | ApplyPrimFun ExprAnyFresh
 
 -- there are only trivial redexes in types.
 -- Note that the let must appear in the surrounding Expr (not in a type itself)
 data RedexType
-  = InlineLetInType Name Type
+  = InlineLetInType LVarName Type
   | -- ∀a:k.t  ~>  ∀b:k.t[b/a]  for fresh b, avoiding the given set
-    RenameForall TypeMeta Name Kind Type (S.Set Name)
+    RenameForall TypeMeta LVarName Kind Type (S.Set LVarName)
 
 -- Currently just a step limit
 type TerminationBound = Natural
@@ -200,7 +201,7 @@ data Local
   | LLetType Type
   deriving (Generic)
 
-_freeVarsLocal :: Fold Local Name
+_freeVarsLocal :: Fold Local LVarName
 _freeVarsLocal =
   #_LLet % _freeVars % _2
     `summing` #_LLetrec % (_1 % _freeVars % _2 `summing` _2 % getting _freeVarsTy % _2)
@@ -222,7 +223,7 @@ focusDir dirIfTop ez = case up ez of
     Hole _ _ -> Syn
     _ -> Chk
 
-viewLet :: ExprZ -> Maybe (Name, Local, ExprZ)
+viewLet :: ExprZ -> Maybe (LVarName, Local, ExprZ)
 viewLet ez = case target ez of
   -- the movements return Maybe but will obviously not fail in this scenario
   Let _ x e _t -> (x,LLet e,) <$> (right =<< down ez)
@@ -334,11 +335,11 @@ findRedex tydefs globals dir = go . focus
     -- This should always return Just
     -- It finds either this let is redundant, or somewhere to substitute it
     -- or something inside that we need to rename to unblock substitution
-    goLet :: Name -> Local -> ExprZ -> Maybe RedexWithContext
+    goLet :: LVarName -> Local -> ExprZ -> Maybe RedexWithContext
     goLet n l ez =
       goSubst n l ez
         <<||>> (up ez <&> \letz -> RExpr letz $ ElideLet n l (target ez))
-    goSubst :: Name -> Local -> ExprZ -> Maybe RedexWithContext
+    goSubst :: LVarName -> Local -> ExprZ -> Maybe RedexWithContext
     goSubst n l ez = case target ez of
       -- We've found one
       Var _ (LocalVarRef x) | x == n -> case l of
@@ -379,7 +380,7 @@ findRedex tydefs globals dir = go . focus
                 -- https://github.com/hackworthltd/primer/issues/148
                 e -> error $ "Internal Error: something other than Lam/LAM/Case was a binding: " ++ show e
           | otherwise = goSubst n l z
-    goSubstTy :: Name -> Type -> TypeZ -> Maybe RedexWithContext
+    goSubstTy :: LVarName -> Type -> TypeZ -> Maybe RedexWithContext
     goSubstTy n t tz = case target tz of
       -- found one
       TVar _ x | x == n -> pure $ RType tz $ InlineLetInType n t
@@ -415,17 +416,17 @@ runRedex = \case
   Upsilon e _ -> pure e
   -- λy.t  ~>  λz.let y = z in t (and similar for other binding forms, except let)
   RenameBindingsLam m x e avoid -> do
-    y <- freshName (avoid <> freeVars e)
+    y <- freshLVarName (avoid <> freeVars e)
     Lam m y <$> let_ x (lvar y) (pure e)
   RenameBindingsLAM m x e avoid -> do
-    y <- freshName (avoid <> freeVars e)
+    y <- freshLVarName (avoid <> freeVars e)
     LAM m y <$> letType x (tvar y) (pure e)
   RenameBindingsCase m s brs avoid
     | (brs0, CaseBranch ctor binds rhs : brs1) <- break (\(CaseBranch _ bs _) -> any ((`S.member` avoid) . bindName) bs) brs ->
         let bns = map bindName binds
             avoid' = avoid <> freeVars rhs <> S.fromList bns
          in do
-              rn <- traverse (\b -> if b `S.member` avoid then Right . (b,) <$> freshName avoid' else pure $ Left b) bns
+              rn <- traverse (\b -> if b `S.member` avoid then Right . (b,) <$> freshLVarName avoid' else pure $ Left b) bns
               let f b@(Bind i _) = \case Left _ -> b; Right (_, w) -> Bind i w
               let binds' = zipWith f binds rn
               rhs' <- foldrM (\(v, w) -> let_ v (lvar w) . pure) rhs $ rights rn
@@ -438,13 +439,13 @@ runRedex = \case
 runRedexTy :: (MonadFresh ID m, MonadFresh NameCounter m) => RedexType -> m Type
 runRedexTy (InlineLetInType _ t) = regenerateTypeIDs t
 runRedexTy (RenameForall m a k s avoid) = do
-  b <- freshName (avoid <> freeVarsTy s)
+  b <- freshLVarName (avoid <> freeVarsTy s)
   TForall m b k <$> renameTy a b s
 
 -- This is very similar to Subst.substTy
 -- However, we work over Type rather than Type' (), as we don't need to worry
 -- about how/if to duplicate metadata etc
-renameTy :: MonadFresh NameCounter m => Name -> Name -> Type -> m Type
+renameTy :: MonadFresh NameCounter m => LVarName -> LVarName -> Type -> m Type
 renameTy a b = go
   where
     go = \case
@@ -459,6 +460,6 @@ renameTy a b = go
       t@(TForall m c k s)
         | c == a -> pure t
         | c == b ->
-            freshName (S.singleton a <> S.singleton b <> freeVarsTy s) >>= \c' ->
+            freshLVarName (S.singleton a <> S.singleton b <> freeVarsTy s) >>= \c' ->
               renameTy c c' s >>= fmap (TForall m c' k) . go
         | otherwise -> TForall m c k <$> go s

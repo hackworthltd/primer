@@ -82,6 +82,7 @@ import Primer.Core (
   GVarName,
   ID,
   Kind,
+  LVarName (unLVarName),
   PrimCon (..),
   TyConName,
   Type,
@@ -366,14 +367,18 @@ viewTreeType :: Type -> Tree
 viewTreeType = U.para $ \e allChildren ->
   let c = toS $ showConstr $ toConstr e
       n = case e of
-        TForall _ m k _ -> c <> " " <> unName m <> ":" <> show k
+        TForall _ m k _ -> c <> " " <> unName (unLVarName m) <> ":" <> show k
         _ -> unwords $ c : map unName (U.childrenBi e)
    in Tree (getID e) n allChildren
 
 edit :: (MonadIO m, MonadThrow m) => SessionId -> MutationRequest -> PrimerM m (Either ProgError App.Prog)
 edit sid req = liftEditAppM (handleMutationRequest req) sid
 
-variablesInScope :: (MonadIO m, MonadThrow m) => SessionId -> (GVarName, ID) -> PrimerM m (Either ProgError (([(Name, Kind)], [(Name, Type' ())]), [(GVarName, Type' ())]))
+variablesInScope ::
+  (MonadIO m, MonadThrow m) =>
+  SessionId ->
+  (GVarName, ID) ->
+  PrimerM m (Either ProgError (([(LVarName, Kind)], [(LVarName, Type' ())]), [(GVarName, Type' ())]))
 variablesInScope sid (defname, exprid) =
   liftQueryAppM (handleQuestion (VariablesInScope defname exprid)) sid
 

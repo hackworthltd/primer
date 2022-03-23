@@ -11,7 +11,7 @@ import qualified Data.Set as S
 import Gen.Core.Typed (
   WT,
   forAllT,
-  freshNameForCxt,
+  freshLVarNameForCxt,
   genCxtExtendingGlobal,
   genWTKind,
   genWTType,
@@ -32,9 +32,9 @@ import Hedgehog (
 import qualified Hedgehog.Gen as Gen
 import qualified Hedgehog.Range as Range
 import Primer.App (defaultTypeDefs)
-import Primer.Core (ID, Kind (KFun, KHole, KType), Type' (TApp, TCon, TEmptyHole, TForall, TFun, THole, TVar))
+import Primer.Core (ID, Kind (KFun, KHole, KType), LVarName, Type' (TApp, TCon, TEmptyHole, TForall, TFun, THole, TVar))
 import Primer.Core.Utils (forgetTypeIDs, freeVarsTy, generateTypeIDs)
-import Primer.Name (Name, NameCounter)
+import Primer.Name (NameCounter)
 import Primer.Subst (substTys)
 import Primer.Typecheck (
   Cxt,
@@ -58,7 +58,13 @@ import Tests.Gen.Core.Typed (
 defaultCxt :: Cxt
 defaultCxt = buildTypingContext defaultTypeDefs mempty NoSmartHoles
 
-unify' :: (MonadFresh NameCounter m, MonadFresh ID m) => Cxt -> S.Set Name -> Type -> Type -> m (Maybe (M.Map Name Type))
+unify' ::
+  (MonadFresh NameCounter m, MonadFresh ID m) =>
+  Cxt ->
+  S.Set LVarName ->
+  Type ->
+  Type ->
+  m (Maybe (M.Map LVarName Type))
 unify' cxt uvs s t = fmap (either crash identity) $ runExceptT $ unify cxt uvs s t
   where
     -- If we run across a bug whilst testing, crash loudly
@@ -359,7 +365,7 @@ unit_unify_hole_trivial_2 =
 
 -- Generate an extension of the base context (from the reader monad) with more
 -- local term and type vars, some of which are unif vars.
-genCxtExtendingLocalUVs :: GenT WT (Cxt, M.Map Name Kind)
+genCxtExtendingLocalUVs :: GenT WT (Cxt, M.Map LVarName Kind)
 genCxtExtendingLocalUVs = do
   n <- Gen.int $ Range.linear 0 20
   go n mempty
@@ -368,15 +374,15 @@ genCxtExtendingLocalUVs = do
     go i uvs = do
       (uvsE, cxtE) <-
         Gen.choice
-          [ (\n k -> (identity, extendLocalCxtTy (n, k))) <$> freshNameForCxt <*> genWTKind
-          , (\n k -> ((M.singleton n k <>), extendLocalCxtTy (n, k))) <$> freshNameForCxt <*> genWTKind
-          , (\n t -> (identity, extendLocalCxt (n, t))) <$> freshNameForCxt <*> genWTType KType
+          [ (\n k -> (identity, extendLocalCxtTy (n, k))) <$> freshLVarNameForCxt <*> genWTKind
+          , (\n k -> ((M.singleton n k <>), extendLocalCxtTy (n, k))) <$> freshLVarNameForCxt <*> genWTKind
+          , (\n t -> (identity, extendLocalCxt (n, t))) <$> freshLVarNameForCxt <*> genWTType KType
           ]
       local cxtE $ go (i - 1) $ uvsE uvs
 
 -- Run a property in a context extended with typedefs, globals and locals. Some
 -- of the locals (mentioned in the Set) are considered unification variables.
-propertyWTInExtendedUVCxt' :: Cxt -> (M.Map Name Kind -> PropertyT WT ()) -> Property
+propertyWTInExtendedUVCxt' :: Cxt -> (M.Map LVarName Kind -> PropertyT WT ()) -> Property
 propertyWTInExtendedUVCxt' cxt p = propertyWT cxt $ do
   cxtG <- forAllT genCxtExtendingGlobal
   local (const cxtG) $ do
@@ -384,7 +390,7 @@ propertyWTInExtendedUVCxt' cxt p = propertyWT cxt $ do
     annotateShow uvs
     local (const cxtL) $ p uvs
 
-propertyWTInExtendedUVCxt :: Cxt -> (S.Set Name -> PropertyT WT ()) -> Property
+propertyWTInExtendedUVCxt :: Cxt -> (S.Set LVarName -> PropertyT WT ()) -> Property
 propertyWTInExtendedUVCxt cxt p = propertyWTInExtendedUVCxt' cxt $ p . M.keysSet
 
 hprop_extendedUVCxt_typechecks :: Property
@@ -527,7 +533,7 @@ hprop_uv_succeeds :: Property
 hprop_uv_succeeds = propertyWT defaultCxt $ do
   k <- forAllT genWTKind
   t <- forAllT $ genWTType k
-  uv <- forAllT freshNameForCxt
+  uv <- forAllT freshLVarNameForCxt
   local (extendLocalCxtTy (uv, k)) $ do
     cxt <- ask
     u <- unify' cxt (S.singleton uv) (TVar () uv) t

@@ -81,6 +81,7 @@ import Primer.Core (
   GVarName (GVN, unGVarName),
   ID (..),
   Kind (..),
+  LVarName,
   Meta (..),
   PrimDef (..),
   Type,
@@ -109,7 +110,7 @@ import qualified Primer.Eval as Eval
 import Primer.EvalFull (Dir, EvalFullError (TimedOut), TerminationBound, evalFull)
 import Primer.JSON
 import Primer.Module (Module (Module, moduleDefs, moduleTypes))
-import Primer.Name (Name, NameCounter, freshName, unsafeMkName)
+import Primer.Name (NameCounter, freshName, unsafeMkName)
 import Primer.Primitives (allPrimDefs, allPrimTypeDefs)
 import Primer.Questions (
   Question (..),
@@ -808,7 +809,7 @@ copyPasteSig p (fromDefName, fromTyId) toDefName setup = do
 -- may reuse the same names. However, we want to detect that as non-shared.
 -- Instead, we rely on fact that IDs are unique.
 -- We get the scope from the second argument, as that is where we are pasting.
-getSharedScopeTy :: Either TypeZ TypeZip -> Either TypeZ TypeZip -> Set.Set Name
+getSharedScopeTy :: Either TypeZ TypeZip -> Either TypeZ TypeZip -> Set.Set LVarName
 getSharedScopeTy l r =
   let idsR = case r of
         Right r' -> getID r' : foldAbove ((: []) . getID . current) r'
@@ -832,7 +833,7 @@ getSharedScopeTy l r =
    in fromMaybe mempty inScope
 
 -- TODO: there is a lot of duplicated code for copy/paste, often due to types/terms being different...
-getSharedScope :: ExprZ -> ExprZ -> Set.Set Name
+getSharedScope :: ExprZ -> ExprZ -> Set.Set LVarName
 getSharedScope l r =
   let idsR = getID r : foldAbove ((: []) . getID . current) r
       idsL = getID l : foldAbove ((: []) . getID . current) l

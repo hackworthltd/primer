@@ -21,6 +21,7 @@ import Primer.Core (
   GVarName,
   ID,
   Kind (KFun, KType),
+  LVarName (unLVarName),
   Type' (..),
   defName,
   defType,
@@ -51,7 +52,15 @@ data Question a where
   -- Given the Name of a definition and the ID of a type or expression in that
   -- definition, what variables are in scope at the expression?
   -- Nested pairs: to make serialization to PS work easily
-  VariablesInScope :: GVarName -> ID -> Question (([(Name, Kind)], [(Name, Type' ())]), [(GVarName, Type' ())])
+  VariablesInScope ::
+    GVarName ->
+    ID ->
+    Question
+      ( ( [(LVarName, Kind)]
+        , [(LVarName, Type' ())]
+        )
+      , [(GVarName, Type' ())]
+      )
   GenerateName ::
     GVarName ->
     ID ->
@@ -67,7 +76,7 @@ data Question a where
 variablesInScopeExpr ::
   Map GVarName Def ->
   Either ExprZ TypeZ ->
-  ([(Name, Kind)], [(Name, Type' ())], [(GVarName, Type' ())])
+  ([(LVarName, Kind)], [(LVarName, Type' ())], [(GVarName, Type' ())])
 variablesInScopeExpr defs exprOrTy =
   let locals = either extractLocalsExprZ extractLocalsTypeZ exprOrTy
       globals = Map.elems $ fmap (\d -> (defName d, forgetMetadata $ defType d)) defs
@@ -121,7 +130,7 @@ getAvoidSet = \case
 getAvoidSetTy :: MonadReader Cxt m => TypeZip -> m (Set.Set Name)
 getAvoidSetTy z = do
   globals <- getGlobalNames
-  pure $ bindersAboveTy z <> bindersBelowTy z <> globals
+  pure $ Set.map unLVarName (bindersAboveTy z <> bindersBelowTy z) <> globals
 
 -- We do not use Name.freshName as we don't want a global fresh counter
 -- (and we want to control the base name)
