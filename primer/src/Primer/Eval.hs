@@ -42,6 +42,7 @@ import Primer.Core (
   Expr,
   Expr' (..),
   ExprAnyFresh (..),
+  GVarName,
   HasID (_id),
   ID,
   Kind,
@@ -61,7 +62,7 @@ import Primer.Core (
   _typeMeta,
  )
 import Primer.Core.DSL (ann, hole, letType, let_, tEmptyHole)
-import Primer.Core.Transform (removeAnn, renameVar, unfoldAPP, unfoldApp)
+import Primer.Core.Transform (removeAnn, renameLocalVar, unfoldAPP, unfoldApp)
 import Primer.Core.Utils (concreteTy, freeVars, freeVarsTy)
 import Primer.JSON
 import Primer.Name (Name, unName, unsafeMkName)
@@ -252,7 +253,7 @@ data ApplyPrimFunDetail = ApplyPrimFunDetail
   -- ^ the expression before reduction
   , applyPrimFunAfter :: Expr
   -- ^ the expression after reduction
-  , applyPrimFunName :: Name
+  , applyPrimFunName :: GVarName
   -- ^ the name of the primitive function
   , applyPrimFunArgIDs :: [ID]
   -- ^ the IDs of the arguments to the application
@@ -261,7 +262,7 @@ data ApplyPrimFunDetail = ApplyPrimFunDetail
   deriving (FromJSON, ToJSON) via VJSONPrefix "applyPrimFun" ApplyPrimFunDetail
 
 -- | A map from definition Names to definitions themselves
-type Globals = Map Name Def
+type Globals = Map GVarName Def
 
 -- | A map from local variable names to the ID of their binding and their bound value.
 -- Since each entry must have a value, this only includes let(rec) bindings.
@@ -316,7 +317,7 @@ findNodeByID i expr = do
       _ -> mempty
 
 -- | Return the IDs of nodes which are reducible
-redexes :: Map Name PrimDef -> Expr -> Set ID
+redexes :: Map GVarName PrimDef -> Expr -> Set ID
 redexes primDefs = go mempty
   where
     go locals expr =
@@ -423,7 +424,7 @@ makeSafeLetBinding name others body = go 0
       let newName = unsafeMkName $ unName name <> show n
        in if Set.member newName others
             then go (n + 1)
-            else case renameVar name newName body of
+            else case renameLocalVar name newName body of
               Just body' -> (newName, body')
               Nothing -> go (n + 1)
 
@@ -770,7 +771,7 @@ munless x b = if b then mempty else x
 
 -- | If this node is a reducible application of a primitive, return the name of the primitive, the arguments, and
 -- (a computation for building) the result.
-tryPrimFun :: Map Name PrimDef -> Expr -> Maybe (Name, [Expr], ExprAnyFresh)
+tryPrimFun :: Map GVarName PrimDef -> Expr -> Maybe (GVarName, [Expr], ExprAnyFresh)
 tryPrimFun primDefs expr
   | (Var _ (GlobalVarRef name), args) <- bimap stripAnns (map stripAnns) $ unfoldApp expr
   , Map.member name primDefs

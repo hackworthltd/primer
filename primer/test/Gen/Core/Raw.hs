@@ -25,6 +25,7 @@ import Primer.Core (
   CaseBranch' (CaseBranch),
   Expr,
   Expr' (..),
+  GVarName (GVN),
   ID (..),
   Kind (..),
   Meta (..),
@@ -94,7 +95,7 @@ genLocalVar :: ExprGen Expr
 genLocalVar = Var <$> genMeta <*> (LocalVarRef <$> genName)
 
 genGlobalVar :: ExprGen Expr
-genGlobalVar = Var <$> genMeta <*> (GlobalVarRef <$> genName)
+genGlobalVar = Var <$> genMeta <*> (GlobalVarRef . GVN <$> genName)
 
 genLet :: ExprGen Expr
 genLet = Let <$> genMeta <*> genName <*> genExpr <*> genExpr

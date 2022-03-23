@@ -13,6 +13,7 @@ import Primer.Action (ActionName (..), OfferedAction (name))
 import Primer.Action.Available (actionsForDef, actionsForDefBody, actionsForDefSig)
 import Primer.Core (
   ASTDef (..),
+  GVarName (unGVarName),
   HasID (_id),
   ID,
   Kind (KType),
@@ -165,7 +166,7 @@ data Output = Output
 -- | Golden tests for the available actions at each node of the definition, for each level.
 mkTests :: ASTDef -> TestTree
 mkTests def =
-  let testName = T.unpack $ unName $ astDefName def
+  let testName = T.unpack $ unName $ unGVarName $ astDefName def
    in testGroup testName $
         enumerate
           <&> \level ->

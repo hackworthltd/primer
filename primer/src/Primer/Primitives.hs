@@ -13,6 +13,7 @@ import Numeric.Natural (Natural)
 import Primer.Core (
   Expr' (App, Con, PrimCon),
   ExprAnyFresh (..),
+  GVarName,
   PrimCon (..),
   PrimFun (..),
   PrimFunError (..),
@@ -31,7 +32,6 @@ import Primer.Core.DSL (
   tapp,
   tcon,
  )
-import Primer.Name (Name)
 
 -- | Primitive type definitions.
 -- There should be one entry here for each constructor of `PrimCon`.
@@ -64,7 +64,7 @@ allPrimTypeDefs =
 
 -- | Primitive term definitions.
 -- For each of these, we should have a test that the evaluator produces expected results.
-allPrimDefs :: Map Name PrimFun
+allPrimDefs :: Map GVarName PrimFun
 allPrimDefs =
   M.fromList
     [ let name = "toUpper"

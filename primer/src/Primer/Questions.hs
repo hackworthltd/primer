@@ -18,6 +18,7 @@ import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 import Primer.Core (
   Def (..),
+  GVarName,
   ID,
   Kind (KFun, KType),
   Type' (..),
@@ -50,9 +51,9 @@ data Question a where
   -- Given the Name of a definition and the ID of a type or expression in that
   -- definition, what variables are in scope at the expression?
   -- Nested pairs: to make serialization to PS work easily
-  VariablesInScope :: Name -> ID -> Question (([(Name, Kind)], [(Name, Type' ())]), [(Name, Type' ())])
+  VariablesInScope :: GVarName -> ID -> Question (([(Name, Kind)], [(Name, Type' ())]), [(GVarName, Type' ())])
   GenerateName ::
-    Name ->
+    GVarName ->
     ID ->
     Either (Maybe (Type' ())) (Maybe Kind) ->
     Question [Name]
@@ -64,9 +65,9 @@ data Question a where
 -- The first list is local type variables, the second list is local term variables,
 -- the third is globals.
 variablesInScopeExpr ::
-  Map Name Def ->
+  Map GVarName Def ->
   Either ExprZ TypeZ ->
-  ([(Name, Kind)], [(Name, Type' ())], [(Name, Type' ())])
+  ([(Name, Kind)], [(Name, Type' ())], [(GVarName, Type' ())])
 variablesInScopeExpr defs exprOrTy =
   let locals = either extractLocalsExprZ extractLocalsTypeZ exprOrTy
       globals = Map.elems $ fmap (\d -> (defName d, forgetMetadata $ defType d)) defs

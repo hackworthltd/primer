@@ -208,7 +208,7 @@ unit_cross_aPP :: Assertion
 unit_cross_aPP = afterRenameCross "x" "y" (aPP emptyHole $ tvar "x") (Just $ aPP emptyHole $ tvar "y")
 
 afterRename :: Name -> Name -> S Expr -> Maybe (S Expr) -> Assertion
-afterRename = afterRename' renameVar clearMeta
+afterRename = afterRename' renameLocalVar clearMeta
   where
     -- Clear the backend-created metadata (IDs and cached types) in the given expression
     clearMeta :: Expr' ExprMeta TypeMeta -> Expr' (Maybe Value) (Maybe Value)

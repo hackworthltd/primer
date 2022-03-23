@@ -48,6 +48,7 @@ import Primer.Core (
   CaseBranch' (..),
   Expr,
   Expr' (..),
+  GVarName,
   ID,
   Kind,
   Meta (..),
@@ -101,7 +102,7 @@ con c = Con <$> meta <*> pure c
 lvar :: MonadFresh ID m => Name -> m Expr
 lvar v = Var <$> meta <*> pure (LocalVarRef v)
 
-gvar :: MonadFresh ID m => Name -> m Expr
+gvar :: MonadFresh ID m => GVarName -> m Expr
 gvar name = Var <$> meta <*> pure (GlobalVarRef name)
 
 var :: MonadFresh ID m => VarRef -> m Expr

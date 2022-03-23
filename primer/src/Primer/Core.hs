@@ -28,6 +28,7 @@ module Primer.Core (
   ID (ID),
   TyConName (TCN, unTyConName),
   ValConName (VCN, unValConName),
+  GVarName (GVN, unGVarName),
   Type,
   Type' (..),
   TypeCache (..),
@@ -73,7 +74,7 @@ import Data.Data (Data)
 import Data.Generics.Product
 import Data.Generics.Uniplate.Data ()
 import Data.Generics.Uniplate.Zipper (Zipper, hole, replaceHole)
-import Optics (AffineFold, Lens, Lens', Traversal, afailing, lens, set, view, (%))
+import Optics (AffineFold, Lens, Lens', Traversal, afailing, lens, lensVL, set, view, (%))
 import Primer.JSON
 import Primer.Name (Name)
 
@@ -153,6 +154,12 @@ newtype ValConName = VCN {unValConName :: Name}
   deriving (IsString) via Name
   deriving (FromJSON, ToJSON) via Name
 
+-- | As 'TyConName', but for names of global variables
+newtype GVarName = GVN {unGVarName :: Name}
+  deriving (Eq, Ord, Show, Data, Generic)
+  deriving (IsString) via Name
+  deriving (FromJSON, ToJSON, FromJSONKey, ToJSONKey) via Name
+
 -- | The core AST.
 --  This is the canonical representation of Primer programs.  It is similar to
 --  System F, but with support for empty and non-empty holes.  Each node holds a
@@ -189,13 +196,15 @@ data Expr' a b
 
 -- | A reference to a variable.
 data VarRef
-  = GlobalVarRef Name
+  = GlobalVarRef GVarName
   | LocalVarRef Name
   deriving (Eq, Show, Data, Generic)
   deriving (FromJSON, ToJSON) via VJSON VarRef
 
 varRefName :: Lens' VarRef Name
-varRefName = position @1
+varRefName = lensVL $ \f -> \case
+  GlobalVarRef (GVN n) -> GlobalVarRef . GVN <$> f n
+  LocalVarRef n -> LocalVarRef <$> f n
 
 -- Note [Synthesisable constructors]
 -- Whilst our calculus is heavily inspired by bidirectional type systems
@@ -387,7 +396,7 @@ data Def
 
 -- | A primitive, built-in definition
 data PrimDef = PrimDef
-  { primDefName :: Name
+  { primDefName :: GVarName
   -- ^ Used for display, and to link to an entry in `allPrimDefs`
   , primDefType :: Type
   }
@@ -396,14 +405,14 @@ data PrimDef = PrimDef
 
 -- | A top-level definition, built from an 'Expr'
 data ASTDef = ASTDef
-  { astDefName :: Name
+  { astDefName :: GVarName
   , astDefExpr :: Expr
   , astDefType :: Type
   }
   deriving (Eq, Show, Generic)
   deriving (FromJSON, ToJSON) via VJSON ASTDef
 
-defName :: Def -> Name
+defName :: Def -> GVarName
 defName = \case
   DefPrim d -> primDefName d
   DefAST d -> astDefName d
@@ -455,7 +464,7 @@ newtype ExprAnyFresh = ExprAnyFresh (forall m. MonadFresh ID m => m Expr)
 data PrimFunError
   = -- | We have attempted to apply a primitive function to invalid args.
     PrimFunError
-      Name
+      GVarName
       -- ^ Function name
       [Expr' () ()]
       -- ^ Arguments

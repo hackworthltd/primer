@@ -46,6 +46,7 @@ import Primer.Core (
   Bind' (Bind),
   CaseBranch' (CaseBranch),
   Expr' (..),
+  GVarName (GVN),
   ID,
   Kind (..),
   PrimCon (..),
@@ -377,11 +378,11 @@ genWTKind = Gen.recursive Gen.choice [pure KType] [KFun <$> genWTKind <*> genWTK
 
 -- NB: we are only generating the context entries, and so don't
 -- need definitions for the symbols!
-genGlobalCxtExtension :: GenT WT [(Name, TypeG)]
+genGlobalCxtExtension :: GenT WT [(GVarName, TypeG)]
 genGlobalCxtExtension =
   local forgetLocals $
     Gen.list (Range.linear 1 5) $
-      (,) <$> freshNameForCxt <*> genWTType KType
+      (,) <$> fmap GVN freshNameForCxt <*> genWTType KType
   where
     -- we are careful to not let the globals depend on whatever locals may be in
     -- the cxt
@@ -423,7 +424,7 @@ genTypeDefGroup = do
 addTypeDefs :: [TypeDef] -> Cxt -> Cxt
 addTypeDefs tds cxt = cxt{typeDefs = typeDefs cxt <> mkTypeDefMap tds}
 
-extendGlobals :: [(Name, TypeG)] -> Cxt -> Cxt
+extendGlobals :: [(GVarName, TypeG)] -> Cxt -> Cxt
 extendGlobals nts cxt = cxt{globalCxt = globalCxt cxt <> M.fromList nts}
 
 -- Generate an extension of the base context (from the reader monad) with more

@@ -41,6 +41,7 @@ import Primer.Core (
   Expr,
   Expr' (..),
   ExprMeta,
+  GVarName (unGVarName),
   ID,
   Kind,
   Meta (..),
@@ -57,7 +58,7 @@ import Primer.Core (
   _typeMetaLens,
  )
 import Primer.Core.Transform (unfoldFun)
-import Primer.Name (Name, unName)
+import Primer.Name (unName)
 import Primer.Questions (Question (..))
 
 -- | An AST node tagged with its "sort" - i.e. if it's a type or expression or binding etc.
@@ -95,7 +96,7 @@ actionsForDef l defs def =
 
               bodyID = astDefExpr def ^. _exprMetaLens % _id
 
-              copyName = uniquifyDefName (unName (astDefName def) <> "Copy") defs
+              copyName = uniquifyDefName (unName (unGVarName $ astDefName def) <> "Copy") defs
            in NoInputRequired
                 [ CreateDef (Just copyName)
                 , CopyPasteSig (astDefName def, sigID) []
@@ -180,7 +181,7 @@ actionsForDefSig l def id ty =
 -- | Bindings support just one action: renaming.
 actionsForBinding ::
   Level ->
-  Name ->
+  GVarName ->
   Bind' (Meta (Maybe TypeCache)) ->
   [OfferedAction [Action]]
 actionsForBinding l defName b =
@@ -309,7 +310,7 @@ actionWithInput name description priority actionType input _p m =
 -- with SetCursor. Requires the definition name.
 actionWithNames ::
   forall a.
-  Name ->
+  GVarName ->
   Either (Maybe (Type' ())) (Maybe Kind) ->
   (Text -> [Action]) ->
   Meta a ->
@@ -329,7 +330,7 @@ realise p m = map (\a -> a p m)
 
 -- | Given an expression, determine what basic actions it supports
 -- Specific projections may provide other actions not listed here
-basicActionsForExpr :: Level -> Name -> Expr -> [OfferedAction [Action]]
+basicActionsForExpr :: Level -> GVarName -> Expr -> [OfferedAction [Action]]
 basicActionsForExpr l defName expr = case expr of
   EmptyHole m -> realise expr m $ universalActions m <> emptyHoleActions m
   Hole m _ -> realise expr m $ defaultActions m <> holeActions
@@ -614,7 +615,7 @@ basicActionsForExpr l defName expr = case expr of
 
 -- | Given a type, determine what basic actions it supports
 -- Specific projections may provide other actions not listed here
-basicActionsForType :: Level -> Name -> Type -> [OfferedAction [Action]]
+basicActionsForType :: Level -> GVarName -> Type -> [OfferedAction [Action]]
 basicActionsForType l defName ty = case ty of
   TEmptyHole m -> realise ty m $ universalActions <> emptyHoleActions
   TForall m _ k _ -> realise ty m $ defaultActions <> forAllActions k

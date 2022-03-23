@@ -78,6 +78,7 @@ import Primer.Core (
   Expr,
   Expr' (EmptyHole, Var),
   ExprMeta,
+  GVarName (GVN, unGVarName),
   ID (..),
   Kind (..),
   Meta (..),
@@ -87,7 +88,7 @@ import Primer.Core (
   TypeDef (..),
   TypeMeta,
   ValCon (..),
-  VarRef (LocalVarRef),
+  VarRef (GlobalVarRef, LocalVarRef),
   defAST,
   defName,
   defPrim,
@@ -210,7 +211,7 @@ allTypes :: Prog -> [TypeDef]
 allTypes p = foldMap moduleTypes $ progModule p : progImports p
 
 -- | Get all definitions from all modules (including imports)
-allDefs :: Prog -> Map Name Def
+allDefs :: Prog -> Map GVarName Def
 allDefs p = foldMap moduleDefs $ progModule p : progImports p
 
 -- | Add a definition to the editable module
@@ -243,7 +244,7 @@ newtype Log = Log {unlog :: [[ProgAction]]}
 -- | Describes what interface element the user has selected.
 -- A definition in the left hand nav bar, and possibly a node in that definition.
 data Selection = Selection
-  { selectedDef :: Name
+  { selectedDef :: GVarName
   -- ^ the ID of some ASTDef
   , selectedNode :: Maybe NodeSelection
   }
@@ -277,9 +278,9 @@ data MutationRequest
 
 data ProgError
   = NoDefSelected
-  | DefNotFound Name
-  | DefAlreadyExists Name
-  | DefInUse Name
+  | DefNotFound GVarName
+  | DefAlreadyExists GVarName
+  | DefInUse GVarName
   | ActionError ActionError
   | EvalError EvalError
   | -- | Currently copy/paste is only exposed in the frontend via select
@@ -357,14 +358,14 @@ handleQuestion = \case
       focusNode prog defname nodeid
 
 -- This only looks in the editable module, not in any imports
-focusNode :: MonadError ProgError m => Prog -> Name -> ID -> m (Either (Either ExprZ TypeZ) TypeZip)
+focusNode :: MonadError ProgError m => Prog -> GVarName -> ID -> m (Either (Either ExprZ TypeZ) TypeZip)
 focusNode prog = focusNodeDefs $ moduleDefs $ progModule prog
 
 -- This looks in the editable module and also in any imports
-focusNodeImports :: MonadError ProgError m => Prog -> Name -> ID -> m (Either (Either ExprZ TypeZ) TypeZip)
+focusNodeImports :: MonadError ProgError m => Prog -> GVarName -> ID -> m (Either (Either ExprZ TypeZ) TypeZip)
 focusNodeImports prog = focusNodeDefs $ allDefs prog
 
-focusNodeDefs :: MonadError ProgError m => Map Name Def -> Name -> ID -> m (Either (Either ExprZ TypeZ) TypeZip)
+focusNodeDefs :: MonadError ProgError m => Map GVarName Def -> GVarName -> ID -> m (Either (Either ExprZ TypeZ) TypeZip)
 focusNodeDefs defs defname nodeid =
   case lookupASTDef defname defs of
     Nothing -> throwError $ DefNotFound defname
@@ -395,7 +396,7 @@ handleEditRequest actions = do
   modify (\s -> s{appProg = prog'})
   pure prog'
   where
-    go :: (Prog, Maybe Name) -> ProgAction -> m (Prog, Maybe Name)
+    go :: (Prog, Maybe GVarName) -> ProgAction -> m (Prog, Maybe GVarName)
     go (prog, mdef) = applyProgAction prog mdef
 
 -- | Handle an eval request
@@ -423,7 +424,7 @@ handleEvalFullRequest (EvalFullReq{evalFullReqExpr, evalFullCxtDir, evalFullMaxS
     Right nf -> EvalFullRespNormal nf
 
 -- Prog actions only affect the editable module
-applyProgAction :: MonadEditApp m => Prog -> Maybe Name -> ProgAction -> m (Prog, Maybe Name)
+applyProgAction :: MonadEditApp m => Prog -> Maybe GVarName -> ProgAction -> m (Prog, Maybe GVarName)
 applyProgAction prog mdefName = \case
   MoveToDef d -> case Map.lookup d (moduleDefs $ progModule prog) of
     Nothing -> throwError $ DefNotFound d
@@ -446,7 +447,7 @@ applyProgAction prog mdefName = \case
     Nothing -> throwError $ DefNotFound d
     Just def -> do
       let defs = moduleDefs $ progModule prog
-          name = unsafeMkName nameStr
+          name = GVN $ unsafeMkName nameStr
       if Map.member name defs
         then throwError $ DefAlreadyExists name
         else do
@@ -454,7 +455,9 @@ applyProgAction prog mdefName = \case
           defs' <-
             maybe (throwError $ ActionError NameCapture) pure $
               traverse
-                (traverseOf (#_DefAST % #astDefExpr) $ renameVar d name)
+                ( traverseOf (#_DefAST % #astDefExpr) $
+                    renameVar (GlobalVarRef d) (GlobalVarRef name)
+                )
                 (Map.insert name def' $ Map.delete d defs)
           let prog' =
                 prog
@@ -465,11 +468,11 @@ applyProgAction prog mdefName = \case
     let defs = moduleDefs $ progModule prog
     name <- case n of
       Just nameStr ->
-        let name = unsafeMkName nameStr
+        let name = GVN $ unsafeMkName nameStr
          in if Map.member name defs
               then throwError $ DefAlreadyExists name
               else pure name
-      Nothing -> freshName $ Set.fromList $ map defName $ Map.elems defs
+      Nothing -> fmap GVN . freshName $ Set.fromList $ map (unGVarName . defName) $ Map.elems defs
     expr <- newExpr
     ty <- newType
     let def = ASTDef name expr ty
@@ -552,7 +555,7 @@ applyProgAction prog mdefName = \case
 
 -- Look up the definition by its given Name, then run the given action with it
 -- only looks in the editable module
-withDef :: MonadEditApp m => Maybe Name -> Prog -> (ASTDef -> m a) -> m a
+withDef :: MonadEditApp m => Maybe GVarName -> Prog -> (ASTDef -> m a) -> m a
 withDef mdefName prog f =
   case mdefName of
     Nothing -> throwError NoDefSelected
@@ -707,7 +710,7 @@ newProg =
     }
 
 defaultDefsNextId :: ID
-defaultDefs :: Map Name Def
+defaultDefs :: Map GVarName Def
 (defaultDefs, defaultDefsNextId) =
   let (defs, nextID) = create $ do
         mainExpr <- emptyHole
@@ -765,7 +768,7 @@ instance MonadFresh NameCounter EditAppM where
     modify (\s -> s{appNameCounter = succ nameCounter})
     pure nameCounter
 
-copyPasteSig :: MonadEditApp m => Prog -> (Name, ID) -> Name -> [Action] -> m Prog
+copyPasteSig :: MonadEditApp m => Prog -> (GVarName, ID) -> GVarName -> [Action] -> m Prog
 copyPasteSig p (fromDefName, fromTyId) toDefName setup = do
   c' <- focusNodeImports p fromDefName fromTyId
   c <- case c' of
@@ -892,7 +895,7 @@ tcWholeProg p =
           Left e -> throwError $ ActionError e
           Right prog -> pure prog
 
-copyPasteBody :: MonadEditApp m => Prog -> (Name, ID) -> Name -> [Action] -> m Prog
+copyPasteBody :: MonadEditApp m => Prog -> (GVarName, ID) -> GVarName -> [Action] -> m Prog
 copyPasteBody p (fromDefName, fromId) toDefName setup = do
   src' <- focusNodeImports p fromDefName fromId
   -- reassociate so get Expr+(Type+Type), rather than (Expr+Type)+Type
@@ -983,7 +986,7 @@ copyPasteBody p (fromDefName, fromId) toDefName setup = do
       let finalProg = addDef newDef p{progSelection = Just (Selection (astDefName newDef) $ Just newSel)}
       tcWholeProg finalProg
 
-lookupASTDef :: Name -> Map Name Def -> Maybe ASTDef
+lookupASTDef :: GVarName -> Map GVarName Def -> Maybe ASTDef
 lookupASTDef name = defAST <=< Map.lookup name
 
 defaultTypeDefs :: [TypeDef]

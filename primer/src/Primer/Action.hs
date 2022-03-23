@@ -40,6 +40,7 @@ import Primer.Core (
   Def (..),
   Expr,
   Expr' (..),
+  GVarName (unGVarName),
   HasMetadata (_metadata),
   ID,
   Type,
@@ -78,7 +79,7 @@ import Primer.Core.DSL (
   tvar,
   var,
  )
-import Primer.Core.Transform (renameTyVar, renameTyVarExpr, renameVar)
+import Primer.Core.Transform (renameLocalVar, renameTyVar, renameTyVarExpr)
 import Primer.Core.Utils (forgetTypeIDs, generateTypeIDs)
 import Primer.JSON
 import Primer.Module (Module (moduleDefs, moduleTypes))
@@ -233,7 +234,7 @@ uniquifyDefName name' defs =
        in go (1 :: Int)
   where
     avoid :: [Text]
-    avoid = Map.elems $ map (unName . defName) defs
+    avoid = Map.elems $ map (unName . unGVarName . defName) defs
 
 -- | Core actions.
 --  These describe edits to the core AST.
@@ -335,7 +336,7 @@ data ActionError
       -- ^ the error message
   | InternalFailure Text
   | IDNotFound ID
-  | UnknownDef Name
+  | UnknownDef GVarName
   | NeedEmptyHole Action Expr
   | NeedNonEmptyHole Action Expr
   | NeedAnn Action Expr
@@ -365,13 +366,13 @@ data ActionError
 -- These actions move around the whole program or modify definitions
 data ProgAction
   = -- | Move the cursor to the definition with the given Name
-    MoveToDef Name
+    MoveToDef GVarName
   | -- | Rename the definition with the given Name
-    RenameDef Name Text
+    RenameDef GVarName Text
   | -- | Create a new definition
     CreateDef (Maybe Text)
   | -- | Delete a new definition
-    DeleteDef Name
+    DeleteDef GVarName
   | -- | Add a new type definition
     AddTypeDef ASTTypeDef
   | -- | Execute a sequence of actions on the body of the definition
@@ -390,8 +391,8 @@ data ProgAction
     --   whilst letting the backend avoid remembering the 'copied' thing in some state.
     --   The cursor is left on the root of the inserted subtree, which may or may not be inside a hole and/or annotation.
     --   At the start of the actions, the cursor starts at the root of the definition's type/expression
-    CopyPasteSig (Name, ID) [Action]
-  | CopyPasteBody (Name, ID) [Action]
+    CopyPasteSig (GVarName, ID) [Action]
+  | CopyPasteBody (GVarName, ID) [Action]
   deriving (Eq, Show, Generic)
   deriving (FromJSON, ToJSON) via VJSON ProgAction
 
@@ -473,7 +474,7 @@ applyActionsToBody ::
   (MonadFresh ID m, MonadFresh NameCounter m) =>
   SmartHoles ->
   [TypeDef] ->
-  Map Name Def ->
+  Map GVarName Def ->
   ASTDef ->
   [Action] ->
   m (Either ActionError (ASTDef, Loc))
@@ -923,7 +924,7 @@ renameLam y ze = case target ze of
     | unName x == y -> pure ze
     | otherwise -> do
         let y' = unsafeMkName y
-        case renameVar x y' e of
+        case renameLocalVar x y' e of
           Just e' -> pure $ replace (Lam m y' e') ze
           Nothing ->
             throwError NameCapture
@@ -964,7 +965,7 @@ renameLet y ze = case target ze of
   where
     -- The renaming logic for lets and letrecs is identical, so we handle both here
     doRename :: ActionM m => Name -> Name -> Expr -> Expr -> m (Expr, Expr)
-    doRename fromName toName e1 e2 = case (renameVar fromName toName e1, renameVar fromName toName e2) of
+    doRename fromName toName e1 e2 = case (renameLocalVar fromName toName e1, renameLocalVar fromName toName e2) of
       (Just e1', Just e2') -> pure (e1', e2')
       (Nothing, _) -> throwError NameCapture
       (_, Nothing) -> throwError NameCapture
@@ -984,7 +985,7 @@ renameCaseBinding y caseBind = updateCaseBind caseBind $ \bind bindings rhs -> d
         <> " because it clashes with another binding in the case pattern"
 
   -- Apply the rename to the rhs
-  rhs' <- case renameVar (bindName bind) y' rhs of
+  rhs' <- case renameLocalVar (bindName bind) y' rhs of
     Just e -> pure e
     Nothing ->
       failure $

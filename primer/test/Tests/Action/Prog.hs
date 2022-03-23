@@ -49,6 +49,7 @@ import Primer.Core (
   ASTTypeDef (..),
   Def (..),
   Expr' (..),
+  GVarName,
   ID (ID),
   Kind (KType),
   Meta (..),
@@ -709,7 +710,7 @@ unit_rename_def_capture =
 
 -- * Utilities
 
-findGlobalByName :: Prog -> Name -> Maybe Def
+findGlobalByName :: Prog -> GVarName -> Maybe Def
 findGlobalByName p n = Map.lookup n . foldMap moduleDefs $ progModule p : progImports p
 
 -- We use a program with two defs: "main" and "other"

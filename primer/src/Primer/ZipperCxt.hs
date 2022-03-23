@@ -20,6 +20,7 @@ import Primer.Core (
   CaseBranch' (..),
   Expr,
   Expr' (..),
+  GVarName (unGVarName),
   Kind (KHole),
   Meta (Meta),
   Type' (..),
@@ -50,17 +51,19 @@ data ShadowedVarsExpr
       -- ^ Local type variables
       [(Name, Type' ())]
       -- ^ Local term variables
-      [(Name, Type' ())]
+      [(GVarName, Type' ())]
       -- ^ Global variables
   deriving (Eq, Show)
 
 instance Semigroup ShadowedVarsExpr where
   M ty1 tm1 gl1 <> M ty2 tm2 gl2 = M (ty1 <> ty2') (tm1 <> tm2') (gl1 <> gl2')
     where
-      names1 = Set.fromList (map fst ty1) <> Set.fromList (map fst tm1) <> Set.fromList (map fst gl1)
+      names1 =
+        Set.fromList (map fst ty1) <> Set.fromList (map fst tm1)
+          <> Set.fromList (map (unGVarName . fst) gl1)
       ty2' = filter (flip Set.notMember names1 . fst) ty2
       tm2' = filter (flip Set.notMember names1 . fst) tm2
-      gl2' = filter (flip Set.notMember names1 . fst) gl2
+      gl2' = filter (flip Set.notMember names1 . unGVarName . fst) gl2
 
 instance Monoid ShadowedVarsExpr where
   mempty = M mempty mempty mempty

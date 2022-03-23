@@ -80,6 +80,7 @@ import Primer.Core (
   Expr,
   Expr' (..),
   ExprMeta,
+  GVarName (unGVarName),
   ID,
   Kind (..),
   Meta (..),
@@ -173,7 +174,7 @@ data Cxt = Cxt
   -- ^ invariant: the key matches the 'typeDefName' inside the 'TypeDef'
   , localCxt :: Map Name KindOrType
   -- ^ local variables
-  , globalCxt :: Map Name Type
+  , globalCxt :: Map GVarName Type
   -- ^ global variables (i.e. IDs of top-level definitions)
   }
   deriving (Show)
@@ -181,7 +182,7 @@ data Cxt = Cxt
 lookupLocal :: Name -> Cxt -> Maybe KindOrType
 lookupLocal v cxt = M.lookup v $ localCxt cxt
 
-lookupGlobal :: Name -> Cxt -> Maybe Type
+lookupGlobal :: GVarName -> Cxt -> Maybe Type
 lookupGlobal v cxt = M.lookup v $ globalCxt cxt
 
 lookupVar :: VarRef -> Cxt -> Either TypeError Type
@@ -208,7 +209,7 @@ extendLocalCxts x cxt = cxt{localCxt = Map.fromList (map (second T) x) <> localC
 extendLocalCxtTys :: [(Name, Kind)] -> Cxt -> Cxt
 extendLocalCxtTys x cxt = cxt{localCxt = Map.fromList (map (second K) x) <> localCxt cxt}
 
-extendGlobalCxt :: [(Name, Type)] -> Cxt -> Cxt
+extendGlobalCxt :: [(GVarName, Type)] -> Cxt -> Cxt
 extendGlobalCxt globals cxt = cxt{globalCxt = Map.fromList globals <> globalCxt cxt}
 
 extendTypeDefCxt :: [TypeDef] -> Cxt -> Cxt
@@ -234,7 +235,7 @@ initialCxt sh =
     }
 
 -- | Construct an initial typing context, with all given definitions in scope as global variables.
-buildTypingContext :: [TypeDef] -> Map Name Def -> SmartHoles -> Cxt
+buildTypingContext :: [TypeDef] -> Map GVarName Def -> SmartHoles -> Cxt
 buildTypingContext tydefs defs sh =
   let globals = Map.elems $ fmap (\def -> (defName def, forgetTypeIDs (defType def))) defs
    in extendTypeDefCxt tydefs $ extendGlobalCxt globals $ initialCxt sh
@@ -965,7 +966,7 @@ typeTtoType = over _typeMeta (fmap Just)
 getGlobalNames :: MonadReader Cxt m => m (S.Set Name)
 getGlobalNames = do
   tyDefs <- asks typeDefs
-  topLevel <- asks $ S.fromList . M.keys . globalCxt
+  topLevel <- asks $ S.fromList . map unGVarName . M.keys . globalCxt
   let ctors =
         Map.foldMapWithKey
           ( \t def ->
