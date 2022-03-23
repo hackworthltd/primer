@@ -32,6 +32,7 @@ import Primer.Core (
   TyConName (TCN),
   Type,
   Type' (..),
+  ValConName (VCN),
   VarRef (..),
  )
 import Primer.Name (Name, unsafeMkName)
@@ -77,8 +78,11 @@ genApp = App <$> genMeta <*> genExpr <*> genExpr
 genAPP :: ExprGen Expr
 genAPP = APP <$> genMeta <*> genExpr <*> genType
 
+genValConName :: ExprGen ValConName
+genValConName = VCN <$> genName
+
 genCon :: ExprGen Expr
-genCon = Con <$> genMeta <*> genName
+genCon = Con <$> genMeta <*> genValConName
 
 genLam :: ExprGen Expr
 genLam = Lam <$> genMeta <*> genName <*> genExpr
@@ -104,7 +108,7 @@ genLetrec = Letrec <$> genMeta <*> genName <*> genExpr <*> genType <*> genExpr
 genCase :: ExprGen Expr
 genCase = Case <$> genMeta <*> genExpr <*> Gen.list (Range.linear 0 5) genBranch
   where
-    genBranch = CaseBranch <$> genName <*> Gen.list (Range.linear 0 5) genBind <*> genExpr
+    genBranch = CaseBranch <$> genValConName <*> Gen.list (Range.linear 0 5) genBind <*> genExpr
     genBind = Bind <$> genMeta <*> genName
 
 genPrim :: ExprGen Expr

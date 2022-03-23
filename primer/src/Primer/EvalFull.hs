@@ -66,6 +66,7 @@ import Primer.Core (
   ),
   TypeDef (..),
   TypeMeta,
+  ValConName,
   VarRef (..),
   bindName,
   defPrim,
@@ -119,7 +120,7 @@ data Redex
     -- reduction steps. E.g.
     --     cons ==  (Λa λx λxs. Cons @a x xs) : ∀a. a -> List a -> List a
     -- )
-    CaseRedex Name [(Expr, Type)] (Either Type (Type' ())) [Name] Expr
+    CaseRedex ValConName [(Expr, Type)] (Either Type (Type' ())) [Name] Expr
   | -- [ t : T ]  ~>  t  writing [_] for the embedding of syn into chk
     -- This only fires for concrete (non-holey, no free vars) T, as otherwise the
     -- annotation can act as a type-changing cast:

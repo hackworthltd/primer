@@ -27,6 +27,7 @@ module Primer.Core (
   HasMetadata (_metadata),
   ID (ID),
   TyConName (TCN, unTyConName),
+  ValConName (VCN, unValConName),
   Type,
   Type' (..),
   TypeCache (..),
@@ -146,6 +147,12 @@ newtype TyConName = TCN {unTyConName :: Name}
   deriving (IsString) via Name
   deriving (FromJSON, ToJSON) via Name
 
+-- | As 'TyConName', but for names of value constructors
+newtype ValConName = VCN {unValConName :: Name}
+  deriving (Eq, Ord, Show, Data, Generic)
+  deriving (IsString) via Name
+  deriving (FromJSON, ToJSON) via Name
+
 -- | The core AST.
 --  This is the canonical representation of Primer programs.  It is similar to
 --  System F, but with support for empty and non-empty holes.  Each node holds a
@@ -165,7 +172,7 @@ data Expr' a b
   | Ann a (Expr' a b) (Type' b)
   | App a (Expr' a b) (Expr' a b)
   | APP a (Expr' a b) (Type' b)
-  | Con a Name -- See Note [Synthesisable constructors]
+  | Con a ValConName -- See Note [Synthesisable constructors]
   | Lam a Name (Expr' a b)
   | LAM a Name (Expr' a b)
   | Var a VarRef
@@ -253,7 +260,7 @@ type CaseBranch = CaseBranch' ExprMeta TypeMeta
 
 data CaseBranch' a b
   = CaseBranch
-      Name
+      ValConName
       -- ^ constructor
       [Bind' a]
       -- ^ constructor parameters.
@@ -485,7 +492,7 @@ data ASTTypeDef = ASTTypeDef
   deriving (FromJSON, ToJSON) via VJSON ASTTypeDef
 
 data ValCon = ValCon
-  { valConName :: Name
+  { valConName :: ValConName
   , valConArgs :: [Type' ()]
   }
   deriving (Eq, Show, Generic)

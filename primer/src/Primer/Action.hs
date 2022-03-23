@@ -47,6 +47,7 @@ import Primer.Core (
   TypeCache (..),
   TypeCacheBoth (..),
   TypeDef (..),
+  ValConName,
   VarRef (..),
   bindName,
   defName,
@@ -319,7 +320,7 @@ data Action
   deriving (FromJSON, ToJSON) via VJSON Action
 
 -- | Core movements
-data Movement = Child1 | Child2 | Parent | Branch Name
+data Movement = Child1 | Child2 | Parent | Branch ValConName
   deriving (Eq, Show, Generic)
   deriving (FromJSON, ToJSON) via VJSON Movement
 
@@ -799,7 +800,7 @@ constructLAM mx ze = do
 
 constructCon :: ActionM m => Text -> ExprZ -> m ExprZ
 constructCon c ze = case target ze of
-  EmptyHole{} -> flip replace ze <$> con (unsafeMkName c)
+  EmptyHole{} -> flip replace ze <$> con (C.VCN $ unsafeMkName c)
   e -> throwError $ NeedEmptyHole (ConstructCon c) e
 
 constructSatCon :: ActionM m => Text -> ExprZ -> m ExprZ
@@ -813,20 +814,20 @@ constructSatCon c ze = case target ze of
     flip replace ze <$> mkSaturatedApplication (con n) ctorType
   e -> throwError $ NeedEmptyHole (ConstructSaturatedCon c) e
   where
-    n = unsafeMkName c
+    n = C.VCN $ unsafeMkName c
 
 getConstructorType ::
   MonadReader TC.Cxt m =>
-  Name ->
+  ValConName ->
   m (Either Text TC.Type)
 getConstructorType c =
   asks (flip lookupConstructor c . TC.typeDefs) <&> \case
     Just (vc, td) -> Right $ valConType td vc
-    Nothing -> Left $ "Could not find constructor " <> unName c
+    Nothing -> Left $ "Could not find constructor " <> show c
 
 constructRefinedCon :: ActionM m => Text -> ExprZ -> m ExprZ
 constructRefinedCon c ze = do
-  let n = unsafeMkName c
+  let n = C.VCN $ unsafeMkName c
   cTy <-
     getConstructorType n >>= \case
       Left err -> throwError $ RefineError $ Left err

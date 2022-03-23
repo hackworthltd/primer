@@ -92,6 +92,7 @@ import Primer.Core (
   TypeDef (..),
   TypeMeta,
   ValCon (valConArgs, valConName),
+  ValConName (unValConName),
   VarRef (..),
   bindName,
   defName,
@@ -136,7 +137,7 @@ data TypeError
   | UnknownVariable VarRef
   | UnknownTypeVariable Name
   | WrongSortVariable Name -- type var instead of term var or vice versa
-  | UnknownConstructor Name
+  | UnknownConstructor ValConName
   | UnknownTypeConstructor TyConName
   | -- | Cannot use a PrimCon when either no type of the appropriate name is
     -- in scope, or it is a user-defined type
@@ -149,7 +150,7 @@ data TypeError
   | CannotCaseNonADT Type
   | CannotCaseNonSaturatedADT Type
   | -- | Either wrong number, wrong constructors or wrong order. The fields are @name of the ADT@, @branches given@
-    WrongCaseBranches TyConName [Name]
+    WrongCaseBranches TyConName [ValConName]
   | CaseBranchWrongNumberPatterns
   | InconsistentKinds Kind Kind
   | KindDoesNotMatchArrow Kind
@@ -352,7 +353,7 @@ checkTypeDefs tds = do
       let params = astTypeDefParameters td
       let cons = astTypeDefConstructors td
       assert
-        (distinct $ map fst params <> map valConName cons)
+        (distinct $ map fst params <> map (unValConName . valConName) cons)
         "Duplicate names in one tydef: between parameter-names and constructor-names"
       assert
         (notElem (unTyConName $ astTypeDefName td) $ map fst params)
@@ -419,7 +420,7 @@ checkDef def = do
       pure $ DefPrim $ def'{primDefType = typeTtoType t}
 
 -- We assume that constructor names are unique, returning the first one we find
-lookupConstructor :: M.Map TyConName TypeDef -> Name -> Maybe (ValCon, ASTTypeDef)
+lookupConstructor :: M.Map TyConName TypeDef -> ValConName -> Maybe (ValCon, ASTTypeDef)
 lookupConstructor tyDefs c =
   let allCons = do
         TypeDefAST td <- M.elems tyDefs
@@ -802,7 +803,7 @@ getTypeDefInfo' tydefs ty =
 -- extracts both both the raw typedef (e.g. @List a = Nil | Cons a (List a)@)
 -- and the constructors with instantiated argument types
 -- (e.g. @Nil : List Nat ; Cons : Nat -> List Nat -> List Nat@)
-instantiateValCons :: (MonadFresh NameCounter m, MonadReader Cxt m) => Type' () -> m (Either TypeDefError (ASTTypeDef, [(Name, [Type' ()])]))
+instantiateValCons :: (MonadFresh NameCounter m, MonadReader Cxt m) => Type' () -> m (Either TypeDefError (ASTTypeDef, [(ValConName, [Type' ()])]))
 instantiateValCons t = do
   tds <- asks typeDefs
   let instCons = instantiateValCons' tds t
@@ -817,7 +818,7 @@ instantiateValCons t = do
 
 -- | As 'instantiateValCons', but pulls out the relevant bits of the monadic
 -- context into an argument
-instantiateValCons' :: MonadFresh NameCounter m => Map TyConName TypeDef -> Type' () -> Either TypeDefError (ASTTypeDef, [(Name, [m (Type' ())])])
+instantiateValCons' :: MonadFresh NameCounter m => Map TyConName TypeDef -> Type' () -> Either TypeDefError (ASTTypeDef, [(ValConName, [m (Type' ())])])
 instantiateValCons' tyDefs t = do
   TypeDefInfo params def <- getTypeDefInfo' tyDefs t
   case def of
@@ -834,7 +835,7 @@ checkBranch ::
   forall e m.
   TypeM e m =>
   Type ->
-  (Name, [Type' ()]) -> -- The constructor and its instantiated parameter types
+  (ValConName, [Type' ()]) -> -- The constructor and its instantiated parameter types
   CaseBranch' ExprMeta TypeMeta ->
   m (CaseBranch' (Meta TypeCache) (Meta Kind))
 checkBranch t (vc, args) (CaseBranch nb patterns rhs) =
@@ -967,6 +968,10 @@ getGlobalNames = do
   topLevel <- asks $ S.fromList . M.keys . globalCxt
   let ctors =
         Map.foldMapWithKey
-          (\t def -> S.fromList $ (unTyConName t :) $ map valConName $ maybe [] astTypeDefConstructors $ typeDefAST def)
+          ( \t def ->
+              S.fromList $
+                (unTyConName t :) $
+                  map (unValConName . valConName) $ maybe [] astTypeDefConstructors $ typeDefAST def
+          )
           tyDefs
   pure $ S.union topLevel ctors

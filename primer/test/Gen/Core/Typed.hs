@@ -53,6 +53,7 @@ import Primer.Core (
   Type' (..),
   TypeDef (..),
   ValCon (..),
+  ValConName (VCN),
   VarRef (..),
   typeDefKind,
   typeDefName,
@@ -256,7 +257,7 @@ genSyn :: GenT WT (ExprG, TypeG)
 -- of any type
 genSyn = genSyns (TEmptyHole ())
 
-allCons :: Cxt -> M.Map Name (Type' ())
+allCons :: Cxt -> M.Map ValConName (Type' ())
 allCons cxt = M.fromList $ concatMap consForTyDef $ M.elems $ typeDefs cxt
   where
     consForTyDef = \case
@@ -405,7 +406,7 @@ genTypeDefGroup = do
           )
           nps
   let genConArgs params = Gen.list (Range.linear 0 5) $ local (extendLocalCxtTys params . addTypeDefs types) $ genWTType KType -- params+types scope...
-  let genCons params = Gen.list (Range.linear 0 5) $ ValCon <$> freshNameForCxt <*> genConArgs params
+  let genCons params = Gen.list (Range.linear 0 5) $ ValCon <$> fmap VCN freshNameForCxt <*> genConArgs params
   let genTD (n, ps) =
         ( \cons ->
             TypeDefAST

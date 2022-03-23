@@ -52,6 +52,7 @@ import Primer.Core (
   Type,
   Type' (..),
   TypeCache,
+  ValConName,
   VarRef (..),
   bindName,
   defPrim,
@@ -197,7 +198,7 @@ data CaseReductionDetail = CaseReductionDetail
   -- ^ the ID of the target (scrutinee)
   , caseTargetCtorID :: ID
   -- ^ the ID of the constructor node in the target
-  , caseCtorName :: Name
+  , caseCtorName :: ValConName
   -- ^ the name of the matching constructor
   , caseTargetArgIDs :: [ID]
   -- ^ the arguments to the constructor in the target

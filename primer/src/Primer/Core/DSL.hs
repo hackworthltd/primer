@@ -56,6 +56,7 @@ import Primer.Core (
   Type,
   Type' (..),
   TypeCache,
+  ValConName,
   Value,
   VarRef (..),
   _metadata,
@@ -94,7 +95,7 @@ emptyHole = EmptyHole <$> meta
 ann :: MonadFresh ID m => m Expr -> m Type -> m Expr
 ann e t = Ann <$> meta <*> e <*> t
 
-con :: MonadFresh ID m => Name -> m Expr
+con :: MonadFresh ID m => ValConName -> m Expr
 con c = Con <$> meta <*> pure c
 
 lvar :: MonadFresh ID m => Name -> m Expr
@@ -124,7 +125,7 @@ letType v t e = LetType <$> meta <*> pure v <*> t <*> e
 case_ :: MonadFresh ID m => m Expr -> [m CaseBranch] -> m Expr
 case_ e brs = Case <$> meta <*> e <*> sequence brs
 
-branch :: MonadFresh ID m => Name -> [(Name, Maybe TypeCache)] -> m Expr -> m CaseBranch
+branch :: MonadFresh ID m => ValConName -> [(Name, Maybe TypeCache)] -> m Expr -> m CaseBranch
 branch c vs e = CaseBranch c <$> mapM binding vs <*> e
   where
     binding (name, ty) = Bind <$> meta' ty <*> pure name
