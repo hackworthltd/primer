@@ -75,13 +75,13 @@ import Primer.Core.DSL (
   emptyHole,
   lAM,
   lam,
+  lvar,
   tEmptyHole,
   tapp,
   tcon,
   tforall,
   tfun,
   tvar,
-  var,
  )
 import Primer.Module (Module (moduleDefs, moduleTypes))
 import Primer.Name
@@ -424,7 +424,7 @@ unit_copy_paste_duplicate :: Assertion
 unit_copy_paste_duplicate = do
   let ((p, fromType, fromExpr, _toType, _toExpr), maxID) = create $ do
         mainType <- tforall "a" KType (tvar "a" `tfun` (tcon "Maybe" `tapp` tEmptyHole))
-        mainExpr <- lAM "b" $ lam "x" $ con "Just" `aPP` tvar "b" `app` var "x"
+        mainExpr <- lAM "b" $ lam "x" $ con "Just" `aPP` tvar "b" `app` lvar "x"
         let mainDef = ASTDef "main" mainExpr mainType
         blankDef <- ASTDef "blank" <$> emptyHole <*> tEmptyHole
         pure
@@ -519,13 +519,13 @@ unit_copy_paste_expr_1 :: Assertion
 unit_copy_paste_expr_1 = do
   let ((pInitial, srcID, pExpected), maxID) = create $ do
         ty <- tforall "a" KType $ (tcon "List" `tapp` tvar "a") `tfun` tforall "b" KType (tvar "b" `tfun` (tcon "Pair" `tapp` tvar "a" `tapp` tvar "b"))
-        let toCopy' = con "MakePair" `aPP` tvar "a" `aPP` tvar "b" `app` var "y" `app` var "z" -- want different IDs for the two occurences in expected
+        let toCopy' = con "MakePair" `aPP` tvar "a" `aPP` tvar "b" `app` lvar "y" `app` lvar "z" -- want different IDs for the two occurences in expected
         toCopy <- toCopy'
         let skel r =
               lAM "a" $
                 lam "x" $
                   case_
-                    (var "x")
+                    (lvar "x")
                     [ branch "Nil" [] r
                     , branch "Cons" [("y", Nothing), ("ys", Nothing)] $ lAM "b" $ lam "z" $ pure toCopy
                     ]

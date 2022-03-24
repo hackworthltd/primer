@@ -34,11 +34,11 @@ import Test.Tasty.HUnit (Assertion, assertFailure, (@?=))
 -- conflicting name
 unit_lam_1 :: Assertion
 unit_lam_1 =
-  afterRename "x" "y" (lam "z" (var "x")) (Just (lam "z" (var "y")))
+  afterRename "x" "y" (lam "z" (lvar "x")) (Just (lam "z" (lvar "y")))
 
 -- We can't rename an expression if it has a lambda binding the new name already
 unit_lam_2 :: Assertion
-unit_lam_2 = afterRename "x" "y" (app (lam "y" (var "x")) (var "x")) Nothing
+unit_lam_2 = afterRename "x" "y" (app (lam "y" (lvar "x")) (lvar "x")) Nothing
 
 -- We can rename an expression with a lambda that binds the same variable name,
 -- but we won't do any renaming underneath the lambda.
@@ -47,18 +47,18 @@ unit_lam_3 =
   afterRename
     "x"
     "y"
-    (app (lam "x" (var "x")) (var "x"))
-    (Just (app (lam "x" (var "x")) (var "y")))
+    (app (lam "x" (lvar "x")) (lvar "x"))
+    (Just (app (lam "x" (lvar "x")) (lvar "y")))
 
 -- Lets
 
 -- We can rename a variable underneath a let provided it doesn't bind a conflicting name
 unit_let_1 :: Assertion
-unit_let_1 = afterRename "x" "y" (let_ "z" (var "x") (var "x")) (Just (let_ "z" (var "y") (var "y")))
+unit_let_1 = afterRename "x" "y" (let_ "z" (lvar "x") (lvar "x")) (Just (let_ "z" (lvar "y") (lvar "y")))
 
 -- We can't rename an expression if it has a let binding the new name already
 unit_let_2 :: Assertion
-unit_let_2 = afterRename "x" "y" (let_ "y" (var "x") (var "x")) Nothing
+unit_let_2 = afterRename "x" "y" (let_ "y" (lvar "x") (lvar "x")) Nothing
 
 -- We can rename an expression with a let that binds the same variable name,
 -- but we won't do any renaming inside the bound value or the let body.
@@ -66,7 +66,7 @@ unit_let_2 = afterRename "x" "y" (let_ "y" (var "x") (var "x")) Nothing
 -- recursive lets, which means the bound variable will be free in the bound
 -- expression.
 unit_let_3 :: Assertion
-unit_let_3 = afterRename "x" "y" (app (let_ "x" (var "z") (var "x")) (var "x")) (Just (app (let_ "x" (var "z") (var "x")) (var "y")))
+unit_let_3 = afterRename "x" "y" (app (let_ "x" (lvar "z") (lvar "x")) (lvar "x")) (Just (app (let_ "x" (lvar "z") (lvar "x")) (lvar "y")))
 
 -- Cases
 
@@ -77,16 +77,16 @@ unit_case_1 =
     "x"
     "y"
     ( case_
-        (var "x")
-        [ branch "A" [("t", Nothing), ("u", Nothing)] (var "x")
-        , branch "B" [("v", Nothing), ("w", Nothing)] (var "x")
+        (lvar "x")
+        [ branch "A" [("t", Nothing), ("u", Nothing)] (lvar "x")
+        , branch "B" [("v", Nothing), ("w", Nothing)] (lvar "x")
         ]
     )
     ( Just
         ( case_
-            (var "y")
-            [ branch "A" [("t", Nothing), ("u", Nothing)] (var "y")
-            , branch "B" [("v", Nothing), ("w", Nothing)] (var "y")
+            (lvar "y")
+            [ branch "A" [("t", Nothing), ("u", Nothing)] (lvar "y")
+            , branch "B" [("v", Nothing), ("w", Nothing)] (lvar "y")
             ]
         )
     )
@@ -98,9 +98,9 @@ unit_case_2 =
     "x"
     "y"
     ( case_
-        (var "x")
-        [ branch "A" [("t", Nothing), ("u", Nothing)] (var "x")
-        , branch "B" [("v", Nothing), ("y", Nothing)] (var "x")
+        (lvar "x")
+        [ branch "A" [("t", Nothing), ("u", Nothing)] (lvar "x")
+        , branch "B" [("v", Nothing), ("y", Nothing)] (lvar "x")
         ]
     )
     Nothing
@@ -113,37 +113,37 @@ unit_case_3 =
     "x"
     "y"
     ( case_
-        (var "x")
-        [ branch "A" [("t", Nothing), ("u", Nothing)] (var "x")
-        , branch "B" [("x", Nothing), ("w", Nothing)] (var "x")
+        (lvar "x")
+        [ branch "A" [("t", Nothing), ("u", Nothing)] (lvar "x")
+        , branch "B" [("x", Nothing), ("w", Nothing)] (lvar "x")
         ]
     )
     ( Just
         ( case_
-            (var "y")
-            [ branch "A" [("t", Nothing), ("u", Nothing)] (var "y")
-            , branch "B" [("x", Nothing), ("w", Nothing)] (var "x")
+            (lvar "y")
+            [ branch "A" [("t", Nothing), ("u", Nothing)] (lvar "y")
+            , branch "B" [("x", Nothing), ("w", Nothing)] (lvar "x")
             ]
         )
     )
 
 -- We can't rename if there's a free variable equal to the variable we're renaming to.
 unit_var_1 :: Assertion
-unit_var_1 = afterRename "x" "y" (app (var "f") (var "y")) Nothing
+unit_var_1 = afterRename "x" "y" (app (lvar "f") (lvar "y")) Nothing
 
 unit_var_2 :: Assertion
-unit_var_2 = afterRename "x" "y" (app (var "f") (var "x")) (Just (app (var "f") (var "y")))
+unit_var_2 = afterRename "x" "y" (app (lvar "f") (lvar "x")) (Just (app (lvar "f") (lvar "y")))
 
 -- All other expressions are renamed as expected
 
 unit_hole :: Assertion
-unit_hole = afterRename "x" "y" (hole (var "x")) (Just (hole (var "y")))
+unit_hole = afterRename "x" "y" (hole (lvar "x")) (Just (hole (lvar "y")))
 
 unit_ann :: Assertion
-unit_ann = afterRename "x" "y" (ann (var "x") tEmptyHole) (Just (ann (var "y") tEmptyHole))
+unit_ann = afterRename "x" "y" (ann (lvar "x") tEmptyHole) (Just (ann (lvar "y") tEmptyHole))
 
 unit_app :: Assertion
-unit_app = afterRename "x" "y" (app (var "x") (var "x")) (Just (app (var "y") (var "y")))
+unit_app = afterRename "x" "y" (app (lvar "x") (lvar "x")) (Just (app (lvar "y") (lvar "y")))
 
 unit_con :: Assertion
 unit_con = afterRename "x" "y" (con "True") (Just (con "True"))
@@ -154,9 +154,9 @@ unit_case =
     "x"
     "y"
     ( case_
-        (var "x")
-        [ branch "A" [("y", Nothing), ("z", Nothing)] (var "y")
-        , branch "B" [("u", Nothing), ("v", Nothing)] (var "u")
+        (lvar "x")
+        [ branch "A" [("y", Nothing), ("z", Nothing)] (lvar "y")
+        , branch "B" [("u", Nothing), ("v", Nothing)] (lvar "u")
         ]
     )
     Nothing

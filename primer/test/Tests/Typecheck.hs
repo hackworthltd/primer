@@ -69,17 +69,17 @@ import Tests.Gen.Core.Typed
 
 unit_identity :: Assertion
 unit_identity =
-  expectTyped $ ann (lam "x" (var "x")) (tfun (tcon "Bool") (tcon "Bool"))
+  expectTyped $ ann (lam "x" (lvar "x")) (tfun (tcon "Bool") (tcon "Bool"))
 
 unit_undefined_variable :: Assertion
 unit_undefined_variable =
-  ann (lam "x" (var "y")) tEmptyHole `expectFailsWith` const (UnknownVariable $ LocalVarRef "y")
+  ann (lam "x" (lvar "y")) tEmptyHole `expectFailsWith` const (UnknownVariable $ LocalVarRef "y")
 
 unit_const :: Assertion
 unit_const =
   expectTyped $
     ann
-      (lam "x" (lam "y" (var "x")))
+      (lam "x" (lam "y" (lvar "x")))
       (tfun (tcon "Bool") (tfun (tcon "Bool") (tcon "Bool")))
 
 unit_true :: Assertion
@@ -93,14 +93,14 @@ unit_inc :: Assertion
 unit_inc =
   expectTyped $
     ann
-      (lam "n" (app (con "Succ") (var "n")))
+      (lam "n" (app (con "Succ") (lvar "n")))
       (tfun (tcon "Nat") (tcon "Nat"))
 
 unit_compose_nat :: Assertion
 unit_compose_nat =
   expectTyped $
     ann
-      (lam "f" (lam "g" (app (var "f") (hole (var "g")))))
+      (lam "f" (lam "g" (app (lvar "f") (hole (lvar "g")))))
       ( tfun
           (tfun (tcon "Nat") (tcon "Nat"))
           ( tfun
@@ -112,19 +112,19 @@ unit_compose_nat =
 -- let x = True in x
 unit_let :: Assertion
 unit_let =
-  expectTyped $ let_ "x" (con "True") (var "x")
+  expectTyped $ let_ "x" (con "True") (lvar "x")
 
 -- Normal lets do not permit recursion
 unit_recursive_let :: Assertion
 unit_recursive_let =
-  let_ "x" (var "x") (var "x")
+  let_ "x" (lvar "x") (lvar "x")
     `expectFailsWith` const (UnknownVariable $ LocalVarRef "x")
 
 -- letrec x : Bool = x in x
 unit_letrec_1 :: Assertion
 unit_letrec_1 =
   expectTyped $
-    letrec "x" (var "x") (tcon "Bool") (var "x")
+    letrec "x" (lvar "x") (tcon "Bool") (lvar "x")
 
 -- let double : Nat -> Nat
 --     double = \x -> case x of
@@ -139,27 +139,27 @@ unit_letrec_2 =
       ( lam
           "x"
           ( case_
-              (var "x")
+              (lvar "x")
               [ branch "Zero" [] (con "Zero")
               , branch
                   "Succ"
                   [("n", Nothing)]
                   ( app
                       (con "Succ")
-                      (app (con "Succ") (app (var "double") (var "n")))
+                      (app (con "Succ") (app (lvar "double") (lvar "n")))
                   )
               ]
           )
       )
       (tfun (tcon "Nat") (tcon "Nat"))
-      (app (var "double") (app (con "Succ") (con "Zero")))
+      (app (lvar "double") (app (con "Succ") (con "Zero")))
 
 -- let x = True
 --  in let y = False
 --      in x
 unit_nested_let :: Assertion
 unit_nested_let =
-  expectTyped $ let_ "x" (con "True") (let_ "y" (con "False") (var "x"))
+  expectTyped $ let_ "x" (con "True") (let_ "y" (con "False") (lvar "x"))
 
 -- let yes = \x -> True : Bool -> Bool
 --  in let y = False
@@ -170,7 +170,7 @@ unit_let_function =
     let_
       "yes"
       (ann (lam "x" (con "True")) (tfun (tcon "Bool") (tcon "Bool")))
-      (let_ "y" (con "False") (app (var "yes") (var "y")))
+      (let_ "y" (con "False") (app (lvar "yes") (lvar "y")))
 
 -- (\f -> f : (Bool -> Bool) -> (Bool -> Bool)) (let y = True in \x -> y)
 unit_let_in_arg :: Assertion
@@ -178,10 +178,10 @@ unit_let_in_arg =
   expectTyped $
     app
       ( ann
-          (lam "f" (var "f"))
+          (lam "f" (lvar "f"))
           (tfun (tfun (tcon "Bool") (tcon "Bool")) (tfun (tcon "Bool") (tcon "Bool")))
       )
-      (let_ "y" (con "True") (lam "x" (var "y")))
+      (let_ "y" (con "True") (lam "x" (lvar "y")))
 
 unit_mkTAppCon :: Assertion
 unit_mkTAppCon = do
@@ -246,18 +246,18 @@ unit_valConType = do
 unit_case_isZero :: Assertion
 unit_case_isZero =
   expectTyped $
-    ann (lam "x" $ case_ (var "x") [branch "Zero" [] (con "True"), branch "Succ" [("n", Nothing)] (con "False")]) (tfun (tcon "Nat") (tcon "Bool"))
+    ann (lam "x" $ case_ (lvar "x") [branch "Zero" [] (con "True"), branch "Succ" [("n", Nothing)] (con "False")]) (tfun (tcon "Nat") (tcon "Bool"))
 
 -- Nat -> Bool rejects \x . case x of {}
 unit_case_badEmpty :: Assertion
 unit_case_badEmpty =
-  ann (lam "x" $ case_ (var "x") []) (tfun (tcon "Nat") (tcon "Bool"))
+  ann (lam "x" $ case_ (lvar "x") []) (tfun (tcon "Nat") (tcon "Bool"))
     `expectFailsWith` const (WrongCaseBranches "Nat" [])
 
 -- Cannot case on a Nat -> Nat
 unit_case_badType :: Assertion
 unit_case_badType =
-  ann (lam "x" $ case_ (var "x") []) (tfun (tfun (tcon "Nat") (tcon "Nat")) (tcon "Bool"))
+  ann (lam "x" $ case_ (lvar "x") []) (tfun (tfun (tcon "Nat") (tcon "Nat")) (tcon "Bool"))
     `expectFailsWith` const (CannotCaseNonADT $ TFun () (TCon () "Nat") (TCon () "Nat"))
 
 -- Cannot annotate something with a non-existent type constructor
@@ -267,8 +267,8 @@ unit_ann_bad =
 
 unit_ann_insert :: Assertion
 unit_ann_insert =
-  app (lam "x" $ var "x") (con "Zero")
-    `smartSynthGives` app (ann (lam "x" $ var "x") tEmptyHole) (con "Zero")
+  app (lam "x" $ lvar "x") (con "Zero")
+    `smartSynthGives` app (ann (lam "x" $ lvar "x") tEmptyHole) (con "Zero")
 
 unit_app_not_arrow :: Assertion
 unit_app_not_arrow =
@@ -282,8 +282,8 @@ unit_app_not_arrow =
 -- The smartTC currently gives an annotation inside a hole.
 unit_chk_lam_not_arrow :: Assertion
 unit_chk_lam_not_arrow =
-  app (con "Succ") (lam "x" $ var "x")
-    `smartSynthGives` app (con "Succ") (hole $ ann (lam "x" $ var "x") tEmptyHole)
+  app (con "Succ") (lam "x" $ lvar "x")
+    `smartSynthGives` app (con "Succ") (hole $ ann (lam "x" $ lvar "x") tEmptyHole)
 
 unit_check_emb :: Assertion
 unit_check_emb =
@@ -292,18 +292,18 @@ unit_check_emb =
 
 unit_case_scrutinee :: Assertion
 unit_case_scrutinee =
-  ann (case_ (con "Succ") [branch "C" [] $ var "x"]) (tcon "Bool")
+  ann (case_ (con "Succ") [branch "C" [] $ lvar "x"]) (tcon "Bool")
     `smartSynthGives` ann (case_ (hole $ con "Succ") []) (tcon "Bool")
 
 unit_case_branches :: Assertion
 unit_case_branches =
-  ann (case_ (con "Zero") [branch "C" [] $ var "x"]) (tcon "Bool")
+  ann (case_ (con "Zero") [branch "C" [] $ lvar "x"]) (tcon "Bool")
     `smartSynthGives` ann (case_ (con "Zero") [branch "Zero" [] emptyHole, branch "Succ" [("a7", Nothing)] emptyHole]) (tcon "Bool") -- Fragile name here "a7"
 
 unit_remove_hole :: Assertion
 unit_remove_hole =
-  ann (lam "x" $ hole (var "x")) (tfun (tcon "Nat") (tcon "Nat"))
-    `smartSynthGives` ann (lam "x" $ var "x") (tfun (tcon "Nat") (tcon "Nat"))
+  ann (lam "x" $ hole (lvar "x")) (tfun (tcon "Nat") (tcon "Nat"))
+    `smartSynthGives` ann (lam "x" $ lvar "x") (tfun (tcon "Nat") (tcon "Nat"))
 
 -- It is not clear how to (efficiently) remove the hole in
 -- {? Succ ?} Zero
@@ -328,7 +328,7 @@ unit_smart_remove_clean_case =
         hole $
           ann
             ( case_
-                (var "x")
+                (lvar "x")
                 [branch "True" [] (con "Zero"), branch "False" [] emptyHole]
             )
             tEmptyHole
@@ -338,7 +338,7 @@ unit_smart_remove_clean_case =
       ( lam "x" $
           ann
             ( case_
-                (var "x")
+                (lvar "x")
                 [branch "True" [] (con "Zero"), branch "False" [] emptyHole]
             )
             tEmptyHole
@@ -349,7 +349,7 @@ unit_poly :: Assertion
 unit_poly =
   expectTyped $
     ann
-      (lam "id" $ lAM "a" $ aPP (var "id") (tvar "a"))
+      (lam "id" $ lAM "a" $ aPP (lvar "id") (tvar "a"))
       (tforall "c" KType (tvar "c" `tfun` tvar "c") `tfun` tforall "b" KType (tvar "b" `tfun` tvar "b"))
 
 unit_poly_head_Nat :: Assertion
@@ -358,9 +358,9 @@ unit_poly_head_Nat =
     ann
       ( lam "x" $
           case_
-            (var "x")
+            (lvar "x")
             [ branch "Nil" [] (con "Zero")
-            , branch "Cons" [("y", Nothing), ("ys", Nothing)] $ con "Succ" `app` var "y"
+            , branch "Cons" [("y", Nothing), ("ys", Nothing)] $ con "Succ" `app` lvar "y"
             ]
       )
       ((tcon "List" `tapp` tcon "Nat") `tfun` tcon "Nat")
@@ -449,11 +449,11 @@ unit_prim_char =
 
 unit_prim_fun :: Assertion
 unit_prim_fun =
-  expectTypedWithPrims $ ann (global "hexToNat") (tfun (tcon "Char") (tapp (tcon "Maybe") (tcon "Nat")))
+  expectTypedWithPrims $ ann (gvar "hexToNat") (tfun (tcon "Char") (tapp (tcon "Maybe") (tcon "Nat")))
 
 unit_prim_fun_applied :: Assertion
 unit_prim_fun_applied =
-  expectTypedWithPrims $ ann (app (global "hexToNat") (char 'a')) (tapp (tcon "Maybe") (tcon "Nat"))
+  expectTypedWithPrims $ ann (app (gvar "hexToNat") (char 'a')) (tapp (tcon "Maybe") (tcon "Nat"))
 
 -- Whenever we synthesise a type, then it kind-checks against KType
 hprop_synth_well_typed_extcxt :: Property

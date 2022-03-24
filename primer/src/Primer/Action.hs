@@ -75,7 +75,7 @@ import Primer.Core.DSL (
   tforall,
   tfun,
   tvar,
-  varref,
+  var,
  )
 import Primer.Core.Transform (renameTyVar, renameTyVarExpr, renameVar)
 import Primer.Core.Utils (forgetTypeIDs, generateTypeIDs)
@@ -658,7 +658,7 @@ finishHole ze = case target ze of
 
 constructVar :: ActionM m => VarRef -> ExprZ -> m ExprZ
 constructVar x ast = case target ast of
-  EmptyHole{} -> flip replace ast <$> varref x
+  EmptyHole{} -> flip replace ast <$> var x
   e -> throwError $ NeedEmptyHole (ConstructVar x) e
 
 insertSatVar :: ActionM m => VarRef -> ExprZ -> m ExprZ
@@ -680,7 +680,7 @@ saturatedApplication ast v = do
   (appHead, vTy) <-
     getVarType ast v >>= \case
       Left err -> throwError $ SaturatedApplicationError $ Right err
-      Right t -> pure (varref v, t)
+      Right t -> pure (var v, t)
   mkSaturatedApplication appHead vTy
 
 getVarType ::
@@ -709,7 +709,7 @@ insertRefinedVar x ast = do
   (v, vTy) <-
     getVarType ast x >>= \case
       Left err -> throwError $ RefineError $ Right err
-      Right t -> pure (varref x, t)
+      Right t -> pure (var x, t)
   let tgtTyCache = maybeTypeOf $ target ast
   -- our Cxt in the monad does not care about the local context, we have to extract it from the zipper.
   -- See https://github.com/hackworthltd/primer/issues/11

@@ -56,28 +56,28 @@ unit_6 =
 unit_7 :: Assertion
 unit_7 =
   bindersAboveTest
-    (case_ (var "x") [branch "Zero" [] emptyHole, branch "Succ" [("n", Nothing)] emptyHole])
+    (case_ (lvar "x") [branch "Zero" [] emptyHole, branch "Succ" [("n", Nothing)] emptyHole])
     []
     (S.fromList [])
 
 unit_8 :: Assertion
 unit_8 =
   bindersAboveTest
-    (case_ (var "x") [branch "Zero" [] emptyHole, branch "Succ" [("n", Nothing)] emptyHole])
+    (case_ (lvar "x") [branch "Zero" [] emptyHole, branch "Succ" [("n", Nothing)] emptyHole])
     [Child1]
     (S.fromList [])
 
 unit_9 :: Assertion
 unit_9 =
   bindersAboveTest
-    (case_ (var "x") [branch "Zero" [] emptyHole, branch "Succ" [("n", Nothing)] emptyHole])
+    (case_ (lvar "x") [branch "Zero" [] emptyHole, branch "Succ" [("n", Nothing)] emptyHole])
     [Branch "Zero"]
     (S.fromList [])
 
 unit_10 :: Assertion
 unit_10 =
   bindersAboveTest
-    (case_ (var "x") [branch "Zero" [] emptyHole, branch "Succ" [("n", Nothing)] emptyHole])
+    (case_ (lvar "x") [branch "Zero" [] emptyHole, branch "Succ" [("n", Nothing)] emptyHole])
     [Branch "Succ"]
     (S.fromList ["n"])
 

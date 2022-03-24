@@ -68,13 +68,14 @@ import Primer.Core.DSL (
   con,
   create,
   emptyHole,
-  global,
+  gvar,
   hole,
   lAM,
   lam,
   letType,
   let_,
   letrec,
+  lvar,
   tEmptyHole,
   tapp,
   tcon,
@@ -82,7 +83,6 @@ import Primer.Core.DSL (
   tfun,
   thole,
   tvar,
-  var,
  )
 import Primer.Database.Rel8.Rel8Db (
   Rel8Db,
@@ -270,7 +270,7 @@ testASTDef =
                     (con "Just")
                 )
                 ( hole
-                    (global "0")
+                    (gvar "0")
                 )
             )
             ( thole
@@ -294,7 +294,7 @@ testASTDef =
                                 (tvar "β")
                             )
                             ( case_
-                                (var "i")
+                                (lvar "i")
                                 [ branch
                                     "Zero"
                                     []
@@ -309,9 +309,9 @@ testASTDef =
                                     ( app
                                         ( app
                                             emptyHole
-                                            (var "x")
+                                            (lvar "x")
                                         )
-                                        (var "y")
+                                        (lvar "y")
                                     )
                                 ]
                             )

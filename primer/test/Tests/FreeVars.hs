@@ -21,11 +21,11 @@ unit_2 =
         ( app
             ( lam "x" $
                 case_
-                  (var "x")
+                  (lvar "x")
                   [ branch "Zero" [] $ con "True"
-                  , branch "Succ" [("n", Nothing)] (app (var "f") (var "n"))
+                  , branch "Succ" [("n", Nothing)] (app (lvar "f") (lvar "n"))
                   ]
             )
-            (var "y")
+            (lvar "y")
         )
         (tforall "a" KType $ tcon "T" `tapp` tvar "a" `tapp` tvar "b")

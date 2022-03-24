@@ -70,7 +70,7 @@ import Primer.Core (
   defPrim,
   _typeMeta,
  )
-import Primer.Core.DSL (ann, letType, let_, letrec, tvar, var)
+import Primer.Core.DSL (ann, letType, let_, letrec, lvar, tvar)
 import Primer.Core.Transform (unfoldAPP, unfoldApp)
 import Primer.Core.Utils (concreteTy, freeVars, freeVarsTy, generateTypeIDs, _freeVars, _freeVarsTy)
 import Primer.Eval (regenerateExprIDs, regenerateTypeIDs, tryPrimFun)
@@ -413,7 +413,7 @@ runRedex = \case
   -- λy.t  ~>  λz.let y = z in t (and similar for other binding forms, except let)
   RenameBindingsLam m x e avoid -> do
     y <- freshName (avoid <> freeVars e)
-    Lam m y <$> let_ x (var y) (pure e)
+    Lam m y <$> let_ x (lvar y) (pure e)
   RenameBindingsLAM m x e avoid -> do
     y <- freshName (avoid <> freeVars e)
     LAM m y <$> letType x (tvar y) (pure e)
@@ -425,7 +425,7 @@ runRedex = \case
               rn <- traverse (\b -> if b `S.member` avoid then Right . (b,) <$> freshName avoid' else pure $ Left b) bns
               let f b@(Bind i _) = \case Left _ -> b; Right (_, w) -> Bind i w
               let binds' = zipWith f binds rn
-              rhs' <- foldrM (\(v, w) -> let_ v (var w) . pure) rhs $ rights rn
+              rhs' <- foldrM (\(v, w) -> let_ v (lvar w) . pure) rhs $ rights rn
               pure $ Case m s $ brs0 ++ CaseBranch ctor binds' rhs' : brs1
     -- We should replace this with a proper exception. See:
     -- https://github.com/hackworthltd/primer/issues/148
