@@ -31,6 +31,7 @@ import Primer.Core (
   Kind (KHole),
   Type,
   Type' (..),
+  VarRef (LocalVarRef),
   bindName,
   _exprMeta,
   _exprTypeMeta,
@@ -144,9 +145,10 @@ _freeTmVars = traversalVL $ go mempty
       Lam m v e -> Lam m v <$> go (S.insert v bound) f e
       LAM m tv e -> LAM m tv <$> go bound f e
       t@(Var m v)
-        | S.member v bound -> pure t
-        | otherwise -> curry f m v
-      t@GlobalVar{} -> pure t
+        | LocalVarRef n <- v
+        , not $ S.member n bound ->
+            curry f m n
+        | otherwise -> pure t
       Let m v e b -> Let m v <$> go bound f e <*> go (S.insert v bound) f b
       Letrec m v e t b -> Letrec m v <$> go (S.insert v bound) f e <*> pure t <*> go (S.insert v bound) f b
       LetType m v ty e -> LetType m v ty <$> go bound f e
@@ -169,7 +171,6 @@ _freeTyVars = traversalVL $ go mempty
       Lam m v e -> Lam m v <$> go bound f e
       LAM m tv e -> LAM m tv <$> go (S.insert tv bound) f e
       t@Var{} -> pure t
-      t@GlobalVar{} -> pure t
       Let m v e b -> Let m v <$> go bound f e <*> go bound f b
       Letrec m v e ty b -> Letrec m v <$> go bound f e <*> traverseFreeVarsTy bound f ty <*> go bound f b
       LetType m v ty e -> LetType m v <$> traverseFreeVarsTy bound f ty <*> go (S.insert v bound) f e

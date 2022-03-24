@@ -2,7 +2,7 @@ module Tests.EvalFull where
 
 import Foreword hiding (unlines)
 
-import Control.Monad.Fresh (MonadFresh, fresh)
+import Control.Monad.Fresh (MonadFresh)
 import Data.Generics.Uniplate.Data (universe)
 import Data.List ((\\))
 import Data.Map ((!))
@@ -15,7 +15,7 @@ import qualified Hedgehog.Gen as Gen
 import qualified Hedgehog.Range as Range
 import Optics
 import Primer.App (
-  App (appIdCounter, appProg),
+  App (appIdCounter),
   EvalFullReq (EvalFullReq, evalFullCxtDir, evalFullMaxSteps, evalFullReqExpr),
   EvalFullResp (EvalFullRespNormal, EvalFullRespTimedOut),
   Prog (progModule),
@@ -40,11 +40,10 @@ import Primer.Typecheck (
   mkTypeDefMap,
   typeDefs,
  )
-import Protolude.Partial (fromJust)
 import Test.Tasty.HUnit (Assertion, assertBool, assertFailure, (@?=))
 import TestM
 import TestUtils (withPrimDefs)
-import Tests.Action.Prog (defaultPrimsProg, findGlobalByName, runAppTestM)
+import Tests.Action.Prog (defaultPrimsProg, runAppTestM)
 import Tests.Eval ((~=))
 import Tests.Gen.Core.Typed (checkTest)
 import Prelude (error)
@@ -82,9 +81,9 @@ unit_3 =
 unit_4 :: Assertion
 unit_4 =
   let ((expr, expected), maxID) = create $ do
-        e <- let_ "a" (var "b") $ con "C" `app` var "a" `app` lam "a" (var "a") `app` lam "b" (con "D" `app` var "a" `app` var "b")
+        e <- let_ "a" (lvar "b") $ con "C" `app` lvar "a" `app` lam "a" (lvar "a") `app` lam "b" (con "D" `app` lvar "a" `app` lvar "b")
         let b' = "a29" -- NB: fragile name a29
-        expect <- con "C" `app` var "b" `app` lam "a" (var "a") `app` lam b' (con "D" `app` var "b" `app` var b')
+        expect <- con "C" `app` lvar "b" `app` lam "a" (lvar "a") `app` lam b' (con "D" `app` lvar "b" `app` lvar b')
         pure (e, expect)
       s = evalFullTest maxID mempty mempty 7 Syn expr
    in do
@@ -100,8 +99,8 @@ unit_4 =
 unit_5 :: Assertion
 unit_5 =
   let ((e, expt), maxID) = create $ do
-        a <- letrec "x" (var "x") (tcon "Bool") (var "x")
-        b <- letrec "x" (var "x") (tcon "Bool") (var "x" `ann` tcon "Bool") `ann` tcon "Bool"
+        a <- letrec "x" (lvar "x") (tcon "Bool") (lvar "x")
+        b <- letrec "x" (lvar "x") (tcon "Bool") (lvar "x" `ann` tcon "Bool") `ann` tcon "Bool"
         pure (a, b)
       s = evalFullTest maxID mempty mempty 100 Syn e
    in do
@@ -132,7 +131,7 @@ unit_6 =
 unit_7 :: Assertion
 unit_7 =
   let (e, maxID) = create $ do
-        let l = lam "x" $ var "x" `app` var "x"
+        let l = lam "x" $ lvar "x" `app` lvar "x"
         (l `ann` tEmptyHole) `app` l
    in -- in evalFullTest maxID mempty mempty 100 Syn e <~==> Left (TimedOut e)
       evalFullTest maxID mempty mempty 100 Syn e <~==> Right e
@@ -141,9 +140,6 @@ unit_8 :: Assertion
 unit_8 =
   let n = 10
       ((globals, e, expected), maxID) = create $ do
-        mapID <- fresh
-        evenID <- fresh
-        oddID <- fresh
         mapTy <- tforall "a" KType $ tforall "b" KType $ (tvar "a" `tfun` tvar "b") `tfun` ((tcon "List" `tapp` tvar "a") `tfun` (tcon "List" `tapp` tvar "b"))
         map_ <-
           lAM "a" $
@@ -151,23 +147,23 @@ unit_8 =
               lam "f" $
                 lam "xs" $
                   case_
-                    (var "xs")
+                    (lvar "xs")
                     [ branch "Nil" [] $ con "Nil" `aPP` tvar "b"
-                    , branch "Cons" [("y", Nothing), ("ys", Nothing)] $ con "Cons" `aPP` tvar "b" `app` (var "f" `app` var "y") `app` (global mapID `aPP` tvar "a" `aPP` tvar "b" `app` var "f" `app` var "ys")
+                    , branch "Cons" [("y", Nothing), ("ys", Nothing)] $ con "Cons" `aPP` tvar "b" `app` (lvar "f" `app` lvar "y") `app` (gvar "map" `aPP` tvar "a" `aPP` tvar "b" `app` lvar "f" `app` lvar "ys")
                     ]
         -- even and odd have almost the same type, but their types contain different IDs
         let evenOddTy = tcon "Nat" `tfun` tcon "Bool"
         evenTy <- evenOddTy
         oddTy <- evenOddTy
-        isEven <- lam "x" $ case_ (var "x") [branch "Zero" [] $ con "True", branch "Succ" [("n", Nothing)] $ global oddID `app` var "n"]
-        isOdd <- lam "x" $ case_ (var "x") [branch "Zero" [] $ con "False", branch "Succ" [("n", Nothing)] $ global evenID `app` var "n"]
+        isEven <- lam "x" $ case_ (lvar "x") [branch "Zero" [] $ con "True", branch "Succ" [("n", Nothing)] $ gvar "odd" `app` lvar "n"]
+        isOdd <- lam "x" $ case_ (lvar "x") [branch "Zero" [] $ con "False", branch "Succ" [("n", Nothing)] $ gvar "even" `app` lvar "n"]
         let mkList t = foldr (\x xs -> con "Cons" `aPP` t `app` x `app` xs) (con "Nil" `aPP` t)
         let lst = mkList (tcon "Nat") $ take n $ iterate (con "Succ" `app`) (con "Zero")
-        expr <- global mapID `aPP` tcon "Nat" `aPP` tcon "Bool" `app` global evenID `app` lst
-        let mapDef = DefAST $ ASTDef mapID "map" map_ mapTy
-        let evenDef = DefAST $ ASTDef evenID "even" isEven evenTy
-        let oddDef = DefAST $ ASTDef oddID "odd" isOdd oddTy
-        let globs = [(mapID, mapDef), (evenID, evenDef), (oddID, oddDef)]
+        expr <- gvar "map" `aPP` tcon "Nat" `aPP` tcon "Bool" `app` gvar "even" `app` lst
+        let mapDef = DefAST $ ASTDef "map" map_ mapTy
+        let evenDef = DefAST $ ASTDef "even" isEven evenTy
+        let oddDef = DefAST $ ASTDef "odd" isOdd oddTy
+        let globs = [("map", mapDef), ("even", evenDef), ("odd", oddDef)]
         expect <- mkList (tcon "Bool") (take n $ cycle [con "True", con "False"]) `ann` (tcon "List" `tapp` tcon "Bool")
         pure (globs, expr, expect)
    in do
@@ -183,31 +179,28 @@ unit_9 :: Assertion
 unit_9 =
   let n = 10
       ((globals, e, expected), maxID) = create $ do
-        mapID <- fresh
-        evenID <- fresh
-        oddID <- fresh
         mapTy <- tforall "a" KType $ tforall "b" KType $ (tvar "a" `tfun` tvar "b") `tfun` ((tcon "List" `tapp` tvar "a") `tfun` (tcon "List" `tapp` tvar "b"))
         let worker =
               lam "xs" $
                 case_
-                  (var "xs")
+                  (lvar "xs")
                   [ branch "Nil" [] $ con "Nil" `aPP` tvar "b"
-                  , branch "Cons" [("y", Nothing), ("ys", Nothing)] $ con "Cons" `aPP` tvar "b" `app` (var "f" `app` var "y") `app` (var "go" `app` var "ys")
+                  , branch "Cons" [("y", Nothing), ("ys", Nothing)] $ con "Cons" `aPP` tvar "b" `app` (lvar "f" `app` lvar "y") `app` (lvar "go" `app` lvar "ys")
                   ]
-        map_ <- lAM "a" $ lAM "b" $ lam "f" $ letrec "go" worker ((tcon "List" `tapp` tvar "a") `tfun` (tcon "List" `tapp` tvar "b")) $ var "go"
+        map_ <- lAM "a" $ lAM "b" $ lam "f" $ letrec "go" worker ((tcon "List" `tapp` tvar "a") `tfun` (tcon "List" `tapp` tvar "b")) $ lvar "go"
         -- even and odd have almost the same type, but their types contain different IDs
         let evenOddTy = tcon "Nat" `tfun` tcon "Bool"
         evenTy <- evenOddTy
         oddTy <- evenOddTy
-        isEven <- lam "x" $ case_ (var "x") [branch "Zero" [] $ con "True", branch "Succ" [("n", Nothing)] $ global oddID `app` var "n"]
-        isOdd <- lam "x" $ case_ (var "x") [branch "Zero" [] $ con "False", branch "Succ" [("n", Nothing)] $ global evenID `app` var "n"]
+        isEven <- lam "x" $ case_ (lvar "x") [branch "Zero" [] $ con "True", branch "Succ" [("n", Nothing)] $ gvar "odd" `app` lvar "n"]
+        isOdd <- lam "x" $ case_ (lvar "x") [branch "Zero" [] $ con "False", branch "Succ" [("n", Nothing)] $ gvar "even" `app` lvar "n"]
         let mkList t = foldr (\x xs -> con "Cons" `aPP` t `app` x `app` xs) (con "Nil" `aPP` t)
         let lst = mkList (tcon "Nat") $ take n $ iterate (con "Succ" `app`) (con "Zero")
-        expr <- global mapID `aPP` tcon "Nat" `aPP` tcon "Bool" `app` global evenID `app` lst
-        let mapDef = DefAST $ ASTDef mapID "map" map_ mapTy
-        let evenDef = DefAST $ ASTDef evenID "even" isEven evenTy
-        let oddDef = DefAST $ ASTDef oddID "odd" isOdd oddTy
-        let globs = [(mapID, mapDef), (evenID, evenDef), (oddID, oddDef)]
+        expr <- gvar "map" `aPP` tcon "Nat" `aPP` tcon "Bool" `app` gvar "even" `app` lst
+        let mapDef = DefAST $ ASTDef "map" map_ mapTy
+        let evenDef = DefAST $ ASTDef "even" isEven evenTy
+        let oddDef = DefAST $ ASTDef "odd" isOdd oddTy
+        let globs = [("map", mapDef), ("even", evenDef), ("odd", oddDef)]
         expect <- mkList (tcon "Bool") (take n $ cycle [con "True", con "False"]) `ann` (tcon "List" `tapp` tcon "Bool")
         pure (globs, expr, expect)
    in do
@@ -252,23 +245,21 @@ unit_10 =
 unit_11 :: Assertion
 unit_11 =
   let ((globals, e, expected), maxID) = create $ do
-        evenID <- fresh
-        oddID <- fresh
         -- even and odd have almost the same type, but their types contain different IDs
         let evenOddTy = tcon "Nat" `tfun` tcon "Bool"
         evenTy <- evenOddTy
         oddTy <- evenOddTy
-        isEven <- lam "x" $ case_ (var "x") [branch "Zero" [] $ con "True", branch "Succ" [("n", Nothing)] $ global oddID `app` var "n"]
-        isOdd <- lam "x" $ case_ (var "x") [branch "Zero" [] $ con "False", branch "Succ" [("n", Nothing)] $ global evenID `app` var "n"]
+        isEven <- lam "x" $ case_ (lvar "x") [branch "Zero" [] $ con "True", branch "Succ" [("n", Nothing)] $ gvar "odd" `app` lvar "n"]
+        isOdd <- lam "x" $ case_ (lvar "x") [branch "Zero" [] $ con "False", branch "Succ" [("n", Nothing)] $ gvar "even" `app` lvar "n"]
         let ty = tcon "Nat" `tfun` (tcon "Pair" `tapp` tcon "Bool" `tapp` tcon "Nat")
         let expr1 =
               let_ "x" (con "Zero") $
-                lam "n" (con "MakePair" `aPP` tcon "Bool" `aPP` tcon "Nat" `app` (global evenID `app` var "n") `app` var "x")
+                lam "n" (con "MakePair" `aPP` tcon "Bool" `aPP` tcon "Nat" `app` (gvar "even" `app` lvar "n") `app` lvar "x")
                   `ann` ty
         expr <- expr1 `app` con "Zero"
-        let evenDef = DefAST $ ASTDef evenID "even" isEven evenTy
-        let oddDef = DefAST $ ASTDef oddID "odd" isOdd oddTy
-        let globs = [(evenID, evenDef), (oddID, oddDef)]
+        let evenDef = DefAST $ ASTDef "even" isEven evenTy
+        let oddDef = DefAST $ ASTDef "odd" isOdd oddTy
+        let globs = [("even", evenDef), ("odd", oddDef)]
         expect <-
           (con "MakePair" `aPP` tcon "Bool" `aPP` tcon "Nat" `app` con "True" `app` con "Zero")
             `ann` (tcon "Pair" `tapp` tcon "Bool" `tapp` tcon "Nat")
@@ -291,11 +282,11 @@ unit_12 =
         let f =
               lam "x" $
                 case_
-                  (var "x")
+                  (lvar "x")
                   [ branch "Zero" [] $ con "True"
-                  , branch "Succ" [("i", Nothing)] $ var "f" `app` var "i"
+                  , branch "Succ" [("i", Nothing)] $ lvar "f" `app` lvar "i"
                   ]
-        expr <- let_ "n" (con "Zero") $ letrec "f" f (tcon "Nat" `tfun` tcon "Bool") $ var "f" `app` var "n"
+        expr <- let_ "n" (con "Zero") $ letrec "f" f (tcon "Nat" `tfun` tcon "Bool") $ lvar "f" `app` lvar "n"
         expect <- con "True" `ann` tcon "Bool"
         pure (expr, expect)
    in do
@@ -306,7 +297,7 @@ unit_12 =
 unit_13 :: Assertion
 unit_13 =
   let ((e, expected), maxID) = create $ do
-        expr <- (lam "x" (con "C" `app` var "x" `app` let_ "x" (con "True") (var "x") `app` var "x") `ann` (tcon "Nat" `tfun` tcon "Bool")) `app` con "Zero"
+        expr <- (lam "x" (con "C" `app` lvar "x" `app` let_ "x" (con "True") (lvar "x") `app` lvar "x") `ann` (tcon "Nat" `tfun` tcon "Bool")) `app` con "Zero"
         expect <- (con "C" `app` con "Zero" `app` con "True" `app` con "Zero") `ann` tcon "Bool"
         pure (expr, expect)
    in do
@@ -317,7 +308,7 @@ unit_13 =
 unit_14 :: Assertion
 unit_14 =
   let ((e, expected), maxID) = create $ do
-        expr <- (lam "x" (lam "x" $ var "x") `ann` (tcon "Bool" `tfun` (tcon "Nat" `tfun` tcon "Nat"))) `app` con "True" `app` con "Zero"
+        expr <- (lam "x" (lam "x" $ lvar "x") `ann` (tcon "Bool" `tfun` (tcon "Nat" `tfun` tcon "Nat"))) `app` con "True" `app` con "Zero"
         expect <- con "Zero" `ann` tcon "Nat"
         pure (expr, expect)
    in do
@@ -337,12 +328,12 @@ unit_14 =
 unit_15 :: Assertion
 unit_15 =
   let ((expr, steps, expected), maxID) = create $ do
-        let l = let_ "x" (var "y")
-        let c a b = con "C" `app` var a `app` var b
+        let l = let_ "x" (lvar "y")
+        let c a b = con "C" `app` lvar a `app` lvar b
         e0 <- l $ lam "y" $ c "x" "y"
         let y' = "a50" -- NB: fragile name "a50"
-        e1 <- l $ lam y' $ let_ "y" (var y') $ c "x" "y"
-        e2 <- l $ lam y' $ let_ "y" (var y') $ c "x" y'
+        e1 <- l $ lam y' $ let_ "y" (lvar y') $ c "x" "y"
+        e2 <- l $ lam y' $ let_ "y" (lvar y') $ c "x" y'
         e3 <- l $ lam y' $ c "x" y'
         e4 <- l $ lam y' $ c "y" y'
         e5 <- lam y' $ c "y" y'
@@ -377,7 +368,7 @@ hprop_resume = withDiscards 2000 $
       resumeTest globs dir t
 
 -- A helper for hprop_resume, and hprop_resume_regression
-resumeTest :: Map ID Def -> Dir -> Expr -> PropertyT WT ()
+resumeTest :: Map Name Def -> Dir -> Expr -> PropertyT WT ()
 resumeTest globs dir t = do
   tds <- asks typeDefs
   n <- forAllT $ Gen.integral $ Range.linear 2 1000 -- Arbitrary limit here
@@ -492,10 +483,10 @@ hprop_prim_hex_nat = withTests 20 . property $ do
   let ne = nat n
       ((e, r, gs), maxID) =
         if n <= 15
-          then create . withPrimDefs $ \defs globals ->
+          then create . withPrimDefs $ \globals ->
             (,,)
               <$> case_
-                ( global (defs ! "natToHex")
+                ( gvar "natToHex"
                     `app` ne
                 )
                 [ branch
@@ -505,16 +496,16 @@ hprop_prim_hex_nat = withTests 20 . property $ do
                 , branch
                     "Just"
                     [("x", Nothing)]
-                    ( global (defs ! "hexToNat")
-                        `app` var "x"
+                    ( gvar "hexToNat"
+                        `app` lvar "x"
                     )
                 ]
               <*> (con "Just" `aPP` tcon "Nat")
                 `app` ne
               <*> pure (DefPrim <$> globals)
-          else create . withPrimDefs $ \defs globals ->
+          else create . withPrimDefs $ \globals ->
             (,,)
-              <$> global (defs ! "natToHex")
+              <$> gvar "natToHex"
                 `app` ne
               <*> con "Nothing"
                 `aPP` tcon "Char"
@@ -541,9 +532,9 @@ unit_prim_char_eq_2 =
 unit_prim_char_partial :: Assertion
 unit_prim_char_partial =
   let ((e, gs), maxID) =
-        create . withPrimDefs $ \defs globals ->
+        create . withPrimDefs $ \globals ->
           (,)
-            <$> global (defs ! "eqChar")
+            <$> gvar "eqChar"
               `app` char 'a'
             <*> pure (DefPrim <$> globals)
       s = evalFullTest maxID mempty gs 1 Syn e
@@ -857,9 +848,9 @@ unit_prim_int_fromNat =
 unit_prim_ann :: Assertion
 unit_prim_ann =
   let ((e, r, gs), maxID) =
-        create . withPrimDefs $ \defs globals -> do
+        create . withPrimDefs $ \globals ->
           (,,)
-            <$> ( global (defs ! "toUpper")
+            <$> ( gvar "toUpper"
                     `ann` (tcon "Char" `tfun` tcon "Char")
                 )
               `app` (char 'a' `ann` tcon "Char")
@@ -873,13 +864,13 @@ unit_prim_ann =
 unit_prim_partial_map :: Assertion
 unit_prim_partial_map =
   let ((e, r, gs), maxID) =
-        create . withPrimDefs $ \defs globals -> do
+        create . withPrimDefs $ \globals -> do
           map_ <- mapDef
           (,,)
-            <$> global (defID map_)
+            <$> gvar (defName map_)
               `aPP` tcon "Char"
               `aPP` tcon "Char"
-              `app` global (defs ! "toUpper")
+              `app` gvar "toUpper"
               `app` list_
                 "Char"
                 [ char 'a'
@@ -893,7 +884,7 @@ unit_prim_partial_map =
               , char 'C'
               ]
               `ann` (tcon "List" `tapp` tcon "Char")
-            <*> pure (M.singleton (defID map_) map_ <> (DefPrim <$> globals))
+            <*> pure (M.singleton (defName map_) map_ <> (DefPrim <$> globals))
       s = evalFullTest maxID (mkTypeDefMap defaultTypeDefs) gs 65 Syn e
    in do
         distinctIDs s
@@ -901,17 +892,16 @@ unit_prim_partial_map =
   where
     mapDef :: MonadFresh ID m => m Def
     mapDef = do
-      mapID <- fresh
       mapTy <- tforall "a" KType $ tforall "b" KType $ (tvar "a" `tfun` tvar "b") `tfun` ((tcon "List" `tapp` tvar "a") `tfun` (tcon "List" `tapp` tvar "b"))
       let worker =
             lam "xs" $
               case_
-                (var "xs")
+                (lvar "xs")
                 [ branch "Nil" [] $ con "Nil" `aPP` tvar "b"
-                , branch "Cons" [("y", Nothing), ("ys", Nothing)] $ con "Cons" `aPP` tvar "b" `app` (var "f" `app` var "y") `app` (var "go" `app` var "ys")
+                , branch "Cons" [("y", Nothing), ("ys", Nothing)] $ con "Cons" `aPP` tvar "b" `app` (lvar "f" `app` lvar "y") `app` (lvar "go" `app` lvar "ys")
                 ]
-      map_ <- lAM "a" $ lAM "b" $ lam "f" $ letrec "go" worker ((tcon "List" `tapp` tvar "a") `tfun` (tcon "List" `tapp` tvar "b")) $ var "go"
-      pure $ DefAST $ ASTDef mapID "map" map_ mapTy
+      map_ <- lAM "a" $ lAM "b" $ lam "f" $ letrec "go" worker ((tcon "List" `tapp` tvar "a") `tfun` (tcon "List" `tapp` tvar "b")) $ lvar "go"
+      pure $ DefAST $ ASTDef "map" map_ mapTy
 
 -- Test that handleEvalFullRequest will reduce imported terms
 unit_eval_full_modules :: Assertion
@@ -919,9 +909,7 @@ unit_eval_full_modules =
   let test = do
         p <- defaultPrimsProg
         importModules [progModule p]
-        prog <- gets appProg
-        let toUpperId = defID $ fromJust $ findGlobalByName prog "toUpper"
-        foo <- global toUpperId `app` char 'a'
+        foo <- gvar "toUpper" `app` char 'a'
         resp <-
           handleEvalFullRequest
             EvalFullReq
@@ -964,15 +952,15 @@ unit_eval_full_modules_scrutinize_imported_type =
 
 -- * Utilities
 
-evalFullTest :: ID -> M.Map Name TypeDef -> M.Map ID Def -> TerminationBound -> Dir -> Expr -> Either EvalFullError Expr
+evalFullTest :: ID -> M.Map Name TypeDef -> M.Map Name Def -> TerminationBound -> Dir -> Expr -> Either EvalFullError Expr
 evalFullTest id_ tydefs globals n d e = evalTestM id_ $ evalFull tydefs globals n d e
 
 unaryPrimTest :: Name -> S Expr -> S Expr -> Assertion
 unaryPrimTest f x y =
   let ((e, r, gs), maxID) =
-        create . withPrimDefs $ \defs globals ->
+        create . withPrimDefs $ \globals ->
           (,,)
-            <$> global (defs ! f)
+            <$> gvar f
               `app` x
             <*> y
             <*> pure (DefPrim <$> globals)
@@ -983,9 +971,9 @@ unaryPrimTest f x y =
 binaryPrimTest :: Name -> S Expr -> S Expr -> S Expr -> Assertion
 binaryPrimTest f x y z =
   let ((e, r, gs), maxID) =
-        create . withPrimDefs $ \defs globals ->
+        create . withPrimDefs $ \globals ->
           (,,)
-            <$> global (defs ! f)
+            <$> gvar f
               `app` x
               `app` y
             <*> z
@@ -1011,7 +999,7 @@ binaryPrimTest f x y z =
 -- return the corresponding ones in this list, if one exists.
 -- Thus you can specify a few particular terms you want in scope
 -- (e.g. primitives), and generate the rest.
-genDirTmGlobs :: [Def] -> PropertyT WT (Dir, Expr, Type' (), M.Map ID Def)
+genDirTmGlobs :: [Def] -> PropertyT WT (Dir, Expr, Type' (), M.Map Name Def)
 genDirTmGlobs defs = do
   dir <- forAllT $ Gen.element [Chk, Syn]
   (t', ty) <- case dir of
@@ -1022,14 +1010,14 @@ genDirTmGlobs defs = do
     Syn -> forAllT genSyn
   t <- generateIDs t'
   globTypes <- asks globalCxt
-  let genDef i (n, defTy) = case find ((== n) . defName) defs of
+  let genDef n defTy = case find ((== n) . defName) defs of
         Just d -> do
           unless (forgetTypeIDs (defType d) == defTy) $
             --  This is a bug in the calling property. Bail out loudly!
             error "genDirTmGlobs: given def had different type to expected from context"
           pure d
         Nothing ->
-          (\ty' e -> DefAST ASTDef{astDefID = i, astDefName = n, astDefType = ty', astDefExpr = e})
+          (\ty' e -> DefAST ASTDef{astDefName = n, astDefType = ty', astDefExpr = e})
             <$> generateTypeIDs defTy <*> (generateIDs =<< genChk defTy)
   globs <- forAllT $ M.traverseWithKey genDef globTypes
   pure (dir, t, ty, globs)
@@ -1039,16 +1027,16 @@ genDirTmGlobs defs = do
 withGlobals :: WT [Def] -> ([Def] -> PropertyT WT a) -> PropertyT WT a
 withGlobals mdefs prop = do
   defs <- lift mdefs
-  let cxtext = flip map defs $ \d -> (defID d, (defName d, forgetTypeIDs $ defType d))
+  let cxtext = flip map defs $ \d -> (defName d, forgetTypeIDs $ defType d)
   local (extendGlobalCxt cxtext) (prop defs)
 
 -- | Some generally-useful globals to have around when testing.
 -- Currently: an AST identity function on Char and a primitive @toUpper@.
 testGlobals :: WT [Def]
 testGlobals = do
-  idCharDef <- ASTDef <$> fresh <*> pure "idChar" <*> lam "x" (var "x") <*> (tcon "Char" `tfun` tcon "Char")
+  idCharDef <- ASTDef <$> pure "idChar" <*> lam "x" (lvar "x") <*> (tcon "Char" `tfun` tcon "Char")
   let toUpperFun = allPrimDefs ! "toUpper"
-  toUpperDef <- PrimDef <$> fresh <*> pure "toUpper" <*> primFunType toUpperFun
+  toUpperDef <- PrimDef <$> pure "toUpper" <*> primFunType toUpperFun
   pure [DefAST idCharDef, DefPrim toUpperDef]
 
 _ids :: Traversal' Expr ID

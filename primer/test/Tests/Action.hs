@@ -28,6 +28,7 @@ import Primer.Core (
   Kind (KType),
   TypeMeta,
   Value,
+  VarRef (LocalVarRef),
   getID,
   _exprMeta,
   _exprTypeMeta,
@@ -61,13 +62,13 @@ hprop_ConstructVar_succeeds_on_hole_when_in_scope = property $ do
         NoSmartHoles
         (maxID expr)
         expr
-        [SetCursor (getID expr), Move Child1, Move Child1, ConstructVar "x"]
+        [SetCursor (getID expr), Move Child1, Move Child1, ConstructVar $ LocalVarRef "x"]
 
   -- Extract the same point in the resulting AST
   -- We should now find the variable "x"
   let result = (target . farthest down . focus) expr'
   case result of
-    Var _ x -> x === "x"
+    Var _ (LocalVarRef x) -> x === "x"
     _ -> annotateShow result >> failure
 
 -- TODO: when we can generate well typed expressions, turn this back into a
@@ -76,9 +77,9 @@ unit_SetCursor_succeeds_when_ID_exists :: Assertion
 unit_SetCursor_succeeds_when_ID_exists =
   actionTest
     NoSmartHoles
-    (ann (lam "x" (var "x")) (tfun tEmptyHole tEmptyHole))
+    (ann (lam "x" (lvar "x")) (tfun tEmptyHole tEmptyHole))
     [SetCursor 1]
-    (ann (lam "x" (var "x")) (tfun tEmptyHole tEmptyHole))
+    (ann (lam "x" (lvar "x")) (tfun tEmptyHole tEmptyHole))
 
 hprop_SetCursor_fails_when_ID_doesn't_exist :: Property
 hprop_SetCursor_fails_when_ID_doesn't_exist = property $ do
@@ -91,9 +92,9 @@ unit_1 :: Assertion
 unit_1 =
   actionTest
     NoSmartHoles
-    (ann (lam "x" (lam "y" (app emptyHole (var "y")))) (tfun tEmptyHole tEmptyHole))
-    [Move Child1, Move Child1, Move Child1, Move Child1, ConstructVar "x"]
-    (ann (lam "x" (lam "y" (app (var "x") (var "y")))) (tfun tEmptyHole tEmptyHole))
+    (ann (lam "x" (lam "y" (app emptyHole (lvar "y")))) (tfun tEmptyHole tEmptyHole))
+    [Move Child1, Move Child1, Move Child1, Move Child1, ConstructVar $ LocalVarRef "x"]
+    (ann (lam "x" (lam "y" (app (lvar "x") (lvar "y")))) (tfun tEmptyHole tEmptyHole))
 
 -- | Constructing a variable succeeds in an empty hole
 unit_2 :: Assertion
@@ -108,17 +109,17 @@ unit_2 =
     , Move Child1
     , Move Child1
     , Move Child1
-    , ConstructVar "f"
+    , ConstructVar $ LocalVarRef "f"
     , Move Parent
     , Move Child2
-    , ConstructVar "x"
+    , ConstructVar $ LocalVarRef "x"
     ]
     ( ann
         ( lam
             "f"
             ( lam
                 "x"
-                (app (var "f") (var "x"))
+                (app (lvar "f") (lvar "x"))
             )
         )
         (tfun (tfun tEmptyHole tEmptyHole) (tfun tEmptyHole tEmptyHole))
@@ -138,7 +139,7 @@ unit_4 =
   actionTest
     NoSmartHoles
     ( ann
-        (lam "f" (lam "x" (app (var "f") (var "x"))))
+        (lam "f" (lam "x" (app (lvar "f") (lvar "x"))))
         (tfun (tfun tEmptyHole tEmptyHole) (tfun tEmptyHole tEmptyHole))
     )
     [Move Child1, Move Child1, Move Child1, Move Child2, ConstructAnn]
@@ -147,7 +148,7 @@ unit_4 =
             "f"
             ( lam
                 "x"
-                (app (var "f") (ann (var "x") tEmptyHole))
+                (app (lvar "f") (ann (lvar "x") tEmptyHole))
             )
         )
         (tfun (tfun tEmptyHole tEmptyHole) (tfun tEmptyHole tEmptyHole))
@@ -158,12 +159,12 @@ unit_5 =
   actionTest
     NoSmartHoles
     ( ann
-        (lam "f" (app (var "f") emptyHole))
+        (lam "f" (app (lvar "f") emptyHole))
         (tfun (tfun tEmptyHole tEmptyHole) tEmptyHole)
     )
     [Move Child1, Move Child1, Move Child2, ConstructLam (Just "x")]
     ( ann
-        (lam "f" (app (var "f") (lam "x" emptyHole)))
+        (lam "f" (app (lvar "f") (lam "x" emptyHole)))
         (tfun (tfun tEmptyHole tEmptyHole) tEmptyHole)
     )
 
@@ -174,12 +175,12 @@ unit_6 =
   actionTest
     NoSmartHoles
     ( ann
-        (lam "f" (app (var "f") emptyHole))
+        (lam "f" (app (lvar "f") emptyHole))
         (tfun (tfun tEmptyHole tEmptyHole) tEmptyHole)
     )
     [Move Child1, Move Child1, Move Child2, ConstructLam Nothing]
     ( ann
-        (lam "f" (app (var "f") (lam "a11" emptyHole)))
+        (lam "f" (app (lvar "f") (lam "a11" emptyHole)))
         (tfun (tfun tEmptyHole tEmptyHole) tEmptyHole)
     )
 
@@ -188,7 +189,7 @@ unit_7 =
   actionTest
     NoSmartHoles
     ( ann
-        (lam "f" (lam "g" (app (var "f") (hole (var "g")))))
+        (lam "f" (lam "g" (app (lvar "f") (hole (lvar "g")))))
         ( tfun
             (tfun (tcon "Nat") (tcon "Nat"))
             ( tfun
@@ -199,7 +200,7 @@ unit_7 =
     )
     [Move Child1, Move Child1, Move Child1, Move Child2, Move Child1, ConstructApp]
     ( ann
-        (lam "f" (lam "g" (app (var "f") (hole (app (var "g") emptyHole)))))
+        (lam "f" (lam "g" (app (lvar "f") (hole (app (lvar "g") emptyHole)))))
         ( tfun
             (tfun (tcon "Nat") (tcon "Nat"))
             ( tfun
@@ -225,14 +226,14 @@ unit_8 =
     , ExitType
     , Move Child1
     , ConstructLam (Just "x")
-    , ConstructVar "x"
+    , ConstructVar $ LocalVarRef "x"
     , Move Parent
     , Move Parent
     , ConstructApp
     , Move Child2
     , ConstructCon "True"
     ]
-    (app (ann (lam "x" (var "x")) (tfun (tcon "Bool") (tcon "Bool"))) (con "True"))
+    (app (ann (lam "x" (lvar "x")) (tfun (tcon "Bool") (tcon "Bool"))) (con "True"))
 
 unit_9 :: Assertion
 unit_9 =
@@ -244,9 +245,9 @@ unit_9 =
     , ConstructCon "True"
     , Move Parent
     , Move Child2
-    , ConstructVar "x"
+    , ConstructVar $ LocalVarRef "x"
     ]
-    (let_ "x" (con "True") (var "x"))
+    (let_ "x" (con "True") (lvar "x"))
 
 unit_construct_arrow_left :: Assertion
 unit_construct_arrow_left =
@@ -274,43 +275,43 @@ unit_construct_letrec =
     , ConstructTCon "Bool"
     , ExitType
     , Move Child1
-    , ConstructVar "x"
+    , ConstructVar $ LocalVarRef "x"
     , Move Parent
     , Move Child2
-    , ConstructVar "x"
+    , ConstructVar $ LocalVarRef "x"
     ]
-    (letrec "x" (var "x") (tcon "Bool") (var "x"))
+    (letrec "x" (lvar "x") (tcon "Bool") (lvar "x"))
 
 unit_rename_let :: Assertion
 unit_rename_let =
   actionTest
     NoSmartHoles
-    (let_ "x" (con "True") (var "x"))
+    (let_ "x" (con "True") (lvar "x"))
     [RenameLet "y"]
-    (let_ "y" (con "True") (var "y"))
+    (let_ "y" (con "True") (lvar "y"))
 
 unit_rename_letrec :: Assertion
 unit_rename_letrec =
   actionTest
     NoSmartHoles
-    (letrec "x" (var "x") (tcon "Bool") (var "x"))
+    (letrec "x" (lvar "x") (tcon "Bool") (lvar "x"))
     [RenameLet "y"]
-    (letrec "y" (var "y") (tcon "Bool") (var "y"))
+    (letrec "y" (lvar "y") (tcon "Bool") (lvar "y"))
 
 unit_rename_lam :: Assertion
 unit_rename_lam =
   actionTest
     NoSmartHoles
-    (ann (lam "x" (app (var "x") (con "False"))) tEmptyHole)
+    (ann (lam "x" (app (lvar "x") (con "False"))) tEmptyHole)
     [Move Child1, RenameLam "y"]
-    (ann (lam "y" (app (var "y") (con "False"))) tEmptyHole)
+    (ann (lam "y" (app (lvar "y") (con "False"))) tEmptyHole)
 
 unit_rename_lam_2 :: Assertion
 unit_rename_lam_2 =
   actionTestExpectFail
     (const True)
     NoSmartHoles
-    (ann (lam "y" (lam "x" (app (var "x") (var "y")))) tEmptyHole)
+    (ann (lam "y" (lam "x" (app (lvar "x") (lvar "y")))) tEmptyHole)
     [Move Child1, Move Child1, RenameLam "y"]
 
 unit_rename_LAM :: Assertion
@@ -333,9 +334,9 @@ unit_convert_let_to_letrec :: Assertion
 unit_convert_let_to_letrec =
   actionTest
     NoSmartHoles
-    (let_ "x" (con "True") (var "x"))
+    (let_ "x" (con "True") (lvar "x"))
     [ConvertLetToLetrec]
-    (letrec "x" (con "True") tEmptyHole (var "x"))
+    (letrec "x" (con "True") tEmptyHole (lvar "x"))
 
 unit_delete_type :: Assertion
 unit_delete_type =
@@ -430,7 +431,7 @@ unit_case_create =
     [ Move Child1
     , Move Child1
     , EnterHole
-    , ConstructVar "x"
+    , ConstructVar $ LocalVarRef "x"
     , ConstructAnn
     , Move Child1
     , ConstructCase
@@ -442,7 +443,7 @@ unit_case_create =
             hole $
               ann
                 ( case_
-                    (var "x")
+                    (lvar "x")
                     [branch "True" [] (con "Zero"), branch "False" [] emptyHole]
                 )
                 tEmptyHole
@@ -460,7 +461,7 @@ unit_case_tidy =
             hole $
               ann
                 ( case_
-                    (var "x")
+                    (lvar "x")
                     [branch "True" [] (con "Zero"), branch "False" [] emptyHole]
                 )
                 tEmptyHole
@@ -471,7 +472,7 @@ unit_case_tidy =
     ( ann
         ( lam "x" $
             case_
-              (var "x")
+              (lvar "x")
               [branch "True" [] (con "Zero"), branch "False" [] emptyHole]
         )
         (tfun (tcon "Bool") (tcon "Nat"))
@@ -487,7 +488,7 @@ unit_case_move_branch_1 =
             hole $
               ann
                 ( case_
-                    (var "x")
+                    (lvar "x")
                     [branch "Zero" [] emptyHole, branch "Succ" [("n", Nothing)] emptyHole]
                 )
                 tEmptyHole
@@ -502,15 +503,15 @@ unit_case_move_branch_1 =
     , ConstructCon "Zero"
     , Move Parent
     , Move (Branch "Succ")
-    , ConstructVar "n"
+    , ConstructVar $ LocalVarRef "n"
     ]
     ( ann
         ( lam "x" $
             hole $
               ann
                 ( case_
-                    (var "x")
-                    [branch "Zero" [] (con "Zero"), branch "Succ" [("n", Nothing)] (var "n")]
+                    (lvar "x")
+                    [branch "Zero" [] (con "Zero"), branch "Succ" [("n", Nothing)] (lvar "n")]
                 )
                 tEmptyHole
         )
@@ -525,7 +526,7 @@ unit_case_move_branch_2 =
     ( ann
         ( lam "x" $
             case_
-              (var "x")
+              (lvar "x")
               [branch "Zero" [] emptyHole, branch "Succ" [("n", Nothing)] emptyHole]
         )
         (tfun (tcon "Nat") (tcon "Nat"))
@@ -536,13 +537,13 @@ unit_case_move_branch_2 =
     , ConstructCon "Zero"
     , Move Parent
     , Move (Branch "Succ")
-    , ConstructVar "n"
+    , ConstructVar $ LocalVarRef "n"
     ]
     ( ann
         ( lam "x" $
             case_
-              (var "x")
-              [branch "Zero" [] (con "Zero"), branch "Succ" [("n", Nothing)] (var "n")]
+              (lvar "x")
+              [branch "Zero" [] (con "Zero"), branch "Succ" [("n", Nothing)] (lvar "n")]
         )
         (tfun (tcon "Nat") (tcon "Nat"))
     )
@@ -557,7 +558,7 @@ unit_case_move_scrutinee_1 =
             hole $
               ann
                 ( case_
-                    (var "x")
+                    (lvar "x")
                     [branch "Zero" [] emptyHole, branch "Succ" [("n", Nothing)] emptyHole]
                 )
                 tEmptyHole
@@ -576,7 +577,7 @@ unit_case_move_scrutinee_1 =
             hole $
               ann
                 ( case_
-                    (setMeta "meta" $ var "x")
+                    (setMeta "meta" $ lvar "x")
                     [branch "Zero" [] emptyHole, branch "Succ" [("n", Nothing)] emptyHole]
                 )
                 tEmptyHole
@@ -592,7 +593,7 @@ unit_case_move_scrutinee_2 =
     ( ann
         ( lam "x" $
             case_
-              (var "x")
+              (lvar "x")
               [branch "Zero" [] emptyHole, branch "Succ" [("n", Nothing)] emptyHole]
         )
         (tfun (tcon "Nat") (tcon "Nat"))
@@ -601,7 +602,7 @@ unit_case_move_scrutinee_2 =
     ( ann
         ( lam "x" $
             case_
-              (setMeta "meta" $ var "x")
+              (setMeta "meta" $ lvar "x")
               [branch "Zero" [] emptyHole, branch "Succ" [("n", Nothing)] emptyHole]
         )
         (tfun (tcon "Nat") (tcon "Nat"))
@@ -613,7 +614,7 @@ unit_bad_case_1 =
     (const True)
     NoSmartHoles
     ( ann
-        (lam "x" $ hole $ var "x")
+        (lam "x" $ hole $ lvar "x")
         (tfun (tcon "Bool") (tcon "Nat"))
     )
     [ConstructCase]
@@ -636,7 +637,7 @@ unit_bad_case_3 =
             hole $
               ann
                 ( case_
-                    (var "x")
+                    (lvar "x")
                     [branch "True" [] emptyHole, branch "False" [] emptyHole]
                 )
                 tEmptyHole
@@ -691,14 +692,14 @@ unit_case_fill_hole_scrut =
     , Move Child1
     , Move Child1
     , Move Child1
-    , ConstructVar "x"
+    , ConstructVar $ LocalVarRef "x"
     , Move Parent
     , RemoveAnn
     ]
     ( ann
         ( lam "x" $
             case_
-              (var "x")
+              (lvar "x")
               [branch "Zero" [] emptyHole, branch "Succ" [("n", Nothing)] emptyHole]
         )
         (tfun (tcon "Nat") (tcon "Nat"))
@@ -715,7 +716,7 @@ unit_case_create_smart_on_term =
     )
     [ Move Child1
     , Move Child1
-    , ConstructVar "x"
+    , ConstructVar $ LocalVarRef "x"
     , ConstructCase
     , Move (Branch "True")
     , ConstructCon "Zero"
@@ -724,7 +725,7 @@ unit_case_create_smart_on_term =
         ( lam
             "x"
             ( case_
-                (var "x")
+                (lvar "x")
                 [branch "True" [] (con "Zero"), branch "False" [] emptyHole]
             )
         )
@@ -743,7 +744,7 @@ unit_case_create_smart_on_hole =
     , Move Child1
     , ConstructCase
     , Move Child1
-    , ConstructVar "x"
+    , ConstructVar $ LocalVarRef "x"
     , Move Parent
     , Move (Branch "True")
     , ConstructCon "Zero"
@@ -752,7 +753,7 @@ unit_case_create_smart_on_hole =
         ( lam
             "x"
             ( case_
-                (var "x")
+                (lvar "x")
                 [branch "True" [] (con "Zero"), branch "False" [] emptyHole]
             )
         )
@@ -852,7 +853,7 @@ unit_poly_1 =
     , Move Child1
     , ConstructLAM (Just "a")
     , ConstructLam (Just "x")
-    , ConstructVar "x"
+    , ConstructVar $ LocalVarRef "x"
     , Move Parent
     , Move Parent
     , Move Parent
@@ -862,7 +863,7 @@ unit_poly_1 =
     , Move Child1
     , ConstructAPP
     , Move Child1
-    , ConstructVar "id"
+    , ConstructVar $ LocalVarRef "id"
     , Move Parent
     , EnterType
     , ConstructTForall (Just "b")
@@ -876,10 +877,10 @@ unit_poly_1 =
     , ExitType
     , Move Parent
     , Move Child2
-    , ConstructVar "id"
+    , ConstructVar $ LocalVarRef "id"
     ]
-    ( let_ "id" (ann (lAM "a" $ lam "x" $ var "x") (tforall "a" KType $ tfun (tvar "a") (tvar "a"))) $
-        app (aPP (var "id") (tforall "b" KType $ tfun (tvar "b") (tvar "b"))) (var "id")
+    ( let_ "id" (ann (lAM "a" $ lam "x" $ lvar "x") (tforall "a" KType $ tfun (tvar "a") (tvar "a"))) $
+        app (aPP (lvar "id") (tforall "b" KType $ tfun (tvar "b") (tvar "b"))) (lvar "id")
     )
 
 unit_constructTApp :: Assertion
@@ -951,16 +952,16 @@ unit_refine_4 =
   actionTest
     NoSmartHoles
     (let_ "nil" (con "Nil") $ emptyHole `ann` (tcon "List" `tapp` tcon "Nat"))
-    [Move Child2, Move Child1, InsertRefinedVar "nil"]
-    (let_ "nil" (con "Nil") $ (var "nil" `aPP` tcon "Nat") `ann` (tcon "List" `tapp` tcon "Nat"))
+    [Move Child2, Move Child1, InsertRefinedVar $ LocalVarRef "nil"]
+    (let_ "nil" (con "Nil") $ (lvar "nil" `aPP` tcon "Nat") `ann` (tcon "List" `tapp` tcon "Nat"))
 
 unit_refine_5 :: Assertion
 unit_refine_5 =
   actionTest
     NoSmartHoles
     (let_ "nil" (con "Nil") $ emptyHole `ann` (tcon "List" `tapp` tEmptyHole))
-    [Move Child2, Move Child1, InsertRefinedVar "nil"]
-    (let_ "nil" (con "Nil") $ (var "nil" `aPP` tEmptyHole) `ann` (tcon "List" `tapp` tEmptyHole))
+    [Move Child2, Move Child1, InsertRefinedVar $ LocalVarRef "nil"]
+    (let_ "nil" (con "Nil") $ (lvar "nil" `aPP` tEmptyHole) `ann` (tcon "List" `tapp` tEmptyHole))
 
 -- * Helpers
 

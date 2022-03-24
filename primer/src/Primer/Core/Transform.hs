@@ -13,7 +13,8 @@ import Foreword
 import Data.Data (Data)
 import Data.Generics.Uniplate.Data (descendM)
 import qualified Data.List.NonEmpty as NE
-import Primer.Core (CaseBranch' (..), Expr' (..), Type' (..), bindName)
+import Optics ((.~), (^.))
+import Primer.Core (CaseBranch' (..), Expr' (..), Type' (..), bindName, varRefName)
 import Primer.Name (Name)
 
 -- AST transformations.
@@ -41,8 +42,8 @@ renameVar x y = \case
         | otherwise = CaseBranch con termargs <$> renameVar x y rhs
       bindingNames (CaseBranch _ bs _) = map bindName bs
   Var m v
-    | v == x -> pure $ Var m y
-    | v == y -> Nothing
+    | v ^. varRefName == x -> pure $ Var m $ v & varRefName .~ y
+    | v ^. varRefName == y -> Nothing
     | otherwise -> pure $ Var m v
   e -> descendM (renameVar x y) e
 

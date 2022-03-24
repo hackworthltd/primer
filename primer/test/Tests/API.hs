@@ -40,11 +40,11 @@ unit_viewTreeExpr_injective_LAM =
 
 unit_viewTreeExpr_injective_var :: Assertion
 unit_viewTreeExpr_injective_var =
-  distinctTreeExpr (var "x") (var "y")
+  distinctTreeExpr (lvar "x") (lvar "y")
 
 unit_viewTreeExpr_injective_globalvar :: Assertion
 unit_viewTreeExpr_injective_globalvar =
-  distinctTreeExpr (global 0) (global 1)
+  distinctTreeExpr (gvar "0") (gvar "1")
 
 unit_viewTreeExpr_injective_let :: Assertion
 unit_viewTreeExpr_injective_let =

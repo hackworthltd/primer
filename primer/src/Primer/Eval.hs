@@ -52,6 +52,7 @@ import Primer.Core (
   Type,
   Type' (..),
   TypeCache,
+  VarRef (..),
   bindName,
   defPrim,
   _exprMeta,
@@ -258,8 +259,8 @@ data ApplyPrimFunDetail = ApplyPrimFunDetail
   deriving (Eq, Show, Generic)
   deriving (FromJSON, ToJSON) via VJSONPrefix "applyPrimFun" ApplyPrimFunDetail
 
--- | A map from definition IDs to definitions themselves
-type Globals = Map ID Def
+-- | A map from definition Names to definitions themselves
+type Globals = Map Name Def
 
 -- | A map from local variable names to the ID of their binding and their bound value.
 -- Since each entry must have a value, this only includes let(rec) bindings.
@@ -314,7 +315,7 @@ findNodeByID i expr = do
       _ -> mempty
 
 -- | Return the IDs of nodes which are reducible
-redexes :: Map ID PrimDef -> Expr -> Set ID
+redexes :: Map Name PrimDef -> Expr -> Set ID
 redexes primDefs = go mempty
   where
     go locals expr =
@@ -344,11 +345,11 @@ redexes primDefs = go mempty
             APP _ e1@(Letrec _ x _ _ LAM{}) e4 ->
               (self `munless` Set.member x (freeVarsTy e4)) <> go locals e1 <> goType locals e4
             APP _ e t -> go locals e <> goType locals t
-            Var _ x
+            Var _ (LocalVarRef x)
               | Set.member x locals -> self
               | otherwise -> mempty
-            GlobalVar _ id
-              | Map.member id primDefs -> mempty
+            Var _ (GlobalVarRef x)
+              | Map.member x primDefs -> mempty
               | otherwise -> self
             -- Note that x is in scope in e2 but not e1.
             Let _ x e1 e2 ->
@@ -623,7 +624,7 @@ tryReduceExpr globals locals = \case
   -- x=e |- x ==> e
   -- If the variable is not in the local set, that's fine - it just means it is bound by a lambda
   -- that hasn't yet been reduced.
-  Var mVar x
+  Var mVar (LocalVarRef x)
     | Just (i, Left e) <- Map.lookup x locals -> do
         -- Since we're duplicating @e@, we must regenerate all its IDs.
         e' <- regenerateExprIDs e
@@ -641,7 +642,7 @@ tryReduceExpr globals locals = \case
           )
   -- Inline global variable
   -- (f = e : t) |- f ==> e : t
-  GlobalVar mVar i | Just (DefAST def) <- Map.lookup i globals -> do
+  Var mVar (GlobalVarRef x) | Just (DefAST def) <- Map.lookup x globals -> do
     -- Since we're duplicating the definition, we must regenerate all its IDs.
     e <- regenerateExprIDs (astDefExpr def)
     t <- regenerateTypeIDs (astDefType def)
@@ -650,7 +651,7 @@ tryReduceExpr globals locals = \case
       ( expr
       , GlobalVarInline
         GlobalVarInlineDetail
-          { globalVarInlineVar = GlobalVar mVar i
+          { globalVarInlineVar = Var mVar (GlobalVarRef x)
           , globalVarInlineDef = def
           , globalVarInlineAfter = expr
           }
@@ -768,10 +769,10 @@ munless x b = if b then mempty else x
 
 -- | If this node is a reducible application of a primitive, return the name of the primitive, the arguments, and
 -- (a computation for building) the result.
-tryPrimFun :: Map ID PrimDef -> Expr -> Maybe (Name, [Expr], ExprAnyFresh)
+tryPrimFun :: Map Name PrimDef -> Expr -> Maybe (Name, [Expr], ExprAnyFresh)
 tryPrimFun primDefs expr
-  | (GlobalVar _ id, args) <- bimap stripAnns (map stripAnns) $ unfoldApp expr
-  , Just name <- primDefName <$> Map.lookup id primDefs
+  | (Var _ (GlobalVarRef name), args) <- bimap stripAnns (map stripAnns) $ unfoldApp expr
+  , Map.member name primDefs
   , Just PrimFun{primFunDef} <- Map.lookup name allPrimDefs
   , Right e <- primFunDef $ set _exprMeta () . set _exprTypeMeta () <$> args =
       Just (name, args, e)

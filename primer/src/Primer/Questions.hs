@@ -21,7 +21,6 @@ import Primer.Core (
   ID,
   Kind (KFun, KType),
   Type' (..),
-  defID,
   defName,
   defType,
   typeDefNameHints,
@@ -48,12 +47,12 @@ import Primer.ZipperCxt (
 -- | The type of questions which return information about the program, but do not
 -- modify it.
 data Question a where
-  -- Given the ID of a definition and the ID of a type or expression in that
+  -- Given the Name of a definition and the ID of a type or expression in that
   -- definition, what variables are in scope at the expression?
   -- Nested pairs: to make serialization to PS work easily
-  VariablesInScope :: ID -> ID -> Question (([(Name, Kind)], [(Name, Type' ())]), [(ID, Name, Type' ())])
+  VariablesInScope :: Name -> ID -> Question (([(Name, Kind)], [(Name, Type' ())]), [(Name, Type' ())])
   GenerateName ::
-    ID ->
+    Name ->
     ID ->
     Either (Maybe (Type' ())) (Maybe Kind) ->
     Question [Name]
@@ -65,12 +64,12 @@ data Question a where
 -- The first list is local type variables, the second list is local term variables,
 -- the third is globals.
 variablesInScopeExpr ::
-  Map ID Def ->
+  Map Name Def ->
   Either ExprZ TypeZ ->
-  ([(Name, Kind)], [(Name, Type' ())], [(ID, Name, Type' ())])
+  ([(Name, Kind)], [(Name, Type' ())], [(Name, Type' ())])
 variablesInScopeExpr defs exprOrTy =
   let locals = either extractLocalsExprZ extractLocalsTypeZ exprOrTy
-      globals = Map.elems $ fmap (\d -> (defID d, defName d, forgetMetadata $ defType d)) defs
+      globals = Map.elems $ fmap (\d -> (defName d, forgetMetadata $ defType d)) defs
       M tyvars tmvars globs = locals <> M [] [] globals
    in (reverse tyvars, reverse tmvars, globs) -- keep most-global first
 

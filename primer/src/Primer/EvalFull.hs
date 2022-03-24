@@ -41,7 +41,6 @@ import Primer.Core (
     App,
     Case,
     Con,
-    GlobalVar,
     Hole,
     LAM,
     Lam,
@@ -66,11 +65,12 @@ import Primer.Core (
   ),
   TypeDef (..),
   TypeMeta,
+  VarRef (..),
   bindName,
   defPrim,
   _typeMeta,
  )
-import Primer.Core.DSL (ann, letType, let_, letrec, tvar, var)
+import Primer.Core.DSL (ann, letType, let_, letrec, lvar, tvar)
 import Primer.Core.Transform (unfoldAPP, unfoldApp)
 import Primer.Core.Utils (concreteTy, freeVars, freeVarsTy, generateTypeIDs, _freeVars, _freeVarsTy)
 import Primer.Eval (regenerateExprIDs, regenerateTypeIDs, tryPrimFun)
@@ -99,7 +99,7 @@ newtype EvalFullError
 
 data Redex
   = -- f  ~>  e : T  where we have  f : T ; f = e  in (global) scope
-    InlineGlobal ID ASTDef
+    InlineGlobal Name ASTDef
   | -- x  ~>  e   where we are inside the scope of a  let x = e in ...
     InlineLet Name Expr
   | -- x  ~>  letrec x:T=t in t:T   where we are inside the scope of a  letrec x : T = t in ...
@@ -145,7 +145,7 @@ data RedexType
 type TerminationBound = Natural
 
 -- A naive implementation of normal-order reduction
-evalFull :: (MonadFresh NameCounter m, MonadFresh ID m) => M.Map Name TypeDef -> M.Map ID Def -> TerminationBound -> Dir -> Expr -> m (Either EvalFullError Expr)
+evalFull :: (MonadFresh NameCounter m, MonadFresh ID m) => M.Map Name TypeDef -> M.Map Name Def -> TerminationBound -> Dir -> Expr -> m (Either EvalFullError Expr)
 evalFull tydefs env n d expr = snd <$> evalFullStepCount tydefs env n d expr
 
 -- | As 'evalFull', but also returns how many reduction steps were taken.
@@ -159,7 +159,7 @@ evalFull tydefs env n d expr = snd <$> evalFullStepCount tydefs env n d expr
 evalFullStepCount ::
   (MonadFresh NameCounter m, MonadFresh ID m) =>
   M.Map Name TypeDef ->
-  M.Map ID Def ->
+  M.Map Name Def ->
   TerminationBound ->
   Dir ->
   Expr ->
@@ -175,7 +175,7 @@ evalFullStepCount tydefs env n d = go 0
 -- The 'Dir' argument only affects what happens if the root is an annotation:
 -- do we keep it (Syn) or remove it (Chk). I.e. is an upsilon reduction allowed
 -- at the root?
-step :: (MonadFresh NameCounter m, MonadFresh ID m) => M.Map Name TypeDef -> M.Map ID Def -> Dir -> Expr -> Maybe (m Expr)
+step :: (MonadFresh NameCounter m, MonadFresh ID m) => M.Map Name TypeDef -> M.Map Name Def -> Dir -> Expr -> Maybe (m Expr)
 step tydefs g d e = case findRedex tydefs g d e of
   Nothing -> Nothing
   Just mr ->
@@ -273,9 +273,9 @@ viewCaseRedex tydefs = \case
       pure $ CaseRedex c (zip args argTys'') ty (map bindName patterns) br
 
 -- This spots all redexs other than InlineLet
-viewRedex :: (MonadFresh ID m, MonadFresh NameCounter m) => M.Map Name TypeDef -> M.Map ID Def -> Dir -> Expr -> Maybe (m Redex)
+viewRedex :: (MonadFresh ID m, MonadFresh NameCounter m) => M.Map Name TypeDef -> M.Map Name Def -> Dir -> Expr -> Maybe (m Redex)
 viewRedex tydefs globals dir = \case
-  GlobalVar _ x | Just (DefAST y) <- x `M.lookup` globals -> pure $ pure $ InlineGlobal x y
+  Var _ (GlobalVarRef x) | Just (DefAST y) <- x `M.lookup` globals -> pure $ pure $ InlineGlobal x y
   App _ (Ann _ (Lam _ x t) (TFun _ src tgt)) s -> pure $ pure $ Beta x t src tgt s
   e@App{} -> pure . ApplyPrimFun . thd3 <$> tryPrimFun (M.mapMaybe defPrim globals) e
   APP _ (Ann _ (LAM _ a t) (TForall _ b _ ty1)) ty2 -> pure $ pure $ BETA a t b ty1 ty2
@@ -305,7 +305,7 @@ findRedex ::
   forall m.
   (MonadFresh ID m, MonadFresh NameCounter m) =>
   M.Map Name TypeDef ->
-  M.Map ID Def ->
+  M.Map Name Def ->
   Dir ->
   Expr ->
   Maybe (m RedexWithContext)
@@ -338,7 +338,7 @@ findRedex tydefs globals dir = go . focus
     goSubst :: Name -> Local -> ExprZ -> Maybe RedexWithContext
     goSubst n l ez = case target ez of
       -- We've found one
-      Var _ x | x == n -> case l of
+      Var _ (LocalVarRef x) | x == n -> case l of
         LLet le -> pure $ RExpr ez $ InlineLet n le
         LLetrec le lt -> pure $ RExpr ez $ InlineLetrec n le lt
         -- This case should have caught by the TC: a term var is bound by a lettype
@@ -413,7 +413,7 @@ runRedex = \case
   -- λy.t  ~>  λz.let y = z in t (and similar for other binding forms, except let)
   RenameBindingsLam m x e avoid -> do
     y <- freshName (avoid <> freeVars e)
-    Lam m y <$> let_ x (var y) (pure e)
+    Lam m y <$> let_ x (lvar y) (pure e)
   RenameBindingsLAM m x e avoid -> do
     y <- freshName (avoid <> freeVars e)
     LAM m y <$> letType x (tvar y) (pure e)
@@ -425,7 +425,7 @@ runRedex = \case
               rn <- traverse (\b -> if b `S.member` avoid then Right . (b,) <$> freshName avoid' else pure $ Left b) bns
               let f b@(Bind i _) = \case Left _ -> b; Right (_, w) -> Bind i w
               let binds' = zipWith f binds rn
-              rhs' <- foldrM (\(v, w) -> let_ v (var w) . pure) rhs $ rights rn
+              rhs' <- foldrM (\(v, w) -> let_ v (lvar w) . pure) rhs $ rights rn
               pure $ Case m s $ brs0 ++ CaseBranch ctor binds' rhs' : brs1
     -- We should replace this with a proper exception. See:
     -- https://github.com/hackworthltd/primer/issues/148

@@ -231,15 +231,15 @@ type SAPI = (
     -- POST /question/variables-in-scope
     --   Ask what variables are in scope for the given node ID
     "variables-in-scope"
-      :> ReqBody '[JSON] (ID, ID)
-      :> Post '[JSON] (Either ProgError (([(Name, Kind)], [(Name, Type' ())]), [(ID, Name, Type' ())]))
+      :> ReqBody '[JSON] (Name, ID)
+      :> Post '[JSON] (Either ProgError (([(Name, Kind)], [(Name, Type' ())]), [(Name, Type' ())]))
 
     -- POST /question/generate-names
     --   Ask for a list of possible names for a binding at the given location.
     -- This method would be GET (since it doesn't modify any state) but we need to provide a request
     -- body, which isn't well supported for GET requests.
     :<|> "generate-names"
-      :> ReqBody '[JSON] ((ID, ID), Either (Maybe (Type' ())) (Maybe Kind))
+      :> ReqBody '[JSON] ((Name, ID), Either (Maybe (Type' ())) (Maybe Kind))
       :> Post '[JSON] (Either ProgError [Name])
     )
 
@@ -331,9 +331,9 @@ testEndpoints =
     :<|> mkTest 0
     :<|> mkTest (Log [[BodyAction [Move Child1]]])
     :<|> mkTest newProg
-    :<|> mkTest (MoveToDef 0)
+    :<|> mkTest (MoveToDef "main")
     :<|> mkTest NoDefSelected
-    :<|> mkTest (DefAST $ ASTDef 1 "main" expr ty)
+    :<|> mkTest (DefAST $ ASTDef "main" expr ty)
     :<|> mkTest boolDef
     :<|> mkTest EvalReq{evalReqExpr = expr, evalReqRedex = 0}
     :<|> mkTest EvalResp{evalRespExpr = expr, evalRespRedexes = [0, 1], evalRespDetail = reductionDetail}
