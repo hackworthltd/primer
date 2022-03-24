@@ -13,7 +13,6 @@ module TestUtils (
 import Foreword hiding (try)
 
 import Control.Monad.Catch (MonadCatch, try)
-import Control.Monad.Fresh (MonadFresh (..))
 import Data.ByteString.Lazy.UTF8 as BL
 import qualified Data.Map.Strict as Map
 import Data.String (String)
@@ -56,7 +55,7 @@ import Primer.Core (
   Kind (KType),
   PrimDef (..),
   PrimFun,
-  defID,
+  defName,
   primDefType,
   primFunType,
  )
@@ -69,13 +68,14 @@ import Primer.Core.DSL (
   con,
   create,
   emptyHole,
-  global,
+  gvar,
   hole,
   lAM,
   lam,
   letType,
   let_,
   letrec,
+  lvar,
   tEmptyHole,
   tapp,
   tcon,
@@ -83,7 +83,6 @@ import Primer.Core.DSL (
   tfun,
   thole,
   tvar,
-  var,
  )
 import Primer.Database.Rel8.Rel8Db (
   Rel8Db,
@@ -239,12 +238,11 @@ testASTDef :: ASTDef
 testASTDef =
   ASTDef
     { astDefName = "1"
-    , astDefID
     , astDefExpr
     , astDefType
     }
   where
-    ((astDefExpr, astDefType), astDefID) = create $ (,) <$> e <*> t
+    ((astDefExpr, astDefType), _) = create $ (,) <$> e <*> t
     t =
       tfun
         (tcon "Nat")
@@ -272,7 +270,7 @@ testASTDef =
                     (con "Just")
                 )
                 ( hole
-                    (global 0)
+                    (gvar "0")
                 )
             )
             ( thole
@@ -296,7 +294,7 @@ testASTDef =
                                 (tvar "β")
                             )
                             ( case_
-                                (var "i")
+                                (lvar "i")
                                 [ branch
                                     "Zero"
                                     []
@@ -311,9 +309,9 @@ testASTDef =
                                     ( app
                                         ( app
                                             emptyHole
-                                            (var "x")
+                                            (lvar "x")
                                         )
-                                        (var "y")
+                                        (lvar "y")
                                     )
                                 ]
                             )
@@ -342,20 +340,18 @@ testASTDef =
 --
 -- TODO: move this function into 'Primer.App'. See:
 -- https://github.com/hackworthltd/primer/issues/273#issuecomment-1058713380
-mkTestDefs :: [ASTDef] -> Map Name PrimFun -> (Map ID Def, ID)
+mkTestDefs :: [ASTDef] -> Map Name PrimFun -> (Map Name Def, ID)
 mkTestDefs astDefs primMap =
   let (defs, nextID) = create $ do
         primDefs <- for (Map.toList primMap) $ \(primDefName, def) -> do
           primDefType <- primFunType def
-          primDefID <- fresh
           pure $
             PrimDef
-              { primDefID
-              , primDefName
+              { primDefName
               , primDefType
               }
         pure $ map DefAST astDefs <> map DefPrim primDefs
-   in (Map.fromList $ (\d -> (defID d, d)) <$> defs, nextID)
+   in (Map.fromList $ (\d -> (defName d, d)) <$> defs, nextID)
 
 -- | An initial test 'App' instance that contains all default type
 -- definitions (including primitive types), all primitive functions,

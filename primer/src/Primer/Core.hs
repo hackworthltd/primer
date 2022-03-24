@@ -10,10 +10,11 @@ module Primer.Core (
   Expr,
   Expr' (..),
   Bind' (..),
+  VarRef (..),
+  varRefName,
   CaseBranch,
   CaseBranch' (..),
   Def (..),
-  defID,
   defName,
   defType,
   ASTDef (..),
@@ -158,8 +159,7 @@ data Expr' a b
   | Con a Name -- See Note [Synthesisable constructors]
   | Lam a Name (Expr' a b)
   | LAM a Name (Expr' a b)
-  | Var a Name
-  | GlobalVar a ID
+  | Var a VarRef
   | Let a Name (Expr' a b) (Expr' a b)
   | -- | LetType binds a type to a name in some expression.
     -- It is currently only constructed automatically during evaluation -
@@ -170,6 +170,16 @@ data Expr' a b
   | PrimCon a PrimCon
   deriving (Eq, Show, Data, Generic)
   deriving (FromJSON, ToJSON) via VJSON (Expr' a b)
+
+-- | A reference to a variable.
+data VarRef
+  = GlobalVarRef Name
+  | LocalVarRef Name
+  deriving (Eq, Show, Data, Generic)
+  deriving (FromJSON, ToJSON) via VJSON VarRef
+
+varRefName :: Lens' VarRef Name
+varRefName = position @1
 
 -- Note [Synthesisable constructors]
 -- Whilst our calculus is heavily inspired by bidirectional type systems
@@ -361,9 +371,7 @@ data Def
 
 -- | A primitive, built-in definition
 data PrimDef = PrimDef
-  { primDefID :: ID
-  -- ^ Used for scoping
-  , primDefName :: Name
+  { primDefName :: Name
   -- ^ Used for display, and to link to an entry in `allPrimDefs`
   , primDefType :: Type
   }
@@ -372,18 +380,13 @@ data PrimDef = PrimDef
 
 -- | A top-level definition, built from an 'Expr'
 data ASTDef = ASTDef
-  { astDefID :: ID
-  , astDefName :: Name
+  { astDefName :: Name
   , astDefExpr :: Expr
   , astDefType :: Type
   }
   deriving (Eq, Show, Generic)
   deriving (FromJSON, ToJSON) via VJSON ASTDef
 
-defID :: Def -> ID
-defID = \case
-  DefPrim d -> primDefID d
-  DefAST d -> astDefID d
 defName :: Def -> Name
 defName = \case
   DefPrim d -> primDefName d

@@ -21,7 +21,7 @@ unit_ConstructLam_no_capture =
   actionTestExpectFail
     isNameCapture
     NoSmartHoles
-    (ann (lam "x" $ var "x") tEmptyHole)
+    (ann (lam "x" $ lvar "x") tEmptyHole)
     [Move Child1, Move Child1, ConstructLam (Just "x")]
 
 unit_ConstructLAM_no_capture :: Assertion
@@ -29,7 +29,7 @@ unit_ConstructLAM_no_capture =
   actionTestExpectFail
     isNameCapture
     NoSmartHoles
-    (ann (lam "x" $ var "x") tEmptyHole)
+    (ann (lam "x" $ lvar "x") tEmptyHole)
     [Move Child1, Move Child1, ConstructLAM (Just "x")]
 
 unit_ConstructLet_no_capture :: Assertion
@@ -37,7 +37,7 @@ unit_ConstructLet_no_capture =
   actionTestExpectFail
     isNeedEmptyHole
     NoSmartHoles
-    (ann (lam "x" $ var "x") tEmptyHole)
+    (ann (lam "x" $ lvar "x") tEmptyHole)
     [Move Child1, Move Child1, ConstructLet (Just "x")]
 
 unit_ConstructLetrec_no_capture :: Assertion
@@ -45,7 +45,7 @@ unit_ConstructLetrec_no_capture =
   actionTestExpectFail
     isNeedEmptyHole
     NoSmartHoles
-    (ann (lam "x" $ var "x") tEmptyHole)
+    (ann (lam "x" $ lvar "x") tEmptyHole)
     [Move Child1, Move Child1, ConstructLetrec (Just "x")]
 
 -- ensure trivial renaming is fine even though the "new"(="old") name is not
@@ -54,16 +54,16 @@ unit_RenameLam_noop :: Assertion
 unit_RenameLam_noop =
   actionTest
     NoSmartHoles
-    (ann (lam "x" $ var "x") tEmptyHole)
+    (ann (lam "x" $ lvar "x") tEmptyHole)
     [Move Child1, RenameLam "x"]
-    (ann (lam "x" $ var "x") tEmptyHole)
+    (ann (lam "x" $ lvar "x") tEmptyHole)
 
 unit_RenameLam_no_capture :: Assertion
 unit_RenameLam_no_capture =
   actionTestExpectFail
     isNameCapture
     NoSmartHoles
-    (ann (lam "x" $ lam "y" $ var "x") tEmptyHole)
+    (ann (lam "x" $ lam "y" $ lvar "x") tEmptyHole)
     [Move Child1, Move Child1, RenameLam "x"]
 
 unit_RenameLAM_noop :: Assertion
@@ -86,16 +86,16 @@ unit_RenameLet_noop :: Assertion
 unit_RenameLet_noop =
   actionTest
     NoSmartHoles
-    (ann (lam "x" $ let_ "y" emptyHole $ var "x") tEmptyHole)
+    (ann (lam "x" $ let_ "y" emptyHole $ lvar "x") tEmptyHole)
     [Move Child1, Move Child1, RenameLet "y"]
-    (ann (lam "x" $ let_ "y" emptyHole $ var "x") tEmptyHole)
+    (ann (lam "x" $ let_ "y" emptyHole $ lvar "x") tEmptyHole)
 
 unit_RenameLet_no_capture_1 :: Assertion
 unit_RenameLet_no_capture_1 =
   actionTestExpectFail
     isNameCapture
     NoSmartHoles
-    (ann (lam "x" $ let_ "y" emptyHole $ var "x") tEmptyHole)
+    (ann (lam "x" $ let_ "y" emptyHole $ lvar "x") tEmptyHole)
     [Move Child1, Move Child1, RenameLet "x"]
 
 -- We forbid this case, even though lets do not scope over the bound expression
@@ -105,23 +105,23 @@ unit_RenameLet_no_capture_2 =
   actionTestExpectFail
     isNameCapture
     NoSmartHoles
-    (ann (lam "x" $ let_ "y" (var "x") emptyHole) tEmptyHole)
+    (ann (lam "x" $ let_ "y" (lvar "x") emptyHole) tEmptyHole)
     [Move Child1, Move Child1, RenameLet "x"]
 
 unit_RenameLetrec_noop :: Assertion
 unit_RenameLetrec_noop =
   actionTest
     NoSmartHoles
-    (ann (lam "x" $ letrec "y" emptyHole tEmptyHole $ var "x") tEmptyHole)
+    (ann (lam "x" $ letrec "y" emptyHole tEmptyHole $ lvar "x") tEmptyHole)
     [Move Child1, Move Child1, RenameLet "y"]
-    (ann (lam "x" $ letrec "y" emptyHole tEmptyHole $ var "x") tEmptyHole)
+    (ann (lam "x" $ letrec "y" emptyHole tEmptyHole $ lvar "x") tEmptyHole)
 
 unit_RenameLetrec_no_capture_1 :: Assertion
 unit_RenameLetrec_no_capture_1 =
   actionTestExpectFail
     isNameCapture
     NoSmartHoles
-    (ann (lam "x" $ letrec "y" emptyHole tEmptyHole $ var "x") tEmptyHole)
+    (ann (lam "x" $ letrec "y" emptyHole tEmptyHole $ lvar "x") tEmptyHole)
     [Move Child1, Move Child1, RenameLet "x"]
 
 unit_RenameLetrec_no_capture_2 :: Assertion
@@ -129,7 +129,7 @@ unit_RenameLetrec_no_capture_2 =
   actionTestExpectFail
     isNameCapture
     NoSmartHoles
-    (ann (lam "x" $ letrec "y" emptyHole tEmptyHole $ var "x") tEmptyHole)
+    (ann (lam "x" $ letrec "y" emptyHole tEmptyHole $ lvar "x") tEmptyHole)
     [Move Child1, Move Child1, RenameLet "x"]
 
 unit_ConstructTForall_no_capture :: Assertion

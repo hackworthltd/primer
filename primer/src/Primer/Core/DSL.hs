@@ -7,8 +7,9 @@ module Primer.Core.DSL (
   app,
   aPP,
   con,
+  lvar,
+  gvar,
   var,
-  global,
   lam,
   lAM,
   let_,
@@ -55,6 +56,7 @@ import Primer.Core (
   Type' (..),
   TypeCache,
   Value,
+  VarRef (..),
   _metadata,
  )
 import Primer.Name (Name)
@@ -94,11 +96,14 @@ ann e t = Ann <$> meta <*> e <*> t
 con :: MonadFresh ID m => Name -> m Expr
 con c = Con <$> meta <*> pure c
 
-var :: MonadFresh ID m => Name -> m Expr
-var v = Var <$> meta <*> pure v
+lvar :: MonadFresh ID m => Name -> m Expr
+lvar v = Var <$> meta <*> pure (LocalVarRef v)
 
-global :: MonadFresh ID m => ID -> m Expr
-global id_ = GlobalVar <$> meta <*> pure id_
+gvar :: MonadFresh ID m => Name -> m Expr
+gvar name = Var <$> meta <*> pure (GlobalVarRef name)
+
+var :: MonadFresh ID m => VarRef -> m Expr
+var v = Var <$> meta <*> pure v
 
 lam :: MonadFresh ID m => Name -> m Expr -> m Expr
 lam v e = Lam <$> meta <*> pure v <*> e

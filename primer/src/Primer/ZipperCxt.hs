@@ -20,7 +20,6 @@ import Primer.Core (
   CaseBranch' (..),
   Expr,
   Expr' (..),
-  ID,
   Kind (KHole),
   Meta (Meta),
   Type' (..),
@@ -42,27 +41,26 @@ import Primer.Zipper (
 
 -- Helper for variablesInScopeExpr: collect variables, most local first,
 -- eliding shadowed variables
--- ["shadowed" here means by name, even though global variables are referenced
--- by ID; thus a lambda-bound variable "main" will shadow the globally-defined
--- "main"]
+-- ["shadowed" here means by name, even though even though internally they are
+-- in different namespaces; thus a lambda-bound variable "main" will shadow the
+-- globally-defined "main"]
 data ShadowedVarsExpr
   = M
       [(Name, Kind)]
       -- ^ Local type variables
       [(Name, Type' ())]
       -- ^ Local term variables
-      [(ID, Name, Type' ())]
+      [(Name, Type' ())]
       -- ^ Global variables
   deriving (Eq, Show)
 
 instance Semigroup ShadowedVarsExpr where
   M ty1 tm1 gl1 <> M ty2 tm2 gl2 = M (ty1 <> ty2') (tm1 <> tm2') (gl1 <> gl2')
     where
-      names1 = Set.fromList (map fst ty1) <> Set.fromList (map fst tm1) <> Set.fromList (map mid gl1)
-      mid (_, x, _) = x
+      names1 = Set.fromList (map fst ty1) <> Set.fromList (map fst tm1) <> Set.fromList (map fst gl1)
       ty2' = filter (flip Set.notMember names1 . fst) ty2
       tm2' = filter (flip Set.notMember names1 . fst) tm2
-      gl2' = filter (flip Set.notMember names1 . mid) gl2
+      gl2' = filter (flip Set.notMember names1 . fst) gl2
 
 instance Monoid ShadowedVarsExpr where
   mempty = M mempty mempty mempty

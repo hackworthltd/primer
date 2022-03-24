@@ -4,12 +4,11 @@ module Tests.Eval where
 
 import Foreword
 
-import Data.Map ((!))
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 import Optics (over, (^.))
 import Primer.App (
-  App (appIdCounter, appProg),
+  App (appIdCounter),
   EvalReq (EvalReq, evalReqExpr, evalReqRedex),
   EvalResp (EvalResp, evalRespExpr),
   Prog (progModule),
@@ -27,7 +26,6 @@ import Primer.Core (
   Type,
   Type',
   TypeDef (TypeDefAST),
-  defID,
   getID,
   _exprMeta,
   _exprTypeMeta,
@@ -53,13 +51,11 @@ import Primer.Eval (
   tryReduceType,
  )
 import Primer.Module (Module (Module, moduleDefs, moduleTypes))
-import Primer.Name (Name)
 import Primer.Zipper (target)
-import Protolude.Partial (fromJust)
 import Test.Tasty.HUnit (Assertion, assertBool, assertFailure, (@?=))
 import TestM (evalTestM)
 import TestUtils (withPrimDefs)
-import Tests.Action.Prog (defaultPrimsProg, findGlobalByName, runAppTestM)
+import Tests.Action.Prog (defaultPrimsProg, runAppTestM)
 
 -- * 'tryReduce' tests
 
@@ -78,7 +74,7 @@ unit_tryReduce_beta :: Assertion
 unit_tryReduce_beta = do
   let ((lambda, body, arg, input, expectedResult), maxid) =
         create $ do
-          x <- var "x"
+          x <- lvar "x"
           l <- lam "x" (pure x)
           a <- con "Zero"
           i <- app (pure l) (pure a)
@@ -104,7 +100,7 @@ unit_tryReduce_beta_annotation = do
         create $ do
           t1 <- tcon "A"
           t2 <- tcon "B"
-          x <- var "x"
+          x <- lvar "x"
           l <- lam "x" (pure x)
           a <- con "C"
           i <- app (ann (pure l) (tfun (pure t1) (pure t2))) (pure a)
@@ -130,7 +126,7 @@ unit_tryReduce_beta_annotation_hole = do
         create $ do
           t1 <- tEmptyHole
           t2 <- tEmptyHole
-          x <- var "x"
+          x <- lvar "x"
           l <- lam "x" (pure x)
           a <- con "C"
           i <- app (ann (pure l) tEmptyHole) (pure a)
@@ -155,7 +151,7 @@ unit_tryReduce_beta_nested :: Assertion
 unit_tryReduce_beta_nested = do
   let ((lambda, body, arg, input, expectedResult), maxid) =
         create $ do
-          e <- lam "y" (var "x")
+          e <- lam "y" (lvar "x")
           l <- lam "x" (pure e)
           a <- con "C"
           i <- app (app (pure l) (pure a)) (con "D")
@@ -165,8 +161,8 @@ unit_tryReduce_beta_nested = do
   case result of
     Right (expr, BetaReduction detail) -> do
       expr ~= expectedResult
-      betaBefore detail ~= fst (create (app (lam "x" (lam "y" (var "x"))) (con "C")))
-      betaAfter detail ~= fst (create (let_ "x" (con "C") (lam "y" (var "x"))))
+      betaBefore detail ~= fst (create (app (lam "x" (lam "y" (lvar "x"))) (con "C")))
+      betaAfter detail ~= fst (create (let_ "x" (con "C") (lam "y" (lvar "x"))))
       betaBindingName detail @?= "x"
       betaLambdaID detail @?= lambda ^. _id
       betaArgID detail @?= arg ^. _id
@@ -180,7 +176,7 @@ unit_tryReduce_beta_annotation_nested = do
         create $ do
           t1 <- tcon "A"
           t2 <- tcon "B"
-          x <- var "x"
+          x <- lvar "x"
           l <- lam "x" (pure x)
           a <- con "C"
           i <- app (app (ann (pure l) (tfun (pure t1) (pure t2))) (pure a)) (con "D")
@@ -190,8 +186,8 @@ unit_tryReduce_beta_annotation_nested = do
   case result of
     Right (expr, BetaReduction detail@BetaReductionDetail{betaTypes = Just (l, r)}) -> do
       expr ~= expectedResult
-      betaBefore detail ~= fst (create (app (ann (lam "x" (var "x")) (tfun (tcon "A") (tcon "B"))) (con "C")))
-      betaAfter detail ~= fst (create (ann (let_ "x" (ann (con "C") (tcon "A")) (var "x")) (tcon "B")))
+      betaBefore detail ~= fst (create (app (ann (lam "x" (lvar "x")) (tfun (tcon "A") (tcon "B"))) (con "C")))
+      betaAfter detail ~= fst (create (ann (let_ "x" (ann (con "C") (tcon "A")) (lvar "x")) (tcon "B")))
       betaBindingName detail @?= "x"
       betaLambdaID detail @?= lambda ^. _id
       betaArgID detail @?= arg ^. _id
@@ -214,11 +210,11 @@ unit_tryReduce_beta_name_clash = do
   let ((c, lambda, body, arg, input, expectedResult), maxid) =
         create $ do
           c_ <- con "C"
-          e <- lam "x0" (var "x")
+          e <- lam "x0" (lvar "x")
           l <- lam "x" (pure e)
-          a <- var "x"
+          a <- lvar "x"
           i <- app (pure l) (pure a)
-          r <- let_ "x1" (pure a) (lam "x0" (var "x1"))
+          r <- let_ "x1" (pure a) (lam "x0" (lvar "x1"))
           pure (c_, l, e, a, i, r)
       result = runTryReduce mempty (Map.singleton "x" (0, Left c)) (input, maxid)
   case result of
@@ -261,7 +257,7 @@ unit_tryReduce_BETA = do
 unit_tryReduce_local_term_var :: Assertion
 unit_tryReduce_local_term_var = do
   -- We assume we're inside a larger expression (e.g. a let) where the node that binds x has ID 5.
-  let ((expr, val), i) = create $ (,) <$> var "x" <*> con "C"
+  let ((expr, val), i) = create $ (,) <$> lvar "x" <*> con "C"
       locals = Map.singleton "x" (5, Left val)
       result = runTryReduce mempty locals (expr, i)
   case result of
@@ -297,13 +293,13 @@ unit_tryReduce_local_type_var = do
 unit_tryReduce_global_var :: Assertion
 unit_tryReduce_global_var = do
   let ((expr, def), i) = create $ do
-        g <- global 10
-        e <- lam "x" (var "x")
+        g <- gvar "f"
+        e <- lam "x" (lvar "x")
         t <- tfun (tcon "A") (tcon "B")
-        pure (g, ASTDef{astDefID = 10, astDefName = "f", astDefExpr = e, astDefType = t})
-      globals = Map.singleton 10 (DefAST def)
+        pure (g, ASTDef{astDefName = "f", astDefExpr = e, astDefType = t})
+      globals = Map.singleton "f" (DefAST def)
       result = runTryReduce globals mempty (expr, i)
-      expectedResult = fst $ create $ ann (lam "x" (var "x")) (tfun (tcon "A") (tcon "B"))
+      expectedResult = fst $ create $ ann (lam "x" (lvar "x")) (tfun (tcon "A") (tcon "B"))
   case result of
     Right (expr', GlobalVarInline detail) -> do
       expr' ~= expectedResult
@@ -367,12 +363,12 @@ unit_tryReduce_letrec_app :: Assertion
 unit_tryReduce_letrec_app = do
   let ((arg, lambda, letrec_, expr), i) = create $ do
         arg_ <- con "D"
-        lam_ <- lam "x" $ app (var "f") (var "x")
-        lr <- letrec "f" (lam "x" (var "x")) (tcon "T") (pure lam_)
+        lam_ <- lam "x" $ app (lvar "f") (lvar "x")
+        lr <- letrec "f" (lam "x" (lvar "x")) (tcon "T") (pure lam_)
         expr_ <- app (pure lr) (pure arg_)
         pure (arg_, lam_, lr, expr_)
       result = runTryReduce mempty mempty (expr, i)
-      expectedResult = fst $ create $ letrec "f" (lam "x" (var "x")) (tcon "T") (app (lam "x" (app (var "f") (var "x"))) (con "D"))
+      expectedResult = fst $ create $ letrec "f" (lam "x" (lvar "x")) (tcon "T") (app (lam "x" (app (lvar "f") (lvar "x"))) (con "D"))
   case result of
     Right (expr', PushAppIntoLetrec detail) -> do
       expr' ~= expectedResult
@@ -392,12 +388,12 @@ unit_tryReduce_letrec_APP :: Assertion
 unit_tryReduce_letrec_APP = do
   let ((arg, lambda, letrec_, expr), i) = create $ do
         arg_ <- tcon "B"
-        lam_ <- lAM "x" $ aPP (var "f") (tvar "x")
+        lam_ <- lAM "x" $ aPP (lvar "f") (tvar "x")
         lr <- letrec "f" (lAM "x" (con "A")) (tcon "T") (pure lam_)
         expr_ <- aPP (pure lr) (pure arg_)
         pure (arg_, lam_, lr, expr_)
       result = runTryReduce mempty mempty (expr, i)
-      expectedResult = fst $ create $ letrec "f" (lAM "x" (con "A")) (tcon "T") (aPP (lAM "x" (aPP (var "f") (tvar "x"))) (tcon "B"))
+      expectedResult = fst $ create $ letrec "f" (lAM "x" (con "A")) (tcon "T") (aPP (lAM "x" (aPP (lvar "f") (tvar "x"))) (tcon "B"))
   case result of
     Right (expr', PushAppIntoLetrec detail) -> do
       expr' ~= expectedResult
@@ -422,7 +418,7 @@ unit_tryReduce_letrec_name_clash = do
         -- the value bound by the outer let
         d_ <- con "D"
         -- the application
-        e <- app (letrec "f" (lam "x" (var "x")) (tcon "T") (lam "x" (app (var "f") (var "x")))) (var "f")
+        e <- app (letrec "f" (lam "x" (lvar "x")) (tcon "T") (lam "x" (app (lvar "f") (lvar "x")))) (lvar "f")
         -- the outer let
         letd_ <- let_ "f" (pure d_) (pure e)
         pure (e, d_, letd_)
@@ -454,12 +450,12 @@ unit_tryReduce_case_2 = do
   let (expr, i) =
         create $
           case_
-            (app (app (app (con "C") (lam "x" (var "x"))) (var "y")) (var "z"))
+            (app (app (app (con "C") (lam "x" (lvar "x"))) (lvar "y")) (lvar "z"))
             [ branch "B" [("b", Nothing)] (con "D")
             , branch "C" [("c", Nothing), ("d", Nothing), ("e", Nothing)] (con "E")
             ]
       result = runTryReduce mempty mempty (expr, i)
-      expectedResult = fst $ create $ let_ "c" (lam "x" (var "x")) (let_ "d" (var "y") (let_ "e" (var "z") (con "E")))
+      expectedResult = fst $ create $ let_ "c" (lam "x" (lvar "x")) (let_ "d" (lvar "y") (let_ "e" (lvar "z") (con "E")))
   case result of
     Right (expr', CaseReduction detail) -> do
       expr' ~= expectedResult
@@ -509,13 +505,13 @@ unit_tryReduce_case_too_many_bindings = do
 
 unit_tryReduce_case_too_few_bindings :: Assertion
 unit_tryReduce_case_too_few_bindings = do
-  let (expr, i) = create $ case_ (app (con "B") (var "y")) [branch "B" [] (con "D")]
+  let (expr, i) = create $ case_ (app (con "B") (lvar "y")) [branch "B" [] (con "D")]
       result = runTryReduce mempty mempty (expr, i)
   result @?= Left CaseBranchBindingLengthMismatch
 
 unit_tryReduce_case_scrutinee_not_redex :: Assertion
 unit_tryReduce_case_scrutinee_not_redex = do
-  let (expr, i) = create $ case_ (var "x") [branch "B" [] (con "D")]
+  let (expr, i) = create $ case_ (lvar "x") [branch "B" [] (con "D")]
       result = runTryReduce mempty mempty (expr, i)
   result @?= Left NotRedex
 
@@ -528,9 +524,9 @@ unit_tryReduce_case_no_matching_branch = do
 unit_tryReduce_prim :: Assertion
 unit_tryReduce_prim = do
   let ((expr, expectedResult, globals), i) =
-        create . withPrimDefs $ \defs m ->
+        create . withPrimDefs $ \m ->
           (,,)
-            <$> global (defs ! "eqChar") `app` char 'a' `app` char 'a'
+            <$> gvar "eqChar" `app` char 'a' `app` char 'a'
             <*> con "True"
             <*> pure m
       result = runTryReduce (DefPrim <$> globals) mempty (expr, i)
@@ -541,15 +537,15 @@ unit_tryReduce_prim = do
       applyPrimFunBefore detail ~= expr
       applyPrimFunAfter detail ~= expr'
       applyPrimFunName detail @?= "eqChar"
-      applyPrimFunArgIDs detail @?= [121, 122]
+      applyPrimFunArgIDs detail @?= [101, 102]
     _ -> assertFailure $ show result
 
 unit_tryReduce_prim_fail_unsaturated :: Assertion
 unit_tryReduce_prim_fail_unsaturated = do
   let ((expr, globals), i) =
-        create . withPrimDefs $ \defs m ->
+        create . withPrimDefs $ \m ->
           (,)
-            <$> global (defs ! "eqChar") `app` char 'a'
+            <$> gvar "eqChar" `app` char 'a'
             <*> pure m
       result = runTryReduce (DefPrim <$> globals) mempty (expr, i)
   result @?= Left NotRedex
@@ -557,9 +553,9 @@ unit_tryReduce_prim_fail_unsaturated = do
 unit_tryReduce_prim_fail_unreduced_args :: Assertion
 unit_tryReduce_prim_fail_unreduced_args = do
   let ((expr, globals), i) =
-        create . withPrimDefs $ \defs m ->
+        create . withPrimDefs $ \m ->
           (,)
-            <$> global (defs ! "eqChar") `app` char 'a' `app` (global (defs ! "toUpper") `app` char 'a')
+            <$> gvar "eqChar" `app` char 'a' `app` (gvar "toUpper" `app` char 'a')
             <*> pure m
       result = runTryReduce (DefPrim <$> globals) mempty (expr, i)
   result @?= Left NotRedex
@@ -568,8 +564,8 @@ unit_tryReduce_prim_fail_unreduced_args = do
 
 unit_findNodeByID_letrec :: Assertion
 unit_findNodeByID_letrec = do
-  let expr = fst $ create $ letrec "x" (var "x") (tcon "T") (var "x")
-      x = fst $ create $ var "x"
+  let expr = fst $ create $ letrec "x" (lvar "x") (tcon "T") (lvar "x")
+      x = fst $ create $ lvar "x"
       t = fst $ create $ tcon "T"
   case findNodeByID 0 expr of
     Just (locals, Left z) -> do
@@ -601,7 +597,7 @@ unit_findNodeByID_1 = do
   let (x, c, expr) = fst $
         create $ do
           -- id 0
-          x_ <- var "x"
+          x_ <- lvar "x"
           -- id 1
           c_ <- con "C"
           -- id 2
@@ -638,7 +634,7 @@ unit_findNodeByID_2 = do
           -- id 1
           t_ <- tcon "T"
           -- id 2
-          e <- letType "x" (pure t_) (ann (var "y") (pure x_))
+          e <- letType "x" (pure t_) (ann (lvar "y") (pure x_))
           pure (x_, t_, e)
   case findNodeByID 0 expr of
     Just (locals, Right z) -> do
@@ -666,29 +662,28 @@ redexesOf :: S Expr -> Set ID
 redexesOf = redexes mempty . fst . create
 
 -- | A variation of 'redexesOf' for when the expression tested requires primitives to be in scope.
--- Also provides a Map for looking up primitives' ids by name.
-redexesOfWithPrims :: (Map Name ID -> S Expr) -> Set ID
-redexesOfWithPrims x = uncurry redexes $ fst $ create $ withPrimDefs $ \defs globals -> (globals,) <$> x defs
+redexesOfWithPrims :: S Expr -> Set ID
+redexesOfWithPrims x = uncurry redexes $ fst $ create $ withPrimDefs $ \globals -> (globals,) <$> x
 
 unit_redexes_con :: Assertion
 unit_redexes_con = redexesOf (con "C") @?= mempty
 
 unit_redexes_lam_1 :: Assertion
 unit_redexes_lam_1 =
-  redexesOf (app (lam "x" (var "x")) (con "C")) @?= Set.singleton 0
+  redexesOf (app (lam "x" (lvar "x")) (con "C")) @?= Set.singleton 0
 
 unit_redexes_lam_2 :: Assertion
 unit_redexes_lam_2 =
-  redexesOf (lam "y" (app (lam "x" (var "x")) (con "C"))) @?= Set.singleton 1
+  redexesOf (lam "y" (app (lam "x" (lvar "x")) (con "C"))) @?= Set.singleton 1
 
 unit_redexes_lam_3 :: Assertion
 unit_redexes_lam_3 =
-  redexesOf (lam "y" (app (lam "x" (var "x")) (app (lam "z" (var "z")) (con "C"))))
+  redexesOf (lam "y" (app (lam "x" (lvar "x")) (app (lam "z" (lvar "z")) (con "C"))))
     @?= Set.fromList [1, 4]
 
 unit_redexes_lam_4 :: Assertion
 unit_redexes_lam_4 =
-  redexesOf (lam "y" (app (lam "x" (var "x")) (app (lam "z" (var "z")) (con "C"))))
+  redexesOf (lam "y" (app (lam "x" (lvar "x")) (app (lam "z" (lvar "z")) (con "C"))))
     @?= Set.fromList [1, 4]
 
 unit_redexes_LAM_1 :: Assertion
@@ -705,49 +700,49 @@ unit_redexes_LAM_3 =
 
 unit_redexes_LAM_4 :: Assertion
 unit_redexes_LAM_4 =
-  redexesOf (let_ "x" (con "C") (lAM "a" (aPP (lAM "b" (var "x")) (tcon "T"))))
+  redexesOf (let_ "x" (con "C") (lAM "a" (aPP (lAM "b" (lvar "x")) (tcon "T"))))
     @?= Set.fromList [3, 5]
 
 unit_redexes_let_1 :: Assertion
 unit_redexes_let_1 =
-  redexesOf (let_ "x" (con "C") (app (var "x") (var "y")))
+  redexesOf (let_ "x" (con "C") (app (lvar "x") (lvar "y")))
     @?= Set.singleton 3
 
 unit_redexes_let_2 :: Assertion
 unit_redexes_let_2 =
-  redexesOf (let_ "x" (con "C") (lam "x" (app (var "x") (var "y"))))
+  redexesOf (let_ "x" (con "C") (lam "x" (app (lvar "x") (lvar "y"))))
     @?= Set.singleton 0
 
 unit_redexes_letrec_1 :: Assertion
 unit_redexes_letrec_1 =
-  redexesOf (letrec "x" (app (con "C") (var "x")) (tcon "T") (app (var "x") (var "y")))
+  redexesOf (letrec "x" (app (con "C") (lvar "x")) (tcon "T") (app (lvar "x") (lvar "y")))
     @?= Set.fromList [3, 6]
 
 unit_redexes_letrec_2 :: Assertion
 unit_redexes_letrec_2 =
-  redexesOf (letrec "x" (app (con "C") (var "x")) (tcon "T") (var "y"))
+  redexesOf (letrec "x" (app (con "C") (lvar "x")) (tcon "T") (lvar "y"))
     @?= Set.fromList [0, 3]
 
 -- The application can be reduced by pushing the argument inside the letrec
 unit_redexes_letrec_app_1 :: Assertion
 unit_redexes_letrec_app_1 =
-  redexesOf (app (letrec "e" (con "C") (tcon "T") (lam "x" (var "e"))) (con "D"))
+  redexesOf (app (letrec "e" (con "C") (tcon "T") (lam "x" (lvar "e"))) (con "D"))
     @?= Set.fromList [0, 5]
 
 -- The application can't be reduced because variables in the argument clash with the letrec
 unit_redexes_letrec_app_2 :: Assertion
 unit_redexes_letrec_app_2 =
-  redexesOf (let_ "e" (con "D") (app (letrec "e" (con "C") (tcon "T") (lam "x" (var "e"))) (var "e")))
+  redexesOf (let_ "e" (con "D") (app (letrec "e" (con "C") (tcon "T") (lam "x" (lvar "e"))) (lvar "e")))
     @?= Set.fromList [7, 8]
 
 unit_redexes_letrec_APP_1 :: Assertion
 unit_redexes_letrec_APP_1 =
-  redexesOf (aPP (letrec "e" (con "C") (tcon "T") (lAM "x" (var "e"))) (tcon "D"))
+  redexesOf (aPP (letrec "e" (con "C") (tcon "T") (lAM "x" (lvar "e"))) (tcon "D"))
     @?= Set.fromList [0, 5]
 
 unit_redexes_letrec_APP_2 :: Assertion
 unit_redexes_letrec_APP_2 =
-  redexesOf (letType "e" (tcon "D") (aPP (letrec "e" (con "C") (tcon "T") (lAM "x" (var "e"))) (tvar "e")))
+  redexesOf (letType "e" (tcon "D") (aPP (letrec "e" (con "C") (tcon "T") (lAM "x" (lvar "e"))) (tvar "e")))
     @?= Set.fromList [7, 8]
 
 unit_redexes_lettype_1 :: Assertion
@@ -760,7 +755,7 @@ unit_redexes_lettype_2 =
 
 unit_redexes_lettype_3 :: Assertion
 unit_redexes_lettype_3 =
-  redexesOf (letType "x" (tcon "T") (letrec "y" (con "C") (tvar "x") (var "y"))) @?= Set.fromList [4, 5]
+  redexesOf (letType "x" (tcon "T") (letrec "y" (con "C") (tvar "x") (lvar "y"))) @?= Set.fromList [4, 5]
 
 unit_redexes_case_1 :: Assertion
 unit_redexes_case_1 =
@@ -775,45 +770,45 @@ unit_redexes_case_1_annotated =
 
 unit_redexes_case_2 :: Assertion
 unit_redexes_case_2 =
-  redexesOf (case_ (lam "x" (var "x")) [branch "C" [] (con "D")])
+  redexesOf (case_ (lam "x" (lvar "x")) [branch "C" [] (con "D")])
     @?= mempty
 
 -- The case expression can be reduced, as can the variable x in the branch rhs.
 unit_redexes_case_3 :: Assertion
 unit_redexes_case_3 =
-  redexesOf (let_ "x" (con "C") (case_ (con "C") [branch "C" [] (var "x")]))
+  redexesOf (let_ "x" (con "C") (case_ (con "C") [branch "C" [] (lvar "x")]))
     @?= Set.fromList [2, 4]
 
 -- The variable x in the rhs is bound to the branch pattern, so is no longer reducible.
 -- However this means the let is redundant, and can be reduced.
 unit_redexes_case_4 :: Assertion
 unit_redexes_case_4 =
-  redexesOf (let_ "x" (con "C") (case_ (con "C") [branch "C" [("x", Nothing)] (var "x")]))
+  redexesOf (let_ "x" (con "C") (case_ (con "C") [branch "C" [("x", Nothing)] (lvar "x")]))
     @?= Set.fromList [0, 2]
 
 -- If scrutinee of a case is a redex itself, we recognise that
 unit_redexes_case_5 :: Assertion
 unit_redexes_case_5 =
-  redexesOf (let_ "x" (con "C") (case_ (var "x") [])) @?= Set.fromList [3]
+  redexesOf (let_ "x" (con "C") (case_ (lvar "x") [])) @?= Set.fromList [3]
 
 unit_redexes_prim_1 :: Assertion
 unit_redexes_prim_1 =
-  redexesOfWithPrims (\defs -> global (defs ! "eqChar") `app` char 'a' `app` char 'b') @?= Set.fromList [118]
+  redexesOfWithPrims (gvar "eqChar" `app` char 'a' `app` char 'b') @?= Set.fromList [98]
 
 unit_redexes_prim_2 :: Assertion
 unit_redexes_prim_2 =
-  redexesOfWithPrims (\defs -> global (defs ! "eqChar") `app` var "a" `app` char 'b') @?= Set.empty
+  redexesOfWithPrims (gvar "eqChar" `app` lvar "a" `app` char 'b') @?= Set.empty
 
 unit_redexes_prim_3 :: Assertion
 unit_redexes_prim_3 =
-  redexesOfWithPrims (\defs -> global (defs ! "eqChar") `app` char 'a') @?= Set.empty
+  redexesOfWithPrims (gvar "eqChar" `app` char 'a') @?= Set.empty
 
 unit_redexes_prim_ann :: Assertion
 unit_redexes_prim_ann =
-  redexesOfWithPrims expr @?= Set.singleton 118
+  redexesOfWithPrims expr @?= Set.singleton 98
   where
-    expr defs =
-      global (defs ! "toUpper")
+    expr =
+      gvar "toUpper"
         `ann` (tcon "Char" `tfun` tcon "Char")
           `app` (char 'a' `ann` tcon "Char")
 
@@ -823,9 +818,7 @@ unit_eval_modules =
   let test = do
         p <- defaultPrimsProg
         importModules [progModule p]
-        prog <- gets appProg
-        let toUpperId = defID $ fromJust $ findGlobalByName prog "toUpper"
-        foo <- global toUpperId `app` char 'a'
+        foo <- gvar "toUpper" `app` char 'a'
         EvalResp{evalRespExpr = e} <-
           handleEvalRequest
             EvalReq{evalReqExpr = foo, evalReqRedex = getID foo}

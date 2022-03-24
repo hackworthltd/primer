@@ -29,13 +29,14 @@ import Primer.Core.DSL (
   con,
   create,
   emptyHole,
-  global,
+  gvar,
   hole,
   lAM,
   lam,
   letType,
   let_,
   letrec,
+  lvar,
   tEmptyHole,
   tapp,
   tcon,
@@ -43,7 +44,6 @@ import Primer.Core.DSL (
   tfun,
   thole,
   tvar,
-  var,
  )
 import Primer.Name (Name (unName))
 import System.FilePath ((</>))
@@ -58,12 +58,11 @@ test_1 =
   mkTests
     ASTDef
       { astDefName = "1"
-      , astDefID
       , astDefExpr
       , astDefType
       }
   where
-    ((astDefExpr, astDefType), astDefID) = create $ (,) <$> e <*> t
+    ((astDefExpr, astDefType), _) = create $ (,) <$> e <*> t
     t =
       tfun
         (tcon "Nat")
@@ -91,7 +90,7 @@ test_1 =
                     (con "Just")
                 )
                 ( hole
-                    (global 0)
+                    (gvar "0")
                 )
             )
             ( thole
@@ -115,7 +114,7 @@ test_1 =
                                 (tvar "β")
                             )
                             ( case_
-                                (var "i")
+                                (lvar "i")
                                 [ branch
                                     "Zero"
                                     []
@@ -130,9 +129,9 @@ test_1 =
                                     ( app
                                         ( app
                                             emptyHole
-                                            (var "x")
+                                            (lvar "x")
                                         )
-                                        (var "y")
+                                        (lvar "y")
                                     )
                                 ]
                             )
