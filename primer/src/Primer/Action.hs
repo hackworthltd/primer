@@ -811,7 +811,7 @@ constructSatCon c ze = case target ze of
         Left err -> throwError $ SaturatedApplicationError $ Left err
         Right t -> pure t
     flip replace ze <$> mkSaturatedApplication (con n) ctorType
-  e -> throwError $ NeedEmptyHole (ConstructCon c) e
+  e -> throwError $ NeedEmptyHole (ConstructSaturatedCon c) e
   where
     n = unsafeMkName c
 
