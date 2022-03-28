@@ -450,15 +450,17 @@ applyProgAction prog mdefName = \case
       if Map.member name defs
         then throwError $ DefAlreadyExists name
         else do
+          let def' = DefAST def{astDefName = name}
           defs' <-
             maybe (throwError $ ActionError NameCapture) pure $
-              traverse (traverseOf (#_DefAST % #astDefExpr) $ renameVar d name) (Map.delete d defs)
-          let def' = def{astDefName = name}
-              prog' =
+              traverse
+                (traverseOf (#_DefAST % #astDefExpr) $ renameVar d name)
+                (Map.insert name def' $ Map.delete d defs)
+          let prog' =
                 prog
-                  & #progSelection ?~ Selection (astDefName def') Nothing
+                  & #progSelection ?~ Selection (defName def') Nothing
                   & #progModule % #moduleDefs .~ defs'
-          pure (addDef def' prog', mdefName)
+          pure (prog', mdefName)
   CreateDef n -> do
     let defs = moduleDefs $ progModule prog
     name <- case n of

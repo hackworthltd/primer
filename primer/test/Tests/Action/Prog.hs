@@ -146,6 +146,19 @@ unit_rename_def_referenced =
       fmap defName (Map.lookup "main" (moduleDefs $ progModule prog')) @?= Just "main"
       fmap (set _exprMeta () . astDefExpr) (defAST =<< Map.lookup "main" (moduleDefs $ progModule prog')) @?= Just (Var () $ GlobalVarRef "foo")
 
+unit_rename_def_recursive :: Assertion
+unit_rename_def_recursive =
+  progActionTest
+    defaultEmptyProg
+    [ MoveToDef "main"
+    , BodyAction [ConstructVar $ GlobalVarRef "main"]
+    , RenameDef "main" "foo"
+    ]
+    $ expectSuccess $ \_ prog' -> do
+      fmap defName (Map.lookup "main" (moduleDefs $ progModule prog')) @?= Nothing
+      fmap defName (Map.lookup "foo" (moduleDefs $ progModule prog')) @?= Just "foo"
+      fmap (set _exprMeta () . astDefExpr) (defAST =<< Map.lookup "foo" (moduleDefs $ progModule prog')) @?= Just (Var () $ GlobalVarRef "foo")
+
 unit_delete_def :: Assertion
 unit_delete_def =
   progActionTest defaultEmptyProg [DeleteDef "other"] $
