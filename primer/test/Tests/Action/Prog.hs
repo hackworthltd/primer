@@ -751,8 +751,8 @@ defaultFullProg = do
         . over (#progModule % #moduleDefs) ((DefPrim <$> m) <>)
         $ p
 
-unit_good_defaultPrimsProg :: Assertion
-unit_good_defaultPrimsProg = checkProgWellFormed defaultFullProg
+unit_good_defaultFullProg :: Assertion
+unit_good_defaultFullProg = checkProgWellFormed defaultFullProg
 
 _defIDs :: Traversal' ASTDef ID
 _defIDs = #astDefExpr % (_exprMeta % _id `adjoin` _exprTypeMeta % _id) `adjoin` #astDefType % _typeMeta % _id
