@@ -84,6 +84,7 @@ import Primer.Core (
   Kind (..),
   Meta (..),
   PrimCon,
+  PrimDef (primDefType),
   Type' (..),
   TypeCache (..),
   TypeCacheBoth (..),
@@ -401,16 +402,20 @@ checkEverything sh CheckEverything{trusted, toCheck} =
               foldMap (\d -> [(defName d, forgetTypeIDs $ defType d)]) $
                 foldMap moduleDefs toCheck
         local (extendGlobalCxt newDefs . extendTypeDefCxt newTypes) $
-          traverseOf (traversed % #moduleDefs % traversed % #_DefAST) checkDef toCheck
+          traverseOf (traversed % #moduleDefs % traversed) checkDef toCheck
 
 -- | Typecheck a definition.
 -- This checks that the type signature is well-formed, then checks the body
--- against the signature.
-checkDef :: TypeM e m => ASTDef -> m ASTDef
+-- (for an ASTDef) against the signature.
+checkDef :: TypeM e m => Def -> m Def
 checkDef def = do
-  t <- checkKind KType (astDefType def)
-  e <- check (forgetTypeIDs t) (astDefExpr def)
-  pure $ def{astDefType = typeTtoType t, astDefExpr = exprTtoExpr e}
+  t <- checkKind KType (defType def)
+  case def of
+    DefAST def' -> do
+      e <- check (forgetTypeIDs t) (astDefExpr def')
+      pure $ DefAST $ def'{astDefType = typeTtoType t, astDefExpr = exprTtoExpr e}
+    DefPrim def' -> do
+      pure $ DefPrim $ def'{primDefType = typeTtoType t}
 
 -- We assume that constructor names are unique, returning the first one we find
 lookupConstructor :: M.Map Name TypeDef -> Name -> Maybe (ValCon, ASTTypeDef)
