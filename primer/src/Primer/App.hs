@@ -862,7 +862,7 @@ tcWholeProg :: forall m. MonadEditApp m => Prog -> m Prog
 tcWholeProg p =
   let tc :: ReaderT Cxt (ExceptT ActionError m) Prog
       tc = do
-        defs' <- mapM (\d -> maybe (pure d) (fmap DefAST . checkDef) $ defAST d) (moduleDefs $ progModule p)
+        defs' <- mapM checkDef (moduleDefs $ progModule p)
         let mod' = (progModule p){moduleDefs = defs'}
         let p' = p{progModule = mod'}
         -- We need to update the metadata cached in the selection

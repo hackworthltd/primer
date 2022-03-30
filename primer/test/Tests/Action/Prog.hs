@@ -33,6 +33,7 @@ import Primer.App (
   ProgError (..),
   Question (VariablesInScope),
   Selection (..),
+  defaultTypeDefs,
   handleEditRequest,
   handleQuestion,
   importModules,
@@ -85,7 +86,6 @@ import Primer.Core.DSL (
  )
 import Primer.Module (Module (moduleDefs, moduleTypes))
 import Primer.Name
-import Primer.Primitives (allPrimTypeDefs)
 import Test.Tasty.HUnit (Assertion, assertBool, assertFailure, (@=?), (@?=))
 import TestM (TestM, evalTestM)
 import TestUtils (withPrimDefs)
@@ -740,13 +740,14 @@ defaultEmptyProg = do
 unit_good_defaultEmptyProg :: Assertion
 unit_good_defaultEmptyProg = checkProgWellFormed defaultEmptyProg
 
--- `defaultEmptyProg`, plus all primitive definitions (types and terms)
+-- `defaultEmptyProg`, plus all primitive definitions (types and terms),
+-- and all builtin types.
 defaultPrimsProg :: MonadFresh ID m => m Prog
 defaultPrimsProg = do
   p <- defaultEmptyProg
   withPrimDefs $ \m ->
     pure $
-      over (#progModule % #moduleTypes) ((TypeDefPrim <$> toList allPrimTypeDefs) <>)
+      over (#progModule % #moduleTypes) (defaultTypeDefs <>)
         . over (#progModule % #moduleDefs) ((DefPrim <$> m) <>)
         $ p
 

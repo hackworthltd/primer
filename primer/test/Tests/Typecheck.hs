@@ -6,6 +6,7 @@ module Tests.Typecheck where
 import Foreword
 
 import Control.Monad.Fresh (MonadFresh)
+import qualified Data.Map as Map
 import Gen.Core.Raw (
   evalExprGen,
   genName,
@@ -39,6 +40,7 @@ import Primer.Core (
   ID,
   Kind (KFun, KHole, KType),
   Meta (..),
+  PrimDef (PrimDef, primDefName, primDefType),
   Type,
   Type' (TApp, TCon, TForall, TFun, TVar),
   TypeCache (..),
@@ -514,6 +516,32 @@ unit_good_maybeT = case runTypecheckTestM NoSmartHoles $
       } of
   Left err -> assertFailure $ show err
   Right _ -> pure ()
+
+unit_bad_prim_map :: Assertion
+unit_bad_prim_map = case runTypecheckTestM NoSmartHoles $ do
+  fooType <- tcon "Nat"
+  let foo = PrimDef{primDefName = "bar", primDefType = fooType}
+  checkEverything
+    NoSmartHoles
+    CheckEverything
+      { trusted = [progModule newProg]
+      , toCheck = [Module [] $ Map.singleton "foo" $ DefPrim foo]
+      } of
+  Left err -> err @?= InternalError "Inconsistant names in moduleDefs map"
+  Right _ -> assertFailure "Expected failure but succeeded"
+
+unit_bad_prim_type :: Assertion
+unit_bad_prim_type = case runTypecheckTestM NoSmartHoles $ do
+  fooType <- tcon "NonExistant"
+  let foo = PrimDef{primDefName = "foo", primDefType = fooType}
+  checkEverything
+    NoSmartHoles
+    CheckEverything
+      { trusted = [progModule newProg]
+      , toCheck = [Module [] $ Map.singleton "foo" $ DefPrim foo]
+      } of
+  Left err -> err @?= UnknownTypeConstructor "NonExistant"
+  Right _ -> assertFailure "Expected failure but succeeded"
 
 -- * Helpers
 
