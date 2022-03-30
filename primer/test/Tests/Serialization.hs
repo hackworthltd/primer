@@ -35,7 +35,7 @@ import Primer.Core (
   Kind (KFun, KType),
   Meta (..),
   PrimCon (..),
-  Type' (TApp, TCon, TEmptyHole),
+  Type' (TApp, TCon, TEmptyHole, TVar),
   TypeCache (TCSynthed),
   TypeCacheBoth (TCBoth),
   TypeDef (..),
@@ -100,7 +100,7 @@ fixtures =
           ASTTypeDef
             { astTypeDefName = "T"
             , astTypeDefParameters = [("a", KType), ("b", KFun KType KType)]
-            , astTypeDefConstructors = [ValCon "C" [TApp () (TCon () "b") (TCon () "a"), TCon () "Nat"]]
+            , astTypeDefConstructors = [ValCon "C" [TApp () (TVar () "b") (TVar () "a"), TCon () "Nat"]]
             , astTypeDefNameHints = []
             }
       progerror :: ProgError

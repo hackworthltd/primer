@@ -65,14 +65,14 @@
                                                     [],
                                                     "b"
                                                 ],
-                                                "tag": "TCon"
+                                                "tag": "TVar"
                                             },
                                             {
                                                 "contents": [
                                                     [],
                                                     "a"
                                                 ],
-                                                "tag": "TCon"
+                                                "tag": "TVar"
                                             }
                                         ],
                                         "tag": "TApp"
