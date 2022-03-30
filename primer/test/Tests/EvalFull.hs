@@ -43,7 +43,7 @@ import Primer.Typecheck (
 import Test.Tasty.HUnit (Assertion, assertBool, assertFailure, (@?=))
 import TestM
 import TestUtils (withPrimDefs)
-import Tests.Action.Prog (defaultPrimsProg, runAppTestM)
+import Tests.Action.Prog (defaultFullProg, runAppTestM)
 import Tests.Eval ((~=))
 import Tests.Gen.Core.Typed (checkTest)
 import Prelude (error)
@@ -907,7 +907,7 @@ unit_prim_partial_map =
 unit_eval_full_modules :: Assertion
 unit_eval_full_modules =
   let test = do
-        p <- defaultPrimsProg
+        p <- defaultFullProg
         importModules [progModule p]
         foo <- gvar "toUpper" `app` char 'a'
         resp <-
