@@ -33,6 +33,7 @@ import Primer.App (
   ProgError (..),
   Question (VariablesInScope),
   Selection (..),
+  defaultTypeDefs,
   handleEditRequest,
   handleQuestion,
   importModules,
@@ -85,10 +86,10 @@ import Primer.Core.DSL (
  )
 import Primer.Module (Module (moduleDefs, moduleTypes))
 import Primer.Name
-import Primer.Primitives (allPrimTypeDefs)
 import Test.Tasty.HUnit (Assertion, assertBool, assertFailure, (@=?), (@?=))
 import TestM (TestM, evalTestM)
 import TestUtils (withPrimDefs)
+import Tests.Typecheck (checkProgWellFormed)
 
 unit_empty_actions_only_change_the_log :: Assertion
 unit_empty_actions_only_change_the_log = progActionTest defaultEmptyProg [] $
@@ -129,7 +130,7 @@ unit_rename_def_to_same_name_as_existing_def =
 
 unit_rename_def_to_same_name_as_existing_def_prim :: Assertion
 unit_rename_def_to_same_name_as_existing_def_prim =
-  progActionTest defaultPrimsProg [RenameDef "other" "toUpper"] $
+  progActionTest defaultFullProg [RenameDef "other" "toUpper"] $
     expectError (@?= DefAlreadyExists "toUpper")
 
 unit_rename_def_referenced :: Assertion
@@ -205,7 +206,7 @@ unit_create_def = progActionTest defaultEmptyProg [CreateDef $ Just "newDef"] $
 
 unit_create_def_clash_prim :: Assertion
 unit_create_def_clash_prim =
-  progActionTest defaultPrimsProg [CreateDef $ Just "toUpper"] $
+  progActionTest defaultFullProg [CreateDef $ Just "toUpper"] $
     expectError (@?= DefAlreadyExists "toUpper")
 
 unit_create_typedef :: Assertion
@@ -354,7 +355,7 @@ unit_create_typedef_bad_prim =
           , astTypeDefConstructors = []
           , astTypeDefNameHints = []
           }
-   in progActionTest defaultPrimsProg [AddTypeDef td] $
+   in progActionTest defaultFullProg [AddTypeDef td] $
         expectError (@?= TypeDefError "InternalError \"Duplicate-ly-named TypeDefs\"")
 
 -- Allow clash between type name and constructor name in one type
@@ -423,7 +424,7 @@ unit_sigaction_creates_holes =
           MoveToDef "main"
         , SigAction [Delete, ConstructTCon "Int"]
         ]
-   in progActionTest defaultPrimsProg acts $
+   in progActionTest defaultFullProg acts $
         expectSuccess $ \_ prog' ->
           case lookupASTDef "other" (moduleDefs $ progModule prog') of
             Just def ->
@@ -637,7 +638,7 @@ unit_copy_paste_sig2ann = do
 unit_import_vars :: Assertion
 unit_import_vars =
   let test = do
-        p <- defaultPrimsProg
+        p <- defaultFullProg
         importModules [progModule p]
         gets (Map.assocs . moduleDefs . progModule . appProg) >>= \case
           [(i, DefAST d)] -> do
@@ -656,7 +657,7 @@ unit_import_vars =
 unit_import_reference :: Assertion
 unit_import_reference =
   let test = do
-        p <- defaultPrimsProg
+        p <- defaultFullProg
         importModules [progModule p]
         prog <- gets appProg
         case (findGlobalByName prog "toUpper", Map.assocs $ moduleDefs $ progModule prog) of
@@ -679,7 +680,7 @@ unit_import_reference =
 unit_copy_paste_import :: Assertion
 unit_copy_paste_import =
   let test = do
-        p <- defaultPrimsProg
+        p <- defaultFullProg
         importModules [progModule p]
         prog <- gets appProg
         case (findGlobalByName prog "other", Map.assocs $ moduleDefs $ progModule prog) of
@@ -736,15 +737,22 @@ defaultEmptyProg = do
           % #moduleDefs
           .~ Map.fromList [(astDefName mainDef, DefAST mainDef), (astDefName otherDef, DefAST otherDef)]
 
--- `defaultEmptyProg`, plus all primitive definitions (types and terms)
-defaultPrimsProg :: MonadFresh ID m => m Prog
-defaultPrimsProg = do
+unit_good_defaultEmptyProg :: Assertion
+unit_good_defaultEmptyProg = checkProgWellFormed defaultEmptyProg
+
+-- `defaultEmptyProg`, plus all primitive definitions (types and terms),
+-- and all builtin types.
+defaultFullProg :: MonadFresh ID m => m Prog
+defaultFullProg = do
   p <- defaultEmptyProg
   withPrimDefs $ \m ->
     pure $
-      over (#progModule % #moduleTypes) ((TypeDefPrim <$> toList allPrimTypeDefs) <>)
+      over (#progModule % #moduleTypes) (defaultTypeDefs <>)
         . over (#progModule % #moduleDefs) ((DefPrim <$> m) <>)
         $ p
+
+unit_good_defaultPrimsProg :: Assertion
+unit_good_defaultPrimsProg = checkProgWellFormed defaultFullProg
 
 _defIDs :: Traversal' ASTDef ID
 _defIDs = #astDefExpr % (_exprMeta % _id `adjoin` _exprTypeMeta % _id) `adjoin` #astDefType % _typeMeta % _id

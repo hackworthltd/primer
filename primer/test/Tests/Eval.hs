@@ -55,7 +55,7 @@ import Primer.Zipper (target)
 import Test.Tasty.HUnit (Assertion, assertBool, assertFailure, (@?=))
 import TestM (evalTestM)
 import TestUtils (withPrimDefs)
-import Tests.Action.Prog (defaultPrimsProg, runAppTestM)
+import Tests.Action.Prog (defaultFullProg, runAppTestM)
 
 -- * 'tryReduce' tests
 
@@ -816,7 +816,7 @@ unit_redexes_prim_ann =
 unit_eval_modules :: Assertion
 unit_eval_modules =
   let test = do
-        p <- defaultPrimsProg
+        p <- defaultFullProg
         importModules [progModule p]
         foo <- gvar "toUpper" `app` char 'a'
         EvalResp{evalRespExpr = e} <-
