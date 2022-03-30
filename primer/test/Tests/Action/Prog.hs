@@ -89,6 +89,7 @@ import Primer.Primitives (allPrimTypeDefs)
 import Test.Tasty.HUnit (Assertion, assertBool, assertFailure, (@=?), (@?=))
 import TestM (TestM, evalTestM)
 import TestUtils (withPrimDefs)
+import Tests.Typecheck (checkProgWellFormed)
 
 unit_empty_actions_only_change_the_log :: Assertion
 unit_empty_actions_only_change_the_log = progActionTest defaultEmptyProg [] $
@@ -736,6 +737,9 @@ defaultEmptyProg = do
           % #moduleDefs
           .~ Map.fromList [(astDefName mainDef, DefAST mainDef), (astDefName otherDef, DefAST otherDef)]
 
+unit_good_defaultEmptyProg :: Assertion
+unit_good_defaultEmptyProg = checkProgWellFormed defaultEmptyProg
+
 -- `defaultEmptyProg`, plus all primitive definitions (types and terms)
 defaultPrimsProg :: MonadFresh ID m => m Prog
 defaultPrimsProg = do
@@ -745,6 +749,9 @@ defaultPrimsProg = do
       over (#progModule % #moduleTypes) ((TypeDefPrim <$> toList allPrimTypeDefs) <>)
         . over (#progModule % #moduleDefs) ((DefPrim <$> m) <>)
         $ p
+
+unit_good_defaultPrimsProg :: Assertion
+unit_good_defaultPrimsProg = checkProgWellFormed defaultPrimsProg
 
 _defIDs :: Traversal' ASTDef ID
 _defIDs = #astDefExpr % (_exprMeta % _id `adjoin` _exprTypeMeta % _id) `adjoin` #astDefType % _typeMeta % _id

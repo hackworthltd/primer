@@ -1,3 +1,5 @@
+{-# LANGUAGE RankNTypes #-}
+
 -- | Tests for the typechecker
 module Tests.Typecheck where
 
@@ -19,11 +21,15 @@ import qualified Hedgehog.Gen as Gen
 import qualified Hedgehog.Range as Range
 import Optics (over, set)
 import Primer.App (
+  Prog (progImports),
   boolDef,
   defaultTypeDefs,
   eitherDef,
   listDef,
   natDef,
+  newEmptyProg,
+  newProg,
+  progModule,
  )
 import Primer.Core (
   ASTTypeDef (..),
@@ -50,13 +56,16 @@ import Primer.Core (
  )
 import Primer.Core.DSL
 import Primer.Core.Utils (generateIDs, generateTypeIDs)
+import Primer.Module
 import Primer.Name (NameCounter)
 import Primer.Typecheck (
+  CheckEverythingRequest (CheckEverything, toCheck, trusted),
   Cxt,
   ExprT,
   SmartHoles (NoSmartHoles, SmartHoles),
   TypeError (..),
   buildTypingContext,
+  checkEverything,
   decomposeTAppCon,
   mkTAppCon,
   synth,
@@ -475,6 +484,37 @@ hprop_synth_well_typed_defcxt = withTests 1000 $
       ty' <- generateTypeIDs . fst =<< synthTest =<< generateIDs e
       void $ checkKindTest KType ty'
 
+-- Check that all our builtins are well formed
+-- (these are used to seed initial programs)
+checkProgWellFormed :: HasCallStack => (forall m. MonadFresh ID m => m Prog) -> Assertion
+checkProgWellFormed p' = case runTypecheckTestM NoSmartHoles $ do
+  p <- p'
+  checkEverything
+    NoSmartHoles
+    CheckEverything
+      { trusted = mempty
+      , toCheck = progModule p : progImports p
+      } of
+  Left err -> assertFailure $ show err
+  Right _ -> pure ()
+
+unit_good_defaults :: Assertion
+unit_good_defaults = do
+  checkProgWellFormed $ pure newEmptyProg
+  checkProgWellFormed $ pure newProg
+
+-- Check that our higher-order test typedef is well formed
+unit_good_maybeT :: Assertion
+unit_good_maybeT = case runTypecheckTestM NoSmartHoles $
+  checkEverything
+    NoSmartHoles
+    CheckEverything
+      { trusted = [progModule newProg]
+      , toCheck = [Module [TypeDefAST maybeTDef] mempty]
+      } of
+  Left err -> assertFailure $ show err
+  Right _ -> pure ()
+
 -- * Helpers
 
 expectTyped :: TypecheckTestM Expr -> Assertion
@@ -574,6 +614,6 @@ maybeTDef =
   ASTTypeDef
     { astTypeDefName = "MaybeT"
     , astTypeDefParameters = [("m", KFun KType KType), ("a", KType)]
-    , astTypeDefConstructors = [ValCon "MakeMaybeT" [TApp () (TVar () "m") (TApp () (TVar () "Maybe") (TVar () "a"))]]
+    , astTypeDefConstructors = [ValCon "MakeMaybeT" [TApp () (TVar () "m") (TApp () (TCon () "Maybe") (TVar () "a"))]]
     , astTypeDefNameHints = []
     }
