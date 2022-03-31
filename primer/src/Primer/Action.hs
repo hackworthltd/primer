@@ -40,7 +40,7 @@ import Primer.Core (
   Def (..),
   Expr,
   Expr' (..),
-  GVarName (unGVarName),
+  GVarName,
   HasMetadata (_metadata),
   ID,
   LVarName (LVN, unLVarName),
@@ -51,9 +51,11 @@ import Primer.Core (
   TypeDef (..),
   ValConName,
   VarRef (..),
+  baseName,
   bindName,
   defName,
   getID,
+  unsafeMkGlobalName,
   valConArgs,
   valConName,
   valConType,
@@ -235,7 +237,7 @@ uniquifyDefName name' defs =
        in go (1 :: Int)
   where
     avoid :: [Text]
-    avoid = Map.elems $ map (unName . unGVarName . defName) defs
+    avoid = Map.elems $ map (unName . baseName . defName) defs
 
 -- | Core actions.
 --  These describe edits to the core AST.
@@ -802,7 +804,7 @@ constructLAM mx ze = do
 
 constructCon :: ActionM m => Text -> ExprZ -> m ExprZ
 constructCon c ze = case target ze of
-  EmptyHole{} -> flip replace ze <$> con (C.VCN $ unsafeMkName c)
+  EmptyHole{} -> flip replace ze <$> con (unsafeMkGlobalName c)
   e -> throwError $ NeedEmptyHole (ConstructCon c) e
 
 constructSatCon :: ActionM m => Text -> ExprZ -> m ExprZ
@@ -816,7 +818,7 @@ constructSatCon c ze = case target ze of
     flip replace ze <$> mkSaturatedApplication (con n) ctorType
   e -> throwError $ NeedEmptyHole (ConstructSaturatedCon c) e
   where
-    n = C.VCN $ unsafeMkName c
+    n = unsafeMkGlobalName c
 
 getConstructorType ::
   MonadReader TC.Cxt m =>
@@ -829,7 +831,7 @@ getConstructorType c =
 
 constructRefinedCon :: ActionM m => Text -> ExprZ -> m ExprZ
 constructRefinedCon c ze = do
-  let n = C.VCN $ unsafeMkName c
+  let n = unsafeMkGlobalName c
   cTy <-
     getConstructorType n >>= \case
       Left err -> throwError $ RefineError $ Left err
@@ -1013,7 +1015,7 @@ constructArrowR zt = flip replace zt <$> tfun tEmptyHole (pure (target zt))
 
 constructTCon :: ActionM m => Text -> TypeZ -> m TypeZ
 constructTCon c zt = case target zt of
-  TEmptyHole{} -> flip replace zt <$> tcon (C.TCN $ unsafeMkName c)
+  TEmptyHole{} -> flip replace zt <$> tcon (unsafeMkGlobalName c)
   _ -> throwError $ CustomFailure (ConstructTCon c) "can only construct tcon in hole"
 
 constructTVar :: ActionM m => Text -> TypeZ -> m TypeZ

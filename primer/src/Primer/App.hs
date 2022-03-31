@@ -78,7 +78,8 @@ import Primer.Core (
   Expr,
   Expr' (EmptyHole, Var),
   ExprMeta,
-  GVarName (GVN, unGVarName),
+  GVarName,
+  GlobalName (baseName),
   ID (..),
   Kind (..),
   LVarName,
@@ -95,6 +96,8 @@ import Primer.Core (
   defPrim,
   getID,
   primFunType,
+  qualifyName,
+  unsafeMkGlobalName,
   _exprMeta,
   _exprMetaLens,
   _exprTypeMeta,
@@ -110,7 +113,7 @@ import qualified Primer.Eval as Eval
 import Primer.EvalFull (Dir, EvalFullError (TimedOut), TerminationBound, evalFull)
 import Primer.JSON
 import Primer.Module (Module (Module, moduleDefs, moduleTypes))
-import Primer.Name (NameCounter, freshName, unsafeMkName)
+import Primer.Name (NameCounter, freshName)
 import Primer.Primitives (allPrimDefs, allPrimTypeDefs)
 import Primer.Questions (
   Question (..),
@@ -448,7 +451,7 @@ applyProgAction prog mdefName = \case
     Nothing -> throwError $ DefNotFound d
     Just def -> do
       let defs = moduleDefs $ progModule prog
-          name = GVN $ unsafeMkName nameStr
+          name = unsafeMkGlobalName nameStr
       if Map.member name defs
         then throwError $ DefAlreadyExists name
         else do
@@ -469,11 +472,11 @@ applyProgAction prog mdefName = \case
     let defs = moduleDefs $ progModule prog
     name <- case n of
       Just nameStr ->
-        let name = GVN $ unsafeMkName nameStr
+        let name = unsafeMkGlobalName nameStr
          in if Map.member name defs
               then throwError $ DefAlreadyExists name
               else pure name
-      Nothing -> fmap GVN . freshName $ Set.fromList $ map (unGVarName . defName) $ Map.elems defs
+      Nothing -> fmap qualifyName . freshName $ Set.fromList $ map (baseName . defName) $ Map.elems defs
     expr <- newExpr
     ty <- newType
     let def = ASTDef name expr ty

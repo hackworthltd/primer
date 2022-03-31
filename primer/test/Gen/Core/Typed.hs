@@ -48,17 +48,18 @@ import Primer.Core (
   Bind' (Bind),
   CaseBranch' (CaseBranch),
   Expr' (..),
-  GVarName (GVN),
+  GVarName,
   ID,
   Kind (..),
   LVarName (LVN, unLVarName),
   PrimCon (..),
-  TyConName (TCN),
+  TyConName,
   Type' (..),
   TypeDef (..),
   ValCon (..),
-  ValConName (VCN),
+  ValConName,
   VarRef (..),
+  qualifyName,
   typeDefKind,
   typeDefName,
   typeDefParameters,
@@ -388,7 +389,7 @@ genGlobalCxtExtension :: GenT WT [(GVarName, TypeG)]
 genGlobalCxtExtension =
   local forgetLocals $
     Gen.list (Range.linear 1 5) $
-      (,) <$> fmap GVN freshNameForCxt <*> genWTType KType
+      (,) <$> fmap qualifyName freshNameForCxt <*> genWTType KType
   where
     -- we are careful to not let the globals depend on whatever locals may be in
     -- the cxt
@@ -405,7 +406,7 @@ genTypeDefGroup = do
           ( \(n, ps) ->
               TypeDefAST
                 ASTTypeDef
-                  { astTypeDefName = TCN n
+                  { astTypeDefName = qualifyName n
                   , astTypeDefParameters = ps
                   , astTypeDefConstructors = []
                   , astTypeDefNameHints = []
@@ -413,12 +414,12 @@ genTypeDefGroup = do
           )
           nps
   let genConArgs params = Gen.list (Range.linear 0 5) $ local (extendLocalCxtTys params . addTypeDefs types) $ genWTType KType -- params+types scope...
-  let genCons params = Gen.list (Range.linear 0 5) $ ValCon <$> fmap VCN freshNameForCxt <*> genConArgs params
+  let genCons params = Gen.list (Range.linear 0 5) $ ValCon <$> fmap qualifyName freshNameForCxt <*> genConArgs params
   let genTD (n, ps) =
         ( \cons ->
             TypeDefAST
               ASTTypeDef
-                { astTypeDefName = TCN n
+                { astTypeDefName = qualifyName n
                 , astTypeDefParameters = ps
                 , astTypeDefConstructors = cons
                 , astTypeDefNameHints = []

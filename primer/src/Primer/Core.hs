@@ -1,4 +1,5 @@
 {-# LANGUAGE DeriveFunctor #-}
+{-# LANGUAGE KindSignatures #-}
 {-# LANGUAGE OverloadedLabels #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE TypeApplications #-}
@@ -26,9 +27,13 @@ module Primer.Core (
   setID,
   HasMetadata (_metadata),
   ID (ID),
-  TyConName (TCN, unTyConName),
-  ValConName (VCN, unValConName),
-  GVarName (GVN, unGVarName),
+  GlobalNameKind (..),
+  GlobalName (baseName),
+  qualifyName,
+  unsafeMkGlobalName,
+  TyConName,
+  ValConName,
+  GVarName,
   LVarName (LVN, unLVarName),
   Type,
   Type' (..),
@@ -77,7 +82,7 @@ import Data.Generics.Uniplate.Data ()
 import Data.Generics.Uniplate.Zipper (Zipper, hole, replaceHole)
 import Optics (AffineFold, Lens, Lens', Traversal, afailing, lens, lensVL, set, view, (%))
 import Primer.JSON
-import Primer.Name (Name)
+import Primer.Name (Name, unsafeMkName)
 
 -- | An identifier for an expression. Every node of the AST has an ID.
 newtype ID = ID {unID :: Int}
@@ -141,27 +146,33 @@ _synthed = #_TCSynthed `afailing` (#_TCEmb % #tcSynthed)
 -- nodes we're inserting.
 type ExprMeta = Meta (Maybe TypeCache)
 
--- | A newtype wrapper around a 'Name', to track what sort of thing it refers to.
--- This is to disambiguate names which refer to type constructors from names that
--- refer to e.g. lambda-bound variables.
-newtype TyConName = TCN {unTyConName :: Name}
-  deriving (Eq, Ord, Show, Data, Generic)
-  deriving (IsString) via Name
-  deriving (FromJSON, ToJSON) via Name
+-- | Tags for 'GlobalName'
+data GlobalNameKind
+  = ATyCon
+  | AValCon
+  | ADefName
 
--- | As 'TyConName', but for names of value constructors
-newtype ValConName = VCN {unValConName :: Name}
-  deriving (Eq, Ord, Show, Data, Generic)
-  deriving (IsString) via Name
-  deriving (FromJSON, ToJSON) via Name
+-- | Global names are currently the same as 'Name's, but will shortly contain
+-- a module prefix also. They are tagged with what sort of name they are.
+newtype GlobalName (k :: GlobalNameKind) = GlobalName {baseName :: Name}
+  deriving (Eq, Ord, Generic, Data)
+  deriving newtype (Show, IsString)
+  deriving newtype (FromJSON, ToJSON, FromJSONKey, ToJSONKey)
 
--- | As 'TyConName', but for names of global variables
-newtype GVarName = GVN {unGVarName :: Name}
-  deriving (Eq, Ord, Show, Data, Generic)
-  deriving (IsString) via Name
-  deriving (FromJSON, ToJSON, FromJSONKey, ToJSONKey) via Name
+unsafeMkGlobalName :: Text -> GlobalName k
+unsafeMkGlobalName = GlobalName . unsafeMkName
 
--- | As 'TyConName', but for names of local variables (both term and type vars)
+-- | Currently just wraps the name, but shortly will take another
+-- argument for a module prefix
+qualifyName :: Name -> GlobalName k
+qualifyName = GlobalName
+
+type TyConName = GlobalName 'ATyCon
+type ValConName = GlobalName 'AValCon
+type GVarName = GlobalName 'ADefName
+
+-- | A newtype wrapper around a 'Name', tracking that the name refers
+-- to a local (term or type) variable
 newtype LVarName = LVN {unLVarName :: Name}
   deriving (Eq, Ord, Show, Data, Generic)
   deriving (IsString) via Name
@@ -210,7 +221,7 @@ data VarRef
 
 varRefName :: Lens' VarRef Name
 varRefName = lensVL $ \f -> \case
-  GlobalVarRef (GVN n) -> GlobalVarRef . GVN <$> f n
+  GlobalVarRef (GlobalName n) -> GlobalVarRef . GlobalName <$> f n
   LocalVarRef (LVN n) -> LocalVarRef . LVN <$> f n
 
 -- Note [Synthesisable constructors]

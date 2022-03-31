@@ -249,7 +249,7 @@ unit_create_typedef_bad_1 =
           , astTypeDefNameHints = ["xs", "ys", "zs"]
           }
    in progActionTest defaultEmptyProg [AddTypeDef td] $
-        expectError (@?= TypeDefError "UnknownTypeConstructor (TCN {unTyConName = \"List\"})")
+        expectError (@?= TypeDefError "UnknownTypeConstructor \"List\"")
 
 -- duplicate type(names) added
 unit_create_typedef_bad_2 :: Assertion

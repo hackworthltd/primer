@@ -20,7 +20,8 @@ import Primer.Core (
   CaseBranch' (..),
   Expr,
   Expr' (..),
-  GVarName (unGVarName),
+  GVarName,
+  GlobalName (baseName),
   Kind (KHole),
   LVarName (unLVarName),
   Meta (Meta),
@@ -61,10 +62,10 @@ instance Semigroup ShadowedVarsExpr where
       names1 =
         Set.fromList (map (unLVarName . fst) ty1)
           <> Set.fromList (map (unLVarName . fst) tm1)
-          <> Set.fromList (map (unGVarName . fst) gl1)
+          <> Set.fromList (map (baseName . fst) gl1)
       ty2' = filter (flip Set.notMember names1 . unLVarName . fst) ty2
       tm2' = filter (flip Set.notMember names1 . unLVarName . fst) tm2
-      gl2' = filter (flip Set.notMember names1 . unGVarName . fst) gl2
+      gl2' = filter (flip Set.notMember names1 . baseName . fst) gl2
 
 instance Monoid ShadowedVarsExpr where
   mempty = M mempty mempty mempty

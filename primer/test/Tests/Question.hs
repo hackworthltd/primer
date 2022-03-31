@@ -12,11 +12,13 @@ import qualified Hedgehog.Range as Range
 import Primer.App (defaultTypeDefs)
 import Primer.Core (
   Expr,
-  GVarName (GVN, unGVarName),
+  GVarName,
+  GlobalName (baseName),
   Kind (KFun, KType),
   LVarName (LVN, unLVarName),
   Type,
   Type' (TCon),
+  qualifyName,
  )
 import Primer.Core.DSL
 import Primer.Core.Utils (forgetTypeIDs)
@@ -106,7 +108,7 @@ hprop_shadow_monoid_expr = property $ do
   label $ if lenIn == lenOut then "no shadowing" else "shadowing"
   -- We end up with fewer elements than we started with
   assert $ lenIn >= lenOut
-  let nonShNames = map (unLVarName . fst) tyV ++ map (unLVarName . fst) tmV ++ map (unGVarName . fst) glV
+  let nonShNames = map (unLVarName . fst) tyV ++ map (unLVarName . fst) tmV ++ map (baseName . fst) glV
   annotateShow nonShNames
   -- there are no duplicate names in the output
   assert $ nub nonShNames == nonShNames
@@ -127,7 +129,7 @@ nameSTE' :: STE' -> Name
 nameSTE' = \case
   TyVar (n, _) -> unLVarName n
   TmVar (n, _) -> unLVarName n
-  Global (n, _) -> unGVarName n
+  Global (n, _) -> baseName n
 
 -- Generates data that could be contained in a ShadowedVarsExpr, except
 -- it may have duplicated names, and is not split into three sections,
@@ -138,7 +140,7 @@ genSTE' =
       toSTE' n = \case
         Left k -> TyVar (LVN n, k)
         Right (ty, False) -> TmVar (LVN n, ty)
-        Right (ty, True) -> Global (GVN n, ty)
+        Right (ty, True) -> Global (qualifyName n, ty)
    in evalExprGen 0 $ Gen.list (Range.linear 0 20) $ toSTE' <$> genName <*> g
 
 genSTE :: Gen ShadowedVarsExpr

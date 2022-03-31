@@ -26,17 +26,17 @@ import Primer.Core (
   CaseBranch' (CaseBranch),
   Expr,
   Expr' (..),
-  GVarName (GVN),
   ID (..),
   Kind (..),
   LVarName (LVN),
   Meta (..),
   PrimCon (..),
-  TyConName (TCN),
+  TyConName,
   Type,
   Type' (..),
-  ValConName (VCN),
+  ValConName,
   VarRef (..),
+  qualifyName,
  )
 import Primer.Name (Name, unsafeMkName)
 
@@ -82,7 +82,7 @@ genAPP :: ExprGen Expr
 genAPP = APP <$> genMeta <*> genExpr <*> genType
 
 genValConName :: ExprGen ValConName
-genValConName = VCN <$> genName
+genValConName = qualifyName <$> genName
 
 genCon :: ExprGen Expr
 genCon = Con <$> genMeta <*> genValConName
@@ -97,7 +97,7 @@ genLocalVar :: ExprGen Expr
 genLocalVar = Var <$> genMeta <*> (LocalVarRef <$> genLVarName)
 
 genGlobalVar :: ExprGen Expr
-genGlobalVar = Var <$> genMeta <*> (GlobalVarRef . GVN <$> genName)
+genGlobalVar = Var <$> genMeta <*> (GlobalVarRef . qualifyName <$> genName)
 
 genLet :: ExprGen Expr
 genLet = Let <$> genMeta <*> genLVarName <*> genExpr <*> genExpr
@@ -145,7 +145,7 @@ genType =
     ]
 
 genTyConName :: ExprGen TyConName
-genTyConName = TCN <$> genName
+genTyConName = qualifyName <$> genName
 
 genKind :: ExprGen Kind
 genKind = Gen.recursive Gen.choice [pure KType, pure KHole] [KFun <$> genKind <*> genKind]

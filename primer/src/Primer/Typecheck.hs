@@ -80,21 +80,22 @@ import Primer.Core (
   Expr,
   Expr' (..),
   ExprMeta,
-  GVarName (unGVarName),
+  GVarName,
+  GlobalName (baseName),
   ID,
   Kind (..),
   LVarName (LVN, unLVarName),
   Meta (..),
   PrimCon,
   PrimDef (primDefType),
-  TyConName (unTyConName),
+  TyConName,
   Type' (..),
   TypeCache (..),
   TypeCacheBoth (..),
   TypeDef (..),
   TypeMeta,
   ValCon (valConArgs, valConName),
-  ValConName (unValConName),
+  ValConName,
   VarRef (..),
   bindName,
   defName,
@@ -355,10 +356,10 @@ checkTypeDefs tds = do
       let params = astTypeDefParameters td
       let cons = astTypeDefConstructors td
       assert
-        (distinct $ map (unLVarName . fst) params <> map (unValConName . valConName) cons)
+        (distinct $ map (unLVarName . fst) params <> map (baseName . valConName) cons)
         "Duplicate names in one tydef: between parameter-names and constructor-names"
       assert
-        (notElem (unTyConName $ astTypeDefName td) $ map (unLVarName . fst) params)
+        (notElem (baseName $ astTypeDefName td) $ map (unLVarName . fst) params)
         "Duplicate names in one tydef: between type-def-name and parameter-names"
       local (noSmartHoles . extendLocalCxtTys params) $
         mapM_ (checkKind KType <=< fakeMeta) $ concatMap valConArgs cons
@@ -967,13 +968,13 @@ typeTtoType = over _typeMeta (fmap Just)
 getGlobalNames :: MonadReader Cxt m => m (S.Set Name)
 getGlobalNames = do
   tyDefs <- asks typeDefs
-  topLevel <- asks $ S.fromList . map unGVarName . M.keys . globalCxt
+  topLevel <- asks $ S.fromList . map baseName . M.keys . globalCxt
   let ctors =
         Map.foldMapWithKey
           ( \t def ->
               S.fromList $
-                (unTyConName t :) $
-                  map (unValConName . valConName) $ maybe [] astTypeDefConstructors $ typeDefAST def
+                (baseName t :) $
+                  map (baseName . valConName) $ maybe [] astTypeDefConstructors $ typeDefAST def
           )
           tyDefs
   pure $ S.union topLevel ctors
