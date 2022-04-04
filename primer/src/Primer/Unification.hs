@@ -21,13 +21,12 @@ import Primer.Name (NameCounter)
 import Primer.Subst (substTy)
 import Primer.Typecheck (
   Cxt (smartHoles),
-  KindOrType (K),
   SmartHoles (NoSmartHoles),
   Type,
   TypeError,
   checkKind,
   consistentKinds,
-  lookupLocal,
+  lookupLocalTy,
  )
 
 -- | This should never be thrown - it indicates a bug in either this module, or in how it is called
@@ -67,8 +66,8 @@ unify cxt unificationVars s t = do
       -- ones.
       -- TODO: this is a bit of a code smell!
       let addPointlessMeta = set _typeMeta (Meta 0 Nothing Nothing)
-      let f v vt = case lookupLocal v cxt of
-            Just (K k) -> All . isRight <$> runExceptT @TypeError (runReaderT (checkKind k $ addPointlessMeta vt) (cxt{smartHoles = NoSmartHoles}))
+      let f v vt = case lookupLocalTy v cxt of
+            Right k -> All . isRight <$> runExceptT @TypeError (runReaderT (checkKind k $ addPointlessMeta vt) (cxt{smartHoles = NoSmartHoles}))
             -- this catchall should never happen: sb should only contain
             -- solutions for unification variables, which should be a subset
             -- of the context!

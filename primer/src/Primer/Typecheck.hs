@@ -44,7 +44,7 @@ module Primer.Typecheck (
   substituteTypeVars,
   getGlobalNames,
   lookupGlobal,
-  lookupLocal,
+  lookupLocalTy,
   lookupVar,
   primConInScope,
   mkTypeDefMap,
@@ -181,19 +181,24 @@ data Cxt = Cxt
   }
   deriving (Show)
 
-lookupLocal :: LVarName -> Cxt -> Maybe KindOrType
-lookupLocal v cxt = M.lookup v $ localCxt cxt
+lookupLocal :: LVarName -> Cxt -> Either TypeError Type
+lookupLocal v cxt = case M.lookup v $ localCxt cxt of
+  Just (T t) -> Right t
+  Just (K _) -> Left $ WrongSortVariable v
+  Nothing -> Left $ UnknownVariable $ LocalVarRef v
+
+lookupLocalTy :: LVarName -> Cxt -> Either TypeError Kind
+lookupLocalTy v cxt = case M.lookup v $ localCxt cxt of
+  Just (K k) -> Right k
+  Just (T _) -> Left $ WrongSortVariable v
+  Nothing -> Left $ UnknownTypeVariable v
 
 lookupGlobal :: GVarName -> Cxt -> Maybe Type
 lookupGlobal v cxt = M.lookup v $ globalCxt cxt
 
 lookupVar :: VarRef -> Cxt -> Either TypeError Type
 lookupVar v cxt = case v of
-  LocalVarRef name ->
-    pure (lookupLocal name cxt) >>= \case
-      Just (T t) -> Right t
-      Just (K _) -> Left $ WrongSortVariable name
-      Nothing -> Left $ UnknownVariable v
+  LocalVarRef name -> lookupLocal name cxt
   GlobalVarRef name ->
     pure (lookupGlobal name cxt) >>= \case
       Just t -> Right t
@@ -726,10 +731,9 @@ synthKind = \case
     b' <- checkKind KType b
     pure (KType, TFun (annotate KType m) a' b')
   TVar m v -> do
-    asks (lookupLocal v) >>= \case
-      Just (K k) -> pure (k, TVar (annotate k m) v)
-      Just (T _) -> throwError' $ WrongSortVariable v
-      Nothing -> throwError' (UnknownTypeVariable v)
+    asks (lookupLocalTy v) >>= \case
+      Right k -> pure (k, TVar (annotate k m) v)
+      Left err -> throwError' err
   TApp ma (THole mh s) t -> do
     -- If we didn't have this special case, we might remove this hole (in a
     -- recursive call), only to reintroduce it again with a different ID
