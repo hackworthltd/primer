@@ -21,7 +21,9 @@ import Primer.Core (
   GVarName,
   ID,
   Kind (KFun, KType),
-  LVarName (unLVarName),
+  LVarName,
+  LocalName (unLocalName),
+  TyVarName,
   Type' (..),
   defName,
   defType,
@@ -56,7 +58,7 @@ data Question a where
     GVarName ->
     ID ->
     Question
-      ( ( [(LVarName, Kind)]
+      ( ( [(TyVarName, Kind)]
         , [(LVarName, Type' ())]
         )
       , [(GVarName, Type' ())]
@@ -76,7 +78,7 @@ data Question a where
 variablesInScopeExpr ::
   Map GVarName Def ->
   Either ExprZ TypeZ ->
-  ([(LVarName, Kind)], [(LVarName, Type' ())], [(GVarName, Type' ())])
+  ([(TyVarName, Kind)], [(LVarName, Type' ())], [(GVarName, Type' ())])
 variablesInScopeExpr defs exprOrTy =
   let locals = either extractLocalsExprZ extractLocalsTypeZ exprOrTy
       globals = Map.elems $ fmap (\d -> (defName d, forgetMetadata $ defType d)) defs
@@ -130,7 +132,7 @@ getAvoidSet = \case
 getAvoidSetTy :: MonadReader Cxt m => TypeZip -> m (Set.Set Name)
 getAvoidSetTy z = do
   globals <- getGlobalNames
-  pure $ Set.map unLVarName (bindersAboveTy z <> bindersBelowTy z) <> globals
+  pure $ Set.map unLocalName (bindersAboveTy z <> bindersBelowTy z) <> globals
 
 -- We do not use Name.freshName as we don't want a global fresh counter
 -- (and we want to control the base name)

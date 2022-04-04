@@ -4,7 +4,7 @@ module Tests.Question where
 import Foreword hiding (diff)
 
 import Data.List (nub, nubBy)
-import Gen.Core.Raw (evalExprGen, genKind, genLVarName, genName, genType)
+import Gen.Core.Raw (evalExprGen, genKind, genName, genTyVarName, genType)
 import Hedgehog hiding (check)
 import Hedgehog.Classes
 import qualified Hedgehog.Gen as Gen
@@ -15,7 +15,9 @@ import Primer.Core (
   GVarName,
   GlobalName (baseName),
   Kind (KFun, KType),
-  LVarName (LVN, unLVarName),
+  LVarName,
+  LocalName (LocalName, unLocalName),
+  TyVarName,
   Type,
   Type' (TCon),
   qualifyName,
@@ -86,8 +88,8 @@ hprop_shadow_monoid_types = property $ do
 
 -- Generates data that could be contained in a ShadowedVarsTy, except
 -- it may have duplicated names
-genSTV' :: Gen [(LVarName, Kind)]
-genSTV' = evalExprGen 0 $ Gen.list (Range.linear 0 20) $ (,) <$> genLVarName <*> genKind
+genSTV' :: Gen [(TyVarName, Kind)]
+genSTV' = evalExprGen 0 $ Gen.list (Range.linear 0 20) $ (,) <$> genTyVarName <*> genKind
 
 genSTV :: Gen ShadowedVarsTy
 genSTV = N . nubBy ((==) `on` fst) <$> genSTV'
@@ -108,7 +110,7 @@ hprop_shadow_monoid_expr = property $ do
   label $ if lenIn == lenOut then "no shadowing" else "shadowing"
   -- We end up with fewer elements than we started with
   assert $ lenIn >= lenOut
-  let nonShNames = map (unLVarName . fst) tyV ++ map (unLVarName . fst) tmV ++ map (baseName . fst) glV
+  let nonShNames = map (unLocalName . fst) tyV ++ map (unLocalName . fst) tmV ++ map (baseName . fst) glV
   annotateShow nonShNames
   -- there are no duplicate names in the output
   assert $ nub nonShNames == nonShNames
@@ -120,15 +122,15 @@ hprop_shadow_monoid_expr = property $ do
   assert $ sort nonShNames == sort (nub $ map nameSTE' ns)
 
 data STE'
-  = TyVar (LVarName, Kind)
+  = TyVar (TyVarName, Kind)
   | TmVar (LVarName, Type' ())
   | Global (GVarName, Type' ())
   deriving (Show)
 
 nameSTE' :: STE' -> Name
 nameSTE' = \case
-  TyVar (n, _) -> unLVarName n
-  TmVar (n, _) -> unLVarName n
+  TyVar (n, _) -> unLocalName n
+  TmVar (n, _) -> unLocalName n
   Global (n, _) -> baseName n
 
 -- Generates data that could be contained in a ShadowedVarsExpr, except
@@ -138,8 +140,8 @@ genSTE' :: Gen [STE']
 genSTE' =
   let g = Gen.either_ genKind $ (,) <$> fmap forgetTypeIDs genType <*> Gen.bool
       toSTE' n = \case
-        Left k -> TyVar (LVN n, k)
-        Right (ty, False) -> TmVar (LVN n, ty)
+        Left k -> TyVar (LocalName n, k)
+        Right (ty, False) -> TmVar (LocalName n, ty)
         Right (ty, True) -> Global (qualifyName n, ty)
    in evalExprGen 0 $ Gen.list (Range.linear 0 20) $ toSTE' <$> genName <*> g
 
@@ -242,7 +244,7 @@ hasVariables expr path expected = do
       Nothing -> assertFailure ""
 
 -- | Like 'hasVariables' but for type variables inside terms also
-hasVariablesTyTm :: S Expr -> (ExprZ -> Maybe ExprZ) -> [(LVarName, Kind)] -> [(LVarName, Type' ())] -> Assertion
+hasVariablesTyTm :: S Expr -> (ExprZ -> Maybe ExprZ) -> [(TyVarName, Kind)] -> [(LVarName, Type' ())] -> Assertion
 hasVariablesTyTm expr path expectedTy expectedTm = do
   let e = fst $ create expr
   case runTypecheckTestM NoSmartHoles (synth e) of
@@ -255,7 +257,7 @@ hasVariablesTyTm expr path expectedTy expectedTm = do
       Nothing -> assertFailure ""
 
 -- | Like 'hasVariables' but for types
-hasVariablesType :: S Type -> (TypeZip -> Maybe TypeZip) -> [(LVarName, Kind)] -> Assertion
+hasVariablesType :: S Type -> (TypeZip -> Maybe TypeZip) -> [(TyVarName, Kind)] -> Assertion
 hasVariablesType ty path expected = do
   let t = fst $ create ty
   case path $ focus t of

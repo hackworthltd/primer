@@ -82,15 +82,15 @@ import Primer.Core (
   GlobalName (baseName),
   ID (..),
   Kind (..),
-  LVarName,
+  LocalName (unLocalName),
   Meta (..),
   PrimDef (..),
+  TmVarRef (GlobalVarRef, LocalVarRef),
   Type,
   Type' (..),
   TypeDef (..),
   TypeMeta,
   ValCon (..),
-  VarRef (GlobalVarRef, LocalVarRef),
   defAST,
   defName,
   defPrim,
@@ -113,7 +113,7 @@ import qualified Primer.Eval as Eval
 import Primer.EvalFull (Dir, EvalFullError (TimedOut), TerminationBound, evalFull)
 import Primer.JSON
 import Primer.Module (Module (Module, moduleDefs, moduleTypes))
-import Primer.Name (NameCounter, freshName)
+import Primer.Name (Name, NameCounter, freshName)
 import Primer.Primitives (allPrimDefs, allPrimTypeDefs)
 import Primer.Questions (
   Question (..),
@@ -796,7 +796,7 @@ copyPasteSig p (fromDefName, fromTyId) toDefName setup = do
           else mempty
   -- Delete unbound vars
   let cTgt = either target target c
-      f (m, n) = if Set.member n sharedScope then pure $ TVar m n else fresh <&> \i -> TEmptyHole (Meta i Nothing Nothing)
+      f (m, n) = if Set.member (unLocalName n) sharedScope then pure $ TVar m n else fresh <&> \i -> TEmptyHole (Meta i Nothing Nothing)
   cScoped <- traverseOf _freeVarsTy f cTgt
   freshCopy <- traverseOf (_typeMeta % _id) (const fresh) cScoped
   pasted <- case target tgt of
@@ -812,7 +812,7 @@ copyPasteSig p (fromDefName, fromTyId) toDefName setup = do
 -- may reuse the same names. However, we want to detect that as non-shared.
 -- Instead, we rely on fact that IDs are unique.
 -- We get the scope from the second argument, as that is where we are pasting.
-getSharedScopeTy :: Either TypeZ TypeZip -> Either TypeZ TypeZip -> Set.Set LVarName
+getSharedScopeTy :: Either TypeZ TypeZip -> Either TypeZ TypeZip -> Set.Set Name
 getSharedScopeTy l r =
   let idsR = case r of
         Right r' -> getID r' : foldAbove ((: []) . getID . current) r'
@@ -831,12 +831,12 @@ getSharedScopeTy l r =
       -- is an actual ancestor (rather than l being a decendent of r)
       inScope =
         rAncestor <&> \case
-          Left ra -> mwhen (rID /= getID ra) (getBoundHereTy $ target ra) <> bindersAboveTypeZ ra
-          Right ra -> mwhen (rID /= getID ra) (getBoundHereTy $ target ra) <> bindersAboveTy ra
+          Left ra -> mwhen (rID /= getID ra) (Set.map unLocalName $ getBoundHereTy $ target ra) <> bindersAboveTypeZ ra
+          Right ra -> Set.map unLocalName $ mwhen (rID /= getID ra) (getBoundHereTy $ target ra) <> bindersAboveTy ra
    in fromMaybe mempty inScope
 
 -- TODO: there is a lot of duplicated code for copy/paste, often due to types/terms being different...
-getSharedScope :: ExprZ -> ExprZ -> Set.Set LVarName
+getSharedScope :: ExprZ -> ExprZ -> Set.Set Name
 getSharedScope l r =
   let idsR = getID r : foldAbove ((: []) . getID . current) r
       idsL = getID l : foldAbove ((: []) . getID . current) l
@@ -925,7 +925,7 @@ copyPasteBody p (fromDefName, fromId) toDefName setup = do
               else mempty
       -- Delete unbound vars. TODO: we may want to let-bind them?
       let srcSubtree = either target target srcT
-          f (m, n) = if Set.member n sharedScope then pure $ TVar m n else fresh <&> \i -> TEmptyHole (Meta i Nothing Nothing)
+          f (m, n) = if Set.member (unLocalName n) sharedScope then pure $ TVar m n else fresh <&> \i -> TEmptyHole (Meta i Nothing Nothing)
       scopedCopy <- traverseOf _freeVarsTy f srcSubtree
       freshCopy <- traverseOf (_typeMeta % _id) (const fresh) scopedCopy
       pasted <- case target tgtT of
@@ -942,8 +942,8 @@ copyPasteBody p (fromDefName, fromId) toDefName setup = do
               then getSharedScope srcE tgtE
               else mempty
       -- Delete unbound vars. TODO: we may want to let-bind them?
-      let tm (m, n) = if Set.member n sharedScope then pure $ Var m $ LocalVarRef n else fresh <&> \i -> EmptyHole (Meta i Nothing Nothing)
-          ty (m, n) = if Set.member n sharedScope then pure $ TVar m n else fresh <&> \i -> TEmptyHole (Meta i Nothing Nothing)
+      let tm (m, n) = if Set.member (unLocalName n) sharedScope then pure $ Var m $ LocalVarRef n else fresh <&> \i -> EmptyHole (Meta i Nothing Nothing)
+          ty (m, n) = if Set.member (unLocalName n) sharedScope then pure $ TVar m n else fresh <&> \i -> TEmptyHole (Meta i Nothing Nothing)
       scopedCopy <- traverseOf _freeTyVars ty =<< traverseOf _freeTmVars tm (target srcE)
       freshCopy <- traverseOf (_exprTypeMeta % _id) (const fresh) =<< traverseOf (_exprMeta % _id) (const fresh) scopedCopy
       -- TODO: need to care about types and directions here (and write tests for this caring!)

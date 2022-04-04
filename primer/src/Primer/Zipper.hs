@@ -84,12 +84,14 @@ import Primer.Core (
   ExprMeta,
   HasID (..),
   ID,
-  LVarName,
+  LocalName (unLocalName),
+  TyVarName,
   Type,
   Type' (TForall),
   bindName,
   getID,
  )
+import Primer.Name (Name)
 
 -- | An ordinary zipper for 'Expr's
 type ExprZ = Zipper Expr Expr
@@ -372,21 +374,21 @@ foldBelow f z = f (target z) <> maybe mempty go (farthest left <$> down z)
     go z' = f (target z') <> maybe mempty go (farthest left <$> down z') <> maybe mempty go (right z')
 
 -- Gets all binders that scope over the focussed subtree
-bindersAbove :: ExprZ -> S.Set LVarName
+bindersAbove :: ExprZ -> S.Set Name
 bindersAbove = foldAbove getBoundHereUp
 
-bindersAboveTy :: TypeZip -> S.Set LVarName
+bindersAboveTy :: TypeZip -> S.Set TyVarName
 bindersAboveTy = foldAbove (getBoundHereTy . current)
 
 -- Note that we have two specialisations we care about:
 -- bindersBelowTy :: TypeZip -> S.Set Name
 -- bindersBelowTy :: Zipper (Type' One) (Type' One) -> S.Set Name
-bindersBelowTy :: Data a => Zipper (Type' a) (Type' a) -> S.Set LVarName
+bindersBelowTy :: Data a => Zipper (Type' a) (Type' a) -> S.Set TyVarName
 bindersBelowTy = foldBelow getBoundHereTy
 
-bindersAboveTypeZ :: TypeZ -> S.Set LVarName
+bindersAboveTypeZ :: TypeZ -> S.Set Name
 bindersAboveTypeZ t =
-  let moreGlobal = bindersAboveTy $ focusOnlyType t
+  let moreGlobal = S.map unLocalName $ bindersAboveTy $ focusOnlyType t
       e = unfocusType t
       -- Since nothing both contains a type and binds a variable, we
       -- know moreGlobalHere will be empty, but let's keep it around as future
@@ -396,40 +398,42 @@ bindersAboveTypeZ t =
    in moreGlobal <> moreGlobal'
 
 -- Get the names bound by this layer of an expression for a given child.
-getBoundHereUp :: (Eq a, Eq b) => FoldAbove (Expr' a b) -> S.Set LVarName
+getBoundHereUp :: (Eq a, Eq b) => FoldAbove (Expr' a b) -> S.Set Name
 getBoundHereUp e = getBoundHere (current e) (Just $ prior e)
 
 -- Get the names bound within the focussed subtree
-bindersBelow :: ExprZ -> S.Set LVarName
+bindersBelow :: ExprZ -> S.Set Name
 bindersBelow = foldBelow getBoundHereDn
 
 -- Get all names bound by this layer of an expression, for any child.
 -- E.g. for a "match" we get all vars bound by each branch.
-getBoundHereDn :: (Eq a, Eq b) => Expr' a b -> S.Set LVarName
+getBoundHereDn :: (Eq a, Eq b) => Expr' a b -> S.Set Name
 getBoundHereDn e = getBoundHere e Nothing
 
--- Get the names bound by this layer of an expression.
+-- Get the names bound by this layer of an expression (both term and type names)
 -- The second arg is the child we just came out of, if traversing up (and thus
 -- need to extract binders based on which case branch etc), and Nothing if
 -- traversing down (and want to get all binders regardless of branch).
-getBoundHere :: (Eq a, Eq b) => Expr' a b -> Maybe (Expr' a b) -> S.Set LVarName
+getBoundHere :: (Eq a, Eq b) => Expr' a b -> Maybe (Expr' a b) -> S.Set Name
 getBoundHere e prev = case e of
-  Lam _ v _ -> S.singleton v
-  LAM _ tv _ -> S.singleton tv
+  Lam _ v _ -> singleton v
+  LAM _ tv _ -> singleton tv
   Let _ v _ b ->
     if maybe True (== b) prev
-      then S.singleton v
+      then singleton v
       else mempty
-  Letrec _ v _ _ _ -> S.singleton v
-  LetType _ v _ _ -> S.singleton v
+  Letrec _ v _ _ _ -> singleton v
+  LetType _ v _ _ -> singleton v
   Case _ _ bs ->
-    let binderss = map (\(CaseBranch _ ns rhs) -> (rhs, S.fromList $ map bindName ns)) bs
+    let binderss = map (\(CaseBranch _ ns rhs) -> (rhs, S.fromList $ map (unLocalName . bindName) ns)) bs
      in case prev of
           Nothing -> S.unions $ map snd binderss
           Just p -> S.unions $ map (\(b, binders) -> if b == p then binders else mempty) binderss
   _ -> mempty
+  where
+    singleton = S.singleton . unLocalName
 
-getBoundHereTy :: Type' a -> S.Set LVarName
+getBoundHereTy :: Type' a -> S.Set TyVarName
 getBoundHereTy = \case
   TForall _ v _ _ -> S.singleton v
   _ -> mempty
