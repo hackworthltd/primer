@@ -26,7 +26,7 @@ import Data.Set.Optics (setOf)
 import Data.Tuple.Extra (thd3)
 import GHC.Err (error)
 import Numeric.Natural (Natural)
-import Optics (Fold, anyOf, getting, set, summing, (%), _1, _2)
+import Optics (Fold, anyOf, getting, set, summing, (%), _2, _3)
 import Primer.Core (
   ASTDef (..),
   ASTTypeDef (..),
@@ -109,7 +109,7 @@ data Redex
   | -- x  ~>  letrec x:T=t in t:T   where we are inside the scope of a  letrec x : T = t in ...
     InlineLetrec LVarName Expr Type
   | -- let(rec/type) x = e in t  ~>  t  if x does not appear in t
-    ElideLet LVarName Local Expr
+    ElideLet Local Expr
   | -- (λx.t : S -> T) s  ~>  let x = s:S in t : T
     Beta LVarName Expr Type Type Expr
   | -- (Λa.t : ∀b.T) S  ~>  lettype b = S in (lettype a = S in t) : T
@@ -196,16 +196,22 @@ data RedexWithContext
   | RType TypeZ RedexType
 
 data Local
-  = LLet Expr
-  | LLetrec Expr Type
-  | LLetType Type
+  = LLet LVarName Expr
+  | LLetrec LVarName Expr Type
+  | LLetType LVarName Type
   deriving (Generic)
+
+localName :: Local -> LVarName
+localName = \case
+  LLet n _ -> n
+  LLetrec n _ _ -> n
+  LLetType n _ -> n
 
 _freeVarsLocal :: Fold Local LVarName
 _freeVarsLocal =
-  #_LLet % _freeVars % _2
-    `summing` #_LLetrec % (_1 % _freeVars % _2 `summing` _2 % getting _freeVarsTy % _2)
-    `summing` #_LLetType % getting _freeVarsTy % _2
+  #_LLet % _2 % _freeVars % _2
+    `summing` #_LLetrec % (_2 % _freeVars % _2 `summing` _3 % getting _freeVarsTy % _2)
+    `summing` #_LLetType % _2 % getting _freeVarsTy % _2
 
 data Dir = Syn | Chk
   deriving (Eq, Show, Generic)
@@ -223,12 +229,12 @@ focusDir dirIfTop ez = case up ez of
     Hole _ _ -> Syn
     _ -> Chk
 
-viewLet :: ExprZ -> Maybe (LVarName, Local, ExprZ)
+viewLet :: ExprZ -> Maybe (Local, ExprZ)
 viewLet ez = case target ez of
   -- the movements return Maybe but will obviously not fail in this scenario
-  Let _ x e _t -> (x,LLet e,) <$> (right =<< down ez)
-  Letrec _ x e ty _t -> (x,LLetrec e ty,) <$> (right =<< down ez)
-  LetType _ a ty _t -> (a,LLetType ty,) <$> down ez
+  Let _ x e _t -> (LLet x e,) <$> (right =<< down ez)
+  Letrec _ x e ty _t -> (LLetrec x e ty,) <$> (right =<< down ez)
+  LetType _ a ty _t -> (LLetType a ty,) <$> down ez
   _ -> Nothing
 
 viewCaseRedex :: (MonadFresh ID m, MonadFresh NameCounter m) => M.Map TyConName TypeDef -> Expr -> Maybe (m Redex)
@@ -329,24 +335,24 @@ findRedex tydefs globals dir = go . focus
         let children = z' : unfoldr (fmap (\x -> (x, x)) . right) z'
          in foldr (\c acc -> f (getBoundHere (target z) (Just $ target c)) c <<||>> acc) Nothing children
     go ez
-      | Just (n, l, bz) <- viewLet ez = pure <$> goLet n l bz
+      | Just (l, bz) <- viewLet ez = pure <$> goLet l bz
       | Just mr <- viewRedex tydefs globals (focusDir dir ez) (target ez) = Just $ RExpr ez <$> mr
       | otherwise = eachChild ez go
     -- This should always return Just
     -- It finds either this let is redundant, or somewhere to substitute it
     -- or something inside that we need to rename to unblock substitution
-    goLet :: LVarName -> Local -> ExprZ -> Maybe RedexWithContext
-    goLet n l ez =
-      goSubst n l ez
-        <<||>> (up ez <&> \letz -> RExpr letz $ ElideLet n l (target ez))
-    goSubst :: LVarName -> Local -> ExprZ -> Maybe RedexWithContext
-    goSubst n l ez = case target ez of
+    goLet :: Local -> ExprZ -> Maybe RedexWithContext
+    goLet l ez =
+      goSubst l ez
+        <<||>> (up ez <&> \letz -> RExpr letz $ ElideLet l (target ez))
+    goSubst :: Local -> ExprZ -> Maybe RedexWithContext
+    goSubst l ez = case target ez of
       -- We've found one
-      Var _ (LocalVarRef x) | x == n -> case l of
-        LLet le -> pure $ RExpr ez $ InlineLet n le
-        LLetrec le lt -> pure $ RExpr ez $ InlineLetrec n le lt
+      Var _ (LocalVarRef x) | x == localName l -> case l of
+        LLet n le -> pure $ RExpr ez $ InlineLet n le
+        LLetrec n le lt -> pure $ RExpr ez $ InlineLetrec n le lt
         -- This case should have caught by the TC: a term var is bound by a lettype
-        LLetType _ -> Nothing
+        LLetType _ _ -> Nothing
       -- We have found something like
       --   let x=y in let y=z in t
       -- to substitute the 'x' inside 't' we would need to rename the 'let y'
@@ -360,14 +366,17 @@ findRedex tydefs globals dir = go . focus
       -- as we prefer to elide the outer. This is important to avoid an growing
       -- expansion when evaluating letrec x = x:T in x.
       _
-        | Just (m, l', bz') <- viewLet ez, m /= n, anyOf _freeVarsLocal (== m) l -> goLet m l' bz'
+        | Just (l', bz') <- viewLet ez
+        , localName l' /= localName l
+        , anyOf _freeVarsLocal (== localName l') l ->
+            goLet l' bz'
         -- Otherwise recurse into subexpressions (including let bindings) and types (if appropriate)
-        | LLetType t <- l -> eachChildWithBinding ez rec <<||>> (focusType ez >>= goSubstTy n t)
+        | LLetType n t <- l -> eachChildWithBinding ez rec <<||>> (focusType ez >>= goSubstTy n t)
         | otherwise -> eachChildWithBinding ez rec
       where
         rec bs z
           -- Don't go under binding of 'n': those won't be the 'n's we are looking for
-          | n `S.member` bs = Nothing
+          | localName l `S.member` bs = Nothing
           -- If we are substituting x->y in e.g. λy.x, we rename the y to avoid capture
           -- This may recompute the FV set of l quite a lot. We could be more efficient here!
           | fvs <- setOf _freeVarsLocal l
@@ -379,7 +388,7 @@ findRedex tydefs globals dir = go . focus
                 -- We should replace this with a proper exception. See:
                 -- https://github.com/hackworthltd/primer/issues/148
                 e -> error $ "Internal Error: something other than Lam/LAM/Case was a binding: " ++ show e
-          | otherwise = goSubst n l z
+          | otherwise = goSubst l z
     goSubstTy :: LVarName -> Type -> TypeZ -> Maybe RedexWithContext
     goSubstTy n t tz = case target tz of
       -- found one
@@ -402,7 +411,7 @@ runRedex = \case
   InlineLet _ e -> regenerateExprIDs e
   InlineLetrec x e t -> letrec x (regenerateExprIDs e) (regenerateTypeIDs t) $ ann (regenerateExprIDs e) (regenerateTypeIDs t)
   -- let(rec/type) x = e in t  ~>  t  if e does not appear in t
-  ElideLet _ _ t -> pure t
+  ElideLet _ t -> pure t
   -- (λx.t : S -> T) s  ~>  let x = s:S in t : T
   Beta x t tyS tyT s -> let_ x (pure s `ann` pure tyS) (pure t) `ann` pure tyT
   -- (Λa.t : ∀b.T) S  ~>  lettype b = S in (lettype a = S in t) : T
