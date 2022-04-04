@@ -63,7 +63,7 @@ import Primer.Core (
   _typeMeta,
  )
 import Primer.Core.DSL (ann, hole, letType, let_, tEmptyHole)
-import Primer.Core.Transform (removeAnn, renameLocalVar, unfoldAPP, unfoldApp)
+import Primer.Core.Transform (removeAnn, renameLocalVar, renameTyVarExpr, unfoldAPP, unfoldApp)
 import Primer.Core.Utils (concreteTy, freeVars, freeVarsTy)
 import Primer.JSON
 import Primer.Name (unName, unsafeMkName)
@@ -403,7 +403,7 @@ annOf = view (position @2)
 annotate :: Maybe TypeCache -> Expr -> Expr
 annotate = set (position @1 % position @2)
 
--- | This function helps us to convert a λ or Λ application into a let binding without causing
+-- | This function helps us to convert a λ application into a let binding without causing
 -- variable capture. It takes as arguments:
 -- - the name of the lambda binding
 -- - the free variables in the application argument
@@ -417,15 +417,28 @@ annotate = set (position @1 % position @2)
 --
 -- See 'Tests.Eval.unit_tryReduce_beta_name_clash' for an example of where this is useful.
 makeSafeLetBinding :: LVarName -> Set LVarName -> Expr -> (LVarName, Expr)
-makeSafeLetBinding name others body | Set.notMember name others = (name, body)
-makeSafeLetBinding name others body = go 0
+makeSafeLetBinding = makeSafeLetBinding' renameLocalVar
+
+-- | As 'makeSafeLetBinding', but for Λ applications
+makeSafeLetTypeBinding :: LVarName -> Set LVarName -> Expr -> (LVarName, Expr)
+makeSafeLetTypeBinding = makeSafeLetBinding' renameTyVarExpr
+
+-- Helper for makeSafeLet{,Type}Binding
+makeSafeLetBinding' ::
+  (LVarName -> LVarName -> Expr -> Maybe Expr) ->
+  LVarName ->
+  Set LVarName ->
+  Expr ->
+  (LVarName, Expr)
+makeSafeLetBinding' _ name others body | Set.notMember name others = (name, body)
+makeSafeLetBinding' rename name others body = go 0
   where
     go :: Int -> (LVarName, Expr)
     go n =
       let newName = LVN $ unsafeMkName $ unName (unLVarName name) <> show n
        in if Set.member newName others
             then go (n + 1)
-            else case renameLocalVar name newName body of
+            else case rename name newName body of
               Just body' -> (newName, body')
               Nothing -> go (n + 1)
 
@@ -547,7 +560,7 @@ tryReduceExpr globals locals = \case
   -- Beta reduction of big lambda (no annotation)
   -- (Λx. e) t ==> let type x = t in e
   APP mAPP lam@(LAM _ x body) arg -> do
-    let (x', body') = makeSafeLetBinding x (freeVarsTy arg) body
+    let (x', body') = makeSafeLetTypeBinding x (freeVarsTy arg) body
     expr <- annotate (annOf mAPP) <$> letType x' (pure arg) (pure body')
     pure
       ( expr
@@ -574,7 +587,7 @@ tryReduceExpr globals locals = \case
   -- So this is what we actually do:
   --   (Λx. e : ∀a : K. B) t ==> let type x = t in e
   APP mAPP annotation@(Ann _ lam@(LAM _ x body) ty) t -> do
-    let (x', body') = makeSafeLetBinding x (freeVarsTy t) body
+    let (x', body') = makeSafeLetTypeBinding x (freeVarsTy t) body
     case ty of
       (TForall _ _ k b) -> do
         expr <- annotate (annOf mAPP) <$> letType x' (pure t) (pure body')
