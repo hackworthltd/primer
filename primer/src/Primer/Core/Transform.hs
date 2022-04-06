@@ -1,5 +1,6 @@
 module Primer.Core.Transform (
   renameVar,
+  renameLocalVar,
   renameTyVar,
   renameTyVarExpr,
   unfoldApp,
@@ -13,9 +14,8 @@ import Foreword
 import Data.Data (Data)
 import Data.Generics.Uniplate.Data (descendM)
 import qualified Data.List.NonEmpty as NE
-import Optics ((.~), (^.))
-import Primer.Core (CaseBranch' (..), Expr' (..), Type' (..), bindName, varRefName)
-import Primer.Name (Name)
+import Optics ((^.))
+import Primer.Core (CaseBranch' (..), Expr' (..), LVarName (unLVarName), Type' (..), VarRef (..), bindName, varRefName)
 
 -- AST transformations.
 -- This module contains global transformations on expressions and types, in
@@ -24,33 +24,54 @@ import Primer.Name (Name)
 -- | Attempt to replace all free ocurrences of @x@ in @e@ with @y@
 -- Returns 'Nothing' if replacement could result in variable capture.
 -- See the tests for explanation and examples.
-renameVar :: (Data a, Data b) => Name -> Name -> Expr' a b -> Maybe (Expr' a b)
-renameVar x y = \case
-  Lam m v e
-    | v == x -> pure $ Lam m v e
-    | v == y -> Nothing
-    | otherwise -> Lam m v <$> renameVar x y e
-  Let m v e1 e2
-    | v == x -> pure $ Let m v e1 e2
-    | v == y -> Nothing
-    | otherwise -> Let m v <$> renameVar x y e1 <*> renameVar x y e2
-  Case m scrut branches -> Case m <$> renameVar x y scrut <*> mapM renameBranch branches
-    where
-      renameBranch b@(CaseBranch con termargs rhs)
-        | x `elem` bindingNames b = pure b
-        | y `elem` bindingNames b = Nothing
-        | otherwise = CaseBranch con termargs <$> renameVar x y rhs
-      bindingNames (CaseBranch _ bs _) = map bindName bs
-  Var m v
-    | v ^. varRefName == x -> pure $ Var m $ v & varRefName .~ y
-    | v ^. varRefName == y -> Nothing
-    | otherwise -> pure $ Var m v
-  e -> descendM (renameVar x y) e
+renameVar :: (Data a, Data b) => VarRef -> VarRef -> Expr' a b -> Maybe (Expr' a b)
+renameVar x y =
+  let xn = x ^. varRefName
+      yn = y ^. varRefName
+   in \case
+        Lam m v e
+          | LocalVarRef v == x -> pure $ Lam m v e
+          | LocalVarRef v == y -> Nothing
+          -- If we have the same Name, but different local/global scopes
+          -- also bail out as something has gone wrong.
+          | unLVarName v == xn || unLVarName v == yn -> Nothing
+          | otherwise -> Lam m v <$> renameVar x y e
+        Let m v e1 e2
+          | LocalVarRef v == x -> pure $ Let m v e1 e2
+          | LocalVarRef v == y -> Nothing
+          -- If we have the same Name, but different local/global scopes
+          -- also bail out as something has gone wrong.
+          | unLVarName v == xn || unLVarName v == yn -> Nothing
+          | otherwise -> Let m v <$> renameVar x y e1 <*> renameVar x y e2
+        Case m scrut branches -> Case m <$> renameVar x y scrut <*> mapM renameBranch branches
+          where
+            renameBranch b@(CaseBranch con termargs rhs)
+              | LocalVarRef lx <- x, lx `elem` bindingNames b = pure b
+              | LocalVarRef ly <- y, ly `elem` bindingNames b = Nothing
+              -- If we have the same Name, but different local/global scopes
+              -- also bail out as something has gone wrong.
+              | bns <- map unLVarName $ bindingNames b
+              , xn `elem` bns || yn `elem` bns =
+                  Nothing
+              | otherwise = CaseBranch con termargs <$> renameVar x y rhs
+            bindingNames (CaseBranch _ bs _) = map bindName bs
+        Var m v
+          | v == x -> pure $ Var m y
+          | v == y -> Nothing
+          -- If we have the same Name, but different local/global scopes
+          -- also bail out as something has gone wrong.
+          | v ^. varRefName == xn || v ^. varRefName == yn -> Nothing
+          | otherwise -> pure $ Var m v
+        e -> descendM (renameVar x y) e
+
+-- | As 'renameVar', but specialised to local variables
+renameLocalVar :: (Data a, Data b) => LVarName -> LVarName -> Expr' a b -> Maybe (Expr' a b)
+renameLocalVar x y = renameVar (LocalVarRef x) (LocalVarRef y)
 
 -- | Attempt to replace all free ocurrences of @x@ in @t@ with @y@
 -- Returns 'Nothing' if replacement could result in variable capture.
 -- See the tests for explanation and examples.
-renameTyVar :: Data a => Name -> Name -> Type' a -> Maybe (Type' a)
+renameTyVar :: Data a => LVarName -> LVarName -> Type' a -> Maybe (Type' a)
 -- We cannot use substTy to implement renaming, as that restricts to b~(), so as to not
 -- duplicate metadata. But for renaming, we know that will not happen.
 renameTyVar x y = \case
@@ -67,7 +88,7 @@ renameTyVar x y = \case
 -- | Attempt to replace all free ocurrences of @x@ in some type inside @e@ with @y@
 -- Returns 'Nothing' if replacement could result in variable capture.
 -- See the tests for explanation and examples.
-renameTyVarExpr :: (Data a, Data b) => Name -> Name -> Expr' a b -> Maybe (Expr' a b)
+renameTyVarExpr :: (Data a, Data b) => LVarName -> LVarName -> Expr' a b -> Maybe (Expr' a b)
 renameTyVarExpr x y = \case
   LAM m v e
     | v == x -> pure $ LAM m v e

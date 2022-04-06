@@ -9,6 +9,8 @@ module Gen.Core.Raw (
   evalExprGen,
   genID,
   genName,
+  genLVarName,
+  genTyConName,
   genKind,
   genType,
   genExpr,
@@ -26,11 +28,15 @@ import Primer.Core (
   Expr' (..),
   ID (..),
   Kind (..),
+  LVarName (LVN),
   Meta (..),
   PrimCon (..),
+  TyConName,
   Type,
   Type' (..),
+  ValConName,
   VarRef (..),
+  qualifyName,
  )
 import Primer.Name (Name, unsafeMkName)
 
@@ -75,35 +81,38 @@ genApp = App <$> genMeta <*> genExpr <*> genExpr
 genAPP :: ExprGen Expr
 genAPP = APP <$> genMeta <*> genExpr <*> genType
 
+genValConName :: ExprGen ValConName
+genValConName = qualifyName <$> genName
+
 genCon :: ExprGen Expr
-genCon = Con <$> genMeta <*> genName
+genCon = Con <$> genMeta <*> genValConName
 
 genLam :: ExprGen Expr
-genLam = Lam <$> genMeta <*> genName <*> genExpr
+genLam = Lam <$> genMeta <*> genLVarName <*> genExpr
 
 genLAM :: ExprGen Expr
-genLAM = LAM <$> genMeta <*> genName <*> genExpr
+genLAM = LAM <$> genMeta <*> genLVarName <*> genExpr
 
 genLocalVar :: ExprGen Expr
-genLocalVar = Var <$> genMeta <*> (LocalVarRef <$> genName)
+genLocalVar = Var <$> genMeta <*> (LocalVarRef <$> genLVarName)
 
 genGlobalVar :: ExprGen Expr
-genGlobalVar = Var <$> genMeta <*> (GlobalVarRef <$> genName)
+genGlobalVar = Var <$> genMeta <*> (GlobalVarRef . qualifyName <$> genName)
 
 genLet :: ExprGen Expr
-genLet = Let <$> genMeta <*> genName <*> genExpr <*> genExpr
+genLet = Let <$> genMeta <*> genLVarName <*> genExpr <*> genExpr
 
 genLetType :: ExprGen Expr
-genLetType = LetType <$> genMeta <*> genName <*> genType <*> genExpr
+genLetType = LetType <$> genMeta <*> genLVarName <*> genType <*> genExpr
 
 genLetrec :: ExprGen Expr
-genLetrec = Letrec <$> genMeta <*> genName <*> genExpr <*> genType <*> genExpr
+genLetrec = Letrec <$> genMeta <*> genLVarName <*> genExpr <*> genType <*> genExpr
 
 genCase :: ExprGen Expr
 genCase = Case <$> genMeta <*> genExpr <*> Gen.list (Range.linear 0 5) genBranch
   where
-    genBranch = CaseBranch <$> genName <*> Gen.list (Range.linear 0 5) genBind <*> genExpr
-    genBind = Bind <$> genMeta <*> genName
+    genBranch = CaseBranch <$> genValConName <*> Gen.list (Range.linear 0 5) genBind <*> genExpr
+    genBind = Bind <$> genMeta <*> genLVarName
 
 genPrim :: ExprGen Expr
 genPrim = PrimCon <$> genMeta <*> genPrimCon
@@ -126,14 +135,17 @@ genType =
   Gen.recursive
     Gen.choice
     [ TEmptyHole <$> genMeta
-    , TCon <$> genMeta <*> genName
-    , TVar <$> genMeta <*> genName
+    , TCon <$> genMeta <*> genTyConName
+    , TVar <$> genMeta <*> genLVarName
     ]
     [ THole <$> genMeta <*> genType
     , TFun <$> genMeta <*> genType <*> genType
     , TApp <$> genMeta <*> genType <*> genType
-    , TForall <$> genMeta <*> genName <*> genKind <*> genType
+    , TForall <$> genMeta <*> genLVarName <*> genKind <*> genType
     ]
+
+genTyConName :: ExprGen TyConName
+genTyConName = qualifyName <$> genName
 
 genKind :: ExprGen Kind
 genKind = Gen.recursive Gen.choice [pure KType, pure KHole] [KFun <$> genKind <*> genKind]
@@ -149,3 +161,6 @@ genID = do
 
 genName :: ExprGen Name
 genName = unsafeMkName <$> Gen.text (Range.linear 1 10) Gen.alpha
+
+genLVarName :: ExprGen LVarName
+genLVarName = LVN <$> genName

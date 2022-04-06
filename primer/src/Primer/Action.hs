@@ -40,17 +40,22 @@ import Primer.Core (
   Def (..),
   Expr,
   Expr' (..),
+  GVarName,
   HasMetadata (_metadata),
   ID,
+  LVarName (LVN, unLVarName),
   Type,
   Type' (..),
   TypeCache (..),
   TypeCacheBoth (..),
   TypeDef (..),
+  ValConName,
   VarRef (..),
+  baseName,
   bindName,
   defName,
   getID,
+  unsafeMkGlobalName,
   valConArgs,
   valConName,
   valConType,
@@ -77,7 +82,7 @@ import Primer.Core.DSL (
   tvar,
   var,
  )
-import Primer.Core.Transform (renameTyVar, renameTyVarExpr, renameVar)
+import Primer.Core.Transform (renameLocalVar, renameTyVar, renameTyVarExpr)
 import Primer.Core.Utils (forgetTypeIDs, generateTypeIDs)
 import Primer.JSON
 import Primer.Module (Module (moduleDefs, moduleTypes))
@@ -232,7 +237,7 @@ uniquifyDefName name' defs =
        in go (1 :: Int)
   where
     avoid :: [Text]
-    avoid = Map.elems $ map (unName . defName) defs
+    avoid = Map.elems $ map (unName . baseName . defName) defs
 
 -- | Core actions.
 --  These describe edits to the core AST.
@@ -319,7 +324,7 @@ data Action
   deriving (FromJSON, ToJSON) via VJSON Action
 
 -- | Core movements
-data Movement = Child1 | Child2 | Parent | Branch Name
+data Movement = Child1 | Child2 | Parent | Branch ValConName
   deriving (Eq, Show, Generic)
   deriving (FromJSON, ToJSON) via VJSON Movement
 
@@ -334,7 +339,7 @@ data ActionError
       -- ^ the error message
   | InternalFailure Text
   | IDNotFound ID
-  | UnknownDef Name
+  | UnknownDef GVarName
   | NeedEmptyHole Action Expr
   | NeedNonEmptyHole Action Expr
   | NeedAnn Action Expr
@@ -364,13 +369,13 @@ data ActionError
 -- These actions move around the whole program or modify definitions
 data ProgAction
   = -- | Move the cursor to the definition with the given Name
-    MoveToDef Name
+    MoveToDef GVarName
   | -- | Rename the definition with the given Name
-    RenameDef Name Text
+    RenameDef GVarName Text
   | -- | Create a new definition
     CreateDef (Maybe Text)
   | -- | Delete a new definition
-    DeleteDef Name
+    DeleteDef GVarName
   | -- | Add a new type definition
     AddTypeDef ASTTypeDef
   | -- | Execute a sequence of actions on the body of the definition
@@ -389,8 +394,8 @@ data ProgAction
     --   whilst letting the backend avoid remembering the 'copied' thing in some state.
     --   The cursor is left on the root of the inserted subtree, which may or may not be inside a hole and/or annotation.
     --   At the start of the actions, the cursor starts at the root of the definition's type/expression
-    CopyPasteSig (Name, ID) [Action]
-  | CopyPasteBody (Name, ID) [Action]
+    CopyPasteSig (GVarName, ID) [Action]
+  | CopyPasteBody (GVarName, ID) [Action]
   deriving (Eq, Show, Generic)
   deriving (FromJSON, ToJSON) via VJSON ProgAction
 
@@ -472,7 +477,7 @@ applyActionsToBody ::
   (MonadFresh ID m, MonadFresh NameCounter m) =>
   SmartHoles ->
   [TypeDef] ->
-  Map Name Def ->
+  Map GVarName Def ->
   ASTDef ->
   [Action] ->
   m (Either ActionError (ASTDef, Loc))
@@ -781,7 +786,7 @@ constructLam mx ze = do
   -- If a name is provided, use that. Otherwise, generate a fresh one.
   x <- case mx of
     Nothing -> mkFreshName ze
-    Just x -> pure (unsafeMkName x)
+    Just x -> pure (LVN $ unsafeMkName x)
   unless (isFresh x (target ze)) $ throwError NameCapture
   result <- flip replace ze <$> lam x (pure (target ze))
   moveExpr Child1 result
@@ -792,14 +797,14 @@ constructLAM mx ze = do
   -- If a name is provided, use that. Otherwise, generate a fresh one.
   x <- case mx of
     Nothing -> mkFreshName ze
-    Just x -> pure (unsafeMkName x)
+    Just x -> pure (LVN $ unsafeMkName x)
   unless (isFresh x (target ze)) $ throwError NameCapture
   result <- flip replace ze <$> lAM x (pure (target ze))
   moveExpr Child1 result
 
 constructCon :: ActionM m => Text -> ExprZ -> m ExprZ
 constructCon c ze = case target ze of
-  EmptyHole{} -> flip replace ze <$> con (unsafeMkName c)
+  EmptyHole{} -> flip replace ze <$> con (unsafeMkGlobalName c)
   e -> throwError $ NeedEmptyHole (ConstructCon c) e
 
 constructSatCon :: ActionM m => Text -> ExprZ -> m ExprZ
@@ -813,20 +818,20 @@ constructSatCon c ze = case target ze of
     flip replace ze <$> mkSaturatedApplication (con n) ctorType
   e -> throwError $ NeedEmptyHole (ConstructSaturatedCon c) e
   where
-    n = unsafeMkName c
+    n = unsafeMkGlobalName c
 
 getConstructorType ::
   MonadReader TC.Cxt m =>
-  Name ->
+  ValConName ->
   m (Either Text TC.Type)
 getConstructorType c =
   asks (flip lookupConstructor c . TC.typeDefs) <&> \case
     Just (vc, td) -> Right $ valConType td vc
-    Nothing -> Left $ "Could not find constructor " <> unName c
+    Nothing -> Left $ "Could not find constructor " <> show c
 
 constructRefinedCon :: ActionM m => Text -> ExprZ -> m ExprZ
 constructRefinedCon c ze = do
-  let n = unsafeMkName c
+  let n = unsafeMkGlobalName c
   cTy <-
     getConstructorType n >>= \case
       Left err -> throwError $ RefineError $ Left err
@@ -847,7 +852,7 @@ constructLet mx ze = case target ze of
     -- If a name is provided, use that. Otherwise, generate a fresh one.
     x <- case mx of
       Nothing -> mkFreshName ze
-      Just x -> pure (unsafeMkName x)
+      Just x -> pure (LVN $ unsafeMkName x)
     flip replace ze <$> let_ x emptyHole emptyHole
   e -> throwError $ NeedEmptyHole (ConstructLet mx) e
 
@@ -857,7 +862,7 @@ constructLetrec mx ze = case target ze of
     -- If a name is provided, use that. Otherwise, generate a fresh one.
     x <- case mx of
       Nothing -> mkFreshName ze
-      Just x -> pure (unsafeMkName x)
+      Just x -> pure (LVN $ unsafeMkName x)
     flip replace ze <$> letrec x emptyHole tEmptyHole emptyHole
   e -> throwError $ NeedEmptyHole (ConstructLetrec mx) e
 
@@ -919,10 +924,10 @@ constructCase ze = do
 renameLam :: ActionM m => Text -> ExprZ -> m ExprZ
 renameLam y ze = case target ze of
   Lam m x e
-    | unName x == y -> pure ze
+    | unName (unLVarName x) == y -> pure ze
     | otherwise -> do
-        let y' = unsafeMkName y
-        case renameVar x y' e of
+        let y' = LVN $ unsafeMkName y
+        case renameLocalVar x y' e of
           Just e' -> pure $ replace (Lam m y' e') ze
           Nothing ->
             throwError NameCapture
@@ -933,9 +938,9 @@ renameLam y ze = case target ze of
 renameLAM :: ActionM m => Text -> ExprZ -> m ExprZ
 renameLAM b ze = case target ze of
   LAM m a e
-    | unName a == b -> pure ze
+    | unName (unLVarName a) == b -> pure ze
     | otherwise -> do
-        let b' = unsafeMkName b
+        let b' = LVN $ unsafeMkName b
         case renameTyVarExpr a b' e of
           Just e' -> pure $ replace (LAM m b' e') ze
           Nothing ->
@@ -947,23 +952,23 @@ renameLAM b ze = case target ze of
 renameLet :: ActionM m => Text -> ExprZ -> m ExprZ
 renameLet y ze = case target ze of
   Let m x e1 e2
-    | unName x == y -> pure ze
+    | unName (unLVarName x) == y -> pure ze
     | otherwise -> do
-        let y' = unsafeMkName y
+        let y' = LVN $ unsafeMkName y
         (e1', e2') <- doRename x y' e1 e2
         pure $ replace (Let m y' e1' e2') ze
   Letrec m x e1 t1 e2
-    | unName x == y -> pure ze
+    | unName (unLVarName x) == y -> pure ze
     | otherwise -> do
-        let y' = unsafeMkName y
+        let y' = LVN $ unsafeMkName y
         (e1', e2') <- doRename x y' e1 e2
         pure $ replace (Letrec m y' e1' t1 e2') ze
   _ ->
     throwError $ CustomFailure (RenameLet y) "the focused expression is not a let"
   where
     -- The renaming logic for lets and letrecs is identical, so we handle both here
-    doRename :: ActionM m => Name -> Name -> Expr -> Expr -> m (Expr, Expr)
-    doRename fromName toName e1 e2 = case (renameVar fromName toName e1, renameVar fromName toName e2) of
+    doRename :: ActionM m => LVarName -> LVarName -> Expr -> Expr -> m (Expr, Expr)
+    doRename fromName toName e1 e2 = case (renameLocalVar fromName toName e1, renameLocalVar fromName toName e2) of
       (Just e1', Just e2') -> pure (e1', e2')
       (Nothing, _) -> throwError NameCapture
       (_, Nothing) -> throwError NameCapture
@@ -972,7 +977,7 @@ renameCaseBinding :: forall m. ActionM m => Text -> CaseBindZ -> m CaseBindZ
 renameCaseBinding y caseBind = updateCaseBind caseBind $ \bind bindings rhs -> do
   let failure :: Text -> m a
       failure = throwError . CustomFailure (RenameCaseBinding y)
-  let y' = unsafeMkName y
+  let y' = LVN $ unsafeMkName y
 
   -- Check that 'y' doesn't clash with any of the other branch bindings
   let otherBindings = delete bind bindings
@@ -983,7 +988,7 @@ renameCaseBinding y caseBind = updateCaseBind caseBind $ \bind bindings rhs -> d
         <> " because it clashes with another binding in the case pattern"
 
   -- Apply the rename to the rhs
-  rhs' <- case renameVar (bindName bind) y' rhs of
+  rhs' <- case renameLocalVar (bindName bind) y' rhs of
     Just e -> pure e
     Nothing ->
       failure $
@@ -992,7 +997,7 @@ renameCaseBinding y caseBind = updateCaseBind caseBind $ \bind bindings rhs -> d
           <> " because it clashes with another variable bound in the right hand side of the case branch"
 
   -- Rename the binding
-  let bind' = set (typed @Name) y' bind
+  let bind' = set (typed @LVarName) y' bind
 
   -- Update the outer expression with these changes
   pure (bind', rhs')
@@ -1010,19 +1015,20 @@ constructArrowR zt = flip replace zt <$> tfun tEmptyHole (pure (target zt))
 
 constructTCon :: ActionM m => Text -> TypeZ -> m TypeZ
 constructTCon c zt = case target zt of
-  TEmptyHole{} -> flip replace zt <$> tcon (unsafeMkName c)
+  TEmptyHole{} -> flip replace zt <$> tcon (unsafeMkGlobalName c)
   _ -> throwError $ CustomFailure (ConstructTCon c) "can only construct tcon in hole"
 
 constructTVar :: ActionM m => Text -> TypeZ -> m TypeZ
 constructTVar x ast = case target ast of
-  TEmptyHole{} -> flip replace ast <$> tvar (unsafeMkName x)
+  TEmptyHole{} -> flip replace ast <$> tvar (LVN $ unsafeMkName x)
   _ -> throwError $ CustomFailure (ConstructTVar x) "can only construct tvar in hole"
 
 constructTForall :: ActionM m => Maybe Text -> TypeZ -> m TypeZ
 constructTForall mx zt = do
-  x <- case mx of
-    Nothing -> mkFreshNameTy zt
-    Just x -> pure (unsafeMkName x)
+  x <-
+    LVN <$> case mx of
+      Nothing -> mkFreshNameTy zt
+      Just x -> pure (unsafeMkName x)
   unless (isFreshTy x $ target zt) $ throwError NameCapture
   flip replace zt <$> tforall x C.KType (pure (target zt))
 
@@ -1033,9 +1039,9 @@ constructTApp zt = flip replace zt <$> tapp (pure (target zt)) tEmptyHole
 renameForall :: ActionM m => Text -> TypeZ -> m TypeZ
 renameForall b zt = case target zt of
   TForall m a k t
-    | unName a == b -> pure zt
+    | unName (unLVarName a) == b -> pure zt
     | otherwise -> do
-        let b' = unsafeMkName b
+        let b' = LVN $ unsafeMkName b
         case renameTyVar a b' t of
           Just t' -> pure $ replace (TForall m b' k t') zt
           Nothing ->

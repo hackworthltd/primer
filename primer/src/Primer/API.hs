@@ -79,9 +79,12 @@ import Primer.Core (
   ASTDef (..),
   Expr,
   Expr' (APP, Ann, LetType, Letrec, PrimCon),
+  GVarName,
   ID,
   Kind,
+  LVarName (unLVarName),
   PrimCon (..),
+  TyConName,
   Type,
   Type' (TForall),
   defAST,
@@ -296,7 +299,7 @@ instance ToJSON Tree
 -- | This type is the API's view of a 'App.Prog'
 -- (this is expected to evolve as we flesh out the API)
 data Prog = Prog
-  { types :: [Name]
+  { types :: [TyConName]
   , -- We don't use Map ID Def, as the JSON encoding would be as an object,
   -- where keys are IDs converted to strings and we have no nice way of
   -- saying "all the keys of this object should parse as numbers". Similarly,
@@ -312,7 +315,7 @@ instance ToJSON Prog
 -- | This type is the api's view of a 'Primer.Core.Def'
 -- (this is expected to evolve as we flesh out the API)
 data Def = Def
-  { name :: Name
+  { name :: GVarName
   , type_ :: Tree
   , term :: Maybe Tree
   -- ^ definitions with no associated tree are primitives
@@ -364,18 +367,22 @@ viewTreeType :: Type -> Tree
 viewTreeType = U.para $ \e allChildren ->
   let c = toS $ showConstr $ toConstr e
       n = case e of
-        TForall _ m k _ -> c <> " " <> unName m <> ":" <> show k
+        TForall _ m k _ -> c <> " " <> unName (unLVarName m) <> ":" <> show k
         _ -> unwords $ c : map unName (U.childrenBi e)
    in Tree (getID e) n allChildren
 
 edit :: (MonadIO m, MonadThrow m) => SessionId -> MutationRequest -> PrimerM m (Either ProgError App.Prog)
 edit sid req = liftEditAppM (handleMutationRequest req) sid
 
-variablesInScope :: (MonadIO m, MonadThrow m) => SessionId -> (Name, ID) -> PrimerM m (Either ProgError (([(Name, Kind)], [(Name, Type' ())]), [(Name, Type' ())]))
+variablesInScope ::
+  (MonadIO m, MonadThrow m) =>
+  SessionId ->
+  (GVarName, ID) ->
+  PrimerM m (Either ProgError (([(LVarName, Kind)], [(LVarName, Type' ())]), [(GVarName, Type' ())]))
 variablesInScope sid (defname, exprid) =
   liftQueryAppM (handleQuestion (VariablesInScope defname exprid)) sid
 
-generateNames :: (MonadIO m, MonadThrow m) => SessionId -> ((Name, ID), Either (Maybe (Type' ())) (Maybe Kind)) -> PrimerM m (Either ProgError [Name])
+generateNames :: (MonadIO m, MonadThrow m) => SessionId -> ((GVarName, ID), Either (Maybe (Type' ())) (Maybe Kind)) -> PrimerM m (Either ProgError [Name])
 generateNames sid ((defname, exprid), tk) =
   liftQueryAppM (handleQuestion $ GenerateName defname exprid tk) sid
 

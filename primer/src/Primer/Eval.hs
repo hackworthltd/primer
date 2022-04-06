@@ -42,9 +42,11 @@ import Primer.Core (
   Expr,
   Expr' (..),
   ExprAnyFresh (..),
+  GVarName,
   HasID (_id),
   ID,
   Kind,
+  LVarName (LVN, unLVarName),
   Meta,
   PrimDef (..),
   PrimFun (..),
@@ -52,6 +54,7 @@ import Primer.Core (
   Type,
   Type' (..),
   TypeCache,
+  ValConName,
   VarRef (..),
   bindName,
   defPrim,
@@ -60,10 +63,10 @@ import Primer.Core (
   _typeMeta,
  )
 import Primer.Core.DSL (ann, hole, letType, let_, tEmptyHole)
-import Primer.Core.Transform (removeAnn, renameVar, unfoldAPP, unfoldApp)
+import Primer.Core.Transform (removeAnn, renameLocalVar, unfoldAPP, unfoldApp)
 import Primer.Core.Utils (concreteTy, freeVars, freeVarsTy)
 import Primer.JSON
-import Primer.Name (Name, unName, unsafeMkName)
+import Primer.Name (unName, unsafeMkName)
 import Primer.Primitives (allPrimDefs)
 import Primer.Zipper (
   ExprZ,
@@ -149,7 +152,7 @@ data EvalDetail
 data BetaReductionDetail domain codomain = BetaReductionDetail
   { betaBefore :: Expr
   , betaAfter :: Expr
-  , betaBindingName :: Name
+  , betaBindingName :: LVarName
   , betaLambdaID :: ID
   , betaLetID :: ID
   , betaArgID :: ID
@@ -164,7 +167,7 @@ data LocalVarInlineDetail = LocalVarInlineDetail
   -- ^ ID of the let expression that binds this variable
   , localVarInlineVarID :: ID
   -- ^ ID of the variable being replaced
-  , localVarInlineBindingName :: Name
+  , localVarInlineBindingName :: LVarName
   -- ^ Name of the variable
   , localVarInlineValueID :: ID
   -- ^ ID of the expression or type that the variable is bound to
@@ -197,7 +200,7 @@ data CaseReductionDetail = CaseReductionDetail
   -- ^ the ID of the target (scrutinee)
   , caseTargetCtorID :: ID
   -- ^ the ID of the constructor node in the target
-  , caseCtorName :: Name
+  , caseCtorName :: ValConName
   -- ^ the name of the matching constructor
   , caseTargetArgIDs :: [ID]
   -- ^ the arguments to the constructor in the target
@@ -216,7 +219,7 @@ data LetRemovalDetail = LetRemovalDetail
   -- ^ the let expression before reduction
   , letRemovalAfter :: Expr
   -- ^ the resulting expression after reduction
-  , letRemovalBindingName :: Name
+  , letRemovalBindingName :: LVarName
   -- ^ the name of the unused bound variable
   , letRemovalLetID :: ID
   -- ^ the full let expression
@@ -237,7 +240,7 @@ data PushAppIntoLetrecDetail = PushAppIntoLetrecDetail
   -- ^ the ID of the letrec
   , pushAppIntoLetrecLamID :: ID
   -- ^ the ID of the lambda
-  , pushAppIntoLetrecLetBindingName :: Name
+  , pushAppIntoLetrecLetBindingName :: LVarName
   -- ^ The name of the variable bound by the letrec
   , pushAppIntoLetrecIsTypeApplication :: Bool
   -- ^ If 'True', the application is of a big lambda to a type.
@@ -251,7 +254,7 @@ data ApplyPrimFunDetail = ApplyPrimFunDetail
   -- ^ the expression before reduction
   , applyPrimFunAfter :: Expr
   -- ^ the expression after reduction
-  , applyPrimFunName :: Name
+  , applyPrimFunName :: GVarName
   -- ^ the name of the primitive function
   , applyPrimFunArgIDs :: [ID]
   -- ^ the IDs of the arguments to the application
@@ -260,12 +263,12 @@ data ApplyPrimFunDetail = ApplyPrimFunDetail
   deriving (FromJSON, ToJSON) via VJSONPrefix "applyPrimFun" ApplyPrimFunDetail
 
 -- | A map from definition Names to definitions themselves
-type Globals = Map Name Def
+type Globals = Map GVarName Def
 
 -- | A map from local variable names to the ID of their binding and their bound value.
 -- Since each entry must have a value, this only includes let(rec) bindings.
 -- Lambda bindings must be reduced to a let before their variables can appear here.
-type Locals = Map Name (ID, Either Expr Type)
+type Locals = Map LVarName (ID, Either Expr Type)
 
 -- | Perform one step of reduction on the node with the given ID
 -- Returns the new expression and its redexes.
@@ -315,7 +318,7 @@ findNodeByID i expr = do
       _ -> mempty
 
 -- | Return the IDs of nodes which are reducible
-redexes :: Map Name PrimDef -> Expr -> Set ID
+redexes :: Map GVarName PrimDef -> Expr -> Set ID
 redexes primDefs = go mempty
   where
     go locals expr =
@@ -413,16 +416,16 @@ annotate = set (position @1 % position @2)
 -- return it unchanged if it doesn't clash with a free variable in the argument.
 --
 -- See 'Tests.Eval.unit_tryReduce_beta_name_clash' for an example of where this is useful.
-makeSafeLetBinding :: Name -> Set Name -> Expr -> (Name, Expr)
+makeSafeLetBinding :: LVarName -> Set LVarName -> Expr -> (LVarName, Expr)
 makeSafeLetBinding name others body | Set.notMember name others = (name, body)
 makeSafeLetBinding name others body = go 0
   where
-    go :: Int -> (Name, Expr)
+    go :: Int -> (LVarName, Expr)
     go n =
-      let newName = unsafeMkName $ unName name <> show n
+      let newName = LVN $ unsafeMkName $ unName (unLVarName name) <> show n
        in if Set.member newName others
             then go (n + 1)
-            else case renameVar name newName body of
+            else case renameLocalVar name newName body of
               Just body' -> (newName, body')
               Nothing -> go (n + 1)
 
@@ -769,7 +772,7 @@ munless x b = if b then mempty else x
 
 -- | If this node is a reducible application of a primitive, return the name of the primitive, the arguments, and
 -- (a computation for building) the result.
-tryPrimFun :: Map Name PrimDef -> Expr -> Maybe (Name, [Expr], ExprAnyFresh)
+tryPrimFun :: Map GVarName PrimDef -> Expr -> Maybe (GVarName, [Expr], ExprAnyFresh)
 tryPrimFun primDefs expr
   | (Var _ (GlobalVarRef name), args) <- bimap stripAnns (map stripAnns) $ unfoldApp expr
   , Map.member name primDefs

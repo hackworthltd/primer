@@ -30,7 +30,6 @@ import Primer.Core.DSL
 import Primer.Core.Utils (forgetIDs, forgetTypeIDs, generateIDs, generateTypeIDs)
 import Primer.EvalFull
 import Primer.Module (Module (Module, moduleDefs, moduleTypes))
-import Primer.Name
 import Primer.Primitives (allPrimDefs)
 import Primer.Typecheck (
   SmartHoles (NoSmartHoles),
@@ -368,7 +367,7 @@ hprop_resume = withDiscards 2000 $
       resumeTest globs dir t
 
 -- A helper for hprop_resume, and hprop_resume_regression
-resumeTest :: Map Name Def -> Dir -> Expr -> PropertyT WT ()
+resumeTest :: Map GVarName Def -> Dir -> Expr -> PropertyT WT ()
 resumeTest globs dir t = do
   tds <- asks typeDefs
   n <- forAllT $ Gen.integral $ Range.linear 2 1000 -- Arbitrary limit here
@@ -952,10 +951,10 @@ unit_eval_full_modules_scrutinize_imported_type =
 
 -- * Utilities
 
-evalFullTest :: ID -> M.Map Name TypeDef -> M.Map Name Def -> TerminationBound -> Dir -> Expr -> Either EvalFullError Expr
+evalFullTest :: ID -> M.Map TyConName TypeDef -> M.Map GVarName Def -> TerminationBound -> Dir -> Expr -> Either EvalFullError Expr
 evalFullTest id_ tydefs globals n d e = evalTestM id_ $ evalFull tydefs globals n d e
 
-unaryPrimTest :: Name -> S Expr -> S Expr -> Assertion
+unaryPrimTest :: GVarName -> S Expr -> S Expr -> Assertion
 unaryPrimTest f x y =
   let ((e, r, gs), maxID) =
         create . withPrimDefs $ \globals ->
@@ -968,7 +967,7 @@ unaryPrimTest f x y =
    in do
         distinctIDs s
         s <~==> Right r
-binaryPrimTest :: Name -> S Expr -> S Expr -> S Expr -> Assertion
+binaryPrimTest :: GVarName -> S Expr -> S Expr -> S Expr -> Assertion
 binaryPrimTest f x y z =
   let ((e, r, gs), maxID) =
         create . withPrimDefs $ \globals ->
@@ -999,7 +998,7 @@ binaryPrimTest f x y z =
 -- return the corresponding ones in this list, if one exists.
 -- Thus you can specify a few particular terms you want in scope
 -- (e.g. primitives), and generate the rest.
-genDirTmGlobs :: [Def] -> PropertyT WT (Dir, Expr, Type' (), M.Map Name Def)
+genDirTmGlobs :: [Def] -> PropertyT WT (Dir, Expr, Type' (), M.Map GVarName Def)
 genDirTmGlobs defs = do
   dir <- forAllT $ Gen.element [Chk, Syn]
   (t', ty) <- case dir of

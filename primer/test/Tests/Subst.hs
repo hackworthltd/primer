@@ -5,11 +5,11 @@ import Foreword
 import Optics (set)
 import Primer.Core (
   Kind (KType),
+  LVarName,
   Type',
   _typeMeta,
  )
 import Primer.Core.DSL
-import Primer.Name
 import Primer.Subst
 import Test.Tasty.HUnit hiding (assert)
 import TestM (evalTestM)
@@ -41,5 +41,5 @@ unit_3 =
 create' :: S (Type' a) -> Type' ()
 create' = set _typeMeta () . fst . create
 
-substTy' :: Name -> Type' () -> Type' () -> Type' ()
+substTy' :: LVarName -> Type' () -> Type' () -> Type' ()
 substTy' n s t = evalTestM 0 $ substTy n s t

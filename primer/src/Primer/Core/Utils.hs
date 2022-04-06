@@ -1,4 +1,5 @@
 module Primer.Core.Utils (
+  freshLVarName,
   generateTypeIDs,
   forgetTypeIDs,
   generateIDs,
@@ -29,6 +30,7 @@ import Primer.Core (
   Expr' (..),
   ID,
   Kind (KHole),
+  LVarName (LVN, unLVarName),
   Type,
   Type' (..),
   VarRef (LocalVarRef),
@@ -38,7 +40,11 @@ import Primer.Core (
   _typeMeta,
  )
 import Primer.Core.DSL (meta)
-import Primer.Name (Name)
+import Primer.Name (NameCounter, freshName)
+
+-- | Helper, wrapping 'freshName'
+freshLVarName :: MonadFresh NameCounter m => S.Set LVarName -> m LVarName
+freshLVarName = fmap LVN . freshName . S.map unLVarName
 
 -- | Adds 'ID's and trivial metadata
 generateTypeIDs :: MonadFresh ID m => Type' () -> m Type
@@ -68,15 +74,15 @@ noHoles t = flip all (universe t) $ \case
     _ -> True
   _ -> True
 
-freeVarsTy :: Type' a -> Set Name
+freeVarsTy :: Type' a -> Set LVarName
 freeVarsTy = setOf (getting _freeVarsTy % _2)
 
-_freeVarsTy :: Traversal (Type' a) (Type' a) (a, Name) (Type' a)
+_freeVarsTy :: Traversal (Type' a) (Type' a) (a, LVarName) (Type' a)
 _freeVarsTy = traversalVL $ traverseFreeVarsTy mempty
 
 -- Helper for _freeVarsTy and _freeTyVars
 -- Takes a set of considered-to-be-bound variables
-traverseFreeVarsTy :: Applicative f => Set Name -> ((a, Name) -> f (Type' a)) -> Type' a -> f (Type' a)
+traverseFreeVarsTy :: Applicative f => Set LVarName -> ((a, LVarName) -> f (Type' a)) -> Type' a -> f (Type' a)
 traverseFreeVarsTy = go
   where
     go bound f = \case
@@ -122,19 +128,19 @@ alphaEqTy = go mempty mempty
 -- This is because constructor names and global variables are never
 -- captured by lambda bindings etc (since they are looked up in a different
 -- namespace)
-freeVars :: Expr' a b -> Set Name
+freeVars :: Expr' a b -> Set LVarName
 freeVars = setOf $ _freeVars % _2
 
 -- We can't offer a traversal, as we can't enforce replacing term vars with
 -- terms and type vars with types. Use _freeTmVars and _freeTyVars for
 -- traversals.
-_freeVars :: Fold (Expr' a b) (Either a b, Name)
+_freeVars :: Fold (Expr' a b) (Either a b, LVarName)
 _freeVars = getting _freeTmVars % to (first Left) `summing` getting _freeTyVars % to (first Right)
 
-_freeTmVars :: Traversal (Expr' a b) (Expr' a b) (a, Name) (Expr' a b)
+_freeTmVars :: Traversal (Expr' a b) (Expr' a b) (a, LVarName) (Expr' a b)
 _freeTmVars = traversalVL $ go mempty
   where
-    go :: Applicative f => Set Name -> ((a, Name) -> f (Expr' a b)) -> Expr' a b -> f (Expr' a b)
+    go :: Applicative f => Set LVarName -> ((a, LVarName) -> f (Expr' a b)) -> Expr' a b -> f (Expr' a b)
     go bound f = \case
       Hole m e -> Hole m <$> go bound f e
       t@EmptyHole{} -> pure t
@@ -157,10 +163,10 @@ _freeTmVars = traversalVL $ go mempty
       where
         freeVarsBr (CaseBranch c binds e) = CaseBranch c binds <$> go (S.union bound $ S.fromList $ map bindName binds) f e
 
-_freeTyVars :: Traversal (Expr' a b) (Expr' a b) (b, Name) (Type' b)
+_freeTyVars :: Traversal (Expr' a b) (Expr' a b) (b, LVarName) (Type' b)
 _freeTyVars = traversalVL $ go mempty
   where
-    go :: Applicative f => Set Name -> ((b, Name) -> f (Type' b)) -> Expr' a b -> f (Expr' a b)
+    go :: Applicative f => Set LVarName -> ((b, LVarName) -> f (Type' b)) -> Expr' a b -> f (Expr' a b)
     go bound f = \case
       Hole m e -> Hole m <$> go bound f e
       t@EmptyHole{} -> pure t

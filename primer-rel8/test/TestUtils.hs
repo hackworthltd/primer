@@ -51,6 +51,7 @@ import Primer.App (
 import Primer.Core (
   ASTDef (..),
   Def (DefAST, DefPrim),
+  GVarName,
   ID,
   Kind (KType),
   PrimDef (..),
@@ -96,7 +97,6 @@ import Primer.Module (
     moduleTypes
   ),
  )
-import Primer.Name (Name)
 import Primer.Primitives (
   allPrimDefs,
  )
@@ -340,7 +340,7 @@ testASTDef =
 --
 -- TODO: move this function into 'Primer.App'. See:
 -- https://github.com/hackworthltd/primer/issues/273#issuecomment-1058713380
-mkTestDefs :: [ASTDef] -> Map Name PrimFun -> (Map Name Def, ID)
+mkTestDefs :: [ASTDef] -> Map GVarName PrimFun -> (Map GVarName Def, ID)
 mkTestDefs astDefs primMap =
   let (defs, nextID) = create $ do
         primDefs <- for (Map.toList primMap) $ \(primDefName, def) -> do

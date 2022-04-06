@@ -8,9 +8,10 @@ module Primer.OpenAPI (
 
 import Data.OpenApi (ToSchema)
 import Data.Text (Text)
+import Data.Typeable (Typeable)
 import Primer.API (Def, Prog, Tree)
 import Primer.App (InitialApp)
-import Primer.Core (ID (..))
+import Primer.Core (GlobalName, ID (..), LVarName)
 import Primer.Database (Session, SessionName)
 import Primer.Name (Name)
 
@@ -32,6 +33,11 @@ deriving newtype instance ToSchema ID
 -- But the JSON instance is done by GND, so we must match here...
 -- This instance works because the parameter has a phantom role!
 deriving via Text instance (ToSchema Name)
+
+-- For GlobalName and LVarName, we must derive ToSchema via Name,
+-- as that is how the To/FromJSON instances are derived
+deriving via Name instance (Typeable k => ToSchema (GlobalName k))
+deriving via Name instance (ToSchema LVarName)
 instance ToSchema Tree
 instance ToSchema Def
 instance ToSchema Prog
