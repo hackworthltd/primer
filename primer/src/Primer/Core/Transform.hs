@@ -14,7 +14,6 @@ import Foreword
 import Data.Data (Data)
 import Data.Generics.Uniplate.Data (descendM)
 import qualified Data.List.NonEmpty as NE
-import Optics ((^.))
 import Primer.Core (CaseBranch' (..), Expr' (..), LVarName, LocalName (unLocalName), TmVarRef (..), TyVarName, Type' (..), bindName, varRefName)
 
 -- AST transformations.
@@ -26,8 +25,8 @@ import Primer.Core (CaseBranch' (..), Expr' (..), LVarName, LocalName (unLocalNa
 -- See the tests for explanation and examples.
 renameVar :: (Data a, Data b) => TmVarRef -> TmVarRef -> Expr' a b -> Maybe (Expr' a b)
 renameVar x y =
-  let xn = x ^. varRefName
-      yn = y ^. varRefName
+  let xn = varRefName x
+      yn = varRefName y
    in \case
         Lam m v e
           | LocalVarRef v == x -> pure $ Lam m v e
@@ -60,7 +59,7 @@ renameVar x y =
           | v == y -> Nothing
           -- If we have the same Name, but different local/global scopes
           -- also bail out as something has gone wrong.
-          | v ^. varRefName == xn || v ^. varRefName == yn -> Nothing
+          | varRefName v == xn || varRefName v == yn -> Nothing
           | otherwise -> pure $ Var m v
         e -> descendM (renameVar x y) e
 
