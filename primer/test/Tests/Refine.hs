@@ -9,7 +9,7 @@ import qualified Data.Map as M
 import qualified Data.Set as S
 import Gen.Core.Typed (
   forAllT,
-  freshLVarNameForCxt,
+  freshTyVarNameForCxt,
   genInstApp,
   genWTKind,
   genWTType,
@@ -234,7 +234,7 @@ hprop_arr_app :: Property
 hprop_arr_app = propertyWTInExtendedLocalGlobalCxt defaultCxt $ do
   tgt <- forAllT $ genWTType KType
   when (isHole tgt) discard
-  src' <- forAllT $ Gen.list (Range.linear 0 10) $ Gen.choice [Left <$> genWTType KType, curry Right <$> freshLVarNameForCxt <*> genWTKind]
+  src' <- forAllT $ Gen.list (Range.linear 0 10) $ Gen.choice [Left <$> genWTType KType, curry Right <$> freshTyVarNameForCxt <*> genWTKind]
   let src = foldr (\case Left t -> TFun () t; Right (n, k) -> TForall () n k) tgt src'
   annotateShow src
   let inst = map (\case Left t -> InstApp t; Right (n, k) -> InstUnconstrainedAPP n k) src'

@@ -82,9 +82,10 @@ import Primer.Core (
   GVarName,
   ID,
   Kind,
-  LVarName (unLVarName),
+  LVarName,
   PrimCon (..),
   TyConName,
+  TyVarName,
   Type,
   Type' (TForall),
   defAST,
@@ -92,6 +93,7 @@ import Primer.Core (
   defType,
   getID,
   typeDefName,
+  unLocalName,
  )
 import Primer.Database (
   OffsetLimit,
@@ -367,7 +369,7 @@ viewTreeType :: Type -> Tree
 viewTreeType = U.para $ \e allChildren ->
   let c = toS $ showConstr $ toConstr e
       n = case e of
-        TForall _ m k _ -> c <> " " <> unName (unLVarName m) <> ":" <> show k
+        TForall _ m k _ -> c <> " " <> unName (unLocalName m) <> ":" <> show k
         _ -> unwords $ c : map unName (U.childrenBi e)
    in Tree (getID e) n allChildren
 
@@ -378,7 +380,7 @@ variablesInScope ::
   (MonadIO m, MonadThrow m) =>
   SessionId ->
   (GVarName, ID) ->
-  PrimerM m (Either ProgError (([(LVarName, Kind)], [(LVarName, Type' ())]), [(GVarName, Type' ())]))
+  PrimerM m (Either ProgError (([(TyVarName, Kind)], [(LVarName, Type' ())]), [(GVarName, Type' ())]))
 variablesInScope sid (defname, exprid) =
   liftQueryAppM (handleQuestion (VariablesInScope defname exprid)) sid
 

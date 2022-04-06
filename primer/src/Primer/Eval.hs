@@ -33,7 +33,7 @@ import Control.Monad.Fresh (MonadFresh, fresh)
 import Data.Generics.Product (position)
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
-import Optics (mapping, set, traverseOf, view, (%), (^.))
+import Optics (elemOf, getting, mapping, notElemOf, set, traverseOf, view, (%), (^.), _2)
 import Primer.Core (
   ASTDef (..),
   Bind' (..),
@@ -46,16 +46,19 @@ import Primer.Core (
   HasID (_id),
   ID,
   Kind,
-  LVarName (LVN, unLVarName),
+  LVarName,
+  LocalName (LocalName, unLocalName),
+  LocalNameKind (..),
   Meta,
   PrimDef (..),
   PrimFun (..),
   PrimFunError (..),
+  TmVarRef (..),
+  TyVarName,
   Type,
   Type' (..),
   TypeCache,
   ValConName,
-  VarRef (..),
   bindName,
   defPrim,
   _exprMeta,
@@ -63,10 +66,10 @@ import Primer.Core (
   _typeMeta,
  )
 import Primer.Core.DSL (ann, hole, letType, let_, tEmptyHole)
-import Primer.Core.Transform (removeAnn, renameLocalVar, unfoldAPP, unfoldApp)
-import Primer.Core.Utils (concreteTy, freeVars, freeVarsTy)
+import Primer.Core.Transform (removeAnn, renameLocalVar, renameTyVarExpr, unfoldAPP, unfoldApp)
+import Primer.Core.Utils (concreteTy, freeVars, freeVarsTy, _freeTmVars, _freeTyVars)
 import Primer.JSON
-import Primer.Name (unName, unsafeMkName)
+import Primer.Name (Name, unName, unsafeMkName)
 import Primer.Primitives (allPrimDefs)
 import Primer.Zipper (
   ExprZ,
@@ -118,13 +121,13 @@ data EvalError
 -- | Detailed information about a reduction step
 data EvalDetail
   = -- | Reduction of (λx. a) b
-    BetaReduction (BetaReductionDetail Type Type)
+    BetaReduction (BetaReductionDetail 'ATmVar Type Type)
   | -- | Reduction of (Λx. a) b
-    BETAReduction (BetaReductionDetail Kind Type)
+    BETAReduction (BetaReductionDetail 'ATyVar Kind Type)
   | -- | Inlining of a local variable
-    LocalVarInline LocalVarInlineDetail
+    LocalVarInline (LocalVarInlineDetail 'ATmVar)
   | -- | Inlining of a local type variable
-    LocalTypeVarInline LocalVarInlineDetail
+    LocalTypeVarInline (LocalVarInlineDetail 'ATyVar)
   | -- | ID of definition, name of variable
     GlobalVarInline GlobalVarInlineDetail
   | -- | ID of let(rec)
@@ -143,16 +146,16 @@ data EvalDetail
 -- - 'betaLambdaID' is the ID of the λ
 -- - 'betaLetID' is the ID of the let
 -- - 'betaTypes' is optionally the domain type and codomain type of the λ
--- - i.e. domain ~ Type, codomain ~ Type
+-- - i.e. k ~ ATmVar, domain ~ Type, codomain ~ Type
 -- If Λ:
 -- - 'betaLambdaID' is the ID of the Λ
 -- - 'betaLetID' is the ID of the "let type"
 -- - 'betaTypes' is optionally the domain kind and codomain type of the λ
--- - i.e. domain ~ Kind, codomain ~ Type
-data BetaReductionDetail domain codomain = BetaReductionDetail
+-- - i.e. k ~ ATyVar, domain ~ Kind, codomain ~ Type
+data BetaReductionDetail k domain codomain = BetaReductionDetail
   { betaBefore :: Expr
   , betaAfter :: Expr
-  , betaBindingName :: LVarName
+  , betaBindingName :: LocalName k
   , betaLambdaID :: ID
   , betaLetID :: ID
   , betaArgID :: ID
@@ -160,14 +163,14 @@ data BetaReductionDetail domain codomain = BetaReductionDetail
   , betaTypes :: Maybe (domain, codomain)
   }
   deriving (Eq, Show, Generic)
-  deriving (FromJSON, ToJSON) via VJSONPrefix "beta" (BetaReductionDetail domain codomain)
+  deriving (FromJSON, ToJSON) via VJSONPrefix "beta" (BetaReductionDetail k domain codomain)
 
-data LocalVarInlineDetail = LocalVarInlineDetail
+data LocalVarInlineDetail k = LocalVarInlineDetail
   { localVarInlineLetID :: ID
   -- ^ ID of the let expression that binds this variable
   , localVarInlineVarID :: ID
   -- ^ ID of the variable being replaced
-  , localVarInlineBindingName :: LVarName
+  , localVarInlineBindingName :: LocalName k
   -- ^ Name of the variable
   , localVarInlineValueID :: ID
   -- ^ ID of the expression or type that the variable is bound to
@@ -178,7 +181,7 @@ data LocalVarInlineDetail = LocalVarInlineDetail
   -- Otherwise it is a term variable.
   }
   deriving (Eq, Show, Generic)
-  deriving (FromJSON, ToJSON) via VJSONPrefix "localVarInline" LocalVarInlineDetail
+  deriving (FromJSON, ToJSON) via VJSONPrefix "localVarInline" (LocalVarInlineDetail k)
 
 data GlobalVarInlineDetail = GlobalVarInlineDetail
   { globalVarInlineDef :: ASTDef
@@ -219,8 +222,8 @@ data LetRemovalDetail = LetRemovalDetail
   -- ^ the let expression before reduction
   , letRemovalAfter :: Expr
   -- ^ the resulting expression after reduction
-  , letRemovalBindingName :: LVarName
-  -- ^ the name of the unused bound variable
+  , letRemovalBindingName :: Name
+  -- ^ the name of the unused bound variable (either term or type variable)
   , letRemovalLetID :: ID
   -- ^ the full let expression
   , letRemovalBodyID :: ID
@@ -268,7 +271,7 @@ type Globals = Map GVarName Def
 -- | A map from local variable names to the ID of their binding and their bound value.
 -- Since each entry must have a value, this only includes let(rec) bindings.
 -- Lambda bindings must be reduced to a let before their variables can appear here.
-type Locals = Map LVarName (ID, Either Expr Type)
+type Locals = Map Name (ID, Either Expr Type)
 
 -- | Perform one step of reduction on the node with the given ID
 -- Returns the new expression and its redexes.
@@ -306,24 +309,33 @@ findNodeByID i expr = do
     _ -> Nothing
   where
     collectBinding a = case (current a, prior a) of
-      (Let m x e1 e2, e2') | e2 == e2' -> Map.singleton x (view _id m, Left e1)
+      (Let m x e1 e2, e2') | e2 == e2' -> Map.singleton (unLocalName x) (view _id m, Left e1)
       -- Note that because @x@ is in scope in @e1@, we will allow @e1@ to be reduced even if this
       -- reduction may never terminate.
       -- See https://github.com/hackworthltd/primer/issues/4
       -- @x@ is not in scope in @t@.
       (Letrec m x e1 _t e2, e')
-        | e2 == e' -> Map.singleton x (view _id m, Left e1)
-        | e1 == e' -> Map.singleton x (view _id m, Left e1)
-      (LetType m x t _, _) -> Map.singleton x (view _id m, Right t)
+        | e2 == e' -> Map.singleton (unLocalName x) (view _id m, Left e1)
+        | e1 == e' -> Map.singleton (unLocalName x) (view _id m, Left e1)
+      (LetType m x t _, _) -> Map.singleton (unLocalName x) (view _id m, Right t)
       _ -> mempty
 
--- | Return the IDs of nodes which are reducible
+-- | Return the IDs of nodes which are reducible.
+-- We assume the expression is well scoped, and do not e.g. check whether
+-- @e@ refers to a type variable @x@ when deciding if we can reduce a
+-- @let x = _ in e@ (we of course check whether @e@ refers to a term variable
+-- @x@)
 redexes :: Map GVarName PrimDef -> Expr -> Set ID
 redexes primDefs = go mempty
   where
-    go locals expr =
+    -- letTm and letTy track the set of local variables we have a definition for
+    go locals@(letTm, letTy) expr =
       -- A set containing just the ID of this expression
       let self = Set.singleton (expr ^. _id)
+          member = Set.member . unLocalName
+          member' x s = member x $ Set.map unLocalName s
+          freeTmVar = elemOf $ getting _freeTmVars % _2
+          freeTyVar = elemOf $ getting _freeTyVars % _2
        in case expr of
             -- Application nodes are reducible only if their left child is a λ node or an annotation
             -- wrapping a λ node.
@@ -336,45 +348,45 @@ redexes primDefs = go mempty
             -- If it was, it would be a different x and we'd cause variable capture if we
             -- substituted e into the λ body.
             App _ e1@(Letrec _ x _ _ Lam{}) e4 ->
-              (self `munless` Set.member x (freeVars e4)) <> go locals e1 <> go locals e4
+              (self `munless` member x (freeVars e4)) <> go locals e1 <> go locals e4
             -- Application of a primitive (fully-applied, with all arguments in normal form).
             App{} | Just _ <- tryPrimFun primDefs expr -> self
             -- f x
             App _ e1 e2 -> go locals e1 <> go locals e2
-            APP _ e@LAM{} t -> self <> go locals e <> goType locals t
-            APP _ e@(Ann _ LAM{} _) t -> self <> go locals e <> goType locals t
+            APP _ e@LAM{} t -> self <> go locals e <> goType letTy t
+            APP _ e@(Ann _ LAM{} _) t -> self <> go locals e <> goType letTy t
             -- (letrec x : T = Λ ...) e
             -- This is the same as the letrec case above, but for Λ
             APP _ e1@(Letrec _ x _ _ LAM{}) e4 ->
-              (self `munless` Set.member x (freeVarsTy e4)) <> go locals e1 <> goType locals e4
-            APP _ e t -> go locals e <> goType locals t
+              (self `munless` member' x (freeVarsTy e4)) <> go locals e1 <> goType letTy e4
+            APP _ e t -> go locals e <> goType letTy t
             Var _ (LocalVarRef x)
-              | Set.member x locals -> self
+              | Set.member x letTm -> self
               | otherwise -> mempty
             Var _ (GlobalVarRef x)
               | Map.member x primDefs -> mempty
               | otherwise -> self
             -- Note that x is in scope in e2 but not e1.
             Let _ x e1 e2 ->
-              let locals' = Set.insert x locals
-               in go locals e1 <> go locals' e2 <> (self `munless` Set.member x (freeVars e2))
+              let locals' = (Set.insert x letTm, letTy)
+               in go locals e1 <> go locals' e2 <> (self `munless` freeTmVar x e2)
             -- Whereas here, x is in scope in both e1 and e2.
             Letrec _ x e1 t e2 ->
-              let locals' = Set.insert x locals
-               in go locals' e1 <> go locals' e2 <> goType locals t <> (self `munless` Set.member x (freeVars e2))
+              let locals' = (Set.insert x letTm, letTy)
+               in go locals' e1 <> go locals' e2 <> goType letTy t <> (self `munless` freeTmVar x e2)
             -- As with Let, x is in scope in e but not in t
             LetType _ x _t e ->
-              let locals' = Set.insert x locals
-               in go locals' e <> self `munless` Set.member x (freeVars e)
-            Lam _ x e -> go (Set.delete x locals) e
-            LAM _ x e -> go (Set.delete x locals) e
+              let locals' = (letTm, Set.insert x letTy)
+               in go locals' e <> self `munless` freeTyVar x e
+            Lam _ x e -> go (Set.delete x letTm, letTy) e
+            LAM _ x e -> go (letTm, Set.delete x letTy) e
             EmptyHole{} -> mempty
             Hole _ e -> go locals e
-            Ann _ e t -> go locals e <> goType locals t
+            Ann _ e t -> go locals e <> goType letTy t
             Con{} -> mempty
             Case _ e branches ->
               let branchRedexes (CaseBranch _ binds rhs) =
-                    let locals' = Set.difference locals (Set.fromList (map bindName binds))
+                    let locals' = (Set.difference letTm (Set.fromList (map bindName binds)), letTy)
                      in go locals' rhs
                   scrutRedex = case unfoldAPP $ fst $ unfoldApp $ removeAnn e of
                     (Con{}, _) -> self
@@ -403,10 +415,10 @@ annOf = view (position @2)
 annotate :: Maybe TypeCache -> Expr -> Expr
 annotate = set (position @1 % position @2)
 
--- | This function helps us to convert a λ or Λ application into a let binding without causing
+-- | This function helps us to convert a λ application into a let binding without causing
 -- variable capture. It takes as arguments:
 -- - the name of the lambda binding
--- - the free variables in the application argument
+-- - the free (type and term) variables in the application argument
 -- - the body of the lambda
 -- It will then modify the original name until it finds one that:
 -- - doesn't clash with any free variables in the argument
@@ -416,16 +428,30 @@ annotate = set (position @1 % position @2)
 -- return it unchanged if it doesn't clash with a free variable in the argument.
 --
 -- See 'Tests.Eval.unit_tryReduce_beta_name_clash' for an example of where this is useful.
-makeSafeLetBinding :: LVarName -> Set LVarName -> Expr -> (LVarName, Expr)
-makeSafeLetBinding name others body | Set.notMember name others = (name, body)
-makeSafeLetBinding name others body = go 0
+makeSafeLetBinding :: LVarName -> Set Name -> Expr -> (LVarName, Expr)
+makeSafeLetBinding = makeSafeLetBinding' renameLocalVar
+
+-- | As 'makeSafeLetBinding', but for Λ applications
+makeSafeLetTypeBinding :: TyVarName -> Set Name -> Expr -> (TyVarName, Expr)
+makeSafeLetTypeBinding = makeSafeLetBinding' renameTyVarExpr
+
+-- Helper for makeSafeLet{,Type}Binding
+makeSafeLetBinding' ::
+  (LocalName k -> LocalName k -> Expr -> Maybe Expr) ->
+  LocalName k ->
+  Set Name ->
+  Expr ->
+  (LocalName k, Expr)
+makeSafeLetBinding' _ name others body | Set.notMember (unLocalName name) others = (name, body)
+makeSafeLetBinding' rename name others body = go 0
   where
-    go :: Int -> (LVarName, Expr)
+    go :: Int -> (LocalName k, Expr)
     go n =
-      let newName = LVN $ unsafeMkName $ unName (unLVarName name) <> show n
-       in if Set.member newName others
+      let newName' = unsafeMkName $ unName (unLocalName name) <> show n
+          newName = LocalName newName'
+       in if Set.member newName' others
             then go (n + 1)
-            else case renameLocalVar name newName body of
+            else case rename name newName body of
               Just body' -> (newName, body')
               Nothing -> go (n + 1)
 
@@ -499,7 +525,7 @@ tryReduceExpr globals locals = \case
           }
       )
   -- (letrec x : T = λ ...) e
-  before@(App mApp (Letrec mLet x e1 t lam@Lam{}) e2) | Set.notMember x (freeVars e2) -> do
+  before@(App mApp (Letrec mLet x e1 t lam@Lam{}) e2) | notMember x (freeVars e2) -> do
     -- We push the application into the letrec, in order to enable it to reduce in a subsequent
     -- step.
     let expr = annotate (annOf mApp) $ Letrec mLet x e1 t (App mApp lam e2)
@@ -547,7 +573,7 @@ tryReduceExpr globals locals = \case
   -- Beta reduction of big lambda (no annotation)
   -- (Λx. e) t ==> let type x = t in e
   APP mAPP lam@(LAM _ x body) arg -> do
-    let (x', body') = makeSafeLetBinding x (freeVarsTy arg) body
+    let (x', body') = makeSafeLetTypeBinding x (Set.map unLocalName $ freeVarsTy arg) body
     expr <- annotate (annOf mAPP) <$> letType x' (pure arg) (pure body')
     pure
       ( expr
@@ -574,7 +600,7 @@ tryReduceExpr globals locals = \case
   -- So this is what we actually do:
   --   (Λx. e : ∀a : K. B) t ==> let type x = t in e
   APP mAPP annotation@(Ann _ lam@(LAM _ x body) ty) t -> do
-    let (x', body') = makeSafeLetBinding x (freeVarsTy t) body
+    let (x', body') = makeSafeLetTypeBinding x (Set.map unLocalName $ freeVarsTy t) body
     case ty of
       (TForall _ _ k b) -> do
         expr <- annotate (annOf mAPP) <$> letType x' (pure t) (pure body')
@@ -594,7 +620,7 @@ tryReduceExpr globals locals = \case
           )
       _ -> throwError $ BadBigLambdaAnnotation annotation
   -- (letrec x : T = Λ ...) e
-  before@(APP mApp (Letrec mLet x e1 t lam@LAM{}) e2) | Set.notMember x (freeVarsTy e2) -> do
+  before@(APP mApp (Letrec mLet x e1 t lam@LAM{}) e2) | notMember' x (freeVarsTy e2) -> do
     -- We push the application into the letrec, in order to enable it to reduce in a subsequent
     -- step.
     let expr = annotate (annOf mApp) $ Letrec mLet x e1 t (APP mApp lam e2)
@@ -628,7 +654,7 @@ tryReduceExpr globals locals = \case
   -- If the variable is not in the local set, that's fine - it just means it is bound by a lambda
   -- that hasn't yet been reduced.
   Var mVar (LocalVarRef x)
-    | Just (i, Left e) <- Map.lookup x locals -> do
+    | Just (i, Left e) <- Map.lookup (unLocalName x) locals -> do
         -- Since we're duplicating @e@, we must regenerate all its IDs.
         e' <- regenerateExprIDs e
         pure
@@ -662,15 +688,15 @@ tryReduceExpr globals locals = \case
   -- Redundant let removal
   -- let x = e1 in e2 ==> e2    if x not free in e2
   expr@(Let meta x _ body)
-    | Set.notMember x (freeVars body) -> mkLetRemovalDetail expr body x meta
+    | notElemOf (getting _freeTmVars % _2) x body -> mkLetRemovalDetail expr body x meta
   -- Redundant letrec removal
   -- letrec x = e in e2 ==> e2  if x not free in e2
   expr@(Letrec meta x _ _ body)
-    | Set.notMember x (freeVars body) -> mkLetRemovalDetail expr body x meta
+    | notElemOf (getting _freeTmVars % _2) x body -> mkLetRemovalDetail expr body x meta
   -- Redundant letType removal
   -- let type x = t in e ==> e  if x not free in e
   expr@(LetType meta x _ body)
-    | Set.notMember x (freeVars body) -> mkLetRemovalDetail expr body x meta
+    | notElemOf (getting _freeTyVars % _2) x body -> mkLetRemovalDetail expr body x meta
   -- Case reduction
   -- If the scrutinee starts with a constructor, we can reduce the case expression.
   -- We do that by picking the branch with the same constructor.
@@ -713,6 +739,8 @@ tryReduceExpr globals locals = \case
             Nothing -> throwError NoMatchingCaseBranch
   _ -> throwError NotRedex
   where
+    notMember = Set.notMember . unLocalName
+    notMember' n = notMember n . Set.map unLocalName
     mkLetRemovalDetail expr body x meta =
       pure
         ( body
@@ -720,7 +748,7 @@ tryReduceExpr globals locals = \case
           LetRemovalDetail
             { letRemovalBefore = expr
             , letRemovalAfter = body
-            , letRemovalBindingName = x
+            , letRemovalBindingName = unLocalName x
             , letRemovalLetID = meta ^. _id
             , letRemovalBodyID = body ^. _id
             }
@@ -738,7 +766,7 @@ tryReduceType _globals locals = \case
   -- If the variable is not in the local set, that's fine - it just means it is bound by a big
   -- lambda that hasn't yet been reduced.
   TVar mTVar x
-    | Just (i, Right t) <- Map.lookup x locals -> do
+    | Just (i, Right t) <- Map.lookup (unLocalName x) locals -> do
         -- Since we're duplicating @t@, we must regenerate all its IDs.
         t' <- regenerateTypeIDs t
         pure

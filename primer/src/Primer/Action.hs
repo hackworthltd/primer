@@ -43,14 +43,15 @@ import Primer.Core (
   GVarName,
   HasMetadata (_metadata),
   ID,
-  LVarName (LVN, unLVarName),
+  LVarName,
+  LocalName (LocalName, unLocalName),
+  TmVarRef (..),
   Type,
   Type' (..),
   TypeCache (..),
   TypeCacheBoth (..),
   TypeDef (..),
   ValConName,
-  VarRef (..),
   baseName,
   bindName,
   defName,
@@ -182,7 +183,7 @@ data UserInput a
       -- ^ A bunch of options
       (Name -> a)
       -- ^ What to do with whatever name is chosen
-  | ChooseVariable FunctionFiltering (VarRef -> a)
+  | ChooseVariable FunctionFiltering (TmVarRef -> a)
   | ChooseTypeVariable (Text -> a)
   deriving (Functor)
 
@@ -261,11 +262,11 @@ data Action
   | -- | Replace a non-empty hole with its contents
     FinishHole
   | -- | Construct a variable in an empty hole
-    ConstructVar VarRef
+    ConstructVar TmVarRef
   | -- | Insert a variable, with a saturated spine of term/type applications in an empty hole
-    InsertSaturatedVar VarRef
+    InsertSaturatedVar TmVarRef
   | -- | Insert a variable, with an infered spine of term/type applications in an empty hole
-    InsertRefinedVar VarRef
+    InsertRefinedVar TmVarRef
   | -- | Apply the expression under the cursor
     ConstructApp
   | -- | Apply the expression under the cursor to a type
@@ -661,12 +662,12 @@ finishHole ze = case target ze of
   Hole _ e -> pure $ replace e ze
   e -> throwError $ NeedNonEmptyHole FinishHole e
 
-constructVar :: ActionM m => VarRef -> ExprZ -> m ExprZ
+constructVar :: ActionM m => TmVarRef -> ExprZ -> m ExprZ
 constructVar x ast = case target ast of
   EmptyHole{} -> flip replace ast <$> var x
   e -> throwError $ NeedEmptyHole (ConstructVar x) e
 
-insertSatVar :: ActionM m => VarRef -> ExprZ -> m ExprZ
+insertSatVar :: ActionM m => TmVarRef -> ExprZ -> m ExprZ
 insertSatVar x ast = case target ast of
   -- TODO: for now, rely on SmartHoles to fix up the type. I think we may want
   -- to do this manually to handle running with NoSmartHoles. There is no concern
@@ -680,7 +681,7 @@ insertSatVar x ast = case target ast of
 
 -- TODO: Add some tests for this. See:
 -- https://github.com/hackworthltd/primer/issues/10
-saturatedApplication :: ActionM m => ExprZ -> VarRef -> m Expr
+saturatedApplication :: ActionM m => ExprZ -> TmVarRef -> m Expr
 saturatedApplication ast v = do
   (appHead, vTy) <-
     getVarType ast v >>= \case
@@ -691,7 +692,7 @@ saturatedApplication ast v = do
 getVarType ::
   MonadReader TC.Cxt m =>
   ExprZ ->
-  VarRef ->
+  TmVarRef ->
   m (Either TypeError TC.Type)
 getVarType ast x =
   local extendCxt $ lookupVar x <$> ask
@@ -700,7 +701,13 @@ getVarType ast x =
     -- See https://github.com/hackworthltd/primer/issues/11
     extendCxt =
       let (tycxt, tmcxt) = localVariablesInScopeExpr $ Left ast
-       in \cxt -> cxt{TC.localCxt = Map.fromList $ map (second TC.T) tmcxt <> map (second TC.K) tycxt}
+       in \cxt ->
+            cxt
+              { TC.localCxt =
+                  Map.fromList $
+                    map (bimap unLocalName TC.T) tmcxt
+                      <> map (bimap unLocalName TC.K) tycxt
+              }
 
 mkSaturatedApplication :: MonadFresh ID m => m Expr -> TC.Type -> m Expr
 mkSaturatedApplication e = \case
@@ -709,7 +716,7 @@ mkSaturatedApplication e = \case
   TForall _ _ _ t -> mkSaturatedApplication (e `aPP` tEmptyHole) t
   _ -> e
 
-insertRefinedVar :: ActionM m => VarRef -> ExprZ -> m ExprZ
+insertRefinedVar :: ActionM m => TmVarRef -> ExprZ -> m ExprZ
 insertRefinedVar x ast = do
   (v, vTy) <-
     getVarType ast x >>= \case
@@ -786,7 +793,7 @@ constructLam mx ze = do
   -- If a name is provided, use that. Otherwise, generate a fresh one.
   x <- case mx of
     Nothing -> mkFreshName ze
-    Just x -> pure (LVN $ unsafeMkName x)
+    Just x -> pure (LocalName $ unsafeMkName x)
   unless (isFresh x (target ze)) $ throwError NameCapture
   result <- flip replace ze <$> lam x (pure (target ze))
   moveExpr Child1 result
@@ -797,7 +804,7 @@ constructLAM mx ze = do
   -- If a name is provided, use that. Otherwise, generate a fresh one.
   x <- case mx of
     Nothing -> mkFreshName ze
-    Just x -> pure (LVN $ unsafeMkName x)
+    Just x -> pure (LocalName $ unsafeMkName x)
   unless (isFresh x (target ze)) $ throwError NameCapture
   result <- flip replace ze <$> lAM x (pure (target ze))
   moveExpr Child1 result
@@ -852,7 +859,7 @@ constructLet mx ze = case target ze of
     -- If a name is provided, use that. Otherwise, generate a fresh one.
     x <- case mx of
       Nothing -> mkFreshName ze
-      Just x -> pure (LVN $ unsafeMkName x)
+      Just x -> pure (LocalName $ unsafeMkName x)
     flip replace ze <$> let_ x emptyHole emptyHole
   e -> throwError $ NeedEmptyHole (ConstructLet mx) e
 
@@ -862,7 +869,7 @@ constructLetrec mx ze = case target ze of
     -- If a name is provided, use that. Otherwise, generate a fresh one.
     x <- case mx of
       Nothing -> mkFreshName ze
-      Just x -> pure (LVN $ unsafeMkName x)
+      Just x -> pure (LocalName $ unsafeMkName x)
     flip replace ze <$> letrec x emptyHole tEmptyHole emptyHole
   e -> throwError $ NeedEmptyHole (ConstructLetrec mx) e
 
@@ -924,9 +931,9 @@ constructCase ze = do
 renameLam :: ActionM m => Text -> ExprZ -> m ExprZ
 renameLam y ze = case target ze of
   Lam m x e
-    | unName (unLVarName x) == y -> pure ze
+    | unName (unLocalName x) == y -> pure ze
     | otherwise -> do
-        let y' = LVN $ unsafeMkName y
+        let y' = LocalName $ unsafeMkName y
         case renameLocalVar x y' e of
           Just e' -> pure $ replace (Lam m y' e') ze
           Nothing ->
@@ -938,9 +945,9 @@ renameLam y ze = case target ze of
 renameLAM :: ActionM m => Text -> ExprZ -> m ExprZ
 renameLAM b ze = case target ze of
   LAM m a e
-    | unName (unLVarName a) == b -> pure ze
+    | unName (unLocalName a) == b -> pure ze
     | otherwise -> do
-        let b' = LVN $ unsafeMkName b
+        let b' = LocalName $ unsafeMkName b
         case renameTyVarExpr a b' e of
           Just e' -> pure $ replace (LAM m b' e') ze
           Nothing ->
@@ -952,15 +959,15 @@ renameLAM b ze = case target ze of
 renameLet :: ActionM m => Text -> ExprZ -> m ExprZ
 renameLet y ze = case target ze of
   Let m x e1 e2
-    | unName (unLVarName x) == y -> pure ze
+    | unName (unLocalName x) == y -> pure ze
     | otherwise -> do
-        let y' = LVN $ unsafeMkName y
+        let y' = LocalName $ unsafeMkName y
         (e1', e2') <- doRename x y' e1 e2
         pure $ replace (Let m y' e1' e2') ze
   Letrec m x e1 t1 e2
-    | unName (unLVarName x) == y -> pure ze
+    | unName (unLocalName x) == y -> pure ze
     | otherwise -> do
-        let y' = LVN $ unsafeMkName y
+        let y' = LocalName $ unsafeMkName y
         (e1', e2') <- doRename x y' e1 e2
         pure $ replace (Letrec m y' e1' t1 e2') ze
   _ ->
@@ -977,7 +984,7 @@ renameCaseBinding :: forall m. ActionM m => Text -> CaseBindZ -> m CaseBindZ
 renameCaseBinding y caseBind = updateCaseBind caseBind $ \bind bindings rhs -> do
   let failure :: Text -> m a
       failure = throwError . CustomFailure (RenameCaseBinding y)
-  let y' = LVN $ unsafeMkName y
+  let y' = LocalName $ unsafeMkName y
 
   -- Check that 'y' doesn't clash with any of the other branch bindings
   let otherBindings = delete bind bindings
@@ -1020,13 +1027,13 @@ constructTCon c zt = case target zt of
 
 constructTVar :: ActionM m => Text -> TypeZ -> m TypeZ
 constructTVar x ast = case target ast of
-  TEmptyHole{} -> flip replace ast <$> tvar (LVN $ unsafeMkName x)
+  TEmptyHole{} -> flip replace ast <$> tvar (LocalName $ unsafeMkName x)
   _ -> throwError $ CustomFailure (ConstructTVar x) "can only construct tvar in hole"
 
 constructTForall :: ActionM m => Maybe Text -> TypeZ -> m TypeZ
 constructTForall mx zt = do
   x <-
-    LVN <$> case mx of
+    LocalName <$> case mx of
       Nothing -> mkFreshNameTy zt
       Just x -> pure (unsafeMkName x)
   unless (isFreshTy x $ target zt) $ throwError NameCapture
@@ -1039,9 +1046,9 @@ constructTApp zt = flip replace zt <$> tapp (pure (target zt)) tEmptyHole
 renameForall :: ActionM m => Text -> TypeZ -> m TypeZ
 renameForall b zt = case target zt of
   TForall m a k t
-    | unName (unLVarName a) == b -> pure zt
+    | unName (unLocalName a) == b -> pure zt
     | otherwise -> do
-        let b' = LVN $ unsafeMkName b
+        let b' = LocalName $ unsafeMkName b
         case renameTyVar a b' t of
           Just t' -> pure $ replace (TForall m b' k t') zt
           Nothing ->

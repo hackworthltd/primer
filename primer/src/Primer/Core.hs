@@ -11,7 +11,7 @@ module Primer.Core (
   Expr,
   Expr' (..),
   Bind' (..),
-  VarRef (..),
+  TmVarRef (..),
   varRefName,
   CaseBranch,
   CaseBranch' (..),
@@ -34,7 +34,10 @@ module Primer.Core (
   TyConName,
   ValConName,
   GVarName,
-  LVarName (LVN, unLVarName),
+  LocalNameKind (..),
+  LocalName (LocalName, unLocalName),
+  LVarName,
+  TyVarName,
   Type,
   Type' (..),
   TypeCache (..),
@@ -171,12 +174,21 @@ type TyConName = GlobalName 'ATyCon
 type ValConName = GlobalName 'AValCon
 type GVarName = GlobalName 'ADefName
 
+-- | Tags for 'LocalName'
+data LocalNameKind
+  = ATmVar
+  | ATyVar
+
 -- | A newtype wrapper around a 'Name', tracking that the name refers
--- to a local (term or type) variable
-newtype LVarName = LVN {unLVarName :: Name}
+-- to a local variable. The tag says which sort of variable (term or
+-- type) this is.
+newtype LocalName (k :: LocalNameKind) = LocalName {unLocalName :: Name}
   deriving (Eq, Ord, Show, Data, Generic)
   deriving (IsString) via Name
   deriving (FromJSON, ToJSON, FromJSONKey, ToJSONKey) via Name
+
+type LVarName = LocalName 'ATmVar
+type TyVarName = LocalName 'ATyVar
 
 -- | The core AST.
 --  This is the canonical representation of Primer programs.  It is similar to
@@ -199,13 +211,13 @@ data Expr' a b
   | APP a (Expr' a b) (Type' b)
   | Con a ValConName -- See Note [Synthesisable constructors]
   | Lam a LVarName (Expr' a b)
-  | LAM a LVarName (Expr' a b)
-  | Var a VarRef
+  | LAM a TyVarName (Expr' a b)
+  | Var a TmVarRef
   | Let a LVarName (Expr' a b) (Expr' a b)
   | -- | LetType binds a type to a name in some expression.
     -- It is currently only constructed automatically during evaluation -
     -- the student can't directly make it.
-    LetType a LVarName (Type' b) (Expr' a b)
+    LetType a TyVarName (Type' b) (Expr' a b)
   | Letrec a LVarName (Expr' a b) (Type' b) (Expr' a b)
   | Case a (Expr' a b) [CaseBranch' a b] -- See Note [Case]
   | PrimCon a PrimCon
@@ -213,16 +225,16 @@ data Expr' a b
   deriving (FromJSON, ToJSON) via VJSON (Expr' a b)
 
 -- | A reference to a variable.
-data VarRef
+data TmVarRef
   = GlobalVarRef GVarName
   | LocalVarRef LVarName
   deriving (Eq, Show, Data, Generic)
-  deriving (FromJSON, ToJSON) via VJSON VarRef
+  deriving (FromJSON, ToJSON) via VJSON TmVarRef
 
-varRefName :: Lens' VarRef Name
+varRefName :: Lens' TmVarRef Name
 varRefName = lensVL $ \f -> \case
   GlobalVarRef (GlobalName n) -> GlobalVarRef . GlobalName <$> f n
-  LocalVarRef (LVN n) -> LocalVarRef . LVN <$> f n
+  LocalVarRef (LocalName n) -> LocalVarRef . LocalName <$> f n
 
 -- Note [Synthesisable constructors]
 -- Whilst our calculus is heavily inspired by bidirectional type systems
@@ -328,9 +340,9 @@ data Type' a
   | THole a (Type' a)
   | TCon a TyConName
   | TFun a (Type' a) (Type' a)
-  | TVar a LVarName
+  | TVar a TyVarName
   | TApp a (Type' a) (Type' a)
-  | TForall a LVarName Kind (Type' a)
+  | TForall a TyVarName Kind (Type' a)
   deriving (Eq, Show, Data, Generic)
   deriving (FromJSON, ToJSON) via VJSON (Type' a)
 
@@ -511,7 +523,7 @@ data PrimTypeDef = PrimTypeDef
 -- The type of the constructor is C :: forall a:TYPE. forall b:(TYPE->TYPE). b a -> Nat -> T a b
 data ASTTypeDef = ASTTypeDef
   { astTypeDefName :: TyConName
-  , astTypeDefParameters :: [(LVarName, Kind)] -- These names scope over the constructors
+  , astTypeDefParameters :: [(TyVarName, Kind)] -- These names scope over the constructors
   , astTypeDefConstructors :: [ValCon]
   , astTypeDefNameHints :: [Name]
   }

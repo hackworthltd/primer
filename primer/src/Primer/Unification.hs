@@ -11,8 +11,8 @@ import qualified Data.Set as S
 import Optics (anyOf, getting, over, set)
 import Primer.Core (
   ID,
-  LVarName,
   Meta (Meta),
+  TyVarName,
   Type' (TApp, TCon, TEmptyHole, TForall, TFun, THole, TVar),
   _typeMeta,
  )
@@ -21,18 +21,17 @@ import Primer.Name (NameCounter)
 import Primer.Subst (substTy)
 import Primer.Typecheck (
   Cxt (smartHoles),
-  KindOrType (K),
   SmartHoles (NoSmartHoles),
   Type,
   TypeError,
   checkKind,
   consistentKinds,
-  lookupLocal,
+  lookupLocalTy,
  )
 
 -- | This should never be thrown - it indicates a bug in either this module, or in how it is called
 data InternalUnifyError
-  = InternalUnifyVarNotInCxt Cxt LVarName
+  = InternalUnifyVarNotInCxt Cxt TyVarName
   deriving (Show)
 
 -- | Attempts to find a substitution for the given variables that makes the types consistent (i.e. equal-up-to-holes).
@@ -49,10 +48,10 @@ unify ::
   -- | We only care about local type vars and typedefs, for kind-checking our unifier
   Cxt ->
   -- | Which type variables should be considered as unification variables? This should be a subset of the Cxt
-  S.Set LVarName ->
+  S.Set TyVarName ->
   Type ->
   Type ->
-  m (Maybe (M.Map LVarName Type))
+  m (Maybe (M.Map TyVarName Type))
 unify cxt unificationVars s t = do
   result <-
     runExceptT $
@@ -67,8 +66,8 @@ unify cxt unificationVars s t = do
       -- ones.
       -- TODO: this is a bit of a code smell!
       let addPointlessMeta = set _typeMeta (Meta 0 Nothing Nothing)
-      let f v vt = case lookupLocal v cxt of
-            Just (K k) -> All . isRight <$> runExceptT @TypeError (runReaderT (checkKind k $ addPointlessMeta vt) (cxt{smartHoles = NoSmartHoles}))
+      let f v vt = case lookupLocalTy v cxt of
+            Right k -> All . isRight <$> runExceptT @TypeError (runReaderT (checkKind k $ addPointlessMeta vt) (cxt{smartHoles = NoSmartHoles}))
             -- this catchall should never happen: sb should only contain
             -- solutions for unification variables, which should be a subset
             -- of the context!
@@ -78,17 +77,17 @@ unify cxt unificationVars s t = do
   where
     initEnv = Env{unifVars = unificationVars, boundVarsL = mempty, boundVarsR = mempty}
 
-type UnifVars = S.Set LVarName
+type UnifVars = S.Set TyVarName
 
 data UnifError
   = NotUnify Type Type
-  | OccursBoundCheckFail LVarName Type
+  | OccursBoundCheckFail TyVarName Type
 
 -- NB: we need to keep the input types on the same side always, to get boundVars info to line up
 -- or rather, ensure we record the swap if we do a swap
-data Env = Env {unifVars :: UnifVars, boundVarsL, boundVarsR :: M.Map LVarName Int}
+data Env = Env {unifVars :: UnifVars, boundVarsL, boundVarsR :: M.Map TyVarName Int}
 
-type Subst = M.Map LVarName Type
+type Subst = M.Map TyVarName Type
 
 newtype U m a = U {unU :: ReaderT Env (StateT Subst (ExceptT UnifError m)) a}
   deriving
@@ -102,10 +101,10 @@ newtype U m a = U {unU :: ReaderT Env (StateT Subst (ExceptT UnifError m)) a}
 
 deriving instance MonadFresh NameCounter m => MonadFresh NameCounter (U m)
 
-isUnifVar :: MonadFresh NameCounter m => LVarName -> U m Bool
+isUnifVar :: MonadFresh NameCounter m => TyVarName -> U m Bool
 isUnifVar n = asks (S.member n . unifVars)
 
-isSameVar :: MonadFresh NameCounter m => LVarName -> LVarName -> U m Bool
+isSameVar :: MonadFresh NameCounter m => TyVarName -> TyVarName -> U m Bool
 isSameVar n m = do
   nIdx <- asks (M.lookup n . boundVarsL)
   mIdx <- asks (M.lookup m . boundVarsR)
@@ -117,14 +116,14 @@ isSameVar n m = do
 swapEnv :: Env -> Env
 swapEnv e = e{boundVarsL = boundVarsR e, boundVarsR = boundVarsL e}
 
-bind :: LVarName -> LVarName -> Env -> Env
+bind :: TyVarName -> TyVarName -> Env -> Env
 bind n m e =
   e
     { boundVarsL = M.insert n (M.size $ boundVarsL e) $ boundVarsL e
     , boundVarsR = M.insert m (M.size $ boundVarsR e) $ boundVarsR e
     }
 
-lookupSubst :: MonadFresh NameCounter m => LVarName -> U m (Maybe Type)
+lookupSubst :: MonadFresh NameCounter m => TyVarName -> U m (Maybe Type)
 lookupSubst = gets . M.lookup
 
 -- We assume (both empty and non-empty) holes can unify with anything!
@@ -159,7 +158,7 @@ unify' s t = throwError $ NotUnify s t
 -- We delay substitution till unifyVar case, so the monadic (>>) can be trivial
 -- but we want the substitution to be "grounded": free of solved unif vars on rhs
 --  so: before record, need to subst in soln; after record need to subst new sol'n in every rhs
-unifyVar :: MonadFresh NameCounter m => LVarName -> Type -> U m ()
+unifyVar :: MonadFresh NameCounter m => TyVarName -> Type -> U m ()
 unifyVar v t =
   lookupSubst v >>= \case
     Just v' -> unify' v' t
@@ -173,7 +172,7 @@ unifyVar v t =
         else solve v t'
 
 -- We both insert the solution, and substitute it in the RHS of known solutions
-solve :: MonadFresh NameCounter m => LVarName -> Type -> U m ()
+solve :: MonadFresh NameCounter m => TyVarName -> Type -> U m ()
 solve n t = do
   sb <- get
   sb' <- traverse (substTy n t) sb
