@@ -204,10 +204,10 @@ importModules ms = do
   -- in the imported module are distinct from those already existing in the
   -- App.
   p <- gets appProg
-  checkedImports' <- runExceptT $ checkEverything NoSmartHoles $ CheckEverything{trusted = progImports p, toCheck = ms}
-  checkedImports <- case checkedImports' of
-    Left err -> throwError $ ActionError $ ImportFailed () err
-    Right ci -> pure ci
+  checkedImports <-
+    liftError (ActionError . ImportFailed ()) $
+      checkEverything NoSmartHoles $
+        CheckEverything{trusted = progImports p, toCheck = ms}
   let p' = p & #progImports %~ (<> checkedImports)
   modify (\a -> a{appProg = p'})
 
@@ -443,9 +443,10 @@ applyProgAction prog mdefName = \case
         -- Run a full TC solely to ensure that no references to the removed id
         -- remain. This is rather inefficient and could be improved in the
         -- future.
-        runExceptT (checkEverything @TypeError NoSmartHoles CheckEverything{trusted = progImports prog, toCheck = [mod']}) >>= \case
-          Left _ -> throwError $ DefInUse d
-          Right _ -> pure ()
+        void . liftError (const $ DefInUse d) $
+          checkEverything @TypeError
+            NoSmartHoles
+            CheckEverything{trusted = progImports prog, toCheck = [mod']}
         pure (prog', Nothing)
   DeleteDef d -> throwError $ DefNotFound d
   RenameDef d nameStr -> case lookupASTDef d (moduleDefs $ progModule prog) of
@@ -483,12 +484,8 @@ applyProgAction prog mdefName = \case
     let def = ASTDef name expr ty
     pure (addDef def prog{progSelection = Just $ Selection name Nothing}, Just name)
   AddTypeDef td -> do
-    runExceptT @TypeError
-      ( runReaderT
-          (checkTypeDefs $ mkTypeDefMap [TypeDefAST td])
-          (buildTypingContext (allTypes prog) mempty NoSmartHoles)
-      )
-      >>= \case
+    (addTypeDef td prog, mdefName)
+      <$ liftError
         -- The frontend should never let this error case happen,
         -- so we just dump out a raw string for debugging/logging purposes
         -- (This is not currently true! We should synchronise the frontend with
@@ -496,8 +493,11 @@ applyProgAction prog mdefName = \case
         --   data T (T : *) = T
         -- but the TC rejects it.
         -- see https://github.com/hackworthltd/primer/issues/3)
-        Left err -> throwError $ TypeDefError $ show err
-        Right _ -> pure (addTypeDef td prog, mdefName)
+        (TypeDefError . show @TypeError)
+        ( runReaderT
+            (checkTypeDefs $ mkTypeDefMap [TypeDefAST td])
+            (buildTypingContext (allTypes prog) mempty NoSmartHoles)
+        )
   BodyAction actions -> do
     withDef mdefName prog $ \def -> do
       smartHoles <- gets $ progSmartHoles . appProg
@@ -894,11 +894,7 @@ tcWholeProg p =
                   , selectedNode = updatedNode
                   }
         pure $ p'{progSelection = newSel}
-   in do
-        x <- runExceptT $ runReaderT tc $ progCxt p
-        case x of
-          Left e -> throwError $ ActionError e
-          Right prog -> pure prog
+   in liftError ActionError $ runReaderT tc $ progCxt p
 
 copyPasteBody :: MonadEditApp m => Prog -> (GVarName, ID) -> GVarName -> [Action] -> m Prog
 copyPasteBody p (fromDefName, fromId) toDefName setup = do
@@ -996,6 +992,10 @@ lookupASTDef name = defAST <=< Map.lookup name
 
 progCxt :: Prog -> Cxt
 progCxt p = buildTypingContext (allTypes p) (allDefs p) (progSmartHoles p)
+
+-- | Run a computation in some context whose errors can be promoted to `ProgError`.
+liftError :: MonadEditApp m => (e -> ProgError) -> ExceptT e m b -> m b
+liftError f = runExceptT >=> either (throwError . f) pure
 
 defaultTypeDefs :: Map TyConName TypeDef
 defaultTypeDefs =
