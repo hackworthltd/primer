@@ -5,7 +5,7 @@ import Foreword
 import Optics (set)
 import Primer.Core (
   Kind (KType),
-  LVarName,
+  TyVarName,
   Type',
   _typeMeta,
  )
@@ -41,5 +41,5 @@ unit_3 =
 create' :: S (Type' a) -> Type' ()
 create' = set _typeMeta () . fst . create
 
-substTy' :: LVarName -> Type' () -> Type' () -> Type' ()
+substTy' :: TyVarName -> Type' () -> Type' () -> Type' ()
 substTy' n s t = evalTestM 0 $ substTy n s t

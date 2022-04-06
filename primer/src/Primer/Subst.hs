@@ -6,14 +6,14 @@ module Primer.Subst (
 import Foreword
 
 import Control.Monad.Fresh (MonadFresh)
-import Primer.Core (LVarName, Type' (..))
-import Primer.Core.Utils (freeVarsTy, freshLVarName)
+import Primer.Core (TyVarName, Type' (..))
+import Primer.Core.Utils (freeVarsTy, freshLocalName)
 import Primer.Name (NameCounter)
 
 -- | Simple and inefficient capture-avoiding substitution.
 -- @substTy n a t@  is t[a/n]
 -- We restrict to '()', i.e. no metadata as we don't want to duplicate IDs etc
-substTy :: MonadFresh NameCounter m => LVarName -> Type' () -> Type' () -> m (Type' ())
+substTy :: MonadFresh NameCounter m => TyVarName -> Type' () -> Type' () -> m (Type' ())
 substTy n a = go
   where
     avoid = freeVarsTy a
@@ -29,8 +29,8 @@ substTy n a = go
       t@(TForall _ m k s)
         | m == n -> pure t
         -- these names will not enter the user's program, so we don't need to worry about shadowing, only variable capture
-        | m `elem` avoid -> freshLVarName (avoid <> freeVarsTy s) >>= \m' -> substTy m (TVar () m') s >>= fmap (TForall () m' k) . go
+        | m `elem` avoid -> freshLocalName (avoid <> freeVarsTy s) >>= \m' -> substTy m (TVar () m') s >>= fmap (TForall () m' k) . go
         | otherwise -> TForall () m k <$> go s
 
-substTys :: MonadFresh NameCounter m => [(LVarName, Type' ())] -> Type' () -> m (Type' ())
+substTys :: MonadFresh NameCounter m => [(TyVarName, Type' ())] -> Type' () -> m (Type' ())
 substTys sb t = foldrM (uncurry substTy) t sb

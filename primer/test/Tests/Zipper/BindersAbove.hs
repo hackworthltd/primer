@@ -10,9 +10,9 @@ import Primer.Action (
  )
 import Primer.Core (
   Expr,
-  LVarName,
  )
 import Primer.Core.DSL
+import Primer.Name (Name)
 import Primer.Typecheck (SmartHoles (NoSmartHoles), initialCxt)
 import Primer.Zipper (bindersAbove, focus)
 import Test.Tasty.HUnit (Assertion, assertFailure, (@?=))
@@ -83,7 +83,7 @@ unit_10 =
 
 -- * Helpers
 
-bindersAboveTest :: S Expr -> [Movement] -> S.Set LVarName -> Assertion
+bindersAboveTest :: S Expr -> [Movement] -> S.Set Name -> Assertion
 bindersAboveTest expr path expected =
   case evalTestM (i + 1) $ runExceptT $ runReaderT (foldM (flip moveExpr) (focus e) path) (initialCxt NoSmartHoles) of
     Left err -> assertFailure $ show err

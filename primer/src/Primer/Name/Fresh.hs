@@ -11,7 +11,7 @@ import Foreword
 
 import Control.Monad.Fresh (MonadFresh)
 import qualified Data.Set as S
-import Primer.Core (Expr, LVarName (LVN, unLVarName), Type)
+import Primer.Core (Expr, LocalName (LocalName, unLocalName), TyVarName, Type)
 import Primer.Core.Utils (freeVars, freeVarsTy)
 import Primer.Name (Name, NameCounter, freshName)
 import qualified Primer.Typecheck as TC
@@ -31,10 +31,10 @@ import Primer.Zipper (
 -- However, it may shadow a binding in more global scope that happens not to
 -- be used in the expression, or a binding in the expression may shadow the
 -- name.
-isFresh :: LVarName -> Expr -> Bool
-isFresh v e = v `S.notMember` freeVars e
+isFresh :: LocalName k -> Expr -> Bool
+isFresh v e = unLocalName v `S.notMember` freeVars e
 
-isFreshTy :: LVarName -> Type -> Bool
+isFreshTy :: TyVarName -> Type -> Bool
 isFreshTy v t = v `S.notMember` freeVarsTy t
 
 -- We make a fresh name that is appropriate for binding here (i.e. wrapping the
@@ -56,13 +56,13 @@ isFreshTy v t = v `S.notMember` freeVarsTy t
 -- constructors. However, for the sake of non-confusingness, we don't care
 -- about that here. Thus when we avoid more-globally bound names, we will also
 -- include globally-scoped things.
-mkFreshName :: (MonadFresh NameCounter m, MonadReader TC.Cxt m) => ExprZ -> m LVarName
-mkFreshName e = LVN <$> (freshName =<< mkAvoidForFreshName e)
+mkFreshName :: (MonadFresh NameCounter m, MonadReader TC.Cxt m) => ExprZ -> m (LocalName k)
+mkFreshName e = LocalName <$> (freshName =<< mkAvoidForFreshName e)
 
 mkAvoidForFreshNameTy :: MonadReader TC.Cxt m => TypeZ -> m (S.Set Name)
 mkAvoidForFreshNameTy t = do
-  let moreGlobal = S.map unLVarName $ bindersAboveTypeZ t
-      moreLocal = S.map unLVarName $ bindersBelowTy $ focusOnlyType t
+  let moreGlobal = bindersAboveTypeZ t
+      moreLocal = S.map unLocalName $ bindersBelowTy $ focusOnlyType t
   globals <- TC.getGlobalNames
   pure $ S.unions [moreGlobal, moreLocal, globals]
 
@@ -71,7 +71,7 @@ mkFreshNameTy t = freshName =<< mkAvoidForFreshNameTy t
 
 mkAvoidForFreshName :: MonadReader TC.Cxt m => ExprZ -> m (S.Set Name)
 mkAvoidForFreshName e = do
-  let moreGlobal = S.map unLVarName $ bindersAbove e
-      moreLocal = S.map unLVarName $ bindersBelow e
+  let moreGlobal = bindersAbove e
+      moreLocal = bindersBelow e
   globals <- TC.getGlobalNames
   pure $ S.unions [moreGlobal, moreLocal, globals]

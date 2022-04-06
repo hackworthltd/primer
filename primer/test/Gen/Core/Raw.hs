@@ -10,6 +10,7 @@ module Gen.Core.Raw (
   genID,
   genName,
   genLVarName,
+  genTyVarName,
   genTyConName,
   genKind,
   genType,
@@ -28,14 +29,16 @@ import Primer.Core (
   Expr' (..),
   ID (..),
   Kind (..),
-  LVarName (LVN),
+  LVarName,
+  LocalName (LocalName),
   Meta (..),
   PrimCon (..),
+  TmVarRef (..),
   TyConName,
+  TyVarName,
   Type,
   Type' (..),
   ValConName,
-  VarRef (..),
   qualifyName,
  )
 import Primer.Name (Name, unsafeMkName)
@@ -91,7 +94,7 @@ genLam :: ExprGen Expr
 genLam = Lam <$> genMeta <*> genLVarName <*> genExpr
 
 genLAM :: ExprGen Expr
-genLAM = LAM <$> genMeta <*> genLVarName <*> genExpr
+genLAM = LAM <$> genMeta <*> genTyVarName <*> genExpr
 
 genLocalVar :: ExprGen Expr
 genLocalVar = Var <$> genMeta <*> (LocalVarRef <$> genLVarName)
@@ -103,7 +106,7 @@ genLet :: ExprGen Expr
 genLet = Let <$> genMeta <*> genLVarName <*> genExpr <*> genExpr
 
 genLetType :: ExprGen Expr
-genLetType = LetType <$> genMeta <*> genLVarName <*> genType <*> genExpr
+genLetType = LetType <$> genMeta <*> genTyVarName <*> genType <*> genExpr
 
 genLetrec :: ExprGen Expr
 genLetrec = Letrec <$> genMeta <*> genLVarName <*> genExpr <*> genType <*> genExpr
@@ -136,12 +139,12 @@ genType =
     Gen.choice
     [ TEmptyHole <$> genMeta
     , TCon <$> genMeta <*> genTyConName
-    , TVar <$> genMeta <*> genLVarName
+    , TVar <$> genMeta <*> genTyVarName
     ]
     [ THole <$> genMeta <*> genType
     , TFun <$> genMeta <*> genType <*> genType
     , TApp <$> genMeta <*> genType <*> genType
-    , TForall <$> genMeta <*> genLVarName <*> genKind <*> genType
+    , TForall <$> genMeta <*> genTyVarName <*> genKind <*> genType
     ]
 
 genTyConName :: ExprGen TyConName
@@ -163,4 +166,7 @@ genName :: ExprGen Name
 genName = unsafeMkName <$> Gen.text (Range.linear 1 10) Gen.alpha
 
 genLVarName :: ExprGen LVarName
-genLVarName = LVN <$> genName
+genLVarName = LocalName <$> genName
+
+genTyVarName :: ExprGen TyVarName
+genTyVarName = LocalName <$> genName

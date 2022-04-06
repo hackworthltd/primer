@@ -213,7 +213,7 @@ afterRename = afterRename' renameLocalVar clearMeta
     clearMeta :: Expr' ExprMeta TypeMeta -> Expr' (Maybe Value) (Maybe Value)
     clearMeta = over _exprMeta (view _metadata) . over _exprTypeMeta (view _metadata)
 
-afterRenameTy :: LVarName -> LVarName -> S Type -> Maybe (S Type) -> Assertion
+afterRenameTy :: TyVarName -> TyVarName -> S Type -> Maybe (S Type) -> Assertion
 afterRenameTy = afterRename' renameTyVar clearMeta
   where
     -- Clear the backend-created metadata (IDs and cached types) in the given expression
@@ -221,7 +221,7 @@ afterRenameTy = afterRename' renameTyVar clearMeta
     clearMeta = over _typeMeta (view _metadata)
 
 -- | A helper to test the renaming of type variables inside terms
-afterRenameCross :: LVarName -> LVarName -> S Expr -> Maybe (S Expr) -> Assertion
+afterRenameCross :: TyVarName -> TyVarName -> S Expr -> Maybe (S Expr) -> Assertion
 afterRenameCross = afterRename' renameTyVarExpr clearMeta
   where
     -- Clear the backend-created metadata (IDs and cached types) in the given expression
@@ -230,10 +230,10 @@ afterRenameCross = afterRename' renameTyVarExpr clearMeta
 
 afterRename' ::
   (Show a, Show b, Eq a, Eq b) =>
-  (LVarName -> LVarName -> a -> Maybe a) ->
+  (LocalName k -> LocalName k -> a -> Maybe a) ->
   (a -> b) ->
-  LVarName ->
-  LVarName ->
+  LocalName k ->
+  LocalName k ->
   S a ->
   Maybe (S a) ->
   Assertion

@@ -24,6 +24,7 @@ module Gen.Core.Typed (
   propertyWT,
   freshNameForCxt,
   freshLVarNameForCxt,
+  freshTyVarNameForCxt,
 ) where
 
 import Foreword
@@ -32,7 +33,6 @@ import Control.Monad.Fresh (MonadFresh, fresh)
 import Control.Monad.Morph (hoist)
 import Control.Monad.Reader (mapReaderT)
 import qualified Data.Map as M
-import qualified Data.Set as S
 import Hedgehog (
   GenT,
   MonadGen,
@@ -51,14 +51,16 @@ import Primer.Core (
   GVarName,
   ID,
   Kind (..),
-  LVarName (LVN, unLVarName),
+  LVarName,
+  LocalName (LocalName),
   PrimCon (..),
+  TmVarRef (..),
   TyConName,
+  TyVarName,
   Type' (..),
   TypeDef (..),
   ValCon (..),
   ValConName,
-  VarRef (..),
   qualifyName,
   typeDefKind,
   typeDefName,
@@ -71,7 +73,6 @@ import Primer.Refine (Inst (InstAPP, InstApp, InstUnconstrainedAPP), refine)
 import Primer.Subst (substTy, substTys)
 import Primer.Typecheck (
   Cxt (),
-  KindOrType (K, T),
   TypeDefError (TDIHoleType),
   consistentKinds,
   extendLocalCxt,
@@ -83,6 +84,7 @@ import Primer.Typecheck (
   instantiateValCons,
   localCxt,
   localTmVars,
+  localTyVars,
   matchArrowType,
   matchForallType,
   mkTypeDefMap,
@@ -138,11 +140,14 @@ instance MonadFresh ID (PropertyT WT) where
 freshNameForCxt :: GenT WT Name
 freshNameForCxt = do
   globs <- getGlobalNames
-  locals <- asks $ S.map unLVarName . M.keysSet . localCxt
+  locals <- asks $ M.keysSet . localCxt
   freshName $ globs <> locals
 
 freshLVarNameForCxt :: GenT WT LVarName
-freshLVarNameForCxt = LVN <$> freshNameForCxt
+freshLVarNameForCxt = LocalName <$> freshNameForCxt
+
+freshTyVarNameForCxt :: GenT WT TyVarName
+freshTyVarNameForCxt = LocalName <$> freshNameForCxt
 
 -- genSyns T with cxt Γ should generate (e,S) st Γ |- e ∈ S and S ~ T (i.e. same up to holes and alpha)
 genSyns :: TypeG -> GenT WT (ExprG, TypeG)
@@ -194,7 +199,7 @@ genSyns ty = do
     -- APPs are difficult. We take the approach of throwing stuff at the wall and seeing what sticks...
     genAPP = justT $ do
       k <- genWTKind
-      n <- freshLVarNameForCxt
+      n <- freshTyVarNameForCxt
       (s, sTy) <- genSyns $ TForall () n k $ TEmptyHole ()
       cxt <- ask
       runExceptT (refine cxt ty sTy) >>= \case
@@ -251,7 +256,7 @@ genSyns ty = do
 justT :: MonadGen m => m (Maybe a) -> m a
 justT g = Gen.sized $ \s -> Gen.justT $ Gen.resize s g
 
-genInstApp :: [Inst] -> GenT WT ([(LVarName, Type' ())], [Either TypeG ExprG])
+genInstApp :: [Inst] -> GenT WT ([(TyVarName, Type' ())], [Either TypeG ExprG])
 genInstApp = reify []
   where
     reify sb = \case
@@ -288,7 +293,7 @@ genChk ty = do
       mfa <- matchForallType ty
       pure $
         mfa <&> \(n, k, t) -> do
-          m <- freshLVarNameForCxt
+          m <- freshTyVarNameForCxt
           ty' <- substTy n (TVar () m) t
           LAM () m <$> local (extendLocalCxtTy (m, k)) (genChk ty')
     genLet =
@@ -352,9 +357,7 @@ genWTType k = do
     app = do k' <- genWTKind; TApp () <$> genWTType (KFun k' k) <*> genWTType k'
     vari :: WT (Maybe (GenT WT TypeG))
     vari = do
-      let f = \case K v -> Just v; T _ -> Nothing
-      localTyVars <- asks $ M.mapMaybe f . localCxt
-      let goodVars = filter (consistentKinds k . snd) $ M.toList localTyVars
+      goodVars <- filter (consistentKinds k . snd) . M.toList <$> asks localTyVars
       if null goodVars
         then pure Nothing
         else pure $ Just $ Gen.element $ map (TVar () . fst) goodVars
@@ -375,7 +378,7 @@ genWTType k = do
       if k == KHole || k == KType
         then Just $ do
           k' <- genWTKind
-          n <- freshLVarNameForCxt
+          n <- freshTyVarNameForCxt
           TForall () n k' <$> local (extendLocalCxtTy (n, k')) (genWTType KType)
         else Nothing
 
@@ -398,7 +401,7 @@ genGlobalCxtExtension =
 -- Generates a group of potentially-mutually-recursive typedefs
 genTypeDefGroup :: GenT WT [TypeDef]
 genTypeDefGroup = do
-  let genParams = Gen.list (Range.linear 0 5) $ (,) <$> freshLVarNameForCxt <*> genWTKind
+  let genParams = Gen.list (Range.linear 0 5) $ (,) <$> freshTyVarNameForCxt <*> genWTKind
   nps <- Gen.list (Range.linear 1 5) $ (,) <$> freshNameForCxt <*> genParams
   -- create empty typedefs to temporarilly extend the context, so can do recursive types
   let types =
@@ -455,7 +458,7 @@ genCxtExtendingLocal = do
     go n = do
       cxtE <-
         Gen.choice
-          [ curry extendLocalCxtTy <$> freshLVarNameForCxt <*> genWTKind
+          [ curry extendLocalCxtTy <$> freshTyVarNameForCxt <*> genWTKind
           , curry extendLocalCxt <$> freshLVarNameForCxt <*> genWTType KType
           ]
       local cxtE $ go (n - 1)
