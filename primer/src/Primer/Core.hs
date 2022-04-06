@@ -83,7 +83,7 @@ import Data.Data (Data)
 import Data.Generics.Product
 import Data.Generics.Uniplate.Data ()
 import Data.Generics.Uniplate.Zipper (Zipper, hole, replaceHole)
-import Optics (AffineFold, Lens, Lens', Traversal, afailing, lens, lensVL, set, view, (%))
+import Optics (AffineFold, Lens, Lens', Traversal, afailing, lens, set, view, (%))
 import Primer.JSON
 import Primer.Name (Name, unsafeMkName)
 
@@ -231,10 +231,10 @@ data TmVarRef
   deriving (Eq, Show, Data, Generic)
   deriving (FromJSON, ToJSON) via VJSON TmVarRef
 
-varRefName :: Lens' TmVarRef Name
-varRefName = lensVL $ \f -> \case
-  GlobalVarRef (GlobalName n) -> GlobalVarRef . GlobalName <$> f n
-  LocalVarRef (LocalName n) -> LocalVarRef . LocalName <$> f n
+varRefName :: TmVarRef -> Name
+varRefName = \case
+  GlobalVarRef (GlobalName n) -> n
+  LocalVarRef (LocalName n) -> n
 
 -- Note [Synthesisable constructors]
 -- Whilst our calculus is heavily inspired by bidirectional type systems
