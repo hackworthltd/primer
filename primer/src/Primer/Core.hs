@@ -1,4 +1,5 @@
 {-# LANGUAGE DeriveFunctor #-}
+{-# LANGUAGE KindSignatures #-}
 {-# LANGUAGE OverloadedLabels #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE TypeApplications #-}
@@ -26,6 +27,14 @@ module Primer.Core (
   setID,
   HasMetadata (_metadata),
   ID (ID),
+  GlobalNameKind (..),
+  GlobalName (baseName),
+  qualifyName,
+  unsafeMkGlobalName,
+  TyConName,
+  ValConName,
+  GVarName,
+  LVarName (LVN, unLVarName),
   Type,
   Type' (..),
   TypeCache (..),
@@ -71,9 +80,9 @@ import Data.Data (Data)
 import Data.Generics.Product
 import Data.Generics.Uniplate.Data ()
 import Data.Generics.Uniplate.Zipper (Zipper, hole, replaceHole)
-import Optics (AffineFold, Lens, Lens', Traversal, afailing, lens, set, view, (%))
+import Optics (AffineFold, Lens, Lens', Traversal, afailing, lens, lensVL, set, view, (%))
 import Primer.JSON
-import Primer.Name (Name)
+import Primer.Name (Name, unsafeMkName)
 
 -- | An identifier for an expression. Every node of the AST has an ID.
 newtype ID = ID {unID :: Int}
@@ -137,6 +146,38 @@ _synthed = #_TCSynthed `afailing` (#_TCEmb % #tcSynthed)
 -- nodes we're inserting.
 type ExprMeta = Meta (Maybe TypeCache)
 
+-- | Tags for 'GlobalName'
+data GlobalNameKind
+  = ATyCon
+  | AValCon
+  | ADefName
+
+-- | Global names are currently the same as 'Name's, but will shortly contain
+-- a module prefix also. They are tagged with what sort of name they are.
+newtype GlobalName (k :: GlobalNameKind) = GlobalName {baseName :: Name}
+  deriving (Eq, Ord, Generic, Data)
+  deriving newtype (Show, IsString)
+  deriving newtype (FromJSON, ToJSON, FromJSONKey, ToJSONKey)
+
+unsafeMkGlobalName :: Text -> GlobalName k
+unsafeMkGlobalName = GlobalName . unsafeMkName
+
+-- | Currently just wraps the name, but shortly will take another
+-- argument for a module prefix
+qualifyName :: Name -> GlobalName k
+qualifyName = GlobalName
+
+type TyConName = GlobalName 'ATyCon
+type ValConName = GlobalName 'AValCon
+type GVarName = GlobalName 'ADefName
+
+-- | A newtype wrapper around a 'Name', tracking that the name refers
+-- to a local (term or type) variable
+newtype LVarName = LVN {unLVarName :: Name}
+  deriving (Eq, Ord, Show, Data, Generic)
+  deriving (IsString) via Name
+  deriving (FromJSON, ToJSON, FromJSONKey, ToJSONKey) via Name
+
 -- | The core AST.
 --  This is the canonical representation of Primer programs.  It is similar to
 --  System F, but with support for empty and non-empty holes.  Each node holds a
@@ -156,16 +197,16 @@ data Expr' a b
   | Ann a (Expr' a b) (Type' b)
   | App a (Expr' a b) (Expr' a b)
   | APP a (Expr' a b) (Type' b)
-  | Con a Name -- See Note [Synthesisable constructors]
-  | Lam a Name (Expr' a b)
-  | LAM a Name (Expr' a b)
+  | Con a ValConName -- See Note [Synthesisable constructors]
+  | Lam a LVarName (Expr' a b)
+  | LAM a LVarName (Expr' a b)
   | Var a VarRef
-  | Let a Name (Expr' a b) (Expr' a b)
+  | Let a LVarName (Expr' a b) (Expr' a b)
   | -- | LetType binds a type to a name in some expression.
     -- It is currently only constructed automatically during evaluation -
     -- the student can't directly make it.
-    LetType a Name (Type' b) (Expr' a b)
-  | Letrec a Name (Expr' a b) (Type' b) (Expr' a b)
+    LetType a LVarName (Type' b) (Expr' a b)
+  | Letrec a LVarName (Expr' a b) (Type' b) (Expr' a b)
   | Case a (Expr' a b) [CaseBranch' a b] -- See Note [Case]
   | PrimCon a PrimCon
   deriving (Eq, Show, Data, Generic)
@@ -173,13 +214,15 @@ data Expr' a b
 
 -- | A reference to a variable.
 data VarRef
-  = GlobalVarRef Name
-  | LocalVarRef Name
+  = GlobalVarRef GVarName
+  | LocalVarRef LVarName
   deriving (Eq, Show, Data, Generic)
   deriving (FromJSON, ToJSON) via VJSON VarRef
 
 varRefName :: Lens' VarRef Name
-varRefName = position @1
+varRefName = lensVL $ \f -> \case
+  GlobalVarRef (GlobalName n) -> GlobalVarRef . GlobalName <$> f n
+  LocalVarRef (LVN n) -> LocalVarRef . LVN <$> f n
 
 -- Note [Synthesisable constructors]
 -- Whilst our calculus is heavily inspired by bidirectional type systems
@@ -244,7 +287,7 @@ type CaseBranch = CaseBranch' ExprMeta TypeMeta
 
 data CaseBranch' a b
   = CaseBranch
-      Name
+      ValConName
       -- ^ constructor
       [Bind' a]
       -- ^ constructor parameters.
@@ -258,11 +301,11 @@ data CaseBranch' a b
 -- | Variable bindings
 -- These are used in case branches to represent the binding of a variable.
 -- They aren't currently used in lambdas or lets, but in the future that may change.
-data Bind' a = Bind a Name
+data Bind' a = Bind a LVarName
   deriving (Eq, Show, Data, Generic)
   deriving (FromJSON, ToJSON) via VJSON (Bind' a)
 
-bindName :: Bind' a -> Name
+bindName :: Bind' a -> LVarName
 bindName (Bind _ n) = n
 
 -- | A type-modifying lens for the metadata of a Bind.
@@ -283,11 +326,11 @@ type TypeMeta = Meta (Maybe Kind)
 data Type' a
   = TEmptyHole a
   | THole a (Type' a)
-  | TCon a Name
+  | TCon a TyConName
   | TFun a (Type' a) (Type' a)
-  | TVar a Name
+  | TVar a LVarName
   | TApp a (Type' a) (Type' a)
-  | TForall a Name Kind (Type' a)
+  | TForall a LVarName Kind (Type' a)
   deriving (Eq, Show, Data, Generic)
   deriving (FromJSON, ToJSON) via VJSON (Type' a)
 
@@ -371,7 +414,7 @@ data Def
 
 -- | A primitive, built-in definition
 data PrimDef = PrimDef
-  { primDefName :: Name
+  { primDefName :: GVarName
   -- ^ Used for display, and to link to an entry in `allPrimDefs`
   , primDefType :: Type
   }
@@ -380,14 +423,14 @@ data PrimDef = PrimDef
 
 -- | A top-level definition, built from an 'Expr'
 data ASTDef = ASTDef
-  { astDefName :: Name
+  { astDefName :: GVarName
   , astDefExpr :: Expr
   , astDefType :: Type
   }
   deriving (Eq, Show, Generic)
   deriving (FromJSON, ToJSON) via VJSON ASTDef
 
-defName :: Def -> Name
+defName :: Def -> GVarName
 defName = \case
   DefPrim d -> primDefName d
   DefAST d -> astDefName d
@@ -412,7 +455,7 @@ data PrimCon
 
 -- | The name of the type to which this primitive constructor belongs.
 -- This should be a key in `allPrimTypeDefs`.
-primConName :: PrimCon -> Name
+primConName :: PrimCon -> TyConName
 primConName = \case
   PrimChar _ -> "Char"
   PrimInt _ -> "Int"
@@ -439,7 +482,7 @@ newtype ExprAnyFresh = ExprAnyFresh (forall m. MonadFresh ID m => m Expr)
 data PrimFunError
   = -- | We have attempted to apply a primitive function to invalid args.
     PrimFunError
-      Name
+      GVarName
       -- ^ Function name
       [Expr' () ()]
       -- ^ Arguments
@@ -454,7 +497,7 @@ data TypeDef
 
 -- | Definition of a primitive data type
 data PrimTypeDef = PrimTypeDef
-  { primTypeDefName :: Name
+  { primTypeDefName :: TyConName
   , primTypeDefParameters :: [Kind]
   , primTypeDefNameHints :: [Name]
   }
@@ -467,8 +510,8 @@ data PrimTypeDef = PrimTypeDef
 -- The kind of the type is TYPE{\-a-\} -> (TYPE -> TYPE){\-b-\} -> TYPE{\-always returns a type-\}
 -- The type of the constructor is C :: forall a:TYPE. forall b:(TYPE->TYPE). b a -> Nat -> T a b
 data ASTTypeDef = ASTTypeDef
-  { astTypeDefName :: Name
-  , astTypeDefParameters :: [(Name, Kind)] -- These names scope over the constructors
+  { astTypeDefName :: TyConName
+  , astTypeDefParameters :: [(LVarName, Kind)] -- These names scope over the constructors
   , astTypeDefConstructors :: [ValCon]
   , astTypeDefNameHints :: [Name]
   }
@@ -476,7 +519,7 @@ data ASTTypeDef = ASTTypeDef
   deriving (FromJSON, ToJSON) via VJSON ASTTypeDef
 
 data ValCon = ValCon
-  { valConName :: Name
+  { valConName :: ValConName
   , valConArgs :: [Type' ()]
   }
   deriving (Eq, Show, Generic)
@@ -489,7 +532,7 @@ valConType td vc =
       foralls = foldr (\(n, k) t -> TForall () n k t) args (astTypeDefParameters td)
    in foralls
 
-typeDefName :: TypeDef -> Name
+typeDefName :: TypeDef -> TyConName
 typeDefName = \case
   TypeDefPrim t -> primTypeDefName t
   TypeDefAST t -> astTypeDefName t

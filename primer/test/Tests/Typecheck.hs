@@ -9,7 +9,7 @@ import Control.Monad.Fresh (MonadFresh)
 import qualified Data.Map as Map
 import Gen.Core.Raw (
   evalExprGen,
-  genName,
+  genTyConName,
   genType,
  )
 import Gen.Core.Typed (
@@ -213,7 +213,7 @@ hprop_decomposeTAppCon :: Property
 hprop_decomposeTAppCon = property $ do
   -- We correctly decompose "good" values
   let genArgs = Gen.list (Range.linear 0 5) $ set _typeMeta () <$> genType
-  nargs <- forAll $ evalExprGen 0 $ liftA2 (,) genName genArgs
+  nargs <- forAll $ evalExprGen 0 $ liftA2 (,) genTyConName genArgs
   tripping nargs (uncurry mkTAppCon) decomposeTAppCon
   -- Also test that if we decompose, then it was "good"
   ty <- forAll $ evalExprGen 0 $ set _typeMeta () <$> genType

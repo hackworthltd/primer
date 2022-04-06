@@ -4,7 +4,7 @@ import Foreword
 
 import Gen.Core.Raw (
   evalExprGen,
-  genName,
+  genLVarName,
   genType,
  )
 import Hedgehog hiding (check)
@@ -91,8 +91,8 @@ hprop_refl = property $ do
 
 hprop_alpha :: Property
 hprop_alpha = property $ do
-  s <- f <$> forAll (evalExprGen 0 genName)
-  t <- f <$> forAll (evalExprGen 0 genName)
+  s <- f <$> forAll (evalExprGen 0 genLVarName)
+  t <- f <$> forAll (evalExprGen 0 genLVarName)
   s === t
   where
     f v = create' $ tforall v KType $ tvar v

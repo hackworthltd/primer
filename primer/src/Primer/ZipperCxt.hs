@@ -20,13 +20,15 @@ import Primer.Core (
   CaseBranch' (..),
   Expr,
   Expr' (..),
+  GVarName,
+  GlobalName (baseName),
   Kind (KHole),
+  LVarName (unLVarName),
   Meta (Meta),
   Type' (..),
   TypeCache (..),
   TypeCacheBoth (..),
  )
-import Primer.Name (Name)
 import Primer.Typecheck (maybeTypeOf)
 import Primer.Zipper (
   ExprZ,
@@ -46,21 +48,24 @@ import Primer.Zipper (
 -- globally-defined "main"]
 data ShadowedVarsExpr
   = M
-      [(Name, Kind)]
+      [(LVarName, Kind)]
       -- ^ Local type variables
-      [(Name, Type' ())]
+      [(LVarName, Type' ())]
       -- ^ Local term variables
-      [(Name, Type' ())]
+      [(GVarName, Type' ())]
       -- ^ Global variables
   deriving (Eq, Show)
 
 instance Semigroup ShadowedVarsExpr where
   M ty1 tm1 gl1 <> M ty2 tm2 gl2 = M (ty1 <> ty2') (tm1 <> tm2') (gl1 <> gl2')
     where
-      names1 = Set.fromList (map fst ty1) <> Set.fromList (map fst tm1) <> Set.fromList (map fst gl1)
-      ty2' = filter (flip Set.notMember names1 . fst) ty2
-      tm2' = filter (flip Set.notMember names1 . fst) tm2
-      gl2' = filter (flip Set.notMember names1 . fst) gl2
+      names1 =
+        Set.fromList (map (unLVarName . fst) ty1)
+          <> Set.fromList (map (unLVarName . fst) tm1)
+          <> Set.fromList (map (baseName . fst) gl1)
+      ty2' = filter (flip Set.notMember names1 . unLVarName . fst) ty2
+      tm2' = filter (flip Set.notMember names1 . unLVarName . fst) tm2
+      gl2' = filter (flip Set.notMember names1 . baseName . fst) gl2
 
 instance Monoid ShadowedVarsExpr where
   mempty = M mempty mempty mempty
@@ -72,7 +77,7 @@ instance Monoid ShadowedVarsExpr where
 -- We remove shadowed variables.
 localVariablesInScopeExpr ::
   Either ExprZ TypeZ ->
-  ([(Name, Kind)], [(Name, Type' ())])
+  ([(LVarName, Kind)], [(LVarName, Type' ())])
 localVariablesInScopeExpr exprOrTy =
   let M tyvars tmvars _globs = either extractLocalsExprZ extractLocalsTypeZ exprOrTy
    in (reverse tyvars, reverse tmvars) -- keep most-global first
@@ -136,7 +141,7 @@ forgetMetadata = set (param @0) ()
 
 -- Helper for variablesInScopeTy: collect variables, most local first, eliding
 -- shadowed vars, as with 'ShadowedVarsExpr'
-newtype ShadowedVarsTy = N [(Name, Kind)]
+newtype ShadowedVarsTy = N [(LVarName, Kind)]
   deriving (Eq, Show)
 
 instance Semigroup ShadowedVarsTy where
@@ -150,7 +155,7 @@ instance Monoid ShadowedVarsTy where
 
 -- | As for 'variablesInScopeExpr', but when you are focussed somewhere inside
 -- a type, rather than somewhere inside an expr
-variablesInScopeTy :: TypeZip -> [(Name, Kind)]
+variablesInScopeTy :: TypeZip -> [(LVarName, Kind)]
 variablesInScopeTy e =
   let N vs = foldAbove (getBoundHere . current) e
    in reverse vs -- keep most-global first

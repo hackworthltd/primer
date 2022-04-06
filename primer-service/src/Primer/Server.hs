@@ -72,8 +72,10 @@ import Primer.Core (
   ASTTypeDef,
   Def (..),
   Expr,
+  GVarName,
   ID,
   Kind (KFun, KType),
+  LVarName,
   Type,
   Type' (TEmptyHole),
   TypeCache (..),
@@ -231,15 +233,15 @@ type SAPI = (
     -- POST /question/variables-in-scope
     --   Ask what variables are in scope for the given node ID
     "variables-in-scope"
-      :> ReqBody '[JSON] (Name, ID)
-      :> Post '[JSON] (Either ProgError (([(Name, Kind)], [(Name, Type' ())]), [(Name, Type' ())]))
+      :> ReqBody '[JSON] (GVarName, ID)
+      :> Post '[JSON] (Either ProgError (([(LVarName, Kind)], [(LVarName, Type' ())]), [(GVarName, Type' ())]))
 
     -- POST /question/generate-names
     --   Ask for a list of possible names for a binding at the given location.
     -- This method would be GET (since it doesn't modify any state) but we need to provide a request
     -- body, which isn't well supported for GET requests.
     :<|> "generate-names"
-      :> ReqBody '[JSON] ((Name, ID), Either (Maybe (Type' ())) (Maybe Kind))
+      :> ReqBody '[JSON] ((GVarName, ID), Either (Maybe (Type' ())) (Maybe Kind))
       :> Post '[JSON] (Either ProgError [Name])
     )
 
@@ -376,10 +378,12 @@ hoistPrimer e = hoistServer primerApi nt primerServer
 primerServer :: ServerT PrimerAPI (PrimerM IO)
 primerServer = openAPIServer :<|> legacyServer
   where
+    openAPIServer :: ServerT PrimerOpenAPI (PrimerM IO)
     openAPIServer =
       newSession
         :<|> (\b p -> pagedDefaultClamp 100 p $ listSessions b)
         :<|> getProgram
+    legacyServer :: ServerT PrimerLegacyAPI (PrimerM IO)
     legacyServer =
       ( copySession
           :<|> getVersion

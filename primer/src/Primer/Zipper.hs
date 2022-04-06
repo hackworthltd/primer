@@ -84,12 +84,12 @@ import Primer.Core (
   ExprMeta,
   HasID (..),
   ID,
+  LVarName,
   Type,
   Type' (TForall),
   bindName,
   getID,
  )
-import Primer.Name (Name)
 
 -- | An ordinary zipper for 'Expr's
 type ExprZ = Zipper Expr Expr
@@ -372,19 +372,19 @@ foldBelow f z = f (target z) <> maybe mempty go (farthest left <$> down z)
     go z' = f (target z') <> maybe mempty go (farthest left <$> down z') <> maybe mempty go (right z')
 
 -- Gets all binders that scope over the focussed subtree
-bindersAbove :: ExprZ -> S.Set Name
+bindersAbove :: ExprZ -> S.Set LVarName
 bindersAbove = foldAbove getBoundHereUp
 
-bindersAboveTy :: TypeZip -> S.Set Name
+bindersAboveTy :: TypeZip -> S.Set LVarName
 bindersAboveTy = foldAbove (getBoundHereTy . current)
 
 -- Note that we have two specialisations we care about:
 -- bindersBelowTy :: TypeZip -> S.Set Name
 -- bindersBelowTy :: Zipper (Type' One) (Type' One) -> S.Set Name
-bindersBelowTy :: Data a => Zipper (Type' a) (Type' a) -> S.Set Name
+bindersBelowTy :: Data a => Zipper (Type' a) (Type' a) -> S.Set LVarName
 bindersBelowTy = foldBelow getBoundHereTy
 
-bindersAboveTypeZ :: TypeZ -> S.Set Name
+bindersAboveTypeZ :: TypeZ -> S.Set LVarName
 bindersAboveTypeZ t =
   let moreGlobal = bindersAboveTy $ focusOnlyType t
       e = unfocusType t
@@ -396,23 +396,23 @@ bindersAboveTypeZ t =
    in moreGlobal <> moreGlobal'
 
 -- Get the names bound by this layer of an expression for a given child.
-getBoundHereUp :: (Eq a, Eq b) => FoldAbove (Expr' a b) -> S.Set Name
+getBoundHereUp :: (Eq a, Eq b) => FoldAbove (Expr' a b) -> S.Set LVarName
 getBoundHereUp e = getBoundHere (current e) (Just $ prior e)
 
 -- Get the names bound within the focussed subtree
-bindersBelow :: ExprZ -> S.Set Name
+bindersBelow :: ExprZ -> S.Set LVarName
 bindersBelow = foldBelow getBoundHereDn
 
 -- Get all names bound by this layer of an expression, for any child.
 -- E.g. for a "match" we get all vars bound by each branch.
-getBoundHereDn :: (Eq a, Eq b) => Expr' a b -> S.Set Name
+getBoundHereDn :: (Eq a, Eq b) => Expr' a b -> S.Set LVarName
 getBoundHereDn e = getBoundHere e Nothing
 
 -- Get the names bound by this layer of an expression.
 -- The second arg is the child we just came out of, if traversing up (and thus
 -- need to extract binders based on which case branch etc), and Nothing if
 -- traversing down (and want to get all binders regardless of branch).
-getBoundHere :: (Eq a, Eq b) => Expr' a b -> Maybe (Expr' a b) -> S.Set Name
+getBoundHere :: (Eq a, Eq b) => Expr' a b -> Maybe (Expr' a b) -> S.Set LVarName
 getBoundHere e prev = case e of
   Lam _ v _ -> S.singleton v
   LAM _ tv _ -> S.singleton tv
@@ -429,7 +429,7 @@ getBoundHere e prev = case e of
           Just p -> S.unions $ map (\(b, binders) -> if b == p then binders else mempty) binderss
   _ -> mempty
 
-getBoundHereTy :: Type' a -> S.Set Name
+getBoundHereTy :: Type' a -> S.Set LVarName
 getBoundHereTy = \case
   TForall _ v _ _ -> S.singleton v
   _ -> mempty

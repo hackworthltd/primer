@@ -4,7 +4,7 @@ module Tests.Question where
 import Foreword hiding (diff)
 
 import Data.List (nub, nubBy)
-import Gen.Core.Raw (evalExprGen, genKind, genName, genType)
+import Gen.Core.Raw (evalExprGen, genKind, genLVarName, genName, genType)
 import Hedgehog hiding (check)
 import Hedgehog.Classes
 import qualified Hedgehog.Gen as Gen
@@ -12,9 +12,13 @@ import qualified Hedgehog.Range as Range
 import Primer.App (defaultTypeDefs)
 import Primer.Core (
   Expr,
+  GVarName,
+  GlobalName (baseName),
   Kind (KFun, KType),
+  LVarName (LVN, unLVarName),
   Type,
   Type' (TCon),
+  qualifyName,
  )
 import Primer.Core.DSL
 import Primer.Core.Utils (forgetTypeIDs)
@@ -82,8 +86,8 @@ hprop_shadow_monoid_types = property $ do
 
 -- Generates data that could be contained in a ShadowedVarsTy, except
 -- it may have duplicated names
-genSTV' :: Gen [(Name, Kind)]
-genSTV' = evalExprGen 0 $ Gen.list (Range.linear 0 20) $ (,) <$> genName <*> genKind
+genSTV' :: Gen [(LVarName, Kind)]
+genSTV' = evalExprGen 0 $ Gen.list (Range.linear 0 20) $ (,) <$> genLVarName <*> genKind
 
 genSTV :: Gen ShadowedVarsTy
 genSTV = N . nubBy ((==) `on` fst) <$> genSTV'
@@ -104,7 +108,7 @@ hprop_shadow_monoid_expr = property $ do
   label $ if lenIn == lenOut then "no shadowing" else "shadowing"
   -- We end up with fewer elements than we started with
   assert $ lenIn >= lenOut
-  let nonShNames = map fst tyV ++ map fst tmV ++ map fst glV
+  let nonShNames = map (unLVarName . fst) tyV ++ map (unLVarName . fst) tmV ++ map (baseName . fst) glV
   annotateShow nonShNames
   -- there are no duplicate names in the output
   assert $ nub nonShNames == nonShNames
@@ -116,16 +120,16 @@ hprop_shadow_monoid_expr = property $ do
   assert $ sort nonShNames == sort (nub $ map nameSTE' ns)
 
 data STE'
-  = TyVar (Name, Kind)
-  | TmVar (Name, Type' ())
-  | Global (Name, Type' ())
+  = TyVar (LVarName, Kind)
+  | TmVar (LVarName, Type' ())
+  | Global (GVarName, Type' ())
   deriving (Show)
 
 nameSTE' :: STE' -> Name
 nameSTE' = \case
-  TyVar (n, _) -> n
-  TmVar (n, _) -> n
-  Global (n, _) -> n
+  TyVar (n, _) -> unLVarName n
+  TmVar (n, _) -> unLVarName n
+  Global (n, _) -> baseName n
 
 -- Generates data that could be contained in a ShadowedVarsExpr, except
 -- it may have duplicated names, and is not split into three sections,
@@ -134,9 +138,9 @@ genSTE' :: Gen [STE']
 genSTE' =
   let g = Gen.either_ genKind $ (,) <$> fmap forgetTypeIDs genType <*> Gen.bool
       toSTE' n = \case
-        Left k -> TyVar (n, k)
-        Right (ty, False) -> TmVar (n, ty)
-        Right (ty, True) -> Global (n, ty)
+        Left k -> TyVar (LVN n, k)
+        Right (ty, False) -> TmVar (LVN n, ty)
+        Right (ty, True) -> Global (qualifyName n, ty)
    in evalExprGen 0 $ Gen.list (Range.linear 0 20) $ toSTE' <$> genName <*> g
 
 genSTE :: Gen ShadowedVarsExpr
@@ -228,7 +232,7 @@ unit_variablesInScope_shadowed = do
 -- | Test that if we walk 'path' to some node in 'expr', that node will have
 -- 'expected' in-scope variables.
 -- We start by typechecking the expression, so it is annotated with types.
-hasVariables :: S Expr -> (ExprZ -> Maybe ExprZ) -> [(Name, Type' ())] -> Assertion
+hasVariables :: S Expr -> (ExprZ -> Maybe ExprZ) -> [(LVarName, Type' ())] -> Assertion
 hasVariables expr path expected = do
   let e = fst $ create expr
   case runTypecheckTestM NoSmartHoles (synth e) of
@@ -238,7 +242,7 @@ hasVariables expr path expected = do
       Nothing -> assertFailure ""
 
 -- | Like 'hasVariables' but for type variables inside terms also
-hasVariablesTyTm :: S Expr -> (ExprZ -> Maybe ExprZ) -> [(Name, Kind)] -> [(Name, Type' ())] -> Assertion
+hasVariablesTyTm :: S Expr -> (ExprZ -> Maybe ExprZ) -> [(LVarName, Kind)] -> [(LVarName, Type' ())] -> Assertion
 hasVariablesTyTm expr path expectedTy expectedTm = do
   let e = fst $ create expr
   case runTypecheckTestM NoSmartHoles (synth e) of
@@ -251,7 +255,7 @@ hasVariablesTyTm expr path expectedTy expectedTm = do
       Nothing -> assertFailure ""
 
 -- | Like 'hasVariables' but for types
-hasVariablesType :: S Type -> (TypeZip -> Maybe TypeZip) -> [(Name, Kind)] -> Assertion
+hasVariablesType :: S Type -> (TypeZip -> Maybe TypeZip) -> [(LVarName, Kind)] -> Assertion
 hasVariablesType ty path expected = do
   let t = fst $ create ty
   case path $ focus t of

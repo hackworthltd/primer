@@ -8,14 +8,14 @@ import Foreword
 import Control.Monad.Fresh (MonadFresh)
 import qualified Data.Map as Map
 import Primer.Core (
+  GVarName,
   ID,
   PrimDef (..),
   primFunType,
  )
-import Primer.Name (Name)
 import Primer.Primitives (allPrimDefs)
 
-withPrimDefs :: MonadFresh ID m => (Map Name PrimDef -> m a) -> m a
+withPrimDefs :: MonadFresh ID m => (Map GVarName PrimDef -> m a) -> m a
 withPrimDefs f = do
   defs <-
     for
