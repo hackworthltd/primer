@@ -36,6 +36,7 @@ module Primer.Core (
   GVarName,
   LocalNameKind (..),
   LocalName (LocalName, unLocalName),
+  unsafeMkLocalName,
   LVarName,
   TyVarName,
   Type,
@@ -186,6 +187,9 @@ newtype LocalName (k :: LocalNameKind) = LocalName {unLocalName :: Name}
   deriving (Eq, Ord, Show, Data, Generic)
   deriving (IsString) via Name
   deriving (FromJSON, ToJSON, FromJSONKey, ToJSONKey) via Name
+
+unsafeMkLocalName :: Text -> LocalName k
+unsafeMkLocalName = LocalName . unsafeMkName
 
 type LVarName = LocalName 'ATmVar
 type TyVarName = LocalName 'ATyVar
