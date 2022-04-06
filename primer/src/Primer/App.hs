@@ -895,7 +895,7 @@ tcWholeProg p =
                   }
         pure $ p'{progSelection = newSel}
    in do
-        x <- runExceptT $ runReaderT tc $ buildTypingContext (allTypes p) (allDefs p) (progSmartHoles p)
+        x <- runExceptT $ runReaderT tc $ progCxt p
         case x of
           Left e -> throwError $ ActionError e
           Right prog -> pure prog
@@ -993,6 +993,9 @@ copyPasteBody p (fromDefName, fromId) toDefName setup = do
 
 lookupASTDef :: GVarName -> Map GVarName Def -> Maybe ASTDef
 lookupASTDef name = defAST <=< Map.lookup name
+
+progCxt :: Prog -> Cxt
+progCxt p = buildTypingContext (allTypes p) (allDefs p) (progSmartHoles p)
 
 defaultTypeDefs :: Map TyConName TypeDef
 defaultTypeDefs =
