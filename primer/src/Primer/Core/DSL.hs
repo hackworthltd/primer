@@ -42,6 +42,7 @@ import Foreword
 import Control.Monad.Fresh (MonadFresh, fresh)
 import Numeric.Natural (Natural)
 import Optics (set)
+import Primer.Builtins (cCons, cFalse, cJust, cNil, cNothing, cSucc, cTrue, cZero)
 import Primer.Core (
   Bind' (..),
   CaseBranch,
@@ -167,22 +168,22 @@ meta' a = Meta <$> fresh <*> pure a <*> pure Nothing
 
 -- These functions rely on particular types being in scope.
 bool_ :: MonadFresh ID m => Bool -> m Expr
-bool_ b = con $ if b then "True" else "False"
+bool_ b = con $ if b then cTrue else cFalse
 nat :: MonadFresh ID m => Natural -> m Expr
 nat = \case
-  0 -> con "Zero"
-  n -> app (con "Succ") $ nat (n - 1)
+  0 -> con cZero
+  n -> app (con cSucc) $ nat (n - 1)
 maybe_ :: MonadFresh ID m => m Type -> (a -> m Expr) -> Maybe a -> m Expr
 maybe_ t f = \case
-  Nothing -> con "Nothing" `aPP` t
-  Just x -> con "Just" `aPP` t `app` f x
+  Nothing -> con cNothing `aPP` t
+  Just x -> con cJust `aPP` t `app` f x
 list_ :: MonadFresh ID m => TyConName -> [m Expr] -> m Expr
 list_ t =
   foldr
     ( \a b ->
-        con "Cons"
+        con cCons
           `aPP` tcon t
           `app` a
           `app` b
     )
-    (con "Nil" `aPP` tcon t)
+    (con cNil `aPP` tcon t)

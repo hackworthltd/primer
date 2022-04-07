@@ -3,6 +3,7 @@ module Tests.FreeVars where
 import Foreword
 
 import qualified Data.Set as Set
+import Primer.Builtins
 import Primer.Core (Kind (KType))
 import Primer.Core.DSL
 import Primer.Core.Utils
@@ -22,8 +23,8 @@ unit_2 =
             ( lam "x" $
                 case_
                   (lvar "x")
-                  [ branch "Zero" [] $ con "True"
-                  , branch "Succ" [("n", Nothing)] (app (lvar "f") (lvar "n"))
+                  [ branch cZero [] $ con cTrue
+                  , branch cSucc [("n", Nothing)] (app (lvar "f") (lvar "n"))
                   ]
             )
             (lvar "y")

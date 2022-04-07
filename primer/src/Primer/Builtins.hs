@@ -3,11 +3,28 @@
 --   for the fact that some of the primitive functions (see "Primer.Primitives")
 --   refer to these types.
 module Primer.Builtins (
+  tBool,
+  cTrue,
+  cFalse,
   boolDef,
+  tNat,
+  cZero,
+  cSucc,
   natDef,
+  tList,
+  cNil,
+  cCons,
   listDef,
+  tMaybe,
+  cNothing,
+  cJust,
   maybeDef,
+  tPair,
+  cMakePair,
   pairDef,
+  tEither,
+  cLeft,
+  cRight,
   eitherDef,
 ) where
 

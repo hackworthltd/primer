@@ -3,6 +3,7 @@ module Tests.Transform where
 import Foreword
 
 import Optics (over, view)
+import Primer.Builtins
 import Primer.Core
 import Primer.Core.DSL
 import Primer.Core.Transform
@@ -145,7 +146,7 @@ unit_app :: Assertion
 unit_app = afterRename "x" "y" (app (lvar "x") (lvar "x")) (Just (app (lvar "y") (lvar "y")))
 
 unit_con :: Assertion
-unit_con = afterRename "x" "y" (con "True") (Just (con "True"))
+unit_con = afterRename "x" "y" (con cTrue) (Just (con cTrue))
 
 unit_case :: Assertion
 unit_case =
@@ -187,7 +188,7 @@ unit_tEmptyHole :: Assertion
 unit_tEmptyHole = afterRenameTy "x" "y" tEmptyHole (Just tEmptyHole)
 
 unit_tcon :: Assertion
-unit_tcon = afterRenameTy "x" "y" (tcon "Bool") (Just $ tcon "Bool")
+unit_tcon = afterRenameTy "x" "y" (tcon tBool) (Just $ tcon tBool)
 
 unit_tfun :: Assertion
 unit_tfun = afterRenameTy "x" "y" (tfun (tvar "x") (tvar "x")) (Just $ tfun (tvar "y") (tvar "y"))

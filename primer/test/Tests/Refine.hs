@@ -27,6 +27,7 @@ import Hedgehog (
 import qualified Hedgehog.Gen as Gen
 import qualified Hedgehog.Range as Range
 import Primer.App (defaultTypeDefs)
+import Primer.Builtins (tBool, tList, tNat)
 import Primer.Core (
   Expr' (APP, Ann, App, EmptyHole),
   ID,
@@ -83,10 +84,10 @@ unit_con_refl =
     0
     ( refine'
         defaultCxt
-        (TCon () "Nat")
-        (TCon () "Nat")
+        (TCon () tNat)
+        (TCon () tNat)
     )
-    @?= Just ([], TCon () "Nat")
+    @?= Just ([], TCon () tNat)
 
 -- refine [...] Nat Bool  fails
 unit_distinct_con :: Assertion
@@ -95,8 +96,8 @@ unit_distinct_con =
     0
     ( refine'
         defaultCxt
-        (TCon () "Nat")
-        (TCon () "Bool")
+        (TCon () tNat)
+        (TCon () tBool)
     )
     @?= Nothing
 
@@ -107,10 +108,10 @@ unit_instApp =
     0
     ( refine'
         defaultCxt
-        (TCon () "Nat")
-        (TFun () (TCon () "Bool") (TCon () "Nat"))
+        (TCon () tNat)
+        (TFun () (TCon () tBool) (TCon () tNat))
     )
-    @?= Just ([InstApp $ TCon () "Bool"], TCon () "Nat")
+    @?= Just ([InstApp $ TCon () tBool], TCon () tNat)
 
 -- refine [...] Nat (∀a.Nat) succeeds: have an unconstraind APP to do
 unit_instUnconstrainedAPP :: Assertion
@@ -120,10 +121,10 @@ unit_instUnconstrainedAPP =
     0
     ( refine'
         defaultCxt
-        (TCon () "Nat")
-        (TForall () "a" KType (TCon () "Nat"))
+        (TCon () tNat)
+        (TForall () "a" KType (TCon () tNat))
     )
-    @?= Just ([InstUnconstrainedAPP "a1" KType], TCon () "Nat")
+    @?= Just ([InstUnconstrainedAPP "a1" KType], TCon () tNat)
 
 -- refine [...] Nat (∀a.a) succeeds: have an APP Nat to do
 unit_instAPP :: Assertion
@@ -132,10 +133,10 @@ unit_instAPP =
     0
     ( refine'
         defaultCxt
-        (TCon () "Nat")
+        (TCon () tNat)
         (TForall () "a" KType (TVar () "a"))
     )
-    @?= Just ([InstAPP $ TCon () "Nat"], TCon () "Nat")
+    @?= Just ([InstAPP $ TCon () tNat], TCon () tNat)
 
 -- refine [...] Nat (∀a.List a) fails
 unit_forall_fail :: Assertion
@@ -144,8 +145,8 @@ unit_forall_fail =
     0
     ( refine'
         defaultCxt
-        (TCon () "Nat")
-        (TForall () "a" KType $ TApp () (TCon () "List") (TVar () "a"))
+        (TCon () tNat)
+        (TForall () "a" KType $ TApp () (TCon () tList) (TVar () "a"))
     )
     @?= Nothing
 
@@ -156,7 +157,7 @@ unit_ill_kinded_fail =
     0
     ( refine'
         defaultCxt
-        (TCon () "Nat")
+        (TCon () tNat)
         (TForall () "a" (KFun KType KType) $ TVar () "a")
     )
     @?= Nothing
@@ -168,15 +169,15 @@ unit_ill_kinded_fail_2 =
     0
     ( refine'
         defaultCxt
-        (TApp () (TEmptyHole ()) (TCon () "List"))
-        (TForall () "a" KType $ TApp () (TCon () "List") (TVar () "a"))
+        (TApp () (TEmptyHole ()) (TCon () tList))
+        (TForall () "a" KType $ TApp () (TCon () tList) (TVar () "a"))
     )
     @?= Nothing
 
 -- refine [...] (∀a. List a) (∀b. List b) succeeds, trivially
 unit_alpha :: Assertion
 unit_alpha =
-  let t n = (TForall () n KType $ TApp () (TCon () "List") (TVar () n))
+  let t n = (TForall () n KType $ TApp () (TCon () tList) (TVar () n))
    in evalTestM 0 (refine' defaultCxt (t "a") (t "b")) @?= Just ([], t "b")
 
 -- refine cxt T T succeeds

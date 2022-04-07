@@ -33,9 +33,11 @@ import Hedgehog (
 import qualified Hedgehog.Gen as Gen
 import qualified Hedgehog.Range as Range
 import Primer.App (defaultTypeDefs)
+import Primer.Builtins (tList, tNat)
 import Primer.Core (ID, Kind (KFun, KHole, KType), TyVarName, Type' (TApp, TCon, TEmptyHole, TForall, TFun, THole, TVar))
 import Primer.Core.Utils (forgetTypeIDs, freeVarsTy, generateTypeIDs)
 import Primer.Name (NameCounter)
+import Primer.Primitives (tInt)
 import Primer.Subst (substTys)
 import Primer.Typecheck (
   Cxt,
@@ -79,8 +81,8 @@ unit_Int_refl =
     ( unify'
         defaultCxt
         mempty
-        (TCon () "Int")
-        (TCon () "Int")
+        (TCon () tInt)
+        (TCon () tInt)
     )
     @?= Just mempty
 
@@ -106,7 +108,7 @@ unit_var_con =
         (extendLocalCxtTy ("a", KType) defaultCxt)
         mempty
         (TVar () "a")
-        (TCon () "Nat")
+        (TCon () tNat)
     )
     @?= Nothing
 
@@ -119,9 +121,9 @@ unit_unif_var_con =
         (extendLocalCxtTy ("a", KType) defaultCxt)
         (S.singleton "a")
         (TVar () "a")
-        (TCon () "Nat")
+        (TCon () tNat)
     )
-    @?= Just (M.singleton "a" $ TCon () "Nat")
+    @?= Just (M.singleton "a" $ TCon () tNat)
 
 -- unify [...,a:*] [a] a a = Just []
 unit_unif_var_refl :: Assertion
@@ -145,7 +147,7 @@ unit_ill_kinded =
         (extendLocalCxtTy ("a", KFun KType KType) defaultCxt)
         (S.singleton "a")
         (TVar () "a")
-        (TCon () "Nat")
+        (TCon () tNat)
     )
     @?= Nothing
 
@@ -158,9 +160,9 @@ unit_List_Nat =
         (extendLocalCxtTy ("a", KType) defaultCxt)
         (S.singleton "a")
         (TVar () "a")
-        (TApp () (TCon () "List") (TCon () "Nat"))
+        (TApp () (TCon () tList) (TCon () tNat))
     )
-    @?= Just (M.singleton "a" $ TApp () (TCon () "List") (TCon () "Nat"))
+    @?= Just (M.singleton "a" $ TApp () (TCon () tList) (TCon () tNat))
 
 -- unify [...,a:*] [a] (List a) (List Nat) = Just [Nat/a]
 unit_List :: Assertion
@@ -170,10 +172,10 @@ unit_List =
     ( unify'
         (extendLocalCxtTy ("a", KType) defaultCxt)
         (S.singleton "a")
-        (TApp () (TCon () "List") (TVar () "a"))
-        (TApp () (TCon () "List") (TCon () "Nat"))
+        (TApp () (TCon () tList) (TVar () "a"))
+        (TApp () (TCon () tList) (TCon () tNat))
     )
-    @?= Just (M.singleton "a" $ TCon () "Nat")
+    @?= Just (M.singleton "a" $ TCon () tNat)
 
 -- unify [...,a:*] [a] (List Nat) (List Nat) = Just []
 unit_List_Nat_refl :: Assertion
@@ -183,8 +185,8 @@ unit_List_Nat_refl =
     ( unify'
         (extendLocalCxtTy ("a", KType) defaultCxt)
         (S.singleton "a")
-        (TApp () (TCon () "List") (TCon () "Nat"))
-        (TApp () (TCon () "List") (TCon () "Nat"))
+        (TApp () (TCon () tList) (TCon () tNat))
+        (TApp () (TCon () tList) (TCon () tNat))
     )
     @?= Just mempty
 
@@ -196,10 +198,10 @@ unit_higher_kinded =
     ( unify'
         (extendLocalCxtTy ("a", KFun KType KType) defaultCxt)
         (S.singleton "a")
-        (TApp () (TVar () "a") (TCon () "Nat"))
-        (TApp () (TCon () "List") (TCon () "Nat"))
+        (TApp () (TVar () "a") (TCon () tNat))
+        (TApp () (TCon () tList) (TCon () tNat))
     )
-    @?= Just (M.singleton "a" $ TCon () "List")
+    @?= Just (M.singleton "a" $ TCon () tList)
 
 -- unify [...<NO 'a' HERE>] [a] (? List) (List a) fails, as 'a' is not in the context
 -- In particular, it does not succeed with the nonsense [List/a], as we throw
@@ -213,8 +215,8 @@ unit_ill_kinded_0 =
               unify
                 defaultCxt
                 (S.singleton "a")
-                (TApp () (TEmptyHole ()) (TCon () "List"))
-                (TApp () (TCon () "List") (TVar () "a"))
+                (TApp () (TEmptyHole ()) (TCon () tList))
+                (TApp () (TCon () tList) (TVar () "a"))
           )
    in assertBool "Should have detected a unification variable was not in the context" $ isLeft res
 
@@ -227,10 +229,10 @@ unit_uv_not_in_context =
     ( unify'
         (extendLocalCxtTy ("b", KType) defaultCxt)
         (S.fromList ["a", "b"])
-        (TCon () "Nat")
+        (TCon () tNat)
         (TVar () "b")
     )
-    @?= Just (M.singleton "b" $ TCon () "Nat")
+    @?= Just (M.singleton "b" $ TCon () tNat)
 
 -- unify [...,a:*] [a] (? List) (List a) = Nothing
 unit_ill_kinded_1 :: Assertion
@@ -240,8 +242,8 @@ unit_ill_kinded_1 =
     ( unify'
         (extendLocalCxtTy ("a", KType) defaultCxt)
         (S.singleton "a")
-        (TApp () (TEmptyHole ()) (TCon () "List"))
-        (TApp () (TCon () "List") (TVar () "a"))
+        (TApp () (TEmptyHole ()) (TCon () tList))
+        (TApp () (TCon () tList) (TVar () "a"))
     )
     @?= Nothing
 
@@ -255,10 +257,10 @@ unit_ill_kinded_2 =
     ( unify'
         (extendLocalCxtTy ("a", KFun KType KType) defaultCxt)
         (S.singleton "a")
-        (TApp () (TEmptyHole ()) (TCon () "List"))
-        (TApp () (TCon () "List") (TVar () "a"))
+        (TApp () (TEmptyHole ()) (TCon () tList))
+        (TApp () (TCon () tList) (TVar () "a"))
     )
-    @?= Just (M.singleton "a" $ TCon () "List")
+    @?= Just (M.singleton "a" $ TCon () tList)
 
 -- unify [...,a:*,b:*->*] [a] a b = Nothing
 unit_ill_kinded_3 :: Assertion
@@ -347,7 +349,7 @@ unit_unify_hole_trivial_1 =
         defaultCxt
         mempty
         (TEmptyHole ())
-        (THole () $ TCon () "Nat")
+        (THole () $ TCon () tNat)
     )
     @?= Just mempty
 

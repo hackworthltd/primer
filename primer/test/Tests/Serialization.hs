@@ -24,6 +24,7 @@ import Primer.App (
   ProgError (NoDefSelected),
   Selection (..),
  )
+import Primer.Builtins (tNat)
 import Primer.Core (
   ASTDef (..),
   ASTTypeDef (..),
@@ -100,7 +101,7 @@ fixtures =
           ASTTypeDef
             { astTypeDefName = "T"
             , astTypeDefParameters = [("a", KType), ("b", KFun KType KType)]
-            , astTypeDefConstructors = [ValCon "C" [TApp () (TVar () "b") (TVar () "a"), TCon () "Nat"]]
+            , astTypeDefConstructors = [ValCon "C" [TApp () (TVar () "b") (TVar () "a"), TCon () tNat]]
             , astTypeDefNameHints = []
             }
       progerror :: ProgError

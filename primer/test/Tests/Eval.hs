@@ -16,7 +16,14 @@ import Primer.App (
   importModules,
   newEmptyApp,
  )
-import Primer.Builtins (boolDef)
+import Primer.Builtins (
+  boolDef,
+  cFalse,
+  cNil,
+  cTrue,
+  cZero,
+  tBool,
+ )
 import Primer.Core (
   ASTDef (..),
   Def (..),
@@ -47,6 +54,7 @@ import Primer.Eval (
   tryReduceType,
  )
 import Primer.Module (Module (Module, moduleDefs, moduleTypes))
+import Primer.Primitives (primitiveGVar, tChar)
 import Primer.Typecheck (mkTypeDefMap)
 import Primer.Zipper (target)
 import Test.Tasty.HUnit (Assertion, assertBool, assertFailure, (@?=))
@@ -65,7 +73,7 @@ runTryReduceType globals locals (ty, i) = evalTestM i $ runExceptT $ tryReduceTy
 
 unit_tryReduce_no_redex :: Assertion
 unit_tryReduce_no_redex = do
-  runTryReduce mempty mempty (create (con "Zero")) @?= Left NotRedex
+  runTryReduce mempty mempty (create (con cZero)) @?= Left NotRedex
 
 unit_tryReduce_beta :: Assertion
 unit_tryReduce_beta = do
@@ -73,7 +81,7 @@ unit_tryReduce_beta = do
         create $ do
           x <- lvar "x"
           l <- lam "x" (pure x)
-          a <- con "Zero"
+          a <- con cZero
           i <- app (pure l) (pure a)
           r <- let_ "x" (pure a) (pure x)
           pure (l, x, a, i, r)
@@ -231,9 +239,9 @@ unit_tryReduce_BETA :: Assertion
 unit_tryReduce_BETA = do
   let ((body, lambda, arg, input, expectedResult), maxid) =
         create $ do
-          b <- aPP (con "Nil") (tvar "x")
+          b <- aPP (con cNil) (tvar "x")
           l <- lAM "x" (pure b)
-          a <- tcon "Bool"
+          a <- tcon tBool
           i <- aPP (pure l) (pure a)
           r <- letType "x" (pure a) (pure b)
           pure (b, l, a, i, r)
@@ -523,8 +531,8 @@ unit_tryReduce_prim = do
   let ((expr, expectedResult, globals), i) =
         create . withPrimDefs $ \m ->
           (,,)
-            <$> gvar "eqChar" `app` char 'a' `app` char 'a'
-            <*> con "True"
+            <$> gvar (primitiveGVar "eqChar") `app` char 'a' `app` char 'a'
+            <*> con cTrue
             <*> pure m
       result = runTryReduce (DefPrim <$> globals) mempty (expr, i)
   case result of
@@ -533,7 +541,7 @@ unit_tryReduce_prim = do
 
       applyPrimFunBefore detail ~= expr
       applyPrimFunAfter detail ~= expr'
-      applyPrimFunName detail @?= "eqChar"
+      applyPrimFunName detail @?= primitiveGVar "eqChar"
       applyPrimFunArgIDs detail @?= [101, 102]
     _ -> assertFailure $ show result
 
@@ -542,7 +550,7 @@ unit_tryReduce_prim_fail_unsaturated = do
   let ((expr, globals), i) =
         create . withPrimDefs $ \m ->
           (,)
-            <$> gvar "eqChar" `app` char 'a'
+            <$> gvar (primitiveGVar "eqChar") `app` char 'a'
             <*> pure m
       result = runTryReduce (DefPrim <$> globals) mempty (expr, i)
   result @?= Left NotRedex
@@ -552,7 +560,7 @@ unit_tryReduce_prim_fail_unreduced_args = do
   let ((expr, globals), i) =
         create . withPrimDefs $ \m ->
           (,)
-            <$> gvar "eqChar" `app` char 'a' `app` (gvar "toUpper" `app` char 'a')
+            <$> gvar (primitiveGVar "eqChar") `app` char 'a' `app` (gvar (primitiveGVar "toUpper") `app` char 'a')
             <*> pure m
       result = runTryReduce (DefPrim <$> globals) mempty (expr, i)
   result @?= Left NotRedex
@@ -790,24 +798,24 @@ unit_redexes_case_5 =
 
 unit_redexes_prim_1 :: Assertion
 unit_redexes_prim_1 =
-  redexesOfWithPrims (gvar "eqChar" `app` char 'a' `app` char 'b') @?= Set.fromList [98]
+  redexesOfWithPrims (gvar (primitiveGVar "eqChar") `app` char 'a' `app` char 'b') @?= Set.fromList [98]
 
 unit_redexes_prim_2 :: Assertion
 unit_redexes_prim_2 =
-  redexesOfWithPrims (gvar "eqChar" `app` lvar "a" `app` char 'b') @?= Set.empty
+  redexesOfWithPrims (gvar (primitiveGVar "eqChar") `app` lvar "a" `app` char 'b') @?= Set.empty
 
 unit_redexes_prim_3 :: Assertion
 unit_redexes_prim_3 =
-  redexesOfWithPrims (gvar "eqChar" `app` char 'a') @?= Set.empty
+  redexesOfWithPrims (gvar (primitiveGVar "eqChar") `app` char 'a') @?= Set.empty
 
 unit_redexes_prim_ann :: Assertion
 unit_redexes_prim_ann =
   redexesOfWithPrims expr @?= Set.singleton 98
   where
     expr =
-      gvar "toUpper"
-        `ann` (tcon "Char" `tfun` tcon "Char")
-          `app` (char 'a' `ann` tcon "Char")
+      gvar (primitiveGVar "toUpper")
+        `ann` (tcon tChar `tfun` tcon tChar)
+          `app` (char 'a' `ann` tcon tChar)
 
 -- Test that handleEvalRequest will reduce imported terms
 unit_eval_modules :: Assertion
@@ -815,7 +823,7 @@ unit_eval_modules =
   let test = do
         p <- defaultFullProg
         importModules [progModule p]
-        foo <- gvar "toUpper" `app` char 'a'
+        foo <- gvar (primitiveGVar "toUpper") `app` char 'a'
         EvalResp{evalRespExpr = e} <-
           handleEvalRequest
             EvalReq{evalReqExpr = foo, evalReqRedex = getID foo}
@@ -831,11 +839,11 @@ unit_eval_modules_scrutinize_imported_type :: Assertion
 unit_eval_modules_scrutinize_imported_type =
   let test = do
         importModules [m]
-        foo <- case_ (con "True") [branch "True" [] $ con "False", branch "False" [] $ con "True"]
+        foo <- case_ (con cTrue) [branch cTrue [] $ con cFalse, branch cFalse [] $ con cTrue]
         EvalResp{evalRespExpr = e} <-
           handleEvalRequest
             EvalReq{evalReqExpr = foo, evalReqRedex = getID foo}
-        expect <- con "False"
+        expect <- con cFalse
         pure $ e ~= expect
       a = newEmptyApp
    in case fst $ runAppTestM (ID $ appIdCounter a) a test of

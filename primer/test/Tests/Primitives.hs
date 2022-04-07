@@ -22,7 +22,7 @@ import Primer.Core (
   primConName,
  )
 import Primer.Core.DSL (char, tcon)
-import Primer.Primitives (allPrimTypeDefs)
+import Primer.Primitives (allPrimTypeDefs, tChar)
 import Primer.Typecheck (
   SmartHoles (NoSmartHoles),
   TypeError (PrimitiveTypeNotInScope, UnknownTypeConstructor),
@@ -46,8 +46,8 @@ hprop_all_prim_cons_have_typedef = propertyWT (buildTypingContext defaultTypeDef
 unit_prim_con_scope :: Assertion
 unit_prim_con_scope = do
   -- Char is indeed not in scope
-  test (checkKind KType =<< tcon "Char") @?= Left (UnknownTypeConstructor "Char")
-  test (synth =<< char 'a') @?= Left (PrimitiveTypeNotInScope "Char")
+  test (checkKind KType =<< tcon tChar) @?= Left (UnknownTypeConstructor tChar)
+  test (synth =<< char 'a') @?= Left (PrimitiveTypeNotInScope tChar)
   where
     cxt = buildTypingContext mempty mempty NoSmartHoles
     test = runTypecheckTestMFromIn 0 cxt
@@ -61,13 +61,13 @@ unit_prim_con_scope_ast = do
   -- Char is in scope (though the wrong kind to accept 'PrimChar's!)
   assertBool "Char is not in scope?" $
     isRight $
-      test $ checkKind (KType `KFun` KType) =<< tcon "Char"
-  test (synth =<< char 'a') @?= Left (PrimitiveTypeNotInScope "Char")
+      test $ checkKind (KType `KFun` KType) =<< tcon tChar
+  test (synth =<< char 'a') @?= Left (PrimitiveTypeNotInScope tChar)
   where
     charASTDef =
       TypeDefAST $
         ASTTypeDef
-          { astTypeDefName = "Char"
+          { astTypeDefName = tChar
           , astTypeDefParameters = [("a", KType)]
           , astTypeDefConstructors = mempty
           , astTypeDefNameHints = mempty

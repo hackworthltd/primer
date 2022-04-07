@@ -14,7 +14,6 @@ import Primer.Action (
     ConstructArrowL,
     ConstructLam,
     ConstructLet,
-    ConstructTCon,
     ConstructVar,
     Delete,
     EnterType,
@@ -44,6 +43,7 @@ import Primer.App (
   newProg,
   tcWholeProg,
  )
+import Primer.Builtins (cCons, cJust, cMakePair, cNil, tBool, tList, tMaybe, tPair)
 import Primer.Core (
   ASTDef (..),
   ASTTypeDef (..),
@@ -92,10 +92,11 @@ import Primer.Core.DSL (
 import Primer.Core.Utils (forgetIDs)
 import Primer.Module (Module (moduleDefs, moduleTypes))
 import Primer.Name
+import Primer.Primitives (tChar, tInt)
 import Primer.Typecheck (mkTypeDefMap)
 import Test.Tasty.HUnit (Assertion, assertBool, assertFailure, (@=?), (@?=))
 import TestM (TestM, evalTestM)
-import TestUtils (withPrimDefs)
+import TestUtils (constructTCon, withPrimDefs)
 import Tests.Typecheck (checkProgWellFormed)
 
 unit_empty_actions_only_change_the_log :: Assertion
@@ -421,15 +422,15 @@ unit_sigaction_creates_holes =
   let acts =
         [ -- main :: Char
           MoveToDef "main"
-        , SigAction [ConstructTCon "Char"]
+        , SigAction [constructTCon tChar]
         , -- other :: Char; other = main
           MoveToDef "other"
-        , SigAction [ConstructTCon "Char"]
+        , SigAction [constructTCon tChar]
         , BodyAction [ConstructVar $ GlobalVarRef "main"]
         , -- main :: Int
           -- We expect this to change 'other' to contain a hole
           MoveToDef "main"
-        , SigAction [Delete, ConstructTCon "Int"]
+        , SigAction [Delete, constructTCon tInt]
         ]
    in progActionTest defaultFullProg acts $
         expectSuccess $ \_ prog' ->
@@ -444,8 +445,8 @@ unit_sigaction_creates_holes =
 unit_copy_paste_duplicate :: Assertion
 unit_copy_paste_duplicate = do
   let ((p, fromType, fromExpr, _toType, _toExpr), maxID) = create $ do
-        mainType <- tforall "a" KType (tvar "a" `tfun` (tcon "Maybe" `tapp` tEmptyHole))
-        mainExpr <- lAM "b" $ lam "x" $ con "Just" `aPP` tvar "b" `app` lvar "x"
+        mainType <- tforall "a" KType (tvar "a" `tfun` (tcon tMaybe `tapp` tEmptyHole))
+        mainExpr <- lAM "b" $ lam "x" $ con cJust `aPP` tvar "b" `app` lvar "x"
         let mainDef = ASTDef "main" mainExpr mainType
         blankDef <- ASTDef "blank" <$> emptyHole <*> tEmptyHole
         pure
@@ -539,18 +540,18 @@ unit_raise = do
 unit_copy_paste_expr_1 :: Assertion
 unit_copy_paste_expr_1 = do
   let ((pInitial, srcID, pExpected), maxID) = create $ do
-        ty <- tforall "a" KType $ (tcon "List" `tapp` tvar "a") `tfun` tforall "b" KType (tvar "b" `tfun` (tcon "Pair" `tapp` tvar "a" `tapp` tvar "b"))
-        let toCopy' = con "MakePair" `aPP` tvar "a" `aPP` tvar "b" `app` lvar "y" `app` lvar "z" -- want different IDs for the two occurences in expected
+        ty <- tforall "a" KType $ (tcon tList `tapp` tvar "a") `tfun` tforall "b" KType (tvar "b" `tfun` (tcon tPair `tapp` tvar "a" `tapp` tvar "b"))
+        let toCopy' = con cMakePair `aPP` tvar "a" `aPP` tvar "b" `app` lvar "y" `app` lvar "z" -- want different IDs for the two occurences in expected
         toCopy <- toCopy'
         let skel r =
               lAM "a" $
                 lam "x" $
                   case_
                     (lvar "x")
-                    [ branch "Nil" [] r
-                    , branch "Cons" [("y", Nothing), ("ys", Nothing)] $ lAM "b" $ lam "z" $ pure toCopy
+                    [ branch cNil [] r
+                    , branch cCons [("y", Nothing), ("ys", Nothing)] $ lAM "b" $ lam "z" $ pure toCopy
                     ]
-        expectPasted <- con "MakePair" `aPP` tvar "a" `aPP` tEmptyHole `app` emptyHole `app` emptyHole
+        expectPasted <- con cMakePair `aPP` tvar "a" `aPP` tEmptyHole `app` emptyHole `app` emptyHole
         -- TODO: in the future we may want to insert let bindings for variables
         -- which are out of scope in the target, and produce something like
         -- expectPasted <- letType "b" tEmptyHole $ let_ "y" (emptyHole `ann` tvar "a") $ let_ "z" (emptyHole `ann` tvar "b") toCopy'
@@ -562,7 +563,7 @@ unit_copy_paste_expr_1 = do
           , newProg & #progModule % #moduleDefs .~ Map.fromList [("main", DefAST expected)]
           )
   let a = newApp{appProg = pInitial}
-      actions = [MoveToDef "main", CopyPasteBody ("main", srcID) [Move Child1, Move Child1, Move (Branch "Nil")]]
+      actions = [MoveToDef "main", CopyPasteBody ("main", srcID) [Move Child1, Move Child1, Move (Branch cNil)]]
       (result, _) = runAppTestM maxID a $ (,) <$> tcWholeProg pExpected <*> handleEditRequest actions
   case result of
     Left e -> assertFailure $ show e
@@ -575,7 +576,7 @@ unit_copy_paste_expr_1 = do
 unit_copy_paste_ann :: Assertion
 unit_copy_paste_ann = do
   let ((p, fromAnn), maxID) = create $ do
-        toCopy <- tcon "Bool"
+        toCopy <- tcon tBool
         mainDef <- ASTDef "main" <$> emptyHole `ann` pure toCopy <*> tEmptyHole
         blankDef <- ASTDef "blank" <$> emptyHole `ann` tEmptyHole <*> tEmptyHole
         pure
@@ -600,9 +601,9 @@ unit_copy_paste_ann = do
 unit_copy_paste_ann2sig :: Assertion
 unit_copy_paste_ann2sig = do
   let ((pInitial, srcID, pExpected), maxID) = create $ do
-        toCopy <- tcon "Bool"
+        toCopy <- tcon tBool
         defInitial <- ASTDef "main" <$> emptyHole `ann` pure toCopy <*> tEmptyHole
-        expected <- ASTDef "main" <$> emptyHole `ann` pure toCopy <*> tcon "Bool"
+        expected <- ASTDef "main" <$> emptyHole `ann` pure toCopy <*> tcon tBool
         pure
           ( newProg & #progModule % #moduleDefs .~ Map.fromList [("main", DefAST defInitial)]
           , getID toCopy
@@ -622,9 +623,9 @@ unit_copy_paste_ann2sig = do
 unit_copy_paste_sig2ann :: Assertion
 unit_copy_paste_sig2ann = do
   let ((pInitial, srcID, pExpected), maxID) = create $ do
-        toCopy <- tcon "Bool"
+        toCopy <- tcon tBool
         defInitial <- ASTDef "main" <$> emptyHole <*> pure toCopy
-        expected <- ASTDef "main" <$> emptyHole `ann` tcon "Bool" <*> pure toCopy
+        expected <- ASTDef "main" <$> emptyHole `ann` tcon tBool <*> pure toCopy
         pure
           ( newProg & #progModule % #moduleDefs .~ Map.fromList [("main", DefAST defInitial)]
           , getID toCopy
@@ -672,7 +673,7 @@ unit_import_reference =
             _ <-
               handleEditRequest
                 [ MoveToDef i
-                , SigAction [ConstructTCon "Char"]
+                , SigAction [constructTCon tChar]
                 , BodyAction [ConstructVar $ GlobalVarRef $ defName toUpperDef]
                 ]
             pure $ pure ()
