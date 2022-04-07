@@ -472,7 +472,7 @@ unit_smart_type_remove_5 =
 
 unit_prim_char :: Assertion
 unit_prim_char =
-  expectTyped $ ann (char 'a') (tcon tChar)
+  expectTypedWithPrims $ ann (char 'a') (tcon tChar)
 
 unit_prim_fun :: Assertion
 unit_prim_fun =
