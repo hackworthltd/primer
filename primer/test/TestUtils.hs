@@ -4,6 +4,9 @@ module TestUtils (
   constructTCon,
   constructCon,
   constructRefinedCon,
+  tcn,
+  vcn,
+  gvn,
 ) where
 
 import Foreword
@@ -13,12 +16,14 @@ import qualified Data.Map as Map
 import Primer.Action (Action (ConstructCon, ConstructRefinedCon, ConstructTCon))
 import Primer.Core (
   GVarName,
+  GlobalName (baseName, qualifiedModule),
   ID,
+  ModuleName,
   PrimDef (..),
   TyConName,
   ValConName,
-  baseName,
   primFunType,
+  qualifyName,
  )
 import Primer.Name (Name (unName))
 import Primer.Primitives (allPrimDefs)
@@ -34,10 +39,22 @@ withPrimDefs f = do
 
 -- impedence mismatch: ConstructTCon takes text, but tChar etc are TyConNames
 constructTCon :: TyConName -> Action
-constructTCon = ConstructTCon . unName . baseName
+constructTCon = ConstructTCon . toQualText
 
 constructCon :: ValConName -> Action
-constructCon = ConstructCon . unName . baseName
+constructCon = ConstructCon . toQualText
 
 constructRefinedCon :: ValConName -> Action
-constructRefinedCon = ConstructRefinedCon . unName . baseName
+constructRefinedCon = ConstructRefinedCon . toQualText
+
+toQualText :: GlobalName k -> (Text, Text)
+toQualText n = (unName $ qualifiedModule n, unName $ baseName n)
+
+vcn :: ModuleName -> Name -> ValConName
+vcn = qualifyName
+
+tcn :: ModuleName -> Name -> TyConName
+tcn = qualifyName
+
+gvn :: ModuleName -> Name -> GVarName
+gvn = qualifyName

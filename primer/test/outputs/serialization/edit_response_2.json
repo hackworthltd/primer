@@ -36,7 +36,10 @@
                             ],
                             "tag": "EmptyHole"
                         },
-                        "astDefName": "main",
+                        "astDefName": {
+                            "baseName": "main",
+                            "qualifiedModule": "M"
+                        },
                         "astDefType": {
                             "contents": [
                                 0,
@@ -51,6 +54,7 @@
                     "tag": "DefAST"
                 }
             },
+            "moduleName": "M",
             "moduleTypes": {
                 "T": {
                     "contents": {
@@ -80,15 +84,24 @@
                                     {
                                         "contents": [
                                             [],
-                                            "Nat"
+                                            {
+                                                "baseName": "Nat",
+                                                "qualifiedModule": "Builtins"
+                                            }
                                         ],
                                         "tag": "TCon"
                                     }
                                 ],
-                                "valConName": "C"
+                                "valConName": {
+                                    "baseName": "C",
+                                    "qualifiedModule": "M"
+                                }
                             }
                         ],
-                        "astTypeDefName": "T",
+                        "astTypeDefName": {
+                            "baseName": "T",
+                            "qualifiedModule": "M"
+                        },
                         "astTypeDefNameHints": [],
                         "astTypeDefParameters": [
                             [
@@ -118,7 +131,10 @@
             }
         },
         "progSelection": {
-            "selectedDef": "main",
+            "selectedDef": {
+                "baseName": "main",
+                "qualifiedModule": "M"
+            },
             "selectedNode": {
                 "meta": {
                     "Left": [

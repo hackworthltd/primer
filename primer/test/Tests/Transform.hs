@@ -8,6 +8,7 @@ import Primer.Core
 import Primer.Core.DSL
 import Primer.Core.Transform
 import Test.Tasty.HUnit (Assertion, assertFailure, (@?=))
+import TestUtils (vcn)
 
 -- When renaming we have to be careful of binding sites. If we're renaming x to
 -- y and we encounter a binding site for a new variable v, then there are three
@@ -78,15 +79,15 @@ unit_case_1 =
     "y"
     ( case_
         (lvar "x")
-        [ branch "A" [("t", Nothing), ("u", Nothing)] (lvar "x")
-        , branch "B" [("v", Nothing), ("w", Nothing)] (lvar "x")
+        [ branch' ("M", "A") [("t", Nothing), ("u", Nothing)] (lvar "x")
+        , branch' ("M", "B") [("v", Nothing), ("w", Nothing)] (lvar "x")
         ]
     )
     ( Just
         ( case_
             (lvar "y")
-            [ branch "A" [("t", Nothing), ("u", Nothing)] (lvar "y")
-            , branch "B" [("v", Nothing), ("w", Nothing)] (lvar "y")
+            [ branch' ("M", "A") [("t", Nothing), ("u", Nothing)] (lvar "y")
+            , branch' ("M", "B") [("v", Nothing), ("w", Nothing)] (lvar "y")
             ]
         )
     )
@@ -99,8 +100,8 @@ unit_case_2 =
     "y"
     ( case_
         (lvar "x")
-        [ branch "A" [("t", Nothing), ("u", Nothing)] (lvar "x")
-        , branch "B" [("v", Nothing), ("y", Nothing)] (lvar "x")
+        [ branch' ("M", "A") [("t", Nothing), ("u", Nothing)] (lvar "x")
+        , branch' ("M", "B") [("v", Nothing), ("y", Nothing)] (lvar "x")
         ]
     )
     Nothing
@@ -114,15 +115,15 @@ unit_case_3 =
     "y"
     ( case_
         (lvar "x")
-        [ branch "A" [("t", Nothing), ("u", Nothing)] (lvar "x")
-        , branch "B" [("x", Nothing), ("w", Nothing)] (lvar "x")
+        [ branch' ("M", "A") [("t", Nothing), ("u", Nothing)] (lvar "x")
+        , branch' ("M", "B") [("x", Nothing), ("w", Nothing)] (lvar "x")
         ]
     )
     ( Just
         ( case_
             (lvar "y")
-            [ branch "A" [("t", Nothing), ("u", Nothing)] (lvar "y")
-            , branch "B" [("x", Nothing), ("w", Nothing)] (lvar "x")
+            [ branch' ("M", "A") [("t", Nothing), ("u", Nothing)] (lvar "y")
+            , branch' ("M", "B") [("x", Nothing), ("w", Nothing)] (lvar "x")
             ]
         )
     )
@@ -155,8 +156,8 @@ unit_case =
     "y"
     ( case_
         (lvar "x")
-        [ branch "A" [("y", Nothing), ("z", Nothing)] (lvar "y")
-        , branch "B" [("u", Nothing), ("v", Nothing)] (lvar "u")
+        [ branch' ("M", "A") [("y", Nothing), ("z", Nothing)] (lvar "y")
+        , branch' ("M", "B") [("u", Nothing), ("v", Nothing)] (lvar "u")
         ]
     )
     Nothing
@@ -253,12 +254,12 @@ afterRename' rename clearMeta fromVar toVar input output = do
 unit_unfoldApp_1 :: Assertion
 unit_unfoldApp_1 =
   let expr :: Expr' () ()
-      expr = App () (App () (App () (Con () "C") (Lam () "x" (v "x"))) (App () (v "w") (v "y"))) (v "z")
+      expr = App () (App () (App () (Con () $ vcn "M" "C") (Lam () "x" (v "x"))) (App () (v "w") (v "y"))) (v "z")
       v = Var () . LocalVarRef
-   in unfoldApp expr @?= (Con () "C", [Lam () "x" (v "x"), App () (v "w") (v "y"), v "z"])
+   in unfoldApp expr @?= (Con () $ vcn "M" "C", [Lam () "x" (v "x"), App () (v "w") (v "y"), v "z"])
 
 unit_unfoldApp_2 :: Assertion
 unit_unfoldApp_2 =
   let expr :: Expr' () ()
-      expr = Con () "C"
-   in unfoldApp expr @?= (Con () "C", [])
+      expr = Con () $ vcn "M" "C"
+   in unfoldApp expr @?= (Con () $ vcn "M" "C", [])

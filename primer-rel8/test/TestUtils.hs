@@ -64,8 +64,10 @@ import Primer.Builtins (
 import Primer.Core (
   ASTDef (..),
   Def (DefAST),
+  GlobalName (baseName),
   ID,
   Kind (KType),
+  qualifyName,
  )
 import Primer.Core.DSL (
   aPP,
@@ -76,7 +78,7 @@ import Primer.Core.DSL (
   con,
   create,
   emptyHole,
-  gvar,
+  gvar',
   hole,
   lAM,
   lam,
@@ -101,6 +103,7 @@ import Primer.Module (
   Module (
     Module,
     moduleDefs,
+    moduleName,
     moduleTypes
   ),
  )
@@ -243,7 +246,7 @@ testASTDef :: ASTDef
 testASTDefNextID :: ID
 (testASTDef, testASTDefNextID) =
   ( ASTDef
-    { astDefName = "1"
+    { astDefName = qualifyName "TestModule" "1"
     , astDefExpr
     , astDefType
     }
@@ -278,7 +281,7 @@ testASTDefNextID :: ID
                     (con cJust)
                 )
                 ( hole
-                    (gvar "0")
+                    (gvar' "TestModule" "0")
                 )
             )
             ( thole
@@ -361,7 +364,8 @@ testApp =
         { progImports = [builtinModule, primitiveModule]
         , progModule =
             Module
-              { moduleTypes = mempty
-              , moduleDefs = Map.singleton (astDefName testASTDef) (DefAST testASTDef)
+              { moduleName = "TestModule"
+              , moduleTypes = mempty
+              , moduleDefs = Map.singleton (baseName $ astDefName testASTDef) (DefAST testASTDef)
               }
         }

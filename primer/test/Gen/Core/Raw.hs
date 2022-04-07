@@ -9,6 +9,7 @@ module Gen.Core.Raw (
   evalExprGen,
   genID,
   genName,
+  genModuleName,
   genLVarName,
   genTyVarName,
   genTyConName,
@@ -84,8 +85,11 @@ genApp = App <$> genMeta <*> genExpr <*> genExpr
 genAPP :: ExprGen Expr
 genAPP = APP <$> genMeta <*> genExpr <*> genType
 
+genModuleName :: MonadGen m => m Name
+genModuleName = Gen.frequency [(9, pure "M"), (1, genName)]
+
 genValConName :: ExprGen ValConName
-genValConName = qualifyName <$> genName
+genValConName = qualifyName <$> genModuleName <*> genName
 
 genCon :: ExprGen Expr
 genCon = Con <$> genMeta <*> genValConName
@@ -100,7 +104,7 @@ genLocalVar :: ExprGen Expr
 genLocalVar = Var <$> genMeta <*> (LocalVarRef <$> genLVarName)
 
 genGlobalVar :: ExprGen Expr
-genGlobalVar = Var <$> genMeta <*> (GlobalVarRef . qualifyName <$> genName)
+genGlobalVar = Var <$> genMeta <*> ((\m n -> GlobalVarRef $ qualifyName m n) <$> genModuleName <*> genName)
 
 genLet :: ExprGen Expr
 genLet = Let <$> genMeta <*> genLVarName <*> genExpr <*> genExpr
@@ -148,7 +152,7 @@ genType =
     ]
 
 genTyConName :: ExprGen TyConName
-genTyConName = qualifyName <$> genName
+genTyConName = qualifyName <$> genModuleName <*> genName
 
 genKind :: ExprGen Kind
 genKind = Gen.recursive Gen.choice [pure KType, pure KHole] [KFun <$> genKind <*> genKind]

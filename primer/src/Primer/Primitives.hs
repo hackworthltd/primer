@@ -28,6 +28,7 @@ import Primer.Core (
   Expr' (App, Con, PrimCon),
   ExprAnyFresh (..),
   GVarName,
+  GlobalName (baseName),
   PrimCon (..),
   PrimDef (PrimDef, primDefName, primDefType),
   PrimFun (..),
@@ -51,21 +52,28 @@ import Primer.Core.DSL (
   tapp,
   tcon,
  )
-import Primer.Module (Module (Module, moduleDefs, moduleTypes))
+import Primer.Module (Module (Module, moduleDefs, moduleName, moduleTypes))
 import Primer.Name (Name)
+
+primitiveModuleName :: Name
+primitiveModuleName = "Primitives"
+
+primitive :: Name -> GlobalName k
+primitive = qualifyName primitiveModuleName
 
 -- | This module depends on the builtin module, due to some terms referencing builtin types.
 -- It contains all primitive types and terms.
 primitiveModule :: Module
 primitiveModule =
   Module
-    { moduleTypes = TypeDefPrim <$> allPrimTypeDefs
+    { moduleName = primitiveModuleName
+    , moduleTypes = TypeDefPrim <$> M.mapKeys baseName allPrimTypeDefs
     , moduleDefs = fst . create $
         getAp $
           flip M.foldMapWithKey allPrimDefs $ \n def -> Ap $ do
             ty <- primFunType def
             pure $
-              M.singleton n $
+              M.singleton (baseName n) $
                 DefPrim
                   PrimDef
                     { primDefName = n
@@ -74,14 +82,14 @@ primitiveModule =
     }
 
 tChar :: TyConName
-tChar = "Char"
+tChar = primitive "Char"
 
 tInt :: TyConName
-tInt = "Int"
+tInt = primitive "Int"
 
 -- | Construct a reference to a primitive definition. For use in tests.
 primitiveGVar :: Name -> GVarName
-primitiveGVar = qualifyName
+primitiveGVar = primitive
 
 -- | Primitive type definitions.
 -- There should be one entry here for each constructor of `PrimCon`.

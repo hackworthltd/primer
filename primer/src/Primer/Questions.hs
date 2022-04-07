@@ -31,7 +31,7 @@ import Primer.Core (
  )
 import Primer.Name (Name, unName, unsafeMkName)
 import Primer.Name.Fresh (mkAvoidForFreshName, mkAvoidForFreshNameTy)
-import Primer.Typecheck (Cxt, decomposeTAppCon, getGlobalNames, typeDefs)
+import Primer.Typecheck (Cxt, decomposeTAppCon, getGlobalBaseNames, typeDefs)
 import Primer.Zipper (
   ExprZ,
   TypeZ,
@@ -131,7 +131,7 @@ getAvoidSet = \case
 
 getAvoidSetTy :: MonadReader Cxt m => TypeZip -> m (Set.Set Name)
 getAvoidSetTy z = do
-  globals <- getGlobalNames
+  globals <- getGlobalBaseNames
   pure $ Set.map unLocalName (bindersAboveTy z <> bindersBelowTy z) <> globals
 
 -- We do not use Name.freshName as we don't want a global fresh counter

@@ -29,4 +29,4 @@ unit_2 =
             )
             (lvar "y")
         )
-        (tforall "a" KType $ tcon "T" `tapp` tvar "a" `tapp` tvar "b")
+        (tforall "a" KType $ tcon' "M" "T" `tapp` tvar "a" `tapp` tvar "b")

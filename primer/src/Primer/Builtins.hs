@@ -39,59 +39,69 @@ import Primer.Core (
     astTypeDefNameHints,
     astTypeDefParameters
   ),
+  GlobalName,
   Kind (KType),
   TyConName,
   Type' (TApp, TCon, TVar),
   TypeDef (TypeDefAST),
   ValCon (ValCon),
   ValConName,
+  qualifyName,
  )
-import Primer.Module (Module (Module, moduleDefs, moduleTypes), mkTypeDefMap)
+import Primer.Module (Module (Module, moduleDefs, moduleName, moduleTypes), mkTypeDefMap)
+import Primer.Name (Name)
+
+builtinModuleName :: Name
+builtinModuleName = "Builtins"
+
+builtin :: Name -> GlobalName k
+builtin = qualifyName builtinModuleName
 
 builtinModule :: Module
 builtinModule =
   Module
-    { moduleTypes =
+    { moduleName = builtinModuleName
+    , moduleTypes =
         mkTypeDefMap $
           map TypeDefAST [boolDef, natDef, listDef, maybeDef, pairDef, eitherDef]
     , moduleDefs = mempty
     }
 
 tBool :: TyConName
-tBool = "Bool"
+tBool = builtin "Bool"
 cTrue, cFalse :: ValConName
-cTrue = "True"
-cFalse = "False"
+cTrue = builtin "True"
+cFalse = builtin "False"
 
 tNat :: TyConName
-tNat = "Nat"
+tNat = builtin "Nat"
 cZero, cSucc :: ValConName
-cZero = "Zero"
-cSucc = "Succ"
+cZero = builtin "Zero"
+cSucc = builtin "Succ"
 
 tList :: TyConName
-tList = "List"
+tList = builtin "List"
 cNil, cCons :: ValConName
-cNil = "Nil"
-cCons = "Cons"
+cNil = builtin "Nil"
+cCons = builtin "Cons"
 
 tMaybe :: TyConName
-tMaybe = "Maybe"
+tMaybe = builtin "Maybe"
 cNothing :: ValConName
-cNothing = "Nothing"
+cNothing = builtin "Nothing"
 cJust :: ValConName
-cJust = "Just"
+cJust = builtin "Just"
 
 tPair :: TyConName
-tPair = "Pair"
+tPair = builtin "Pair"
 cMakePair :: ValConName
-cMakePair = "MakePair"
+cMakePair = builtin "MakePair"
 
 tEither :: TyConName
-tEither = "Either"
+tEither = builtin "Either"
 cLeft, cRight :: ValConName
-cLeft = "Left"
-cRight = "Right"
+cLeft = builtin "Left"
+cRight = builtin "Right"
 
 -- | A definition of the Bool type
 boolDef :: ASTTypeDef

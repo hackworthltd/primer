@@ -81,8 +81,9 @@ import Primer.Core (
   Type' (TEmptyHole),
   TypeCache (..),
   TypeCacheBoth (..),
+  qualifyName,
  )
-import Primer.Core.DSL (app, branch, case_, create, emptyHole, tEmptyHole, tfun)
+import Primer.Core.DSL (app, branch', case_, create, emptyHole, tEmptyHole, tfun)
 import Primer.Database (
   Session,
   SessionId,
@@ -329,14 +330,14 @@ testEndpoints =
     :<|> mkTest (TCBoth (TEmptyHole ()) (TEmptyHole ()))
     :<|> mkTest (create' (app emptyHole emptyHole))
     :<|> mkTest (create' $ case_ emptyHole [])
-    :<|> mkTest (create' $ case_ emptyHole [branch "C" [("x", Nothing)] emptyHole])
+    :<|> mkTest (create' $ case_ emptyHole [branch' ("M", "C") [("x", Nothing)] emptyHole])
     :<|> mkTest (KFun KType KType)
     :<|> mkTest 0
     :<|> mkTest (Log [[BodyAction [Move Child1]]])
     :<|> mkTest newProg
-    :<|> mkTest (MoveToDef "main")
+    :<|> mkTest (MoveToDef $ qualifyName "M" "main")
     :<|> mkTest NoDefSelected
-    :<|> mkTest (DefAST $ ASTDef "main" expr ty)
+    :<|> mkTest (DefAST $ ASTDef (qualifyName "M" "main") expr ty)
     :<|> mkTest boolDef
     :<|> mkTest EvalReq{evalReqExpr = expr, evalReqRedex = 0}
     :<|> mkTest EvalResp{evalRespExpr = expr, evalRespRedexes = [0, 1], evalRespDetail = reductionDetail}

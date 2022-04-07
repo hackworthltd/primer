@@ -35,6 +35,10 @@ module Primer.Core.DSL (
   create,
   setMeta,
   S,
+  tcon',
+  con',
+  gvar',
+  branch',
 ) where
 
 import Foreword
@@ -54,6 +58,7 @@ import Primer.Core (
   Kind,
   LVarName,
   Meta (..),
+  ModuleName,
   PrimCon (..),
   TmVarRef (..),
   TyConName,
@@ -63,8 +68,10 @@ import Primer.Core (
   TypeCache,
   ValConName,
   Value,
+  qualifyName,
   _metadata,
  )
+import Primer.Name (Name)
 
 newtype S a = S {unS :: State ID a}
   deriving newtype (Functor, Applicative, Monad)
@@ -187,3 +194,17 @@ list_ t =
           `app` b
     )
     (con cNil `aPP` tcon t)
+
+-- | A helper for use in testsuite. With OverloadedStrings one can use literals
+-- for both arguments
+tcon' :: MonadFresh ID m => ModuleName -> Name -> m Type
+tcon' m n = tcon $ qualifyName m n
+
+con' :: MonadFresh ID m => ModuleName -> Name -> m Expr
+con' m n = con $ qualifyName m n
+
+gvar' :: MonadFresh ID m => ModuleName -> Name -> m Expr
+gvar' m n = gvar $ qualifyName m n
+
+branch' :: MonadFresh ID m => (ModuleName, Name) -> [(LVarName, Maybe TypeCache)] -> m Expr -> m CaseBranch
+branch' (m, n) = branch $ qualifyName m n

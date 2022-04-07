@@ -45,10 +45,12 @@ module Primer.Typecheck (
   checkDef,
   substituteTypeVars,
   getGlobalNames,
+  getGlobalBaseNames,
   lookupGlobal,
   lookupLocalTy,
   lookupVar,
   primConInScope,
+  mkTypeDefMapQualified,
   consistentKinds,
   consistentTypes,
   extendLocalCxtTy,
@@ -56,12 +58,14 @@ module Primer.Typecheck (
   extendLocalCxt,
   extendLocalCxts,
   extendGlobalCxt,
+  extendTypeDefCxt,
   localTmVars,
   localTyVars,
 ) where
 
 import Foreword
 
+import Control.Arrow ((&&&))
 import Control.Monad.Fresh (MonadFresh (..))
 import Control.Monad.NestedError (MonadNestedError (..))
 import Data.Functor.Compose (Compose (Compose), getCompose)
@@ -81,12 +85,13 @@ import Primer.Core (
   Expr' (..),
   ExprMeta,
   GVarName,
-  GlobalName (baseName),
+  GlobalName (baseName, qualifiedModule),
   ID,
   Kind (..),
   LVarName,
   LocalName (LocalName),
   Meta (..),
+  ModuleName,
   PrimCon,
   PrimDef (primDefType),
   TmVarRef (..),
@@ -116,8 +121,18 @@ import Primer.Core (
 import Primer.Core.DSL (branch, emptyHole, meta, meta')
 import Primer.Core.Utils (alphaEqTy, forgetTypeIDs, freshLocalName, generateTypeIDs)
 import Primer.JSON (CustomJSON (CustomJSON), FromJSON, ToJSON, VJSON)
-import Primer.Module (Module (moduleDefs, moduleTypes))
-import Primer.Name (Name, NameCounter, freshName)
+import Primer.Module (
+  Module (
+    moduleDefs,
+    moduleName,
+    moduleTypes
+  ),
+  moduleDefsQualified,
+  moduleTypesQualified,
+  qualifyDefName,
+  qualifyTyConName,
+ )
+import Primer.Name (Name (unName), NameCounter, freshName)
 import Primer.Subst (substTy)
 
 -- | Typechecking takes as input an Expr with 'Maybe Type' annotations and
@@ -256,8 +271,13 @@ buildTypingContext tydefs defs sh =
 buildTypingContextFromModules :: [Module] -> SmartHoles -> Cxt
 buildTypingContextFromModules modules =
   buildTypingContext
-    (foldMap moduleTypes modules)
-    (foldMap moduleDefs modules)
+    (foldMap moduleTypesQualified modules)
+    (foldMap moduleDefsQualified modules)
+
+-- | Create a mapping of name to typedef for fast lookup.
+-- Ensures that @typeDefName (mkTypeDefMap ! n) == n@
+mkTypeDefMapQualified :: [TypeDef] -> Map TyConName TypeDef
+mkTypeDefMapQualified defs = M.fromList $ map (\d -> (typeDefName d, d)) defs
 
 -- | Create a mapping of name to typedef for fast lookup.
 -- Ensures that @typeDefName (mkTypeDefMap ! n) == n@
@@ -373,6 +393,12 @@ checkTypeDefs tds = do
       let params = astTypeDefParameters td
       let cons = astTypeDefConstructors td
       assert
+        ( (1 ==) . S.size $
+            S.fromList $
+              qualifiedModule (astTypeDefName td) : fmap (qualifiedModule . valConName) cons
+        )
+        "Module name of type and all constructors must be the same"
+      assert
         (distinct $ map (unLocalName . fst) params <> map (baseName . valConName) cons)
         "Duplicate names in one tydef: between parameter-names and constructor-names"
       assert
@@ -411,11 +437,16 @@ checkEverything ::
 checkEverything sh CheckEverything{trusted, toCheck} =
   let cxt = buildTypingContextFromModules trusted sh
    in flip runReaderT cxt $ do
+        -- Check the type definitions have the right modules
+        for_ toCheck $ \m -> flip Map.traverseWithKey (moduleTypes m) $ \n td ->
+          unless (qualifyTyConName m n == typeDefName td) $
+            throwError' $ InternalError $ "Inconsistant names in moduleTypes for module " <> unName (moduleName m)
         -- Check that the definition map has the right keys
         for_ toCheck $ \m -> flip Map.traverseWithKey (moduleDefs m) $ \n d ->
-          unless (n == defName d) $ throwError' $ InternalError "Inconsistant names in moduleDefs map"
-        checkTypeDefs $ foldMap moduleTypes toCheck
-        let newTypes = foldMap moduleTypes toCheck
+          unless (qualifyDefName m n == defName d) $
+            throwError' $ InternalError $ "Inconsistant names in moduleDefs map for module " <> unName (moduleName m)
+        checkTypeDefs $ foldMap moduleTypesQualified toCheck
+        let newTypes = foldMap moduleTypesQualified toCheck
             newDefs =
               foldMap (\d -> [(defName d, forgetTypeIDs $ defType d)]) $
                 foldMap moduleDefs toCheck
@@ -863,7 +894,7 @@ checkBranch t (vc, args) (CaseBranch nb patterns rhs) =
       -- if the branch is nonsense, replace it with a sensible pattern and an empty hole
       (False, SmartHoles) -> do
         -- Avoid automatically generated names shadowing anything
-        globals <- getGlobalNames
+        globals <- getGlobalBaseNames
         locals <- asks $ M.keysSet . localCxt
         liftA2 (,) (mapM (createBinding (locals <> globals)) args) emptyHole
       -- otherwise, convert all @Maybe TypeCache@ metadata to @TypeCache@
@@ -977,16 +1008,21 @@ typeTtoType :: TypeT -> Type' TypeMeta
 typeTtoType = over _typeMeta (fmap Just)
 
 -- Helper to create fresh names
-getGlobalNames :: MonadReader Cxt m => m (S.Set Name)
+getGlobalNames :: MonadReader Cxt m => m (S.Set (ModuleName, Name))
 getGlobalNames = do
   tyDefs <- asks typeDefs
-  topLevel <- asks $ S.fromList . map baseName . M.keys . globalCxt
+  topLevel <- asks $ S.fromList . map f . M.keys . globalCxt
   let ctors =
         Map.foldMapWithKey
           ( \t def ->
               S.fromList $
-                (baseName t :) $
-                  map (baseName . valConName) $ maybe [] astTypeDefConstructors $ typeDefAST def
+                (f t :) $
+                  map (f . valConName) $ maybe [] astTypeDefConstructors $ typeDefAST def
           )
           tyDefs
   pure $ S.union topLevel ctors
+  where
+    f = qualifiedModule &&& baseName
+
+getGlobalBaseNames :: MonadReader Cxt m => m (S.Set Name)
+getGlobalBaseNames = S.map snd <$> getGlobalNames

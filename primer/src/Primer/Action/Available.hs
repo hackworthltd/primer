@@ -42,7 +42,7 @@ import Primer.Core (
   Expr' (..),
   ExprMeta,
   GVarName,
-  GlobalName (baseName),
+  GlobalName (baseName, qualifiedModule),
   ID,
   Kind,
   Meta (..),
@@ -97,7 +97,8 @@ actionsForDef l defs def =
 
               bodyID = astDefExpr def ^. _exprMetaLens % _id
 
-              copyName = uniquifyDefName (unName (baseName $ astDefName def) <> "Copy") defs
+              qn = astDefName def
+              copyName = uniquifyDefName (qualifiedModule qn) (unName (baseName qn) <> "Copy") defs
            in NoInputRequired
                 [ CreateDef (Just copyName)
                 , CopyPasteSig (astDefName def, sigID) []

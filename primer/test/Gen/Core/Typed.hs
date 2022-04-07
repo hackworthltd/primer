@@ -33,7 +33,7 @@ import Control.Monad.Fresh (MonadFresh, fresh)
 import Control.Monad.Morph (hoist)
 import Control.Monad.Reader (mapReaderT)
 import qualified Data.Map as M
-import Gen.Core.Raw (genLVarName, genName, genTyVarName)
+import Gen.Core.Raw (genLVarName, genModuleName, genName, genTyVarName)
 import Hedgehog (
   GenT,
   MonadGen,
@@ -50,6 +50,7 @@ import Primer.Core (
   CaseBranch' (CaseBranch),
   Expr' (..),
   GVarName,
+  GlobalName (qualifiedModule),
   ID,
   Kind (..),
   LVarName,
@@ -70,7 +71,7 @@ import Primer.Core (
   valConType,
  )
 import Primer.Core.Utils (freeVarsTy)
-import Primer.Module (Module, mkTypeDefMap)
+import Primer.Module (Module)
 import Primer.Name (Name, NameCounter, freshName, unName, unsafeMkName)
 import Primer.Refine (Inst (InstAPP, InstApp, InstUnconstrainedAPP), refine)
 import Primer.Subst (substTy, substTys)
@@ -84,7 +85,7 @@ import Primer.Typecheck (
   extendLocalCxtTy,
   extendLocalCxtTys,
   extendLocalCxts,
-  getGlobalNames,
+  getGlobalBaseNames,
   globalCxt,
   instantiateValCons,
   localCxt,
@@ -92,6 +93,7 @@ import Primer.Typecheck (
   localTyVars,
   matchArrowType,
   matchForallType,
+  mkTypeDefMapQualified,
   primConInScope,
   typeDefs,
  )
@@ -143,7 +145,7 @@ instance MonadFresh ID (PropertyT WT) where
 
 freshNameForCxt :: GenT WT Name
 freshNameForCxt = do
-  globs <- getGlobalNames
+  globs <- getGlobalBaseNames
   locals <- asks $ M.keysSet . localCxt
   freshName $ globs <> locals
 
@@ -152,6 +154,9 @@ freshLVarNameForCxt = LocalName <$> freshNameForCxt
 
 freshTyVarNameForCxt :: GenT WT TyVarName
 freshTyVarNameForCxt = LocalName <$> freshNameForCxt
+
+freshTyConNameForCxt :: GenT WT TyConName
+freshTyConNameForCxt = qualifyName <$> genModuleName <*> freshNameForCxt
 
 -- We try to have a decent distribution of names, where there is a
 -- significant chance that the same name is reused (both in disjoint
@@ -422,7 +427,7 @@ genGlobalCxtExtension :: GenT WT [(GVarName, TypeG)]
 genGlobalCxtExtension =
   local forgetLocals $
     Gen.list (Range.linear 1 5) $
-      (,) <$> fmap qualifyName genName <*> genWTType KType
+      (,) <$> (qualifyName <$> genModuleName <*> genName) <*> genWTType KType
   where
     -- we are careful to not let the globals depend on whatever locals may be in
     -- the cxt
@@ -432,14 +437,14 @@ genGlobalCxtExtension =
 genTypeDefGroup :: GenT WT [TypeDef]
 genTypeDefGroup = do
   let genParams = Gen.list (Range.linear 0 5) $ (,) <$> freshTyVarNameForCxt <*> genWTKind
-  nps <- Gen.list (Range.linear 1 5) $ (,) <$> freshNameForCxt <*> genParams
+  nps <- Gen.list (Range.linear 1 5) $ (,) <$> freshTyConNameForCxt <*> genParams
   -- create empty typedefs to temporarilly extend the context, so can do recursive types
   let types =
         map
           ( \(n, ps) ->
               TypeDefAST
                 ASTTypeDef
-                  { astTypeDefName = qualifyName n
+                  { astTypeDefName = n
                   , astTypeDefParameters = ps
                   , astTypeDefConstructors = []
                   , astTypeDefNameHints = []
@@ -447,22 +452,23 @@ genTypeDefGroup = do
           )
           nps
   let genConArgs params = Gen.list (Range.linear 0 5) $ local (extendLocalCxtTys params . addTypeDefs types) $ genWTType KType -- params+types scope...
-  let genCons params = Gen.list (Range.linear 0 5) $ ValCon <$> fmap qualifyName freshNameForCxt <*> genConArgs params
+  let freshValConNameForCxt tyConName = qualifyName (qualifiedModule tyConName) <$> freshNameForCxt
+  let genCons ty params = Gen.list (Range.linear 0 5) $ ValCon <$> freshValConNameForCxt ty <*> genConArgs params
   let genTD (n, ps) =
         ( \cons ->
             TypeDefAST
               ASTTypeDef
-                { astTypeDefName = qualifyName n
+                { astTypeDefName = n
                 , astTypeDefParameters = ps
                 , astTypeDefConstructors = cons
                 , astTypeDefNameHints = []
                 }
         )
-          <$> genCons ps
+          <$> genCons n ps
   mapM genTD nps
 
 addTypeDefs :: [TypeDef] -> Cxt -> Cxt
-addTypeDefs tds cxt = cxt{typeDefs = typeDefs cxt <> mkTypeDefMap tds}
+addTypeDefs tds cxt = cxt{typeDefs = typeDefs cxt <> mkTypeDefMapQualified tds}
 
 extendGlobals :: [(GVarName, TypeG)] -> Cxt -> Cxt
 extendGlobals nts cxt = cxt{globalCxt = globalCxt cxt <> M.fromList nts}

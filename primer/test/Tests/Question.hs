@@ -139,11 +139,13 @@ nameSTE' = \case
 genSTE' :: Gen [STE']
 genSTE' =
   let g = Gen.either_ genKind $ (,) <$> fmap forgetTypeIDs genType <*> Gen.bool
-      toSTE' n = \case
+      toSTE' m n = \case
         Left k -> TyVar (LocalName n, k)
         Right (ty, False) -> TmVar (LocalName n, ty)
-        Right (ty, True) -> Global (qualifyName n, ty)
-   in evalExprGen 0 $ Gen.list (Range.linear 0 20) $ toSTE' <$> genName <*> g
+        Right (ty, True) -> Global (qualifyName m n, ty)
+   in evalExprGen 0 $ Gen.list (Range.linear 0 20) $ toSTE' <$> genModuleName <*> genName <*> g
+  where
+    genModuleName = Gen.element ["M", "M1"]
 
 genSTE :: Gen ShadowedVarsExpr
 genSTE = deal . nubBy ((==) `on` nameSTE') <$> genSTE'

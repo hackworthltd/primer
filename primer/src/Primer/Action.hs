@@ -45,6 +45,7 @@ import Primer.Core (
   ID,
   LVarName,
   LocalName (LocalName, unLocalName),
+  ModuleName,
   TmVarRef (..),
   TyConName,
   TyVarName,
@@ -58,6 +59,7 @@ import Primer.Core (
   bindName,
   defName,
   getID,
+  qualifiedModule,
   unsafeMkGlobalName,
   unsafeMkLocalName,
   valConArgs,
@@ -89,7 +91,7 @@ import Primer.Core.DSL (
 import Primer.Core.Transform (renameLocalVar, renameTyVar, renameTyVarExpr)
 import Primer.Core.Utils (forgetTypeIDs, generateTypeIDs)
 import Primer.JSON
-import Primer.Module (Module (moduleDefs))
+import Primer.Module (Module, insertDef)
 import Primer.Name (Name, NameCounter, unName)
 import Primer.Name.Fresh (
   isFresh,
@@ -175,8 +177,8 @@ data FunctionFiltering
 -- This type is parameterised because we may need it for other things in
 -- future, and because it lets us derive a useful functor instance.
 data UserInput a
-  = ChooseConstructor FunctionFiltering (Text -> a)
-  | ChooseTypeConstructor (Text -> a)
+  = ChooseConstructor FunctionFiltering (QualifiedText -> a)
+  | ChooseTypeConstructor (QualifiedText -> a)
   | -- | Renders a choice between some options (as buttons),
     -- plus a textbox to manually enter a name
     ChooseOrEnterName
@@ -229,19 +231,24 @@ nameString :: Text
 nameString = "n" <> T.singleton '\x200C' <> "ame"
 
 -- | Given a definition name and a program, return a unique variant of
--- that name. Note that if no definition of the given name already
--- exists in the program, this function will return the same name
--- it's been given.
-uniquifyDefName :: Text -> Map ID Def -> Text
-uniquifyDefName name' defs =
+-- that name (within the specified module). Note that if no definition
+-- of the given name already exists in the program, this function will
+-- return the same name it's been given.
+uniquifyDefName :: C.ModuleName -> Text -> Map ID Def -> Text
+uniquifyDefName m name' defs =
   if name' `notElem` avoid
     then name'
     else
       let go i = if (name' <> "_" <> show i) `notElem` avoid then name' <> "_" <> show i else go (i + 1)
        in go (1 :: Int)
   where
+    f qn
+      | qualifiedModule qn == m = Just (unName $ baseName qn)
+      | otherwise = Nothing
     avoid :: [Text]
-    avoid = Map.elems $ map (unName . baseName . defName) defs
+    avoid = mapMaybe (f . defName) $ Map.elems defs
+
+type QualifiedText = (Text, Text)
 
 -- | Core actions.
 --  These describe edits to the core AST.
@@ -283,11 +290,11 @@ data Action
   | -- | Construct a type abstraction "big-lambda"
     ConstructLAM (Maybe Text)
   | -- | Put a constructor in an empty hole
-    ConstructCon Text
+    ConstructCon QualifiedText
   | -- | Put a constructor applied to a saturated spine in an empty hole
-    ConstructSaturatedCon Text
+    ConstructSaturatedCon QualifiedText
   | -- | Put a constructor in an empty hole, and infer what it should be applied to
-    ConstructRefinedCon Text
+    ConstructRefinedCon QualifiedText
   | -- | Put a let expression in an empty hole
     ConstructLet (Maybe Text)
   | -- | Put a letrec expression in an empty hole
@@ -313,7 +320,7 @@ data Action
     -- The type under the cursor is placed in the range (right) position.
     ConstructArrowR
   | -- | Put a type constructor in a type hole
-    ConstructTCon Text
+    ConstructTCon QualifiedText
   | -- | Construct a type variable in an empty type hole
     ConstructTVar Text
   | -- | Construct a forall type (only at kind KType for now)
@@ -360,6 +367,9 @@ data ActionError
     -- a bug. It does not get thrown for "no valid refinement found"
     -- - see Note [No valid refinement]
     RefineError (Either Text TypeError)
+  | -- | Cannot import modules whose names clash with previously-imported things
+    -- (or with each other)
+    ImportNameClash [ModuleName]
   | -- | Importing some modules failed.
     -- This should be impossible as long as the requested modules are well-typed
     -- and all of their dependencies are already imported
@@ -374,7 +384,7 @@ data ActionError
 data ProgAction
   = -- | Move the cursor to the definition with the given Name
     MoveToDef GVarName
-  | -- | Rename the definition with the given Name
+  | -- | Rename the definition with the given (base) Name
     RenameDef GVarName Text
   | -- | Create a new definition
     CreateDef (Maybe Text)
@@ -450,8 +460,7 @@ applyActionsToTypeSig smartHoles imports mod def actions =
       let t = target (top zt)
       e <- check (forgetTypeIDs t) (astDefExpr def)
       let def' = def{astDefExpr = exprTtoExpr e, astDefType = t}
-          defs' = Map.insert (astDefName def) (DefAST def') $ moduleDefs mod
-          mod' = mod{moduleDefs = defs'}
+          mod' = insertDef mod (DefAST def')
       -- The actions were applied to the type successfully, and the definition body has been
       -- typechecked against the new type.
       -- Now we need to typecheck the whole program again, to check any uses of the definition
@@ -819,12 +828,12 @@ constructLAM mx ze = do
   result <- flip replace ze <$> lAM x (pure (target ze))
   moveExpr Child1 result
 
-constructCon :: ActionM m => Text -> ExprZ -> m ExprZ
+constructCon :: ActionM m => QualifiedText -> ExprZ -> m ExprZ
 constructCon c ze = case target ze of
   EmptyHole{} -> flip replace ze <$> con (unsafeMkGlobalName c)
   e -> throwError $ NeedEmptyHole (ConstructCon c) e
 
-constructSatCon :: ActionM m => Text -> ExprZ -> m ExprZ
+constructSatCon :: ActionM m => QualifiedText -> ExprZ -> m ExprZ
 constructSatCon c ze = case target ze of
   -- Similar comments re smartholes apply as to insertSatVar
   EmptyHole{} -> do
@@ -846,7 +855,7 @@ getConstructorType c =
     Just (vc, td) -> Right $ valConType td vc
     Nothing -> Left $ "Could not find constructor " <> show c
 
-constructRefinedCon :: ActionM m => Text -> ExprZ -> m ExprZ
+constructRefinedCon :: ActionM m => QualifiedText -> ExprZ -> m ExprZ
 constructRefinedCon c ze = do
   let n = unsafeMkGlobalName c
   cTy <-
@@ -1030,7 +1039,7 @@ constructArrowL zt = flip replace zt <$> tfun (pure (target zt)) tEmptyHole
 constructArrowR :: ActionM m => TypeZ -> m TypeZ
 constructArrowR zt = flip replace zt <$> tfun tEmptyHole (pure (target zt))
 
-constructTCon :: ActionM m => Text -> TypeZ -> m TypeZ
+constructTCon :: ActionM m => QualifiedText -> TypeZ -> m TypeZ
 constructTCon c zt = case target zt of
   TEmptyHole{} -> flip replace zt <$> tcon (unsafeMkGlobalName c)
   _ -> throwError $ CustomFailure (ConstructTCon c) "can only construct tcon in hole"

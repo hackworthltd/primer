@@ -14,7 +14,7 @@ import Primer.Action.Available (actionsForDef, actionsForDefBody, actionsForDefS
 import Primer.Builtins
 import Primer.Core (
   ASTDef (..),
-  GlobalName (baseName),
+  GlobalName (baseName, qualifiedModule),
   HasID (_id),
   ID,
   Kind (KType),
@@ -31,7 +31,7 @@ import Primer.Core.DSL (
   con,
   create,
   emptyHole,
-  gvar,
+  gvar',
   hole,
   lAM,
   lam,
@@ -52,6 +52,7 @@ import System.FilePath ((</>))
 import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.Golden (goldenVsString)
 import Test.Tasty.HUnit ()
+import TestUtils (gvn)
 import Text.Pretty.Simple (pShowNoColor)
 
 -- | This definition contains every construct in the Primer language.
@@ -59,7 +60,7 @@ test_1 :: TestTree
 test_1 =
   mkTests
     ASTDef
-      { astDefName = "1"
+      { astDefName = gvn "M" "1"
       , astDefExpr
       , astDefType
       }
@@ -92,7 +93,7 @@ test_1 =
                     (con cJust)
                 )
                 ( hole
-                    (gvar "0")
+                    (gvar' "M" "0")
                 )
             )
             ( thole
@@ -167,7 +168,8 @@ data Output = Output
 -- | Golden tests for the available actions at each node of the definition, for each level.
 mkTests :: ASTDef -> TestTree
 mkTests def =
-  let testName = T.unpack $ unName $ baseName $ astDefName def
+  let defName = astDefName def
+      testName = T.unpack $ unName (qualifiedModule defName) <> "." <> unName (baseName defName)
    in testGroup testName $
         enumerate
           <&> \level ->

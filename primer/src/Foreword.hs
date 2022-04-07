@@ -33,6 +33,7 @@ import Protolude hiding (
   gcast,
   ignore,
   lenientDecode,
+  moduleName,
   orElse,
   replace,
   retry,

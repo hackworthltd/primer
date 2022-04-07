@@ -33,7 +33,14 @@ import Hedgehog (
 import qualified Hedgehog.Gen as Gen
 import qualified Hedgehog.Range as Range
 import Primer.Builtins (builtinModule, tList, tNat)
-import Primer.Core (ID, Kind (KFun, KHole, KType), TyVarName, Type' (TApp, TCon, TEmptyHole, TForall, TFun, THole, TVar))
+import Primer.Core (
+  ASTTypeDef (ASTTypeDef, astTypeDefConstructors, astTypeDefName, astTypeDefNameHints, astTypeDefParameters),
+  ID,
+  Kind (KFun, KHole, KType),
+  TyVarName,
+  Type' (TApp, TCon, TEmptyHole, TForall, TFun, THole, TVar),
+  TypeDef (TypeDefAST),
+ )
 import Primer.Core.Utils (forgetTypeIDs, freeVarsTy, generateTypeIDs)
 import Primer.Module (Module)
 import Primer.Name (NameCounter)
@@ -47,10 +54,12 @@ import Primer.Typecheck (
   consistentTypes,
   extendLocalCxt,
   extendLocalCxtTy,
+  extendTypeDefCxt,
  )
 import Primer.Unification (unify)
 import Test.Tasty.HUnit (Assertion, assertBool, (@?=))
 import TestM (evalTestM)
+import TestUtils (tcn)
 import Tests.Gen.Core.Typed (
   checkKindTest,
   checkValidContextTest,
@@ -85,6 +94,27 @@ unit_Int_refl =
         (TCon () tInt)
     )
     @?= Just mempty
+
+unit_diff_module_not_refl :: Assertion
+unit_diff_module_not_refl =
+  evalTestM
+    0
+    ( unify'
+        (extendTypeDefCxt [mint] defaultCxt)
+        mempty
+        (TCon () tInt)
+        (TCon () $ tcn "M" "Int")
+    )
+    @?= Nothing
+  where
+    mint =
+      TypeDefAST $
+        ASTTypeDef
+          { astTypeDefName = tcn "M" "Int"
+          , astTypeDefParameters = mempty
+          , astTypeDefConstructors = mempty
+          , astTypeDefNameHints = mempty
+          }
 
 -- unify [...,a:*] [] a a = Just []
 unit_a_refl :: Assertion
