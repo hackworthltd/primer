@@ -64,9 +64,9 @@ import Primer.App (
   Prog,
   ProgAction (BodyAction, MoveToDef),
   ProgError (NoDefSelected),
-  boolDef,
   newProg,
  )
+import Primer.Builtins (boolDef)
 import Primer.Core (
   ASTDef (..),
   ASTTypeDef,

@@ -19,12 +19,12 @@ import Primer.App (
   EvalFullReq (EvalFullReq, evalFullCxtDir, evalFullMaxSteps, evalFullReqExpr),
   EvalFullResp (EvalFullRespNormal, EvalFullRespTimedOut),
   Prog (progModule),
-  boolDef,
   defaultTypeDefs,
   handleEvalFullRequest,
   importModules,
   newEmptyApp,
  )
+import Primer.Builtins (boolDef)
 import Primer.Core
 import Primer.Core.DSL
 import Primer.Core.Utils (forgetIDs, forgetTypeIDs, generateIDs, generateTypeIDs)

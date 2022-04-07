@@ -12,11 +12,11 @@ import Primer.App (
   EvalReq (EvalReq, evalReqExpr, evalReqRedex),
   EvalResp (EvalResp, evalRespExpr),
   Prog (progModule),
-  boolDef,
   handleEvalRequest,
   importModules,
   newEmptyApp,
  )
+import Primer.Builtins (boolDef)
 import Primer.Core (
   ASTDef (..),
   Def (..),

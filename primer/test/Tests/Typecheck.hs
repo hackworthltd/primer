@@ -23,14 +23,16 @@ import qualified Hedgehog.Range as Range
 import Optics (over, set)
 import Primer.App (
   Prog (progImports),
-  boolDef,
   defaultTypeDefs,
-  eitherDef,
-  listDef,
-  natDef,
   newEmptyProg,
   newProg,
   progModule,
+ )
+import Primer.Builtins (
+  boolDef,
+  eitherDef,
+  listDef,
+  natDef,
  )
 import Primer.Core (
   ASTTypeDef (..),
