@@ -32,18 +32,18 @@ import Hedgehog (
  )
 import qualified Hedgehog.Gen as Gen
 import qualified Hedgehog.Range as Range
-import Primer.App (defaultTypeDefs)
-import Primer.Builtins (tList, tNat)
+import Primer.Builtins (builtinModule, tList, tNat)
 import Primer.Core (ID, Kind (KFun, KHole, KType), TyVarName, Type' (TApp, TCon, TEmptyHole, TForall, TFun, THole, TVar))
 import Primer.Core.Utils (forgetTypeIDs, freeVarsTy, generateTypeIDs)
+import Primer.Module (Module)
 import Primer.Name (NameCounter)
-import Primer.Primitives (tInt)
+import Primer.Primitives (primitiveModule, tInt)
 import Primer.Subst (substTys)
 import Primer.Typecheck (
   Cxt,
   SmartHoles (NoSmartHoles),
   Type,
-  buildTypingContext,
+  buildTypingContextFromModules,
   consistentTypes,
   extendLocalCxt,
   extendLocalCxtTy,
@@ -59,7 +59,7 @@ import Tests.Gen.Core.Typed (
  )
 
 defaultCxt :: Cxt
-defaultCxt = buildTypingContext defaultTypeDefs mempty NoSmartHoles
+defaultCxt = buildTypingContextFromModules [builtinModule, primitiveModule] NoSmartHoles
 
 unify' ::
   (MonadFresh NameCounter m, MonadFresh ID m) =>
@@ -385,24 +385,24 @@ genCxtExtendingLocalUVs = do
 
 -- Run a property in a context extended with typedefs, globals and locals. Some
 -- of the locals (mentioned in the Set) are considered unification variables.
-propertyWTInExtendedUVCxt' :: Cxt -> (M.Map TyVarName Kind -> PropertyT WT ()) -> Property
-propertyWTInExtendedUVCxt' cxt p = propertyWT cxt $ do
+propertyWTInExtendedUVCxt' :: [Module] -> (M.Map TyVarName Kind -> PropertyT WT ()) -> Property
+propertyWTInExtendedUVCxt' mods p = propertyWT mods $ do
   cxtG <- forAllT genCxtExtendingGlobal
   local (const cxtG) $ do
     (cxtL, uvs) <- forAllT genCxtExtendingLocalUVs
     annotateShow uvs
     local (const cxtL) $ p uvs
 
-propertyWTInExtendedUVCxt :: Cxt -> (S.Set TyVarName -> PropertyT WT ()) -> Property
-propertyWTInExtendedUVCxt cxt p = propertyWTInExtendedUVCxt' cxt $ p . M.keysSet
+propertyWTInExtendedUVCxt :: [Module] -> (S.Set TyVarName -> PropertyT WT ()) -> Property
+propertyWTInExtendedUVCxt mods p = propertyWTInExtendedUVCxt' mods $ p . M.keysSet
 
 hprop_extendedUVCxt_typechecks :: Property
-hprop_extendedUVCxt_typechecks = propertyWTInExtendedUVCxt defaultCxt $ \_ ->
+hprop_extendedUVCxt_typechecks = propertyWTInExtendedUVCxt [builtinModule, primitiveModule] $ \_ ->
   checkValidContextTest =<< ask
 
 -- unify _ _ T T  is Just []
 hprop_refl :: Property
-hprop_refl = propertyWTInExtendedUVCxt defaultCxt $ \uvs -> do
+hprop_refl = propertyWTInExtendedUVCxt [builtinModule, primitiveModule] $ \uvs -> do
   cxt <- ask
   k <- forAllT genWTKind
   t <- forAllT $ genWTType k
@@ -411,7 +411,7 @@ hprop_refl = propertyWTInExtendedUVCxt defaultCxt $ \uvs -> do
 
 -- unify _ [] S T  is Nothing or Just [], exactly when S = T up to holes
 hprop_eq :: Property
-hprop_eq = propertyWTInExtendedLocalGlobalCxt defaultCxt $ do
+hprop_eq = propertyWTInExtendedLocalGlobalCxt [builtinModule, primitiveModule] $ do
   cxt <- ask
   k <- forAllT genWTKind
   s <- forAllT $ genWTType k
@@ -428,7 +428,7 @@ hprop_eq = propertyWTInExtendedLocalGlobalCxt defaultCxt $ do
 
 -- unify ga uvs S T = Maybe sub => sub <= uvs
 hprop_only_sub_uvs :: Property
-hprop_only_sub_uvs = propertyWTInExtendedUVCxt defaultCxt $ \uvs -> do
+hprop_only_sub_uvs = propertyWTInExtendedUVCxt [builtinModule, primitiveModule] $ \uvs -> do
   cxt <- ask
   k <- forAllT genWTKind
   s <- forAllT $ genWTType k
@@ -440,7 +440,7 @@ hprop_only_sub_uvs = propertyWTInExtendedUVCxt defaultCxt $ \uvs -> do
 
 -- unify ga uvs S T = Maybe sub => S[sub] = T[sub]
 hprop_sub_unifies :: Property
-hprop_sub_unifies = propertyWTInExtendedUVCxt defaultCxt $ \uvs -> do
+hprop_sub_unifies = propertyWTInExtendedUVCxt [builtinModule, primitiveModule] $ \uvs -> do
   cxt <- ask
   k <- forAllT genWTKind
   s <- forAllT $ genWTType k
@@ -455,7 +455,7 @@ hprop_sub_unifies = propertyWTInExtendedUVCxt defaultCxt $ \uvs -> do
 
 -- unify ga uvs S T = Maybe sub => for t/a in sub, have checkKind uvs(a) t
 hprop_sub_checks :: Property
-hprop_sub_checks = propertyWTInExtendedUVCxt' defaultCxt $ \uvs -> do
+hprop_sub_checks = propertyWTInExtendedUVCxt' [builtinModule, primitiveModule] $ \uvs -> do
   cxt <- ask
   k <- forAllT genWTKind
   s <- forAllT $ genWTType k
@@ -470,7 +470,7 @@ hprop_sub_checks = propertyWTInExtendedUVCxt' defaultCxt $ \uvs -> do
 
 -- (S,T kind check and) unify ga uvs S T = Maybe sub => S[sub] , T[sub] kind check
 hprop_unified_checks :: Property
-hprop_unified_checks = propertyWTInExtendedUVCxt defaultCxt $ \uvs -> do
+hprop_unified_checks = propertyWTInExtendedUVCxt [builtinModule, primitiveModule] $ \uvs -> do
   cxt <- ask
   k <- forAllT genWTKind
   s <- forAllT $ genWTType k
@@ -490,7 +490,7 @@ hprop_unified_checks = propertyWTInExtendedUVCxt defaultCxt $ \uvs -> do
 -- This requires each to not be holey - i.e. don't synthesise KHole
 hprop_diff_kinds_never_unify :: Property
 hprop_diff_kinds_never_unify = withDiscards 5000 $
-  propertyWTInExtendedUVCxt defaultCxt $ \uvs -> do
+  propertyWTInExtendedUVCxt [builtinModule, primitiveModule] $ \uvs -> do
     cxt <- ask
     k1 <- forAllT genWTKind
     k2 <- forAllT genWTKind
@@ -506,7 +506,7 @@ hprop_diff_kinds_never_unify = withDiscards 5000 $
 
 -- unification is symmetric
 hprop_sym :: Property
-hprop_sym = propertyWTInExtendedUVCxt defaultCxt $ \uvs -> do
+hprop_sym = propertyWTInExtendedUVCxt [builtinModule, primitiveModule] $ \uvs -> do
   cxt <- ask
   k <- forAllT genWTKind
   s <- forAllT $ genWTType k
@@ -517,7 +517,7 @@ hprop_sym = propertyWTInExtendedUVCxt defaultCxt $ \uvs -> do
 
 -- the sub should be "non-cyclic", i.e. any sub should stabalise if done repeatedly
 hprop_non_cyclic :: Property
-hprop_non_cyclic = propertyWTInExtendedUVCxt defaultCxt $ \uvs -> do
+hprop_non_cyclic = propertyWTInExtendedUVCxt [builtinModule, primitiveModule] $ \uvs -> do
   cxt <- ask
   k <- forAllT genWTKind
   s <- forAllT $ genWTType k
@@ -533,7 +533,7 @@ hprop_non_cyclic = propertyWTInExtendedUVCxt defaultCxt $ \uvs -> do
 
 -- unifying a unif var gives simple success
 hprop_uv_succeeds :: Property
-hprop_uv_succeeds = propertyWT defaultCxt $ do
+hprop_uv_succeeds = propertyWT [builtinModule, primitiveModule] $ do
   k <- forAllT genWTKind
   t <- forAllT $ genWTType k
   uv <- forAllT freshTyVarNameForCxt

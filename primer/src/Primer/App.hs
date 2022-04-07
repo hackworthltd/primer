@@ -42,7 +42,6 @@ module Primer.App (
   EvalFullReq (..),
   EvalFullResp (..),
   lookupASTDef,
-  defaultTypeDefs,
 ) where
 
 import Foreword hiding (mod)
@@ -86,7 +85,7 @@ import Primer.Action (
   applyActionsToBody,
   applyActionsToTypeSig,
  )
-import Primer.Builtins (boolDef, eitherDef, listDef, maybeDef, natDef, pairDef)
+import Primer.Builtins (builtinModule)
 import Primer.Core (
   ASTDef (..),
   ASTTypeDef (..),
@@ -102,7 +101,6 @@ import Primer.Core (
   ID (..),
   LocalName (LocalName, unLocalName),
   Meta (..),
-  PrimDef (..),
   TmVarRef (GlobalVarRef, LocalVarRef),
   TyConName,
   TyVarName,
@@ -116,7 +114,6 @@ import Primer.Core (
   defName,
   defPrim,
   getID,
-  primFunType,
   qualifyName,
   typeDefAST,
   typesInExpr,
@@ -137,9 +134,9 @@ import Primer.Eval (EvalDetail, EvalError)
 import qualified Primer.Eval as Eval
 import Primer.EvalFull (Dir, EvalFullError (TimedOut), TerminationBound, evalFull)
 import Primer.JSON
-import Primer.Module (Module (Module, moduleDefs, moduleTypes))
+import Primer.Module (Module (Module, moduleDefs, moduleTypes), mkTypeDefMap)
 import Primer.Name (Name, NameCounter, freshName)
-import Primer.Primitives (allPrimDefs, allPrimTypeDefs)
+import Primer.Primitives (primitiveModule)
 import Primer.Questions (
   Question (..),
   generateNameExpr,
@@ -157,7 +154,6 @@ import Primer.Typecheck (
   checkDef,
   checkEverything,
   checkTypeDefs,
-  mkTypeDefMap,
   synth,
  )
 import Primer.Zipper (
@@ -532,7 +528,7 @@ applyProgAction prog mdefName = \case
         (TypeDefError . show @TypeError)
         ( runReaderT
             (checkTypeDefs $ mkTypeDefMap [TypeDefAST td])
-            (buildTypingContext (allTypes prog) mempty NoSmartHoles)
+            (buildTypingContextFromModules (progModule prog : progImports prog) NoSmartHoles)
         )
   RenameType old (unsafeMkGlobalName -> new) ->
     (,Nothing) <$> do
@@ -746,7 +742,7 @@ applyProgAction prog mdefName = \case
   BodyAction actions -> do
     withDef mdefName prog $ \def -> do
       smartHoles <- gets $ progSmartHoles . appProg
-      res <- applyActionsToBody smartHoles (allTypes prog) (allDefs prog) def actions
+      res <- applyActionsToBody smartHoles (progModule prog : progImports prog) def actions
       case res of
         Left err -> throwError $ ActionError err
         Right (def', z) -> do
@@ -948,13 +944,14 @@ newEmptyApp =
     , appInit = NewEmptyApp
     }
 
--- | An initial program with some useful typedefs.
+-- | An initial program with some useful typedefs imported.
 newProg :: Prog
 newProg =
   newEmptyProg
-    { progModule =
+    { progImports = [builtinModule, primitiveModule]
+    , progModule =
         Module
-          { moduleTypes = defaultTypeDefs
+          { moduleTypes = mempty
           , moduleDefs = defaultDefs
           }
     }
@@ -972,14 +969,7 @@ defaultDefs :: Map GVarName Def
                   , astDefType = mainType
                   }
               ]
-        primDefs <- for (Map.toList allPrimDefs) $ \(primDefName, def) -> do
-          primDefType <- primFunType def
-          pure $
-            PrimDef
-              { primDefName
-              , primDefType
-              }
-        pure $ map DefAST astDefs <> map DefPrim primDefs
+        pure $ map DefAST astDefs
    in (Map.fromList $ (\d -> (defName d, d)) <$> defs, nextID)
 
 -- | An initial app whose program includes some useful definitions.
@@ -1151,7 +1141,7 @@ copyPasteBody p (fromDefName, fromId) toDefName setup = do
   smartHoles <- gets $ progSmartHoles . appProg
   -- The Loc zipper captures all the changes, they are only reflected in the
   -- returned Def, which we thus ignore
-  (oldDef, doneSetup) <- withDef (Just toDefName) p $ \def -> (def,) <$> applyActionsToBody smartHoles (allTypes p) (allDefs p) def setup
+  (oldDef, doneSetup) <- withDef (Just toDefName) p $ \def -> (def,) <$> applyActionsToBody smartHoles (progModule p : progImports p) def setup
   tgt <- case doneSetup of
     Left err -> throwError $ ActionError err
     Right (_, tgt) -> pure tgt
@@ -1288,13 +1278,3 @@ allConNames =
       % #astTypeDefConstructors
       % traversed
       % #valConName
-
-defaultTypeDefs :: Map TyConName TypeDef
-defaultTypeDefs =
-  mkTypeDefMap $
-    map
-      TypeDefAST
-      [boolDef, natDef, listDef, maybeDef, pairDef, eitherDef]
-      <> map
-        TypeDefPrim
-        (Map.elems allPrimTypeDefs)

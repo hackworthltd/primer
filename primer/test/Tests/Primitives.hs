@@ -8,7 +8,6 @@ import qualified Data.Map as M
 import Gen.Core.Typed (forAllT, genPrimCon, propertyWT)
 import Hedgehog (Property, assert)
 import Hedgehog.Gen (choice)
-import Primer.App (defaultTypeDefs)
 import Primer.Core (
   ASTTypeDef (
     ASTTypeDef,
@@ -22,22 +21,24 @@ import Primer.Core (
   primConName,
  )
 import Primer.Core.DSL (char, tcon)
-import Primer.Primitives (allPrimTypeDefs, tChar)
+import Primer.Primitives (allPrimTypeDefs, primitiveModule, tChar)
 import Primer.Typecheck (
   SmartHoles (NoSmartHoles),
   TypeError (PrimitiveTypeNotInScope, UnknownTypeConstructor),
   buildTypingContext,
+  buildTypingContextFromModules,
   checkKind,
   checkValidContext,
-  mkTypeDefMap,
   synth,
  )
 
+import Primer.Builtins (builtinModule)
+import Primer.Module (mkTypeDefMap)
 import Test.Tasty.HUnit (Assertion, assertBool, (@?=))
-import Tests.Typecheck (runTypecheckTestMFromIn)
+import Tests.Typecheck (runTypecheckTestMIn)
 
 hprop_all_prim_cons_have_typedef :: Property
-hprop_all_prim_cons_have_typedef = propertyWT (buildTypingContext defaultTypeDefs mempty NoSmartHoles) $ do
+hprop_all_prim_cons_have_typedef = propertyWT [builtinModule, primitiveModule] $ do
   c <- forAllT $ (fmap fst . choice) =<< genPrimCon
   assert $ primConName c `elem` M.keys allPrimTypeDefs
 
@@ -49,8 +50,8 @@ unit_prim_con_scope = do
   test (checkKind KType =<< tcon tChar) @?= Left (UnknownTypeConstructor tChar)
   test (synth =<< char 'a') @?= Left (PrimitiveTypeNotInScope tChar)
   where
-    cxt = buildTypingContext mempty mempty NoSmartHoles
-    test = runTypecheckTestMFromIn 0 cxt
+    cxt = buildTypingContextFromModules mempty NoSmartHoles
+    test = runTypecheckTestMIn cxt
 
 -- If we use a prim con, then we need the corresponding prim type
 -- in scope, and not some other type of that name
@@ -74,4 +75,4 @@ unit_prim_con_scope_ast = do
           }
 
     cxt = buildTypingContext (mkTypeDefMap [charASTDef]) mempty NoSmartHoles
-    test = runTypecheckTestMFromIn 0 cxt
+    test = runTypecheckTestMIn cxt

@@ -49,7 +49,6 @@ module Primer.Typecheck (
   lookupLocalTy,
   lookupVar,
   primConInScope,
-  mkTypeDefMap,
   consistentKinds,
   consistentTypes,
   extendLocalCxtTy,

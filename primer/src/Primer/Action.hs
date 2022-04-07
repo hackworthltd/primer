@@ -103,7 +103,6 @@ import Primer.Typecheck (
   CheckEverythingRequest (CheckEverything, toCheck, trusted),
   SmartHoles,
   TypeError,
-  buildTypingContext,
   buildTypingContextFromModules,
   check,
   checkEverything,
@@ -489,14 +488,13 @@ applyActionsToTypeSig smartHoles imports mod def actions =
 applyActionsToBody ::
   (MonadFresh ID m, MonadFresh NameCounter m) =>
   SmartHoles ->
-  Map TyConName TypeDef ->
-  Map GVarName Def ->
+  [Module] ->
   ASTDef ->
   [Action] ->
   m (Either ActionError (ASTDef, Loc))
-applyActionsToBody sh typeDefs defs def actions =
+applyActionsToBody sh modules def actions =
   go
-    & flip runReaderT (buildTypingContext typeDefs defs sh)
+    & flip runReaderT (buildTypingContextFromModules modules sh)
     & runExceptT
   where
     go :: ActionM m => m (ASTDef, Loc)
@@ -523,12 +521,12 @@ applyActionAndCheck ty action z = do
 
 -- This is currently only used for tests.
 -- We may need it in the future for a REPL, where we want to build standalone expressions.
--- We take a list of the types that should be in scope for the test.
-applyActionsToExpr :: (MonadFresh ID m, MonadFresh NameCounter m) => SmartHoles -> Map TyConName TypeDef -> Expr -> [Action] -> m (Either ActionError (Either ExprZ TypeZ))
-applyActionsToExpr sh typeDefs expr actions =
+-- We take a list of the modules that should be in scope for the test.
+applyActionsToExpr :: (MonadFresh ID m, MonadFresh NameCounter m) => SmartHoles -> [Module] -> Expr -> [Action] -> m (Either ActionError (Either ExprZ TypeZ))
+applyActionsToExpr sh modules expr actions =
   foldM (flip applyActionAndSynth) (focusLoc expr) actions -- apply all actions
     <&> locToEither
-    & flip runReaderT (buildTypingContext typeDefs mempty sh)
+    & flip runReaderT (buildTypingContextFromModules modules sh)
     & runExceptT -- catch any errors
 
 applyActionAndSynth :: ActionM m => Action -> Loc -> m Loc

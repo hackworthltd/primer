@@ -3,6 +3,7 @@
 --   for the fact that some of the primitive functions (see "Primer.Primitives")
 --   refer to these types.
 module Primer.Builtins (
+  builtinModule,
   tBool,
   cTrue,
   cFalse,
@@ -28,6 +29,8 @@ module Primer.Builtins (
   eitherDef,
 ) where
 
+import Foreword
+
 import Primer.Core (
   ASTTypeDef (
     ASTTypeDef,
@@ -39,9 +42,20 @@ import Primer.Core (
   Kind (KType),
   TyConName,
   Type' (TApp, TCon, TVar),
+  TypeDef (TypeDefAST),
   ValCon (ValCon),
   ValConName,
  )
+import Primer.Module (Module (Module, moduleDefs, moduleTypes), mkTypeDefMap)
+
+builtinModule :: Module
+builtinModule =
+  Module
+    { moduleTypes =
+        mkTypeDefMap $
+          map TypeDefAST [boolDef, natDef, listDef, maybeDef, pairDef, eitherDef]
+    , moduleDefs = mempty
+    }
 
 tBool :: TyConName
 tBool = "Bool"

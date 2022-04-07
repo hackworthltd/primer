@@ -9,7 +9,6 @@ import Hedgehog hiding (check)
 import Hedgehog.Classes
 import qualified Hedgehog.Gen as Gen
 import qualified Hedgehog.Range as Range
-import Primer.App (defaultTypeDefs)
 import Primer.Builtins
 import Primer.Core (
   Expr,
@@ -37,7 +36,7 @@ import Primer.Questions (
 import Primer.Typecheck (
   Cxt,
   SmartHoles (NoSmartHoles),
-  buildTypingContext,
+  buildTypingContextFromModules,
   exprTtoExpr,
   synth,
  )
@@ -298,7 +297,7 @@ unit_hasGeneratedNames_3 = do
   hasGeneratedNamesExpr expr Nothing (down >=> down >=> right) ["z", "x1", "y1"]
 
 defCxt :: Cxt
-defCxt = buildTypingContext defaultTypeDefs mempty NoSmartHoles
+defCxt = buildTypingContextFromModules [builtinModule] NoSmartHoles
 
 hasGeneratedNamesExpr :: S Expr -> Maybe (S Type) -> (ExprZ -> Maybe ExprZ) -> [Name] -> Assertion
 hasGeneratedNamesExpr expr ty path expected = do

@@ -11,13 +11,13 @@ import Primer.App (
   App (appIdCounter),
   EvalReq (EvalReq, evalReqExpr, evalReqRedex),
   EvalResp (EvalResp, evalRespExpr),
-  Prog (progModule),
   handleEvalRequest,
   importModules,
   newEmptyApp,
  )
 import Primer.Builtins (
   boolDef,
+  builtinModule,
   cFalse,
   cNil,
   cTrue,
@@ -53,14 +53,13 @@ import Primer.Eval (
   tryReduceExpr,
   tryReduceType,
  )
-import Primer.Module (Module (Module, moduleDefs, moduleTypes))
-import Primer.Primitives (primitiveGVar, tChar)
-import Primer.Typecheck (mkTypeDefMap)
+import Primer.Module (Module (Module, moduleDefs, moduleTypes), mkTypeDefMap)
+import Primer.Primitives (primitiveGVar, primitiveModule, tChar)
 import Primer.Zipper (target)
 import Test.Tasty.HUnit (Assertion, assertBool, assertFailure, (@?=))
 import TestM (evalTestM)
 import TestUtils (withPrimDefs)
-import Tests.Action.Prog (defaultFullProg, runAppTestM)
+import Tests.Action.Prog (runAppTestM)
 
 -- * 'tryReduce' tests
 
@@ -821,8 +820,7 @@ unit_redexes_prim_ann =
 unit_eval_modules :: Assertion
 unit_eval_modules =
   let test = do
-        p <- defaultFullProg
-        importModules [progModule p]
+        importModules [primitiveModule, builtinModule]
         foo <- gvar (primitiveGVar "toUpper") `app` char 'a'
         EvalResp{evalRespExpr = e} <-
           handleEvalRequest

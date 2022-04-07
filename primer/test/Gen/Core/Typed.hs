@@ -70,12 +70,15 @@ import Primer.Core (
   valConType,
  )
 import Primer.Core.Utils (freeVarsTy)
+import Primer.Module (Module, mkTypeDefMap)
 import Primer.Name (Name, NameCounter, freshName, unName, unsafeMkName)
 import Primer.Refine (Inst (InstAPP, InstApp, InstUnconstrainedAPP), refine)
 import Primer.Subst (substTy, substTys)
 import Primer.Typecheck (
   Cxt (),
+  SmartHoles (NoSmartHoles),
   TypeDefError (TDIHoleType),
+  buildTypingContextFromModules,
   consistentKinds,
   extendLocalCxt,
   extendLocalCxtTy,
@@ -89,7 +92,6 @@ import Primer.Typecheck (
   localTyVars,
   matchArrowType,
   matchForallType,
-  mkTypeDefMap,
   primConInScope,
   typeDefs,
  )
@@ -527,5 +529,7 @@ hoist' cxt = pure . evalTestM 0 . flip runReaderT cxt . unWT
 -- It is recommended to do more than default number of tests when using this module.
 -- That is to say, generating well-typed syntax is hard, and you probably want
 -- to increase the number of tests run to get decent coverage.
-propertyWT :: Cxt -> PropertyT WT () -> Property
-propertyWT cxt = property . hoist (hoist' cxt)
+-- The modules form the 'Cxt' in the environment of the 'WT' monad
+-- (thus the definitions of terms is ignored)
+propertyWT :: [Module] -> PropertyT WT () -> Property
+propertyWT mods = property . hoist (hoist' $ buildTypingContextFromModules mods NoSmartHoles)

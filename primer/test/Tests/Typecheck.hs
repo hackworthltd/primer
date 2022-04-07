@@ -23,13 +23,13 @@ import qualified Hedgehog.Range as Range
 import Optics (over, set)
 import Primer.App (
   Prog (progImports),
-  defaultTypeDefs,
   newEmptyProg,
   newProg,
   progModule,
  )
 import Primer.Builtins (
   boolDef,
+  builtinModule,
   cCons,
   cFalse,
   cNil,
@@ -74,24 +74,22 @@ import Primer.Core.DSL
 import Primer.Core.Utils (generateIDs, generateTypeIDs)
 import Primer.Module
 import Primer.Name (NameCounter)
-import Primer.Primitives (primitiveGVar, tChar)
+import Primer.Primitives (primitiveGVar, primitiveModule, tChar)
 import Primer.Typecheck (
   CheckEverythingRequest (CheckEverything, toCheck, trusted),
   Cxt,
   ExprT,
   SmartHoles (NoSmartHoles, SmartHoles),
   TypeError (..),
-  buildTypingContext,
+  buildTypingContextFromModules,
   checkEverything,
   decomposeTAppCon,
   mkTAppCon,
-  mkTypeDefMap,
   synth,
   synthKind,
  )
 import Test.Tasty.HUnit (Assertion, assertFailure, (@?=))
 import TestM (TestM, evalTestM)
-import TestUtils (withPrimDefs)
 import Tests.Gen.Core.Typed
 
 unit_identity :: Assertion
@@ -486,7 +484,7 @@ unit_prim_fun_applied =
 hprop_synth_well_typed_extcxt :: Property
 hprop_synth_well_typed_extcxt = withTests 1000 $
   withDiscards 2000 $
-    propertyWTInExtendedLocalGlobalCxt (buildTypingContext defaultTypeDefs mempty NoSmartHoles) $ do
+    propertyWTInExtendedLocalGlobalCxt [builtinModule, primitiveModule] $ do
       (e, _ty) <- forAllT genSyn
       ty' <- generateTypeIDs . fst =<< synthTest =<< generateIDs e
       void $ checkKindTest KType ty'
@@ -497,7 +495,7 @@ hprop_synth_well_typed_extcxt = withTests 1000 $
 hprop_synth_well_typed_defcxt :: Property
 hprop_synth_well_typed_defcxt = withTests 1000 $
   withDiscards 2000 $
-    propertyWT (buildTypingContext mempty mempty NoSmartHoles) $ do
+    propertyWT [] $ do
       (e, _ty) <- forAllT genSyn
       ty' <- generateTypeIDs . fst =<< synthTest =<< generateIDs e
       void $ checkKindTest KType ty'
@@ -527,7 +525,7 @@ unit_good_maybeT = case runTypecheckTestM NoSmartHoles $
   checkEverything
     NoSmartHoles
     CheckEverything
-      { trusted = [progModule newProg]
+      { trusted = [builtinModule]
       , toCheck = [Module (mkTypeDefMap [TypeDefAST maybeTDef]) mempty]
       } of
   Left err -> assertFailure $ show err
@@ -636,22 +634,24 @@ newtype TypecheckTestM a = TypecheckTestM {unTypecheckTestM :: ExceptT TypeError
     , MonadError TypeError
     )
 
-runTypecheckTestMFromIn :: ID -> Cxt -> TypecheckTestM a -> Either TypeError a
-runTypecheckTestMFromIn nextFresh cxt =
-  evalTestM nextFresh
+runTypecheckTestMIn :: Cxt -> TypecheckTestM a -> Either TypeError a
+runTypecheckTestMIn cxt =
+  evalTestM 0
     . flip runReaderT cxt
     . runExceptT
     . unTypecheckTestM
 runTypecheckTestM :: SmartHoles -> TypecheckTestM a -> Either TypeError a
-runTypecheckTestM sh = runTypecheckTestMFromIn 0 (buildTypingContext testingTypeDefs mempty sh)
+runTypecheckTestM sh = runTypecheckTestMIn (buildTypingContextFromModules [testModule, builtinModule] sh)
 runTypecheckTestMWithPrims :: SmartHoles -> TypecheckTestM a -> Either TypeError a
 runTypecheckTestMWithPrims sh =
-  runTypecheckTestMFromIn n (buildTypingContext testingTypeDefs defs sh)
-  where
-    (defs, n) = create $ withPrimDefs $ \m -> pure $ DefPrim <$> m
+  runTypecheckTestMIn (buildTypingContextFromModules [testModule, builtinModule, primitiveModule] sh)
 
-testingTypeDefs :: Map TyConName TypeDef
-testingTypeDefs = mkTypeDefMap [TypeDefAST maybeTDef] <> defaultTypeDefs
+testModule :: Module
+testModule =
+  Module
+    { moduleTypes = mkTypeDefMap [TypeDefAST maybeTDef]
+    , moduleDefs = mempty
+    }
 
 tMaybeT :: TyConName
 tMaybeT = "MaybeT"

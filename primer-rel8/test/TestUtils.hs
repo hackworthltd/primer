@@ -44,11 +44,11 @@ import Primer.App (
   App (..),
   InitialApp (NewApp),
   Prog (..),
-  defaultTypeDefs,
   newEmptyApp,
   newEmptyProg,
  )
 import Primer.Builtins (
+  builtinModule,
   cFalse,
   cJust,
   cLeft,
@@ -63,15 +63,9 @@ import Primer.Builtins (
  )
 import Primer.Core (
   ASTDef (..),
-  Def (DefAST, DefPrim),
-  GVarName,
+  Def (DefAST),
   ID,
   Kind (KType),
-  PrimDef (..),
-  PrimFun,
-  defName,
-  primDefType,
-  primFunType,
  )
 import Primer.Core.DSL (
   aPP,
@@ -110,9 +104,7 @@ import Primer.Module (
     moduleTypes
   ),
  )
-import Primer.Primitives (
-  allPrimDefs,
- )
+import Primer.Primitives (primitiveModule)
 import Rel8 (
   Expr,
   Insert (Insert, into, onConflict, returning, rows),
@@ -248,14 +240,17 @@ insertSessionRow row conn =
 -- so it should be refactored into a common test library. See:
 -- https://github.com/hackworthltd/primer/issues/273
 testASTDef :: ASTDef
-testASTDef =
-  ASTDef
+testASTDefNextID :: ID
+(testASTDef, testASTDefNextID) =
+  ( ASTDef
     { astDefName = "1"
     , astDefExpr
     , astDefType
     }
+  , nextID
+  )
   where
-    ((astDefExpr, astDefType), _) = create $ (,) <$> e <*> t
+    ((astDefExpr, astDefType), nextID) = create $ (,) <$> e <*> t
     t =
       tfun
         (tcon tNat)
@@ -348,24 +343,6 @@ testASTDef =
             )
         )
 
--- | Helper function for creating test apps from a predefined list of
--- 'ASTDef's and 'PrimFun's.
---
--- TODO: move this function into 'Primer.App'. See:
--- https://github.com/hackworthltd/primer/issues/273#issuecomment-1058713380
-mkTestDefs :: [ASTDef] -> Map GVarName PrimFun -> (Map GVarName Def, ID)
-mkTestDefs astDefs primMap =
-  let (defs, nextID) = create $ do
-        primDefs <- for (Map.toList primMap) $ \(primDefName, def) -> do
-          primDefType <- primFunType def
-          pure $
-            PrimDef
-              { primDefName
-              , primDefType
-              }
-        pure $ map DefAST astDefs <> map DefPrim primDefs
-   in (Map.fromList $ (\d -> (defName d, d)) <$> defs, nextID)
-
 -- | An initial test 'App' instance that contains all default type
 -- definitions (including primitive types), all primitive functions,
 -- and a top-level definition that contains every construct in the
@@ -375,16 +352,16 @@ testApp =
   newEmptyApp
     { appProg = testProg
     , appInit = NewApp
-    , appIdCounter = fromEnum nextId
+    , appIdCounter = fromEnum testASTDefNextID
     }
   where
-    (defs, nextId) = mkTestDefs [testASTDef] allPrimDefs
     testProg :: Prog
     testProg =
       newEmptyProg
-        { progModule =
+        { progImports = [builtinModule, primitiveModule]
+        , progModule =
             Module
-              { moduleTypes = defaultTypeDefs
-              , moduleDefs = defs
+              { moduleTypes = mempty
+              , moduleDefs = Map.singleton (astDefName testASTDef) (DefAST testASTDef)
               }
         }

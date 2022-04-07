@@ -32,7 +32,6 @@ import Primer.App (
   ProgError (..),
   Question (VariablesInScope),
   Selection (..),
-  defaultTypeDefs,
   handleEditRequest,
   handleQuestion,
   importModules,
@@ -43,7 +42,7 @@ import Primer.App (
   newProg,
   tcWholeProg,
  )
-import Primer.Builtins (cCons, cJust, cMakePair, cNil, tBool, tList, tMaybe, tPair)
+import Primer.Builtins (builtinModule, cCons, cJust, cMakePair, cNil, tBool, tList, tMaybe, tPair)
 import Primer.Core (
   ASTDef (..),
   ASTTypeDef (..),
@@ -90,13 +89,12 @@ import Primer.Core.DSL (
   tvar,
  )
 import Primer.Core.Utils (forgetIDs)
-import Primer.Module (Module (moduleDefs, moduleTypes))
+import Primer.Module (Module (Module, moduleDefs, moduleTypes), mkTypeDefMap)
 import Primer.Name
-import Primer.Primitives (tChar, tInt)
-import Primer.Typecheck (mkTypeDefMap)
+import Primer.Primitives (primitiveModule, tChar, tInt)
 import Test.Tasty.HUnit (Assertion, assertBool, assertFailure, (@=?), (@?=))
 import TestM (TestM, evalTestM)
-import TestUtils (constructTCon, withPrimDefs)
+import TestUtils (constructTCon)
 import Tests.Typecheck (checkProgWellFormed)
 
 unit_empty_actions_only_change_the_log :: Assertion
@@ -646,8 +644,7 @@ unit_copy_paste_sig2ann = do
 unit_import_vars :: Assertion
 unit_import_vars =
   let test = do
-        p <- defaultFullProg
-        importModules [progModule p]
+        importModules [builtinModule, primitiveModule]
         gets (Map.assocs . moduleDefs . progModule . appProg) >>= \case
           [(i, DefAST d)] -> do
             a' <- get
@@ -688,10 +685,18 @@ unit_import_reference =
 unit_copy_paste_import :: Assertion
 unit_copy_paste_import =
   let test = do
-        p <- defaultFullProg
-        importModules [progModule p]
+        importModules [builtinModule]
+        ty <- tcon tBool `tfun` tcon tBool
+        e <- lam "x" $ lvar "x"
+        let def = ASTDef "foo" e ty
+        let m =
+              Module
+                { moduleTypes = mempty
+                , moduleDefs = Map.singleton "foo" $ DefAST def
+                }
+        importModules [m]
         prog <- gets appProg
-        case (findGlobalByName prog "other", Map.assocs $ moduleDefs $ progModule prog) of
+        case (findGlobalByName prog "foo", Map.assocs $ moduleDefs $ progModule prog) of
           (Just (DefAST other), [(i, _)]) -> do
             let fromDef = astDefName other
                 fromType = getID $ astDefType other
@@ -703,7 +708,7 @@ unit_copy_paste_import =
                 , CopyPasteBody (fromDef, fromExpr) []
                 ]
             pure $ pure ()
-          (Nothing, _) -> pure $ assertFailure "Could not find the imported 'other'"
+          (Nothing, _) -> pure $ assertFailure "Could not find the imported 'foo'"
           (Just _, _) -> pure $ assertFailure "Expected one def 'main' from newEmptyApp"
       a = newEmptyApp
    in case fst $ runAppTestM (ID $ appIdCounter a) a test of
@@ -1061,15 +1066,14 @@ unit_good_defaultEmptyProg :: Assertion
 unit_good_defaultEmptyProg = checkProgWellFormed defaultEmptyProg
 
 -- `defaultEmptyProg`, plus all primitive definitions (types and terms),
--- and all builtin types.
+-- and all builtin types, all moved into the editable module
 defaultFullProg :: MonadFresh ID m => m Prog
 defaultFullProg = do
   p <- defaultEmptyProg
-  withPrimDefs $ \m ->
-    pure $
-      over (#progModule % #moduleTypes) (defaultTypeDefs <>)
-        . over (#progModule % #moduleDefs) ((DefPrim <$> m) <>)
-        $ p
+  pure $
+    over (#progModule % #moduleTypes) ((moduleTypes builtinModule <> moduleTypes primitiveModule) <>)
+      . over (#progModule % #moduleDefs) (moduleDefs primitiveModule <>)
+      $ p
 
 findTypeDef :: TyConName -> Prog -> IO ASTTypeDef
 findTypeDef d p = maybe (assertFailure "couldn't find typedef") pure $ (typeDefAST <=< Map.lookup d) $ p ^. (#progModule % #moduleTypes)
@@ -1078,9 +1082,10 @@ findDef :: GVarName -> Prog -> IO ASTDef
 findDef d p = maybe (assertFailure "couldn't find def") pure $ (defAST <=< Map.lookup d) $ p ^. (#progModule % #moduleDefs)
 
 -- We use the same type definition for all tests related to editing type definitions
+-- (This is added to `defaultFullProg`)
 defaultProgEditableTypeDefs :: MonadFresh ID f => f [ASTDef] -> f Prog
 defaultProgEditableTypeDefs ds = do
-  p <- defaultEmptyProg
+  p <- defaultFullProg
   ds' <- ds
   let tds =
         [ TypeDefAST
@@ -1093,7 +1098,7 @@ defaultProgEditableTypeDefs ds = do
         ]
   pure $
     p
-      & (#progModule % #moduleTypes) %~ ((mkTypeDefMap tds <> defaultTypeDefs) <>)
+      & (#progModule % #moduleTypes) %~ (mkTypeDefMap tds <>)
       & (#progModule % #moduleDefs) %~ (Map.fromList ((\d -> (astDefName d, DefAST d)) <$> ds') <>)
 
 unit_good_defaultFullProg :: Assertion

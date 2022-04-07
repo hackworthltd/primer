@@ -1,6 +1,7 @@
 {-# LANGUAGE ViewPatterns #-}
 
 module Primer.Primitives (
+  primitiveModule,
   allPrimDefs,
   allPrimTypeDefs,
   tInt,
@@ -23,14 +24,18 @@ import Primer.Builtins (
   tNat,
  )
 import Primer.Core (
+  Def (DefPrim),
   Expr' (App, Con, PrimCon),
   ExprAnyFresh (..),
   GVarName,
   PrimCon (..),
+  PrimDef (PrimDef, primDefName, primDefType),
   PrimFun (..),
   PrimFunError (..),
   PrimTypeDef (..),
   TyConName,
+  TypeDef (TypeDefPrim),
+  primFunType,
   qualifyName,
  )
 import Primer.Core.DSL (
@@ -39,13 +44,34 @@ import Primer.Core.DSL (
   bool_,
   char,
   con,
+  create,
   int,
   maybe_,
   nat,
   tapp,
   tcon,
  )
+import Primer.Module (Module (Module, moduleDefs, moduleTypes))
 import Primer.Name (Name)
+
+-- | This module depends on the builtin module, due to some terms referencing builtin types.
+-- It contains all primitive types and terms.
+primitiveModule :: Module
+primitiveModule =
+  Module
+    { moduleTypes = TypeDefPrim <$> allPrimTypeDefs
+    , moduleDefs = fst . create $
+        getAp $
+          flip M.foldMapWithKey allPrimDefs $ \n def -> Ap $ do
+            ty <- primFunType def
+            pure $
+              M.singleton n $
+                DefPrim
+                  PrimDef
+                    { primDefName = n
+                    , primDefType = ty
+                    }
+    }
 
 tChar :: TyConName
 tChar = "Char"

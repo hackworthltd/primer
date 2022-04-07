@@ -1,7 +1,8 @@
-module Primer.Module (Module (..)) where
+module Primer.Module (Module (..), mkTypeDefMap) where
 
+import qualified Data.Map as M
 import Foreword
-import Primer.Core (Def, GlobalName, GlobalNameKind (ADefName, ATyCon), TypeDef)
+import Primer.Core (Def, GlobalName, GlobalNameKind (ADefName, ATyCon), TypeDef, typeDefName)
 import Primer.JSON
 
 data Module = Module
@@ -10,3 +11,8 @@ data Module = Module
   }
   deriving (Eq, Show, Generic)
   deriving (FromJSON, ToJSON) via VJSON Module
+
+-- | Create a mapping of name to typedef for fast lookup.
+-- Ensures that @typeDefName (mkTypeDefMap ! n) == n@
+mkTypeDefMap :: [TypeDef] -> Map (GlobalName 'ATyCon) TypeDef
+mkTypeDefMap defs = M.fromList $ map (\d -> (typeDefName d, d)) defs

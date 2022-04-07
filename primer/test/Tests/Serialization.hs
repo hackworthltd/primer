@@ -43,9 +43,9 @@ import Primer.Core (
   TypeMeta,
   ValCon (..),
  )
-import Primer.Module (Module (Module, moduleDefs, moduleTypes))
+import Primer.Module (Module (Module, moduleDefs, moduleTypes), mkTypeDefMap)
 import Primer.Name (unsafeMkName)
-import Primer.Typecheck (SmartHoles (SmartHoles), mkTypeDefMap)
+import Primer.Typecheck (SmartHoles (SmartHoles))
 import System.FilePath (takeBaseName)
 import Test.Tasty
 import Test.Tasty.Golden

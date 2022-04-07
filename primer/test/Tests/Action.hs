@@ -19,7 +19,6 @@ import Primer.Action (
   Movement (..),
   applyActionsToExpr,
  )
-import Primer.App (defaultTypeDefs)
 import Primer.Builtins
 import Primer.Core (
   Expr,
@@ -999,4 +998,4 @@ actionTestExpectFail f sh expr actions =
 runTestActions :: SmartHoles -> ID -> Expr -> [Action] -> Either ActionError Expr
 runTestActions sh i expr actions =
   either unfocusExpr (unfocusExpr . unfocusType)
-    <$> evalTestM (i + 1) (applyActionsToExpr sh defaultTypeDefs expr actions)
+    <$> evalTestM (i + 1) (applyActionsToExpr sh [builtinModule] expr actions)
