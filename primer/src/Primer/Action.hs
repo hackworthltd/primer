@@ -89,7 +89,7 @@ import Primer.Core.DSL (
 import Primer.Core.Transform (renameLocalVar, renameTyVar, renameTyVarExpr)
 import Primer.Core.Utils (forgetTypeIDs, generateTypeIDs)
 import Primer.JSON
-import Primer.Module (Module (moduleDefs, moduleTypes))
+import Primer.Module (Module (moduleDefs))
 import Primer.Name (Name, NameCounter, unName)
 import Primer.Name.Fresh (
   isFresh,
@@ -104,6 +104,7 @@ import Primer.Typecheck (
   SmartHoles,
   TypeError,
   buildTypingContext,
+  buildTypingContextFromModules,
   check,
   checkEverything,
   exprTtoExpr,
@@ -441,11 +442,7 @@ applyActionsToTypeSig ::
 applyActionsToTypeSig smartHoles imports mod def actions =
   runReaderT
     go
-    ( buildTypingContext
-        (foldMap moduleTypes $ mod : imports)
-        (foldMap moduleDefs $ mod : imports)
-        smartHoles
-    )
+    (buildTypingContextFromModules (mod : imports) smartHoles)
     & runExceptT
   where
     go :: ActionM m => m (ASTDef, Module, TypeZ)

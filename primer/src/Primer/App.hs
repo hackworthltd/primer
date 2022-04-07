@@ -153,6 +153,7 @@ import Primer.Typecheck (
   SmartHoles (NoSmartHoles, SmartHoles),
   TypeError,
   buildTypingContext,
+  buildTypingContextFromModules,
   checkDef,
   checkEverything,
   checkTypeDefs,
@@ -1271,7 +1272,7 @@ transformCaseBranches prog type_ f = transformM $ \case
   e -> pure e
 
 progCxt :: Prog -> Cxt
-progCxt p = buildTypingContext (allTypes p) (allDefs p) (progSmartHoles p)
+progCxt p = buildTypingContextFromModules (progModule p : progImports p) (progSmartHoles p)
 
 -- | Run a computation in some context whose errors can be promoted to `ProgError`.
 liftError :: MonadEditApp m => (e -> ProgError) -> ExceptT e m b -> m b

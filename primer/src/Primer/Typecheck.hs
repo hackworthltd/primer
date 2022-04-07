@@ -26,6 +26,7 @@ module Primer.Typecheck (
   KindOrType (..),
   initialCxt,
   buildTypingContext,
+  buildTypingContextFromModules,
   TypeError (..),
   typeOf,
   maybeTypeOf,
@@ -253,6 +254,12 @@ buildTypingContext tydefs defs sh =
   let globals = Map.elems $ fmap (\def -> (defName def, forgetTypeIDs (defType def))) defs
    in extendTypeDefCxt (Map.elems tydefs) $ extendGlobalCxt globals $ initialCxt sh
 
+buildTypingContextFromModules :: [Module] -> SmartHoles -> Cxt
+buildTypingContextFromModules modules =
+  buildTypingContext
+    (foldMap moduleTypes modules)
+    (foldMap moduleDefs modules)
+
 -- | Create a mapping of name to typedef for fast lookup.
 -- Ensures that @typeDefName (mkTypeDefMap ! n) == n@
 mkTypeDefMap :: [TypeDef] -> Map TyConName TypeDef
@@ -403,11 +410,7 @@ checkEverything ::
   CheckEverythingRequest ->
   m [Module]
 checkEverything sh CheckEverything{trusted, toCheck} =
-  let cxt =
-        buildTypingContext
-          (foldMap moduleTypes trusted)
-          (foldMap moduleDefs trusted)
-          sh
+  let cxt = buildTypingContextFromModules trusted sh
    in flip runReaderT cxt $ do
         -- Check that the definition map has the right keys
         for_ toCheck $ \m -> flip Map.traverseWithKey (moduleDefs m) $ \n d ->
