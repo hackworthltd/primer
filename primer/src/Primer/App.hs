@@ -4,6 +4,7 @@
 {-# LANGUAGE OverloadedLabels #-}
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE ViewPatterns #-}
 
 -- This module defines the high level application functions.
 
@@ -58,12 +59,14 @@ import Data.Aeson (
  )
 import Data.Bitraversable (bimapM)
 import Data.Generics.Product (position)
+import Data.Generics.Uniplate.Operations (descendM, transformM)
 import Data.Generics.Uniplate.Zipper (
   fromZipper,
  )
+import Data.List.Extra ((!?))
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
-import Optics (re, traverseOf, view, (%), (%~), (.~), (?~), (^.), _Left, _Right)
+import Optics
 import Primer.Action (
   Action,
   ActionError (..),
@@ -74,9 +77,12 @@ import Primer.Action (
 import Primer.Core (
   ASTDef (..),
   ASTTypeDef (..),
+  Bind' (Bind),
+  CaseBranch,
+  CaseBranch' (CaseBranch),
   Def (..),
   Expr,
-  Expr' (EmptyHole, Var),
+  Expr' (Case, Con, EmptyHole, Hole, Var),
   ExprMeta,
   GVarName,
   GlobalName (baseName),
@@ -87,18 +93,25 @@ import Primer.Core (
   PrimDef (..),
   TmVarRef (GlobalVarRef, LocalVarRef),
   TyConName,
+  TyVarName,
   Type,
   Type' (..),
   TypeDef (..),
   TypeMeta,
   ValCon (..),
+  ValConName,
   defAST,
   defName,
   defPrim,
   getID,
   primFunType,
   qualifyName,
+  subExprs,
+  subTypes,
+  typeDefAST,
+  typesInExpr,
   unsafeMkGlobalName,
+  unsafeMkLocalName,
   _exprMeta,
   _exprMetaLens,
   _exprTypeMeta,
@@ -107,8 +120,9 @@ import Primer.Core (
   _typeMetaLens,
  )
 import Primer.Core.DSL (create, emptyHole, tEmptyHole)
-import Primer.Core.Transform (renameVar)
-import Primer.Core.Utils (_freeTmVars, _freeTyVars, _freeVarsTy)
+import qualified Primer.Core.DSL as DSL
+import Primer.Core.Transform (foldApp, renameVar, unfoldApp, unfoldTApp)
+import Primer.Core.Utils (freshLocalName, _freeTmVars, _freeTyVars, _freeVarsTy)
 import Primer.Eval (EvalDetail, EvalError)
 import qualified Primer.Eval as Eval
 import Primer.EvalFull (Dir, EvalFullError (TimedOut), TerminationBound, evalFull)
@@ -133,6 +147,7 @@ import Primer.Typecheck (
   checkEverything,
   checkTypeDefs,
   mkTypeDefMap,
+  synth,
  )
 import Primer.Zipper (
   ExprZ,
@@ -286,6 +301,13 @@ data ProgError
   | DefNotFound GVarName
   | DefAlreadyExists GVarName
   | DefInUse GVarName
+  | TypeDefIsPrim TyConName
+  | TypeDefNotFound TyConName
+  | TypeDefAlreadyExists TyConName
+  | ConNotFound ValConName
+  | ConAlreadyExists ValConName
+  | ParamNotFound TyVarName
+  | ParamAlreadyExists TyVarName
   | ActionError ActionError
   | EvalError EvalError
   | -- | Currently copy/paste is only exposed in the frontend via select
@@ -300,6 +322,7 @@ data ProgError
     --   (However, this is not entirely true currently, see
     --    https://github.com/hackworthltd/primer/issues/3)
     TypeDefError Text
+  | IndexOutOfRange Int
   deriving (Eq, Show, Generic)
   deriving (FromJSON, ToJSON) via VJSON ProgError
 
@@ -498,6 +521,205 @@ applyProgAction prog mdefName = \case
             (checkTypeDefs $ mkTypeDefMap [TypeDefAST td])
             (buildTypingContext (allTypes prog) mempty NoSmartHoles)
         )
+  RenameType old (unsafeMkGlobalName -> new) ->
+    (,Nothing) <$> do
+      when (Map.member new $ prog ^. #progModule % #moduleTypes) $ throwError $ TypeDefAlreadyExists new
+      traverseOf
+        #progModule
+        ( traverseOf #moduleTypes (updateType <=< updateRefsInTypes)
+            <=< pure . over (#moduleDefs % traversed % #_DefAST) (updateDefBodies . updateDefTypes)
+        )
+        prog
+    where
+      updateType m = do
+        d0 <-
+          maybe (throwError $ TypeDefIsPrim old) pure . typeDefAST
+            =<< maybe (throwError $ TypeDefNotFound old) pure (Map.lookup old m)
+        pure $ Map.insert new (TypeDefAST $ d0 & #astTypeDefName .~ new) $ Map.delete old m
+      updateRefsInTypes =
+        pure
+          . over
+            (traversed % #_TypeDefAST % #astTypeDefConstructors % traversed % #valConArgs % traversed % tconsInType)
+            updateName
+      updateDefBodies =
+        over
+          (#astDefType % tconsInType)
+          updateName
+      updateDefTypes =
+        over
+          (#astDefExpr % typesInExpr % tconsInType)
+          updateName
+      tconsInType = subTypes % #_TCon % _2
+      updateName n = if n == old then new else n
+  RenameCon type_ old (unsafeMkGlobalName -> new) ->
+    (,Nothing) <$> do
+      when (new `elem` allConNames prog) $ throwError $ ConAlreadyExists new
+      traverseOf
+        #progModule
+        ( traverseOf #moduleTypes updateType
+            <=< traverseOf #moduleDefs (pure . updateDefs)
+        )
+        prog
+    where
+      updateType =
+        alterTypeDef
+          ( traverseOf
+              #astTypeDefConstructors
+              ( maybe (throwError $ ConNotFound old) pure
+                  . findAndAdjust ((== old) . valConName) (#valConName .~ new)
+              )
+          )
+          type_
+      updateDefs = over (traversed % #_DefAST % #astDefExpr % subExprs % #_Con % _2) updateName
+      updateName n = if n == old then new else n
+  RenameTypeParam type_ old (unsafeMkLocalName -> new) ->
+    (,Nothing)
+      <$> traverseOf
+        #progModule
+        (traverseOf #moduleTypes updateType)
+        prog
+    where
+      updateType =
+        alterTypeDef
+          (pure . updateConstructors <=< updateParam)
+          type_
+      updateParam =
+        traverseOf #astTypeDefParameters $ \ps -> do
+          when (new `elem` map fst ps) $ throwError $ ParamAlreadyExists new
+          ps
+            & maybe (throwError $ ParamNotFound old) pure
+              . findAndAdjust ((== old) . fst) (_1 .~ new)
+      updateConstructors =
+        over
+          ( #astTypeDefConstructors
+              % traversed
+              % #valConArgs
+              % traversed
+              % subTypes
+              % #_TVar
+              % _2
+          )
+          updateName
+      updateName n = if n == old then new else n
+  AddCon type_ index (unsafeMkGlobalName -> con) ->
+    (,Nothing)
+      <$> do
+        when (con `elem` allConNames prog) $ throwError $ ConAlreadyExists con
+        traverseOf
+          #progModule
+          ( traverseOf
+              (#moduleDefs % traversed % #_DefAST % #astDefExpr)
+              updateDefs
+              <=< traverseOf
+                #moduleTypes
+                updateType
+          )
+          prog
+    where
+      updateDefs = transformCaseBranches prog type_ $ \bs -> do
+        m' <- DSL.meta
+        maybe (throwError $ IndexOutOfRange index) pure $ insertAt index (CaseBranch con [] (EmptyHole m')) bs
+      updateType =
+        alterTypeDef
+          ( traverseOf
+              #astTypeDefConstructors
+              (maybe (throwError $ IndexOutOfRange index) pure . insertAt index (ValCon con []))
+          )
+          type_
+  SetConFieldType type_ con index new ->
+    (,Nothing)
+      <$> traverseOf
+        #progModule
+        ( traverseOf #moduleDefs updateDefs
+            <=< traverseOf #moduleTypes updateType
+        )
+        prog
+    where
+      updateType =
+        alterTypeDef
+          ( traverseOf #astTypeDefConstructors $
+              maybe (throwError $ ConNotFound con) pure
+                <=< findAndAdjustA
+                  ((== con) . valConName)
+                  ( traverseOf
+                      #valConArgs
+                      (maybe (throwError $ IndexOutOfRange index) pure . adjustAt index (const new))
+                  )
+          )
+          type_
+      updateDefs = traverse $ traverseOf (#_DefAST % #astDefExpr) (updateDecons <=< updateCons)
+      updateCons e = case unfoldApp e of
+        (e'@(Con _ con'), args) | con' == con -> do
+          m' <- DSL.meta
+          case adjustAt index (Hole m') args of
+            Just args' -> foldApp e' =<< traverse (descendM updateCons) args'
+            Nothing -> do
+              -- The constructor is not applied to the changed parameter,
+              -- so the full application still typechecks, but its type has changed.
+              -- Thus, we put the whole thing in to a hole.
+              Hole <$> DSL.meta <*> (foldApp e' =<< traverse (descendM updateCons) args)
+        _ ->
+          -- NB we can't use `transformM` here because we'd end up seeing incomplete applications before full ones
+          descendM updateCons e
+      updateDecons = transformCaseBranches prog type_ $
+        traverse $ \cb@(CaseBranch vc binds e) ->
+          if vc == con
+            then do
+              Bind _ v <- maybe (throwError $ IndexOutOfRange index) pure $ binds !? index
+              CaseBranch vc binds
+                <$> transformM
+                  ( \case
+                      e'@(Var _ (LocalVarRef v'))
+                        | v' == v ->
+                            Hole <$> DSL.meta <*> pure e'
+                      e' -> pure e'
+                  )
+                  e
+            else pure cb
+  AddConField type_ con index new ->
+    (,Nothing)
+      <$> traverseOf
+        #progModule
+        ( traverseOf #moduleDefs updateDefs
+            <=< traverseOf #moduleTypes updateType
+        )
+        prog
+    where
+      updateType =
+        alterTypeDef
+          ( traverseOf #astTypeDefConstructors $
+              maybe (throwError $ ConNotFound con) pure
+                <=< findAndAdjustA
+                  ((== con) . valConName)
+                  ( traverseOf
+                      #valConArgs
+                      (maybe (throwError $ IndexOutOfRange index) pure . insertAt index new)
+                  )
+          )
+          type_
+      updateDefs = traverse $ traverseOf (#_DefAST % #astDefExpr) (updateDecons <=< updateCons)
+      updateCons e = case unfoldApp e of
+        (e'@(Con _ con'), args) | con' == con -> do
+          m' <- DSL.meta
+          case insertAt index (EmptyHole m') args of
+            Just args' -> foldApp e' =<< traverse (descendM updateCons) args'
+            Nothing ->
+              -- The constructor is not applied as far as the new parameter,
+              -- so the full application still typechecks, but its type has changed.
+              -- Thus, we put the whole thing in to a hole.
+              Hole <$> DSL.meta <*> (foldApp e' =<< traverse (descendM updateCons) args)
+        _ ->
+          -- NB we can't use `transformM` here because we'd end up seeing incomplete applications before full ones
+          descendM updateCons e
+      updateDecons = transformCaseBranches prog type_ $
+        traverse $ \cb@(CaseBranch vc binds e) ->
+          if vc == con
+            then do
+              m' <- DSL.meta
+              newName <- freshLocalName mempty
+              binds' <- maybe (throwError $ IndexOutOfRange index) pure $ insertAt index (Bind m' newName) binds
+              pure $ CaseBranch vc binds' e
+            else pure cb
   BodyAction actions -> do
     withDef mdefName prog $ \def -> do
       smartHoles <- gets $ progSmartHoles . appProg
@@ -990,12 +1212,62 @@ copyPasteBody p (fromDefName, fromId) toDefName setup = do
 lookupASTDef :: GVarName -> Map GVarName Def -> Maybe ASTDef
 lookupASTDef name = defAST <=< Map.lookup name
 
+alterTypeDef ::
+  MonadEditApp m =>
+  (ASTTypeDef -> m ASTTypeDef) ->
+  TyConName ->
+  Map TyConName TypeDef ->
+  m (Map TyConName TypeDef)
+alterTypeDef f type_ =
+  Map.alterF
+    ( maybe
+        (throwError $ TypeDefNotFound type_)
+        ( maybe
+            (throwError $ TypeDefIsPrim type_)
+            (map (Just . TypeDefAST) . f)
+            . typeDefAST
+        )
+    )
+    type_
+
+-- | Apply a bottom-up transformation to all branches of case expressions on the given type.
+transformCaseBranches ::
+  MonadEditApp m =>
+  Prog ->
+  TyConName ->
+  ([CaseBranch] -> m [CaseBranch]) ->
+  Expr ->
+  m Expr
+transformCaseBranches prog type_ f = transformM $ \case
+  Case m scrut bs -> do
+    scrutType <-
+      fst
+        <$> runReaderT
+          (liftError (ActionError . TypeError) $ synth scrut)
+          (progCxt prog)
+    Case m scrut
+      <$> if fst (unfoldTApp scrutType) == TCon () type_
+        then f bs
+        else pure bs
+  e -> pure e
+
 progCxt :: Prog -> Cxt
 progCxt p = buildTypingContext (allTypes p) (allDefs p) (progSmartHoles p)
 
 -- | Run a computation in some context whose errors can be promoted to `ProgError`.
 liftError :: MonadEditApp m => (e -> ProgError) -> ExceptT e m b -> m b
 liftError f = runExceptT >=> either (throwError . f) pure
+
+allConNames :: Prog -> [ValConName]
+allConNames =
+  toListOf $
+    #progModule
+      % #moduleTypes
+      % traversed
+      % #_TypeDefAST
+      % #astTypeDefConstructors
+      % traversed
+      % #valConName
 
 defaultTypeDefs :: Map TyConName TypeDef
 defaultTypeDefs =

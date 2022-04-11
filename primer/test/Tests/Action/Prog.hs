@@ -54,12 +54,14 @@ import Primer.Core (
   Kind (KType),
   Meta (..),
   TmVarRef (..),
+  TyConName,
   Type' (..),
   TypeDef (..),
   ValCon (..),
   defAST,
   defName,
   getID,
+  typeDefAST,
   _exprMeta,
   _exprTypeMeta,
   _id,
@@ -75,6 +77,8 @@ import Primer.Core.DSL (
   con,
   create,
   emptyHole,
+  gvar,
+  hole,
   lAM,
   lam,
   lvar,
@@ -85,8 +89,10 @@ import Primer.Core.DSL (
   tfun,
   tvar,
  )
+import Primer.Core.Utils (forgetIDs)
 import Primer.Module (Module (moduleDefs, moduleTypes))
 import Primer.Name
+import Primer.Typecheck (mkTypeDefMap)
 import Test.Tasty.HUnit (Assertion, assertBool, assertFailure, (@=?), (@?=))
 import TestM (TestM, evalTestM)
 import TestUtils (withPrimDefs)
@@ -708,6 +714,284 @@ unit_rename_def_capture =
   progActionTest defaultEmptyProg [MoveToDef "other", BodyAction [ConstructLam $ Just "foo"], RenameDef "main" "foo"] $
     expectError (@?= ActionError NameCapture)
 
+unit_RenameType :: Assertion
+unit_RenameType =
+  progActionTest
+    ( defaultProgEditableTypeDefs $
+        sequence
+          [ do
+              x <- emptyHole `ann` (tcon "T" `tapp` tcon "Bool")
+              ASTDef "def" x <$> tEmptyHole
+          ]
+    )
+    [RenameType "T" "T'"]
+    $ expectSuccess $ \_ prog' -> do
+      td <- findTypeDef "T'" prog'
+      astTypeDefName td @?= "T'"
+      def <- findDef "def" prog'
+      forgetIDs (astDefExpr def)
+        @?= forgetIDs
+          ( fst . create $
+              emptyHole `ann` (tcon "T'" `tapp` tcon "Bool")
+          )
+
+unit_RenameType_clash :: Assertion
+unit_RenameType_clash =
+  progActionTest
+    (defaultProgEditableTypeDefs $ pure [])
+    [RenameType "T" "Int"]
+    $ expectError (@?= TypeDefAlreadyExists "Int")
+
+unit_RenameCon :: Assertion
+unit_RenameCon =
+  progActionTest
+    ( defaultProgEditableTypeDefs $
+        sequence
+          [ do
+              x <-
+                hole
+                  ( hole
+                      (con "A")
+                  )
+              ASTDef "def" x <$> tEmptyHole
+          ]
+    )
+    [RenameCon "T" "A" "A'"]
+    $ expectSuccess $ \_ prog' -> do
+      td <- findTypeDef "T" prog'
+      astTypeDefConstructors td
+        @?= [ ValCon "A'" [TCon () "Bool", TCon () "Bool", TCon () "Bool"]
+            , ValCon "B" [TVar () "b"]
+            ]
+      def <- findDef "def" prog'
+      forgetIDs (astDefExpr def)
+        @?= forgetIDs
+          ( fst . create $
+              hole
+                ( hole
+                    (con "A'")
+                )
+          )
+
+unit_RenameCon_clash :: Assertion
+unit_RenameCon_clash =
+  progActionTest
+    ( defaultProgEditableTypeDefs $
+        sequence
+          [ do
+              x <-
+                hole
+                  ( hole
+                      (con "A")
+                  )
+              ASTDef "def" x <$> tEmptyHole
+          ]
+    )
+    [RenameCon "T" "A" "True"]
+    $ expectError (@?= ConAlreadyExists "True")
+
+unit_RenameTypeParam :: Assertion
+unit_RenameTypeParam =
+  progActionTest
+    (defaultProgEditableTypeDefs $ pure [])
+    [RenameTypeParam "T" "b" "b'"]
+    $ expectSuccess $ \_ prog' -> do
+      td <- findTypeDef "T" prog'
+      astTypeDefParameters td @?= [("a", KType), ("b'", KType)]
+      astTypeDefConstructors td
+        @?= [ ValCon "A" [TCon () "Bool", TCon () "Bool", TCon () "Bool"]
+            , ValCon "B" [TVar () "b'"]
+            ]
+
+unit_RenameTypeParam_clash :: Assertion
+unit_RenameTypeParam_clash =
+  progActionTest
+    (defaultProgEditableTypeDefs $ pure [])
+    [RenameTypeParam "T" "a" "b"]
+    $ expectError (@?= ParamAlreadyExists "b")
+
+unit_AddCon :: Assertion
+unit_AddCon =
+  progActionTest
+    ( defaultProgEditableTypeDefs $
+        sequence
+          [ do
+              x <-
+                case_
+                  (emptyHole `ann` (tcon "T" `tapp` tcon "Bool" `tapp` tcon "Int"))
+                  [ branch "A" [] emptyHole
+                  , branch "B" [] emptyHole
+                  ]
+              ASTDef "def" x <$> tEmptyHole
+          ]
+    )
+    [AddCon "T" 1 "C"]
+    $ expectSuccess $ \_ prog' -> do
+      td <- findTypeDef "T" prog'
+      astTypeDefConstructors td
+        @?= [ ValCon "A" [TCon () "Bool", TCon () "Bool", TCon () "Bool"]
+            , ValCon "C" []
+            , ValCon "B" [TVar () "b"]
+            ]
+      def <- findDef "def" prog'
+      forgetIDs (astDefExpr def)
+        @?= forgetIDs
+          ( fst . create $
+              case_
+                (emptyHole `ann` (tcon "T" `tapp` tcon "Bool" `tapp` tcon "Int"))
+                [ branch "A" [] emptyHole
+                , branch "C" [] emptyHole
+                , branch "B" [] emptyHole
+                ]
+          )
+
+unit_SetConFieldType :: Assertion
+unit_SetConFieldType =
+  progActionTest
+    ( defaultProgEditableTypeDefs . sequence . pure $ do
+        x <- con "A" `app` lvar "x" `app` (gvar "y" `ann` tcon "Bool")
+        ASTDef "def" x <$> tEmptyHole
+    )
+    [SetConFieldType "T" "A" 1 $ TCon () "Int"]
+    $ expectSuccess $ \_ prog' -> do
+      td <- findTypeDef "T" prog'
+      astTypeDefConstructors td
+        @?= [ ValCon "A" [TCon () "Bool", TCon () "Int", TCon () "Bool"]
+            , ValCon "B" [TVar () "b"]
+            ]
+      def <- findDef "def" prog'
+      forgetIDs (astDefExpr def)
+        @?= forgetIDs
+          ( fst . create $
+              con "A" `app` lvar "x" `app` hole (gvar "y" `ann` tcon "Bool")
+          )
+
+unit_SetConFieldType_partial_app :: Assertion
+unit_SetConFieldType_partial_app =
+  progActionTest
+    ( defaultProgEditableTypeDefs $ do
+        x <- con "A" `app` lvar "x"
+        sequence
+          [ ASTDef "def" x <$> tcon "T"
+          ]
+    )
+    [SetConFieldType "T" "A" 1 $ TCon () "Int"]
+    $ expectSuccess $ \_ prog' -> do
+      def <- findDef "def" prog'
+      forgetIDs (astDefExpr def)
+        @?= forgetIDs
+          ( fst . create $
+              hole $
+                con "A" `app` lvar "x"
+          )
+
+unit_SetConFieldType_case :: Assertion
+unit_SetConFieldType_case =
+  progActionTest
+    ( defaultProgEditableTypeDefs $ do
+        x <-
+          case_
+            (emptyHole `ann` (tcon "T" `tapp` tEmptyHole `tapp` tEmptyHole))
+            [ branch
+                "A"
+                [("x", Nothing), ("y", Nothing), ("z", Nothing)]
+                (lvar "y")
+            , branch "B" [] emptyHole
+            ]
+        sequence
+          [ ASTDef "def" x <$> tcon "Bool"
+          ]
+    )
+    [SetConFieldType "T" "A" 1 $ TCon () "Int"]
+    $ expectSuccess $ \_ prog' -> do
+      def <- findDef "def" prog'
+      forgetIDs (astDefExpr def)
+        @?= forgetIDs
+          ( fst . create $
+              case_
+                (emptyHole `ann` (tcon "T" `tapp` tEmptyHole `tapp` tEmptyHole))
+                [ branch
+                    "A"
+                    [("x", Nothing), ("y", Nothing), ("z", Nothing)]
+                    (hole $ lvar "y")
+                , branch "B" [] emptyHole
+                ]
+          )
+
+unit_AddConField :: Assertion
+unit_AddConField =
+  progActionTest
+    ( defaultProgEditableTypeDefs $ do
+        x <- con "A" `app` con "True"
+        sequence
+          [ ASTDef "def" x <$> tEmptyHole
+          ]
+    )
+    [AddConField "T" "A" 1 $ TCon () "Int"]
+    $ expectSuccess $ \_ prog' -> do
+      td <- findTypeDef "T" prog'
+      astTypeDefConstructors td
+        @?= [ ValCon "A" [TCon () "Bool", TCon () "Int", TCon () "Bool", TCon () "Bool"]
+            , ValCon "B" [TVar () "b"]
+            ]
+      def <- findDef "def" prog'
+      forgetIDs (astDefExpr def)
+        @?= forgetIDs
+          ( fst . create $
+              con "A" `app` con "True" `app` emptyHole
+          )
+
+unit_AddConField_partial_app :: Assertion
+unit_AddConField_partial_app =
+  progActionTest
+    ( defaultProgEditableTypeDefs $ do
+        x <- con "A" `app` con "True"
+        sequence
+          [ ASTDef "def" x <$> tEmptyHole
+          ]
+    )
+    [AddConField "T" "A" 2 $ TCon () "Int"]
+    $ expectSuccess $ \_ prog' -> do
+      def <- findDef "def" prog'
+      forgetIDs (astDefExpr def)
+        @?= forgetIDs
+          ( fst . create $
+              hole $ con "A" `app` con "True"
+          )
+
+unit_AddConField_case :: Assertion
+unit_AddConField_case =
+  progActionTest
+    ( defaultProgEditableTypeDefs $ do
+        x <-
+          case_
+            (emptyHole `ann` (tcon "T" `tapp` tEmptyHole `tapp` tEmptyHole))
+            [ branch
+                "A"
+                [("x", Nothing), ("y", Nothing), ("z", Nothing)]
+                (lvar "y")
+            , branch "B" [] emptyHole
+            ]
+        sequence
+          [ ASTDef "def" x <$> tEmptyHole
+          ]
+    )
+    [AddConField "T" "A" 2 $ TCon () "Int"]
+    $ expectSuccess $ \_ prog' -> do
+      def <- findDef "def" prog'
+      forgetIDs (astDefExpr def)
+        @?= forgetIDs
+          ( fst . create $
+              case_
+                (emptyHole `ann` (tcon "T" `tapp` tEmptyHole `tapp` tEmptyHole))
+                [ branch
+                    "A"
+                    [("x", Nothing), ("y", Nothing), ("a19", Nothing), ("z", Nothing)]
+                    (lvar "y")
+                , branch "B" [] emptyHole
+                ]
+          )
+
 -- * Utilities
 
 findGlobalByName :: Prog -> GVarName -> Maybe Def
@@ -751,6 +1035,31 @@ defaultFullProg = do
       over (#progModule % #moduleTypes) (defaultTypeDefs <>)
         . over (#progModule % #moduleDefs) ((DefPrim <$> m) <>)
         $ p
+
+findTypeDef :: TyConName -> Prog -> IO ASTTypeDef
+findTypeDef d p = maybe (assertFailure "couldn't find typedef") pure $ (typeDefAST <=< Map.lookup d) $ p ^. (#progModule % #moduleTypes)
+
+findDef :: GVarName -> Prog -> IO ASTDef
+findDef d p = maybe (assertFailure "couldn't find def") pure $ (defAST <=< Map.lookup d) $ p ^. (#progModule % #moduleDefs)
+
+-- We use the same type definition for all tests related to editing type definitions
+defaultProgEditableTypeDefs :: MonadFresh ID f => f [ASTDef] -> f Prog
+defaultProgEditableTypeDefs ds = do
+  p <- defaultEmptyProg
+  ds' <- ds
+  let tds =
+        [ TypeDefAST
+            ASTTypeDef
+              { astTypeDefName = "T"
+              , astTypeDefParameters = [("a", KType), ("b", KType)]
+              , astTypeDefConstructors = [ValCon "A" (replicate 3 $ TCon () "Bool"), ValCon "B" [TVar () "b"]]
+              , astTypeDefNameHints = []
+              }
+        ]
+  pure $
+    p
+      & (#progModule % #moduleTypes) %~ ((mkTypeDefMap tds <> defaultTypeDefs) <>)
+      & (#progModule % #moduleDefs) %~ (Map.fromList ((\d -> (astDefName d, DefAST d)) <$> ds') <>)
 
 unit_good_defaultFullProg :: Assertion
 unit_good_defaultFullProg = checkProgWellFormed defaultFullProg

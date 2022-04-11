@@ -4,17 +4,21 @@ module Primer.Core.Transform (
   renameTyVar,
   renameTyVarExpr,
   unfoldApp,
+  foldApp,
   unfoldAPP,
+  unfoldTApp,
   unfoldFun,
   removeAnn,
 ) where
 
 import Foreword
 
+import Control.Monad.Fresh (MonadFresh)
 import Data.Data (Data)
 import Data.Generics.Uniplate.Data (descendM)
 import qualified Data.List.NonEmpty as NE
-import Primer.Core (CaseBranch' (..), Expr' (..), LVarName, LocalName (unLocalName), TmVarRef (..), TyVarName, Type' (..), bindName, varRefName)
+import Primer.Core (CaseBranch' (..), Expr, Expr' (..), ID, LVarName, LocalName (unLocalName), TmVarRef (..), TyVarName, Type' (..), bindName, varRefName)
+import Primer.Core.DSL (meta)
 
 -- AST transformations.
 -- This module contains global transformations on expressions and types, in
@@ -104,11 +108,24 @@ unfoldApp = second reverse . go
     go (App _ f x) = let (g, args) = go f in (g, x : args)
     go e = (e, [])
 
+-- | Fold an application head and a list of arguments in to a single expression.
+foldApp :: (Foldable t, MonadFresh ID m) => Expr -> t Expr -> m Expr
+foldApp = foldM $ \a b -> do
+  m <- meta
+  pure $ App m a b
+
 -- | Unfold a nested term-level type application into the application head and a list of arguments.
 unfoldAPP :: Expr' a b -> (Expr' a b, [Type' b])
 unfoldAPP = second reverse . go
   where
     go (APP _ f x) = let (g, args) = go f in (g, x : args)
+    go e = (e, [])
+
+-- | Unfold a nested type-level application into the application head and a list of arguments.
+unfoldTApp :: Type' a -> (Type' a, [Type' a])
+unfoldTApp = second reverse . go
+  where
+    go (TApp _ f x) = let (g, args) = go f in (g, x : args)
     go e = (e, [])
 
 -- | Split a function type into an array of argument types and the result type.
