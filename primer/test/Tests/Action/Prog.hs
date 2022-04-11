@@ -918,6 +918,74 @@ unit_SetConFieldType_case =
                 ]
           )
 
+-- TODO we need more of these for `AddConField`
+
+unit_ChangeConstructorParamType_no_hole :: Assertion
+unit_ChangeConstructorParamType_no_hole =
+  progActionTest
+    ( defaultProgEditableTypeDefs . sequence . pure $ do
+        x <- con "A" `app` lvar "x" `app` gvar "y"
+        ASTDef "def" x <$> tEmptyHole
+    )
+    [SetConFieldType "T" "A" 1 $ TCon () "Int"]
+    $ expectSuccess $ \_ prog' -> do
+      d <- findDef "def" prog'
+      forgetIDs (astDefExpr d)
+        @?= forgetIDs
+          ( fst . create $
+              con "A" `app` lvar "x" `app` gvar "y"
+          )
+
+unit_ChangeConstructorParamType_partial_app_no_hole :: Assertion
+unit_ChangeConstructorParamType_partial_app_no_hole =
+  progActionTest
+    ( defaultProgEditableTypeDefs $ do
+        x <- con "A" `app` lvar "x"
+        sequence
+          [ ASTDef "def" x <$> tEmptyHole
+          ]
+    )
+    [SetConFieldType "T" "A" 1 $ TCon () "Int"]
+    $ expectSuccess $ \_ prog' -> do
+      d <- findDef "def" prog'
+      forgetIDs (astDefExpr d)
+        @?= forgetIDs
+          ( fst . create $
+              con "A" `app` lvar "x"
+          )
+
+unit_ChangeConstructorParamType_case_no_hole :: Assertion
+unit_ChangeConstructorParamType_case_no_hole =
+  progActionTest
+    ( defaultProgEditableTypeDefs $ do
+        y <-
+          case_
+            (emptyHole `ann` (tcon "T" `tapp` tEmptyHole `tapp` tEmptyHole))
+            [ branch
+                "A"
+                [("x", Nothing), ("y", Nothing), ("z", Nothing)]
+                (lvar "y")
+            , branch "B" [] emptyHole
+            ]
+        sequence
+          [ ASTDef "def" y <$> tEmptyHole
+          ]
+    )
+    [SetConFieldType "T" "A" 1 $ TCon () "Int"]
+    $ expectSuccess $ \_ prog' -> do
+      d <- findDef "def" prog'
+      forgetIDs (astDefExpr d)
+        @?= forgetIDs
+          ( fst . create $
+              case_
+                (emptyHole `ann` (tcon "T" `tapp` tEmptyHole `tapp` tEmptyHole))
+                [ branch
+                    "A"
+                    [("x", Nothing), ("y", Nothing), ("z", Nothing)]
+                    (lvar "y")
+                , branch "B" [] emptyHole
+                ]
+          )
 unit_AddConField :: Assertion
 unit_AddConField =
   progActionTest

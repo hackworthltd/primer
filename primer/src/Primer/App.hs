@@ -1,3 +1,4 @@
+{-# LANGUAGE NoMonomorphismRestriction #-}
 {-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE NamedFieldPuns #-}
@@ -5,6 +6,7 @@
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE ViewPatterns #-}
+{-# LANGUAGE PartialTypeSignatures #-}
 
 -- This module defines the high level application functions.
 
@@ -647,7 +649,7 @@ applyProgAction prog mdefName = \case
                   )
           )
           type_
-      updateDefs = traverse $ traverseOf (#_DefAST % #astDefExpr) (updateDecons <=< updateCons)
+      updateDefs = traverse $ traverseOf (#_DefAST % #astDefExpr) (tc1 prog <=< updateDecons <=< updateCons)
       updateCons e = case unfoldApp e of
         (e'@(Con _ con'), args) | con' == con -> do
           m' <- DSL.meta
@@ -1350,3 +1352,9 @@ eitherDef =
     , astTypeDefConstructors = [ValCon "Left" [TVar () "a"], ValCon "Right" [TVar () "b"]]
     , astTypeDefNameHints = []
     }
+
+tc1 prog x =
+  map (bimap (map Just) (map Just) . snd) $
+    runReaderT
+      (liftError (ActionError . TypeError) $ synth x)
+      (progCxt prog)

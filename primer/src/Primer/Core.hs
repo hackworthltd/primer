@@ -248,6 +248,23 @@ data Expr' a b
   | PrimCon a PrimCon
   deriving (Eq, Show, Data, Generic)
   deriving (FromJSON, ToJSON) via VJSON (Expr' a b)
+--TODO derive? https://hackage.haskell.org/package/generic-functor-0.2.0.0/docs/Generic-Functor.html#t:GenericBifunctor
+instance Bifunctor Expr' where
+  bimap f g = \case
+    Hole a ex -> Hole (f a) (bimap f g ex)
+    EmptyHole a -> EmptyHole (f a)
+    Ann a ex ty -> Ann (f a) (bimap f g ex) (fmap g ty)
+    App a ex ex'  -> App (f a) (bimap f g ex) (bimap f g ex')
+    APP a ex ty  -> APP (f a) (bimap f g ex) (fmap g ty)
+    Con a gn  -> Con (f a) gn
+    Lam a ln ex  -> Lam (f a) ln (bimap f g ex)
+    LAM a ln ex  -> LAM (f a) ln (bimap f g ex)
+    Var a tvr  -> Var (f a) tvr
+    Let a ln ex ex'  -> Let (f a) ln (bimap f g ex) (bimap f g ex')
+    LetType a ln ty ex  -> LetType (f a) ln (fmap g ty) (bimap f g ex)
+    Letrec a ln ex ty ex'  -> Letrec (f a) ln (bimap f g ex) (fmap g ty) (bimap f g ex')
+    Case a ex cbs  -> Case (f a) (bimap f g ex) (map (bimap f g) cbs)
+    PrimCon a pc  -> PrimCon (f a) pc
 
 -- | A reference to a variable.
 data TmVarRef
@@ -334,12 +351,14 @@ data CaseBranch' a b
       -- ^ right hand side
   deriving (Eq, Show, Data, Generic)
   deriving (FromJSON, ToJSON) via VJSON (CaseBranch' a b)
+instance Bifunctor CaseBranch' where
+  bimap f g (CaseBranch gn bis ex) = CaseBranch gn (f <<$>> bis) (bimap f g ex)
 
 -- | Variable bindings
 -- These are used in case branches to represent the binding of a variable.
 -- They aren't currently used in lambdas or lets, but in the future that may change.
 data Bind' a = Bind a LVarName
-  deriving (Eq, Show, Data, Generic)
+  deriving (Eq, Show, Data, Generic, Functor)
   deriving (FromJSON, ToJSON) via VJSON (Bind' a)
 
 bindName :: Bind' a -> LVarName
@@ -368,7 +387,7 @@ data Type' a
   | TVar a TyVarName
   | TApp a (Type' a) (Type' a)
   | TForall a TyVarName Kind (Type' a)
-  deriving (Eq, Show, Data, Generic)
+  deriving (Eq, Show, Data, Generic, Functor)
   deriving (FromJSON, ToJSON) via VJSON (Type' a)
 
 -- | Take a traversal which only descends one level, and make it recursive.
