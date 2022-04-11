@@ -69,7 +69,6 @@ import Data.Generics.Product (HasType, position, typed)
 import qualified Data.Map as M
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as S
-import Data.String (String)
 import Optics (Lens', over, set, traverseOf, view, (%))
 import Optics.Traversal (traversed)
 import Primer.Core (
@@ -140,7 +139,7 @@ type TypeT = Type' (Meta Kind)
 -- We should replace this use of `String`. See:
 -- https://github.com/hackworthltd/primer/issues/149
 data TypeError
-  = InternalError String
+  = InternalError Text
   | UnknownVariable TmVarRef
   | UnknownTypeVariable TyVarName
   | WrongSortVariable Name -- type var instead of term var or vice versa
@@ -164,7 +163,7 @@ data TypeError
   deriving (Eq, Show, Generic)
   deriving (FromJSON, ToJSON) via VJSON TypeError
 
-assert :: MonadNestedError TypeError e m => Bool -> String -> m ()
+assert :: MonadNestedError TypeError e m => Bool -> Text -> m ()
 assert b s = unless b $ throwError' (InternalError s)
 
 data SmartHoles = SmartHoles | NoSmartHoles
