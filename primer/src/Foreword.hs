@@ -48,7 +48,7 @@ import Protolude hiding (
 -- https://github.com/hackworthltd/primer/issues/147
 import Protolude.Unsafe as Unsafe (unsafeHead)
 
--- | Insert am element at some index, returning `Nothing` if it is out of bounds.
+-- | Insert an element at some index, returning `Nothing` if it is out of bounds.
 insertAt :: Int -> a -> [a] -> Maybe [a]
 insertAt n y xs =
   if length a == n
