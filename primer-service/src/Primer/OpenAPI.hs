@@ -36,7 +36,7 @@ deriving via Text instance (ToSchema Name)
 
 -- For GlobalName and LVarName, we must derive ToSchema via Name,
 -- as that is how the To/FromJSON instances are derived
-deriving via Name instance (Typeable k => ToSchema (GlobalName k))
+deriving via Name instance Typeable k => ToSchema (GlobalName k)
 deriving via Name instance (ToSchema LVarName)
 instance ToSchema Tree
 instance ToSchema Def
