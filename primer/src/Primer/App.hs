@@ -66,7 +66,23 @@ import Data.Generics.Uniplate.Zipper (
 import Data.List.Extra ((!?))
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
-import Optics
+import Optics (
+  Field1 (_1),
+  Field2 (_2),
+  ReversibleOptic (re),
+  over,
+  toListOf,
+  traverseOf,
+  traversed,
+  view,
+  (%),
+  (%~),
+  (.~),
+  (?~),
+  (^.),
+  _Left,
+  _Right,
+ )
 import Primer.Action (
   Action,
   ActionError (..),
