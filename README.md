@@ -62,7 +62,7 @@ If it's not, then perform the following steps:
 
 ```sh
 colima start --runtime docker --profile primer
-nix run .#start-posgresql-container
+nix run .#start-postgresql-container
 ```
 
 The details of each script in this repo follow:
