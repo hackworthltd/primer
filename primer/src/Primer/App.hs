@@ -786,7 +786,7 @@ copyPasteSig p (fromDefName, fromTyId) toDefName setup = do
   -- which will pick up any problems. It is better to do it in one batch,
   -- in case the intermediate state after 'setup' causes more problems
   -- than the final state does.
-  doneSetup <- withDef (Just toDefName) p $ \def -> applyActionsToTypeSig smartHoles (progImports p) (progModule p) def setup
+  (oldDef, doneSetup) <- withDef (Just toDefName) p $ \def -> (def,) <$> applyActionsToTypeSig smartHoles (progImports p) (progModule p) def setup
   tgt <- case doneSetup of
     Left err -> throwError $ ActionError err
     Right (_, _, tgt) -> pure $ focusOnlyType tgt
@@ -802,7 +802,6 @@ copyPasteSig p (fromDefName, fromTyId) toDefName setup = do
   pasted <- case target tgt of
     TEmptyHole _ -> pure $ replace freshCopy tgt
     _ -> throwError $ CopyPasteError "copy/paste setup didn't select an empty hole"
-  oldDef <- maybe (throwError $ DefNotFound toDefName) pure $ lookupASTDef toDefName (moduleDefs $ progModule p)
   let newDef = oldDef{astDefType = fromZipper pasted}
   let newSel = NodeSelection SigNode (getID $ target pasted) (pasted ^. _target % _typeMetaLens % re _Right)
   let finalProg = addDef newDef p{progSelection = Just (Selection (astDefName newDef) $ Just newSel)}
@@ -910,7 +909,7 @@ copyPasteBody p (fromDefName, fromId) toDefName setup = do
   smartHoles <- gets $ progSmartHoles . appProg
   -- The Loc zipper captures all the changes, they are only reflected in the
   -- returned Def, which we thus ignore
-  doneSetup <- withDef (Just toDefName) p $ \def -> applyActionsToBody smartHoles (allTypes p) (allDefs p) def setup
+  (oldDef, doneSetup) <- withDef (Just toDefName) p $ \def -> (def,) <$> applyActionsToBody smartHoles (allTypes p) (allDefs p) def setup
   tgt <- case doneSetup of
     Left err -> throwError $ ActionError err
     Right (_, tgt) -> pure tgt
@@ -931,7 +930,6 @@ copyPasteBody p (fromDefName, fromId) toDefName setup = do
       pasted <- case target tgtT of
         TEmptyHole _ -> pure $ replace freshCopy tgtT
         _ -> throwError $ CopyPasteError "copy/paste setup didn't select an empty hole"
-      oldDef <- maybe (throwError $ DefNotFound toDefName) pure $ lookupASTDef toDefName (moduleDefs $ progModule p)
       let newDef = oldDef{astDefExpr = unfocusExpr $ unfocusType pasted}
       let newSel = NodeSelection BodyNode (getID $ target pasted) (pasted ^. _target % _typeMetaLens % re _Right)
       let finalProg = addDef newDef p{progSelection = Just (Selection (astDefName newDef) $ Just newSel)}
@@ -984,7 +982,6 @@ copyPasteBody p (fromDefName, fromId) toDefName setup = do
       pasted <- case target tgtE of
         EmptyHole _ -> pure $ replace freshCopy tgtE
         _ -> throwError $ CopyPasteError "copy/paste setup didn't select an empty hole"
-      oldDef <- maybe (throwError $ DefNotFound toDefName) pure $ lookupASTDef toDefName (moduleDefs $ progModule p)
       let newDef = oldDef{astDefExpr = unfocusExpr pasted}
       let newSel = NodeSelection BodyNode (getID $ target pasted) (pasted ^. _target % _exprMetaLens % re _Left)
       let finalProg = addDef newDef p{progSelection = Just (Selection (astDefName newDef) $ Just newSel)}
