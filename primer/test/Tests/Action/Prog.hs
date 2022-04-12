@@ -20,7 +20,6 @@ import Primer.Action (
     EnterType,
     Move
   ),
-  ActionError (NameCapture),
   Movement (Branch, Child1, Child2),
  )
 import Primer.App (
@@ -712,7 +711,7 @@ unit_copy_paste_import =
 unit_rename_def_capture :: Assertion
 unit_rename_def_capture =
   progActionTest defaultEmptyProg [MoveToDef "other", BodyAction [ConstructLam $ Just "foo"], RenameDef "main" "foo"] $
-    expectError (@?= ActionError NameCapture)
+    expectSuccess mempty
 
 unit_RenameType :: Assertion
 unit_RenameType =
