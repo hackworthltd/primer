@@ -9,6 +9,7 @@ module Primer.Module (
   deleteDef,
 ) where
 
+import Data.Data (Data)
 import Data.Map (delete, insert, mapKeys, member)
 import qualified Data.Map as M
 import Foreword
@@ -34,7 +35,7 @@ data Module = Module
   moduleTypes :: Map Name TypeDef
   , moduleDefs :: Map Name Def -- The current program: a set of definitions indexed by Name
   }
-  deriving (Eq, Show, Generic)
+  deriving (Eq, Show, Data, Generic)
   deriving (FromJSON, ToJSON) via VJSON Module
 
 -- | Create a mapping of name to typedef for use in modules.

@@ -449,7 +449,7 @@ instance HasMetadata (Bind' ExprMeta) where
 data Def
   = DefPrim PrimDef
   | DefAST ASTDef
-  deriving (Eq, Show, Generic)
+  deriving (Eq, Show, Data, Generic)
   deriving (FromJSON, ToJSON) via VJSON Def
 
 -- | A primitive, built-in definition
@@ -458,7 +458,7 @@ data PrimDef = PrimDef
   -- ^ Used for display, and to link to an entry in `allPrimDefs`
   , primDefType :: Type
   }
-  deriving (Eq, Show, Generic)
+  deriving (Eq, Show, Data, Generic)
   deriving (FromJSON, ToJSON) via VJSON PrimDef
 
 -- | A top-level definition, built from an 'Expr'
@@ -467,7 +467,7 @@ data ASTDef = ASTDef
   , astDefExpr :: Expr
   , astDefType :: Type
   }
-  deriving (Eq, Show, Generic)
+  deriving (Eq, Show, Data, Generic)
   deriving (FromJSON, ToJSON) via VJSON ASTDef
 
 defName :: Def -> GVarName
@@ -532,7 +532,7 @@ data PrimFunError
 data TypeDef
   = TypeDefPrim PrimTypeDef
   | TypeDefAST ASTTypeDef
-  deriving (Eq, Show, Generic)
+  deriving (Eq, Show, Data, Generic)
   deriving (FromJSON, ToJSON) via VJSON TypeDef
 
 -- | Definition of a primitive data type
@@ -541,7 +541,7 @@ data PrimTypeDef = PrimTypeDef
   , primTypeDefParameters :: [Kind]
   , primTypeDefNameHints :: [Name]
   }
-  deriving (Eq, Show, Generic)
+  deriving (Eq, Show, Data, Generic)
   deriving (FromJSON, ToJSON) via VJSON PrimTypeDef
 
 -- | Definition of an algebraic data type
@@ -555,14 +555,14 @@ data ASTTypeDef = ASTTypeDef
   , astTypeDefConstructors :: [ValCon]
   , astTypeDefNameHints :: [Name]
   }
-  deriving (Eq, Show, Generic)
+  deriving (Eq, Show, Data, Generic)
   deriving (FromJSON, ToJSON) via VJSON ASTTypeDef
 
 data ValCon = ValCon
   { valConName :: ValConName
   , valConArgs :: [Type' ()]
   }
-  deriving (Eq, Show, Generic)
+  deriving (Eq, Show, Data, Generic)
   deriving (FromJSON, ToJSON) via VJSON ValCon
 
 valConType :: ASTTypeDef -> ValCon -> Type' ()

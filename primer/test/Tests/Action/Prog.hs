@@ -58,8 +58,6 @@ import Primer.Core (
   Kind (KType),
   Meta (..),
   ModuleName,
-  PrimDef (primDefName, primDefType),
-  PrimTypeDef (primTypeDefName),
   TmVarRef (..),
   TyConName,
   Type,
@@ -1122,39 +1120,31 @@ defaultFullProg = do
     p & #progModule % #moduleTypes %~ (mkTypeDefMap renamedTypes <>)
       & #progModule % #moduleDefs %~ (renamedDefs <>)
   where
-    -- TODO: can we use uniplate and write something like `transformBi rnName`?
-    -- (This will require data instances for Def etc)
-    -- However we should be careful as ModuleName = Name, and we don't want to
-    -- transform Names inside LocalName etc!
     renameMod :: ModuleName -> ModuleName -> [Module] -> [Module]
     -- Caution: if we expose something similar as an action, we would need a
     -- test for duplicate module names similar to this for safety, but that
     -- would get in the way for our testing purposes here.
     --  | any ((== to).moduleName) mods = error "clashing name"
-    renameMod fromName toName = map rn1
+    renameMod fromName toName = map rnMod
       where
-        rn1 (m :: Module) =
-          m & #moduleName %~ rnName
-            & #moduleTypes % mapped %~ rnTyDef
-            & #moduleDefs % mapped %~ rnDef
+        rnMod (m :: Module) =
+          transformBi rnRef1 $
+            transformBi rnRef2 $
+              transformBi rnRef3 $
+                over #moduleName rnName m
         rnName n = if n == fromName then toName else n
-        rnTyDef (TypeDefPrim td) = TypeDefPrim $ td & #primTypeDefName % #qualifiedModule %~ rnName
-        rnTyDef (TypeDefAST td) =
-          TypeDefAST $
-            td & #astTypeDefName % #qualifiedModule %~ rnName
-              & #astTypeDefConstructors % mapped %~ rnVC
-        rnVC vc =
-          vc & #valConName % #qualifiedModule %~ rnName
-            & #valConArgs % mapped %~ transformBi rnName
-        rnDef (DefPrim d) =
-          DefPrim $
-            d & #primDefName % #qualifiedModule %~ rnName
-              & #primDefType %~ transformBi rnName
-        rnDef (DefAST d) =
-          DefAST $
-            d & #astDefName % #qualifiedModule %~ rnName
-              & #astDefExpr %~ transformBi rnName
-              & #astDefType %~ transformBi rnName
+        -- We have to be careful here, as ModuleName = Name, and we don't want
+        -- to transform Names inside LocalName etc!
+        -- TODO: perhaps ModuleName should be its own type?
+        -- Annoyingly we cannot do this in one pass of transformBi, as it cannot
+        -- take a function of type GlobalName k -> GlobalName k and act on all
+        -- instances of k at once.
+        rnRef1 :: GVarName -> GVarName
+        rnRef1 qn = qn & #qualifiedModule %~ rnName
+        rnRef2 :: TyConName -> TyConName
+        rnRef2 qn = qn & #qualifiedModule %~ rnName
+        rnRef3 :: ValConName -> ValConName
+        rnRef3 qn = qn & #qualifiedModule %~ rnName
 
 findTypeDef :: TyConName -> Prog -> IO ASTTypeDef
 findTypeDef d p = maybe (assertFailure "couldn't find typedef") pure $ (typeDefAST <=< Map.lookup d) $ p ^. (#progModule % to moduleTypesQualified)
