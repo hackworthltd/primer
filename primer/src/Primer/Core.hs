@@ -12,7 +12,6 @@ module Primer.Core (
   Expr' (..),
   Bind' (..),
   TmVarRef (..),
-  varRefName,
   CaseBranch,
   CaseBranch' (..),
   Def (..),
@@ -255,11 +254,6 @@ data TmVarRef
   | LocalVarRef LVarName
   deriving (Eq, Show, Data, Generic)
   deriving (FromJSON, ToJSON) via VJSON TmVarRef
-
-varRefName :: TmVarRef -> Name
-varRefName = \case
-  GlobalVarRef (GlobalName n) -> n
-  LocalVarRef (LocalName n) -> n
 
 -- Note [Synthesisable constructors]
 -- Whilst our calculus is heavily inspired by bidirectional type systems
