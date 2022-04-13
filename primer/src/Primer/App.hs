@@ -678,12 +678,15 @@ applyProgAction prog mdefName = \case
             then do
               Bind _ v <- maybe (throwError $ IndexOutOfRange index) pure $ binds !? index
               CaseBranch vc binds
-                <$> transformM
-                  ( \case
-                      e'@(Var _ (LocalVarRef v'))
-                        | v' == v ->
-                            Hole <$> DSL.meta <*> pure e'
-                      e' -> pure e'
+                <$>
+                -- TODO a custom traversal could be more efficient - reusing `_freeTmVars` means that we continue in
+                -- to parts of the tree where `v` is shadowed, and thus where the traversal will never have any effect
+                traverseOf
+                  _freeTmVars
+                  ( \(m, v') ->
+                      if v' == v
+                        then Hole <$> DSL.meta <*> pure (Var m $ LocalVarRef v')
+                        else pure (Var m $ LocalVarRef v')
                   )
                   e
             else pure cb

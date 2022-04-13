@@ -918,6 +918,40 @@ unit_SetConFieldType_case =
                 ]
           )
 
+unit_SetConFieldType_shadow :: Assertion
+unit_SetConFieldType_shadow =
+  progActionTest
+    ( defaultProgEditableTypeDefs $ do
+        x <-
+          case_
+            (emptyHole `ann` (tcon "T" `tapp` tEmptyHole `tapp` tEmptyHole))
+            [ branch
+                "A"
+                [("x", Nothing), ("y", Nothing), ("z", Nothing)]
+                (lam "y" (lvar "y") `app` lvar "y")
+            , branch "B" [] emptyHole
+            ]
+        sequence
+          [ ASTDef "def" x <$> tcon "Bool"
+          ]
+    )
+    [SetConFieldType "T" "A" 1 $ TCon () "Int"]
+    $ expectSuccess $ \_ prog' -> do
+      def <- findDef "def" prog'
+      forgetIDs (astDefExpr def)
+        @?= forgetIDs
+          ( fst . create $
+              case_
+                (emptyHole `ann` (tcon "T" `tapp` tEmptyHole `tapp` tEmptyHole))
+                [ branch
+                    "A"
+                    [("x", Nothing), ("y", Nothing), ("z", Nothing)]
+                    -- only the free `y` should be put in to a hole
+                    (lam "y" (lvar "y") `app` hole (lvar "y"))
+                , branch "B" [] emptyHole
+                ]
+          )
+
 unit_AddConField :: Assertion
 unit_AddConField =
   progActionTest
