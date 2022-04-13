@@ -612,7 +612,7 @@ applyProgAction prog mdefName = \case
               % #valConArgs
               % traversed
           )
-          $ transform $ over (#_TVar % _2) updateName
+          $ over _freeVarsTy $ \(_, v) -> TVar () $ updateName v
       updateName n = if n == old then new else n
   AddCon type_ index (unsafeMkGlobalName -> con) ->
     (,Nothing)
