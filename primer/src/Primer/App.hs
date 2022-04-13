@@ -104,7 +104,7 @@ import Primer.Core (
   GlobalName (baseName),
   ID (..),
   Kind (..),
-  LocalName (unLocalName),
+  LocalName (LocalName, unLocalName),
   Meta (..),
   PrimDef (..),
   TmVarRef (GlobalVarRef, LocalVarRef),
@@ -136,7 +136,7 @@ import Primer.Core (
 import Primer.Core.DSL (create, emptyHole, tEmptyHole)
 import qualified Primer.Core.DSL as DSL
 import Primer.Core.Transform (foldApp, renameVar, unfoldApp, unfoldTApp)
-import Primer.Core.Utils (freshLocalName, _freeTmVars, _freeTyVars, _freeVarsTy)
+import Primer.Core.Utils (freeVars, _freeTmVars, _freeTyVars, _freeVarsTy)
 import Primer.Eval (EvalDetail, EvalError)
 import qualified Primer.Eval as Eval
 import Primer.EvalFull (Dir, EvalFullError (TimedOut), TerminationBound, evalFull)
@@ -741,7 +741,7 @@ applyProgAction prog mdefName = \case
           if vc == con
             then do
               m' <- DSL.meta
-              newName <- freshLocalName mempty
+              newName <- LocalName <$> freshName (freeVars e)
               binds' <- maybe (throwError $ IndexOutOfRange index) pure $ insertAt index (Bind m' newName) binds
               pure $ CaseBranch vc binds' e
             else pure cb
