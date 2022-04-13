@@ -658,7 +658,7 @@ applyProgAction prog mdefName = \case
                   )
           )
           type_
-      updateDefs = traverse $ traverseOf (#_DefAST % #astDefExpr) (updateDecons <=< updateCons)
+      updateDefs = traverseOf (traversed % #_DefAST % #astDefExpr) (updateDecons <=< updateCons)
       updateCons e = case unfoldApp e of
         (e'@(Con _ con'), args) | con' == con -> do
           m' <- DSL.meta
@@ -711,7 +711,7 @@ applyProgAction prog mdefName = \case
                   )
           )
           type_
-      updateDefs = traverse $ traverseOf (#_DefAST % #astDefExpr) (updateDecons <=< updateCons)
+      updateDefs = traverseOf (traversed % #_DefAST % #astDefExpr) (updateDecons <=< updateCons)
       updateCons e = case unfoldApp e of
         (e'@(Con _ con'), args) | con' == con -> do
           m' <- DSL.meta
