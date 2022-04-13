@@ -2,13 +2,19 @@
 
 module Main (main) where
 
-import Control.Concurrent (forkIO)
+import Foreword hiding (
+  catchJust,
+  option,
+ )
+
 import Control.Concurrent.STM (
   newTBQueueIO,
  )
-import Control.Exception (bracket)
+import Control.Monad.Catch (catchJust)
+import Control.Monad.Fail (fail)
 import Data.ByteString as BS
 import Data.ByteString.UTF8 (fromString)
+import Data.String (String)
 import Hasql.Connection
 import Numeric.Natural (Natural)
 import Options.Applicative (
@@ -25,7 +31,6 @@ import Options.Applicative (
   long,
   metavar,
   option,
-  optional,
   progDesc,
   str,
   value,
@@ -35,7 +40,10 @@ import qualified Primer.Database as Db (
   ServiceCfg (..),
   serve,
  )
-import Primer.Database.Rel8 (runRel8DbT)
+import Primer.Database.Rel8 (
+  Rel8DbException,
+  runRel8DbT,
+ )
 import Primer.Server (
   serve,
  )
@@ -90,9 +98,39 @@ runDb :: Db.ServiceCfg -> Database -> IO ()
 runDb cfg =
   \case
     PostgreSQL uri ->
-      bracket (connect uri) release $ runRel8DbT $ Db.serve cfg
+      bracket (connect uri) release restart
   where
+    -- Connect to the database.
     connect u = acquire u >>= either (fail . show) return
+
+    -- Catch exceptions for which we can restart the database service.
+    -- For the time being, this is any 'Rel8DbException', but later we
+    -- should be more selective about this. See:
+    -- https://github.com/hackworthltd/primer/issues/381
+    restartableException :: Rel8DbException -> Maybe Rel8DbException
+    restartableException = Just
+
+    -- The database computation server.
+    go = runRel8DbT $ Db.serve cfg
+
+    -- This action should log exceptions somewhere useful. For now, it
+    -- only outputs the exception to 'stderr'. See
+    -- https://github.com/hackworthltd/primer/issues/179.
+    logDbException e = putErrLn (show e :: Text)
+
+    -- The database computation exception handler. If an exception
+    -- occurs and it's restartable, we make a note of it and restart.
+    --
+    -- Note that forward progress in this implementation is only
+    -- guaranteed if the database computation server has removed the
+    -- operation that caused the original exception from the database
+    -- operation queue. This is, in fact, how the 'Db.serve' server is
+    -- implemented, but this note is left as a caveat, regardless.
+    restart conn =
+      catchJust
+        restartableException
+        (go conn)
+        (\e -> logDbException e >> restart conn)
 
 -- The choice of which process to fork and which to run in the "main"
 -- thread doesn't particularly matter for our purposes, as far as I
