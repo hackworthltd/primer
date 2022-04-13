@@ -547,6 +547,8 @@ applyProgAction prog mdefName = \case
     where
       updateType m = do
         d0 <-
+          -- NB We do not allow primitive types to be renamed.
+          -- To relax this, we'd have to be careful about how it interacts with type-checking of primitive literals.
           maybe (throwError $ TypeDefIsPrim old) pure . typeDefAST
             =<< maybe (throwError $ TypeDefNotFound old) pure (Map.lookup old m)
         pure $ Map.insert new (TypeDefAST $ d0 & #astTypeDefName .~ new) $ Map.delete old m
