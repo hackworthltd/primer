@@ -67,6 +67,7 @@ import Primer.Core (
   GlobalName (baseName),
   ID,
   Kind (KType),
+  ModuleName (ModuleName),
   qualifyName,
  )
 import Primer.Core.DSL (
@@ -246,7 +247,7 @@ testASTDef :: ASTDef
 testASTDefNextID :: ID
 (testASTDef, testASTDefNextID) =
   ( ASTDef
-    { astDefName = qualifyName "TestModule" "1"
+    { astDefName = qualifyName (ModuleName $ "TestModule" :| []) "1"
     , astDefExpr
     , astDefType
     }
@@ -281,7 +282,7 @@ testASTDefNextID :: ID
                     (con cJust)
                 )
                 ( hole
-                    (gvar' "TestModule" "0")
+                    (gvar' ("TestModule" :| []) "0")
                 )
             )
             ( thole
@@ -364,7 +365,7 @@ testApp =
         { progImports = [builtinModule, primitiveModule]
         , progModule =
             Module
-              { moduleName = "TestModule"
+              { moduleName = ModuleName $ "TestModule" :| []
               , moduleTypes = mempty
               , moduleDefs = Map.singleton (baseName $ astDefName testASTDef) (DefAST testASTDef)
               }

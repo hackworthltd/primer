@@ -107,13 +107,13 @@ import Primer.Core (
   bindName,
   defName,
   defType,
+  moduleNamePretty,
   primConName,
   typeDefAST,
   typeDefKind,
   typeDefName,
   typeDefParameters,
   unLocalName,
-  unModuleName,
   valConType,
   _exprMeta,
   _exprTypeMeta,
@@ -133,7 +133,7 @@ import Primer.Module (
   qualifyDefName,
   qualifyTyConName,
  )
-import Primer.Name (Name (unName), NameCounter, freshName)
+import Primer.Name (Name, NameCounter, freshName)
 import Primer.Subst (substTy)
 
 -- | Typechecking takes as input an Expr with 'Maybe Type' annotations and
@@ -441,11 +441,11 @@ checkEverything sh CheckEverything{trusted, toCheck} =
         -- Check the type definitions have the right modules
         for_ toCheck $ \m -> flip Map.traverseWithKey (moduleTypes m) $ \n td ->
           unless (qualifyTyConName m n == typeDefName td) $
-            throwError' $ InternalError $ "Inconsistant names in moduleTypes for module " <> unName (unModuleName $ moduleName m)
+            throwError' $ InternalError $ "Inconsistant names in moduleTypes for module " <> moduleNamePretty (moduleName m)
         -- Check that the definition map has the right keys
         for_ toCheck $ \m -> flip Map.traverseWithKey (moduleDefs m) $ \n d ->
           unless (qualifyDefName m n == defName d) $
-            throwError' $ InternalError $ "Inconsistant names in moduleDefs map for module " <> unName (unModuleName $ moduleName m)
+            throwError' $ InternalError $ "Inconsistant names in moduleDefs map for module " <> moduleNamePretty (moduleName m)
         checkTypeDefs $ foldMap moduleTypesQualified toCheck
         let newTypes = foldMap moduleTypesQualified toCheck
             newDefs =

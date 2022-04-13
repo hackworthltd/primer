@@ -15,7 +15,9 @@
     },
     "astDefName": {
         "baseName": "main",
-        "qualifiedModule": "M"
+        "qualifiedModule": [
+            "M"
+        ]
     },
     "astDefType": {
         "contents": [
