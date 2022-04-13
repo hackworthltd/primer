@@ -74,8 +74,6 @@ module Primer.Core (
   _typeMetaLens,
   bindName,
   _bindMeta,
-  subExprs,
-  subTypes,
   typesInExpr,
 ) where
 
@@ -97,14 +95,10 @@ import Optics (
   afailing,
   lens,
   set,
-  simple,
-  traversed,
   view,
   (%),
-  _2,
   _3,
   _4,
-  _5,
  )
 import Primer.JSON
 import Primer.Name (Name, unsafeMkName)
@@ -371,42 +365,13 @@ data Type' a
   deriving (Eq, Show, Data, Generic)
   deriving (FromJSON, ToJSON) via VJSON (Type' a)
 
--- | Take a traversal which only descends one level, and make it recursive.
-transformTraversal :: Traversal' a a -> Traversal' a a
-transformTraversal g = fix $ \f -> simple `adjoin` g % f
-
-subExprs :: Traversal' (Expr' a b) (Expr' a b)
-subExprs =
-  transformTraversal $
-    #_Hole % _2
-      `adjoin` #_Hole % _2
-      `adjoin` #_Ann % _2
-      `adjoin` #_App % (_2 `adjoin` _3)
-      `adjoin` #_APP % _2
-      `adjoin` #_Lam % _3
-      `adjoin` #_LAM % _3
-      `adjoin` #_Let % (_3 `adjoin` _4)
-      `adjoin` #_LetType % _4
-      `adjoin` #_Letrec % (_3 `adjoin` _5)
-      `adjoin` #_Case % (_2 `adjoin` _3 % traversed % #_CaseBranch % _3)
-
-subTypes :: Traversal' (Type' a) (Type' a)
-subTypes =
-  transformTraversal $
-    #_THole % _2
-      `adjoin` #_TFun % (_2 `adjoin` _3)
-      `adjoin` #_TApp % (_2 `adjoin` _3)
-      `adjoin` #_TForall % _4
-
--- | Note that this does not recurse in to sub-types.
+-- | Note that this does not recurse in to sub-expressions or sub-types.
 typesInExpr :: Traversal' (Expr' a b) (Type' b)
 typesInExpr =
-  subExprs
-    % ( #_Ann % _3
-          `adjoin` #_APP % _3
-          `adjoin` #_LetType % _3
-          `adjoin` #_Letrec % _4
-      )
+  #_Ann % _3
+    `adjoin` #_APP % _3
+    `adjoin` #_LetType % _3
+    `adjoin` #_Letrec % _4
 
 -- | A traversal over the metadata of a type
 _typeMeta :: Traversal (Type' a) (Type' b) a b

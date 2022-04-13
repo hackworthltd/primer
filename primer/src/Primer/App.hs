@@ -59,7 +59,7 @@ import Data.Aeson (
  )
 import Data.Bitraversable (bimapM)
 import Data.Generics.Product (position)
-import Data.Generics.Uniplate.Operations (descendM, transformM)
+import Data.Generics.Uniplate.Operations (descendM, transform, transformM)
 import Data.Generics.Uniplate.Zipper (
   fromZipper,
  )
@@ -122,8 +122,6 @@ import Primer.Core (
   getID,
   primFunType,
   qualifyName,
-  subExprs,
-  subTypes,
   typeDefAST,
   typesInExpr,
   unsafeMkGlobalName,
@@ -542,7 +540,7 @@ applyProgAction prog mdefName = \case
       when (Map.member new $ prog ^. #progModule % #moduleTypes) $ throwError $ TypeDefAlreadyExists new
       traverseOf
         #progModule
-        ( traverseOf #moduleTypes (updateType <=< updateRefsInTypes)
+        ( traverseOf #moduleTypes (updateType <=< pure . updateRefsInTypes)
             <=< pure . over (#moduleDefs % traversed % #_DefAST) (updateDefBody . updateDefType)
         )
         prog
@@ -553,19 +551,17 @@ applyProgAction prog mdefName = \case
             =<< maybe (throwError $ TypeDefNotFound old) pure (Map.lookup old m)
         pure $ Map.insert new (TypeDefAST $ d0 & #astTypeDefName .~ new) $ Map.delete old m
       updateRefsInTypes =
-        pure
-          . over
-            (traversed % #_TypeDefAST % #astTypeDefConstructors % traversed % #valConArgs % traversed % tconsInType)
-            updateName
+        over
+          (traversed % #_TypeDefAST % #astTypeDefConstructors % traversed % #valConArgs % traversed)
+          $ transform $ over (#_TCon % _2) updateName
       updateDefType =
         over
-          (#astDefType % tconsInType)
-          updateName
+          #astDefType
+          $ transform $ over (#_TCon % _2) updateName
       updateDefBody =
         over
-          (#astDefExpr % typesInExpr % tconsInType)
-          updateName
-      tconsInType = subTypes % #_TCon % _2
+          #astDefExpr
+          $ transform $ over typesInExpr $ transform $ over (#_TCon % _2) updateName
       updateName n = if n == old then new else n
   RenameCon type_ old (unsafeMkGlobalName -> new) ->
     (,Nothing) <$> do
@@ -586,7 +582,9 @@ applyProgAction prog mdefName = \case
               )
           )
           type_
-      updateDefs = over (traversed % #_DefAST % #astDefExpr % subExprs % #_Con % _2) updateName
+      updateDefs =
+        over (traversed % #_DefAST % #astDefExpr) $
+          transform $ over (#_Con % _2) updateName
       updateName n = if n == old then new else n
   RenameTypeParam type_ old (unsafeMkLocalName -> new) ->
     (,Nothing)
@@ -611,11 +609,8 @@ applyProgAction prog mdefName = \case
               % traversed
               % #valConArgs
               % traversed
-              % subTypes
-              % #_TVar
-              % _2
           )
-          updateName
+          $ transform $ over (#_TVar % _2) updateName
       updateName n = if n == old then new else n
   AddCon type_ index (unsafeMkGlobalName -> con) ->
     (,Nothing)
