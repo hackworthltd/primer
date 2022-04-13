@@ -1111,21 +1111,12 @@ defaultFullProg = do
   let m = moduleName $ progModule p
       -- We need to move the primitives, which requires renaming
       -- unit_defaultFullModule_no_clash ensures that there will be no clashes
-      renamed =
-        renameMod (moduleName primitiveModule) m $
-          renameMod (moduleName builtinModule) m [builtinModule, primitiveModule]
+      renamed = transformBi (const m) [builtinModule, primitiveModule]
       renamedTypes = renamed ^.. folded % #moduleTypes % folded
       renamedDefs = foldOf (folded % #moduleDefs) renamed
   pure $
     p & #progModule % #moduleTypes %~ (mkTypeDefMap renamedTypes <>)
       & #progModule % #moduleDefs %~ (renamedDefs <>)
-  where
-    renameMod :: ModuleName -> ModuleName -> [Module] -> [Module]
-    -- Caution: if we expose something similar as an action, we would need a
-    -- test for duplicate module names similar to this for safety, but that
-    -- would get in the way for our testing purposes here.
-    --  | any ((== to).moduleName) mods = error "clashing name"
-    renameMod fromName toName = transformBi $ \n -> if n == fromName then toName else n
 
 findTypeDef :: TyConName -> Prog -> IO ASTTypeDef
 findTypeDef d p = maybe (assertFailure "couldn't find typedef") pure $ (typeDefAST <=< Map.lookup d) $ p ^. (#progModule % to moduleTypesQualified)
@@ -1176,6 +1167,28 @@ unit_defaultFullProg_no_clash =
    in do
         assertBool "Expected every type making up defaultFullProg to have distinct names" $ not $ anySame typeNames
         assertBool "Expected every term making up defaultFullProg to have distinct names" $ not $ anySame termNames
+
+unit_rename_module :: Assertion
+unit_rename_module =
+  let test = do
+        importModules [builtinModule]
+        handleEditRequest [RenameModule "Module2"]
+      a = newEmptyApp
+   in case fst $ runAppTestM (ID $ appIdCounter a) a test of
+        Left err -> assertFailure $ show err
+        Right p -> moduleName (progModule p) @?= "Module2"
+
+unit_rename_module_clash :: Assertion
+unit_rename_module_clash =
+  let test = do
+        importModules [builtinModule]
+        handleEditRequest [RenameModule "Builtins"]
+      a = newEmptyApp
+   in do
+        moduleName builtinModule @?= "Builtins"
+        case fst $ runAppTestM (ID $ appIdCounter a) a test of
+          Left err -> err @?= RenameModuleNameClash
+          Right _ -> assertFailure "Expected RenameModule to error, since module names clash with prior import"
 
 _defIDs :: Traversal' ASTDef ID
 _defIDs = #astDefExpr % (_exprMeta % _id `adjoin` _exprTypeMeta % _id) `adjoin` #astDefType % _typeMeta % _id

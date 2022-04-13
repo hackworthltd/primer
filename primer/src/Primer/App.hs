@@ -1,4 +1,5 @@
 {-# LANGUAGE ConstraintKinds #-}
+{-# LANGUAGE DeriveTraversable #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE OverloadedLabels #-}
@@ -103,7 +104,7 @@ import Primer.Core (
   ID (..),
   LocalName (LocalName, unLocalName),
   Meta (..),
-  ModuleName (unModuleName),
+  ModuleName (ModuleName, unModuleName),
   TmVarRef (GlobalVarRef, LocalVarRef),
   TyConName,
   TyVarName,
@@ -144,6 +145,7 @@ import Primer.Module (
   mkTypeDefMap,
   moduleDefsQualified,
   moduleTypesQualified,
+  renameModule,
  )
 import Primer.Name (Name (unName), NameCounter, freshName, unsafeMkName)
 import Primer.Primitives (primitiveModule)
@@ -343,6 +345,8 @@ data ProgError
     --    https://github.com/hackworthltd/primer/issues/3)
     TypeDefError Text
   | IndexOutOfRange Int
+  | -- | Cannot rename a module to the same name as some other module
+    RenameModuleNameClash
   deriving (Eq, Show, Generic)
   deriving (FromJSON, ToJSON) via VJSON ProgError
 
@@ -814,6 +818,28 @@ applyProgAction prog mdefName = \case
   CopyPasteBody fromIds setup -> case mdefName of
     Nothing -> throwError NoDefSelected
     Just i -> (,mdefName) <$> copyPasteBody prog fromIds i setup
+  RenameModule newName ->
+    let n = ModuleName $ unsafeMkName newName
+        oldName = moduleName $ progModule prog
+        curMods = RM{imported = progImports prog, editable = progModule prog}
+     in if n == oldName
+          then pure (prog, Nothing)
+          else case renameModule oldName n curMods of
+            Nothing -> throwError RenameModuleNameClash
+            Just renamedMods ->
+              if imported curMods == imported renamedMods
+                then pure . (,Nothing) $ prog & #progModule .~ editable renamedMods
+                else
+                  throwError $
+                    -- It should never happen that the action edits an
+                    -- imported module, since the oldName should be distinct
+                    -- from the name of any import
+                    ActionError $
+                      InternalFailure "RenameModule: imported modules were edited by renaming"
+
+-- Helper for RenameModule action
+data RenameMods a = RM {imported :: [a], editable :: a}
+  deriving (Functor, Foldable, Traversable)
 
 -- Look up the definition by its given Name, then run the given action with it
 -- only looks in the editable module
