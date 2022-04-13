@@ -322,6 +322,8 @@ data ProgError
   | ConAlreadyExists ValConName
   | ParamNotFound TyVarName
   | ParamAlreadyExists TyVarName
+  | TyConParamClash Name
+  | ValConParamClash Name
   | ActionError ActionError
   | EvalError EvalError
   | -- | Currently copy/paste is only exposed in the frontend via select
@@ -537,7 +539,6 @@ applyProgAction prog mdefName = \case
         )
   RenameType old (unsafeMkGlobalName -> new) ->
     (,Nothing) <$> do
-      when (Map.member new $ prog ^. #progModule % #moduleTypes) $ throwError $ TypeDefAlreadyExists new
       traverseOf
         #progModule
         ( traverseOf #moduleTypes (updateType <=< pure . updateRefsInTypes)
@@ -551,6 +552,9 @@ applyProgAction prog mdefName = \case
           -- To relax this, we'd have to be careful about how it interacts with type-checking of primitive literals.
           maybe (throwError $ TypeDefIsPrim old) pure . typeDefAST
             =<< maybe (throwError $ TypeDefNotFound old) pure (Map.lookup old m)
+        when (Map.member new m) $ throwError $ TypeDefAlreadyExists new
+        let nameRaw = baseName new
+        when (nameRaw `elem` map (unLocalName . fst) (astTypeDefParameters d0)) $ throwError $ TyConParamClash nameRaw
         pure $ Map.insert new (TypeDefAST $ d0 & #astTypeDefName .~ new) $ Map.delete old m
       updateRefsInTypes =
         over
@@ -599,12 +603,17 @@ applyProgAction prog mdefName = \case
         alterTypeDef
           (pure . updateConstructors <=< updateParam)
           type_
-      updateParam =
-        traverseOf #astTypeDefParameters $ \ps -> do
-          when (new `elem` map fst ps) $ throwError $ ParamAlreadyExists new
-          ps
-            & maybe (throwError $ ParamNotFound old) pure
-              . findAndAdjust ((== old) . fst) (_1 .~ new)
+      updateParam def = do
+        when (new `elem` map fst (astTypeDefParameters def)) $ throwError $ ParamAlreadyExists new
+        let nameRaw = unLocalName new
+        when (nameRaw == baseName (astTypeDefName def)) $ throwError $ TyConParamClash nameRaw
+        when (nameRaw `elem` map (baseName . valConName) (astTypeDefConstructors def)) $ throwError $ ValConParamClash nameRaw
+        def
+          & traverseOf
+            #astTypeDefParameters
+            ( maybe (throwError $ ParamNotFound old) pure
+                . findAndAdjust ((== old) . fst) (_1 .~ new)
+            )
       updateConstructors =
         over
           ( #astTypeDefConstructors
