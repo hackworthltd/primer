@@ -667,7 +667,7 @@ applyProgAction prog mdefName = \case
           case adjustAt index (Hole m') args of
             Just args' -> foldApp e' =<< traverse (descendM updateCons) args'
             Nothing -> do
-              -- The constructor is not applied to the changed parameter,
+              -- The constructor is not applied as far as the changed field,
               -- so the full application still typechecks, but its type has changed.
               -- Thus, we put the whole thing in to a hole.
               Hole <$> DSL.meta <*> (foldApp e' =<< traverse (descendM updateCons) args)
@@ -720,7 +720,7 @@ applyProgAction prog mdefName = \case
           case insertAt index (EmptyHole m') args of
             Just args' -> foldApp e' =<< traverse (descendM updateCons) args'
             Nothing ->
-              -- The constructor is not applied as far as the new parameter,
+              -- The constructor is not applied as far as the field immediately prior to the new one,
               -- so the full application still typechecks, but its type has changed.
               -- Thus, we put the whole thing in to a hole.
               Hole <$> DSL.meta <*> (foldApp e' =<< traverse (descendM updateCons) args)
