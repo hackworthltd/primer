@@ -543,7 +543,7 @@ applyProgAction prog mdefName = \case
       traverseOf
         #progModule
         ( traverseOf #moduleTypes (updateType <=< updateRefsInTypes)
-            <=< pure . over (#moduleDefs % traversed % #_DefAST) (updateDefBodies . updateDefTypes)
+            <=< pure . over (#moduleDefs % traversed % #_DefAST) (updateDefBody . updateDefType)
         )
         prog
     where
@@ -557,11 +557,11 @@ applyProgAction prog mdefName = \case
           . over
             (traversed % #_TypeDefAST % #astTypeDefConstructors % traversed % #valConArgs % traversed % tconsInType)
             updateName
-      updateDefBodies =
+      updateDefType =
         over
           (#astDefType % tconsInType)
           updateName
-      updateDefTypes =
+      updateDefBody =
         over
           (#astDefExpr % typesInExpr % tconsInType)
           updateName
