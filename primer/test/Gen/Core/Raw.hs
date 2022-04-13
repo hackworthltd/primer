@@ -33,6 +33,7 @@ import Primer.Core (
   LVarName,
   LocalName (LocalName),
   Meta (..),
+  ModuleName (ModuleName),
   PrimCon (..),
   TmVarRef (..),
   TyConName,
@@ -85,8 +86,8 @@ genApp = App <$> genMeta <*> genExpr <*> genExpr
 genAPP :: ExprGen Expr
 genAPP = APP <$> genMeta <*> genExpr <*> genType
 
-genModuleName :: MonadGen m => m Name
-genModuleName = Gen.frequency [(9, pure "M"), (1, genName)]
+genModuleName :: MonadGen m => m ModuleName
+genModuleName = ModuleName <$> Gen.frequency [(9, pure "M"), (1, genName)]
 
 genValConName :: ExprGen ValConName
 genValConName = qualifyName <$> genModuleName <*> genName

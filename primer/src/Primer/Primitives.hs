@@ -29,6 +29,7 @@ import Primer.Core (
   ExprAnyFresh (..),
   GVarName,
   GlobalName (baseName),
+  ModuleName,
   PrimCon (..),
   PrimDef (PrimDef, primDefName, primDefType),
   PrimFun (..),
@@ -55,7 +56,7 @@ import Primer.Core.DSL (
 import Primer.Module (Module (Module, moduleDefs, moduleName, moduleTypes))
 import Primer.Name (Name)
 
-primitiveModuleName :: Name
+primitiveModuleName :: ModuleName
 primitiveModuleName = "Primitives"
 
 primitive :: Name -> GlobalName k

@@ -103,7 +103,7 @@ import Primer.Core (
   ID (..),
   LocalName (LocalName, unLocalName),
   Meta (..),
-  ModuleName,
+  ModuleName (unModuleName),
   TmVarRef (GlobalVarRef, LocalVarRef),
   TyConName,
   TyVarName,
@@ -534,7 +534,7 @@ applyProgAction prog mdefName = \case
     -- so we just dump out a raw string for debugging/logging purposes
     let m = moduleName $ progModule prog
     unless (m == qualifiedModule (astTypeDefName td)) $
-      throwError $ TypeDefError $ "Cannot create a type definition with incorrect module name: expected " <> unName m
+      throwError $ TypeDefError $ "Cannot create a type definition with incorrect module name: expected " <> unName (unModuleName m)
     (addTypeDef td prog, mdefName)
       <$ liftError
         -- The frontend should never let this error case happen,
@@ -581,7 +581,7 @@ applyProgAction prog mdefName = \case
           #astDefExpr
           $ transform $ over typesInExpr $ transform $ over (#_TCon % _2) updateName
       updateName n = if n == old then new else n
-  RenameCon type_ old (unsafeMkGlobalName . (unName (qualifiedModule type_),) -> new) ->
+  RenameCon type_ old (unsafeMkGlobalName . (unName (unModuleName (qualifiedModule type_)),) -> new) ->
     (,Nothing) <$> do
       when (new `elem` allConNames prog) $ throwError $ ConAlreadyExists new
       traverseOf
@@ -635,7 +635,7 @@ applyProgAction prog mdefName = \case
           )
           $ over _freeVarsTy $ \(_, v) -> TVar () $ updateName v
       updateName n = if n == old then new else n
-  AddCon type_ index (unsafeMkGlobalName . (unName (qualifiedModule type_),) -> con) ->
+  AddCon type_ index (unsafeMkGlobalName . (unName (unModuleName (qualifiedModule type_)),) -> con) ->
     (,Nothing)
       <$> do
         when (con `elem` allConNames prog) $ throwError $ ConAlreadyExists con

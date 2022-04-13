@@ -53,11 +53,11 @@ import Primer.Core (
   Expr,
   Expr' (..),
   GVarName,
-  GlobalName (baseName, qualifiedModule),
+  GlobalName (baseName),
   ID (ID),
   Kind (KType),
   Meta (..),
-  ModuleName,
+  ModuleName (unModuleName),
   TmVarRef (..),
   TyConName,
   Type,
@@ -1125,26 +1125,7 @@ defaultFullProg = do
     -- test for duplicate module names similar to this for safety, but that
     -- would get in the way for our testing purposes here.
     --  | any ((== to).moduleName) mods = error "clashing name"
-    renameMod fromName toName = map rnMod
-      where
-        rnMod (m :: Module) =
-          transformBi rnRef1 $
-            transformBi rnRef2 $
-              transformBi rnRef3 $
-                over #moduleName rnName m
-        rnName n = if n == fromName then toName else n
-        -- We have to be careful here, as ModuleName = Name, and we don't want
-        -- to transform Names inside LocalName etc!
-        -- TODO: perhaps ModuleName should be its own type?
-        -- Annoyingly we cannot do this in one pass of transformBi, as it cannot
-        -- take a function of type GlobalName k -> GlobalName k and act on all
-        -- instances of k at once.
-        rnRef1 :: GVarName -> GVarName
-        rnRef1 qn = qn & #qualifiedModule %~ rnName
-        rnRef2 :: TyConName -> TyConName
-        rnRef2 qn = qn & #qualifiedModule %~ rnName
-        rnRef3 :: ValConName -> ValConName
-        rnRef3 qn = qn & #qualifiedModule %~ rnName
+    renameMod fromName toName = transformBi $ \n -> if n == fromName then toName else n
 
 findTypeDef :: TyConName -> Prog -> IO ASTTypeDef
 findTypeDef d p = maybe (assertFailure "couldn't find typedef") pure $ (typeDefAST <=< Map.lookup d) $ p ^. (#progModule % to moduleTypesQualified)
@@ -1249,7 +1230,7 @@ mainModuleName :: ModuleName
 mainModuleName = moduleName $ progModule newEmptyProg
 
 mainModuleNameText :: Text
-mainModuleNameText = unName mainModuleName
+mainModuleNameText = unName $ unModuleName mainModuleName
 
 moveToDef :: Name -> ProgAction
 moveToDef = MoveToDef . qualifyName mainModuleName

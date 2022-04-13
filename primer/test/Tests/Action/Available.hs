@@ -18,6 +18,7 @@ import Primer.Core (
   HasID (_id),
   ID,
   Kind (KType),
+  ModuleName (unModuleName),
   _exprMeta,
   _exprTypeMeta,
   _typeMeta,
@@ -169,7 +170,7 @@ data Output = Output
 mkTests :: ASTDef -> TestTree
 mkTests def =
   let defName = astDefName def
-      testName = T.unpack $ unName (qualifiedModule defName) <> "." <> unName (baseName defName)
+      testName = T.unpack $ unName (unModuleName $ qualifiedModule defName) <> "." <> unName (baseName defName)
    in testGroup testName $
         enumerate
           <&> \level ->
