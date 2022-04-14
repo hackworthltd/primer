@@ -40,4 +40,3 @@ cabal.project.local*
 
 # generated files
 /openapi.json
-/axios-bindings/
