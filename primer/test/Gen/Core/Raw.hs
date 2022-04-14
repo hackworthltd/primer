@@ -163,7 +163,10 @@ genID = do
   pure $ i + 1
 
 genName :: ExprGen Name
-genName = unsafeMkName <$> Gen.text (Range.linear 1 10) Gen.alpha
+genName = unsafeMkName <$> Gen.frequency [(9, fixed), (1, random)]
+  where
+    fixed = Gen.element ["x", "y", "z", "foo", "bar"]
+    random = Gen.text (Range.linear 1 10) Gen.alpha
 
 genLVarName :: ExprGen LVarName
 genLVarName = LocalName <$> genName
