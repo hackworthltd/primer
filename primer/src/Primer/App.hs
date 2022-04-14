@@ -552,6 +552,7 @@ applyProgAction prog mdefName = \case
           -- To relax this, we'd have to be careful about how it interacts with type-checking of primitive literals.
           maybe (throwError $ TypeDefIsPrim old) pure . typeDefAST
             =<< maybe (throwError $ TypeDefNotFound old) pure (Map.lookup old m)
+        -- TODO we should really check this against _all_ modules, but we will very shortly be adding namespacing
         when (Map.member new m) $ throwError $ TypeDefAlreadyExists new
         let nameRaw = baseName new
         when (nameRaw `elem` map (unLocalName . fst) (astTypeDefParameters d0)) $ throwError $ TyConParamClash nameRaw
