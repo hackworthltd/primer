@@ -214,15 +214,13 @@ Note: we follow the [same convention as the maintainer of
 Sqitch](https://github.com/sqitchers/sqitch/issues/239#issuecomment-118943207)
 when setting PostgreSQL search paths/schema prefixes in our scripts.
 
-# Generating Axios bindings
+# Generating an OpenAPI spec
 
-We can automatically generate TypeScript Axios bindings for
-`primer-service`:
+We can automatically generate an OpenAPI spec for `primer-service`:
 
 ```sh
-make axios-bindings
+make openapi.json
 ```
 
-This will place the generated bindings in the `axios-bindings`
-subdirectory. (Note: do not check these bindings into this
-repository.)
+This will place the generated spec in a file named `openapi.json`.
+(Note: do not check this generated file into this repository.)
