@@ -78,12 +78,13 @@ import qualified Primer.App as App
 import Primer.Core (
   ASTDef (..),
   Expr,
-  Expr' (APP, Ann, LetType, Letrec, PrimCon),
+  Expr' (APP, Ann, LetType, Letrec, PrimCon, Var),
   GVarName,
   ID,
   Kind,
   LVarName,
   PrimCon (..),
+  TmVarRef (GlobalVarRef, LocalVarRef),
   TyConName,
   TyVarName,
   Type,
@@ -348,7 +349,14 @@ viewProg p =
 -- It is expected to evolve in the future.
 viewTreeExpr :: Expr -> Tree
 viewTreeExpr = U.para $ \e exprChildren ->
-  let c = toS $ showConstr $ toConstr e
+  let c = case e of
+        -- We need to disambiguate between local and global references
+        -- as using uniplate to extract the names will get the name inside
+        -- the TmVarRef, rendering both a local and global as 'Var x' if
+        -- we did not have this special case.
+        Var _ (LocalVarRef _) -> "LVar"
+        Var _ (GlobalVarRef _) -> "GVar"
+        _ -> toS $ showConstr $ toConstr e
       n = case e of
         PrimCon _ pc -> case pc of
           PrimChar c' -> show c'

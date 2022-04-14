@@ -46,6 +46,14 @@ unit_viewTreeExpr_injective_globalvar :: Assertion
 unit_viewTreeExpr_injective_globalvar =
   distinctTreeExpr (gvar "0") (gvar "1")
 
+-- When we changed how references were handled so 'Expr' had one constructor
+-- that handled both local and global variable references, there was a
+-- regression where they both rendered identically.
+-- This is a regression test for said issue.
+unit_viewTreeExpr_injective_locglobvar :: Assertion
+unit_viewTreeExpr_injective_locglobvar =
+  distinctTreeExpr (lvar "x") (gvar "x")
+
 unit_viewTreeExpr_injective_let :: Assertion
 unit_viewTreeExpr_injective_let =
   distinctTreeExpr (let_ "x" emptyHole emptyHole) (let_ "y" emptyHole emptyHole)
