@@ -4,7 +4,6 @@ pull_request_rules:
     conditions:
       - base=main
       - label="Ready to merge"
-      - "#review-threads-unresolved=0"
       - "#changes-requested-reviews-by=0"
       - check-success="buildkite/primer/pr/required"
     actions:
