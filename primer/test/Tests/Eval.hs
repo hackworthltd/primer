@@ -27,6 +27,7 @@ import Primer.Builtins (
 import Primer.Core (
   ASTDef (..),
   Def (..),
+  DefMap,
   Expr,
   GlobalName (qualifiedModule),
   ID (ID),
@@ -44,7 +45,6 @@ import Primer.Eval (
   EvalDetail (..),
   EvalError (..),
   GlobalVarInlineDetail (..),
-  Globals,
   LetRemovalDetail (..),
   LocalVarInlineDetail (..),
   Locals,
@@ -65,10 +65,10 @@ import Tests.Action.Prog (runAppTestM)
 -- * 'tryReduce' tests
 
 -- | A helper for these tests
-runTryReduce :: Globals -> Locals -> (Expr, ID) -> Either EvalError (Expr, EvalDetail)
+runTryReduce :: DefMap -> Locals -> (Expr, ID) -> Either EvalError (Expr, EvalDetail)
 runTryReduce globals locals (expr, i) = evalTestM i $ runExceptT $ tryReduceExpr globals locals expr
 
-runTryReduceType :: Globals -> Locals -> (Type, ID) -> Either EvalError (Type, EvalDetail)
+runTryReduceType :: DefMap -> Locals -> (Type, ID) -> Either EvalError (Type, EvalDetail)
 runTryReduceType globals locals (ty, i) = evalTestM i $ runExceptT $ tryReduceType globals locals ty
 
 unit_tryReduce_no_redex :: Assertion

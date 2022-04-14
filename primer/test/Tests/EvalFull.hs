@@ -996,7 +996,7 @@ unit_eval_full_modules_scrutinize_imported_type =
 
 -- * Utilities
 
-evalFullTest :: ID -> M.Map TyConName TypeDef -> M.Map GVarName Def -> TerminationBound -> Dir -> Expr -> Either EvalFullError Expr
+evalFullTest :: ID -> M.Map TyConName TypeDef -> DefMap -> TerminationBound -> Dir -> Expr -> Either EvalFullError Expr
 evalFullTest id_ tydefs globals n d e = evalTestM id_ $ evalFull tydefs globals n d e
 
 unaryPrimTest :: Name -> S Expr -> S Expr -> Assertion

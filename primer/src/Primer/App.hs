@@ -96,6 +96,7 @@ import Primer.Core (
   CaseBranch,
   CaseBranch' (CaseBranch),
   Def (..),
+  DefMap,
   Expr,
   Expr' (Case, Con, EmptyHole, Hole, Var),
   ExprMeta,
@@ -252,7 +253,7 @@ allTypes :: Prog -> Map TyConName TypeDef
 allTypes p = foldMap moduleTypesQualified $ progAllModules p
 
 -- | Get all definitions from all modules (including imports)
-allDefs :: Prog -> Map GVarName Def
+allDefs :: Prog -> DefMap
 allDefs p = foldMap moduleDefsQualified $ progAllModules p
 
 -- | Add a definition to the editable module
@@ -416,7 +417,7 @@ focusNode prog = focusNodeDefs $ moduleDefsQualified $ progModule prog
 focusNodeImports :: MonadError ProgError m => Prog -> GVarName -> ID -> m (Either (Either ExprZ TypeZ) TypeZip)
 focusNodeImports prog = focusNodeDefs $ allDefs prog
 
-focusNodeDefs :: MonadError ProgError m => Map GVarName Def -> GVarName -> ID -> m (Either (Either ExprZ TypeZ) TypeZip)
+focusNodeDefs :: MonadError ProgError m => DefMap -> GVarName -> ID -> m (Either (Either ExprZ TypeZ) TypeZip)
 focusNodeDefs defs defname nodeid =
   case lookupASTDef defname defs of
     Nothing -> throwError $ DefNotFound defname
@@ -1265,7 +1266,7 @@ copyPasteBody p (fromDefName, fromId) toDefName setup = do
       let finalProg = addDef newDef p{progSelection = Just (Selection (astDefName newDef) $ Just newSel)}
       tcWholeProg finalProg
 
-lookupASTDef :: GVarName -> Map GVarName Def -> Maybe ASTDef
+lookupASTDef :: GVarName -> DefMap -> Maybe ASTDef
 lookupASTDef name = defAST <=< Map.lookup name
 
 alterTypeDef ::

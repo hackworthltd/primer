@@ -17,6 +17,7 @@ import qualified Data.Map as M
 import Foreword
 import Primer.Core (
   Def,
+  DefMap,
   GVarName,
   GlobalName (baseName),
   ModuleName,
@@ -55,7 +56,7 @@ moduleTypesQualified m = mapKeys (qualifyTyConName m) $ moduleTypes m
 qualifyDefName :: Module -> Name -> GVarName
 qualifyDefName m = qualifyName (moduleName m)
 
-moduleDefsQualified :: Module -> Map GVarName Def
+moduleDefsQualified :: Module -> DefMap
 moduleDefsQualified m = mapKeys (qualifyDefName m) $ moduleDefs m
 
 -- | This assumes that the definition has the correct name to be inserted
