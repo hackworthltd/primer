@@ -1,6 +1,10 @@
 module Foreword (
   module Protolude,
   module Unsafe,
+  insertAt,
+  adjustAt,
+  findAndAdjust,
+  findAndAdjustA,
 ) where
 
 -- In general, we should defer to "Protolude"'s exports and avoid name
@@ -43,3 +47,31 @@ import Protolude hiding (
 -- We should remove all uses of `unsafeHead`. See:
 -- https://github.com/hackworthltd/primer/issues/147
 import Protolude.Unsafe as Unsafe (unsafeHead)
+
+-- | Insert an element at some index, returning `Nothing` if it is out of bounds.
+insertAt :: Int -> a -> [a] -> Maybe [a]
+insertAt n y xs =
+  if length a == n
+    then Just $ a ++ [y] ++ b
+    else Nothing
+  where
+    (a, b) = splitAt n xs
+
+-- | Apply a function to the element at some index, returning `Nothing` if it is out of bounds.
+adjustAt :: Int -> (a -> a) -> [a] -> Maybe [a]
+adjustAt n f xs = case splitAt n xs of
+  (a, b : bs) -> Just $ a ++ [f b] ++ bs
+  _ -> Nothing
+
+-- | Adjust the first element of the list which satisfies the predicate.
+-- Returns `Nothing` if there is no such element.
+findAndAdjust :: (a -> Bool) -> (a -> a) -> [a] -> Maybe [a]
+findAndAdjust p f = \case
+  [] -> Nothing
+  x : xs -> if p x then Just $ f x : xs else (x :) <$> findAndAdjust p f xs
+
+-- | Like `findAndAdjust`, but in an `Applicative`.
+findAndAdjustA :: Applicative m => (a -> Bool) -> (a -> m a) -> [a] -> m (Maybe [a])
+findAndAdjustA p f = \case
+  [] -> pure Nothing
+  x : xs -> if p x then Just . (: xs) <$> f x else (x :) <<$>> findAndAdjustA p f xs

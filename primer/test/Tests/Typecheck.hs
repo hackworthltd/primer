@@ -42,6 +42,7 @@ import Primer.Core (
   Meta (..),
   PrimDef (PrimDef, primDefName, primDefType),
   TmVarRef (LocalVarRef),
+  TyConName,
   Type,
   Type' (TApp, TCon, TForall, TFun, TVar),
   TypeCache (..),
@@ -70,6 +71,7 @@ import Primer.Typecheck (
   checkEverything,
   decomposeTAppCon,
   mkTAppCon,
+  mkTypeDefMap,
   synth,
   synthKind,
  )
@@ -512,7 +514,7 @@ unit_good_maybeT = case runTypecheckTestM NoSmartHoles $
     NoSmartHoles
     CheckEverything
       { trusted = [progModule newProg]
-      , toCheck = [Module [TypeDefAST maybeTDef] mempty]
+      , toCheck = [Module (mkTypeDefMap [TypeDefAST maybeTDef]) mempty]
       } of
   Left err -> assertFailure $ show err
   Right _ -> pure ()
@@ -525,7 +527,7 @@ unit_bad_prim_map = case runTypecheckTestM NoSmartHoles $ do
     NoSmartHoles
     CheckEverything
       { trusted = [progModule newProg]
-      , toCheck = [Module [] $ Map.singleton "foo" $ DefPrim foo]
+      , toCheck = [Module mempty $ Map.singleton "foo" $ DefPrim foo]
       } of
   Left err -> err @?= InternalError "Inconsistant names in moduleDefs map"
   Right _ -> assertFailure "Expected failure but succeeded"
@@ -538,7 +540,7 @@ unit_bad_prim_type = case runTypecheckTestM NoSmartHoles $ do
     NoSmartHoles
     CheckEverything
       { trusted = [progModule newProg]
-      , toCheck = [Module [] $ Map.singleton "foo" $ DefPrim foo]
+      , toCheck = [Module mempty $ Map.singleton "foo" $ DefPrim foo]
       } of
   Left err -> err @?= UnknownTypeConstructor "NonExistant"
   Right _ -> assertFailure "Expected failure but succeeded"
@@ -634,8 +636,8 @@ runTypecheckTestMWithPrims sh =
   where
     (defs, n) = create $ withPrimDefs $ \m -> pure $ DefPrim <$> m
 
-testingTypeDefs :: [TypeDef]
-testingTypeDefs = TypeDefAST maybeTDef : defaultTypeDefs
+testingTypeDefs :: Map TyConName TypeDef
+testingTypeDefs = mkTypeDefMap [TypeDefAST maybeTDef] <> defaultTypeDefs
 
 maybeTDef :: ASTTypeDef
 maybeTDef =

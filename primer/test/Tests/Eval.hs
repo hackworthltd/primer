@@ -6,7 +6,7 @@ import Foreword
 
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
-import Optics (over, (^.))
+import Optics ((^.))
 import Primer.App (
   App (appIdCounter),
   EvalReq (EvalReq, evalReqExpr, evalReqRedex),
@@ -21,18 +21,14 @@ import Primer.Core (
   ASTDef (..),
   Def (..),
   Expr,
-  Expr',
   ID (ID),
   Type,
-  Type',
   TypeDef (TypeDefAST),
   getID,
-  _exprMeta,
-  _exprTypeMeta,
   _id,
-  _typeMeta,
  )
 import Primer.Core.DSL
+import Primer.Core.Utils (forgetIDs, forgetTypeIDs)
 import Primer.Eval (
   ApplyPrimFunDetail (..),
   BetaReductionDetail (..),
@@ -51,6 +47,7 @@ import Primer.Eval (
   tryReduceType,
  )
 import Primer.Module (Module (Module, moduleDefs, moduleTypes))
+import Primer.Typecheck (mkTypeDefMap)
 import Primer.Zipper (target)
 import Test.Tasty.HUnit (Assertion, assertBool, assertFailure, (@?=))
 import TestM (evalTestM)
@@ -847,7 +844,7 @@ unit_eval_modules_scrutinize_imported_type =
   where
     m =
       Module
-        { moduleTypes = [TypeDefAST boolDef]
+        { moduleTypes = mkTypeDefMap [TypeDefAST boolDef]
         , moduleDefs = mempty
         }
 
@@ -856,16 +853,8 @@ unit_eval_modules_scrutinize_imported_type =
 -- | Like '@?=' but specifically for expressions.
 -- Ignores IDs and metadata.
 (~=) :: Expr -> Expr -> Assertion
-x ~= y = clearMeta x @?= clearMeta y
-  where
-    -- Clear all metadata in the given expression
-    clearMeta :: Expr -> Expr' () ()
-    clearMeta = over _exprMeta (const ()) . over _exprTypeMeta (const ())
+x ~= y = forgetIDs x @?= forgetIDs y
 
 -- | Like '~=' but for types.
 (~~=) :: Type -> Type -> Assertion
-x ~~= y = clearMeta x @?= clearMeta y
-  where
-    -- Clear all metadata in the given type
-    clearMeta :: Type -> Type' ()
-    clearMeta = over _typeMeta (const ())
+x ~~= y = forgetTypeIDs x @?= forgetTypeIDs y

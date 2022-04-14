@@ -51,8 +51,8 @@
                     "tag": "DefAST"
                 }
             },
-            "moduleTypes": [
-                {
+            "moduleTypes": {
+                "T": {
                     "contents": {
                         "astTypeDefConstructors": [
                             {
@@ -115,7 +115,7 @@
                     },
                     "tag": "TypeDefAST"
                 }
-            ]
+            }
         },
         "progSelection": {
             "selectedDef": "main",

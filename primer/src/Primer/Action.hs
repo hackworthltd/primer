@@ -46,6 +46,8 @@ import Primer.Core (
   LVarName,
   LocalName (LocalName, unLocalName),
   TmVarRef (..),
+  TyConName,
+  TyVarName,
   Type,
   Type' (..),
   TypeCache (..),
@@ -57,6 +59,7 @@ import Primer.Core (
   defName,
   getID,
   unsafeMkGlobalName,
+  unsafeMkLocalName,
   valConArgs,
   valConName,
   valConType,
@@ -87,7 +90,7 @@ import Primer.Core.Transform (renameLocalVar, renameTyVar, renameTyVarExpr)
 import Primer.Core.Utils (forgetTypeIDs, generateTypeIDs)
 import Primer.JSON
 import Primer.Module (Module (moduleDefs, moduleTypes))
-import Primer.Name (Name, NameCounter, unName, unsafeMkName)
+import Primer.Name (Name, NameCounter, unName)
 import Primer.Name.Fresh (
   isFresh,
   isFreshTy,
@@ -379,6 +382,18 @@ data ProgAction
     DeleteDef GVarName
   | -- | Add a new type definition
     AddTypeDef ASTTypeDef
+  | -- | Rename the type definition with the given name, and its type constructor
+    RenameType TyConName Text
+  | -- | Rename the value constructor with the given name, in the given type
+    RenameCon TyConName ValConName Text
+  | -- | Rename the type parameter with the given name, in the given type
+    RenameTypeParam TyConName TyVarName Text
+  | -- | Add a value constructor at the given position, in the given type
+    AddCon TyConName Int Text
+  | -- | Change the type of the field at the given index of the given constructor
+    SetConFieldType TyConName ValConName Int (Type' ())
+  | -- | Add a new field, at the given index, to the given constructor
+    AddConField TyConName ValConName Int (Type' ())
   | -- | Execute a sequence of actions on the body of the definition
     BodyAction [Action]
   | -- | Execute a sequence of actions on the type annotation of the definition
@@ -427,7 +442,7 @@ applyActionsToTypeSig smartHoles imports mod def actions =
   runReaderT
     go
     ( buildTypingContext
-        (concatMap moduleTypes $ mod : imports)
+        (foldMap moduleTypes $ mod : imports)
         (foldMap moduleDefs $ mod : imports)
         smartHoles
     )
@@ -477,7 +492,7 @@ applyActionsToTypeSig smartHoles imports mod def actions =
 applyActionsToBody ::
   (MonadFresh ID m, MonadFresh NameCounter m) =>
   SmartHoles ->
-  [TypeDef] ->
+  Map TyConName TypeDef ->
   Map GVarName Def ->
   ASTDef ->
   [Action] ->
@@ -512,7 +527,7 @@ applyActionAndCheck ty action z = do
 -- This is currently only used for tests.
 -- We may need it in the future for a REPL, where we want to build standalone expressions.
 -- We take a list of the types that should be in scope for the test.
-applyActionsToExpr :: (MonadFresh ID m, MonadFresh NameCounter m) => SmartHoles -> [TypeDef] -> Expr -> [Action] -> m (Either ActionError (Either ExprZ TypeZ))
+applyActionsToExpr :: (MonadFresh ID m, MonadFresh NameCounter m) => SmartHoles -> Map TyConName TypeDef -> Expr -> [Action] -> m (Either ActionError (Either ExprZ TypeZ))
 applyActionsToExpr sh typeDefs expr actions =
   foldM (flip applyActionAndSynth) (focusLoc expr) actions -- apply all actions
     <&> locToEither
@@ -793,7 +808,7 @@ constructLam mx ze = do
   -- If a name is provided, use that. Otherwise, generate a fresh one.
   x <- case mx of
     Nothing -> mkFreshName ze
-    Just x -> pure (LocalName $ unsafeMkName x)
+    Just x -> pure (unsafeMkLocalName x)
   unless (isFresh x (target ze)) $ throwError NameCapture
   result <- flip replace ze <$> lam x (pure (target ze))
   moveExpr Child1 result
@@ -804,7 +819,7 @@ constructLAM mx ze = do
   -- If a name is provided, use that. Otherwise, generate a fresh one.
   x <- case mx of
     Nothing -> mkFreshName ze
-    Just x -> pure (LocalName $ unsafeMkName x)
+    Just x -> pure (unsafeMkLocalName x)
   unless (isFresh x (target ze)) $ throwError NameCapture
   result <- flip replace ze <$> lAM x (pure (target ze))
   moveExpr Child1 result
@@ -859,7 +874,7 @@ constructLet mx ze = case target ze of
     -- If a name is provided, use that. Otherwise, generate a fresh one.
     x <- case mx of
       Nothing -> mkFreshName ze
-      Just x -> pure (LocalName $ unsafeMkName x)
+      Just x -> pure (unsafeMkLocalName x)
     flip replace ze <$> let_ x emptyHole emptyHole
   e -> throwError $ NeedEmptyHole (ConstructLet mx) e
 
@@ -869,7 +884,7 @@ constructLetrec mx ze = case target ze of
     -- If a name is provided, use that. Otherwise, generate a fresh one.
     x <- case mx of
       Nothing -> mkFreshName ze
-      Just x -> pure (LocalName $ unsafeMkName x)
+      Just x -> pure (unsafeMkLocalName x)
     flip replace ze <$> letrec x emptyHole tEmptyHole emptyHole
   e -> throwError $ NeedEmptyHole (ConstructLetrec mx) e
 
@@ -933,7 +948,7 @@ renameLam y ze = case target ze of
   Lam m x e
     | unName (unLocalName x) == y -> pure ze
     | otherwise -> do
-        let y' = LocalName $ unsafeMkName y
+        let y' = unsafeMkLocalName y
         case renameLocalVar x y' e of
           Just e' -> pure $ replace (Lam m y' e') ze
           Nothing ->
@@ -947,7 +962,7 @@ renameLAM b ze = case target ze of
   LAM m a e
     | unName (unLocalName a) == b -> pure ze
     | otherwise -> do
-        let b' = LocalName $ unsafeMkName b
+        let b' = unsafeMkLocalName b
         case renameTyVarExpr a b' e of
           Just e' -> pure $ replace (LAM m b' e') ze
           Nothing ->
@@ -961,13 +976,13 @@ renameLet y ze = case target ze of
   Let m x e1 e2
     | unName (unLocalName x) == y -> pure ze
     | otherwise -> do
-        let y' = LocalName $ unsafeMkName y
+        let y' = unsafeMkLocalName y
         (e1', e2') <- doRename x y' e1 e2
         pure $ replace (Let m y' e1' e2') ze
   Letrec m x e1 t1 e2
     | unName (unLocalName x) == y -> pure ze
     | otherwise -> do
-        let y' = LocalName $ unsafeMkName y
+        let y' = unsafeMkLocalName y
         (e1', e2') <- doRename x y' e1 e2
         pure $ replace (Letrec m y' e1' t1 e2') ze
   _ ->
@@ -984,7 +999,7 @@ renameCaseBinding :: forall m. ActionM m => Text -> CaseBindZ -> m CaseBindZ
 renameCaseBinding y caseBind = updateCaseBind caseBind $ \bind bindings rhs -> do
   let failure :: Text -> m a
       failure = throwError . CustomFailure (RenameCaseBinding y)
-  let y' = LocalName $ unsafeMkName y
+  let y' = unsafeMkLocalName y
 
   -- Check that 'y' doesn't clash with any of the other branch bindings
   let otherBindings = delete bind bindings
@@ -1027,15 +1042,14 @@ constructTCon c zt = case target zt of
 
 constructTVar :: ActionM m => Text -> TypeZ -> m TypeZ
 constructTVar x ast = case target ast of
-  TEmptyHole{} -> flip replace ast <$> tvar (LocalName $ unsafeMkName x)
+  TEmptyHole{} -> flip replace ast <$> tvar (unsafeMkLocalName x)
   _ -> throwError $ CustomFailure (ConstructTVar x) "can only construct tvar in hole"
 
 constructTForall :: ActionM m => Maybe Text -> TypeZ -> m TypeZ
 constructTForall mx zt = do
-  x <-
-    LocalName <$> case mx of
-      Nothing -> mkFreshNameTy zt
-      Just x -> pure (unsafeMkName x)
+  x <- case mx of
+    Nothing -> LocalName <$> mkFreshNameTy zt
+    Just x -> pure (unsafeMkLocalName x)
   unless (isFreshTy x $ target zt) $ throwError NameCapture
   flip replace zt <$> tforall x C.KType (pure (target zt))
 
@@ -1048,7 +1062,7 @@ renameForall b zt = case target zt of
   TForall m a k t
     | unName (unLocalName a) == b -> pure zt
     | otherwise -> do
-        let b' = LocalName $ unsafeMkName b
+        let b' = unsafeMkLocalName b
         case renameTyVar a b' t of
           Just t' -> pure $ replace (TForall m b' k t') zt
           Nothing ->

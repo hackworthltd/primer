@@ -29,6 +29,7 @@ import Primer.Typecheck (
   buildTypingContext,
   checkKind,
   checkValidContext,
+  mkTypeDefMap,
   synth,
  )
 
@@ -72,5 +73,5 @@ unit_prim_con_scope_ast = do
           , astTypeDefNameHints = mempty
           }
 
-    cxt = buildTypingContext [charASTDef] mempty NoSmartHoles
+    cxt = buildTypingContext (mkTypeDefMap [charASTDef]) mempty NoSmartHoles
     test = runTypecheckTestMFromIn 0 cxt

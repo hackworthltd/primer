@@ -166,10 +166,10 @@ unit_8 =
         expect <- mkList (tcon "Bool") (take n $ cycle [con "True", con "False"]) `ann` (tcon "List" `tapp` tcon "Bool")
         pure (globs, expr, expect)
    in do
-        case evalFullTest maxID (mkTypeDefMap defaultTypeDefs) (M.fromList globals) 500 Syn e of
+        case evalFullTest maxID defaultTypeDefs (M.fromList globals) 500 Syn e of
           Left (TimedOut _) -> pure ()
           x -> assertFailure $ show x
-        let s = evalFullTest maxID (mkTypeDefMap defaultTypeDefs) (M.fromList globals) 1000 Syn e
+        let s = evalFullTest maxID defaultTypeDefs (M.fromList globals) 1000 Syn e
         distinctIDs s
         s <~==> Right expected
 
@@ -203,10 +203,10 @@ unit_9 =
         expect <- mkList (tcon "Bool") (take n $ cycle [con "True", con "False"]) `ann` (tcon "List" `tapp` tcon "Bool")
         pure (globs, expr, expect)
    in do
-        case evalFullTest maxID (mkTypeDefMap defaultTypeDefs) (M.fromList globals) 500 Syn e of
+        case evalFullTest maxID defaultTypeDefs (M.fromList globals) 500 Syn e of
           Left (TimedOut _) -> pure ()
           x -> assertFailure $ show x
-        let s = evalFullTest maxID (mkTypeDefMap defaultTypeDefs) (M.fromList globals) 1000 Syn e
+        let s = evalFullTest maxID defaultTypeDefs (M.fromList globals) 1000 Syn e
         distinctIDs s
         s <~==> Right expected
 
@@ -232,8 +232,8 @@ unit_10 =
         expect <- con "True"
         pure (annCase, noannCase, expect)
    in do
-        let s' = evalFullTest maxID (mkTypeDefMap defaultTypeDefs) mempty 2 Syn s
-            t' = evalFullTest maxID (mkTypeDefMap defaultTypeDefs) mempty 2 Syn t
+        let s' = evalFullTest maxID defaultTypeDefs mempty 2 Syn s
+            t' = evalFullTest maxID defaultTypeDefs mempty 2 Syn t
         distinctIDs s'
         s' <~==> Right expected
         distinctIDs t'
@@ -264,10 +264,10 @@ unit_11 =
             `ann` (tcon "Pair" `tapp` tcon "Bool" `tapp` tcon "Nat")
         pure (globs, expr, expect)
    in do
-        case evalFullTest maxID (mkTypeDefMap defaultTypeDefs) (M.fromList globals) 10 Syn e of
+        case evalFullTest maxID defaultTypeDefs (M.fromList globals) 10 Syn e of
           Left (TimedOut _) -> pure ()
           x -> assertFailure $ show x
-        let s = evalFullTest maxID (mkTypeDefMap defaultTypeDefs) (M.fromList globals) 20 Syn e
+        let s = evalFullTest maxID defaultTypeDefs (M.fromList globals) 20 Syn e
         distinctIDs s
         s <~==> Right expected
 
@@ -289,7 +289,7 @@ unit_12 =
         expect <- con "True" `ann` tcon "Bool"
         pure (expr, expect)
    in do
-        let s = evalFullTest maxID (mkTypeDefMap defaultTypeDefs) mempty 15 Syn e
+        let s = evalFullTest maxID defaultTypeDefs mempty 15 Syn e
         distinctIDs s
         s <~==> Right expected
 
@@ -300,7 +300,7 @@ unit_13 =
         expect <- (con "C" `app` con "Zero" `app` con "True" `app` con "Zero") `ann` tcon "Bool"
         pure (expr, expect)
    in do
-        let s = evalFullTest maxID (mkTypeDefMap defaultTypeDefs) mempty 15 Syn e
+        let s = evalFullTest maxID defaultTypeDefs mempty 15 Syn e
         distinctIDs s
         s <~==> Right expected
 
@@ -311,7 +311,7 @@ unit_14 =
         expect <- con "Zero" `ann` tcon "Nat"
         pure (expr, expect)
    in do
-        let s = evalFullTest maxID (mkTypeDefMap defaultTypeDefs) mempty 15 Syn e
+        let s = evalFullTest maxID defaultTypeDefs mempty 15 Syn e
         distinctIDs s
         s <~==> Right expected
 
@@ -338,19 +338,19 @@ unit_15 =
         e5 <- lam y' $ c "y" y'
         pure (e0, [e0, e1, e2, e3, e4, e5], e5)
    in do
-        let si = map (\i -> evalFullTest maxID (mkTypeDefMap defaultTypeDefs) mempty i Syn expr) [0 .. fromIntegral $ length steps - 1]
+        let si = map (\i -> evalFullTest maxID defaultTypeDefs mempty i Syn expr) [0 .. fromIntegral $ length steps - 1]
             f s e = do
               distinctIDs s
               s <~==> Left (TimedOut e)
         zipWithM_ f si steps
-        let s = evalFullTest maxID (mkTypeDefMap defaultTypeDefs) mempty (fromIntegral $ length steps) Syn expr
+        let s = evalFullTest maxID defaultTypeDefs mempty (fromIntegral $ length steps) Syn expr
         distinctIDs s
         s <~==> Right expected
 
 unit_hole_ann_case :: Assertion
 unit_hole_ann_case =
   let (tm, maxID) = create $ hole $ ann (case_ emptyHole []) (tcon "Bool")
-   in evalFullTest maxID (mkTypeDefMap defaultTypeDefs) mempty 1 Chk tm @?= Right tm
+   in evalFullTest maxID defaultTypeDefs mempty 1 Chk tm @?= Right tm
 
 -- TODO: examples with holes
 
@@ -509,7 +509,7 @@ hprop_prim_hex_nat = withTests 20 . property $ do
               <*> con "Nothing"
                 `aPP` tcon "Char"
               <*> pure (DefPrim <$> globals)
-      s = evalFullTest maxID (mkTypeDefMap defaultTypeDefs) gs 7 Syn e
+      s = evalFullTest maxID defaultTypeDefs gs 7 Syn e
   set _ids' 0 s === set _ids' 0 (Right r)
 
 unit_prim_char_eq_1 :: Assertion
@@ -855,7 +855,7 @@ unit_prim_ann =
               `app` (char 'a' `ann` tcon "Char")
             <*> char 'A'
             <*> pure (DefPrim <$> globals)
-      s = evalFullTest maxID (mkTypeDefMap defaultTypeDefs) gs 2 Syn e
+      s = evalFullTest maxID defaultTypeDefs gs 2 Syn e
    in do
         distinctIDs s
         s <~==> Right r
@@ -884,7 +884,7 @@ unit_prim_partial_map =
               ]
               `ann` (tcon "List" `tapp` tcon "Char")
             <*> pure (M.singleton (defName map_) map_ <> (DefPrim <$> globals))
-      s = evalFullTest maxID (mkTypeDefMap defaultTypeDefs) gs 65 Syn e
+      s = evalFullTest maxID defaultTypeDefs gs 65 Syn e
    in do
         distinctIDs s
         s <~==> Right r
@@ -945,7 +945,7 @@ unit_eval_full_modules_scrutinize_imported_type =
   where
     m =
       Module
-        { moduleTypes = [TypeDefAST boolDef]
+        { moduleTypes = mkTypeDefMap [TypeDefAST boolDef]
         , moduleDefs = mempty
         }
 
