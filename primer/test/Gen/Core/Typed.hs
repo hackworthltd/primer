@@ -33,6 +33,7 @@ import Control.Monad.Fresh (MonadFresh, fresh)
 import Control.Monad.Morph (hoist)
 import Control.Monad.Reader (mapReaderT)
 import qualified Data.Map as M
+import Gen.Core.Raw (genLVarName, genName, genTyVarName)
 import Hedgehog (
   GenT,
   MonadGen,
@@ -52,7 +53,7 @@ import Primer.Core (
   ID,
   Kind (..),
   LVarName,
-  LocalName (LocalName),
+  LocalName (LocalName, unLocalName),
   PrimCon (..),
   TmVarRef (..),
   TyConName,
@@ -68,7 +69,8 @@ import Primer.Core (
   valConName,
   valConType,
  )
-import Primer.Name (Name, NameCounter, freshName)
+import Primer.Core.Utils (freeVarsTy)
+import Primer.Name (Name, NameCounter, freshName, unName, unsafeMkName)
 import Primer.Refine (Inst (InstAPP, InstApp, InstUnconstrainedAPP), refine)
 import Primer.Subst (substTy, substTys)
 import Primer.Typecheck (
@@ -149,6 +151,30 @@ freshLVarNameForCxt = LocalName <$> freshNameForCxt
 freshTyVarNameForCxt :: GenT WT TyVarName
 freshTyVarNameForCxt = LocalName <$> freshNameForCxt
 
+-- We try to have a decent distribution of names, where there is a
+-- significant chance that the same name is reused (both in disjoint
+-- contexts, and with shadowing). However, we need to ensure that our
+-- generated terms are well scoped and well typed.  This is mostly
+-- handled by carrying around a context and only generating variables
+-- from that context. However, there is one place we need to be
+-- careful: we may put the aimed-for type verbatim into an
+-- annotation. We must ensure that binders do not capture type
+-- variable references that are introduced in that way.
+-- For this we use 'genLVarNameAvoiding' and 'genTyVarNameAvoiding'.
+genLVarNameAvoiding :: [TypeG] -> GenT WT LVarName
+genLVarNameAvoiding ty = freshen (foldMap freeVarsTy ty) 0 <$> genLVarName
+
+genTyVarNameAvoiding :: TypeG -> GenT WT TyVarName
+genTyVarNameAvoiding ty = freshen (freeVarsTy ty) 0 <$> genTyVarName
+
+freshen :: Set (LocalName k') -> Int -> LocalName k -> LocalName k
+freshen fvs i n =
+  let suffix = if i > 0 then "_" <> show i else ""
+      m = LocalName $ unsafeMkName $ unName (unLocalName n) <> suffix
+   in if m `elem` fvs
+        then freshen fvs (i + 1) n
+        else m
+
 -- genSyns T with cxt Γ should generate (e,S) st Γ |- e ∈ S and S ~ T (i.e. same up to holes and alpha)
 genSyns :: TypeG -> GenT WT (ExprG, TypeG)
 genSyns ty = do
@@ -199,7 +225,7 @@ genSyns ty = do
     -- APPs are difficult. We take the approach of throwing stuff at the wall and seeing what sticks...
     genAPP = justT $ do
       k <- genWTKind
-      n <- freshTyVarNameForCxt
+      n <- genTyVarName
       (s, sTy) <- genSyns $ TForall () n k $ TEmptyHole ()
       cxt <- ask
       runExceptT (refine cxt ty sTy) >>= \case
@@ -212,15 +238,16 @@ genSyns ty = do
       Gen.choice
         [ -- let
           do
-            x <- freshLVarNameForCxt
+            x <- genLVarNameAvoiding [ty]
             (e, eTy) <- genSyn
             (f, fTy) <- local (extendLocalCxt (x, eTy)) $ genSyns ty
             pure (Let () x e f, fTy)
         , -- letrec
           do
-            x <- freshLVarNameForCxt
             eTy <- genWTType KType
-            (e, (f, fTy)) <- local (extendLocalCxt (x, eTy)) $ (,) <$> genChk eTy <*> genSyns ty
+            x <- genLVarNameAvoiding [ty, eTy]
+            (e, (f, fTy)) <- local (extendLocalCxt (x, eTy)) $ do
+              (,) <$> genChk eTy <*> genSyns ty
             pure (Letrec () x e eTy f, fTy)
             -- lettype
             {- TODO: reinstate once the TC handles them! and then be careful to do
@@ -228,7 +255,7 @@ genSyns ty = do
                (lettype a = Nat -> Nat in λx.x : a), for instance
                See https://github.com/hackworthltd/primer/issues/5
             do
-              x <- freshNameForCxt
+              x <- genLVarNameAvoiding [ty]
               k <- genWTKind
               t <- genWTType k
               (e, eTy) <- local (extendLocalCxtTy (x, k)) $ genSyns ty
@@ -287,34 +314,35 @@ genChk ty = do
     emb = fst <$> genSyns ty
     lambda =
       matchArrowType ty <&> \(sTy, tTy) -> do
-        n <- freshLVarNameForCxt
+        n <- genLVarNameAvoiding [tTy]
         Lam () n <$> local (extendLocalCxt (n, sTy)) (genChk tTy)
     abst = do
       mfa <- matchForallType ty
       pure $
         mfa <&> \(n, k, t) -> do
-          m <- freshTyVarNameForCxt
+          m <- genTyVarNameAvoiding ty
           ty' <- substTy n (TVar () m) t
           LAM () m <$> local (extendLocalCxtTy (m, k)) (genChk ty')
     genLet =
       Gen.choice
         [ -- let
           do
-            x <- freshLVarNameForCxt
+            x <- genLVarNameAvoiding [ty]
             (e, eTy) <- genSyn
             Let () x e <$> local (extendLocalCxt (x, eTy)) (genChk ty)
         , -- letrec
           do
-            x <- freshLVarNameForCxt
             eTy <- genWTType KType
-            Letrec () x <$> genChk eTy <*> pure eTy <*> genChk ty
+            x <- genLVarNameAvoiding [ty, eTy]
+            (e, f) <- local (extendLocalCxt (x, eTy)) $ (,) <$> genChk eTy <*> genChk ty
+            pure $ Letrec () x e eTy f
             -- lettype
             {- TODO: reinstate once the TC handles them! and then be careful to do
                interesting things where we need to expand the synonym
                (lettype a = Nat -> Nat in λx.x : a), for instance
                See https://github.com/hackworthltd/primer/issues/5
             do
-              x <- freshNameForCxt
+              x <- genLVarNameAvoiding [ty]
               k <- genWTKind
               LetType () x <$> genWTType k <*> local (extendLocalCxtTy (x, k)) (genChk ty)
             -}
@@ -334,7 +362,7 @@ genChk ty = do
                 Left TDIHoleType -> pure $ Just []
                 Left _err -> pure Nothing -- if we didn't get an instance of t, try again; TODO: this is rather inefficient, and discards a lot...
                 Right (_, vcs) -> fmap Just . for vcs $ \(c, params) -> do
-                  ns <- replicateM (length params) freshLVarNameForCxt
+                  ns <- replicateM (length params) $ genLVarNameAvoiding [ty]
                   let binds = map (Bind ()) ns
                   CaseBranch c binds <$> local (extendLocalCxts $ zip ns params) (genChk ty)
             pure $ Case () e brs
@@ -378,7 +406,7 @@ genWTType k = do
       if k == KHole || k == KType
         then Just $ do
           k' <- genWTKind
-          n <- freshTyVarNameForCxt
+          n <- genTyVarName
           TForall () n k' <$> local (extendLocalCxtTy (n, k')) (genWTType KType)
         else Nothing
 
@@ -392,7 +420,7 @@ genGlobalCxtExtension :: GenT WT [(GVarName, TypeG)]
 genGlobalCxtExtension =
   local forgetLocals $
     Gen.list (Range.linear 1 5) $
-      (,) <$> fmap qualifyName freshNameForCxt <*> genWTType KType
+      (,) <$> fmap qualifyName genName <*> genWTType KType
   where
     -- we are careful to not let the globals depend on whatever locals may be in
     -- the cxt
@@ -449,6 +477,13 @@ genCxtExtendingGlobal = do
 
 -- Generate an extension of the base context (from the reader monad) with more
 -- local term and type vars.
+-- Note that here we need to generate fresh names, as we test that the
+-- whole context typechecks. Since we represent contexts as a 'Map'
+-- for efficiency, we do not keep track of scoping, and need to not
+-- overwrite previous elements.  For instance, we cannot faithfully
+-- represent the context @x : TYPE, y : x, x : TYPE -> TYPE@: we would
+-- forget the first @x@, and thus it would appear that @y@ is
+-- ill-typed (a term variable must have a type of kind TYPE).
 genCxtExtendingLocal :: GenT WT Cxt
 genCxtExtendingLocal = do
   n <- Gen.int $ Range.linear 1 10
