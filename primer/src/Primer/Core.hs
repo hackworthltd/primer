@@ -36,6 +36,7 @@ module Primer.Core (
   GVarName,
   LocalNameKind (..),
   LocalName (LocalName, unLocalName),
+  unsafeMkLocalName,
   LVarName,
   TyVarName,
   Type,
@@ -73,6 +74,7 @@ module Primer.Core (
   _typeMetaLens,
   bindName,
   _bindMeta,
+  typesInExpr,
 ) where
 
 import Foreword
@@ -83,7 +85,21 @@ import Data.Data (Data)
 import Data.Generics.Product
 import Data.Generics.Uniplate.Data ()
 import Data.Generics.Uniplate.Zipper (Zipper, hole, replaceHole)
-import Optics (AffineFold, Lens, Lens', Traversal, afailing, lens, set, view, (%))
+import Optics (
+  AffineFold,
+  Lens,
+  Lens',
+  Traversal,
+  Traversal',
+  adjoin,
+  afailing,
+  lens,
+  set,
+  view,
+  (%),
+  _3,
+  _4,
+ )
 import Primer.JSON
 import Primer.Name (Name, unsafeMkName)
 
@@ -186,6 +202,9 @@ newtype LocalName (k :: LocalNameKind) = LocalName {unLocalName :: Name}
   deriving (Eq, Ord, Show, Data, Generic)
   deriving (IsString) via Name
   deriving (FromJSON, ToJSON, FromJSONKey, ToJSONKey) via Name
+
+unsafeMkLocalName :: Text -> LocalName k
+unsafeMkLocalName = LocalName . unsafeMkName
 
 type LVarName = LocalName 'ATmVar
 type TyVarName = LocalName 'ATyVar
@@ -345,6 +364,14 @@ data Type' a
   | TForall a TyVarName Kind (Type' a)
   deriving (Eq, Show, Data, Generic)
   deriving (FromJSON, ToJSON) via VJSON (Type' a)
+
+-- | Note that this does not recurse in to sub-expressions or sub-types.
+typesInExpr :: Traversal' (Expr' a b) (Type' b)
+typesInExpr =
+  #_Ann % _3
+    `adjoin` #_APP % _3
+    `adjoin` #_LetType % _3
+    `adjoin` #_Letrec % _4
 
 -- | A traversal over the metadata of a type
 _typeMeta :: Traversal (Type' a) (Type' b) a b

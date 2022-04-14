@@ -1,11 +1,11 @@
 module Primer.Module (Module (..)) where
 
 import Foreword
-import Primer.Core (Def, GlobalName, GlobalNameKind (ADefName), TypeDef)
+import Primer.Core (Def, GlobalName, GlobalNameKind (ADefName, ATyCon), TypeDef)
 import Primer.JSON
 
 data Module = Module
-  { moduleTypes :: [TypeDef]
+  { moduleTypes :: Map (GlobalName 'ATyCon) TypeDef
   , moduleDefs :: Map (GlobalName 'ADefName) Def -- The current program: a set of definitions indexed by Name
   }
   deriving (Eq, Show, Generic)
