@@ -225,8 +225,8 @@ extendLocalCxtTys x cxt = cxt{localCxt = Map.fromList (bimap unLocalName K <$> x
 extendGlobalCxt :: [(GVarName, Type)] -> Cxt -> Cxt
 extendGlobalCxt globals cxt = cxt{globalCxt = Map.fromList globals <> globalCxt cxt}
 
-extendTypeDefCxt :: [(TyConName, TypeDef)] -> Cxt -> Cxt
-extendTypeDefCxt typedefs cxt = cxt{typeDefs = Map.fromList typedefs <> typeDefs cxt}
+extendTypeDefCxt :: [TypeDef] -> Cxt -> Cxt
+extendTypeDefCxt typedefs cxt = cxt{typeDefs = mkTypeDefMap typedefs <> typeDefs cxt}
 
 localTmVars :: Cxt -> Map LVarName Type
 localTmVars = M.mapKeys LocalName . M.mapMaybe (\case T t -> Just t; K _ -> Nothing) . localCxt
@@ -251,7 +251,7 @@ initialCxt sh =
 buildTypingContext :: Map TyConName TypeDef -> Map GVarName Def -> SmartHoles -> Cxt
 buildTypingContext tydefs defs sh =
   let globals = Map.elems $ fmap (\def -> (defName def, forgetTypeIDs (defType def))) defs
-   in extendTypeDefCxt (Map.toList tydefs) $ extendGlobalCxt globals $ initialCxt sh
+   in extendTypeDefCxt (Map.elems tydefs) $ extendGlobalCxt globals $ initialCxt sh
 
 -- | Create a mapping of name to typedef for fast lookup.
 -- Ensures that @typeDefName (mkTypeDefMap ! n) == n@
@@ -344,7 +344,7 @@ checkTypeDefs tds = do
     "Duplicate-ly-named constructor (perhaps in different typedefs)"
   -- Note that these checks only apply to non-primitives:
   -- duplicate type names are checked elsewhere, kinds are correct by construction, and there are no constructors.
-  local (extendTypeDefCxt $ Map.toList tds) $ mapM_ checkTypeDef atds
+  local (extendTypeDefCxt $ Map.elems tds) $ mapM_ checkTypeDef atds
   where
     -- In the core, we have many different namespaces, so the only name-clash
     -- checking we must do is
@@ -417,7 +417,7 @@ checkEverything sh CheckEverything{trusted, toCheck} =
             newDefs =
               foldMap (\d -> [(defName d, forgetTypeIDs $ defType d)]) $
                 foldMap moduleDefs toCheck
-        local (extendGlobalCxt newDefs . extendTypeDefCxt (Map.toList newTypes)) $
+        local (extendGlobalCxt newDefs . extendTypeDefCxt (Map.elems newTypes)) $
           traverseOf (traversed % #moduleDefs % traversed) checkDef toCheck
 
 -- | Typecheck a definition.
