@@ -18,7 +18,7 @@ import Primer.Core (
   HasID (_id),
   ID,
   Kind (KType),
-  ModuleName (unModuleName),
+  moduleNamePretty,
   _exprMeta,
   _exprTypeMeta,
   _typeMeta,
@@ -61,7 +61,7 @@ test_1 :: TestTree
 test_1 =
   mkTests
     ASTDef
-      { astDefName = gvn "M" "1"
+      { astDefName = gvn ["M"] "1"
       , astDefExpr
       , astDefType
       }
@@ -94,7 +94,7 @@ test_1 =
                     (con cJust)
                 )
                 ( hole
-                    (gvar' "M" "0")
+                    (gvar' ["M"] "0")
                 )
             )
             ( thole
@@ -170,7 +170,7 @@ data Output = Output
 mkTests :: ASTDef -> TestTree
 mkTests def =
   let defName = astDefName def
-      testName = T.unpack $ unName (unModuleName $ qualifiedModule defName) <> "." <> unName (baseName defName)
+      testName = T.unpack $ moduleNamePretty (qualifiedModule defName) <> "." <> unName (baseName defName)
    in testGroup testName $
         enumerate
           <&> \level ->

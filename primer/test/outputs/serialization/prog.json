@@ -37,7 +37,9 @@
                     },
                     "astDefName": {
                         "baseName": "main",
-                        "qualifiedModule": "M"
+                        "qualifiedModule": [
+                            "M"
+                        ]
                     },
                     "astDefType": {
                         "contents": [
@@ -53,7 +55,9 @@
                 "tag": "DefAST"
             }
         },
-        "moduleName": "M",
+        "moduleName": [
+            "M"
+        ],
         "moduleTypes": {
             "T": {
                 "contents": {
@@ -85,7 +89,9 @@
                                         [],
                                         {
                                             "baseName": "Nat",
-                                            "qualifiedModule": "Builtins"
+                                            "qualifiedModule": [
+                                                "Builtins"
+                                            ]
                                         }
                                     ],
                                     "tag": "TCon"
@@ -93,13 +99,17 @@
                             ],
                             "valConName": {
                                 "baseName": "C",
-                                "qualifiedModule": "M"
+                                "qualifiedModule": [
+                                    "M"
+                                ]
                             }
                         }
                     ],
                     "astTypeDefName": {
                         "baseName": "T",
-                        "qualifiedModule": "M"
+                        "qualifiedModule": [
+                            "M"
+                        ]
                     },
                     "astTypeDefNameHints": [],
                     "astTypeDefParameters": [
@@ -132,7 +142,9 @@
     "progSelection": {
         "selectedDef": {
             "baseName": "main",
-            "qualifiedModule": "M"
+            "qualifiedModule": [
+                "M"
+            ]
         },
         "selectedNode": {
             "meta": {

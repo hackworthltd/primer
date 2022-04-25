@@ -103,14 +103,14 @@ unit_diff_module_not_refl =
         (extendTypeDefCxt [mint] defaultCxt)
         mempty
         (TCon () tInt)
-        (TCon () $ tcn "M" "Int")
+        (TCon () $ tcn ["M"] "Int")
     )
     @?= Nothing
   where
     mint =
       TypeDefAST $
         ASTTypeDef
-          { astTypeDefName = tcn "M" "Int"
+          { astTypeDefName = tcn ["M"] "Int"
           , astTypeDefParameters = mempty
           , astTypeDefConstructors = mempty
           , astTypeDefNameHints = mempty

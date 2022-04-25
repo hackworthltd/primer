@@ -28,7 +28,7 @@ hprop_viewTreeType_injective = property $ do
 
 unit_viewTreeExpr_injective_con :: Assertion
 unit_viewTreeExpr_injective_con =
-  distinctTreeExpr (con' "M" "C") (con' "M" "D")
+  distinctTreeExpr (con' ["M"] "C") (con' ["M"] "D")
 
 unit_viewTreeExpr_injective_lam :: Assertion
 unit_viewTreeExpr_injective_lam =
@@ -44,7 +44,7 @@ unit_viewTreeExpr_injective_var =
 
 unit_viewTreeExpr_injective_globalvar :: Assertion
 unit_viewTreeExpr_injective_globalvar =
-  distinctTreeExpr (gvar' "M" "0") (gvar' "M" "1")
+  distinctTreeExpr (gvar' ["M"] "0") (gvar' ["M"] "1")
 
 -- When we changed how references were handled so 'Expr' had one constructor
 -- that handled both local and global variable references, there was a
@@ -53,7 +53,7 @@ unit_viewTreeExpr_injective_globalvar =
 -- global variables had a qualified name).
 unit_viewTreeExpr_injective_locglobvar :: Assertion
 unit_viewTreeExpr_injective_locglobvar =
-  distinctTreeExpr (lvar "x") (gvar' "M" "x")
+  distinctTreeExpr (lvar "x") (gvar' ["M"] "x")
 
 unit_viewTreeExpr_injective_let :: Assertion
 unit_viewTreeExpr_injective_let =
@@ -69,15 +69,15 @@ unit_viewTreeExpr_injective_letrec =
 
 unit_viewTreeExpr_injective_case_conName :: Assertion
 unit_viewTreeExpr_injective_case_conName =
-  distinctTreeExpr (case_ emptyHole [branch' ("M", "C") [("x", Nothing)] emptyHole]) (case_ emptyHole [branch' ("M", "D") [("x", Nothing)] emptyHole])
+  distinctTreeExpr (case_ emptyHole [branch' (["M"], "C") [("x", Nothing)] emptyHole]) (case_ emptyHole [branch' (["M"], "D") [("x", Nothing)] emptyHole])
 
 unit_viewTreeExpr_injective_case_paramName :: Assertion
 unit_viewTreeExpr_injective_case_paramName =
-  distinctTreeExpr (case_ emptyHole [branch' ("M", "C") [("x", Nothing)] emptyHole]) (case_ emptyHole [branch' ("M", "C") [("y", Nothing)] emptyHole])
+  distinctTreeExpr (case_ emptyHole [branch' (["M"], "C") [("x", Nothing)] emptyHole]) (case_ emptyHole [branch' (["M"], "C") [("y", Nothing)] emptyHole])
 
 unit_viewTreeType_injective_con :: Assertion
 unit_viewTreeType_injective_con =
-  distinctTreeType (tcon' "M" "T") (tcon' "M" "S")
+  distinctTreeType (tcon' ["M"] "T") (tcon' ["M"] "S")
 
 unit_viewTreeType_injective_var :: Assertion
 unit_viewTreeType_injective_var =

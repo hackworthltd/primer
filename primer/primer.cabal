@@ -131,6 +131,7 @@ test-suite primer-test
     GeneralizedNewtypeDeriving
     LambdaCase
     MultiParamTypeClasses
+    OverloadedLists
     OverloadedStrings
     ScopedTypeVariables
 

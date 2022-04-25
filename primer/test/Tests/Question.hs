@@ -17,6 +17,7 @@ import Primer.Core (
   Kind (KFun, KType),
   LVarName,
   LocalName (LocalName, unLocalName),
+  ModuleName (ModuleName),
   TyVarName,
   Type,
   Type' (TCon),
@@ -145,7 +146,7 @@ genSTE' =
         Right (ty, True) -> Global (qualifyName m n, ty)
    in evalExprGen 0 $ Gen.list (Range.linear 0 20) $ toSTE' <$> genModuleName <*> genName <*> g
   where
-    genModuleName = Gen.element ["M", "M1"]
+    genModuleName = ModuleName <$> Gen.element [["M"], ["M1"]]
 
 genSTE :: Gen ShadowedVarsExpr
 genSTE = deal . nubBy ((==) `on` nameSTE') <$> genSTE'

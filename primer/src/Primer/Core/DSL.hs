@@ -58,7 +58,7 @@ import Primer.Core (
   Kind,
   LVarName,
   Meta (..),
-  ModuleName,
+  ModuleName (ModuleName),
   PrimCon (..),
   TmVarRef (..),
   TyConName,
@@ -197,14 +197,14 @@ list_ t =
 
 -- | A helper for use in testsuite. With OverloadedStrings one can use literals
 -- for both arguments
-tcon' :: MonadFresh ID m => ModuleName -> Name -> m Type
-tcon' m n = tcon $ qualifyName m n
+tcon' :: MonadFresh ID m => NonEmpty Name -> Name -> m Type
+tcon' m n = tcon $ qualifyName (ModuleName m) n
 
-con' :: MonadFresh ID m => ModuleName -> Name -> m Expr
-con' m n = con $ qualifyName m n
+con' :: MonadFresh ID m => NonEmpty Name -> Name -> m Expr
+con' m n = con $ qualifyName (ModuleName m) n
 
-gvar' :: MonadFresh ID m => ModuleName -> Name -> m Expr
-gvar' m n = gvar $ qualifyName m n
+gvar' :: MonadFresh ID m => NonEmpty Name -> Name -> m Expr
+gvar' m n = gvar $ qualifyName (ModuleName m) n
 
-branch' :: MonadFresh ID m => (ModuleName, Name) -> [(LVarName, Maybe TypeCache)] -> m Expr -> m CaseBranch
-branch' (m, n) = branch $ qualifyName m n
+branch' :: MonadFresh ID m => (NonEmpty Name, Name) -> [(LVarName, Maybe TypeCache)] -> m Expr -> m CaseBranch
+branch' (m, n) = branch $ qualifyName (ModuleName m) n

@@ -27,6 +27,7 @@ module Primer.Core (
   HasMetadata (_metadata),
   ID (ID),
   ModuleName (ModuleName, unModuleName),
+  moduleNamePretty,
   GlobalNameKind (..),
   GlobalName (qualifiedModule, baseName),
   qualifyName,
@@ -101,7 +102,7 @@ import Optics (
   _4,
  )
 import Primer.JSON
-import Primer.Name (Name, unsafeMkName)
+import Primer.Name (Name, unName, unsafeMkName)
 
 -- | An identifier for an expression. Every node of the AST has an ID.
 newtype ID = ID {unID :: Int}
@@ -165,10 +166,12 @@ _synthed = #_TCSynthed `afailing` (#_TCEmb % #tcSynthed)
 -- nodes we're inserting.
 type ExprMeta = Meta (Maybe TypeCache)
 
-newtype ModuleName = ModuleName {unModuleName :: Name}
+newtype ModuleName = ModuleName {unModuleName :: NonEmpty Name}
   deriving (Eq, Ord, Show, Data, Generic)
-  deriving (IsString) via Name
-  deriving (FromJSON, ToJSON) via Name
+  deriving (FromJSON, ToJSON) via NonEmpty Name
+
+moduleNamePretty :: ModuleName -> Text
+moduleNamePretty = mconcat . intersperse "." . toList . fmap unName . unModuleName
 
 -- | Tags for 'GlobalName'
 data GlobalNameKind
@@ -189,8 +192,8 @@ instance ToJSON (GlobalName k)
 
 -- | Construct a name from a Text. This is called unsafe because there are no
 -- guarantees about whether the name refers to anything that is in scope.
-unsafeMkGlobalName :: (Text, Text) -> GlobalName k
-unsafeMkGlobalName (m, n) = GlobalName (ModuleName $ unsafeMkName m) (unsafeMkName n)
+unsafeMkGlobalName :: (NonEmpty Text, Text) -> GlobalName k
+unsafeMkGlobalName (m, n) = GlobalName (ModuleName $ fmap unsafeMkName m) (unsafeMkName n)
 
 qualifyName :: ModuleName -> Name -> GlobalName k
 qualifyName = GlobalName
@@ -500,8 +503,8 @@ data PrimCon
 -- This should be a key in `allPrimTypeDefs`.
 primConName :: PrimCon -> TyConName
 primConName = \case
-  PrimChar _ -> qualifyName "Primitives" "Char"
-  PrimInt _ -> qualifyName "Primitives" "Int"
+  PrimChar _ -> qualifyName (ModuleName $ "Primitives" :| []) "Char"
+  PrimInt _ -> qualifyName (ModuleName $ "Primitives" :| []) "Int"
 
 data PrimFun = PrimFun
   { primFunTypes :: forall m. MonadFresh ID m => m ([Type], Type)

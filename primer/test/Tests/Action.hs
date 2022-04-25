@@ -362,7 +362,7 @@ unit_bad_constructor =
     (const True)
     NoSmartHoles
     emptyHole
-    [ConstructCon ("M", "NotARealConstructor")]
+    [ConstructCon (["M"], "NotARealConstructor")]
 
 unit_bad_type_constructor :: Assertion
 unit_bad_type_constructor =
@@ -370,7 +370,7 @@ unit_bad_type_constructor =
     (const True)
     NoSmartHoles
     (ann emptyHole tEmptyHole)
-    [EnterType, ConstructTCon ("M", "NotARealTypeConstructor")]
+    [EnterType, ConstructTCon (["M"], "NotARealTypeConstructor")]
 
 unit_bad_app :: Assertion
 unit_bad_app =

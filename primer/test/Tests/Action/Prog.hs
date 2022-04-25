@@ -57,7 +57,7 @@ import Primer.Core (
   ID (ID),
   Kind (KType),
   Meta (..),
-  ModuleName (unModuleName),
+  ModuleName (ModuleName, unModuleName),
   TmVarRef (..),
   TyConName,
   Type,
@@ -726,16 +726,16 @@ unit_copy_paste_import =
         importModules [builtinModule]
         ty <- tcon tBool `tfun` tcon tBool
         e <- lam "x" $ lvar "x"
-        let def = ASTDef (TestUtils.gvn "M" "foo") e ty
+        let def = ASTDef (TestUtils.gvn ["M"] "foo") e ty
         let m =
               Module
-                { moduleName = "M"
+                { moduleName = ModuleName ["M"]
                 , moduleTypes = mempty
                 , moduleDefs = Map.singleton "foo" $ DefAST def
                 }
         importModules [m]
         prog <- gets appProg
-        case (findGlobalByName prog $ TestUtils.gvn "M" "foo", Map.assocs $ moduleDefsQualified $ progModule prog) of
+        case (findGlobalByName prog $ TestUtils.gvn ["M"] "foo", Map.assocs $ moduleDefsQualified $ progModule prog) of
           (Just (DefAST fooDef), [(i, _)]) -> do
             let fromDef = astDefName fooDef
                 fromType = getID $ astDefType fooDef
@@ -1132,6 +1132,7 @@ defaultFullProg = do
   let m = moduleName $ progModule p
       -- We need to move the primitives, which requires renaming
       -- unit_defaultFullModule_no_clash ensures that there will be no clashes
+      renamed :: [Module]
       renamed = transformBi (const m) [builtinModule, primitiveModule]
       renamedTypes = renamed ^.. folded % #moduleTypes % folded
       renamedDefs = foldOf (folded % #moduleDefs) renamed
@@ -1193,20 +1194,20 @@ unit_rename_module :: Assertion
 unit_rename_module =
   let test = do
         importModules [builtinModule]
-        handleEditRequest [RenameModule "Module2"]
+        handleEditRequest [RenameModule ["Module2"]]
       a = newEmptyApp
    in case fst $ runAppTestM (ID $ appIdCounter a) a test of
         Left err -> assertFailure $ show err
-        Right p -> moduleName (progModule p) @?= "Module2"
+        Right p -> unModuleName (moduleName $ progModule p) @?= ["Module2"]
 
 unit_rename_module_clash :: Assertion
 unit_rename_module_clash =
   let test = do
         importModules [builtinModule]
-        handleEditRequest [RenameModule "Builtins"]
+        handleEditRequest [RenameModule ["Builtins"]]
       a = newEmptyApp
    in do
-        moduleName builtinModule @?= "Builtins"
+        unModuleName (moduleName builtinModule) @?= ["Builtins"]
         case fst $ runAppTestM (ID $ appIdCounter a) a test of
           Left err -> err @?= RenameModuleNameClash
           Right _ -> assertFailure "Expected RenameModule to error, since module names clash with prior import"
@@ -1263,8 +1264,8 @@ astDefBaseName = baseName . astDefName
 mainModuleName :: ModuleName
 mainModuleName = moduleName $ progModule newEmptyProg
 
-mainModuleNameText :: Text
-mainModuleNameText = unName $ unModuleName mainModuleName
+mainModuleNameText :: NonEmpty Text
+mainModuleNameText = unName <$> unModuleName mainModuleName
 
 moveToDef :: Name -> ProgAction
 moveToDef = MoveToDef . qualifyName mainModuleName
@@ -1276,13 +1277,13 @@ deleteDef :: Name -> ProgAction
 deleteDef = DeleteDef . gvn
 
 tcn :: Name -> TyConName
-tcn = TestUtils.tcn mainModuleName
+tcn = TestUtils.tcn $ unModuleName mainModuleName
 
 vcn :: Name -> ValConName
-vcn = TestUtils.vcn mainModuleName
+vcn = TestUtils.vcn $ unModuleName mainModuleName
 
 gvn :: Name -> GVarName
-gvn = TestUtils.gvn mainModuleName
+gvn = TestUtils.gvn $ unModuleName mainModuleName
 
 astDef :: Name -> Expr -> Type -> ASTDef
 astDef = ASTDef . gvn
