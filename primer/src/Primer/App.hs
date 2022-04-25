@@ -22,6 +22,7 @@ module Primer.App (
   runEditAppM,
   runQueryAppM,
   Prog (..),
+  progAllModules,
   tcWholeProg,
   ProgAction (..),
   ProgError (..),
@@ -197,6 +198,9 @@ data Prog = Prog
   deriving (Eq, Show, Generic)
   deriving (FromJSON, ToJSON) via VJSON Prog
 
+progAllModules :: Prog -> [Module]
+progAllModules p = progModule p : progImports p
+
 -- Note [Modules]
 -- The invariant is that the @progImports@ modules are never edited, but
 -- one can insert new ones (and perhaps delete unneeded ones).
@@ -235,11 +239,11 @@ importModules ms = do
 
 -- | Get all type definitions from all modules (including imports)
 allTypes :: Prog -> Map TyConName TypeDef
-allTypes p = foldMap moduleTypes $ progModule p : progImports p
+allTypes p = foldMap moduleTypes $ progAllModules p
 
 -- | Get all definitions from all modules (including imports)
 allDefs :: Prog -> Map GVarName Def
-allDefs p = foldMap moduleDefs $ progModule p : progImports p
+allDefs p = foldMap moduleDefs $ progAllModules p
 
 -- | Add a definition to the editable module
 addDef :: ASTDef -> Prog -> Prog
@@ -528,7 +532,7 @@ applyProgAction prog mdefName = \case
         (TypeDefError . show @TypeError)
         ( runReaderT
             (checkTypeDefs $ mkTypeDefMap [TypeDefAST td])
-            (buildTypingContextFromModules (progModule prog : progImports prog) NoSmartHoles)
+            (buildTypingContextFromModules (progAllModules prog) NoSmartHoles)
         )
   RenameType old (unsafeMkGlobalName -> new) ->
     (,Nothing) <$> do
@@ -742,7 +746,7 @@ applyProgAction prog mdefName = \case
   BodyAction actions -> do
     withDef mdefName prog $ \def -> do
       smartHoles <- gets $ progSmartHoles . appProg
-      res <- applyActionsToBody smartHoles (progModule prog : progImports prog) def actions
+      res <- applyActionsToBody smartHoles (progAllModules prog) def actions
       case res of
         Left err -> throwError $ ActionError err
         Right (def', z) -> do
@@ -1141,7 +1145,7 @@ copyPasteBody p (fromDefName, fromId) toDefName setup = do
   smartHoles <- gets $ progSmartHoles . appProg
   -- The Loc zipper captures all the changes, they are only reflected in the
   -- returned Def, which we thus ignore
-  (oldDef, doneSetup) <- withDef (Just toDefName) p $ \def -> (def,) <$> applyActionsToBody smartHoles (progModule p : progImports p) def setup
+  (oldDef, doneSetup) <- withDef (Just toDefName) p $ \def -> (def,) <$> applyActionsToBody smartHoles (progAllModules p) def setup
   tgt <- case doneSetup of
     Left err -> throwError $ ActionError err
     Right (_, tgt) -> pure tgt
@@ -1262,7 +1266,7 @@ transformCaseBranches prog type_ f = transformM $ \case
   e -> pure e
 
 progCxt :: Prog -> Cxt
-progCxt p = buildTypingContextFromModules (progModule p : progImports p) (progSmartHoles p)
+progCxt p = buildTypingContextFromModules (progAllModules p) (progSmartHoles p)
 
 -- | Run a computation in some context whose errors can be promoted to `ProgError`.
 liftError :: MonadEditApp m => (e -> ProgError) -> ExceptT e m b -> m b

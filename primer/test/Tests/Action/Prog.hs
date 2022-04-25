@@ -40,6 +40,7 @@ import Primer.App (
   newEmptyApp,
   newEmptyProg,
   newProg,
+  progAllModules,
   tcWholeProg,
  )
 import Primer.Builtins (builtinModule, cCons, cJust, cMakePair, cNil, tBool, tList, tMaybe, tPair)
@@ -1035,7 +1036,7 @@ unit_AddConField_case =
 -- * Utilities
 
 findGlobalByName :: Prog -> GVarName -> Maybe Def
-findGlobalByName p n = Map.lookup n . foldMap moduleDefs $ progModule p : progImports p
+findGlobalByName p n = Map.lookup n . foldMap moduleDefs $ progAllModules p
 
 -- We use a program with two defs: "main" and "other"
 defaultEmptyProg :: MonadFresh ID m => m Prog

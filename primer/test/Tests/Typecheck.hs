@@ -22,9 +22,10 @@ import qualified Hedgehog.Gen as Gen
 import qualified Hedgehog.Range as Range
 import Optics (over, set)
 import Primer.App (
-  Prog (progImports),
+  Prog,
   newEmptyProg,
   newProg,
+  progAllModules,
   progModule,
  )
 import Primer.Builtins (
@@ -509,7 +510,7 @@ checkProgWellFormed p' = case runTypecheckTestM NoSmartHoles $ do
     NoSmartHoles
     CheckEverything
       { trusted = mempty
-      , toCheck = progModule p : progImports p
+      , toCheck = progAllModules p
       } of
   Left err -> assertFailure $ show err
   Right _ -> pure ()
