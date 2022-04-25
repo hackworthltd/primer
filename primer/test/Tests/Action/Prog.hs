@@ -32,7 +32,7 @@ import Primer.App (
   Prog (..),
   ProgAction (..),
   ProgError (..),
-  Question (VariablesInScope),
+  Question (GenerateName, VariablesInScope),
   Selection (..),
   handleEditRequest,
   handleQuestion,
@@ -1065,6 +1065,27 @@ unit_AddConField_case =
                 , branch cB [] emptyHole
                 ]
           )
+
+-- Check that we see name hints from imported modules
+-- (This differs from the tests in Tests.Question by testing the actual action,
+-- rather than the underlying functionality)
+unit_generate_names_import :: Assertion
+unit_generate_names_import =
+  let test = do
+        importModules [builtinModule]
+        gets (Map.assocs . moduleDefsQualified . progModule . appProg) >>= \case
+          [(i, DefAST d)] -> do
+            a' <- get
+            ns <-
+              runReaderT
+                (handleQuestion (GenerateName i (getID $ astDefExpr d) $ Left $ Just $ TCon () tBool))
+                a'
+            pure $ ns @?= ["p", "q"]
+          _ -> pure $ assertFailure "Expected one def 'main' from newEmptyApp"
+      a = newEmptyApp
+   in case fst $ runAppTestM (ID $ appIdCounter a) a test of
+        Left err -> assertFailure $ show err
+        Right assertion -> assertion
 
 -- * Utilities
 

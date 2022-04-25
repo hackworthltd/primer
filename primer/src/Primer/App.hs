@@ -159,7 +159,6 @@ import Primer.Typecheck (
   Cxt,
   SmartHoles (NoSmartHoles, SmartHoles),
   TypeError,
-  buildTypingContext,
   buildTypingContextFromModules,
   checkDef,
   checkEverything,
@@ -392,14 +391,12 @@ handleQuestion = \case
           Right zT -> (variablesInScopeTy zT, [], [])
     pure ((tyvars, termvars), globals)
   GenerateName defid nodeid typeKind -> do
-    progTypeDefs <- asks $ moduleTypesQualified . progModule . appProg
-    progDefs <- asks $ moduleDefsQualified . progModule . appProg
+    prog <- asks appProg
     names <-
       focusNode' defid nodeid <&> \case
         Left zE -> generateNameExpr typeKind zE
         Right zT -> generateNameTy typeKind zT
-    -- The choice of SmartHoles is irrelevant here
-    pure $ runReader names $ buildTypingContext progTypeDefs progDefs SmartHoles
+    pure $ runReader names $ progCxt prog
   where
     focusNode' defname nodeid = do
       prog <- asks appProg
