@@ -26,7 +26,7 @@ module Primer.Core (
   setID,
   HasMetadata (_metadata),
   ID (ID),
-  ModuleName,
+  ModuleName (ModuleName, unModuleName),
   GlobalNameKind (..),
   GlobalName (qualifiedModule, baseName),
   qualifyName,
@@ -165,7 +165,10 @@ _synthed = #_TCSynthed `afailing` (#_TCEmb % #tcSynthed)
 -- nodes we're inserting.
 type ExprMeta = Meta (Maybe TypeCache)
 
-type ModuleName = Name
+newtype ModuleName = ModuleName {unModuleName :: Name}
+  deriving (Eq, Ord, Show, Data, Generic)
+  deriving (IsString) via Name
+  deriving (FromJSON, ToJSON) via Name
 
 -- | Tags for 'GlobalName'
 data GlobalNameKind
@@ -187,9 +190,9 @@ instance ToJSON (GlobalName k)
 -- | Construct a name from a Text. This is called unsafe because there are no
 -- guarantees about whether the name refers to anything that is in scope.
 unsafeMkGlobalName :: (Text, Text) -> GlobalName k
-unsafeMkGlobalName (m, n) = GlobalName (unsafeMkName m) (unsafeMkName n)
+unsafeMkGlobalName (m, n) = GlobalName (ModuleName $ unsafeMkName m) (unsafeMkName n)
 
-qualifyName :: Name -> Name -> GlobalName k
+qualifyName :: ModuleName -> Name -> GlobalName k
 qualifyName = GlobalName
 
 type TyConName = GlobalName 'ATyCon

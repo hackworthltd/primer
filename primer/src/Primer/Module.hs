@@ -7,9 +7,11 @@ module Primer.Module (
   moduleDefsQualified,
   insertDef,
   deleteDef,
+  renameModule,
 ) where
 
 import Data.Data (Data)
+import Data.Generics.Uniplate.Data (transformBi)
 import Data.Map (delete, insert, mapKeys, member)
 import qualified Data.Map as M
 import Foreword
@@ -67,3 +69,14 @@ deleteDef m d =
   if d `member` moduleDefsQualified m
     then Just $ m{moduleDefs = delete (baseName d) (moduleDefs m)}
     else Nothing
+
+-- | Renames a module and any references to it (in the given 'Traversable' of
+-- modules). Returns 'Nothing' if the requested new name is in use
+-- (as the name of one of the modules, references are not detected)
+renameModule :: Traversable t => ModuleName -> ModuleName -> t Module -> Maybe (t Module)
+renameModule fromName toName = traverse rn1
+  where
+    rn1 m =
+      if moduleName m == toName
+        then Nothing
+        else pure $ transformBi (\n -> if n == fromName then toName else n) m

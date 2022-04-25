@@ -18,7 +18,7 @@ import Primer.Core (
   GVarName,
   GlobalName (baseName, qualifiedModule),
   ID,
-  ModuleName,
+  ModuleName (unModuleName),
   PrimDef (..),
   TyConName,
   ValConName,
@@ -48,7 +48,7 @@ constructRefinedCon :: ValConName -> Action
 constructRefinedCon = ConstructRefinedCon . toQualText
 
 toQualText :: GlobalName k -> (Text, Text)
-toQualText n = (unName $ qualifiedModule n, unName $ baseName n)
+toQualText n = (unName $ unModuleName $ qualifiedModule n, unName $ baseName n)
 
 vcn :: ModuleName -> Name -> ValConName
 vcn = qualifyName
