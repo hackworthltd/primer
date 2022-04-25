@@ -26,15 +26,24 @@
                     {
                         "contents": [
                             [],
-                            "Nat"
+                            {
+                                "baseName": "Nat",
+                                "qualifiedModule": "Builtins"
+                            }
                         ],
                         "tag": "TCon"
                     }
                 ],
-                "valConName": "C"
+                "valConName": {
+                    "baseName": "C",
+                    "qualifiedModule": "M"
+                }
             }
         ],
-        "astTypeDefName": "T",
+        "astTypeDefName": {
+            "baseName": "T",
+            "qualifiedModule": "M"
+        },
         "astTypeDefNameHints": [],
         "astTypeDefParameters": [
             [

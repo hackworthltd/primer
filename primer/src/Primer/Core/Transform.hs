@@ -17,7 +17,17 @@ import Control.Monad.Fresh (MonadFresh)
 import Data.Data (Data)
 import Data.Generics.Uniplate.Data (descendM)
 import qualified Data.List.NonEmpty as NE
-import Primer.Core (CaseBranch' (..), Expr, Expr' (..), ID, LVarName, LocalName (unLocalName), TmVarRef (..), TyVarName, Type' (..), bindName, varRefName)
+import Primer.Core (
+  CaseBranch' (..),
+  Expr,
+  Expr' (..),
+  ID,
+  LVarName,
+  TmVarRef (..),
+  TyVarName,
+  Type' (..),
+  bindName,
+ )
 import Primer.Core.DSL (meta)
 
 -- AST transformations.
@@ -28,44 +38,27 @@ import Primer.Core.DSL (meta)
 -- Returns 'Nothing' if replacement could result in variable capture.
 -- See the tests for explanation and examples.
 renameVar :: (Data a, Data b) => TmVarRef -> TmVarRef -> Expr' a b -> Maybe (Expr' a b)
-renameVar x y =
-  let xn = varRefName x
-      yn = varRefName y
-   in \case
-        Lam m v e
-          | LocalVarRef v == x -> pure $ Lam m v e
-          | LocalVarRef v == y -> Nothing
-          -- If we have the same Name, but different local/global scopes
-          -- also bail out as something has gone wrong.
-          | unLocalName v == xn || unLocalName v == yn -> Nothing
-          | otherwise -> Lam m v <$> renameVar x y e
-        Let m v e1 e2
-          | LocalVarRef v == x -> pure $ Let m v e1 e2
-          | LocalVarRef v == y -> Nothing
-          -- If we have the same Name, but different local/global scopes
-          -- also bail out as something has gone wrong.
-          | unLocalName v == xn || unLocalName v == yn -> Nothing
-          | otherwise -> Let m v <$> renameVar x y e1 <*> renameVar x y e2
-        Case m scrut branches -> Case m <$> renameVar x y scrut <*> mapM renameBranch branches
-          where
-            renameBranch b@(CaseBranch con termargs rhs)
-              | LocalVarRef lx <- x, lx `elem` bindingNames b = pure b
-              | LocalVarRef ly <- y, ly `elem` bindingNames b = Nothing
-              -- If we have the same Name, but different local/global scopes
-              -- also bail out as something has gone wrong.
-              | bns <- map unLocalName $ bindingNames b
-              , xn `elem` bns || yn `elem` bns =
-                  Nothing
-              | otherwise = CaseBranch con termargs <$> renameVar x y rhs
-            bindingNames (CaseBranch _ bs _) = map bindName bs
-        Var m v
-          | v == x -> pure $ Var m y
-          | v == y -> Nothing
-          -- If we have the same Name, but different local/global scopes
-          -- also bail out as something has gone wrong.
-          | varRefName v == xn || varRefName v == yn -> Nothing
-          | otherwise -> pure $ Var m v
-        e -> descendM (renameVar x y) e
+renameVar x y = \case
+  Lam m v e
+    | LocalVarRef v == x -> pure $ Lam m v e
+    | LocalVarRef v == y -> Nothing
+    | otherwise -> Lam m v <$> renameVar x y e
+  Let m v e1 e2
+    | LocalVarRef v == x -> pure $ Let m v e1 e2
+    | LocalVarRef v == y -> Nothing
+    | otherwise -> Let m v <$> renameVar x y e1 <*> renameVar x y e2
+  Case m scrut branches -> Case m <$> renameVar x y scrut <*> mapM renameBranch branches
+    where
+      renameBranch b@(CaseBranch con termargs rhs)
+        | LocalVarRef lx <- x, lx `elem` bindingNames b = pure b
+        | LocalVarRef ly <- y, ly `elem` bindingNames b = Nothing
+        | otherwise = CaseBranch con termargs <$> renameVar x y rhs
+      bindingNames (CaseBranch _ bs _) = map bindName bs
+  Var m v
+    | v == x -> pure $ Var m y
+    | v == y -> Nothing
+    | otherwise -> pure $ Var m v
+  e -> descendM (renameVar x y) e
 
 -- | As 'renameVar', but specialised to local variables
 renameLocalVar :: (Data a, Data b) => LVarName -> LVarName -> Expr' a b -> Maybe (Expr' a b)

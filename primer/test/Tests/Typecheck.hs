@@ -22,15 +22,29 @@ import qualified Hedgehog.Gen as Gen
 import qualified Hedgehog.Range as Range
 import Optics (over, set)
 import Primer.App (
-  Prog (progImports),
+  Prog,
+  newEmptyProg,
+  newProg,
+  progAllModules,
+  progModule,
+ )
+import Primer.Builtins (
   boolDef,
-  defaultTypeDefs,
+  builtinModule,
+  cCons,
+  cFalse,
+  cNil,
+  cSucc,
+  cTrue,
+  cZero,
   eitherDef,
   listDef,
   natDef,
-  newEmptyProg,
-  newProg,
-  progModule,
+  tBool,
+  tEither,
+  tList,
+  tMaybe,
+  tNat,
  )
 import Primer.Core (
   ASTTypeDef (..),
@@ -61,28 +75,28 @@ import Primer.Core.DSL
 import Primer.Core.Utils (generateIDs, generateTypeIDs)
 import Primer.Module
 import Primer.Name (NameCounter)
+import Primer.Primitives (primitiveGVar, primitiveModule, tChar)
 import Primer.Typecheck (
   CheckEverythingRequest (CheckEverything, toCheck, trusted),
   Cxt,
   ExprT,
   SmartHoles (NoSmartHoles, SmartHoles),
   TypeError (..),
-  buildTypingContext,
+  buildTypingContextFromModules,
   checkEverything,
   decomposeTAppCon,
   mkTAppCon,
-  mkTypeDefMap,
   synth,
   synthKind,
  )
 import Test.Tasty.HUnit (Assertion, assertFailure, (@?=))
 import TestM (TestM, evalTestM)
-import TestUtils (withPrimDefs)
+import TestUtils (gvn, tcn, vcn)
 import Tests.Gen.Core.Typed
 
 unit_identity :: Assertion
 unit_identity =
-  expectTyped $ ann (lam "x" (lvar "x")) (tfun (tcon "Bool") (tcon "Bool"))
+  expectTyped $ ann (lam "x" (lvar "x")) (tfun (tcon tBool) (tcon tBool))
 
 unit_undefined_variable :: Assertion
 unit_undefined_variable =
@@ -93,21 +107,23 @@ unit_const =
   expectTyped $
     ann
       (lam "x" (lam "y" (lvar "x")))
-      (tfun (tcon "Bool") (tfun (tcon "Bool") (tcon "Bool")))
+      (tfun (tcon tBool) (tfun (tcon tBool) (tcon tBool)))
 
 unit_true :: Assertion
-unit_true = expectTyped $ con "True"
+unit_true = expectTyped $ con cTrue
 
 unit_constructor_doesn't_exist :: Assertion
 unit_constructor_doesn't_exist =
-  con "Nope" `expectFailsWith` const (UnknownConstructor "Nope")
+  con nope `expectFailsWith` const (UnknownConstructor nope)
+  where
+    nope = vcn "M" "Nope"
 
 unit_inc :: Assertion
 unit_inc =
   expectTyped $
     ann
-      (lam "n" (app (con "Succ") (lvar "n")))
-      (tfun (tcon "Nat") (tcon "Nat"))
+      (lam "n" (app (con cSucc) (lvar "n")))
+      (tfun (tcon tNat) (tcon tNat))
 
 unit_compose_nat :: Assertion
 unit_compose_nat =
@@ -115,17 +131,17 @@ unit_compose_nat =
     ann
       (lam "f" (lam "g" (app (lvar "f") (hole (lvar "g")))))
       ( tfun
-          (tfun (tcon "Nat") (tcon "Nat"))
+          (tfun (tcon tNat) (tcon tNat))
           ( tfun
-              (tfun (tcon "Nat") (tcon "Nat"))
-              (tcon "Nat")
+              (tfun (tcon tNat) (tcon tNat))
+              (tcon tNat)
           )
       )
 
 -- let x = True in x
 unit_let :: Assertion
 unit_let =
-  expectTyped $ let_ "x" (con "True") (lvar "x")
+  expectTyped $ let_ "x" (con cTrue) (lvar "x")
 
 -- Normal lets do not permit recursion
 unit_recursive_let :: Assertion
@@ -137,7 +153,7 @@ unit_recursive_let =
 unit_letrec_1 :: Assertion
 unit_letrec_1 =
   expectTyped $
-    letrec "x" (lvar "x") (tcon "Bool") (lvar "x")
+    letrec "x" (lvar "x") (tcon tBool) (lvar "x")
 
 -- let double : Nat -> Nat
 --     double = \x -> case x of
@@ -153,26 +169,26 @@ unit_letrec_2 =
           "x"
           ( case_
               (lvar "x")
-              [ branch "Zero" [] (con "Zero")
+              [ branch cZero [] (con cZero)
               , branch
-                  "Succ"
+                  cSucc
                   [("n", Nothing)]
                   ( app
-                      (con "Succ")
-                      (app (con "Succ") (app (lvar "double") (lvar "n")))
+                      (con cSucc)
+                      (app (con cSucc) (app (lvar "double") (lvar "n")))
                   )
               ]
           )
       )
-      (tfun (tcon "Nat") (tcon "Nat"))
-      (app (lvar "double") (app (con "Succ") (con "Zero")))
+      (tfun (tcon tNat) (tcon tNat))
+      (app (lvar "double") (app (con cSucc) (con cZero)))
 
 -- let x = True
 --  in let y = False
 --      in x
 unit_nested_let :: Assertion
 unit_nested_let =
-  expectTyped $ let_ "x" (con "True") (let_ "y" (con "False") (lvar "x"))
+  expectTyped $ let_ "x" (con cTrue) (let_ "y" (con cFalse) (lvar "x"))
 
 -- let yes = \x -> True : Bool -> Bool
 --  in let y = False
@@ -182,8 +198,8 @@ unit_let_function =
   expectTyped $
     let_
       "yes"
-      (ann (lam "x" (con "True")) (tfun (tcon "Bool") (tcon "Bool")))
-      (let_ "y" (con "False") (app (lvar "yes") (lvar "y")))
+      (ann (lam "x" (con cTrue)) (tfun (tcon tBool) (tcon tBool)))
+      (let_ "y" (con cFalse) (app (lvar "yes") (lvar "y")))
 
 -- (\f -> f : (Bool -> Bool) -> (Bool -> Bool)) (let y = True in \x -> y)
 unit_let_in_arg :: Assertion
@@ -192,15 +208,19 @@ unit_let_in_arg =
     app
       ( ann
           (lam "f" (lvar "f"))
-          (tfun (tfun (tcon "Bool") (tcon "Bool")) (tfun (tcon "Bool") (tcon "Bool")))
+          (tfun (tfun (tcon tBool) (tcon tBool)) (tfun (tcon tBool) (tcon tBool)))
       )
-      (let_ "y" (con "True") (lam "x" (lvar "y")))
+      (let_ "y" (con cTrue) (lam "x" (lvar "y")))
 
 unit_mkTAppCon :: Assertion
 unit_mkTAppCon = do
-  mkTAppCon "C" [] @?= TCon () "C"
-  mkTAppCon "C" [TCon () "X"] @?= TApp () (TCon () "C") (TCon () "X")
-  mkTAppCon "C" [TCon () "X", TCon () "Y"] @?= TApp () (TApp () (TCon () "C") (TCon () "X")) (TCon () "Y")
+  mkTAppCon c [] @?= TCon () c
+  mkTAppCon c [TCon () x] @?= TApp () (TCon () c) (TCon () x)
+  mkTAppCon c [TCon () x, TCon () y] @?= TApp () (TApp () (TCon () c) (TCon () x)) (TCon () y)
+  where
+    c = tcn "M1" "C"
+    x = tcn "M2" "X"
+    y = tcn "M2" "Y"
 
 -- Note [cover]
 -- We disable coverage checking as it causes spurious hydra failures which are
@@ -236,21 +256,21 @@ unit_typeDefKind = do
 
 unit_valConType :: Assertion
 unit_valConType = do
-  f boolDef @?= [TCon () "Bool", TCon () "Bool"]
-  f natDef @?= [TCon () "Nat", TFun () (TCon () "Nat") (TCon () "Nat")]
+  f boolDef @?= [TCon () tBool, TCon () tBool]
+  f natDef @?= [TCon () tNat, TFun () (TCon () tNat) (TCon () tNat)]
   f listDef
-    @?= [ TForall () "a" KType (TApp () (TCon () "List") (TVar () "a"))
-        , TForall () "a" KType $ TFun () (TVar () "a") $ TFun () (TApp () (TCon () "List") (TVar () "a")) $ TApp () (TCon () "List") (TVar () "a")
+    @?= [ TForall () "a" KType (TApp () (TCon () tList) (TVar () "a"))
+        , TForall () "a" KType $ TFun () (TVar () "a") $ TFun () (TApp () (TCon () tList) (TVar () "a")) $ TApp () (TCon () tList) (TVar () "a")
         ]
   f eitherDef
     @?= [ TForall () "a" KType $
             TForall () "b" KType $
               TFun () (TVar () "a") $
-                TApp () (TApp () (TCon () "Either") (TVar () "a")) (TVar () "b")
+                TApp () (TApp () (TCon () tEither) (TVar () "a")) (TVar () "b")
         , TForall () "a" KType $
             TForall () "b" KType $
               TFun () (TVar () "b") $
-                TApp () (TApp () (TCon () "Either") (TVar () "a")) (TVar () "b")
+                TApp () (TApp () (TCon () tEither) (TVar () "a")) (TVar () "b")
         ]
   where
     f t = map (valConType t) (astTypeDefConstructors t)
@@ -259,34 +279,36 @@ unit_valConType = do
 unit_case_isZero :: Assertion
 unit_case_isZero =
   expectTyped $
-    ann (lam "x" $ case_ (lvar "x") [branch "Zero" [] (con "True"), branch "Succ" [("n", Nothing)] (con "False")]) (tfun (tcon "Nat") (tcon "Bool"))
+    ann (lam "x" $ case_ (lvar "x") [branch cZero [] (con cTrue), branch cSucc [("n", Nothing)] (con cFalse)]) (tfun (tcon tNat) (tcon tBool))
 
 -- Nat -> Bool rejects \x . case x of {}
 unit_case_badEmpty :: Assertion
 unit_case_badEmpty =
-  ann (lam "x" $ case_ (lvar "x") []) (tfun (tcon "Nat") (tcon "Bool"))
-    `expectFailsWith` const (WrongCaseBranches "Nat" [])
+  ann (lam "x" $ case_ (lvar "x") []) (tfun (tcon tNat) (tcon tBool))
+    `expectFailsWith` const (WrongCaseBranches tNat [])
 
 -- Cannot case on a Nat -> Nat
 unit_case_badType :: Assertion
 unit_case_badType =
-  ann (lam "x" $ case_ (lvar "x") []) (tfun (tfun (tcon "Nat") (tcon "Nat")) (tcon "Bool"))
-    `expectFailsWith` const (CannotCaseNonADT $ TFun () (TCon () "Nat") (TCon () "Nat"))
+  ann (lam "x" $ case_ (lvar "x") []) (tfun (tfun (tcon tNat) (tcon tNat)) (tcon tBool))
+    `expectFailsWith` const (CannotCaseNonADT $ TFun () (TCon () tNat) (TCon () tNat))
 
 -- Cannot annotate something with a non-existent type constructor
 unit_ann_bad :: Assertion
 unit_ann_bad =
-  ann emptyHole (tcon "IDoNotExist") `expectFailsWith` const (UnknownTypeConstructor "IDoNotExist")
+  ann emptyHole (tcon nonexistant) `expectFailsWith` const (UnknownTypeConstructor nonexistant)
+  where
+    nonexistant = tcn "M" "IDoNotExist"
 
 unit_ann_insert :: Assertion
 unit_ann_insert =
-  app (lam "x" $ lvar "x") (con "Zero")
-    `smartSynthGives` app (ann (lam "x" $ lvar "x") tEmptyHole) (con "Zero")
+  app (lam "x" $ lvar "x") (con cZero)
+    `smartSynthGives` app (ann (lam "x" $ lvar "x") tEmptyHole) (con cZero)
 
 unit_app_not_arrow :: Assertion
 unit_app_not_arrow =
-  app (con "Zero") (con "Zero")
-    `smartSynthGives` app (hole (con "Zero")) (con "Zero")
+  app (con cZero) (con cZero)
+    `smartSynthGives` app (hole (con cZero)) (con cZero)
 
 -- Note: there is something odd with this test, related to
 -- annotations-changing-types/chk-annotations I think the correct thing to give
@@ -295,28 +317,28 @@ unit_app_not_arrow =
 -- The smartTC currently gives an annotation inside a hole.
 unit_chk_lam_not_arrow :: Assertion
 unit_chk_lam_not_arrow =
-  app (con "Succ") (lam "x" $ lvar "x")
-    `smartSynthGives` app (con "Succ") (hole $ ann (lam "x" $ lvar "x") tEmptyHole)
+  app (con cSucc) (lam "x" $ lvar "x")
+    `smartSynthGives` app (con cSucc) (hole $ ann (lam "x" $ lvar "x") tEmptyHole)
 
 unit_check_emb :: Assertion
 unit_check_emb =
-  app (con "Succ") (con "True")
-    `smartSynthGives` app (con "Succ") (hole $ con "True")
+  app (con cSucc) (con cTrue)
+    `smartSynthGives` app (con cSucc) (hole $ con cTrue)
 
 unit_case_scrutinee :: Assertion
 unit_case_scrutinee =
-  ann (case_ (con "Succ") [branch "C" [] $ lvar "x"]) (tcon "Bool")
-    `smartSynthGives` ann (case_ (hole $ con "Succ") []) (tcon "Bool")
+  ann (case_ (con cSucc) [branch' ("M", "C") [] $ lvar "x"]) (tcon tBool)
+    `smartSynthGives` ann (case_ (hole $ con cSucc) []) (tcon tBool)
 
 unit_case_branches :: Assertion
 unit_case_branches =
-  ann (case_ (con "Zero") [branch "C" [] $ lvar "x"]) (tcon "Bool")
-    `smartSynthGives` ann (case_ (con "Zero") [branch "Zero" [] emptyHole, branch "Succ" [("a7", Nothing)] emptyHole]) (tcon "Bool") -- Fragile name here "a7"
+  ann (case_ (con cZero) [branch' ("M", "C") [] $ lvar "x"]) (tcon tBool)
+    `smartSynthGives` ann (case_ (con cZero) [branch cZero [] emptyHole, branch cSucc [("a7", Nothing)] emptyHole]) (tcon tBool) -- Fragile name here "a7"
 
 unit_remove_hole :: Assertion
 unit_remove_hole =
-  ann (lam "x" $ hole (lvar "x")) (tfun (tcon "Nat") (tcon "Nat"))
-    `smartSynthGives` ann (lam "x" $ lvar "x") (tfun (tcon "Nat") (tcon "Nat"))
+  ann (lam "x" $ hole (lvar "x")) (tfun (tcon tNat) (tcon tNat))
+    `smartSynthGives` ann (lam "x" $ lvar "x") (tfun (tcon tNat) (tcon tNat))
 
 -- It is not clear how to (efficiently) remove the hole in
 -- {? Succ ?} Zero
@@ -326,9 +348,9 @@ unit_remove_hole =
 -- This is tracked as https://github.com/hackworthltd/primer/issues/7
 unit_remove_hole_not_perfect :: Assertion
 unit_remove_hole_not_perfect =
-  app (hole (con "Succ")) (con "Zero")
-    `smartSynthGives` app (hole (con "Succ")) (con "Zero") -- We currently give this as output
-    -- app (con "Succ") (con "Zero") -- We would prefer to see the hole removed
+  app (hole (con cSucc)) (con cZero)
+    `smartSynthGives` app (hole (con cSucc)) (con cZero) -- We currently give this as output
+    -- app (con cSucc) (con cZero) -- We would prefer to see the hole removed
 
 -- When not using "smart" TC which automatically inserts holes etc,
 -- one would have to do a bit of dance to build a case expression, and
@@ -342,21 +364,21 @@ unit_smart_remove_clean_case =
           ann
             ( case_
                 (lvar "x")
-                [branch "True" [] (con "Zero"), branch "False" [] emptyHole]
+                [branch cTrue [] (con cZero), branch cFalse [] emptyHole]
             )
             tEmptyHole
     )
-    (tfun (tcon "Bool") (tcon "Nat"))
+    (tfun (tcon tBool) (tcon tNat))
     `smartSynthGives` ann
       ( lam "x" $
           ann
             ( case_
                 (lvar "x")
-                [branch "True" [] (con "Zero"), branch "False" [] emptyHole]
+                [branch cTrue [] (con cZero), branch cFalse [] emptyHole]
             )
             tEmptyHole
       )
-      (tfun (tcon "Bool") (tcon "Nat"))
+      (tfun (tcon tBool) (tcon tNat))
 
 unit_poly :: Assertion
 unit_poly =
@@ -372,107 +394,107 @@ unit_poly_head_Nat =
       ( lam "x" $
           case_
             (lvar "x")
-            [ branch "Nil" [] (con "Zero")
-            , branch "Cons" [("y", Nothing), ("ys", Nothing)] $ con "Succ" `app` lvar "y"
+            [ branch cNil [] (con cZero)
+            , branch cCons [("y", Nothing), ("ys", Nothing)] $ con cSucc `app` lvar "y"
             ]
       )
-      ((tcon "List" `tapp` tcon "Nat") `tfun` tcon "Nat")
+      ((tcon tList `tapp` tcon tNat) `tfun` tcon tNat)
 
 unit_type_hole_1 :: Assertion
 unit_type_hole_1 = tEmptyHole `expectKinded` KHole
 
 unit_type_hole_2 :: Assertion
-unit_type_hole_2 = tapp tEmptyHole (tcon "Bool") `expectKinded` KHole
+unit_type_hole_2 = tapp tEmptyHole (tcon tBool) `expectKinded` KHole
 
 unit_type_hole_3 :: Assertion
-unit_type_hole_3 = tapp tEmptyHole (tcon "List") `expectKinded` KHole
+unit_type_hole_3 = tapp tEmptyHole (tcon tList) `expectKinded` KHole
 
 unit_type_hole_4 :: Assertion
-unit_type_hole_4 = tapp (tcon "MaybeT") tEmptyHole `expectKinded` KFun KType KType
+unit_type_hole_4 = tapp (tcon tMaybeT) tEmptyHole `expectKinded` KFun KType KType
 
 unit_type_hole_5 :: Assertion
 unit_type_hole_5 = tforall "a" KType tEmptyHole `expectKinded` KType
 
 unit_type_hole_6 :: Assertion
-unit_type_hole_6 = thole (tcon "Bool") `expectKinded` KHole
+unit_type_hole_6 = thole (tcon tBool) `expectKinded` KHole
 
 unit_smart_type_not_arrow :: Assertion
 unit_smart_type_not_arrow =
-  tapp (tcon "Bool") (tcon "Bool")
-    `smartSynthKindGives` tapp (thole $ tcon "Bool") (tcon "Bool")
+  tapp (tcon tBool) (tcon tBool)
+    `smartSynthKindGives` tapp (thole $ tcon tBool) (tcon tBool)
 
 unit_smart_type_forall :: Assertion
 unit_smart_type_forall =
-  tforall "a" KType (tcon "List")
-    `smartSynthKindGives` tforall "a" KType (thole $ tcon "List")
+  tforall "a" KType (tcon tList)
+    `smartSynthKindGives` tforall "a" KType (thole $ tcon tList)
 
 unit_smart_type_not_type :: Assertion
 unit_smart_type_not_type =
-  tapp (tcon "List") (tcon "List")
-    `smartSynthKindGives` tapp (tcon "List") (thole $ tcon "List")
+  tapp (tcon tList) (tcon tList)
+    `smartSynthKindGives` tapp (tcon tList) (thole $ tcon tList)
 
 unit_smart_type_fun :: Assertion
 unit_smart_type_fun =
-  tfun (tcon "List") (tcon "MaybeT")
-    `smartSynthKindGives` tfun (thole $ tcon "List") (thole $ tcon "MaybeT")
+  tfun (tcon tList) (tcon tMaybeT)
+    `smartSynthKindGives` tfun (thole $ tcon tList) (thole $ tcon tMaybeT)
 
 unit_smart_type_inside_hole_1 :: Assertion
 unit_smart_type_inside_hole_1 =
-  thole (tcon "Bool" `tapp` tcon "MaybeT")
-    `smartSynthKindGives` (thole (tcon "Bool") `tapp` tcon "MaybeT")
+  thole (tcon tBool `tapp` tcon tMaybeT)
+    `smartSynthKindGives` (thole (tcon tBool) `tapp` tcon tMaybeT)
 
 unit_smart_type_inside_hole_2 :: Assertion
 unit_smart_type_inside_hole_2 =
-  thole (tcon "List" `tapp` tcon "MaybeT")
-    `smartSynthKindGives` (tcon "List" `tapp` thole (tcon "MaybeT"))
+  thole (tcon tList `tapp` tcon tMaybeT)
+    `smartSynthKindGives` (tcon tList `tapp` thole (tcon tMaybeT))
 
 unit_smart_type_inside_hole_3 :: Assertion
 unit_smart_type_inside_hole_3 =
-  (tcon "List" `tapp` thole (tcon "MaybeT" `tapp` tcon "Bool"))
-    `smartSynthKindGives` (tcon "List" `tapp` thole (tcon "MaybeT" `tapp` thole (tcon "Bool")))
+  (tcon tList `tapp` thole (tcon tMaybeT `tapp` tcon tBool))
+    `smartSynthKindGives` (tcon tList `tapp` thole (tcon tMaybeT `tapp` thole (tcon tBool)))
 
 unit_smart_type_remove_1 :: Assertion
 unit_smart_type_remove_1 =
-  tapp (thole $ tcon "List") (tcon "Bool")
-    `smartSynthKindGives` tapp (tcon "List") (tcon "Bool")
+  tapp (thole $ tcon tList) (tcon tBool)
+    `smartSynthKindGives` tapp (tcon tList) (tcon tBool)
 
 unit_smart_type_remove_2 :: Assertion
 unit_smart_type_remove_2 =
-  tforall "a" KType (thole $ tcon "Bool")
-    `smartSynthKindGives` tforall "a" KType (tcon "Bool")
+  tforall "a" KType (thole $ tcon tBool)
+    `smartSynthKindGives` tforall "a" KType (tcon tBool)
 
 unit_smart_type_remove_3 :: Assertion
 unit_smart_type_remove_3 =
-  tapp (tcon "List") (thole $ tcon "Bool")
-    `smartSynthKindGives` tapp (tcon "List") (tcon "Bool")
+  tapp (tcon tList) (thole $ tcon tBool)
+    `smartSynthKindGives` tapp (tcon tList) (tcon tBool)
 
 unit_smart_type_remove_4 :: Assertion
 unit_smart_type_remove_4 =
-  tfun (thole $ tcon "Bool") (thole $ tcon "Nat")
-    `smartSynthKindGives` tfun (tcon "Bool") (tcon "Nat")
+  tfun (thole $ tcon tBool) (thole $ tcon tNat)
+    `smartSynthKindGives` tfun (tcon tBool) (tcon tNat)
 
 unit_smart_type_remove_5 :: Assertion
 unit_smart_type_remove_5 =
-  thole (tapp (tcon "List") tEmptyHole)
-    `smartSynthKindGives` tapp (tcon "List") tEmptyHole
+  thole (tapp (tcon tList) tEmptyHole)
+    `smartSynthKindGives` tapp (tcon tList) tEmptyHole
 
 unit_prim_char :: Assertion
 unit_prim_char =
-  expectTyped $ ann (char 'a') (tcon "Char")
+  expectTypedWithPrims $ ann (char 'a') (tcon tChar)
 
 unit_prim_fun :: Assertion
 unit_prim_fun =
-  expectTypedWithPrims $ ann (gvar "hexToNat") (tfun (tcon "Char") (tapp (tcon "Maybe") (tcon "Nat")))
+  expectTypedWithPrims $ ann (gvar $ primitiveGVar "hexToNat") (tfun (tcon tChar) (tapp (tcon tMaybe) (tcon tNat)))
 
 unit_prim_fun_applied :: Assertion
 unit_prim_fun_applied =
-  expectTypedWithPrims $ ann (app (gvar "hexToNat") (char 'a')) (tapp (tcon "Maybe") (tcon "Nat"))
+  expectTypedWithPrims $ ann (app (gvar $ primitiveGVar "hexToNat") (char 'a')) (tapp (tcon tMaybe) (tcon tNat))
 
 -- Whenever we synthesise a type, then it kind-checks against KType
 hprop_synth_well_typed_extcxt :: Property
 hprop_synth_well_typed_extcxt = withTests 1000 $
   withDiscards 2000 $
-    propertyWTInExtendedLocalGlobalCxt (buildTypingContext defaultTypeDefs mempty NoSmartHoles) $ do
+    propertyWTInExtendedLocalGlobalCxt [builtinModule, primitiveModule] $ do
       (e, _ty) <- forAllT genSyn
       ty' <- generateTypeIDs . fst =<< synthTest =<< generateIDs e
       void $ checkKindTest KType ty'
@@ -483,7 +505,7 @@ hprop_synth_well_typed_extcxt = withTests 1000 $
 hprop_synth_well_typed_defcxt :: Property
 hprop_synth_well_typed_defcxt = withTests 1000 $
   withDiscards 2000 $
-    propertyWT (buildTypingContext mempty mempty NoSmartHoles) $ do
+    propertyWT [] $ do
       (e, _ty) <- forAllT genSyn
       ty' <- generateTypeIDs . fst =<< synthTest =<< generateIDs e
       void $ checkKindTest KType ty'
@@ -497,7 +519,7 @@ checkProgWellFormed p' = case runTypecheckTestM NoSmartHoles $ do
     NoSmartHoles
     CheckEverything
       { trusted = mempty
-      , toCheck = progModule p : progImports p
+      , toCheck = progAllModules p
       } of
   Left err -> assertFailure $ show err
   Right _ -> pure ()
@@ -513,36 +535,49 @@ unit_good_maybeT = case runTypecheckTestM NoSmartHoles $
   checkEverything
     NoSmartHoles
     CheckEverything
-      { trusted = [progModule newProg]
-      , toCheck = [Module (mkTypeDefMap [TypeDefAST maybeTDef]) mempty]
+      { trusted = [builtinModule]
+      , toCheck = [Module "TestModule" (mkTypeDefMap [TypeDefAST maybeTDef]) mempty]
       } of
   Left err -> assertFailure $ show err
   Right _ -> pure ()
 
-unit_bad_prim_map :: Assertion
-unit_bad_prim_map = case runTypecheckTestM NoSmartHoles $ do
-  fooType <- tcon "Nat"
-  let foo = PrimDef{primDefName = "bar", primDefType = fooType}
+unit_bad_prim_map_base :: Assertion
+unit_bad_prim_map_base = case runTypecheckTestM NoSmartHoles $ do
+  fooType <- tcon tNat
+  let foo = PrimDef{primDefName = gvn "M" "bar", primDefType = fooType}
   checkEverything
     NoSmartHoles
     CheckEverything
       { trusted = [progModule newProg]
-      , toCheck = [Module mempty $ Map.singleton "foo" $ DefPrim foo]
+      , toCheck = [Module "M" mempty $ Map.singleton "foo" $ DefPrim foo]
       } of
-  Left err -> err @?= InternalError "Inconsistant names in moduleDefs map"
+  Left err -> err @?= InternalError "Inconsistant names in moduleDefs map for module M"
+  Right _ -> assertFailure "Expected failure but succeeded"
+
+unit_bad_prim_map_module :: Assertion
+unit_bad_prim_map_module = case runTypecheckTestM NoSmartHoles $ do
+  fooType <- tcon tNat
+  let foo = PrimDef{primDefName = gvn "OtherMod" "foo", primDefType = fooType}
+  checkEverything
+    NoSmartHoles
+    CheckEverything
+      { trusted = [progModule newProg]
+      , toCheck = [Module "M" mempty $ Map.singleton "foo" $ DefPrim foo]
+      } of
+  Left err -> err @?= InternalError "Inconsistant names in moduleDefs map for module M"
   Right _ -> assertFailure "Expected failure but succeeded"
 
 unit_bad_prim_type :: Assertion
 unit_bad_prim_type = case runTypecheckTestM NoSmartHoles $ do
-  fooType <- tcon "NonExistant"
-  let foo = PrimDef{primDefName = "foo", primDefType = fooType}
+  fooType <- tcon' "M" "NonExistant"
+  let foo = PrimDef{primDefName = gvn "M" "foo", primDefType = fooType}
   checkEverything
     NoSmartHoles
     CheckEverything
       { trusted = [progModule newProg]
-      , toCheck = [Module mempty $ Map.singleton "foo" $ DefPrim foo]
+      , toCheck = [Module "M" mempty $ Map.singleton "foo" $ DefPrim foo]
       } of
-  Left err -> err @?= UnknownTypeConstructor "NonExistant"
+  Left err -> err @?= UnknownTypeConstructor (tcn "M" "NonExistant")
   Right _ -> assertFailure "Expected failure but succeeded"
 
 -- * Helpers
@@ -622,28 +657,34 @@ newtype TypecheckTestM a = TypecheckTestM {unTypecheckTestM :: ExceptT TypeError
     , MonadError TypeError
     )
 
-runTypecheckTestMFromIn :: ID -> Cxt -> TypecheckTestM a -> Either TypeError a
-runTypecheckTestMFromIn nextFresh cxt =
-  evalTestM nextFresh
+runTypecheckTestMIn :: Cxt -> TypecheckTestM a -> Either TypeError a
+runTypecheckTestMIn cxt =
+  evalTestM 0
     . flip runReaderT cxt
     . runExceptT
     . unTypecheckTestM
 runTypecheckTestM :: SmartHoles -> TypecheckTestM a -> Either TypeError a
-runTypecheckTestM sh = runTypecheckTestMFromIn 0 (buildTypingContext testingTypeDefs mempty sh)
+runTypecheckTestM sh = runTypecheckTestMIn (buildTypingContextFromModules [testModule, builtinModule] sh)
 runTypecheckTestMWithPrims :: SmartHoles -> TypecheckTestM a -> Either TypeError a
 runTypecheckTestMWithPrims sh =
-  runTypecheckTestMFromIn n (buildTypingContext testingTypeDefs defs sh)
-  where
-    (defs, n) = create $ withPrimDefs $ \m -> pure $ DefPrim <$> m
+  runTypecheckTestMIn (buildTypingContextFromModules [testModule, builtinModule, primitiveModule] sh)
 
-testingTypeDefs :: Map TyConName TypeDef
-testingTypeDefs = mkTypeDefMap [TypeDefAST maybeTDef] <> defaultTypeDefs
+testModule :: Module
+testModule =
+  Module
+    { moduleName = "TestModule"
+    , moduleTypes = mkTypeDefMap [TypeDefAST maybeTDef]
+    , moduleDefs = mempty
+    }
+
+tMaybeT :: TyConName
+tMaybeT = tcn "TestModule" "MaybeT"
 
 maybeTDef :: ASTTypeDef
 maybeTDef =
   ASTTypeDef
-    { astTypeDefName = "MaybeT"
+    { astTypeDefName = tMaybeT
     , astTypeDefParameters = [("m", KFun KType KType), ("a", KType)]
-    , astTypeDefConstructors = [ValCon "MakeMaybeT" [TApp () (TVar () "m") (TApp () (TCon () "Maybe") (TVar () "a"))]]
+    , astTypeDefConstructors = [ValCon (vcn "TestModule" "MakeMaybeT") [TApp () (TVar () "m") (TApp () (TCon () tMaybe) (TVar () "a"))]]
     , astTypeDefNameHints = []
     }

@@ -12,7 +12,6 @@ module Primer.Core (
   Expr' (..),
   Bind' (..),
   TmVarRef (..),
-  varRefName,
   CaseBranch,
   CaseBranch' (..),
   Def (..),
@@ -27,8 +26,9 @@ module Primer.Core (
   setID,
   HasMetadata (_metadata),
   ID (ID),
+  ModuleName,
   GlobalNameKind (..),
-  GlobalName (baseName),
+  GlobalName (qualifiedModule, baseName),
   qualifyName,
   unsafeMkGlobalName,
   TyConName,
@@ -165,25 +165,31 @@ _synthed = #_TCSynthed `afailing` (#_TCEmb % #tcSynthed)
 -- nodes we're inserting.
 type ExprMeta = Meta (Maybe TypeCache)
 
+type ModuleName = Name
+
 -- | Tags for 'GlobalName'
 data GlobalNameKind
   = ATyCon
   | AValCon
   | ADefName
 
--- | Global names are currently the same as 'Name's, but will shortly contain
--- a module prefix also. They are tagged with what sort of name they are.
-newtype GlobalName (k :: GlobalNameKind) = GlobalName {baseName :: Name}
-  deriving (Eq, Ord, Generic, Data)
-  deriving newtype (Show, IsString)
-  deriving newtype (FromJSON, ToJSON, FromJSONKey, ToJSONKey)
+-- | Global names are fully qualified with a module name.
+-- They are tagged with what sort of name they are.
+data GlobalName (k :: GlobalNameKind) = GlobalName
+  { qualifiedModule :: ModuleName
+  , baseName :: Name
+  }
+  deriving (Eq, Ord, Generic, Data, Show)
 
-unsafeMkGlobalName :: Text -> GlobalName k
-unsafeMkGlobalName = GlobalName . unsafeMkName
+instance FromJSON (GlobalName k)
+instance ToJSON (GlobalName k)
 
--- | Currently just wraps the name, but shortly will take another
--- argument for a module prefix
-qualifyName :: Name -> GlobalName k
+-- | Construct a name from a Text. This is called unsafe because there are no
+-- guarantees about whether the name refers to anything that is in scope.
+unsafeMkGlobalName :: (Text, Text) -> GlobalName k
+unsafeMkGlobalName (m, n) = GlobalName (unsafeMkName m) (unsafeMkName n)
+
+qualifyName :: Name -> Name -> GlobalName k
 qualifyName = GlobalName
 
 type TyConName = GlobalName 'ATyCon
@@ -201,7 +207,7 @@ data LocalNameKind
 newtype LocalName (k :: LocalNameKind) = LocalName {unLocalName :: Name}
   deriving (Eq, Ord, Show, Data, Generic)
   deriving (IsString) via Name
-  deriving (FromJSON, ToJSON, FromJSONKey, ToJSONKey) via Name
+  deriving (FromJSON, ToJSON) via Name
 
 unsafeMkLocalName :: Text -> LocalName k
 unsafeMkLocalName = LocalName . unsafeMkName
@@ -249,11 +255,6 @@ data TmVarRef
   | LocalVarRef LVarName
   deriving (Eq, Show, Data, Generic)
   deriving (FromJSON, ToJSON) via VJSON TmVarRef
-
-varRefName :: TmVarRef -> Name
-varRefName = \case
-  GlobalVarRef (GlobalName n) -> n
-  LocalVarRef (LocalName n) -> n
 
 -- Note [Synthesisable constructors]
 -- Whilst our calculus is heavily inspired by bidirectional type systems
@@ -448,7 +449,7 @@ instance HasMetadata (Bind' ExprMeta) where
 data Def
   = DefPrim PrimDef
   | DefAST ASTDef
-  deriving (Eq, Show, Generic)
+  deriving (Eq, Show, Data, Generic)
   deriving (FromJSON, ToJSON) via VJSON Def
 
 -- | A primitive, built-in definition
@@ -457,7 +458,7 @@ data PrimDef = PrimDef
   -- ^ Used for display, and to link to an entry in `allPrimDefs`
   , primDefType :: Type
   }
-  deriving (Eq, Show, Generic)
+  deriving (Eq, Show, Data, Generic)
   deriving (FromJSON, ToJSON) via VJSON PrimDef
 
 -- | A top-level definition, built from an 'Expr'
@@ -466,7 +467,7 @@ data ASTDef = ASTDef
   , astDefExpr :: Expr
   , astDefType :: Type
   }
-  deriving (Eq, Show, Generic)
+  deriving (Eq, Show, Data, Generic)
   deriving (FromJSON, ToJSON) via VJSON ASTDef
 
 defName :: Def -> GVarName
@@ -496,8 +497,8 @@ data PrimCon
 -- This should be a key in `allPrimTypeDefs`.
 primConName :: PrimCon -> TyConName
 primConName = \case
-  PrimChar _ -> "Char"
-  PrimInt _ -> "Int"
+  PrimChar _ -> qualifyName "Primitives" "Char"
+  PrimInt _ -> qualifyName "Primitives" "Int"
 
 data PrimFun = PrimFun
   { primFunTypes :: forall m. MonadFresh ID m => m ([Type], Type)
@@ -531,7 +532,7 @@ data PrimFunError
 data TypeDef
   = TypeDefPrim PrimTypeDef
   | TypeDefAST ASTTypeDef
-  deriving (Eq, Show, Generic)
+  deriving (Eq, Show, Data, Generic)
   deriving (FromJSON, ToJSON) via VJSON TypeDef
 
 -- | Definition of a primitive data type
@@ -540,7 +541,7 @@ data PrimTypeDef = PrimTypeDef
   , primTypeDefParameters :: [Kind]
   , primTypeDefNameHints :: [Name]
   }
-  deriving (Eq, Show, Generic)
+  deriving (Eq, Show, Data, Generic)
   deriving (FromJSON, ToJSON) via VJSON PrimTypeDef
 
 -- | Definition of an algebraic data type
@@ -554,14 +555,14 @@ data ASTTypeDef = ASTTypeDef
   , astTypeDefConstructors :: [ValCon]
   , astTypeDefNameHints :: [Name]
   }
-  deriving (Eq, Show, Generic)
+  deriving (Eq, Show, Data, Generic)
   deriving (FromJSON, ToJSON) via VJSON ASTTypeDef
 
 data ValCon = ValCon
   { valConName :: ValConName
   , valConArgs :: [Type' ()]
   }
-  deriving (Eq, Show, Generic)
+  deriving (Eq, Show, Data, Generic)
   deriving (FromJSON, ToJSON) via VJSON ValCon
 
 valConType :: ASTTypeDef -> ValCon -> Type' ()

@@ -11,9 +11,10 @@ import qualified Data.Text.Lazy as TL
 import Optics (adjoin, toListOf, (%))
 import Primer.Action (ActionName (..), OfferedAction (name))
 import Primer.Action.Available (actionsForDef, actionsForDefBody, actionsForDefSig)
+import Primer.Builtins
 import Primer.Core (
   ASTDef (..),
-  GlobalName (baseName),
+  GlobalName (baseName, qualifiedModule),
   HasID (_id),
   ID,
   Kind (KType),
@@ -30,7 +31,7 @@ import Primer.Core.DSL (
   con,
   create,
   emptyHole,
-  gvar,
+  gvar',
   hole,
   lAM,
   lam,
@@ -51,6 +52,7 @@ import System.FilePath ((</>))
 import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.Golden (goldenVsString)
 import Test.Tasty.HUnit ()
+import TestUtils (gvn)
 import Text.Pretty.Simple (pShowNoColor)
 
 -- | This definition contains every construct in the Primer language.
@@ -58,7 +60,7 @@ test_1 :: TestTree
 test_1 =
   mkTests
     ASTDef
-      { astDefName = "1"
+      { astDefName = gvn "M" "1"
       , astDefExpr
       , astDefType
       }
@@ -66,14 +68,14 @@ test_1 =
     ((astDefExpr, astDefType), _) = create $ (,) <$> e <*> t
     t =
       tfun
-        (tcon "Nat")
+        (tcon tNat)
         ( tforall
             "a"
             KType
             ( tapp
                 ( thole
                     ( tapp
-                        (tcon "List")
+                        (tcon tList)
                         tEmptyHole
                     )
                 )
@@ -83,19 +85,19 @@ test_1 =
     e =
       let_
         "x"
-        (con "True")
+        (con cTrue)
         ( letrec
             "y"
             ( app
                 ( hole
-                    (con "Just")
+                    (con cJust)
                 )
                 ( hole
-                    (gvar "0")
+                    (gvar' "M" "0")
                 )
             )
             ( thole
-                (tcon "Maybe")
+                (tcon tMaybe)
             )
             ( ann
                 ( lam
@@ -106,9 +108,9 @@ test_1 =
                             ( aPP
                                 ( letType
                                     "b"
-                                    (tcon "Bool")
+                                    (tcon tBool)
                                     ( aPP
-                                        (con "Left")
+                                        (con cLeft)
                                         (tvar "b")
                                     )
                                 )
@@ -117,11 +119,11 @@ test_1 =
                             ( case_
                                 (lvar "i")
                                 [ branch
-                                    "Zero"
+                                    cZero
                                     []
-                                    (con "False")
+                                    (con cFalse)
                                 , branch
-                                    "Succ"
+                                    cSucc
                                     [
                                       ( "n"
                                       , Nothing
@@ -140,14 +142,14 @@ test_1 =
                     )
                 )
                 ( tfun
-                    (tcon "Nat")
+                    (tcon tNat)
                     ( tforall
                         "α"
                         KType
                         ( tapp
                             ( tapp
-                                (tcon "Either")
-                                (tcon "Bool")
+                                (tcon tEither)
+                                (tcon tBool)
                             )
                             (tvar "α")
                         )
@@ -166,7 +168,8 @@ data Output = Output
 -- | Golden tests for the available actions at each node of the definition, for each level.
 mkTests :: ASTDef -> TestTree
 mkTests def =
-  let testName = T.unpack $ unName $ baseName $ astDefName def
+  let defName = astDefName def
+      testName = T.unpack $ unName (qualifiedModule defName) <> "." <> unName (baseName defName)
    in testGroup testName $
         enumerate
           <&> \level ->

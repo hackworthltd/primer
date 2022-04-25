@@ -44,21 +44,30 @@ import Primer.App (
   App (..),
   InitialApp (NewApp),
   Prog (..),
-  defaultTypeDefs,
   newEmptyApp,
   newEmptyProg,
  )
+import Primer.Builtins (
+  builtinModule,
+  cFalse,
+  cJust,
+  cLeft,
+  cSucc,
+  cTrue,
+  cZero,
+  tBool,
+  tEither,
+  tList,
+  tMaybe,
+  tNat,
+ )
 import Primer.Core (
   ASTDef (..),
-  Def (DefAST, DefPrim),
-  GVarName,
+  Def (DefAST),
+  GlobalName (baseName),
   ID,
   Kind (KType),
-  PrimDef (..),
-  PrimFun,
-  defName,
-  primDefType,
-  primFunType,
+  qualifyName,
  )
 import Primer.Core.DSL (
   aPP,
@@ -69,7 +78,7 @@ import Primer.Core.DSL (
   con,
   create,
   emptyHole,
-  gvar,
+  gvar',
   hole,
   lAM,
   lam,
@@ -94,12 +103,11 @@ import Primer.Module (
   Module (
     Module,
     moduleDefs,
+    moduleName,
     moduleTypes
   ),
  )
-import Primer.Primitives (
-  allPrimDefs,
- )
+import Primer.Primitives (primitiveModule)
 import Rel8 (
   Expr,
   Insert (Insert, into, onConflict, returning, rows),
@@ -235,24 +243,27 @@ insertSessionRow row conn =
 -- so it should be refactored into a common test library. See:
 -- https://github.com/hackworthltd/primer/issues/273
 testASTDef :: ASTDef
-testASTDef =
-  ASTDef
-    { astDefName = "1"
+testASTDefNextID :: ID
+(testASTDef, testASTDefNextID) =
+  ( ASTDef
+    { astDefName = qualifyName "TestModule" "1"
     , astDefExpr
     , astDefType
     }
+  , nextID
+  )
   where
-    ((astDefExpr, astDefType), _) = create $ (,) <$> e <*> t
+    ((astDefExpr, astDefType), nextID) = create $ (,) <$> e <*> t
     t =
       tfun
-        (tcon "Nat")
+        (tcon tNat)
         ( tforall
             "a"
             KType
             ( tapp
                 ( thole
                     ( tapp
-                        (tcon "List")
+                        (tcon tList)
                         tEmptyHole
                     )
                 )
@@ -262,19 +273,19 @@ testASTDef =
     e =
       let_
         "x"
-        (con "True")
+        (con cTrue)
         ( letrec
             "y"
             ( app
                 ( hole
-                    (con "Just")
+                    (con cJust)
                 )
                 ( hole
-                    (gvar "0")
+                    (gvar' "TestModule" "0")
                 )
             )
             ( thole
-                (tcon "Maybe")
+                (tcon tMaybe)
             )
             ( ann
                 ( lam
@@ -285,9 +296,9 @@ testASTDef =
                             ( aPP
                                 ( letType
                                     "b"
-                                    (tcon "Bool")
+                                    (tcon tBool)
                                     ( aPP
-                                        (con "Left")
+                                        (con cLeft)
                                         (tvar "b")
                                     )
                                 )
@@ -296,11 +307,11 @@ testASTDef =
                             ( case_
                                 (lvar "i")
                                 [ branch
-                                    "Zero"
+                                    cZero
                                     []
-                                    (con "False")
+                                    (con cFalse)
                                 , branch
-                                    "Succ"
+                                    cSucc
                                     [
                                       ( "n"
                                       , Nothing
@@ -319,14 +330,14 @@ testASTDef =
                     )
                 )
                 ( tfun
-                    (tcon "Nat")
+                    (tcon tNat)
                     ( tforall
                         "α"
                         KType
                         ( tapp
                             ( tapp
-                                (tcon "Either")
-                                (tcon "Bool")
+                                (tcon tEither)
+                                (tcon tBool)
                             )
                             (tvar "α")
                         )
@@ -334,24 +345,6 @@ testASTDef =
                 )
             )
         )
-
--- | Helper function for creating test apps from a predefined list of
--- 'ASTDef's and 'PrimFun's.
---
--- TODO: move this function into 'Primer.App'. See:
--- https://github.com/hackworthltd/primer/issues/273#issuecomment-1058713380
-mkTestDefs :: [ASTDef] -> Map GVarName PrimFun -> (Map GVarName Def, ID)
-mkTestDefs astDefs primMap =
-  let (defs, nextID) = create $ do
-        primDefs <- for (Map.toList primMap) $ \(primDefName, def) -> do
-          primDefType <- primFunType def
-          pure $
-            PrimDef
-              { primDefName
-              , primDefType
-              }
-        pure $ map DefAST astDefs <> map DefPrim primDefs
-   in (Map.fromList $ (\d -> (defName d, d)) <$> defs, nextID)
 
 -- | An initial test 'App' instance that contains all default type
 -- definitions (including primitive types), all primitive functions,
@@ -362,16 +355,17 @@ testApp =
   newEmptyApp
     { appProg = testProg
     , appInit = NewApp
-    , appIdCounter = fromEnum nextId
+    , appIdCounter = fromEnum testASTDefNextID
     }
   where
-    (defs, nextId) = mkTestDefs [testASTDef] allPrimDefs
     testProg :: Prog
     testProg =
       newEmptyProg
-        { progModule =
+        { progImports = [builtinModule, primitiveModule]
+        , progModule =
             Module
-              { moduleTypes = defaultTypeDefs
-              , moduleDefs = defs
+              { moduleName = "TestModule"
+              , moduleTypes = mempty
+              , moduleDefs = Map.singleton (baseName $ astDefName testASTDef) (DefAST testASTDef)
               }
         }
