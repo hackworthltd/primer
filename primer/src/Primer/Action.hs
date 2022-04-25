@@ -422,6 +422,8 @@ data ProgAction
     --   At the start of the actions, the cursor starts at the root of the definition's type/expression
     CopyPasteSig (GVarName, ID) [Action]
   | CopyPasteBody (GVarName, ID) [Action]
+  | -- | Renames the sole editable module
+    RenameModule Text
   deriving (Eq, Show, Generic)
   deriving (FromJSON, ToJSON) via VJSON ProgAction
 

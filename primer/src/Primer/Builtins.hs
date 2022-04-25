@@ -41,6 +41,7 @@ import Primer.Core (
   ),
   GlobalName,
   Kind (KType),
+  ModuleName,
   TyConName,
   Type' (TApp, TCon, TVar),
   TypeDef (TypeDefAST),
@@ -51,7 +52,7 @@ import Primer.Core (
 import Primer.Module (Module (Module, moduleDefs, moduleName, moduleTypes), mkTypeDefMap)
 import Primer.Name (Name)
 
-builtinModuleName :: Name
+builtinModuleName :: ModuleName
 builtinModuleName = "Builtins"
 
 builtin :: Name -> GlobalName k
