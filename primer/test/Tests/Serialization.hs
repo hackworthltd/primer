@@ -36,6 +36,7 @@ import Primer.Core (
   ID (..),
   Kind (KFun, KType),
   Meta (..),
+  ModuleName (ModuleName),
   PrimCon (..),
   Type' (TApp, TCon, TEmptyHole, TVar),
   TypeCache (TCSynthed),
@@ -96,26 +97,26 @@ fixtures =
       log :: Log
       log = Log [[BodyAction [Move Child1]]]
       def :: ASTDef
-      def = ASTDef{astDefName = gvn "M" "main", astDefExpr = expr, astDefType = TEmptyHole typeMeta}
+      def = ASTDef{astDefName = gvn ["M"] "main", astDefExpr = expr, astDefType = TEmptyHole typeMeta}
       typeDef :: TypeDef
       typeDef =
         TypeDefAST
           ASTTypeDef
-            { astTypeDefName = tcn "M" "T"
+            { astTypeDefName = tcn ["M"] "T"
             , astTypeDefParameters = [("a", KType), ("b", KFun KType KType)]
-            , astTypeDefConstructors = [ValCon (vcn "M" "C") [TApp () (TVar () "b") (TVar () "a"), TCon () tNat]]
+            , astTypeDefConstructors = [ValCon (vcn ["M"] "C") [TApp () (TVar () "b") (TVar () "a"), TCon () tNat]]
             , astTypeDefNameHints = []
             }
       progerror :: ProgError
       progerror = NoDefSelected
       progaction :: ProgAction
-      progaction = MoveToDef $ gvn "M" "main"
+      progaction = MoveToDef $ gvn ["M"] "main"
       prog =
         Prog
           { progImports = mempty
           , progModule =
               Module
-                { moduleName = "M"
+                { moduleName = ModuleName ["M"]
                 , moduleTypes = mkTypeDefMap [typeDef]
                 , moduleDefs = Map.singleton (baseName $ astDefName def) (DefAST def)
                 }

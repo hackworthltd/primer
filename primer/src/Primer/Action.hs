@@ -248,7 +248,7 @@ uniquifyDefName m name' defs =
     avoid :: [Text]
     avoid = mapMaybe (f . defName) $ Map.elems defs
 
-type QualifiedText = (Text, Text)
+type QualifiedText = (NonEmpty Text, Text)
 
 -- | Core actions.
 --  These describe edits to the core AST.
@@ -423,7 +423,7 @@ data ProgAction
     CopyPasteSig (GVarName, ID) [Action]
   | CopyPasteBody (GVarName, ID) [Action]
   | -- | Renames the sole editable module
-    RenameModule Text
+    RenameModule (NonEmpty Text)
   deriving (Eq, Show, Generic)
   deriving (FromJSON, ToJSON) via VJSON ProgAction
 

@@ -16,6 +16,7 @@ import Control.Monad.Catch (catch)
 import Control.Monad.Except (ExceptT (..))
 import Control.Monad.Reader (runReaderT)
 import Data.Function ((&))
+import Data.List.NonEmpty (NonEmpty ((:|)))
 import Data.OpenApi (OpenApi)
 import Data.Streaming.Network.Internal (HostPreference (HostIPv4Only))
 import Data.Text (Text)
@@ -76,6 +77,7 @@ import Primer.Core (
   ID,
   Kind (KFun, KType),
   LVarName,
+  ModuleName (ModuleName),
   TyVarName,
   Type,
   Type' (TEmptyHole),
@@ -330,14 +332,14 @@ testEndpoints =
     :<|> mkTest (TCBoth (TEmptyHole ()) (TEmptyHole ()))
     :<|> mkTest (create' (app emptyHole emptyHole))
     :<|> mkTest (create' $ case_ emptyHole [])
-    :<|> mkTest (create' $ case_ emptyHole [branch' ("M", "C") [("x", Nothing)] emptyHole])
+    :<|> mkTest (create' $ case_ emptyHole [branch' ("M" :| [], "C") [("x", Nothing)] emptyHole])
     :<|> mkTest (KFun KType KType)
     :<|> mkTest 0
     :<|> mkTest (Log [[BodyAction [Move Child1]]])
     :<|> mkTest newProg
-    :<|> mkTest (MoveToDef $ qualifyName "M" "main")
+    :<|> mkTest (MoveToDef $ qualifyName (ModuleName $ "M" :| []) "main")
     :<|> mkTest NoDefSelected
-    :<|> mkTest (DefAST $ ASTDef (qualifyName "M" "main") expr ty)
+    :<|> mkTest (DefAST $ ASTDef (qualifyName (ModuleName $ "M" :| []) "main") expr ty)
     :<|> mkTest boolDef
     :<|> mkTest EvalReq{evalReqExpr = expr, evalReqRedex = 0}
     :<|> mkTest EvalResp{evalRespExpr = expr, evalRespRedexes = [0, 1], evalRespDetail = reductionDetail}

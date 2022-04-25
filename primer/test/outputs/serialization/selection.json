@@ -1,7 +1,9 @@
 {
     "selectedDef": {
         "baseName": "main",
-        "qualifiedModule": "M"
+        "qualifiedModule": [
+            "M"
+        ]
     },
     "selectedNode": {
         "meta": {

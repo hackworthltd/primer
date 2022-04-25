@@ -104,7 +104,7 @@ import Primer.Core (
   ID (..),
   LocalName (LocalName, unLocalName),
   Meta (..),
-  ModuleName (ModuleName, unModuleName),
+  ModuleName (ModuleName),
   TmVarRef (GlobalVarRef, LocalVarRef),
   TyConName,
   TyVarName,
@@ -118,9 +118,11 @@ import Primer.Core (
   defName,
   defPrim,
   getID,
+  moduleNamePretty,
   qualifyName,
   typeDefAST,
   typesInExpr,
+  unModuleName,
   unsafeMkGlobalName,
   unsafeMkLocalName,
   _exprMeta,
@@ -535,7 +537,7 @@ applyProgAction prog mdefName = \case
     -- so we just dump out a raw string for debugging/logging purposes
     let m = moduleName $ progModule prog
     unless (m == qualifiedModule (astTypeDefName td)) $
-      throwError $ TypeDefError $ "Cannot create a type definition with incorrect module name: expected " <> unName (unModuleName m)
+      throwError $ TypeDefError $ "Cannot create a type definition with incorrect module name: expected " <> moduleNamePretty m
     (addTypeDef td prog, mdefName)
       <$ liftError
         -- The frontend should never let this error case happen,
@@ -582,7 +584,7 @@ applyProgAction prog mdefName = \case
           #astDefExpr
           $ transform $ over typesInExpr $ transform $ over (#_TCon % _2) updateName
       updateName n = if n == old then new else n
-  RenameCon type_ old (unsafeMkGlobalName . (unName (unModuleName (qualifiedModule type_)),) -> new) ->
+  RenameCon type_ old (unsafeMkGlobalName . (fmap unName (unModuleName (qualifiedModule type_)),) -> new) ->
     (,Nothing) <$> do
       when (new `elem` allConNames prog) $ throwError $ ConAlreadyExists new
       traverseOf
@@ -636,7 +638,7 @@ applyProgAction prog mdefName = \case
           )
           $ over _freeVarsTy $ \(_, v) -> TVar () $ updateName v
       updateName n = if n == old then new else n
-  AddCon type_ index (unsafeMkGlobalName . (unName (unModuleName (qualifiedModule type_)),) -> con) ->
+  AddCon type_ index (unsafeMkGlobalName . (fmap unName (unModuleName (qualifiedModule type_)),) -> con) ->
     (,Nothing)
       <$> do
         when (con `elem` allConNames prog) $ throwError $ ConAlreadyExists con
@@ -816,7 +818,7 @@ applyProgAction prog mdefName = \case
     Nothing -> throwError NoDefSelected
     Just i -> (,mdefName) <$> copyPasteBody prog fromIds i setup
   RenameModule newName ->
-    let n = ModuleName $ unsafeMkName newName
+    let n = ModuleName $ unsafeMkName <$> newName
         oldName = moduleName $ progModule prog
         curMods = RM{imported = progImports prog, editable = progModule prog}
      in if n == oldName
@@ -960,12 +962,12 @@ newEmptyProg :: Prog
 newEmptyProg =
   let expr = EmptyHole (Meta 1 Nothing Nothing)
       ty = TEmptyHole (Meta 2 Nothing Nothing)
-      def = DefAST $ ASTDef (qualifyName "Main" "main") expr ty
+      def = DefAST $ ASTDef (qualifyName (ModuleName $ "Main" :| []) "main") expr ty
    in Prog
         { progImports = mempty
         , progModule =
             Module
-              { moduleName = "Main"
+              { moduleName = ModuleName $ "Main" :| []
               , moduleTypes = mempty
               , moduleDefs = Map.singleton (baseName $ defName def) def
               }
@@ -991,9 +993,9 @@ newProg =
     { progImports = [builtinModule, primitiveModule]
     , progModule =
         Module
-          { moduleName = "Main"
+          { moduleName = ModuleName $ "Main" :| []
           , moduleTypes = mempty
-          , moduleDefs = defaultDefs "Main"
+          , moduleDefs = defaultDefs $ ModuleName $ "Main" :| []
           }
     }
 

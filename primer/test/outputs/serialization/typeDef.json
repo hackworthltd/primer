@@ -28,7 +28,9 @@
                             [],
                             {
                                 "baseName": "Nat",
-                                "qualifiedModule": "Builtins"
+                                "qualifiedModule": [
+                                    "Builtins"
+                                ]
                             }
                         ],
                         "tag": "TCon"
@@ -36,13 +38,17 @@
                 ],
                 "valConName": {
                     "baseName": "C",
-                    "qualifiedModule": "M"
+                    "qualifiedModule": [
+                        "M"
+                    ]
                 }
             }
         ],
         "astTypeDefName": {
             "baseName": "T",
-            "qualifiedModule": "M"
+            "qualifiedModule": [
+                "M"
+            ]
         },
         "astTypeDefNameHints": [],
         "astTypeDefParameters": [

@@ -54,6 +54,7 @@ import Primer.Core (
   ID,
   Kind (KFun, KHole, KType),
   Meta (..),
+  ModuleName (ModuleName),
   PrimDef (PrimDef, primDefName, primDefType),
   TmVarRef (LocalVarRef),
   TyConName,
@@ -116,7 +117,7 @@ unit_constructor_doesn't_exist :: Assertion
 unit_constructor_doesn't_exist =
   con nope `expectFailsWith` const (UnknownConstructor nope)
   where
-    nope = vcn "M" "Nope"
+    nope = vcn ["M"] "Nope"
 
 unit_inc :: Assertion
 unit_inc =
@@ -218,9 +219,9 @@ unit_mkTAppCon = do
   mkTAppCon c [TCon () x] @?= TApp () (TCon () c) (TCon () x)
   mkTAppCon c [TCon () x, TCon () y] @?= TApp () (TApp () (TCon () c) (TCon () x)) (TCon () y)
   where
-    c = tcn "M1" "C"
-    x = tcn "M2" "X"
-    y = tcn "M2" "Y"
+    c = tcn ["M1"] "C"
+    x = tcn ["M2"] "X"
+    y = tcn ["M2"] "Y"
 
 -- Note [cover]
 -- We disable coverage checking as it causes spurious hydra failures which are
@@ -298,7 +299,7 @@ unit_ann_bad :: Assertion
 unit_ann_bad =
   ann emptyHole (tcon nonexistant) `expectFailsWith` const (UnknownTypeConstructor nonexistant)
   where
-    nonexistant = tcn "M" "IDoNotExist"
+    nonexistant = tcn ["M"] "IDoNotExist"
 
 unit_ann_insert :: Assertion
 unit_ann_insert =
@@ -327,12 +328,12 @@ unit_check_emb =
 
 unit_case_scrutinee :: Assertion
 unit_case_scrutinee =
-  ann (case_ (con cSucc) [branch' ("M", "C") [] $ lvar "x"]) (tcon tBool)
+  ann (case_ (con cSucc) [branch' (["M"], "C") [] $ lvar "x"]) (tcon tBool)
     `smartSynthGives` ann (case_ (hole $ con cSucc) []) (tcon tBool)
 
 unit_case_branches :: Assertion
 unit_case_branches =
-  ann (case_ (con cZero) [branch' ("M", "C") [] $ lvar "x"]) (tcon tBool)
+  ann (case_ (con cZero) [branch' (["M"], "C") [] $ lvar "x"]) (tcon tBool)
     `smartSynthGives` ann (case_ (con cZero) [branch cZero [] emptyHole, branch cSucc [("a7", Nothing)] emptyHole]) (tcon tBool) -- Fragile name here "a7"
 
 unit_remove_hole :: Assertion
@@ -536,7 +537,7 @@ unit_good_maybeT = case runTypecheckTestM NoSmartHoles $
     NoSmartHoles
     CheckEverything
       { trusted = [builtinModule]
-      , toCheck = [Module "TestModule" (mkTypeDefMap [TypeDefAST maybeTDef]) mempty]
+      , toCheck = [Module (ModuleName ["TestModule"]) (mkTypeDefMap [TypeDefAST maybeTDef]) mempty]
       } of
   Left err -> assertFailure $ show err
   Right _ -> pure ()
@@ -544,12 +545,12 @@ unit_good_maybeT = case runTypecheckTestM NoSmartHoles $
 unit_bad_prim_map_base :: Assertion
 unit_bad_prim_map_base = case runTypecheckTestM NoSmartHoles $ do
   fooType <- tcon tNat
-  let foo = PrimDef{primDefName = gvn "M" "bar", primDefType = fooType}
+  let foo = PrimDef{primDefName = gvn ["M"] "bar", primDefType = fooType}
   checkEverything
     NoSmartHoles
     CheckEverything
       { trusted = [progModule newProg]
-      , toCheck = [Module "M" mempty $ Map.singleton "foo" $ DefPrim foo]
+      , toCheck = [Module (ModuleName ["M"]) mempty $ Map.singleton "foo" $ DefPrim foo]
       } of
   Left err -> err @?= InternalError "Inconsistant names in moduleDefs map for module M"
   Right _ -> assertFailure "Expected failure but succeeded"
@@ -557,27 +558,27 @@ unit_bad_prim_map_base = case runTypecheckTestM NoSmartHoles $ do
 unit_bad_prim_map_module :: Assertion
 unit_bad_prim_map_module = case runTypecheckTestM NoSmartHoles $ do
   fooType <- tcon tNat
-  let foo = PrimDef{primDefName = gvn "OtherMod" "foo", primDefType = fooType}
+  let foo = PrimDef{primDefName = gvn ["OtherMod"] "foo", primDefType = fooType}
   checkEverything
     NoSmartHoles
     CheckEverything
       { trusted = [progModule newProg]
-      , toCheck = [Module "M" mempty $ Map.singleton "foo" $ DefPrim foo]
+      , toCheck = [Module (ModuleName ["M"]) mempty $ Map.singleton "foo" $ DefPrim foo]
       } of
   Left err -> err @?= InternalError "Inconsistant names in moduleDefs map for module M"
   Right _ -> assertFailure "Expected failure but succeeded"
 
 unit_bad_prim_type :: Assertion
 unit_bad_prim_type = case runTypecheckTestM NoSmartHoles $ do
-  fooType <- tcon' "M" "NonExistant"
-  let foo = PrimDef{primDefName = gvn "M" "foo", primDefType = fooType}
+  fooType <- tcon' ["M"] "NonExistant"
+  let foo = PrimDef{primDefName = gvn ["M"] "foo", primDefType = fooType}
   checkEverything
     NoSmartHoles
     CheckEverything
       { trusted = [progModule newProg]
-      , toCheck = [Module "M" mempty $ Map.singleton "foo" $ DefPrim foo]
+      , toCheck = [Module (ModuleName ["M"]) mempty $ Map.singleton "foo" $ DefPrim foo]
       } of
-  Left err -> err @?= UnknownTypeConstructor (tcn "M" "NonExistant")
+  Left err -> err @?= UnknownTypeConstructor (tcn ["M"] "NonExistant")
   Right _ -> assertFailure "Expected failure but succeeded"
 
 -- * Helpers
@@ -672,19 +673,19 @@ runTypecheckTestMWithPrims sh =
 testModule :: Module
 testModule =
   Module
-    { moduleName = "TestModule"
+    { moduleName = ModuleName ["TestModule"]
     , moduleTypes = mkTypeDefMap [TypeDefAST maybeTDef]
     , moduleDefs = mempty
     }
 
 tMaybeT :: TyConName
-tMaybeT = tcn "TestModule" "MaybeT"
+tMaybeT = tcn ["TestModule"] "MaybeT"
 
 maybeTDef :: ASTTypeDef
 maybeTDef =
   ASTTypeDef
     { astTypeDefName = tMaybeT
     , astTypeDefParameters = [("m", KFun KType KType), ("a", KType)]
-    , astTypeDefConstructors = [ValCon (vcn "TestModule" "MakeMaybeT") [TApp () (TVar () "m") (TApp () (TCon () tMaybe) (TVar () "a"))]]
+    , astTypeDefConstructors = [ValCon (vcn ["TestModule"] "MakeMaybeT") [TApp () (TVar () "m") (TApp () (TCon () tMaybe) (TVar () "a"))]]
     , astTypeDefNameHints = []
     }

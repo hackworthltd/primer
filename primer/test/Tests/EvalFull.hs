@@ -76,9 +76,9 @@ unit_2 =
 unit_3 :: Assertion
 unit_3 =
   let ((expr, expected), maxID) = create $ do
-        e <- letType "a" (tvar "b") $ emptyHole `ann` (tcon' "M" "T" `tapp` tvar "a" `tapp` tforall "a" KType (tvar "a") `tapp` tforall "b" KType (tcon' "M" "S" `tapp` tvar "a" `tapp` tvar "b"))
+        e <- letType "a" (tvar "b") $ emptyHole `ann` (tcon' ["M"] "T" `tapp` tvar "a" `tapp` tforall "a" KType (tvar "a") `tapp` tforall "b" KType (tcon' ["M"] "S" `tapp` tvar "a" `tapp` tvar "b"))
         let b' = "a33" -- NB: fragile name a33
-        expect <- emptyHole `ann` (tcon' "M" "T" `tapp` tvar "b" `tapp` tforall "a" KType (tvar "a") `tapp` tforall b' KType (tcon' "M" "S" `tapp` tvar "b" `tapp` tvar b'))
+        expect <- emptyHole `ann` (tcon' ["M"] "T" `tapp` tvar "b" `tapp` tforall "a" KType (tvar "a") `tapp` tforall b' KType (tcon' ["M"] "S" `tapp` tvar "b" `tapp` tvar b'))
         pure (e, expect)
       s = evalFullTest maxID mempty mempty 5 Syn expr
    in do
@@ -89,9 +89,9 @@ unit_3 =
 unit_4 :: Assertion
 unit_4 =
   let ((expr, expected), maxID) = create $ do
-        e <- let_ "a" (lvar "b") $ con' "M" "C" `app` lvar "a" `app` lam "a" (lvar "a") `app` lam "b" (con' "M" "D" `app` lvar "a" `app` lvar "b")
+        e <- let_ "a" (lvar "b") $ con' ["M"] "C" `app` lvar "a" `app` lam "a" (lvar "a") `app` lam "b" (con' ["M"] "D" `app` lvar "a" `app` lvar "b")
         let b' = "a29" -- NB: fragile name a29
-        expect <- con' "M" "C" `app` lvar "b" `app` lam "a" (lvar "a") `app` lam b' (con' "M" "D" `app` lvar "b" `app` lvar b')
+        expect <- con' ["M"] "C" `app` lvar "b" `app` lam "a" (lvar "a") `app` lam b' (con' ["M"] "D" `app` lvar "b" `app` lvar b')
         pure (e, expect)
       s = evalFullTest maxID mempty mempty 7 Syn expr
    in do
@@ -148,7 +148,7 @@ unit_8 :: Assertion
 unit_8 =
   let n = 10
       ((globals, e, expected), maxID) = create $ do
-        let mapName = gvn "M" "map"
+        let mapName = gvn ["M"] "map"
         mapTy <- tforall "a" KType $ tforall "b" KType $ (tvar "a" `tfun` tvar "b") `tfun` ((tcon tList `tapp` tvar "a") `tfun` (tcon tList `tapp` tvar "b"))
         map_ <-
           lAM "a" $
@@ -160,8 +160,8 @@ unit_8 =
                     [ branch cNil [] $ con cNil `aPP` tvar "b"
                     , branch cCons [("y", Nothing), ("ys", Nothing)] $ con cCons `aPP` tvar "b" `app` (lvar "f" `app` lvar "y") `app` (gvar mapName `aPP` tvar "a" `aPP` tvar "b" `app` lvar "f" `app` lvar "ys")
                     ]
-        let evenName = gvn "M" "even"
-        let oddName = gvn "M" "odd"
+        let evenName = gvn ["M"] "even"
+        let oddName = gvn ["M"] "odd"
         -- even and odd have almost the same type, but their types contain different IDs
         let evenOddTy = tcon tNat `tfun` tcon tBool
         evenTy <- evenOddTy
@@ -190,7 +190,7 @@ unit_9 :: Assertion
 unit_9 =
   let n = 10
       ((globals, e, expected), maxID) = create $ do
-        let mapName = gvn "M" "map"
+        let mapName = gvn ["M"] "map"
         mapTy <- tforall "a" KType $ tforall "b" KType $ (tvar "a" `tfun` tvar "b") `tfun` ((tcon tList `tapp` tvar "a") `tfun` (tcon tList `tapp` tvar "b"))
         let worker =
               lam "xs" $
@@ -200,8 +200,8 @@ unit_9 =
                   , branch cCons [("y", Nothing), ("ys", Nothing)] $ con cCons `aPP` tvar "b" `app` (lvar "f" `app` lvar "y") `app` (lvar "go" `app` lvar "ys")
                   ]
         map_ <- lAM "a" $ lAM "b" $ lam "f" $ letrec "go" worker ((tcon tList `tapp` tvar "a") `tfun` (tcon tList `tapp` tvar "b")) $ lvar "go"
-        let evenName = gvn "M" "even"
-        let oddName = gvn "M" "odd"
+        let evenName = gvn ["M"] "even"
+        let oddName = gvn ["M"] "odd"
         -- even and odd have almost the same type, but their types contain different IDs
         let evenOddTy = tcon tNat `tfun` tcon tBool
         evenTy <- evenOddTy
@@ -259,8 +259,8 @@ unit_10 =
 unit_11 :: Assertion
 unit_11 =
   let ((globals, e, expected), maxID) = create $ do
-        let evenName = gvn "M" "even"
-        let oddName = gvn "M" "odd"
+        let evenName = gvn ["M"] "even"
+        let oddName = gvn ["M"] "odd"
         -- even and odd have almost the same type, but their types contain different IDs
         let evenOddTy = tcon tNat `tfun` tcon tBool
         evenTy <- evenOddTy
@@ -314,8 +314,8 @@ unit_12 =
 unit_13 :: Assertion
 unit_13 =
   let ((e, expected), maxID) = create $ do
-        expr <- (lam "x" (con' "M" "C" `app` lvar "x" `app` let_ "x" (con cTrue) (lvar "x") `app` lvar "x") `ann` (tcon tNat `tfun` tcon tBool)) `app` con cZero
-        expect <- (con' "M" "C" `app` con cZero `app` con cTrue `app` con cZero) `ann` tcon tBool
+        expr <- (lam "x" (con' ["M"] "C" `app` lvar "x" `app` let_ "x" (con cTrue) (lvar "x") `app` lvar "x") `ann` (tcon tNat `tfun` tcon tBool)) `app` con cZero
+        expect <- (con' ["M"] "C" `app` con cZero `app` con cTrue `app` con cZero) `ann` tcon tBool
         pure (expr, expect)
    in do
         let s = evalFullTest maxID builtinTypes mempty 15 Syn e
@@ -346,7 +346,7 @@ unit_15 :: Assertion
 unit_15 =
   let ((expr, steps, expected), maxID) = create $ do
         let l = let_ "x" (lvar "y")
-        let c a b = con' "M" "C" `app` lvar a `app` lvar b
+        let c a b = con' ["M"] "C" `app` lvar a `app` lvar b
         e0 <- l $ lam "y" $ c "x" "y"
         let y' = "a50" -- NB: fragile name "a50"
         e1 <- l $ lam y' $ let_ "y" (lvar y') $ c "x" "y"
@@ -918,7 +918,7 @@ unit_prim_partial_map =
                 , branch cCons [("y", Nothing), ("ys", Nothing)] $ con cCons `aPP` tvar "b" `app` (lvar "f" `app` lvar "y") `app` (lvar "go" `app` lvar "ys")
                 ]
       map_ <- lAM "a" $ lAM "b" $ lam "f" $ letrec "go" worker ((tcon tList `tapp` tvar "a") `tfun` (tcon tList `tapp` tvar "b")) $ lvar "go"
-      pure $ DefAST $ ASTDef (gvn "M" "map") map_ mapTy
+      pure $ DefAST $ ASTDef (gvn ["M"] "map") map_ mapTy
 
 -- Test that handleEvalFullRequest will reduce imported terms
 unit_eval_full_modules :: Assertion
@@ -1031,13 +1031,13 @@ testModule :: Module
 testModule =
   let (ty, expr) = fst . create $ (,) <$> tcon tChar `tfun` tcon tChar <*> lam "x" (lvar "x")
    in Module
-        { moduleName = "M"
+        { moduleName = ModuleName ["M"]
         , moduleTypes = mempty
         , moduleDefs =
             Map.singleton "idChar" $
               DefAST
                 ASTDef
-                  { astDefName = gvn "M" "idChar"
+                  { astDefName = gvn ["M"] "idChar"
                   , astDefType = ty
                   , astDefExpr = expr
                   }

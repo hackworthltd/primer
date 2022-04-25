@@ -79,15 +79,15 @@ unit_case_1 =
     "y"
     ( case_
         (lvar "x")
-        [ branch' ("M", "A") [("t", Nothing), ("u", Nothing)] (lvar "x")
-        , branch' ("M", "B") [("v", Nothing), ("w", Nothing)] (lvar "x")
+        [ branch' (["M"], "A") [("t", Nothing), ("u", Nothing)] (lvar "x")
+        , branch' (["M"], "B") [("v", Nothing), ("w", Nothing)] (lvar "x")
         ]
     )
     ( Just
         ( case_
             (lvar "y")
-            [ branch' ("M", "A") [("t", Nothing), ("u", Nothing)] (lvar "y")
-            , branch' ("M", "B") [("v", Nothing), ("w", Nothing)] (lvar "y")
+            [ branch' (["M"], "A") [("t", Nothing), ("u", Nothing)] (lvar "y")
+            , branch' (["M"], "B") [("v", Nothing), ("w", Nothing)] (lvar "y")
             ]
         )
     )
@@ -100,8 +100,8 @@ unit_case_2 =
     "y"
     ( case_
         (lvar "x")
-        [ branch' ("M", "A") [("t", Nothing), ("u", Nothing)] (lvar "x")
-        , branch' ("M", "B") [("v", Nothing), ("y", Nothing)] (lvar "x")
+        [ branch' (["M"], "A") [("t", Nothing), ("u", Nothing)] (lvar "x")
+        , branch' (["M"], "B") [("v", Nothing), ("y", Nothing)] (lvar "x")
         ]
     )
     Nothing
@@ -115,15 +115,15 @@ unit_case_3 =
     "y"
     ( case_
         (lvar "x")
-        [ branch' ("M", "A") [("t", Nothing), ("u", Nothing)] (lvar "x")
-        , branch' ("M", "B") [("x", Nothing), ("w", Nothing)] (lvar "x")
+        [ branch' (["M"], "A") [("t", Nothing), ("u", Nothing)] (lvar "x")
+        , branch' (["M"], "B") [("x", Nothing), ("w", Nothing)] (lvar "x")
         ]
     )
     ( Just
         ( case_
             (lvar "y")
-            [ branch' ("M", "A") [("t", Nothing), ("u", Nothing)] (lvar "y")
-            , branch' ("M", "B") [("x", Nothing), ("w", Nothing)] (lvar "x")
+            [ branch' (["M"], "A") [("t", Nothing), ("u", Nothing)] (lvar "y")
+            , branch' (["M"], "B") [("x", Nothing), ("w", Nothing)] (lvar "x")
             ]
         )
     )
@@ -156,8 +156,8 @@ unit_case =
     "y"
     ( case_
         (lvar "x")
-        [ branch' ("M", "A") [("y", Nothing), ("z", Nothing)] (lvar "y")
-        , branch' ("M", "B") [("u", Nothing), ("v", Nothing)] (lvar "u")
+        [ branch' (["M"], "A") [("y", Nothing), ("z", Nothing)] (lvar "y")
+        , branch' (["M"], "B") [("u", Nothing), ("v", Nothing)] (lvar "u")
         ]
     )
     Nothing
@@ -254,12 +254,12 @@ afterRename' rename clearMeta fromVar toVar input output = do
 unit_unfoldApp_1 :: Assertion
 unit_unfoldApp_1 =
   let expr :: Expr' () ()
-      expr = App () (App () (App () (Con () $ vcn "M" "C") (Lam () "x" (v "x"))) (App () (v "w") (v "y"))) (v "z")
+      expr = App () (App () (App () (Con () $ vcn ["M"] "C") (Lam () "x" (v "x"))) (App () (v "w") (v "y"))) (v "z")
       v = Var () . LocalVarRef
-   in unfoldApp expr @?= (Con () $ vcn "M" "C", [Lam () "x" (v "x"), App () (v "w") (v "y"), v "z"])
+   in unfoldApp expr @?= (Con () $ vcn ["M"] "C", [Lam () "x" (v "x"), App () (v "w") (v "y"), v "z"])
 
 unit_unfoldApp_2 :: Assertion
 unit_unfoldApp_2 =
   let expr :: Expr' () ()
-      expr = Con () $ vcn "M" "C"
-   in unfoldApp expr @?= (Con () $ vcn "M" "C", [])
+      expr = Con () $ vcn ["M"] "C"
+   in unfoldApp expr @?= (Con () $ vcn ["M"] "C", [])

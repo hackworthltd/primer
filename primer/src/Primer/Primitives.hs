@@ -29,7 +29,7 @@ import Primer.Core (
   ExprAnyFresh (..),
   GVarName,
   GlobalName (baseName),
-  ModuleName,
+  ModuleName (ModuleName),
   PrimCon (..),
   PrimDef (PrimDef, primDefName, primDefType),
   PrimFun (..),
@@ -57,7 +57,7 @@ import Primer.Module (Module (Module, moduleDefs, moduleName, moduleTypes))
 import Primer.Name (Name)
 
 primitiveModuleName :: ModuleName
-primitiveModuleName = "Primitives"
+primitiveModuleName = ModuleName $ "Primitives" :| []
 
 primitive :: Name -> GlobalName k
 primitive = qualifyName primitiveModuleName
