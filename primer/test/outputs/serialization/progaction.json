@@ -1,4 +1,7 @@
 {
-    "contents": "main",
+    "contents": {
+        "baseName": "main",
+        "qualifiedModule": "M"
+    },
     "tag": "MoveToDef"
 }

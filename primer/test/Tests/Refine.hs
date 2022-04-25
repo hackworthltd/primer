@@ -26,7 +26,7 @@ import Hedgehog (
  )
 import qualified Hedgehog.Gen as Gen
 import qualified Hedgehog.Range as Range
-import Primer.App (defaultTypeDefs)
+import Primer.Builtins (builtinModule, tBool, tList, tNat)
 import Primer.Core (
   Expr' (APP, Ann, App, EmptyHole),
   ID,
@@ -40,13 +40,14 @@ import Primer.Core (
  )
 import Primer.Core.Utils (forgetIDs, freeVarsTy, generateIDs, noHoles)
 import Primer.Name (NameCounter)
+import Primer.Primitives (primitiveModule)
 import Primer.Refine (Inst (InstAPP, InstApp, InstUnconstrainedAPP), refine)
 import Primer.Subst (substTy, substTys)
 import Primer.Typecheck (
   Cxt,
   SmartHoles (NoSmartHoles),
   Type,
-  buildTypingContext,
+  buildTypingContextFromModules,
   consistentTypes,
   extendLocalCxtTy,
   typeDefs,
@@ -56,7 +57,7 @@ import TestM (evalTestM)
 import Tests.Gen.Core.Typed (propertyWTInExtendedLocalGlobalCxt, synthTest)
 
 defaultCxt :: Cxt
-defaultCxt = buildTypingContext defaultTypeDefs mempty NoSmartHoles
+defaultCxt = buildTypingContextFromModules [builtinModule, primitiveModule] NoSmartHoles
 
 refine' :: (MonadFresh NameCounter m, MonadFresh ID m) => Cxt -> Type -> Type -> m (Maybe ([Inst], Type))
 refine' cxt s t = fmap (either crash identity) $ runExceptT $ refine cxt s t
@@ -83,10 +84,10 @@ unit_con_refl =
     0
     ( refine'
         defaultCxt
-        (TCon () "Nat")
-        (TCon () "Nat")
+        (TCon () tNat)
+        (TCon () tNat)
     )
-    @?= Just ([], TCon () "Nat")
+    @?= Just ([], TCon () tNat)
 
 -- refine [...] Nat Bool  fails
 unit_distinct_con :: Assertion
@@ -95,8 +96,8 @@ unit_distinct_con =
     0
     ( refine'
         defaultCxt
-        (TCon () "Nat")
-        (TCon () "Bool")
+        (TCon () tNat)
+        (TCon () tBool)
     )
     @?= Nothing
 
@@ -107,10 +108,10 @@ unit_instApp =
     0
     ( refine'
         defaultCxt
-        (TCon () "Nat")
-        (TFun () (TCon () "Bool") (TCon () "Nat"))
+        (TCon () tNat)
+        (TFun () (TCon () tBool) (TCon () tNat))
     )
-    @?= Just ([InstApp $ TCon () "Bool"], TCon () "Nat")
+    @?= Just ([InstApp $ TCon () tBool], TCon () tNat)
 
 -- refine [...] Nat (∀a.Nat) succeeds: have an unconstraind APP to do
 unit_instUnconstrainedAPP :: Assertion
@@ -120,10 +121,10 @@ unit_instUnconstrainedAPP =
     0
     ( refine'
         defaultCxt
-        (TCon () "Nat")
-        (TForall () "a" KType (TCon () "Nat"))
+        (TCon () tNat)
+        (TForall () "a" KType (TCon () tNat))
     )
-    @?= Just ([InstUnconstrainedAPP "a1" KType], TCon () "Nat")
+    @?= Just ([InstUnconstrainedAPP "a1" KType], TCon () tNat)
 
 -- refine [...] Nat (∀a.a) succeeds: have an APP Nat to do
 unit_instAPP :: Assertion
@@ -132,10 +133,10 @@ unit_instAPP =
     0
     ( refine'
         defaultCxt
-        (TCon () "Nat")
+        (TCon () tNat)
         (TForall () "a" KType (TVar () "a"))
     )
-    @?= Just ([InstAPP $ TCon () "Nat"], TCon () "Nat")
+    @?= Just ([InstAPP $ TCon () tNat], TCon () tNat)
 
 -- refine [...] Nat (∀a.List a) fails
 unit_forall_fail :: Assertion
@@ -144,8 +145,8 @@ unit_forall_fail =
     0
     ( refine'
         defaultCxt
-        (TCon () "Nat")
-        (TForall () "a" KType $ TApp () (TCon () "List") (TVar () "a"))
+        (TCon () tNat)
+        (TForall () "a" KType $ TApp () (TCon () tList) (TVar () "a"))
     )
     @?= Nothing
 
@@ -156,7 +157,7 @@ unit_ill_kinded_fail =
     0
     ( refine'
         defaultCxt
-        (TCon () "Nat")
+        (TCon () tNat)
         (TForall () "a" (KFun KType KType) $ TVar () "a")
     )
     @?= Nothing
@@ -168,20 +169,20 @@ unit_ill_kinded_fail_2 =
     0
     ( refine'
         defaultCxt
-        (TApp () (TEmptyHole ()) (TCon () "List"))
-        (TForall () "a" KType $ TApp () (TCon () "List") (TVar () "a"))
+        (TApp () (TEmptyHole ()) (TCon () tList))
+        (TForall () "a" KType $ TApp () (TCon () tList) (TVar () "a"))
     )
     @?= Nothing
 
 -- refine [...] (∀a. List a) (∀b. List b) succeeds, trivially
 unit_alpha :: Assertion
 unit_alpha =
-  let t n = (TForall () n KType $ TApp () (TCon () "List") (TVar () n))
+  let t n = (TForall () n KType $ TApp () (TCon () tList) (TVar () n))
    in evalTestM 0 (refine' defaultCxt (t "a") (t "b")) @?= Just ([], t "b")
 
 -- refine cxt T T succeeds
 hprop_refl :: Property
-hprop_refl = propertyWTInExtendedLocalGlobalCxt defaultCxt $ do
+hprop_refl = propertyWTInExtendedLocalGlobalCxt [builtinModule, primitiveModule] $ do
   k <- forAllT genWTKind
   ty <- forAllT $ genWTType k
   cxt <- ask
@@ -190,7 +191,7 @@ hprop_refl = propertyWTInExtendedLocalGlobalCxt defaultCxt $ do
 
 -- refine _ ? S succeeds
 hprop_tgt_hole :: Property
-hprop_tgt_hole = propertyWTInExtendedLocalGlobalCxt defaultCxt $ do
+hprop_tgt_hole = propertyWTInExtendedLocalGlobalCxt [builtinModule, primitiveModule] $ do
   k <- forAllT genWTKind
   tgt <- forAllT $ Gen.choice [pure $ TEmptyHole (), THole () <$> genWTType k]
   src <- forAllT $ genWTType k
@@ -200,7 +201,7 @@ hprop_tgt_hole = propertyWTInExtendedLocalGlobalCxt defaultCxt $ do
 
 -- refine _ T ? succeeds
 hprop_src_hole :: Property
-hprop_src_hole = propertyWTInExtendedLocalGlobalCxt defaultCxt $ do
+hprop_src_hole = propertyWTInExtendedLocalGlobalCxt [builtinModule, primitiveModule] $ do
   k <- forAllT genWTKind
   tgt <- forAllT $ genWTType k
   src <- forAllT $ Gen.choice [pure $ TEmptyHole (), THole () <$> genWTType k]
@@ -210,9 +211,10 @@ hprop_src_hole = propertyWTInExtendedLocalGlobalCxt defaultCxt $ do
 
 -- constructor types refine to their fully-applied typedef
 hprop_con :: Property
-hprop_con = propertyWTInExtendedLocalGlobalCxt defaultCxt $ do
+hprop_con = propertyWTInExtendedLocalGlobalCxt [builtinModule, primitiveModule] $ do
   tcs <- asks $ mapMaybe typeDefAST . M.elems . typeDefs
-  -- NB: this only works because defaultCxt has at least one tydef with a constructor
+  -- NB: this only works because our context has at least one tydef with a constructor
+  -- (because, among others, it includes builtinModule that contains Bool)
   td <- forAllT $ Gen.element tcs
   let cons = astTypeDefConstructors td
   when (null cons) discard
@@ -231,7 +233,7 @@ hprop_con = propertyWTInExtendedLocalGlobalCxt defaultCxt $ do
 -- refine cxt T S succeds when S is built from T, S1 -> _, ∀a._
 -- The success may not instantiate as much as one would expect, if T has holes in
 hprop_arr_app :: Property
-hprop_arr_app = propertyWTInExtendedLocalGlobalCxt defaultCxt $ do
+hprop_arr_app = propertyWTInExtendedLocalGlobalCxt [builtinModule, primitiveModule] $ do
   tgt <- forAllT $ genWTType KType
   when (isHole tgt) discard
   src' <- forAllT $ Gen.list (Range.linear 0 10) $ Gen.choice [Left <$> genWTType KType, curry Right <$> freshTyVarNameForCxt <*> genWTKind]
@@ -256,7 +258,7 @@ hprop_arr_app = propertyWTInExtendedLocalGlobalCxt defaultCxt $ do
 -- if refine _ T S = Just (I:IS,_) , then refine _ T (S $ I) = Just (IS,_); here "S $ I" means "inspect S, I assert they match and strip off a layer"
 hprop_matches :: Property
 hprop_matches = withDiscards 2000 $
-  propertyWTInExtendedLocalGlobalCxt defaultCxt $ do
+  propertyWTInExtendedLocalGlobalCxt [builtinModule, primitiveModule] $ do
     tgt <- forAllT $ genWTType KType
     src <- forAllT $ genWTType KType
     cxt <- ask
@@ -280,7 +282,7 @@ hprop_matches = withDiscards 2000 $
 
 -- if refine cxt tgt s = Just (is,ty)   =>  (? : s) $ <stuff checking against is>  ∈ ty[instantiation vars substituted appropriately] ~ tgt
 hprop_refinement_synths :: Property
-hprop_refinement_synths = propertyWTInExtendedLocalGlobalCxt defaultCxt $ do
+hprop_refinement_synths = propertyWTInExtendedLocalGlobalCxt [builtinModule, primitiveModule] $ do
   tgt <- forAllT $ genWTType KType
   src <- forAllT $ genWTType KType
   cxt <- ask
@@ -304,7 +306,7 @@ hprop_refinement_synths = propertyWTInExtendedLocalGlobalCxt defaultCxt $ do
 -- | (Because unif vars are only in one side) the names from
 -- 'InstUnconstrainedAPP' do not appear in 'InstAPP's (but can in 'InstApp's)
 hprop_scoping :: Property
-hprop_scoping = propertyWTInExtendedLocalGlobalCxt defaultCxt $ do
+hprop_scoping = propertyWTInExtendedLocalGlobalCxt [builtinModule, primitiveModule] $ do
   tgt <- forAllT $ genWTType KType
   src <- forAllT $ genWTType KType
   cxt <- ask

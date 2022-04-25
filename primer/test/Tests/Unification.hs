@@ -32,23 +32,34 @@ import Hedgehog (
  )
 import qualified Hedgehog.Gen as Gen
 import qualified Hedgehog.Range as Range
-import Primer.App (defaultTypeDefs)
-import Primer.Core (ID, Kind (KFun, KHole, KType), TyVarName, Type' (TApp, TCon, TEmptyHole, TForall, TFun, THole, TVar))
+import Primer.Builtins (builtinModule, tList, tNat)
+import Primer.Core (
+  ASTTypeDef (ASTTypeDef, astTypeDefConstructors, astTypeDefName, astTypeDefNameHints, astTypeDefParameters),
+  ID,
+  Kind (KFun, KHole, KType),
+  TyVarName,
+  Type' (TApp, TCon, TEmptyHole, TForall, TFun, THole, TVar),
+  TypeDef (TypeDefAST),
+ )
 import Primer.Core.Utils (forgetTypeIDs, freeVarsTy, generateTypeIDs)
+import Primer.Module (Module)
 import Primer.Name (NameCounter)
+import Primer.Primitives (primitiveModule, tInt)
 import Primer.Subst (substTys)
 import Primer.Typecheck (
   Cxt,
   SmartHoles (NoSmartHoles),
   Type,
-  buildTypingContext,
+  buildTypingContextFromModules,
   consistentTypes,
   extendLocalCxt,
   extendLocalCxtTy,
+  extendTypeDefCxt,
  )
 import Primer.Unification (unify)
 import Test.Tasty.HUnit (Assertion, assertBool, (@?=))
 import TestM (evalTestM)
+import TestUtils (tcn)
 import Tests.Gen.Core.Typed (
   checkKindTest,
   checkValidContextTest,
@@ -57,7 +68,7 @@ import Tests.Gen.Core.Typed (
  )
 
 defaultCxt :: Cxt
-defaultCxt = buildTypingContext defaultTypeDefs mempty NoSmartHoles
+defaultCxt = buildTypingContextFromModules [builtinModule, primitiveModule] NoSmartHoles
 
 unify' ::
   (MonadFresh NameCounter m, MonadFresh ID m) =>
@@ -79,10 +90,31 @@ unit_Int_refl =
     ( unify'
         defaultCxt
         mempty
-        (TCon () "Int")
-        (TCon () "Int")
+        (TCon () tInt)
+        (TCon () tInt)
     )
     @?= Just mempty
+
+unit_diff_module_not_refl :: Assertion
+unit_diff_module_not_refl =
+  evalTestM
+    0
+    ( unify'
+        (extendTypeDefCxt [mint] defaultCxt)
+        mempty
+        (TCon () tInt)
+        (TCon () $ tcn "M" "Int")
+    )
+    @?= Nothing
+  where
+    mint =
+      TypeDefAST $
+        ASTTypeDef
+          { astTypeDefName = tcn "M" "Int"
+          , astTypeDefParameters = mempty
+          , astTypeDefConstructors = mempty
+          , astTypeDefNameHints = mempty
+          }
 
 -- unify [...,a:*] [] a a = Just []
 unit_a_refl :: Assertion
@@ -106,7 +138,7 @@ unit_var_con =
         (extendLocalCxtTy ("a", KType) defaultCxt)
         mempty
         (TVar () "a")
-        (TCon () "Nat")
+        (TCon () tNat)
     )
     @?= Nothing
 
@@ -119,9 +151,9 @@ unit_unif_var_con =
         (extendLocalCxtTy ("a", KType) defaultCxt)
         (S.singleton "a")
         (TVar () "a")
-        (TCon () "Nat")
+        (TCon () tNat)
     )
-    @?= Just (M.singleton "a" $ TCon () "Nat")
+    @?= Just (M.singleton "a" $ TCon () tNat)
 
 -- unify [...,a:*] [a] a a = Just []
 unit_unif_var_refl :: Assertion
@@ -145,7 +177,7 @@ unit_ill_kinded =
         (extendLocalCxtTy ("a", KFun KType KType) defaultCxt)
         (S.singleton "a")
         (TVar () "a")
-        (TCon () "Nat")
+        (TCon () tNat)
     )
     @?= Nothing
 
@@ -158,9 +190,9 @@ unit_List_Nat =
         (extendLocalCxtTy ("a", KType) defaultCxt)
         (S.singleton "a")
         (TVar () "a")
-        (TApp () (TCon () "List") (TCon () "Nat"))
+        (TApp () (TCon () tList) (TCon () tNat))
     )
-    @?= Just (M.singleton "a" $ TApp () (TCon () "List") (TCon () "Nat"))
+    @?= Just (M.singleton "a" $ TApp () (TCon () tList) (TCon () tNat))
 
 -- unify [...,a:*] [a] (List a) (List Nat) = Just [Nat/a]
 unit_List :: Assertion
@@ -170,10 +202,10 @@ unit_List =
     ( unify'
         (extendLocalCxtTy ("a", KType) defaultCxt)
         (S.singleton "a")
-        (TApp () (TCon () "List") (TVar () "a"))
-        (TApp () (TCon () "List") (TCon () "Nat"))
+        (TApp () (TCon () tList) (TVar () "a"))
+        (TApp () (TCon () tList) (TCon () tNat))
     )
-    @?= Just (M.singleton "a" $ TCon () "Nat")
+    @?= Just (M.singleton "a" $ TCon () tNat)
 
 -- unify [...,a:*] [a] (List Nat) (List Nat) = Just []
 unit_List_Nat_refl :: Assertion
@@ -183,8 +215,8 @@ unit_List_Nat_refl =
     ( unify'
         (extendLocalCxtTy ("a", KType) defaultCxt)
         (S.singleton "a")
-        (TApp () (TCon () "List") (TCon () "Nat"))
-        (TApp () (TCon () "List") (TCon () "Nat"))
+        (TApp () (TCon () tList) (TCon () tNat))
+        (TApp () (TCon () tList) (TCon () tNat))
     )
     @?= Just mempty
 
@@ -196,10 +228,10 @@ unit_higher_kinded =
     ( unify'
         (extendLocalCxtTy ("a", KFun KType KType) defaultCxt)
         (S.singleton "a")
-        (TApp () (TVar () "a") (TCon () "Nat"))
-        (TApp () (TCon () "List") (TCon () "Nat"))
+        (TApp () (TVar () "a") (TCon () tNat))
+        (TApp () (TCon () tList) (TCon () tNat))
     )
-    @?= Just (M.singleton "a" $ TCon () "List")
+    @?= Just (M.singleton "a" $ TCon () tList)
 
 -- unify [...<NO 'a' HERE>] [a] (? List) (List a) fails, as 'a' is not in the context
 -- In particular, it does not succeed with the nonsense [List/a], as we throw
@@ -213,8 +245,8 @@ unit_ill_kinded_0 =
               unify
                 defaultCxt
                 (S.singleton "a")
-                (TApp () (TEmptyHole ()) (TCon () "List"))
-                (TApp () (TCon () "List") (TVar () "a"))
+                (TApp () (TEmptyHole ()) (TCon () tList))
+                (TApp () (TCon () tList) (TVar () "a"))
           )
    in assertBool "Should have detected a unification variable was not in the context" $ isLeft res
 
@@ -227,10 +259,10 @@ unit_uv_not_in_context =
     ( unify'
         (extendLocalCxtTy ("b", KType) defaultCxt)
         (S.fromList ["a", "b"])
-        (TCon () "Nat")
+        (TCon () tNat)
         (TVar () "b")
     )
-    @?= Just (M.singleton "b" $ TCon () "Nat")
+    @?= Just (M.singleton "b" $ TCon () tNat)
 
 -- unify [...,a:*] [a] (? List) (List a) = Nothing
 unit_ill_kinded_1 :: Assertion
@@ -240,8 +272,8 @@ unit_ill_kinded_1 =
     ( unify'
         (extendLocalCxtTy ("a", KType) defaultCxt)
         (S.singleton "a")
-        (TApp () (TEmptyHole ()) (TCon () "List"))
-        (TApp () (TCon () "List") (TVar () "a"))
+        (TApp () (TEmptyHole ()) (TCon () tList))
+        (TApp () (TCon () tList) (TVar () "a"))
     )
     @?= Nothing
 
@@ -255,10 +287,10 @@ unit_ill_kinded_2 =
     ( unify'
         (extendLocalCxtTy ("a", KFun KType KType) defaultCxt)
         (S.singleton "a")
-        (TApp () (TEmptyHole ()) (TCon () "List"))
-        (TApp () (TCon () "List") (TVar () "a"))
+        (TApp () (TEmptyHole ()) (TCon () tList))
+        (TApp () (TCon () tList) (TVar () "a"))
     )
-    @?= Just (M.singleton "a" $ TCon () "List")
+    @?= Just (M.singleton "a" $ TCon () tList)
 
 -- unify [...,a:*,b:*->*] [a] a b = Nothing
 unit_ill_kinded_3 :: Assertion
@@ -347,7 +379,7 @@ unit_unify_hole_trivial_1 =
         defaultCxt
         mempty
         (TEmptyHole ())
-        (THole () $ TCon () "Nat")
+        (THole () $ TCon () tNat)
     )
     @?= Just mempty
 
@@ -383,24 +415,24 @@ genCxtExtendingLocalUVs = do
 
 -- Run a property in a context extended with typedefs, globals and locals. Some
 -- of the locals (mentioned in the Set) are considered unification variables.
-propertyWTInExtendedUVCxt' :: Cxt -> (M.Map TyVarName Kind -> PropertyT WT ()) -> Property
-propertyWTInExtendedUVCxt' cxt p = propertyWT cxt $ do
+propertyWTInExtendedUVCxt' :: [Module] -> (M.Map TyVarName Kind -> PropertyT WT ()) -> Property
+propertyWTInExtendedUVCxt' mods p = propertyWT mods $ do
   cxtG <- forAllT genCxtExtendingGlobal
   local (const cxtG) $ do
     (cxtL, uvs) <- forAllT genCxtExtendingLocalUVs
     annotateShow uvs
     local (const cxtL) $ p uvs
 
-propertyWTInExtendedUVCxt :: Cxt -> (S.Set TyVarName -> PropertyT WT ()) -> Property
-propertyWTInExtendedUVCxt cxt p = propertyWTInExtendedUVCxt' cxt $ p . M.keysSet
+propertyWTInExtendedUVCxt :: [Module] -> (S.Set TyVarName -> PropertyT WT ()) -> Property
+propertyWTInExtendedUVCxt mods p = propertyWTInExtendedUVCxt' mods $ p . M.keysSet
 
 hprop_extendedUVCxt_typechecks :: Property
-hprop_extendedUVCxt_typechecks = propertyWTInExtendedUVCxt defaultCxt $ \_ ->
+hprop_extendedUVCxt_typechecks = propertyWTInExtendedUVCxt [builtinModule, primitiveModule] $ \_ ->
   checkValidContextTest =<< ask
 
 -- unify _ _ T T  is Just []
 hprop_refl :: Property
-hprop_refl = propertyWTInExtendedUVCxt defaultCxt $ \uvs -> do
+hprop_refl = propertyWTInExtendedUVCxt [builtinModule, primitiveModule] $ \uvs -> do
   cxt <- ask
   k <- forAllT genWTKind
   t <- forAllT $ genWTType k
@@ -409,7 +441,7 @@ hprop_refl = propertyWTInExtendedUVCxt defaultCxt $ \uvs -> do
 
 -- unify _ [] S T  is Nothing or Just [], exactly when S = T up to holes
 hprop_eq :: Property
-hprop_eq = propertyWTInExtendedLocalGlobalCxt defaultCxt $ do
+hprop_eq = propertyWTInExtendedLocalGlobalCxt [builtinModule, primitiveModule] $ do
   cxt <- ask
   k <- forAllT genWTKind
   s <- forAllT $ genWTType k
@@ -426,7 +458,7 @@ hprop_eq = propertyWTInExtendedLocalGlobalCxt defaultCxt $ do
 
 -- unify ga uvs S T = Maybe sub => sub <= uvs
 hprop_only_sub_uvs :: Property
-hprop_only_sub_uvs = propertyWTInExtendedUVCxt defaultCxt $ \uvs -> do
+hprop_only_sub_uvs = propertyWTInExtendedUVCxt [builtinModule, primitiveModule] $ \uvs -> do
   cxt <- ask
   k <- forAllT genWTKind
   s <- forAllT $ genWTType k
@@ -438,7 +470,7 @@ hprop_only_sub_uvs = propertyWTInExtendedUVCxt defaultCxt $ \uvs -> do
 
 -- unify ga uvs S T = Maybe sub => S[sub] = T[sub]
 hprop_sub_unifies :: Property
-hprop_sub_unifies = propertyWTInExtendedUVCxt defaultCxt $ \uvs -> do
+hprop_sub_unifies = propertyWTInExtendedUVCxt [builtinModule, primitiveModule] $ \uvs -> do
   cxt <- ask
   k <- forAllT genWTKind
   s <- forAllT $ genWTType k
@@ -453,7 +485,7 @@ hprop_sub_unifies = propertyWTInExtendedUVCxt defaultCxt $ \uvs -> do
 
 -- unify ga uvs S T = Maybe sub => for t/a in sub, have checkKind uvs(a) t
 hprop_sub_checks :: Property
-hprop_sub_checks = propertyWTInExtendedUVCxt' defaultCxt $ \uvs -> do
+hprop_sub_checks = propertyWTInExtendedUVCxt' [builtinModule, primitiveModule] $ \uvs -> do
   cxt <- ask
   k <- forAllT genWTKind
   s <- forAllT $ genWTType k
@@ -468,7 +500,7 @@ hprop_sub_checks = propertyWTInExtendedUVCxt' defaultCxt $ \uvs -> do
 
 -- (S,T kind check and) unify ga uvs S T = Maybe sub => S[sub] , T[sub] kind check
 hprop_unified_checks :: Property
-hprop_unified_checks = propertyWTInExtendedUVCxt defaultCxt $ \uvs -> do
+hprop_unified_checks = propertyWTInExtendedUVCxt [builtinModule, primitiveModule] $ \uvs -> do
   cxt <- ask
   k <- forAllT genWTKind
   s <- forAllT $ genWTType k
@@ -488,7 +520,7 @@ hprop_unified_checks = propertyWTInExtendedUVCxt defaultCxt $ \uvs -> do
 -- This requires each to not be holey - i.e. don't synthesise KHole
 hprop_diff_kinds_never_unify :: Property
 hprop_diff_kinds_never_unify = withDiscards 5000 $
-  propertyWTInExtendedUVCxt defaultCxt $ \uvs -> do
+  propertyWTInExtendedUVCxt [builtinModule, primitiveModule] $ \uvs -> do
     cxt <- ask
     k1 <- forAllT genWTKind
     k2 <- forAllT genWTKind
@@ -504,7 +536,7 @@ hprop_diff_kinds_never_unify = withDiscards 5000 $
 
 -- unification is symmetric
 hprop_sym :: Property
-hprop_sym = propertyWTInExtendedUVCxt defaultCxt $ \uvs -> do
+hprop_sym = propertyWTInExtendedUVCxt [builtinModule, primitiveModule] $ \uvs -> do
   cxt <- ask
   k <- forAllT genWTKind
   s <- forAllT $ genWTType k
@@ -515,7 +547,7 @@ hprop_sym = propertyWTInExtendedUVCxt defaultCxt $ \uvs -> do
 
 -- the sub should be "non-cyclic", i.e. any sub should stabalise if done repeatedly
 hprop_non_cyclic :: Property
-hprop_non_cyclic = propertyWTInExtendedUVCxt defaultCxt $ \uvs -> do
+hprop_non_cyclic = propertyWTInExtendedUVCxt [builtinModule, primitiveModule] $ \uvs -> do
   cxt <- ask
   k <- forAllT genWTKind
   s <- forAllT $ genWTType k
@@ -531,7 +563,7 @@ hprop_non_cyclic = propertyWTInExtendedUVCxt defaultCxt $ \uvs -> do
 
 -- unifying a unif var gives simple success
 hprop_uv_succeeds :: Property
-hprop_uv_succeeds = propertyWT defaultCxt $ do
+hprop_uv_succeeds = propertyWT [builtinModule, primitiveModule] $ do
   k <- forAllT genWTKind
   t <- forAllT $ genWTType k
   uv <- forAllT freshTyVarNameForCxt

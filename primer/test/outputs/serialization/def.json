@@ -13,7 +13,10 @@
         ],
         "tag": "EmptyHole"
     },
-    "astDefName": "main",
+    "astDefName": {
+        "baseName": "main",
+        "qualifiedModule": "M"
+    },
     "astDefType": {
         "contents": [
             0,

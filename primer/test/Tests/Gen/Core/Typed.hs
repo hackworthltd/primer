@@ -29,7 +29,7 @@ import Hedgehog (
   (===),
  )
 import Hedgehog.Internal.Property (forAllT)
-import Primer.App (defaultTypeDefs)
+import Primer.Builtins (builtinModule)
 import Primer.Core (
   Expr,
   Kind (KType),
@@ -43,12 +43,13 @@ import Primer.Core.Utils (
   generateIDs,
   generateTypeIDs,
  )
+import Primer.Module (Module)
+import Primer.Primitives (primitiveModule)
 import Primer.Typecheck (
   Cxt (..),
   ExprT,
   SmartHoles (NoSmartHoles),
   TypeError,
-  buildTypingContext,
   check,
   checkKind,
   checkValidContext,
@@ -75,15 +76,15 @@ inExtendedLocalCxt p = do
   annotateShow $ M.differenceWith (\l r -> if l == r then Nothing else Just l) (localCxt cxtE) (localCxt cxt)
   local (const cxtE) p
 
-propertyWTInExtendedGlobalCxt :: Cxt -> PropertyT WT () -> Property
-propertyWTInExtendedGlobalCxt cxt = propertyWT cxt . inExtendedGlobalCxt
+propertyWTInExtendedGlobalCxt :: [Module] -> PropertyT WT () -> Property
+propertyWTInExtendedGlobalCxt mods = propertyWT mods . inExtendedGlobalCxt
 
-propertyWTInExtendedLocalGlobalCxt :: Cxt -> PropertyT WT () -> Property
-propertyWTInExtendedLocalGlobalCxt cxt = propertyWT cxt . inExtendedLocalCxt . inExtendedGlobalCxt
+propertyWTInExtendedLocalGlobalCxt :: [Module] -> PropertyT WT () -> Property
+propertyWTInExtendedLocalGlobalCxt mods = propertyWT mods . inExtendedLocalCxt . inExtendedGlobalCxt
 
 hprop_genTy :: Property
 hprop_genTy = withTests 1000 $
-  propertyWTInExtendedGlobalCxt (buildTypingContext defaultTypeDefs mempty NoSmartHoles) $ do
+  propertyWTInExtendedGlobalCxt [builtinModule, primitiveModule] $ do
     k <- forAllT genWTKind
     ty <- forAllT $ genWTType k
     ty' <- checkKindTest k =<< generateTypeIDs ty
@@ -116,7 +117,7 @@ checkValidContextTest t = do
 -- This indirectly also tests genCxtExtendingLocal, genCxtExtendingGlobal and genTypeDefGroup
 hprop_genCxtExtending_typechecks :: Property
 hprop_genCxtExtending_typechecks = withTests 1000 $
-  propertyWT (buildTypingContext defaultTypeDefs mempty NoSmartHoles) $ do
+  propertyWT [builtinModule, primitiveModule] $ do
     cxt <- forAllT genCxtExtendingGlobal
     checkValidContextTest cxt
     cxt' <- forAllT $ local (const cxt) genCxtExtendingLocal
@@ -126,7 +127,7 @@ hprop_genCxtExtending_is_extension :: Property
 hprop_genCxtExtending_is_extension =
   withTests 1000 $
     let cxt0 = initialCxt NoSmartHoles
-     in propertyWT cxt0 $ do
+     in propertyWT [] $ do
           cxt1 <- forAllT genCxtExtendingGlobal
           diff cxt0 extendsGlobal cxt1
           cxt2 <- forAllT $ local (const cxt1) genCxtExtendingGlobal
@@ -155,7 +156,7 @@ hprop_genCxtExtending_is_extension =
 hprop_genSyns :: Property
 hprop_genSyns = withTests 1000 $
   withDiscards 2000 $
-    propertyWTInExtendedLocalGlobalCxt (buildTypingContext defaultTypeDefs mempty NoSmartHoles) $ do
+    propertyWTInExtendedLocalGlobalCxt [builtinModule, primitiveModule] $ do
       tgtTy <- forAllT $ genWTType KType
       _ :: Type' (Meta Kind) <- checkKindTest KType =<< generateTypeIDs tgtTy
       (e, ty) <- forAllT $ genSyns tgtTy
@@ -169,7 +170,7 @@ hprop_genSyns = withTests 1000 $
 hprop_genChk :: Property
 hprop_genChk = withTests 1000 $
   withDiscards 2000 $
-    propertyWTInExtendedLocalGlobalCxt (buildTypingContext defaultTypeDefs mempty NoSmartHoles) $ do
+    propertyWTInExtendedLocalGlobalCxt [builtinModule, primitiveModule] $ do
       ty <- forAllT $ genWTType KType
       _ :: Type' (Meta Kind) <- checkKindTest KType =<< generateTypeIDs ty
       t <- forAllT $ genChk ty

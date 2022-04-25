@@ -8,6 +8,7 @@ import Primer.Action (
   Movement (..),
   moveExpr,
  )
+import Primer.Builtins (cSucc, cZero, tNat)
 import Primer.Core (
   Expr,
  )
@@ -42,43 +43,43 @@ unit_4 =
 unit_5 :: Assertion
 unit_5 =
   bindersAboveTest
-    (letrec "x" (lam "y" emptyHole) (tcon "Nat") (lam "z" emptyHole))
+    (letrec "x" (lam "y" emptyHole) (tcon tNat) (lam "z" emptyHole))
     [Child1, Child1]
     (S.fromList ["x", "y"])
 
 unit_6 :: Assertion
 unit_6 =
   bindersAboveTest
-    (letrec "x" (lam "y" emptyHole) (tcon "Nat") (lam "z" emptyHole))
+    (letrec "x" (lam "y" emptyHole) (tcon tNat) (lam "z" emptyHole))
     [Child2, Child1]
     (S.fromList ["x", "z"])
 
 unit_7 :: Assertion
 unit_7 =
   bindersAboveTest
-    (case_ (lvar "x") [branch "Zero" [] emptyHole, branch "Succ" [("n", Nothing)] emptyHole])
+    (case_ (lvar "x") [branch cZero [] emptyHole, branch cSucc [("n", Nothing)] emptyHole])
     []
     (S.fromList [])
 
 unit_8 :: Assertion
 unit_8 =
   bindersAboveTest
-    (case_ (lvar "x") [branch "Zero" [] emptyHole, branch "Succ" [("n", Nothing)] emptyHole])
+    (case_ (lvar "x") [branch cZero [] emptyHole, branch cSucc [("n", Nothing)] emptyHole])
     [Child1]
     (S.fromList [])
 
 unit_9 :: Assertion
 unit_9 =
   bindersAboveTest
-    (case_ (lvar "x") [branch "Zero" [] emptyHole, branch "Succ" [("n", Nothing)] emptyHole])
-    [Branch "Zero"]
+    (case_ (lvar "x") [branch cZero [] emptyHole, branch cSucc [("n", Nothing)] emptyHole])
+    [Branch cZero]
     (S.fromList [])
 
 unit_10 :: Assertion
 unit_10 =
   bindersAboveTest
-    (case_ (lvar "x") [branch "Zero" [] emptyHole, branch "Succ" [("n", Nothing)] emptyHole])
-    [Branch "Succ"]
+    (case_ (lvar "x") [branch cZero [] emptyHole, branch cSucc [("n", Nothing)] emptyHole])
+    [Branch cSucc]
     (S.fromList ["n"])
 
 -- * Helpers

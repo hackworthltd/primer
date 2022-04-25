@@ -24,6 +24,7 @@ import Primer.App (
   ProgError (NoDefSelected),
   Selection (..),
  )
+import Primer.Builtins (tNat)
 import Primer.Core (
   ASTDef (..),
   ASTTypeDef (..),
@@ -31,6 +32,7 @@ import Primer.Core (
   Expr,
   Expr' (EmptyHole, PrimCon),
   ExprMeta,
+  GlobalName (baseName),
   ID (..),
   Kind (KFun, KType),
   Meta (..),
@@ -42,13 +44,14 @@ import Primer.Core (
   TypeMeta,
   ValCon (..),
  )
-import Primer.Module (Module (Module, moduleDefs, moduleTypes))
+import Primer.Module (Module (Module, moduleDefs, moduleTypes), mkTypeDefMap, moduleName)
 import Primer.Name (unsafeMkName)
-import Primer.Typecheck (SmartHoles (SmartHoles), mkTypeDefMap)
+import Primer.Typecheck (SmartHoles (SmartHoles))
 import System.FilePath (takeBaseName)
 import Test.Tasty
 import Test.Tasty.Golden
 import Test.Tasty.HUnit
+import TestUtils (gvn, tcn, vcn)
 
 -- | Check that encoding the value produces the file.
 test_encode :: TestTree
@@ -93,27 +96,28 @@ fixtures =
       log :: Log
       log = Log [[BodyAction [Move Child1]]]
       def :: ASTDef
-      def = ASTDef{astDefName = "main", astDefExpr = expr, astDefType = TEmptyHole typeMeta}
+      def = ASTDef{astDefName = gvn "M" "main", astDefExpr = expr, astDefType = TEmptyHole typeMeta}
       typeDef :: TypeDef
       typeDef =
         TypeDefAST
           ASTTypeDef
-            { astTypeDefName = "T"
+            { astTypeDefName = tcn "M" "T"
             , astTypeDefParameters = [("a", KType), ("b", KFun KType KType)]
-            , astTypeDefConstructors = [ValCon "C" [TApp () (TVar () "b") (TVar () "a"), TCon () "Nat"]]
+            , astTypeDefConstructors = [ValCon (vcn "M" "C") [TApp () (TVar () "b") (TVar () "a"), TCon () tNat]]
             , astTypeDefNameHints = []
             }
       progerror :: ProgError
       progerror = NoDefSelected
       progaction :: ProgAction
-      progaction = MoveToDef "main"
+      progaction = MoveToDef $ gvn "M" "main"
       prog =
         Prog
           { progImports = mempty
           , progModule =
               Module
-                { moduleTypes = mkTypeDefMap [typeDef]
-                , moduleDefs = Map.singleton (astDefName def) (DefAST def)
+                { moduleName = "M"
+                , moduleTypes = mkTypeDefMap [typeDef]
+                , moduleDefs = Map.singleton (baseName $ astDefName def) (DefAST def)
                 }
           , progSelection = Just selection
           , progSmartHoles = SmartHoles

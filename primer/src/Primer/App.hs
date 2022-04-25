@@ -22,6 +22,7 @@ module Primer.App (
   runEditAppM,
   runQueryAppM,
   Prog (..),
+  progAllModules,
   tcWholeProg,
   ProgAction (..),
   ProgError (..),
@@ -42,11 +43,6 @@ module Primer.App (
   EvalFullReq (..),
   EvalFullResp (..),
   lookupASTDef,
-  boolDef,
-  natDef,
-  listDef,
-  eitherDef,
-  defaultTypeDefs,
 ) where
 
 import Foreword hiding (mod)
@@ -63,7 +59,8 @@ import Data.Generics.Uniplate.Operations (descendM, transform, transformM)
 import Data.Generics.Uniplate.Zipper (
   fromZipper,
  )
-import Data.List.Extra ((!?))
+import Data.List (intersect, (\\))
+import Data.List.Extra (anySame, disjoint, (!?))
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 import Optics (
@@ -90,6 +87,7 @@ import Primer.Action (
   applyActionsToBody,
   applyActionsToTypeSig,
  )
+import Primer.Builtins (builtinModule)
 import Primer.Core (
   ASTDef (..),
   ASTTypeDef (..),
@@ -101,12 +99,11 @@ import Primer.Core (
   Expr' (Case, Con, EmptyHole, Hole, Var),
   ExprMeta,
   GVarName,
-  GlobalName (baseName),
+  GlobalName (baseName, qualifiedModule),
   ID (..),
-  Kind (..),
   LocalName (LocalName, unLocalName),
   Meta (..),
-  PrimDef (..),
+  ModuleName,
   TmVarRef (GlobalVarRef, LocalVarRef),
   TyConName,
   TyVarName,
@@ -120,7 +117,6 @@ import Primer.Core (
   defName,
   defPrim,
   getID,
-  primFunType,
   qualifyName,
   typeDefAST,
   typesInExpr,
@@ -141,9 +137,16 @@ import Primer.Eval (EvalDetail, EvalError)
 import qualified Primer.Eval as Eval
 import Primer.EvalFull (Dir, EvalFullError (TimedOut), TerminationBound, evalFull)
 import Primer.JSON
-import Primer.Module (Module (Module, moduleDefs, moduleTypes))
-import Primer.Name (Name, NameCounter, freshName)
-import Primer.Primitives (allPrimDefs, allPrimTypeDefs)
+import Primer.Module (
+  Module (Module, moduleDefs, moduleName, moduleTypes),
+  deleteDef,
+  insertDef,
+  mkTypeDefMap,
+  moduleDefsQualified,
+  moduleTypesQualified,
+ )
+import Primer.Name (Name (unName), NameCounter, freshName, unsafeMkName)
+import Primer.Primitives (primitiveModule)
 import Primer.Questions (
   Question (..),
   generateNameExpr,
@@ -157,10 +160,11 @@ import Primer.Typecheck (
   SmartHoles (NoSmartHoles, SmartHoles),
   TypeError,
   buildTypingContext,
+  buildTypingContextFromModules,
   checkDef,
   checkEverything,
   checkTypeDefs,
-  mkTypeDefMap,
+  mkTypeDefMapQualified,
   synth,
  )
 import Primer.Zipper (
@@ -204,19 +208,15 @@ data Prog = Prog
   deriving (Eq, Show, Generic)
   deriving (FromJSON, ToJSON) via VJSON Prog
 
+progAllModules :: Prog -> [Module]
+progAllModules p = progModule p : progImports p
+
 -- Note [Modules]
 -- The invariant is that the @progImports@ modules are never edited, but
 -- one can insert new ones (and perhaps delete unneeded ones).
 --
--- Currently we assume that all Names and IDs are globally unique (across
--- all the imported and editable modules). We intend to lift this restriction
--- shortly by introducing unique module identifiers. Since the user has no
--- control over IDs, this means that importing modules is unsafe: either it may
--- break this invariant, or it could fail with no way for a end-user to fix it.
--- (Or it would have to do a lot of work to uniquify names and ids, and then
--- bear this in mind when importing further modules that may reference these.)
--- Since we do not yet expose any way for an end-user to import modules, this
--- restriction is not particularly severe in practice.
+-- We assume that all Names and IDs are unique within one module, and that
+-- module names are unique.
 --
 -- All modules in a @Prog@ shall be well-typed, in the appropriate scope:
 -- all the imports are in one mutual dependency group
@@ -226,13 +226,17 @@ data Prog = Prog
 -- (and all their dependencies are already imported)
 importModules :: MonadEditApp m => [Module] -> m ()
 importModules ms = do
-  -- NB: we do not enforce the invariant that IDs and Names are globally unique
-  -- (see Note [Modules]), because we plan to only use this function internally
-  -- until we add unique names to modules.
-  -- This means that any call to this function should ensure that the IDs/Names
-  -- in the imported module are distinct from those already existing in the
-  -- App.
   p <- gets appProg
+  -- Module names must be unique
+  let currentModules = progAllModules p
+  let currentNames = moduleName <$> currentModules
+  let newNames = moduleName <$> ms
+  unless (disjoint currentNames newNames && not (anySame newNames)) $
+    throwError $
+      ActionError $
+        ImportNameClash $
+          (currentNames `intersect` newNames) <> (newNames \\ ordNub newNames)
+  -- Imports must be well-typed (and cannot depend on the editable module)
   checkedImports <-
     liftError (ActionError . ImportFailed ()) $
       checkEverything NoSmartHoles $
@@ -242,22 +246,22 @@ importModules ms = do
 
 -- | Get all type definitions from all modules (including imports)
 allTypes :: Prog -> Map TyConName TypeDef
-allTypes p = foldMap moduleTypes $ progModule p : progImports p
+allTypes p = foldMap moduleTypesQualified $ progAllModules p
 
 -- | Get all definitions from all modules (including imports)
 allDefs :: Prog -> Map GVarName Def
-allDefs p = foldMap moduleDefs $ progModule p : progImports p
+allDefs p = foldMap moduleDefsQualified $ progAllModules p
 
 -- | Add a definition to the editable module
+-- assumes the def has the correct name to go in the editable module
 addDef :: ASTDef -> Prog -> Prog
 addDef d p =
   let mod = progModule p
-      defs = moduleDefs mod
-      defs' = Map.insert (astDefName d) (DefAST d) defs
-      mod' = mod{moduleDefs = defs'}
+      mod' = insertDef mod $ DefAST d
    in p{progModule = mod'}
 
 -- | Add a type definition to the editable module
+-- assumes the def has the correct name to go in the editable module
 addTypeDef :: ASTTypeDef -> Prog -> Prog
 addTypeDef t p =
   let mod = progModule p
@@ -388,8 +392,8 @@ handleQuestion = \case
           Right zT -> (variablesInScopeTy zT, [], [])
     pure ((tyvars, termvars), globals)
   GenerateName defid nodeid typeKind -> do
-    progTypeDefs <- asks $ moduleTypes . progModule . appProg
-    progDefs <- asks $ moduleDefs . progModule . appProg
+    progTypeDefs <- asks $ moduleTypesQualified . progModule . appProg
+    progDefs <- asks $ moduleDefsQualified . progModule . appProg
     names <-
       focusNode' defid nodeid <&> \case
         Left zE -> generateNameExpr typeKind zE
@@ -403,7 +407,7 @@ handleQuestion = \case
 
 -- This only looks in the editable module, not in any imports
 focusNode :: MonadError ProgError m => Prog -> GVarName -> ID -> m (Either (Either ExprZ TypeZ) TypeZip)
-focusNode prog = focusNodeDefs $ moduleDefs $ progModule prog
+focusNode prog = focusNodeDefs $ moduleDefsQualified $ progModule prog
 
 -- This looks in the editable module and also in any imports
 focusNodeImports :: MonadError ProgError m => Prog -> GVarName -> ID -> m (Either (Either ExprZ TypeZ) TypeZip)
@@ -470,15 +474,14 @@ handleEvalFullRequest (EvalFullReq{evalFullReqExpr, evalFullCxtDir, evalFullMaxS
 -- Prog actions only affect the editable module
 applyProgAction :: MonadEditApp m => Prog -> Maybe GVarName -> ProgAction -> m (Prog, Maybe GVarName)
 applyProgAction prog mdefName = \case
-  MoveToDef d -> case Map.lookup d (moduleDefs $ progModule prog) of
+  MoveToDef d -> case Map.lookup d (moduleDefsQualified $ progModule prog) of
     Nothing -> throwError $ DefNotFound d
     Just _ -> pure (prog, Just d)
-  DeleteDef d
-    | mod <- progModule prog
-    , Map.member d (moduleDefs mod) -> do
-        let modDefs' = Map.delete d $ moduleDefs mod
-            mod' = mod{moduleDefs = modDefs'}
-            prog' = prog{progModule = mod', progSelection = Nothing}
+  DeleteDef d ->
+    case deleteDef (progModule prog) d of
+      Nothing -> throwError $ DefNotFound d
+      Just mod' -> do
+        let prog' = prog{progModule = mod', progSelection = Nothing}
         -- Run a full TC solely to ensure that no references to the removed id
         -- remain. This is rather inefficient and could be improved in the
         -- future.
@@ -487,42 +490,51 @@ applyProgAction prog mdefName = \case
             NoSmartHoles
             CheckEverything{trusted = progImports prog, toCheck = [mod']}
         pure (prog', Nothing)
-  DeleteDef d -> throwError $ DefNotFound d
-  RenameDef d nameStr -> case lookupASTDef d (moduleDefs $ progModule prog) of
+  RenameDef d nameStr -> case lookupASTDef d (moduleDefsQualified $ progModule prog) of
     Nothing -> throwError $ DefNotFound d
     Just def -> do
       let defs = moduleDefs $ progModule prog
-          name = unsafeMkGlobalName nameStr
-      if Map.member name defs
-        then throwError $ DefAlreadyExists name
+          oldNameBase = baseName d
+          newNameBase = unsafeMkName nameStr
+          newName = qualifyName (moduleName $ progModule prog) newNameBase
+      if Map.member newNameBase defs
+        then throwError $ DefAlreadyExists newName
         else do
-          let def' = DefAST def{astDefName = name}
+          let def' = DefAST def{astDefName = newName}
           defs' <-
             maybe (throwError $ ActionError NameCapture) pure $
               traverse
                 ( traverseOf (#_DefAST % #astDefExpr) $
-                    renameVar (GlobalVarRef d) (GlobalVarRef name)
+                    renameVar (GlobalVarRef d) (GlobalVarRef newName)
                 )
-                (Map.insert name def' $ Map.delete d defs)
+                (Map.insert newNameBase def' $ Map.delete oldNameBase defs)
           let prog' =
                 prog
                   & #progSelection ?~ Selection (defName def') Nothing
                   & #progModule % #moduleDefs .~ defs'
           pure (prog', mdefName)
   CreateDef n -> do
-    let defs = moduleDefs $ progModule prog
+    let mod = progModule prog
+    let modName = moduleName mod
+    let defs = moduleDefs mod
     name <- case n of
       Just nameStr ->
-        let name = unsafeMkGlobalName nameStr
-         in if Map.member name defs
+        let baseName = unsafeMkName nameStr
+            name = qualifyName modName baseName
+         in if Map.member baseName defs
               then throwError $ DefAlreadyExists name
               else pure name
-      Nothing -> fmap qualifyName . freshName $ Set.fromList $ map (baseName . defName) $ Map.elems defs
+      Nothing -> fmap (qualifyName modName) $ freshName $ Map.keysSet defs
     expr <- newExpr
     ty <- newType
     let def = ASTDef name expr ty
     pure (addDef def prog{progSelection = Just $ Selection name Nothing}, Just name)
   AddTypeDef td -> do
+    -- The frontend should never let this error happen,
+    -- so we just dump out a raw string for debugging/logging purposes
+    let m = moduleName $ progModule prog
+    unless (m == qualifiedModule (astTypeDefName td)) $
+      throwError $ TypeDefError $ "Cannot create a type definition with incorrect module name: expected " <> unName m
     (addTypeDef td prog, mdefName)
       <$ liftError
         -- The frontend should never let this error case happen,
@@ -534,10 +546,10 @@ applyProgAction prog mdefName = \case
         -- see https://github.com/hackworthltd/primer/issues/3)
         (TypeDefError . show @TypeError)
         ( runReaderT
-            (checkTypeDefs $ mkTypeDefMap [TypeDefAST td])
-            (buildTypingContext (allTypes prog) mempty NoSmartHoles)
+            (checkTypeDefs $ mkTypeDefMapQualified [TypeDefAST td])
+            (buildTypingContextFromModules (progAllModules prog) NoSmartHoles)
         )
-  RenameType old (unsafeMkGlobalName -> new) ->
+  RenameType old (unsafeMkName -> nameRaw) ->
     (,Nothing) <$> do
       traverseOf
         #progModule
@@ -546,17 +558,16 @@ applyProgAction prog mdefName = \case
         )
         prog
     where
+      new = qualifyName (qualifiedModule old) nameRaw
       updateType m = do
         d0 <-
           -- NB We do not allow primitive types to be renamed.
           -- To relax this, we'd have to be careful about how it interacts with type-checking of primitive literals.
           maybe (throwError $ TypeDefIsPrim old) pure . typeDefAST
-            =<< maybe (throwError $ TypeDefNotFound old) pure (Map.lookup old m)
-        -- TODO we should really check this against _all_ modules, but we will very shortly be adding namespacing
-        when (Map.member new m) $ throwError $ TypeDefAlreadyExists new
-        let nameRaw = baseName new
+            =<< maybe (throwError $ TypeDefNotFound old) pure (Map.lookup (baseName old) m)
+        when (Map.member nameRaw m) $ throwError $ TypeDefAlreadyExists new
         when (nameRaw `elem` map (unLocalName . fst) (astTypeDefParameters d0)) $ throwError $ TyConParamClash nameRaw
-        pure $ Map.insert new (TypeDefAST $ d0 & #astTypeDefName .~ new) $ Map.delete old m
+        pure $ Map.insert nameRaw (TypeDefAST $ d0 & #astTypeDefName .~ new) $ Map.delete (baseName old) m
       updateRefsInTypes =
         over
           (traversed % #_TypeDefAST % #astTypeDefConstructors % traversed % #valConArgs % traversed)
@@ -570,12 +581,12 @@ applyProgAction prog mdefName = \case
           #astDefExpr
           $ transform $ over typesInExpr $ transform $ over (#_TCon % _2) updateName
       updateName n = if n == old then new else n
-  RenameCon type_ old (unsafeMkGlobalName -> new) ->
+  RenameCon type_ old (unsafeMkGlobalName . (unName (qualifiedModule type_),) -> new) ->
     (,Nothing) <$> do
       when (new `elem` allConNames prog) $ throwError $ ConAlreadyExists new
       traverseOf
         #progModule
-        ( traverseOf #moduleTypes updateType
+        ( updateType
             <=< traverseOf #moduleDefs (pure . updateDefs)
         )
         prog
@@ -593,11 +604,11 @@ applyProgAction prog mdefName = \case
         over (traversed % #_DefAST % #astDefExpr) $
           transform $ over (#_Con % _2) updateName
       updateName n = if n == old then new else n
-  RenameTypeParam type_ old (unsafeMkLocalName -> new) ->
+  RenameTypeParam type_ old (unsafeMkLocalName -> new) -> do
     (,Nothing)
       <$> traverseOf
         #progModule
-        (traverseOf #moduleTypes updateType)
+        updateType
         prog
     where
       updateType =
@@ -624,7 +635,7 @@ applyProgAction prog mdefName = \case
           )
           $ over _freeVarsTy $ \(_, v) -> TVar () $ updateName v
       updateName n = if n == old then new else n
-  AddCon type_ index (unsafeMkGlobalName -> con) ->
+  AddCon type_ index (unsafeMkGlobalName . (unName (qualifiedModule type_),) -> con) ->
     (,Nothing)
       <$> do
         when (con `elem` allConNames prog) $ throwError $ ConAlreadyExists con
@@ -633,9 +644,7 @@ applyProgAction prog mdefName = \case
           ( traverseOf
               (#moduleDefs % traversed % #_DefAST % #astDefExpr)
               updateDefs
-              <=< traverseOf
-                #moduleTypes
-                updateType
+              <=< updateType
           )
           prog
     where
@@ -649,12 +658,12 @@ applyProgAction prog mdefName = \case
               (maybe (throwError $ IndexOutOfRange index) pure . insertAt index (ValCon con []))
           )
           type_
-  SetConFieldType type_ con index new ->
+  SetConFieldType type_ con index new -> do
     (,Nothing)
       <$> traverseOf
         #progModule
         ( traverseOf #moduleDefs updateDefs
-            <=< traverseOf #moduleTypes updateType
+            <=< updateType
         )
         prog
     where
@@ -702,12 +711,12 @@ applyProgAction prog mdefName = \case
                   )
                   e
             else pure cb
-  AddConField type_ con index new ->
+  AddConField type_ con index new -> do
     (,Nothing)
       <$> traverseOf
         #progModule
         ( traverseOf #moduleDefs updateDefs
-            <=< traverseOf #moduleTypes updateType
+            <=< updateType
         )
         prog
     where
@@ -749,7 +758,7 @@ applyProgAction prog mdefName = \case
   BodyAction actions -> do
     withDef mdefName prog $ \def -> do
       smartHoles <- gets $ progSmartHoles . appProg
-      res <- applyActionsToBody smartHoles (allTypes prog) (allDefs prog) def actions
+      res <- applyActionsToBody smartHoles (progAllModules prog) def actions
       case res of
         Left err -> throwError $ ActionError err
         Right (def', z) -> do
@@ -813,7 +822,7 @@ withDef mdefName prog f =
   case mdefName of
     Nothing -> throwError NoDefSelected
     Just defname -> do
-      case lookupASTDef defname (moduleDefs $ progModule prog) of
+      case lookupASTDef defname (moduleDefsQualified $ progModule prog) of
         Nothing -> throwError $ DefNotFound defname
         Just def -> f def
 
@@ -928,13 +937,14 @@ newEmptyProg :: Prog
 newEmptyProg =
   let expr = EmptyHole (Meta 1 Nothing Nothing)
       ty = TEmptyHole (Meta 2 Nothing Nothing)
-      def = DefAST $ ASTDef "main" expr ty
+      def = DefAST $ ASTDef (qualifyName "Main" "main") expr ty
    in Prog
         { progImports = mempty
         , progModule =
             Module
-              { moduleTypes = mempty
-              , moduleDefs = Map.singleton (defName def) def
+              { moduleName = "Main"
+              , moduleTypes = mempty
+              , moduleDefs = Map.singleton (baseName $ defName def) def
               }
         , progSelection = Nothing
         , progSmartHoles = SmartHoles
@@ -951,39 +961,36 @@ newEmptyApp =
     , appInit = NewEmptyApp
     }
 
--- | An initial program with some useful typedefs.
+-- | An initial program with some useful typedefs imported.
 newProg :: Prog
 newProg =
   newEmptyProg
-    { progModule =
+    { progImports = [builtinModule, primitiveModule]
+    , progModule =
         Module
-          { moduleTypes = defaultTypeDefs
-          , moduleDefs = defaultDefs
+          { moduleName = "Main"
+          , moduleTypes = mempty
+          , moduleDefs = defaultDefs "Main"
           }
     }
 
+-- Since IDs should be unique in a module, we record 'defaultDefsNextID'
+-- to initialise the 'appIdCounter'
 defaultDefsNextId :: ID
-defaultDefs :: Map GVarName Def
+defaultDefs :: ModuleName -> Map Name Def
 (defaultDefs, defaultDefsNextId) =
   let (defs, nextID) = create $ do
         mainExpr <- emptyHole
         mainType <- tEmptyHole
-        let astDefs =
+        let astDefs m =
               [ ASTDef
-                  { astDefName = "main"
+                  { astDefName = qualifyName m "main"
                   , astDefExpr = mainExpr
                   , astDefType = mainType
                   }
               ]
-        primDefs <- for (Map.toList allPrimDefs) $ \(primDefName, def) -> do
-          primDefType <- primFunType def
-          pure $
-            PrimDef
-              { primDefName
-              , primDefType
-              }
-        pure $ map DefAST astDefs <> map DefPrim primDefs
-   in (Map.fromList $ (\d -> (defName d, d)) <$> defs, nextID)
+        pure $ \m -> map DefAST $ astDefs m
+   in (\m -> Map.fromList $ (\d -> (baseName $ defName d, d)) <$> defs m, nextID)
 
 -- | An initial app whose program includes some useful definitions.
 newApp :: App
@@ -1154,7 +1161,7 @@ copyPasteBody p (fromDefName, fromId) toDefName setup = do
   smartHoles <- gets $ progSmartHoles . appProg
   -- The Loc zipper captures all the changes, they are only reflected in the
   -- returned Def, which we thus ignore
-  (oldDef, doneSetup) <- withDef (Just toDefName) p $ \def -> (def,) <$> applyActionsToBody smartHoles (allTypes p) (allDefs p) def setup
+  (oldDef, doneSetup) <- withDef (Just toDefName) p $ \def -> (def,) <$> applyActionsToBody smartHoles (progAllModules p) def setup
   tgt <- case doneSetup of
     Left err -> throwError $ ActionError err
     Right (_, tgt) -> pure tgt
@@ -1239,19 +1246,24 @@ alterTypeDef ::
   MonadEditApp m =>
   (ASTTypeDef -> m ASTTypeDef) ->
   TyConName ->
-  Map TyConName TypeDef ->
-  m (Map TyConName TypeDef)
-alterTypeDef f type_ =
-  Map.alterF
-    ( maybe
-        (throwError $ TypeDefNotFound type_)
+  Module ->
+  m Module
+alterTypeDef f type_ m = do
+  unless (qualifiedModule type_ == moduleName m) $ throwError $ TypeDefNotFound type_
+  traverseOf
+    #moduleTypes
+    ( Map.alterF
         ( maybe
-            (throwError $ TypeDefIsPrim type_)
-            (map (Just . TypeDefAST) . f)
-            . typeDefAST
+            (throwError $ TypeDefNotFound type_)
+            ( maybe
+                (throwError $ TypeDefIsPrim type_)
+                (map (Just . TypeDefAST) . f)
+                . typeDefAST
+            )
         )
+        (baseName type_)
     )
-    type_
+    m
 
 -- | Apply a bottom-up transformation to all branches of case expressions on the given type.
 transformCaseBranches ::
@@ -1275,7 +1287,7 @@ transformCaseBranches prog type_ f = transformM $ \case
   e -> pure e
 
 progCxt :: Prog -> Cxt
-progCxt p = buildTypingContext (allTypes p) (allDefs p) (progSmartHoles p)
+progCxt p = buildTypingContextFromModules (progAllModules p) (progSmartHoles p)
 
 -- | Run a computation in some context whose errors can be promoted to `ProgError`.
 liftError :: MonadEditApp m => (e -> ProgError) -> ExceptT e m b -> m b
@@ -1291,85 +1303,3 @@ allConNames =
       % #astTypeDefConstructors
       % traversed
       % #valConName
-
-defaultTypeDefs :: Map TyConName TypeDef
-defaultTypeDefs =
-  mkTypeDefMap $
-    map
-      TypeDefAST
-      [boolDef, natDef, listDef, maybeDef, pairDef, eitherDef]
-      <> map
-        TypeDefPrim
-        (Map.elems allPrimTypeDefs)
-
--- | A definition of the Bool type
-boolDef :: ASTTypeDef
-boolDef =
-  ASTTypeDef
-    { astTypeDefName = "Bool"
-    , astTypeDefParameters = []
-    , astTypeDefConstructors =
-        [ ValCon "True" []
-        , ValCon "False" []
-        ]
-    , astTypeDefNameHints = ["p", "q"]
-    }
-
--- | A definition of the Nat type
-natDef :: ASTTypeDef
-natDef =
-  ASTTypeDef
-    { astTypeDefName = "Nat"
-    , astTypeDefParameters = []
-    , astTypeDefConstructors =
-        [ ValCon "Zero" []
-        , ValCon "Succ" [TCon () "Nat"]
-        ]
-    , astTypeDefNameHints = ["i", "j", "n", "m"]
-    }
-
--- | A definition of the List type
-listDef :: ASTTypeDef
-listDef =
-  ASTTypeDef
-    { astTypeDefName = "List"
-    , astTypeDefParameters = [("a", KType)]
-    , astTypeDefConstructors =
-        [ ValCon "Nil" []
-        , ValCon "Cons" [TVar () "a", TApp () (TCon () "List") (TVar () "a")]
-        ]
-    , astTypeDefNameHints = ["xs", "ys", "zs"]
-    }
-
--- | A definition of the Maybe type
-maybeDef :: ASTTypeDef
-maybeDef =
-  ASTTypeDef
-    { astTypeDefName = "Maybe"
-    , astTypeDefParameters = [("a", KType)]
-    , astTypeDefConstructors =
-        [ ValCon "Nothing" []
-        , ValCon "Just" [TVar () "a"]
-        ]
-    , astTypeDefNameHints = ["mx", "my", "mz"]
-    }
-
--- | A definition of the Pair type
-pairDef :: ASTTypeDef
-pairDef =
-  ASTTypeDef
-    { astTypeDefName = "Pair"
-    , astTypeDefParameters = [("a", KType), ("b", KType)]
-    , astTypeDefConstructors = [ValCon "MakePair" [TVar () "a", TVar () "b"]]
-    , astTypeDefNameHints = []
-    }
-
--- | A definition of the Either type
-eitherDef :: ASTTypeDef
-eitherDef =
-  ASTTypeDef
-    { astTypeDefName = "Either"
-    , astTypeDefParameters = [("a", KType), ("b", KType)]
-    , astTypeDefConstructors = [ValCon "Left" [TVar () "a"], ValCon "Right" [TVar () "b"]]
-    , astTypeDefNameHints = []
-    }
