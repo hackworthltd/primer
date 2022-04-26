@@ -168,11 +168,21 @@ freshTyConNameForCxt = qualifyName <$> genModuleName <*> freshNameForCxt
 -- annotation. We must ensure that binders do not capture type
 -- variable references that are introduced in that way.
 -- For this we use 'genLVarNameAvoiding' and 'genTyVarNameAvoiding'.
+-- Note that the aimed-for type may change during generation; in
+-- particular, it can change to be the type of a non-shadowed term
+-- variable (or a subexpression of said type), for example in genApp.
+-- Thus we must avoid free variables occuring in the types assigned
+-- by the context to term variables as well as those in the aimed-for
+-- type.
 genLVarNameAvoiding :: [TypeG] -> GenT WT LVarName
-genLVarNameAvoiding ty = freshen (foldMap freeVarsTy ty) 0 <$> genLVarName
+genLVarNameAvoiding ty =
+  (\vs -> freshen (foldMap freeVarsTy ty <> foldMap freeVarsTy vs) 0)
+    <$> asks localTmVars <*> genLVarName
 
 genTyVarNameAvoiding :: TypeG -> GenT WT TyVarName
-genTyVarNameAvoiding ty = freshen (freeVarsTy ty) 0 <$> genTyVarName
+genTyVarNameAvoiding ty =
+  (\vs -> freshen (freeVarsTy ty <> foldMap freeVarsTy vs) 0)
+    <$> asks localTmVars <*> genTyVarName
 
 freshen :: Set (LocalName k') -> Int -> LocalName k -> LocalName k
 freshen fvs i n =
