@@ -265,19 +265,21 @@ viewCaseRedex tydefs = \case
   -- variables. This is especially important, as we do not (yet?) take care of
   -- metadata correctly in this evaluator (for instance, substituting when we
   -- do a BETA reduction)!
-  Case _ (Ann _ expr ty) brs
+  Case m expr'@(Ann _ expr ty) brs
     | Just (c, _, as, xs, e) <- extract expr brs
     , Just argTys <- instantiateCon ty c ->
-        formCaseRedex (Left ty) c argTys as xs e
+        renameBindings m expr' brs [ty] as xs
+          <|> formCaseRedex (Left ty) c argTys as xs e
   -- In the constructors-are-synthesisable case, we don't have the benefit of
   -- an explicit annotation, and have to work out the type based off the name
   -- of the constructor.
-  Case _ expr brs
+  Case m expr brs
     | Just (c, tyargs, args, patterns, br) <- extract expr brs
     , Just (_, tydef) <- lookupConstructor tydefs c
     , ty <- foldl (\t a -> TApp () t $ set _typeMeta () a) (TCon () (astTypeDefName tydef)) (take (length $ astTypeDefParameters tydef) tyargs)
     , Just argTys <- instantiateCon ty c ->
-        formCaseRedex (Right ty) c argTys args patterns br
+        renameBindings m expr brs tyargs args patterns
+          <|> formCaseRedex (Right ty) c argTys args patterns br
   _ -> Nothing
   where
     extract expr brs =
@@ -296,6 +298,35 @@ viewCaseRedex tydefs = \case
       , Just (_, argTys) <- find ((== c) . fst) instVCs =
           Just argTys
       | otherwise = Nothing
+    {- There is a subtlety here around variable capture.
+       Consider
+         case C s t : T A B of C a b -> e
+       We would like to reduce this to
+         let a = s : S; let b = t : T in e
+       where we have annotated `s` and `t` with their types, which will be
+       built from `A` and `B` according to the definition of the type `T`
+       (for reasons of bidirectionality).
+       Note that the binding of `a` may capture a reference in `t`
+       or (assuming type and term variables can shadow) in `T`.
+       We must catch this case and rename the case binders as a first step.
+       Note that the free vars in `t : T` are a subset of the free vars in the
+       arguments of the scrutinee (s, t) plus the arguments to its type
+       annotation (A, B). (In the non-annotated case, we instead look at the
+       type arguments of the scrutinee).
+       We shall be conservative and rename all binders in every branch apart
+       from these free vars.
+       (We could get away with only renaming within the matching branch, only
+       avoiding those FVs that actually occur, and in a "telescope" fashion:
+       the first binder needs to avoid the FVs of all except the first
+       argument, the second needs to avoid all but the first two args, ...,
+       the last doesn't need any renaming.)
+    -}
+    renameBindings m expr brs tyargs args patterns =
+      let avoid = foldMap (S.map unLocalName . freeVarsTy) tyargs <> foldMap freeVars args
+          binders = S.fromList $ map (unLocalName . bindName) patterns
+       in if S.disjoint avoid binders
+            then Nothing
+            else Just $ pure $ RenameBindingsCase m expr brs avoid
     formCaseRedex ty c argTys args patterns br = pure $ do
       argTys' <- sequence argTys
       -- TODO: we are putting trivial metadata in here...
