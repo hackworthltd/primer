@@ -119,7 +119,11 @@ unit_empty_actions_only_change_the_log = progActionTest defaultEmptyProg [] $
 unit_move_to_def_main :: Assertion
 unit_move_to_def_main = progActionTest defaultEmptyProg [moveToDef "main"] $
   expectSuccess $ \prog prog' ->
-    prog' @?= prog{progLog = Log [[moveToDef "main"]]}
+    prog'
+      @?= prog
+        { progLog = Log [[moveToDef "main"]]
+        , progSelection = Just $ Selection (gvn "main") Nothing
+        }
 
 -- Expression actions are tested in ActionTest - here we just check that we can modify the correct
 -- def.

@@ -448,7 +448,9 @@ handleEditRequest actions = do
   pure prog'
   where
     go :: (Prog, Maybe GVarName) -> ProgAction -> m (Prog, Maybe GVarName)
-    go (prog, mdef) = applyProgAction prog mdef
+    go (prog, mdef) a =
+      applyProgAction prog mdef a <&> \prog' ->
+        (prog', selectedDef <$> progSelection prog')
 
 -- | Handle an eval request
 handleEvalRequest :: MonadEditApp m => EvalReq -> m EvalResp
@@ -474,12 +476,15 @@ handleEvalFullRequest (EvalFullReq{evalFullReqExpr, evalFullCxtDir, evalFullMaxS
     Left (TimedOut e) -> EvalFullRespTimedOut e
     Right nf -> EvalFullRespNormal nf
 
--- Prog actions only affect the editable module
-applyProgAction :: MonadEdit m => Prog -> Maybe GVarName -> ProgAction -> m (Prog, Maybe GVarName)
+-- | Handle a 'ProgAction'
+-- These actions only affect the editable module
+-- The 'GVarName' argument is the currently-selected definition, which is
+-- provided for convenience: it is the same as the one in the progSelection.
+applyProgAction :: MonadEdit m => Prog -> Maybe GVarName -> ProgAction -> m Prog
 applyProgAction prog mdefName = \case
   MoveToDef d -> case Map.lookup d (moduleDefsQualified $ progModule prog) of
     Nothing -> throwError $ DefNotFound d
-    Just _ -> pure (prog, Just d)
+    Just _ -> pure $ prog & #progSelection ?~ Selection d Nothing
   DeleteDef d ->
     case deleteDef (progModule prog) d of
       Nothing -> throwError $ DefNotFound d
@@ -492,7 +497,7 @@ applyProgAction prog mdefName = \case
           checkEverything @TypeError
             NoSmartHoles
             CheckEverything{trusted = progImports prog, toCheck = [mod']}
-        pure (prog', Nothing)
+        pure prog'
   RenameDef d nameStr -> case lookupASTDef d (moduleDefsQualified $ progModule prog) of
     Nothing -> throwError $ DefNotFound d
     Just def -> do
@@ -515,7 +520,7 @@ applyProgAction prog mdefName = \case
                 prog
                   & #progSelection ?~ Selection (defName def') Nothing
                   & #progModule % #moduleDefs .~ defs'
-          pure (prog', mdefName)
+          pure prog'
   CreateDef n -> do
     let mod = progModule prog
     let modName = moduleName mod
@@ -531,14 +536,14 @@ applyProgAction prog mdefName = \case
     expr <- newExpr
     ty <- newType
     let def = ASTDef name expr ty
-    pure (addDef def prog{progSelection = Just $ Selection name Nothing}, Just name)
+    pure $ addDef def prog{progSelection = Just $ Selection name Nothing}
   AddTypeDef td -> do
     -- The frontend should never let this error happen,
     -- so we just dump out a raw string for debugging/logging purposes
     let m = moduleName $ progModule prog
     unless (m == qualifiedModule (astTypeDefName td)) $
       throwError $ TypeDefError $ "Cannot create a type definition with incorrect module name: expected " <> moduleNamePretty m
-    (addTypeDef td prog, mdefName)
+    addTypeDef td prog
       <$ liftError
         -- The frontend should never let this error case happen,
         -- so we just dump out a raw string for debugging/logging purposes
@@ -552,14 +557,13 @@ applyProgAction prog mdefName = \case
             (checkTypeDefs $ mkTypeDefMapQualified [TypeDefAST td])
             (buildTypingContextFromModules (progAllModules prog) NoSmartHoles)
         )
-  RenameType old (unsafeMkName -> nameRaw) ->
-    (,Nothing) <$> do
-      traverseOf
-        #progModule
-        ( traverseOf #moduleTypes (updateType <=< pure . updateRefsInTypes)
-            <=< pure . over (#moduleDefs % traversed % #_DefAST) (updateDefBody . updateDefType)
-        )
-        prog
+  RenameType old (unsafeMkName -> nameRaw) -> do
+    traverseOf
+      #progModule
+      ( traverseOf #moduleTypes (updateType <=< pure . updateRefsInTypes)
+          <=< pure . over (#moduleDefs % traversed % #_DefAST) (updateDefBody . updateDefType)
+      )
+      prog
     where
       new = qualifyName (qualifiedModule old) nameRaw
       updateType m = do
@@ -584,15 +588,14 @@ applyProgAction prog mdefName = \case
           #astDefExpr
           $ transform $ over typesInExpr $ transform $ over (#_TCon % _2) updateName
       updateName n = if n == old then new else n
-  RenameCon type_ old (unsafeMkGlobalName . (fmap unName (unModuleName (qualifiedModule type_)),) -> new) ->
-    (,Nothing) <$> do
-      when (new `elem` allConNames prog) $ throwError $ ConAlreadyExists new
-      traverseOf
-        #progModule
-        ( updateType
-            <=< traverseOf #moduleDefs (pure . updateDefs)
-        )
-        prog
+  RenameCon type_ old (unsafeMkGlobalName . (fmap unName (unModuleName (qualifiedModule type_)),) -> new) -> do
+    when (new `elem` allConNames prog) $ throwError $ ConAlreadyExists new
+    traverseOf
+      #progModule
+      ( updateType
+          <=< traverseOf #moduleDefs (pure . updateDefs)
+      )
+      prog
     where
       updateType =
         alterTypeDef
@@ -608,11 +611,10 @@ applyProgAction prog mdefName = \case
           transform $ over (#_Con % _2) updateName
       updateName n = if n == old then new else n
   RenameTypeParam type_ old (unsafeMkLocalName -> new) -> do
-    (,Nothing)
-      <$> traverseOf
-        #progModule
-        updateType
-        prog
+    traverseOf
+      #progModule
+      updateType
+      prog
     where
       updateType =
         alterTypeDef
@@ -638,18 +640,16 @@ applyProgAction prog mdefName = \case
           )
           $ over _freeVarsTy $ \(_, v) -> TVar () $ updateName v
       updateName n = if n == old then new else n
-  AddCon type_ index (unsafeMkGlobalName . (fmap unName (unModuleName (qualifiedModule type_)),) -> con) ->
-    (,Nothing)
-      <$> do
-        when (con `elem` allConNames prog) $ throwError $ ConAlreadyExists con
-        traverseOf
-          #progModule
-          ( traverseOf
-              (#moduleDefs % traversed % #_DefAST % #astDefExpr)
-              updateDefs
-              <=< updateType
-          )
-          prog
+  AddCon type_ index (unsafeMkGlobalName . (fmap unName (unModuleName (qualifiedModule type_)),) -> con) -> do
+    when (con `elem` allConNames prog) $ throwError $ ConAlreadyExists con
+    traverseOf
+      #progModule
+      ( traverseOf
+          (#moduleDefs % traversed % #_DefAST % #astDefExpr)
+          updateDefs
+          <=< updateType
+      )
+      prog
     where
       updateDefs = transformCaseBranches prog type_ $ \bs -> do
         m' <- DSL.meta
@@ -662,13 +662,12 @@ applyProgAction prog mdefName = \case
           )
           type_
   SetConFieldType type_ con index new -> do
-    (,Nothing)
-      <$> traverseOf
-        #progModule
-        ( traverseOf #moduleDefs updateDefs
-            <=< updateType
-        )
-        prog
+    traverseOf
+      #progModule
+      ( traverseOf #moduleDefs updateDefs
+          <=< updateType
+      )
+      prog
     where
       updateType =
         alterTypeDef
@@ -715,13 +714,12 @@ applyProgAction prog mdefName = \case
                   e
             else pure cb
   AddConField type_ con index new -> do
-    (,Nothing)
-      <$> traverseOf
-        #progModule
-        ( traverseOf #moduleDefs updateDefs
-            <=< updateType
-        )
-        prog
+    traverseOf
+      #progModule
+      ( traverseOf #moduleDefs updateDefs
+          <=< updateType
+      )
+      prog
     where
       updateType =
         alterTypeDef
@@ -781,7 +779,7 @@ applyProgAction prog mdefName = \case
                                 , meta
                                 }
                     }
-          pure (prog', mdefName)
+          pure prog'
   SigAction actions -> do
     withDef mdefName prog $ \def -> do
       let smartHoles = progSmartHoles prog
@@ -805,29 +803,26 @@ applyProgAction prog mdefName = \case
                               , meta = Right meta
                               }
                   }
-           in pure (prog', mdefName)
+           in pure prog'
   SetSmartHoles smartHoles ->
-    pure
-      ( prog & #progSmartHoles .~ smartHoles
-      , mdefName
-      )
+    pure $ prog & #progSmartHoles .~ smartHoles
   CopyPasteSig fromIds setup -> case mdefName of
     Nothing -> throwError NoDefSelected
-    Just i -> (,mdefName) <$> copyPasteSig prog fromIds i setup
+    Just i -> copyPasteSig prog fromIds i setup
   CopyPasteBody fromIds setup -> case mdefName of
     Nothing -> throwError NoDefSelected
-    Just i -> (,mdefName) <$> copyPasteBody prog fromIds i setup
+    Just i -> copyPasteBody prog fromIds i setup
   RenameModule newName ->
     let n = ModuleName $ unsafeMkName <$> newName
         oldName = moduleName $ progModule prog
         curMods = RM{imported = progImports prog, editable = progModule prog}
      in if n == oldName
-          then pure (prog, Nothing)
+          then pure prog
           else case renameModule oldName n curMods of
             Nothing -> throwError RenameModuleNameClash
             Just renamedMods ->
               if imported curMods == imported renamedMods
-                then pure . (,Nothing) $ prog & #progModule .~ editable renamedMods
+                then pure $ prog & #progModule .~ editable renamedMods
                 else
                   throwError $
                     -- It should never happen that the action edits an
