@@ -12,6 +12,7 @@ import Data.String (unlines)
 import Gen.Core.Typed (WT, forAllT, genChk, genSyn, genWTType, isolateWT, propertyWT)
 import Hedgehog hiding (Var, test)
 import qualified Hedgehog.Gen as Gen
+import Hedgehog.Internal.Property (LabelName (unLabelName))
 import qualified Hedgehog.Range as Range
 import Optics
 import Primer.App (
@@ -452,6 +453,8 @@ hprop_type_preservation = withTests 1000 $
       tds <- asks typeDefs
       (dir, t, ty) <- genDirTm
       let test msg e = do
+            annotateShow $ unLabelName msg
+            annotateShow e
             s <- case e of
               Left (TimedOut s') -> label (msg <> "TimedOut") >> pure s'
               Right s' -> label (msg <> "NF") >> pure s'
@@ -463,6 +466,8 @@ hprop_type_preservation = withTests 1000 $
               else label (msg <> "skipped due to LetType") >> success
       maxSteps <- forAllT $ Gen.integral $ Range.linear 1 1000 -- Arbitrary limit here
       (steps, s) <- evalFullStepCount tds globs maxSteps dir t
+      annotateShow steps
+      annotateShow s
       -- s is often reduced to normal form
       test "long " s
       -- also test an intermediate point
