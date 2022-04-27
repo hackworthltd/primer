@@ -475,7 +475,7 @@ handleEvalFullRequest (EvalFullReq{evalFullReqExpr, evalFullCxtDir, evalFullMaxS
     Right nf -> EvalFullRespNormal nf
 
 -- Prog actions only affect the editable module
-applyProgAction :: MonadEditApp m => Prog -> Maybe GVarName -> ProgAction -> m (Prog, Maybe GVarName)
+applyProgAction :: MonadEdit m => Prog -> Maybe GVarName -> ProgAction -> m (Prog, Maybe GVarName)
 applyProgAction prog mdefName = \case
   MoveToDef d -> case Map.lookup d (moduleDefsQualified $ progModule prog) of
     Nothing -> throwError $ DefNotFound d
@@ -760,7 +760,7 @@ applyProgAction prog mdefName = \case
             else pure cb
   BodyAction actions -> do
     withDef mdefName prog $ \def -> do
-      smartHoles <- gets $ progSmartHoles . appProg
+      let smartHoles = progSmartHoles prog
       res <- applyActionsToBody smartHoles (progAllModules prog) def actions
       case res of
         Left err -> throwError $ ActionError err
@@ -784,7 +784,7 @@ applyProgAction prog mdefName = \case
           pure (prog', mdefName)
   SigAction actions -> do
     withDef mdefName prog $ \def -> do
-      smartHoles <- gets $ progSmartHoles . appProg
+      let smartHoles = progSmartHoles prog
       res <- applyActionsToTypeSig smartHoles (progImports prog) (progModule prog) def actions
       case res of
         Left err -> throwError $ ActionError err
@@ -842,7 +842,7 @@ data RenameMods a = RM {imported :: [a], editable :: a}
 
 -- Look up the definition by its given Name, then run the given action with it
 -- only looks in the editable module
-withDef :: MonadEditApp m => Maybe GVarName -> Prog -> (ASTDef -> m a) -> m a
+withDef :: MonadError ProgError m => Maybe GVarName -> Prog -> (ASTDef -> m a) -> m a
 withDef mdefName prog f =
   case mdefName of
     Nothing -> throwError NoDefSelected
@@ -889,7 +889,13 @@ handleResetRequest = do
 --
 -- Note we do not want @MonadFresh Name m@, as @fresh :: m Name@ has
 -- no way of avoiding user-specified names. Instead, use 'freshName'.
-type MonadEditApp m = (Monad m, MonadFresh ID m, MonadFresh NameCounter m, MonadState App m, MonadError ProgError m)
+type MonadEditApp m = (MonadEdit m, MonadState App m)
+
+-- | A shorthand for constraints needed when doing low-level mutation
+-- operations which do not themselves update the 'App' contained in a
+-- 'State' monad. (Typically interaction with the @State@ monad would
+-- be handled by a caller.
+type MonadEdit m = (MonadFresh ID m, MonadFresh NameCounter m, MonadError ProgError m)
 
 -- | A shorthand for the constraints we need when performing read-only
 -- operations on the application.
@@ -1027,13 +1033,13 @@ newApp =
     }
 
 -- | Construct a new, empty expression
-newExpr :: MonadEditApp m => m Expr
+newExpr :: MonadFresh ID m => m Expr
 newExpr = do
   id_ <- fresh
   pure $ EmptyHole (Meta id_ Nothing Nothing)
 
 -- | Construct a new, empty type
-newType :: MonadEditApp m => m Type
+newType :: MonadFresh ID m => m Type
 newType = do
   id_ <- fresh
   pure $ TEmptyHole (Meta id_ Nothing Nothing)
@@ -1053,14 +1059,14 @@ instance MonadFresh NameCounter EditAppM where
     modify (\s -> s{appNameCounter = succ nameCounter})
     pure nameCounter
 
-copyPasteSig :: MonadEditApp m => Prog -> (GVarName, ID) -> GVarName -> [Action] -> m Prog
+copyPasteSig :: MonadEdit m => Prog -> (GVarName, ID) -> GVarName -> [Action] -> m Prog
 copyPasteSig p (fromDefName, fromTyId) toDefName setup = do
   c' <- focusNodeImports p fromDefName fromTyId
   c <- case c' of
     Left (Left _) -> throwError $ CopyPasteError "tried to copy-paste an expression into a signature"
     Left (Right zt) -> pure $ Left zt
     Right zt -> pure $ Right zt
-  smartHoles <- gets $ progSmartHoles . appProg
+  let smartHoles = progSmartHoles p
   -- We intentionally throw away any changes in doneSetup other than via 'tgt'
   -- as these could be in other definitions referencing this one, due to
   -- types changing. However, we are going to do a full tc pass anyway,
@@ -1145,7 +1151,7 @@ loopM f a =
 
 -- | Checks every term definition in the editable module.
 -- Does not check typedefs or imported modules.
-tcWholeProg :: forall m. MonadEditApp m => Prog -> m Prog
+tcWholeProg :: forall m. MonadEdit m => Prog -> m Prog
 tcWholeProg p =
   let tc :: ReaderT Cxt (ExceptT ActionError m) Prog
       tc = do
@@ -1175,7 +1181,7 @@ tcWholeProg p =
         pure $ p'{progSelection = newSel}
    in liftError ActionError $ runReaderT tc $ progCxt p
 
-copyPasteBody :: MonadEditApp m => Prog -> (GVarName, ID) -> GVarName -> [Action] -> m Prog
+copyPasteBody :: MonadEdit m => Prog -> (GVarName, ID) -> GVarName -> [Action] -> m Prog
 copyPasteBody p (fromDefName, fromId) toDefName setup = do
   src' <- focusNodeImports p fromDefName fromId
   -- reassociate so get Expr+(Type+Type), rather than (Expr+Type)+Type
@@ -1183,7 +1189,7 @@ copyPasteBody p (fromDefName, fromId) toDefName setup = do
         Left (Left e) -> Left e
         Left (Right t) -> Right (Left t)
         Right t -> Right (Right t)
-  smartHoles <- gets $ progSmartHoles . appProg
+  let smartHoles = progSmartHoles p
   -- The Loc zipper captures all the changes, they are only reflected in the
   -- returned Def, which we thus ignore
   (oldDef, doneSetup) <- withDef (Just toDefName) p $ \def -> (def,) <$> applyActionsToBody smartHoles (progAllModules p) def setup
@@ -1268,7 +1274,7 @@ lookupASTDef :: GVarName -> Map GVarName Def -> Maybe ASTDef
 lookupASTDef name = defAST <=< Map.lookup name
 
 alterTypeDef ::
-  MonadEditApp m =>
+  MonadError ProgError m =>
   (ASTTypeDef -> m ASTTypeDef) ->
   TyConName ->
   Module ->
@@ -1292,7 +1298,7 @@ alterTypeDef f type_ m = do
 
 -- | Apply a bottom-up transformation to all branches of case expressions on the given type.
 transformCaseBranches ::
-  MonadEditApp m =>
+  MonadEdit m =>
   Prog ->
   TyConName ->
   ([CaseBranch] -> m [CaseBranch]) ->
@@ -1315,7 +1321,7 @@ progCxt :: Prog -> Cxt
 progCxt p = buildTypingContextFromModules (progAllModules p) (progSmartHoles p)
 
 -- | Run a computation in some context whose errors can be promoted to `ProgError`.
-liftError :: MonadEditApp m => (e -> ProgError) -> ExceptT e m b -> m b
+liftError :: MonadError ProgError m => (e -> ProgError) -> ExceptT e m b -> m b
 liftError f = runExceptT >=> either (throwError . f) pure
 
 allConNames :: Prog -> [ValConName]
