@@ -861,9 +861,9 @@ unit_eval_modules_scrutinize_imported_type =
 
 -- | Like '@?=' but specifically for expressions.
 -- Ignores IDs and metadata.
-(~=) :: Expr -> Expr -> Assertion
+(~=) :: HasCallStack => Expr -> Expr -> Assertion
 x ~= y = forgetIDs x @?= forgetIDs y
 
 -- | Like '~=' but for types.
-(~~=) :: Type -> Type -> Assertion
+(~~=) :: HasCallStack => Type -> Type -> Assertion
 x ~~= y = forgetTypeIDs x @?= forgetTypeIDs y

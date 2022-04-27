@@ -583,24 +583,24 @@ unit_bad_prim_type = case runTypecheckTestM NoSmartHoles $ do
 
 -- * Helpers
 
-expectTyped :: TypecheckTestM Expr -> Assertion
+expectTyped :: HasCallStack => TypecheckTestM Expr -> Assertion
 expectTyped m =
   case runTypecheckTestM NoSmartHoles (m >>= synth) of
     Left err -> assertFailure $ show err
     Right _ -> pure ()
-expectTypedWithPrims :: TypecheckTestM Expr -> Assertion
+expectTypedWithPrims :: HasCallStack => TypecheckTestM Expr -> Assertion
 expectTypedWithPrims m =
   case runTypecheckTestMWithPrims NoSmartHoles (m >>= synth) of
     Left err -> assertFailure $ show err
     Right _ -> pure ()
 
-expectKinded :: TypecheckTestM Type -> Kind -> Assertion
+expectKinded :: HasCallStack => TypecheckTestM Type -> Kind -> Assertion
 expectKinded m k =
   case runTypecheckTestM NoSmartHoles (m >>= synthKind) of
     Left err -> assertFailure $ show err
     Right (k', _) -> k' @?= k
 
-expectFailsWith :: TypecheckTestM Expr -> (Expr -> TypeError) -> Assertion
+expectFailsWith :: HasCallStack => TypecheckTestM Expr -> (Expr -> TypeError) -> Assertion
 expectFailsWith m err = do
   expr <- case runTypecheckTestM NoSmartHoles m of
     Left constructionErr -> assertFailure $ show constructionErr
@@ -609,7 +609,7 @@ expectFailsWith m err = do
     Left e -> err expr @?= e
     Right _ -> assertFailure "Expected failure but succeeded"
 
-smartSynthGives :: TypecheckTestM Expr -> TypecheckTestM Expr -> Assertion
+smartSynthGives :: HasCallStack => TypecheckTestM Expr -> TypecheckTestM Expr -> Assertion
 smartSynthGives eIn eExpect =
   case ( runTypecheckTestM SmartHoles (eIn >>= synth)
        , runTypecheckTestM NoSmartHoles (eExpect >>= synth)
@@ -635,7 +635,7 @@ smartSynthGives eIn eExpect =
                 TCEmb TCBoth{tcSynthed = t} -> t
            in Meta i c' v
 
-smartSynthKindGives :: TypecheckTestM Type -> TypecheckTestM Type -> Assertion
+smartSynthKindGives :: HasCallStack => TypecheckTestM Type -> TypecheckTestM Type -> Assertion
 smartSynthKindGives tIn tExpect =
   case ( runTypecheckTestM SmartHoles (tIn >>= synthKind)
        , runTypecheckTestM NoSmartHoles (tExpect >>= synthKind)
