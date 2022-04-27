@@ -1,24 +1,39 @@
 {
-    "evalRespRedexes": [
-        0,
-        1
-    ],
-    "evalRespExpr": {
-        "contents": [
-            0,
-            {
-                "contents": {
-                    "contents": [],
-                    "tag": "TEmptyHole"
-                },
-                "tag": "TCSynthed"
-            },
-            null
-        ],
-        "tag": "EmptyHole"
-    },
     "evalRespDetail": {
         "contents": {
+            "after": {
+                "contents": [
+                    0,
+                    {
+                        "contents": {
+                            "contents": [],
+                            "tag": "TEmptyHole"
+                        },
+                        "tag": "TCSynthed"
+                    },
+                    null
+                ],
+                "tag": "EmptyHole"
+            },
+            "argID": 0,
+            "before": {
+                "contents": [
+                    0,
+                    {
+                        "contents": {
+                            "contents": [],
+                            "tag": "TEmptyHole"
+                        },
+                        "tag": "TCSynthed"
+                    },
+                    null
+                ],
+                "tag": "EmptyHole"
+            },
+            "bindingName": "x",
+            "bodyID": 0,
+            "lambdaID": 0,
+            "letID": 0,
             "types": [
                 {
                     "contents": [
@@ -40,41 +55,26 @@
                     ],
                     "tag": "TEmptyHole"
                 }
-            ],
-            "letID": 0,
-            "lambdaID": 0,
-            "bodyID": 0,
-            "bindingName": "x",
-            "before": {
-                "contents": [
-                    0,
-                    {
-                        "contents": {
-                            "contents": [],
-                            "tag": "TEmptyHole"
-                        },
-                        "tag": "TCSynthed"
-                    },
-                    null
-                ],
-                "tag": "EmptyHole"
-            },
-            "argID": 0,
-            "after": {
-                "contents": [
-                    0,
-                    {
-                        "contents": {
-                            "contents": [],
-                            "tag": "TEmptyHole"
-                        },
-                        "tag": "TCSynthed"
-                    },
-                    null
-                ],
-                "tag": "EmptyHole"
-            }
+            ]
         },
         "tag": "BetaReduction"
-    }
+    },
+    "evalRespExpr": {
+        "contents": [
+            0,
+            {
+                "contents": {
+                    "contents": [],
+                    "tag": "TEmptyHole"
+                },
+                "tag": "TCSynthed"
+            },
+            null
+        ],
+        "tag": "EmptyHole"
+    },
+    "evalRespRedexes": [
+        0,
+        1
+    ]
 }
