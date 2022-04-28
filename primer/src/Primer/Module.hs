@@ -8,6 +8,7 @@ module Primer.Module (
   insertDef,
   deleteDef,
   renameModule,
+  renameModule',
 ) where
 
 import Data.Data (Data)
@@ -79,4 +80,9 @@ renameModule fromName toName = traverse rn1
     rn1 m =
       if moduleName m == toName
         then Nothing
-        else pure $ transformBi (\n -> if n == fromName then toName else n) m
+        else pure $ renameModule' fromName toName m
+
+-- | Renames all occurrences of the given 'ModuleName'. This does not
+-- detect name clashes, see 'renameModule'
+renameModule' :: Data a => ModuleName -> ModuleName -> a -> a
+renameModule' fromName toName = transformBi (\n -> if n == fromName then toName else n)
