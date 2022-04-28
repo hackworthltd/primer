@@ -822,7 +822,10 @@ applyProgAction prog mdefName = \case
             Nothing -> throwError RenameModuleNameClash
             Just renamedMods ->
               if imported curMods == imported renamedMods
-                then pure $ prog & #progModule .~ editable renamedMods
+                then
+                  pure $
+                    prog & #progModule .~ editable renamedMods
+                      & #progSelection .~ Nothing
                 else
                   throwError $
                     -- It should never happen that the action edits an

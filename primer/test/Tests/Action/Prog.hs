@@ -1194,15 +1194,31 @@ unit_defaultFullProg_no_clash =
         assertBool "Expected every type making up defaultFullProg to have distinct names" $ not $ anySame typeNames
         assertBool "Expected every term making up defaultFullProg to have distinct names" $ not $ anySame termNames
 
+-- We make sure to check that references get updated, and our selection is
+-- erased (to ensure we don't have the old module name in the selection)
 unit_rename_module :: Assertion
 unit_rename_module =
   let test = do
         importModules [builtinModule]
-        handleEditRequest [RenameModule ["Module2"]]
+        handleEditRequest
+          [ moveToDef "main"
+          , BodyAction [ConstructVar $ globalVarRef "main"]
+          , RenameModule ["Module2"]
+          ]
       a = newEmptyApp
    in case fst $ runAppTestM (ID $ appIdCounter a) a test of
         Left err -> assertFailure $ show err
-        Right p -> unModuleName (moduleName $ progModule p) @?= ["Module2"]
+        Right p -> do
+          unModuleName (moduleName $ progModule p) @?= ["Module2"]
+          progSelection p @?= Nothing
+          case Map.elems (moduleDefs $ progModule p) of
+            [DefAST d] -> do
+              let expectedName = qualifyName (ModuleName ["Module2"]) "main"
+              astDefName d @?= expectedName
+              case astDefExpr d of
+                Var _ (GlobalVarRef r) -> r @?= expectedName
+                e -> assertFailure $ "Expected def to equal `Module2.main`, found " <> show e
+            _ -> assertFailure "Expected exactly one def"
 
 unit_rename_module_clash :: Assertion
 unit_rename_module_clash =
