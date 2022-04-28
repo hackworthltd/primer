@@ -711,16 +711,20 @@ tryReduceExpr globals locals = \case
             Just (CaseBranch _ binds rhs) -> do
               -- Check that we have as many term args as bindings
               when (length binds /= length termArgs) $ throwError CaseBranchBindingLengthMismatch
+              -- We need to rename bindings to avoid variable capture.
+              -- See Note [Case reduction and variable capture]
+              -- in EvalFull
+              let (rhs', binds') = mapAccumR (\r (Bind _ x) -> swap $ makeSafeLetBinding x (foldMap freeVars termArgs) r) rhs binds
               -- Construct a let for each bind
-              let makeLet (Bind _ x, e) rest = let_ x (pure e) (pure rest)
+              let makeLet (x, e) rest = let_ x (pure e) (pure rest)
               (expr', letIDs) <-
                 foldrM
                   ( \a (e, lets) -> do
                       l <- makeLet a e
                       pure (l, l ^. _id : lets)
                   )
-                  (rhs, [])
-                  (zip binds termArgs)
+                  (rhs', [])
+                  (zip binds' termArgs)
               pure
                 ( expr'
                 , CaseReduction

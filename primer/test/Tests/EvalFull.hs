@@ -12,6 +12,7 @@ import Data.String (unlines)
 import Gen.Core.Typed (WT, forAllT, genChk, genSyn, genWTType, isolateWT, propertyWT)
 import Hedgehog hiding (Var, test)
 import qualified Hedgehog.Gen as Gen
+import Hedgehog.Internal.Property (LabelName (unLabelName))
 import qualified Hedgehog.Range as Range
 import Optics
 import Primer.App (
@@ -441,6 +442,74 @@ unit_type_preservation_rename_LAM_regression =
         distinctIDs s
         s <~==> Left (TimedOut expected)
 
+-- Previously EvalFull reducing a case expression could result in variable
+-- capture. We would reduce 'λx. case C _ x of C x y -> _'
+-- to (eliding annotations) 'λx. let x = _ in let y = x in _', where the
+-- 'let x' has captured the reference in the 'let y = x'
+unit_type_preservation_case_regression_tm :: Assertion
+unit_type_preservation_case_regression_tm =
+  let ((expr, expected1, expected2), maxID) = create $ do
+        e <-
+          lam "x" $
+            case_
+              (con cMakePair `aPP` tcon tNat `aPP` tcon tBool `app` emptyHole `app` lvar "x")
+              [branch cMakePair [("x", Nothing), ("y", Nothing)] emptyHole]
+        expect1 <-
+          lam "x" $
+            case_
+              (con cMakePair `aPP` tcon tNat `aPP` tcon tBool `app` emptyHole `app` lvar "x")
+              -- NB: fragile name a42
+              [branch cMakePair [("a42", Nothing), ("y", Nothing)] $ let_ "x" (lvar "a42") emptyHole]
+        expect2 <-
+          lam "x" $
+            let_ "a42" (emptyHole `ann` tcon tNat) $
+              let_ "y" (lvar "x" `ann` tcon tBool) $
+                let_ "x" (lvar "a42") emptyHole
+        pure (e, expect1, expect2)
+      s1 = evalFullTest maxID builtinTypes mempty 1 Chk expr
+      s2 = evalFullTest maxID builtinTypes mempty 2 Chk expr
+   in do
+        s1 <~==> Left (TimedOut expected1)
+        s2 <~==> Left (TimedOut expected2)
+
+-- A regression test for the same issue as
+-- unit_type_preservation_case_regression_tm, except for reducing case
+-- expressions with annotated scruitinees, and emphasizing that capture may
+-- happen of variables appearing in the annotation we add to the let
+-- bindings. We previously would reduce
+-- 'Λx. case MkPair _ _ : Pair _ x of MkPair x y -> _'
+-- to 'Λx. let x = _ in let y = _ : x in _', where the 'let x' has captured
+-- the reference in (the annotation on the) 'let y = _ : x'
+unit_type_preservation_case_regression_ty :: Assertion
+unit_type_preservation_case_regression_ty =
+  let ((expr, expected1, expected2), maxID) = create $ do
+        e <-
+          lAM "x" $
+            case_
+              ( (con cMakePair `aPP` tEmptyHole `aPP` tvar "x" `app` emptyHole `app` emptyHole)
+                  `ann` (tcon tPair `tapp` tEmptyHole `tapp` tvar "x")
+              )
+              [branch cMakePair [("x", Nothing), ("y", Nothing)] emptyHole]
+        expect1 <-
+          lAM "x" $
+            case_
+              ( (con cMakePair `aPP` tEmptyHole `aPP` tvar "x" `app` emptyHole `app` emptyHole)
+                  `ann` (tcon tPair `tapp` tEmptyHole `tapp` tvar "x")
+              )
+              -- NB fragile name a54
+              [branch cMakePair [("a54", Nothing), ("y", Nothing)] $ let_ "x" (lvar "a54") emptyHole]
+        expect2 <-
+          lAM "x" $
+            let_ "a54" (emptyHole `ann` tEmptyHole) $
+              let_ "y" (emptyHole `ann` tvar "x") $
+                let_ "x" (lvar "a54") emptyHole
+        pure (e, expect1, expect2)
+      s1 = evalFullTest maxID builtinTypes mempty 1 Chk expr
+      s2 = evalFullTest maxID builtinTypes mempty 2 Chk expr
+   in do
+        s1 <~==> Left (TimedOut expected1)
+        s2 <~==> Left (TimedOut expected2)
+
 -- | Evaluation preserves types
 -- (assuming we don't end with a 'LetType' in the term, as the typechecker
 -- cannot currently deal with those)
@@ -452,6 +521,8 @@ hprop_type_preservation = withTests 1000 $
       tds <- asks typeDefs
       (dir, t, ty) <- genDirTm
       let test msg e = do
+            annotateShow $ unLabelName msg
+            annotateShow e
             s <- case e of
               Left (TimedOut s') -> label (msg <> "TimedOut") >> pure s'
               Right s' -> label (msg <> "NF") >> pure s'
@@ -463,6 +534,8 @@ hprop_type_preservation = withTests 1000 $
               else label (msg <> "skipped due to LetType") >> success
       maxSteps <- forAllT $ Gen.integral $ Range.linear 1 1000 -- Arbitrary limit here
       (steps, s) <- evalFullStepCount tds globs maxSteps dir t
+      annotateShow steps
+      annotateShow s
       -- s is often reduced to normal form
       test "long " s
       -- also test an intermediate point
