@@ -16,6 +16,7 @@ import qualified Data.Map.Strict as Map
 import Data.String (String)
 import Primer.Action (Action (Move, SetCursor), ActionError (IDNotFound), Movement (Child1))
 import Primer.App (
+  EvalResp (EvalResp, evalRespDetail, evalRespExpr, evalRespRedexes),
   Log (..),
   NodeSelection (..),
   NodeType (..),
@@ -44,6 +45,20 @@ import Primer.Core (
   TypeDef (..),
   TypeMeta,
   ValCon (..),
+ )
+import Primer.Eval (
+  BetaReductionDetail (
+    BetaReductionDetail,
+    betaAfter,
+    betaArgID,
+    betaBefore,
+    betaBindingName,
+    betaBodyID,
+    betaLambdaID,
+    betaLetID,
+    betaTypes
+  ),
+  EvalDetail (BetaReduction),
  )
 import Primer.Module (Module (Module, moduleDefs, moduleTypes), mkTypeDefMap, moduleName)
 import Primer.Name (unsafeMkName)
@@ -133,6 +148,20 @@ fixtures =
               , nodeId = id0
               , meta = Left exprMeta
               }
+      reductionDetail :: EvalDetail
+      reductionDetail =
+        BetaReduction $
+          BetaReductionDetail
+            { betaBefore = expr
+            , betaAfter = expr
+            , betaBindingName = "x"
+            , betaLambdaID = id0
+            , betaLetID = id0
+            , betaArgID = id0
+            , betaBodyID = id0
+            , betaTypes =
+                Just (TEmptyHole typeMeta, TEmptyHole typeMeta)
+            }
    in [ mkFixture "id" id0
       , mkFixture "name" (unsafeMkName "x")
       , mkFixture "movement" Child1
@@ -154,6 +183,14 @@ fixtures =
           "edit_response_1"
           (Left actionError :: Either ActionError Prog)
       , mkFixture "edit_response_2" (Right prog :: Either ActionError Prog)
+      , mkFixture
+          "eval_response"
+          ( EvalResp
+              { evalRespExpr = expr
+              , evalRespRedexes = [id0, ID 1]
+              , evalRespDetail = reductionDetail
+              }
+          )
       , mkFixture "prim_char" $ PrimCon @() @() () $ PrimChar 'a'
       , mkFixture "prim_int" $ PrimCon @() @() () $ PrimInt 42
       ]
