@@ -503,6 +503,33 @@ unit_tryReduce_case_3 = do
       caseLetIDs detail @?= [10]
     _ -> assertFailure $ show result
 
+unit_tryReduce_case_name_clash :: Assertion
+unit_tryReduce_case_name_clash = do
+  let (expr, i) =
+        create $
+          case_
+            (con' ["M"] "C" `app` emptyHole `app` lvar "x")
+            [branch' (["M"], "C") [("x", Nothing), ("y", Nothing)] emptyHole]
+      result = runTryReduce mempty mempty (expr, i)
+      expectedResult =
+        fst $
+          create $
+            let_ "x0" emptyHole $ let_ "y" (lvar "x") emptyHole
+  case result of
+    Right (expr', CaseReduction detail) -> do
+      expr' ~= expectedResult
+
+      caseBefore detail ~= expr
+      caseAfter detail ~= expectedResult
+      caseTargetID detail @?= 1
+      caseTargetCtorID detail @?= 3
+      caseCtorName detail @?= vcn ["M"] "C"
+      caseTargetArgIDs detail @?= [4, 5]
+      caseBranchBindingIDs detail @?= [6, 7]
+      caseBranchRhsID detail @?= 8
+      caseLetIDs detail @?= [10, 9]
+    _ -> assertFailure $ show result
+
 unit_tryReduce_case_too_many_bindings :: Assertion
 unit_tryReduce_case_too_many_bindings = do
   let (expr, i) = create $ case_ (con' ["M"] "C") [branch' (["M"], "C") [("b", Nothing)] (con' ["M"] "D")]
@@ -861,9 +888,9 @@ unit_eval_modules_scrutinize_imported_type =
 
 -- | Like '@?=' but specifically for expressions.
 -- Ignores IDs and metadata.
-(~=) :: Expr -> Expr -> Assertion
+(~=) :: HasCallStack => Expr -> Expr -> Assertion
 x ~= y = forgetIDs x @?= forgetIDs y
 
 -- | Like '~=' but for types.
-(~~=) :: Type -> Type -> Assertion
+(~~=) :: HasCallStack => Type -> Type -> Assertion
 x ~~= y = forgetTypeIDs x @?= forgetTypeIDs y
