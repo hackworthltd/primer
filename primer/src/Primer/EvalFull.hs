@@ -298,7 +298,8 @@ viewCaseRedex tydefs = \case
       , Just (_, argTys) <- find ((== c) . fst) instVCs =
           Just argTys
       | otherwise = Nothing
-    {- There is a subtlety here around variable capture.
+    {- Note [Case reduction and variable capture]
+       There is a subtlety here around variable capture.
        Consider
          case C s t : T A B of C a b -> e
        We would like to reduce this to
