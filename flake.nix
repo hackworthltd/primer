@@ -127,18 +127,36 @@
               modules = [
                 {
                   # We want -Werror for Nix builds (primarily for CI).
-                  packages = {
-                    primer.ghcOptions = [ "-Werror" ];
-                    primer-rel8.ghcOptions = [ "-Werror" ];
-                    primer-service = {
-                      ghcOptions = [ "-Werror" ];
-
-                      # The tests need PostgreSQL binaries.
-                      preCheck = ''
-                        export PATH="${final.postgresql}/bin:${"$PATH"}"
+                  packages =
+                    let
+                      # Tell Tasty to detect missing golden tests,
+                      # rather than silently ignoring them.
+                      #
+                      # Until upstream addresses the issue, this is a
+                      # workaround for
+                      # https://github.com/hackworthltd/primer/issues/298
+                      preCheckTasty = ''
+                        export TASTY_NO_CREATE=true
                       '';
+                    in
+                    {
+                      primer = {
+                        ghcOptions = [ "-Werror" ];
+                        preCheck = preCheckTasty;
+                      };
+                      primer-rel8 = {
+                        ghcOptions = [ "-Werror" ];
+                        preCheck = preCheckTasty;
+                      };
+                      primer-service = {
+                        ghcOptions = [ "-Werror" ];
+
+                        # The tests need PostgreSQL binaries.
+                        preCheck = ''
+                          export PATH="${final.postgresql}/bin:${"$PATH"}"
+                        '' + preCheckTasty;
+                      };
                     };
-                  };
                 }
                 {
                   # Build everything with -O2.
