@@ -81,6 +81,7 @@ import Primer.Core (
   Bind' (..),
   CaseBranch' (..),
   Def (..),
+  DefMap,
   Expr,
   Expr' (..),
   ExprMeta,
@@ -264,7 +265,7 @@ initialCxt sh =
     }
 
 -- | Construct an initial typing context, with all given definitions in scope as global variables.
-buildTypingContext :: Map TyConName TypeDef -> Map GVarName Def -> SmartHoles -> Cxt
+buildTypingContext :: Map TyConName TypeDef -> DefMap -> SmartHoles -> Cxt
 buildTypingContext tydefs defs sh =
   let globals = Map.elems $ fmap (\def -> (defName def, forgetTypeIDs (defType def))) defs
    in extendTypeDefCxt (Map.elems tydefs) $ extendGlobalCxt globals $ initialCxt sh

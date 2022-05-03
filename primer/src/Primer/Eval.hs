@@ -17,7 +17,6 @@ module Primer.Eval (
   PushAppIntoLetrecDetail (..),
   ApplyPrimFunDetail (..),
   Locals,
-  Globals,
   regenerateExprIDs,
   regenerateTypeIDs,
   tryPrimFun,
@@ -39,6 +38,7 @@ import Primer.Core (
   Bind' (..),
   CaseBranch' (..),
   Def (..),
+  DefMap,
   Expr,
   Expr' (..),
   ExprAnyFresh (..),
@@ -265,9 +265,6 @@ data ApplyPrimFunDetail = ApplyPrimFunDetail
   deriving (Eq, Show, Generic)
   deriving (FromJSON, ToJSON) via VJSONPrefix "applyPrimFun" ApplyPrimFunDetail
 
--- | A map from definition Names to definitions themselves
-type Globals = Map GVarName Def
-
 -- | A map from local variable names to the ID of their binding and their bound value.
 -- Since each entry must have a value, this only includes let(rec) bindings.
 -- Lambda bindings must be reduced to a let before their variables can appear here.
@@ -277,7 +274,7 @@ type Locals = Map Name (ID, Either Expr Type)
 -- Returns the new expression and its redexes.
 step ::
   MonadFresh ID m =>
-  Globals ->
+  DefMap ->
   Expr ->
   ID ->
   m (Either EvalError (Expr, EvalDetail))
@@ -460,7 +457,7 @@ makeSafeLetBinding' rename name others body = go 0
 -- TODO: consider using view patterns for these cases
 tryReduceExpr ::
   (MonadFresh ID m, MonadError EvalError m) =>
-  Globals ->
+  DefMap ->
   Locals ->
   Expr ->
   m (Expr, EvalDetail)
@@ -760,7 +757,7 @@ tryReduceExpr globals locals = \case
 
 tryReduceType ::
   (MonadFresh ID m, MonadError EvalError m) =>
-  Globals ->
+  DefMap ->
   Locals ->
   Type ->
   m (Type, EvalDetail)

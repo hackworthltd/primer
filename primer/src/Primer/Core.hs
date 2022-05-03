@@ -15,6 +15,7 @@ module Primer.Core (
   CaseBranch,
   CaseBranch' (..),
   Def (..),
+  DefMap,
   defName,
   defType,
   ASTDef (..),
@@ -457,6 +458,9 @@ data Def
   | DefAST ASTDef
   deriving (Eq, Show, Data, Generic)
   deriving (FromJSON, ToJSON) via VJSON Def
+
+-- | A mapping of global names to 'Def's.
+type DefMap = Map GVarName Def
 
 -- | A primitive, built-in definition
 data PrimDef = PrimDef
