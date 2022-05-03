@@ -17,7 +17,7 @@ import Foreword
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 import Primer.Core (
-  Def (..),
+  DefMap,
   GVarName,
   ID,
   Kind (KFun, KType),
@@ -76,7 +76,7 @@ data Question a where
 -- The first list is local type variables, the second list is local term variables,
 -- the third is globals.
 variablesInScopeExpr ::
-  Map GVarName Def ->
+  DefMap ->
   Either ExprZ TypeZ ->
   ([(TyVarName, Kind)], [(LVarName, Type' ())], [(GVarName, Type' ())])
 variablesInScopeExpr defs exprOrTy =
