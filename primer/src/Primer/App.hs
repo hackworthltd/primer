@@ -55,6 +55,7 @@ import Data.Aeson (
   genericToEncoding,
  )
 import Data.Bitraversable (bimapM)
+import Data.Data (Data)
 import Data.Generics.Product (position)
 import Data.Generics.Uniplate.Operations (descendM, transform, transformM)
 import Data.Generics.Uniplate.Zipper (
@@ -78,6 +79,7 @@ import Optics (
   (.~),
   (?~),
   (^.),
+  _Just,
   _Left,
   _Right,
  )
@@ -149,6 +151,7 @@ import Primer.Module (
   moduleDefsQualified,
   moduleTypesQualified,
   renameModule,
+  renameModule',
  )
 import Primer.Name (Name (unName), NameCounter, freshName, unsafeMkName)
 import Primer.Primitives (primitiveModule)
@@ -290,7 +293,7 @@ data Selection = Selection
   -- ^ the ID of some ASTDef
   , selectedNode :: Maybe NodeSelection
   }
-  deriving (Eq, Show, Generic)
+  deriving (Eq, Show, Generic, Data)
   deriving (ToJSON, FromJSON) via VJSON Selection
 
 -- | A selected node, in the body or type signature of some definition.
@@ -300,11 +303,11 @@ data NodeSelection = NodeSelection
   , nodeId :: ID
   , meta :: Either ExprMeta TypeMeta
   }
-  deriving (Eq, Show, Generic)
+  deriving (Eq, Show, Generic, Data)
   deriving (ToJSON, FromJSON) via VJSON NodeSelection
 
 data NodeType = BodyNode | SigNode
-  deriving (Eq, Show, Generic)
+  deriving (Eq, Show, Generic, Data)
   deriving (ToJSON, FromJSON) via VJSON NodeType
 
 -- | The type of requests which can mutate the application state.
@@ -823,7 +826,10 @@ applyProgAction prog mdefName = \case
             Nothing -> throwError RenameModuleNameClash
             Just renamedMods ->
               if imported curMods == imported renamedMods
-                then pure $ prog & #progModule .~ editable renamedMods
+                then
+                  pure $
+                    prog & #progModule .~ editable renamedMods
+                      & #progSelection % _Just %~ renameModule' oldName n
                 else
                   throwError $
                     -- It should never happen that the action edits an
