@@ -217,7 +217,7 @@ unit_construct_let_without_moving_to_def_first =
   progActionTest defaultEmptyProg [BodyAction [ConstructLet (Just "x")]] $ expectError (@?= NoDefSelected)
 
 unit_create_def :: Assertion
-unit_create_def = progActionTest defaultEmptyProg [CreateDef $ Just "newDef"] $
+unit_create_def = progActionTest defaultEmptyProg [CreateDef mainModuleName $ Just "newDef"] $
   expectSuccess $ \_ prog' -> do
     case lookupASTDef' "newDef" (moduleDefs $ progModule prog') of
       Nothing -> assertFailure $ show $ moduleDefs $ progModule prog'
@@ -227,8 +227,26 @@ unit_create_def = progActionTest defaultEmptyProg [CreateDef $ Just "newDef"] $
 
 unit_create_def_clash_prim :: Assertion
 unit_create_def_clash_prim =
-  progActionTest defaultFullProg [CreateDef $ Just "toUpper"] $
+  progActionTest defaultFullProg [CreateDef mainModuleName $ Just "toUpper"] $
     expectError (@?= DefAlreadyExists (gvn "toUpper"))
+
+unit_create_def_nonexistant_module :: Assertion
+unit_create_def_nonexistant_module =
+  let nonExistantModule = ModuleName ["NonExistantModule"]
+   in progActionTest defaultEmptyProg [CreateDef nonExistantModule $ Just "newDef"] $
+        expectError (@?= ModuleNotFound nonExistantModule)
+
+unit_create_def_imported_module :: Assertion
+unit_create_def_imported_module =
+  let builtins = ModuleName ["Builtins"]
+      test = do
+        importModules [builtinModule]
+        handleEditRequest [CreateDef builtins $ Just "newDef"]
+      a = newEmptyApp
+   in do
+        case fst $ runAppTestM (ID $ appIdCounter a) a test of
+          Left err -> err @?= ModuleReadonly builtins
+          Right _ -> assertFailure "Expected CreateDef to complain about module being read-only"
 
 unit_create_typedef :: Assertion
 unit_create_typedef =
@@ -1265,7 +1283,7 @@ unit_rename_module =
         handleEditRequest
           [ moveToDef "main"
           , BodyAction [ConstructVar $ globalVarRef "main"]
-          , RenameModule ["Module2"]
+          , RenameModule mainModuleName ["Module2"]
           ]
       a = newEmptyApp
    in case fst $ runAppTestM (ID $ appIdCounter a) a test of
@@ -1286,13 +1304,31 @@ unit_rename_module_clash :: Assertion
 unit_rename_module_clash =
   let test = do
         importModules [builtinModule]
-        handleEditRequest [RenameModule ["Builtins"]]
+        handleEditRequest [RenameModule mainModuleName ["Builtins"]]
       a = newEmptyApp
    in do
         unModuleName (moduleName builtinModule) @?= ["Builtins"]
         case fst $ runAppTestM (ID $ appIdCounter a) a test of
           Left err -> err @?= RenameModuleNameClash
           Right _ -> assertFailure "Expected RenameModule to error, since module names clash with prior import"
+
+unit_rename_module_nonexistant :: Assertion
+unit_rename_module_nonexistant =
+  let nonExistantModule = ModuleName ["NonExistantModule"]
+   in progActionTest defaultEmptyProg [RenameModule nonExistantModule ["Builtins"]] $
+        expectError (@?= ModuleNotFound nonExistantModule)
+
+unit_rename_module_imported :: Assertion
+unit_rename_module_imported =
+  let builtins = ModuleName ["Builtins"]
+      test = do
+        importModules [builtinModule]
+        handleEditRequest [RenameModule builtins ["NewModule"]]
+      a = newEmptyApp
+   in do
+        case fst $ runAppTestM (ID $ appIdCounter a) a test of
+          Left err -> err @?= ModuleReadonly builtins
+          Right _ -> assertFailure "Expected RenameModule to complain about module being read-only"
 
 _defIDs :: Traversal' ASTDef ID
 _defIDs = #astDefExpr % (_exprMeta % _id `adjoin` _exprTypeMeta % _id) `adjoin` #astDefType % _typeMeta % _id

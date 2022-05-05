@@ -259,14 +259,6 @@ allTypes p = foldMap moduleTypesQualified $ progAllModules p
 allDefs :: Prog -> DefMap
 allDefs p = foldMap moduleDefsQualified $ progAllModules p
 
--- | Add a definition to the editable module
--- assumes the def has the correct name to go in the editable module
-addDef :: ASTDef -> Prog -> Prog
-addDef d p =
-  let mod = progModule p
-      mod' = insertDef mod $ DefAST d
-   in p{progModule = mod'}
-
 -- | The action log
 --  This is the canonical store of the program - we can recreate any current or
 --  past program state by replaying this log.
@@ -513,9 +505,7 @@ applyProgAction prog mdefName = \case
               )
               (Map.insert newNameBase def' $ Map.delete oldNameBase defs)
         pure (m{moduleDefs = defs'}, Just $ Selection (defName def') Nothing)
-  CreateDef n -> do
-    let mod = progModule prog
-    let modName = moduleName mod
+  CreateDef modName n -> editModule modName prog $ \mod -> do
     let defs = moduleDefs mod
     name <- case n of
       Just nameStr ->
@@ -528,7 +518,7 @@ applyProgAction prog mdefName = \case
     expr <- newExpr
     ty <- newType
     let def = ASTDef name expr ty
-    pure $ addDef def prog{progSelection = Just $ Selection name Nothing}
+    pure (insertDef mod $ DefAST def, Just $ Selection name Nothing)
   AddTypeDef td -> editModuleSameSelection (qualifiedModule $ astTypeDefName td) prog $ \m -> do
     let tydefs' = moduleTypes m <> mkTypeDefMap [TypeDefAST td]
     m{moduleTypes = tydefs'}
@@ -778,9 +768,11 @@ applyProgAction prog mdefName = \case
   CopyPasteBody fromIds setup -> case mdefName of
     Nothing -> throwError NoDefSelected
     Just i -> copyPasteBody prog fromIds i setup
-  RenameModule newName ->
+  RenameModule oldName newName -> do
+    -- Call editModuleSameSelection solely for checking that 'oldName'
+    -- is an editable module
+    _ <- editModuleSameSelection oldName prog pure
     let n = ModuleName $ unsafeMkName <$> newName
-        oldName = moduleName $ progModule prog
         curMods = RM{imported = progImports prog, editable = progModule prog}
      in if n == oldName
           then pure prog

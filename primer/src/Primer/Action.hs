@@ -387,7 +387,7 @@ data ProgAction
   | -- | Rename the definition with the given (base) Name
     RenameDef GVarName Text
   | -- | Create a new definition
-    CreateDef (Maybe Text)
+    CreateDef ModuleName (Maybe Text)
   | -- | Delete a new definition
     DeleteDef GVarName
   | -- | Add a new type definition
@@ -423,7 +423,7 @@ data ProgAction
     CopyPasteSig (GVarName, ID) [Action]
   | CopyPasteBody (GVarName, ID) [Action]
   | -- | Renames the sole editable module
-    RenameModule (NonEmpty Text)
+    RenameModule ModuleName (NonEmpty Text)
   deriving (Eq, Show, Generic)
   deriving (FromJSON, ToJSON) via VJSON ProgAction
 
