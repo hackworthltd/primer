@@ -5,7 +5,7 @@ steps:
   - command: nix-buildkite
     label: ":nixos: :buildkite:"
     plugins:
-      - hackworthltd/nix-buildkite#hackworthltd-v4:
+      - hackworthltd/nix-buildkite#hackworthltd-v5:
           file: ci.nix
           post-build-hook:
             /run/current-system/sw/bin/buildkite-private-post-build-hook
