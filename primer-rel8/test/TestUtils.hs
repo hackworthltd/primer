@@ -363,10 +363,11 @@ testApp =
     testProg =
       newEmptyProg
         { progImports = [builtinModule, primitiveModule]
-        , progModule =
-            Module
-              { moduleName = ModuleName $ "TestModule" :| []
-              , moduleTypes = mempty
-              , moduleDefs = Map.singleton (baseName $ astDefName testASTDef) (DefAST testASTDef)
-              }
+        , progModules =
+            [ Module
+                { moduleName = ModuleName $ "TestModule" :| []
+                , moduleTypes = mempty
+                , moduleDefs = Map.singleton (baseName $ astDefName testASTDef) (DefAST testASTDef)
+                }
+            ]
         }

@@ -422,7 +422,7 @@ data ProgAction
     --   At the start of the actions, the cursor starts at the root of the definition's type/expression
     CopyPasteSig (GVarName, ID) [Action]
   | CopyPasteBody (GVarName, ID) [Action]
-  | -- | Renames the sole editable module
+  | -- | Renames an editable module (will return an error if asked to rename an imported module)
     RenameModule ModuleName (NonEmpty Text)
   deriving (Eq, Show, Generic)
   deriving (FromJSON, ToJSON) via VJSON ProgAction
@@ -439,24 +439,26 @@ type ActionM m =
 -- | Apply a sequence of actions to the type signature of a definition
 -- We apply the actions to the type, then typecheck the body of the definition against the new type.
 -- We must then typecheck the whole program to check any uses of the definition.
--- Note that this may introduce new holes when using SmartHoles, and thus we return a whole module
--- as well as the one definition we wanted to change.
+-- Note that this may introduce new holes when using SmartHoles, and thus we
+-- return a whole set of modules as well as the one definition we wanted to
+-- change.
 applyActionsToTypeSig ::
   (MonadFresh ID m, MonadFresh NameCounter m) =>
   SmartHoles ->
   [Module] ->
-  Module ->
+  -- | The @Module@ we are focused on, and all the other editable modules
+  (Module, [Module]) ->
   -- | This must be one of the definitions in the @Module@
   ASTDef ->
   [Action] ->
-  m (Either ActionError (ASTDef, Module, TypeZ))
-applyActionsToTypeSig smartHoles imports mod def actions =
+  m (Either ActionError (ASTDef, [Module], TypeZ))
+applyActionsToTypeSig smartHoles imports (mod, mods) def actions =
   runReaderT
     go
-    (buildTypingContextFromModules (mod : imports) smartHoles)
+    (buildTypingContextFromModules (mod : mods <> imports) smartHoles)
     & runExceptT
   where
-    go :: ActionM m => m (ASTDef, Module, TypeZ)
+    go :: ActionM m => m (ASTDef, [Module], TypeZ)
     go = do
       zt <- withWrappedType (astDefType def) (\zt -> foldM (flip applyActionAndSynth) (InType zt) actions)
       let t = target (top zt)
@@ -469,10 +471,8 @@ applyActionsToTypeSig smartHoles imports mod def actions =
       -- We make sure that the updated type is present in the global context.
       -- Here we just check the whole of the mutable prog, excluding imports.
       -- (for efficiency, we need not check the type definitions, but we do not implement this optimisation)
-      checkEverything smartHoles (CheckEverything{trusted = imports, toCheck = [mod']}) >>= \case
-        [checkedMod] -> pure (def', checkedMod, zt)
-        -- This internal error will go away when we allow Progs to contain multiple mutable modules
-        _ -> throwError $ CustomFailure NoOp "Internal error: checkEverything returned a different number of module as were passed in"
+      checkEverything smartHoles (CheckEverything{trusted = imports, toCheck = mod' : mods})
+        >>= \checkedMods -> pure (def', checkedMods, zt)
     -- Actions expect that all ASTs have a top-level expression of some sort.
     -- Signatures don't have this: they're just a type.
     -- We fake it by wrapping the type in a top-level annotation node, then unwrapping afterwards.

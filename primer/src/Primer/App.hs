@@ -70,6 +70,7 @@ import Optics (
   Field2 (_2),
   Field3 (_3),
   ReversibleOptic (re),
+  mapped,
   over,
   toListOf,
   traverseOf,
@@ -85,7 +86,7 @@ import Optics (
   _Right,
  )
 import Primer.Action (
-  Action (NoOp),
+  Action,
   ActionError (..),
   ProgAction (..),
   applyActionsToBody,
@@ -205,8 +206,8 @@ import Primer.Zipper (
 data Prog = Prog
   { progImports :: [Module]
   -- ^ Some immutable imported modules
-  , progModule :: Module
-  -- ^ The one editable "current" module
+  , progModules :: [Module]
+  -- ^ The editable "home" modules
   , progSelection :: Maybe Selection
   , progSmartHoles :: SmartHoles
   , progLog :: Log -- The log of all actions
@@ -215,7 +216,7 @@ data Prog = Prog
   deriving (FromJSON, ToJSON) via VJSON Prog
 
 progAllModules :: Prog -> [Module]
-progAllModules p = progModule p : progImports p
+progAllModules p = progModules p <> progImports p
 
 -- Note [Modules]
 -- The invariant is that the @progImports@ modules are never edited, but
@@ -242,7 +243,7 @@ importModules ms = do
       ActionError $
         ImportNameClash $
           (currentNames `intersect` newNames) <> (newNames \\ ordNub newNames)
-  -- Imports must be well-typed (and cannot depend on the editable module)
+  -- Imports must be well-typed (and cannot depend on the editable modules)
   checkedImports <-
     liftError (ActionError . ImportFailed ()) $
       checkEverything NoSmartHoles $
@@ -396,11 +397,11 @@ handleQuestion = \case
       prog <- asks appProg
       focusNode prog defname nodeid
 
--- This only looks in the editable module, not in any imports
+-- This only looks in the editable modules, not in any imports
 focusNode :: MonadError ProgError m => Prog -> GVarName -> ID -> m (Either (Either ExprZ TypeZ) TypeZip)
-focusNode prog = focusNodeDefs $ moduleDefsQualified $ progModule prog
+focusNode prog = focusNodeDefs $ foldMap moduleDefsQualified $ progModules prog
 
--- This looks in the editable module and also in any imports
+-- This looks in the editable modules and also in any imports
 focusNodeImports :: MonadError ProgError m => Prog -> GVarName -> ID -> m (Either (Either ExprZ TypeZ) TypeZip)
 focusNodeImports prog = focusNodeDefs $ allDefs prog
 
@@ -465,7 +466,6 @@ handleEvalFullRequest (EvalFullReq{evalFullReqExpr, evalFullCxtDir, evalFullMaxS
     Right nf -> EvalFullRespNormal nf
 
 -- | Handle a 'ProgAction'
--- These actions only affect the editable module
 -- The 'GVarName' argument is the currently-selected definition, which is
 -- provided for convenience: it is the same as the one in the progSelection.
 applyProgAction :: MonadEdit m => Prog -> Maybe GVarName -> ProgAction -> m Prog
@@ -475,7 +475,7 @@ applyProgAction prog mdefName = \case
     case Map.lookup d $ moduleDefsQualified m of
       Nothing -> throwError $ DefNotFound d
       Just _ -> pure $ prog & #progSelection ?~ Selection d Nothing
-  DeleteDef d -> editModule (qualifiedModule d) prog $ \m ->
+  DeleteDef d -> editModuleCross (qualifiedModule d) prog $ \(m, ms) ->
     case deleteDef m d of
       Nothing -> throwError $ DefNotFound d
       Just mod' -> do
@@ -485,9 +485,9 @@ applyProgAction prog mdefName = \case
         void . liftError (const $ DefInUse d) $
           checkEverything @TypeError
             NoSmartHoles
-            CheckEverything{trusted = progImports prog, toCheck = [mod']}
-        pure (mod', Nothing)
-  RenameDef d nameStr -> editModuleOf (Just d) prog $ \m def -> do
+            CheckEverything{trusted = progImports prog, toCheck = mod' : ms}
+        pure (mod' : ms, Nothing)
+  RenameDef d nameStr -> editModuleOfCross (Just d) prog $ \(m, ms) def -> do
     let defs = moduleDefs m
         oldNameBase = baseName d
         newNameBase = unsafeMkName nameStr
@@ -496,14 +496,14 @@ applyProgAction prog mdefName = \case
       then throwError $ DefAlreadyExists newName
       else do
         let def' = DefAST def{astDefName = newName}
-        defs' <-
+        let m' = m{moduleDefs = Map.insert newNameBase def' $ Map.delete oldNameBase defs}
+        renamedModules <-
           maybe (throwError $ ActionError NameCapture) pure $
-            traverse
-              ( traverseOf (#_DefAST % #astDefExpr) $
-                  renameVar (GlobalVarRef d) (GlobalVarRef newName)
-              )
-              (Map.insert newNameBase def' $ Map.delete oldNameBase defs)
-        pure (m{moduleDefs = defs'}, Just $ Selection (defName def') Nothing)
+            traverseOf
+              (traversed % #moduleDefs % traversed % #_DefAST % #astDefExpr)
+              (renameVar (GlobalVarRef d) (GlobalVarRef newName))
+              (m' : ms)
+        pure (renamedModules, Just $ Selection (defName def') Nothing)
   CreateDef modName n -> editModule modName prog $ \mod -> do
     let defs = moduleDefs mod
     name <- case n of
@@ -534,9 +534,10 @@ applyProgAction prog mdefName = \case
             (checkTypeDefs $ mkTypeDefMapQualified [TypeDefAST td])
             (buildTypingContextFromModules (progAllModules prog) NoSmartHoles)
         )
-  RenameType old (unsafeMkName -> nameRaw) -> editModuleSameSelection (qualifiedModule old) prog $ \m -> do
-    m' <- traverseOf #moduleTypes (updateType <=< pure . updateRefsInTypes) m
-    pure $ over (#moduleDefs % traversed % #_DefAST) (updateDefBody . updateDefType) m'
+  RenameType old (unsafeMkName -> nameRaw) -> editModuleSameSelectionCross (qualifiedModule old) prog $ \(m, ms) -> do
+    m' <- traverseOf #moduleTypes updateType m
+    let renamedInTypes = over (traversed % #moduleTypes) updateRefsInTypes $ m' : ms
+    pure $ over (traversed % #moduleDefs % traversed % #_DefAST) (updateDefBody . updateDefType) renamedInTypes
     where
       new = qualifyName (qualifiedModule old) nameRaw
       updateType m = do
@@ -562,10 +563,10 @@ applyProgAction prog mdefName = \case
           $ transform $ over typesInExpr $ transform $ over (#_TCon % _2) updateName
       updateName n = if n == old then new else n
   RenameCon type_ old (unsafeMkGlobalName . (fmap unName (unModuleName (qualifiedModule type_)),) -> new) ->
-    editModuleSameSelection (qualifiedModule type_) prog $ \m -> do
+    editModuleSameSelectionCross (qualifiedModule type_) prog $ \(m, ms) -> do
       when (new `elem` allConNames prog) $ throwError $ ConAlreadyExists new
       m' <- updateType m
-      pure $ over #moduleDefs updateDefs m'
+      pure $ over (mapped % #moduleDefs) updateDefs (m' : ms)
     where
       updateType =
         alterTypeDef
@@ -610,13 +611,13 @@ applyProgAction prog mdefName = \case
           $ over _freeVarsTy $ \(_, v) -> TVar () $ updateName v
       updateName n = if n == old then new else n
   AddCon type_ index (unsafeMkGlobalName . (fmap unName (unModuleName (qualifiedModule type_)),) -> con) ->
-    editModuleSameSelection (qualifiedModule type_) prog $ \m -> do
+    editModuleSameSelectionCross (qualifiedModule type_) prog $ \(m, ms) -> do
       when (con `elem` allConNames prog) $ throwError $ ConAlreadyExists con
       m' <- updateType m
       traverseOf
-        (#moduleDefs % traversed % #_DefAST % #astDefExpr)
+        (traversed % #moduleDefs % traversed % #_DefAST % #astDefExpr)
         updateDefs
-        m'
+        $ m' : ms
     where
       updateDefs = transformCaseBranches prog type_ $ \bs -> do
         m' <- DSL.meta
@@ -629,8 +630,9 @@ applyProgAction prog mdefName = \case
           )
           type_
   SetConFieldType type_ con index new ->
-    editModuleSameSelection (qualifiedModule type_) prog $
-      traverseOf #moduleDefs updateDefs <=< updateType
+    editModuleSameSelectionCross (qualifiedModule type_) prog $ \(m, ms) -> do
+      m' <- updateType m
+      traverseOf (traversed % #moduleDefs) updateDefs (m' : ms)
     where
       updateType =
         alterTypeDef
@@ -678,8 +680,9 @@ applyProgAction prog mdefName = \case
                   e
             else pure cb
   AddConField type_ con index new ->
-    editModuleSameSelection (qualifiedModule type_) prog $
-      traverseOf #moduleDefs updateDefs <=< updateType
+    editModuleSameSelectionCross (qualifiedModule type_) prog $ \(m, ms) -> do
+      m' <- updateType m
+      traverseOf (traversed % #moduleDefs) updateDefs (m' : ms)
     where
       updateType =
         alterTypeDef
@@ -739,7 +742,7 @@ applyProgAction prog mdefName = \case
                     , meta
                     }
           )
-  SigAction actions -> editModuleOf mdefName prog $ \m def -> do
+  SigAction actions -> editModuleOfCross mdefName prog $ \m def -> do
     let smartHoles = progSmartHoles prog
     res <- applyActionsToTypeSig smartHoles (progImports prog) m def actions
     case res of
@@ -772,7 +775,7 @@ applyProgAction prog mdefName = \case
     -- is an editable module
     _ <- editModuleSameSelection oldName prog pure
     let n = ModuleName $ unsafeMkName <$> newName
-        curMods = RM{imported = progImports prog, editable = progModule prog}
+        curMods = RM{imported = progImports prog, editable = progModules prog}
      in if n == oldName
           then pure prog
           else case renameModule oldName n curMods of
@@ -781,7 +784,7 @@ applyProgAction prog mdefName = \case
               if imported curMods == imported renamedMods
                 then
                   pure $
-                    prog & #progModule .~ editable renamedMods
+                    prog & #progModules .~ editable renamedMods
                       & #progSelection % _Just %~ renameModule' oldName n
                 else
                   throwError $
@@ -792,7 +795,7 @@ applyProgAction prog mdefName = \case
                       InternalFailure "RenameModule: imported modules were edited by renaming"
 
 -- Helper for RenameModule action
-data RenameMods a = RM {imported :: [a], editable :: a}
+data RenameMods a = RM {imported :: [a], editable :: [a]}
   deriving (Functor, Foldable, Traversable)
 
 lookupEditableModule :: MonadError ProgError m => ModuleName -> Prog -> m Module
@@ -806,10 +809,10 @@ lookupEditableModule n p =
 data ModuleLookup = Editable Module | Imported Module
 
 lookupModule' :: MonadError ProgError m => ModuleName -> Prog -> m ModuleLookup
-lookupModule' n p = case (n == moduleName (progModule p), find ((n ==) . moduleName) (progImports p)) of
-  (True, _) -> pure $ Editable (progModule p)
-  (False, Just m) -> pure $ Imported m
-  (False, Nothing) -> throwError $ ModuleNotFound n
+lookupModule' n p = case (find ((n ==) . moduleName) (progModules p), find ((n ==) . moduleName) (progImports p)) of
+  (Just m, _) -> pure $ Editable m
+  (Nothing, Just m) -> pure $ Imported m
+  (Nothing, Nothing) -> throwError $ ModuleNotFound n
 
 editModule ::
   MonadError ProgError m =>
@@ -820,7 +823,28 @@ editModule ::
 editModule n p f = do
   m <- lookupEditableModule n p
   (m', s) <- f m
-  pure $ p{progModule = m', progSelection = s}
+  pure $
+    p
+      { progModules = m' : filter ((/= n) . moduleName) (progModules p)
+      , progSelection = s
+      }
+
+-- A variant of 'editModule' for actions which can affect multiple modules
+editModuleCross ::
+  MonadError ProgError m =>
+  ModuleName ->
+  Prog ->
+  ((Module, [Module]) -> m ([Module], Maybe Selection)) ->
+  m Prog
+editModuleCross n p f = do
+  m <- lookupEditableModule n p
+  let otherModules = filter ((/= n) . moduleName) (progModules p)
+  (m', s) <- f (m, otherModules)
+  pure $
+    p
+      { progModules = m'
+      , progSelection = s
+      }
 
 editModuleSameSelection ::
   MonadError ProgError m =>
@@ -829,6 +853,15 @@ editModuleSameSelection ::
   (Module -> m Module) ->
   m Prog
 editModuleSameSelection n p f = editModule n p (fmap (,progSelection p) . f)
+
+-- A variant of 'editModuleSameSelection' for actions which can affect multiple modules
+editModuleSameSelectionCross ::
+  MonadError ProgError m =>
+  ModuleName ->
+  Prog ->
+  ((Module, [Module]) -> m [Module]) ->
+  m Prog
+editModuleSameSelectionCross n p f = editModuleCross n p (fmap (,progSelection p) . f)
 
 editModuleOf ::
   MonadError ProgError m =>
@@ -841,6 +874,20 @@ editModuleOf mdefName prog f = case mdefName of
   Just defname -> editModule (qualifiedModule defname) prog $ \m ->
     case Map.lookup (baseName defname) (moduleDefs m) of
       Just (DefAST def) -> f m def
+      _ -> throwError $ DefNotFound defname
+
+-- A variant of 'editModuleOf' for actions which can affect multiple modules
+editModuleOfCross ::
+  MonadError ProgError m =>
+  Maybe GVarName ->
+  Prog ->
+  ((Module, [Module]) -> ASTDef -> m ([Module], Maybe Selection)) ->
+  m Prog
+editModuleOfCross mdefName prog f = case mdefName of
+  Nothing -> throwError NoDefSelected
+  Just defname -> editModuleCross (qualifiedModule defname) prog $ \ms@(m, _) ->
+    case Map.lookup (baseName defname) (moduleDefs m) of
+      Just (DefAST def) -> f ms def
       _ -> throwError $ DefNotFound defname
 
 -- | Undo the last block of actions.
@@ -963,12 +1010,13 @@ newEmptyProg =
       def = DefAST $ ASTDef (qualifyName (ModuleName $ "Main" :| []) "main") expr ty
    in Prog
         { progImports = mempty
-        , progModule =
-            Module
-              { moduleName = ModuleName $ "Main" :| []
-              , moduleTypes = mempty
-              , moduleDefs = Map.singleton (baseName $ defName def) def
-              }
+        , progModules =
+            [ Module
+                { moduleName = ModuleName $ "Main" :| []
+                , moduleTypes = mempty
+                , moduleDefs = Map.singleton (baseName $ defName def) def
+                }
+            ]
         , progSelection = Nothing
         , progSmartHoles = SmartHoles
         , progLog = Log []
@@ -989,12 +1037,13 @@ newProg :: Prog
 newProg =
   newEmptyProg
     { progImports = [builtinModule, primitiveModule]
-    , progModule =
-        Module
-          { moduleName = ModuleName $ "Main" :| []
-          , moduleTypes = mempty
-          , moduleDefs = defaultDefs $ ModuleName $ "Main" :| []
-          }
+    , progModules =
+        [ Module
+            { moduleName = ModuleName $ "Main" :| []
+            , moduleTypes = mempty
+            , moduleDefs = defaultDefs $ ModuleName $ "Main" :| []
+            }
+        ]
     }
 
 -- Since IDs should be unique in a module, we record 'defaultDefsNextID'
@@ -1060,13 +1109,14 @@ copyPasteSig p (fromDefName, fromTyId) toDefName setup = do
     Right zt -> pure $ Right zt
   let smartHoles = progSmartHoles p
   finalProg <- editModuleOf (Just toDefName) p $ \mod oldDef -> do
+    let otherModules = filter ((/= moduleName mod) . moduleName) (progModules p)
     -- We intentionally throw away any changes in doneSetup other than via 'tgt'
     -- as these could be in other definitions referencing this one, due to
     -- types changing. However, we are going to do a full tc pass anyway,
     -- which will pick up any problems. It is better to do it in one batch,
     -- in case the intermediate state after 'setup' causes more problems
     -- than the final state does.
-    doneSetup <- applyActionsToTypeSig smartHoles (progImports p) mod oldDef setup
+    doneSetup <- applyActionsToTypeSig smartHoles (progImports p) (mod, otherModules) oldDef setup
     tgt <- case doneSetup of
       Left err -> throwError $ ActionError err
       Right (_, _, tgt) -> pure $ focusOnlyType tgt
@@ -1145,7 +1195,7 @@ loopM f a =
     Left a' -> loopM f a'
     Right b -> pure b
 
--- | Checks every term and type definition in the editable module.
+-- | Checks every term and type definition in the editable modules.
 -- Does not check imported modules.
 tcWholeProg :: forall m. MonadEdit m => Prog -> m Prog
 tcWholeProg p =
@@ -1156,13 +1206,9 @@ tcWholeProg p =
             (progSmartHoles p)
             CheckEverything
               { trusted = progImports p
-              , toCheck = [progModule p]
+              , toCheck = progModules p
               }
-        mod' <- case mods' of
-          [checkedMod] -> pure checkedMod
-          -- This internal error will go away when we allow Progs to contain multiple mutable modules
-          _ -> throwError $ CustomFailure NoOp "Internal error: checkEverything returned a different number of module as were passed in"
-        let p' = p{progModule = mod'}
+        let p' = p{progModules = mods'}
         -- We need to update the metadata cached in the selection
         let oldSel = progSelection p
         newSel <- case oldSel of
@@ -1343,7 +1389,8 @@ liftError f = runExceptT >=> either (throwError . f) pure
 allConNames :: Prog -> [ValConName]
 allConNames =
   toListOf $
-    #progModule
+    #progModules
+      % traversed
       % #moduleTypes
       % traversed
       % #_TypeDefAST

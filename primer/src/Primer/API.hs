@@ -72,7 +72,7 @@ import Primer.App (
   handleQuestion,
   initialApp,
   progImports,
-  progModule,
+  progModules,
   runEditAppM,
   runQueryAppM,
  )
@@ -341,7 +341,7 @@ instance ToJSON Def
 
 viewProg :: App.Prog -> Prog
 viewProg p =
-  Prog{modules = viewModule True (progModule p) : map (viewModule False) (progImports p)}
+  Prog{modules = map (viewModule True) (progModules p) <> map (viewModule False) (progImports p)}
   where
     viewModule e m =
       Module
