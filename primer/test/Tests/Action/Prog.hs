@@ -130,19 +130,19 @@ unit_move_to_def_and_construct_let :: Assertion
 unit_move_to_def_and_construct_let =
   progActionTest defaultEmptyProg [moveToDef "other", BodyAction [ConstructLet (Just "x")]] $
     expectSuccess $ \prog prog' ->
-      case astDefExpr <$> lookupASTDef' "other" (moduleDefs $ progModule prog') of
+      case astDefExpr <$> lookupASTDef' "other" prog' of
         Just Let{} ->
           -- Check that main is unchanged
-          Map.lookup "main" (moduleDefs $ progModule prog') @?= Map.lookup "main" (moduleDefs $ progModule prog)
+          lookupDef' "main" prog' @?= lookupDef' "main" prog
         _ -> assertFailure "definition not found"
 
 unit_rename_def :: Assertion
 unit_rename_def =
   progActionTest defaultEmptyProg [renameDef "other" "foo"] $
     expectSuccess $ \_ prog' -> do
-      fmap defName (Map.lookup "other" (moduleDefs $ progModule prog')) @?= Nothing
-      fmap defName (Map.lookup "foo" (moduleDefs $ progModule prog')) @?= Just (gvn "foo")
-      fmap defName (Map.lookup "main" (moduleDefs $ progModule prog')) @?= Just (gvn "main")
+      fmap defName (lookupDef' "other" prog') @?= Nothing
+      fmap defName (lookupDef' "foo" prog') @?= Just (gvn "foo")
+      fmap defName (lookupDef' "main" prog') @?= Just (gvn "main")
 
 unit_rename_def_to_same_name_as_existing_def :: Assertion
 unit_rename_def_to_same_name_as_existing_def =
@@ -163,10 +163,10 @@ unit_rename_def_referenced =
     , renameDef "other" "foo"
     ]
     $ expectSuccess $ \_ prog' -> do
-      fmap defName (Map.lookup "other" (moduleDefs $ progModule prog')) @?= Nothing
-      fmap defName (Map.lookup "foo" (moduleDefs $ progModule prog')) @?= Just (gvn "foo")
-      fmap defName (Map.lookup "main" (moduleDefs $ progModule prog')) @?= Just (gvn "main")
-      fmap (set _exprMeta () . astDefExpr) (defAST =<< Map.lookup "main" (moduleDefs $ progModule prog')) @?= Just (Var () $ globalVarRef "foo")
+      fmap defName (lookupDef' "other" prog') @?= Nothing
+      fmap defName (lookupDef' "foo" prog') @?= Just (gvn "foo")
+      fmap defName (lookupDef' "main" prog') @?= Just (gvn "main")
+      fmap (set _exprMeta () . astDefExpr) (defAST =<< lookupDef' "main" prog') @?= Just (Var () $ globalVarRef "foo")
 
 unit_rename_def_recursive :: Assertion
 unit_rename_def_recursive =
@@ -177,16 +177,16 @@ unit_rename_def_recursive =
     , renameDef "main" "foo"
     ]
     $ expectSuccess $ \_ prog' -> do
-      fmap defName (Map.lookup "main" (moduleDefs $ progModule prog')) @?= Nothing
-      fmap defName (Map.lookup "foo" (moduleDefs $ progModule prog')) @?= Just (gvn "foo")
-      fmap (set _exprMeta () . astDefExpr) (defAST =<< Map.lookup "foo" (moduleDefs $ progModule prog')) @?= Just (Var () $ globalVarRef "foo")
+      fmap defName (lookupDef' "main" prog') @?= Nothing
+      fmap defName (lookupDef' "foo" prog') @?= Just (gvn "foo")
+      fmap (set _exprMeta () . astDefExpr) (defAST =<< lookupDef' "foo" prog') @?= Just (Var () $ globalVarRef "foo")
 
 unit_delete_def :: Assertion
 unit_delete_def =
   progActionTest defaultEmptyProg [deleteDef "other"] $
     expectSuccess $ \_ prog' -> do
-      fmap defName (Map.lookup "other" (moduleDefs $ progModule prog')) @?= Nothing
-      fmap defName (Map.lookup "main" (moduleDefs $ progModule prog')) @?= Just (gvn "main")
+      fmap defName (lookupDef' "other" prog') @?= Nothing
+      fmap defName (lookupDef' "main" prog') @?= Just (gvn "main")
 
 unit_delete_def_unknown_id :: Assertion
 unit_delete_def_unknown_id =
@@ -219,7 +219,7 @@ unit_construct_let_without_moving_to_def_first =
 unit_create_def :: Assertion
 unit_create_def = progActionTest defaultEmptyProg [CreateDef mainModuleName $ Just "newDef"] $
   expectSuccess $ \_ prog' -> do
-    case lookupASTDef' "newDef" (moduleDefs $ progModule prog') of
+    case lookupASTDef' "newDef" prog' of
       Nothing -> assertFailure $ show $ moduleDefs $ progModule prog'
       Just def -> do
         astDefName def @?= gvn "newDef"
@@ -434,7 +434,7 @@ unit_construct_arrow_in_sig :: Assertion
 unit_construct_arrow_in_sig =
   progActionTest defaultEmptyProg [moveToDef "other", SigAction [ConstructArrowL, Move Child1]] $
     expectSuccess $ \_ prog' ->
-      case lookupASTDef' "other" (moduleDefs $ progModule prog') of
+      case lookupASTDef' "other" prog' of
         Just def ->
           -- Check that the signature is an arrow type
           case astDefType def of
@@ -465,7 +465,7 @@ unit_sigaction_creates_holes =
         ]
    in progActionTest defaultFullProg acts $
         expectSuccess $ \_ prog' ->
-          case lookupASTDef' "other" (moduleDefs $ progModule prog') of
+          case lookupASTDef' "other" prog' of
             Just def ->
               -- Check that the definition is a non-empty hole
               case astDefExpr def of
@@ -502,8 +502,8 @@ unit_copy_paste_duplicate = do
           clearIDs = set (_Just % _defIDs) 0
        in do
             src @?= lookupASTDef fromDef (moduleDefsQualified $ progModule r)
-            assertBool "equal to toDef" $ src /= lookupASTDef' "blank" (moduleDefs $ progModule r)
-            clearIDs (set (_Just % #astDefName) toDef src) @?= clearIDs (lookupASTDef' "blank" (moduleDefs $ progModule r))
+            assertBool "equal to toDef" $ src /= lookupASTDef' "blank" r
+            clearIDs (set (_Just % #astDefName) toDef src) @?= clearIDs (lookupASTDef' "blank" r)
 
 -- ∀a . (∀b,c . a -> b -> ∀d. c -> d)  -> ∀c. ?
 -- copy         ^------------------^
@@ -630,12 +630,12 @@ unit_copy_paste_ann = do
     Right (tcp, r) ->
       -- use the typechecked input p, as the result will have had a typecheck run, so
       -- we need the cached kinds to match up
-      let src = lookupASTDef' fromDef' (moduleDefs $ progModule tcp)
+      let src = lookupASTDef' fromDef' tcp
           clearIDs = set (_Just % _defIDs) 0
        in do
-            src @?= lookupASTDef' fromDef' (moduleDefs $ progModule r)
-            assertBool "equal to blank" $ src /= lookupASTDef' toDef' (moduleDefs $ progModule r)
-            clearIDs (set (_Just % #astDefName) toDef src) @?= clearIDs (lookupASTDef' toDef' (moduleDefs $ progModule r))
+            src @?= lookupASTDef' fromDef' r
+            assertBool "equal to blank" $ src /= lookupASTDef' toDef' r
+            clearIDs (set (_Just % #astDefName) toDef src) @?= clearIDs (lookupASTDef' toDef' r)
 
 unit_copy_paste_ann2sig :: Assertion
 unit_copy_paste_ann2sig = do
@@ -1369,11 +1369,14 @@ runAppTestM startID a m =
     Left err -> (Left err, a)
     Right (res, app') -> (Right res, app')
 
--- Looks up a definition, ignoring any module prefix
+-- Looks up a definition in the main module
 -- Useful in these tests so we don't have to specify
 -- the name of the module all the time
-lookupASTDef' :: Name -> Map Name Def -> Maybe ASTDef
-lookupASTDef' name = defAST <=< Map.lookup name
+lookupDef' :: Name -> Prog -> Maybe Def
+lookupDef' = flip findGlobalByName . qualifyName mainModuleName
+
+lookupASTDef' :: Name -> Prog -> Maybe ASTDef
+lookupASTDef' name = defAST <=< lookupDef' name
 
 astDefBaseName :: ASTDef -> Name
 astDefBaseName = baseName . astDefName
