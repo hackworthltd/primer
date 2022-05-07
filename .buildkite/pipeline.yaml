@@ -1,3 +1,7 @@
+env:
+  CACHIX_CONFIG: /var/lib/cachix/hackworthltd-private/cachix.dhall
+  CACHIX_CACHE: hackworthltd-private
+
 agents:
   private: "true"
 
@@ -9,3 +13,9 @@ steps:
           file: ci.nix
           post-build-hook:
             /run/current-system/sw/bin/buildkite-private-post-build-hook
+  - label: ":nixos: Archive Nix flake inputs"
+    command: nix flake archive --json | jq -r '.path,(.inputs|to_entries[].value.path)' | cachix --verbose --config "$CACHIX_CONFIG" push "$CACHIX_CACHE"
+  - wait
+  - label: ":nixos: Cache the Nix shell"
+    command: |
+      nix develop --profile /tmp/primer --command cachix --verbose --config "$CACHIX_CONFIG" push "$CACHIX_CACHE" /tmp/primer
