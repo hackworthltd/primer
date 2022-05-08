@@ -304,10 +304,10 @@ instance ToJSON Tree
 data Prog = Prog
   { types :: [TyConName]
   , -- We don't use Map Name Def as it is rather redundant since each
-  -- Def carries a name field, and it is difficult to enforce that
-  -- "the keys of this object match the name field of the
-  -- corresponding value".
-  defs :: [Def]
+    -- Def carries a name field, and it is difficult to enforce that
+    -- "the keys of this object match the name field of the
+    -- corresponding value".
+    defs :: [Def]
   }
   deriving (Generic)
 

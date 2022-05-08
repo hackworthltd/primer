@@ -467,7 +467,7 @@ unit_copy_paste_duplicate = do
         blankDef <- ASTDef toDef <$> emptyHole <*> tEmptyHole
         pure
           ( newProg{progSelection = Nothing}
-            & #progModule % #moduleDefs .~ Map.fromList [("main", DefAST mainDef), ("blank", DefAST blankDef)]
+              & #progModule % #moduleDefs .~ Map.fromList [("main", DefAST mainDef), ("blank", DefAST blankDef)]
           , getID mainType
           , getID mainExpr
           , getID (astDefType blankDef)
