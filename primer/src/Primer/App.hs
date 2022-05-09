@@ -138,7 +138,7 @@ import Primer.Core (
  )
 import Primer.Core.DSL (create, emptyHole, tEmptyHole)
 import qualified Primer.Core.DSL as DSL
-import Primer.Core.Transform (foldApp, renameVar, unfoldApp, unfoldTApp)
+import Primer.Core.Transform (foldApp, renameVar, unfoldAPP, unfoldApp, unfoldTApp)
 import Primer.Core.Utils (freeVars, _freeTmVars, _freeTyVars, _freeVarsTy)
 import Primer.Eval (EvalDetail, EvalError)
 import qualified Primer.Eval as Eval
@@ -740,20 +740,24 @@ applyProgAction prog mdefName = \case
                   )
           )
           type_
-      updateDefs = traverseOf (traversed % #_DefAST % #astDefExpr) (updateDecons <=< updateCons)
+      -- NB: we must updateDecons first, as transformCaseBranches may do
+      -- synthesis of the scrutinee's type, using the old typedef. Thus we must
+      -- not update the scrutinee before this happens.
+      updateDefs = traverseOf (traversed % #_DefAST % #astDefExpr) (updateCons <=< updateDecons)
       updateCons e = case unfoldApp e of
-        (e'@(Con _ con'), args) | con' == con -> do
-          m' <- DSL.meta
-          case insertAt index (EmptyHole m') args of
-            Just args' -> foldApp e' =<< traverse (descendM updateCons) args'
-            Nothing ->
-              -- The constructor is not applied as far as the field immediately prior to the new one,
-              -- so the full application still typechecks, but its type has changed.
-              -- Thus, we put the whole thing in to a hole.
-              Hole <$> DSL.meta <*> (foldApp e' =<< traverse (descendM updateCons) args)
-        _ ->
-          -- NB we can't use `transformM` here because we'd end up seeing incomplete applications before full ones
-          descendM updateCons e
+        (h, args) -> case unfoldAPP h of
+          (Con _ con', _tyArgs) | con' == con -> do
+            m' <- DSL.meta
+            case insertAt index (EmptyHole m') args of
+              Just args' -> foldApp h =<< traverse (descendM updateCons) args'
+              Nothing ->
+                -- The constructor is not applied as far as the field immediately prior to the new one,
+                -- so the full application still typechecks, but its type has changed.
+                -- Thus, we put the whole thing in to a hole.
+                Hole <$> DSL.meta <*> (foldApp h =<< traverse (descendM updateCons) args)
+          _ ->
+            -- NB we can't use `transformM` here because we'd end up seeing incomplete applications before full ones
+            descendM updateCons e
       updateDecons = transformCaseBranches prog type_ $
         traverse $ \cb@(CaseBranch vc binds e) ->
           if vc == con
