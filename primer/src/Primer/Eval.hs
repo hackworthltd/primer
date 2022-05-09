@@ -470,16 +470,16 @@ tryReduceExpr globals locals = \case
     pure
       ( expr
       , BetaReduction
-        BetaReductionDetail
-          { betaBefore = App mApp lam arg
-          , betaAfter = expr
-          , betaBindingName = x
-          , betaLambdaID = lam ^. _id
-          , betaLetID = expr ^. _id
-          , betaArgID = arg ^. _id
-          , betaBodyID = body ^. _id
-          , betaTypes = Nothing
-          }
+          BetaReductionDetail
+            { betaBefore = App mApp lam arg
+            , betaAfter = expr
+            , betaBindingName = x
+            , betaLambdaID = lam ^. _id
+            , betaLetID = expr ^. _id
+            , betaArgID = arg ^. _id
+            , betaBodyID = body ^. _id
+            , betaTypes = Nothing
+            }
       )
   -- Beta reduction (with annotation)
   -- (\x. e1 : A -> B) e2 ==> let x = e2 : A in e1 : B
@@ -510,16 +510,16 @@ tryReduceExpr globals locals = \case
     pure
       ( expr
       , BetaReduction
-        BetaReductionDetail
-          { betaBefore = App mApp annotation arg
-          , betaAfter = expr
-          , betaBindingName = x
-          , betaLambdaID = lam ^. _id
-          , betaLetID = letexpr ^. _id
-          , betaArgID = arg ^. _id
-          , betaBodyID = body ^. _id
-          , betaTypes = types
-          }
+          BetaReductionDetail
+            { betaBefore = App mApp annotation arg
+            , betaAfter = expr
+            , betaBindingName = x
+            , betaLambdaID = lam ^. _id
+            , betaLetID = letexpr ^. _id
+            , betaArgID = arg ^. _id
+            , betaBodyID = body ^. _id
+            , betaTypes = types
+            }
       )
   -- (letrec x : T = λ ...) e
   before@(App mApp (Letrec mLet x e1 t lam@Lam{}) e2) | notMember x (freeVars e2) -> do
@@ -529,15 +529,15 @@ tryReduceExpr globals locals = \case
     pure
       ( expr
       , PushAppIntoLetrec
-        PushAppIntoLetrecDetail
-          { pushAppIntoLetrecBefore = before
-          , pushAppIntoLetrecAfter = expr
-          , pushAppIntoLetrecArgID = e2 ^. _id
-          , pushAppIntoLetrecLetrecID = mLet ^. _id
-          , pushAppIntoLetrecLamID = lam ^. _id
-          , pushAppIntoLetrecLetBindingName = x
-          , pushAppIntoLetrecIsTypeApplication = False
-          }
+          PushAppIntoLetrecDetail
+            { pushAppIntoLetrecBefore = before
+            , pushAppIntoLetrecAfter = expr
+            , pushAppIntoLetrecArgID = e2 ^. _id
+            , pushAppIntoLetrecLetrecID = mLet ^. _id
+            , pushAppIntoLetrecLamID = lam ^. _id
+            , pushAppIntoLetrecLetBindingName = x
+            , pushAppIntoLetrecIsTypeApplication = False
+            }
       )
 
   -- apply primitive function
@@ -547,12 +547,12 @@ tryReduceExpr globals locals = \case
         pure
           ( expr
           , ApplyPrimFun
-            ApplyPrimFunDetail
-              { applyPrimFunBefore = before
-              , applyPrimFunAfter = expr
-              , applyPrimFunName = name
-              , applyPrimFunArgIDs = args ^. mapping _id
-              }
+              ApplyPrimFunDetail
+                { applyPrimFunBefore = before
+                , applyPrimFunAfter = expr
+                , applyPrimFunName = name
+                , applyPrimFunArgIDs = args ^. mapping _id
+                }
           )
 
   -- Beta reduction of an inner application
@@ -575,16 +575,16 @@ tryReduceExpr globals locals = \case
     pure
       ( expr
       , BETAReduction
-        BetaReductionDetail
-          { betaBefore = APP mAPP lam arg
-          , betaAfter = expr
-          , betaBindingName = x
-          , betaLambdaID = lam ^. _id
-          , betaLetID = expr ^. _id
-          , betaArgID = arg ^. _id
-          , betaBodyID = body ^. _id
-          , betaTypes = Nothing
-          }
+          BetaReductionDetail
+            { betaBefore = APP mAPP lam arg
+            , betaAfter = expr
+            , betaBindingName = x
+            , betaLambdaID = lam ^. _id
+            , betaLetID = expr ^. _id
+            , betaArgID = arg ^. _id
+            , betaBodyID = body ^. _id
+            , betaTypes = Nothing
+            }
       )
   -- Beta reduction of big lambda (with annotation)
   -- With the current editor K is always KType, so the annotation is a
@@ -604,16 +604,16 @@ tryReduceExpr globals locals = \case
         pure
           ( expr
           , BETAReduction
-            BetaReductionDetail
-              { betaBefore = APP mAPP annotation t
-              , betaAfter = expr
-              , betaBindingName = x
-              , betaLambdaID = lam ^. _id
-              , betaLetID = expr ^. _id
-              , betaArgID = t ^. _id
-              , betaBodyID = body ^. _id
-              , betaTypes = Just (k, b)
-              }
+              BetaReductionDetail
+                { betaBefore = APP mAPP annotation t
+                , betaAfter = expr
+                , betaBindingName = x
+                , betaLambdaID = lam ^. _id
+                , betaLetID = expr ^. _id
+                , betaArgID = t ^. _id
+                , betaBodyID = body ^. _id
+                , betaTypes = Just (k, b)
+                }
           )
       _ -> throwError $ BadBigLambdaAnnotation annotation
   -- (letrec x : T = Λ ...) e
@@ -624,15 +624,15 @@ tryReduceExpr globals locals = \case
     pure
       ( expr
       , PushAppIntoLetrec
-        PushAppIntoLetrecDetail
-          { pushAppIntoLetrecBefore = before
-          , pushAppIntoLetrecAfter = expr
-          , pushAppIntoLetrecArgID = e2 ^. _id
-          , pushAppIntoLetrecLetrecID = mLet ^. _id
-          , pushAppIntoLetrecLamID = lam ^. _id
-          , pushAppIntoLetrecLetBindingName = x
-          , pushAppIntoLetrecIsTypeApplication = True
-          }
+          PushAppIntoLetrecDetail
+            { pushAppIntoLetrecBefore = before
+            , pushAppIntoLetrecAfter = expr
+            , pushAppIntoLetrecArgID = e2 ^. _id
+            , pushAppIntoLetrecLetrecID = mLet ^. _id
+            , pushAppIntoLetrecLamID = lam ^. _id
+            , pushAppIntoLetrecLetBindingName = x
+            , pushAppIntoLetrecIsTypeApplication = True
+            }
       )
   -- Beta reduction of an inner big lambda application
   -- This rule is theoretically redundant but because we render nested applications with just one
@@ -657,14 +657,14 @@ tryReduceExpr globals locals = \case
         pure
           ( e'
           , LocalVarInline
-            LocalVarInlineDetail
-              { localVarInlineLetID = i
-              , localVarInlineVarID = mVar ^. _id
-              , localVarInlineValueID = e ^. _id
-              , localVarInlineBindingName = x
-              , localVarInlineReplacementID = e' ^. _id
-              , localVarInlineIsTypeVar = False
-              }
+              LocalVarInlineDetail
+                { localVarInlineLetID = i
+                , localVarInlineVarID = mVar ^. _id
+                , localVarInlineValueID = e ^. _id
+                , localVarInlineBindingName = x
+                , localVarInlineReplacementID = e' ^. _id
+                , localVarInlineIsTypeVar = False
+                }
           )
   -- Inline global variable
   -- (f = e : t) |- f ==> e : t
@@ -676,11 +676,11 @@ tryReduceExpr globals locals = \case
     pure
       ( expr
       , GlobalVarInline
-        GlobalVarInlineDetail
-          { globalVarInlineVar = Var mVar (GlobalVarRef x)
-          , globalVarInlineDef = def
-          , globalVarInlineAfter = expr
-          }
+          GlobalVarInlineDetail
+            { globalVarInlineVar = Var mVar (GlobalVarRef x)
+            , globalVarInlineDef = def
+            , globalVarInlineAfter = expr
+            }
       )
   -- Redundant let removal
   -- let x = e1 in e2 ==> e2    if x not free in e2
@@ -725,17 +725,17 @@ tryReduceExpr globals locals = \case
               pure
                 ( expr'
                 , CaseReduction
-                  CaseReductionDetail
-                    { caseBefore = Case m scrut branches
-                    , caseAfter = expr'
-                    , caseTargetID = scrut ^. _id
-                    , caseTargetCtorID = mCon ^. _id
-                    , caseCtorName = c
-                    , caseTargetArgIDs = map (^. _id) termArgs
-                    , caseBranchBindingIDs = map (^. _id) binds
-                    , caseBranchRhsID = rhs ^. _id
-                    , caseLetIDs = letIDs
-                    }
+                    CaseReductionDetail
+                      { caseBefore = Case m scrut branches
+                      , caseAfter = expr'
+                      , caseTargetID = scrut ^. _id
+                      , caseTargetCtorID = mCon ^. _id
+                      , caseCtorName = c
+                      , caseTargetArgIDs = map (^. _id) termArgs
+                      , caseBranchBindingIDs = map (^. _id) binds
+                      , caseBranchRhsID = rhs ^. _id
+                      , caseLetIDs = letIDs
+                      }
                 )
             Nothing -> throwError NoMatchingCaseBranch
   _ -> throwError NotRedex
@@ -746,13 +746,13 @@ tryReduceExpr globals locals = \case
       pure
         ( body
         , LetRemoval
-          LetRemovalDetail
-            { letRemovalBefore = expr
-            , letRemovalAfter = body
-            , letRemovalBindingName = unLocalName x
-            , letRemovalLetID = meta ^. _id
-            , letRemovalBodyID = body ^. _id
-            }
+            LetRemovalDetail
+              { letRemovalBefore = expr
+              , letRemovalAfter = body
+              , letRemovalBindingName = unLocalName x
+              , letRemovalLetID = meta ^. _id
+              , letRemovalBodyID = body ^. _id
+              }
         )
 
 tryReduceType ::
@@ -773,14 +773,14 @@ tryReduceType _globals locals = \case
         pure
           ( t'
           , LocalTypeVarInline
-            LocalVarInlineDetail
-              { localVarInlineLetID = i
-              , localVarInlineVarID = mTVar ^. _id
-              , localVarInlineValueID = t ^. _id
-              , localVarInlineBindingName = x
-              , localVarInlineReplacementID = t' ^. _id
-              , localVarInlineIsTypeVar = True
-              }
+              LocalVarInlineDetail
+                { localVarInlineLetID = i
+                , localVarInlineVarID = mTVar ^. _id
+                , localVarInlineValueID = t ^. _id
+                , localVarInlineBindingName = x
+                , localVarInlineReplacementID = t' ^. _id
+                , localVarInlineIsTypeVar = True
+                }
           )
   _ -> throwError NotRedex
 
