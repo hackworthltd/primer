@@ -86,7 +86,6 @@ import Primer.Core.DSL (
   con,
   create,
   emptyHole,
-  gvar,
   hole,
   lAM,
   lam,
@@ -909,7 +908,11 @@ unit_SetConFieldType :: Assertion
 unit_SetConFieldType =
   progActionTest
     ( defaultProgEditableTypeDefs . sequence . pure $ do
-        x <- con cA `app` lvar "x" `app` (gvar (gvn "y") `ann` tcon (tcn "Bool"))
+        x <-
+          con cA `aPP` tEmptyHole `aPP` tEmptyHole
+            `app` con (vcn "True")
+            `app` con (vcn "True")
+            `app` con (vcn "True")
         astDef "def" x <$> tEmptyHole
     )
     [SetConFieldType tT cA 1 $ TCon () (tcn "Int")]
@@ -923,7 +926,10 @@ unit_SetConFieldType =
       forgetIDs (astDefExpr def)
         @?= forgetIDs
           ( fst . create $
-              con cA `app` lvar "x" `app` hole (gvar (gvn "y") `ann` tcon (tcn "Bool"))
+              con cA `aPP` tEmptyHole `aPP` tEmptyHole
+                `app` con (vcn "True")
+                `app` hole (con (vcn "True"))
+                `app` con (vcn "True")
           )
 
 unit_SetConFieldType_partial_app :: Assertion

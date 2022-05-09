@@ -690,18 +690,19 @@ applyProgAction prog mdefName = \case
           type_
       updateDefs = traverseOf (traversed % #_DefAST % #astDefExpr) (updateDecons <=< updateCons)
       updateCons e = case unfoldApp e of
-        (e'@(Con _ con'), args) | con' == con -> do
-          m' <- DSL.meta
-          case adjustAt index (Hole m') args of
-            Just args' -> foldApp e' =<< traverse (descendM updateCons) args'
-            Nothing -> do
-              -- The constructor is not applied as far as the changed field,
-              -- so the full application still typechecks, but its type has changed.
-              -- Thus, we put the whole thing in to a hole.
-              Hole <$> DSL.meta <*> (foldApp e' =<< traverse (descendM updateCons) args)
-        _ ->
-          -- NB we can't use `transformM` here because we'd end up seeing incomplete applications before full ones
-          descendM updateCons e
+        (h, args) -> case unfoldAPP h of
+          (Con _ con', _tyArgs) | con' == con -> do
+            m' <- DSL.meta
+            case adjustAt index (Hole m') args of
+              Just args' -> foldApp h =<< traverse (descendM updateCons) args'
+              Nothing -> do
+                -- The constructor is not applied as far as the changed field,
+                -- so the full application still typechecks, but its type has changed.
+                -- Thus, we put the whole thing in to a hole.
+                Hole <$> DSL.meta <*> (foldApp h =<< traverse (descendM updateCons) args)
+          _ ->
+            -- NB we can't use `transformM` here because we'd end up seeing incomplete applications before full ones
+            descendM updateCons e
       updateDecons = transformCaseBranches prog type_ $
         traverse $ \cb@(CaseBranch vc binds e) ->
           if vc == con
