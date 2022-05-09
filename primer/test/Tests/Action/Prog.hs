@@ -794,8 +794,16 @@ unit_RenameCon =
           [ do
               x <-
                 hole
-                  ( hole
-                      (con cA)
+                  ( hole $
+                      case_
+                        ( con cA `aPP` tEmptyHole `aPP` tEmptyHole
+                            `app` con (vcn "True")
+                            `app` con (vcn "True")
+                            `app` con (vcn "True")
+                        )
+                        [ branch cA [("p", Nothing), ("q", Nothing), ("p1", Nothing)] emptyHole
+                        , branch cB [("x", Nothing)] emptyHole
+                        ]
                   )
               astDef "def" x <$> tEmptyHole
           ]
@@ -812,8 +820,16 @@ unit_RenameCon =
         @?= forgetIDs
           ( fst . create $
               hole
-                ( hole
-                    (con $ vcn "A'")
+                ( hole $
+                    case_
+                      ( con (vcn "A'") `aPP` tEmptyHole `aPP` tEmptyHole
+                          `app` con (vcn "True")
+                          `app` con (vcn "True")
+                          `app` con (vcn "True")
+                      )
+                      [ branch (vcn "A'") [("p", Nothing), ("q", Nothing), ("p1", Nothing)] emptyHole
+                      , branch cB [("x", Nothing)] emptyHole
+                      ]
                 )
           )
 
