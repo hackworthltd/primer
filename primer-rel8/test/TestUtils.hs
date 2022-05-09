@@ -247,10 +247,10 @@ testASTDef :: ASTDef
 testASTDefNextID :: ID
 (testASTDef, testASTDefNextID) =
   ( ASTDef
-    { astDefName = qualifyName (ModuleName $ "TestModule" :| []) "1"
-    , astDefExpr
-    , astDefType
-    }
+      { astDefName = qualifyName (ModuleName $ "TestModule" :| []) "1"
+      , astDefExpr
+      , astDefType
+      }
   , nextID
   )
   where

@@ -34,9 +34,9 @@ import Primer.Name (Name)
 data Module = Module
   { moduleName :: ModuleName
   , -- Invariant: the names are consistent: keys cache the names in the Defs.
-  -- In particular, if (n,d) is in the moduleDefs map,
-  -- then "qualifyDefName m n == defName d"
-  moduleTypes :: Map Name TypeDef
+    -- In particular, if (n,d) is in the moduleDefs map,
+    -- then "qualifyDefName m n == defName d"
+    moduleTypes :: Map Name TypeDef
   , moduleDefs :: Map Name Def -- The current program: a set of definitions indexed by Name
   }
   deriving (Eq, Show, Data, Generic)

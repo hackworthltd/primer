@@ -369,9 +369,9 @@ foldAbove f z = go (target z) (up z)
 -- NB: 'foldAbove' + 'foldBelow' does not encompass the whole term: it misses
 -- siblings.
 foldBelow :: (IsZipper za a, Monoid m) => (a -> m) -> za -> m
-foldBelow f z = f (target z) <> maybe mempty go (farthest left <$> down z)
+foldBelow f z = f (target z) <> maybe mempty (go . farthest left) (down z)
   where
-    go z' = f (target z') <> maybe mempty go (farthest left <$> down z') <> maybe mempty go (right z')
+    go z' = f (target z') <> maybe mempty (go . farthest left) (down z') <> maybe mempty go (right z')
 
 -- Gets all binders that scope over the focussed subtree
 bindersAbove :: ExprZ -> S.Set Name
