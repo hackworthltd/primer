@@ -85,7 +85,7 @@ import Optics (
   _Right,
  )
 import Primer.Action (
-  Action,
+  Action (NoOp),
   ActionError (..),
   ProgAction (..),
   applyActionsToBody,
@@ -168,7 +168,6 @@ import Primer.Typecheck (
   SmartHoles (NoSmartHoles, SmartHoles),
   TypeError,
   buildTypingContextFromModules,
-  checkDef,
   checkEverything,
   checkTypeDefs,
   mkTypeDefMapQualified,
@@ -1146,14 +1145,23 @@ loopM f a =
     Left a' -> loopM f a'
     Right b -> pure b
 
--- | Checks every term definition in the editable module.
--- Does not check typedefs or imported modules.
+-- | Checks every term and type definition in the editable module.
+-- Does not check imported modules.
 tcWholeProg :: forall m. MonadEdit m => Prog -> m Prog
 tcWholeProg p =
   let tc :: ReaderT Cxt (ExceptT ActionError m) Prog
       tc = do
-        defs' <- mapM checkDef (moduleDefs $ progModule p)
-        let mod' = (progModule p){moduleDefs = defs'}
+        mods' <-
+          checkEverything
+            (progSmartHoles p)
+            CheckEverything
+              { trusted = progImports p
+              , toCheck = [progModule p]
+              }
+        mod' <- case mods' of
+          [checkedMod] -> pure checkedMod
+          -- This internal error will go away when we allow Progs to contain multiple mutable modules
+          _ -> throwError $ CustomFailure NoOp "Internal error: checkEverything returned a different number of module as were passed in"
         let p' = p{progModule = mod'}
         -- We need to update the metadata cached in the selection
         let oldSel = progSelection p
