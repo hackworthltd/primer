@@ -68,6 +68,7 @@ import qualified Data.Set as Set
 import Optics (
   Field1 (_1),
   Field2 (_2),
+  Field3 (_3),
   ReversibleOptic (re),
   over,
   toListOf,
@@ -612,7 +613,9 @@ applyProgAction prog mdefName = \case
           type_
       updateDefs =
         over (traversed % #_DefAST % #astDefExpr) $
-          transform $ over (#_Con % _2) updateName
+          transform $
+            over (#_Con % _2) updateName
+              . over (#_Case % _3 % traversed % #_CaseBranch % _1) updateName
       updateName n = if n == old then new else n
   RenameTypeParam type_ old (unsafeMkLocalName -> new) -> do
     traverseOf
