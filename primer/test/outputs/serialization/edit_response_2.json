@@ -18,128 +18,130 @@
                 ]
             ]
         },
-        "progModule": {
-            "moduleDefs": {
-                "main": {
-                    "contents": {
-                        "astDefExpr": {
-                            "contents": [
-                                0,
-                                {
-                                    "contents": {
-                                        "contents": [],
-                                        "tag": "TEmptyHole"
-                                    },
-                                    "tag": "TCSynthed"
-                                },
-                                null
-                            ],
-                            "tag": "EmptyHole"
-                        },
-                        "astDefName": {
-                            "baseName": "main",
-                            "qualifiedModule": [
-                                "M"
-                            ]
-                        },
-                        "astDefType": {
-                            "contents": [
-                                0,
-                                {
-                                    "tag": "KType"
-                                },
-                                null
-                            ],
-                            "tag": "TEmptyHole"
-                        }
-                    },
-                    "tag": "DefAST"
-                }
-            },
-            "moduleName": [
-                "M"
-            ],
-            "moduleTypes": {
-                "T": {
-                    "contents": {
-                        "astTypeDefConstructors": [
-                            {
-                                "valConArgs": [
+        "progModules": [
+            {
+                "moduleDefs": {
+                    "main": {
+                        "contents": {
+                            "astDefExpr": {
+                                "contents": [
+                                    0,
                                     {
-                                        "contents": [
-                                            [],
-                                            {
-                                                "contents": [
-                                                    [],
-                                                    "b"
-                                                ],
-                                                "tag": "TVar"
-                                            },
-                                            {
-                                                "contents": [
-                                                    [],
-                                                    "a"
-                                                ],
-                                                "tag": "TVar"
-                                            }
-                                        ],
-                                        "tag": "TApp"
+                                        "contents": {
+                                            "contents": [],
+                                            "tag": "TEmptyHole"
+                                        },
+                                        "tag": "TCSynthed"
                                     },
-                                    {
-                                        "contents": [
-                                            [],
-                                            {
-                                                "baseName": "Nat",
-                                                "qualifiedModule": [
-                                                    "Builtins"
-                                                ]
-                                            }
-                                        ],
-                                        "tag": "TCon"
-                                    }
+                                    null
                                 ],
-                                "valConName": {
-                                    "baseName": "C",
-                                    "qualifiedModule": [
-                                        "M"
-                                    ]
-                                }
+                                "tag": "EmptyHole"
+                            },
+                            "astDefName": {
+                                "baseName": "main",
+                                "qualifiedModule": [
+                                    "M"
+                                ]
+                            },
+                            "astDefType": {
+                                "contents": [
+                                    0,
+                                    {
+                                        "tag": "KType"
+                                    },
+                                    null
+                                ],
+                                "tag": "TEmptyHole"
                             }
-                        ],
-                        "astTypeDefName": {
-                            "baseName": "T",
-                            "qualifiedModule": [
-                                "M"
-                            ]
                         },
-                        "astTypeDefNameHints": [],
-                        "astTypeDefParameters": [
-                            [
-                                "a",
+                        "tag": "DefAST"
+                    }
+                },
+                "moduleName": [
+                    "M"
+                ],
+                "moduleTypes": {
+                    "T": {
+                        "contents": {
+                            "astTypeDefConstructors": [
                                 {
-                                    "tag": "KType"
-                                }
-                            ],
-                            [
-                                "b",
-                                {
-                                    "contents": [
+                                    "valConArgs": [
                                         {
-                                            "tag": "KType"
+                                            "contents": [
+                                                [],
+                                                {
+                                                    "contents": [
+                                                        [],
+                                                        "b"
+                                                    ],
+                                                    "tag": "TVar"
+                                                },
+                                                {
+                                                    "contents": [
+                                                        [],
+                                                        "a"
+                                                    ],
+                                                    "tag": "TVar"
+                                                }
+                                            ],
+                                            "tag": "TApp"
                                         },
                                         {
-                                            "tag": "KType"
+                                            "contents": [
+                                                [],
+                                                {
+                                                    "baseName": "Nat",
+                                                    "qualifiedModule": [
+                                                        "Builtins"
+                                                    ]
+                                                }
+                                            ],
+                                            "tag": "TCon"
                                         }
                                     ],
-                                    "tag": "KFun"
+                                    "valConName": {
+                                        "baseName": "C",
+                                        "qualifiedModule": [
+                                            "M"
+                                        ]
+                                    }
                                 }
+                            ],
+                            "astTypeDefName": {
+                                "baseName": "T",
+                                "qualifiedModule": [
+                                    "M"
+                                ]
+                            },
+                            "astTypeDefNameHints": [],
+                            "astTypeDefParameters": [
+                                [
+                                    "a",
+                                    {
+                                        "tag": "KType"
+                                    }
+                                ],
+                                [
+                                    "b",
+                                    {
+                                        "contents": [
+                                            {
+                                                "tag": "KType"
+                                            },
+                                            {
+                                                "tag": "KType"
+                                            }
+                                        ],
+                                        "tag": "KFun"
+                                    }
+                                ]
                             ]
-                        ]
-                    },
-                    "tag": "TypeDefAST"
+                        },
+                        "tag": "TypeDefAST"
+                    }
                 }
             }
-        },
+        ],
         "progSelection": {
             "selectedDef": {
                 "baseName": "main",

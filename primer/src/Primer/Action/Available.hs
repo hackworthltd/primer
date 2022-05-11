@@ -100,7 +100,7 @@ actionsForDef l defs def =
               qn = astDefName def
               copyName = uniquifyDefName (qualifiedModule qn) (unName (baseName qn) <> "Copy") defs
            in NoInputRequired
-                [ CreateDef (Just copyName)
+                [ CreateDef (qualifiedModule $ astDefName def) (Just copyName)
                 , CopyPasteSig (astDefName def, sigID) []
                 , CopyPasteBody (astDefName def, bodyID) []
                 ]

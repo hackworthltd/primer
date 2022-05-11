@@ -26,7 +26,7 @@ import Primer.App (
   newEmptyProg,
   newProg,
   progAllModules,
-  progModule,
+  progModules,
  )
 import Primer.Builtins (
   boolDef,
@@ -549,7 +549,7 @@ unit_bad_prim_map_base = case runTypecheckTestM NoSmartHoles $ do
   checkEverything
     NoSmartHoles
     CheckEverything
-      { trusted = [progModule newProg]
+      { trusted = progModules newProg
       , toCheck = [Module (ModuleName ["M"]) mempty $ Map.singleton "foo" $ DefPrim foo]
       } of
   Left err -> err @?= InternalError "Inconsistant names in moduleDefs map for module M"
@@ -562,7 +562,7 @@ unit_bad_prim_map_module = case runTypecheckTestM NoSmartHoles $ do
   checkEverything
     NoSmartHoles
     CheckEverything
-      { trusted = [progModule newProg]
+      { trusted = progModules newProg
       , toCheck = [Module (ModuleName ["M"]) mempty $ Map.singleton "foo" $ DefPrim foo]
       } of
   Left err -> err @?= InternalError "Inconsistant names in moduleDefs map for module M"
@@ -575,7 +575,7 @@ unit_bad_prim_type = case runTypecheckTestM NoSmartHoles $ do
   checkEverything
     NoSmartHoles
     CheckEverything
-      { trusted = [progModule newProg]
+      { trusted = progModules newProg
       , toCheck = [Module (ModuleName ["M"]) mempty $ Map.singleton "foo" $ DefPrim foo]
       } of
   Left err -> err @?= UnknownTypeConstructor (tcn ["M"] "NonExistant")

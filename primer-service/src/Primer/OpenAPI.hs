@@ -9,9 +9,9 @@ module Primer.OpenAPI (
 import Data.OpenApi (ToSchema)
 import Data.Text (Text)
 import Data.Typeable (Typeable)
-import Primer.API (Def, Prog, Tree)
+import Primer.API (Def, Module, Prog, Tree)
 import Primer.App (InitialApp)
-import Primer.Core (GlobalName, ID (..), LVarName)
+import Primer.Core (GlobalName, ID (..), LVarName, ModuleName)
 import Primer.Database (Session, SessionName)
 import Primer.Name (Name)
 
@@ -40,4 +40,6 @@ deriving via Name instance Typeable k => ToSchema (GlobalName k)
 deriving via Name instance (ToSchema LVarName)
 instance ToSchema Tree
 instance ToSchema Def
+instance ToSchema ModuleName
+instance ToSchema Module
 instance ToSchema Prog

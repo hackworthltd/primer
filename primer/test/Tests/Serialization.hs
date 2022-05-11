@@ -129,12 +129,13 @@ fixtures =
       prog =
         Prog
           { progImports = mempty
-          , progModule =
-              Module
-                { moduleName = ModuleName ["M"]
-                , moduleTypes = mkTypeDefMap [typeDef]
-                , moduleDefs = Map.singleton (baseName $ astDefName def) (DefAST def)
-                }
+          , progModules =
+              [ Module
+                  { moduleName = ModuleName ["M"]
+                  , moduleTypes = mkTypeDefMap [typeDef]
+                  , moduleDefs = Map.singleton (baseName $ astDefName def) (DefAST def)
+                  }
+              ]
           , progSelection = Just selection
           , progSmartHoles = SmartHoles
           , progLog = log
