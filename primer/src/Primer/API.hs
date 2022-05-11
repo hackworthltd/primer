@@ -21,6 +21,7 @@ module Primer.API (
   getVersion,
   Tree,
   Prog,
+  Module,
   Def,
   getProgram,
   getSessionName,
@@ -70,7 +71,8 @@ import Primer.App (
   handleMutationRequest,
   handleQuestion,
   initialApp,
-  progModule,
+  progImports,
+  progModules,
   runEditAppM,
   runQueryAppM,
  )
@@ -83,6 +85,7 @@ import Primer.Core (
   ID,
   Kind,
   LVarName,
+  ModuleName,
   PrimCon (..),
   TmVarRef (GlobalVarRef, LocalVarRef),
   TyConName,
@@ -123,7 +126,7 @@ import qualified Primer.Database as Database (
     Success
   ),
  )
-import Primer.Module (Module (moduleDefs, moduleTypes))
+import Primer.Module (moduleDefs, moduleName, moduleTypes)
 import Primer.Name (Name, unName)
 import qualified StmContainers.Map as StmMap
 
@@ -301,8 +304,19 @@ instance ToJSON Tree
 
 -- | This type is the API's view of a 'App.Prog'
 -- (this is expected to evolve as we flesh out the API)
-data Prog = Prog
-  { types :: [TyConName]
+newtype Prog = Prog
+  { modules :: [Module]
+  }
+  deriving (Generic)
+
+instance ToJSON Prog
+
+-- | This type is the API's view of a 'Module.Module'
+-- (this is expected to evolve as we flesh out the API)
+data Module = Module
+  { modname :: ModuleName
+  , editable :: Bool
+  , types :: [TyConName]
   , -- We don't use Map Name Def as it is rather redundant since each
     -- Def carries a name field, and it is difficult to enforce that
     -- "the keys of this object match the name field of the
@@ -311,7 +325,7 @@ data Prog = Prog
   }
   deriving (Generic)
 
-instance ToJSON Prog
+instance ToJSON Module
 
 -- | This type is the api's view of a 'Primer.Core.Def'
 -- (this is expected to evolve as we flesh out the API)
@@ -327,18 +341,23 @@ instance ToJSON Def
 
 viewProg :: App.Prog -> Prog
 viewProg p =
-  Prog
-    { types = typeDefName <$> Map.elems (moduleTypes $ progModule p)
-    , defs =
-        ( \d ->
-            Def
-              { name = defName d
-              , type_ = viewTreeType $ defType d
-              , term = viewTreeExpr . astDefExpr <$> defAST d
-              }
-        )
-          <$> Map.elems (moduleDefs $ progModule p)
-    }
+  Prog{modules = map (viewModule True) (progModules p) <> map (viewModule False) (progImports p)}
+  where
+    viewModule e m =
+      Module
+        { modname = moduleName m
+        , editable = e
+        , types = typeDefName <$> Map.elems (moduleTypes m)
+        , defs =
+            ( \d ->
+                Def
+                  { name = defName d
+                  , type_ = viewTreeType $ defType d
+                  , term = viewTreeExpr . astDefExpr <$> defAST d
+                  }
+            )
+              <$> Map.elems (moduleDefs m)
+        }
 
 -- | A simple method to extract 'Tree's from 'Expr's. This is injective.
 -- Currently it is designed to be simple and just enough to enable
