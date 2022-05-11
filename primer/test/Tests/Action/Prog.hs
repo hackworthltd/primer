@@ -86,7 +86,6 @@ import Primer.Core.DSL (
   con,
   create,
   emptyHole,
-  gvar,
   hole,
   lAM,
   lam,
@@ -909,7 +908,11 @@ unit_SetConFieldType :: Assertion
 unit_SetConFieldType =
   progActionTest
     ( defaultProgEditableTypeDefs . sequence . pure $ do
-        x <- con cA `app` lvar "x" `app` (gvar (gvn "y") `ann` tcon (tcn "Bool"))
+        x <-
+          con cA `aPP` tEmptyHole `aPP` tEmptyHole
+            `app` con (vcn "True")
+            `app` con (vcn "True")
+            `app` con (vcn "True")
         astDef "def" x <$> tEmptyHole
     )
     [SetConFieldType tT cA 1 $ TCon () (tcn "Int")]
@@ -923,7 +926,10 @@ unit_SetConFieldType =
       forgetIDs (astDefExpr def)
         @?= forgetIDs
           ( fst . create $
-              con cA `app` lvar "x" `app` hole (gvar (gvn "y") `ann` tcon (tcn "Bool"))
+              con cA `aPP` tEmptyHole `aPP` tEmptyHole
+                `app` con (vcn "True")
+                `app` hole (con (vcn "True"))
+                `app` con (vcn "True")
           )
 
 unit_SetConFieldType_partial_app :: Assertion
@@ -1016,7 +1022,16 @@ unit_AddConField :: Assertion
 unit_AddConField =
   progActionTest
     ( defaultProgEditableTypeDefs $ do
-        x <- con cA `app` con (vcn "True")
+        x <-
+          case_
+            ( con cA `aPP` tEmptyHole `aPP` tEmptyHole
+                `app` con (vcn "True")
+                `app` con (vcn "True")
+                `app` con (vcn "True")
+            )
+            [ branch cA [("p", Nothing), ("q", Nothing), ("p1", Nothing)] emptyHole
+            , branch cB [("x", Nothing)] emptyHole
+            ]
         sequence
           [ astDef "def" x <$> tEmptyHole
           ]
@@ -1032,7 +1047,16 @@ unit_AddConField =
       forgetIDs (astDefExpr def)
         @?= forgetIDs
           ( fst . create $
-              con cA `app` con (vcn "True") `app` emptyHole
+              case_
+                ( con cA `aPP` tEmptyHole `aPP` tEmptyHole
+                    `app` con (vcn "True")
+                    `app` emptyHole
+                    `app` con (vcn "True")
+                    `app` con (vcn "True")
+                )
+                [ branch cA [("p", Nothing), ("a24", Nothing), ("q", Nothing), ("p1", Nothing)] emptyHole
+                , branch cB [("x", Nothing)] emptyHole
+                ]
           )
 
 unit_AddConField_partial_app :: Assertion
@@ -1053,8 +1077,31 @@ unit_AddConField_partial_app =
               hole $ con cA `app` con (vcn "True")
           )
 
-unit_AddConField_case :: Assertion
-unit_AddConField_case =
+unit_AddConField_partial_app_end :: Assertion
+unit_AddConField_partial_app_end =
+  progActionTest
+    ( defaultProgEditableTypeDefs $ do
+        x <- con cA `app` con (vcn "True")
+        sequence
+          [ astDef "def" x <$> tEmptyHole
+          ]
+    )
+    [AddConField tT cA 1 $ TCon () (tcn "Int")]
+    $ expectSuccess $ \_ prog' -> do
+      td <- findTypeDef tT prog'
+      astTypeDefConstructors td
+        @?= [ ValCon cA [TCon () (tcn "Bool"), TCon () (tcn "Int"), TCon () (tcn "Bool"), TCon () (tcn "Bool")]
+            , ValCon cB [TVar () "b"]
+            ]
+      def <- findDef (gvn "def") prog'
+      forgetIDs (astDefExpr def)
+        @?= forgetIDs
+          ( fst . create $
+              con cA `app` con (vcn "True") `app` emptyHole
+          )
+
+unit_AddConField_case_ann :: Assertion
+unit_AddConField_case_ann =
   progActionTest
     ( defaultProgEditableTypeDefs $ do
         x <-
