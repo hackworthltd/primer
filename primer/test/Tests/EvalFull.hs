@@ -3,13 +3,13 @@ module Tests.EvalFull where
 import Foreword hiding (unlines)
 
 import Data.Generics.Uniplate.Data (universe)
-import Data.List ((\\))
+import Data.List (span, (\\))
 import qualified Data.Map as M
 import qualified Data.Map as Map
 import qualified Data.Set as S
 import Data.String (unlines)
 import Gen.Core.Typed (WT, forAllT, genChk, genSyn, genWTType, isolateWT, propertyWT)
-import Hedgehog hiding (Var, test)
+import Hedgehog hiding (Var, check, test)
 import qualified Hedgehog.Gen as Gen
 import Hedgehog.Internal.Property (LabelName (unLabelName))
 import qualified Hedgehog.Range as Range
@@ -53,6 +53,8 @@ import Primer.Module (Module (Module, moduleDefs, moduleName, moduleTypes), mkTy
 import Primer.Name (Name)
 import Primer.Primitives (primitiveGVar, primitiveModule, tChar, tInt)
 import Primer.Typecheck (
+  SmartHoles (NoSmartHoles),
+  check,
   typeDefs,
  )
 import Test.Tasty.HUnit (Assertion, assertBool, assertFailure, (@?=))
@@ -61,6 +63,7 @@ import TestUtils (gvn, withPrimDefs)
 import Tests.Action.Prog (runAppTestM)
 import Tests.Eval ((~=))
 import Tests.Gen.Core.Typed (checkTest)
+import Tests.Typecheck (runTypecheckTestM)
 
 unit_1 :: Assertion
 unit_1 =
@@ -475,6 +478,45 @@ unit_type_preservation_case_regression_ty =
    in do
         s1 <~==> Left (TimedOut expected1)
         s2 <~==> Left (TimedOut expected2)
+
+-- Previously EvalFull reducing a let expression could result in variable
+-- capture. We would reduce 'Λx. let x = _ :: x in x'
+-- to (eliding annotations) 'Λx. let x = _ :: x in _ :: x', where the
+-- 'let x' has captured the reference to the x in the bound term.
+-- This causes the term to become ill-sorted.
+-- Similarly, we reduce 'λx. let x = x in x' to itself, due to the same capture.
+unit_let_self_capture :: Assertion
+unit_let_self_capture =
+  let ((expr1, ty1, expr2, expected2a, expected2b, expr3, expected3a, expected3b), maxID) = create $ do
+        e1 <- lAM "x" $ let_ "x" (emptyHole `ann` tvar "x") (lvar "x")
+        let t1 = TForall () "a" KType $ TVar () "a"
+        e2 <- lam "x" $ let_ "x" (lvar "x") (lvar "x")
+        expect2a <- lam "x" $ let_ "a36" (lvar "x") (let_ "x" (lvar "a36") (lvar "x"))
+        expect2b <- lam "x" $ lvar "x"
+        e3 <- lAM "x" $ letType "x" (tvar "x") (emptyHole `ann` tvar "x")
+        expect3a <- lAM "x" $ letType "a36" (tvar "x") (letType "x" (tvar "a36") (emptyHole `ann` tvar "x"))
+        expect3b <- lAM "x" $ emptyHole `ann` tvar "x"
+        pure (e1, t1, e2, expect2a, expect2b, e3, expect3a, expect3b)
+      s1 n = evalFullTest maxID mempty mempty n Chk expr1
+      s2 n = evalFullTest maxID mempty mempty n Chk expr2
+      s3 n = evalFullTest maxID mempty mempty n Chk expr3
+      typePres ty f =
+        let (timeout, term) = span isLeft $ f <$> [0 ..]
+         in forM_ (timeout <> [unsafeHead term]) $ \e ->
+              let e' = case e of
+                    Left (TimedOut e'') -> e''
+                    Right e'' -> e''
+               in case runTypecheckTestM NoSmartHoles $ check ty e' of
+                    Left err -> assertFailure $ show err
+                    Right _ -> pure ()
+   in do
+        typePres ty1 s1
+        s2 1 <~==> Left (TimedOut expected2a)
+        s2 5 <~==> Left (TimedOut expected2b)
+        s2 6 <~==> Right expected2b
+        s3 1 <~==> Left (TimedOut expected3a)
+        s3 5 <~==> Left (TimedOut expected3b)
+        s3 6 <~==> Right expected3b
 
 -- | Evaluation preserves types
 -- (assuming we don't end with a 'LetType' in the term, as the typechecker
