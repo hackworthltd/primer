@@ -1078,7 +1078,7 @@ _ids' = _Left % timedOut % _ids `adjoin` _Right % _ids
   where
     timedOut = prism TimedOut (Right . \case TimedOut e -> e)
 
-(<~==>) :: Either EvalFullError Expr -> Either EvalFullError Expr -> Assertion
+(<~==>) :: HasCallStack => Either EvalFullError Expr -> Either EvalFullError Expr -> Assertion
 x <~==> y = on (@?=) (set _ids' 0) x y
 
 distinctIDs :: Either EvalFullError Expr -> Assertion
