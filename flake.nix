@@ -160,6 +160,7 @@
 
               shell = {
                 exactDeps = true;
+                withHoogle = true;
 
                 tools = {
                   ghcid = "latest";
