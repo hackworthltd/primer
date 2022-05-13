@@ -62,26 +62,14 @@
         "x86_64-linux"
       ];
 
-      overlays.lib = final: prev:
-        let
-          postgres-dev-password = "primer-dev";
-          postgres-dev-base-url = "postgres://postgres:${postgres-dev-password}@localhost:5432";
-          postgres-dev-primer-url = "${postgres-dev-base-url}/primer";
-        in
-        {
-          lib = (prev.lib or { }) // {
-            primer = (prev.lib.primer or { }) // {
-              inherit postgres-dev-password;
-              inherit postgres-dev-base-url;
-              inherit postgres-dev-primer-url;
-            };
-          };
-        };
-
-      overlays.db-scripts = hacknix.lib.overlays.combine [
-        hacknix.overlay
+      overlays.primer = hacknix.lib.overlays.combine [
+        haskell-nix.overlay
         (final: prev:
           let
+            postgres-dev-password = "primer-dev";
+            postgres-dev-base-url = "postgres://postgres:${postgres-dev-password}@localhost:5432";
+            postgres-dev-primer-url = "${postgres-dev-base-url}/primer";
+
             sqitch = final.callPackage ./nix/pkgs/sqitch {
               postgresqlSupport = true;
             };
@@ -91,36 +79,7 @@
             db-scripts = final.lib.recurseIntoAttrs (final.callPackage ./nix/pkgs/db-scripts {
               sqitchDir = ./sqitch;
             });
-          in
-          {
-            inherit sqitch;
-            inherit pg_prove;
-            inherit (db-scripts)
-              deploy-postgresql-container
-              start-postgresql-container
-              stop-postgresql-container
 
-              create-local-db
-              deploy-local-db
-              verify-local-db
-              revert-local-db
-              status-local-db
-              log-local-db
-              delete-local-db
-              dump-local-db
-              restore-local-db
-
-              primer-sqitch
-
-              primer-pgtap-tests;
-          }
-        )
-      ];
-
-      overlays.primer = hacknix.lib.overlays.combine [
-        haskell-nix.overlay
-        (final: prev:
-          let
             primer = final.haskell-nix.cabalProject {
               compiler-nix-name = ghcVersion;
               src = ./.;
@@ -221,6 +180,33 @@
             };
           in
           {
+            lib = (prev.lib or { }) // {
+              primer = (prev.lib.primer or { }) // {
+                inherit postgres-dev-password;
+                inherit postgres-dev-base-url;
+                inherit postgres-dev-primer-url;
+              };
+            };
+
+            inherit sqitch;
+            inherit pg_prove;
+
+            inherit (db-scripts)
+              deploy-postgresql-container
+              start-postgresql-container
+              stop-postgresql-container
+              create-local-db
+              deploy-local-db
+              verify-local-db
+              revert-local-db
+              status-local-db
+              log-local-db
+              delete-local-db
+              dump-local-db
+              restore-local-db
+              primer-sqitch
+              primer-pgtap-tests;
+
             inherit primer;
 
             primer-service = primerFlake.packages."primer-service:exe:primer-service";
@@ -234,13 +220,8 @@
 
       pkgsFor = system: import nixpkgs {
         inherit system;
-        config = {
-          allowUnfree = true;
-          allowBroken = true;
-        };
+        inherit (haskell-nix) config;
         overlays = [
-          overlays.lib
-          overlays.db-scripts
           overlays.primer
         ];
       };
@@ -492,12 +473,8 @@
               inherit system pkgs;
               extraConfigurations = [
                 {
-                  # Note: don't include overlays.primer here, because
-                  # we don't need it for these tests, and it will
-                  # adversely affect caching.
                   nixpkgs.overlays = with self.overlays; [
-                    lib
-                    db-scripts
+                    primer
                   ];
                 }
               ];
