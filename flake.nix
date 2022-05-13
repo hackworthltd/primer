@@ -201,27 +201,6 @@
             };
             primerFlake = primer.flake { };
 
-            ghcjsPrimer = final.haskell-nix.cabalProject {
-              cabalProjectFileName = "cabal.ghcjs.project";
-              compiler-nix-name = ghcVersion;
-              src = ./.;
-              modules = [
-                {
-                  # We want -Werror for Nix builds (primarily for CI).
-                  packages = {
-                    primer.ghcOptions = [ "-Werror" ];
-                  };
-                }
-                {
-                  # Build everything with -O2.
-                  configureFlags = [ "-O2" ];
-                }
-              ];
-            };
-            ghcjsPrimerFlake = ghcjsPrimer.flake {
-              crossPlatforms = p: [ p.ghcjs ];
-            };
-
             # Generate the Primer service OpenAPI 3 spec file.
             primer-openapi-spec = (final.runCommand "primer-openapi" { }
               "${final.primer-openapi}/bin/primer-openapi > $out").overrideAttrs
@@ -243,7 +222,6 @@
           in
           {
             inherit primer;
-            inherit ghcjsPrimer;
 
             primer-service = primerFlake.packages."primer-service:exe:primer-service";
             primer-openapi = primerFlake.packages."primer-service:exe:primer-openapi";
@@ -278,16 +256,6 @@
       # haskell.nix does a lot of heavy lifiting for us and gives us a
       # flake for our Cabal project with the following attributes:
       # `checks`, `apps`, and `packages`.
-      #
-      # When merging package sets, make sure to put the
-      # ghcjsPrimerFlake first, so that the primerFlake will
-      # override any commonly-named attributes. We only want the ghcjs
-      # parts of the `ghcjsPrimerFlake` flake.
-
-      ghcjsPrimerFlake = pkgs.ghcjsPrimer.flake {
-        crossPlatforms = p: [ p.ghcjs ];
-      };
-
       primerFlake = pkgs.primer.flake { };
 
       weeder =
@@ -395,9 +363,6 @@
         // primerFlake.packages;
 
       # Notes:
-      #
-      # - Don't include the `ghcjsPrimerFlake` checks, as they don't
-      #   actually work since they won't be run in a browser.
       checks =
         {
           source-code-checks = pre-commit-hooks;
