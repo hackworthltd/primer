@@ -157,6 +157,66 @@
                   packages.primer.components.tests.primer-test.testFlags = [ "--size-cutoff=32768" ];
                 }
               ];
+
+              shell = {
+                tools = {
+                  ghcid = "latest";
+                  haskell-language-server = "latest";
+                  cabal = "latest";
+                  hlint = "latest";
+
+                  # https://github.com/input-output-hk/haskell.nix/issues/1337
+                  fourmolu = {
+                    version = "latest";
+                    modules = [
+                      ({ lib, ... }: {
+                        options.nonReinstallablePkgs = lib.mkOption { apply = lib.remove "Cabal"; };
+                      })
+                    ];
+                  };
+
+                  cabal-edit = "latest";
+                  cabal-fmt = "latest";
+                  #TODO Explicitly requiring tasty-discover shouldn't be necessary - see the commented-out `build-tool-depends` in primer.cabal.
+                  tasty-discover = "latest";
+                  weeder = weederVersion;
+                };
+
+                buildInputs = (with final; [
+                  nixpkgs-fmt
+                  postgresql
+                  openapi-generator-cli
+
+                  # For Docker support.
+                  docker
+                  lima
+                  colima
+
+                  # For Language Server support.
+                  nodejs-16_x
+
+                  # sqitch & related
+                  nix-generate-from-cpan
+                  sqitch
+                  primer-sqitch
+                  pg_prove
+
+                  # Local database scripts.
+                  create-local-db
+                  deploy-local-db
+                  verify-local-db
+                  revert-local-db
+                  status-local-db
+                  log-local-db
+                  delete-local-db
+                  dump-local-db
+                  restore-local-db
+                ]);
+
+                shellHook = ''
+                  export HIE_HOOGLE_DATABASE="$(cat $(${final.which}/bin/which hoogle) | sed -n -e 's|.*--database \(.*\.hoo\).*|\1|p')"
+                '';
+              };
             };
             primerFlake = primer.flake { };
 
@@ -375,68 +435,7 @@
 
       defaultApp = self.apps.${system}.run-primer;
 
-      devShell = pkgs.primer.shellFor {
-        tools = {
-          ghcid = "latest";
-          haskell-language-server = "latest";
-          cabal = "latest";
-          hlint = "latest";
-
-          # https://github.com/input-output-hk/haskell.nix/issues/1337
-          fourmolu = {
-            version = "latest";
-            modules = [
-              ({ lib, ... }: {
-                options.nonReinstallablePkgs = lib.mkOption { apply = lib.remove "Cabal"; };
-              })
-            ];
-          };
-
-          cabal-edit = "latest";
-          cabal-fmt = "latest";
-          #TODO Explicitly requiring tasty-discover shouldn't be necessary - see the commented-out `build-tool-depends` in primer.cabal.
-          tasty-discover = "latest";
-          weeder = weederVersion;
-        };
-
-        buildInputs = (with pkgs; [
-          nixpkgs-fmt
-          postgresql
-          openapi-generator-cli
-
-          # For Docker support.
-          docker
-          lima
-          colima
-
-          # For Language Server support.
-          nodejs-16_x
-
-          # sqitch & related
-          nix-generate-from-cpan
-          sqitch
-          primer-sqitch
-          pg_prove
-
-          # Local database scripts.
-          create-local-db
-          deploy-local-db
-          verify-local-db
-          revert-local-db
-          status-local-db
-          log-local-db
-          delete-local-db
-          dump-local-db
-          restore-local-db
-        ]);
-
-        shellHook = ''
-          export HIE_HOOGLE_DATABASE="$(cat $(${pkgs.which}/bin/which hoogle) | sed -n -e 's|.*--database \(.*\.hoo\).*|\1|p')"
-        '';
-
-        # Make this buildable on Hydra.
-        meta.platforms = pkgs.lib.platforms.unix;
-      };
+      inherit (primerFlake) devShell;
     })
 
     // {
