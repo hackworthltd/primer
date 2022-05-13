@@ -62,26 +62,14 @@
         "x86_64-linux"
       ];
 
-      overlays.lib = final: prev:
-        let
-          postgres-dev-password = "primer-dev";
-          postgres-dev-base-url = "postgres://postgres:${postgres-dev-password}@localhost:5432";
-          postgres-dev-primer-url = "${postgres-dev-base-url}/primer";
-        in
-        {
-          lib = (prev.lib or { }) // {
-            primer = (prev.lib.primer or { }) // {
-              inherit postgres-dev-password;
-              inherit postgres-dev-base-url;
-              inherit postgres-dev-primer-url;
-            };
-          };
-        };
-
-      overlays.db-scripts = hacknix.lib.overlays.combine [
-        hacknix.overlay
+      overlays.primer = hacknix.lib.overlays.combine [
+        haskell-nix.overlay
         (final: prev:
           let
+            postgres-dev-password = "primer-dev";
+            postgres-dev-base-url = "postgres://postgres:${postgres-dev-password}@localhost:5432";
+            postgres-dev-primer-url = "${postgres-dev-base-url}/primer";
+
             sqitch = final.callPackage ./nix/pkgs/sqitch {
               postgresqlSupport = true;
             };
@@ -91,36 +79,7 @@
             db-scripts = final.lib.recurseIntoAttrs (final.callPackage ./nix/pkgs/db-scripts {
               sqitchDir = ./sqitch;
             });
-          in
-          {
-            inherit sqitch;
-            inherit pg_prove;
-            inherit (db-scripts)
-              deploy-postgresql-container
-              start-postgresql-container
-              stop-postgresql-container
 
-              create-local-db
-              deploy-local-db
-              verify-local-db
-              revert-local-db
-              status-local-db
-              log-local-db
-              delete-local-db
-              dump-local-db
-              restore-local-db
-
-              primer-sqitch
-
-              primer-pgtap-tests;
-          }
-        )
-      ];
-
-      overlays.primer = hacknix.lib.overlays.combine [
-        haskell-nix.overlay
-        (final: prev:
-          let
             primer = final.haskell-nix.cabalProject {
               compiler-nix-name = ghcVersion;
               src = ./.;
@@ -198,29 +157,71 @@
                   packages.primer.components.tests.primer-test.testFlags = [ "--size-cutoff=32768" ];
                 }
               ];
+
+              shell = {
+                exactDeps = true;
+                withHoogle = true;
+
+                tools = {
+                  ghcid = "latest";
+                  haskell-language-server = "latest";
+                  cabal = "latest";
+                  hlint = "latest";
+
+                  # https://github.com/input-output-hk/haskell.nix/issues/1337
+                  fourmolu = {
+                    version = "latest";
+                    modules = [
+                      ({ lib, ... }: {
+                        options.nonReinstallablePkgs = lib.mkOption { apply = lib.remove "Cabal"; };
+                      })
+                    ];
+                  };
+
+                  cabal-edit = "latest";
+                  cabal-fmt = "latest";
+                  #TODO Explicitly requiring tasty-discover shouldn't be necessary - see the commented-out `build-tool-depends` in primer.cabal.
+                  tasty-discover = "latest";
+                  weeder = weederVersion;
+                };
+
+                buildInputs = (with final; [
+                  nixpkgs-fmt
+                  postgresql
+                  openapi-generator-cli
+
+                  # For Docker support.
+                  docker
+                  lima
+                  colima
+
+                  # For Language Server support.
+                  nodejs-16_x
+
+                  # sqitch & related
+                  nix-generate-from-cpan
+                  sqitch
+                  primer-sqitch
+                  pg_prove
+
+                  # Local database scripts.
+                  create-local-db
+                  deploy-local-db
+                  verify-local-db
+                  revert-local-db
+                  status-local-db
+                  log-local-db
+                  delete-local-db
+                  dump-local-db
+                  restore-local-db
+                ]);
+
+                shellHook = ''
+                  export HIE_HOOGLE_DATABASE="$(cat $(${final.which}/bin/which hoogle) | sed -n -e 's|.*--database \(.*\.hoo\).*|\1|p')"
+                '';
+              };
             };
             primerFlake = primer.flake { };
-
-            ghcjsPrimer = final.haskell-nix.cabalProject {
-              cabalProjectFileName = "cabal.ghcjs.project";
-              compiler-nix-name = ghcVersion;
-              src = ./.;
-              modules = [
-                {
-                  # We want -Werror for Nix builds (primarily for CI).
-                  packages = {
-                    primer.ghcOptions = [ "-Werror" ];
-                  };
-                }
-                {
-                  # Build everything with -O2.
-                  configureFlags = [ "-O2" ];
-                }
-              ];
-            };
-            ghcjsPrimerFlake = ghcjsPrimer.flake {
-              crossPlatforms = p: [ p.ghcjs ];
-            };
 
             # Generate the Primer service OpenAPI 3 spec file.
             primer-openapi-spec = (final.runCommand "primer-openapi" { }
@@ -242,8 +243,34 @@
             };
           in
           {
+            lib = (prev.lib or { }) // {
+              primer = (prev.lib.primer or { }) // {
+                inherit postgres-dev-password;
+                inherit postgres-dev-base-url;
+                inherit postgres-dev-primer-url;
+              };
+            };
+
+            inherit sqitch;
+            inherit pg_prove;
+
+            inherit (db-scripts)
+              deploy-postgresql-container
+              start-postgresql-container
+              stop-postgresql-container
+              create-local-db
+              deploy-local-db
+              verify-local-db
+              revert-local-db
+              status-local-db
+              log-local-db
+              delete-local-db
+              dump-local-db
+              restore-local-db
+              primer-sqitch
+              primer-pgtap-tests;
+
             inherit primer;
-            inherit ghcjsPrimer;
 
             primer-service = primerFlake.packages."primer-service:exe:primer-service";
             primer-openapi = primerFlake.packages."primer-service:exe:primer-openapi";
@@ -256,13 +283,8 @@
 
       pkgsFor = system: import nixpkgs {
         inherit system;
-        config = {
-          allowUnfree = true;
-          allowBroken = true;
-        };
+        inherit (haskell-nix) config;
         overlays = [
-          overlays.lib
-          overlays.db-scripts
           overlays.primer
         ];
       };
@@ -278,16 +300,6 @@
       # haskell.nix does a lot of heavy lifiting for us and gives us a
       # flake for our Cabal project with the following attributes:
       # `checks`, `apps`, and `packages`.
-      #
-      # When merging package sets, make sure to put the
-      # ghcjsPrimerFlake first, so that the primerFlake will
-      # override any commonly-named attributes. We only want the ghcjs
-      # parts of the `ghcjsPrimerFlake` flake.
-
-      ghcjsPrimerFlake = pkgs.ghcjsPrimer.flake {
-        crossPlatforms = p: [ p.ghcjs ];
-      };
-
       primerFlake = pkgs.primer.flake { };
 
       weeder =
@@ -395,9 +407,6 @@
         // primerFlake.packages;
 
       # Notes:
-      #
-      # - Don't include the `ghcjsPrimerFlake` checks, as they don't
-      #   actually work since they won't be run in a browser.
       checks =
         {
           source-code-checks = pre-commit-hooks;
@@ -429,68 +438,7 @@
 
       defaultApp = self.apps.${system}.run-primer;
 
-      devShell = pkgs.primer.shellFor {
-        tools = {
-          ghcid = "latest";
-          haskell-language-server = "latest";
-          cabal = "latest";
-          hlint = "latest";
-
-          # https://github.com/input-output-hk/haskell.nix/issues/1337
-          fourmolu = {
-            version = "latest";
-            modules = [
-              ({ lib, ... }: {
-                options.nonReinstallablePkgs = lib.mkOption { apply = lib.remove "Cabal"; };
-              })
-            ];
-          };
-
-          cabal-edit = "latest";
-          cabal-fmt = "latest";
-          #TODO Explicitly requiring tasty-discover shouldn't be necessary - see the commented-out `build-tool-depends` in primer.cabal.
-          tasty-discover = "latest";
-          weeder = weederVersion;
-        };
-
-        buildInputs = (with pkgs; [
-          nixpkgs-fmt
-          postgresql
-          openapi-generator-cli
-
-          # For Docker support.
-          docker
-          lima
-          colima
-
-          # For Language Server support.
-          nodejs-16_x
-
-          # sqitch & related
-          nix-generate-from-cpan
-          sqitch
-          primer-sqitch
-          pg_prove
-
-          # Local database scripts.
-          create-local-db
-          deploy-local-db
-          verify-local-db
-          revert-local-db
-          status-local-db
-          log-local-db
-          delete-local-db
-          dump-local-db
-          restore-local-db
-        ]);
-
-        shellHook = ''
-          export HIE_HOOGLE_DATABASE="$(cat $(${pkgs.which}/bin/which hoogle) | sed -n -e 's|.*--database \(.*\.hoo\).*|\1|p')"
-        '';
-
-        # Make this buildable on Hydra.
-        meta.platforms = pkgs.lib.platforms.unix;
-      };
+      inherit (primerFlake) devShell;
     })
 
     // {
@@ -527,12 +475,8 @@
               inherit system pkgs;
               extraConfigurations = [
                 {
-                  # Note: don't include overlays.primer here, because
-                  # we don't need it for these tests, and it will
-                  # adversely affect caching.
                   nixpkgs.overlays = with self.overlays; [
-                    lib
-                    db-scripts
+                    primer
                   ];
                 }
               ];
