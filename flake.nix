@@ -159,6 +159,8 @@
               ];
 
               shell = {
+                exactDeps = true;
+
                 tools = {
                   ghcid = "latest";
                   haskell-language-server = "latest";
