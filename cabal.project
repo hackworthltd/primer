@@ -1,4 +1,4 @@
-index-state: 2022-05-13T00:00:00Z
+index-state: 2022-05-15T00:00:00Z
 
 packages:
   primer
@@ -12,22 +12,3 @@ package *
 
 package primer
   test-options: "--size-cutoff=32768"
-
--- GHC 9.2.1 fixes
-
--- https://github.com/vincenthz/hs-memory/issues/86
--- https://github.com/haskell-infra/hackage-trustees/issues/330#issuecomment-1019507291
-source-repository-package
-  type: git
-  location: https://github.com/tfausak/hs-memory
-  tag: 3cf661a
-  --sha256: 06y4xyigajhdcd59dgwasv49yr95869q3p74a441yls5vb86v28c
-
--- https://github.com/haskell-foundation/foundation/pull/555
-source-repository-package
-    type: git
-    location: https://github.com/TomMD/foundation
-    tag: 0bb195e
-    subdir: foundation basement
-    --sha256: 1rwy3qxrf8zxycfksidwrffqbazacchqx19w5q1rvdvh7ab6wd75
-
