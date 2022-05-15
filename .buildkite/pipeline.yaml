@@ -4,6 +4,7 @@ env:
 
 agents:
   private: "true"
+  os: "linux"
 
 steps:
   - command: nix-buildkite
