@@ -17,6 +17,11 @@ steps:
   - label: ":nixos: Archive Nix flake inputs"
     command: nix flake archive --json | jq -r '.path,(.inputs|to_entries[].value.path)' | cachix --verbose --config "$CACHIX_CONFIG" push "$CACHIX_CACHE"
   - wait
-  - label: ":nixos: Cache the Nix shell"
+  - label: ":nixos: :linux: Cache the Nix shell"
     command: |
       nix develop --profile /tmp/primer --command cachix --verbose --config "$CACHIX_CONFIG" push "$CACHIX_CACHE" /tmp/primer
+  - label: ":nixos: :macos: Cache the Nix shell"
+    command: |
+      nix develop --profile /tmp/primer --command cachix --verbose --config "$CACHIX_CONFIG" push "$CACHIX_CACHE" /tmp/primer
+    agents:
+      os: "darwin"
