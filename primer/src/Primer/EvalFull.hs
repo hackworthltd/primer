@@ -513,11 +513,11 @@ runRedex = \case
     | otherwise -> error "Internal Error: RenameBindingsCase found no applicable branches"
   -- let x = f x in g x x  ~>  let y = f x in let x = y in g x x
   RenameSelfLet x e body -> do
-    y <- freshLocalName' (freeVars e)
+    y <- freshLocalName' (freeVars e <> freeVars body)
     let_ y (pure e) $ let_ x (lvar y) $ pure body
   -- As RenameSelfLet, but for LetType
   RenameSelfLetType a ty body -> do
-    b <- freshLocalName' (S.map unLocalName $ freeVarsTy ty)
+    b <- freshLocalName' (S.map unLocalName (freeVarsTy ty) <> freeVars body)
     letType b (pure ty) $ letType a (tvar b) $ pure body
   ApplyPrimFun (ExprAnyFresh e) -> e
 
