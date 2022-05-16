@@ -487,19 +487,62 @@ unit_type_preservation_case_regression_ty =
 -- Similarly, we reduce 'λx. let x = x in x' to itself, due to the same capture.
 unit_let_self_capture :: Assertion
 unit_let_self_capture =
-  let ((expr1, ty1, expr2, expected2a, expected2b, expr3, expected3a, expected3b), maxID) = create $ do
-        e1 <- lAM "x" $ let_ "x" (emptyHole `ann` tvar "x") (lvar "x")
-        let t1 = TForall () "a" KType $ TVar () "a"
-        e2 <- lam "x" $ let_ "x" (lvar "x") (lvar "x")
-        expect2a <- lam "x" $ let_ "a36" (lvar "x") (let_ "x" (lvar "a36") (lvar "x"))
-        expect2b <- lam "x" $ lvar "x"
-        e3 <- lAM "x" $ letType "x" (tvar "x") (emptyHole `ann` tvar "x")
-        expect3a <- lAM "x" $ letType "a36" (tvar "x") (letType "x" (tvar "a36") (emptyHole `ann` tvar "x"))
-        expect3b <- lAM "x" $ emptyHole `ann` tvar "x"
-        pure (e1, t1, e2, expect2a, expect2b, e3, expect3a, expect3b)
+  let ( ( expr1
+          , ty1
+          , expr2
+          , expected2a
+          , expected2b
+          , expr3
+          , expected3a
+          , expected3b
+          , expr4
+          , expected4a
+          , expected4b
+          )
+        , maxID
+        ) = create $ do
+          e1 <- lAM "x" $ let_ "x" (emptyHole `ann` tvar "x") (lvar "x")
+          let t1 = TForall () "a" KType $ TVar () "a"
+          e2 <- lam "x" $ let_ "x" (lvar "x") (lvar "x")
+          expect2a <- lam "x" $ let_ "a76" (lvar "x") (let_ "x" (lvar "a76") (lvar "x"))
+          expect2b <- lam "x" $ lvar "x"
+          e3 <- lAM "x" $ letType "x" (tvar "x") (emptyHole `ann` tvar "x")
+          expect3a <- lAM "x" $ letType "a76" (tvar "x") (letType "x" (tvar "a76") (emptyHole `ann` tvar "x"))
+          expect3b <- lAM "x" $ emptyHole `ann` tvar "x"
+          -- We do not need to do anything special for letrec
+          e4 <- lAM "a" $ lam "f" $ lam "x" $ letrec "x" (lvar "f" `app` lvar "x") (tvar "a") (lvar "x")
+          expect4a <-
+            lAM "a" $
+              lam "f" $
+                lam "x" $
+                  letrec "x" (lvar "f" `app` lvar "x") (tvar "a") $
+                    letrec "x" (lvar "f" `app` lvar "x") (tvar "a") ((lvar "f" `app` lvar "x") `ann` tvar "a")
+          expect4b <-
+            lAM "a" $
+              lam "f" $
+                lam "x" $
+                  letrec
+                    "x"
+                    (lvar "f" `app` lvar "x")
+                    (tvar "a")
+                    ((lvar "f" `app` lvar "x") `ann` tvar "a")
+          pure
+            ( e1
+            , t1
+            , e2
+            , expect2a
+            , expect2b
+            , e3
+            , expect3a
+            , expect3b
+            , e4
+            , expect4a
+            , expect4b
+            )
       s1 n = evalFullTest maxID mempty mempty n Chk expr1
       s2 n = evalFullTest maxID mempty mempty n Chk expr2
       s3 n = evalFullTest maxID mempty mempty n Chk expr3
+      s4 n = evalFullTest maxID mempty mempty n Chk expr4
       typePres ty f =
         let (timeout, term) = span isLeft $ f <$> [0 ..]
          in forM_ (timeout <> [unsafeHead term]) $ \e ->
@@ -517,6 +560,8 @@ unit_let_self_capture =
         s3 1 <~==> Left (TimedOut expected3a)
         s3 5 <~==> Left (TimedOut expected3b)
         s3 6 <~==> Right expected3b
+        s4 1 <~==> Left (TimedOut expected4a)
+        s4 2 <~==> Left (TimedOut expected4b)
 
 -- | Evaluation preserves types
 -- (assuming we don't end with a 'LetType' in the term, as the typechecker
