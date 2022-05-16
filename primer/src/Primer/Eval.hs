@@ -1,6 +1,7 @@
 {-# LANGUAGE DuplicateRecordFields #-}
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE TupleSections #-}
 {-# LANGUAGE TypeApplications #-}
 
 module Primer.Eval (
@@ -14,6 +15,7 @@ module Primer.Eval (
   CaseReductionDetail (..),
   GlobalVarInlineDetail (..),
   LetRemovalDetail (..),
+  LetRenameDetail (..),
   PushAppIntoLetrecDetail (..),
   ApplyPrimFunDetail (..),
   Locals,
@@ -28,11 +30,27 @@ module Primer.Eval (
 
 import Foreword
 
+import Control.Arrow ((***))
 import Control.Monad.Fresh (MonadFresh, fresh)
 import Data.Generics.Product (position)
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
-import Optics (elemOf, getting, mapping, notElemOf, set, traverseOf, view, (%), (^.), _2)
+import Optics (
+  Field1 (_1),
+  elemOf,
+  filtered,
+  getting,
+  mapping,
+  notElemOf,
+  set,
+  to,
+  traverseOf,
+  view,
+  (%),
+  (^.),
+  (^..),
+  _2,
+ )
 import Primer.Core (
   ASTDef (..),
   Bind' (..),
@@ -61,13 +79,22 @@ import Primer.Core (
   ValConName,
   bindName,
   defPrim,
+  getID,
   _exprMeta,
   _exprTypeMeta,
   _typeMeta,
  )
 import Primer.Core.DSL (ann, hole, letType, let_, tEmptyHole)
 import Primer.Core.Transform (removeAnn, renameLocalVar, renameTyVarExpr, unfoldAPP, unfoldApp)
-import Primer.Core.Utils (concreteTy, freeVars, freeVarsTy, _freeTmVars, _freeTyVars)
+import Primer.Core.Utils (
+  concreteTy,
+  freeVars,
+  freeVarsTy,
+  _freeTmVars,
+  _freeTyVars,
+  _freeVars,
+  _freeVarsTy,
+ )
 import Primer.JSON
 import Primer.Name (Name, unName, unsafeMkName)
 import Primer.Primitives (allPrimDefs)
@@ -132,6 +159,8 @@ data EvalDetail
     GlobalVarInline GlobalVarInlineDetail
   | -- | ID of let(rec)
     LetRemoval LetRemovalDetail
+  | -- | Renaming of binding in let x = ...x... in ...x...x...
+    LetRename LetRenameDetail
   | -- | TODO: some details here
     CaseReduction CaseReductionDetail
   | -- | Push the argument of an application inside a letrec
@@ -231,6 +260,25 @@ data LetRemovalDetail = LetRemovalDetail
   }
   deriving (Eq, Show, Generic)
   deriving (FromJSON, ToJSON) via VJSONPrefix "letRemoval" LetRemovalDetail
+
+data LetRenameDetail = LetRenameDetail
+  { letRenameBefore :: Expr
+  -- ^ the let expression before reduction
+  , letRenameAfter :: Expr
+  -- ^ the resulting expression after reduction
+  , letRenameBindingNameOld :: Name
+  -- ^ the old name of the let-bound variable
+  , letRenameBindingNameNew :: Name
+  -- ^ the new name of the let-bound variable
+  , letRenameLetID :: ID
+  -- ^ the full let expression
+  , letRenameBindingOccurrences :: [ID]
+  -- ^ where the old name occurred inside the bound expression
+  , letRenameBodyID :: ID
+  -- ^ the right hand side of the let
+  }
+  deriving (Eq, Show, Generic)
+  deriving (FromJSON, ToJSON) via VJSONPrefix "letRename" LetRenameDetail
 
 data PushAppIntoLetrecDetail = PushAppIntoLetrecDetail
   { pushAppIntoLetrecBefore :: Expr
@@ -365,16 +413,28 @@ redexes primDefs = go mempty
               | otherwise -> self
             -- Note that x is in scope in e2 but not e1.
             Let _ x e1 e2 ->
-              let locals' = (Set.insert x letTm, letTy)
-               in go locals e1 <> go locals' e2 <> (self `munless` freeTmVar x e2)
+              -- If we have something like let x = f x in (x,x), then we cannot
+              -- substitute each occurrence individually, since the let would
+              -- capture the new 'x' in 'f x'. We first rename to
+              -- let y = f x in (y,y)
+              let selfCapture = Set.member (unLocalName x) $ freeVars e1
+                  locals' =
+                    ( if selfCapture then letTm else Set.insert x letTm
+                    , letTy
+                    )
+               in go locals e1 <> go locals' e2 <> (self `munless` (not selfCapture && freeTmVar x e2))
             -- Whereas here, x is in scope in both e1 and e2.
             Letrec _ x e1 t e2 ->
               let locals' = (Set.insert x letTm, letTy)
                in go locals' e1 <> go locals' e2 <> goType letTy t <> (self `munless` freeTmVar x e2)
             -- As with Let, x is in scope in e but not in t
-            LetType _ x _t e ->
-              let locals' = (letTm, Set.insert x letTy)
-               in go locals' e <> self `munless` freeTyVar x e
+            LetType _ x t e ->
+              -- We need to be careful that the LetType will not capture a
+              -- variable occurrence arising from any potential substitution
+              -- of itself. See the comment on 'Let' above for an example.
+              let selfCapture = Set.member x $ freeVarsTy t
+                  locals' = (letTm, if selfCapture then letTy else Set.insert x letTy)
+               in go locals' e <> self `munless` (not selfCapture && freeTyVar x e)
             Lam _ x e -> go (Set.delete x letTm, letTy) e
             LAM _ x e -> go (letTm, Set.delete x letTy) e
             EmptyHole{} -> mempty
@@ -682,18 +742,24 @@ tryReduceExpr globals locals = \case
             , globalVarInlineAfter = expr
             }
       )
-  -- Redundant let removal
-  -- let x = e1 in e2 ==> e2    if x not free in e2
-  expr@(Let meta x _ body)
+  expr@(Let meta x e body)
+    -- Redundant let removal
+    -- let x = e1 in e2 ==> e2    if x not free in e2
     | notElemOf (getting _freeTmVars % _2) x body -> mkLetRemovalDetail expr body x meta
-  -- Redundant letrec removal
-  -- letrec x = e in e2 ==> e2  if x not free in e2
+    -- Renaming a potentially self-capturing let
+    -- let x = f[x] in g[x] ==> let y = f[x] in g[y]
+    | otherwise -> mkLetRenameDetail expr body (Left (x, e)) meta
   expr@(Letrec meta x _ _ body)
+    -- Redundant letrec removal
+    -- letrec x = e in e2 ==> e2  if x not free in e2
     | notElemOf (getting _freeTmVars % _2) x body -> mkLetRemovalDetail expr body x meta
-  -- Redundant letType removal
-  -- let type x = t in e ==> e  if x not free in e
-  expr@(LetType meta x _ body)
+  expr@(LetType meta x t body)
+    -- Redundant letType removal
+    -- let type x = t in e ==> e  if x not free in e
     | notElemOf (getting _freeTyVars % _2) x body -> mkLetRemovalDetail expr body x meta
+    -- Renaming a potentially self-capturing letType
+    -- let type x = f[x] in g[x] ==> let type y = f[x] in g[y]
+    | otherwise -> mkLetRenameDetail expr body (Right (x, t)) meta
   -- Case reduction
   -- If the scrutinee starts with a constructor, we can reduce the case expression.
   -- We do that by picking the branch with the same constructor.
@@ -752,6 +818,30 @@ tryReduceExpr globals locals = \case
               , letRemovalBindingName = unLocalName x
               , letRemovalLetID = meta ^. _id
               , letRemovalBodyID = body ^. _id
+              }
+        )
+    mkLetRenameDetail expr body binding meta = do
+      (x, y, occ, expr') <- case binding of
+        Left (x, e) -> do
+          let (y, body') = makeSafeLetBinding x (freeVars e) body
+          let idName = either (getID *** unLocalName) (getID *** unLocalName)
+          let occ = e ^.. _freeVars % to idName % filtered ((== unLocalName x) . snd) % _1
+          (unLocalName x,unLocalName y,occ,) <$> let_ y (pure e) (pure body')
+        Right (x, ty) -> do
+          let (y, body') = makeSafeLetTypeBinding x (Set.map unLocalName $ freeVarsTy ty) body
+          let occ = ty ^.. getting _freeVarsTy % to (first getID) % filtered ((== x) . snd) % _1
+          (unLocalName x,unLocalName y,occ,) <$> letType y (pure ty) (pure body')
+      pure
+        ( expr'
+        , LetRename
+            LetRenameDetail
+              { letRenameBefore = expr
+              , letRenameAfter = expr'
+              , letRenameBindingNameOld = x
+              , letRenameBindingNameNew = y
+              , letRenameLetID = meta ^. _id
+              , letRenameBindingOccurrences = occ
+              , letRenameBodyID = body ^. _id
               }
         )
 
