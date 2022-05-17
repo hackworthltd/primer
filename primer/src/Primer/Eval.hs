@@ -434,7 +434,7 @@ redexes primDefs = go mempty
               -- of itself. See the comment on 'Let' above for an example.
               let selfCapture = Set.member x $ freeVarsTy t
                   locals' = (letTm, if selfCapture then letTy else Set.insert x letTy)
-               in go locals' e <> self `munless` (not selfCapture && freeTyVar x e)
+               in goType (snd locals) t <> go locals' e <> self `munless` (not selfCapture && freeTyVar x e)
             Lam _ x e -> go (Set.delete x letTm, letTy) e
             LAM _ x e -> go (letTm, Set.delete x letTy) e
             EmptyHole{} -> mempty
