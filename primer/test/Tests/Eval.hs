@@ -46,6 +46,7 @@ import Primer.Eval (
   EvalError (..),
   GlobalVarInlineDetail (..),
   LetRemovalDetail (..),
+  LetRenameDetail (..),
   LocalVarInlineDetail (..),
   Locals,
   PushAppIntoLetrecDetail (..),
@@ -331,6 +332,25 @@ unit_tryReduce_let = do
       letRemovalBodyID detail @?= 2
     _ -> assertFailure $ show result
 
+-- let x = x in x ==> let y = x in y
+unit_tryReduce_let_self_capture :: Assertion
+unit_tryReduce_let_self_capture = do
+  let (expr, i) = create $ let_ "x" (lvar "x") (lvar "x")
+      result = runTryReduce mempty mempty (expr, i)
+      expectedResult = fst $ create $ let_ "x0" (lvar "x") (lvar "x0")
+  case result of
+    Right (expr', LetRename detail) -> do
+      expr' ~= expectedResult
+
+      letRenameBefore detail @?= expr
+      letRenameAfter detail ~= expectedResult
+      letRenameBindingNameOld detail @?= "x"
+      letRenameBindingNameNew detail @?= "x0"
+      letRenameLetID detail @?= 0
+      letRenameBindingOccurrences detail @?= [1]
+      letRenameBodyID detail @?= 2
+    _ -> assertFailure $ show result
+
 unit_tryReduce_lettype :: Assertion
 unit_tryReduce_lettype = do
   let (expr, i) = create $ letType "x" (tcon' ["M"] "C") (con' ["M"] "D")
@@ -345,6 +365,25 @@ unit_tryReduce_lettype = do
       letRemovalBindingName detail @?= "x"
       letRemovalLetID detail @?= 0
       letRemovalBodyID detail @?= 2
+    _ -> assertFailure $ show result
+
+-- let type x = x in _ :: x ==> let y = x in _ :: y
+unit_tryReduce_lettype_self_capture :: Assertion
+unit_tryReduce_lettype_self_capture = do
+  let (expr, i) = create $ letType "x" (tvar "x") (emptyHole `ann` tvar "x")
+      result = runTryReduce mempty mempty (expr, i)
+      expectedResult = fst $ create $ letType "x0" (tvar "x") (emptyHole `ann` tvar "x0")
+  case result of
+    Right (expr', LetRename detail) -> do
+      expr' ~= expectedResult
+
+      letRenameBefore detail @?= expr
+      letRenameAfter detail ~= expectedResult
+      letRenameBindingNameOld detail @?= "x"
+      letRenameBindingNameNew detail @?= "x0"
+      letRenameLetID detail @?= 0
+      letRenameBindingOccurrences detail @?= [1]
+      letRenameBodyID detail @?= 2
     _ -> assertFailure $ show result
 
 unit_tryReduce_letrec :: Assertion
@@ -746,6 +785,14 @@ unit_redexes_let_2 =
   redexesOf (let_ "x" (con' ["M"] "C") (lam "x" (app (lvar "x") (lvar "y"))))
     @?= Set.singleton 0
 
+-- We cannot substitute one occurrence of a let-bound variable if it
+-- would result in capture of a free variable in the bound term by the
+-- let binder itself.
+unit_redexes_let_3 :: Assertion
+unit_redexes_let_3 = do
+  -- NB we must not say node 3 (the occurrence of the variable) is a redex
+  redexesOf (lam "x" $ let_ "x" (lvar "x") (lvar "x")) @?= Set.fromList [1]
+
 unit_redexes_letrec_1 :: Assertion
 unit_redexes_letrec_1 =
   redexesOf (letrec "x" (app (con' ["M"] "C") (lvar "x")) (tcon' ["M"] "T") (app (lvar "x") (lvar "y")))
@@ -755,6 +802,12 @@ unit_redexes_letrec_2 :: Assertion
 unit_redexes_letrec_2 =
   redexesOf (letrec "x" (app (con' ["M"] "C") (lvar "x")) (tcon' ["M"] "T") (lvar "y"))
     @?= Set.fromList [0, 3]
+
+-- Test that our self-capture logic does not apply to letrec.
+unit_redexes_letrec_3 :: Assertion
+unit_redexes_letrec_3 =
+  -- If this were a let, we would not be able to substitute, but it is possible for letrec
+  redexesOf (lAM "a" $ lam "x" $ letrec "x" (lvar "x") (tvar "a") (lvar "x")) @?= Set.fromList [3, 5]
 
 -- The application can be reduced by pushing the argument inside the letrec
 unit_redexes_letrec_app_1 :: Assertion
@@ -789,6 +842,14 @@ unit_redexes_lettype_2 =
 unit_redexes_lettype_3 :: Assertion
 unit_redexes_lettype_3 =
   redexesOf (letType "x" (tcon' ["M"] "T") (letrec "y" (con' ["M"] "C") (tvar "x") (lvar "y"))) @?= Set.fromList [4, 5]
+
+-- We cannot substitute one occurrence of a let-bound variable if it
+-- would result in capture of a free variable in the bound term by the
+-- let binder itself.
+unit_redexes_lettype_4 :: Assertion
+unit_redexes_lettype_4 = do
+  -- NB we must not say node 5 (the occurrence of the variable) is a redex
+  redexesOf (lAM "x" $ letType "x" (tvar "x") (emptyHole `ann` tvar "x")) @?= Set.fromList [1]
 
 unit_redexes_case_1 :: Assertion
 unit_redexes_case_1 =
