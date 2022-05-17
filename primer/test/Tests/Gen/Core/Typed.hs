@@ -80,7 +80,7 @@ propertyWTInExtendedGlobalCxt :: [Module] -> PropertyT WT () -> Property
 propertyWTInExtendedGlobalCxt mods = propertyWT mods . inExtendedGlobalCxt
 
 propertyWTInExtendedLocalGlobalCxt :: [Module] -> PropertyT WT () -> Property
-propertyWTInExtendedLocalGlobalCxt mods = propertyWT mods . inExtendedLocalCxt . inExtendedGlobalCxt
+propertyWTInExtendedLocalGlobalCxt mods = propertyWT mods . inExtendedGlobalCxt . inExtendedLocalCxt
 
 hprop_genTy :: Property
 hprop_genTy = withTests 1000 $
@@ -122,6 +122,13 @@ hprop_genCxtExtending_typechecks = withTests 1000 $
     checkValidContextTest cxt
     cxt' <- forAllT $ local (const cxt) genCxtExtendingLocal
     checkValidContextTest cxt'
+
+hprop_inExtendedLocalGlobalCxt_valid :: Property
+hprop_inExtendedLocalGlobalCxt_valid = withTests 1000 $
+  withDiscards 2000 $
+    propertyWTInExtendedLocalGlobalCxt [builtinModule, primitiveModule] $ do
+      cxt <- ask
+      checkValidContextTest cxt
 
 hprop_genCxtExtending_is_extension :: Property
 hprop_genCxtExtending_is_extension =

@@ -438,14 +438,15 @@ genGlobalCxtExtension =
   local forgetLocals $
     Gen.list (Range.linear 1 5) $
       (,) <$> (qualifyName <$> genModuleName <*> genName) <*> genWTType KType
-  where
-    -- we are careful to not let the globals depend on whatever locals may be in
-    -- the cxt
-    forgetLocals cxt = cxt{localCxt = mempty}
+
+-- We are careful to not let generated globals depend on whatever
+-- locals may be in the cxt
+forgetLocals :: Cxt -> Cxt
+forgetLocals cxt = cxt{localCxt = mempty}
 
 -- Generates a group of potentially-mutually-recursive typedefs
 genTypeDefGroup :: GenT WT [TypeDef]
-genTypeDefGroup = do
+genTypeDefGroup = local forgetLocals $ do
   let genParams = Gen.list (Range.linear 0 5) $ (,) <$> freshTyVarNameForCxt <*> genWTKind
   nps <- Gen.list (Range.linear 1 5) $ (,) <$> freshTyConNameForCxt <*> genParams
   -- create empty typedefs to temporarilly extend the context, so can do recursive types
