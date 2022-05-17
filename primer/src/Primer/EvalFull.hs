@@ -140,6 +140,13 @@ data Redex
     RenameBindingsLam ExprMeta LVarName Expr (S.Set Name)
   | RenameBindingsLAM ExprMeta TyVarName Expr (S.Set Name)
   | RenameBindingsCase ExprMeta Expr [CaseBranch] (S.Set Name)
+  | -- let x = f x in g x x  ~>  let y = f x in let x = y in g x x
+    -- Note that we cannot substitute the let in the initial term, since
+    -- we only substitute one occurence at a time, and the 'let' would capture the 'x'
+    -- in the expansion if we did a substitution.
+    RenameSelfLet LVarName Expr Expr
+  | -- As RenameSelfLet, but for LetType. (Note that it is unnecessary for letrec.)
+    RenameSelfLetType TyVarName Type Expr
   | ApplyPrimFun ExprAnyFresh
 
 -- there are only trivial redexes in types.
@@ -389,7 +396,14 @@ findRedex tydefs globals dir = go . focus
         let children = z' : unfoldr (fmap (\x -> (x, x)) . right) z'
          in foldr (\c acc -> f (getBoundHere (target z) (Just $ target c)) c <<||>> acc) Nothing children
     go ez
-      | Just (LSome l, bz) <- viewLet ez = pure <$> goLet l bz
+      | Just (LSome l, bz) <- viewLet ez =
+          pure <$> case (l, anyOf _freeVarsLocal (== localName l) l) of
+            -- We have something like λx.let x = f x in g x (NB: non-recursive let)
+            -- We cannot substitute this let as we would get λx. let x = f x in g (f x)
+            -- where a variable has been captured
+            (LLet x e, True) -> pure $ RExpr ez $ RenameSelfLet x e (target bz)
+            (LLetType a ty, True) -> pure $ RExpr ez $ RenameSelfLetType a ty (target bz)
+            _ -> goLet l bz
       | Just mr <- viewRedex tydefs globals (focusDir dir ez) (target ez) = Just $ RExpr ez <$> mr
       | otherwise = eachChild ez go
     -- This should always return Just
@@ -497,6 +511,14 @@ runRedex = \case
     -- We should replace this with a proper exception. See:
     -- https://github.com/hackworthltd/primer/issues/148
     | otherwise -> error "Internal Error: RenameBindingsCase found no applicable branches"
+  -- let x = f x in g x x  ~>  let y = f x in let x = y in g x x
+  RenameSelfLet x e body -> do
+    y <- freshLocalName' (freeVars e <> freeVars body)
+    let_ y (pure e) $ let_ x (lvar y) $ pure body
+  -- As RenameSelfLet, but for LetType
+  RenameSelfLetType a ty body -> do
+    b <- freshLocalName' (S.map unLocalName (freeVarsTy ty) <> freeVars body)
+    letType b (pure ty) $ letType a (tvar b) $ pure body
   ApplyPrimFun (ExprAnyFresh e) -> e
 
 runRedexTy :: (MonadFresh ID m, MonadFresh NameCounter m) => RedexType -> m Type
