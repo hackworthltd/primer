@@ -26,7 +26,6 @@ import Primer.Core.DSL (
   branch,
   case_,
   con,
-  create,
   emptyHole,
   gvar',
   hole,
@@ -44,6 +43,9 @@ import Primer.Core.DSL (
   thole,
   tvar,
  )
+import Primer.Core.Utils (
+  mkASTDef,
+ )
 import Primer.Name (Name (unName))
 import System.FilePath ((</>))
 import Test.Tasty (TestTree, testGroup)
@@ -52,17 +54,11 @@ import Test.Tasty.HUnit ()
 import TestUtils (exprIDs, gvn)
 import Text.Pretty.Simple (pShowNoColor)
 
--- | This definition contains every construct in the Primer language.
+-- | This definition contains most constructs in the Primer language.
 test_1 :: TestTree
 test_1 =
-  mkTests
-    ASTDef
-      { astDefName = gvn ["M"] "1"
-      , astDefExpr
-      , astDefType
-      }
+  mkTests $ fst $ mkASTDef (gvn ["M"] "1") t e
   where
-    ((astDefExpr, astDefType), _) = create $ (,) <$> e <*> t
     t =
       tfun
         (tcon tNat)

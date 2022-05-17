@@ -16,6 +16,9 @@ module Primer.Core.Utils (
   freeVarsTy,
   alphaEqTy,
   concreteTy,
+
+  -- * Construct ASTs.
+  mkASTDef,
 ) where
 
 import Foreword
@@ -28,9 +31,11 @@ import qualified Data.Set as S
 import Data.Set.Optics (setOf)
 import Optics (Fold, Traversal, getting, hasn't, set, summing, to, traversalVL, traverseOf, (%), _2, _Left, _Right)
 import Primer.Core (
+  ASTDef (..),
   CaseBranch' (..),
   Expr,
   Expr' (..),
+  GVarName,
   HasID (_id),
   ID,
   Kind (KHole),
@@ -45,6 +50,10 @@ import Primer.Core (
   _exprMeta,
   _exprTypeMeta,
   _typeMeta,
+ )
+import Primer.Core.DSL (
+  S,
+  create,
  )
 import Primer.Name (Name, NameCounter, freshName)
 
@@ -228,3 +237,11 @@ _freeTyVars = traversalVL $ go mempty
 
 concreteTy :: Data b => Type' b -> Bool
 concreteTy ty = hasn't (getting _freeVarsTy) ty && noHoles ty
+
+-- | Given a 'GVarName' and a DSL 'Type' and 'Expr', construct a new
+-- 'ASTDef' and the next valid 'ID'. Note that this AST isn't
+-- guaranteed to typecheck; it is simply syntactically correct.
+mkASTDef :: GVarName -> S Type -> S Expr -> (ASTDef, ID)
+mkASTDef n t e = (ASTDef n expr typ, nextID)
+  where
+    ((expr, typ), nextID) = create $ (,) <$> e <*> t

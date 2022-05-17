@@ -76,7 +76,6 @@ import Primer.Core.DSL (
   branch,
   case_,
   con,
-  create,
   emptyHole,
   gvar',
   hole,
@@ -93,6 +92,9 @@ import Primer.Core.DSL (
   tfun,
   thole,
   tvar,
+ )
+import Primer.Core.Utils (
+  mkASTDef,
  )
 import Primer.Database.Rel8.Rel8Db (
   Rel8Db,
@@ -237,7 +239,8 @@ insertSessionRow row conn =
             , returning = NumberOfRowsAffected
             }
 
--- | This definition contains every construct in the Primer language.
+-- | This definition contains most of the non-primitive constructs in
+-- the Primer language.
 --
 -- TODO: this is identical to a program in the core Primer test suite,
 -- so it should be refactored into a common test library. See:
@@ -245,15 +248,8 @@ insertSessionRow row conn =
 testASTDef :: ASTDef
 testASTDefNextID :: ID
 (testASTDef, testASTDefNextID) =
-  ( ASTDef
-      { astDefName = qualifyName (ModuleName $ "TestModule" :| []) "1"
-      , astDefExpr
-      , astDefType
-      }
-  , nextID
-  )
+  mkASTDef (qualifyName (ModuleName $ "TestModule" :| []) "1") t e
   where
-    ((astDefExpr, astDefType), nextID) = create $ (,) <$> e <*> t
     t =
       tfun
         (tcon tNat)
@@ -348,8 +344,8 @@ testASTDefNextID :: ID
 
 -- | An initial test 'App' instance that contains all default type
 -- definitions (including primitive types), all primitive functions,
--- and a top-level definition that contains every construct in the
--- Primer language.x
+-- and a top-level definition that contains most of the non-primitive
+-- constructs in the Primer language.x
 testApp :: App
 testApp =
   newEmptyApp
