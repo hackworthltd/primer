@@ -17,6 +17,7 @@ import Control.Monad.Fresh (MonadFresh)
 import Data.Data (Data)
 import Data.Generics.Uniplate.Data (descendM)
 import qualified Data.List.NonEmpty as NE
+import Optics (traverseOf)
 import Primer.Core (
   CaseBranch' (..),
   Expr,
@@ -30,6 +31,7 @@ import Primer.Core (
   bindName,
  )
 import Primer.Core.DSL (meta)
+import Primer.Zipper (focus, focusType, unfocusExpr, unfocusType, _target)
 
 -- AST transformations.
 -- This module contains global transformations on expressions and types, in
@@ -40,29 +42,27 @@ import Primer.Core.DSL (meta)
 -- See the tests for explanation and examples.
 renameVar :: (Data a, Data b) => TmVarRef -> TmVarRef -> Expr' a b -> Maybe (Expr' a b)
 renameVar x y expr = case expr of
-  Lam m v e
+  Lam _ v _
     | sameVarRef v x -> pure expr
     | sameVarRef v y -> Nothing
-    | otherwise -> Lam m v <$> renameVar x y e
-  LAM m v e
+    | otherwise -> substAllChildren
+  LAM _ v _
     -- NB: local term and type variables are in the same namespace
     | sameVarRef v x -> pure expr
     | sameVarRef v y -> Nothing
-    | otherwise -> LAM m v <$> renameVar x y e
-  Let m v e1 e2
+    | otherwise -> substAllChildren
+  Let _ v _ _
     | sameVarRef v x -> pure expr
     | sameVarRef v y -> Nothing
-    | otherwise -> Let m v <$> renameVar x y e1 <*> renameVar x y e2
-  LetType m v ty e
+    | otherwise -> substAllChildren
+  LetType _ v _ _
     | sameVarRef v x -> pure expr
     | sameVarRef v y -> Nothing
-    -- We assume the term is well-scoped, so do not have any references to the
-    -- term vars x,y inside @ty@, so no possibility of capture
-    | otherwise -> LetType m v ty <$> renameVar x y e
-  Letrec m v e1 ty e2
+    | otherwise -> substAllChildren
+  Letrec _ v _ _ _
     | sameVarRef v x -> pure expr
     | sameVarRef v y -> Nothing
-    | otherwise -> Letrec m v <$> renameVar x y e1 <*> pure ty <*> renameVar x y e2
+    | otherwise -> substAllChildren
   Case m scrut branches -> Case m <$> renameVar x y scrut <*> mapM renameBranch branches
     where
       renameBranch b@(CaseBranch con termargs rhs)
@@ -74,7 +74,18 @@ renameVar x y expr = case expr of
     | v == x -> pure $ Var m y
     | v == y -> Nothing
     | otherwise -> pure expr
-  _ -> descendM (renameVar x y) expr
+  Hole{} -> substAllChildren
+  EmptyHole{} -> substAllChildren
+  Ann{} -> substAllChildren
+  App{} -> substAllChildren
+  APP{} -> substAllChildren
+  Con{} -> substAllChildren
+  PrimCon{} -> substAllChildren
+  -- We assume the term is well-scoped, so do not have any references to the
+  -- term vars x,y inside any type child (e.g. annotation), so no need to
+  -- consider renaming inside them
+  where
+    substAllChildren = descendM (renameVar x y) expr
 
 sameVarRef :: LocalName k -> TmVarRef -> Bool
 sameVarRef v (LocalVarRef v') = sameVar v v'
@@ -94,43 +105,47 @@ renameTyVar :: Data a => TyVarName -> TyVarName -> Type' a -> Maybe (Type' a)
 -- We cannot use substTy to implement renaming, as that restricts to b~(), so as to not
 -- duplicate metadata. But for renaming, we know that will not happen.
 renameTyVar x y ty = case ty of
-  TForall m v k t
+  TForall _ v _ _
     | v == x -> pure ty
     | v == y -> Nothing
-    | otherwise -> TForall m v k <$> renameTyVar x y t
+    | otherwise -> substAllChildren
   TVar m v
     | v == x -> pure $ TVar m y
     | v == y -> Nothing
-    | otherwise -> pure ty
-  _ -> descendM (renameTyVar x y) ty
+    | otherwise -> substAllChildren
+  TEmptyHole{} -> substAllChildren
+  THole{} -> substAllChildren
+  TCon{} -> substAllChildren
+  TFun{} -> substAllChildren
+  TApp{} -> substAllChildren
+  where
+    substAllChildren = descendM (renameTyVar x y) ty
 
 -- | Attempt to replace all free ocurrences of @x@ in some type inside @e@ with @y@
 -- Returns 'Nothing' if replacement could result in variable capture.
 -- See the tests for explanation and examples.
-renameTyVarExpr :: (Data a, Data b) => TyVarName -> TyVarName -> Expr' a b -> Maybe (Expr' a b)
+renameTyVarExpr :: forall a b. (Data a, Data b) => TyVarName -> TyVarName -> Expr' a b -> Maybe (Expr' a b)
 renameTyVarExpr x y expr = case expr of
-  Lam m v e
+  Lam _ v _
     | sameVar v x -> pure expr
     | sameVar v y -> Nothing
-    | otherwise -> Lam m v <$> renameTyVarExpr x y e
-  LAM m v e
+    | otherwise -> substAllChildren
+  LAM _ v _
     | v == x -> pure expr
     | v == y -> Nothing
-    | otherwise -> LAM m v <$> renameTyVarExpr x y e
-  Ann m e t -> Ann m e <$> renameTyVar x y t
-  APP m e t -> APP m e <$> renameTyVar x y t
-  Let m v e1 e2
+    | otherwise -> substAllChildren
+  Let _ v _ _
     | sameVar v x -> pure expr
     | sameVar v y -> Nothing
-    | otherwise -> Let m v <$> renameTyVarExpr x y e1 <*> renameTyVarExpr x y e2
-  LetType m v ty e
+    | otherwise -> substAllChildren
+  LetType _ v _ _
     | sameVar v x -> pure expr
     | sameVar v y -> Nothing
-    | otherwise -> LetType m v <$> renameTyVar x y ty <*> renameTyVarExpr x y e
-  Letrec m v e1 ty e2
+    | otherwise -> substAllChildren
+  Letrec _ v _ _ _
     | sameVar v x -> pure expr
     | sameVar v y -> Nothing
-    | otherwise -> Letrec m v <$> renameTyVarExpr x y e1 <*> renameTyVar x y ty <*> renameTyVarExpr x y e2
+    | otherwise -> substAllChildren
   Case m scrut branches -> Case m <$> renameTyVarExpr x y scrut <*> mapM renameBranch branches
     where
       renameBranch b@(CaseBranch con termargs rhs)
@@ -138,7 +153,22 @@ renameTyVarExpr x y expr = case expr of
         | any (sameVar y) $ bindingNames b = Nothing
         | otherwise = CaseBranch con termargs <$> renameTyVarExpr x y rhs
       bindingNames (CaseBranch _ bs _) = map bindName bs
-  _ -> descendM (renameTyVarExpr x y) expr
+  Var{} -> substAllChildren
+  Hole{} -> substAllChildren
+  EmptyHole{} -> substAllChildren
+  Ann{} -> substAllChildren
+  App{} -> substAllChildren
+  APP{} -> substAllChildren
+  Con{} -> substAllChildren
+  PrimCon{} -> substAllChildren
+  where
+    substAllChildren = descendM (renameTyVarExpr x y) =<< descendTypeM (renameTyVar x y) expr
+    -- NB: cannot use descendBiM here: I want only immediate type
+    -- children, but descendBiM does "top-most" type children: i.e. (λx.x:t)
+    -- will target t even though it is two layers deep!
+    descendTypeM f e = case focusType $ focus e of
+      Nothing -> Just e
+      Just tz -> unfocusExpr . unfocusType <$> traverseOf _target f tz
 
 -- | Unfold a nested term application into the application head and a list of arguments.
 unfoldApp :: Expr' a b -> (Expr' a b, [Expr' a b])
