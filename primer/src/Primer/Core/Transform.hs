@@ -23,6 +23,7 @@ import Primer.Core (
   Expr' (..),
   ID,
   LVarName,
+  LocalName (unLocalName),
   TmVarRef (..),
   TyVarName,
   Type' (..),
@@ -40,18 +41,18 @@ import Primer.Core.DSL (meta)
 renameVar :: (Data a, Data b) => TmVarRef -> TmVarRef -> Expr' a b -> Maybe (Expr' a b)
 renameVar x y = \case
   Lam m v e
-    | LocalVarRef v == x -> pure $ Lam m v e
-    | LocalVarRef v == y -> Nothing
+    | sameVarRef v x -> pure $ Lam m v e
+    | sameVarRef v y -> Nothing
     | otherwise -> Lam m v <$> renameVar x y e
   Let m v e1 e2
-    | LocalVarRef v == x -> pure $ Let m v e1 e2
-    | LocalVarRef v == y -> Nothing
+    | sameVarRef v x -> pure $ Let m v e1 e2
+    | sameVarRef v y -> Nothing
     | otherwise -> Let m v <$> renameVar x y e1 <*> renameVar x y e2
   Case m scrut branches -> Case m <$> renameVar x y scrut <*> mapM renameBranch branches
     where
       renameBranch b@(CaseBranch con termargs rhs)
-        | LocalVarRef lx <- x, lx `elem` bindingNames b = pure b
-        | LocalVarRef ly <- y, ly `elem` bindingNames b = Nothing
+        | any (`sameVarRef` x) $ bindingNames b = pure b
+        | any (`sameVarRef` y) $ bindingNames b = Nothing
         | otherwise = CaseBranch con termargs <$> renameVar x y rhs
       bindingNames (CaseBranch _ bs _) = map bindName bs
   Var m v
@@ -59,6 +60,13 @@ renameVar x y = \case
     | v == y -> Nothing
     | otherwise -> pure $ Var m v
   e -> descendM (renameVar x y) e
+
+sameVarRef :: LocalName k -> TmVarRef -> Bool
+sameVarRef v (LocalVarRef v') = sameVar v v'
+sameVarRef _ (GlobalVarRef _) = False
+
+sameVar :: LocalName k -> LocalName l -> Bool
+sameVar v v' = unLocalName v == unLocalName v'
 
 -- | As 'renameVar', but specialised to local variables
 renameLocalVar :: (Data a, Data b) => LVarName -> LVarName -> Expr' a b -> Maybe (Expr' a b)
