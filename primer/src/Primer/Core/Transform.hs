@@ -44,10 +44,25 @@ renameVar x y expr = case expr of
     | sameVarRef v x -> pure expr
     | sameVarRef v y -> Nothing
     | otherwise -> Lam m v <$> renameVar x y e
+  LAM m v e
+    -- NB: local term and type variables are in the same namespace
+    | sameVarRef v x -> pure expr
+    | sameVarRef v y -> Nothing
+    | otherwise -> LAM m v <$> renameVar x y e
   Let m v e1 e2
     | sameVarRef v x -> pure expr
     | sameVarRef v y -> Nothing
     | otherwise -> Let m v <$> renameVar x y e1 <*> renameVar x y e2
+  LetType m v ty e
+    | sameVarRef v x -> pure expr
+    | sameVarRef v y -> Nothing
+    -- We assume the term is well-scoped, so do not have any references to the
+    -- term vars x,y inside @ty@, so no possibility of capture
+    | otherwise -> LetType m v ty <$> renameVar x y e
+  Letrec m v e1 ty e2
+    | sameVarRef v x -> pure expr
+    | sameVarRef v y -> Nothing
+    | otherwise -> Letrec m v <$> renameVar x y e1 <*> pure ty <*> renameVar x y e2
   Case m scrut branches -> Case m <$> renameVar x y scrut <*> mapM renameBranch branches
     where
       renameBranch b@(CaseBranch con termargs rhs)
@@ -94,12 +109,35 @@ renameTyVar x y ty = case ty of
 -- See the tests for explanation and examples.
 renameTyVarExpr :: (Data a, Data b) => TyVarName -> TyVarName -> Expr' a b -> Maybe (Expr' a b)
 renameTyVarExpr x y expr = case expr of
+  Lam m v e
+    | sameVar v x -> pure expr
+    | sameVar v y -> Nothing
+    | otherwise -> Lam m v <$> renameTyVarExpr x y e
   LAM m v e
     | v == x -> pure expr
     | v == y -> Nothing
     | otherwise -> LAM m v <$> renameTyVarExpr x y e
   Ann m e t -> Ann m e <$> renameTyVar x y t
   APP m e t -> APP m e <$> renameTyVar x y t
+  Let m v e1 e2
+    | sameVar v x -> pure expr
+    | sameVar v y -> Nothing
+    | otherwise -> Let m v <$> renameTyVarExpr x y e1 <*> renameTyVarExpr x y e2
+  LetType m v ty e
+    | sameVar v x -> pure expr
+    | sameVar v y -> Nothing
+    | otherwise -> LetType m v <$> renameTyVar x y ty <*> renameTyVarExpr x y e
+  Letrec m v e1 ty e2
+    | sameVar v x -> pure expr
+    | sameVar v y -> Nothing
+    | otherwise -> Letrec m v <$> renameTyVarExpr x y e1 <*> renameTyVar x y ty <*> renameTyVarExpr x y e2
+  Case m scrut branches -> Case m <$> renameTyVarExpr x y scrut <*> mapM renameBranch branches
+    where
+      renameBranch b@(CaseBranch con termargs rhs)
+        | any (sameVar x) $ bindingNames b = pure b
+        | any (sameVar y) $ bindingNames b = Nothing
+        | otherwise = CaseBranch con termargs <$> renameTyVarExpr x y rhs
+      bindingNames (CaseBranch _ bs _) = map bindName bs
   _ -> descendM (renameTyVarExpr x y) expr
 
 -- | Unfold a nested term application into the application head and a list of arguments.

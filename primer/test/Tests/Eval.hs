@@ -260,6 +260,31 @@ unit_tryReduce_BETA = do
       betaTypes detail @?= Nothing
     _ -> assertFailure $ show result
 
+unit_tryReduce_BETA_name_clash :: Assertion
+unit_tryReduce_BETA_name_clash = do
+  let ((c, lambda, body, arg, input, expectedResult), maxid) =
+        create $ do
+          c_ <- tcon' (pure "M") "T"
+          e <- lam "x0" (lvar "x0" `ann` tvar "x")
+          l <- lAM "x" (pure e)
+          a <- tvar "x"
+          i <- aPP (pure l) (pure a)
+          r <- letType "x1" (pure a) (lam "x0" (lvar "x0" `ann` tvar "x1"))
+          pure (c_, l, e, a, i, r)
+      result = runTryReduce mempty (Map.singleton "x" (0, Right c)) (input, maxid)
+  case result of
+    Right (expr, BETAReduction detail) -> do
+      expr ~= expectedResult
+      betaBefore detail ~= input
+      betaAfter detail ~= expectedResult
+      betaBindingName detail @?= "x"
+      betaLambdaID detail @?= lambda ^. _id
+      betaLetID detail @?= expr ^. _id
+      betaArgID detail @?= arg ^. _id
+      betaBodyID detail @?= body ^. _id
+      betaTypes detail @?= Nothing
+    _ -> assertFailure $ show result
+
 unit_tryReduce_local_term_var :: Assertion
 unit_tryReduce_local_term_var = do
   -- We assume we're inside a larger expression (e.g. a let) where the node that binds x has ID 5.
