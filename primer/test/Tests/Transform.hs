@@ -61,12 +61,14 @@ unit_let_2 :: Assertion
 unit_let_2 = afterRename "x" "y" (let_ "y" (lvar "x") (lvar "x")) Nothing
 
 -- We can rename an expression with a let that binds the same variable name,
--- but we won't do any renaming inside the bound value or the let body.
--- We don't rename inside the bound expression because we (will soon) allow
--- recursive lets, which means the bound variable will be free in the bound
--- expression.
+-- and this will rename inside the bound expression but not the body.
 unit_let_3 :: Assertion
-unit_let_3 = afterRename "x" "y" (app (let_ "x" (lvar "z") (lvar "x")) (lvar "x")) (Just (app (let_ "x" (lvar "z") (lvar "x")) (lvar "y")))
+unit_let_3 = afterRename "x" "y" (app (let_ "x" (lvar "x") (lvar "x")) (lvar "x")) (Just (app (let_ "x" (lvar "y") (lvar "x")) (lvar "y")))
+
+-- We can rename an expression with a letrec that binds the same variable name,
+-- but we won't do any renaming inside the bound value or the let body.
+unit_letrec_1 :: Assertion
+unit_letrec_1 = afterRename "x" "y" (app (letrec "x" (lvar "x") tEmptyHole (lvar "x")) (lvar "x")) (Just (app (letrec "x" (lvar "x") tEmptyHole (lvar "x")) (lvar "y")))
 
 -- Cases
 
