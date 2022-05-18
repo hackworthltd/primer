@@ -39,13 +39,13 @@ import Primer.Core.DSL (meta)
 -- Returns 'Nothing' if replacement could result in variable capture.
 -- See the tests for explanation and examples.
 renameVar :: (Data a, Data b) => TmVarRef -> TmVarRef -> Expr' a b -> Maybe (Expr' a b)
-renameVar x y = \case
+renameVar x y expr = case expr of
   Lam m v e
-    | sameVarRef v x -> pure $ Lam m v e
+    | sameVarRef v x -> pure expr
     | sameVarRef v y -> Nothing
     | otherwise -> Lam m v <$> renameVar x y e
   Let m v e1 e2
-    | sameVarRef v x -> pure $ Let m v e1 e2
+    | sameVarRef v x -> pure expr
     | sameVarRef v y -> Nothing
     | otherwise -> Let m v <$> renameVar x y e1 <*> renameVar x y e2
   Case m scrut branches -> Case m <$> renameVar x y scrut <*> mapM renameBranch branches
@@ -58,8 +58,8 @@ renameVar x y = \case
   Var m v
     | v == x -> pure $ Var m y
     | v == y -> Nothing
-    | otherwise -> pure $ Var m v
-  e -> descendM (renameVar x y) e
+    | otherwise -> pure expr
+  _ -> descendM (renameVar x y) expr
 
 sameVarRef :: LocalName k -> TmVarRef -> Bool
 sameVarRef v (LocalVarRef v') = sameVar v v'
@@ -78,29 +78,29 @@ renameLocalVar x y = renameVar (LocalVarRef x) (LocalVarRef y)
 renameTyVar :: Data a => TyVarName -> TyVarName -> Type' a -> Maybe (Type' a)
 -- We cannot use substTy to implement renaming, as that restricts to b~(), so as to not
 -- duplicate metadata. But for renaming, we know that will not happen.
-renameTyVar x y = \case
+renameTyVar x y ty = case ty of
   TForall m v k t
-    | v == x -> pure $ TForall m v k t
+    | v == x -> pure ty
     | v == y -> Nothing
     | otherwise -> TForall m v k <$> renameTyVar x y t
   TVar m v
     | v == x -> pure $ TVar m y
     | v == y -> Nothing
-    | otherwise -> pure $ TVar m v
-  t -> descendM (renameTyVar x y) t
+    | otherwise -> pure ty
+  _ -> descendM (renameTyVar x y) ty
 
 -- | Attempt to replace all free ocurrences of @x@ in some type inside @e@ with @y@
 -- Returns 'Nothing' if replacement could result in variable capture.
 -- See the tests for explanation and examples.
 renameTyVarExpr :: (Data a, Data b) => TyVarName -> TyVarName -> Expr' a b -> Maybe (Expr' a b)
-renameTyVarExpr x y = \case
+renameTyVarExpr x y expr = case expr of
   LAM m v e
-    | v == x -> pure $ LAM m v e
+    | v == x -> pure expr
     | v == y -> Nothing
     | otherwise -> LAM m v <$> renameTyVarExpr x y e
   Ann m e t -> Ann m e <$> renameTyVar x y t
   APP m e t -> APP m e <$> renameTyVar x y t
-  e -> descendM (renameTyVarExpr x y) e
+  _ -> descendM (renameTyVarExpr x y) expr
 
 -- | Unfold a nested term application into the application head and a list of arguments.
 unfoldApp :: Expr' a b -> (Expr' a b, [Expr' a b])
