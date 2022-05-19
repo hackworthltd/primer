@@ -88,24 +88,31 @@ import Primer.Core (
   TyVarName,
   Type,
   Type' (TForall),
+  TypeMeta,
   bindName,
   getID,
  )
 import Primer.Name (Name)
 
+type ExprZ' a b = Zipper (Expr' a b) (Expr' a b)
+
 -- | An ordinary zipper for 'Expr's
-type ExprZ = Zipper Expr Expr
+type ExprZ = ExprZ' ExprMeta TypeMeta
+
+type TypeZip' b = Zipper (Type' b) (Type' b)
 
 -- | An ordinary zipper for 'Type's
-type TypeZip = Zipper Type Type
+type TypeZip = TypeZip' TypeMeta
 
 -- | A zipper for 'Type's embedded in expressions.
 -- For such types, we need a way
 -- to navigate around them without losing our place in the wider expression.
 -- This type contains a Zipper for a 'Type' and a function that will place the
 -- unzippered type back into the wider expression zipper, keeping its place.
-data TypeZ = TypeZ TypeZip (Type -> Zipper Expr Expr)
+data TypeZ' a b = TypeZ (TypeZip' b) (Type' b -> ExprZ' a b)
   deriving (Generic)
+
+type TypeZ = TypeZ' ExprMeta TypeMeta
 
 instance HasID TypeZ where
   _id = position @1 % _id
@@ -191,7 +198,7 @@ instance HasID BindLoc where
 -- | Switch from an 'Expr' zipper to a 'Type' zipper, focusing on the type in
 -- the current target. This expects that the target is an @Ann@, @Letrec@ or
 -- @LetType@ node.
-focusType :: ExprZ -> Maybe TypeZ
+focusType :: (Data a, Data b) => ExprZ' a b -> Maybe (TypeZ' a b)
 focusType z =
   -- Currently the only Expr constructors which contain Types are Ann, APP and
   -- Letrec
@@ -219,7 +226,7 @@ findInCaseBinds i z = do
   pure $ InBind $ BindCase $ CaseBindZ z bind rhs (delete bind allBinds) update
 
 -- | Switch from a 'Type' zipper back to an 'Expr' zipper.
-unfocusType :: TypeZ -> ExprZ
+unfocusType :: TypeZ' a b -> ExprZ' a b
 unfocusType (TypeZ zt f) = f (fromZipper zt)
 
 -- | Forget the surrounding expression context
@@ -237,7 +244,7 @@ class Data a => IsZipper za a | za -> a where
 instance Data a => IsZipper (Z.Zipper a a) a where
   asZipper = equality'
 
-instance IsZipper TypeZ Type where
+instance Data b => IsZipper (TypeZ' a b) (Type' b) where
   asZipper = position @1
 
 -- 'CaseBindZ' is sort of a fake zipper which can only focus on one thing: the case binding.
@@ -281,7 +288,7 @@ unfocusCaseBind :: CaseBindZ -> ExprZ
 unfocusCaseBind = caseBindZExpr
 
 -- | Convert an 'Expr' zipper to an 'Expr'
-unfocusExpr :: ExprZ -> Expr
+unfocusExpr :: ExprZ' a b -> Expr' a b
 unfocusExpr = fromZipper
 
 -- | Convert a 'Loc' to an 'ExprZ'.
