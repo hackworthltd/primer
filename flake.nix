@@ -47,15 +47,15 @@
         in
         builtins.trace "Nix Primer version is ${v}" v;
 
-      ghcVersion = "ghc8107";
+      ghcVersion = "ghc922";
 
       # We must keep the weeder version in sync with the version of
       # GHC we're using.
-      weederVersion = "2.2.0";
+      weederVersion = "2.3.1";
 
       forAllSupportedSystems = flake-utils.lib.eachSystem [
         "x86_64-linux"
-        "aarch64-darwin"
+        #"aarch64-darwin"
       ];
 
       forAllTestSystems = flake-utils.lib.eachSystem [
@@ -84,6 +84,48 @@
               compiler-nix-name = ghcVersion;
               src = ./.;
               modules = [
+                # https://github.com/input-output-hk/haskell.nix/issues/1177
+                {
+                  nonReinstallablePkgs = [
+                    "rts"
+                    "ghc-heap"
+                    "ghc-prim"
+                    "integer-gmp"
+                    "integer-simple"
+                    "base"
+                    "deepseq"
+                    "array"
+                    "ghc-boot-th"
+                    "pretty"
+                    "template-haskell"
+                    "ghc-bignum"
+                    "exceptions"
+                    "stm"
+                    "ghc-boot"
+                    "ghc"
+                    "Cabal"
+                    "Win32"
+                    "array"
+                    "binary"
+                    "bytestring"
+                    "containers"
+                    "directory"
+                    "filepath"
+                    "ghc-boot"
+                    "ghc-compact"
+                    "ghc-prim"
+                    "hpc"
+                    "mtl"
+                    "parsec"
+                    "process"
+                    "text"
+                    "time"
+                    "transformers"
+                    "unix"
+                    "xhtml"
+                    "terminfo"
+                  ];
+                }
                 {
                   # We want -Werror for Nix builds (primarily for CI).
                   packages =
@@ -455,9 +497,9 @@
             name = "required";
             constituents = builtins.map builtins.attrValues (with self.hydraJobs; [
               packages.x86_64-linux
-              packages.aarch64-darwin
+              #packages.aarch64-darwin
               checks.x86_64-linux
-              checks.aarch64-darwin
+              #checks.aarch64-darwin
               tests.x86_64-linux
               devShell
             ]);
