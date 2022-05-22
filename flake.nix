@@ -66,6 +66,12 @@
         haskell-nix.overlay
         (final: prev:
           let
+            # Some tools don't yet build with GHC 9.2.2.
+            ghc8107Tools = final.haskell-nix.tools "ghc8107" {
+              cabal-fmt = "latest";
+              cabal-edit = "latest";
+            };
+
             postgres-dev-password = "primer-dev";
             postgres-dev-base-url = "postgres://postgres:${postgres-dev-password}@localhost:5432";
             postgres-dev-primer-url = "${postgres-dev-base-url}/primer";
@@ -220,8 +226,10 @@
                     ];
                   };
 
-                  cabal-edit = "latest";
-                  cabal-fmt = "latest";
+                  # Not yet working with GHC 9.2.2.
+                  #cabal-edit = "latest";
+                  #cabal-fmt = "latest";
+
                   #TODO Explicitly requiring tasty-discover shouldn't be necessary - see the commented-out `build-tool-depends` in primer.cabal.
                   tasty-discover = "latest";
                   weeder = weederVersion;
@@ -256,6 +264,10 @@
                   delete-local-db
                   dump-local-db
                   restore-local-db
+
+                  # These don't build with GHC 9.2.2.
+                  cabal-edit
+                  cabal-fmt
                 ]);
 
                 shellHook = ''
@@ -319,6 +331,8 @@
 
             inherit primer-openapi-spec;
             inherit run-primer;
+
+            inherit (ghc8107Tools) cabal-edit cabal-fmt;
           }
         )
       ];
@@ -387,20 +401,23 @@
         let
           # Override the default nix-pre-commit-hooks tools with the version
           # we're using.
-          haskellNixTools = pkgs.haskell-nix.tools ghcVersion {
-            hlint = "latest";
-            cabal-fmt = "latest";
+          haskellNixTools = pkgs.haskell-nix.tools ghcVersion
+            {
+              hlint = "latest";
 
-            # https://github.com/input-output-hk/haskell.nix/issues/1337
-            fourmolu = {
-              version = "latest";
-              modules = [
-                ({ lib, ... }: {
-                  options.nonReinstallablePkgs = lib.mkOption { apply = lib.remove "Cabal"; };
-                })
-              ];
+              # Not yet working with GHC 9.2.2.
+              #cabal-fmt = "latest";
+
+              # https://github.com/input-output-hk/haskell.nix/issues/1337
+              fourmolu = {
+                version = "latest";
+                modules = [
+                  ({ lib, ... }: {
+                    options.nonReinstallablePkgs = lib.mkOption { apply = lib.remove "Cabal"; };
+                  })
+                ];
+              };
             };
-          };
         in
         pre-commit-hooks-nix.lib.${system}.run {
           src = ./.;
@@ -415,6 +432,7 @@
           # we're using.
           tools = {
             inherit (pkgs) nixpkgs-fmt;
+            inherit (pkgs) cabal-fmt;
           } // haskellNixTools;
 
           excludes = [
