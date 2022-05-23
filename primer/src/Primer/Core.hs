@@ -89,18 +89,16 @@ import Data.Generics.Uniplate.Data ()
 import Data.Generics.Uniplate.Zipper (Zipper, hole, replaceHole)
 import Optics (
   AffineFold,
+  AffineTraversal',
   Lens,
   Lens',
   Traversal,
-  Traversal',
-  adjoin,
   afailing,
+  atraversalVL,
   lens,
   set,
   view,
   (%),
-  _3,
-  _4,
  )
 import Primer.JSON
 import Primer.Name (Name, unName, unsafeMkName)
@@ -374,12 +372,13 @@ data Type' a
   deriving (FromJSON, ToJSON) via VJSON (Type' a)
 
 -- | Note that this does not recurse in to sub-expressions or sub-types.
-typesInExpr :: Traversal' (Expr' a b) (Type' b)
-typesInExpr =
-  #_Ann % _3
-    `adjoin` #_APP % _3
-    `adjoin` #_LetType % _3
-    `adjoin` #_Letrec % _4
+typesInExpr :: AffineTraversal' (Expr' a b) (Type' b)
+typesInExpr = atraversalVL $ \point f -> \case
+  Ann m e ty -> Ann m e <$> f ty
+  APP m e ty -> APP m e <$> f ty
+  LetType m x ty e -> (\ty' -> LetType m x ty' e) <$> f ty
+  Letrec m x b ty e -> (\ty' -> Letrec m x b ty' e) <$> f ty
+  e -> point e
 
 -- | A traversal over the metadata of a type
 _typeMeta :: Traversal (Type' a) (Type' b) a b
