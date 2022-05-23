@@ -45,7 +45,7 @@ import Primer.Core.DSL (
   bool_,
   char,
   con,
-  create,
+  create',
   int,
   maybe_,
   nat,
@@ -68,7 +68,7 @@ primitiveModule =
   Module
     { moduleName = primitiveModuleName
     , moduleTypes = TypeDefPrim <$> M.mapKeys baseName allPrimTypeDefs
-    , moduleDefs = fst . create $
+    , moduleDefs = create' $
         getAp $
           flip M.foldMapWithKey allPrimDefs $ \n def -> Ap $ do
             ty <- primFunType def

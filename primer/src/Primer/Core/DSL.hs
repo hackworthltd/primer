@@ -33,6 +33,7 @@ module Primer.Core.DSL (
   meta,
   meta',
   create,
+  create',
   setMeta,
   S,
   tcon',
@@ -86,6 +87,10 @@ instance MonadFresh ID S where
 -- the next available fresh 'ID'. You should only need to use this in tests.
 create :: S a -> (a, ID)
 create = flip runState 0 . unS
+
+-- | As 'create', but drop the 'ID'.
+create' :: S a -> a
+create' = fst . create
 
 setMeta :: Functor m => Value -> m Expr -> m Expr
 setMeta m e = set _metadata (Just m) <$> e

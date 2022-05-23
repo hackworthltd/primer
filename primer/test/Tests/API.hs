@@ -93,12 +93,12 @@ unit_viewTreeType_injective_forall_kind =
 
 distinctTreeExpr :: S Expr -> S Expr -> Assertion
 distinctTreeExpr e1 e2 =
-  let t1 = viewTreeExpr $ fst $ create e1
-      t2 = viewTreeExpr $ fst $ create e2
+  let t1 = viewTreeExpr $ create' e1
+      t2 = viewTreeExpr $ create' e2
    in assertBool ("non-injective viewTreeExpr: " ++ show t1) (t1 /= t2)
 
 distinctTreeType :: S Type -> S Type -> Assertion
 distinctTreeType e1 e2 =
-  let t1 = viewTreeType $ fst $ create e1
-      t2 = viewTreeType $ fst $ create e2
+  let t1 = viewTreeType $ create' e1
+      t2 = viewTreeType $ create' e2
    in assertBool ("non-injective viewTreeType: " ++ show t1) (t1 /= t2)

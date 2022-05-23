@@ -165,8 +165,8 @@ unit_tryReduce_beta_nested = do
   case result of
     Right (expr, BetaReduction detail) -> do
       expr ~= expectedResult
-      betaBefore detail ~= fst (create (app (lam "x" (lam "y" (lvar "x"))) (con' ["M"] "C")))
-      betaAfter detail ~= fst (create (let_ "x" (con' ["M"] "C") (lam "y" (lvar "x"))))
+      betaBefore detail ~= create' (app (lam "x" (lam "y" (lvar "x"))) (con' ["M"] "C"))
+      betaAfter detail ~= create' (let_ "x" (con' ["M"] "C") (lam "y" (lvar "x")))
       betaBindingName detail @?= "x"
       betaLambdaID detail @?= lambda ^. _id
       betaArgID detail @?= arg ^. _id
@@ -190,8 +190,8 @@ unit_tryReduce_beta_annotation_nested = do
   case result of
     Right (expr, BetaReduction detail@BetaReductionDetail{betaTypes = Just (l, r)}) -> do
       expr ~= expectedResult
-      betaBefore detail ~= fst (create (app (ann (lam "x" (lvar "x")) (tfun (tcon' ["M"] "A") (tcon' ["M"] "B"))) (con' ["M"] "C")))
-      betaAfter detail ~= fst (create (ann (let_ "x" (ann (con' ["M"] "C") (tcon' ["M"] "A")) (lvar "x")) (tcon' ["M"] "B")))
+      betaBefore detail ~= create' (app (ann (lam "x" (lvar "x")) (tfun (tcon' ["M"] "A") (tcon' ["M"] "B"))) (con' ["M"] "C"))
+      betaAfter detail ~= create' (ann (let_ "x" (ann (con' ["M"] "C") (tcon' ["M"] "A")) (lvar "x")) (tcon' ["M"] "B"))
       betaBindingName detail @?= "x"
       betaLambdaID detail @?= lambda ^. _id
       betaArgID detail @?= arg ^. _id
@@ -329,7 +329,7 @@ unit_tryReduce_global_var = do
         pure (g, ASTDef{astDefName = f, astDefExpr = e, astDefType = t})
       globals = Map.singleton f (DefAST def)
       result = runTryReduce globals mempty (expr, i)
-      expectedResult = fst $ create $ ann (lam "x" (lvar "x")) (tfun (tcon' ["M"] "A") (tcon' ["M"] "B"))
+      expectedResult = create' $ ann (lam "x" (lvar "x")) (tfun (tcon' ["M"] "A") (tcon' ["M"] "B"))
   case result of
     Right (expr', GlobalVarInline detail) -> do
       expr' ~= expectedResult
@@ -343,7 +343,7 @@ unit_tryReduce_let :: Assertion
 unit_tryReduce_let = do
   let (expr, i) = create $ let_ "x" (con' ["M"] "C") (con' ["M"] "D")
       result = runTryReduce mempty mempty (expr, i)
-      expectedResult = fst $ create $ con' ["M"] "D"
+      expectedResult = create' $ con' ["M"] "D"
   case result of
     Right (expr', LetRemoval detail) -> do
       expr' ~= expectedResult
@@ -360,7 +360,7 @@ unit_tryReduce_let_self_capture :: Assertion
 unit_tryReduce_let_self_capture = do
   let (expr, i) = create $ let_ "x" (lvar "x") (lvar "x")
       result = runTryReduce mempty mempty (expr, i)
-      expectedResult = fst $ create $ let_ "x0" (lvar "x") (lvar "x0")
+      expectedResult = create' $ let_ "x0" (lvar "x") (lvar "x0")
   case result of
     Right (expr', LetRename detail) -> do
       expr' ~= expectedResult
@@ -378,7 +378,7 @@ unit_tryReduce_lettype :: Assertion
 unit_tryReduce_lettype = do
   let (expr, i) = create $ letType "x" (tcon' ["M"] "C") (con' ["M"] "D")
       result = runTryReduce mempty mempty (expr, i)
-      expectedResult = fst $ create $ con' ["M"] "D"
+      expectedResult = create' $ con' ["M"] "D"
   case result of
     Right (expr', LetRemoval detail) -> do
       expr' ~= expectedResult
@@ -395,7 +395,7 @@ unit_tryReduce_lettype_self_capture :: Assertion
 unit_tryReduce_lettype_self_capture = do
   let (expr, i) = create $ letType "x" (tvar "x") (emptyHole `ann` tvar "x")
       result = runTryReduce mempty mempty (expr, i)
-      expectedResult = fst $ create $ letType "x0" (tvar "x") (emptyHole `ann` tvar "x0")
+      expectedResult = create' $ letType "x0" (tvar "x") (emptyHole `ann` tvar "x0")
   case result of
     Right (expr', LetRename detail) -> do
       expr' ~= expectedResult
@@ -413,7 +413,7 @@ unit_tryReduce_letrec :: Assertion
 unit_tryReduce_letrec = do
   let (expr, i) = create $ letrec "x" (con' ["M"] "C") (tcon' ["M"] "T") (con' ["M"] "D")
       result = runTryReduce mempty mempty (expr, i)
-      expectedResult = fst $ create $ con' ["M"] "D"
+      expectedResult = create' $ con' ["M"] "D"
   case result of
     Right (expr', LetRemoval detail) -> do
       expr' ~= expectedResult
@@ -436,7 +436,7 @@ unit_tryReduce_letrec_app = do
         expr_ <- app (pure lr) (pure arg_)
         pure (arg_, lam_, lr, expr_)
       result = runTryReduce mempty mempty (expr, i)
-      expectedResult = fst $ create $ letrec "f" (lam "x" (lvar "x")) (tcon' ["M"] "T") (app (lam "x" (app (lvar "f") (lvar "x"))) (con' ["M"] "D"))
+      expectedResult = create' $ letrec "f" (lam "x" (lvar "x")) (tcon' ["M"] "T") (app (lam "x" (app (lvar "f") (lvar "x"))) (con' ["M"] "D"))
   case result of
     Right (expr', PushAppIntoLetrec detail) -> do
       expr' ~= expectedResult
@@ -461,7 +461,7 @@ unit_tryReduce_letrec_APP = do
         expr_ <- aPP (pure lr) (pure arg_)
         pure (arg_, lam_, lr, expr_)
       result = runTryReduce mempty mempty (expr, i)
-      expectedResult = fst $ create $ letrec "f" (lAM "x" (con' ["M"] "A")) (tcon' ["M"] "T") (aPP (lAM "x" (aPP (lvar "f") (tvar "x"))) (tcon' ["M"] "B"))
+      expectedResult = create' $ letrec "f" (lAM "x" (con' ["M"] "A")) (tcon' ["M"] "T") (aPP (lAM "x" (aPP (lvar "f") (tvar "x"))) (tcon' ["M"] "B"))
   case result of
     Right (expr', PushAppIntoLetrec detail) -> do
       expr' ~= expectedResult
@@ -497,7 +497,7 @@ unit_tryReduce_case_1 :: Assertion
 unit_tryReduce_case_1 = do
   let (expr, i) = create $ case_ (con' ["M"] "C") [branch' (["M"], "B") [("b", Nothing)] (con' ["M"] "D"), branch' (["M"], "C") [] (con' ["M"] "E")]
       result = runTryReduce mempty mempty (expr, i)
-      expectedResult = fst $ create $ con' ["M"] "E"
+      expectedResult = create' $ con' ["M"] "E"
   case result of
     Right (expr', CaseReduction detail) -> do
       expr' ~= expectedResult
@@ -523,7 +523,7 @@ unit_tryReduce_case_2 = do
             , branch' (["M"], "C") [("c", Nothing), ("d", Nothing), ("e", Nothing)] (con' ["M"] "E")
             ]
       result = runTryReduce mempty mempty (expr, i)
-      expectedResult = fst $ create $ let_ "c" (lam "x" (lvar "x")) (let_ "d" (lvar "y") (let_ "e" (lvar "z") (con' ["M"] "E")))
+      expectedResult = create' $ let_ "c" (lam "x" (lvar "x")) (let_ "d" (lvar "y") (let_ "e" (lvar "z") (con' ["M"] "E")))
   case result of
     Right (expr', CaseReduction detail) -> do
       expr' ~= expectedResult
@@ -549,7 +549,7 @@ unit_tryReduce_case_3 = do
             , branch' (["M"], "C") [("c", Nothing)] (con' ["M"] "F")
             ]
       result = runTryReduce mempty mempty (expr, i)
-      expectedResult = fst $ create $ let_ "c" (con' ["M"] "E") (con' ["M"] "F")
+      expectedResult = create' $ let_ "c" (con' ["M"] "E") (con' ["M"] "F")
   case result of
     Right (expr', CaseReduction detail) -> do
       expr' ~= expectedResult
@@ -574,9 +574,8 @@ unit_tryReduce_case_name_clash = do
             [branch' (["M"], "C") [("x", Nothing), ("y", Nothing)] emptyHole]
       result = runTryReduce mempty mempty (expr, i)
       expectedResult =
-        fst $
-          create $
-            let_ "x0" emptyHole $ let_ "y" (lvar "x") emptyHole
+        create' $
+          let_ "x0" emptyHole $ let_ "y" (lvar "x") emptyHole
   case result of
     Right (expr', CaseReduction detail) -> do
       expr' ~= expectedResult
@@ -659,9 +658,9 @@ unit_tryReduce_prim_fail_unreduced_args = do
 
 unit_findNodeByID_letrec :: Assertion
 unit_findNodeByID_letrec = do
-  let expr = fst $ create $ letrec "x" (lvar "x") (tcon' ["M"] "T") (lvar "x")
-      x = fst $ create $ lvar "x"
-      t = fst $ create $ tcon' ["M"] "T"
+  let expr = create' $ letrec "x" (lvar "x") (tcon' ["M"] "T") (lvar "x")
+      x = create' $ lvar "x"
+      t = create' $ tcon' ["M"] "T"
   case findNodeByID 0 expr of
     Just (locals, Left z) -> do
       assertBool "no locals in scope at node 0" $ Map.null locals
@@ -689,15 +688,14 @@ unit_findNodeByID_letrec = do
 
 unit_findNodeByID_1 :: Assertion
 unit_findNodeByID_1 = do
-  let (x, c, expr) = fst $
-        create $ do
-          -- id 0
-          x_ <- lvar "x"
-          -- id 1
-          c_ <- con' ["M"] "C"
-          -- id 2
-          e <- let_ "x" (pure c_) (pure x_)
-          pure (x_, c_, e)
+  let (x, c, expr) = create' $ do
+        -- id 0
+        x_ <- lvar "x"
+        -- id 1
+        c_ <- con' ["M"] "C"
+        -- id 2
+        e <- let_ "x" (pure c_) (pure x_)
+        pure (x_, c_, e)
   case findNodeByID 0 expr of
     Just (locals, Left z) -> do
       case Map.lookup "x" locals of
@@ -722,15 +720,14 @@ unit_findNodeByID_1 = do
 
 unit_findNodeByID_2 :: Assertion
 unit_findNodeByID_2 = do
-  let (x, t, expr) = fst $
-        create $ do
-          -- id 0
-          x_ <- tvar "x"
-          -- id 1
-          t_ <- tcon' ["M"] "T"
-          -- id 2
-          e <- letType "x" (pure t_) (ann (lvar "y") (pure x_))
-          pure (x_, t_, e)
+  let (x, t, expr) = create' $ do
+        -- id 0
+        x_ <- tvar "x"
+        -- id 1
+        t_ <- tcon' ["M"] "T"
+        -- id 2
+        e <- letType "x" (pure t_) (ann (lvar "y") (pure x_))
+        pure (x_, t_, e)
   case findNodeByID 0 expr of
     Just (locals, Right z) -> do
       case Map.lookup "x" locals of
@@ -754,11 +751,11 @@ unit_findNodeByID_2 = do
 
 -- | A helper for these tests
 redexesOf :: S Expr -> Set ID
-redexesOf = redexes mempty . fst . create
+redexesOf = redexes mempty . create'
 
 -- | A variation of 'redexesOf' for when the expression tested requires primitives to be in scope.
 redexesOfWithPrims :: S Expr -> Set ID
-redexesOfWithPrims x = uncurry redexes $ fst $ create $ withPrimDefs $ \globals -> (globals,) <$> x
+redexesOfWithPrims x = uncurry redexes $ create' $ withPrimDefs $ \globals -> (globals,) <$> x
 
 unit_redexes_con :: Assertion
 unit_redexes_con = redexesOf (con' ["M"] "C") @?= mempty

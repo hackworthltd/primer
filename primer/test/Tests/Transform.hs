@@ -249,12 +249,12 @@ afterRename' ::
   Maybe (S a) ->
   Assertion
 afterRename' rename normalise fromVar toVar input output = do
-  let (x, _) = create input
+  let x = create' input
       result = rename fromVar toVar x
   case output of
     Nothing -> result @?= Nothing
     Just o -> do
-      let (expected, _) = create o
+      let expected = create' o
       case result of
         Nothing -> assertFailure "rename failed"
         Just r -> on (@?=) normalise r expected

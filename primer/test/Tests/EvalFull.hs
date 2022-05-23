@@ -1139,7 +1139,7 @@ testModules = [builtinModule, primitiveModule, testModule]
 
 testModule :: Module
 testModule =
-  let (ty, expr) = fst . create $ (,) <$> tcon tChar `tfun` tcon tChar <*> lam "x" (lvar "x")
+  let (ty, expr) = create' $ (,) <$> tcon tChar `tfun` tcon tChar <*> lam "x" (lvar "x")
    in Module
         { moduleName = ModuleName ["M"]
         , moduleTypes = mempty

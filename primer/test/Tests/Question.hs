@@ -239,7 +239,7 @@ unit_variablesInScope_shadowed = do
 -- We start by typechecking the expression, so it is annotated with types.
 hasVariables :: S Expr -> (ExprZ -> Maybe ExprZ) -> [(LVarName, Type' ())] -> Assertion
 hasVariables expr path expected = do
-  let e = fst $ create expr
+  let e = create' expr
   case runTypecheckTestM NoSmartHoles (synth e) of
     Left err -> assertFailure $ show err
     Right (_, exprT) -> case path $ focus $ exprTtoExpr exprT of
@@ -249,7 +249,7 @@ hasVariables expr path expected = do
 -- | Like 'hasVariables' but for type variables inside terms also
 hasVariablesTyTm :: S Expr -> (ExprZ -> Maybe ExprZ) -> [(TyVarName, Kind)] -> [(LVarName, Type' ())] -> Assertion
 hasVariablesTyTm expr path expectedTy expectedTm = do
-  let e = fst $ create expr
+  let e = create' expr
   case runTypecheckTestM NoSmartHoles (synth e) of
     Left err -> assertFailure $ show err
     Right (_, exprT) -> case path $ focus $ exprTtoExpr exprT of
@@ -262,7 +262,7 @@ hasVariablesTyTm expr path expectedTy expectedTm = do
 -- | Like 'hasVariables' but for types
 hasVariablesType :: S Type -> (TypeZip -> Maybe TypeZip) -> [(TyVarName, Kind)] -> Assertion
 hasVariablesType ty path expected = do
-  let t = fst $ create ty
+  let t = create' ty
   case path $ focus t of
     Just z -> variablesInScopeTy z @?= expected
     Nothing -> assertFailure ""
@@ -304,14 +304,14 @@ defCxt = buildTypingContextFromModules [builtinModule] NoSmartHoles
 
 hasGeneratedNamesExpr :: S Expr -> Maybe (S Type) -> (ExprZ -> Maybe ExprZ) -> [Name] -> Assertion
 hasGeneratedNamesExpr expr ty path expected = do
-  let (e, t) = fst . create $ (,) <$> expr <*> sequence ty
+  let (e, t) = create' $ (,) <$> expr <*> sequence ty
   case path $ focus e of
     Just z -> runReader (generateNameExpr (Left $ fmap forgetTypeIDs t) (Left z)) defCxt @?= expected
     Nothing -> assertFailure ""
 
 hasGeneratedNamesTy :: S Type -> Maybe Kind -> (TypeZip -> Maybe TypeZip) -> [Name] -> Assertion
 hasGeneratedNamesTy ty k path expected = do
-  let t = fst $ create ty
+  let t = create' ty
   case path $ focus t of
     Just z -> runReader (generateNameTy (Right k) z) defCxt @?= expected
     Nothing -> assertFailure ""

@@ -84,7 +84,15 @@ import Primer.Core (
   TypeCacheBoth (..),
   qualifyName,
  )
-import Primer.Core.DSL (app, branch', case_, create, emptyHole, tEmptyHole, tfun)
+import Primer.Core.DSL (
+  app,
+  branch',
+  case_,
+  create',
+  emptyHole,
+  tEmptyHole,
+  tfun,
+ )
 import Primer.Database (
   Session,
   SessionId,
@@ -346,7 +354,6 @@ testEndpoints =
     :<|> mkTest (EvalFullRespNormal expr)
   where
     mkTest x = pure x :<|> pure
-    create' = fst . create
     expr = create' emptyHole
     ty = create' tEmptyHole
     reductionDetail =
