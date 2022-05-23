@@ -71,8 +71,10 @@ import Optics (
   set,
   view,
   (%),
+  (.~),
   (<%),
   (<%>),
+  (^?),
  )
 import Optics.Lens (Lens', equality', lens)
 import Optics.Traversal (traverseOf)
@@ -80,7 +82,7 @@ import Primer.Core (
   Bind' (..),
   CaseBranch' (CaseBranch),
   Expr,
-  Expr' (APP, Ann, Case, LAM, Lam, Let, LetType, Letrec),
+  Expr' (Case, LAM, Lam, Let, LetType, Letrec),
   ExprMeta,
   HasID (..),
   ID,
@@ -91,6 +93,7 @@ import Primer.Core (
   TypeMeta,
   bindName,
   getID,
+  typesInExpr,
  )
 import Primer.Name (Name)
 
@@ -196,18 +199,15 @@ instance HasID BindLoc where
   _id = position @1 % _id
 
 -- | Switch from an 'Expr' zipper to a 'Type' zipper, focusing on the type in
--- the current target. This expects that the target is an @Ann@, @Letrec@ or
--- @LetType@ node.
+-- the current target. This expects that the target is an @Ann@, @App@,
+-- @Letrec@ or @LetType@ node (as those are the only ones that contain a
+-- @Type@).
 focusType :: (Data a, Data b) => ExprZ' a b -> Maybe (TypeZ' a b)
-focusType z =
-  -- Currently the only Expr constructors which contain Types are Ann, APP and
-  -- Letrec
-  case target z of
-    Ann i e t -> Just $ TypeZ (zipper t) (\t' -> replaceHole (Ann i e t') z)
-    APP i e t -> Just $ TypeZ (zipper t) (\t' -> replaceHole (APP i e t') z)
-    Letrec i x e1 t1 e2 -> Just $ TypeZ (zipper t1) (\t1' -> replaceHole (Letrec i x e1 t1' e2) z)
-    LetType i a t e -> Just $ TypeZ (zipper t) (\t' -> replaceHole (LetType i a t' e) z)
-    _ -> Nothing
+focusType z = do
+  t <- z ^? l
+  pure $ TypeZ (zipper t) $ \t' -> z & l .~ t'
+  where
+    l = _target % typesInExpr
 
 -- | If the currently focused expression is a case expression, search the bindings of its branches
 -- to find one matching the given ID, and return the 'Loc' for that binding.
