@@ -29,9 +29,9 @@ import Primer.Core (
   TyVarName,
   Type' (..),
   bindName,
+  typesInExpr,
  )
 import Primer.Core.DSL (meta)
-import Primer.Zipper (focus, focusType, unfocusExpr, unfocusType, _target)
 
 -- AST transformations.
 -- This module contains global transformations on expressions and types, in
@@ -166,9 +166,7 @@ renameTyVarExpr x y expr = case expr of
     -- NB: cannot use descendBiM here: I want only immediate type
     -- children, but descendBiM does "top-most" type children: i.e. (λx.x:t)
     -- will target t even though it is two layers deep!
-    descendTypeM f e = case focusType $ focus e of
-      Nothing -> Just e
-      Just tz -> unfocusExpr . unfocusType <$> traverseOf _target f tz
+    descendTypeM = traverseOf typesInExpr
 
 -- | Unfold a nested term application into the application head and a list of arguments.
 unfoldApp :: Expr' a b -> (Expr' a b, [Expr' a b])
