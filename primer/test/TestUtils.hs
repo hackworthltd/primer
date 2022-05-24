@@ -15,7 +15,7 @@ import Foreword
 
 import Control.Monad.Fresh (MonadFresh)
 import qualified Data.Map as Map
-import Optics (adjoin, set, (%))
+import Optics (adjoin, over, set, (%))
 import Primer.Action (Action (ConstructCon, ConstructRefinedCon, ConstructTCon))
 import Primer.Core (
   Expr',
@@ -30,6 +30,7 @@ import Primer.Core (
   ValConName,
   primFunType,
   qualifyName,
+  setID,
   _exprMeta,
   _exprTypeMeta,
   _id,
@@ -75,4 +76,4 @@ zeroIDs = set (_exprMeta % _id `adjoin` _exprTypeMeta % _id) 0
 
 -- | Replace all 'ID's in a Type with 0.
 zeroTypeIDs :: HasID a => Type' a -> Type' a
-zeroTypeIDs = set (_typeMeta % _id) 0
+zeroTypeIDs = over _typeMeta (setID 0)

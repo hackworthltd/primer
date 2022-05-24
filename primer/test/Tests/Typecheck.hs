@@ -65,12 +65,9 @@ import Primer.Core (
   TypeDef (..),
   ValCon (..),
   astTypeDefConstructors,
-  setID,
   typeDefKind,
   valConType,
   _exprMeta,
-  _exprTypeMeta,
-  _typeMeta,
  )
 import Primer.Core.DSL
 import Primer.Core.Utils (forgetTypeIDs, generateIDs, generateTypeIDs)
@@ -92,7 +89,7 @@ import Primer.Typecheck (
  )
 import Test.Tasty.HUnit (Assertion, assertFailure, (@?=))
 import TestM (TestM, evalTestM)
-import TestUtils (gvn, tcn, vcn)
+import TestUtils (gvn, tcn, vcn, zeroIDs, zeroTypeIDs)
 import Tests.Gen.Core.Typed
 
 unit_identity :: Assertion
@@ -619,8 +616,6 @@ smartSynthGives eIn eExpect =
     -- Compare result to input, ignoring any difference in IDs
     (Right (_, eGot), Right (_, eExpect')) -> on (@?=) (normaliseAnnotations . zeroIDs) eGot eExpect'
   where
-    zeroIDs :: ExprT -> ExprT
-    zeroIDs = over _exprMeta (setID 0) . over _exprTypeMeta (setID 0)
     -- We want eGot and eExpect' to have the same type annotations, but they
     -- may differ on whether they were synthed or checked, and this is OK
     normaliseAnnotations :: ExprT -> Expr' (Meta (Type' ())) (Meta Kind)
@@ -643,9 +638,7 @@ smartSynthKindGives tIn tExpect =
     (_, Left err) -> assertFailure $ "Error in expected: " <> show err
     (Left err, _) -> assertFailure $ "Error in input: " <> show err
     -- Compare result to input, ignoring any difference in IDs
-    (Right (_, tGot), Right (_, tExpect')) -> on (@?=) zeroIDs tGot tExpect'
-  where
-    zeroIDs = over _typeMeta (setID 0)
+    (Right (_, tGot), Right (_, tExpect')) -> on (@?=) zeroTypeIDs tGot tExpect'
 
 newtype TypecheckTestM a = TypecheckTestM {unTypecheckTestM :: ExceptT TypeError (ReaderT Cxt TestM) a}
   deriving newtype
