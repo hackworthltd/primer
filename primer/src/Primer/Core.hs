@@ -68,6 +68,7 @@ module Primer.Core (
   ExprMeta,
   TypeMeta,
   Meta (Meta),
+  trivialMeta,
   _type,
   _exprMeta,
   _exprMetaLens,
@@ -164,6 +165,9 @@ _synthed = #_TCSynthed `afailing` (#_TCEmb % #tcSynthed)
 -- modifying the AST in an action we aren't necessarily sure of the type of the
 -- nodes we're inserting.
 type ExprMeta = Meta (Maybe TypeCache)
+
+trivialMeta :: ID -> Meta (Maybe a)
+trivialMeta id = Meta id Nothing Nothing
 
 newtype ModuleName = ModuleName {unModuleName :: NonEmpty Name}
   deriving (Eq, Ord, Show, Data, Generic)

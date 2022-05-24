@@ -87,10 +87,12 @@ import Primer.Core.Utils (
   freshLocalName,
   freshLocalName',
   generateTypeIDs,
+  regenerateExprIDs,
+  regenerateTypeIDs,
   _freeVars,
   _freeVarsTy,
  )
-import Primer.Eval (regenerateExprIDs, regenerateTypeIDs, tryPrimFun)
+import Primer.Eval (tryPrimFun)
 import Primer.JSON (CustomJSON (CustomJSON), FromJSON, ToJSON, VJSON)
 import Primer.Name (Name, NameCounter)
 import Primer.Typecheck (instantiateValCons', lookupConstructor)
