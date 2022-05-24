@@ -236,6 +236,7 @@ afterRename' rename normalise fromVar toVar input output = do
       case result of
         Nothing -> assertFailure "rename failed"
         Just r -> on (@?=) normalise r expected
+
 -- * 'unfoldApp' tests
 
 unit_unfoldApp_1 :: Assertion
