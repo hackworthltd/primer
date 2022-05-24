@@ -11,7 +11,6 @@ import Foreword
 
 import qualified Data.List.NonEmpty as NE
 import Optics (
-  set,
   to,
   (%),
   (^.),
@@ -55,10 +54,10 @@ import Primer.Core (
   _id,
   _synthed,
   _type,
-  _typeMeta,
   _typeMetaLens,
  )
 import Primer.Core.Transform (unfoldFun)
+import Primer.Core.Utils (forgetTypeIDs)
 import Primer.Name (unName)
 import Primer.Questions (Question (..))
 
@@ -523,7 +522,7 @@ basicActionsForExpr l defName expr = case expr of
         , input =
             actionWithNames
               defName
-              (Left $ set (_Just % _typeMeta) () t)
+              (Left $ forgetTypeIDs <$> t)
               (\n -> [RenameLet n])
               m'
               ("Choose a new " <> nameString <> " for the let binding")

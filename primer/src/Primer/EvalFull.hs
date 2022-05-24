@@ -26,7 +26,7 @@ import Data.Set.Optics (setOf)
 import Data.Tuple.Extra (thd3)
 import GHC.Err (error)
 import Numeric.Natural (Natural)
-import Optics (AffineFold, Fold, afolding, anyOf, getting, set, summing, to, (%), _2, _3)
+import Optics (AffineFold, Fold, afolding, anyOf, getting, summing, to, (%), _2, _3)
 import Primer.Core (
   ASTDef (..),
   ASTTypeDef (..),
@@ -76,11 +76,20 @@ import Primer.Core (
   ValConName,
   bindName,
   defPrim,
-  _typeMeta,
  )
 import Primer.Core.DSL (ann, letType, let_, letrec, lvar, tvar)
 import Primer.Core.Transform (unfoldAPP, unfoldApp)
-import Primer.Core.Utils (concreteTy, freeVars, freeVarsTy, freshLocalName, freshLocalName', generateTypeIDs, _freeVars, _freeVarsTy)
+import Primer.Core.Utils (
+  concreteTy,
+  forgetTypeIDs,
+  freeVars,
+  freeVarsTy,
+  freshLocalName,
+  freshLocalName',
+  generateTypeIDs,
+  _freeVars,
+  _freeVarsTy,
+ )
 import Primer.Eval (regenerateExprIDs, regenerateTypeIDs, tryPrimFun)
 import Primer.JSON (CustomJSON (CustomJSON), FromJSON, ToJSON, VJSON)
 import Primer.Name (Name, NameCounter)
@@ -284,7 +293,7 @@ viewCaseRedex tydefs = \case
   Case m expr brs
     | Just (c, tyargs, args, patterns, br) <- extract expr brs
     , Just (_, tydef) <- lookupConstructor tydefs c
-    , ty <- foldl (\t a -> TApp () t $ set _typeMeta () a) (TCon () (astTypeDefName tydef)) (take (length $ astTypeDefParameters tydef) tyargs)
+    , ty <- foldl (\t a -> TApp () t $ forgetTypeIDs a) (TCon () (astTypeDefName tydef)) (take (length $ astTypeDefParameters tydef) tyargs)
     , Just argTys <- instantiateCon ty c ->
         renameBindings m expr brs tyargs args patterns
           <|> formCaseRedex (Right ty) c argTys args patterns br
@@ -302,7 +311,7 @@ viewCaseRedex tydefs = \case
             _ -> Nothing
     instantiateCon :: MonadFresh NameCounter m => Type' a -> ValConName -> Maybe [m (Type' ())]
     instantiateCon ty c
-      | Right (_, instVCs) <- instantiateValCons' tydefs $ set _typeMeta () ty
+      | Right (_, instVCs) <- instantiateValCons' tydefs $ forgetTypeIDs ty
       , Just (_, argTys) <- find ((== c) . fst) instVCs =
           Just argTys
       | otherwise = Nothing

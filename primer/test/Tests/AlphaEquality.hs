@@ -8,15 +8,13 @@ import Gen.Core.Raw (
   genType,
  )
 import Hedgehog hiding (check)
-import Optics (set)
 import Primer.Builtins
 import Primer.Core (
   Kind (KFun, KType),
   Type',
-  _typeMeta,
  )
 import Primer.Core.DSL
-import Primer.Core.Utils (alphaEqTy)
+import Primer.Core.Utils (alphaEqTy, forgetTypeIDs)
 import Test.Tasty.HUnit hiding (assert)
 
 unit_1 :: Assertion
@@ -87,7 +85,7 @@ unit_11 =
 
 hprop_refl :: Property
 hprop_refl = property $ do
-  t <- set _typeMeta () <$> forAll (evalExprGen 0 genType)
+  t <- forgetTypeIDs <$> forAll (evalExprGen 0 genType)
   assert $ alphaEqTy t t
 
 hprop_alpha :: Property
@@ -99,7 +97,7 @@ hprop_alpha = property $ do
     f v = create' $ tforall v KType $ tvar v
 
 create' :: S (Type' a) -> Alpha
-create' = Alpha . set _typeMeta () . fst . create
+create' = Alpha . forgetTypeIDs . fst . create
 
 -- | Like @Type' ()@, but 'Eq' only compares up to alpha-equality.
 newtype Alpha = Alpha (Type' ())

@@ -184,7 +184,7 @@ unit_rename_def_referenced =
       fmap defName (lookupDef' "other" prog') @?= Nothing
       fmap defName (lookupDef' "foo" prog') @?= Just (gvn "foo")
       fmap defName (lookupDef' "main" prog') @?= Just (gvn "main")
-      fmap (set _exprMeta () . astDefExpr) (defAST =<< lookupDef' "main" prog') @?= Just (Var () $ globalVarRef "foo")
+      fmap (forgetIDs . astDefExpr) (defAST =<< lookupDef' "main" prog') @?= Just (Var () $ globalVarRef "foo")
 
 unit_rename_def_recursive :: Assertion
 unit_rename_def_recursive =
@@ -197,7 +197,7 @@ unit_rename_def_recursive =
     $ expectSuccess $ \_ prog' -> do
       fmap defName (lookupDef' "main" prog') @?= Nothing
       fmap defName (lookupDef' "foo" prog') @?= Just (gvn "foo")
-      fmap (set _exprMeta () . astDefExpr) (defAST =<< lookupDef' "foo" prog') @?= Just (Var () $ globalVarRef "foo")
+      fmap (forgetIDs . astDefExpr) (defAST =<< lookupDef' "foo" prog') @?= Just (Var () $ globalVarRef "foo")
 
 unit_delete_def :: Assertion
 unit_delete_def =

@@ -2,15 +2,14 @@ module Tests.Subst where
 
 import Foreword
 
-import Optics (set)
 import Primer.Builtins (tBool, tList)
 import Primer.Core (
   Kind (KType),
   TyVarName,
   Type',
-  _typeMeta,
  )
 import Primer.Core.DSL
+import Primer.Core.Utils (forgetTypeIDs)
 import Primer.Subst
 import Test.Tasty.HUnit hiding (assert)
 import TestM (evalTestM)
@@ -40,7 +39,7 @@ unit_3 =
       (create' $ tforall "b" KType $ tcon tList `tapp` tvar "a")
 
 create' :: S (Type' a) -> Type' ()
-create' = set _typeMeta () . fst . create
+create' = forgetTypeIDs . fst . create
 
 substTy' :: TyVarName -> Type' () -> Type' () -> Type' ()
 substTy' n s t = evalTestM 0 $ substTy n s t
