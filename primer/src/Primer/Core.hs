@@ -405,14 +405,14 @@ data Kind = KHole | KType | KFun Kind Kind
 class HasID a where
   _id :: Lens' a ID
 
-instance HasType ID a => HasID (Expr' a b) where
-  _id = position @1 % typed @ID
+instance HasID a => HasID (Expr' a b) where
+  _id = position @1 % _id
 
-instance HasType ID a => HasID (Type' a) where
-  _id = position @1 % typed @ID
+instance HasID a => HasID (Type' a) where
+  _id = position @1 % _id
 
-instance HasType ID a => HasID (Bind' a) where
-  _id = position @1 % typed @ID
+instance HasID a => HasID (Bind' a) where
+  _id = position @1 % _id
 
 instance HasID (Meta a) where
   _id = position @1
