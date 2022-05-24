@@ -11,7 +11,6 @@ import Foreword
 
 import qualified Data.List.NonEmpty as NE
 import Optics (
-  set,
   to,
   (%),
   (^.),
@@ -49,16 +48,17 @@ import Primer.Core (
   Type,
   Type' (..),
   TypeCache (..),
+  getID,
   _bindMeta,
   _chkedAt,
   _exprMetaLens,
   _id,
   _synthed,
   _type,
-  _typeMeta,
   _typeMetaLens,
  )
 import Primer.Core.Transform (unfoldFun)
+import Primer.Core.Utils (forgetTypeIDs)
 import Primer.Name (unName)
 import Primer.Questions (Question (..))
 
@@ -93,9 +93,9 @@ actionsForDef l defs def =
       { name = Prose "d"
       , description = "Duplicate this definition"
       , input =
-          let sigID = astDefType def ^. _typeMetaLens % _id
+          let sigID = getID $ astDefType def
 
-              bodyID = astDefExpr def ^. _exprMetaLens % _id
+              bodyID = getID $ astDefExpr def
 
               qn = astDefName def
               copyName = uniquifyDefName (qualifiedModule qn) (unName (baseName qn) <> "Copy") defs
@@ -170,7 +170,7 @@ actionsForDefSig l def id ty =
           , priority = P.raise l
           , actionType = Destructive
           }
-        | id /= astDefType def ^. _typeMetaLens % _id
+        | id /= getID (astDefType def)
         ]
    in case findType id ty of
         Nothing -> mempty
@@ -211,7 +211,7 @@ findNodeWithParent :: forall a b. ID -> Expr' (Meta a) (Meta b) -> Maybe (SomeNo
 findNodeWithParent id x = go x Nothing
   where
     go expr parent
-      | expr ^. _exprMetaLens % _id == id = Just (ExprNode expr, parent)
+      | getID expr == id = Just (ExprNode expr, parent)
       | otherwise = case expr of
           Hole _ e -> go e (Just (ExprNode expr))
           EmptyHole _ -> Nothing
@@ -241,7 +241,7 @@ findNodeWithParent id x = go x Nothing
 -- | Find a sub-type in a larger type by its ID.
 findType :: forall b. ID -> Type' (Meta b) -> Maybe (Type' (Meta b))
 findType id ty
-  | ty ^. _typeMetaLens % _id == id = Just ty
+  | getID ty == id = Just ty
   | otherwise = case ty of
       TEmptyHole _ -> Nothing
       THole _ t -> findType id t
@@ -256,7 +256,7 @@ findTypeWithParent :: forall b. ID -> Type' (Meta b) -> Maybe (Type' (Meta b), M
 findTypeWithParent id x = go x Nothing
   where
     go ty parent
-      | ty ^. _typeMetaLens % _id == id = Just (ty, parent)
+      | getID ty == id = Just (ty, parent)
       | otherwise = case ty of
           TEmptyHole _ -> Nothing
           THole _ t -> go t (Just ty)
@@ -270,7 +270,7 @@ findTypeWithParent id x = go x Nothing
 -- This is just a helper for 'findNode'.
 findBind :: forall c. ID -> Bind' (Meta c) -> Maybe (Bind' (Meta c))
 findBind id bind
-  | bind ^. _bindMeta % _id == id = Just bind
+  | getID bind == id = Just bind
   | otherwise = Nothing
 
 -- | An ActionSpec is an OfferedAction that needs
@@ -523,7 +523,7 @@ basicActionsForExpr l defName expr = case expr of
         , input =
             actionWithNames
               defName
-              (Left $ set (_Just % _typeMeta) () t)
+              (Left $ forgetTypeIDs <$> t)
               (\n -> [RenameLet n])
               m'
               ("Choose a new " <> nameString <> " for the let binding")

@@ -20,7 +20,7 @@ import Gen.Core.Typed (
 import Hedgehog hiding (check)
 import qualified Hedgehog.Gen as Gen
 import qualified Hedgehog.Range as Range
-import Optics (over, set)
+import Optics (over)
 import Primer.App (
   Prog,
   newEmptyProg,
@@ -65,15 +65,12 @@ import Primer.Core (
   TypeDef (..),
   ValCon (..),
   astTypeDefConstructors,
-  setID,
   typeDefKind,
   valConType,
   _exprMeta,
-  _exprTypeMeta,
-  _typeMeta,
  )
 import Primer.Core.DSL
-import Primer.Core.Utils (generateIDs, generateTypeIDs)
+import Primer.Core.Utils (forgetTypeIDs, generateIDs, generateTypeIDs)
 import Primer.Module
 import Primer.Name (NameCounter)
 import Primer.Primitives (primitiveGVar, primitiveModule, tChar)
@@ -92,7 +89,7 @@ import Primer.Typecheck (
  )
 import Test.Tasty.HUnit (Assertion, assertFailure, (@?=))
 import TestM (TestM, evalTestM)
-import TestUtils (gvn, tcn, vcn)
+import TestUtils (gvn, tcn, vcn, zeroIDs, zeroTypeIDs)
 import Tests.Gen.Core.Typed
 
 unit_identity :: Assertion
@@ -235,11 +232,11 @@ unit_mkTAppCon = do
 hprop_decomposeTAppCon :: Property
 hprop_decomposeTAppCon = property $ do
   -- We correctly decompose "good" values
-  let genArgs = Gen.list (Range.linear 0 5) $ set _typeMeta () <$> genType
+  let genArgs = Gen.list (Range.linear 0 5) $ forgetTypeIDs <$> genType
   nargs <- forAll $ evalExprGen 0 $ liftA2 (,) genTyConName genArgs
   tripping nargs (uncurry mkTAppCon) decomposeTAppCon
   -- Also test that if we decompose, then it was "good"
-  ty <- forAll $ evalExprGen 0 $ set _typeMeta () <$> genType
+  ty <- forAll $ evalExprGen 0 $ forgetTypeIDs <$> genType
   let dec = decomposeTAppCon ty
   -- See Note [cover]
   -- cover 30 "decomposable" $ isJust dec
@@ -619,8 +616,6 @@ smartSynthGives eIn eExpect =
     -- Compare result to input, ignoring any difference in IDs
     (Right (_, eGot), Right (_, eExpect')) -> on (@?=) (normaliseAnnotations . zeroIDs) eGot eExpect'
   where
-    zeroIDs :: ExprT -> ExprT
-    zeroIDs = over _exprMeta (setID 0) . over _exprTypeMeta (setID 0)
     -- We want eGot and eExpect' to have the same type annotations, but they
     -- may differ on whether they were synthed or checked, and this is OK
     normaliseAnnotations :: ExprT -> Expr' (Meta (Type' ())) (Meta Kind)
@@ -643,9 +638,7 @@ smartSynthKindGives tIn tExpect =
     (_, Left err) -> assertFailure $ "Error in expected: " <> show err
     (Left err, _) -> assertFailure $ "Error in input: " <> show err
     -- Compare result to input, ignoring any difference in IDs
-    (Right (_, tGot), Right (_, tExpect')) -> on (@?=) zeroIDs tGot tExpect'
-  where
-    zeroIDs = over _typeMeta (setID 0)
+    (Right (_, tGot), Right (_, tExpect')) -> on (@?=) zeroTypeIDs tGot tExpect'
 
 newtype TypecheckTestM a = TypecheckTestM {unTypecheckTestM :: ExceptT TypeError (ReaderT Cxt TestM) a}
   deriving newtype

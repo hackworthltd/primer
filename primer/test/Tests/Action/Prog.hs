@@ -66,6 +66,7 @@ import Primer.Core (
   ASTDef (..),
   ASTTypeDef (..),
   Def (..),
+  DefMap,
   Expr,
   Expr' (..),
   GVarName,
@@ -88,10 +89,6 @@ import Primer.Core (
   qualifyName,
   typeDefAST,
   typeDefName,
-  _exprMeta,
-  _exprTypeMeta,
-  _id,
-  _typeMeta,
  )
 import Primer.Core.DSL (
   S,
@@ -121,7 +118,7 @@ import Primer.Primitives (primitiveGVar, primitiveModule, tChar)
 import Primer.Typecheck (SmartHoles (NoSmartHoles, SmartHoles), TypeError (UnknownTypeConstructor))
 import Test.Tasty.HUnit (Assertion, assertBool, assertFailure, (@=?), (@?=))
 import TestM (TestM, evalTestM)
-import TestUtils (constructCon, constructTCon)
+import TestUtils (constructCon, constructTCon, zeroIDs, zeroTypeIDs)
 import qualified TestUtils
 import Tests.Typecheck (checkProgWellFormed)
 import Prelude (error)
@@ -184,7 +181,7 @@ unit_rename_def_referenced =
       fmap defName (lookupDef' "other" prog') @?= Nothing
       fmap defName (lookupDef' "foo" prog') @?= Just (gvn "foo")
       fmap defName (lookupDef' "main" prog') @?= Just (gvn "main")
-      fmap (set _exprMeta () . astDefExpr) (defAST =<< lookupDef' "main" prog') @?= Just (Var () $ globalVarRef "foo")
+      fmap (forgetIDs . astDefExpr) (defAST =<< lookupDef' "main" prog') @?= Just (Var () $ globalVarRef "foo")
 
 unit_rename_def_recursive :: Assertion
 unit_rename_def_recursive =
@@ -197,7 +194,7 @@ unit_rename_def_recursive =
     $ expectSuccess $ \_ prog' -> do
       fmap defName (lookupDef' "main" prog') @?= Nothing
       fmap defName (lookupDef' "foo" prog') @?= Just (gvn "foo")
-      fmap (set _exprMeta () . astDefExpr) (defAST =<< lookupDef' "foo" prog') @?= Just (Var () $ globalVarRef "foo")
+      fmap (forgetIDs . astDefExpr) (defAST =<< lookupDef' "foo" prog') @?= Just (Var () $ globalVarRef "foo")
 
 unit_delete_def :: Assertion
 unit_delete_def =
@@ -541,7 +538,7 @@ unit_copy_paste_duplicate = do
       -- use the typechecked input p, as the result will have had a typecheck run, so
       -- we need the cached kinds to match up
       let src = lookupASTDef fromDef (foldMap moduleDefsQualified $ progModules tcp)
-          clearIDs = set (_Just % _defIDs) 0
+          clearIDs = fmap clearASTDefIDs
        in do
             src @?= lookupASTDef fromDef (foldMap moduleDefsQualified $ progModules r)
             assertBool "equal to toDef" $ src /= lookupASTDef' "blank" r
@@ -580,8 +577,7 @@ unit_copy_paste_type_scoping = do
     Right (tcpExpected, r) ->
       -- use the typechecked input p, as the result will have had a typecheck run, so
       -- we need the cached kinds to match up
-      let clearIDs = set (traversed % #_DefAST % _defIDs) 0
-       in clearIDs (foldMap moduleDefsQualified $ progModules r) @?= clearIDs (foldMap moduleDefsQualified $ progModules tcpExpected)
+      clearDefMapIDs (foldMap moduleDefsQualified $ progModules r) @?= clearDefMapIDs (foldMap moduleDefsQualified $ progModules tcpExpected)
 
 -- ∀a b.a ~> ∀a.a
 unit_raise :: Assertion
@@ -605,8 +601,7 @@ unit_raise = do
     Right (tcpExpected, r) ->
       -- use the typechecked input p, as the result will have had a typecheck run, so
       -- we need the cached kinds to match up
-      let clearIDs = set (traversed % #_DefAST % _defIDs) 0
-       in clearIDs (foldMap moduleDefsQualified $ progModules r) @?= clearIDs (foldMap moduleDefsQualified $ progModules tcpExpected)
+      clearDefMapIDs (foldMap moduleDefsQualified $ progModules r) @?= clearDefMapIDs (foldMap moduleDefsQualified $ progModules tcpExpected)
 
 -- ∀a. List a -> ∀b. b -> Pair a b
 -- /\a . λ x . case x of Nil -> ? ; Cons y ys -> /\@b z -> Pair @a @b y z
@@ -647,8 +642,7 @@ unit_copy_paste_expr_1 = do
     Right (tcpExpected, r) ->
       -- use the typechecked input p, as the result will have had a typecheck run, so
       -- we need the cached kinds to match up
-      let clearIDs = set (traversed % #_DefAST % _defIDs) 0
-       in clearIDs (foldMap moduleDefsQualified $ progModules r) @?= clearIDs (foldMap moduleDefsQualified $ progModules tcpExpected)
+      clearDefMapIDs (foldMap moduleDefsQualified $ progModules r) @?= clearDefMapIDs (foldMap moduleDefsQualified $ progModules tcpExpected)
 
 unit_copy_paste_ann :: Assertion
 unit_copy_paste_ann = do
@@ -673,7 +667,7 @@ unit_copy_paste_ann = do
       -- use the typechecked input p, as the result will have had a typecheck run, so
       -- we need the cached kinds to match up
       let src = lookupASTDef' fromDef' tcp
-          clearIDs = set (_Just % _defIDs) 0
+          clearIDs = fmap clearASTDefIDs
        in do
             src @?= lookupASTDef' fromDef' r
             assertBool "equal to blank" $ src /= lookupASTDef' toDef' r
@@ -698,8 +692,7 @@ unit_copy_paste_ann2sig = do
     Right (tcpExpected, r) ->
       -- use the typechecked input p, as the result will have had a typecheck run, so
       -- we need the cached kinds to match up
-      let clearIDs = set (traversed % #_DefAST % _defIDs) 0
-       in clearIDs (foldMap moduleDefsQualified $ progModules r) @?= clearIDs (foldMap moduleDefsQualified $ progModules tcpExpected)
+      clearDefMapIDs (foldMap moduleDefsQualified $ progModules r) @?= clearDefMapIDs (foldMap moduleDefsQualified $ progModules tcpExpected)
 
 unit_copy_paste_sig2ann :: Assertion
 unit_copy_paste_sig2ann = do
@@ -720,8 +713,7 @@ unit_copy_paste_sig2ann = do
     Right (tcpExpected, r) ->
       -- use the typechecked input p, as the result will have had a typecheck run, so
       -- we need the cached kinds to match up
-      let clearIDs = set (traversed % #_DefAST % _defIDs) 0
-       in clearIDs (foldMap moduleDefsQualified $ progModules r) @?= clearIDs (foldMap moduleDefsQualified $ progModules tcpExpected)
+      clearDefMapIDs (foldMap moduleDefsQualified $ progModules r) @?= clearDefMapIDs (foldMap moduleDefsQualified $ progModules tcpExpected)
 
 -- VariablesInScope sees imported terms
 unit_import_vars :: Assertion
@@ -1501,8 +1493,11 @@ unit_cross_module_actions =
           Left err -> assertFailure $ show err
           Right _ -> pure ()
 
-_defIDs :: Traversal' ASTDef ID
-_defIDs = #astDefExpr % (_exprMeta % _id `adjoin` _exprTypeMeta % _id) `adjoin` #astDefType % _typeMeta % _id
+clearASTDefIDs :: ASTDef -> ASTDef
+clearASTDefIDs = over #astDefExpr zeroIDs . over #astDefType zeroTypeIDs
+
+clearDefMapIDs :: DefMap -> DefMap
+clearDefMapIDs = over (traversed % #_DefAST) clearASTDefIDs
 
 -- Tests that the result is successful, and then applies the given test to the returned program
 -- The test takes two arguments: the original input program and the output program

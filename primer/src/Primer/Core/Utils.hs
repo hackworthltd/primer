@@ -2,8 +2,10 @@ module Primer.Core.Utils (
   freshLocalName,
   freshLocalName',
   generateTypeIDs,
+  regenerateTypeIDs,
   forgetTypeIDs,
   generateIDs,
+  regenerateExprIDs,
   forgetIDs,
   noHoles,
   _freeTmVars,
@@ -18,7 +20,7 @@ module Primer.Core.Utils (
 
 import Foreword
 
-import Control.Monad.Fresh (MonadFresh)
+import Control.Monad.Fresh (MonadFresh, fresh)
 import Data.Data (Data)
 import Data.Generics.Uniplate.Data (universe)
 import qualified Data.Map.Strict as M
@@ -29,6 +31,7 @@ import Primer.Core (
   CaseBranch' (..),
   Expr,
   Expr' (..),
+  HasID (_id),
   ID,
   Kind (KHole),
   LVarName,
@@ -38,11 +41,11 @@ import Primer.Core (
   Type,
   Type' (..),
   bindName,
+  trivialMeta,
   _exprMeta,
   _exprTypeMeta,
   _typeMeta,
  )
-import Primer.Core.DSL (meta)
 import Primer.Name (Name, NameCounter, freshName)
 
 -- | Helper, wrapping 'freshName'
@@ -53,18 +56,34 @@ freshLocalName = freshLocalName' . S.map unLocalName
 freshLocalName' :: MonadFresh NameCounter m => S.Set Name -> m (LocalName k)
 freshLocalName' = fmap LocalName . freshName
 
+-- | Regenerate all IDs, not changing any other metadata
+regenerateTypeIDs :: (HasID a, MonadFresh ID m) => Type' a -> m (Type' a)
+regenerateTypeIDs = regenerateTypeIDs' (set _id)
+
+regenerateTypeIDs' :: MonadFresh ID m => (ID -> a -> b) -> Type' a -> m (Type' b)
+regenerateTypeIDs' s = traverseOf _typeMeta (\a -> flip s a <$> fresh)
+
 -- | Adds 'ID's and trivial metadata
 generateTypeIDs :: MonadFresh ID m => Type' () -> m Type
-generateTypeIDs = traverseOf _typeMeta $ const meta
+generateTypeIDs = regenerateTypeIDs' $ const . trivialMeta
 
 -- | Replace all 'ID's in a Type with unit.
 -- Technically this replaces all annotations, regardless of what they are.
 forgetTypeIDs :: Type' a -> Type' ()
 forgetTypeIDs = set _typeMeta ()
 
+-- | Regenerate all IDs, not changing any other metadata
+regenerateExprIDs :: (HasID a, HasID b, MonadFresh ID m) => Expr' a b -> m (Expr' a b)
+regenerateExprIDs = regenerateExprIDs' (set _id) (set _id)
+
+regenerateExprIDs' :: MonadFresh ID m => (ID -> a -> a') -> (ID -> b -> b') -> Expr' a b -> m (Expr' a' b')
+regenerateExprIDs' se st =
+  traverseOf _exprMeta (\a -> flip se a <$> fresh)
+    >=> traverseOf _exprTypeMeta (\a -> flip st a <$> fresh)
+
 -- | Like 'generateTypeIDs', but for expressions
 generateIDs :: MonadFresh ID m => Expr' () () -> m Expr
-generateIDs = traverseOf _exprTypeMeta (const meta) <=< traverseOf _exprMeta (const meta)
+generateIDs = regenerateExprIDs' (const . trivialMeta) (const . trivialMeta)
 
 -- | Like 'forgetTypeIDs', but for expressions
 forgetIDs :: Expr' a b -> Expr' () ()

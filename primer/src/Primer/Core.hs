@@ -68,6 +68,7 @@ module Primer.Core (
   ExprMeta,
   TypeMeta,
   Meta (Meta),
+  trivialMeta,
   _type,
   _exprMeta,
   _exprMetaLens,
@@ -164,6 +165,9 @@ _synthed = #_TCSynthed `afailing` (#_TCEmb % #tcSynthed)
 -- modifying the AST in an action we aren't necessarily sure of the type of the
 -- nodes we're inserting.
 type ExprMeta = Meta (Maybe TypeCache)
+
+trivialMeta :: ID -> Meta (Maybe a)
+trivialMeta id = Meta id Nothing Nothing
 
 newtype ModuleName = ModuleName {unModuleName :: NonEmpty Name}
   deriving (Eq, Ord, Show, Data, Generic)
@@ -405,14 +409,14 @@ data Kind = KHole | KType | KFun Kind Kind
 class HasID a where
   _id :: Lens' a ID
 
-instance HasType ID a => HasID (Expr' a b) where
-  _id = position @1 % typed @ID
+instance HasID a => HasID (Expr' a b) where
+  _id = position @1 % _id
 
-instance HasType ID a => HasID (Type' a) where
-  _id = position @1 % typed @ID
+instance HasID a => HasID (Type' a) where
+  _id = position @1 % _id
 
-instance HasType ID a => HasID (Bind' a) where
-  _id = position @1 % typed @ID
+instance HasID a => HasID (Bind' a) where
+  _id = position @1 % _id
 
 instance HasID (Meta a) where
   _id = position @1

@@ -19,8 +19,6 @@ module Primer.Eval (
   PushAppIntoLetrecDetail (..),
   ApplyPrimFunDetail (..),
   Locals,
-  regenerateExprIDs,
-  regenerateTypeIDs,
   tryPrimFun,
   -- Only exported for testing
   tryReduceExpr,
@@ -31,7 +29,7 @@ module Primer.Eval (
 import Foreword
 
 import Control.Arrow ((***))
-import Control.Monad.Fresh (MonadFresh, fresh)
+import Control.Monad.Fresh (MonadFresh)
 import Data.Generics.Product (position)
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
@@ -44,7 +42,6 @@ import Optics (
   notElemOf,
   set,
   to,
-  traverseOf,
   view,
   (%),
   (^.),
@@ -80,16 +77,16 @@ import Primer.Core (
   bindName,
   defPrim,
   getID,
-  _exprMeta,
-  _exprTypeMeta,
-  _typeMeta,
  )
 import Primer.Core.DSL (ann, hole, letType, let_, tEmptyHole)
 import Primer.Core.Transform (removeAnn, renameLocalVar, renameTyVarExpr, unfoldAPP, unfoldApp)
 import Primer.Core.Utils (
   concreteTy,
+  forgetIDs,
   freeVars,
   freeVarsTy,
+  regenerateExprIDs,
+  regenerateTypeIDs,
   _freeTmVars,
   _freeTyVars,
   _freeVars,
@@ -874,16 +871,6 @@ tryReduceType _globals locals = \case
           )
   _ -> throwError NotRedex
 
--- Traverse a type, regenerating all its IDs
-regenerateTypeIDs :: (HasID a, MonadFresh ID m) => Type' a -> m (Type' a)
-regenerateTypeIDs = traverseOf (_typeMeta % _id) (const fresh)
-
--- Traverse an expression, regenerating all its IDs
-regenerateExprIDs :: (HasID a, HasID b, MonadFresh ID m) => Expr' a b -> m (Expr' a b)
-regenerateExprIDs =
-  traverseOf (_exprMeta % _id) (const fresh)
-    >=> traverseOf (_exprTypeMeta % _id) (const fresh)
-
 -- | @x `munless` b@ is `x` if `b` is 'False', otherwise it is 'mempty'.
 -- It's like 'Control.Monad.unless' but for Monoids rather than Applicatives.
 munless :: Monoid a => a -> Bool -> a
@@ -896,7 +883,7 @@ tryPrimFun primDefs expr
   | (Var _ (GlobalVarRef name), args) <- bimap stripAnns (map stripAnns) $ unfoldApp expr
   , Map.member name primDefs
   , Just PrimFun{primFunDef} <- Map.lookup name allPrimDefs
-  , Right e <- primFunDef $ set _exprMeta () . set _exprTypeMeta () <$> args =
+  , Right e <- primFunDef $ forgetIDs <$> args =
       Just (name, args, e)
   | otherwise = Nothing
   where

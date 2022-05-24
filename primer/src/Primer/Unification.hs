@@ -11,9 +11,9 @@ import qualified Data.Set as S
 import Optics (anyOf, getting, over, set)
 import Primer.Core (
   ID,
-  Meta (Meta),
   TyVarName,
   Type' (TApp, TCon, TEmptyHole, TForall, TFun, THole, TVar),
+  trivialMeta,
   _typeMeta,
  )
 import Primer.Core.Utils (_freeVarsTy)
@@ -65,7 +65,7 @@ unify cxt unificationVars s t = do
       -- checkKind succeeded, and not the result. Thus we just add some dummy
       -- ones.
       -- TODO: this is a bit of a code smell!
-      let addPointlessMeta = set _typeMeta (Meta 0 Nothing Nothing)
+      let addPointlessMeta = set _typeMeta $ trivialMeta 0
       let f v vt = case lookupLocalTy v cxt of
             Right k -> All . isRight <$> runExceptT @TypeError (runReaderT (checkKind k $ addPointlessMeta vt) (cxt{smartHoles = NoSmartHoles}))
             -- this catchall should never happen: sb should only contain
