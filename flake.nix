@@ -414,27 +414,34 @@
         }
         // primerFlake.checks;
 
-      apps = {
-        inherit (pkgs) run-primer primer-openapi-spec;
+      apps =
+        let
+          mkApp = pkg: script: {
+            type = "app";
+            program = "${pkg}/bin/${script}";
+          };
+        in
+        (pkgs.lib.mapAttrs (name: pkg: mkApp pkg name) {
+          inherit (pkgs) run-primer primer-openapi-spec;
 
-        inherit (pkgs)
-          create-local-db
-          deploy-local-db
-          verify-local-db
-          revert-local-db
-          status-local-db
-          log-local-db
-          delete-local-db
-          dump-local-db
-          restore-local-db
+          inherit (pkgs)
+            create-local-db
+            deploy-local-db
+            verify-local-db
+            revert-local-db
+            status-local-db
+            log-local-db
+            delete-local-db
+            dump-local-db
+            restore-local-db
 
-          primer-sqitch
+            primer-sqitch
 
-          deploy-postgresql-container
-          start-postgresql-container
-          stop-postgresql-container;
-      }
-      // primerFlake.apps;
+            deploy-postgresql-container
+            start-postgresql-container
+            stop-postgresql-container;
+        })
+        // primerFlake.apps;
 
       defaultApp = self.apps.${system}.run-primer;
 
