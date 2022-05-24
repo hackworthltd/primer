@@ -129,17 +129,13 @@ import Primer.Core (
   unModuleName,
   unsafeMkGlobalName,
   unsafeMkLocalName,
-  _exprMeta,
   _exprMetaLens,
-  _exprTypeMeta,
-  _id,
-  _typeMeta,
   _typeMetaLens,
  )
 import Primer.Core.DSL (create, emptyHole, tEmptyHole)
 import qualified Primer.Core.DSL as DSL
 import Primer.Core.Transform (foldApp, renameVar, unfoldAPP, unfoldApp, unfoldTApp)
-import Primer.Core.Utils (freeVars, _freeTmVars, _freeTyVars, _freeVarsTy)
+import Primer.Core.Utils (freeVars, regenerateExprIDs, regenerateTypeIDs, _freeTmVars, _freeTyVars, _freeVarsTy)
 import Primer.Eval (EvalDetail, EvalError)
 import qualified Primer.Eval as Eval
 import Primer.EvalFull (Dir, EvalFullError (TimedOut), TerminationBound, evalFull)
@@ -1131,7 +1127,7 @@ copyPasteSig p (fromDefName, fromTyId) toDefName setup = do
             then pure $ TVar m n
             else fresh <&> \i -> TEmptyHole (Meta i Nothing Nothing)
     cScoped <- traverseOf _freeVarsTy f cTgt
-    freshCopy <- traverseOf (_typeMeta % _id) (const fresh) cScoped
+    freshCopy <- regenerateTypeIDs cScoped
     pasted <- case target tgt of
       TEmptyHole _ -> pure $ replace freshCopy tgt
       _ -> throwError $ CopyPasteError "copy/paste setup didn't select an empty hole"
@@ -1264,7 +1260,7 @@ copyPasteBody p (fromDefName, fromId) toDefName setup = do
                 then pure $ TVar m n
                 else fresh <&> \i -> TEmptyHole (Meta i Nothing Nothing)
         scopedCopy <- traverseOf _freeVarsTy f srcSubtree
-        freshCopy <- traverseOf (_typeMeta % _id) (const fresh) scopedCopy
+        freshCopy <- regenerateTypeIDs scopedCopy
         pasted <- case target tgtT of
           TEmptyHole _ -> pure $ replace freshCopy tgtT
           _ -> throwError $ CopyPasteError "copy/paste setup didn't select an empty hole"
@@ -1286,9 +1282,7 @@ copyPasteBody p (fromDefName, fromId) toDefName setup = do
                 then pure $ TVar m n
                 else fresh <&> \i -> TEmptyHole (Meta i Nothing Nothing)
         scopedCopy <- traverseOf _freeTyVars ty =<< traverseOf _freeTmVars tm (target srcE)
-        freshCopy <-
-          traverseOf (_exprTypeMeta % _id) (const fresh)
-            =<< traverseOf (_exprMeta % _id) (const fresh) scopedCopy
+        freshCopy <- regenerateExprIDs scopedCopy
         -- TODO: need to care about types and directions here (and write tests for this caring!)
         {-
         - Currently, with smart holes, nothing will go too wrong (i.e. no crashes/rejections happen), but if
