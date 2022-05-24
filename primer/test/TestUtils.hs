@@ -9,6 +9,7 @@ module TestUtils (
   gvn,
   zeroIDs,
   zeroTypeIDs,
+  exprIDs,
   clearMeta,
   clearTypeMeta,
 ) where
@@ -17,7 +18,7 @@ import Foreword
 
 import Control.Monad.Fresh (MonadFresh)
 import qualified Data.Map as Map
-import Optics (adjoin, over, set, view, (%))
+import Optics (Traversal', adjoin, over, set, view, (%))
 import Primer.Action (Action (ConstructCon, ConstructRefinedCon, ConstructTCon))
 import Primer.Core (
   Expr',
@@ -76,9 +77,12 @@ tcn = qualifyName . ModuleName
 gvn :: NonEmpty Name -> Name -> GVarName
 gvn = qualifyName . ModuleName
 
+exprIDs :: (HasID a, HasID b) => Traversal' (Expr' a b) ID
+exprIDs = (_exprMeta % _id) `adjoin` (_exprTypeMeta % _id)
+
 -- | Replace all 'ID's in an Expr with 0.
 zeroIDs :: (HasID a, HasID b) => Expr' a b -> Expr' a b
-zeroIDs = set (_exprMeta % _id `adjoin` _exprTypeMeta % _id) 0
+zeroIDs = set exprIDs 0
 
 -- | Replace all 'ID's in a Type with 0.
 zeroTypeIDs :: HasID a => Type' a -> Type' a

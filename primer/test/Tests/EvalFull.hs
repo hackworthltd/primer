@@ -59,7 +59,7 @@ import Primer.Typecheck (
  )
 import Test.Tasty.HUnit (Assertion, assertBool, assertFailure, (@?=))
 import TestM
-import TestUtils (gvn, withPrimDefs)
+import TestUtils (exprIDs, gvn, withPrimDefs, zeroIDs)
 import Tests.Action.Prog (runAppTestM)
 import Tests.Eval ((~=))
 import Tests.Gen.Core.Typed (checkTest)
@@ -654,7 +654,7 @@ hprop_prim_hex_nat = withTests 20 . property $ do
                 `aPP` tcon tChar
               <*> pure (DefPrim <$> globals)
       s = evalFullTest maxID builtinTypes gs 7 Syn e
-  set _ids' 0 s === set _ids' 0 (Right r)
+  over evalResultExpr zeroIDs s === Right (zeroIDs r)
 
 unit_prim_char_eq_1 :: Assertion
 unit_prim_char_eq_1 =
@@ -1157,20 +1157,17 @@ testModule =
                   }
         }
 
-_ids :: Traversal' Expr ID
-_ids = (_exprMeta % _id) `adjoin` (_exprTypeMeta % _id)
-
-_ids' :: Traversal' (Either EvalFullError Expr) ID
-_ids' = _Left % timedOut % _ids `adjoin` _Right % _ids
+evalResultExpr :: Traversal' (Either EvalFullError Expr) Expr
+evalResultExpr = _Left % timedOut `adjoin` _Right
   where
     timedOut = prism TimedOut (Right . \case TimedOut e -> e)
 
 (<~==>) :: HasCallStack => Either EvalFullError Expr -> Either EvalFullError Expr -> Assertion
-x <~==> y = on (@?=) (set _ids' 0) x y
+x <~==> y = on (@?=) (over evalResultExpr zeroIDs) x y
 
 distinctIDs :: Either EvalFullError Expr -> Assertion
 distinctIDs e =
-  let ids = e ^.. _ids'
+  let ids = e ^.. evalResultExpr % exprIDs
       nIds = length ids
       uniqIDs = S.fromList ids
       nDistinct = S.size uniqIDs

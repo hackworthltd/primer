@@ -8,7 +8,7 @@ import qualified Data.ByteString.Lazy.Char8 as BS
 import Data.List.Extra (enumerate)
 import qualified Data.Text as T
 import qualified Data.Text.Lazy as TL
-import Optics (adjoin, toListOf, (%))
+import Optics (toListOf, (%))
 import Primer.Action (ActionName (..), OfferedAction (name))
 import Primer.Action.Available (actionsForDef, actionsForDefBody, actionsForDefSig)
 import Primer.Builtins
@@ -19,8 +19,6 @@ import Primer.Core (
   ID,
   Kind (KType),
   moduleNamePretty,
-  _exprMeta,
-  _exprTypeMeta,
   _typeMeta,
  )
 import Primer.Core.DSL (
@@ -53,7 +51,7 @@ import System.FilePath ((</>))
 import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.Golden (goldenVsString)
 import Test.Tasty.HUnit ()
-import TestUtils (gvn)
+import TestUtils (exprIDs, gvn)
 import Text.Pretty.Simple (pShowNoColor)
 
 -- | This definition contains every construct in the Primer language.
@@ -182,7 +180,7 @@ mkTests def =
                         , map name $ actionsForDefBody level def id (astDefExpr def)
                         )
                     )
-                    . toListOf (_exprMeta % _id `adjoin` _exprTypeMeta % _id)
+                    . toListOf exprIDs
                     $ astDefExpr def
                 sigActions =
                   map
