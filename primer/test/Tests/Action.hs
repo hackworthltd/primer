@@ -12,7 +12,6 @@ import Hedgehog hiding (
   Action,
   Var,
  )
-import Optics (over, view)
 import Primer.Action (
   Action (..),
   ActionError (RefineError),
@@ -23,16 +22,10 @@ import Primer.Builtins
 import Primer.Core (
   Expr,
   Expr' (..),
-  ExprMeta,
   ID (..),
   Kind (KType),
   TmVarRef (LocalVarRef),
-  TypeMeta,
-  Value,
   getID,
-  _exprMeta,
-  _exprTypeMeta,
-  _metadata,
  )
 import Primer.Core.DSL
 import Primer.Typecheck (SmartHoles (NoSmartHoles, SmartHoles))
@@ -46,7 +39,7 @@ import Primer.Zipper (
  )
 import Test.Tasty.HUnit (Assertion, assertFailure, (@?=))
 import TestM (evalTestM)
-import TestUtils (constructCon, constructRefinedCon, constructTCon)
+import TestUtils (clearMeta, constructCon, constructRefinedCon, constructTCon)
 
 -- | The largest used ID in an expression
 maxID :: Expr -> ID
@@ -977,10 +970,6 @@ actionTest sh inputExpr actions expectedOutput = do
   -- NB: we don't compare up-to-alpha, as names should be determined by the
   -- actions on-the-nose
   clearMeta result @?= clearMeta expected
-  where
-    -- Clear the backend-created metadata (IDs and cached types) in the given expression
-    clearMeta :: Expr' ExprMeta TypeMeta -> Expr' (Maybe Value) (Maybe Value)
-    clearMeta = over _exprMeta (view _metadata) . over _exprTypeMeta (view _metadata)
 
 -- | Attempt to apply the actions to the input expression and test that they
 -- in fact cause an error to be raised.

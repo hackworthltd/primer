@@ -2,13 +2,12 @@ module Tests.Transform where
 
 import Foreword
 
-import Optics (over, view)
 import Primer.Builtins
 import Primer.Core
 import Primer.Core.DSL
 import Primer.Core.Transform
 import Test.Tasty.HUnit (Assertion, assertFailure, (@?=))
-import TestUtils (vcn)
+import TestUtils (clearMeta, clearTypeMeta, vcn)
 
 -- When renaming we have to be careful of binding sites. If we're renaming x to
 -- y and we encounter a binding site for a new variable v, then there are three
@@ -210,25 +209,13 @@ unit_cross_aPP = afterRenameCross "x" "y" (aPP emptyHole $ tvar "x") (Just $ aPP
 
 afterRename :: HasCallStack => LVarName -> LVarName -> S Expr -> Maybe (S Expr) -> Assertion
 afterRename = afterRename' renameLocalVar clearMeta
-  where
-    -- Clear the backend-created metadata (IDs and cached types) in the given expression
-    clearMeta :: Expr' ExprMeta TypeMeta -> Expr' (Maybe Value) (Maybe Value)
-    clearMeta = over _exprMeta (view _metadata) . over _exprTypeMeta (view _metadata)
 
 afterRenameTy :: HasCallStack => TyVarName -> TyVarName -> S Type -> Maybe (S Type) -> Assertion
-afterRenameTy = afterRename' renameTyVar clearMeta
-  where
-    -- Clear the backend-created metadata (IDs and cached types) in the given expression
-    clearMeta :: Type' TypeMeta -> Type' (Maybe Value)
-    clearMeta = over _typeMeta (view _metadata)
+afterRenameTy = afterRename' renameTyVar clearTypeMeta
 
 -- | A helper to test the renaming of type variables inside terms
 afterRenameCross :: HasCallStack => TyVarName -> TyVarName -> S Expr -> Maybe (S Expr) -> Assertion
 afterRenameCross = afterRename' renameTyVarExpr clearMeta
-  where
-    -- Clear the backend-created metadata (IDs and cached types) in the given expression
-    clearMeta :: Expr' ExprMeta TypeMeta -> Expr' (Maybe Value) (Maybe Value)
-    clearMeta = over _exprMeta (view _metadata) . over _exprTypeMeta (view _metadata)
 
 afterRename' ::
   (HasCallStack, Show a, Show b, Eq a, Eq b) =>
@@ -239,7 +226,7 @@ afterRename' ::
   S a ->
   Maybe (S a) ->
   Assertion
-afterRename' rename clearMeta fromVar toVar input output = do
+afterRename' rename normalise fromVar toVar input output = do
   let (x, _) = create input
       result = rename fromVar toVar x
   case output of
@@ -248,7 +235,7 @@ afterRename' rename clearMeta fromVar toVar input output = do
       let (expected, _) = create o
       case result of
         Nothing -> assertFailure "rename failed"
-        Just r -> on (@?=) clearMeta r expected
+        Just r -> on (@?=) normalise r expected
 -- * 'unfoldApp' tests
 
 unit_unfoldApp_1 :: Assertion

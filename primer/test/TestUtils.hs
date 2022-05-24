@@ -9,25 +9,31 @@ module TestUtils (
   gvn,
   zeroIDs,
   zeroTypeIDs,
+  clearMeta,
+  clearTypeMeta,
 ) where
 
 import Foreword
 
 import Control.Monad.Fresh (MonadFresh)
 import qualified Data.Map as Map
-import Optics (adjoin, over, set, (%))
+import Optics (adjoin, over, set, view, (%))
 import Primer.Action (Action (ConstructCon, ConstructRefinedCon, ConstructTCon))
 import Primer.Core (
   Expr',
+  ExprMeta,
   GVarName,
   GlobalName (baseName, qualifiedModule),
   HasID,
+  HasMetadata (_metadata),
   ID,
   ModuleName (ModuleName, unModuleName),
   PrimDef (..),
   TyConName,
   Type',
+  TypeMeta,
   ValConName,
+  Value,
   primFunType,
   qualifyName,
   setID,
@@ -77,3 +83,11 @@ zeroIDs = set (_exprMeta % _id `adjoin` _exprTypeMeta % _id) 0
 -- | Replace all 'ID's in a Type with 0.
 zeroTypeIDs :: HasID a => Type' a -> Type' a
 zeroTypeIDs = over _typeMeta (setID 0)
+
+-- | Clear the backend-created metadata (IDs and cached types) in the given expression
+clearMeta :: Expr' ExprMeta TypeMeta -> Expr' (Maybe Value) (Maybe Value)
+clearMeta = over _exprMeta (view _metadata) . over _exprTypeMeta (view _metadata)
+
+-- | Clear the backend-created metadata (IDs and cached types) in the given expression
+clearTypeMeta :: Type' TypeMeta -> Type' (Maybe Value)
+clearTypeMeta = over _typeMeta (view _metadata)
