@@ -7,23 +7,33 @@ module TestUtils (
   tcn,
   vcn,
   gvn,
+  zeroIDs,
+  zeroTypeIDs,
 ) where
 
 import Foreword
 
 import Control.Monad.Fresh (MonadFresh)
 import qualified Data.Map as Map
+import Optics (adjoin, set, (%))
 import Primer.Action (Action (ConstructCon, ConstructRefinedCon, ConstructTCon))
 import Primer.Core (
+  Expr',
   GVarName,
   GlobalName (baseName, qualifiedModule),
+  HasID,
   ID,
   ModuleName (ModuleName, unModuleName),
   PrimDef (..),
   TyConName,
+  Type',
   ValConName,
   primFunType,
   qualifyName,
+  _exprMeta,
+  _exprTypeMeta,
+  _id,
+  _typeMeta,
  )
 import Primer.Name (Name (unName))
 import Primer.Primitives (allPrimDefs)
@@ -58,3 +68,11 @@ tcn = qualifyName . ModuleName
 
 gvn :: NonEmpty Name -> Name -> GVarName
 gvn = qualifyName . ModuleName
+
+-- | Replace all 'ID's in an Expr with 0.
+zeroIDs :: (HasID a, HasID b) => Expr' a b -> Expr' a b
+zeroIDs = set (_exprMeta % _id `adjoin` _exprTypeMeta % _id) 0
+
+-- | Replace all 'ID's in a Type with 0.
+zeroTypeIDs :: HasID a => Type' a -> Type' a
+zeroTypeIDs = set (_typeMeta % _id) 0
