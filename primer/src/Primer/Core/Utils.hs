@@ -175,7 +175,10 @@ _freeTmVars = traversalVL $ go mempty
       APP m e ty -> APP m <$> go bound f e <*> pure ty
       t@Con{} -> pure t
       Lam m v e -> Lam m v <$> go (S.insert v bound) f e
-      LAM m tv e -> LAM m tv <$> go bound f e
+      LAM m tv e ->
+        -- A well scoped term will not refer to tv as a term
+        -- variable, so we do not need to add it to the bound set
+        LAM m tv <$> go bound f e
       t@(Var m v)
         | LocalVarRef n <- v
         , not $ S.member n bound ->
@@ -183,7 +186,10 @@ _freeTmVars = traversalVL $ go mempty
         | otherwise -> pure t
       Let m v e b -> Let m v <$> go bound f e <*> go (S.insert v bound) f b
       Letrec m v e t b -> Letrec m v <$> go (S.insert v bound) f e <*> pure t <*> go (S.insert v bound) f b
-      LetType m v ty e -> LetType m v ty <$> go bound f e
+      LetType m tv ty e ->
+        -- A well scoped term will not refer to tv as a term
+        -- variable, so we do not need to add it to the bound set
+        LetType m tv ty <$> go bound f e
       Case m e bs -> Case m <$> go bound f e <*> traverse freeVarsBr bs
       t@PrimCon{} -> pure t
       where
@@ -200,11 +206,20 @@ _freeTyVars = traversalVL $ go mempty
       App m e s -> App m <$> go bound f e <*> go bound f s
       APP m e ty -> APP m <$> go bound f e <*> traverseFreeVarsTy bound f ty
       t@Con{} -> pure t
-      Lam m v e -> Lam m v <$> go bound f e
+      Lam m v e ->
+        -- A well scoped term will not refer to v as a type
+        -- variable, so we do not need to add it to the bound set
+        Lam m v <$> go bound f e
       LAM m tv e -> LAM m tv <$> go (S.insert tv bound) f e
-      t@Var{} -> pure t
-      Let m v e b -> Let m v <$> go bound f e <*> go bound f b
-      Letrec m v e ty b -> Letrec m v <$> go bound f e <*> traverseFreeVarsTy bound f ty <*> go bound f b
+      t@Var{} -> pure t -- These are always term variables, so not a target
+      Let m v e b ->
+        -- A well scoped term will not refer to v as a type
+        -- variable, so we do not need to add it to the bound set
+        Let m v <$> go bound f e <*> go bound f b
+      Letrec m v e ty b ->
+        -- A well scoped term will not refer to v as a type
+        -- variable, so we do not need to add it to the bound set
+        Letrec m v <$> go bound f e <*> traverseFreeVarsTy bound f ty <*> go bound f b
       LetType m v ty e -> LetType m v <$> traverseFreeVarsTy bound f ty <*> go (S.insert v bound) f e
       Case m e bs -> Case m <$> go bound f e <*> traverse freeVarsBr bs
       t@PrimCon{} -> pure t
