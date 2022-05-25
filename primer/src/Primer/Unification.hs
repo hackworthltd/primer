@@ -37,6 +37,9 @@ data InternalUnifyError
 -- | Attempts to find a substitution for the given variables that makes the types consistent (i.e. equal-up-to-holes).
 -- We represent unification variables as TVars which happen to have names in the given set.
 -- We unify without caring about kinds, but afterwards check that the solution is well-kinded.
+-- We ensure that (if a unifier is found) the returned substitution is idempotent, in the sense that
+-- it only needs to be applied once to remove all solved unification variables; i.e. in the RHS there
+-- never appears a solved unification variable.
 -- We ensure we are stable under swapping the two input types
 --  (for testing purposes: it is easy to do here, but quite awkward to figure out what the symmetry property should be if we don't
 --   - the problem starts when unifying two unifvars: could get either way around, but then the knockon effects are complex
@@ -156,7 +159,7 @@ unify' (TForall _ n1 k1 t1) (TForall _ n2 k2 t2) | consistentKinds k1 k2 = local
 unify' s t = throwError $ NotUnify s t
 
 -- We delay substitution till unifyVar case, so the monadic (>>) can be trivial
--- but we want the substitution to be "grounded": free of solved unif vars on rhs
+-- but we want the substitution to be "grounded"/"idempotent": free of solved unif vars on rhs
 --  so: before record, need to subst in soln; after record need to subst new sol'n in every rhs
 unifyVar :: MonadFresh NameCounter m => TyVarName -> Type -> U m ()
 unifyVar v t =
