@@ -51,15 +51,19 @@ renameVar x y expr = case expr of
     | sameVarRef v x -> pure expr
     | sameVarRef v y -> Nothing
     | otherwise -> substAllChildren
-  Let _ v _ _
-    | sameVarRef v x -> pure expr
+  Let m v e1 e2
+    -- the binding only scopes over e2
+    | sameVarRef v x -> Let m v <$> renameVar x y e1 <*> pure e2
     | sameVarRef v y -> Nothing
     | otherwise -> substAllChildren
-  LetType _ v _ _
+  LetType _ v _ty _e
+    -- the binding only scopes over _e, but due to assuming well-scoped-ness,
+    -- we don't need to rename inside _ty.
     | sameVarRef v x -> pure expr
     | sameVarRef v y -> Nothing
     | otherwise -> substAllChildren
   Letrec _ v _ _ _
+    -- the binding scopes over both expressions, and we need not rename inside types
     | sameVarRef v x -> pure expr
     | sameVarRef v y -> Nothing
     | otherwise -> substAllChildren
@@ -134,16 +138,19 @@ renameTyVarExpr x y expr = case expr of
     | v == x -> pure expr
     | v == y -> Nothing
     | otherwise -> substAllChildren
-  Let _ v _ _
-    | sameVar v x -> pure expr
+  Let m v e1 e2
+    -- the binding only scopes over e2
+    | sameVar v x -> Let m v <$> renameTyVarExpr x y e1 <*> pure e2
     | sameVar v y -> Nothing
     | otherwise -> substAllChildren
-  LetType _ v _ _
-    | sameVar v x -> pure expr
+  LetType m v ty e
+    -- the binding only scopes over e
+    | sameVar v x -> LetType m v <$> renameTyVar x y ty <*> pure e
     | sameVar v y -> Nothing
     | otherwise -> substAllChildren
-  Letrec _ v _ _ _
-    | sameVar v x -> pure expr
+  Letrec m v e1 ty e2
+    -- the binding only scopes over e1 and e2
+    | sameVar v x -> Letrec m v e1 <$> renameTyVar x y ty <*> pure e2
     | sameVar v y -> Nothing
     | otherwise -> substAllChildren
   Case m scrut branches -> Case m <$> renameTyVarExpr x y scrut <*> mapM renameBranch branches

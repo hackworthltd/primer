@@ -247,12 +247,35 @@ data Expr' a b
   | Lam a LVarName (Expr' a b)
   | LAM a TyVarName (Expr' a b)
   | Var a TmVarRef
-  | Let a LVarName (Expr' a b) (Expr' a b)
+  | Let
+      a
+      LVarName
+      -- ^ bound variable
+      (Expr' a b)
+      -- ^ value the variable is bound to
+      (Expr' a b)
+      -- ^ expression the binding scopes over
   | -- | LetType binds a type to a name in some expression.
     -- It is currently only constructed automatically during evaluation -
     -- the student can't directly make it.
-    LetType a TyVarName (Type' b) (Expr' a b)
-  | Letrec a LVarName (Expr' a b) (Type' b) (Expr' a b)
+    LetType
+      a
+      TyVarName
+      -- ^ bound variable
+      (Type' b)
+      -- ^ value the variable is bound to
+      (Expr' a b)
+      -- ^ expression the binding scopes over
+  | Letrec
+      a
+      LVarName
+      -- ^ bound variable
+      (Expr' a b)
+      -- ^ value the variable is bound to; the variable itself is in scope, as this is a recursive let
+      (Type' b)
+      -- ^ type of the bound variable (variable is not in scope in this type)
+      (Expr' a b)
+      -- ^ body of the let; binding scopes over this
   | Case a (Expr' a b) [CaseBranch' a b] -- See Note [Case]
   | PrimCon a PrimCon
   deriving (Eq, Show, Data, Generic)
