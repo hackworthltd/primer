@@ -41,7 +41,10 @@ data InternalUnifyError
 --  (for testing purposes: it is easy to do here, but quite awkward to figure out what the symmetry property should be if we don't
 --   - the problem starts when unifying two unifvars: could get either way around, but then the knockon effects are complex
 --   - eg @(unif1 -> unif3) \`unify\` (unif2 -> List unif2)@ says @unif1:=unif2; unif3:=List unif2@
---   - but symmetric version says @unif2:=unif1; unif3:=List unif1@
+--   - but symmetric version might say @unif2:=unif1; unif3:=List unif1@
+--   - We are careful to always give the first result.
+--   - However, this choice is not stable under renaming unification variables: an equivalent
+--     unification problem with different names may choose the "other" solution.
 --  )
 unify ::
   (MonadFresh ID m, MonadFresh NameCounter m, MonadError InternalUnifyError m) =>
