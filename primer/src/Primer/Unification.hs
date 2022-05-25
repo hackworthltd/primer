@@ -47,7 +47,8 @@ unify ::
   (MonadFresh ID m, MonadFresh NameCounter m, MonadError InternalUnifyError m) =>
   -- | We only care about local type vars and typedefs, for kind-checking our unifier
   Cxt ->
-  -- | Which type variables should be considered as unification variables? This should be a subset of the Cxt
+  -- | Which type variables should be considered as unification variables? This should be a subset of the @Cxt@.
+  -- All @Cxt@ vars are considered in scope for a solution of any unification variable.
   S.Set TyVarName ->
   Type ->
   Type ->
@@ -167,6 +168,9 @@ unifyVar v t =
       bound <- asks (M.keysSet . boundVarsR)
       let f (_, n) = n == v || S.member n bound
       -- occurs check + check t' does not mention bound variables which wouldn't be in scope for the unifier
+      -- (It is not necessary to check boundVarsL, since such a reference could only occur via the expansion
+      -- of another uv (a uv on the left will get solved by a subterm of the rhs, modulo expanding
+      -- previously-solved uvs), and thus we would have noticed the problem in a previous iteration.
       if anyOf (getting _freeVarsTy) f t'
         then throwError $ OccursBoundCheckFail v t'
         else solve v t'
