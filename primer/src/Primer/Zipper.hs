@@ -9,6 +9,8 @@ module Primer.Zipper (
   TypeZ,
   CaseBindZ,
   updateCaseBind,
+  unfocusCaseBind,
+  caseBindZFocus,
   IsZipper (asZipper),
   Loc,
   Loc' (..),
