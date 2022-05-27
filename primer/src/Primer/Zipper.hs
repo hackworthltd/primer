@@ -326,8 +326,12 @@ replace :: (IsZipper za a) => a -> za -> za
 replace = over asZipper . replaceHole
 
 -- | Focus on the node with the given 'ID', if it exists in the expression
-focusOn :: (Data a, Data b, Eq a, HasID a, HasID b) => ID -> ExprZ' a b -> Maybe (Loc' a b)
-focusOn i = fmap snd . search matchesID
+focusOn :: (Data a, Data b, Eq a, HasID a, HasID b) => ID -> Expr' a b -> Maybe (Loc' a b)
+focusOn i = focusOn' i . focus
+
+-- | Focus on the node with the given 'ID', if it exists in the focussed expression
+focusOn' :: (Data a, Data b, Eq a, HasID a, HasID b) => ID -> ExprZ' a b -> Maybe (Loc' a b)
+focusOn' i = fmap snd . search matchesID
   where
     matchesID z
       -- If the current target has the correct ID, return that
@@ -343,9 +347,17 @@ focusOn i = fmap snd . search matchesID
 focusOnTy ::
   (Data b, HasID b) =>
   ID ->
+  Type' b ->
+  Maybe (Zipper (Type' b) (Type' b))
+focusOnTy i = focusOnTy' i . focus
+
+-- | Focus on the node with the given 'ID', if it exists in the focussed type
+focusOnTy' ::
+  (Data b, HasID b) =>
+  ID ->
   Zipper (Type' b) (Type' b) ->
   Maybe (Zipper (Type' b) (Type' b))
-focusOnTy i = fmap snd . search matchesID
+focusOnTy' i = fmap snd . search matchesID
   where
     matchesID z
       -- If the current target has the correct ID, return that

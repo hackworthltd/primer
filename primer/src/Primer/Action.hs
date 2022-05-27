@@ -135,6 +135,7 @@ import Primer.Zipper (
   target,
   top,
   unfocus,
+  unfocusExpr,
   unfocusLoc,
   unfocusType,
   up,
@@ -516,7 +517,7 @@ applyActionsToBody sh modules def actions =
           e = unfocus ze
       e' <- exprTtoExpr <$> check (forgetTypeIDs (astDefType def)) e
       let def' = def{astDefExpr = e'}
-      case focusOn targetID (focus e') of
+      case focusOn targetID e' of
         Nothing -> throwError $ InternalFailure "lost ID after typechecking"
         Just z -> pure (def', z)
 
@@ -527,7 +528,7 @@ applyActionAndCheck ty action z = do
       targetID = getID z'
   typedAST <- check (forgetTypeIDs ty) e
   -- Refocus on where we were previously
-  case focusOn targetID (focus (exprTtoExpr typedAST)) of
+  case focusOn targetID (exprTtoExpr typedAST) of
     Just z'' -> pure z''
     Nothing -> throwError $ CustomFailure action "internal error: lost ID after typechecking"
 
@@ -561,7 +562,7 @@ synthZ z =
    in do
         (_, typedAST) <- synth e
         -- Refocus on where we were previously
-        pure $ focusOn targetID $ focus $ exprTtoExpr typedAST
+        pure $ focusOn targetID $ exprTtoExpr typedAST
 
 applyAction' :: ActionM m => Action -> Loc -> m Loc
 applyAction' a = case a of
@@ -629,7 +630,7 @@ applyAction' a = case a of
       _ -> throwError $ CustomFailure a s
 
 setCursor :: ActionM m => ID -> ExprZ -> m Loc
-setCursor i e = case focusOn i (top e) of
+setCursor i e = case focusOn i (unfocusExpr e) of
   Just e' -> pure e'
   Nothing -> throwError $ IDNotFound i
 

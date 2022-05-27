@@ -25,7 +25,7 @@ hprop_focusOn_unfocus_roundtrip :: Property
 hprop_focusOn_unfocus_roundtrip = property $ do
   e <- forAll $ evalExprGen 0 genExpr
   i <- forAll $ Gen.element $ idsIn e
-  case focusOn i (focus e) of
+  case focusOn i e of
     Just e' -> unfocus e' === e
     _ -> annotateShow i >> failure
 
@@ -35,7 +35,7 @@ hprop_focusOn_succeeds_on_valid_ids :: Property
 hprop_focusOn_succeeds_on_valid_ids = property $ do
   e <- forAll $ evalExprGen 0 genExpr
   forM_ (idsIn e) $ \i -> do
-    case focusOn i (focus e) of
+    case focusOn i e of
       Just (InExpr e') -> getID (target e') === i
       Just (InType t) -> getID (target t) === i
       Just (InBind (BindCase b)) -> getID (target b) === i
