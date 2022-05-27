@@ -117,11 +117,12 @@ import Primer.Typecheck (
  )
 import qualified Primer.Typecheck as TC
 import Primer.Zipper (
-  BindLoc (..),
+  BindLoc' (..),
   CaseBindZ,
   ExprZ,
   IsZipper,
-  Loc (..),
+  Loc,
+  Loc' (..),
   TypeZ,
   down,
   focus,

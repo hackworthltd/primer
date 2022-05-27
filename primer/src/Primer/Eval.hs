@@ -97,7 +97,7 @@ import Primer.Name (Name, unName, unsafeMkName)
 import Primer.Primitives (allPrimDefs)
 import Primer.Zipper (
   ExprZ,
-  Loc (InExpr, InType),
+  Loc' (InExpr, InType),
   TypeZ,
   current,
   focus,

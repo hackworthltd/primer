@@ -172,7 +172,7 @@ import Primer.Typecheck (
  )
 import Primer.Zipper (
   ExprZ,
-  Loc (InBind, InExpr, InType),
+  Loc' (InBind, InExpr, InType),
   TypeZ,
   TypeZip,
   bindersAbove,

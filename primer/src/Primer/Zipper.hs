@@ -10,8 +10,10 @@ module Primer.Zipper (
   CaseBindZ,
   updateCaseBind,
   IsZipper (asZipper),
-  Loc (..),
-  BindLoc (..),
+  Loc,
+  Loc' (..),
+  BindLoc,
+  BindLoc' (..),
   focusType,
   focusLoc,
   unfocusType,
@@ -117,7 +119,7 @@ data TypeZ' a b = TypeZ (TypeZip' b) (Type' b -> ExprZ' a b)
 
 type TypeZ = TypeZ' ExprMeta TypeMeta
 
-instance HasID TypeZ where
+instance HasID b => HasID (TypeZ' a b) where
   _id = position @1 % _id
 
 -- | A zipper for variable bindings in case branches.
@@ -128,19 +130,21 @@ instance HasID TypeZ where
 -- simultaneously, yielding a new expression.
 -- These fields are chosen to be convenient for renaming, and they may not be that useful for future
 -- actions we want to perform.
-data CaseBindZ = CaseBindZ
-  { caseBindZExpr :: ExprZ
+data CaseBindZ' a b = CaseBindZ
+  { caseBindZExpr :: ExprZ' a b
   -- ^ a zipper focused on the case expression
-  , caseBindZFocus :: Bind' ExprMeta
+  , caseBindZFocus :: Bind' a
   -- ^ the focused binding
-  , caseBindZRhs :: Expr
+  , caseBindZRhs :: Expr' a b
   -- ^ the rhs of the branch
-  , caseBindAllBindings :: [Bind' ExprMeta]
+  , caseBindAllBindings :: [Bind' a]
   -- ^ all other bindings in the case branch, i.e. all except the focused one
-  , caseBindZUpdate :: Bind' ExprMeta -> Expr -> ExprZ -> ExprZ
+  , caseBindZUpdate :: Bind' a -> Expr' a b -> ExprZ' a b -> ExprZ' a b
   -- ^ a function to update the focused binding and rhs simultaneously
   }
   deriving (Generic)
+
+type CaseBindZ = CaseBindZ' ExprMeta TypeMeta
 
 -- Apply an update function to the focus of a case binding, optionally modifying the rhs of the branch too.
 -- The update function is given three arguments:
@@ -161,21 +165,23 @@ updateCaseBind (CaseBindZ z bind rhs bindings update) f =
     let z' = update bind' rhs' z
      in CaseBindZ z' bind' rhs' bindings update
 
-instance HasID CaseBindZ where
+instance HasID a => HasID (CaseBindZ' a b) where
   _id = field @"caseBindZFocus" % _id
 
 -- | A specific location in our AST.
 -- This can either be in an expression, type, or binding.
-data Loc
+data Loc' a b
   = -- | An expression
-    InExpr ExprZ
+    InExpr (ExprZ' a b)
   | -- | A type
-    InType TypeZ
+    InType (TypeZ' a b)
   | -- | A binding (currently just case bindings)
-    InBind BindLoc
+    InBind (BindLoc' a b)
   deriving (Generic)
 
-instance HasID Loc where
+type Loc = Loc' ExprMeta TypeMeta
+
+instance (HasID a, HasID b) => HasID (Loc' a b) where
   _id = lens getter setter
     where
       getter = \case
@@ -190,12 +196,14 @@ instance HasID Loc where
 -- | A location of a binding.
 -- This only covers bindings in case branches for now.
 
-{- HLINT ignore BindLoc "Use newtype instead of data" -}
-data BindLoc
-  = BindCase CaseBindZ
+{- HLINT ignore BindLoc' "Use newtype instead of data" -}
+data BindLoc' a b
+  = BindCase (CaseBindZ' a b)
   deriving (Generic)
 
-instance HasID BindLoc where
+type BindLoc = BindLoc' ExprMeta TypeMeta
+
+instance HasID a => HasID (BindLoc' a b) where
   _id = position @1 % _id
 
 -- | Switch from an 'Expr' zipper to a 'Type' zipper, focusing on the type in
@@ -212,7 +220,7 @@ focusType z = do
 -- | If the currently focused expression is a case expression, search the bindings of its branches
 -- to find one matching the given ID, and return the 'Loc' for that binding.
 -- If no match is found, return @Nothing@.
-findInCaseBinds :: ID -> ExprZ -> Maybe Loc
+findInCaseBinds :: (Data a, Data b, Eq a, HasID a) => ID -> ExprZ' a b -> Maybe (Loc' a b)
 findInCaseBinds i z = do
   let branchesLens = _target % _Ctor @"Case" % position @3
   branches <- preview branchesLens z
@@ -284,7 +292,7 @@ focusLoc :: Expr -> Loc
 focusLoc = InExpr . focus
 
 -- Convert a 'CaseBindZ' to an 'ExprZ' by shifting focus to the parent case expression.
-unfocusCaseBind :: CaseBindZ -> ExprZ
+unfocusCaseBind :: CaseBindZ' a b -> ExprZ' a b
 unfocusCaseBind = caseBindZExpr
 
 -- | Convert an 'Expr' zipper to an 'Expr'
@@ -302,7 +310,7 @@ unfocusLoc (InBind (BindCase z)) = unfocusCaseBind z
 -- If the 'Loc' is in a case bind, we shift focus to the parent case expression.
 -- This function is mainly to keep compatibility with code which still expects 'Either ExprZ TypeZ'
 -- as a representation of an AST location.
-locToEither :: Loc -> Either ExprZ TypeZ
+locToEither :: Loc' a b -> Either (ExprZ' a b) (TypeZ' a b)
 locToEither (InBind (BindCase z)) = Left $ unfocusCaseBind z
 locToEither (InExpr z) = Left z
 locToEither (InType z) = Right z
@@ -317,7 +325,7 @@ replace :: (IsZipper za a) => a -> za -> za
 replace = over asZipper . replaceHole
 
 -- | Focus on the node with the given 'ID', if it exists in the expression
-focusOn :: ID -> ExprZ -> Maybe Loc
+focusOn :: (Data a, Data b, Eq a, HasID a, HasID b) => ID -> ExprZ' a b -> Maybe (Loc' a b)
 focusOn i = fmap snd . search matchesID
   where
     matchesID z
