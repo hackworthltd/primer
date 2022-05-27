@@ -67,6 +67,7 @@ import Primer.Zipper (
   caseBindZFocus,
   focus,
   focusOn,
+  focusOnTy,
   target,
   unfocusCaseBind,
   unfocusType,
@@ -241,17 +242,8 @@ findNodeWithParent id x = do
     )
 
 -- | Find a sub-type in a larger type by its ID.
-findType :: forall b. ID -> Type' (Meta b) -> Maybe (Type' (Meta b))
-findType id ty
-  | getID ty == id = Just ty
-  | otherwise = case ty of
-      TEmptyHole _ -> Nothing
-      THole _ t -> findType id t
-      TCon _ _ -> Nothing
-      TVar _ _ -> Nothing
-      TFun _ a b -> findType id a <|> findType id b
-      TApp _ a b -> findType id a <|> findType id b
-      TForall _ _ _ t -> findType id t
+findType :: forall b. Data b => ID -> Type' (Meta b) -> Maybe (Type' (Meta b))
+findType id ty = target <$> focusOnTy id (focus ty)
 
 -- | An ActionSpec is an OfferedAction that needs
 -- metadata in order to be used. Typically this is because it starts with

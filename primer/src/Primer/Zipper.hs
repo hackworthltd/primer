@@ -92,7 +92,6 @@ import Primer.Core (
   ID,
   LocalName (unLocalName),
   TyVarName,
-  Type,
   Type' (TForall),
   TypeMeta,
   bindName,
@@ -341,7 +340,11 @@ focusOn i = fmap snd . search matchesID
            in inType <|> inCaseBinds
 
 -- | Focus on the node with the given 'ID', if it exists in the type
-focusOnTy :: ID -> Zipper Type Type -> Maybe (Zipper Type Type)
+focusOnTy ::
+  (Data b, HasID b) =>
+  ID ->
+  Zipper (Type' b) (Type' b) ->
+  Maybe (Zipper (Type' b) (Type' b))
 focusOnTy i = fmap snd . search matchesID
   where
     matchesID z
