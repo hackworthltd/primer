@@ -385,7 +385,7 @@ redexes primDefs = go mempty
             App _ e1@Lam{} e2 -> self <> go locals e1 <> go locals e2
             -- (λ ... : T) x
             App _ e1@(Ann _ Lam{} _) e2 -> self <> go locals e1 <> go locals e2
-            -- (letrec x : T = λ ...) e
+            -- (letrec x : T = t in λ ...) e
             -- We can reduce an application across a letrec as long as x isn't a free variable in e.
             -- If it was, it would be a different x and we'd cause variable capture if we
             -- substituted e into the λ body.
@@ -397,7 +397,7 @@ redexes primDefs = go mempty
             App _ e1 e2 -> go locals e1 <> go locals e2
             APP _ e@LAM{} t -> self <> go locals e <> goType letTy t
             APP _ e@(Ann _ LAM{} _) t -> self <> go locals e <> goType letTy t
-            -- (letrec x : T = Λ ...) e
+            -- (letrec x : T = t in Λ ...) e
             -- This is the same as the letrec case above, but for Λ
             APP _ e1@(Letrec _ x _ _ LAM{}) e4 ->
               (self `munless` member' x (freeVarsTy e4)) <> go locals e1 <> goType letTy e4
@@ -578,7 +578,7 @@ tryReduceExpr globals locals = \case
             , betaTypes = types
             }
       )
-  -- (letrec x : T = λ ...) e
+  -- (letrec x : T = t in λ ...) e
   before@(App mApp (Letrec mLet x e1 t lam@Lam{}) e2) | notMember x (freeVars e2) -> do
     -- We push the application into the letrec, in order to enable it to reduce in a subsequent
     -- step.
@@ -673,7 +673,7 @@ tryReduceExpr globals locals = \case
                 }
           )
       _ -> throwError $ BadBigLambdaAnnotation annotation
-  -- (letrec x : T = Λ ...) e
+  -- (letrec x : T = t in Λ ...) e
   before@(APP mApp (Letrec mLet x e1 t lam@LAM{}) e2) | notMember' x (freeVarsTy e2) -> do
     -- We push the application into the letrec, in order to enable it to reduce in a subsequent
     -- step.
