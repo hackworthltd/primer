@@ -36,7 +36,7 @@ import Primer.Core (
   GlobalName,
   ID,
   Kind (KType),
-  ModuleName (ModuleName),
+  mkSimpleModuleName,
   qualifyName,
  )
 import Primer.Core.DSL (
@@ -59,7 +59,7 @@ import Primer.Core.DSL (
 import Primer.Name (Name)
 
 qn :: Name -> GlobalName k
-qn = qualifyName (ModuleName $ "Examples" :| [])
+qn = qualifyName $ mkSimpleModuleName "Examples"
 
 -- | The polymorphic function @map@ (over @List a@ as defined by
 -- 'listDef').

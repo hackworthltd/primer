@@ -66,7 +66,7 @@ import Primer.Core (
   GlobalName (baseName),
   ID,
   Kind (KType),
-  ModuleName (ModuleName),
+  mkSimpleModuleName,
   qualifyName,
  )
 import Primer.Core.DSL (
@@ -248,7 +248,7 @@ insertSessionRow row conn =
 testASTDef :: ASTDef
 testASTDefNextID :: ID
 (testASTDef, testASTDefNextID) =
-  mkASTDef (qualifyName (ModuleName $ "TestModule" :| []) "1") t e
+  mkASTDef (qualifyName (mkSimpleModuleName "TestModule") "1") t e
   where
     t =
       tfun
@@ -360,7 +360,7 @@ testApp =
         { progImports = [builtinModule, primitiveModule]
         , progModules =
             [ Module
-                { moduleName = ModuleName $ "TestModule" :| []
+                { moduleName = mkSimpleModuleName "TestModule"
                 , moduleTypes = mempty
                 , moduleDefs = Map.singleton (baseName $ astDefName testASTDef) (DefAST testASTDef)
                 }

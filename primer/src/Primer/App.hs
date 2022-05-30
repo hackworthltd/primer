@@ -118,6 +118,7 @@ import Primer.Core (
   defName,
   defPrim,
   getID,
+  mkSimpleModuleName,
   qualifyName,
   typeDefAST,
   typesInExpr,
@@ -997,12 +998,12 @@ newEmptyProg :: Prog
 newEmptyProg =
   let expr = EmptyHole (Meta 1 Nothing Nothing)
       ty = TEmptyHole (Meta 2 Nothing Nothing)
-      def = DefAST $ ASTDef (qualifyName (ModuleName $ "Main" :| []) "main") expr ty
+      def = DefAST $ ASTDef (qualifyName (mkSimpleModuleName "Main") "main") expr ty
    in Prog
         { progImports = mempty
         , progModules =
             [ Module
-                { moduleName = ModuleName $ "Main" :| []
+                { moduleName = mkSimpleModuleName "Main"
                 , moduleTypes = mempty
                 , moduleDefs = Map.singleton (baseName $ defName def) def
                 }
@@ -1029,9 +1030,9 @@ newProg =
     { progImports = [builtinModule, primitiveModule]
     , progModules =
         [ Module
-            { moduleName = ModuleName $ "Main" :| []
+            { moduleName = mkSimpleModuleName "Main"
             , moduleTypes = mempty
-            , moduleDefs = defaultDefs $ ModuleName $ "Main" :| []
+            , moduleDefs = defaultDefs $ mkSimpleModuleName "Main"
             }
         ]
     }

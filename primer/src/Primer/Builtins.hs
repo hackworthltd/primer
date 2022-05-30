@@ -41,19 +41,20 @@ import Primer.Core (
   ),
   GlobalName,
   Kind (KType),
-  ModuleName (ModuleName),
+  ModuleName,
   TyConName,
   Type' (TApp, TCon, TVar),
   TypeDef (TypeDefAST),
   ValCon (ValCon),
   ValConName,
+  mkSimpleModuleName,
   qualifyName,
  )
 import Primer.Module (Module (Module, moduleDefs, moduleName, moduleTypes), mkTypeDefMap)
 import Primer.Name (Name)
 
 builtinModuleName :: ModuleName
-builtinModuleName = ModuleName $ "Builtins" :| []
+builtinModuleName = mkSimpleModuleName "Builtins"
 
 builtin :: Name -> GlobalName k
 builtin = qualifyName builtinModuleName
