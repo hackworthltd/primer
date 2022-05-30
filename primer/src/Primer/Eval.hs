@@ -346,7 +346,9 @@ findNodeByID i expr = do
       let locals = foldAbove collectBinding z
        in pure (locals, Left z)
     InType z ->
-      let locals = foldAbove collectBinding (unfocusType z)
+      let -- Since we are only collecting various sorts of let bindings,
+          -- we don't need to look in types, as they cannot contain let bindings
+          locals = foldAbove collectBinding (unfocusType z)
        in pure (locals, Right z)
     _ -> Nothing
   where
