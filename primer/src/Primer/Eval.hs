@@ -581,7 +581,7 @@ tryReduceExpr globals locals = \case
   -- (letrec x : T = t in λ ...) e
   before@(App mApp (Letrec mLet x e1 t lam@Lam{}) e2) | notMember x (freeVars e2) -> do
     -- We push the application into the letrec, in order to enable it to reduce in a subsequent
-    -- step.
+    -- step. This does not cause capture, as we have checked that x is not free in e2.
     let expr = annotate (annOf mApp) $ Letrec mLet x e1 t (App mApp lam e2)
     pure
       ( expr
@@ -676,7 +676,7 @@ tryReduceExpr globals locals = \case
   -- (letrec x : T = t in Λ ...) e
   before@(APP mApp (Letrec mLet x e1 t lam@LAM{}) e2) | notMember' x (freeVarsTy e2) -> do
     -- We push the application into the letrec, in order to enable it to reduce in a subsequent
-    -- step.
+    -- step. This does not cause capture, as we have checked that x is not free in e2.
     let expr = annotate (annOf mApp) $ Letrec mLet x e1 t (APP mApp lam e2)
     pure
       ( expr
