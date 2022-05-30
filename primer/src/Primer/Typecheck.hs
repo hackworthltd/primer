@@ -456,9 +456,9 @@ checkEverything sh CheckEverything{trusted, toCheck} =
    in flip runReaderT cxt $ do
         for_ toCheck $ \m -> do
           -- Check the type definitions have the right modules
-          checkNames typeDefName moduleTypes m $ "Inconsistant names in moduleTypes for module " <> moduleNamePretty (moduleName m)
+          checkNames typeDefName moduleTypes m $ "Inconsistent names in moduleTypes for module " <> moduleNamePretty (moduleName m)
           -- Check that the definition map has the right keys
-          checkNames defName moduleDefs m $ "Inconsistant names in moduleDefs map for module " <> moduleNamePretty (moduleName m)
+          checkNames defName moduleDefs m $ "Inconsistent names in moduleDefs map for module " <> moduleNamePretty (moduleName m)
         checkTypeDefs $ foldMap moduleTypesQualified toCheck
         let newTypes = foldMap moduleTypesQualified toCheck
             newDefs =

@@ -549,7 +549,7 @@ unit_bad_prim_map_base = case runTypecheckTestM NoSmartHoles $ do
       { trusted = progModules newProg
       , toCheck = [Module (ModuleName ["M"]) mempty $ Map.singleton "foo" $ DefPrim foo]
       } of
-  Left err -> err @?= InternalError "Inconsistant names in moduleDefs map for module M"
+  Left err -> err @?= InternalError "Inconsistent names in moduleDefs map for module M"
   Right _ -> assertFailure "Expected failure but succeeded"
 
 unit_bad_prim_map_module :: Assertion
@@ -562,7 +562,7 @@ unit_bad_prim_map_module = case runTypecheckTestM NoSmartHoles $ do
       { trusted = progModules newProg
       , toCheck = [Module (ModuleName ["M"]) mempty $ Map.singleton "foo" $ DefPrim foo]
       } of
-  Left err -> err @?= InternalError "Inconsistant names in moduleDefs map for module M"
+  Left err -> err @?= InternalError "Inconsistent names in moduleDefs map for module M"
   Right _ -> assertFailure "Expected failure but succeeded"
 
 unit_bad_prim_type :: Assertion
