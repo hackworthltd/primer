@@ -14,8 +14,9 @@
 module Primer.Examples (
   -- * Functions as top-level definitions.
 
-  --
-  -- These live in the Primer module named @Examples@.
+  -- | In Primer, top-level definitions names must be qualified by
+  -- their module name. These examples take a 'ModuleName' so that the
+  -- 'Def's they return can be resued in multiple contexts.
   map,
   map',
   even,
@@ -33,10 +34,9 @@ import qualified Primer.Builtins as B
 import Primer.Core (
   ASTDef (ASTDef),
   Def (DefAST),
-  GlobalName,
   ID,
   Kind (KType),
-  mkSimpleModuleName,
+  ModuleName,
   qualifyName,
  )
 import Primer.Core.DSL (
@@ -56,16 +56,12 @@ import Primer.Core.DSL (
   tfun,
   tvar,
  )
-import Primer.Name (Name)
-
-qn :: Name -> GlobalName k
-qn = qualifyName $ mkSimpleModuleName "Examples"
 
 -- | The polymorphic function @map@ (over @List a@ as defined by
 -- 'listDef').
-map :: MonadFresh ID m => m Def
-map =
-  let this = qn "map"
+map :: MonadFresh ID m => ModuleName -> m Def
+map modName =
+  let this = qualifyName modName "map"
    in do
         type_ <- tforall "a" KType $ tforall "b" KType $ (tvar "a" `tfun` tvar "b") `tfun` ((tcon B.tList `tapp` tvar "a") `tfun` (tcon B.tList `tapp` tvar "b"))
         term <-
@@ -84,8 +80,8 @@ map =
 
 -- | The polymorphic function @map@ (over @List a@ as defined by
 -- 'listDef'), implemented using a worker.
-map' :: MonadFresh ID m => m Def
-map' = do
+map' :: MonadFresh ID m => ModuleName -> m Def
+map' modName = do
   type_ <- tforall "a" KType $ tforall "b" KType $ (tvar "a" `tfun` tvar "b") `tfun` ((tcon B.tList `tapp` tvar "a") `tfun` (tcon B.tList `tapp` tvar "b"))
   let worker =
         lam "xs" $
@@ -101,36 +97,36 @@ map' = do
         lam "f" $
           letrec "go" worker ((tcon B.tList `tapp` tvar "a") `tfun` (tcon B.tList `tapp` tvar "b")) $
             lvar "go"
-  pure $ DefAST $ ASTDef (qn "map'") term type_
+  pure $ DefAST $ ASTDef (qualifyName modName "map'") term type_
 
 -- | The function @odd@, defined over the inductive natural number
 -- type @Natural@ as defined by 'natDef'.
 --
 -- Note that this function is mutually recursive on @even@.
-odd :: MonadFresh ID m => m Def
-odd = do
+odd :: MonadFresh ID m => ModuleName -> m Def
+odd modName = do
   type_ <- tcon B.tNat `tfun` tcon B.tBool
   term <-
     lam "x" $
       case_
         (lvar "x")
         [ branch B.cZero [] $ con B.cFalse
-        , branch B.cSucc [("n", Nothing)] $ gvar (qn "even") `app` lvar "n"
+        , branch B.cSucc [("n", Nothing)] $ gvar (qualifyName modName "even") `app` lvar "n"
         ]
-  pure $ DefAST $ ASTDef (qn "odd") term type_
+  pure $ DefAST $ ASTDef (qualifyName modName "odd") term type_
 
 -- | The function @even@, defined over the inductive natural number
 -- type @Natural@ as defined by 'natDef'.
 --
 -- Note that this function is mutually recursive on @odd@.
-even :: MonadFresh ID m => m Def
-even = do
+even :: MonadFresh ID m => ModuleName -> m Def
+even modName = do
   type_ <- tcon B.tNat `tfun` tcon B.tBool
   term <-
     lam "x" $
       case_
         (lvar "x")
         [ branch B.cZero [] $ con B.cTrue
-        , branch B.cSucc [("n", Nothing)] $ gvar (qn "odd") `app` lvar "n"
+        , branch B.cSucc [("n", Nothing)] $ gvar (qualifyName modName "odd") `app` lvar "n"
         ]
-  pure $ DefAST $ ASTDef (qn "even") term type_
+  pure $ DefAST $ ASTDef (qualifyName modName "even") term type_

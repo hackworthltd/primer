@@ -154,10 +154,11 @@ unit_7 =
 unit_8 :: Assertion
 unit_8 =
   let n = 10
+      modName = mkSimpleModuleName "TestModule"
       ((globals, e, expected), maxID) = create $ do
-        mapDef <- Examples.map
-        evenDef <- Examples.even
-        oddDef <- Examples.odd
+        mapDef <- Examples.map modName
+        evenDef <- Examples.even modName
+        oddDef <- Examples.odd modName
         let lst = list_ tNat $ take n $ iterate (con cSucc `app`) (con cZero)
         let mapName = defName mapDef
         let evenName = defName evenDef
@@ -178,10 +179,11 @@ unit_8 =
 unit_9 :: Assertion
 unit_9 =
   let n = 10
+      modName = mkSimpleModuleName "TestModule"
       ((globals, e, expected), maxID) = create $ do
-        mapDef <- Examples.map'
-        evenDef <- Examples.even
-        oddDef <- Examples.odd
+        mapDef <- Examples.map' modName
+        evenDef <- Examples.even modName
+        oddDef <- Examples.odd modName
         let lst = list_ tNat $ take n $ iterate (con cSucc `app`) (con cZero)
         let mapName = defName mapDef
         let evenName = defName evenDef
@@ -231,9 +233,10 @@ unit_10 =
 -- substitute, otherwise we may go down a rabbit hole!
 unit_11 :: Assertion
 unit_11 =
-  let ((globals, e, expected), maxID) = create $ do
-        evenDef <- Examples.even
-        oddDef <- Examples.odd
+  let modName = mkSimpleModuleName "TestModule"
+      ((globals, e, expected), maxID) = create $ do
+        evenDef <- Examples.even modName
+        oddDef <- Examples.odd modName
         let evenName = defName evenDef
         let oddName = defName oddDef
         let ty = tcon tNat `tfun` (tcon tPair `tapp` tcon tBool `tapp` tcon tNat)
@@ -1002,9 +1005,10 @@ unit_prim_ann =
 
 unit_prim_partial_map :: Assertion
 unit_prim_partial_map =
-  let ((e, r, gs), maxID) =
+  let modName = mkSimpleModuleName "TestModule"
+      ((e, r, gs), maxID) =
         create . withPrimDefs $ \globals -> do
-          mapDef <- Examples.map'
+          mapDef <- Examples.map' modName
           let mapName = defName mapDef
           (,,)
             <$> gvar mapName
