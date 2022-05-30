@@ -880,7 +880,8 @@ munless x b = if b then mempty else x
 -- (a computation for building) the result.
 tryPrimFun :: Map GVarName PrimDef -> Expr -> Maybe (GVarName, [Expr], ExprAnyFresh)
 tryPrimFun primDefs expr
-  | (Var _ (GlobalVarRef name), args) <- bimap stripAnns (map stripAnns) $ unfoldApp expr
+  | -- Since no primitive functions are polymorphic, there is no need to unfoldAPP
+    (Var _ (GlobalVarRef name), args) <- bimap stripAnns (map stripAnns) $ unfoldApp expr
   , Map.member name primDefs
   , Just PrimFun{primFunDef} <- Map.lookup name allPrimDefs
   , Right e <- primFunDef $ forgetIDs <$> args =
