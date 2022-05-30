@@ -50,6 +50,7 @@ import Primer.Eval (
   PushAppIntoLetrecDetail (..),
   findNodeByID,
   redexes,
+  step,
   tryReduceExpr,
   tryReduceType,
  )
@@ -654,6 +655,24 @@ unit_tryReduce_prim_fail_unreduced_args = do
       result = runTryReduce (DefPrim <$> globals) mempty (expr, i)
   result @?= Left NotRedex
 
+-- One can call the eval-step api endpoint with an expression and ID
+-- of one of its nodes where that node is not a redex. This will call
+-- step with such data. We should not assume that all eval api calls
+-- will actually be redexes.
+-- In particular here we test variable occurrences which cannot be
+-- reduced by inlining a let.
+unit_step_non_redex :: Assertion
+unit_step_non_redex =
+  let (r1, s1) = evalTestM 0 $ do
+        e1 <- let_ "x" (con' ["M"] "C") $ lam "x" $ lvar "x"
+        let i1 = 3
+        (Set.member i1 $ redexes mempty e1,) <$> step mempty e1 i1
+   in do
+        assertBool "Should not be in 'redexes', as shadowed by a lambda" $ not r1
+        case s1 of
+          Left NotRedex -> pure ()
+          s1' -> assertFailure $ show s1'
+
 -- * 'findNodeByID' tests
 
 unit_findNodeByID_letrec :: Assertion
@@ -737,6 +756,27 @@ unit_findNodeByID_2 = do
         _ -> assertFailure $ show locals
       target z ~~= x
     _ -> assertFailure "node 0 not found"
+
+unit_findNodeByID_scoping_1 :: Assertion
+unit_findNodeByID_scoping_1 = do
+  let expr = create' $ let_ "x" (con' ["M"] "C") $ lam "x" $ lvar "x"
+  case findNodeByID 3 expr of
+    Just (locals, Left _) -> assertBool "Expected 'x' not to be in scope" (Map.null locals)
+    _ -> assertFailure "Expected to find the lvar 'x'"
+
+unit_findNodeByID_scoping_2 :: Assertion
+unit_findNodeByID_scoping_2 = do
+  let (bind, expr) = create' $ do
+        b <- con' ["M"] "D"
+        e <- let_ "x" (con' ["M"] "C") $ let_ "x" (pure b) $ lvar "x"
+        pure (b, e)
+  case findNodeByID 4 expr of
+    Just (locals, Left _)
+      | Map.size locals == 1
+      , Map.lookup "x" locals == Just (3, Left bind) ->
+          pure ()
+    Just (_, Left _) -> assertFailure "Expected to have inner let binding of 'x' reported"
+    _ -> assertFailure "Expected to find the lvar 'x'"
 
 -- * 'redexes' tests
 

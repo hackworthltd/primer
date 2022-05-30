@@ -94,12 +94,13 @@ import Primer.Name (Name, unName, unsafeMkName)
 import Primer.Primitives (allPrimDefs)
 import Primer.Zipper (
   ExprZ,
+  FoldAbove,
   Loc' (InBind, InExpr, InType),
   TypeZ,
   current,
   focusOn,
   foldAbove,
-  prior,
+  getBoundHereUp,
   replace,
   target,
   unfocusExpr,
@@ -332,33 +333,59 @@ step globals expr i = runExceptT $ do
       pure (expr', detail)
 
 -- | Search for the given node by its ID.
--- Collect all local bindings in scope and return them along with the focused node.
+-- Collect all local let, letrec and lettype bindings in scope and return them
+-- along with the focused node.
 -- Returns Nothing if the node is a binding, because no reduction rules can apply there.
 findNodeByID :: ID -> Expr -> Maybe (Locals, Either ExprZ TypeZ)
 findNodeByID i expr = do
   loc <- focusOn i expr
   case loc of
     InExpr z ->
-      let locals = foldAbove collectBinding z
-       in pure (locals, Left z)
+      let fls = foldAbove collectBinding z
+       in pure (lets fls, Left z)
     InType z ->
       let -- Since we are only collecting various sorts of let bindings,
           -- we don't need to look in types, as they cannot contain let bindings
-          locals = foldAbove collectBinding (unfocusType z)
-       in pure (locals, Right z)
+          fls = foldAbove collectBinding (unfocusType z)
+       in pure (lets fls, Right z)
     InBind{} -> Nothing
   where
-    collectBinding a = case (current a, prior a) of
-      (Let m x e1 e2, e2') | e2 == e2' -> Map.singleton (unLocalName x) (view _id m, Left e1)
+    collectBinding :: FoldAbove Expr -> FindLet
+    collectBinding a = case (getBoundHereUp a, current a) of
+      (bs, _) | Set.null bs -> mempty
+      (bs, Let m x e _) | Set.member (unLocalName x) bs -> flLet (unLocalName x) (view _id m) e
       -- Note that because @x@ is in scope in @e1@, we will allow @e1@ to be reduced even if this
       -- reduction may never terminate.
       -- See https://github.com/hackworthltd/primer/issues/4
       -- @x@ is not in scope in @t@.
-      (Letrec m x e1 _t e2, e')
-        | e2 == e' -> Map.singleton (unLocalName x) (view _id m, Left e1)
-        | e1 == e' -> Map.singleton (unLocalName x) (view _id m, Left e1)
-      (LetType m x t _, _) -> Map.singleton (unLocalName x) (view _id m, Right t)
-      _ -> mempty
+      (_bs, Letrec m x e _t _bdy) ->
+        --  | Set.member (unLocalName x) bs -- NB: this is always true: x is in
+        -- scope for both e and bdy
+        flLet (unLocalName x) (view _id m) e
+      (_bs, LetType m x t _bdy) ->
+        --  | Set.member (unLocalName x) bs -- This guard is always true: we only
+        -- look at Exprs, so we must be considering binders for bdy, not t
+        flLetType (unLocalName x) (view _id m) t
+      (bs, _) -> flOthers bs
+
+-- Helper for findNodeByID
+data FindLet = FL
+  { lets :: Locals -- Let bindings in scope (let, letrec and lettype)
+  , others :: Set Name -- Other bindings in scope (lambdas etc), which may shadow outer 'let's
+  }
+flLet :: Name -> ID -> Expr -> FindLet
+flLet n i e = FL{lets = Map.singleton n (i, Left e), others = mempty}
+flLetType :: Name -> ID -> Type -> FindLet
+flLetType n i e = FL{lets = Map.singleton n (i, Right e), others = mempty}
+flOthers :: Set Name -> FindLet
+flOthers = FL mempty
+instance Semigroup FindLet where
+  inner <> outer =
+    FL
+      (lets inner <> (lets outer `Map.withoutKeys` others inner))
+      (others inner <> others outer)
+instance Monoid FindLet where
+  mempty = FL mempty mempty
 
 -- | Return the IDs of nodes which are reducible.
 -- We assume the expression is well scoped, and do not e.g. check whether
