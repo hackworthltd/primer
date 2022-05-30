@@ -29,6 +29,7 @@ import Primer.Core (
   Expr,
   GlobalName (baseName, qualifiedModule),
   ID (ID),
+  Kind (KType),
   Type,
   TypeDef (TypeDefAST),
   getID,
@@ -813,6 +814,26 @@ unit_findNodeByID_capture =
           Left NotRedex -> pure ()
           e -> assertFailure $ show e
 
+unit_findNodeByID_capture_type :: Assertion
+unit_findNodeByID_capture_type = do
+  let (expr, varOcc, reduct) = create' $ do
+        v <- tvar "x"
+        e <- letType "x" (tvar "y") (emptyHole `ann` tforall "y" KType (pure v))
+        let r = getID v
+        s <- step mempty expr r
+        pure (e, r, s)
+   in do
+        case findNodeByID varOcc expr of
+          Just (locals, Right _)
+            | Map.size locals == 1
+            , Just (1, LLetType _, Capture) <- Map.lookup "x" locals ->
+                pure ()
+          Just (_, Right _) -> assertFailure "Expected lettype binding of 'x' to be reported as captured-if-inlined"
+          _ -> assertFailure "Expected to find the lvar 'x'"
+        case reduct of
+          Left NotRedex -> pure ()
+          e -> assertFailure $ show e
+
 -- * 'redexes' tests
 
 -- In these tests we refer to node IDs in the expressions, because it's quite concise.
@@ -896,6 +917,12 @@ unit_redexes_let_capture =
   -- We should maybe rename the lambda, see https://github.com/hackworthltd/primer/issues/509
   assertBool "Cannot inline the variable, as would cause capture" $
     Set.null $ redexesOf (let_ "x" (lvar "y") $ lam "y" $ lvar "x")
+
+unit_redexes_lettype_capture :: Assertion
+unit_redexes_lettype_capture =
+  -- We should maybe rename the forall, see https://github.com/hackworthltd/primer/issues/509
+  assertBool "Cannot inline the variable, as would cause capture" $
+    Set.null $ redexesOf (letType "x" (tvar "y") (emptyHole `ann` tforall "y" KType (tvar "x")))
 
 unit_redexes_letrec_1 :: Assertion
 unit_redexes_letrec_1 =

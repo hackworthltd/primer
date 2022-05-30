@@ -100,8 +100,10 @@ import Primer.Zipper (
   FoldAbove,
   Loc' (InBind, InExpr, InType),
   TypeZ,
+  bindersAboveTy,
   current,
   focusOn,
+  focusOnlyType,
   foldAbove,
   getBoundHereUp,
   replace,
@@ -363,7 +365,11 @@ findNodeByID i expr = do
       let -- Since we are only collecting various sorts of let bindings,
           -- we don't need to look in types, as they cannot contain let bindings
           fls = foldAbove collectBinding (unfocusType z)
-       in pure (dropCache $ lets fls, Right z)
+          -- However, we need to look for binders in the type that may capture
+          -- a free variable if we substitue a lettype binding from outside the
+          -- type
+          fas = flOthers $ Set.map unLocalName $ bindersAboveTy $ focusOnlyType z
+       in pure (dropCache $ lets $ fas <> fls, Right z)
     InBind{} -> Nothing
   where
     collectBinding :: FoldAbove Expr -> FindLet
