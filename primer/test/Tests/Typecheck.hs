@@ -264,11 +264,11 @@ unit_valConType = do
     @?= [ TForall () "a" KType $
             TForall () "b" KType $
               TFun () (TVar () "a") $
-                TApp () (TApp () (TCon () tEither) (TVar () "a")) (TVar () "b")
+                mkTAppCon tEither [TVar () "a", TVar () "b"]
         , TForall () "a" KType $
             TForall () "b" KType $
               TFun () (TVar () "b") $
-                TApp () (TApp () (TCon () tEither) (TVar () "a")) (TVar () "b")
+                mkTAppCon tEither [TVar () "a", TVar () "b"]
         ]
   where
     f t = map (valConType t) (astTypeDefConstructors t)

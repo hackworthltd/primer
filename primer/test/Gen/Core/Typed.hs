@@ -93,6 +93,7 @@ import Primer.Typecheck (
   localTyVars,
   matchArrowType,
   matchForallType,
+  mkTAppCon,
   mkTypeDefMapQualified,
   primConInScope,
   typeDefs,
@@ -371,7 +372,7 @@ genChk ty = do
           then Nothing
           else Just $ do
             td <- Gen.element adts
-            let t = foldr (\_ t' -> TApp () t' (TEmptyHole ())) (TCon () $ typeDefName td) (typeDefParameters td)
+            let t = mkTAppCon (typeDefName td) (TEmptyHole () <$ typeDefParameters td)
             (e, brs) <- Gen.justT $ do
               (e, eTy) <- genSyns t -- NB: this could return something only consistent with t, e.g. if t=List ?, could get eT=? Nat
               vcs' <- instantiateValCons eTy

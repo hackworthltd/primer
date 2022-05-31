@@ -50,6 +50,7 @@ import Primer.Typecheck (
   buildTypingContextFromModules,
   consistentTypes,
   extendLocalCxtTy,
+  mkTAppCon,
   typeDefs,
  )
 import Test.Tasty.HUnit (Assertion, (@?=))
@@ -222,7 +223,7 @@ hprop_con = propertyWTInExtendedLocalGlobalCxt [builtinModule, primitiveModule] 
   let src = valConType td vc
   annotateShow src
   tgt' <- forAllT $ traverse (genWTType . snd) $ astTypeDefParameters td
-  let tgt = foldl (TApp ()) (TCon () $ astTypeDefName td) tgt'
+  let tgt = mkTAppCon (astTypeDefName td) tgt'
   annotateShow tgt
   cxt <- ask
   r <- refine' cxt tgt src
