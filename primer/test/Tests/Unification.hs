@@ -5,7 +5,6 @@ module Tests.Unification where
 import Foreword hiding (diff)
 
 import Control.Monad.Fresh (MonadFresh)
-import Data.Graph (SCC (AcyclicSCC), stronglyConnComp)
 import qualified Data.Map as M
 import qualified Data.Set as S
 import Gen.Core.Typed (
@@ -545,7 +544,9 @@ hprop_sym = propertyWTInExtendedUVCxt [builtinModule, primitiveModule] $ \uvs ->
   u2 <- unify' cxt uvs t s
   u1 === u2
 
--- the sub should be "non-cyclic", i.e. any sub should stabalise if done repeatedly
+-- the sub should be "grounded", "idempotent", or "non-cyclic", i.e. any sub should
+-- need to be applied only once. I.e. there are no solved unification
+-- variables in the solution of any u.v.
 hprop_non_cyclic :: Property
 hprop_non_cyclic = propertyWTInExtendedUVCxt [builtinModule, primitiveModule] $ \uvs -> do
   cxt <- ask
@@ -556,10 +557,9 @@ hprop_non_cyclic = propertyWTInExtendedUVCxt [builtinModule, primitiveModule] $ 
   case u of
     Nothing -> discard
     Just u' ->
-      let g = map (\(n, sb) -> (n, n, S.toList $ freeVarsTy sb)) $ M.toList u'
-          sccs = stronglyConnComp g
-          acyclic = \case AcyclicSCC _ -> True; _ -> False
-       in assert $ all acyclic sccs
+      let solved = M.keysSet u'
+          inRHS = foldMap freeVarsTy u'
+       in assert $ S.disjoint solved inRHS
 
 -- unifying a unif var gives simple success
 hprop_uv_succeeds :: Property
