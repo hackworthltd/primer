@@ -9,6 +9,7 @@ module Primer.Action.Available (
 
 import Foreword
 
+import Data.Data (Data)
 import qualified Data.List.NonEmpty as NE
 import Optics (
   to,
@@ -35,7 +36,6 @@ import qualified Primer.Action.Priorities as P
 import Primer.Core (
   ASTDef (..),
   Bind' (..),
-  CaseBranch' (..),
   Def (..),
   Expr,
   Expr' (..),
@@ -61,6 +61,17 @@ import Primer.Core.Transform (unfoldFun)
 import Primer.Core.Utils (forgetTypeIDs)
 import Primer.Name (unName)
 import Primer.Questions (Question (..))
+import Primer.Zipper (
+  BindLoc' (BindCase),
+  Loc' (InBind, InExpr, InType),
+  caseBindZFocus,
+  focusOn,
+  focusOnTy,
+  target,
+  unfocusCaseBind,
+  unfocusType,
+  up,
+ )
 
 -- | An AST node tagged with its "sort" - i.e. if it's a type or expression or binding etc.
 -- This is probably useful elsewhere, but we currently just need it here
@@ -207,71 +218,31 @@ actionsForBinding l defName b =
     ]
 
 -- | Find a node in the AST by its ID, and also return its parent
-findNodeWithParent :: forall a b. ID -> Expr' (Meta a) (Meta b) -> Maybe (SomeNode a b, Maybe (SomeNode a b))
-findNodeWithParent id x = go x Nothing
-  where
-    go expr parent
-      | getID expr == id = Just (ExprNode expr, parent)
-      | otherwise = case expr of
-          Hole _ e -> go e (Just (ExprNode expr))
-          EmptyHole _ -> Nothing
-          Ann _ e t -> go e (Just (ExprNode expr)) <|> goTy t expr
-          App _ a b -> go a (Just (ExprNode expr)) <|> go b (Just (ExprNode expr))
-          APP _ a b -> go a (Just (ExprNode expr)) <|> goTy b expr
-          Con _ _ -> Nothing
-          Lam _ _ e -> go e (Just (ExprNode expr))
-          LAM _ _ e -> go e (Just (ExprNode expr))
-          Var _ _ -> Nothing
-          Let _ _ a b -> go a (Just (ExprNode expr)) <|> go b (Just (ExprNode expr))
-          Letrec _ _ a ta b -> go a (Just (ExprNode expr)) <|> goTy ta expr <|> go b (Just (ExprNode expr))
-          LetType _ _ t e -> goTy t expr <|> go e (Just (ExprNode expr))
-          Case _ e branches ->
-            let (Alt inBranches) = flip foldMap branches $
-                  \(CaseBranch _ binds rhs) ->
-                    Alt (go rhs (Just (ExprNode expr)))
-                      <> foldMap (Alt . map (\b -> (CaseBindNode b, Just (ExprNode expr))) . findBind id) binds
-             in go e (Just (ExprNode expr)) <|> inBranches
-          PrimCon{} -> Nothing
-
-    goTy t p = case findTypeWithParent id t of
-      Nothing -> Nothing
-      Just (t', Nothing) -> Just (TypeNode t', Just (ExprNode p))
-      Just (t', Just p') -> Just (TypeNode t', Just (TypeNode p'))
+findNodeWithParent ::
+  forall a b.
+  (Data a, Data b, Eq a) =>
+  ID ->
+  Expr' (Meta a) (Meta b) ->
+  Maybe (SomeNode a b, Maybe (SomeNode a b))
+findNodeWithParent id x = do
+  z <- focusOn id x
+  Just
+    ( case z of
+        InExpr ez -> (ExprNode $ target ez, ExprNode . target <$> up ez)
+        InType tz ->
+          ( TypeNode $ target tz
+          , Just $
+              maybe
+                (ExprNode $ target $ unfocusType tz)
+                (TypeNode . target)
+                (up tz)
+          )
+        InBind (BindCase bz) -> (CaseBindNode $ caseBindZFocus bz, Just . ExprNode . target . unfocusCaseBind $ bz)
+    )
 
 -- | Find a sub-type in a larger type by its ID.
-findType :: forall b. ID -> Type' (Meta b) -> Maybe (Type' (Meta b))
-findType id ty
-  | getID ty == id = Just ty
-  | otherwise = case ty of
-      TEmptyHole _ -> Nothing
-      THole _ t -> findType id t
-      TCon _ _ -> Nothing
-      TVar _ _ -> Nothing
-      TFun _ a b -> findType id a <|> findType id b
-      TApp _ a b -> findType id a <|> findType id b
-      TForall _ _ _ t -> findType id t
-
--- | Find a sub-type in a larger type by its ID. Also returning its parent
-findTypeWithParent :: forall b. ID -> Type' (Meta b) -> Maybe (Type' (Meta b), Maybe (Type' (Meta b)))
-findTypeWithParent id x = go x Nothing
-  where
-    go ty parent
-      | getID ty == id = Just (ty, parent)
-      | otherwise = case ty of
-          TEmptyHole _ -> Nothing
-          THole _ t -> go t (Just ty)
-          TCon _ _ -> Nothing
-          TVar _ _ -> Nothing
-          TFun _ a b -> go a (Just ty) <|> go b (Just ty)
-          TApp _ a b -> go a (Just ty) <|> go b (Just ty)
-          TForall _ _ _ t -> go t (Just ty)
-
--- | If the given binding has the given ID, return Just that binding, otherwise return nothing.
--- This is just a helper for 'findNode'.
-findBind :: forall c. ID -> Bind' (Meta c) -> Maybe (Bind' (Meta c))
-findBind id bind
-  | getID bind == id = Just bind
-  | otherwise = Nothing
+findType :: forall b. Data b => ID -> Type' (Meta b) -> Maybe (Type' (Meta b))
+findType id ty = target <$> focusOnTy id ty
 
 -- | An ActionSpec is an OfferedAction that needs
 -- metadata in order to be used. Typically this is because it starts with

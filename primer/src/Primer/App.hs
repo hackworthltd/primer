@@ -172,14 +172,13 @@ import Primer.Typecheck (
  )
 import Primer.Zipper (
   ExprZ,
-  Loc (InBind, InExpr, InType),
+  Loc' (InBind, InExpr, InType),
   TypeZ,
   TypeZip,
   bindersAbove,
   bindersAboveTy,
   bindersAboveTypeZ,
   current,
-  focus,
   focusOn,
   focusOnTy,
   focusOnlyType,
@@ -406,8 +405,8 @@ focusNodeDefs defs defname nodeid =
   case lookupASTDef defname defs of
     Nothing -> throwError $ DefNotFound defname
     Just def ->
-      let mzE = locToEither <$> focusOn nodeid (focus $ astDefExpr def)
-          mzT = focusOnTy nodeid $ focus $ astDefType def
+      let mzE = locToEither <$> focusOn nodeid (astDefExpr def)
+          mzT = focusOnTy nodeid $ astDefType def
        in case fmap Left mzE <|> fmap Right mzT of
             Nothing -> throwError $ ActionError (IDNotFound nodeid)
             Just x -> pure x

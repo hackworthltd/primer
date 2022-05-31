@@ -97,10 +97,9 @@ import Primer.Name (Name, unName, unsafeMkName)
 import Primer.Primitives (allPrimDefs)
 import Primer.Zipper (
   ExprZ,
-  Loc (InExpr, InType),
+  Loc' (InExpr, InType),
   TypeZ,
   current,
-  focus,
   focusOn,
   foldAbove,
   prior,
@@ -340,7 +339,7 @@ step globals expr i = runExceptT $ do
 -- Returns Nothing if the node is a type, because types can't be evaluated in Primer.
 findNodeByID :: ID -> Expr -> Maybe (Locals, Either ExprZ TypeZ)
 findNodeByID i expr = do
-  loc <- focusOn i (focus expr)
+  loc <- focusOn i expr
   case loc of
     InExpr z ->
       let locals = foldAbove collectBinding z
