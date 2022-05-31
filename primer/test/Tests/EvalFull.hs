@@ -25,11 +25,9 @@ import Primer.App (
 import Primer.Builtins (
   boolDef,
   builtinModule,
-  cCons,
   cFalse,
   cJust,
   cMakePair,
-  cNil,
   cNothing,
   cSucc,
   cTrue,
@@ -160,14 +158,13 @@ unit_8 =
         mapDef <- Examples.map
         evenDef <- Examples.even
         oddDef <- Examples.odd
-        let mkList t = foldr (\x xs -> con cCons `aPP` t `app` x `app` xs) (con cNil `aPP` t)
-        let lst = mkList (tcon tNat) $ take n $ iterate (con cSucc `app`) (con cZero)
+        let lst = list_ tNat $ take n $ iterate (con cSucc `app`) (con cZero)
         let mapName = defName mapDef
         let evenName = defName evenDef
         let oddName = defName oddDef
         expr <- gvar mapName `aPP` tcon tNat `aPP` tcon tBool `app` gvar evenName `app` lst
         let globs = [(mapName, mapDef), (evenName, evenDef), (oddName, oddDef)]
-        expect <- mkList (tcon tBool) (take n $ cycle [con cTrue, con cFalse]) `ann` (tcon tList `tapp` tcon tBool)
+        expect <- list_ tBool (take n $ cycle [con cTrue, con cFalse]) `ann` (tcon tList `tapp` tcon tBool)
         pure (globs, expr, expect)
    in do
         case evalFullTest maxID builtinTypes (M.fromList globals) 500 Syn e of
@@ -185,14 +182,13 @@ unit_9 =
         mapDef <- Examples.map'
         evenDef <- Examples.even
         oddDef <- Examples.odd
-        let mkList t = foldr (\x xs -> con cCons `aPP` t `app` x `app` xs) (con cNil `aPP` t)
-        let lst = mkList (tcon tNat) $ take n $ iterate (con cSucc `app`) (con cZero)
+        let lst = list_ tNat $ take n $ iterate (con cSucc `app`) (con cZero)
         let mapName = defName mapDef
         let evenName = defName evenDef
         let oddName = defName oddDef
         expr <- gvar mapName `aPP` tcon tNat `aPP` tcon tBool `app` gvar evenName `app` lst
         let globs = [(mapName, mapDef), (evenName, evenDef), (oddName, oddDef)]
-        expect <- mkList (tcon tBool) (take n $ cycle [con cTrue, con cFalse]) `ann` (tcon tList `tapp` tcon tBool)
+        expect <- list_ tBool (take n $ cycle [con cTrue, con cFalse]) `ann` (tcon tList `tapp` tcon tBool)
         pure (globs, expr, expect)
    in do
         case evalFullTest maxID builtinTypes (M.fromList globals) 500 Syn e of
