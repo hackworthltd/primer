@@ -184,7 +184,7 @@ unfoldApp = second reverse . go
 
 -- | Fold an application head and a list of arguments in to a single expression.
 foldApp :: (Foldable t, MonadFresh ID m) => Expr -> t Expr -> m Expr
-foldApp = foldM $ \a b -> do
+foldApp = foldlM $ \a b -> do
   m <- meta
   pure $ App m a b
 
