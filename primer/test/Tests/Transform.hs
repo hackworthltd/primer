@@ -209,6 +209,26 @@ unit_cross_ann =
 unit_cross_aPP :: Assertion
 unit_cross_aPP = afterRenameCross "x" "y" (aPP emptyHole $ tvar "x") (Just $ aPP emptyHole $ tvar "y")
 
+-- We properly detect potential capture arising from term and type
+-- vars being in the same scope.
+-- This tests renaming term variables underneath a equally-named
+-- binding of a type variable.
+unit_cross_capture_1 :: Assertion
+unit_cross_capture_1 = do
+  afterRename "x" "y" (lAM "y" $ lvar "x") Nothing
+  afterRename "x" "y" (letType "y" tEmptyHole $ lvar "x") Nothing
+
+-- We properly detect potential capture arising from term and type
+-- vars being in the same scope.
+-- This tests renaming type variables underneath a equally-named
+-- binding of a term variable.
+unit_cross_capture_2 :: Assertion
+unit_cross_capture_2 = do
+  afterRenameCross "x" "y" (lam "y" $ emptyHole `ann` tvar "x") Nothing
+  afterRenameCross "x" "y" (let_ "y" emptyHole $ emptyHole `ann` tvar "x") Nothing
+  afterRenameCross "x" "y" (letrec "y" emptyHole tEmptyHole $ emptyHole `ann` tvar "x") Nothing
+  afterRenameCross "x" "y" (case_ emptyHole [branch' (["M"], "C") [("y", Nothing)] $ emptyHole `ann` tvar "x"]) Nothing
+
 afterRename :: HasCallStack => LVarName -> LVarName -> S Expr -> Maybe (S Expr) -> Assertion
 afterRename = afterRename' renameLocalVar clearMeta
 
