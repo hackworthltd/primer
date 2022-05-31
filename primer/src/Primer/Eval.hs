@@ -97,7 +97,7 @@ import Primer.Name (Name, unName, unsafeMkName)
 import Primer.Primitives (allPrimDefs)
 import Primer.Zipper (
   ExprZ,
-  Loc' (InExpr, InType),
+  Loc' (InBind, InExpr, InType),
   TypeZ,
   current,
   focusOn,
@@ -336,7 +336,7 @@ step globals expr i = runExceptT $ do
 
 -- | Search for the given node by its ID.
 -- Collect all local bindings in scope and return them along with the focused node.
--- Returns Nothing if the node is a type, because types can't be evaluated in Primer.
+-- Returns Nothing if the node is a binding, because no reduction rules can apply there.
 findNodeByID :: ID -> Expr -> Maybe (Locals, Either ExprZ TypeZ)
 findNodeByID i expr = do
   loc <- focusOn i expr
@@ -347,7 +347,7 @@ findNodeByID i expr = do
     InType z ->
       let locals = foldAbove collectBinding (unfocusType z)
        in pure (locals, Right z)
-    _ -> Nothing
+    InBind{} -> Nothing
   where
     collectBinding a = case (current a, prior a) of
       (Let m x e1 e2, e2') | e2 == e2' -> Map.singleton (unLocalName x) (view _id m, Left e1)
