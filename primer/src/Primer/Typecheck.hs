@@ -131,8 +131,6 @@ import Primer.Module (
   ),
   moduleDefsQualified,
   moduleTypesQualified,
-  qualifyDefName,
-  qualifyTyConName,
  )
 import Primer.Name (Name, NameCounter, freshName)
 import Primer.Subst (substTy)
@@ -345,10 +343,12 @@ checkTypeDefsMap ::
   TypeM e m =>
   Map TyConName TypeDef ->
   m ()
-checkTypeDefsMap tds =
-  if and $ M.mapWithKey (\n td -> n == typeDefName td) tds
-    then checkTypeDefs tds
-    else throwError' $ InternalError "Inconsistent names in a Map TyConName TypeDef"
+checkTypeDefsMap tds = do
+  assert (consistentComputedKeys typeDefName tds) "Inconsistent names in a Map TyConName TypeDef"
+  checkTypeDefs tds
+
+consistentComputedKeys :: Eq k => (v -> k) -> Map k v -> Bool
+consistentComputedKeys f = getAll . M.foldMapWithKey (\k v -> All $ k == f v)
 
 -- | Check all type definitions, as one recursive group, in some monadic environment
 checkTypeDefs ::
@@ -438,15 +438,27 @@ checkEverything ::
   m [Module]
 checkEverything sh CheckEverything{trusted, toCheck} =
   let cxt = buildTypingContextFromModules trusted sh
+      -- Check that modules contain things (i.e. typeDefs or moduleDefs) with:
+      -- - the right module prefixes (all contained definitions must belong to this module)
+      -- - correct keys in maps (the keys should be the baseName of the value)
+      checkNames ::
+        MonadNestedError TypeError e m' =>
+        (v -> GlobalName k) ->
+        (Module -> Map Name v) ->
+        Module ->
+        Text ->
+        m' ()
+      checkNames getName part m =
+        assert
+          ( allNamesInModule m (getName <$> part m)
+              && consistentComputedKeys baseName (getName <$> part m)
+          )
    in flip runReaderT cxt $ do
-        -- Check the type definitions have the right modules
-        for_ toCheck $ \m -> flip Map.traverseWithKey (moduleTypes m) $ \n td ->
-          unless (qualifyTyConName m n == typeDefName td) $
-            throwError' $ InternalError $ "Inconsistant names in moduleTypes for module " <> moduleNamePretty (moduleName m)
-        -- Check that the definition map has the right keys
-        for_ toCheck $ \m -> flip Map.traverseWithKey (moduleDefs m) $ \n d ->
-          unless (qualifyDefName m n == defName d) $
-            throwError' $ InternalError $ "Inconsistant names in moduleDefs map for module " <> moduleNamePretty (moduleName m)
+        for_ toCheck $ \m -> do
+          -- Check the type definitions have the right modules
+          checkNames typeDefName moduleTypes m $ "Inconsistent names in moduleTypes for module " <> moduleNamePretty (moduleName m)
+          -- Check that the definition map has the right keys
+          checkNames defName moduleDefs m $ "Inconsistent names in moduleDefs map for module " <> moduleNamePretty (moduleName m)
         checkTypeDefs $ foldMap moduleTypesQualified toCheck
         let newTypes = foldMap moduleTypesQualified toCheck
             newDefs =
@@ -454,6 +466,9 @@ checkEverything sh CheckEverything{trusted, toCheck} =
                 foldMap moduleDefs toCheck
         local (extendGlobalCxt newDefs . extendTypeDefCxt (Map.elems newTypes)) $
           traverseOf (traversed % #moduleDefs % traversed) checkDef toCheck
+
+allNamesInModule :: Foldable f => Module -> f (GlobalName k) -> Bool
+allNamesInModule m = all ((== moduleName m) . qualifiedModule)
 
 -- | Typecheck a definition.
 -- This checks that the type signature is well-formed, then checks the body
