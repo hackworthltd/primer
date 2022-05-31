@@ -395,6 +395,21 @@ unit_unify_hole_trivial_2 =
     )
     @?= Just mempty
 
+-- Forall-bound vars shadow unification variables
+--   unify [a:*] [a] (∀b.Nat -> Nat) (∀a.a -> Nat) == Nothing
+-- in the RHS, the uv is shadowed. We must not report a solution of a := Nat !
+unit_unify_shadow :: Assertion
+unit_unify_shadow = do
+  evalTestM
+    0
+    ( unify'
+        (extendLocalCxtTy ("a", KType) defaultCxt)
+        (S.singleton "a")
+        (TForall () "b" KType $ TFun () (TCon () tNat) (TCon () tNat))
+        (TForall () "a" KType $ TFun () (TVar () "a") (TCon () tNat))
+    )
+    @?= Nothing
+
 -- Generate an extension of the base context (from the reader monad) with more
 -- local term and type vars, some of which are unif vars.
 genCxtExtendingLocalUVs :: GenT WT (Cxt, M.Map TyVarName Kind)

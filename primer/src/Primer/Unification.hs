@@ -53,7 +53,8 @@ unify ::
   (MonadFresh ID m, MonadFresh NameCounter m, MonadError InternalUnifyError m) =>
   -- | We only care about local type vars and typedefs, for kind-checking our unifier
   Cxt ->
-  -- | Which type variables should be considered as unification variables? This should be a subset of the Cxt
+  -- | Which type variables should be considered as unification variables? This should be a subset of the @Cxt@.
+  -- All @Cxt@ vars are considered in scope for a solution of any unification variable.
   S.Set TyVarName ->
   Type ->
   Type ->
@@ -91,7 +92,16 @@ data UnifError
 
 -- NB: we need to keep the input types on the same side always, to get boundVars info to line up
 -- or rather, ensure we record the swap if we do a swap
-data Env = Env {unifVars :: UnifVars, boundVarsL, boundVarsR :: M.Map TyVarName Int}
+data Env = Env
+  { unifVars :: UnifVars
+  -- ^ The variables originally declared to be uvs.
+  -- These may be shadowed by bound variables (this set is not updated in that case).
+  , boundVarsL :: M.Map TyVarName Int
+  -- ^ Variables bound in the LHS of the unification problem.
+  -- i.e. @forall@s that we have gone under, with their de Bruijn level
+  , boundVarsR :: M.Map TyVarName Int
+  -- ^ as 'boundVarsL', but for the RHS
+  }
 
 type Subst = M.Map TyVarName Type
 
@@ -107,8 +117,12 @@ newtype U m a = U {unU :: ReaderT Env (StateT Subst (ExceptT UnifError m)) a}
 
 deriving instance MonadFresh NameCounter m => MonadFresh NameCounter (U m)
 
-isUnifVar :: MonadFresh NameCounter m => TyVarName -> U m Bool
-isUnifVar n = asks (S.member n . unifVars)
+-- | @v@ is a unification variable if it both
+-- - was declared to be, and
+-- - has not been shadowed (by going under a equally-named forall)
+isUnifVarL, isUnifVarR :: MonadFresh NameCounter m => TyVarName -> U m Bool
+isUnifVarL n = asks (\env -> S.member n (unifVars env) && not (M.member n $ boundVarsL env))
+isUnifVarR n = asks (\env -> S.member n (unifVars env) && not (M.member n $ boundVarsR env))
 
 isSameVar :: MonadFresh NameCounter m => TyVarName -> TyVarName -> U m Bool
 isSameVar n m = do
@@ -122,6 +136,8 @@ isSameVar n m = do
 swapEnv :: Env -> Env
 swapEnv e = e{boundVarsL = boundVarsR e, boundVarsR = boundVarsL e}
 
+-- Note: bound variables shadow unification variables.
+-- This is handled in isUnifVarL and isUnifVarR
 bind :: TyVarName -> TyVarName -> Env -> Env
 bind n m e =
   e
@@ -139,8 +155,8 @@ unify' _ (TEmptyHole _) = pure ()
 unify' (THole _ _) _ = pure ()
 unify' _ (THole _ _) = pure ()
 unify' vx@(TVar _ x) vy@(TVar _ y) = do
-  ux <- isUnifVar x
-  uy <- isUnifVar y
+  ux <- isUnifVarL x
+  uy <- isUnifVarR y
   eq <- isSameVar x y
   case (ux, uy, eq) of
     (_, _, True) -> pure ()
@@ -149,7 +165,7 @@ unify' vx@(TVar _ x) vy@(TVar _ y) = do
     (False, True, _) -> local swapEnv $ unifyVar y vx
     (False, False, False) -> throwError $ NotUnify vx vy
 unify' vx@(TVar _ x) t =
-  isUnifVar x >>= \case
+  isUnifVarL x >>= \case
     True -> unifyVar x t
     False -> throwError $ NotUnify vx t
 unify' s vy@(TVar _ _) = local swapEnv $ unify' vy s
@@ -173,6 +189,9 @@ unifyVar v t =
       bound <- asks (M.keysSet . boundVarsR)
       let f (_, n) = n == v || S.member n bound
       -- occurs check + check t' does not mention bound variables which wouldn't be in scope for the unifier
+      -- (It is not necessary to check boundVarsL, since such a reference could only occur via the expansion
+      -- of another uv (a uv on the left will get solved by a subterm of the rhs, modulo expanding
+      -- previously-solved uvs), and thus we would have noticed the problem in a previous iteration.
       if anyOf (getting _freeVarsTy) f t'
         then throwError $ OccursBoundCheckFail v t'
         else solve v t'
