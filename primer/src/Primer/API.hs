@@ -828,7 +828,7 @@ viewTreeExpr opts@ExprTreeOpts{patternsUnder} e0 = case e0 of
             , flavor = FlavorPattern
             , body =
                 BoxBody $
-                  foldl
+                  foldl'
                     ( \t (Bind m v) ->
                         let id = m ^. _id
                          in Tree

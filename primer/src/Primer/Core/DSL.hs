@@ -92,7 +92,7 @@ apps e es = apps' e (map Left es)
 
 -- | `apps` for expressions and types
 apps' :: MonadFresh ID m => m Expr -> [Either (m Expr) (m Type)] -> m Expr
-apps' = foldl app'
+apps' = foldl' app'
   where
     app' e (Left e') = e `app` e'
     app' e (Right t) = e `aPP` t

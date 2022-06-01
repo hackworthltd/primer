@@ -17,3 +17,14 @@
     lhs: noneOf o (== x)
     rhs: notElemOf o x
     name: "Use notElemOf"
+
+- warn:
+    lhs: foldl
+    rhs: foldl'
+    name: Strict fold
+    note: DecreasesLaziness
+- warn:
+    lhs: foldM
+    rhs: foldlM
+    name: foldM
+    note: Be explicit about the direction of the fold

@@ -190,7 +190,7 @@ applyActionsToTypeSig smartHoles imports (mod, mods) (defName, def) actions =
   where
     go :: ActionM m => m ([Module], TypeZ)
     go = do
-      zt <- withWrappedType (astDefType def) (\zt -> foldM (flip applyActionAndSynth) (InType zt) actions)
+      zt <- withWrappedType (astDefType def) (\zt -> foldlM (flip applyActionAndSynth) (InType zt) actions)
       let t = target (top zt)
       e <- check (forgetTypeMetadata t) (astDefExpr def)
       let def' = def{astDefExpr = exprTtoExpr e, astDefType = t}
@@ -268,7 +268,7 @@ applyActionsToBody sh modules def actions =
   where
     go :: ActionM m => m (ASTDef, Loc)
     go = do
-      ze <- foldM (flip (applyActionAndCheck (astDefType def))) (focusLoc (astDefExpr def)) actions
+      ze <- foldlM (flip (applyActionAndCheck (astDefType def))) (focusLoc (astDefExpr def)) actions
       e' <- exprTtoExpr <$> check (forgetTypeMetadata (astDefType def)) (unfocus ze)
       let def' = def{astDefExpr = e'}
       refocus Refocus{pre = ze, post = e'} >>= \case
@@ -289,7 +289,7 @@ applyActionAndCheck ty action z = do
 -- We take a list of the modules that should be in scope for the test.
 applyActionsToExpr :: (MonadFresh ID m, MonadFresh NameCounter m) => SmartHoles -> [Module] -> Expr -> [Action] -> m (Either ActionError (Either ExprZ TypeZ))
 applyActionsToExpr sh modules expr actions =
-  foldM (flip applyActionAndSynth) (focusLoc expr) actions -- apply all actions
+  foldlM (flip applyActionAndSynth) (focusLoc expr) actions -- apply all actions
     <&> locToEither
     & flip runReaderT (buildTypingContextFromModules modules sh)
     & runExceptT -- catch any errors
