@@ -231,7 +231,7 @@ genSyns ty = do
               Right (Just (inst, instTy)) -> do
                 (sb, is) <- genInstApp inst
                 let f e = \case Right tm -> App () e tm; Left ty' -> APP () e ty'
-                Just . (foldl f he is,) <$> substTys sb instTy
+                Just . (foldl' f he is,) <$> substTys sb instTy
     genApp = do
       s <- genWTType KType
       (f, fTy) <- genSyns (TFun () s ty)

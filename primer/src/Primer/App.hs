@@ -504,7 +504,7 @@ handleMutationRequest = \case
 -- | Handle an edit request
 handleEditRequest :: forall m. MonadEditApp m => [ProgAction] -> m Prog
 handleEditRequest actions = do
-  (prog, _) <- gets appProg >>= \p -> foldM go (p, Nothing) actions
+  (prog, _) <- gets appProg >>= \p -> foldlM go (p, Nothing) actions
   let Log l = progLog prog
   let prog' = prog{progLog = Log (actions : l)}
   modify (\s -> s & #currentState % #prog .~ prog')

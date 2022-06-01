@@ -86,7 +86,7 @@ unit_10 =
 
 bindersAboveTest :: S Expr -> [Movement] -> S.Set Name -> Assertion
 bindersAboveTest expr path expected =
-  case evalTestM (i + 1) $ runExceptT $ runReaderT (foldM (flip moveExpr) (focus e) path) (initialCxt NoSmartHoles) of
+  case evalTestM (i + 1) $ runExceptT $ runReaderT (foldlM (flip moveExpr) (focus e) path) (initialCxt NoSmartHoles) of
     Left err -> assertFailure $ show err
     Right z -> bindersAbove z @?= expected
   where
