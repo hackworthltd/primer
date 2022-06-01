@@ -498,6 +498,8 @@ runRedex = \case
     | otherwise -> letType b (pure tyS) $ letType a (pure tyS) (pure t) `ann` pure tyT
   -- case C as : T of ... ; C xs -> e ; ...   ~>  let xs=as:As in e for constructor C of type T, where args have types As
   -- (and also the non-annotated-constructor case)
+  -- Note that when forming the CaseRedex we checked that the variables @xs@ were fresh for @as@ and @As@,
+  -- so this will not capture any variables.
   CaseRedex _ as _ xs e -> foldrM (\(x, (a, tyA)) t -> let_ x (pure a `ann` pure tyA) (pure t)) e (zip xs as)
   -- [ t : T ]  ~>  t  writing [_] for the embedding of syn into chk
   Upsilon e _ -> pure e
