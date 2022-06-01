@@ -95,7 +95,7 @@ import Primer.Core.Utils (
 import Primer.Eval (tryPrimFun)
 import Primer.JSON (CustomJSON (CustomJSON), FromJSON, ToJSON, VJSON)
 import Primer.Name (Name, NameCounter)
-import Primer.Typecheck (instantiateValCons', lookupConstructor)
+import Primer.Typecheck (instantiateValCons', lookupConstructor, mkTAppCon)
 import Primer.Zipper (
   ExprZ,
   TypeZ,
@@ -295,7 +295,7 @@ viewCaseRedex tydefs = \case
   Case m expr brs
     | Just (c, tyargs, args, patterns, br) <- extract expr brs
     , Just (_, tydef) <- lookupConstructor tydefs c
-    , ty <- foldl (\t a -> TApp () t $ forgetTypeIDs a) (TCon () (astTypeDefName tydef)) (take (length $ astTypeDefParameters tydef) tyargs)
+    , ty <- mkTAppCon (astTypeDefName tydef) (forgetTypeIDs <$> take (length $ astTypeDefParameters tydef) tyargs)
     , Just argTys <- instantiateCon ty c ->
         renameBindings m expr brs tyargs args patterns
           <|> formCaseRedex (Right ty) c argTys args patterns br

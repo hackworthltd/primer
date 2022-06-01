@@ -50,6 +50,7 @@ import Primer.Typecheck (
   buildTypingContextFromModules,
   consistentTypes,
   extendLocalCxtTy,
+  mkTAppCon,
   typeDefs,
  )
 import Test.Tasty.HUnit (Assertion, (@?=))
@@ -222,7 +223,7 @@ hprop_con = propertyWTInExtendedLocalGlobalCxt [builtinModule, primitiveModule] 
   let src = valConType td vc
   annotateShow src
   tgt' <- forAllT $ traverse (genWTType . snd) $ astTypeDefParameters td
-  let tgt = foldl (TApp ()) (TCon () $ astTypeDefName td) tgt'
+  let tgt = mkTAppCon (astTypeDefName td) tgt'
   annotateShow tgt
   cxt <- ask
   r <- refine' cxt tgt src
@@ -292,7 +293,7 @@ hprop_refinement_synths = propertyWTInExtendedLocalGlobalCxt [builtinModule, pri
     Just (is, instTy) -> do
       (_, apps) <- forAllT $ genInstApp is
       let f x = \case Right tm -> App () x tm; Left ty' -> APP () x ty'
-          e = foldl f (Ann () (EmptyHole ()) src) apps
+          e = foldl' f (Ann () (EmptyHole ()) src) apps
       annotateShow e
       (ty, e') <- synthTest =<< generateIDs e
       e === forgetIDs e' -- check no smart holes stuff happened
