@@ -1,5 +1,3 @@
-{-# LANGUAGE StandaloneDeriving #-}
-
 module Control.Monad.Fresh (MonadFresh (..)) where
 
 import Foreword

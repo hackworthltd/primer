@@ -20,20 +20,13 @@ library
     Primer.OpenAPI
     Servant.OpenApi.OperationId
 
-  default-language:   Haskell2010
+  default-language:   GHC2021
   default-extensions:
     DataKinds
-    DeriveDataTypeable
-    DeriveGeneric
     DerivingStrategies
     DerivingVia
-    FlexibleContexts
-    FlexibleInstances
-    GeneralizedNewtypeDeriving
     LambdaCase
-    MultiParamTypeClasses
     OverloadedStrings
-    ScopedTypeVariables
 
   ghc-options:
     -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
@@ -64,21 +57,14 @@ library
 executable primer-service
   main-is:            Main.hs
   hs-source-dirs:     exe-server
-  default-language:   Haskell2010
+  default-language:   GHC2021
   default-extensions:
     NoImplicitPrelude
     DataKinds
-    DeriveDataTypeable
-    DeriveGeneric
     DerivingStrategies
     DerivingVia
-    FlexibleContexts
-    FlexibleInstances
-    GeneralizedNewtypeDeriving
     LambdaCase
-    MultiParamTypeClasses
     OverloadedStrings
-    ScopedTypeVariables
 
   ghc-options:
     -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
@@ -103,20 +89,13 @@ executable primer-service
 executable primer-openapi
   main-is:            Main.hs
   hs-source-dirs:     exe-openapi
-  default-language:   Haskell2010
+  default-language:   GHC2021
   default-extensions:
     DataKinds
-    DeriveDataTypeable
-    DeriveGeneric
     DerivingStrategies
     DerivingVia
-    FlexibleContexts
-    FlexibleInstances
-    GeneralizedNewtypeDeriving
     LambdaCase
-    MultiParamTypeClasses
     OverloadedStrings
-    ScopedTypeVariables
 
   ghc-options:
     -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
@@ -134,21 +113,14 @@ test-suite service-test
   main-is:            Test.hs
   hs-source-dirs:     test
   other-modules:      Tests.Pagination
-  default-language:   Haskell2010
+  default-language:   GHC2021
   default-extensions:
     NoImplicitPrelude
     DataKinds
-    DeriveDataTypeable
-    DeriveGeneric
     DerivingStrategies
     DerivingVia
-    FlexibleContexts
-    FlexibleInstances
-    GeneralizedNewtypeDeriving
     LambdaCase
-    MultiParamTypeClasses
     OverloadedStrings
-    ScopedTypeVariables
 
   ghc-options:
     -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates

@@ -1,6 +1,3 @@
-{-# LANGUAGE StandaloneDeriving #-}
-{-# LANGUAGE TypeApplications #-}
-
 module Primer.Unification (InternalUnifyError (..), unify) where
 
 import Foreword

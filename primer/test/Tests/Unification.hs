@@ -1,5 +1,3 @@
-{-# LANGUAGE TupleSections #-}
-
 module Tests.Unification where
 
 import Foreword hiding (diff)

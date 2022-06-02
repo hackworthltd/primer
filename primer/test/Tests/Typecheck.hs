@@ -1,5 +1,3 @@
-{-# LANGUAGE RankNTypes #-}
-
 -- | Tests for the typechecker
 module Tests.Typecheck where
 

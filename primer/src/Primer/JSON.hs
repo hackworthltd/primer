@@ -1,6 +1,3 @@
-{-# LANGUAGE PolyKinds #-}
-{-# LANGUAGE TypeApplications #-}
-
 module Primer.JSON (CustomJSON (..), VJSON, VJSONPrefix, ToJSON, FromJSON, ToJSONKey, FromJSONKey) where
 
 import Foreword

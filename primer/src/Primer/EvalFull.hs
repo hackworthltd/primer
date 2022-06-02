@@ -1,5 +1,4 @@
 {-# LANGUAGE GADTs #-}
-{-# LANGUAGE TupleSections #-}
 
 module Primer.EvalFull (
   Dir (..),

@@ -1,5 +1,3 @@
-{-# LANGUAGE TypeApplications #-}
-
 -- |
 -- This module contains tests that the generators in "Gen.Core.Typed" do in fact
 -- generate well-typed terms

@@ -1,5 +1,3 @@
-{-# LANGUAGE NamedFieldPuns #-}
-
 module Primer.Database (
   SessionId,
   -- 'SessionName' is abstract. Do not export its constructors.

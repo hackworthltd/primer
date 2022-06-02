@@ -1,6 +1,5 @@
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE OverloadedLabels #-}
-{-# LANGUAGE TypeOperators #-}
 
 -- | An HTTP service for the Primer API.
 module Primer.Server (

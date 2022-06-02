@@ -9,6 +9,8 @@ repository contains Haskell implementations of:
 * a database adapter for storing Primer programs; and
 * a web service.
 
+Note that Primer must be built with GHC 9.2.1 or later.
+
 # Running Primer
 
 ## Local development

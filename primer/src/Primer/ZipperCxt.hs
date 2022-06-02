@@ -1,5 +1,3 @@
-{-# LANGUAGE TypeApplications #-}
-
 module Primer.ZipperCxt (
   localVariablesInScopeExpr,
   extractLocalsExprZ,

@@ -1,5 +1,3 @@
-{-# LANGUAGE NamedFieldPuns #-}
-
 -- | Compute all the possible actions which can be performed on a definition
 module Primer.Action.Available (
   actionsForDef,
