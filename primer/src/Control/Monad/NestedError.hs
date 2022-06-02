@@ -59,7 +59,7 @@ class (Monad m, MonadError larger m) => MonadNestedError smaller larger m | m ->
   catchError' :: m a -> (smaller -> m a) -> m a
 
 -- | We can trivially lift the type to itself
-instance (Monad m, MonadError e m) => MonadNestedError e e m where
+instance (MonadError e m) => MonadNestedError e e m where
   throwError' = throwError
   catchError' = catchError
 
@@ -67,7 +67,7 @@ instance (Monad m, MonadError e m) => MonadNestedError e e m where
 -- instance for it.
 instance
   {-# OVERLAPPABLE #-}
-  (Monad m, MonadError larger m, AsType smaller larger) =>
+  (MonadError larger m, AsType smaller larger) =>
   MonadNestedError smaller larger m
   where
   throwError' = throwError . injectTyped

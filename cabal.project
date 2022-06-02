@@ -1,4 +1,4 @@
-index-state: 2022-05-15T00:00:00Z
+index-state: 2022-06-02T00:00:00Z
 
 packages:
   primer
@@ -12,3 +12,14 @@ package *
 
 package primer
   test-options: "--size-cutoff=32768"
+
+-- https://github.com/protolude/protolude/issues/127
+allow-newer:
+  protolude:*
+
+-- https://github.com/protolude/protolude/issues/127
+source-repository-package
+  type: git
+  location: https://github.com/protolude/protolude
+  tag: 3e249724fd0ead27370c8c297b1ecd38f92cbd5b
+  --sha256: sha256-JyHAQfTTUswP8MeGEZibx/2/v01Q7cU5mNpnmDazh24=

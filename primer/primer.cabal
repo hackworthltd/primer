@@ -158,7 +158,7 @@ test-suite primer-test
       , hedgehog-classes  ^>=0.2.5.3
       , hspec             ^>=2.9.4
       , hspec-megaparsec  ^>=2.2.0
-      , mmorph            ^>=1.1.5
+      , mmorph            ^>=1.2.0
       , mtl
       , optics
       , pretty-simple     ^>=4.0.0
