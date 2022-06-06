@@ -146,7 +146,7 @@
             });
 
             # Temporary workaround for HLS issues until the next release.
-            hls = final.haskell-nix.cabalProject' {
+            hls = (final.haskell-nix.cabalProject' {
               compiler-nix-name = ghcVersion;
               src = haskell-language-server;
               sha256map."https://github.com/pepeiborra/ekg-json"."7a0af7a8fd38045fd15fb13445bdcc7085325460" = "fVwKxGgM0S4Kv/4egVAAiAjV7QB5PBqMVMCfsv7otIQ=";
@@ -156,7 +156,7 @@
                   inherit nonReinstallablePkgs;
                 }
               ];
-            };
+            }).hsPkgs.haskell-language-server.components.exes.haskell-language-server;
 
             primer = final.haskell-nix.cabalProject {
               compiler-nix-name = ghcVersion;
@@ -264,6 +264,9 @@
                 };
 
                 buildInputs = (with final; [
+                  # Temporary workaround for HLS issues until the next release.
+                  hls
+
                   nixpkgs-fmt
                   postgresql
                   openapi-generator-cli
@@ -295,9 +298,6 @@
 
                   ghc8107Tools.cabal-edit
                   ghc8107Tools.cabal-fmt
-
-                  # Temporary workaround for HLS issues until the next release.
-                  hls.hsPkgs.haskell-language-server.components.exes.haskell-language-server
 
                   haskellPackages.implicit-hie
                 ]);
@@ -365,6 +365,7 @@
             inherit run-primer;
 
             inherit (ghc8107Tools) cabal-edit cabal-fmt;
+            inherit hls;
           }
         )
       ];
