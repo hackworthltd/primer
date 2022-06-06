@@ -320,6 +320,7 @@ basicActionsForExpr l defName expr = case expr of
             ChooseVariable filterVars $ pure . ConstructVar
 
     -- If we have a useful type, offer the refine action, otherwise offer the
+    -- saturate action.
     offerRefined :: ExprMeta -> Bool
     offerRefined m = case m ^? _type % _Just % _chkedAt of
       Just (TEmptyHole _) -> False
