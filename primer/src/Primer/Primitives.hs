@@ -26,7 +26,6 @@ import Primer.Builtins (
 import Primer.Core (
   Def (DefPrim),
   Expr' (App, Con, PrimCon),
-  ExprAnyFresh (..),
   GVarName,
   GlobalName (baseName),
   ModuleName (ModuleName),
@@ -132,7 +131,7 @@ allPrimDefs =
               { primFunTypes = sequenceTypes [tcon tChar] (tcon tChar)
               , primFunDef = \case
                   [PrimCon _ (PrimChar c)] ->
-                    Right $ ExprAnyFresh $ char $ toUpper c
+                    Right $ char $ toUpper c
                   xs -> Left $ PrimFunError name xs
               }
           )
@@ -142,7 +141,7 @@ allPrimDefs =
               { primFunTypes = sequenceTypes [tcon tChar] (tcon tBool)
               , primFunDef = \case
                   [PrimCon _ (PrimChar c)] ->
-                    Right $ ExprAnyFresh $ bool_ $ isSpace c
+                    Right $ bool_ $ isSpace c
                   xs -> Left $ PrimFunError name xs
               }
           )
@@ -152,7 +151,7 @@ allPrimDefs =
               { primFunTypes = sequenceTypes [tcon tChar] $ tcon tMaybe `tapp` tcon tNat
               , primFunDef = \case
                   [PrimCon _ (PrimChar c)] -> do
-                    Right $ ExprAnyFresh $ maybe_ (tcon tNat) nat $ digitToIntSafe c
+                    Right $ maybe_ (tcon tNat) nat $ digitToIntSafe c
                     where
                       digitToIntSafe :: Char -> Maybe Natural
                       digitToIntSafe c' = fromIntegral <$> (guard (isHexDigit c') $> digitToInt c')
@@ -165,7 +164,7 @@ allPrimDefs =
               { primFunTypes = sequenceTypes [tcon tNat] $ tcon tMaybe `tapp` tcon tChar
               , primFunDef = \case
                   [exprToNat -> Just n] ->
-                    Right $ ExprAnyFresh $ maybe_ (tcon tChar) char $ intToDigitSafe n
+                    Right $ maybe_ (tcon tChar) char $ intToDigitSafe n
                     where
                       intToDigitSafe :: Natural -> Maybe Char
                       intToDigitSafe n' = guard (0 <= n && n <= 15) $> intToDigit (fromIntegral n')
@@ -178,7 +177,7 @@ allPrimDefs =
               { primFunTypes = sequenceTypes [tcon tChar, tcon tChar] (tcon tBool)
               , primFunDef = \case
                   [PrimCon _ (PrimChar c1), PrimCon _ (PrimChar c2)] ->
-                    Right $ ExprAnyFresh $ bool_ $ c1 == c2
+                    Right $ bool_ $ c1 == c2
                   xs -> Left $ PrimFunError name xs
               }
           )
@@ -188,7 +187,7 @@ allPrimDefs =
               { primFunTypes = sequenceTypes [tcon tInt, tcon tInt] (tcon tInt)
               , primFunDef = \case
                   [PrimCon _ (PrimInt x), PrimCon _ (PrimInt y)] ->
-                    Right $ ExprAnyFresh $ int $ x + y
+                    Right $ int $ x + y
                   xs -> Left $ PrimFunError name xs
               }
           )
@@ -198,7 +197,7 @@ allPrimDefs =
               { primFunTypes = sequenceTypes [tcon tInt, tcon tInt] (tcon tInt)
               , primFunDef = \case
                   [PrimCon _ (PrimInt x), PrimCon _ (PrimInt y)] ->
-                    Right $ ExprAnyFresh $ int $ x - y
+                    Right $ int $ x - y
                   xs -> Left $ PrimFunError name xs
               }
           )
@@ -208,7 +207,7 @@ allPrimDefs =
               { primFunTypes = sequenceTypes [tcon tInt, tcon tInt] (tcon tInt)
               , primFunDef = \case
                   [PrimCon _ (PrimInt x), PrimCon _ (PrimInt y)] ->
-                    Right $ ExprAnyFresh $ int $ x * y
+                    Right $ int $ x * y
                   xs -> Left $ PrimFunError name xs
               }
           )
@@ -219,12 +218,11 @@ allPrimDefs =
               , primFunDef = \case
                   [PrimCon _ (PrimInt x), PrimCon _ (PrimInt y)] ->
                     Right $
-                      ExprAnyFresh $
-                        if y == 0
-                          then con cNothing `aPP` tcon tInt
-                          else
-                            con cJust `aPP` tcon tInt
-                              `app` int (x `div` y)
+                      if y == 0
+                        then con cNothing `aPP` tcon tInt
+                        else
+                          con cJust `aPP` tcon tInt
+                            `app` int (x `div` y)
                   xs -> Left $ PrimFunError name xs
               }
           )
@@ -235,12 +233,11 @@ allPrimDefs =
               , primFunDef = \case
                   [PrimCon _ (PrimInt x), PrimCon _ (PrimInt y)] ->
                     Right $
-                      ExprAnyFresh $
-                        if y == 0
-                          then con cNothing `aPP` tcon tInt
-                          else
-                            con cJust `aPP` tcon tInt
-                              `app` int (x `mod` y)
+                      if y == 0
+                        then con cNothing `aPP` tcon tInt
+                        else
+                          con cJust `aPP` tcon tInt
+                            `app` int (x `mod` y)
                   xs -> Left $ PrimFunError name xs
               }
           )
@@ -251,10 +248,9 @@ allPrimDefs =
               , primFunDef = \case
                   [PrimCon _ (PrimInt x), PrimCon _ (PrimInt y)] ->
                     Right $
-                      ExprAnyFresh $
-                        if y == 0
-                          then int 0
-                          else int (x `div` y)
+                      if y == 0
+                        then int 0
+                        else int (x `div` y)
                   xs -> Left $ PrimFunError name xs
               }
           )
@@ -265,10 +261,9 @@ allPrimDefs =
               , primFunDef = \case
                   [PrimCon _ (PrimInt x), PrimCon _ (PrimInt y)] ->
                     Right $
-                      ExprAnyFresh $
-                        if y == 0
-                          then int x
-                          else int (x `mod` y)
+                      if y == 0
+                        then int x
+                        else int (x `mod` y)
                   xs -> Left $ PrimFunError name xs
               }
           )
@@ -278,7 +273,7 @@ allPrimDefs =
               { primFunTypes = sequenceTypes [tcon tInt, tcon tInt] (tcon tBool)
               , primFunDef = \case
                   [PrimCon _ (PrimInt x), PrimCon _ (PrimInt y)] ->
-                    Right $ ExprAnyFresh $ bool_ $ x < y
+                    Right $ bool_ $ x < y
                   xs -> Left $ PrimFunError name xs
               }
           )
@@ -288,7 +283,7 @@ allPrimDefs =
               { primFunTypes = sequenceTypes [tcon tInt, tcon tInt] (tcon tBool)
               , primFunDef = \case
                   [PrimCon _ (PrimInt x), PrimCon _ (PrimInt y)] ->
-                    Right $ ExprAnyFresh $ bool_ $ x <= y
+                    Right $ bool_ $ x <= y
                   xs -> Left $ PrimFunError name xs
               }
           )
@@ -298,7 +293,7 @@ allPrimDefs =
               { primFunTypes = sequenceTypes [tcon tInt, tcon tInt] (tcon tBool)
               , primFunDef = \case
                   [PrimCon _ (PrimInt x), PrimCon _ (PrimInt y)] ->
-                    Right $ ExprAnyFresh $ bool_ $ x > y
+                    Right $ bool_ $ x > y
                   xs -> Left $ PrimFunError name xs
               }
           )
@@ -308,7 +303,7 @@ allPrimDefs =
               { primFunTypes = sequenceTypes [tcon tInt, tcon tInt] (tcon tBool)
               , primFunDef = \case
                   [PrimCon _ (PrimInt x), PrimCon _ (PrimInt y)] ->
-                    Right $ ExprAnyFresh $ bool_ $ x >= y
+                    Right $ bool_ $ x >= y
                   xs -> Left $ PrimFunError name xs
               }
           )
@@ -318,7 +313,7 @@ allPrimDefs =
               { primFunTypes = sequenceTypes [tcon tInt, tcon tInt] (tcon tBool)
               , primFunDef = \case
                   [PrimCon _ (PrimInt x), PrimCon _ (PrimInt y)] ->
-                    Right $ ExprAnyFresh $ bool_ $ x == y
+                    Right $ bool_ $ x == y
                   xs -> Left $ PrimFunError name xs
               }
           )
@@ -328,7 +323,7 @@ allPrimDefs =
               { primFunTypes = sequenceTypes [tcon tInt, tcon tInt] (tcon tBool)
               , primFunDef = \case
                   [PrimCon _ (PrimInt x), PrimCon _ (PrimInt y)] ->
-                    Right $ ExprAnyFresh $ bool_ $ x /= y
+                    Right $ bool_ $ x /= y
                   xs -> Left $ PrimFunError name xs
               }
           )
@@ -339,12 +334,11 @@ allPrimDefs =
               , primFunDef = \case
                   [PrimCon _ (PrimInt x)] ->
                     Right $
-                      ExprAnyFresh $
-                        if x < 0
-                          then con cNothing `aPP` tcon tNat
-                          else
-                            con cJust
-                              `aPP` tcon tNat `app` nat (fromInteger x)
+                      if x < 0
+                        then con cNothing `aPP` tcon tNat
+                        else
+                          con cJust
+                            `aPP` tcon tNat `app` nat (fromInteger x)
                   xs -> Left $ PrimFunError name xs
               }
           )
@@ -354,7 +348,7 @@ allPrimDefs =
               { primFunTypes = sequenceTypes [tcon tNat] (tcon tInt)
               , primFunDef = \case
                   [exprToNat -> Just n] ->
-                    Right $ ExprAnyFresh $ int $ fromIntegral n
+                    Right $ int $ fromIntegral n
                   xs -> Left $ PrimFunError name xs
               }
           )
