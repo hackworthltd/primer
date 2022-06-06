@@ -1,5 +1,4 @@
 {-# LANGUAGE OverloadedLabels #-}
-{-# LANGUAGE UndecidableInstances #-}
 
 -- This module defines the core AST and some functions for operating on it.
 
