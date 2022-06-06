@@ -290,6 +290,8 @@
 
                   # Temporary workaround for HLS issues until the next release.
                   hls.hsPkgs.haskell-language-server.components.exes.haskell-language-server
+
+                  haskellPackages.implicit-hie
                 ]);
 
                 shellHook = ''
