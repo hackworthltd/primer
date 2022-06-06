@@ -1,4 +1,5 @@
 {-# LANGUAGE DuplicateRecordFields #-}
+{-# LANGUAGE ImpredicativeTypes #-}
 
 module Primer.Eval (
   -- The public API of this module
@@ -52,7 +53,7 @@ import Primer.Core (
   DefMap,
   Expr,
   Expr' (..),
-  ExprAnyFresh (..),
+  ExprAnyFresh,
   GVarName,
   HasID (_id),
   ID,
@@ -596,7 +597,7 @@ tryReduceExpr globals locals = \case
 
   -- apply primitive function
   before@App{}
-    | Just (name, args, ExprAnyFresh e) <- tryPrimFun (Map.mapMaybe defPrim globals) before -> do
+    | Just (name, args, e) <- tryPrimFun (Map.mapMaybe defPrim globals) before -> do
         expr <- e
         pure
           ( expr

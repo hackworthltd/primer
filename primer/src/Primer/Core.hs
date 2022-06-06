@@ -1,3 +1,4 @@
+{-# LANGUAGE ImpredicativeTypes #-}
 {-# LANGUAGE OverloadedLabels #-}
 
 -- This module defines the core AST and some functions for operating on it.
@@ -55,7 +56,7 @@ module Primer.Core (
   primConName,
   PrimFun (..),
   primFunType,
-  ExprAnyFresh (..),
+  ExprAnyFresh,
   PrimFunError (..),
   ValCon (..),
   valConType,
@@ -546,9 +547,7 @@ primFunType pf = do
       id <- fresh
       pure $ TFun (Meta id Nothing Nothing) x y
 
--- TODO with `-XImpredicativeTypes` in GHC 9.2, we can turn this in to a type synonym, then inline it
--- see https://github.com/hackworthltd/primer/issues/189
-newtype ExprAnyFresh = ExprAnyFresh (forall m. MonadFresh ID m => m Expr)
+type ExprAnyFresh = forall m. MonadFresh ID m => m Expr
 
 data PrimFunError
   = -- | We have attempted to apply a primitive function to invalid args.

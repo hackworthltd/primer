@@ -1,4 +1,5 @@
 {-# LANGUAGE GADTs #-}
+{-# LANGUAGE ImpredicativeTypes #-}
 
 module Primer.EvalFull (
   Dir (..),
@@ -49,7 +50,7 @@ import Primer.Core (
     Letrec,
     Var
   ),
-  ExprAnyFresh (ExprAnyFresh),
+  ExprAnyFresh,
   ExprMeta,
   GVarName,
   ID,
@@ -529,7 +530,7 @@ runRedex = \case
   RenameSelfLetType a ty body -> do
     b <- freshLocalName' (S.map unLocalName (freeVarsTy ty) <> freeVars body)
     letType b (pure ty) $ letType a (tvar b) $ pure body
-  ApplyPrimFun (ExprAnyFresh e) -> e
+  ApplyPrimFun e -> e
 
 runRedexTy :: (MonadFresh ID m, MonadFresh NameCounter m) => RedexType -> m Type
 runRedexTy (InlineLetInType _ t) = regenerateTypeIDs t
