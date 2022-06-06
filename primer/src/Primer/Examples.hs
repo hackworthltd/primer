@@ -21,6 +21,7 @@ module Primer.Examples (
   map',
   even,
   odd,
+  comprehensive,
 ) where
 
 import Foreword hiding (
@@ -36,24 +37,32 @@ import Primer.Core (
   Def (DefAST),
   ID,
   Kind (KType),
-  ModuleName,
+  ModuleName (unModuleName),
   qualifyName,
  )
 import Primer.Core.DSL (
   aPP,
+  ann,
   app,
   branch,
   case_,
   con,
+  emptyHole,
   gvar,
+  gvar',
+  hole,
   lAM,
   lam,
+  letType,
+  let_,
   letrec,
   lvar,
+  tEmptyHole,
   tapp,
   tcon,
   tforall,
   tfun,
+  thole,
   tvar,
  )
 
@@ -130,3 +139,103 @@ even modName = do
         , branch B.cSucc [("n", Nothing)] $ gvar (qualifyName modName "odd") `app` lvar "n"
         ]
   pure $ DefAST $ ASTDef (qualifyName modName "even") term type_
+
+-- | A comprehensive 'Def' containing most of the non-primitive
+-- built-in constructs in Primer.
+--
+-- Note that this 'Def' is nonsensical and is provided only for
+-- language coverage.
+comprehensive :: MonadFresh ID m => ModuleName -> m Def
+comprehensive modName = do
+  type_ <-
+    tfun
+      (tcon B.tNat)
+      ( tforall
+          "a"
+          KType
+          ( tapp
+              ( thole
+                  ( tapp
+                      (tcon B.tList)
+                      tEmptyHole
+                  )
+              )
+              (tvar "a")
+          )
+      )
+  term <-
+    let_
+      "x"
+      (con B.cTrue)
+      ( letrec
+          "y"
+          ( app
+              ( hole
+                  (con B.cJust)
+              )
+              ( hole
+                  (gvar' (unModuleName modName) "unboundName")
+              )
+          )
+          ( thole
+              (tcon B.tMaybe)
+          )
+          ( ann
+              ( lam
+                  "i"
+                  ( lAM
+                      "β"
+                      ( app
+                          ( aPP
+                              ( letType
+                                  "b"
+                                  (tcon B.tBool)
+                                  ( aPP
+                                      (con B.cLeft)
+                                      (tvar "b")
+                                  )
+                              )
+                              (tvar "β")
+                          )
+                          ( case_
+                              (lvar "i")
+                              [ branch
+                                  B.cZero
+                                  []
+                                  (con B.cFalse)
+                              , branch
+                                  B.cSucc
+                                  [
+                                    ( "n"
+                                    , Nothing
+                                    )
+                                  ]
+                                  ( app
+                                      ( app
+                                          emptyHole
+                                          (lvar "x")
+                                      )
+                                      (lvar "y")
+                                  )
+                              ]
+                          )
+                      )
+                  )
+              )
+              ( tfun
+                  (tcon B.tNat)
+                  ( tforall
+                      "α"
+                      KType
+                      ( tapp
+                          ( tapp
+                              (tcon B.tEither)
+                              (tcon B.tBool)
+                          )
+                          (tvar "α")
+                      )
+                  )
+              )
+          )
+      )
+  pure $ DefAST $ ASTDef (qualifyName modName "comprehensive") term type_

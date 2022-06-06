@@ -46,61 +46,19 @@ import Primer.App (
   newEmptyApp,
   newEmptyProg,
  )
-import Primer.Builtins (
-  builtinModule,
-  cFalse,
-  cJust,
-  cLeft,
-  cSucc,
-  cTrue,
-  cZero,
-  tBool,
-  tEither,
-  tList,
-  tMaybe,
-  tNat,
- )
+import Primer.Builtins (builtinModule)
 import Primer.Core (
-  ASTDef (..),
-  Def (DefAST),
-  GlobalName (baseName),
-  ID,
-  Kind (KType),
+  baseName,
+  defName,
   mkSimpleModuleName,
-  qualifyName,
  )
-import Primer.Core.DSL (
-  aPP,
-  ann,
-  app,
-  branch,
-  case_,
-  con,
-  emptyHole,
-  gvar',
-  hole,
-  lAM,
-  lam,
-  letType,
-  let_,
-  letrec,
-  lvar,
-  tEmptyHole,
-  tapp,
-  tcon,
-  tforall,
-  tfun,
-  thole,
-  tvar,
- )
-import Primer.Core.Utils (
-  mkASTDef,
- )
+import Primer.Core.DSL (create)
 import Primer.Database.Rel8.Rel8Db (
   Rel8Db,
   runRel8Db,
  )
 import Primer.Database.Rel8.Schema as Schema hiding (app)
+import Primer.Examples (comprehensive)
 import Primer.Module (
   Module (
     Module,
@@ -239,130 +197,27 @@ insertSessionRow row conn =
             , returning = NumberOfRowsAffected
             }
 
--- | This definition contains most of the non-primitive constructs in
--- the Primer language.
---
--- TODO: this is identical to a program in the core Primer test suite,
--- so it should be refactored into a common test library. See:
--- https://github.com/hackworthltd/primer/issues/273
-testASTDef :: ASTDef
-testASTDefNextID :: ID
-(testASTDef, testASTDefNextID) =
-  mkASTDef (qualifyName (mkSimpleModuleName "TestModule") "1") t e
-  where
-    t =
-      tfun
-        (tcon tNat)
-        ( tforall
-            "a"
-            KType
-            ( tapp
-                ( thole
-                    ( tapp
-                        (tcon tList)
-                        tEmptyHole
-                    )
-                )
-                (tvar "a")
-            )
-        )
-    e =
-      let_
-        "x"
-        (con cTrue)
-        ( letrec
-            "y"
-            ( app
-                ( hole
-                    (con cJust)
-                )
-                ( hole
-                    (gvar' ("TestModule" :| []) "0")
-                )
-            )
-            ( thole
-                (tcon tMaybe)
-            )
-            ( ann
-                ( lam
-                    "i"
-                    ( lAM
-                        "β"
-                        ( app
-                            ( aPP
-                                ( letType
-                                    "b"
-                                    (tcon tBool)
-                                    ( aPP
-                                        (con cLeft)
-                                        (tvar "b")
-                                    )
-                                )
-                                (tvar "β")
-                            )
-                            ( case_
-                                (lvar "i")
-                                [ branch
-                                    cZero
-                                    []
-                                    (con cFalse)
-                                , branch
-                                    cSucc
-                                    [
-                                      ( "n"
-                                      , Nothing
-                                      )
-                                    ]
-                                    ( app
-                                        ( app
-                                            emptyHole
-                                            (lvar "x")
-                                        )
-                                        (lvar "y")
-                                    )
-                                ]
-                            )
-                        )
-                    )
-                )
-                ( tfun
-                    (tcon tNat)
-                    ( tforall
-                        "α"
-                        KType
-                        ( tapp
-                            ( tapp
-                                (tcon tEither)
-                                (tcon tBool)
-                            )
-                            (tvar "α")
-                        )
-                    )
-                )
-            )
-        )
-
 -- | An initial test 'App' instance that contains all default type
 -- definitions (including primitive types), all primitive functions,
--- and a top-level definition that contains most of the non-primitive
--- constructs in the Primer language.x
+-- and a top-level definition with extensive coverage of Primer's
+-- core language.
 testApp :: App
 testApp =
-  newEmptyApp
-    { appProg = testProg
-    , appInit = NewApp
-    , appIdCounter = fromEnum testASTDefNextID
-    }
-  where
-    testProg :: Prog
-    testProg =
-      newEmptyProg
-        { progImports = [builtinModule, primitiveModule]
-        , progModules =
-            [ Module
-                { moduleName = mkSimpleModuleName "TestModule"
-                , moduleTypes = mempty
-                , moduleDefs = Map.singleton (baseName $ astDefName testASTDef) (DefAST testASTDef)
-                }
-            ]
+  let modName = mkSimpleModuleName "TestModule"
+      (def, id_) = create $ comprehensive modName
+      testProg =
+        newEmptyProg
+          { progImports = [builtinModule, primitiveModule]
+          , progModules =
+              [ Module
+                  { moduleName = mkSimpleModuleName "TestModule"
+                  , moduleTypes = mempty
+                  , moduleDefs = Map.singleton (baseName $ defName def) def
+                  }
+              ]
+          }
+   in newEmptyApp
+        { appProg = testProg
+        , appInit = NewApp
+        , appIdCounter = fromEnum id_
         }
