@@ -1,5 +1,3 @@
-{-# LANGUAGE NamedFieldPuns #-}
-
 module Tests.Action.Available where
 
 import Foreword

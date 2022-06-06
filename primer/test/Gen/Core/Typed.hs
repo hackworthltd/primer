@@ -1,7 +1,6 @@
 -- ApplicativeDo: generators shrink much better if applicative (though much of
 -- this module is inherently monadic)
 {-# LANGUAGE ApplicativeDo #-}
-{-# LANGUAGE TupleSections #-}
 
 -- |
 -- This module generates well-typed terms and types.

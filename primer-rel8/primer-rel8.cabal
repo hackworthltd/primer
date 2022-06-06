@@ -18,21 +18,14 @@ library
     Primer.Database.Rel8.Schema
 
   hs-source-dirs:     src
-  default-language:   Haskell2010
+  default-language:   GHC2021
   default-extensions:
     NoImplicitPrelude
     DataKinds
-    DeriveDataTypeable
-    DeriveGeneric
     DerivingStrategies
     DerivingVia
-    FlexibleContexts
-    FlexibleInstances
-    GeneralizedNewtypeDeriving
     LambdaCase
-    MultiParamTypeClasses
     OverloadedStrings
-    ScopedTypeVariables
 
   ghc-options:
     -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
@@ -63,21 +56,14 @@ test-suite primer-rel8-test
     Tests.UpdateSessionName
     TestUtils
 
-  default-language:   Haskell2010
+  default-language:   GHC2021
   default-extensions:
     NoImplicitPrelude
     DataKinds
-    DeriveDataTypeable
-    DeriveGeneric
     DerivingStrategies
     DerivingVia
-    FlexibleContexts
-    FlexibleInstances
-    GeneralizedNewtypeDeriving
     LambdaCase
-    MultiParamTypeClasses
     OverloadedStrings
-    ScopedTypeVariables
 
   ghc-options:
     -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates

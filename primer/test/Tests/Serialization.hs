@@ -1,6 +1,3 @@
-{-# LANGUAGE ExistentialQuantification #-}
-{-# LANGUAGE TypeApplications #-}
-
 module Tests.Serialization where
 
 import Foreword hiding (log)

@@ -1,5 +1,3 @@
-{-# LANGUAGE TupleSections #-}
-
 module Tests.Eval where
 
 import Foreword

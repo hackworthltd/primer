@@ -1,8 +1,5 @@
-{-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE GADTs #-}
-{-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE OverloadedLabels #-}
-{-# LANGUAGE TypeApplications #-}
 
 -- | Typechecking for Core expressions.
 -- This closely follows the type system of Hazelnut, but supports arbitrary

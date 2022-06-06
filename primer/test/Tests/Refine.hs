@@ -1,5 +1,3 @@
-{-# LANGUAGE TupleSections #-}
-
 module Tests.Refine where
 
 import Foreword hiding (diff)

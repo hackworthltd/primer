@@ -1,8 +1,4 @@
-{-# LANGUAGE DeriveFunctor #-}
-{-# LANGUAGE KindSignatures #-}
 {-# LANGUAGE OverloadedLabels #-}
-{-# LANGUAGE RankNTypes #-}
-{-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE UndecidableInstances #-}
 
 -- This module defines the core AST and some functions for operating on it.

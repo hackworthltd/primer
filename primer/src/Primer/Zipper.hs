@@ -1,5 +1,4 @@
 {-# LANGUAGE FunctionalDependencies #-}
-{-# LANGUAGE TypeApplications #-}
 
 -- | This module contains the zipper types @ExprZ@ and @TypeZ@, and functions for
 --  operating on them.

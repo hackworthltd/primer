@@ -1,4 +1,3 @@
-{-# LANGUAGE StandaloneDeriving #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
 -- This module exists so that we don't need a dependency on "Rel8" in

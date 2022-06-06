@@ -1,4 +1,3 @@
-{-# LANGUAGE StandaloneDeriving #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
 module Primer.OpenAPI (

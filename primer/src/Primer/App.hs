@@ -1,10 +1,5 @@
-{-# LANGUAGE ConstraintKinds #-}
-{-# LANGUAGE DeriveTraversable #-}
 {-# LANGUAGE GADTs #-}
-{-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE OverloadedLabels #-}
-{-# LANGUAGE TupleSections #-}
-{-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE ViewPatterns #-}
 
 -- This module defines the high level application functions.

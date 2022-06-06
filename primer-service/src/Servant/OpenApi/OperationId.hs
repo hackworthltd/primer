@@ -1,6 +1,4 @@
 {-# LANGUAGE OverloadedLabels #-}
-{-# LANGUAGE PolyKinds #-}
-{-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeFamilies #-}
 
 module Servant.OpenApi.OperationId (OperationId, OpId) where
