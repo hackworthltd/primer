@@ -1111,7 +1111,7 @@ copyPasteSig p (fromDefName, fromTyId) toDefName setup = do
       Left err -> throwError $ ActionError err
       Right (_, _, tgt) -> pure $ focusOnlyType tgt
     let sharedScope =
-          if fromDefName == toDefName -- optimization only
+          if fromDefName == toDefName
             then getSharedScopeTy c $ Right tgt
             else mempty
     -- Delete unbound vars
@@ -1134,6 +1134,9 @@ copyPasteSig p (fromDefName, fromTyId) toDefName setup = do
 -- may reuse the same names. However, we want to detect that as non-shared.
 -- Instead, we rely on fact that IDs are unique.
 -- We get the scope from the second argument, as that is where we are pasting.
+-- NB: we assume that both arguments belong in the same definition (and thus
+-- only require that IDs are unique within one definition -- this is a narrower
+-- uniqueness assumption than we currently enforce, see Note [Modules]).
 getSharedScopeTy :: Either TypeZ TypeZip -> Either TypeZ TypeZip -> Set.Set Name
 getSharedScopeTy l r =
   let idsR = case r of
@@ -1244,7 +1247,7 @@ copyPasteBody p (fromDefName, fromId) toDefName setup = do
       (Right _, InExpr _) -> throwError $ CopyPasteError "tried to paste a type into an expression"
       (Right srcT, InType tgtT) -> do
         let sharedScope =
-              if fromDefName == toDefName -- optimization only
+              if fromDefName == toDefName
                 then getSharedScopeTy srcT $ Left tgtT
                 else mempty
         -- Delete unbound vars. TODO: we may want to let-bind them?
@@ -1263,7 +1266,7 @@ copyPasteBody p (fromDefName, fromId) toDefName setup = do
         pure (insertDef mod (DefAST newDef), Just (Selection (astDefName newDef) $ Just newSel))
       (Left srcE, InExpr tgtE) -> do
         let sharedScope =
-              if fromDefName == toDefName -- optimization only
+              if fromDefName == toDefName
                 then getSharedScope srcE tgtE
                 else mempty
         -- Delete unbound vars. TODO: we may want to let-bind them?
