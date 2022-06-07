@@ -95,7 +95,6 @@ import Primer.Core (
   defAST,
   defType,
   getID,
-  typeDefName,
   unLocalName,
  )
 import Primer.Database (
@@ -125,7 +124,7 @@ import qualified Primer.Database as Database (
     Success
   ),
  )
-import Primer.Module (moduleDefsQualified, moduleName, moduleTypes)
+import Primer.Module (moduleDefsQualified, moduleName, moduleTypesQualified)
 import Primer.Name (Name, unName)
 import qualified StmContainers.Map as StmMap
 
@@ -346,7 +345,7 @@ viewProg p =
       Module
         { modname = moduleName m
         , editable = e
-        , types = typeDefName <$> Map.elems (moduleTypes m)
+        , types = fst <$> Map.assocs (moduleTypesQualified m)
         , defs =
             ( \(n, d) ->
                 Def

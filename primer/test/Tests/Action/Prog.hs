@@ -86,7 +86,6 @@ import Primer.Core (
   getID,
   qualifyName,
   typeDefAST,
-  typeDefName,
  )
 import Primer.Core.DSL (
   S,
@@ -1308,7 +1307,7 @@ unit_defaultFullProg_no_clash :: Assertion
 unit_defaultFullProg_no_clash =
   let p = create' defaultEmptyProg
       ms = progModules p <> [builtinModule, primitiveModule]
-      typeNames = ms ^.. folded % #moduleTypes % folded % to typeDefName % #baseName
+      typeNames = ms ^.. folded % #moduleTypes % to Map.keys % folded
       termNames = ms ^.. folded % #moduleDefs % to Map.keys % folded
    in do
         assertBool "Expected every type making up defaultFullProg to have distinct names" $ not $ anySame typeNames

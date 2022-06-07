@@ -342,24 +342,26 @@ checkTypeDefs ::
   TypeDefMap ->
   m ()
 checkTypeDefs tds = do
-  existingTypes <- asks $ Map.elems . typeDefs
+  existingTypes <- asks typeDefs
   -- NB: we expect the frontend to only submit acceptable typedefs, so all
   -- errors here are "internal errors" and should never be seen.
   -- (This is not quite true, see
   -- https://github.com/hackworthltd/primer/issues/3)
-  assert (distinct $ map typeDefName $ existingTypes <> Map.elems tds) "Duplicate-ly-named TypeDefs"
+  assert (Map.disjoint existingTypes tds) "Duplicate-ly-named TypeDefs"
   -- Note that constructors are synthesisable, so their names must be globally
   -- unique. We need to be able to work out the type of @TCon "C"@ without any
   -- extra information.
-  let atds = mapMaybe typeDefAST $ Map.elems tds
-  let allAtds = mapMaybe typeDefAST existingTypes <> atds
+  let atds = Map.mapMaybe typeDefAST tds
+  let allAtds = Map.mapMaybe typeDefAST existingTypes <> atds
   assert
     (distinct $ concatMap (map valConName . astTypeDefConstructors) allAtds)
     "Duplicate-ly-named constructor (perhaps in different typedefs)"
   -- Note that these checks only apply to non-primitives:
   -- duplicate type names are checked elsewhere, kinds are correct by construction, and there are no constructors.
-  local (extendTypeDefCxt tds) $ mapM_ checkTypeDef atds
+  local (extendTypeDefCxt tds) $ traverseWithKey_ checkTypeDef atds
   where
+    traverseWithKey_ :: Applicative f => (k -> v -> f ()) -> Map k v -> f ()
+    traverseWithKey_ f = void . Map.traverseWithKey f
     -- In the core, we have many different namespaces, so the only name-clash
     -- checking we must do is
     -- - between two constructors (possibly of different types)
@@ -377,20 +379,20 @@ checkTypeDefs tds = do
     -- - type names clashing with constructor names (possibly in different
     --   types)
 
-    checkTypeDef td = do
+    checkTypeDef tc td = do
       let params = astTypeDefParameters td
       let cons = astTypeDefConstructors td
       assert
         ( (1 ==) . S.size $
             S.fromList $
-              qualifiedModule (astTypeDefName td) : fmap (qualifiedModule . valConName) cons
+              qualifiedModule tc : fmap (qualifiedModule . valConName) cons
         )
         "Module name of type and all constructors must be the same"
       assert
         (distinct $ map (unLocalName . fst) params <> map (baseName . valConName) cons)
         "Duplicate names in one tydef: between parameter-names and constructor-names"
       assert
-        (notElem (baseName $ astTypeDefName td) $ map (unLocalName . fst) params)
+        (notElem (baseName tc) $ map (unLocalName . fst) params)
         "Duplicate names in one tydef: between type-def-name and parameter-names"
       local (noSmartHoles . extendLocalCxtTys params) $
         mapM_ (checkKind KType <=< fakeMeta) $ concatMap valConArgs cons

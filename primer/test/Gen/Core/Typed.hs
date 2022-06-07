@@ -64,7 +64,6 @@ import Primer.Core (
   ValConName,
   qualifyName,
   typeDefKind,
-  typeDefName,
   typeDefParameters,
   valConName,
   valConType,
@@ -366,12 +365,12 @@ genChk ty = do
         ]
     case_ :: WT (Maybe (GenT WT ExprG))
     case_ =
-      asks (M.elems . typeDefs) <&> \adts ->
+      asks (M.assocs . typeDefs) <&> \adts ->
         if null adts
           then Nothing
           else Just $ do
-            td <- Gen.element adts
-            let t = mkTAppCon (typeDefName td) (TEmptyHole () <$ typeDefParameters td)
+            (tc, td) <- Gen.element adts
+            let t = mkTAppCon tc (TEmptyHole () <$ typeDefParameters td)
             (e, brs) <- Gen.justT $ do
               (e, eTy) <- genSyns t -- NB: this could return something only consistent with t, e.g. if t=List ?, could get eT=? Nat
               vcs' <- instantiateValCons eTy
@@ -408,11 +407,11 @@ genWTType k = do
         else pure $ Just $ Gen.element $ map (TVar () . fst) goodVars
     constr :: WT (Maybe (GenT WT TypeG))
     constr = do
-      tds <- asks $ M.elems . typeDefs
-      let goodTCons = filter (consistentKinds k . typeDefKind) tds
+      tds <- asks $ M.assocs . typeDefs
+      let goodTCons = filter (consistentKinds k . typeDefKind . snd) tds
       if null goodTCons
         then pure Nothing
-        else pure $ Just $ Gen.element $ map (TCon () . typeDefName) goodTCons
+        else pure $ Just $ Gen.element $ map (TCon () . fst) goodTCons
     arrow :: Maybe (GenT WT TypeG)
     arrow =
       if k == KHole || k == KType
