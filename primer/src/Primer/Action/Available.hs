@@ -34,7 +34,7 @@ import qualified Primer.Action.Priorities as P
 import Primer.Core (
   ASTDef (..),
   Bind' (..),
-  Def (..),
+  DefMap,
   Expr,
   Expr' (..),
   ExprMeta,
@@ -82,7 +82,7 @@ data SomeNode a b
 actionsForDef ::
   Level ->
   -- | only used to generate a unique name for a duplicate definition
-  Map ID Def ->
+  DefMap ->
   ASTDef ->
   [OfferedAction [ProgAction]]
 actionsForDef l defs def =
