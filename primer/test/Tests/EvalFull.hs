@@ -57,7 +57,7 @@ import Primer.Typecheck (
  )
 import Test.Tasty.HUnit (Assertion, assertBool, assertFailure, (@?=))
 import TestM
-import TestUtils (exprIDs, gvn, withPrimDefs, zeroIDs)
+import TestUtils (exprIDs, withPrimDefs, zeroIDs)
 import Tests.Action.Prog (runAppTestM)
 import Tests.Eval ((~=))
 import Tests.Gen.Core.Typed (checkTest)
@@ -155,13 +155,10 @@ unit_8 :: Assertion
 unit_8 =
   let n = 10
       ((globals, e, expected), maxID) = create $ do
-        mapDef <- Examples.map
-        evenDef <- Examples.even
-        oddDef <- Examples.odd
+        (mapName, mapDef) <- Examples.map
+        (evenName, evenDef) <- Examples.even
+        (oddName, oddDef) <- Examples.odd
         let lst = list_ tNat $ take n $ iterate (con cSucc `app`) (con cZero)
-        let mapName = defName mapDef
-        let evenName = defName evenDef
-        let oddName = defName oddDef
         expr <- gvar mapName `aPP` tcon tNat `aPP` tcon tBool `app` gvar evenName `app` lst
         let globs = [(mapName, mapDef), (evenName, evenDef), (oddName, oddDef)]
         expect <- list_ tBool (take n $ cycle [con cTrue, con cFalse]) `ann` (tcon tList `tapp` tcon tBool)
@@ -179,13 +176,10 @@ unit_9 :: Assertion
 unit_9 =
   let n = 10
       ((globals, e, expected), maxID) = create $ do
-        mapDef <- Examples.map'
-        evenDef <- Examples.even
-        oddDef <- Examples.odd
+        (mapName, mapDef) <- Examples.map'
+        (evenName, evenDef) <- Examples.even
+        (oddName, oddDef) <- Examples.odd
         let lst = list_ tNat $ take n $ iterate (con cSucc `app`) (con cZero)
-        let mapName = defName mapDef
-        let evenName = defName evenDef
-        let oddName = defName oddDef
         expr <- gvar mapName `aPP` tcon tNat `aPP` tcon tBool `app` gvar evenName `app` lst
         let globs = [(mapName, mapDef), (evenName, evenDef), (oddName, oddDef)]
         expect <- list_ tBool (take n $ cycle [con cTrue, con cFalse]) `ann` (tcon tList `tapp` tcon tBool)
@@ -232,10 +226,8 @@ unit_10 =
 unit_11 :: Assertion
 unit_11 =
   let ((globals, e, expected), maxID) = create $ do
-        evenDef <- Examples.even
-        oddDef <- Examples.odd
-        let evenName = defName evenDef
-        let oddName = defName oddDef
+        (evenName, evenDef) <- Examples.even
+        (oddName, oddDef) <- Examples.odd
         let ty = tcon tNat `tfun` (tcon tPair `tapp` tcon tBool `tapp` tcon tNat)
         let expr1 =
               let_ "x" (con cZero) $
@@ -1004,8 +996,7 @@ unit_prim_partial_map :: Assertion
 unit_prim_partial_map =
   let ((e, r, gs), maxID) =
         create . withPrimDefs $ \globals -> do
-          mapDef <- Examples.map'
-          let mapName = defName mapDef
+          (mapName, mapDef) <- Examples.map'
           (,,)
             <$> gvar mapName
               `aPP` tcon tChar
@@ -1024,7 +1015,7 @@ unit_prim_partial_map =
               , char 'C'
               ]
               `ann` (tcon tList `tapp` tcon tChar)
-            <*> pure (M.singleton (defName mapDef) mapDef <> (DefPrim <$> globals))
+            <*> pure (M.singleton mapName mapDef <> (DefPrim <$> globals))
       s = evalFullTest maxID builtinTypes gs 65 Syn e
    in do
         distinctIDs s
@@ -1147,8 +1138,7 @@ testModule =
             Map.singleton "idChar" $
               DefAST
                 ASTDef
-                  { astDefName = gvn ["M"] "idChar"
-                  , astDefType = ty
+                  { astDefType = ty
                   , astDefExpr = expr
                   }
         }

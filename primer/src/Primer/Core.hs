@@ -12,7 +12,6 @@ module Primer.Core (
   CaseBranch' (..),
   Def (..),
   DefMap,
-  defName,
   defType,
   ASTDef (..),
   defAST,
@@ -484,28 +483,24 @@ data Def
 -- | A mapping of global names to 'Def's.
 type DefMap = Map GVarName Def
 
--- | A primitive, built-in definition
-data PrimDef = PrimDef
-  { primDefName :: GVarName
-  -- ^ Used for display, and to link to an entry in `allPrimDefs`
-  , primDefType :: Type
+-- | A primitive, built-in definition.
+-- Names and definitions of primitives are hard-coded in Primer.Primitives.
+-- A @PrimDef@ simply exposes one of those, and thus the type must match
+-- the one stored in the corresponding 'PrimFun'.
+newtype PrimDef = PrimDef
+  { primDefType :: Type
   }
   deriving (Eq, Show, Data, Generic)
   deriving (FromJSON, ToJSON) via VJSON PrimDef
 
 -- | A top-level definition, built from an 'Expr'
 data ASTDef = ASTDef
-  { astDefName :: GVarName
-  , astDefExpr :: Expr
+  { astDefExpr :: Expr
   , astDefType :: Type
   }
   deriving (Eq, Show, Data, Generic)
   deriving (FromJSON, ToJSON) via VJSON ASTDef
 
-defName :: Def -> GVarName
-defName = \case
-  DefPrim d -> primDefName d
-  DefAST d -> astDefName d
 defType :: Def -> Type
 defType = \case
   DefPrim d -> primDefType d

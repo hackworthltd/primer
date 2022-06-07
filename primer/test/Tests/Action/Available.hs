@@ -12,6 +12,7 @@ import Primer.Action.Available (actionsForDef, actionsForDefBody, actionsForDefS
 import Primer.Builtins
 import Primer.Core (
   ASTDef (..),
+  GVarName,
   GlobalName (baseName, qualifiedModule),
   HasID (_id),
   ID,
@@ -56,11 +57,12 @@ import Text.Pretty.Simple (pShowNoColor)
 test_1 :: TestTree
 test_1 =
   mkTests
-    ASTDef
-      { astDefName = gvn ["M"] "1"
-      , astDefExpr
-      , astDefType
-      }
+    ( gvn ["M"] "1"
+    , ASTDef
+        { astDefExpr
+        , astDefType
+        }
+    )
   where
     ((astDefExpr, astDefType), _) = create $ (,) <$> e <*> t
     t =
@@ -163,14 +165,13 @@ data Output = Output
   deriving (Show)
 
 -- | Golden tests for the available actions at each node of the definition, for each level.
-mkTests :: ASTDef -> TestTree
-mkTests def =
-  let defName = astDefName def
-      testName = T.unpack $ moduleNamePretty (qualifiedModule defName) <> "." <> unName (baseName defName)
+mkTests :: (GVarName, ASTDef) -> TestTree
+mkTests d@(defName, def) =
+  let testName = T.unpack $ moduleNamePretty (qualifiedModule defName) <> "." <> unName (baseName defName)
    in testGroup testName $
         enumerate
           <&> \level ->
-            let defActions = map name $ actionsForDef level mempty def
+            let defActions = map name $ actionsForDef level mempty d
                 bodyActions =
                   map
                     ( \id ->
@@ -184,7 +185,7 @@ mkTests def =
                   map
                     ( \id ->
                         ( id
-                        , map name $ actionsForDefSig level defName id (astDefType def)
+                        , map name $ actionsForDefSig level d id (astDefType def)
                         )
                     )
                     . toListOf (_typeMeta % _id)

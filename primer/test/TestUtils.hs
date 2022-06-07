@@ -17,7 +17,6 @@ module TestUtils (
 import Foreword
 
 import Control.Monad.Fresh (MonadFresh)
-import qualified Data.Map as Map
 import Optics (Traversal', adjoin, over, set, view, (%))
 import Primer.Action (Action (ConstructCon, ConstructRefinedCon, ConstructTCon))
 import Primer.Core (
@@ -48,12 +47,9 @@ import Primer.Primitives (allPrimDefs)
 
 withPrimDefs :: MonadFresh ID m => (Map GVarName PrimDef -> m a) -> m a
 withPrimDefs f = do
-  defs <-
-    for
-      (Map.toList allPrimDefs)
-      (\(name, p) -> PrimDef name <$> primFunType p)
-  f
-    (Map.fromList $ (\d -> (primDefName d, d)) <$> defs)
+  defs <- for allPrimDefs (fmap PrimDef . primFunType)
+  f defs
+
 
 -- impedence mismatch: ConstructTCon takes text, but tChar etc are TyConNames
 constructTCon :: TyConName -> Action

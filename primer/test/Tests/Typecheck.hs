@@ -53,7 +53,7 @@ import Primer.Core (
   Kind (KFun, KHole, KType),
   Meta (..),
   ModuleName (ModuleName),
-  PrimDef (PrimDef, primDefName, primDefType),
+  PrimDef (PrimDef, primDefType),
   TmVarRef (LocalVarRef),
   TyConName,
   Type,
@@ -87,7 +87,7 @@ import Primer.Typecheck (
  )
 import Test.Tasty.HUnit (Assertion, assertFailure, (@?=))
 import TestM (TestM, evalTestM)
-import TestUtils (gvn, tcn, vcn, zeroIDs, zeroTypeIDs)
+import TestUtils (tcn, vcn, zeroIDs, zeroTypeIDs)
 import Tests.Gen.Core.Typed
 
 unit_identity :: Assertion
@@ -537,36 +537,10 @@ unit_good_maybeT = case runTypecheckTestM NoSmartHoles $
   Left err -> assertFailure $ show err
   Right _ -> pure ()
 
-unit_bad_prim_map_base :: Assertion
-unit_bad_prim_map_base = case runTypecheckTestM NoSmartHoles $ do
-  fooType <- tcon tNat
-  let foo = PrimDef{primDefName = gvn ["M"] "bar", primDefType = fooType}
-  checkEverything
-    NoSmartHoles
-    CheckEverything
-      { trusted = progModules newProg
-      , toCheck = [Module (ModuleName ["M"]) mempty $ Map.singleton "foo" $ DefPrim foo]
-      } of
-  Left err -> err @?= InternalError "Inconsistent names in moduleDefs map for module M"
-  Right _ -> assertFailure "Expected failure but succeeded"
-
-unit_bad_prim_map_module :: Assertion
-unit_bad_prim_map_module = case runTypecheckTestM NoSmartHoles $ do
-  fooType <- tcon tNat
-  let foo = PrimDef{primDefName = gvn ["OtherMod"] "foo", primDefType = fooType}
-  checkEverything
-    NoSmartHoles
-    CheckEverything
-      { trusted = progModules newProg
-      , toCheck = [Module (ModuleName ["M"]) mempty $ Map.singleton "foo" $ DefPrim foo]
-      } of
-  Left err -> err @?= InternalError "Inconsistent names in moduleDefs map for module M"
-  Right _ -> assertFailure "Expected failure but succeeded"
-
 unit_bad_prim_type :: Assertion
 unit_bad_prim_type = case runTypecheckTestM NoSmartHoles $ do
   fooType <- tcon' ["M"] "NonExistant"
-  let foo = PrimDef{primDefName = gvn ["M"] "foo", primDefType = fooType}
+  let foo = PrimDef{primDefType = fooType}
   checkEverything
     NoSmartHoles
     CheckEverything

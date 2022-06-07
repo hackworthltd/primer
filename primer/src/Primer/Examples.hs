@@ -33,6 +33,7 @@ import qualified Primer.Builtins as B
 import Primer.Core (
   ASTDef (ASTDef),
   Def (DefAST),
+  GVarName,
   GlobalName,
   ID,
   Kind (KType),
@@ -63,7 +64,7 @@ qn = qualifyName (ModuleName $ "Examples" :| [])
 
 -- | The polymorphic function @map@ (over @List a@ as defined by
 -- 'listDef').
-map :: MonadFresh ID m => m Def
+map :: MonadFresh ID m => m (GVarName, Def)
 map =
   let this = qn "map"
    in do
@@ -80,11 +81,11 @@ map =
                     , branch B.cCons [("y", Nothing), ("ys", Nothing)] $
                         con B.cCons `aPP` tvar "b" `app` (lvar "f" `app` lvar "y") `app` (gvar this `aPP` tvar "a" `aPP` tvar "b" `app` lvar "f" `app` lvar "ys")
                     ]
-        pure $ DefAST $ ASTDef this term type_
+        pure (this, DefAST $ ASTDef term type_)
 
 -- | The polymorphic function @map@ (over @List a@ as defined by
 -- 'listDef'), implemented using a worker.
-map' :: MonadFresh ID m => m Def
+map' :: MonadFresh ID m => m (GVarName, Def)
 map' = do
   type_ <- tforall "a" KType $ tforall "b" KType $ (tvar "a" `tfun` tvar "b") `tfun` ((tcon B.tList `tapp` tvar "a") `tfun` (tcon B.tList `tapp` tvar "b"))
   let worker =
@@ -101,13 +102,13 @@ map' = do
         lam "f" $
           letrec "go" worker ((tcon B.tList `tapp` tvar "a") `tfun` (tcon B.tList `tapp` tvar "b")) $
             lvar "go"
-  pure $ DefAST $ ASTDef (qn "map'") term type_
+  pure (qn "map", DefAST $ ASTDef term type_)
 
 -- | The function @odd@, defined over the inductive natural number
 -- type @Natural@ as defined by 'natDef'.
 --
 -- Note that this function is mutually recursive on @even@.
-odd :: MonadFresh ID m => m Def
+odd :: MonadFresh ID m => m (GVarName, Def)
 odd = do
   type_ <- tcon B.tNat `tfun` tcon B.tBool
   term <-
@@ -117,13 +118,13 @@ odd = do
         [ branch B.cZero [] $ con B.cFalse
         , branch B.cSucc [("n", Nothing)] $ gvar (qn "even") `app` lvar "n"
         ]
-  pure $ DefAST $ ASTDef (qn "odd") term type_
+  pure (qn "odd", DefAST $ ASTDef term type_)
 
 -- | The function @even@, defined over the inductive natural number
 -- type @Natural@ as defined by 'natDef'.
 --
 -- Note that this function is mutually recursive on @odd@.
-even :: MonadFresh ID m => m Def
+even :: MonadFresh ID m => m (GVarName, Def)
 even = do
   type_ <- tcon B.tNat `tfun` tcon B.tBool
   term <-
@@ -133,4 +134,4 @@ even = do
         [ branch B.cZero [] $ con B.cTrue
         , branch B.cSucc [("n", Nothing)] $ gvar (qn "odd") `app` lvar "n"
         ]
-  pure $ DefAST $ ASTDef (qn "even") term type_
+  pure (qn "even", DefAST $ ASTDef term type_)

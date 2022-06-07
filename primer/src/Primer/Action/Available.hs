@@ -83,9 +83,9 @@ actionsForDef ::
   Level ->
   -- | only used to generate a unique name for a duplicate definition
   DefMap ->
-  ASTDef ->
+  (GVarName, ASTDef) ->
   [OfferedAction [ProgAction]]
-actionsForDef l defs def =
+actionsForDef l defs (defName, def) =
   [ OfferedAction
       { name = Prose "r"
       , description = "Rename this definition"
@@ -94,7 +94,7 @@ actionsForDef l defs def =
             ChooseOrEnterName
               ("Enter a new " <> nameString <> " for the definition")
               []
-              (\name -> [RenameDef (astDefName def) (unName name)])
+              (\name -> [RenameDef defName (unName name)])
       , priority = P.rename l
       , actionType = Primary
       }
@@ -106,12 +106,11 @@ actionsForDef l defs def =
 
               bodyID = getID $ astDefExpr def
 
-              qn = astDefName def
-              copyName = uniquifyDefName (qualifiedModule qn) (unName (baseName qn) <> "Copy") defs
+              copyName = uniquifyDefName (qualifiedModule defName) (unName (baseName defName) <> "Copy") defs
            in NoInputRequired
-                [ CreateDef (qualifiedModule $ astDefName def) (Just copyName)
-                , CopyPasteSig (astDefName def, sigID) []
-                , CopyPasteBody (astDefName def, bodyID) []
+                [ CreateDef (qualifiedModule defName) (Just copyName)
+                , CopyPasteSig (defName, sigID) []
+                , CopyPasteBody (defName, bodyID) []
                 ]
       , priority = P.duplicate l
       , actionType = Primary
@@ -119,7 +118,7 @@ actionsForDef l defs def =
   , OfferedAction
       { name = Prose "⌫"
       , description = "Delete this definition"
-      , input = NoInputRequired [DeleteDef $ astDefName def]
+      , input = NoInputRequired [DeleteDef defName]
       , priority = P.delete l
       , actionType = Destructive
       }
@@ -165,11 +164,11 @@ actionsForDefBody l defName id expr =
 -- return the possible actions that can be applied to it
 actionsForDefSig ::
   Level ->
-  GVarName ->
+  (GVarName, ASTDef) ->
   ID ->
   Type ->
   [OfferedAction [ProgAction]]
-actionsForDefSig l defName id ty =
+actionsForDefSig l (defName, def) id ty =
   let toProgAction actions = [MoveToDef defName, SigAction actions]
 
       raiseAction =
