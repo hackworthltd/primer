@@ -1326,10 +1326,10 @@ unit_rename_module =
         Right p -> do
           fmap (unModuleName . moduleName) (progModules p) @?= [["Module2"]]
           selectedDef <$> progSelection p @?= Just (qualifyName (ModuleName ["Module2"]) "main")
-          case fmap (Map.elems . moduleDefsQualified) (progModules p) of
-            [[DefAST d]] -> do
+          case fmap (Map.assocs . moduleDefsQualified) (progModules p) of
+            [[(n, DefAST d)]] -> do
               let expectedName = qualifyName (ModuleName ["Module2"]) "main"
-              astDefName d @?= expectedName
+              n @?= expectedName
               case astDefExpr d of
                 Var _ (GlobalVarRef r) -> r @?= expectedName
                 e -> assertFailure $ "Expected def to equal `Module2.main`, found " <> show e
