@@ -33,6 +33,7 @@ import Primer.Core (
   ASTDef (..),
   ASTTypeDef (..),
   Def (..),
+  DefMap,
   Expr,
   Expr' (..),
   GVarName,
@@ -231,7 +232,7 @@ nameString = "n" <> T.singleton '\x200C' <> "ame"
 -- that name (within the specified module). Note that if no definition
 -- of the given name already exists in the program, this function will
 -- return the same name it's been given.
-uniquifyDefName :: C.ModuleName -> Text -> Map ID Def -> Text
+uniquifyDefName :: C.ModuleName -> Text -> DefMap -> Text
 uniquifyDefName m name' defs =
   if name' `notElem` avoid
     then name'
