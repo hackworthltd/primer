@@ -20,7 +20,7 @@
     pre-commit-hooks-nix.inputs.flake-utils.follows = "flake-utils";
 
     # Temporary workaround for HLS issues until the next release.
-    haskell-language-server.url = github:haskell/haskell-language-server;
+    haskell-language-server.url = github:July541/haskell-language-server/ghc-9.2.3;
     haskell-language-server.flake = false;
   };
 
@@ -61,6 +61,47 @@
           })
         ];
       };
+
+      # https://github.com/input-output-hk/haskell.nix/issues/1177
+      nonReinstallablePkgs = [
+        "rts"
+        "ghc-heap"
+        "ghc-prim"
+        "integer-gmp"
+        "integer-simple"
+        "base"
+        "deepseq"
+        "array"
+        "ghc-boot-th"
+        "pretty"
+        "template-haskell"
+        "ghc-bignum"
+        "exceptions"
+        "stm"
+        "ghc-boot"
+        "ghc"
+        "Cabal"
+        "Win32"
+        "array"
+        "binary"
+        "bytestring"
+        "containers"
+        "directory"
+        "filepath"
+        "ghc-boot"
+        "ghc-compact"
+        "ghc-prim"
+        "hpc"
+        "mtl"
+        "parsec"
+        "process"
+        "text"
+        "time"
+        "transformers"
+        "unix"
+        "xhtml"
+        "terminfo"
+      ];
 
       ghcVersion = "ghc923";
 
@@ -105,57 +146,24 @@
             });
 
             # Temporary workaround for HLS issues until the next release.
-            hls = final.haskell-nix.cabalProject' {
+            hls = (final.haskell-nix.cabalProject' {
               compiler-nix-name = ghcVersion;
               src = haskell-language-server;
               sha256map."https://github.com/pepeiborra/ekg-json"."7a0af7a8fd38045fd15fb13445bdcc7085325460" = "fVwKxGgM0S4Kv/4egVAAiAjV7QB5PBqMVMCfsv7otIQ=";
-            };
+
+              modules = [
+                {
+                  inherit nonReinstallablePkgs;
+                }
+              ];
+            }).hsPkgs.haskell-language-server.components.exes.haskell-language-server;
 
             primer = final.haskell-nix.cabalProject {
               compiler-nix-name = ghcVersion;
               src = ./.;
               modules = [
-                # https://github.com/input-output-hk/haskell.nix/issues/1177
                 {
-                  nonReinstallablePkgs = [
-                    "rts"
-                    "ghc-heap"
-                    "ghc-prim"
-                    "integer-gmp"
-                    "integer-simple"
-                    "base"
-                    "deepseq"
-                    "array"
-                    "ghc-boot-th"
-                    "pretty"
-                    "template-haskell"
-                    "ghc-bignum"
-                    "exceptions"
-                    "stm"
-                    "ghc-boot"
-                    "ghc"
-                    "Cabal"
-                    "Win32"
-                    "array"
-                    "binary"
-                    "bytestring"
-                    "containers"
-                    "directory"
-                    "filepath"
-                    "ghc-boot"
-                    "ghc-compact"
-                    "ghc-prim"
-                    "hpc"
-                    "mtl"
-                    "parsec"
-                    "process"
-                    "text"
-                    "time"
-                    "transformers"
-                    "unix"
-                    "xhtml"
-                    "terminfo"
-                  ];
+                  inherit nonReinstallablePkgs;
                 }
                 {
                   # We want -Werror for Nix builds (primarily for CI).
@@ -256,6 +264,9 @@
                 };
 
                 buildInputs = (with final; [
+                  # Temporary workaround for HLS issues until the next release.
+                  hls
+
                   nixpkgs-fmt
                   postgresql
                   openapi-generator-cli
@@ -288,8 +299,7 @@
                   ghc8107Tools.cabal-edit
                   ghc8107Tools.cabal-fmt
 
-                  # Temporary workaround for HLS issues until the next release.
-                  hls.hsPkgs.haskell-language-server.components.exes.haskell-language-server
+                  haskellPackages.implicit-hie
                 ]);
 
                 shellHook = ''
@@ -355,6 +365,7 @@
             inherit run-primer;
 
             inherit (ghc8107Tools) cabal-edit cabal-fmt;
+            inherit hls;
           }
         )
       ];

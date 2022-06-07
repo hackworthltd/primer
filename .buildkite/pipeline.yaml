@@ -14,14 +14,30 @@ steps:
           file: ci.nix
           post-build-hook:
             /run/current-system/sw/bin/buildkite-private-post-build-hook
+
   - label: ":nixos: Archive Nix flake inputs"
     command: nix flake archive --json | jq -r '.path,(.inputs|to_entries[].value.path)' | cachix --verbose --config "$CACHIX_CONFIG" push "$CACHIX_CACHE"
+
   - wait
+
   - label: ":nixos: :linux: Cache the Nix shell"
     command: |
       nix develop --profile /tmp/primer --command cachix --verbose --config "$CACHIX_CONFIG" push "$CACHIX_CACHE" /tmp/primer
+
   - label: ":nixos: :macos: Cache the Nix shell"
     command: |
       nix develop --profile /tmp/primer --command cachix --verbose --config "$CACHIX_CONFIG" push "$CACHIX_CACHE" /tmp/primer
+    agents:
+      os: "darwin"
+
+  - wait
+
+  - label: ":linux: Check haskell-language-server"
+    command: |
+      nix develop --command haskell-language-server
+
+  - label: ":macos: Check haskell-language-server"
+    command: |
+      nix develop --command haskell-language-server
     agents:
       os: "darwin"
