@@ -445,11 +445,11 @@ applyActionsToTypeSig ::
   [Module] ->
   -- | The @Module@ we are focused on, and all the other editable modules
   (Module, [Module]) ->
-  -- | This must be one of the definitions in the @Module@
-  ASTDef ->
+  -- | This must be one of the definitions in the @Module@, with its correct name
+  (Name, ASTDef) ->
   [Action] ->
   m (Either ActionError ([Module], TypeZ))
-applyActionsToTypeSig smartHoles imports (mod, mods) def actions =
+applyActionsToTypeSig smartHoles imports (mod, mods) (defName, def) actions =
   runReaderT
     go
     (buildTypingContextFromModules (mod : mods <> imports) smartHoles)
@@ -461,7 +461,7 @@ applyActionsToTypeSig smartHoles imports (mod, mods) def actions =
       let t = target (top zt)
       e <- check (forgetTypeIDs t) (astDefExpr def)
       let def' = def{astDefExpr = exprTtoExpr e, astDefType = t}
-          mod' = insertDef mod (DefAST def')
+          mod' = insertDef mod defName (DefAST def')
       -- The actions were applied to the type successfully, and the definition body has been
       -- typechecked against the new type.
       -- Now we need to typecheck the whole program again, to check any uses of the definition

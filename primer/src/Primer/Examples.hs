@@ -35,6 +35,7 @@ import qualified Primer.Builtins as B
 import Primer.Core (
   ASTDef (ASTDef),
   Def (DefAST),
+  GVarName,
   ID,
   Kind (KType),
   ModuleName (unModuleName),
@@ -68,7 +69,7 @@ import Primer.Core.DSL (
 
 -- | The polymorphic function @map@ (over @List a@ as defined by
 -- 'listDef').
-map :: MonadFresh ID m => ModuleName -> m Def
+map :: MonadFresh ID m => ModuleName -> m (GVarName, Def)
 map modName =
   let this = qualifyName modName "map"
    in do
@@ -85,11 +86,11 @@ map modName =
                     , branch B.cCons [("y", Nothing), ("ys", Nothing)] $
                         con B.cCons `aPP` tvar "b" `app` (lvar "f" `app` lvar "y") `app` (gvar this `aPP` tvar "a" `aPP` tvar "b" `app` lvar "f" `app` lvar "ys")
                     ]
-        pure $ DefAST $ ASTDef this term type_
+        pure (this, DefAST $ ASTDef term type_)
 
 -- | The polymorphic function @map@ (over @List a@ as defined by
 -- 'listDef'), implemented using a worker.
-map' :: MonadFresh ID m => ModuleName -> m Def
+map' :: MonadFresh ID m => ModuleName -> m (GVarName, Def)
 map' modName = do
   type_ <- tforall "a" KType $ tforall "b" KType $ (tvar "a" `tfun` tvar "b") `tfun` ((tcon B.tList `tapp` tvar "a") `tfun` (tcon B.tList `tapp` tvar "b"))
   let worker =
@@ -106,13 +107,13 @@ map' modName = do
         lam "f" $
           letrec "go" worker ((tcon B.tList `tapp` tvar "a") `tfun` (tcon B.tList `tapp` tvar "b")) $
             lvar "go"
-  pure $ DefAST $ ASTDef (qualifyName modName "map'") term type_
+  pure (qualifyName modName "map", DefAST $ ASTDef term type_)
 
 -- | The function @odd@, defined over the inductive natural number
 -- type @Natural@ as defined by 'natDef'.
 --
 -- Note that this function is mutually recursive on @even@.
-odd :: MonadFresh ID m => ModuleName -> m Def
+odd :: MonadFresh ID m => ModuleName -> m (GVarName, Def)
 odd modName = do
   type_ <- tcon B.tNat `tfun` tcon B.tBool
   term <-
@@ -122,13 +123,13 @@ odd modName = do
         [ branch B.cZero [] $ con B.cFalse
         , branch B.cSucc [("n", Nothing)] $ gvar (qualifyName modName "even") `app` lvar "n"
         ]
-  pure $ DefAST $ ASTDef (qualifyName modName "odd") term type_
+  pure (qualifyName modName "odd", DefAST $ ASTDef term type_)
 
 -- | The function @even@, defined over the inductive natural number
 -- type @Natural@ as defined by 'natDef'.
 --
 -- Note that this function is mutually recursive on @odd@.
-even :: MonadFresh ID m => ModuleName -> m Def
+even :: MonadFresh ID m => ModuleName -> m (GVarName, Def)
 even modName = do
   type_ <- tcon B.tNat `tfun` tcon B.tBool
   term <-
@@ -138,14 +139,14 @@ even modName = do
         [ branch B.cZero [] $ con B.cTrue
         , branch B.cSucc [("n", Nothing)] $ gvar (qualifyName modName "odd") `app` lvar "n"
         ]
-  pure $ DefAST $ ASTDef (qualifyName modName "even") term type_
+  pure (qualifyName modName "even", DefAST $ ASTDef term type_)
 
 -- | A comprehensive 'Def' containing most of the non-primitive
 -- built-in constructs in Primer.
 --
 -- Note that this 'Def' is nonsensical and is provided only for
 -- language coverage.
-comprehensive :: MonadFresh ID m => ModuleName -> m Def
+comprehensive :: MonadFresh ID m => ModuleName -> m (GVarName, Def)
 comprehensive modName = do
   type_ <-
     tfun
@@ -238,4 +239,4 @@ comprehensive modName = do
               )
           )
       )
-  pure $ DefAST $ ASTDef (qualifyName modName "comprehensive") term type_
+  pure (qualifyName modName "comprehensive", DefAST $ ASTDef term type_)

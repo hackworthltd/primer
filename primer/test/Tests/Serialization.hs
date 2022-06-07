@@ -30,7 +30,6 @@ import Primer.Core (
   Expr,
   Expr' (EmptyHole, PrimCon),
   ExprMeta,
-  GlobalName (baseName),
   ID (..),
   Kind (KFun, KType),
   Meta (..),
@@ -42,6 +41,7 @@ import Primer.Core (
   TypeDef (..),
   TypeMeta,
   ValCon (..),
+  qualifyName,
  )
 import Primer.Eval (
   BetaReductionDetail (
@@ -58,7 +58,7 @@ import Primer.Eval (
   EvalDetail (BetaReduction),
  )
 import Primer.Module (Module (Module, moduleDefs, moduleTypes), mkTypeDefMap, moduleName)
-import Primer.Name (unsafeMkName)
+import Primer.Name (Name, unsafeMkName)
 import Primer.Typecheck (SmartHoles (SmartHoles))
 import System.FilePath (takeBaseName)
 import Test.Tasty
@@ -108,8 +108,10 @@ fixtures =
       expr = EmptyHole exprMeta
       log :: Log
       log = Log [[BodyAction [Move Child1]]]
+      defName :: Name
+      defName = "main"
       def :: ASTDef
-      def = ASTDef{astDefName = gvn ["M"] "main", astDefExpr = expr, astDefType = TEmptyHole typeMeta}
+      def = ASTDef{astDefExpr = expr, astDefType = TEmptyHole typeMeta}
       typeDef :: TypeDef
       typeDef =
         TypeDefAST
@@ -123,14 +125,15 @@ fixtures =
       progerror = NoDefSelected
       progaction :: ProgAction
       progaction = MoveToDef $ gvn ["M"] "main"
+      modName = ModuleName ["M"]
       prog =
         Prog
           { progImports = mempty
           , progModules =
               [ Module
-                  { moduleName = ModuleName ["M"]
+                  { moduleName = modName
                   , moduleTypes = mkTypeDefMap [typeDef]
-                  , moduleDefs = Map.singleton (baseName $ astDefName def) (DefAST def)
+                  , moduleDefs = Map.singleton defName (DefAST def)
                   }
               ]
           , progSelection = Just selection
@@ -139,7 +142,7 @@ fixtures =
           }
       selection :: Selection
       selection =
-        Selection (astDefName def) $
+        Selection (qualifyName modName defName) $
           Just
             NodeSelection
               { nodeType = BodyNode

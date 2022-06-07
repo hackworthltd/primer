@@ -13,6 +13,7 @@ import Primer.Action.Available (actionsForDef, actionsForDefBody, actionsForDefS
 import Primer.Core (
   ASTDef (..),
   Def (DefAST, DefPrim),
+  GVarName,
   GlobalName (baseName, qualifiedModule),
   HasID (_id),
   ID,
@@ -44,15 +45,15 @@ data Output = Output
   deriving (Show)
 
 -- | Golden tests for the available actions at each node of the definition, for each level.
-mkTests :: Def -> TestTree
-mkTests (DefPrim _) = error "mkTests is unimplemented for primitive definitions."
-mkTests (DefAST def) =
-  let defName = astDefName def
+mkTests :: (GVarName, Def) -> TestTree
+mkTests (_, DefPrim _) = error "mkTests is unimplemented for primitive definitions."
+mkTests (defName, DefAST def) =
+  let d = (defName, def)
       testName = T.unpack $ moduleNamePretty (qualifiedModule defName) <> "." <> unName (baseName defName)
    in testGroup testName $
         enumerate
           <&> \level ->
-            let defActions = map name $ actionsForDef level mempty def
+            let defActions = map name $ actionsForDef level mempty d
                 bodyActions =
                   map
                     ( \id ->

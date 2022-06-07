@@ -103,7 +103,6 @@ import Primer.Core (
   ValCon (valConArgs, valConName),
   ValConName,
   bindName,
-  defName,
   defType,
   moduleNamePretty,
   primConName,
@@ -453,9 +452,9 @@ checkEverything sh CheckEverything{trusted, toCheck} =
    in flip runReaderT cxt $ do
         for_ toCheck $ \m -> do
           -- Check the type definitions have the right modules
+          -- (The definition map has the right keys by construction
+          -- (because the values do not store names at all))
           checkNames typeDefName moduleTypes m $ "Inconsistent names in moduleTypes for module " <> moduleNamePretty (moduleName m)
-          -- Check that the definition map has the right keys
-          checkNames defName moduleDefs m $ "Inconsistent names in moduleDefs map for module " <> moduleNamePretty (moduleName m)
         checkTypeDefs $ foldMap moduleTypesQualified toCheck
         let newTypes = foldMap moduleTypesQualified toCheck
             newDefs =

@@ -326,7 +326,7 @@ unit_tryReduce_global_var = do
         g <- gvar f
         e <- lam "x" (lvar "x")
         t <- tfun (tcon' ["M"] "A") (tcon' ["M"] "B")
-        pure (g, ASTDef{astDefName = f, astDefExpr = e, astDefType = t})
+        pure (g, ASTDef{astDefExpr = e, astDefType = t})
       globals = Map.singleton f (DefAST def)
       result = runTryReduce globals mempty (expr, i)
       expectedResult = create' $ ann (lam "x" (lvar "x")) (tfun (tcon' ["M"] "A") (tcon' ["M"] "B"))

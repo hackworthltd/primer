@@ -30,7 +30,7 @@ import Primer.Core (
   GlobalName (baseName),
   ModuleName,
   PrimCon (..),
-  PrimDef (PrimDef, primDefName, primDefType),
+  PrimDef (PrimDef, primDefType),
   PrimFun (..),
   PrimFunError (..),
   PrimTypeDef (..),
@@ -77,8 +77,7 @@ primitiveModule =
               M.singleton (baseName n) $
                 DefPrim
                   PrimDef
-                    { primDefName = n
-                    , primDefType = ty
+                    { primDefType = ty
                     }
     }
 

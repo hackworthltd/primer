@@ -24,7 +24,6 @@ import Primer.Core (
   ModuleName,
   TyConName,
   TypeDef,
-  defName,
   qualifyName,
   typeDefName,
  )
@@ -62,8 +61,8 @@ moduleDefsQualified m = mapKeys (qualifyDefName m) $ moduleDefs m
 
 -- | This assumes that the definition has the correct name to be inserted
 -- into the module. I.e. @qualifiedModule (defName d) == moduleName m@.
-insertDef :: Module -> Def -> Module
-insertDef m d = m{moduleDefs = insert (baseName $ defName d) d $ moduleDefs m}
+insertDef :: Module -> Name -> Def -> Module
+insertDef m n d = m{moduleDefs = insert n d $ moduleDefs m}
 
 -- | Returns 'Nothing' if (and only if) the definition was not found in the module
 deleteDef :: Module -> GVarName -> Maybe Module
