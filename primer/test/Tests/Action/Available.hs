@@ -175,7 +175,7 @@ mkTests def =
                   map
                     ( \id ->
                         ( id
-                        , map name $ actionsForDefBody level def id (astDefExpr def)
+                        , map name $ actionsForDefBody level defName id (astDefExpr def)
                         )
                     )
                     . toListOf exprIDs
@@ -184,7 +184,7 @@ mkTests def =
                   map
                     ( \id ->
                         ( id
-                        , map name $ actionsForDefSig level def id (astDefType def)
+                        , map name $ actionsForDefSig level defName id (astDefType def)
                         )
                     )
                     . toListOf (_typeMeta % _id)
