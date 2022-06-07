@@ -37,6 +37,7 @@ import Primer.Core (
   TyVarName,
   Type' (TApp, TCon, TEmptyHole, TForall, TFun, THole, TVar),
   TypeDef (TypeDefAST),
+  typeDefName,
  )
 import Primer.Core.Utils (forgetTypeIDs, freeVarsTy, generateTypeIDs)
 import Primer.Module (Module)
@@ -97,7 +98,7 @@ unit_diff_module_not_refl =
   evalTestM
     0
     ( unify'
-        (extendTypeDefCxt [mint] defaultCxt)
+        (extendTypeDefCxt (M.singleton (typeDefName mint) mint) defaultCxt)
         mempty
         (TCon () tInt)
         (TCon () $ tcn ["M"] "Int")

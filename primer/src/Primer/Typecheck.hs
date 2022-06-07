@@ -237,8 +237,8 @@ extendLocalCxtTys x cxt = cxt{localCxt = Map.fromList (bimap unLocalName K <$> x
 extendGlobalCxt :: [(GVarName, Type)] -> Cxt -> Cxt
 extendGlobalCxt globals cxt = cxt{globalCxt = Map.fromList globals <> globalCxt cxt}
 
-extendTypeDefCxt :: [TypeDef] -> Cxt -> Cxt
-extendTypeDefCxt typedefs cxt = cxt{typeDefs = mkTypeDefMap typedefs <> typeDefs cxt}
+extendTypeDefCxt :: TypeDefMap -> Cxt -> Cxt
+extendTypeDefCxt typedefs cxt = cxt{typeDefs = typedefs <> typeDefs cxt}
 
 localTmVars :: Cxt -> Map LVarName Type
 localTmVars = M.mapKeys LocalName . M.mapMaybe (\case T t -> Just t; K _ -> Nothing) . localCxt
@@ -263,7 +263,7 @@ initialCxt sh =
 buildTypingContext :: TypeDefMap -> DefMap -> SmartHoles -> Cxt
 buildTypingContext tydefs defs sh =
   let globals = Map.assocs $ fmap (forgetTypeIDs . defType) defs
-   in extendTypeDefCxt (Map.elems tydefs) $ extendGlobalCxt globals $ initialCxt sh
+   in extendTypeDefCxt tydefs $ extendGlobalCxt globals $ initialCxt sh
 
 buildTypingContextFromModules :: [Module] -> SmartHoles -> Cxt
 buildTypingContextFromModules modules =
@@ -275,11 +275,6 @@ buildTypingContextFromModules modules =
 -- Ensures that @typeDefName (mkTypeDefMap ! n) == n@
 mkTypeDefMapQualified :: [TypeDef] -> TypeDefMap
 mkTypeDefMapQualified defs = M.fromList $ map (\d -> (typeDefName d, d)) defs
-
--- | Create a mapping of name to typedef for fast lookup.
--- Ensures that @typeDefName (mkTypeDefMap ! n) == n@
-mkTypeDefMap :: [TypeDef] -> TypeDefMap
-mkTypeDefMap defs = M.fromList $ map (\d -> (typeDefName d, d)) defs
 
 -- | A shorthand for the constraints needed when typechecking
 type TypeM e m =
@@ -369,7 +364,7 @@ checkTypeDefs tds = do
     "Duplicate-ly-named constructor (perhaps in different typedefs)"
   -- Note that these checks only apply to non-primitives:
   -- duplicate type names are checked elsewhere, kinds are correct by construction, and there are no constructors.
-  local (extendTypeDefCxt $ Map.elems tds) $ mapM_ checkTypeDef atds
+  local (extendTypeDefCxt tds) $ mapM_ checkTypeDef atds
   where
     -- In the core, we have many different namespaces, so the only name-clash
     -- checking we must do is
@@ -461,7 +456,7 @@ checkEverything sh CheckEverything{trusted, toCheck} =
             newDefs =
               M.foldMapWithKey (\n d -> [(n, forgetTypeIDs $ defType d)]) $
                 foldMap moduleDefsQualified toCheck
-        local (extendGlobalCxt newDefs . extendTypeDefCxt (Map.elems newTypes)) $
+        local (extendGlobalCxt newDefs . extendTypeDefCxt newTypes) $
           traverseOf (traversed % #moduleDefs % traversed) checkDef toCheck
 
 allNamesInModule :: Foldable f => Module -> f (GlobalName k) -> Bool
