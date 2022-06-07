@@ -262,7 +262,7 @@ initialCxt sh =
 -- | Construct an initial typing context, with all given definitions in scope as global variables.
 buildTypingContext :: Map TyConName TypeDef -> DefMap -> SmartHoles -> Cxt
 buildTypingContext tydefs defs sh =
-  let globals = Map.elems $ fmap (\def -> (defName def, forgetTypeIDs (defType def))) defs
+  let globals = Map.assocs $ fmap (forgetTypeIDs . defType) defs
    in extendTypeDefCxt (Map.elems tydefs) $ extendGlobalCxt globals $ initialCxt sh
 
 buildTypingContextFromModules :: [Module] -> SmartHoles -> Cxt
@@ -459,8 +459,8 @@ checkEverything sh CheckEverything{trusted, toCheck} =
         checkTypeDefs $ foldMap moduleTypesQualified toCheck
         let newTypes = foldMap moduleTypesQualified toCheck
             newDefs =
-              foldMap (\d -> [(defName d, forgetTypeIDs $ defType d)]) $
-                foldMap moduleDefs toCheck
+              M.foldMapWithKey (\n d -> [(n, forgetTypeIDs $ defType d)]) $
+                foldMap moduleDefsQualified toCheck
         local (extendGlobalCxt newDefs . extendTypeDefCxt (Map.elems newTypes)) $
           traverseOf (traversed % #moduleDefs % traversed) checkDef toCheck
 

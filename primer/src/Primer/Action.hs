@@ -53,7 +53,6 @@ import Primer.Core (
   ValConName,
   baseName,
   bindName,
-  defName,
   getID,
   qualifiedModule,
   unsafeMkGlobalName,
@@ -244,7 +243,7 @@ uniquifyDefName m name' defs =
       | qualifiedModule qn == m = Just (unName $ baseName qn)
       | otherwise = Nothing
     avoid :: [Text]
-    avoid = mapMaybe (f . defName) $ Map.elems defs
+    avoid = mapMaybe f $ Map.keys defs
 
 type QualifiedText = (NonEmpty Text, Text)
 

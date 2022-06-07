@@ -25,7 +25,6 @@ import Primer.Core (
   LocalName (unLocalName),
   TyVarName,
   Type' (..),
-  defName,
   defType,
   typeDefNameHints,
  )
@@ -81,7 +80,7 @@ variablesInScopeExpr ::
   ([(TyVarName, Kind)], [(LVarName, Type' ())], [(GVarName, Type' ())])
 variablesInScopeExpr defs exprOrTy =
   let locals = either extractLocalsExprZ extractLocalsTypeZ exprOrTy
-      globals = Map.elems $ fmap (\d -> (defName d, forgetMetadata $ defType d)) defs
+      globals = Map.assocs $ fmap (forgetMetadata . defType) defs
       M tyvars tmvars globs = locals <> M [] [] globals
    in (reverse tyvars, reverse tmvars, globs) -- keep most-global first
 

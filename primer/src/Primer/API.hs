@@ -93,7 +93,6 @@ import Primer.Core (
   Type,
   Type' (TForall),
   defAST,
-  defName,
   defType,
   getID,
   typeDefName,
@@ -126,7 +125,7 @@ import qualified Primer.Database as Database (
     Success
   ),
  )
-import Primer.Module (moduleDefs, moduleName, moduleTypes)
+import Primer.Module (moduleDefsQualified, moduleName, moduleTypes)
 import Primer.Name (Name, unName)
 import qualified StmContainers.Map as StmMap
 
@@ -349,14 +348,14 @@ viewProg p =
         , editable = e
         , types = typeDefName <$> Map.elems (moduleTypes m)
         , defs =
-            ( \d ->
+            ( \(n, d) ->
                 Def
-                  { name = defName d
+                  { name = n
                   , type_ = viewTreeType $ defType d
                   , term = viewTreeExpr . astDefExpr <$> defAST d
                   }
             )
-              <$> Map.elems (moduleDefs m)
+              <$> Map.assocs (moduleDefsQualified m)
         }
 
 -- | A simple method to extract 'Tree's from 'Expr's. This is injective.
