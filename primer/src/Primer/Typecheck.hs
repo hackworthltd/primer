@@ -99,6 +99,7 @@ import Primer.Core (
   TypeCache (..),
   TypeCacheBoth (..),
   TypeDef (..),
+  TypeDefMap,
   TypeMeta,
   ValCon (valConArgs, valConName),
   ValConName,
@@ -186,7 +187,7 @@ data KindOrType = K Kind | T Type
 
 data Cxt = Cxt
   { smartHoles :: SmartHoles
-  , typeDefs :: M.Map TyConName TypeDef
+  , typeDefs :: TypeDefMap
   -- ^ invariant: the key matches the 'typeDefName' inside the 'TypeDef'
   , localCxt :: Map Name KindOrType
   -- ^ local variables. invariant: the Name comes from a @LocalName k@, and
@@ -259,7 +260,7 @@ initialCxt sh =
     }
 
 -- | Construct an initial typing context, with all given definitions in scope as global variables.
-buildTypingContext :: Map TyConName TypeDef -> DefMap -> SmartHoles -> Cxt
+buildTypingContext :: TypeDefMap -> DefMap -> SmartHoles -> Cxt
 buildTypingContext tydefs defs sh =
   let globals = Map.assocs $ fmap (forgetTypeIDs . defType) defs
    in extendTypeDefCxt (Map.elems tydefs) $ extendGlobalCxt globals $ initialCxt sh
@@ -272,12 +273,12 @@ buildTypingContextFromModules modules =
 
 -- | Create a mapping of name to typedef for fast lookup.
 -- Ensures that @typeDefName (mkTypeDefMap ! n) == n@
-mkTypeDefMapQualified :: [TypeDef] -> Map TyConName TypeDef
+mkTypeDefMapQualified :: [TypeDef] -> TypeDefMap
 mkTypeDefMapQualified defs = M.fromList $ map (\d -> (typeDefName d, d)) defs
 
 -- | Create a mapping of name to typedef for fast lookup.
 -- Ensures that @typeDefName (mkTypeDefMap ! n) == n@
-mkTypeDefMap :: [TypeDef] -> Map TyConName TypeDef
+mkTypeDefMap :: [TypeDef] -> TypeDefMap
 mkTypeDefMap defs = M.fromList $ map (\d -> (typeDefName d, d)) defs
 
 -- | A shorthand for the constraints needed when typechecking
@@ -337,10 +338,10 @@ checkValidContext cxt = do
 -- map are consistent with the names in the 'TypeDef's
 checkTypeDefsMap ::
   TypeM e m =>
-  Map TyConName TypeDef ->
+  TypeDefMap ->
   m ()
 checkTypeDefsMap tds = do
-  assert (consistentComputedKeys typeDefName tds) "Inconsistent names in a Map TyConName TypeDef"
+  assert (consistentComputedKeys typeDefName tds) "Inconsistent names in a TypeDefMap"
   checkTypeDefs tds
 
 consistentComputedKeys :: Eq k => (v -> k) -> Map k v -> Bool
@@ -349,7 +350,7 @@ consistentComputedKeys f = getAll . M.foldMapWithKey (\k v -> All $ k == f v)
 -- | Check all type definitions, as one recursive group, in some monadic environment
 checkTypeDefs ::
   TypeM e m =>
-  Map TyConName TypeDef ->
+  TypeDefMap ->
   m ()
 checkTypeDefs tds = do
   existingTypes <- asks $ Map.elems . typeDefs
@@ -480,7 +481,7 @@ checkDef def = do
       pure $ DefPrim $ def'{primDefType = typeTtoType t}
 
 -- We assume that constructor names are unique, returning the first one we find
-lookupConstructor :: M.Map TyConName TypeDef -> ValConName -> Maybe (ValCon, ASTTypeDef)
+lookupConstructor :: TypeDefMap -> ValConName -> Maybe (ValCon, ASTTypeDef)
 lookupConstructor tyDefs c =
   let allCons = do
         TypeDefAST td <- M.elems tyDefs
@@ -841,7 +842,7 @@ data TypeDefInfo a = TypeDefInfo [Type' a] TypeDef -- instantiated parameters, a
 getTypeDefInfo :: MonadReader Cxt m => Type' a -> m (Either TypeDefError (TypeDefInfo a))
 getTypeDefInfo t = reader $ flip getTypeDefInfo' t . typeDefs
 
-getTypeDefInfo' :: Map TyConName TypeDef -> Type' a -> Either TypeDefError (TypeDefInfo a)
+getTypeDefInfo' :: TypeDefMap -> Type' a -> Either TypeDefError (TypeDefInfo a)
 getTypeDefInfo' _ (TEmptyHole _) = Left TDIHoleType
 getTypeDefInfo' _ (THole _ _) = Left TDIHoleType
 getTypeDefInfo' tydefs ty =
@@ -877,7 +878,7 @@ instantiateValCons t = do
 
 -- | As 'instantiateValCons', but pulls out the relevant bits of the monadic
 -- context into an argument
-instantiateValCons' :: MonadFresh NameCounter m => Map TyConName TypeDef -> Type' () -> Either TypeDefError (ASTTypeDef, [(ValConName, [m (Type' ())])])
+instantiateValCons' :: MonadFresh NameCounter m => TypeDefMap -> Type' () -> Either TypeDefError (ASTTypeDef, [(ValConName, [m (Type' ())])])
 instantiateValCons' tyDefs t = do
   TypeDefInfo params def <- getTypeDefInfo' tyDefs t
   case def of

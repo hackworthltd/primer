@@ -24,6 +24,7 @@ import Primer.Core (
   ModuleName,
   TyConName,
   TypeDef,
+  TypeDefMap,
   qualifyName,
   typeDefName,
  )
@@ -50,7 +51,7 @@ mkTypeDefMap defs = M.fromList $ map (\d -> (baseName $ typeDefName d, d)) defs
 qualifyTyConName :: Module -> Name -> TyConName
 qualifyTyConName m = qualifyName (moduleName m)
 
-moduleTypesQualified :: Module -> Map TyConName TypeDef
+moduleTypesQualified :: Module -> TypeDefMap
 moduleTypesQualified m = mapKeys (qualifyTyConName m) $ moduleTypes m
 
 qualifyDefName :: Module -> Name -> GVarName

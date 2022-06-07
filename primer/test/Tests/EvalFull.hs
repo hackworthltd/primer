@@ -1074,7 +1074,7 @@ unit_eval_full_modules_scrutinize_imported_type =
 
 -- * Utilities
 
-evalFullTest :: ID -> M.Map TyConName TypeDef -> DefMap -> TerminationBound -> Dir -> Expr -> Either EvalFullError Expr
+evalFullTest :: ID -> TypeDefMap -> DefMap -> TerminationBound -> Dir -> Expr -> Either EvalFullError Expr
 evalFullTest id_ tydefs globals n d e = evalTestM id_ $ evalFull tydefs globals n d e
 
 unaryPrimTest :: Name -> S Expr -> S Expr -> Assertion
@@ -1170,5 +1170,5 @@ distinctIDs e =
         )
         (nIds == nDistinct)
 
-builtinTypes :: Map TyConName TypeDef
+builtinTypes :: TypeDefMap
 builtinTypes = moduleTypesQualified builtinModule

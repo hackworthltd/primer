@@ -45,6 +45,7 @@ module Primer.Core (
   _synthed,
   Kind (..),
   TypeDef (..),
+  TypeDefMap,
   typeDefAST,
   typeDefKind,
   typeDefName,
@@ -564,6 +565,9 @@ data TypeDef
   | TypeDefAST ASTTypeDef
   deriving (Eq, Show, Data, Generic)
   deriving (FromJSON, ToJSON) via VJSON TypeDef
+
+-- | A mapping of global names to 'TypeDef's.
+type TypeDefMap = Map TyConName TypeDef
 
 -- | Definition of a primitive data type
 data PrimTypeDef = PrimTypeDef

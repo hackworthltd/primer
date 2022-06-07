@@ -59,7 +59,6 @@ import Primer.Core (
   LocalName (unLocalName),
   LocalNameKind (ATmVar, ATyVar),
   TmVarRef (..),
-  TyConName,
   TyVarName,
   Type,
   Type' (
@@ -71,7 +70,7 @@ import Primer.Core (
     THole,
     TVar
   ),
-  TypeDef (..),
+  TypeDefMap,
   TypeMeta,
   ValConName,
   bindName,
@@ -171,7 +170,7 @@ data RedexType
 type TerminationBound = Natural
 
 -- A naive implementation of normal-order reduction
-evalFull :: (MonadFresh NameCounter m, MonadFresh ID m) => M.Map TyConName TypeDef -> DefMap -> TerminationBound -> Dir -> Expr -> m (Either EvalFullError Expr)
+evalFull :: (MonadFresh NameCounter m, MonadFresh ID m) => TypeDefMap -> DefMap -> TerminationBound -> Dir -> Expr -> m (Either EvalFullError Expr)
 evalFull tydefs env n d expr = snd <$> evalFullStepCount tydefs env n d expr
 
 -- | As 'evalFull', but also returns how many reduction steps were taken.
@@ -184,7 +183,7 @@ evalFull tydefs env n d expr = snd <$> evalFullStepCount tydefs env n d expr
 -- more to notice termination.
 evalFullStepCount ::
   (MonadFresh NameCounter m, MonadFresh ID m) =>
-  M.Map TyConName TypeDef ->
+  TypeDefMap ->
   DefMap ->
   TerminationBound ->
   Dir ->
@@ -201,7 +200,7 @@ evalFullStepCount tydefs env n d = go 0
 -- The 'Dir' argument only affects what happens if the root is an annotation:
 -- do we keep it (Syn) or remove it (Chk). I.e. is an upsilon reduction allowed
 -- at the root?
-step :: (MonadFresh NameCounter m, MonadFresh ID m) => M.Map TyConName TypeDef -> DefMap -> Dir -> Expr -> Maybe (m Expr)
+step :: (MonadFresh NameCounter m, MonadFresh ID m) => TypeDefMap -> DefMap -> Dir -> Expr -> Maybe (m Expr)
 step tydefs g d e = case findRedex tydefs g d e of
   Nothing -> Nothing
   Just mr ->
@@ -276,7 +275,7 @@ viewLet ez = case target ez of
   LetType _ a ty _t -> (LSome $ LLetType a ty,) <$> down ez
   _ -> Nothing
 
-viewCaseRedex :: (MonadFresh ID m, MonadFresh NameCounter m) => M.Map TyConName TypeDef -> Expr -> Maybe (m Redex)
+viewCaseRedex :: (MonadFresh ID m, MonadFresh NameCounter m) => TypeDefMap -> Expr -> Maybe (m Redex)
 viewCaseRedex tydefs = \case
   -- The patterns in the case branch have a Maybe TypeCache attached, but we
   -- should not assume that this has been filled in correctly, so we record
@@ -355,7 +354,7 @@ viewCaseRedex tydefs = \case
       pure $ CaseRedex c (zip args argTys'') ty (map bindName patterns) br
 
 -- This spots all redexs other than InlineLet
-viewRedex :: (MonadFresh ID m, MonadFresh NameCounter m) => M.Map TyConName TypeDef -> DefMap -> Dir -> Expr -> Maybe (m Redex)
+viewRedex :: (MonadFresh ID m, MonadFresh NameCounter m) => TypeDefMap -> DefMap -> Dir -> Expr -> Maybe (m Redex)
 viewRedex tydefs globals dir = \case
   Var _ (GlobalVarRef x) | Just (DefAST y) <- x `M.lookup` globals -> pure $ pure $ InlineGlobal x y
   App _ (Ann _ (Lam _ x t) (TFun _ src tgt)) s -> pure $ pure $ Beta x t src tgt s
@@ -386,7 +385,7 @@ viewRedex tydefs globals dir = \case
 findRedex ::
   forall m.
   (MonadFresh ID m, MonadFresh NameCounter m) =>
-  M.Map TyConName TypeDef ->
+  TypeDefMap ->
   DefMap ->
   Dir ->
   Expr ->

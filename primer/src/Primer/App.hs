@@ -111,6 +111,7 @@ import Primer.Core (
   Type,
   Type' (..),
   TypeDef (..),
+  TypeDefMap,
   TypeMeta,
   ValCon (..),
   ValConName,
@@ -243,7 +244,7 @@ importModules ms = do
   modify (\a -> a{appProg = p'})
 
 -- | Get all type definitions from all modules (including imports)
-allTypes :: Prog -> Map TyConName TypeDef
+allTypes :: Prog -> TypeDefMap
 allTypes p = foldMap moduleTypesQualified $ progAllModules p
 
 -- | Get all definitions from all modules (including imports)
