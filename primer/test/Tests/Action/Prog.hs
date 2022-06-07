@@ -98,6 +98,7 @@ import Primer.Core.DSL (
   case_,
   con,
   create,
+  create',
   emptyHole,
   hole,
   lAM,
@@ -825,7 +826,7 @@ unit_RenameType =
       def <- findDef (gvn "def") prog'
       forgetIDs (astDefExpr def)
         @?= forgetIDs
-          ( fst . create $
+          ( create' $
               emptyHole `ann` (tcon (tcn "T'") `tapp` tcon (tcn "Bool"))
           )
 
@@ -868,7 +869,7 @@ unit_RenameCon =
       def <- findDef (gvn "def") prog'
       forgetIDs (astDefExpr def)
         @?= forgetIDs
-          ( fst . create $
+          ( create' $
               hole
                 ( hole $
                     case_
@@ -946,7 +947,7 @@ unit_AddCon =
       def <- findDef (gvn "def") prog'
       forgetIDs (astDefExpr def)
         @?= forgetIDs
-          ( fst . create $
+          ( create' $
               case_
                 (emptyHole `ann` (tcon tT `tapp` tcon (tcn "Bool") `tapp` tcon (tcn "Int")))
                 [ branch cA [] emptyHole
@@ -976,7 +977,7 @@ unit_SetConFieldType =
       def <- findDef (gvn "def") prog'
       forgetIDs (astDefExpr def)
         @?= forgetIDs
-          ( fst . create $
+          ( create' $
               con cA `aPP` tEmptyHole `aPP` tEmptyHole
                 `app` con (vcn "True")
                 `app` hole (con (vcn "True"))
@@ -997,7 +998,7 @@ unit_SetConFieldType_partial_app =
       def <- findDef (gvn "def") prog'
       forgetIDs (astDefExpr def)
         @?= forgetIDs
-          ( fst . create $
+          ( create' $
               hole $
                 con cA `app` lvar "x"
           )
@@ -1024,7 +1025,7 @@ unit_SetConFieldType_case =
       def <- findDef (gvn "def") prog'
       forgetIDs (astDefExpr def)
         @?= forgetIDs
-          ( fst . create $
+          ( create' $
               case_
                 (emptyHole `ann` (tcon tT `tapp` tEmptyHole `tapp` tEmptyHole))
                 [ branch
@@ -1057,7 +1058,7 @@ unit_SetConFieldType_shadow =
       def <- findDef (gvn "def") prog'
       forgetIDs (astDefExpr def)
         @?= forgetIDs
-          ( fst . create $
+          ( create' $
               case_
                 (emptyHole `ann` (tcon tT `tapp` tEmptyHole `tapp` tEmptyHole))
                 [ branch
@@ -1097,7 +1098,7 @@ unit_AddConField =
       def <- findDef (gvn "def") prog'
       forgetIDs (astDefExpr def)
         @?= forgetIDs
-          ( fst . create $
+          ( create' $
               case_
                 ( con cA `aPP` tEmptyHole `aPP` tEmptyHole
                     `app` con (vcn "True")
@@ -1124,7 +1125,7 @@ unit_AddConField_partial_app =
       def <- findDef (gvn "def") prog'
       forgetIDs (astDefExpr def)
         @?= forgetIDs
-          ( fst . create $
+          ( create' $
               hole $ con cA `app` con (vcn "True")
           )
 
@@ -1147,7 +1148,7 @@ unit_AddConField_partial_app_end =
       def <- findDef (gvn "def") prog'
       forgetIDs (astDefExpr def)
         @?= forgetIDs
-          ( fst . create $
+          ( create' $
               con cA `app` con (vcn "True") `app` emptyHole
           )
 
@@ -1173,7 +1174,7 @@ unit_AddConField_case_ann =
       def <- findDef (gvn "def") prog'
       forgetIDs (astDefExpr def)
         @?= forgetIDs
-          ( fst . create $
+          ( create' $
               case_
                 (emptyHole `ann` (tcon tT `tapp` tEmptyHole `tapp` tEmptyHole))
                 [ branch
@@ -1301,7 +1302,7 @@ unit_good_defaultFullProg = checkProgWellFormed defaultFullProg
 -- All primitives,builtins and defaultEmptyProg things have distinct base names (defaultFullProg expects this)
 unit_defaultFullProg_no_clash :: Assertion
 unit_defaultFullProg_no_clash =
-  let (p, _) = create defaultEmptyProg
+  let p = create' defaultEmptyProg
       ms = progModules p <> [builtinModule, primitiveModule]
       typeNames = ms ^.. folded % #moduleTypes % folded % to typeDefName % #baseName
       termNames = ms ^.. folded % #moduleDefs % to Map.keys % folded
@@ -1460,29 +1461,28 @@ unit_cross_module_actions =
       n = ["Module2"]
       qualifyM :: Name -> GlobalName k
       qualifyM = qualifyName $ moduleName m
-      m = fst $
-        create $ do
-          let ty =
-                ASTTypeDef
-                  { astTypeDefName = qualifyM "T"
-                  , astTypeDefParameters = []
-                  , astTypeDefConstructors = [ValCon (qualifyM "C") [TCon () tNat]]
-                  , astTypeDefNameHints = []
-                  }
-          defTy <- tcon (astTypeDefName ty) `tfun` tcon (astTypeDefName ty)
-          defExpr <- emptyHole
-          let def =
-                ASTDef
-                  { astDefName = qualifyM "foo"
-                  , astDefType = defTy
-                  , astDefExpr = defExpr
-                  }
-          pure
-            Module
-              { moduleName = ModuleName n
-              , moduleTypes = Map.singleton "T" (TypeDefAST ty)
-              , moduleDefs = Map.singleton "foo" (DefAST def)
-              }
+      m = create' $ do
+        let ty =
+              ASTTypeDef
+                { astTypeDefName = qualifyM "T"
+                , astTypeDefParameters = []
+                , astTypeDefConstructors = [ValCon (qualifyM "C") [TCon () tNat]]
+                , astTypeDefNameHints = []
+                }
+        defTy <- tcon (astTypeDefName ty) `tfun` tcon (astTypeDefName ty)
+        defExpr <- emptyHole
+        let def =
+              ASTDef
+                { astDefName = qualifyM "foo"
+                , astDefType = defTy
+                , astDefExpr = defExpr
+                }
+        pure
+          Module
+            { moduleName = ModuleName n
+            , moduleTypes = Map.singleton "T" (TypeDefAST ty)
+            , moduleDefs = Map.singleton "foo" (DefAST def)
+            }
       -- We turn off smartholes, as we want to test our actions work without it
       a =
         newEmptyApp & #appProg % #progModules %~ (m :)

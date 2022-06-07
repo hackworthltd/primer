@@ -24,6 +24,7 @@ module Primer.Core (
   HasMetadata (_metadata),
   ID (ID),
   ModuleName (ModuleName, unModuleName),
+  mkSimpleModuleName,
   moduleNamePretty,
   GlobalNameKind (..),
   GlobalName (qualifiedModule, baseName),
@@ -168,6 +169,10 @@ trivialMeta id = Meta id Nothing Nothing
 newtype ModuleName = ModuleName {unModuleName :: NonEmpty Name}
   deriving (Eq, Ord, Show, Data, Generic)
   deriving (FromJSON, ToJSON) via NonEmpty Name
+
+-- | Helper function for simple (non-hierarchical) module names.
+mkSimpleModuleName :: Name -> ModuleName
+mkSimpleModuleName n = ModuleName $ n :| []
 
 moduleNamePretty :: ModuleName -> Text
 moduleNamePretty = mconcat . intersperse "." . toList . fmap unName . unModuleName
@@ -529,8 +534,8 @@ data PrimCon
 -- This should be a key in `allPrimTypeDefs`.
 primConName :: PrimCon -> TyConName
 primConName = \case
-  PrimChar _ -> qualifyName (ModuleName $ "Primitives" :| []) "Char"
-  PrimInt _ -> qualifyName (ModuleName $ "Primitives" :| []) "Int"
+  PrimChar _ -> qualifyName (mkSimpleModuleName "Primitives") "Char"
+  PrimInt _ -> qualifyName (mkSimpleModuleName "Primitives") "Int"
 
 data PrimFun = PrimFun
   { primFunTypes :: forall m. MonadFresh ID m => m ([Type], Type)

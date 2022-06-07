@@ -20,68 +20,68 @@ import Test.Tasty.HUnit hiding (assert)
 unit_1 :: Assertion
 unit_1 =
   assertNotEqual
-    (create' (tcon tNat))
-    (create' (tcon tBool))
+    (create_ (tcon tNat))
+    (create_ (tcon tBool))
 
 unit_2 :: Assertion
 unit_2 =
   (@?=)
-    (create' (tcon tList `tapp` tcon tNat))
-    (create' (tcon tList `tapp` tcon tNat))
+    (create_ (tcon tList `tapp` tcon tNat))
+    (create_ (tcon tList `tapp` tcon tNat))
 
 unit_3 :: Assertion
 unit_3 =
   assertNotEqual
-    (create' (tcon tList `tapp` tcon tBool))
-    (create' (tcon tList `tapp` tcon tNat))
+    (create_ (tcon tList `tapp` tcon tBool))
+    (create_ (tcon tList `tapp` tcon tNat))
 
 unit_4 :: Assertion
 unit_4 =
   assertNotEqual
-    (create' (tcon tList `tapp` tcon tBool))
-    (create' (tcon tNat))
+    (create_ (tcon tList `tapp` tcon tBool))
+    (create_ (tcon tNat))
 
 unit_5 :: Assertion
 unit_5 =
   assertNotEqual
-    (create' (tforall "a" KType $ tcon tList `tapp` tvar "a"))
-    (create' (tcon tNat))
+    (create_ (tforall "a" KType $ tcon tList `tapp` tvar "a"))
+    (create_ (tcon tNat))
 
 unit_6 :: Assertion
 unit_6 =
   (@?=)
-    (create' (tforall "a" KType $ tcon tList `tapp` tvar "a"))
-    (create' (tforall "b" KType $ tcon tList `tapp` tvar "b"))
+    (create_ (tforall "a" KType $ tcon tList `tapp` tvar "a"))
+    (create_ (tforall "b" KType $ tcon tList `tapp` tvar "b"))
 
 unit_7 :: Assertion
 unit_7 =
   assertNotEqual
-    (create' (tforall "a" KType $ tcon tList `tapp` tvar "a"))
-    (create' (tforall "b" KType $ tcon tList `tapp` tcon tBool))
+    (create_ (tforall "a" KType $ tcon tList `tapp` tvar "a"))
+    (create_ (tforall "b" KType $ tcon tList `tapp` tcon tBool))
 
 unit_8 :: Assertion
 unit_8 =
   assertNotEqual
-    (create' (tforall "a" KType $ tcon tBool))
-    (create' (tforall "b" (KFun KType KType) $ tcon tBool))
+    (create_ (tforall "a" KType $ tcon tBool))
+    (create_ (tforall "b" (KFun KType KType) $ tcon tBool))
 
 unit_9 :: Assertion
 unit_9 =
   assertNotEqual
-    (create' (tforall "a" KType $ tforall "b" KType $ tcon tList `tapp` tvar "a"))
-    (create' (tforall "a" KType $ tforall "b" KType $ tcon tList `tapp` tvar "b"))
+    (create_ (tforall "a" KType $ tforall "b" KType $ tcon tList `tapp` tvar "a"))
+    (create_ (tforall "a" KType $ tforall "b" KType $ tcon tList `tapp` tvar "b"))
 
 unit_10 :: Assertion
 unit_10 =
   assertNotEqual
-    (create' (tforall "a" KType $ tcon tList `tapp` tvar "a"))
-    (create' (tcon tList `tapp` tforall "a" KType (tvar "b")))
+    (create_ (tforall "a" KType $ tcon tList `tapp` tvar "a"))
+    (create_ (tcon tList `tapp` tforall "a" KType (tvar "b")))
 
 unit_11 :: Assertion
 unit_11 =
   assertNotEqual
-    (create' (tforall "a" KType $ tcon tBool `tfun` (tcon tList `tapp` tvar "a")))
-    (create' (tcon tBool `tfun` tforall "a" KType (tcon tList `tapp` tvar "a")))
+    (create_ (tforall "a" KType $ tcon tBool `tfun` (tcon tList `tapp` tvar "a")))
+    (create_ (tcon tBool `tfun` tforall "a" KType (tcon tList `tapp` tvar "a")))
 
 hprop_refl :: Property
 hprop_refl = property $ do
@@ -94,10 +94,10 @@ hprop_alpha = property $ do
   t <- f <$> forAll (evalExprGen 0 genTyVarName)
   s === t
   where
-    f v = create' $ tforall v KType $ tvar v
+    f v = create_ $ tforall v KType $ tvar v
 
-create' :: S (Type' a) -> Alpha
-create' = Alpha . forgetTypeIDs . fst . create
+create_ :: S (Type' a) -> Alpha
+create_ = Alpha . forgetTypeIDs . create'
 
 -- | Like @Type' ()@, but 'Eq' only compares up to alpha-equality.
 newtype Alpha = Alpha (Type' ())

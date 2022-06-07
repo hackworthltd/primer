@@ -48,7 +48,7 @@ maxID = maximum . map getID . universe
 hprop_ConstructVar_succeeds_on_hole_when_in_scope :: Property
 hprop_ConstructVar_succeeds_on_hole_when_in_scope = property $ do
   -- Generate \x -> ?
-  let expr = fst $ create $ ann (lam "x" emptyHole) (tfun tEmptyHole tEmptyHole)
+  let expr = create' $ ann (lam "x" emptyHole) (tfun tEmptyHole tEmptyHole)
   annotateShow expr
   expr' <-
     either (\err -> footnoteShow err >> failure) pure $
@@ -965,7 +965,7 @@ actionTest :: SmartHoles -> S Expr -> [Action] -> S Expr -> Assertion
 actionTest sh inputExpr actions expectedOutput = do
   let (expr, i) = create inputExpr
   result <- either (assertFailure . show) pure $ runTestActions sh i expr actions
-  let (expected, _) = create expectedOutput
+  let expected = create' expectedOutput
   -- Compare result to input, ignoring any difference in metadata
   -- NB: we don't compare up-to-alpha, as names should be determined by the
   -- actions on-the-nose

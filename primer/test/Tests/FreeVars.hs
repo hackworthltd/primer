@@ -10,12 +10,12 @@ import Primer.Core.Utils
 import Test.Tasty.HUnit
 
 unit_1 :: Assertion
-unit_1 = freeVars (fst $ create emptyHole) @=? Set.empty
+unit_1 = freeVars (create' emptyHole) @=? Set.empty
 
 unit_2 :: Assertion
 unit_2 =
   Set.fromList ["f", "y", "b"]
-    @=? freeVars (fst $ create t)
+    @=? freeVars (create' t)
   where
     t =
       ann

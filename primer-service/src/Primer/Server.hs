@@ -76,15 +76,23 @@ import Primer.Core (
   ID,
   Kind (KFun, KType),
   LVarName,
-  ModuleName (ModuleName),
   TyVarName,
   Type,
   Type' (TEmptyHole),
   TypeCache (..),
   TypeCacheBoth (..),
+  mkSimpleModuleName,
   qualifyName,
  )
-import Primer.Core.DSL (app, branch', case_, create, emptyHole, tEmptyHole, tfun)
+import Primer.Core.DSL (
+  app,
+  branch',
+  case_,
+  create',
+  emptyHole,
+  tEmptyHole,
+  tfun,
+ )
 import Primer.Database (
   Session,
   SessionId,
@@ -336,9 +344,9 @@ testEndpoints =
     :<|> mkTest 0
     :<|> mkTest (Log [[BodyAction [Move Child1]]])
     :<|> mkTest newProg
-    :<|> mkTest (MoveToDef $ qualifyName (ModuleName $ "M" :| []) "main")
+    :<|> mkTest (MoveToDef $ qualifyName (mkSimpleModuleName "M") "main")
     :<|> mkTest NoDefSelected
-    :<|> mkTest (DefAST $ ASTDef (qualifyName (ModuleName $ "M" :| []) "main") expr ty)
+    :<|> mkTest (DefAST $ ASTDef (qualifyName (mkSimpleModuleName "M") "main") expr ty)
     :<|> mkTest boolDef
     :<|> mkTest EvalReq{evalReqExpr = expr, evalReqRedex = 0}
     :<|> mkTest EvalResp{evalRespExpr = expr, evalRespRedexes = [0, 1], evalRespDetail = reductionDetail}
@@ -346,7 +354,6 @@ testEndpoints =
     :<|> mkTest (EvalFullRespNormal expr)
   where
     mkTest x = pure x :<|> pure
-    create' = fst . create
     expr = create' emptyHole
     ty = create' tEmptyHole
     reductionDetail =
