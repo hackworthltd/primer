@@ -448,14 +448,14 @@ applyActionsToTypeSig ::
   -- | This must be one of the definitions in the @Module@
   ASTDef ->
   [Action] ->
-  m (Either ActionError (ASTDef, [Module], TypeZ))
+  m (Either ActionError ([Module], TypeZ))
 applyActionsToTypeSig smartHoles imports (mod, mods) def actions =
   runReaderT
     go
     (buildTypingContextFromModules (mod : mods <> imports) smartHoles)
     & runExceptT
   where
-    go :: ActionM m => m (ASTDef, [Module], TypeZ)
+    go :: ActionM m => m ([Module], TypeZ)
     go = do
       zt <- withWrappedType (astDefType def) (\zt -> foldM (flip applyActionAndSynth) (InType zt) actions)
       let t = target (top zt)
@@ -469,7 +469,7 @@ applyActionsToTypeSig smartHoles imports (mod, mods) def actions =
       -- Here we just check the whole of the mutable prog, excluding imports.
       -- (for efficiency, we need not check the type definitions, but we do not implement this optimisation)
       checkEverything smartHoles (CheckEverything{trusted = imports, toCheck = mod' : mods})
-        >>= \checkedMods -> pure (def', checkedMods, zt)
+        >>= \checkedMods -> pure (checkedMods, zt)
     -- Actions expect that all ASTs have a top-level expression of some sort.
     -- Signatures don't have this: they're just a type.
     -- We fake it by wrapping the type in a top-level annotation node, then unwrapping afterwards.

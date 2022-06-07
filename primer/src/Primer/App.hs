@@ -738,14 +738,14 @@ applyProgAction prog mdefName = \case
     res <- applyActionsToTypeSig smartHoles (progImports prog) m def actions
     case res of
       Left err -> throwError $ ActionError err
-      Right (def', mod', zt) -> do
+      Right (mod', zt) -> do
         let node = target zt
             meta = view _typeMetaLens node
             nodeId = getID meta
          in pure
               ( mod'
               , Just $
-                  Selection (astDefName def') $
+                  Selection (astDefName def) $
                     Just
                       NodeSelection
                         { nodeType = SigNode
@@ -1110,7 +1110,7 @@ copyPasteSig p (fromDefName, fromTyId) toDefName setup = do
     doneSetup <- applyActionsToTypeSig smartHoles (progImports p) (mod, otherModules) oldDef setup
     tgt <- case doneSetup of
       Left err -> throwError $ ActionError err
-      Right (_, _, tgt) -> pure $ focusOnlyType tgt
+      Right (_, tgt) -> pure $ focusOnlyType tgt
     let sharedScope =
           if fromDefName == toDefName
             then getSharedScopeTy c $ Right tgt
