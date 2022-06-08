@@ -47,7 +47,6 @@ module Primer.Typecheck (
   lookupLocalTy,
   lookupVar,
   primConInScope,
-  mkTypeDefMapQualified,
   consistentKinds,
   consistentTypes,
   extendLocalCxtTy,
@@ -270,11 +269,6 @@ buildTypingContextFromModules modules =
   buildTypingContext
     (foldMap moduleTypesQualified modules)
     (foldMap moduleDefsQualified modules)
-
--- | Create a mapping of name to typedef for fast lookup.
--- Ensures that @typeDefName (mkTypeDefMap ! n) == n@
-mkTypeDefMapQualified :: [TypeDef] -> TypeDefMap
-mkTypeDefMapQualified defs = M.fromList $ map (\d -> (typeDefName d, d)) defs
 
 -- | A shorthand for the constraints needed when typechecking
 type TypeM e m =

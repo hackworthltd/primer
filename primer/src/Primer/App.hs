@@ -164,7 +164,6 @@ import Primer.Typecheck (
   buildTypingContextFromModules,
   checkEverything,
   checkTypeDefs,
-  mkTypeDefMapQualified,
   synth,
  )
 import Primer.Zipper (
@@ -521,7 +520,7 @@ applyProgAction prog mdefName = \case
         -- see https://github.com/hackworthltd/primer/issues/3)
         (TypeDefError . show @TypeError)
         ( runReaderT
-            (checkTypeDefs $ mkTypeDefMapQualified [TypeDefAST td])
+            (checkTypeDefs $ Map.singleton (astTypeDefName td) (TypeDefAST td))
             (buildTypingContextFromModules (progAllModules prog) NoSmartHoles)
         )
   RenameType old (unsafeMkName -> nameRaw) -> editModuleSameSelectionCross (qualifiedModule old) prog $ \(m, ms) -> do

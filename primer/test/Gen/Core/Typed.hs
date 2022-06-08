@@ -84,6 +84,7 @@ import Primer.Typecheck (
   extendLocalCxtTy,
   extendLocalCxtTys,
   extendLocalCxts,
+  extendTypeDefCxt,
   getGlobalBaseNames,
   globalCxt,
   instantiateValCons,
@@ -93,7 +94,6 @@ import Primer.Typecheck (
   matchArrowType,
   matchForallType,
   mkTAppCon,
-  mkTypeDefMapQualified,
   primConInScope,
   typeDefs,
  )
@@ -445,7 +445,7 @@ forgetLocals :: Cxt -> Cxt
 forgetLocals cxt = cxt{localCxt = mempty}
 
 -- Generates a group of potentially-mutually-recursive typedefs
-genTypeDefGroup :: GenT WT [TypeDef]
+genTypeDefGroup :: GenT WT [(TyConName, TypeDef)]
 genTypeDefGroup = local forgetLocals $ do
   let genParams = Gen.list (Range.linear 0 5) $ (,) <$> freshTyVarNameForCxt <*> genWTKind
   nps <- Gen.list (Range.linear 1 5) $ (,) <$> freshTyConNameForCxt <*> genParams
@@ -453,13 +453,15 @@ genTypeDefGroup = local forgetLocals $ do
   let types =
         map
           ( \(n, ps) ->
-              TypeDefAST
-                ASTTypeDef
-                  { astTypeDefName = n
-                  , astTypeDefParameters = ps
-                  , astTypeDefConstructors = []
-                  , astTypeDefNameHints = []
-                  }
+              ( n
+              , TypeDefAST
+                  ASTTypeDef
+                    { astTypeDefName = n
+                    , astTypeDefParameters = ps
+                    , astTypeDefConstructors = []
+                    , astTypeDefNameHints = []
+                    }
+              )
           )
           nps
   let genConArgs params = Gen.list (Range.linear 0 5) $ local (extendLocalCxtTys params . addTypeDefs types) $ genWTType KType -- params+types scope...
@@ -467,19 +469,21 @@ genTypeDefGroup = local forgetLocals $ do
   let genCons ty params = Gen.list (Range.linear 0 5) $ ValCon <$> freshValConNameForCxt ty <*> genConArgs params
   let genTD (n, ps) =
         ( \cons ->
-            TypeDefAST
-              ASTTypeDef
-                { astTypeDefName = n
-                , astTypeDefParameters = ps
-                , astTypeDefConstructors = cons
-                , astTypeDefNameHints = []
-                }
+            ( n
+            , TypeDefAST
+                ASTTypeDef
+                  { astTypeDefName = n
+                  , astTypeDefParameters = ps
+                  , astTypeDefConstructors = cons
+                  , astTypeDefNameHints = []
+                  }
+            )
         )
           <$> genCons n ps
   mapM genTD nps
 
-addTypeDefs :: [TypeDef] -> Cxt -> Cxt
-addTypeDefs tds cxt = cxt{typeDefs = typeDefs cxt <> mkTypeDefMapQualified tds}
+addTypeDefs :: [(TyConName, TypeDef)] -> Cxt -> Cxt
+addTypeDefs = extendTypeDefCxt . M.fromList
 
 extendGlobals :: [(GVarName, TypeG)] -> Cxt -> Cxt
 extendGlobals nts cxt = cxt{globalCxt = globalCxt cxt <> M.fromList nts}
