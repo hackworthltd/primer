@@ -809,8 +809,16 @@ unit_RenameType =
     )
     [RenameType tT "T'"]
     $ expectSuccess $ \_ prog' -> do
-      -- Test that the renamed type exists in the new program
-      _ <- findTypeDef (tcn "T'") prog'
+      -- The type is available under its new name
+      td <- findTypeDef (tcn "T'") prog'
+      -- The recursive reference to T is renamed also
+      astTypeDefConstructors td
+        @?= [ ValCon (vcn "A") [TCon () (tcn "Bool"), TCon () (tcn "Bool"), TCon () (tcn "Bool")]
+            , ValCon cB [TCon () (tcn "T'"), TVar () "b"]
+            ]
+      -- The old name does not refer to anything
+      assertBool "Expected the old name to be out of scope" $
+        not $ Map.member (tcn "T") $ foldMap moduleTypesQualified (progAllModules prog')
       def <- findDef (gvn "def") prog'
       forgetIDs (astDefExpr def)
         @?= forgetIDs
@@ -841,7 +849,7 @@ unit_RenameCon =
                             `app` con (vcn "True")
                         )
                         [ branch cA [("p", Nothing), ("q", Nothing), ("p1", Nothing)] emptyHole
-                        , branch cB [("x", Nothing)] emptyHole
+                        , branch cB [("r", Nothing), ("x", Nothing)] emptyHole
                         ]
                   )
               astDef "def" x <$> tEmptyHole
@@ -852,7 +860,7 @@ unit_RenameCon =
       td <- findTypeDef tT prog'
       astTypeDefConstructors td
         @?= [ ValCon (vcn "A'") [TCon () (tcn "Bool"), TCon () (tcn "Bool"), TCon () (tcn "Bool")]
-            , ValCon cB [TVar () "b"]
+            , ValCon cB [TCon () tT, TVar () "b"]
             ]
       def <- findDef (gvn "def") prog'
       forgetIDs (astDefExpr def)
@@ -867,7 +875,7 @@ unit_RenameCon =
                           `app` con (vcn "True")
                       )
                       [ branch (vcn "A'") [("p", Nothing), ("q", Nothing), ("p1", Nothing)] emptyHole
-                      , branch cB [("x", Nothing)] emptyHole
+                      , branch cB [("r", Nothing), ("x", Nothing)] emptyHole
                       ]
                 )
           )
@@ -899,7 +907,7 @@ unit_RenameTypeParam =
       astTypeDefParameters td @?= [("a", KType), ("b'", KType)]
       astTypeDefConstructors td
         @?= [ ValCon cA [TCon () (tcn "Bool"), TCon () (tcn "Bool"), TCon () (tcn "Bool")]
-            , ValCon cB [TVar () "b'"]
+            , ValCon cB [TCon () tT, TVar () "b'"]
             ]
 
 unit_RenameTypeParam_clash :: Assertion
@@ -930,7 +938,7 @@ unit_AddCon =
       astTypeDefConstructors td
         @?= [ ValCon cA [TCon () (tcn "Bool"), TCon () (tcn "Bool"), TCon () (tcn "Bool")]
             , ValCon (vcn "C") []
-            , ValCon cB [TVar () "b"]
+            , ValCon cB [TCon () tT, TVar () "b"]
             ]
       def <- findDef (gvn "def") prog'
       forgetIDs (astDefExpr def)
@@ -960,7 +968,7 @@ unit_SetConFieldType =
       td <- findTypeDef tT prog'
       astTypeDefConstructors td
         @?= [ ValCon cA [TCon () (tcn "Bool"), TCon () (tcn "Int"), TCon () (tcn "Bool")]
-            , ValCon cB [TVar () "b"]
+            , ValCon cB [TCon () tT, TVar () "b"]
             ]
       def <- findDef (gvn "def") prog'
       forgetIDs (astDefExpr def)
@@ -1070,7 +1078,7 @@ unit_AddConField =
                 `app` con (vcn "True")
             )
             [ branch cA [("p", Nothing), ("q", Nothing), ("p1", Nothing)] emptyHole
-            , branch cB [("x", Nothing)] emptyHole
+            , branch cB [("r", Nothing), ("x", Nothing)] emptyHole
             ]
         sequence
           [ astDef "def" x <$> tEmptyHole
@@ -1081,7 +1089,7 @@ unit_AddConField =
       td <- findTypeDef tT prog'
       astTypeDefConstructors td
         @?= [ ValCon cA [TCon () (tcn "Bool"), TCon () (tcn "Int"), TCon () (tcn "Bool"), TCon () (tcn "Bool")]
-            , ValCon cB [TVar () "b"]
+            , ValCon cB [TCon () tT, TVar () "b"]
             ]
       def <- findDef (gvn "def") prog'
       forgetIDs (astDefExpr def)
@@ -1094,8 +1102,8 @@ unit_AddConField =
                     `app` con (vcn "True")
                     `app` con (vcn "True")
                 )
-                [ branch cA [("p", Nothing), ("a24", Nothing), ("q", Nothing), ("p1", Nothing)] emptyHole
-                , branch cB [("x", Nothing)] emptyHole
+                [ branch cA [("p", Nothing), ("a25", Nothing), ("q", Nothing), ("p1", Nothing)] emptyHole
+                , branch cB [("r", Nothing), ("x", Nothing)] emptyHole
                 ]
           )
 
@@ -1131,7 +1139,7 @@ unit_AddConField_partial_app_end =
       td <- findTypeDef tT prog'
       astTypeDefConstructors td
         @?= [ ValCon cA [TCon () (tcn "Bool"), TCon () (tcn "Int"), TCon () (tcn "Bool"), TCon () (tcn "Bool")]
-            , ValCon cB [TVar () "b"]
+            , ValCon cB [TCon () tT, TVar () "b"]
             ]
       def <- findDef (gvn "def") prog'
       forgetIDs (astDefExpr def)
@@ -1265,7 +1273,7 @@ defaultProgEditableTypeDefs ds = do
         TypeDefAST
           ASTTypeDef
             { astTypeDefParameters = [("a", KType), ("b", KType)]
-            , astTypeDefConstructors = [ValCon cA (replicate 3 $ TCon () (tcn "Bool")), ValCon cB [TVar () "b"]]
+            , astTypeDefConstructors = [ValCon cA (replicate 3 $ TCon () (tcn "Bool")), ValCon cB [TCon () tT, TVar () "b"]]
             , astTypeDefNameHints = []
             }
 
