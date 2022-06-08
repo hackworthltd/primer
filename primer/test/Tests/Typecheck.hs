@@ -49,6 +49,7 @@ import Primer.Core (
   Def (..),
   Expr,
   Expr',
+  GlobalName (baseName),
   ID,
   Kind (KFun, KHole, KType),
   Meta (..),
@@ -532,7 +533,7 @@ unit_good_maybeT = case runTypecheckTestM NoSmartHoles $
     NoSmartHoles
     CheckEverything
       { trusted = [builtinModule]
-      , toCheck = [Module (ModuleName ["TestModule"]) (mkTypeDefMap [TypeDefAST maybeTDef]) mempty]
+      , toCheck = [Module (ModuleName ["TestModule"]) (Map.singleton (baseName tMaybeT) (TypeDefAST maybeTDef)) mempty]
       } of
   Left err -> assertFailure $ show err
   Right _ -> pure ()
@@ -639,7 +640,7 @@ testModule :: Module
 testModule =
   Module
     { moduleName = ModuleName ["TestModule"]
-    , moduleTypes = mkTypeDefMap [TypeDefAST maybeTDef]
+    , moduleTypes = Map.singleton (baseName tMaybeT) (TypeDefAST maybeTDef)
     , moduleDefs = mempty
     }
 

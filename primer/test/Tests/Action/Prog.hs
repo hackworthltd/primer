@@ -111,7 +111,7 @@ import Primer.Core.DSL (
   tvar,
  )
 import Primer.Core.Utils (forgetIDs)
-import Primer.Module (Module (Module, moduleDefs, moduleName, moduleTypes), mkTypeDefMap, moduleDefsQualified, moduleTypesQualified)
+import Primer.Module (Module (Module, moduleDefs, moduleName, moduleTypes), moduleDefsQualified, moduleTypesQualified)
 import Primer.Name
 import Primer.Primitives (primitiveGVar, primitiveModule, tChar)
 import Primer.Typecheck (SmartHoles (NoSmartHoles, SmartHoles), TypeError (UnknownTypeConstructor))
@@ -1258,10 +1258,10 @@ defaultFullProg = do
       -- unit_defaultFullModule_no_clash ensures that there will be no clashes
       renamed :: [Module]
       renamed = transformBi (const m) [builtinModule, primitiveModule]
-      renamedTypes = renamed ^.. folded % #moduleTypes % folded
+      renamedTypes = foldOf (folded % #moduleTypes) renamed
       renamedDefs = foldOf (folded % #moduleDefs) renamed
   pure $
-    p & #progModules % _head % #moduleTypes %~ (mkTypeDefMap renamedTypes <>)
+    p & #progModules % _head % #moduleTypes %~ (renamedTypes <>)
       & #progModules % _head % #moduleDefs %~ (renamedDefs <>)
 
 findTypeDef :: TyConName -> Prog -> IO ASTTypeDef
@@ -1277,18 +1277,18 @@ defaultProgEditableTypeDefs :: MonadFresh ID f => f [(Name, ASTDef)] -> f Prog
 defaultProgEditableTypeDefs ds = do
   p <- defaultFullProg
   ds' <- ds
-  let tds =
-        [ TypeDefAST
-            ASTTypeDef
-              { astTypeDefName = tT
-              , astTypeDefParameters = [("a", KType), ("b", KType)]
-              , astTypeDefConstructors = [ValCon cA (replicate 3 $ TCon () (tcn "Bool")), ValCon cB [TVar () "b"]]
-              , astTypeDefNameHints = []
-              }
-        ]
+  let td =
+        TypeDefAST
+          ASTTypeDef
+            { astTypeDefName = tT
+            , astTypeDefParameters = [("a", KType), ("b", KType)]
+            , astTypeDefConstructors = [ValCon cA (replicate 3 $ TCon () (tcn "Bool")), ValCon cB [TVar () "b"]]
+            , astTypeDefNameHints = []
+            }
+
   pure $
     p
-      & (#progModules % _head % #moduleTypes) %~ (mkTypeDefMap tds <>)
+      & (#progModules % _head % #moduleTypes) %~ (Map.singleton (baseName tT) td <>)
       & (#progModules % _head % #moduleDefs) %~ (Map.fromList (second DefAST <$> ds') <>)
 
 tT :: TyConName

@@ -57,7 +57,7 @@ import Primer.Eval (
   ),
   EvalDetail (BetaReduction),
  )
-import Primer.Module (Module (Module, moduleDefs, moduleTypes), mkTypeDefMap, moduleName)
+import Primer.Module (Module (Module, moduleDefs, moduleTypes), moduleName)
 import Primer.Name (Name, unsafeMkName)
 import Primer.Typecheck (SmartHoles (SmartHoles))
 import System.FilePath (takeBaseName)
@@ -132,7 +132,7 @@ fixtures =
           , progModules =
               [ Module
                   { moduleName = modName
-                  , moduleTypes = mkTypeDefMap [typeDef]
+                  , moduleTypes = Map.singleton "T" typeDef
                   , moduleDefs = Map.singleton defName (DefAST def)
                   }
               ]

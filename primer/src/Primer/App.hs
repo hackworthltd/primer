@@ -140,7 +140,6 @@ import Primer.Module (
   Module (Module, moduleDefs, moduleName, moduleTypes),
   deleteDef,
   insertDef,
-  mkTypeDefMap,
   moduleDefsQualified,
   moduleTypesQualified,
   qualifyDefName,
@@ -508,7 +507,7 @@ applyProgAction prog mdefName = \case
     let def = ASTDef expr ty
     pure (insertDef mod name $ DefAST def, Just $ Selection (qualifyName modName name) Nothing)
   AddTypeDef td -> editModuleSameSelection (qualifiedModule $ astTypeDefName td) prog $ \m -> do
-    let tydefs' = moduleTypes m <> mkTypeDefMap [TypeDefAST td]
+    let tydefs' = moduleTypes m <> Map.singleton (baseName $ astTypeDefName td) (TypeDefAST td)
     m{moduleTypes = tydefs'}
       <$ liftError
         -- The frontend should never let this error case happen,

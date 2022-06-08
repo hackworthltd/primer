@@ -1,6 +1,5 @@
 module Primer.Module (
   Module (..),
-  mkTypeDefMap,
   qualifyTyConName,
   moduleTypesQualified,
   qualifyDefName,
@@ -14,7 +13,6 @@ module Primer.Module (
 import Data.Data (Data)
 import Data.Generics.Uniplate.Data (transformBi)
 import Data.Map (delete, insert, mapKeys, member)
-import qualified Data.Map as M
 import Foreword
 import Primer.Core (
   Def,
@@ -26,7 +24,6 @@ import Primer.Core (
   TypeDef,
   TypeDefMap,
   qualifyName,
-  typeDefName,
  )
 import Primer.JSON
 import Primer.Name (Name)
@@ -41,12 +38,6 @@ data Module = Module
   }
   deriving (Eq, Show, Data, Generic)
   deriving (FromJSON, ToJSON) via VJSON Module
-
--- | Create a mapping of name to typedef for use in modules.
--- Ensures that @baseName $ typeDefName (mkTypeDefMap ! n) == n@
--- Assumes that all the typedefs have the same @qualifiedModule@ part to their name.
-mkTypeDefMap :: [TypeDef] -> Map Name TypeDef
-mkTypeDefMap defs = M.fromList $ map (\d -> (baseName $ typeDefName d, d)) defs
 
 qualifyTyConName :: Module -> Name -> TyConName
 qualifyTyConName m = qualifyName (moduleName m)

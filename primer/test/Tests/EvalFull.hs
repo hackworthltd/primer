@@ -47,7 +47,7 @@ import qualified Primer.Examples as Examples (
   map',
   odd,
  )
-import Primer.Module (Module (Module, moduleDefs, moduleName, moduleTypes), mkTypeDefMap, moduleDefsQualified, moduleTypesQualified)
+import Primer.Module (Module (Module, moduleDefs, moduleName, moduleTypes), moduleDefsQualified, moduleTypesQualified)
 import Primer.Name (Name)
 import Primer.Primitives (primitiveGVar, primitiveModule, tChar, tInt)
 import Primer.Typecheck (
@@ -1068,7 +1068,7 @@ unit_eval_full_modules_scrutinize_imported_type =
     m =
       Module
         { moduleName = qualifiedModule tBool
-        , moduleTypes = mkTypeDefMap [TypeDefAST boolDef]
+        , moduleTypes = Map.singleton (baseName tBool) (TypeDefAST boolDef)
         , moduleDefs = mempty
         }
 

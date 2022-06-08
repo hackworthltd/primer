@@ -31,6 +31,7 @@ module Primer.Builtins (
 
 import Foreword
 
+import qualified Data.Map as Map
 import Primer.Core (
   ASTTypeDef (
     ASTTypeDef,
@@ -39,7 +40,7 @@ import Primer.Core (
     astTypeDefNameHints,
     astTypeDefParameters
   ),
-  GlobalName,
+  GlobalName (baseName),
   Kind (KType),
   ModuleName,
   TyConName,
@@ -50,7 +51,7 @@ import Primer.Core (
   mkSimpleModuleName,
   qualifyName,
  )
-import Primer.Module (Module (Module, moduleDefs, moduleName, moduleTypes), mkTypeDefMap)
+import Primer.Module (Module (Module, moduleDefs, moduleName, moduleTypes))
 import Primer.Name (Name)
 
 builtinModuleName :: ModuleName
@@ -64,8 +65,10 @@ builtinModule =
   Module
     { moduleName = builtinModuleName
     , moduleTypes =
-        mkTypeDefMap $
-          map TypeDefAST [boolDef, natDef, listDef, maybeDef, pairDef, eitherDef]
+        Map.fromList $
+          map
+            (\d -> (baseName $ astTypeDefName d, TypeDefAST d))
+            [boolDef, natDef, listDef, maybeDef, pairDef, eitherDef]
     , moduleDefs = mempty
     }
 
