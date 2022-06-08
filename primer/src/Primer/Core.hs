@@ -48,7 +48,6 @@ module Primer.Core (
   TypeDefMap,
   typeDefAST,
   typeDefKind,
-  typeDefName,
   typeDefNameHints,
   typeDefParameters,
   ASTTypeDef (..),
@@ -571,8 +570,7 @@ type TypeDefMap = Map TyConName TypeDef
 
 -- | Definition of a primitive data type
 data PrimTypeDef = PrimTypeDef
-  { primTypeDefName :: TyConName
-  , primTypeDefParameters :: [Kind]
+  { primTypeDefParameters :: [Kind]
   , primTypeDefNameHints :: [Name]
   }
   deriving (Eq, Show, Data, Generic)
@@ -584,8 +582,7 @@ data PrimTypeDef = PrimTypeDef
 -- The kind of the type is TYPE{\-a-\} -> (TYPE -> TYPE){\-b-\} -> TYPE{\-always returns a type-\}
 -- The type of the constructor is C :: forall a:TYPE. forall b:(TYPE->TYPE). b a -> Nat -> T a b
 data ASTTypeDef = ASTTypeDef
-  { astTypeDefName :: TyConName
-  , astTypeDefParameters :: [(TyVarName, Kind)] -- These names scope over the constructors
+  { astTypeDefParameters :: [(TyVarName, Kind)] -- These names scope over the constructors
   , astTypeDefConstructors :: [ValCon]
   , astTypeDefNameHints :: [Name]
   }
@@ -599,17 +596,13 @@ data ValCon = ValCon
   deriving (Eq, Show, Data, Generic)
   deriving (FromJSON, ToJSON) via VJSON ValCon
 
-valConType :: ASTTypeDef -> ValCon -> Type' ()
-valConType td vc =
-  let ret = foldl' (\t (n, _) -> TApp () t (TVar () n)) (TCon () (astTypeDefName td)) (astTypeDefParameters td)
+valConType :: TyConName -> ASTTypeDef -> ValCon -> Type' ()
+valConType tc td vc =
+  let ret = foldl' (\t (n, _) -> TApp () t (TVar () n)) (TCon () tc) (astTypeDefParameters td)
       args = foldr (TFun ()) ret (valConArgs vc)
       foralls = foldr (\(n, k) t -> TForall () n k t) args (astTypeDefParameters td)
    in foralls
 
-typeDefName :: TypeDef -> TyConName
-typeDefName = \case
-  TypeDefPrim t -> primTypeDefName t
-  TypeDefAST t -> astTypeDefName t
 typeDefNameHints :: TypeDef -> [Name]
 typeDefNameHints = \case
   TypeDefPrim t -> primTypeDefNameHints t

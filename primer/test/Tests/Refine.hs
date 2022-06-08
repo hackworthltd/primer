@@ -217,7 +217,7 @@ hprop_con = propertyWTInExtendedLocalGlobalCxt [builtinModule, primitiveModule] 
   let cons = astTypeDefConstructors td
   when (null cons) discard
   vc <- forAllT $ Gen.element cons
-  let src = valConType td vc
+  let src = valConType tc td vc
   annotateShow src
   tgt' <- forAllT $ traverse (genWTType . snd) $ astTypeDefParameters td
   let tgt = mkTAppCon tc tgt'

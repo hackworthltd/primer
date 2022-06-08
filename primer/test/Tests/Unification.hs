@@ -31,13 +31,12 @@ import qualified Hedgehog.Gen as Gen
 import qualified Hedgehog.Range as Range
 import Primer.Builtins (builtinModule, tList, tNat)
 import Primer.Core (
-  ASTTypeDef (ASTTypeDef, astTypeDefConstructors, astTypeDefName, astTypeDefNameHints, astTypeDefParameters),
+  ASTTypeDef (ASTTypeDef, astTypeDefConstructors, astTypeDefNameHints, astTypeDefParameters),
   ID,
   Kind (KFun, KHole, KType),
   TyVarName,
   Type' (TApp, TCon, TEmptyHole, TForall, TFun, THole, TVar),
   TypeDef (TypeDefAST),
-  typeDefName,
  )
 import Primer.Core.Utils (forgetTypeIDs, freeVarsTy, generateTypeIDs)
 import Primer.Module (Module)
@@ -98,7 +97,7 @@ unit_diff_module_not_refl =
   evalTestM
     0
     ( unify'
-        (extendTypeDefCxt (M.singleton (typeDefName mint) mint) defaultCxt)
+        (extendTypeDefCxt (M.singleton (tcn ["M"] "Int") mint) defaultCxt)
         mempty
         (TCon () tInt)
         (TCon () $ tcn ["M"] "Int")
@@ -108,8 +107,7 @@ unit_diff_module_not_refl =
     mint =
       TypeDefAST $
         ASTTypeDef
-          { astTypeDefName = tcn ["M"] "Int"
-          , astTypeDefParameters = mempty
+          { astTypeDefParameters = mempty
           , astTypeDefConstructors = mempty
           , astTypeDefNameHints = mempty
           }

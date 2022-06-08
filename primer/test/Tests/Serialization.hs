@@ -64,7 +64,7 @@ import System.FilePath (takeBaseName)
 import Test.Tasty
 import Test.Tasty.Golden
 import Test.Tasty.HUnit
-import TestUtils (gvn, tcn, vcn)
+import TestUtils (gvn, vcn)
 
 -- | Check that encoding the value produces the file.
 test_encode :: TestTree
@@ -116,8 +116,7 @@ fixtures =
       typeDef =
         TypeDefAST
           ASTTypeDef
-            { astTypeDefName = tcn ["M"] "T"
-            , astTypeDefParameters = [("a", KType), ("b", KFun KType KType)]
+            { astTypeDefParameters = [("a", KType), ("b", KFun KType KType)]
             , astTypeDefConstructors = [ValCon (vcn ["M"] "C") [TApp () (TVar () "b") (TVar () "a"), TCon () tNat]]
             , astTypeDefNameHints = []
             }

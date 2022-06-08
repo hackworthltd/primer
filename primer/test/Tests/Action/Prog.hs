@@ -294,8 +294,7 @@ unit_create_typedef :: Assertion
 unit_create_typedef =
   let lst =
         ASTTypeDef
-          { astTypeDefName = tcn "List"
-          , astTypeDefParameters = [("a", KType)]
+          { astTypeDefParameters = [("a", KType)]
           , astTypeDefConstructors =
               [ ValCon (vcn "Nil") []
               , ValCon (vcn "Cons") [TVar () "a", TApp () (TCon () (tcn "List")) (TVar () "a")]
@@ -304,12 +303,11 @@ unit_create_typedef =
           }
       tree =
         ASTTypeDef
-          { astTypeDefName = tcn "Tree"
-          , astTypeDefParameters = [("a", KType)]
+          { astTypeDefParameters = [("a", KType)]
           , astTypeDefConstructors = [ValCon (vcn "Node") [TVar () "a", TApp () (TCon () (tcn "List")) (TApp () (TCon () (tcn "Tree")) (TVar () "a"))]]
           , astTypeDefNameHints = ["xs", "ys", "zs"]
           }
-   in progActionTest defaultEmptyProg [AddTypeDef lst, AddTypeDef tree] $
+   in progActionTest defaultEmptyProg [AddTypeDef (tcn "List") lst, AddTypeDef (tcn "Tree") tree] $
         expectSuccess $
           \_ prog' -> do
             case Map.elems $ foldMap moduleTypes $ progModules prog' of
@@ -323,12 +321,11 @@ unit_create_typedef_bad_1 :: Assertion
 unit_create_typedef_bad_1 =
   let td =
         ASTTypeDef
-          { astTypeDefName = tcn "Tree"
-          , astTypeDefParameters = [("a", KType)]
+          { astTypeDefParameters = [("a", KType)]
           , astTypeDefConstructors = [ValCon (vcn "Node") [TVar () "a", TApp () (TCon () $ tcn "List") (TApp () (TCon () $ tcn "Tree") (TVar () "a"))]]
           , astTypeDefNameHints = ["xs", "ys", "zs"]
           }
-   in progActionTest defaultEmptyProg [AddTypeDef td] $
+   in progActionTest defaultEmptyProg [AddTypeDef (tcn "Tree") td] $
         expectError (@?= (TypeDefError $ show $ UnknownTypeConstructor (tcn "List")))
 
 -- duplicate type(names) added
@@ -336,19 +333,17 @@ unit_create_typedef_bad_2 :: Assertion
 unit_create_typedef_bad_2 =
   let td1 =
         ASTTypeDef
-          { astTypeDefName = tcn "T"
-          , astTypeDefParameters = []
+          { astTypeDefParameters = []
           , astTypeDefConstructors = []
           , astTypeDefNameHints = []
           }
       td2 =
         ASTTypeDef
-          { astTypeDefName = tcn "T"
-          , astTypeDefParameters = []
+          { astTypeDefParameters = []
           , astTypeDefConstructors = []
           , astTypeDefNameHints = []
           }
-   in progActionTest defaultEmptyProg [AddTypeDef td1, AddTypeDef td2] $
+   in progActionTest defaultEmptyProg [AddTypeDef (tcn "T") td1, AddTypeDef (tcn "T") td2] $
         expectError (@?= TypeDefError "InternalError \"Duplicate-ly-named TypeDefs\"")
 
 -- Forbid duplicate constructor names within one type
@@ -356,15 +351,14 @@ unit_create_typedef_bad_3 :: Assertion
 unit_create_typedef_bad_3 =
   let td =
         ASTTypeDef
-          { astTypeDefName = tcn "T"
-          , astTypeDefParameters = []
+          { astTypeDefParameters = []
           , astTypeDefConstructors =
               [ ValCon (vcn "C") []
               , ValCon (vcn "C") []
               ]
           , astTypeDefNameHints = []
           }
-   in progActionTest defaultEmptyProg [AddTypeDef td] $
+   in progActionTest defaultEmptyProg [AddTypeDef (tcn "T") td] $
         expectError (@?= TypeDefError "InternalError \"Duplicate-ly-named constructor (perhaps in different typedefs)\"")
 
 -- Forbid duplicate constructor names across types
@@ -372,19 +366,17 @@ unit_create_typedef_bad_4 :: Assertion
 unit_create_typedef_bad_4 =
   let td1 =
         ASTTypeDef
-          { astTypeDefName = tcn "T1"
-          , astTypeDefParameters = []
+          { astTypeDefParameters = []
           , astTypeDefConstructors = [ValCon (vcn "C") []]
           , astTypeDefNameHints = []
           }
       td2 =
         ASTTypeDef
-          { astTypeDefName = tcn "T2"
-          , astTypeDefParameters = []
+          { astTypeDefParameters = []
           , astTypeDefConstructors = [ValCon (vcn "C") []]
           , astTypeDefNameHints = []
           }
-   in progActionTest defaultEmptyProg [AddTypeDef td1, AddTypeDef td2] $
+   in progActionTest defaultEmptyProg [AddTypeDef (tcn "T1") td1, AddTypeDef (tcn "T2") td2] $
         expectError (@?= TypeDefError "InternalError \"Duplicate-ly-named constructor (perhaps in different typedefs)\"")
 
 -- Forbid duplicate parameter names
@@ -392,12 +384,11 @@ unit_create_typedef_bad_5 :: Assertion
 unit_create_typedef_bad_5 =
   let td =
         ASTTypeDef
-          { astTypeDefName = tcn "T"
-          , astTypeDefParameters = [("a", KType), ("a", KType)]
+          { astTypeDefParameters = [("a", KType), ("a", KType)]
           , astTypeDefConstructors = []
           , astTypeDefNameHints = []
           }
-   in progActionTest defaultEmptyProg [AddTypeDef td] $
+   in progActionTest defaultEmptyProg [AddTypeDef (tcn "T") td] $
         expectError (@?= TypeDefError "InternalError \"Duplicate names in one tydef: between parameter-names and constructor-names\"")
 
 -- Forbid clash between type name and parameter name
@@ -405,12 +396,11 @@ unit_create_typedef_bad_6 :: Assertion
 unit_create_typedef_bad_6 =
   let td =
         ASTTypeDef
-          { astTypeDefName = tcn "T"
-          , astTypeDefParameters = [("T", KType)]
+          { astTypeDefParameters = [("T", KType)]
           , astTypeDefConstructors = []
           , astTypeDefNameHints = []
           }
-   in progActionTest defaultEmptyProg [AddTypeDef td] $
+   in progActionTest defaultEmptyProg [AddTypeDef (tcn "T") td] $
         expectError (@?= TypeDefError "InternalError \"Duplicate names in one tydef: between type-def-name and parameter-names\"")
 
 -- Forbid clash between parameter name and constructor name
@@ -418,12 +408,11 @@ unit_create_typedef_bad_7 :: Assertion
 unit_create_typedef_bad_7 =
   let td =
         ASTTypeDef
-          { astTypeDefName = tcn "T"
-          , astTypeDefParameters = [("a", KType)]
+          { astTypeDefParameters = [("a", KType)]
           , astTypeDefConstructors = [ValCon (vcn "a") []]
           , astTypeDefNameHints = []
           }
-   in progActionTest defaultEmptyProg [AddTypeDef td] $
+   in progActionTest defaultEmptyProg [AddTypeDef (tcn "T") td] $
         expectError (@?= TypeDefError "InternalError \"Duplicate names in one tydef: between parameter-names and constructor-names\"")
 
 -- Forbid clash between type name and name of a primitive type
@@ -431,12 +420,11 @@ unit_create_typedef_bad_prim :: Assertion
 unit_create_typedef_bad_prim =
   let td =
         ASTTypeDef
-          { astTypeDefName = tcn "Char"
-          , astTypeDefParameters = []
+          { astTypeDefParameters = []
           , astTypeDefConstructors = []
           , astTypeDefNameHints = []
           }
-   in progActionTest defaultFullProg [AddTypeDef td] $
+   in progActionTest defaultFullProg [AddTypeDef (tcn "Char") td] $
         expectError (@?= TypeDefError "InternalError \"Duplicate-ly-named TypeDefs\"")
 
 -- Allow clash between type name and constructor name in one type
@@ -444,12 +432,11 @@ unit_create_typedef_8 :: Assertion
 unit_create_typedef_8 =
   let td =
         ASTTypeDef
-          { astTypeDefName = tcn "T"
-          , astTypeDefParameters = []
+          { astTypeDefParameters = []
           , astTypeDefConstructors = [ValCon (vcn "T") []]
           , astTypeDefNameHints = []
           }
-   in progActionTest defaultEmptyProg [AddTypeDef td] $
+   in progActionTest defaultEmptyProg [AddTypeDef (tcn "T") td] $
         expectSuccess $ \_ prog' -> Map.elems (foldMap moduleTypes (progModules prog')) @?= [TypeDefAST td]
 
 -- Allow clash between type name and constructor name across types
@@ -457,19 +444,17 @@ unit_create_typedef_9 :: Assertion
 unit_create_typedef_9 =
   let td1 =
         ASTTypeDef
-          { astTypeDefName = tcn "T"
-          , astTypeDefParameters = []
+          { astTypeDefParameters = []
           , astTypeDefConstructors = [ValCon (vcn "C") []]
           , astTypeDefNameHints = []
           }
       td2 =
         ASTTypeDef
-          { astTypeDefName = tcn "C"
-          , astTypeDefParameters = []
+          { astTypeDefParameters = []
           , astTypeDefConstructors = []
           , astTypeDefNameHints = []
           }
-   in progActionTest defaultEmptyProg [AddTypeDef td1, AddTypeDef td2] $
+   in progActionTest defaultEmptyProg [AddTypeDef (tcn "T") td1, AddTypeDef (tcn "C") td2] $
         expectSuccess $ \_ prog' -> Map.elems (foldMap moduleTypes (progModules prog')) @?= [TypeDefAST td2, TypeDefAST td1]
 
 unit_construct_arrow_in_sig :: Assertion
@@ -824,8 +809,8 @@ unit_RenameType =
     )
     [RenameType tT "T'"]
     $ expectSuccess $ \_ prog' -> do
-      td <- findTypeDef (tcn "T'") prog'
-      astTypeDefName td @?= tcn "T'"
+      -- Test that the renamed type exists in the new program
+      _ <- findTypeDef (tcn "T'") prog'
       def <- findDef (gvn "def") prog'
       forgetIDs (astDefExpr def)
         @?= forgetIDs
@@ -1279,8 +1264,7 @@ defaultProgEditableTypeDefs ds = do
   let td =
         TypeDefAST
           ASTTypeDef
-            { astTypeDefName = tT
-            , astTypeDefParameters = [("a", KType), ("b", KType)]
+            { astTypeDefParameters = [("a", KType), ("b", KType)]
             , astTypeDefConstructors = [ValCon cA (replicate 3 $ TCon () (tcn "Bool")), ValCon cB [TVar () "b"]]
             , astTypeDefNameHints = []
             }
@@ -1465,14 +1449,14 @@ unit_cross_module_actions =
       qualifyM :: Name -> GlobalName k
       qualifyM = qualifyName $ moduleName m
       m = create' $ do
-        let ty =
+        let tc = qualifyM "T"
+            ty =
               ASTTypeDef
-                { astTypeDefName = qualifyM "T"
-                , astTypeDefParameters = []
+                { astTypeDefParameters = []
                 , astTypeDefConstructors = [ValCon (qualifyM "C") [TCon () tNat]]
                 , astTypeDefNameHints = []
                 }
-        defTy <- tcon (astTypeDefName ty) `tfun` tcon (astTypeDefName ty)
+        defTy <- tcon tc `tfun` tcon tc
         defExpr <- emptyHole
         let def =
               ASTDef

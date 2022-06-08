@@ -101,12 +101,6 @@
                                     }
                                 }
                             ],
-                            "astTypeDefName": {
-                                "baseName": "T",
-                                "qualifiedModule": [
-                                    "M"
-                                ]
-                            },
                             "astTypeDefNameHints": [],
                             "astTypeDefParameters": [
                                 [

@@ -506,8 +506,8 @@ applyProgAction prog mdefName = \case
     ty <- newType
     let def = ASTDef expr ty
     pure (insertDef mod name $ DefAST def, Just $ Selection (qualifyName modName name) Nothing)
-  AddTypeDef td -> editModuleSameSelection (qualifiedModule $ astTypeDefName td) prog $ \m -> do
-    let tydefs' = moduleTypes m <> Map.singleton (baseName $ astTypeDefName td) (TypeDefAST td)
+  AddTypeDef tc td -> editModuleSameSelection (qualifiedModule tc) prog $ \m -> do
+    let tydefs' = moduleTypes m <> Map.singleton (baseName tc) (TypeDefAST td)
     m{moduleTypes = tydefs'}
       <$ liftError
         -- The frontend should never let this error case happen,
@@ -519,7 +519,7 @@ applyProgAction prog mdefName = \case
         -- see https://github.com/hackworthltd/primer/issues/3)
         (TypeDefError . show @TypeError)
         ( runReaderT
-            (checkTypeDefs $ Map.singleton (astTypeDefName td) (TypeDefAST td))
+            (checkTypeDefs $ Map.singleton tc (TypeDefAST td))
             (buildTypingContextFromModules (progAllModules prog) NoSmartHoles)
         )
   RenameType old (unsafeMkName -> nameRaw) -> editModuleSameSelectionCross (qualifiedModule old) prog $ \(m, ms) -> do
@@ -536,7 +536,7 @@ applyProgAction prog mdefName = \case
             =<< maybe (throwError $ TypeDefNotFound old) pure (Map.lookup (baseName old) m)
         when (Map.member nameRaw m) $ throwError $ TypeDefAlreadyExists new
         when (nameRaw `elem` map (unLocalName . fst) (astTypeDefParameters d0)) $ throwError $ TyConParamClash nameRaw
-        pure $ Map.insert nameRaw (TypeDefAST $ d0 & #astTypeDefName .~ new) $ Map.delete (baseName old) m
+        pure $ Map.insert nameRaw (TypeDefAST d0) $ Map.delete (baseName old) m
       updateRefsInTypes =
         over
           (traversed % #_TypeDefAST % #astTypeDefConstructors % traversed % #valConArgs % traversed)
@@ -581,7 +581,7 @@ applyProgAction prog mdefName = \case
       updateParam def = do
         when (new `elem` map fst (astTypeDefParameters def)) $ throwError $ ParamAlreadyExists new
         let nameRaw = unLocalName new
-        when (nameRaw == baseName (astTypeDefName def)) $ throwError $ TyConParamClash nameRaw
+        when (nameRaw == baseName type_) $ throwError $ TyConParamClash nameRaw
         when (nameRaw `elem` map (baseName . valConName) (astTypeDefConstructors def)) $ throwError $ ValConParamClash nameRaw
         def
           & traverseOf

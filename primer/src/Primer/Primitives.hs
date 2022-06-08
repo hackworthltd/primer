@@ -99,16 +99,14 @@ allPrimTypeDefs =
     [ let name = tChar
        in ( name
           , PrimTypeDef
-              { primTypeDefName = name
-              , primTypeDefParameters = []
+              { primTypeDefParameters = []
               , primTypeDefNameHints = ["c"]
               }
           )
     , let name = tInt
        in ( name
           , PrimTypeDef
-              { primTypeDefName = name
-              , primTypeDefParameters = []
+              { primTypeDefParameters = []
               , primTypeDefNameHints = ["i", "j", "k", "m", "n"]
               }
           )

@@ -388,7 +388,7 @@ data ProgAction
   | -- | Delete a new definition
     DeleteDef GVarName
   | -- | Add a new type definition
-    AddTypeDef ASTTypeDef
+    AddTypeDef TyConName ASTTypeDef
   | -- | Rename the type definition with the given name, and its type constructor
     RenameType TyConName Text
   | -- | Rename the value constructor with the given name, in the given type
@@ -851,7 +851,7 @@ getConstructorType ::
   m (Either Text TC.Type)
 getConstructorType c =
   asks (flip lookupConstructor c . TC.typeDefs) <&> \case
-    Just (vc, td) -> Right $ valConType td vc
+    Just (vc, tc, td) -> Right $ valConType tc td vc
     Nothing -> Left $ "Could not find constructor " <> show c
 
 constructRefinedCon :: ActionM m => QualifiedText -> ExprZ -> m ExprZ
@@ -923,7 +923,7 @@ constructCase ze = do
   -- Construct the branches of the case using the type information of the scrutinee
   getTypeDefInfo ty >>= \case
     -- If it's a fully-saturated ADT type, create a branch for each of its constructors.
-    Right (TC.TypeDefInfo _ (TypeDefAST tydef)) ->
+    Right (TC.TypeDefInfo _ _ (TypeDefAST tydef)) ->
       let f c = do
             -- We replace C[e] with C[case e of D n -> ...], generating names n.
             -- (Here C represents the one-hole context in which the subterm e

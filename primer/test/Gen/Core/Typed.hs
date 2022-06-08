@@ -314,10 +314,10 @@ genSyn :: GenT WT (ExprG, TypeG)
 genSyn = genSyns (TEmptyHole ())
 
 allCons :: Cxt -> M.Map ValConName (Type' ())
-allCons cxt = M.fromList $ concatMap consForTyDef $ M.elems $ typeDefs cxt
+allCons cxt = M.fromList $ concatMap (uncurry consForTyDef) $ M.assocs $ typeDefs cxt
   where
-    consForTyDef = \case
-      TypeDefAST td -> map (\vc -> (valConName vc, valConType td vc)) (astTypeDefConstructors td)
+    consForTyDef tc = \case
+      TypeDefAST td -> map (\vc -> (valConName vc, valConType tc td vc)) (astTypeDefConstructors td)
       TypeDefPrim _ -> []
 
 genChk :: TypeG -> GenT WT ExprG
@@ -377,7 +377,7 @@ genChk ty = do
               fmap (e,) <$> case vcs' of
                 Left TDIHoleType -> pure $ Just []
                 Left _err -> pure Nothing -- if we didn't get an instance of t, try again; TODO: this is rather inefficient, and discards a lot...
-                Right (_, vcs) -> fmap Just . for vcs $ \(c, params) -> do
+                Right (_, _, vcs) -> fmap Just . for vcs $ \(c, params) -> do
                   ns <- replicateM (length params) $ genLVarNameAvoiding [ty]
                   let binds = map (Bind ()) ns
                   CaseBranch c binds <$> local (extendLocalCxts $ zip ns params) (genChk ty)
@@ -455,8 +455,7 @@ genTypeDefGroup = local forgetLocals $ do
               ( n
               , TypeDefAST
                   ASTTypeDef
-                    { astTypeDefName = n
-                    , astTypeDefParameters = ps
+                    { astTypeDefParameters = ps
                     , astTypeDefConstructors = []
                     , astTypeDefNameHints = []
                     }
@@ -471,8 +470,7 @@ genTypeDefGroup = local forgetLocals $ do
             ( n
             , TypeDefAST
                 ASTTypeDef
-                  { astTypeDefName = n
-                  , astTypeDefParameters = ps
+                  { astTypeDefParameters = ps
                   , astTypeDefConstructors = cons
                   , astTypeDefNameHints = []
                   }

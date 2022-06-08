@@ -293,8 +293,8 @@ viewCaseRedex tydefs = \case
   -- of the constructor.
   Case m expr brs
     | Just (c, tyargs, args, patterns, br) <- extract expr brs
-    , Just (_, tydef) <- lookupConstructor tydefs c
-    , ty <- mkTAppCon (astTypeDefName tydef) (forgetTypeIDs <$> take (length $ astTypeDefParameters tydef) tyargs)
+    , Just (_, tc, tydef) <- lookupConstructor tydefs c
+    , ty <- mkTAppCon tc (forgetTypeIDs <$> take (length $ astTypeDefParameters tydef) tyargs)
     , Just argTys <- instantiateCon ty c ->
         renameBindings m expr brs tyargs args patterns
           <|> formCaseRedex (Right ty) c argTys args patterns br
@@ -312,7 +312,7 @@ viewCaseRedex tydefs = \case
             _ -> Nothing
     instantiateCon :: MonadFresh NameCounter m => Type' a -> ValConName -> Maybe [m (Type' ())]
     instantiateCon ty c
-      | Right (_, instVCs) <- instantiateValCons' tydefs $ forgetTypeIDs ty
+      | Right (_, _, instVCs) <- instantiateValCons' tydefs $ forgetTypeIDs ty
       , Just (_, argTys) <- find ((== c) . fst) instVCs =
           Just argTys
       | otherwise = Nothing

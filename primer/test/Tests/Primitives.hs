@@ -12,7 +12,6 @@ import Primer.Core (
   ASTTypeDef (
     ASTTypeDef,
     astTypeDefConstructors,
-    astTypeDefName,
     astTypeDefNameHints,
     astTypeDefParameters
   ),
@@ -67,8 +66,7 @@ unit_prim_con_scope_ast = do
     charASTDef =
       TypeDefAST $
         ASTTypeDef
-          { astTypeDefName = tChar
-          , astTypeDefParameters = [("a", KType)]
+          { astTypeDefParameters = [("a", KType)]
           , astTypeDefConstructors = mempty
           , astTypeDefNameHints = mempty
           }

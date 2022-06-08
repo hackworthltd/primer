@@ -253,13 +253,13 @@ unit_typeDefKind = do
 
 unit_valConType :: Assertion
 unit_valConType = do
-  f boolDef @?= [TCon () tBool, TCon () tBool]
-  f natDef @?= [TCon () tNat, TFun () (TCon () tNat) (TCon () tNat)]
-  f listDef
+  f tBool boolDef @?= [TCon () tBool, TCon () tBool]
+  f tNat natDef @?= [TCon () tNat, TFun () (TCon () tNat) (TCon () tNat)]
+  f tList listDef
     @?= [ TForall () "a" KType (TApp () (TCon () tList) (TVar () "a"))
         , TForall () "a" KType $ TFun () (TVar () "a") $ TFun () (TApp () (TCon () tList) (TVar () "a")) $ TApp () (TCon () tList) (TVar () "a")
         ]
-  f eitherDef
+  f tEither eitherDef
     @?= [ TForall () "a" KType $
             TForall () "b" KType $
               TFun () (TVar () "a") $
@@ -270,7 +270,7 @@ unit_valConType = do
                 mkTAppCon tEither [TVar () "a", TVar () "b"]
         ]
   where
-    f t = map (valConType t) (astTypeDefConstructors t)
+    f tc td = map (valConType tc td) (astTypeDefConstructors td)
 
 -- Nat -> Bool accepts \x . case x of Z -> True ; S _ -> False
 unit_case_isZero :: Assertion
@@ -650,8 +650,7 @@ tMaybeT = tcn ["TestModule"] "MaybeT"
 maybeTDef :: ASTTypeDef
 maybeTDef =
   ASTTypeDef
-    { astTypeDefName = tMaybeT
-    , astTypeDefParameters = [("m", KFun KType KType), ("a", KType)]
+    { astTypeDefParameters = [("m", KFun KType KType), ("a", KType)]
     , astTypeDefConstructors = [ValCon (vcn ["TestModule"] "MakeMaybeT") [TApp () (TVar () "m") (TApp () (TCon () tMaybe) (TVar () "a"))]]
     , astTypeDefNameHints = []
     }
