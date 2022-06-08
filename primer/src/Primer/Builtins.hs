@@ -31,15 +31,15 @@ module Primer.Builtins (
 
 import Foreword
 
+import qualified Data.Map as Map
 import Primer.Core (
   ASTTypeDef (
     ASTTypeDef,
     astTypeDefConstructors,
-    astTypeDefName,
     astTypeDefNameHints,
     astTypeDefParameters
   ),
-  GlobalName,
+  GlobalName (baseName),
   Kind (KType),
   ModuleName,
   TyConName,
@@ -50,7 +50,7 @@ import Primer.Core (
   mkSimpleModuleName,
   qualifyName,
  )
-import Primer.Module (Module (Module, moduleDefs, moduleName, moduleTypes), mkTypeDefMap)
+import Primer.Module (Module (Module, moduleDefs, moduleName, moduleTypes))
 import Primer.Name (Name)
 
 builtinModuleName :: ModuleName
@@ -64,8 +64,14 @@ builtinModule =
   Module
     { moduleName = builtinModuleName
     , moduleTypes =
-        mkTypeDefMap $
-          map TypeDefAST [boolDef, natDef, listDef, maybeDef, pairDef, eitherDef]
+        Map.fromList
+          [ (baseName tBool, TypeDefAST boolDef)
+          , (baseName tNat, TypeDefAST natDef)
+          , (baseName tList, TypeDefAST listDef)
+          , (baseName tMaybe, TypeDefAST maybeDef)
+          , (baseName tPair, TypeDefAST pairDef)
+          , (baseName tEither, TypeDefAST eitherDef)
+          ]
     , moduleDefs = mempty
     }
 
@@ -109,8 +115,7 @@ cRight = builtin "Right"
 boolDef :: ASTTypeDef
 boolDef =
   ASTTypeDef
-    { astTypeDefName = tBool
-    , astTypeDefParameters = []
+    { astTypeDefParameters = []
     , astTypeDefConstructors =
         [ ValCon cTrue []
         , ValCon cFalse []
@@ -122,8 +127,7 @@ boolDef =
 natDef :: ASTTypeDef
 natDef =
   ASTTypeDef
-    { astTypeDefName = tNat
-    , astTypeDefParameters = []
+    { astTypeDefParameters = []
     , astTypeDefConstructors =
         [ ValCon cZero []
         , ValCon cSucc [TCon () tNat]
@@ -135,8 +139,7 @@ natDef =
 listDef :: ASTTypeDef
 listDef =
   ASTTypeDef
-    { astTypeDefName = tList
-    , astTypeDefParameters = [("a", KType)]
+    { astTypeDefParameters = [("a", KType)]
     , astTypeDefConstructors =
         [ ValCon cNil []
         , ValCon cCons [TVar () "a", TApp () (TCon () tList) (TVar () "a")]
@@ -148,8 +151,7 @@ listDef =
 maybeDef :: ASTTypeDef
 maybeDef =
   ASTTypeDef
-    { astTypeDefName = tMaybe
-    , astTypeDefParameters = [("a", KType)]
+    { astTypeDefParameters = [("a", KType)]
     , astTypeDefConstructors =
         [ ValCon cNothing []
         , ValCon cJust [TVar () "a"]
@@ -161,8 +163,7 @@ maybeDef =
 pairDef :: ASTTypeDef
 pairDef =
   ASTTypeDef
-    { astTypeDefName = tPair
-    , astTypeDefParameters = [("a", KType), ("b", KType)]
+    { astTypeDefParameters = [("a", KType), ("b", KType)]
     , astTypeDefConstructors = [ValCon cMakePair [TVar () "a", TVar () "b"]]
     , astTypeDefNameHints = []
     }
@@ -171,8 +172,7 @@ pairDef =
 eitherDef :: ASTTypeDef
 eitherDef =
   ASTTypeDef
-    { astTypeDefName = tEither
-    , astTypeDefParameters = [("a", KType), ("b", KType)]
+    { astTypeDefParameters = [("a", KType), ("b", KType)]
     , astTypeDefConstructors = [ValCon cLeft [TVar () "a"], ValCon cRight [TVar () "b"]]
     , astTypeDefNameHints = []
     }

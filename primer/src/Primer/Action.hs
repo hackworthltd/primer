@@ -33,6 +33,7 @@ import Primer.Core (
   ASTDef (..),
   ASTTypeDef (..),
   Def (..),
+  DefMap,
   Expr,
   Expr' (..),
   GVarName,
@@ -52,7 +53,6 @@ import Primer.Core (
   ValConName,
   baseName,
   bindName,
-  defName,
   getID,
   qualifiedModule,
   unsafeMkGlobalName,
@@ -231,7 +231,7 @@ nameString = "n" <> T.singleton '\x200C' <> "ame"
 -- that name (within the specified module). Note that if no definition
 -- of the given name already exists in the program, this function will
 -- return the same name it's been given.
-uniquifyDefName :: C.ModuleName -> Text -> Map ID Def -> Text
+uniquifyDefName :: C.ModuleName -> Text -> DefMap -> Text
 uniquifyDefName m name' defs =
   if name' `notElem` avoid
     then name'
@@ -243,7 +243,7 @@ uniquifyDefName m name' defs =
       | qualifiedModule qn == m = Just (unName $ baseName qn)
       | otherwise = Nothing
     avoid :: [Text]
-    avoid = mapMaybe (f . defName) $ Map.elems defs
+    avoid = mapMaybe f $ Map.keys defs
 
 type QualifiedText = (NonEmpty Text, Text)
 
@@ -388,7 +388,7 @@ data ProgAction
   | -- | Delete a new definition
     DeleteDef GVarName
   | -- | Add a new type definition
-    AddTypeDef ASTTypeDef
+    AddTypeDef TyConName ASTTypeDef
   | -- | Rename the type definition with the given name, and its type constructor
     RenameType TyConName Text
   | -- | Rename the value constructor with the given name, in the given type
@@ -445,23 +445,23 @@ applyActionsToTypeSig ::
   [Module] ->
   -- | The @Module@ we are focused on, and all the other editable modules
   (Module, [Module]) ->
-  -- | This must be one of the definitions in the @Module@
-  ASTDef ->
+  -- | This must be one of the definitions in the @Module@, with its correct name
+  (Name, ASTDef) ->
   [Action] ->
-  m (Either ActionError (ASTDef, [Module], TypeZ))
-applyActionsToTypeSig smartHoles imports (mod, mods) def actions =
+  m (Either ActionError ([Module], TypeZ))
+applyActionsToTypeSig smartHoles imports (mod, mods) (defName, def) actions =
   runReaderT
     go
     (buildTypingContextFromModules (mod : mods <> imports) smartHoles)
     & runExceptT
   where
-    go :: ActionM m => m (ASTDef, [Module], TypeZ)
+    go :: ActionM m => m ([Module], TypeZ)
     go = do
       zt <- withWrappedType (astDefType def) (\zt -> foldM (flip applyActionAndSynth) (InType zt) actions)
       let t = target (top zt)
       e <- check (forgetTypeIDs t) (astDefExpr def)
       let def' = def{astDefExpr = exprTtoExpr e, astDefType = t}
-          mod' = insertDef mod (DefAST def')
+          mod' = insertDef mod defName (DefAST def')
       -- The actions were applied to the type successfully, and the definition body has been
       -- typechecked against the new type.
       -- Now we need to typecheck the whole program again, to check any uses of the definition
@@ -469,7 +469,7 @@ applyActionsToTypeSig smartHoles imports (mod, mods) def actions =
       -- Here we just check the whole of the mutable prog, excluding imports.
       -- (for efficiency, we need not check the type definitions, but we do not implement this optimisation)
       checkEverything smartHoles (CheckEverything{trusted = imports, toCheck = mod' : mods})
-        >>= \checkedMods -> pure (def', checkedMods, zt)
+        >>= \checkedMods -> pure (checkedMods, zt)
     -- Actions expect that all ASTs have a top-level expression of some sort.
     -- Signatures don't have this: they're just a type.
     -- We fake it by wrapping the type in a top-level annotation node, then unwrapping afterwards.
@@ -851,7 +851,7 @@ getConstructorType ::
   m (Either Text TC.Type)
 getConstructorType c =
   asks (flip lookupConstructor c . TC.typeDefs) <&> \case
-    Just (vc, td) -> Right $ valConType td vc
+    Just (vc, tc, td) -> Right $ valConType tc td vc
     Nothing -> Left $ "Could not find constructor " <> show c
 
 constructRefinedCon :: ActionM m => QualifiedText -> ExprZ -> m ExprZ
@@ -923,7 +923,7 @@ constructCase ze = do
   -- Construct the branches of the case using the type information of the scrutinee
   getTypeDefInfo ty >>= \case
     -- If it's a fully-saturated ADT type, create a branch for each of its constructors.
-    Right (TC.TypeDefInfo _ (TypeDefAST tydef)) ->
+    Right (TC.TypeDefInfo _ _ (TypeDefAST tydef)) ->
       let f c = do
             -- We replace C[e] with C[case e of D n -> ...], generating names n.
             -- (Here C represents the one-hole context in which the subterm e

@@ -12,7 +12,6 @@ module Primer.Core (
   CaseBranch' (..),
   Def (..),
   DefMap,
-  defName,
   defType,
   ASTDef (..),
   defAST,
@@ -46,9 +45,9 @@ module Primer.Core (
   _synthed,
   Kind (..),
   TypeDef (..),
+  TypeDefMap,
   typeDefAST,
   typeDefKind,
-  typeDefName,
   typeDefNameHints,
   typeDefParameters,
   ASTTypeDef (..),
@@ -489,28 +488,24 @@ data Def
 -- | A mapping of global names to 'Def's.
 type DefMap = Map GVarName Def
 
--- | A primitive, built-in definition
-data PrimDef = PrimDef
-  { primDefName :: GVarName
-  -- ^ Used for display, and to link to an entry in `allPrimDefs`
-  , primDefType :: Type
+-- | A primitive, built-in definition.
+-- Names and definitions of primitives are hard-coded in Primer.Primitives.
+-- A @PrimDef@ simply exposes one of those, and thus the type must match
+-- the one stored in the corresponding 'PrimFun'.
+newtype PrimDef = PrimDef
+  { primDefType :: Type
   }
   deriving (Eq, Show, Data, Generic)
   deriving (FromJSON, ToJSON) via VJSON PrimDef
 
 -- | A top-level definition, built from an 'Expr'
 data ASTDef = ASTDef
-  { astDefName :: GVarName
-  , astDefExpr :: Expr
+  { astDefExpr :: Expr
   , astDefType :: Type
   }
   deriving (Eq, Show, Data, Generic)
   deriving (FromJSON, ToJSON) via VJSON ASTDef
 
-defName :: Def -> GVarName
-defName = \case
-  DefPrim d -> primDefName d
-  DefAST d -> astDefName d
 defType :: Def -> Type
 defType = \case
   DefPrim d -> primDefType d
@@ -570,10 +565,12 @@ data TypeDef
   deriving (Eq, Show, Data, Generic)
   deriving (FromJSON, ToJSON) via VJSON TypeDef
 
+-- | A mapping of global names to 'TypeDef's.
+type TypeDefMap = Map TyConName TypeDef
+
 -- | Definition of a primitive data type
 data PrimTypeDef = PrimTypeDef
-  { primTypeDefName :: TyConName
-  , primTypeDefParameters :: [Kind]
+  { primTypeDefParameters :: [Kind]
   , primTypeDefNameHints :: [Name]
   }
   deriving (Eq, Show, Data, Generic)
@@ -585,8 +582,7 @@ data PrimTypeDef = PrimTypeDef
 -- The kind of the type is TYPE{\-a-\} -> (TYPE -> TYPE){\-b-\} -> TYPE{\-always returns a type-\}
 -- The type of the constructor is C :: forall a:TYPE. forall b:(TYPE->TYPE). b a -> Nat -> T a b
 data ASTTypeDef = ASTTypeDef
-  { astTypeDefName :: TyConName
-  , astTypeDefParameters :: [(TyVarName, Kind)] -- These names scope over the constructors
+  { astTypeDefParameters :: [(TyVarName, Kind)] -- These names scope over the constructors
   , astTypeDefConstructors :: [ValCon]
   , astTypeDefNameHints :: [Name]
   }
@@ -600,17 +596,13 @@ data ValCon = ValCon
   deriving (Eq, Show, Data, Generic)
   deriving (FromJSON, ToJSON) via VJSON ValCon
 
-valConType :: ASTTypeDef -> ValCon -> Type' ()
-valConType td vc =
-  let ret = foldl' (\t (n, _) -> TApp () t (TVar () n)) (TCon () (astTypeDefName td)) (astTypeDefParameters td)
+valConType :: TyConName -> ASTTypeDef -> ValCon -> Type' ()
+valConType tc td vc =
+  let ret = foldl' (\t (n, _) -> TApp () t (TVar () n)) (TCon () tc) (astTypeDefParameters td)
       args = foldr (TFun ()) ret (valConArgs vc)
       foralls = foldr (\(n, k) t -> TForall () n k t) args (astTypeDefParameters td)
    in foralls
 
-typeDefName :: TypeDef -> TyConName
-typeDefName = \case
-  TypeDefPrim t -> primTypeDefName t
-  TypeDefAST t -> astTypeDefName t
 typeDefNameHints :: TypeDef -> [Name]
 typeDefNameHints = \case
   TypeDefPrim t -> primTypeDefNameHints t

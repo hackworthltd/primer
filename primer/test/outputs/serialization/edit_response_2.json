@@ -37,12 +37,6 @@
                                 ],
                                 "tag": "EmptyHole"
                             },
-                            "astDefName": {
-                                "baseName": "main",
-                                "qualifiedModule": [
-                                    "M"
-                                ]
-                            },
                             "astDefType": {
                                 "contents": [
                                     0,
@@ -107,12 +101,6 @@
                                     }
                                 }
                             ],
-                            "astTypeDefName": {
-                                "baseName": "T",
-                                "qualifiedModule": [
-                                    "M"
-                                ]
-                            },
                             "astTypeDefNameHints": [],
                             "astTypeDefParameters": [
                                 [

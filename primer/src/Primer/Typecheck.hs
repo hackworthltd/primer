@@ -47,7 +47,6 @@ module Primer.Typecheck (
   lookupLocalTy,
   lookupVar,
   primConInScope,
-  mkTypeDefMapQualified,
   consistentKinds,
   consistentTypes,
   extendLocalCxtTy,
@@ -70,6 +69,7 @@ import Data.Generics.Product (HasType, position, typed)
 import qualified Data.Map as M
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as S
+import Data.Tuple.Extra (fst3)
 import Optics (Lens', over, set, traverseOf, view, (%))
 import Optics.Traversal (traversed)
 import Primer.Core (
@@ -99,17 +99,15 @@ import Primer.Core (
   TypeCache (..),
   TypeCacheBoth (..),
   TypeDef (..),
+  TypeDefMap,
   TypeMeta,
   ValCon (valConArgs, valConName),
   ValConName,
   bindName,
-  defName,
   defType,
-  moduleNamePretty,
   primConName,
   typeDefAST,
   typeDefKind,
-  typeDefName,
   typeDefParameters,
   unLocalName,
   valConType,
@@ -122,9 +120,7 @@ import Primer.Core.Utils (alphaEqTy, forgetTypeIDs, freshLocalName, generateType
 import Primer.JSON (CustomJSON (CustomJSON), FromJSON, ToJSON, VJSON)
 import Primer.Module (
   Module (
-    moduleDefs,
-    moduleName,
-    moduleTypes
+    moduleDefs
   ),
   moduleDefsQualified,
   moduleTypesQualified,
@@ -187,8 +183,7 @@ data KindOrType = K Kind | T Type
 
 data Cxt = Cxt
   { smartHoles :: SmartHoles
-  , typeDefs :: M.Map TyConName TypeDef
-  -- ^ invariant: the key matches the 'typeDefName' inside the 'TypeDef'
+  , typeDefs :: TypeDefMap
   , localCxt :: Map Name KindOrType
   -- ^ local variables. invariant: the Name comes from a @LocalName k@, and
   -- the tag @k@ should say whether the value is a kind or a type.
@@ -237,8 +232,8 @@ extendLocalCxtTys x cxt = cxt{localCxt = Map.fromList (bimap unLocalName K <$> x
 extendGlobalCxt :: [(GVarName, Type)] -> Cxt -> Cxt
 extendGlobalCxt globals cxt = cxt{globalCxt = Map.fromList globals <> globalCxt cxt}
 
-extendTypeDefCxt :: [TypeDef] -> Cxt -> Cxt
-extendTypeDefCxt typedefs cxt = cxt{typeDefs = mkTypeDefMap typedefs <> typeDefs cxt}
+extendTypeDefCxt :: TypeDefMap -> Cxt -> Cxt
+extendTypeDefCxt typedefs cxt = cxt{typeDefs = typedefs <> typeDefs cxt}
 
 localTmVars :: Cxt -> Map LVarName Type
 localTmVars = M.mapKeys LocalName . M.mapMaybe (\case T t -> Just t; K _ -> Nothing) . localCxt
@@ -260,26 +255,16 @@ initialCxt sh =
     }
 
 -- | Construct an initial typing context, with all given definitions in scope as global variables.
-buildTypingContext :: Map TyConName TypeDef -> DefMap -> SmartHoles -> Cxt
+buildTypingContext :: TypeDefMap -> DefMap -> SmartHoles -> Cxt
 buildTypingContext tydefs defs sh =
-  let globals = Map.elems $ fmap (\def -> (defName def, forgetTypeIDs (defType def))) defs
-   in extendTypeDefCxt (Map.elems tydefs) $ extendGlobalCxt globals $ initialCxt sh
+  let globals = Map.assocs $ fmap (forgetTypeIDs . defType) defs
+   in extendTypeDefCxt tydefs $ extendGlobalCxt globals $ initialCxt sh
 
 buildTypingContextFromModules :: [Module] -> SmartHoles -> Cxt
 buildTypingContextFromModules modules =
   buildTypingContext
     (foldMap moduleTypesQualified modules)
     (foldMap moduleDefsQualified modules)
-
--- | Create a mapping of name to typedef for fast lookup.
--- Ensures that @typeDefName (mkTypeDefMap ! n) == n@
-mkTypeDefMapQualified :: [TypeDef] -> Map TyConName TypeDef
-mkTypeDefMapQualified defs = M.fromList $ map (\d -> (typeDefName d, d)) defs
-
--- | Create a mapping of name to typedef for fast lookup.
--- Ensures that @typeDefName (mkTypeDefMap ! n) == n@
-mkTypeDefMap :: [TypeDef] -> Map TyConName TypeDef
-mkTypeDefMap defs = M.fromList $ map (\d -> (typeDefName d, d)) defs
 
 -- | A shorthand for the constraints needed when typechecking
 type TypeM e m =
@@ -319,7 +304,7 @@ checkValidContext ::
   m ()
 checkValidContext cxt = do
   let tds = typeDefs cxt
-  runReaderT (checkTypeDefsMap tds) $ initialCxt NoSmartHoles
+  runReaderT (checkTypeDefs tds) $ initialCxt NoSmartHoles
   runReaderT (checkGlobalCxt $ globalCxt cxt) $ (initialCxt NoSmartHoles){typeDefs = tds}
   checkLocalCxtTys $ localTyVars cxt
   runReaderT (checkLocalCxtTms $ localTmVars cxt) $ extendLocalCxtTys (M.toList $ localTyVars cxt) (initialCxt NoSmartHoles){typeDefs = tds}
@@ -333,44 +318,32 @@ checkValidContext cxt = do
     -- metadata as it won't be inspected.
     fakeMeta = generateTypeIDs
 
--- | Check all type definitions, as one recursive group
--- This is the same as 'checkTypeDefs', except it also checks the keys of the
--- map are consistent with the names in the 'TypeDef's
-checkTypeDefsMap ::
-  TypeM e m =>
-  Map TyConName TypeDef ->
-  m ()
-checkTypeDefsMap tds = do
-  assert (consistentComputedKeys typeDefName tds) "Inconsistent names in a Map TyConName TypeDef"
-  checkTypeDefs tds
-
-consistentComputedKeys :: Eq k => (v -> k) -> Map k v -> Bool
-consistentComputedKeys f = getAll . M.foldMapWithKey (\k v -> All $ k == f v)
-
 -- | Check all type definitions, as one recursive group, in some monadic environment
 checkTypeDefs ::
   TypeM e m =>
-  Map TyConName TypeDef ->
+  TypeDefMap ->
   m ()
 checkTypeDefs tds = do
-  existingTypes <- asks $ Map.elems . typeDefs
+  existingTypes <- asks typeDefs
   -- NB: we expect the frontend to only submit acceptable typedefs, so all
   -- errors here are "internal errors" and should never be seen.
   -- (This is not quite true, see
   -- https://github.com/hackworthltd/primer/issues/3)
-  assert (distinct $ map typeDefName $ existingTypes <> Map.elems tds) "Duplicate-ly-named TypeDefs"
+  assert (Map.disjoint existingTypes tds) "Duplicate-ly-named TypeDefs"
   -- Note that constructors are synthesisable, so their names must be globally
   -- unique. We need to be able to work out the type of @TCon "C"@ without any
   -- extra information.
-  let atds = mapMaybe typeDefAST $ Map.elems tds
-  let allAtds = mapMaybe typeDefAST existingTypes <> atds
+  let atds = Map.mapMaybe typeDefAST tds
+  let allAtds = Map.mapMaybe typeDefAST existingTypes <> atds
   assert
     (distinct $ concatMap (map valConName . astTypeDefConstructors) allAtds)
     "Duplicate-ly-named constructor (perhaps in different typedefs)"
   -- Note that these checks only apply to non-primitives:
   -- duplicate type names are checked elsewhere, kinds are correct by construction, and there are no constructors.
-  local (extendTypeDefCxt $ Map.elems tds) $ mapM_ checkTypeDef atds
+  local (extendTypeDefCxt tds) $ traverseWithKey_ checkTypeDef atds
   where
+    traverseWithKey_ :: Applicative f => (k -> v -> f ()) -> Map k v -> f ()
+    traverseWithKey_ f = void . Map.traverseWithKey f
     -- In the core, we have many different namespaces, so the only name-clash
     -- checking we must do is
     -- - between two constructors (possibly of different types)
@@ -388,20 +361,20 @@ checkTypeDefs tds = do
     -- - type names clashing with constructor names (possibly in different
     --   types)
 
-    checkTypeDef td = do
+    checkTypeDef tc td = do
       let params = astTypeDefParameters td
       let cons = astTypeDefConstructors td
       assert
         ( (1 ==) . S.size $
             S.fromList $
-              qualifiedModule (astTypeDefName td) : fmap (qualifiedModule . valConName) cons
+              qualifiedModule tc : fmap (qualifiedModule . valConName) cons
         )
         "Module name of type and all constructors must be the same"
       assert
         (distinct $ map (unLocalName . fst) params <> map (baseName . valConName) cons)
         "Duplicate names in one tydef: between parameter-names and constructor-names"
       assert
-        (notElem (baseName $ astTypeDefName td) $ map (unLocalName . fst) params)
+        (notElem (baseName tc) $ map (unLocalName . fst) params)
         "Duplicate names in one tydef: between type-def-name and parameter-names"
       local (noSmartHoles . extendLocalCxtTys params) $
         mapM_ (checkKind KType <=< fakeMeta) $ concatMap valConArgs cons
@@ -435,37 +408,14 @@ checkEverything ::
   m [Module]
 checkEverything sh CheckEverything{trusted, toCheck} =
   let cxt = buildTypingContextFromModules trusted sh
-      -- Check that modules contain things (i.e. typeDefs or moduleDefs) with:
-      -- - the right module prefixes (all contained definitions must belong to this module)
-      -- - correct keys in maps (the keys should be the baseName of the value)
-      checkNames ::
-        MonadNestedError TypeError e m' =>
-        (v -> GlobalName k) ->
-        (Module -> Map Name v) ->
-        Module ->
-        Text ->
-        m' ()
-      checkNames getName part m =
-        assert
-          ( allNamesInModule m (getName <$> part m)
-              && consistentComputedKeys baseName (getName <$> part m)
-          )
    in flip runReaderT cxt $ do
-        for_ toCheck $ \m -> do
-          -- Check the type definitions have the right modules
-          checkNames typeDefName moduleTypes m $ "Inconsistent names in moduleTypes for module " <> moduleNamePretty (moduleName m)
-          -- Check that the definition map has the right keys
-          checkNames defName moduleDefs m $ "Inconsistent names in moduleDefs map for module " <> moduleNamePretty (moduleName m)
         checkTypeDefs $ foldMap moduleTypesQualified toCheck
         let newTypes = foldMap moduleTypesQualified toCheck
             newDefs =
-              foldMap (\d -> [(defName d, forgetTypeIDs $ defType d)]) $
-                foldMap moduleDefs toCheck
-        local (extendGlobalCxt newDefs . extendTypeDefCxt (Map.elems newTypes)) $
+              M.foldMapWithKey (\n d -> [(n, forgetTypeIDs $ defType d)]) $
+                foldMap moduleDefsQualified toCheck
+        local (extendGlobalCxt newDefs . extendTypeDefCxt newTypes) $
           traverseOf (traversed % #moduleDefs % traversed) checkDef toCheck
-
-allNamesInModule :: Foldable f => Module -> f (GlobalName k) -> Bool
-allNamesInModule m = all ((== moduleName m) . qualifiedModule)
 
 -- | Typecheck a definition.
 -- This checks that the type signature is well-formed, then checks the body
@@ -481,13 +431,13 @@ checkDef def = do
       pure $ DefPrim $ def'{primDefType = typeTtoType t}
 
 -- We assume that constructor names are unique, returning the first one we find
-lookupConstructor :: M.Map TyConName TypeDef -> ValConName -> Maybe (ValCon, ASTTypeDef)
+lookupConstructor :: TypeDefMap -> ValConName -> Maybe (ValCon, TyConName, ASTTypeDef)
 lookupConstructor tyDefs c =
   let allCons = do
-        TypeDefAST td <- M.elems tyDefs
+        (tc, TypeDefAST td) <- M.assocs tyDefs
         vc <- astTypeDefConstructors td
-        pure (vc, td)
-   in find ((== c) . valConName . fst) allCons
+        pure (vc, tc, td)
+   in find ((== c) . valConName . fst3) allCons
 
 {- HLINT ignore synth "Avoid lambda using `infix`" -}
 -- Note [Let expressions]
@@ -558,7 +508,7 @@ synth = \case
   -- See Note [Synthesisable constructors] in Core.hs
   Con i c -> do
     asks (flip lookupConstructor c . typeDefs) >>= \case
-      Just (vc, td) -> let t = valConType td vc in pure $ annSynth1 t i Con c
+      Just (vc, tc, td) -> let t = valConType tc td vc in pure $ annSynth1 t i Con c
       Nothing -> throwError' $ UnknownConstructor c
   -- When synthesising a hole, we first check that the expression inside it
   -- synthesises a type successfully.
@@ -705,7 +655,6 @@ check t = \case
             scrutWrap <- Hole <$> meta' (TCSynthed (TEmptyHole ())) <*> pure e'
             pure $ Case caseMeta scrutWrap []
       Left (TDIUnknownADT ty) -> throwError' $ InternalError $ "We somehow synthesised the unknown type " <> show ty <> " for the scrutinee of a case"
-      Left (TDIMalformed wanted found) -> throwError' $ InternalError $ "invariant failed: Looked up def for " <> show wanted <> ", but found a def for " <> show found
       Left TDINotSaturated ->
         asks smartHoles >>= \case
           NoSmartHoles -> throwError' $ CannotCaseNonSaturatedADT eT
@@ -713,12 +662,12 @@ check t = \case
             -- NB: we wrap the scrutinee in a hole and DELETE the branches
             scrutWrap <- Hole <$> meta' (TCSynthed (TEmptyHole ())) <*> pure e'
             pure $ Case caseMeta scrutWrap []
-      Right (defT, expected) -> do
+      Right (tc, _, expected) -> do
         let branchNames = map (\(CaseBranch n _ _) -> n) brs
         let conNames = map fst expected
         sh <- asks smartHoles
         brs' <- case (branchNames == conNames, sh) of
-          (False, NoSmartHoles) -> throwError' $ WrongCaseBranches (astTypeDefName defT) branchNames
+          (False, NoSmartHoles) -> throwError' $ WrongCaseBranches tc branchNames
           -- create branches with the correct name but wrong parameters,
           -- they will be fixed up in checkBranch later
           (False, SmartHoles) -> traverse (\c -> branch c [] emptyHole) conNames
@@ -834,15 +783,14 @@ data TypeDefError
   = TDIHoleType -- a type hole
   | TDINotADT -- e.g. a function type etc
   | TDIUnknownADT TyConName -- not in scope
-  | TDIMalformed TyConName TyConName -- TDIMalformed T S: looking up @T@ gives a 'TypeDef' for with name @S@ different to @T@
   | TDINotSaturated -- e.g. @List@ or @List a b@ rather than @List a@
 
-data TypeDefInfo a = TypeDefInfo [Type' a] TypeDef -- instantiated parameters, and the typedef, i.e. [Int] are the parameters for @List Int@
+data TypeDefInfo a = TypeDefInfo [Type' a] TyConName TypeDef -- instantiated parameters, and the typedef (with its name), i.e. [Int] are the parameters for @List Int@
 
 getTypeDefInfo :: MonadReader Cxt m => Type' a -> m (Either TypeDefError (TypeDefInfo a))
 getTypeDefInfo t = reader $ flip getTypeDefInfo' t . typeDefs
 
-getTypeDefInfo' :: Map TyConName TypeDef -> Type' a -> Either TypeDefError (TypeDefInfo a)
+getTypeDefInfo' :: TypeDefMap -> Type' a -> Either TypeDefError (TypeDefInfo a)
 getTypeDefInfo' _ (TEmptyHole _) = Left TDIHoleType
 getTypeDefInfo' _ (THole _ _) = Left TDIHoleType
 getTypeDefInfo' tydefs ty =
@@ -852,21 +800,26 @@ getTypeDefInfo' tydefs ty =
       case M.lookup tycon tydefs of
         Nothing -> Left $ TDIUnknownADT tycon
         Just tydef
-          -- a check out of paranoia
-          | typeDefName tydef /= tycon -> Left $ TDIMalformed tycon (typeDefName tydef)
           -- this check would be redundant if we were sure that the input type
           -- were of kind KType, alternatively we should do kind checking here
           | length (typeDefParameters tydef) /= length params -> Left TDINotSaturated
-          | otherwise -> Right $ TypeDefInfo params tydef
+          | otherwise -> Right $ TypeDefInfo params tycon tydef
 
 -- | Takes a particular instance of a parameterised type (e.g. @List Nat@), and
 -- extracts both both the raw typedef (e.g. @List a = Nil | Cons a (List a)@)
 -- and the constructors with instantiated argument types
 -- (e.g. @Nil : List Nat ; Cons : Nat -> List Nat -> List Nat@)
-instantiateValCons :: (MonadFresh NameCounter m, MonadReader Cxt m) => Type' () -> m (Either TypeDefError (ASTTypeDef, [(ValConName, [Type' ()])]))
+instantiateValCons ::
+  (MonadFresh NameCounter m, MonadReader Cxt m) =>
+  Type' () ->
+  m (Either TypeDefError (TyConName, ASTTypeDef, [(ValConName, [Type' ()])]))
 instantiateValCons t = do
   tds <- asks typeDefs
   let instCons = instantiateValCons' tds t
+      -- Because @(,,) a b@ does not have a Traversable instance
+      -- we reassociate so we use the one of @(,) a@
+      reassoc (a, b, c) = ((a, b), c)
+      reassoc' ((a, b), c) = (a, b, c)
       sequence4 =
         fmap (getCompose . getCompose . getCompose . getCompose)
           . sequence
@@ -874,19 +827,23 @@ instantiateValCons t = do
           . Compose
           . Compose
           . Compose
-  sequence4 instCons
+  fmap (fmap reassoc') $ sequence4 $ fmap reassoc instCons
 
 -- | As 'instantiateValCons', but pulls out the relevant bits of the monadic
 -- context into an argument
-instantiateValCons' :: MonadFresh NameCounter m => Map TyConName TypeDef -> Type' () -> Either TypeDefError (ASTTypeDef, [(ValConName, [m (Type' ())])])
+instantiateValCons' ::
+  MonadFresh NameCounter m =>
+  TypeDefMap ->
+  Type' () ->
+  Either TypeDefError (TyConName, ASTTypeDef, [(ValConName, [m (Type' ())])])
 instantiateValCons' tyDefs t = do
-  TypeDefInfo params def <- getTypeDefInfo' tyDefs t
+  TypeDefInfo params tc def <- getTypeDefInfo' tyDefs t
   case def of
     TypeDefPrim _ -> Left TDINotADT
     TypeDefAST tda -> do
       let defparams = map fst $ astTypeDefParameters tda
           f c = (valConName c, map (substituteTypeVars $ zip defparams params) $ valConArgs c)
-      pure (tda, map f $ astTypeDefConstructors tda)
+      pure (tc, tda, map f $ astTypeDefConstructors tda)
 
 -- | Similar to check, but for the RHS of case branches
 -- We assume that the branch is for this constructor

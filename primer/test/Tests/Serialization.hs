@@ -30,7 +30,6 @@ import Primer.Core (
   Expr,
   Expr' (EmptyHole, PrimCon),
   ExprMeta,
-  GlobalName (baseName),
   ID (..),
   Kind (KFun, KType),
   Meta (..),
@@ -42,6 +41,7 @@ import Primer.Core (
   TypeDef (..),
   TypeMeta,
   ValCon (..),
+  qualifyName,
  )
 import Primer.Eval (
   BetaReductionDetail (
@@ -57,14 +57,14 @@ import Primer.Eval (
   ),
   EvalDetail (BetaReduction),
  )
-import Primer.Module (Module (Module, moduleDefs, moduleTypes), mkTypeDefMap, moduleName)
-import Primer.Name (unsafeMkName)
+import Primer.Module (Module (Module, moduleDefs, moduleTypes), moduleName)
+import Primer.Name (Name, unsafeMkName)
 import Primer.Typecheck (SmartHoles (SmartHoles))
 import System.FilePath (takeBaseName)
 import Test.Tasty
 import Test.Tasty.Golden
 import Test.Tasty.HUnit
-import TestUtils (gvn, tcn, vcn)
+import TestUtils (gvn, vcn)
 
 -- | Check that encoding the value produces the file.
 test_encode :: TestTree
@@ -108,14 +108,15 @@ fixtures =
       expr = EmptyHole exprMeta
       log :: Log
       log = Log [[BodyAction [Move Child1]]]
+      defName :: Name
+      defName = "main"
       def :: ASTDef
-      def = ASTDef{astDefName = gvn ["M"] "main", astDefExpr = expr, astDefType = TEmptyHole typeMeta}
+      def = ASTDef{astDefExpr = expr, astDefType = TEmptyHole typeMeta}
       typeDef :: TypeDef
       typeDef =
         TypeDefAST
           ASTTypeDef
-            { astTypeDefName = tcn ["M"] "T"
-            , astTypeDefParameters = [("a", KType), ("b", KFun KType KType)]
+            { astTypeDefParameters = [("a", KType), ("b", KFun KType KType)]
             , astTypeDefConstructors = [ValCon (vcn ["M"] "C") [TApp () (TVar () "b") (TVar () "a"), TCon () tNat]]
             , astTypeDefNameHints = []
             }
@@ -123,14 +124,15 @@ fixtures =
       progerror = NoDefSelected
       progaction :: ProgAction
       progaction = MoveToDef $ gvn ["M"] "main"
+      modName = ModuleName ["M"]
       prog =
         Prog
           { progImports = mempty
           , progModules =
               [ Module
-                  { moduleName = ModuleName ["M"]
-                  , moduleTypes = mkTypeDefMap [typeDef]
-                  , moduleDefs = Map.singleton (baseName $ astDefName def) (DefAST def)
+                  { moduleName = modName
+                  , moduleTypes = Map.singleton "T" typeDef
+                  , moduleDefs = Map.singleton defName (DefAST def)
                   }
               ]
           , progSelection = Just selection
@@ -139,7 +141,7 @@ fixtures =
           }
       selection :: Selection
       selection =
-        Selection (astDefName def) $
+        Selection (qualifyName modName defName) $
           Just
             NodeSelection
               { nodeType = BodyNode

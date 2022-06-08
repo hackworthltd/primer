@@ -64,7 +64,6 @@ import Primer.Core (
   ValConName,
   qualifyName,
   typeDefKind,
-  typeDefName,
   typeDefParameters,
   valConName,
   valConType,
@@ -84,6 +83,7 @@ import Primer.Typecheck (
   extendLocalCxtTy,
   extendLocalCxtTys,
   extendLocalCxts,
+  extendTypeDefCxt,
   getGlobalBaseNames,
   globalCxt,
   instantiateValCons,
@@ -93,7 +93,6 @@ import Primer.Typecheck (
   matchArrowType,
   matchForallType,
   mkTAppCon,
-  mkTypeDefMapQualified,
   primConInScope,
   typeDefs,
  )
@@ -315,10 +314,10 @@ genSyn :: GenT WT (ExprG, TypeG)
 genSyn = genSyns (TEmptyHole ())
 
 allCons :: Cxt -> M.Map ValConName (Type' ())
-allCons cxt = M.fromList $ concatMap consForTyDef $ M.elems $ typeDefs cxt
+allCons cxt = M.fromList $ concatMap (uncurry consForTyDef) $ M.assocs $ typeDefs cxt
   where
-    consForTyDef = \case
-      TypeDefAST td -> map (\vc -> (valConName vc, valConType td vc)) (astTypeDefConstructors td)
+    consForTyDef tc = \case
+      TypeDefAST td -> map (\vc -> (valConName vc, valConType tc td vc)) (astTypeDefConstructors td)
       TypeDefPrim _ -> []
 
 genChk :: TypeG -> GenT WT ExprG
@@ -366,19 +365,19 @@ genChk ty = do
         ]
     case_ :: WT (Maybe (GenT WT ExprG))
     case_ =
-      asks (M.elems . typeDefs) <&> \adts ->
+      asks (M.assocs . typeDefs) <&> \adts ->
         if null adts
           then Nothing
           else Just $ do
-            td <- Gen.element adts
-            let t = mkTAppCon (typeDefName td) (TEmptyHole () <$ typeDefParameters td)
+            (tc, td) <- Gen.element adts
+            let t = mkTAppCon tc (TEmptyHole () <$ typeDefParameters td)
             (e, brs) <- Gen.justT $ do
               (e, eTy) <- genSyns t -- NB: this could return something only consistent with t, e.g. if t=List ?, could get eT=? Nat
               vcs' <- instantiateValCons eTy
               fmap (e,) <$> case vcs' of
                 Left TDIHoleType -> pure $ Just []
                 Left _err -> pure Nothing -- if we didn't get an instance of t, try again; TODO: this is rather inefficient, and discards a lot...
-                Right (_, vcs) -> fmap Just . for vcs $ \(c, params) -> do
+                Right (_, _, vcs) -> fmap Just . for vcs $ \(c, params) -> do
                   ns <- replicateM (length params) $ genLVarNameAvoiding [ty]
                   let binds = map (Bind ()) ns
                   CaseBranch c binds <$> local (extendLocalCxts $ zip ns params) (genChk ty)
@@ -408,11 +407,11 @@ genWTType k = do
         else pure $ Just $ Gen.element $ map (TVar () . fst) goodVars
     constr :: WT (Maybe (GenT WT TypeG))
     constr = do
-      tds <- asks $ M.elems . typeDefs
-      let goodTCons = filter (consistentKinds k . typeDefKind) tds
+      tds <- asks $ M.assocs . typeDefs
+      let goodTCons = filter (consistentKinds k . typeDefKind . snd) tds
       if null goodTCons
         then pure Nothing
-        else pure $ Just $ Gen.element $ map (TCon () . typeDefName) goodTCons
+        else pure $ Just $ Gen.element $ map (TCon () . fst) goodTCons
     arrow :: Maybe (GenT WT TypeG)
     arrow =
       if k == KHole || k == KType
@@ -445,7 +444,7 @@ forgetLocals :: Cxt -> Cxt
 forgetLocals cxt = cxt{localCxt = mempty}
 
 -- Generates a group of potentially-mutually-recursive typedefs
-genTypeDefGroup :: GenT WT [TypeDef]
+genTypeDefGroup :: GenT WT [(TyConName, TypeDef)]
 genTypeDefGroup = local forgetLocals $ do
   let genParams = Gen.list (Range.linear 0 5) $ (,) <$> freshTyVarNameForCxt <*> genWTKind
   nps <- Gen.list (Range.linear 1 5) $ (,) <$> freshTyConNameForCxt <*> genParams
@@ -453,13 +452,14 @@ genTypeDefGroup = local forgetLocals $ do
   let types =
         map
           ( \(n, ps) ->
-              TypeDefAST
-                ASTTypeDef
-                  { astTypeDefName = n
-                  , astTypeDefParameters = ps
-                  , astTypeDefConstructors = []
-                  , astTypeDefNameHints = []
-                  }
+              ( n
+              , TypeDefAST
+                  ASTTypeDef
+                    { astTypeDefParameters = ps
+                    , astTypeDefConstructors = []
+                    , astTypeDefNameHints = []
+                    }
+              )
           )
           nps
   let genConArgs params = Gen.list (Range.linear 0 5) $ local (extendLocalCxtTys params . addTypeDefs types) $ genWTType KType -- params+types scope...
@@ -467,19 +467,20 @@ genTypeDefGroup = local forgetLocals $ do
   let genCons ty params = Gen.list (Range.linear 0 5) $ ValCon <$> freshValConNameForCxt ty <*> genConArgs params
   let genTD (n, ps) =
         ( \cons ->
-            TypeDefAST
-              ASTTypeDef
-                { astTypeDefName = n
-                , astTypeDefParameters = ps
-                , astTypeDefConstructors = cons
-                , astTypeDefNameHints = []
-                }
+            ( n
+            , TypeDefAST
+                ASTTypeDef
+                  { astTypeDefParameters = ps
+                  , astTypeDefConstructors = cons
+                  , astTypeDefNameHints = []
+                  }
+            )
         )
           <$> genCons n ps
   mapM genTD nps
 
-addTypeDefs :: [TypeDef] -> Cxt -> Cxt
-addTypeDefs tds cxt = cxt{typeDefs = typeDefs cxt <> mkTypeDefMapQualified tds}
+addTypeDefs :: [(TyConName, TypeDef)] -> Cxt -> Cxt
+addTypeDefs = extendTypeDefCxt . M.fromList
 
 extendGlobals :: [(GVarName, TypeG)] -> Cxt -> Cxt
 extendGlobals nts cxt = cxt{globalCxt = globalCxt cxt <> M.fromList nts}

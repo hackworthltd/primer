@@ -30,7 +30,7 @@ import Primer.Core (
   GlobalName (baseName),
   ModuleName,
   PrimCon (..),
-  PrimDef (PrimDef, primDefName, primDefType),
+  PrimDef (PrimDef, primDefType),
   PrimFun (..),
   PrimFunError (..),
   PrimTypeDef (..),
@@ -77,8 +77,7 @@ primitiveModule =
               M.singleton (baseName n) $
                 DefPrim
                   PrimDef
-                    { primDefName = n
-                    , primDefType = ty
+                    { primDefType = ty
                     }
     }
 
@@ -100,16 +99,14 @@ allPrimTypeDefs =
     [ let name = tChar
        in ( name
           , PrimTypeDef
-              { primTypeDefName = name
-              , primTypeDefParameters = []
+              { primTypeDefParameters = []
               , primTypeDefNameHints = ["c"]
               }
           )
     , let name = tInt
        in ( name
           , PrimTypeDef
-              { primTypeDefName = name
-              , primTypeDefParameters = []
+              { primTypeDefParameters = []
               , primTypeDefNameHints = ["i", "j", "k", "m", "n"]
               }
           )

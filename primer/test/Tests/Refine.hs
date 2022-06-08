@@ -31,7 +31,6 @@ import Primer.Core (
   Kind (KFun, KType),
   Type' (TApp, TCon, TEmptyHole, TForall, TFun, THole, TVar),
   astTypeDefConstructors,
-  astTypeDefName,
   astTypeDefParameters,
   typeDefAST,
   valConType,
@@ -211,17 +210,17 @@ hprop_src_hole = propertyWTInExtendedLocalGlobalCxt [builtinModule, primitiveMod
 -- constructor types refine to their fully-applied typedef
 hprop_con :: Property
 hprop_con = propertyWTInExtendedLocalGlobalCxt [builtinModule, primitiveModule] $ do
-  tcs <- asks $ mapMaybe typeDefAST . M.elems . typeDefs
+  tcs <- asks $ mapMaybe (traverse typeDefAST) . M.assocs . typeDefs
   -- NB: this only works because our context has at least one tydef with a constructor
   -- (because, among others, it includes builtinModule that contains Bool)
-  td <- forAllT $ Gen.element tcs
+  (tc, td) <- forAllT $ Gen.element tcs
   let cons = astTypeDefConstructors td
   when (null cons) discard
   vc <- forAllT $ Gen.element cons
-  let src = valConType td vc
+  let src = valConType tc td vc
   annotateShow src
   tgt' <- forAllT $ traverse (genWTType . snd) $ astTypeDefParameters td
-  let tgt = mkTAppCon (astTypeDefName td) tgt'
+  let tgt = mkTAppCon tc tgt'
   annotateShow tgt
   cxt <- ask
   r <- refine' cxt tgt src

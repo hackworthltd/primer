@@ -47,7 +47,7 @@ import qualified Primer.Examples as Examples (
   map',
   odd,
  )
-import Primer.Module (Module (Module, moduleDefs, moduleName, moduleTypes), mkTypeDefMap, moduleDefsQualified, moduleTypesQualified)
+import Primer.Module (Module (Module, moduleDefs, moduleName, moduleTypes), moduleDefsQualified, moduleTypesQualified)
 import Primer.Name (Name)
 import Primer.Primitives (primitiveGVar, primitiveModule, tChar, tInt)
 import Primer.Typecheck (
@@ -57,7 +57,7 @@ import Primer.Typecheck (
  )
 import Test.Tasty.HUnit (Assertion, assertBool, assertFailure, (@?=))
 import TestM
-import TestUtils (exprIDs, gvn, withPrimDefs, zeroIDs)
+import TestUtils (exprIDs, withPrimDefs, zeroIDs)
 import Tests.Action.Prog (runAppTestM)
 import Tests.Eval ((~=))
 import Tests.Gen.Core.Typed (checkTest)
@@ -156,13 +156,10 @@ unit_8 =
   let n = 10
       modName = mkSimpleModuleName "TestModule"
       ((globals, e, expected), maxID) = create $ do
-        mapDef <- Examples.map modName
-        evenDef <- Examples.even modName
-        oddDef <- Examples.odd modName
+        (mapName, mapDef) <- Examples.map modName
+        (evenName, evenDef) <- Examples.even modName
+        (oddName, oddDef) <- Examples.odd modName
         let lst = list_ tNat $ take n $ iterate (con cSucc `app`) (con cZero)
-        let mapName = defName mapDef
-        let evenName = defName evenDef
-        let oddName = defName oddDef
         expr <- gvar mapName `aPP` tcon tNat `aPP` tcon tBool `app` gvar evenName `app` lst
         let globs = [(mapName, mapDef), (evenName, evenDef), (oddName, oddDef)]
         expect <- list_ tBool (take n $ cycle [con cTrue, con cFalse]) `ann` (tcon tList `tapp` tcon tBool)
@@ -181,13 +178,10 @@ unit_9 =
   let n = 10
       modName = mkSimpleModuleName "TestModule"
       ((globals, e, expected), maxID) = create $ do
-        mapDef <- Examples.map' modName
-        evenDef <- Examples.even modName
-        oddDef <- Examples.odd modName
+        (mapName, mapDef) <- Examples.map' modName
+        (evenName, evenDef) <- Examples.even modName
+        (oddName, oddDef) <- Examples.odd modName
         let lst = list_ tNat $ take n $ iterate (con cSucc `app`) (con cZero)
-        let mapName = defName mapDef
-        let evenName = defName evenDef
-        let oddName = defName oddDef
         expr <- gvar mapName `aPP` tcon tNat `aPP` tcon tBool `app` gvar evenName `app` lst
         let globs = [(mapName, mapDef), (evenName, evenDef), (oddName, oddDef)]
         expect <- list_ tBool (take n $ cycle [con cTrue, con cFalse]) `ann` (tcon tList `tapp` tcon tBool)
@@ -235,10 +229,8 @@ unit_11 :: Assertion
 unit_11 =
   let modName = mkSimpleModuleName "TestModule"
       ((globals, e, expected), maxID) = create $ do
-        evenDef <- Examples.even modName
-        oddDef <- Examples.odd modName
-        let evenName = defName evenDef
-        let oddName = defName oddDef
+        (evenName, evenDef) <- Examples.even modName
+        (oddName, oddDef) <- Examples.odd modName
         let ty = tcon tNat `tfun` (tcon tPair `tapp` tcon tBool `tapp` tcon tNat)
         let expr1 =
               let_ "x" (con cZero) $
@@ -1008,8 +1000,7 @@ unit_prim_partial_map =
   let modName = mkSimpleModuleName "TestModule"
       ((e, r, gs), maxID) =
         create . withPrimDefs $ \globals -> do
-          mapDef <- Examples.map' modName
-          let mapName = defName mapDef
+          (mapName, mapDef) <- Examples.map' modName
           (,,)
             <$> gvar mapName
               `aPP` tcon tChar
@@ -1028,7 +1019,7 @@ unit_prim_partial_map =
               , char 'C'
               ]
               `ann` (tcon tList `tapp` tcon tChar)
-            <*> pure (M.singleton (defName mapDef) mapDef <> (DefPrim <$> globals))
+            <*> pure (M.singleton mapName mapDef <> (DefPrim <$> globals))
       s = evalFullTest maxID builtinTypes gs 65 Syn e
    in do
         distinctIDs s
@@ -1077,13 +1068,13 @@ unit_eval_full_modules_scrutinize_imported_type =
     m =
       Module
         { moduleName = qualifiedModule tBool
-        , moduleTypes = mkTypeDefMap [TypeDefAST boolDef]
+        , moduleTypes = Map.singleton (baseName tBool) (TypeDefAST boolDef)
         , moduleDefs = mempty
         }
 
 -- * Utilities
 
-evalFullTest :: ID -> M.Map TyConName TypeDef -> DefMap -> TerminationBound -> Dir -> Expr -> Either EvalFullError Expr
+evalFullTest :: ID -> TypeDefMap -> DefMap -> TerminationBound -> Dir -> Expr -> Either EvalFullError Expr
 evalFullTest id_ tydefs globals n d e = evalTestM id_ $ evalFull tydefs globals n d e
 
 unaryPrimTest :: Name -> S Expr -> S Expr -> Assertion
@@ -1151,8 +1142,7 @@ testModule =
             Map.singleton "idChar" $
               DefAST
                 ASTDef
-                  { astDefName = gvn ["M"] "idChar"
-                  , astDefType = ty
+                  { astDefType = ty
                   , astDefExpr = expr
                   }
         }
@@ -1180,5 +1170,5 @@ distinctIDs e =
         )
         (nIds == nDistinct)
 
-builtinTypes :: Map TyConName TypeDef
+builtinTypes :: TypeDefMap
 builtinTypes = moduleTypesQualified builtinModule

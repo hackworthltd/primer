@@ -346,7 +346,7 @@ testEndpoints =
     :<|> mkTest newProg
     :<|> mkTest (MoveToDef $ qualifyName (mkSimpleModuleName "M") "main")
     :<|> mkTest NoDefSelected
-    :<|> mkTest (DefAST $ ASTDef (qualifyName (mkSimpleModuleName "M") "main") expr ty)
+    :<|> mkTest (DefAST $ ASTDef expr ty)
     :<|> mkTest boolDef
     :<|> mkTest EvalReq{evalReqExpr = expr, evalReqRedex = 0}
     :<|> mkTest EvalResp{evalRespExpr = expr, evalRespRedexes = [0, 1], evalRespDetail = reductionDetail}

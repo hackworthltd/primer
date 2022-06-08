@@ -49,7 +49,6 @@ import Primer.App (
 import Primer.Builtins (builtinModule)
 import Primer.Core (
   baseName,
-  defName,
   mkSimpleModuleName,
  )
 import Primer.Core.DSL (create)
@@ -204,7 +203,7 @@ insertSessionRow row conn =
 testApp :: App
 testApp =
   let modName = mkSimpleModuleName "TestModule"
-      (def, id_) = create $ comprehensive modName
+      ((defName, def), id_) = create $ comprehensive modName
       testProg =
         newEmptyProg
           { progImports = [builtinModule, primitiveModule]
@@ -212,7 +211,7 @@ testApp =
               [ Module
                   { moduleName = mkSimpleModuleName "TestModule"
                   , moduleTypes = mempty
-                  , moduleDefs = Map.singleton (baseName $ defName def) def
+                  , moduleDefs = Map.singleton (baseName defName) def
                   }
               ]
           }

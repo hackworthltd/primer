@@ -35,7 +35,6 @@ import Primer.Core (
   CaseBranch' (..),
   Expr,
   Expr' (..),
-  GVarName,
   HasID (_id),
   ID,
   Kind (KHole),
@@ -238,10 +237,10 @@ _freeTyVars = traversalVL $ go mempty
 concreteTy :: Data b => Type' b -> Bool
 concreteTy ty = hasn't (getting _freeVarsTy) ty && noHoles ty
 
--- | Given a 'GVarName' and a DSL 'Type' and 'Expr', construct a new
--- 'ASTDef' and the next valid 'ID'. Note that this AST isn't
--- guaranteed to typecheck; it is simply syntactically correct.
-mkASTDef :: GVarName -> S Type -> S Expr -> (ASTDef, ID)
-mkASTDef n t e = (ASTDef n expr typ, nextID)
+-- | Given a DSL 'Type' and 'Expr', construct a new 'ASTDef' and the
+-- next valid 'ID'. Note that this AST isn't guaranteed to typecheck;
+-- it is simply syntactically correct.
+mkASTDef :: S Type -> S Expr -> (ASTDef, ID)
+mkASTDef t e = (ASTDef expr typ, nextID)
   where
     ((expr, typ), nextID) = create $ (,) <$> e <*> t
