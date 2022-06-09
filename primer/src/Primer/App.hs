@@ -283,12 +283,8 @@ data NodeType = BodyNode | SigNode
   deriving (ToJSON, FromJSON) via VJSON NodeType
 
 -- | The type of requests which can mutate the application state.
---
--- Note that `Reset` is not undo-able, as it wipes the log along with
--- all other program state, IDs, etc.
 data MutationRequest
   = Undo
-  | Reset
   | Edit [ProgAction]
   deriving (Eq, Show, Generic)
   deriving (FromJSON, ToJSON) via VJSON MutationRequest
@@ -415,7 +411,6 @@ handleMutationRequest :: MonadEditApp m => MutationRequest -> m Prog
 handleMutationRequest = \case
   Edit as -> handleEditRequest as
   Undo -> handleUndoRequest
-  Reset -> handleResetRequest
 
 -- | Handle an edit request
 handleEditRequest :: forall m. MonadEditApp m => [ProgAction] -> m Prog
@@ -901,16 +896,6 @@ handleUndoRequest = do
 replay :: MonadEditApp m => [[ProgAction]] -> m ()
 replay = mapM_ handleEditRequest
 
--- | Reset the entire program state, including any IDs that have been
--- generated.
---
--- This request cannot be undone!
-handleResetRequest :: MonadEditApp m => m Prog
-handleResetRequest = do
-  app <- gets (initialApp . appInit)
-  put app
-  pure $ appProg app
-
 -- | A shorthand for the constraints we need when performing mutation
 -- operations on the application.
 --
@@ -958,9 +943,8 @@ runQueryAppM (QueryAppM m) appState = case runExcept (runReaderT m appState) of
   Right res -> Right res
 
 -- | We use this type to remember which "new app" was used to
--- initialize the session. We need this so that program resets and
--- undo know which baseline app to start with when performing their
--- corresponding action.
+-- initialize the session. We need this so that undo knows which
+-- baseline app to start from.
 data InitialApp
   = NewApp
   | NewEmptyApp
