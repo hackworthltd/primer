@@ -962,7 +962,7 @@ initialApp NewEmptyApp = newEmptyApp
 -- not used in the frontend, and therefore we can use "Data.Aeson"s
 -- generic instances for them.
 data App = App
-  { appIdCounter :: Int
+  { appIdCounter :: ID
   , appNameCounter :: NameCounter
   , appProg :: Prog
   , appInit :: InitialApp
@@ -998,7 +998,7 @@ newEmptyProg =
 newEmptyApp :: App
 newEmptyApp =
   App
-    { appIdCounter = 3
+    { appIdCounter = ID 3
     , appNameCounter = toEnum 0
     , appProg = newEmptyProg
     , appInit = NewEmptyApp
@@ -1043,7 +1043,7 @@ newApp =
   newEmptyApp
     { appProg = newProg
     , appInit = NewApp
-    , appIdCounter = fromEnum defaultDefsNextId
+    , appIdCounter = defaultDefsNextId
     }
 
 -- | Construct a new, empty expression
@@ -1063,7 +1063,7 @@ instance MonadFresh ID EditAppM where
   fresh = do
     idCounter <- gets appIdCounter
     modify (\s -> s{appIdCounter = idCounter + 1})
-    pure (ID idCounter)
+    pure idCounter
 
 -- | Support for generating names. Basically just a counter so we don't
 -- generate the same automatic name twice.

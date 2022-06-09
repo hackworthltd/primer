@@ -28,7 +28,7 @@ import Primer.Core (
   DefMap,
   Expr,
   GlobalName (baseName, qualifiedModule),
-  ID (ID),
+  ID,
   Kind (KType),
   Type,
   TypeDef (TypeDefAST),
@@ -1049,7 +1049,7 @@ unit_eval_modules =
         expect <- char 'A'
         pure $ e ~= expect
       a = newEmptyApp
-   in case fst $ runAppTestM (ID $ appIdCounter a) a test of
+   in case fst $ runAppTestM (appIdCounter a) a test of
         Left err -> assertFailure $ show err
         Right assertion -> assertion
 
@@ -1065,7 +1065,7 @@ unit_eval_modules_scrutinize_imported_type =
         expect <- con cFalse
         pure $ e ~= expect
       a = newEmptyApp
-   in case fst $ runAppTestM (ID $ appIdCounter a) a test of
+   in case fst $ runAppTestM (appIdCounter a) a test of
         Left err -> assertFailure $ show err
         Right assertion -> assertion
   where

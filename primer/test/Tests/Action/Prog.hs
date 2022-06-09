@@ -70,7 +70,7 @@ import Primer.Core (
   Expr' (..),
   GVarName,
   GlobalName (baseName),
-  ID (ID),
+  ID,
   Kind (KType),
   Meta (..),
   ModuleName (ModuleName, unModuleName),
@@ -286,7 +286,7 @@ unit_create_def_imported_module =
         handleEditRequest [CreateDef builtins $ Just "newDef"]
       a = newEmptyApp
    in do
-        case fst $ runAppTestM (ID $ appIdCounter a) a test of
+        case fst $ runAppTestM (appIdCounter a) a test of
           Left err -> err @?= ModuleReadonly builtins
           Right _ -> assertFailure "Expected CreateDef to complain about module being read-only"
 
@@ -717,7 +717,7 @@ unit_import_vars =
                 any ((== primitiveGVar "Int.+") . fst) vs
           _ -> pure $ assertFailure "Expected one def 'main' from newEmptyApp"
       a = newEmptyApp
-   in case fst $ runAppTestM (ID $ appIdCounter a) a test of
+   in case fst $ runAppTestM (appIdCounter a) a test of
         Left err -> assertFailure $ show err
         Right assertion -> assertion
 
@@ -739,7 +739,7 @@ unit_import_reference =
           (Nothing, _) -> pure $ assertFailure "Could not find the imported toUpper"
           (Just _, _) -> pure $ assertFailure "Expected one def 'main' from newEmptyApp"
       a = newEmptyApp
-   in case fst $ runAppTestM (ID $ appIdCounter a) a test of
+   in case fst $ runAppTestM (appIdCounter a) a test of
         Left err -> assertFailure $ show err
         Right assertion -> assertion
 
@@ -749,7 +749,7 @@ unit_import_twice_1 =
         importModules [builtinModule]
         importModules [builtinModule]
       a = newEmptyApp
-   in case fst $ runAppTestM (ID $ appIdCounter a) a test of
+   in case fst $ runAppTestM (appIdCounter a) a test of
         Left err -> err @?= ActionError (ImportNameClash [moduleName builtinModule])
         Right _ -> assertFailure "Expected importModules to error, since module names clash with prior import"
 
@@ -758,7 +758,7 @@ unit_import_twice_2 =
   let test = do
         importModules [builtinModule, builtinModule]
       a = newEmptyApp
-   in case fst $ runAppTestM (ID $ appIdCounter a) a test of
+   in case fst $ runAppTestM (appIdCounter a) a test of
         Left err -> err @?= ActionError (ImportNameClash [moduleName builtinModule])
         Right _ -> assertFailure "Expected importModules to error, since module names clash within one import"
 
@@ -793,7 +793,7 @@ unit_copy_paste_import =
           (Nothing, _) -> pure $ assertFailure "Could not find the imported 'foo'"
           (Just _, _) -> pure $ assertFailure "Expected one def 'main' from newEmptyApp"
       a = newEmptyApp
-   in case fst $ runAppTestM (ID $ appIdCounter a) a test of
+   in case fst $ runAppTestM (appIdCounter a) a test of
         Left err -> assertFailure $ show err
         Right assertion -> assertion
 
@@ -1198,7 +1198,7 @@ unit_generate_names_import =
             pure $ ns @?= ["p", "q"]
           _ -> pure $ assertFailure "Expected one def 'main' from newEmptyApp"
       a = newEmptyApp
-   in case fst $ runAppTestM (ID $ appIdCounter a) a test of
+   in case fst $ runAppTestM (appIdCounter a) a test of
         Left err -> assertFailure $ show err
         Right assertion -> assertion
 
@@ -1316,7 +1316,7 @@ unit_rename_module =
           , RenameModule mainModuleName ["Module2"]
           ]
       a = newEmptyApp
-   in case fst $ runAppTestM (ID $ appIdCounter a) a test of
+   in case fst $ runAppTestM (appIdCounter a) a test of
         Left err -> assertFailure $ show err
         Right p -> do
           fmap (unModuleName . moduleName) (progModules p) @?= [["Module2"]]
@@ -1338,7 +1338,7 @@ unit_rename_module_clash =
       a = newEmptyApp
    in do
         unModuleName (moduleName builtinModule) @?= ["Builtins"]
-        case fst $ runAppTestM (ID $ appIdCounter a) a test of
+        case fst $ runAppTestM (appIdCounter a) a test of
           Left err -> err @?= RenameModuleNameClash
           Right _ -> assertFailure "Expected RenameModule to error, since module names clash with prior import"
 
@@ -1356,7 +1356,7 @@ unit_rename_module_imported =
         handleEditRequest [RenameModule builtins ["NewModule"]]
       a = newEmptyApp
    in do
-        case fst $ runAppTestM (ID $ appIdCounter a) a test of
+        case fst $ runAppTestM (appIdCounter a) a test of
           Left err -> err @?= ModuleReadonly builtins
           Right _ -> assertFailure "Expected RenameModule to complain about module being read-only"
 
@@ -1482,7 +1482,7 @@ unit_cross_module_actions =
         newEmptyApp & #appProg % #progModules %~ (m :)
           & #appProg % #progSmartHoles .~ NoSmartHoles
    in do
-        case fst $ runAppTestM (ID $ appIdCounter a) a test of
+        case fst $ runAppTestM (appIdCounter a) a test of
           Left err -> assertFailure $ show err
           Right _ -> pure ()
 

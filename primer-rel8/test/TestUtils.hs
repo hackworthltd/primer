@@ -218,5 +218,5 @@ testApp =
    in newEmptyApp
         { appProg = testProg
         , appInit = NewApp
-        , appIdCounter = fromEnum id_
+        , appIdCounter = id_
         }
