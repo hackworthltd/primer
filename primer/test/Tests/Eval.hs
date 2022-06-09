@@ -6,9 +6,9 @@ import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 import Optics ((^.))
 import Primer.App (
-  App (appIdCounter),
   EvalReq (EvalReq, evalReqExpr, evalReqRedex),
   EvalResp (EvalResp, evalRespExpr),
+  appIdCounter,
   handleEvalRequest,
   importModules,
   newEmptyApp,

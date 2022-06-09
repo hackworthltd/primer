@@ -26,7 +26,7 @@ import Primer.Action (
   Movement (Branch, Child1, Child2, Parent),
  )
 import Primer.App (
-  App (..),
+  App,
   Log (..),
   NodeSelection (..),
   NodeType (..),
@@ -35,10 +35,15 @@ import Primer.App (
   ProgError (..),
   Question (GenerateName, VariablesInScope),
   Selection (..),
+  appIdCounter,
+  appInit,
+  appNameCounter,
+  appProg,
   handleEditRequest,
   handleQuestion,
   importModules,
   lookupASTDef,
+  mkApp,
   newApp,
   newEmptyApp,
   newEmptyProg,
@@ -120,6 +125,18 @@ import TestUtils (constructCon, constructTCon, zeroIDs, zeroTypeIDs)
 import qualified TestUtils
 import Tests.Typecheck (checkProgWellFormed)
 import Prelude (error)
+
+-- A couple of temporary hacks while we refactor 'App' creation.
+
+mkTestApp :: Prog -> App
+mkTestApp p =
+  let a = newApp
+   in mkApp (appIdCounter a) (appNameCounter a) p (appInit a)
+
+mkEmptyTestApp :: Prog -> App
+mkEmptyTestApp p =
+  let a = newEmptyApp
+   in mkApp (appIdCounter a) (appNameCounter a) p (appInit a)
 
 unit_empty_actions_only_change_the_log :: Assertion
 unit_empty_actions_only_change_the_log = progActionTest defaultEmptyProg [] $
@@ -517,7 +534,7 @@ unit_copy_paste_duplicate = do
           , getID (astDefType blankDef)
           , getID (astDefExpr blankDef)
           )
-  let a = newApp{appProg = p}
+  let a = mkTestApp p
       actions = [MoveToDef toDef, CopyPasteSig (fromDef, fromType) [], CopyPasteBody (fromDef, fromExpr) []]
       (result, _) = runAppTestM maxID a $ (,) <$> tcWholeProg p <*> handleEditRequest actions
   case result of
@@ -557,7 +574,7 @@ unit_copy_paste_type_scoping = do
           , getID toCopy
           , newEmptyProg & #progModules % _head % #moduleDefs .~ Map.fromList [("main", DefAST expected)]
           )
-  let a = newEmptyApp{appProg = pInitial}
+  let a = mkEmptyTestApp pInitial
       actions = [MoveToDef mainName, CopyPasteSig (mainName, srcID) [Move Child1, Move Child2, Move Child1]]
       (result, _) = runAppTestM maxID a $ (,) <$> tcWholeProg pExpected <*> handleEditRequest actions
   case result of
@@ -581,7 +598,7 @@ unit_raise = do
           , getID toCopy
           , newEmptyProg & #progModules % _head % #moduleDefs .~ Map.fromList [(mainName', DefAST expected)]
           )
-  let a = newEmptyApp{appProg = pInitial}
+  let a = mkEmptyTestApp pInitial
       actions = [MoveToDef mainName, CopyPasteSig (mainName, srcID) [Move Child1, Delete]]
       (result, _) = runAppTestM maxID a $ (,) <$> tcWholeProg pExpected <*> handleEditRequest actions
   case result of
@@ -622,7 +639,7 @@ unit_copy_paste_expr_1 = do
           , getID toCopy
           , newProg & #progModules % _head % #moduleDefs .~ Map.fromList [(mainName', DefAST expected)]
           )
-  let a = newApp{appProg = pInitial}
+  let a = mkTestApp pInitial
       actions = [MoveToDef mainName, CopyPasteBody (mainName, srcID) [Move Child1, Move Child1, Move (Branch cNil)]]
       (result, _) = runAppTestM maxID a $ (,) <$> tcWholeProg pExpected <*> handleEditRequest actions
   case result of
@@ -646,7 +663,7 @@ unit_copy_paste_ann = do
           ( newProg{progSelection = Nothing} & #progModules % _head % #moduleDefs .~ Map.fromList [(fromDef', DefAST mainDef), ("blank", DefAST blankDef)]
           , getID toCopy
           )
-  let a = newApp{appProg = p}
+  let a = mkTestApp p
       actions = [MoveToDef toDef, CopyPasteBody (fromDef, fromAnn) [EnterType]]
   let (result, _) = runAppTestM maxID a $ (,) <$> tcWholeProg p <*> handleEditRequest actions
   case result of
@@ -672,7 +689,7 @@ unit_copy_paste_ann2sig = do
           , getID toCopy
           , newProg & #progModules % _head % #moduleDefs .~ Map.fromList [("main", DefAST expected)]
           )
-  let a = newApp{appProg = pInitial}
+  let a = mkTestApp pInitial
       actions = [moveToDef "main", copyPasteSig ("main", srcID) []]
       (result, _) = runAppTestM maxID a $ (,) <$> tcWholeProg pExpected <*> handleEditRequest actions
   case result of
@@ -693,7 +710,7 @@ unit_copy_paste_sig2ann = do
           , getID toCopy
           , newProg & #progModules % _head % #moduleDefs .~ Map.fromList [("main", DefAST expected)]
           )
-  let a = newApp{appProg = pInitial}
+  let a = mkTestApp pInitial
       actions = [moveToDef "main", copyPasteBody ("main", srcID) [ConstructAnn, EnterType]]
       (result, _) = runAppTestM maxID a $ (,) <$> tcWholeProg pExpected <*> handleEditRequest actions
   case result of
@@ -1478,9 +1495,8 @@ unit_cross_module_actions =
             , moduleDefs = Map.singleton "foo" (DefAST def)
             }
       -- We turn off smartholes, as we want to test our actions work without it
-      a =
-        newEmptyApp & #appProg % #progModules %~ (m :)
-          & #appProg % #progSmartHoles .~ NoSmartHoles
+      p = newEmptyProg & #progModules %~ (m :) & #progSmartHoles .~ NoSmartHoles
+      a = mkEmptyTestApp p
    in do
         case fst $ runAppTestM (appIdCounter a) a test of
           Left err -> assertFailure $ show err
@@ -1508,7 +1524,7 @@ expectError f _ = \case
 progActionTest :: S Prog -> [ProgAction] -> (Prog -> Either ProgError Prog -> Assertion) -> Assertion
 progActionTest inputProg actions testOutput = do
   let (prog, maxID) = create inputProg
-  let a = newEmptyApp{appProg = prog}
+  let a = mkEmptyTestApp prog
   testOutput prog $ fst $ runAppTestM maxID a (handleEditRequest actions)
 
 newtype AppTestM a = AppTestM {unAppTestM :: StateT App (ExceptT ProgError TestM) a}

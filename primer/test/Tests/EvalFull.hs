@@ -15,9 +15,9 @@ import Hedgehog.Internal.Property (LabelName (unLabelName))
 import qualified Hedgehog.Range as Range
 import Optics
 import Primer.App (
-  App (appIdCounter),
   EvalFullReq (EvalFullReq, evalFullCxtDir, evalFullMaxSteps, evalFullReqExpr),
   EvalFullResp (EvalFullRespNormal, EvalFullRespTimedOut),
+  appIdCounter,
   handleEvalFullRequest,
   importModules,
   newEmptyApp,

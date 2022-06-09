@@ -40,10 +40,10 @@ import Hasql.Connection (
 import Hasql.Session (run, statement)
 import Network.Socket.Free (getFreePort)
 import Primer.App (
-  App (..),
+  App,
   InitialApp (NewApp),
   Prog (..),
-  newEmptyApp,
+  mkApp,
   newEmptyProg,
  )
 import Primer.Builtins (builtinModule)
@@ -215,8 +215,4 @@ testApp =
                   }
               ]
           }
-   in newEmptyApp
-        { appProg = testProg
-        , appInit = NewApp
-        , appIdCounter = id_
-        }
+   in mkApp id_ (toEnum 0) testProg NewApp

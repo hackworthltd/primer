@@ -48,7 +48,7 @@ import Data.UUID (UUID)
 import qualified Data.UUID as UUID (toText)
 import Data.UUID.V4 (nextRandom)
 import qualified ListT (toList)
-import Primer.App (App (..))
+import Primer.App (App)
 import Primer.JSON (CustomJSON (CustomJSON), ToJSON, VJSON)
 import qualified StmContainers.Map as StmMap
 

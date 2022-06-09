@@ -6,7 +6,12 @@
 
 module Primer.App (
   Log (..),
-  App (..),
+  App,
+  mkApp,
+  appProg,
+  appIdCounter,
+  appNameCounter,
+  appInit,
   InitialApp (..),
   initialApp,
   newProg,
@@ -239,7 +244,7 @@ importModules ms = do
       checkEverything NoSmartHoles $
         CheckEverything{trusted = progImports p, toCheck = ms}
   let p' = p & #progImports %~ (<> checkedImports)
-  modify (\a -> a{appProg = p'})
+  modify (\a -> a{prog = p'})
 
 -- | Get all type definitions from all modules (including imports)
 allTypes :: Prog -> TypeDefMap
@@ -418,7 +423,7 @@ handleEditRequest actions = do
   (prog, _) <- gets appProg >>= \p -> foldM go (p, Nothing) actions
   let Log l = progLog prog
   let prog' = prog{progLog = Log (actions : l)}
-  modify (\s -> s{appProg = prog'})
+  modify (\s -> s{prog = prog'})
   pure prog'
   where
     go :: (Prog, Maybe GVarName) -> ProgAction -> m (Prog, Maybe GVarName)
@@ -956,16 +961,19 @@ initialApp :: InitialApp -> App
 initialApp NewApp = newApp
 initialApp NewEmptyApp = newEmptyApp
 
--- | The global App state
+-- | The student's application's state.
+--
+-- Building an 'App' can be tricky, so we don't export the
+-- constructor. See 'mkApp' for a smart constructor.
 --
 -- Note that the 'ToJSON' and 'FromJSON' instances for this type are
 -- not used in the frontend, and therefore we can use "Data.Aeson"s
 -- generic instances for them.
 data App = App
-  { appIdCounter :: ID
-  , appNameCounter :: NameCounter
-  , appProg :: Prog
-  , appInit :: InitialApp
+  { idCounter :: ID
+  , nameCounter :: NameCounter
+  , prog :: Prog
+  , init :: InitialApp
   }
   deriving (Eq, Show, Generic)
 
@@ -973,6 +981,27 @@ instance ToJSON App where
   toEncoding = genericToEncoding defaultOptions
 
 instance FromJSON App
+
+-- | Construct an 'App' from its constituent parts.
+mkApp :: ID -> NameCounter -> Prog -> InitialApp -> App
+mkApp = App
+
+-- | Given an 'App', return the next 'ID' that should be used to
+-- create a new node.
+appIdCounter :: App -> ID
+appIdCounter = idCounter
+
+-- | Given an 'App', return its 'NameCounter'.
+appNameCounter :: App -> NameCounter
+appNameCounter = nameCounter
+
+-- | Given an 'App', return its 'Prog'.
+appProg :: App -> Prog
+appProg = prog
+
+-- | Given an 'App', return its 'InitialApp'.
+appInit :: App -> InitialApp
+appInit = init
 
 -- | An empty initial program.
 newEmptyProg :: Prog
@@ -996,13 +1025,7 @@ newEmptyProg =
 
 -- | An initial app whose program is completely empty.
 newEmptyApp :: App
-newEmptyApp =
-  App
-    { appIdCounter = ID 3
-    , appNameCounter = toEnum 0
-    , appProg = newEmptyProg
-    , appInit = NewEmptyApp
-    }
+newEmptyApp = mkApp (ID 3) (toEnum 0) newEmptyProg NewEmptyApp
 
 -- | An initial program with some useful typedefs imported.
 newProg :: Prog
@@ -1041,9 +1064,9 @@ defaultDefs :: Map Name Def
 newApp :: App
 newApp =
   newEmptyApp
-    { appProg = newProg
-    , appInit = NewApp
-    , appIdCounter = defaultDefsNextId
+    { prog = newProg
+    , init = NewApp
+    , idCounter = defaultDefsNextId
     }
 
 -- | Construct a new, empty expression
@@ -1061,17 +1084,17 @@ newType = do
 -- | Support for generating fresh IDs
 instance MonadFresh ID EditAppM where
   fresh = do
-    idCounter <- gets appIdCounter
-    modify (\s -> s{appIdCounter = idCounter + 1})
-    pure idCounter
+    id_ <- gets appIdCounter
+    modify (\s -> s{idCounter = id_ + 1})
+    pure id_
 
 -- | Support for generating names. Basically just a counter so we don't
 -- generate the same automatic name twice.
 instance MonadFresh NameCounter EditAppM where
   fresh = do
-    nameCounter <- gets appNameCounter
-    modify (\s -> s{appNameCounter = succ nameCounter})
-    pure nameCounter
+    nc <- gets appNameCounter
+    modify (\s -> s{nameCounter = succ nc})
+    pure nc
 
 copyPasteSig :: MonadEdit m => Prog -> (GVarName, ID) -> GVarName -> [Action] -> m Prog
 copyPasteSig p (fromDefName, fromTyId) toDefName setup = do
