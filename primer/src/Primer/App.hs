@@ -12,8 +12,6 @@ module Primer.App (
   appIdCounter,
   appNameCounter,
   appInit,
-  InitialApp (..),
-  initialApp,
   newProg,
   newEmptyProg,
   newApp,
@@ -244,7 +242,7 @@ importModules ms = do
       checkEverything NoSmartHoles $
         CheckEverything{trusted = progImports p, toCheck = ms}
   let p' = p & #progImports %~ (<> checkedImports)
-  modify (\a -> a{prog = p'})
+  modify (\a -> a & #currentState % #prog .~ p')
 
 -- | Get all type definitions from all modules (including imports)
 allTypes :: Prog -> TypeDefMap
@@ -423,7 +421,7 @@ handleEditRequest actions = do
   (prog, _) <- gets appProg >>= \p -> foldM go (p, Nothing) actions
   let Log l = progLog prog
   let prog' = prog{progLog = Log (actions : l)}
-  modify (\s -> s{prog = prog'})
+  modify (\s -> s & #currentState % #prog .~ prog')
   pure prog'
   where
     go :: (Prog, Maybe GVarName) -> ProgAction -> m (Prog, Maybe GVarName)
@@ -887,7 +885,7 @@ editModuleOfCross mdefName prog f = case mdefName of
 handleUndoRequest :: MonadEditApp m => m Prog
 handleUndoRequest = do
   prog <- gets appProg
-  start <- gets (initialApp . appInit)
+  start <- gets appInit
   case unlog (progLog prog) of
     [] -> pure prog
     (_ : as) -> do
@@ -947,20 +945,6 @@ runQueryAppM (QueryAppM m) appState = case runExcept (runReaderT m appState) of
   Left err -> Left err
   Right res -> Right res
 
--- | We use this type to remember which "new app" was used to
--- initialize the session. We need this so that undo knows which
--- baseline app to start from.
-data InitialApp
-  = NewApp
-  | NewEmptyApp
-  deriving (Eq, Show, Generic)
-  deriving (FromJSON, ToJSON) via VJSON InitialApp
-
--- | Given an 'InitialApp', return the corresponding new app instance.
-initialApp :: InitialApp -> App
-initialApp NewApp = newApp
-initialApp NewEmptyApp = newEmptyApp
-
 -- | The student's application's state.
 --
 -- Building an 'App' can be tricky, so we don't export the
@@ -970,10 +954,8 @@ initialApp NewEmptyApp = newEmptyApp
 -- not used in the frontend, and therefore we can use "Data.Aeson"s
 -- generic instances for them.
 data App = App
-  { idCounter :: ID
-  , nameCounter :: NameCounter
-  , prog :: Prog
-  , init :: InitialApp
+  { currentState :: AppState
+  , initialState :: AppState
   }
   deriving (Eq, Show, Generic)
 
@@ -982,26 +964,42 @@ instance ToJSON App where
 
 instance FromJSON App
 
--- | Construct an 'App' from its constituent parts.
-mkApp :: ID -> NameCounter -> Prog -> InitialApp -> App
-mkApp = App
+data AppState = AppState
+  { idCounter :: ID
+  , nameCounter :: NameCounter
+  , prog :: Prog
+  }
+  deriving (Eq, Show, Generic)
+
+instance ToJSON AppState where
+  toEncoding = genericToEncoding defaultOptions
+
+instance FromJSON AppState
+
+-- | Construct an 'App' from an 'ID', 'NameCounter', and 'Prog'.
+mkApp :: ID -> NameCounter -> Prog -> App
+mkApp i n p =
+  let s = AppState i n p
+   in App s s
 
 -- | Given an 'App', return the next 'ID' that should be used to
 -- create a new node.
 appIdCounter :: App -> ID
-appIdCounter = idCounter
+appIdCounter = idCounter . currentState
 
 -- | Given an 'App', return its 'NameCounter'.
 appNameCounter :: App -> NameCounter
-appNameCounter = nameCounter
+appNameCounter = nameCounter . currentState
 
 -- | Given an 'App', return its 'Prog'.
 appProg :: App -> Prog
-appProg = prog
+appProg = prog . currentState
 
--- | Given an 'App', return its 'InitialApp'.
-appInit :: App -> InitialApp
-appInit = init
+-- | Given an 'App', return its initial state.
+appInit :: App -> App
+appInit a =
+  let s = initialState a
+   in App s s
 
 -- | An empty initial program.
 newEmptyProg :: Prog
@@ -1025,7 +1023,7 @@ newEmptyProg =
 
 -- | An initial app whose program is completely empty.
 newEmptyApp :: App
-newEmptyApp = mkApp (ID 3) (toEnum 0) newEmptyProg NewEmptyApp
+newEmptyApp = mkApp (ID 3) (toEnum 0) newEmptyProg
 
 -- | An initial program with some useful typedefs imported.
 newProg :: Prog
@@ -1062,12 +1060,7 @@ defaultDefs :: Map Name Def
 
 -- | An initial app whose program includes some useful definitions.
 newApp :: App
-newApp =
-  newEmptyApp
-    { prog = newProg
-    , init = NewApp
-    , idCounter = defaultDefsNextId
-    }
+newApp = mkApp defaultDefsNextId (toEnum 0) newProg
 
 -- | Construct a new, empty expression
 newExpr :: MonadFresh ID m => m Expr
@@ -1085,7 +1078,7 @@ newType = do
 instance MonadFresh ID EditAppM where
   fresh = do
     id_ <- gets appIdCounter
-    modify (\s -> s{idCounter = id_ + 1})
+    modify (\s -> s & #currentState % #idCounter .~ id_ + 1)
     pure id_
 
 -- | Support for generating names. Basically just a counter so we don't
@@ -1093,7 +1086,7 @@ instance MonadFresh ID EditAppM where
 instance MonadFresh NameCounter EditAppM where
   fresh = do
     nc <- gets appNameCounter
-    modify (\s -> s{nameCounter = succ nc})
+    modify (\s -> s & #currentState % #nameCounter .~ succ nc)
     pure nc
 
 copyPasteSig :: MonadEdit m => Prog -> (GVarName, ID) -> GVarName -> [Action] -> m Prog

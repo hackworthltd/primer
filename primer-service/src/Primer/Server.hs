@@ -58,7 +58,6 @@ import Primer.App (
   EvalFullResp (..),
   EvalReq (..),
   EvalResp (..),
-  InitialApp (..),
   Log (..),
   MutationRequest,
   Prog,
@@ -161,7 +160,7 @@ type PrimerOpenAPI =
   "api" :> (
     -- POST /api/sessions
     --   create a new session on the backend, returning its id
-    "sessions" :> ReqBody '[JSON] InitialApp :>
+    "sessions" :>
     Summary "Create a new session" :>
     OpId "createSession" Post '[JSON] SessionId
 

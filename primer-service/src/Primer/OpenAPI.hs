@@ -9,7 +9,6 @@ import Data.OpenApi (ToSchema)
 import Data.Text (Text)
 import Data.Typeable (Typeable)
 import Primer.API (Def, Module, Prog, Tree)
-import Primer.App (InitialApp)
 import Primer.Core (GlobalName, ID (..), LVarName, ModuleName)
 import Primer.Database (Session, SessionName)
 import Primer.Name (Name)
@@ -23,7 +22,6 @@ import Primer.Name (Name)
 
 instance ToSchema SessionName
 instance ToSchema Session
-instance ToSchema InitialApp
 
 -- We need to GND the ID instance to match its To/FromJSON instances
 deriving newtype instance ToSchema ID

@@ -36,7 +36,6 @@ import Primer.App (
   Question (GenerateName, VariablesInScope),
   Selection (..),
   appIdCounter,
-  appInit,
   appNameCounter,
   appProg,
   handleEditRequest,
@@ -131,12 +130,12 @@ import Prelude (error)
 mkTestApp :: Prog -> App
 mkTestApp p =
   let a = newApp
-   in mkApp (appIdCounter a) (appNameCounter a) p (appInit a)
+   in mkApp (appIdCounter a) (appNameCounter a) p
 
 mkEmptyTestApp :: Prog -> App
 mkEmptyTestApp p =
   let a = newEmptyApp
-   in mkApp (appIdCounter a) (appNameCounter a) p (appInit a)
+   in mkApp (appIdCounter a) (appNameCounter a) p
 
 unit_empty_actions_only_change_the_log :: Assertion
 unit_empty_actions_only_change_the_log = progActionTest defaultEmptyProg [] $

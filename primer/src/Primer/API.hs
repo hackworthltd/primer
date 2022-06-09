@@ -60,7 +60,6 @@ import Primer.App (
   EvalFullResp (..),
   EvalReq (..),
   EvalResp (..),
-  InitialApp,
   MutationRequest,
   ProgError,
   QueryAppM,
@@ -70,7 +69,7 @@ import Primer.App (
   handleGetProgramRequest,
   handleMutationRequest,
   handleQuestion,
-  initialApp,
+  newApp,
   progImports,
   progModules,
   runEditAppM,
@@ -220,11 +219,11 @@ withSession' sid op = do
       -- We performed the session transaction, now return the result.
       pure result
 
-newSession :: (MonadIO m) => InitialApp -> PrimerM m SessionId
-newSession a = do
+newSession :: (MonadIO m) => PrimerM m SessionId
+newSession = do
   nextSID <- liftIO newSessionId
   sessionsTransaction $ \ss q -> do
-    let app = initialApp a
+    let app = newApp
     StmMap.insert (SessionData app defaultSessionName) nextSID ss
     writeTBQueue q $ Database.Insert nextSID app defaultSessionName
     pure nextSID

@@ -41,7 +41,6 @@ import Hasql.Session (run, statement)
 import Network.Socket.Free (getFreePort)
 import Primer.App (
   App,
-  InitialApp (NewApp),
   Prog (..),
   mkApp,
   newEmptyProg,
@@ -215,4 +214,4 @@ testApp =
                   }
               ]
           }
-   in mkApp id_ (toEnum 0) testProg NewApp
+   in mkApp id_ (toEnum 0) testProg
