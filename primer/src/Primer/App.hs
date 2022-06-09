@@ -964,6 +964,10 @@ instance ToJSON App where
 
 instance FromJSON App
 
+-- Internal app state. Note that this type is not exported, as we want
+-- to guarantee that the counters are kept in sync with the 'Prog',
+-- and this should only be done via the 'MonadFresh' instances in this
+-- module.
 data AppState = AppState
   { idCounter :: ID
   , nameCounter :: NameCounter
@@ -976,7 +980,31 @@ instance ToJSON AppState where
 
 instance FromJSON AppState
 
--- | Construct an 'App' from an 'ID', 'NameCounter', and 'Prog'.
+-- | Construct an 'App' from an 'ID' and a 'Prog'.
+--
+-- The value of the provided 'ID' should be at least one greater than
+-- the largest 'ID' in any of the provided 'Prog''s 'progModules'. The
+-- 'App' uses this initial 'ID' value to guarantee that newly-created
+-- nodes in the program's AST are unique across all editable modules
+-- in the 'Prog'. *Note*: 'mkApp' does not enforce or otherwise check
+-- that this invariant holds! It is the responsiblity of the caller.
+--
+-- (Strictly speaking, the invariant on the provided 'ID' is
+-- overconstrained, as the rest of our implementation depends only on
+-- 'ID's being unique *per module*, and not across all editable
+-- modules in the 'Prog' as 'App' requires. However, keeping track of
+-- a per-module 'ID' would be much less ergonomic, and in practice
+-- there's no pressure on the range of 'ID' values, so we can afford
+-- to be a bit profligate.)
+--
+-- A valid value for the provided 'NameCounter' will depend on what
+-- names already exist in the provided program, and is rather
+-- implementation-dependent at the moment. In most cases, it should be
+-- safe to use @toEnum 0@ as the initial value. We will make selecting
+-- this value more foolproof, or eliminate it altogether, in the
+-- future. See:
+--
+-- https://github.com/hackworthltd/primer/issues/510
 mkApp :: ID -> NameCounter -> Prog -> App
 mkApp i n p =
   let s = AppState i n p
