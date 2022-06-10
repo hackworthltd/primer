@@ -6,14 +6,13 @@
 
 module Primer.App (
   Log (..),
+  defaultLog,
   App,
   mkApp,
   appProg,
   appIdCounter,
   appNameCounter,
   appInit,
-  newProg,
-  newEmptyProg,
   newApp,
   newEmptyApp,
   EditAppM,
@@ -21,6 +20,9 @@ module Primer.App (
   runEditAppM,
   runQueryAppM,
   Prog (..),
+  defaultProg,
+  newProg,
+  newEmptyProg,
   progAllModules,
   tcWholeProg,
   ProgAction (..),
@@ -208,6 +210,11 @@ data Prog = Prog
   deriving (Eq, Show, Generic)
   deriving (FromJSON, ToJSON) via VJSON Prog
 
+-- | The default 'Prog'. It has no imports, no definitions, no current
+-- 'Selection', and an empty 'Log'. Smart holes are enabled.
+defaultProg :: Prog
+defaultProg = Prog mempty mempty Nothing SmartHoles defaultLog
+
 progAllModules :: Prog -> [Module]
 progAllModules p = progModules p <> progImports p
 
@@ -260,6 +267,10 @@ allDefs p = foldMap moduleDefsQualified $ progAllModules p
 newtype Log = Log {unlog :: [[ProgAction]]}
   deriving (Eq, Show, Generic)
   deriving (FromJSON, ToJSON) via VJSON Log
+
+-- | The default (empty) 'Log'.
+defaultLog :: Log
+defaultLog = Log mempty
 
 -- | Describes what interface element the user has selected.
 -- A definition in the left hand nav bar, and possibly a node in that definition.
@@ -1035,18 +1046,14 @@ newEmptyProg =
   let expr = EmptyHole (Meta 1 Nothing Nothing)
       ty = TEmptyHole (Meta 2 Nothing Nothing)
       def = DefAST $ ASTDef expr ty
-   in Prog
-        { progImports = mempty
-        , progModules =
+   in defaultProg
+        { progModules =
             [ Module
                 { moduleName = mkSimpleModuleName "Main"
                 , moduleTypes = mempty
                 , moduleDefs = Map.singleton "main" def
                 }
             ]
-        , progSelection = Nothing
-        , progSmartHoles = SmartHoles
-        , progLog = Log []
         }
 
 -- | An initial app whose program is completely empty.
@@ -1056,7 +1063,7 @@ newEmptyApp = mkApp (ID 3) (toEnum 0) newEmptyProg
 -- | An initial program with some useful typedefs imported.
 newProg :: Prog
 newProg =
-  newEmptyProg
+  defaultProg
     { progImports = [builtinModule, primitiveModule]
     , progModules =
         [ Module

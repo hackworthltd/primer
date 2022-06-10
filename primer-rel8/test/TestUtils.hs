@@ -42,8 +42,8 @@ import Network.Socket.Free (getFreePort)
 import Primer.App (
   App,
   Prog (..),
+  defaultProg,
   mkApp,
-  newEmptyProg,
  )
 import Primer.Builtins (builtinModule)
 import Primer.Core (
@@ -204,7 +204,7 @@ testApp =
   let modName = mkSimpleModuleName "TestModule"
       ((defName, def), id_) = create $ comprehensive modName
       testProg =
-        newEmptyProg
+        defaultProg
           { progImports = [builtinModule, primitiveModule]
           , progModules =
               [ Module
