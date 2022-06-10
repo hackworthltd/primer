@@ -21,8 +21,8 @@ import qualified Hedgehog.Range as Range
 import Optics (over)
 import Primer.App (
   Prog,
-  newEmptyProg,
-  newProg,
+  newEmptyProg',
+  newProg',
   progAllModules,
   progModules,
  )
@@ -523,8 +523,8 @@ checkProgWellFormed p' = case runTypecheckTestM NoSmartHoles $ do
 
 unit_good_defaults :: Assertion
 unit_good_defaults = do
-  checkProgWellFormed $ pure newEmptyProg
-  checkProgWellFormed $ pure newProg
+  checkProgWellFormed $ pure newEmptyProg'
+  checkProgWellFormed $ pure newProg'
 
 -- Check that our higher-order test typedef is well formed
 unit_good_maybeT :: Assertion
@@ -545,7 +545,7 @@ unit_bad_prim_type = case runTypecheckTestM NoSmartHoles $ do
   checkEverything
     NoSmartHoles
     CheckEverything
-      { trusted = progModules newProg
+      { trusted = progModules newProg'
       , toCheck = [Module (ModuleName ["M"]) mempty $ Map.singleton "foo" $ DefPrim foo]
       } of
   Left err -> err @?= UnknownTypeConstructor (tcn ["M"] "NonExistant")

@@ -21,8 +21,10 @@ module Primer.App (
   runQueryAppM,
   Prog (..),
   defaultProg,
-  newProg,
   newEmptyProg,
+  newEmptyProg',
+  newProg,
+  newProg',
   progAllModules,
   tcWholeProg,
   ProgAction (..),
@@ -228,6 +230,75 @@ progAllModules p = progModules p <> progImports p
 -- All modules in a @Prog@ shall be well-typed, in the appropriate scope:
 -- all the imports are in one mutual dependency group
 -- the @progModule@ has all the imports in scope
+
+-- | A triple of 'Prog', 'ID', and 'NameCounter'.
+--
+-- The 'Prog' is a program with no imports and an editable module
+-- named @Main@. The editable module contains a single top-level
+-- definition named @main@ whose type and term are both empty holes.
+--
+-- The 'ID' is the next available 'ID' in module @Main@.
+--
+-- The 'NameCounter' is a safe value for seeding an 'App''s name
+-- counter when using 'newEmptyProg' as the app's program.
+newEmptyProg :: (Prog, ID, NameCounter)
+newEmptyProg =
+  let (defs, nextID) = create $ do
+        mainExpr <- emptyHole
+        mainType <- tEmptyHole
+        let astDefs =
+              Map.singleton
+                "main"
+                ( ASTDef
+                    { astDefExpr = mainExpr
+                    , astDefType = mainType
+                    }
+                )
+        pure $ fmap DefAST astDefs
+   in ( defaultProg
+          { progModules =
+              [ Module
+                  { moduleName = mkSimpleModuleName "Main"
+                  , moduleTypes = mempty
+                  , moduleDefs = defs
+                  }
+              ]
+          }
+      , nextID
+      , toEnum 0
+      )
+
+-- | Like 'newEmptyProg', but drop the 'ID' and 'NameCounter'.
+--
+-- This value should probably only be used for testing.
+newEmptyProg' :: Prog
+newEmptyProg' = let (p, _, _) = newEmptyProg in p
+
+-- | A triple of 'Prog' and 'ID'.
+--
+-- The 'Prog' is identical to the one returned by 'newEmptyProg',
+-- except that its import list includes all builtin and primitive
+-- modules defined by Primer.
+--
+-- The 'ID' is the next available 'ID' in module @Main@.
+--
+-- The 'NameCounter' is a safe value for seeding an 'App''s name
+-- counter when using 'newProg' as the app's program.
+newProg :: (Prog, ID, NameCounter)
+newProg =
+  let (p, nextID, nc) = newEmptyProg
+   in ( p
+          { progImports = [builtinModule, primitiveModule]
+          }
+      , nextID
+      , nc
+      )
+
+-- | Like 'newProg', but drop the 'ID' and 'NameCounter'.
+--
+-- This value should probably only be used for testing.
+newProg' :: Prog
+newProg' = let (p, _, _) = newProg in p
 
 -- | Imports some explicitly-given modules, ensuring that they are well-typed
 -- (and all their dependencies are already imported)
@@ -1040,62 +1111,17 @@ appInit a =
   let s = initialState a
    in App s s
 
--- | An empty initial program.
-newEmptyProg :: Prog
-newEmptyProg =
-  let expr = EmptyHole (Meta 1 Nothing Nothing)
-      ty = TEmptyHole (Meta 2 Nothing Nothing)
-      def = DefAST $ ASTDef expr ty
-   in defaultProg
-        { progModules =
-            [ Module
-                { moduleName = mkSimpleModuleName "Main"
-                , moduleTypes = mempty
-                , moduleDefs = Map.singleton "main" def
-                }
-            ]
-        }
-
 -- | An initial app whose program is completely empty.
 newEmptyApp :: App
-newEmptyApp = mkApp (ID 3) (toEnum 0) newEmptyProg
-
--- | An initial program with some useful typedefs imported.
-newProg :: Prog
-newProg =
-  defaultProg
-    { progImports = [builtinModule, primitiveModule]
-    , progModules =
-        [ Module
-            { moduleName = mkSimpleModuleName "Main"
-            , moduleTypes = mempty
-            , moduleDefs = defaultDefs
-            }
-        ]
-    }
-
--- Since IDs should be unique in a module, we record 'defaultDefsNextID'
--- to initialise the 'appIdCounter'
-defaultDefsNextId :: ID
-defaultDefs :: Map Name Def
-(defaultDefs, defaultDefsNextId) =
-  let (defs, nextID) = create $ do
-        mainExpr <- emptyHole
-        mainType <- tEmptyHole
-        let astDefs =
-              Map.singleton
-                "main"
-                ( ASTDef
-                    { astDefExpr = mainExpr
-                    , astDefType = mainType
-                    }
-                )
-        pure $ fmap DefAST astDefs
-   in (defs, nextID)
+newEmptyApp =
+  let (p, id_, nc) = newEmptyProg
+   in mkApp id_ nc p
 
 -- | An initial app whose program includes some useful definitions.
 newApp :: App
-newApp = mkApp defaultDefsNextId (toEnum 0) newProg
+newApp =
+  let (p, id_, nc) = newProg
+   in mkApp id_ nc p
 
 -- | Construct a new, empty expression
 newExpr :: MonadFresh ID m => m Expr

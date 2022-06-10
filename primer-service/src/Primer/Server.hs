@@ -63,7 +63,7 @@ import Primer.App (
   Prog,
   ProgAction (BodyAction, MoveToDef),
   ProgError (NoDefSelected),
-  newProg,
+  newProg',
  )
 import Primer.Builtins (boolDef)
 import Primer.Core (
@@ -342,7 +342,7 @@ testEndpoints =
     :<|> mkTest (KFun KType KType)
     :<|> mkTest 0
     :<|> mkTest (Log [[BodyAction [Move Child1]]])
-    :<|> mkTest newProg
+    :<|> mkTest newProg'
     :<|> mkTest (MoveToDef $ qualifyName (mkSimpleModuleName "M") "main")
     :<|> mkTest NoDefSelected
     :<|> mkTest (DefAST $ ASTDef expr ty)

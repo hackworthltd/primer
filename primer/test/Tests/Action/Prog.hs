@@ -45,8 +45,8 @@ import Primer.App (
   mkApp,
   newApp,
   newEmptyApp,
-  newEmptyProg,
-  newProg,
+  newEmptyProg',
+  newProg',
   progAllModules,
   tcWholeProg,
  )
@@ -526,7 +526,7 @@ unit_copy_paste_duplicate = do
         let mainDef = ASTDef mainExpr mainType
         blankDef <- ASTDef <$> emptyHole <*> tEmptyHole
         pure
-          ( newProg{progSelection = Nothing}
+          ( newProg'{progSelection = Nothing}
               & #progModules % _head % #moduleDefs .~ Map.fromList [("main", DefAST mainDef), ("blank", DefAST blankDef)]
           , getID mainType
           , getID mainExpr
@@ -569,9 +569,9 @@ unit_copy_paste_type_scoping = do
         defInitial <- ASTDef <$> emptyHole <*> skel tEmptyHole
         expected <- ASTDef <$> emptyHole <*> skel (tvar "a" `tfun` tEmptyHole `tfun` tforall "d" KType (tEmptyHole `tfun` tvar "d"))
         pure
-          ( newEmptyProg & #progModules % _head % #moduleDefs .~ Map.fromList [("main", DefAST defInitial)]
+          ( newEmptyProg' & #progModules % _head % #moduleDefs .~ Map.fromList [("main", DefAST defInitial)]
           , getID toCopy
-          , newEmptyProg & #progModules % _head % #moduleDefs .~ Map.fromList [("main", DefAST expected)]
+          , newEmptyProg' & #progModules % _head % #moduleDefs .~ Map.fromList [("main", DefAST expected)]
           )
   let a = mkEmptyTestApp pInitial
       actions = [MoveToDef mainName, CopyPasteSig (mainName, srcID) [Move Child1, Move Child2, Move Child1]]
@@ -593,9 +593,9 @@ unit_raise = do
         defInitial <- ASTDef <$> emptyHole <*> tforall "a" KType (tforall "b" KType $ pure toCopy)
         expected <- ASTDef <$> emptyHole <*> tforall "a" KType (tvar "a")
         pure
-          ( newEmptyProg & #progModules % _head % #moduleDefs .~ Map.fromList [(mainName', DefAST defInitial)]
+          ( newEmptyProg' & #progModules % _head % #moduleDefs .~ Map.fromList [(mainName', DefAST defInitial)]
           , getID toCopy
-          , newEmptyProg & #progModules % _head % #moduleDefs .~ Map.fromList [(mainName', DefAST expected)]
+          , newEmptyProg' & #progModules % _head % #moduleDefs .~ Map.fromList [(mainName', DefAST expected)]
           )
   let a = mkEmptyTestApp pInitial
       actions = [MoveToDef mainName, CopyPasteSig (mainName, srcID) [Move Child1, Delete]]
@@ -634,9 +634,9 @@ unit_copy_paste_expr_1 = do
         defInitial <- ASTDef <$> skel emptyHole <*> pure ty
         expected <- ASTDef <$> skel (pure expectPasted) <*> pure ty
         pure
-          ( newProg & #progModules % _head % #moduleDefs .~ Map.fromList [(mainName', DefAST defInitial)]
+          ( newProg' & #progModules % _head % #moduleDefs .~ Map.fromList [(mainName', DefAST defInitial)]
           , getID toCopy
-          , newProg & #progModules % _head % #moduleDefs .~ Map.fromList [(mainName', DefAST expected)]
+          , newProg' & #progModules % _head % #moduleDefs .~ Map.fromList [(mainName', DefAST expected)]
           )
   let a = mkTestApp pInitial
       actions = [MoveToDef mainName, CopyPasteBody (mainName, srcID) [Move Child1, Move Child1, Move (Branch cNil)]]
@@ -659,7 +659,7 @@ unit_copy_paste_ann = do
         mainDef <- ASTDef <$> emptyHole `ann` pure toCopy <*> tEmptyHole
         blankDef <- ASTDef <$> emptyHole `ann` tEmptyHole <*> tEmptyHole
         pure
-          ( newProg{progSelection = Nothing} & #progModules % _head % #moduleDefs .~ Map.fromList [(fromDef', DefAST mainDef), ("blank", DefAST blankDef)]
+          ( newProg'{progSelection = Nothing} & #progModules % _head % #moduleDefs .~ Map.fromList [(fromDef', DefAST mainDef), ("blank", DefAST blankDef)]
           , getID toCopy
           )
   let a = mkTestApp p
@@ -684,9 +684,9 @@ unit_copy_paste_ann2sig = do
         defInitial <- ASTDef <$> emptyHole `ann` pure toCopy <*> tEmptyHole
         expected <- ASTDef <$> emptyHole `ann` pure toCopy <*> tcon tBool
         pure
-          ( newProg & #progModules % _head % #moduleDefs .~ Map.fromList [("main", DefAST defInitial)]
+          ( newProg' & #progModules % _head % #moduleDefs .~ Map.fromList [("main", DefAST defInitial)]
           , getID toCopy
-          , newProg & #progModules % _head % #moduleDefs .~ Map.fromList [("main", DefAST expected)]
+          , newProg' & #progModules % _head % #moduleDefs .~ Map.fromList [("main", DefAST expected)]
           )
   let a = mkTestApp pInitial
       actions = [moveToDef "main", copyPasteSig ("main", srcID) []]
@@ -705,9 +705,9 @@ unit_copy_paste_sig2ann = do
         defInitial <- ASTDef <$> emptyHole <*> pure toCopy
         expected <- ASTDef <$> emptyHole `ann` tcon tBool <*> pure toCopy
         pure
-          ( newProg & #progModules % _head % #moduleDefs .~ Map.fromList [("main", DefAST defInitial)]
+          ( newProg' & #progModules % _head % #moduleDefs .~ Map.fromList [("main", DefAST defInitial)]
           , getID toCopy
-          , newProg & #progModules % _head % #moduleDefs .~ Map.fromList [("main", DefAST expected)]
+          , newProg' & #progModules % _head % #moduleDefs .~ Map.fromList [("main", DefAST expected)]
           )
   let a = mkTestApp pInitial
       actions = [moveToDef "main", copyPasteBody ("main", srcID) [ConstructAnn, EnterType]]
@@ -1233,7 +1233,7 @@ defaultEmptyProg = do
   let mainDef = ASTDef mainExpr mainType
       otherDef = ASTDef otherExpr otherType
    in pure $
-        newEmptyProg
+        newEmptyProg'
           { progSelection =
               Just $
                 Selection (gvn "main") $
@@ -1411,7 +1411,7 @@ unit_cross_module_actions =
               , constructCon cSucc
               , Move Parent
               , Move Child2
-              , ConstructVar (LocalVarRef "a26")
+              , ConstructVar (LocalVarRef "a25")
               ]
           ]
         handleAndTC [RenameDef (qualifyM "foo") "bar"]
@@ -1494,7 +1494,7 @@ unit_cross_module_actions =
             , moduleDefs = Map.singleton "foo" (DefAST def)
             }
       -- We turn off smartholes, as we want to test our actions work without it
-      p = newEmptyProg & #progModules %~ (m :) & #progSmartHoles .~ NoSmartHoles
+      p = newEmptyProg' & #progModules %~ (m :) & #progSmartHoles .~ NoSmartHoles
       a = mkEmptyTestApp p
    in do
         case fst $ runAppTestM (appIdCounter a) a test of
@@ -1554,9 +1554,9 @@ lookupASTDef' name = defAST <=< lookupDef' name
 
 -- Some helpers to run actions on the "main" module
 mainModuleName :: ModuleName
-mainModuleName = case progModules newEmptyProg of
+mainModuleName = case progModules newEmptyProg' of
   [m] -> moduleName m
-  _ -> error "expected exactly one module in newEmptyProg"
+  _ -> error "expected exactly one module in newEmptyProg'"
 
 mainModuleNameText :: NonEmpty Text
 mainModuleNameText = unName <$> unModuleName mainModuleName
