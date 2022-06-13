@@ -9,12 +9,14 @@ module Primer.App (
   defaultLog,
   App,
   mkApp,
+  mkAppSafe,
   appProg,
   appIdCounter,
   appNameCounter,
   appInit,
   newApp,
   newEmptyApp,
+  checkAppWellFormed,
   EditAppM,
   QueryAppM,
   runEditAppM,
@@ -620,15 +622,20 @@ applyProgAction prog mdefName = \case
       updateRefsInTypes =
         over
           (traversed % #_TypeDefAST % #astTypeDefConstructors % traversed % #valConArgs % traversed)
-          $ transform $ over (#_TCon % _2) updateName
+          $ transform $
+            over (#_TCon % _2) updateName
       updateDefType =
         over
           #astDefType
-          $ transform $ over (#_TCon % _2) updateName
+          $ transform $
+            over (#_TCon % _2) updateName
       updateDefBody =
         over
           #astDefExpr
-          $ transform $ over typesInExpr $ transform $ over (#_TCon % _2) updateName
+          $ transform $
+            over typesInExpr $
+              transform $
+                over (#_TCon % _2) updateName
       updateName n = if n == old then new else n
   RenameCon type_ old (unsafeMkGlobalName . (fmap unName (unModuleName (qualifiedModule type_)),) -> new) ->
     editModuleSameSelectionCross (qualifiedModule type_) prog $ \(m, ms) -> do
@@ -676,7 +683,8 @@ applyProgAction prog mdefName = \case
               % #valConArgs
               % traversed
           )
-          $ over _freeVarsTy $ \(_, v) -> TVar () $ updateName v
+          $ over _freeVarsTy $
+            \(_, v) -> TVar () $ updateName v
       updateName n = if n == old then new else n
   AddCon type_ index (unsafeMkGlobalName . (fmap unName (unModuleName (qualifiedModule type_)),) -> con) ->
     editModuleSameSelectionCross (qualifiedModule type_) prog $ \(m, ms) -> do
@@ -852,7 +860,8 @@ applyProgAction prog mdefName = \case
               if imported curMods == imported renamedMods
                 then
                   pure $
-                    prog & #progModules .~ editable renamedMods
+                    prog
+                      & #progModules .~ editable renamedMods
                       & #progSelection % _Just %~ renameModule' oldName n
                 else
                   throwError $
@@ -1030,7 +1039,7 @@ runQueryAppM (QueryAppM m) appState = case runExcept (runReaderT m appState) of
 -- | The student's application's state.
 --
 -- Building an 'App' can be tricky, so we don't export the
--- constructor. See 'mkApp' for a smart constructor.
+-- constructor. See 'mkApp' and 'mkAppSafe'.
 --
 -- Note that the 'ToJSON' and 'FromJSON' instances for this type are
 -- not used in the frontend, and therefore we can use "Data.Aeson"s
@@ -1092,6 +1101,17 @@ mkApp i n p =
   let s = AppState i n p
    in App s s
 
+-- | A safe(r) version of 'mkApp'. It will only return an 'App' if the
+-- provided 'Prog' is well-formed per 'checkAppWellFormed'; otherwise,
+-- it returns a 'ProgError'.
+--
+-- Regarding the provided 'ID' and 'NameCounter', see the
+-- corresponding documentation for 'mkApp'. Like 'mkApp', 'mkAppSafe'
+-- does not enforce that the 'ID' is unique across all editable
+-- modules in the 'Prog'.
+mkAppSafe :: ID -> NameCounter -> Prog -> Either ProgError App
+mkAppSafe i n p = checkAppWellFormed (mkApp i n p)
+
 -- | Given an 'App', return the next 'ID' that should be used to
 -- create a new node.
 appIdCounter :: App -> ID
@@ -1122,6 +1142,47 @@ newApp :: App
 newApp =
   let (p, id_, nc) = newProg
    in mkApp id_ nc p
+
+-- | Ensure the provided 'App' is well-formed.
+--
+-- Currently, "well-formed" means that the 'App''s 'Prog' typechecks,
+-- including both its imported modules and its editable modules. Later
+-- versions of this function may perform additional checks, as well.
+--
+-- In the event that the 'App' is well-formed, then the 'App' that is
+-- returned is identical to the one that was provided, except that the
+-- modules in its 'Prog' are guaranteed to have up-to-date cached type
+-- information.
+--
+-- If the 'App' is not well-formed, then 'checkAppWellFormed' returns
+-- a 'ProgError'.
+checkAppWellFormed :: App -> Either ProgError App
+checkAppWellFormed app =
+  let p = appProg app
+      (result, app') =
+        flip runEditAppM app $
+          liftError (ActionError . TypeError) $ do
+            -- 'checkEverything' returns updated modules, so we might
+            -- as well use the results.
+            imports <- checkEverything NoSmartHoles CheckEverything{trusted = mempty, toCheck = progImports p}
+            modules <- checkEverything NoSmartHoles CheckEverything{trusted = imports, toCheck = progModules p}
+            let checkedProg = p & #progImports .~ imports & #progModules .~ modules
+                -- Ideally, we would do an additional check here to
+                -- ensure that the 'ID' is unique across all modules.
+                id_ = appIdCounter app
+                -- Ideally, we would do an additional check here to
+                -- ensure that the next name generated by the
+                -- 'NameCounter' won't conflict with an existing name.
+                -- However, there are bigger issues with our current
+                -- automatic name generation scheme which make that
+                -- check rather pointless. See:
+                --
+                -- https://github.com/hackworthltd/primer/issues/510
+                nc = appNameCounter app
+             in pure $ mkApp id_ nc checkedProg
+   in case result of
+        Left e -> Left e
+        Right _ -> Right app'
 
 -- | Construct a new, empty expression
 newExpr :: MonadFresh ID m => m Expr
