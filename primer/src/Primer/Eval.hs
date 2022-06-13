@@ -397,7 +397,8 @@ instance Monoid FindLet where
 redexes :: Map GVarName PrimDef -> Expr -> Set ID
 redexes primDefs = go mempty
   where
-    -- letTm and letTy track the set of local variables we have a definition for
+    -- letTm and letTy track the set of local variables we have a definition for,
+    -- and the free vars of their RHSs, to tell if we go under a capturing binder
     go locals@(letTm, letTy) expr =
       -- A set containing just the ID of this expression
       let self = Set.singleton (expr ^. _id)
@@ -430,7 +431,7 @@ redexes primDefs = go mempty
               (self `munless` member' x (freeVarsTy e4)) <> go locals e1 <> goType letTy e4
             APP _ e t -> go locals e <> goType letTy t
             Var _ (LocalVarRef x)
-              | Set.member x letTm -> self
+              | Map.member x letTm -> self
               | otherwise -> mempty
             Var _ (GlobalVarRef x)
               | Map.member x primDefs -> mempty
@@ -443,13 +444,13 @@ redexes primDefs = go mempty
               -- let y = f x in (y,y)
               let selfCapture = Set.member (unLocalName x) $ freeVars e1
                   locals' =
-                    ( if selfCapture then letTm else Set.insert x letTm
+                    ( if selfCapture then letTm else insertTm x e1 letTm
                     , letTy
                     )
                in go locals e1 <> go locals' e2 <> (self `munless` (not selfCapture && freeTmVar x e2))
             -- Whereas here, x is in scope in both e1 and e2.
             Letrec _ x e1 t e2 ->
-              let locals' = (Set.insert x letTm, letTy)
+              let locals' = (insertTm x e1 letTm, letTy)
                in go locals' e1 <> go locals' e2 <> goType letTy t <> (self `munless` freeTmVar x e2)
             -- As with Let, x is in scope in e but not in t
             LetType _ x t e ->
@@ -457,17 +458,17 @@ redexes primDefs = go mempty
               -- variable occurrence arising from any potential substitution
               -- of itself. See the comment on 'Let' above for an example.
               let selfCapture = Set.member x $ freeVarsTy t
-                  locals' = (letTm, if selfCapture then letTy else Set.insert x letTy)
+                  locals' = (removeTmTy x letTm, if selfCapture then letTy else insertTy x t letTy)
                in goType (snd locals) t <> go locals' e <> self `munless` (not selfCapture && freeTyVar x e)
-            Lam _ x e -> go (Set.delete x letTm, letTy) e
-            LAM _ x e -> go (letTm, Set.delete x letTy) e
+            Lam _ x e -> go (removeTm x letTm, letTy) e
+            LAM _ x e -> go (letTm, removeTy x letTy) e
             EmptyHole{} -> mempty
             Hole _ e -> go locals e
             Ann _ e t -> go locals e <> goType letTy t
             Con{} -> mempty
             Case _ e branches ->
               let branchRedexes (CaseBranch _ binds rhs) =
-                    let locals' = (Set.difference letTm (Set.fromList (map bindName binds)), letTy)
+                    let locals' = (removeAll (map bindName binds) letTm, letTy)
                      in go locals' rhs
                   scrutRedex = case unfoldAPP $ fst $ unfoldApp $ removeAnn e of
                     (Con{}, _) -> self
@@ -481,12 +482,32 @@ redexes primDefs = go mempty
             TEmptyHole _ -> mempty
             THole _ t -> goType locals t
             TVar _ x
-              | Set.member x locals -> self
+              | Map.member x locals -> self
               | otherwise -> mempty
             TCon _ _ -> mempty
             TFun _ a b -> goType locals a <> goType locals b
             TApp _ a b -> goType locals a <> goType locals b
-            TForall _ x _ t -> goType (Set.delete x locals) t
+            TForall _ x _ t -> goType (removeTy x locals) t
+    -- When going under a binder, outer binders of that name go out of scope,
+    -- and any outer let bindings mentioning that name are not available for
+    -- substitution (as the binder we are going under would capture such a
+    -- reference)
+    removeTm :: LVarName -> Map LVarName (Set Name) -> Map LVarName (Set Name)
+    removeTm x = Map.filter (Set.notMember $ unLocalName x) . Map.delete x
+    removeTy :: TyVarName -> Map TyVarName (Set TyVarName) -> Map TyVarName (Set TyVarName)
+    removeTy x = Map.filter (Set.notMember x) . Map.delete x
+    removeTmTy :: TyVarName -> Map LVarName (Set Name) -> Map LVarName (Set Name)
+    removeTmTy x = Map.filter (Set.notMember $ unLocalName x) . Map.delete (LocalName $ unLocalName x)
+    removeAll :: [LVarName] -> Map LVarName (Set Name) -> Map LVarName (Set Name)
+    removeAll xs' =
+      let xs = Set.fromList xs'
+          xsNames = Set.fromList $ unLocalName <$> xs'
+       in Map.filter (Set.disjoint xsNames) . flip Map.withoutKeys xs
+    -- insert does not deal with self shadowing (as don't know let vs letrec)
+    insertTm :: LVarName -> Expr -> Map LVarName (Set Name) -> Map LVarName (Set Name)
+    insertTm x e = Map.insert x (freeVars e) . removeTm x
+    insertTy :: TyVarName -> Type -> Map TyVarName (Set TyVarName) -> Map TyVarName (Set TyVarName)
+    insertTy x t = Map.insert x (freeVarsTy t) . removeTy x
 
 -- | Extract the cached type information from the metadata of an AST node.
 annOf :: Meta a -> a

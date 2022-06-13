@@ -862,6 +862,15 @@ unit_redexes_let_3 = do
   -- NB we must not say node 3 (the occurrence of the variable) is a redex
   redexesOf (lam "x" $ let_ "x" (lvar "x") (lvar "x")) @?= Set.fromList [1]
 
+-- We cannot substitute one occurrence of a let-bound variable if it
+-- would result in capture of a free variable in the bound term by the
+-- some intervening binder.
+unit_redexes_let_capture :: Assertion
+unit_redexes_let_capture =
+  -- We should maybe rename the lambda, see https://github.com/hackworthltd/primer/issues/509
+  assertBool "Cannot inline the variable, as would cause capture" $
+    Set.null $ redexesOf (let_ "x" (lvar "y") $ lam "y" $ lvar "x")
+
 unit_redexes_letrec_1 :: Assertion
 unit_redexes_letrec_1 =
   redexesOf (letrec "x" (app (con' ["M"] "C") (lvar "x")) (tcon' ["M"] "T") (app (lvar "x") (lvar "y")))
