@@ -22,6 +22,8 @@ module Primer.Eval (
   tryReduceExpr,
   tryReduceType,
   findNodeByID,
+  singletonLocal,
+  RHSCaptured (..),
 ) where
 
 import Foreword
@@ -308,12 +310,22 @@ data ApplyPrimFunDetail = ApplyPrimFunDetail
   deriving (Eq, Show, Generic)
   deriving (FromJSON, ToJSON) via VJSONPrefix "applyPrimFun" ApplyPrimFunDetail
 
--- | A map from local variable names to the ID of their binding and their bound value.
+-- | A map from local variable names to the ID of their binding, their bound
+-- value and whether anything in their value would be captured by an intervening
+-- binder. (NB: a non-recursive let can "capture itself" and this is also
+-- detected here.)
 -- Since each entry must have a value, this only includes let(rec) bindings.
 -- Lambda bindings must be reduced to a let before their variables can appear here.
-type Locals = Map Name (ID, LocalLet)
+--
+-- Values of this type are constructed by 'findNodeByID'.
+type Locals = Map Name (ID, LocalLet, RHSCaptured)
 
 data LocalLet = LLet Expr | LLetRec Expr | LLetType Type
+  deriving (Eq, Show)
+
+data RHSCaptured
+  = NoCapture
+  | Capture
   deriving (Eq, Show)
 
 -- | Perform one step of reduction on the node with the given ID
@@ -346,12 +358,12 @@ findNodeByID i expr = do
   case loc of
     InExpr z ->
       let fls = foldAbove collectBinding z
-       in pure (lets fls, Left z)
+       in pure (dropCache $ lets fls, Left z)
     InType z ->
       let -- Since we are only collecting various sorts of let bindings,
           -- we don't need to look in types, as they cannot contain let bindings
           fls = foldAbove collectBinding (unfocusType z)
-       in pure (lets fls, Right z)
+       in pure (dropCache $ lets fls, Right z)
     InBind{} -> Nothing
   where
     collectBinding :: FoldAbove Expr -> FindLet
@@ -374,20 +386,45 @@ findNodeByID i expr = do
 
 -- Helper for findNodeByID
 data FindLet = FL
-  { lets :: Locals -- Let bindings in scope (let, letrec and lettype)
-  , others :: Set Name -- Other bindings in scope (lambdas etc), which may shadow outer 'let's
+  { -- Let bindings in scope (let, letrec and lettype)
+    -- This is essentially @lets :: Locals@, except
+    -- we cache the free vars of the expression (as an optimisation)
+    lets :: Map Name (ID, LocalLet, Set Name, RHSCaptured)
+  , -- Other bindings in scope (lambdas etc), which may shadow outer 'let's
+    others :: Set Name
   }
 flLet :: Name -> ID -> LocalLet -> FindLet
-flLet n i e = FL{lets = Map.singleton n (i, e), others = mempty}
+flLet n i l = FL{lets = singletonLocal' n (i, l), others = mempty}
 flOthers :: Set Name -> FindLet
 flOthers = FL mempty
 instance Semigroup FindLet where
   inner <> outer =
-    FL
-      (lets inner <> (lets outer `Map.withoutKeys` others inner))
-      (others inner <> others outer)
+    let allInners = Map.keysSet (lets inner) <> others inner
+        f (i, e, fvs, Capture) = (i, e, fvs, Capture)
+        f (i, e, fvs, NoCapture) = (i, e, fvs, if Set.disjoint allInners fvs then NoCapture else Capture)
+     in FL
+          (lets inner <> (f <$> lets outer `Map.withoutKeys` others inner))
+          (others inner <> others outer)
 instance Monoid FindLet where
   mempty = FL mempty mempty
+
+dropCache :: Map Name (ID, LocalLet, Set Name, RHSCaptured) -> Locals
+dropCache = fmap $ \(j, l, _, c) -> (j, l, c)
+
+-- This is a wrapper exported for testing
+singletonLocal :: Name -> (ID, LocalLet) -> Locals
+singletonLocal n = dropCache . singletonLocal' n
+
+-- This is used internally, and returns an result augmented with a cache of the free vars of the RHS
+singletonLocal' :: Name -> (ID, LocalLet) -> Map Name (ID, LocalLet, Set Name, RHSCaptured)
+singletonLocal' n (i, l) = Map.singleton n (i, l, fvs, c)
+  where
+    (fvs, c) = case l of
+      LLet e -> let fvs' = freeVars e in (fvs', if Set.member n fvs' then Capture else NoCapture)
+      LLetRec e -> (freeVars e, NoCapture)
+      LLetType t ->
+        let fvs' = Set.map unLocalName $ freeVarsTy t
+         in (fvs', if Set.member n fvs' then Capture else NoCapture)
 
 -- | Return the IDs of nodes which are reducible.
 -- We assume the expression is well scoped, and do not e.g. check whether
@@ -756,13 +793,9 @@ tryReduceExpr globals locals = \case
   -- If the variable is not in the local set, that's fine - it just means it is bound by a lambda
   -- that hasn't yet been reduced.
   Var mVar (LocalVarRef x)
-    | Just (i, l) <- Map.lookup (unLocalName x) locals -> do
+    | Just (i, l, NoCapture) <- Map.lookup (unLocalName x) locals -> do
         e <- case l of
-          -- We detect self-capture and throw 'NotRedex' here. This won't happen
-          -- if 'tryReduceExpr' is called with a node that was the output of
-          -- 'redexes', but could happen if it is called with some other 'Expr',
-          -- and that can happen via the exposed API
-          LLet e' -> if Set.member (unLocalName x) $ freeVars e' then throwError NotRedex else pure e'
+          LLet e' -> pure e'
           LLetRec e' -> pure e'
           LLetType _ -> throwError NotRedex
         -- Since we're duplicating @e@, we must regenerate all its IDs.
@@ -910,9 +943,7 @@ tryReduceType _globals locals = \case
   -- If the variable is not in the local set, that's fine - it just means it is bound by a big
   -- lambda that hasn't yet been reduced.
   TVar mTVar x
-    | Just (i, LLetType t) <- Map.lookup (unLocalName x) locals
-    , -- Detect self-capture. See comment on tryReduceExpr's Var case
-      Set.notMember x $ freeVarsTy t -> do
+    | Just (i, LLetType t, NoCapture) <- Map.lookup (unLocalName x) locals -> do
         -- Since we're duplicating @t@, we must regenerate all its IDs.
         t' <- regenerateTypeIDs t
         pure
