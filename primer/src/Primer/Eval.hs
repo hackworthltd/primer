@@ -16,6 +16,7 @@ module Primer.Eval (
   PushAppIntoLetrecDetail (..),
   ApplyPrimFunDetail (..),
   Locals,
+  LocalLet (..),
   tryPrimFun,
   -- Only exported for testing
   tryReduceExpr,
@@ -310,7 +311,10 @@ data ApplyPrimFunDetail = ApplyPrimFunDetail
 -- | A map from local variable names to the ID of their binding and their bound value.
 -- Since each entry must have a value, this only includes let(rec) bindings.
 -- Lambda bindings must be reduced to a let before their variables can appear here.
-type Locals = Map Name (ID, Either Expr Type)
+type Locals = Map Name (ID, LocalLet)
+
+data LocalLet = LLet Expr | LLetRec Expr | LLetType Type
+  deriving (Eq, Show)
 
 -- | Perform one step of reduction on the node with the given ID
 -- Returns the new expression and its redexes.
@@ -353,7 +357,7 @@ findNodeByID i expr = do
     collectBinding :: FoldAbove Expr -> FindLet
     collectBinding a = case (getBoundHereUp a, current a) of
       (bs, _) | Set.null bs -> mempty
-      (bs, Let m x e _) | Set.member (unLocalName x) bs -> flLet (unLocalName x) (view _id m) e
+      (bs, Let m x e _) | Set.member (unLocalName x) bs -> flLet (unLocalName x) (view _id m) (LLet e)
       -- Note that because @x@ is in scope in @e1@, we will allow @e1@ to be reduced even if this
       -- reduction may never terminate.
       -- See https://github.com/hackworthltd/primer/issues/4
@@ -361,11 +365,11 @@ findNodeByID i expr = do
       (_bs, Letrec m x e _t _bdy) ->
         --  | Set.member (unLocalName x) bs -- NB: this is always true: x is in
         -- scope for both e and bdy
-        flLet (unLocalName x) (view _id m) e
+        flLet (unLocalName x) (view _id m) (LLetRec e)
       (_bs, LetType m x t _bdy) ->
         --  | Set.member (unLocalName x) bs -- This guard is always true: we only
         -- look at Exprs, so we must be considering binders for bdy, not t
-        flLetType (unLocalName x) (view _id m) t
+        flLet (unLocalName x) (view _id m) (LLetType t)
       (bs, _) -> flOthers bs
 
 -- Helper for findNodeByID
@@ -373,10 +377,8 @@ data FindLet = FL
   { lets :: Locals -- Let bindings in scope (let, letrec and lettype)
   , others :: Set Name -- Other bindings in scope (lambdas etc), which may shadow outer 'let's
   }
-flLet :: Name -> ID -> Expr -> FindLet
-flLet n i e = FL{lets = Map.singleton n (i, Left e), others = mempty}
-flLetType :: Name -> ID -> Type -> FindLet
-flLetType n i e = FL{lets = Map.singleton n (i, Right e), others = mempty}
+flLet :: Name -> ID -> LocalLet -> FindLet
+flLet n i e = FL{lets = Map.singleton n (i, e), others = mempty}
 flOthers :: Set Name -> FindLet
 flOthers = FL mempty
 instance Semigroup FindLet where
@@ -733,7 +735,15 @@ tryReduceExpr globals locals = \case
   -- If the variable is not in the local set, that's fine - it just means it is bound by a lambda
   -- that hasn't yet been reduced.
   Var mVar (LocalVarRef x)
-    | Just (i, Left e) <- Map.lookup (unLocalName x) locals -> do
+    | Just (i, l) <- Map.lookup (unLocalName x) locals -> do
+        e <- case l of
+          -- We detect self-capture and throw 'NotRedex' here. This won't happen
+          -- if 'tryReduceExpr' is called with a node that was the output of
+          -- 'redexes', but could happen if it is called with some other 'Expr',
+          -- and that can happen via the exposed API
+          LLet e' -> if Set.member (unLocalName x) $ freeVars e' then throwError NotRedex else pure e'
+          LLetRec e' -> pure e'
+          LLetType _ -> throwError NotRedex
         -- Since we're duplicating @e@, we must regenerate all its IDs.
         e' <- regenerateExprIDs e
         pure
@@ -879,7 +889,9 @@ tryReduceType _globals locals = \case
   -- If the variable is not in the local set, that's fine - it just means it is bound by a big
   -- lambda that hasn't yet been reduced.
   TVar mTVar x
-    | Just (i, Right t) <- Map.lookup (unLocalName x) locals -> do
+    | Just (i, LLetType t) <- Map.lookup (unLocalName x) locals
+    , -- Detect self-capture. See comment on tryReduceExpr's Var case
+      Set.notMember x $ freeVarsTy t -> do
         -- Since we're duplicating @t@, we must regenerate all its IDs.
         t' <- regenerateTypeIDs t
         pure

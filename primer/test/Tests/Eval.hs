@@ -45,6 +45,7 @@ import Primer.Eval (
   GlobalVarInlineDetail (..),
   LetRemovalDetail (..),
   LetRenameDetail (..),
+  LocalLet (LLet, LLetRec, LLetType),
   LocalVarInlineDetail (..),
   Locals,
   PushAppIntoLetrecDetail (..),
@@ -221,7 +222,7 @@ unit_tryReduce_beta_name_clash = do
           i <- app (pure l) (pure a)
           r <- let_ "x1" (pure a) (lam "x0" (lvar "x1"))
           pure (c_, l, e, a, i, r)
-      result = runTryReduce mempty (Map.singleton "x" (0, Left c)) (input, maxid)
+      result = runTryReduce mempty (Map.singleton "x" (0, LLet c)) (input, maxid)
   case result of
     Right (expr, BetaReduction detail) -> do
       expr ~= expectedResult
@@ -270,7 +271,7 @@ unit_tryReduce_BETA_name_clash = do
           i <- aPP (pure l) (pure a)
           r <- letType "x1" (pure a) (lam "x0" (lvar "x0" `ann` tvar "x1"))
           pure (c_, l, e, a, i, r)
-      result = runTryReduce mempty (Map.singleton "x" (0, Right c)) (input, maxid)
+      result = runTryReduce mempty (Map.singleton "x" (0, LLetType c)) (input, maxid)
   case result of
     Right (expr, BETAReduction detail) -> do
       expr ~= expectedResult
@@ -288,7 +289,7 @@ unit_tryReduce_local_term_var :: Assertion
 unit_tryReduce_local_term_var = do
   -- We assume we're inside a larger expression (e.g. a let) where the node that binds x has ID 5.
   let ((expr, val), i) = create $ (,) <$> lvar "x" <*> con' ["M"] "C"
-      locals = Map.singleton "x" (5, Left val)
+      locals = Map.singleton "x" (5, LLet val)
       result = runTryReduce mempty locals (expr, i)
   case result of
     Right (expr', LocalVarInline detail) -> do
@@ -306,7 +307,7 @@ unit_tryReduce_local_type_var :: Assertion
 unit_tryReduce_local_type_var = do
   -- We assume we're inside a larger expression (e.g. a let type) where the node that binds x has ID 5.
   let ((tyvar, val), i) = create $ (,) <$> tvar "x" <*> tcon' ["M"] "C"
-      locals = Map.singleton "x" (5, Right val)
+      locals = Map.singleton "x" (5, LLetType val)
       result = runTryReduceType mempty locals (tyvar, i)
   case result of
     Right (ty, LocalTypeVarInline detail) -> do
@@ -491,7 +492,7 @@ unit_tryReduce_letrec_name_clash = do
         -- the outer let
         letd_ <- let_ "f" (pure d_) (pure e)
         pure (e, d_, letd_)
-      result = runTryReduce mempty (Map.fromList [("f", (letd ^. _id, Left d))]) (expr, i)
+      result = runTryReduce mempty (Map.fromList [("f", (letd ^. _id, LLetRec d))]) (expr, i)
   result @?= Left NotRedex
 
 unit_tryReduce_case_1 :: Assertion
@@ -663,15 +664,23 @@ unit_tryReduce_prim_fail_unreduced_args = do
 -- reduced by inlining a let.
 unit_step_non_redex :: Assertion
 unit_step_non_redex =
-  let (r1, s1) = evalTestM 0 $ do
+  let ((r1, s1), (r2, s2)) = evalTestM 0 $ do
         e1 <- let_ "x" (con' ["M"] "C") $ lam "x" $ lvar "x"
+        e2 <- let_ "x" (con' ["M"] "C" `app` lvar "x") $ lvar "x"
         let i1 = 3
-        (Set.member i1 $ redexes mempty e1,) <$> step mempty e1 i1
+        let i2 = 8 -- NB: e1 has nodes 0,1,2,3; e2 has 4,5,6,7,8
+        s1' <- step mempty e1 i1
+        s2' <- step mempty e2 i2
+        pure ((Set.member i1 $ redexes mempty e1, s1'), (Set.member i2 $ redexes mempty e2, s2'))
    in do
         assertBool "Should not be in 'redexes', as shadowed by a lambda" $ not r1
+        assertBool "Should not be in 'redexes', as would self-capture" $ not r2
         case s1 of
           Left NotRedex -> pure ()
           s1' -> assertFailure $ show s1'
+        case s2 of
+          Left NotRedex -> pure ()
+          s2' -> assertFailure $ show s2'
 
 -- * 'findNodeByID' tests
 
@@ -689,7 +698,7 @@ unit_findNodeByID_letrec = do
     Just (locals, Left z) -> do
       target z ~= x
       case Map.lookup "x" locals of
-        Just (0, Left e) -> e ~= x
+        Just (0, LLetRec e) -> e ~= x
         _ -> assertFailure $ show locals
     _ -> assertFailure "node 1 not found"
   case findNodeByID 2 expr of
@@ -701,7 +710,7 @@ unit_findNodeByID_letrec = do
     Just (locals, Left z) -> do
       target z ~= x
       case Map.lookup "x" locals of
-        Just (0, Left e) -> e ~= x
+        Just (0, LLetRec e) -> e ~= x
         _ -> assertFailure $ show locals
     _ -> assertFailure "node 3 not found"
 
@@ -718,7 +727,7 @@ unit_findNodeByID_1 = do
   case findNodeByID 0 expr of
     Just (locals, Left z) -> do
       case Map.lookup "x" locals of
-        Just (i, Left e) -> do
+        Just (i, LLet e) -> do
           i @?= 2
           e ~= c
         _ -> assertFailure $ show locals
@@ -750,7 +759,7 @@ unit_findNodeByID_2 = do
   case findNodeByID 0 expr of
     Just (locals, Right z) -> do
       case Map.lookup "x" locals of
-        Just (i, Right e) -> do
+        Just (i, LLetType e) -> do
           i @?= 2
           e ~~= t
         _ -> assertFailure $ show locals
@@ -773,7 +782,7 @@ unit_findNodeByID_scoping_2 = do
   case findNodeByID 4 expr of
     Just (locals, Left _)
       | Map.size locals == 1
-      , Map.lookup "x" locals == Just (3, Left bind) ->
+      , Map.lookup "x" locals == Just (3, LLet bind) ->
           pure ()
     Just (_, Left _) -> assertFailure "Expected to have inner let binding of 'x' reported"
     _ -> assertFailure "Expected to find the lvar 'x'"
