@@ -1076,6 +1076,27 @@ unit_eval_full_modules_scrutinize_imported_type =
         , moduleDefs = mempty
         }
 
+-- Test that evaluation does not duplicate node IDs
+hprop_unique_ids :: Property
+hprop_unique_ids = withTests 1000 $
+  withDiscards 2000 $
+    propertyWT testModules $ do
+      let globs = foldMap moduleDefsQualified testModules
+      tds <- asks typeDefs
+      (dir, t1, _) <- genDirTm
+      let go n t
+            | n == (0 :: Int) = pure ()
+            | otherwise = do
+                t' <- evalFull tds globs 1 dir t
+                case t' of
+                  Left (TimedOut e) -> uniqueIDs e >> go (n - 1) e
+                  Right e -> uniqueIDs e
+      go 20 t1 -- we need some bound since not all terms terminate
+  where
+    uniqueIDs e =
+      let ids = e ^.. exprIDs
+       in ids === ordNub ids
+
 -- * Utilities
 
 evalFullTest :: ID -> TypeDefMap -> DefMap -> TerminationBound -> Dir -> Expr -> Either EvalFullError Expr
