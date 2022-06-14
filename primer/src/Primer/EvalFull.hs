@@ -94,6 +94,7 @@ import Primer.Typecheck (instantiateValCons', lookupConstructor, mkTAppCon)
 import Primer.Zipper (
   ExprZ,
   TypeZ,
+  bindersBelow,
   bindersBelowTy,
   down,
   focus,
@@ -123,8 +124,10 @@ data Redex
     ElideLet SomeLocal Expr
   | -- (λx.t : S -> T) s  ~>  let x = s:S in t : T
     Beta LVarName Expr Type Type Expr
-  | -- (Λa.t : ∀b.T) S  ~>  lettype b = S in (lettype a = S in t) : T
+  | -- (Λa.t : ∀b.T) S  ~>  lettype b = S in (lettype a = S in t) : T for b not free in S,t
     BETA TyVarName Expr TyVarName Type Type
+  | -- (Λa.t : ∀b.T) S  ~> letType c = b in letType b = c in (Λa.t : ∀b.T) S  for b free in t or S, and fresh c
+    RenameBETA TyVarName Expr (Set Name)
   | -- case C as : T of ... ; C xs -> e ; ...   ~>  let xs=as:As in e for constructor C of type T, where args have types As
     -- also the non-annotated case, as we consider constructors to be synthesisable
     -- case C as of ... ; C xs -> e ; ...   ~>  let xs=as:As in e for constructor C of type T, where args have types As
@@ -356,7 +359,21 @@ viewRedex tydefs globals dir = \case
   Var _ (GlobalVarRef x) | Just (DefAST y) <- x `M.lookup` globals -> pure $ pure $ InlineGlobal x y
   App _ (Ann _ (Lam _ x t) (TFun _ src tgt)) s -> pure $ pure $ Beta x t src tgt s
   e@App{} -> pure . ApplyPrimFun . thd3 <$> tryPrimFun (M.mapMaybe defPrim globals) e
-  APP _ (Ann _ (LAM _ a t) (TForall _ b _ ty1)) ty2 -> pure $ pure $ BETA a t b ty1 ty2
+  e@(APP _ (Ann _ (LAM _ a t) (TForall _ b _ ty1)) ty2) ->
+    -- We would like to say (Λa.t : ∀b.T) S  ~> (letType a = S in t) : (letType b = S in T)
+    -- but we do not have letTypes inside types, so the best we can do is
+    -- (Λa.t : ∀b.T) S  ~> letType b = S in ((letType a = S in t) : T)
+    -- We need to be careful if a /= b: as this can capture a 'b' inside 'S' or 't'.
+    -- Thus if necessary we do some renaming
+    -- (Λa.t : ∀b.T) S  ~> letType c = b in letType b = c in (Λa.t : ∀b.T) S  for b free in t or S, and fresh c
+    -- We then ensure the delicate property that we reduce the b=c first, then the BETA, then the c=b
+    let fvs = freeVars t <> S.map unLocalName (freeVarsTy ty2)
+        -- we only really need to avoid free things, but avoiding bound
+        -- things means we do not need to do any further renaming
+        bvs = bindersBelow (focus t) <> S.map unLocalName (bindersBelowTy $ focus ty2)
+     in if a /= b && S.member (unLocalName b) fvs
+          then pure $ pure $ RenameBETA b e (fvs <> bvs)
+          else pure $ pure $ BETA a t b ty1 ty2
   e | Just r <- viewCaseRedex tydefs e -> Just r
   Ann _ t ty | Chk <- dir, concreteTy ty -> pure $ pure $ Upsilon t ty
   _ -> Nothing
@@ -429,6 +446,14 @@ findRedex tydefs globals dir = go . focus
         -- This case should have caught by the TC: a term var is bound by a lettype
         LLetType _ _ -> Nothing
       -- We have found something like
+      --   letType c=b in (Λa.t : ∀b.T) S
+      -- where inlining 'c' would block the BETA redex. Thus we do the BETA first
+      APP _ (Ann _ (LAM _ a t) (TForall _ b1 _ ty1)) ty2
+        | LLetType c (TVar _ b2) <- l
+        , b1 == b2
+        , S.member (unLocalName c) (freeVars t <> S.map unLocalName (freeVarsTy ty2)) ->
+            pure $ RExpr ez $ BETA a t b1 ty1 ty2
+      -- We have found something like
       --   let x=y in let y=z in t
       -- to substitute the 'x' inside 't' we would need to rename the 'let y'
       -- binding, but that is implemented in terms of let:
@@ -490,9 +515,14 @@ runRedex = \case
   -- (λx.t : S -> T) s  ~>  let x = s:S in t : T
   Beta x t tyS tyT s -> let_ x (pure s `ann` pure tyS) (pure t) `ann` pure tyT
   -- (Λa.t : ∀b.T) S  ~>  lettype b = S in (lettype a = S in t) : T
+  --  if b is not free in t or S
   BETA a t b tyT tyS
     | a == b -> letType a (pure tyS) $ pure t `ann` pure tyT
     | otherwise -> letType b (regenerateTypeIDs tyS) $ letType a (pure tyS) (pure t) `ann` pure tyT
+  -- (Λa.t : ∀b.T) S  ~> letType c = b in letType b = c in (Λa.t : ∀b.T) S  for b free in t or S, and fresh c
+  RenameBETA b beta avoid -> do
+    c <- freshLocalName' avoid
+    letType c (tvar b) $ letType b (tvar c) $ pure beta
   -- case C as : T of ... ; C xs -> e ; ...   ~>  let xs=as:As in e for constructor C of type T, where args have types As
   -- (and also the non-annotated-constructor case)
   -- Note that when forming the CaseRedex we checked that the variables @xs@ were fresh for @as@ and @As@,
