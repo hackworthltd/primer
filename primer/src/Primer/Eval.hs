@@ -467,17 +467,27 @@ annOf = view (position @2)
 annotate :: Maybe TypeCache -> Expr -> Expr
 annotate = set (position @1 % position @2)
 
--- | This function helps us to convert a λ application into a let binding without causing
--- variable capture. It takes as arguments:
--- - the name of the lambda binding
--- - the free (type and term) variables in the application argument
--- - the body of the lambda
+-- | This function helps us create let bindings which are easy to substitute
+-- without causing variable capture.
+-- It takes as arguments:
+-- - a variable name, @x@ (the variable we would like to bind)
+-- - some names to avoid @vs@ (normally the free (type and term) variables in
+--   the term we would like to bind)
+-- - the term @t[x]@ we would like the binding to scope over (in which which
+--   @x@ presumably appears free)
 -- It will then modify the original name until it finds one that:
--- - doesn't clash with any free variables in the argument
+-- - doesn't clash with any of the @vs@
 -- - can be safely used instead of the original name in the lambda body
+-- Thus, it will return @y@ and @t[y]@ for some @y@ distinct from each
+-- of the @vs@, and such that the renaming is trivial (i.e. we do not need to
+-- alpha convert any binders in @t@ to avoid capture).
 --
--- We assume that the original name is safe to use in the lambda body (as you'd expect), so we
--- return it unchanged if it doesn't clash with a free variable in the argument.
+-- We assume that the original name is safe to use, so we return it
+-- unchanged if it doesn't clash with a free variable in the argument.
+--
+-- The reason this eases future substitution is that we avoid making terms such
+-- as @let x = C x in D x x@ where you cannot inline just one occurrence of the
+-- @x@ without causing capture.
 --
 -- See 'Tests.Eval.unit_tryReduce_beta_name_clash' for an example of where this is useful.
 makeSafeLetBinding :: LVarName -> Set Name -> Expr -> (LVarName, Expr)
