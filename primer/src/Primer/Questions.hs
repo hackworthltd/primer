@@ -22,21 +22,18 @@ import Primer.Core (
   ID,
   Kind (KFun, KType),
   LVarName,
-  LocalName (unLocalName),
   TyVarName,
   Type' (..),
   defType,
   typeDefNameHints,
  )
 import Primer.Name (Name, unName, unsafeMkName)
-import Primer.Name.Fresh (mkAvoidForFreshName, mkAvoidForFreshNameTy)
-import Primer.Typecheck (Cxt, decomposeTAppCon, getGlobalBaseNames, typeDefs)
+import Primer.Name.Fresh (mkAvoidForFreshName, mkAvoidForFreshNameTy, mkAvoidForFreshNameTypeZ)
+import Primer.Typecheck (Cxt, decomposeTAppCon, typeDefs)
 import Primer.Zipper (
   ExprZ,
   TypeZ,
   TypeZip,
-  bindersAboveTy,
-  bindersBelowTy,
  )
 import Primer.ZipperCxt (
   ShadowedVarsExpr (M),
@@ -102,7 +99,7 @@ generateNameTy ::
   m [Name]
 -- It doesn't really make sense to ask for a term variable (Left) here, but
 -- it doesn't harm to support it
-generateNameTy tk z = uniquify <$> getAvoidSetTy z <*> baseNames tk
+generateNameTy tk z = uniquify <$> mkAvoidForFreshNameTy z <*> baseNames tk
 
 baseNames ::
   MonadReader Cxt m =>
@@ -126,12 +123,7 @@ baseNames tk = do
 getAvoidSet :: MonadReader Cxt m => Either ExprZ TypeZ -> m (Set.Set Name)
 getAvoidSet = \case
   Left ze -> mkAvoidForFreshName ze
-  Right zt -> mkAvoidForFreshNameTy zt
-
-getAvoidSetTy :: MonadReader Cxt m => TypeZip -> m (Set.Set Name)
-getAvoidSetTy z = do
-  globals <- getGlobalBaseNames
-  pure $ Set.map unLocalName (bindersAboveTy z <> bindersBelowTy z) <> globals
+  Right zt -> mkAvoidForFreshNameTypeZ zt
 
 -- We do not use Name.freshName as we don't want a global fresh counter
 -- (and we want to control the base name)
