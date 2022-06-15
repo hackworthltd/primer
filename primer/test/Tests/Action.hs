@@ -292,6 +292,24 @@ unit_rename_letrec =
     [RenameLet "y"]
     (letrec "y" (lvar "y") (tcon tBool) (lvar "y"))
 
+-- If the let is shadowing an outer binder, we can rename to un-shadow it
+unit_rename_let_shadowed :: Assertion
+unit_rename_let_shadowed =
+  actionTest
+    NoSmartHoles
+    (let_ "x" emptyHole $ let_ "x" (lvar "x") (lvar "x"))
+    [Move Child2, RenameLet "y"]
+    (let_ "x" emptyHole $ let_ "y" (lvar "x") (lvar "y"))
+
+-- Renaming a let can cause shadowing, but this is ok
+unit_rename_let_shadows :: Assertion
+unit_rename_let_shadows =
+  actionTest
+    NoSmartHoles
+    (ann (lam "x" $ let_ "y" (lvar "x") emptyHole) tEmptyHole)
+    [Move Child1, Move Child1, RenameLet "x"]
+    (ann (lam "x" $ let_ "x" (lvar "x") emptyHole) tEmptyHole)
+
 unit_rename_lam :: Assertion
 unit_rename_lam =
   actionTest

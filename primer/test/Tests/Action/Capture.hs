@@ -99,16 +99,6 @@ unit_RenameLet_no_capture_1 =
     (ann (lam "x" $ let_ "y" emptyHole $ lvar "x") tEmptyHole)
     [Move Child1, Move Child1, RenameLet "x"]
 
--- We forbid this case, even though lets do not scope over the bound expression
--- (only letrecs do)
-unit_RenameLet_no_capture_2 :: Assertion
-unit_RenameLet_no_capture_2 =
-  actionTestExpectFail
-    isNameCapture
-    NoSmartHoles
-    (ann (lam "x" $ let_ "y" (lvar "x") emptyHole) tEmptyHole)
-    [Move Child1, Move Child1, RenameLet "x"]
-
 unit_RenameLetrec_noop :: Assertion
 unit_RenameLetrec_noop =
   actionTest

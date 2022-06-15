@@ -981,23 +981,20 @@ renameLet y ze = case target ze of
     | unName (unLocalName x) == y -> pure ze
     | otherwise -> do
         let y' = unsafeMkLocalName y
-        (e1', e2') <- doRename x y' e1 e2
-        pure $ replace (Let m y' e1' e2') ze
+        e2' <- rename x y' e2
+        pure $ replace (Let m y' e1 e2') ze
   Letrec m x e1 t1 e2
     | unName (unLocalName x) == y -> pure ze
     | otherwise -> do
         let y' = unsafeMkLocalName y
-        (e1', e2') <- doRename x y' e1 e2
+        e1' <- rename x y' e1
+        e2' <- rename x y' e2
         pure $ replace (Letrec m y' e1' t1 e2') ze
   _ ->
     throwError $ CustomFailure (RenameLet y) "the focused expression is not a let"
   where
-    -- The renaming logic for lets and letrecs is identical, so we handle both here
-    doRename :: ActionM m => LVarName -> LVarName -> Expr -> Expr -> m (Expr, Expr)
-    doRename fromName toName e1 e2 = case (renameLocalVar fromName toName e1, renameLocalVar fromName toName e2) of
-      (Just e1', Just e2') -> pure (e1', e2')
-      (Nothing, _) -> throwError NameCapture
-      (_, Nothing) -> throwError NameCapture
+    rename :: ActionM m => LVarName -> LVarName -> Expr -> m Expr
+    rename fromName toName e = maybe (throwError NameCapture) pure $ renameLocalVar fromName toName e
 
 renameCaseBinding :: forall m. ActionM m => Text -> CaseBindZ -> m CaseBindZ
 renameCaseBinding y caseBind = updateCaseBind caseBind $ \bind bindings rhs -> do
