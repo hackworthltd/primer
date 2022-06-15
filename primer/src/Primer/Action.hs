@@ -25,7 +25,7 @@ import Foreword hiding (mod)
 import Control.Monad.Fresh (MonadFresh)
 import Data.Aeson (Value)
 import Data.Generics.Product (typed)
-import Data.List (delete, findIndex)
+import Data.List (findIndex)
 import qualified Data.Map.Strict as Map
 import qualified Data.Text as T
 import Optics (set, (%), (?~))
@@ -1000,12 +1000,12 @@ renameLet y ze = case target ze of
       (_, Nothing) -> throwError NameCapture
 
 renameCaseBinding :: forall m. ActionM m => Text -> CaseBindZ -> m CaseBindZ
-renameCaseBinding y caseBind = updateCaseBind caseBind $ \bind bindings rhs -> do
+renameCaseBinding y caseBind = updateCaseBind caseBind $ \bind otherBindings rhs -> do
   let y' = unsafeMkLocalName y
 
   -- Check that 'y' doesn't clash with any of the other branch bindings
-  let otherBindings = bindName <$> delete bind bindings
-  when (y' `elem` otherBindings) $ throwError $ CaseBindsClash y' otherBindings
+  let otherBindingNames = bindName <$> otherBindings
+  when (y' `elem` otherBindingNames) $ throwError $ CaseBindsClash y' otherBindingNames
 
   -- Apply the rename to the rhs
   rhs' <- case renameLocalVar (bindName bind) y' rhs of
