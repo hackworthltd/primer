@@ -983,6 +983,12 @@ renameLet y ze = case target ze of
         let y' = unsafeMkLocalName y
         e2' <- rename x y' e2
         pure $ replace (Let m y' e1 e2') ze
+  LetType m x t e
+    | unName (unLocalName x) == y -> pure ze
+    | otherwise -> do
+        let y' = unsafeMkLocalName y
+        e' <- rename' x y' e
+        pure $ replace (LetType m y' t e') ze
   Letrec m x e1 t1 e2
     | unName (unLocalName x) == y -> pure ze
     | otherwise -> do
@@ -995,6 +1001,8 @@ renameLet y ze = case target ze of
   where
     rename :: ActionM m => LVarName -> LVarName -> Expr -> m Expr
     rename fromName toName e = maybe (throwError NameCapture) pure $ renameLocalVar fromName toName e
+    rename' :: ActionM m => TyVarName -> TyVarName -> Expr -> m Expr
+    rename' fromName toName e = maybe (throwError NameCapture) pure $ renameTyVarExpr fromName toName e
 
 renameCaseBinding :: forall m. ActionM m => Text -> CaseBindZ -> m CaseBindZ
 renameCaseBinding y caseBind = updateCaseBind caseBind $ \bind bindings rhs -> do
