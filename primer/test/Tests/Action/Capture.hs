@@ -133,6 +133,14 @@ unit_RenameLetrec_no_capture_2 =
     (ann (lam "x" $ letrec "y" emptyHole tEmptyHole $ lvar "x") tEmptyHole)
     [Move Child1, Move Child1, RenameLet "x"]
 
+unit_convert_let_to_letrec_no_capture :: Assertion
+unit_convert_let_to_letrec_no_capture =
+  actionTestExpectFail
+    isNameCapture
+    NoSmartHoles
+    (ann (lam "x" $ let_ "x" (lvar "x") $ lvar "x") tEmptyHole)
+    [Move Child1, Move Child1, ConvertLetToLetrec]
+
 unit_ConstructTForall_no_capture :: Assertion
 unit_ConstructTForall_no_capture =
   actionTestExpectFail

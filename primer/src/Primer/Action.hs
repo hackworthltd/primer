@@ -895,6 +895,7 @@ convertLetToLetrec :: ActionM m => ExprZ -> m ExprZ
 convertLetToLetrec ze = case target ze of
   Let m x e1 e2 -> do
     t1 <- tEmptyHole
+    unless (isFresh x e1) $ throwError NameCapture
     pure $ replace (Letrec m x e1 t1 e2) ze
   _ -> throwError $ CustomFailure ConvertLetToLetrec "can only convert let to letrec"
 
