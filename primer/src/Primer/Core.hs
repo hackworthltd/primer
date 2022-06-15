@@ -101,10 +101,14 @@ import Primer.JSON
 import Primer.Name (Name, unName, unsafeMkName)
 
 -- | An identifier for an expression. Every node of the AST has an ID.
+--
+-- Note that we may remove the 'Ord' and 'Enum' instances in future
+-- implementations, so you should try not to rely on them.
+-- (Internally, we rely on 'Ord', but that may change in the future
+-- and is more or less not visible to external consumers of this
+-- type.)
 newtype ID = ID {unID :: Int}
   deriving (Eq, Generic, Data)
-  -- The Ord and Enum instances are useful for tests but we may remove them in
-  -- future, so don't use them in app code.
   deriving newtype (Show, Num, Ord, Enum)
   deriving newtype (FromJSON, ToJSON)
   deriving newtype (ToJSONKey, FromJSONKey)
