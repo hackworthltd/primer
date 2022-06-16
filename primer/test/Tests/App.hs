@@ -9,11 +9,13 @@ import Primer.App (
   App,
   Prog,
   ProgError (ActionError),
+  appProg,
   checkAppWellFormed,
   mkApp,
   mkAppSafe,
   newApp,
   newEmptyApp,
+  nextProgID,
  )
 import Primer.Core (
   ID,
@@ -25,6 +27,7 @@ import Primer.Name (
 import Test.Tasty.HUnit (
   Assertion,
   assertFailure,
+  (@?=),
  )
 
 even3App :: App
@@ -65,13 +68,13 @@ expectNotWellFormed a name =
 
 expectMkAppSafeSuccess :: (Prog, ID, NameCounter) -> Text -> Assertion
 expectMkAppSafeSuccess (p, i, n) name =
-  case mkAppSafe i n p of
+  case mkAppSafe n p of
     Left _ -> assertFailure $ "mkAppSafe should succeed for " <> toS name
-    Right _ -> pure ()
+    Right app -> nextProgID (appProg app) @?= i
 
 expectMkAppSafeFailure :: (Prog, ID, NameCounter) -> Text -> Assertion
-expectMkAppSafeFailure (p, i, n) name =
-  case mkAppSafe i n p of
+expectMkAppSafeFailure (p, _, n) name =
+  case mkAppSafe n p of
     Left e -> expectTypeError e
     Right _ -> assertFailure $ "mkAppSafe should fail for " <> toS name
 

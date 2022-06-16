@@ -1075,12 +1075,25 @@ instance FromJSON AppState
 
 -- | Construct an 'App' from an 'ID' and a 'Prog'.
 --
+-- Unless you are building a simple 'App' from a 'Prog' with just one
+-- module and you happen to already have the next valid 'ID' for that
+-- module handy, you should probably use 'mkAppSafe' rather than this
+-- function, as 'mkAppSafe' will always do the right thing for more
+-- complicated 'Prog's and doesn't expose (as many) 'App'
+-- implementation details to the caller. 'mkApp' is chiefly provided
+-- for very simple initial programs and for testing purposes.
+--
 -- The value of the provided 'ID' should be at least one greater than
--- the largest 'ID' in any of the provided 'Prog''s 'progModules'. The
--- 'App' uses this initial 'ID' value to guarantee that newly-created
--- nodes in the program's AST are unique across all editable modules
--- in the 'Prog'. *Note*: 'mkApp' does not enforce or otherwise check
--- that this invariant holds! It is the responsiblity of the caller.
+-- the largest 'ID' in any of the provided 'Prog''s 'progModules'.
+-- (See 'nextProgID'.) The 'App' uses this initial 'ID' value to
+-- guarantee that newly-created nodes in the program's AST are unique
+-- across all editable modules in the 'Prog'. *Note*: 'mkApp' does not
+-- enforce or otherwise check that this invariant holds! It is the
+-- responsiblity of the caller.
+--
+-- Also N.B: the requirement that the provided 'ID' value should be
+-- greater than the largest 'ID' is an implementation detail, and may
+-- change in the future.
 --
 -- (Strictly speaking, the invariant on the provided 'ID' is
 -- overconstrained, as the rest of our implementation depends only on
@@ -1107,12 +1120,12 @@ mkApp i n p =
 -- provided 'Prog' is well-formed per 'checkAppWellFormed'; otherwise,
 -- it returns a 'ProgError'.
 --
--- Regarding the provided 'ID' and 'NameCounter', see the
--- corresponding documentation for 'mkApp'. Like 'mkApp', 'mkAppSafe'
--- does not enforce that the 'ID' is unique across all editable
--- modules in the 'Prog'.
-mkAppSafe :: ID -> NameCounter -> Prog -> Either ProgError App
-mkAppSafe i n p = checkAppWellFormed (mkApp i n p)
+-- Regarding the provided 'NameCounter', see the corresponding
+-- documentation for 'mkApp'.
+mkAppSafe :: NameCounter -> Prog -> Either ProgError App
+mkAppSafe n p =
+  let nextID = nextProgID p
+   in checkAppWellFormed (mkApp nextID n p)
 
 -- | Given an 'App', return the next 'ID' that should be used to
 -- create a new node.
