@@ -19,9 +19,6 @@ module Primer.Core.Utils (
   freeVarsTy,
   alphaEqTy,
   concreteTy,
-
-  -- * Construct ASTs.
-  mkASTDef,
 ) where
 
 import Foreword
@@ -71,10 +68,6 @@ import Primer.Core (
   _exprMeta,
   _exprTypeMeta,
   _typeMeta,
- )
-import Primer.Core.DSL (
-  S,
-  create,
  )
 import Primer.Name (Name, NameCounter, freshName)
 
@@ -258,14 +251,6 @@ _freeTyVars = traversalVL $ go mempty
 
 concreteTy :: Data b => Type' b -> Bool
 concreteTy ty = hasn't (getting _freeVarsTy) ty && noHoles ty
-
--- | Given a DSL 'Type' and 'Expr', construct a new 'ASTDef' and the
--- next valid 'ID'. Note that this AST isn't guaranteed to typecheck;
--- it is simply syntactically correct.
-mkASTDef :: S Type -> S Expr -> (ASTDef, ID)
-mkASTDef t e = (ASTDef expr typ, id_)
-  where
-    ((expr, typ), id_) = create $ (,) <$> e <*> t
 
 -- | Traverse the 'ID's in an 'Expr''.
 exprIDs :: (HasID a, HasID b) => Traversal' (Expr' a b) ID

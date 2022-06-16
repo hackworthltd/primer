@@ -23,6 +23,10 @@ module Primer.Examples (
   odd,
   comprehensive,
 
+  -- * Example modules.
+  mapModule,
+  evenOddModule,
+
   -- * Toy example programs, plus their next 'ID' and 'NameCounter'.
   even3Prog,
   badEven3Prog,
@@ -259,6 +263,32 @@ comprehensive modName = do
           )
       )
   pure (qualifyName modName "comprehensive", DefAST $ ASTDef term type_)
+
+-- | Given a 'ModuleName', return a module with the given name
+-- containing @map@ and @map'@, plus the next 'ID' to be used for
+-- editing the contents of the module.
+mapModule :: ModuleName -> (Module, ID)
+mapModule modName =
+  let (defs, nextID) = create $ do
+        (_, mapDef) <- map modName
+        (_, map'Def) <- map' modName
+        pure [("map", mapDef), ("map'", map'Def)]
+   in ( Module modName mempty $ Map.fromList defs
+      , nextID
+      )
+
+-- | Given a 'ModuleName', return a module with the given name
+-- containing @even@ and @odd@, plus the next 'ID' to be used for
+-- editing the contents of the module.
+evenOddModule :: ModuleName -> (Module, ID)
+evenOddModule modName =
+  let (defs, nextID) = create $ do
+        (_, evenDef) <- even modName
+        (_, oddDef) <- odd modName
+        pure [("even", evenDef), ("odd'", oddDef)]
+   in ( Module modName mempty $ Map.fromList defs
+      , nextID
+      )
 
 -- | A program whose @main@ asks whether 3 is even.
 even3Prog :: (Prog, ID, NameCounter)
