@@ -19,6 +19,7 @@ module Primer.EvalFull (
 
 import Foreword
 
+import Control.Monad.Extra (untilJustM)
 import Control.Monad.Fresh (MonadFresh)
 import qualified Data.Map as M
 import qualified Data.Set as S
@@ -62,12 +63,8 @@ import Primer.Core (
   TyVarName,
   Type,
   Type' (
-    TApp,
-    TCon,
-    TEmptyHole,
     TForall,
     TFun,
-    THole,
     TVar
   ),
   TypeDefMap,
@@ -77,7 +74,7 @@ import Primer.Core (
   defPrim,
  )
 import Primer.Core.DSL (ann, letType, let_, letrec, lvar, tvar)
-import Primer.Core.Transform (unfoldAPP, unfoldApp)
+import Primer.Core.Transform (renameTyVar, unfoldAPP, unfoldApp)
 import Primer.Core.Utils (
   concreteTy,
   forgetTypeIDs,
@@ -98,6 +95,7 @@ import Primer.Typecheck (instantiateValCons', lookupConstructor, mkTAppCon)
 import Primer.Zipper (
   ExprZ,
   TypeZ,
+  bindersBelowTy,
   down,
   focus,
   focusType,
@@ -536,27 +534,10 @@ runRedex = \case
 runRedexTy :: (MonadFresh ID m, MonadFresh NameCounter m) => RedexType -> m Type
 runRedexTy (InlineLetInType _ t) = regenerateTypeIDs t
 runRedexTy (RenameForall m a k s avoid) = do
-  b <- freshLocalName (avoid <> freeVarsTy s)
-  TForall m b k <$> renameTy a b s
-
--- This is very similar to Subst.substTy
--- However, we work over Type rather than Type' (), as we don't need to worry
--- about how/if to duplicate metadata etc
-renameTy :: MonadFresh NameCounter m => TyVarName -> TyVarName -> Type -> m Type
-renameTy a b = go
-  where
-    go = \case
-      t@TEmptyHole{} -> pure t
-      THole m t -> THole m <$> go t
-      t@TCon{} -> pure t
-      TFun m s t -> TFun m <$> go s <*> go t
-      t@(TVar m c)
-        | c == a -> pure $ TVar m b
-        | otherwise -> pure t
-      TApp m s t -> TApp m <$> go s <*> go t
-      t@(TForall m c k s)
-        | c == a -> pure t
-        | c == b ->
-            freshLocalName (S.singleton a <> S.singleton b <> freeVarsTy s) >>= \c' ->
-              renameTy c c' s >>= fmap (TForall m c' k) . go
-        | otherwise -> TForall m c k <$> go s
+  -- It should never be necessary to try more than once, since
+  -- we pick a new name disjoint from any that appear in @s@
+  -- thus renaming will never capture (so @renameTyVar@ will always succeed).
+  -- However, the type system does not know about this.
+  untilJustM $ do
+    b <- freshLocalName (avoid <> freeVarsTy s <> bindersBelowTy (focus s))
+    pure $ TForall m b k <$> renameTyVar a b s
