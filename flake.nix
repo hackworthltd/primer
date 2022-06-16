@@ -20,7 +20,7 @@
     pre-commit-hooks-nix.inputs.flake-utils.follows = "flake-utils";
 
     # Temporary workaround for HLS issues until the next release.
-    haskell-language-server.url = github:July541/haskell-language-server/ghc-9.2.3;
+    haskell-language-server.url = github:haskell/haskell-language-server;
     haskell-language-server.flake = false;
   };
 
