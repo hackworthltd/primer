@@ -29,6 +29,7 @@ import Primer.Core (
   Expr,
   GlobalName (baseName, qualifiedModule),
   ID (ID),
+  Kind (KType),
   Type,
   TypeDef (TypeDefAST),
   getID,
@@ -45,11 +46,15 @@ import Primer.Eval (
   GlobalVarInlineDetail (..),
   LetRemovalDetail (..),
   LetRenameDetail (..),
+  LocalLet (LLet, LLetRec, LLetType),
   LocalVarInlineDetail (..),
   Locals,
   PushAppIntoLetrecDetail (..),
+  RHSCaptured (Capture, NoCapture),
   findNodeByID,
   redexes,
+  singletonLocal,
+  step,
   tryReduceExpr,
   tryReduceType,
  )
@@ -220,7 +225,7 @@ unit_tryReduce_beta_name_clash = do
           i <- app (pure l) (pure a)
           r <- let_ "x1" (pure a) (lam "x0" (lvar "x1"))
           pure (c_, l, e, a, i, r)
-      result = runTryReduce mempty (Map.singleton "x" (0, Left c)) (input, maxid)
+      result = runTryReduce mempty (singletonLocal "x" (0, LLet c)) (input, maxid)
   case result of
     Right (expr, BetaReduction detail) -> do
       expr ~= expectedResult
@@ -269,7 +274,7 @@ unit_tryReduce_BETA_name_clash = do
           i <- aPP (pure l) (pure a)
           r <- letType "x1" (pure a) (lam "x0" (lvar "x0" `ann` tvar "x1"))
           pure (c_, l, e, a, i, r)
-      result = runTryReduce mempty (Map.singleton "x" (0, Right c)) (input, maxid)
+      result = runTryReduce mempty (singletonLocal "x" (0, LLetType c)) (input, maxid)
   case result of
     Right (expr, BETAReduction detail) -> do
       expr ~= expectedResult
@@ -287,7 +292,7 @@ unit_tryReduce_local_term_var :: Assertion
 unit_tryReduce_local_term_var = do
   -- We assume we're inside a larger expression (e.g. a let) where the node that binds x has ID 5.
   let ((expr, val), i) = create $ (,) <$> lvar "x" <*> con' ["M"] "C"
-      locals = Map.singleton "x" (5, Left val)
+      locals = singletonLocal "x" (5, LLet val)
       result = runTryReduce mempty locals (expr, i)
   case result of
     Right (expr', LocalVarInline detail) -> do
@@ -305,7 +310,7 @@ unit_tryReduce_local_type_var :: Assertion
 unit_tryReduce_local_type_var = do
   -- We assume we're inside a larger expression (e.g. a let type) where the node that binds x has ID 5.
   let ((tyvar, val), i) = create $ (,) <$> tvar "x" <*> tcon' ["M"] "C"
-      locals = Map.singleton "x" (5, Right val)
+      locals = singletonLocal "x" (5, LLetType val)
       result = runTryReduceType mempty locals (tyvar, i)
   case result of
     Right (ty, LocalTypeVarInline detail) -> do
@@ -490,7 +495,7 @@ unit_tryReduce_letrec_name_clash = do
         -- the outer let
         letd_ <- let_ "f" (pure d_) (pure e)
         pure (e, d_, letd_)
-      result = runTryReduce mempty (Map.fromList [("f", (letd ^. _id, Left d))]) (expr, i)
+      result = runTryReduce mempty (singletonLocal "f" (letd ^. _id, LLetRec d)) (expr, i)
   result @?= Left NotRedex
 
 unit_tryReduce_case_1 :: Assertion
@@ -654,6 +659,32 @@ unit_tryReduce_prim_fail_unreduced_args = do
       result = runTryReduce (DefPrim <$> globals) mempty (expr, i)
   result @?= Left NotRedex
 
+-- One can call the eval-step api endpoint with an expression and ID
+-- of one of its nodes where that node is not a redex. This will call
+-- step with such data. We should not assume that all eval api calls
+-- will actually be redexes.
+-- In particular here we test variable occurrences which cannot be
+-- reduced by inlining a let.
+unit_step_non_redex :: Assertion
+unit_step_non_redex =
+  let ((r1, s1), (r2, s2)) = evalTestM 0 $ do
+        e1 <- let_ "x" (con' ["M"] "C") $ lam "x" $ lvar "x"
+        e2 <- let_ "x" (con' ["M"] "C" `app` lvar "x") $ lvar "x"
+        let i1 = 3
+        let i2 = 8 -- NB: e1 has nodes 0,1,2,3; e2 has 4,5,6,7,8
+        s1' <- step mempty e1 i1
+        s2' <- step mempty e2 i2
+        pure ((Set.member i1 $ redexes mempty e1, s1'), (Set.member i2 $ redexes mempty e2, s2'))
+   in do
+        assertBool "Should not be in 'redexes', as shadowed by a lambda" $ not r1
+        assertBool "Should not be in 'redexes', as would self-capture" $ not r2
+        case s1 of
+          Left NotRedex -> pure ()
+          s1' -> assertFailure $ show s1'
+        case s2 of
+          Left NotRedex -> pure ()
+          s2' -> assertFailure $ show s2'
+
 -- * 'findNodeByID' tests
 
 unit_findNodeByID_letrec :: Assertion
@@ -670,7 +701,7 @@ unit_findNodeByID_letrec = do
     Just (locals, Left z) -> do
       target z ~= x
       case Map.lookup "x" locals of
-        Just (0, Left e) -> e ~= x
+        Just (0, LLetRec e, NoCapture) -> e ~= x
         _ -> assertFailure $ show locals
     _ -> assertFailure "node 1 not found"
   case findNodeByID 2 expr of
@@ -682,7 +713,7 @@ unit_findNodeByID_letrec = do
     Just (locals, Left z) -> do
       target z ~= x
       case Map.lookup "x" locals of
-        Just (0, Left e) -> e ~= x
+        Just (0, LLetRec e, NoCapture) -> e ~= x
         _ -> assertFailure $ show locals
     _ -> assertFailure "node 3 not found"
 
@@ -699,7 +730,7 @@ unit_findNodeByID_1 = do
   case findNodeByID 0 expr of
     Just (locals, Left z) -> do
       case Map.lookup "x" locals of
-        Just (i, Left e) -> do
+        Just (i, LLet e, NoCapture) -> do
           i @?= 2
           e ~= c
         _ -> assertFailure $ show locals
@@ -731,12 +762,77 @@ unit_findNodeByID_2 = do
   case findNodeByID 0 expr of
     Just (locals, Right z) -> do
       case Map.lookup "x" locals of
-        Just (i, Right e) -> do
+        Just (i, LLetType e, NoCapture) -> do
           i @?= 2
           e ~~= t
         _ -> assertFailure $ show locals
       target z ~~= x
     _ -> assertFailure "node 0 not found"
+
+unit_findNodeByID_scoping_1 :: Assertion
+unit_findNodeByID_scoping_1 = do
+  let expr = create' $ let_ "x" (con' ["M"] "C") $ lam "x" $ lvar "x"
+  case findNodeByID 3 expr of
+    Just (locals, Left _) -> assertBool "Expected 'x' not to be in scope" (Map.null locals)
+    _ -> assertFailure "Expected to find the lvar 'x'"
+
+unit_findNodeByID_scoping_2 :: Assertion
+unit_findNodeByID_scoping_2 = do
+  let (bind, expr) = create' $ do
+        b <- con' ["M"] "D"
+        e <- let_ "x" (con' ["M"] "C") $ let_ "x" (pure b) $ lvar "x"
+        pure (b, e)
+  case findNodeByID 4 expr of
+    Just (locals, Left _)
+      | Map.size locals == 1
+      , Map.lookup "x" locals == Just (3, LLet bind, NoCapture) ->
+          pure ()
+    Just (_, Left _) -> assertFailure "Expected to have inner let binding of 'x' reported"
+    _ -> assertFailure "Expected to find the lvar 'x'"
+
+-- We cannot substitute one occurrence of a let-bound variable if it
+-- would result in capture of a free variable in the bound term by the
+-- some intervening binder. This tests findNodeByID (and step, and thus
+-- tryReduce), see unit_redexes_let_capture for a test of redexes
+unit_findNodeByID_capture :: Assertion
+unit_findNodeByID_capture =
+  let (expr, varOcc, reduct) = create' $ do
+        v <- lvar "x"
+        e <- letrec "x" (lvar "y") (tcon tBool) $ lam "y" $ pure v
+        let r = getID v
+        s <- step mempty expr r
+        pure (e, r, s)
+   in do
+        case findNodeByID varOcc expr of
+          Just (locals, Left _)
+            | Map.size locals == 1
+            , Just (1, LLetRec _, Capture) <- Map.lookup "x" locals ->
+                pure ()
+          Just (_, Left _) -> assertFailure "Expected let binding of 'x' to be reported as captured-if-inlined"
+          _ -> assertFailure "Expected to find the lvar 'x'"
+        case reduct of
+          Left NotRedex -> pure ()
+          e -> assertFailure $ show e
+
+unit_findNodeByID_capture_type :: Assertion
+unit_findNodeByID_capture_type = do
+  let (expr, varOcc, reduct) = create' $ do
+        v <- tvar "x"
+        e <- letType "x" (tvar "y") (emptyHole `ann` tforall "y" KType (pure v))
+        let r = getID v
+        s <- step mempty expr r
+        pure (e, r, s)
+   in do
+        case findNodeByID varOcc expr of
+          Just (locals, Right _)
+            | Map.size locals == 1
+            , Just (1, LLetType _, Capture) <- Map.lookup "x" locals ->
+                pure ()
+          Just (_, Right _) -> assertFailure "Expected lettype binding of 'x' to be reported as captured-if-inlined"
+          _ -> assertFailure "Expected to find the lvar 'x'"
+        case reduct of
+          Left NotRedex -> pure ()
+          e -> assertFailure $ show e
 
 -- * 'redexes' tests
 
@@ -812,6 +908,21 @@ unit_redexes_let_3 :: Assertion
 unit_redexes_let_3 = do
   -- NB we must not say node 3 (the occurrence of the variable) is a redex
   redexesOf (lam "x" $ let_ "x" (lvar "x") (lvar "x")) @?= Set.fromList [1]
+
+-- We cannot substitute one occurrence of a let-bound variable if it
+-- would result in capture of a free variable in the bound term by the
+-- some intervening binder.
+unit_redexes_let_capture :: Assertion
+unit_redexes_let_capture =
+  -- We should maybe rename the lambda, see https://github.com/hackworthltd/primer/issues/509
+  assertBool "Cannot inline the variable, as would cause capture" $
+    Set.null $ redexesOf (let_ "x" (lvar "y") $ lam "y" $ lvar "x")
+
+unit_redexes_lettype_capture :: Assertion
+unit_redexes_lettype_capture =
+  -- We should maybe rename the forall, see https://github.com/hackworthltd/primer/issues/509
+  assertBool "Cannot inline the variable, as would cause capture" $
+    Set.null $ redexesOf (letType "x" (tvar "y") (emptyHole `ann` tforall "y" KType (tvar "x")))
 
 unit_redexes_letrec_1 :: Assertion
 unit_redexes_letrec_1 =
