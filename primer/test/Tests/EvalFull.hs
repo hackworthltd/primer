@@ -39,7 +39,11 @@ import Primer.Builtins (
  )
 import Primer.Core
 import Primer.Core.DSL
-import Primer.Core.Utils (forgetIDs, generateIDs)
+import Primer.Core.Utils (
+  exprIDs,
+  forgetIDs,
+  generateIDs,
+ )
 import Primer.EvalFull
 import qualified Primer.Examples as Examples (
   even,
@@ -57,7 +61,7 @@ import Primer.Typecheck (
  )
 import Test.Tasty.HUnit (Assertion, assertBool, assertFailure, (@?=))
 import TestM
-import TestUtils (exprIDs, withPrimDefs, zeroIDs)
+import TestUtils (withPrimDefs, zeroIDs)
 import Tests.Action.Prog (runAppTestM)
 import Tests.Eval ((~=))
 import Tests.Gen.Core.Typed (checkTest)

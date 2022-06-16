@@ -1,12 +1,15 @@
 module Primer.Core.Utils (
   freshLocalName,
   freshLocalName',
+  exprIDs,
+  typeIDs,
   generateTypeIDs,
   regenerateTypeIDs,
   forgetTypeIDs,
   generateIDs,
   regenerateExprIDs,
   forgetIDs,
+  nextID,
   noHoles,
   _freeTmVars,
   _freeTyVars,
@@ -29,10 +32,28 @@ import Data.Generics.Uniplate.Data (universe)
 import qualified Data.Map.Strict as M
 import qualified Data.Set as S
 import Data.Set.Optics (setOf)
-import Optics (Fold, Traversal, getting, hasn't, set, summing, to, traversalVL, traverseOf, (%), _2, _Left, _Right)
+import Optics (
+  Fold,
+  Traversal,
+  Traversal',
+  adjoin,
+  foldlOf',
+  getting,
+  hasn't,
+  set,
+  summing,
+  to,
+  traversalVL,
+  traverseOf,
+  (%),
+  _2,
+  _Left,
+  _Right,
+ )
 import Primer.Core (
   ASTDef (..),
   CaseBranch' (..),
+  Def (..),
   Expr,
   Expr' (..),
   HasID (_id),
@@ -40,6 +61,7 @@ import Primer.Core (
   Kind (KHole),
   LVarName,
   LocalName (LocalName, unLocalName),
+  PrimDef (..),
   TmVarRef (LocalVarRef),
   TyVarName,
   Type,
@@ -241,6 +263,26 @@ concreteTy ty = hasn't (getting _freeVarsTy) ty && noHoles ty
 -- next valid 'ID'. Note that this AST isn't guaranteed to typecheck;
 -- it is simply syntactically correct.
 mkASTDef :: S Type -> S Expr -> (ASTDef, ID)
-mkASTDef t e = (ASTDef expr typ, nextID)
+mkASTDef t e = (ASTDef expr typ, id_)
   where
-    ((expr, typ), nextID) = create $ (,) <$> e <*> t
+    ((expr, typ), id_) = create $ (,) <$> e <*> t
+
+-- | Traverse the 'ID's in an 'Expr''.
+exprIDs :: (HasID a, HasID b) => Traversal' (Expr' a b) ID
+exprIDs = (_exprMeta % _id) `adjoin` (_exprTypeMeta % _id)
+
+-- | Traverse the 'ID's in a 'Type''.
+typeIDs :: HasID a => Traversal' (Type' a) ID
+typeIDs = _typeMeta % _id
+
+-- | Given a 'Def', return its next 'ID'.
+--
+-- Note: do not rely on the implementation of this function, as it may
+-- change in the future.
+nextID :: Def -> ID
+nextID (DefAST (ASTDef e t)) =
+  let eid = foldlOf' exprIDs max minBound e
+      tid = foldlOf' typeIDs max minBound t
+   in succ $ max eid tid
+nextID (DefPrim (PrimDef t)) = succ $ foldlOf' typeIDs max minBound t
+{-# INLINE nextID #-}
