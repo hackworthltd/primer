@@ -29,6 +29,7 @@ module Primer.App (
   newProg',
   progAllModules,
   tcWholeProg,
+  nextProgID,
   ProgAction (..),
   ProgError (..),
   Question (..),
@@ -151,6 +152,7 @@ import Primer.Module (
   insertDef,
   moduleDefsQualified,
   moduleTypesQualified,
+  nextModuleID,
   qualifyDefName,
   renameModule,
   renameModule',
@@ -1509,3 +1511,11 @@ allConNames =
       % #astTypeDefConstructors
       % traversed
       % #valConName
+
+-- | Given a 'Prog', return the next 'ID' that's safe to use when
+-- editing it.
+--
+-- Note: do not rely on the implementation of this function, as it may
+-- change in the future.
+nextProgID :: Prog -> ID
+nextProgID p = foldl' (\id_ m -> max (nextModuleID m) id_) minBound (progModules p)
