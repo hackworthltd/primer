@@ -136,27 +136,24 @@ traverseFreeVarsTy = go
 -- i.e. we don't want to need a fresh name supply
 -- We assume both inputs are both from the same context
 alphaEqTy :: Type' () -> Type' () -> Bool
-alphaEqTy = go mempty mempty
+alphaEqTy = go (0, mempty, mempty)
   where
-    go _ _ (TEmptyHole _) (TEmptyHole _) = True
-    go p q (THole _ s) (THole _ t) = go p q s t
-    go _ _ (TCon _ n) (TCon _ m) = n == m
-    go p q (TFun _ a b) (TFun _ c d) = go p q a c && go p q b d
-    go p q (TVar _ n) (TVar _ m) = p ! n == q ! m
-    go p q (TApp _ a b) (TApp _ c d) = go p q a c && go p q b d
-    go p q (TForall _ n k s) (TForall _ m l t) = k == l && go (new p n) (new q m) s t
-    go _ _ _ _ = False
+    go _ (TEmptyHole _) (TEmptyHole _) = True
+    go bs (THole _ s) (THole _ t) = go bs s t
+    go _ (TCon _ n) (TCon _ m) = n == m
+    go bs (TFun _ a b) (TFun _ c d) = go bs a c && go bs b d
+    go (_, p, q) (TVar _ n) (TVar _ m) = p ! n == q ! m
+    go bs (TApp _ a b) (TApp _ c d) = go bs a c && go bs b d
+    go bs (TForall _ n k s) (TForall _ m l t) = k == l && go (new bs n m) s t
+    go _ _ _ = False
     p ! n = case p M.!? n of
       Nothing -> Left n -- free vars: compare by name
       Just i -> Right i -- bound vars: up to alpha
-      -- Note that the maps 'p' and 'q' in 'go' are always the same size, and map
-      -- names to "which forall they came from", in some sense.
-      -- We just require 'new p n' and 'new q m' to associate "the same" value to
-      -- the new key.
-      -- Instead of threading a "how many binders seen" parameter, we use this
-      -- trick: values are an initial segment of the natural numbers, so the next
-      -- value to use is just the size of the map
-    new p n = M.insert n (M.size p) p
+      -- Note that the maps 'p' and 'q' map names to "which forall
+      -- they came from", in some sense.  The @c@ value is how many
+      -- binders we have gone under, and is thus the next value free
+      -- in the map.
+    new (c, p, q) n m = (c + 1 :: Int, M.insert n c p, M.insert m c q)
 
 -- Both term and type vars, but not constructors or global variables.
 -- This is because constructor names and global variables are never
