@@ -150,7 +150,7 @@ type CaseBindZ = CaseBindZ' ExprMeta TypeMeta
 -- Apply an update function to the focus of a case binding, optionally modifying the rhs of the branch too.
 -- The update function is given three arguments:
 -- - the focused binding
--- - a list of all other bindings in the branch
+-- - a list of all other bindings in the branch (not including the focused one)
 -- - the rhs of the branch
 -- It returns a tuple of the updated binding and the updated rhs.
 -- This is very specialised to be useful when renaming case branch bindings.

@@ -25,7 +25,7 @@ import Foreword hiding (mod)
 import Control.Monad.Fresh (MonadFresh)
 import Data.Aeson (Value)
 import Data.Generics.Product (typed)
-import Data.List (delete, findIndex)
+import Data.List (findIndex)
 import qualified Data.Map.Strict as Map
 import qualified Data.Text as T
 import Optics (set, (%), (?~))
@@ -357,6 +357,7 @@ data ActionError
     -- λx.λy.x  occurance gets captured by the inner binder
     -- λx.λy.y  this would be ok, but we are paranoid and bail out
     NameCapture
+  | CaseBindsClash LVarName [LVarName]
   | -- TODO: semantic errors.
     -- https://github.com/hackworthltd/primer/issues/8
     SaturatedApplicationError (Either Text TypeError)
@@ -1005,27 +1006,17 @@ renameLet y ze = case target ze of
     rename' fromName toName e = maybe (throwError NameCapture) pure $ renameTyVarExpr fromName toName e
 
 renameCaseBinding :: forall m. ActionM m => Text -> CaseBindZ -> m CaseBindZ
-renameCaseBinding y caseBind = updateCaseBind caseBind $ \bind bindings rhs -> do
-  let failure :: Text -> m a
-      failure = throwError . CustomFailure (RenameCaseBinding y)
+renameCaseBinding y caseBind = updateCaseBind caseBind $ \bind otherBindings rhs -> do
   let y' = unsafeMkLocalName y
 
   -- Check that 'y' doesn't clash with any of the other branch bindings
-  let otherBindings = delete bind bindings
-  when (y' `elem` map bindName otherBindings) $
-    failure $
-      "can't rename this binding to "
-        <> y
-        <> " because it clashes with another binding in the case pattern"
+  let otherBindingNames = bindName <$> otherBindings
+  when (y' `elem` otherBindingNames) $ throwError $ CaseBindsClash y' otherBindingNames
 
   -- Apply the rename to the rhs
   rhs' <- case renameLocalVar (bindName bind) y' rhs of
     Just e -> pure e
-    Nothing ->
-      failure $
-        "cannot rename this binding to "
-          <> y
-          <> " because it clashes with another variable bound in the right hand side of the case branch"
+    Nothing -> throwError NameCapture
 
   -- Rename the binding
   let bind' = set (typed @LVarName) y' bind

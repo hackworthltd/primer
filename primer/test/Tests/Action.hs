@@ -15,7 +15,7 @@ import Hedgehog hiding (
  )
 import Primer.Action (
   Action (..),
-  ActionError (RefineError),
+  ActionError (CaseBindsClash, RefineError),
   Movement (..),
   applyActionsToExpr,
  )
@@ -799,6 +799,60 @@ unit_case_change_smart_scrutinee_type =
         )
         (tcon tNat)
     )
+
+unit_rename_case_binding :: Assertion
+unit_rename_case_binding =
+  actionTest
+    NoSmartHoles
+    ( case_
+        (emptyHole `ann` (tcon tList `tapp` tcon tBool))
+        [ branch cNil [] emptyHole
+        , branch cCons [("a", Nothing), ("b", Nothing)] emptyHole
+        ]
+        `ann` tcon tNat
+    )
+    [SetCursor 8, RenameCaseBinding "c"]
+    ( case_
+        (emptyHole `ann` (tcon tList `tapp` tcon tBool))
+        [ branch cNil [] emptyHole
+        , branch cCons [("c", Nothing), ("b", Nothing)] emptyHole
+        ]
+        `ann` tcon tNat
+    )
+
+unit_same_rename_case_binding :: Assertion
+unit_same_rename_case_binding =
+  actionTest
+    NoSmartHoles
+    ( case_
+        (emptyHole `ann` (tcon tList `tapp` tcon tBool))
+        [ branch cNil [] emptyHole
+        , branch cCons [("a", Nothing), ("b", Nothing)] emptyHole
+        ]
+        `ann` tcon tNat
+    )
+    [SetCursor 8, RenameCaseBinding "a"]
+    ( case_
+        (emptyHole `ann` (tcon tList `tapp` tcon tBool))
+        [ branch cNil [] emptyHole
+        , branch cCons [("a", Nothing), ("b", Nothing)] emptyHole
+        ]
+        `ann` tcon tNat
+    )
+
+unit_rename_case_bind_clash :: Assertion
+unit_rename_case_bind_clash =
+  actionTestExpectFail
+    (\case CaseBindsClash "b" ["b"] -> True; _ -> False)
+    NoSmartHoles
+    ( case_
+        (emptyHole `ann` (tcon tList `tapp` tcon tBool))
+        [ branch cNil [] emptyHole
+        , branch cCons [("a", Nothing), ("b", Nothing)] emptyHole
+        ]
+        `ann` tcon tNat
+    )
+    [SetCursor 8, RenameCaseBinding "b"]
 
 unit_constructAPP :: Assertion
 unit_constructAPP =
