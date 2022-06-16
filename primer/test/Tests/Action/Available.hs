@@ -24,13 +24,15 @@ import Primer.Core (
 import Primer.Core.DSL (
   create',
  )
+import Primer.Core.Utils (
+  exprIDs,
+ )
 import Primer.Examples (comprehensive)
 import Primer.Name (Name (unName))
 import System.FilePath ((</>))
 import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.Golden (goldenVsString)
 import Test.Tasty.HUnit ()
-import TestUtils (exprIDs)
 import Text.Pretty.Simple (pShowNoColor)
 
 -- | Comprehensive DSL test.

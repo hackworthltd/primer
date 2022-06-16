@@ -95,12 +95,15 @@ test-suite primer-test
     Tests.Action.Prog
     Tests.AlphaEquality
     Tests.API
+    Tests.App
     Tests.Database
     Tests.Eval
     Tests.EvalFull
     Tests.FreeVars
     Tests.Gen.Core.Typed
+    Tests.Module
     Tests.Primitives
+    Tests.Prog
     Tests.Question
     Tests.Refine
     Tests.Serialization
@@ -108,6 +111,7 @@ test-suite primer-test
     Tests.Transform
     Tests.Typecheck
     Tests.Unification
+    Tests.Utils
     Tests.Zipper
     Tests.Zipper.BindersAbove
     TestUtils

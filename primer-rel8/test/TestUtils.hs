@@ -40,11 +40,10 @@ import Hasql.Connection (
 import Hasql.Session (run, statement)
 import Network.Socket.Free (getFreePort)
 import Primer.App (
-  App (..),
-  InitialApp (NewApp),
+  App,
   Prog (..),
-  newEmptyApp,
-  newEmptyProg,
+  defaultProg,
+  mkApp,
  )
 import Primer.Builtins (builtinModule)
 import Primer.Core (
@@ -205,7 +204,7 @@ testApp =
   let modName = mkSimpleModuleName "TestModule"
       ((defName, def), id_) = create $ comprehensive modName
       testProg =
-        newEmptyProg
+        defaultProg
           { progImports = [builtinModule, primitiveModule]
           , progModules =
               [ Module
@@ -215,8 +214,4 @@ testApp =
                   }
               ]
           }
-   in newEmptyApp
-        { appProg = testProg
-        , appInit = NewApp
-        , appIdCounter = fromEnum id_
-        }
+   in mkApp id_ (toEnum 0) testProg

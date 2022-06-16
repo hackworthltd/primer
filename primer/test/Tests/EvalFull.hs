@@ -15,9 +15,9 @@ import Hedgehog.Internal.Property (LabelName (unLabelName))
 import qualified Hedgehog.Range as Range
 import Optics
 import Primer.App (
-  App (appIdCounter),
   EvalFullReq (EvalFullReq, evalFullCxtDir, evalFullMaxSteps, evalFullReqExpr),
   EvalFullResp (EvalFullRespNormal, EvalFullRespTimedOut),
+  appIdCounter,
   handleEvalFullRequest,
   importModules,
   newEmptyApp,
@@ -39,7 +39,11 @@ import Primer.Builtins (
  )
 import Primer.Core
 import Primer.Core.DSL
-import Primer.Core.Utils (forgetIDs, generateIDs)
+import Primer.Core.Utils (
+  exprIDs,
+  forgetIDs,
+  generateIDs,
+ )
 import Primer.EvalFull
 import qualified Primer.Examples as Examples (
   even,
@@ -57,7 +61,7 @@ import Primer.Typecheck (
  )
 import Test.Tasty.HUnit (Assertion, assertBool, assertFailure, (@?=))
 import TestM
-import TestUtils (exprIDs, withPrimDefs, zeroIDs)
+import TestUtils (withPrimDefs, zeroIDs)
 import Tests.Action.Prog (runAppTestM)
 import Tests.Eval ((~=))
 import Tests.Gen.Core.Typed (checkTest)
@@ -1043,7 +1047,7 @@ unit_eval_full_modules =
           EvalFullRespTimedOut _ -> assertFailure "EvalFull timed out"
           EvalFullRespNormal e -> e ~= expect
       a = newEmptyApp
-   in case fst $ runAppTestM (ID $ appIdCounter a) a test of
+   in case fst $ runAppTestM (appIdCounter a) a test of
         Left err -> assertFailure $ show err
         Right assertion -> assertion
 
@@ -1061,7 +1065,7 @@ unit_eval_full_modules_scrutinize_imported_type =
           EvalFullRespTimedOut _ -> assertFailure "EvalFull timed out"
           EvalFullRespNormal e -> e ~= expect
       a = newEmptyApp
-   in case fst $ runAppTestM (ID $ appIdCounter a) a test of
+   in case fst $ runAppTestM (appIdCounter a) a test of
         Left err -> assertFailure $ show err
         Right assertion -> assertion
   where

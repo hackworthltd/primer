@@ -83,8 +83,8 @@ instance MonadFresh ID S where
     put (i + 1)
     pure i
 
--- | Evaluate a DSL expression with a starting ID of 0, producing an 'Expr' and
--- the next available fresh 'ID'. You should only need to use this in tests.
+-- | Evaluate a DSL expression with a starting ID of 0, producing an
+-- @a@ and the next available fresh 'ID'.
 create :: S a -> (a, ID)
 create = flip runState 0 . unS
 

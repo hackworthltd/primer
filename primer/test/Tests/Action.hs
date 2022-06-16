@@ -3,6 +3,7 @@ module Tests.Action where
 
 import Foreword
 
+import Data.Data (Data)
 import Data.Generics.Uniplate.Data (universe)
 import Gen.Core.Raw (
   evalExprGen,
@@ -22,6 +23,7 @@ import Primer.Builtins
 import Primer.Core (
   Expr,
   Expr' (..),
+  HasID,
   ID (..),
   Kind (KType),
   TmVarRef (LocalVarRef),
@@ -41,8 +43,10 @@ import Test.Tasty.HUnit (Assertion, assertFailure, (@?=))
 import TestM (evalTestM)
 import TestUtils (clearMeta, constructCon, constructRefinedCon, constructTCon)
 
--- | The largest used ID in an expression
-maxID :: Expr -> ID
+-- Note: 'maximum' is partial, but we believe that 'maxID' itself is
+-- safe due to the fact that 'universe x' always contains at least
+-- `x`.
+maxID :: (HasID a, Data a) => a -> ID
 maxID = maximum . map getID . universe
 
 hprop_ConstructVar_succeeds_on_hole_when_in_scope :: Property

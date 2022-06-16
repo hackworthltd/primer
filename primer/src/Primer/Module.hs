@@ -8,6 +8,7 @@ module Primer.Module (
   deleteDef,
   renameModule,
   renameModule',
+  nextModuleID,
 ) where
 
 import Data.Data (Data)
@@ -19,12 +20,14 @@ import Primer.Core (
   DefMap,
   GVarName,
   GlobalName (baseName),
+  ID,
   ModuleName,
   TyConName,
   TypeDef,
   TypeDefMap,
   qualifyName,
  )
+import Primer.Core.Utils (nextID)
 import Primer.JSON
 import Primer.Name (Name)
 
@@ -75,3 +78,11 @@ renameModule fromName toName = traverse rn1
 -- detect name clashes, see 'renameModule'
 renameModule' :: Data a => ModuleName -> ModuleName -> a -> a
 renameModule' fromName toName = transformBi (\n -> if n == fromName then toName else n)
+
+-- | Given a 'Module', return the next 'ID' that's safe to use when
+-- editing its definitions.
+--
+-- Note: do not rely on the implementation of this function, as it may
+-- change in the future.
+nextModuleID :: Module -> ID
+nextModuleID m = foldl' (\id_ d -> max (nextID d) id_) minBound (moduleDefs m)

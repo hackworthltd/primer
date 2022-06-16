@@ -22,6 +22,16 @@ module Primer.Examples (
   even,
   odd,
   comprehensive,
+
+  -- * Example modules.
+  mapModule,
+  evenOddModule,
+
+  -- * Toy example programs, plus their next 'ID' and 'NameCounter'.
+  even3Prog,
+  badEven3Prog,
+  badEvenProg,
+  badMapProg,
 ) where
 
 import Foreword hiding (
@@ -31,6 +41,11 @@ import Foreword hiding (
  )
 
 import Control.Monad.Fresh (MonadFresh)
+import qualified Data.Map.Strict as Map
+import Primer.App (
+  Prog (..),
+  defaultProg,
+ )
 import qualified Primer.Builtins as B
 import Primer.Core (
   ASTDef (ASTDef),
@@ -39,6 +54,7 @@ import Primer.Core (
   ID,
   Kind (KType),
   ModuleName (unModuleName),
+  mkSimpleModuleName,
   qualifyName,
  )
 import Primer.Core.DSL (
@@ -48,6 +64,7 @@ import Primer.Core.DSL (
   branch,
   case_,
   con,
+  create,
   emptyHole,
   gvar,
   gvar',
@@ -65,6 +82,12 @@ import Primer.Core.DSL (
   tfun,
   thole,
   tvar,
+ )
+import Primer.Module (
+  Module (..),
+ )
+import Primer.Name (
+  NameCounter,
  )
 
 -- | The polymorphic function @map@ (over @List a@ as defined by
@@ -240,3 +263,129 @@ comprehensive modName = do
           )
       )
   pure (qualifyName modName "comprehensive", DefAST $ ASTDef term type_)
+
+-- | Given a 'ModuleName', return a module with the given name
+-- containing @map@ and @map'@, plus the next 'ID' to be used for
+-- editing the contents of the module.
+mapModule :: ModuleName -> (Module, ID)
+mapModule modName =
+  let (defs, nextID) = create $ do
+        (_, mapDef) <- map modName
+        (_, map'Def) <- map' modName
+        pure [("map", mapDef), ("map'", map'Def)]
+   in ( Module modName mempty $ Map.fromList defs
+      , nextID
+      )
+
+-- | Given a 'ModuleName', return a module with the given name
+-- containing @even@ and @odd@, plus the next 'ID' to be used for
+-- editing the contents of the module.
+evenOddModule :: ModuleName -> (Module, ID)
+evenOddModule modName =
+  let (defs, nextID) = create $ do
+        (_, evenDef) <- even modName
+        (_, oddDef) <- odd modName
+        pure [("even", evenDef), ("odd'", oddDef)]
+   in ( Module modName mempty $ Map.fromList defs
+      , nextID
+      )
+
+-- | A program whose @main@ asks whether 3 is even.
+even3Prog :: (Prog, ID, NameCounter)
+even3Prog =
+  let modName = mkSimpleModuleName "Even3"
+      (defs, nextID) = create $ do
+        (_, evenDef) <- even modName
+        (_, oddDef) <- odd modName
+        even3Def <- do
+          type_ <- tcon B.tBool
+          term <- gvar (qualifyName modName "even") `app` (con B.cSucc `app` (con B.cSucc `app` (con B.cSucc `app` con B.cZero)))
+          pure $ DefAST $ ASTDef term type_
+        let globs = [("even", evenDef), ("odd", oddDef), ("even 3?", even3Def)]
+        pure globs
+   in ( defaultProg
+          { progImports = [B.builtinModule]
+          , progModules =
+              [ Module
+                  { moduleName = modName
+                  , moduleTypes = mempty
+                  , moduleDefs = Map.fromList defs
+                  }
+              ]
+          }
+      , nextID
+      , toEnum 0
+      )
+
+-- | A "bad" version of 'even3Prog' where the type of @even 3?@ is
+-- specified as @Nat@.
+badEven3Prog :: (Prog, ID, NameCounter)
+badEven3Prog =
+  let modName = mkSimpleModuleName "Even3"
+      (defs, nextID) = create $ do
+        (_, evenDef) <- even modName
+        (_, oddDef) <- odd modName
+        even3Def <- do
+          type_ <- tcon B.tNat
+          term <- gvar (qualifyName modName "even") `app` (con B.cSucc `app` (con B.cSucc `app` (con B.cSucc `app` con B.cZero)))
+          pure $ DefAST $ ASTDef term type_
+        let globs = [("even", evenDef), ("odd", oddDef), ("even 3?", even3Def)]
+        pure globs
+   in ( defaultProg
+          { progImports = [B.builtinModule]
+          , progModules =
+              [ Module
+                  { moduleName = modName
+                  , moduleTypes = mempty
+                  , moduleDefs = Map.fromList defs
+                  }
+              ]
+          }
+      , nextID
+      , toEnum 0
+      )
+
+-- | A "bad" program that doesn't typecheck because it includes the
+-- definition of 'even', but doesn't include 'odd' (they are mutually
+-- recursive).
+badEvenProg :: (Prog, ID, NameCounter)
+badEvenProg =
+  let modName = mkSimpleModuleName "BadEven"
+      (defs, nextID) = create $ do
+        (_, evenDef) <- even modName
+        let globs = [("even", evenDef)]
+        pure globs
+   in ( defaultProg
+          { progModules =
+              [ Module
+                  { moduleName = modName
+                  , moduleTypes = mempty
+                  , moduleDefs = Map.fromList defs
+                  }
+              ]
+          }
+      , nextID
+      , toEnum 0
+      )
+
+-- | A "bad" program that doesn't typecheck because it defines 'map'
+-- but doesn't import 'B.builtinModule'.
+badMapProg :: (Prog, ID, NameCounter)
+badMapProg =
+  let modName = mkSimpleModuleName "BadMap"
+      (defs, nextID) = create $ do
+        (_, mapDef) <- map modName
+        let globs = [("map", mapDef)]
+        pure globs
+   in ( defaultProg
+          { progModules =
+              [ Module
+                  { moduleName = modName
+                  , moduleTypes = mempty
+                  , moduleDefs = Map.fromList defs
+                  }
+              ]
+          }
+      , nextID
+      , toEnum 0
+      )

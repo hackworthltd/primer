@@ -58,13 +58,12 @@ import Primer.App (
   EvalFullResp (..),
   EvalReq (..),
   EvalResp (..),
-  InitialApp (..),
   Log (..),
   MutationRequest,
   Prog,
   ProgAction (BodyAction, MoveToDef),
   ProgError (NoDefSelected),
-  newProg,
+  newProg',
  )
 import Primer.Builtins (boolDef)
 import Primer.Core (
@@ -161,7 +160,7 @@ type PrimerOpenAPI =
   "api" :> (
     -- POST /api/sessions
     --   create a new session on the backend, returning its id
-    "sessions" :> ReqBody '[JSON] InitialApp :>
+    "sessions" :>
     Summary "Create a new session" :>
     OpId "createSession" Post '[JSON] SessionId
 
@@ -343,7 +342,7 @@ testEndpoints =
     :<|> mkTest (KFun KType KType)
     :<|> mkTest 0
     :<|> mkTest (Log [[BodyAction [Move Child1]]])
-    :<|> mkTest newProg
+    :<|> mkTest newProg'
     :<|> mkTest (MoveToDef $ qualifyName (mkSimpleModuleName "M") "main")
     :<|> mkTest NoDefSelected
     :<|> mkTest (DefAST $ ASTDef expr ty)

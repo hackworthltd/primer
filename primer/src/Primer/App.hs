@@ -6,20 +6,30 @@
 
 module Primer.App (
   Log (..),
-  App (..),
-  InitialApp (..),
-  initialApp,
-  newProg,
-  newEmptyProg,
+  defaultLog,
+  App,
+  mkApp,
+  mkAppSafe,
+  appProg,
+  appIdCounter,
+  appNameCounter,
+  appInit,
   newApp,
   newEmptyApp,
+  checkAppWellFormed,
   EditAppM,
   QueryAppM,
   runEditAppM,
   runQueryAppM,
   Prog (..),
+  defaultProg,
+  newEmptyProg,
+  newEmptyProg',
+  newProg,
+  newProg',
   progAllModules,
   tcWholeProg,
+  nextProgID,
   ProgAction (..),
   ProgError (..),
   Question (..),
@@ -142,6 +152,7 @@ import Primer.Module (
   insertDef,
   moduleDefsQualified,
   moduleTypesQualified,
+  nextModuleID,
   qualifyDefName,
   renameModule,
   renameModule',
@@ -205,6 +216,11 @@ data Prog = Prog
   deriving (Eq, Show, Generic)
   deriving (FromJSON, ToJSON) via VJSON Prog
 
+-- | The default 'Prog'. It has no imports, no definitions, no current
+-- 'Selection', and an empty 'Log'. Smart holes are enabled.
+defaultProg :: Prog
+defaultProg = Prog mempty mempty Nothing SmartHoles defaultLog
+
 progAllModules :: Prog -> [Module]
 progAllModules p = progModules p <> progImports p
 
@@ -218,6 +234,75 @@ progAllModules p = progModules p <> progImports p
 -- All modules in a @Prog@ shall be well-typed, in the appropriate scope:
 -- all the imports are in one mutual dependency group
 -- the @progModule@ has all the imports in scope
+
+-- | A triple of 'Prog', 'ID', and 'NameCounter'.
+--
+-- The 'Prog' is a program with no imports and an editable module
+-- named @Main@. The editable module contains a single top-level
+-- definition named @main@ whose type and term are both empty holes.
+--
+-- The 'ID' is the next available 'ID' in module @Main@.
+--
+-- The 'NameCounter' is a safe value for seeding an 'App''s name
+-- counter when using 'newEmptyProg' as the app's program.
+newEmptyProg :: (Prog, ID, NameCounter)
+newEmptyProg =
+  let (defs, nextID) = create $ do
+        mainExpr <- emptyHole
+        mainType <- tEmptyHole
+        let astDefs =
+              Map.singleton
+                "main"
+                ( ASTDef
+                    { astDefExpr = mainExpr
+                    , astDefType = mainType
+                    }
+                )
+        pure $ fmap DefAST astDefs
+   in ( defaultProg
+          { progModules =
+              [ Module
+                  { moduleName = mkSimpleModuleName "Main"
+                  , moduleTypes = mempty
+                  , moduleDefs = defs
+                  }
+              ]
+          }
+      , nextID
+      , toEnum 0
+      )
+
+-- | Like 'newEmptyProg', but drop the 'ID' and 'NameCounter'.
+--
+-- This value should probably only be used for testing.
+newEmptyProg' :: Prog
+newEmptyProg' = let (p, _, _) = newEmptyProg in p
+
+-- | A triple of 'Prog' and 'ID'.
+--
+-- The 'Prog' is identical to the one returned by 'newEmptyProg',
+-- except that its import list includes all builtin and primitive
+-- modules defined by Primer.
+--
+-- The 'ID' is the next available 'ID' in module @Main@.
+--
+-- The 'NameCounter' is a safe value for seeding an 'App''s name
+-- counter when using 'newProg' as the app's program.
+newProg :: (Prog, ID, NameCounter)
+newProg =
+  let (p, nextID, nc) = newEmptyProg
+   in ( p
+          { progImports = [builtinModule, primitiveModule]
+          }
+      , nextID
+      , nc
+      )
+
+-- | Like 'newProg', but drop the 'ID' and 'NameCounter'.
+--
+-- This value should probably only be used for testing.
+newProg' :: Prog
+newProg' = let (p, _, _) = newProg in p
 
 -- | Imports some explicitly-given modules, ensuring that they are well-typed
 -- (and all their dependencies are already imported)
@@ -239,7 +324,7 @@ importModules ms = do
       checkEverything NoSmartHoles $
         CheckEverything{trusted = progImports p, toCheck = ms}
   let p' = p & #progImports %~ (<> checkedImports)
-  modify (\a -> a{appProg = p'})
+  modify (\a -> a & #currentState % #prog .~ p')
 
 -- | Get all type definitions from all modules (including imports)
 allTypes :: Prog -> TypeDefMap
@@ -257,6 +342,10 @@ allDefs p = foldMap moduleDefsQualified $ progAllModules p
 newtype Log = Log {unlog :: [[ProgAction]]}
   deriving (Eq, Show, Generic)
   deriving (FromJSON, ToJSON) via VJSON Log
+
+-- | The default (empty) 'Log'.
+defaultLog :: Log
+defaultLog = Log mempty
 
 -- | Describes what interface element the user has selected.
 -- A definition in the left hand nav bar, and possibly a node in that definition.
@@ -283,12 +372,8 @@ data NodeType = BodyNode | SigNode
   deriving (ToJSON, FromJSON) via VJSON NodeType
 
 -- | The type of requests which can mutate the application state.
---
--- Note that `Reset` is not undo-able, as it wipes the log along with
--- all other program state, IDs, etc.
 data MutationRequest
   = Undo
-  | Reset
   | Edit [ProgAction]
   deriving (Eq, Show, Generic)
   deriving (FromJSON, ToJSON) via VJSON MutationRequest
@@ -415,7 +500,6 @@ handleMutationRequest :: MonadEditApp m => MutationRequest -> m Prog
 handleMutationRequest = \case
   Edit as -> handleEditRequest as
   Undo -> handleUndoRequest
-  Reset -> handleResetRequest
 
 -- | Handle an edit request
 handleEditRequest :: forall m. MonadEditApp m => [ProgAction] -> m Prog
@@ -423,7 +507,7 @@ handleEditRequest actions = do
   (prog, _) <- gets appProg >>= \p -> foldM go (p, Nothing) actions
   let Log l = progLog prog
   let prog' = prog{progLog = Log (actions : l)}
-  modify (\s -> s{appProg = prog'})
+  modify (\s -> s & #currentState % #prog .~ prog')
   pure prog'
   where
     go :: (Prog, Maybe GVarName) -> ProgAction -> m (Prog, Maybe GVarName)
@@ -540,15 +624,20 @@ applyProgAction prog mdefName = \case
       updateRefsInTypes =
         over
           (traversed % #_TypeDefAST % #astTypeDefConstructors % traversed % #valConArgs % traversed)
-          $ transform $ over (#_TCon % _2) updateName
+          $ transform $
+            over (#_TCon % _2) updateName
       updateDefType =
         over
           #astDefType
-          $ transform $ over (#_TCon % _2) updateName
+          $ transform $
+            over (#_TCon % _2) updateName
       updateDefBody =
         over
           #astDefExpr
-          $ transform $ over typesInExpr $ transform $ over (#_TCon % _2) updateName
+          $ transform $
+            over typesInExpr $
+              transform $
+                over (#_TCon % _2) updateName
       updateName n = if n == old then new else n
   RenameCon type_ old (unsafeMkGlobalName . (fmap unName (unModuleName (qualifiedModule type_)),) -> new) ->
     editModuleSameSelectionCross (qualifiedModule type_) prog $ \(m, ms) -> do
@@ -596,7 +685,8 @@ applyProgAction prog mdefName = \case
               % #valConArgs
               % traversed
           )
-          $ over _freeVarsTy $ \(_, v) -> TVar () $ updateName v
+          $ over _freeVarsTy $
+            \(_, v) -> TVar () $ updateName v
       updateName n = if n == old then new else n
   AddCon type_ index (unsafeMkGlobalName . (fmap unName (unModuleName (qualifiedModule type_)),) -> con) ->
     editModuleSameSelectionCross (qualifiedModule type_) prog $ \(m, ms) -> do
@@ -772,7 +862,8 @@ applyProgAction prog mdefName = \case
               if imported curMods == imported renamedMods
                 then
                   pure $
-                    prog & #progModules .~ editable renamedMods
+                    prog
+                      & #progModules .~ editable renamedMods
                       & #progSelection % _Just %~ renameModule' oldName n
                 else
                   throwError $
@@ -887,7 +978,7 @@ editModuleOfCross mdefName prog f = case mdefName of
 handleUndoRequest :: MonadEditApp m => m Prog
 handleUndoRequest = do
   prog <- gets appProg
-  start <- gets (initialApp . appInit)
+  start <- gets appInit
   case unlog (progLog prog) of
     [] -> pure prog
     (_ : as) -> do
@@ -900,16 +991,6 @@ handleUndoRequest = do
 -- Replay a series of actions, updating the app state with the new program
 replay :: MonadEditApp m => [[ProgAction]] -> m ()
 replay = mapM_ handleEditRequest
-
--- | Reset the entire program state, including any IDs that have been
--- generated.
---
--- This request cannot be undone!
-handleResetRequest :: MonadEditApp m => m Prog
-handleResetRequest = do
-  app <- gets (initialApp . appInit)
-  put app
-  pure $ appProg app
 
 -- | A shorthand for the constraints we need when performing mutation
 -- operations on the application.
@@ -957,31 +1038,17 @@ runQueryAppM (QueryAppM m) appState = case runExcept (runReaderT m appState) of
   Left err -> Left err
   Right res -> Right res
 
--- | We use this type to remember which "new app" was used to
--- initialize the session. We need this so that program resets and
--- undo know which baseline app to start with when performing their
--- corresponding action.
-data InitialApp
-  = NewApp
-  | NewEmptyApp
-  deriving (Eq, Show, Generic)
-  deriving (FromJSON, ToJSON) via VJSON InitialApp
-
--- | Given an 'InitialApp', return the corresponding new app instance.
-initialApp :: InitialApp -> App
-initialApp NewApp = newApp
-initialApp NewEmptyApp = newEmptyApp
-
--- | The global App state
+-- | The student's application's state.
+--
+-- Building an 'App' can be tricky, so we don't export the
+-- constructor. See 'mkApp' and 'mkAppSafe'.
 --
 -- Note that the 'ToJSON' and 'FromJSON' instances for this type are
 -- not used in the frontend, and therefore we can use "Data.Aeson"s
 -- generic instances for them.
 data App = App
-  { appIdCounter :: Int
-  , appNameCounter :: NameCounter
-  , appProg :: Prog
-  , appInit :: InitialApp
+  { currentState :: AppState
+  , initialState :: AppState
   }
   deriving (Eq, Show, Generic)
 
@@ -990,77 +1057,147 @@ instance ToJSON App where
 
 instance FromJSON App
 
--- | An empty initial program.
-newEmptyProg :: Prog
-newEmptyProg =
-  let expr = EmptyHole (Meta 1 Nothing Nothing)
-      ty = TEmptyHole (Meta 2 Nothing Nothing)
-      def = DefAST $ ASTDef expr ty
-   in Prog
-        { progImports = mempty
-        , progModules =
-            [ Module
-                { moduleName = mkSimpleModuleName "Main"
-                , moduleTypes = mempty
-                , moduleDefs = Map.singleton "main" def
-                }
-            ]
-        , progSelection = Nothing
-        , progSmartHoles = SmartHoles
-        , progLog = Log []
-        }
+-- Internal app state. Note that this type is not exported, as we want
+-- to guarantee that the counters are kept in sync with the 'Prog',
+-- and this should only be done via the 'MonadFresh' instances in this
+-- module.
+data AppState = AppState
+  { idCounter :: ID
+  , nameCounter :: NameCounter
+  , prog :: Prog
+  }
+  deriving (Eq, Show, Generic)
+
+instance ToJSON AppState where
+  toEncoding = genericToEncoding defaultOptions
+
+instance FromJSON AppState
+
+-- | Construct an 'App' from an 'ID' and a 'Prog'.
+--
+-- Unless you are building a simple 'App' from a 'Prog' with just one
+-- module and you happen to already have the next valid 'ID' for that
+-- module handy, you should probably use 'mkAppSafe' rather than this
+-- function, as 'mkAppSafe' will always do the right thing for more
+-- complicated 'Prog's and doesn't expose (as many) 'App'
+-- implementation details to the caller. 'mkApp' is chiefly provided
+-- for very simple initial programs and for testing purposes.
+--
+-- The value of the provided 'ID' should be at least one greater than
+-- the largest 'ID' in any of the provided 'Prog''s 'progModules'.
+-- (See 'nextProgID'.) The 'App' uses this initial 'ID' value to
+-- guarantee that newly-created nodes in the program's AST are unique
+-- across all editable modules in the 'Prog'. *Note*: 'mkApp' does not
+-- enforce or otherwise check that this invariant holds! It is the
+-- responsiblity of the caller.
+--
+-- Also N.B: the requirement that the provided 'ID' value should be
+-- greater than the largest 'ID' is an implementation detail, and may
+-- change in the future.
+--
+-- (Strictly speaking, the invariant on the provided 'ID' is
+-- overconstrained, as the rest of our implementation depends only on
+-- 'ID's being unique *per module*, and not across all editable
+-- modules in the 'Prog' as 'App' requires. However, keeping track of
+-- a per-module 'ID' would be much less ergonomic, and in practice
+-- there's no pressure on the range of 'ID' values, so we can afford
+-- to be a bit profligate.)
+--
+-- A valid value for the provided 'NameCounter' will depend on what
+-- names already exist in the provided program, and is rather
+-- implementation-dependent at the moment. In most cases, it should be
+-- safe to use @toEnum 0@ as the initial value. We will make selecting
+-- this value more foolproof, or eliminate it altogether, in the
+-- future. See:
+--
+-- https://github.com/hackworthltd/primer/issues/510
+mkApp :: ID -> NameCounter -> Prog -> App
+mkApp i n p =
+  let s = AppState i n p
+   in App s s
+
+-- | A safe(r) version of 'mkApp'. It will only return an 'App' if the
+-- provided 'Prog' is well-formed per 'checkAppWellFormed'; otherwise,
+-- it returns a 'ProgError'.
+--
+-- Regarding the provided 'NameCounter', see the corresponding
+-- documentation for 'mkApp'.
+mkAppSafe :: NameCounter -> Prog -> Either ProgError App
+mkAppSafe n p =
+  let nextID = nextProgID p
+   in checkAppWellFormed (mkApp nextID n p)
+
+-- | Given an 'App', return the next 'ID' that should be used to
+-- create a new node.
+appIdCounter :: App -> ID
+appIdCounter = idCounter . currentState
+
+-- | Given an 'App', return its 'NameCounter'.
+appNameCounter :: App -> NameCounter
+appNameCounter = nameCounter . currentState
+
+-- | Given an 'App', return its 'Prog'.
+appProg :: App -> Prog
+appProg = prog . currentState
+
+-- | Given an 'App', return its initial state.
+appInit :: App -> App
+appInit a =
+  let s = initialState a
+   in App s s
 
 -- | An initial app whose program is completely empty.
 newEmptyApp :: App
 newEmptyApp =
-  App
-    { appIdCounter = 3
-    , appNameCounter = toEnum 0
-    , appProg = newEmptyProg
-    , appInit = NewEmptyApp
-    }
-
--- | An initial program with some useful typedefs imported.
-newProg :: Prog
-newProg =
-  newEmptyProg
-    { progImports = [builtinModule, primitiveModule]
-    , progModules =
-        [ Module
-            { moduleName = mkSimpleModuleName "Main"
-            , moduleTypes = mempty
-            , moduleDefs = defaultDefs
-            }
-        ]
-    }
-
--- Since IDs should be unique in a module, we record 'defaultDefsNextID'
--- to initialise the 'appIdCounter'
-defaultDefsNextId :: ID
-defaultDefs :: Map Name Def
-(defaultDefs, defaultDefsNextId) =
-  let (defs, nextID) = create $ do
-        mainExpr <- emptyHole
-        mainType <- tEmptyHole
-        let astDefs =
-              Map.singleton
-                "main"
-                ( ASTDef
-                    { astDefExpr = mainExpr
-                    , astDefType = mainType
-                    }
-                )
-        pure $ fmap DefAST astDefs
-   in (defs, nextID)
+  let (p, id_, nc) = newEmptyProg
+   in mkApp id_ nc p
 
 -- | An initial app whose program includes some useful definitions.
 newApp :: App
 newApp =
-  newEmptyApp
-    { appProg = newProg
-    , appInit = NewApp
-    , appIdCounter = fromEnum defaultDefsNextId
-    }
+  let (p, id_, nc) = newProg
+   in mkApp id_ nc p
+
+-- | Ensure the provided 'App' is well-formed.
+--
+-- Currently, "well-formed" means that the 'App''s 'Prog' typechecks,
+-- including both its imported modules and its editable modules. Later
+-- versions of this function may perform additional checks, as well.
+--
+-- In the event that the 'App' is well-formed, then the 'App' that is
+-- returned is identical to the one that was provided, except that the
+-- modules in its 'Prog' are guaranteed to have up-to-date cached type
+-- information.
+--
+-- If the 'App' is not well-formed, then 'checkAppWellFormed' returns
+-- a 'ProgError'.
+checkAppWellFormed :: App -> Either ProgError App
+checkAppWellFormed app =
+  let p = appProg app
+      (result, app') =
+        flip runEditAppM app $
+          liftError (ActionError . TypeError) $ do
+            -- 'checkEverything' returns updated modules, so we might
+            -- as well use the results.
+            imports <- checkEverything NoSmartHoles CheckEverything{trusted = mempty, toCheck = progImports p}
+            modules <- checkEverything NoSmartHoles CheckEverything{trusted = imports, toCheck = progModules p}
+            let checkedProg = p & #progImports .~ imports & #progModules .~ modules
+                -- Ideally, we would do an additional check here to
+                -- ensure that the 'ID' is unique across all modules.
+                id_ = appIdCounter app
+                -- Ideally, we would do an additional check here to
+                -- ensure that the next name generated by the
+                -- 'NameCounter' won't conflict with an existing name.
+                -- However, there are bigger issues with our current
+                -- automatic name generation scheme which make that
+                -- check rather pointless. See:
+                --
+                -- https://github.com/hackworthltd/primer/issues/510
+                nc = appNameCounter app
+             in pure $ mkApp id_ nc checkedProg
+   in case result of
+        Left e -> Left e
+        Right _ -> Right app'
 
 -- | Construct a new, empty expression
 newExpr :: MonadFresh ID m => m Expr
@@ -1077,17 +1214,17 @@ newType = do
 -- | Support for generating fresh IDs
 instance MonadFresh ID EditAppM where
   fresh = do
-    idCounter <- gets appIdCounter
-    modify (\s -> s{appIdCounter = idCounter + 1})
-    pure (ID idCounter)
+    id_ <- gets appIdCounter
+    modify (\s -> s & #currentState % #idCounter .~ id_ + 1)
+    pure id_
 
 -- | Support for generating names. Basically just a counter so we don't
 -- generate the same automatic name twice.
 instance MonadFresh NameCounter EditAppM where
   fresh = do
-    nameCounter <- gets appNameCounter
-    modify (\s -> s{appNameCounter = succ nameCounter})
-    pure nameCounter
+    nc <- gets appNameCounter
+    modify (\s -> s & #currentState % #nameCounter .~ succ nc)
+    pure nc
 
 copyPasteSig :: MonadEdit m => Prog -> (GVarName, ID) -> GVarName -> [Action] -> m Prog
 copyPasteSig p (fromDefName, fromTyId) toDefName setup = do
@@ -1387,3 +1524,11 @@ allConNames =
       % #astTypeDefConstructors
       % traversed
       % #valConName
+
+-- | Given a 'Prog', return the next 'ID' that's safe to use when
+-- editing it.
+--
+-- Note: do not rely on the implementation of this function, as it may
+-- change in the future.
+nextProgID :: Prog -> ID
+nextProgID p = foldl' (\id_ m -> max (nextModuleID m) id_) minBound (progModules p)

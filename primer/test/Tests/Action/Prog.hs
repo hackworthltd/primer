@@ -26,7 +26,7 @@ import Primer.Action (
   Movement (Branch, Child1, Child2, Parent),
  )
 import Primer.App (
-  App (..),
+  App,
   Log (..),
   NodeSelection (..),
   NodeType (..),
@@ -35,14 +35,19 @@ import Primer.App (
   ProgError (..),
   Question (GenerateName, VariablesInScope),
   Selection (..),
+  appIdCounter,
+  appNameCounter,
+  appProg,
   handleEditRequest,
   handleQuestion,
   importModules,
   lookupASTDef,
+  mkApp,
   newApp,
   newEmptyApp,
-  newEmptyProg,
-  newProg,
+  newEmptyProg',
+  newProg',
+  nextProgID,
   progAllModules,
   tcWholeProg,
  )
@@ -70,7 +75,7 @@ import Primer.Core (
   Expr' (..),
   GVarName,
   GlobalName (baseName),
-  ID (ID),
+  ID,
   Kind (KType),
   Meta (..),
   ModuleName (ModuleName, unModuleName),
@@ -120,6 +125,19 @@ import TestUtils (constructCon, constructTCon, zeroIDs, zeroTypeIDs)
 import qualified TestUtils
 import Tests.Typecheck (checkProgWellFormed)
 import Prelude (error)
+
+-- Note: the use of 'appNameCounter' in this helper functions is a
+-- hack, but it is probably safe for these tests, anyway.
+
+mkTestApp :: Prog -> App
+mkTestApp p =
+  let a = newApp
+   in mkApp (nextProgID p) (appNameCounter a) p
+
+mkEmptyTestApp :: Prog -> App
+mkEmptyTestApp p =
+  let a = newEmptyApp
+   in mkApp (nextProgID p) (appNameCounter a) p
 
 unit_empty_actions_only_change_the_log :: Assertion
 unit_empty_actions_only_change_the_log = progActionTest defaultEmptyProg [] $
@@ -286,7 +304,7 @@ unit_create_def_imported_module =
         handleEditRequest [CreateDef builtins $ Just "newDef"]
       a = newEmptyApp
    in do
-        case fst $ runAppTestM (ID $ appIdCounter a) a test of
+        case fst $ runAppTestM (appIdCounter a) a test of
           Left err -> err @?= ModuleReadonly builtins
           Right _ -> assertFailure "Expected CreateDef to complain about module being read-only"
 
@@ -510,14 +528,14 @@ unit_copy_paste_duplicate = do
         let mainDef = ASTDef mainExpr mainType
         blankDef <- ASTDef <$> emptyHole <*> tEmptyHole
         pure
-          ( newProg{progSelection = Nothing}
+          ( newProg'{progSelection = Nothing}
               & #progModules % _head % #moduleDefs .~ Map.fromList [("main", DefAST mainDef), ("blank", DefAST blankDef)]
           , getID mainType
           , getID mainExpr
           , getID (astDefType blankDef)
           , getID (astDefExpr blankDef)
           )
-  let a = newApp{appProg = p}
+  let a = mkTestApp p
       actions = [MoveToDef toDef, CopyPasteSig (fromDef, fromType) [], CopyPasteBody (fromDef, fromExpr) []]
       (result, _) = runAppTestM maxID a $ (,) <$> tcWholeProg p <*> handleEditRequest actions
   case result of
@@ -553,11 +571,11 @@ unit_copy_paste_type_scoping = do
         defInitial <- ASTDef <$> emptyHole <*> skel tEmptyHole
         expected <- ASTDef <$> emptyHole <*> skel (tvar "a" `tfun` tEmptyHole `tfun` tforall "d" KType (tEmptyHole `tfun` tvar "d"))
         pure
-          ( newEmptyProg & #progModules % _head % #moduleDefs .~ Map.fromList [("main", DefAST defInitial)]
+          ( newEmptyProg' & #progModules % _head % #moduleDefs .~ Map.fromList [("main", DefAST defInitial)]
           , getID toCopy
-          , newEmptyProg & #progModules % _head % #moduleDefs .~ Map.fromList [("main", DefAST expected)]
+          , newEmptyProg' & #progModules % _head % #moduleDefs .~ Map.fromList [("main", DefAST expected)]
           )
-  let a = newEmptyApp{appProg = pInitial}
+  let a = mkEmptyTestApp pInitial
       actions = [MoveToDef mainName, CopyPasteSig (mainName, srcID) [Move Child1, Move Child2, Move Child1]]
       (result, _) = runAppTestM maxID a $ (,) <$> tcWholeProg pExpected <*> handleEditRequest actions
   case result of
@@ -577,11 +595,11 @@ unit_raise = do
         defInitial <- ASTDef <$> emptyHole <*> tforall "a" KType (tforall "b" KType $ pure toCopy)
         expected <- ASTDef <$> emptyHole <*> tforall "a" KType (tvar "a")
         pure
-          ( newEmptyProg & #progModules % _head % #moduleDefs .~ Map.fromList [(mainName', DefAST defInitial)]
+          ( newEmptyProg' & #progModules % _head % #moduleDefs .~ Map.fromList [(mainName', DefAST defInitial)]
           , getID toCopy
-          , newEmptyProg & #progModules % _head % #moduleDefs .~ Map.fromList [(mainName', DefAST expected)]
+          , newEmptyProg' & #progModules % _head % #moduleDefs .~ Map.fromList [(mainName', DefAST expected)]
           )
-  let a = newEmptyApp{appProg = pInitial}
+  let a = mkEmptyTestApp pInitial
       actions = [MoveToDef mainName, CopyPasteSig (mainName, srcID) [Move Child1, Delete]]
       (result, _) = runAppTestM maxID a $ (,) <$> tcWholeProg pExpected <*> handleEditRequest actions
   case result of
@@ -618,11 +636,11 @@ unit_copy_paste_expr_1 = do
         defInitial <- ASTDef <$> skel emptyHole <*> pure ty
         expected <- ASTDef <$> skel (pure expectPasted) <*> pure ty
         pure
-          ( newProg & #progModules % _head % #moduleDefs .~ Map.fromList [(mainName', DefAST defInitial)]
+          ( newProg' & #progModules % _head % #moduleDefs .~ Map.fromList [(mainName', DefAST defInitial)]
           , getID toCopy
-          , newProg & #progModules % _head % #moduleDefs .~ Map.fromList [(mainName', DefAST expected)]
+          , newProg' & #progModules % _head % #moduleDefs .~ Map.fromList [(mainName', DefAST expected)]
           )
-  let a = newApp{appProg = pInitial}
+  let a = mkTestApp pInitial
       actions = [MoveToDef mainName, CopyPasteBody (mainName, srcID) [Move Child1, Move Child1, Move (Branch cNil)]]
       (result, _) = runAppTestM maxID a $ (,) <$> tcWholeProg pExpected <*> handleEditRequest actions
   case result of
@@ -643,10 +661,10 @@ unit_copy_paste_ann = do
         mainDef <- ASTDef <$> emptyHole `ann` pure toCopy <*> tEmptyHole
         blankDef <- ASTDef <$> emptyHole `ann` tEmptyHole <*> tEmptyHole
         pure
-          ( newProg{progSelection = Nothing} & #progModules % _head % #moduleDefs .~ Map.fromList [(fromDef', DefAST mainDef), ("blank", DefAST blankDef)]
+          ( newProg'{progSelection = Nothing} & #progModules % _head % #moduleDefs .~ Map.fromList [(fromDef', DefAST mainDef), ("blank", DefAST blankDef)]
           , getID toCopy
           )
-  let a = newApp{appProg = p}
+  let a = mkTestApp p
       actions = [MoveToDef toDef, CopyPasteBody (fromDef, fromAnn) [EnterType]]
   let (result, _) = runAppTestM maxID a $ (,) <$> tcWholeProg p <*> handleEditRequest actions
   case result of
@@ -668,11 +686,11 @@ unit_copy_paste_ann2sig = do
         defInitial <- ASTDef <$> emptyHole `ann` pure toCopy <*> tEmptyHole
         expected <- ASTDef <$> emptyHole `ann` pure toCopy <*> tcon tBool
         pure
-          ( newProg & #progModules % _head % #moduleDefs .~ Map.fromList [("main", DefAST defInitial)]
+          ( newProg' & #progModules % _head % #moduleDefs .~ Map.fromList [("main", DefAST defInitial)]
           , getID toCopy
-          , newProg & #progModules % _head % #moduleDefs .~ Map.fromList [("main", DefAST expected)]
+          , newProg' & #progModules % _head % #moduleDefs .~ Map.fromList [("main", DefAST expected)]
           )
-  let a = newApp{appProg = pInitial}
+  let a = mkTestApp pInitial
       actions = [moveToDef "main", copyPasteSig ("main", srcID) []]
       (result, _) = runAppTestM maxID a $ (,) <$> tcWholeProg pExpected <*> handleEditRequest actions
   case result of
@@ -689,11 +707,11 @@ unit_copy_paste_sig2ann = do
         defInitial <- ASTDef <$> emptyHole <*> pure toCopy
         expected <- ASTDef <$> emptyHole `ann` tcon tBool <*> pure toCopy
         pure
-          ( newProg & #progModules % _head % #moduleDefs .~ Map.fromList [("main", DefAST defInitial)]
+          ( newProg' & #progModules % _head % #moduleDefs .~ Map.fromList [("main", DefAST defInitial)]
           , getID toCopy
-          , newProg & #progModules % _head % #moduleDefs .~ Map.fromList [("main", DefAST expected)]
+          , newProg' & #progModules % _head % #moduleDefs .~ Map.fromList [("main", DefAST expected)]
           )
-  let a = newApp{appProg = pInitial}
+  let a = mkTestApp pInitial
       actions = [moveToDef "main", copyPasteBody ("main", srcID) [ConstructAnn, EnterType]]
       (result, _) = runAppTestM maxID a $ (,) <$> tcWholeProg pExpected <*> handleEditRequest actions
   case result of
@@ -717,7 +735,7 @@ unit_import_vars =
                 any ((== primitiveGVar "Int.+") . fst) vs
           _ -> pure $ assertFailure "Expected one def 'main' from newEmptyApp"
       a = newEmptyApp
-   in case fst $ runAppTestM (ID $ appIdCounter a) a test of
+   in case fst $ runAppTestM (appIdCounter a) a test of
         Left err -> assertFailure $ show err
         Right assertion -> assertion
 
@@ -739,7 +757,7 @@ unit_import_reference =
           (Nothing, _) -> pure $ assertFailure "Could not find the imported toUpper"
           (Just _, _) -> pure $ assertFailure "Expected one def 'main' from newEmptyApp"
       a = newEmptyApp
-   in case fst $ runAppTestM (ID $ appIdCounter a) a test of
+   in case fst $ runAppTestM (appIdCounter a) a test of
         Left err -> assertFailure $ show err
         Right assertion -> assertion
 
@@ -749,7 +767,7 @@ unit_import_twice_1 =
         importModules [builtinModule]
         importModules [builtinModule]
       a = newEmptyApp
-   in case fst $ runAppTestM (ID $ appIdCounter a) a test of
+   in case fst $ runAppTestM (appIdCounter a) a test of
         Left err -> err @?= ActionError (ImportNameClash [moduleName builtinModule])
         Right _ -> assertFailure "Expected importModules to error, since module names clash with prior import"
 
@@ -758,7 +776,7 @@ unit_import_twice_2 =
   let test = do
         importModules [builtinModule, builtinModule]
       a = newEmptyApp
-   in case fst $ runAppTestM (ID $ appIdCounter a) a test of
+   in case fst $ runAppTestM (appIdCounter a) a test of
         Left err -> err @?= ActionError (ImportNameClash [moduleName builtinModule])
         Right _ -> assertFailure "Expected importModules to error, since module names clash within one import"
 
@@ -793,7 +811,7 @@ unit_copy_paste_import =
           (Nothing, _) -> pure $ assertFailure "Could not find the imported 'foo'"
           (Just _, _) -> pure $ assertFailure "Expected one def 'main' from newEmptyApp"
       a = newEmptyApp
-   in case fst $ runAppTestM (ID $ appIdCounter a) a test of
+   in case fst $ runAppTestM (appIdCounter a) a test of
         Left err -> assertFailure $ show err
         Right assertion -> assertion
 
@@ -1198,7 +1216,7 @@ unit_generate_names_import =
             pure $ ns @?= ["p", "q"]
           _ -> pure $ assertFailure "Expected one def 'main' from newEmptyApp"
       a = newEmptyApp
-   in case fst $ runAppTestM (ID $ appIdCounter a) a test of
+   in case fst $ runAppTestM (appIdCounter a) a test of
         Left err -> assertFailure $ show err
         Right assertion -> assertion
 
@@ -1217,7 +1235,7 @@ defaultEmptyProg = do
   let mainDef = ASTDef mainExpr mainType
       otherDef = ASTDef otherExpr otherType
    in pure $
-        newEmptyProg
+        newEmptyProg'
           { progSelection =
               Just $
                 Selection (gvn "main") $
@@ -1316,7 +1334,7 @@ unit_rename_module =
           , RenameModule mainModuleName ["Module2"]
           ]
       a = newEmptyApp
-   in case fst $ runAppTestM (ID $ appIdCounter a) a test of
+   in case fst $ runAppTestM (appIdCounter a) a test of
         Left err -> assertFailure $ show err
         Right p -> do
           fmap (unModuleName . moduleName) (progModules p) @?= [["Module2"]]
@@ -1338,7 +1356,7 @@ unit_rename_module_clash =
       a = newEmptyApp
    in do
         unModuleName (moduleName builtinModule) @?= ["Builtins"]
-        case fst $ runAppTestM (ID $ appIdCounter a) a test of
+        case fst $ runAppTestM (appIdCounter a) a test of
           Left err -> err @?= RenameModuleNameClash
           Right _ -> assertFailure "Expected RenameModule to error, since module names clash with prior import"
 
@@ -1356,7 +1374,7 @@ unit_rename_module_imported =
         handleEditRequest [RenameModule builtins ["NewModule"]]
       a = newEmptyApp
    in do
-        case fst $ runAppTestM (ID $ appIdCounter a) a test of
+        case fst $ runAppTestM (appIdCounter a) a test of
           Left err -> err @?= ModuleReadonly builtins
           Right _ -> assertFailure "Expected RenameModule to complain about module being read-only"
 
@@ -1395,7 +1413,7 @@ unit_cross_module_actions =
               , constructCon cSucc
               , Move Parent
               , Move Child2
-              , ConstructVar (LocalVarRef "a26")
+              , ConstructVar (LocalVarRef "a27")
               ]
           ]
         handleAndTC [RenameDef (qualifyM "foo") "bar"]
@@ -1478,11 +1496,10 @@ unit_cross_module_actions =
             , moduleDefs = Map.singleton "foo" (DefAST def)
             }
       -- We turn off smartholes, as we want to test our actions work without it
-      a =
-        newEmptyApp & #appProg % #progModules %~ (m :)
-          & #appProg % #progSmartHoles .~ NoSmartHoles
+      p = newEmptyProg' & #progModules %~ (m :) & #progSmartHoles .~ NoSmartHoles
+      a = mkEmptyTestApp p
    in do
-        case fst $ runAppTestM (ID $ appIdCounter a) a test of
+        case fst $ runAppTestM (appIdCounter a) a test of
           Left err -> assertFailure $ show err
           Right _ -> pure ()
 
@@ -1508,7 +1525,7 @@ expectError f _ = \case
 progActionTest :: S Prog -> [ProgAction] -> (Prog -> Either ProgError Prog -> Assertion) -> Assertion
 progActionTest inputProg actions testOutput = do
   let (prog, maxID) = create inputProg
-  let a = newEmptyApp{appProg = prog}
+  let a = mkEmptyTestApp prog
   testOutput prog $ fst $ runAppTestM maxID a (handleEditRequest actions)
 
 newtype AppTestM a = AppTestM {unAppTestM :: StateT App (ExceptT ProgError TestM) a}
@@ -1539,9 +1556,9 @@ lookupASTDef' name = defAST <=< lookupDef' name
 
 -- Some helpers to run actions on the "main" module
 mainModuleName :: ModuleName
-mainModuleName = case progModules newEmptyProg of
+mainModuleName = case progModules newEmptyProg' of
   [m] -> moduleName m
-  _ -> error "expected exactly one module in newEmptyProg"
+  _ -> error "expected exactly one module in newEmptyProg'"
 
 mainModuleNameText :: NonEmpty Text
 mainModuleNameText = unName <$> unModuleName mainModuleName
