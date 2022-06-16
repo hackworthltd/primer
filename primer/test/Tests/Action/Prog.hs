@@ -47,6 +47,7 @@ import Primer.App (
   newEmptyApp,
   newEmptyProg',
   newProg',
+  nextProgID,
   progAllModules,
   tcWholeProg,
  )
@@ -125,17 +126,18 @@ import qualified TestUtils
 import Tests.Typecheck (checkProgWellFormed)
 import Prelude (error)
 
--- A couple of temporary hacks while we refactor 'App' creation.
+-- Note: the use of 'appNameCounter' in this helper functions is a
+-- hack, but it is probably safe for these tests, anyway.
 
 mkTestApp :: Prog -> App
 mkTestApp p =
   let a = newApp
-   in mkApp (appIdCounter a) (appNameCounter a) p
+   in mkApp (nextProgID p) (appNameCounter a) p
 
 mkEmptyTestApp :: Prog -> App
 mkEmptyTestApp p =
   let a = newEmptyApp
-   in mkApp (appIdCounter a) (appNameCounter a) p
+   in mkApp (nextProgID p) (appNameCounter a) p
 
 unit_empty_actions_only_change_the_log :: Assertion
 unit_empty_actions_only_change_the_log = progActionTest defaultEmptyProg [] $
@@ -1411,7 +1413,7 @@ unit_cross_module_actions =
               , constructCon cSucc
               , Move Parent
               , Move Child2
-              , ConstructVar (LocalVarRef "a25")
+              , ConstructVar (LocalVarRef "a27")
               ]
           ]
         handleAndTC [RenameDef (qualifyM "foo") "bar"]
