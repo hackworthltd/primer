@@ -3,6 +3,7 @@ module Primer.Name.Fresh (
   mkAvoidForFreshName,
   mkFreshNameTy,
   mkAvoidForFreshNameTy,
+  mkAvoidForFreshNameTypeZ,
   isFresh,
   isFreshTy,
 ) where
@@ -18,7 +19,9 @@ import qualified Primer.Typecheck as TC
 import Primer.Zipper (
   ExprZ,
   TypeZ,
+  TypeZip,
   bindersAbove,
+  bindersAboveTy,
   bindersAboveTypeZ,
   bindersBelow,
   bindersBelowTy,
@@ -59,15 +62,22 @@ isFreshTy v t = v `S.notMember` freeVarsTy t
 mkFreshName :: (MonadFresh NameCounter m, MonadReader TC.Cxt m) => ExprZ -> m (LocalName k)
 mkFreshName e = LocalName <$> (freshName =<< mkAvoidForFreshName e)
 
-mkAvoidForFreshNameTy :: MonadReader TC.Cxt m => TypeZ -> m (S.Set Name)
+mkAvoidForFreshNameTy :: MonadReader TC.Cxt m => TypeZip -> m (S.Set Name)
 mkAvoidForFreshNameTy t = do
+  let moreGlobal = S.map unLocalName $ bindersAboveTy t
+      moreLocal = S.map unLocalName $ bindersBelowTy t
+  globals <- TC.getGlobalBaseNames
+  pure $ S.unions [moreGlobal, moreLocal, globals]
+
+mkAvoidForFreshNameTypeZ :: MonadReader TC.Cxt m => TypeZ -> m (S.Set Name)
+mkAvoidForFreshNameTypeZ t = do
   let moreGlobal = bindersAboveTypeZ t
       moreLocal = S.map unLocalName $ bindersBelowTy $ focusOnlyType t
   globals <- TC.getGlobalBaseNames
   pure $ S.unions [moreGlobal, moreLocal, globals]
 
 mkFreshNameTy :: (MonadFresh NameCounter m, MonadReader TC.Cxt m) => TypeZ -> m Name
-mkFreshNameTy t = freshName =<< mkAvoidForFreshNameTy t
+mkFreshNameTy t = freshName =<< mkAvoidForFreshNameTypeZ t
 
 mkAvoidForFreshName :: MonadReader TC.Cxt m => ExprZ -> m (S.Set Name)
 mkAvoidForFreshName e = do
