@@ -93,6 +93,7 @@ import Primer.Core.Utils (
  )
 import Primer.JSON
 import Primer.Name (Name, unName, unsafeMkName)
+import Primer.Name.Fresh (isFresh, isFreshTy)
 import Primer.Primitives (allPrimDefs)
 import Primer.Zipper (
   ExprZ,
@@ -444,8 +445,6 @@ redexes primDefs = go mempty
     go locals@(letTm, letTy) expr =
       -- A set containing just the ID of this expression
       let self = Set.singleton (expr ^. _id)
-          member = Set.member . unLocalName
-          member' x s = member x $ Set.map unLocalName s
           freeTmVar = elemOf $ getting _freeTmVars % _2
           freeTyVar = elemOf $ getting _freeTyVars % _2
        in case expr of
@@ -455,22 +454,22 @@ redexes primDefs = go mempty
             App _ e1@Lam{} e2 -> self <> go locals e1 <> go locals e2
             -- (λ ... : T) x
             App _ e1@(Ann _ Lam{} _) e2 -> self <> go locals e1 <> go locals e2
-            -- (letrec x : T = t in λ ...) e
+            -- (letrec x : T = t in λ ...) e  ~>  letrec x : T = t in ((λ...) e)
             -- We can reduce an application across a letrec as long as x isn't a free variable in e.
             -- If it was, it would be a different x and we'd cause variable capture if we
             -- substituted e into the λ body.
             App _ e1@(Letrec _ x _ _ Lam{}) e4 ->
-              (self `munless` member x (freeVars e4)) <> go locals e1 <> go locals e4
+              (self `mwhen` isFresh x e4) <> go locals e1 <> go locals e4
             -- Application of a primitive (fully-applied, with all arguments in normal form).
             App{} | Just _ <- tryPrimFun primDefs expr -> self
             -- f x
             App _ e1 e2 -> go locals e1 <> go locals e2
             APP _ e@LAM{} t -> self <> go locals e <> goType letTy t
             APP _ e@(Ann _ LAM{} _) t -> self <> go locals e <> goType letTy t
-            -- (letrec x : T = t in Λ ...) e
+            -- (letrec x : T = t in Λ ...) e  ~>  letrec x : T = t in ((Λ ...) e)
             -- This is the same as the letrec case above, but for Λ
             APP _ e1@(Letrec _ x _ _ LAM{}) e4 ->
-              (self `munless` member' x (freeVarsTy e4)) <> go locals e1 <> goType letTy e4
+              (self `mwhen` isFreshTy x e4) <> go locals e1 <> goType letTy e4
             APP _ e t -> go locals e <> goType letTy t
             Var _ (LocalVarRef x)
               | Map.member x letTm -> self
@@ -484,7 +483,7 @@ redexes primDefs = go mempty
               -- substitute each occurrence individually, since the let would
               -- capture the new 'x' in 'f x'. We first rename to
               -- let y = f x in (y,y)
-              let selfCapture = Set.member (unLocalName x) $ freeVars e1
+              let selfCapture = not $ isFresh x e1
                   locals' =
                     ( if selfCapture then letTm else insertTm x e1 letTm
                     , letTy
@@ -499,7 +498,7 @@ redexes primDefs = go mempty
               -- We need to be careful that the LetType will not capture a
               -- variable occurrence arising from any potential substitution
               -- of itself. See the comment on 'Let' above for an example.
-              let selfCapture = Set.member x $ freeVarsTy t
+              let selfCapture = not $ isFreshTy x t
                   locals' = (removeTmTy x letTm, if selfCapture then letTy else insertTy x t letTy)
                in goType (snd locals) t <> go locals' e <> self `munless` (not selfCapture && freeTyVar x e)
             Lam _ x e -> go (removeTm x letTm, letTy) e
@@ -678,8 +677,8 @@ tryReduceExpr globals locals = \case
             , betaTypes = types
             }
       )
-  -- (letrec x : T = t in λ ...) e
-  before@(App mApp (Letrec mLet x e1 t lam@Lam{}) e2) | notMember x (freeVars e2) -> do
+  -- (letrec x : T = t in λ ...) e  ~> letrec x : T = t in ((λ...) e)
+  before@(App mApp (Letrec mLet x e1 t lam@Lam{}) e2) | isFresh x e2 -> do
     -- We push the application into the letrec, in order to enable it to reduce in a subsequent
     -- step. This does not cause capture, as we have checked that x is not free in e2.
     let expr = annotate (annOf mApp) $ Letrec mLet x e1 t (App mApp lam e2)
@@ -773,8 +772,8 @@ tryReduceExpr globals locals = \case
                 }
           )
       _ -> throwError $ BadBigLambdaAnnotation annotation
-  -- (letrec x : T = t in Λ ...) e
-  before@(APP mApp (Letrec mLet x e1 t lam@LAM{}) e2) | notMember' x (freeVarsTy e2) -> do
+  -- (letrec x : T = t in Λ ...) e  ~>  letrec x : T = t in ((Λ ...) e)
+  before@(APP mApp (Letrec mLet x e1 t lam@LAM{}) e2) | isFreshTy x e2 -> do
     -- We push the application into the letrec, in order to enable it to reduce in a subsequent
     -- step. This does not cause capture, as we have checked that x is not free in e2.
     let expr = annotate (annOf mApp) $ Letrec mLet x e1 t (APP mApp lam e2)
@@ -907,8 +906,6 @@ tryReduceExpr globals locals = \case
             Nothing -> throwError NoMatchingCaseBranch
   _ -> throwError NotRedex
   where
-    notMember = Set.notMember . unLocalName
-    notMember' n = notMember n . Set.map unLocalName
     mkLetRemovalDetail expr body x meta =
       pure
         ( body
@@ -979,6 +976,11 @@ tryReduceType _globals locals = \case
 -- It's like 'Control.Monad.unless' but for Monoids rather than Applicatives.
 munless :: Monoid a => a -> Bool -> a
 munless x b = if b then mempty else x
+
+-- | @x `mwhen` b@ is `x` if `b` is 'True', otherwise it is 'mempty'.
+-- It's like 'Control.Monad.when' but for Monoids rather than Applicatives.
+mwhen :: Monoid a => a -> Bool -> a
+mwhen x b = if b then x else mempty
 
 -- | If this node is a reducible application of a primitive, return the name of the primitive, the arguments, and
 -- (a computation for building) the result.
