@@ -10,6 +10,7 @@ module Primer.Questions (
   ShadowedVarsTy (..), -- only exported for testing
   generateNameExpr,
   generateNameTy,
+  uniquify,
 ) where
 
 import Foreword
@@ -90,7 +91,7 @@ generateNameExpr ::
 -- in a term context (second Either is Left): we could be inserting a LAM.
 -- It doesn't make sense to ask for a term variable in a type context,
 -- but it also doesn't harm to support it.
-generateNameExpr tk z = uniquify <$> getAvoidSet z <*> baseNames tk
+generateNameExpr tk z = uniquifyMany <$> getAvoidSet z <*> baseNames tk
 
 generateNameTy ::
   MonadReader Cxt m =>
@@ -99,7 +100,7 @@ generateNameTy ::
   m [Name]
 -- It doesn't really make sense to ask for a term variable (Left) here, but
 -- it doesn't harm to support it
-generateNameTy tk z = uniquify <$> mkAvoidForFreshNameTy z <*> baseNames tk
+generateNameTy tk z = uniquifyMany <$> mkAvoidForFreshNameTy z <*> baseNames tk
 
 baseNames ::
   MonadReader Cxt m =>
@@ -125,10 +126,16 @@ getAvoidSet = \case
   Left ze -> mkAvoidForFreshName ze
   Right zt -> mkAvoidForFreshNameTypeZ zt
 
+-- | Adds a numeric suffix to a name to be distinct from a given set.
+-- (If the name is already distinct then return it unmodified.)
+uniquify :: Set.Set Name -> Name -> Name
+uniquify avoid = snd . uniquify' avoid
+
+-- A helper for uniquify and uniquifyMany
 -- We do not use Name.freshName as we don't want a global fresh counter
 -- (and we want to control the base name)
-uniquify :: Set.Set Name -> [Name] -> [Name]
-uniquify avoid ns = map snd $ sort $ map go ns
+uniquify' :: Set.Set Name -> Name -> (Integer, Name)
+uniquify' avoid = go
   where
     -- Replace use of `unsafeHead` here. See:
     -- https://github.com/hackworthltd/primer/issues/147
@@ -137,3 +144,8 @@ uniquify avoid ns = map snd $ sort $ map go ns
     f n = \case
       0 -> n
       i -> unsafeMkName $ unName n <> show i
+
+-- | Adds a numeric suffix to each name so they are distinct from the given set.
+-- Returns the thus-constructed names in order of their added suffix.
+uniquifyMany :: Set.Set Name -> [Name] -> [Name]
+uniquifyMany avoid ns = map snd $ sort $ uniquify' avoid <$> ns
