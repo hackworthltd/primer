@@ -4,6 +4,7 @@ import Foreword hiding (unlines)
 
 import Data.Generics.Uniplate.Data (universe)
 import Data.List (span, (\\))
+import qualified Data.List.NonEmpty as NE
 import qualified Data.Map as M
 import qualified Data.Map as Map
 import qualified Data.Set as S
@@ -57,6 +58,7 @@ import Primer.Primitives (primitiveGVar, primitiveModule, tChar, tInt)
 import Primer.Typecheck (
   SmartHoles (NoSmartHoles),
   check,
+  extendGlobalCxt,
   typeDefs,
  )
 import Test.Tasty.HUnit (Assertion, assertBool, assertFailure, (@?=))
@@ -65,7 +67,7 @@ import TestUtils (withPrimDefs, zeroIDs)
 import Tests.Action.Prog (runAppTestM)
 import Tests.Eval ((~=))
 import Tests.Gen.Core.Typed (checkTest)
-import Tests.Typecheck (runTypecheckTestM)
+import Tests.Typecheck (runTypecheckTestM, runTypecheckTestMWithPrims)
 
 unit_1 :: Assertion
 unit_1 =
@@ -473,6 +475,86 @@ unit_type_preservation_case_regression_ty =
    in do
         s1 <~==> Left (TimedOut expected1)
         s2 <~==> Left (TimedOut expected2)
+
+-- Previously EvalFull reducing a BETA expression could result in variable
+-- capture. We would reduce (Λa.t : ∀b.T) S to
+-- let b = S in (let a = S in t) : T
+-- The outer let binding could capture references within S or t.
+unit_type_preservation_BETA_regression :: Assertion
+unit_type_preservation_BETA_regression =
+  let (((exprA, expectedAs), (exprB, expectedBs)), maxID) = create $ do
+        let n = "a145"
+        -- The 'A' sequence previously captured in the type "S" above
+        let eA' b =
+              ( lAM "a" (lam "c" $ emptyHole `ann` tvar "a")
+                  `ann` tforall "b" KType (tcon tNat `tfun` tvar "b")
+              )
+                `aPP` (tvar b `tapp` tcon tBool)
+        eA <- lAM "b" $ eA' "b"
+        -- Do some renaming to set up
+        expectA1 <- lAM "b" $ letType n (tvar "b") $ letType "b" (tvar n) $ eA' "b"
+        -- Resolve the renaming
+        expectA3 <- lAM "b" $ letType n (tvar "b") $ eA' n
+        -- Do the BETA step
+        expectA4 <-
+          lAM "b" $
+            letType n (tvar "b") $
+              letType "b" (tvar n `tapp` tcon tBool) $
+                letType
+                  "a"
+                  (tvar n `tapp` tcon tBool)
+                  (lam "c" $ emptyHole `ann` tvar "a")
+                  `ann` (tcon tNat `tfun` tvar "b")
+        -- Resolve all the letTypes
+        expectA11 <-
+          lAM "b" $
+            lam "c" (emptyHole `ann` (tvar "b" `tapp` tcon tBool))
+              `ann` (tcon tNat `tfun` (tvar "b" `tapp` tcon tBool))
+        -- The 'B' sequence previously captured in the term "t" above
+        let eB' b =
+              ( lAM "a" (gvar foo `aPP` (tvar b `tapp` tcon tBool))
+                  `ann` tforall "b" KType (tcon tNat)
+              )
+                `aPP` tcon tChar
+        eB <- lAM "b" $ eB' "b"
+        -- Do some renaming to set up
+        expectB1 <- lAM "b" $ letType n (tvar "b") $ letType "b" (tvar n) $ eB' "b"
+        -- Resolve the renaming
+        expectB3 <- lAM "b" $ letType n (tvar "b") $ eB' n
+        -- Do the BETA step
+        expectB4 <-
+          lAM "b" $
+            letType n (tvar "b") $
+              letType "b" (tcon tChar) $
+                letType "a" (tcon tChar) (gvar foo `aPP` (tvar n `tapp` tcon tBool))
+                  `ann` tcon tNat
+        -- Resolve all the letTypes (and elide an annotation)
+        expectB9 <- lAM "b" $ gvar foo `aPP` (tvar "b" `tapp` tcon tBool)
+        -- Note that the reduction of eA and eB take slightly
+        -- different paths: we do not remove the annotation in eA
+        -- because it has an occurrence of a type variable and is thus
+        -- not "concrete"
+        pure
+          ( (eA, [(1, expectA1), (3, expectA3), (4, expectA4), (11, expectA11)])
+          , (eB, [(1, expectB1), (3, expectB3), (4, expectB4), (9, expectB9)])
+          )
+      sA n = evalFullTest maxID builtinTypes mempty n Chk exprA
+      sB n = evalFullTest maxID builtinTypes mempty n Chk exprB
+      tyA = TForall () "c" (KFun KType KType) $ TFun () (TCon () tNat) (TApp () (TVar () "c") (TCon () tBool))
+      tyB = TForall () "c" (KFun KType KType) $ TCon () tNat
+      foo = qualifyName (ModuleName ["M"]) "foo"
+      fooTy = TForall () "d" KType $ TCon () tNat
+      tmp ty e = case runTypecheckTestMWithPrims NoSmartHoles $
+        local (extendGlobalCxt [(foo, fooTy)]) $ check ty e of
+        Left err -> assertFailure $ show err
+        Right _ -> pure ()
+   in do
+        tmp tyA exprA
+        for_ expectedAs $ \(n, e) -> sA n <~==> Left (TimedOut e)
+        tmp tyA $ snd $ NE.last expectedAs
+        tmp tyB exprB
+        for_ expectedBs $ \(n, e) -> sB n <~==> Left (TimedOut e)
+        tmp tyB $ snd $ NE.last expectedBs
 
 -- Previously EvalFull reducing a let expression could result in variable
 -- capture. We would reduce 'Λx. let x = _ :: x in x'
@@ -1075,6 +1157,27 @@ unit_eval_full_modules_scrutinize_imported_type =
         , moduleTypes = Map.singleton (baseName tBool) (TypeDefAST boolDef)
         , moduleDefs = mempty
         }
+
+-- Test that evaluation does not duplicate node IDs
+hprop_unique_ids :: Property
+hprop_unique_ids = withTests 1000 $
+  withDiscards 2000 $
+    propertyWT testModules $ do
+      let globs = foldMap moduleDefsQualified testModules
+      tds <- asks typeDefs
+      (dir, t1, _) <- genDirTm
+      let go n t
+            | n == (0 :: Int) = pure ()
+            | otherwise = do
+                t' <- evalFull tds globs 1 dir t
+                case t' of
+                  Left (TimedOut e) -> uniqueIDs e >> go (n - 1) e
+                  Right e -> uniqueIDs e
+      go 20 t1 -- we need some bound since not all terms terminate
+  where
+    uniqueIDs e =
+      let ids = e ^.. exprIDs
+       in ids === ordNub ids
 
 -- * Utilities
 
