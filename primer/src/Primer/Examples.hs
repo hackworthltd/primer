@@ -32,6 +32,9 @@ module Primer.Examples (
   badEven3Prog,
   badEvenProg,
   badMapProg,
+
+  -- * Toy 'App's.
+  even3App,
 ) where
 
 import Foreword hiding (
@@ -43,8 +46,10 @@ import Foreword hiding (
 import Control.Monad.Fresh (MonadFresh)
 import qualified Data.Map.Strict as Map
 import Primer.App (
+  App,
   Prog (..),
   defaultProg,
+  mkApp,
  )
 import qualified Primer.Builtins as B
 import Primer.Core (
@@ -389,3 +394,9 @@ badMapProg =
       , nextID
       , toEnum 0
       )
+
+-- | An 'App' containing 'even3Prog'.
+even3App :: App
+even3App =
+  let (p, id_, nc) = even3Prog
+   in mkApp id_ nc p
