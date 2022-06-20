@@ -56,7 +56,6 @@ module Primer.Core (
   primConName,
   PrimFun (..),
   primFunType,
-  ExprAnyFresh,
   PrimFunError (..),
   ValCon (..),
   valConType,
@@ -539,7 +538,7 @@ primConName = \case
 data PrimFun = PrimFun
   { primFunTypes :: forall m. MonadFresh ID m => m ([Type], Type)
   -- ^ the function's arguments and return type
-  , primFunDef :: [Expr' () ()] -> Either PrimFunError ExprAnyFresh
+  , primFunDef :: [Expr' () ()] -> Either PrimFunError (forall m. MonadFresh ID m => m Expr)
   }
 
 primFunType :: forall m. MonadFresh ID m => PrimFun -> m Type
@@ -550,8 +549,6 @@ primFunType pf = do
     f x y = do
       id <- fresh
       pure $ TFun (Meta id Nothing Nothing) x y
-
-type ExprAnyFresh = forall m. MonadFresh ID m => m Expr
 
 data PrimFunError
   = -- | We have attempted to apply a primitive function to invalid args.
