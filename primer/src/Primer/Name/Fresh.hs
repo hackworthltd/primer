@@ -12,7 +12,7 @@ import Foreword
 
 import Control.Monad.Fresh (MonadFresh)
 import qualified Data.Set as S
-import Primer.Core (Expr, LocalName (LocalName, unLocalName), TyVarName, Type)
+import Primer.Core (Expr, LocalName (LocalName, unLocalName), Type)
 import Primer.Core.Utils (freeVars, freeVarsTy)
 import Primer.Name (Name, NameCounter, freshName)
 import qualified Primer.Typecheck as TC
@@ -37,8 +37,9 @@ import Primer.Zipper (
 isFresh :: LocalName k -> Expr -> Bool
 isFresh v e = unLocalName v `S.notMember` freeVars e
 
-isFreshTy :: TyVarName -> Type -> Bool
-isFreshTy v t = v `S.notMember` freeVarsTy t
+-- Note that term and type local variables share a namespace
+isFreshTy :: LocalName k -> Type -> Bool
+isFreshTy v t = unLocalName v `S.notMember` S.map unLocalName (freeVarsTy t)
 
 -- We make a fresh name that is appropriate for binding here (i.e. wrapping the
 -- target of the zipper).
