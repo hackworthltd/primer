@@ -27,6 +27,7 @@ import Data.Aeson (Value)
 import Data.Generics.Product (typed)
 import Data.List (findIndex)
 import qualified Data.Map.Strict as Map
+import qualified Data.Set as Set
 import qualified Data.Text as T
 import Optics (set, (%), (?~))
 import Primer.Core (
@@ -87,14 +88,14 @@ import Primer.Core.Transform (renameLocalVar, renameTyVar, renameTyVarExpr)
 import Primer.Core.Utils (forgetTypeIDs, generateTypeIDs)
 import Primer.JSON
 import Primer.Module (Module, insertDef)
-import Primer.Name (Name, NameCounter, unName)
+import Primer.Name (Name, NameCounter, unName, unsafeMkName)
 import Primer.Name.Fresh (
   isFresh,
   isFreshTy,
   mkFreshName,
   mkFreshNameTy,
  )
-import Primer.Questions (Question)
+import Primer.Questions (Question, uniquify)
 import Primer.Refine (Inst (InstAPP, InstApp, InstUnconstrainedAPP), refine)
 import Primer.Typecheck (
   CheckEverythingRequest (CheckEverything, toCheck, trusted),
@@ -232,18 +233,13 @@ nameString = "n" <> T.singleton '\x200C' <> "ame"
 -- of the given name already exists in the program, this function will
 -- return the same name it's been given.
 uniquifyDefName :: C.ModuleName -> Text -> DefMap -> Text
-uniquifyDefName m name' defs =
-  if name' `notElem` avoid
-    then name'
-    else
-      let go i = if (name' <> "_" <> show i) `notElem` avoid then name' <> "_" <> show i else go (i + 1)
-       in go (1 :: Int)
+uniquifyDefName m name' defs = unName $ uniquify avoid $ unsafeMkName name'
   where
     f qn
-      | qualifiedModule qn == m = Just (unName $ baseName qn)
-      | otherwise = Nothing
-    avoid :: [Text]
-    avoid = mapMaybe f $ Map.keys defs
+      | qualifiedModule qn == m = Set.singleton $ baseName qn
+      | otherwise = mempty
+    avoid :: Set Name
+    avoid = foldMap f $ Map.keys defs
 
 type QualifiedText = (NonEmpty Text, Text)
 
