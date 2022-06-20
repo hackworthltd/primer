@@ -56,7 +56,6 @@ import Primer.Core (
   DefMap,
   Expr,
   Expr' (..),
-  ExprAnyFresh,
   GVarName,
   HasID (_id),
   ID,
@@ -983,7 +982,7 @@ munless x b = if b then mempty else x
 
 -- | If this node is a reducible application of a primitive, return the name of the primitive, the arguments, and
 -- (a computation for building) the result.
-tryPrimFun :: Map GVarName PrimDef -> Expr -> Maybe (GVarName, [Expr], ExprAnyFresh)
+tryPrimFun :: Map GVarName PrimDef -> Expr -> Maybe (GVarName, [Expr], forall m. MonadFresh ID m => m Expr)
 tryPrimFun primDefs expr
   | -- Since no primitive functions are polymorphic, there is no need to unfoldAPP
     (Var _ (GlobalVarRef name), args) <- bimap stripAnns (map stripAnns) $ unfoldApp expr

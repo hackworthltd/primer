@@ -51,7 +51,6 @@ import Primer.Core (
     Letrec,
     Var
   ),
-  ExprAnyFresh,
   ExprMeta,
   GVarName,
   ID,
@@ -155,7 +154,7 @@ data Redex
     RenameSelfLet LVarName Expr Expr
   | -- As RenameSelfLet, but for LetType. (Note that it is unnecessary for letrec.)
     RenameSelfLetType TyVarName Type Expr
-  | ApplyPrimFun ExprAnyFresh
+  | ApplyPrimFun (forall m. MonadFresh ID m => m Expr)
 
 -- there are only trivial redexes in types.
 -- Note that the let must appear in the surrounding Expr (not in a type itself)
