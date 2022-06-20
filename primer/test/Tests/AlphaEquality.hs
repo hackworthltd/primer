@@ -83,6 +83,11 @@ unit_11 =
     (create_ (tforall "a" KType $ tcon tBool `tfun` (tcon tList `tapp` tvar "a")))
     (create_ (tcon tBool `tfun` tforall "a" KType (tcon tList `tapp` tvar "a")))
 
+unit_repeated_names :: Assertion
+unit_repeated_names =
+  create_ (tforall "b" KType (tforall "foo" KType (tforall "x" KType $ tvar "x")))
+    @?= create_ (tforall "foo" KType (tforall "foo" KType (tforall "x" KType $ tvar "x")))
+
 hprop_refl :: Property
 hprop_refl = property $ do
   t <- forgetTypeIDs <$> forAll (evalExprGen 0 genType)
