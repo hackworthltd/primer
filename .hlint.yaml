@@ -44,3 +44,6 @@
 - group:
     name: monomorphic
     enabled: true
+- group:
+    name: teaching
+    enabled: true
