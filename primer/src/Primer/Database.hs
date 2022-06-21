@@ -70,7 +70,7 @@ type SessionId = UUID
 -- abstract and cannot be constructed directly from 'Text'. See
 -- 'mkSessionName'.
 newtype SessionName = SessionName Text
-  deriving (Generic, Eq, Show, Read)
+  deriving (Generic, Eq, Ord, Show, Read)
   deriving newtype (ToJSON)
 
 -- | Given some 'Text', try to convert it to a 'SessionName'.
