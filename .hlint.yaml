@@ -24,3 +24,6 @@
 - group:
     name: generalise
     enabled: true
+- group:
+    name: generalise-for-conciseness
+    enabled: true

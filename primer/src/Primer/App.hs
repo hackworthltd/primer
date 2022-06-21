@@ -1309,7 +1309,7 @@ getSharedScope l r =
       -- is an actual ancestor (rather than l being a decendent of r)
       inScope =
         rAncestorAndPenultimate <&> \(ra, rp) ->
-          let hereBound = maybe mempty (getBoundHere (target ra) . Just . target) rp -- we have a Just exactly when ra/=r
+          let hereBound = foldMap (getBoundHere (target ra) . Just . target) rp -- we have a Just exactly when ra/=r
            in hereBound <> bindersAbove ra
    in fromMaybe mempty inScope
 
