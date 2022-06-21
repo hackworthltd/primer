@@ -214,7 +214,7 @@ instance HasID a => HasID (BindLoc' a b) where
 focusType :: (Data a, Data b) => ExprZ' a b -> Maybe (TypeZ' a b)
 focusType z = do
   t <- z ^? l
-  pure $ TypeZ (zipper t) $ \t' -> z & l .~ t'
+  pure . TypeZ (zipper t) $ \t' -> z & l .~ t'
   where
     l = _target % typesInExpr
 
@@ -232,7 +232,7 @@ findInCaseBinds i z = do
   allBinds <- preview (branchLens % position @2) z
   let bindLens = branchLens % position @2 % ix bindIx
   let update bind' rhs' = set rhsLens rhs' . set bindLens bind'
-  pure $ InBind $ BindCase $ CaseBindZ z bind rhs (delete bind allBinds) update
+  pure . InBind . BindCase $ CaseBindZ z bind rhs (delete bind allBinds) update
 
 -- | Switch from a 'Type' zipper back to an 'Expr' zipper.
 unfocusType :: TypeZ' a b -> ExprZ' a b
@@ -420,7 +420,7 @@ bindersBelowTy = foldBelow getBoundHereTy
 
 bindersAboveTypeZ :: TypeZ -> S.Set Name
 bindersAboveTypeZ t =
-  let moreGlobal = S.map unLocalName $ bindersAboveTy $ focusOnlyType t
+  let moreGlobal = S.map unLocalName . bindersAboveTy $ focusOnlyType t
       e = unfocusType t
       -- Since nothing both contains a type and binds a variable, we
       -- know moreGlobalHere will be empty, but let's keep it around as future

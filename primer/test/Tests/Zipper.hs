@@ -24,7 +24,7 @@ hprop_focus_unfocus_roundtrip = property $ do
 hprop_focusOn_unfocus_roundtrip :: Property
 hprop_focusOn_unfocus_roundtrip = property $ do
   e <- forAll $ evalExprGen 0 genExpr
-  i <- forAll $ Gen.element $ idsIn e
+  i <- forAll . Gen.element $ idsIn e
   case focusOn i e of
     Just e' -> unfocus e' === e
     _ -> annotateShow i >> failure

@@ -120,7 +120,7 @@ sqitchEventChangeId = do
   (status, output) <- readProcessStdout $ proc "primer-sqitch" ["plan", "--max-count=1", "--format=format:%h", "--no-headers"]
   case status of
     ExitFailure n -> error $ "`primer-sqitch plan` failed with exit code " <> show n
-    _ -> pure $ takeWhile (/= '\n') $ BL.toString output
+    _ -> pure . takeWhile (/= '\n') $ BL.toString output
 
 withDbSetup :: (Connection -> IO ()) -> IO ()
 withDbSetup f = do
@@ -171,7 +171,7 @@ assertException ::
 assertException msg p action = do
   r <- try action
   case r of
-    Right _ -> liftIO $ assertFailure $ msg <> " should have thrown " <> exceptionType <> ", but it succeeded"
+    Right _ -> liftIO . assertFailure $ msg <> " should have thrown " <> exceptionType <> ", but it succeeded"
     Left e -> liftIO $ assertBool (wrongException e) (p e)
   where
     wrongException e = msg <> " threw " <> show e <> ", but we expected " <> exceptionType
@@ -182,19 +182,17 @@ assertException msg p action = do
 -- the type system. This is useful for testing purposes.
 insertSessionRow :: Schema.SessionRow Expr -> Connection -> IO ()
 insertSessionRow row conn =
-  void $
-    flip run conn $
-      statement () $
-        insert
-          Insert
-            { into = Schema.sessionRowSchema
-            , rows =
-                values
-                  [ row
-                  ]
-            , onConflict = Abort
-            , returning = NumberOfRowsAffected
-            }
+  void . flip run conn . statement () $
+    insert
+      Insert
+        { into = Schema.sessionRowSchema
+        , rows =
+            values
+              [ row
+              ]
+        , onConflict = Abort
+        , returning = NumberOfRowsAffected
+        }
 
 -- | An initial test 'App' instance that contains all default type
 -- definitions (including primitive types), all primitive functions,

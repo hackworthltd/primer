@@ -313,16 +313,15 @@ importModules ms = do
   let currentModules = progAllModules p
   let currentNames = moduleName <$> currentModules
   let newNames = moduleName <$> ms
-  unless (disjoint currentNames newNames && not (anySame newNames)) $
-    throwError $
-      ActionError $
-        ImportNameClash $
-          (currentNames `intersect` newNames) <> (newNames \\ ordNub newNames)
+  unless (disjoint currentNames newNames && not (anySame newNames))
+    . throwError
+    . ActionError
+    . ImportNameClash
+    $ (currentNames `intersect` newNames) <> (newNames \\ ordNub newNames)
   -- Imports must be well-typed (and cannot depend on the editable modules)
   checkedImports <-
-    liftError (ActionError . ImportFailed ()) $
-      checkEverything NoSmartHoles $
-        CheckEverything{trusted = progImports p, toCheck = ms}
+    liftError (ActionError . ImportFailed ()) . checkEverything NoSmartHoles $
+      CheckEverything{trusted = progImports p, toCheck = ms}
   let p' = p & #progImports %~ (<> checkedImports)
   modify (\a -> a & #currentState % #prog .~ p')
 
@@ -466,7 +465,7 @@ handleQuestion = \case
       focusNode' defid nodeid <&> \case
         Left zE -> generateNameExpr typeKind zE
         Right zT -> generateNameTy typeKind zT
-    pure $ runReader names $ progCxt prog
+    pure . runReader names $ progCxt prog
   where
     focusNode' defname nodeid = do
       prog <- asks appProg
@@ -474,7 +473,7 @@ handleQuestion = \case
 
 -- This only looks in the editable modules, not in any imports
 focusNode :: MonadError ProgError m => Prog -> GVarName -> ID -> m (Either (Either ExprZ TypeZ) TypeZip)
-focusNode prog = focusNodeDefs $ foldMap moduleDefsQualified $ progModules prog
+focusNode prog = focusNodeDefs . foldMap moduleDefsQualified $ progModules prog
 
 -- This looks in the editable modules and also in any imports
 focusNodeImports :: MonadError ProgError m => Prog -> GVarName -> ID -> m (Either (Either ExprZ TypeZ) TypeZip)
@@ -618,30 +617,30 @@ applyProgAction prog mdefName = \case
           -- To relax this, we'd have to be careful about how it interacts with type-checking of primitive literals.
           maybe (throwError $ TypeDefIsPrim old) pure . typeDefAST
             =<< maybe (throwError $ TypeDefNotFound old) pure (Map.lookup (baseName old) m)
-        when (Map.member nameRaw m) $ throwError $ TypeDefAlreadyExists new
-        when (nameRaw `elem` fmap (unLocalName . fst) (astTypeDefParameters d0)) $ throwError $ TyConParamClash nameRaw
-        pure $ Map.insert nameRaw (TypeDefAST d0) $ Map.delete (baseName old) m
+        when (Map.member nameRaw m) . throwError $ TypeDefAlreadyExists new
+        when (nameRaw `elem` fmap (unLocalName . fst) (astTypeDefParameters d0)) . throwError $ TyConParamClash nameRaw
+        pure . Map.insert nameRaw (TypeDefAST d0) $ Map.delete (baseName old) m
       updateRefsInTypes =
         over
           (traversed % #_TypeDefAST % #astTypeDefConstructors % traversed % #valConArgs % traversed)
-          $ transform $
-            over (#_TCon % _2) updateName
+          . transform
+          $ over (#_TCon % _2) updateName
       updateDefType =
         over
           #astDefType
-          $ transform $
-            over (#_TCon % _2) updateName
+          . transform
+          $ over (#_TCon % _2) updateName
       updateDefBody =
         over
           #astDefExpr
-          $ transform $
-            over typesInExpr $
-              transform $
-                over (#_TCon % _2) updateName
+          . transform
+          . over typesInExpr
+          . transform
+          $ over (#_TCon % _2) updateName
       updateName n = if n == old then new else n
   RenameCon type_ old (unsafeMkGlobalName . (fmap unName (unModuleName (qualifiedModule type_)),) -> new) ->
     editModuleSameSelectionCross (qualifiedModule type_) prog $ \(m, ms) -> do
-      when (new `elem` allConNames prog) $ throwError $ ConAlreadyExists new
+      when (new `elem` allConNames prog) . throwError $ ConAlreadyExists new
       m' <- updateType m
       pure $ over (mapped % #moduleDefs) updateDefs (m' : ms)
     where
@@ -655,10 +654,9 @@ applyProgAction prog mdefName = \case
           )
           type_
       updateDefs =
-        over (traversed % #_DefAST % #astDefExpr) $
-          transform $
-            over (#_Con % _2) updateName
-              . over (#_Case % _3 % traversed % #_CaseBranch % _1) updateName
+        over (traversed % #_DefAST % #astDefExpr) . transform $
+          over (#_Con % _2) updateName
+            . over (#_Case % _3 % traversed % #_CaseBranch % _1) updateName
       updateName n = if n == old then new else n
   RenameTypeParam type_ old (unsafeMkLocalName -> new) ->
     editModuleSameSelection (qualifiedModule type_) prog updateType
@@ -668,10 +666,10 @@ applyProgAction prog mdefName = \case
           (pure . updateConstructors <=< updateParam)
           type_
       updateParam def = do
-        when (new `elem` fmap fst (astTypeDefParameters def)) $ throwError $ ParamAlreadyExists new
+        when (new `elem` fmap fst (astTypeDefParameters def)) . throwError $ ParamAlreadyExists new
         let nameRaw = unLocalName new
-        when (nameRaw == baseName type_) $ throwError $ TyConParamClash nameRaw
-        when (nameRaw `elem` fmap (baseName . valConName) (astTypeDefConstructors def)) $ throwError $ ValConParamClash nameRaw
+        when (nameRaw == baseName type_) . throwError $ TyConParamClash nameRaw
+        when (nameRaw `elem` fmap (baseName . valConName) (astTypeDefConstructors def)) . throwError $ ValConParamClash nameRaw
         def
           & traverseOf
             #astTypeDefParameters
@@ -685,12 +683,12 @@ applyProgAction prog mdefName = \case
               % #valConArgs
               % traversed
           )
-          $ over _freeVarsTy $
-            \(_, v) -> TVar () $ updateName v
+          . over _freeVarsTy
+          $ \(_, v) -> TVar () $ updateName v
       updateName n = if n == old then new else n
   AddCon type_ index (unsafeMkGlobalName . (fmap unName (unModuleName (qualifiedModule type_)),) -> con) ->
     editModuleSameSelectionCross (qualifiedModule type_) prog $ \(m, ms) -> do
-      when (con `elem` allConNames prog) $ throwError $ ConAlreadyExists con
+      when (con `elem` allConNames prog) . throwError $ ConAlreadyExists con
       m' <- updateType m
       traverseOf
         (traversed % #moduleDefs % traversed % #_DefAST % #astDefExpr)
@@ -739,24 +737,23 @@ applyProgAction prog mdefName = \case
           _ ->
             -- NB we can't use `transformM` here because we'd end up seeing incomplete applications before full ones
             descendM updateCons e
-      updateDecons = transformCaseBranches prog type_ $
-        traverse $ \cb@(CaseBranch vc binds e) ->
-          if vc == con
-            then do
-              Bind _ v <- maybe (throwError $ IndexOutOfRange index) pure $ binds !? index
-              CaseBranch vc binds
-                <$>
-                -- TODO a custom traversal could be more efficient - reusing `_freeTmVars` means that we continue in
-                -- to parts of the tree where `v` is shadowed, and thus where the traversal will never have any effect
-                traverseOf
-                  _freeTmVars
-                  ( \(m, v') ->
-                      if v' == v
-                        then Hole <$> DSL.meta <*> pure (Var m $ LocalVarRef v')
-                        else pure (Var m $ LocalVarRef v')
-                  )
-                  e
-            else pure cb
+      updateDecons = transformCaseBranches prog type_ . traverse $ \cb@(CaseBranch vc binds e) ->
+        if vc == con
+          then do
+            Bind _ v <- maybe (throwError $ IndexOutOfRange index) pure $ binds !? index
+            CaseBranch vc binds
+              <$>
+              -- TODO a custom traversal could be more efficient - reusing `_freeTmVars` means that we continue in
+              -- to parts of the tree where `v` is shadowed, and thus where the traversal will never have any effect
+              traverseOf
+                _freeTmVars
+                ( \(m, v') ->
+                    if v' == v
+                      then Hole <$> DSL.meta <*> pure (Var m $ LocalVarRef v')
+                      else pure (Var m $ LocalVarRef v')
+                )
+                e
+          else pure cb
   AddConField type_ con index new ->
     editModuleSameSelectionCross (qualifiedModule type_) prog $ \(m, ms) -> do
       m' <- updateType m
@@ -792,15 +789,14 @@ applyProgAction prog mdefName = \case
           _ ->
             -- NB we can't use `transformM` here because we'd end up seeing incomplete applications before full ones
             descendM updateCons e
-      updateDecons = transformCaseBranches prog type_ $
-        traverse $ \cb@(CaseBranch vc binds e) ->
-          if vc == con
-            then do
-              m' <- DSL.meta
-              newName <- LocalName <$> freshName (freeVars e)
-              binds' <- maybe (throwError $ IndexOutOfRange index) pure $ insertAt index (Bind m' newName) binds
-              pure $ CaseBranch vc binds' e
-            else pure cb
+      updateDecons = transformCaseBranches prog type_ . traverse $ \cb@(CaseBranch vc binds e) ->
+        if vc == con
+          then do
+            m' <- DSL.meta
+            newName <- LocalName <$> freshName (freeVars e)
+            binds' <- maybe (throwError $ IndexOutOfRange index) pure $ insertAt index (Bind m' newName) binds
+            pure $ CaseBranch vc binds' e
+          else pure cb
   BodyAction actions -> editModuleOf mdefName prog $ \m defName def -> do
     let smartHoles = progSmartHoles prog
     res <- applyActionsToBody smartHoles (progAllModules prog) def actions
@@ -811,14 +807,13 @@ applyProgAction prog mdefName = \case
             nodeId = either getID getID meta
         pure
           ( insertDef m defName (DefAST def')
-          , Just $
-              Selection (qualifyDefName m defName) $
-                Just
-                  NodeSelection
-                    { nodeType = BodyNode
-                    , nodeId
-                    , meta
-                    }
+          , Just . Selection (qualifyDefName m defName) $
+              Just
+                NodeSelection
+                  { nodeType = BodyNode
+                  , nodeId
+                  , meta
+                  }
           )
   SigAction actions -> editModuleOfCross mdefName prog $ \ms@(curMod, _) defName def -> do
     let smartHoles = progSmartHoles prog
@@ -831,14 +826,13 @@ applyProgAction prog mdefName = \case
             nodeId = getID meta
          in pure
               ( mod'
-              , Just $
-                  Selection (qualifyDefName curMod defName) $
-                    Just
-                      NodeSelection
-                        { nodeType = SigNode
-                        , nodeId
-                        , meta = Right meta
-                        }
+              , Just . Selection (qualifyDefName curMod defName) $
+                  Just
+                    NodeSelection
+                      { nodeType = SigNode
+                      , nodeId
+                      , meta = Right meta
+                      }
               )
   SetSmartHoles smartHoles ->
     pure $ prog & #progSmartHoles .~ smartHoles
@@ -866,12 +860,13 @@ applyProgAction prog mdefName = \case
                       & #progModules .~ editable renamedMods
                       & #progSelection % _Just %~ renameModule' oldName n
                 else
-                  throwError $
+                  throwError
+                    .
                     -- It should never happen that the action edits an
                     -- imported module, since the oldName should be distinct
                     -- from the name of any import
-                    ActionError $
-                      InternalFailure "RenameModule: imported modules were edited by renaming"
+                    ActionError
+                    $ InternalFailure "RenameModule: imported modules were edited by renaming"
 
 -- Helper for RenameModule action
 data RenameMods a = RM {imported :: [a], editable :: [a]}
@@ -1175,26 +1170,25 @@ checkAppWellFormed :: App -> Either ProgError App
 checkAppWellFormed app =
   let p = appProg app
       (result, app') =
-        flip runEditAppM app $
-          liftError (ActionError . TypeError) $ do
-            -- 'checkEverything' returns updated modules, so we might
-            -- as well use the results.
-            imports <- checkEverything NoSmartHoles CheckEverything{trusted = mempty, toCheck = progImports p}
-            modules <- checkEverything NoSmartHoles CheckEverything{trusted = imports, toCheck = progModules p}
-            let checkedProg = p & #progImports .~ imports & #progModules .~ modules
-                -- Ideally, we would do an additional check here to
-                -- ensure that the 'ID' is unique across all modules.
-                id_ = appIdCounter app
-                -- Ideally, we would do an additional check here to
-                -- ensure that the next name generated by the
-                -- 'NameCounter' won't conflict with an existing name.
-                -- However, there are bigger issues with our current
-                -- automatic name generation scheme which make that
-                -- check rather pointless. See:
-                --
-                -- https://github.com/hackworthltd/primer/issues/510
-                nc = appNameCounter app
-             in pure $ mkApp id_ nc checkedProg
+        flip runEditAppM app . liftError (ActionError . TypeError) $ do
+          -- 'checkEverything' returns updated modules, so we might
+          -- as well use the results.
+          imports <- checkEverything NoSmartHoles CheckEverything{trusted = mempty, toCheck = progImports p}
+          modules <- checkEverything NoSmartHoles CheckEverything{trusted = imports, toCheck = progModules p}
+          let checkedProg = p & #progImports .~ imports & #progModules .~ modules
+              -- Ideally, we would do an additional check here to
+              -- ensure that the 'ID' is unique across all modules.
+              id_ = appIdCounter app
+              -- Ideally, we would do an additional check here to
+              -- ensure that the next name generated by the
+              -- 'NameCounter' won't conflict with an existing name.
+              -- However, there are bigger issues with our current
+              -- automatic name generation scheme which make that
+              -- check rather pointless. See:
+              --
+              -- https://github.com/hackworthltd/primer/issues/510
+              nc = appNameCounter app
+           in pure $ mkApp id_ nc checkedProg
    in case result of
         Left e -> Left e
         Right _ -> Right app'
@@ -1284,7 +1278,7 @@ getSharedScopeTy l r =
       idsL = case l of
         Right l' -> getID l' : foldAbove ((: []) . getID . current) l'
         Left l' -> getID l' : foldAbove ((: []) . getID . current) (focusOnlyType l') <> (getID (unfocusType l') : foldAbove ((: []) . getID . current) l')
-      commonAncestor = getLast $ foldMap (\(il, ir) -> Last $ if il == ir then Just il else Nothing) $ zip (reverse idsL) (reverse idsR)
+      commonAncestor = getLast . foldMap (\(il, ir) -> Last $ if il == ir then Just il else Nothing) $ zip (reverse idsL) (reverse idsR)
       rAncestor = do
         a <- commonAncestor
         flip loopM r $ \r' -> if either getID getID r' == a then pure $ Right r' else Left <$> bimapM up up r'
@@ -1292,7 +1286,7 @@ getSharedScopeTy l r =
       -- is an actual ancestor (rather than l being a decendent of r)
       inScope =
         rAncestor <&> \case
-          Left ra -> mwhen (rID /= getID ra) (Set.map unLocalName $ getBoundHereTy $ target ra) <> bindersAboveTypeZ ra
+          Left ra -> mwhen (rID /= getID ra) (Set.map unLocalName . getBoundHereTy $ target ra) <> bindersAboveTypeZ ra
           Right ra -> Set.map unLocalName $ mwhen (rID /= getID ra) (getBoundHereTy $ target ra) <> bindersAboveTy ra
    in fromMaybe mempty inScope
 
@@ -1301,7 +1295,7 @@ getSharedScope :: ExprZ -> ExprZ -> Set.Set Name
 getSharedScope l r =
   let idsR = getID r : foldAbove ((: []) . getID . current) r
       idsL = getID l : foldAbove ((: []) . getID . current) l
-      commonAncestor = getLast $ foldMap (\(il, ir) -> Last $ if il == ir then Just il else Nothing) $ zip (reverse idsL) (reverse idsR)
+      commonAncestor = getLast . foldMap (\(il, ir) -> Last $ if il == ir then Just il else Nothing) $ zip (reverse idsL) (reverse idsR)
       rAncestorAndPenultimate = do
         a <- commonAncestor
         flip loopM (r, Nothing) $ \(r', p) -> if getID r' == a then pure $ Right (r', p) else Left . (,Just r') <$> up r'
@@ -1349,17 +1343,16 @@ tcWholeProg p =
               Just NodeSelection{nodeType, nodeId} -> do
                 n <- runExceptT $ focusNode p' defName_ nodeId
                 case (nodeType, n) of
-                  (BodyNode, Right (Left x)) -> pure $ Just $ NodeSelection BodyNode nodeId $ bimap (view (position @1) . target) (view _typeMetaLens . target) x
-                  (SigNode, Right (Right x)) -> pure $ Just $ NodeSelection SigNode nodeId $ x ^. _target % _typeMetaLens % re _Right
+                  (BodyNode, Right (Left x)) -> pure . Just . NodeSelection BodyNode nodeId $ bimap (view (position @1) . target) (view _typeMetaLens . target) x
+                  (SigNode, Right (Right x)) -> pure . Just . NodeSelection SigNode nodeId $ x ^. _target % _typeMetaLens % re _Right
                   _ -> pure Nothing -- something's gone wrong: expected a SigNode, but found it in the body, or vv, or just not found it
-            pure $
-              Just $
-                Selection
-                  { selectedDef = defName_
-                  , selectedNode = updatedNode
-                  }
+            pure . Just $
+              Selection
+                { selectedDef = defName_
+                , selectedNode = updatedNode
+                }
         pure $ p'{progSelection = newSel}
-   in liftError ActionError $ runReaderT tc $ progCxt p
+   in liftError ActionError . runReaderT tc $ progCxt p
 
 copyPasteBody :: MonadEdit m => Prog -> (GVarName, ID) -> GVarName -> [Action] -> m Prog
 copyPasteBody p (fromDefName, fromId) toDefName setup = do
@@ -1408,7 +1401,7 @@ copyPasteBody p (fromDefName, fromId) toDefName setup = do
         -- Delete unbound vars. TODO: we may want to let-bind them?
         let tm (m, n) =
               if Set.member (unLocalName n) sharedScope
-                then pure $ Var m $ LocalVarRef n
+                then pure . Var m $ LocalVarRef n
                 else fresh <&> \i -> EmptyHole (Meta i Nothing Nothing)
             ty (m, n) =
               if Set.member (unLocalName n) sharedScope
@@ -1469,7 +1462,7 @@ alterTypeDef ::
   Module ->
   m Module
 alterTypeDef f type_ m = do
-  unless (qualifiedModule type_ == moduleName m) $ throwError $ TypeDefNotFound type_
+  unless (qualifiedModule type_ == moduleName m) . throwError $ TypeDefNotFound type_
   traverseOf
     #moduleTypes
     ( Map.alterF

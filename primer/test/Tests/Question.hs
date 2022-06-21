@@ -90,7 +90,7 @@ hprop_shadow_monoid_types = property $ do
 -- Generates data that could be contained in a ShadowedVarsTy, except
 -- it may have duplicated names
 genSTV' :: Gen [(TyVarName, Kind)]
-genSTV' = evalExprGen 0 $ Gen.list (Range.linear 0 20) $ (,) <$> genTyVarName <*> genKind
+genSTV' = evalExprGen 0 . Gen.list (Range.linear 0 20) $ (,) <$> genTyVarName <*> genKind
 
 genSTV :: Gen ShadowedVarsTy
 genSTV = N . nubBy ((==) `on` fst) <$> genSTV'
@@ -144,7 +144,7 @@ genSTE' =
         Left k -> TyVar (LocalName n, k)
         Right (ty, False) -> TmVar (LocalName n, ty)
         Right (ty, True) -> Global (qualifyName m n, ty)
-   in evalExprGen 0 $ Gen.list (Range.linear 0 20) $ toSTE' <$> genModuleName <*> genName <*> g
+   in evalExprGen 0 . Gen.list (Range.linear 0 20) $ toSTE' <$> genModuleName <*> genName <*> g
   where
     genModuleName = ModuleName <$> Gen.element [["M"], ["M1"]]
 
@@ -219,8 +219,8 @@ unit_variablesInScope_type = do
 
 unit_variablesInScope_shadowed :: Assertion
 unit_variablesInScope_shadowed = do
-  let ty = tforall "a" (KFun KType KType) $ tforall "b" KType $ tcon tNat `tfun` tforall "a" KType (tcon tBool `tfun` (tcon tList `tapp` tvar "b"))
-      expr' = lAM "c" $ lAM "d" $ lam "c" $ lAM "c" $ lam "c" $ con cNil `aPP` tvar "d"
+  let ty = tforall "a" (KFun KType KType) . tforall "b" KType $ tcon tNat `tfun` tforall "a" KType (tcon tBool `tfun` (tcon tList `tapp` tvar "b"))
+      expr' = lAM "c" . lAM "d" . lam "c" . lAM "c" . lam "c" $ con cNil `aPP` tvar "d"
       expr = ann expr' ty
   hasVariablesType ty pure []
   hasVariablesType ty down [("a", KFun KType KType)]
@@ -242,7 +242,7 @@ hasVariables expr path expected = do
   let e = create' expr
   case runTypecheckTestM NoSmartHoles (synth e) of
     Left err -> assertFailure $ show err
-    Right (_, exprT) -> case path $ focus $ exprTtoExpr exprT of
+    Right (_, exprT) -> case path . focus $ exprTtoExpr exprT of
       Just z' -> let (_, locals, _) = variablesInScopeExpr mempty (Left z') in locals @?= expected
       Nothing -> assertFailure ""
 
@@ -252,7 +252,7 @@ hasVariablesTyTm expr path expectedTy expectedTm = do
   let e = create' expr
   case runTypecheckTestM NoSmartHoles (synth e) of
     Left err -> assertFailure $ show err
-    Right (_, exprT) -> case path $ focus $ exprTtoExpr exprT of
+    Right (_, exprT) -> case path . focus $ exprTtoExpr exprT of
       Just z' -> do
         let (tyvars, tmvars, _) = variablesInScopeExpr mempty (Left z')
         tyvars @?= expectedTy
@@ -293,7 +293,7 @@ unit_hasGeneratedNames_2 = do
 -- test uniqueness works correctly wrt branching
 unit_hasGeneratedNames_3 :: Assertion
 unit_hasGeneratedNames_3 = do
-  let expr = lam "x" $ app emptyHole $ lam "y" emptyHole
+  let expr = lam "x" . app emptyHole $ lam "y" emptyHole
   hasGeneratedNamesExpr expr Nothing pure ["z", "x1", "y1"]
   hasGeneratedNamesExpr expr Nothing down ["z", "x1", "y1"]
   hasGeneratedNamesExpr expr Nothing (down >=> down) ["y", "z", "x1"]

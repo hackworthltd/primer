@@ -58,9 +58,7 @@ unify ::
   m (Maybe (M.Map TyVarName Type))
 unify cxt unificationVars s t = do
   result <-
-    runExceptT $
-      flip execStateT mempty $
-        flip runReaderT initEnv $ unU $ unify' s t
+    runExceptT . flip execStateT mempty . flip runReaderT initEnv . unU $ unify' s t
   case result of
     Left _err -> pure Nothing
     Right sb -> do
@@ -75,7 +73,7 @@ unify cxt unificationVars s t = do
             -- this catchall should never happen: sb should only contain
             -- solutions for unification variables, which should be a subset
             -- of the context!
-            _ -> Ap $ throwError $ InternalUnifyVarNotInCxt cxt v
+            _ -> Ap . throwError $ InternalUnifyVarNotInCxt cxt v
       goodKinds <- getAll <$> getAp (M.foldMapWithKey f sb)
       pure $ if goodKinds then Just sb else Nothing
   where

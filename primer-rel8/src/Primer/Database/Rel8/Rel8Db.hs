@@ -198,7 +198,7 @@ instance (MonadThrow m, MonadIO m) => MonadDb (Rel8DbT m) where
       -- 'numSessions' above) should never return the empty list:
       -- https://hackage.haskell.org/package/rel8-1.3.1.0/docs/Rel8.html#v:countRows
       _ -> throwM ListSessionsRel8Error
-    ss :: [(UUID, Text)] <- runStatement ListSessionsError $ select $ paginatedSessionMeta ol
+    ss :: [(UUID, Text)] <- runStatement ListSessionsError . select $ paginatedSessionMeta ol
     pure $ Page{total = n, pageContents = safeMkSession <$> ss}
     where
       -- See comment in 'querySessionId' re: dealing with invalid
@@ -206,9 +206,9 @@ instance (MonadThrow m, MonadIO m) => MonadDb (Rel8DbT m) where
       safeMkSession (s, n) = Session s (safeMkSessionName n)
 
   querySessionId sid = do
-    result <- runStatement (LoadSessionError sid) $ select $ sessionById sid
+    result <- runStatement (LoadSessionError sid) . select $ sessionById sid
     case result of
-      [] -> pure $ Left $ SessionIdNotFound sid
+      [] -> pure . Left $ SessionIdNotFound sid
       (s : _) ->
         -- Note that we have 2 choices here if the session name
         -- returned by the database is not a valid 'SessionName':
@@ -280,7 +280,7 @@ instance Exception Rel8DbException
 runStatement :: (MonadIO m, MonadThrow m, MonadReader Connection m) => (QueryError -> Rel8DbException) -> Statement () a -> m a
 runStatement exc s = do
   conn <- ask
-  result <- liftIO $ flip run conn $ statement () s
+  result <- liftIO . flip run conn $ statement () s
   case result of
     Left e ->
       -- Something went wrong with the database or database

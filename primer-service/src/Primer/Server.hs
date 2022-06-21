@@ -378,11 +378,11 @@ hoistPrimer :: Env -> Server PrimerAPI
 hoistPrimer e = hoistServer primerApi nt primerServer
   where
     nt :: PrimerM IO a -> Handler a
-    nt m = Handler $ ExceptT $ catch (Right <$> runReaderT m e) handler
+    nt m = Handler . ExceptT $ catch (Right <$> runReaderT m e) handler
     -- Catch exceptions from the API and convert them to Servant
     -- errors via 'Either'.
     handler :: PrimerErr -> IO (Either ServerError a)
-    handler (DatabaseErr msg) = pure $ Left $ err500{errBody = (LT.encodeUtf8 . LT.fromStrict) msg}
+    handler (DatabaseErr msg) = pure . Left $ err500{errBody = (LT.encodeUtf8 . LT.fromStrict) msg}
 
 primerServer :: ServerT PrimerAPI (PrimerM IO)
 primerServer = openAPIServer :<|> legacyServer
@@ -417,7 +417,7 @@ server e = pure openAPIInfo :<|> hoistPrimer e
 serve :: Sessions -> TBQueue Database.Op -> Version -> Int -> IO ()
 serve ss q v port = do
   putStrLn $ "Starting server on port " <> show port
-  Warp.runSettings warpSettings $ noCache $ Servant.serve api $ server $ Env ss q v
+  Warp.runSettings warpSettings . noCache . Servant.serve api . server $ Env ss q v
   where
     -- By default Warp will try to bind on either IPv4 or IPv6, whichever is
     -- available.

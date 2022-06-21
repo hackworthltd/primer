@@ -288,9 +288,9 @@ instance (MonadIO m) => MonadDb (NullDbT m) where
   updateSessionName _ _ _ = pure ()
   listSessions ol = do
     ss <- ask
-    kvs <- liftIO $ atomically $ ListT.toList $ StmMap.listT ss
-    pure $ pageList ol $ uncurry Session . second sessionName <$> kvs
-  querySessionId sid = pure $ Left $ SessionIdNotFound sid
+    kvs <- liftIO . atomically . ListT.toList $ StmMap.listT ss
+    pure . pageList ol $ uncurry Session . second sessionName <$> kvs
+  querySessionId sid = pure . Left $ SessionIdNotFound sid
 
 -- | The database service computation.
 --
@@ -301,14 +301,14 @@ serve cfg =
   let q = opQueue cfg
       v = version cfg
    in forever $ do
-        op <- liftIO $ atomically $ readTBQueue q
+        op <- liftIO . atomically $ readTBQueue q
         case op of
           Insert s a n -> insertSession v s a n
           UpdateApp s a -> updateSessionApp v s a
           UpdateName s n -> updateSessionName v s n
           ListSessions ol result -> do
             ss <- listSessions ol
-            liftIO $ atomically $ putTMVar result ss
+            liftIO . atomically $ putTMVar result ss
           -- Note that we split the in-memory session insertion (i.e.,
           -- the 'StmMap.insert') and the signal to the caller (i.e.,
           -- the 'putTMVar') across 2 'atomically' blocks. This is
@@ -317,13 +317,13 @@ serve cfg =
           -- can try their session transaction again.
           LoadSession sid memdb status -> do
             result <- loadSession
-            liftIO $ atomically $ putTMVar status result
+            liftIO . atomically $ putTMVar status result
             where
               loadSession = do
                 queryResult <- querySessionId sid
                 case queryResult of
                   Left (SessionIdNotFound s) ->
-                    pure $ Failure $ "Couldn't load the requested session: no such session ID " <> UUID.toText s
+                    pure . Failure $ "Couldn't load the requested session: no such session ID " <> UUID.toText s
                   Right sd -> do
-                    liftIO $ atomically $ StmMap.insert sd sid memdb
+                    liftIO . atomically $ StmMap.insert sd sid memdb
                     pure Success

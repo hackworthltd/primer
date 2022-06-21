@@ -128,7 +128,7 @@ newtype WT a = WT {unWT :: ReaderT Cxt TestM a}
 
 -- | Run an action and ignore any effect on the fresh name/id state
 isolateWT :: WT a -> WT a
-isolateWT x = WT $ mapReaderT isolateTestM $ unWT x
+isolateWT x = WT . mapReaderT isolateTestM $ unWT x
 
 instance MonadFresh NameCounter (GenT WT) where
   fresh = lift fresh
@@ -186,7 +186,7 @@ genTyVarNameAvoiding ty =
 freshen :: Set (LocalName k') -> Int -> LocalName k -> LocalName k
 freshen fvs i n =
   let suffix = if i > 0 then "_" <> show i else ""
-      m = LocalName $ unsafeMkName $ unName (unLocalName n) <> suffix
+      m = LocalName . unsafeMkName $ unName (unLocalName n) <> suffix
    in if m `elem` fvs
         then freshen fvs (i + 1) n
         else m
@@ -220,18 +220,17 @@ genSyns ty = do
       let hs = fmap pure hsPure <> primCons
       if null hs
         then pure Nothing
-        else pure $
-          Just $ do
-            (he, hT) <- Gen.choice hs
-            cxt <- ask
-            runExceptT (refine cxt ty hT) >>= \case
-              -- This error case indicates a bug. Crash and fail loudly!
-              Left err -> panic $ "Internal refine/unify error: " <> show err
-              Right Nothing -> pure Nothing
-              Right (Just (inst, instTy)) -> do
-                (sb, is) <- genInstApp inst
-                let f e = \case Right tm -> App () e tm; Left ty' -> APP () e ty'
-                Just . (foldl' f he is,) <$> substTys sb instTy
+        else pure . Just $ do
+          (he, hT) <- Gen.choice hs
+          cxt <- ask
+          runExceptT (refine cxt ty hT) >>= \case
+            -- This error case indicates a bug. Crash and fail loudly!
+            Left err -> panic $ "Internal refine/unify error: " <> show err
+            Right Nothing -> pure Nothing
+            Right (Just (inst, instTy)) -> do
+              (sb, is) <- genInstApp inst
+              let f e = \case Right tm -> App () e tm; Left ty' -> APP () e ty'
+              Just . (foldl' f he is,) <$> substTys sb instTy
     genApp = do
       s <- genWTType KType
       (f, fTy) <- genSyns (TFun () s ty)
@@ -242,7 +241,7 @@ genSyns ty = do
     genAPP = justT $ do
       k <- genWTKind
       n <- genTyVarName
-      (s, sTy) <- genSyns $ TForall () n k $ TEmptyHole ()
+      (s, sTy) <- genSyns . TForall () n k $ TEmptyHole ()
       cxt <- ask
       runExceptT (refine cxt ty sTy) >>= \case
         Right (Just ([InstAPP aTy], instTy)) -> pure $ Just (APP () s aTy, instTy)
@@ -314,7 +313,7 @@ genSyn :: GenT WT (ExprG, TypeG)
 genSyn = genSyns (TEmptyHole ())
 
 allCons :: Cxt -> M.Map ValConName (Type' ())
-allCons cxt = M.fromList $ concatMap (uncurry consForTyDef) $ M.assocs $ typeDefs cxt
+allCons cxt = M.fromList . concatMap (uncurry consForTyDef) . M.assocs $ typeDefs cxt
   where
     consForTyDef tc = \case
       TypeDefAST td -> fmap (\vc -> (valConName vc, valConType tc td vc)) (astTypeDefConstructors td)
@@ -404,14 +403,14 @@ genWTType k = do
       goodVars <- filter (consistentKinds k . snd) . M.toList <$> asks localTyVars
       if null goodVars
         then pure Nothing
-        else pure $ Just $ Gen.element $ fmap (TVar () . fst) goodVars
+        else pure . Just . Gen.element $ fmap (TVar () . fst) goodVars
     constr :: WT (Maybe (GenT WT TypeG))
     constr = do
       tds <- asks $ M.assocs . typeDefs
       let goodTCons = filter (consistentKinds k . typeDefKind . snd) tds
       if null goodTCons
         then pure Nothing
-        else pure $ Just $ Gen.element $ fmap (TCon () . fst) goodTCons
+        else pure . Just . Gen.element $ fmap (TCon () . fst) goodTCons
     arrow :: Maybe (GenT WT TypeG)
     arrow =
       if k == KHole || k == KType
@@ -434,9 +433,8 @@ genWTKind = Gen.recursive Gen.choice [pure KType] [KFun <$> genWTKind <*> genWTK
 -- need definitions for the symbols!
 genGlobalCxtExtension :: GenT WT [(GVarName, TypeG)]
 genGlobalCxtExtension =
-  local forgetLocals $
-    Gen.list (Range.linear 1 5) $
-      (,) <$> (qualifyName <$> genModuleName <*> genName) <*> genWTType KType
+  local forgetLocals . Gen.list (Range.linear 1 5) $
+    (,) <$> (qualifyName <$> genModuleName <*> genName) <*> genWTType KType
 
 -- We are careful to not let generated globals depend on whatever
 -- locals may be in the cxt
@@ -462,7 +460,7 @@ genTypeDefGroup = local forgetLocals $ do
               )
           )
           nps
-  let genConArgs params = Gen.list (Range.linear 0 5) $ local (extendLocalCxtTys params . addTypeDefs types) $ genWTType KType -- params+types scope...
+  let genConArgs params = Gen.list (Range.linear 0 5) . local (extendLocalCxtTys params . addTypeDefs types) $ genWTType KType -- params+types scope...
   let freshValConNameForCxt tyConName = qualifyName (qualifiedModule tyConName) <$> freshNameForCxt
   let genCons ty params = Gen.list (Range.linear 0 5) $ ValCon <$> freshValConNameForCxt ty <*> genConArgs params
   let genTD (n, ps) =
@@ -525,7 +523,7 @@ genPrimCon = catMaybes <$> sequence [genChar, genInt]
   where
     genChar = whenInScope PrimChar 'a' Gen.unicode
     intBound = fromIntegral (maxBound :: Word64) -- arbitrary
-    genInt = whenInScope PrimInt 0 $ Gen.integral $ Range.linear (-intBound) intBound
+    genInt = whenInScope PrimInt 0 . Gen.integral $ Range.linear (-intBound) intBound
     -- The 'tst' is arbitrary, only used for checking if the primcon is in scope
     -- and does not affect the generator.
     whenInScope :: (a -> PrimCon) -> a -> mg a -> mc (Maybe (mg (PrimCon, TyConName)))

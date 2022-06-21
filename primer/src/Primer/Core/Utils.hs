@@ -213,7 +213,7 @@ _freeTmVars = traversalVL $ go mempty
       Case m e bs -> Case m <$> go bound f e <*> traverse freeVarsBr bs
       t@PrimCon{} -> pure t
       where
-        freeVarsBr (CaseBranch c binds e) = CaseBranch c binds <$> go (S.union bound $ S.fromList $ fmap bindName binds) f e
+        freeVarsBr (CaseBranch c binds e) = CaseBranch c binds <$> go (S.union bound . S.fromList $ fmap bindName binds) f e
 
 _freeTyVars :: Traversal (Expr' a b) (Expr' a b) (b, TyVarName) (Type' b)
 _freeTyVars = traversalVL $ go mempty

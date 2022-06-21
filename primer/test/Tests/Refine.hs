@@ -58,7 +58,7 @@ defaultCxt :: Cxt
 defaultCxt = buildTypingContextFromModules [builtinModule, primitiveModule] NoSmartHoles
 
 refine' :: (MonadFresh NameCounter m, MonadFresh ID m) => Cxt -> Type -> Type -> m (Maybe ([Inst], Type))
-refine' cxt s t = fmap (either crash identity) $ runExceptT $ refine cxt s t
+refine' cxt s t = fmap (either crash identity) . runExceptT $ refine cxt s t
   where
     -- If we run across a bug whilst testing, crash loudly
     crash = panic . ("InternalUnifyError: " <>) . show
@@ -219,7 +219,7 @@ hprop_con = propertyWTInExtendedLocalGlobalCxt [builtinModule, primitiveModule] 
   vc <- forAllT $ Gen.element cons
   let src = valConType tc td vc
   annotateShow src
-  tgt' <- forAllT $ traverse (genWTType . snd) $ astTypeDefParameters td
+  tgt' <- forAllT . traverse (genWTType . snd) $ astTypeDefParameters td
   let tgt = mkTAppCon tc tgt'
   annotateShow tgt
   cxt <- ask
@@ -234,7 +234,7 @@ hprop_arr_app :: Property
 hprop_arr_app = propertyWTInExtendedLocalGlobalCxt [builtinModule, primitiveModule] $ do
   tgt <- forAllT $ genWTType KType
   when (isHole tgt) discard
-  src' <- forAllT $ Gen.list (Range.linear 0 10) $ Gen.choice [Left <$> genWTType KType, curry Right <$> freshTyVarNameForCxt <*> genWTKind]
+  src' <- forAllT . Gen.list (Range.linear 0 10) $ Gen.choice [Left <$> genWTType KType, curry Right <$> freshTyVarNameForCxt <*> genWTKind]
   let src = foldr (\case Left t -> TFun () t; Right (n, k) -> TForall () n k) tgt src'
   annotateShow src
   let inst = fmap (\case Left t -> InstApp t; Right (n, k) -> InstUnconstrainedAPP n k) src'
@@ -255,23 +255,22 @@ hprop_arr_app = propertyWTInExtendedLocalGlobalCxt [builtinModule, primitiveModu
 
 -- if refine _ T S = Just (I:IS,_) , then refine _ T (S $ I) = Just (IS,_); here "S $ I" means "inspect S, I assert they match and strip off a layer"
 hprop_matches :: Property
-hprop_matches = withDiscards 2000 $
-  propertyWTInExtendedLocalGlobalCxt [builtinModule, primitiveModule] $ do
-    tgt <- forAllT $ genWTType KType
-    src <- forAllT $ genWTType KType
-    cxt <- ask
-    r <- refine' cxt tgt src
-    annotateShow r
-    case r of
-      Just (i : is, _) -> do
-        (cxtExt, s') <- inst1 src i
-        annotateShow s'
-        r' <- refine' (cxtExt cxt) tgt s'
-        annotateShow r'
-        case r' of
-          Just (is', _) -> length is === length is' -- Not being precise here, because namings differ between is and is'
-          _ -> failure
-      _ -> discard
+hprop_matches = withDiscards 2000 . propertyWTInExtendedLocalGlobalCxt [builtinModule, primitiveModule] $ do
+  tgt <- forAllT $ genWTType KType
+  src <- forAllT $ genWTType KType
+  cxt <- ask
+  r <- refine' cxt tgt src
+  annotateShow r
+  case r of
+    Just (i : is, _) -> do
+      (cxtExt, s') <- inst1 src i
+      annotateShow s'
+      r' <- refine' (cxtExt cxt) tgt s'
+      annotateShow r'
+      case r' of
+        Just (is', _) -> length is === length is' -- Not being precise here, because namings differ between is and is'
+        _ -> failure
+    _ -> discard
   where
     inst1 (TFun _ s t) (InstApp s') | s == s' = pure (identity, t)
     inst1 (TForall _ a k t) (InstUnconstrainedAPP b k') | k == k' = (extendLocalCxtTy (b, k),) <$> substTy a (TVar () b) t

@@ -43,7 +43,7 @@ freshName avoid = go
   where
     go = do
       NC n <- fresh
-      let s = Name $ toS $ genAlpha n
+      let s = Name . toS $ genAlpha n
       if s `S.member` avoid
         then go
         else pure s
@@ -58,6 +58,6 @@ freshName avoid = go
 -- https://github.com/hackworthltd/primer/issues/149
 genAlpha :: Natural -> String
 genAlpha n =
-  let c = C.chr $ fromInteger $ toInteger (97 + (n `mod` 26))
+  let c = C.chr . fromInteger $ toInteger (97 + (n `mod` 26))
       m = n `div` 26
    in if m > 0 then c : show m else [c]

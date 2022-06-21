@@ -345,7 +345,7 @@ viewCaseRedex tydefs = \case
           binders = S.fromList $ fmap (unLocalName . bindName) patterns
        in if S.disjoint avoid binders
             then Nothing
-            else Just $ pure $ RenameBindingsCase m expr brs avoid
+            else Just . pure $ RenameBindingsCase m expr brs avoid
     formCaseRedex ty c argTys args patterns br = pure $ do
       argTys' <- sequence argTys
       -- TODO: we are putting trivial metadata in here...
@@ -356,8 +356,8 @@ viewCaseRedex tydefs = \case
 -- This spots all redexs other than InlineLet
 viewRedex :: (MonadFresh ID m, MonadFresh NameCounter m) => TypeDefMap -> DefMap -> Dir -> Expr -> Maybe (m Redex)
 viewRedex tydefs globals dir = \case
-  Var _ (GlobalVarRef x) | Just (DefAST y) <- x `M.lookup` globals -> pure $ pure $ InlineGlobal x y
-  App _ (Ann _ (Lam _ x t) (TFun _ src tgt)) s -> pure $ pure $ Beta x t src tgt s
+  Var _ (GlobalVarRef x) | Just (DefAST y) <- x `M.lookup` globals -> pure . pure $ InlineGlobal x y
+  App _ (Ann _ (Lam _ x t) (TFun _ src tgt)) s -> pure . pure $ Beta x t src tgt s
   e@App{} -> pure . ApplyPrimFun . thd3 <$> tryPrimFun (M.mapMaybe defPrim globals) e
   e@(APP _ (Ann _ (LAM _ a t) (TForall _ b _ ty1)) ty2) ->
     -- We would like to say (Λa.t : ∀b.T) S  ~> (letType a = S in t) : (letType b = S in T)
@@ -372,10 +372,10 @@ viewRedex tydefs globals dir = \case
         -- things means we do not need to do any further renaming
         bvs = bindersBelow (focus t) <> S.map unLocalName (bindersBelowTy $ focus ty2)
      in if a /= b && S.member (unLocalName b) fvs
-          then pure $ pure $ RenameBETA b e (fvs <> bvs)
-          else pure $ pure $ BETA a t b ty1 ty2
+          then pure . pure $ RenameBETA b e (fvs <> bvs)
+          else pure . pure $ BETA a t b ty1 ty2
   e | Just r <- viewCaseRedex tydefs e -> Just r
-  Ann _ t ty | Chk <- dir, concreteTy ty -> pure $ pure $ Upsilon t ty
+  Ann _ t ty | Chk <- dir, concreteTy ty -> pure . pure $ Upsilon t ty
   _ -> Nothing
 
 -- We find the normal-order redex.
@@ -425,8 +425,8 @@ findRedex tydefs globals dir = go . focus
             -- We have something like λx.let x = f x in g x (NB: non-recursive let)
             -- We cannot substitute this let as we would get λx. let x = f x in g (f x)
             -- where a variable has been captured
-            (LLet x e, True) -> pure $ RExpr ez $ RenameSelfLet x e (target bz)
-            (LLetType a ty, True) -> pure $ RExpr ez $ RenameSelfLetType a ty (target bz)
+            (LLet x e, True) -> pure . RExpr ez $ RenameSelfLet x e (target bz)
+            (LLetType a ty, True) -> pure . RExpr ez $ RenameSelfLetType a ty (target bz)
             _ -> goLet l bz
       | Just mr <- viewRedex tydefs globals (focusDir dir ez) (target ez) = Just $ RExpr ez <$> mr
       | otherwise = eachChild ez go
@@ -441,8 +441,8 @@ findRedex tydefs globals dir = go . focus
     goSubst l ez = case target ez of
       -- We've found one
       Var _ (LocalVarRef x) | unLocalName x == localName l -> case l of
-        LLet n le -> pure $ RExpr ez $ InlineLet n le
-        LLetrec n le lt -> pure $ RExpr ez $ InlineLetrec n le lt
+        LLet n le -> pure . RExpr ez $ InlineLet n le
+        LLetrec n le lt -> pure . RExpr ez $ InlineLetrec n le lt
         -- This case should have caught by the TC: a term var is bound by a lettype
         LLetType _ _ -> Nothing
       -- We have found something like
@@ -452,7 +452,7 @@ findRedex tydefs globals dir = go . focus
         | LLetType c (TVar _ b2) <- l
         , b1 == b2
         , S.member (unLocalName c) (freeVars t <> S.map unLocalName (freeVarsTy ty2)) ->
-            pure $ RExpr ez $ BETA a t b1 ty1 ty2
+            pure . RExpr ez $ BETA a t b1 ty1 ty2
       -- We have found something like
       --   let x=y in let y=z in t
       -- to substitute the 'x' inside 't' we would need to rename the 'let y'
@@ -480,7 +480,7 @@ findRedex tydefs globals dir = go . focus
           -- If we are substituting x->y in e.g. λy.x, we rename the y to avoid capture
           -- This may recompute the FV set of l quite a lot. We could be more efficient here!
           | fvs <- setOf _freeVarsLocal l
-          , not $ S.null $ fvs `S.intersection` bs =
+          , not . S.null $ fvs `S.intersection` bs =
               up z <&> \z' -> case target z' of
                 Lam m x e -> RExpr z' $ RenameBindingsLam m x e fvs
                 LAM m x e -> RExpr z' $ RenameBindingsLAM m x e fvs
@@ -492,7 +492,7 @@ findRedex tydefs globals dir = go . focus
     goSubstTy :: TyVarName -> Type -> TypeZ -> Maybe RedexWithContext
     goSubstTy n t tz = case target tz of
       -- found one
-      TVar _ x | x == n -> pure $ RType tz $ InlineLetInType n t
+      TVar _ x | x == n -> pure . RType tz $ InlineLetInType n t
       -- The only binding form is a forall
       -- Don't go under bindings of 'n'
       (TForall i m k s)
@@ -501,7 +501,7 @@ findRedex tydefs globals dir = go . focus
         -- As we don't have 'let's in types, this is a big step
         | fvs <- freeVarsTy t
         , m `S.member` fvs ->
-            pure $ RType tz $ RenameForall i m k s fvs
+            pure . RType tz $ RenameForall i m k s fvs
       _ -> eachChild tz (goSubstTy n t)
 
 -- TODO: deal with metadata. https://github.com/hackworthltd/primer/issues/6
@@ -522,7 +522,7 @@ runRedex = \case
   -- (Λa.t : ∀b.T) S  ~> letType c = b in letType b = c in (Λa.t : ∀b.T) S  for b free in t or S, and fresh c
   RenameBETA b beta avoid -> do
     c <- freshLocalName' avoid
-    letType c (tvar b) $ letType b (tvar c) $ pure beta
+    letType c (tvar b) . letType b (tvar c) $ pure beta
   -- case C as : T of ... ; C xs -> e ; ...   ~>  let xs=as:As in e for constructor C of type T, where args have types As
   -- (and also the non-annotated-constructor case)
   -- Note that when forming the CaseRedex we checked that the variables @xs@ were fresh for @as@ and @As@,
@@ -546,18 +546,18 @@ runRedex = \case
               let f b@(Bind i _) = \case Left _ -> b; Right (_, w) -> Bind i w
               let binds' = zipWith f binds rn
               rhs' <- foldrM (\(v, w) -> let_ v (lvar w) . pure) rhs $ rights rn
-              pure $ Case m s $ brs0 <> (CaseBranch ctor binds' rhs' : brs1)
+              pure . Case m s $ brs0 <> (CaseBranch ctor binds' rhs' : brs1)
     -- We should replace this with a proper exception. See:
     -- https://github.com/hackworthltd/primer/issues/148
     | otherwise -> error "Internal Error: RenameBindingsCase found no applicable branches"
   -- let x = f x in g x x  ~>  let y = f x in let x = y in g x x
   RenameSelfLet x e body -> do
     y <- freshLocalName' (freeVars e <> freeVars body)
-    let_ y (pure e) $ let_ x (lvar y) $ pure body
+    let_ y (pure e) . let_ x (lvar y) $ pure body
   -- As RenameSelfLet, but for LetType
   RenameSelfLetType a ty body -> do
     b <- freshLocalName' (S.map unLocalName (freeVarsTy ty) <> freeVars body)
-    letType b (pure ty) $ letType a (tvar b) $ pure body
+    letType b (pure ty) . letType a (tvar b) $ pure body
   ApplyPrimFun e -> e
 
 runRedexTy :: (MonadFresh ID m, MonadFresh NameCounter m) => RedexType -> m Type

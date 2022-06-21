@@ -109,19 +109,18 @@ withSetup f =
             , Options.host = pure host
             }
    in do
-        throwEither $
-          withSystemTempDirectory "primer-tmp-postgres" $ \tmpdir ->
-            let cc =
-                  defaultCacheConfig
-                    { cacheTemporaryDirectory = tmpdir
-                    , cacheDirectoryType = Temporary
-                    }
-             in withDbCacheConfig cc $ \dbCache ->
-                  let combinedConfig = dbConfig <> cacheConfig dbCache
-                   in do
-                        migratedConfig <- throwEither $ cacheAction (tmpdir <> "/pagination") deployDb combinedConfig
-                        withConfig migratedConfig $ \db ->
-                          bracket (connectDb db) release f
+        throwEither . withSystemTempDirectory "primer-tmp-postgres" $ \tmpdir ->
+          let cc =
+                defaultCacheConfig
+                  { cacheTemporaryDirectory = tmpdir
+                  , cacheDirectoryType = Temporary
+                  }
+           in withDbCacheConfig cc $ \dbCache ->
+                let combinedConfig = dbConfig <> cacheConfig dbCache
+                 in do
+                      migratedConfig <- throwEither $ cacheAction (tmpdir <> "/pagination") deployDb combinedConfig
+                      withConfig migratedConfig $ \db ->
+                        bracket (connectDb db) release f
 
 mkSession :: Int -> IO (SessionRow Result)
 mkSession n = do

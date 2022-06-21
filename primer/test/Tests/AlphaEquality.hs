@@ -68,8 +68,8 @@ unit_8 =
 unit_9 :: Assertion
 unit_9 =
   assertNotEqual
-    (create_ (tforall "a" KType $ tforall "b" KType $ tcon tList `tapp` tvar "a"))
-    (create_ (tforall "a" KType $ tforall "b" KType $ tcon tList `tapp` tvar "b"))
+    (create_ (tforall "a" KType . tforall "b" KType $ tcon tList `tapp` tvar "a"))
+    (create_ (tforall "a" KType . tforall "b" KType $ tcon tList `tapp` tvar "b"))
 
 unit_10 :: Assertion
 unit_10 =
@@ -99,7 +99,7 @@ hprop_alpha = property $ do
   t <- f <$> forAll (evalExprGen 0 genTyVarName)
   s === t
   where
-    f v = create_ $ tforall v KType $ tvar v
+    f v = create_ . tforall v KType $ tvar v
 
 create_ :: S (Type' a) -> Alpha
 create_ = Alpha . forgetTypeIDs . create'

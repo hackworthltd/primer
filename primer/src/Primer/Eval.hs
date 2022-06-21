@@ -347,7 +347,7 @@ step globals expr i = runExceptT $ do
       pure (expr', detail)
     Right z -> do
       (node', detail) <- tryReduceType globals locals (target z)
-      let expr' = unfocusExpr $ unfocusType $ replace node' z
+      let expr' = unfocusExpr . unfocusType $ replace node' z
       pure (expr', detail)
 
 -- | Search for the given node by its ID.
@@ -368,8 +368,8 @@ findNodeByID i expr = do
           -- However, we need to look for binders in the type that may capture
           -- a free variable if we substitue a lettype binding from outside the
           -- type
-          fas = flOthers $ Set.map unLocalName $ bindersAboveTy $ focusOnlyType z
-       in pure (dropCache $ lets $ fas <> fls, Right z)
+          fas = flOthers . Set.map unLocalName . bindersAboveTy $ focusOnlyType z
+       in pure (dropCache . lets $ fas <> fls, Right z)
     InBind{} -> Nothing
   where
     collectBinding :: FoldAbove Expr -> FindLet
@@ -511,7 +511,7 @@ redexes primDefs = go mempty
               let branchRedexes (CaseBranch _ binds rhs) =
                     let locals' = (removeAll (fmap bindName binds) letTm, letTy)
                      in go locals' rhs
-                  scrutRedex = case unfoldAPP $ fst $ unfoldApp $ removeAnn e of
+                  scrutRedex = case unfoldAPP . fst . unfoldApp $ removeAnn e of
                     (Con{}, _) -> self
                     _ -> mempty
                in scrutRedex <> go locals e <> mconcat (fmap branchRedexes branches)

@@ -100,26 +100,23 @@ map :: MonadFresh ID m => ModuleName -> m (GVarName, Def)
 map modName =
   let this = qualifyName modName "map"
    in do
-        type_ <- tforall "a" KType $ tforall "b" KType $ (tvar "a" `tfun` tvar "b") `tfun` ((tcon B.tList `tapp` tvar "a") `tfun` (tcon B.tList `tapp` tvar "b"))
+        type_ <- tforall "a" KType . tforall "b" KType $ (tvar "a" `tfun` tvar "b") `tfun` ((tcon B.tList `tapp` tvar "a") `tfun` (tcon B.tList `tapp` tvar "b"))
         term <-
-          lAM "a" $
-            lAM "b" $
-              lam "f" $
-                lam "xs" $
-                  case_
-                    (lvar "xs")
-                    [ branch B.cNil [] $
-                        con B.cNil `aPP` tvar "b"
-                    , branch B.cCons [("y", Nothing), ("ys", Nothing)] $
-                        con B.cCons `aPP` tvar "b" `app` (lvar "f" `app` lvar "y") `app` (gvar this `aPP` tvar "a" `aPP` tvar "b" `app` lvar "f" `app` lvar "ys")
-                    ]
+          lAM "a" . lAM "b" . lam "f" . lam "xs" $
+            case_
+              (lvar "xs")
+              [ branch B.cNil [] $
+                  con B.cNil `aPP` tvar "b"
+              , branch B.cCons [("y", Nothing), ("ys", Nothing)] $
+                  con B.cCons `aPP` tvar "b" `app` (lvar "f" `app` lvar "y") `app` (gvar this `aPP` tvar "a" `aPP` tvar "b" `app` lvar "f" `app` lvar "ys")
+              ]
         pure (this, DefAST $ ASTDef term type_)
 
 -- | The polymorphic function @map@ (over @List a@ as defined by
 -- 'listDef'), implemented using a worker.
 map' :: MonadFresh ID m => ModuleName -> m (GVarName, Def)
 map' modName = do
-  type_ <- tforall "a" KType $ tforall "b" KType $ (tvar "a" `tfun` tvar "b") `tfun` ((tcon B.tList `tapp` tvar "a") `tfun` (tcon B.tList `tapp` tvar "b"))
+  type_ <- tforall "a" KType . tforall "b" KType $ (tvar "a" `tfun` tvar "b") `tfun` ((tcon B.tList `tapp` tvar "a") `tfun` (tcon B.tList `tapp` tvar "b"))
   let worker =
         lam "xs" $
           case_
@@ -129,11 +126,8 @@ map' modName = do
                 con B.cCons `aPP` tvar "b" `app` (lvar "f" `app` lvar "y") `app` (lvar "go" `app` lvar "ys")
             ]
   term <-
-    lAM "a" $
-      lAM "b" $
-        lam "f" $
-          letrec "go" worker ((tcon B.tList `tapp` tvar "a") `tfun` (tcon B.tList `tapp` tvar "b")) $
-            lvar "go"
+    lAM "a" . lAM "b" . lam "f" . letrec "go" worker ((tcon B.tList `tapp` tvar "a") `tfun` (tcon B.tList `tapp` tvar "b")) $
+      lvar "go"
   pure (qualifyName modName "map", DefAST $ ASTDef term type_)
 
 -- | The function @odd@, defined over the inductive natural number
@@ -304,7 +298,7 @@ even3Prog =
         even3Def <- do
           type_ <- tcon B.tBool
           term <- gvar (qualifyName modName "even") `app` (con B.cSucc `app` (con B.cSucc `app` (con B.cSucc `app` con B.cZero)))
-          pure $ DefAST $ ASTDef term type_
+          pure . DefAST $ ASTDef term type_
         let globs = [("even", evenDef), ("odd", oddDef), ("even 3?", even3Def)]
         pure globs
    in ( defaultProg
@@ -332,7 +326,7 @@ badEven3Prog =
         even3Def <- do
           type_ <- tcon B.tNat
           term <- gvar (qualifyName modName "even") `app` (con B.cSucc `app` (con B.cSucc `app` (con B.cSucc `app` con B.cZero)))
-          pure $ DefAST $ ASTDef term type_
+          pure . DefAST $ ASTDef term type_
         let globs = [("even", evenDef), ("odd", oddDef), ("even 3?", even3Def)]
         pure globs
    in ( defaultProg

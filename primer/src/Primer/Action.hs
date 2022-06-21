@@ -233,7 +233,7 @@ nameString = "n" <> T.singleton '\x200C' <> "ame"
 -- of the given name already exists in the program, this function will
 -- return the same name it's been given.
 uniquifyDefName :: C.ModuleName -> Text -> DefMap -> Text
-uniquifyDefName m name' defs = unName $ uniquify avoid $ unsafeMkName name'
+uniquifyDefName m name' defs = unName . uniquify avoid $ unsafeMkName name'
   where
     f qn
       | qualifiedModule qn == m = Set.singleton $ baseName qn
@@ -554,7 +554,7 @@ synthZ z =
    in do
         (_, typedAST) <- synth e
         -- Refocus on where we were previously
-        pure $ focusOn targetID $ exprTtoExpr typedAST
+        pure . focusOn targetID $ exprTtoExpr typedAST
 
 applyAction' :: ActionM m => Action -> Loc -> m Loc
 applyAction' a = case a of
@@ -573,9 +573,9 @@ applyAction' a = case a of
     InType zt -> InType . flip replace zt <$> tEmptyHole
     InBind _ -> throwError $ CustomFailure Delete "Cannot delete a binding"
   SetMetadata d -> \case
-    InExpr ze -> pure $ InExpr $ setMetadata d ze
-    InType zt -> pure $ InType $ setMetadata d zt
-    InBind (BindCase zb) -> pure $ InBind $ BindCase $ setMetadata d zb
+    InExpr ze -> pure . InExpr $ setMetadata d ze
+    InType zt -> pure . InType $ setMetadata d zt
+    InBind (BindCase zb) -> pure . InBind . BindCase $ setMetadata d zb
   EnterHole -> termAction enterHole "non-empty type holes not supported"
   FinishHole -> termAction finishHole "there are no non-empty holes in types"
   ConstructVar x -> termAction (constructVar x) "cannot construct var in type"
@@ -601,7 +601,7 @@ applyAction' a = case a of
     InExpr ze -> InType <$> enterType ze
     _ -> throwError $ CustomFailure EnterType "cannot enter type - already in type"
   ExitType -> \case
-    InType zt -> pure $ InExpr $ unfocusType zt
+    InType zt -> pure . InExpr $ unfocusType zt
     _ -> throwError $ CustomFailure ExitType "cannot exit type - not in type"
   ConstructArrowL -> typeAction constructArrowL "cannot construct arrow - not in type"
   ConstructArrowR -> typeAction constructArrowR "cannot construct arrow - not in type"
@@ -660,7 +660,7 @@ move m z = do
     move' Parent = pure . up
     move' Child1 = pure . down
     move' Child2 = pure . (down >=> right)
-    move' (Branch _) = const $ throwError $ CustomFailure (Move m) "internal error: move does not support Branch moves"
+    move' (Branch _) = const . throwError $ CustomFailure (Move m) "internal error: move does not support Branch moves"
 
 setMetadata :: (IsZipper za a, HasMetadata a) => Value -> za -> za
 setMetadata d z = z & _target % _metadata ?~ d
@@ -700,7 +700,7 @@ saturatedApplication :: ActionM m => ExprZ -> TmVarRef -> m Expr
 saturatedApplication ast v = do
   (appHead, vTy) <-
     getVarType ast v >>= \case
-      Left err -> throwError $ SaturatedApplicationError $ Right err
+      Left err -> throwError . SaturatedApplicationError $ Right err
       Right t -> pure (var v, t)
   mkSaturatedApplication appHead vTy
 
@@ -735,7 +735,7 @@ insertRefinedVar :: ActionM m => TmVarRef -> ExprZ -> m ExprZ
 insertRefinedVar x ast = do
   (v, vTy) <-
     getVarType ast x >>= \case
-      Left err -> throwError $ RefineError $ Right err
+      Left err -> throwError . RefineError $ Right err
       Right t -> pure (var x, t)
   let tgtTyCache = maybeTypeOf $ target ast
   -- our Cxt in the monad does not care about the local context, we have to extract it from the zipper.
@@ -763,12 +763,12 @@ mkRefinedApplication cxt e eTy tgtTy' = do
   tgtTy <- case tgtTy' of
     Just (TCChkedAt t) -> pure t
     Just (TCEmb b) -> pure $ tcChkedAt b
-    _ -> throwError $ RefineError $ Left "Don't have a type we were checked at"
+    _ -> throwError . RefineError $ Left "Don't have a type we were checked at"
   mInst <-
     runExceptT (refine cxt tgtTy eTy) >>= \case
       -- Errors are only internal failures. Refinement failing is signaled with
       -- a Maybe
-      Left err -> throwError $ InternalFailure $ show err
+      Left err -> throwError . InternalFailure $ show err
       Right x -> pure $ fst <$> x
   case mInst of
     -- See Note [No valid refinement]
@@ -835,7 +835,7 @@ constructSatCon c ze = case target ze of
   EmptyHole{} -> do
     ctorType <-
       getConstructorType n >>= \case
-        Left err -> throwError $ SaturatedApplicationError $ Left err
+        Left err -> throwError . SaturatedApplicationError $ Left err
         Right t -> pure t
     flip replace ze <$> mkSaturatedApplication (con n) ctorType
   e -> throwError $ NeedEmptyHole (ConstructSaturatedCon c) e
@@ -856,7 +856,7 @@ constructRefinedCon c ze = do
   let n = unsafeMkGlobalName c
   cTy <-
     getConstructorType n >>= \case
-      Left err -> throwError $ RefineError $ Left err
+      Left err -> throwError . RefineError $ Left err
       Right t -> pure t
   let tgtTyCache = maybeTypeOf $ target ze
   -- our Cxt in the monad does not care about the local context, we have to extract it from the zipper.
@@ -1007,7 +1007,7 @@ renameCaseBinding y caseBind = updateCaseBind caseBind $ \bind otherBindings rhs
 
   -- Check that 'y' doesn't clash with any of the other branch bindings
   let otherBindingNames = bindName <$> otherBindings
-  when (y' `elem` otherBindingNames) $ throwError $ CaseBindsClash y' otherBindingNames
+  when (y' `elem` otherBindingNames) . throwError $ CaseBindsClash y' otherBindingNames
 
   -- Apply the rename to the rhs
   rhs' <- case renameLocalVar (bindName bind) y' rhs of

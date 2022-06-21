@@ -81,12 +81,11 @@ propertyWTInExtendedLocalGlobalCxt :: [Module] -> PropertyT WT () -> Property
 propertyWTInExtendedLocalGlobalCxt mods = propertyWT mods . inExtendedGlobalCxt . inExtendedLocalCxt
 
 hprop_genTy :: Property
-hprop_genTy = withTests 1000 $
-  propertyWTInExtendedGlobalCxt [builtinModule, primitiveModule] $ do
-    k <- forAllT genWTKind
-    ty <- forAllT $ genWTType k
-    ty' <- checkKindTest k =<< generateTypeIDs ty
-    ty === forgetTypeIDs ty' -- check no smart holes stuff happened
+hprop_genTy = withTests 1000 . propertyWTInExtendedGlobalCxt [builtinModule, primitiveModule] $ do
+  k <- forAllT genWTKind
+  ty <- forAllT $ genWTType k
+  ty' <- checkKindTest k =<< generateTypeIDs ty
+  ty === forgetTypeIDs ty' -- check no smart holes stuff happened
 
 -- | Lift 'checkKind' into a property
 checkKindTest :: HasCallStack => Kind -> Type -> PropertyT WT (Type' (Meta Kind))
@@ -114,19 +113,16 @@ checkValidContextTest t = do
 
 -- This indirectly also tests genCxtExtendingLocal, genCxtExtendingGlobal and genTypeDefGroup
 hprop_genCxtExtending_typechecks :: Property
-hprop_genCxtExtending_typechecks = withTests 1000 $
-  propertyWT [builtinModule, primitiveModule] $ do
-    cxt <- forAllT genCxtExtendingGlobal
-    checkValidContextTest cxt
-    cxt' <- forAllT $ local (const cxt) genCxtExtendingLocal
-    checkValidContextTest cxt'
+hprop_genCxtExtending_typechecks = withTests 1000 . propertyWT [builtinModule, primitiveModule] $ do
+  cxt <- forAllT genCxtExtendingGlobal
+  checkValidContextTest cxt
+  cxt' <- forAllT $ local (const cxt) genCxtExtendingLocal
+  checkValidContextTest cxt'
 
 hprop_inExtendedLocalGlobalCxt_valid :: Property
-hprop_inExtendedLocalGlobalCxt_valid = withTests 1000 $
-  withDiscards 2000 $
-    propertyWTInExtendedLocalGlobalCxt [builtinModule, primitiveModule] $ do
-      cxt <- ask
-      checkValidContextTest cxt
+hprop_inExtendedLocalGlobalCxt_valid = withTests 1000 . withDiscards 2000 . propertyWTInExtendedLocalGlobalCxt [builtinModule, primitiveModule] $ do
+  cxt <- ask
+  checkValidContextTest cxt
 
 hprop_genCxtExtending_is_extension :: Property
 hprop_genCxtExtending_is_extension =
@@ -159,28 +155,24 @@ hprop_genCxtExtending_is_extension =
           && sh1 == sh2
 
 hprop_genSyns :: Property
-hprop_genSyns = withTests 1000 $
-  withDiscards 2000 $
-    propertyWTInExtendedLocalGlobalCxt [builtinModule, primitiveModule] $ do
-      tgtTy <- forAllT $ genWTType KType
-      _ :: Type' (Meta Kind) <- checkKindTest KType =<< generateTypeIDs tgtTy
-      (e, ty) <- forAllT $ genSyns tgtTy
-      (ty', e') <- synthTest =<< generateIDs e
-      annotateShow e'
-      annotateShow ty'
-      diff ty consistentTypes $ forgetTypeIDs tgtTy
-      ty === ty'
-      e === forgetIDs e' -- check no smart holes stuff happened
+hprop_genSyns = withTests 1000 . withDiscards 2000 . propertyWTInExtendedLocalGlobalCxt [builtinModule, primitiveModule] $ do
+  tgtTy <- forAllT $ genWTType KType
+  _ :: Type' (Meta Kind) <- checkKindTest KType =<< generateTypeIDs tgtTy
+  (e, ty) <- forAllT $ genSyns tgtTy
+  (ty', e') <- synthTest =<< generateIDs e
+  annotateShow e'
+  annotateShow ty'
+  diff ty consistentTypes $ forgetTypeIDs tgtTy
+  ty === ty'
+  e === forgetIDs e' -- check no smart holes stuff happened
 
 hprop_genChk :: Property
-hprop_genChk = withTests 1000 $
-  withDiscards 2000 $
-    propertyWTInExtendedLocalGlobalCxt [builtinModule, primitiveModule] $ do
-      ty <- forAllT $ genWTType KType
-      _ :: Type' (Meta Kind) <- checkKindTest KType =<< generateTypeIDs ty
-      t <- forAllT $ genChk ty
-      t' <- checkTest ty =<< generateIDs t
-      t === forgetIDs t' -- check no smart holes stuff happened
+hprop_genChk = withTests 1000 . withDiscards 2000 . propertyWTInExtendedLocalGlobalCxt [builtinModule, primitiveModule] $ do
+  ty <- forAllT $ genWTType KType
+  _ :: Type' (Meta Kind) <- checkKindTest KType =<< generateTypeIDs ty
+  t <- forAllT $ genChk ty
+  t' <- checkTest ty =<< generateIDs t
+  t === forgetIDs t' -- check no smart holes stuff happened
 
 -- Lift 'synth' into a property
 synthTest :: HasCallStack => Expr -> PropertyT WT (Type' (), ExprT)

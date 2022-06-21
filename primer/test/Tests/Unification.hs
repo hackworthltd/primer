@@ -74,7 +74,7 @@ unify' ::
   Type ->
   Type ->
   m (Maybe (M.Map TyVarName Type))
-unify' cxt uvs s t = fmap (either crash identity) $ runExceptT $ unify cxt uvs s t
+unify' cxt uvs s t = fmap (either crash identity) . runExceptT $ unify cxt uvs s t
   where
     -- If we run across a bug whilst testing, crash loudly
     crash = panic . ("InternalUnifyError: " <>) . show
@@ -422,7 +422,7 @@ genCxtExtendingLocalUVs = do
           , (\n k -> ((M.singleton n k <>), extendLocalCxtTy (n, k))) <$> freshTyVarNameForCxt <*> genWTKind
           , (\n t -> (identity, extendLocalCxt (n, t))) <$> freshLVarNameForCxt <*> genWTType KType
           ]
-      local cxtE $ go (i - 1) $ uvsE uvs
+      local cxtE . go (i - 1) $ uvsE uvs
 
 -- Run a property in a context extended with typedefs, globals and locals. Some
 -- of the locals (mentioned in the Set) are considered unification variables.
@@ -530,20 +530,19 @@ hprop_unified_checks = propertyWTInExtendedUVCxt [builtinModule, primitiveModule
 -- S,T diff kinds => unify ga uvs S T fails
 -- This requires each to not be holey - i.e. don't synthesise KHole
 hprop_diff_kinds_never_unify :: Property
-hprop_diff_kinds_never_unify = withDiscards 5000 $
-  propertyWTInExtendedUVCxt [builtinModule, primitiveModule] $ \uvs -> do
-    cxt <- ask
-    k1 <- forAllT genWTKind
-    k2 <- forAllT genWTKind
-    when (k1 == k2) discard
-    s <- forAllT $ genWTType k1
-    t <- forAllT $ genWTType k2
-    (sk, _) <- synthKindTest =<< generateTypeIDs s
-    when (sk == KHole) discard
-    (tk, _) <- synthKindTest =<< generateTypeIDs t
-    when (tk == KHole) discard
-    u <- unify' cxt uvs s t
-    u === Nothing
+hprop_diff_kinds_never_unify = withDiscards 5000 . propertyWTInExtendedUVCxt [builtinModule, primitiveModule] $ \uvs -> do
+  cxt <- ask
+  k1 <- forAllT genWTKind
+  k2 <- forAllT genWTKind
+  when (k1 == k2) discard
+  s <- forAllT $ genWTType k1
+  t <- forAllT $ genWTType k2
+  (sk, _) <- synthKindTest =<< generateTypeIDs s
+  when (sk == KHole) discard
+  (tk, _) <- synthKindTest =<< generateTypeIDs t
+  when (tk == KHole) discard
+  u <- unify' cxt uvs s t
+  u === Nothing
 
 -- unification is symmetric
 hprop_sym :: Property

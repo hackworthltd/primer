@@ -455,14 +455,13 @@ unit_case_create =
     , constructCon cZero
     ]
     ( ann
-        ( lam "x" $
-            hole $
-              ann
-                ( case_
-                    (lvar "x")
-                    [branch cTrue [] (con cZero), branch cFalse [] emptyHole]
-                )
-                tEmptyHole
+        ( lam "x" . hole $
+            ann
+              ( case_
+                  (lvar "x")
+                  [branch cTrue [] (con cZero), branch cFalse [] emptyHole]
+              )
+              tEmptyHole
         )
         (tfun (tcon tBool) (tcon tNat))
     )
@@ -473,14 +472,13 @@ unit_case_tidy =
   actionTest
     NoSmartHoles
     ( ann
-        ( lam "x" $
-            hole $
-              ann
-                ( case_
-                    (lvar "x")
-                    [branch cTrue [] (con cZero), branch cFalse [] emptyHole]
-                )
-                tEmptyHole
+        ( lam "x" . hole $
+            ann
+              ( case_
+                  (lvar "x")
+                  [branch cTrue [] (con cZero), branch cFalse [] emptyHole]
+              )
+              tEmptyHole
         )
         (tfun (tcon tBool) (tcon tNat))
     )
@@ -500,14 +498,13 @@ unit_case_move_branch_1 =
   actionTest
     NoSmartHoles
     ( ann
-        ( lam "x" $
-            hole $
-              ann
-                ( case_
-                    (lvar "x")
-                    [branch cZero [] emptyHole, branch cSucc [("n", Nothing)] emptyHole]
-                )
-                tEmptyHole
+        ( lam "x" . hole $
+            ann
+              ( case_
+                  (lvar "x")
+                  [branch cZero [] emptyHole, branch cSucc [("n", Nothing)] emptyHole]
+              )
+              tEmptyHole
         )
         (tfun (tcon tNat) (tcon tNat))
     )
@@ -522,14 +519,13 @@ unit_case_move_branch_1 =
     , ConstructVar $ LocalVarRef "n"
     ]
     ( ann
-        ( lam "x" $
-            hole $
-              ann
-                ( case_
-                    (lvar "x")
-                    [branch cZero [] (con cZero), branch cSucc [("n", Nothing)] (lvar "n")]
-                )
-                tEmptyHole
+        ( lam "x" . hole $
+            ann
+              ( case_
+                  (lvar "x")
+                  [branch cZero [] (con cZero), branch cSucc [("n", Nothing)] (lvar "n")]
+              )
+              tEmptyHole
         )
         (tfun (tcon tNat) (tcon tNat))
     )
@@ -570,14 +566,13 @@ unit_case_move_scrutinee_1 =
   actionTest
     NoSmartHoles
     ( ann
-        ( lam "x" $
-            hole $
-              ann
-                ( case_
-                    (lvar "x")
-                    [branch cZero [] emptyHole, branch cSucc [("n", Nothing)] emptyHole]
-                )
-                tEmptyHole
+        ( lam "x" . hole $
+            ann
+              ( case_
+                  (lvar "x")
+                  [branch cZero [] emptyHole, branch cSucc [("n", Nothing)] emptyHole]
+              )
+              tEmptyHole
         )
         (tfun (tcon tNat) (tcon tNat))
     )
@@ -589,14 +584,13 @@ unit_case_move_scrutinee_1 =
     , SetMetadata "meta"
     ]
     ( ann
-        ( lam "x" $
-            hole $
-              ann
-                ( case_
-                    (setMeta "meta" $ lvar "x")
-                    [branch cZero [] emptyHole, branch cSucc [("n", Nothing)] emptyHole]
-                )
-                tEmptyHole
+        ( lam "x" . hole $
+            ann
+              ( case_
+                  (setMeta "meta" $ lvar "x")
+                  [branch cZero [] emptyHole, branch cSucc [("n", Nothing)] emptyHole]
+              )
+              tEmptyHole
         )
         (tfun (tcon tNat) (tcon tNat))
     )
@@ -630,7 +624,7 @@ unit_bad_case_1 =
     (const True)
     NoSmartHoles
     ( ann
-        (lam "x" $ hole $ lvar "x")
+        (lam "x" . hole $ lvar "x")
         (tfun (tcon tBool) (tcon tNat))
     )
     [ConstructCase]
@@ -649,14 +643,13 @@ unit_bad_case_3 =
     (const True)
     NoSmartHoles
     ( ann
-        ( lam "x" $
-            hole $
-              ann
-                ( case_
-                    (lvar "x")
-                    [branch cTrue [] emptyHole, branch cFalse [] emptyHole]
-                )
-                tEmptyHole
+        ( lam "x" . hole $
+            ann
+              ( case_
+                  (lvar "x")
+                  [branch cTrue [] emptyHole, branch cFalse [] emptyHole]
+              )
+              tEmptyHole
         )
         (tfun (tcon tBool) (tcon tNat))
     )
@@ -900,7 +893,7 @@ unit_construct_TForall_TVar =
     NoSmartHoles
     (emptyHole `ann` tEmptyHole)
     [EnterType, ConstructTForall (Just "a"), Move Child1, ConstructTVar "a"]
-    (ann emptyHole $ tforall "a" KType $ tvar "a")
+    (ann emptyHole . tforall "a" KType $ tvar "a")
 
 unit_poly_1 :: Assertion
 unit_poly_1 =
@@ -949,7 +942,7 @@ unit_poly_1 =
     , Move Child2
     , ConstructVar $ LocalVarRef "id"
     ]
-    ( let_ "id" (ann (lAM "a" $ lam "x" $ lvar "x") (tforall "a" KType $ tfun (tvar "a") (tvar "a"))) $
+    ( let_ "id" (ann (lAM "a" . lam "x" $ lvar "x") (tforall "a" KType $ tfun (tvar "a") (tvar "a"))) $
         app (aPP (lvar "id") (tforall "b" KType $ tfun (tvar "b") (tvar "b"))) (lvar "id")
     )
 

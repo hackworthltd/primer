@@ -37,7 +37,7 @@ import Text.Pretty.Simple (pShowNoColor)
 
 -- | Comprehensive DSL test.
 test_1 :: TestTree
-test_1 = mkTests $ create' $ comprehensive $ mkSimpleModuleName "M"
+test_1 = mkTests . create' . comprehensive $ mkSimpleModuleName "M"
 
 data Output = Output
   { defActions :: [ActionName]
@@ -74,10 +74,9 @@ mkTests (defName, DefAST def) =
                     )
                     . toListOf (_typeMeta % _id)
                     $ astDefType def
-             in goldenVsString (show level) ("test/outputs/available-actions" </> testName </> show level <> ".fragment") $
-                  pure . BS.fromStrict . encodeUtf8 . TL.toStrict . pShowNoColor $
-                    Output
-                      { defActions
-                      , bodyActions
-                      , sigActions
-                      }
+             in goldenVsString (show level) ("test/outputs/available-actions" </> testName </> show level <> ".fragment") . pure . BS.fromStrict . encodeUtf8 . TL.toStrict . pShowNoColor $
+                  Output
+                    { defActions
+                    , bodyActions
+                    , sigActions
+                    }

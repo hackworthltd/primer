@@ -21,6 +21,11 @@
     name: foldM
     note: Be explicit about the direction of the fold
 
+- warn:
+    lhs: (f . g) . h
+    rhs: f . g . h
+    name: Composition is associative
+
 - group:
     name: generalise
     enabled: true
@@ -32,4 +37,7 @@
     enabled: true
 - group:
     name: future
+    enabled: true
+- group:
+    name: dollar
     enabled: true

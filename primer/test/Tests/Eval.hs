@@ -70,10 +70,10 @@ import Tests.Action.Prog (runAppTestM)
 
 -- | A helper for these tests
 runTryReduce :: DefMap -> Locals -> (Expr, ID) -> Either EvalError (Expr, EvalDetail)
-runTryReduce globals locals (expr, i) = evalTestM i $ runExceptT $ tryReduceExpr globals locals expr
+runTryReduce globals locals (expr, i) = evalTestM i . runExceptT $ tryReduceExpr globals locals expr
 
 runTryReduceType :: DefMap -> Locals -> (Type, ID) -> Either EvalError (Type, EvalDetail)
-runTryReduceType globals locals (ty, i) = evalTestM i $ runExceptT $ tryReduceType globals locals ty
+runTryReduceType globals locals (ty, i) = evalTestM i . runExceptT $ tryReduceType globals locals ty
 
 unit_tryReduce_no_redex :: Assertion
 unit_tryReduce_no_redex = do
@@ -579,8 +579,7 @@ unit_tryReduce_case_name_clash = do
             [branch' (["M"], "C") [("x", Nothing), ("y", Nothing)] emptyHole]
       result = runTryReduce mempty mempty (expr, i)
       expectedResult =
-        create' $
-          let_ "x0" emptyHole $ let_ "y" (lvar "x") emptyHole
+        create' . let_ "x0" emptyHole $ let_ "y" (lvar "x") emptyHole
   case result of
     Right (expr', CaseReduction detail) -> do
       expr' ~= expectedResult
@@ -668,7 +667,7 @@ unit_tryReduce_prim_fail_unreduced_args = do
 unit_step_non_redex :: Assertion
 unit_step_non_redex =
   let ((r1, s1), (r2, s2)) = evalTestM 0 $ do
-        e1 <- let_ "x" (con' ["M"] "C") $ lam "x" $ lvar "x"
+        e1 <- let_ "x" (con' ["M"] "C") . lam "x" $ lvar "x"
         e2 <- let_ "x" (con' ["M"] "C" `app` lvar "x") $ lvar "x"
         let i1 = 3
         let i2 = 8 -- NB: e1 has nodes 0,1,2,3; e2 has 4,5,6,7,8
@@ -771,7 +770,7 @@ unit_findNodeByID_2 = do
 
 unit_findNodeByID_scoping_1 :: Assertion
 unit_findNodeByID_scoping_1 = do
-  let expr = create' $ let_ "x" (con' ["M"] "C") $ lam "x" $ lvar "x"
+  let expr = create' . let_ "x" (con' ["M"] "C") . lam "x" $ lvar "x"
   case findNodeByID 3 expr of
     Just (locals, Left _) -> assertBool "Expected 'x' not to be in scope" (Map.null locals)
     _ -> assertFailure "Expected to find the lvar 'x'"
@@ -780,7 +779,7 @@ unit_findNodeByID_scoping_2 :: Assertion
 unit_findNodeByID_scoping_2 = do
   let (bind, expr) = create' $ do
         b <- con' ["M"] "D"
-        e <- let_ "x" (con' ["M"] "C") $ let_ "x" (pure b) $ lvar "x"
+        e <- let_ "x" (con' ["M"] "C") . let_ "x" (pure b) $ lvar "x"
         pure (b, e)
   case findNodeByID 4 expr of
     Just (locals, Left _)
@@ -798,7 +797,7 @@ unit_findNodeByID_capture :: Assertion
 unit_findNodeByID_capture =
   let (expr, varOcc, reduct) = create' $ do
         v <- lvar "x"
-        e <- letrec "x" (lvar "y") (tcon tBool) $ lam "y" $ pure v
+        e <- letrec "x" (lvar "y") (tcon tBool) . lam "y" $ pure v
         let r = getID v
         s <- step mempty expr r
         pure (e, r, s)
@@ -851,7 +850,7 @@ redexesOf = redexes mempty . create'
 
 -- | A variation of 'redexesOf' for when the expression tested requires primitives to be in scope.
 redexesOfWithPrims :: S Expr -> Set ID
-redexesOfWithPrims x = uncurry redexes $ create' $ withPrimDefs $ \globals -> (globals,) <$> x
+redexesOfWithPrims x = uncurry redexes . create' . withPrimDefs $ \globals -> (globals,) <$> x
 
 unit_redexes_con :: Assertion
 unit_redexes_con = redexesOf (con' ["M"] "C") @?= mempty
@@ -915,14 +914,12 @@ unit_redexes_let_3 = do
 unit_redexes_let_capture :: Assertion
 unit_redexes_let_capture =
   -- We should maybe rename the lambda, see https://github.com/hackworthltd/primer/issues/509
-  assertBool "Cannot inline the variable, as would cause capture" $
-    Set.null $ redexesOf (let_ "x" (lvar "y") $ lam "y" $ lvar "x")
+  assertBool "Cannot inline the variable, as would cause capture" . Set.null $ redexesOf (let_ "x" (lvar "y") . lam "y" $ lvar "x")
 
 unit_redexes_lettype_capture :: Assertion
 unit_redexes_lettype_capture =
   -- We should maybe rename the forall, see https://github.com/hackworthltd/primer/issues/509
-  assertBool "Cannot inline the variable, as would cause capture" $
-    Set.null $ redexesOf (letType "x" (tvar "y") (emptyHole `ann` tforall "y" KType (tvar "x")))
+  assertBool "Cannot inline the variable, as would cause capture" . Set.null $ redexesOf (letType "x" (tvar "y") (emptyHole `ann` tforall "y" KType (tvar "x")))
 
 unit_redexes_letrec_1 :: Assertion
 unit_redexes_letrec_1 =
@@ -938,7 +935,7 @@ unit_redexes_letrec_2 =
 unit_redexes_letrec_3 :: Assertion
 unit_redexes_letrec_3 =
   -- If this were a let, we would not be able to substitute, but it is possible for letrec
-  redexesOf (lAM "a" $ lam "x" $ letrec "x" (lvar "x") (tvar "a") (lvar "x")) @?= Set.fromList [3, 5]
+  redexesOf (lAM "a" . lam "x" $ letrec "x" (lvar "x") (tvar "a") (lvar "x")) @?= Set.fromList [3, 5]
 
 -- The application can be reduced by pushing the argument inside the letrec
 unit_redexes_letrec_app_1 :: Assertion

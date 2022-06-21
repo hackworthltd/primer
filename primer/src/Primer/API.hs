@@ -146,7 +146,7 @@ sessionsTransaction :: (MonadIO m) => (Sessions -> TBQueue Database.Op -> STM a)
 sessionsTransaction f = do
   ss <- asks sessions
   q <- asks dbOpQueue
-  liftIO $ atomically $ f ss q
+  liftIO . atomically $ f ss q
 
 data SessionOp a where
   EditApp :: (App -> (a, App)) -> SessionOp a
@@ -186,7 +186,7 @@ withSession' sid op = do
             StmMap.insert (SessionData appl' n) sid ss
             writeTBQueue q $ Database.UpdateApp sid appl'
             pure $ Right res
-          QueryApp f -> pure $ Right $ f appl
+          QueryApp f -> pure . Right $ f appl
           GetSessionName -> pure $ Right (fromSessionName n)
           GetSessionData -> pure $ Right s
           RenameSession n' ->
@@ -200,7 +200,7 @@ withSession' sid op = do
       -- The session was missing from the in-memory database. Once we
       -- get here, we know we've made the database load request, so
       -- now we can wait for the callback.
-      dbResult <- liftIO $ atomically $ takeTMVar callback
+      dbResult <- liftIO . atomically $ takeTMVar callback
       case dbResult of
         Database.Failure msg ->
           -- The load failed for some reason.
@@ -253,12 +253,11 @@ copySession srcId = do
 listSessions :: (MonadIO m) => Bool -> OffsetLimit -> PrimerM m (Page Session)
 listSessions False ol = do
   q <- asks dbOpQueue
-  callback <- liftIO $
-    atomically $ do
-      cb <- newEmptyTMVar
-      writeTBQueue q $ Database.ListSessions ol cb
-      pure cb
-  liftIO $ atomically $ takeTMVar callback
+  callback <- liftIO . atomically $ do
+    cb <- newEmptyTMVar
+    writeTBQueue q $ Database.ListSessions ol cb
+    pure cb
+  liftIO . atomically $ takeTMVar callback
 listSessions _ ol = sessionsTransaction $ \ss _ -> do
   kvs' <- ListT.toList $ StmMap.listT ss
   let kvs = uncurry Session . second sessionName <$> kvs'
@@ -284,7 +283,7 @@ liftQueryAppM :: (MonadIO m, MonadThrow m) => QueryAppM a -> SessionId -> Primer
 liftQueryAppM h sid = withSession' sid (QueryApp $ runQueryAppM h)
 
 getProgram :: (MonadIO m, MonadThrow m) => SessionId -> PrimerM m Prog
-getProgram sid = withSession' sid $ QueryApp $ viewProg . handleGetProgramRequest
+getProgram sid = withSession' sid . QueryApp $ viewProg . handleGetProgramRequest
 
 -- | A frontend will be mostly concerned with rendering, and does not need the
 -- full complexity of our AST for that task. 'Tree' is a simplified view with
@@ -370,7 +369,7 @@ viewTreeExpr = U.para $ \e exprChildren ->
         -- we did not have this special case.
         Var _ (LocalVarRef _) -> "LVar"
         Var _ (GlobalVarRef _) -> "GVar"
-        _ -> toS $ showConstr $ toConstr e
+        _ -> toS . showConstr $ toConstr e
       n = case e of
         PrimCon _ pc -> case pc of
           PrimChar c' -> show c'
@@ -389,7 +388,7 @@ viewTreeExpr = U.para $ \e exprChildren ->
 -- | Similar to 'viewTreeExpr', but for 'Type's
 viewTreeType :: Type -> Tree
 viewTreeType = U.para $ \e allChildren ->
-  let c = toS $ showConstr $ toConstr e
+  let c = toS . showConstr $ toConstr e
       n = case e of
         TForall _ m k _ -> c <> " " <> unName (unLocalName m) <> ":" <> show k
         _ -> unwords $ c : fmap unName (U.childrenBi e)

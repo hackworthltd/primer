@@ -192,6 +192,6 @@ fixtures =
               , evalRespDetail = reductionDetail
               }
           )
-      , mkFixture "prim_char" $ PrimCon @() @() () $ PrimChar 'a'
-      , mkFixture "prim_int" $ PrimCon @() @() () $ PrimInt 42
+      , mkFixture "prim_char" . PrimCon @() @() () $ PrimChar 'a'
+      , mkFixture "prim_int" . PrimCon @() @() () $ PrimInt 42
       ]

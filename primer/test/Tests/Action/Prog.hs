@@ -140,40 +140,36 @@ mkEmptyTestApp p =
    in mkApp (nextProgID p) (appNameCounter a) p
 
 unit_empty_actions_only_change_the_log :: Assertion
-unit_empty_actions_only_change_the_log = progActionTest defaultEmptyProg [] $
-  expectSuccess $ \prog prog' ->
-    prog' @?= prog{progLog = Log [[]]}
+unit_empty_actions_only_change_the_log = progActionTest defaultEmptyProg [] . expectSuccess $ \prog prog' ->
+  prog' @?= prog{progLog = Log [[]]}
 
 -- We can move to the default def in a program
 -- (this may only exist at the start of a session)
 unit_move_to_def_main :: Assertion
-unit_move_to_def_main = progActionTest defaultEmptyProg [moveToDef "main"] $
-  expectSuccess $ \prog prog' ->
-    prog'
-      @?= prog
-        { progLog = Log [[moveToDef "main"]]
-        , progSelection = Just $ Selection (gvn "main") Nothing
-        }
+unit_move_to_def_main = progActionTest defaultEmptyProg [moveToDef "main"] . expectSuccess $ \prog prog' ->
+  prog'
+    @?= prog
+      { progLog = Log [[moveToDef "main"]]
+      , progSelection = Just $ Selection (gvn "main") Nothing
+      }
 
 -- Expression actions are tested in ActionTest - here we just check that we can modify the correct
 -- def.
 unit_move_to_def_and_construct_let :: Assertion
 unit_move_to_def_and_construct_let =
-  progActionTest defaultEmptyProg [moveToDef "other", BodyAction [ConstructLet (Just "x")]] $
-    expectSuccess $ \prog prog' ->
-      case astDefExpr <$> lookupASTDef' "other" prog' of
-        Just Let{} ->
-          -- Check that main is unchanged
-          lookupDef' "main" prog' @?= lookupDef' "main" prog
-        _ -> assertFailure "definition not found"
+  progActionTest defaultEmptyProg [moveToDef "other", BodyAction [ConstructLet (Just "x")]] . expectSuccess $ \prog prog' ->
+    case astDefExpr <$> lookupASTDef' "other" prog' of
+      Just Let{} ->
+        -- Check that main is unchanged
+        lookupDef' "main" prog' @?= lookupDef' "main" prog
+      _ -> assertFailure "definition not found"
 
 unit_rename_def :: Assertion
 unit_rename_def =
-  progActionTest defaultEmptyProg [renameDef "other" "foo"] $
-    expectSuccess $ \_ prog' -> do
-      assertNothing (lookupDef' "other" prog')
-      assertJust (lookupDef' "foo" prog')
-      assertJust (lookupDef' "main" prog')
+  progActionTest defaultEmptyProg [renameDef "other" "foo"] . expectSuccess $ \_ prog' -> do
+    assertNothing (lookupDef' "other" prog')
+    assertJust (lookupDef' "foo" prog')
+    assertJust (lookupDef' "main" prog')
 
 assertNothing :: Maybe a -> Assertion
 assertNothing = assertBool "Expected Nothing" . isNothing
@@ -199,7 +195,8 @@ unit_rename_def_referenced =
     , BodyAction [ConstructVar $ globalVarRef "other"]
     , renameDef "other" "foo"
     ]
-    $ expectSuccess $ \_ prog' -> do
+    . expectSuccess
+    $ \_ prog' -> do
       assertNothing (lookupDef' "other" prog')
       assertJust (lookupDef' "foo" prog')
       assertJust (lookupDef' "main" prog')
@@ -213,17 +210,17 @@ unit_rename_def_recursive =
     , BodyAction [ConstructVar $ globalVarRef "main"]
     , renameDef "main" "foo"
     ]
-    $ expectSuccess $ \_ prog' -> do
+    . expectSuccess
+    $ \_ prog' -> do
       assertNothing (lookupDef' "main" prog')
       assertJust (lookupDef' "foo" prog')
       fmap (forgetIDs . astDefExpr) (defAST =<< lookupDef' "foo" prog') @?= Just (Var () $ globalVarRef "foo")
 
 unit_delete_def :: Assertion
 unit_delete_def =
-  progActionTest defaultEmptyProg [deleteDef "other"] $
-    expectSuccess $ \_ prog' -> do
-      assertNothing (lookupDef' "other" prog')
-      assertJust (lookupDef' "main" prog')
+  progActionTest defaultEmptyProg [deleteDef "other"] . expectSuccess $ \_ prog' -> do
+    assertNothing (lookupDef' "other" prog')
+    assertJust (lookupDef' "main" prog')
 
 unit_delete_def_unknown_id :: Assertion
 unit_delete_def_unknown_id =
@@ -239,7 +236,7 @@ unit_delete_def_used_id_cross_module :: Assertion
 unit_delete_def_used_id_cross_module =
   progActionTest
     prog
-    [moveToDef "main", BodyAction [ConstructVar $ GlobalVarRef $ qualifyM "foo"], DeleteDef $ qualifyM "foo"]
+    [moveToDef "main", BodyAction [ConstructVar . GlobalVarRef $ qualifyM "foo"], DeleteDef $ qualifyM "foo"]
     $ expectError (@?= DefInUse (qualifyM "foo"))
   where
     n = ModuleName ["Module2"]
@@ -249,21 +246,18 @@ unit_delete_def_used_id_cross_module =
       e <- emptyHole
       t <- tEmptyHole
       let m =
-            Module n mempty $
-              Map.singleton "foo" $
-                DefAST $
-                  ASTDef e t
+            Module n mempty . Map.singleton "foo" . DefAST $
+              ASTDef e t
       pure $ p & #progModules %~ (m :)
 
 -- 'foo = foo' shouldn't count as "in use" and block deleting itself
 unit_delete_def_recursive :: Assertion
 unit_delete_def_recursive =
-  progActionTest defaultEmptyProg [moveToDef "main", BodyAction [ConstructVar $ globalVarRef "main"], deleteDef "main"] $
-    expectSuccess $ \prog prog' ->
-      Map.delete
-        (qualifyName mainModuleName "main")
-        (foldMap moduleDefsQualified $ progModules prog)
-        @?= foldMap moduleDefsQualified (progModules prog')
+  progActionTest defaultEmptyProg [moveToDef "main", BodyAction [ConstructVar $ globalVarRef "main"], deleteDef "main"] . expectSuccess $ \prog prog' ->
+    Map.delete
+      (qualifyName mainModuleName "main")
+      (foldMap moduleDefsQualified $ progModules prog)
+      @?= foldMap moduleDefsQualified (progModules prog')
 
 unit_move_to_unknown_def :: Assertion
 unit_move_to_unknown_def =
@@ -278,12 +272,11 @@ unit_construct_let_without_moving_to_def_first =
   progActionTest defaultEmptyProg [BodyAction [ConstructLet (Just "x")]] $ expectError (@?= NoDefSelected)
 
 unit_create_def :: Assertion
-unit_create_def = progActionTest defaultEmptyProg [CreateDef mainModuleName $ Just "newDef"] $
-  expectSuccess $ \_ prog' -> do
-    case lookupASTDef' "newDef" prog' of
-      Nothing -> assertFailure $ show $ moduleDefs <$> progModules prog'
-      Just def -> do
-        astDefExpr def @?= EmptyHole (Meta 4 Nothing Nothing)
+unit_create_def = progActionTest defaultEmptyProg [CreateDef mainModuleName $ Just "newDef"] . expectSuccess $ \_ prog' -> do
+  case lookupASTDef' "newDef" prog' of
+    Nothing -> assertFailure . show $ moduleDefs <$> progModules prog'
+    Just def -> do
+      astDefExpr def @?= EmptyHole (Meta 4 Nothing Nothing)
 
 unit_create_def_clash_prim :: Assertion
 unit_create_def_clash_prim =
@@ -325,14 +318,13 @@ unit_create_typedef =
           , astTypeDefConstructors = [ValCon (vcn "Node") [TVar () "a", TApp () (TCon () (tcn "List")) (TApp () (TCon () (tcn "Tree")) (TVar () "a"))]]
           , astTypeDefNameHints = ["xs", "ys", "zs"]
           }
-   in progActionTest defaultEmptyProg [AddTypeDef (tcn "List") lst, AddTypeDef (tcn "Tree") tree] $
-        expectSuccess $
-          \_ prog' -> do
-            case Map.elems $ foldMap moduleTypes $ progModules prog' of
-              [lst', tree'] -> do
-                TypeDefAST lst @=? lst'
-                TypeDefAST tree @=? tree'
-              _ -> assertFailure $ show $ moduleTypes <$> progModules prog'
+   in progActionTest defaultEmptyProg [AddTypeDef (tcn "List") lst, AddTypeDef (tcn "Tree") tree] . expectSuccess $
+        \_ prog' -> do
+          case Map.elems . foldMap moduleTypes $ progModules prog' of
+            [lst', tree'] -> do
+              TypeDefAST lst @=? lst'
+              TypeDefAST tree @=? tree'
+            _ -> assertFailure . show $ moduleTypes <$> progModules prog'
 
 -- "List" is unknown here
 unit_create_typedef_bad_1 :: Assertion
@@ -344,7 +336,7 @@ unit_create_typedef_bad_1 =
           , astTypeDefNameHints = ["xs", "ys", "zs"]
           }
    in progActionTest defaultEmptyProg [AddTypeDef (tcn "Tree") td] $
-        expectError (@?= (TypeDefError $ show $ UnknownTypeConstructor (tcn "List")))
+        expectError (@?= (TypeDefError . show $ UnknownTypeConstructor (tcn "List")))
 
 -- duplicate type(names) added
 unit_create_typedef_bad_2 :: Assertion
@@ -454,8 +446,7 @@ unit_create_typedef_8 =
           , astTypeDefConstructors = [ValCon (vcn "T") []]
           , astTypeDefNameHints = []
           }
-   in progActionTest defaultEmptyProg [AddTypeDef (tcn "T") td] $
-        expectSuccess $ \_ prog' -> Map.elems (foldMap moduleTypes (progModules prog')) @?= [TypeDefAST td]
+   in progActionTest defaultEmptyProg [AddTypeDef (tcn "T") td] . expectSuccess $ \_ prog' -> Map.elems (foldMap moduleTypes (progModules prog')) @?= [TypeDefAST td]
 
 -- Allow clash between type name and constructor name across types
 unit_create_typedef_9 :: Assertion
@@ -472,26 +463,24 @@ unit_create_typedef_9 =
           , astTypeDefConstructors = []
           , astTypeDefNameHints = []
           }
-   in progActionTest defaultEmptyProg [AddTypeDef (tcn "T") td1, AddTypeDef (tcn "C") td2] $
-        expectSuccess $ \_ prog' -> Map.elems (foldMap moduleTypes (progModules prog')) @?= [TypeDefAST td2, TypeDefAST td1]
+   in progActionTest defaultEmptyProg [AddTypeDef (tcn "T") td1, AddTypeDef (tcn "C") td2] . expectSuccess $ \_ prog' -> Map.elems (foldMap moduleTypes (progModules prog')) @?= [TypeDefAST td2, TypeDefAST td1]
 
 unit_construct_arrow_in_sig :: Assertion
 unit_construct_arrow_in_sig =
-  progActionTest defaultEmptyProg [moveToDef "other", SigAction [ConstructArrowL, Move Child1]] $
-    expectSuccess $ \_ prog' ->
-      case lookupASTDef' "other" prog' of
-        Just def ->
-          -- Check that the signature is an arrow type
-          case astDefType def of
-            TFun _ lhs _ ->
-              -- Check that the selection is focused on the lhs, as we instructed
-              case progSelection prog' of
-                Just (Selection d (Just NodeSelection{nodeType = SigNode, nodeId})) -> do
-                  d @?= qualifyName mainModuleName "other"
-                  nodeId @?= getID lhs
-                _ -> assertFailure "no selection"
-            _ -> assertFailure "not a function"
-        _ -> assertFailure "definition not found"
+  progActionTest defaultEmptyProg [moveToDef "other", SigAction [ConstructArrowL, Move Child1]] . expectSuccess $ \_ prog' ->
+    case lookupASTDef' "other" prog' of
+      Just def ->
+        -- Check that the signature is an arrow type
+        case astDefType def of
+          TFun _ lhs _ ->
+            -- Check that the selection is focused on the lhs, as we instructed
+            case progSelection prog' of
+              Just (Selection d (Just NodeSelection{nodeType = SigNode, nodeId})) -> do
+                d @?= qualifyName mainModuleName "other"
+                nodeId @?= getID lhs
+              _ -> assertFailure "no selection"
+          _ -> assertFailure "not a function"
+      _ -> assertFailure "definition not found"
 
 unit_sigaction_creates_holes :: Assertion
 unit_sigaction_creates_holes =
@@ -502,21 +491,20 @@ unit_sigaction_creates_holes =
         , -- other :: Char; other = main
           moveToDef "other"
         , SigAction [ConstructTCon (mainModuleNameText, "Char")]
-        , BodyAction [ConstructVar $ GlobalVarRef $ gvn "main"]
+        , BodyAction [ConstructVar . GlobalVarRef $ gvn "main"]
         , -- main :: Int
           -- We expect this to change 'other' to contain a hole
           moveToDef "main"
         , SigAction [Delete, ConstructTCon (mainModuleNameText, "Int")]
         ]
-   in progActionTest defaultFullProg acts $
-        expectSuccess $ \_ prog' ->
-          case lookupASTDef' "other" prog' of
-            Just def ->
-              -- Check that the definition is a non-empty hole
-              case astDefExpr def of
-                Hole _ (Var _ (GlobalVarRef n)) | n == gvn "main" -> pure ()
-                _ -> assertFailure "expected {? main ?}"
-            _ -> assertFailure "definition not found"
+   in progActionTest defaultFullProg acts . expectSuccess $ \_ prog' ->
+        case lookupASTDef' "other" prog' of
+          Just def ->
+            -- Check that the definition is a non-empty hole
+            case astDefExpr def of
+              Hole _ (Var _ (GlobalVarRef n)) | n == gvn "main" -> pure ()
+              _ -> assertFailure "expected {? main ?}"
+          _ -> assertFailure "definition not found"
 
 unit_copy_paste_duplicate :: Assertion
 unit_copy_paste_duplicate = do
@@ -524,7 +512,7 @@ unit_copy_paste_duplicate = do
       toDef = gvn "blank"
       ((p, fromType, fromExpr, _toType, _toExpr), maxID) = create $ do
         mainType <- tforall "a" KType (tvar "a" `tfun` (tcon tMaybe `tapp` tEmptyHole))
-        mainExpr <- lAM "b" $ lam "x" $ con cJust `aPP` tvar "b" `app` lvar "x"
+        mainExpr <- lAM "b" . lam "x" $ con cJust `aPP` tvar "b" `app` lvar "x"
         let mainDef = ASTDef mainExpr mainType
         blankDef <- ASTDef <$> emptyHole <*> tEmptyHole
         pure
@@ -567,7 +555,7 @@ unit_copy_paste_type_scoping = do
   let mainName = gvn "main"
       ((pInitial, srcID, pExpected), maxID) = create $ do
         toCopy <- tvar "a" `tfun` tvar "b" `tfun` tforall "d" KType (tvar "c" `tfun` tvar "d")
-        let skel r = tforall "a" KType $ tfun (tforall "b" KType $ tforall "c" KType $ pure toCopy) $ tforall "c" KType r
+        let skel r = tforall "a" KType . tfun (tforall "b" KType . tforall "c" KType $ pure toCopy) $ tforall "c" KType r
         defInitial <- ASTDef <$> emptyHole <*> skel tEmptyHole
         expected <- ASTDef <$> emptyHole <*> skel (tvar "a" `tfun` tEmptyHole `tfun` tforall "d" KType (tEmptyHole `tfun` tvar "d"))
         pure
@@ -622,13 +610,12 @@ unit_copy_paste_expr_1 = do
         let toCopy' = con cMakePair `aPP` tvar "a" `aPP` tvar "b" `app` lvar "y" `app` lvar "z" -- want different IDs for the two occurences in expected
         toCopy <- toCopy'
         let skel r =
-              lAM "a" $
-                lam "x" $
-                  case_
-                    (lvar "x")
-                    [ branch cNil [] r
-                    , branch cCons [("y", Nothing), ("ys", Nothing)] $ lAM "b" $ lam "z" $ pure toCopy
-                    ]
+              lAM "a" . lam "x" $
+                case_
+                  (lvar "x")
+                  [ branch cNil [] r
+                  , branch cCons [("y", Nothing), ("ys", Nothing)] . lAM "b" . lam "z" $ pure toCopy
+                  ]
         expectPasted <- con cMakePair `aPP` tvar "a" `aPP` tEmptyHole `app` emptyHole `app` emptyHole
         -- TODO: in the future we may want to insert let bindings for variables
         -- which are out of scope in the target, and produce something like
@@ -729,10 +716,9 @@ unit_import_vars =
         gets (fmap (Map.assocs . moduleDefsQualified) . progModules . appProg) >>= \case
           [[(i, DefAST d)]] -> do
             a' <- get
-            (_, vs) <- runReaderT (handleQuestion (VariablesInScope i $ getID $ astDefExpr d)) a'
-            pure $
-              assertBool "VariablesInScope did not report the imported Int.+" $
-                any ((== primitiveGVar "Int.+") . fst) vs
+            (_, vs) <- runReaderT (handleQuestion (VariablesInScope i . getID $ astDefExpr d)) a'
+            pure . assertBool "VariablesInScope did not report the imported Int.+" $
+              any ((== primitiveGVar "Int.+") . fst) vs
           _ -> pure $ assertFailure "Expected one def 'main' from newEmptyApp"
       a = newEmptyApp
    in case fst $ runAppTestM (appIdCounter a) a test of
@@ -751,7 +737,7 @@ unit_import_reference =
               handleEditRequest
                 [ MoveToDef i
                 , SigAction [constructTCon tChar]
-                , BodyAction [ConstructVar $ GlobalVarRef $ primitiveGVar "toUpper"]
+                , BodyAction [ConstructVar . GlobalVarRef $ primitiveGVar "toUpper"]
                 ]
             pure $ pure ()
           (Nothing, _) -> pure $ assertFailure "Could not find the imported toUpper"
@@ -822,7 +808,8 @@ unit_RenameType =
         mkDef1 "def" (emptyHole `ann` (tcon tT `tapp` tcon (tcn "Bool"))) tEmptyHole
     )
     [RenameType tT "T'"]
-    $ expectSuccess $ \_ prog' -> do
+    . expectSuccess
+    $ \_ prog' -> do
       -- The type is available under its new name
       td <- findTypeDef (tcn "T'") prog'
       -- The recursive reference to T is renamed also
@@ -831,8 +818,7 @@ unit_RenameType =
             , ValCon cB [TCon () (tcn "T'"), TVar () "b"]
             ]
       -- The old name does not refer to anything
-      assertBool "Expected the old name to be out of scope" $
-        not $ Map.member (tcn "T") $ foldMap moduleTypesQualified (progAllModules prog')
+      assertBool "Expected the old name to be out of scope" . not . Map.member (tcn "T") $ foldMap moduleTypesQualified (progAllModules prog')
       def <- findDef (gvn "def") prog'
       forgetIDs (astDefExpr def)
         @?= forgetIDs
@@ -869,7 +855,8 @@ unit_RenameCon =
           tEmptyHole
     )
     [RenameCon tT cA "A'"]
-    $ expectSuccess $ \_ prog' -> do
+    . expectSuccess
+    $ \_ prog' -> do
       td <- findTypeDef tT prog'
       astTypeDefConstructors td
         @?= [ ValCon (vcn "A'") [TCon () (tcn "Bool"), TCon () (tcn "Bool"), TCon () (tcn "Bool")]
@@ -914,7 +901,8 @@ unit_RenameTypeParam =
   progActionTest
     (defaultProgEditableTypeDefs $ pure [])
     [RenameTypeParam tT "b" "b'"]
-    $ expectSuccess $ \_ prog' -> do
+    . expectSuccess
+    $ \_ prog' -> do
       td <- findTypeDef tT prog'
       astTypeDefParameters td @?= [("a", KType), ("b'", KType)]
       astTypeDefConstructors td
@@ -944,7 +932,8 @@ unit_AddCon =
           tEmptyHole
     )
     [AddCon tT 1 "C"]
-    $ expectSuccess $ \_ prog' -> do
+    . expectSuccess
+    $ \_ prog' -> do
       td <- findTypeDef tT prog'
       astTypeDefConstructors td
         @?= [ ValCon cA [TCon () (tcn "Bool"), TCon () (tcn "Bool"), TCon () (tcn "Bool")]
@@ -975,7 +964,8 @@ unit_SetConFieldType =
         astDef "def" x <$> tEmptyHole
     )
     [SetConFieldType tT cA 1 $ TCon () (tcn "Int")]
-    $ expectSuccess $ \_ prog' -> do
+    . expectSuccess
+    $ \_ prog' -> do
       td <- findTypeDef tT prog'
       astTypeDefConstructors td
         @?= [ ValCon cA [TCon () (tcn "Bool"), TCon () (tcn "Int"), TCon () (tcn "Bool")]
@@ -998,13 +988,13 @@ unit_SetConFieldType_partial_app =
         mkDef1 "def" (con cA `app` lvar "x") (tcon tT)
     )
     [SetConFieldType tT cA 1 $ TCon () (tcn "Int")]
-    $ expectSuccess $ \_ prog' -> do
+    . expectSuccess
+    $ \_ prog' -> do
       def <- findDef (gvn "def") prog'
       forgetIDs (astDefExpr def)
         @?= forgetIDs
-          ( create' $
-              hole $
-                con cA `app` lvar "x"
+          ( create' . hole $
+              con cA `app` lvar "x"
           )
 
 unit_SetConFieldType_case :: Assertion
@@ -1025,7 +1015,8 @@ unit_SetConFieldType_case =
           (tcon (tcn "Bool"))
     )
     [SetConFieldType tT cA 1 $ TCon () (tcn "Int")]
-    $ expectSuccess $ \_ prog' -> do
+    . expectSuccess
+    $ \_ prog' -> do
       def <- findDef (gvn "def") prog'
       forgetIDs (astDefExpr def)
         @?= forgetIDs
@@ -1058,7 +1049,8 @@ unit_SetConFieldType_shadow =
           (tcon (tcn "Bool"))
     )
     [SetConFieldType tT cA 1 $ TCon () (tcn "Int")]
-    $ expectSuccess $ \_ prog' -> do
+    . expectSuccess
+    $ \_ prog' -> do
       def <- findDef (gvn "def") prog'
       forgetIDs (astDefExpr def)
         @?= forgetIDs
@@ -1093,7 +1085,8 @@ unit_AddConField =
           tEmptyHole
     )
     [AddConField tT cA 1 $ TCon () (tcn "Int")]
-    $ expectSuccess $ \_ prog' -> do
+    . expectSuccess
+    $ \_ prog' -> do
       td <- findTypeDef tT prog'
       astTypeDefConstructors td
         @?= [ ValCon cA [TCon () (tcn "Bool"), TCon () (tcn "Int"), TCon () (tcn "Bool"), TCon () (tcn "Bool")]
@@ -1122,12 +1115,12 @@ unit_AddConField_partial_app =
         mkDef1 "def" (con cA `app` con (vcn "True")) tEmptyHole
     )
     [AddConField tT cA 2 $ TCon () (tcn "Int")]
-    $ expectSuccess $ \_ prog' -> do
+    . expectSuccess
+    $ \_ prog' -> do
       def <- findDef (gvn "def") prog'
       forgetIDs (astDefExpr def)
         @?= forgetIDs
-          ( create' $
-              hole $ con cA `app` con (vcn "True")
+          ( create' . hole $ con cA `app` con (vcn "True")
           )
 
 unit_AddConField_partial_app_end :: Assertion
@@ -1137,7 +1130,8 @@ unit_AddConField_partial_app_end =
         mkDef1 "def" (con cA `app` con (vcn "True")) tEmptyHole
     )
     [AddConField tT cA 1 $ TCon () (tcn "Int")]
-    $ expectSuccess $ \_ prog' -> do
+    . expectSuccess
+    $ \_ prog' -> do
       td <- findTypeDef tT prog'
       astTypeDefConstructors td
         @?= [ ValCon cA [TCon () (tcn "Bool"), TCon () (tcn "Int"), TCon () (tcn "Bool"), TCon () (tcn "Bool")]
@@ -1168,7 +1162,8 @@ unit_AddConField_case_ann =
           tEmptyHole
     )
     [AddConField tT cA 2 $ TCon () (tcn "Int")]
-    $ expectSuccess $ \_ prog' -> do
+    . expectSuccess
+    $ \_ prog' -> do
       def <- findDef (gvn "def") prog'
       forgetIDs (astDefExpr def)
         @?= forgetIDs
@@ -1195,7 +1190,7 @@ unit_generate_names_import =
             a' <- get
             ns <-
               runReaderT
-                (handleQuestion (GenerateName i (getID $ astDefExpr d) $ Left $ Just $ TCon () tBool))
+                (handleQuestion (GenerateName i (getID $ astDefExpr d) . Left . Just $ TCon () tBool))
                 a'
             pure $ ns @?= ["p", "q"]
           _ -> pure $ assertFailure "Expected one def 'main' from newEmptyApp"
@@ -1221,14 +1216,13 @@ defaultEmptyProg = do
    in pure $
         newEmptyProg'
           { progSelection =
-              Just $
-                Selection (gvn "main") $
-                  Just
-                    NodeSelection
-                      { nodeType = BodyNode
-                      , nodeId = 1
-                      , meta = Left (Meta 1 Nothing Nothing)
-                      }
+              Just . Selection (gvn "main") $
+                Just
+                  NodeSelection
+                    { nodeType = BodyNode
+                    , nodeId = 1
+                    , meta = Left (Meta 1 Nothing Nothing)
+                    }
           }
           & #progModules
           % _head
@@ -1247,7 +1241,7 @@ unit_good_defaultEmptyProg = checkProgWellFormed defaultEmptyProg
 defaultFullProg :: MonadFresh ID m => m Prog
 defaultFullProg = do
   p <- defaultEmptyProg
-  let m = moduleName $ unsafeHead $ progModules p
+  let m = moduleName . unsafeHead $ progModules p
       -- We need to move the primitives, which requires renaming
       -- unit_defaultFullModule_no_clash ensures that there will be no clashes
       renamed :: [Module]
@@ -1259,10 +1253,10 @@ defaultFullProg = do
       & #progModules % _head % #moduleDefs %~ (renamedDefs <>)
 
 findTypeDef :: TyConName -> Prog -> IO ASTTypeDef
-findTypeDef d p = maybe (assertFailure "couldn't find typedef") pure $ (typeDefAST <=< Map.lookup d) $ foldMap moduleTypesQualified $ progModules p
+findTypeDef d p = maybe (assertFailure "couldn't find typedef") pure . (typeDefAST <=< Map.lookup d) . foldMap moduleTypesQualified $ progModules p
 
 findDef :: GVarName -> Prog -> IO ASTDef
-findDef d p = maybe (assertFailure "couldn't find def") pure $ (defAST <=< Map.lookup d) $ foldMap moduleDefsQualified $ progModules p
+findDef d p = maybe (assertFailure "couldn't find def") pure . (defAST <=< Map.lookup d) . foldMap moduleDefsQualified $ progModules p
 
 -- We use the same type definition for all tests related to editing type definitions
 -- (This is added to `defaultFullProg`)
@@ -1304,8 +1298,8 @@ unit_defaultFullProg_no_clash =
       typeNames = ms ^.. folded % #moduleTypes % to Map.keys % folded
       termNames = ms ^.. folded % #moduleDefs % to Map.keys % folded
    in do
-        assertBool "Expected every type making up defaultFullProg to have distinct names" $ not $ anySame typeNames
-        assertBool "Expected every term making up defaultFullProg to have distinct names" $ not $ anySame termNames
+        assertBool "Expected every type making up defaultFullProg to have distinct names" . not $ anySame typeNames
+        assertBool "Expected every term making up defaultFullProg to have distinct names" . not $ anySame termNames
 
 -- We make sure to check that references get updated, including in our selection
 unit_rename_module :: Assertion
@@ -1430,7 +1424,7 @@ unit_cross_module_actions =
               [ Delete
               , ConstructApp
               , Move Child1
-              , ConstructVar $ GlobalVarRef $ qualifyName (ModuleName ["AnotherModule"]) "bar"
+              , ConstructVar . GlobalVarRef $ qualifyName (ModuleName ["AnotherModule"]) "bar"
               , Move Parent
               , Move Child2
               , constructCon cTrue
@@ -1510,7 +1504,7 @@ progActionTest :: S Prog -> [ProgAction] -> (Prog -> Either ProgError Prog -> As
 progActionTest inputProg actions testOutput = do
   let (prog, maxID) = create inputProg
   let a = mkEmptyTestApp prog
-  testOutput prog $ fst $ runAppTestM maxID a (handleEditRequest actions)
+  testOutput prog . fst $ runAppTestM maxID a (handleEditRequest actions)
 
 newtype AppTestM a = AppTestM {unAppTestM :: StateT App (ExceptT ProgError TestM) a}
   deriving newtype
@@ -1525,7 +1519,7 @@ newtype AppTestM a = AppTestM {unAppTestM :: StateT App (ExceptT ProgError TestM
 
 runAppTestM :: ID -> App -> AppTestM a -> (Either ProgError a, App)
 runAppTestM startID a m =
-  case evalTestM startID $ runExceptT $ flip runStateT a $ unAppTestM m of
+  case evalTestM startID . runExceptT . flip runStateT a $ unAppTestM m of
     Left err -> (Left err, a)
     Right (res, app') -> (Right res, app')
 

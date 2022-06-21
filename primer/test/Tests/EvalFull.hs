@@ -165,7 +165,7 @@ unit_8 =
         (mapName, mapDef) <- Examples.map modName
         (evenName, evenDef) <- Examples.even modName
         (oddName, oddDef) <- Examples.odd modName
-        let lst = list_ tNat $ take n $ iterate (con cSucc `app`) (con cZero)
+        let lst = list_ tNat . take n $ iterate (con cSucc `app`) (con cZero)
         expr <- gvar mapName `aPP` tcon tNat `aPP` tcon tBool `app` gvar evenName `app` lst
         let globs = [(mapName, mapDef), (evenName, evenDef), (oddName, oddDef)]
         expect <- list_ tBool (take n $ cycle [con cTrue, con cFalse]) `ann` (tcon tList `tapp` tcon tBool)
@@ -187,7 +187,7 @@ unit_9 =
         (mapName, mapDef) <- Examples.map' modName
         (evenName, evenDef) <- Examples.even modName
         (oddName, oddDef) <- Examples.odd modName
-        let lst = list_ tNat $ take n $ iterate (con cSucc `app`) (con cZero)
+        let lst = list_ tNat . take n $ iterate (con cSucc `app`) (con cZero)
         expr <- gvar mapName `aPP` tcon tNat `aPP` tcon tBool `app` gvar evenName `app` lst
         let globs = [(mapName, mapDef), (evenName, evenDef), (oddName, oddDef)]
         expect <- list_ tBool (take n $ cycle [con cTrue, con cFalse]) `ann` (tcon tList `tapp` tcon tBool)
@@ -270,7 +270,7 @@ unit_12 =
                   [ branch cZero [] $ con cTrue
                   , branch cSucc [("i", Nothing)] $ lvar "f" `app` lvar "i"
                   ]
-        expr <- let_ "n" (con cZero) $ letrec "f" f (tcon tNat `tfun` tcon tBool) $ lvar "f" `app` lvar "n"
+        expr <- let_ "n" (con cZero) . letrec "f" f (tcon tNat `tfun` tcon tBool) $ lvar "f" `app` lvar "n"
         expect <- con cTrue `ann` tcon tBool
         pure (expr, expect)
    in do
@@ -314,12 +314,12 @@ unit_15 =
   let ((expr, steps, expected), maxID) = create $ do
         let l = let_ "x" (lvar "y")
         let c a b = con' ["M"] "C" `app` lvar a `app` lvar b
-        e0 <- l $ lam "y" $ c "x" "y"
+        e0 <- l . lam "y" $ c "x" "y"
         let y' = "a50" -- NB: fragile name "a50"
-        e1 <- l $ lam y' $ let_ "y" (lvar y') $ c "x" "y"
-        e2 <- l $ lam y' $ let_ "y" (lvar y') $ c "x" y'
-        e3 <- l $ lam y' $ c "x" y'
-        e4 <- l $ lam y' $ c "y" y'
+        e1 <- l . lam y' . let_ "y" (lvar y') $ c "x" "y"
+        e2 <- l . lam y' . let_ "y" (lvar y') $ c "x" y'
+        e3 <- l . lam y' $ c "x" y'
+        e4 <- l . lam y' $ c "y" y'
         e5 <- lam y' $ c "y" y'
         pure (e0, [e0, e1, e2, e3, e4, e5], e5)
    in do
@@ -334,7 +334,7 @@ unit_15 =
 
 unit_hole_ann_case :: Assertion
 unit_hole_ann_case =
-  let (tm, maxID) = create $ hole $ ann (case_ emptyHole []) (tcon tBool)
+  let (tm, maxID) = create . hole $ ann (case_ emptyHole []) (tcon tBool)
    in evalFullTest maxID builtinTypes mempty 1 Chk tm @?= Right tm
 
 -- TODO: examples with holes
@@ -345,17 +345,16 @@ unit_hole_ann_case =
 
 -- | Resuming evaluation is the same as running it for longer in the first place
 hprop_resume :: Property
-hprop_resume = withDiscards 2000 $
-  propertyWT testModules $ do
-    (dir, t, _) <- genDirTm
-    resumeTest testModules dir t
+hprop_resume = withDiscards 2000 . propertyWT testModules $ do
+  (dir, t, _) <- genDirTm
+  resumeTest testModules dir t
 
 -- A helper for hprop_resume, and hprop_resume_regression
 resumeTest :: [Module] -> Dir -> Expr -> PropertyT WT ()
 resumeTest mods dir t = do
   let globs = foldMap moduleDefsQualified mods
   tds <- asks typeDefs
-  n <- forAllT $ Gen.integral $ Range.linear 2 1000 -- Arbitrary limit here
+  n <- forAllT . Gen.integral $ Range.linear 2 1000 -- Arbitrary limit here
   -- NB: We need to run this first reduction in an isolated context
   -- as we need to avoid it changing the fresh-name-generator state
   -- for the next run (sMid and sTotal). This is because reduction may need
@@ -363,10 +362,10 @@ resumeTest mods dir t = do
   -- exactly the same as "reducing n steps and then further reducing m
   -- steps" (including generated names). (A happy consequence of this is that
   -- it is precisely the same including ids in metadata.)
-  (stepsFinal', sFinal) <- lift $ isolateWT $ evalFullStepCount tds globs n dir t
+  (stepsFinal', sFinal) <- lift . isolateWT $ evalFullStepCount tds globs n dir t
   when (stepsFinal' < 2) discard
   let stepsFinal = case sFinal of Left _ -> stepsFinal'; Right _ -> 1 + stepsFinal'
-  m <- forAllT $ Gen.integral $ Range.constant 1 (stepsFinal - 1)
+  m <- forAllT . Gen.integral $ Range.constant 1 (stepsFinal - 1)
   (stepsMid, sMid') <- evalFullStepCount tds globs m dir t
   stepsMid === m
   sMid <- case sMid' of
@@ -427,10 +426,8 @@ unit_type_preservation_case_regression_tm =
               -- NB: fragile name a42
               [branch cMakePair [("a42", Nothing), ("y", Nothing)] $ let_ "x" (lvar "a42") emptyHole]
         expect2 <-
-          lam "x" $
-            let_ "a42" (emptyHole `ann` tcon tNat) $
-              let_ "y" (lvar "x" `ann` tcon tBool) $
-                let_ "x" (lvar "a42") emptyHole
+          lam "x" . let_ "a42" (emptyHole `ann` tcon tNat) . let_ "y" (lvar "x" `ann` tcon tBool) $
+            let_ "x" (lvar "a42") emptyHole
         pure (e, expect1, expect2)
       s1 = evalFullTest maxID builtinTypes mempty 1 Chk expr
       s2 = evalFullTest maxID builtinTypes mempty 2 Chk expr
@@ -465,10 +462,8 @@ unit_type_preservation_case_regression_ty =
               -- NB fragile name a54
               [branch cMakePair [("a54", Nothing), ("y", Nothing)] $ let_ "x" (lvar "a54") emptyHole]
         expect2 <-
-          lAM "x" $
-            let_ "a54" (emptyHole `ann` tEmptyHole) $
-              let_ "y" (emptyHole `ann` tvar "x") $
-                let_ "x" (lvar "a54") emptyHole
+          lAM "x" . let_ "a54" (emptyHole `ann` tEmptyHole) . let_ "y" (emptyHole `ann` tvar "x") $
+            let_ "x" (lvar "a54") emptyHole
         pure (e, expect1, expect2)
       s1 = evalFullTest maxID builtinTypes mempty 1 Chk expr
       s2 = evalFullTest maxID builtinTypes mempty 2 Chk expr
@@ -492,19 +487,17 @@ unit_type_preservation_BETA_regression =
                 `aPP` (tvar b `tapp` tcon tBool)
         eA <- lAM "b" $ eA' "b"
         -- Do some renaming to set up
-        expectA1 <- lAM "b" $ letType n (tvar "b") $ letType "b" (tvar n) $ eA' "b"
+        expectA1 <- lAM "b" . letType n (tvar "b") . letType "b" (tvar n) $ eA' "b"
         -- Resolve the renaming
-        expectA3 <- lAM "b" $ letType n (tvar "b") $ eA' n
+        expectA3 <- lAM "b" . letType n (tvar "b") $ eA' n
         -- Do the BETA step
         expectA4 <-
-          lAM "b" $
-            letType n (tvar "b") $
-              letType "b" (tvar n `tapp` tcon tBool) $
-                letType
-                  "a"
-                  (tvar n `tapp` tcon tBool)
-                  (lam "c" $ emptyHole `ann` tvar "a")
-                  `ann` (tcon tNat `tfun` tvar "b")
+          lAM "b" . letType n (tvar "b") . letType "b" (tvar n `tapp` tcon tBool) $
+            letType
+              "a"
+              (tvar n `tapp` tcon tBool)
+              (lam "c" $ emptyHole `ann` tvar "a")
+              `ann` (tcon tNat `tfun` tvar "b")
         -- Resolve all the letTypes
         expectA11 <-
           lAM "b" $
@@ -518,16 +511,14 @@ unit_type_preservation_BETA_regression =
                 `aPP` tcon tChar
         eB <- lAM "b" $ eB' "b"
         -- Do some renaming to set up
-        expectB1 <- lAM "b" $ letType n (tvar "b") $ letType "b" (tvar n) $ eB' "b"
+        expectB1 <- lAM "b" . letType n (tvar "b") . letType "b" (tvar n) $ eB' "b"
         -- Resolve the renaming
-        expectB3 <- lAM "b" $ letType n (tvar "b") $ eB' n
+        expectB3 <- lAM "b" . letType n (tvar "b") $ eB' n
         -- Do the BETA step
         expectB4 <-
-          lAM "b" $
-            letType n (tvar "b") $
-              letType "b" (tcon tChar) $
-                letType "a" (tcon tChar) (gvar foo `aPP` (tvar n `tapp` tcon tBool))
-                  `ann` tcon tNat
+          lAM "b" . letType n (tvar "b") . letType "b" (tcon tChar) $
+            letType "a" (tcon tChar) (gvar foo `aPP` (tvar n `tapp` tcon tBool))
+              `ann` tcon tNat
         -- Resolve all the letTypes (and elide an annotation)
         expectB9 <- lAM "b" $ gvar foo `aPP` (tvar "b" `tapp` tcon tBool)
         -- Note that the reduction of eA and eB take slightly
@@ -544,17 +535,16 @@ unit_type_preservation_BETA_regression =
       tyB = TForall () "c" (KFun KType KType) $ TCon () tNat
       foo = qualifyName (ModuleName ["M"]) "foo"
       fooTy = TForall () "d" KType $ TCon () tNat
-      tmp ty e = case runTypecheckTestMWithPrims NoSmartHoles $
-        local (extendGlobalCxt [(foo, fooTy)]) $ check ty e of
+      tmp ty e = case runTypecheckTestMWithPrims NoSmartHoles . local (extendGlobalCxt [(foo, fooTy)]) $ check ty e of
         Left err -> assertFailure $ show err
         Right _ -> pure ()
    in do
         tmp tyA exprA
         for_ expectedAs $ \(n, e) -> sA n <~==> Left (TimedOut e)
-        tmp tyA $ snd $ NE.last expectedAs
+        tmp tyA . snd $ NE.last expectedAs
         tmp tyB exprB
         for_ expectedBs $ \(n, e) -> sB n <~==> Left (TimedOut e)
-        tmp tyB $ snd $ NE.last expectedBs
+        tmp tyB . snd $ NE.last expectedBs
 
 -- Previously EvalFull reducing a let expression could result in variable
 -- capture. We would reduce 'Λx. let x = _ :: x in x'
@@ -587,22 +577,17 @@ unit_let_self_capture =
           expect3a <- lAM "x" $ letType "a76" (tvar "x") (letType "x" (tvar "a76") (emptyHole `ann` tvar "x"))
           expect3b <- lAM "x" $ emptyHole `ann` tvar "x"
           -- We do not need to do anything special for letrec
-          e4 <- lAM "a" $ lam "f" $ lam "x" $ letrec "x" (lvar "f" `app` lvar "x") (tvar "a") (lvar "x")
+          e4 <- lAM "a" . lam "f" . lam "x" $ letrec "x" (lvar "f" `app` lvar "x") (tvar "a") (lvar "x")
           expect4a <-
-            lAM "a" $
-              lam "f" $
-                lam "x" $
-                  letrec "x" (lvar "f" `app` lvar "x") (tvar "a") $
-                    letrec "x" (lvar "f" `app` lvar "x") (tvar "a") ((lvar "f" `app` lvar "x") `ann` tvar "a")
+            lAM "a" . lam "f" . lam "x" . letrec "x" (lvar "f" `app` lvar "x") (tvar "a") $
+              letrec "x" (lvar "f" `app` lvar "x") (tvar "a") ((lvar "f" `app` lvar "x") `ann` tvar "a")
           expect4b <-
-            lAM "a" $
-              lam "f" $
-                lam "x" $
-                  letrec
-                    "x"
-                    (lvar "f" `app` lvar "x")
-                    (tvar "a")
-                    ((lvar "f" `app` lvar "x") `ann` tvar "a")
+            lAM "a" . lam "f" . lam "x" $
+              letrec
+                "x"
+                (lvar "f" `app` lvar "x")
+                (tvar "a")
+                ((lvar "f" `app` lvar "x") `ann` tvar "a")
           pure
             ( e1
             , t1
@@ -644,37 +629,35 @@ unit_let_self_capture =
 -- (assuming we don't end with a 'LetType' in the term, as the typechecker
 -- cannot currently deal with those)
 hprop_type_preservation :: Property
-hprop_type_preservation = withTests 1000 $
-  withDiscards 2000 $
-    propertyWT testModules $ do
-      let globs = foldMap moduleDefsQualified testModules
-      tds <- asks typeDefs
-      (dir, t, ty) <- genDirTm
-      let test msg e = do
-            annotateShow $ unLabelName msg
-            annotateShow e
-            s <- case e of
-              Left (TimedOut s') -> label (msg <> "TimedOut") >> pure s'
-              Right s' -> label (msg <> "NF") >> pure s'
-            if null [() | LetType{} <- universe s]
-              then do
-                annotateShow s
-                s' <- checkTest ty s
-                forgetIDs s === forgetIDs s' -- check no smart holes happened
-              else label (msg <> "skipped due to LetType") >> success
-      maxSteps <- forAllT $ Gen.integral $ Range.linear 1 1000 -- Arbitrary limit here
-      (steps, s) <- evalFullStepCount tds globs maxSteps dir t
-      annotateShow steps
-      annotateShow s
-      -- s is often reduced to normal form
-      test "long " s
-      -- also test an intermediate point
-      if steps <= 1
-        then label "generated a normal form"
-        else do
-          midSteps <- forAllT $ Gen.integral $ Range.linear 1 (steps - 1)
-          (_, s') <- evalFullStepCount tds globs midSteps dir t
-          test "mid " s'
+hprop_type_preservation = withTests 1000 . withDiscards 2000 . propertyWT testModules $ do
+  let globs = foldMap moduleDefsQualified testModules
+  tds <- asks typeDefs
+  (dir, t, ty) <- genDirTm
+  let test msg e = do
+        annotateShow $ unLabelName msg
+        annotateShow e
+        s <- case e of
+          Left (TimedOut s') -> label (msg <> "TimedOut") >> pure s'
+          Right s' -> label (msg <> "NF") >> pure s'
+        if null [() | LetType{} <- universe s]
+          then do
+            annotateShow s
+            s' <- checkTest ty s
+            forgetIDs s === forgetIDs s' -- check no smart holes happened
+          else label (msg <> "skipped due to LetType") >> success
+  maxSteps <- forAllT . Gen.integral $ Range.linear 1 1000 -- Arbitrary limit here
+  (steps, s) <- evalFullStepCount tds globs maxSteps dir t
+  annotateShow steps
+  annotateShow s
+  -- s is often reduced to normal form
+  test "long " s
+  -- also test an intermediate point
+  if steps <= 1
+    then label "generated a normal form"
+    else do
+      midSteps <- forAllT . Gen.integral $ Range.linear 1 (steps - 1)
+      (_, s') <- evalFullStepCount tds globs midSteps dir t
+      test "mid " s'
 
 unit_prim_toUpper :: Assertion
 unit_prim_toUpper =
@@ -699,7 +682,7 @@ unit_prim_isSpace_2 =
 
 hprop_prim_hex_nat :: Property
 hprop_prim_hex_nat = withTests 20 . property $ do
-  n <- forAllT $ Gen.integral $ Range.constant 0 50
+  n <- forAllT . Gen.integral $ Range.constant 0 50
   let ne = nat n
       ((e, r, gs), maxID) =
         if n <= 15
@@ -1160,20 +1143,18 @@ unit_eval_full_modules_scrutinize_imported_type =
 
 -- Test that evaluation does not duplicate node IDs
 hprop_unique_ids :: Property
-hprop_unique_ids = withTests 1000 $
-  withDiscards 2000 $
-    propertyWT testModules $ do
-      let globs = foldMap moduleDefsQualified testModules
-      tds <- asks typeDefs
-      (dir, t1, _) <- genDirTm
-      let go n t
-            | n == (0 :: Int) = pure ()
-            | otherwise = do
-                t' <- evalFull tds globs 1 dir t
-                case t' of
-                  Left (TimedOut e) -> uniqueIDs e >> go (n - 1) e
-                  Right e -> uniqueIDs e
-      go 20 t1 -- we need some bound since not all terms terminate
+hprop_unique_ids = withTests 1000 . withDiscards 2000 . propertyWT testModules $ do
+  let globs = foldMap moduleDefsQualified testModules
+  tds <- asks typeDefs
+  (dir, t1, _) <- genDirTm
+  let go n t
+        | n == (0 :: Int) = pure ()
+        | otherwise = do
+            t' <- evalFull tds globs 1 dir t
+            case t' of
+              Left (TimedOut e) -> uniqueIDs e >> go (n - 1) e
+              Right e -> uniqueIDs e
+  go 20 t1 -- we need some bound since not all terms terminate
   where
     uniqueIDs e =
       let ids = e ^.. exprIDs

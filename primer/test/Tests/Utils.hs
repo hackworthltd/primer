@@ -23,7 +23,7 @@ modName :: ModuleName
 modName = mkSimpleModuleName "M"
 
 genAST :: S (GVarName, Def) -> Def
-genAST example = fst $ create $ example <&> snd
+genAST example = fst . create $ example <&> snd
 
 -- Note: here we are not trying to test that 'Examples.map' has a
 -- particular next 'ID', only that 'nextID' returns whatever

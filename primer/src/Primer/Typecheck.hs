@@ -198,7 +198,7 @@ lookupLocal :: LVarName -> Cxt -> Either TypeError Type
 lookupLocal v cxt = case M.lookup (unLocalName v) $ localCxt cxt of
   Just (T t) -> Right t
   Just (K _) -> Left $ WrongSortVariable (unLocalName v)
-  Nothing -> Left $ UnknownVariable $ LocalVarRef v
+  Nothing -> Left . UnknownVariable $ LocalVarRef v
 
 lookupLocalTy :: TyVarName -> Cxt -> Either TypeError Kind
 lookupLocalTy v cxt = case M.lookup (unLocalName v) $ localCxt cxt of
@@ -258,7 +258,7 @@ initialCxt sh =
 buildTypingContext :: TypeDefMap -> DefMap -> SmartHoles -> Cxt
 buildTypingContext tydefs defs sh =
   let globals = Map.assocs $ fmap (forgetTypeIDs . defType) defs
-   in extendTypeDefCxt tydefs $ extendGlobalCxt globals $ initialCxt sh
+   in extendTypeDefCxt tydefs . extendGlobalCxt globals $ initialCxt sh
 
 buildTypingContextFromModules :: [Module] -> SmartHoles -> Cxt
 buildTypingContextFromModules modules =
@@ -365,9 +365,8 @@ checkTypeDefs tds = do
       let params = astTypeDefParameters td
       let cons = astTypeDefConstructors td
       assert
-        ( (1 ==) . S.size $
-            S.fromList $
-              qualifiedModule tc : fmap (qualifiedModule . valConName) cons
+        ( (1 ==) . S.size . S.fromList $
+            qualifiedModule tc : fmap (qualifiedModule . valConName) cons
         )
         "Module name of type and all constructors must be the same"
       assert
@@ -376,8 +375,7 @@ checkTypeDefs tds = do
       assert
         (notElem (baseName tc) $ fmap (unLocalName . fst) params)
         "Duplicate names in one tydef: between type-def-name and parameter-names"
-      local (noSmartHoles . extendLocalCxtTys params) $
-        mapM_ (checkKind KType <=< fakeMeta) $ concatMap valConArgs cons
+      local (noSmartHoles . extendLocalCxtTys params) . mapM_ (checkKind KType <=< fakeMeta) $ concatMap valConArgs cons
     -- We need metadata to use checkKind, but we don't care about the output,
     -- just a yes/no answer. In this case it is fine to put nonsense in the
     -- metadata as it won't be inspected.
@@ -426,9 +424,9 @@ checkDef def = do
   case def of
     DefAST def' -> do
       e <- check (forgetTypeIDs t) (astDefExpr def')
-      pure $ DefAST $ def'{astDefType = typeTtoType t, astDefExpr = exprTtoExpr e}
+      pure . DefAST $ def'{astDefType = typeTtoType t, astDefExpr = exprTtoExpr e}
     DefPrim def' -> do
-      pure $ DefPrim $ def'{primDefType = typeTtoType t}
+      pure . DefPrim $ def'{primDefType = typeTtoType t}
 
 -- We assume that constructor names are unique, returning the first one we find
 lookupConstructor :: TypeDefMap -> ValConName -> Maybe (ValCon, TyConName, ASTTypeDef)
@@ -545,7 +543,7 @@ synth = \case
     (inScope, tyCon) <- asks (primConInScope pc)
     -- We expect any frontend to avoid this situation, and thus we do not
     -- try to recover with SmartHoles
-    unless inScope $ throwError' $ PrimitiveTypeNotInScope tyCon
+    unless inScope . throwError' $ PrimitiveTypeNotInScope tyCon
     pure $ annSynth0 (TCon () tyCon) i (\m -> PrimCon m pc)
   e ->
     asks smartHoles >>= \case
@@ -654,7 +652,7 @@ check t = \case
             -- NB: we wrap the scrutinee in a hole and DELETE the branches
             scrutWrap <- Hole <$> meta' (TCSynthed (TEmptyHole ())) <*> pure e'
             pure $ Case caseMeta scrutWrap []
-      Left (TDIUnknownADT ty) -> throwError' $ InternalError $ "We somehow synthesised the unknown type " <> show ty <> " for the scrutinee of a case"
+      Left (TDIUnknownADT ty) -> throwError' . InternalError $ "We somehow synthesised the unknown type " <> show ty <> " for the scrutinee of a case"
       Left TDINotSaturated ->
         asks smartHoles >>= \case
           NoSmartHoles -> throwError' $ CannotCaseNonSaturatedADT eT
@@ -827,7 +825,7 @@ instantiateValCons t = do
           . Compose
           . Compose
           . Compose
-  fmap (fmap reassoc') $ sequence4 $ fmap reassoc instCons
+  fmap (fmap reassoc') . sequence4 $ fmap reassoc instCons
 
 -- | As 'instantiateValCons', but pulls out the relevant bits of the monadic
 -- context into an argument
@@ -986,9 +984,7 @@ getGlobalNames = do
   let ctors =
         Map.foldMapWithKey
           ( \t def ->
-              S.fromList $
-                (f t :) $
-                  fmap (f . valConName) $ foldMap astTypeDefConstructors $ typeDefAST def
+              S.fromList . (f t :) . fmap (f . valConName) . foldMap astTypeDefConstructors $ typeDefAST def
           )
           tyDefs
   pure $ S.union topLevel ctors

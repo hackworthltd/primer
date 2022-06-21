@@ -28,7 +28,7 @@ unit_2 =
     @=? substTy'
       "a"
       (create_ $ tcon tBool)
-      (create_ $ tforall "a" KType $ tvar "a")
+      (create_ . tforall "a" KType $ tvar "a")
 
 unit_3 :: Assertion
 unit_3 =
@@ -36,7 +36,7 @@ unit_3 =
     @=? substTy'
       "a"
       (create_ $ tcon tBool)
-      (create_ $ tforall "b" KType $ tcon tList `tapp` tvar "a")
+      (create_ . tforall "b" KType $ tcon tList `tapp` tvar "a")
 
 create_ :: S (Type' a) -> Type' ()
 create_ = forgetTypeIDs . create'

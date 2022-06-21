@@ -73,7 +73,7 @@ mkAvoidForFreshNameTy t = do
 mkAvoidForFreshNameTypeZ :: MonadReader TC.Cxt m => TypeZ -> m (S.Set Name)
 mkAvoidForFreshNameTypeZ t = do
   let moreGlobal = bindersAboveTypeZ t
-      moreLocal = S.map unLocalName $ bindersBelowTy $ focusOnlyType t
+      moreLocal = S.map unLocalName . bindersBelowTy $ focusOnlyType t
   globals <- TC.getGlobalBaseNames
   pure $ S.unions [moreGlobal, moreLocal, globals]
 

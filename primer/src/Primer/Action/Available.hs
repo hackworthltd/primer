@@ -231,7 +231,7 @@ findNodeWithParent id x = do
           ( TypeNode $ target tz
           , Just $
               maybe
-                (ExprNode $ target $ unfocusType tz)
+                (ExprNode . target $ unfocusType tz)
                 (TypeNode . target)
                 (up tz)
           )
@@ -316,8 +316,9 @@ basicActionsForExpr l defName expr = case expr of
       let filterVars = case l of
             Beginner -> NoFunctions
             _ -> Everything
-       in actionWithInput (Code "x") "Use a variable" (P.useVar l) Primary $
-            ChooseVariable filterVars $ pure . ConstructVar
+       in actionWithInput (Code "x") "Use a variable" (P.useVar l) Primary
+            . ChooseVariable filterVars
+            $ pure . ConstructVar
 
     -- If we have a useful type, offer the refine action, otherwise offer the
     -- saturate action.
@@ -333,8 +334,9 @@ basicActionsForExpr l defName expr = case expr of
     -- We put the same labels on each.
     insertVariableSaturatedRefined :: forall a. ExprMeta -> ActionSpec Expr a
     insertVariableSaturatedRefined m =
-      actionWithInput (Code "f $ ?") "Apply a function to arguments" (P.useFunction l) Primary $
-        ChooseVariable OnlyFunctions $ \name -> [if offerRefined m then InsertRefinedVar name else InsertSaturatedVar name]
+      actionWithInput (Code "f $ ?") "Apply a function to arguments" (P.useFunction l) Primary
+        . ChooseVariable OnlyFunctions
+        $ \name -> [if offerRefined m then InsertRefinedVar name else InsertSaturatedVar name]
 
     annotateExpression :: forall a. ActionSpec Expr a
     annotateExpression = action (Code ":") "Annotate this expression with a type" (P.annotateExpr l) Primary [ConstructAnn]
@@ -361,7 +363,7 @@ basicActionsForExpr l defName expr = case expr of
         , input =
             actionWithNames
               defName
-              (Left $ join $ m ^? _type % _Just % _chkedAt % to lamVarTy)
+              (Left . join $ m ^? _type % _Just % _chkedAt % to lamVarTy)
               (\n -> [ConstructLam $ Just n])
               m'
               ("Choose a " <> nameString <> " for the input variable")
@@ -377,7 +379,7 @@ basicActionsForExpr l defName expr = case expr of
         , input =
             actionWithNames
               defName
-              (Right $ join $ m ^? _type % _Just % _chkedAt % to lAMVarKind)
+              (Right . join $ m ^? _type % _Just % _chkedAt % to lAMVarKind)
               (\n -> [ConstructLAM $ Just n])
               m'
               ("Choose a " <> nameString <> " for the bound type variable")
@@ -458,7 +460,7 @@ basicActionsForExpr l defName expr = case expr of
         , input =
             actionWithNames
               defName
-              (Left $ join $ m ^? _type % _Just % _chkedAt % to lamVarTy)
+              (Left . join $ m ^? _type % _Just % _chkedAt % to lamVarTy)
               (\n -> [RenameLam n])
               m'
               ("Choose a new " <> nameString <> " for the input variable")
@@ -474,7 +476,7 @@ basicActionsForExpr l defName expr = case expr of
         , input =
             actionWithNames
               defName
-              (Right $ join $ m ^? _type % _Just % _chkedAt % to lAMVarKind)
+              (Right . join $ m ^? _type % _Just % _chkedAt % to lAMVarKind)
               (\n -> [RenameLAM n])
               m'
               ("Choose a new " <> nameString <> " for the type variable")

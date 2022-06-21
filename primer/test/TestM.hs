@@ -37,4 +37,4 @@ instance MonadFresh NameCounter TestM where
     -- expects. This testsuite fragility should be refactored at some point,
     -- probably when we overhaul name generation in the (hopefully) near
     -- future.
-    pure $ toEnum $ 26 * i
+    pure . toEnum $ 26 * i

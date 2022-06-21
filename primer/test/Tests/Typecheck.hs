@@ -232,10 +232,10 @@ hprop_decomposeTAppCon :: Property
 hprop_decomposeTAppCon = property $ do
   -- We correctly decompose "good" values
   let genArgs = Gen.list (Range.linear 0 5) $ forgetTypeIDs <$> genType
-  nargs <- forAll $ evalExprGen 0 $ liftA2 (,) genTyConName genArgs
+  nargs <- forAll . evalExprGen 0 $ liftA2 (,) genTyConName genArgs
   tripping nargs (uncurry mkTAppCon) decomposeTAppCon
   -- Also test that if we decompose, then it was "good"
-  ty <- forAll $ evalExprGen 0 $ forgetTypeIDs <$> genType
+  ty <- forAll . evalExprGen 0 $ forgetTypeIDs <$> genType
   let dec = decomposeTAppCon ty
   -- See Note [cover]
   -- cover 30 "decomposable" $ isJust dec
@@ -257,17 +257,13 @@ unit_valConType = do
   f tNat natDef @?= [TCon () tNat, TFun () (TCon () tNat) (TCon () tNat)]
   f tList listDef
     @?= [ TForall () "a" KType (TApp () (TCon () tList) (TVar () "a"))
-        , TForall () "a" KType $ TFun () (TVar () "a") $ TFun () (TApp () (TCon () tList) (TVar () "a")) $ TApp () (TCon () tList) (TVar () "a")
+        , TForall () "a" KType . TFun () (TVar () "a") . TFun () (TApp () (TCon () tList) (TVar () "a")) $ TApp () (TCon () tList) (TVar () "a")
         ]
   f tEither eitherDef
-    @?= [ TForall () "a" KType $
-            TForall () "b" KType $
-              TFun () (TVar () "a") $
-                mkTAppCon tEither [TVar () "a", TVar () "b"]
-        , TForall () "a" KType $
-            TForall () "b" KType $
-              TFun () (TVar () "b") $
-                mkTAppCon tEither [TVar () "a", TVar () "b"]
+    @?= [ TForall () "a" KType . TForall () "b" KType . TFun () (TVar () "a") $
+            mkTAppCon tEither [TVar () "a", TVar () "b"]
+        , TForall () "a" KType . TForall () "b" KType . TFun () (TVar () "b") $
+            mkTAppCon tEither [TVar () "a", TVar () "b"]
         ]
   where
     f tc td = fmap (valConType tc td) (astTypeDefConstructors td)
@@ -356,14 +352,13 @@ unit_remove_hole_not_perfect =
 unit_smart_remove_clean_case :: Assertion
 unit_smart_remove_clean_case =
   ann
-    ( lam "x" $
-        hole $
-          ann
-            ( case_
-                (lvar "x")
-                [branch cTrue [] (con cZero), branch cFalse [] emptyHole]
-            )
-            tEmptyHole
+    ( lam "x" . hole $
+        ann
+          ( case_
+              (lvar "x")
+              [branch cTrue [] (con cZero), branch cFalse [] emptyHole]
+          )
+          tEmptyHole
     )
     (tfun (tcon tBool) (tcon tNat))
     `smartSynthGives` ann
@@ -381,7 +376,7 @@ unit_poly :: Assertion
 unit_poly =
   expectTyped $
     ann
-      (lam "id" $ lAM "a" $ aPP (lvar "id") (tvar "a"))
+      (lam "id" . lAM "a" $ aPP (lvar "id") (tvar "a"))
       (tforall "c" KType (tvar "c" `tfun` tvar "c") `tfun` tforall "b" KType (tvar "b" `tfun` tvar "b"))
 
 unit_poly_head_Nat :: Assertion
@@ -489,23 +484,19 @@ unit_prim_fun_applied =
 
 -- Whenever we synthesise a type, then it kind-checks against KType
 hprop_synth_well_typed_extcxt :: Property
-hprop_synth_well_typed_extcxt = withTests 1000 $
-  withDiscards 2000 $
-    propertyWTInExtendedLocalGlobalCxt [builtinModule, primitiveModule] $ do
-      (e, _ty) <- forAllT genSyn
-      ty' <- generateTypeIDs . fst =<< synthTest =<< generateIDs e
-      void $ checkKindTest KType ty'
+hprop_synth_well_typed_extcxt = withTests 1000 . withDiscards 2000 . propertyWTInExtendedLocalGlobalCxt [builtinModule, primitiveModule] $ do
+  (e, _ty) <- forAllT genSyn
+  ty' <- generateTypeIDs . fst =<< synthTest =<< generateIDs e
+  void $ checkKindTest KType ty'
 
 -- As hprop_synth_well_typed_extcxt, but in the empty context
 -- this is in case there are problems with primitive constructors
 -- (which cannot be used unless their corresponding type is in scope)
 hprop_synth_well_typed_defcxt :: Property
-hprop_synth_well_typed_defcxt = withTests 1000 $
-  withDiscards 2000 $
-    propertyWT [] $ do
-      (e, _ty) <- forAllT genSyn
-      ty' <- generateTypeIDs . fst =<< synthTest =<< generateIDs e
-      void $ checkKindTest KType ty'
+hprop_synth_well_typed_defcxt = withTests 1000 . withDiscards 2000 . propertyWT [] $ do
+  (e, _ty) <- forAllT genSyn
+  ty' <- generateTypeIDs . fst =<< synthTest =<< generateIDs e
+  void $ checkKindTest KType ty'
 
 -- Check that all our builtins are well formed
 -- (these are used to seed initial programs)
@@ -546,7 +537,7 @@ unit_bad_prim_type = case runTypecheckTestM NoSmartHoles $ do
     NoSmartHoles
     CheckEverything
       { trusted = progModules newProg'
-      , toCheck = [Module (ModuleName ["M"]) mempty $ Map.singleton "foo" $ DefPrim foo]
+      , toCheck = [Module (ModuleName ["M"]) mempty . Map.singleton "foo" $ DefPrim foo]
       } of
   Left err -> err @?= UnknownTypeConstructor (tcn ["M"] "NonExistant")
   Right _ -> assertFailure "Expected failure but succeeded"

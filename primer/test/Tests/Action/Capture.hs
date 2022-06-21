@@ -64,55 +64,55 @@ unit_RenameLam_no_capture =
   actionTestExpectFail
     isNameCapture
     NoSmartHoles
-    (ann (lam "x" $ lam "y" $ lvar "x") tEmptyHole)
+    (ann (lam "x" . lam "y" $ lvar "x") tEmptyHole)
     [Move Child1, Move Child1, RenameLam "x"]
 
 unit_RenameLAM_noop :: Assertion
 unit_RenameLAM_noop =
   actionTest
     NoSmartHoles
-    (ann (lAM "x" $ ann emptyHole $ tvar "x") tEmptyHole)
+    (ann (lAM "x" . ann emptyHole $ tvar "x") tEmptyHole)
     [Move Child1, RenameLAM "x"]
-    (ann (lAM "x" $ ann emptyHole $ tvar "x") tEmptyHole)
+    (ann (lAM "x" . ann emptyHole $ tvar "x") tEmptyHole)
 
 unit_RenameLAM_no_capture :: Assertion
 unit_RenameLAM_no_capture =
   actionTestExpectFail
     isNameCapture
     NoSmartHoles
-    (ann (lAM "x" $ lAM "y" $ ann emptyHole $ tvar "x") tEmptyHole)
+    (ann (lAM "x" . lAM "y" . ann emptyHole $ tvar "x") tEmptyHole)
     [Move Child1, Move Child1, RenameLAM "x"]
 
 unit_RenameLet_noop :: Assertion
 unit_RenameLet_noop =
   actionTest
     NoSmartHoles
-    (ann (lam "x" $ let_ "y" emptyHole $ lvar "x") tEmptyHole)
+    (ann (lam "x" . let_ "y" emptyHole $ lvar "x") tEmptyHole)
     [Move Child1, Move Child1, RenameLet "y"]
-    (ann (lam "x" $ let_ "y" emptyHole $ lvar "x") tEmptyHole)
+    (ann (lam "x" . let_ "y" emptyHole $ lvar "x") tEmptyHole)
 
 unit_RenameLet_no_capture_1 :: Assertion
 unit_RenameLet_no_capture_1 =
   actionTestExpectFail
     isNameCapture
     NoSmartHoles
-    (ann (lam "x" $ let_ "y" emptyHole $ lvar "x") tEmptyHole)
+    (ann (lam "x" . let_ "y" emptyHole $ lvar "x") tEmptyHole)
     [Move Child1, Move Child1, RenameLet "x"]
 
 unit_RenameLetrec_noop :: Assertion
 unit_RenameLetrec_noop =
   actionTest
     NoSmartHoles
-    (ann (lam "x" $ letrec "y" emptyHole tEmptyHole $ lvar "x") tEmptyHole)
+    (ann (lam "x" . letrec "y" emptyHole tEmptyHole $ lvar "x") tEmptyHole)
     [Move Child1, Move Child1, RenameLet "y"]
-    (ann (lam "x" $ letrec "y" emptyHole tEmptyHole $ lvar "x") tEmptyHole)
+    (ann (lam "x" . letrec "y" emptyHole tEmptyHole $ lvar "x") tEmptyHole)
 
 unit_RenameLetrec_no_capture_1 :: Assertion
 unit_RenameLetrec_no_capture_1 =
   actionTestExpectFail
     isNameCapture
     NoSmartHoles
-    (ann (lam "x" $ letrec "y" emptyHole tEmptyHole $ lvar "x") tEmptyHole)
+    (ann (lam "x" . letrec "y" emptyHole tEmptyHole $ lvar "x") tEmptyHole)
     [Move Child1, Move Child1, RenameLet "x"]
 
 unit_RenameLetrec_no_capture_2 :: Assertion
@@ -120,7 +120,7 @@ unit_RenameLetrec_no_capture_2 =
   actionTestExpectFail
     isNameCapture
     NoSmartHoles
-    (ann (lam "x" $ letrec "y" emptyHole tEmptyHole $ lvar "x") tEmptyHole)
+    (ann (lam "x" . letrec "y" emptyHole tEmptyHole $ lvar "x") tEmptyHole)
     [Move Child1, Move Child1, RenameLet "x"]
 
 unit_convert_let_to_letrec_no_capture :: Assertion
@@ -128,7 +128,7 @@ unit_convert_let_to_letrec_no_capture =
   actionTestExpectFail
     isNameCapture
     NoSmartHoles
-    (ann (lam "x" $ let_ "x" (lvar "x") $ lvar "x") tEmptyHole)
+    (ann (lam "x" . let_ "x" (lvar "x") $ lvar "x") tEmptyHole)
     [Move Child1, Move Child1, ConvertLetToLetrec]
 
 unit_ConstructTForall_no_capture :: Assertion
@@ -136,23 +136,23 @@ unit_ConstructTForall_no_capture =
   actionTestExpectFail
     isNameCapture
     NoSmartHoles
-    (ann emptyHole $ tforall "x" KType $ tvar "x")
+    (ann emptyHole . tforall "x" KType $ tvar "x")
     [EnterType, Move Child1, ConstructTForall (Just "x")]
 
 unit_RenameForall_noop :: Assertion
 unit_RenameForall_noop =
   actionTest
     NoSmartHoles
-    (ann emptyHole $ tforall "x" KType $ tforall "y" KType $ tvar "x")
+    (ann emptyHole . tforall "x" KType . tforall "y" KType $ tvar "x")
     [EnterType, Move Child1, RenameForall "y"]
-    (ann emptyHole $ tforall "x" KType $ tforall "y" KType $ tvar "x")
+    (ann emptyHole . tforall "x" KType . tforall "y" KType $ tvar "x")
 
 unit_RenameForall_no_capture :: Assertion
 unit_RenameForall_no_capture =
   actionTestExpectFail
     isNameCapture
     NoSmartHoles
-    (ann emptyHole $ tforall "x" KType $ tforall "y" KType $ tvar "x")
+    (ann emptyHole . tforall "x" KType . tforall "y" KType $ tvar "x")
     [EnterType, Move Child1, RenameForall "x"]
 
 unit_ty_tm_same_namespace :: Assertion

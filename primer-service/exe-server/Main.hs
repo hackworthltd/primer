@@ -91,7 +91,7 @@ defaultDb = do
   envVar <- lookupEnv pgUrlEnvVar
   case envVar of
     Nothing -> fail "You must provide a PostgreSQL connection URL either via the command line, or by setting the DATABASE_URL environment variable."
-    Just uri -> pure $ PostgreSQL $ fromString uri
+    Just uri -> pure . PostgreSQL $ fromString uri
 
 runDb :: Db.ServiceCfg -> Database -> IO ()
 runDb cfg =

@@ -69,16 +69,17 @@ primitiveModule =
   Module
     { moduleName = primitiveModuleName
     , moduleTypes = TypeDefPrim <$> M.mapKeys baseName allPrimTypeDefs
-    , moduleDefs = create' $
-        getAp $
-          flip M.foldMapWithKey allPrimDefs $ \n def -> Ap $ do
-            ty <- primFunType def
-            pure $
-              M.singleton (baseName n) $
-                DefPrim
-                  PrimDef
-                    { primDefType = ty
-                    }
+    , moduleDefs = create'
+        . getAp
+        . flip M.foldMapWithKey allPrimDefs
+        $ \n def -> Ap $ do
+          ty <- primFunType def
+          pure
+            . M.singleton (baseName n)
+            $ DefPrim
+              PrimDef
+                { primDefType = ty
+                }
     }
 
 tChar :: TyConName
@@ -129,7 +130,7 @@ allPrimDefs =
               { primFunTypes = sequenceTypes [tcon tChar] (tcon tChar)
               , primFunDef = \case
                   [PrimCon _ (PrimChar c)] ->
-                    Right $ char $ toUpper c
+                    Right $ char (toUpper c)
                   xs -> Left $ PrimFunError name xs
               }
           )
@@ -139,7 +140,7 @@ allPrimDefs =
               { primFunTypes = sequenceTypes [tcon tChar] (tcon tBool)
               , primFunDef = \case
                   [PrimCon _ (PrimChar c)] ->
-                    Right $ bool_ $ isSpace c
+                    Right $ bool_ (isSpace c)
                   xs -> Left $ PrimFunError name xs
               }
           )
@@ -149,7 +150,7 @@ allPrimDefs =
               { primFunTypes = sequenceTypes [tcon tChar] $ tcon tMaybe `tapp` tcon tNat
               , primFunDef = \case
                   [PrimCon _ (PrimChar c)] -> do
-                    Right $ maybe_ (tcon tNat) nat $ digitToIntSafe c
+                    Right $ maybe_ (tcon tNat) nat (digitToIntSafe c)
                     where
                       digitToIntSafe :: Char -> Maybe Natural
                       digitToIntSafe c' = fromIntegral <$> (guard (isHexDigit c') $> digitToInt c')
@@ -162,7 +163,7 @@ allPrimDefs =
               { primFunTypes = sequenceTypes [tcon tNat] $ tcon tMaybe `tapp` tcon tChar
               , primFunDef = \case
                   [exprToNat -> Just n] ->
-                    Right $ maybe_ (tcon tChar) char $ intToDigitSafe n
+                    Right $ maybe_ (tcon tChar) char (intToDigitSafe n)
                     where
                       intToDigitSafe :: Natural -> Maybe Char
                       intToDigitSafe n' = guard (0 <= n && n <= 15) $> intToDigit (fromIntegral n')
@@ -175,7 +176,7 @@ allPrimDefs =
               { primFunTypes = sequenceTypes [tcon tChar, tcon tChar] (tcon tBool)
               , primFunDef = \case
                   [PrimCon _ (PrimChar c1), PrimCon _ (PrimChar c2)] ->
-                    Right $ bool_ $ c1 == c2
+                    Right $ bool_ (c1 == c2)
                   xs -> Left $ PrimFunError name xs
               }
           )
@@ -185,7 +186,7 @@ allPrimDefs =
               { primFunTypes = sequenceTypes [tcon tInt, tcon tInt] (tcon tInt)
               , primFunDef = \case
                   [PrimCon _ (PrimInt x), PrimCon _ (PrimInt y)] ->
-                    Right $ int $ x + y
+                    Right $ int (x + y)
                   xs -> Left $ PrimFunError name xs
               }
           )
@@ -195,7 +196,7 @@ allPrimDefs =
               { primFunTypes = sequenceTypes [tcon tInt, tcon tInt] (tcon tInt)
               , primFunDef = \case
                   [PrimCon _ (PrimInt x), PrimCon _ (PrimInt y)] ->
-                    Right $ int $ x - y
+                    Right $ int (x - y)
                   xs -> Left $ PrimFunError name xs
               }
           )
@@ -205,7 +206,7 @@ allPrimDefs =
               { primFunTypes = sequenceTypes [tcon tInt, tcon tInt] (tcon tInt)
               , primFunDef = \case
                   [PrimCon _ (PrimInt x), PrimCon _ (PrimInt y)] ->
-                    Right $ int $ x * y
+                    Right $ int (x * y)
                   xs -> Left $ PrimFunError name xs
               }
           )
@@ -271,7 +272,7 @@ allPrimDefs =
               { primFunTypes = sequenceTypes [tcon tInt, tcon tInt] (tcon tBool)
               , primFunDef = \case
                   [PrimCon _ (PrimInt x), PrimCon _ (PrimInt y)] ->
-                    Right $ bool_ $ x < y
+                    Right $ bool_ (x < y)
                   xs -> Left $ PrimFunError name xs
               }
           )
@@ -281,7 +282,7 @@ allPrimDefs =
               { primFunTypes = sequenceTypes [tcon tInt, tcon tInt] (tcon tBool)
               , primFunDef = \case
                   [PrimCon _ (PrimInt x), PrimCon _ (PrimInt y)] ->
-                    Right $ bool_ $ x <= y
+                    Right $ bool_ (x <= y)
                   xs -> Left $ PrimFunError name xs
               }
           )
@@ -291,7 +292,7 @@ allPrimDefs =
               { primFunTypes = sequenceTypes [tcon tInt, tcon tInt] (tcon tBool)
               , primFunDef = \case
                   [PrimCon _ (PrimInt x), PrimCon _ (PrimInt y)] ->
-                    Right $ bool_ $ x > y
+                    Right $ bool_ (x > y)
                   xs -> Left $ PrimFunError name xs
               }
           )
@@ -301,7 +302,7 @@ allPrimDefs =
               { primFunTypes = sequenceTypes [tcon tInt, tcon tInt] (tcon tBool)
               , primFunDef = \case
                   [PrimCon _ (PrimInt x), PrimCon _ (PrimInt y)] ->
-                    Right $ bool_ $ x >= y
+                    Right $ bool_ (x >= y)
                   xs -> Left $ PrimFunError name xs
               }
           )
@@ -311,7 +312,7 @@ allPrimDefs =
               { primFunTypes = sequenceTypes [tcon tInt, tcon tInt] (tcon tBool)
               , primFunDef = \case
                   [PrimCon _ (PrimInt x), PrimCon _ (PrimInt y)] ->
-                    Right $ bool_ $ x == y
+                    Right $ bool_ (x == y)
                   xs -> Left $ PrimFunError name xs
               }
           )
@@ -321,7 +322,7 @@ allPrimDefs =
               { primFunTypes = sequenceTypes [tcon tInt, tcon tInt] (tcon tBool)
               , primFunDef = \case
                   [PrimCon _ (PrimInt x), PrimCon _ (PrimInt y)] ->
-                    Right $ bool_ $ x /= y
+                    Right $ bool_ (x /= y)
                   xs -> Left $ PrimFunError name xs
               }
           )
@@ -346,7 +347,7 @@ allPrimDefs =
               { primFunTypes = sequenceTypes [tcon tNat] (tcon tInt)
               , primFunDef = \case
                   [exprToNat -> Just n] ->
-                    Right $ int $ fromIntegral n
+                    Right $ int (fromIntegral n)
                   xs -> Left $ PrimFunError name xs
               }
           )

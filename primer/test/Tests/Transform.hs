@@ -203,11 +203,11 @@ unit_tapp = afterRenameTy "x" "y" (tapp (tvar "x") (tvar "x")) (Just $ tapp (tva
 -- We can rename a variable underneath an annotation
 unit_cross_ann :: Assertion
 unit_cross_ann =
-  afterRenameCross "x" "y" (ann emptyHole $ tvar "x") (Just $ ann emptyHole $ tvar "y")
+  afterRenameCross "x" "y" (ann emptyHole $ tvar "x") (Just . ann emptyHole $ tvar "y")
 
 -- We can rename a variable underneath a type application
 unit_cross_aPP :: Assertion
-unit_cross_aPP = afterRenameCross "x" "y" (aPP emptyHole $ tvar "x") (Just $ aPP emptyHole $ tvar "y")
+unit_cross_aPP = afterRenameCross "x" "y" (aPP emptyHole $ tvar "x") (Just . aPP emptyHole $ tvar "y")
 
 -- We properly detect potential capture arising from term and type
 -- vars being in the same scope.
