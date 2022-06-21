@@ -23,7 +23,6 @@ module Primer.Database.Rel8.Rel8Db (
 
 import Foreword hiding (filter)
 
-import Control.Monad.Catch (MonadCatch, MonadMask, MonadThrow, throwM)
 import Control.Monad.Cont (MonadCont)
 import Control.Monad.Fix (MonadFix)
 import Control.Monad.Trans (MonadTrans)

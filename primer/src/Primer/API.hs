@@ -47,7 +47,6 @@ import Control.Concurrent.STM (
   takeTMVar,
   writeTBQueue,
  )
-import Control.Monad.Catch (MonadThrow, throwM)
 import Data.Aeson (ToJSON)
 import Data.Data (showConstr, toConstr)
 import qualified Data.Generics.Uniplate.Data as U

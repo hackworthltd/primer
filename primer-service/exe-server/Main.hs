@@ -2,14 +2,11 @@
 
 module Main (main) where
 
-import Foreword hiding (
-  catchJust,
- )
+import Foreword
 
 import Control.Concurrent.STM (
   newTBQueueIO,
  )
-import Control.Monad.Catch (catchJust)
 import Control.Monad.Fail (fail)
 import Data.ByteString as BS
 import Data.ByteString.UTF8 (fromString)

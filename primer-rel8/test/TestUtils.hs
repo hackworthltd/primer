@@ -9,9 +9,8 @@ module TestUtils (
   withDbSetup,
 ) where
 
-import Foreword hiding (try)
+import Foreword
 
-import Control.Monad.Catch (MonadCatch, try)
 import Data.ByteString.Lazy.UTF8 as BL
 import qualified Data.Map.Strict as Map
 import Data.String (String)

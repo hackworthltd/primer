@@ -38,12 +38,6 @@ import Control.Concurrent.STM (
   putTMVar,
   readTBQueue,
  )
-import Control.Monad.Catch (
-  MonadCatch,
-  MonadMask,
-  MonadThrow,
-  throwM,
- )
 import Control.Monad.Cont (MonadCont)
 import Control.Monad.Fix (MonadFix)
 import Control.Monad.STM (atomically)

@@ -15,9 +15,8 @@ module TestUtils (
   clearTypeMeta,
 ) where
 
-import Foreword hiding (try)
+import Foreword
 
-import Control.Monad.Catch (MonadCatch, try)
 import Control.Monad.Fresh (MonadFresh)
 import Data.String (String)
 import Data.Typeable (typeOf)

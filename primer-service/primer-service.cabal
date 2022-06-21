@@ -22,6 +22,7 @@ library
 
   default-language:   GHC2021
   default-extensions:
+    NoImplicitPrelude
     DataKinds
     DerivingStrategies
     DerivingVia
