@@ -130,6 +130,7 @@ test-suite service-test
   build-depends:
     , aeson
     , base
+    , extra             >=1.7.10   && <=1.8
     , hasql
     , postgres-options  ^>=0.2
     , primer

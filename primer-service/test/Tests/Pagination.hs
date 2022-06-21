@@ -5,6 +5,7 @@ module Tests.Pagination where
 
 import Foreword
 
+import Control.Monad.Extra (eitherM)
 import Data.String (String)
 import Data.Text (unpack)
 import Data.UUID.V4 (nextRandom)
@@ -98,7 +99,7 @@ deployDb _ =
 
 withSetup :: (Connection -> IO ()) -> IO ()
 withSetup f =
-  let throwEither x = either throwIO pure =<< x
+  let throwEither = eitherM throwIO pure
       dbConfig =
         optionsToDefaultConfig
           mempty

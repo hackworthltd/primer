@@ -12,6 +12,7 @@ module TestUtils (
 import Foreword hiding (try)
 
 import Control.Monad.Catch (MonadCatch, try)
+import Control.Monad.Extra (eitherM)
 import Data.ByteString.Lazy.UTF8 as BL
 import qualified Data.Map.Strict as Map
 import Data.String (String)
@@ -127,7 +128,7 @@ withDbSetup f = do
   -- another process before we can use it, but it's extremely unlikely
   -- to be triggered.
   port <- getFreePort
-  let throwEither x = either throwIO pure =<< x
+  let throwEither = eitherM throwIO pure
       dbConfig =
         optionsToDefaultConfig
           mempty

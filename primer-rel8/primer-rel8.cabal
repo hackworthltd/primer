@@ -79,6 +79,7 @@ test-suite primer-rel8-test
       , base
       , containers
       , exceptions
+      , extra             >=1.7.10   && <=1.8
       , filepath
       , hasql
       , port-utils        ^>=0.2.1

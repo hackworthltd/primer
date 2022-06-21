@@ -27,3 +27,6 @@
 - group:
     name: generalise-for-conciseness
     enabled: true
+- group:
+    name: extra
+    enabled: true

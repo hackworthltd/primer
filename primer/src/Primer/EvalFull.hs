@@ -24,7 +24,7 @@ import Control.Monad.Fresh (MonadFresh)
 import qualified Data.Map as M
 import qualified Data.Set as S
 import Data.Set.Optics (setOf)
-import Data.Tuple.Extra (thd3)
+import Data.Tuple.Extra (dupe, thd3)
 import GHC.Err (error)
 import Numeric.Natural (Natural)
 import Optics (AffineFold, Fold, afolding, anyOf, getting, summing, to, (%), _2, _3)
@@ -412,12 +412,12 @@ findRedex tydefs globals dir = go . focus
     eachChild z f = case down z of
       Nothing -> Nothing
       Just z' ->
-        let children = z' : unfoldr (fmap (\x -> (x, x)) . right) z'
+        let children = z' : unfoldr (fmap dupe . right) z'
          in foldr ((<<||>>) . f) Nothing children
     eachChildWithBinding z f = case down z of
       Nothing -> Nothing
       Just z' ->
-        let children = z' : unfoldr (fmap (\x -> (x, x)) . right) z'
+        let children = z' : unfoldr (fmap dupe . right) z'
          in foldr (\c acc -> f (getBoundHere (target z) (Just $ target c)) c <<||>> acc) Nothing children
     go ez
       | Just (LSome l, bz) <- viewLet ez =

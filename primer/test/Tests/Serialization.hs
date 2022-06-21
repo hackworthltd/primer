@@ -2,6 +2,7 @@ module Tests.Serialization where
 
 import Foreword hiding (log)
 
+import Control.Monad.Extra (eitherM)
 import Data.Aeson hiding (Error, Success)
 import Data.Aeson.Encode.Pretty (
   Config (confCompare),
@@ -83,7 +84,7 @@ test_decode :: TestTree
 test_decode =
   testGroup "decode" $
     fixtures <&> \(Fixture x path) ->
-      testCase (takeBaseName path) $ either assertFailure (x @=?) =<< eitherDecodeFileStrict path
+      testCase (takeBaseName path) $ eitherM assertFailure (x @=?) (eitherDecodeFileStrict path)
 
 -- | A fixture holds some value which is JSON serializable and path to a
 -- fixture file which should contain a JSON representation of that value.
