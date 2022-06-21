@@ -177,7 +177,7 @@ withSession' sid op = do
         -- for the callback.
         callback <- newEmptyTMVar
         writeTBQueue q $ Database.LoadSession sid ss callback
-        return $ Left callback
+        pure $ Left callback
       Just s@(SessionData appl n) ->
         -- The session is in memory, let's do this.
         case op of
@@ -257,7 +257,7 @@ listSessions False ol = do
     atomically $ do
       cb <- newEmptyTMVar
       writeTBQueue q $ Database.ListSessions ol cb
-      return cb
+      pure cb
   liftIO $ atomically $ takeTMVar callback
 listSessions _ ol = sessionsTransaction $ \ss _ -> do
   kvs' <- ListT.toList $ StmMap.listT ss

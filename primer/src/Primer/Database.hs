@@ -323,7 +323,7 @@ serve cfg =
                 queryResult <- querySessionId sid
                 case queryResult of
                   Left (SessionIdNotFound s) ->
-                    return $ Failure $ "Couldn't load the requested session: no such session ID " <> UUID.toText s
+                    pure $ Failure $ "Couldn't load the requested session: no such session ID " <> UUID.toText s
                   Right sd -> do
                     liftIO $ atomically $ StmMap.insert sd sid memdb
-                    return Success
+                    pure Success

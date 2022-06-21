@@ -30,3 +30,6 @@
 - group:
     name: extra
     enabled: true
+- group:
+    name: future
+    enabled: true

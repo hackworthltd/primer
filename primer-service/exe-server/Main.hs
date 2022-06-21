@@ -100,7 +100,7 @@ runDb cfg =
       bracket (connect uri) release restart
   where
     -- Connect to the database.
-    connect u = acquire u >>= either (fail . show) return
+    connect u = acquire u >>= either (fail . show) pure
 
     -- Catch exceptions for which we can restart the database service.
     -- For the time being, this is any 'Rel8DbException', but later we
