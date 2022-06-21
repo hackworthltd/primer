@@ -232,16 +232,16 @@ primFunDef def args = case def of
   IntQuot -> case args of
     [PrimCon _ (PrimInt x), PrimCon _ (PrimInt y)] ->
       Right $
-        if y == 0
-          then int 0
-          else int (x `div` y)
+        int $
+          if y == 0 then 0 else x `div` y
     _ -> err
   IntRem -> case args of
     [PrimCon _ (PrimInt x), PrimCon _ (PrimInt y)] ->
       Right $
-        if y == 0
-          then int x
-          else int (x `mod` y)
+        int $
+          if y == 0
+            then x
+            else x `mod` y
     _ -> err
   IntLT -> case args of
     [PrimCon _ (PrimInt x), PrimCon _ (PrimInt y)] ->

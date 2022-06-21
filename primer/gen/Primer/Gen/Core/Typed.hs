@@ -236,10 +236,10 @@ genSyns ty = do
       let hsPure = locals' ++ globals' ++ cons'
       primCons <- fmap (bimap (PrimCon ()) (TCon ())) <<$>> genPrimCon
       let hs = map pure hsPure ++ primCons
-      if null hs
-        then pure Nothing
-        else pure $
-          Just $ do
+      pure $
+        if null hs
+          then Nothing
+          else Just $ do
             (he, hT) <- Gen.choice hs
             cxt <- ask
             runExceptT (refine cxt ty hT) >>= \case
@@ -420,16 +420,18 @@ genWTType k = do
     vari :: WT (Maybe (GenT WT TypeG))
     vari = do
       goodVars <- filter (consistentKinds k . snd) . M.toList <$> asks localTyVars
-      if null goodVars
-        then pure Nothing
-        else pure $ Just $ Gen.element $ map (TVar () . fst) goodVars
+      pure $
+        if null goodVars
+          then Nothing
+          else Just $ Gen.element $ map (TVar () . fst) goodVars
     constr :: WT (Maybe (GenT WT TypeG))
     constr = do
       tds <- asks $ M.assocs . typeDefs
       let goodTCons = filter (consistentKinds k . typeDefKind . snd) tds
-      if null goodTCons
-        then pure Nothing
-        else pure $ Just $ Gen.element $ map (TCon () . fst) goodTCons
+      pure $
+        if null goodTCons
+          then Nothing
+          else Just $ Gen.element $ map (TCon () . fst) goodTCons
     arrow :: Maybe (GenT WT TypeG)
     arrow =
       if k == KHole || k == KType

@@ -32,3 +32,6 @@
 - group:
     name: future
     enabled: true
+- group:
+    name: monomorphic
+    enabled: true
