@@ -819,11 +819,7 @@ unit_RenameType :: Assertion
 unit_RenameType =
   progActionTest
     ( defaultProgEditableTypeDefs $
-        sequence
-          [ do
-              x <- emptyHole `ann` (tcon tT `tapp` tcon (tcn "Bool"))
-              astDef "def" x <$> tEmptyHole
-          ]
+        mkDef1 "def" (emptyHole `ann` (tcon tT `tapp` tcon (tcn "Bool"))) tEmptyHole
     )
     [RenameType tT "T'"]
     $ expectSuccess $ \_ prog' -> do
@@ -855,23 +851,22 @@ unit_RenameCon :: Assertion
 unit_RenameCon =
   progActionTest
     ( defaultProgEditableTypeDefs $
-        sequence
-          [ do
-              x <-
-                hole
-                  ( hole $
-                      case_
-                        ( con cA `aPP` tEmptyHole `aPP` tEmptyHole
-                            `app` con (vcn "True")
-                            `app` con (vcn "True")
-                            `app` con (vcn "True")
-                        )
-                        [ branch cA [("p", Nothing), ("q", Nothing), ("p1", Nothing)] emptyHole
-                        , branch cB [("r", Nothing), ("x", Nothing)] emptyHole
-                        ]
-                  )
-              astDef "def" x <$> tEmptyHole
-          ]
+        mkDef1
+          "def"
+          ( hole
+              ( hole $
+                  case_
+                    ( con cA `aPP` tEmptyHole `aPP` tEmptyHole
+                        `app` con (vcn "True")
+                        `app` con (vcn "True")
+                        `app` con (vcn "True")
+                    )
+                    [ branch cA [("p", Nothing), ("q", Nothing), ("p1", Nothing)] emptyHole
+                    , branch cB [("r", Nothing), ("x", Nothing)] emptyHole
+                    ]
+              )
+          )
+          tEmptyHole
     )
     [RenameCon tT cA "A'"]
     $ expectSuccess $ \_ prog' -> do
@@ -902,15 +897,14 @@ unit_RenameCon_clash :: Assertion
 unit_RenameCon_clash =
   progActionTest
     ( defaultProgEditableTypeDefs $
-        sequence
-          [ do
-              x <-
-                hole
-                  ( hole
-                      (con cA)
-                  )
-              astDef "def" x <$> tEmptyHole
-          ]
+        mkDef1
+          "def"
+          ( hole
+              ( hole
+                  (con cA)
+              )
+          )
+          tEmptyHole
     )
     [RenameCon tT cA "True"]
     $ expectError (@?= ConAlreadyExists (vcn "True"))
@@ -939,16 +933,15 @@ unit_AddCon :: Assertion
 unit_AddCon =
   progActionTest
     ( defaultProgEditableTypeDefs $
-        sequence
-          [ do
-              x <-
-                case_
-                  (emptyHole `ann` (tcon tT `tapp` tcon (tcn "Bool") `tapp` tcon (tcn "Int")))
-                  [ branch cA [] emptyHole
-                  , branch cB [] emptyHole
-                  ]
-              astDef "def" x <$> tEmptyHole
-          ]
+        mkDef1
+          "def"
+          ( case_
+              (emptyHole `ann` (tcon tT `tapp` tcon (tcn "Bool") `tapp` tcon (tcn "Int")))
+              [ branch cA [] emptyHole
+              , branch cB [] emptyHole
+              ]
+          )
+          tEmptyHole
     )
     [AddCon tT 1 "C"]
     $ expectSuccess $ \_ prog' -> do
@@ -1001,11 +994,8 @@ unit_SetConFieldType =
 unit_SetConFieldType_partial_app :: Assertion
 unit_SetConFieldType_partial_app =
   progActionTest
-    ( defaultProgEditableTypeDefs $ do
-        x <- con cA `app` lvar "x"
-        sequence
-          [ astDef "def" x <$> tcon tT
-          ]
+    ( defaultProgEditableTypeDefs $
+        mkDef1 "def" (con cA `app` lvar "x") (tcon tT)
     )
     [SetConFieldType tT cA 1 $ TCon () (tcn "Int")]
     $ expectSuccess $ \_ prog' -> do
@@ -1020,19 +1010,19 @@ unit_SetConFieldType_partial_app =
 unit_SetConFieldType_case :: Assertion
 unit_SetConFieldType_case =
   progActionTest
-    ( defaultProgEditableTypeDefs $ do
-        x <-
-          case_
-            (emptyHole `ann` (tcon tT `tapp` tEmptyHole `tapp` tEmptyHole))
-            [ branch
-                cA
-                [("x", Nothing), ("y", Nothing), ("z", Nothing)]
-                (lvar "y")
-            , branch cB [] emptyHole
-            ]
-        sequence
-          [ astDef "def" x <$> tcon (tcn "Bool")
-          ]
+    ( defaultProgEditableTypeDefs $
+        mkDef1
+          "def"
+          ( case_
+              (emptyHole `ann` (tcon tT `tapp` tEmptyHole `tapp` tEmptyHole))
+              [ branch
+                  cA
+                  [("x", Nothing), ("y", Nothing), ("z", Nothing)]
+                  (lvar "y")
+              , branch cB [] emptyHole
+              ]
+          )
+          (tcon (tcn "Bool"))
     )
     [SetConFieldType tT cA 1 $ TCon () (tcn "Int")]
     $ expectSuccess $ \_ prog' -> do
@@ -1053,19 +1043,19 @@ unit_SetConFieldType_case =
 unit_SetConFieldType_shadow :: Assertion
 unit_SetConFieldType_shadow =
   progActionTest
-    ( defaultProgEditableTypeDefs $ do
-        x <-
-          case_
-            (emptyHole `ann` (tcon tT `tapp` tEmptyHole `tapp` tEmptyHole))
-            [ branch
-                cA
-                [("x", Nothing), ("y", Nothing), ("z", Nothing)]
-                (lam "y" (lvar "y") `app` lvar "y")
-            , branch cB [] emptyHole
-            ]
-        sequence
-          [ astDef "def" x <$> tcon (tcn "Bool")
-          ]
+    ( defaultProgEditableTypeDefs $
+        mkDef1
+          "def"
+          ( case_
+              (emptyHole `ann` (tcon tT `tapp` tEmptyHole `tapp` tEmptyHole))
+              [ branch
+                  cA
+                  [("x", Nothing), ("y", Nothing), ("z", Nothing)]
+                  (lam "y" (lvar "y") `app` lvar "y")
+              , branch cB [] emptyHole
+              ]
+          )
+          (tcon (tcn "Bool"))
     )
     [SetConFieldType tT cA 1 $ TCon () (tcn "Int")]
     $ expectSuccess $ \_ prog' -> do
@@ -1087,20 +1077,20 @@ unit_SetConFieldType_shadow =
 unit_AddConField :: Assertion
 unit_AddConField =
   progActionTest
-    ( defaultProgEditableTypeDefs $ do
-        x <-
-          case_
-            ( con cA `aPP` tEmptyHole `aPP` tEmptyHole
-                `app` con (vcn "True")
-                `app` con (vcn "True")
-                `app` con (vcn "True")
-            )
-            [ branch cA [("p", Nothing), ("q", Nothing), ("p1", Nothing)] emptyHole
-            , branch cB [("r", Nothing), ("x", Nothing)] emptyHole
-            ]
-        sequence
-          [ astDef "def" x <$> tEmptyHole
-          ]
+    ( defaultProgEditableTypeDefs $
+        mkDef1
+          "def"
+          ( case_
+              ( con cA `aPP` tEmptyHole `aPP` tEmptyHole
+                  `app` con (vcn "True")
+                  `app` con (vcn "True")
+                  `app` con (vcn "True")
+              )
+              [ branch cA [("p", Nothing), ("q", Nothing), ("p1", Nothing)] emptyHole
+              , branch cB [("r", Nothing), ("x", Nothing)] emptyHole
+              ]
+          )
+          tEmptyHole
     )
     [AddConField tT cA 1 $ TCon () (tcn "Int")]
     $ expectSuccess $ \_ prog' -> do
@@ -1128,11 +1118,8 @@ unit_AddConField =
 unit_AddConField_partial_app :: Assertion
 unit_AddConField_partial_app =
   progActionTest
-    ( defaultProgEditableTypeDefs $ do
-        x <- con cA `app` con (vcn "True")
-        sequence
-          [ astDef "def" x <$> tEmptyHole
-          ]
+    ( defaultProgEditableTypeDefs $
+        mkDef1 "def" (con cA `app` con (vcn "True")) tEmptyHole
     )
     [AddConField tT cA 2 $ TCon () (tcn "Int")]
     $ expectSuccess $ \_ prog' -> do
@@ -1146,11 +1133,8 @@ unit_AddConField_partial_app =
 unit_AddConField_partial_app_end :: Assertion
 unit_AddConField_partial_app_end =
   progActionTest
-    ( defaultProgEditableTypeDefs $ do
-        x <- con cA `app` con (vcn "True")
-        sequence
-          [ astDef "def" x <$> tEmptyHole
-          ]
+    ( defaultProgEditableTypeDefs $
+        mkDef1 "def" (con cA `app` con (vcn "True")) tEmptyHole
     )
     [AddConField tT cA 1 $ TCon () (tcn "Int")]
     $ expectSuccess $ \_ prog' -> do
@@ -1169,19 +1153,19 @@ unit_AddConField_partial_app_end =
 unit_AddConField_case_ann :: Assertion
 unit_AddConField_case_ann =
   progActionTest
-    ( defaultProgEditableTypeDefs $ do
-        x <-
-          case_
-            (emptyHole `ann` (tcon tT `tapp` tEmptyHole `tapp` tEmptyHole))
-            [ branch
-                cA
-                [("x", Nothing), ("y", Nothing), ("z", Nothing)]
-                (lvar "y")
-            , branch cB [] emptyHole
-            ]
-        sequence
-          [ astDef "def" x <$> tEmptyHole
-          ]
+    ( defaultProgEditableTypeDefs $
+        mkDef1
+          "def"
+          ( case_
+              (emptyHole `ann` (tcon tT `tapp` tEmptyHole `tapp` tEmptyHole))
+              [ branch
+                  cA
+                  [("x", Nothing), ("y", Nothing), ("z", Nothing)]
+                  (lvar "y")
+              , branch cB [] emptyHole
+              ]
+          )
+          tEmptyHole
     )
     [AddConField tT cA 2 $ TCon () (tcn "Int")]
     $ expectSuccess $ \_ prog' -> do
@@ -1592,3 +1576,6 @@ copyPasteBody (d, i) = CopyPasteBody (gvn d, i)
 
 globalVarRef :: Name -> TmVarRef
 globalVarRef = GlobalVarRef . gvn
+
+mkDef1 :: Applicative m => Name -> m Expr -> m Type -> m [(Name, ASTDef)]
+mkDef1 n = liftA2 $ \e t -> [astDef n e t]

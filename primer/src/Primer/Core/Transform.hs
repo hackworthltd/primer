@@ -73,7 +73,7 @@ renameVar x y expr = case expr of
         | any (`sameVarRef` x) $ bindingNames b = pure b
         | any (`sameVarRef` y) $ bindingNames b = Nothing
         | otherwise = CaseBranch con termargs <$> renameVar x y rhs
-      bindingNames (CaseBranch _ bs _) = map bindName bs
+      bindingNames (CaseBranch _ bs _) = fmap bindName bs
   Var m v
     | v == x -> pure $ Var m y
     | v == y -> Nothing
@@ -159,7 +159,7 @@ renameTyVarExpr x y expr = case expr of
         | any (sameVar x) $ bindingNames b = pure b
         | any (sameVar y) $ bindingNames b = Nothing
         | otherwise = CaseBranch con termargs <$> renameTyVarExpr x y rhs
-      bindingNames (CaseBranch _ bs _) = map bindName bs
+      bindingNames (CaseBranch _ bs _) = fmap bindName bs
   Var{} -> substAllChildren
   Hole{} -> substAllChildren
   EmptyHole{} -> substAllChildren

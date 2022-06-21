@@ -457,10 +457,10 @@ getBoundHere e prev = case e of
   Letrec _ v _ _ _ -> singleton v
   LetType _ v _ _ -> singleton v
   Case _ _ bs ->
-    let binderss = map (\(CaseBranch _ ns rhs) -> (rhs, S.fromList $ map (unLocalName . bindName) ns)) bs
+    let binderss = fmap (\(CaseBranch _ ns rhs) -> (rhs, S.fromList $ fmap (unLocalName . bindName) ns)) bs
      in case prev of
-          Nothing -> S.unions $ map snd binderss
-          Just p -> S.unions $ map (\(b, binders) -> if b == p then binders else mempty) binderss
+          Nothing -> S.unions $ fmap snd binderss
+          Just p -> S.unions $ fmap (\(b, binders) -> if b == p then binders else mempty) binderss
   _ -> mempty
   where
     singleton = S.singleton . unLocalName

@@ -53,7 +53,7 @@ import Protolude.Unsafe as Unsafe (unsafeHead)
 insertAt :: Int -> a -> [a] -> Maybe [a]
 insertAt n y xs =
   if length a == n
-    then Just $ a ++ [y] ++ b
+    then Just $ a <> [y] <> b
     else Nothing
   where
     (a, b) = splitAt n xs
@@ -61,7 +61,7 @@ insertAt n y xs =
 -- | Apply a function to the element at some index, returning `Nothing` if it is out of bounds.
 adjustAt :: Int -> (a -> a) -> [a] -> Maybe [a]
 adjustAt n f xs = case splitAt n xs of
-  (a, b : bs) -> Just $ a ++ [f b] ++ bs
+  (a, b : bs) -> Just $ a <> [f b] <> bs
   _ -> Nothing
 
 -- | Adjust the first element of the list which satisfies the predicate.

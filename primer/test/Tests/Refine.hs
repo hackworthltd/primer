@@ -237,7 +237,7 @@ hprop_arr_app = propertyWTInExtendedLocalGlobalCxt [builtinModule, primitiveModu
   src' <- forAllT $ Gen.list (Range.linear 0 10) $ Gen.choice [Left <$> genWTType KType, curry Right <$> freshTyVarNameForCxt <*> genWTKind]
   let src = foldr (\case Left t -> TFun () t; Right (n, k) -> TForall () n k) tgt src'
   annotateShow src
-  let inst = map (\case Left t -> InstApp t; Right (n, k) -> InstUnconstrainedAPP n k) src'
+  let inst = fmap (\case Left t -> InstApp t; Right (n, k) -> InstUnconstrainedAPP n k) src'
   cxt <- ask
   r <- refine' cxt tgt src
   annotateShow r
@@ -314,7 +314,7 @@ hprop_scoping = propertyWTInExtendedLocalGlobalCxt [builtinModule, primitiveModu
     Just (is, _) -> do
       let ns = S.fromList $ mapMaybe unconstrName is
           ts = mapMaybe aPPTy is
-          fvs = mconcat $ map freeVarsTy ts
+          fvs = mconcat $ fmap freeVarsTy ts
       ns `S.intersection` fvs === mempty
     _ -> discard
   where

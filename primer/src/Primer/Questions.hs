@@ -148,4 +148,4 @@ uniquify' avoid = go
 -- | Adds a numeric suffix to each name so they are distinct from the given set.
 -- Returns the thus-constructed names in order of their added suffix.
 uniquifyMany :: Set.Set Name -> [Name] -> [Name]
-uniquifyMany avoid ns = map snd $ sort $ uniquify' avoid <$> ns
+uniquifyMany avoid ns = fmap snd $ sort $ uniquify' avoid <$> ns

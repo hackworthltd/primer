@@ -720,8 +720,8 @@ getVarType ast x =
             cxt
               { TC.localCxt =
                   Map.fromList $
-                    map (bimap unLocalName TC.T) tmcxt
-                      <> map (bimap unLocalName TC.K) tycxt
+                    fmap (bimap unLocalName TC.T) tmcxt
+                      <> fmap (bimap unLocalName TC.K) tycxt
               }
 
 mkSaturatedApplication :: MonadFresh ID m => m Expr -> TC.Type -> m Expr
@@ -933,7 +933,7 @@ constructCase ze = do
             freshHole <- emptyHole
             ns <- mapM (\t -> (,Just (TCSynthed t)) <$> mkFreshName (replace freshHole ze)) (valConArgs c)
             branch (valConName c) ns (pure freshHole)
-          brs = map f $ astTypeDefConstructors tydef
+          brs = f <$> astTypeDefConstructors tydef
        in flip replace ze <$> case_ (pure $ target ze) brs
     Left TC.TDIHoleType ->
       asks TC.smartHoles >>= \case

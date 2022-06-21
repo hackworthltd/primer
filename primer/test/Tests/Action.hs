@@ -47,7 +47,7 @@ import TestUtils (clearMeta, constructCon, constructRefinedCon, constructTCon)
 -- safe due to the fact that 'universe x' always contains at least
 -- `x`.
 maxID :: (HasID a, Data a) => a -> ID
-maxID = maximum . map getID . universe
+maxID = maximum . fmap getID . universe
 
 hprop_ConstructVar_succeeds_on_hole_when_in_scope :: Property
 hprop_ConstructVar_succeeds_on_hole_when_in_scope = property $ do

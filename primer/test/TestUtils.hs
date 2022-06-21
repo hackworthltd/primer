@@ -60,7 +60,7 @@ constructRefinedCon :: ValConName -> Action
 constructRefinedCon = ConstructRefinedCon . toQualText
 
 toQualText :: GlobalName k -> (NonEmpty Text, Text)
-toQualText n = (map unName $ unModuleName $ qualifiedModule n, unName $ baseName n)
+toQualText n = (fmap unName $ unModuleName $ qualifiedModule n, unName $ baseName n)
 
 vcn :: NonEmpty Name -> Name -> ValConName
 vcn = qualifyName . ModuleName

@@ -90,6 +90,10 @@ import Primer.Name (
   NameCounter,
  )
 
+-- hlint get confused and thinks that references to 'map' in this module refer
+-- to Data.List.Map
+{- HLINT ignore "Use fmap" -}
+
 -- | The polymorphic function @map@ (over @List a@ as defined by
 -- 'listDef').
 map :: MonadFresh ID m => ModuleName -> m (GVarName, Def)

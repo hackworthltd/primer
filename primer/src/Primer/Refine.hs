@@ -44,7 +44,7 @@ refine cxt tgtTy srcTy = go [] srcTy
     go :: [Either TC.Type (TyVarName, C.Kind)] -> TC.Type -> m (Maybe ([Inst], TC.Type))
     go instantiation tmTy =
       let cxt' = extendCxtTys (rights instantiation) cxt
-          uvs = Set.fromList $ map fst $ rights instantiation
+          uvs = Set.fromList $ fst <$> rights instantiation
        in unify cxt' uvs tgtTy tmTy >>= \case
             Just sub ->
               let f = \case

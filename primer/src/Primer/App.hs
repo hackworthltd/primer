@@ -619,7 +619,7 @@ applyProgAction prog mdefName = \case
           maybe (throwError $ TypeDefIsPrim old) pure . typeDefAST
             =<< maybe (throwError $ TypeDefNotFound old) pure (Map.lookup (baseName old) m)
         when (Map.member nameRaw m) $ throwError $ TypeDefAlreadyExists new
-        when (nameRaw `elem` map (unLocalName . fst) (astTypeDefParameters d0)) $ throwError $ TyConParamClash nameRaw
+        when (nameRaw `elem` fmap (unLocalName . fst) (astTypeDefParameters d0)) $ throwError $ TyConParamClash nameRaw
         pure $ Map.insert nameRaw (TypeDefAST d0) $ Map.delete (baseName old) m
       updateRefsInTypes =
         over
@@ -668,10 +668,10 @@ applyProgAction prog mdefName = \case
           (pure . updateConstructors <=< updateParam)
           type_
       updateParam def = do
-        when (new `elem` map fst (astTypeDefParameters def)) $ throwError $ ParamAlreadyExists new
+        when (new `elem` fmap fst (astTypeDefParameters def)) $ throwError $ ParamAlreadyExists new
         let nameRaw = unLocalName new
         when (nameRaw == baseName type_) $ throwError $ TyConParamClash nameRaw
-        when (nameRaw `elem` map (baseName . valConName) (astTypeDefConstructors def)) $ throwError $ ValConParamClash nameRaw
+        when (nameRaw `elem` fmap (baseName . valConName) (astTypeDefConstructors def)) $ throwError $ ValConParamClash nameRaw
         def
           & traverseOf
             #astTypeDefParameters
@@ -1477,7 +1477,7 @@ alterTypeDef f type_ m = do
             (throwError $ TypeDefNotFound type_)
             ( maybe
                 (throwError $ TypeDefIsPrim type_)
-                (map (Just . TypeDefAST) . f)
+                (fmap (Just . TypeDefAST) . f)
                 . typeDefAST
             )
         )

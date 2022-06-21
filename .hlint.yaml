@@ -20,3 +20,7 @@
     rhs: foldlM
     name: foldM
     note: Be explicit about the direction of the fold
+
+- group:
+    name: generalise
+    enabled: true

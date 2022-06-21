@@ -323,7 +323,7 @@ unit_15 =
         e5 <- lam y' $ c "y" y'
         pure (e0, [e0, e1, e2, e3, e4, e5], e5)
    in do
-        let si = map (\i -> evalFullTest maxID builtinTypes mempty i Syn expr) [0 .. fromIntegral $ length steps - 1]
+        let si = fmap (\i -> evalFullTest maxID builtinTypes mempty i Syn expr) [0 .. fromIntegral $ length steps - 1]
             f s e = do
               distinctIDs s
               s <~==> Left (TimedOut e)
@@ -1270,7 +1270,7 @@ distinctIDs e =
       nDistinct = S.size uniqIDs
    in assertBool
         ( unlines
-            [ "Failure: non-distinct ids; had " ++ show nIds ++ " ids, but only " ++ show nDistinct ++ " unique ones"
+            [ "Failure: non-distinct ids; had " <> show nIds <> " ids, but only " <> show nDistinct <> " unique ones"
             , "The duplicates were"
             , show $ ids \\ S.toList uniqIDs
             ]

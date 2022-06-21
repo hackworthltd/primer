@@ -338,7 +338,7 @@ instance ToJSON Def
 
 viewProg :: App.Prog -> Prog
 viewProg p =
-  Prog{modules = map (viewModule True) (progModules p) <> map (viewModule False) (progImports p)}
+  Prog{modules = fmap (viewModule True) (progModules p) <> fmap (viewModule False) (progImports p)}
   where
     viewModule e m =
       Module
@@ -375,13 +375,13 @@ viewTreeExpr = U.para $ \e exprChildren ->
         PrimCon _ pc -> case pc of
           PrimChar c' -> show c'
           PrimInt c' -> show c'
-        _ -> unwords $ c : map unName (U.childrenBi e)
+        _ -> unwords $ c : fmap unName (U.childrenBi e)
       -- add info about type children
       allChildren = case e of
-        Ann _ _ ty -> exprChildren ++ [viewTreeType ty]
-        APP _ _ ty -> exprChildren ++ [viewTreeType ty]
+        Ann _ _ ty -> exprChildren <> [viewTreeType ty]
+        APP _ _ ty -> exprChildren <> [viewTreeType ty]
         LetType _ _ ty _ -> viewTreeType ty : exprChildren
-        Letrec _ _ _ ty _ -> let (h, t) = splitAt 1 exprChildren in h ++ viewTreeType ty : t
+        Letrec _ _ _ ty _ -> let (h, t) = splitAt 1 exprChildren in h <> (viewTreeType ty : t)
         -- otherwise, no type children
         _ -> exprChildren
    in Tree (getID e) n allChildren
@@ -392,7 +392,7 @@ viewTreeType = U.para $ \e allChildren ->
   let c = toS $ showConstr $ toConstr e
       n = case e of
         TForall _ m k _ -> c <> " " <> unName (unLocalName m) <> ":" <> show k
-        _ -> unwords $ c : map unName (U.childrenBi e)
+        _ -> unwords $ c : fmap unName (U.childrenBi e)
    in Tree (getID e) n allChildren
 
 edit :: (MonadIO m, MonadThrow m) => SessionId -> MutationRequest -> PrimerM m (Either ProgError App.Prog)

@@ -60,9 +60,9 @@ instance Semigroup ShadowedVarsExpr where
   M ty1 tm1 gl1 <> M ty2 tm2 gl2 = M (ty1 <> ty2') (tm1 <> tm2') (gl1 <> gl2')
     where
       names1 =
-        Set.fromList (map (unLocalName . fst) ty1)
-          <> Set.fromList (map (unLocalName . fst) tm1)
-          <> Set.fromList (map (baseName . fst) gl1)
+        Set.fromList (fmap (unLocalName . fst) ty1)
+          <> Set.fromList (fmap (unLocalName . fst) tm1)
+          <> Set.fromList (fmap (baseName . fst) gl1)
       ty2' = filter (flip Set.notMember names1 . unLocalName . fst) ty2
       tm2' = filter (flip Set.notMember names1 . unLocalName . fst) tm2
       gl2' = filter (flip Set.notMember names1 . baseName . fst) gl2
@@ -114,8 +114,8 @@ extractLocalsExprZ = foldAbove getBoundHere
       LetType _ x ty _ -> M [(x, kindOrHole (view (position @1) ty))] [] []
       Case _ _ branches ->
         let fromBinding (Bind m n) = (n, typeOrHole m)
-            binderss = map (\(CaseBranch _ ns rhs) -> (rhs, map fromBinding ns)) branches
-         in mconcat $ map (\(b, binders) -> if b == prior e then M [] binders [] else mempty) binderss
+            binderss = fmap (\(CaseBranch _ ns rhs) -> (rhs, fmap fromBinding ns)) branches
+         in mconcat $ fmap (\(b, binders) -> if b == prior e then M [] binders [] else mempty) binderss
       _ -> mempty
 
     -- If a node has no type annotation we assign it type TEmptyHole
@@ -147,7 +147,7 @@ newtype ShadowedVarsTy = N [(TyVarName, Kind)]
 instance Semigroup ShadowedVarsTy where
   N ty1 <> N ty2 = N (ty1 <> ty2')
     where
-      names1 = Set.fromList (map fst ty1)
+      names1 = Set.fromList (fmap fst ty1)
       ty2' = filter (flip Set.notMember names1 . fst) ty2
 
 instance Monoid ShadowedVarsTy where

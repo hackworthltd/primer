@@ -509,12 +509,12 @@ redexes primDefs = go mempty
             Con{} -> mempty
             Case _ e branches ->
               let branchRedexes (CaseBranch _ binds rhs) =
-                    let locals' = (removeAll (map bindName binds) letTm, letTy)
+                    let locals' = (removeAll (fmap bindName binds) letTm, letTy)
                      in go locals' rhs
                   scrutRedex = case unfoldAPP $ fst $ unfoldApp $ removeAnn e of
                     (Con{}, _) -> self
                     _ -> mempty
-               in scrutRedex <> go locals e <> mconcat (map branchRedexes branches)
+               in scrutRedex <> go locals e <> mconcat (fmap branchRedexes branches)
             PrimCon{} -> mempty
     goType locals ty =
       -- A set containing just the ID of this type
@@ -897,8 +897,8 @@ tryReduceExpr globals locals = \case
                       , caseTargetID = scrut ^. _id
                       , caseTargetCtorID = mCon ^. _id
                       , caseCtorName = c
-                      , caseTargetArgIDs = map (^. _id) termArgs
-                      , caseBranchBindingIDs = map (^. _id) binds
+                      , caseTargetArgIDs = fmap (^. _id) termArgs
+                      , caseBranchBindingIDs = fmap (^. _id) binds
                       , caseBranchRhsID = rhs ^. _id
                       , caseLetIDs = letIDs
                       }
@@ -987,7 +987,7 @@ mwhen x b = if b then x else mempty
 tryPrimFun :: Map GVarName PrimDef -> Expr -> Maybe (GVarName, [Expr], forall m. MonadFresh ID m => m Expr)
 tryPrimFun primDefs expr
   | -- Since no primitive functions are polymorphic, there is no need to unfoldAPP
-    (Var _ (GlobalVarRef name), args) <- bimap stripAnns (map stripAnns) $ unfoldApp expr
+    (Var _ (GlobalVarRef name), args) <- bimap stripAnns (fmap stripAnns) $ unfoldApp expr
   , Map.member name primDefs
   , Just PrimFun{primFunDef} <- Map.lookup name allPrimDefs
   , Right e <- primFunDef $ forgetIDs <$> args =

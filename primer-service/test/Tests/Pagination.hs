@@ -142,7 +142,7 @@ test_pagination = testCaseSteps "pagination" $ \step' ->
       step "Insert all sessions"
       rows <- liftIO $ sortOn name <$> traverse mkSession [1 .. m]
       forM_ rows (\SessionRow{..} -> insertSession gitversion uuid newApp (safeMkSessionName name))
-      let expectedRows = map (\r -> Session (uuid r) (safeMkSessionName $ name r)) rows
+      let expectedRows = fmap (\r -> Session (uuid r) (safeMkSessionName $ name r)) rows
       step "Get all, paged"
       onePos <- maybe (assertFailure "1 is positive") pure $ mkPositive 1
       pAllPaged <- pagedDefaultClamp (m + 2) (Pagination{page = onePos, size = Nothing}) listSessions

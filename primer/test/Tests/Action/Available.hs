@@ -55,21 +55,21 @@ mkTests (defName, DefAST def) =
    in testGroup testName $
         enumerate
           <&> \level ->
-            let defActions = map name $ actionsForDef level mempty d
+            let defActions = name <$> actionsForDef level mempty d
                 bodyActions =
-                  map
+                  fmap
                     ( \id ->
                         ( id
-                        , map name $ actionsForDefBody level defName id (astDefExpr def)
+                        , name <$> actionsForDefBody level defName id (astDefExpr def)
                         )
                     )
                     . toListOf exprIDs
                     $ astDefExpr def
                 sigActions =
-                  map
+                  fmap
                     ( \id ->
                         ( id
-                        , map name $ actionsForDefSig level defName id (astDefType def)
+                        , name <$> actionsForDefSig level defName id (astDefType def)
                         )
                     )
                     . toListOf (_typeMeta % _id)

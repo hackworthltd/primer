@@ -336,7 +336,7 @@ checkTypeDefs tds = do
   let atds = Map.mapMaybe typeDefAST tds
   let allAtds = Map.mapMaybe typeDefAST existingTypes <> atds
   assert
-    (distinct $ concatMap (map valConName . astTypeDefConstructors) allAtds)
+    (distinct $ concatMap (fmap valConName . astTypeDefConstructors) allAtds)
     "Duplicate-ly-named constructor (perhaps in different typedefs)"
   -- Note that these checks only apply to non-primitives:
   -- duplicate type names are checked elsewhere, kinds are correct by construction, and there are no constructors.
@@ -371,10 +371,10 @@ checkTypeDefs tds = do
         )
         "Module name of type and all constructors must be the same"
       assert
-        (distinct $ map (unLocalName . fst) params <> map (baseName . valConName) cons)
+        (distinct $ fmap (unLocalName . fst) params <> fmap (baseName . valConName) cons)
         "Duplicate names in one tydef: between parameter-names and constructor-names"
       assert
-        (notElem (baseName tc) $ map (unLocalName . fst) params)
+        (notElem (baseName tc) $ fmap (unLocalName . fst) params)
         "Duplicate names in one tydef: between type-def-name and parameter-names"
       local (noSmartHoles . extendLocalCxtTys params) $
         mapM_ (checkKind KType <=< fakeMeta) $ concatMap valConArgs cons
@@ -663,8 +663,8 @@ check t = \case
             scrutWrap <- Hole <$> meta' (TCSynthed (TEmptyHole ())) <*> pure e'
             pure $ Case caseMeta scrutWrap []
       Right (tc, _, expected) -> do
-        let branchNames = map (\(CaseBranch n _ _) -> n) brs
-        let conNames = map fst expected
+        let branchNames = fmap (\(CaseBranch n _ _) -> n) brs
+        let conNames = fmap fst expected
         sh <- asks smartHoles
         brs' <- case (branchNames == conNames, sh) of
           (False, NoSmartHoles) -> throwError' $ WrongCaseBranches tc branchNames
@@ -841,9 +841,9 @@ instantiateValCons' tyDefs t = do
   case def of
     TypeDefPrim _ -> Left TDINotADT
     TypeDefAST tda -> do
-      let defparams = map fst $ astTypeDefParameters tda
-          f c = (valConName c, map (substituteTypeVars $ zip defparams params) $ valConArgs c)
-      pure (tc, tda, map f $ astTypeDefConstructors tda)
+      let defparams = fst <$> astTypeDefParameters tda
+          f c = (valConName c, substituteTypeVars (zip defparams params) <$> valConArgs c)
+      pure (tc, tda, f <$> astTypeDefConstructors tda)
 
 -- | Similar to check, but for the RHS of case branches
 -- We assume that the branch is for this constructor
@@ -873,8 +873,8 @@ checkBranch t (vc, args) (CaseBranch nb patterns rhs) =
       (True, _) ->
         let args' = zipWith (\ty bind -> (over (position @1) (annotate (TCChkedAt ty)) bind, ty)) args patterns
          in pure (args', rhs)
-    rhs' <- local (extendLocalCxts (map (first bindName) fixedPats)) $ check t fixedRHS
-    pure $ CaseBranch nb (map fst fixedPats) rhs'
+    rhs' <- local (extendLocalCxts (fmap (first bindName) fixedPats)) $ check t fixedRHS
+    pure $ CaseBranch nb (fmap fst fixedPats) rhs'
   where
     createBinding :: S.Set Name -> Type' () -> m (Bind' (Meta TypeCache), Type' ())
     createBinding namesInScope ty = do
@@ -982,13 +982,13 @@ typeTtoType = over _typeMeta (fmap Just)
 getGlobalNames :: MonadReader Cxt m => m (S.Set (ModuleName, Name))
 getGlobalNames = do
   tyDefs <- asks typeDefs
-  topLevel <- asks $ S.fromList . map f . M.keys . globalCxt
+  topLevel <- asks $ S.fromList . fmap f . M.keys . globalCxt
   let ctors =
         Map.foldMapWithKey
           ( \t def ->
               S.fromList $
                 (f t :) $
-                  map (f . valConName) $ maybe [] astTypeDefConstructors $ typeDefAST def
+                  fmap (f . valConName) $ foldMap astTypeDefConstructors $ typeDefAST def
           )
           tyDefs
   pure $ S.union topLevel ctors

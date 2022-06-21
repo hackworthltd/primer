@@ -195,7 +195,7 @@ freshen fvs i n =
 genSyns :: TypeG -> GenT WT (ExprG, TypeG)
 genSyns ty = do
   genSpine' <- lift genSpine
-  Gen.recursive Gen.choice [genEmptyHole, genAnn] $ [genHole, genApp, genAPP, genLet] ++ catMaybes [genSpine']
+  Gen.recursive Gen.choice [genEmptyHole, genAnn] $ [genHole, genApp, genAPP, genLet] <> catMaybes [genSpine']
   where
     genEmptyHole = pure (EmptyHole (), TEmptyHole ())
     genAnn = do
@@ -210,14 +210,14 @@ genSyns ty = do
     -- todo: maybe add some lets in as post-processing? I could even add them to the locals for generation in the head
     genSpineHeadFirst = do
       localTms <- asks localTmVars
-      let locals' = map (first (Var () . LocalVarRef)) $ M.toList localTms
+      let locals' = first (Var () . LocalVarRef) <$> M.toList localTms
       globals <- asks globalCxt
-      let globals' = map (first (Var () . GlobalVarRef)) $ M.toList globals
+      let globals' = first (Var () . GlobalVarRef) <$> M.toList globals
       cons <- asks allCons
-      let cons' = map (first (Con ())) $ M.toList cons
-      let hsPure = locals' ++ globals' ++ cons'
+      let cons' = first (Con ()) <$> M.toList cons
+      let hsPure = locals' <> globals' <> cons'
       primCons <- fmap (bimap (PrimCon ()) (TCon ())) <<$>> genPrimCon
-      let hs = map pure hsPure ++ primCons
+      let hs = fmap pure hsPure <> primCons
       if null hs
         then pure Nothing
         else pure $
@@ -317,7 +317,7 @@ allCons :: Cxt -> M.Map ValConName (Type' ())
 allCons cxt = M.fromList $ concatMap (uncurry consForTyDef) $ M.assocs $ typeDefs cxt
   where
     consForTyDef tc = \case
-      TypeDefAST td -> map (\vc -> (valConName vc, valConType tc td vc)) (astTypeDefConstructors td)
+      TypeDefAST td -> fmap (\vc -> (valConName vc, valConType tc td vc)) (astTypeDefConstructors td)
       TypeDefPrim _ -> []
 
 genChk :: TypeG -> GenT WT ExprG
@@ -379,7 +379,7 @@ genChk ty = do
                 Left _err -> pure Nothing -- if we didn't get an instance of t, try again; TODO: this is rather inefficient, and discards a lot...
                 Right (_, _, vcs) -> fmap Just . for vcs $ \(c, params) -> do
                   ns <- replicateM (length params) $ genLVarNameAvoiding [ty]
-                  let binds = map (Bind ()) ns
+                  let binds = fmap (Bind ()) ns
                   CaseBranch c binds <$> local (extendLocalCxts $ zip ns params) (genChk ty)
             pure $ Case () e brs
 
@@ -404,14 +404,14 @@ genWTType k = do
       goodVars <- filter (consistentKinds k . snd) . M.toList <$> asks localTyVars
       if null goodVars
         then pure Nothing
-        else pure $ Just $ Gen.element $ map (TVar () . fst) goodVars
+        else pure $ Just $ Gen.element $ fmap (TVar () . fst) goodVars
     constr :: WT (Maybe (GenT WT TypeG))
     constr = do
       tds <- asks $ M.assocs . typeDefs
       let goodTCons = filter (consistentKinds k . typeDefKind . snd) tds
       if null goodTCons
         then pure Nothing
-        else pure $ Just $ Gen.element $ map (TCon () . fst) goodTCons
+        else pure $ Just $ Gen.element $ fmap (TCon () . fst) goodTCons
     arrow :: Maybe (GenT WT TypeG)
     arrow =
       if k == KHole || k == KType
@@ -450,7 +450,7 @@ genTypeDefGroup = local forgetLocals $ do
   nps <- Gen.list (Range.linear 1 5) $ (,) <$> freshTyConNameForCxt <*> genParams
   -- create empty typedefs to temporarilly extend the context, so can do recursive types
   let types =
-        map
+        fmap
           ( \(n, ps) ->
               ( n
               , TypeDefAST

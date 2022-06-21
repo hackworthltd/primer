@@ -53,14 +53,14 @@ test_laws =
     "Laws"
     [ testGroup
         "STV"
-        $ map
+        $ fmap
           lawsToTestTree
           [ semigroupLaws genSTV
           , monoidLaws genSTV
           ]
     , testGroup
         "STE"
-        $ map
+        $ fmap
           lawsToTestTree
           [ semigroupLaws genSTE
           , monoidLaws genSTE
@@ -68,7 +68,7 @@ test_laws =
     ]
   where
     -- ideally there'd be a library for this - see https://github.com/hedgehogqa/haskell-hedgehog-classes/issues/13
-    lawsToTestTree (Laws className props) = testGroup className $ map (uncurry testProperty) props
+    lawsToTestTree (Laws className props) = testGroup className $ fmap (uncurry testProperty) props
 
 -- * Properties of monoids handling shadowing
 
@@ -80,12 +80,12 @@ hprop_shadow_monoid_types = property $ do
   label $ if length nonShadowed == length nks then "no shadowing" else "shadowing"
   -- We end up with fewer elements than we started with
   diff nks ((>=) `on` length) nonShadowed
-  let nonShNames = map fst nonShadowed
+  let nonShNames = fmap fst nonShadowed
   -- There are no duplicate names in the output
   assert $ nub nonShNames == nonShNames
   -- We keep exactly one of each input name,
   -- and the ordering is the same (as nub preserves order)
-  assert $ nonShNames == nub (map fst nks)
+  assert $ nonShNames == nub (fmap fst nks)
 
 -- Generates data that could be contained in a ShadowedVarsTy, except
 -- it may have duplicated names
@@ -111,7 +111,7 @@ hprop_shadow_monoid_expr = property $ do
   label $ if lenIn == lenOut then "no shadowing" else "shadowing"
   -- We end up with fewer elements than we started with
   assert $ lenIn >= lenOut
-  let nonShNames = map (unLocalName . fst) tyV ++ map (unLocalName . fst) tmV ++ map (baseName . fst) glV
+  let nonShNames = fmap (unLocalName . fst) tyV <> fmap (unLocalName . fst) tmV <> fmap (baseName . fst) glV
   annotateShow nonShNames
   -- there are no duplicate names in the output
   assert $ nub nonShNames == nonShNames
@@ -120,7 +120,7 @@ hprop_shadow_monoid_expr = property $ do
   -- is the same, but only because it is more awkward to test (need that the
   -- three lists tyV, tmV, glV can be interleaved and then "stretches into" ns)
   -- than the benefit would be worth
-  assert $ sort nonShNames == sort (nub $ map nameSTE' ns)
+  assert $ sort nonShNames == sort (nub $ fmap nameSTE' ns)
 
 data STE'
   = TyVar (TyVarName, Kind)

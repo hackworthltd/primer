@@ -271,7 +271,7 @@ actionWithInput name description priority actionType input _p m =
   OfferedAction
     { name
     , description
-    , input = InputRequired $ map (\as -> SetCursor (m ^. _id) : as) input
+    , input = InputRequired $ fmap (\as -> SetCursor (m ^. _id) : as) input
     , priority
     , actionType
     }
@@ -297,7 +297,7 @@ actionWithNames defName tk k m prompt =
 
 -- | A set of ActionSpecs can be realised by providing them with metadata.
 realise :: forall a p. p -> Meta a -> [ActionSpec p a] -> [OfferedAction [Action]]
-realise p m = map (\a -> a p m)
+realise p m = fmap (\a -> a p m)
 
 -- | Given an expression, determine what basic actions it supports
 -- Specific projections may provide other actions not listed here

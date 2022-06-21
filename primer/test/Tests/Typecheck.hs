@@ -270,7 +270,7 @@ unit_valConType = do
                 mkTAppCon tEither [TVar () "a", TVar () "b"]
         ]
   where
-    f tc td = map (valConType tc td) (astTypeDefConstructors td)
+    f tc td = fmap (valConType tc td) (astTypeDefConstructors td)
 
 -- Nat -> Bool accepts \x . case x of Z -> True ; S _ -> False
 unit_case_isZero :: Assertion

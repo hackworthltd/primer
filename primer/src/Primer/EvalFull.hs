@@ -342,7 +342,7 @@ viewCaseRedex tydefs = \case
     -}
     renameBindings m expr brs tyargs args patterns =
       let avoid = foldMap (S.map unLocalName . freeVarsTy) tyargs <> foldMap freeVars args
-          binders = S.fromList $ map (unLocalName . bindName) patterns
+          binders = S.fromList $ fmap (unLocalName . bindName) patterns
        in if S.disjoint avoid binders
             then Nothing
             else Just $ pure $ RenameBindingsCase m expr brs avoid
@@ -351,7 +351,7 @@ viewCaseRedex tydefs = \case
       -- TODO: we are putting trivial metadata in here...
       -- See https://github.com/hackworthltd/primer/issues/6
       argTys'' <- traverse generateTypeIDs argTys'
-      pure $ CaseRedex c (zip args argTys'') ty (map bindName patterns) br
+      pure $ CaseRedex c (zip args argTys'') ty (fmap bindName patterns) br
 
 -- This spots all redexs other than InlineLet
 viewRedex :: (MonadFresh ID m, MonadFresh NameCounter m) => TypeDefMap -> DefMap -> Dir -> Expr -> Maybe (m Redex)
@@ -487,7 +487,7 @@ findRedex tydefs globals dir = go . focus
                 Case m s brs -> RExpr z' $ RenameBindingsCase m s brs fvs
                 -- We should replace this with a proper exception. See:
                 -- https://github.com/hackworthltd/primer/issues/148
-                e -> error $ "Internal Error: something other than Lam/LAM/Case was a binding: " ++ show e
+                e -> error $ "Internal Error: something other than Lam/LAM/Case was a binding: " <> show e
           | otherwise = goSubst l z
     goSubstTy :: TyVarName -> Type -> TypeZ -> Maybe RedexWithContext
     goSubstTy n t tz = case target tz of
@@ -539,14 +539,14 @@ runRedex = \case
     LAM m y <$> letType x (tvar y) (pure e)
   RenameBindingsCase m s brs avoid
     | (brs0, CaseBranch ctor binds rhs : brs1) <- break (\(CaseBranch _ bs _) -> any ((`S.member` avoid) . unLocalName . bindName) bs) brs ->
-        let bns = map bindName binds
-            avoid' = avoid <> freeVars rhs <> S.fromList (map unLocalName bns)
+        let bns = fmap bindName binds
+            avoid' = avoid <> freeVars rhs <> S.fromList (fmap unLocalName bns)
          in do
               rn <- traverse (\b -> if unLocalName b `S.member` avoid then Right . (b,) <$> freshLocalName' avoid' else pure $ Left b) bns
               let f b@(Bind i _) = \case Left _ -> b; Right (_, w) -> Bind i w
               let binds' = zipWith f binds rn
               rhs' <- foldrM (\(v, w) -> let_ v (lvar w) . pure) rhs $ rights rn
-              pure $ Case m s $ brs0 ++ CaseBranch ctor binds' rhs' : brs1
+              pure $ Case m s $ brs0 <> (CaseBranch ctor binds' rhs' : brs1)
     -- We should replace this with a proper exception. See:
     -- https://github.com/hackworthltd/primer/issues/148
     | otherwise -> error "Internal Error: RenameBindingsCase found no applicable branches"
