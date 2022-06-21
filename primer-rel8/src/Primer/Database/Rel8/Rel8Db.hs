@@ -239,7 +239,7 @@ instance MonadRel8Db m l => MonadDb (Rel8DbT m) where
   querySessionId sid = do
     result <- runStatement (LoadSessionError sid) $ select $ sessionById sid
     case result of
-      [] -> return $ Left $ SessionIdNotFound sid
+      [] -> pure $ Left $ SessionIdNotFound sid
       (s : _) -> do
         -- Note that we have 2 choices here if the session name
         -- returned by the database is not a valid 'SessionName':
@@ -405,7 +405,7 @@ paginate (OL o _) = offset (fromIntegral o)
 sessionMeta :: Query (Expr UUID, Expr Text, Expr UTCTime)
 sessionMeta = do
   s <- allSessions
-  return (Schema.uuid s, Schema.name s, Schema.lastmodified s)
+  pure (Schema.uuid s, Schema.name s, Schema.lastmodified s)
 
 -- Paginated session metadata, sorted by session name (primary) and
 -- last-modified (secondary, newest to oldest).

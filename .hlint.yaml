@@ -28,3 +28,7 @@
     rhs: foldlM
     name: foldM
     note: Be explicit about the direction of the fold
+
+- group:
+    name: future
+    enabled: true
