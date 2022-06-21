@@ -463,9 +463,7 @@ hprop_eq = propertyWTInExtendedLocalGlobalCxt [builtinModule, primitiveModule] $
     Nothing -> assert $ not con
     Just m | M.null m -> assert con
     Just _ -> failure
-  if con
-    then u === Just mempty
-    else u === Nothing
+  (u ===) $ if con then Just mempty else Nothing
 
 -- unify ga uvs S T = Maybe sub => sub <= uvs
 hprop_only_sub_uvs :: Property

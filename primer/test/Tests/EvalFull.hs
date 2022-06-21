@@ -685,34 +685,35 @@ hprop_prim_hex_nat = withTests 20 . property $ do
   n <- forAllT . Gen.integral $ Range.constant 0 50
   let ne = nat n
       ((e, r, gs), maxID) =
-        if n <= 15
-          then create . withPrimDefs $ \globals ->
-            (,,)
-              <$> case_
-                ( gvar (primitiveGVar "natToHex")
-                    `app` ne
-                )
-                [ branch
-                    cNothing
-                    []
-                    (con cNothing)
-                , branch
-                    cJust
-                    [("x", Nothing)]
-                    ( gvar (primitiveGVar "hexToNat")
-                        `app` lvar "x"
-                    )
-                ]
-              <*> (con cJust `aPP` tcon tNat)
-                `app` ne
-              <*> pure (DefPrim <$> globals)
-          else create . withPrimDefs $ \globals ->
-            (,,)
-              <$> gvar (primitiveGVar "natToHex")
-                `app` ne
-              <*> con cNothing
-                `aPP` tcon tChar
-              <*> pure (DefPrim <$> globals)
+        create . withPrimDefs $ \globals ->
+          if n <= 15
+            then
+              (,,)
+                <$> case_
+                  ( gvar (primitiveGVar "natToHex")
+                      `app` ne
+                  )
+                  [ branch
+                      cNothing
+                      []
+                      (con cNothing)
+                  , branch
+                      cJust
+                      [("x", Nothing)]
+                      ( gvar (primitiveGVar "hexToNat")
+                          `app` lvar "x"
+                      )
+                  ]
+                <*> (con cJust `aPP` tcon tNat)
+                  `app` ne
+                <*> pure (DefPrim <$> globals)
+            else
+              (,,)
+                <$> gvar (primitiveGVar "natToHex")
+                  `app` ne
+                <*> con cNothing
+                  `aPP` tcon tChar
+                <*> pure (DefPrim <$> globals)
       s = evalFullTest maxID builtinTypes gs 7 Syn e
   over evalResultExpr zeroIDs s === Right (zeroIDs r)
 

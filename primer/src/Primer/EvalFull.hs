@@ -371,9 +371,10 @@ viewRedex tydefs globals dir = \case
         -- we only really need to avoid free things, but avoiding bound
         -- things means we do not need to do any further renaming
         bvs = bindersBelow (focus t) <> S.map unLocalName (bindersBelowTy $ focus ty2)
-     in if a /= b && S.member (unLocalName b) fvs
-          then pure . pure $ RenameBETA b e (fvs <> bvs)
-          else pure . pure $ BETA a t b ty1 ty2
+     in pure . pure $
+          if a /= b && S.member (unLocalName b) fvs
+            then RenameBETA b e (fvs <> bvs)
+            else BETA a t b ty1 ty2
   e | Just r <- viewCaseRedex tydefs e -> Just r
   Ann _ t ty | Chk <- dir, concreteTy ty -> pure . pure $ Upsilon t ty
   _ -> Nothing

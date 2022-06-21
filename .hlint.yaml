@@ -41,3 +41,6 @@
 - group:
     name: dollar
     enabled: true
+- group:
+    name: monomorphic
+    enabled: true
