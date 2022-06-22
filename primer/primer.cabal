@@ -159,7 +159,7 @@ test-suite primer-test
       , tasty             ^>=1.4.2.1
       , tasty-discover    ^>=4.2.4
       , tasty-golden      ^>=2.3.5
-      , tasty-hedgehog    ^>=1.1.0
+      , tasty-hedgehog    ^>=1.2.0
       , tasty-hunit       ^>=0.10.0
       , text
       , uniplate

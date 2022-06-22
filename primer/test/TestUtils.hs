@@ -23,7 +23,7 @@ import Foreword
 
 import Control.Monad.Fresh (MonadFresh)
 import Data.Coerce (coerce)
-import Data.String (String)
+import Data.String (String, fromString)
 import Data.Typeable (typeOf)
 import qualified Hedgehog as H
 import Optics (over, set, view)
@@ -133,7 +133,7 @@ newtype Property = Property
 instance TD.Tasty Property where
   tasty info =
     pure
-      . TH.testProperty (TD.descriptionOf info)
+      . TH.testPropertyNamed (TD.descriptionOf info) (fromString (TD.descriptionOf info))
       . unProperty
 
 property :: HasCallStack => H.PropertyT IO () -> Property

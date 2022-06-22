@@ -69,7 +69,9 @@ test_laws =
     ]
   where
     -- ideally there'd be a library for this - see https://github.com/hedgehogqa/haskell-hedgehog-classes/issues/13
-    lawsToTestTree (Laws className props) = testGroup className $ map (uncurry testProperty) props
+    lawsToTestTree (Laws className props) =
+      testGroup className $
+        map (\(n, p) -> testPropertyNamed n "<internal-property>" p) props
 
 -- * Properties of monoids handling shadowing
 
