@@ -7,18 +7,14 @@ module Primer.Server (
   openAPIInfo,
 ) where
 
+import Foreword hiding (Handler)
+
 import Control.Concurrent.STM (
   TBQueue,
  )
 
-import Control.Monad.Catch (catch)
-import Control.Monad.Except (ExceptT (..))
-import Control.Monad.Reader (runReaderT)
-import Data.Function ((&))
-import Data.List.NonEmpty (NonEmpty ((:|)))
 import Data.OpenApi (OpenApi)
 import Data.Streaming.Network.Internal (HostPreference (HostIPv4Only))
-import Data.Text (Text)
 import qualified Data.Text.Lazy as LT (fromStrict)
 import qualified Data.Text.Lazy.Encoding as LT (encodeUtf8)
 import qualified Network.Wai as WAI
@@ -113,7 +109,6 @@ import Servant (
   JSON,
   NoContent (..),
   Post,
-  Proxy (Proxy),
   Put,
   QueryFlag,
   QueryParam',
@@ -416,7 +411,7 @@ server e = pure openAPIInfo :<|> hoistPrimer e
 
 serve :: Sessions -> TBQueue Database.Op -> Version -> Int -> IO ()
 serve ss q v port = do
-  putStrLn $ "Starting server on port " <> show port
+  putText $ "Starting server on port " <> show port
   Warp.runSettings warpSettings $ noCache $ Servant.serve api $ server $ Env ss q v
   where
     -- By default Warp will try to bind on either IPv4 or IPv6, whichever is
