@@ -13,13 +13,11 @@ import Gen.Core.Typed (
   genWTType,
  )
 import Hedgehog (
-  Property,
   annotateShow,
   diff,
   discard,
   failure,
   success,
-  withDiscards,
   (===),
  )
 import qualified Hedgehog.Gen as Gen
@@ -52,6 +50,7 @@ import Primer.Typecheck (
  )
 import Test.Tasty.HUnit (Assertion, (@?=))
 import TestM (evalTestM)
+import TestUtils (Property, withDiscards)
 import Tests.Gen.Core.Typed (propertyWTInExtendedLocalGlobalCxt, synthTest)
 
 defaultCxt :: Cxt
@@ -179,8 +178,8 @@ unit_alpha =
    in evalTestM 0 (refine' defaultCxt (t "a") (t "b")) @?= Just ([], t "b")
 
 -- refine cxt T T succeeds
-hprop_refl :: Property
-hprop_refl = propertyWTInExtendedLocalGlobalCxt [builtinModule, primitiveModule] $ do
+tasty_refl :: Property
+tasty_refl = propertyWTInExtendedLocalGlobalCxt [builtinModule, primitiveModule] $ do
   k <- forAllT genWTKind
   ty <- forAllT $ genWTType k
   cxt <- ask
@@ -188,8 +187,8 @@ hprop_refl = propertyWTInExtendedLocalGlobalCxt [builtinModule, primitiveModule]
   r === Just ([], ty)
 
 -- refine _ ? S succeeds
-hprop_tgt_hole :: Property
-hprop_tgt_hole = propertyWTInExtendedLocalGlobalCxt [builtinModule, primitiveModule] $ do
+tasty_tgt_hole :: Property
+tasty_tgt_hole = propertyWTInExtendedLocalGlobalCxt [builtinModule, primitiveModule] $ do
   k <- forAllT genWTKind
   tgt <- forAllT $ Gen.choice [pure $ TEmptyHole (), THole () <$> genWTType k]
   src <- forAllT $ genWTType k
@@ -198,8 +197,8 @@ hprop_tgt_hole = propertyWTInExtendedLocalGlobalCxt [builtinModule, primitiveMod
   r === Just ([], src)
 
 -- refine _ T ? succeeds
-hprop_src_hole :: Property
-hprop_src_hole = propertyWTInExtendedLocalGlobalCxt [builtinModule, primitiveModule] $ do
+tasty_src_hole :: Property
+tasty_src_hole = propertyWTInExtendedLocalGlobalCxt [builtinModule, primitiveModule] $ do
   k <- forAllT genWTKind
   tgt <- forAllT $ genWTType k
   src <- forAllT $ Gen.choice [pure $ TEmptyHole (), THole () <$> genWTType k]
@@ -208,8 +207,8 @@ hprop_src_hole = propertyWTInExtendedLocalGlobalCxt [builtinModule, primitiveMod
   r === Just ([], src)
 
 -- constructor types refine to their fully-applied typedef
-hprop_con :: Property
-hprop_con = propertyWTInExtendedLocalGlobalCxt [builtinModule, primitiveModule] $ do
+tasty_con :: Property
+tasty_con = propertyWTInExtendedLocalGlobalCxt [builtinModule, primitiveModule] $ do
   tcs <- asks $ mapMaybe (traverse typeDefAST) . M.assocs . typeDefs
   -- NB: this only works because our context has at least one tydef with a constructor
   -- (because, among others, it includes builtinModule that contains Bool)
@@ -230,8 +229,8 @@ hprop_con = propertyWTInExtendedLocalGlobalCxt [builtinModule, primitiveModule] 
 
 -- refine cxt T S succeds when S is built from T, S1 -> _, ∀a._
 -- The success may not instantiate as much as one would expect, if T has holes in
-hprop_arr_app :: Property
-hprop_arr_app = propertyWTInExtendedLocalGlobalCxt [builtinModule, primitiveModule] $ do
+tasty_arr_app :: Property
+tasty_arr_app = propertyWTInExtendedLocalGlobalCxt [builtinModule, primitiveModule] $ do
   tgt <- forAllT $ genWTType KType
   when (isHole tgt) discard
   src' <- forAllT $ Gen.list (Range.linear 0 10) $ Gen.choice [Left <$> genWTType KType, curry Right <$> freshTyVarNameForCxt <*> genWTKind]
@@ -254,8 +253,8 @@ hprop_arr_app = propertyWTInExtendedLocalGlobalCxt [builtinModule, primitiveModu
       _ -> False
 
 -- if refine _ T S = Just (I:IS,_) , then refine _ T (S $ I) = Just (IS,_); here "S $ I" means "inspect S, I assert they match and strip off a layer"
-hprop_matches :: Property
-hprop_matches = withDiscards 2000 $
+tasty_matches :: Property
+tasty_matches = withDiscards 2000 $
   propertyWTInExtendedLocalGlobalCxt [builtinModule, primitiveModule] $ do
     tgt <- forAllT $ genWTType KType
     src <- forAllT $ genWTType KType
@@ -279,8 +278,8 @@ hprop_matches = withDiscards 2000 $
     inst1 _ _ = failure
 
 -- if refine cxt tgt s = Just (is,ty)   =>  (? : s) $ <stuff checking against is>  ∈ ty[instantiation vars substituted appropriately] ~ tgt
-hprop_refinement_synths :: Property
-hprop_refinement_synths = propertyWTInExtendedLocalGlobalCxt [builtinModule, primitiveModule] $ do
+tasty_refinement_synths :: Property
+tasty_refinement_synths = propertyWTInExtendedLocalGlobalCxt [builtinModule, primitiveModule] $ do
   tgt <- forAllT $ genWTType KType
   src <- forAllT $ genWTType KType
   cxt <- ask
@@ -303,8 +302,8 @@ hprop_refinement_synths = propertyWTInExtendedLocalGlobalCxt [builtinModule, pri
 
 -- | (Because unif vars are only in one side) the names from
 -- 'InstUnconstrainedAPP' do not appear in 'InstAPP's (but can in 'InstApp's)
-hprop_scoping :: Property
-hprop_scoping = propertyWTInExtendedLocalGlobalCxt [builtinModule, primitiveModule] $ do
+tasty_scoping :: Property
+tasty_scoping = propertyWTInExtendedLocalGlobalCxt [builtinModule, primitiveModule] $ do
   tgt <- forAllT $ genWTType KType
   src <- forAllT $ genWTType KType
   cxt <- ask

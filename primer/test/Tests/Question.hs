@@ -5,7 +5,7 @@ import Foreword hiding (diff)
 
 import Data.List (nub, nubBy)
 import Gen.Core.Raw (evalExprGen, genKind, genName, genTyVarName, genType)
-import Hedgehog hiding (check)
+import Hedgehog hiding (Property, check, property)
 import Hedgehog.Classes
 import qualified Hedgehog.Gen as Gen
 import qualified Hedgehog.Range as Range
@@ -45,6 +45,7 @@ import Primer.Zipper (ExprZ, TypeZip, down, focus, right)
 import Test.Tasty
 import Test.Tasty.HUnit (Assertion, assertFailure, (@?=))
 import Test.Tasty.Hedgehog
+import TestUtils (Property, property)
 import Tests.Typecheck (runTypecheckTestM)
 
 test_laws :: TestTree
@@ -72,8 +73,8 @@ test_laws =
 
 -- * Properties of monoids handling shadowing
 
-hprop_shadow_monoid_types :: Property
-hprop_shadow_monoid_types = property $ do
+tasty_shadow_monoid_types :: Property
+tasty_shadow_monoid_types = property $ do
   nks <- forAll genSTV'
   let N nonShadowed = foldMap (\nk -> N [nk]) nks
   annotateShow nonShadowed
@@ -95,8 +96,8 @@ genSTV' = evalExprGen 0 $ Gen.list (Range.linear 0 20) $ (,) <$> genTyVarName <*
 genSTV :: Gen ShadowedVarsTy
 genSTV = N . nubBy ((==) `on` fst) <$> genSTV'
 
-hprop_shadow_monoid_expr :: Property
-hprop_shadow_monoid_expr = property $ do
+tasty_shadow_monoid_expr :: Property
+tasty_shadow_monoid_expr = property $ do
   ns <- forAll genSTE'
   let split = \case
         TyVar v -> M [v] [] []
@@ -116,7 +117,7 @@ hprop_shadow_monoid_expr = property $ do
   -- there are no duplicate names in the output
   assert $ nub nonShNames == nonShNames
   -- We keep exactly one of each input name.
-  -- Contrary to hprop_shadow_monoid_types, we don't check the ordering
+  -- Contrary to tasty_shadow_monoid_types, we don't check the ordering
   -- is the same, but only because it is more awkward to test (need that the
   -- three lists tyV, tmV, glV can be interleaved and then "stretches into" ns)
   -- than the benefit would be worth

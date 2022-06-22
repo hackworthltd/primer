@@ -17,14 +17,12 @@ import Gen.Core.Typed (
  )
 import Hedgehog (
   GenT,
-  Property,
   PropertyT,
   annotateShow,
   assert,
   diff,
   discard,
   failure,
-  withDiscards,
   (===),
  )
 import qualified Hedgehog.Gen as Gen
@@ -56,7 +54,7 @@ import Primer.Typecheck (
 import Primer.Unification (unify)
 import Test.Tasty.HUnit (Assertion, assertBool, (@?=))
 import TestM (evalTestM)
-import TestUtils (tcn)
+import TestUtils (Property, tcn, withDiscards)
 import Tests.Gen.Core.Typed (
   checkKindTest,
   checkValidContextTest,
@@ -437,13 +435,13 @@ propertyWTInExtendedUVCxt' mods p = propertyWT mods $ do
 propertyWTInExtendedUVCxt :: [Module] -> (S.Set TyVarName -> PropertyT WT ()) -> Property
 propertyWTInExtendedUVCxt mods p = propertyWTInExtendedUVCxt' mods $ p . M.keysSet
 
-hprop_extendedUVCxt_typechecks :: Property
-hprop_extendedUVCxt_typechecks = propertyWTInExtendedUVCxt [builtinModule, primitiveModule] $ \_ ->
+tasty_extendedUVCxt_typechecks :: Property
+tasty_extendedUVCxt_typechecks = propertyWTInExtendedUVCxt [builtinModule, primitiveModule] $ \_ ->
   checkValidContextTest =<< ask
 
 -- unify _ _ T T  is Just []
-hprop_refl :: Property
-hprop_refl = propertyWTInExtendedUVCxt [builtinModule, primitiveModule] $ \uvs -> do
+tasty_refl :: Property
+tasty_refl = propertyWTInExtendedUVCxt [builtinModule, primitiveModule] $ \uvs -> do
   cxt <- ask
   k <- forAllT genWTKind
   t <- forAllT $ genWTType k
@@ -451,8 +449,8 @@ hprop_refl = propertyWTInExtendedUVCxt [builtinModule, primitiveModule] $ \uvs -
   u === Just mempty
 
 -- unify _ [] S T  is Nothing or Just [], exactly when S = T up to holes
-hprop_eq :: Property
-hprop_eq = propertyWTInExtendedLocalGlobalCxt [builtinModule, primitiveModule] $ do
+tasty_eq :: Property
+tasty_eq = propertyWTInExtendedLocalGlobalCxt [builtinModule, primitiveModule] $ do
   cxt <- ask
   k <- forAllT genWTKind
   s <- forAllT $ genWTType k
@@ -468,8 +466,8 @@ hprop_eq = propertyWTInExtendedLocalGlobalCxt [builtinModule, primitiveModule] $
     else u === Nothing
 
 -- unify ga uvs S T = Maybe sub => sub <= uvs
-hprop_only_sub_uvs :: Property
-hprop_only_sub_uvs = propertyWTInExtendedUVCxt [builtinModule, primitiveModule] $ \uvs -> do
+tasty_only_sub_uvs :: Property
+tasty_only_sub_uvs = propertyWTInExtendedUVCxt [builtinModule, primitiveModule] $ \uvs -> do
   cxt <- ask
   k <- forAllT genWTKind
   s <- forAllT $ genWTType k
@@ -480,8 +478,8 @@ hprop_only_sub_uvs = propertyWTInExtendedUVCxt [builtinModule, primitiveModule] 
     Just sub -> assert $ M.keysSet sub `S.isSubsetOf` uvs
 
 -- unify ga uvs S T = Maybe sub => S[sub] = T[sub]
-hprop_sub_unifies :: Property
-hprop_sub_unifies = propertyWTInExtendedUVCxt [builtinModule, primitiveModule] $ \uvs -> do
+tasty_sub_unifies :: Property
+tasty_sub_unifies = propertyWTInExtendedUVCxt [builtinModule, primitiveModule] $ \uvs -> do
   cxt <- ask
   k <- forAllT genWTKind
   s <- forAllT $ genWTType k
@@ -495,8 +493,8 @@ hprop_sub_unifies = propertyWTInExtendedUVCxt [builtinModule, primitiveModule] $
       diff s' consistentTypes t'
 
 -- unify ga uvs S T = Maybe sub => for t/a in sub, have checkKind uvs(a) t
-hprop_sub_checks :: Property
-hprop_sub_checks = propertyWTInExtendedUVCxt' [builtinModule, primitiveModule] $ \uvs -> do
+tasty_sub_checks :: Property
+tasty_sub_checks = propertyWTInExtendedUVCxt' [builtinModule, primitiveModule] $ \uvs -> do
   cxt <- ask
   k <- forAllT genWTKind
   s <- forAllT $ genWTType k
@@ -510,8 +508,8 @@ hprop_sub_checks = propertyWTInExtendedUVCxt' [builtinModule, primitiveModule] $
         sb === forgetTypeIDs sb' -- check no smartholes happened
 
 -- (S,T kind check and) unify ga uvs S T = Maybe sub => S[sub] , T[sub] kind check
-hprop_unified_checks :: Property
-hprop_unified_checks = propertyWTInExtendedUVCxt [builtinModule, primitiveModule] $ \uvs -> do
+tasty_unified_checks :: Property
+tasty_unified_checks = propertyWTInExtendedUVCxt [builtinModule, primitiveModule] $ \uvs -> do
   cxt <- ask
   k <- forAllT genWTKind
   s <- forAllT $ genWTType k
@@ -529,8 +527,8 @@ hprop_unified_checks = propertyWTInExtendedUVCxt [builtinModule, primitiveModule
 
 -- S,T diff kinds => unify ga uvs S T fails
 -- This requires each to not be holey - i.e. don't synthesise KHole
-hprop_diff_kinds_never_unify :: Property
-hprop_diff_kinds_never_unify = withDiscards 5000 $
+tasty_diff_kinds_never_unify :: Property
+tasty_diff_kinds_never_unify = withDiscards 5000 $
   propertyWTInExtendedUVCxt [builtinModule, primitiveModule] $ \uvs -> do
     cxt <- ask
     k1 <- forAllT genWTKind
@@ -546,8 +544,8 @@ hprop_diff_kinds_never_unify = withDiscards 5000 $
     u === Nothing
 
 -- unification is symmetric
-hprop_sym :: Property
-hprop_sym = propertyWTInExtendedUVCxt [builtinModule, primitiveModule] $ \uvs -> do
+tasty_sym :: Property
+tasty_sym = propertyWTInExtendedUVCxt [builtinModule, primitiveModule] $ \uvs -> do
   cxt <- ask
   k <- forAllT genWTKind
   s <- forAllT $ genWTType k
@@ -559,8 +557,8 @@ hprop_sym = propertyWTInExtendedUVCxt [builtinModule, primitiveModule] $ \uvs ->
 -- the sub should be "grounded", "idempotent", or "non-cyclic", i.e. any sub should
 -- need to be applied only once. I.e. there are no solved unification
 -- variables in the solution of any u.v.
-hprop_non_cyclic :: Property
-hprop_non_cyclic = propertyWTInExtendedUVCxt [builtinModule, primitiveModule] $ \uvs -> do
+tasty_non_cyclic :: Property
+tasty_non_cyclic = propertyWTInExtendedUVCxt [builtinModule, primitiveModule] $ \uvs -> do
   cxt <- ask
   k <- forAllT genWTKind
   s <- forAllT $ genWTType k
@@ -574,8 +572,8 @@ hprop_non_cyclic = propertyWTInExtendedUVCxt [builtinModule, primitiveModule] $ 
        in assert $ S.disjoint solved inRHS
 
 -- unifying a unif var gives simple success
-hprop_uv_succeeds :: Property
-hprop_uv_succeeds = propertyWT [builtinModule, primitiveModule] $ do
+tasty_uv_succeeds :: Property
+tasty_uv_succeeds = propertyWT [builtinModule, primitiveModule] $ do
   k <- forAllT genWTKind
   t <- forAllT $ genWTType k
   uv <- forAllT freshTyVarNameForCxt

@@ -6,7 +6,7 @@ import Foreword
 
 import qualified Data.Map as M
 import Gen.Core.Typed (forAllT, genPrimCon, propertyWT)
-import Hedgehog (Property, assert)
+import Hedgehog (assert)
 import Hedgehog.Gen (choice)
 import Primer.Core (
   ASTTypeDef (
@@ -30,13 +30,14 @@ import Primer.Typecheck (
   checkValidContext,
   synth,
  )
+import TestUtils (Property)
 
 import Primer.Builtins (builtinModule)
 import Test.Tasty.HUnit (Assertion, assertBool, (@?=))
 import Tests.Typecheck (runTypecheckTestMIn)
 
-hprop_all_prim_cons_have_typedef :: Property
-hprop_all_prim_cons_have_typedef = propertyWT [builtinModule, primitiveModule] $ do
+tasty_all_prim_cons_have_typedef :: Property
+tasty_all_prim_cons_have_typedef = propertyWT [builtinModule, primitiveModule] $ do
   c <- forAllT $ (fmap fst . choice) =<< genPrimCon
   assert $ primConName c `elem` M.keys allPrimTypeDefs
 

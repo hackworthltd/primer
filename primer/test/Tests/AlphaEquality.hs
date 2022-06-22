@@ -7,7 +7,7 @@ import Gen.Core.Raw (
   genTyVarName,
   genType,
  )
-import Hedgehog hiding (check)
+import Hedgehog hiding (Property, check, property)
 import Primer.Builtins
 import Primer.Core (
   Kind (KFun, KType),
@@ -16,6 +16,7 @@ import Primer.Core (
 import Primer.Core.DSL
 import Primer.Core.Utils (alphaEqTy, forgetTypeIDs)
 import Test.Tasty.HUnit hiding (assert)
+import TestUtils (Property, property)
 
 unit_1 :: Assertion
 unit_1 =
@@ -88,13 +89,13 @@ unit_repeated_names =
   create_ (tforall "b" KType (tforall "foo" KType (tforall "x" KType $ tvar "x")))
     @?= create_ (tforall "foo" KType (tforall "foo" KType (tforall "x" KType $ tvar "x")))
 
-hprop_refl :: Property
-hprop_refl = property $ do
+tasty_refl :: Property
+tasty_refl = property $ do
   t <- forgetTypeIDs <$> forAll (evalExprGen 0 genType)
   assert $ alphaEqTy t t
 
-hprop_alpha :: Property
-hprop_alpha = property $ do
+tasty_alpha :: Property
+tasty_alpha = property $ do
   s <- f <$> forAll (evalExprGen 0 genTyVarName)
   t <- f <$> forAll (evalExprGen 0 genTyVarName)
   s === t

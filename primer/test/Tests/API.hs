@@ -3,22 +3,24 @@ module Tests.API where
 import Foreword
 
 import Gen.Core.Raw (evalExprGen, genExpr, genType)
-import Hedgehog
+import Hedgehog hiding (Property, property)
 import Primer.API (viewTreeExpr, viewTreeType)
 import Primer.Core.DSL
 import Test.Tasty.HUnit
 
 import Primer.Core
 
-hprop_viewTreeExpr_injective :: Property
-hprop_viewTreeExpr_injective = property $ do
+import TestUtils (Property, property)
+
+tasty_viewTreeExpr_injective :: Property
+tasty_viewTreeExpr_injective = property $ do
   e1 <- forAll $ evalExprGen 0 genExpr
   e2 <- forAll $ evalExprGen 0 genExpr
   when (e1 == e2) discard
   viewTreeExpr e1 /== viewTreeExpr e2
 
-hprop_viewTreeType_injective :: Property
-hprop_viewTreeType_injective = property $ do
+tasty_viewTreeType_injective :: Property
+tasty_viewTreeType_injective = property $ do
   t1 <- forAll $ evalExprGen 0 genType
   t2 <- forAll $ evalExprGen 0 genType
   when (t1 == t2) discard
