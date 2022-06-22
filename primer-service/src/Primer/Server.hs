@@ -28,7 +28,7 @@ import Optics ((%), (.~), (?~))
 import Primer.API (
   Env (..),
   PrimerErr (..),
-  PrimerM,
+  PrimerIO,
   copySession,
   edit,
   evalFull,
@@ -41,6 +41,7 @@ import Primer.API (
   listSessions,
   newSession,
   renameSession,
+  runPrimerIO,
   variablesInScope,
  )
 import qualified Primer.API as API
@@ -306,7 +307,7 @@ openAPIInfo =
     & #info % #description ?~ "A backend service implementing a pedagogic functional programming language."
     & #info % #version .~ "0.7"
 
-serveStaticFiles :: ServerT Raw (PrimerM IO)
+serveStaticFiles :: ServerT Raw PrimerIO
 serveStaticFiles =
   -- Static file settings. Sane defaults, plus:
   -- - if the user requests a directory (like /), look for an index.html
@@ -322,7 +323,7 @@ serveStaticFiles =
 
 -- These endpoints (de)serialize different types in the API, to help
 -- with testing (de)serialization code.
-testEndpoints :: ServerT TestAPI (PrimerM IO)
+testEndpoints :: ServerT TestAPI PrimerIO
 testEndpoints =
   mkTest Child1
     :<|> mkTest (Move Child1)
@@ -372,22 +373,22 @@ api = Proxy
 hoistPrimer :: Env -> Server PrimerAPI
 hoistPrimer e = hoistServer primerApi nt primerServer
   where
-    nt :: PrimerM IO a -> Handler a
-    nt m = Handler $ ExceptT $ catch (Right <$> runReaderT m e) handler
+    nt :: PrimerIO a -> Handler a
+    nt m = Handler $ ExceptT $ catch (Right <$> runPrimerIO m e) handler
     -- Catch exceptions from the API and convert them to Servant
     -- errors via 'Either'.
     handler :: PrimerErr -> IO (Either ServerError a)
     handler (DatabaseErr msg) = pure $ Left $ err500{errBody = (LT.encodeUtf8 . LT.fromStrict) msg}
 
-primerServer :: ServerT PrimerAPI (PrimerM IO)
+primerServer :: ServerT PrimerAPI PrimerIO
 primerServer = openAPIServer :<|> legacyServer
   where
-    openAPIServer :: ServerT PrimerOpenAPI (PrimerM IO)
+    openAPIServer :: ServerT PrimerOpenAPI PrimerIO
     openAPIServer =
       newSession
         :<|> (\b p -> pagedDefaultClamp 100 p $ listSessions b)
         :<|> getProgram
-    legacyServer :: ServerT PrimerLegacyAPI (PrimerM IO)
+    legacyServer :: ServerT PrimerLegacyAPI PrimerIO
     legacyServer =
       ( copySession
           :<|> getVersion

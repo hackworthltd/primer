@@ -13,7 +13,10 @@
 -- transactionally.
 module Primer.API (
   Env (..),
-  PrimerM,
+  PrimerM (..),
+  runPrimerM,
+  PrimerIO,
+  runPrimerIO,
   PrimerErr (..),
   newSession,
   copySession,
@@ -47,6 +50,11 @@ import Control.Concurrent.STM (
   takeTMVar,
   writeTBQueue,
  )
+import Control.Monad.Cont (MonadCont)
+import Control.Monad.Fix (MonadFix)
+import Control.Monad.Trans (MonadTrans)
+import Control.Monad.Writer (MonadWriter)
+import Control.Monad.Zip (MonadZip)
 import Data.Aeson (ToJSON)
 import Data.Data (showConstr, toConstr)
 import qualified Data.Generics.Uniplate.Data as U
@@ -126,13 +134,46 @@ import Primer.Module (moduleDefsQualified, moduleName, moduleTypesQualified)
 import Primer.Name (Name, unName)
 import qualified StmContainers.Map as StmMap
 
+-- | The API environment.
 data Env = Env
   { sessions :: Sessions
   , dbOpQueue :: TBQueue Database.Op
   , version :: Version
   }
 
-type PrimerM m = ReaderT Env m
+-- | The Primer API monad transformer.
+newtype PrimerM m a = PrimerM {unPrimerM :: ReaderT Env m a}
+  deriving
+    ( Functor
+    , Applicative
+    , Alternative
+    , Monad
+    , MonadError e
+    , MonadThrow
+    , MonadCatch
+    , MonadMask
+    , MonadReader Env
+    , MonadIO
+    , MonadFail
+    , MonadFix
+    , MonadPlus
+    , MonadTrans
+    , MonadState s
+    , MonadWriter w
+    , MonadZip
+    , MonadCont
+    )
+
+-- | Run a 'PrimerM' action with the given 'Env'.
+runPrimerM :: PrimerM m a -> Env -> m a
+runPrimerM = runReaderT . unPrimerM
+
+-- | The Primer API monad transformer applied to IO.
+type PrimerIO = PrimerM IO
+
+-- | Run a 'PrimerIO' action with the given 'Env'.
+runPrimerIO :: PrimerIO a -> Env -> IO a
+runPrimerIO = runPrimerM
 
 {- HLINT ignore PrimerErr "Use newtype instead of data" -}
 
