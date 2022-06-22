@@ -30,11 +30,6 @@ import Test.Tasty.HUnit (
   (@?=),
  )
 
-even3App :: App
-even3App =
-  let (p, i, n) = Examples.even3Prog
-   in mkApp i n p
-
 badEven3App :: App
 badEven3App =
   let (p, i, n) = Examples.badEven3Prog
@@ -85,7 +80,7 @@ unit_checkAppWellFormed_newEmptyApp :: Assertion
 unit_checkAppWellFormed_newEmptyApp = expectWellFormed newEmptyApp "newEmptyApp"
 
 unit_checkAppWellFormed_even3App :: Assertion
-unit_checkAppWellFormed_even3App = expectWellFormed even3App "even3App"
+unit_checkAppWellFormed_even3App = expectWellFormed Examples.even3App "even3App"
 
 unit_checkAppWellFormed_badEven3App :: Assertion
 unit_checkAppWellFormed_badEven3App = expectNotWellFormed badEven3App "badEven3App"

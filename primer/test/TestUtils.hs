@@ -1,5 +1,7 @@
 -- | Utilities useful across several types of tests.
 module TestUtils (
+  (@?=),
+  assertException,
   withPrimDefs,
   constructTCon,
   constructCon,
@@ -13,9 +15,12 @@ module TestUtils (
   clearTypeMeta,
 ) where
 
-import Foreword
+import Foreword hiding (try)
 
+import Control.Monad.Catch (MonadCatch, try)
 import Control.Monad.Fresh (MonadFresh)
+import Data.String (String)
+import Data.Typeable (typeOf)
 import Optics (over, set, view)
 import Primer.Action (Action (ConstructCon, ConstructRefinedCon, ConstructTCon))
 import Primer.Core (
@@ -43,6 +48,11 @@ import Primer.Core (
 import Primer.Core.Utils (exprIDs)
 import Primer.Name (Name (unName))
 import Primer.Primitives (allPrimDefs)
+import Test.Tasty.HUnit (
+  assertBool,
+  assertFailure,
+ )
+import qualified Test.Tasty.HUnit as HUnit
 
 withPrimDefs :: MonadFresh ID m => (Map GVarName PrimDef -> m a) -> m a
 withPrimDefs f = do
@@ -86,3 +96,24 @@ clearMeta = over _exprMeta (view _metadata) . over _exprTypeMeta (view _metadata
 -- | Clear the backend-created metadata (IDs and cached types) in the given expression
 clearTypeMeta :: Type' TypeMeta -> Type' (Maybe Value)
 clearTypeMeta = over _typeMeta (view _metadata)
+
+(@?=) :: (MonadIO m, Eq a, Show a) => a -> a -> m ()
+x @?= y = liftIO $ x HUnit.@?= y
+infix 1 @?=
+
+type ExceptionPredicate e = (e -> Bool)
+
+assertException ::
+  (HasCallStack, Exception e, MonadIO m, MonadCatch m) =>
+  String ->
+  ExceptionPredicate e ->
+  m a ->
+  m ()
+assertException msg p action = do
+  r <- try action
+  case r of
+    Right _ -> liftIO $ assertFailure $ msg <> " should have thrown " <> exceptionType <> ", but it succeeded"
+    Left e -> liftIO $ assertBool (wrongException e) (p e)
+  where
+    wrongException e = msg <> " threw " <> show e <> ", but we expected " <> exceptionType
+    exceptionType = (show . typeOf) p

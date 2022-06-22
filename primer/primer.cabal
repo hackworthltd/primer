@@ -102,6 +102,7 @@ test-suite primer-test
     Tests.FreeVars
     Tests.Gen.Core.Typed
     Tests.Module
+    Tests.NullDb
     Tests.Primitives
     Tests.Prog
     Tests.Question
@@ -141,6 +142,7 @@ test-suite primer-test
       , base
       , bytestring
       , containers
+      , exceptions
       , extra
       , filepath
       , generic-optics
@@ -161,6 +163,7 @@ test-suite primer-test
       , tasty-hunit       ^>=0.10.0
       , text
       , uniplate
+      , uuid
 
 --TODO This currently breaks with haskell.nix, so we manually add it to `flake.nix` instead.
 -- See: https://github.com/input-output-hk/haskell.nix/issues/839

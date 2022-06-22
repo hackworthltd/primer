@@ -1,3 +1,5 @@
+{-# LANGUAGE OverloadedLabels #-}
+
 module Primer.Database (
   SessionId,
   -- 'SessionName' is abstract. Do not export its constructors.
@@ -19,7 +21,11 @@ module Primer.Database (
   MonadDb (..),
   DbError (..),
   NullDbT (..),
+  runNullDbT,
   NullDb,
+  runNullDb,
+  runNullDb',
+  NullDbException (..),
   Version,
   serve,
 ) where
@@ -32,7 +38,12 @@ import Control.Concurrent.STM (
   putTMVar,
   readTBQueue,
  )
-import Control.Monad.Catch (MonadCatch, MonadMask, MonadThrow)
+import Control.Monad.Catch (
+  MonadCatch,
+  MonadMask,
+  MonadThrow,
+  throwM,
+ )
 import Control.Monad.Cont (MonadCont)
 import Control.Monad.Fix (MonadFix)
 import Control.Monad.STM (atomically)
@@ -48,6 +59,9 @@ import Data.UUID (UUID)
 import qualified Data.UUID as UUID (toText)
 import Data.UUID.V4 (nextRandom)
 import qualified ListT (toList)
+import Optics (
+  (.~),
+ )
 import Primer.App (App)
 import Primer.JSON (CustomJSON (CustomJSON), ToJSON, VJSON)
 import qualified StmContainers.Map as StmMap
@@ -70,7 +84,7 @@ type SessionId = UUID
 -- abstract and cannot be constructed directly from 'Text'. See
 -- 'mkSessionName'.
 newtype SessionName = SessionName Text
-  deriving (Generic, Eq, Show, Read)
+  deriving (Generic, Eq, Ord, Show, Read)
   deriving newtype (ToJSON)
 
 -- | Given some 'Text', try to convert it to a 'SessionName'.
@@ -247,16 +261,10 @@ data DbError
     SessionIdNotFound SessionId
   deriving (Eq, Show, Generic)
 
--- | A "null" database type that effectively does nothing.
+-- | A "null" database type with no persistent backing store.
 --
--- This type is really only useful for mocking/testing or "toy"
--- environments. It ignores writes, returns an error when you ask it
--- to look up a session ID, and presents the same list of sessions as
--- the in-memory database (i.e., the 'Sessions' type, which is managed
--- in "Primer.API").
---
--- Note that it keeps around a copy of the in-memory database so that
--- it can mock the 'ListSessions' database operation.
+-- This type is only useful for mocking/testing or "toy" environments.
+-- Do not use this type in production!
 newtype NullDbT m a = NullDbT {unNullDbT :: ReaderT Sessions m a}
   deriving
     ( Functor
@@ -282,15 +290,74 @@ newtype NullDbT m a = NullDbT {unNullDbT :: ReaderT Sessions m a}
 -- | The 'NullDbT' monad transformer applied to 'IO'.
 type NullDb a = NullDbT IO a
 
-instance (MonadIO m) => MonadDb (NullDbT m) where
-  insertSession _ _ _ _ = pure ()
-  updateSessionApp _ _ _ = pure ()
-  updateSessionName _ _ _ = pure ()
+-- | A simple 'Exception' type for 'NullDb' computations.
+newtype NullDbException = NullDbException Text
+  deriving (Eq, Show)
+
+instance Exception NullDbException
+
+instance (MonadThrow m, MonadIO m) => MonadDb (NullDbT m) where
+  insertSession _ id_ a n = do
+    ss <- ask
+    result <- liftIO $
+      atomically $ do
+        lookup <- StmMap.lookup id_ ss
+        case lookup of
+          Nothing -> do
+            StmMap.insert (SessionData a n) id_ ss
+            pure $ Right ()
+          Just _ -> pure $ Left $ NullDbException "insertSession failed because session already exists"
+    case result of
+      Left e -> throwM e
+      Right _ -> pure ()
+  updateSessionApp _ id_ a = ask >>= updateOrFail id_ (\s -> s & #sessionApp .~ a)
+  updateSessionName _ id_ n = ask >>= updateOrFail id_ (\s -> s & #sessionName .~ n)
   listSessions ol = do
     ss <- ask
     kvs <- liftIO $ atomically $ ListT.toList $ StmMap.listT ss
-    pure $ pageList ol $ uncurry Session . second sessionName <$> kvs
-  querySessionId sid = pure $ Left $ SessionIdNotFound sid
+    -- Sorting these by name isn't required by the `MonadDb`
+    -- specification, but it's useful for the moment for testing. A
+    -- later version of the `MonadDb` interface will support sorting
+    -- by various keys. See:
+    --
+    -- https://github.com/hackworthltd/primer/issues/533
+    pure $ pageList ol $ sortOn name $ uncurry Session . second sessionName <$> kvs
+  querySessionId sid = do
+    ss <- ask
+    lookup <- liftIO $ atomically $ StmMap.lookup sid ss
+    case lookup of
+      Nothing -> pure $ Left $ SessionIdNotFound sid
+      Just s -> pure $ Right s
+
+updateOrFail :: (MonadThrow m, MonadIO m) => SessionId -> (SessionData -> SessionData) -> Sessions -> m ()
+updateOrFail id_ f ss = do
+  result <- liftIO $
+    atomically $ do
+      lookup <- StmMap.lookup id_ ss
+      case lookup of
+        Nothing -> pure $ Left $ NullDbException "updateSessionName lookup failed"
+        Just s -> do
+          StmMap.insert (f s) id_ ss
+          pure $ Right ()
+  case result of
+    Left e -> throwM e
+    Right _ -> pure ()
+
+-- | Run a 'NullDbT' action in a transformer stack with the given
+-- initial 'Sessions' database.
+runNullDbT :: Sessions -> NullDbT m a -> m a
+runNullDbT ss m = runReaderT (unNullDbT m) ss
+
+-- | Run a 'NullDb' action in 'IO' with the given initial 'Sessions'
+-- database.
+runNullDb :: Sessions -> NullDb a -> IO a
+runNullDb = runNullDbT
+
+-- | Run a 'NullDb' action in 'IO' with an empty initial database.
+runNullDb' :: NullDb a -> IO a
+runNullDb' m = do
+  sessions <- StmMap.newIO
+  runNullDb sessions m
 
 -- | The database service computation.
 --
