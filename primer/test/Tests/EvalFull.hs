@@ -640,6 +640,34 @@ unit_let_self_capture =
         s4 1 <~==> Left (TimedOut expected4a)
         s4 2 <~==> Left (TimedOut expected4b)
 
+-- We previously had a bug where we would refuse to inline a let if it would "self-capture"
+-- (e.g.  λx. let x=f x in C x x : we cannot inline one occurrence of this non-recursive let
+-- since 'f x' refers to the lambda bound variable, but would be captured by the 'let x');
+-- however, we did not check this condition when deciding (for capturing reasons) to
+-- consider an inner let  (e.g. let x = y in let y = _ in t : we cannot inline the outer
+-- let in 't' as the inner let would capture the 'y', so we decide to inline the inner
+-- let first). Thus we would mess up an example like
+-- Λy. let x = ?:y in let y = _:y in y
+-- reducing it to
+-- Λy. let x = ?:y in let y = _:y in _:y
+unit_regression_self_capture_let_let :: Assertion
+unit_regression_self_capture_let_let = do
+  let e =
+        lAM "y" $
+          let_ "x" (emptyHole `ann` tvar "y") $
+            let_ "y" (emptyHole `ann` tvar "y") $ lvar "y"
+      z = "a10"
+      f =
+        lAM "y" $
+          let_ "x" (emptyHole `ann` tvar "y") $
+            let_ z (emptyHole `ann` tvar "y") $
+              let_ "y" (lvar z) $ lvar "y"
+      (e', i) = create e
+      ev n = evalFullTest i mempty mempty n Chk e'
+      x ~ y = x <~==> Left (TimedOut (create' y))
+  ev 0 ~ e
+  ev 1 ~ f
+
 -- | Evaluation preserves types
 -- (assuming we don't end with a 'LetType' in the term, as the typechecker
 -- cannot currently deal with those)

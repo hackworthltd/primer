@@ -420,23 +420,23 @@ findRedex tydefs globals dir = go . focus
         let children = z' : unfoldr (fmap (\x -> (x, x)) . right) z'
          in foldr (\c acc -> f (getBoundHere (target z) (Just $ target c)) c <<||>> acc) Nothing children
     go ez
-      | Just (LSome l, bz) <- viewLet ez =
-          pure <$> case (l, anyOf _freeVarsLocal (== localName l) l) of
-            -- We have something like λx.let x = f x in g x (NB: non-recursive let)
-            -- We cannot substitute this let as we would get λx. let x = f x in g (f x)
-            -- where a variable has been captured
-            (LLet x e, True) -> pure $ RExpr ez $ RenameSelfLet x e (target bz)
-            (LLetType a ty, True) -> pure $ RExpr ez $ RenameSelfLetType a ty (target bz)
-            _ -> goLet l bz
+      | Just (LSome l, bz) <- viewLet ez = pure <$> goLet l ez bz
       | Just mr <- viewRedex tydefs globals (focusDir dir ez) (target ez) = Just $ RExpr ez <$> mr
       | otherwise = eachChild ez go
     -- This should always return Just
     -- It finds either this let is redundant, or somewhere to substitute it
     -- or something inside that we need to rename to unblock substitution
-    goLet :: Local k -> ExprZ -> Maybe RedexWithContext
-    goLet l ez =
-      goSubst l ez
-        <<||>> (up ez <&> \letz -> RExpr letz $ ElideLet (LSome l) (target ez))
+    goLet :: Local k -> ExprZ -> ExprZ -> Maybe RedexWithContext
+    goLet l letz bodyz =
+      case (l, anyOf _freeVarsLocal (== localName l) l) of
+        -- We have something like λx.let x = f x in g x (NB: non-recursive let)
+        -- We cannot substitute this let as we would get λx. let x = f x in g (f x)
+        -- where a variable has been captured
+        (LLet x e, True) -> pure $ RExpr letz $ RenameSelfLet x e (target bodyz)
+        (LLetType a ty, True) -> pure $ RExpr letz $ RenameSelfLetType a ty (target bodyz)
+        _ ->
+          goSubst l bodyz
+            <<||>> Just (RExpr letz $ ElideLet (LSome l) (target bodyz))
     goSubst :: Local k -> ExprZ -> Maybe RedexWithContext
     goSubst l ez = case target ez of
       -- We've found one
@@ -469,7 +469,7 @@ findRedex tydefs globals dir = go . focus
         | Just (LSome l', bz') <- viewLet ez
         , localName l' /= localName l
         , anyOf _freeVarsLocal (== localName l') l ->
-            goLet l' bz'
+            goLet l' ez bz'
         -- Otherwise recurse into subexpressions (including let bindings) and types (if appropriate)
         | LLetType n t <- l -> eachChildWithBinding ez rec <<||>> (focusType ez >>= goSubstTy n t)
         | otherwise -> eachChildWithBinding ez rec
