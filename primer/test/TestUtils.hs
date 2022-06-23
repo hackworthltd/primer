@@ -1,6 +1,7 @@
 -- | Utilities useful across several types of tests.
 module TestUtils (
   (@?=),
+  ExceptionPredicate,
   assertException,
   withPrimDefs,
   constructTCon,
@@ -17,17 +18,28 @@ module TestUtils (
   property,
   withTests,
   withDiscards,
+  runAPI,
 ) where
 
 import Foreword
 
+import Control.Concurrent.STM (
+  newTBQueueIO,
+ )
 import Control.Monad.Fresh (MonadFresh)
 import Data.Coerce (coerce)
 import Data.String (String, fromString)
 import Data.Typeable (typeOf)
 import qualified Hedgehog as H
 import Optics (over, set, view)
-import Primer.Action (Action (ConstructCon, ConstructRefinedCon, ConstructTCon))
+import Primer.API (
+  Env (..),
+  PrimerIO,
+  runPrimerIO,
+ )
+import Primer.Action (
+  Action (ConstructCon, ConstructRefinedCon, ConstructTCon),
+ )
 import Primer.Core (
   Expr',
   ExprMeta,
@@ -51,8 +63,14 @@ import Primer.Core (
   _typeMeta,
  )
 import Primer.Core.Utils (exprIDs)
+import Primer.Database (
+  ServiceCfg (..),
+  runNullDb',
+  serve,
+ )
 import Primer.Name (Name (unName))
 import Primer.Primitives (allPrimDefs)
+import qualified StmContainers.Map as StmMap
 import qualified Test.Tasty.Discover as TD
 import Test.Tasty.HUnit (
   assertBool,
@@ -144,3 +162,22 @@ withTests = coerce H.withTests
 
 withDiscards :: H.DiscardLimit -> Property -> Property
 withDiscards = coerce H.withDiscards
+
+-- Run 2 threads: one that serves a 'NullDb', and one that runs Primer
+-- API actions. This allows us to simulate a database and API service.
+--
+-- We run the database thread on the fork, because it will need to run
+-- until it's terminated. The Primer API action will run on the main
+-- thread and terminate the database thread when the API action runs
+-- to completion or throws.
+runAPI :: PrimerIO a -> IO a
+runAPI action = do
+  -- This is completely arbitrary and just for testing. In production,
+  -- this value will be provided by the production environment and
+  -- will likely come from the git rev used to build the production
+  -- service.
+  let version = "git123"
+  dbOpQueue <- newTBQueueIO 1
+  initialSessions <- StmMap.newIO
+  _ <- forkIO $ runNullDb' $ serve (ServiceCfg dbOpQueue version)
+  runPrimerIO action $ Env initialSessions dbOpQueue version

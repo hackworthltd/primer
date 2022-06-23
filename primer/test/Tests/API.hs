@@ -2,15 +2,40 @@ module Tests.API where
 
 import Foreword
 
+import Data.UUID.V4 (nextRandom)
 import Gen.Core.Raw (evalExprGen, genExpr, genType)
 import Hedgehog hiding (Property, property)
-import Primer.API (viewTreeExpr, viewTreeType)
-import Primer.Core.DSL
-import Test.Tasty.HUnit
-
+import Primer.API (
+  PrimerErr,
+  copySession,
+  flushSessions,
+  getSessionName,
+  getVersion,
+  listSessions,
+  newSession,
+  renameSession,
+  viewTreeExpr,
+  viewTreeType,
+ )
 import Primer.Core
-
-import TestUtils (Property, property)
+import Primer.Core.DSL
+import Primer.Database (
+  OffsetLimit (OL, limit, offset),
+  Page (pageContents, total),
+  Session (..),
+  defaultSessionName,
+  fromSessionName,
+ )
+import Test.Tasty (TestTree)
+import Test.Tasty.HUnit hiding ((@?=))
+import TestUtils (
+  ExceptionPredicate,
+  Property,
+  assertException,
+  property,
+  runAPI,
+  (@?=),
+ )
 
 tasty_viewTreeExpr_injective :: Property
 tasty_viewTreeExpr_injective = property $ do
@@ -104,3 +129,157 @@ distinctTreeType e1 e2 =
   let t1 = viewTreeType $ create' e1
       t2 = viewTreeType $ create' e2
    in assertBool ("non-injective viewTreeType: " ++ show t1) (t1 /= t2)
+
+-- API tests for portions of the API that don't deal with programs.
+
+test_newSession_roundtrip :: TestTree
+test_newSession_roundtrip =
+  testCaseSteps "newSession database round-tripping" $ \step' -> do
+    runAPI $ do
+      let step = liftIO . step'
+      step "Create a new session"
+      sid <- newSession
+      step "Get its name"
+      name <- getSessionName sid
+      name @?= fromSessionName defaultSessionName
+      -- Note: the API's 'API.Prog' type and Primer's internal
+      -- 'App.Prog' type are quite a bit different. Currently, we
+      -- don't check that the retrieved program is "the same" as the
+      -- initial program.
+
+      step "Clear the in-memory database"
+      flushSessions
+      step "Get the session name again"
+      name' <- getSessionName sid
+      name' @?= name
+
+-- Note: we don't bother testing paging here, because it's not very
+-- interesting to test. 'listSessions' doesn't do any of the paging,
+-- that's all handled by the database implementation.
+test_listSessions :: TestTree
+test_listSessions =
+  testCaseSteps "listSessions" $ \step' -> do
+    runAPI $ do
+      let step = liftIO . step'
+      step "List session on an empty database"
+      s0 <- listSessions False $ OL{offset = 0, limit = Nothing}
+      total s0 @?= 0
+      let m :: Int = 107
+      step $ "Create " <> show m <> " sessions"
+      ss <- forM ([1 .. m] :: [Int]) $ const newSession
+      step "List all the sessions"
+      ss' <- listSessions False $ OL{offset = 0, limit = Nothing}
+      total ss' @?= m
+      -- Sort by session ID, because 'listSessions' sorts by name but
+      -- all the new session names are the same by default.
+      --
+      -- Note: hlint is confused by our use of 'id' here. It's because
+      -- Protolude renames the Prelude's 'id' to 'identity' and we use
+      -- 'id' as one of the field names in the 'Session' type.
+      --
+      -- See:
+      -- https://github.com/hackworthltd/primer/issues/545
+      {- HLINT ignore "Functor law" -}
+      sort (id <$> pageContents ss') @?= sort ss
+
+-- TODO: compare the 'API.Prog' of the copied session with the
+-- original. Let's wait until we have a way to insert whole programs,
+-- though, as that will be much easier to test.
+--
+-- https://github.com/hackworthltd/primer/issues/546
+test_copySession :: TestTree
+test_copySession =
+  testCaseSteps "copySession" $ \step' -> do
+    runAPI $ do
+      let step = liftIO . step'
+      step "Create a session"
+      sid <- newSession
+      step "Change its name"
+      name <- renameSession sid "original session"
+      step "Copy it to a new session"
+      sid' <- copySession sid
+      step "Ensure the session IDs are distinct"
+      liftIO $ assertBool "copied session ID is not different than original" $ sid' /= sid
+      step "Check the copied session's name"
+      name' <- getSessionName sid'
+      name' @?= name
+      step "Rename the original sesision"
+      name'' <- renameSession sid "still the original"
+      liftIO $ assertBool "copied session name was changed" $ name' /= name''
+      step "Rename the copied session"
+      name''' <- renameSession sid' "new copy name"
+      liftIO $ assertBool "original session name was changed" $ name''' /= name''
+
+test_copySession_failure :: TestTree
+test_copySession_failure =
+  testCaseSteps "copySession failure" $ \step' -> do
+    runAPI $ do
+      let step = liftIO . step'
+      step "copy a nonexistent session"
+      id_ <- liftIO nextRandom
+      assertException "copySession" (const True :: ExceptionPredicate PrimerErr) $ copySession id_
+
+test_getSessionName_failure :: TestTree
+test_getSessionName_failure =
+  testCaseSteps "getSessionName failure" $ \step' -> do
+    runAPI $ do
+      let step = liftIO . step'
+      step "get a nonexistent session"
+      id_ <- liftIO nextRandom
+      assertException "getSessionName" (const True :: ExceptionPredicate PrimerErr) $ getSessionName id_
+
+test_getVersion :: TestTree
+test_getVersion =
+  testCaseSteps "getVersion" $ \step' -> do
+    runAPI $ do
+      let step = liftIO . step'
+      step "Get the version"
+      version <- getVersion
+      version @?= "git123"
+
+test_renameSession :: TestTree
+test_renameSession =
+  testCaseSteps "renameSession" $ \step' -> do
+    runAPI $ do
+      let step = liftIO . step'
+      step "Create a session"
+      sid <- newSession
+      step "Change its name"
+      name <- renameSession sid "new name"
+      step "Get the session's name"
+      name' <- getSessionName sid
+      name' @?= name
+
+test_renameSession_failure :: TestTree
+test_renameSession_failure =
+  testCaseSteps "renameSession failure" $ \step' -> do
+    runAPI $ do
+      let step = liftIO . step'
+      step "rename a nonexistent session"
+      id_ <- liftIO nextRandom
+      assertException "renameSession" (const True :: ExceptionPredicate PrimerErr) $ renameSession id_ "new name"
+
+test_renameSession_invalid_name :: TestTree
+test_renameSession_invalid_name =
+  testCaseSteps "renameSession invalid name" $ \step' -> do
+    runAPI $ do
+      let step = liftIO . step'
+      step "rename a session"
+      sid <- newSession
+      void $ renameSession sid "abcd"
+      step "rename it again with an invalid name"
+      name <- renameSession sid ""
+      step "it should be the default session name"
+      name @?= fromSessionName defaultSessionName
+
+test_renameSession_too_long :: TestTree
+test_renameSession_too_long =
+  testCaseSteps "renameSession with a too long name" $ \step' -> do
+    runAPI $ do
+      let step = liftIO . step'
+      sid <- newSession
+      -- Note: we cut off session names rather arbitrarily at 64 characters.
+      step "rename a session with a name longer than 64 characters"
+      name <- renameSession sid $ toS $ replicate 65 'a'
+      step "it should be truncated at 64 characters"
+      name @?= toS (replicate 64 'a')
