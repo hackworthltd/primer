@@ -46,6 +46,7 @@ import TestUtils (clearMeta, constructCon, constructRefinedCon, constructTCon)
 -- Note: 'maximum' is partial, but we believe that 'maxID' itself is
 -- safe due to the fact that 'universe x' always contains at least
 -- `x`.
+{- HLINT ignore maxID "Avoid restricted function" -}
 maxID :: (HasID a, Data a) => a -> ID
 maxID = maximum . fmap getID . universe
 

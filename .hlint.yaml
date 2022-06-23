@@ -92,7 +92,7 @@
 
   - {name: minimum, within: []} # Partial
   - {name: minimumBy, within: []} # Partial
-  #- {name: maximum, within: []} # Partial
+  - {name: maximum, within: []} # Partial
   - {name: maximumBy, within: []} # Partial
 
   # Same, but for Data.Text
