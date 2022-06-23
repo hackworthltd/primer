@@ -111,7 +111,7 @@
   #- {name: unless, within: []} # Really confusing, use 'when' instead.
   #- {name: either, within: []} # Really confusing, just use a case-match.
 
-  #- {name: nub, within: []} # O(n^2)
+  - {name: nub, within: []} # O(n^2)
 
   - {name: Data.Foldable.foldl, within: []} # Lazy accumulator. Use foldl' instead.
   - {name: Data.Foldable.foldMap, within: []} # Lazy accumulator. Use foldMap' instead.
