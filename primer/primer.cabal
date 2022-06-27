@@ -156,6 +156,8 @@ test-suite primer-test
       , pretty-simple     ^>=4.0.0
       , primer
       , protolude
+      , stm
+      , stm-containers
       , tasty             ^>=1.4.2.1
       , tasty-discover    ^>=4.2.4
       , tasty-golden      ^>=2.3.5
