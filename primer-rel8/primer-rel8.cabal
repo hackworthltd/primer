@@ -87,7 +87,7 @@ test-suite primer-rel8-test
       , primer-rel8
       , rel8
       , tasty             ^>=1.4.2.1
-      , tasty-discover    ^>=4.2.2
+      , tasty-discover    ^>=4.2.4
       , tasty-hunit       ^>=0.10.0
       , temporary         ^>=1.3
       , text
@@ -98,4 +98,4 @@ test-suite primer-rel8-test
 
 --TODO This currently breaks with haskell.nix, so we manually add it to `flake.nix` instead.
 -- See: https://github.com/input-output-hk/haskell.nix/issues/839
--- build-tool-depends: tasty-discover:tasty-discover ^>=4.2.2
+-- build-tool-depends: tasty-discover:tasty-discover ^>=4.2.4

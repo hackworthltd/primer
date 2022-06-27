@@ -779,7 +779,7 @@ mkRefinedApplication cxt e eTy tgtTy' = do
     -- following 'Insts', and should be substituted with whatever the
     -- 'InstUnconstrainedAPP' is instatiated to (here, 'tEmptyHole'), they
     -- actually only ever appear in 'InstApp', rather than 'InstAPP' (see
-    -- 'Tests.Refine.hprop_scoping'). Since we ignore the type of an 'InstApp'
+    -- 'Tests.Refine.tasty_scoping'). Since we ignore the type of an 'InstApp'
     -- and unconditionally put a hole, we do not have to worry about doing this
     -- substitution.
     f x = \case

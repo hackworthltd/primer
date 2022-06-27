@@ -10,7 +10,7 @@ import qualified Data.Map as Map
 import qualified Data.Set as S
 import Data.String (unlines)
 import Gen.Core.Typed (WT, forAllT, genChk, genSyn, genWTType, isolateWT, propertyWT)
-import Hedgehog hiding (Var, check, test)
+import Hedgehog hiding (Property, Var, check, property, test, withDiscards, withTests)
 import qualified Hedgehog.Gen as Gen
 import Hedgehog.Internal.Property (LabelName (unLabelName))
 import qualified Hedgehog.Range as Range
@@ -63,7 +63,14 @@ import Primer.Typecheck (
  )
 import Test.Tasty.HUnit (Assertion, assertBool, assertFailure, (@?=))
 import TestM
-import TestUtils (withPrimDefs, zeroIDs)
+import TestUtils (
+  Property,
+  property,
+  withDiscards,
+  withPrimDefs,
+  withTests,
+  zeroIDs,
+ )
 import Tests.Action.Prog (runAppTestM)
 import Tests.Eval ((~=))
 import Tests.Gen.Core.Typed (checkTest)
@@ -344,13 +351,13 @@ unit_hole_ann_case =
 -- See https://github.com/hackworthltd/primer/issues/50
 
 -- | Resuming evaluation is the same as running it for longer in the first place
-hprop_resume :: Property
-hprop_resume = withDiscards 2000 $
+tasty_resume :: Property
+tasty_resume = withDiscards 2000 $
   propertyWT testModules $ do
     (dir, t, _) <- genDirTm
     resumeTest testModules dir t
 
--- A helper for hprop_resume, and hprop_resume_regression
+-- A helper for tasty_resume, and tasty_resume_regression
 resumeTest :: [Module] -> Dir -> Expr -> PropertyT WT ()
 resumeTest mods dir t = do
   let globs = foldMap moduleDefsQualified mods
@@ -381,8 +388,8 @@ resumeTest mods dir t = do
 -- A pseudo-unit regression test: when reduction needs to create fresh names,
 -- the two reduction attempts in resumeTest should not interfere with each
 -- other's names, else we will get occasional failures in that property test.
-hprop_resume_regression :: Property
-hprop_resume_regression = propertyWT [] $ do
+tasty_resume_regression :: Property
+tasty_resume_regression = propertyWT [] $ do
   -- This indeed requires fresh names when reducing (see unit_type_preservation_rename_LAM_regression)
   t <- lAM "a" (letrec "b" emptyHole (tvar "a") (lAM "a" emptyHole))
   resumeTest mempty Chk t
@@ -391,7 +398,7 @@ hprop_resume_regression = propertyWT [] $ do
 -- capture, but would use let instead of lettype for type abstractions ("big
 -- lambdas"). (I.e. we changed 'λx.e' into 'λy.let x=y in e' and also did the
 -- same for 'Λa.e' into 'Λb.let a=b in e', instead of 'Λb.lettype a=b in e'!)
--- This would lead to sporadic failures in hprop_type_preservation
+-- This would lead to sporadic failures in tasty_type_preservation
 -- ("WrongSortVariable").
 unit_type_preservation_rename_LAM_regression :: Assertion
 unit_type_preservation_rename_LAM_regression =
@@ -643,8 +650,8 @@ unit_let_self_capture =
 -- | Evaluation preserves types
 -- (assuming we don't end with a 'LetType' in the term, as the typechecker
 -- cannot currently deal with those)
-hprop_type_preservation :: Property
-hprop_type_preservation = withTests 1000 $
+tasty_type_preservation :: Property
+tasty_type_preservation = withTests 1000 $
   withDiscards 2000 $
     propertyWT testModules $ do
       let globs = foldMap moduleDefsQualified testModules
@@ -697,8 +704,8 @@ unit_prim_isSpace_2 =
     (char 'a')
     (bool_ False)
 
-hprop_prim_hex_nat :: Property
-hprop_prim_hex_nat = withTests 20 . property $ do
+tasty_prim_hex_nat :: Property
+tasty_prim_hex_nat = withTests 20 . property $ do
   n <- forAllT $ Gen.integral $ Range.constant 0 50
   let ne = nat n
       ((e, r, gs), maxID) =
@@ -1159,8 +1166,8 @@ unit_eval_full_modules_scrutinize_imported_type =
         }
 
 -- Test that evaluation does not duplicate node IDs
-hprop_unique_ids :: Property
-hprop_unique_ids = withTests 1000 $
+tasty_unique_ids :: Property
+tasty_unique_ids = withTests 1000 $
   withDiscards 2000 $
     propertyWT testModules $ do
       let globs = foldMap moduleDefsQualified testModules

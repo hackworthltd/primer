@@ -157,9 +157,9 @@ test-suite primer-test
       , primer
       , protolude
       , tasty             ^>=1.4.2.1
-      , tasty-discover    ^>=4.2.2
+      , tasty-discover    ^>=4.2.4
       , tasty-golden      ^>=2.3.5
-      , tasty-hedgehog    ^>=1.1.0
+      , tasty-hedgehog    ^>=1.2.0
       , tasty-hunit       ^>=0.10.0
       , text
       , uniplate
@@ -167,4 +167,4 @@ test-suite primer-test
 
 --TODO This currently breaks with haskell.nix, so we manually add it to `flake.nix` instead.
 -- See: https://github.com/input-output-hk/haskell.nix/issues/839
--- build-tool-depends: tasty-discover:tasty-discover ^>=4.2.2
+-- build-tool-depends: tasty-discover:tasty-discover ^>=4.2.4

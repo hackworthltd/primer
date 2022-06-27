@@ -15,7 +15,7 @@ import Gen.Core.Typed (
   genSyn,
   propertyWT,
  )
-import Hedgehog hiding (check)
+import Hedgehog hiding (Property, check, property, withDiscards, withTests)
 import qualified Hedgehog.Gen as Gen
 import qualified Hedgehog.Range as Range
 import Optics (over)
@@ -88,7 +88,7 @@ import Primer.Typecheck (
  )
 import Test.Tasty.HUnit (Assertion, assertFailure, (@?=))
 import TestM (TestM, evalTestM)
-import TestUtils (tcn, vcn, zeroIDs, zeroTypeIDs)
+import TestUtils (Property, property, tcn, vcn, withDiscards, withTests, zeroIDs, zeroTypeIDs)
 import Tests.Gen.Core.Typed
 
 unit_identity :: Assertion
@@ -228,8 +228,8 @@ unit_mkTAppCon = do
 --
 -- We should keep in mind that we should check whether these tests still have
 -- decent coverage if we change the generators!
-hprop_decomposeTAppCon :: Property
-hprop_decomposeTAppCon = property $ do
+tasty_decomposeTAppCon :: Property
+tasty_decomposeTAppCon = property $ do
   -- We correctly decompose "good" values
   let genArgs = Gen.list (Range.linear 0 5) $ forgetTypeIDs <$> genType
   nargs <- forAll $ evalExprGen 0 $ liftA2 (,) genTyConName genArgs
@@ -488,19 +488,19 @@ unit_prim_fun_applied =
   expectTypedWithPrims $ ann (app (gvar $ primitiveGVar "hexToNat") (char 'a')) (tapp (tcon tMaybe) (tcon tNat))
 
 -- Whenever we synthesise a type, then it kind-checks against KType
-hprop_synth_well_typed_extcxt :: Property
-hprop_synth_well_typed_extcxt = withTests 1000 $
+tasty_synth_well_typed_extcxt :: Property
+tasty_synth_well_typed_extcxt = withTests 1000 $
   withDiscards 2000 $
     propertyWTInExtendedLocalGlobalCxt [builtinModule, primitiveModule] $ do
       (e, _ty) <- forAllT genSyn
       ty' <- generateTypeIDs . fst =<< synthTest =<< generateIDs e
       void $ checkKindTest KType ty'
 
--- As hprop_synth_well_typed_extcxt, but in the empty context
+-- As tasty_synth_well_typed_extcxt, but in the empty context
 -- this is in case there are problems with primitive constructors
 -- (which cannot be used unless their corresponding type is in scope)
-hprop_synth_well_typed_defcxt :: Property
-hprop_synth_well_typed_defcxt = withTests 1000 $
+tasty_synth_well_typed_defcxt :: Property
+tasty_synth_well_typed_defcxt = withTests 1000 $
   withDiscards 2000 $
     propertyWT [] $ do
       (e, _ty) <- forAllT genSyn

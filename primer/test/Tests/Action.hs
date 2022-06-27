@@ -11,7 +11,9 @@ import Gen.Core.Raw (
  )
 import Hedgehog hiding (
   Action,
+  Property,
   Var,
+  property,
  )
 import Primer.Action (
   Action (..),
@@ -41,7 +43,7 @@ import Primer.Zipper (
  )
 import Test.Tasty.HUnit (Assertion, assertFailure, (@?=))
 import TestM (evalTestM)
-import TestUtils (clearMeta, constructCon, constructRefinedCon, constructTCon)
+import TestUtils (Property, clearMeta, constructCon, constructRefinedCon, constructTCon, property)
 
 -- Note: 'maximum' is partial, but we believe that 'maxID' itself is
 -- safe due to the fact that 'universe x' always contains at least
@@ -49,8 +51,8 @@ import TestUtils (clearMeta, constructCon, constructRefinedCon, constructTCon)
 maxID :: (HasID a, Data a) => a -> ID
 maxID = maximum . map getID . universe
 
-hprop_ConstructVar_succeeds_on_hole_when_in_scope :: Property
-hprop_ConstructVar_succeeds_on_hole_when_in_scope = property $ do
+tasty_ConstructVar_succeeds_on_hole_when_in_scope :: Property
+tasty_ConstructVar_succeeds_on_hole_when_in_scope = property $ do
   -- Generate \x -> ?
   let expr = create' $ ann (lam "x" emptyHole) (tfun tEmptyHole tEmptyHole)
   annotateShow expr
@@ -79,8 +81,8 @@ unit_SetCursor_succeeds_when_ID_exists =
     [SetCursor 1]
     (ann (lam "x" (lvar "x")) (tfun tEmptyHole tEmptyHole))
 
-hprop_SetCursor_fails_when_ID_doesn't_exist :: Property
-hprop_SetCursor_fails_when_ID_doesn't_exist = property $ do
+tasty_SetCursor_fails_when_ID_doesn't_exist :: Property
+tasty_SetCursor_fails_when_ID_doesn't_exist = property $ do
   -- TODO: generate a random list of actions to run
   let actions = [SetCursor (-1)]
   e <- forAll $ evalExprGen 0 genExpr

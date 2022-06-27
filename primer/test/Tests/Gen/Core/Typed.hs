@@ -17,13 +17,10 @@ import Gen.Core.Typed (
   propertyWT,
  )
 import Hedgehog (
-  Property,
   PropertyT,
   annotateShow,
   diff,
   failure,
-  withDiscards,
-  withTests,
   (===),
  )
 import Hedgehog.Internal.Property (forAllT)
@@ -56,12 +53,13 @@ import Primer.Typecheck (
   synth,
   synthKind,
  )
+import TestUtils (Property, withDiscards, withTests)
 
 inExtendedGlobalCxt :: PropertyT WT a -> PropertyT WT a
 inExtendedGlobalCxt p = do
   cxt <- ask
   cxtE <- forAllT genCxtExtendingGlobal
-  -- NB: we only extend typedefs and globals (see hprop_genCxtExtending_is_extension)
+  -- NB: we only extend typedefs and globals (see tasty_genCxtExtending_is_extension)
   annotateShow $ M.differenceWith (\l r -> if l == r then Nothing else Just l) (typeDefs cxtE) (typeDefs cxt)
   annotateShow $ M.differenceWith (\l r -> if l == r then Nothing else Just l) (globalCxt cxtE) (globalCxt cxt)
   local (const cxtE) p
@@ -70,7 +68,7 @@ inExtendedLocalCxt :: PropertyT WT a -> PropertyT WT a
 inExtendedLocalCxt p = do
   cxt <- ask
   cxtE <- forAllT genCxtExtendingLocal
-  -- NB: we only extend locals (see hprop_genCxtExtending_is_extension)
+  -- NB: we only extend locals (see tasty_genCxtExtending_is_extension)
   annotateShow $ M.differenceWith (\l r -> if l == r then Nothing else Just l) (localCxt cxtE) (localCxt cxt)
   local (const cxtE) p
 
@@ -80,8 +78,8 @@ propertyWTInExtendedGlobalCxt mods = propertyWT mods . inExtendedGlobalCxt
 propertyWTInExtendedLocalGlobalCxt :: [Module] -> PropertyT WT () -> Property
 propertyWTInExtendedLocalGlobalCxt mods = propertyWT mods . inExtendedGlobalCxt . inExtendedLocalCxt
 
-hprop_genTy :: Property
-hprop_genTy = withTests 1000 $
+tasty_genTy :: Property
+tasty_genTy = withTests 1000 $
   propertyWTInExtendedGlobalCxt [builtinModule, primitiveModule] $ do
     k <- forAllT genWTKind
     ty <- forAllT $ genWTType k
@@ -113,23 +111,23 @@ checkValidContextTest t = do
     Right s -> pure s
 
 -- This indirectly also tests genCxtExtendingLocal, genCxtExtendingGlobal and genTypeDefGroup
-hprop_genCxtExtending_typechecks :: Property
-hprop_genCxtExtending_typechecks = withTests 1000 $
+tasty_genCxtExtending_typechecks :: Property
+tasty_genCxtExtending_typechecks = withTests 1000 $
   propertyWT [builtinModule, primitiveModule] $ do
     cxt <- forAllT genCxtExtendingGlobal
     checkValidContextTest cxt
     cxt' <- forAllT $ local (const cxt) genCxtExtendingLocal
     checkValidContextTest cxt'
 
-hprop_inExtendedLocalGlobalCxt_valid :: Property
-hprop_inExtendedLocalGlobalCxt_valid = withTests 1000 $
+tasty_inExtendedLocalGlobalCxt_valid :: Property
+tasty_inExtendedLocalGlobalCxt_valid = withTests 1000 $
   withDiscards 2000 $
     propertyWTInExtendedLocalGlobalCxt [builtinModule, primitiveModule] $ do
       cxt <- ask
       checkValidContextTest cxt
 
-hprop_genCxtExtending_is_extension :: Property
-hprop_genCxtExtending_is_extension =
+tasty_genCxtExtending_is_extension :: Property
+tasty_genCxtExtending_is_extension =
   withTests 1000 $
     let cxt0 = initialCxt NoSmartHoles
      in propertyWT [] $ do
@@ -158,8 +156,8 @@ hprop_genCxtExtending_is_extension =
           && gc1 == gc2
           && sh1 == sh2
 
-hprop_genSyns :: Property
-hprop_genSyns = withTests 1000 $
+tasty_genSyns :: Property
+tasty_genSyns = withTests 1000 $
   withDiscards 2000 $
     propertyWTInExtendedLocalGlobalCxt [builtinModule, primitiveModule] $ do
       tgtTy <- forAllT $ genWTType KType
@@ -172,8 +170,8 @@ hprop_genSyns = withTests 1000 $
       ty === ty'
       e === forgetIDs e' -- check no smart holes stuff happened
 
-hprop_genChk :: Property
-hprop_genChk = withTests 1000 $
+tasty_genChk :: Property
+tasty_genChk = withTests 1000 $
   withDiscards 2000 $
     propertyWTInExtendedLocalGlobalCxt [builtinModule, primitiveModule] $ do
       ty <- forAllT $ genWTType KType

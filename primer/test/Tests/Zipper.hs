@@ -9,20 +9,21 @@ import Gen.Core.Raw (
   genExpr,
   runExprGen,
  )
-import Hedgehog
+import Hedgehog hiding (Property, property)
 import qualified Hedgehog.Gen as Gen
 import Primer.Core
 import Primer.Zipper
+import TestUtils (Property, property)
 
 -- | @unfocus . focus == id@
-hprop_focus_unfocus_roundtrip :: Property
-hprop_focus_unfocus_roundtrip = property $ do
+tasty_focus_unfocus_roundtrip :: Property
+tasty_focus_unfocus_roundtrip = property $ do
   (e, _) <- forAll $ runExprGen 0 genExpr
   (unfocusExpr . focus) e === e
 
 -- | @unfocus . focusOn i . focus == id@ for any valid ID @i@
-hprop_focusOn_unfocus_roundtrip :: Property
-hprop_focusOn_unfocus_roundtrip = property $ do
+tasty_focusOn_unfocus_roundtrip :: Property
+tasty_focusOn_unfocus_roundtrip = property $ do
   e <- forAll $ evalExprGen 0 genExpr
   i <- forAll $ Gen.element $ idsIn e
   case focusOn i e of
@@ -31,8 +32,8 @@ hprop_focusOn_unfocus_roundtrip = property $ do
 
 -- | For any valid ID @i@ in an expression @e@, @focusOn i e@ should succeed
 -- and return a zipper focusing on a node with the matching ID
-hprop_focusOn_succeeds_on_valid_ids :: Property
-hprop_focusOn_succeeds_on_valid_ids = property $ do
+tasty_focusOn_succeeds_on_valid_ids :: Property
+tasty_focusOn_succeeds_on_valid_ids = property $ do
   e <- forAll $ evalExprGen 0 genExpr
   forM_ (idsIn e) $ \i -> do
     case focusOn i e of

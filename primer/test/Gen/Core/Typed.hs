@@ -36,9 +36,7 @@ import Gen.Core.Raw (genLVarName, genModuleName, genName, genTyVarName)
 import Hedgehog (
   GenT,
   MonadGen,
-  Property,
   PropertyT,
-  property,
  )
 import qualified Hedgehog.Gen as Gen
 import Hedgehog.Internal.Property (forAllT)
@@ -97,6 +95,7 @@ import Primer.Typecheck (
   typeDefs,
  )
 import TestM (TestM, evalTestM, isolateTestM)
+import TestUtils (Property, property)
 
 {-
 Generate well scoped and typed expressions.
@@ -385,7 +384,7 @@ genChk ty = do
 
 -- | Generates types which infer kinds consistent with the argument
 -- I.e. @genWTType k@ will generate types @ty@ such that @synthKind ty = k'@
--- with @consistentKinds k k'@. See 'Tests.Gen.Core.Typed.hprop_genTy'
+-- with @consistentKinds k k'@. See 'Tests.Gen.Core.Typed.tasty_genTy'
 genWTType :: Kind -> GenT WT TypeG
 genWTType k = do
   vars <- lift vari
