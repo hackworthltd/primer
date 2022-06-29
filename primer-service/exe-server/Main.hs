@@ -29,7 +29,16 @@ import Options.Applicative (
   option,
   progDesc,
   str,
+  switch,
   value,
+ )
+import Primer.API (
+  Env (..),
+  addSession,
+  runPrimerIO,
+ )
+import Primer.App (
+  App,
  )
 import Primer.Database (Version)
 import qualified Primer.Database as Db (
@@ -39,6 +48,9 @@ import qualified Primer.Database as Db (
 import Primer.Database.Rel8 (
   Rel8DbException,
   runRel8DbT,
+ )
+import Primer.Examples (
+  even3App,
  )
 import Primer.Server (
   serve,
@@ -58,15 +70,17 @@ parseDatabase :: Parser Database
 parseDatabase = PostgreSQL <$> option auto (long "pgsql-url")
 
 data Command
-  = Serve FilePath Version (Maybe Database) Int Natural
+  = Serve FilePath Version (Maybe Database) Int Natural Bool
 
 serveCmd :: Parser Command
 serveCmd =
-  Serve <$> argument str (metavar "PATH")
+  Serve
+    <$> argument str (metavar "PATH")
     <*> argument str (metavar "VERSION")
     <*> optional parseDatabase
     <*> option auto (long "port" <> value 8081)
     <*> option auto (long "db-op-queue-size" <> value 128)
+    <*> switch (long "seed-db")
 
 cmds :: Parser GlobalOptions
 cmds =
@@ -128,6 +142,12 @@ runDb cfg =
         (go conn)
         (\e -> logDbException e >> restart conn)
 
+-- A list of 'App's used to seed the database.
+seedApps :: [(App, Text)]
+seedApps =
+  [ (even3App, "even3")
+  ]
+
 -- The choice of which process to fork and which to run in the "main"
 -- thread doesn't particularly matter for our purposes, as far as I
 -- can determine. We do need some proper exception handling, however,
@@ -141,10 +161,15 @@ runDb cfg =
 -- and reported (to the student, via HTTP error codes) by Servant.
 run :: GlobalOptions -> IO ()
 run opts = case cmd opts of
-  Serve root ver dbFlag port qsz -> do
+  Serve root ver dbFlag port qsz seedDb -> do
     dbOpQueue <- newTBQueueIO qsz
     initialSessions <- StmMap.newIO
-    _ <- forkIO $ withCurrentDirectory root (serve initialSessions dbOpQueue ver port)
+    _ <- forkIO $ do
+      when seedDb $ do
+        let env = Env initialSessions dbOpQueue ver
+        flip runPrimerIO env $
+          forM_ seedApps $ uncurry addSession
+      withCurrentDirectory root (serve initialSessions dbOpQueue ver port)
     db <- maybe defaultDb pure dbFlag
     runDb (Db.ServiceCfg dbOpQueue ver) db
 
