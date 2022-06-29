@@ -7,8 +7,10 @@ import Gen.Core.Raw (evalExprGen, genExpr, genType)
 import Hedgehog hiding (Property, property)
 import Primer.API (
   PrimerErr,
+  addSession,
   copySession,
   flushSessions,
+  getApp,
   getSessionName,
   getVersion,
   listSessions,
@@ -17,14 +19,20 @@ import Primer.API (
   viewTreeExpr,
   viewTreeType,
  )
+import Primer.App (
+  newApp,
+ )
 import Primer.Core
-import Primer.Core.DSL
+import Primer.Core.DSL hiding (app)
 import Primer.Database (
   OffsetLimit (OL, limit, offset),
   Page (pageContents, total),
   Session (..),
   defaultSessionName,
   fromSessionName,
+ )
+import Primer.Examples (
+  even3App,
  )
 import Test.Tasty (TestTree)
 import Test.Tasty.HUnit hiding ((@?=))
@@ -142,16 +150,28 @@ test_newSession_roundtrip =
       step "Get its name"
       name <- getSessionName sid
       name @?= fromSessionName defaultSessionName
-      -- Note: the API's 'API.Prog' type and Primer's internal
-      -- 'App.Prog' type are quite a bit different. Currently, we
-      -- don't check that the retrieved program is "the same" as the
-      -- initial program.
-
+      step "Get its app"
+      app <- getApp sid
+      app @?= newApp
       step "Clear the in-memory database"
       flushSessions
       step "Get the session name again"
       name' <- getSessionName sid
       name' @?= name
+
+test_addSession_roundtrip :: TestTree
+test_addSession_roundtrip =
+  testCaseSteps "addSession database round-tripping" $ \step' -> do
+    runAPI $ do
+      let step = liftIO . step'
+      step "Add a new session"
+      sid <- addSession even3App "even3App"
+      step "Get its name"
+      name <- getSessionName sid
+      name @?= "even3App"
+      step "Get its app"
+      app <- getApp sid
+      app @?= even3App
 
 -- Note: we don't bother testing paging here, because it's not very
 -- interesting to test. 'listSessions' doesn't do any of the paging,
@@ -182,18 +202,13 @@ test_listSessions =
       {- HLINT ignore "Functor law" -}
       sort (id <$> pageContents ss') @?= sort ss
 
--- TODO: compare the 'API.Prog' of the copied session with the
--- original. Let's wait until we have a way to insert whole programs,
--- though, as that will be much easier to test.
---
--- https://github.com/hackworthltd/primer/issues/546
 test_copySession :: TestTree
 test_copySession =
   testCaseSteps "copySession" $ \step' -> do
     runAPI $ do
       let step = liftIO . step'
-      step "Create a session"
-      sid <- newSession
+      step "Add a session"
+      sid <- addSession even3App "foo"
       step "Change its name"
       name <- renameSession sid "original session"
       step "Copy it to a new session"
@@ -203,6 +218,9 @@ test_copySession =
       step "Check the copied session's name"
       name' <- getSessionName sid'
       name' @?= name
+      step "Check the copied session's app"
+      app <- getApp sid'
+      app @?= even3App
       step "Rename the original sesision"
       name'' <- renameSession sid "still the original"
       liftIO $ assertBool "copied session name was changed" $ name' /= name''
