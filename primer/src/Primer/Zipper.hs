@@ -32,7 +32,7 @@ module Primer.Zipper (
   left,
   right,
   farthest,
-  FoldAbove (current, prior),
+  FoldAbove (FA,current, prior),
   foldAbove,
   foldBelow,
   unfocusExpr,

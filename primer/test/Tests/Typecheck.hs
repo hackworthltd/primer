@@ -656,16 +656,24 @@ maybeTDef =
     , astTypeDefNameHints = []
     }
 
+
+-- Urgh, this is not a good test / shows up a difficult sitution...
+-- consider the term
+-- letrec y : ∀x.? = (letrec x : ? = ? in ?) in ?
+-- then the innermost hole will be checked at ∀x.? (which will go in metadata), but this
+-- is considered "shadowed" by the letrec x binder
 tasty_gen_shadow :: Property
 tasty_gen_shadow = withTests 1000 $
   withDiscards 2000 $
     propertyWTInExtendedLocalGlobalCxt [builtinModule, primitiveModule] $ do
       (e, _ty) <- forAllT genSyn
-      (ty', e') <- firstM generateTypeIDs =<< synthTest =<< generateIDs e
+      e' <- generateIDs e
+      unless (noShadowing e' == ShadowingNotExists) discard
+      (ty', e'') <- firstM generateTypeIDs =<< synthTest e'
       annotateShow ty'
       noShadowingTy ty' === ShadowingNotExists
-      annotateShow e'
-      noShadowing (exprTtoExpr e') === ShadowingNotExists
+      annotateShow e''
+      noShadowing (exprTtoExpr e'') === ShadowingNotExists
 
 unit_tmp_shadow :: Assertion
 unit_tmp_shadow =

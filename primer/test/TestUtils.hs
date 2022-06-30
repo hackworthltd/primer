@@ -26,12 +26,11 @@ module TestUtils (
 import Foreword
 
 import Control.Monad.Fresh (MonadFresh)
-import Data.Tree (Tree (Node), foldTree)
 import Data.Coerce (coerce)
 import Data.String (String, fromString)
 import Data.Typeable (typeOf)
 import qualified Hedgehog as H
-import Optics (over, set, view, (^.), (%))
+import Optics (over, set, view, (^.), (%), (%~))
 import Primer.Action (Action (ConstructCon, ConstructRefinedCon, ConstructTCon))
 import Primer.Core (
   Expr',_exprMetaLens, _type, _typeMetaLens,
@@ -44,7 +43,7 @@ import Primer.Core (
   ModuleName (ModuleName, unModuleName),
   PrimDef (..),
   TyConName,
-  Type',
+  Type' (TForall),
   TypeMeta,
   ValConName,
   Value,
@@ -68,6 +67,9 @@ import qualified Test.Tasty.Hedgehog as TH
 import Primer.Zipper
 import qualified Data.Generics.Uniplate.Data as U
 import qualified Data.Set as Set
+import Data.Data(Data)
+import qualified Data.Tree as T
+import Data.Tree.Optics (root)
 
 withPrimDefs :: MonadFresh ID m => (Map GVarName PrimDef -> m a) -> m a
 withPrimDefs f = do
@@ -153,50 +155,69 @@ withTests = coerce H.withTests
 withDiscards :: H.DiscardLimit -> Property -> Property
 withDiscards = coerce H.withDiscards
 
-noShadowingTy :: Type -> Shadowing
-noShadowingTy = checkShadowing . binderTreeTy
+-- The 'a' parameter (node labels) are only needed for implementation of 'binderTree'
+data Tree a b = Node a [(b,Tree a b)]
+  deriving Show
 
-binderTreeTy :: Type -> Tree (Set Name)
+instance Bifunctor Tree where
+  bimap f g (Node a xs) = Node (f a) $ map (bimap g (bimap f g)) xs
+
+drawTree :: Tree String String -> String
+drawTree = T.drawTree . f
+  where
+    f (Node a xs) = T.Node a $ map (\(b,t) -> f t & root %~ (("[" <> b <> "]--") <>)) xs
+
+foldTree :: (a -> [(b,c)] -> c) -> Tree a b -> c
+foldTree f (Node a xs) = f a $ map (second $ foldTree f) xs
+
+-- NB: there are no children in kinds, so we need not look in the metadata
+-- NB: any binder in types (∀ only) scopes over all type children
+binderTreeTy :: Data b => Type' b -> Tree () (Set Name)
 binderTreeTy = U.para $ \ty children ->
-      let bs = Set.map unLocalName $ getBoundHereTy ty
-          metaChildren = case ty ^. _typeMetaLens % _type of
-            Nothing -> mempty
-            Just _k -> mempty -- there are no binders in kinds
-      in Node bs $ children <> metaChildren
+  Node () $ map (Set.map unLocalName $ getBoundHereTy ty,) children
 
 -- includes metadata
 noShadowing :: Expr -> Shadowing
 noShadowing = checkShadowing . binderTree
 
-binderTree :: Expr -> Tree (Set Name)
-binderTree = U.para $ \e exprChildren ->
+noShadowingTy :: Type -> Shadowing
+noShadowingTy = checkShadowing . binderTreeTy
+
+binderTree :: Expr -> Tree () (Set Name)
+binderTree = noNodeLabels' . go
+  where
+    noNodeLabels :: Tree () b -> Tree (Maybe a) b
+    noNodeLabels = bimap (const Nothing) identity
+    noNodeLabels' :: Tree a b -> Tree () b
+    noNodeLabels' = bimap (const ()) identity
+    go :: Expr -> Tree (Maybe Expr) (Set Name)
+    go = U.para $ \e exprChildren' ->
       let bs = getBoundHere e Nothing
+          exprChildren = map (\c@(Node c' _) ->  (case c' of
+                                                    Nothing -> mempty -- no term binders scope over metadata or type children
+                                                    Just c'' -> getBoundHereUp $ FA {prior = c'', current = e},c))
+                         exprChildren'
           typeChildren = case target . focusOnlyType <$> focusType (focus e) of
             Just ty -> [binderTreeTy ty]
             Nothing -> mempty
           metaChildren = case e ^. _exprMetaLens % _type of
             Nothing -> mempty
-            Just (TCChkedAt ty) -> [binderTreeTy' ty]
-            Just (TCSynthed ty) -> [binderTreeTy' ty]
-            Just (TCEmb (TCBoth ty1 ty2)) -> [binderTreeTy' ty1, binderTreeTy' ty2]
-      in Node bs $ exprChildren <> typeChildren <> metaChildren
-  where
-    binderTreeTy' :: Type' () -> Tree (Set Name)
-    binderTreeTy' = U.para $ \ty children ->
-      let bs = Set.map unLocalName $ getBoundHereTy ty
-      in Node bs children
+            Just (TCChkedAt ty) -> [binderTreeTy ty]
+            Just (TCSynthed ty) -> [binderTreeTy ty]
+            Just (TCEmb (TCBoth ty1 ty2)) -> [binderTreeTy ty1, binderTreeTy ty2]
+      in Node (Just e) $ exprChildren <> map ((mempty,). noNodeLabels) (typeChildren <> metaChildren)
 
 data Shadowing = ShadowingExists | ShadowingNotExists
   deriving (Eq, Show)
 
-checkShadowing :: Tree (Set Name) -> Shadowing
+checkShadowing :: Tree () (Set Name) -> Shadowing
 checkShadowing t = if fst $ foldTree f t
   then ShadowingExists
   else ShadowingNotExists
   where
-    f :: Set Name -> [(Bool,Set Name)] -> (Bool,Set Name)
-    f bindsHere xs = let (shadowingInSubtrees,bindsSubTrees) = unzip xs
-                         allSubtreeBinds = Set.unions bindsSubTrees
-                         allBinds = bindsHere <> allSubtreeBinds
-                         shadowing = or shadowingInSubtrees || not (Set.disjoint bindsHere allSubtreeBinds)
-                     in (shadowing, allBinds)
+    f :: () -> [(Set Name,(Bool,Set Name))] -> (Bool,Set Name)
+    f () xs = let allSubtreeBinds = Set.unions $ map (snd.snd) xs
+                  bindsHere = Set.unions $ map fst xs
+                  allBinds = bindsHere <> allSubtreeBinds
+                  shadowing = any (\(bs, (s, bs')) -> s || not (Set.disjoint bs bs')) xs
+              in (shadowing, allBinds)
