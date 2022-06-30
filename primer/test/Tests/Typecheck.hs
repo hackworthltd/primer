@@ -84,12 +84,13 @@ import Primer.Typecheck (
   decomposeTAppCon,
   mkTAppCon,
   synth,
-  synthKind,
+  synthKind, exprTtoExpr, check
  )
-import Test.Tasty.HUnit (Assertion, assertFailure, (@?=))
+import Test.Tasty.HUnit (Assertion, assertFailure, (@?=), assertBool)
 import TestM (TestM, evalTestM)
-import TestUtils (Property, property, tcn, vcn, withDiscards, withTests, zeroIDs, zeroTypeIDs)
+import TestUtils (Property, property, tcn, vcn, withDiscards, withTests, zeroIDs, zeroTypeIDs, noShadowing, noShadowingTy, Shadowing (ShadowingNotExists))
 import Tests.Gen.Core.Typed
+import Data.Tuple.Extra (firstM)
 
 unit_identity :: Assertion
 unit_identity =
@@ -654,3 +655,25 @@ maybeTDef =
     , astTypeDefConstructors = [ValCon (vcn ["TestModule"] "MakeMaybeT") [TApp () (TVar () "m") (TApp () (TCon () tMaybe) (TVar () "a"))]]
     , astTypeDefNameHints = []
     }
+
+tasty_gen_shadow :: Property
+tasty_gen_shadow = withTests 1000 $
+  withDiscards 2000 $
+    propertyWTInExtendedLocalGlobalCxt [builtinModule, primitiveModule] $ do
+      (e, _ty) <- forAllT genSyn
+      (ty', e') <- firstM generateTypeIDs =<< synthTest =<< generateIDs e
+      annotateShow ty'
+      noShadowingTy ty' === ShadowingNotExists
+      annotateShow e'
+      noShadowing (exprTtoExpr e') === ShadowingNotExists
+
+unit_tmp_shadow :: Assertion
+unit_tmp_shadow =
+  let t = TForall () "AA" KType $ TForall () "a2" KType $ TForall () "BB" KType $ TVar () "AA"
+      e = lAM "BB" emptyHole
+  in case runTypecheckTestM NoSmartHoles (e >>= check t) of
+    Left err -> assertFailure $ show err
+    Right e' -> assertBool ("Expected no shadowing in \n" <> show e') $ noShadowing (exprTtoExpr e') == ShadowingNotExists
+-- I exp.ect the same can happen with APP,
+--worse is evaluating case-of-known ctor : not only do we not have the context, it is type+term, rather than just type
+
