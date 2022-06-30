@@ -19,6 +19,7 @@ module Primer.API (
   runPrimerIO,
   PrimerErr (..),
   newSession,
+  addSession,
   copySession,
   listSessions,
   getVersion,
@@ -35,9 +36,10 @@ module Primer.API (
   evalStep,
   evalFull,
   flushSessions,
-  -- viewTree*: only exported for testing
+  -- The following are exported only for testing.
   viewTreeType,
   viewTreeExpr,
+  getApp,
 ) where
 
 import Foreword
@@ -109,6 +111,7 @@ import Primer.Database (
   Session (Session),
   SessionData (..),
   SessionId,
+  SessionName,
   Sessions,
   Version,
   defaultSessionName,
@@ -259,13 +262,38 @@ withSession' sid op = do
       -- We performed the session transaction, now return the result.
       pure result
 
+-- | Create a new session and return the session ID.
+--
+-- The session's initial program is 'newApp'.
 newSession :: (MonadIO m) => PrimerM m SessionId
-newSession = do
+newSession = addSession' newApp defaultSessionName
+
+-- | Given an 'App' and a proposed session name as 'Text', create a
+-- new session with the given app and name, and return the session ID.
+--
+-- If the given session name is invalid, it will be replaced with a
+-- default session name. However, no indication to the caller is given
+-- when this occurs. Query the returned session ID to determine the
+-- actual session name that was assigned.
+--
+-- Note: this API method is currently a special case, and we do not
+-- expect typical API clients to use it, because it bypasses the edit
+-- API by permitting the caller to directly insert an existing 'App'
+-- into the database. The chief use case for this API method is to
+-- insert pre-made programs built with the Primer Haskell DSL into a
+-- new Primer database. Whether this method should be added to the
+-- HTTP API is tracked here:
+--
+-- https://github.com/hackworthltd/primer/issues/550
+addSession :: (MonadIO m) => App -> Text -> PrimerM m SessionId
+addSession a n = addSession' a (safeMkSessionName n)
+
+addSession' :: (MonadIO m) => App -> SessionName -> PrimerM m SessionId
+addSession' a n = do
   nextSID <- liftIO newSessionId
   sessionsTransaction $ \ss q -> do
-    let app = newApp
-    StmMap.insert (SessionData app defaultSessionName) nextSID ss
-    writeTBQueue q $ Database.Insert nextSID app defaultSessionName
+    StmMap.insert (SessionData a n) nextSID ss
+    writeTBQueue q $ Database.Insert nextSID a n
     pure nextSID
 
 -- | Copy the given session to a new session, and return the new
@@ -322,6 +350,16 @@ liftEditAppM h sid = withSession' sid (EditApp $ runEditAppM h)
 -- pass in the app state for that session.
 liftQueryAppM :: (MonadIO m, MonadThrow m) => QueryAppM a -> SessionId -> PrimerM m (Either ProgError a)
 liftQueryAppM h sid = withSession' sid (QueryApp $ runQueryAppM h)
+
+-- | Given a 'SessionId', return the session's 'App'.
+--
+-- Note: this API method is currently a special case, and we do not
+-- expect typical API clients to use it. Its primary use is for
+-- testing. Whether we should add it to the HTTP API is tracked here:
+--
+-- https://github.com/hackworthltd/primer/issues/550
+getApp :: (MonadIO m, MonadThrow m) => SessionId -> PrimerM m App
+getApp sid = withSession' sid $ QueryApp identity
 
 getProgram :: (MonadIO m, MonadThrow m) => SessionId -> PrimerM m Prog
 getProgram sid = withSession' sid $ QueryApp $ viewProg . handleGetProgramRequest
