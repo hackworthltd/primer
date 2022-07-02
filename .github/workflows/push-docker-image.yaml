@@ -1,0 +1,62 @@
+name: Push Docker image
+on:
+  push:
+    branches:
+      - main
+jobs:
+  push-docker-image:
+    permissions:
+      contents: read
+      id-token: write
+      packages: write
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v3.0.2
+
+      - name: Import secrets from Vault
+        uses: hashicorp/vault-action@v2.4.1
+        id: secrets
+        with:
+          url: https://secrets.hackworth-corp.com
+          path: "github-actions"
+          caCertificate: ${{ secrets.VAULT_CA_CERT }}
+          role: primer-workflow-push-docker-image
+          method: jwt
+          jwtTtl: 3600
+          secrets: |
+            secret/data/cachix/hackworthltd-private/github-workflows token | CACHIX_AUTH_TOKEN ;
+
+      - name: Install Nix
+        uses: cachix/install-nix-action@v17
+        with:
+          extra_nix_config: |
+            substituters = https://cache.nixos.org?priority=10 https://hackworthltd.cachix.org?priority=30 https://hydra.iohk.io?priority=50 https://cache.zw3rk.com?priority=60
+            trusted-public-keys = cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY= hackworthltd.cachix.org-1:0JTCI0qDo2J+tonOalrSQP3yRNleN6bQucJ05yDltRI= hydra.iohk.io:f/Ea+s+dFdN+3Y/G+FDgSq+a5NEWhJGzdjvKNGv0/EQ= loony-tools:pr9m4BkM/5/eSTZlkQyRt57Jz7OMBxNSUiMC4FkcNfk=
+
+      - name: Configure hackworthltd-private Cachix cache
+        uses: cachix/cachix-action@v10
+        with:
+          name: hackworthltd-private
+          authToken: '${{ env.CACHIX_AUTH_TOKEN }}'
+
+      - name: Authenticate to ghcr.io
+        run: |
+          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io --username hackworthltd --password-stdin
+
+        # Note: this step shouldn't actually build the Docker image.
+        # It should come from our Cachix cache, as by the time there's
+        # a push to the main branch, this exact Nix derivation should
+        # have been built by CI during the merge queue step.
+      - name: Push the Docker image to ghcr.io
+        shell: bash
+        run: |
+          nix-build packages.x86_64-linux.primer-service-docker-image
+          docker load < result
+          IMAGE=$(docker image list -f reference=primer-service --format "{{.Repository}}:{{.Tag}}")
+          echo "Loaded image: ${IMAGE}"
+          NAME=ghcr.io/hackworthltd/primer-service:${{ github.event.inputs.rev }}
+          docker tag "$IMAGE" "$NAME"
+          echo "Pushing image: ${NAME}"
+          docker push "$NAME"
+          echo "Image pushed."

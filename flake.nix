@@ -327,6 +327,27 @@
                 primer-service serve . ${version} "$@"
               '';
             };
+
+            primer-service-docker-image = final.dockerTools.buildLayeredImage {
+              name = "primer-service";
+              contents = with final; [
+                primer-service
+              ];
+
+              config =
+                let port = 8081;
+                in
+                {
+                  # Note: this command *must* be formatted as a list of individual
+                  # arguments.
+                  Cmd = [ "/bin/primer-service" "serve" "." "${version}" "--port" (toString port) ];
+                  Labels = {
+                    "org.opencontainers.image.source" =
+                      "https://github.com/hackworthltd/primer";
+                  };
+                  ExposedPorts = { "${toString port}/tcp" = { }; };
+                };
+            };
           in
           {
             lib = (prev.lib or { }) // {
@@ -363,6 +384,7 @@
 
             inherit primer-openapi-spec;
             inherit run-primer;
+            inherit primer-service-docker-image;
 
             inherit (ghc8107Tools) cabal-edit cabal-fmt;
             inherit hls;
@@ -487,6 +509,9 @@
             start-postgresql-container
             stop-postgresql-container;
         }
+        // (pkgs.lib.optionalAttrs (system == "x86_64-linux") {
+          inherit (pkgs) primer-service-docker-image;
+        })
         // primerFlake.packages;
 
       # Notes:
