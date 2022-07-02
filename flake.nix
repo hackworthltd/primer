@@ -141,8 +141,9 @@
 
             pg_prove = final.perlPackages.TAPParserSourceHandlerpgTAP;
 
-            db-scripts = final.lib.recurseIntoAttrs (final.callPackage ./nix/pkgs/db-scripts {
+            scripts = final.lib.recurseIntoAttrs (final.callPackage ./nix/pkgs/scripts {
               sqitchDir = ./sqitch;
+              inherit version;
             });
 
             # Temporary workaround for HLS issues until the next release.
@@ -285,7 +286,7 @@
                   primer-sqitch
                   pg_prove
 
-                  # Local database scripts.
+                  # Local scripts.
                   create-local-db
                   deploy-local-db
                   verify-local-db
@@ -295,6 +296,7 @@
                   delete-local-db
                   dump-local-db
                   restore-local-db
+                  push-docker-image
 
                   ghc8107Tools.cabal-edit
                   ghc8107Tools.cabal-fmt
@@ -361,7 +363,7 @@
             inherit sqitch;
             inherit pg_prove;
 
-            inherit (db-scripts)
+            inherit (scripts)
               deploy-postgresql-container
               start-postgresql-container
               stop-postgresql-container
@@ -375,7 +377,8 @@
               dump-local-db
               restore-local-db
               primer-sqitch
-              primer-pgtap-tests;
+              primer-pgtap-tests
+              push-docker-image;
 
             inherit primer;
 
@@ -499,6 +502,7 @@
             delete-local-db
             dump-local-db
             restore-local-db
+            push-docker-image
 
             sqitch
             pg_prove
@@ -542,6 +546,7 @@
             delete-local-db
             dump-local-db
             restore-local-db
+            push-docker-image
 
             primer-sqitch
 
