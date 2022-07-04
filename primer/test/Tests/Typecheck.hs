@@ -662,6 +662,19 @@ maybeTDef =
 -- letrec y : ∀x.? = (letrec x : ? = ? in ?) in ?
 -- then the innermost hole will be checked at ∀x.? (which will go in metadata), but this
 -- is considered "shadowed" by the letrec x binder
+-- 
+-- NB: this is orthogonal to "do type and term vars live in the same namespace?":
+-- I could ask about (Λb.?) : ∀a.∀b.Bool
+-- Our current thinking/solution is that we should alpha-convert the hole's metadata, and say
+-- "The type one needs to fill this hole with is ∀c.Bool"
+-- (In this particular case, `substTy` will alpha-convert out of an abundance of caution:
+-- it computes (∀b.Bool)[b/a], and it worries that perhaps there is a reference to 'a' under
+-- the ∀b.)
+--
+-- The same issue comes up when going under any binder: we should (perhaps) alpha-convert the type we are checking at to avoid that binder.
+-- Similarly, it comes up when reading in a type from elsewhere: e.g. from the type of some other top-level function, or a local binding:
+-- let (x : ∀a.Bool -> Int) in let a = 0 in x ?
+-- would say the hole need to be filled with ∀a.Bool
 tasty_gen_shadow :: Property
 tasty_gen_shadow = withTests 1000 $
   withDiscards 2000 $
