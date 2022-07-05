@@ -334,6 +334,10 @@
               name = "primer-service";
               contents = with final; [
                 primer-service
+
+                # These are helpful for debugging broken images.
+                bashInteractive
+                coreutils
               ];
 
               config =
