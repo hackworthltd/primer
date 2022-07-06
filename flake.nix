@@ -341,7 +341,7 @@
               ];
 
               config =
-                let port = 8081;
+                let port = final.lib.primer.defaultServicePort;
                 in
                 {
                   # Note: this command *must* be formatted as a list of individual
@@ -358,6 +358,7 @@
           {
             lib = (prev.lib or { }) // {
               primer = (prev.lib.primer or { }) // {
+                defaultServicePort = 8081;
                 inherit postgres-dev-password;
                 inherit postgres-dev-base-url;
                 inherit postgres-dev-primer-url;
