@@ -10,6 +10,7 @@
 , docker
 , gnugrep
 , sqitchDir
+, primer-service
 }:
 
 let
@@ -218,4 +219,15 @@ in
       echo "Image pushed."
     '';
   };
+
+  primer-service-entrypoint = writeShellApplication {
+    name = "primer-service-entrypoint";
+    runtimeInputs = [
+      primer-service
+    ];
+    text = ''
+      exec primer-service serve . "${version}" --port ${toString lib.primer.defaultServicePort}
+    '';
+  };
 }
+

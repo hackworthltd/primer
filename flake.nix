@@ -332,21 +332,20 @@
 
             primer-service-docker-image = final.dockerTools.buildLayeredImage {
               name = "primer-service";
-              contents = with final; [
-                primer-service
-
+              contents = [
+                scripts.primer-service-entrypoint
+              ]
+              ++ (with final; [
                 # These are helpful for debugging broken images.
                 bashInteractive
                 coreutils
-              ];
+              ]);
 
               config =
                 let port = final.lib.primer.defaultServicePort;
                 in
                 {
-                  # Note: this command *must* be formatted as a list of individual
-                  # arguments.
-                  Cmd = [ "/bin/primer-service" "serve" "." "${version}" "--port" (toString port) ];
+                  Entrypoint = [ "/bin/primer-service-entrypoint" ];
                   Labels = {
                     "org.opencontainers.image.source" =
                       "https://github.com/hackworthltd/primer";
