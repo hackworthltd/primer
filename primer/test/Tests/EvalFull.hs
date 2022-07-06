@@ -1892,15 +1892,29 @@ unit_case_prim =
 
 -- * Utilities
 
-evalFullTest :: HasCallStack => ID -> TypeDefMap -> DefMap -> TerminationBound -> Dir -> Expr -> IO (Either EvalFullError Expr)
-evalFullTest id_ tydefs globals n d e = do
+evalFullTest' ::
+  HasCallStack =>
+  ViewRedexOptions ->
+  ID ->
+  TypeDefMap ->
+  DefMap ->
+  TerminationBound ->
+  Dir ->
+  Expr ->
+  IO (Either EvalFullError Expr)
+evalFullTest' optsV id_ tydefs globals n d e = do
   let optsN = UnderBinders
-  let optsV = ViewRedexOptions{groupedLets = True, aggressiveElision = True, avoidShadowing = False}
   let optsR = RunRedexOptions{pushAndElide = True}
   let (r, logs) = evalTestM id_ $ runPureLogT $ evalFull @EvalLog optsN optsV optsR tydefs globals n d e
   assertNoSevereLogs logs
   distinctIDs r
   pure r
+
+evalFullTest :: HasCallStack => ID -> TypeDefMap -> DefMap -> TerminationBound -> Dir -> Expr -> IO (Either EvalFullError Expr)
+evalFullTest = evalFullTest' ViewRedexOptions{groupedLets = True, aggressiveElision = True, avoidShadowing = False}
+
+evalFullTestAvoidShadowing :: HasCallStack => ID -> TypeDefMap -> DefMap -> TerminationBound -> Dir -> Expr -> IO (Either EvalFullError Expr)
+evalFullTestAvoidShadowing = evalFullTest' ViewRedexOptions{groupedLets = True, aggressiveElision = True, avoidShadowing = True}
 
 evalFullTestExactSteps :: HasCallStack => ID -> TypeDefMap -> DefMap -> TerminationBound -> Dir -> Expr -> IO Expr
 evalFullTestExactSteps id_ tydefs globals n d e = do

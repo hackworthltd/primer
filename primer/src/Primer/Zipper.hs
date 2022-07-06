@@ -67,6 +67,7 @@ module Primer.Zipper (
   SomeNode (..),
   findNodeWithParent,
   findTypeOrKind,
+  FoldAbove' (FA),
 ) where
 
 import Foreword

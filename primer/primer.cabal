@@ -233,6 +233,7 @@ test-suite primer-test
     Tests.Questions
     Tests.Refine
     Tests.Serialization
+    Tests.Shadowing
     Tests.Subst
     Tests.Transform
     Tests.Typecheck
