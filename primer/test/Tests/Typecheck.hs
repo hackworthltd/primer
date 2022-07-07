@@ -373,12 +373,9 @@ unit_smart_remove_clean_case =
     (tfun (tcon tBool) (tcon tNat))
     `smartSynthGives` ann
       ( lam "x" $
-          ann
-            ( case_
-                (lvar "x")
-                [branch cTrue [] (con cZero), branch cFalse [] emptyHole]
-            )
-            tEmptyHole
+          case_
+            (lvar "x")
+            [branch cTrue [] (con cZero), branch cFalse [] emptyHole]
       )
       (tfun (tcon tBool) (tcon tNat))
 
@@ -541,6 +538,33 @@ unit_smartholes_idempotent_created_hole_typecache =
 
 forgetKindCache :: Type' (Meta b) -> Type
 forgetKindCache = set (_typeMeta % _type) Nothing
+
+-- Regression test: for constructions which do not fit the required type,
+-- we wrap in a hole and annotation of TEmptyHole (as needed to get
+-- directions to work). However, we would previously then remove the
+-- hole if it gets checked again.
+-- (e.g. Bool ∋ λx.x  fails and gives Bool ∋ {? λx.x : ? ?},
+--       and the next iteration would think this hole is redundant,
+--       and would return Bool ∋ λx.x : ?)
+-- This is because holey annotations act similar to non-empty holes
+-- cf https://github.com/hackworthltd/primer/issues/85.
+unit_smartholes_idempotent_holey_ann :: Assertion
+unit_smartholes_idempotent_holey_ann =
+  let x = runTypecheckTestM SmartHoles $ do
+        ty <- tcon tBool
+        e <- lam "x" $ lvar "x"
+        ty' <- checkKind KType ty
+        e' <- check (forgetTypeMetadata ty') e
+        ty'' <- checkKind KType ty'
+        e'' <- check (forgetTypeMetadata ty'') $ exprTtoExpr e'
+        pure (ty, ty', ty'', e, e', e'')
+   in case x of
+        Left err -> assertFailure $ show err
+        Right (ty, ty', ty'', _e, e', e'') -> do
+          forgetKindCache ty' @?= ty
+          forgetMetadata e' @?= forgetMetadata (create' $ hole $ lam "x" (lvar "x") `ann` tEmptyHole)
+          ty'' @?= ty'
+          e'' @?= e'
 
 -- Check that all our builtins are well formed
 -- (these are used to seed initial programs)

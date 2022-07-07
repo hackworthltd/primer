@@ -119,7 +119,14 @@ import Primer.Core (
   _typeMeta,
  )
 import Primer.Core.DSL (branch, emptyHole, meta, meta')
-import Primer.Core.Utils (alphaEqTy, forgetTypeMetadata, freshLocalName, freshLocalName', generateTypeIDs)
+import Primer.Core.Utils (
+  alphaEqTy,
+  forgetTypeMetadata,
+  freshLocalName,
+  freshLocalName',
+  generateTypeIDs,
+  noHoles,
+ )
 import Primer.JSON (CustomJSON (CustomJSON), FromJSON, PrimerJSON, ToJSON)
 import Primer.Module (
   Module (
@@ -693,6 +700,23 @@ check t = \case
       -- But we do want to remove nested holes.
       (Hole _ e'@Hole{}, SmartHoles) ->
         check t e' -- we strip off one layer, and hit this case again.
+      (Hole _ (Ann _ e' TEmptyHole{}), SmartHoles) ->
+        -- We do want to remove (e.g.) {? λx.x : ? ?} to get λx.x,
+        -- if that typechecks. (But only a simple hole annotation, as we do
+        -- not wish to delete any interesting annotations.)
+        flip catchError (const default_) $
+          check t e' >>= \case
+            Hole{} -> default_ -- Don't let the recursive call mint a hole.
+            e'' -> pure e''
+      (Hole _ (Ann _ _ ty), SmartHoles)
+        | not (noHoles ty) ->
+            -- Don't want to, e.g., remove {? λx.x : ? ?} to get λx.x : ?
+            -- Since holey annotations behave like non-empty holes, we will
+            -- not elide non-empty holes if they have a holey annotation.
+            -- (This is needed for idempotency, since we return non-empty
+            -- holes with holey-annotated contents in the case a construction
+            -- cannot typecheck, e.g. Bool ∋ λx.t returns {? λx.t : ? ?}
+            default_
       (Hole _ e', SmartHoles) ->
         flip catchError (const default_) $
           check t e' >>= \case
