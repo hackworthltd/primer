@@ -12,7 +12,9 @@ import Gen.Core.Raw (
  )
 import Gen.Core.Typed (
   forAllT,
+  genChk,
   genSyn,
+  genWTType,
   propertyWT,
  )
 import Hedgehog hiding (Property, Var, check, property, withDiscards, withTests)
@@ -78,7 +80,7 @@ import Primer.Name (NameCounter)
 import Primer.Primitives (primitiveGVar, primitiveModule, tChar)
 import Primer.Typecheck (
   CheckEverythingRequest (CheckEverything, toCheck, trusted),
-  Cxt,
+  Cxt (smartHoles),
   ExprT,
   SmartHoles (NoSmartHoles, SmartHoles),
   TypeError (..),
@@ -91,6 +93,7 @@ import Primer.Typecheck (
   mkTAppCon,
   synth,
   synthKind,
+  typeTtoType,
  )
 import Test.Tasty.HUnit (Assertion, assertBool, assertFailure, (@?=))
 import TestM (TestM, evalTestM)
@@ -625,6 +628,40 @@ instance Eq (TypeCacheAlpha TypeCache) where
   _ == _ = False
 instance Eq (TypeCacheAlpha (Expr' (Meta TypeCache) (Meta Kind))) where
   (==) = (==) `on` (((_exprMeta % _type) %~ TypeCacheAlpha) . unTypeCacheAlpha)
+
+-- Test that smartholes is idempotent (for well-typed input)
+tasty_smartholes_idempotent_syn :: Property
+tasty_smartholes_idempotent_syn = withTests 1000 $
+  withDiscards 2000 $
+    propertyWTInExtendedLocalGlobalCxt [builtinModule, primitiveModule] $ do
+      local (\c -> c{smartHoles = SmartHoles}) $ do
+        (e, _ty) <- forAllT genSyn
+        (ty', e') <- synthTest =<< generateIDs e
+        (ty'', e'') <- synthTest $ exprTtoExpr e'
+        ty' === ty''
+        TypeCacheAlpha e' === TypeCacheAlpha e''
+
+-- Test that smartholes is idempotent (for well-typed input)
+-- This also shows that checkKind is idempotent-on-the-nose
+tasty_smartholes_idempotent_chk :: Property
+tasty_smartholes_idempotent_chk = withTests 1000 $
+  withDiscards 2000 $
+    propertyWTInExtendedLocalGlobalCxt [builtinModule, primitiveModule] $
+      local (\c -> c{smartHoles = SmartHoles}) $ do
+        ty <- forAllT $ genWTType KType
+        e <- forAllT $ genChk ty
+        tyI <- generateTypeIDs ty
+        ty' <- checkKindTest KType tyI
+        -- Note that ty /= ty' in general, as the generators can create a THole _ (TEmptyHole _)
+        annotateShow ty'
+        e' <- checkTest (forgetTypeMetadata ty') =<< generateIDs e
+        annotateShow e'
+        ty'' <- checkKindTest KType $ typeTtoType ty'
+        annotateShow ty''
+        e'' <- checkTest (forgetTypeMetadata ty'') $ exprTtoExpr e'
+        annotateShow e''
+        ty' === ty''
+        TypeCacheAlpha e' === TypeCacheAlpha e''
 
 -- Check that all our builtins are well formed
 -- (these are used to seed initial programs)
