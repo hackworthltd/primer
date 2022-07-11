@@ -38,6 +38,7 @@ import Primer.Builtins (
   tNat,
   tPair,
  )
+import Primer.Builtins.DSL (bool_, list_, nat)
 import Primer.Core
 import Primer.Core.DSL
 import Primer.Core.Utils (

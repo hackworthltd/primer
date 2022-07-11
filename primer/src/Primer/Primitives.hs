@@ -23,6 +23,7 @@ import Primer.Builtins (
   tMaybe,
   tNat,
  )
+import Primer.Builtins.DSL (bool_, maybe_, nat)
 import Primer.Core (
   Def (DefPrim),
   Expr' (App, Con, PrimCon),
@@ -43,13 +44,10 @@ import Primer.Core (
 import Primer.Core.DSL (
   aPP,
   app,
-  bool_,
   char,
   con,
   create',
   int,
-  maybe_,
-  nat,
   tapp,
   tcon,
  )

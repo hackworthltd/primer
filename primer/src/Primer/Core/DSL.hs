@@ -19,10 +19,6 @@ module Primer.Core.DSL (
   branch,
   char,
   int,
-  bool_,
-  nat,
-  maybe_,
-  list_,
   tEmptyHole,
   thole,
   tcon,
@@ -45,9 +41,7 @@ module Primer.Core.DSL (
 import Foreword
 
 import Control.Monad.Fresh (MonadFresh, fresh)
-import Numeric.Natural (Natural)
 import Optics (set)
-import Primer.Builtins (cCons, cFalse, cJust, cNil, cNothing, cSucc, cTrue, cZero)
 import Primer.Core (
   Bind' (..),
   CaseBranch,
@@ -177,28 +171,6 @@ meta = meta' Nothing
 
 meta' :: MonadFresh ID m => a -> m (Meta a)
 meta' a = Meta <$> fresh <*> pure a <*> pure Nothing
-
--- These functions rely on particular types being in scope.
-bool_ :: MonadFresh ID m => Bool -> m Expr
-bool_ b = con $ if b then cTrue else cFalse
-nat :: MonadFresh ID m => Natural -> m Expr
-nat = \case
-  0 -> con cZero
-  n -> app (con cSucc) $ nat (n - 1)
-maybe_ :: MonadFresh ID m => m Type -> (a -> m Expr) -> Maybe a -> m Expr
-maybe_ t f = \case
-  Nothing -> con cNothing `aPP` t
-  Just x -> con cJust `aPP` t `app` f x
-list_ :: MonadFresh ID m => TyConName -> [m Expr] -> m Expr
-list_ t =
-  foldr
-    ( \a b ->
-        con cCons
-          `aPP` tcon t
-          `app` a
-          `app` b
-    )
-    (con cNil `aPP` tcon t)
 
 -- | A helper for use in testsuite. With OverloadedStrings one can use literals
 -- for both arguments
