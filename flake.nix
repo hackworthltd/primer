@@ -597,15 +597,13 @@
           (hacknix.lib.testing.nixos.importFromDirectory ./nixos-tests
             {
               inherit system pkgs;
-              extraConfigurations = [
-                {
-                  nixpkgs.overlays = with self.overlays; [
-                    primer
-                  ];
-                }
-              ];
             }
-            { });
+            {
+              inherit (pkgs) primer-service-docker-image;
+              inherit (pkgs) primer-sqitch pg_prove primer-pgtap-tests;
+              inherit (pkgs.lib.primer) defaultServicePort;
+              inherit version;
+            });
       });
 
       ciJobs = hacknix.lib.flakes.recurseIntoHydraJobs self.hydraJobs;
