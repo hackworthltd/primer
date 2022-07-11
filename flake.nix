@@ -109,7 +109,7 @@
       # GHC we're using.
       weederVersion = "2.4.0";
 
-      # Fourmolu updates often formatting arbitrarily, and we want to
+      # Fourmolu updates often alter formatting arbitrarily, and we want to
       # have more control over this.
       fourmoluVersion = "0.6.0.0";
 
