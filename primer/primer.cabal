@@ -20,6 +20,7 @@ library
     Primer.API
     Primer.App
     Primer.Builtins
+    Primer.Builtins.DSL
     Primer.Core
     Primer.Core.DSL
     Primer.Core.Transform
