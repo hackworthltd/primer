@@ -68,8 +68,8 @@ import Data.Generics.Uniplate.Zipper (
  )
 import Data.List (intersect, (\\))
 import Data.List.Extra (anySame, disjoint, (!?))
-import qualified Data.Map.Strict as Map
-import qualified Data.Set as Set
+import Data.Map.Strict qualified as Map
+import Data.Set qualified as Set
 import Optics (
   Field1 (_1),
   Field2 (_2),
@@ -139,11 +139,11 @@ import Primer.Core (
   _typeMetaLens,
  )
 import Primer.Core.DSL (create, emptyHole, tEmptyHole)
-import qualified Primer.Core.DSL as DSL
+import Primer.Core.DSL qualified as DSL
 import Primer.Core.Transform (foldApp, renameVar, unfoldAPP, unfoldApp, unfoldTApp)
 import Primer.Core.Utils (freeVars, regenerateExprIDs, regenerateTypeIDs, _freeTmVars, _freeTyVars, _freeVarsTy)
 import Primer.Eval (EvalDetail, EvalError)
-import qualified Primer.Eval as Eval
+import Primer.Eval qualified as Eval
 import Primer.EvalFull (Dir, EvalFullError (TimedOut), TerminationBound, evalFull)
 import Primer.JSON
 import Primer.Module (
@@ -624,20 +624,20 @@ applyProgAction prog mdefName = \case
       updateRefsInTypes =
         over
           (traversed % #_TypeDefAST % #astTypeDefConstructors % traversed % #valConArgs % traversed)
-          $ transform $
-            over (#_TCon % _2) updateName
+          $ transform
+          $ over (#_TCon % _2) updateName
       updateDefType =
         over
           #astDefType
-          $ transform $
-            over (#_TCon % _2) updateName
+          $ transform
+          $ over (#_TCon % _2) updateName
       updateDefBody =
         over
           #astDefExpr
-          $ transform $
-            over typesInExpr $
-              transform $
-                over (#_TCon % _2) updateName
+          $ transform
+          $ over typesInExpr
+          $ transform
+          $ over (#_TCon % _2) updateName
       updateName n = if n == old then new else n
   RenameCon type_ old (unsafeMkGlobalName . (fmap unName (unModuleName (qualifiedModule type_)),) -> new) ->
     editModuleSameSelectionCross (qualifiedModule type_) prog $ \(m, ms) -> do
@@ -685,8 +685,8 @@ applyProgAction prog mdefName = \case
               % #valConArgs
               % traversed
           )
-          $ over _freeVarsTy $
-            \(_, v) -> TVar () $ updateName v
+          $ over _freeVarsTy
+          $ \(_, v) -> TVar () $ updateName v
       updateName n = if n == old then new else n
   AddCon type_ index (unsafeMkGlobalName . (fmap unName (unModuleName (qualifiedModule type_)),) -> con) ->
     editModuleSameSelectionCross (qualifiedModule type_) prog $ \(m, ms) -> do

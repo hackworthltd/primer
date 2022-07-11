@@ -7,7 +7,7 @@ import Foreword
 import Control.Monad.Fresh
 import Data.Generics.Uniplate.Data (transformBi)
 import Data.List.Extra (anySame)
-import qualified Data.Map.Strict as Map
+import Data.Map.Strict qualified as Map
 import Optics
 import Primer.Action (
   Action (
@@ -122,7 +122,7 @@ import Primer.Typecheck (SmartHoles (NoSmartHoles, SmartHoles), TypeError (Unkno
 import Test.Tasty.HUnit (Assertion, assertBool, assertFailure, (@=?), (@?=))
 import TestM (TestM, evalTestM)
 import TestUtils (constructCon, constructTCon, zeroIDs, zeroTypeIDs)
-import qualified TestUtils
+import TestUtils qualified
 import Tests.Typecheck (checkProgWellFormed)
 import Prelude (error)
 
@@ -199,7 +199,8 @@ unit_rename_def_referenced =
     , BodyAction [ConstructVar $ globalVarRef "other"]
     , renameDef "other" "foo"
     ]
-    $ expectSuccess $ \_ prog' -> do
+    $ expectSuccess
+    $ \_ prog' -> do
       assertNothing (lookupDef' "other" prog')
       assertJust (lookupDef' "foo" prog')
       assertJust (lookupDef' "main" prog')
@@ -213,7 +214,8 @@ unit_rename_def_recursive =
     , BodyAction [ConstructVar $ globalVarRef "main"]
     , renameDef "main" "foo"
     ]
-    $ expectSuccess $ \_ prog' -> do
+    $ expectSuccess
+    $ \_ prog' -> do
       assertNothing (lookupDef' "main" prog')
       assertJust (lookupDef' "foo" prog')
       fmap (forgetIDs . astDefExpr) (defAST =<< lookupDef' "foo" prog') @?= Just (Var () $ globalVarRef "foo")
@@ -455,7 +457,8 @@ unit_create_typedef_8 =
           , astTypeDefNameHints = []
           }
    in progActionTest defaultEmptyProg [AddTypeDef (tcn "T") td] $
-        expectSuccess $ \_ prog' -> Map.elems (foldMap moduleTypes (progModules prog')) @?= [TypeDefAST td]
+        expectSuccess $
+          \_ prog' -> Map.elems (foldMap moduleTypes (progModules prog')) @?= [TypeDefAST td]
 
 -- Allow clash between type name and constructor name across types
 unit_create_typedef_9 :: Assertion
@@ -473,7 +476,8 @@ unit_create_typedef_9 =
           , astTypeDefNameHints = []
           }
    in progActionTest defaultEmptyProg [AddTypeDef (tcn "T") td1, AddTypeDef (tcn "C") td2] $
-        expectSuccess $ \_ prog' -> Map.elems (foldMap moduleTypes (progModules prog')) @?= [TypeDefAST td2, TypeDefAST td1]
+        expectSuccess $
+          \_ prog' -> Map.elems (foldMap moduleTypes (progModules prog')) @?= [TypeDefAST td2, TypeDefAST td1]
 
 unit_construct_arrow_in_sig :: Assertion
 unit_construct_arrow_in_sig =
@@ -826,7 +830,8 @@ unit_RenameType =
           ]
     )
     [RenameType tT "T'"]
-    $ expectSuccess $ \_ prog' -> do
+    $ expectSuccess
+    $ \_ prog' -> do
       -- The type is available under its new name
       td <- findTypeDef (tcn "T'") prog'
       -- The recursive reference to T is renamed also
@@ -836,7 +841,9 @@ unit_RenameType =
             ]
       -- The old name does not refer to anything
       assertBool "Expected the old name to be out of scope" $
-        not $ Map.member (tcn "T") $ foldMap moduleTypesQualified (progAllModules prog')
+        not $
+          Map.member (tcn "T") $
+            foldMap moduleTypesQualified (progAllModules prog')
       def <- findDef (gvn "def") prog'
       forgetIDs (astDefExpr def)
         @?= forgetIDs
@@ -861,7 +868,9 @@ unit_RenameCon =
                 hole
                   ( hole $
                       case_
-                        ( con cA `aPP` tEmptyHole `aPP` tEmptyHole
+                        ( con cA
+                            `aPP` tEmptyHole
+                            `aPP` tEmptyHole
                             `app` con (vcn "True")
                             `app` con (vcn "True")
                             `app` con (vcn "True")
@@ -874,7 +883,8 @@ unit_RenameCon =
           ]
     )
     [RenameCon tT cA "A'"]
-    $ expectSuccess $ \_ prog' -> do
+    $ expectSuccess
+    $ \_ prog' -> do
       td <- findTypeDef tT prog'
       astTypeDefConstructors td
         @?= [ ValCon (vcn "A'") [TCon () (tcn "Bool"), TCon () (tcn "Bool"), TCon () (tcn "Bool")]
@@ -887,7 +897,9 @@ unit_RenameCon =
               hole
                 ( hole $
                     case_
-                      ( con (vcn "A'") `aPP` tEmptyHole `aPP` tEmptyHole
+                      ( con (vcn "A'")
+                          `aPP` tEmptyHole
+                          `aPP` tEmptyHole
                           `app` con (vcn "True")
                           `app` con (vcn "True")
                           `app` con (vcn "True")
@@ -920,7 +932,8 @@ unit_RenameTypeParam =
   progActionTest
     (defaultProgEditableTypeDefs $ pure [])
     [RenameTypeParam tT "b" "b'"]
-    $ expectSuccess $ \_ prog' -> do
+    $ expectSuccess
+    $ \_ prog' -> do
       td <- findTypeDef tT prog'
       astTypeDefParameters td @?= [("a", KType), ("b'", KType)]
       astTypeDefConstructors td
@@ -951,7 +964,8 @@ unit_AddCon =
           ]
     )
     [AddCon tT 1 "C"]
-    $ expectSuccess $ \_ prog' -> do
+    $ expectSuccess
+    $ \_ prog' -> do
       td <- findTypeDef tT prog'
       astTypeDefConstructors td
         @?= [ ValCon cA [TCon () (tcn "Bool"), TCon () (tcn "Bool"), TCon () (tcn "Bool")]
@@ -975,14 +989,17 @@ unit_SetConFieldType =
   progActionTest
     ( defaultProgEditableTypeDefs . sequence . pure $ do
         x <-
-          con cA `aPP` tEmptyHole `aPP` tEmptyHole
+          con cA
+            `aPP` tEmptyHole
+            `aPP` tEmptyHole
             `app` con (vcn "True")
             `app` con (vcn "True")
             `app` con (vcn "True")
         astDef "def" x <$> tEmptyHole
     )
     [SetConFieldType tT cA 1 $ TCon () (tcn "Int")]
-    $ expectSuccess $ \_ prog' -> do
+    $ expectSuccess
+    $ \_ prog' -> do
       td <- findTypeDef tT prog'
       astTypeDefConstructors td
         @?= [ ValCon cA [TCon () (tcn "Bool"), TCon () (tcn "Int"), TCon () (tcn "Bool")]
@@ -992,7 +1009,9 @@ unit_SetConFieldType =
       forgetIDs (astDefExpr def)
         @?= forgetIDs
           ( create' $
-              con cA `aPP` tEmptyHole `aPP` tEmptyHole
+              con cA
+                `aPP` tEmptyHole
+                `aPP` tEmptyHole
                 `app` con (vcn "True")
                 `app` hole (con (vcn "True"))
                 `app` con (vcn "True")
@@ -1008,7 +1027,8 @@ unit_SetConFieldType_partial_app =
           ]
     )
     [SetConFieldType tT cA 1 $ TCon () (tcn "Int")]
-    $ expectSuccess $ \_ prog' -> do
+    $ expectSuccess
+    $ \_ prog' -> do
       def <- findDef (gvn "def") prog'
       forgetIDs (astDefExpr def)
         @?= forgetIDs
@@ -1035,7 +1055,8 @@ unit_SetConFieldType_case =
           ]
     )
     [SetConFieldType tT cA 1 $ TCon () (tcn "Int")]
-    $ expectSuccess $ \_ prog' -> do
+    $ expectSuccess
+    $ \_ prog' -> do
       def <- findDef (gvn "def") prog'
       forgetIDs (astDefExpr def)
         @?= forgetIDs
@@ -1068,7 +1089,8 @@ unit_SetConFieldType_shadow =
           ]
     )
     [SetConFieldType tT cA 1 $ TCon () (tcn "Int")]
-    $ expectSuccess $ \_ prog' -> do
+    $ expectSuccess
+    $ \_ prog' -> do
       def <- findDef (gvn "def") prog'
       forgetIDs (astDefExpr def)
         @?= forgetIDs
@@ -1090,7 +1112,9 @@ unit_AddConField =
     ( defaultProgEditableTypeDefs $ do
         x <-
           case_
-            ( con cA `aPP` tEmptyHole `aPP` tEmptyHole
+            ( con cA
+                `aPP` tEmptyHole
+                `aPP` tEmptyHole
                 `app` con (vcn "True")
                 `app` con (vcn "True")
                 `app` con (vcn "True")
@@ -1103,7 +1127,8 @@ unit_AddConField =
           ]
     )
     [AddConField tT cA 1 $ TCon () (tcn "Int")]
-    $ expectSuccess $ \_ prog' -> do
+    $ expectSuccess
+    $ \_ prog' -> do
       td <- findTypeDef tT prog'
       astTypeDefConstructors td
         @?= [ ValCon cA [TCon () (tcn "Bool"), TCon () (tcn "Int"), TCon () (tcn "Bool"), TCon () (tcn "Bool")]
@@ -1114,7 +1139,9 @@ unit_AddConField =
         @?= forgetIDs
           ( create' $
               case_
-                ( con cA `aPP` tEmptyHole `aPP` tEmptyHole
+                ( con cA
+                    `aPP` tEmptyHole
+                    `aPP` tEmptyHole
                     `app` con (vcn "True")
                     `app` emptyHole
                     `app` con (vcn "True")
@@ -1135,12 +1162,14 @@ unit_AddConField_partial_app =
           ]
     )
     [AddConField tT cA 2 $ TCon () (tcn "Int")]
-    $ expectSuccess $ \_ prog' -> do
+    $ expectSuccess
+    $ \_ prog' -> do
       def <- findDef (gvn "def") prog'
       forgetIDs (astDefExpr def)
         @?= forgetIDs
           ( create' $
-              hole $ con cA `app` con (vcn "True")
+              hole $
+                con cA `app` con (vcn "True")
           )
 
 unit_AddConField_partial_app_end :: Assertion
@@ -1153,7 +1182,8 @@ unit_AddConField_partial_app_end =
           ]
     )
     [AddConField tT cA 1 $ TCon () (tcn "Int")]
-    $ expectSuccess $ \_ prog' -> do
+    $ expectSuccess
+    $ \_ prog' -> do
       td <- findTypeDef tT prog'
       astTypeDefConstructors td
         @?= [ ValCon cA [TCon () (tcn "Bool"), TCon () (tcn "Int"), TCon () (tcn "Bool"), TCon () (tcn "Bool")]
@@ -1184,7 +1214,8 @@ unit_AddConField_case_ann =
           ]
     )
     [AddConField tT cA 2 $ TCon () (tcn "Int")]
-    $ expectSuccess $ \_ prog' -> do
+    $ expectSuccess
+    $ \_ prog' -> do
       def <- findDef (gvn "def") prog'
       forgetIDs (astDefExpr def)
         @?= forgetIDs
@@ -1247,9 +1278,9 @@ defaultEmptyProg = do
                       }
           }
           & #progModules
-          % _head
-          % #moduleDefs
-          .~ Map.fromList [("main", DefAST mainDef), ("other", DefAST otherDef)]
+            % _head
+            % #moduleDefs
+            .~ Map.fromList [("main", DefAST mainDef), ("other", DefAST otherDef)]
 
 unit_good_defaultEmptyProg :: Assertion
 unit_good_defaultEmptyProg = checkProgWellFormed defaultEmptyProg
@@ -1271,7 +1302,8 @@ defaultFullProg = do
       renamedTypes = foldOf (folded % #moduleTypes) renamed
       renamedDefs = foldOf (folded % #moduleDefs) renamed
   pure $
-    p & #progModules % _head % #moduleTypes %~ (renamedTypes <>)
+    p
+      & #progModules % _head % #moduleTypes %~ (renamedTypes <>)
       & #progModules % _head % #moduleDefs %~ (renamedDefs <>)
 
 findTypeDef :: TyConName -> Prog -> IO ASTTypeDef
@@ -1456,7 +1488,8 @@ unit_cross_module_actions =
         -- NB: CopyPasteSig relies on SmartHoles to fix any introduced inconsistencies
         barTy <-
           gets $
-            fmap defType . flip findGlobalByName (qualifyName (ModuleName ["AnotherModule"]) "bar")
+            fmap defType
+              . flip findGlobalByName (qualifyName (ModuleName ["AnotherModule"]) "bar")
               . appProg
         let srcId = case barTy of
               Just (TFun _ src _) -> getID src

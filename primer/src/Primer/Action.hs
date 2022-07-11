@@ -26,9 +26,9 @@ import Control.Monad.Fresh (MonadFresh)
 import Data.Aeson (Value)
 import Data.Generics.Product (typed)
 import Data.List (findIndex)
-import qualified Data.Map.Strict as Map
-import qualified Data.Set as Set
-import qualified Data.Text as T
+import Data.Map.Strict qualified as Map
+import Data.Set qualified as Set
+import Data.Text qualified as T
 import Optics (set, (%), (?~))
 import Primer.Core (
   ASTDef (..),
@@ -62,7 +62,7 @@ import Primer.Core (
   valConName,
   valConType,
  )
-import qualified Primer.Core as C
+import Primer.Core qualified as C
 import Primer.Core.DSL (
   aPP,
   ann,
@@ -111,7 +111,7 @@ import Primer.Typecheck (
   maybeTypeOf,
   synth,
  )
-import qualified Primer.Typecheck as TC
+import Primer.Typecheck qualified as TC
 import Primer.Zipper (
   BindLoc' (..),
   CaseBindZ,

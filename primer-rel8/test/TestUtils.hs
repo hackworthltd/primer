@@ -12,11 +12,11 @@ module TestUtils (
 import Foreword
 
 import Data.ByteString.Lazy.UTF8 as BL
-import qualified Data.Map.Strict as Map
+import Data.Map.Strict qualified as Map
 import Data.String (String)
 import Data.Text (unpack)
 import Data.Typeable (typeOf)
-import qualified Database.PostgreSQL.Simple.Options as Options
+import Database.PostgreSQL.Simple.Options qualified as Options
 import Database.Postgres.Temp (
   DB,
   DirectoryType (Temporary),
@@ -83,7 +83,7 @@ import Test.Tasty.HUnit (
   assertBool,
   assertFailure,
  )
-import qualified Test.Tasty.HUnit as HUnit
+import Test.Tasty.HUnit qualified as HUnit
 
 -- The PostgreSQL host, username, and password can be chosen
 -- statically, but we need to choose the port dynamically in order to

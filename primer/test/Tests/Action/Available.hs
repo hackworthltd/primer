@@ -2,10 +2,10 @@ module Tests.Action.Available where
 
 import Foreword
 
-import qualified Data.ByteString.Lazy.Char8 as BS
+import Data.ByteString.Lazy.Char8 qualified as BS
 import Data.List.Extra (enumerate)
-import qualified Data.Text as T
-import qualified Data.Text.Lazy as TL
+import Data.Text qualified as T
+import Data.Text.Lazy qualified as TL
 import GHC.Err (error)
 import Optics (toListOf, (%))
 import Primer.Action (ActionName (..), OfferedAction (name))

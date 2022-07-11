@@ -31,7 +31,7 @@ module Primer.Builtins (
 
 import Foreword
 
-import qualified Data.Map as Map
+import Data.Map qualified as Map
 import Primer.Core (
   ASTTypeDef (
     ASTTypeDef,

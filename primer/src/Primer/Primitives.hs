@@ -12,7 +12,7 @@ module Primer.Primitives (
 import Foreword
 
 import Data.Bitraversable (bisequence)
-import qualified Data.Map as M
+import Data.Map qualified as M
 import Numeric.Natural (Natural)
 import Primer.Builtins (
   cJust,
@@ -217,7 +217,8 @@ allPrimDefs =
                       if y == 0
                         then con cNothing `aPP` tcon tInt
                         else
-                          con cJust `aPP` tcon tInt
+                          con cJust
+                            `aPP` tcon tInt
                             `app` int (x `div` y)
                   xs -> Left $ PrimFunError name xs
               }
@@ -232,7 +233,8 @@ allPrimDefs =
                       if y == 0
                         then con cNothing `aPP` tcon tInt
                         else
-                          con cJust `aPP` tcon tInt
+                          con cJust
+                            `aPP` tcon tInt
                             `app` int (x `mod` y)
                   xs -> Left $ PrimFunError name xs
               }
@@ -334,7 +336,8 @@ allPrimDefs =
                         then con cNothing `aPP` tcon tNat
                         else
                           con cJust
-                            `aPP` tcon tNat `app` nat (fromInteger x)
+                            `aPP` tcon tNat
+                            `app` nat (fromInteger x)
                   xs -> Left $ PrimFunError name xs
               }
           )

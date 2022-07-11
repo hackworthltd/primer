@@ -59,9 +59,9 @@ import Control.Monad.Writer (MonadWriter)
 import Control.Monad.Zip (MonadZip)
 import Data.Aeson (ToJSON)
 import Data.Data (showConstr, toConstr)
-import qualified Data.Generics.Uniplate.Data as U
-import qualified Data.Map as Map
-import qualified ListT (toList)
+import Data.Generics.Uniplate.Data qualified as U
+import Data.Map qualified as Map
+import ListT qualified (toList)
 import Primer.App (
   App,
   EditAppM,
@@ -84,7 +84,7 @@ import Primer.App (
   runEditAppM,
   runQueryAppM,
  )
-import qualified Primer.App as App
+import Primer.App qualified as App
 import Primer.Core (
   ASTDef (..),
   Expr,
@@ -120,7 +120,7 @@ import Primer.Database (
   pageList,
   safeMkSessionName,
  )
-import qualified Primer.Database as Database (
+import Primer.Database qualified as Database (
   Op (
     Insert,
     ListSessions,
@@ -135,7 +135,7 @@ import qualified Primer.Database as Database (
  )
 import Primer.Module (moduleDefsQualified, moduleName, moduleTypesQualified)
 import Primer.Name (Name, unName)
-import qualified StmContainers.Map as StmMap
+import StmContainers.Map qualified as StmMap
 
 -- | The API environment.
 data Env = Env

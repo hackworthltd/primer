@@ -3,8 +3,8 @@ module Primer.Unification (InternalUnifyError (..), unify) where
 import Foreword
 
 import Control.Monad.Fresh (MonadFresh)
-import qualified Data.Map as M
-import qualified Data.Set as S
+import Data.Map qualified as M
+import Data.Set qualified as S
 import Optics (anyOf, getting, over, set)
 import Primer.Core (
   ID,
@@ -60,7 +60,9 @@ unify cxt unificationVars s t = do
   result <-
     runExceptT $
       flip execStateT mempty $
-        flip runReaderT initEnv $ unU $ unify' s t
+        flip runReaderT initEnv $
+          unU $
+            unify' s t
   case result of
     Left _err -> pure Nothing
     Right sb -> do

@@ -10,7 +10,7 @@ import Gen.Core.Raw (
   runExprGen,
  )
 import Hedgehog hiding (Property, property)
-import qualified Hedgehog.Gen as Gen
+import Hedgehog.Gen qualified as Gen
 import Primer.Core
 import Primer.Zipper
 import TestUtils (Property, property)

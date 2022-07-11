@@ -11,11 +11,11 @@ module Primer.Name.Fresh (
 import Foreword
 
 import Control.Monad.Fresh (MonadFresh)
-import qualified Data.Set as S
+import Data.Set qualified as S
 import Primer.Core (Expr, LocalName (LocalName, unLocalName), Type)
 import Primer.Core.Utils (freeVars, freeVarsTy)
 import Primer.Name (Name, NameCounter, freshName)
-import qualified Primer.Typecheck as TC
+import Primer.Typecheck qualified as TC
 import Primer.Zipper (
   ExprZ,
   TypeZ,

@@ -4,16 +4,16 @@ import Foreword hiding (unlines)
 
 import Data.Generics.Uniplate.Data (universe)
 import Data.List (span, (\\))
-import qualified Data.List.NonEmpty as NE
-import qualified Data.Map as M
-import qualified Data.Map as Map
-import qualified Data.Set as S
+import Data.List.NonEmpty qualified as NE
+import Data.Map qualified as M
+import Data.Map qualified as Map
+import Data.Set qualified as S
 import Data.String (unlines)
 import Gen.Core.Typed (WT, forAllT, genChk, genSyn, genWTType, isolateWT, propertyWT)
 import Hedgehog hiding (Property, Var, check, property, test, withDiscards, withTests)
-import qualified Hedgehog.Gen as Gen
+import Hedgehog.Gen qualified as Gen
 import Hedgehog.Internal.Property (LabelName (unLabelName))
-import qualified Hedgehog.Range as Range
+import Hedgehog.Range qualified as Range
 import Optics
 import Primer.App (
   EvalFullReq (EvalFullReq, evalFullCxtDir, evalFullMaxSteps, evalFullReqExpr),
@@ -47,7 +47,7 @@ import Primer.Core.Utils (
   generateIDs,
  )
 import Primer.EvalFull
-import qualified Primer.Examples as Examples (
+import Primer.Examples qualified as Examples (
   even,
   map,
   map',
@@ -553,7 +553,8 @@ unit_type_preservation_BETA_regression =
       foo = qualifyName (ModuleName ["M"]) "foo"
       fooTy = TForall () "d" KType $ TCon () tNat
       tmp ty e = case runTypecheckTestMWithPrims NoSmartHoles $
-        local (extendGlobalCxt [(foo, fooTy)]) $ check ty e of
+        local (extendGlobalCxt [(foo, fooTy)]) $
+          check ty e of
         Left err -> assertFailure $ show err
         Right _ -> pure ()
    in do
@@ -663,13 +664,15 @@ unit_regression_self_capture_let_let = do
   let e =
         lAM "y" $
           let_ "x" (emptyHole `ann` tvar "y") $
-            let_ "y" (emptyHole `ann` tvar "y") $ lvar "y"
+            let_ "y" (emptyHole `ann` tvar "y") $
+              lvar "y"
       z = "a10"
       f =
         lAM "y" $
           let_ "x" (emptyHole `ann` tvar "y") $
             let_ z (emptyHole `ann` tvar "y") $
-              let_ "y" (lvar z) $ lvar "y"
+              let_ "y" (lvar z) $
+                lvar "y"
       (e', i) = create e
       ev n = evalFullTest i mempty mempty n Chk e'
       x ~ y = x <~==> Left (TimedOut (create' y))
@@ -757,14 +760,14 @@ tasty_prim_hex_nat = withTests 20 . property $ do
                     )
                 ]
               <*> (con cJust `aPP` tcon tNat)
-                `app` ne
+              `app` ne
               <*> pure (DefPrim <$> globals)
           else create . withPrimDefs $ \globals ->
             (,,)
               <$> gvar (primitiveGVar "natToHex")
-                `app` ne
+              `app` ne
               <*> con cNothing
-                `aPP` tcon tChar
+              `aPP` tcon tChar
               <*> pure (DefPrim <$> globals)
       s = evalFullTest maxID builtinTypes gs 7 Syn e
   over evalResultExpr zeroIDs s === Right (zeroIDs r)
@@ -791,7 +794,7 @@ unit_prim_char_partial =
         create . withPrimDefs $ \globals ->
           (,)
             <$> gvar (primitiveGVar "eqChar")
-              `app` char 'a'
+            `app` char 'a'
             <*> pure (DefPrim <$> globals)
       s = evalFullTest maxID mempty gs 1 Syn e
    in do
@@ -1109,7 +1112,7 @@ unit_prim_ann =
             <$> ( gvar (primitiveGVar "toUpper")
                     `ann` (tcon tChar `tfun` tcon tChar)
                 )
-              `app` (char 'a' `ann` tcon tChar)
+            `app` (char 'a' `ann` tcon tChar)
             <*> char 'A'
             <*> pure (DefPrim <$> globals)
       s = evalFullTest maxID builtinTypes gs 2 Syn e
@@ -1125,22 +1128,22 @@ unit_prim_partial_map =
           (mapName, mapDef) <- Examples.map' modName
           (,,)
             <$> gvar mapName
-              `aPP` tcon tChar
-              `aPP` tcon tChar
-              `app` gvar (primitiveGVar "toUpper")
-              `app` list_
-                tChar
-                [ char 'a'
-                , char 'b'
-                , char 'c'
-                ]
+            `aPP` tcon tChar
+            `aPP` tcon tChar
+            `app` gvar (primitiveGVar "toUpper")
+            `app` list_
+              tChar
+              [ char 'a'
+              , char 'b'
+              , char 'c'
+              ]
             <*> list_
               tChar
               [ char 'A'
               , char 'B'
               , char 'C'
               ]
-              `ann` (tcon tList `tapp` tcon tChar)
+            `ann` (tcon tList `tapp` tcon tChar)
             <*> pure (M.singleton mapName mapDef <> (DefPrim <$> globals))
       s = evalFullTest maxID builtinTypes gs 65 Syn e
    in do
@@ -1226,7 +1229,7 @@ unaryPrimTest f x y =
         create . withPrimDefs $ \globals ->
           (,,)
             <$> gvar (primitiveGVar f)
-              `app` x
+            `app` x
             <*> y
             <*> pure (DefPrim <$> globals)
       s = evalFullTest maxID mempty gs 2 Syn e
@@ -1239,8 +1242,8 @@ binaryPrimTest f x y z =
         create . withPrimDefs $ \globals ->
           (,,)
             <$> gvar (primitiveGVar f)
-              `app` x
-              `app` y
+            `app` x
+            `app` y
             <*> z
             <*> pure (DefPrim <$> globals)
       s = evalFullTest maxID mempty gs 2 Syn e

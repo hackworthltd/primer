@@ -4,7 +4,7 @@ module Tests.Typecheck where
 import Foreword
 
 import Control.Monad.Fresh (MonadFresh)
-import qualified Data.Map as Map
+import Data.Map qualified as Map
 import Gen.Core.Raw (
   evalExprGen,
   genTyConName,
@@ -16,8 +16,8 @@ import Gen.Core.Typed (
   propertyWT,
  )
 import Hedgehog hiding (Property, check, property, withDiscards, withTests)
-import qualified Hedgehog.Gen as Gen
-import qualified Hedgehog.Range as Range
+import Hedgehog.Gen qualified as Gen
+import Hedgehog.Range qualified as Range
 import Optics (over)
 import Primer.App (
   Prog,

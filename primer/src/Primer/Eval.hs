@@ -31,8 +31,8 @@ import Foreword
 import Control.Arrow ((***))
 import Control.Monad.Fresh (MonadFresh)
 import Data.Generics.Product (position)
-import qualified Data.Map.Strict as Map
-import qualified Data.Set as Set
+import Data.Map.Strict qualified as Map
+import Data.Set qualified as Set
 import Optics (
   Field1 (_1),
   elemOf,

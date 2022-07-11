@@ -22,7 +22,7 @@ import Rel8 (
   Result,
   namesFromLabels,
  )
-import qualified Rel8 (
+import Rel8 qualified (
   TableSchema (..),
  )
 

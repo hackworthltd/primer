@@ -8,7 +8,7 @@ import Foreword
 import Data.String (String)
 import Data.Text (unpack)
 import Data.UUID.V4 (nextRandom)
-import qualified Database.PostgreSQL.Simple.Options as Options
+import Database.PostgreSQL.Simple.Options qualified as Options
 import Database.Postgres.Temp (
   DB,
   DirectoryType (Temporary),
@@ -63,7 +63,7 @@ import System.Process.Typed (
  )
 import Test.Tasty (TestTree)
 import Test.Tasty.HUnit (testCaseSteps)
-import qualified Test.Tasty.HUnit as HUnit
+import Test.Tasty.HUnit qualified as HUnit
 
 (@?=) :: (MonadIO m, Eq a, Show a) => a -> a -> m ()
 x @?= y = liftIO $ x HUnit.@?= y

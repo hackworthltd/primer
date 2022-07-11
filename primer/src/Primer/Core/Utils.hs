@@ -26,8 +26,8 @@ import Foreword
 import Control.Monad.Fresh (MonadFresh, fresh)
 import Data.Data (Data)
 import Data.Generics.Uniplate.Data (universe)
-import qualified Data.Map.Strict as M
-import qualified Data.Set as S
+import Data.Map.Strict qualified as M
+import Data.Set qualified as S
 import Data.Set.Optics (setOf)
 import Optics (
   Fold,
