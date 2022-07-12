@@ -32,6 +32,7 @@ library
     Primer.Module
     Primer.Name
     Primer.Name.Fresh
+    Primer.Pretty
     Primer.Primitives
     Primer.Questions
     Primer.Refine
@@ -72,6 +73,8 @@ library
     , megaparsec         >=8.0.0    && <=9.3
     , mtl                >=2.2.2    && <=2.3
     , optics             >=0.4      && <=0.5
+    , prettyprinter      >=1.7.1    && <=1.8
+    , prettyprinter-ansi-terminal >=1.1.3 && <=1.2
     , protolude          >=0.3.1    && <=0.4
     , recursion-schemes  >=5.1.3    && <=5.3
     , semigroups         >=0.20     && <=0.21
@@ -104,6 +107,7 @@ test-suite primer-test
     Tests.Gen.Core.Typed
     Tests.Module
     Tests.NullDb
+    Tests.Pretty
     Tests.Primitives
     Tests.Prog
     Tests.Question
@@ -155,6 +159,8 @@ test-suite primer-test
       , mtl
       , optics
       , pretty-simple     ^>=4.0.0
+      , prettyprinter      >=1.7.1    && <=1.8
+      , prettyprinter-ansi-terminal >=1.1.3 && <=1.2
       , primer
       , protolude
       , stm
