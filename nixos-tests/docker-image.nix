@@ -55,6 +55,9 @@ makeTest {
           extraOptions = [ "--network=host" ];
           environment = {
             DATABASE_URL = database_url;
+
+            # Needed for the `primer-service` banner.
+            LANG = "C.UTF-8";
           };
         };
       };
