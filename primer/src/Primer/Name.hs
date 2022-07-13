@@ -9,9 +9,9 @@ module Primer.Name (
 import Foreword
 
 import Control.Monad.Fresh (MonadFresh, fresh)
-import qualified Data.Char as C
+import Data.Char qualified as C
 import Data.Data (Data)
-import qualified Data.Set as S
+import Data.Set qualified as S
 import Data.String (String)
 import Numeric.Natural (Natural)
 import Primer.JSON

@@ -8,7 +8,7 @@ module Primer.Action.Available (
 import Foreword
 
 import Data.Data (Data)
-import qualified Data.List.NonEmpty as NE
+import Data.List.NonEmpty qualified as NE
 import Optics (
   to,
   (%),
@@ -30,7 +30,7 @@ import Primer.Action (
   nameString,
   uniquifyDefName,
  )
-import qualified Primer.Action.Priorities as P
+import Primer.Action.Priorities qualified as P
 import Primer.Core (
   ASTDef (..),
   Bind' (..),
@@ -317,7 +317,8 @@ basicActionsForExpr l defName expr = case expr of
             Beginner -> NoFunctions
             _ -> Everything
        in actionWithInput (Code "x") "Use a variable" (P.useVar l) Primary $
-            ChooseVariable filterVars $ pure . ConstructVar
+            ChooseVariable filterVars $
+              pure . ConstructVar
 
     -- If we have a useful type, offer the refine action, otherwise offer the
     -- saturate action.
@@ -334,7 +335,8 @@ basicActionsForExpr l defName expr = case expr of
     insertVariableSaturatedRefined :: forall a. ExprMeta -> ActionSpec Expr a
     insertVariableSaturatedRefined m =
       actionWithInput (Code "f $ ?") "Apply a function to arguments" (P.useFunction l) Primary $
-        ChooseVariable OnlyFunctions $ \name -> [if offerRefined m then InsertRefinedVar name else InsertSaturatedVar name]
+        ChooseVariable OnlyFunctions $
+          \name -> [if offerRefined m then InsertRefinedVar name else InsertSaturatedVar name]
 
     annotateExpression :: forall a. ActionSpec Expr a
     annotateExpression = action (Code ":") "Annotate this expression with a type" (P.annotateExpr l) Primary [ConstructAnn]

@@ -15,8 +15,8 @@ module Primer.Questions (
 
 import Foreword
 
-import qualified Data.Map.Strict as Map
-import qualified Data.Set as Set
+import Data.Map.Strict qualified as Map
+import Data.Set qualified as Set
 import Primer.Core (
   DefMap,
   GVarName,

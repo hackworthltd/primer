@@ -19,7 +19,7 @@ import Primer.Database (
 import Primer.Database.Rel8.Rel8Db (
   runRel8Db,
  )
-import qualified Primer.Database.Rel8.Schema as Schema (
+import Primer.Database.Rel8.Schema qualified as Schema (
   SessionRow (SessionRow, app, gitversion, name, uuid),
  )
 import Rel8 (lit)

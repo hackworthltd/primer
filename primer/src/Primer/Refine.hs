@@ -3,14 +3,14 @@ module Primer.Refine (refine, Inst (..)) where
 import Foreword
 
 import Control.Monad.Fresh (MonadFresh)
-import qualified Data.Map as Map
-import qualified Data.Set as Set
+import Data.Map qualified as Map
+import Data.Set qualified as Set
 import Primer.Core (TyVarName, Type' (TForall, TFun, TVar))
-import qualified Primer.Core as C
+import Primer.Core qualified as C
 import Primer.Core.Utils (freshLocalName)
 import Primer.Name (NameCounter)
 import Primer.Subst (substTy, substTys)
-import qualified Primer.Typecheck as TC
+import Primer.Typecheck qualified as TC
 import Primer.Unification (InternalUnifyError, unify)
 import Primer.Zipper (bindersBelowTy, focus)
 

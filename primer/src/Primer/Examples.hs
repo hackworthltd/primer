@@ -44,14 +44,14 @@ import Foreword hiding (
  )
 
 import Control.Monad.Fresh (MonadFresh)
-import qualified Data.Map.Strict as Map
+import Data.Map.Strict qualified as Map
 import Primer.App (
   App,
   Prog (..),
   defaultProg,
   mkApp,
  )
-import qualified Primer.Builtins as B
+import Primer.Builtins qualified as B
 import Primer.Core (
   ASTDef (ASTDef),
   Def (DefAST),

@@ -16,7 +16,7 @@ import Foreword
 import Control.Monad.Fresh (MonadFresh)
 import Data.Data (Data)
 import Data.Generics.Uniplate.Data (descendM)
-import qualified Data.List.NonEmpty as NE
+import Data.List.NonEmpty qualified as NE
 import Optics (traverseOf)
 import Primer.Core (
   CaseBranch' (..),

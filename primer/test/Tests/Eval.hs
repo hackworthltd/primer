@@ -2,8 +2,8 @@ module Tests.Eval where
 
 import Foreword
 
-import qualified Data.Map.Strict as Map
-import qualified Data.Set as Set
+import Data.Map.Strict qualified as Map
+import Data.Set qualified as Set
 import Optics ((^.))
 import Primer.App (
   EvalReq (EvalReq, evalReqExpr, evalReqRedex),
@@ -580,7 +580,8 @@ unit_tryReduce_case_name_clash = do
       result = runTryReduce mempty mempty (expr, i)
       expectedResult =
         create' $
-          let_ "x0" emptyHole $ let_ "y" (lvar "x") emptyHole
+          let_ "x0" emptyHole $
+            let_ "y" (lvar "x") emptyHole
   case result of
     Right (expr', CaseReduction detail) -> do
       expr' ~= expectedResult
@@ -625,7 +626,9 @@ unit_tryReduce_prim = do
   let ((expr, expectedResult, globals), i) =
         create . withPrimDefs $ \m ->
           (,,)
-            <$> gvar (primitiveGVar "eqChar") `app` char 'a' `app` char 'a'
+            <$> gvar (primitiveGVar "eqChar")
+            `app` char 'a'
+            `app` char 'a'
             <*> con cTrue
             <*> pure m
       result = runTryReduce (DefPrim <$> globals) mempty (expr, i)
@@ -644,7 +647,8 @@ unit_tryReduce_prim_fail_unsaturated = do
   let ((expr, globals), i) =
         create . withPrimDefs $ \m ->
           (,)
-            <$> gvar (primitiveGVar "eqChar") `app` char 'a'
+            <$> gvar (primitiveGVar "eqChar")
+            `app` char 'a'
             <*> pure m
       result = runTryReduce (DefPrim <$> globals) mempty (expr, i)
   result @?= Left NotRedex
@@ -654,7 +658,9 @@ unit_tryReduce_prim_fail_unreduced_args = do
   let ((expr, globals), i) =
         create . withPrimDefs $ \m ->
           (,)
-            <$> gvar (primitiveGVar "eqChar") `app` char 'a' `app` (gvar (primitiveGVar "toUpper") `app` char 'a')
+            <$> gvar (primitiveGVar "eqChar")
+            `app` char 'a'
+            `app` (gvar (primitiveGVar "toUpper") `app` char 'a')
             <*> pure m
       result = runTryReduce (DefPrim <$> globals) mempty (expr, i)
   result @?= Left NotRedex
@@ -916,13 +922,15 @@ unit_redexes_let_capture :: Assertion
 unit_redexes_let_capture =
   -- We should maybe rename the lambda, see https://github.com/hackworthltd/primer/issues/509
   assertBool "Cannot inline the variable, as would cause capture" $
-    Set.null $ redexesOf (let_ "x" (lvar "y") $ lam "y" $ lvar "x")
+    Set.null $
+      redexesOf (let_ "x" (lvar "y") $ lam "y" $ lvar "x")
 
 unit_redexes_lettype_capture :: Assertion
 unit_redexes_lettype_capture =
   -- We should maybe rename the forall, see https://github.com/hackworthltd/primer/issues/509
   assertBool "Cannot inline the variable, as would cause capture" $
-    Set.null $ redexesOf (letType "x" (tvar "y") (emptyHole `ann` tforall "y" KType (tvar "x")))
+    Set.null $
+      redexesOf (letType "x" (tvar "y") (emptyHole `ann` tforall "y" KType (tvar "x")))
 
 unit_redexes_letrec_1 :: Assertion
 unit_redexes_letrec_1 =
@@ -1035,7 +1043,7 @@ unit_redexes_prim_ann =
     expr =
       gvar (primitiveGVar "toUpper")
         `ann` (tcon tChar `tfun` tcon tChar)
-          `app` (char 'a' `ann` tcon tChar)
+        `app` (char 'a' `ann` tcon tChar)
 
 -- Test that handleEvalRequest will reduce imported terms
 unit_eval_modules :: Assertion

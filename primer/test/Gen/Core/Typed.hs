@@ -31,16 +31,16 @@ import Foreword
 import Control.Monad.Fresh (MonadFresh, fresh)
 import Control.Monad.Morph (hoist)
 import Control.Monad.Reader (mapReaderT)
-import qualified Data.Map as M
+import Data.Map qualified as M
 import Gen.Core.Raw (genLVarName, genModuleName, genName, genTyVarName)
 import Hedgehog (
   GenT,
   MonadGen,
   PropertyT,
  )
-import qualified Hedgehog.Gen as Gen
+import Hedgehog.Gen qualified as Gen
 import Hedgehog.Internal.Property (forAllT)
-import qualified Hedgehog.Range as Range
+import Hedgehog.Range qualified as Range
 import Primer.Core (
   ASTTypeDef (..),
   Bind' (Bind),
@@ -175,12 +175,14 @@ freshTyConNameForCxt = qualifyName <$> genModuleName <*> freshNameForCxt
 genLVarNameAvoiding :: [TypeG] -> GenT WT LVarName
 genLVarNameAvoiding ty =
   (\vs -> freshen (foldMap freeVarsTy ty <> foldMap freeVarsTy vs) 0)
-    <$> asks localTmVars <*> genLVarName
+    <$> asks localTmVars
+    <*> genLVarName
 
 genTyVarNameAvoiding :: TypeG -> GenT WT TyVarName
 genTyVarNameAvoiding ty =
   (\vs -> freshen (freeVarsTy ty <> foldMap freeVarsTy vs) 0)
-    <$> asks localTmVars <*> genTyVarName
+    <$> asks localTmVars
+    <*> genTyVarName
 
 freshen :: Set (LocalName k') -> Int -> LocalName k -> LocalName k
 freshen fvs i n =

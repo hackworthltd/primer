@@ -3,8 +3,8 @@ module Tests.Refine where
 import Foreword hiding (diff)
 
 import Control.Monad.Fresh (MonadFresh)
-import qualified Data.Map as M
-import qualified Data.Set as S
+import Data.Map qualified as M
+import Data.Set qualified as S
 import Gen.Core.Typed (
   forAllT,
   freshTyVarNameForCxt,
@@ -20,8 +20,8 @@ import Hedgehog (
   success,
   (===),
  )
-import qualified Hedgehog.Gen as Gen
-import qualified Hedgehog.Range as Range
+import Hedgehog.Gen qualified as Gen
+import Hedgehog.Range qualified as Range
 import Primer.Builtins (builtinModule, tBool, tList, tNat)
 import Primer.Core (
   Expr' (APP, Ann, App, EmptyHole),

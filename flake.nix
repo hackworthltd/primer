@@ -109,9 +109,9 @@
       # GHC we're using.
       weederVersion = "2.4.0";
 
-      # Fourmolu updates often formatting arbitrarily, and we want to
+      # Fourmolu updates often alter formatting arbitrarily, and we want to
       # have more control over this.
-      fourmoluVersion = "0.6.0.0";
+      fourmoluVersion = "0.7.0.1";
 
       forAllSupportedSystems = flake-utils.lib.eachSystem [
         "x86_64-linux"

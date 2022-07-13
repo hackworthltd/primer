@@ -9,7 +9,7 @@ import Data.Aeson.Encode.Pretty (
   encodePretty',
  )
 import Data.ByteString.Lazy as BL
-import qualified Data.Map.Strict as Map
+import Data.Map.Strict qualified as Map
 import Data.String (String)
 import Primer.Action (Action (Move, SetCursor), ActionError (IDNotFound), Movement (Child1))
 import Primer.App (

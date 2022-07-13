@@ -44,21 +44,21 @@ import Control.Monad.STM (atomically)
 import Control.Monad.Trans (MonadTrans)
 import Control.Monad.Writer (MonadWriter)
 import Control.Monad.Zip (MonadZip)
-import qualified Data.Text as Text (
+import Data.Text qualified as Text (
   strip,
   take,
   takeWhile,
  )
 import Data.UUID (UUID)
-import qualified Data.UUID as UUID (toText)
+import Data.UUID qualified as UUID (toText)
 import Data.UUID.V4 (nextRandom)
-import qualified ListT (toList)
+import ListT qualified (toList)
 import Optics (
   (.~),
  )
 import Primer.App (App)
 import Primer.JSON (CustomJSON (CustomJSON), ToJSON, VJSON)
-import qualified StmContainers.Map as StmMap
+import StmContainers.Map qualified as StmMap
 
 -- | A Primer version.
 --

@@ -11,7 +11,7 @@ module Primer.ZipperCxt (
 import Foreword
 
 import Data.Generics.Product (Param (..), param, position)
-import qualified Data.Set as Set
+import Data.Set qualified as Set
 import Optics (set, view, (^.))
 import Primer.Core (
   Bind' (..),

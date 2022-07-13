@@ -41,7 +41,7 @@ import Primer.App (
   App,
  )
 import Primer.Database (Version)
-import qualified Primer.Database as Db (
+import Primer.Database qualified as Db (
   ServiceCfg (..),
   serve,
  )
@@ -55,7 +55,7 @@ import Primer.Examples (
 import Primer.Server (
   serve,
  )
-import qualified StmContainers.Map as StmMap
+import StmContainers.Map qualified as StmMap
 import System.Directory (withCurrentDirectory)
 import System.Environment (lookupEnv)
 
@@ -168,7 +168,8 @@ run opts = case cmd opts of
       when seedDb $ do
         let env = Env initialSessions dbOpQueue ver
         flip runPrimerIO env $
-          forM_ seedApps $ uncurry addSession
+          forM_ seedApps $
+            uncurry addSession
       withCurrentDirectory root (serve initialSessions dbOpQueue ver port)
     db <- maybe defaultDb pure dbFlag
     runDb (Db.ServiceCfg dbOpQueue ver) db
@@ -179,7 +180,8 @@ main = execParser opts >>= run
     opts =
       info
         (helper <*> cmds)
-        ( fullDesc <> progDesc "A web service for Primer."
+        ( fullDesc
+            <> progDesc "A web service for Primer."
             <> header
               "primer-service - A web service for Primer."
         )

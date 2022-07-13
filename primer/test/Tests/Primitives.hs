@@ -4,7 +4,7 @@ module Tests.Primitives where
 
 import Foreword
 
-import qualified Data.Map as M
+import Data.Map qualified as M
 import Gen.Core.Typed (forAllT, genPrimCon, propertyWT)
 import Hedgehog (assert)
 import Hedgehog.Gen (choice)
@@ -61,7 +61,8 @@ unit_prim_con_scope_ast = do
   -- Char is in scope (though the wrong kind to accept 'PrimChar's!)
   assertBool "Char is not in scope?" $
     isRight $
-      test $ checkKind (KType `KFun` KType) =<< tcon tChar
+      test $
+        checkKind (KType `KFun` KType) =<< tcon tChar
   test (synth =<< char 'a') @?= Left (PrimitiveTypeNotInScope tChar)
   where
     charASTDef =

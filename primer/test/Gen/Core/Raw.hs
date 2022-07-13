@@ -21,8 +21,8 @@ module Gen.Core.Raw (
 import Foreword
 
 import Hedgehog hiding (Var, check)
-import qualified Hedgehog.Gen as Gen
-import qualified Hedgehog.Range as Range
+import Hedgehog.Gen qualified as Gen
+import Hedgehog.Range qualified as Range
 import Primer.Core (
   Bind' (Bind),
   CaseBranch' (CaseBranch),

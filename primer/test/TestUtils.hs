@@ -30,7 +30,7 @@ import Control.Monad.Fresh (MonadFresh)
 import Data.Coerce (coerce)
 import Data.String (String, fromString)
 import Data.Typeable (typeOf)
-import qualified Hedgehog as H
+import Hedgehog qualified as H
 import Optics (over, set, view)
 import Primer.API (
   Env (..),
@@ -70,14 +70,14 @@ import Primer.Database (
  )
 import Primer.Name (Name (unName))
 import Primer.Primitives (allPrimDefs)
-import qualified StmContainers.Map as StmMap
-import qualified Test.Tasty.Discover as TD
+import StmContainers.Map qualified as StmMap
+import Test.Tasty.Discover qualified as TD
 import Test.Tasty.HUnit (
   assertBool,
   assertFailure,
  )
-import qualified Test.Tasty.HUnit as HUnit
-import qualified Test.Tasty.Hedgehog as TH
+import Test.Tasty.HUnit qualified as HUnit
+import Test.Tasty.Hedgehog qualified as TH
 
 withPrimDefs :: MonadFresh ID m => (Map GVarName PrimDef -> m a) -> m a
 withPrimDefs f = do

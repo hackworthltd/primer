@@ -66,9 +66,9 @@ import Control.Monad.Fresh (MonadFresh (..))
 import Control.Monad.NestedError (MonadNestedError (..))
 import Data.Functor.Compose (Compose (Compose), getCompose)
 import Data.Generics.Product (HasType, position, typed)
-import qualified Data.Map as M
-import qualified Data.Map.Strict as Map
-import qualified Data.Set as S
+import Data.Map qualified as M
+import Data.Map.Strict qualified as Map
+import Data.Set qualified as S
 import Data.Tuple.Extra (fst3)
 import Optics (Lens', over, set, traverseOf, view, (%))
 import Optics.Traversal (traversed)
@@ -377,7 +377,8 @@ checkTypeDefs tds = do
         (notElem (baseName tc) $ map (unLocalName . fst) params)
         "Duplicate names in one tydef: between type-def-name and parameter-names"
       local (noSmartHoles . extendLocalCxtTys params) $
-        mapM_ (checkKind KType <=< fakeMeta) $ concatMap valConArgs cons
+        mapM_ (checkKind KType <=< fakeMeta) $
+          concatMap valConArgs cons
     -- We need metadata to use checkKind, but we don't care about the output,
     -- just a yes/no answer. In this case it is fine to put nonsense in the
     -- metadata as it won't be inspected.
@@ -988,7 +989,9 @@ getGlobalNames = do
           ( \t def ->
               S.fromList $
                 (f t :) $
-                  map (f . valConName) $ maybe [] astTypeDefConstructors $ typeDefAST def
+                  map (f . valConName) $
+                    maybe [] astTypeDefConstructors $
+                      typeDefAST def
           )
           tyDefs
   pure $ S.union topLevel ctors

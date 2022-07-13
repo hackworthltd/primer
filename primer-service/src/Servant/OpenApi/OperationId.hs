@@ -46,7 +46,7 @@ instance
   toOpenApi _ =
     toOpenApi (Proxy @(Verb method status ctypes a))
       & traversalVL allOperations % #operationId
-      ?~ pack (symbolVal (Proxy @id))
+        ?~ pack (symbolVal (Proxy @id))
 
 -- | Similar to 'OperationId', but for Servant-provided convenience synonyms,
 -- like 'Get' or 'Post'
@@ -71,4 +71,4 @@ instance (KnownSymbol id, HasOpenApi (verb ctypes a)) => HasOpenApi (OpId id ver
   toOpenApi _ =
     toOpenApi (Proxy @(verb ctypes a))
       & traversalVL allOperations % #operationId
-      ?~ pack (symbolVal (Proxy @id))
+        ?~ pack (symbolVal (Proxy @id))

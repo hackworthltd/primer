@@ -21,8 +21,8 @@ import Foreword
 
 import Control.Monad.Extra (untilJustM)
 import Control.Monad.Fresh (MonadFresh)
-import qualified Data.Map as M
-import qualified Data.Set as S
+import Data.Map qualified as M
+import Data.Set qualified as S
 import Data.Set.Optics (setOf)
 import Data.Tuple.Extra (thd3)
 import GHC.Err (error)

@@ -20,7 +20,7 @@ import Primer.App (
 import Primer.Core (
   ID,
  )
-import qualified Primer.Examples as Examples
+import Primer.Examples qualified as Examples
 import Primer.Name (
   NameCounter,
  )

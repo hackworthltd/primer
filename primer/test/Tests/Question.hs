@@ -7,8 +7,8 @@ import Data.List (nub, nubBy)
 import Gen.Core.Raw (evalExprGen, genKind, genName, genTyVarName, genType)
 import Hedgehog hiding (Property, check, property)
 import Hedgehog.Classes
-import qualified Hedgehog.Gen as Gen
-import qualified Hedgehog.Range as Range
+import Hedgehog.Gen qualified as Gen
+import Hedgehog.Range qualified as Range
 import Primer.Builtins
 import Primer.Core (
   Expr,

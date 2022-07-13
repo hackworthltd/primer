@@ -3,7 +3,7 @@ module Tests.Zipper.BindersAbove where
 
 import Foreword
 
-import qualified Data.Set as S
+import Data.Set qualified as S
 import Primer.Action (
   Movement (..),
   moveExpr,

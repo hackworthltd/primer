@@ -60,9 +60,9 @@ import Data.Generics.Uniplate.Zipper (
   replaceHole,
   zipper,
  )
-import qualified Data.Generics.Uniplate.Zipper as Z
+import Data.Generics.Uniplate.Zipper qualified as Z
 import Data.List as List (delete)
-import qualified Data.Set as S
+import Data.Set qualified as S
 import Optics (
   filteredBy,
   ifolded,

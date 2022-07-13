@@ -15,15 +15,15 @@ import Control.Concurrent.STM (
 
 import Data.OpenApi (OpenApi)
 import Data.Streaming.Network.Internal (HostPreference (HostIPv4Only))
-import qualified Data.Text.Lazy as LT (fromStrict)
-import qualified Data.Text.Lazy.Encoding as LT (encodeUtf8)
-import qualified Network.Wai as WAI
+import Data.Text.Lazy qualified as LT (fromStrict)
+import Data.Text.Lazy.Encoding qualified as LT (encodeUtf8)
+import Network.Wai qualified as WAI
 import Network.Wai.Handler.Warp (
   defaultSettings,
   setHost,
   setPort,
  )
-import qualified Network.Wai.Handler.Warp as Warp (runSettings)
+import Network.Wai.Handler.Warp qualified as Warp (runSettings)
 import Optics ((%), (.~), (?~))
 import Primer.API (
   Env (..),
@@ -44,7 +44,7 @@ import Primer.API (
   runPrimerIO,
   variablesInScope,
  )
-import qualified Primer.API as API
+import Primer.API qualified as API
 import Primer.Action (
   Action (Move),
   ActionError (TypeError),
@@ -95,7 +95,7 @@ import Primer.Database (
   Sessions,
   Version,
  )
-import qualified Primer.Database as Database (
+import Primer.Database qualified as Database (
   Op,
  )
 import Primer.Eval (BetaReductionDetail (..), EvalDetail (..))
@@ -127,7 +127,7 @@ import Servant (
   (:<|>) (..),
   (:>),
  )
-import qualified Servant (serve)
+import Servant qualified (serve)
 import Servant.OpenApi (toOpenApi)
 import Servant.OpenApi.OperationId (OpId)
 import Servant.Server.StaticFiles (serveDirectoryWith)
