@@ -224,10 +224,15 @@ in
     name = "primer-service-entrypoint";
     runtimeInputs = [
       primer-service
+      primer-sqitch
     ];
     text = ''
+      if [ -z ''${DATABASE_URL+x} ]; then
+        echo "DATABASE_URL is not set, exiting." >&2
+        exit 1
+      fi
+      primer-sqitch verify db:"$DATABASE_URL"
       exec primer-service serve . "${version}" --port ${toString lib.primer.defaultServicePort}
     '';
   };
 }
-

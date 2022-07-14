@@ -35,6 +35,10 @@ makeTest {
       time.timeZone = "UTC";
 
       networking.firewall.allowedTCPPorts = [ 5432 ];
+
+      environment.systemPackages = [
+        primer-sqitch
+      ];
     };
 
     primer = { pkgs, config, ... }: {
@@ -58,6 +62,10 @@ makeTest {
 
             # Needed for the `primer-service` banner.
             LANG = "C.UTF-8";
+
+            # Sqitch will fail in a container if these are not set.
+            SQITCH_EMAIL = "primer-user@hackworthltd.com";
+            SQITCH_FULLNAME = "Primer User";
           };
         };
       };
@@ -69,10 +77,12 @@ makeTest {
       systemd.services.podman-primer-service.serviceConfig.StandardOutput = pkgs.lib.mkForce "journal";
       systemd.services.podman-primer-service.serviceConfig.StandardError = pkgs.lib.mkForce "journal";
 
+      # We want to manually start and stop the container.
+      systemd.services.podman-primer-service.wantedBy = pkgs.lib.mkForce [ ];
+
       environment.systemPackages = [
         pkgs.curl
         pkgs.jq
-        primer-sqitch
       ];
     };
   };
@@ -93,15 +103,17 @@ makeTest {
     ''
       postgres.start();
       postgres.wait_for_unit("postgresql.service")
+      postgres.succeed(
+          "primer-sqitch deploy --verify db:${database_url}", 5
+      )
 
       primer.start();
+      primer.systemctl("start podman-primer-service.service")
       primer.wait_for_unit("podman-primer-service.service")
       primer.wait_for_open_port(${port})
 
-      primer.succeed(
-          "primer-sqitch deploy --verify db:${database_url}"
-      )
-      primer.succeed("${versionCheck}/bin/primer-version-check")
+      with subtest("version check"):
+          primer.succeed("${versionCheck}/bin/primer-version-check")
     '';
 }
 
