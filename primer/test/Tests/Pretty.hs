@@ -8,7 +8,7 @@ import Prettyprinter.Render.Terminal (renderStrict)
 import Primer.Core (ASTDef (..), Def (..), mkSimpleModuleName)
 import Primer.Core.DSL (create')
 import Primer.Examples (comprehensive)
-import Primer.Pretty (defaultPrettyExprOptions, prettyExpr)
+import Primer.Pretty (defaultPrettyOptions, prettyExpr)
 import Test.Tasty (TestTree)
 import Test.Tasty.Golden (goldenVsString)
 
@@ -22,5 +22,5 @@ test_1 = goldenVsString "pretty" "test/outputs/pretty" $ do
         . encodeUtf8
         . renderStrict
         . layoutSmart defaultLayoutOptions
-        . prettyExpr defaultPrettyExprOptions
+        . prettyExpr defaultPrettyOptions
         $ astDefExpr e

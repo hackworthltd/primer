@@ -1,8 +1,8 @@
 module Primer.Pretty (
   prettyExpr,
   prettyPrintExpr,
-  PrettyExprOptions (..),
-  defaultPrettyExprOptions,
+  PrettyOptions (..),
+  defaultPrettyOptions,
 ) where
 
 import Foreword
@@ -32,38 +32,45 @@ import Primer.Core (
   ModuleName (unModuleName),
   PrimCon (..),
   TmVarRef (GlobalVarRef, LocalVarRef),
-  Type',
+  Type' (..),
  )
 import Primer.Name (Name (unName))
 
-newtype PrettyExprOptions = PrettyExprOptions
+newtype PrettyOptions = PrettyOptions
   { fullyQualify :: Bool
   }
 
-defaultPrettyExprOptions :: PrettyExprOptions
-defaultPrettyExprOptions =
-  PrettyExprOptions
+defaultPrettyOptions :: PrettyOptions
+defaultPrettyOptions =
+  PrettyOptions
     { fullyQualify = False
     }
 
-prettyExpr :: PrettyExprOptions -> Expr' a b -> Doc AnsiStyle
+-- | Pretty prints Expr' using Prettyprinter library
+prettyExpr :: PrettyOptions -> Expr' a b -> Doc AnsiStyle
 prettyExpr opts expr = case expr of
-  Hole _ e -> annotate (color Red) "{" <+> pE e <+> annotate (color Red) "}"
-  EmptyHole _ -> annotate (color Red) "?"
-  Con _ n -> gname n
+  Hole _ e -> col Red "{" <> pE e <> col Red "}"
+  EmptyHole _ -> col Red "?"
+  Con _ n -> gname opts n
   Var _ v -> case v of
-    GlobalVarRef n -> gname n
+    GlobalVarRef n -> gname opts n
     LocalVarRef n -> lname n
   Lam _ n e ->
-    annotate (color Magenta) "λ" <> lname n <> annotate (color Magenta) "."
-      <+> pE e
+    col Magenta "λ"
+      <> lname n
+      <> col Magenta "."
+      <> line
+      <> indent 2 (pE e)
   LAM _ n e ->
-    annotate (color Magenta) "Λ" <> lname n <> annotate (color Magenta) "."
-      <+> pE e
+    col Magenta "Λ"
+      <> lname n
+      <> col Magenta "."
+      <> line
+      <> indent 2 (pE e)
   Case _ e bs ->
-    annotate (color Yellow) "match"
+    col Yellow "match"
       <+> pE e
-      <+> annotate (color Yellow) "with"
+      <+> col Yellow "with"
       <+> line
       <+> indent
         2
@@ -72,14 +79,14 @@ prettyExpr opts expr = case expr of
                 line
                 $ map
                   ( \(CaseBranch n bs' e') ->
-                      gname n
+                      gname opts n
                         <+> mconcat
                           ( intersperse space $
                               map
                                 (\(Bind _ n') -> lname n')
                                 bs'
                           )
-                        <+> annotate (color Yellow) "→"
+                        <+> col Yellow "→"
                         <+> pE e'
                   )
                   bs
@@ -87,47 +94,83 @@ prettyExpr opts expr = case expr of
         )
   Ann _ e t -> typeann e t
   App _ e e' -> brac (pE e) <+> brac (pE e')
-  APP _ e t -> brac (pE e) <+> annotate (color Yellow) "@" <> prettyType t
+  APP _ e t -> brac (pE e) <+> col Yellow "@" <> pT t
   Let _ v e e' ->
-    annotate (color Yellow) "let"
+    col Yellow "let"
       <+> lname v
-      <+> annotate (color Yellow) "="
-      <+> pE e
-      <+> annotate (color Yellow) "in"
-      <+> pE e'
+      <+> col Yellow "="
+        <> line
+        <> indent 2 (pE e)
+        <> line
+        <> col Yellow "in"
+        <> line
+        <> indent 2 (pE e')
   LetType _ v t e ->
-    annotate (color Yellow) "let type"
+    col Yellow "let type"
       <+> lname v
-      <+> annotate (color Yellow) "="
-      <+> prettyType t
-      <+> annotate (color Yellow) "in"
-      <+> pE e
+      <+> col Yellow "="
+        <> line
+        <> indent 2 (pT t)
+        <> line
+        <> col Yellow "in"
+        <> line
+        <> indent 2 (pE e)
   Letrec _ v e t e' ->
-    annotate (color Yellow) "let rec"
+    col Yellow "let rec"
       <+> lname v
-      <+> annotate (color Yellow) "="
-      <+> typeann e t
-      <+> annotate (color Yellow) "in"
-      <+> pE e'
+      <+> col Yellow "="
+        <> line
+        <> indent 2 (typeann e t)
+        <> line
+        <> col Yellow "in"
+        <> line
+        <> indent 2 (pE e')
   PrimCon _ p -> case p of
     PrimChar c -> "Char" <+> pretty @Text (show c)
     PrimInt n -> "Int" <+> pretty @Text (show n)
   where
-    typeann e t = brac (pE e) <+> annotate (color Green) "::" <+> prettyType t
+    typeann e t = brac (pE e) <+> col Green "::" <+> pT t
+    pT = prettyType opts
     pE = prettyExpr opts
-    gname n =
-      annotate
-        (color Green)
-        $ (if fullyQualify opts then mconcat (module_ $ qualifiedModule n) <> "." else mempty)
-          <> pretty (unName (baseName n))
-    module_ = intersperse "." . toList . map (pretty . unName) . unModuleName
-    lname = annotate (color Cyan) . pretty . unName . unLocalName
-    brac doc = "(" <> doc <> ")"
 
-prettyType :: Type' b -> Doc AnsiStyle
-prettyType _ = "unimplemented"
+-- Unwraps global variable names as Doc type. First argument is options
+--  fullyQualify = True then "Module.BaseName"
+gname :: PrettyOptions -> GlobalName k -> Doc AnsiStyle
+gname opts n =
+  annotate
+    (color Green)
+    $ (if fullyQualify opts then mconcat (module_ $ qualifiedModule n) <> "." else mempty)
+      <> pretty (unName (baseName n))
+  where
+    module_ = intersperse "." . toList . map (pretty . unName) . unModuleName
+
+-- Unwraps local variable name as Doc
+lname :: LocalName k -> Doc AnsiStyle
+lname = col Cyan . pretty . unName . unLocalName
+
+-- Adds curly brackets
+brac :: (Semigroup a, IsString a) => a -> a
+brac doc = "(" <> doc <> ")"
+
+col :: Color -> Doc AnsiStyle -> Doc AnsiStyle
+col = annotate . color
+
+-- | Pretty prints Type' using Prettyprinter library
+prettyType :: PrettyOptions -> Type' b -> Doc AnsiStyle
+prettyType opts typ = case typ of
+  TEmptyHole _ -> col Red "?"
+  THole _ t -> col Red "{" <> pT t <> col Red "}"
+  TCon _ n -> gname opts n
+  TFun _ t1 t2 -> case t1 of
+    TFun{} -> brac (pT t1) <+> col Yellow "->" <+> pT t2
+    _ -> pT t1 <+> col Yellow "->" <+> pT t2
+  TVar _ n -> lname n
+  TApp _ t1 t2 -> pT t1 <+> brac (pT t2)
+  TForall _ n _ t -> col Yellow "∀" <+> lname n <> col Yellow "." <+> pT t
+  where
+    pT = prettyType opts
 
 prettyPrintExpr :: Expr -> IO ()
 prettyPrintExpr e = do
-  putDoc $ prettyExpr defaultPrettyExprOptions e
+  putDoc $ prettyExpr defaultPrettyOptions e
   putStrLn ("" :: Text)
