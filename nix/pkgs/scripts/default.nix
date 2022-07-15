@@ -10,6 +10,7 @@
 , docker
 , gnugrep
 , sqitchDir
+, primer-service
 }:
 
 let
@@ -216,6 +217,22 @@ in
       echo "Pushing image: $NAME"
       docker push "$NAME"
       echo "Image pushed."
+    '';
+  };
+
+  primer-service-entrypoint = writeShellApplication {
+    name = "primer-service-entrypoint";
+    runtimeInputs = [
+      primer-service
+      primer-sqitch
+    ];
+    text = ''
+      if [ -z ''${DATABASE_URL+x} ]; then
+        echo "DATABASE_URL is not set, exiting." >&2
+        exit 1
+      fi
+      primer-sqitch verify db:"$DATABASE_URL"
+      exec primer-service serve . "${version}" --port ${toString lib.primer.defaultServicePort}
     '';
   };
 }

@@ -412,7 +412,7 @@ server e = pure openAPIInfo :<|> hoistPrimer e
 
 serve :: Sessions -> TBQueue Database.Op -> Version -> Int -> IO ()
 serve ss q v port = do
-  putText $ "Starting server on port " <> show port
+  putText $ "Listening on port " <> show port
   Warp.runSettings warpSettings $ noCache $ Servant.serve api $ server $ Env ss q v
   where
     -- By default Warp will try to bind on either IPv4 or IPv6, whichever is

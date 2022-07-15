@@ -332,21 +332,20 @@
 
             primer-service-docker-image = final.dockerTools.buildLayeredImage {
               name = "primer-service";
-              contents = with final; [
-                primer-service
-
+              contents = [
+                scripts.primer-service-entrypoint
+              ]
+              ++ (with final; [
                 # These are helpful for debugging broken images.
                 bashInteractive
                 coreutils
-              ];
+              ]);
 
               config =
-                let port = 8081;
+                let port = final.lib.primer.defaultServicePort;
                 in
                 {
-                  # Note: this command *must* be formatted as a list of individual
-                  # arguments.
-                  Cmd = [ "/bin/primer-service" "serve" "." "${version}" "--port" (toString port) ];
+                  Entrypoint = [ "/bin/primer-service-entrypoint" ];
                   Labels = {
                     "org.opencontainers.image.source" =
                       "https://github.com/hackworthltd/primer";
@@ -358,6 +357,7 @@
           {
             lib = (prev.lib or { }) // {
               primer = (prev.lib.primer or { }) // {
+                defaultServicePort = 8081;
                 inherit postgres-dev-password;
                 inherit postgres-dev-base-url;
                 inherit postgres-dev-primer-url;
@@ -597,15 +597,13 @@
           (hacknix.lib.testing.nixos.importFromDirectory ./nixos-tests
             {
               inherit system pkgs;
-              extraConfigurations = [
-                {
-                  nixpkgs.overlays = with self.overlays; [
-                    primer
-                  ];
-                }
-              ];
             }
-            { });
+            {
+              inherit (pkgs) primer-service-docker-image;
+              inherit (pkgs) primer-sqitch pg_prove primer-pgtap-tests;
+              inherit (pkgs.lib.primer) defaultServicePort;
+              inherit version;
+            });
       });
 
       ciJobs = hacknix.lib.flakes.recurseIntoHydraJobs self.hydraJobs;

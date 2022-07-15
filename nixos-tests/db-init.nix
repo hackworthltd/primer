@@ -1,4 +1,7 @@
-{ testingPython, ... }:
+{ testingPython
+, primer-sqitch
+, ...
+}:
 with testingPython;
 makeTest {
   name = "db-init";
@@ -47,7 +50,7 @@ makeTest {
       start_all()
       server.wait_for_unit("postgresql")
       server.succeed(
-        "${pkgs.sudo}/bin/sudo -u primer ${pkgs.primer-sqitch}/bin/primer-sqitch deploy --verify db:pg:primer"
+        "${pkgs.sudo}/bin/sudo -u primer ${primer-sqitch}/bin/primer-sqitch deploy --verify db:pg:primer"
       )
     '';
 }

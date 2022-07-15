@@ -148,6 +148,20 @@ seedApps =
   [ (even3App, "even3")
   ]
 
+banner :: Text
+banner =
+  "                      ███                                    \n\
+  \                     ░░░                                     \n\
+  \ ████████  ████████  ████  █████████████    ██████  ████████ \n\
+  \░░███░░███░░███░░███░░███ ░░███░░███░░███  ███░░███░░███░░███\n\
+  \ ░███ ░███ ░███ ░░░  ░███  ░███ ░███ ░███ ░███████  ░███ ░░░ \n\
+  \ ░███ ░███ ░███      ░███  ░███ ░███ ░███ ░███░░░   ░███     \n\
+  \ ░███████  █████     █████ █████░███ █████░░██████  █████    \n\
+  \ ░███░░░  ░░░░░     ░░░░░ ░░░░░ ░░░ ░░░░░  ░░░░░░  ░░░░░     \n\
+  \ ░███                                                        \n\
+  \ █████                                                       \n\
+  \░░░░░                                                        "
+
 -- The choice of which process to fork and which to run in the "main"
 -- thread doesn't particularly matter for our purposes, as far as I
 -- can determine. We do need some proper exception handling, however,
@@ -164,6 +178,8 @@ run opts = case cmd opts of
   Serve root ver dbFlag port qsz seedDb -> do
     dbOpQueue <- newTBQueueIO qsz
     initialSessions <- StmMap.newIO
+    putText banner
+    putText $ "primer-server version " <> ver
     _ <- forkIO $ do
       when seedDb $ do
         let env = Env initialSessions dbOpQueue ver
