@@ -103,11 +103,19 @@ makeTest {
     ''
       postgres.start();
       postgres.wait_for_unit("postgresql.service")
-      postgres.succeed(
-          "primer-sqitch deploy --verify db:${database_url}", 5
-      )
 
       primer.start();
+      primer.systemctl("start podman-primer-service.service")
+      primer.wait_for_unit("podman-primer-service.service")
+
+      with subtest("fails if the database hasn't been deployed"):
+          primer.sleep(5)
+          primer.require_unit_state("podman-primer-service.service", "failed")
+
+      postgres.succeed(
+          "primer-sqitch deploy --verify db:${database_url}"
+      )
+
       primer.systemctl("start podman-primer-service.service")
       primer.wait_for_unit("podman-primer-service.service")
       primer.wait_for_open_port(${port})
