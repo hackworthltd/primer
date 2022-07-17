@@ -213,9 +213,11 @@ lookupVar :: TmVarRef -> Cxt -> Either TypeError Type
 lookupVar v cxt = case v of
   LocalVarRef name -> lookupLocal name cxt
   GlobalVarRef name ->
-    pure (lookupGlobal name cxt) >>= \case
-      Just t -> Right t
-      Nothing -> Left $ UnknownVariable v
+    ( \case
+        Just t -> Right t
+        Nothing -> Left $ UnknownVariable v
+    )
+      (lookupGlobal name cxt)
 
 extendLocalCxt :: (LVarName, Type) -> Cxt -> Cxt
 extendLocalCxt (name, ty) cxt = cxt{localCxt = Map.insert (unLocalName name) (T ty) (localCxt cxt)}
