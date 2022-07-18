@@ -52,7 +52,7 @@ defaultPrettyOptions =
 -- | Pretty prints Expr' using Prettyprinter library
 prettyExpr :: PrettyOptions -> Expr' a b -> Doc AnsiStyle
 prettyExpr opts expr = case expr of
-  Hole _ e -> col Red "{" <> pE e <> col Red "}"
+  Hole _ e -> brac '{' Red (pE e)
   EmptyHole _ -> col Red "?"
   Con _ n -> gname opts n
   Var _ v -> case v of
@@ -97,8 +97,8 @@ prettyExpr opts expr = case expr of
             )
         )
   Ann _ e t -> typeann e t
-  App _ e e' -> brac White (pE e) <> line <> brac White (pE e')
-  APP _ e t -> brac Yellow (pE e) <+> col Yellow "@" <> pT t
+  App _ e e' -> brac '(' White (pE e) <> line <> brac '(' White (pE e')
+  APP _ e t -> brac '(' Yellow (pE e) <+> col Yellow "@" <> pT t
   Let _ v e e' ->
     col Yellow "let"
       <+> lname v
@@ -133,7 +133,7 @@ prettyExpr opts expr = case expr of
     PrimChar c -> "Char" <+> pretty @Text (show c)
     PrimInt n -> "Int" <+> pretty @Text (show n)
   where
-    typeann e t = brac Green (pE e) <+> col Green "::" <+> pT t
+    typeann e t = brac '(' Green (pE e) <+> col Green "::" <> line <> brac '(' Green (pT t)
     pT = prettyType opts
     pE = prettyExpr opts
 
@@ -152,9 +152,13 @@ gname opts n =
 lname :: LocalName k -> Doc AnsiStyle
 lname = col Cyan . pretty . unName . unLocalName
 
--- Adds curly brackets around doc with color c
-brac :: Color -> Doc AnsiStyle -> Doc AnsiStyle
-brac c doc = col c "(" <> line <> indent 2 doc <> line <> col c ")"
+-- Adds brackets of type b around "doc" with color c
+brac :: Char -> Color -> Doc AnsiStyle -> Doc AnsiStyle
+brac b c doc = col c (pretty b) <> line <> indent 2 doc <> line <> col c (flippedbrac b)
+  where
+    flippedbrac '(' = ")"
+    flippedbrac '{' = "}"
+    flippedbrac _ = ""
 
 col :: Color -> Doc AnsiStyle -> Doc AnsiStyle
 col = annotate . color
@@ -163,14 +167,14 @@ col = annotate . color
 prettyType :: PrettyOptions -> Type' b -> Doc AnsiStyle
 prettyType opts typ = case typ of
   TEmptyHole _ -> col Red "?"
-  THole _ t -> col Red "{" <> pT t <> col Red "}"
+  THole _ t -> brac '{' Red (pT t)
   TCon _ n -> gname opts n
   TFun _ t1 t2 -> case t1 of
-    TFun{} -> brac Yellow (pT t1) <+> col Yellow "->" <+> pT t2
+    TFun{} -> brac '(' Yellow (pT t1) <+> col Yellow "->" <+> pT t2
     _ -> pT t1 <+> col Yellow "->" <+> pT t2
   TVar _ n -> lname n
-  TApp _ t1 t2 -> pT t1 <+> brac White (pT t2)
-  TForall _ n _ t -> col Yellow "∀" <+> lname n <> col Yellow "." <+> pT t
+  TApp _ t1 t2 -> brac '(' White (pT t1) <> line <> brac '(' White (pT t2)
+  TForall _ n _ t -> col Yellow "∀" <+> lname n <> col Yellow "." <> line <> indent 2 (pT t)
   where
     pT = prettyType opts
 
