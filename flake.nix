@@ -332,6 +332,7 @@
 
             primer-service-docker-image = final.dockerTools.buildLayeredImage {
               name = "primer-service";
+              tag = version;
               contents = [
                 scripts.primer-service-entrypoint
               ]
