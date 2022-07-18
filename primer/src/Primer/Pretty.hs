@@ -7,14 +7,17 @@ module Primer.Pretty (
   defaultPrettyOptions,
 ) where
 
-import Foreword
+import Foreword hiding (group)
 
 import Prettyprinter (
   Doc,
   Pretty (pretty),
   annotate,
+  flatAlt,
+  group,
   indent,
   line,
+  line',
   space,
   (<+>),
  )
@@ -39,20 +42,22 @@ import Primer.Core (
  )
 import Primer.Name (Name (unName))
 
-newtype PrettyOptions = PrettyOptions
+data PrettyOptions = PrettyOptions
   { fullyQualify :: Bool
+  , groupHoles :: Bool
   }
 
 defaultPrettyOptions :: PrettyOptions
 defaultPrettyOptions =
   PrettyOptions
-    { fullyQualify = False
+    { fullyQualify = False -- \^ Global variable names are printed with the parent module
+    , groupHoles = True -- \^ Nonempty holes are printed on one line
     }
 
--- | Pretty prints Expr' using Prettyprinter library
+-- | Pretty prints `Expr'` using Prettyprinter library
 prettyExpr :: PrettyOptions -> Expr' a b -> Doc AnsiStyle
 prettyExpr opts expr = case expr of
-  Hole _ e -> brac '{' Red (pE e)
+  Hole _ e -> (if groupHoles opts then group else identity) (brac Curly Red (pE e))
   EmptyHole _ -> col Red "?"
   Con _ n -> gname opts n
   Var _ v -> case v of
@@ -97,15 +102,17 @@ prettyExpr opts expr = case expr of
             )
         )
   Ann _ e t -> typeann e t
-  App _ e e' -> brac '(' White (pE e) <> line <> brac '(' White (pE e')
-  APP _ e t -> brac '(' Yellow (pE e) <+> col Yellow "@" <> pT t
+  App _ e e' -> brac Round White (pE e) <> line <> brac Round White (pE e')
+  APP _ e t -> brac Round Yellow (pE e) <+> col Yellow "@" <> pT t
   Let _ v e e' ->
     col Yellow "let"
       <+> lname v
       <+> col Yellow "="
-        <> line
-        <> indent 2 (pE e)
-        <> line
+        <> group
+          ( line
+              <> flatAlt (indent 2 (pE e)) (pE e)
+              <> line
+          )
         <> col Yellow "in"
         <> line
         <> indent 2 (pE e')
@@ -133,12 +140,11 @@ prettyExpr opts expr = case expr of
     PrimChar c -> "Char" <+> pretty @Text (show c)
     PrimInt n -> "Int" <+> pretty @Text (show n)
   where
-    typeann e t = brac '(' Green (pE e) <+> col Green "::" <> line <> brac '(' Green (pT t)
+    typeann e t = brac Round Yellow (pE e) <+> col Yellow "::" <> line <> brac Round Yellow (pT t)
     pT = prettyType opts
     pE = prettyExpr opts
 
--- Unwraps global variable names as Doc type. First argument is options
---  fullyQualify = True then "Module.BaseName"
+-- Unwraps global variable names as Doc type.
 gname :: PrettyOptions -> GlobalName k -> Doc AnsiStyle
 gname opts n =
   annotate
@@ -152,28 +158,34 @@ gname opts n =
 lname :: LocalName k -> Doc AnsiStyle
 lname = col Cyan . pretty . unName . unLocalName
 
+data BracketType = Round | Curly
+
+lBrac :: BracketType -> Doc AnsiStyle
+lBrac Round = "("
+lBrac Curly = "{"
+
+rBrac :: BracketType -> Doc AnsiStyle
+rBrac Round = ")"
+rBrac Curly = "}"
+
 -- Adds brackets of type b around "doc" with color c
-brac :: Char -> Color -> Doc AnsiStyle -> Doc AnsiStyle
-brac b c doc = col c (pretty b) <> line <> indent 2 doc <> line <> col c (flippedbrac b)
-  where
-    flippedbrac '(' = ")"
-    flippedbrac '{' = "}"
-    flippedbrac _ = ""
+brac :: BracketType -> Color -> Doc AnsiStyle -> Doc AnsiStyle
+brac b c doc = col c (lBrac b) <> line' <> flatAlt (indent 2 doc) doc <> line' <> col c (rBrac b)
 
 col :: Color -> Doc AnsiStyle -> Doc AnsiStyle
 col = annotate . color
 
--- | Pretty prints Type' using Prettyprinter library
+-- | Pretty prints `Type'` using Prettyprinter library
 prettyType :: PrettyOptions -> Type' b -> Doc AnsiStyle
 prettyType opts typ = case typ of
   TEmptyHole _ -> col Red "?"
-  THole _ t -> brac '{' Red (pT t)
+  THole _ t -> (if groupHoles opts then group else identity) (brac Curly Red (pT t))
   TCon _ n -> gname opts n
   TFun _ t1 t2 -> case t1 of
-    TFun{} -> brac '(' Yellow (pT t1) <+> col Yellow "->" <+> pT t2
+    TFun{} -> brac Round Yellow (pT t1) <+> col Yellow "->" <+> pT t2
     _ -> pT t1 <+> col Yellow "->" <+> pT t2
   TVar _ n -> lname n
-  TApp _ t1 t2 -> brac '(' White (pT t1) <> line <> brac '(' White (pT t2)
+  TApp _ t1 t2 -> brac Round White (pT t1) <> line <> brac Round White (pT t2)
   TForall _ n _ t -> col Yellow "∀" <+> lname n <> col Yellow "." <> line <> indent 2 (pT t)
   where
     pT = prettyType opts
