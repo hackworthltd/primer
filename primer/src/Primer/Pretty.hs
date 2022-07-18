@@ -1,6 +1,8 @@
 module Primer.Pretty (
   prettyExpr,
+  prettyType,
   prettyPrintExpr,
+  prettyPrintType,
   PrettyOptions (..),
   defaultPrettyOptions,
 ) where
@@ -32,6 +34,7 @@ import Primer.Core (
   ModuleName (unModuleName),
   PrimCon (..),
   TmVarRef (GlobalVarRef, LocalVarRef),
+  Type,
   Type' (..),
  )
 import Primer.Name (Name (unName))
@@ -87,14 +90,15 @@ prettyExpr opts expr = case expr of
                                 bs'
                           )
                         <+> col Yellow "→"
-                        <+> pE e'
+                          <> line
+                          <> indent 2 (pE e')
                   )
                   bs
             )
         )
   Ann _ e t -> typeann e t
-  App _ e e' -> brac (pE e) <+> brac (pE e')
-  APP _ e t -> brac (pE e) <+> col Yellow "@" <> pT t
+  App _ e e' -> brac White (pE e) <> line <> brac White (pE e')
+  APP _ e t -> brac Yellow (pE e) <+> col Yellow "@" <> pT t
   Let _ v e e' ->
     col Yellow "let"
       <+> lname v
@@ -129,7 +133,7 @@ prettyExpr opts expr = case expr of
     PrimChar c -> "Char" <+> pretty @Text (show c)
     PrimInt n -> "Int" <+> pretty @Text (show n)
   where
-    typeann e t = brac (pE e) <+> col Green "::" <+> pT t
+    typeann e t = brac Green (pE e) <+> col Green "::" <+> pT t
     pT = prettyType opts
     pE = prettyExpr opts
 
@@ -148,9 +152,9 @@ gname opts n =
 lname :: LocalName k -> Doc AnsiStyle
 lname = col Cyan . pretty . unName . unLocalName
 
--- Adds curly brackets
-brac :: (Semigroup a, IsString a) => a -> a
-brac doc = "(" <> doc <> ")"
+-- Adds curly brackets around doc with color c
+brac :: Color -> Doc AnsiStyle -> Doc AnsiStyle
+brac c doc = col c "(" <> line <> indent 2 doc <> line <> col c ")"
 
 col :: Color -> Doc AnsiStyle -> Doc AnsiStyle
 col = annotate . color
@@ -162,10 +166,10 @@ prettyType opts typ = case typ of
   THole _ t -> col Red "{" <> pT t <> col Red "}"
   TCon _ n -> gname opts n
   TFun _ t1 t2 -> case t1 of
-    TFun{} -> brac (pT t1) <+> col Yellow "->" <+> pT t2
+    TFun{} -> brac Yellow (pT t1) <+> col Yellow "->" <+> pT t2
     _ -> pT t1 <+> col Yellow "->" <+> pT t2
   TVar _ n -> lname n
-  TApp _ t1 t2 -> pT t1 <+> brac (pT t2)
+  TApp _ t1 t2 -> pT t1 <+> brac White (pT t2)
   TForall _ n _ t -> col Yellow "∀" <+> lname n <> col Yellow "." <+> pT t
   where
     pT = prettyType opts
@@ -173,4 +177,9 @@ prettyType opts typ = case typ of
 prettyPrintExpr :: Expr -> IO ()
 prettyPrintExpr e = do
   putDoc $ prettyExpr defaultPrettyOptions e
+  putStrLn ("" :: Text)
+
+prettyPrintType :: Type -> IO ()
+prettyPrintType t = do
+  putDoc $ prettyType defaultPrettyOptions t
   putStrLn ("" :: Text)
