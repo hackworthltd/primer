@@ -57,7 +57,7 @@ jobs:
           nix-build -A packages.x86_64-linux.primer-service-docker-image
           IMAGE=$(docker load --quiet < result | grep -Po 'Loaded image: \Kprimer-service:.*')
           echo "Loaded image: ${IMAGE}"
-          NAME=ghcr.io/hackworthltd/primer-service:${{ github.sha }}
+          NAME="ghcr.io/hackworthltd/${IMAGE}"
           docker tag "$IMAGE" "$NAME"
           echo "Pushing image: ${NAME}"
           docker push "$NAME"
