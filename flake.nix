@@ -346,9 +346,28 @@
                 in
                 {
                   Entrypoint = [ "/bin/primer-service-entrypoint" ];
+
+                  # Note that we can't set
+                  # "org.opencontainers.image.created" here because
+                  # it would introduce an impurity. If we want to
+                  # set it, we'll need to set it when we push to a
+                  # registry.
                   Labels = {
                     "org.opencontainers.image.source" =
                       "https://github.com/hackworthltd/primer";
+                    "org.opencontainers.image.documentation" =
+                      "https://github.com/hackworthltd/primer";
+                    "org.opencontainers.image.title" = "primer-service";
+                    "org.opencontainers.image.description" =
+                      "The Primer API service.";
+                    "org.opencontainers.image.version" = version;
+                    "org.opencontainers.image.authors" =
+                      "src@hackworthltd.com";
+                    "org.opencontainers.image.licenses" = "AGPL-3.0";
+                    "org.opencontainers.image.vendor" = "Hackworth Ltd";
+                    "org.opencontainers.image.url" =
+                      "https://github.com/hackworthltd/primer";
+                    "org.opencontainers.image.revision" = self.rev or "dirty";
                   };
                   ExposedPorts = { "${toString port}/tcp" = { }; };
                 };
