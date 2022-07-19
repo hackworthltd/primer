@@ -50,7 +50,7 @@
         let
           v = self.rev or self.lastModifiedDate;
         in
-        builtins.trace "Nix Primer version is ${v}" v;
+        builtins.trace "Nix Primer version is ${v}" "git-${v}";
 
       # Workaround for https://github.com/input-output-hk/haskell.nix/issues/1177.
       exceptionsWorkaround = version: {
