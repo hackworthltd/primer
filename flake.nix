@@ -296,7 +296,6 @@
                   delete-local-db
                   dump-local-db
                   restore-local-db
-                  push-docker-image
 
                   ghc8107Tools.cabal-edit
                   ghc8107Tools.cabal-fmt
@@ -382,8 +381,7 @@
               dump-local-db
               restore-local-db
               primer-sqitch
-              primer-pgtap-tests
-              push-docker-image;
+              primer-pgtap-tests;
 
             inherit primer;
 
@@ -507,7 +505,6 @@
             delete-local-db
             dump-local-db
             restore-local-db
-            push-docker-image
 
             sqitch
             pg_prove
@@ -551,7 +548,6 @@
             delete-local-db
             dump-local-db
             restore-local-db
-            push-docker-image
 
             primer-sqitch
 

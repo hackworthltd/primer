@@ -193,33 +193,6 @@ in
     '';
   };
 
-  push-docker-image = writeShellApplication {
-    name = "push-docker-image";
-    runtimeInputs = [
-      docker
-      gnugrep
-    ];
-    text = ''
-      IMAGE=$(docker load --quiet < "$1" | grep -Po 'Loaded image: \Kprimer-service:.*')
-      function rm-image() {
-        docker rmi "$IMAGE"
-      }
-      trap rm-image EXIT
-
-      echo "Loaded image: $IMAGE"
-      NAME=ghcr.io/hackworthltd/primer-service:${version}
-      docker tag "$IMAGE" "$NAME"
-      function rm-tag() {
-        docker rmi "$NAME"
-      }
-      trap rm-tag EXIT
-
-      echo "Pushing image: $NAME"
-      docker push "$NAME"
-      echo "Image pushed."
-    '';
-  };
-
   primer-service-entrypoint = writeShellApplication {
     name = "primer-service-entrypoint";
     runtimeInputs = [
