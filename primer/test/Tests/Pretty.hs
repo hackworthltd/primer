@@ -2,7 +2,7 @@ module Tests.Pretty where
 
 import Foreword
 
-import Data.ByteString.Lazy qualified as BS
+import qualified Data.ByteString.Lazy as BS
 import Prettyprinter (defaultLayoutOptions, layoutSmart)
 import Prettyprinter.Render.Terminal (renderStrict)
 import Primer.Core (ASTDef (..), Def (..), mkSimpleModuleName)
