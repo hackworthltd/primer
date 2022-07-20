@@ -369,7 +369,18 @@
                       "https://github.com/hackworthltd/primer";
                     "org.opencontainers.image.revision" = self.rev or "dirty";
                   };
+
                   ExposedPorts = { "${toString port}/tcp" = { }; };
+
+                  Env = [
+                    # Needed for the `primer-service` banner.
+                    "LANG=C.UTF-8"
+
+                    # Sqitch will fail in a container if these are not
+                    # set. Their specific values are not important.
+                    "SQITCH_EMAIL=root@localhost"
+                    "SQITCH_FULLNAME=Primer User"
+                  ];
                 };
             };
           in

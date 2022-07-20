@@ -59,13 +59,6 @@ makeTest {
           extraOptions = [ "--network=host" ];
           environment = {
             DATABASE_URL = database_url;
-
-            # Needed for the `primer-service` banner.
-            LANG = "C.UTF-8";
-
-            # Sqitch will fail in a container if these are not set.
-            SQITCH_EMAIL = "primer-user@hackworthltd.com";
-            SQITCH_FULLNAME = "Primer User";
           };
         };
       };
