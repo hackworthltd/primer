@@ -50,7 +50,7 @@
         let
           v = self.rev or self.lastModifiedDate;
         in
-        builtins.trace "Nix Primer version is ${v}" v;
+        builtins.trace "Nix Primer version is ${v}" "git-${v}";
 
       # Workaround for https://github.com/input-output-hk/haskell.nix/issues/1177.
       exceptionsWorkaround = version: {
@@ -296,7 +296,6 @@
                   delete-local-db
                   dump-local-db
                   restore-local-db
-                  push-docker-image
 
                   ghc8107Tools.cabal-edit
                   ghc8107Tools.cabal-fmt
@@ -332,6 +331,7 @@
 
             primer-service-docker-image = final.dockerTools.buildLayeredImage {
               name = "primer-service";
+              tag = version;
               contents = [
                 scripts.primer-service-entrypoint
               ]
@@ -346,9 +346,28 @@
                 in
                 {
                   Entrypoint = [ "/bin/primer-service-entrypoint" ];
+
+                  # Note that we can't set
+                  # "org.opencontainers.image.created" here because
+                  # it would introduce an impurity. If we want to
+                  # set it, we'll need to set it when we push to a
+                  # registry.
                   Labels = {
                     "org.opencontainers.image.source" =
                       "https://github.com/hackworthltd/primer";
+                    "org.opencontainers.image.documentation" =
+                      "https://github.com/hackworthltd/primer";
+                    "org.opencontainers.image.title" = "primer-service";
+                    "org.opencontainers.image.description" =
+                      "The Primer API service.";
+                    "org.opencontainers.image.version" = version;
+                    "org.opencontainers.image.authors" =
+                      "src@hackworthltd.com";
+                    "org.opencontainers.image.licenses" = "AGPL-3.0";
+                    "org.opencontainers.image.vendor" = "Hackworth Ltd";
+                    "org.opencontainers.image.url" =
+                      "https://github.com/hackworthltd/primer";
+                    "org.opencontainers.image.revision" = self.rev or "dirty";
                   };
                   ExposedPorts = { "${toString port}/tcp" = { }; };
                 };
@@ -381,8 +400,7 @@
               dump-local-db
               restore-local-db
               primer-sqitch
-              primer-pgtap-tests
-              push-docker-image;
+              primer-pgtap-tests;
 
             inherit primer;
 
@@ -506,7 +524,6 @@
             delete-local-db
             dump-local-db
             restore-local-db
-            push-docker-image
 
             sqitch
             pg_prove
@@ -550,7 +567,6 @@
             delete-local-db
             dump-local-db
             restore-local-db
-            push-docker-image
 
             primer-sqitch
 
