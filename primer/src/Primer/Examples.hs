@@ -57,7 +57,6 @@ import Primer.Builtins qualified as B
 import Primer.Core (
   ASTDef (ASTDef),
   Def (DefAST),
-  Expr,
   GVarName,
   ID,
   Kind (KType),
@@ -99,16 +98,21 @@ import Primer.Name (
  )
 
 -- | The function `not :: Bool -> Bool`.
-not :: MonadFresh ID m => m Expr
-not =
-  lam
-    "x"
-    ( case_
-        (lvar "x")
-        [ branch B.cTrue [] (con B.cFalse)
-        , branch B.cFalse [] (con B.cTrue)
-        ]
-    )
+not :: MonadFresh ID m => ModuleName -> m (GVarName, Def)
+not modName =
+  let this = qualifyName modName "not"
+   in do
+        type_ <- tcon B.tBool `tfun` tcon B.tBool
+        term <-
+          lam
+            "x"
+            ( case_
+                (lvar "x")
+                [ branch B.cTrue [] (con B.cFalse)
+                , branch B.cFalse [] (con B.cTrue)
+                ]
+            )
+        pure (this, DefAST $ ASTDef term type_)
 
 -- | The polymorphic function @map@ (over @List a@ as defined by
 -- 'listDef').
