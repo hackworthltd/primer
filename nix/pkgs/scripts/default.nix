@@ -15,7 +15,7 @@
 
 let
   dockerContext = "colima-primer";
-  postgresImageTag = "postgres:13.4-alpine3.14";
+  postgresImageTag = "postgres:14.4-alpine3.16";
   postgresVolume = "postgres-primer";
   postgresContainer = "postgres-primer";
 
