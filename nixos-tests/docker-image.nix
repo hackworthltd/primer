@@ -19,7 +19,7 @@ makeTest {
     postgres = { pkgs, config, ... }: {
       services.postgresql = {
         enable = true;
-        package = pkgs.postgresql_13;
+        package = pkgs.postgresql;
         enableTCPIP = true;
         authentication = ''
           hostnossl primer primer 192.168.0.0/16 md5

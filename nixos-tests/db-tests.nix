@@ -14,9 +14,9 @@ makeTest {
     server = { pkgs, config, ... }: {
       services.postgresql = {
         enable = true;
-        package = pkgs.postgresql_13;
+        package = pkgs.postgresql;
 
-        extraPlugins = [ pkgs.postgresql13Packages.pgtap ];
+        extraPlugins = [ pkgs.postgresqlPackages.pgtap ];
 
         # Note: this may look odd, but keep in mind that Sqitch does
         # not create the database, only its schema. In a hosted
