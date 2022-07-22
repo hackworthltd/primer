@@ -24,6 +24,15 @@ import Network.Wai.Handler.Warp (
   setPort,
  )
 import Network.Wai.Handler.Warp qualified as Warp (runSettings)
+import Network.Wai.Middleware.Cors (
+  CorsResourcePolicy (..),
+  cors,
+  corsMethods,
+  corsRequestHeaders,
+  simpleCorsResourcePolicy,
+  simpleHeaders,
+  simpleMethods,
+ )
 import Optics ((%), (.~), (?~))
 import Primer.API (
   Env (..),
@@ -410,10 +419,21 @@ primerServer = openAPIServer :<|> legacyServer
 server :: Env -> Server API
 server e = pure openAPIInfo :<|> hoistPrimer e
 
+-- | CORS settings for the Primer API. Note that this policy will not
+-- work with credentialed requests because the origin is implicitly
+-- "*". See:
+-- https://developer.mozilla.org/en-US/docs/Web/HTTP/CORS#credentialed_requests_and_wildcards
+apiCors :: CorsResourcePolicy
+apiCors =
+  simpleCorsResourcePolicy
+    { corsMethods = simpleMethods <> ["PUT", "OPTIONS"]
+    , corsRequestHeaders = simpleHeaders <> ["Content-Type", "Authorization"]
+    }
+
 serve :: Sessions -> TBQueue Database.Op -> Version -> Int -> IO ()
 serve ss q v port = do
   putText $ "Listening on port " <> show port
-  Warp.runSettings warpSettings $ noCache $ Servant.serve api $ server $ Env ss q v
+  Warp.runSettings warpSettings $ noCache $ cors (const $ Just apiCors) $ Servant.serve api $ server $ Env ss q v
   where
     -- By default Warp will try to bind on either IPv4 or IPv6, whichever is
     -- available.
