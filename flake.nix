@@ -115,11 +115,13 @@
 
       forAllSupportedSystems = flake-utils.lib.eachSystem [
         "x86_64-linux"
+        "aarch64-linux"
         "aarch64-darwin"
       ];
 
       forAllTestSystems = flake-utils.lib.eachSystem [
         "x86_64-linux"
+        "aarch64-linux"
       ];
 
       overlays.primer = hacknix.lib.overlays.combine [
@@ -545,7 +547,7 @@
             start-postgresql-container
             stop-postgresql-container;
         }
-        // (pkgs.lib.optionalAttrs (system == "x86_64-linux") {
+        // (pkgs.lib.optionalAttrs (system == "x86_64-linux" || system == "aarch64-linux") {
           inherit (pkgs) primer-service-docker-image;
         })
         // primerFlake.packages;
@@ -606,10 +608,13 @@
             name = "required";
             constituents = builtins.map builtins.attrValues (with self.hydraJobs; [
               packages.x86_64-linux
+              packages.aarch64-linux
               packages.aarch64-darwin
               checks.x86_64-linux
+              checks.aarch64-linux
               checks.aarch64-darwin
               tests.x86_64-linux
+              tests.aarch64-linux
               devShell
             ]);
             meta.description = "Required CI builds";
