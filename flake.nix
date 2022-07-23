@@ -509,6 +509,14 @@
             fourmolu.enable = true;
             cabal-fmt.enable = true;
             nixpkgs-fmt.enable = true;
+
+            actionlint = {
+              enable = true;
+              name = "actionlint";
+              entry = "${pkgs.actionlint}/bin/actionlint";
+              language = "system";
+              files = "^.github/workflows/";
+            };
           };
 
           # Override the default nix-pre-commit-hooks tools with the version
