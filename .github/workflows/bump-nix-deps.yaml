@@ -1,20 +1,11 @@
-name: Update Nix dependencies
+name: Update Nix dependencies.
 
 on:
+  workflow_dispatch:
   schedule:
     # 3 am every Saturday.
     - cron: '0 3 * * 6'
 
 jobs:
   update-nix-dependencies:
-    runs-on: ubuntu-latest
-    steps:
-    - uses: actions/checkout@v3
-    - uses: cachix/install-nix-action@v17
-    - run: nix flake update
-    - name: Create Pull Request
-      uses: peter-evans/create-pull-request@v4.0.4
-      with:
-        commit-message: "chore(nix): update dependencies"
-        title: "chore(nix): update dependencies"
-        branch: "chore/update-nix-dependencies"
+    uses: hackworthltd/.github/.github/workflows/reusable-update-nix-flake-public.yml@main
