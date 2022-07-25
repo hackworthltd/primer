@@ -59,9 +59,9 @@ prettyExpr :: PrettyOptions -> Expr' a b -> Doc AnsiStyle
 prettyExpr opts = \case
   Hole _ e -> (if groupHoles opts then group else identity) (brac Curly Red (pE e))
   EmptyHole _ -> col Red "?"
-  Con _ n -> gname opts n
+  Con _ n -> col Green (gname opts n)
   Var _ v -> case v of
-    GlobalVarRef n -> gname opts n
+    GlobalVarRef n -> col Blue (gname opts n)
     LocalVarRef n -> lname n
   Lam _ n e ->
     col Magenta "λ"
@@ -87,7 +87,7 @@ prettyExpr opts = \case
                 line
                 $ map
                   ( \(CaseBranch n bs' e') ->
-                      gname opts n
+                      col Green (gname opts n)
                         <+> mconcat
                           ( intersperse space $
                               map
@@ -147,10 +147,8 @@ prettyExpr opts = \case
 -- Unwraps global variable names as Doc type.
 gname :: PrettyOptions -> GlobalName k -> Doc AnsiStyle
 gname opts n =
-  annotate
-    (color Green)
-    $ (if fullyQualify opts then mconcat (module_ $ qualifiedModule n) <> "." else mempty)
-      <> pretty (unName (baseName n))
+  (if fullyQualify opts then mconcat (module_ $ qualifiedModule n) <> "." else mempty)
+    <> pretty (unName (baseName n))
   where
     module_ = intersperse "." . toList . map (pretty . unName) . unModuleName
 
@@ -180,7 +178,7 @@ prettyType :: PrettyOptions -> Type' b -> Doc AnsiStyle
 prettyType opts typ = case typ of
   TEmptyHole _ -> col Red "?"
   THole _ t -> (if groupHoles opts then group else identity) (brac Curly Red (pT t))
-  TCon _ n -> gname opts n
+  TCon _ n -> col Green (gname opts n)
   TFun _ t1 t2 -> case t1 of
     TFun{} -> brac Round Yellow (pT t1) <+> col Yellow "->" <+> pT t2
     _ -> pT t1 <+> col Yellow "->" <+> pT t2
