@@ -118,7 +118,7 @@ import Primer.Core (
   _typeMeta,
  )
 import Primer.Core.DSL (branch, emptyHole, meta, meta')
-import Primer.Core.Utils (alphaEqTy, forgetTypeMetadata, freshLocalName, generateTypeIDs)
+import Primer.Core.Utils (alphaEqTy, forgetTypeMetadata, freshLocalName, freshLocalName', generateTypeIDs)
 import Primer.JSON (CustomJSON (CustomJSON), FromJSON, PrimerJSON, ToJSON)
 import Primer.Module (
   Module (
@@ -127,7 +127,7 @@ import Primer.Module (
   moduleDefsQualified,
   moduleTypesQualified,
  )
-import Primer.Name (Name, NameCounter, freshName)
+import Primer.Name (Name, NameCounter)
 import Primer.Subst (substTy)
 
 -- | Typechecking takes as input an Expr with 'Maybe Type' annotations and
@@ -880,7 +880,7 @@ checkBranch t (vc, args) (CaseBranch nb patterns rhs) =
     createBinding :: S.Set Name -> Type' () -> m (Bind' (Meta TypeCache), Type' ())
     createBinding namesInScope ty = do
       -- Avoid automatically generated names shadowing anything
-      name <- LocalName <$> freshName namesInScope
+      name <- freshLocalName' namesInScope
       bind <- Bind <$> meta' (TCChkedAt ty) <*> pure name
       pure (bind, ty)
     assertCorrectCon =
