@@ -162,11 +162,11 @@ data BracketType = Round | Curly
 
 lBrac :: BracketType -> Doc AnsiStyle
 lBrac Round = "("
-lBrac Curly = "{"
+lBrac Curly = "{?"
 
 rBrac :: BracketType -> Doc AnsiStyle
 rBrac Round = ")"
-rBrac Curly = "}"
+rBrac Curly = "?}"
 
 -- Adds brackets of type b around "doc" with color c
 brac :: BracketType -> Color -> Doc AnsiStyle -> Doc AnsiStyle
