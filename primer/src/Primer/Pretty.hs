@@ -56,7 +56,7 @@ defaultPrettyOptions =
 
 -- | Pretty prints `Expr'` using Prettyprinter library
 prettyExpr :: PrettyOptions -> Expr' a b -> Doc AnsiStyle
-prettyExpr opts expr = case expr of
+prettyExpr opts = \case
   Hole _ e -> (if groupHoles opts then group else identity) (brac Curly Red (pE e))
   EmptyHole _ -> col Red "?"
   Con _ n -> gname opts n
