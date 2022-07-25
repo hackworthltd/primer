@@ -44,14 +44,16 @@ import Primer.Name (Name (unName))
 
 data PrettyOptions = PrettyOptions
   { fullyQualify :: Bool
+  -- ^ Global variable names are printed with the parent module
   , groupHoles :: Bool
+  -- ^ Nonempty holes are printed on one line
   }
 
 defaultPrettyOptions :: PrettyOptions
 defaultPrettyOptions =
   PrettyOptions
-    { fullyQualify = False -- \^ Global variable names are printed with the parent module
-    , groupHoles = True -- \^ Nonempty holes are printed on one line
+    { fullyQualify = False
+    , groupHoles = True
     }
 
 -- | Pretty prints `Expr'` using Prettyprinter library
