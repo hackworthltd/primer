@@ -12,6 +12,16 @@ repository contains Haskell implementations of:
 Note that Primer must be built with GHC 9.2.1 or later.
 
 # Running Primer
+## Nix Cache
+To avoid nix having to build all dependencies from source, it's advised
+to use caches of pre-compiled binaries. During development this has been
+done with `haskell.nix` infrastructure. To set up, add the following to 
+your `nix.conf` (located at `/etc/nix` for multi user or `~/.config/nix`
+for single user):
+- `trusted-public-keys = hydra.iohk.io:f/Ea+s+dFdN+3Y/G+FDgSq+a5NEWhJGzdjvKNGv0/EQ=` 
+- `substituters = https://cache.iog.io`
+
+For more information, see [here](https://input-output-hk.github.io/haskell.nix/tutorials/getting-started-flakes.html#setting-up-the-binary-cache).
 
 ## Local development
 
