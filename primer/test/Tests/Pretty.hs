@@ -27,18 +27,17 @@ exprHandler = (prettyExpr defaultPrettyOptions . astDefExpr, "Expr")
 typeHandler :: PrettyTestHandler
 typeHandler = (prettyType defaultPrettyOptions . astDefType, "Type")
 
-prettyTest :: (String, Def) -> PrettyTestHandler -> TestTree
-prettyTest (n, d) h = goldenVsString hname path bs
+prettyTest :: String -> Def -> PrettyTestHandler -> TestTree
+prettyTest name def handler = goldenVsString hname path bs
   where
-    dname = n
-    hname = T.unpack (snd h)
-    path = "test/outputs/Pretty/" ++ dname ++ "/" ++ hname
-    bs = case d of
+    hname = T.unpack (snd handler)
+    path = "test/outputs/Pretty/" ++ name ++ "/" ++ hname
+    bs = case def of
       DefPrim _ -> exitFailure
-      DefAST e -> docToBS (fst h e)
+      DefAST e -> docToBS (fst handler e)
 
 prettyTestGroup :: (ModuleName -> S (GVarName, Def)) -> TestTree
-prettyTestGroup x = testGroup dname (map (prettyTest (dname, d)) [exprHandler, typeHandler])
+prettyTestGroup x = testGroup dname (map (prettyTest dname d) [exprHandler, typeHandler])
   where
     (n, d) = create' $ x $ mkSimpleModuleName "Module"
     dname = T.unpack . unName . baseName $ n
