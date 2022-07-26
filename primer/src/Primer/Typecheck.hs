@@ -65,7 +65,6 @@ import Control.Arrow ((&&&))
 import Control.Monad.Fresh (MonadFresh (..))
 import Control.Monad.NestedError (MonadNestedError (..))
 import Data.Functor.Compose (Compose (Compose), getCompose)
-import Data.Generics.Product (HasType, position, typed)
 import Data.Map qualified as M
 import Data.Map.Strict qualified as Map
 import Data.Set qualified as S
@@ -111,8 +110,11 @@ import Primer.Core (
   typeDefParameters,
   unLocalName,
   valConType,
+  _bindMeta,
   _exprMeta,
+  _exprMetaLens,
   _exprTypeMeta,
+  _type,
   _typeMeta,
  )
 import Primer.Core.DSL (branch, emptyHole, meta, meta')
@@ -278,20 +280,16 @@ type TypeM e m =
   , MonadNestedError TypeError e m -- can throw type errors
   )
 
--- | A lens for the type annotation of an Expr
-_typecache :: HasType TypeCache a => Lens' (Expr' a b) TypeCache
-_typecache = position @1 % typed @TypeCache
+-- | A lens for the type annotation of an 'Expr' or 'ExprT'
+_typecache :: Lens' (Expr' (Meta a) b) a
+_typecache = _exprMetaLens % _type
 
--- | A lens for the (potentially absent) type annotation of an Expr
-_maybeTypecache :: HasType (Maybe TypeCache) a => Lens' (Expr' a b) (Maybe TypeCache)
-_maybeTypecache = position @1 % typed @(Maybe TypeCache)
+-- | Get the (potentially absent) type of an 'Expr'
+maybeTypeOf :: Expr -> Maybe TypeCache
+maybeTypeOf = view _typecache
 
--- | Get the (potentially absent) type of an Expr
-maybeTypeOf :: HasType (Maybe TypeCache) a => Expr' a b -> Maybe TypeCache
-maybeTypeOf = view _maybeTypecache
-
--- | Get the type of an Expr
-typeOf :: HasType TypeCache a => Expr' a b -> TypeCache
+-- | Get the type of an 'ExprT'
+typeOf :: ExprT -> TypeCache
 typeOf = view _typecache
 
 -- | Extend the metadata of an 'Expr' or 'Type'
@@ -874,7 +872,7 @@ checkBranch t (vc, args) (CaseBranch nb patterns rhs) =
       -- otherwise, convert all @Maybe TypeCache@ metadata to @TypeCache@
       -- otherwise, annotate each binding with its type
       (True, _) ->
-        let args' = zipWith (\ty bind -> (over (position @1) (annotate (TCChkedAt ty)) bind, ty)) args patterns
+        let args' = zipWith (\ty bind -> (over _bindMeta (annotate (TCChkedAt ty)) bind, ty)) args patterns
          in pure (args', rhs)
     rhs' <- local (extendLocalCxts (map (first bindName) fixedPats)) $ check t fixedRHS
     pure $ CaseBranch nb (map fst fixedPats) rhs'

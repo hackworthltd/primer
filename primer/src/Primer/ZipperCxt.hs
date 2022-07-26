@@ -9,9 +9,8 @@ module Primer.ZipperCxt (
 
 import Foreword
 
-import Data.Generics.Product (position)
 import Data.Set qualified as Set
-import Optics (view, (^.))
+import Optics ((^.))
 import Primer.Core (
   Bind' (..),
   CaseBranch' (..),
@@ -27,6 +26,7 @@ import Primer.Core (
   Type' (..),
   TypeCache (..),
   TypeCacheBoth (..),
+  _typeMetaLens,
  )
 import Primer.Core.Utils (forgetTypeMetadata)
 import Primer.Typecheck (maybeTypeOf)
@@ -111,7 +111,7 @@ extractLocalsExprZ = foldAbove getBoundHere
         | prior e == e1 -> mempty
         | otherwise -> M [] [(x, typeOrHole' $ maybeTypeOf e1)] []
       Letrec _ x _ ty _ -> M [] [(x, forgetTypeMetadata ty)] []
-      LetType _ x ty _ -> M [(x, kindOrHole (view (position @1) ty))] [] []
+      LetType _ x ty _ -> M [(x, kindOrHole (ty ^. _typeMetaLens))] [] []
       Case _ _ branches ->
         let fromBinding (Bind m n) = (n, typeOrHole m)
             binderss = map (\(CaseBranch _ ns rhs) -> (rhs, map fromBinding ns)) branches

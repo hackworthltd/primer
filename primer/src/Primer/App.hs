@@ -61,7 +61,6 @@ import Data.Aeson (
  )
 import Data.Bitraversable (bimapM)
 import Data.Data (Data)
-import Data.Generics.Product (position)
 import Data.Generics.Uniplate.Operations (descendM, transform, transformM)
 import Data.Generics.Uniplate.Zipper (
   fromZipper,
@@ -807,7 +806,7 @@ applyProgAction prog mdefName = \case
     case res of
       Left err -> throwError $ ActionError err
       Right (def', z) -> do
-        let meta = bimap (view (position @1) . target) (view _typeMetaLens . target) $ locToEither z
+        let meta = bimap (view _exprMetaLens . target) (view _typeMetaLens . target) $ locToEither z
             nodeId = either getID getID meta
         pure
           ( insertDef m defName (DefAST def')
@@ -1349,7 +1348,7 @@ tcWholeProg p =
               Just NodeSelection{nodeType, nodeId} -> do
                 n <- runExceptT $ focusNode p' defName_ nodeId
                 case (nodeType, n) of
-                  (BodyNode, Right (Left x)) -> pure $ Just $ NodeSelection BodyNode nodeId $ bimap (view (position @1) . target) (view _typeMetaLens . target) x
+                  (BodyNode, Right (Left x)) -> pure $ Just $ NodeSelection BodyNode nodeId $ bimap (view _exprMetaLens . target) (view _typeMetaLens . target) x
                   (SigNode, Right (Right x)) -> pure $ Just $ NodeSelection SigNode nodeId $ x ^. _target % _typeMetaLens % re _Right
                   _ -> pure Nothing -- something's gone wrong: expected a SigNode, but found it in the body, or vv, or just not found it
             pure $
