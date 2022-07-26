@@ -17,6 +17,7 @@ module Primer.Examples (
   -- | In Primer, top-level definitions names must be qualified by
   -- their module name. These examples take a 'ModuleName' so that the
   -- 'Def's they return can be resued in multiple contexts.
+  not,
   map,
   map',
   even,
@@ -40,6 +41,7 @@ module Primer.Examples (
 import Foreword hiding (
   even,
   map,
+  not,
   odd,
  )
 
@@ -94,6 +96,23 @@ import Primer.Module (
 import Primer.Name (
   NameCounter,
  )
+
+-- | The function `not :: Bool -> Bool`.
+not :: MonadFresh ID m => ModuleName -> m (GVarName, Def)
+not modName =
+  let this = qualifyName modName "not"
+   in do
+        type_ <- tcon B.tBool `tfun` tcon B.tBool
+        term <-
+          lam
+            "x"
+            ( case_
+                (lvar "x")
+                [ branch B.cTrue [] (con B.cFalse)
+                , branch B.cFalse [] (con B.cTrue)
+                ]
+            )
+        pure (this, DefAST $ ASTDef term type_)
 
 -- | The polymorphic function @map@ (over @List a@ as defined by
 -- 'listDef').

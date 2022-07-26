@@ -12,6 +12,8 @@ let
     -- these packages, but don't actually make use of ourselves.
     ignoreRoots =
       [ "^Primer.Database.Rel8.Rel8Db.runRel8Db"
+      , "^Primer.Pretty.prettyPrintExpr"
+      , "^Primer.Pretty.prettyPrintType"
       ]
 
 in  { roots = [ "^Main.main$" ] # tmpRoots # ignoreRoots, type-class-roots = True }
