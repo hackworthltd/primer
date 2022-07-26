@@ -394,8 +394,8 @@ getProgram sid = withSession' sid $ QueryApp $ viewProg . handleGetProgramReques
 data Tree = Tree
   { nodeId :: ID
   , ann :: Text
-  , style :: NodeStyle
   -- ^ P, λ, etc
+  , style :: NodeStyle
   , body :: NodeBody
   , childTrees :: [Tree]
   , rightChild :: Maybe Tree
