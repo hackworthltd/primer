@@ -2,9 +2,9 @@ module Tests.Pretty where
 
 import Foreword hiding (not)
 
-import qualified Data.ByteString.Lazy as BS
+import Data.ByteString.Lazy qualified as BS
 import Data.String
-import qualified Data.Text as T
+import Data.Text qualified as T
 import Prettyprinter (defaultLayoutOptions, layoutSmart)
 import Prettyprinter.Internal.Type (Doc)
 import Prettyprinter.Render.Terminal (AnsiStyle, renderStrict)
