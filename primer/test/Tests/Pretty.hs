@@ -49,3 +49,4 @@ docToBS =
     . encodeUtf8
     . renderStrict
     . layoutSmart defaultLayoutOptions
+    . (<> line)
