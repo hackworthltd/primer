@@ -114,7 +114,7 @@ import Primer.Core (
   TyConName,
   TyVarName,
   Type,
-  Type' (TForall),
+  Type' (..),
   TypeMeta,
   defAST,
   defType,
@@ -428,6 +428,13 @@ data NodeStyle
   | StyleLetrec
   | StyleCase
   | StylePrimCon
+  | StyleTEmptyHole
+  | StyleTHole
+  | StyleTCon
+  | StyleTFun
+  | StyleTVar
+  | StyleTApp
+  | StyleTForall
   deriving (Show, Eq, Generic)
 instance ToJSON NodeStyle
 
@@ -663,11 +670,78 @@ viewTreeExpr e0 = case e0 of
       }
   where
     nodeId = e0 ^. _id
-    showGlobal n = moduleNamePretty (qualifiedModule n) <> "." <> unName (baseName n)
 
 -- | Similar to 'viewTreeExpr', but for 'Type's
 viewTreeType :: Type -> Tree
-viewTreeType x = Tree (x ^. _id) "T" StylePrimCon (TextBody "unimplemented") [] Nothing
+viewTreeType t0 = case t0 of
+  TEmptyHole _ ->
+    Tree
+      { nodeId
+      , ann = "?"
+      , style = StyleTEmptyHole
+      , body = NoBody
+      , childTrees = []
+      , rightChild = Nothing
+      }
+  THole _ t ->
+    Tree
+      { nodeId
+      , ann = "{?}"
+      , style = StyleTHole
+      , body = NoBody
+      , childTrees = [viewTreeType t]
+      , rightChild = Nothing
+      }
+  TCon _ n ->
+    Tree
+      { nodeId
+      , ann = "T"
+      , style = StyleTCon
+      , body = TextBody $ showGlobal n
+      , childTrees = []
+      , rightChild = Nothing
+      }
+  TFun _ t1 t2 ->
+    Tree
+      { nodeId
+      , ann = "→"
+      , style = StyleTFun
+      , body = NoBody
+      , childTrees = [viewTreeType t1, viewTreeType t2]
+      , rightChild = Nothing
+      }
+  TVar _ n ->
+    Tree
+      { nodeId
+      , ann = "Var"
+      , style = StyleTVar
+      , body = TextBody $ unName $ unLocalName n
+      , childTrees = []
+      , rightChild = Nothing
+      }
+  TApp _ t1 t2 ->
+    Tree
+      { nodeId
+      , ann = "@"
+      , style = StyleTApp
+      , body = NoBody
+      , childTrees = [viewTreeType t1, viewTreeType t2]
+      , rightChild = Nothing
+      }
+  TForall _ n _ t ->
+    Tree
+      { nodeId
+      , ann = "∀"
+      , style = StyleTForall
+      , body = TextBody $ unName $ unLocalName n
+      , childTrees = [viewTreeType t]
+      , rightChild = Nothing
+      }
+  where
+    nodeId = t0 ^. _id
+
+showGlobal :: GlobalName k -> Text
+showGlobal n = moduleNamePretty (qualifiedModule n) <> "." <> unName (baseName n)
 
 edit :: (MonadIO m, MonadThrow m) => SessionId -> MutationRequest -> PrimerM m (Either ProgError App.Prog)
 edit sid req = liftEditAppM (handleMutationRequest req) sid
