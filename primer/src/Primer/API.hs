@@ -1,4 +1,5 @@
 {-# LANGUAGE GADTs #-}
+{-# OPTIONS_GHC -Wno-unused-imports #-}
 
 -- | The Primer API.
 --
@@ -24,6 +25,8 @@ module Primer.API (
   listSessions,
   getVersion,
   Tree,
+  NodeBody,
+  NodeStyle,
   Prog,
   Module,
   Def,
@@ -40,6 +43,7 @@ module Primer.API (
   viewTreeType,
   viewTreeExpr,
   getApp,
+  test,
 ) where
 
 import Foreword
@@ -60,8 +64,14 @@ import Control.Monad.Zip (MonadZip)
 import Data.Aeson (ToJSON)
 import Data.Data (showConstr, toConstr)
 import Data.Generics.Uniplate.Data qualified as U
+import Data.List (foldr1)
+import Data.List.Extra (dropEnd)
 import Data.Map qualified as Map
+import Data.Maybe (fromJust)
+import Data.Text qualified as T
+import Data.Tuple.Extra (fst3)
 import ListT qualified (toList)
+import Optics ((^.))
 import Primer.App (
   App,
   EditAppM,
@@ -87,9 +97,14 @@ import Primer.App (
 import Primer.App qualified as App
 import Primer.Core (
   ASTDef (..),
+  Bind' (..),
+  CaseBranch' (CaseBranch),
   Expr,
-  Expr' (APP, Ann, LetType, Letrec, PrimCon, Var),
+  Expr' (..),
+  ExprMeta,
   GVarName,
+  GlobalName (..),
+  HasID (..),
   ID,
   Kind,
   LVarName,
@@ -100,11 +115,15 @@ import Primer.Core (
   TyVarName,
   Type,
   Type' (TForall),
+  TypeMeta,
   defAST,
   defType,
   getID,
+  mkSimpleModuleName,
+  moduleNamePretty,
   unLocalName,
  )
+import Primer.Core.DSL (create')
 import Primer.Database (
   OffsetLimit,
   Page,
@@ -133,9 +152,14 @@ import Primer.Database qualified as Database (
     Success
   ),
  )
-import Primer.Module (moduleDefsQualified, moduleName, moduleTypesQualified)
+import Primer.Examples (even3Prog)
+import Primer.Examples qualified as Examples
+import Primer.Module (moduleDefs, moduleDefsQualified, moduleName, moduleTypesQualified)
 import Primer.Name (Name, unName)
 import StmContainers.Map qualified as StmMap
+import System.IO.Unsafe (unsafePerformIO)
+import System.Process.Extra (readCreateProcess, readProcess, shell, system)
+import Prelude (read)
 
 -- | The API environment.
 data Env = Env
@@ -367,15 +391,45 @@ getProgram sid = withSession' sid $ QueryApp $ viewProg . handleGetProgramReques
 -- | A frontend will be mostly concerned with rendering, and does not need the
 -- full complexity of our AST for that task. 'Tree' is a simplified view with
 -- just enough information to render nicely.
--- (NB: currently this is just a first draft, and is expected to evolve.)
 data Tree = Tree
   { nodeId :: ID
-  , label :: Text
+  , ann :: Text
+  , color :: NodeStyle
+  -- ^ P, λ, etc
+  , body :: NodeBody
   , childTrees :: [Tree]
+  , rightChild :: Maybe Tree
   }
   deriving (Show, Eq, Generic)
 
 instance ToJSON Tree
+
+data NodeBody
+  = TextBody Text
+  | BoxBody Tree
+  | NoBody
+  deriving (Show, Eq, Generic)
+instance ToJSON NodeBody
+
+data NodeStyle
+  = StyleHole
+  | StyleEmptyHole
+  | StyleAnn
+  | StyleApp
+  | StyleAPP
+  | StyleCon
+  | StyleLam
+  | StyleLAM
+  | StyleVar
+  | StyleGlobalVarRef
+  | StyleLocalVarRef
+  | StyleLet
+  | StyleLetType
+  | StyleLetrec
+  | StyleCase
+  | StylePrimCon
+  deriving (Show, Eq, Generic)
+instance ToJSON NodeStyle
 
 -- | This type is the API's view of a 'App.Prog'
 -- (this is expected to evolve as we flesh out the API)
@@ -435,46 +489,175 @@ viewProg p =
         }
 
 -- | A simple method to extract 'Tree's from 'Expr's. This is injective.
--- Currently it is designed to be simple and just enough to enable
--- experimenting with rendering on the frontend.
---
--- It is expected to evolve in the future.
 viewTreeExpr :: Expr -> Tree
-viewTreeExpr = U.para $ \e exprChildren ->
-  let c = case e of
-        -- We need to disambiguate between local and global references
-        -- as using uniplate to extract the names will get the name inside
-        -- the TmVarRef, rendering both a local and global as 'Var x' if
-        -- we did not have this special case.
-        Var _ (LocalVarRef _) -> "LVar"
-        Var _ (GlobalVarRef _) -> "GVar"
-        _ -> toS $ showConstr $ toConstr e
-      n = case e of
-        PrimCon _ pc -> case pc of
-          PrimChar c' -> show c'
-          PrimInt c' -> show c'
-        _ -> unwords $ c : map unName (U.childrenBi e)
-      -- add info about type children
-      allChildren = case e of
-        Ann _ _ ty -> exprChildren ++ [viewTreeType ty]
-        APP _ _ ty -> exprChildren ++ [viewTreeType ty]
-        LetType _ _ ty _ -> viewTreeType ty : exprChildren
-        Letrec _ _ _ ty _ -> let (h, t) = splitAt 1 exprChildren in h ++ viewTreeType ty : t
-        -- otherwise, no type children
-        _ -> exprChildren
-   in Tree (getID e) n allChildren
+viewTreeExpr e0 = case e0 of
+  Hole _ e ->
+    tree
+      "{?}"
+      StyleHole
+      NoBody
+      [viewTreeExpr e]
+      Nothing
+  EmptyHole _ ->
+    tree
+      "?"
+      StyleEmptyHole
+      NoBody
+      []
+      Nothing
+  Ann _ e t ->
+    tree
+      "Ann"
+      StyleAnn
+      NoBody
+      [ viewTreeExpr e
+      , viewTreeType t
+      ]
+      Nothing
+  App _ e1 e2 ->
+    tree
+      "$"
+      StyleApp
+      NoBody
+      [ viewTreeExpr e1
+      , viewTreeExpr e2
+      ]
+      Nothing
+  APP _ e t ->
+    tree
+      "@"
+      StyleAPP
+      NoBody
+      [ viewTreeExpr e
+      , viewTreeType t
+      ]
+      Nothing
+  Con _ s ->
+    tree
+      "V"
+      StyleCon
+      (TextBody $ showGlobal s)
+      []
+      Nothing
+  Lam _ s e ->
+    tree
+      "λ"
+      StyleLam
+      (TextBody $ unName $ unLocalName s)
+      [ viewTreeExpr e
+      ]
+      Nothing
+  LAM _ s e ->
+    tree
+      "Λ"
+      StyleLAM
+      (TextBody $ unName $ unLocalName s)
+      [ viewTreeExpr e
+      ]
+      Nothing
+  Var _ s ->
+    tree
+      "Var"
+      StyleVar
+      ( TextBody $ case s of
+          GlobalVarRef n -> showGlobal n
+          LocalVarRef n -> unName $ unLocalName n
+      )
+      []
+      Nothing
+  Let _ s e1 e2 ->
+    tree
+      "let"
+      StyleLet
+      (TextBody $ unName $ unLocalName s)
+      [ viewTreeExpr e1
+      , viewTreeExpr e2
+      ]
+      Nothing
+  LetType _ s t e ->
+    tree
+      "let type"
+      StyleLetType
+      (TextBody $ unName $ unLocalName s)
+      [ viewTreeExpr e
+      , viewTreeType t
+      ]
+      Nothing
+  Letrec _ s e1 t e2 ->
+    tree
+      "let rec"
+      StyleLetrec
+      (TextBody $ unName $ unLocalName s)
+      [ viewTreeExpr e1
+      , viewTreeType t
+      , viewTreeExpr e2
+      ]
+      Nothing
+  Case _ e bs ->
+    tree
+      "match"
+      StyleCase
+      NoBody
+      [viewTreeExpr e]
+      ( foldr
+          ( \(CaseBranch n binds eRes) next ->
+              Just $
+                Tree
+                  rand
+                  "P"
+                  StyleCase
+                  ( BoxBody $
+                      Tree
+                        rand
+                        "V"
+                        StyleCon
+                        (TextBody $ showGlobal n)
+                        ( foldr
+                            ( \(Bind m ln) next' ->
+                                pure $
+                                  Tree
+                                    (m ^. _id)
+                                    "Var"
+                                    StyleVar
+                                    (TextBody $ unName $ unLocalName ln)
+                                    next'
+                                    Nothing
+                            )
+                            []
+                            binds
+                        )
+                        Nothing
+                  )
+                  [viewTreeExpr eRes]
+                  next
+          )
+          Nothing
+          bs
+      )
+  PrimCon _ pc ->
+    tree
+      "V"
+      StylePrimCon
+      ( TextBody $ case pc of
+          PrimChar c -> T.singleton c
+          PrimInt c -> show c
+      )
+      []
+      Nothing
+  where
+    tree = Tree (e0 ^. _id)
+    showGlobal n = moduleNamePretty (qualifiedModule n) <> "." <> unName (baseName n)
 
 -- | Similar to 'viewTreeExpr', but for 'Type's
 viewTreeType :: Type -> Tree
-viewTreeType = U.para $ \e allChildren ->
-  let c = toS $ showConstr $ toConstr e
-      n = case e of
-        TForall _ m k _ -> c <> " " <> unName (unLocalName m) <> ":" <> show k
-        _ -> unwords $ c : map unName (U.childrenBi e)
-   in Tree (getID e) n allChildren
+viewTreeType x = Tree (x ^. _id) "T" StylePrimCon (TextBody "unimplemented") [] Nothing
 
 edit :: (MonadIO m, MonadThrow m) => SessionId -> MutationRequest -> PrimerM m (Either ProgError App.Prog)
 edit sid req = liftEditAppM (handleMutationRequest req) sid
+
+{-# NOINLINE rand #-}
+rand :: ID
+rand = fromIntegral . read @Int . dropEnd 1 $ unsafePerformIO (readCreateProcess (shell "echo $RANDOM") "")
 
 variablesInScope ::
   (MonadIO m, MonadThrow m) =>
@@ -501,3 +684,22 @@ flushSessions = do
   sessionsTransaction $ \ss _ -> do
     StmMap.reset ss
   pure ()
+
+pPrint :: Show a => a -> IO ()
+pPrint = putStrLn <=< readProcess "pretty-simple" [] . show
+
+test :: IO ()
+test = do
+  -- prettyPrintExpr e
+  -- pPrint $ viewTreeExpr e
+  -- pPrint $ void $ layoutSmart defaultLayoutOptions $ prettyExpr defaultPrettyOptions e
+  -- pPrint $ layoutCompact @_ @() $ prettyExpr defaultPrettyOptions e
+  -- pPrint $ treeForm $ layoutCompact @_ @() $ prettyExpr defaultPrettyOptions e
+  -- pPrint $ treeForm $ layoutSmart defaultLayoutOptions $ prettyExpr defaultPrettyOptions e
+  -- pPrint $ viewTreeExpr' e
+  pPrint $ viewTreeExpr e
+  where
+    -- pPrint $ viewTreeExpr e
+
+    -- e = astDefExpr . fromMaybe undefined . defAST . fromMaybe undefined . head . toList . moduleDefs . fromMaybe undefined . head . progModules $ fst3 even3Prog
+    e = astDefExpr . fromMaybe witness . defAST . snd . create' $ Examples.not $ mkSimpleModuleName "Prelude"
