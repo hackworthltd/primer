@@ -610,7 +610,7 @@ viewTreeExpr e0 = case e0 of
       , childTrees = [viewTreeExpr e]
       , rightChild =
           foldr
-            ( \(CaseBranch n binds eRes) next ->
+            ( \(CaseBranch con binds rhs) next ->
                 Just
                   Tree
                     { nodeId = rand
@@ -622,16 +622,16 @@ viewTreeExpr e0 = case e0 of
                             { nodeId = rand
                             , ann = "V"
                             , style = StyleCon
-                            , body = TextBody $ showGlobal n
+                            , body = TextBody $ showGlobal con
                             , childTrees =
                                 foldr
-                                  ( \(Bind m ln) next' ->
+                                  ( \(Bind m v) next' ->
                                       pure
                                         Tree
                                           { nodeId = m ^. _id
                                           , ann = "Var"
                                           , style = StyleVar
-                                          , body = TextBody $ unName $ unLocalName ln
+                                          , body = TextBody $ unName $ unLocalName v
                                           , childTrees = next'
                                           , rightChild = Nothing
                                           }
@@ -640,7 +640,7 @@ viewTreeExpr e0 = case e0 of
                                   binds
                             , rightChild = Nothing
                             }
-                    , childTrees = [viewTreeExpr eRes]
+                    , childTrees = [viewTreeExpr rhs]
                     , rightChild = next
                     }
             )
