@@ -81,7 +81,7 @@ import Primer.Core.DSL (ann, hole, letType, let_, tEmptyHole)
 import Primer.Core.Transform (removeAnn, renameLocalVar, renameTyVarExpr, unfoldAPP, unfoldApp)
 import Primer.Core.Utils (
   concreteTy,
-  forgetIDs,
+  forgetMetadata,
   freeVars,
   freeVarsTy,
   regenerateExprIDs,
@@ -990,7 +990,7 @@ tryPrimFun primDefs expr
     (Var _ (GlobalVarRef name), args) <- bimap stripAnns (map stripAnns) $ unfoldApp expr
   , Map.member name primDefs
   , Just PrimFun{primFunDef} <- Map.lookup name allPrimDefs
-  , Right e <- primFunDef $ forgetIDs <$> args =
+  , Right e <- primFunDef $ forgetMetadata <$> args =
       Just (name, args, e)
   | otherwise = Nothing
   where

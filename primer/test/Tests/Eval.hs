@@ -36,7 +36,7 @@ import Primer.Core (
   _id,
  )
 import Primer.Core.DSL
-import Primer.Core.Utils (forgetIDs, forgetTypeMetadata)
+import Primer.Core.Utils (forgetMetadata, forgetTypeMetadata)
 import Primer.Eval (
   ApplyPrimFunDetail (..),
   BetaReductionDetail (..),
@@ -1089,7 +1089,7 @@ unit_eval_modules_scrutinize_imported_type =
 -- | Like '@?=' but specifically for expressions.
 -- Ignores IDs and metadata.
 (~=) :: HasCallStack => Expr -> Expr -> Assertion
-x ~= y = forgetIDs x @?= forgetIDs y
+x ~= y = forgetMetadata x @?= forgetMetadata y
 
 -- | Like '~=' but for types.
 (~~=) :: HasCallStack => Type -> Type -> Assertion

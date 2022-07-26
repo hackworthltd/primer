@@ -43,7 +43,7 @@ import Primer.Core
 import Primer.Core.DSL
 import Primer.Core.Utils (
   exprIDs,
-  forgetIDs,
+  forgetMetadata,
   generateIDs,
  )
 import Primer.EvalFull
@@ -699,7 +699,7 @@ tasty_type_preservation = withTests 1000 $
               then do
                 annotateShow s
                 s' <- checkTest ty s
-                forgetIDs s === forgetIDs s' -- check no smart holes happened
+                forgetMetadata s === forgetMetadata s' -- check no smart holes happened
               else label (msg <> "skipped due to LetType") >> success
       maxSteps <- forAllT $ Gen.integral $ Range.linear 1 1000 -- Arbitrary limit here
       (steps, s) <- evalFullStepCount tds globs maxSteps dir t

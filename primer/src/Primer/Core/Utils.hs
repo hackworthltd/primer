@@ -8,7 +8,7 @@ module Primer.Core.Utils (
   forgetTypeMetadata,
   generateIDs,
   regenerateExprIDs,
-  forgetIDs,
+  forgetMetadata,
   nextID,
   noHoles,
   _freeTmVars,
@@ -109,8 +109,8 @@ generateIDs :: MonadFresh ID m => Expr' () () -> m Expr
 generateIDs = regenerateExprIDs' (const . trivialMeta) (const . trivialMeta)
 
 -- | Like 'forgetTypeMetadata', but for expressions
-forgetIDs :: Expr' a b -> Expr' () ()
-forgetIDs = set _exprTypeMeta () . set _exprMeta ()
+forgetMetadata :: Expr' a b -> Expr' () ()
+forgetMetadata = set _exprTypeMeta () . set _exprMeta ()
 
 -- | Test whether an type contains any holes
 -- (empty or non-empty, or inside a kind)
