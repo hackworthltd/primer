@@ -18,7 +18,7 @@ import Gen.Core.Typed (
 import Hedgehog hiding (Property, Var, check, property, withDiscards, withTests)
 import Hedgehog.Gen qualified as Gen
 import Hedgehog.Range qualified as Range
-import Optics (over, set, (%))
+import Optics (over, set, (%), (%~))
 import Primer.App (
   Prog,
   newEmptyProg',
@@ -67,11 +67,12 @@ import Primer.Core (
   typeDefKind,
   valConType,
   _exprMeta,
+  _exprTypeMeta,
   _type,
   _typeMeta,
  )
 import Primer.Core.DSL
-import Primer.Core.Utils (forgetMetadata, forgetTypeMetadata, generateIDs, generateTypeIDs)
+import Primer.Core.Utils (alphaEqTy, forgetMetadata, forgetTypeMetadata, generateIDs, generateTypeIDs)
 import Primer.Module
 import Primer.Name (NameCounter)
 import Primer.Primitives (primitiveGVar, primitiveModule, tChar)
@@ -91,9 +92,18 @@ import Primer.Typecheck (
   synth,
   synthKind,
  )
-import Test.Tasty.HUnit (Assertion, assertFailure, (@?=))
+import Test.Tasty.HUnit (Assertion, assertBool, assertFailure, (@?=))
 import TestM (TestM, evalTestM)
-import TestUtils (Property, property, tcn, vcn, withDiscards, withTests, zeroIDs, zeroTypeIDs)
+import TestUtils (
+  Property,
+  property,
+  tcn,
+  vcn,
+  withDiscards,
+  withTests,
+  zeroIDs,
+  zeroTypeIDs,
+ )
 import Tests.Gen.Core.Typed
 
 unit_identity :: Assertion
@@ -539,6 +549,10 @@ unit_smartholes_idempotent_created_hole_typecache =
 forgetKindCache :: Type' (Meta b) -> Type
 forgetKindCache = set (_typeMeta % _type) Nothing
 
+-- Also clears the kind cache in any embedded types
+forgetTypeCache :: Expr' (Meta a) (Meta b) -> Expr
+forgetTypeCache = set (_exprMeta % _type) Nothing . set (_exprTypeMeta % _type) Nothing
+
 -- Regression test: for constructions which do not fit the required type,
 -- we wrap in a hole and annotation of TEmptyHole (as needed to get
 -- directions to work). However, we would previously then remove the
@@ -565,6 +579,52 @@ unit_smartholes_idempotent_holey_ann =
           forgetMetadata e' @?= forgetMetadata (create' $ hole $ lam "x" (lvar "x") `ann` tEmptyHole)
           ty'' @?= ty'
           e'' @?= e'
+
+-- Demonstration that smartholes is only idempotent up to alpha equality in typecaches.
+-- The problem is that we check ∀a.∀b. _ ∋ Λb._ twice, and each requires a substitution
+-- (∀b._)[b/a], which needs an alpha-conversion.
+-- Each of these bumps the name counter, yielding different metadata!
+--
+-- One may think that we could roll back the name counter changes done by TC,
+-- but we generate names when making case branches, and these also use the counter,
+-- so we cannot roll back entirely as then we may get clashes, and we cannot
+-- roll back partially since we don't have that ability
+--
+-- Alternatively, if we moved away from generating fresh names by using the
+-- name counter we could possibly make this idempotent on the nose.
+unit_smartholes_idempotent_alpha_typecache :: Assertion
+unit_smartholes_idempotent_alpha_typecache =
+  let x = runTypecheckTestM SmartHoles $ do
+        ty <- tforall "a" KType $ tforall "foo" KType $ tvar "a" `tfun` tvar "foo"
+        e <- lAM "foo" emptyHole -- Important that this is the "inner" name: i.e. must be exactly "foo" given ty
+        ty' <- checkKind KType ty
+        e' <- check (forgetTypeMetadata ty') e
+        ty'' <- checkKind KType ty'
+        e'' <- check (forgetTypeMetadata ty'') $ exprTtoExpr e'
+        pure (ty, ty', ty'', e, e', e'')
+   in case x of
+        Left err -> assertFailure $ show err
+        Right (ty, ty', ty'', e, e', e'') -> do
+          forgetKindCache ty' @?= ty
+          forgetTypeCache e' @?= e
+          ty'' @?= ty'
+          assertBool "Typecache is only idempotent up to alpha" (e'' /= e')
+          TypeCacheAlpha e'' @?= TypeCacheAlpha e'
+
+-- A helper type for smartholes idempotent tests
+-- Equality is as normal, except in the typecache, where it is up-to-alpha
+newtype TypeCacheAlpha a = TypeCacheAlpha {unTypeCacheAlpha :: a}
+  deriving (Show)
+instance Eq (TypeCacheAlpha TypeCache) where
+  TypeCacheAlpha (TCSynthed s) == TypeCacheAlpha (TCSynthed t) =
+    s `alphaEqTy` t
+  TypeCacheAlpha (TCChkedAt s) == TypeCacheAlpha (TCChkedAt t) =
+    s `alphaEqTy` t
+  TypeCacheAlpha (TCEmb (TCBoth s t)) == TypeCacheAlpha (TCEmb (TCBoth s' t')) =
+    s `alphaEqTy` s' && t `alphaEqTy` t'
+  _ == _ = False
+instance Eq (TypeCacheAlpha (Expr' (Meta TypeCache) (Meta Kind))) where
+  (==) = (==) `on` (((_exprMeta % _type) %~ TypeCacheAlpha) . unTypeCacheAlpha)
 
 -- Check that all our builtins are well formed
 -- (these are used to seed initial programs)
