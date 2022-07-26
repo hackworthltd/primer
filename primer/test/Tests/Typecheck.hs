@@ -69,7 +69,7 @@ import Primer.Core (
   _exprMeta,
  )
 import Primer.Core.DSL
-import Primer.Core.Utils (forgetTypeIDs, generateIDs, generateTypeIDs)
+import Primer.Core.Utils (forgetTypeMetadata, generateIDs, generateTypeIDs)
 import Primer.Module
 import Primer.Name (NameCounter)
 import Primer.Primitives (primitiveGVar, primitiveModule, tChar)
@@ -231,11 +231,11 @@ unit_mkTAppCon = do
 tasty_decomposeTAppCon :: Property
 tasty_decomposeTAppCon = property $ do
   -- We correctly decompose "good" values
-  let genArgs = Gen.list (Range.linear 0 5) $ forgetTypeIDs <$> genType
+  let genArgs = Gen.list (Range.linear 0 5) $ forgetTypeMetadata <$> genType
   nargs <- forAll $ evalExprGen 0 $ liftA2 (,) genTyConName genArgs
   tripping nargs (uncurry mkTAppCon) decomposeTAppCon
   -- Also test that if we decompose, then it was "good"
-  ty <- forAll $ evalExprGen 0 $ forgetTypeIDs <$> genType
+  ty <- forAll $ evalExprGen 0 $ forgetTypeMetadata <$> genType
   let dec = decomposeTAppCon ty
   -- See Note [cover]
   -- cover 30 "decomposable" $ isJust dec

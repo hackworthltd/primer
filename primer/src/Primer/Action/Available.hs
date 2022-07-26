@@ -56,7 +56,7 @@ import Primer.Core (
   _typeMetaLens,
  )
 import Primer.Core.Transform (unfoldFun)
-import Primer.Core.Utils (forgetTypeIDs)
+import Primer.Core.Utils (forgetTypeMetadata)
 import Primer.Name (unName)
 import Primer.Questions (Question (..))
 import Primer.Zipper (
@@ -495,7 +495,7 @@ basicActionsForExpr l defName expr = case expr of
         , input =
             actionWithNames
               defName
-              (Left $ forgetTypeIDs <$> t)
+              (Left $ forgetTypeMetadata <$> t)
               (\n -> [RenameLet n])
               m'
               ("Choose a new " <> nameString <> " for the let binding")

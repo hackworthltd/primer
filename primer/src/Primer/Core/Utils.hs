@@ -5,7 +5,7 @@ module Primer.Core.Utils (
   typeIDs,
   generateTypeIDs,
   regenerateTypeIDs,
-  forgetTypeIDs,
+  forgetTypeMetadata,
   generateIDs,
   regenerateExprIDs,
   forgetIDs,
@@ -92,8 +92,8 @@ generateTypeIDs = regenerateTypeIDs' $ const . trivialMeta
 
 -- | Replace all 'ID's in a Type with unit.
 -- Technically this replaces all annotations, regardless of what they are.
-forgetTypeIDs :: Type' a -> Type' ()
-forgetTypeIDs = set _typeMeta ()
+forgetTypeMetadata :: Type' a -> Type' ()
+forgetTypeMetadata = set _typeMeta ()
 
 -- | Regenerate all IDs, not changing any other metadata
 regenerateExprIDs :: (HasID a, HasID b, MonadFresh ID m) => Expr' a b -> m (Expr' a b)
@@ -108,7 +108,7 @@ regenerateExprIDs' se st =
 generateIDs :: MonadFresh ID m => Expr' () () -> m Expr
 generateIDs = regenerateExprIDs' (const . trivialMeta) (const . trivialMeta)
 
--- | Like 'forgetTypeIDs', but for expressions
+-- | Like 'forgetTypeMetadata', but for expressions
 forgetIDs :: Expr' a b -> Expr' () ()
 forgetIDs = set _exprTypeMeta () . set _exprMeta ()
 

@@ -116,7 +116,7 @@ import Primer.Core (
   _typeMeta,
  )
 import Primer.Core.DSL (branch, emptyHole, meta, meta')
-import Primer.Core.Utils (alphaEqTy, forgetTypeIDs, freshLocalName, generateTypeIDs)
+import Primer.Core.Utils (alphaEqTy, forgetTypeMetadata, freshLocalName, generateTypeIDs)
 import Primer.JSON (CustomJSON (CustomJSON), FromJSON, PrimerJSON, ToJSON)
 import Primer.Module (
   Module (
@@ -259,7 +259,7 @@ initialCxt sh =
 -- | Construct an initial typing context, with all given definitions in scope as global variables.
 buildTypingContext :: TypeDefMap -> DefMap -> SmartHoles -> Cxt
 buildTypingContext tydefs defs sh =
-  let globals = Map.assocs $ fmap (forgetTypeIDs . defType) defs
+  let globals = Map.assocs $ fmap (forgetTypeMetadata . defType) defs
    in extendTypeDefCxt tydefs $ extendGlobalCxt globals $ initialCxt sh
 
 buildTypingContextFromModules :: [Module] -> SmartHoles -> Cxt
@@ -415,7 +415,7 @@ checkEverything sh CheckEverything{trusted, toCheck} =
         checkTypeDefs $ foldMap moduleTypesQualified toCheck
         let newTypes = foldMap moduleTypesQualified toCheck
             newDefs =
-              M.foldMapWithKey (\n d -> [(n, forgetTypeIDs $ defType d)]) $
+              M.foldMapWithKey (\n d -> [(n, forgetTypeMetadata $ defType d)]) $
                 foldMap moduleDefsQualified toCheck
         local (extendGlobalCxt newDefs . extendTypeDefCxt newTypes) $
           traverseOf (traversed % #moduleDefs % traversed) checkDef toCheck
@@ -428,7 +428,7 @@ checkDef def = do
   t <- checkKind KType (defType def)
   case def of
     DefAST def' -> do
-      e <- check (forgetTypeIDs t) (astDefExpr def')
+      e <- check (forgetTypeMetadata t) (astDefExpr def')
       pure $ DefAST $ def'{astDefType = typeTtoType t, astDefExpr = exprTtoExpr e}
     DefPrim def' -> do
       pure $ DefPrim $ def'{primDefType = typeTtoType t}
@@ -490,7 +490,7 @@ synth = \case
     matchForallType et >>= \case
       Just (v, vk, b) -> do
         t' <- checkKind vk t
-        bSub <- substTy v (forgetTypeIDs t') b
+        bSub <- substTy v (forgetTypeMetadata t') b
         pure (bSub, APP (annotate (TCSynthed bSub) i) e' t')
       Nothing ->
         asks smartHoles >>= \case
@@ -501,7 +501,7 @@ synth = \case
   Ann i e t -> do
     -- Check that the type is well-formed by synthesising its kind
     t' <- checkKind KType t
-    let t'' = forgetTypeIDs t'
+    let t'' = forgetTypeMetadata t'
     -- Check e against the annotation
     e' <- check t'' e
     -- Annotate the Ann with the same type as e
@@ -537,7 +537,7 @@ synth = \case
   Letrec i x a tA b -> do
     -- Check that tA is well-formed
     tA' <- checkKind KType tA
-    let t = forgetTypeIDs tA'
+    let t = forgetTypeMetadata tA'
         ctx' = extendLocalCxt (x, t)
     -- Check the bound expression against its annotation
     a' <- local ctx' $ check t a
@@ -632,9 +632,9 @@ check t = \case
   Letrec i x a tA b -> do
     -- Check that tA is well-formed
     tA' <- checkKind KType tA
-    let ctx' = extendLocalCxt (x, forgetTypeIDs tA')
+    let ctx' = extendLocalCxt (x, forgetTypeMetadata tA')
     -- Check the bound expression against its annotation
-    a' <- local ctx' $ check (forgetTypeIDs tA') a
+    a' <- local ctx' $ check (forgetTypeMetadata tA') a
     -- Extend the context with the binding, and synthesise the body
     b' <- local ctx' $ check t b
     pure $ Letrec (annotate (TCChkedAt t) i) x a' tA' b'
@@ -971,7 +971,7 @@ consistentKinds _ _ = False
 
 -- | Compare two types for alpha equality, ignoring their IDs
 eqType :: Type' a -> Type' b -> Bool
-eqType t1 t2 = forgetTypeIDs t1 `alphaEqTy` forgetTypeIDs t2
+eqType t1 t2 = forgetTypeMetadata t1 `alphaEqTy` forgetTypeMetadata t2
 
 -- | Convert @Expr (Meta Type) (Meta Kind)@ to @Expr (Meta (Maybe Type)) (Meta (Maybe Kind))@
 exprTtoExpr :: ExprT -> Expr

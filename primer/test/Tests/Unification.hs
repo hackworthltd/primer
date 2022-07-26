@@ -36,7 +36,7 @@ import Primer.Core (
   Type' (TApp, TCon, TEmptyHole, TForall, TFun, THole, TVar),
   TypeDef (TypeDefAST),
  )
-import Primer.Core.Utils (forgetTypeIDs, freeVarsTy, generateTypeIDs)
+import Primer.Core.Utils (forgetTypeMetadata, freeVarsTy, generateTypeIDs)
 import Primer.Module (Module)
 import Primer.Name (NameCounter)
 import Primer.Primitives (primitiveModule, tInt)
@@ -505,7 +505,7 @@ tasty_sub_checks = propertyWTInExtendedUVCxt' [builtinModule, primitiveModule] $
     Just sub -> do
       forM_ (M.toList sub) $ \(n, sb) -> do
         sb' <- checkKindTest (uvs M.! n) =<< generateTypeIDs sb
-        sb === forgetTypeIDs sb' -- check no smartholes happened
+        sb === forgetTypeMetadata sb' -- check no smartholes happened
 
 -- (S,T kind check and) unify ga uvs S T = Maybe sub => S[sub] , T[sub] kind check
 tasty_unified_checks :: Property
@@ -521,9 +521,9 @@ tasty_unified_checks = propertyWTInExtendedUVCxt [builtinModule, primitiveModule
       s' <- substTys (M.toList sub) s
       t' <- substTys (M.toList sub) t
       s'' <- checkKindTest k =<< generateTypeIDs s'
-      s' === forgetTypeIDs s'' -- check no smartholes happened
+      s' === forgetTypeMetadata s'' -- check no smartholes happened
       t'' <- checkKindTest k =<< generateTypeIDs t'
-      t' === forgetTypeIDs t'' -- check no smartholes happened
+      t' === forgetTypeMetadata t'' -- check no smartholes happened
 
 -- S,T diff kinds => unify ga uvs S T fails
 -- This requires each to not be holey - i.e. don't synthesise KHole

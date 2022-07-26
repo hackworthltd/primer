@@ -76,7 +76,7 @@ import Primer.Core.DSL (ann, letType, let_, letrec, lvar, tvar)
 import Primer.Core.Transform (renameTyVar, unfoldAPP, unfoldApp)
 import Primer.Core.Utils (
   concreteTy,
-  forgetTypeIDs,
+  forgetTypeMetadata,
   freeVars,
   freeVarsTy,
   freshLocalName,
@@ -294,7 +294,7 @@ viewCaseRedex tydefs = \case
   Case m expr brs
     | Just (c, tyargs, args, patterns, br) <- extract expr brs
     , Just (_, tc, tydef) <- lookupConstructor tydefs c
-    , ty <- mkTAppCon tc (forgetTypeIDs <$> take (length $ astTypeDefParameters tydef) tyargs)
+    , ty <- mkTAppCon tc (forgetTypeMetadata <$> take (length $ astTypeDefParameters tydef) tyargs)
     , Just argTys <- instantiateCon ty c ->
         renameBindings m expr brs tyargs args patterns
           <|> formCaseRedex (Right ty) c argTys args patterns br
@@ -312,7 +312,7 @@ viewCaseRedex tydefs = \case
             _ -> Nothing
     instantiateCon :: MonadFresh NameCounter m => Type' a -> ValConName -> Maybe [m (Type' ())]
     instantiateCon ty c
-      | Right (_, _, instVCs) <- instantiateValCons' tydefs $ forgetTypeIDs ty
+      | Right (_, _, instVCs) <- instantiateValCons' tydefs $ forgetTypeMetadata ty
       , Just (_, argTys) <- find ((== c) . fst) instVCs =
           Just argTys
       | otherwise = Nothing

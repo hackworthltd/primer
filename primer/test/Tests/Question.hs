@@ -24,7 +24,7 @@ import Primer.Core (
   qualifyName,
  )
 import Primer.Core.DSL
-import Primer.Core.Utils (forgetTypeIDs)
+import Primer.Core.Utils (forgetTypeMetadata)
 import Primer.Name
 import Primer.Questions (
   ShadowedVarsExpr (M),
@@ -142,7 +142,7 @@ nameSTE' = \case
 -- but jumbled together
 genSTE' :: Gen [STE']
 genSTE' =
-  let g = Gen.either_ genKind $ (,) <$> fmap forgetTypeIDs genType <*> Gen.bool
+  let g = Gen.either_ genKind $ (,) <$> fmap forgetTypeMetadata genType <*> Gen.bool
       toSTE' m n = \case
         Left k -> TyVar (LocalName n, k)
         Right (ty, False) -> TmVar (LocalName n, ty)
@@ -309,7 +309,7 @@ hasGeneratedNamesExpr :: S Expr -> Maybe (S Type) -> (ExprZ -> Maybe ExprZ) -> [
 hasGeneratedNamesExpr expr ty path expected = do
   let (e, t) = create' $ (,) <$> expr <*> sequence ty
   case path $ focus e of
-    Just z -> runReader (generateNameExpr (Left $ fmap forgetTypeIDs t) (Left z)) defCxt @?= expected
+    Just z -> runReader (generateNameExpr (Left $ fmap forgetTypeMetadata t) (Left z)) defCxt @?= expected
     Nothing -> assertFailure ""
 
 hasGeneratedNamesTy :: S Type -> Maybe Kind -> (TypeZip -> Maybe TypeZip) -> [Name] -> Assertion

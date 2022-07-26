@@ -36,7 +36,7 @@ import Primer.Core (
   _id,
  )
 import Primer.Core.DSL
-import Primer.Core.Utils (forgetIDs, forgetTypeIDs)
+import Primer.Core.Utils (forgetIDs, forgetTypeMetadata)
 import Primer.Eval (
   ApplyPrimFunDetail (..),
   BetaReductionDetail (..),
@@ -1093,4 +1093,4 @@ x ~= y = forgetIDs x @?= forgetIDs y
 
 -- | Like '~=' but for types.
 (~~=) :: HasCallStack => Type -> Type -> Assertion
-x ~~= y = forgetTypeIDs x @?= forgetTypeIDs y
+x ~~= y = forgetTypeMetadata x @?= forgetTypeMetadata y
