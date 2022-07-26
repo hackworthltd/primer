@@ -492,160 +492,171 @@ viewProg p =
 viewTreeExpr :: Expr -> Tree
 viewTreeExpr e0 = case e0 of
   Hole _ e ->
-    tree
-      "{?}"
-      StyleHole
-      NoBody
-      [viewTreeExpr e]
-      Nothing
+    Tree
+      { nodeId
+      , ann = "{?}"
+      , color = StyleHole
+      , body = NoBody
+      , childTrees = [viewTreeExpr e]
+      , rightChild = Nothing
+      }
   EmptyHole _ ->
-    tree
-      "?"
-      StyleEmptyHole
-      NoBody
-      []
-      Nothing
+    Tree
+      { nodeId
+      , ann = "?"
+      , color = StyleEmptyHole
+      , body = NoBody
+      , childTrees = []
+      , rightChild = Nothing
+      }
   Ann _ e t ->
-    tree
-      "Ann"
-      StyleAnn
-      NoBody
-      [ viewTreeExpr e
-      , viewTreeType t
-      ]
-      Nothing
+    Tree
+      { nodeId
+      , ann = "Ann"
+      , color = StyleAnn
+      , body = NoBody
+      , childTrees = [viewTreeExpr e, viewTreeType t]
+      , rightChild = Nothing
+      }
   App _ e1 e2 ->
-    tree
-      "$"
-      StyleApp
-      NoBody
-      [ viewTreeExpr e1
-      , viewTreeExpr e2
-      ]
-      Nothing
+    Tree
+      { nodeId
+      , ann = "$"
+      , color = StyleApp
+      , body = NoBody
+      , childTrees = [viewTreeExpr e1, viewTreeExpr e2]
+      , rightChild = Nothing
+      }
   APP _ e t ->
-    tree
-      "@"
-      StyleAPP
-      NoBody
-      [ viewTreeExpr e
-      , viewTreeType t
-      ]
-      Nothing
+    Tree
+      { nodeId
+      , ann = "@"
+      , color = StyleAPP
+      , body = NoBody
+      , childTrees = [viewTreeExpr e, viewTreeType t]
+      , rightChild = Nothing
+      }
   Con _ s ->
-    tree
-      "V"
-      StyleCon
-      (TextBody $ showGlobal s)
-      []
-      Nothing
+    Tree
+      { nodeId
+      , ann = "V"
+      , color = StyleCon
+      , body = TextBody $ showGlobal s
+      , childTrees = []
+      , rightChild = Nothing
+      }
   Lam _ s e ->
-    tree
-      "λ"
-      StyleLam
-      (TextBody $ unName $ unLocalName s)
-      [ viewTreeExpr e
-      ]
-      Nothing
+    Tree
+      { nodeId
+      , ann = "λ"
+      , color = StyleLam
+      , body = TextBody $ unName $ unLocalName s
+      , childTrees = [viewTreeExpr e]
+      , rightChild = Nothing
+      }
   LAM _ s e ->
-    tree
-      "Λ"
-      StyleLAM
-      (TextBody $ unName $ unLocalName s)
-      [ viewTreeExpr e
-      ]
-      Nothing
+    Tree
+      { nodeId
+      , ann = "Λ"
+      , color = StyleLAM
+      , body = TextBody $ unName $ unLocalName s
+      , childTrees = [viewTreeExpr e]
+      , rightChild = Nothing
+      }
   Var _ s ->
-    tree
-      "Var"
-      StyleVar
-      ( TextBody $ case s of
+    Tree
+      { nodeId
+      , ann = "Var"
+      , color = StyleVar
+      , body = TextBody $ case s of
           GlobalVarRef n -> showGlobal n
           LocalVarRef n -> unName $ unLocalName n
-      )
-      []
-      Nothing
+      , childTrees = []
+      , rightChild = Nothing
+      }
   Let _ s e1 e2 ->
-    tree
-      "let"
-      StyleLet
-      (TextBody $ unName $ unLocalName s)
-      [ viewTreeExpr e1
-      , viewTreeExpr e2
-      ]
-      Nothing
+    Tree
+      { nodeId
+      , ann = "let"
+      , color = StyleLet
+      , body = TextBody $ unName $ unLocalName s
+      , childTrees = [viewTreeExpr e1, viewTreeExpr e2]
+      , rightChild = Nothing
+      }
   LetType _ s t e ->
-    tree
-      "let type"
-      StyleLetType
-      (TextBody $ unName $ unLocalName s)
-      [ viewTreeExpr e
-      , viewTreeType t
-      ]
-      Nothing
+    Tree
+      { nodeId
+      , ann = "let type"
+      , color = StyleLetType
+      , body = TextBody $ unName $ unLocalName s
+      , childTrees = [viewTreeExpr e, viewTreeType t]
+      , rightChild = Nothing
+      }
   Letrec _ s e1 t e2 ->
-    tree
-      "let rec"
-      StyleLetrec
-      (TextBody $ unName $ unLocalName s)
-      [ viewTreeExpr e1
-      , viewTreeType t
-      , viewTreeExpr e2
-      ]
-      Nothing
+    Tree
+      { nodeId
+      , ann = "let rec"
+      , color = StyleLetrec
+      , body = TextBody $ unName $ unLocalName s
+      , childTrees = [viewTreeExpr e1, viewTreeType t, viewTreeExpr e2]
+      , rightChild = Nothing
+      }
   Case _ e bs ->
-    tree
-      "match"
-      StyleCase
-      NoBody
-      [viewTreeExpr e]
-      ( foldr
-          ( \(CaseBranch n binds eRes) next ->
-              Just $
-                Tree
-                  rand
-                  "P"
-                  StyleCase
-                  ( BoxBody $
-                      Tree
-                        rand
-                        "V"
-                        StyleCon
-                        (TextBody $ showGlobal n)
-                        ( foldr
-                            ( \(Bind m ln) next' ->
-                                pure $
-                                  Tree
-                                    (m ^. _id)
-                                    "Var"
-                                    StyleVar
-                                    (TextBody $ unName $ unLocalName ln)
-                                    next'
-                                    Nothing
-                            )
-                            []
-                            binds
-                        )
-                        Nothing
-                  )
-                  [viewTreeExpr eRes]
-                  next
-          )
-          Nothing
-          bs
-      )
+    Tree
+      { nodeId
+      , ann = "match"
+      , color = StyleCase
+      , body = NoBody
+      , childTrees = [viewTreeExpr e]
+      , rightChild =
+          foldr
+            ( \(CaseBranch n binds eRes) next ->
+                Just $
+                  Tree
+                    rand
+                    "P"
+                    StyleCase
+                    ( BoxBody $
+                        Tree
+                          rand
+                          "V"
+                          StyleCon
+                          (TextBody $ showGlobal n)
+                          ( foldr
+                              ( \(Bind m ln) next' ->
+                                  pure $
+                                    Tree
+                                      (m ^. _id)
+                                      "Var"
+                                      StyleVar
+                                      (TextBody $ unName $ unLocalName ln)
+                                      next'
+                                      Nothing
+                              )
+                              []
+                              binds
+                          )
+                          Nothing
+                    )
+                    [viewTreeExpr eRes]
+                    next
+            )
+            Nothing
+            bs
+      }
   PrimCon _ pc ->
-    tree
-      "V"
-      StylePrimCon
-      ( TextBody $ case pc of
+    Tree
+      { nodeId
+      , ann = "V"
+      , color = StylePrimCon
+      , body = TextBody $ case pc of
           PrimChar c -> T.singleton c
           PrimInt c -> show c
-      )
-      []
-      Nothing
+      , childTrees = []
+      , rightChild = Nothing
+      }
   where
-    tree = Tree (e0 ^. _id)
+    nodeId = e0 ^. _id
     showGlobal n = moduleNamePretty (qualifiedModule n) <> "." <> unName (baseName n)
 
 -- | Similar to 'viewTreeExpr', but for 'Type's
