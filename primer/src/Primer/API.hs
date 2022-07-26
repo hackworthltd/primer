@@ -608,7 +608,10 @@ viewTreeExpr e0 = case e0 of
       , style = StyleCase
       , body = NoBody
       , childTrees = [viewTreeExpr e]
-      , rightChild =
+      , -- seeing as the inner function always returns a `Just`,
+        -- this would only be `Nothing` if the list of branches were empty,
+        --  which should only happen when matching on `Void`
+        rightChild =
           foldr
             ( \(CaseBranch con binds rhs) next ->
                 Just
