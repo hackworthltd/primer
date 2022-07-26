@@ -15,10 +15,10 @@ import Gen.Core.Typed (
   genSyn,
   propertyWT,
  )
-import Hedgehog hiding (Property, check, property, withDiscards, withTests)
+import Hedgehog hiding (Property, Var, check, property, withDiscards, withTests)
 import Hedgehog.Gen qualified as Gen
 import Hedgehog.Range qualified as Range
-import Optics (over, (%))
+import Optics (over, set, (%))
 import Primer.App (
   Prog,
   newEmptyProg',
@@ -48,7 +48,7 @@ import Primer.Core (
   ASTTypeDef (..),
   Def (..),
   Expr,
-  Expr',
+  Expr' (..),
   GlobalName (baseName),
   ID,
   Kind (KFun, KHole, KType),
@@ -58,7 +58,7 @@ import Primer.Core (
   TmVarRef (LocalVarRef),
   TyConName,
   Type,
-  Type' (TApp, TCon, TForall, TFun, TVar),
+  Type' (..),
   TypeCache (..),
   TypeCacheBoth (..),
   TypeDef (..),
@@ -68,9 +68,10 @@ import Primer.Core (
   valConType,
   _exprMeta,
   _type,
+  _typeMeta,
  )
 import Primer.Core.DSL
-import Primer.Core.Utils (forgetTypeMetadata, generateIDs, generateTypeIDs)
+import Primer.Core.Utils (forgetMetadata, forgetTypeMetadata, generateIDs, generateTypeIDs)
 import Primer.Module
 import Primer.Name (NameCounter)
 import Primer.Primitives (primitiveGVar, primitiveModule, tChar)
@@ -81,8 +82,11 @@ import Primer.Typecheck (
   SmartHoles (NoSmartHoles, SmartHoles),
   TypeError (..),
   buildTypingContextFromModules,
+  check,
   checkEverything,
+  checkKind,
   decomposeTAppCon,
+  exprTtoExpr,
   mkTAppCon,
   synth,
   synthKind,
@@ -507,6 +511,36 @@ tasty_synth_well_typed_defcxt = withTests 1000 $
       (e, _ty) <- forAllT genSyn
       ty' <- generateTypeIDs . fst =<< synthTest =<< generateIDs e
       void $ checkKindTest KType ty'
+
+-- Regression test: when we created holes at change-of-direction when checking,
+-- (i.e. when we were checking T ∋ e for some synthesisable e ∈ S with S /= T)
+-- we previously only ascribed a TCSynthed rather than the TCBoth that it would
+-- get next time where we check the new hole T ∋ {? e ?}
+--
+-- NB: typechecking a definition proceeds by TC the type giving a new
+-- type via smartholes, and then TC the term against the new type. We
+-- do the same here, even though it obviously won't modify the type in
+-- this case.
+unit_smartholes_idempotent_created_hole_typecache :: Assertion
+unit_smartholes_idempotent_created_hole_typecache =
+  let x = runTypecheckTestM SmartHoles $ do
+        ty <- tfun (tEmptyHole `tfun` tEmptyHole) (tEmptyHole `tapp` tEmptyHole)
+        e <- lam "x" $ lvar "x"
+        ty' <- checkKind KType ty
+        e' <- check (forgetTypeMetadata ty') e
+        ty'' <- checkKind KType ty'
+        e'' <- check (forgetTypeMetadata ty'') $ exprTtoExpr e'
+        pure (ty, ty', ty'', e, e', e'')
+   in case x of
+        Left err -> assertFailure $ show err
+        Right (ty, ty', ty'', _e, e', e'') -> do
+          forgetKindCache ty' @?= ty
+          forgetMetadata e' @?= forgetMetadata (create' $ lam "x" $ hole $ lvar "x")
+          ty'' @?= ty'
+          e'' @?= e'
+
+forgetKindCache :: Type' (Meta b) -> Type
+forgetKindCache = set (_typeMeta % _type) Nothing
 
 -- Check that all our builtins are well formed
 -- (these are used to seed initial programs)

@@ -39,6 +39,7 @@ module Primer.Typecheck (
   instantiateValCons,
   instantiateValCons',
   exprTtoExpr,
+  typeTtoType,
   checkDef,
   substituteTypeVars,
   getGlobalNames,
@@ -603,7 +604,7 @@ check t = \case
             -- 'synth' will take care of adding an annotation - no need to do it
             -- explicitly here
             (_, lam') <- synth lam
-            Hole <$> meta' (TCSynthed (TEmptyHole ())) <*> pure lam'
+            Hole <$> meta' (TCEmb TCBoth{tcChkedAt = t, tcSynthed = TEmptyHole ()}) <*> pure lam'
   lAM@(LAM i n e) -> do
     matchForallType t >>= \case
       Just (m, k, b) -> do
@@ -617,7 +618,7 @@ check t = \case
             -- 'synth' will take care of adding an annotation - no need to do it
             -- explicitly here
             (_, lAM') <- synth lAM
-            Hole <$> meta' (TCSynthed (TEmptyHole ())) <*> pure lAM'
+            Hole <$> meta' (TCEmb TCBoth{tcChkedAt = t, tcSynthed = TEmptyHole ()}) <*> pure lAM'
   Let i x a b -> do
     -- Synthesise a type for the bound expression
     (aT, a') <- synth a
@@ -683,7 +684,7 @@ check t = \case
             then pure (set _typecache (TCEmb TCBoth{tcChkedAt = t, tcSynthed = t'}) e')
             else case sh of
               NoSmartHoles -> throwError' (InconsistentTypes t t')
-              SmartHoles -> Hole <$> meta' (TCSynthed (TEmptyHole ())) <*> pure e'
+              SmartHoles -> Hole <$> meta' (TCEmb TCBoth{tcChkedAt = t, tcSynthed = TEmptyHole ()}) <*> pure e'
     case (e, sh) of
       -- If the hole can be dropped leaving a type-correct term, do so
       -- We don't want the recursive call to create a fresh hole though -
