@@ -28,6 +28,7 @@ import Primer.Core (
   defType,
   typeDefNameHints,
  )
+import Primer.Core.Utils (forgetTypeIDs)
 import Primer.Name (Name, unName, unsafeMkName)
 import Primer.Name.Fresh (mkAvoidForFreshName, mkAvoidForFreshNameTy, mkAvoidForFreshNameTypeZ)
 import Primer.Typecheck (Cxt, decomposeTAppCon, typeDefs)
@@ -41,7 +42,6 @@ import Primer.ZipperCxt (
   ShadowedVarsTy (N),
   extractLocalsExprZ,
   extractLocalsTypeZ,
-  forgetMetadata,
   variablesInScopeTy,
  )
 
@@ -78,7 +78,7 @@ variablesInScopeExpr ::
   ([(TyVarName, Kind)], [(LVarName, Type' ())], [(GVarName, Type' ())])
 variablesInScopeExpr defs exprOrTy =
   let locals = either extractLocalsExprZ extractLocalsTypeZ exprOrTy
-      globals = Map.assocs $ fmap (forgetMetadata . defType) defs
+      globals = Map.assocs $ fmap (forgetTypeIDs . defType) defs
       M tyvars tmvars globs = locals <> M [] [] globals
    in (reverse tyvars, reverse tmvars, globs) -- keep most-global first
 
