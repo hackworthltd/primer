@@ -394,7 +394,7 @@ getProgram sid = withSession' sid $ QueryApp $ viewProg . handleGetProgramReques
 data Tree = Tree
   { nodeId :: ID
   , ann :: Text
-  , color :: NodeStyle
+  , style :: NodeStyle
   -- ^ P, λ, etc
   , body :: NodeBody
   , childTrees :: [Tree]
@@ -495,7 +495,7 @@ viewTreeExpr e0 = case e0 of
     Tree
       { nodeId
       , ann = "{?}"
-      , color = StyleHole
+      , style = StyleHole
       , body = NoBody
       , childTrees = [viewTreeExpr e]
       , rightChild = Nothing
@@ -504,7 +504,7 @@ viewTreeExpr e0 = case e0 of
     Tree
       { nodeId
       , ann = "?"
-      , color = StyleEmptyHole
+      , style = StyleEmptyHole
       , body = NoBody
       , childTrees = []
       , rightChild = Nothing
@@ -513,7 +513,7 @@ viewTreeExpr e0 = case e0 of
     Tree
       { nodeId
       , ann = "Ann"
-      , color = StyleAnn
+      , style = StyleAnn
       , body = NoBody
       , childTrees = [viewTreeExpr e, viewTreeType t]
       , rightChild = Nothing
@@ -522,7 +522,7 @@ viewTreeExpr e0 = case e0 of
     Tree
       { nodeId
       , ann = "$"
-      , color = StyleApp
+      , style = StyleApp
       , body = NoBody
       , childTrees = [viewTreeExpr e1, viewTreeExpr e2]
       , rightChild = Nothing
@@ -531,7 +531,7 @@ viewTreeExpr e0 = case e0 of
     Tree
       { nodeId
       , ann = "@"
-      , color = StyleAPP
+      , style = StyleAPP
       , body = NoBody
       , childTrees = [viewTreeExpr e, viewTreeType t]
       , rightChild = Nothing
@@ -540,7 +540,7 @@ viewTreeExpr e0 = case e0 of
     Tree
       { nodeId
       , ann = "V"
-      , color = StyleCon
+      , style = StyleCon
       , body = TextBody $ showGlobal s
       , childTrees = []
       , rightChild = Nothing
@@ -549,7 +549,7 @@ viewTreeExpr e0 = case e0 of
     Tree
       { nodeId
       , ann = "λ"
-      , color = StyleLam
+      , style = StyleLam
       , body = TextBody $ unName $ unLocalName s
       , childTrees = [viewTreeExpr e]
       , rightChild = Nothing
@@ -558,7 +558,7 @@ viewTreeExpr e0 = case e0 of
     Tree
       { nodeId
       , ann = "Λ"
-      , color = StyleLAM
+      , style = StyleLAM
       , body = TextBody $ unName $ unLocalName s
       , childTrees = [viewTreeExpr e]
       , rightChild = Nothing
@@ -567,7 +567,7 @@ viewTreeExpr e0 = case e0 of
     Tree
       { nodeId
       , ann = "Var"
-      , color = StyleVar
+      , style = StyleVar
       , body = TextBody $ case s of
           GlobalVarRef n -> showGlobal n
           LocalVarRef n -> unName $ unLocalName n
@@ -578,7 +578,7 @@ viewTreeExpr e0 = case e0 of
     Tree
       { nodeId
       , ann = "let"
-      , color = StyleLet
+      , style = StyleLet
       , body = TextBody $ unName $ unLocalName s
       , childTrees = [viewTreeExpr e1, viewTreeExpr e2]
       , rightChild = Nothing
@@ -587,7 +587,7 @@ viewTreeExpr e0 = case e0 of
     Tree
       { nodeId
       , ann = "let type"
-      , color = StyleLetType
+      , style = StyleLetType
       , body = TextBody $ unName $ unLocalName s
       , childTrees = [viewTreeExpr e, viewTreeType t]
       , rightChild = Nothing
@@ -596,7 +596,7 @@ viewTreeExpr e0 = case e0 of
     Tree
       { nodeId
       , ann = "let rec"
-      , color = StyleLetrec
+      , style = StyleLetrec
       , body = TextBody $ unName $ unLocalName s
       , childTrees = [viewTreeExpr e1, viewTreeType t, viewTreeExpr e2]
       , rightChild = Nothing
@@ -605,7 +605,7 @@ viewTreeExpr e0 = case e0 of
     Tree
       { nodeId
       , ann = "match"
-      , color = StyleCase
+      , style = StyleCase
       , body = NoBody
       , childTrees = [viewTreeExpr e]
       , rightChild =
@@ -648,7 +648,7 @@ viewTreeExpr e0 = case e0 of
     Tree
       { nodeId
       , ann = "V"
-      , color = StylePrimCon
+      , style = StylePrimCon
       , body = TextBody $ case pc of
           PrimChar c -> T.singleton c
           PrimInt c -> show c
