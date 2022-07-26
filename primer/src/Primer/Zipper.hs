@@ -1,4 +1,5 @@
 {-# LANGUAGE FunctionalDependencies #-}
+{-# LANGUAGE OverloadedLabels #-}
 
 -- | This module contains the zipper types @ExprZ@ and @TypeZ@, and functions for
 --  operating on them.
@@ -51,8 +52,7 @@ module Primer.Zipper (
 import Foreword
 
 import Data.Data (Data)
-import Data.Generics.Product (field, position)
-import Data.Generics.Sum (_Ctor)
+import Data.Generics.Product (position)
 import Data.Generics.Uniplate.Data ()
 import Data.Generics.Uniplate.Zipper (
   Zipper,
@@ -167,7 +167,7 @@ updateCaseBind (CaseBindZ z bind rhs bindings update) f =
      in CaseBindZ z' bind' rhs' bindings update
 
 instance HasID a => HasID (CaseBindZ' a b) where
-  _id = field @"caseBindZFocus" % _id
+  _id = #caseBindZFocus % _id
 
 -- | A specific location in our AST.
 -- This can either be in an expression, type, or binding.
@@ -223,9 +223,9 @@ focusType z = do
 -- If no match is found, return @Nothing@.
 findInCaseBinds :: (Data a, Data b, Eq a, HasID a) => ID -> ExprZ' a b -> Maybe (Loc' a b)
 findInCaseBinds i z = do
-  let branchesLens = _target % _Ctor @"Case" % position @3
+  let branchesLens = _target % #_Case % position @3
   branches <- preview branchesLens z
-  ((branchIx, bindIx), bind) <- branches & iheadOf (ifolded % position @2 <%> ifolded <% filteredBy (_Ctor @"Bind" % position @1 % _id % only i))
+  ((branchIx, bindIx), bind) <- branches & iheadOf (ifolded % position @2 <%> ifolded <% filteredBy (#_Bind % position @1 % _id % only i))
   let branchLens = branchesLens % ix branchIx
   let rhsLens = branchLens % position @3
   rhs <- preview rhsLens z
@@ -260,7 +260,7 @@ instance Data b => IsZipper (TypeZ' a b) (Type' b) where
 -- It's a bit fiddly to make it appear as a zipper like this, but it's convenient to have a
 -- consistent interface for 'ExprZ', 'TypeZ' and 'CaseBindZ'.
 instance IsZipper CaseBindZ (Bind' ExprMeta) where
-  asZipper = field @"caseBindZFocus" % iso zipper fromZipper
+  asZipper = #caseBindZFocus % iso zipper fromZipper
 
 target :: IsZipper za a => za -> a
 target = Z.hole . view asZipper
