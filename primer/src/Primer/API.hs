@@ -611,35 +611,38 @@ viewTreeExpr e0 = case e0 of
       , rightChild =
           foldr
             ( \(CaseBranch n binds eRes) next ->
-                Just $
+                Just
                   Tree
-                    rand
-                    "P"
-                    StyleCase
-                    ( BoxBody $
-                        Tree
-                          rand
-                          "V"
-                          StyleCon
-                          (TextBody $ showGlobal n)
-                          ( foldr
-                              ( \(Bind m ln) next' ->
-                                  pure $
-                                    Tree
-                                      (m ^. _id)
-                                      "Var"
-                                      StyleVar
-                                      (TextBody $ unName $ unLocalName ln)
-                                      next'
-                                      Nothing
-                              )
-                              []
-                              binds
-                          )
-                          Nothing
-                    )
-                    [viewTreeExpr eRes]
-                    next
+                    { nodeId = rand
+                    , ann = "P"
+                    , style = StyleCase
+                    , body =
+                        BoxBody
+                          Tree
+                            { nodeId = rand
+                            , ann = "V"
+                            , style = StyleCon
+                            , body = TextBody $ showGlobal n
+                            , childTrees =
+                                foldr
+                                  ( \(Bind m ln) next' ->
+                                      pure
+                                        Tree
+                                          { nodeId = m ^. _id
+                                          , ann = "Var"
+                                          , style = StyleVar
+                                          , body = TextBody $ unName $ unLocalName ln
+                                          , childTrees = next'
+                                          , rightChild = Nothing
+                                          }
+                                  )
+                                  []
+                                  binds
+                            , rightChild = Nothing
+                            }
+                    , childTrees = [viewTreeExpr eRes]
+                    , rightChild = next
+                    }
             )
             Nothing
             bs
