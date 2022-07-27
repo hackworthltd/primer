@@ -17,7 +17,7 @@ import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.Golden (goldenVsString)
 
 test_examples :: TestTree
-test_examples = testGroup "Examples" $ map prettyTestGroup [comprehensive, not]
+test_examples = testGroup "Examples" $ map (prettyTestGroup [exprHandlerSparse, exprHandlerCompact, typeHandlerSparse, typeHandlerCompact]) [comprehensive, not]
 
 type PrettyTestHandler = (ASTDef -> Doc AnsiStyle, Text)
 
@@ -48,8 +48,8 @@ prettyTest name def handler = goldenVsString hname path bs
       DefPrim _ -> exitFailure
       DefAST e -> docToBS (fst handler e)
 
-prettyTestGroup :: (ModuleName -> S (GVarName, Def)) -> TestTree
-prettyTestGroup x = testGroup dname (map (prettyTest dname d) [exprHandlerSparse, exprHandlerCompact, typeHandlerSparse, typeHandlerCompact])
+prettyTestGroup :: [PrettyTestHandler] -> (ModuleName -> S (GVarName, Def)) -> TestTree
+prettyTestGroup handlers x = testGroup dname (map (prettyTest dname d) handlers)
   where
     (n, d) = create' $ x $ mkSimpleModuleName "Module"
     dname = T.unpack . unName . baseName $ n
