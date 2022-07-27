@@ -44,8 +44,7 @@ import Primer.Core (
 import Primer.Name (Name (unName))
 
 data PrettyOptions = PrettyOptions
-  { optionSetName :: Text
-  , fullyQualify :: Bool
+  { fullyQualify :: Bool
   -- ^ Global variable names are printed with the parent module
   , inlineHoles :: Bool
   -- ^ Nonempty holes are printed on one line
@@ -69,7 +68,6 @@ sparse =
     , inlineLambda = False
     , inlineForAll = False
     , inlineMatch = False
-    , optionSetName = "Sparse"
     }
 
 -- | Groups whenever possible
@@ -82,7 +80,6 @@ compact =
     , inlineLambda = True
     , inlineForAll = True
     , inlineMatch = True
-    , optionSetName = "Compact"
     }
 
 -- | Pretty prints @Expr'@ using Prettyprinter library

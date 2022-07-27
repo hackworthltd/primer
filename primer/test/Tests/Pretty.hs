@@ -12,14 +12,14 @@ import Primer.Core (ASTDef (..), Def (..), GVarName, GlobalName (baseName), Modu
 import Primer.Core.DSL (S, create')
 import Primer.Examples (comprehensive, not)
 import Primer.Name (unName)
-import Primer.Pretty (PrettyOptions (optionSetName), compact, prettyExpr, prettyType, sparse)
+import Primer.Pretty (PrettyOptions (..), compact, prettyExpr, prettyType, sparse)
 import Test.Tasty (TestName, TestTree, testGroup)
 import Test.Tasty.Golden (goldenVsString)
 
 test_examples :: TestTree
-test_examples = prettyTestMultiple "Examples" [comprehensive, not] [sparse, compact]
+test_examples = prettyTestMultiple "Examples" [comprehensive, not] [(sparse, "Sparse"), (compact, "Compact")]
 
-prettyTestMultiple :: TestName -> [ModuleName -> S (GVarName, Def)] -> [PrettyOptions] -> TestTree
+prettyTestMultiple :: TestName -> [ModuleName -> S (GVarName, Def)] -> [(PrettyOptions, Text)] -> TestTree
 prettyTestMultiple name x options = testGroup name $ map (prettyTestGroup handlers) x
   where
     handlers = exprhandlers ++ typehandlers
@@ -28,11 +28,11 @@ prettyTestMultiple name x options = testGroup name $ map (prettyTestGroup handle
 
 type PrettyTestHandler = (ASTDef -> Doc AnsiStyle, Text)
 
-exprHandler :: PrettyOptions -> PrettyTestHandler
-exprHandler opts = (prettyExpr opts . astDefExpr, "Expr (" <> optionSetName opts <> ")")
+exprHandler :: (PrettyOptions, Text) -> PrettyTestHandler
+exprHandler (opts, name) = (prettyExpr opts . astDefExpr, "Expr (" <> name <> ")")
 
-typeHandler :: PrettyOptions -> PrettyTestHandler
-typeHandler opts = (prettyType opts . astDefType, "Type (" <> optionSetName opts <> ")")
+typeHandler :: (PrettyOptions, Text) -> PrettyTestHandler
+typeHandler (opts, name) = (prettyType opts . astDefType, "Type (" <> name <> ")")
 
 prettyTest :: String -> Def -> PrettyTestHandler -> TestTree
 prettyTest name def handler = goldenVsString hname path bs
