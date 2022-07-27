@@ -24,6 +24,8 @@ module Primer.API (
   listSessions,
   getVersion,
   Tree,
+  NodeBody,
+  NodeStyle,
   Prog,
   Module,
   Def,
@@ -57,11 +59,12 @@ import Control.Monad.Fix (MonadFix)
 import Control.Monad.Trans (MonadTrans)
 import Control.Monad.Writer (MonadWriter)
 import Control.Monad.Zip (MonadZip)
-import Data.Aeson (ToJSON)
-import Data.Data (showConstr, toConstr)
-import Data.Generics.Uniplate.Data qualified as U
+import Data.Aeson (ToJSON, constructorTagModifier, defaultOptions, genericToJSON)
+import Data.Aeson.Types (ToJSON (..))
 import Data.Map qualified as Map
+import Data.Text qualified as T
 import ListT qualified (toList)
+import Optics (ifoldr, (^.))
 import Primer.App (
   App,
   EditAppM,
@@ -87,11 +90,15 @@ import Primer.App (
 import Primer.App qualified as App
 import Primer.Core (
   ASTDef (..),
+  Bind' (..),
+  CaseBranch' (..),
   Expr,
-  Expr' (APP, Ann, LetType, Letrec, PrimCon, Var),
+  Expr' (..),
   GVarName,
+  GlobalName (..),
+  HasID (..),
   ID,
-  Kind,
+  Kind (..),
   LVarName,
   ModuleName,
   PrimCon (..),
@@ -99,10 +106,10 @@ import Primer.Core (
   TyConName,
   TyVarName,
   Type,
-  Type' (TForall),
+  Type' (..),
   defAST,
   defType,
-  getID,
+  moduleNamePretty,
   unLocalName,
  )
 import Primer.Database (
@@ -367,15 +374,61 @@ getProgram sid = withSession' sid $ QueryApp $ viewProg . handleGetProgramReques
 -- | A frontend will be mostly concerned with rendering, and does not need the
 -- full complexity of our AST for that task. 'Tree' is a simplified view with
 -- just enough information to render nicely.
--- (NB: currently this is just a first draft, and is expected to evolve.)
 data Tree = Tree
-  { nodeId :: ID
+  { nodeId :: Text
+  -- ^ a unique identifier
   , label :: Text
+  -- ^ P, λ, etc.
+  , style :: NodeStyle
+  , body :: NodeBody
   , childTrees :: [Tree]
+  , rightChild :: Maybe Tree
+  -- ^ a special subtree to be rendered to the right, rather than below - useful for `case` branches
   }
   deriving (Show, Eq, Generic)
 
 instance ToJSON Tree
+
+-- | The contents of a node.
+data NodeBody
+  = TextBody Text
+  | BoxBody Tree
+  | NoBody
+  deriving (Show, Eq, Generic)
+
+instance ToJSON NodeBody
+
+-- | An indication of the meaning of a node, which frontend may use for labelling, colour etc.
+-- Aside from 'StylePattern', these all correspond to constructors of `Expr'` or `Type'`.
+data NodeStyle
+  = StyleHole
+  | StyleEmptyHole
+  | StyleAnn
+  | StyleApp
+  | StyleAPP
+  | StyleCon
+  | StyleLam
+  | StyleLAM
+  | StyleVar
+  | StyleGlobalVarRef
+  | StyleLocalVarRef
+  | StyleLet
+  | StyleLetType
+  | StyleLetrec
+  | StyleCase
+  | StylePrimCon
+  | StyleTEmptyHole
+  | StyleTHole
+  | StyleTCon
+  | StyleTFun
+  | StyleTVar
+  | StyleTApp
+  | StyleTForall
+  | StylePattern
+  deriving (Show, Eq, Generic)
+
+instance ToJSON NodeStyle where
+  toJSON = genericToJSON defaultOptions{constructorTagModifier = drop 5}
 
 -- | This type is the API's view of a 'App.Prog'
 -- (this is expected to evolve as we flesh out the API)
@@ -435,43 +488,264 @@ viewProg p =
         }
 
 -- | A simple method to extract 'Tree's from 'Expr's. This is injective.
--- Currently it is designed to be simple and just enough to enable
--- experimenting with rendering on the frontend.
---
--- It is expected to evolve in the future.
 viewTreeExpr :: Expr -> Tree
-viewTreeExpr = U.para $ \e exprChildren ->
-  let c = case e of
-        -- We need to disambiguate between local and global references
-        -- as using uniplate to extract the names will get the name inside
-        -- the TmVarRef, rendering both a local and global as 'Var x' if
-        -- we did not have this special case.
-        Var _ (LocalVarRef _) -> "LVar"
-        Var _ (GlobalVarRef _) -> "GVar"
-        _ -> toS $ showConstr $ toConstr e
-      n = case e of
-        PrimCon _ pc -> case pc of
-          PrimChar c' -> show c'
-          PrimInt c' -> show c'
-        _ -> unwords $ c : map unName (U.childrenBi e)
-      -- add info about type children
-      allChildren = case e of
-        Ann _ _ ty -> exprChildren ++ [viewTreeType ty]
-        APP _ _ ty -> exprChildren ++ [viewTreeType ty]
-        LetType _ _ ty _ -> viewTreeType ty : exprChildren
-        Letrec _ _ _ ty _ -> let (h, t) = splitAt 1 exprChildren in h ++ viewTreeType ty : t
-        -- otherwise, no type children
-        _ -> exprChildren
-   in Tree (getID e) n allChildren
+viewTreeExpr e0 = case e0 of
+  Hole _ e ->
+    Tree
+      { nodeId
+      , label = "{?}"
+      , style = StyleHole
+      , body = NoBody
+      , childTrees = [viewTreeExpr e]
+      , rightChild = Nothing
+      }
+  EmptyHole _ ->
+    Tree
+      { nodeId
+      , label = "?"
+      , style = StyleEmptyHole
+      , body = NoBody
+      , childTrees = []
+      , rightChild = Nothing
+      }
+  Ann _ e t ->
+    Tree
+      { nodeId
+      , label = "Ann"
+      , style = StyleAnn
+      , body = NoBody
+      , childTrees = [viewTreeExpr e, viewTreeType t]
+      , rightChild = Nothing
+      }
+  App _ e1 e2 ->
+    Tree
+      { nodeId
+      , label = "$"
+      , style = StyleApp
+      , body = NoBody
+      , childTrees = [viewTreeExpr e1, viewTreeExpr e2]
+      , rightChild = Nothing
+      }
+  APP _ e t ->
+    Tree
+      { nodeId
+      , label = "@"
+      , style = StyleAPP
+      , body = NoBody
+      , childTrees = [viewTreeExpr e, viewTreeType t]
+      , rightChild = Nothing
+      }
+  Con _ s ->
+    Tree
+      { nodeId
+      , label = "V"
+      , style = StyleCon
+      , body = TextBody $ showGlobal s
+      , childTrees = []
+      , rightChild = Nothing
+      }
+  Lam _ s e ->
+    Tree
+      { nodeId
+      , label = "λ"
+      , style = StyleLam
+      , body = TextBody $ unName $ unLocalName s
+      , childTrees = [viewTreeExpr e]
+      , rightChild = Nothing
+      }
+  LAM _ s e ->
+    Tree
+      { nodeId
+      , label = "Λ"
+      , style = StyleLAM
+      , body = TextBody $ unName $ unLocalName s
+      , childTrees = [viewTreeExpr e]
+      , rightChild = Nothing
+      }
+  Var _ s ->
+    Tree
+      { nodeId
+      , label = "Var"
+      , style = StyleVar
+      , body = TextBody $ case s of
+          GlobalVarRef n -> showGlobal n
+          LocalVarRef n -> unName $ unLocalName n
+      , childTrees = []
+      , rightChild = Nothing
+      }
+  Let _ s e1 e2 ->
+    Tree
+      { nodeId
+      , label = "let"
+      , style = StyleLet
+      , body = TextBody $ unName $ unLocalName s
+      , childTrees = [viewTreeExpr e1, viewTreeExpr e2]
+      , rightChild = Nothing
+      }
+  LetType _ s t e ->
+    Tree
+      { nodeId
+      , label = "let type"
+      , style = StyleLetType
+      , body = TextBody $ unName $ unLocalName s
+      , childTrees = [viewTreeExpr e, viewTreeType t]
+      , rightChild = Nothing
+      }
+  Letrec _ s e1 t e2 ->
+    Tree
+      { nodeId
+      , label = "let rec"
+      , style = StyleLetrec
+      , body = TextBody $ unName $ unLocalName s
+      , childTrees = [viewTreeExpr e1, viewTreeType t, viewTreeExpr e2]
+      , rightChild = Nothing
+      }
+  Case _ e bs ->
+    Tree
+      { nodeId
+      , label = "match"
+      , style = StyleCase
+      , body = NoBody
+      , childTrees = [viewTreeExpr e]
+      , -- seeing as the inner function always returns a `Just`,
+        -- this would only be `Nothing` if the list of branches were empty,
+        --  which should only happen when matching on `Void`
+        rightChild =
+          ifoldr
+            ( \i (CaseBranch con binds rhs) next ->
+                let -- these IDs will not clash with any others in the tree,
+                    -- since node IDs in the input expression are unique,
+                    -- and don't contain non-numerical characters
+                    boxId = nodeId <> "P" <> show i
+                    patternRootId = boxId <> "B"
+                 in Just
+                      Tree
+                        { nodeId = boxId
+                        , label = "P"
+                        , style = StylePattern
+                        , body =
+                            BoxBody
+                              Tree
+                                { nodeId = patternRootId
+                                , label = "V"
+                                , style = StyleCon
+                                , body = TextBody $ showGlobal con
+                                , childTrees =
+                                    foldr
+                                      ( \(Bind m v) next' ->
+                                          pure
+                                            Tree
+                                              { nodeId = show $ m ^. _id
+                                              , label = "Var"
+                                              , style = StyleVar
+                                              , body = TextBody $ unName $ unLocalName v
+                                              , childTrees = next'
+                                              , rightChild = Nothing
+                                              }
+                                      )
+                                      []
+                                      binds
+                                , rightChild = Nothing
+                                }
+                        , childTrees = [viewTreeExpr rhs]
+                        , rightChild = next
+                        }
+            )
+            Nothing
+            bs
+      }
+  PrimCon _ pc ->
+    Tree
+      { nodeId
+      , label = "V"
+      , style = StylePrimCon
+      , body = TextBody $ case pc of
+          PrimChar c -> T.singleton c
+          PrimInt c -> show c
+      , childTrees = []
+      , rightChild = Nothing
+      }
+  where
+    nodeId = show $ e0 ^. _id
 
 -- | Similar to 'viewTreeExpr', but for 'Type's
 viewTreeType :: Type -> Tree
-viewTreeType = U.para $ \e allChildren ->
-  let c = toS $ showConstr $ toConstr e
-      n = case e of
-        TForall _ m k _ -> c <> " " <> unName (unLocalName m) <> ":" <> show k
-        _ -> unwords $ c : map unName (U.childrenBi e)
-   in Tree (getID e) n allChildren
+viewTreeType t0 = case t0 of
+  TEmptyHole _ ->
+    Tree
+      { nodeId
+      , label = "?"
+      , style = StyleTEmptyHole
+      , body = NoBody
+      , childTrees = []
+      , rightChild = Nothing
+      }
+  THole _ t ->
+    Tree
+      { nodeId
+      , label = "{?}"
+      , style = StyleTHole
+      , body = NoBody
+      , childTrees = [viewTreeType t]
+      , rightChild = Nothing
+      }
+  TCon _ n ->
+    Tree
+      { nodeId
+      , label = "T"
+      , style = StyleTCon
+      , body = TextBody $ showGlobal n
+      , childTrees = []
+      , rightChild = Nothing
+      }
+  TFun _ t1 t2 ->
+    Tree
+      { nodeId
+      , label = "→"
+      , style = StyleTFun
+      , body = NoBody
+      , childTrees = [viewTreeType t1, viewTreeType t2]
+      , rightChild = Nothing
+      }
+  TVar _ n ->
+    Tree
+      { nodeId
+      , label = "Var"
+      , style = StyleTVar
+      , body = TextBody $ unName $ unLocalName n
+      , childTrees = []
+      , rightChild = Nothing
+      }
+  TApp _ t1 t2 ->
+    Tree
+      { nodeId
+      , label = "@"
+      , style = StyleTApp
+      , body = NoBody
+      , childTrees = [viewTreeType t1, viewTreeType t2]
+      , rightChild = Nothing
+      }
+  TForall _ n k t ->
+    Tree
+      { nodeId
+      , label = "∀"
+      , style = StyleTForall
+      , body = TextBody $ withKindAnn $ unName $ unLocalName n
+      , childTrees = [viewTreeType t]
+      , rightChild = Nothing
+      }
+    where
+      -- TODO this is a placeholder
+      -- for now we expect all kinds in student programs to be `KType`
+      -- but we show something for other kinds, in order to keep rendering injective
+      withKindAnn = case k of
+        KType -> identity
+        _ -> (<> (" :: " <> show k))
+  where
+    nodeId = show $ t0 ^. _id
+
+showGlobal :: GlobalName k -> Text
+showGlobal n = moduleNamePretty (qualifiedModule n) <> "." <> unName (baseName n)
 
 edit :: (MonadIO m, MonadThrow m) => SessionId -> MutationRequest -> PrimerM m (Either ProgError App.Prog)
 edit sid req = liftEditAppM (handleMutationRequest req) sid

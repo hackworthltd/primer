@@ -1,205 +1,363 @@
 Tree
-    { nodeId = 9
-    , label = "Let x Builtins True y Builtins Just M unboundName Builtins Maybe i β b Builtins Bool Builtins Left b β i Builtins Zero Builtins False Builtins Succ n x y Builtins Nat α Builtins Either Builtins Bool α"
+    { nodeId = "9"
+    , label = "let"
+    , style = StyleLet
+    , body = TextBody "x"
     , childTrees =
         [ Tree
-            { nodeId = 10
-            , label = "Con Builtins True"
+            { nodeId = "10"
+            , label = "V"
+            , style = StyleCon
+            , body = TextBody "Builtins.True"
             , childTrees = []
+            , rightChild = Nothing
             }
         , Tree
-            { nodeId = 11
-            , label = "Letrec y Builtins Just M unboundName Builtins Maybe i β b Builtins Bool Builtins Left b β i Builtins Zero Builtins False Builtins Succ n x y Builtins Nat α Builtins Either Builtins Bool α"
+            { nodeId = "11"
+            , label = "let rec"
+            , style = StyleLetrec
+            , body = TextBody "y"
             , childTrees =
                 [ Tree
-                    { nodeId = 12
-                    , label = "App Builtins Just M unboundName"
+                    { nodeId = "12"
+                    , label = "$"
+                    , style = StyleApp
+                    , body = NoBody
                     , childTrees =
                         [ Tree
-                            { nodeId = 13
-                            , label = "Hole Builtins Just"
+                            { nodeId = "13"
+                            , label = "{?}"
+                            , style = StyleHole
+                            , body = NoBody
                             , childTrees =
                                 [ Tree
-                                    { nodeId = 14
-                                    , label = "Con Builtins Just"
+                                    { nodeId = "14"
+                                    , label = "V"
+                                    , style = StyleCon
+                                    , body = TextBody "Builtins.Just"
                                     , childTrees = []
+                                    , rightChild = Nothing
                                     }
                                 ]
+                            , rightChild = Nothing
                             }
                         , Tree
-                            { nodeId = 15
-                            , label = "Hole M unboundName"
+                            { nodeId = "15"
+                            , label = "{?}"
+                            , style = StyleHole
+                            , body = NoBody
                             , childTrees =
                                 [ Tree
-                                    { nodeId = 16
-                                    , label = "GVar M unboundName"
+                                    { nodeId = "16"
+                                    , label = "Var"
+                                    , style = StyleVar
+                                    , body = TextBody "M.unboundName"
                                     , childTrees = []
+                                    , rightChild = Nothing
                                     }
                                 ]
+                            , rightChild = Nothing
                             }
                         ]
+                    , rightChild = Nothing
                     }
                 , Tree
-                    { nodeId = 17
-                    , label = "THole Builtins Maybe"
+                    { nodeId = "17"
+                    , label = "{?}"
+                    , style = StyleTHole
+                    , body = NoBody
                     , childTrees =
                         [ Tree
-                            { nodeId = 18
-                            , label = "TCon Builtins Maybe"
+                            { nodeId = "18"
+                            , label = "T"
+                            , style = StyleTCon
+                            , body = TextBody "Builtins.Maybe"
                             , childTrees = []
+                            , rightChild = Nothing
                             }
                         ]
+                    , rightChild = Nothing
                     }
                 , Tree
-                    { nodeId = 19
-                    , label = "Ann i β b Builtins Bool Builtins Left b β i Builtins Zero Builtins False Builtins Succ n x y Builtins Nat α Builtins Either Builtins Bool α"
+                    { nodeId = "19"
+                    , label = "Ann"
+                    , style = StyleAnn
+                    , body = NoBody
                     , childTrees =
                         [ Tree
-                            { nodeId = 20
-                            , label = "Lam i β b Builtins Bool Builtins Left b β i Builtins Zero Builtins False Builtins Succ n x y"
+                            { nodeId = "20"
+                            , label = "λ"
+                            , style = StyleLam
+                            , body = TextBody "i"
                             , childTrees =
                                 [ Tree
-                                    { nodeId = 21
-                                    , label = "LAM β b Builtins Bool Builtins Left b β i Builtins Zero Builtins False Builtins Succ n x y"
+                                    { nodeId = "21"
+                                    , label = "Λ"
+                                    , style = StyleLAM
+                                    , body = TextBody "β"
                                     , childTrees =
                                         [ Tree
-                                            { nodeId = 22
-                                            , label = "App b Builtins Bool Builtins Left b β i Builtins Zero Builtins False Builtins Succ n x y"
+                                            { nodeId = "22"
+                                            , label = "$"
+                                            , style = StyleApp
+                                            , body = NoBody
                                             , childTrees =
                                                 [ Tree
-                                                    { nodeId = 23
-                                                    , label = "APP b Builtins Bool Builtins Left b β"
+                                                    { nodeId = "23"
+                                                    , label = "@"
+                                                    , style = StyleAPP
+                                                    , body = NoBody
                                                     , childTrees =
                                                         [ Tree
-                                                            { nodeId = 24
-                                                            , label = "LetType b Builtins Bool Builtins Left b"
+                                                            { nodeId = "24"
+                                                            , label = "let type"
+                                                            , style = StyleLetType
+                                                            , body = TextBody "b"
                                                             , childTrees =
                                                                 [ Tree
-                                                                    { nodeId = 25
-                                                                    , label = "TCon Builtins Bool"
-                                                                    , childTrees = []
-                                                                    }
-                                                                , Tree
-                                                                    { nodeId = 26
-                                                                    , label = "APP Builtins Left b"
+                                                                    { nodeId = "26"
+                                                                    , label = "@"
+                                                                    , style = StyleAPP
+                                                                    , body = NoBody
                                                                     , childTrees =
                                                                         [ Tree
-                                                                            { nodeId = 27
-                                                                            , label = "Con Builtins Left"
+                                                                            { nodeId = "27"
+                                                                            , label = "V"
+                                                                            , style = StyleCon
+                                                                            , body = TextBody "Builtins.Left"
                                                                             , childTrees = []
+                                                                            , rightChild = Nothing
                                                                             }
                                                                         , Tree
-                                                                            { nodeId = 28
-                                                                            , label = "TVar b"
+                                                                            { nodeId = "28"
+                                                                            , label = "Var"
+                                                                            , style = StyleTVar
+                                                                            , body = TextBody "b"
                                                                             , childTrees = []
+                                                                            , rightChild = Nothing
                                                                             }
                                                                         ]
+                                                                    , rightChild = Nothing
+                                                                    }
+                                                                , Tree
+                                                                    { nodeId = "25"
+                                                                    , label = "T"
+                                                                    , style = StyleTCon
+                                                                    , body = TextBody "Builtins.Bool"
+                                                                    , childTrees = []
+                                                                    , rightChild = Nothing
                                                                     }
                                                                 ]
+                                                            , rightChild = Nothing
                                                             }
                                                         , Tree
-                                                            { nodeId = 29
-                                                            , label = "TVar β"
+                                                            { nodeId = "29"
+                                                            , label = "Var"
+                                                            , style = StyleTVar
+                                                            , body = TextBody "β"
                                                             , childTrees = []
+                                                            , rightChild = Nothing
                                                             }
                                                         ]
+                                                    , rightChild = Nothing
                                                     }
                                                 , Tree
-                                                    { nodeId = 30
-                                                    , label = "Case i Builtins Zero Builtins False Builtins Succ n x y"
+                                                    { nodeId = "30"
+                                                    , label = "match"
+                                                    , style = StyleCase
+                                                    , body = NoBody
                                                     , childTrees =
                                                         [ Tree
-                                                            { nodeId = 31
-                                                            , label = "LVar i"
+                                                            { nodeId = "31"
+                                                            , label = "Var"
+                                                            , style = StyleVar
+                                                            , body = TextBody "i"
                                                             , childTrees = []
-                                                            }
-                                                        , Tree
-                                                            { nodeId = 32
-                                                            , label = "Con Builtins False"
-                                                            , childTrees = []
-                                                            }
-                                                        , Tree
-                                                            { nodeId = 34
-                                                            , label = "App x y"
-                                                            , childTrees =
-                                                                [ Tree
-                                                                    { nodeId = 35
-                                                                    , label = "App x"
-                                                                    , childTrees =
-                                                                        [ Tree
-                                                                            { nodeId = 36
-                                                                            , label = "EmptyHole"
-                                                                            , childTrees = []
-                                                                            }
-                                                                        , Tree
-                                                                            { nodeId = 37
-                                                                            , label = "LVar x"
-                                                                            , childTrees = []
-                                                                            }
-                                                                        ]
-                                                                    }
-                                                                , Tree
-                                                                    { nodeId = 38
-                                                                    , label = "LVar y"
-                                                                    , childTrees = []
-                                                                    }
-                                                                ]
+                                                            , rightChild = Nothing
                                                             }
                                                         ]
+                                                    , rightChild = Just
+                                                        ( Tree
+                                                            { nodeId = "30P0"
+                                                            , label = "P"
+                                                            , style = StylePattern
+                                                            , body = BoxBody
+                                                                ( Tree
+                                                                    { nodeId = "30P0B"
+                                                                    , label = "V"
+                                                                    , style = StyleCon
+                                                                    , body = TextBody "Builtins.Zero"
+                                                                    , childTrees = []
+                                                                    , rightChild = Nothing
+                                                                    }
+                                                                )
+                                                            , childTrees =
+                                                                [ Tree
+                                                                    { nodeId = "32"
+                                                                    , label = "V"
+                                                                    , style = StyleCon
+                                                                    , body = TextBody "Builtins.False"
+                                                                    , childTrees = []
+                                                                    , rightChild = Nothing
+                                                                    }
+                                                                ]
+                                                            , rightChild = Just
+                                                                ( Tree
+                                                                    { nodeId = "30P1"
+                                                                    , label = "P"
+                                                                    , style = StylePattern
+                                                                    , body = BoxBody
+                                                                        ( Tree
+                                                                            { nodeId = "30P1B"
+                                                                            , label = "V"
+                                                                            , style = StyleCon
+                                                                            , body = TextBody "Builtins.Succ"
+                                                                            , childTrees =
+                                                                                [ Tree
+                                                                                    { nodeId = "33"
+                                                                                    , label = "Var"
+                                                                                    , style = StyleVar
+                                                                                    , body = TextBody "n"
+                                                                                    , childTrees = []
+                                                                                    , rightChild = Nothing
+                                                                                    }
+                                                                                ]
+                                                                            , rightChild = Nothing
+                                                                            }
+                                                                        )
+                                                                    , childTrees =
+                                                                        [ Tree
+                                                                            { nodeId = "34"
+                                                                            , label = "$"
+                                                                            , style = StyleApp
+                                                                            , body = NoBody
+                                                                            , childTrees =
+                                                                                [ Tree
+                                                                                    { nodeId = "35"
+                                                                                    , label = "$"
+                                                                                    , style = StyleApp
+                                                                                    , body = NoBody
+                                                                                    , childTrees =
+                                                                                        [ Tree
+                                                                                            { nodeId = "36"
+                                                                                            , label = "?"
+                                                                                            , style = StyleEmptyHole
+                                                                                            , body = NoBody
+                                                                                            , childTrees = []
+                                                                                            , rightChild = Nothing
+                                                                                            }
+                                                                                        , Tree
+                                                                                            { nodeId = "37"
+                                                                                            , label = "Var"
+                                                                                            , style = StyleVar
+                                                                                            , body = TextBody "x"
+                                                                                            , childTrees = []
+                                                                                            , rightChild = Nothing
+                                                                                            }
+                                                                                        ]
+                                                                                    , rightChild = Nothing
+                                                                                    }
+                                                                                , Tree
+                                                                                    { nodeId = "38"
+                                                                                    , label = "Var"
+                                                                                    , style = StyleVar
+                                                                                    , body = TextBody "y"
+                                                                                    , childTrees = []
+                                                                                    , rightChild = Nothing
+                                                                                    }
+                                                                                ]
+                                                                            , rightChild = Nothing
+                                                                            }
+                                                                        ]
+                                                                    , rightChild = Nothing
+                                                                    }
+                                                                )
+                                                            }
+                                                        )
                                                     }
                                                 ]
+                                            , rightChild = Nothing
                                             }
                                         ]
+                                    , rightChild = Nothing
                                     }
                                 ]
+                            , rightChild = Nothing
                             }
                         , Tree
-                            { nodeId = 39
-                            , label = "TFun Builtins Nat α Builtins Either Builtins Bool α"
+                            { nodeId = "39"
+                            , label = "→"
+                            , style = StyleTFun
+                            , body = NoBody
                             , childTrees =
                                 [ Tree
-                                    { nodeId = 40
-                                    , label = "TCon Builtins Nat"
+                                    { nodeId = "40"
+                                    , label = "T"
+                                    , style = StyleTCon
+                                    , body = TextBody "Builtins.Nat"
                                     , childTrees = []
+                                    , rightChild = Nothing
                                     }
                                 , Tree
-                                    { nodeId = 41
-                                    , label = "TForall α:KType"
+                                    { nodeId = "41"
+                                    , label = "∀"
+                                    , style = StyleTForall
+                                    , body = TextBody "α"
                                     , childTrees =
                                         [ Tree
-                                            { nodeId = 42
-                                            , label = "TApp Builtins Either Builtins Bool α"
+                                            { nodeId = "42"
+                                            , label = "@"
+                                            , style = StyleTApp
+                                            , body = NoBody
                                             , childTrees =
                                                 [ Tree
-                                                    { nodeId = 43
-                                                    , label = "TApp Builtins Either Builtins Bool"
+                                                    { nodeId = "43"
+                                                    , label = "@"
+                                                    , style = StyleTApp
+                                                    , body = NoBody
                                                     , childTrees =
                                                         [ Tree
-                                                            { nodeId = 44
-                                                            , label = "TCon Builtins Either"
+                                                            { nodeId = "44"
+                                                            , label = "T"
+                                                            , style = StyleTCon
+                                                            , body = TextBody "Builtins.Either"
                                                             , childTrees = []
+                                                            , rightChild = Nothing
                                                             }
                                                         , Tree
-                                                            { nodeId = 45
-                                                            , label = "TCon Builtins Bool"
+                                                            { nodeId = "45"
+                                                            , label = "T"
+                                                            , style = StyleTCon
+                                                            , body = TextBody "Builtins.Bool"
                                                             , childTrees = []
+                                                            , rightChild = Nothing
                                                             }
                                                         ]
+                                                    , rightChild = Nothing
                                                     }
                                                 , Tree
-                                                    { nodeId = 46
-                                                    , label = "TVar α"
+                                                    { nodeId = "46"
+                                                    , label = "Var"
+                                                    , style = StyleTVar
+                                                    , body = TextBody "α"
                                                     , childTrees = []
+                                                    , rightChild = Nothing
                                                     }
                                                 ]
+                                            , rightChild = Nothing
                                             }
                                         ]
+                                    , rightChild = Nothing
                                     }
                                 ]
+                            , rightChild = Nothing
                             }
                         ]
+                    , rightChild = Nothing
                     }
                 ]
+            , rightChild = Nothing
             }
         ]
+    , rightChild = Nothing
     }

@@ -8,7 +8,7 @@ module Primer.OpenAPI (
 import Data.OpenApi (ToSchema)
 import Data.Text (Text)
 import Data.Typeable (Typeable)
-import Primer.API (Def, Module, Prog, Tree)
+import Primer.API (Def, Module, NodeBody, NodeStyle, Prog, Tree)
 import Primer.Core (GlobalName, ID (..), LVarName, ModuleName)
 import Primer.Database (Session, SessionName)
 import Primer.Name (Name)
@@ -36,6 +36,8 @@ deriving via Text instance (ToSchema Name)
 deriving via Name instance Typeable k => ToSchema (GlobalName k)
 deriving via Name instance (ToSchema LVarName)
 instance ToSchema Tree
+instance ToSchema NodeBody
+instance ToSchema NodeStyle
 instance ToSchema Def
 instance ToSchema ModuleName
 instance ToSchema Module

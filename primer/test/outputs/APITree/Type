@@ -1,50 +1,77 @@
 Tree
-    { nodeId = 0
-    , label = "TFun Builtins Nat a Builtins List a"
+    { nodeId = "0"
+    , label = "→"
+    , style = StyleTFun
+    , body = NoBody
     , childTrees =
         [ Tree
-            { nodeId = 1
-            , label = "TCon Builtins Nat"
+            { nodeId = "1"
+            , label = "T"
+            , style = StyleTCon
+            , body = TextBody "Builtins.Nat"
             , childTrees = []
+            , rightChild = Nothing
             }
         , Tree
-            { nodeId = 2
-            , label = "TForall a:KType"
+            { nodeId = "2"
+            , label = "∀"
+            , style = StyleTForall
+            , body = TextBody "a"
             , childTrees =
                 [ Tree
-                    { nodeId = 3
-                    , label = "TApp Builtins List a"
+                    { nodeId = "3"
+                    , label = "@"
+                    , style = StyleTApp
+                    , body = NoBody
                     , childTrees =
                         [ Tree
-                            { nodeId = 4
-                            , label = "THole Builtins List"
+                            { nodeId = "4"
+                            , label = "{?}"
+                            , style = StyleTHole
+                            , body = NoBody
                             , childTrees =
                                 [ Tree
-                                    { nodeId = 5
-                                    , label = "TApp Builtins List"
+                                    { nodeId = "5"
+                                    , label = "@"
+                                    , style = StyleTApp
+                                    , body = NoBody
                                     , childTrees =
                                         [ Tree
-                                            { nodeId = 6
-                                            , label = "TCon Builtins List"
+                                            { nodeId = "6"
+                                            , label = "T"
+                                            , style = StyleTCon
+                                            , body = TextBody "Builtins.List"
                                             , childTrees = []
+                                            , rightChild = Nothing
                                             }
                                         , Tree
-                                            { nodeId = 7
-                                            , label = "TEmptyHole"
+                                            { nodeId = "7"
+                                            , label = "?"
+                                            , style = StyleTEmptyHole
+                                            , body = NoBody
                                             , childTrees = []
+                                            , rightChild = Nothing
                                             }
                                         ]
+                                    , rightChild = Nothing
                                     }
                                 ]
+                            , rightChild = Nothing
                             }
                         , Tree
-                            { nodeId = 8
-                            , label = "TVar a"
+                            { nodeId = "8"
+                            , label = "Var"
+                            , style = StyleTVar
+                            , body = TextBody "a"
                             , childTrees = []
+                            , rightChild = Nothing
                             }
                         ]
+                    , rightChild = Nothing
                     }
                 ]
+            , rightChild = Nothing
             }
         ]
+    , rightChild = Nothing
     }
