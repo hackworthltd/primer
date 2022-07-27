@@ -233,12 +233,12 @@ prettyType opts typ = case typ of
   where
     pT = prettyType opts
 
-prettyPrintExpr :: Expr -> IO ()
-prettyPrintExpr e = do
-  putDoc $ prettyExpr sparse e
+prettyPrintExpr :: PrettyOptions -> Expr -> IO ()
+prettyPrintExpr opts e = do
+  putDoc $ prettyExpr opts e
   putStrLn ("" :: Text)
 
-prettyPrintType :: Type -> IO ()
-prettyPrintType t = do
-  putDoc $ prettyType sparse t
+prettyPrintType :: PrettyOptions -> Type -> IO ()
+prettyPrintType opts t = do
+  putDoc $ prettyType opts t
   putStrLn ("" :: Text)
