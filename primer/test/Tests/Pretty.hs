@@ -13,11 +13,16 @@ import Primer.Core.DSL (S, create')
 import Primer.Examples (comprehensive, not)
 import Primer.Name (unName)
 import Primer.Pretty (PrettyOptions, compact, prettyExpr, prettyType, sparse)
-import Test.Tasty (TestTree, testGroup)
+import Test.Tasty (TestName, TestTree, testGroup)
 import Test.Tasty.Golden (goldenVsString)
 
 test_examples :: TestTree
 test_examples = testGroup "Examples" $ map (prettyTestGroup [exprHandlerSparse, exprHandlerCompact, typeHandlerSparse, typeHandlerCompact]) [comprehensive, not]
+
+prettyTestMultiple :: TestName -> [ModuleName -> S (GVarName, Def)] -> [PrettyOptions] -> TestTree
+prettyTestMultiple name x options = testGroup name $ map (prettyTestGroup handlers) x
+  where
+    handlers = [exprHandlerSparse, exprHandlerCompact, typeHandlerSparse, typeHandlerCompact]
 
 type PrettyTestHandler = (ASTDef -> Doc AnsiStyle, Text)
 
