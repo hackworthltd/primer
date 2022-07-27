@@ -1,0 +1,77 @@
+Tree
+    { nodeId = "0"
+    , ann = "→"
+    , style = StyleTFun
+    , body = NoBody
+    , childTrees =
+        [ Tree
+            { nodeId = "1"
+            , ann = "T"
+            , style = StyleTCon
+            , body = TextBody "Builtins.Nat"
+            , childTrees = []
+            , rightChild = Nothing
+            }
+        , Tree
+            { nodeId = "2"
+            , ann = "∀"
+            , style = StyleTForall
+            , body = TextBody "a"
+            , childTrees =
+                [ Tree
+                    { nodeId = "3"
+                    , ann = "@"
+                    , style = StyleTApp
+                    , body = NoBody
+                    , childTrees =
+                        [ Tree
+                            { nodeId = "4"
+                            , ann = "{?}"
+                            , style = StyleTHole
+                            , body = NoBody
+                            , childTrees =
+                                [ Tree
+                                    { nodeId = "5"
+                                    , ann = "@"
+                                    , style = StyleTApp
+                                    , body = NoBody
+                                    , childTrees =
+                                        [ Tree
+                                            { nodeId = "6"
+                                            , ann = "T"
+                                            , style = StyleTCon
+                                            , body = TextBody "Builtins.List"
+                                            , childTrees = []
+                                            , rightChild = Nothing
+                                            }
+                                        , Tree
+                                            { nodeId = "7"
+                                            , ann = "?"
+                                            , style = StyleTEmptyHole
+                                            , body = NoBody
+                                            , childTrees = []
+                                            , rightChild = Nothing
+                                            }
+                                        ]
+                                    , rightChild = Nothing
+                                    }
+                                ]
+                            , rightChild = Nothing
+                            }
+                        , Tree
+                            { nodeId = "8"
+                            , ann = "Var"
+                            , style = StyleTVar
+                            , body = TextBody "a"
+                            , childTrees = []
+                            , rightChild = Nothing
+                            }
+                        ]
+                    , rightChild = Nothing
+                    }
+                ]
+            , rightChild = Nothing
+            }
+        ]
+    , rightChild = Nothing
+    }

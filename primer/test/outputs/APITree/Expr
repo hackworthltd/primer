@@ -1,0 +1,363 @@
+Tree
+    { nodeId = "9"
+    , ann = "let"
+    , style = StyleLet
+    , body = TextBody "x"
+    , childTrees =
+        [ Tree
+            { nodeId = "10"
+            , ann = "V"
+            , style = StyleCon
+            , body = TextBody "Builtins.True"
+            , childTrees = []
+            , rightChild = Nothing
+            }
+        , Tree
+            { nodeId = "11"
+            , ann = "let rec"
+            , style = StyleLetrec
+            , body = TextBody "y"
+            , childTrees =
+                [ Tree
+                    { nodeId = "12"
+                    , ann = "$"
+                    , style = StyleApp
+                    , body = NoBody
+                    , childTrees =
+                        [ Tree
+                            { nodeId = "13"
+                            , ann = "{?}"
+                            , style = StyleHole
+                            , body = NoBody
+                            , childTrees =
+                                [ Tree
+                                    { nodeId = "14"
+                                    , ann = "V"
+                                    , style = StyleCon
+                                    , body = TextBody "Builtins.Just"
+                                    , childTrees = []
+                                    , rightChild = Nothing
+                                    }
+                                ]
+                            , rightChild = Nothing
+                            }
+                        , Tree
+                            { nodeId = "15"
+                            , ann = "{?}"
+                            , style = StyleHole
+                            , body = NoBody
+                            , childTrees =
+                                [ Tree
+                                    { nodeId = "16"
+                                    , ann = "Var"
+                                    , style = StyleVar
+                                    , body = TextBody "M.unboundName"
+                                    , childTrees = []
+                                    , rightChild = Nothing
+                                    }
+                                ]
+                            , rightChild = Nothing
+                            }
+                        ]
+                    , rightChild = Nothing
+                    }
+                , Tree
+                    { nodeId = "17"
+                    , ann = "{?}"
+                    , style = StyleTHole
+                    , body = NoBody
+                    , childTrees =
+                        [ Tree
+                            { nodeId = "18"
+                            , ann = "T"
+                            , style = StyleTCon
+                            , body = TextBody "Builtins.Maybe"
+                            , childTrees = []
+                            , rightChild = Nothing
+                            }
+                        ]
+                    , rightChild = Nothing
+                    }
+                , Tree
+                    { nodeId = "19"
+                    , ann = "Ann"
+                    , style = StyleAnn
+                    , body = NoBody
+                    , childTrees =
+                        [ Tree
+                            { nodeId = "20"
+                            , ann = "λ"
+                            , style = StyleLam
+                            , body = TextBody "i"
+                            , childTrees =
+                                [ Tree
+                                    { nodeId = "21"
+                                    , ann = "Λ"
+                                    , style = StyleLAM
+                                    , body = TextBody "β"
+                                    , childTrees =
+                                        [ Tree
+                                            { nodeId = "22"
+                                            , ann = "$"
+                                            , style = StyleApp
+                                            , body = NoBody
+                                            , childTrees =
+                                                [ Tree
+                                                    { nodeId = "23"
+                                                    , ann = "@"
+                                                    , style = StyleAPP
+                                                    , body = NoBody
+                                                    , childTrees =
+                                                        [ Tree
+                                                            { nodeId = "24"
+                                                            , ann = "let type"
+                                                            , style = StyleLetType
+                                                            , body = TextBody "b"
+                                                            , childTrees =
+                                                                [ Tree
+                                                                    { nodeId = "26"
+                                                                    , ann = "@"
+                                                                    , style = StyleAPP
+                                                                    , body = NoBody
+                                                                    , childTrees =
+                                                                        [ Tree
+                                                                            { nodeId = "27"
+                                                                            , ann = "V"
+                                                                            , style = StyleCon
+                                                                            , body = TextBody "Builtins.Left"
+                                                                            , childTrees = []
+                                                                            , rightChild = Nothing
+                                                                            }
+                                                                        , Tree
+                                                                            { nodeId = "28"
+                                                                            , ann = "Var"
+                                                                            , style = StyleTVar
+                                                                            , body = TextBody "b"
+                                                                            , childTrees = []
+                                                                            , rightChild = Nothing
+                                                                            }
+                                                                        ]
+                                                                    , rightChild = Nothing
+                                                                    }
+                                                                , Tree
+                                                                    { nodeId = "25"
+                                                                    , ann = "T"
+                                                                    , style = StyleTCon
+                                                                    , body = TextBody "Builtins.Bool"
+                                                                    , childTrees = []
+                                                                    , rightChild = Nothing
+                                                                    }
+                                                                ]
+                                                            , rightChild = Nothing
+                                                            }
+                                                        , Tree
+                                                            { nodeId = "29"
+                                                            , ann = "Var"
+                                                            , style = StyleTVar
+                                                            , body = TextBody "β"
+                                                            , childTrees = []
+                                                            , rightChild = Nothing
+                                                            }
+                                                        ]
+                                                    , rightChild = Nothing
+                                                    }
+                                                , Tree
+                                                    { nodeId = "30"
+                                                    , ann = "match"
+                                                    , style = StyleCase
+                                                    , body = NoBody
+                                                    , childTrees =
+                                                        [ Tree
+                                                            { nodeId = "31"
+                                                            , ann = "Var"
+                                                            , style = StyleVar
+                                                            , body = TextBody "i"
+                                                            , childTrees = []
+                                                            , rightChild = Nothing
+                                                            }
+                                                        ]
+                                                    , rightChild = Just
+                                                        ( Tree
+                                                            { nodeId = "30P0"
+                                                            , ann = "P"
+                                                            , style = StyleCase
+                                                            , body = BoxBody
+                                                                ( Tree
+                                                                    { nodeId = "30P0B"
+                                                                    , ann = "V"
+                                                                    , style = StyleCon
+                                                                    , body = TextBody "Builtins.Zero"
+                                                                    , childTrees = []
+                                                                    , rightChild = Nothing
+                                                                    }
+                                                                )
+                                                            , childTrees =
+                                                                [ Tree
+                                                                    { nodeId = "32"
+                                                                    , ann = "V"
+                                                                    , style = StyleCon
+                                                                    , body = TextBody "Builtins.False"
+                                                                    , childTrees = []
+                                                                    , rightChild = Nothing
+                                                                    }
+                                                                ]
+                                                            , rightChild = Just
+                                                                ( Tree
+                                                                    { nodeId = "30P1"
+                                                                    , ann = "P"
+                                                                    , style = StyleCase
+                                                                    , body = BoxBody
+                                                                        ( Tree
+                                                                            { nodeId = "30P1B"
+                                                                            , ann = "V"
+                                                                            , style = StyleCon
+                                                                            , body = TextBody "Builtins.Succ"
+                                                                            , childTrees =
+                                                                                [ Tree
+                                                                                    { nodeId = "33"
+                                                                                    , ann = "Var"
+                                                                                    , style = StyleVar
+                                                                                    , body = TextBody "n"
+                                                                                    , childTrees = []
+                                                                                    , rightChild = Nothing
+                                                                                    }
+                                                                                ]
+                                                                            , rightChild = Nothing
+                                                                            }
+                                                                        )
+                                                                    , childTrees =
+                                                                        [ Tree
+                                                                            { nodeId = "34"
+                                                                            , ann = "$"
+                                                                            , style = StyleApp
+                                                                            , body = NoBody
+                                                                            , childTrees =
+                                                                                [ Tree
+                                                                                    { nodeId = "35"
+                                                                                    , ann = "$"
+                                                                                    , style = StyleApp
+                                                                                    , body = NoBody
+                                                                                    , childTrees =
+                                                                                        [ Tree
+                                                                                            { nodeId = "36"
+                                                                                            , ann = "?"
+                                                                                            , style = StyleEmptyHole
+                                                                                            , body = NoBody
+                                                                                            , childTrees = []
+                                                                                            , rightChild = Nothing
+                                                                                            }
+                                                                                        , Tree
+                                                                                            { nodeId = "37"
+                                                                                            , ann = "Var"
+                                                                                            , style = StyleVar
+                                                                                            , body = TextBody "x"
+                                                                                            , childTrees = []
+                                                                                            , rightChild = Nothing
+                                                                                            }
+                                                                                        ]
+                                                                                    , rightChild = Nothing
+                                                                                    }
+                                                                                , Tree
+                                                                                    { nodeId = "38"
+                                                                                    , ann = "Var"
+                                                                                    , style = StyleVar
+                                                                                    , body = TextBody "y"
+                                                                                    , childTrees = []
+                                                                                    , rightChild = Nothing
+                                                                                    }
+                                                                                ]
+                                                                            , rightChild = Nothing
+                                                                            }
+                                                                        ]
+                                                                    , rightChild = Nothing
+                                                                    }
+                                                                )
+                                                            }
+                                                        )
+                                                    }
+                                                ]
+                                            , rightChild = Nothing
+                                            }
+                                        ]
+                                    , rightChild = Nothing
+                                    }
+                                ]
+                            , rightChild = Nothing
+                            }
+                        , Tree
+                            { nodeId = "39"
+                            , ann = "→"
+                            , style = StyleTFun
+                            , body = NoBody
+                            , childTrees =
+                                [ Tree
+                                    { nodeId = "40"
+                                    , ann = "T"
+                                    , style = StyleTCon
+                                    , body = TextBody "Builtins.Nat"
+                                    , childTrees = []
+                                    , rightChild = Nothing
+                                    }
+                                , Tree
+                                    { nodeId = "41"
+                                    , ann = "∀"
+                                    , style = StyleTForall
+                                    , body = TextBody "α"
+                                    , childTrees =
+                                        [ Tree
+                                            { nodeId = "42"
+                                            , ann = "@"
+                                            , style = StyleTApp
+                                            , body = NoBody
+                                            , childTrees =
+                                                [ Tree
+                                                    { nodeId = "43"
+                                                    , ann = "@"
+                                                    , style = StyleTApp
+                                                    , body = NoBody
+                                                    , childTrees =
+                                                        [ Tree
+                                                            { nodeId = "44"
+                                                            , ann = "T"
+                                                            , style = StyleTCon
+                                                            , body = TextBody "Builtins.Either"
+                                                            , childTrees = []
+                                                            , rightChild = Nothing
+                                                            }
+                                                        , Tree
+                                                            { nodeId = "45"
+                                                            , ann = "T"
+                                                            , style = StyleTCon
+                                                            , body = TextBody "Builtins.Bool"
+                                                            , childTrees = []
+                                                            , rightChild = Nothing
+                                                            }
+                                                        ]
+                                                    , rightChild = Nothing
+                                                    }
+                                                , Tree
+                                                    { nodeId = "46"
+                                                    , ann = "Var"
+                                                    , style = StyleTVar
+                                                    , body = TextBody "α"
+                                                    , childTrees = []
+                                                    , rightChild = Nothing
+                                                    }
+                                                ]
+                                            , rightChild = Nothing
+                                            }
+                                        ]
+                                    , rightChild = Nothing
+                                    }
+                                ]
+                            , rightChild = Nothing
+                            }
+                        ]
+                    , rightChild = Nothing
+                    }
+                ]
+            , rightChild = Nothing
+            }
+        ]
+    , rightChild = Nothing
+    }
