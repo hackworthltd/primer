@@ -12,37 +12,27 @@ import Primer.Core (ASTDef (..), Def (..), GVarName, GlobalName (baseName), Modu
 import Primer.Core.DSL (S, create')
 import Primer.Examples (comprehensive, not)
 import Primer.Name (unName)
-import Primer.Pretty (PrettyOptions, compact, prettyExpr, prettyType, sparse)
+import Primer.Pretty (PrettyOptions (optionSetName), compact, prettyExpr, prettyType, sparse)
 import Test.Tasty (TestName, TestTree, testGroup)
 import Test.Tasty.Golden (goldenVsString)
 
 test_examples :: TestTree
-test_examples = testGroup "Examples" $ map (prettyTestGroup [exprHandlerSparse, exprHandlerCompact, typeHandlerSparse, typeHandlerCompact]) [comprehensive, not]
+test_examples = prettyTestMultiple "Examples" [comprehensive, not] [sparse, compact]
 
 prettyTestMultiple :: TestName -> [ModuleName -> S (GVarName, Def)] -> [PrettyOptions] -> TestTree
 prettyTestMultiple name x options = testGroup name $ map (prettyTestGroup handlers) x
   where
-    handlers = [exprHandlerSparse, exprHandlerCompact, typeHandlerSparse, typeHandlerCompact]
+    handlers = exprhandlers ++ typehandlers
+    exprhandlers = map exprHandler options
+    typehandlers = map typeHandler options
 
 type PrettyTestHandler = (ASTDef -> Doc AnsiStyle, Text)
 
-exprHandler :: PrettyOptions -> Text -> PrettyTestHandler
-exprHandler opts name = (prettyExpr opts . astDefExpr, name)
+exprHandler :: PrettyOptions -> PrettyTestHandler
+exprHandler opts = (prettyExpr opts . astDefExpr, "Expr (" <> optionSetName opts <> ")")
 
-typeHandler :: PrettyOptions -> Text -> PrettyTestHandler
-typeHandler opts name = (prettyType opts . astDefType, name)
-
-exprHandlerSparse :: PrettyTestHandler
-exprHandlerSparse = exprHandler sparse "Expr (Sparse)"
-
-exprHandlerCompact :: PrettyTestHandler
-exprHandlerCompact = exprHandler compact "Expr (Compact)"
-
-typeHandlerSparse :: PrettyTestHandler
-typeHandlerSparse = typeHandler sparse "Type (Sparse)"
-
-typeHandlerCompact :: PrettyTestHandler
-typeHandlerCompact = typeHandler compact "Type (Compact)"
+typeHandler :: PrettyOptions -> PrettyTestHandler
+typeHandler opts = (prettyType opts . astDefType, "Type (" <> optionSetName opts <> ")")
 
 prettyTest :: String -> Def -> PrettyTestHandler -> TestTree
 prettyTest name def handler = goldenVsString hname path bs
