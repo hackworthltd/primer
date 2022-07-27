@@ -1,3 +1,4 @@
+{-# LANGUAGE DuplicateRecordFields #-}
 {-# LANGUAGE GADTs #-}
 {-# OPTIONS_GHC -Wno-unused-imports #-}
 
@@ -71,7 +72,7 @@ import Data.Maybe (fromJust)
 import Data.Text qualified as T
 import Data.Tuple.Extra (fst3)
 import ListT qualified (toList)
-import Optics ((^.))
+import Optics (ifoldr, (^.))
 import Primer.App (
   App,
   EditAppM,
@@ -392,7 +393,7 @@ getProgram sid = withSession' sid $ QueryApp $ viewProg . handleGetProgramReques
 -- full complexity of our AST for that task. 'Tree' is a simplified view with
 -- just enough information to render nicely.
 data Tree = Tree
-  { nodeId :: ID
+  { nodeId :: Text
   , ann :: Text
   -- ^ P, λ, etc
   , style :: NodeStyle
@@ -619,40 +620,45 @@ viewTreeExpr e0 = case e0 of
         -- this would only be `Nothing` if the list of branches were empty,
         --  which should only happen when matching on `Void`
         rightChild =
-          foldr
-            ( \(CaseBranch con binds rhs) next ->
-                Just
-                  Tree
-                    { nodeId = rand
-                    , ann = "P"
-                    , style = StyleCase
-                    , body =
-                        BoxBody
-                          Tree
-                            { nodeId = rand
-                            , ann = "V"
-                            , style = StyleCon
-                            , body = TextBody $ showGlobal con
-                            , childTrees =
-                                foldr
-                                  ( \(Bind m v) next' ->
-                                      pure
-                                        Tree
-                                          { nodeId = m ^. _id
-                                          , ann = "Var"
-                                          , style = StyleVar
-                                          , body = TextBody $ unName $ unLocalName v
-                                          , childTrees = next'
-                                          , rightChild = Nothing
-                                          }
-                                  )
-                                  []
-                                  binds
-                            , rightChild = Nothing
-                            }
-                    , childTrees = [viewTreeExpr rhs]
-                    , rightChild = next
-                    }
+          ifoldr
+            ( \i (CaseBranch con binds rhs) next ->
+                let -- these IDs will not clash with any others in the tree,
+                    -- since node IDs in the input expression are unique,
+                    -- and don't contain non-numerical characters
+                    boxId = nodeId <> "P" <> show i
+                    patternRootId = boxId <> "B"
+                 in Just
+                      Tree
+                        { nodeId = boxId
+                        , ann = "P"
+                        , style = StyleCase
+                        , body =
+                            BoxBody
+                              Tree
+                                { nodeId = patternRootId
+                                , ann = "V"
+                                , style = StyleCon
+                                , body = TextBody $ showGlobal con
+                                , childTrees =
+                                    foldr
+                                      ( \(Bind m v) next' ->
+                                          pure
+                                            Tree
+                                              { nodeId = show $ m ^. _id
+                                              , ann = "Var"
+                                              , style = StyleVar
+                                              , body = TextBody $ unName $ unLocalName v
+                                              , childTrees = next'
+                                              , rightChild = Nothing
+                                              }
+                                      )
+                                      []
+                                      binds
+                                , rightChild = Nothing
+                                }
+                        , childTrees = [viewTreeExpr rhs]
+                        , rightChild = next
+                        }
             )
             Nothing
             bs
@@ -669,7 +675,7 @@ viewTreeExpr e0 = case e0 of
       , rightChild = Nothing
       }
   where
-    nodeId = e0 ^. _id
+    nodeId = show $ e0 ^. _id
 
 -- | Similar to 'viewTreeExpr', but for 'Type's
 viewTreeType :: Type -> Tree
@@ -738,17 +744,13 @@ viewTreeType t0 = case t0 of
       , rightChild = Nothing
       }
   where
-    nodeId = t0 ^. _id
+    nodeId = show $ t0 ^. _id
 
 showGlobal :: GlobalName k -> Text
 showGlobal n = moduleNamePretty (qualifiedModule n) <> "." <> unName (baseName n)
 
 edit :: (MonadIO m, MonadThrow m) => SessionId -> MutationRequest -> PrimerM m (Either ProgError App.Prog)
 edit sid req = liftEditAppM (handleMutationRequest req) sid
-
-{-# NOINLINE rand #-}
-rand :: ID
-rand = fromIntegral . read @Int . dropEnd 1 $ unsafePerformIO (readCreateProcess (shell "echo $RANDOM") "")
 
 variablesInScope ::
   (MonadIO m, MonadThrow m) =>
