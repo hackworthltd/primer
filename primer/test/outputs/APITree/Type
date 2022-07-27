@@ -1,0 +1,50 @@
+Tree
+    { nodeId = 0
+    , label = "TFun Builtins Nat a Builtins List a"
+    , childTrees =
+        [ Tree
+            { nodeId = 1
+            , label = "TCon Builtins Nat"
+            , childTrees = []
+            }
+        , Tree
+            { nodeId = 2
+            , label = "TForall a:KType"
+            , childTrees =
+                [ Tree
+                    { nodeId = 3
+                    , label = "TApp Builtins List a"
+                    , childTrees =
+                        [ Tree
+                            { nodeId = 4
+                            , label = "THole Builtins List"
+                            , childTrees =
+                                [ Tree
+                                    { nodeId = 5
+                                    , label = "TApp Builtins List"
+                                    , childTrees =
+                                        [ Tree
+                                            { nodeId = 6
+                                            , label = "TCon Builtins List"
+                                            , childTrees = []
+                                            }
+                                        , Tree
+                                            { nodeId = 7
+                                            , label = "TEmptyHole"
+                                            , childTrees = []
+                                            }
+                                        ]
+                                    }
+                                ]
+                            }
+                        , Tree
+                            { nodeId = 8
+                            , label = "TVar a"
+                            , childTrees = []
+                            }
+                        ]
+                    }
+                ]
+            }
+        ]
+    }

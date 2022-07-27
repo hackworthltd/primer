@@ -1,0 +1,205 @@
+Tree
+    { nodeId = 9
+    , label = "Let x Builtins True y Builtins Just M unboundName Builtins Maybe i β b Builtins Bool Builtins Left b β i Builtins Zero Builtins False Builtins Succ n x y Builtins Nat α Builtins Either Builtins Bool α"
+    , childTrees =
+        [ Tree
+            { nodeId = 10
+            , label = "Con Builtins True"
+            , childTrees = []
+            }
+        , Tree
+            { nodeId = 11
+            , label = "Letrec y Builtins Just M unboundName Builtins Maybe i β b Builtins Bool Builtins Left b β i Builtins Zero Builtins False Builtins Succ n x y Builtins Nat α Builtins Either Builtins Bool α"
+            , childTrees =
+                [ Tree
+                    { nodeId = 12
+                    , label = "App Builtins Just M unboundName"
+                    , childTrees =
+                        [ Tree
+                            { nodeId = 13
+                            , label = "Hole Builtins Just"
+                            , childTrees =
+                                [ Tree
+                                    { nodeId = 14
+                                    , label = "Con Builtins Just"
+                                    , childTrees = []
+                                    }
+                                ]
+                            }
+                        , Tree
+                            { nodeId = 15
+                            , label = "Hole M unboundName"
+                            , childTrees =
+                                [ Tree
+                                    { nodeId = 16
+                                    , label = "GVar M unboundName"
+                                    , childTrees = []
+                                    }
+                                ]
+                            }
+                        ]
+                    }
+                , Tree
+                    { nodeId = 17
+                    , label = "THole Builtins Maybe"
+                    , childTrees =
+                        [ Tree
+                            { nodeId = 18
+                            , label = "TCon Builtins Maybe"
+                            , childTrees = []
+                            }
+                        ]
+                    }
+                , Tree
+                    { nodeId = 19
+                    , label = "Ann i β b Builtins Bool Builtins Left b β i Builtins Zero Builtins False Builtins Succ n x y Builtins Nat α Builtins Either Builtins Bool α"
+                    , childTrees =
+                        [ Tree
+                            { nodeId = 20
+                            , label = "Lam i β b Builtins Bool Builtins Left b β i Builtins Zero Builtins False Builtins Succ n x y"
+                            , childTrees =
+                                [ Tree
+                                    { nodeId = 21
+                                    , label = "LAM β b Builtins Bool Builtins Left b β i Builtins Zero Builtins False Builtins Succ n x y"
+                                    , childTrees =
+                                        [ Tree
+                                            { nodeId = 22
+                                            , label = "App b Builtins Bool Builtins Left b β i Builtins Zero Builtins False Builtins Succ n x y"
+                                            , childTrees =
+                                                [ Tree
+                                                    { nodeId = 23
+                                                    , label = "APP b Builtins Bool Builtins Left b β"
+                                                    , childTrees =
+                                                        [ Tree
+                                                            { nodeId = 24
+                                                            , label = "LetType b Builtins Bool Builtins Left b"
+                                                            , childTrees =
+                                                                [ Tree
+                                                                    { nodeId = 25
+                                                                    , label = "TCon Builtins Bool"
+                                                                    , childTrees = []
+                                                                    }
+                                                                , Tree
+                                                                    { nodeId = 26
+                                                                    , label = "APP Builtins Left b"
+                                                                    , childTrees =
+                                                                        [ Tree
+                                                                            { nodeId = 27
+                                                                            , label = "Con Builtins Left"
+                                                                            , childTrees = []
+                                                                            }
+                                                                        , Tree
+                                                                            { nodeId = 28
+                                                                            , label = "TVar b"
+                                                                            , childTrees = []
+                                                                            }
+                                                                        ]
+                                                                    }
+                                                                ]
+                                                            }
+                                                        , Tree
+                                                            { nodeId = 29
+                                                            , label = "TVar β"
+                                                            , childTrees = []
+                                                            }
+                                                        ]
+                                                    }
+                                                , Tree
+                                                    { nodeId = 30
+                                                    , label = "Case i Builtins Zero Builtins False Builtins Succ n x y"
+                                                    , childTrees =
+                                                        [ Tree
+                                                            { nodeId = 31
+                                                            , label = "LVar i"
+                                                            , childTrees = []
+                                                            }
+                                                        , Tree
+                                                            { nodeId = 32
+                                                            , label = "Con Builtins False"
+                                                            , childTrees = []
+                                                            }
+                                                        , Tree
+                                                            { nodeId = 34
+                                                            , label = "App x y"
+                                                            , childTrees =
+                                                                [ Tree
+                                                                    { nodeId = 35
+                                                                    , label = "App x"
+                                                                    , childTrees =
+                                                                        [ Tree
+                                                                            { nodeId = 36
+                                                                            , label = "EmptyHole"
+                                                                            , childTrees = []
+                                                                            }
+                                                                        , Tree
+                                                                            { nodeId = 37
+                                                                            , label = "LVar x"
+                                                                            , childTrees = []
+                                                                            }
+                                                                        ]
+                                                                    }
+                                                                , Tree
+                                                                    { nodeId = 38
+                                                                    , label = "LVar y"
+                                                                    , childTrees = []
+                                                                    }
+                                                                ]
+                                                            }
+                                                        ]
+                                                    }
+                                                ]
+                                            }
+                                        ]
+                                    }
+                                ]
+                            }
+                        , Tree
+                            { nodeId = 39
+                            , label = "TFun Builtins Nat α Builtins Either Builtins Bool α"
+                            , childTrees =
+                                [ Tree
+                                    { nodeId = 40
+                                    , label = "TCon Builtins Nat"
+                                    , childTrees = []
+                                    }
+                                , Tree
+                                    { nodeId = 41
+                                    , label = "TForall α:KType"
+                                    , childTrees =
+                                        [ Tree
+                                            { nodeId = 42
+                                            , label = "TApp Builtins Either Builtins Bool α"
+                                            , childTrees =
+                                                [ Tree
+                                                    { nodeId = 43
+                                                    , label = "TApp Builtins Either Builtins Bool"
+                                                    , childTrees =
+                                                        [ Tree
+                                                            { nodeId = 44
+                                                            , label = "TCon Builtins Either"
+                                                            , childTrees = []
+                                                            }
+                                                        , Tree
+                                                            { nodeId = 45
+                                                            , label = "TCon Builtins Bool"
+                                                            , childTrees = []
+                                                            }
+                                                        ]
+                                                    }
+                                                , Tree
+                                                    { nodeId = 46
+                                                    , label = "TVar α"
+                                                    , childTrees = []
+                                                    }
+                                                ]
+                                            }
+                                        ]
+                                    }
+                                ]
+                            }
+                        ]
+                    }
+                ]
+            }
+        ]
+    }
