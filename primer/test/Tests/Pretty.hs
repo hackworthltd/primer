@@ -43,7 +43,7 @@ prettyTest :: String -> Def -> PrettyTestHandler -> TestTree
 prettyTest name def handler = goldenVsString hname path bs
   where
     hname = T.unpack (snd handler)
-    path = "test/outputs/Pretty/" ++ name ++ "/" ++ hname
+    path = "test/outputs/Pretty/" ++ name ++ "/" ++ hname ++ ".ansi"
     bs = case def of
       DefPrim _ -> exitFailure
       DefAST e -> docToBS (fst handler e)
