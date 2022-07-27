@@ -107,7 +107,7 @@ import Primer.Core (
   GlobalName (..),
   HasID (..),
   ID,
-  Kind,
+  Kind (..),
   LVarName,
   ModuleName,
   PrimCon (..),
@@ -734,15 +734,22 @@ viewTreeType t0 = case t0 of
       , childTrees = [viewTreeType t1, viewTreeType t2]
       , rightChild = Nothing
       }
-  TForall _ n _ t ->
+  TForall _ n k t ->
     Tree
       { nodeId
       , ann = "∀"
       , style = StyleTForall
-      , body = TextBody $ unName $ unLocalName n
+      , body = TextBody $ withKindAnn $ unName $ unLocalName n
       , childTrees = [viewTreeType t]
       , rightChild = Nothing
       }
+    where
+      -- TODO this is a placeholder
+      -- for now we expect all kinds in student programs to be `KType`
+      -- but we show something for other kinds, in order to keep rendering injective
+      withKindAnn = case k of
+        KType -> identity
+        _ -> (<> (" :: " <> show k))
   where
     nodeId = show $ t0 ^. _id
 
