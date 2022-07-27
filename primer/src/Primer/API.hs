@@ -1,6 +1,5 @@
 {-# LANGUAGE DuplicateRecordFields #-}
 {-# LANGUAGE GADTs #-}
-{-# OPTIONS_GHC -Wno-unused-imports #-}
 
 -- | The Primer API.
 --
@@ -44,7 +43,6 @@ module Primer.API (
   viewTreeType,
   viewTreeExpr,
   getApp,
-  test,
 ) where
 
 import Foreword
@@ -63,14 +61,8 @@ import Control.Monad.Trans (MonadTrans)
 import Control.Monad.Writer (MonadWriter)
 import Control.Monad.Zip (MonadZip)
 import Data.Aeson (ToJSON)
-import Data.Data (showConstr, toConstr)
-import Data.Generics.Uniplate.Data qualified as U
-import Data.List (foldr1)
-import Data.List.Extra (dropEnd)
 import Data.Map qualified as Map
-import Data.Maybe (fromJust)
 import Data.Text qualified as T
-import Data.Tuple.Extra (fst3)
 import ListT qualified (toList)
 import Optics (ifoldr, (^.))
 import Primer.App (
@@ -102,7 +94,6 @@ import Primer.Core (
   CaseBranch' (CaseBranch),
   Expr,
   Expr' (..),
-  ExprMeta,
   GVarName,
   GlobalName (..),
   HasID (..),
@@ -116,15 +107,11 @@ import Primer.Core (
   TyVarName,
   Type,
   Type' (..),
-  TypeMeta,
   defAST,
   defType,
-  getID,
-  mkSimpleModuleName,
   moduleNamePretty,
   unLocalName,
  )
-import Primer.Core.DSL (create')
 import Primer.Database (
   OffsetLimit,
   Page,
@@ -153,14 +140,9 @@ import Primer.Database qualified as Database (
     Success
   ),
  )
-import Primer.Examples (even3Prog)
-import Primer.Examples qualified as Examples
-import Primer.Module (moduleDefs, moduleDefsQualified, moduleName, moduleTypesQualified)
+import Primer.Module (moduleDefsQualified, moduleName, moduleTypesQualified)
 import Primer.Name (Name, unName)
 import StmContainers.Map qualified as StmMap
-import System.IO.Unsafe (unsafePerformIO)
-import System.Process.Extra (readCreateProcess, readProcess, shell, system)
-import Prelude (read)
 
 -- | The API environment.
 data Env = Env
@@ -784,22 +766,3 @@ flushSessions = do
   sessionsTransaction $ \ss _ -> do
     StmMap.reset ss
   pure ()
-
-pPrint :: Show a => a -> IO ()
-pPrint = putStrLn <=< readProcess "pretty-simple" [] . show
-
-test :: IO ()
-test = do
-  -- prettyPrintExpr e
-  -- pPrint $ viewTreeExpr e
-  -- pPrint $ void $ layoutSmart defaultLayoutOptions $ prettyExpr defaultPrettyOptions e
-  -- pPrint $ layoutCompact @_ @() $ prettyExpr defaultPrettyOptions e
-  -- pPrint $ treeForm $ layoutCompact @_ @() $ prettyExpr defaultPrettyOptions e
-  -- pPrint $ treeForm $ layoutSmart defaultLayoutOptions $ prettyExpr defaultPrettyOptions e
-  -- pPrint $ viewTreeExpr' e
-  pPrint $ viewTreeExpr e
-  where
-    -- pPrint $ viewTreeExpr e
-
-    -- e = astDefExpr . fromMaybe undefined . defAST . fromMaybe undefined . head . toList . moduleDefs . fromMaybe undefined . head . progModules $ fst3 even3Prog
-    e = astDefExpr . fromMaybe witness . defAST . snd . create' $ Examples.not $ mkSimpleModuleName "Prelude"
