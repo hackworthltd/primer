@@ -4,7 +4,8 @@ module Primer.Pretty (
   prettyPrintExpr,
   prettyPrintType,
   PrettyOptions (..),
-  defaultPrettyOptions,
+  sparse,
+  compact,
 ) where
 
 import Foreword hiding (group)
@@ -45,44 +46,73 @@ import Primer.Name (Name (unName))
 data PrettyOptions = PrettyOptions
   { fullyQualify :: Bool
   -- ^ Global variable names are printed with the parent module
-  , groupHoles :: Bool
+  , inlineHoles :: Bool
   -- ^ Nonempty holes are printed on one line
+  , inlineLet :: Bool
+  -- ^ Attempt to print @let x = expr in@ on one line
+  , inlineLambda :: Bool
+  -- ^ Attempt to print λs and Λs on one line
+  , inlineForAll :: Bool
+  -- ^ Attempt to print @for all@ and associated type sig on one line
+  , inlineMatch :: Bool
+  -- ^ Attempt to print each case on one line
   }
 
-defaultPrettyOptions :: PrettyOptions
-defaultPrettyOptions =
+-- | Default PrettyOptions - makes no attempt to group text
+sparse :: PrettyOptions
+sparse =
   PrettyOptions
     { fullyQualify = False
-    , groupHoles = True
+    , inlineHoles = False
+    , inlineLet = False
+    , inlineLambda = False
+    , inlineForAll = False
+    , inlineMatch = False
     }
 
--- | Pretty prints `Expr'` using Prettyprinter library
+-- | Groups whenever possible
+compact :: PrettyOptions
+compact =
+  PrettyOptions
+    { fullyQualify = False
+    , inlineHoles = True
+    , inlineLet = True
+    , inlineLambda = True
+    , inlineForAll = True
+    , inlineMatch = True
+    }
+
+-- | Pretty prints @Expr'@ using Prettyprinter library
 prettyExpr :: PrettyOptions -> Expr' a b -> Doc AnsiStyle
 prettyExpr opts = \case
-  Hole _ e -> (if groupHoles opts then group else identity) (brac Curly Red (pE e))
+  Hole _ e -> (if inlineHoles opts then group else identity) (brac Curly Red (pE e))
   EmptyHole _ -> col Red "?"
   Con _ n -> col Green (gname opts n)
   Var _ v -> case v of
     GlobalVarRef n -> col Blue (gname opts n)
     LocalVarRef n -> lname n
   Lam _ n e ->
-    col Magenta "λ"
-      <> lname n
-      <> col Magenta "."
-      <> line
-      <> indent 2 (pE e)
+    (if inlineLambda opts then group else identity)
+      ( col Magenta "λ"
+          <> lname n
+          <> col Magenta "."
+          <> line
+          <> indent 2 (pE e)
+      )
   LAM _ n e ->
-    col Magenta "Λ"
-      <> lname n
-      <> col Magenta "."
-      <> line
-      <> indent 2 (pE e)
+    (if inlineLambda opts then group else identity)
+      ( col Magenta "Λ"
+          <> lname n
+          <> col Magenta "."
+          <> line
+          <> indent 2 (pE e)
+      )
   Case _ e bs ->
     col Yellow "match"
       <+> pE e
       <+> col Yellow "with"
-      <+> line
-      <+> indent
+        <> line
+      <+> indent'
         2
         ( mconcat
             ( intersperse
@@ -97,8 +127,10 @@ prettyExpr opts = \case
                                 bs'
                           )
                         <+> col Yellow "→"
-                          <> line
-                          <> indent 2 (pE e')
+                          <> (if inlineMatch opts then group else identity)
+                            ( line
+                                <> indent' 2 (pE e')
+                            )
                   )
                   bs
             )
@@ -110,11 +142,7 @@ prettyExpr opts = \case
     col Yellow "let"
       <+> lname v
       <+> col Yellow "="
-        <> group
-          ( line
-              <> flatAlt (indent 2 (pE e)) (pE e)
-              <> line
-          )
+        <> inlineblock opts (pE e)
         <> col Yellow "in"
         <> line
         <> indent 2 (pE e')
@@ -122,9 +150,7 @@ prettyExpr opts = \case
     col Yellow "let type"
       <+> lname v
       <+> col Yellow "="
-        <> line
-        <> indent 2 (pT t)
-        <> line
+        <> inlineblock opts (pT t)
         <> col Yellow "in"
         <> line
         <> indent 2 (pE e)
@@ -132,9 +158,7 @@ prettyExpr opts = \case
     col Yellow "let rec"
       <+> lname v
       <+> col Yellow "="
-        <> line
-        <> indent 2 (typeann e t)
-        <> line
+        <> inlineblock opts (typeann e t)
         <> col Yellow "in"
         <> line
         <> indent 2 (pE e')
@@ -145,6 +169,21 @@ prettyExpr opts = \case
     typeann e t = brac Round Yellow (pE e) <+> col Yellow "::" <> line <> brac Round Yellow (pT t)
     pT = prettyType opts
     pE = prettyExpr opts
+
+-- When grouped: " x "
+-- When ungrouped: "\n\tx\n"
+inlineblock :: PrettyOptions -> Doc AnsiStyle -> Doc AnsiStyle
+inlineblock opts x =
+  (if inlineLet opts then group else identity)
+    ( line
+        <> indent' 2 x
+        <> line
+    )
+
+-- When grouped: ""
+-- When ungrouped: "\t"
+indent' :: Int -> Doc AnsiStyle -> Doc AnsiStyle
+indent' n x = flatAlt (indent n x) x
 
 -- Unwraps global variable names as Doc type.
 gname :: PrettyOptions -> GlobalName k -> Doc AnsiStyle
@@ -175,27 +214,31 @@ brac b c doc = col c (lBrac b) <> line' <> flatAlt (indent 2 doc) doc <> line' <
 col :: Color -> Doc AnsiStyle -> Doc AnsiStyle
 col = annotate . color
 
--- | Pretty prints `Type'` using Prettyprinter library
+-- | Pretty prints @Type'@ using Prettyprinter library
 prettyType :: PrettyOptions -> Type' b -> Doc AnsiStyle
 prettyType opts typ = case typ of
   TEmptyHole _ -> col Red "?"
-  THole _ t -> (if groupHoles opts then group else identity) (brac Curly Red (pT t))
+  THole _ t -> (if inlineHoles opts then group else identity) (brac Curly Red (pT t))
   TCon _ n -> col Green (gname opts n)
   TFun _ t1 t2 -> case t1 of
     TFun{} -> brac Round Yellow (pT t1) <+> col Yellow "->" <+> pT t2
     _ -> pT t1 <+> col Yellow "->" <+> pT t2
   TVar _ n -> lname n
   TApp _ t1 t2 -> brac Round White (pT t1) <> line <> brac Round White (pT t2)
-  TForall _ n _ t -> col Yellow "∀" <+> lname n <> col Yellow "." <> line <> indent 2 (pT t)
+  TForall _ n _ t ->
+    (if inlineLambda opts then group else identity)
+      ( col Yellow "∀"
+          <+> lname n <> col Yellow "." <> line <> indent' 2 (pT t)
+      )
   where
     pT = prettyType opts
 
-prettyPrintExpr :: Expr -> IO ()
-prettyPrintExpr e = do
-  putDoc $ prettyExpr defaultPrettyOptions e
+prettyPrintExpr :: PrettyOptions -> Expr -> IO ()
+prettyPrintExpr opts e = do
+  putDoc $ prettyExpr opts e
   putStrLn ("" :: Text)
 
-prettyPrintType :: Type -> IO ()
-prettyPrintType t = do
-  putDoc $ prettyType defaultPrettyOptions t
+prettyPrintType :: PrettyOptions -> Type -> IO ()
+prettyPrintType opts t = do
+  putDoc $ prettyType opts t
   putStrLn ("" :: Text)
