@@ -8,7 +8,7 @@ module Primer.Pretty (
   compact,
 ) where
 
-import Foreword hiding (group)
+import Foreword hiding (group, list)
 
 import Prettyprinter (
   Doc,
@@ -19,7 +19,9 @@ import Prettyprinter (
   indent,
   line,
   line',
+  list,
   space,
+  vcat,
   (<+>),
  )
 import Prettyprinter.Render.Terminal (
@@ -108,33 +110,35 @@ prettyExpr opts = \case
           <> indent 2 (pE e)
       )
   Case _ e bs ->
-    col Yellow "match"
-      <+> pE e
-      <+> col Yellow "with"
-        <> line
-      <+> indent'
-        2
-        ( mconcat
-            ( intersperse
-                line
-                $ map
-                  ( \(CaseBranch n bs' e') ->
-                      col Green (gname opts n)
-                        <+> mconcat
-                          ( intersperse space $
-                              map
-                                (\(Bind _ n') -> lname n')
-                                bs'
-                          )
-                        <+> col Yellow "→"
-                          <> (if inlineMatch opts then group else identity)
-                            ( line
-                                <> indent' 2 (pE e')
-                            )
-                  )
-                  bs
-            )
+    ( col Yellow "match"
+        <+> pE e
+        <+> col Yellow "with"
+          <> line
+        <+> indent'
+          2
+          ( mconcat
+              ( intersperse
+                  line
+                  $ map printCase bs
+              )
+          )
+    )
+    where
+      caseParts (CaseBranch n bs' e') =
+        ( col Green (gname opts n)
+            <+> mconcat
+              ( intersperse space $
+                  map
+                    (\(Bind _ n') -> lname n')
+                    bs'
+              )
+        , col Yellow "→"
+            <> (if inlineMatch opts then group else identity)
+              ( line
+                  <> indent' 2 (pE e')
+              )
         )
+      printCase = (uncurry (<+>) . caseParts)
   Ann _ e t -> typeann e t
   App _ e e' -> brac Round White (pE e) <> line <> brac Round White (pE e')
   APP _ e t -> brac Round Yellow (pE e) <+> col Yellow "@" <> pT t
@@ -166,9 +170,9 @@ prettyExpr opts = \case
     PrimChar c -> "Char" <+> pretty @Text (show c)
     PrimInt n -> "Int" <+> pretty @Text (show n)
   where
-    typeann e t = brac Round Yellow (pE e) <+> col Yellow "::" <> line <> brac Round Yellow (pT t)
     pT = prettyType opts
     pE = prettyExpr opts
+    typeann e t = brac Round Yellow (pE e) <+> col Yellow "::" <> line <> brac Round Yellow (pT t)
 
 -- When grouped: " x "
 -- When ungrouped: "\n\tx\n"
