@@ -14,14 +14,13 @@ import Prettyprinter (
   Doc,
   Pretty (pretty),
   annotate,
+  fill,
   flatAlt,
   group,
   indent,
   line,
   line',
-  list,
   space,
-  vcat,
   (<+>),
  )
 import Prettyprinter.Render.Terminal (
@@ -119,7 +118,7 @@ prettyExpr opts = \case
           ( mconcat
               ( intersperse
                   line
-                  $ map printCase bs
+                  $ map (printCase 0) bs
               )
           )
     )
@@ -138,7 +137,7 @@ prettyExpr opts = \case
                   <> indent' 2 (pE e')
               )
         )
-      printCase = (uncurry (<+>) . caseParts)
+      printCase w b = let parts = caseParts b in fill w (fst parts) <+> snd parts
   Ann _ e t -> typeann e t
   App _ e e' -> brac Round White (pE e) <> line <> brac Round White (pE e')
   APP _ e t -> brac Round Yellow (pE e) <+> col Yellow "@" <> pT t
