@@ -214,7 +214,7 @@ data Prog = Prog
   , progLog :: Log -- The log of all actions
   }
   deriving (Eq, Show, Generic)
-  deriving (FromJSON, ToJSON) via VJSON Prog
+  deriving (FromJSON, ToJSON) via PrimerJSON Prog
 
 -- | The default 'Prog'. It has no imports, no definitions, no current
 -- 'Selection', and an empty 'Log'. Smart holes are enabled.
@@ -341,7 +341,7 @@ allDefs p = foldMap moduleDefsQualified $ progAllModules p
 --  Items are stored in reverse order so it's quick to add new ones.
 newtype Log = Log {unlog :: [[ProgAction]]}
   deriving (Eq, Show, Generic)
-  deriving (FromJSON, ToJSON) via VJSON Log
+  deriving (FromJSON, ToJSON) via PrimerJSON Log
 
 -- | The default (empty) 'Log'.
 defaultLog :: Log
@@ -355,7 +355,7 @@ data Selection = Selection
   , selectedNode :: Maybe NodeSelection
   }
   deriving (Eq, Show, Generic, Data)
-  deriving (ToJSON, FromJSON) via VJSON Selection
+  deriving (ToJSON, FromJSON) via PrimerJSON Selection
 
 -- | A selected node, in the body or type signature of some definition.
 -- We have the following invariant: @nodeType = SigNode ==> isRight meta@
@@ -365,18 +365,18 @@ data NodeSelection = NodeSelection
   , meta :: Either ExprMeta TypeMeta
   }
   deriving (Eq, Show, Generic, Data)
-  deriving (ToJSON, FromJSON) via VJSON NodeSelection
+  deriving (ToJSON, FromJSON) via PrimerJSON NodeSelection
 
 data NodeType = BodyNode | SigNode
   deriving (Eq, Show, Generic, Data)
-  deriving (ToJSON, FromJSON) via VJSON NodeType
+  deriving (ToJSON, FromJSON) via PrimerJSON NodeType
 
 -- | The type of requests which can mutate the application state.
 data MutationRequest
   = Undo
   | Edit [ProgAction]
   deriving (Eq, Show, Generic)
-  deriving (FromJSON, ToJSON) via VJSON MutationRequest
+  deriving (FromJSON, ToJSON) via PrimerJSON MutationRequest
 
 data ProgError
   = NoDefSelected
@@ -413,14 +413,14 @@ data ProgError
   | -- | Cannot edit an imported module
     ModuleReadonly ModuleName
   deriving (Eq, Show, Generic)
-  deriving (FromJSON, ToJSON) via VJSON ProgError
+  deriving (FromJSON, ToJSON) via PrimerJSON ProgError
 
 data EvalReq = EvalReq
   { evalReqExpr :: Expr
   , evalReqRedex :: ID
   }
   deriving (Eq, Show, Generic)
-  deriving (FromJSON, ToJSON) via VJSON EvalReq
+  deriving (FromJSON, ToJSON) via PrimerJSON EvalReq
 
 data EvalResp = EvalResp
   { evalRespExpr :: Expr
@@ -428,7 +428,7 @@ data EvalResp = EvalResp
   , evalRespDetail :: EvalDetail
   }
   deriving (Eq, Show, Generic)
-  deriving (FromJSON, ToJSON) via VJSON EvalResp
+  deriving (FromJSON, ToJSON) via PrimerJSON EvalResp
 
 data EvalFullReq = EvalFullReq
   { evalFullReqExpr :: Expr
@@ -436,14 +436,14 @@ data EvalFullReq = EvalFullReq
   , evalFullMaxSteps :: TerminationBound
   }
   deriving (Eq, Show, Generic)
-  deriving (FromJSON, ToJSON) via VJSON EvalFullReq
+  deriving (FromJSON, ToJSON) via PrimerJSON EvalFullReq
 
 -- If we time out, we still return however far we got
 data EvalFullResp
   = EvalFullRespTimedOut Expr
   | EvalFullRespNormal Expr
   deriving (Eq, Show, Generic)
-  deriving (FromJSON, ToJSON) via VJSON EvalFullResp
+  deriving (FromJSON, ToJSON) via PrimerJSON EvalFullResp
 
 -- * Request handlers
 

@@ -1,7 +1,7 @@
 module Primer.JSON (
   CustomJSON (..),
-  VJSON,
-  VJSONPrefix,
+  PrimerJSON,
+  PrimerJSONPrefix,
   ToJSON,
   FromJSON,
   ToJSONKey,
@@ -24,13 +24,13 @@ import Deriving.Aeson.Stock (
  )
 
 -- | A type for 'Primer' style JSON encoding.
-type VJSON a = Vanilla a
+type PrimerJSON a = Vanilla a
 
--- | Like 'VJSON', but strips the given prefix from field names.
+-- | Like 'PrimerJSON', but strips the given prefix from field names.
 --
 -- This type should only be used for records whose fields all begin with
 -- the given prefix, followed by a capital letter.
-type VJSONPrefix prefix a = CustomJSON '[FieldLabelModifier (StripPrefixAndStartLowercase prefix)] a
+type PrimerJSONPrefix prefix a = CustomJSON '[FieldLabelModifier (StripPrefixAndStartLowercase prefix)] a
 
 data StripPrefixAndStartLowercase prefix
 

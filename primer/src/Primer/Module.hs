@@ -37,7 +37,7 @@ data Module = Module
   , moduleDefs :: Map Name Def -- The current program: a set of definitions indexed by Name
   }
   deriving (Eq, Show, Data, Generic)
-  deriving (FromJSON, ToJSON) via VJSON Module
+  deriving (FromJSON, ToJSON) via PrimerJSON Module
 
 qualifyTyConName :: Module -> Name -> TyConName
 qualifyTyConName m = qualifyName (moduleName m)
