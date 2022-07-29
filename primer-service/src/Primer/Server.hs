@@ -45,6 +45,7 @@ import Primer.API (
   evalStep,
   flushSessions,
   generateNames,
+  getApp,
   getProgram,
   getSessionName,
   getVersion,
@@ -203,6 +204,11 @@ type PrimerLegacyAPI =
     --   session-specific API, as it's not scoped by the current
     --   session ID like those methods are.
   :<|> "copy-session" :> ReqBody '[JSON] SessionId :> Post '[JSON] SessionId
+
+    -- GET /api/app
+    --    Exposes the 'getApp' operation. This is useful for testing,
+    --    but not much else.
+  :<|> "app" :> Capture "id" SessionId :> Get '[JSON] App
 
        -- GET /api/version
        --   Get the current git version of the server
@@ -409,6 +415,7 @@ primerServer = openAPIServer :<|> legacyServer
     legacyServer =
       ( addSession
           :<|> copySession
+          :<|> getApp
           :<|> getVersion
           :<|> ( \sid ->
                   getSessionName sid
