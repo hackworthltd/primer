@@ -38,6 +38,7 @@ import Primer.API (
   Env (..),
   PrimerErr (..),
   PrimerIO,
+  addSession,
   copySession,
   edit,
   evalFull,
@@ -60,6 +61,7 @@ import Primer.Action (
   Movement (Child1),
  )
 import Primer.App (
+  App,
   EvalFullReq (..),
   EvalFullResp (..),
   EvalReq (..),
@@ -114,6 +116,7 @@ import Primer.OpenAPI ()
 import Primer.Pagination (Paginated, PaginationParams, pagedDefaultClamp)
 import Primer.Typecheck (TypeError (TypeDoesNotMatchArrow))
 import Servant (
+  Capture,
   Get,
   Handler (..),
   JSON,
@@ -188,16 +191,21 @@ type PrimerOpenAPI =
 
 type PrimerLegacyAPI =
   "api" :> (
+    -- POST /api/add-session
+    --
+    -- Exposes the 'addSession' operation.
+  "add-session" :> ReqBody '[JSON] App :> Capture "name" Text :> Post '[JSON] SessionId
+
     -- POST /api/copy-session
     --   Copy the session whose ID is given in the request body to a
     --   new session, and return the new session ID. Note that this
     --   method can be called at any time and is not part of the
     --   session-specific API, as it's not scoped by the current
     --   session ID like those methods are.
-    "copy-session" :> ReqBody '[JSON] SessionId :> Post '[JSON] SessionId
+  :<|> "copy-session" :> ReqBody '[JSON] SessionId :> Post '[JSON] SessionId
 
-    -- GET /api/version
-    --   Get the current git version of the server
+       -- GET /api/version
+       --   Get the current git version of the server
   :<|> "version" :> Get '[JSON] Text
 
     -- The rest of the API is scoped to a particular session
@@ -399,7 +407,8 @@ primerServer = openAPIServer :<|> legacyServer
         :<|> getProgram
     legacyServer :: ServerT PrimerLegacyAPI PrimerIO
     legacyServer =
-      ( copySession
+      ( addSession
+          :<|> copySession
           :<|> getVersion
           :<|> ( \sid ->
                   getSessionName sid

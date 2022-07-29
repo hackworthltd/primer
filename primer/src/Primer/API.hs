@@ -281,10 +281,7 @@ newSession = addSession' newApp defaultSessionName
 -- API by permitting the caller to directly insert an existing 'App'
 -- into the database. The chief use case for this API method is to
 -- insert pre-made programs built with the Primer Haskell DSL into a
--- new Primer database. Whether this method should be added to the
--- HTTP API is tracked here:
---
--- https://github.com/hackworthltd/primer/issues/550
+-- new Primer database.
 addSession :: (MonadIO m) => App -> Text -> PrimerM m SessionId
 addSession a n = addSession' a (safeMkSessionName n)
 
