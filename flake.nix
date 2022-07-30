@@ -299,8 +299,8 @@
                   dump-local-db
                   restore-local-db
 
-                  ghc8107Tools.cabal-edit
-                  ghc8107Tools.cabal-fmt
+                  #ghc8107Tools.cabal-edit
+                  #ghc8107Tools.cabal-fmt
 
                   haskellPackages.implicit-hie
                 ]);
