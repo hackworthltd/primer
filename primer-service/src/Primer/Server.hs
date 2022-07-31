@@ -109,7 +109,9 @@ import Primer.Servant.API (
  )
 import Primer.Servant.API.Root (PrimerLegacyAPI)
 import Primer.Servant.API.Test (TestAPI)
-import Primer.Servant.OpenAPI (PrimerOpenAPI)
+import Primer.Servant.OpenAPI (
+  PrimerOpenAPI,
+ )
 import Primer.Typecheck (TypeError (TypeDoesNotMatchArrow))
 import Servant (
   Handler (..),
