@@ -142,7 +142,7 @@ data EvalError
   | -- | An error occurred while evaluating a primitive function.
     PrimFunError PrimFunError
   deriving (Eq, Show, Generic)
-  deriving (FromJSON, ToJSON) via VJSON EvalError
+  deriving (FromJSON, ToJSON) via PrimerJSON EvalError
 
 -- | Detailed information about a reduction step
 data EvalDetail
@@ -167,7 +167,7 @@ data EvalDetail
   | -- | Apply a primitive function
     ApplyPrimFun ApplyPrimFunDetail
   deriving (Eq, Show, Generic)
-  deriving (FromJSON, ToJSON) via VJSON EvalDetail
+  deriving (FromJSON, ToJSON) via PrimerJSON EvalDetail
 
 -- | Detailed information about a beta reduction (of a λ or Λ).
 -- If λ:
@@ -191,7 +191,7 @@ data BetaReductionDetail k domain codomain = BetaReductionDetail
   , betaTypes :: Maybe (domain, codomain)
   }
   deriving (Eq, Show, Generic)
-  deriving (FromJSON, ToJSON) via VJSONPrefix "beta" (BetaReductionDetail k domain codomain)
+  deriving (FromJSON, ToJSON) via PrimerJSONPrefix "beta" (BetaReductionDetail k domain codomain)
 
 data LocalVarInlineDetail k = LocalVarInlineDetail
   { localVarInlineLetID :: ID
@@ -209,7 +209,7 @@ data LocalVarInlineDetail k = LocalVarInlineDetail
   -- Otherwise it is a term variable.
   }
   deriving (Eq, Show, Generic)
-  deriving (FromJSON, ToJSON) via VJSONPrefix "localVarInline" (LocalVarInlineDetail k)
+  deriving (FromJSON, ToJSON) via PrimerJSONPrefix "localVarInline" (LocalVarInlineDetail k)
 
 data GlobalVarInlineDetail = GlobalVarInlineDetail
   { globalVarInlineDef :: ASTDef
@@ -220,7 +220,7 @@ data GlobalVarInlineDetail = GlobalVarInlineDetail
   -- ^ The result of the reduction
   }
   deriving (Eq, Show, Generic)
-  deriving (FromJSON, ToJSON) via VJSONPrefix "globalVarInline" GlobalVarInlineDetail
+  deriving (FromJSON, ToJSON) via PrimerJSONPrefix "globalVarInline" GlobalVarInlineDetail
 
 data CaseReductionDetail = CaseReductionDetail
   { caseBefore :: Expr
@@ -243,7 +243,7 @@ data CaseReductionDetail = CaseReductionDetail
   -- ^ the let expressions binding each argument in the result
   }
   deriving (Eq, Show, Generic)
-  deriving (FromJSON, ToJSON) via VJSONPrefix "case" CaseReductionDetail
+  deriving (FromJSON, ToJSON) via PrimerJSONPrefix "case" CaseReductionDetail
 
 data LetRemovalDetail = LetRemovalDetail
   { letRemovalBefore :: Expr
@@ -258,7 +258,7 @@ data LetRemovalDetail = LetRemovalDetail
   -- ^ the right hand side of the let
   }
   deriving (Eq, Show, Generic)
-  deriving (FromJSON, ToJSON) via VJSONPrefix "letRemoval" LetRemovalDetail
+  deriving (FromJSON, ToJSON) via PrimerJSONPrefix "letRemoval" LetRemovalDetail
 
 data LetRenameDetail = LetRenameDetail
   { letRenameBefore :: Expr
@@ -277,7 +277,7 @@ data LetRenameDetail = LetRenameDetail
   -- ^ the right hand side of the let
   }
   deriving (Eq, Show, Generic)
-  deriving (FromJSON, ToJSON) via VJSONPrefix "letRename" LetRenameDetail
+  deriving (FromJSON, ToJSON) via PrimerJSONPrefix "letRename" LetRenameDetail
 
 data PushAppIntoLetrecDetail = PushAppIntoLetrecDetail
   { pushAppIntoLetrecBefore :: Expr
@@ -297,7 +297,7 @@ data PushAppIntoLetrecDetail = PushAppIntoLetrecDetail
   -- Otherwise it is of a small lambda to a term.
   }
   deriving (Eq, Show, Generic)
-  deriving (FromJSON, ToJSON) via VJSONPrefix "pushAppIntoLetrec" PushAppIntoLetrecDetail
+  deriving (FromJSON, ToJSON) via PrimerJSONPrefix "pushAppIntoLetrec" PushAppIntoLetrecDetail
 
 data ApplyPrimFunDetail = ApplyPrimFunDetail
   { applyPrimFunBefore :: Expr
@@ -310,7 +310,7 @@ data ApplyPrimFunDetail = ApplyPrimFunDetail
   -- ^ the IDs of the arguments to the application
   }
   deriving (Eq, Show, Generic)
-  deriving (FromJSON, ToJSON) via VJSONPrefix "applyPrimFun" ApplyPrimFunDetail
+  deriving (FromJSON, ToJSON) via PrimerJSONPrefix "applyPrimFun" ApplyPrimFunDetail
 
 -- | A map from local variable names to the ID of their binding, their bound
 -- value and whether anything in their value would be captured by an intervening

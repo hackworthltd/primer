@@ -117,7 +117,7 @@ import Primer.Core (
  )
 import Primer.Core.DSL (branch, emptyHole, meta, meta')
 import Primer.Core.Utils (alphaEqTy, forgetTypeIDs, freshLocalName, generateTypeIDs)
-import Primer.JSON (CustomJSON (CustomJSON), FromJSON, ToJSON, VJSON)
+import Primer.JSON (CustomJSON (CustomJSON), FromJSON, PrimerJSON, ToJSON)
 import Primer.Module (
   Module (
     moduleDefs
@@ -169,14 +169,14 @@ data TypeError
   | InconsistentKinds Kind Kind
   | KindDoesNotMatchArrow Kind
   deriving (Eq, Show, Generic)
-  deriving (FromJSON, ToJSON) via VJSON TypeError
+  deriving (FromJSON, ToJSON) via PrimerJSON TypeError
 
 assert :: MonadNestedError TypeError e m => Bool -> Text -> m ()
 assert b s = unless b $ throwError' (InternalError s)
 
 data SmartHoles = SmartHoles | NoSmartHoles
   deriving (Eq, Show, Generic)
-  deriving (ToJSON, FromJSON) via VJSON SmartHoles
+  deriving (ToJSON, FromJSON) via PrimerJSON SmartHoles
 
 data KindOrType = K Kind | T Type
   deriving (Show, Eq)

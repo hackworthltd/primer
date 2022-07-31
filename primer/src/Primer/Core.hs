@@ -114,7 +114,7 @@ newtype ID = ID {unID :: Int}
 
 data Meta a = Meta ID a (Maybe Value)
   deriving (Generic, Eq, Show, Data, Functor)
-  deriving (FromJSON, ToJSON) via VJSON (Meta a)
+  deriving (FromJSON, ToJSON) via PrimerJSON (Meta a)
 
 -- | This lens is called 'type' because 'a' is most commonly a Type, but it will
 -- work for any 'a'.
@@ -135,7 +135,7 @@ data TypeCache
   | TCChkedAt (Type' ())
   | TCEmb TypeCacheBoth
   deriving (Eq, Show, Generic, Data)
-  deriving (FromJSON, ToJSON) via VJSON TypeCache
+  deriving (FromJSON, ToJSON) via PrimerJSON TypeCache
 
 -- We were checking at the first, but term was synthesisable and synth'd the
 -- second We don't inline this into TypeCache because then we would get partial
@@ -143,7 +143,7 @@ data TypeCache
 -- though, to make it clear what each one is!
 data TypeCacheBoth = TCBoth {tcChkedAt :: Type' (), tcSynthed :: Type' ()}
   deriving (Eq, Show, Generic, Data)
-  deriving (FromJSON, ToJSON) via VJSON TypeCacheBoth
+  deriving (FromJSON, ToJSON) via PrimerJSON TypeCacheBoth
 
 -- TODO `_chkedAt` and `_synthed` should be `AffineTraversal`s,
 -- but there is currently no `failing` for AffineTraversals, only for AffineFolds (`afailing`).
@@ -282,14 +282,14 @@ data Expr' a b
   | Case a (Expr' a b) [CaseBranch' a b] -- See Note [Case]
   | PrimCon a PrimCon
   deriving (Eq, Show, Data, Generic)
-  deriving (FromJSON, ToJSON) via VJSON (Expr' a b)
+  deriving (FromJSON, ToJSON) via PrimerJSON (Expr' a b)
 
 -- | A reference to a variable.
 data TmVarRef
   = GlobalVarRef GVarName
   | LocalVarRef LVarName
   deriving (Eq, Show, Data, Generic)
-  deriving (FromJSON, ToJSON) via VJSON TmVarRef
+  deriving (FromJSON, ToJSON) via PrimerJSON TmVarRef
 
 -- Note [Synthesisable constructors]
 -- Whilst our calculus is heavily inspired by bidirectional type systems
@@ -363,14 +363,14 @@ data CaseBranch' a b
       (Expr' a b)
       -- ^ right hand side
   deriving (Eq, Show, Data, Generic)
-  deriving (FromJSON, ToJSON) via VJSON (CaseBranch' a b)
+  deriving (FromJSON, ToJSON) via PrimerJSON (CaseBranch' a b)
 
 -- | Variable bindings
 -- These are used in case branches to represent the binding of a variable.
 -- They aren't currently used in lambdas or lets, but in the future that may change.
 data Bind' a = Bind a LVarName
   deriving (Eq, Show, Data, Generic)
-  deriving (FromJSON, ToJSON) via VJSON (Bind' a)
+  deriving (FromJSON, ToJSON) via PrimerJSON (Bind' a)
 
 bindName :: Bind' a -> LVarName
 bindName (Bind _ n) = n
@@ -399,7 +399,7 @@ data Type' a
   | TApp a (Type' a) (Type' a)
   | TForall a TyVarName Kind (Type' a)
   deriving (Eq, Show, Data, Generic)
-  deriving (FromJSON, ToJSON) via VJSON (Type' a)
+  deriving (FromJSON, ToJSON) via PrimerJSON (Type' a)
 
 -- | Note that this does not recurse in to sub-expressions or sub-types.
 typesInExpr :: AffineTraversal' (Expr' a b) (Type' b)
@@ -423,7 +423,7 @@ _typeMetaLens = position @1
 -- | Core kinds.
 data Kind = KHole | KType | KFun Kind Kind
   deriving (Eq, Show, Data, Generic)
-  deriving (FromJSON, ToJSON) via VJSON Kind
+  deriving (FromJSON, ToJSON) via PrimerJSON Kind
 
 -- | A class for types which have an ID.
 -- This makes it easier to change the underlying metadata representation without
@@ -486,7 +486,7 @@ data Def
   = DefPrim PrimDef
   | DefAST ASTDef
   deriving (Eq, Show, Data, Generic)
-  deriving (FromJSON, ToJSON) via VJSON Def
+  deriving (FromJSON, ToJSON) via PrimerJSON Def
 
 -- | A mapping of global names to 'Def's.
 type DefMap = Map GVarName Def
@@ -499,7 +499,7 @@ newtype PrimDef = PrimDef
   { primDefType :: Type
   }
   deriving (Eq, Show, Data, Generic)
-  deriving (FromJSON, ToJSON) via VJSON PrimDef
+  deriving (FromJSON, ToJSON) via PrimerJSON PrimDef
 
 -- | A top-level definition, built from an 'Expr'
 data ASTDef = ASTDef
@@ -507,7 +507,7 @@ data ASTDef = ASTDef
   , astDefType :: Type
   }
   deriving (Eq, Show, Data, Generic)
-  deriving (FromJSON, ToJSON) via VJSON ASTDef
+  deriving (FromJSON, ToJSON) via PrimerJSON ASTDef
 
 defType :: Def -> Type
 defType = \case
@@ -526,7 +526,7 @@ data PrimCon
   = PrimChar Char
   | PrimInt Integer
   deriving (Eq, Show, Data, Generic)
-  deriving (FromJSON, ToJSON) via VJSON PrimCon
+  deriving (FromJSON, ToJSON) via PrimerJSON PrimCon
 
 -- | The name of the type to which this primitive constructor belongs.
 -- This should be a key in `allPrimTypeDefs`.
@@ -558,13 +558,13 @@ data PrimFunError
       [Expr' () ()]
       -- ^ Arguments
   deriving (Eq, Show, Data, Generic)
-  deriving (FromJSON, ToJSON) via VJSON PrimFunError
+  deriving (FromJSON, ToJSON) via PrimerJSON PrimFunError
 
 data TypeDef
   = TypeDefPrim PrimTypeDef
   | TypeDefAST ASTTypeDef
   deriving (Eq, Show, Data, Generic)
-  deriving (FromJSON, ToJSON) via VJSON TypeDef
+  deriving (FromJSON, ToJSON) via PrimerJSON TypeDef
 
 -- | A mapping of global names to 'TypeDef's.
 type TypeDefMap = Map TyConName TypeDef
@@ -575,7 +575,7 @@ data PrimTypeDef = PrimTypeDef
   , primTypeDefNameHints :: [Name]
   }
   deriving (Eq, Show, Data, Generic)
-  deriving (FromJSON, ToJSON) via VJSON PrimTypeDef
+  deriving (FromJSON, ToJSON) via PrimerJSON PrimTypeDef
 
 -- | Definition of an algebraic data type
 --
@@ -588,14 +588,14 @@ data ASTTypeDef = ASTTypeDef
   , astTypeDefNameHints :: [Name]
   }
   deriving (Eq, Show, Data, Generic)
-  deriving (FromJSON, ToJSON) via VJSON ASTTypeDef
+  deriving (FromJSON, ToJSON) via PrimerJSON ASTTypeDef
 
 data ValCon = ValCon
   { valConName :: ValConName
   , valConArgs :: [Type' ()]
   }
   deriving (Eq, Show, Data, Generic)
-  deriving (FromJSON, ToJSON) via VJSON ValCon
+  deriving (FromJSON, ToJSON) via PrimerJSON ValCon
 
 valConType :: TyConName -> ASTTypeDef -> ValCon -> Type' ()
 valConType tc td vc =
