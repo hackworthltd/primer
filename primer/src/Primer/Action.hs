@@ -325,12 +325,12 @@ data Action
   | -- | Rename a case binding
     RenameCaseBinding Text
   deriving (Eq, Show, Generic)
-  deriving (FromJSON, ToJSON) via VJSON Action
+  deriving (FromJSON, ToJSON) via PrimerJSON Action
 
 -- | Core movements
 data Movement = Child1 | Child2 | Parent | Branch ValConName
   deriving (Eq, Show, Generic)
-  deriving (FromJSON, ToJSON) via VJSON Movement
+  deriving (FromJSON, ToJSON) via PrimerJSON Movement
 
 -- | Errors that may arise when applying an action
 -- TODO: convert all CustomFailures to individual constructors
@@ -371,7 +371,7 @@ data ActionError
   -- The extra unit is to avoid having two constructors with a single
   -- TypeError field, breaking our MonadNestedError machinery...
   deriving (Eq, Show, Generic)
-  deriving (FromJSON, ToJSON) via VJSON ActionError
+  deriving (FromJSON, ToJSON) via PrimerJSON ActionError
 
 -- | High level actions
 -- These actions move around the whole program or modify definitions
@@ -419,7 +419,7 @@ data ProgAction
   | -- | Renames an editable module (will return an error if asked to rename an imported module)
     RenameModule ModuleName (NonEmpty Text)
   deriving (Eq, Show, Generic)
-  deriving (FromJSON, ToJSON) via VJSON ProgAction
+  deriving (FromJSON, ToJSON) via PrimerJSON ProgAction
 
 -- | A shorthand for the constraints needed when applying actions
 type ActionM m =

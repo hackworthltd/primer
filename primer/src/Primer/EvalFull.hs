@@ -88,7 +88,7 @@ import Primer.Core.Utils (
   _freeVarsTy,
  )
 import Primer.Eval (tryPrimFun)
-import Primer.JSON (CustomJSON (CustomJSON), FromJSON, ToJSON, VJSON)
+import Primer.JSON (CustomJSON (CustomJSON), FromJSON, PrimerJSON, ToJSON)
 import Primer.Name (Name, NameCounter)
 import Primer.Typecheck (instantiateValCons', lookupConstructor, mkTAppCon)
 import Primer.Zipper (
@@ -253,7 +253,7 @@ _freeVarsLocal =
 
 data Dir = Syn | Chk
   deriving (Eq, Show, Generic)
-  deriving (FromJSON, ToJSON) via VJSON Dir
+  deriving (FromJSON, ToJSON) via PrimerJSON Dir
 
 -- What is the direction from the context?
 -- i.e. are we in the head of an elimination (or inside a hole)?
