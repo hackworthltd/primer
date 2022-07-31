@@ -13,6 +13,11 @@ category:      Web
 library
   exposed-modules:
     Primer.Pagination
+    Primer.Servant.API
+    Primer.Servant.API.Root
+    Primer.Servant.API.Session
+    Primer.Servant.API.Test
+    Primer.Servant.OpenAPI
     Primer.Server
 
   hs-source-dirs:     src

@@ -55,21 +55,17 @@ import Primer.API (
   runPrimerIO,
   variablesInScope,
  )
-import Primer.API qualified as API
 import Primer.Action (
   Action (Move),
   ActionError (TypeError),
   Movement (Child1),
  )
 import Primer.App (
-  App,
   EvalFullReq (..),
   EvalFullResp (..),
   EvalReq (..),
   EvalResp (..),
   Log (..),
-  MutationRequest,
-  Prog,
   ProgAction (BodyAction, MoveToDef),
   ProgError (NoDefSelected),
   newProg',
@@ -77,15 +73,8 @@ import Primer.App (
 import Primer.Builtins (boolDef)
 import Primer.Core (
   ASTDef (..),
-  ASTTypeDef,
   Def (..),
-  Expr,
-  GVarName,
-  ID,
   Kind (KFun, KType),
-  LVarName,
-  TyVarName,
-  Type,
   Type' (TEmptyHole),
   TypeCache (..),
   TypeCacheBoth (..),
@@ -102,8 +91,6 @@ import Primer.Core.DSL (
   tfun,
  )
 import Primer.Database (
-  Session,
-  SessionId,
   Sessions,
   Version,
  )
@@ -112,216 +99,35 @@ import Primer.Database qualified as Database (
  )
 import Primer.Eval (BetaReductionDetail (..), EvalDetail (..))
 import Primer.EvalFull (Dir (Syn))
-import Primer.Name (Name)
 import Primer.OpenAPI ()
-import Primer.Pagination (Paginated, PaginationParams, pagedDefaultClamp)
+import Primer.Pagination (pagedDefaultClamp)
+import Primer.Servant.API (
+  API,
+  PrimerAPI,
+  api,
+  primerApi,
+ )
+import Primer.Servant.API.Root (PrimerLegacyAPI)
+import Primer.Servant.API.Test (TestAPI)
+import Primer.Servant.OpenAPI (PrimerOpenAPI)
 import Primer.Typecheck (TypeError (TypeDoesNotMatchArrow))
 import Servant (
-  Capture,
-  Get,
   Handler (..),
-  JSON,
   NoContent (..),
-  Post,
-  Put,
-  QueryFlag,
-  QueryParam',
   Raw,
-  ReqBody,
-  Required,
   Server,
   ServerError,
   ServerT,
-  Strict,
-  Summary,
   err500,
   errBody,
   hoistServer,
   (:<|>) (..),
-  (:>),
  )
 import Servant qualified (serve)
 import Servant.OpenApi (toOpenApi)
-import Servant.OpenApi.OperationId (OpId)
 import Servant.Server.StaticFiles (serveDirectoryWith)
 import WaiAppStatic.Storage.Filesystem (defaultWebAppSettings)
 import WaiAppStatic.Types (MaxAge (NoMaxAge), StaticSettings (ssIndices, ssMaxAge, ssRedirectToIndex), unsafeToPiece)
-
--- | The API.
---
--- All endpoints except raw files, new-session, and flush-sessions
--- require a session ID.
-
--- To be able to format these large types nicely, we disable ormolu and align them manually.
-{- ORMOLU_DISABLE -}
-
-type API =
-       "openapi.json" :> Get '[JSON] OpenApi
-  :<|> PrimerAPI
-
--- | 'PrimerOpenAPI' is the portion of our API that is documented with an exported
--- OpenAPI3 spec.
--- 'PrimerLegacyAPI' is everything else.
--- Over time, the 'PrimerLegacyAPI' should shrink as we improve our documentation.
-type PrimerAPI = PrimerOpenAPI :<|> PrimerLegacyAPI
-
-type PrimerOpenAPI =
-  "api" :> (
-    -- POST /api/sessions
-    --   create a new session on the backend, returning its id
-    "sessions" :>
-    Summary "Create a new session" :>
-    OpId "createSession" Post '[JSON] SessionId
-
-    -- GET /api/sessions
-    --   Get a list of all sessions and their
-    --   human-readable names. By default this returns the list of all
-    --   sessions in the persistent database, but optionally it can return
-    --   just the list of all sessions in memory, which is mainly useful for
-    --   testing. Note that in a production system, this endpoint should
-    --   obviously be authentication-scoped and only return the list of
-    --   sessions that the caller is authorized to see.
-  :<|> QueryFlag "inMemory" :> "sessions" :>
-    PaginationParams :>
-    Summary "List sessions" :>
-    OpId "getSessionList" Get '[JSON] (Paginated Session)
-
-    -- The rest of the API is scoped to a particular session
-  :<|> QueryParam' '[Required, Strict] "session" SessionId :> SOpenAPI
-  )
-
-type PrimerLegacyAPI =
-  "api" :> (
-    -- POST /api/add-session
-    --
-    -- Exposes the 'addSession' operation.
-  "add-session" :> ReqBody '[JSON] App :> Capture "name" Text :> Post '[JSON] SessionId
-
-    -- POST /api/copy-session
-    --   Copy the session whose ID is given in the request body to a
-    --   new session, and return the new session ID. Note that this
-    --   method can be called at any time and is not part of the
-    --   session-specific API, as it's not scoped by the current
-    --   session ID like those methods are.
-  :<|> "copy-session" :> ReqBody '[JSON] SessionId :> Post '[JSON] SessionId
-
-    -- GET /api/app
-    --    Exposes the 'getApp' operation. This is useful for testing,
-    --    but not much else.
-  :<|> "app" :> Capture "id" SessionId :> Get '[JSON] App
-
-       -- GET /api/version
-       --   Get the current git version of the server
-  :<|> "version" :> Get '[JSON] Text
-
-    -- The rest of the API is scoped to a particular session
-  :<|> QueryParam' '[Required, Strict] "session" SessionId :> SAPI
-  )
-
-    -- PUT /admin/flush-sessions
-    --   Flush the in-memory session database.
-    --   (All state will be preserved in the persistent database. This is a
-    --   non-destructive operation.)
-  :<|> "admin" :> ("flush-sessions" :> Put '[JSON] NoContent)
-
-    -- GET /any-path
-    --   Get the static file at any-path, if it exists
-  :<|> Raw
-
--- | The session-specific bits of the api
-type SOpenAPI = (
-    -- GET /api/program
-    --   Get the current program state
-    "program" :> Get '[JSON] API.Prog
-  )
-
--- | The session-specific bits of the api
--- (legacy version)
-type SAPI = (
-    -- GET /api/session-name
-    --   Get the current session name.
-       "session-name" :> Get '[JSON] Text
-
-    -- PUT /api/session-name
-    --   Attempt to set the current session name. Returns the new
-    --   session name. (Note that this may differ from the name
-    --   provided.)
-  :<|> "session-name" :> ReqBody '[JSON] Text :> Put '[JSON] Text
-
-    -- POST /api/edit
-    --   Submit an action, returning an updated program state
-  :<|> "edit" :> ReqBody '[JSON] MutationRequest :> Post '[JSON] (Either ProgError Prog)
-
-    -- POST /question
-    --   Submit a qestion, returning the answer or an error.
-    --
-    -- Ideally we'd model questions as a GADT, I don't know how to integrate that with Servant.
-    -- Instead we just write out the types fully here.
-  :<|> "question" :> (
-
-    -- POST /question/variables-in-scope
-    --   Ask what variables are in scope for the given node ID
-    "variables-in-scope"
-      :> ReqBody '[JSON] (GVarName, ID)
-      :> Post '[JSON] (Either ProgError (([(TyVarName, Kind)], [(LVarName, Type' ())]), [(GVarName, Type' ())]))
-
-    -- POST /question/generate-names
-    --   Ask for a list of possible names for a binding at the given location.
-    -- This method would be GET (since it doesn't modify any state) but we need to provide a request
-    -- body, which isn't well supported for GET requests.
-    :<|> "generate-names"
-      :> ReqBody '[JSON] ((GVarName, ID), Either (Maybe (Type' ())) (Maybe Kind))
-      :> Post '[JSON] (Either ProgError [Name])
-    )
-
-    -- POST /eval-step
-    --   Perform one step of evaluation on the given expression.
-  :<|> "eval-step" :> ReqBody '[JSON] EvalReq :> Post '[JSON] (Either ProgError EvalResp)
-
-    -- POST /eval
-    --   Evaluate the given expression to normal form (or time out).
-   :<|> "eval" :> ReqBody '[JSON] EvalFullReq :> Post '[JSON] (Either ProgError EvalFullResp)
-
-    -- GET /api/test/<type>
-    --   Get an arbitrary value of that type
-    -- POST /api/test/<type>
-    --   Post an arbitrary value of that type, responding with the value
-  :<|> "test" :> TestAPI
-  )
-
--- | API endpoints that we use for integration tests
-type TestAPI = (
-       "movement"      :> Test Movement
-  :<|> "action"        :> Test Action
-  :<|> "actionerror"   :> Test ActionError
-  :<|> "name"          :> Test Name
-  :<|> "type"          :> Test Type
-  :<|> "typecache"     :> Test TypeCache
-  :<|> "typecacheboth" :> Test TypeCacheBoth
-  :<|> "expr"          :> Test Expr
-  :<|> "exprCaseEmpty" :> Test Expr
-  :<|> "exprCaseFull"  :> Test Expr
-  :<|> "kind"          :> Test Kind
-  :<|> "id"            :> Test ID
-  :<|> "log"           :> Test Log
-  :<|> "program"       :> Test Prog
-  :<|> "progaction"    :> Test ProgAction
-  :<|> "progerror"     :> Test ProgError
-  :<|> "def"           :> Test Def
-  :<|> "typeDef"       :> Test ASTTypeDef
-  :<|> "evalReq"       :> Test EvalReq
-  :<|> "evalResp"      :> Test EvalResp
-  :<|> "evalFullReq"   :> Test EvalFullReq
-  :<|> "evalFullResp"  :> Test EvalFullResp
-  )
-
-{- ORMOLU_ENABLE -}
-
--- | A type for a pair of test endpoints.
--- The first endpoint returns a fixture of the given type.
--- The second endpoint accepts a value of the given type as JSON and
--- responds with the value it was given, re-encoded as JSON.
-type Test a = Get '[JSON] a :<|> (ReqBody '[JSON] a :> Post '[JSON] a)
 
 openAPIInfo :: OpenApi
 openAPIInfo =
@@ -386,12 +192,6 @@ testEndpoints =
           , betaBodyID = 0
           , betaTypes = Just (ty, ty)
           }
-
-primerApi :: Proxy PrimerAPI
-primerApi = Proxy
-
-api :: Proxy API
-api = Proxy
 
 hoistPrimer :: Env -> Server PrimerAPI
 hoistPrimer e = hoistServer primerApi nt primerServer
