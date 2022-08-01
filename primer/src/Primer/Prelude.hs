@@ -25,3 +25,30 @@ notDef = do
       )
   pure $ DefAST $ ASTDef term type_
 
+and :: GVarName
+and = qualifyName modName "and"
+
+andDef :: MonadFresh ID m => m Def
+andDef = do
+  type_ <- tcon B.tBool `tfun` (tcon B.tBool `tfun` tcon B.tBool)
+  term <-
+    lam
+      "x"
+      ( case_
+          (lvar "x")
+          [ branch
+              B.cTrue
+              []
+              ( lam
+                  "y"
+                  ( case_
+                      (lvar "y")
+                      [ branch B.cTrue [] (con B.cTrue)
+                      , branch B.cFalse [] (con B.cFalse)
+                      ]
+                  )
+              )
+          , branch B.cFalse [] (lam "y" $ con B.cFalse)
+          ]
+      )
+  pure $ DefAST $ ASTDef term type_
