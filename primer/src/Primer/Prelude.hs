@@ -87,3 +87,22 @@ orDef = do
 appFold :: (Foldable t, MonadFresh ID m) => t (m Expr) -> m Expr
 appFold = foldl1 app
 
+xor :: GVarName
+xor = qualifyName modName "xor"
+
+xorDef :: MonadFresh ID m => m Def
+xorDef = do
+  type_ <- tcon B.tBool `tfun` (tcon B.tBool `tfun` tcon B.tBool)
+  term <-
+    lam
+      "x"
+      ( lam
+          "y"
+          ( appFold
+              [ gvar and
+              , appFold [gvar or, lvar "x", lvar "y"]
+              , app (gvar not) (appFold [gvar and, lvar "x", lvar "y"])
+              ]
+          )
+      )
+  pure $ DefAST $ ASTDef term type_
