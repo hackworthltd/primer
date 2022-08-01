@@ -399,7 +399,7 @@ data NodeBody
 instance ToJSON NodeBody
 
 -- | An indication of the meaning of a node, which frontend may use for labelling, colour etc.
--- Aside from 'StylePattern', these all correspond to constructors of `Expr'` or `Type'`.
+-- These mostly correspond to constructors of `Expr'` or `Type'`.
 data NodeStyle
   = StyleHole
   | StyleEmptyHole
@@ -409,9 +409,8 @@ data NodeStyle
   | StyleCon
   | StyleLam
   | StyleLAM
-  | StyleVar
-  | StyleGlobalVarRef
-  | StyleLocalVarRef
+  | StyleGlobalVar
+  | StyleLocalVar
   | StyleLet
   | StyleLetType
   | StyleLetrec
@@ -562,17 +561,19 @@ viewTreeExpr e0 = case e0 of
       , childTrees = [viewTreeExpr e]
       , rightChild = Nothing
       }
-  Var _ s ->
+  Var _ ref ->
     Tree
       { nodeId
       , label = "Var"
-      , style = StyleVar
-      , body = TextBody $ case s of
-          GlobalVarRef n -> showGlobal n
-          LocalVarRef n -> unName $ unLocalName n
+      , style
+      , body
       , childTrees = []
       , rightChild = Nothing
       }
+    where
+      (style, body) = case ref of
+        GlobalVarRef n -> (StyleGlobalVar, TextBody $ showGlobal n)
+        LocalVarRef n -> (StyleLocalVar, TextBody $ unName $ unLocalName n)
   Let _ s e1 e2 ->
     Tree
       { nodeId
@@ -637,7 +638,7 @@ viewTreeExpr e0 = case e0 of
                                             Tree
                                               { nodeId = show $ m ^. _id
                                               , label = "Var"
-                                              , style = StyleVar
+                                              , style = StyleLocalVar
                                               , body = TextBody $ unName $ unLocalName v
                                               , childTrees = next'
                                               , rightChild = Nothing

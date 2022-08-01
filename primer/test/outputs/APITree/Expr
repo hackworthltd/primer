@@ -50,7 +50,7 @@ Tree
                                 [ Tree
                                     { nodeId = "16"
                                     , label = "Var"
-                                    , style = StyleVar
+                                    , style = StyleGlobalVar
                                     , body = TextBody "M.unboundName"
                                     , childTrees = []
                                     , rightChild = Nothing
@@ -170,7 +170,7 @@ Tree
                                                         [ Tree
                                                             { nodeId = "31"
                                                             , label = "Var"
-                                                            , style = StyleVar
+                                                            , style = StyleLocalVar
                                                             , body = TextBody "i"
                                                             , childTrees = []
                                                             , rightChild = Nothing
@@ -216,7 +216,7 @@ Tree
                                                                                 [ Tree
                                                                                     { nodeId = "33"
                                                                                     , label = "Var"
-                                                                                    , style = StyleVar
+                                                                                    , style = StyleLocalVar
                                                                                     , body = TextBody "n"
                                                                                     , childTrees = []
                                                                                     , rightChild = Nothing
@@ -249,7 +249,7 @@ Tree
                                                                                         , Tree
                                                                                             { nodeId = "37"
                                                                                             , label = "Var"
-                                                                                            , style = StyleVar
+                                                                                            , style = StyleLocalVar
                                                                                             , body = TextBody "x"
                                                                                             , childTrees = []
                                                                                             , rightChild = Nothing
@@ -260,7 +260,7 @@ Tree
                                                                                 , Tree
                                                                                     { nodeId = "38"
                                                                                     , label = "Var"
-                                                                                    , style = StyleVar
+                                                                                    , style = StyleLocalVar
                                                                                     , body = TextBody "y"
                                                                                     , childTrees = []
                                                                                     , rightChild = Nothing
