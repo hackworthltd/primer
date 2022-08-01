@@ -1,8 +1,9 @@
 import Control.Monad.Fresh
-import Foreword hiding (not)
+import Data.Foldable (foldl1)
 import Primer.Builtins qualified as B
 import Primer.Core
 import Primer.Core.DSL
+import Data.Foldable (foldl1)
 
 modName :: ModuleName
 modName = mkSimpleModuleName "Prelude"
@@ -80,3 +81,9 @@ orDef = do
           ]
       )
   pure $ DefAST $ ASTDef term type_
+
+-- | Helper function for functions with multiple arguments
+-- Unsafe - do not call with empty list
+appFold :: (Foldable t, MonadFresh ID m) => t (m Expr) -> m Expr
+appFold = foldl1 app
+
