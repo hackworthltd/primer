@@ -124,7 +124,6 @@ import Servant (
   Post,
   Put,
   QueryParam',
-  Raw,
   ReqBody,
   Required,
   Server,
@@ -140,9 +139,6 @@ import Servant (
 import Servant qualified (serve)
 import Servant.OpenApi (toOpenApi)
 import Servant.Server.Generic (AsServerT)
-import Servant.Server.StaticFiles (serveDirectoryWith)
-import WaiAppStatic.Storage.Filesystem (defaultWebAppSettings)
-import WaiAppStatic.Types (MaxAge (NoMaxAge), StaticSettings (ssIndices, ssMaxAge, ssRedirectToIndex), unsafeToPiece)
 
 -- | The API.
 --
@@ -181,10 +177,6 @@ type PrimerLegacyAPI =
     --   (All state will be preserved in the persistent database. This is a
     --   non-destructive operation.)
   :<|> "admin" :> ("flush-sessions" :> Put '[JSON] NoContent)
-
-    -- GET /any-path
-    --   Get the static file at any-path, if it exists
-  :<|> Raw
 
 -- | The session-specific bits of the api
 -- (legacy version)
@@ -281,20 +273,6 @@ openAPIInfo =
     & #info % #description ?~ "A backend service implementing a pedagogic functional programming language."
     & #info % #version .~ "0.7"
 
-serveStaticFiles :: ServerT Raw PrimerIO
-serveStaticFiles =
-  -- Static file settings. Sane defaults, plus:
-  -- - if the user requests a directory (like /), look for an index.html
-  --   file in that directory and redirect to it.
-  -- - disable caching, because it's unhelpful during development.
-  let settings =
-        (defaultWebAppSettings ".")
-          { ssIndices = [unsafeToPiece "index.html"]
-          , ssRedirectToIndex = True
-          , ssMaxAge = NoMaxAge
-          }
-   in serveDirectoryWith settings
-
 -- These endpoints (de)serialize different types in the API, to help
 -- with testing (de)serialization code.
 testEndpoints :: ServerT TestAPI PrimerIO
@@ -389,7 +367,6 @@ primerServer = rootOpenAPIServer :<|> legacyServer
                )
       )
         :<|> flushSessions'
-        :<|> serveStaticFiles
     -- We need to convert '()' from the API to 'NoContent'
     flushSessions' = flushSessions >> pure NoContent
 
