@@ -32,18 +32,14 @@ data SessionsOpenAPI mode = SessionsOpenAPI
       mode
         :- Summary "Create a new session"
           :> OpId "createSession" Post '[JSON] SessionId
-  -- ^ POST /api/sessions
-  --
-  -- Create a new session on the backend, returning its id
+  -- ^ Create a new session on the backend, returning its id
   , getSessionList ::
       mode
         :- QueryFlag "inMemory"
           :> PaginationParams
           :> Summary "List sessions"
           :> OpId "getSessionList" Get '[JSON] (Paginated Session)
-  -- ^ GET /api/sessions
-  --
-  -- Get a list of all sessions and their human-readable names. By
+  -- ^ Get a list of all sessions and their human-readable names. By
   -- default this returns the list of all sessions in the persistent
   -- database, but optionally it can return just the list of all
   -- sessions in memory, which is mainly useful for testing. Note that
@@ -64,8 +60,6 @@ newtype SessionOpenAPI mode = SessionOpenAPI
         :- "program"
           :> Summary "Get the current program"
           :> OpId "getProgram" Get '[JSON] API.Prog
-  -- ^ GET /api/sessions/:session/program
-  --
-  -- Get the current program state.
+  -- ^ Get the current program state.
   }
   deriving (Generic)
