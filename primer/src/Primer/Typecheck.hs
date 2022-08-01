@@ -40,7 +40,6 @@ module Primer.Typecheck (
   instantiateValCons',
   exprTtoExpr,
   typeTtoType,
-  checkDef,
   substituteTypeVars,
   getGlobalNames,
   getGlobalBaseNames,
@@ -70,7 +69,28 @@ import Data.Map qualified as M
 import Data.Map.Strict qualified as Map
 import Data.Set qualified as S
 import Data.Tuple.Extra (fst3)
-import Optics (Lens', over, set, traverseOf, view, (%))
+import Optics (
+  A_Traversal,
+  AppendIndices,
+  IxFold,
+  IxTraversal',
+  JoinKinds,
+  Lens',
+  Optic',
+  WithIx,
+  equality,
+  icompose,
+  itoListOf,
+  itraversed,
+  over,
+  reindexed,
+  selfIndex,
+  set,
+  to,
+  traverseOf,
+  view,
+  (%),
+ )
 import Optics.Traversal (traversed)
 import Primer.Core (
   ASTDef (..),
@@ -91,7 +111,6 @@ import Primer.Core (
   Meta (..),
   ModuleName,
   PrimCon,
-  PrimDef (primDefType),
   TmVarRef (..),
   TyConName,
   TyVarName,
@@ -106,12 +125,14 @@ import Primer.Core (
   bindName,
   defType,
   primConName,
+  qualifyName,
   typeDefAST,
   typeDefKind,
   typeDefParameters,
   unLocalName,
   valConType,
   _bindMeta,
+  _defType,
   _exprMeta,
   _exprMetaLens,
   _exprTypeMeta,
@@ -130,7 +151,8 @@ import Primer.Core.Utils (
 import Primer.JSON (CustomJSON (CustomJSON), FromJSON, PrimerJSON, ToJSON)
 import Primer.Module (
   Module (
-    moduleDefs
+    moduleDefs,
+    moduleName
   ),
   moduleDefsQualified,
   moduleTypesQualified,
@@ -409,6 +431,14 @@ data CheckEverythingRequest = CheckEverything
 -- environment of modules.
 -- Returns just the modules that were requested 'toCheck', with updated cached
 -- type information etc.
+--
+-- This checks every type definition and every global term definition.
+--
+-- In particular, this typechecks all the definitions, in one recursive group.
+-- This checks that the type signature is well-formed, then checks the body
+-- (for an ASTDef) against the signature.
+-- (If SmartHoles edits a type, the body of every function is checked in the
+-- environment with the updated type)
 checkEverything ::
   forall e m.
   (MonadFresh ID m, MonadFresh NameCounter m, MonadNestedError TypeError e (ReaderT Cxt m)) =>
@@ -418,26 +448,44 @@ checkEverything ::
 checkEverything sh CheckEverything{trusted, toCheck} =
   let cxt = buildTypingContextFromModules trusted sh
    in flip runReaderT cxt $ do
-        checkTypeDefs $ foldMap moduleTypesQualified toCheck
         let newTypes = foldMap moduleTypesQualified toCheck
-            newDefs =
-              M.foldMapWithKey (\n d -> [(n, forgetTypeMetadata $ defType d)]) $
-                foldMap moduleDefsQualified toCheck
-        local (extendGlobalCxt newDefs . extendTypeDefCxt newTypes) $
-          traverseOf (traversed % #moduleDefs % traversed) checkDef toCheck
-
--- | Typecheck a definition.
--- This checks that the type signature is well-formed, then checks the body
--- (for an ASTDef) against the signature.
-checkDef :: TypeM e m => Def -> m Def
-checkDef def = do
-  t <- checkKind KType (defType def)
-  case def of
-    DefAST def' -> do
-      e <- check (forgetTypeMetadata t) (astDefExpr def')
-      pure $ DefAST $ def'{astDefType = typeTtoType t, astDefExpr = exprTtoExpr e}
-    DefPrim def' -> do
-      pure $ DefPrim $ def'{primDefType = typeTtoType t}
+        checkTypeDefs newTypes
+        local (extendTypeDefCxt newTypes) $ do
+          -- Kind check and update (for smartholes) all the types.
+          -- Note that this may give ill-typed definitions if the type changes
+          -- since we have not checked the expressions against the new types.
+          updatedTypes <- traverseOf (traverseDefs % _defType) (fmap typeTtoType . checkKind KType) toCheck
+          -- Now extend the context with the new types
+          let defsUpdatedTypes = itoListOf foldDefTypesWithName updatedTypes
+          local (extendGlobalCxt defsUpdatedTypes) $
+            -- Check the body (of AST definitions) against the new type
+            traverseOf
+              (traverseDefs % #_DefAST)
+              ( \def -> do
+                  e <- check (forgetTypeMetadata $ astDefType def) (astDefExpr def)
+                  pure $ def{astDefExpr = exprTtoExpr e}
+              )
+              updatedTypes
+  where
+    -- The first argument of traverseDefs' is intended to either
+    -- - be equality, giving a traveral
+    -- - specify an index (using selfIndex and reindexed), giving a fold
+    traverseDefs' ::
+      ( JoinKinds A_Traversal k l
+      , JoinKinds l A_Traversal l
+      , AppendIndices is (WithIx Name) js
+      ) =>
+      Optic' k is Module Module ->
+      Optic' l js [Module] Def
+    traverseDefs' o = traversed % o % (#moduleDefs % itraversed)
+    traverseDefs :: IxTraversal' Name [Module] Def
+    traverseDefs = traverseDefs' equality
+    foldDefTypesWithName :: IxFold GVarName [Module] Type
+    foldDefTypesWithName =
+      icompose qualifyName $
+        traverseDefs' (reindexed moduleName selfIndex)
+          % _defType
+          % to forgetTypeMetadata
 
 -- We assume that constructor names are unique, returning the first one we find
 lookupConstructor :: TypeDefMap -> ValConName -> Maybe (ValCon, TyConName, ASTTypeDef)

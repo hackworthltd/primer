@@ -22,11 +22,14 @@ import Hedgehog.Gen qualified as Gen
 import Hedgehog.Range qualified as Range
 import Optics (over, set, (%), (%~))
 import Primer.App (
-  Prog,
+  Prog (Prog, progImports, progLog, progSelection, progSmartHoles),
+  ProgError,
+  defaultLog,
   newEmptyProg',
   newProg',
   progAllModules,
   progModules,
+  tcWholeProg,
  )
 import Primer.Builtins (
   boolDef,
@@ -47,6 +50,7 @@ import Primer.Builtins (
   tNat,
  )
 import Primer.Core (
+  ASTDef (ASTDef, astDefExpr),
   ASTTypeDef (..),
   Def (..),
   Expr,
@@ -66,6 +70,8 @@ import Primer.Core (
   TypeDef (..),
   ValCon (..),
   astTypeDefConstructors,
+  defAST,
+  defType,
   typeDefKind,
   valConType,
   _exprMeta,
@@ -662,6 +668,41 @@ tasty_smartholes_idempotent_chk = withTests 1000 $
         annotateShow e''
         ty' === ty''
         TypeCacheAlpha e' === TypeCacheAlpha e''
+
+-- We must ensure that when we check a program with smartholes that
+-- any updates to any types are taken into account when checking any
+-- terms that may depend on them (e.g. within a recursive group of
+-- definitions)
+-- Thus if we define
+--   foo :: {? ∀a.a ?} ; foo = _
+--   bar :: Bool ; bar = foo
+-- then normalising should give
+--   foo :: ∀a.a ; foo = _
+--   bar :: Bool ; bar = {? foo ?}
+unit_tcWholeProg_notice_type_updates :: Assertion
+unit_tcWholeProg_notice_type_updates =
+  let mkDefs e' t' =
+        (\ef tf eb tb -> Map.fromList [("foo", DefAST $ ASTDef ef tf), ("bar", DefAST $ ASTDef eb tb)])
+          <$> emptyHole
+          <*> t'
+          <*> e'
+          <*> tcon tBool
+      d0 = create' $ mkDefs (gvar' ["M"] "foo") (thole $ tforall "a" KType $ tvar "a")
+      d1 = create' $ mkDefs (hole $ gvar' ["M"] "foo") (tforall "a" KType $ tvar "a")
+      mkProg ds =
+        Prog
+          { progImports = [builtinModule]
+          , progModules = [Module (ModuleName ["M"]) mempty ds]
+          , progSmartHoles = SmartHoles
+          , progSelection = Nothing
+          , progLog = defaultLog
+          }
+      a0 = mkProg d0
+      a1 = mkProg d1
+      a1' = evalTestM 0 $ runExceptT @ProgError $ tcWholeProg a0
+      defsNoIDs a = foldMap (fmap (\d -> (forgetTypeMetadata $ defType d, forgetMetadata . astDefExpr <$> defAST d)) . Map.elems . moduleDefs) $ progModules a
+   in do
+        fmap defsNoIDs a1' @?= Right (defsNoIDs a1)
 
 -- Check that all our builtins are well formed
 -- (these are used to seed initial programs)
