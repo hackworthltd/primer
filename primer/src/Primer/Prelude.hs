@@ -130,3 +130,23 @@ xorDef = do
           )
       )
   pure $ DefAST $ ASTDef term type_
+
+implies :: GVarName
+implies = qualifyName modName "implies"
+
+impliesDef :: MonadFresh ID m => m Def
+impliesDef = do
+  type_ <- tcon B.tBool `tfun` (tcon B.tBool `tfun` tcon B.tBool)
+  term <-
+    lam
+      "x"
+      ( lam
+          "y"
+          ( case_
+              (lvar "x")
+              [ branch B.cFalse [] (case_ (lvar "y") [branch B.cFalse [] $ con B.cTrue, branch B.cTrue [] $ con B.cTrue])
+              , branch B.cTrue [] (case_ (lvar "y") [branch B.cFalse [] $ con B.cFalse, branch B.cTrue [] $ con B.cTrue])
+              ]
+          )
+      )
+  pure $ DefAST $ ASTDef term type_
