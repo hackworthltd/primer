@@ -59,8 +59,7 @@ import Control.Monad.Fix (MonadFix)
 import Control.Monad.Trans (MonadTrans)
 import Control.Monad.Writer (MonadWriter)
 import Control.Monad.Zip (MonadZip)
-import Data.Aeson (ToJSON, constructorTagModifier, defaultOptions, genericToJSON)
-import Data.Aeson.Types (ToJSON (..))
+import Data.Aeson (ToJSON)
 import Data.Map qualified as Map
 import Data.Text qualified as T
 import ListT qualified (toList)
@@ -426,8 +425,7 @@ data NodeStyle
   | StylePattern
   deriving (Show, Eq, Generic)
 
-instance ToJSON NodeStyle where
-  toJSON = genericToJSON defaultOptions{constructorTagModifier = drop 5}
+instance ToJSON NodeStyle
 
 -- | This type is the API's view of a 'App.Prog'
 -- (this is expected to evolve as we flesh out the API)
