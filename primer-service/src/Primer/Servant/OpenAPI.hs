@@ -1,3 +1,5 @@
+{-# LANGUAGE ImportQualifiedPost #-}
+
 module Primer.Servant.OpenAPI (
   PrimerOpenAPI,
   RootOpenAPI (..),
@@ -17,7 +19,9 @@ import Servant (
   JSON,
   NamedRoutes,
   Post,
+  Put,
   QueryFlag,
+  ReqBody,
   Summary,
   (:>),
  )
@@ -87,5 +91,12 @@ data SessionOpenAPI mode = SessionOpenAPI
           :> Summary "Get the name."
           :> Description "Get the name of the given session ID."
           :> OpId "getName" Get '[JSON] Text
+  , putName ::
+      mode
+        :- "name"
+          :> ReqBody '[JSON] Text
+          :> Summary "Set the name."
+          :> Description "Set the name of the given session ID."
+          :> OpId "putName" Put '[JSON] Text
   }
   deriving (Generic)

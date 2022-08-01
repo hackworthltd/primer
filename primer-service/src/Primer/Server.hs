@@ -181,15 +181,9 @@ type PrimerLegacyAPI =
 -- | The session-specific bits of the api
 -- (legacy version)
 type SAPI = (
-    -- PUT /api/session-name
-    --   Attempt to set the current session name. Returns the new
-    --   session name. (Note that this may differ from the name
-    --   provided.)
-  "session-name" :> ReqBody '[JSON] Text :> Put '[JSON] Text
-
     -- POST /api/edit
     --   Submit an action, returning an updated program state
-  :<|> "edit" :> ReqBody '[JSON] MutationRequest :> Post '[JSON] (Either ProgError Prog)
+  "edit" :> ReqBody '[JSON] MutationRequest :> Post '[JSON] (Either ProgError Prog)
 
     -- POST /question
     --   Submit a qestion, returning the answer or an error.
@@ -344,6 +338,7 @@ sessionsOpenAPIServer =
         SessionOpenAPI
           { getProgram = API.getProgram sid
           , getName = getSessionName sid
+          , putName = renameSession sid
           }
     }
 
@@ -354,8 +349,7 @@ primerServer = rootOpenAPIServer :<|> legacyServer
     legacyServer =
       ( copySession
           :<|> ( \sid ->
-                  renameSession sid
-                    :<|> edit sid
+                  edit sid
                     :<|> (variablesInScope sid :<|> generateNames sid)
                     :<|> evalStep sid
                     :<|> evalFull sid
