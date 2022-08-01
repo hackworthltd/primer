@@ -44,7 +44,6 @@ import Primer.API (
   evalStep,
   flushSessions,
   generateNames,
-  getProgram,
   getSessionName,
   getVersion,
   listSessions,
@@ -99,7 +98,6 @@ import Primer.Core.DSL (
   tfun,
  )
 import Primer.Database (
-  Session,
   SessionId,
   Sessions,
   Version,
@@ -111,17 +109,20 @@ import Primer.Eval (BetaReductionDetail (..), EvalDetail (..))
 import Primer.EvalFull (Dir (Syn))
 import Primer.Name (Name)
 import Primer.OpenAPI ()
-import Primer.Pagination (Paginated, PaginationParams, pagedDefaultClamp)
+import Primer.Pagination (pagedDefaultClamp)
+import Primer.Servant.OpenAPI (
+  PrimerOpenAPI,
+  SessionOpenAPI (..),
+  SessionsOpenAPI (..),
+ )
 import Primer.Typecheck (TypeError (TypeDoesNotMatchArrow))
 import Servant (
-  Capture,
   Get,
   Handler (..),
   JSON,
   NoContent (..),
   Post,
   Put,
-  QueryFlag,
   QueryParam',
   Raw,
   ReqBody,
@@ -130,7 +131,6 @@ import Servant (
   ServerError,
   ServerT,
   Strict,
-  Summary,
   err500,
   errBody,
   hoistServer,
@@ -139,7 +139,7 @@ import Servant (
  )
 import Servant qualified (serve)
 import Servant.OpenApi (toOpenApi)
-import Servant.OpenApi.OperationId (OpId)
+import Servant.Server.Generic (AsServerT)
 import Servant.Server.StaticFiles (serveDirectoryWith)
 import WaiAppStatic.Storage.Filesystem (defaultWebAppSettings)
 import WaiAppStatic.Types (MaxAge (NoMaxAge), StaticSettings (ssIndices, ssMaxAge, ssRedirectToIndex), unsafeToPiece)
@@ -161,30 +161,6 @@ type API =
 -- 'PrimerLegacyAPI' is everything else.
 -- Over time, the 'PrimerLegacyAPI' should shrink as we improve our documentation.
 type PrimerAPI = PrimerOpenAPI :<|> PrimerLegacyAPI
-
-type PrimerOpenAPI =
-  "api" :> "sessions" :> (
-    -- POST /api/sessions
-    --   create a new session on the backend, returning its id
-    Summary "Create a new session" :>
-    OpId "createSession" Post '[JSON] SessionId
-
-    -- GET /api/sessions
-    --   Get a list of all sessions and their
-    --   human-readable names. By default this returns the list of all
-    --   sessions in the persistent database, but optionally it can return
-    --   just the list of all sessions in memory, which is mainly useful for
-    --   testing. Note that in a production system, this endpoint should
-    --   obviously be authentication-scoped and only return the list of
-    --   sessions that the caller is authorized to see.
-  :<|> QueryFlag "inMemory" :>
-    PaginationParams :>
-    Summary "List sessions" :>
-    OpId "getSessionList" Get '[JSON] (Paginated Session)
-
-    -- The rest of the API is scoped to a particular session
-  :<|> Capture "sessionId" SessionId :> SOpenAPI
-  )
 
 type PrimerLegacyAPI =
   "api" :> (
@@ -213,15 +189,6 @@ type PrimerLegacyAPI =
     -- GET /any-path
     --   Get the static file at any-path, if it exists
   :<|> Raw
-
--- | The session-specific bits of the api
-type SOpenAPI = (
-    -- GET /api/sessions/:session/program
-    --   Get the current program state
-    "program" :>
-    Summary "Get the current program state" :>
-    OpId "getProgram" Get '[JSON] API.Prog
-  )
 
 -- | The session-specific bits of the api
 -- (legacy version)
@@ -391,14 +358,20 @@ hoistPrimer e = hoistServer primerApi nt primerServer
     handler :: PrimerErr -> IO (Either ServerError a)
     handler (DatabaseErr msg) = pure $ Left $ err500{errBody = (LT.encodeUtf8 . LT.fromStrict) msg}
 
+openAPIServer :: SessionsOpenAPI (AsServerT PrimerIO)
+openAPIServer =
+  SessionsOpenAPI
+    { createSession = newSession
+    , getSessionList = \b p -> pagedDefaultClamp 100 p $ listSessions b
+    , withSession = \sid ->
+        SessionOpenAPI
+          { getProgram = API.getProgram sid
+          }
+    }
+
 primerServer :: ServerT PrimerAPI PrimerIO
 primerServer = openAPIServer :<|> legacyServer
   where
-    openAPIServer :: ServerT PrimerOpenAPI PrimerIO
-    openAPIServer =
-      newSession
-        :<|> (\b p -> pagedDefaultClamp 100 p $ listSessions b)
-        :<|> getProgram
     legacyServer :: ServerT PrimerLegacyAPI PrimerIO
     legacyServer =
       ( copySession
