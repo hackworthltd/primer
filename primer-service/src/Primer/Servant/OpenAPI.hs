@@ -1,5 +1,6 @@
 module Primer.Servant.OpenAPI (
   PrimerOpenAPI,
+  RootOpenAPI (..),
   SessionsOpenAPI (..),
   SessionOpenAPI (..),
 ) where
@@ -26,7 +27,23 @@ import Servant.API.Generic (
 import Servant.OpenApi.OperationId (OpId)
 
 -- | The top-level OpenAPI endpoint.
-type PrimerOpenAPI = "api" :> ("sessions" :> NamedRoutes SessionsOpenAPI)
+type PrimerOpenAPI =
+  "api"
+    :> NamedRoutes RootOpenAPI
+
+data RootOpenAPI mode = RootOpenAPI
+  { getVersion ::
+      mode
+        :- "version"
+          :> Summary "Get the git version of primer-service."
+          :> OpId "getVersion" Get '[JSON] Text
+  , sessionsApi ::
+      mode
+        :- "sessions"
+          :> Summary "Sessions API."
+          :> NamedRoutes SessionsOpenAPI
+  }
+  deriving (Generic)
 
 data SessionsOpenAPI mode = SessionsOpenAPI
   { createSession ::

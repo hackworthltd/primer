@@ -45,7 +45,6 @@ import Primer.API (
   flushSessions,
   generateNames,
   getSessionName,
-  getVersion,
   listSessions,
   newSession,
   renameSession,
@@ -112,6 +111,7 @@ import Primer.OpenAPI ()
 import Primer.Pagination (pagedDefaultClamp)
 import Primer.Servant.OpenAPI (
   PrimerOpenAPI,
+  RootOpenAPI (..),
   SessionOpenAPI (..),
   SessionsOpenAPI (..),
  )
@@ -171,10 +171,6 @@ type PrimerLegacyAPI =
     --   session-specific API, as it's not scoped by the current
     --   session ID like those methods are.
     "copy-session" :> ReqBody '[JSON] SessionId :> Post '[JSON] SessionId
-
-    -- GET /api/version
-    --   Get the current git version of the server
-  :<|> "version" :> Get '[JSON] Text
 
     -- The rest of the API is scoped to a particular session
   :<|> QueryParam' '[Required, Strict] "session" SessionId :> SAPI
@@ -358,8 +354,15 @@ hoistPrimer e = hoistServer primerApi nt primerServer
     handler :: PrimerErr -> IO (Either ServerError a)
     handler (DatabaseErr msg) = pure $ Left $ err500{errBody = (LT.encodeUtf8 . LT.fromStrict) msg}
 
-openAPIServer :: SessionsOpenAPI (AsServerT PrimerIO)
-openAPIServer =
+rootOpenAPIServer :: RootOpenAPI (AsServerT PrimerIO)
+rootOpenAPIServer =
+  RootOpenAPI
+    { getVersion = API.getVersion
+    , sessionsApi = sessionsOpenAPIServer
+    }
+
+sessionsOpenAPIServer :: SessionsOpenAPI (AsServerT PrimerIO)
+sessionsOpenAPIServer =
   SessionsOpenAPI
     { createSession = newSession
     , getSessionList = \b p -> pagedDefaultClamp 100 p $ listSessions b
@@ -370,12 +373,11 @@ openAPIServer =
     }
 
 primerServer :: ServerT PrimerAPI PrimerIO
-primerServer = openAPIServer :<|> legacyServer
+primerServer = rootOpenAPIServer :<|> legacyServer
   where
     legacyServer :: ServerT PrimerLegacyAPI PrimerIO
     legacyServer =
       ( copySession
-          :<|> getVersion
           :<|> ( \sid ->
                   getSessionName sid
                     :<|> renameSession sid
