@@ -12,6 +12,7 @@ module Primer.Core (
   CaseBranch' (..),
   Def (..),
   DefMap,
+  _defType,
   defType,
   ASTDef (..),
   defAST,
@@ -92,6 +93,7 @@ import Optics (
   afailing,
   atraversalVL,
   lens,
+  lensVL,
   set,
   view,
   (%),
@@ -507,10 +509,12 @@ data ASTDef = ASTDef
   deriving (Eq, Show, Data, Generic)
   deriving (FromJSON, ToJSON) via PrimerJSON ASTDef
 
+_defType :: Lens' Def Type
+_defType = lensVL $ \f -> \case
+  DefPrim (PrimDef t) -> DefPrim . PrimDef <$> f t
+  DefAST (ASTDef e t) -> DefAST . ASTDef e <$> f t
 defType :: Def -> Type
-defType = \case
-  DefPrim d -> primDefType d
-  DefAST d -> astDefType d
+defType = view _defType
 defAST :: Def -> Maybe ASTDef
 defAST = \case
   DefPrim _ -> Nothing
