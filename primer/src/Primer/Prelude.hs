@@ -1,9 +1,29 @@
-import Control.Monad.Fresh
+import Foreword (Applicative (pure), Foldable, ($))
+
+import Control.Monad.Fresh (MonadFresh)
 import Data.Foldable (foldl1)
 import Primer.Builtins qualified as B
-import Primer.Core
-import Primer.Core.DSL
-import Data.Foldable (foldl1)
+import Primer.Core (
+  ASTDef (ASTDef),
+  Def (DefAST),
+  Expr,
+  GVarName,
+  ID,
+  ModuleName,
+  mkSimpleModuleName,
+  qualifyName,
+ )
+import Primer.Core.DSL (
+  app,
+  branch,
+  case_,
+  con,
+  gvar,
+  lam,
+  lvar,
+  tcon,
+  tfun,
+ )
 
 modName :: ModuleName
 modName = mkSimpleModuleName "Prelude"
