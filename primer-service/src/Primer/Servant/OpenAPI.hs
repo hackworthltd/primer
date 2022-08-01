@@ -74,12 +74,18 @@ data SessionsOpenAPI mode = SessionsOpenAPI
   }
   deriving (Generic)
 
-newtype SessionOpenAPI mode = SessionOpenAPI
+data SessionOpenAPI mode = SessionOpenAPI
   { getProgram ::
       mode
         :- "program"
           :> Summary "Get the current program"
           :> Description "Get the current program state for the given session ID."
           :> OpId "getProgram" Get '[JSON] API.Prog
+  , getName ::
+      mode
+        :- "name"
+          :> Summary "Get the name."
+          :> Description "Get the name of the given session ID."
+          :> OpId "getName" Get '[JSON] Text
   }
   deriving (Generic)
