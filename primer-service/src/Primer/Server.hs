@@ -218,7 +218,9 @@ type PrimerLegacyAPI =
 type SOpenAPI = (
     -- GET /api/program
     --   Get the current program state
-    "program" :> Get '[JSON] API.Prog
+    "program" :>
+    Summary "Get the current program state" :>
+    OpId "getProgram" Get '[JSON] API.Prog
   )
 
 -- | The session-specific bits of the api
