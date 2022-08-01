@@ -52,3 +52,31 @@ andDef = do
           ]
       )
   pure $ DefAST $ ASTDef term type_
+
+or :: GVarName
+or = qualifyName modName "or"
+
+orDef :: MonadFresh ID m => m Def
+orDef = do
+  type_ <- tcon B.tBool `tfun` (tcon B.tBool `tfun` tcon B.tBool)
+  term <-
+    lam
+      "x"
+      ( case_
+          (lvar "x")
+          [ branch B.cTrue [] (lam "y" $ con B.cTrue)
+          , branch
+              B.cFalse
+              []
+              ( lam
+                  "y"
+                  ( case_
+                      (lvar "y")
+                      [ branch B.cTrue [] $ con B.cTrue
+                      , branch B.cFalse [] $ con B.cFalse
+                      ]
+                  )
+              )
+          ]
+      )
+  pure $ DefAST $ ASTDef term type_
