@@ -388,9 +388,12 @@ instance ToJSON Tree
 
 -- | The contents of a node.
 data NodeBody
-  = TextBody Text
-  | BoxBody Tree
-  | NoBody
+  = -- | A "normal" node, usually with user-generated text, such as a variable or constructor name.
+    TextBody Text
+  | -- | A node which contains another tree. Used for rendering pattern matching.
+    BoxBody Tree
+  | -- | Some simple nodes, like function application, have no body.
+    NoBody
   deriving (Show, Eq, Generic)
 
 instance ToJSON NodeBody
