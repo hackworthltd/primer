@@ -1,7 +1,14 @@
-import Foreword (Applicative (pure), ($))
+{-# LANGUAGE NoMonomorphismRestriction #-}
+{-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
+
+{-# HLINT ignore "Use tuple-section" #-}
+module Primer.Prelude where
+
+import Foreword hiding (and, not, or)
 
 import Control.Monad.Fresh (MonadFresh)
 import Data.Foldable (foldl1)
+import Data.Map qualified as Map
 import Primer.Builtins qualified as B
 import Primer.Core (
   ASTDef (ASTDef),
@@ -24,6 +31,13 @@ import Primer.Core.DSL (
   tcon,
   tfun,
  )
+import Primer.Module (Module (..))
+
+prelude :: (MonadFresh ID m) => m Module
+prelude = do
+  defs <- traverse sequence [("not", notDef), ("and", andDef), ("or", orDef)]
+  pure Module{moduleName = modName, moduleTypes = Map.empty, moduleDefs = Map.fromList defs}
+
 
 modName :: ModuleName
 modName = mkSimpleModuleName "Prelude"
@@ -144,8 +158,8 @@ impliesDef = do
           "y"
           ( case_
               (lvar "x")
-              [ branch B.cFalse [] (case_ (lvar "y") [branch B.cFalse [] $ con B.cTrue, branch B.cTrue [] $ con B.cTrue])
-              , branch B.cTrue [] (case_ (lvar "y") [branch B.cFalse [] $ con B.cFalse, branch B.cTrue [] $ con B.cTrue])
+              [ branch B.cTrue [] (case_ (lvar "y") [branch B.cTrue [] $ con B.cTrue, branch B.cFalse [] $ con B.cTrue])
+              , branch B.cFalse [] (case_ (lvar "y") [branch B.cTrue [] $ con B.cTrue, branch B.cFalse [] $ con B.cFalse])
               ]
           )
       )
