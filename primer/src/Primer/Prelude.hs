@@ -1,4 +1,4 @@
-import Foreword (Applicative (pure), Foldable, ($))
+import Foreword (Applicative (pure), ($))
 
 import Control.Monad.Fresh (MonadFresh)
 import Data.Foldable (foldl1)
@@ -103,9 +103,8 @@ orDef = do
   pure $ DefAST $ ASTDef term type_
 
 -- | Helper function for functions with multiple arguments
--- Unsafe - do not call with empty list
-appFold :: (Foldable t, MonadFresh ID m) => t (m Expr) -> m Expr
-appFold = foldl1 app
+apps :: MonadFresh ID m => m Expr -> [m Expr] -> m Expr
+apps f args = foldl1 app (f : args)
 
 xor :: GVarName
 xor = qualifyName modName "xor"
@@ -118,10 +117,15 @@ xorDef = do
       "x"
       ( lam
           "y"
-          ( appFold
-              [ gvar and
-              , appFold [gvar or, lvar "x", lvar "y"]
-              , app (gvar not) (appFold [gvar and, lvar "x", lvar "y"])
+          ( apps
+              (gvar and)
+              [ apps (gvar or) [lvar "x", lvar "y"]
+              , app
+                  (gvar not)
+                  ( apps
+                      (gvar and)
+                      [lvar "x", lvar "y"]
+                  )
               ]
           )
       )
