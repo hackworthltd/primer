@@ -19,6 +19,7 @@ module Gen.Core.Typed (
   genCxtExtendingGlobal,
   genCxtExtendingLocal,
   genPrimCon,
+  genTypeDefGroup,
   forAllT,
   propertyWT,
   freshNameForCxt,
@@ -26,7 +27,7 @@ module Gen.Core.Typed (
   freshTyVarNameForCxt,
 ) where
 
-import Foreword
+import Foreword hiding (mod)
 
 import Control.Monad.Fresh (MonadFresh, fresh)
 import Control.Monad.Morph (hoist)
@@ -48,10 +49,11 @@ import Primer.Core (
   Expr' (..),
   GVarName,
   GlobalName (qualifiedModule),
-  ID,
+  ID (),
   Kind (..),
   LVarName,
   LocalName (LocalName, unLocalName),
+  ModuleName (),
   PrimCon (..),
   TmVarRef (..),
   TyConName,
@@ -67,7 +69,7 @@ import Primer.Core (
   valConType,
  )
 import Primer.Core.Utils (freeVarsTy)
-import Primer.Module (Module)
+import Primer.Module (Module (..))
 import Primer.Name (Name, NameCounter, freshName, unName, unsafeMkName)
 import Primer.Refine (Inst (InstAPP, InstApp, InstUnconstrainedAPP), refine)
 import Primer.Subst (substTy, substTys)
@@ -445,10 +447,15 @@ forgetLocals :: Cxt -> Cxt
 forgetLocals cxt = cxt{localCxt = mempty}
 
 -- Generates a group of potentially-mutually-recursive typedefs
-genTypeDefGroup :: GenT WT [(TyConName, TypeDef)]
-genTypeDefGroup = local forgetLocals $ do
+-- If given a module name, they will all live in that module,
+-- otherwise they may live in disparate modules
+genTypeDefGroup :: Maybe ModuleName -> GenT WT [(TyConName, TypeDef)]
+genTypeDefGroup mod = local forgetLocals $ do
   let genParams = Gen.list (Range.linear 0 5) $ (,) <$> freshTyVarNameForCxt <*> genWTKind
-  nps <- Gen.list (Range.linear 1 5) $ (,) <$> freshTyConNameForCxt <*> genParams
+  let tyconName = case mod of
+        Nothing -> freshTyConNameForCxt
+        Just m -> qualifyName m <$> freshNameForCxt
+  nps <- Gen.list (Range.linear 1 5) $ (,) <$> tyconName <*> genParams
   -- create empty typedefs to temporarilly extend the context, so can do recursive types
   let types =
         map
@@ -492,7 +499,7 @@ extendGlobals nts cxt = cxt{globalCxt = globalCxt cxt <> M.fromList nts}
 -- coverage)
 genCxtExtendingGlobal :: GenT WT Cxt
 genCxtExtendingGlobal = do
-  tds <- genTypeDefGroup
+  tds <- genTypeDefGroup Nothing
   globals <- local (addTypeDefs tds) genGlobalCxtExtension
   asks $ extendGlobals globals . addTypeDefs tds
 

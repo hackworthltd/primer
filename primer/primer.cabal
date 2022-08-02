@@ -93,6 +93,7 @@ test-suite primer-test
   main-is:            Test.hs
   hs-source-dirs:     test
   other-modules:
+    Gen.App
     Gen.Core.Raw
     Gen.Core.Typed
     TestM
@@ -107,6 +108,7 @@ test-suite primer-test
     Tests.Eval
     Tests.EvalFull
     Tests.FreeVars
+    Tests.Gen.App
     Tests.Gen.Core.Typed
     Tests.Module
     Tests.NullDb
