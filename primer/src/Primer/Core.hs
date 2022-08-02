@@ -192,9 +192,7 @@ data GlobalName (k :: GlobalNameKind) = GlobalName
   , baseName :: Name
   }
   deriving (Eq, Ord, Generic, Data, Show)
-
-instance FromJSON (GlobalName k)
-instance ToJSON (GlobalName k)
+  deriving (FromJSON, ToJSON) via PrimerJSON (GlobalName k)
 
 -- | Construct a name from a Text. This is called unsafe because there are no
 -- guarantees about whether the name refers to anything that is in scope.
