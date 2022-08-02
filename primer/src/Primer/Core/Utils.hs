@@ -17,6 +17,7 @@ module Primer.Core.Utils (
   freeVars,
   _freeVarsTy,
   freeVarsTy,
+  freeGlobalVars,
   alphaEqTy,
   concreteTy,
 ) where
@@ -53,13 +54,14 @@ import Primer.Core (
   Def (..),
   Expr,
   Expr' (..),
+  GVarName,
   HasID (_id),
   ID,
   Kind (KHole),
   LVarName,
   LocalName (LocalName, unLocalName),
   PrimDef (..),
-  TmVarRef (LocalVarRef),
+  TmVarRef (GlobalVarRef, LocalVarRef),
   TyVarName,
   Type,
   Type' (..),
@@ -245,6 +247,9 @@ _freeTyVars = traversalVL $ go mempty
       t@PrimCon{} -> pure t
       where
         freeVarsBr (CaseBranch c binds e) = CaseBranch c binds <$> go bound f e -- case branches only bind term variables
+
+freeGlobalVars :: (Data a, Data b) => Expr' a b -> Set GVarName
+freeGlobalVars e = S.fromList [v | Var _ (GlobalVarRef v) <- universe e]
 
 concreteTy :: Data b => Type' b -> Bool
 concreteTy ty = hasn't (getting _freeVarsTy) ty && noHoles ty
