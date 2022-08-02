@@ -376,7 +376,7 @@ getProgram sid = withSession' sid $ QueryApp $ viewProg . handleGetProgramReques
 data Tree = Tree
   { nodeId :: Text
   -- ^ a unique identifier
-  , style :: NodeFlavor
+  , flavor :: NodeFlavor
   , body :: NodeBody
   , childTrees :: [Tree]
   , rightChild :: Maybe Tree
@@ -491,7 +491,7 @@ viewTreeExpr e0 = case e0 of
   Hole _ e ->
     Tree
       { nodeId
-      , style = FlavorHole
+      , flavor = FlavorHole
       , body = NoBody
       , childTrees = [viewTreeExpr e]
       , rightChild = Nothing
@@ -499,7 +499,7 @@ viewTreeExpr e0 = case e0 of
   EmptyHole _ ->
     Tree
       { nodeId
-      , style = FlavorEmptyHole
+      , flavor = FlavorEmptyHole
       , body = NoBody
       , childTrees = []
       , rightChild = Nothing
@@ -507,7 +507,7 @@ viewTreeExpr e0 = case e0 of
   Ann _ e t ->
     Tree
       { nodeId
-      , style = FlavorAnn
+      , flavor = FlavorAnn
       , body = NoBody
       , childTrees = [viewTreeExpr e, viewTreeType t]
       , rightChild = Nothing
@@ -515,7 +515,7 @@ viewTreeExpr e0 = case e0 of
   App _ e1 e2 ->
     Tree
       { nodeId
-      , style = FlavorApp
+      , flavor = FlavorApp
       , body = NoBody
       , childTrees = [viewTreeExpr e1, viewTreeExpr e2]
       , rightChild = Nothing
@@ -523,7 +523,7 @@ viewTreeExpr e0 = case e0 of
   APP _ e t ->
     Tree
       { nodeId
-      , style = FlavorAPP
+      , flavor = FlavorAPP
       , body = NoBody
       , childTrees = [viewTreeExpr e, viewTreeType t]
       , rightChild = Nothing
@@ -531,7 +531,7 @@ viewTreeExpr e0 = case e0 of
   Con _ s ->
     Tree
       { nodeId
-      , style = FlavorCon
+      , flavor = FlavorCon
       , body = TextBody $ showGlobal s
       , childTrees = []
       , rightChild = Nothing
@@ -539,7 +539,7 @@ viewTreeExpr e0 = case e0 of
   Lam _ s e ->
     Tree
       { nodeId
-      , style = FlavorLam
+      , flavor = FlavorLam
       , body = TextBody $ unName $ unLocalName s
       , childTrees = [viewTreeExpr e]
       , rightChild = Nothing
@@ -547,7 +547,7 @@ viewTreeExpr e0 = case e0 of
   LAM _ s e ->
     Tree
       { nodeId
-      , style = FlavorLAM
+      , flavor = FlavorLAM
       , body = TextBody $ unName $ unLocalName s
       , childTrees = [viewTreeExpr e]
       , rightChild = Nothing
@@ -555,19 +555,19 @@ viewTreeExpr e0 = case e0 of
   Var _ ref ->
     Tree
       { nodeId
-      , style
+      , flavor
       , body
       , childTrees = []
       , rightChild = Nothing
       }
     where
-      (style, body) = case ref of
+      (flavor, body) = case ref of
         GlobalVarRef n -> (FlavorGlobalVar, TextBody $ showGlobal n)
         LocalVarRef n -> (FlavorLocalVar, TextBody $ unName $ unLocalName n)
   Let _ s e1 e2 ->
     Tree
       { nodeId
-      , style = FlavorLet
+      , flavor = FlavorLet
       , body = TextBody $ unName $ unLocalName s
       , childTrees = [viewTreeExpr e1, viewTreeExpr e2]
       , rightChild = Nothing
@@ -575,7 +575,7 @@ viewTreeExpr e0 = case e0 of
   LetType _ s t e ->
     Tree
       { nodeId
-      , style = FlavorLetType
+      , flavor = FlavorLetType
       , body = TextBody $ unName $ unLocalName s
       , childTrees = [viewTreeExpr e, viewTreeType t]
       , rightChild = Nothing
@@ -583,7 +583,7 @@ viewTreeExpr e0 = case e0 of
   Letrec _ s e1 t e2 ->
     Tree
       { nodeId
-      , style = FlavorLetrec
+      , flavor = FlavorLetrec
       , body = TextBody $ unName $ unLocalName s
       , childTrees = [viewTreeExpr e1, viewTreeType t, viewTreeExpr e2]
       , rightChild = Nothing
@@ -591,7 +591,7 @@ viewTreeExpr e0 = case e0 of
   Case _ e bs ->
     Tree
       { nodeId
-      , style = FlavorCase
+      , flavor = FlavorCase
       , body = NoBody
       , childTrees = [viewTreeExpr e]
       , -- seeing as the inner function always returns a `Just`,
@@ -608,18 +608,18 @@ viewTreeExpr e0 = case e0 of
                  in Just
                       Tree
                         { nodeId = boxId
-                        , style = FlavorPattern
+                        , flavor = FlavorPattern
                         , body =
                             BoxBody
                               Tree
                                 { nodeId = patternRootId
-                                , style = FlavorCon
+                                , flavor = FlavorCon
                                 , body = TextBody $ showGlobal con
                                 , childTrees =
                                     binds <&> \(Bind m v) ->
                                       Tree
                                         { nodeId = show $ m ^. _id
-                                        , style = FlavorLocalVar
+                                        , flavor = FlavorLocalVar
                                         , body = TextBody $ unName $ unLocalName v
                                         , childTrees = []
                                         , rightChild = Nothing
@@ -636,7 +636,7 @@ viewTreeExpr e0 = case e0 of
   PrimCon _ pc ->
     Tree
       { nodeId
-      , style = FlavorPrimCon
+      , flavor = FlavorPrimCon
       , body = TextBody $ case pc of
           PrimChar c -> T.singleton c
           PrimInt c -> show c
@@ -652,7 +652,7 @@ viewTreeType t0 = case t0 of
   TEmptyHole _ ->
     Tree
       { nodeId
-      , style = FlavorTEmptyHole
+      , flavor = FlavorTEmptyHole
       , body = NoBody
       , childTrees = []
       , rightChild = Nothing
@@ -660,7 +660,7 @@ viewTreeType t0 = case t0 of
   THole _ t ->
     Tree
       { nodeId
-      , style = FlavorTHole
+      , flavor = FlavorTHole
       , body = NoBody
       , childTrees = [viewTreeType t]
       , rightChild = Nothing
@@ -668,7 +668,7 @@ viewTreeType t0 = case t0 of
   TCon _ n ->
     Tree
       { nodeId
-      , style = FlavorTCon
+      , flavor = FlavorTCon
       , body = TextBody $ showGlobal n
       , childTrees = []
       , rightChild = Nothing
@@ -676,7 +676,7 @@ viewTreeType t0 = case t0 of
   TFun _ t1 t2 ->
     Tree
       { nodeId
-      , style = FlavorTFun
+      , flavor = FlavorTFun
       , body = NoBody
       , childTrees = [viewTreeType t1, viewTreeType t2]
       , rightChild = Nothing
@@ -684,7 +684,7 @@ viewTreeType t0 = case t0 of
   TVar _ n ->
     Tree
       { nodeId
-      , style = FlavorTVar
+      , flavor = FlavorTVar
       , body = TextBody $ unName $ unLocalName n
       , childTrees = []
       , rightChild = Nothing
@@ -692,7 +692,7 @@ viewTreeType t0 = case t0 of
   TApp _ t1 t2 ->
     Tree
       { nodeId
-      , style = FlavorTApp
+      , flavor = FlavorTApp
       , body = NoBody
       , childTrees = [viewTreeType t1, viewTreeType t2]
       , rightChild = Nothing
@@ -700,7 +700,7 @@ viewTreeType t0 = case t0 of
   TForall _ n k t ->
     Tree
       { nodeId
-      , style = FlavorTForall
+      , flavor = FlavorTForall
       , body = TextBody $ withKindAnn $ unName $ unLocalName n
       , childTrees = [viewTreeType t]
       , rightChild = Nothing
