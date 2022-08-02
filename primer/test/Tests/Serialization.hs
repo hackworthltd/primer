@@ -1,3 +1,6 @@
+-- implied by DuplicateRecordFields, if we end up enabling that globally
+{-# LANGUAGE DisambiguateRecordFields #-}
+
 module Tests.Serialization where
 
 import Foreword hiding (log)
@@ -46,14 +49,14 @@ import Primer.Core (
 import Primer.Eval (
   BetaReductionDetail (
     BetaReductionDetail,
-    betaAfter,
-    betaArgID,
-    betaBefore,
-    betaBindingName,
-    betaBodyID,
-    betaLambdaID,
-    betaLetID,
-    betaTypes
+    after,
+    argID,
+    before,
+    bindingName,
+    bodyID,
+    lambdaID,
+    letID,
+    types
   ),
   EvalDetail (BetaReduction),
  )
@@ -152,14 +155,14 @@ fixtures =
       reductionDetail =
         BetaReduction $
           BetaReductionDetail
-            { betaBefore = expr
-            , betaAfter = expr
-            , betaBindingName = "x"
-            , betaLambdaID = id0
-            , betaLetID = id0
-            , betaArgID = id0
-            , betaBodyID = id0
-            , betaTypes =
+            { before = expr
+            , after = expr
+            , bindingName = "x"
+            , lambdaID = id0
+            , letID = id0
+            , argID = id0
+            , bodyID = id0
+            , types =
                 Just (TEmptyHole typeMeta, TEmptyHole typeMeta)
             }
    in [ mkFixture "id" id0

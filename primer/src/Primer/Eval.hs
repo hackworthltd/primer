@@ -181,30 +181,30 @@ data EvalDetail
 -- - 'betaTypes' is optionally the domain kind and codomain type of the λ
 -- - i.e. k ~ ATyVar, domain ~ Kind, codomain ~ Type
 data BetaReductionDetail k domain codomain = BetaReductionDetail
-  { betaBefore :: Expr
-  , betaAfter :: Expr
-  , betaBindingName :: LocalName k
-  , betaLambdaID :: ID
-  , betaLetID :: ID
-  , betaArgID :: ID
-  , betaBodyID :: ID
-  , betaTypes :: Maybe (domain, codomain)
+  { before :: Expr
+  , after :: Expr
+  , bindingName :: LocalName k
+  , lambdaID :: ID
+  , letID :: ID
+  , argID :: ID
+  , bodyID :: ID
+  , types :: Maybe (domain, codomain)
   }
   deriving (Eq, Show, Generic)
   deriving (FromJSON, ToJSON) via VJSONPrefix "beta" (BetaReductionDetail k domain codomain)
 
 data LocalVarInlineDetail k = LocalVarInlineDetail
-  { localVarInlineLetID :: ID
+  { letID :: ID
   -- ^ ID of the let expression that binds this variable
-  , localVarInlineVarID :: ID
+  , varID :: ID
   -- ^ ID of the variable being replaced
-  , localVarInlineBindingName :: LocalName k
+  , bindingName :: LocalName k
   -- ^ Name of the variable
-  , localVarInlineValueID :: ID
+  , valueID :: ID
   -- ^ ID of the expression or type that the variable is bound to
-  , localVarInlineReplacementID :: ID
+  , replacementID :: ID
   -- ^ ID of the expression or type that has replaced the variable in the result
-  , localVarInlineIsTypeVar :: Bool
+  , isTypeVar :: Bool
   -- ^ If 'True', the variable being inlined is a type variable.
   -- Otherwise it is a term variable.
   }
@@ -627,14 +627,14 @@ tryReduceExpr globals locals = \case
       ( expr
       , BetaReduction
           BetaReductionDetail
-            { betaBefore = App mApp lam arg
-            , betaAfter = expr
-            , betaBindingName = x
-            , betaLambdaID = lam ^. _id
-            , betaLetID = expr ^. _id
-            , betaArgID = arg ^. _id
-            , betaBodyID = body ^. _id
-            , betaTypes = Nothing
+            { before = App mApp lam arg
+            , after = expr
+            , bindingName = x
+            , lambdaID = lam ^. _id
+            , letID = expr ^. _id
+            , argID = arg ^. _id
+            , bodyID = body ^. _id
+            , types = Nothing
             }
       )
   -- Beta reduction (with annotation)
@@ -667,14 +667,14 @@ tryReduceExpr globals locals = \case
       ( expr
       , BetaReduction
           BetaReductionDetail
-            { betaBefore = App mApp annotation arg
-            , betaAfter = expr
-            , betaBindingName = x
-            , betaLambdaID = lam ^. _id
-            , betaLetID = letexpr ^. _id
-            , betaArgID = arg ^. _id
-            , betaBodyID = body ^. _id
-            , betaTypes = types
+            { before = App mApp annotation arg
+            , after = expr
+            , bindingName = x
+            , lambdaID = lam ^. _id
+            , letID = letexpr ^. _id
+            , argID = arg ^. _id
+            , bodyID = body ^. _id
+            , types = types
             }
       )
   -- (letrec x : T = t in λ ...) e  ~> letrec x : T = t in ((λ...) e)
@@ -732,14 +732,14 @@ tryReduceExpr globals locals = \case
       ( expr
       , BETAReduction
           BetaReductionDetail
-            { betaBefore = APP mAPP lam arg
-            , betaAfter = expr
-            , betaBindingName = x
-            , betaLambdaID = lam ^. _id
-            , betaLetID = expr ^. _id
-            , betaArgID = arg ^. _id
-            , betaBodyID = body ^. _id
-            , betaTypes = Nothing
+            { before = APP mAPP lam arg
+            , after = expr
+            , bindingName = x
+            , lambdaID = lam ^. _id
+            , letID = expr ^. _id
+            , argID = arg ^. _id
+            , bodyID = body ^. _id
+            , types = Nothing
             }
       )
   -- Beta reduction of big lambda (with annotation)
@@ -761,14 +761,14 @@ tryReduceExpr globals locals = \case
           ( expr
           , BETAReduction
               BetaReductionDetail
-                { betaBefore = APP mAPP annotation t
-                , betaAfter = expr
-                , betaBindingName = x
-                , betaLambdaID = lam ^. _id
-                , betaLetID = expr ^. _id
-                , betaArgID = t ^. _id
-                , betaBodyID = body ^. _id
-                , betaTypes = Just (k, b)
+                { before = APP mAPP annotation t
+                , after = expr
+                , bindingName = x
+                , lambdaID = lam ^. _id
+                , letID = expr ^. _id
+                , argID = t ^. _id
+                , bodyID = body ^. _id
+                , types = Just (k, b)
                 }
           )
       _ -> throwError $ BadBigLambdaAnnotation annotation
@@ -818,12 +818,12 @@ tryReduceExpr globals locals = \case
           ( e'
           , LocalVarInline
               LocalVarInlineDetail
-                { localVarInlineLetID = i
-                , localVarInlineVarID = mVar ^. _id
-                , localVarInlineValueID = e ^. _id
-                , localVarInlineBindingName = x
-                , localVarInlineReplacementID = e' ^. _id
-                , localVarInlineIsTypeVar = False
+                { letID = i
+                , varID = mVar ^. _id
+                , valueID = e ^. _id
+                , bindingName = x
+                , replacementID = e' ^. _id
+                , isTypeVar = False
                 }
           )
   -- Inline global variable
@@ -962,12 +962,12 @@ tryReduceType _globals locals = \case
           ( t'
           , LocalTypeVarInline
               LocalVarInlineDetail
-                { localVarInlineLetID = i
-                , localVarInlineVarID = mTVar ^. _id
-                , localVarInlineValueID = t ^. _id
-                , localVarInlineBindingName = x
-                , localVarInlineReplacementID = t' ^. _id
-                , localVarInlineIsTypeVar = True
+                { letID = i
+                , varID = mTVar ^. _id
+                , valueID = t ^. _id
+                , bindingName = x
+                , replacementID = t' ^. _id
+                , isTypeVar = True
                 }
           )
   _ -> throwError NotRedex

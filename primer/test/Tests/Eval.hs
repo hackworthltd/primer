@@ -1,3 +1,5 @@
+{-# LANGUAGE OverloadedRecordDot #-}
+
 module Tests.Eval where
 
 import Foreword
@@ -93,14 +95,14 @@ unit_tryReduce_beta = do
   case result of
     Right (expr, BetaReduction detail) -> do
       expr ~= expectedResult
-      betaBefore detail ~= input
-      betaAfter detail ~= expectedResult
-      betaBindingName detail @?= "x"
-      betaLambdaID detail @?= lambda ^. _id
-      betaLetID detail @?= expr ^. _id
-      betaArgID detail @?= arg ^. _id
-      betaBodyID detail @?= body ^. _id
-      betaTypes detail @?= Nothing
+      detail.before ~= input
+      detail.after ~= expectedResult
+      detail.bindingName @?= "x"
+      detail.lambdaID @?= lambda ^. _id
+      detail.letID @?= expr ^. _id
+      detail.argID @?= arg ^. _id
+      detail.bodyID @?= body ^. _id
+      detail.types @?= Nothing
     _ -> assertFailure $ show result
 
 unit_tryReduce_beta_annotation :: Assertion
@@ -117,14 +119,14 @@ unit_tryReduce_beta_annotation = do
           pure (l, x, a, i, r, t1, t2)
       result = runTryReduce mempty mempty (input, maxid)
   case result of
-    Right (expr, BetaReduction detail@BetaReductionDetail{betaTypes = Just (l, r)}) -> do
+    Right (expr, BetaReduction detail@BetaReductionDetail{types = Just (l, r)}) -> do
       expr ~= expectedResult
-      betaBefore detail ~= input
-      betaAfter detail ~= expectedResult
-      betaBindingName detail @?= "x"
-      betaLambdaID detail @?= lambda ^. _id
-      betaArgID detail @?= arg ^. _id
-      betaBodyID detail @?= body ^. _id
+      detail.before ~= input
+      detail.after ~= expectedResult
+      detail.bindingName @?= "x"
+      detail.lambdaID @?= lambda ^. _id
+      detail.argID @?= arg ^. _id
+      detail.bodyID @?= body ^. _id
       l ~~= argType
       r ~~= resultType
     _ -> assertFailure $ show result
@@ -143,14 +145,14 @@ unit_tryReduce_beta_annotation_hole = do
           pure (l, x, a, i, r, t1, t2)
       result = runTryReduce mempty mempty (input, maxid)
   case result of
-    Right (expr, BetaReduction detail@BetaReductionDetail{betaTypes = Just (l, r)}) -> do
+    Right (expr, BetaReduction detail@BetaReductionDetail{types = Just (l, r)}) -> do
       expr ~= expectedResult
-      betaBefore detail ~= input
-      betaAfter detail ~= expectedResult
-      betaBindingName detail @?= "x"
-      betaLambdaID detail @?= lambda ^. _id
-      betaArgID detail @?= arg ^. _id
-      betaBodyID detail @?= body ^. _id
+      detail.before ~= input
+      detail.after ~= expectedResult
+      detail.bindingName @?= "x"
+      detail.lambdaID @?= lambda ^. _id
+      detail.argID @?= arg ^. _id
+      detail.bodyID @?= body ^. _id
       l ~~= argType
       r ~~= resultType
     _ -> assertFailure $ show result
@@ -170,13 +172,13 @@ unit_tryReduce_beta_nested = do
   case result of
     Right (expr, BetaReduction detail) -> do
       expr ~= expectedResult
-      betaBefore detail ~= create' (app (lam "x" (lam "y" (lvar "x"))) (con' ["M"] "C"))
-      betaAfter detail ~= create' (let_ "x" (con' ["M"] "C") (lam "y" (lvar "x")))
-      betaBindingName detail @?= "x"
-      betaLambdaID detail @?= lambda ^. _id
-      betaArgID detail @?= arg ^. _id
-      betaBodyID detail @?= body ^. _id
-      betaTypes detail @?= Nothing
+      detail.before ~= create' (app (lam "x" (lam "y" (lvar "x"))) (con' ["M"] "C"))
+      detail.after ~= create' (let_ "x" (con' ["M"] "C") (lam "y" (lvar "x")))
+      detail.bindingName @?= "x"
+      detail.lambdaID @?= lambda ^. _id
+      detail.argID @?= arg ^. _id
+      detail.bodyID @?= body ^. _id
+      detail.types @?= Nothing
     _ -> assertFailure $ show result
 
 unit_tryReduce_beta_annotation_nested :: Assertion
@@ -193,14 +195,14 @@ unit_tryReduce_beta_annotation_nested = do
           pure (l, x, a, i, r, t1, t2)
       result = runTryReduce mempty mempty (input, maxid)
   case result of
-    Right (expr, BetaReduction detail@BetaReductionDetail{betaTypes = Just (l, r)}) -> do
+    Right (expr, BetaReduction detail@BetaReductionDetail{types = Just (l, r)}) -> do
       expr ~= expectedResult
-      betaBefore detail ~= create' (app (ann (lam "x" (lvar "x")) (tfun (tcon' ["M"] "A") (tcon' ["M"] "B"))) (con' ["M"] "C"))
-      betaAfter detail ~= create' (ann (let_ "x" (ann (con' ["M"] "C") (tcon' ["M"] "A")) (lvar "x")) (tcon' ["M"] "B"))
-      betaBindingName detail @?= "x"
-      betaLambdaID detail @?= lambda ^. _id
-      betaArgID detail @?= arg ^. _id
-      betaBodyID detail @?= body ^. _id
+      detail.before ~= create' (app (ann (lam "x" (lvar "x")) (tfun (tcon' ["M"] "A") (tcon' ["M"] "B"))) (con' ["M"] "C"))
+      detail.after ~= create' (ann (let_ "x" (ann (con' ["M"] "C") (tcon' ["M"] "A")) (lvar "x")) (tcon' ["M"] "B"))
+      detail.bindingName @?= "x"
+      detail.lambdaID @?= lambda ^. _id
+      detail.argID @?= arg ^. _id
+      detail.bodyID @?= body ^. _id
       l ~~= argType
       r ~~= resultType
     _ -> assertFailure $ show result
@@ -229,14 +231,14 @@ unit_tryReduce_beta_name_clash = do
   case result of
     Right (expr, BetaReduction detail) -> do
       expr ~= expectedResult
-      betaBefore detail ~= input
-      betaAfter detail ~= expectedResult
-      betaBindingName detail @?= "x"
-      betaLambdaID detail @?= lambda ^. _id
-      betaLetID detail @?= expr ^. _id
-      betaArgID detail @?= arg ^. _id
-      betaBodyID detail @?= body ^. _id
-      betaTypes detail @?= Nothing
+      detail.before ~= input
+      detail.after ~= expectedResult
+      detail.bindingName @?= "x"
+      detail.lambdaID @?= lambda ^. _id
+      detail.letID @?= expr ^. _id
+      detail.argID @?= arg ^. _id
+      detail.bodyID @?= body ^. _id
+      detail.types @?= Nothing
     _ -> assertFailure $ show result
 
 unit_tryReduce_BETA :: Assertion
@@ -253,14 +255,14 @@ unit_tryReduce_BETA = do
   case result of
     Right (expr, BETAReduction detail) -> do
       expr ~= expectedResult
-      betaBefore detail ~= input
-      betaAfter detail ~= expectedResult
-      betaBindingName detail @?= "x"
-      betaLambdaID detail @?= lambda ^. _id
-      betaLetID detail @?= expr ^. _id
-      betaArgID detail @?= arg ^. _id
-      betaBodyID detail @?= body ^. _id
-      betaTypes detail @?= Nothing
+      detail.before ~= input
+      detail.after ~= expectedResult
+      detail.bindingName @?= "x"
+      detail.lambdaID @?= lambda ^. _id
+      detail.letID @?= expr ^. _id
+      detail.argID @?= arg ^. _id
+      detail.bodyID @?= body ^. _id
+      detail.types @?= Nothing
     _ -> assertFailure $ show result
 
 unit_tryReduce_BETA_name_clash :: Assertion
@@ -278,14 +280,14 @@ unit_tryReduce_BETA_name_clash = do
   case result of
     Right (expr, BETAReduction detail) -> do
       expr ~= expectedResult
-      betaBefore detail ~= input
-      betaAfter detail ~= expectedResult
-      betaBindingName detail @?= "x"
-      betaLambdaID detail @?= lambda ^. _id
-      betaLetID detail @?= expr ^. _id
-      betaArgID detail @?= arg ^. _id
-      betaBodyID detail @?= body ^. _id
-      betaTypes detail @?= Nothing
+      detail.before ~= input
+      detail.after ~= expectedResult
+      detail.bindingName @?= "x"
+      detail.lambdaID @?= lambda ^. _id
+      detail.letID @?= expr ^. _id
+      detail.argID @?= arg ^. _id
+      detail.bodyID @?= body ^. _id
+      detail.types @?= Nothing
     _ -> assertFailure $ show result
 
 unit_tryReduce_local_term_var :: Assertion
@@ -298,12 +300,12 @@ unit_tryReduce_local_term_var = do
     Right (expr', LocalVarInline detail) -> do
       expr' ~= val
 
-      localVarInlineLetID detail @?= 5
-      localVarInlineVarID detail @?= 0
-      localVarInlineBindingName detail @?= "x"
-      localVarInlineValueID detail @?= 1
-      localVarInlineReplacementID detail @?= 2
-      localVarInlineIsTypeVar detail @?= False
+      detail.letID @?= 5
+      detail.varID @?= 0
+      detail.bindingName @?= "x"
+      detail.valueID @?= 1
+      detail.replacementID @?= 2
+      detail.isTypeVar @?= False
     _ -> assertFailure $ show result
 
 unit_tryReduce_local_type_var :: Assertion
@@ -316,12 +318,12 @@ unit_tryReduce_local_type_var = do
     Right (ty, LocalTypeVarInline detail) -> do
       ty ~~= val
 
-      localVarInlineLetID detail @?= 5
-      localVarInlineVarID detail @?= 0
-      localVarInlineBindingName detail @?= "x"
-      localVarInlineValueID detail @?= 1
-      localVarInlineReplacementID detail @?= 2
-      localVarInlineIsTypeVar detail @?= True
+      detail.letID @?= 5
+      detail.varID @?= 0
+      detail.bindingName @?= "x"
+      detail.valueID @?= 1
+      detail.replacementID @?= 2
+      detail.isTypeVar @?= True
     _ -> assertFailure $ show result
 
 unit_tryReduce_global_var :: Assertion
