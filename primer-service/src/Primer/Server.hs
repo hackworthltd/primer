@@ -114,6 +114,7 @@ import Primer.OpenAPI ()
 import Primer.Pagination (Paginated, PaginationParams, pagedDefaultClamp)
 import Primer.Typecheck (TypeError (TypeDoesNotMatchArrow))
 import Servant (
+  Capture,
   Get,
   Handler (..),
   JSON,
@@ -162,10 +163,9 @@ type API =
 type PrimerAPI = PrimerOpenAPI :<|> PrimerLegacyAPI
 
 type PrimerOpenAPI =
-  "api" :> (
+  "api" :> "sessions" :> (
     -- POST /api/sessions
     --   create a new session on the backend, returning its id
-    "sessions" :>
     Summary "Create a new session" :>
     OpId "createSession" Post '[JSON] SessionId
 
@@ -177,13 +177,13 @@ type PrimerOpenAPI =
     --   testing. Note that in a production system, this endpoint should
     --   obviously be authentication-scoped and only return the list of
     --   sessions that the caller is authorized to see.
-  :<|> QueryFlag "inMemory" :> "sessions" :>
+  :<|> QueryFlag "inMemory" :>
     PaginationParams :>
     Summary "List sessions" :>
     OpId "getSessionList" Get '[JSON] (Paginated Session)
 
     -- The rest of the API is scoped to a particular session
-  :<|> QueryParam' '[Required, Strict] "session" SessionId :> SOpenAPI
+  :<|> Capture "sessionId" SessionId :> SOpenAPI
   )
 
 type PrimerLegacyAPI =
@@ -216,9 +216,11 @@ type PrimerLegacyAPI =
 
 -- | The session-specific bits of the api
 type SOpenAPI = (
-    -- GET /api/program
+    -- GET /api/sessions/:sessionId/program
     --   Get the current program state
-    "program" :> Get '[JSON] API.Prog
+    "program" :>
+    Summary "Get the current program state" :>
+    OpId "getProgram" Get '[JSON] API.Prog
   )
 
 -- | The session-specific bits of the api
