@@ -49,6 +49,7 @@ module Primer.App (
   EvalFullReq (..),
   EvalFullResp (..),
   lookupASTDef,
+  globalInUse,
 ) where
 
 import Foreword hiding (mod)
@@ -74,8 +75,11 @@ import Optics (
   Field2 (_2),
   Field3 (_3),
   ReversibleOptic (re),
+  anyOf,
+  folded,
   mapped,
   over,
+  to,
   toListOf,
   traverseOf,
   traversed,
@@ -140,7 +144,7 @@ import Primer.Core (
 import Primer.Core.DSL (create, emptyHole, tEmptyHole)
 import Primer.Core.DSL qualified as DSL
 import Primer.Core.Transform (foldApp, renameVar, unfoldAPP, unfoldApp, unfoldTApp)
-import Primer.Core.Utils (freeVars, regenerateExprIDs, regenerateTypeIDs, _freeTmVars, _freeTyVars, _freeVarsTy)
+import Primer.Core.Utils (freeGlobalVars, freeVars, regenerateExprIDs, regenerateTypeIDs, _freeTmVars, _freeTyVars, _freeVarsTy)
 import Primer.Eval (EvalDetail, EvalError)
 import Primer.Eval qualified as Eval
 import Primer.EvalFull (Dir, EvalFullError (TimedOut), TerminationBound, evalFull)
@@ -552,13 +556,9 @@ applyProgAction prog mdefName = \case
     case deleteDef m d of
       Nothing -> throwError $ DefNotFound d
       Just mod' -> do
-        -- Run a full TC solely to ensure that no references to the removed id
-        -- remain. This is rather inefficient and could be improved in the
-        -- future.
-        void . liftError (const $ DefInUse d) $
-          checkEverything @TypeError
-            NoSmartHoles
-            CheckEverything{trusted = progImports prog, toCheck = mod' : ms}
+        when (globalInUse d $ foldMap moduleDefs $ mod' : ms) $
+          throwError $
+            DefInUse d
         pure (mod' : ms, Nothing)
   RenameDef d nameStr -> editModuleOfCross (Just d) prog $ \(m, ms) defName def -> do
     let defs = moduleDefs m
@@ -871,6 +871,12 @@ applyProgAction prog mdefName = \case
                     -- from the name of any import
                     ActionError $
                       InternalFailure "RenameModule: imported modules were edited by renaming"
+
+globalInUse :: Foldable f => GVarName -> f Def -> Bool
+globalInUse v =
+  anyOf
+    (folded % #_DefAST % #astDefExpr % to freeGlobalVars)
+    (Set.member v)
 
 -- Helper for RenameModule action
 data RenameMods a = RM {imported :: [a], editable :: [a]}

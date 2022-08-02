@@ -9,6 +9,7 @@ import Foreword
 
 import Data.Data (Data)
 import Data.List.NonEmpty qualified as NE
+import Data.Map qualified as Map
 import Optics (
   to,
   (%),
@@ -31,6 +32,7 @@ import Primer.Action (
   uniquifyDefName,
  )
 import Primer.Action.Priorities qualified as P
+import Primer.App (globalInUse)
 import Primer.Core (
   ASTDef (..),
   Bind' (..),
@@ -46,6 +48,7 @@ import Primer.Core (
   Type,
   Type' (..),
   TypeCache (..),
+  defAST,
   getID,
   _bindMeta,
   _chkedAt,
@@ -81,48 +84,57 @@ data SomeNode a b
 
 actionsForDef ::
   Level ->
-  -- | only used to generate a unique name for a duplicate definition
+  -- | All existing definitions
   DefMap ->
-  (GVarName, ASTDef) ->
+  -- | The name of a definition in the map
+  GVarName ->
   [OfferedAction [ProgAction]]
-actionsForDef l defs (defName, def) =
-  [ OfferedAction
-      { name = Prose "r"
-      , description = "Rename this definition"
-      , input =
-          InputRequired $
-            ChooseOrEnterName
-              ("Enter a new " <> nameString <> " for the definition")
-              []
-              (\name -> [RenameDef defName (unName name)])
-      , priority = P.rename l
-      , actionType = Primary
-      }
-  , OfferedAction
-      { name = Prose "d"
-      , description = "Duplicate this definition"
-      , input =
-          let sigID = getID $ astDefType def
+actionsForDef l defs defName = catMaybes [Just rename, duplicate, delete]
+  where
+    rename =
+      OfferedAction
+        { name = Prose "r"
+        , description = "Rename this definition"
+        , input =
+            InputRequired $
+              ChooseOrEnterName
+                ("Enter a new " <> nameString <> " for the definition")
+                []
+                (\name -> [RenameDef defName (unName name)])
+        , priority = P.rename l
+        , actionType = Primary
+        }
+    duplicate = do
+      def <- defAST =<< Map.lookup defName defs
+      pure $
+        OfferedAction
+          { name = Prose "d"
+          , description = "Duplicate this definition"
+          , input =
+              let sigID = getID $ astDefType def
 
-              bodyID = getID $ astDefExpr def
+                  bodyID = getID $ astDefExpr def
 
-              copyName = uniquifyDefName (qualifiedModule defName) (unName (baseName defName) <> "Copy") defs
-           in NoInputRequired
-                [ CreateDef (qualifiedModule defName) (Just copyName)
-                , CopyPasteSig (defName, sigID) []
-                , CopyPasteBody (defName, bodyID) []
-                ]
-      , priority = P.duplicate l
-      , actionType = Primary
-      }
-  , OfferedAction
-      { name = Prose "⌫"
-      , description = "Delete this definition"
-      , input = NoInputRequired [DeleteDef defName]
-      , priority = P.delete l
-      , actionType = Destructive
-      }
-  ]
+                  copyName = uniquifyDefName (qualifiedModule defName) (unName (baseName defName) <> "Copy") defs
+               in NoInputRequired
+                    [ CreateDef (qualifiedModule defName) (Just copyName)
+                    , CopyPasteSig (defName, sigID) []
+                    , CopyPasteBody (defName, bodyID) []
+                    ]
+          , priority = P.duplicate l
+          , actionType = Primary
+          }
+    delete = do
+      -- Ensure it is not in use, otherwise the action will not succeed
+      guard $ not $ globalInUse defName $ Map.delete defName defs
+      pure
+        OfferedAction
+          { name = Prose "⌫"
+          , description = "Delete this definition"
+          , input = NoInputRequired [DeleteDef defName]
+          , priority = P.delete l
+          , actionType = Destructive
+          }
 
 -- | Given the body of a Def and the ID of a node in it, return the possible actions that can be applied to it
 actionsForDefBody ::
