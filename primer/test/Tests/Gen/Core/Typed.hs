@@ -32,8 +32,8 @@ import Primer.Core (
   Type',
  )
 import Primer.Core.Utils (
-  forgetIDs,
-  forgetTypeIDs,
+  forgetMetadata,
+  forgetTypeMetadata,
   generateIDs,
   generateTypeIDs,
  )
@@ -83,7 +83,7 @@ tasty_genTy = withTests 1000 $
     k <- forAllT genWTKind
     ty <- forAllT $ genWTType k
     ty' <- checkKindTest k =<< generateTypeIDs ty
-    ty === forgetTypeIDs ty' -- check no smart holes stuff happened
+    ty === forgetTypeMetadata ty' -- check no smart holes stuff happened
 
 -- | Lift 'checkKind' into a property
 checkKindTest :: HasCallStack => Kind -> Type -> PropertyT WT (Type' (Meta Kind))
@@ -174,9 +174,9 @@ tasty_genSyns = withTests 1000 $
       (ty', e') <- synthTest =<< generateIDs e
       annotateShow e'
       annotateShow ty'
-      diff ty consistentTypes $ forgetTypeIDs tgtTy
+      diff ty consistentTypes $ forgetTypeMetadata tgtTy
       ty === ty'
-      e === forgetIDs e' -- check no smart holes stuff happened
+      e === forgetMetadata e' -- check no smart holes stuff happened
 
 tasty_genChk :: Property
 tasty_genChk = withTests 1000 $
@@ -186,7 +186,7 @@ tasty_genChk = withTests 1000 $
       _ :: Type' (Meta Kind) <- checkKindTest KType =<< generateTypeIDs ty
       t <- forAllT $ genChk ty
       t' <- checkTest ty =<< generateIDs t
-      t === forgetIDs t' -- check no smart holes stuff happened
+      t === forgetMetadata t' -- check no smart holes stuff happened
 
 -- Lift 'synth' into a property
 synthTest :: HasCallStack => Expr -> PropertyT WT (Type' (), ExprT)

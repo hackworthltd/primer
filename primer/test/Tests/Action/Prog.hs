@@ -114,7 +114,7 @@ import Primer.Core.DSL (
   tfun,
   tvar,
  )
-import Primer.Core.Utils (forgetIDs)
+import Primer.Core.Utils (forgetMetadata)
 import Primer.Module (Module (Module, moduleDefs, moduleName, moduleTypes), moduleDefsQualified, moduleTypesQualified)
 import Primer.Name
 import Primer.Primitives (primitiveGVar, primitiveModule, tChar)
@@ -204,7 +204,7 @@ unit_rename_def_referenced =
       assertNothing (lookupDef' "other" prog')
       assertJust (lookupDef' "foo" prog')
       assertJust (lookupDef' "main" prog')
-      fmap (forgetIDs . astDefExpr) (defAST =<< lookupDef' "main" prog') @?= Just (Var () $ globalVarRef "foo")
+      fmap (forgetMetadata . astDefExpr) (defAST =<< lookupDef' "main" prog') @?= Just (Var () $ globalVarRef "foo")
 
 unit_rename_def_recursive :: Assertion
 unit_rename_def_recursive =
@@ -218,7 +218,7 @@ unit_rename_def_recursive =
     $ \_ prog' -> do
       assertNothing (lookupDef' "main" prog')
       assertJust (lookupDef' "foo" prog')
-      fmap (forgetIDs . astDefExpr) (defAST =<< lookupDef' "foo" prog') @?= Just (Var () $ globalVarRef "foo")
+      fmap (forgetMetadata . astDefExpr) (defAST =<< lookupDef' "foo" prog') @?= Just (Var () $ globalVarRef "foo")
 
 unit_delete_def :: Assertion
 unit_delete_def =
@@ -845,8 +845,8 @@ unit_RenameType =
           Map.member (tcn "T") $
             foldMap moduleTypesQualified (progAllModules prog')
       def <- findDef (gvn "def") prog'
-      forgetIDs (astDefExpr def)
-        @?= forgetIDs
+      forgetMetadata (astDefExpr def)
+        @?= forgetMetadata
           ( create' $
               emptyHole `ann` (tcon (tcn "T'") `tapp` tcon (tcn "Bool"))
           )
@@ -891,8 +891,8 @@ unit_RenameCon =
             , ValCon cB [TCon () tT, TVar () "b"]
             ]
       def <- findDef (gvn "def") prog'
-      forgetIDs (astDefExpr def)
-        @?= forgetIDs
+      forgetMetadata (astDefExpr def)
+        @?= forgetMetadata
           ( create' $
               hole
                 ( hole $
@@ -973,8 +973,8 @@ unit_AddCon =
             , ValCon cB [TCon () tT, TVar () "b"]
             ]
       def <- findDef (gvn "def") prog'
-      forgetIDs (astDefExpr def)
-        @?= forgetIDs
+      forgetMetadata (astDefExpr def)
+        @?= forgetMetadata
           ( create' $
               case_
                 (emptyHole `ann` (tcon tT `tapp` tcon (tcn "Bool") `tapp` tcon (tcn "Int")))
@@ -1006,8 +1006,8 @@ unit_SetConFieldType =
             , ValCon cB [TCon () tT, TVar () "b"]
             ]
       def <- findDef (gvn "def") prog'
-      forgetIDs (astDefExpr def)
-        @?= forgetIDs
+      forgetMetadata (astDefExpr def)
+        @?= forgetMetadata
           ( create' $
               con cA
                 `aPP` tEmptyHole
@@ -1030,8 +1030,8 @@ unit_SetConFieldType_partial_app =
     $ expectSuccess
     $ \_ prog' -> do
       def <- findDef (gvn "def") prog'
-      forgetIDs (astDefExpr def)
-        @?= forgetIDs
+      forgetMetadata (astDefExpr def)
+        @?= forgetMetadata
           ( create' $
               hole $
                 con cA `app` lvar "x"
@@ -1058,8 +1058,8 @@ unit_SetConFieldType_case =
     $ expectSuccess
     $ \_ prog' -> do
       def <- findDef (gvn "def") prog'
-      forgetIDs (astDefExpr def)
-        @?= forgetIDs
+      forgetMetadata (astDefExpr def)
+        @?= forgetMetadata
           ( create' $
               case_
                 (emptyHole `ann` (tcon tT `tapp` tEmptyHole `tapp` tEmptyHole))
@@ -1092,8 +1092,8 @@ unit_SetConFieldType_shadow =
     $ expectSuccess
     $ \_ prog' -> do
       def <- findDef (gvn "def") prog'
-      forgetIDs (astDefExpr def)
-        @?= forgetIDs
+      forgetMetadata (astDefExpr def)
+        @?= forgetMetadata
           ( create' $
               case_
                 (emptyHole `ann` (tcon tT `tapp` tEmptyHole `tapp` tEmptyHole))
@@ -1135,8 +1135,8 @@ unit_AddConField =
             , ValCon cB [TCon () tT, TVar () "b"]
             ]
       def <- findDef (gvn "def") prog'
-      forgetIDs (astDefExpr def)
-        @?= forgetIDs
+      forgetMetadata (astDefExpr def)
+        @?= forgetMetadata
           ( create' $
               case_
                 ( con cA
@@ -1165,8 +1165,8 @@ unit_AddConField_partial_app =
     $ expectSuccess
     $ \_ prog' -> do
       def <- findDef (gvn "def") prog'
-      forgetIDs (astDefExpr def)
-        @?= forgetIDs
+      forgetMetadata (astDefExpr def)
+        @?= forgetMetadata
           ( create' $
               hole $
                 con cA `app` con (vcn "True")
@@ -1190,8 +1190,8 @@ unit_AddConField_partial_app_end =
             , ValCon cB [TCon () tT, TVar () "b"]
             ]
       def <- findDef (gvn "def") prog'
-      forgetIDs (astDefExpr def)
-        @?= forgetIDs
+      forgetMetadata (astDefExpr def)
+        @?= forgetMetadata
           ( create' $
               con cA `app` con (vcn "True") `app` emptyHole
           )
@@ -1217,8 +1217,8 @@ unit_AddConField_case_ann =
     $ expectSuccess
     $ \_ prog' -> do
       def <- findDef (gvn "def") prog'
-      forgetIDs (astDefExpr def)
-        @?= forgetIDs
+      forgetMetadata (astDefExpr def)
+        @?= forgetMetadata
           ( create' $
               case_
                 (emptyHole `ann` (tcon tT `tapp` tEmptyHole `tapp` tEmptyHole))

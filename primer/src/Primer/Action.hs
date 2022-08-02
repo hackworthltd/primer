@@ -85,7 +85,7 @@ import Primer.Core.DSL (
   var,
  )
 import Primer.Core.Transform (renameLocalVar, renameTyVar, renameTyVarExpr)
-import Primer.Core.Utils (forgetTypeIDs, generateTypeIDs)
+import Primer.Core.Utils (forgetTypeMetadata, generateTypeIDs)
 import Primer.JSON
 import Primer.Module (Module, insertDef)
 import Primer.Name (Name, NameCounter, unName, unsafeMkName)
@@ -456,7 +456,7 @@ applyActionsToTypeSig smartHoles imports (mod, mods) (defName, def) actions =
     go = do
       zt <- withWrappedType (astDefType def) (\zt -> foldM (flip applyActionAndSynth) (InType zt) actions)
       let t = target (top zt)
-      e <- check (forgetTypeIDs t) (astDefExpr def)
+      e <- check (forgetTypeMetadata t) (astDefExpr def)
       let def' = def{astDefExpr = exprTtoExpr e, astDefType = t}
           mod' = insertDef mod defName (DefAST def')
       -- The actions were applied to the type successfully, and the definition body has been
@@ -507,7 +507,7 @@ applyActionsToBody sh modules def actions =
       ze <- foldM (flip (applyActionAndCheck (astDefType def))) (focusLoc (astDefExpr def)) actions
       let targetID = getID ze
           e = unfocus ze
-      e' <- exprTtoExpr <$> check (forgetTypeIDs (astDefType def)) e
+      e' <- exprTtoExpr <$> check (forgetTypeMetadata (astDefType def)) e
       let def' = def{astDefExpr = e'}
       case focusOn targetID e' of
         Nothing -> throwError $ InternalFailure "lost ID after typechecking"
@@ -518,7 +518,7 @@ applyActionAndCheck ty action z = do
   z' <- applyAction' action z
   let e = unfocus z'
       targetID = getID z'
-  typedAST <- check (forgetTypeIDs ty) e
+  typedAST <- check (forgetTypeMetadata ty) e
   -- Refocus on where we were previously
   case focusOn targetID (exprTtoExpr typedAST) of
     Just z'' -> pure z''

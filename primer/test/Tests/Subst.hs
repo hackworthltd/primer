@@ -9,7 +9,7 @@ import Primer.Core (
   Type',
  )
 import Primer.Core.DSL
-import Primer.Core.Utils (forgetTypeIDs)
+import Primer.Core.Utils (forgetTypeMetadata)
 import Primer.Subst
 import Test.Tasty.HUnit hiding (assert)
 import TestM (evalTestM)
@@ -39,7 +39,7 @@ unit_3 =
       (create_ $ tforall "b" KType $ tcon tList `tapp` tvar "a")
 
 create_ :: S (Type' a) -> Type' ()
-create_ = forgetTypeIDs . create'
+create_ = forgetTypeMetadata . create'
 
 substTy' :: TyVarName -> Type' () -> Type' () -> Type' ()
 substTy' n s t = evalTestM 0 $ substTy n s t

@@ -5,14 +5,12 @@ module Primer.ZipperCxt (
   variablesInScopeTy,
   ShadowedVarsExpr (M),
   ShadowedVarsTy (N),
-  forgetMetadata,
 ) where
 
 import Foreword
 
-import Data.Generics.Product (Param (..), param, position)
 import Data.Set qualified as Set
-import Optics (set, view, (^.))
+import Optics ((^.))
 import Primer.Core (
   Bind' (..),
   CaseBranch' (..),
@@ -28,7 +26,9 @@ import Primer.Core (
   Type' (..),
   TypeCache (..),
   TypeCacheBoth (..),
+  _typeMetaLens,
  )
+import Primer.Core.Utils (forgetTypeMetadata)
 import Primer.Typecheck (maybeTypeOf)
 import Primer.Zipper (
   ExprZ,
@@ -110,8 +110,8 @@ extractLocalsExprZ = foldAbove getBoundHere
       Let _ x e1 _
         | prior e == e1 -> mempty
         | otherwise -> M [] [(x, typeOrHole' $ maybeTypeOf e1)] []
-      Letrec _ x _ ty _ -> M [] [(x, forgetMetadata ty)] []
-      LetType _ x ty _ -> M [(x, kindOrHole (view (position @1) ty))] [] []
+      Letrec _ x _ ty _ -> M [] [(x, forgetTypeMetadata ty)] []
+      LetType _ x ty _ -> M [(x, kindOrHole (ty ^. _typeMetaLens))] [] []
       Case _ _ branches ->
         let fromBinding (Bind m n) = (n, typeOrHole m)
             binderss = map (\(CaseBranch _ ns rhs) -> (rhs, map fromBinding ns)) branches
@@ -134,10 +134,6 @@ extractLocalsExprZ = foldAbove getBoundHere
     uncache (TCSynthed t) = t
     uncache (TCChkedAt t) = t
     uncache (TCEmb TCBoth{tcSynthed = t}) = t
-
--- Clear the metadata of a type
-forgetMetadata :: Type' a -> Type' ()
-forgetMetadata = set (param @0) ()
 
 -- Helper for variablesInScopeTy: collect variables, most local first, eliding
 -- shadowed vars, as with 'ShadowedVarsExpr'

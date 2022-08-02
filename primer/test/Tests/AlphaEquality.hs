@@ -14,7 +14,7 @@ import Primer.Core (
   Type',
  )
 import Primer.Core.DSL
-import Primer.Core.Utils (alphaEqTy, forgetTypeIDs)
+import Primer.Core.Utils (alphaEqTy, forgetTypeMetadata)
 import Test.Tasty.HUnit hiding (assert)
 import TestUtils (Property, property)
 
@@ -91,7 +91,7 @@ unit_repeated_names =
 
 tasty_refl :: Property
 tasty_refl = property $ do
-  t <- forgetTypeIDs <$> forAll (evalExprGen 0 genType)
+  t <- forgetTypeMetadata <$> forAll (evalExprGen 0 genType)
   assert $ alphaEqTy t t
 
 tasty_alpha :: Property
@@ -103,7 +103,7 @@ tasty_alpha = property $ do
     f v = create_ $ tforall v KType $ tvar v
 
 create_ :: S (Type' a) -> Alpha
-create_ = Alpha . forgetTypeIDs . create'
+create_ = Alpha . forgetTypeMetadata . create'
 
 -- | Like @Type' ()@, but 'Eq' only compares up to alpha-equality.
 newtype Alpha = Alpha (Type' ())

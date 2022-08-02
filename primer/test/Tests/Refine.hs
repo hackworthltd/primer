@@ -33,7 +33,7 @@ import Primer.Core (
   typeDefAST,
   valConType,
  )
-import Primer.Core.Utils (forgetIDs, freeVarsTy, generateIDs, noHoles)
+import Primer.Core.Utils (forgetMetadata, freeVarsTy, generateIDs, noHoles)
 import Primer.Name (NameCounter)
 import Primer.Primitives (primitiveModule)
 import Primer.Refine (Inst (InstAPP, InstApp, InstUnconstrainedAPP), refine)
@@ -292,7 +292,7 @@ tasty_refinement_synths = propertyWTInExtendedLocalGlobalCxt [builtinModule, pri
           e = foldl' f (Ann () (EmptyHole ()) src) apps
       annotateShow e
       (ty, e') <- synthTest =<< generateIDs e
-      e === forgetIDs e' -- check no smart holes stuff happened
+      e === forgetMetadata e' -- check no smart holes stuff happened
       let g i a = case (i, a) of (InstUnconstrainedAPP n _, Left t) -> Just (n, t); _ -> Nothing
           sb = catMaybes $ zipWith g is apps
       instTy' <- substTys sb instTy

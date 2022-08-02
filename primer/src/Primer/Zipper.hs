@@ -1,4 +1,5 @@
 {-# LANGUAGE FunctionalDependencies #-}
+{-# LANGUAGE OverloadedLabels #-}
 
 -- | This module contains the zipper types @ExprZ@ and @TypeZ@, and functions for
 --  operating on them.
@@ -51,8 +52,7 @@ module Primer.Zipper (
 import Foreword
 
 import Data.Data (Data)
-import Data.Generics.Product (field, position)
-import Data.Generics.Sum (_Ctor)
+import Data.Generics.Product (position)
 import Data.Generics.Uniplate.Data ()
 import Data.Generics.Uniplate.Zipper (
   Zipper,
@@ -64,6 +64,8 @@ import Data.Generics.Uniplate.Zipper qualified as Z
 import Data.List as List (delete)
 import Data.Set qualified as S
 import Optics (
+  AffineTraversal',
+  Field3 (_3),
   filteredBy,
   ifolded,
   iheadOf,
@@ -167,7 +169,7 @@ updateCaseBind (CaseBindZ z bind rhs bindings update) f =
      in CaseBindZ z' bind' rhs' bindings update
 
 instance HasID a => HasID (CaseBindZ' a b) where
-  _id = field @"caseBindZFocus" % _id
+  _id = #caseBindZFocus % _id
 
 -- | A specific location in our AST.
 -- This can either be in an expression, type, or binding.
@@ -221,18 +223,24 @@ focusType z = do
 -- | If the currently focused expression is a case expression, search the bindings of its branches
 -- to find one matching the given ID, and return the 'Loc' for that binding.
 -- If no match is found, return @Nothing@.
-findInCaseBinds :: (Data a, Data b, Eq a, HasID a) => ID -> ExprZ' a b -> Maybe (Loc' a b)
+findInCaseBinds :: forall a b. (Data a, Data b, Eq a, HasID a) => ID -> ExprZ' a b -> Maybe (Loc' a b)
 findInCaseBinds i z = do
-  let branchesLens = _target % _Ctor @"Case" % position @3
   branches <- preview branchesLens z
-  ((branchIx, bindIx), bind) <- branches & iheadOf (ifolded % position @2 <%> ifolded <% filteredBy (_Ctor @"Bind" % position @1 % _id % only i))
+  ((branchIx, bindIx), bind) <- branches & iheadOf (ifolded % binds <%> ifolded <% filteredBy (_id % only i))
   let branchLens = branchesLens % ix branchIx
-  let rhsLens = branchLens % position @3
+  let rhsLens = branchLens % branchRHS
   rhs <- preview rhsLens z
-  allBinds <- preview (branchLens % position @2) z
-  let bindLens = branchLens % position @2 % ix bindIx
+  allBinds <- preview (branchLens % binds) z
+  let bindLens = branchLens % binds % ix bindIx
   let update bind' rhs' = set rhsLens rhs' . set bindLens bind'
   pure $ InBind $ BindCase $ CaseBindZ z bind rhs (delete bind allBinds) update
+  where
+    branchesLens :: AffineTraversal' (ExprZ' a b) [CaseBranch' a b]
+    branchesLens = _target % #_Case % _3
+    binds :: Lens' (CaseBranch' a b) [Bind' a]
+    binds = position @2
+    branchRHS :: Lens' (CaseBranch' a b) (Expr' a b)
+    branchRHS = position @3
 
 -- | Switch from a 'Type' zipper back to an 'Expr' zipper.
 unfocusType :: TypeZ' a b -> ExprZ' a b
@@ -260,7 +268,7 @@ instance Data b => IsZipper (TypeZ' a b) (Type' b) where
 -- It's a bit fiddly to make it appear as a zipper like this, but it's convenient to have a
 -- consistent interface for 'ExprZ', 'TypeZ' and 'CaseBindZ'.
 instance IsZipper CaseBindZ (Bind' ExprMeta) where
-  asZipper = field @"caseBindZFocus" % iso zipper fromZipper
+  asZipper = #caseBindZFocus % iso zipper fromZipper
 
 target :: IsZipper za a => za -> a
 target = Z.hole . view asZipper

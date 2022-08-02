@@ -30,7 +30,6 @@ import Foreword
 
 import Control.Arrow ((***))
 import Control.Monad.Fresh (MonadFresh)
-import Data.Generics.Product (position)
 import Data.Map.Strict qualified as Map
 import Data.Set qualified as Set
 import Optics (
@@ -76,12 +75,14 @@ import Primer.Core (
   bindName,
   defPrim,
   getID,
+  _exprMetaLens,
+  _type,
  )
 import Primer.Core.DSL (ann, hole, letType, let_, tEmptyHole)
 import Primer.Core.Transform (removeAnn, renameLocalVar, renameTyVarExpr, unfoldAPP, unfoldApp)
 import Primer.Core.Utils (
   concreteTy,
-  forgetIDs,
+  forgetMetadata,
   freeVars,
   freeVarsTy,
   regenerateExprIDs,
@@ -552,11 +553,11 @@ redexes primDefs = go mempty
 
 -- | Extract the cached type information from the metadata of an AST node.
 annOf :: Meta a -> a
-annOf = view (position @2)
+annOf = view _type
 
 -- | Set the cached type information of the root node of the given expression to the given value.
 annotate :: Maybe TypeCache -> Expr -> Expr
-annotate = set (position @1 % position @2)
+annotate = set (_exprMetaLens % _type)
 
 -- | This function helps us create let bindings which are easy to substitute
 -- without causing variable capture.
@@ -990,7 +991,7 @@ tryPrimFun primDefs expr
     (Var _ (GlobalVarRef name), args) <- bimap stripAnns (map stripAnns) $ unfoldApp expr
   , Map.member name primDefs
   , Just PrimFun{primFunDef} <- Map.lookup name allPrimDefs
-  , Right e <- primFunDef $ forgetIDs <$> args =
+  , Right e <- primFunDef $ forgetMetadata <$> args =
       Just (name, args, e)
   | otherwise = Nothing
   where
