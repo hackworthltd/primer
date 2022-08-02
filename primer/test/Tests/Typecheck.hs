@@ -5,6 +5,7 @@ import Foreword
 
 import Control.Monad.Fresh (MonadFresh)
 import Data.Map qualified as Map
+import Gen.App (genProg)
 import Gen.Core.Raw (
   evalExprGen,
   genTyConName,
@@ -28,6 +29,7 @@ import Primer.App (
   newProg',
   progModules,
   tcWholeProg,
+  tcWholeProgWithImports,
  )
 import Primer.App qualified as App
 import Primer.Builtins (
@@ -54,6 +56,7 @@ import Primer.Core (
   Def (..),
   Expr,
   Expr' (..),
+  ExprMeta,
   GlobalName (baseName),
   ID,
   Kind (KFun, KHole, KType),
@@ -81,7 +84,7 @@ import Primer.Core (
 import Primer.Core.DSL
 import Primer.Core.Utils (alphaEqTy, forgetMetadata, forgetTypeMetadata, generateIDs, generateTypeIDs)
 import Primer.Module
-import Primer.Name (NameCounter)
+import Primer.Name (Name, NameCounter)
 import Primer.Primitives (primitiveGVar, primitiveModule, tChar)
 import Primer.Typecheck (
   CheckEverythingRequest (CheckEverything, toCheck, trusted),
@@ -631,8 +634,40 @@ instance Eq (TypeCacheAlpha TypeCache) where
   TypeCacheAlpha (TCEmb (TCBoth s t)) == TypeCacheAlpha (TCEmb (TCBoth s' t')) =
     s `alphaEqTy` s' && t `alphaEqTy` t'
   _ == _ = False
-instance Eq (TypeCacheAlpha (Expr' (Meta TypeCache) (Meta Kind))) where
+tcaFunctorial :: (Functor f, Eq (f (TypeCacheAlpha a))) => TypeCacheAlpha (f a) -> TypeCacheAlpha (f a) -> Bool
+tcaFunctorial = (==) `on` (fmap TypeCacheAlpha . unTypeCacheAlpha)
+instance Eq (TypeCacheAlpha a) => Eq (TypeCacheAlpha (Maybe a)) where
+  (==) = tcaFunctorial
+instance (Eq (TypeCacheAlpha a), Eq b) => Eq (TypeCacheAlpha (Expr' (Meta a) b)) where
   (==) = (==) `on` (((_exprMeta % _type) %~ TypeCacheAlpha) . unTypeCacheAlpha)
+instance Eq (TypeCacheAlpha Def) where
+  TypeCacheAlpha (DefAST (ASTDef e1 t1)) == TypeCacheAlpha (DefAST (ASTDef e2 t2)) =
+    TypeCacheAlpha e1 == TypeCacheAlpha e2 && t1 == t2
+  TypeCacheAlpha (DefPrim (PrimDef t1)) == TypeCacheAlpha (DefPrim (PrimDef t2)) =
+    t1 == t2
+  _ == _ = False
+instance Eq (TypeCacheAlpha (Map Name Def)) where
+  (==) = tcaFunctorial
+instance Eq (TypeCacheAlpha Module) where
+  TypeCacheAlpha (Module n1 tds1 ds1) == TypeCacheAlpha (Module n2 tds2 ds2) =
+    n1 == n2 && tds1 == tds2 && TypeCacheAlpha ds1 == TypeCacheAlpha ds2
+instance Eq (TypeCacheAlpha [Module]) where
+  (==) = tcaFunctorial
+instance Eq (TypeCacheAlpha ExprMeta) where
+  (==) = tcaFunctorial
+instance Eq (TypeCacheAlpha App.NodeSelection) where
+  TypeCacheAlpha (App.NodeSelection t1 i1 m1) == TypeCacheAlpha (App.NodeSelection t2 i2 m2) =
+    t1 == t2 && i1 == i2 && ((==) `on` first TypeCacheAlpha) m1 m2
+instance Eq (TypeCacheAlpha App.Selection) where
+  TypeCacheAlpha (App.Selection d1 n1) == TypeCacheAlpha (App.Selection d2 n2) =
+    d1 == d2 && TypeCacheAlpha n1 == TypeCacheAlpha n2
+instance Eq (TypeCacheAlpha Prog) where
+  TypeCacheAlpha (Prog i1 m1 s1 sh1 l1) == TypeCacheAlpha (Prog i2 m2 s2 sh2 l2) =
+    TypeCacheAlpha i1 == TypeCacheAlpha i2
+      && TypeCacheAlpha m1 == TypeCacheAlpha m2
+      && TypeCacheAlpha s1 == TypeCacheAlpha s2
+      && sh1 == sh2
+      && l1 == l2
 
 -- Test that smartholes is idempotent (for well-typed input)
 tasty_smartholes_idempotent_syn :: Property
@@ -702,6 +737,21 @@ unit_tcWholeProg_notice_type_updates =
       defsNoIDs a = foldMap (fmap (\d -> (forgetTypeMetadata $ defType d, forgetMetadata . astDefExpr <$> defAST d)) . Map.elems . moduleDefs) $ progModules a
    in do
         fmap defsNoIDs a1' @?= Right (defsNoIDs a1)
+
+-- This is only up to alpha in the TypeCaches, for the same reasons as
+-- unit_smartholes_idempotent_alpha_typecache
+tasty_tcWholeProg_idempotent :: Property
+tasty_tcWholeProg_idempotent = withTests 1000 $
+  withDiscards 2000 $
+    propertyWT [] $ do
+      base <- forAllT $ Gen.element [[], [builtinModule], [builtinModule, primitiveModule]]
+      p <- forAllT $ genProg SmartHoles base
+      case runTypecheckTestM SmartHoles $ do
+        p' <- tcWholeProgWithImports p
+        p'' <- tcWholeProgWithImports p'
+        pure (p', p'') of
+        Left err -> annotateShow err >> failure
+        Right (p', p'') -> TypeCacheAlpha p' === TypeCacheAlpha p''
 
 -- Check that all our builtins are well formed
 -- (these are used to seed initial programs)
