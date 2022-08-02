@@ -363,14 +363,14 @@ testEndpoints =
     reductionDetail =
       BetaReduction
         BetaReductionDetail
-          { betaBefore = expr
-          , betaAfter = expr
-          , betaBindingName = "x"
-          , betaLambdaID = 0
-          , betaLetID = 0
-          , betaArgID = 0
-          , betaBodyID = 0
-          , betaTypes = Just (ty, ty)
+          { before = expr
+          , after = expr
+          , bindingName = "x"
+          , lambdaID = 0
+          , letID = 0
+          , argID = 0
+          , bodyID = 0
+          , types = Just (ty, ty)
           }
 
 primerApi :: Proxy PrimerAPI
