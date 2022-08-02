@@ -615,21 +615,16 @@ viewTreeExpr e0 = case e0 of
                                 { nodeId = patternRootId
                                 , style = FlavorCon
                                 , body = TextBody $ showGlobal con
-                                , childTrees = []
-                                , rightChild =
-                                    foldr
-                                      ( \(Bind m v) next' ->
-                                          pure
-                                            Tree
-                                              { nodeId = show $ m ^. _id
-                                              , style = FlavorLocalVar
-                                              , body = TextBody $ unName $ unLocalName v
-                                              , childTrees = []
-                                              , rightChild = next'
-                                              }
-                                      )
-                                      Nothing
-                                      binds
+                                , childTrees =
+                                    binds <&> \(Bind m v) ->
+                                      Tree
+                                        { nodeId = show $ m ^. _id
+                                        , style = FlavorLocalVar
+                                        , body = TextBody $ unName $ unLocalName v
+                                        , childTrees = []
+                                        , rightChild = Nothing
+                                        }
+                                , rightChild = Nothing
                                 }
                         , childTrees = [viewTreeExpr rhs]
                         , rightChild = next

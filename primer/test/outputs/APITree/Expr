@@ -184,16 +184,16 @@ Tree
                                                                             { nodeId = "30P1B"
                                                                             , style = FlavorCon
                                                                             , body = TextBody "Builtins.Succ"
-                                                                            , childTrees = []
-                                                                            , rightChild = Just
-                                                                                ( Tree
+                                                                            , childTrees =
+                                                                                [ Tree
                                                                                     { nodeId = "33"
                                                                                     , style = FlavorLocalVar
                                                                                     , body = TextBody "n"
                                                                                     , childTrees = []
                                                                                     , rightChild = Nothing
                                                                                     }
-                                                                                )
+                                                                                ]
+                                                                            , rightChild = Nothing
                                                                             }
                                                                         )
                                                                     , childTrees =
