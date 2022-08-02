@@ -18,7 +18,7 @@ import Gen.Core.Typed (
 import Hedgehog hiding (Property, check, property, withDiscards, withTests)
 import Hedgehog.Gen qualified as Gen
 import Hedgehog.Range qualified as Range
-import Optics (over)
+import Optics (over, (%))
 import Primer.App (
   Prog,
   newEmptyProg',
@@ -67,6 +67,7 @@ import Primer.Core (
   typeDefKind,
   valConType,
   _exprMeta,
+  _type,
  )
 import Primer.Core.DSL
 import Primer.Core.Utils (forgetTypeMetadata, generateIDs, generateTypeIDs)
@@ -592,16 +593,14 @@ smartSynthGives eIn eExpect =
     -- We want eGot and eExpect' to have the same type annotations, but they
     -- may differ on whether they were synthed or checked, and this is OK
     normaliseAnnotations :: ExprT -> Expr' (Meta (Type' ())) (Meta Kind)
-    normaliseAnnotations = over _exprMeta f
+    normaliseAnnotations = over (_exprMeta % _type) f
       where
-        f :: Meta TypeCache -> Meta (Type' ())
-        f (Meta i c v) =
-          let c' = case c of
-                TCSynthed t -> t
-                TCChkedAt t -> t
-                -- if there are both, we arbitrarily choose the synthed type
-                TCEmb TCBoth{tcSynthed = t} -> t
-           in Meta i c' v
+        f :: TypeCache -> Type' ()
+        f = \case
+          TCSynthed t -> t
+          TCChkedAt t -> t
+          -- if there are both, we arbitrarily choose the synthed type
+          TCEmb TCBoth{tcSynthed = t} -> t
 
 smartSynthKindGives :: HasCallStack => TypecheckTestM Type -> TypecheckTestM Type -> Assertion
 smartSynthKindGives tIn tExpect =
