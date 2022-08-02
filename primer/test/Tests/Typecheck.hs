@@ -23,14 +23,13 @@ import Hedgehog.Range qualified as Range
 import Optics (over, set, (%), (%~))
 import Primer.App (
   Prog (Prog, progImports, progLog, progSelection, progSmartHoles),
-  ProgError,
   defaultLog,
   newEmptyProg',
   newProg',
-  progAllModules,
   progModules,
   tcWholeProg,
  )
+import Primer.App qualified as App
 import Primer.Builtins (
   boolDef,
   builtinModule,
@@ -699,7 +698,7 @@ unit_tcWholeProg_notice_type_updates =
           }
       a0 = mkProg d0
       a1 = mkProg d1
-      a1' = evalTestM 0 $ runExceptT @ProgError $ tcWholeProg a0
+      a1' = evalTestM 0 $ runExceptT @TypeError $ tcWholeProg a0
       defsNoIDs a = foldMap (fmap (\d -> (forgetTypeMetadata $ defType d, forgetMetadata . astDefExpr <$> defAST d)) . Map.elems . moduleDefs) $ progModules a
    in do
         fmap defsNoIDs a1' @?= Right (defsNoIDs a1)
@@ -709,12 +708,7 @@ unit_tcWholeProg_notice_type_updates =
 checkProgWellFormed :: HasCallStack => (forall m. MonadFresh ID m => m Prog) -> Assertion
 checkProgWellFormed p' = case runTypecheckTestM NoSmartHoles $ do
   p <- p'
-  checkEverything
-    NoSmartHoles
-    CheckEverything
-      { trusted = mempty
-      , toCheck = progAllModules p
-      } of
+  App.checkProgWellFormed p of
   Left err -> assertFailure $ show err
   Right _ -> pure ()
 

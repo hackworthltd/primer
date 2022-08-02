@@ -52,11 +52,13 @@ module Primer.App (
   EvalFullResp (..),
   lookupASTDef,
   globalInUse,
+  liftError,
 ) where
 
 import Foreword hiding (mod)
 
 import Control.Monad.Fresh (MonadFresh (..))
+import Control.Monad.NestedError (MonadNestedError)
 import Data.Bitraversable (bimapM)
 import Data.Data (Data)
 import Data.Generics.Uniplate.Operations (descendM, transform, transformM)
@@ -1171,9 +1173,15 @@ checkAppWellFormed app =
   -- check rather pointless. See:
   --
   -- https://github.com/hackworthltd/primer/issues/510
-  fst . flip runEditAppM app $ mkApp (appIdCounter app) (appNameCounter app) <$> checkProgWellFormed (appProg app)
+  fst . flip runEditAppM app $ mkApp (appIdCounter app) (appNameCounter app) <$> liftError ActionError (checkProgWellFormed (appProg app))
 
-checkProgWellFormed :: MonadEdit m => Prog -> m Prog
+checkProgWellFormed ::
+  ( MonadFresh ID m
+  , MonadFresh NameCounter m
+  , MonadNestedError TypeError e (ReaderT Cxt m)
+  ) =>
+  Prog ->
+  m Prog
 checkProgWellFormed p =
   let -- We are careful to turn smartholes off for this check, as
       -- we want to return an error if there is a problem, rather
@@ -1250,7 +1258,7 @@ copyPasteSig p (fromDefName, fromTyId) toDefName setup = do
     let newDef = oldDef{astDefType = fromZipper pasted}
     let newSel = NodeSelection SigNode (getID $ target pasted) (pasted ^. _target % _typeMetaLens % re _Right)
     pure (insertDef mod toDefBaseName (DefAST newDef), Just (Selection toDefName $ Just newSel))
-  tcWholeProg finalProg
+  liftError ActionError $ tcWholeProg finalProg
 
 -- We cannot use bindersAbove as that works on names only, and different scopes
 -- may reuse the same names. However, we want to detect that as non-shared.
@@ -1312,45 +1320,55 @@ loopM f a =
 
 -- | Checks every term and type definition in the editable modules.
 -- Does not check imported modules.
-tcWholeProg :: forall m. MonadEdit m => Prog -> m Prog
-tcWholeProg p =
-  let tc :: ReaderT Cxt (ExceptT ActionError m) Prog
-      tc = do
-        mods' <-
-          checkEverything
-            (progSmartHoles p)
-            CheckEverything
-              { trusted = progImports p
-              , toCheck = progModules p
-              }
-        let p' = p{progModules = mods'}
-        -- We need to update the metadata cached in the selection
-        let oldSel = progSelection p
-        newSel <- case oldSel of
-          Nothing -> pure Nothing
-          Just s -> do
-            let defName_ = s ^. #selectedDef
-            updatedNode <- case s ^. #selectedNode of
-              Nothing -> pure Nothing
-              Just NodeSelection{nodeType, nodeId} -> do
-                n <- runExceptT $ focusNode p' defName_ nodeId
-                case (nodeType, n) of
-                  (BodyNode, Right (Left x)) -> pure $ Just $ NodeSelection BodyNode nodeId $ bimap (view _exprMetaLens . target) (view _typeMetaLens . target) x
-                  (SigNode, Right (Right x)) -> pure $ Just $ NodeSelection SigNode nodeId $ x ^. _target % _typeMetaLens % re _Right
-                  _ -> pure Nothing -- something's gone wrong: expected a SigNode, but found it in the body, or vv, or just not found it
-            pure $
-              Just $
-                Selection
-                  { selectedDef = defName_
-                  , selectedNode = updatedNode
-                  }
-        pure $ p'{progSelection = newSel}
-   in liftError ActionError $ runReaderT tc $ progCxt p
+tcWholeProg ::
+  forall m e.
+  ( MonadFresh ID m
+  , MonadFresh NameCounter m
+  , MonadNestedError TypeError e (ReaderT Cxt m)
+  ) =>
+  Prog ->
+  m Prog
+tcWholeProg p = do
+  mods' <-
+    checkEverything
+      (progSmartHoles p)
+      CheckEverything
+        { trusted = progImports p
+        , toCheck = progModules p
+        }
+  let p' = p{progModules = mods'}
+  -- We need to update the metadata cached in the selection
+  let oldSel = progSelection p
+  newSel <- case oldSel of
+    Nothing -> pure Nothing
+    Just s -> do
+      let defName_ = s ^. #selectedDef
+      updatedNode <- case s ^. #selectedNode of
+        Nothing -> pure Nothing
+        Just NodeSelection{nodeType, nodeId} -> do
+          n <- runExceptT $ focusNode p' defName_ nodeId
+          case (nodeType, n) of
+            (BodyNode, Right (Left x)) -> pure $ Just $ NodeSelection BodyNode nodeId $ bimap (view _exprMetaLens . target) (view _typeMetaLens . target) x
+            (SigNode, Right (Right x)) -> pure $ Just $ NodeSelection SigNode nodeId $ x ^. _target % _typeMetaLens % re _Right
+            _ -> pure Nothing -- something's gone wrong: expected a SigNode, but found it in the body, or vv, or just not found it
+      pure $
+        Just $
+          Selection
+            { selectedDef = defName_
+            , selectedNode = updatedNode
+            }
+  pure $ p'{progSelection = newSel}
 
 -- | Do a full check of a 'Prog', both the imports and the local modules
-tcWholeProgWithImports :: MonadEdit m => Prog -> m Prog
+tcWholeProgWithImports ::
+  ( MonadFresh ID m
+  , MonadFresh NameCounter m
+  , MonadNestedError TypeError e (ReaderT Cxt m)
+  ) =>
+  Prog ->
+  m Prog
 tcWholeProgWithImports p = do
-  imports <- liftError ActionError $ checkEverything (progSmartHoles p) CheckEverything{trusted = mempty, toCheck = progImports p}
+  imports <- checkEverything (progSmartHoles p) CheckEverything{trusted = mempty, toCheck = progImports p}
   tcWholeProg $ p & #progImports .~ imports
 
 copyPasteBody :: MonadEdit m => Prog -> (GVarName, ID) -> GVarName -> [Action] -> m Prog
@@ -1449,7 +1467,7 @@ copyPasteBody p (fromDefName, fromId) toDefName setup = do
         let newDef = oldDef{astDefExpr = unfocusExpr pasted}
         let newSel = NodeSelection BodyNode (getID $ target pasted) (pasted ^. _target % _exprMetaLens % re _Left)
         pure (insertDef mod toDefBaseName (DefAST newDef), Just (Selection toDefName $ Just newSel))
-  tcWholeProg finalProg
+  liftError ActionError $ tcWholeProg finalProg
 
 lookupASTDef :: GVarName -> DefMap -> Maybe ASTDef
 lookupASTDef name = defAST <=< Map.lookup name
