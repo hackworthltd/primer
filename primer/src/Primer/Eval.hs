@@ -172,146 +172,146 @@ data EvalDetail
 
 -- | Detailed information about a beta reduction (of a λ or Λ).
 -- If λ:
--- - 'betaLambdaID' is the ID of the λ
--- - 'betaLetID' is the ID of the let
--- - 'betaTypes' is optionally the domain type and codomain type of the λ
+-- - 'lambdaID' is the ID of the λ
+-- - 'letID' is the ID of the let
+-- - 'types' is optionally the domain type and codomain type of the λ
 -- - i.e. k ~ ATmVar, domain ~ Type, codomain ~ Type
 -- If Λ:
--- - 'betaLambdaID' is the ID of the Λ
--- - 'betaLetID' is the ID of the "let type"
--- - 'betaTypes' is optionally the domain kind and codomain type of the λ
+-- - 'lambdaID' is the ID of the Λ
+-- - 'letID' is the ID of the "let type"
+-- - 'types' is optionally the domain kind and codomain type of the λ
 -- - i.e. k ~ ATyVar, domain ~ Kind, codomain ~ Type
 data BetaReductionDetail k domain codomain = BetaReductionDetail
-  { betaBefore :: Expr
-  , betaAfter :: Expr
-  , betaBindingName :: LocalName k
-  , betaLambdaID :: ID
-  , betaLetID :: ID
-  , betaArgID :: ID
-  , betaBodyID :: ID
-  , betaTypes :: Maybe (domain, codomain)
+  { before :: Expr
+  , after :: Expr
+  , bindingName :: LocalName k
+  , lambdaID :: ID
+  , letID :: ID
+  , argID :: ID
+  , bodyID :: ID
+  , types :: Maybe (domain, codomain)
   }
   deriving (Eq, Show, Generic)
-  deriving (FromJSON, ToJSON) via PrimerJSONPrefix "beta" (BetaReductionDetail k domain codomain)
+  deriving (FromJSON, ToJSON) via PrimerJSON (BetaReductionDetail k domain codomain)
 
 data LocalVarInlineDetail k = LocalVarInlineDetail
-  { localVarInlineLetID :: ID
+  { letID :: ID
   -- ^ ID of the let expression that binds this variable
-  , localVarInlineVarID :: ID
+  , varID :: ID
   -- ^ ID of the variable being replaced
-  , localVarInlineBindingName :: LocalName k
+  , bindingName :: LocalName k
   -- ^ Name of the variable
-  , localVarInlineValueID :: ID
+  , valueID :: ID
   -- ^ ID of the expression or type that the variable is bound to
-  , localVarInlineReplacementID :: ID
+  , replacementID :: ID
   -- ^ ID of the expression or type that has replaced the variable in the result
-  , localVarInlineIsTypeVar :: Bool
+  , isTypeVar :: Bool
   -- ^ If 'True', the variable being inlined is a type variable.
   -- Otherwise it is a term variable.
   }
   deriving (Eq, Show, Generic)
-  deriving (FromJSON, ToJSON) via PrimerJSONPrefix "localVarInline" (LocalVarInlineDetail k)
+  deriving (FromJSON, ToJSON) via PrimerJSON (LocalVarInlineDetail k)
 
 data GlobalVarInlineDetail = GlobalVarInlineDetail
-  { globalVarInlineDef :: ASTDef
+  { def :: ASTDef
   -- ^ The definition that the variable refers to
-  , globalVarInlineVar :: Expr
+  , var :: Expr
   -- ^ The variable being replaced
-  , globalVarInlineAfter :: Expr
+  , after :: Expr
   -- ^ The result of the reduction
   }
   deriving (Eq, Show, Generic)
-  deriving (FromJSON, ToJSON) via PrimerJSONPrefix "globalVarInline" GlobalVarInlineDetail
+  deriving (FromJSON, ToJSON) via PrimerJSON GlobalVarInlineDetail
 
 data CaseReductionDetail = CaseReductionDetail
-  { caseBefore :: Expr
+  { before :: Expr
   -- ^ the case expression before reduction
-  , caseAfter :: Expr
+  , after :: Expr
   -- ^ the resulting expression after reduction
-  , caseTargetID :: ID
+  , targetID :: ID
   -- ^ the ID of the target (scrutinee)
-  , caseTargetCtorID :: ID
+  , targetCtorID :: ID
   -- ^ the ID of the constructor node in the target
-  , caseCtorName :: ValConName
+  , ctorName :: ValConName
   -- ^ the name of the matching constructor
-  , caseTargetArgIDs :: [ID]
+  , targetArgIDs :: [ID]
   -- ^ the arguments to the constructor in the target
-  , caseBranchBindingIDs :: [ID]
+  , branchBindingIDs :: [ID]
   -- ^ the bindings in the case branch (one for each arg above)
-  , caseBranchRhsID :: ID
+  , branchRhsID :: ID
   -- ^ the right hand side of the selected case branch
-  , caseLetIDs :: [ID]
+  , letIDs :: [ID]
   -- ^ the let expressions binding each argument in the result
   }
   deriving (Eq, Show, Generic)
-  deriving (FromJSON, ToJSON) via PrimerJSONPrefix "case" CaseReductionDetail
+  deriving (FromJSON, ToJSON) via PrimerJSON CaseReductionDetail
 
 data LetRemovalDetail = LetRemovalDetail
-  { letRemovalBefore :: Expr
+  { before :: Expr
   -- ^ the let expression before reduction
-  , letRemovalAfter :: Expr
+  , after :: Expr
   -- ^ the resulting expression after reduction
-  , letRemovalBindingName :: Name
+  , bindingName :: Name
   -- ^ the name of the unused bound variable (either term or type variable)
-  , letRemovalLetID :: ID
+  , letID :: ID
   -- ^ the full let expression
-  , letRemovalBodyID :: ID
+  , bodyID :: ID
   -- ^ the right hand side of the let
   }
   deriving (Eq, Show, Generic)
-  deriving (FromJSON, ToJSON) via PrimerJSONPrefix "letRemoval" LetRemovalDetail
+  deriving (FromJSON, ToJSON) via PrimerJSON LetRemovalDetail
 
 data LetRenameDetail = LetRenameDetail
-  { letRenameBefore :: Expr
+  { before :: Expr
   -- ^ the let expression before reduction
-  , letRenameAfter :: Expr
+  , after :: Expr
   -- ^ the resulting expression after reduction
-  , letRenameBindingNameOld :: Name
+  , bindingNameOld :: Name
   -- ^ the old name of the let-bound variable
-  , letRenameBindingNameNew :: Name
+  , bindingNameNew :: Name
   -- ^ the new name of the let-bound variable
-  , letRenameLetID :: ID
+  , letID :: ID
   -- ^ the full let expression
-  , letRenameBindingOccurrences :: [ID]
+  , bindingOccurrences :: [ID]
   -- ^ where the old name occurred inside the bound expression
-  , letRenameBodyID :: ID
+  , bodyID :: ID
   -- ^ the right hand side of the let
   }
   deriving (Eq, Show, Generic)
-  deriving (FromJSON, ToJSON) via PrimerJSONPrefix "letRename" LetRenameDetail
+  deriving (FromJSON, ToJSON) via PrimerJSON LetRenameDetail
 
 data PushAppIntoLetrecDetail = PushAppIntoLetrecDetail
-  { pushAppIntoLetrecBefore :: Expr
+  { before :: Expr
   -- ^ the expression before reduction
-  , pushAppIntoLetrecAfter :: Expr
+  , after :: Expr
   -- ^ the expression after reduction
-  , pushAppIntoLetrecArgID :: ID
+  , argID :: ID
   -- ^ the ID of the argument to the application
-  , pushAppIntoLetrecLetrecID :: ID
+  , letrecID :: ID
   -- ^ the ID of the letrec
-  , pushAppIntoLetrecLamID :: ID
+  , lamID :: ID
   -- ^ the ID of the lambda
-  , pushAppIntoLetrecLetBindingName :: LVarName
+  , letBindingName :: LVarName
   -- ^ The name of the variable bound by the letrec
-  , pushAppIntoLetrecIsTypeApplication :: Bool
+  , isTypeApplication :: Bool
   -- ^ If 'True', the application is of a big lambda to a type.
   -- Otherwise it is of a small lambda to a term.
   }
   deriving (Eq, Show, Generic)
-  deriving (FromJSON, ToJSON) via PrimerJSONPrefix "pushAppIntoLetrec" PushAppIntoLetrecDetail
+  deriving (FromJSON, ToJSON) via PrimerJSON PushAppIntoLetrecDetail
 
 data ApplyPrimFunDetail = ApplyPrimFunDetail
-  { applyPrimFunBefore :: Expr
+  { before :: Expr
   -- ^ the expression before reduction
-  , applyPrimFunAfter :: Expr
+  , after :: Expr
   -- ^ the expression after reduction
-  , applyPrimFunName :: GVarName
+  , name :: GVarName
   -- ^ the name of the primitive function
-  , applyPrimFunArgIDs :: [ID]
+  , argIDs :: [ID]
   -- ^ the IDs of the arguments to the application
   }
   deriving (Eq, Show, Generic)
-  deriving (FromJSON, ToJSON) via PrimerJSONPrefix "applyPrimFun" ApplyPrimFunDetail
+  deriving (FromJSON, ToJSON) via PrimerJSON ApplyPrimFunDetail
 
 -- | A map from local variable names to the ID of their binding, their bound
 -- value and whether anything in their value would be captured by an intervening
@@ -628,14 +628,14 @@ tryReduceExpr globals locals = \case
       ( expr
       , BetaReduction
           BetaReductionDetail
-            { betaBefore = App mApp lam arg
-            , betaAfter = expr
-            , betaBindingName = x
-            , betaLambdaID = lam ^. _id
-            , betaLetID = expr ^. _id
-            , betaArgID = arg ^. _id
-            , betaBodyID = body ^. _id
-            , betaTypes = Nothing
+            { before = App mApp lam arg
+            , after = expr
+            , bindingName = x
+            , lambdaID = lam ^. _id
+            , letID = expr ^. _id
+            , argID = arg ^. _id
+            , bodyID = body ^. _id
+            , types = Nothing
             }
       )
   -- Beta reduction (with annotation)
@@ -668,14 +668,14 @@ tryReduceExpr globals locals = \case
       ( expr
       , BetaReduction
           BetaReductionDetail
-            { betaBefore = App mApp annotation arg
-            , betaAfter = expr
-            , betaBindingName = x
-            , betaLambdaID = lam ^. _id
-            , betaLetID = letexpr ^. _id
-            , betaArgID = arg ^. _id
-            , betaBodyID = body ^. _id
-            , betaTypes = types
+            { before = App mApp annotation arg
+            , after = expr
+            , bindingName = x
+            , lambdaID = lam ^. _id
+            , letID = letexpr ^. _id
+            , argID = arg ^. _id
+            , bodyID = body ^. _id
+            , types = types
             }
       )
   -- (letrec x : T = t in λ ...) e  ~> letrec x : T = t in ((λ...) e)
@@ -687,13 +687,13 @@ tryReduceExpr globals locals = \case
       ( expr
       , PushAppIntoLetrec
           PushAppIntoLetrecDetail
-            { pushAppIntoLetrecBefore = before
-            , pushAppIntoLetrecAfter = expr
-            , pushAppIntoLetrecArgID = e2 ^. _id
-            , pushAppIntoLetrecLetrecID = mLet ^. _id
-            , pushAppIntoLetrecLamID = lam ^. _id
-            , pushAppIntoLetrecLetBindingName = x
-            , pushAppIntoLetrecIsTypeApplication = False
+            { before = before
+            , after = expr
+            , argID = e2 ^. _id
+            , letrecID = mLet ^. _id
+            , lamID = lam ^. _id
+            , letBindingName = x
+            , isTypeApplication = False
             }
       )
 
@@ -705,10 +705,10 @@ tryReduceExpr globals locals = \case
           ( expr
           , ApplyPrimFun
               ApplyPrimFunDetail
-                { applyPrimFunBefore = before
-                , applyPrimFunAfter = expr
-                , applyPrimFunName = name
-                , applyPrimFunArgIDs = args ^. mapping _id
+                { before = before
+                , after = expr
+                , name = name
+                , argIDs = args ^. mapping _id
                 }
           )
 
@@ -733,14 +733,14 @@ tryReduceExpr globals locals = \case
       ( expr
       , BETAReduction
           BetaReductionDetail
-            { betaBefore = APP mAPP lam arg
-            , betaAfter = expr
-            , betaBindingName = x
-            , betaLambdaID = lam ^. _id
-            , betaLetID = expr ^. _id
-            , betaArgID = arg ^. _id
-            , betaBodyID = body ^. _id
-            , betaTypes = Nothing
+            { before = APP mAPP lam arg
+            , after = expr
+            , bindingName = x
+            , lambdaID = lam ^. _id
+            , letID = expr ^. _id
+            , argID = arg ^. _id
+            , bodyID = body ^. _id
+            , types = Nothing
             }
       )
   -- Beta reduction of big lambda (with annotation)
@@ -762,14 +762,14 @@ tryReduceExpr globals locals = \case
           ( expr
           , BETAReduction
               BetaReductionDetail
-                { betaBefore = APP mAPP annotation t
-                , betaAfter = expr
-                , betaBindingName = x
-                , betaLambdaID = lam ^. _id
-                , betaLetID = expr ^. _id
-                , betaArgID = t ^. _id
-                , betaBodyID = body ^. _id
-                , betaTypes = Just (k, b)
+                { before = APP mAPP annotation t
+                , after = expr
+                , bindingName = x
+                , lambdaID = lam ^. _id
+                , letID = expr ^. _id
+                , argID = t ^. _id
+                , bodyID = body ^. _id
+                , types = Just (k, b)
                 }
           )
       _ -> throwError $ BadBigLambdaAnnotation annotation
@@ -782,13 +782,13 @@ tryReduceExpr globals locals = \case
       ( expr
       , PushAppIntoLetrec
           PushAppIntoLetrecDetail
-            { pushAppIntoLetrecBefore = before
-            , pushAppIntoLetrecAfter = expr
-            , pushAppIntoLetrecArgID = e2 ^. _id
-            , pushAppIntoLetrecLetrecID = mLet ^. _id
-            , pushAppIntoLetrecLamID = lam ^. _id
-            , pushAppIntoLetrecLetBindingName = x
-            , pushAppIntoLetrecIsTypeApplication = True
+            { before = before
+            , after = expr
+            , argID = e2 ^. _id
+            , letrecID = mLet ^. _id
+            , lamID = lam ^. _id
+            , letBindingName = x
+            , isTypeApplication = True
             }
       )
   -- Beta reduction of an inner big lambda application
@@ -819,12 +819,12 @@ tryReduceExpr globals locals = \case
           ( e'
           , LocalVarInline
               LocalVarInlineDetail
-                { localVarInlineLetID = i
-                , localVarInlineVarID = mVar ^. _id
-                , localVarInlineValueID = e ^. _id
-                , localVarInlineBindingName = x
-                , localVarInlineReplacementID = e' ^. _id
-                , localVarInlineIsTypeVar = False
+                { letID = i
+                , varID = mVar ^. _id
+                , valueID = e ^. _id
+                , bindingName = x
+                , replacementID = e' ^. _id
+                , isTypeVar = False
                 }
           )
   -- Inline global variable
@@ -838,9 +838,9 @@ tryReduceExpr globals locals = \case
       ( expr
       , GlobalVarInline
           GlobalVarInlineDetail
-            { globalVarInlineVar = Var mVar (GlobalVarRef x)
-            , globalVarInlineDef = def
-            , globalVarInlineAfter = expr
+            { var = Var mVar (GlobalVarRef x)
+            , def = def
+            , after = expr
             }
       )
   expr@(Let meta x e body)
@@ -893,15 +893,15 @@ tryReduceExpr globals locals = \case
                 ( expr'
                 , CaseReduction
                     CaseReductionDetail
-                      { caseBefore = Case m scrut branches
-                      , caseAfter = expr'
-                      , caseTargetID = scrut ^. _id
-                      , caseTargetCtorID = mCon ^. _id
-                      , caseCtorName = c
-                      , caseTargetArgIDs = map (^. _id) termArgs
-                      , caseBranchBindingIDs = map (^. _id) binds
-                      , caseBranchRhsID = rhs ^. _id
-                      , caseLetIDs = letIDs
+                      { before = Case m scrut branches
+                      , after = expr'
+                      , targetID = scrut ^. _id
+                      , targetCtorID = mCon ^. _id
+                      , ctorName = c
+                      , targetArgIDs = map (^. _id) termArgs
+                      , branchBindingIDs = map (^. _id) binds
+                      , branchRhsID = rhs ^. _id
+                      , letIDs = letIDs
                       }
                 )
             Nothing -> throwError NoMatchingCaseBranch
@@ -912,11 +912,11 @@ tryReduceExpr globals locals = \case
         ( body
         , LetRemoval
             LetRemovalDetail
-              { letRemovalBefore = expr
-              , letRemovalAfter = body
-              , letRemovalBindingName = unLocalName x
-              , letRemovalLetID = meta ^. _id
-              , letRemovalBodyID = body ^. _id
+              { before = expr
+              , after = body
+              , bindingName = unLocalName x
+              , letID = meta ^. _id
+              , bodyID = body ^. _id
               }
         )
     mkLetRenameDetail expr body binding meta = do
@@ -934,13 +934,13 @@ tryReduceExpr globals locals = \case
         ( expr'
         , LetRename
             LetRenameDetail
-              { letRenameBefore = expr
-              , letRenameAfter = expr'
-              , letRenameBindingNameOld = x
-              , letRenameBindingNameNew = y
-              , letRenameLetID = meta ^. _id
-              , letRenameBindingOccurrences = occ
-              , letRenameBodyID = body ^. _id
+              { before = expr
+              , after = expr'
+              , bindingNameOld = x
+              , bindingNameNew = y
+              , letID = meta ^. _id
+              , bindingOccurrences = occ
+              , bodyID = body ^. _id
               }
         )
 
@@ -963,12 +963,12 @@ tryReduceType _globals locals = \case
           ( t'
           , LocalTypeVarInline
               LocalVarInlineDetail
-                { localVarInlineLetID = i
-                , localVarInlineVarID = mTVar ^. _id
-                , localVarInlineValueID = t ^. _id
-                , localVarInlineBindingName = x
-                , localVarInlineReplacementID = t' ^. _id
-                , localVarInlineIsTypeVar = True
+                { letID = i
+                , varID = mTVar ^. _id
+                , valueID = t ^. _id
+                , bindingName = x
+                , replacementID = t' ^. _id
+                , isTypeVar = True
                 }
           )
   _ -> throwError NotRedex

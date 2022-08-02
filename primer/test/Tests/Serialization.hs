@@ -46,14 +46,14 @@ import Primer.Core (
 import Primer.Eval (
   BetaReductionDetail (
     BetaReductionDetail,
-    betaAfter,
-    betaArgID,
-    betaBefore,
-    betaBindingName,
-    betaBodyID,
-    betaLambdaID,
-    betaLetID,
-    betaTypes
+    after,
+    argID,
+    before,
+    bindingName,
+    bodyID,
+    lambdaID,
+    letID,
+    types
   ),
   EvalDetail (BetaReduction),
  )
@@ -61,7 +61,7 @@ import Primer.Module (Module (Module, moduleDefs, moduleTypes), moduleName)
 import Primer.Name (Name, unsafeMkName)
 import Primer.Typecheck (SmartHoles (SmartHoles))
 import System.FilePath (takeBaseName)
-import Test.Tasty
+import Test.Tasty hiding (after)
 import Test.Tasty.Golden
 import Test.Tasty.HUnit
 import TestUtils (gvn, vcn)
@@ -152,14 +152,14 @@ fixtures =
       reductionDetail =
         BetaReduction $
           BetaReductionDetail
-            { betaBefore = expr
-            , betaAfter = expr
-            , betaBindingName = "x"
-            , betaLambdaID = id0
-            , betaLetID = id0
-            , betaArgID = id0
-            , betaBodyID = id0
-            , betaTypes =
+            { before = expr
+            , after = expr
+            , bindingName = "x"
+            , lambdaID = id0
+            , letID = id0
+            , argID = id0
+            , bodyID = id0
+            , types =
                 Just (TEmptyHole typeMeta, TEmptyHole typeMeta)
             }
    in [ mkFixture "id" id0
