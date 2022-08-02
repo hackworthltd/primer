@@ -1,45 +1,45 @@
 Tree
     { nodeId = "0"
-    , style = FlavorTFun
+    , flavor = FlavorTFun
     , body = NoBody
     , childTrees =
         [ Tree
             { nodeId = "1"
-            , style = FlavorTCon
+            , flavor = FlavorTCon
             , body = TextBody "Builtins.Nat"
             , childTrees = []
             , rightChild = Nothing
             }
         , Tree
             { nodeId = "2"
-            , style = FlavorTForall
+            , flavor = FlavorTForall
             , body = TextBody "a"
             , childTrees =
                 [ Tree
                     { nodeId = "3"
-                    , style = FlavorTApp
+                    , flavor = FlavorTApp
                     , body = NoBody
                     , childTrees =
                         [ Tree
                             { nodeId = "4"
-                            , style = FlavorTHole
+                            , flavor = FlavorTHole
                             , body = NoBody
                             , childTrees =
                                 [ Tree
                                     { nodeId = "5"
-                                    , style = FlavorTApp
+                                    , flavor = FlavorTApp
                                     , body = NoBody
                                     , childTrees =
                                         [ Tree
                                             { nodeId = "6"
-                                            , style = FlavorTCon
+                                            , flavor = FlavorTCon
                                             , body = TextBody "Builtins.List"
                                             , childTrees = []
                                             , rightChild = Nothing
                                             }
                                         , Tree
                                             { nodeId = "7"
-                                            , style = FlavorTEmptyHole
+                                            , flavor = FlavorTEmptyHole
                                             , body = NoBody
                                             , childTrees = []
                                             , rightChild = Nothing
@@ -52,7 +52,7 @@ Tree
                             }
                         , Tree
                             { nodeId = "8"
-                            , style = FlavorTVar
+                            , flavor = FlavorTVar
                             , body = TextBody "a"
                             , childTrees = []
                             , rightChild = Nothing
