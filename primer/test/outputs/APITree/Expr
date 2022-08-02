@@ -1,0 +1,321 @@
+Tree
+    { nodeId = "9"
+    , style = FlavorLet
+    , body = TextBody "x"
+    , childTrees =
+        [ Tree
+            { nodeId = "10"
+            , style = FlavorCon
+            , body = TextBody "Builtins.True"
+            , childTrees = []
+            , rightChild = Nothing
+            }
+        , Tree
+            { nodeId = "11"
+            , style = FlavorLetrec
+            , body = TextBody "y"
+            , childTrees =
+                [ Tree
+                    { nodeId = "12"
+                    , style = FlavorApp
+                    , body = NoBody
+                    , childTrees =
+                        [ Tree
+                            { nodeId = "13"
+                            , style = FlavorHole
+                            , body = NoBody
+                            , childTrees =
+                                [ Tree
+                                    { nodeId = "14"
+                                    , style = FlavorCon
+                                    , body = TextBody "Builtins.Just"
+                                    , childTrees = []
+                                    , rightChild = Nothing
+                                    }
+                                ]
+                            , rightChild = Nothing
+                            }
+                        , Tree
+                            { nodeId = "15"
+                            , style = FlavorHole
+                            , body = NoBody
+                            , childTrees =
+                                [ Tree
+                                    { nodeId = "16"
+                                    , style = FlavorGlobalVar
+                                    , body = TextBody "M.unboundName"
+                                    , childTrees = []
+                                    , rightChild = Nothing
+                                    }
+                                ]
+                            , rightChild = Nothing
+                            }
+                        ]
+                    , rightChild = Nothing
+                    }
+                , Tree
+                    { nodeId = "17"
+                    , style = FlavorTHole
+                    , body = NoBody
+                    , childTrees =
+                        [ Tree
+                            { nodeId = "18"
+                            , style = FlavorTCon
+                            , body = TextBody "Builtins.Maybe"
+                            , childTrees = []
+                            , rightChild = Nothing
+                            }
+                        ]
+                    , rightChild = Nothing
+                    }
+                , Tree
+                    { nodeId = "19"
+                    , style = FlavorAnn
+                    , body = NoBody
+                    , childTrees =
+                        [ Tree
+                            { nodeId = "20"
+                            , style = FlavorLam
+                            , body = TextBody "i"
+                            , childTrees =
+                                [ Tree
+                                    { nodeId = "21"
+                                    , style = FlavorLAM
+                                    , body = TextBody "β"
+                                    , childTrees =
+                                        [ Tree
+                                            { nodeId = "22"
+                                            , style = FlavorApp
+                                            , body = NoBody
+                                            , childTrees =
+                                                [ Tree
+                                                    { nodeId = "23"
+                                                    , style = FlavorAPP
+                                                    , body = NoBody
+                                                    , childTrees =
+                                                        [ Tree
+                                                            { nodeId = "24"
+                                                            , style = FlavorLetType
+                                                            , body = TextBody "b"
+                                                            , childTrees =
+                                                                [ Tree
+                                                                    { nodeId = "26"
+                                                                    , style = FlavorAPP
+                                                                    , body = NoBody
+                                                                    , childTrees =
+                                                                        [ Tree
+                                                                            { nodeId = "27"
+                                                                            , style = FlavorCon
+                                                                            , body = TextBody "Builtins.Left"
+                                                                            , childTrees = []
+                                                                            , rightChild = Nothing
+                                                                            }
+                                                                        , Tree
+                                                                            { nodeId = "28"
+                                                                            , style = FlavorTVar
+                                                                            , body = TextBody "b"
+                                                                            , childTrees = []
+                                                                            , rightChild = Nothing
+                                                                            }
+                                                                        ]
+                                                                    , rightChild = Nothing
+                                                                    }
+                                                                , Tree
+                                                                    { nodeId = "25"
+                                                                    , style = FlavorTCon
+                                                                    , body = TextBody "Builtins.Bool"
+                                                                    , childTrees = []
+                                                                    , rightChild = Nothing
+                                                                    }
+                                                                ]
+                                                            , rightChild = Nothing
+                                                            }
+                                                        , Tree
+                                                            { nodeId = "29"
+                                                            , style = FlavorTVar
+                                                            , body = TextBody "β"
+                                                            , childTrees = []
+                                                            , rightChild = Nothing
+                                                            }
+                                                        ]
+                                                    , rightChild = Nothing
+                                                    }
+                                                , Tree
+                                                    { nodeId = "30"
+                                                    , style = FlavorCase
+                                                    , body = NoBody
+                                                    , childTrees =
+                                                        [ Tree
+                                                            { nodeId = "31"
+                                                            , style = FlavorLocalVar
+                                                            , body = TextBody "i"
+                                                            , childTrees = []
+                                                            , rightChild = Nothing
+                                                            }
+                                                        ]
+                                                    , rightChild = Just
+                                                        ( Tree
+                                                            { nodeId = "30P0"
+                                                            , style = FlavorPattern
+                                                            , body = BoxBody
+                                                                ( Tree
+                                                                    { nodeId = "30P0B"
+                                                                    , style = FlavorCon
+                                                                    , body = TextBody "Builtins.Zero"
+                                                                    , childTrees = []
+                                                                    , rightChild = Nothing
+                                                                    }
+                                                                )
+                                                            , childTrees =
+                                                                [ Tree
+                                                                    { nodeId = "32"
+                                                                    , style = FlavorCon
+                                                                    , body = TextBody "Builtins.False"
+                                                                    , childTrees = []
+                                                                    , rightChild = Nothing
+                                                                    }
+                                                                ]
+                                                            , rightChild = Just
+                                                                ( Tree
+                                                                    { nodeId = "30P1"
+                                                                    , style = FlavorPattern
+                                                                    , body = BoxBody
+                                                                        ( Tree
+                                                                            { nodeId = "30P1B"
+                                                                            , style = FlavorCon
+                                                                            , body = TextBody "Builtins.Succ"
+                                                                            , childTrees =
+                                                                                [ Tree
+                                                                                    { nodeId = "33"
+                                                                                    , style = FlavorLocalVar
+                                                                                    , body = TextBody "n"
+                                                                                    , childTrees = []
+                                                                                    , rightChild = Nothing
+                                                                                    }
+                                                                                ]
+                                                                            , rightChild = Nothing
+                                                                            }
+                                                                        )
+                                                                    , childTrees =
+                                                                        [ Tree
+                                                                            { nodeId = "34"
+                                                                            , style = FlavorApp
+                                                                            , body = NoBody
+                                                                            , childTrees =
+                                                                                [ Tree
+                                                                                    { nodeId = "35"
+                                                                                    , style = FlavorApp
+                                                                                    , body = NoBody
+                                                                                    , childTrees =
+                                                                                        [ Tree
+                                                                                            { nodeId = "36"
+                                                                                            , style = FlavorEmptyHole
+                                                                                            , body = NoBody
+                                                                                            , childTrees = []
+                                                                                            , rightChild = Nothing
+                                                                                            }
+                                                                                        , Tree
+                                                                                            { nodeId = "37"
+                                                                                            , style = FlavorLocalVar
+                                                                                            , body = TextBody "x"
+                                                                                            , childTrees = []
+                                                                                            , rightChild = Nothing
+                                                                                            }
+                                                                                        ]
+                                                                                    , rightChild = Nothing
+                                                                                    }
+                                                                                , Tree
+                                                                                    { nodeId = "38"
+                                                                                    , style = FlavorLocalVar
+                                                                                    , body = TextBody "y"
+                                                                                    , childTrees = []
+                                                                                    , rightChild = Nothing
+                                                                                    }
+                                                                                ]
+                                                                            , rightChild = Nothing
+                                                                            }
+                                                                        ]
+                                                                    , rightChild = Nothing
+                                                                    }
+                                                                )
+                                                            }
+                                                        )
+                                                    }
+                                                ]
+                                            , rightChild = Nothing
+                                            }
+                                        ]
+                                    , rightChild = Nothing
+                                    }
+                                ]
+                            , rightChild = Nothing
+                            }
+                        , Tree
+                            { nodeId = "39"
+                            , style = FlavorTFun
+                            , body = NoBody
+                            , childTrees =
+                                [ Tree
+                                    { nodeId = "40"
+                                    , style = FlavorTCon
+                                    , body = TextBody "Builtins.Nat"
+                                    , childTrees = []
+                                    , rightChild = Nothing
+                                    }
+                                , Tree
+                                    { nodeId = "41"
+                                    , style = FlavorTForall
+                                    , body = TextBody "α"
+                                    , childTrees =
+                                        [ Tree
+                                            { nodeId = "42"
+                                            , style = FlavorTApp
+                                            , body = NoBody
+                                            , childTrees =
+                                                [ Tree
+                                                    { nodeId = "43"
+                                                    , style = FlavorTApp
+                                                    , body = NoBody
+                                                    , childTrees =
+                                                        [ Tree
+                                                            { nodeId = "44"
+                                                            , style = FlavorTCon
+                                                            , body = TextBody "Builtins.Either"
+                                                            , childTrees = []
+                                                            , rightChild = Nothing
+                                                            }
+                                                        , Tree
+                                                            { nodeId = "45"
+                                                            , style = FlavorTCon
+                                                            , body = TextBody "Builtins.Bool"
+                                                            , childTrees = []
+                                                            , rightChild = Nothing
+                                                            }
+                                                        ]
+                                                    , rightChild = Nothing
+                                                    }
+                                                , Tree
+                                                    { nodeId = "46"
+                                                    , style = FlavorTVar
+                                                    , body = TextBody "α"
+                                                    , childTrees = []
+                                                    , rightChild = Nothing
+                                                    }
+                                                ]
+                                            , rightChild = Nothing
+                                            }
+                                        ]
+                                    , rightChild = Nothing
+                                    }
+                                ]
+                            , rightChild = Nothing
+                            }
+                        ]
+                    , rightChild = Nothing
+                    }
+                ]
+            , rightChild = Nothing
+            }
+        ]
+    , rightChild = Nothing
+    }

@@ -1,0 +1,68 @@
+Tree
+    { nodeId = "0"
+    , style = FlavorTFun
+    , body = NoBody
+    , childTrees =
+        [ Tree
+            { nodeId = "1"
+            , style = FlavorTCon
+            , body = TextBody "Builtins.Nat"
+            , childTrees = []
+            , rightChild = Nothing
+            }
+        , Tree
+            { nodeId = "2"
+            , style = FlavorTForall
+            , body = TextBody "a"
+            , childTrees =
+                [ Tree
+                    { nodeId = "3"
+                    , style = FlavorTApp
+                    , body = NoBody
+                    , childTrees =
+                        [ Tree
+                            { nodeId = "4"
+                            , style = FlavorTHole
+                            , body = NoBody
+                            , childTrees =
+                                [ Tree
+                                    { nodeId = "5"
+                                    , style = FlavorTApp
+                                    , body = NoBody
+                                    , childTrees =
+                                        [ Tree
+                                            { nodeId = "6"
+                                            , style = FlavorTCon
+                                            , body = TextBody "Builtins.List"
+                                            , childTrees = []
+                                            , rightChild = Nothing
+                                            }
+                                        , Tree
+                                            { nodeId = "7"
+                                            , style = FlavorTEmptyHole
+                                            , body = NoBody
+                                            , childTrees = []
+                                            , rightChild = Nothing
+                                            }
+                                        ]
+                                    , rightChild = Nothing
+                                    }
+                                ]
+                            , rightChild = Nothing
+                            }
+                        , Tree
+                            { nodeId = "8"
+                            , style = FlavorTVar
+                            , body = TextBody "a"
+                            , childTrees = []
+                            , rightChild = Nothing
+                            }
+                        ]
+                    , rightChild = Nothing
+                    }
+                ]
+            , rightChild = Nothing
+            }
+        ]
+    , rightChild = Nothing
+    }

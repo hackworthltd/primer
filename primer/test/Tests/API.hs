@@ -2,6 +2,8 @@ module Tests.API where
 
 import Foreword
 
+import Data.ByteString.Lazy qualified as BSL
+import Data.Text.Lazy qualified as TL
 import Data.UUID.V4 (nextRandom)
 import Gen.Core.Raw (evalExprGen, genExpr, genType)
 import Hedgehog hiding (Property, property)
@@ -32,9 +34,12 @@ import Primer.Database (
   fromSessionName,
  )
 import Primer.Examples (
+  comprehensive,
   even3App,
  )
-import Test.Tasty (TestTree)
+import Protolude.Unsafe (unsafeFromJust)
+import Test.Tasty (TestTree, testGroup)
+import Test.Tasty.Golden (goldenVsString)
 import Test.Tasty.HUnit hiding ((@?=))
 import TestUtils (
   ExceptionPredicate,
@@ -44,6 +49,7 @@ import TestUtils (
   runAPI,
   (@?=),
  )
+import Text.Pretty.Simple (pShowNoColor)
 
 tasty_viewTreeExpr_injective :: Property
 tasty_viewTreeExpr_injective = property $ do
@@ -58,6 +64,18 @@ tasty_viewTreeType_injective = property $ do
   t2 <- forAll $ evalExprGen 0 genType
   when (t1 == t2) discard
   viewTreeType t1 /== viewTreeType t2
+
+test_golden :: TestTree
+test_golden =
+  testGroup
+    "golden"
+    [ goldenVsString "expr" "test/outputs/APITree/Expr" $ do
+        pure . BSL.fromStrict . encodeUtf8 . TL.toStrict . pShowNoColor . viewTreeExpr $ astDefExpr def
+    , goldenVsString "type" "test/outputs/APITree/Type" $ do
+        pure . BSL.fromStrict . encodeUtf8 . TL.toStrict . pShowNoColor . viewTreeType $ astDefType def
+    ]
+  where
+    def = unsafeFromJust . defAST . snd . create' . comprehensive $ mkSimpleModuleName "M"
 
 -- regression tests to check we encode names into the tree
 
