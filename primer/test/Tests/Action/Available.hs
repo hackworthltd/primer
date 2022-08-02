@@ -8,9 +8,15 @@ import Data.Map qualified as Map
 import Data.Text qualified as T
 import Data.Text.Lazy qualified as TL
 import GHC.Err (error)
+import Gen.App (genApp)
+import Gen.Core.Typed (WT, forAllT, propertyWT)
+import Hedgehog (PropertyT, annotateShow, discard, failure)
+import Hedgehog.Gen qualified as Gen
+import Hedgehog.Internal.Property (forAllWithT)
 import Optics (toListOf, (%))
-import Primer.Action (ActionName (..), OfferedAction (description, name))
+import Primer.Action (ActionInput (..), ActionName (..), OfferedAction (..))
 import Primer.Action.Available (actionsForDef, actionsForDefBody, actionsForDefSig)
+import Primer.App (App, EditAppM, Prog (..), appProg, handleEditRequest, runEditAppM)
 import Primer.Core (
   ASTDef (..),
   Def (DefAST, DefPrim),
@@ -34,11 +40,14 @@ import Primer.Core.Utils (
   exprIDs,
  )
 import Primer.Examples (comprehensive)
+import Primer.Module (moduleDefsQualified)
 import Primer.Name (Name (unName))
+import Primer.Typecheck (SmartHoles (NoSmartHoles,SmartHoles))
 import System.FilePath ((</>))
 import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.Golden (goldenVsString)
 import Test.Tasty.HUnit (Assertion, (@?=))
+import TestUtils (Property, withDiscards, withTests)
 import Text.Pretty.Simple (pShowNoColor)
 
 -- | Comprehensive DSL test.
@@ -105,3 +114,40 @@ unit_def_in_use =
             description <$> actionsForDef l defs d
               @?= ["Rename this definition", "Duplicate this definition"]
         )
+-- TODO/REVIEW: how to ensure this is kept up to date with changes in action offerings
+-- we have "RenameCon" actions - these are not advertised yet (and presumably should be?)
+-- similarly, eval , questions etc
+tasty_available_actions_accepted :: Property
+tasty_available_actions_accepted = withTests 500 $
+  withDiscards 2000 $
+    propertyWT [] $ do
+      l <- forAllT $ Gen.element enumerate
+      sh <- forAllT $ Gen.element [NoSmartHoles, SmartHoles]
+      a <- forAllT $ genApp sh [] -- [builtinModule, primitiveModule] -- TODO: consider bigger context
+      (m, (defName, def')) <- forAllT $ Gen.justT $ do
+        m' <- Gen.element $ progModules $ appProg a
+        let ds = Map.toList $ moduleDefsQualified m'
+        traverse (fmap (m',) . element) $ nonEmpty ds
+      def <- case def' of
+        DefAST d -> pure d
+        _ -> discard
+      -- TODO: other sorts of action... actionsForDef{,Body,Sig}
+      act <- forAllWithT name' $ Gen.element $ actionsForDef l (moduleDefsQualified m) (defName, def)
+      case input act of
+        --        InputRequired a' -> _
+        NoInputRequired act' -> annotateShow act' >> actionSucceeds (handleEditRequest act') a
+        --        AskQuestion q a' -> _
+        _ -> discard -- TODO: care about this!
+        {-
+              i <- forAllT $ Gen.element $ t ^.. exprIDs
+              a <- forAllWithT name' $ Gen.element $ actionsForDefBody l n i t
+        -}
+  where
+    name' a = toS $ case name a of
+      Code t -> t
+      Prose t -> t
+    actionSucceeds :: HasCallStack => EditAppM a -> App -> PropertyT WT ()
+    actionSucceeds m a = case runEditAppM m a of
+      (Left err, _) -> annotateShow err >> failure
+      (Right _, _) -> pure ()
+    element = Gen.element . toList

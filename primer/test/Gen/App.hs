@@ -7,16 +7,17 @@
 -- It is however, slow and the distribution is not very even.
 module Gen.App (
   genProg,
+  genApp,
 ) where
 
-import Primer.App (Prog (Prog, progImports, progLog, progModules, progSelection, progSmartHoles), defaultLog)
+import Primer.App (App, Prog (Prog, progImports, progLog, progModules, progSelection, progSmartHoles), defaultLog, mkApp, tcWholeProgWithImports)
 import Primer.Core (ASTDef (ASTDef), Def (DefAST), GlobalName (baseName), Kind (KType), ModuleName (ModuleName), defType, qualifyName)
 import Primer.Core.Utils (forgetTypeMetadata, generateIDs, generateTypeIDs)
 import Primer.Module (Module (Module, moduleDefs, moduleName, moduleTypes), moduleDefsQualified, moduleTypesQualified)
 import Primer.Name (Name, unsafeMkName)
-import Primer.Typecheck (Cxt, SmartHoles, extendGlobalCxt, extendTypeDefCxt)
+import Primer.Typecheck (Cxt, SmartHoles, TypeError, extendGlobalCxt, extendTypeDefCxt)
 
-import Gen.Core.Typed (WT, freshNameForCxt, genChk, genTypeDefGroup, genWTType)
+import Gen.Core.Typed (WT, freshNameForCxt, genChk, genTypeDefGroup, genWTType, isolateWT)
 
 import Hedgehog (GenT, MonadGen)
 import Hedgehog.Gen qualified as Gen
@@ -24,9 +25,14 @@ import Hedgehog.Range qualified as Range
 
 import Data.Map qualified as M
 
+import Control.Monad.Fresh (MonadFresh (fresh))
 import Foreword hiding (mod)
+import GHC.Base (error)
 
 -- | Generate a whole 'Prog', with empty log
+-- Note that the result will be well-typed, but not necessarily
+-- "smartholes-normal", in the sense that typechecking with smartholes
+-- enabled may modify it (e.g. by eliding redundant holes)
 genProg :: SmartHoles -> [Module] -> GenT WT Prog
 genProg sh initialImports = local (extendCxtByModules initialImports) $ do
   imports <- telescope (Range.linear 0 2) (local . extendCxtByModule) (genModule "I")
@@ -76,3 +82,18 @@ genASTDefGroup mod = do
     tm' <- generateIDs tm
     ty' <- generateTypeIDs ty
     pure (baseName n, DefAST $ ASTDef tm' ty')
+
+-- | Generate an 'App' that is "smartholes-normal": typechecking with the
+-- app's smartholes setting will not modify it.
+genApp :: SmartHoles -> [Module] -> GenT WT App
+genApp sh initialImports = do
+  p <- runExceptT @TypeError . tcWholeProgWithImports =<< genProg sh initialImports
+  let p' = case p of
+        Left err ->
+          -- genProg always generates a well-typed App (see tasty_genProg_well_formed)
+          -- so we will just crash if something has gone wrong.
+          error $ show err
+        Right p'' -> p''
+  i <- lift $ isolateWT fresh
+  nc <- lift $ isolateWT fresh
+  pure $ mkApp i nc p'
