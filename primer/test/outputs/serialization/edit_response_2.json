@@ -152,13 +152,9 @@
                     ]
                 },
                 "nodeId": 0,
-                "nodeType": {
-                    "tag": "BodyNode"
-                }
+                "nodeType": "BodyNode"
             }
         },
-        "progSmartHoles": {
-            "tag": "SmartHoles"
-        }
+        "progSmartHoles": "SmartHoles"
     }
 }

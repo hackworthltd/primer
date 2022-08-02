@@ -20,8 +20,6 @@
             ]
         },
         "nodeId": 0,
-        "nodeType": {
-            "tag": "BodyNode"
-        }
+        "nodeType": "BodyNode"
     }
 }
