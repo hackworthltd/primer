@@ -29,6 +29,7 @@ library
     Primer.Eval
     Primer.EvalFull
     Primer.Examples
+    Primer.JSON
     Primer.Module
     Primer.Name
     Primer.Name.Fresh
@@ -46,10 +47,7 @@ library
     Primer.ZipperCxt
 
   hs-source-dirs:     src
-  other-modules:
-    Control.Monad.NestedError
-    Primer.JSON
-
+  other-modules:      Control.Monad.NestedError
   default-language:   GHC2021
   default-extensions:
     NoImplicitPrelude

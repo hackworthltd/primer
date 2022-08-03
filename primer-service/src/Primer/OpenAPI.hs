@@ -1,3 +1,4 @@
+{-# LANGUAGE UndecidableInstances #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
 module Primer.OpenAPI (
@@ -5,10 +6,13 @@ module Primer.OpenAPI (
   -- $orphanInstances
 ) where
 
-import Data.OpenApi (ToSchema)
+import Data.OpenApi (ToSchema (declareNamedSchema), fromAesonOptions, genericDeclareNamedSchema)
+import Data.OpenApi.Internal.Schema (GToSchema)
+import Deriving.Aeson (AesonOptions (aesonOptions))
 import Primer.API (Def, Module, NodeBody, NodeFlavor, Prog, Tree)
 import Primer.Core (GlobalName, ID (..), LVarName, ModuleName)
 import Primer.Database (Session, SessionName)
+import Primer.JSON (CustomJSON)
 import Primer.Name (Name)
 
 import Foreword
@@ -19,6 +23,13 @@ import Foreword
 -- pulling in the openapi3 dependency into primer core. This is necessary to
 -- build primer with ghcjs, because openapi3 transitively depends on network,
 -- which ghcjs currently cannot build.
+
+-- Suitable for deriving via, when the ToJSON instance is via PrimerJSON
+instance
+  (Typeable a, Generic a, GToSchema (Rep a), Typeable os, Typeable ks, AesonOptions os) =>
+  ToSchema (CustomJSON (os :: ks) a)
+  where
+  declareNamedSchema _ = genericDeclareNamedSchema (fromAesonOptions (aesonOptions @os)) (Proxy @a)
 
 instance ToSchema SessionName
 instance ToSchema Session
