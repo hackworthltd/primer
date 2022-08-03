@@ -160,7 +160,7 @@ Tree
                                                             , body = BoxBody
                                                                 ( Tree
                                                                     { nodeId = "30P0B"
-                                                                    , flavor = FlavorCon
+                                                                    , flavor = FlavorPatternCon
                                                                     , body = TextBody "Builtins.Zero"
                                                                     , childTrees = []
                                                                     , rightChild = Nothing
@@ -182,12 +182,12 @@ Tree
                                                                     , body = BoxBody
                                                                         ( Tree
                                                                             { nodeId = "30P1B"
-                                                                            , flavor = FlavorCon
+                                                                            , flavor = FlavorPatternCon
                                                                             , body = TextBody "Builtins.Succ"
                                                                             , childTrees =
                                                                                 [ Tree
                                                                                     { nodeId = "33"
-                                                                                    , flavor = FlavorLocalVar
+                                                                                    , flavor = FlavorPatternBind
                                                                                     , body = TextBody "n"
                                                                                     , childTrees = []
                                                                                     , rightChild = Nothing

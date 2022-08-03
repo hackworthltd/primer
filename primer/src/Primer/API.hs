@@ -424,6 +424,8 @@ data NodeFlavor
   | FlavorTApp
   | FlavorTForall
   | FlavorPattern
+  | FlavorPatternCon
+  | FlavorPatternBind
   deriving (Show, Eq, Generic)
 
 instance ToJSON NodeFlavor
@@ -613,13 +615,13 @@ viewTreeExpr e0 = case e0 of
                             BoxBody
                               Tree
                                 { nodeId = patternRootId
-                                , flavor = FlavorCon
+                                , flavor = FlavorPatternCon
                                 , body = TextBody $ showGlobal con
                                 , childTrees =
                                     binds <&> \(Bind m v) ->
                                       Tree
                                         { nodeId = show $ m ^. _id
-                                        , flavor = FlavorLocalVar
+                                        , flavor = FlavorPatternBind
                                         , body = TextBody $ unName $ unLocalName v
                                         , childTrees = []
                                         , rightChild = Nothing
