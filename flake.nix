@@ -323,10 +323,12 @@
               name = "run-primer";
               runtimeInputs = [
                 final.primer-service
+                final.primer-sqitch
               ];
               text = ''
                 DATABASE_URL="${final.lib.primer.postgres-dev-primer-url}"
                 export DATABASE_URL
+                primer-sqitch deploy --verify db:$DATABASE_URL
                 primer-service serve ${version} "$@"
               '';
             };
