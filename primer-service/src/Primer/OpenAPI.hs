@@ -52,8 +52,8 @@ deriving via Text instance (ToSchema Name)
 
 -- For GlobalName and LVarName, we must derive ToSchema via Name,
 -- as that is how the To/FromJSON instances are derived
--- deriving via Name instance Typeable k => ToSchema (GlobalName k)
-instance Typeable k => ToSchema (GlobalName k) -- actually, just plain ToJSON here...
+deriving via Name instance Typeable k => ToSchema (GlobalName k)
+--instance Typeable k => ToSchema (GlobalName k) -- actually, just plain ToJSON here..., but is invalid openapi!
 deriving via Name instance (ToSchema LVarName)
 
 -- These are just plain ToJSON
