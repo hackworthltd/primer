@@ -327,7 +327,7 @@
               text = ''
                 DATABASE_URL="${final.lib.primer.postgres-dev-primer-url}"
                 export DATABASE_URL
-                primer-service serve . ${version} "$@"
+                primer-service serve ${version} "$@"
               '';
             };
 

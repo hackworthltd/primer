@@ -56,7 +56,6 @@ import Primer.Server (
   serve,
  )
 import StmContainers.Map qualified as StmMap
-import System.Directory (withCurrentDirectory)
 import System.Environment (lookupEnv)
 
 {- HLINT ignore GlobalOptions "Use newtype instead of data" -}
@@ -70,13 +69,12 @@ parseDatabase :: Parser Database
 parseDatabase = PostgreSQL <$> option auto (long "pgsql-url")
 
 data Command
-  = Serve FilePath Version (Maybe Database) Int Natural Bool
+  = Serve Version (Maybe Database) Int Natural Bool
 
 serveCmd :: Parser Command
 serveCmd =
   Serve
-    <$> argument str (metavar "PATH")
-    <*> argument str (metavar "VERSION")
+    <$> argument str (metavar "VERSION")
     <*> optional parseDatabase
     <*> option auto (long "port" <> value 8081)
     <*> option auto (long "db-op-queue-size" <> value 128)
@@ -175,7 +173,7 @@ banner =
 -- and reported (to the student, via HTTP error codes) by Servant.
 run :: GlobalOptions -> IO ()
 run opts = case cmd opts of
-  Serve root ver dbFlag port qsz seedDb -> do
+  Serve ver dbFlag port qsz seedDb -> do
     dbOpQueue <- newTBQueueIO qsz
     initialSessions <- StmMap.newIO
     putText banner
@@ -186,7 +184,7 @@ run opts = case cmd opts of
         flip runPrimerIO env $
           forM_ seedApps $
             uncurry addSession
-      withCurrentDirectory root (serve initialSessions dbOpQueue ver port)
+      serve initialSessions dbOpQueue ver port
     db <- maybe defaultDb pure dbFlag
     runDb (Db.ServiceCfg dbOpQueue ver) db
 
