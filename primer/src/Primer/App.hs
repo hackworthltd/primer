@@ -54,11 +54,6 @@ module Primer.App (
 import Foreword hiding (mod)
 
 import Control.Monad.Fresh (MonadFresh (..))
-import Data.Aeson (
-  ToJSON (toEncoding),
-  defaultOptions,
-  genericToEncoding,
- )
 import Data.Bitraversable (bimapM)
 import Data.Data (Data)
 import Data.Generics.Uniplate.Operations (descendM, transform, transformM)
@@ -354,7 +349,7 @@ data Selection = Selection
   , selectedNode :: Maybe NodeSelection
   }
   deriving (Eq, Show, Generic, Data)
-  deriving (ToJSON, FromJSON) via PrimerJSON Selection
+  deriving (FromJSON, ToJSON) via PrimerJSON Selection
 
 -- | A selected node, in the body or type signature of some definition.
 -- We have the following invariant: @nodeType = SigNode ==> isRight meta@
@@ -364,11 +359,11 @@ data NodeSelection = NodeSelection
   , meta :: Either ExprMeta TypeMeta
   }
   deriving (Eq, Show, Generic, Data)
-  deriving (ToJSON, FromJSON) via PrimerJSON NodeSelection
+  deriving (FromJSON, ToJSON) via PrimerJSON NodeSelection
 
 data NodeType = BodyNode | SigNode
   deriving (Eq, Show, Generic, Data)
-  deriving (ToJSON, FromJSON) via PrimerJSON NodeType
+  deriving (FromJSON, ToJSON) via PrimerJSON NodeType
 
 -- | The type of requests which can mutate the application state.
 data MutationRequest
@@ -1041,20 +1036,12 @@ runQueryAppM (QueryAppM m) appState = case runExcept (runReaderT m appState) of
 --
 -- Building an 'App' can be tricky, so we don't export the
 -- constructor. See 'mkApp' and 'mkAppSafe'.
---
--- Note that the 'ToJSON' and 'FromJSON' instances for this type are
--- not used in the frontend, and therefore we can use "Data.Aeson"s
--- generic instances for them.
 data App = App
   { currentState :: AppState
   , initialState :: AppState
   }
   deriving (Eq, Show, Generic)
-
-instance ToJSON App where
-  toEncoding = genericToEncoding defaultOptions
-
-instance FromJSON App
+  deriving (FromJSON, ToJSON) via PrimerJSON App
 
 -- Internal app state. Note that this type is not exported, as we want
 -- to guarantee that the counters are kept in sync with the 'Prog',
@@ -1066,11 +1053,7 @@ data AppState = AppState
   , prog :: Prog
   }
   deriving (Eq, Show, Generic)
-
-instance ToJSON AppState where
-  toEncoding = genericToEncoding defaultOptions
-
-instance FromJSON AppState
+  deriving (FromJSON, ToJSON) via PrimerJSON AppState
 
 -- | Construct an 'App' from an 'ID' and a 'Prog'.
 --

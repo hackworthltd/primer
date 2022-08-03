@@ -178,7 +178,7 @@ assert b s = unless b $ throwError' (InternalError s)
 
 data SmartHoles = SmartHoles | NoSmartHoles
   deriving (Eq, Show, Generic)
-  deriving (ToJSON, FromJSON) via PrimerJSON SmartHoles
+  deriving (FromJSON, ToJSON) via PrimerJSON SmartHoles
 
 data KindOrType = K Kind | T Type
   deriving (Show, Eq)

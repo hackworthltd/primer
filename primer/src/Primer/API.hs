@@ -59,7 +59,6 @@ import Control.Monad.Fix (MonadFix)
 import Control.Monad.Trans (MonadTrans)
 import Control.Monad.Writer (MonadWriter)
 import Control.Monad.Zip (MonadZip)
-import Data.Aeson (ToJSON)
 import Data.Map qualified as Map
 import Data.Text qualified as T
 import ListT qualified (toList)
@@ -138,6 +137,11 @@ import Primer.Database qualified as Database (
     Failure,
     Success
   ),
+ )
+import Primer.JSON (
+  CustomJSON (..),
+  PrimerJSON,
+  ToJSON,
  )
 import Primer.Module (moduleDefsQualified, moduleName, moduleTypesQualified)
 import Primer.Name (Name, unName)
@@ -383,8 +387,7 @@ data Tree = Tree
   -- ^ a special subtree to be rendered to the right, rather than below - useful for `case` branches
   }
   deriving (Show, Eq, Generic)
-
-instance ToJSON Tree
+  deriving (ToJSON) via PrimerJSON Tree
 
 -- | The contents of a node.
 data NodeBody
@@ -395,8 +398,7 @@ data NodeBody
   | -- | Some simple nodes, like function application, have no body.
     NoBody
   deriving (Show, Eq, Generic)
-
-instance ToJSON NodeBody
+  deriving (ToJSON) via PrimerJSON NodeBody
 
 -- | An indication of the meaning of a node, which frontend may use for labelling, colour etc.
 -- These mostly correspond to constructors of `Expr'` or `Type'`.
@@ -428,8 +430,7 @@ data NodeFlavor
   | FlavorPatternBind
   | FlavorPatternApp
   deriving (Show, Eq, Generic)
-
-instance ToJSON NodeFlavor
+  deriving (ToJSON) via PrimerJSON NodeFlavor
 
 -- | This type is the API's view of a 'App.Prog'
 -- (this is expected to evolve as we flesh out the API)
@@ -437,8 +438,7 @@ newtype Prog = Prog
   { modules :: [Module]
   }
   deriving (Generic)
-
-instance ToJSON Prog
+  deriving (ToJSON) via PrimerJSON Prog
 
 -- | This type is the API's view of a 'Module.Module'
 -- (this is expected to evolve as we flesh out the API)
@@ -453,8 +453,7 @@ data Module = Module
     defs :: [Def]
   }
   deriving (Generic)
-
-instance ToJSON Module
+  deriving (ToJSON) via PrimerJSON Module
 
 -- | This type is the api's view of a 'Primer.Core.Def'
 -- (this is expected to evolve as we flesh out the API)
@@ -465,8 +464,7 @@ data Def = Def
   -- ^ definitions with no associated tree are primitives
   }
   deriving (Generic)
-
-instance ToJSON Def
+  deriving (ToJSON) via PrimerJSON Def
 
 viewProg :: App.Prog -> Prog
 viewProg p =
