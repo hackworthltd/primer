@@ -1,3 +1,4 @@
+{-# LANGUAGE UndecidableInstances #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
 module Primer.OpenAPI (
@@ -5,12 +6,14 @@ module Primer.OpenAPI (
   -- $orphanInstances
 ) where
 
-import Data.OpenApi (ToSchema)
-import Data.Text (Text)
-import Data.Typeable (Typeable)
+import Data.OpenApi (SchemaOptions, fromAesonOptions)
+import Data.OpenApi.Internal.Schema
+import Deriving.Aeson (AesonOptions (aesonOptions))
+import Foreword
 import Primer.API (Def, Module, NodeBody, NodeFlavor, Prog, Tree)
 import Primer.Core (GlobalName, ID (..), LVarName, ModuleName)
 import Primer.Database (Session, SessionName)
+import Primer.JSON (CustomJSON (..), PrimerJSON)
 import Primer.Name (Name)
 
 -- $orphanInstances
@@ -20,8 +23,24 @@ import Primer.Name (Name)
 -- build primer with ghcjs, because openapi3 transitively depends on network,
 -- which ghcjs currently cannot build.
 
-instance ToSchema SessionName
-instance ToSchema Session
+-- TODO: this compiles, but is it correct?
+
+-- Suitable for deriving via, when ToJSON is via the custom json
+-- instance (AesonOptions os, ToSchema a, Typeable os, Typeable ks) => ToSchema (CustomJSON (os :: ks) a) where
+--  declareNamedSchema = genericDeclareNamedSchemaNewtype opts (declareNamedSchema @a)
+instance
+  (Typeable a, Generic a, GToSchema (Rep a), Typeable os, Typeable ks, AesonOptions os) =>
+  ToSchema (CustomJSON (os :: ks) a)
+  where
+  declareNamedSchema _ = genericDeclareNamedSchema opts (Proxy @a)
+    where
+      opts :: SchemaOptions
+      opts = fromAesonOptions (aesonOptions @os)
+
+-- Technically should GND this, but cannot because of exports...
+-- instance ToSchema SessionName
+deriving via Text instance ToSchema SessionName -- see comments on instance ToSchema Name
+deriving via PrimerJSON Session instance ToSchema Session
 
 -- We need to GND the ID instance to match its To/FromJSON instances
 deriving newtype instance ToSchema ID
@@ -33,12 +52,15 @@ deriving via Text instance (ToSchema Name)
 
 -- For GlobalName and LVarName, we must derive ToSchema via Name,
 -- as that is how the To/FromJSON instances are derived
-deriving via Name instance Typeable k => ToSchema (GlobalName k)
+-- deriving via Name instance Typeable k => ToSchema (GlobalName k)
+instance Typeable k => ToSchema (GlobalName k) -- actually, just plain ToJSON here...
 deriving via Name instance (ToSchema LVarName)
+
+-- These are just plain ToJSON
 instance ToSchema Tree
 instance ToSchema NodeBody
 instance ToSchema NodeFlavor
 instance ToSchema Def
-instance ToSchema ModuleName
+deriving via NonEmpty Name instance ToSchema ModuleName
 instance ToSchema Module
 instance ToSchema Prog

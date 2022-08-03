@@ -29,6 +29,7 @@ library
     Primer.Eval
     Primer.EvalFull
     Primer.Examples
+    Primer.JSON
     Primer.Module
     Primer.Name
     Primer.Name.Fresh
@@ -45,7 +46,6 @@ library
   hs-source-dirs:     src
   other-modules:
     Control.Monad.NestedError
-    Primer.JSON
 
   default-language:   GHC2021
   default-extensions:
