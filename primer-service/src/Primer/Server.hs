@@ -52,49 +52,22 @@ import Primer.API (
   variablesInScope,
  )
 import Primer.API qualified as API
-import Primer.Action (
-  Action (Move),
-  ActionError (TypeError),
-  Movement (Child1),
- )
 import Primer.App (
   EvalFullReq (..),
   EvalFullResp (..),
   EvalReq (..),
   EvalResp (..),
-  Log (..),
   MutationRequest,
   Prog,
-  ProgAction (BodyAction, MoveToDef),
-  ProgError (NoDefSelected),
-  newProg',
+  ProgError,
  )
-import Primer.Builtins (boolDef)
 import Primer.Core (
-  ASTDef (..),
-  ASTTypeDef,
-  Def (..),
-  Expr,
   GVarName,
   ID,
-  Kind (KFun, KType),
+  Kind,
   LVarName,
   TyVarName,
-  Type,
-  Type' (TEmptyHole),
-  TypeCache (..),
-  TypeCacheBoth (..),
-  mkSimpleModuleName,
-  qualifyName,
- )
-import Primer.Core.DSL (
-  app,
-  branch',
-  case_,
-  create',
-  emptyHole,
-  tEmptyHole,
-  tfun,
+  Type',
  )
 import Primer.Database (
   SessionId,
@@ -104,8 +77,6 @@ import Primer.Database (
 import Primer.Database qualified as Database (
   Op,
  )
-import Primer.Eval (BetaReductionDetail (..), EvalDetail (..))
-import Primer.EvalFull (Dir (Syn))
 import Primer.Name (Name)
 import Primer.OpenAPI ()
 import Primer.Pagination (pagedDefaultClamp)
@@ -115,7 +86,6 @@ import Primer.Servant.OpenAPI (
   SessionOpenAPI (..),
   SessionsOpenAPI (..),
  )
-import Primer.Typecheck (TypeError (TypeDoesNotMatchArrow))
 import Servant (
   Get,
   Handler (..),
@@ -180,7 +150,7 @@ type PrimerLegacyAPI =
 
 -- | The session-specific bits of the api
 -- (legacy version)
-type SAPI = (
+type SAPI =
     -- POST /api/edit
     --   Submit an action, returning an updated program state
   "edit" :> ReqBody '[JSON] MutationRequest :> Post '[JSON] (Either ProgError Prog)
@@ -215,46 +185,7 @@ type SAPI = (
     --   Evaluate the given expression to normal form (or time out).
    :<|> "eval" :> ReqBody '[JSON] EvalFullReq :> Post '[JSON] (Either ProgError EvalFullResp)
 
-    -- GET /api/test/<type>
-    --   Get an arbitrary value of that type
-    -- POST /api/test/<type>
-    --   Post an arbitrary value of that type, responding with the value
-  :<|> "test" :> TestAPI
-  )
-
--- | API endpoints that we use for integration tests
-type TestAPI = (
-       "movement"      :> Test Movement
-  :<|> "action"        :> Test Action
-  :<|> "actionerror"   :> Test ActionError
-  :<|> "name"          :> Test Name
-  :<|> "type"          :> Test Type
-  :<|> "typecache"     :> Test TypeCache
-  :<|> "typecacheboth" :> Test TypeCacheBoth
-  :<|> "expr"          :> Test Expr
-  :<|> "exprCaseEmpty" :> Test Expr
-  :<|> "exprCaseFull"  :> Test Expr
-  :<|> "kind"          :> Test Kind
-  :<|> "id"            :> Test ID
-  :<|> "log"           :> Test Log
-  :<|> "program"       :> Test Prog
-  :<|> "progaction"    :> Test ProgAction
-  :<|> "progerror"     :> Test ProgError
-  :<|> "def"           :> Test Def
-  :<|> "typeDef"       :> Test ASTTypeDef
-  :<|> "evalReq"       :> Test EvalReq
-  :<|> "evalResp"      :> Test EvalResp
-  :<|> "evalFullReq"   :> Test EvalFullReq
-  :<|> "evalFullResp"  :> Test EvalFullResp
-  )
-
 {- ORMOLU_ENABLE -}
-
--- | A type for a pair of test endpoints.
--- The first endpoint returns a fixture of the given type.
--- The second endpoint accepts a value of the given type as JSON and
--- responds with the value it was given, re-encoded as JSON.
-type Test a = Get '[JSON] a :<|> (ReqBody '[JSON] a :> Post '[JSON] a)
 
 openAPIInfo :: OpenApi
 openAPIInfo =
@@ -262,49 +193,6 @@ openAPIInfo =
     & #info % #title .~ "Primer backend API"
     & #info % #description ?~ "A backend service implementing a pedagogic functional programming language."
     & #info % #version .~ "0.7"
-
--- These endpoints (de)serialize different types in the API, to help
--- with testing (de)serialization code.
-testEndpoints :: ServerT TestAPI PrimerIO
-testEndpoints =
-  mkTest Child1
-    :<|> mkTest (Move Child1)
-    :<|> mkTest (TypeError (TypeDoesNotMatchArrow (TEmptyHole ())))
-    :<|> mkTest "x"
-    :<|> mkTest (create' (tfun tEmptyHole tEmptyHole))
-    :<|> mkTest (TCSynthed $ TEmptyHole ())
-    :<|> mkTest (TCBoth (TEmptyHole ()) (TEmptyHole ()))
-    :<|> mkTest (create' (app emptyHole emptyHole))
-    :<|> mkTest (create' $ case_ emptyHole [])
-    :<|> mkTest (create' $ case_ emptyHole [branch' ("M" :| [], "C") [("x", Nothing)] emptyHole])
-    :<|> mkTest (KFun KType KType)
-    :<|> mkTest 0
-    :<|> mkTest (Log [[BodyAction [Move Child1]]])
-    :<|> mkTest newProg'
-    :<|> mkTest (MoveToDef $ qualifyName (mkSimpleModuleName "M") "main")
-    :<|> mkTest NoDefSelected
-    :<|> mkTest (DefAST $ ASTDef expr ty)
-    :<|> mkTest boolDef
-    :<|> mkTest EvalReq{evalReqExpr = expr, evalReqRedex = 0}
-    :<|> mkTest EvalResp{evalRespExpr = expr, evalRespRedexes = [0, 1], evalRespDetail = reductionDetail}
-    :<|> mkTest EvalFullReq{evalFullReqExpr = expr, evalFullMaxSteps = 10, evalFullCxtDir = Syn}
-    :<|> mkTest (EvalFullRespNormal expr)
-  where
-    mkTest x = pure x :<|> pure
-    expr = create' emptyHole
-    ty = create' tEmptyHole
-    reductionDetail =
-      BetaReduction
-        BetaReductionDetail
-          { betaBefore = expr
-          , betaAfter = expr
-          , betaBindingName = "x"
-          , betaLambdaID = 0
-          , betaLetID = 0
-          , betaArgID = 0
-          , betaBodyID = 0
-          , betaTypes = Just (ty, ty)
-          }
 
 primerApi :: Proxy PrimerAPI
 primerApi = Proxy
@@ -353,7 +241,6 @@ primerServer = rootOpenAPIServer :<|> legacyServer
                     :<|> (variablesInScope sid :<|> generateNames sid)
                     :<|> evalStep sid
                     :<|> evalFull sid
-                    :<|> testEndpoints
                )
       )
         :<|> flushSessions'
