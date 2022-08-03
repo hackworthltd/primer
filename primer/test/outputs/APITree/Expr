@@ -160,7 +160,7 @@ Tree
                                                             , body = BoxBody
                                                                 ( Tree
                                                                     { nodeId = "30P0B"
-                                                                    , flavor = FlavorCon
+                                                                    , flavor = FlavorPatternCon
                                                                     , body = TextBody "Builtins.Zero"
                                                                     , childTrees = []
                                                                     , rightChild = Nothing
@@ -181,13 +181,20 @@ Tree
                                                                     , flavor = FlavorPattern
                                                                     , body = BoxBody
                                                                         ( Tree
-                                                                            { nodeId = "30P1B"
-                                                                            , flavor = FlavorCon
-                                                                            , body = TextBody "Builtins.Succ"
+                                                                            { nodeId = "33A"
+                                                                            , flavor = FlavorPatternApp
+                                                                            , body = NoBody
                                                                             , childTrees =
                                                                                 [ Tree
+                                                                                    { nodeId = "30P1B"
+                                                                                    , flavor = FlavorPatternCon
+                                                                                    , body = TextBody "Builtins.Succ"
+                                                                                    , childTrees = []
+                                                                                    , rightChild = Nothing
+                                                                                    }
+                                                                                , Tree
                                                                                     { nodeId = "33"
-                                                                                    , flavor = FlavorLocalVar
+                                                                                    , flavor = FlavorPatternBind
                                                                                     , body = TextBody "n"
                                                                                     , childTrees = []
                                                                                     , rightChild = Nothing
