@@ -84,7 +84,8 @@ import Primer.Name (Name)
 import Primer.OpenAPI ()
 import Primer.Pagination (Paginated, PaginationParams, pagedDefaultClamp)
 import Servant (
-  Capture,
+  Capture',
+  Description,
   Get,
   Handler (..),
   JSON,
@@ -110,129 +111,113 @@ import Servant qualified (serve)
 import Servant.OpenApi (toOpenApi)
 import Servant.OpenApi.OperationId (OpId)
 
--- | The API.
---
--- All endpoints except raw files, new-session, and flush-sessions
--- require a session ID.
-
--- To be able to format these large types nicely, we disable ormolu and align them manually.
-{- ORMOLU_DISABLE -}
-
+-- | The full API, plus the OpenAPI specification.
 type API =
-       "openapi.json" :> Get '[JSON] OpenApi
-  :<|> PrimerAPI
+  "openapi.json" :> Get '[JSON] OpenApi
+    :<|> PrimerAPI
 
--- | 'PrimerOpenAPI' is the portion of our API that is documented with an exported
--- OpenAPI3 spec.
--- 'PrimerLegacyAPI' is everything else.
--- Over time, the 'PrimerLegacyAPI' should shrink as we improve our documentation.
+-- | 'PrimerOpenAPI' is the portion of our API that is documented with
+-- an exported OpenAPI3 spec. 'PrimerLegacyAPI' is everything else.
+-- Over time, the 'PrimerLegacyAPI' should shrink as we improve our
+-- documentation.
 type PrimerAPI = PrimerOpenAPI :<|> PrimerLegacyAPI
 
 type PrimerOpenAPI =
-  "api" :> "sessions" :> (
-    -- POST /api/sessions
-    --   create a new session on the backend, returning its id
-    Summary "Create a new session" :>
-    OpId "createSession" Post '[JSON] SessionId
-
-    -- GET /api/sessions
-    --   Get a list of all sessions and their
-    --   human-readable names. By default this returns the list of all
-    --   sessions in the persistent database, but optionally it can return
-    --   just the list of all sessions in memory, which is mainly useful for
-    --   testing. Note that in a production system, this endpoint should
-    --   obviously be authentication-scoped and only return the list of
-    --   sessions that the caller is authorized to see.
-  :<|> QueryFlag "inMemory" :>
-    PaginationParams :>
-    Summary "List sessions" :>
-    OpId "getSessionList" Get '[JSON] (Paginated Session)
-
-    -- The rest of the API is scoped to a particular session
-  :<|> Capture "sessionId" SessionId :> SOpenAPI
-  )
+  "api"
+    :> "sessions"
+    :> ( Summary "Create a new session and return its ID"
+          :> OpId "createSession" Post '[JSON] SessionId
+          :<|> QueryFlag "inMemory"
+            :> PaginationParams
+            :> Summary "Get the list of sessions"
+            :> Description
+                "Get a list of all sessions and their \
+                \human-readable names. By default, this method returns the list of all \
+                \sessions in the persistent database, but optionally it can return \
+                \just the list of all sessions in memory, which is mainly useful for \
+                \testing. Note that in a production system, this endpoint should \
+                \obviously be authentication-scoped and only return the list of \
+                \sessions that the caller is authorized to see."
+            :> OpId "getSessionList" Get '[JSON] (Paginated Session)
+          :<|> Capture' '[Description "The session ID"] "sessionId" SessionId :> SOpenAPI
+       )
 
 type PrimerLegacyAPI =
-  "api" :> (
-    -- POST /api/copy-session
-    --   Copy the session whose ID is given in the request body to a
-    --   new session, and return the new session ID. Note that this
-    --   method can be called at any time and is not part of the
-    --   session-specific API, as it's not scoped by the current
-    --   session ID like those methods are.
-    "copy-session" :> ReqBody '[JSON] SessionId :> Post '[JSON] SessionId
+  "api"
+    :> ( "copy-session"
+          :> Summary "Copy a session to a new session"
+          :> Description
+              "Copy the session whose ID is given in the request body to a \
+              \new session, and return the new session's ID. Note that this \
+              \method can be called at any time and is not part of the \
+              \session-specific API, as it's not scoped by the current \
+              \session ID like those methods are."
+          :> ReqBody '[JSON] SessionId
+          :> Post '[JSON] SessionId
+          :<|> "version"
+            :> Summary "Get the current server version"
+            :> Get '[JSON] Text
+          :<|> QueryParam' '[Required, Strict] "session" SessionId :> SAPI
+       )
+    :<|> "admin"
+      :> ( "flush-sessions"
+            :> Summary "Flush the in-memory session database"
+            :> Description
+                "Flush the in-memory session database. Note that \
+                \all dirty state will be saved to the persistent \
+                \database before it's discarded from memory; i.e., \
+                \this is a non-destructive operation."
+            :> Put '[JSON] NoContent
+         )
 
-    -- GET /api/version
-    --   Get the current git version of the server
-  :<|> "version" :> Get '[JSON] Text
+-- | The session-specific bits of the API.
+type SOpenAPI =
+  "program"
+    :> Summary "Get the current program state"
+    :> OpId "getProgram" Get '[JSON] API.Prog
 
-    -- The rest of the API is scoped to a particular session
-  :<|> QueryParam' '[Required, Strict] "session" SessionId :> SAPI
-  )
-
-    -- PUT /admin/flush-sessions
-    --   Flush the in-memory session database.
-    --   (All state will be preserved in the persistent database. This is a
-    --   non-destructive operation.)
-  :<|> "admin" :> ("flush-sessions" :> Put '[JSON] NoContent)
-
--- | The session-specific bits of the api
-type SOpenAPI = (
-    -- GET /api/sessions/:sessionId/program
-    --   Get the current program state
-    "program" :>
-    Summary "Get the current program state" :>
-    OpId "getProgram" Get '[JSON] API.Prog
-  )
-
--- | The session-specific bits of the api
--- (legacy version)
+-- | The session-specific bits of the API (legacy version).
 type SAPI =
-    -- GET /api/session-name
-    --   Get the current session name.
-       "session-name" :> Get '[JSON] Text
-
-    -- PUT /api/session-name
-    --   Attempt to set the current session name. Returns the new
-    --   session name. (Note that this may differ from the name
-    --   provided.)
-  :<|> "session-name" :> ReqBody '[JSON] Text :> Put '[JSON] Text
-
-    -- POST /api/edit
-    --   Submit an action, returning an updated program state
-  :<|> "edit" :> ReqBody '[JSON] MutationRequest :> Post '[JSON] (Either ProgError Prog)
-
-    -- POST /question
-    --   Submit a qestion, returning the answer or an error.
-    --
-    -- Ideally we'd model questions as a GADT, I don't know how to integrate that with Servant.
-    -- Instead we just write out the types fully here.
-  :<|> "question" :> (
-
-    -- POST /question/variables-in-scope
-    --   Ask what variables are in scope for the given node ID
-    "variables-in-scope"
-      :> ReqBody '[JSON] (GVarName, ID)
-      :> Post '[JSON] (Either ProgError (([(TyVarName, Kind)], [(LVarName, Type' ())]), [(GVarName, Type' ())]))
-
-    -- POST /question/generate-names
-    --   Ask for a list of possible names for a binding at the given location.
-    -- This method would be GET (since it doesn't modify any state) but we need to provide a request
-    -- body, which isn't well supported for GET requests.
-    :<|> "generate-names"
-      :> ReqBody '[JSON] ((GVarName, ID), Either (Maybe (Type' ())) (Maybe Kind))
-      :> Post '[JSON] (Either ProgError [Name])
-    )
-
-    -- POST /eval-step
-    --   Perform one step of evaluation on the given expression.
-  :<|> "eval-step" :> ReqBody '[JSON] EvalReq :> Post '[JSON] (Either ProgError EvalResp)
-
-    -- POST /eval
-    --   Evaluate the given expression to normal form (or time out).
-   :<|> "eval" :> ReqBody '[JSON] EvalFullReq :> Post '[JSON] (Either ProgError EvalFullResp)
-
-{- ORMOLU_ENABLE -}
+  "session-name"
+    :> Summary "Get the specified session's name"
+    :> Get '[JSON] Text
+    :<|> "session-name"
+      :> Summary "Set the specified session's name"
+      :> Description
+          "Attempt to set the current session name. Returns the actual \
+          \new session name. (Note that this may differ from the name \
+          \provided.)"
+      :> ReqBody '[JSON] Text
+      :> Put '[JSON] Text
+    :<|> "edit"
+      :> Summary "Edit the program"
+      :> Description "Submit an action, returning the updated program state."
+      :> ReqBody '[JSON] MutationRequest
+      :> Post '[JSON] (Either ProgError Prog)
+    :<|> "question"
+      :> ( "variables-in-scope"
+            :> Summary "Ask what variables are in scope for the given node ID"
+            :> ReqBody '[JSON] (GVarName, ID)
+            :> Post '[JSON] (Either ProgError (([(TyVarName, Kind)], [(LVarName, Type' ())]), [(GVarName, Type' ())]))
+            :<|> "generate-names"
+              :> Summary "Ask for a list of possible names at the given location"
+              :> Description
+                  "Ask for a list of possible names for a binding \
+                  \at the given location. This method would be GET \
+                  \(since it doesn't modify any state) but we need \
+                  \to provide a request body, which isn't well \
+                  \supported for GET requests."
+              :> ReqBody '[JSON] ((GVarName, ID), Either (Maybe (Type' ())) (Maybe Kind))
+              :> Post '[JSON] (Either ProgError [Name])
+         )
+    :<|> "eval-step"
+      :> Summary "Perform one step of evaluation on the given expression"
+      :> ReqBody '[JSON] EvalReq
+      :> Post '[JSON] (Either ProgError EvalResp)
+    :<|> "eval"
+      :> Summary "Evaluate the given expression to normal form (or time out)"
+      :> ReqBody '[JSON] EvalFullReq
+      :> Post '[JSON] (Either ProgError EvalFullResp)
 
 openAPIInfo :: OpenApi
 openAPIInfo =
