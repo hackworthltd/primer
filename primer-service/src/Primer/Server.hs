@@ -42,7 +42,6 @@ import Primer.API (
   edit,
   evalFull,
   evalStep,
-  flushSessions,
   generateNames,
   getProgram,
   getSessionName,
@@ -183,15 +182,21 @@ type PrimerLegacyAPI =
           :<|> QueryParam' '[Required, Strict] "session" SessionId :> SAPI
        )
     :<|> "admin"
-      :> ( "flush-sessions"
-            :> Summary "Flush the in-memory session database"
-            :> Description
-                "Flush the in-memory session database. Note that \
-                \all dirty state will be saved to the persistent \
-                \database before it's discarded from memory; i.e., \
-                \this is a non-destructive operation."
-            :> Put '[JSON] NoContent
-         )
+      :> NamedRoutes AdminAPI
+
+newtype AdminAPI mode = AdminAPI
+  { flushSessions ::
+      mode
+        :- "flush-sessions"
+        :> Summary "Flush the in-memory session database"
+        :> Description
+            "Flush the in-memory session database. Note that \
+            \all dirty state will be saved to the persistent \
+            \database before it's discarded from memory; i.e., \
+            \this is a non-destructive operation."
+        :> Put '[JSON] NoContent
+  }
+  deriving (Generic)
 
 -- | The session-specific bits of the API (legacy version).
 type SAPI =
@@ -270,6 +275,12 @@ openAPIServer =
           }
     }
 
+adminAPIServer :: AdminAPI (AsServerT PrimerIO)
+adminAPIServer =
+  AdminAPI
+    { flushSessions = API.flushSessions >> pure NoContent
+    }
+
 primerServer :: ServerT PrimerAPI PrimerIO
 primerServer = openAPIServer :<|> legacyServer
   where
@@ -286,9 +297,7 @@ primerServer = openAPIServer :<|> legacyServer
                     :<|> evalFull sid
                )
       )
-        :<|> flushSessions'
-    -- We need to convert '()' from the API to 'NoContent'
-    flushSessions' = flushSessions >> pure NoContent
+        :<|> adminAPIServer
 
 server :: Env -> Server API
 server e = pure openAPIInfo :<|> hoistPrimer e
