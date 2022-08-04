@@ -63,7 +63,6 @@ import Primer.Core (
   Type',
  )
 import Primer.Database (
-  Session,
   SessionId,
   Sessions,
   Version,
@@ -72,10 +71,9 @@ import Primer.Database qualified as Database (
   Op,
  )
 import Primer.Name (Name)
-import Primer.OpenAPI ()
-import Primer.Pagination (Paginated, PaginationParams, pagedDefaultClamp)
+import Primer.Pagination (pagedDefaultClamp)
+import Primer.Servant.OpenAPI qualified as OpenAPI
 import Servant (
-  Capture',
   Description,
   Get,
   Handler (..),
@@ -84,7 +82,6 @@ import Servant (
   NoContent (..),
   Post,
   Put,
-  QueryFlag,
   QueryParam',
   ReqBody,
   Required,
@@ -104,57 +101,16 @@ import Servant.API.Generic (
   GenericMode ((:-)),
  )
 import Servant.OpenApi (toOpenApi)
-import Servant.OpenApi.OperationId (OpId)
 import Servant.Server.Generic (AsServerT)
 
 -- | The full API, plus the OpenAPI specification.
-type API =
-  "openapi.json" :> Get '[JSON] OpenApi
-    :<|> PrimerAPI
+type API = OpenAPI.Spec :<|> PrimerAPI
 
--- | 'PrimerOpenAPI' is the portion of our API that is documented with
+-- | 'OpenAPI.API' is the portion of our API that is documented with
 -- an exported OpenAPI3 spec. 'PrimerLegacyAPI' is everything else.
 -- Over time, the 'PrimerLegacyAPI' should shrink as we improve our
 -- documentation.
-type PrimerAPI = PrimerOpenAPI :<|> PrimerLegacyAPI
-
-type PrimerOpenAPI = "api" :> ("sessions" :> NamedRoutes SessionsOpenAPI)
-
-data SessionsOpenAPI mode = SessionsOpenAPI
-  { createSession ::
-      mode
-        :- Summary "Create a new session and return its ID"
-          :> OpId "createSession" Post '[JSON] SessionId
-  , getSessionList ::
-      mode
-        :- QueryFlag "inMemory"
-          :> PaginationParams
-          :> Summary "Get the list of sessions"
-          :> Description
-              "Get a list of all sessions and their \
-              \human-readable names. By default, this method returns the list of all \
-              \sessions in the persistent database, but optionally it can return \
-              \just the list of all sessions in memory, which is mainly useful for \
-              \testing. Note that in a production system, this endpoint should \
-              \obviously be authentication-scoped and only return the list of \
-              \sessions that the caller is authorized to see."
-          :> OpId "getSessionList" Get '[JSON] (Paginated Session)
-  , withSession ::
-      mode
-        :- Capture' '[Description "The session ID"] "sessionId" SessionId
-          :> NamedRoutes SessionOpenAPI
-  }
-  deriving (Generic)
-
--- | The session-specific bits of the API.
-newtype SessionOpenAPI mode = SessionOpenAPI
-  { getProg ::
-      mode
-        :- "program"
-          :> Summary "Get the current program state"
-          :> OpId "getProgram" Get '[JSON] API.Prog
-  }
-  deriving (Generic)
+type PrimerAPI = OpenAPI.API :<|> PrimerLegacyAPI
 
 type PrimerLegacyAPI = "api" :> NamedRoutes LegacyAPI
 
@@ -268,7 +224,7 @@ data QuestionAPI mode = QuestionAPI
 
 openAPIInfo :: OpenApi
 openAPIInfo =
-  toOpenApi (Proxy :: Proxy PrimerOpenAPI)
+  toOpenApi (Proxy :: Proxy OpenAPI.API)
     & #info % #title .~ "Primer backend API"
     & #info % #description ?~ "A backend service implementing a pedagogic functional programming language."
     & #info % #version .~ "0.7"
@@ -289,15 +245,18 @@ hoistPrimer e = hoistServer primerApi nt primerServer
     handler :: PrimerErr -> IO (Either ServerError a)
     handler (DatabaseErr msg) = pure $ Left $ err500{errBody = (LT.encodeUtf8 . LT.fromStrict) msg}
 
-openAPIServer :: SessionsOpenAPI (AsServerT PrimerIO)
+openAPIServer :: OpenAPI.SessionsAPI (AsServerT PrimerIO)
 openAPIServer =
-  SessionsOpenAPI
-    { createSession = newSession
-    , getSessionList = \b p -> pagedDefaultClamp 100 p $ listSessions b
-    , withSession = \sid ->
-        SessionOpenAPI
-          { getProg = API.getProgram sid
-          }
+  OpenAPI.SessionsAPI
+    { OpenAPI.createSession = newSession
+    , OpenAPI.getSessionList = \b p -> pagedDefaultClamp 100 p $ listSessions b
+    , OpenAPI.withSession = openAPISessionServer
+    }
+
+openAPISessionServer :: SessionId -> OpenAPI.SessionAPI (AsServerT PrimerIO)
+openAPISessionServer sid =
+  OpenAPI.SessionAPI
+    { OpenAPI.getProg = API.getProgram sid
     }
 
 legacyAPIServer :: LegacyAPI (AsServerT PrimerIO)
