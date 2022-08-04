@@ -38,19 +38,11 @@ import Primer.API (
   Env (..),
   PrimerErr (..),
   PrimerIO,
-  copySession,
   edit,
-  evalFull,
-  evalStep,
-  generateNames,
-  getProgram,
-  getSessionName,
-  getVersion,
   listSessions,
   newSession,
   renameSession,
   runPrimerIO,
-  variablesInScope,
  )
 import Primer.API qualified as API
 import Primer.App (
@@ -164,25 +156,36 @@ newtype SessionOpenAPI mode = SessionOpenAPI
   }
   deriving (Generic)
 
-type PrimerLegacyAPI =
-  "api"
-    :> ( "copy-session"
-          :> Summary "Copy a session to a new session"
-          :> Description
-              "Copy the session whose ID is given in the request body to a \
-              \new session, and return the new session's ID. Note that this \
-              \method can be called at any time and is not part of the \
-              \session-specific API, as it's not scoped by the current \
-              \session ID like those methods are."
-          :> ReqBody '[JSON] SessionId
-          :> Post '[JSON] SessionId
-          :<|> "version"
-            :> Summary "Get the current server version"
-            :> Get '[JSON] Text
-          :<|> QueryParam' '[Required, Strict] "session" SessionId :> SAPI
-       )
-    :<|> "admin"
-      :> NamedRoutes AdminAPI
+type PrimerLegacyAPI = "api" :> NamedRoutes LegacyAPI
+
+data LegacyAPI mode = LegacyAPI
+  { copySession ::
+      mode
+        :- "copy-session"
+        :> Summary "Copy a session to a new session"
+        :> Description
+            "Copy the session whose ID is given in the request body to a \
+            \new session, and return the new session's ID. Note that this \
+            \method can be called at any time and is not part of the \
+            \session-specific API, as it's not scoped by the current \
+            \session ID like those methods are."
+        :> ReqBody '[JSON] SessionId
+        :> Post '[JSON] SessionId
+  , getVersion ::
+      mode
+        :- "version"
+        :> Summary "Get the current server version"
+        :> Get '[JSON] Text
+  , sessionAPI ::
+      mode
+        :- QueryParam' '[Required, Strict] "session" SessionId
+        :> NamedRoutes SessionAPI
+  , adminAPI ::
+      mode
+        :- "admin"
+        :> NamedRoutes AdminAPI
+  }
+  deriving (Generic)
 
 newtype AdminAPI mode = AdminAPI
   { flushSessions ::
@@ -199,47 +202,69 @@ newtype AdminAPI mode = AdminAPI
   deriving (Generic)
 
 -- | The session-specific bits of the API (legacy version).
-type SAPI =
-  "session-name"
-    :> Summary "Get the specified session's name"
-    :> Get '[JSON] Text
-    :<|> "session-name"
-      :> Summary "Set the specified session's name"
-      :> Description
-          "Attempt to set the current session name. Returns the actual \
-          \new session name. (Note that this may differ from the name \
-          \provided.)"
-      :> ReqBody '[JSON] Text
-      :> Put '[JSON] Text
-    :<|> "edit"
-      :> Summary "Edit the program"
-      :> Description "Submit an action, returning the updated program state."
-      :> ReqBody '[JSON] MutationRequest
-      :> Post '[JSON] (Either ProgError Prog)
-    :<|> "question"
-      :> ( "variables-in-scope"
-            :> Summary "Ask what variables are in scope for the given node ID"
-            :> ReqBody '[JSON] (GVarName, ID)
-            :> Post '[JSON] (Either ProgError (([(TyVarName, Kind)], [(LVarName, Type' ())]), [(GVarName, Type' ())]))
-            :<|> "generate-names"
-              :> Summary "Ask for a list of possible names at the given location"
-              :> Description
-                  "Ask for a list of possible names for a binding \
-                  \at the given location. This method would be GET \
-                  \(since it doesn't modify any state) but we need \
-                  \to provide a request body, which isn't well \
-                  \supported for GET requests."
-              :> ReqBody '[JSON] ((GVarName, ID), Either (Maybe (Type' ())) (Maybe Kind))
-              :> Post '[JSON] (Either ProgError [Name])
-         )
-    :<|> "eval-step"
-      :> Summary "Perform one step of evaluation on the given expression"
-      :> ReqBody '[JSON] EvalReq
-      :> Post '[JSON] (Either ProgError EvalResp)
-    :<|> "eval"
-      :> Summary "Evaluate the given expression to normal form (or time out)"
-      :> ReqBody '[JSON] EvalFullReq
-      :> Post '[JSON] (Either ProgError EvalFullResp)
+data SessionAPI mode = SessionAPI
+  { getSessionName ::
+      mode
+        :- "session-name"
+        :> Summary "Get the specified session's name"
+        :> Get '[JSON] Text
+  , setSessionName ::
+      mode
+        :- "session-name"
+        :> Summary "Set the specified session's name"
+        :> Description
+            "Attempt to set the current session name. Returns the actual \
+            \new session name. (Note that this may differ from the name \
+            \provided.)"
+        :> ReqBody '[JSON] Text
+        :> Put '[JSON] Text
+  , editSession ::
+      mode
+        :- "edit"
+        :> Summary "Edit the program"
+        :> Description "Submit an action, returning the updated program state."
+        :> ReqBody '[JSON] MutationRequest
+        :> Post '[JSON] (Either ProgError Prog)
+  , questionAPI ::
+      mode
+        :- "question"
+        :> NamedRoutes QuestionAPI
+  , evalStep ::
+      mode
+        :- "eval-step"
+        :> Summary "Perform one step of evaluation on the given expression"
+        :> ReqBody '[JSON] EvalReq
+        :> Post '[JSON] (Either ProgError EvalResp)
+  , evalFull ::
+      mode
+        :- "eval"
+        :> Summary "Evaluate the given expression to normal form (or time out)"
+        :> ReqBody '[JSON] EvalFullReq
+        :> Post '[JSON] (Either ProgError EvalFullResp)
+  }
+  deriving (Generic)
+
+data QuestionAPI mode = QuestionAPI
+  { variablesInScope ::
+      mode
+        :- "variables-in-scope"
+        :> Summary "Ask what variables are in scope for the given node ID"
+        :> ReqBody '[JSON] (GVarName, ID)
+        :> Post '[JSON] (Either ProgError (([(TyVarName, Kind)], [(LVarName, Type' ())]), [(GVarName, Type' ())]))
+  , generateNames ::
+      mode
+        :- "generate-names"
+        :> Summary "Ask for a list of possible names at the given location"
+        :> Description
+            "Ask for a list of possible names for a binding \
+            \at the given location. This method would be GET \
+            \(since it doesn't modify any state) but we need \
+            \to provide a request body, which isn't well \
+            \supported for GET requests."
+        :> ReqBody '[JSON] ((GVarName, ID), Either (Maybe (Type' ())) (Maybe Kind))
+        :> Post '[JSON] (Either ProgError [Name])
+  }
+  deriving (Generic)
 
 openAPIInfo :: OpenApi
 openAPIInfo =
@@ -271,8 +296,35 @@ openAPIServer =
     , getSessionList = \b p -> pagedDefaultClamp 100 p $ listSessions b
     , withSession = \sid ->
         SessionOpenAPI
-          { getProg = getProgram sid
+          { getProg = API.getProgram sid
           }
+    }
+
+legacyAPIServer :: LegacyAPI (AsServerT PrimerIO)
+legacyAPIServer =
+  LegacyAPI
+    { copySession = API.copySession
+    , getVersion = API.getVersion
+    , sessionAPI = sessionAPIServer
+    , adminAPI = adminAPIServer
+    }
+
+sessionAPIServer :: SessionId -> SessionAPI (AsServerT PrimerIO)
+sessionAPIServer sid =
+  SessionAPI
+    { getSessionName = API.getSessionName sid
+    , setSessionName = renameSession sid
+    , editSession = edit sid
+    , questionAPI = questionAPIServer sid
+    , evalStep = API.evalStep sid
+    , evalFull = API.evalFull sid
+    }
+
+questionAPIServer :: SessionId -> QuestionAPI (AsServerT PrimerIO)
+questionAPIServer sid =
+  QuestionAPI
+    { variablesInScope = API.variablesInScope sid
+    , generateNames = API.generateNames sid
     }
 
 adminAPIServer :: AdminAPI (AsServerT PrimerIO)
@@ -282,22 +334,7 @@ adminAPIServer =
     }
 
 primerServer :: ServerT PrimerAPI PrimerIO
-primerServer = openAPIServer :<|> legacyServer
-  where
-    legacyServer :: ServerT PrimerLegacyAPI PrimerIO
-    legacyServer =
-      ( copySession
-          :<|> getVersion
-          :<|> ( \sid ->
-                  getSessionName sid
-                    :<|> renameSession sid
-                    :<|> edit sid
-                    :<|> (variablesInScope sid :<|> generateNames sid)
-                    :<|> evalStep sid
-                    :<|> evalFull sid
-               )
-      )
-        :<|> adminAPIServer
+primerServer = openAPIServer :<|> legacyAPIServer
 
 server :: Env -> Server API
 server e = pure openAPIInfo :<|> hoistPrimer e
