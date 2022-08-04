@@ -45,23 +45,6 @@ import Primer.API (
   runPrimerIO,
  )
 import Primer.API qualified as API
-import Primer.App (
-  EvalFullReq (..),
-  EvalFullResp (..),
-  EvalReq (..),
-  EvalResp (..),
-  MutationRequest,
-  Prog,
-  ProgError,
- )
-import Primer.Core (
-  GVarName,
-  ID,
-  Kind,
-  LVarName,
-  TyVarName,
-  Type',
- )
 import Primer.Database (
   SessionId,
   Sessions,
@@ -70,157 +53,42 @@ import Primer.Database (
 import Primer.Database qualified as Database (
   Op,
  )
-import Primer.Name (Name)
 import Primer.Pagination (pagedDefaultClamp)
+import Primer.Servant.API qualified as S
 import Primer.Servant.OpenAPI qualified as OpenAPI
 import Servant (
-  Description,
-  Get,
   Handler (..),
-  JSON,
-  NamedRoutes,
   NoContent (..),
-  Post,
-  Put,
-  QueryParam',
-  ReqBody,
-  Required,
   Server,
   ServerError,
   ServerT,
-  Strict,
-  Summary,
   err500,
   errBody,
   hoistServer,
   (:<|>) (..),
-  (:>),
  )
 import Servant qualified (serve)
-import Servant.API.Generic (
-  GenericMode ((:-)),
- )
 import Servant.OpenApi (toOpenApi)
 import Servant.Server.Generic (AsServerT)
 
--- | The full API, plus the OpenAPI specification.
+-- | All available API endpoints, plus the OpenAPI specification.
 type API = OpenAPI.Spec :<|> PrimerAPI
 
--- | 'OpenAPI.API' is the portion of our API that is documented with
--- an exported OpenAPI3 spec. 'PrimerLegacyAPI' is everything else.
--- Over time, the 'PrimerLegacyAPI' should shrink as we improve our
--- documentation.
-type PrimerAPI = OpenAPI.API :<|> PrimerLegacyAPI
-
-type PrimerLegacyAPI = "api" :> NamedRoutes LegacyAPI
-
-data LegacyAPI mode = LegacyAPI
-  { copySession ::
-      mode
-        :- "copy-session"
-          :> Summary "Copy a session to a new session"
-          :> Description
-              "Copy the session whose ID is given in the request body to a \
-              \new session, and return the new session's ID. Note that this \
-              \method can be called at any time and is not part of the \
-              \session-specific API, as it's not scoped by the current \
-              \session ID like those methods are."
-          :> ReqBody '[JSON] SessionId
-          :> Post '[JSON] SessionId
-  , getVersion ::
-      mode
-        :- "version"
-          :> Summary "Get the current server version"
-          :> Get '[JSON] Text
-  , sessionAPI ::
-      mode
-        :- QueryParam' '[Required, Strict] "session" SessionId
-          :> NamedRoutes SessionAPI
-  , adminAPI ::
-      mode
-        :- "admin"
-          :> NamedRoutes AdminAPI
-  }
-  deriving (Generic)
-
-newtype AdminAPI mode = AdminAPI
-  { flushSessions ::
-      mode
-        :- "flush-sessions"
-          :> Summary "Flush the in-memory session database"
-          :> Description
-              "Flush the in-memory session database. Note that \
-              \all dirty state will be saved to the persistent \
-              \database before it's discarded from memory; i.e., \
-              \this is a non-destructive operation."
-          :> Put '[JSON] NoContent
-  }
-  deriving (Generic)
-
--- | The session-specific bits of the API (legacy version).
-data SessionAPI mode = SessionAPI
-  { getSessionName ::
-      mode
-        :- "session-name"
-          :> Summary "Get the specified session's name"
-          :> Get '[JSON] Text
-  , setSessionName ::
-      mode
-        :- "session-name"
-          :> Summary "Set the specified session's name"
-          :> Description
-              "Attempt to set the current session name. Returns the actual \
-              \new session name. (Note that this may differ from the name \
-              \provided.)"
-          :> ReqBody '[JSON] Text
-          :> Put '[JSON] Text
-  , editSession ::
-      mode
-        :- "edit"
-          :> Summary "Edit the program"
-          :> Description "Submit an action, returning the updated program state."
-          :> ReqBody '[JSON] MutationRequest
-          :> Post '[JSON] (Either ProgError Prog)
-  , questionAPI ::
-      mode
-        :- "question"
-          :> NamedRoutes QuestionAPI
-  , evalStep ::
-      mode
-        :- "eval-step"
-          :> Summary "Perform one step of evaluation on the given expression"
-          :> ReqBody '[JSON] EvalReq
-          :> Post '[JSON] (Either ProgError EvalResp)
-  , evalFull ::
-      mode
-        :- "eval"
-          :> Summary "Evaluate the given expression to normal form (or time out)"
-          :> ReqBody '[JSON] EvalFullReq
-          :> Post '[JSON] (Either ProgError EvalFullResp)
-  }
-  deriving (Generic)
-
-data QuestionAPI mode = QuestionAPI
-  { variablesInScope ::
-      mode
-        :- "variables-in-scope"
-          :> Summary "Ask what variables are in scope for the given node ID"
-          :> ReqBody '[JSON] (GVarName, ID)
-          :> Post '[JSON] (Either ProgError (([(TyVarName, Kind)], [(LVarName, Type' ())]), [(GVarName, Type' ())]))
-  , generateNames ::
-      mode
-        :- "generate-names"
-          :> Summary "Ask for a list of possible names at the given location"
-          :> Description
-              "Ask for a list of possible names for a binding \
-              \at the given location. This method would be GET \
-              \(since it doesn't modify any state) but we need \
-              \to provide a request body, which isn't well \
-              \supported for GET requests."
-          :> ReqBody '[JSON] ((GVarName, ID), Either (Maybe (Type' ())) (Maybe Kind))
-          :> Post '[JSON] (Either ProgError [Name])
-  }
-  deriving (Generic)
+-- | All available API endpoints.
+--
+-- 'OpenAPI.API' is the portion of our API that is implemented via an
+-- OpenAPI 3-compliant specification. It mostly uses simpler types
+-- than Primer's full core types, and is intended to be used with
+-- clients that don't need to, or want to, know much about Primer
+-- technical details. These clients are expected to focus mainly on
+-- presentation and interaction, and leave the heavy lifting to the
+-- backend service.
+--
+-- 'S.API' is a bespoke Servant API, and exposes the full core Primer
+-- types, plus methods to act upon them, query them, etc. It is
+-- probably most useful to clients written in Haskell that need to
+-- access the full Primer API over HTTP.
+type PrimerAPI = OpenAPI.API :<|> S.API
 
 openAPIInfo :: OpenApi
 openAPIInfo =
@@ -259,41 +127,41 @@ openAPISessionServer sid =
     { OpenAPI.getProg = API.getProgram sid
     }
 
-legacyAPIServer :: LegacyAPI (AsServerT PrimerIO)
-legacyAPIServer =
-  LegacyAPI
-    { copySession = API.copySession
-    , getVersion = API.getVersion
-    , sessionAPI = sessionAPIServer
-    , adminAPI = adminAPIServer
+apiServer :: S.RootAPI (AsServerT PrimerIO)
+apiServer =
+  S.RootAPI
+    { S.copySession = API.copySession
+    , S.getVersion = API.getVersion
+    , S.sessionAPI = sessionAPIServer
+    , S.adminAPI = adminAPIServer
     }
 
-sessionAPIServer :: SessionId -> SessionAPI (AsServerT PrimerIO)
+sessionAPIServer :: SessionId -> S.SessionAPI (AsServerT PrimerIO)
 sessionAPIServer sid =
-  SessionAPI
-    { getSessionName = API.getSessionName sid
-    , setSessionName = renameSession sid
-    , editSession = edit sid
-    , questionAPI = questionAPIServer sid
-    , evalStep = API.evalStep sid
-    , evalFull = API.evalFull sid
+  S.SessionAPI
+    { S.getSessionName = API.getSessionName sid
+    , S.setSessionName = renameSession sid
+    , S.editSession = edit sid
+    , S.questionAPI = questionAPIServer sid
+    , S.evalStep = API.evalStep sid
+    , S.evalFull = API.evalFull sid
     }
 
-questionAPIServer :: SessionId -> QuestionAPI (AsServerT PrimerIO)
+questionAPIServer :: SessionId -> S.QuestionAPI (AsServerT PrimerIO)
 questionAPIServer sid =
-  QuestionAPI
-    { variablesInScope = API.variablesInScope sid
-    , generateNames = API.generateNames sid
+  S.QuestionAPI
+    { S.variablesInScope = API.variablesInScope sid
+    , S.generateNames = API.generateNames sid
     }
 
-adminAPIServer :: AdminAPI (AsServerT PrimerIO)
+adminAPIServer :: S.AdminAPI (AsServerT PrimerIO)
 adminAPIServer =
-  AdminAPI
-    { flushSessions = API.flushSessions >> pure NoContent
+  S.AdminAPI
+    { S.flushSessions = API.flushSessions >> pure NoContent
     }
 
 primerServer :: ServerT PrimerAPI PrimerIO
-primerServer = openAPIServer :<|> legacyAPIServer
+primerServer = openAPIServer :<|> apiServer
 
 server :: Env -> Server API
 server e = pure openAPIInfo :<|> hoistPrimer e
