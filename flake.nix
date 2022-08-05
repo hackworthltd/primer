@@ -103,7 +103,7 @@
         "terminfo"
       ];
 
-      ghcVersion = "ghc923";
+      ghcVersion = "ghc924";
 
       # We must keep the weeder version in sync with the version of
       # GHC we're using.
