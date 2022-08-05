@@ -239,6 +239,7 @@
                   #TODO Haskell.nix would ideally pick this up from `cabal.project`.
                   # See: https://github.com/input-output-hk/haskell.nix/issues/1149#issuecomment-946664684
                   packages.primer.components.tests.primer-test.testFlags = [ "--size-cutoff=32768" ];
+                  packages.primer-service.components.tests.service-test.testFlags = [ "--size-cutoff=32768" ];
                 }
               ];
 
@@ -530,6 +531,7 @@
 
           excludes = [
             "primer/test/outputs"
+            "primer-service/test/outputs"
             ".buildkite/"
           ];
         };

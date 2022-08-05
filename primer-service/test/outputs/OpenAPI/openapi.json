@@ -1,0 +1,401 @@
+{
+    "components": {
+        "schemas": {
+            "Def": {
+                "properties": {
+                    "name": {
+                        "type": "string"
+                    },
+                    "term": {
+                        "$ref": "#/components/schemas/Tree"
+                    },
+                    "type_": {
+                        "$ref": "#/components/schemas/Tree"
+                    }
+                },
+                "required": [
+                    "name",
+                    "type_"
+                ],
+                "type": "object"
+            },
+            "Module": {
+                "properties": {
+                    "defs": {
+                        "items": {
+                            "$ref": "#/components/schemas/Def"
+                        },
+                        "type": "array"
+                    },
+                    "editable": {
+                        "type": "boolean"
+                    },
+                    "modname": {
+                        "$ref": "#/components/schemas/ModuleName"
+                    },
+                    "types": {
+                        "items": {
+                            "type": "string"
+                        },
+                        "type": "array"
+                    }
+                },
+                "required": [
+                    "modname",
+                    "editable",
+                    "types",
+                    "defs"
+                ],
+                "type": "object"
+            },
+            "ModuleName": {
+                "properties": {
+                    "unModuleName": {
+                        "items": {
+                            "type": "string"
+                        },
+                        "minItems": 1,
+                        "type": "array"
+                    }
+                },
+                "required": [
+                    "unModuleName"
+                ],
+                "type": "object"
+            },
+            "NodeBody": {
+                "oneOf": [
+                    {
+                        "properties": {
+                            "contents": {
+                                "type": "string"
+                            },
+                            "tag": {
+                                "enum": [
+                                    "TextBody"
+                                ],
+                                "type": "string"
+                            }
+                        },
+                        "required": [
+                            "tag",
+                            "contents"
+                        ],
+                        "type": "object"
+                    },
+                    {
+                        "properties": {
+                            "contents": {
+                                "$ref": "#/components/schemas/Tree"
+                            },
+                            "tag": {
+                                "enum": [
+                                    "BoxBody"
+                                ],
+                                "type": "string"
+                            }
+                        },
+                        "required": [
+                            "tag",
+                            "contents"
+                        ],
+                        "type": "object"
+                    },
+                    {
+                        "properties": {
+                            "tag": {
+                                "enum": [
+                                    "NoBody"
+                                ],
+                                "type": "string"
+                            }
+                        },
+                        "required": [
+                            "tag"
+                        ],
+                        "type": "object"
+                    }
+                ],
+                "type": "object"
+            },
+            "NodeFlavor": {
+                "enum": [
+                    "FlavorHole",
+                    "FlavorEmptyHole",
+                    "FlavorAnn",
+                    "FlavorApp",
+                    "FlavorAPP",
+                    "FlavorCon",
+                    "FlavorLam",
+                    "FlavorLAM",
+                    "FlavorGlobalVar",
+                    "FlavorLocalVar",
+                    "FlavorLet",
+                    "FlavorLetType",
+                    "FlavorLetrec",
+                    "FlavorCase",
+                    "FlavorPrimCon",
+                    "FlavorTEmptyHole",
+                    "FlavorTHole",
+                    "FlavorTCon",
+                    "FlavorTFun",
+                    "FlavorTVar",
+                    "FlavorTApp",
+                    "FlavorTForall",
+                    "FlavorPattern",
+                    "FlavorPatternCon",
+                    "FlavorPatternBind",
+                    "FlavorPatternApp"
+                ],
+                "type": "string"
+            },
+            "PaginatedMeta": {
+                "properties": {
+                    "firstPage": {
+                        "exclusiveMinimum": true,
+                        "maximum": 9223372036854775807,
+                        "minimum": 0,
+                        "type": "integer"
+                    },
+                    "lastPage": {
+                        "exclusiveMinimum": true,
+                        "maximum": 9223372036854775807,
+                        "minimum": 0,
+                        "type": "integer"
+                    },
+                    "nextPage": {
+                        "exclusiveMinimum": true,
+                        "maximum": 9223372036854775807,
+                        "minimum": 0,
+                        "type": "integer"
+                    },
+                    "pageSize": {
+                        "exclusiveMinimum": true,
+                        "maximum": 9223372036854775807,
+                        "minimum": 0,
+                        "type": "integer"
+                    },
+                    "prevPage": {
+                        "exclusiveMinimum": true,
+                        "maximum": 9223372036854775807,
+                        "minimum": 0,
+                        "type": "integer"
+                    },
+                    "thisPage": {
+                        "exclusiveMinimum": true,
+                        "maximum": 9223372036854775807,
+                        "minimum": 0,
+                        "type": "integer"
+                    },
+                    "totalItems": {
+                        "maximum": 9223372036854775807,
+                        "minimum": 0,
+                        "type": "integer"
+                    }
+                },
+                "required": [
+                    "totalItems",
+                    "pageSize",
+                    "firstPage",
+                    "thisPage",
+                    "lastPage"
+                ],
+                "type": "object"
+            },
+            "Paginated_Session": {
+                "properties": {
+                    "items": {
+                        "items": {
+                            "$ref": "#/components/schemas/Session"
+                        },
+                        "type": "array"
+                    },
+                    "meta": {
+                        "$ref": "#/components/schemas/PaginatedMeta"
+                    }
+                },
+                "required": [
+                    "meta",
+                    "items"
+                ],
+                "type": "object"
+            },
+            "Prog": {
+                "properties": {
+                    "modules": {
+                        "items": {
+                            "$ref": "#/components/schemas/Module"
+                        },
+                        "type": "array"
+                    }
+                },
+                "required": [
+                    "modules"
+                ],
+                "type": "object"
+            },
+            "Session": {
+                "properties": {
+                    "id": {
+                        "$ref": "#/components/schemas/UUID"
+                    },
+                    "name": {
+                        "$ref": "#/components/schemas/SessionName"
+                    }
+                },
+                "required": [
+                    "id",
+                    "name"
+                ],
+                "type": "object"
+            },
+            "SessionName": {
+                "type": "string"
+            },
+            "Tree": {
+                "properties": {
+                    "body": {
+                        "$ref": "#/components/schemas/NodeBody"
+                    },
+                    "childTrees": {
+                        "items": {
+                            "$ref": "#/components/schemas/Tree"
+                        },
+                        "type": "array"
+                    },
+                    "flavor": {
+                        "$ref": "#/components/schemas/NodeFlavor"
+                    },
+                    "nodeId": {
+                        "type": "string"
+                    },
+                    "rightChild": {
+                        "$ref": "#/components/schemas/Tree"
+                    }
+                },
+                "required": [
+                    "nodeId",
+                    "flavor",
+                    "body",
+                    "childTrees"
+                ],
+                "type": "object"
+            },
+            "UUID": {
+                "example": "00000000-0000-0000-0000-000000000000",
+                "format": "uuid",
+                "type": "string"
+            }
+        }
+    },
+    "info": {
+        "description": "A backend service implementing a pedagogic functional programming language.",
+        "title": "Primer backend API",
+        "version": "0.7"
+    },
+    "openapi": "3.0.0",
+    "paths": {
+        "/api/sessions": {
+            "get": {
+                "operationId": "getSessionList",
+                "parameters": [
+                    {
+                        "allowEmptyValue": true,
+                        "in": "query",
+                        "name": "inMemory",
+                        "schema": {
+                            "default": false,
+                            "type": "boolean"
+                        }
+                    },
+                    {
+                        "in": "query",
+                        "name": "page",
+                        "required": false,
+                        "schema": {
+                            "exclusiveMinimum": true,
+                            "maximum": 9223372036854775807,
+                            "minimum": 0,
+                            "type": "integer"
+                        }
+                    },
+                    {
+                        "in": "query",
+                        "name": "pageSize",
+                        "required": false,
+                        "schema": {
+                            "exclusiveMinimum": true,
+                            "maximum": 9223372036854775807,
+                            "minimum": 0,
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json;charset=utf-8": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Paginated_Session"
+                                }
+                            }
+                        },
+                        "description": ""
+                    },
+                    "400": {
+                        "description": "Invalid `pageSize` or `page` or `inMemory`"
+                    }
+                },
+                "summary": "List sessions"
+            },
+            "post": {
+                "operationId": "createSession",
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json;charset=utf-8": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/UUID"
+                                }
+                            }
+                        },
+                        "description": ""
+                    }
+                },
+                "summary": "Create a new session"
+            }
+        },
+        "/api/sessions/{sessionId}/program": {
+            "get": {
+                "operationId": "getProgram",
+                "parameters": [
+                    {
+                        "in": "path",
+                        "name": "sessionId",
+                        "required": true,
+                        "schema": {
+                            "format": "uuid",
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json;charset=utf-8": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Prog"
+                                }
+                            }
+                        },
+                        "description": ""
+                    },
+                    "404": {
+                        "description": "`sessionId` not found"
+                    }
+                },
+                "summary": "Get the current program state"
+            }
+        }
+    }
+}
