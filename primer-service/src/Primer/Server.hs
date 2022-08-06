@@ -57,61 +57,21 @@ import Primer.Pagination (pagedDefaultClamp)
 import Primer.Servant.API qualified as S
 import Primer.Servant.OpenAPI qualified as OpenAPI
 import Servant (
-  Handler (..),
-  NoContent (..),
-  Server,
-  ServerError,
-  ServerT,
+  Handler (Handler),
+  NoContent (NoContent),
+  ServerError (errBody),
   err500,
-  errBody,
-  hoistServer,
-  (:<|>) (..),
  )
-import Servant qualified (serve)
+import Servant.API.Generic (GenericMode ((:-)))
 import Servant.OpenApi (toOpenApi)
-import Servant.Server.Generic (AsServerT)
-
--- | All available API endpoints, plus the OpenAPI specification.
-type API = OpenAPI.Spec :<|> PrimerAPI
-
--- | All available API endpoints.
---
--- 'OpenAPI.API' is the portion of our API that is implemented via an
--- OpenAPI 3-compliant specification. It mostly uses simpler types
--- than Primer's full core types, and is intended to be used with
--- clients that don't need to, or want to, know much about Primer
--- technical details. These clients are expected to focus mainly on
--- presentation and interaction, and leave the heavy lifting to the
--- backend service.
---
--- 'S.API' is a bespoke Servant API, and exposes the full core Primer
--- types, plus methods to act upon them, query them, etc. It is
--- probably most useful to clients written in Haskell that need to
--- access the full Primer API over HTTP.
-type PrimerAPI = OpenAPI.API :<|> S.API
+import Servant.Server.Generic (AsServerT, genericServeT)
 
 openAPIInfo :: OpenApi
 openAPIInfo =
-  toOpenApi (Proxy :: Proxy OpenAPI.API)
+  toOpenApi (Proxy @OpenAPI.API)
     & #info % #title .~ "Primer backend API"
     & #info % #description ?~ "A backend service implementing a pedagogic functional programming language."
     & #info % #version .~ "0.7"
-
-primerApi :: Proxy PrimerAPI
-primerApi = Proxy
-
-api :: Proxy API
-api = Proxy
-
-hoistPrimer :: Env -> Server PrimerAPI
-hoistPrimer e = hoistServer primerApi nt primerServer
-  where
-    nt :: PrimerIO a -> Handler a
-    nt m = Handler $ ExceptT $ catch (Right <$> runPrimerIO m e) handler
-    -- Catch exceptions from the API and convert them to Servant
-    -- errors via 'Either'.
-    handler :: PrimerErr -> IO (Either ServerError a)
-    handler (DatabaseErr msg) = pure $ Left $ err500{errBody = (LT.encodeUtf8 . LT.fromStrict) msg}
 
 openAPIServer :: OpenAPI.SessionsAPI (AsServerT PrimerIO)
 openAPIServer =
@@ -160,11 +120,34 @@ adminAPIServer =
     { S.flushSessions = API.flushSessions >> pure NoContent
     }
 
-primerServer :: ServerT PrimerAPI PrimerIO
-primerServer = openAPIServer :<|> apiServer
+-- | All available API endpoints, plus the OpenAPI specification.
+--
+-- 'OpenAPI.API' is the portion of our API that is implemented via an
+-- OpenAPI 3-compliant specification. It mostly uses simpler types
+-- than Primer's full core types, and is intended to be used with
+-- clients that don't need to, or want to, know much about Primer
+-- technical details. These clients are expected to focus mainly on
+-- presentation and interaction, and leave the heavy lifting to the
+-- backend service.
+--
+-- 'S.API' is a bespoke Servant API, and exposes the full core Primer
+-- types, plus methods to act upon them, query them, etc. It is
+-- probably most useful to clients written in Haskell that need to
+-- access the full Primer API over HTTP.
+data API mode = API
+  { getSpec :: mode :- OpenAPI.Spec
+  , openAPI :: mode :- OpenAPI.API
+  , servantAPI :: mode :- S.API
+  }
+  deriving (Generic)
 
-server :: Env -> Server API
-server e = pure openAPIInfo :<|> hoistPrimer e
+server :: API (AsServerT PrimerIO)
+server =
+  API
+    { getSpec = pure openAPIInfo
+    , openAPI = openAPIServer
+    , servantAPI = apiServer
+    }
 
 -- | CORS settings for the Primer API. Note that this policy will not
 -- work with credentialed requests because the origin is implicitly
@@ -180,7 +163,10 @@ apiCors =
 serve :: Sessions -> TBQueue Database.Op -> Version -> Int -> IO ()
 serve ss q v port = do
   putText $ "Listening on port " <> show port
-  Warp.runSettings warpSettings $ noCache $ cors (const $ Just apiCors) $ Servant.serve api $ server $ Env ss q v
+  Warp.runSettings warpSettings $
+    noCache $
+      cors (const $ Just apiCors) $
+        genericServeT nt server
   where
     -- By default Warp will try to bind on either IPv4 or IPv6, whichever is
     -- available.
@@ -192,3 +178,11 @@ serve ss q v port = do
 
     noCache :: WAI.Middleware
     noCache = WAI.modifyResponse $ WAI.mapResponseHeaders (("Cache-Control", "no-store") :)
+
+    nt :: PrimerIO a -> Handler a
+    nt m = Handler $ ExceptT $ catch (Right <$> runPrimerIO m (Env ss q v)) handler
+
+    -- Catch exceptions from the API and convert them to Servant
+    -- errors via 'Either'.
+    handler :: PrimerErr -> IO (Either ServerError a)
+    handler (DatabaseErr msg) = pure $ Left $ err500{errBody = (LT.encodeUtf8 . LT.fromStrict) msg}
