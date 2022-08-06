@@ -1,4 +1,5 @@
 agents:
+  private: "true"
   os: "linux"
 
 steps:
