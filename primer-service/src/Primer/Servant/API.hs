@@ -3,6 +3,7 @@ module Primer.Servant.API (
   API,
   RootAPI (..),
   SessionAPI (..),
+  SessionsAPI (..),
   QuestionAPI (..),
   AdminAPI (..),
 ) where
@@ -27,9 +28,14 @@ import Primer.Core (
   Type',
  )
 import Primer.Database (
+  Session,
   SessionId,
  )
 import Primer.Name (Name)
+import Primer.Pagination (
+  Paginated,
+  PaginationParams,
+ )
 import Servant (
   Capture',
   Description,
@@ -39,6 +45,7 @@ import Servant (
   NoContent (..),
   Post,
   Put,
+  QueryFlag,
   ReqBody,
   Summary,
   (:>),
@@ -68,15 +75,14 @@ data RootAPI mode = RootAPI
         :- "version"
           :> Summary "Get the current server version"
           :> Get '[JSON] Text
-  , sessionAPI ::
-      mode
-        :- "sessions"
-          :> Capture' '[Description "The session ID"] "sessionId" SessionId
-          :> NamedRoutes SessionAPI
   , adminAPI ::
       mode
         :- "admin"
           :> NamedRoutes AdminAPI
+  , sessionsAPI ::
+      mode
+        :- "sessions"
+          :> NamedRoutes SessionsAPI
   }
   deriving (Generic)
 
@@ -94,7 +100,34 @@ newtype AdminAPI mode = AdminAPI
   }
   deriving (Generic)
 
--- | The session-specific bits of the API (legacy version).
+-- | The sessions API.
+data SessionsAPI mode = SessionsAPI
+  { createSession ::
+      mode
+        :- Summary "Create a new session and return its ID"
+          :> Post '[JSON] SessionId
+  , getSessionList ::
+      mode
+        :- QueryFlag "inMemory"
+          :> PaginationParams
+          :> Summary "Get the list of sessions"
+          :> Description
+              "Get a list of all sessions and their human-readable names. By \
+              \default, this method returns the list of all sessions in the \
+              \persistent database, but optionally it can return just the list \
+              \of all sessions in memory, which is mainly useful for \
+              \testing. Note that in a production system, this endpoint should \
+              \obviously be authentication-scoped and only return the list of \
+              \sessions that the caller is authorized to see."
+          :> Get '[JSON] (Paginated Session)
+  , sessionAPI ::
+      mode
+        :- Capture' '[Description "The session ID"] "sessionId" SessionId
+          :> NamedRoutes SessionAPI
+  }
+  deriving (Generic)
+
+-- | The per-session bits of the API.
 data SessionAPI mode = SessionAPI
   { getSessionName ::
       mode

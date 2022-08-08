@@ -92,8 +92,16 @@ apiServer =
   S.RootAPI
     { S.copySession = API.copySession
     , S.getVersion = API.getVersion
-    , S.sessionAPI = sessionAPIServer
     , S.adminAPI = adminAPIServer
+    , S.sessionsAPI = sessionsAPIServer
+    }
+
+sessionsAPIServer :: S.SessionsAPI (AsServerT PrimerIO)
+sessionsAPIServer =
+  S.SessionsAPI
+    { S.createSession = newSession
+    , S.getSessionList = \b p -> pagedDefaultClamp 100 p $ listSessions b
+    , S.sessionAPI = sessionAPIServer
     }
 
 sessionAPIServer :: SessionId -> S.SessionAPI (AsServerT PrimerIO)
