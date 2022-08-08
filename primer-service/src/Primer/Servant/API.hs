@@ -31,6 +31,7 @@ import Primer.Database (
  )
 import Primer.Name (Name)
 import Servant (
+  Capture',
   Description,
   Get,
   JSON,
@@ -38,10 +39,7 @@ import Servant (
   NoContent (..),
   Post,
   Put,
-  QueryParam',
   ReqBody,
-  Required,
-  Strict,
   Summary,
   (:>),
  )
@@ -72,7 +70,8 @@ data RootAPI mode = RootAPI
           :> Get '[JSON] Text
   , sessionAPI ::
       mode
-        :- QueryParam' '[Required, Strict] "session" SessionId
+        :- "sessions"
+          :> Capture' '[Description "The session ID"] "sessionId" SessionId
           :> NamedRoutes SessionAPI
   , adminAPI ::
       mode
