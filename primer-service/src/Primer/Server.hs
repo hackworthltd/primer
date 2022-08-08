@@ -76,7 +76,8 @@ openAPIInfo =
 openAPIServer :: OpenAPI.RootAPI (AsServerT PrimerIO)
 openAPIServer =
   OpenAPI.RootAPI
-    { OpenAPI.getVersion = API.getVersion
+    { OpenAPI.copySession = API.copySession
+    , OpenAPI.getVersion = API.getVersion
     , OpenAPI.sessionsAPI = openAPISessionsServer
     }
 

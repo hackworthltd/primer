@@ -25,6 +25,7 @@ import Servant (
   NamedRoutes,
   Post,
   QueryFlag,
+  ReqBody,
   Summary,
   (:>),
  )
@@ -40,7 +41,19 @@ type Spec = "openapi.json" :> Get '[JSON] OpenApi
 type API = "openapi" :> NamedRoutes RootAPI
 
 data RootAPI mode = RootAPI
-  { getVersion ::
+  { copySession ::
+      mode
+        :- "copy-session"
+          :> Summary "Copy a session to a new session"
+          :> Description
+              "Copy the session whose ID is given in the request body to a \
+              \new session, and return the new session's ID. Note that this \
+              \method can be called at any time and is not part of the \
+              \session-specific API, as it's not scoped by the current \
+              \session ID like those methods are."
+          :> ReqBody '[JSON] SessionId
+          :> OpId "copySession" Post '[JSON] SessionId
+  , getVersion ::
       mode
         :- "version"
           :> Summary "Get the current server version"
