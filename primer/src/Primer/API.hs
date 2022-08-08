@@ -30,6 +30,7 @@ module Primer.API (
   Module,
   Def,
   getProgram,
+  getProgram',
   getSessionName,
   renameSession,
   edit,
@@ -371,8 +372,16 @@ liftQueryAppM h sid = withSession' sid (QueryApp $ runQueryAppM h)
 getApp :: (MonadIO m, MonadThrow m) => SessionId -> PrimerM m App
 getApp sid = withSession' sid $ QueryApp identity
 
-getProgram :: (MonadIO m, MonadThrow m) => SessionId -> PrimerM m Prog
-getProgram sid = withSession' sid $ QueryApp $ viewProg . handleGetProgramRequest
+-- | Given a 'SessionId', return the session's 'Prog'.
+--
+-- Note that this returns a simplified version of 'App.Prog' intended
+-- for use with non-Haskell clients.
+getProgram' :: (MonadIO m, MonadThrow m) => SessionId -> PrimerM m Prog
+getProgram' sid = viewProg <$> getProgram sid
+
+-- | Given a 'SessionId', return the session's 'App.Prog'.
+getProgram :: (MonadIO m, MonadThrow m) => SessionId -> PrimerM m App.Prog
+getProgram sid = withSession' sid $ QueryApp handleGetProgramRequest
 
 -- | A frontend will be mostly concerned with rendering, and does not need the
 -- full complexity of our AST for that task. 'Tree' is a simplified view with

@@ -69,7 +69,7 @@ data SessionsAPI mode = SessionsAPI
 
 -- | The session-specific bits of the API.
 newtype SessionAPI mode = SessionAPI
-  { getProg ::
+  { getProgram ::
       mode
         :- "program"
           :> Summary "Get the current program state"

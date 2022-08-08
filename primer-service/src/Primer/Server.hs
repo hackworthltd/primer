@@ -84,7 +84,7 @@ openAPIServer =
 openAPISessionServer :: SessionId -> OpenAPI.SessionAPI (AsServerT PrimerIO)
 openAPISessionServer sid =
   OpenAPI.SessionAPI
-    { OpenAPI.getProg = API.getProgram sid
+    { OpenAPI.getProgram = API.getProgram' sid
     }
 
 apiServer :: S.RootAPI (AsServerT PrimerIO)
@@ -92,14 +92,23 @@ apiServer =
   S.RootAPI
     { S.copySession = API.copySession
     , S.getVersion = API.getVersion
-    , S.sessionAPI = sessionAPIServer
     , S.adminAPI = adminAPIServer
+    , S.sessionsAPI = sessionsAPIServer
+    }
+
+sessionsAPIServer :: S.SessionsAPI (AsServerT PrimerIO)
+sessionsAPIServer =
+  S.SessionsAPI
+    { S.createSession = newSession
+    , S.getSessionList = \b p -> pagedDefaultClamp 100 p $ listSessions b
+    , S.sessionAPI = sessionAPIServer
     }
 
 sessionAPIServer :: SessionId -> S.SessionAPI (AsServerT PrimerIO)
 sessionAPIServer sid =
   S.SessionAPI
-    { S.getSessionName = API.getSessionName sid
+    { S.getProgram = API.getProgram sid
+    , S.getSessionName = API.getSessionName sid
     , S.setSessionName = renameSession sid
     , S.editSession = edit sid
     , S.questionAPI = questionAPIServer sid
