@@ -93,6 +93,8 @@ openAPISessionServer :: SessionId -> OpenAPI.SessionAPI (AsServerT PrimerIO)
 openAPISessionServer sid =
   OpenAPI.SessionAPI
     { OpenAPI.getProgram = API.getProgram' sid
+    , OpenAPI.getSessionName = API.getSessionName sid
+    , OpenAPI.setSessionName = renameSession sid
     }
 
 apiServer :: S.RootAPI (AsServerT PrimerIO)

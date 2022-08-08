@@ -24,6 +24,7 @@ import Servant (
   JSON,
   NamedRoutes,
   Post,
+  Put,
   QueryFlag,
   ReqBody,
   Summary,
@@ -95,11 +96,26 @@ data SessionsAPI mode = SessionsAPI
   deriving (Generic)
 
 -- | The session-specific bits of the API.
-newtype SessionAPI mode = SessionAPI
+data SessionAPI mode = SessionAPI
   { getProgram ::
       mode
         :- "program"
           :> Summary "Get the current program state"
           :> OpId "getProgram" Get '[JSON] API.Prog
+  , getSessionName ::
+      mode
+        :- "session-name"
+          :> Summary "Get the specified session's name"
+          :> OpId "getSessionName" Get '[JSON] Text
+  , setSessionName ::
+      mode
+        :- "session-name"
+          :> Summary "Set the specified session's name"
+          :> Description
+              "Attempt to set the current session name. Returns the actual \
+              \new session name. (Note that this may differ from the name \
+              \provided.)"
+          :> ReqBody '[JSON] Text
+          :> OpId "setSessionName" Put '[JSON] Text
   }
   deriving (Generic)
