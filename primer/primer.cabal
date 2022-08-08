@@ -32,9 +32,9 @@ library
     Primer.Module
     Primer.Name
     Primer.Name.Fresh
+    Primer.Prelude
     Primer.Prelude.Logic
     Primer.Prelude.Utils
-    Primer.Prelude
     Primer.Pretty
     Primer.Primitives
     Primer.Questions
