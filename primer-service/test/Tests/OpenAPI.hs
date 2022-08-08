@@ -2,8 +2,16 @@ module Tests.OpenAPI where
 
 import Foreword
 
+import Data.Aeson (ToJSON)
 import Data.Aeson.Encode.Pretty (encodePretty)
+import Data.OpenApi (ToSchema, validatePrettyToJSON)
+import Hedgehog (Gen, annotate, failure, forAll)
+import Hedgehog.Gen qualified as G
+import Hedgehog.Range qualified as R
+import Primer.Database (SessionName, safeMkSessionName)
+import Primer.OpenAPI ()
 import Primer.Server (openAPIInfo)
+import Tasty (Property, property)
 import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.Golden (goldenVsString)
 
@@ -21,3 +29,16 @@ test_golden =
         pure $
           encodePretty openAPIInfo
     ]
+
+testToJSON :: (ToJSON a, ToSchema a, Show a) => Gen a -> Property
+testToJSON g = property $ do
+  x <- forAll g
+  case validatePrettyToJSON x of
+    Nothing -> pure ()
+    Just errs -> annotate errs >> failure
+
+genSessionName :: Gen SessionName
+genSessionName = safeMkSessionName <$> G.text (R.linear 1 100) G.unicode
+
+tasty_SessionName :: Property
+tasty_SessionName = testToJSON genSessionName
