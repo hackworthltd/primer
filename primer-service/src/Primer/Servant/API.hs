@@ -136,12 +136,12 @@ data SessionAPI mode = SessionAPI
           :> Get '[JSON] Prog
   , getSessionName ::
       mode
-        :- "session-name"
+        :- "name"
           :> Summary "Get the specified session's name"
           :> Get '[JSON] Text
   , setSessionName ::
       mode
-        :- "session-name"
+        :- "name"
           :> Summary "Set the specified session's name"
           :> Description
               "Attempt to set the current session name. Returns the actual \

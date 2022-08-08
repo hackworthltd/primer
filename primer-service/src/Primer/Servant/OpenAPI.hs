@@ -104,12 +104,12 @@ data SessionAPI mode = SessionAPI
           :> OpId "getProgram" Get '[JSON] API.Prog
   , getSessionName ::
       mode
-        :- "session-name"
+        :- "name"
           :> Summary "Get the specified session's name"
           :> OpId "getSessionName" Get '[JSON] Text
   , setSessionName ::
       mode
-        :- "session-name"
+        :- "name"
           :> Summary "Set the specified session's name"
           :> Description
               "Attempt to set the current session name. Returns the actual \

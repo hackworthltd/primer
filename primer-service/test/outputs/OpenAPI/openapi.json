@@ -397,40 +397,7 @@
                 "summary": "Create a new session and return its ID"
             }
         },
-        "/openapi/sessions/{sessionId}/program": {
-            "get": {
-                "operationId": "getProgram",
-                "parameters": [
-                    {
-                        "description": "The session ID",
-                        "in": "path",
-                        "name": "sessionId",
-                        "required": true,
-                        "schema": {
-                            "format": "uuid",
-                            "type": "string"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "content": {
-                            "application/json;charset=utf-8": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/Prog"
-                                }
-                            }
-                        },
-                        "description": ""
-                    },
-                    "404": {
-                        "description": "`sessionId` not found"
-                    }
-                },
-                "summary": "Get the current program state"
-            }
-        },
-        "/openapi/sessions/{sessionId}/session-name": {
+        "/openapi/sessions/{sessionId}/name": {
             "get": {
                 "operationId": "getSessionName",
                 "parameters": [
@@ -505,6 +472,39 @@
                     }
                 },
                 "summary": "Set the specified session's name"
+            }
+        },
+        "/openapi/sessions/{sessionId}/program": {
+            "get": {
+                "operationId": "getProgram",
+                "parameters": [
+                    {
+                        "description": "The session ID",
+                        "in": "path",
+                        "name": "sessionId",
+                        "required": true,
+                        "schema": {
+                            "format": "uuid",
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json;charset=utf-8": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Prog"
+                                }
+                            }
+                        },
+                        "description": ""
+                    },
+                    "404": {
+                        "description": "`sessionId` not found"
+                    }
+                },
+                "summary": "Get the current program state"
             }
         },
         "/openapi/version": {
