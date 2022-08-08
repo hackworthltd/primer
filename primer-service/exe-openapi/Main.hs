@@ -8,4 +8,4 @@ import Primer.Server (
  )
 
 main :: IO ()
-main = BSL.putStrLn $ encodePretty openAPIInfo
+main = BSL.putStr $ encodePretty openAPIInfo
