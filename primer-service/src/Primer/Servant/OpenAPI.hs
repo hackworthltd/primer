@@ -60,7 +60,7 @@ data SessionsAPI mode = SessionsAPI
               \obviously be authentication-scoped and only return the list of \
               \sessions that the caller is authorized to see."
           :> OpId "getSessionList" Get '[JSON] (Paginated Session)
-  , withSession ::
+  , sessionAPI ::
       mode
         :- Capture' '[Description "The session ID"] "sessionId" SessionId
           :> NamedRoutes SessionAPI

@@ -78,7 +78,7 @@ openAPIServer =
   OpenAPI.SessionsAPI
     { OpenAPI.createSession = newSession
     , OpenAPI.getSessionList = \b p -> pagedDefaultClamp 100 p $ listSessions b
-    , OpenAPI.withSession = openAPISessionServer
+    , OpenAPI.sessionAPI = openAPISessionServer
     }
 
 openAPISessionServer :: SessionId -> OpenAPI.SessionAPI (AsServerT PrimerIO)
