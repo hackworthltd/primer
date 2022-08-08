@@ -36,7 +36,7 @@ import Servant.OpenApi.OperationId (OpId)
 type Spec = "openapi.json" :> Get '[JSON] OpenApi
 
 -- | The Primer OpenAPI API.
-type API = "api" :> ("sessions" :> NamedRoutes SessionsAPI)
+type API = "openapi" :> ("sessions" :> NamedRoutes SessionsAPI)
 
 -- | The Primer OpenAPI sessions API.
 --
