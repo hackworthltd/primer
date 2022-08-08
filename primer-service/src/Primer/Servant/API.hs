@@ -28,13 +28,16 @@ import Primer.Core (
   Type',
  )
 import Primer.Database (
-  Session,
   SessionId,
  )
 import Primer.Name (Name)
-import Primer.Pagination (
-  Paginated,
-  PaginationParams,
+import Primer.Servant.Types (
+  CopySession,
+  CreateSession,
+  GetSessionList,
+  GetSessionName,
+  GetVersion,
+  SetSessionName,
  )
 import Servant (
   Capture',
@@ -45,7 +48,6 @@ import Servant (
   NoContent (..),
   Post,
   Put,
-  QueryFlag,
   ReqBody,
   Summary,
   (:>),
@@ -58,23 +60,8 @@ import Servant.API.Generic (
 type API = "api" :> NamedRoutes RootAPI
 
 data RootAPI mode = RootAPI
-  { copySession ::
-      mode
-        :- "copy-session"
-          :> Summary "Copy a session to a new session"
-          :> Description
-              "Copy the session whose ID is given in the request body to a \
-              \new session, and return the new session's ID. Note that this \
-              \method can be called at any time and is not part of the \
-              \session-specific API, as it's not scoped by the current \
-              \session ID like those methods are."
-          :> ReqBody '[JSON] SessionId
-          :> Post '[JSON] SessionId
-  , getVersion ::
-      mode
-        :- "version"
-          :> Summary "Get the current server version"
-          :> Get '[JSON] Text
+  { copySession :: CopySession mode
+  , getVersion :: GetVersion mode
   , adminAPI ::
       mode
         :- "admin"
@@ -102,24 +89,8 @@ newtype AdminAPI mode = AdminAPI
 
 -- | The sessions API.
 data SessionsAPI mode = SessionsAPI
-  { createSession ::
-      mode
-        :- Summary "Create a new session and return its ID"
-          :> Post '[JSON] SessionId
-  , getSessionList ::
-      mode
-        :- QueryFlag "inMemory"
-          :> PaginationParams
-          :> Summary "Get the list of sessions"
-          :> Description
-              "Get a list of all sessions and their human-readable names. By \
-              \default, this method returns the list of all sessions in the \
-              \persistent database, but optionally it can return just the list \
-              \of all sessions in memory, which is mainly useful for \
-              \testing. Note that in a production system, this endpoint should \
-              \obviously be authentication-scoped and only return the list of \
-              \sessions that the caller is authorized to see."
-          :> Get '[JSON] (Paginated Session)
+  { createSession :: CreateSession mode
+  , getSessionList :: GetSessionList mode
   , sessionAPI ::
       mode
         :- Capture' '[Description "The session ID"] "sessionId" SessionId
@@ -134,21 +105,8 @@ data SessionAPI mode = SessionAPI
         :- "program"
           :> Summary "Get the current program program state"
           :> Get '[JSON] Prog
-  , getSessionName ::
-      mode
-        :- "name"
-          :> Summary "Get the specified session's name"
-          :> Get '[JSON] Text
-  , setSessionName ::
-      mode
-        :- "name"
-          :> Summary "Set the specified session's name"
-          :> Description
-              "Attempt to set the current session name. Returns the actual \
-              \new session name. (Note that this may differ from the name \
-              \provided.)"
-          :> ReqBody '[JSON] Text
-          :> Put '[JSON] Text
+  , getSessionName :: GetSessionName mode
+  , setSessionName :: SetSessionName mode
   , editSession ::
       mode
         :- "edit"
