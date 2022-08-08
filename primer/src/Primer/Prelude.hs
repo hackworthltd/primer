@@ -38,7 +38,6 @@ prelude = do
   defs <- traverse sequence [("not", notDef), ("and", andDef), ("or", orDef)]
   pure Module{moduleName = modName, moduleTypes = Map.empty, moduleDefs = Map.fromList defs}
 
-
 modName :: ModuleName
 modName = mkSimpleModuleName "Prelude"
 
