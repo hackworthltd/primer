@@ -129,7 +129,12 @@ data SessionsAPI mode = SessionsAPI
 
 -- | The per-session bits of the API.
 data SessionAPI mode = SessionAPI
-  { getSessionName ::
+  { getProgram ::
+      mode
+        :- "program"
+          :> Summary "Get the current program program state"
+          :> Get '[JSON] Prog
+  , getSessionName ::
       mode
         :- "session-name"
           :> Summary "Get the specified session's name"
