@@ -8,6 +8,7 @@ import Data.OpenApi (ToSchema, validatePrettyToJSON)
 import Hedgehog (Gen, annotate, failure, forAll)
 import Hedgehog.Gen qualified as G
 import Hedgehog.Range qualified as R
+import Primer.Core (ID (ID))
 import Primer.Database (SessionName, safeMkSessionName)
 import Primer.OpenAPI ()
 import Primer.Server (openAPIInfo)
@@ -42,3 +43,7 @@ genSessionName = safeMkSessionName <$> G.text (R.linear 1 100) G.unicode
 
 tasty_SessionName :: Property
 tasty_SessionName = testToJSON genSessionName
+
+-- NB: don't want to use genID, as that is just "next free ID"
+tasty_ID :: Property
+tasty_ID = testToJSON $ ID <$> G.int (R.linear 0 1000)
