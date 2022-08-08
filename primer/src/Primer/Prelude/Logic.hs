@@ -140,8 +140,8 @@ impliesDef = do
           "y"
           ( case_
               (lvar "x")
-              [ branch B.cTrue [] (case_ (lvar "y") [branch B.cTrue [] $ con B.cTrue, branch B.cFalse [] $ con B.cTrue])
-              , branch B.cFalse [] (case_ (lvar "y") [branch B.cTrue [] $ con B.cTrue, branch B.cFalse [] $ con B.cFalse])
+              [ branch B.cTrue [] (case_ (lvar "y") [branch B.cTrue [] $ con B.cTrue, branch B.cFalse [] $ con B.cFalse])
+              , branch B.cFalse [] (case_ (lvar "y") [branch B.cTrue [] $ con B.cTrue, branch B.cFalse [] $ con B.cTrue])
               ]
           )
       )
