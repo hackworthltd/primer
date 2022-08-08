@@ -4,35 +4,26 @@ module Tests.Prelude.TypeCheck where
 
 import Foreword
 
-import Primer.Core (ASTDef (astDefExpr, astDefType), Def (DefAST))
-import Primer.Core.DSL (ann, create')
+import Primer.Core.DSL (create')
 import Primer.Prelude (prelude)
-import Primer.Prelude.Logic (andDef, impliesDef, notDef, orDef, xorDef)
-import Protolude.Error (error)
 
 import Primer.Builtins (builtinModule)
-import Primer.Typecheck (SmartHoles (NoSmartHoles), buildTypingContextFromModules)
-import Test.Tasty.HUnit (Assertion)
-import Tests.Typecheck (TypecheckTestM, expectTypedIn)
+import Primer.Module (Module)
+import Primer.Typecheck (
+  CheckEverythingRequest (CheckEverything, toCheck, trusted),
+  SmartHoles (NoSmartHoles),
+  checkEverything,
+ )
+import Test.Tasty.HUnit (Assertion, assertFailure)
+import Tests.Typecheck (TypecheckTestM, runTypecheckTestM)
 
-checkDef :: TypecheckTestM Def -> Assertion
-checkDef def = expectTypedIn (buildTypingContextFromModules [create' prelude, builtinModule] NoSmartHoles) $ do
-  def >>= \case
-    DefAST d ->
-      pure (astDefExpr d) `ann` pure (astDefType d)
-    _ -> error "this can't happen"
+checkPreludeRequest :: CheckEverythingRequest
+checkPreludeRequest = CheckEverything{trusted = [], toCheck = [create' prelude, builtinModule]}
 
-unit_not :: Assertion
-unit_not = checkDef notDef
+checkPrelude :: TypecheckTestM [Module]
+checkPrelude = checkEverything NoSmartHoles checkPreludeRequest
 
-unit_and :: Assertion
-unit_and = checkDef andDef
-
-unit_or :: Assertion
-unit_or = checkDef orDef
-
-unit_xor :: Assertion
-unit_xor = checkDef xorDef
-
-unit_implies :: Assertion
-unit_implies = checkDef impliesDef
+unit_check_prelude :: Assertion
+unit_check_prelude = case runTypecheckTestM NoSmartHoles checkPrelude of
+  Left err -> assertFailure $ show err
+  Right _ -> pure ()
