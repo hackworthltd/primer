@@ -6,7 +6,8 @@ import Foreword
 
 import Primer.Core (ASTDef (astDefExpr, astDefType), Def (DefAST))
 import Primer.Core.DSL (ann, create')
-import Primer.Prelude (andDef, impliesDef, notDef, orDef, prelude, xorDef)
+import Primer.Prelude (prelude)
+import Primer.Prelude.Logic (andDef, impliesDef, notDef, orDef, xorDef)
 import Protolude.Error (error)
 
 import Primer.Builtins (builtinModule)
