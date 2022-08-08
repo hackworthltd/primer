@@ -110,6 +110,7 @@ test-suite primer-test
     Tests.Gen.Core.Typed
     Tests.Module
     Tests.NullDb
+    Tests.Prelude.Logic
     Tests.Prelude.TypeCheck
     Tests.Pretty
     Tests.Primitives
