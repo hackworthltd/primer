@@ -14,10 +14,6 @@ module TestUtils (
   zeroTypeIDs,
   clearMeta,
   clearTypeMeta,
-  Property,
-  property,
-  withTests,
-  withDiscards,
   runAPI,
 ) where
 
@@ -27,10 +23,8 @@ import Control.Concurrent.STM (
   newTBQueueIO,
  )
 import Control.Monad.Fresh (MonadFresh)
-import Data.Coerce (coerce)
-import Data.String (String, fromString)
+import Data.String (String)
 import Data.Typeable (typeOf)
-import Hedgehog qualified as H
 import Optics (over, set, view)
 import Primer.API (
   Env (..),
@@ -71,13 +65,11 @@ import Primer.Database (
 import Primer.Name (Name (unName))
 import Primer.Primitives (allPrimDefs)
 import StmContainers.Map qualified as StmMap
-import Test.Tasty.Discover qualified as TD
 import Test.Tasty.HUnit (
   assertBool,
   assertFailure,
  )
 import Test.Tasty.HUnit qualified as HUnit
-import Test.Tasty.Hedgehog qualified as TH
 
 withPrimDefs :: MonadFresh ID m => (Map GVarName PrimDef -> m a) -> m a
 withPrimDefs f = do
@@ -142,26 +134,6 @@ assertException msg p action = do
   where
     wrongException e = msg <> " threw " <> show e <> ", but we expected " <> exceptionType
     exceptionType = (show . typeOf) p
-
--- | Work around tasty changes which give deprecation warnings for tasty-discover generated code
-newtype Property = Property
-  { unProperty :: H.Property
-  }
-
-instance TD.Tasty Property where
-  tasty info =
-    pure
-      . TH.testPropertyNamed (TD.descriptionOf info) (fromString (TD.descriptionOf info))
-      . unProperty
-
-property :: HasCallStack => H.PropertyT IO () -> Property
-property = Property . H.property
-
-withTests :: H.TestLimit -> Property -> Property
-withTests = coerce H.withTests
-
-withDiscards :: H.DiscardLimit -> Property -> Property
-withDiscards = coerce H.withDiscards
 
 -- Run 2 threads: one that serves a 'NullDb', and one that runs Primer
 -- API actions. This allows us to simulate a database and API service.

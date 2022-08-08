@@ -9,7 +9,6 @@ import Data.Map qualified as M
 import Data.Map qualified as Map
 import Data.Set qualified as S
 import Data.String (unlines)
-import Gen.Core.Typed (WT, forAllT, genChk, genSyn, genWTType, isolateWT, propertyWT)
 import Hedgehog hiding (Property, Var, check, property, test, withDiscards, withTests)
 import Hedgehog.Gen qualified as Gen
 import Hedgehog.Internal.Property (LabelName (unLabelName))
@@ -53,6 +52,7 @@ import Primer.Examples qualified as Examples (
   map',
   odd,
  )
+import Primer.Gen.Core.Typed (WT, forAllT, genChk, genSyn, genWTType, isolateWT, propertyWT)
 import Primer.Module (Module (Module, moduleDefs, moduleName, moduleTypes), moduleDefsQualified, moduleTypesQualified)
 import Primer.Name (Name)
 import Primer.Primitives (primitiveGVar, primitiveModule, tChar, tInt)
@@ -62,14 +62,16 @@ import Primer.Typecheck (
   extendGlobalCxt,
   typeDefs,
  )
-import Test.Tasty.HUnit (Assertion, assertBool, assertFailure, (@?=))
-import TestM
-import TestUtils (
+import Tasty (
   Property,
   property,
   withDiscards,
-  withPrimDefs,
   withTests,
+ )
+import Test.Tasty.HUnit (Assertion, assertBool, assertFailure, (@?=))
+import TestM
+import TestUtils (
+  withPrimDefs,
   zeroIDs,
  )
 import Tests.Action.Prog (runAppTestM)

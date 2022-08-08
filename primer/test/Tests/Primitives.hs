@@ -5,7 +5,6 @@ module Tests.Primitives where
 import Foreword
 
 import Data.Map qualified as M
-import Gen.Core.Typed (forAllT, genPrimCon, propertyWT)
 import Hedgehog (assert)
 import Hedgehog.Gen (choice)
 import Primer.Core (
@@ -20,6 +19,7 @@ import Primer.Core (
   primConName,
  )
 import Primer.Core.DSL (char, tcon)
+import Primer.Gen.Core.Typed (forAllT, genPrimCon, propertyWT)
 import Primer.Primitives (allPrimTypeDefs, primitiveModule, tChar)
 import Primer.Typecheck (
   SmartHoles (NoSmartHoles),
@@ -30,7 +30,7 @@ import Primer.Typecheck (
   checkValidContext,
   synth,
  )
-import TestUtils (Property)
+import Tasty (Property)
 
 import Primer.Builtins (builtinModule)
 import Test.Tasty.HUnit (Assertion, assertBool, (@?=))

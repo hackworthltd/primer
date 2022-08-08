@@ -5,10 +5,6 @@ import Foreword
 
 import Data.Data (Data)
 import Data.Generics.Uniplate.Data (universe)
-import Gen.Core.Raw (
-  evalExprGen,
-  genExpr,
- )
 import Hedgehog hiding (
   Action,
   Property,
@@ -32,6 +28,10 @@ import Primer.Core (
   getID,
  )
 import Primer.Core.DSL
+import Primer.Gen.Core.Raw (
+  evalExprGen,
+  genExpr,
+ )
 import Primer.Typecheck (SmartHoles (NoSmartHoles, SmartHoles))
 import Primer.Zipper (
   down,
@@ -41,9 +41,10 @@ import Primer.Zipper (
   unfocusExpr,
   unfocusType,
  )
+import Tasty (Property, property)
 import Test.Tasty.HUnit (Assertion, assertFailure, (@?=))
 import TestM (evalTestM)
-import TestUtils (Property, clearMeta, constructCon, constructRefinedCon, constructTCon, property)
+import TestUtils (clearMeta, constructCon, constructRefinedCon, constructTCon)
 
 -- Note: 'maximum' is partial, but we believe that 'maxID' itself is
 -- safe due to the fact that 'universe x' always contains at least

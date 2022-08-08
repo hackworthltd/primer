@@ -4,10 +4,6 @@
 module Tests.Gen.App where
 
 import Foreword
-import Gen.App (genProg)
-import Gen.Core.Typed (
-  propertyWT,
- )
 import Hedgehog (
   annotateShow,
   failure,
@@ -15,9 +11,13 @@ import Hedgehog (
 import Hedgehog.Internal.Property (forAllT)
 import Primer.App (checkProgWellFormed)
 import Primer.Builtins (builtinModule)
+import Primer.Gen.App (genProg)
+import Primer.Gen.Core.Typed (
+  propertyWT,
+ )
 import Primer.Primitives (primitiveModule)
 import Primer.Typecheck (SmartHoles (NoSmartHoles), TypeError)
-import TestUtils (Property, withDiscards, withTests)
+import Tasty (Property, withDiscards, withTests)
 
 tasty_genProg_well_formed :: Property
 tasty_genProg_well_formed = withTests 1000 $

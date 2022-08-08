@@ -5,13 +5,6 @@ import Foreword hiding (diff)
 import Control.Monad.Fresh (MonadFresh)
 import Data.Map qualified as M
 import Data.Set qualified as S
-import Gen.Core.Typed (
-  forAllT,
-  freshTyVarNameForCxt,
-  genInstApp,
-  genWTKind,
-  genWTType,
- )
 import Hedgehog (
   annotateShow,
   diff,
@@ -34,6 +27,13 @@ import Primer.Core (
   valConType,
  )
 import Primer.Core.Utils (forgetMetadata, freeVarsTy, generateIDs, noHoles)
+import Primer.Gen.Core.Typed (
+  forAllT,
+  freshTyVarNameForCxt,
+  genInstApp,
+  genWTKind,
+  genWTType,
+ )
 import Primer.Name (NameCounter)
 import Primer.Primitives (primitiveModule)
 import Primer.Refine (Inst (InstAPP, InstApp, InstUnconstrainedAPP), refine)
@@ -48,9 +48,9 @@ import Primer.Typecheck (
   mkTAppCon,
   typeDefs,
  )
+import Tasty (Property, withDiscards)
 import Test.Tasty.HUnit (Assertion, (@?=))
 import TestM (evalTestM)
-import TestUtils (Property, withDiscards)
 import Tests.Gen.Core.Typed (propertyWTInExtendedLocalGlobalCxt, synthTest)
 
 defaultCxt :: Cxt

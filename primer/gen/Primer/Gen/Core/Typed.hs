@@ -6,8 +6,8 @@
 -- This module generates well-typed terms and types.
 -- It is however, slow and the distribution is not very even.
 --
--- For quickly generating non-well-typed-or-scoped terms, see "Gen.Core.Raw".
-module Gen.Core.Typed (
+-- For quickly generating non-well-typed-or-scoped terms, see "Primer.Gen.Core.Raw".
+module Primer.Gen.Core.Typed (
   WT,
   isolateWT,
   genWTType,
@@ -33,7 +33,6 @@ import Control.Monad.Fresh (MonadFresh, fresh)
 import Control.Monad.Morph (hoist)
 import Control.Monad.Reader (mapReaderT)
 import Data.Map qualified as M
-import Gen.Core.Raw (genLVarName, genModuleName, genName, genTyVarName)
 import Hedgehog (
   GenT,
   MonadGen,
@@ -69,6 +68,7 @@ import Primer.Core (
   valConType,
  )
 import Primer.Core.Utils (freeVarsTy)
+import Primer.Gen.Core.Raw (genLVarName, genModuleName, genName, genTyVarName)
 import Primer.Module (Module (..))
 import Primer.Name (Name, NameCounter, freshName, unName, unsafeMkName)
 import Primer.Refine (Inst (InstAPP, InstApp, InstUnconstrainedAPP), refine)
@@ -96,8 +96,8 @@ import Primer.Typecheck (
   primConInScope,
   typeDefs,
  )
+import Tasty (Property, property)
 import TestM (TestM, evalTestM, isolateTestM)
-import TestUtils (Property, property)
 
 {-
 Generate well scoped and typed expressions.

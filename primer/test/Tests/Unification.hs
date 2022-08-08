@@ -5,16 +5,6 @@ import Foreword hiding (diff)
 import Control.Monad.Fresh (MonadFresh)
 import Data.Map qualified as M
 import Data.Set qualified as S
-import Gen.Core.Typed (
-  WT,
-  forAllT,
-  freshLVarNameForCxt,
-  freshTyVarNameForCxt,
-  genCxtExtendingGlobal,
-  genWTKind,
-  genWTType,
-  propertyWT,
- )
 import Hedgehog (
   GenT,
   PropertyT,
@@ -37,6 +27,16 @@ import Primer.Core (
   TypeDef (TypeDefAST),
  )
 import Primer.Core.Utils (forgetTypeMetadata, freeVarsTy, generateTypeIDs)
+import Primer.Gen.Core.Typed (
+  WT,
+  forAllT,
+  freshLVarNameForCxt,
+  freshTyVarNameForCxt,
+  genCxtExtendingGlobal,
+  genWTKind,
+  genWTType,
+  propertyWT,
+ )
 import Primer.Module (Module)
 import Primer.Name (NameCounter)
 import Primer.Primitives (primitiveModule, tInt)
@@ -52,9 +52,10 @@ import Primer.Typecheck (
   extendTypeDefCxt,
  )
 import Primer.Unification (unify)
+import Tasty (Property, withDiscards)
 import Test.Tasty.HUnit (Assertion, assertBool, (@?=))
 import TestM (evalTestM)
-import TestUtils (Property, tcn, withDiscards)
+import TestUtils (tcn)
 import Tests.Gen.Core.Typed (
   checkKindTest,
   checkValidContextTest,
