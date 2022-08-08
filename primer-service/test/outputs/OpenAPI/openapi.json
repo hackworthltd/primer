@@ -398,6 +398,24 @@
                 },
                 "summary": "Get the current program state"
             }
+        },
+        "/openapi/version": {
+            "get": {
+                "operationId": "getVersion",
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json;charset=utf-8": {
+                                "schema": {
+                                    "type": "string"
+                                }
+                            }
+                        },
+                        "description": ""
+                    }
+                },
+                "summary": "Get the current server version"
+            }
         }
     }
 }

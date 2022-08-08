@@ -1,6 +1,7 @@
 -- | An OpenAPI service for the Primer API.
 module Primer.Servant.OpenAPI (
   API,
+  RootAPI (..),
   SessionsAPI (..),
   SessionAPI (..),
   Spec,
@@ -36,7 +37,20 @@ import Servant.OpenApi.OperationId (OpId)
 type Spec = "openapi.json" :> Get '[JSON] OpenApi
 
 -- | The Primer OpenAPI API.
-type API = "openapi" :> ("sessions" :> NamedRoutes SessionsAPI)
+type API = "openapi" :> NamedRoutes RootAPI
+
+data RootAPI mode = RootAPI
+  { getVersion ::
+      mode
+        :- "version"
+          :> Summary "Get the current server version"
+          :> OpId "getVersion" Get '[JSON] Text
+  , sessionsAPI ::
+      mode
+        :- "sessions"
+          :> NamedRoutes SessionsAPI
+  }
+  deriving (Generic)
 
 -- | The Primer OpenAPI sessions API.
 --
