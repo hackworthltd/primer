@@ -4,7 +4,7 @@
             "Def": {
                 "properties": {
                     "name": {
-                        "type": "string"
+                        "$ref": "#/components/schemas/GlobalName"
                     },
                     "term": {
                         "$ref": "#/components/schemas/Tree"
@@ -16,6 +16,25 @@
                 "required": [
                     "name",
                     "type_"
+                ],
+                "type": "object"
+            },
+            "GlobalName": {
+                "properties": {
+                    "baseName": {
+                        "type": "string"
+                    },
+                    "qualifiedModule": {
+                        "items": {
+                            "type": "string"
+                        },
+                        "minItems": 1,
+                        "type": "array"
+                    }
+                },
+                "required": [
+                    "qualifiedModule",
+                    "baseName"
                 ],
                 "type": "object"
             },
@@ -39,7 +58,7 @@
                     },
                     "types": {
                         "items": {
-                            "type": "string"
+                            "$ref": "#/components/schemas/GlobalName"
                         },
                         "type": "array"
                     }

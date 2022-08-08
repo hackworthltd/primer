@@ -13,6 +13,8 @@ module Primer.Gen.Core.Raw (
   genLVarName,
   genTyVarName,
   genTyConName,
+  genValConName,
+  genGVarName,
   genKind,
   genType,
   genExpr,
@@ -28,6 +30,7 @@ import Primer.Core (
   CaseBranch' (CaseBranch),
   Expr,
   Expr' (..),
+  GVarName,
   ID (..),
   Kind (..),
   LVarName,
@@ -110,7 +113,10 @@ genLocalVar :: ExprGen Expr
 genLocalVar = Var <$> genMeta <*> (LocalVarRef <$> genLVarName)
 
 genGlobalVar :: ExprGen Expr
-genGlobalVar = Var <$> genMeta <*> ((\m n -> GlobalVarRef $ qualifyName m n) <$> genModuleName <*> genName)
+genGlobalVar = Var <$> genMeta <*> (GlobalVarRef <$> genGVarName)
+
+genGVarName :: ExprGen GVarName
+genGVarName = qualifyName <$> genModuleName <*> genName
 
 genLet :: ExprGen Expr
 genLet = Let <$> genMeta <*> genLVarName <*> genExpr <*> genExpr

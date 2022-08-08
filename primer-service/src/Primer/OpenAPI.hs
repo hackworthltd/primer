@@ -7,12 +7,18 @@ module Primer.OpenAPI (
 ) where
 
 import Data.OpenApi (ToSchema (declareNamedSchema), fromAesonOptions, genericDeclareNamedSchema)
-import Data.OpenApi.Internal.Schema (GToSchema)
+import Data.OpenApi.Internal.Schema (GToSchema, rename)
 import Deriving.Aeson (AesonOptions (aesonOptions))
 import Primer.API (Def, Module, NodeBody, NodeFlavor, Prog, Tree)
-import Primer.Core (GlobalName, ID (..), LVarName, ModuleName)
+import Primer.Core (
+  GlobalName,
+  GlobalNameKind (ADefName, ATyCon, AValCon),
+  ID (..),
+  LVarName,
+  ModuleName,
+ )
 import Primer.Database (Session, SessionName)
-import Primer.JSON (CustomJSON)
+import Primer.JSON (CustomJSON, PrimerJSON)
 import Primer.Name (Name)
 
 import Foreword
@@ -42,9 +48,16 @@ deriving newtype instance ToSchema ID
 -- This instance works because the parameter has a phantom role!
 deriving via Text instance (ToSchema Name)
 
--- For GlobalName and LVarName, we must derive ToSchema via Name,
--- as that is how the To/FromJSON instances are derived
-deriving via Name instance Typeable k => ToSchema (GlobalName k)
+-- For GlobalNames, we know the tag is just phantom type information
+-- and they all serialise in the same way. We collapse the distinction
+-- at the openapi level, so api consumers do not have to deal with
+-- three identical types. Note that our openapi interface is a
+-- simplified view, so this collapse is in the correct spirit.
+instance ToSchema (GlobalName 'ADefName) where
+  declareNamedSchema _ = rename (Just "GlobalName") <$> declareNamedSchema (Proxy @(PrimerJSON (GlobalName 'ADefName)))
+deriving via GlobalName 'ADefName instance ToSchema (GlobalName 'ATyCon)
+deriving via GlobalName 'ADefName instance ToSchema (GlobalName 'AValCon)
+
 deriving via Name instance (ToSchema LVarName)
 instance ToSchema Tree
 instance ToSchema NodeBody
