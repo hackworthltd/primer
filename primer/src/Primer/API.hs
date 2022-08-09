@@ -433,7 +433,7 @@ data NodeFlavor
   | FlavorPatternCon
   | FlavorPatternBind
   | FlavorPatternApp
-  deriving (Show, Eq, Generic)
+  deriving (Show, Eq, Generic, Enum, Bounded)
   deriving (ToJSON) via PrimerJSON NodeFlavor
 
 -- | This type is the API's view of a 'App.Prog'

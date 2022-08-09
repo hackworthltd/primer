@@ -10,6 +10,7 @@ import Hedgehog.Gen qualified as G
 import Hedgehog.Range qualified as R
 import Primer.API (
   NodeBody (BoxBody, NoBody, TextBody),
+  NodeFlavor,
   Tree,
   viewTreeExpr,
   viewTreeType,
@@ -102,3 +103,6 @@ tasty_NodeBody =
       , BoxBody <$> genTree
       , pure NoBody
       ]
+
+tasty_NodeFlavor :: Property
+tasty_NodeFlavor = testToJSON $ G.enumBounded @_ @NodeFlavor
