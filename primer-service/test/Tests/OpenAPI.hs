@@ -13,6 +13,7 @@ import Primer.Database (SessionName, safeMkSessionName)
 import Primer.Gen.Core.Raw (
   evalExprGen,
   genGVarName,
+  genLVarName,
   genModuleName,
   genName,
   genTyConName,
@@ -70,3 +71,6 @@ tasty_ValConName = testToJSON $ evalExprGen 0 genValConName
 
 tasty_GVarName :: Property
 tasty_GVarName = testToJSON $ evalExprGen 0 genGVarName
+
+tasty_LVarName :: Property
+tasty_LVarName = testToJSON genLVarName
