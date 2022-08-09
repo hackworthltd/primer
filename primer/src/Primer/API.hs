@@ -26,7 +26,7 @@ module Primer.API (
   Tree,
   NodeBody (..),
   NodeFlavor,
-  Prog,
+  Prog (Prog),
   Module (Module),
   Def (Def),
   getProgram,
@@ -441,7 +441,7 @@ data NodeFlavor
 newtype Prog = Prog
   { modules :: [Module]
   }
-  deriving (Generic)
+  deriving (Generic, Show)
   deriving (ToJSON) via PrimerJSON Prog
 
 -- | This type is the API's view of a 'Module.Module'

@@ -13,6 +13,7 @@ import Primer.API (
   Module (Module),
   NodeBody (BoxBody, NoBody, TextBody),
   NodeFlavor,
+  Prog (Prog),
   Tree,
   viewTreeExpr,
   viewTreeType,
@@ -128,3 +129,6 @@ genModule =
 
 tasty_Module :: Property
 tasty_Module = testToJSON $ evalExprGen 0 genModule
+
+tasty_Prog :: Property
+tasty_Prog = testToJSON $ evalExprGen 0 $ Prog <$> G.list (R.linear 0 3) genModule
