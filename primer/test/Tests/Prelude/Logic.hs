@@ -57,12 +57,12 @@ binaryCorrect name func = traverse_ (testBinary name func) [(x, y) | x <- [True,
 
 testBinary :: GVarName -> (Bool -> Bool -> Bool) -> (Bool, Bool) -> Assertion
 testBinary name func (b1, b2) =
-  let hnoteval :: Expr
-      hnoteval = create' $ bool_ $ func b1 b2
-      mynoteval = evalTestM 0 $ do
+  let haskeval :: Expr
+      haskeval = create' $ bool_ $ func b1 b2
+      preleval = evalTestM 0 $ do
         x <- (gvar name `app` bool_ b1) `app` bool_ b2
         evalFull ty def n d x
-   in mynoteval <~==> Right hnoteval
+   in preleval <~==> Right haskeval
   where
     ty = moduleTypesQualified builtinModule <> moduleTypesQualified prelude'
     def = moduleDefsQualified builtinModule <> moduleDefsQualified prelude'
