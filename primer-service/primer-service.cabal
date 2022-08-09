@@ -15,6 +15,7 @@ library
     Primer.Pagination
     Primer.Servant.API
     Primer.Servant.OpenAPI
+    Primer.Servant.Types
     Primer.Server
 
   hs-source-dirs:     src
