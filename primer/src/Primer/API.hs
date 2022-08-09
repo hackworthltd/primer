@@ -28,7 +28,7 @@ module Primer.API (
   NodeFlavor,
   Prog,
   Module,
-  Def,
+  Def (Def),
   getProgram,
   getProgram',
   getSessionName,
@@ -467,7 +467,7 @@ data Def = Def
   , term :: Maybe Tree
   -- ^ definitions with no associated tree are primitives
   }
-  deriving (Generic)
+  deriving (Generic, Show)
   deriving (ToJSON) via PrimerJSON Def
 
 viewProg :: App.Prog -> Prog

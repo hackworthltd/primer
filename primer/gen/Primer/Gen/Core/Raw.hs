@@ -5,6 +5,7 @@
 --
 -- For generating well-typed terms, see "Primer.Gen.Core.Typed".
 module Primer.Gen.Core.Raw (
+  ExprGen,
   runExprGen,
   evalExprGen,
   genID,

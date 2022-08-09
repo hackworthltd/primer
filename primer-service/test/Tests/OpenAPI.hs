@@ -9,6 +9,7 @@ import Hedgehog (Gen, annotate, failure, forAll)
 import Hedgehog.Gen qualified as G
 import Hedgehog.Range qualified as R
 import Primer.API (
+  Def (Def),
   NodeBody (BoxBody, NoBody, TextBody),
   NodeFlavor,
   Tree,
@@ -18,6 +19,7 @@ import Primer.API (
 import Primer.Core (ID (ID))
 import Primer.Database (SessionName, safeMkSessionName)
 import Primer.Gen.Core.Raw (
+  ExprGen,
   evalExprGen,
   genExpr,
   genGVarName,
@@ -89,11 +91,13 @@ tasty_Tree = testToJSON genTree
 
 -- We only test the trees which we create by viewing either a Type or Expr
 genTree :: Gen Tree
-genTree =
-  G.choice
-    [ viewTreeExpr <$> evalExprGen 0 genExpr
-    , viewTreeType <$> evalExprGen 0 genType
-    ]
+genTree = evalExprGen 0 $ G.choice [genExprTree, genTypeTree]
+
+genExprTree :: ExprGen Tree
+genExprTree = viewTreeExpr <$> genExpr
+
+genTypeTree :: ExprGen Tree
+genTypeTree = viewTreeType <$> genType
 
 tasty_NodeBody :: Property
 tasty_NodeBody =
@@ -106,3 +110,9 @@ tasty_NodeBody =
 
 tasty_NodeFlavor :: Property
 tasty_NodeFlavor = testToJSON $ G.enumBounded @_ @NodeFlavor
+
+genDef :: ExprGen Def
+genDef = Def <$> genGVarName <*> genExprTree <*> G.maybe genTypeTree
+
+tasty_Def :: Property
+tasty_Def = testToJSON $ evalExprGen 0 genDef
