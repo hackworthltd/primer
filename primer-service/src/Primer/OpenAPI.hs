@@ -6,12 +6,12 @@ module Primer.OpenAPI (
 ) where
 
 import Data.OpenApi (ToSchema)
-import Data.Text (Text)
-import Data.Typeable (Typeable)
 import Primer.API (Def, Module, NodeBody, NodeFlavor, Prog, Tree)
 import Primer.Core (GlobalName, ID (..), LVarName, ModuleName)
 import Primer.Database (Session, SessionName)
 import Primer.Name (Name)
+
+import Foreword
 
 -- $orphanInstances
 --
