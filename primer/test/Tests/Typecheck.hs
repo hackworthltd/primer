@@ -553,7 +553,6 @@ unit_bad_prim_type = case runTypecheckTestM NoSmartHoles $ do
   Right _ -> assertFailure "Expected failure but succeeded"
 
 -- * Helpers
-
 expectTyped :: HasCallStack => TypecheckTestM Expr -> Assertion
 expectTyped m =
   case runTypecheckTestM NoSmartHoles (m >>= synth) of
