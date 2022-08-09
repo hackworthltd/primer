@@ -24,7 +24,7 @@ module Primer.API (
   listSessions,
   getVersion,
   Tree,
-  NodeBody,
+  NodeBody (..),
   NodeFlavor,
   Prog,
   Module,

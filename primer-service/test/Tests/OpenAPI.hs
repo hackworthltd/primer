@@ -8,7 +8,12 @@ import Data.OpenApi (ToSchema, validatePrettyToJSON)
 import Hedgehog (Gen, annotate, failure, forAll)
 import Hedgehog.Gen qualified as G
 import Hedgehog.Range qualified as R
-import Primer.API (Tree, viewTreeExpr, viewTreeType)
+import Primer.API (
+  NodeBody (BoxBody, NoBody, TextBody),
+  Tree,
+  viewTreeExpr,
+  viewTreeType,
+ )
 import Primer.Core (ID (ID))
 import Primer.Database (SessionName, safeMkSessionName)
 import Primer.Gen.Core.Raw (
@@ -88,3 +93,12 @@ genTree =
     [ viewTreeExpr <$> evalExprGen 0 genExpr
     , viewTreeType <$> evalExprGen 0 genType
     ]
+
+tasty_NodeBody :: Property
+tasty_NodeBody =
+  testToJSON $
+    G.choice
+      [ TextBody <$> G.text (R.linear 1 20) G.unicode
+      , BoxBody <$> genTree
+      , pure NoBody
+      ]
