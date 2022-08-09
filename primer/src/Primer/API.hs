@@ -27,7 +27,7 @@ module Primer.API (
   NodeBody (..),
   NodeFlavor,
   Prog,
-  Module,
+  Module (Module),
   Def (Def),
   getProgram,
   getProgram',
@@ -456,7 +456,7 @@ data Module = Module
     -- corresponding value".
     defs :: [Def]
   }
-  deriving (Generic)
+  deriving (Generic, Show)
   deriving (ToJSON) via PrimerJSON Module
 
 -- | This type is the api's view of a 'Primer.Core.Def'

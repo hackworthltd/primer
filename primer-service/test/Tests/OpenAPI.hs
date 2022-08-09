@@ -10,6 +10,7 @@ import Hedgehog.Gen qualified as G
 import Hedgehog.Range qualified as R
 import Primer.API (
   Def (Def),
+  Module (Module),
   NodeBody (BoxBody, NoBody, TextBody),
   NodeFlavor,
   Tree,
@@ -116,3 +117,14 @@ genDef = Def <$> genGVarName <*> genExprTree <*> G.maybe genTypeTree
 
 tasty_Def :: Property
 tasty_Def = testToJSON $ evalExprGen 0 genDef
+
+genModule :: ExprGen Module
+genModule =
+  Module
+    <$> genModuleName
+    <*> G.bool
+    <*> G.list (R.linear 0 3) genTyConName
+    <*> G.list (R.linear 0 3) genDef
+
+tasty_Module :: Property
+tasty_Module = testToJSON $ evalExprGen 0 genModule
