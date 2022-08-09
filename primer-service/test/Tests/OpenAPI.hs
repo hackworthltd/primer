@@ -8,15 +8,18 @@ import Data.OpenApi (ToSchema, validatePrettyToJSON)
 import Hedgehog (Gen, annotate, failure, forAll)
 import Hedgehog.Gen qualified as G
 import Hedgehog.Range qualified as R
+import Primer.API (Tree, viewTreeExpr, viewTreeType)
 import Primer.Core (ID (ID))
 import Primer.Database (SessionName, safeMkSessionName)
 import Primer.Gen.Core.Raw (
   evalExprGen,
+  genExpr,
   genGVarName,
   genLVarName,
   genModuleName,
   genName,
   genTyConName,
+  genType,
   genValConName,
  )
 import Primer.OpenAPI ()
@@ -74,3 +77,14 @@ tasty_GVarName = testToJSON $ evalExprGen 0 genGVarName
 
 tasty_LVarName :: Property
 tasty_LVarName = testToJSON genLVarName
+
+tasty_Tree :: Property
+tasty_Tree = testToJSON genTree
+
+-- We only test the trees which we create by viewing either a Type or Expr
+genTree :: Gen Tree
+genTree =
+  G.choice
+    [ viewTreeExpr <$> evalExprGen 0 genExpr
+    , viewTreeType <$> evalExprGen 0 genType
+    ]
