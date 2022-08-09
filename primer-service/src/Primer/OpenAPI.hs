@@ -39,6 +39,6 @@ instance ToSchema Tree
 instance ToSchema NodeBody
 instance ToSchema NodeFlavor
 instance ToSchema Def
-instance ToSchema ModuleName
+deriving via NonEmpty Name instance ToSchema ModuleName
 instance ToSchema Module
 instance ToSchema Prog

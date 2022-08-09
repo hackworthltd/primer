@@ -31,7 +31,11 @@
                         "type": "boolean"
                     },
                     "modname": {
-                        "$ref": "#/components/schemas/ModuleName"
+                        "items": {
+                            "type": "string"
+                        },
+                        "minItems": 1,
+                        "type": "array"
                     },
                     "types": {
                         "items": {
@@ -45,21 +49,6 @@
                     "editable",
                     "types",
                     "defs"
-                ],
-                "type": "object"
-            },
-            "ModuleName": {
-                "properties": {
-                    "unModuleName": {
-                        "items": {
-                            "type": "string"
-                        },
-                        "minItems": 1,
-                        "type": "array"
-                    }
-                },
-                "required": [
-                    "unModuleName"
                 ],
                 "type": "object"
             },

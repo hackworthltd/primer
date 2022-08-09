@@ -10,7 +10,7 @@ import Hedgehog.Gen qualified as G
 import Hedgehog.Range qualified as R
 import Primer.Core (ID (ID))
 import Primer.Database (SessionName, safeMkSessionName)
-import Primer.Gen.Core.Raw (evalExprGen, genName)
+import Primer.Gen.Core.Raw (evalExprGen, genModuleName, genName)
 import Primer.OpenAPI ()
 import Primer.Server (openAPIInfo)
 import Tasty (Property, property)
@@ -51,3 +51,6 @@ tasty_ID = testToJSON $ ID <$> G.int (R.linear 0 1000)
 
 tasty_Name :: Property
 tasty_Name = testToJSON $ evalExprGen 0 genName
+
+tasty_ModuleName :: Property
+tasty_ModuleName = testToJSON $ evalExprGen 0 genModuleName
