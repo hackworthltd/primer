@@ -9,7 +9,18 @@ import Data.Kind (Type)
 import Data.OpenApi (allOperations)
 import Data.Text (pack)
 import Optics (traversalVL, (%), (?~))
-import Servant (HasServer (hoistServerWithContext, route), ServerT, Verb)
+import Servant (
+  HasServer (hoistServerWithContext, route),
+  ServerT,
+  Verb,
+ )
+import Servant.Client.Core (
+  HasClient (
+    Client,
+    clientWithRoute,
+    hoistClientMonad
+  ),
+ )
 import Servant.OpenApi (HasOpenApi (toOpenApi))
 
 -- | A wrapped 'Verb'
@@ -40,6 +51,16 @@ instance
       (Proxy @(Verb method status ctypes a))
 
 instance
+  HasClient m (Verb method status ctypes a) =>
+  HasClient m (OperationId id method status ctypes a)
+  where
+  type
+    Client m (OperationId _ method status ctypes a) =
+      Client m (Verb method status ctypes a)
+  clientWithRoute pm _ = clientWithRoute pm (Proxy @(Verb method status ctypes a))
+  hoistClientMonad pm _ = hoistClientMonad pm (Proxy @(Verb method status ctypes a))
+
+instance
   (KnownSymbol id, HasOpenApi (Verb method status ctypes a)) =>
   HasOpenApi (OperationId id method status ctypes a)
   where
@@ -66,6 +87,16 @@ instance
       ServerT (verb ctypes a) m
   route _ = route (Proxy @(verb ctypes a))
   hoistServerWithContext _ = hoistServerWithContext (Proxy @(verb ctypes a))
+
+instance
+  HasClient m (verb ctypes a) =>
+  HasClient m (OpId id verb ctypes a)
+  where
+  type
+    Client m (OpId _ verb ctypes a) =
+      Client m (verb ctypes a)
+  clientWithRoute pm _ = clientWithRoute pm (Proxy @(verb ctypes a))
+  hoistClientMonad pm _ = hoistClientMonad pm (Proxy @(verb ctypes a))
 
 instance (KnownSymbol id, HasOpenApi (verb ctypes a)) => HasOpenApi (OpId id verb ctypes a) where
   toOpenApi _ =

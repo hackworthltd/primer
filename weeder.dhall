@@ -14,6 +14,7 @@ let
       [ "^Primer.Database.Rel8.Rel8Db.runRel8Db"
       , "^Primer.Pretty.prettyPrintExpr"
       , "^Primer.Pretty.prettyPrintType"
+      , "^Primer.Client"
       ]
 
 in  { roots = [ "^Main.main$" ] # tmpRoots # ignoreRoots, type-class-roots = True }

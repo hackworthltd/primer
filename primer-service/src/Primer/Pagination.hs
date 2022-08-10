@@ -26,7 +26,7 @@ module Primer.Pagination (
 
 import Foreword
 
-import Data.Aeson (ToJSON)
+import Data.Aeson (FromJSON, ToJSON)
 import Data.OpenApi (ToParamSchema, ToSchema, declareNamedSchema, toParamSchema)
 import Data.OpenApi.Internal.Schema (plain)
 import Optics ((?~))
@@ -42,8 +42,16 @@ import Servant (
   HasServer (hoistServerWithContext, route),
   QueryParam,
   ServerT,
+  ToHttpApiData (toUrlPiece),
   (:>),
   type (.++),
+ )
+import Servant.Client.Core (
+  HasClient (
+    Client,
+    clientWithRoute,
+    hoistClientMonad
+  ),
  )
 import Servant.OpenApi (HasOpenApi (toOpenApi))
 
@@ -52,13 +60,16 @@ import Servant.OpenApi (HasOpenApi (toOpenApi))
 -- via the 'mkPositive' smart constructor.
 newtype Positive = Pos {getPositive :: Int}
   deriving (Eq, Ord)
-  deriving newtype (ToJSON)
+  deriving newtype (FromJSON, ToJSON)
 
 mkPositive :: Int -> Maybe Positive
 mkPositive a = if a > 0 then Just (Pos a) else Nothing
 
 instance FromHttpApiData Positive where
   parseUrlPiece x = parseUrlPiece x >>= maybeToEither ("Non-positive value: " <> x) . mkPositive
+
+instance ToHttpApiData Positive where
+  toUrlPiece = toUrlPiece . getPositive
 
 instance ToParamSchema Positive where
   toParamSchema _ =
@@ -96,6 +107,19 @@ instance
       f handler mpage msize = handler $ Pagination{page = fromMaybe (Pos 1) mpage, size = msize}
   hoistServerWithContext _ proxyCxt nt handler = hoistServerWithContext (Proxy @api) proxyCxt nt . handler
 
+instance
+  HasClient m api =>
+  HasClient m (PaginationParams :> api)
+  where
+  type
+    Client m (PaginationParams :> api) =
+      Pagination -> Client m api
+  clientWithRoute pm _ req pag = clientWithRoute pm (Proxy @(PP api)) req mpage msize
+    where
+      mpage = Just $ page pag
+      msize = size pag
+  hoistClientMonad pm _ f cl = hoistClientMonad pm (Proxy @api) f . cl
+
 instance HasOpenApi (PP api) => HasOpenApi (PaginationParams :> api) where
   toOpenApi _ = toOpenApi (Proxy @(PP api))
 
@@ -108,11 +132,12 @@ data Paginated a = Paginated
   deriving (Generic)
 
 instance ToJSON a => ToJSON (Paginated a)
+instance FromJSON a => FromJSON (Paginated a)
 instance ToSchema a => ToSchema (Paginated a)
 
 -- Used solely for nice bounds in schema
 newtype NonNeg = NonNeg Int
-  deriving newtype (ToJSON)
+  deriving newtype (FromJSON, ToJSON)
 instance ToParamSchema NonNeg where
   toParamSchema _ = toParamSchema (Proxy @Int) & #minimum ?~ 0
 instance ToSchema NonNeg where
@@ -131,6 +156,7 @@ data PaginatedMeta = PM
   , lastPage :: Positive
   }
   deriving (Generic)
+instance FromJSON PaginatedMeta
 instance ToJSON PaginatedMeta
 instance ToSchema PaginatedMeta
 
