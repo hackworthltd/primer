@@ -34,7 +34,7 @@ import Primer.Gen.Core.Raw (
   genValConName,
  )
 import Primer.OpenAPI ()
-import Primer.Pagination (NonNeg, Positive, mkNonNeg, mkPositive)
+import Primer.Pagination (NonNeg, PaginatedMeta (..), Positive, mkNonNeg, mkPositive)
 import Primer.Server (openAPIInfo)
 import Tasty (Property, property)
 import Test.Tasty (TestTree, testGroup)
@@ -155,3 +155,26 @@ genNonNeg = G.just $ mkNonNeg <$> G.int (R.linear 0 1000)
 
 tasty_NonNeg :: Property
 tasty_NonNeg = testToJSON genNonNeg
+
+genPaginatedMeta :: Gen PaginatedMeta
+genPaginatedMeta = do
+  ti <- genNonNeg
+  ps <- genPositive
+  fp <- genPositive
+  pp <- G.maybe genPositive
+  tp <- genPositive
+  np <- G.maybe genPositive
+  lp <- genPositive
+  pure $
+    PM
+      { totalItems = ti
+      , pageSize = ps
+      , firstPage = fp
+      , prevPage = pp
+      , thisPage = tp
+      , nextPage = np
+      , lastPage = lp
+      }
+
+tasty_PaginatedMeta :: Property
+tasty_PaginatedMeta = testToJSON genPaginatedMeta

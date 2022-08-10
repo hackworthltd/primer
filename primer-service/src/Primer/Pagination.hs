@@ -13,6 +13,7 @@ module Primer.Pagination (
   pagedDefaultClamp,
   -- the following are exposed for testing
   meta,
+  PaginatedMeta (PM),
   totalItems,
   pageSize,
   firstPage,
@@ -161,7 +162,7 @@ data PaginatedMeta = PM
   , nextPage :: Maybe Positive
   , lastPage :: Positive
   }
-  deriving (Generic)
+  deriving (Generic, Show)
 instance FromJSON PaginatedMeta
 instance ToJSON PaginatedMeta
 instance ToSchema PaginatedMeta
