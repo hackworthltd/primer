@@ -20,8 +20,10 @@ module Primer.Pagination (
   thisPage,
   nextPage,
   lastPage,
-  getNonNeg,
   items,
+  getNonNeg,
+  NonNeg,
+  mkNonNeg,
 ) where
 
 import Foreword
@@ -137,7 +139,7 @@ instance ToSchema a => ToSchema (Paginated a)
 
 -- Used solely for nice bounds in schema
 newtype NonNeg = NonNeg Int
-  deriving newtype (FromJSON, ToJSON)
+  deriving newtype (FromJSON, ToJSON, Show)
 instance ToParamSchema NonNeg where
   toParamSchema _ = toParamSchema (Proxy @Int) & #minimum ?~ 0
 instance ToSchema NonNeg where
@@ -145,6 +147,10 @@ instance ToSchema NonNeg where
 
 getNonNeg :: NonNeg -> Int
 getNonNeg (NonNeg i) = i
+
+-- For testing purposes
+mkNonNeg :: Int -> Maybe NonNeg
+mkNonNeg a = if a >= 0 then Just (NonNeg a) else Nothing
 
 data PaginatedMeta = PM
   { totalItems :: NonNeg

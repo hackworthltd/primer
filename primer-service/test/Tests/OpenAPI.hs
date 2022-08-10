@@ -34,7 +34,7 @@ import Primer.Gen.Core.Raw (
   genValConName,
  )
 import Primer.OpenAPI ()
-import Primer.Pagination (Positive, mkPositive)
+import Primer.Pagination (NonNeg, Positive, mkNonNeg, mkPositive)
 import Primer.Server (openAPIInfo)
 import Tasty (Property, property)
 import Test.Tasty (TestTree, testGroup)
@@ -149,3 +149,9 @@ genPositive = G.just $ mkPositive <$> G.int (R.linear 1 1000)
 
 tasty_Positive :: Property
 tasty_Positive = testToJSON genPositive
+
+genNonNeg :: Gen NonNeg
+genNonNeg = G.just $ mkNonNeg <$> G.int (R.linear 0 1000)
+
+tasty_NonNeg :: Property
+tasty_NonNeg = testToJSON genNonNeg
