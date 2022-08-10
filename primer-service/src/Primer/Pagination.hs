@@ -59,7 +59,7 @@ import Servant.OpenApi (HasOpenApi (toOpenApi))
 -- @getPositive x > 0@ is always true (because the only way to create one is
 -- via the 'mkPositive' smart constructor.
 newtype Positive = Pos {getPositive :: Int}
-  deriving (Eq, Ord)
+  deriving (Eq, Ord, Show)
   deriving newtype (FromJSON, ToJSON)
 
 mkPositive :: Int -> Maybe Positive
