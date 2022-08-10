@@ -34,7 +34,7 @@ import Primer.Gen.Core.Raw (
   genValConName,
  )
 import Primer.OpenAPI ()
-import Primer.Pagination (NonNeg, PaginatedMeta (..), Positive, mkNonNeg, mkPositive)
+import Primer.Pagination (NonNeg, Paginated (Paginated), PaginatedMeta (..), Positive, mkNonNeg, mkPositive)
 import Primer.Server (openAPIInfo)
 import Tasty (Property, property)
 import Test.Tasty (TestTree, testGroup)
@@ -178,3 +178,6 @@ genPaginatedMeta = do
 
 tasty_PaginatedMeta :: Property
 tasty_PaginatedMeta = testToJSON genPaginatedMeta
+
+tasty_Paginated :: Property
+tasty_Paginated = testToJSON $ Paginated <$> genPaginatedMeta <*> G.list (R.linear 0 10) genSession
