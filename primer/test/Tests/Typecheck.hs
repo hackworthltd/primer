@@ -12,13 +12,15 @@ import Gen.Core.Raw (
  )
 import Gen.Core.Typed (
   forAllT,
+  genChk,
   genSyn,
+  genWTType,
   propertyWT,
  )
-import Hedgehog hiding (Property, check, property, withDiscards, withTests)
+import Hedgehog hiding (Property, Var, check, property, withDiscards, withTests)
 import Hedgehog.Gen qualified as Gen
 import Hedgehog.Range qualified as Range
-import Optics (over, (%))
+import Optics (over, set, (%), (%~))
 import Primer.App (
   Prog,
   newEmptyProg',
@@ -48,7 +50,7 @@ import Primer.Core (
   ASTTypeDef (..),
   Def (..),
   Expr,
-  Expr',
+  Expr' (..),
   GlobalName (baseName),
   ID,
   Kind (KFun, KHole, KType),
@@ -58,7 +60,7 @@ import Primer.Core (
   TmVarRef (LocalVarRef),
   TyConName,
   Type,
-  Type' (TApp, TCon, TForall, TFun, TVar),
+  Type' (..),
   TypeCache (..),
   TypeCacheBoth (..),
   TypeDef (..),
@@ -67,29 +69,44 @@ import Primer.Core (
   typeDefKind,
   valConType,
   _exprMeta,
+  _exprTypeMeta,
   _type,
+  _typeMeta,
  )
 import Primer.Core.DSL
-import Primer.Core.Utils (forgetTypeMetadata, generateIDs, generateTypeIDs)
+import Primer.Core.Utils (alphaEqTy, forgetMetadata, forgetTypeMetadata, generateIDs, generateTypeIDs)
 import Primer.Module
 import Primer.Name (NameCounter)
 import Primer.Primitives (primitiveGVar, primitiveModule, tChar)
 import Primer.Typecheck (
   CheckEverythingRequest (CheckEverything, toCheck, trusted),
-  Cxt,
+  Cxt (smartHoles),
   ExprT,
   SmartHoles (NoSmartHoles, SmartHoles),
   TypeError (..),
   buildTypingContextFromModules,
+  check,
   checkEverything,
+  checkKind,
   decomposeTAppCon,
+  exprTtoExpr,
   mkTAppCon,
   synth,
   synthKind,
+  typeTtoType,
  )
-import Test.Tasty.HUnit (Assertion, assertFailure, (@?=))
+import Test.Tasty.HUnit (Assertion, assertBool, assertFailure, (@?=))
 import TestM (TestM, evalTestM)
-import TestUtils (Property, property, tcn, vcn, withDiscards, withTests, zeroIDs, zeroTypeIDs)
+import TestUtils (
+  Property,
+  property,
+  tcn,
+  vcn,
+  withDiscards,
+  withTests,
+  zeroIDs,
+  zeroTypeIDs,
+ )
 import Tests.Gen.Core.Typed
 
 unit_identity :: Assertion
@@ -369,12 +386,9 @@ unit_smart_remove_clean_case =
     (tfun (tcon tBool) (tcon tNat))
     `smartSynthGives` ann
       ( lam "x" $
-          ann
-            ( case_
-                (lvar "x")
-                [branch cTrue [] (con cZero), branch cFalse [] emptyHole]
-            )
-            tEmptyHole
+          case_
+            (lvar "x")
+            [branch cTrue [] (con cZero), branch cFalse [] emptyHole]
       )
       (tfun (tcon tBool) (tcon tNat))
 
@@ -507,6 +521,147 @@ tasty_synth_well_typed_defcxt = withTests 1000 $
       (e, _ty) <- forAllT genSyn
       ty' <- generateTypeIDs . fst =<< synthTest =<< generateIDs e
       void $ checkKindTest KType ty'
+
+-- Regression test: when we created holes at change-of-direction when checking,
+-- (i.e. when we were checking T ∋ e for some synthesisable e ∈ S with S /= T)
+-- we previously only ascribed a TCSynthed rather than the TCBoth that it would
+-- get next time where we check the new hole T ∋ {? e ?}
+--
+-- NB: typechecking a definition proceeds by TC the type giving a new
+-- type via smartholes, and then TC the term against the new type. We
+-- do the same here, even though it obviously won't modify the type in
+-- this case.
+unit_smartholes_idempotent_created_hole_typecache :: Assertion
+unit_smartholes_idempotent_created_hole_typecache =
+  let x = runTypecheckTestM SmartHoles $ do
+        ty <- tfun (tEmptyHole `tfun` tEmptyHole) (tEmptyHole `tapp` tEmptyHole)
+        e <- lam "x" $ lvar "x"
+        ty' <- checkKind KType ty
+        e' <- check (forgetTypeMetadata ty') e
+        ty'' <- checkKind KType ty'
+        e'' <- check (forgetTypeMetadata ty'') $ exprTtoExpr e'
+        pure (ty, ty', ty'', e, e', e'')
+   in case x of
+        Left err -> assertFailure $ show err
+        Right (ty, ty', ty'', _e, e', e'') -> do
+          forgetKindCache ty' @?= ty
+          forgetMetadata e' @?= forgetMetadata (create' $ lam "x" $ hole $ lvar "x")
+          ty'' @?= ty'
+          e'' @?= e'
+
+forgetKindCache :: Type' (Meta b) -> Type
+forgetKindCache = set (_typeMeta % _type) Nothing
+
+-- Also clears the kind cache in any embedded types
+forgetTypeCache :: Expr' (Meta a) (Meta b) -> Expr
+forgetTypeCache = set (_exprMeta % _type) Nothing . set (_exprTypeMeta % _type) Nothing
+
+-- Regression test: for constructions which do not fit the required type,
+-- we wrap in a hole and annotation of TEmptyHole (as needed to get
+-- directions to work). However, we would previously then remove the
+-- hole if it gets checked again.
+-- (e.g. Bool ∋ λx.x  fails and gives Bool ∋ {? λx.x : ? ?},
+--       and the next iteration would think this hole is redundant,
+--       and would return Bool ∋ λx.x : ?)
+-- This is because holey annotations act similar to non-empty holes
+-- cf https://github.com/hackworthltd/primer/issues/85.
+unit_smartholes_idempotent_holey_ann :: Assertion
+unit_smartholes_idempotent_holey_ann =
+  let x = runTypecheckTestM SmartHoles $ do
+        ty <- tcon tBool
+        e <- lam "x" $ lvar "x"
+        ty' <- checkKind KType ty
+        e' <- check (forgetTypeMetadata ty') e
+        ty'' <- checkKind KType ty'
+        e'' <- check (forgetTypeMetadata ty'') $ exprTtoExpr e'
+        pure (ty, ty', ty'', e, e', e'')
+   in case x of
+        Left err -> assertFailure $ show err
+        Right (ty, ty', ty'', _e, e', e'') -> do
+          forgetKindCache ty' @?= ty
+          forgetMetadata e' @?= forgetMetadata (create' $ hole $ lam "x" (lvar "x") `ann` tEmptyHole)
+          ty'' @?= ty'
+          e'' @?= e'
+
+-- Demonstration that smartholes is only idempotent up to alpha equality in typecaches.
+-- The problem is that we check ∀a.∀b. _ ∋ Λb._ twice, and each requires a substitution
+-- (∀b._)[b/a], which needs an alpha-conversion.
+-- Each of these bumps the name counter, yielding different metadata!
+--
+-- One may think that we could roll back the name counter changes done by TC,
+-- but we generate names when making case branches, and these also use the counter,
+-- so we cannot roll back entirely as then we may get clashes, and we cannot
+-- roll back partially since we don't have that ability
+--
+-- Alternatively, if we moved away from generating fresh names by using the
+-- name counter we could possibly make this idempotent on the nose.
+unit_smartholes_idempotent_alpha_typecache :: Assertion
+unit_smartholes_idempotent_alpha_typecache =
+  let x = runTypecheckTestM SmartHoles $ do
+        ty <- tforall "a" KType $ tforall "foo" KType $ tvar "a" `tfun` tvar "foo"
+        e <- lAM "foo" emptyHole -- Important that this is the "inner" name: i.e. must be exactly "foo" given ty
+        ty' <- checkKind KType ty
+        e' <- check (forgetTypeMetadata ty') e
+        ty'' <- checkKind KType ty'
+        e'' <- check (forgetTypeMetadata ty'') $ exprTtoExpr e'
+        pure (ty, ty', ty'', e, e', e'')
+   in case x of
+        Left err -> assertFailure $ show err
+        Right (ty, ty', ty'', e, e', e'') -> do
+          forgetKindCache ty' @?= ty
+          forgetTypeCache e' @?= e
+          ty'' @?= ty'
+          assertBool "Typecache is only idempotent up to alpha" (e'' /= e')
+          TypeCacheAlpha e'' @?= TypeCacheAlpha e'
+
+-- A helper type for smartholes idempotent tests
+-- Equality is as normal, except in the typecache, where it is up-to-alpha
+newtype TypeCacheAlpha a = TypeCacheAlpha {unTypeCacheAlpha :: a}
+  deriving (Show)
+instance Eq (TypeCacheAlpha TypeCache) where
+  TypeCacheAlpha (TCSynthed s) == TypeCacheAlpha (TCSynthed t) =
+    s `alphaEqTy` t
+  TypeCacheAlpha (TCChkedAt s) == TypeCacheAlpha (TCChkedAt t) =
+    s `alphaEqTy` t
+  TypeCacheAlpha (TCEmb (TCBoth s t)) == TypeCacheAlpha (TCEmb (TCBoth s' t')) =
+    s `alphaEqTy` s' && t `alphaEqTy` t'
+  _ == _ = False
+instance Eq (TypeCacheAlpha (Expr' (Meta TypeCache) (Meta Kind))) where
+  (==) = (==) `on` (((_exprMeta % _type) %~ TypeCacheAlpha) . unTypeCacheAlpha)
+
+-- Test that smartholes is idempotent (for well-typed input)
+tasty_smartholes_idempotent_syn :: Property
+tasty_smartholes_idempotent_syn = withTests 1000 $
+  withDiscards 2000 $
+    propertyWTInExtendedLocalGlobalCxt [builtinModule, primitiveModule] $ do
+      local (\c -> c{smartHoles = SmartHoles}) $ do
+        (e, _ty) <- forAllT genSyn
+        (ty', e') <- synthTest =<< generateIDs e
+        (ty'', e'') <- synthTest $ exprTtoExpr e'
+        ty' === ty''
+        TypeCacheAlpha e' === TypeCacheAlpha e''
+
+-- Test that smartholes is idempotent (for well-typed input)
+-- This also shows that checkKind is idempotent-on-the-nose
+tasty_smartholes_idempotent_chk :: Property
+tasty_smartholes_idempotent_chk = withTests 1000 $
+  withDiscards 2000 $
+    propertyWTInExtendedLocalGlobalCxt [builtinModule, primitiveModule] $
+      local (\c -> c{smartHoles = SmartHoles}) $ do
+        ty <- forAllT $ genWTType KType
+        e <- forAllT $ genChk ty
+        tyI <- generateTypeIDs ty
+        ty' <- checkKindTest KType tyI
+        -- Note that ty /= ty' in general, as the generators can create a THole _ (TEmptyHole _)
+        annotateShow ty'
+        e' <- checkTest (forgetTypeMetadata ty') =<< generateIDs e
+        annotateShow e'
+        ty'' <- checkKindTest KType $ typeTtoType ty'
+        annotateShow ty''
+        e'' <- checkTest (forgetTypeMetadata ty'') $ exprTtoExpr e'
+        annotateShow e''
+        ty' === ty''
+        TypeCacheAlpha e' === TypeCacheAlpha e''
 
 -- Check that all our builtins are well formed
 -- (these are used to seed initial programs)
