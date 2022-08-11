@@ -5,6 +5,7 @@ import Foreword
 import Data.Aeson (ToJSON)
 import Data.Aeson.Encode.Pretty (encodePretty)
 import Data.OpenApi (ToSchema, validatePrettyToJSON)
+import Data.UUID (UUID, fromWords64)
 import Hedgehog (Gen, annotate, failure, forAll)
 import Hedgehog.Gen qualified as G
 import Hedgehog.Range qualified as R
@@ -19,7 +20,7 @@ import Primer.API (
   viewTreeType,
  )
 import Primer.Core (ID (ID))
-import Primer.Database (SessionName, safeMkSessionName)
+import Primer.Database (Session (Session), SessionName, safeMkSessionName)
 import Primer.Gen.Core.Raw (
   ExprGen,
   evalExprGen,
@@ -65,6 +66,15 @@ genSessionName = safeMkSessionName <$> G.text (R.linear 1 100) G.unicode
 
 tasty_SessionName :: Property
 tasty_SessionName = testToJSON genSessionName
+
+genUUID :: Gen UUID
+genUUID = fromWords64 <$> G.word64 R.linearBounded <*> G.word64 R.linearBounded
+
+genSession :: Gen Session
+genSession = Session <$> genUUID <*> genSessionName
+
+tasty_Session :: Property
+tasty_Session = testToJSON genSession
 
 -- NB: don't want to use genID, as that is just "next free ID"
 tasty_ID :: Property
