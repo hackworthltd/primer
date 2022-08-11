@@ -57,7 +57,12 @@ import Optics (
   (.~),
  )
 import Primer.App (App)
-import Primer.JSON (CustomJSON (CustomJSON), PrimerJSON, ToJSON)
+import Primer.JSON (
+  CustomJSON (CustomJSON),
+  FromJSON,
+  PrimerJSON,
+  ToJSON,
+ )
 import StmContainers.Map qualified as StmMap
 
 -- | A Primer version.
@@ -79,7 +84,7 @@ type SessionId = UUID
 -- 'mkSessionName'.
 newtype SessionName = SessionName Text
   deriving (Generic, Eq, Ord, Show, Read)
-  deriving newtype (ToJSON)
+  deriving newtype (FromJSON, ToJSON)
 
 -- | Given some 'Text', try to convert it to a 'SessionName'.
 --
@@ -131,7 +136,7 @@ defaultSessionName = SessionName "Untitled Program"
 -- See also 'SessionData'.
 data Session = Session {id :: SessionId, name :: SessionName}
   deriving (Show, Eq, Generic)
-  deriving (ToJSON) via PrimerJSON Session
+  deriving (FromJSON, ToJSON) via PrimerJSON Session
 
 -- | Per-session information.
 data SessionData = SessionData
