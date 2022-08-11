@@ -95,6 +95,36 @@ executable primer-service
     , text
     , utf8-string           ^>=1.0
 
+executable primer-client
+  main-is:            Main.hs
+  hs-source-dirs:     exe-client
+  default-language:   GHC2021
+  default-extensions:
+    NoImplicitPrelude
+    DataKinds
+    DerivingStrategies
+    DerivingVia
+    LambdaCase
+    OverloadedStrings
+
+  ghc-options:
+    -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
+    -Wcompat -Widentities -Wredundant-constraints -fhide-source-paths
+    -threaded -rtsopts -with-rtsopts=-N
+
+  build-depends:
+    , base
+    , bytestring
+    , directory
+    , exceptions
+    , http-client-tls       ^>=0.3.6.1
+    , optparse-applicative
+    , primer
+    , primer-service
+    , servant-client
+    , text
+    , utf8-string
+
 executable primer-openapi
   main-is:            Main.hs
   hs-source-dirs:     exe-openapi
