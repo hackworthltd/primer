@@ -49,8 +49,8 @@ import Primer.App (
   newProg',
   nextProgID,
   progAllModules,
-  tcWholeProg,
  )
+import Primer.App qualified as App
 import Primer.Builtins (
   builtinModule,
   cCons,
@@ -1625,3 +1625,6 @@ copyPasteBody (d, i) = CopyPasteBody (gvn d, i)
 
 globalVarRef :: Name -> TmVarRef
 globalVarRef = GlobalVarRef . gvn
+
+tcWholeProg :: Prog -> AppTestM Prog
+tcWholeProg = App.liftError ActionError . App.tcWholeProg
