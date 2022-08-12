@@ -22,14 +22,3 @@ steps:
       nix develop --print-build-logs --profile /tmp/primer --command echo "done"
     agents:
       os: "darwin"
-
-  - wait
-
-  - label: ":linux: Check haskell-language-server"
-    command: |
-      nix develop --command haskell-language-server
-  - label: ":macos: Check haskell-language-server"
-    command: |
-      nix develop --command haskell-language-server
-    agents:
-      os: "darwin"

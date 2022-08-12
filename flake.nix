@@ -533,6 +533,44 @@
             ".buildkite/"
           ];
         };
+
+      # Filter out any file in this repo that doesn't affect a Cabal
+      # build or Haskell-related check. (Note: this doesn't need to be
+      # 100% accurate, it's just an optimization to cut down on
+      # extraneous Nix builds.)
+      onlyHaskellSrc =
+        let
+          inherit (pkgs.haskell-nix) haskellSourceFilter;
+          inherit (pkgs.haskell-nix.haskellLib) cleanGit cleanSourceWith;
+
+          primerSourceFilter = name: type:
+            let baseName = baseNameOf (toString name);
+            in ! (
+              baseName == ".buildkite" ||
+              baseName == ".github" ||
+              pkgs.lib.hasPrefix "cabal.project.local" baseName ||
+              baseName == "flake.lock" ||
+              baseName == "flake.nix" ||
+              baseName == "README.md" ||
+              baseName == "docs" ||
+              baseName == "nix" ||
+              baseName == "nixos-tests" ||
+              baseName == "sqitch"
+            );
+        in
+        cleanSourceWith
+          {
+            filter = haskellSourceFilter;
+            name = "primer-src";
+            src = cleanSourceWith
+              {
+                filter = primerSourceFilter;
+                src = cleanGit
+                  {
+                    src = ./.;
+                  };
+              };
+          };
     in
     {
       packages =
@@ -563,12 +601,26 @@
         })
         // primerFlake.packages;
 
-      # Notes:
       checks =
         {
           source-code-checks = pre-commit-hooks;
           inherit weeder openapi-validate;
+
         }
+
+        # Broken on NixOS. See:
+        # https://github.com/hackworthltd/primer/issues/632
+        // (pkgs.lib.optionalAttrs (system == "aarch64-darwin") {
+
+          # Make sure HLS can typecheck our project.
+          check-hls = pkgs.callPackage ./nix/pkgs/check-hls {
+            src = onlyHaskellSrc;
+            inherit version;
+
+            # This is a bit of a hack, but we don't know a better way.
+            inherit (primerFlake) devShell;
+          };
+        })
         // primerFlake.checks;
 
       apps =
