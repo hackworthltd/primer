@@ -141,9 +141,9 @@ runDb cfg =
         (\e -> logDbException e >> restart conn)
 
 -- A list of 'App's used to seed the database.
-seedApps :: [(App, Text)]
+seedApps :: [(Text, App)]
 seedApps =
-  [ (even3App, "even3")
+  [ ("even3", even3App)
   ]
 
 banner :: Text

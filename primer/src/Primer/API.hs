@@ -277,7 +277,7 @@ withSession' sid op = do
 --
 -- The session's initial program is 'newApp'.
 newSession :: (MonadIO m) => PrimerM m SessionId
-newSession = addSession' newApp defaultSessionName
+newSession = addSession' defaultSessionName newApp
 
 -- | Given an 'App' and a proposed session name as 'Text', create a
 -- new session with the given app and name, and return the session ID.
@@ -292,15 +292,12 @@ newSession = addSession' newApp defaultSessionName
 -- API by permitting the caller to directly insert an existing 'App'
 -- into the database. The chief use case for this API method is to
 -- insert pre-made programs built with the Primer Haskell DSL into a
--- new Primer database. Whether this method should be added to the
--- HTTP API is tracked here:
---
--- https://github.com/hackworthltd/primer/issues/550
-addSession :: (MonadIO m) => App -> Text -> PrimerM m SessionId
-addSession a n = addSession' a (safeMkSessionName n)
+-- new Primer database.
+addSession :: (MonadIO m) => Text -> App -> PrimerM m SessionId
+addSession n = addSession' $ safeMkSessionName n
 
-addSession' :: (MonadIO m) => App -> SessionName -> PrimerM m SessionId
-addSession' a n = do
+addSession' :: (MonadIO m) => SessionName -> App -> PrimerM m SessionId
+addSession' n a = do
   nextSID <- liftIO newSessionId
   sessionsTransaction $ \ss q -> do
     StmMap.insert (SessionData a n) nextSID ss

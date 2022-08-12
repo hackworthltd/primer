@@ -11,6 +11,7 @@ module Primer.Servant.API (
 import Foreword
 
 import Primer.App (
+  App,
   EvalFullReq (..),
   EvalFullResp (..),
   EvalReq (..),
@@ -91,6 +92,20 @@ newtype AdminAPI mode = AdminAPI
 data SessionsAPI mode = SessionsAPI
   { createSession :: CreateSession mode
   , getSessionList :: GetSessionList mode
+  , addSession ::
+      mode
+        :- "add-session"
+          :> Summary "Directly add a session to the database"
+          :> Description
+              "Given an existing app and a proposed session name, \
+              \create a new session and return its session ID. If the \
+              \given session name is invalid, it will be replaced with \
+              \a default session name. However, this is not reflected \
+              \in the returned status code. Query the returned session ID \
+              \to determine the actual session name that was assigned."
+          :> Capture' '[Description "The session's name"] "name" Text
+          :> ReqBody '[JSON] App
+          :> Post '[JSON] SessionId
   , sessionAPI ::
       mode
         :- Capture' '[Description "The session ID"] "sessionId" SessionId

@@ -111,6 +111,7 @@ sessionsAPIServer =
   S.SessionsAPI
     { S.createSession = newSession
     , S.getSessionList = \b p -> pagedDefaultClamp 100 p $ listSessions b
+    , S.addSession = API.addSession
     , S.sessionAPI = sessionAPIServer
     }
 

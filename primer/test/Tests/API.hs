@@ -183,7 +183,7 @@ test_addSession_roundtrip =
     runAPI $ do
       let step = liftIO . step'
       step "Add a new session"
-      sid <- addSession even3App "even3App"
+      sid <- addSession "even3App" even3App
       step "Get its name"
       name <- getSessionName sid
       name @?= "even3App"
@@ -226,7 +226,7 @@ test_copySession =
     runAPI $ do
       let step = liftIO . step'
       step "Add a session"
-      sid <- addSession even3App "foo"
+      sid <- addSession "foo" even3App
       step "Change its name"
       name <- renameSession sid "original session"
       step "Copy it to a new session"
