@@ -119,6 +119,7 @@ sessionAPIServer :: SessionId -> S.SessionAPI (AsServerT PrimerIO)
 sessionAPIServer sid =
   S.SessionAPI
     { S.getProgram = API.getProgram sid
+    , S.getApp = API.getApp sid
     , S.getSessionName = API.getSessionName sid
     , S.setSessionName = renameSession sid
     , S.editSession = edit sid

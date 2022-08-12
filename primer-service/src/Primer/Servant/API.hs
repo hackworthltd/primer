@@ -120,6 +120,11 @@ data SessionAPI mode = SessionAPI
         :- "program"
           :> Summary "Get the current program program state"
           :> Get '[JSON] Prog
+  , getApp ::
+      mode
+        :- "app"
+          :> Summary "Get the current app"
+          :> Get '[JSON] App
   , getSessionName :: GetSessionName mode
   , setSessionName :: SetSessionName mode
   , editSession ::

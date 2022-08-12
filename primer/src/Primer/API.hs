@@ -363,9 +363,7 @@ liftQueryAppM h sid = withSession' sid (QueryApp $ runQueryAppM h)
 --
 -- Note: this API method is currently a special case, and we do not
 -- expect typical API clients to use it. Its primary use is for
--- testing. Whether we should add it to the HTTP API is tracked here:
---
--- https://github.com/hackworthltd/primer/issues/550
+-- testing.
 getApp :: (MonadIO m, MonadThrow m) => SessionId -> PrimerM m App
 getApp sid = withSession' sid $ QueryApp identity
 

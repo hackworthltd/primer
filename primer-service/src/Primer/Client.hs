@@ -11,6 +11,7 @@ module Primer.Client (
   listSessions,
   addSession,
   getProgram,
+  getApp,
   getSessionName,
   renameSession,
   edit,
@@ -97,6 +98,10 @@ addSession name app = apiClient // API.sessionsAPI // API.addSession /: name /: 
 -- | As 'Primer.API.getProgram'.
 getProgram :: SessionId -> ClientM Prog
 getProgram sid = apiClient // API.sessionsAPI // API.sessionAPI /: sid // API.getProgram
+
+-- | As 'Primer.API.getApp'.
+getApp :: SessionId -> ClientM App
+getApp sid = apiClient // API.sessionsAPI // API.sessionAPI /: sid // API.getApp
 
 -- | As 'Primer.API.getSessionName'.
 getSessionName :: SessionId -> ClientM Text
