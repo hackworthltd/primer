@@ -9,6 +9,8 @@ import Data.String (String)
 import Network.HTTP.Client.TLS (newTlsManager)
 import Options.Applicative (
   Parser,
+  argument,
+  auto,
   command,
   eitherReader,
   execParser,
@@ -18,12 +20,21 @@ import Options.Applicative (
   hsubparser,
   info,
   long,
+  metavar,
   option,
   progDesc,
+  str,
+ )
+import Primer.App (
+  App,
  )
 import Primer.Client (
+  addSession,
   defaultAPIPath,
   getVersion,
+ )
+import Primer.Examples (
+  even3App,
  )
 import Servant.Client (
   BaseUrl (..),
@@ -46,10 +57,25 @@ defaultBaseUrl =
 
 data GlobalOptions = GlobalOptions (Maybe BaseUrl) Command
 
-data Command = GetVersion
+data AppName
+  = Even3
+  deriving stock (Eq, Show, Read, Enum, Bounded)
+
+appNameToApp :: AppName -> App
+appNameToApp Even3 = even3App
+
+data Command
+  = GetVersion
+  | AddSession Text AppName
 
 getVersionCommand :: Parser Command
 getVersionCommand = pure GetVersion
+
+addSessionCommand :: Parser Command
+addSessionCommand =
+  AddSession
+    <$> argument str (metavar "NAME")
+    <*> argument auto (metavar "APP")
 
 getOptions :: Parser GlobalOptions
 getOptions =
@@ -59,6 +85,9 @@ getOptions =
       ( command
           "get-version"
           (info getVersionCommand (progDesc "Get the server version"))
+          <> command
+            "add-session"
+            (info addSessionCommand (progDesc "Add a predefined app to the database"))
       )
 
 baseUrlEnvVar :: String
@@ -85,6 +114,11 @@ run (GlobalOptions svc c) = do
       case version of
         Left e -> putStrLn $ "Error: " ++ show e
         Right v -> putStrLn $ "Primer version: " ++ show v
+    AddSession name app -> do
+      result <- runClientM (addSession name $ appNameToApp app) env
+      case result of
+        Left e -> putStrLn $ "Error: " ++ show e
+        Right sid -> putStrLn $ "Added app with session ID: " ++ show sid
 
 main :: IO ()
 main = execParser opts >>= run
