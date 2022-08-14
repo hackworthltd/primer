@@ -35,7 +35,7 @@ import Servant (
 import Servant.API.Generic (
   GenericMode ((:-)),
  )
-import Servant.OpenApi.OperationId (OpId)
+import Servant.OpenApi.OperationId (OperationId)
 
 -- | Enable clients to obtain the OpenAPI specification.
 type Spec = "openapi.json" :> Get '[JSON] OpenApi
@@ -72,7 +72,8 @@ data SessionAPI mode = SessionAPI
       mode
         :- "program"
           :> Summary "Get the current program state"
-          :> OpId "getProgram" Get '[JSON] API.Prog
+          :> OperationId "getProgram"
+          :> Get '[JSON] API.Prog
   , getSessionName :: GetSessionName mode
   , setSessionName :: SetSessionName mode
   }
