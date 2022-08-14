@@ -10,7 +10,6 @@ import Network.HTTP.Client.TLS (newTlsManager)
 import Options.Applicative (
   Parser,
   argument,
-  auto,
   command,
   eitherReader,
   execParser,
@@ -64,6 +63,17 @@ data AppName
 appNameToApp :: AppName -> App
 appNameToApp Even3 = even3App
 
+showAppChoices :: String
+showAppChoices = toS $ unwords (map show allApps)
+  where
+    allApps :: [AppName]
+    allApps = [minBound .. maxBound]
+
+parseAppName :: String -> Either String AppName
+parseAppName arg = case reads arg of
+  [(appName, "")] -> Right appName
+  _ -> Left $ "Unknown app: " <> arg <> "\nRun with --help for a list of available apps."
+
 data Command
   = GetVersion
   | AddSession Text AppName
@@ -75,7 +85,7 @@ addSessionCommand :: Parser Command
 addSessionCommand =
   AddSession
     <$> argument str (metavar "NAME")
-    <*> argument auto (metavar "APP")
+    <*> argument (eitherReader parseAppName) (metavar "APP")
 
 getOptions :: Parser GlobalOptions
 getOptions =
@@ -87,7 +97,7 @@ getOptions =
           (info getVersionCommand (progDesc "Get the server version"))
           <> command
             "add-session"
-            (info addSessionCommand (progDesc "Add a predefined app to the database"))
+            (info addSessionCommand (progDesc $ "Add app APP to the database with the name NAME. The following apps are available: " <> showAppChoices))
       )
 
 baseUrlEnvVar :: String
