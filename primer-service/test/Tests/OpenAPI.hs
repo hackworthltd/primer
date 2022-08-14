@@ -1,3 +1,5 @@
+{-# OPTIONS_GHC -fno-warn-orphans #-}
+
 module Tests.OpenAPI where
 
 import Foreword
@@ -5,6 +7,7 @@ import Foreword
 import Data.Aeson (ToJSON)
 import Data.Aeson.Encode.Pretty (encodePretty)
 import Data.OpenApi (ToSchema, validatePrettyToJSON)
+import Data.Text qualified as T
 import Data.UUID (UUID, fromWords64)
 import Hedgehog (Gen, annotate, failure, forAll)
 import Hedgehog.Gen qualified as G
@@ -35,8 +38,13 @@ import Primer.Gen.Core.Raw (
  )
 import Primer.OpenAPI ()
 import Primer.Pagination (NonNeg, Paginated (Paginated), PaginatedMeta (..), Positive, mkNonNeg, mkPositive)
+import Primer.Servant.OpenAPI (API)
 import Primer.Server (openAPIInfo)
+import Servant.OpenApi.Test (validateEveryToJSON)
 import Tasty (Property, property)
+import Test.Hspec (Spec)
+import Test.QuickCheck (Arbitrary (arbitrary))
+import Test.QuickCheck.Hedgehog (hedgehog)
 import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.Golden (goldenVsString)
 
@@ -141,8 +149,11 @@ genModule =
 tasty_Module :: Property
 tasty_Module = testToJSON $ evalExprGen 0 genModule
 
+genProg :: Gen Prog
+genProg = evalExprGen 0 $ Prog <$> G.list (R.linear 0 3) genModule
+
 tasty_Prog :: Property
-tasty_Prog = testToJSON $ evalExprGen 0 $ Prog <$> G.list (R.linear 0 3) genModule
+tasty_Prog = testToJSON genProg
 
 genPositive :: Gen Positive
 genPositive = G.just $ mkPositive <$> G.int (R.linear 1 1000)
@@ -179,5 +190,23 @@ genPaginatedMeta = do
 tasty_PaginatedMeta :: Property
 tasty_PaginatedMeta = testToJSON genPaginatedMeta
 
+genPaginatedSession :: Gen (Paginated Session)
+genPaginatedSession = Paginated <$> genPaginatedMeta <*> G.list (R.linear 0 10) genSession
+
 tasty_Paginated :: Property
-tasty_Paginated = testToJSON $ Paginated <$> genPaginatedMeta <*> G.list (R.linear 0 10) genSession
+tasty_Paginated = testToJSON genPaginatedSession
+
+spec_alljson :: Spec
+spec_alljson = validateEveryToJSON (Proxy @API)
+
+-- Orphan instances for validateEveryToJSON
+-- NB: these have no shrinking: 'hedgehog' cannot convert hedgehog
+-- style shrinking into QuickCheck style shrinking.
+instance Arbitrary UUID where
+  arbitrary = hedgehog genUUID
+instance Arbitrary Text where
+  arbitrary = T.pack <$> arbitrary
+instance Arbitrary (Paginated Session) where
+  arbitrary = hedgehog genPaginatedSession
+instance Arbitrary Prog where
+  arbitrary = hedgehog genProg
