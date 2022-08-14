@@ -38,7 +38,7 @@ instance
   declareNamedSchema _ = genericDeclareNamedSchema (fromAesonOptions (aesonOptions @os)) (Proxy @a)
 
 instance ToSchema SessionName
-instance ToSchema Session
+deriving via PrimerJSON Session instance ToSchema Session
 
 -- We need to GND the ID instance to match its To/FromJSON instances
 deriving newtype instance ToSchema ID
@@ -59,10 +59,10 @@ deriving via GlobalName 'ADefName instance ToSchema (GlobalName 'ATyCon)
 deriving via GlobalName 'ADefName instance ToSchema (GlobalName 'AValCon)
 
 deriving via Name instance (ToSchema LVarName)
-instance ToSchema Tree
-instance ToSchema NodeBody
-instance ToSchema NodeFlavor
-instance ToSchema Def
+deriving via PrimerJSON Tree instance ToSchema Tree
+deriving via PrimerJSON NodeBody instance ToSchema NodeBody
+deriving via PrimerJSON NodeFlavor instance ToSchema NodeFlavor
+deriving via PrimerJSON Def instance ToSchema Def
 deriving via NonEmpty Name instance ToSchema ModuleName
-instance ToSchema Module
-instance ToSchema Prog
+deriving via PrimerJSON Module instance ToSchema Module
+deriving via PrimerJSON Prog instance ToSchema Prog
