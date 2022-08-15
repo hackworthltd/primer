@@ -34,6 +34,7 @@ import Primer.Client (
  )
 import Primer.Examples (
   even3App,
+  mapOddApp,
  )
 import Servant.Client (
   BaseUrl (..),
@@ -58,10 +59,12 @@ data GlobalOptions = GlobalOptions (Maybe BaseUrl) Command
 
 data AppName
   = Even3
+  | MapOdd
   deriving stock (Eq, Show, Read, Enum, Bounded)
 
 appNameToApp :: AppName -> App
 appNameToApp Even3 = even3App
+appNameToApp MapOdd = mapOddApp
 
 showAppChoices :: String
 showAppChoices = toS $ unwords (map show allApps)
