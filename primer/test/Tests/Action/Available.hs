@@ -14,7 +14,7 @@ import Hedgehog (PropertyT, annotateShow, discard, failure, success, label, coll
 import Hedgehog.Gen qualified as Gen
 import Hedgehog.Internal.Property (forAllWithT)
 import Optics (toListOf, (%))
-import Primer.Action (ActionInput (..), ActionName (..), OfferedAction (..))
+import Primer.Action (ActionInput (..), ActionName (..), OfferedAction (..), UserInput (ChooseOrEnterName))
 import Primer.Action.Available (actionsForDef, actionsForDefBody, actionsForDefSig)
 import Primer.App (App, EditAppM, Prog (..), appProg, handleEditRequest, runEditAppM, progAllModules, progAllDefs, Mutability (Mutable, Immutable))
 import Primer.Core (
@@ -51,6 +51,7 @@ import TestUtils (Property, withDiscards, withTests)
 import Text.Pretty.Simple (pShowNoColor)
 import Primer.Builtins (builtinModule)
 import Primer.Primitives (primitiveModule)
+import Gen.Core.Raw (genName)
 
 -- | Comprehensive DSL test.
 test_1 :: TestTree
@@ -154,7 +155,14 @@ tasty_available_actions_accepted = withTests 500 $
         acts' -> do
           act <- forAllWithT name' $ Gen.element acts'
           case input act of
-            --        InputRequired a' -> _
+            InputRequired (ChooseOrEnterName _ opts f) -> do
+              label "ChooseOrEnterName"
+              let anOpt = Gen.element opts
+                  other = genName
+              n <- forAllT $ if null opts then other else Gen.choice [anOpt,other]
+              let act' = f n
+              annotateShow act'
+              actionSucceeds (handleEditRequest act') a
             NoInputRequired act' -> label "NoInputRequired" >> annotateShow act' >> actionSucceeds (handleEditRequest act') a
             --        AskQuestion q a' -> _
             _ -> label "skip" >> success -- TODO: care about this!
