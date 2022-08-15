@@ -152,6 +152,7 @@ tasty_available_actions_accepted = withTests 500 $
         _ -> discard
 -}
       (loc,acts) <- fmap snd . forAllWithT fst $ Gen.choice $ catMaybes
+      -- TODO: maybe get better test coverage if reduce frequency of actionsForDef?
          [ Just $ pure ("actionsForDef",(Nothing,actionsForDef l allDefs defName))
          , Just $ do
              let ty = defType def
