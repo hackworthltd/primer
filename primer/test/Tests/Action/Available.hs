@@ -16,7 +16,7 @@ import Hedgehog.Internal.Property (forAllWithT)
 import Optics (toListOf, (%))
 import Primer.Action (ActionInput (..), ActionName (..), OfferedAction (..))
 import Primer.Action.Available (actionsForDef, actionsForDefBody, actionsForDefSig)
-import Primer.App (App, EditAppM, Prog (..), appProg, handleEditRequest, runEditAppM, progAllModules, progAllDefs)
+import Primer.App (App, EditAppM, Prog (..), appProg, handleEditRequest, runEditAppM, progAllModules, progAllDefs, Mutability (Mutable))
 import Primer.Core (
   ASTDef (..),
   Def (DefAST, DefPrim),
@@ -108,7 +108,7 @@ unit_def_in_use =
         let bar = qualifyName (ModuleName ["M"]) "bar"
         barDef <- ASTDef <$> gvar foo <*> tEmptyHole
         let ds = [(foo, DefAST fooDef), (bar, DefAST barDef)]
-        pure (foo, Map.fromList ds)
+        pure (foo, Map.fromList $ fmap (second (Mutable,)) ds)
    in for_
         enumerate
         ( \l ->
@@ -126,13 +126,13 @@ tasty_available_actions_accepted = withTests 500 $
       l <- forAllT $ Gen.element enumerate
       sh <- forAllT $ Gen.element [NoSmartHoles, SmartHoles]
       a <- forAllT $ genApp sh [] -- [builtinModule, primitiveModule] -- TODO: consider bigger context
-      let allDefs = fmap snd $ progAllDefs $ appProg a
+      let allDefs = progAllDefs $ appProg a
       (defName, def') <- case Map.toList allDefs of
         [] -> discard
         ds -> forAllT $ Gen.element ds
       -- TODO: should test primitives also (i.e. they should have no? actions)
       _ <- case def' of
-        DefAST d -> pure d
+        (_,DefAST d) -> pure d
         _ -> discard
       -- TODO: other sorts of action... actionsForDef{,Body,Sig}
       act <- forAllWithT name' $ Gen.element $ actionsForDef l allDefs defName
