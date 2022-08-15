@@ -16,7 +16,7 @@ import Hedgehog.Internal.Property (forAllWithT)
 import Optics (toListOf, (%), (^..))
 import Primer.Action (ActionInput (..), ActionName (..), OfferedAction (..), UserInput (ChooseOrEnterName, ChooseTypeConstructor))
 import Primer.Action.Available (actionsForDef, actionsForDefBody, actionsForDefSig)
-import Primer.App (App, EditAppM, Prog (..), appProg, handleEditRequest, runEditAppM, progAllModules, progAllDefs, Mutability (Mutable, Immutable), allConNames)
+import Primer.App (App, EditAppM, Prog (..), appProg, handleEditRequest, runEditAppM, progAllModules, progAllDefs, Mutability (Mutable, Immutable), allTyConNames)
 import Primer.Core (
   ASTDef (..),
   Def (DefAST, DefPrim),
@@ -173,7 +173,7 @@ tasty_available_actions_accepted = withTests 500 $
               -- We only test that existing constructors are accepted
               -- TODO/REVIEW: we should revisit this action -- perhaps it should contain a list of constructors?
               label "ChooseTypeConstructor"
-              let cons = allConNames $ appProg a
+              let cons = allTyConNames $ appProg a
               assert (not $ null cons) -- TODO: this list can be empty!
               c <- forAllT $ Gen.element cons
               let act' = f $ globalNameToQualifiedText c
