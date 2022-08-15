@@ -61,16 +61,17 @@ mkTests (_, DefPrim _) = error "mkTests is unimplemented for primitive definitio
 mkTests (defName, DefAST def) =
   let d = defName
       testName = T.unpack $ moduleNamePretty (qualifiedModule defName) <> "." <> unName (baseName defName)
+      enumeratePairs = (,) <$> enumerate <*> enumerate
    in testGroup testName $
-        enumerate
-          <&> \level ->
+        enumeratePairs
+          <&> \(level, mut) ->
             -- We sort the offered actions to make the test output more stable
-            let defActions = sort' $ map name $ actionsForDef level (Map.singleton defName (Editable, DefAST def)) d
+            let defActions = sort' $ map name $ actionsForDef level (Map.singleton defName (mut, DefAST def)) d
                 bodyActions =
                   map
                     ( \id ->
                         ( id
-                        , sort' $ map name $ actionsForDefBody level defName Editable id (astDefExpr def)
+                        , sort' $ map name $ actionsForDefBody level defName mut id (astDefExpr def)
                         )
                     )
                     . toListOf exprIDs
@@ -79,12 +80,12 @@ mkTests (defName, DefAST def) =
                   map
                     ( \id ->
                         ( id
-                        , sort' $ map name $ actionsForDefSig level defName Editable id (astDefType def)
+                        , sort' $ map name $ actionsForDefSig level defName mut id (astDefType def)
                         )
                     )
                     . toListOf (_typeMeta % _id)
                     $ astDefType def
-             in goldenVsString (show level) ("test/outputs/available-actions" </> testName </> show level <> ".fragment") $
+             in goldenVsString (show level) ("test/outputs/available-actions" </> testName </> show level <> "-" <> show mut <> ".fragment") $
                   pure . BS.fromStrict . encodeUtf8 . TL.toStrict . pShowNoColor $
                     Output
                       { defActions
