@@ -29,6 +29,8 @@ module Primer.App (
   newProg,
   newProg',
   progAllModules,
+  Mutability(..),
+  progAllDefs,
   tcWholeProg,
   tcWholeProgWithImports,
   nextProgID,
@@ -226,6 +228,12 @@ defaultProg = Prog mempty mempty Nothing SmartHoles defaultLog
 progAllModules :: Prog -> [Module]
 progAllModules p = progModules p <> progImports p
 
+data Mutability = Mutable | Immutable
+
+progAllDefs :: Prog -> Map GVarName (Mutability,Def)
+progAllDefs p = foldMap (fmap (Mutable,) . moduleDefsQualified) (progModules p)
+             <> foldMap (fmap (Immutable,) . moduleDefsQualified) (progImports p)
+
 -- Note [Modules]
 -- The invariant is that the @progImports@ modules are never edited, but
 -- one can insert new ones (and perhaps delete unneeded ones).
@@ -334,7 +342,7 @@ allTypes p = foldMap moduleTypesQualified $ progAllModules p
 
 -- | Get all definitions from all modules (including imports)
 allDefs :: Prog -> DefMap
-allDefs p = foldMap moduleDefsQualified $ progAllModules p
+allDefs = fmap snd . progAllDefs
 
 -- | The action log
 --  This is the canonical store of the program - we can recreate any current or
