@@ -149,18 +149,20 @@ tasty_available_actions_accepted = withTests 500 $
         (mut,DefAST d) -> collect mut >> pure d
         _ -> discard
 -}
-      acts <- forAllWithT (const "<actions>") $ Gen.choice $ catMaybes
-         [ Just $ pure $ actionsForDef l allDefs defName
+      acts <- fmap snd . forAllWithT fst $ Gen.choice $ catMaybes
+         [ Just $ pure ("actionsForDef",actionsForDef l allDefs defName)
          , Just $ do
              let ty = defType def
                  ids = ty ^.. typeIDs
              i <- Gen.element ids
-             pure $ actionsForDefSig l defName defMut i ty
+             let ann = "actionsForDefSig id " <> show i
+             pure (ann,actionsForDefSig l defName defMut i ty)
          , defAST def <&> \d' -> do
              let expr = astDefExpr d'
                  ids = expr ^.. exprIDs -- TODO: this can give ids in the type; does it give binding ids as well?
              i <- Gen.element ids
-             pure $ actionsForDefBody l defName defMut i expr
+             let ann = "actionsForDefBody id " <> show i
+             pure (ann, actionsForDefBody l defName defMut i expr)
          ]
       case acts of
         [] -> success
