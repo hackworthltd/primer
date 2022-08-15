@@ -10,7 +10,7 @@ import Data.Text.Lazy qualified as TL
 import GHC.Err (error)
 import Gen.App (genApp)
 import Gen.Core.Typed (WT, forAllT, propertyWT)
-import Hedgehog (PropertyT, annotateShow, discard, failure)
+import Hedgehog (PropertyT, annotateShow, discard, failure, success)
 import Hedgehog.Gen qualified as Gen
 import Hedgehog.Internal.Property (forAllWithT)
 import Optics (toListOf, (%))
@@ -135,12 +135,16 @@ tasty_available_actions_accepted = withTests 500 $
         (_,DefAST d) -> pure d
         _ -> discard
       -- TODO: other sorts of action... actionsForDef{,Body,Sig}
-      act <- forAllWithT name' $ Gen.element $ actionsForDef l allDefs defName
-      case input act of
-        --        InputRequired a' -> _
-        NoInputRequired act' -> annotateShow act' >> actionSucceeds (handleEditRequest act') a
-        --        AskQuestion q a' -> _
-        _ -> discard -- TODO: care about this!
+      let acts = actionsForDef l allDefs defName
+      case acts of
+        [] -> success
+        acts' -> do
+          act <- forAllWithT name' $ Gen.element acts'
+          case input act of
+            --        InputRequired a' -> _
+            NoInputRequired act' -> annotateShow act' >> actionSucceeds (handleEditRequest act') a
+            --        AskQuestion q a' -> _
+            _ -> discard -- TODO: care about this!
         {-
               i <- forAllT $ Gen.element $ t ^.. exprIDs
               a <- forAllWithT name' $ Gen.element $ actionsForDefBody l n i t
