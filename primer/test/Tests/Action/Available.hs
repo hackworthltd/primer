@@ -169,6 +169,16 @@ tasty_available_actions_accepted = withTests 500 $
         acts' -> do
           act <- forAllWithT (toS . description) $ Gen.element acts'
           case input act of
+            InputRequired (ChooseTypeConstructor f) -> do
+              -- We only test that existing constructors are accepted
+              -- TODO/REVIEW: we should revisit this action -- perhaps it should contain a list of constructors?
+              label "ChooseTypeConstructor"
+              let cons = allConNames $ appProg a
+              assert (not $ null cons) -- TODO: this list can be empty!
+              c <- forAllT $ Gen.element cons
+              let act' = f $ globalNameToQualifiedText c
+              annotateShow act'
+              actionSucceeds (handleEditRequest act') a
             InputRequired (ChooseOrEnterName _ opts f) -> do
               label "ChooseOrEnterName"
               let anOpt = Gen.element opts
@@ -184,8 +194,10 @@ tasty_available_actions_accepted = withTests 500 $
               i <- forAllT $ Gen.element $ t ^.. exprIDs
               a <- forAllWithT name' $ Gen.element $ actionsForDefBody l n i t
         -}
+
   where
     actionSucceeds :: HasCallStack => EditAppM a -> App -> PropertyT WT ()
     actionSucceeds m a = case runEditAppM m a of
       (Left err, _) -> annotateShow err >> failure
       (Right _, _) -> pure ()
+    globalNameToQualifiedText n = (fmap unName $ unModuleName $ qualifiedModule n, unName $ baseName n)
