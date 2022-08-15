@@ -15,7 +15,7 @@ import Optics (
   (%),
   (^.),
   (^?),
-  _Just,
+  _Just, has,
  )
 import Primer.Action (
   Action (..),
@@ -575,25 +575,28 @@ basicActionsForExpr l defName expr = case expr of
     letRecActions t = [renameLet t]
 
     -- Actions for every expression node
+    -- We assume that the input program is type-checked, in order to
+    -- filter some actions by Syn/Chk
     universalActions :: forall a. ExprMeta -> [ActionSpec Expr a]
-    universalActions m = case l of
-      Beginner ->
-        [ makeLambda m
-        , patternMatch
-        ]
-      Intermediate ->
-        [ makeLambda m
-        , patternMatch
-        , applyFunction
-        ]
-      Expert ->
-        [ annotateExpression
-        , applyFunction
-        , applyType
-        , patternMatch
-        , makeLambda m
-        , makeTypeAbstraction m
-        ]
+    universalActions m =
+      let isSynth = has (_type % _Just % _synthed) m
+          both = case l of
+            Beginner ->
+              [ makeLambda m
+              ]
+            Intermediate ->
+              [ makeLambda m
+              , applyFunction
+              ]
+            Expert ->
+              [ annotateExpression
+              , applyFunction
+              , applyType
+              , makeLambda m
+              , makeTypeAbstraction m
+              ]
+          synOnly =         [patternMatch]
+      in both <> if isSynth then synOnly else []
 
     -- Extract the source of the function type we were checked at
     -- i.e. the type that a lambda-bound variable would have here
