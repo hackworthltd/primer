@@ -31,7 +31,8 @@ module Primer.App (
   progAllModules,
   Mutability(..),
   progAllDefs,
-  allConNames,
+  allValConNames,
+  allTyConNames,
   tcWholeProg,
   tcWholeProgWithImports,
   nextProgID,
@@ -93,7 +94,7 @@ import Optics (
   (^.),
   _Just,
   _Left,
-  _Right,
+  _Right, ifoldMap,
  )
 import Primer.Action (
   Action,
@@ -649,7 +650,7 @@ applyProgAction prog mdefName = \case
       updateName n = if n == old then new else n
   RenameCon type_ old (unsafeMkGlobalName . (fmap unName (unModuleName (qualifiedModule type_)),) -> new) ->
     editModuleSameSelectionCross (qualifiedModule type_) prog $ \(m, ms) -> do
-      when (new `elem` allConNames prog) $ throwError $ ConAlreadyExists new
+      when (new `elem` allValConNames prog) $ throwError $ ConAlreadyExists new
       m' <- updateType m
       pure $ over (mapped % #moduleDefs) updateDefs (m' : ms)
     where
@@ -698,7 +699,7 @@ applyProgAction prog mdefName = \case
       updateName n = if n == old then new else n
   AddCon type_ index (unsafeMkGlobalName . (fmap unName (unModuleName (qualifiedModule type_)),) -> con) ->
     editModuleSameSelectionCross (qualifiedModule type_) prog $ \(m, ms) -> do
-      when (con `elem` allConNames prog) $ throwError $ ConAlreadyExists con
+      when (con `elem` allValConNames prog) $ throwError $ ConAlreadyExists con
       m' <- updateType m
       traverseOf
         (traversed % #moduleDefs % traversed % #_DefAST % #astDefExpr)
@@ -1533,17 +1534,17 @@ progCxt p = buildTypingContextFromModules (progAllModules p) (progSmartHoles p)
 liftError :: MonadError ProgError m => (e -> ProgError) -> ExceptT e m b -> m b
 liftError f = runExceptT >=> either (throwError . f) pure
 
-allConNames :: Prog -> [ValConName]
-allConNames =
-  toListOf $
-    #progModules
-      % traversed
-      % #moduleTypes
-      % traversed
-      % #_TypeDefAST
-      % #astTypeDefConstructors
-      % traversed
-      % #valConName
+allConNames :: Prog -> [(TyConName,[ValConName])]
+allConNames p = ifoldMap (\tn td -> pure (tn,valConName <$> typeDefConstructors td)) $ allTypes p
+  where typeDefConstructors td = maybe [] astTypeDefConstructors $ typeDefAST td
+
+
+allValConNames :: Prog -> [ValConName]
+allValConNames = snd <=< allConNames
+
+allTyConNames :: Prog -> [TyConName]
+allTyConNames = fmap fst . allConNames
+
 
 -- | Given a 'Prog', return the next 'ID' that's safe to use when
 -- editing it.
