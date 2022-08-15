@@ -11,6 +11,7 @@ import GHC.Err (error)
 import Optics (toListOf, (%))
 import Primer.Action (ActionName (..), OfferedAction (description, name))
 import Primer.Action.Available (actionsForDef, actionsForDefBody, actionsForDefSig)
+import Primer.App (Editable (Editable))
 import Primer.Core (
   GVarName,
   GlobalName (baseName, qualifiedModule),
@@ -64,12 +65,12 @@ mkTests (defName, DefAST def) =
         enumerate
           <&> \level ->
             -- We sort the offered actions to make the test output more stable
-            let defActions = sort' $ map name $ actionsForDef level (Map.singleton defName $ DefAST def) d
+            let defActions = sort' $ map name $ actionsForDef level (Map.singleton defName (Editable, DefAST def)) d
                 bodyActions =
                   map
                     ( \id ->
                         ( id
-                        , sort' $ map name $ actionsForDefBody level defName id (astDefExpr def)
+                        , sort' $ map name $ actionsForDefBody level defName Editable id (astDefExpr def)
                         )
                     )
                     . toListOf exprIDs
@@ -78,7 +79,7 @@ mkTests (defName, DefAST def) =
                   map
                     ( \id ->
                         ( id
-                        , sort' $ map name $ actionsForDefSig level defName id (astDefType def)
+                        , sort' $ map name $ actionsForDefSig level defName Editable id (astDefType def)
                         )
                     )
                     . toListOf (_typeMeta % _id)
@@ -106,7 +107,7 @@ unit_def_in_use =
         let bar = qualifyName (ModuleName ["M"]) "bar"
         barDef <- ASTDef <$> gvar foo <*> tEmptyHole
         let ds = [(foo, DefAST fooDef), (bar, DefAST barDef)]
-        pure (foo, Map.fromList ds)
+        pure (foo, Map.fromList $ fmap (second (Editable,)) ds)
    in for_
         enumerate
         ( \l ->
