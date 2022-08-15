@@ -159,7 +159,7 @@ tasty_available_actions_accepted = withTests 500 $
              pure (ann,actionsForDefSig l defName defMut i ty)
          , defAST def <&> \d' -> do
              let expr = astDefExpr d'
-                 ids = expr ^.. exprIDs -- TODO: this can give ids in the type; does it give binding ids as well?
+                 ids = expr ^.. exprIDs -- TODO: this gives ids in the expression, including in bindings; it also  gives ids in type annotations etc, but this is ok, we will just not offer any actions there
              i <- Gen.element ids
              let ann = "actionsForDefBody id " <> show i
              pure (ann, actionsForDefBody l defName defMut i expr)
