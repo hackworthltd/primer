@@ -31,6 +31,7 @@ module Primer.App (
   progAllModules,
   Mutability(..),
   progAllDefs,
+  allConNames,
   tcWholeProg,
   tcWholeProgWithImports,
   nextProgID,

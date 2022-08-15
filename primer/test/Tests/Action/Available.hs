@@ -10,13 +10,13 @@ import Data.Text.Lazy qualified as TL
 import GHC.Err (error)
 import Gen.App (genApp)
 import Gen.Core.Typed (WT, forAllT, propertyWT)
-import Hedgehog (PropertyT, annotateShow, discard, failure, success, label, collect)
+import Hedgehog (PropertyT, annotateShow, discard, failure, success, label, collect, assert)
 import Hedgehog.Gen qualified as Gen
 import Hedgehog.Internal.Property (forAllWithT)
 import Optics (toListOf, (%))
-import Primer.Action (ActionInput (..), ActionName (..), OfferedAction (..), UserInput (ChooseOrEnterName))
+import Primer.Action (ActionInput (..), ActionName (..), OfferedAction (..), UserInput (ChooseOrEnterName, ChooseTypeConstructor))
 import Primer.Action.Available (actionsForDef, actionsForDefBody, actionsForDefSig)
-import Primer.App (App, EditAppM, Prog (..), appProg, handleEditRequest, runEditAppM, progAllModules, progAllDefs, Mutability (Mutable, Immutable))
+import Primer.App (App, EditAppM, Prog (..), appProg, handleEditRequest, runEditAppM, progAllModules, progAllDefs, Mutability (Mutable, Immutable), allConNames)
 import Primer.Core (
   ASTDef (..),
   Def (DefAST, DefPrim),
@@ -24,7 +24,7 @@ import Primer.Core (
   GlobalName (baseName, qualifiedModule),
   HasID (_id),
   ID,
-  ModuleName (ModuleName),
+  ModuleName (ModuleName, unModuleName),
   mkSimpleModuleName,
   moduleNamePretty,
   qualifyName,
@@ -166,7 +166,7 @@ tasty_available_actions_accepted = withTests 500 $
               actionSucceeds (handleEditRequest act') a
             NoInputRequired act' -> label "NoInputRequired" >> annotateShow act' >> actionSucceeds (handleEditRequest act') a
             --        AskQuestion q a' -> _
-            _ -> label "skip" >> success -- TODO: care about this!
+            _ -> error "actionsForDef are only ever NoInputRequired or ChooseOrEnterName"
         {-
               i <- forAllT $ Gen.element $ t ^.. exprIDs
               a <- forAllWithT name' $ Gen.element $ actionsForDefBody l n i t
