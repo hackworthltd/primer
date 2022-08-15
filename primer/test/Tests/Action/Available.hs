@@ -174,11 +174,13 @@ tasty_available_actions_accepted = withTests 500 $
               -- TODO/REVIEW: we should revisit this action -- perhaps it should contain a list of constructors?
               label "ChooseTypeConstructor"
               let cons = allTyConNames $ appProg a
-              assert (not $ null cons) -- TODO: this list can be empty!
-              c <- forAllT $ Gen.element cons
-              let act' = f $ globalNameToQualifiedText c
-              annotateShow act'
-              actionSucceeds (handleEditRequest act') a
+              if null cons
+                then label "no tycons, skip" >> success -- TODO: should we even offer the action in that case?
+                else do
+                  c <- forAllT $ Gen.element cons
+                  let act' = f $ globalNameToQualifiedText c
+                  annotateShow act'
+                  actionSucceeds (handleEditRequest act') a
             InputRequired (ChooseOrEnterName _ opts f) -> do
               label "ChooseOrEnterName"
               let anOpt = Gen.element opts
