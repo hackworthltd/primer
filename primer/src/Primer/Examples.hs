@@ -30,12 +30,14 @@ module Primer.Examples (
 
   -- * Toy example programs, plus their next 'ID' and 'NameCounter'.
   even3Prog,
+  mapOddProg,
   badEven3Prog,
   badEvenProg,
   badMapProg,
 
   -- * Toy 'App's.
   even3App,
+  mapOddApp,
 ) where
 
 import Foreword hiding (
@@ -54,6 +56,10 @@ import Primer.App (
   mkApp,
  )
 import Primer.Builtins qualified as B
+import Primer.Builtins.DSL (
+  list_,
+  nat,
+ )
 import Primer.Core (
   ASTDef (ASTDef),
   Def (DefAST),
@@ -341,6 +347,35 @@ even3Prog =
       , toEnum 0
       )
 
+-- | A program whose @main@ 'map's 'odd' over a list of 'B.tNat'.
+mapOddProg :: (Prog, ID, NameCounter)
+mapOddProg =
+  let modName = mkSimpleModuleName "MapOdd"
+      (defs, nextID) = create $ do
+        (_, evenDef) <- even modName
+        (oddName, oddDef) <- odd modName
+        (mapName, mapDef) <- map modName
+        mapOddDef <- do
+          type_ <- tcon B.tList `tapp` tcon B.tBool
+          let lst = list_ B.tNat $ take 4 $ nat <$> [0 ..]
+          term <- gvar mapName `aPP` tcon B.tNat `aPP` tcon B.tBool `app` gvar oddName `app` lst
+          pure $ DefAST $ ASTDef term type_
+        let globs = [("even", evenDef), ("odd", oddDef), ("map", mapDef), ("mapOdd", mapOddDef)]
+        pure globs
+   in ( defaultProg
+          { progImports = [B.builtinModule]
+          , progModules =
+              [ Module
+                  { moduleName = modName
+                  , moduleTypes = mempty
+                  , moduleDefs = Map.fromList defs
+                  }
+              ]
+          }
+      , nextID
+      , toEnum 0
+      )
+
 -- | A "bad" version of 'even3Prog' where the type of @even 3?@ is
 -- specified as @Nat@.
 badEven3Prog :: (Prog, ID, NameCounter)
@@ -418,4 +453,10 @@ badMapProg =
 even3App :: App
 even3App =
   let (p, id_, nc) = even3Prog
+   in mkApp id_ nc p
+
+-- | An 'App' containing 'mapOddProg'.
+mapOddApp :: App
+mapOddApp =
+  let (p, id_, nc) = mapOddProg
    in mkApp id_ nc p

@@ -82,6 +82,9 @@ unit_checkAppWellFormed_newEmptyApp = expectWellFormed newEmptyApp "newEmptyApp"
 unit_checkAppWellFormed_even3App :: Assertion
 unit_checkAppWellFormed_even3App = expectWellFormed Examples.even3App "even3App"
 
+unit_checkAppWellFormed_mapOddApp :: Assertion
+unit_checkAppWellFormed_mapOddApp = expectWellFormed Examples.mapOddApp "mapOddApp"
+
 unit_checkAppWellFormed_badEven3App :: Assertion
 unit_checkAppWellFormed_badEven3App = expectNotWellFormed badEven3App "badEven3App"
 
@@ -93,6 +96,9 @@ unit_checkAppWellFormed_badMapApp = expectNotWellFormed badMapApp "badMapApp"
 
 unit_mkAppSafe_even3Prog :: Assertion
 unit_mkAppSafe_even3Prog = expectMkAppSafeSuccess Examples.even3Prog "even3Prog"
+
+unit_mkAppSafe_mapOddProg :: Assertion
+unit_mkAppSafe_mapOddProg = expectMkAppSafeSuccess Examples.mapOddProg "mapOddProg"
 
 unit_mkAppSafe_badEven3Prog :: Assertion
 unit_mkAppSafe_badEven3Prog = expectMkAppSafeFailure Examples.badEven3Prog "badEven3Prog"
