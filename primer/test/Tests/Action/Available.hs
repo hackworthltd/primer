@@ -131,9 +131,15 @@ tasty_available_actions_accepted = withTests 500 $
         [] -> discard
         ds -> forAllT $ Gen.element ds
       -- TODO: should test primitives also (i.e. they should have no? actions)
+      collect (fst def')
+      case snd def' of
+        DefAST {} -> label "AST"
+        DefPrim {} -> label "Prim"
+        {-
       _ <- case def' of
         (mut,DefAST d) -> collect mut >> pure d
         _ -> discard
+-}
       -- TODO: other sorts of action... actionsForDef{,Body,Sig}
       let acts = actionsForDef l allDefs defName
       case acts of
