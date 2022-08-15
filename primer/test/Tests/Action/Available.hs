@@ -49,6 +49,8 @@ import Test.Tasty.Golden (goldenVsString)
 import Test.Tasty.HUnit (Assertion, (@?=))
 import TestUtils (Property, withDiscards, withTests)
 import Text.Pretty.Simple (pShowNoColor)
+import Primer.Builtins (builtinModule)
+import Primer.Primitives (primitiveModule)
 
 -- | Comprehensive DSL test.
 test_1 :: TestTree
@@ -125,7 +127,7 @@ tasty_available_actions_accepted = withTests 500 $
     propertyWT [] $ do
       l <- forAllT $ Gen.element enumerate
       sh <- forAllT $ Gen.element [NoSmartHoles, SmartHoles]
-      a <- forAllT $ genApp sh [] -- [builtinModule, primitiveModule] -- TODO: consider bigger context
+      a <- forAllT $ genApp sh [builtinModule, primitiveModule] -- TODO: consider bigger context
       let allDefs = progAllDefs $ appProg a
       (defName, def') <- case Map.toList allDefs of
         [] -> discard
