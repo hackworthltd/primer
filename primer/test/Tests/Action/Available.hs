@@ -3,7 +3,7 @@ module Tests.Action.Available where
 import Foreword
 
 import Data.ByteString.Lazy.Char8 qualified as BS
-import Data.List.Extra (enumerate)
+import Data.List.Extra (enumerate, partition)
 import Data.Map qualified as Map
 import Data.Text qualified as T
 import Data.Text.Lazy qualified as TL
@@ -16,7 +16,7 @@ import Hedgehog.Internal.Property (forAllWithT)
 import Optics (toListOf, (%))
 import Primer.Action (ActionInput (..), ActionName (..), OfferedAction (..))
 import Primer.Action.Available (actionsForDef, actionsForDefBody, actionsForDefSig)
-import Primer.App (App, EditAppM, Prog (..), appProg, handleEditRequest, runEditAppM, progAllModules, progAllDefs, Mutability (Mutable))
+import Primer.App (App, EditAppM, Prog (..), appProg, handleEditRequest, runEditAppM, progAllModules, progAllDefs, Mutability (Mutable, Immutable))
 import Primer.Core (
   ASTDef (..),
   Def (DefAST, DefPrim),
@@ -128,10 +128,15 @@ tasty_available_actions_accepted = withTests 500 $
       l <- forAllT $ Gen.element enumerate
       sh <- forAllT $ Gen.element [NoSmartHoles, SmartHoles]
       a <- forAllT $ genApp sh [builtinModule, primitiveModule] -- TODO: consider bigger context
-      let allDefs = progAllDefs $ appProg a
-      (defName, def') <- case Map.toList allDefs of
-        [] -> discard
-        ds -> forAllT $ Gen.element ds
+      let allDefs =  progAllDefs $ appProg a
+      let isMutable = \case
+            Mutable -> True
+            Immutable -> False
+      (defName, def') <- case partition (isMutable . fst . snd) $ Map.toList allDefs of
+        ([],[]) -> discard
+        (mut,[]) -> label "all mut" >> forAllT ( Gen.element mut)
+        ([],immut) -> label "all immut" >> forAllT (Gen.element immut)
+        (mut,immut) -> label "mixed mut/immut" >> forAllT (Gen.frequency [(9,Gen.element mut),(1,Gen.element immut)])
       -- TODO: should test primitives also (i.e. they should have no? actions)
       collect (fst def')
       case snd def' of
