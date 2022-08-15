@@ -14,9 +14,9 @@ import Hedgehog (PropertyT, annotateShow, discard, failure, success, label, coll
 import Hedgehog.Gen qualified as Gen
 import Hedgehog.Internal.Property (forAllWithT)
 import Optics (toListOf, (%), (^..))
-import Primer.Action (ActionInput (..), ActionName (..), OfferedAction (..), UserInput (ChooseOrEnterName, ChooseTypeConstructor))
+import Primer.Action (ActionInput (..), ActionName (..), OfferedAction (..), UserInput (ChooseOrEnterName, ChooseTypeConstructor, ChooseConstructor))
 import Primer.Action.Available (actionsForDef, actionsForDefBody, actionsForDefSig)
-import Primer.App (App, EditAppM, Prog (..), appProg, handleEditRequest, runEditAppM, progAllModules, progAllDefs, Mutability (Mutable, Immutable), allTyConNames)
+import Primer.App (App, EditAppM, Prog (..), appProg, handleEditRequest, runEditAppM, progAllModules, progAllDefs, Mutability (Mutable, Immutable), allTyConNames, allValConNames)
 import Primer.Core (
   ASTDef (..),
   Def (DefAST, DefPrim),
@@ -169,6 +169,18 @@ tasty_available_actions_accepted = withTests 500 $
         acts' -> do
           act <- forAllWithT (toS . description) $ Gen.element acts'
           case input act of
+            InputRequired (ChooseConstructor _ f) -> do
+              -- We only test that existing constructors are accepted
+              -- TODO/REVIEW: we should revisit this action -- perhaps it should contain a list of constructors?
+              label "ChooseConstructor"
+              let cons = allValConNames $ appProg a
+              if null cons
+                then label "no valcons, skip" >> success -- TODO: should we even offer the action in that case?
+                else do
+                  c <- forAllT $ Gen.element cons
+                  let act' = f $ globalNameToQualifiedText c
+                  annotateShow act'
+                  actionSucceeds (handleEditRequest act') a
             InputRequired (ChooseTypeConstructor f) -> do
               -- We only test that existing constructors are accepted
               -- TODO/REVIEW: we should revisit this action -- perhaps it should contain a list of constructors?
