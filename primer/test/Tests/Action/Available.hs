@@ -142,9 +142,9 @@ tasty_available_actions_accepted = withTests 500 $
           act <- forAllWithT name' $ Gen.element acts'
           case input act of
             --        InputRequired a' -> _
-            NoInputRequired act' -> annotateShow act' >> actionSucceeds (handleEditRequest act') a
+            NoInputRequired act' -> label "NoInputRequired" >> annotateShow act' >> actionSucceeds (handleEditRequest act') a
             --        AskQuestion q a' -> _
-            _ -> discard -- TODO: care about this!
+            _ -> label "skip" >> success -- TODO: care about this!
         {-
               i <- forAllT $ Gen.element $ t ^.. exprIDs
               a <- forAllWithT name' $ Gen.element $ actionsForDefBody l n i t
