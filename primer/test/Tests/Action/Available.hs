@@ -13,7 +13,7 @@ import Gen.Core.Typed (WT, forAllT, propertyWT)
 import Hedgehog (PropertyT, annotateShow, discard, failure, success, label, collect, assert)
 import Hedgehog.Gen qualified as Gen
 import Hedgehog.Internal.Property (forAllWithT)
-import Optics (toListOf, (%))
+import Optics (toListOf, (%), (^..))
 import Primer.Action (ActionInput (..), ActionName (..), OfferedAction (..), UserInput (ChooseOrEnterName, ChooseTypeConstructor))
 import Primer.Action.Available (actionsForDef, actionsForDefBody, actionsForDefSig)
 import Primer.App (App, EditAppM, Prog (..), appProg, handleEditRequest, runEditAppM, progAllModules, progAllDefs, Mutability (Mutable, Immutable), allConNames)
@@ -28,7 +28,7 @@ import Primer.Core (
   mkSimpleModuleName,
   moduleNamePretty,
   qualifyName,
-  _typeMeta,
+  _typeMeta, defType, defAST,
  )
 import Primer.Core.DSL (
   create',
@@ -37,7 +37,7 @@ import Primer.Core.DSL (
   tEmptyHole,
  )
 import Primer.Core.Utils (
-  exprIDs,
+  exprIDs, typeIDs,
  )
 import Primer.Examples (comprehensive)
 import Primer.Module (moduleDefsQualified)
@@ -134,14 +134,14 @@ tasty_available_actions_accepted = withTests 500 $
       let isMutable = \case
             Mutable -> True
             Immutable -> False
-      (defName, def') <- case partition (isMutable . fst . snd) $ Map.toList allDefs of
+      (defName, (defMut, def)) <- case partition (isMutable . fst . snd) $ Map.toList allDefs of
         ([],[]) -> discard
         (mut,[]) -> label "all mut" >> forAllT ( Gen.element mut)
         ([],immut) -> label "all immut" >> forAllT (Gen.element immut)
         (mut,immut) -> label "mixed mut/immut" >> forAllT (Gen.frequency [(9,Gen.element mut),(1,Gen.element immut)])
       -- TODO: should test primitives also (i.e. they should have no? actions)
-      collect (fst def')
-      case snd def' of
+      collect defMut
+      case def of
         DefAST {} -> label "AST"
         DefPrim {} -> label "Prim"
         {-
@@ -149,8 +149,19 @@ tasty_available_actions_accepted = withTests 500 $
         (mut,DefAST d) -> collect mut >> pure d
         _ -> discard
 -}
-      -- TODO: other sorts of action... actionsForDef{,Body,Sig}
-      let acts = actionsForDef l allDefs defName
+      acts <- forAllWithT (const "<actions>") $ Gen.choice $ catMaybes
+         [ Just $ pure $ actionsForDef l allDefs defName
+         , Just $ do
+             let ty = defType def
+                 ids = ty ^.. typeIDs
+             i <- Gen.element ids
+             pure $ actionsForDefSig l defName defMut i ty
+         , defAST def <&> \d' -> do
+             let expr = astDefExpr d'
+                 ids = expr ^.. exprIDs -- TODO: this can give ids in the type; does it give binding ids as well?
+             i <- Gen.element ids
+             pure $ actionsForDefBody l defName defMut i expr
+         ]
       case acts of
         [] -> success
         acts' -> do
@@ -166,7 +177,7 @@ tasty_available_actions_accepted = withTests 500 $
               actionSucceeds (handleEditRequest act') a
             NoInputRequired act' -> label "NoInputRequired" >> annotateShow act' >> actionSucceeds (handleEditRequest act') a
             --        AskQuestion q a' -> _
-            _ -> error "actionsForDef are only ever NoInputRequired or ChooseOrEnterName"
+            _ -> label "skip" >> success -- TODO: care about this!
         {-
               i <- forAllT $ Gen.element $ t ^.. exprIDs
               a <- forAllWithT name' $ Gen.element $ actionsForDefBody l n i t
