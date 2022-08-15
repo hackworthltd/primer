@@ -127,7 +127,7 @@ tasty_available_actions_accepted = withTests 500 $
   withDiscards 2000 $
     propertyWT [] $ do
       l <- forAllT $ Gen.element enumerate
-      sh <- forAllT $ Gen.element [NoSmartHoles, SmartHoles]
+      sh <- forAllT $ Gen.element [{-NoSmartHoles ,-} SmartHoles] -- REVIEW: do we care about NoSmartHoles? We offer lots of "bad" actions in that case
       cxt <- forAllT $ Gen.element [[], [builtinModule], [builtinModule, primitiveModule]]
       a <- forAllT $ genApp sh cxt
       let allDefs =  progAllDefs $ appProg a
