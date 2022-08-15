@@ -9,7 +9,9 @@ module Primer.Client (
   flushSessions,
   createSession,
   listSessions,
+  addSession,
   getProgram,
+  getApp,
   getSessionName,
   renameSession,
   edit,
@@ -23,6 +25,7 @@ import Foreword
 
 import Data.String (String)
 import Primer.App (
+  App,
   EvalFullReq,
   EvalFullResp,
   EvalReq,
@@ -88,9 +91,17 @@ createSession = apiClient // API.sessionsAPI // API.createSession
 listSessions :: Bool -> Pagination -> ClientM (Paginated Session)
 listSessions inMemory pp = apiClient // API.sessionsAPI // API.getSessionList /: inMemory /: pp
 
+-- | As 'Primer.API.addSession'.
+addSession :: Text -> App -> ClientM SessionId
+addSession name app = apiClient // API.sessionsAPI // API.addSession /: name /: app
+
 -- | As 'Primer.API.getProgram'.
 getProgram :: SessionId -> ClientM Prog
 getProgram sid = apiClient // API.sessionsAPI // API.sessionAPI /: sid // API.getProgram
+
+-- | As 'Primer.API.getApp'.
+getApp :: SessionId -> ClientM App
+getApp sid = apiClient // API.sessionsAPI // API.sessionAPI /: sid // API.getApp
 
 -- | As 'Primer.API.getSessionName'.
 getSessionName :: SessionId -> ClientM Text

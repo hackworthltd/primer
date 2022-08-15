@@ -111,6 +111,7 @@ sessionsAPIServer =
   S.SessionsAPI
     { S.createSession = newSession
     , S.getSessionList = \b p -> pagedDefaultClamp 100 p $ listSessions b
+    , S.addSession = API.addSession
     , S.sessionAPI = sessionAPIServer
     }
 
@@ -118,6 +119,7 @@ sessionAPIServer :: SessionId -> S.SessionAPI (AsServerT PrimerIO)
 sessionAPIServer sid =
   S.SessionAPI
     { S.getProgram = API.getProgram sid
+    , S.getApp = API.getApp sid
     , S.getSessionName = API.getSessionName sid
     , S.setSessionName = renameSession sid
     , S.editSession = edit sid

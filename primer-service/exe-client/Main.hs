@@ -9,6 +9,7 @@ import Data.String (String)
 import Network.HTTP.Client.TLS (newTlsManager)
 import Options.Applicative (
   Parser,
+  argument,
   command,
   eitherReader,
   execParser,
@@ -18,12 +19,22 @@ import Options.Applicative (
   hsubparser,
   info,
   long,
+  metavar,
   option,
   progDesc,
+  str,
+ )
+import Primer.App (
+  App,
  )
 import Primer.Client (
+  addSession,
   defaultAPIPath,
   getVersion,
+ )
+import Primer.Examples (
+  even3App,
+  mapOddApp,
  )
 import Servant.Client (
   BaseUrl (..),
@@ -46,10 +57,38 @@ defaultBaseUrl =
 
 data GlobalOptions = GlobalOptions (Maybe BaseUrl) Command
 
-data Command = GetVersion
+data AppName
+  = Even3
+  | MapOdd
+  deriving stock (Eq, Show, Read, Enum, Bounded)
+
+appNameToApp :: AppName -> App
+appNameToApp Even3 = even3App
+appNameToApp MapOdd = mapOddApp
+
+showAppChoices :: String
+showAppChoices = toS $ unwords (map show allApps)
+  where
+    allApps :: [AppName]
+    allApps = [minBound .. maxBound]
+
+parseAppName :: String -> Either String AppName
+parseAppName arg = case reads arg of
+  [(appName, "")] -> Right appName
+  _ -> Left $ "Unknown app: " <> arg <> "\nRun with --help for a list of available apps."
+
+data Command
+  = GetVersion
+  | AddSession Text AppName
 
 getVersionCommand :: Parser Command
 getVersionCommand = pure GetVersion
+
+addSessionCommand :: Parser Command
+addSessionCommand =
+  AddSession
+    <$> argument str (metavar "NAME")
+    <*> argument (eitherReader parseAppName) (metavar "APP")
 
 getOptions :: Parser GlobalOptions
 getOptions =
@@ -59,6 +98,9 @@ getOptions =
       ( command
           "get-version"
           (info getVersionCommand (progDesc "Get the server version"))
+          <> command
+            "add-session"
+            (info addSessionCommand (progDesc $ "Add app APP to the database with the name NAME. The following apps are available: " <> showAppChoices))
       )
 
 baseUrlEnvVar :: String
@@ -85,6 +127,11 @@ run (GlobalOptions svc c) = do
       case version of
         Left e -> putStrLn $ "Error: " ++ show e
         Right v -> putStrLn $ "Primer version: " ++ show v
+    AddSession name app -> do
+      result <- runClientM (addSession name $ appNameToApp app) env
+      case result of
+        Left e -> putStrLn $ "Error: " ++ show e
+        Right sid -> putStrLn $ "Added app with session ID: " ++ show sid
 
 main :: IO ()
 main = execParser opts >>= run

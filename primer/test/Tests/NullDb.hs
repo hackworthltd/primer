@@ -22,6 +22,7 @@ import Primer.Database (
  )
 import Primer.Examples (
   even3App,
+  mapOddApp,
  )
 import Test.Tasty
 import Test.Tasty.HUnit (testCaseSteps)
@@ -52,28 +53,28 @@ test_insertSession_roundtrip = testCaseSteps "insertSession database round-tripp
     result @?= Right (SessionData even3App name)
 
     let jpName = safeMkSessionName "サンプルプログラム"
-    step "Insert app with Japanese name"
+    step "Insert mapOddApp with Japanese name"
     sid1 <- liftIO newSessionId
-    insertSession version sid1 even3App jpName
+    insertSession version sid1 mapOddApp jpName
     r1 <- querySessionId sid1
-    r1 @?= Right (SessionData even3App jpName)
+    r1 @?= Right (SessionData mapOddApp jpName)
 
     let cnName = safeMkSessionName "示例程序"
-    step "Insert app with simplified Chinese name"
+    step "Insert even3App with simplified Chinese name"
     sid2 <- liftIO newSessionId
     insertSession version sid2 even3App cnName
     r2 <- querySessionId sid2
     r2 @?= Right (SessionData even3App cnName)
 
     let arName = safeMkSessionName "برنامج مثال"
-    step "Insert app with Arabic name"
+    step "Insert mapOddApp with Arabic name"
     sid3 <- liftIO newSessionId
-    insertSession version sid3 even3App arName
+    insertSession version sid3 mapOddApp arName
     r3 <- querySessionId sid3
-    r3 @?= Right (SessionData even3App arName)
+    r3 @?= Right (SessionData mapOddApp arName)
 
     let emName = safeMkSessionName "😄😂🤣🤗 🦊 🦈"
-    step "Insert app with emoji name"
+    step "Insert even3App with emoji name"
     sid4 <- liftIO newSessionId
     insertSession version sid4 even3App emName
     r4 <- querySessionId sid4
@@ -86,23 +87,23 @@ test_insertSession_failure = testCaseSteps "insertSession failure modes" $ \step
 
     step "Insert program"
     let version = "git123"
-    let name = safeMkSessionName "testNewApp"
+    let name = safeMkSessionName "testApp"
     sessionId <- liftIO newSessionId
-    insertSession version sessionId newApp name
+    insertSession version sessionId mapOddApp name
 
     step "Attempt to insert the same program and metadata again"
-    assertException "insertSession" (expectedError sessionId) $ insertSession version sessionId newApp name
+    assertException "insertSession" (expectedError sessionId) $ insertSession version sessionId mapOddApp name
 
     step "Attempt to insert a different program with the same metadata"
     assertException "insertSession" (expectedError sessionId) $ insertSession version sessionId newEmptyApp name
 
     step "Attempt to insert the same program with a different version"
     let newVersion = "new-" <> version
-    assertException "insertSession" (expectedError sessionId) $ insertSession newVersion sessionId newApp name
+    assertException "insertSession" (expectedError sessionId) $ insertSession newVersion sessionId mapOddApp name
 
     step "Attempt to insert the same program with a different name"
     let newName = safeMkSessionName "new name"
-    assertException "insertSession" (expectedError sessionId) $ insertSession version sessionId newApp newName
+    assertException "insertSession" (expectedError sessionId) $ insertSession version sessionId mapOddApp newName
 
 mkSession :: Int -> IO (SessionId, SessionData)
 mkSession n = do
@@ -145,18 +146,18 @@ test_updateSessionApp_roundtrip = testCaseSteps "updateSessionApp database round
     let version = "git123"
     let name = safeMkSessionName "new app"
     sessionId <- liftIO newSessionId
-    insertSession version sessionId newEmptyApp name
+    insertSession version sessionId mapOddApp name
 
     step "Update it with the same version and app"
-    updateSessionApp version sessionId newEmptyApp
+    updateSessionApp version sessionId mapOddApp
     r1 <- querySessionId sessionId
-    r1 @?= Right (SessionData newEmptyApp name)
+    r1 @?= Right (SessionData mapOddApp name)
 
     step "Update it with a new version, but the same app"
     let newVersion = "new-" <> version
-    updateSessionApp newVersion sessionId newEmptyApp
+    updateSessionApp newVersion sessionId mapOddApp
     r2 <- querySessionId sessionId
-    r2 @?= Right (SessionData newEmptyApp name)
+    r2 @?= Right (SessionData mapOddApp name)
 
     step "Update it with a new app"
     updateSessionApp newVersion sessionId even3App
@@ -182,48 +183,48 @@ test_updateSessionName_roundtrip = testCaseSteps "updateSessionName database rou
     let version = "git123"
     let name = safeMkSessionName "new app"
     sessionId <- liftIO newSessionId
-    insertSession version sessionId newEmptyApp name
+    insertSession version sessionId mapOddApp name
 
     step "Update it with the same version and name"
     updateSessionName version sessionId name
     r1 <- querySessionId sessionId
-    r1 @?= Right (SessionData newEmptyApp name)
+    r1 @?= Right (SessionData mapOddApp name)
 
     step "Update it with a new version, but the same name"
     let newVersion = "new-" <> version
     updateSessionName newVersion sessionId name
     r2 <- querySessionId sessionId
-    r2 @?= Right (SessionData newEmptyApp name)
+    r2 @?= Right (SessionData mapOddApp name)
 
     step "Update it with a new name"
     let newName = safeMkSessionName "new new app"
     updateSessionName newVersion sessionId newName
     r3 <- querySessionId sessionId
-    r3 @?= Right (SessionData newEmptyApp newName)
+    r3 @?= Right (SessionData mapOddApp newName)
 
     step "Update it with a Japanese name"
     let jpName = safeMkSessionName "サンプルプログラム"
     updateSessionName newVersion sessionId jpName
     r4 <- querySessionId sessionId
-    r4 @?= Right (SessionData newEmptyApp jpName)
+    r4 @?= Right (SessionData mapOddApp jpName)
 
     step "Update it with a simplified Chinese name"
     let cnName = safeMkSessionName "示例程序"
     updateSessionName newVersion sessionId cnName
     r5 <- querySessionId sessionId
-    r5 @?= Right (SessionData newEmptyApp cnName)
+    r5 @?= Right (SessionData mapOddApp cnName)
 
     step "Update it with an Arabic name"
     let arName = safeMkSessionName "برنامج مثال"
     updateSessionName newVersion sessionId arName
     r6 <- querySessionId sessionId
-    r6 @?= Right (SessionData newEmptyApp arName)
+    r6 @?= Right (SessionData mapOddApp arName)
 
     step "Update it with an emoji name"
     let emName = safeMkSessionName "😄😂🤣🤗 🦊 🦈"
     updateSessionName newVersion sessionId emName
     r7 <- querySessionId sessionId
-    r7 @?= Right (SessionData newEmptyApp emName)
+    r7 @?= Right (SessionData mapOddApp emName)
 
 test_updateSessionName_failure :: TestTree
 test_updateSessionName_failure = testCaseSteps "updateSessionName failure modes" $ \step' ->
