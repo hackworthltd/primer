@@ -10,6 +10,7 @@ module Primer.Pretty (
 
 import Foreword hiding (group, list)
 
+import Data.Text qualified as T
 import Prettyprinter (
   Doc,
   Pretty (pretty),
@@ -17,6 +18,7 @@ import Prettyprinter (
   fill,
   flatAlt,
   group,
+  hsep,
   indent,
   line,
   line',
@@ -80,7 +82,7 @@ compact =
     , inlineLet = True
     , inlineLambda = True
     , inlineForAll = True
-    , inlineMatch = True
+    , inlineMatch = False
     }
 
 -- | Pretty prints @Expr'@ using Prettyprinter library
@@ -113,31 +115,36 @@ prettyExpr opts = \case
         <+> pE e
         <+> col Yellow "with"
           <> line
-        <+> indent'
-          2
-          ( mconcat
-              ( intersperse
-                  line
-                  $ map (printCase 0) bs
-              )
-          )
+        <+> indent' 2 printCases
     )
     where
-      caseParts (CaseBranch n bs' e') =
-        ( col Green (gname opts n)
-            <+> mconcat
-              ( intersperse space $
-                  map
-                    (\(Bind _ n') -> lname n')
-                    bs'
+      caseParts :: [(Doc AnsiStyle, Doc AnsiStyle)]
+      caseParts =
+        map
+          ( \(CaseBranch n bs' e') ->
+              ( col Green (gname opts n)
+                  <> mconcat
+                    ( intersperse'
+                        space
+                        ( map
+                            (\(Bind _ n') -> lname n')
+                            bs'
+                        )
+                    )
+              , col Yellow "→"
+                  <> (if inlineMatch opts then group else identity)
+                    ( line
+                        <> indent' 2 (pE e')
+                    )
               )
-        , col Yellow "→"
-            <> (if inlineMatch opts then group else identity)
-              ( line
-                  <> indent' 2 (pE e')
-              )
-        )
-      printCase w b = let parts = caseParts b in fill w (fst parts) <+> snd parts
+          )
+          bs
+      intersperse' x = foldr (\y z -> x : y : z) [x]
+      printCases :: Doc AnsiStyle
+      printCases = mconcat . intersperse line $ cases
+      caseWidth = maximum $ map (T.length . show . fst) caseParts
+      cases :: [Doc AnsiStyle]
+      cases = map (\(f, s) -> fill caseWidth f <> s) caseParts
   Ann _ e t -> typeann e t
   App _ e e' -> brac Round White (pE e) <> line <> brac Round White (pE e')
   APP _ e t -> brac Round Yellow (pE e) <+> col Yellow "@" <> pT t
