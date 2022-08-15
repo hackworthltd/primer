@@ -128,7 +128,8 @@ tasty_available_actions_accepted = withTests 500 $
     propertyWT [] $ do
       l <- forAllT $ Gen.element enumerate
       sh <- forAllT $ Gen.element [NoSmartHoles, SmartHoles]
-      a <- forAllT $ genApp sh [builtinModule, primitiveModule] -- TODO: consider bigger context
+      cxt <- forAllT $ Gen.element [[], [builtinModule], [builtinModule, primitiveModule]]
+      a <- forAllT $ genApp sh cxt
       let allDefs =  progAllDefs $ appProg a
       let isMutable = \case
             Mutable -> True
