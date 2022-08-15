@@ -50,6 +50,7 @@ import Primer.App (
   nextProgID,
   progAllModules, progAllDefs,
   allValConNames,
+  allValConNames,
  )
 import Primer.App qualified as App
 import Primer.Builtins (

@@ -14,7 +14,7 @@ import Hedgehog (PropertyT, annotateShow, discard, failure, success, label, coll
 import Hedgehog.Gen qualified as Gen
 import Hedgehog.Internal.Property (forAllWithT)
 import Optics (toListOf, (%), (^..))
-import Primer.Action (ActionInput (..), ActionName (..), OfferedAction (..), UserInput (ChooseOrEnterName, ChooseTypeConstructor, ChooseConstructor))
+import Primer.Action (ActionInput (..), ActionName (..), OfferedAction (..), UserInput (ChooseOrEnterName, ChooseTypeConstructor, ChooseConstructor, ChooseVariable))
 import Primer.Action.Available (actionsForDef, actionsForDefBody, actionsForDefSig)
 import Primer.App (App, EditAppM, Prog (..), appProg, handleEditRequest, runEditAppM, progAllModules, progAllDefs, Mutability (Mutable, Immutable), allTyConNames, allValConNames)
 import Primer.Core (
@@ -28,7 +28,7 @@ import Primer.Core (
   mkSimpleModuleName,
   moduleNamePretty,
   qualifyName,
-  _typeMeta, defType, defAST,
+  _typeMeta, defType, defAST, TmVarRef (GlobalVarRef, LocalVarRef),
  )
 import Primer.Core.DSL (
   create',
@@ -52,6 +52,8 @@ import Text.Pretty.Simple (pShowNoColor)
 import Primer.Builtins (builtinModule)
 import Primer.Primitives (primitiveModule)
 import Gen.Core.Raw (genName)
+import Primer.Questions (variablesInScopeExpr)
+import Primer.Zipper (focusOn, locToEither)
 
 -- | Comprehensive DSL test.
 test_1 :: TestTree
@@ -149,20 +151,20 @@ tasty_available_actions_accepted = withTests 500 $
         (mut,DefAST d) -> collect mut >> pure d
         _ -> discard
 -}
-      acts <- fmap snd . forAllWithT fst $ Gen.choice $ catMaybes
-         [ Just $ pure ("actionsForDef",actionsForDef l allDefs defName)
+      (loc,acts) <- fmap snd . forAllWithT fst $ Gen.choice $ catMaybes
+         [ Just $ pure ("actionsForDef",(Nothing,actionsForDef l allDefs defName))
          , Just $ do
              let ty = defType def
                  ids = ty ^.. typeIDs
              i <- Gen.element ids
              let ann = "actionsForDefSig id " <> show i
-             pure (ann,actionsForDefSig l defName defMut i ty)
+             pure (ann,(Just $ Left i,actionsForDefSig l defName defMut i ty))
          , defAST def <&> \d' -> do
              let expr = astDefExpr d'
                  ids = expr ^.. exprIDs -- TODO: this gives ids in the expression, including in bindings; it also  gives ids in type annotations etc, but this is ok, we will just not offer any actions there
              i <- Gen.element ids
              let ann = "actionsForDefBody id " <> show i
-             pure (ann, actionsForDefBody l defName defMut i expr)
+             pure (ann, (Just $ Right i, actionsForDefBody l defName defMut i expr))
          ]
       case acts of
         [] -> success
@@ -201,6 +203,23 @@ tasty_available_actions_accepted = withTests 500 $
               let act' = f n
               annotateShow act'
               actionSucceeds (handleEditRequest act') a
+            InputRequired (ChooseVariable _ f) -> do
+              -- TODO/REVIEW: we should revisit this action -- perhaps it should contain a list of constructors?
+              label "ChooseVariable"
+              let vars = case loc of
+                   Nothing -> error "actionsForDef only ever gives ChooseOrEnterName or NoInputRequired"
+                   Just (Left _) -> error "Shouldn't offer ChooseVariable in a type!"
+                   Just (Right i) -> case focusOn i . astDefExpr =<< defAST def of
+                      Nothing -> error "cannot focus on an id in the expr?"
+                      Just ez -> let (_,lvars,gvars) = variablesInScopeExpr (snd <$> allDefs) $ locToEither ez
+                                 in map (LocalVarRef . fst) lvars <> map (GlobalVarRef . fst) gvars
+              if null vars
+                then label "no vars, skip" >> success -- TODO: should we even offer the action in that case?
+                else do
+                  v <- forAllT $ Gen.element vars
+                  let act' = f v
+                  annotateShow act'
+                  actionSucceeds (handleEditRequest act') a
             NoInputRequired act' -> label "NoInputRequired" >> annotateShow act' >> actionSucceeds (handleEditRequest act') a
             --        AskQuestion q a' -> _
             _ -> label "skip" >> success -- TODO: care about this!
