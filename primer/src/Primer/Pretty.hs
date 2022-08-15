@@ -18,7 +18,6 @@ import Prettyprinter (
   fill,
   flatAlt,
   group,
-  hsep,
   indent,
   line,
   line',
@@ -111,13 +110,11 @@ prettyExpr opts = \case
           <> indent 2 (pE e)
       )
   Case _ e bs ->
-    ( col Yellow "match"
-        <+> pE e
-        <+> col Yellow "with"
-          <> line
-        <+> indent' 2 printCases
-    )
+    flatAlt
+      (col Yellow "match" <+> pE e <+> col Yellow "with" <> line <> indent' 2 printCasesUngrouped)
+      (col Yellow "match" <+> pE e <+> col Yellow "with:" <+> printCasesGrouped)
     where
+      -- Cases split into two parts for printing: (Value, "→" + Expression)
       caseParts :: [(Doc AnsiStyle, Doc AnsiStyle)]
       caseParts =
         map
@@ -132,19 +129,22 @@ prettyExpr opts = \case
                         )
                     )
               , col Yellow "→"
-                  <> (if inlineMatch opts then group else identity)
-                    ( line
-                        <> indent' 2 (pE e')
-                    )
+                  <+> pE e'
               )
           )
           bs
       intersperse' x = foldr (\y z -> x : y : z) [x]
-      printCases :: Doc AnsiStyle
-      printCases = mconcat . intersperse line $ cases
+
+      printCasesUngrouped = mconcat . intersperse line $ casesAligned
+      printCasesGrouped = mconcat . intersperse "; " $ cases
+
+      casesAligned :: [Doc AnsiStyle]
+      casesAligned = map (\(f, s) -> fill caseWidth f <> s) caseParts
+      caseWidth :: Int
       caseWidth = maximum $ map (T.length . show . fst) caseParts
+
       cases :: [Doc AnsiStyle]
-      cases = map (\(f, s) -> fill caseWidth f <> s) caseParts
+      cases = map (uncurry (<>)) caseParts
   Ann _ e t -> typeann e t
   App _ e e' -> brac Round White (pE e) <> line <> brac Round White (pE e')
   APP _ e t -> brac Round Yellow (pE e) <+> col Yellow "@" <> pT t
