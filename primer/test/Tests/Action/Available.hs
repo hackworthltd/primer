@@ -1,3 +1,4 @@
+{-# LANGUAGE GADTs #-}
 module Tests.Action.Available where
 
 import Foreword
@@ -52,7 +53,7 @@ import Text.Pretty.Simple (pShowNoColor)
 import Primer.Builtins (builtinModule)
 import Primer.Primitives (primitiveModule)
 import Gen.Core.Raw (genName)
-import Primer.Questions (variablesInScopeExpr, variablesInScopeTy)
+import Primer.Questions (variablesInScopeExpr, variablesInScopeTy, Question (GenerateName))
 import Primer.Zipper (focusOn, locToEither, focusOnTy)
 
 -- | Comprehensive DSL test.
@@ -170,84 +171,82 @@ tasty_available_actions_accepted = withTests 500 $
       case acts of
         [] -> success
         acts' -> do
-          act <- forAllWithT (toS . description) $ Gen.element acts'
-          case input act of
-            InputRequired (ChooseConstructor _ f) -> do
-              -- We only test that existing constructors are accepted
-              -- TODO/REVIEW: we should revisit this action -- perhaps it should contain a list of constructors?
-              label "ChooseConstructor"
-              let cons = allValConNames $ appProg a
-              if null cons
-                then label "no valcons, skip" >> success -- TODO: should we even offer the action in that case?
-                else do
-                  c <- forAllT $ Gen.element cons
-                  let act' = f $ globalNameToQualifiedText c
+          action <- forAllWithT (toS . description) $ Gen.element acts'
+          let checkActionInput = \case
+                InputRequired (ChooseConstructor _ f) -> do
+                  -- We only test that existing constructors are accepted
+                  -- TODO/REVIEW: we should revisit this action -- perhaps it should contain a list of constructors?
+                  label "ChooseConstructor"
+                  let cons = allValConNames $ appProg a
+                  if null cons
+                    then label "no valcons, skip" >> success -- TODO: should we even offer the action in that case?
+                    else do
+                      c <- forAllT $ Gen.element cons
+                      let act' = f $ globalNameToQualifiedText c
+                      annotateShow act'
+                      actionSucceeds (handleEditRequest act') a
+                InputRequired (ChooseTypeConstructor f) -> do
+                  -- We only test that existing constructors are accepted
+                  -- TODO/REVIEW: we should revisit this action -- perhaps it should contain a list of constructors?
+                  label "ChooseTypeConstructor"
+                  let cons = allTyConNames $ appProg a
+                  if null cons
+                    then label "no tycons, skip" >> success -- TODO: should we even offer the action in that case?
+                    else do
+                      c <- forAllT $ Gen.element cons
+                      let act' = f $ globalNameToQualifiedText c
+                      annotateShow act'
+                      actionSucceeds (handleEditRequest act') a
+                InputRequired (ChooseOrEnterName _ opts f) -> do
+                  label "ChooseOrEnterName"
+                  let anOpt = Gen.element opts
+                      other = genName
+                  n <- forAllT $ if null opts then other else Gen.choice [anOpt,other]
+                  let act' = f n
                   annotateShow act'
                   actionSucceeds (handleEditRequest act') a
-            InputRequired (ChooseTypeConstructor f) -> do
-              -- We only test that existing constructors are accepted
-              -- TODO/REVIEW: we should revisit this action -- perhaps it should contain a list of constructors?
-              label "ChooseTypeConstructor"
-              let cons = allTyConNames $ appProg a
-              if null cons
-                then label "no tycons, skip" >> success -- TODO: should we even offer the action in that case?
-                else do
-                  c <- forAllT $ Gen.element cons
-                  let act' = f $ globalNameToQualifiedText c
-                  annotateShow act'
-                  actionSucceeds (handleEditRequest act') a
-            InputRequired (ChooseOrEnterName _ opts f) -> do
-              label "ChooseOrEnterName"
-              let anOpt = Gen.element opts
-                  other = genName
-              n <- forAllT $ if null opts then other else Gen.choice [anOpt,other]
-              let act' = f n
-              annotateShow act'
-              actionSucceeds (handleEditRequest act') a
-            InputRequired (ChooseVariable _ f) -> do
-              -- TODO/REVIEW: we should revisit this action -- perhaps it should contain a list of constructors?
-              label "ChooseVariable"
-              let vars = case loc of
-                   Nothing -> error "actionsForDef only ever gives ChooseOrEnterName or NoInputRequired"
-                   Just (Left _) -> error "Shouldn't offer ChooseVariable in a type!"
-                   Just (Right i) -> case focusOn i . astDefExpr =<< defAST def of
-                      Nothing -> error "cannot focus on an id in the expr?"
-                      Just ez -> let (_,lvars,gvars) = variablesInScopeExpr (snd <$> allDefs) $ locToEither ez
-                                 in map (LocalVarRef . fst) lvars <> map (GlobalVarRef . fst) gvars
-              if null vars
-                then label "no vars, skip" >> success -- TODO: should we even offer the action in that case?
-                else do
-                  v <- forAllT $ Gen.element vars
-                  let act' = f v
-                  annotateShow act'
-                  actionSucceeds (handleEditRequest act') a
-            InputRequired (ChooseTypeVariable f) -> do
-              -- TODO/REVIEW: we should revisit this action -- perhaps it should contain a list of constructors?
-              label "ChooseTypeVariable"
-              let vars = case loc of
-                   Nothing -> error "actionsForDef only ever gives ChooseOrEnterName or NoInputRequired"
-                   Just (Left i) -> case focusOnTy i (defType def) of
-                      Nothing -> error "cannot focus on an id in the type?"
-                      Just tz -> fst <$> variablesInScopeTy tz
-                   Just (Right i) -> case focusOn i . astDefExpr =<< defAST def of
-                      Nothing -> error "cannot focus on an id in the expr?"
-                      Just ez -> let (tyvars,_,_) = variablesInScopeExpr (snd <$> allDefs) $ locToEither ez
-                                 in fst <$> tyvars
-              if null vars
-                then label "no tyvars, skip" >> success -- TODO: should we even offer the action in that case?
-                else do
-                  v <- forAllT $ Gen.element vars
-                  let act' = f $ unName $ unLocalName v
-                  annotateShow act'
-                  actionSucceeds (handleEditRequest act') a
-            NoInputRequired act' -> label "NoInputRequired" >> annotateShow act' >> actionSucceeds (handleEditRequest act') a
-            --        AskQuestion q a' -> _
-            _ -> label "skip" >> success -- TODO: care about this!
-        {-
-              i <- forAllT $ Gen.element $ t ^.. exprIDs
-              a <- forAllWithT name' $ Gen.element $ actionsForDefBody l n i t
-        -}
-
+                InputRequired (ChooseVariable _ f) -> do
+                  -- TODO/REVIEW: we should revisit this action -- perhaps it should contain a list of constructors?
+                  label "ChooseVariable"
+                  let vars = case loc of
+                       Nothing -> error "actionsForDef only ever gives ChooseOrEnterName or NoInputRequired"
+                       Just (Left _) -> error "Shouldn't offer ChooseVariable in a type!"
+                       Just (Right i) -> case focusOn i . astDefExpr =<< defAST def of
+                          Nothing -> error "cannot focus on an id in the expr?"
+                          Just ez -> let (_,lvars,gvars) = variablesInScopeExpr (snd <$> allDefs) $ locToEither ez
+                                     in map (LocalVarRef . fst) lvars <> map (GlobalVarRef . fst) gvars
+                  if null vars
+                    then label "no vars, skip" >> success -- TODO: should we even offer the action in that case?
+                    else do
+                      v <- forAllT $ Gen.element vars
+                      let act' = f v
+                      annotateShow act'
+                      actionSucceeds (handleEditRequest act') a
+                InputRequired (ChooseTypeVariable f) -> do
+                  -- TODO/REVIEW: we should revisit this action -- perhaps it should contain a list of constructors?
+                  label "ChooseTypeVariable"
+                  let vars = case loc of
+                       Nothing -> error "actionsForDef only ever gives ChooseOrEnterName or NoInputRequired"
+                       Just (Left i) -> case focusOnTy i (defType def) of
+                          Nothing -> error "cannot focus on an id in the type?"
+                          Just tz -> fst <$> variablesInScopeTy tz
+                       Just (Right i) -> case focusOn i . astDefExpr =<< defAST def of
+                          Nothing -> error "cannot focus on an id in the expr?"
+                          Just ez -> let (tyvars,_,_) = variablesInScopeExpr (snd <$> allDefs) $ locToEither ez
+                                     in fst <$> tyvars
+                  if null vars
+                    then label "no tyvars, skip" >> success -- TODO: should we even offer the action in that case?
+                    else do
+                      v <- forAllT $ Gen.element vars
+                      let act' = f $ unName $ unLocalName v
+                      annotateShow act'
+                      actionSucceeds (handleEditRequest act') a
+                NoInputRequired act' -> label "NoInputRequired" >> annotateShow act' >> actionSucceeds (handleEditRequest act') a
+                -- The actual generated names don't really matter
+                -- TODO: except for shadowing? Do we reject any names?
+                AskQuestion (GenerateName{}) a' -> checkActionInput $ a' ["a","b"]
+                _ -> error "VariablesInScope question is never an offered action"
+          checkActionInput $ input action
   where
     actionSucceeds :: HasCallStack => EditAppM a -> App -> PropertyT WT ()
     actionSucceeds m a = case runEditAppM m a of
