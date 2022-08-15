@@ -480,9 +480,9 @@ viewProg p =
         , editable = e
         , types = fst <$> Map.assocs (moduleTypesQualified m)
         , defs =
-            ( \(n, d) ->
+            ( \(name, d) ->
                 Def
-                  { name = n
+                  { name
                   , type_ = viewTreeType $ defType d
                   , term = viewTreeExpr . astDefExpr <$> defAST d
                   }
