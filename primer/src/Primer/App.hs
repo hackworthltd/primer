@@ -32,6 +32,8 @@ module Primer.App (
   Editable (..),
   progAllDefs,
   progAllTypeDefs,
+  allValConNames,
+  allTyConNames,
   tcWholeProg,
   tcWholeProgWithImports,
   nextProgID,
@@ -78,10 +80,10 @@ import Optics (
   ReversibleOptic (re),
   anyOf,
   folded,
+  ifoldMap,
   mapped,
   over,
   to,
-  toListOf,
   traverseOf,
   traversed,
   view,
@@ -585,6 +587,7 @@ applyProgAction prog mdefName = \case
             (buildTypingContextFromModules (progAllModules prog) NoSmartHoles)
         )
   RenameType old (unsafeMkName -> nameRaw) -> editModuleSameSelectionCross (qualifiedModule old) prog $ \(m, ms) -> do
+    when (new `elem` allTyConNames prog) $ throwError $ TypeDefAlreadyExists new
     m' <- traverseOf #moduleTypes updateType m
     let renamedInTypes = over (traversed % #moduleTypes) updateRefsInTypes $ m' : ms
     pure $ over (traversed % #moduleDefs % traversed % #_DefAST) (updateDefBody . updateDefType) renamedInTypes
@@ -596,7 +599,6 @@ applyProgAction prog mdefName = \case
           -- To relax this, we'd have to be careful about how it interacts with type-checking of primitive literals.
           maybe (throwError $ TypeDefIsPrim old) pure . typeDefAST
             =<< maybe (throwError $ TypeDefNotFound old) pure (Map.lookup (baseName old) m)
-        when (Map.member nameRaw m) $ throwError $ TypeDefAlreadyExists new
         when (nameRaw `elem` map (unLocalName . fst) (astTypeDefParameters d0)) $ throwError $ TyConParamClash nameRaw
         pure $ Map.insert nameRaw (TypeDefAST d0) $ Map.delete (baseName old) m
       updateRefsInTypes =
@@ -619,7 +621,7 @@ applyProgAction prog mdefName = \case
       updateName n = if n == old then new else n
   RenameCon type_ old (unsafeMkGlobalName . (fmap unName (unModuleName (qualifiedModule type_)),) -> new) ->
     editModuleSameSelectionCross (qualifiedModule type_) prog $ \(m, ms) -> do
-      when (new `elem` allConNames prog) $ throwError $ ConAlreadyExists new
+      when (new `elem` allValConNames prog) $ throwError $ ConAlreadyExists new
       m' <- updateType m
       pure $ over (mapped % #moduleDefs) updateDefs (m' : ms)
     where
@@ -668,7 +670,7 @@ applyProgAction prog mdefName = \case
       updateName n = if n == old then new else n
   AddCon type_ index (unsafeMkGlobalName . (fmap unName (unModuleName (qualifiedModule type_)),) -> con) ->
     editModuleSameSelectionCross (qualifiedModule type_) prog $ \(m, ms) -> do
-      when (con `elem` allConNames prog) $ throwError $ ConAlreadyExists con
+      when (con `elem` allValConNames prog) $ throwError $ ConAlreadyExists con
       m' <- updateType m
       traverseOf
         (traversed % #moduleDefs % traversed % #_DefAST % #astDefExpr)
@@ -1487,17 +1489,16 @@ progCxt p = buildTypingContextFromModules (progAllModules p) (progSmartHoles p)
 liftError :: MonadError ProgError m => (e -> ProgError) -> ExceptT e m b -> m b
 liftError = modifyError
 
-allConNames :: Prog -> [ValConName]
-allConNames =
-  toListOf $
-    #progModules
-      % traversed
-      % #moduleTypes
-      % traversed
-      % #_TypeDefAST
-      % #astTypeDefConstructors
-      % traversed
-      % #valConName
+allConNames :: Prog -> [(TyConName, [ValConName])]
+allConNames p = ifoldMap (\tn td -> pure (tn, valConName <$> typeDefConstructors td)) $ allTypes p
+  where
+    typeDefConstructors td = maybe [] astTypeDefConstructors $ typeDefAST td
+
+allValConNames :: Prog -> [ValConName]
+allValConNames = snd <=< allConNames
+
+allTyConNames :: Prog -> [TyConName]
+allTyConNames = fmap fst . allConNames
 
 -- | Given a 'Prog', return the next 'ID' that's safe to use when
 -- editing it.
