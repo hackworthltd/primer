@@ -17,7 +17,7 @@ import Primer.Module (Module (Module, moduleDefs, moduleName, moduleTypes), modu
 import Primer.Name (Name, unsafeMkName)
 import Primer.Typecheck (Cxt, SmartHoles, TypeError, extendGlobalCxt, extendTypeDefCxt)
 
-import Gen.Core.Typed (WT, freshNameForCxt, genChk, genTypeDefGroup, genWTType, isolateWT)
+import Gen.Core.Typed (WT, freshNameForCxt, genChk, genTypeDefGroup, genWTType, isolateWT, genList)
 
 import Hedgehog (GenT, MonadGen)
 import Hedgehog.Gen qualified as Gen
@@ -76,7 +76,7 @@ genProg sh initialImports = local (extendCxtByModules initialImports) $ do
 -- Generate a mutually-recursive group of term definitions
 genASTDefGroup :: ModuleName -> GenT WT (Map Name Def)
 genASTDefGroup mod = do
-  nts <- Gen.list (Range.linear 0 5) $ (\n t -> (qualifyName mod n, t)) <$> freshNameForCxt <*> genWTType KType
+  nts <- genList 5 $ (\n t -> (qualifyName mod n, t)) <$> freshNameForCxt <*> genWTType KType
   nTyTms <- local (extendGlobalCxt nts) $ for nts $ \(n, ty) -> (n,ty,) <$> genChk ty
   fmap M.fromList . for nTyTms $ \(n, ty, tm) -> do
     tm' <- generateIDs tm
