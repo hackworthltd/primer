@@ -229,6 +229,7 @@ progAllModules :: Prog -> [Module]
 progAllModules p = progModules p <> progImports p
 
 data Mutability = Mutable | Immutable
+  deriving (Bounded, Enum, Show)
 
 progAllDefs :: Prog -> Map GVarName (Mutability,Def)
 progAllDefs p = foldMap (fmap (Mutable,) . moduleDefsQualified) (progModules p)
