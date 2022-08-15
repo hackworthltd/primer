@@ -16,7 +16,7 @@ import Hedgehog.Internal.Property (forAllWithT)
 import Optics (toListOf, (%))
 import Primer.Action (ActionInput (..), ActionName (..), OfferedAction (..))
 import Primer.Action.Available (actionsForDef, actionsForDefBody, actionsForDefSig)
-import Primer.App (App, EditAppM, Prog (..), appProg, handleEditRequest, runEditAppM)
+import Primer.App (App, EditAppM, Prog (..), appProg, handleEditRequest, runEditAppM, progAllModules, progAllDefs)
 import Primer.Core (
   ASTDef (..),
   Def (DefAST, DefPrim),
@@ -114,6 +114,7 @@ unit_def_in_use =
             description <$> actionsForDef l defs d
               @?= ["Rename this definition", "Duplicate this definition"]
         )
+
 -- TODO/REVIEW: how to ensure this is kept up to date with changes in action offerings
 -- we have "RenameCon" actions - these are not advertised yet (and presumably should be?)
 -- similarly, eval , questions etc
@@ -124,15 +125,16 @@ tasty_available_actions_accepted = withTests 500 $
       l <- forAllT $ Gen.element enumerate
       sh <- forAllT $ Gen.element [NoSmartHoles, SmartHoles]
       a <- forAllT $ genApp sh [] -- [builtinModule, primitiveModule] -- TODO: consider bigger context
-      (m, (defName, def')) <- forAllT $ Gen.justT $ do
-        m' <- Gen.element $ progModules $ appProg a
-        let ds = Map.toList $ moduleDefsQualified m'
-        traverse (fmap (m',) . element) $ nonEmpty ds
-      def <- case def' of
+      let allDefs = fmap snd $ progAllDefs $ appProg a
+      (defName, def') <- case Map.toList allDefs of
+        [] -> discard
+        ds -> forAllT $ Gen.element ds
+      -- TODO: should test primitives also (i.e. they should have no? actions)
+      _ <- case def' of
         DefAST d -> pure d
         _ -> discard
       -- TODO: other sorts of action... actionsForDef{,Body,Sig}
-      act <- forAllWithT name' $ Gen.element $ actionsForDef l (moduleDefsQualified m) (defName, def)
+      act <- forAllWithT name' $ Gen.element $ actionsForDef l allDefs defName
       case input act of
         --        InputRequired a' -> _
         NoInputRequired act' -> annotateShow act' >> actionSucceeds (handleEditRequest act') a
@@ -150,4 +152,3 @@ tasty_available_actions_accepted = withTests 500 $
     actionSucceeds m a = case runEditAppM m a of
       (Left err, _) -> annotateShow err >> failure
       (Right _, _) -> pure ()
-    element = Gen.element . toList
