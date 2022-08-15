@@ -32,11 +32,10 @@ import Primer.Action (
   uniquifyDefName,
  )
 import Primer.Action.Priorities qualified as P
-import Primer.App (globalInUse)
+import Primer.App (globalInUse, Mutability (Immutable, Mutable))
 import Primer.Core (
   ASTDef (..),
   Bind' (..),
-  DefMap,
   Expr,
   Expr' (..),
   ExprMeta,
@@ -56,7 +55,7 @@ import Primer.Core (
   _id,
   _synthed,
   _type,
-  _typeMetaLens,
+  _typeMetaLens, Def,
  )
 import Primer.Core.Transform (unfoldFun)
 import Primer.Core.Utils (forgetTypeMetadata)
@@ -84,15 +83,16 @@ data SomeNode a b
 
 actionsForDef ::
   Level ->
-  -- | All existing definitions
-  DefMap ->
+  -- | All existing definitions, along with their mutability
+  Map GVarName (Mutability, Def) ->
   -- | The name of a definition in the map
   GVarName ->
   [OfferedAction [ProgAction]]
-actionsForDef l defs defName = catMaybes [Just rename, duplicate, delete]
+actionsForDef l defs defName = catMaybes [rename, duplicate, delete]
   where
-    rename =
-      OfferedAction
+    rename = do
+      _ <- getMutableASTDef
+      pure $ OfferedAction
         { name = Prose "r"
         , description = "Rename this definition"
         , input =
@@ -105,7 +105,7 @@ actionsForDef l defs defName = catMaybes [Just rename, duplicate, delete]
         , actionType = Primary
         }
     duplicate = do
-      def <- defAST =<< Map.lookup defName defs
+      def <- getMutableASTDef
       pure $
         OfferedAction
           { name = Prose "d"
@@ -115,7 +115,7 @@ actionsForDef l defs defName = catMaybes [Just rename, duplicate, delete]
 
                   bodyID = getID $ astDefExpr def
 
-                  copyName = uniquifyDefName (qualifiedModule defName) (unName (baseName defName) <> "Copy") defs
+                  copyName = uniquifyDefName (qualifiedModule defName) (unName (baseName defName) <> "Copy") $ fmap snd defs
                in NoInputRequired
                     [ CreateDef (qualifiedModule defName) (Just copyName)
                     , CopyPasteSig (defName, sigID) []
@@ -126,7 +126,8 @@ actionsForDef l defs defName = catMaybes [Just rename, duplicate, delete]
           }
     delete = do
       -- Ensure it is not in use, otherwise the action will not succeed
-      guard $ not $ globalInUse defName $ Map.delete defName defs
+      _ <- getMutableDef
+      guard $ not $ globalInUse defName $ Map.delete defName $ fmap snd defs
       pure
         OfferedAction
           { name = Prose "⌫"
@@ -135,15 +136,23 @@ actionsForDef l defs defName = catMaybes [Just rename, duplicate, delete]
           , priority = P.delete l
           , actionType = Destructive
           }
+    getMutableDef = do
+      (m,d) <- Map.lookup defName defs
+      case m of
+        Immutable -> Nothing
+        Mutable -> pure d
+    getMutableASTDef = defAST =<< getMutableDef
 
 -- | Given the body of a Def and the ID of a node in it, return the possible actions that can be applied to it
 actionsForDefBody ::
   Level ->
   GVarName ->
+  Mutability ->
   ID ->
   Expr ->
   [OfferedAction [ProgAction]]
-actionsForDefBody l defName id expr =
+actionsForDefBody _ _ Immutable _ _ = mempty
+actionsForDefBody l defName mut@Mutable id expr =
   let toProgAction actions = [MoveToDef defName, BodyAction actions]
 
       raiseAction' =
@@ -170,17 +179,19 @@ actionsForDefBody l defName id expr =
                   <<$>> (basicActionsForType l defName t <> compoundActionsForType l t)
               )
                 <> raiseAction
-        Just (CaseBindNode b, _) -> toProgAction <<$>> actionsForBinding l defName b
+        Just (CaseBindNode b, _) -> toProgAction <<$>> actionsForBinding l defName mut b
 
 -- | Given a the type signature of a Def and the ID of a node in it,
 -- return the possible actions that can be applied to it
 actionsForDefSig ::
   Level ->
   GVarName ->
+  Mutability ->
   ID ->
   Type ->
   [OfferedAction [ProgAction]]
-actionsForDefSig l defName id ty =
+actionsForDefSig _ _ Immutable _ _ = mempty
+actionsForDefSig l defName Mutable id ty =
   let toProgAction actions = [MoveToDef defName, SigAction actions]
 
       raiseAction =
@@ -205,9 +216,11 @@ actionsForDefSig l defName id ty =
 actionsForBinding ::
   Level ->
   GVarName ->
+  Mutability ->
   Bind' (Meta (Maybe TypeCache)) ->
   [OfferedAction [Action]]
-actionsForBinding l defName b =
+actionsForBinding _ _ Immutable _ = mempty
+actionsForBinding l defName Mutable b =
   realise
     b
     (b ^. _bindMeta)
