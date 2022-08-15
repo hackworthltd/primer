@@ -63,7 +63,7 @@ import Control.Monad.Zip (MonadZip)
 import Data.Map qualified as Map
 import Data.Text qualified as T
 import ListT qualified (toList)
-import Optics (ifoldr, (^.))
+import Optics (ifoldr, over, view, (^.))
 import Primer.App (
   App,
   EditAppM,
@@ -110,6 +110,8 @@ import Primer.Core (
   defType,
   moduleNamePretty,
   unLocalName,
+  _typeMeta,
+  _typeMetaLens,
  )
 import Primer.Database (
   OffsetLimit,
@@ -668,7 +670,12 @@ viewTreeExpr e0 = case e0 of
 
 -- | Similar to 'viewTreeExpr', but for 'Type's
 viewTreeType :: Type -> Tree
-viewTreeType t0 = case t0 of
+viewTreeType = viewTreeType' . over _typeMeta (show . view _id)
+
+-- | Like 'viewTreeType', but with the flexibility to accept arbitrary textual node identifiers,
+-- rather than using the type's numeric IDs.
+viewTreeType' :: Type' Text -> Tree
+viewTreeType' t0 = case t0 of
   TEmptyHole _ ->
     Tree
       { nodeId
@@ -682,7 +689,7 @@ viewTreeType t0 = case t0 of
       { nodeId
       , flavor = FlavorTHole
       , body = NoBody
-      , childTrees = [viewTreeType t]
+      , childTrees = [viewTreeType' t]
       , rightChild = Nothing
       }
   TCon _ n ->
@@ -698,7 +705,7 @@ viewTreeType t0 = case t0 of
       { nodeId
       , flavor = FlavorTFun
       , body = NoBody
-      , childTrees = [viewTreeType t1, viewTreeType t2]
+      , childTrees = [viewTreeType' t1, viewTreeType' t2]
       , rightChild = Nothing
       }
   TVar _ n ->
@@ -714,7 +721,7 @@ viewTreeType t0 = case t0 of
       { nodeId
       , flavor = FlavorTApp
       , body = NoBody
-      , childTrees = [viewTreeType t1, viewTreeType t2]
+      , childTrees = [viewTreeType' t1, viewTreeType' t2]
       , rightChild = Nothing
       }
   TForall _ n k t ->
@@ -722,7 +729,7 @@ viewTreeType t0 = case t0 of
       { nodeId
       , flavor = FlavorTForall
       , body = TextBody $ withKindAnn $ unName $ unLocalName n
-      , childTrees = [viewTreeType t]
+      , childTrees = [viewTreeType' t]
       , rightChild = Nothing
       }
     where
@@ -733,7 +740,7 @@ viewTreeType t0 = case t0 of
         KType -> identity
         _ -> (<> (" :: " <> show k))
   where
-    nodeId = show $ t0 ^. _id
+    nodeId = t0 ^. _typeMetaLens
 
 showGlobal :: GlobalName k -> Text
 showGlobal n = moduleNamePretty (qualifiedModule n) <> "." <> unName (baseName n)
