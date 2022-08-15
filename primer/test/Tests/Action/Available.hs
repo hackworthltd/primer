@@ -14,7 +14,7 @@ import Hedgehog (PropertyT, annotateShow, discard, failure, success, label, coll
 import Hedgehog.Gen qualified as Gen
 import Hedgehog.Internal.Property (forAllWithT)
 import Optics (toListOf, (%), (^..))
-import Primer.Action (ActionInput (..), ActionName (..), OfferedAction (..), UserInput (ChooseOrEnterName, ChooseTypeConstructor, ChooseConstructor, ChooseVariable))
+import Primer.Action (ActionInput (..), ActionName (..), OfferedAction (..), UserInput (ChooseOrEnterName, ChooseTypeConstructor, ChooseConstructor, ChooseVariable, ChooseTypeVariable))
 import Primer.Action.Available (actionsForDef, actionsForDefBody, actionsForDefSig)
 import Primer.App (App, EditAppM, Prog (..), appProg, handleEditRequest, runEditAppM, progAllModules, progAllDefs, Mutability (Mutable, Immutable), allTyConNames, allValConNames)
 import Primer.Core (
@@ -28,7 +28,7 @@ import Primer.Core (
   mkSimpleModuleName,
   moduleNamePretty,
   qualifyName,
-  _typeMeta, defType, defAST, TmVarRef (GlobalVarRef, LocalVarRef),
+  _typeMeta, defType, defAST, TmVarRef (GlobalVarRef, LocalVarRef), LocalName (unLocalName),
  )
 import Primer.Core.DSL (
   create',
@@ -52,8 +52,8 @@ import Text.Pretty.Simple (pShowNoColor)
 import Primer.Builtins (builtinModule)
 import Primer.Primitives (primitiveModule)
 import Gen.Core.Raw (genName)
-import Primer.Questions (variablesInScopeExpr)
-import Primer.Zipper (focusOn, locToEither)
+import Primer.Questions (variablesInScopeExpr, variablesInScopeTy)
+import Primer.Zipper (focusOn, locToEither, focusOnTy)
 
 -- | Comprehensive DSL test.
 test_1 :: TestTree
@@ -219,6 +219,25 @@ tasty_available_actions_accepted = withTests 500 $
                 else do
                   v <- forAllT $ Gen.element vars
                   let act' = f v
+                  annotateShow act'
+                  actionSucceeds (handleEditRequest act') a
+            InputRequired (ChooseTypeVariable f) -> do
+              -- TODO/REVIEW: we should revisit this action -- perhaps it should contain a list of constructors?
+              label "ChooseTypeVariable"
+              let vars = case loc of
+                   Nothing -> error "actionsForDef only ever gives ChooseOrEnterName or NoInputRequired"
+                   Just (Left i) -> case focusOnTy i (defType def) of
+                      Nothing -> error "cannot focus on an id in the type?"
+                      Just tz -> fst <$> variablesInScopeTy tz
+                   Just (Right i) -> case focusOn i . astDefExpr =<< defAST def of
+                      Nothing -> error "cannot focus on an id in the expr?"
+                      Just ez -> let (tyvars,_,_) = variablesInScopeExpr (snd <$> allDefs) $ locToEither ez
+                                 in fst <$> tyvars
+              if null vars
+                then label "no tyvars, skip" >> success -- TODO: should we even offer the action in that case?
+                else do
+                  v <- forAllT $ Gen.element vars
+                  let act' = f $ unName $ unLocalName v
                   annotateShow act'
                   actionSucceeds (handleEditRequest act') a
             NoInputRequired act' -> label "NoInputRequired" >> annotateShow act' >> actionSucceeds (handleEditRequest act') a
