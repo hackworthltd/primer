@@ -10,7 +10,7 @@ import Data.Text.Lazy qualified as TL
 import GHC.Err (error)
 import Gen.App (genApp)
 import Gen.Core.Typed (WT, forAllT, propertyWT)
-import Hedgehog (PropertyT, annotateShow, discard, failure, success)
+import Hedgehog (PropertyT, annotateShow, discard, failure, success, label, collect)
 import Hedgehog.Gen qualified as Gen
 import Hedgehog.Internal.Property (forAllWithT)
 import Optics (toListOf, (%))
@@ -132,7 +132,7 @@ tasty_available_actions_accepted = withTests 500 $
         ds -> forAllT $ Gen.element ds
       -- TODO: should test primitives also (i.e. they should have no? actions)
       _ <- case def' of
-        (_,DefAST d) -> pure d
+        (mut,DefAST d) -> collect mut >> pure d
         _ -> discard
       -- TODO: other sorts of action... actionsForDef{,Body,Sig}
       let acts = actionsForDef l allDefs defName
