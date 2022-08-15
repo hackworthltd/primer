@@ -165,7 +165,7 @@ tasty_available_actions_accepted = withTests 500 $
       case acts of
         [] -> success
         acts' -> do
-          act <- forAllWithT name' $ Gen.element acts'
+          act <- forAllWithT (toS . description) $ Gen.element acts'
           case input act of
             InputRequired (ChooseOrEnterName _ opts f) -> do
               label "ChooseOrEnterName"
@@ -183,9 +183,6 @@ tasty_available_actions_accepted = withTests 500 $
               a <- forAllWithT name' $ Gen.element $ actionsForDefBody l n i t
         -}
   where
-    name' a = toS $ case name a of
-      Code t -> t
-      Prose t -> t
     actionSucceeds :: HasCallStack => EditAppM a -> App -> PropertyT WT ()
     actionSucceeds m a = case runEditAppM m a of
       (Left err, _) -> annotateShow err >> failure
