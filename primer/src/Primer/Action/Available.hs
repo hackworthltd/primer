@@ -64,6 +64,7 @@ import Primer.Def (
  )
 import Primer.Name (unName)
 import Primer.Questions (Question (..))
+import Primer.Typecheck (TypeDefError (TDIHoleType, TDIUnknownADT), getTypeDefInfo')
 import Primer.Zipper (
   BindLoc' (BindCase),
   Loc' (InBind, InExpr, InType),
@@ -579,25 +580,31 @@ basicActionsForExpr l defName expr = case expr of
     letRecActions t = [renameLet t]
 
     -- Actions for every expression node
+    -- We assume that the input program is type-checked, in order to
+    -- filter some actions by Syn/Chk
     universalActions :: forall a. ExprMeta -> [ActionSpec Expr a]
-    universalActions m = case l of
-      Beginner ->
-        [ makeLambda m
-        , patternMatch
-        ]
-      Intermediate ->
-        [ makeLambda m
-        , patternMatch
-        , applyFunction
-        ]
-      Expert ->
-        [ annotateExpression
-        , applyFunction
-        , applyType
-        , patternMatch
-        , makeLambda m
-        , makeTypeAbstraction m
-        ]
+    universalActions m =
+      let both = case l of
+            Beginner ->
+              [ makeLambda m
+              ]
+            Intermediate ->
+              [ makeLambda m
+              , applyFunction
+              ]
+            Expert ->
+              [ annotateExpression
+              , applyFunction
+              , applyType
+              , makeLambda m
+              , makeTypeAbstraction m
+              ]
+          synthTy = m ^? _type % _Just % _synthed
+          synOnly ty = case getTypeDefInfo' mempty ty of
+            Left TDIHoleType{} -> Just patternMatch
+            Left TDIUnknownADT{} -> Just patternMatch
+            _ -> Nothing
+       in (synOnly =<< synthTy) ?: both
 
     -- Extract the source of the function type we were checked at
     -- i.e. the type that a lambda-bound variable would have here
@@ -615,6 +622,10 @@ basicActionsForExpr l defName expr = case expr of
     -- Actions for every expression node except holes and annotations
     defaultActions :: forall a. ExprMeta -> [ActionSpec Expr a]
     defaultActions m = universalActions m <> [deleteExpr]
+
+(?:) :: Maybe a -> [a] -> [a]
+Just x ?: xs = x : xs
+Nothing ?: xs = xs
 
 -- | Given a type, determine what basic actions it supports
 -- Specific projections may provide other actions not listed here

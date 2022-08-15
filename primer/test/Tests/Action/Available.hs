@@ -37,16 +37,24 @@ import Primer.Def (
   Def (DefAST, DefPrim),
  )
 import Primer.Examples (comprehensiveWellTyped)
+import Primer.Module (Module (Module, moduleDefs), builtinModule)
 import Primer.Name (Name (unName))
+import Primer.Typecheck (
+  CheckEverythingRequest (CheckEverything, toCheck, trusted),
+  SmartHoles (NoSmartHoles),
+  buildTypingContextFromModules,
+  checkEverything,
+ )
 import System.FilePath ((</>))
 import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.Golden (goldenVsString)
 import Test.Tasty.HUnit (Assertion, (@?=))
+import Tests.Typecheck (runTypecheckTestMIn)
 import Text.Pretty.Simple (pShowNoColor)
 
 -- | Comprehensive DSL test.
 test_1 :: TestTree
-test_1 = mkTests $ create' $ comprehensiveWellTyped $ mkSimpleModuleName "M"
+test_1 = mkTests [builtinModule] $ create' $ comprehensiveWellTyped $ mkSimpleModuleName "M"
 
 data Output = Output
   { defActions :: [ActionName]
@@ -56,10 +64,19 @@ data Output = Output
   deriving (Show)
 
 -- | Golden tests for the available actions at each node of the definition, for each level.
-mkTests :: (GVarName, Def) -> TestTree
-mkTests (_, DefPrim _) = error "mkTests is unimplemented for primitive definitions."
-mkTests (defName, DefAST def) =
+mkTests :: [Module] -> (GVarName, Def) -> TestTree
+mkTests _ (_, DefPrim _) = error "mkTests is unimplemented for primitive definitions."
+mkTests deps (defName, DefAST def') =
   let d = defName
+      m = Module (qualifiedModule d) mempty $ Map.singleton (baseName d) $ DefAST def'
+      def = case runTypecheckTestMIn
+        (buildTypingContextFromModules deps NoSmartHoles)
+        (checkEverything NoSmartHoles CheckEverything{trusted = deps, toCheck = [m]}) of
+        Left err -> error $ "mkTests: no typecheck: " <> show err
+        Right [m'] -> case Map.toList $ moduleDefs m' of
+          [(_, DefAST def'')] -> def''
+          _ -> error "mkTests: expected exactly one definition in checked module"
+        _ -> error "mkTests: expected exactly one module checked modules"
       testName = T.unpack $ moduleNamePretty (qualifiedModule defName) <> "." <> unName (baseName defName)
       enumeratePairs = (,) <$> enumerate <*> enumerate
    in testGroup testName $

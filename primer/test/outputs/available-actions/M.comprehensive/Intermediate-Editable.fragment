@@ -10,7 +10,6 @@ Output
             ,
                 [ Code "$"
                 , Code "λx"
-                , Code "m"
                 , Prose "⌫"
                 , Prose "r"
                 , Prose "rec"
@@ -31,7 +30,6 @@ Output
             ,
                 [ Code "$"
                 , Code "λx"
-                , Code "m"
                 , Prose "↑"
                 , Prose "⌫"
                 , Prose "r"
@@ -63,7 +61,6 @@ Output
             ,
                 [ Code "$"
                 , Code "λx"
-                , Code "m"
                 , Prose "⌫"
                 ]
             )
@@ -88,7 +85,6 @@ Output
             ,
                 [ Code "$"
                 , Code "λx"
-                , Code "m"
                 , Prose "↑"
                 , Prose "⌫"
                 ]
@@ -98,7 +94,6 @@ Output
             ,
                 [ Code "$"
                 , Code "λx"
-                , Code "m"
                 , Prose "↑"
                 , Prose "⌫"
                 , Prose "r"
@@ -109,7 +104,6 @@ Output
             ,
                 [ Code "$"
                 , Code "λx"
-                , Code "m"
                 , Prose "↑"
                 , Prose "⌫"
                 ]
@@ -129,7 +123,6 @@ Output
             ,
                 [ Code "$"
                 , Code "λx"
-                , Code "m"
                 , Prose "↑"
                 , Prose "⌫"
                 ]
@@ -139,7 +132,6 @@ Output
             ,
                 [ Code "$"
                 , Code "λx"
-                , Code "m"
                 , Prose "↑"
                 , Prose "⌫"
                 ]
@@ -149,7 +141,6 @@ Output
             ,
                 [ Code "$"
                 , Code "λx"
-                , Code "m"
                 , Prose "↑"
                 , Prose "⌫"
                 ]
@@ -159,7 +150,6 @@ Output
             ,
                 [ Code "$"
                 , Code "λx"
-                , Code "m"
                 , Prose "↑"
                 , Prose "⌫"
                 ]
