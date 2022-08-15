@@ -87,7 +87,6 @@ import Primer.Core (
   ValCon (..),
   ValConName,
   defAST,
-  defType,
   getID,
   qualifyName,
   typeDefAST,
@@ -1488,9 +1487,11 @@ unit_cross_module_actions =
         -- NB: CopyPasteSig relies on SmartHoles to fix any introduced inconsistencies
         barTy <-
           gets $
-            fmap defType
-              . flip findGlobalByName (qualifyName (ModuleName ["AnotherModule"]) "bar")
-              . appProg
+            fmap astDefType
+              . defAST
+              <=< ( flip findGlobalByName (qualifyName (ModuleName ["AnotherModule"]) "bar")
+                      . appProg
+                  )
         let srcId = case barTy of
               Just (TFun _ src _) -> getID src
               _ -> error "Unexpected shape of 'barTy'"

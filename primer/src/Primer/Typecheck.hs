@@ -123,7 +123,6 @@ import Primer.Core (
   ValCon (valConArgs, valConName),
   ValConName,
   bindName,
-  defType,
   primConName,
   qualifyName,
   typeDefAST,
@@ -132,7 +131,6 @@ import Primer.Core (
   unLocalName,
   valConType,
   _bindMeta,
-  _defType,
   _exprMeta,
   _exprMetaLens,
   _exprTypeMeta,
@@ -158,6 +156,7 @@ import Primer.Module (
   moduleTypesQualified,
  )
 import Primer.Name (Name, NameCounter)
+import Primer.Primitives (defType)
 import Primer.Subst (substTy)
 
 -- | Typechecking takes as input an Expr with 'Maybe Type' annotations and
@@ -291,7 +290,7 @@ initialCxt sh =
 -- | Construct an initial typing context, with all given definitions in scope as global variables.
 buildTypingContext :: TypeDefMap -> DefMap -> SmartHoles -> Cxt
 buildTypingContext tydefs defs sh =
-  let globals = Map.assocs $ fmap (forgetTypeMetadata . defType) defs
+  let globals = Map.assocs $ fmap defType defs
    in extendTypeDefCxt tydefs $ extendGlobalCxt globals $ initialCxt sh
 
 buildTypingContextFromModules :: [Module] -> SmartHoles -> Cxt
@@ -454,7 +453,7 @@ checkEverything sh CheckEverything{trusted, toCheck} =
           -- Kind check and update (for smartholes) all the types.
           -- Note that this may give ill-typed definitions if the type changes
           -- since we have not checked the expressions against the new types.
-          updatedTypes <- traverseOf (traverseDefs % _defType) (fmap typeTtoType . checkKind KType) toCheck
+          updatedTypes <- traverseOf (traverseDefs % #_DefAST % #astDefType) (fmap typeTtoType . checkKind KType) toCheck
           -- Now extend the context with the new types
           let defsUpdatedTypes = itoListOf foldDefTypesWithName updatedTypes
           local (extendGlobalCxt defsUpdatedTypes) $
@@ -484,7 +483,7 @@ checkEverything sh CheckEverything{trusted, toCheck} =
     foldDefTypesWithName =
       icompose qualifyName $
         traverseDefs' (reindexed moduleName selfIndex)
-          % _defType
+          % to defType
           % to forgetTypeMetadata
 
 -- We assume that constructor names are unique, returning the first one we find

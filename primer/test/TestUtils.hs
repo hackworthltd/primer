@@ -23,7 +23,8 @@ import Control.Concurrent.STM (
   newTBQueueIO,
  )
 import Control.Monad.Fresh (MonadFresh)
-import Data.String (String)
+import Data.Coerce (coerce)
+import Data.String (String, fromString)
 import Data.Typeable (typeOf)
 import Optics (over, set, view)
 import Primer.API (
@@ -41,7 +42,6 @@ import Primer.Core (
   GlobalName (baseName, qualifiedModule),
   HasID,
   HasMetadata (_metadata),
-  ID,
   ModuleName (ModuleName, unModuleName),
   PrimDef (..),
   TyConName,
@@ -49,7 +49,6 @@ import Primer.Core (
   TypeMeta,
   ValConName,
   Value,
-  primFunType,
   qualifyName,
   setID,
   _exprMeta,
@@ -71,10 +70,8 @@ import Test.Tasty.HUnit (
  )
 import Test.Tasty.HUnit qualified as HUnit
 
-withPrimDefs :: MonadFresh ID m => (Map GVarName PrimDef -> m a) -> m a
-withPrimDefs f = do
-  defs <- for allPrimDefs (fmap PrimDef . primFunType)
-  f defs
+withPrimDefs :: (Map GVarName PrimDef -> m a) -> m a
+withPrimDefs f = f allPrimDefs
 
 -- impedence mismatch: ConstructTCon takes text, but tChar etc are TyConNames
 constructTCon :: TyConName -> Action

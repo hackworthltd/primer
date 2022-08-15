@@ -16,7 +16,6 @@ import Primer.Core (
   ),
   Kind (KFun, KType),
   TypeDef (TypeDefAST),
-  primConName,
  )
 import Primer.Core.DSL (char, tcon)
 import Primer.Gen.Core.Typed (forAllT, genPrimCon, propertyWT)
@@ -32,14 +31,8 @@ import Primer.Typecheck (
  )
 import Tasty (Property)
 
-import Primer.Builtins (builtinModule)
 import Test.Tasty.HUnit (Assertion, assertBool, (@?=))
 import Tests.Typecheck (runTypecheckTestMIn)
-
-tasty_all_prim_cons_have_typedef :: Property
-tasty_all_prim_cons_have_typedef = propertyWT [builtinModule, primitiveModule] $ do
-  c <- forAllT $ (fmap fst . choice) =<< genPrimCon
-  assert $ primConName c `elem` M.keys allPrimTypeDefs
 
 -- If we use a prim con, then we need the corresponding prim type
 -- in scope

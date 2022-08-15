@@ -63,8 +63,6 @@ import Primer.Core (
   LocalName (LocalName, unLocalName),
   LocalNameKind (..),
   Meta,
-  PrimDef (..),
-  PrimFun (..),
   PrimFunError (..),
   TmVarRef (..),
   TyVarName,
@@ -95,7 +93,7 @@ import Primer.Core.Utils (
 import Primer.JSON
 import Primer.Name (Name, unName, unsafeMkName)
 import Primer.Name.Fresh (isFresh, isFreshTy)
-import Primer.Primitives (allPrimDefs)
+import Primer.Primitives (PrimDef, primFunDef)
 import Primer.Zipper (
   ExprZ,
   FoldAbove,
@@ -989,9 +987,8 @@ tryPrimFun :: Map GVarName PrimDef -> Expr -> Maybe (GVarName, [Expr], forall m.
 tryPrimFun primDefs expr
   | -- Since no primitive functions are polymorphic, there is no need to unfoldAPP
     (Var _ (GlobalVarRef name), args) <- bimap stripAnns (map stripAnns) $ unfoldApp expr
-  , Map.member name primDefs
-  , Just PrimFun{primFunDef} <- Map.lookup name allPrimDefs
-  , Right e <- primFunDef $ forgetMetadata <$> args =
+  , Just x <- Map.lookup name primDefs
+  , Right e <- primFunDef x $ forgetMetadata <$> args =
       Just (name, args, e)
   | otherwise = Nothing
   where

@@ -25,12 +25,11 @@ import Primer.Core (
   LVarName,
   TyVarName,
   Type' (..),
-  defType,
   typeDefNameHints,
  )
-import Primer.Core.Utils (forgetTypeMetadata)
 import Primer.Name (Name, unName, unsafeMkName)
 import Primer.Name.Fresh (mkAvoidForFreshName, mkAvoidForFreshNameTy, mkAvoidForFreshNameTypeZ)
+import Primer.Primitives (defType)
 import Primer.Typecheck (Cxt, decomposeTAppCon, typeDefs)
 import Primer.Zipper (
   ExprZ,
@@ -78,7 +77,7 @@ variablesInScopeExpr ::
   ([(TyVarName, Kind)], [(LVarName, Type' ())], [(GVarName, Type' ())])
 variablesInScopeExpr defs exprOrTy =
   let locals = either extractLocalsExprZ extractLocalsTypeZ exprOrTy
-      globals = Map.assocs $ fmap (forgetTypeMetadata . defType) defs
+      globals = Map.assocs $ fmap defType defs
       M tyvars tmvars globs = locals <> M [] [] globals
    in (reverse tyvars, reverse tmvars, globs) -- keep most-global first
 

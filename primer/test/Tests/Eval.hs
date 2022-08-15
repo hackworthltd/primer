@@ -641,7 +641,7 @@ unit_tryReduce_prim = do
       detail.before ~= expr
       detail.after ~= expr'
       detail.name @?= primitiveGVar "eqChar"
-      detail.argIDs @?= [101, 102]
+      detail.argIDs @?= [3, 4]
     _ -> assertFailure $ show result
 
 unit_tryReduce_prim_fail_unsaturated :: Assertion
@@ -1028,7 +1028,7 @@ unit_redexes_case_5 =
 
 unit_redexes_prim_1 :: Assertion
 unit_redexes_prim_1 =
-  redexesOfWithPrims (gvar (primitiveGVar "eqChar") `app` char 'a' `app` char 'b') @?= Set.fromList [98]
+  redexesOfWithPrims (gvar (primitiveGVar "eqChar") `app` char 'a' `app` char 'b') @?= Set.fromList [0]
 
 unit_redexes_prim_2 :: Assertion
 unit_redexes_prim_2 =
@@ -1040,7 +1040,7 @@ unit_redexes_prim_3 =
 
 unit_redexes_prim_ann :: Assertion
 unit_redexes_prim_ann =
-  redexesOfWithPrims expr @?= Set.singleton 98
+  redexesOfWithPrims expr @?= Set.singleton 0
   where
     expr =
       gvar (primitiveGVar "toUpper")

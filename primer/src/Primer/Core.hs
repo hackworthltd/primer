@@ -12,8 +12,6 @@ module Primer.Core (
   CaseBranch' (..),
   Def (..),
   DefMap,
-  _defType,
-  defType,
   ASTDef (..),
   defAST,
   PrimDef (..),
@@ -55,8 +53,6 @@ module Primer.Core (
   PrimTypeDef (..),
   PrimCon (..),
   primConName,
-  PrimFun (..),
-  primFunType,
   PrimFunError (..),
   ValCon (..),
   valConType,
@@ -78,7 +74,6 @@ module Primer.Core (
 
 import Foreword
 
-import Control.Monad.Fresh (MonadFresh (fresh))
 import Data.Aeson (Value)
 import Data.Data (Data)
 import Data.Generics.Product
@@ -93,7 +88,6 @@ import Optics (
   afailing,
   atraversalVL,
   lens,
-  lensVL,
   set,
   view,
   (%),
@@ -495,10 +489,28 @@ type DefMap = Map GVarName Def
 -- Names and definitions of primitives are hard-coded in Primer.Primitives.
 -- A @PrimDef@ simply exposes one of those, and thus the type must match
 -- the one stored in the corresponding 'PrimFun'.
-newtype PrimDef = PrimDef
-  { primDefType :: Type
-  }
-  deriving (Eq, Show, Data, Generic)
+data PrimDef
+  = ToUpper
+  | IsSpace
+  | HexToNat
+  | NatToHex
+  | EqChar
+  | IntAdd
+  | IntMinus
+  | IntMul
+  | IntQuotient
+  | IntRemainder
+  | IntQuot
+  | IntRem
+  | IntLT
+  | IntLTE
+  | IntGT
+  | IntGTE
+  | IntEq
+  | IntNeq
+  | IntToNat
+  | IntFromNat
+  deriving (Eq, Show, Enum, Bounded, Data, Generic)
   deriving (FromJSON, ToJSON) via PrimerJSON PrimDef
 
 -- | A top-level definition, built from an 'Expr'
@@ -509,12 +521,6 @@ data ASTDef = ASTDef
   deriving (Eq, Show, Data, Generic)
   deriving (FromJSON, ToJSON) via PrimerJSON ASTDef
 
-_defType :: Lens' Def Type
-_defType = lensVL $ \f -> \case
-  DefPrim (PrimDef t) -> DefPrim . PrimDef <$> f t
-  DefAST (ASTDef e t) -> DefAST . ASTDef e <$> f t
-defType :: Def -> Type
-defType = view _defType
 defAST :: Def -> Maybe ASTDef
 defAST = \case
   DefPrim _ -> Nothing
@@ -537,26 +543,10 @@ primConName = \case
   PrimChar _ -> qualifyName (mkSimpleModuleName "Primitives") "Char"
   PrimInt _ -> qualifyName (mkSimpleModuleName "Primitives") "Int"
 
-data PrimFun = PrimFun
-  { primFunTypes :: forall m. MonadFresh ID m => m ([Type], Type)
-  -- ^ the function's arguments and return type
-  , primFunDef :: [Expr' () ()] -> Either PrimFunError (forall m. MonadFresh ID m => m Expr)
-  }
-
-primFunType :: forall m. MonadFresh ID m => PrimFun -> m Type
-primFunType pf = do
-  (args, res) <- primFunTypes pf
-  foldrM f res args
-  where
-    f x y = do
-      id <- fresh
-      pure $ TFun (Meta id Nothing Nothing) x y
-
 data PrimFunError
   = -- | We have attempted to apply a primitive function to invalid args.
     PrimFunError
-      GVarName
-      -- ^ Function name
+      PrimDef
       [Expr' () ()]
       -- ^ Arguments
   deriving (Eq, Show, Data, Generic)

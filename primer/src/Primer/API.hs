@@ -1,3 +1,4 @@
+{-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE GADTs #-}
 
 -- | The Primer API.
@@ -63,7 +64,7 @@ import Control.Monad.Zip (MonadZip)
 import Data.Map qualified as Map
 import Data.Text qualified as T
 import ListT qualified (toList)
-import Optics (ifoldr, over, view, (^.))
+import Optics (ifoldr, over, traverseOf, view, (^.))
 import Primer.App (
   App,
   EditAppM,
@@ -107,12 +108,12 @@ import Primer.Core (
   Type,
   Type' (..),
   defAST,
-  defType,
   moduleNamePretty,
   unLocalName,
   _typeMeta,
   _typeMetaLens,
  )
+import Primer.Core qualified as Core
 import Primer.Database (
   OffsetLimit,
   Page,
@@ -148,6 +149,7 @@ import Primer.JSON (
  )
 import Primer.Module (moduleDefsQualified, moduleName, moduleTypesQualified)
 import Primer.Name (Name, unName)
+import Primer.Primitives (primDefType)
 import StmContainers.Map qualified as StmMap
 
 -- | The API environment.
@@ -485,8 +487,17 @@ viewProg p =
             ( \(name, d) ->
                 Def
                   { name
-                  , type_ = viewTreeType $ defType d
                   , term = viewTreeExpr . astDefExpr <$> defAST d
+                  , type_ =
+                      case d of
+                        Core.DefAST d' -> viewTreeType $ astDefType d'
+                        Core.DefPrim d' -> viewTreeType' $ labelNodes $ primDefType d'
+                          where
+                            labelNodes =
+                              flip evalState (0 :: Int) . traverseOf _typeMeta \() -> do
+                                n <- get
+                                put $ n + 1
+                                pure $ "primtype_" <> show d' <> "_" <> show n
                   }
             )
               <$> Map.assocs (moduleDefsQualified m)
