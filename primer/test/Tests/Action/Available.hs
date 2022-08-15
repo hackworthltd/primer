@@ -67,15 +67,16 @@ mkTests (_, DefPrim _) = error "mkTests is unimplemented for primitive definitio
 mkTests (defName, DefAST def) =
   let d = defName
       testName = T.unpack $ moduleNamePretty (qualifiedModule defName) <> "." <> unName (baseName defName)
+      enumeratePairs = (,) <$> enumerate <*> enumerate
    in testGroup testName $
-        enumerate
-          <&> \level ->
-            let defActions = map name $ actionsForDef level (Map.singleton defName $ DefAST def) d
+        enumeratePairs
+          <&> \(level,mut) ->
+            let defActions = map name $ actionsForDef level (Map.singleton defName (mut,DefAST def)) d
                 bodyActions =
                   map
                     ( \id ->
                         ( id
-                        , map name $ actionsForDefBody level defName id (astDefExpr def)
+                        , map name $ actionsForDefBody level defName mut id (astDefExpr def)
                         )
                     )
                     . toListOf exprIDs
@@ -84,12 +85,12 @@ mkTests (defName, DefAST def) =
                   map
                     ( \id ->
                         ( id
-                        , map name $ actionsForDefSig level defName id (astDefType def)
+                        , map name $ actionsForDefSig level defName mut id (astDefType def)
                         )
                     )
                     . toListOf (_typeMeta % _id)
                     $ astDefType def
-             in goldenVsString (show level) ("test/outputs/available-actions" </> testName </> show level <> ".fragment") $
+             in goldenVsString (show level) ("test/outputs/available-actions" </> testName </> show level <> "-" <> show mut <> ".fragment") $
                   pure . BS.fromStrict . encodeUtf8 . TL.toStrict . pShowNoColor $
                     Output
                       { defActions
