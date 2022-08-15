@@ -72,6 +72,7 @@ import Primer.Zipper (
   unfocusType,
   up,
  )
+import Primer.Typecheck (TypeDefError(TDIHoleType, TDIUnknownADT), getTypeDefInfo')
 
 -- | An AST node tagged with its "sort" - i.e. if it's a type or expression or binding etc.
 -- This is probably useful elsewhere, but we currently just need it here
@@ -579,8 +580,7 @@ basicActionsForExpr l defName expr = case expr of
     -- filter some actions by Syn/Chk
     universalActions :: forall a. ExprMeta -> [ActionSpec Expr a]
     universalActions m =
-      let isSynth = has (_type % _Just % _synthed) m
-          both = case l of
+      let both = case l of
             Beginner ->
               [ makeLambda m
               ]
@@ -595,8 +595,12 @@ basicActionsForExpr l defName expr = case expr of
               , makeLambda m
               , makeTypeAbstraction m
               ]
-          synOnly =         [patternMatch]
-      in both <> if isSynth then synOnly else []
+          synthTy = m ^? _type % _Just % _synthed
+          synOnly ty = case getTypeDefInfo' mempty ty of
+            Left TDIHoleType{} -> Just patternMatch
+            Left TDIUnknownADT{} -> Just patternMatch
+            _ -> Nothing
+      in (synOnly =<< synthTy) ?: both
 
     -- Extract the source of the function type we were checked at
     -- i.e. the type that a lambda-bound variable would have here
@@ -614,6 +618,10 @@ basicActionsForExpr l defName expr = case expr of
     -- Actions for every expression node except holes and annotations
     defaultActions :: forall a. ExprMeta -> [ActionSpec Expr a]
     defaultActions m = universalActions m <> [deleteExpr]
+
+(?:) :: Maybe a -> [a] -> [a]
+Just x ?: xs = x : xs
+Nothing ?: xs = xs
 
 -- | Given a type, determine what basic actions it supports
 -- Specific projections may provide other actions not listed here
