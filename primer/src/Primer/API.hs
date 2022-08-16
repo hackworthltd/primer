@@ -1,3 +1,4 @@
+{-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE GADTs #-}
 
 -- | The Primer API.
@@ -63,7 +64,7 @@ import Control.Monad.Zip (MonadZip)
 import Data.Map qualified as Map
 import Data.Text qualified as T
 import ListT qualified (toList)
-import Optics (ifoldr, (^.))
+import Optics (ifoldr, over, traverseOf, view, (^.))
 import Primer.App (
   App,
   EditAppM,
@@ -107,10 +108,12 @@ import Primer.Core (
   Type,
   Type' (..),
   defAST,
-  defType,
   moduleNamePretty,
   unLocalName,
+  _typeMeta,
+  _typeMetaLens,
  )
+import Primer.Core qualified as Core
 import Primer.Database (
   OffsetLimit,
   Page,
@@ -146,6 +149,7 @@ import Primer.JSON (
  )
 import Primer.Module (moduleDefsQualified, moduleName, moduleTypesQualified)
 import Primer.Name (Name, unName)
+import Primer.Primitives (primDefType)
 import StmContainers.Map qualified as StmMap
 
 -- | The API environment.
@@ -480,11 +484,20 @@ viewProg p =
         , editable = e
         , types = fst <$> Map.assocs (moduleTypesQualified m)
         , defs =
-            ( \(n, d) ->
+            ( \(name, d) ->
                 Def
-                  { name = n
-                  , type_ = viewTreeType $ defType d
+                  { name
                   , term = viewTreeExpr . astDefExpr <$> defAST d
+                  , type_ =
+                      case d of
+                        Core.DefAST d' -> viewTreeType $ astDefType d'
+                        Core.DefPrim d' -> viewTreeType' $ labelNodes $ primDefType d'
+                          where
+                            labelNodes =
+                              flip evalState (0 :: Int) . traverseOf _typeMeta \() -> do
+                                n <- get
+                                put $ n + 1
+                                pure $ "primtype_" <> show d' <> "_" <> show n
                   }
             )
               <$> Map.assocs (moduleDefsQualified m)
@@ -668,7 +681,12 @@ viewTreeExpr e0 = case e0 of
 
 -- | Similar to 'viewTreeExpr', but for 'Type's
 viewTreeType :: Type -> Tree
-viewTreeType t0 = case t0 of
+viewTreeType = viewTreeType' . over _typeMeta (show . view _id)
+
+-- | Like 'viewTreeType', but with the flexibility to accept arbitrary textual node identifiers,
+-- rather than using the type's numeric IDs.
+viewTreeType' :: Type' Text -> Tree
+viewTreeType' t0 = case t0 of
   TEmptyHole _ ->
     Tree
       { nodeId
@@ -682,7 +700,7 @@ viewTreeType t0 = case t0 of
       { nodeId
       , flavor = FlavorTHole
       , body = NoBody
-      , childTrees = [viewTreeType t]
+      , childTrees = [viewTreeType' t]
       , rightChild = Nothing
       }
   TCon _ n ->
@@ -698,7 +716,7 @@ viewTreeType t0 = case t0 of
       { nodeId
       , flavor = FlavorTFun
       , body = NoBody
-      , childTrees = [viewTreeType t1, viewTreeType t2]
+      , childTrees = [viewTreeType' t1, viewTreeType' t2]
       , rightChild = Nothing
       }
   TVar _ n ->
@@ -714,7 +732,7 @@ viewTreeType t0 = case t0 of
       { nodeId
       , flavor = FlavorTApp
       , body = NoBody
-      , childTrees = [viewTreeType t1, viewTreeType t2]
+      , childTrees = [viewTreeType' t1, viewTreeType' t2]
       , rightChild = Nothing
       }
   TForall _ n k t ->
@@ -722,7 +740,7 @@ viewTreeType t0 = case t0 of
       { nodeId
       , flavor = FlavorTForall
       , body = TextBody $ withKindAnn $ unName $ unLocalName n
-      , childTrees = [viewTreeType t]
+      , childTrees = [viewTreeType' t]
       , rightChild = Nothing
       }
     where
@@ -733,7 +751,7 @@ viewTreeType t0 = case t0 of
         KType -> identity
         _ -> (<> (" :: " <> show k))
   where
-    nodeId = show $ t0 ^. _id
+    nodeId = t0 ^. _typeMetaLens
 
 showGlobal :: GlobalName k -> Text
 showGlobal n = moduleNamePretty (qualifiedModule n) <> "." <> unName (baseName n)

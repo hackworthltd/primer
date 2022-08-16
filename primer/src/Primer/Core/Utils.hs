@@ -60,7 +60,6 @@ import Primer.Core (
   Kind (KHole),
   LVarName,
   LocalName (LocalName, unLocalName),
-  PrimDef (..),
   TmVarRef (GlobalVarRef, LocalVarRef),
   TyVarName,
   Type,
@@ -271,5 +270,5 @@ nextID (DefAST (ASTDef e t)) =
   let eid = foldlOf' exprIDs max minBound e
       tid = foldlOf' typeIDs max minBound t
    in succ $ max eid tid
-nextID (DefPrim (PrimDef t)) = succ $ foldlOf' typeIDs max minBound t
+nextID (DefPrim _) = 0
 {-# INLINE nextID #-}

@@ -49,7 +49,6 @@ import Primer.Core (
   Kind (KFun, KHole, KType),
   Meta (..),
   ModuleName (ModuleName),
-  PrimDef (PrimDef, primDefType),
   TmVarRef (LocalVarRef),
   TyConName,
   Type,
@@ -60,7 +59,6 @@ import Primer.Core (
   ValCon (..),
   astTypeDefConstructors,
   defAST,
-  defType,
   typeDefKind,
   valConType,
   _exprMeta,
@@ -85,7 +83,7 @@ import Primer.Gen.Core.Typed (
  )
 import Primer.Module
 import Primer.Name (Name, NameCounter)
-import Primer.Primitives (primitiveGVar, primitiveModule, tChar)
+import Primer.Primitives (defType, primitiveGVar, primitiveModule, tChar)
 import Primer.Typecheck (
   CheckEverythingRequest (CheckEverything, toCheck, trusted),
   Cxt (smartHoles),
@@ -640,8 +638,8 @@ instance (Eq (TypeCacheAlpha a), Eq b) => Eq (TypeCacheAlpha (Expr' (Meta a) b))
 instance Eq (TypeCacheAlpha Def) where
   TypeCacheAlpha (DefAST (ASTDef e1 t1)) == TypeCacheAlpha (DefAST (ASTDef e2 t2)) =
     TypeCacheAlpha e1 == TypeCacheAlpha e2 && t1 == t2
-  TypeCacheAlpha (DefPrim (PrimDef t1)) == TypeCacheAlpha (DefPrim (PrimDef t2)) =
-    t1 == t2
+  TypeCacheAlpha (DefPrim p1) == TypeCacheAlpha (DefPrim p2) =
+    p1 == p2
   _ == _ = False
 instance Eq (TypeCacheAlpha (Map Name Def)) where
   (==) = tcaFunctorial
@@ -775,19 +773,6 @@ unit_good_maybeT = case runTypecheckTestM NoSmartHoles $
       } of
   Left err -> assertFailure $ show err
   Right _ -> pure ()
-
-unit_bad_prim_type :: Assertion
-unit_bad_prim_type = case runTypecheckTestM NoSmartHoles $ do
-  fooType <- tcon' ["M"] "NonExistant"
-  let foo = PrimDef{primDefType = fooType}
-  checkEverything
-    NoSmartHoles
-    CheckEverything
-      { trusted = progModules newProg'
-      , toCheck = [Module (ModuleName ["M"]) mempty $ Map.singleton "foo" $ DefPrim foo]
-      } of
-  Left err -> err @?= UnknownTypeConstructor (tcn ["M"] "NonExistant")
-  Right _ -> assertFailure "Expected failure but succeeded"
 
 -- * Helpers
 expectTyped :: HasCallStack => TypecheckTestM Expr -> Assertion

@@ -5,8 +5,6 @@ module Tests.Primitives where
 import Foreword
 
 import Data.Map qualified as M
-import Hedgehog (assert)
-import Hedgehog.Gen (choice)
 import Primer.Core (
   ASTTypeDef (
     ASTTypeDef,
@@ -16,11 +14,9 @@ import Primer.Core (
   ),
   Kind (KFun, KType),
   TypeDef (TypeDefAST),
-  primConName,
  )
 import Primer.Core.DSL (char, tcon)
-import Primer.Gen.Core.Typed (forAllT, genPrimCon, propertyWT)
-import Primer.Primitives (allPrimTypeDefs, primitiveModule, tChar)
+import Primer.Primitives (tChar)
 import Primer.Typecheck (
   SmartHoles (NoSmartHoles),
   TypeError (PrimitiveTypeNotInScope, UnknownTypeConstructor),
@@ -30,16 +26,8 @@ import Primer.Typecheck (
   checkValidContext,
   synth,
  )
-import Tasty (Property)
-
-import Primer.Builtins (builtinModule)
 import Test.Tasty.HUnit (Assertion, assertBool, (@?=))
 import Tests.Typecheck (runTypecheckTestMIn)
-
-tasty_all_prim_cons_have_typedef :: Property
-tasty_all_prim_cons_have_typedef = propertyWT [builtinModule, primitiveModule] $ do
-  c <- forAllT $ (fmap fst . choice) =<< genPrimCon
-  assert $ primConName c `elem` M.keys allPrimTypeDefs
 
 -- If we use a prim con, then we need the corresponding prim type
 -- in scope

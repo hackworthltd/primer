@@ -1,17 +1,23 @@
+{-# LANGUAGE ImpredicativeTypes #-}
 {-# LANGUAGE ViewPatterns #-}
 
 module Primer.Primitives (
+  PrimDef (..),
   primitiveModule,
-  allPrimDefs,
   allPrimTypeDefs,
   tInt,
   tChar,
   primitiveGVar,
+  primDefName,
+  primDefType,
+  defType,
+  primFunDef,
 ) where
 
 import Foreword
 
-import Data.Bitraversable (bisequence)
+import Control.Monad.Fresh (MonadFresh)
+import Data.List.Extra (enumerate)
 import Data.Map qualified as M
 import Numeric.Natural (Natural)
 import Primer.Builtins (
@@ -25,20 +31,22 @@ import Primer.Builtins (
  )
 import Primer.Builtins.DSL (bool_, maybe_, nat)
 import Primer.Core (
-  Def (DefPrim),
+  ASTDef (..),
+  Def (..),
+  Expr,
   Expr' (App, Con, PrimCon),
   GVarName,
   GlobalName (baseName),
+  ID,
   ModuleName,
   PrimCon (..),
-  PrimDef (PrimDef, primDefType),
-  PrimFun (..),
+  PrimDef (..),
   PrimFunError (..),
   PrimTypeDef (..),
   TyConName,
+  Type' (..),
   TypeDef (TypeDefPrim),
   mkSimpleModuleName,
-  primFunType,
   qualifyName,
  )
 import Primer.Core.DSL (
@@ -46,11 +54,10 @@ import Primer.Core.DSL (
   app,
   char,
   con,
-  create',
   int,
-  tapp,
   tcon,
  )
+import Primer.Core.Utils (forgetTypeMetadata)
 import Primer.Module (Module (Module, moduleDefs, moduleName, moduleTypes))
 import Primer.Name (Name)
 
@@ -67,16 +74,7 @@ primitiveModule =
   Module
     { moduleName = primitiveModuleName
     , moduleTypes = TypeDefPrim <$> M.mapKeys baseName allPrimTypeDefs
-    , moduleDefs = create' $
-        getAp $
-          flip M.foldMapWithKey allPrimDefs $ \n def -> Ap $ do
-            ty <- primFunType def
-            pure $
-              M.singleton (baseName n) $
-                DefPrim
-                  PrimDef
-                    { primDefType = ty
-                    }
+    , moduleDefs = M.fromList $ [(primDefName def, DefPrim def) | def <- enumerate]
     }
 
 tChar :: TyConName
@@ -85,7 +83,7 @@ tChar = primitive "Char"
 tInt :: TyConName
 tInt = primitive "Int"
 
--- | Construct a reference to a primitive definition. For use in tests.
+-- | Construct a reference to a primitive definition.
 primitiveGVar :: Name -> GVarName
 primitiveGVar = primitive
 
@@ -116,245 +114,177 @@ allPrimTypeDefs =
       PrimChar _ -> ()
       PrimInt _ -> ()
 
--- | Primitive term definitions.
--- For each of these, we should have a test that the evaluator produces expected results.
-allPrimDefs :: Map GVarName PrimFun
-allPrimDefs =
-  M.fromList
-    [ let name = primitiveGVar "toUpper"
-       in ( name
-          , PrimFun
-              { primFunTypes = sequenceTypes [tcon tChar] (tcon tChar)
-              , primFunDef = \case
-                  [PrimCon _ (PrimChar c)] ->
-                    Right $ char $ toUpper c
-                  xs -> Left $ PrimFunError name xs
-              }
-          )
-    , let name = primitiveGVar "isSpace"
-       in ( name
-          , PrimFun
-              { primFunTypes = sequenceTypes [tcon tChar] (tcon tBool)
-              , primFunDef = \case
-                  [PrimCon _ (PrimChar c)] ->
-                    Right $ bool_ $ isSpace c
-                  xs -> Left $ PrimFunError name xs
-              }
-          )
-    , let name = primitiveGVar "hexToNat"
-       in ( name
-          , PrimFun
-              { primFunTypes = sequenceTypes [tcon tChar] $ tcon tMaybe `tapp` tcon tNat
-              , primFunDef = \case
-                  [PrimCon _ (PrimChar c)] -> do
-                    Right $ maybe_ (tcon tNat) nat $ digitToIntSafe c
-                    where
-                      digitToIntSafe :: Char -> Maybe Natural
-                      digitToIntSafe c' = fromIntegral <$> (guard (isHexDigit c') $> digitToInt c')
-                  xs -> Left $ PrimFunError name xs
-              }
-          )
-    , let name = primitiveGVar "natToHex"
-       in ( name
-          , PrimFun
-              { primFunTypes = sequenceTypes [tcon tNat] $ tcon tMaybe `tapp` tcon tChar
-              , primFunDef = \case
-                  [exprToNat -> Just n] ->
-                    Right $ maybe_ (tcon tChar) char $ intToDigitSafe n
-                    where
-                      intToDigitSafe :: Natural -> Maybe Char
-                      intToDigitSafe n' = guard (0 <= n && n <= 15) $> intToDigit (fromIntegral n')
-                  xs -> Left $ PrimFunError name xs
-              }
-          )
-    , let name = primitiveGVar "eqChar"
-       in ( name
-          , PrimFun
-              { primFunTypes = sequenceTypes [tcon tChar, tcon tChar] (tcon tBool)
-              , primFunDef = \case
-                  [PrimCon _ (PrimChar c1), PrimCon _ (PrimChar c2)] ->
-                    Right $ bool_ $ c1 == c2
-                  xs -> Left $ PrimFunError name xs
-              }
-          )
-    , let name = primitiveGVar "Int.+"
-       in ( name
-          , PrimFun
-              { primFunTypes = sequenceTypes [tcon tInt, tcon tInt] (tcon tInt)
-              , primFunDef = \case
-                  [PrimCon _ (PrimInt x), PrimCon _ (PrimInt y)] ->
-                    Right $ int $ x + y
-                  xs -> Left $ PrimFunError name xs
-              }
-          )
-    , let name = primitiveGVar "Int.-"
-       in ( name
-          , PrimFun
-              { primFunTypes = sequenceTypes [tcon tInt, tcon tInt] (tcon tInt)
-              , primFunDef = \case
-                  [PrimCon _ (PrimInt x), PrimCon _ (PrimInt y)] ->
-                    Right $ int $ x - y
-                  xs -> Left $ PrimFunError name xs
-              }
-          )
-    , let name = primitiveGVar "Int.×"
-       in ( name
-          , PrimFun
-              { primFunTypes = sequenceTypes [tcon tInt, tcon tInt] (tcon tInt)
-              , primFunDef = \case
-                  [PrimCon _ (PrimInt x), PrimCon _ (PrimInt y)] ->
-                    Right $ int $ x * y
-                  xs -> Left $ PrimFunError name xs
-              }
-          )
-    , let name = primitiveGVar "Int.quotient"
-       in ( name
-          , PrimFun
-              { primFunTypes = sequenceTypes [tcon tInt, tcon tInt] $ tcon tMaybe `tapp` tcon tInt
-              , primFunDef = \case
-                  [PrimCon _ (PrimInt x), PrimCon _ (PrimInt y)] ->
-                    Right $
-                      if y == 0
-                        then con cNothing `aPP` tcon tInt
-                        else
-                          con cJust
-                            `aPP` tcon tInt
-                            `app` int (x `div` y)
-                  xs -> Left $ PrimFunError name xs
-              }
-          )
-    , let name = primitiveGVar "Int.remainder"
-       in ( name
-          , PrimFun
-              { primFunTypes = sequenceTypes [tcon tInt, tcon tInt] $ tcon tMaybe `tapp` tcon tInt
-              , primFunDef = \case
-                  [PrimCon _ (PrimInt x), PrimCon _ (PrimInt y)] ->
-                    Right $
-                      if y == 0
-                        then con cNothing `aPP` tcon tInt
-                        else
-                          con cJust
-                            `aPP` tcon tInt
-                            `app` int (x `mod` y)
-                  xs -> Left $ PrimFunError name xs
-              }
-          )
-    , let name = primitiveGVar "Int.quot"
-       in ( name
-          , PrimFun
-              { primFunTypes = sequenceTypes [tcon tInt, tcon tInt] (tcon tInt)
-              , primFunDef = \case
-                  [PrimCon _ (PrimInt x), PrimCon _ (PrimInt y)] ->
-                    Right $
-                      if y == 0
-                        then int 0
-                        else int (x `div` y)
-                  xs -> Left $ PrimFunError name xs
-              }
-          )
-    , let name = primitiveGVar "Int.rem"
-       in ( name
-          , PrimFun
-              { primFunTypes = sequenceTypes [tcon tInt, tcon tInt] (tcon tInt)
-              , primFunDef = \case
-                  [PrimCon _ (PrimInt x), PrimCon _ (PrimInt y)] ->
-                    Right $
-                      if y == 0
-                        then int x
-                        else int (x `mod` y)
-                  xs -> Left $ PrimFunError name xs
-              }
-          )
-    , let name = primitiveGVar "Int.<"
-       in ( name
-          , PrimFun
-              { primFunTypes = sequenceTypes [tcon tInt, tcon tInt] (tcon tBool)
-              , primFunDef = \case
-                  [PrimCon _ (PrimInt x), PrimCon _ (PrimInt y)] ->
-                    Right $ bool_ $ x < y
-                  xs -> Left $ PrimFunError name xs
-              }
-          )
-    , let name = primitiveGVar "Int.≤"
-       in ( name
-          , PrimFun
-              { primFunTypes = sequenceTypes [tcon tInt, tcon tInt] (tcon tBool)
-              , primFunDef = \case
-                  [PrimCon _ (PrimInt x), PrimCon _ (PrimInt y)] ->
-                    Right $ bool_ $ x <= y
-                  xs -> Left $ PrimFunError name xs
-              }
-          )
-    , let name = primitiveGVar "Int.>"
-       in ( name
-          , PrimFun
-              { primFunTypes = sequenceTypes [tcon tInt, tcon tInt] (tcon tBool)
-              , primFunDef = \case
-                  [PrimCon _ (PrimInt x), PrimCon _ (PrimInt y)] ->
-                    Right $ bool_ $ x > y
-                  xs -> Left $ PrimFunError name xs
-              }
-          )
-    , let name = primitiveGVar "Int.≥"
-       in ( name
-          , PrimFun
-              { primFunTypes = sequenceTypes [tcon tInt, tcon tInt] (tcon tBool)
-              , primFunDef = \case
-                  [PrimCon _ (PrimInt x), PrimCon _ (PrimInt y)] ->
-                    Right $ bool_ $ x >= y
-                  xs -> Left $ PrimFunError name xs
-              }
-          )
-    , let name = primitiveGVar "Int.="
-       in ( name
-          , PrimFun
-              { primFunTypes = sequenceTypes [tcon tInt, tcon tInt] (tcon tBool)
-              , primFunDef = \case
-                  [PrimCon _ (PrimInt x), PrimCon _ (PrimInt y)] ->
-                    Right $ bool_ $ x == y
-                  xs -> Left $ PrimFunError name xs
-              }
-          )
-    , let name = primitiveGVar "Int.≠"
-       in ( name
-          , PrimFun
-              { primFunTypes = sequenceTypes [tcon tInt, tcon tInt] (tcon tBool)
-              , primFunDef = \case
-                  [PrimCon _ (PrimInt x), PrimCon _ (PrimInt y)] ->
-                    Right $ bool_ $ x /= y
-                  xs -> Left $ PrimFunError name xs
-              }
-          )
-    , let name = primitiveGVar "Int.toNat"
-       in ( name
-          , PrimFun
-              { primFunTypes = sequenceTypes [tcon tInt] $ tcon tMaybe `tapp` tcon tNat
-              , primFunDef = \case
-                  [PrimCon _ (PrimInt x)] ->
-                    Right $
-                      if x < 0
-                        then con cNothing `aPP` tcon tNat
-                        else
-                          con cJust
-                            `aPP` tcon tNat
-                            `app` nat (fromInteger x)
-                  xs -> Left $ PrimFunError name xs
-              }
-          )
-    , let name = primitiveGVar "Int.fromNat"
-       in ( name
-          , PrimFun
-              { primFunTypes = sequenceTypes [tcon tNat] (tcon tInt)
-              , primFunDef = \case
-                  [exprToNat -> Just n] ->
-                    Right $ int $ fromIntegral n
-                  xs -> Left $ PrimFunError name xs
-              }
-          )
-    ]
+primDefName :: PrimDef -> Name
+primDefName = \case
+  ToUpper -> "toUpper"
+  IsSpace -> "isSpace"
+  HexToNat -> "hexToNat"
+  NatToHex -> "natToHex"
+  EqChar -> "eqChar"
+  IntAdd -> "Int.+"
+  IntMinus -> "Int.-"
+  IntMul -> "Int.×"
+  IntQuotient -> "Int.quotient"
+  IntRemainder -> "Int.remainder"
+  IntQuot -> "Int.quot"
+  IntRem -> "Int.rem"
+  IntLT -> "Int.<"
+  IntLTE -> "Int.≤"
+  IntGT -> "Int.>"
+  IntGTE -> "Int.≥"
+  IntEq -> "Int.="
+  IntNeq -> "Int.≠"
+  IntToNat -> "Int.toNat"
+  IntFromNat -> "Int.fromNat"
+
+primDefType :: PrimDef -> Type' ()
+primDefType = uncurry (flip $ foldr $ TFun ()) . primFunTypes
+
+defType :: Def -> Type' ()
+defType = \case
+  DefPrim d -> primDefType d
+  DefAST d -> forgetTypeMetadata $ astDefType d
+
+primFunTypes :: PrimDef -> ([Type' ()], Type' ())
+primFunTypes = \case
+  ToUpper -> ([c tChar], c tChar)
+  IsSpace -> ([c tChar], c tBool)
+  HexToNat -> ([c tChar], c tMaybe `a` c tNat)
+  NatToHex -> ([c tNat], c tMaybe `a` c tChar)
+  EqChar -> ([c tChar, c tChar], c tBool)
+  IntAdd -> ([c tInt, c tInt], c tInt)
+  IntMinus -> ([c tInt, c tInt], c tInt)
+  IntMul -> ([c tInt, c tInt], c tInt)
+  IntQuotient -> ([c tInt, c tInt], c tMaybe `a` c tInt)
+  IntRemainder -> ([c tInt, c tInt], c tMaybe `a` c tInt)
+  IntQuot -> ([c tInt, c tInt], c tInt)
+  IntRem -> ([c tInt, c tInt], c tInt)
+  IntLT -> ([c tInt, c tInt], c tBool)
+  IntLTE -> ([c tInt, c tInt], c tBool)
+  IntGT -> ([c tInt, c tInt], c tBool)
+  IntGTE -> ([c tInt, c tInt], c tBool)
+  IntEq -> ([c tInt, c tInt], c tBool)
+  IntNeq -> ([c tInt, c tInt], c tBool)
+  IntToNat -> ([c tInt], c tMaybe `a` c tNat)
+  IntFromNat -> ([c tNat], c tInt)
   where
-    sequenceTypes args res = bisequence (sequence args, res)
+    c = TCon ()
+    a = TApp ()
+
+primFunDef :: PrimDef -> [Expr' () ()] -> Either PrimFunError (forall m. MonadFresh ID m => m Expr)
+primFunDef def args = case def of
+  ToUpper -> case args of
+    [PrimCon _ (PrimChar c)] ->
+      Right $ char $ toUpper c
+    _ -> err
+  IsSpace -> case args of
+    [PrimCon _ (PrimChar c)] ->
+      Right $ bool_ $ isSpace c
+    _ -> err
+  HexToNat -> case args of
+    [PrimCon _ (PrimChar c)] -> Right $ maybe_ (tcon tNat) nat $ digitToIntSafe c
+      where
+        digitToIntSafe :: Char -> Maybe Natural
+        digitToIntSafe c' = fromIntegral <$> (guard (isHexDigit c') $> digitToInt c')
+    _ -> err
+  NatToHex -> case args of
+    [exprToNat -> Just n] ->
+      Right $ maybe_ (tcon tChar) char $ intToDigitSafe n
+      where
+        intToDigitSafe :: Natural -> Maybe Char
+        intToDigitSafe n' = guard (0 <= n && n <= 15) $> intToDigit (fromIntegral n')
+    _ -> err
+  EqChar -> case args of
+    [PrimCon _ (PrimChar c1), PrimCon _ (PrimChar c2)] ->
+      Right $ bool_ $ c1 == c2
+    _ -> err
+  IntAdd -> case args of
+    [PrimCon _ (PrimInt x), PrimCon _ (PrimInt y)] ->
+      Right $ int $ x + y
+    _ -> err
+  IntMinus -> case args of
+    [PrimCon _ (PrimInt x), PrimCon _ (PrimInt y)] ->
+      Right $ int $ x - y
+    _ -> err
+  IntMul -> case args of
+    [PrimCon _ (PrimInt x), PrimCon _ (PrimInt y)] ->
+      Right $ int $ x * y
+    _ -> err
+  IntQuotient -> case args of
+    [PrimCon _ (PrimInt x), PrimCon _ (PrimInt y)] ->
+      Right $
+        if y == 0
+          then con cNothing `aPP` tcon tInt
+          else
+            con cJust
+              `aPP` tcon tInt
+              `app` int (x `div` y)
+    _ -> err
+  IntRemainder -> case args of
+    [PrimCon _ (PrimInt x), PrimCon _ (PrimInt y)] ->
+      Right $
+        if y == 0
+          then con cNothing `aPP` tcon tInt
+          else
+            con cJust
+              `aPP` tcon tInt
+              `app` int (x `mod` y)
+    _ -> err
+  IntQuot -> case args of
+    [PrimCon _ (PrimInt x), PrimCon _ (PrimInt y)] ->
+      Right $
+        if y == 0
+          then int 0
+          else int (x `div` y)
+    _ -> err
+  IntRem -> case args of
+    [PrimCon _ (PrimInt x), PrimCon _ (PrimInt y)] ->
+      Right $
+        if y == 0
+          then int x
+          else int (x `mod` y)
+    _ -> err
+  IntLT -> case args of
+    [PrimCon _ (PrimInt x), PrimCon _ (PrimInt y)] ->
+      Right $ bool_ $ x < y
+    _ -> err
+  IntLTE -> case args of
+    [PrimCon _ (PrimInt x), PrimCon _ (PrimInt y)] ->
+      Right $ bool_ $ x <= y
+    _ -> err
+  IntGT -> case args of
+    [PrimCon _ (PrimInt x), PrimCon _ (PrimInt y)] ->
+      Right $ bool_ $ x > y
+    _ -> err
+  IntGTE -> case args of
+    [PrimCon _ (PrimInt x), PrimCon _ (PrimInt y)] ->
+      Right $ bool_ $ x >= y
+    _ -> err
+  IntEq -> case args of
+    [PrimCon _ (PrimInt x), PrimCon _ (PrimInt y)] ->
+      Right $ bool_ $ x == y
+    _ -> err
+  IntNeq -> case args of
+    [PrimCon _ (PrimInt x), PrimCon _ (PrimInt y)] ->
+      Right $ bool_ $ x /= y
+    _ -> err
+  IntToNat -> case args of
+    [PrimCon _ (PrimInt x)] ->
+      Right $
+        if x < 0
+          then con cNothing `aPP` tcon tNat
+          else
+            con cJust
+              `aPP` tcon tNat
+              `app` nat (fromInteger x)
+    _ -> err
+  IntFromNat -> case args of
+    [exprToNat -> Just n] ->
+      Right $ int $ fromIntegral n
+    _ -> err
+  where
     exprToNat = \case
       Con _ c | c == cZero -> Just 0
       App _ (Con _ c) x | c == cSucc -> succ <$> exprToNat x
       _ -> Nothing
+    err = Left $ PrimFunError def args
