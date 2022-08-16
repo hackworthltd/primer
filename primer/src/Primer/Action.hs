@@ -510,7 +510,7 @@ applyActionsToBody sh modules def actions =
       e' <- exprTtoExpr <$> check (forgetTypeMetadata (astDefType def)) e
       let def' = def{astDefExpr = e'}
       case focusOn targetID e' of
-        Nothing -> throwError $ InternalFailure "lost ID after typechecking"
+        Nothing -> throwError $ InternalFailure $ "AAA lost ID after typechecking  " <> show e'
         Just z -> pure (def', z)
 
 applyActionAndCheck :: ActionM m => Type -> Action -> Loc -> m Loc
@@ -522,7 +522,7 @@ applyActionAndCheck ty action z = do
   -- Refocus on where we were previously
   case focusOn targetID (exprTtoExpr typedAST) of
     Just z'' -> pure z''
-    Nothing -> throwError $ CustomFailure action "internal error: lost ID after typechecking"
+    Nothing -> throwError $ CustomFailure action $ "BBB internal error: lost ID after typechecking  " <> show typedAST
 
 -- This is currently only used for tests.
 -- We may need it in the future for a REPL, where we want to build standalone expressions.
@@ -539,7 +539,7 @@ applyActionAndSynth action z = do
   z' <- applyAction' action z
   synthZ z' >>= \case
     Just z'' -> pure z''
-    Nothing -> throwError $ CustomFailure action "internal error: lost ID after typechecking"
+    Nothing -> throwError $ CustomFailure action $ "CCC internal error: lost ID after typechecking  " <> show (unfocus z')
 
 -- There's some fiddly manipulations here because the output of the typechecker
 -- is @Expr' (Meta Type) (Meta Kind)@ but we need

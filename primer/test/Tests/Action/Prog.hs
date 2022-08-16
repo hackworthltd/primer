@@ -736,6 +736,15 @@ unit_import_vars =
         Right assertion -> assertion
 
 -- TODO: if kept, needs a better name and location
+--
+-- foo :: ? ?
+-- foo = case {? foo ?} of []   -- NB: this hole is necessary, since foo is not an element of an ADT
+-- edit to wrap the scrutinee in a lambda
+-- foo = case λx. {? foo ?} of []
+-- and SH annotates the lambda, as it is in SYN position
+-- foo = case λx. {? foo ?0} :: ?1 of []
+-- But now the hole is redundent as ?1 ~ ?2 -> ?3 and ?3 ∋ foo, so SH elides the hole
+-- foo = case λx. foo :: ?1 of []
 unit_tmp :: Assertion
 unit_tmp =
   let test = do
