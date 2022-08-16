@@ -3,8 +3,8 @@
 -- That is, syntax trees which are not (necessarily) well-typed, or even well-scoped.
 -- It is however, fast and has good coverage properties.
 --
--- For generating well-typed terms, see "Gen.Core.Typed".
-module Gen.Core.Raw (
+-- For generating well-typed terms, see "Primer.Gen.Core.Typed".
+module Primer.Gen.Core.Raw (
   runExprGen,
   evalExprGen,
   genID,

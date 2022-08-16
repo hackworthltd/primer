@@ -4,7 +4,6 @@ module Tests.Question where
 import Foreword hiding (diff)
 
 import Data.List (nub, nubBy)
-import Gen.Core.Raw (evalExprGen, genKind, genName, genTyVarName, genType)
 import Hedgehog hiding (Property, check, property)
 import Hedgehog.Classes
 import Hedgehog.Gen qualified as Gen
@@ -25,6 +24,7 @@ import Primer.Core (
  )
 import Primer.Core.DSL
 import Primer.Core.Utils (forgetTypeMetadata)
+import Primer.Gen.Core.Raw (evalExprGen, genKind, genName, genTyVarName, genType)
 import Primer.Name
 import Primer.Questions (
   ShadowedVarsExpr (M),
@@ -42,10 +42,10 @@ import Primer.Typecheck (
   synth,
  )
 import Primer.Zipper (ExprZ, TypeZip, down, focus, right)
+import Tasty (Property, property)
 import Test.Tasty
 import Test.Tasty.HUnit (Assertion, assertFailure, (@?=))
 import Test.Tasty.Hedgehog
-import TestUtils (Property, property)
 import Tests.Typecheck (runTypecheckTestM)
 
 test_laws :: TestTree

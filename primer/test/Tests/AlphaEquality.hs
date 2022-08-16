@@ -2,11 +2,6 @@ module Tests.AlphaEquality where
 
 import Foreword
 
-import Gen.Core.Raw (
-  evalExprGen,
-  genTyVarName,
-  genType,
- )
 import Hedgehog hiding (Property, check, property)
 import Primer.Builtins
 import Primer.Core (
@@ -15,8 +10,13 @@ import Primer.Core (
  )
 import Primer.Core.DSL
 import Primer.Core.Utils (alphaEqTy, forgetTypeMetadata)
+import Primer.Gen.Core.Raw (
+  evalExprGen,
+  genTyVarName,
+  genType,
+ )
+import Tasty (Property, property)
 import Test.Tasty.HUnit hiding (assert)
-import TestUtils (Property, property)
 
 unit_1 :: Assertion
 unit_1 =

@@ -5,16 +5,6 @@ module Tests.Gen.Core.Typed where
 
 import Data.Map qualified as M
 import Foreword hiding (diff)
-import Gen.Core.Typed (
-  WT,
-  genChk,
-  genCxtExtendingGlobal,
-  genCxtExtendingLocal,
-  genSyns,
-  genWTKind,
-  genWTType,
-  propertyWT,
- )
 import Hedgehog (
   PropertyT,
   annotateShow,
@@ -37,6 +27,16 @@ import Primer.Core.Utils (
   generateIDs,
   generateTypeIDs,
  )
+import Primer.Gen.Core.Typed (
+  WT,
+  genChk,
+  genCxtExtendingGlobal,
+  genCxtExtendingLocal,
+  genSyns,
+  genWTKind,
+  genWTType,
+  propertyWT,
+ )
 import Primer.Module (Module)
 import Primer.Primitives (primitiveModule)
 import Primer.Typecheck (
@@ -52,7 +52,7 @@ import Primer.Typecheck (
   synth,
   synthKind,
  )
-import TestUtils (Property, withDiscards, withTests)
+import Tasty (Property, withDiscards, withTests)
 
 inExtendedGlobalCxt :: PropertyT WT a -> PropertyT WT a
 inExtendedGlobalCxt p = do

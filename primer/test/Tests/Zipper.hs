@@ -4,16 +4,16 @@ module Tests.Zipper where
 import Foreword
 
 import Data.Generics.Uniplate.Data (para)
-import Gen.Core.Raw (
+import Hedgehog hiding (Property, property)
+import Hedgehog.Gen qualified as Gen
+import Primer.Core
+import Primer.Gen.Core.Raw (
   evalExprGen,
   genExpr,
   runExprGen,
  )
-import Hedgehog hiding (Property, property)
-import Hedgehog.Gen qualified as Gen
-import Primer.Core
 import Primer.Zipper
-import TestUtils (Property, property)
+import Tasty (Property, property)
 
 -- | @unfocus . focus == id@
 tasty_focus_unfocus_roundtrip :: Property

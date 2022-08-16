@@ -5,7 +5,7 @@
 -- |
 -- This module generates well-typed 'Prog's
 -- It is however, slow and the distribution is not very even.
-module Gen.App (
+module Primer.Gen.App (
   genProg,
 ) where
 
@@ -16,7 +16,7 @@ import Primer.Module (Module (Module, moduleDefs, moduleName, moduleTypes), modu
 import Primer.Name (Name, unsafeMkName)
 import Primer.Typecheck (Cxt, SmartHoles, extendGlobalCxt, extendTypeDefCxt)
 
-import Gen.Core.Typed (WT, freshNameForCxt, genChk, genTypeDefGroup, genWTType)
+import Primer.Gen.Core.Typed (WT, freshNameForCxt, genChk, genTypeDefGroup, genWTType)
 
 import Hedgehog (GenT, MonadGen)
 import Hedgehog.Gen qualified as Gen
@@ -57,7 +57,7 @@ genProg sh initialImports = local (extendCxtByModules initialImports) $ do
         . extendGlobalCxt (M.toList . fmap (forgetTypeMetadata . defType) $ foldMap moduleDefsQualified ms)
     genModule :: Name -> Int -> GenT WT Module
     genModule prefix index = do
-      let mn = ModuleName [prefix, unsafeMkName $ show index]
+      let mn = ModuleName $ prefix :| [unsafeMkName $ show index]
       tds <- genTypeDefGroup $ Just mn
       defs <- local (extendTypeDefCxt $ M.fromList tds) (genASTDefGroup mn)
       pure $

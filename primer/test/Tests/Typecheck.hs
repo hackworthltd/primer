@@ -5,19 +5,6 @@ import Foreword
 
 import Control.Monad.Fresh (MonadFresh)
 import Data.Map qualified as Map
-import Gen.App (genProg)
-import Gen.Core.Raw (
-  evalExprGen,
-  genTyConName,
-  genType,
- )
-import Gen.Core.Typed (
-  forAllT,
-  genChk,
-  genSyn,
-  genWTType,
-  propertyWT,
- )
 import Hedgehog hiding (Property, Var, check, property, withDiscards, withTests)
 import Hedgehog.Gen qualified as Gen
 import Hedgehog.Range qualified as Range
@@ -83,6 +70,19 @@ import Primer.Core (
  )
 import Primer.Core.DSL
 import Primer.Core.Utils (alphaEqTy, forgetMetadata, forgetTypeMetadata, generateIDs, generateTypeIDs)
+import Primer.Gen.App (genProg)
+import Primer.Gen.Core.Raw (
+  evalExprGen,
+  genTyConName,
+  genType,
+ )
+import Primer.Gen.Core.Typed (
+  forAllT,
+  genChk,
+  genSyn,
+  genWTType,
+  propertyWT,
+ )
 import Primer.Module
 import Primer.Name (Name, NameCounter)
 import Primer.Primitives (primitiveGVar, primitiveModule, tChar)
@@ -103,15 +103,12 @@ import Primer.Typecheck (
   synthKind,
   typeTtoType,
  )
+import Tasty (Property, property, withDiscards, withTests)
 import Test.Tasty.HUnit (Assertion, assertBool, assertFailure, (@?=))
 import TestM (TestM, evalTestM)
 import TestUtils (
-  Property,
-  property,
   tcn,
   vcn,
-  withDiscards,
-  withTests,
   zeroIDs,
   zeroTypeIDs,
  )

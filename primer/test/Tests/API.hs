@@ -5,7 +5,6 @@ import Foreword
 import Data.ByteString.Lazy qualified as BSL
 import Data.Text.Lazy qualified as TL
 import Data.UUID.V4 (nextRandom)
-import Gen.Core.Raw (evalExprGen, genExpr, genType)
 import Hedgehog hiding (Property, property)
 import Primer.API (
   PrimerErr,
@@ -37,15 +36,18 @@ import Primer.Examples (
   comprehensive,
   even3App,
  )
+import Primer.Gen.Core.Raw (evalExprGen, genExpr, genType)
 import Protolude.Unsafe (unsafeFromJust)
+import Tasty (
+  Property,
+  property,
+ )
 import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.Golden (goldenVsString)
 import Test.Tasty.HUnit hiding ((@?=))
 import TestUtils (
   ExceptionPredicate,
-  Property,
   assertException,
-  property,
   runAPI,
   (@?=),
  )
