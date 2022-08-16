@@ -743,11 +743,7 @@ unit_tmp =
           [ MoveToDef $ qualifyName (ModuleName { unModuleName = "M" :| [ "0" ] }) "a1"
           , BodyAction [ SetCursor 10 , ConstructLam (Just "a") ]
           ]
-
-      as = AppState { idCounter = 11
-         , nameCounter = NC 286
-         , prog =
-             Prog
+      p = Prog
                { progImports = []
                , progModules =
                    [ Module
@@ -805,6 +801,9 @@ unit_tmp =
                , progSmartHoles = SmartHoles
                , progLog = Log { unlog = [] }
                }
+      as = AppState { idCounter = 11
+         , nameCounter = NC 286
+         , prog = p
          }
       a = App.App { App.currentState = as
               , App.initialState = as
