@@ -10,17 +10,7 @@ import Data.List.Extra (anySame)
 import Data.Map.Strict qualified as Map
 import Optics
 import Primer.Action (
-  Action (
-    ConstructAnn,
-    ConstructApp,
-    ConstructArrowL,
-    ConstructCase,
-    ConstructLet,
-    ConstructTCon,
-    ConstructVar,
-    Delete,
-    EnterType,
-    Move
+  Action (..
   ),
   ActionError (ImportNameClash),
   Movement (Branch, Child1, Child2, Parent),
@@ -50,7 +40,7 @@ import Primer.App (
   nextProgID,
   progAllModules, progAllDefs,
   allValConNames,
-  allValConNames,
+  allValConNames, AppState (..),
  )
 import Primer.App qualified as App
 import Primer.Builtins (
@@ -78,7 +68,7 @@ import Primer.Core (
   GVarName,
   GlobalName (baseName),
   ID,
-  Kind (KType),
+  Kind (..),
   Meta (..),
   ModuleName (ModuleName, unModuleName),
   TmVarRef (..),
@@ -92,7 +82,7 @@ import Primer.Core (
   defType,
   getID,
   qualifyName,
-  typeDefAST,
+  typeDefAST, TypeCache (..),
  )
 import Primer.Core.DSL (
   S,
@@ -744,6 +734,150 @@ unit_import_vars =
    in case fst $ runAppTestM (appIdCounter a) a test of
         Left err -> assertFailure $ show err
         Right assertion -> assertion
+
+-- TODO: if kept, needs a better name and location
+unit_tmp :: Assertion
+unit_tmp =
+  let test = do
+        handleEditRequest
+          [ MoveToDef $ qualifyName (ModuleName { unModuleName = "M" :| [ "0" ] }) "a1"
+          , BodyAction [ SetCursor 10 , ConstructLam (Just "a") ]
+          ]
+
+      as = AppState { idCounter = 11
+         , nameCounter = NC 286
+         , prog =
+             Prog
+               { progImports = []
+               , progModules =
+                   [ Module
+                       { moduleName = ModuleName { unModuleName = "M" :| [ "0" ] }
+                       , moduleTypes =
+                           Map.fromList
+                             [ ( "a"
+                               , TypeDefAST
+                                   ASTTypeDef
+                                     { astTypeDefParameters = []
+                                     , astTypeDefConstructors = []
+                                     , astTypeDefNameHints = []
+                                     }
+                               )
+                             ]
+                       , moduleDefs =
+                           Map.fromList
+                             [ ( "a1"
+                               , DefAST
+                                   ASTDef
+                                     { astDefExpr =
+                                         Case
+                                           (Meta
+                                              3
+                                              (Just
+                                                 (TCChkedAt
+                                                    (TApp () (TEmptyHole ()) (TEmptyHole ()))))
+                                              Nothing)
+                                           (Hole
+                                              (Meta 10 (Just (TCSynthed (TEmptyHole ()))) Nothing)
+                                              (Var
+                                                 (Meta
+                                                    4
+                                                    (Just
+                                                       (TCSynthed
+                                                          (TApp () (TEmptyHole ()) (TEmptyHole ()))))
+                                                    Nothing)
+                                                 (GlobalVarRef $ qualifyName
+                                                          (ModuleName
+                                                            { unModuleName = "M" :| [ "0" ] })
+                                                      "a1"
+                                                      )))
+                                           []
+                                     , astDefType =
+                                         TApp
+                                           (Meta 7 (Just KHole) Nothing)
+                                           (TEmptyHole (Meta 8 (Just KHole) Nothing))
+                                           (TEmptyHole (Meta 9 (Just KHole) Nothing))
+                                     }
+                               )
+                             ]
+                       }
+                   ]
+               , progSelection = Nothing
+               , progSmartHoles = SmartHoles
+               , progLog = Log { unlog = [] }
+               }
+         }
+      is =        AppState
+         { idCounter = 11
+         , nameCounter = NC 286
+         , prog =
+             Prog
+               { progImports = []
+               , progModules =
+                   [ Module
+                       { moduleName = ModuleName { unModuleName = "M" :| [ "0" ] }
+                       , moduleTypes =
+                           Map.fromList
+                             [ ( "a"
+                               , TypeDefAST
+                                   ASTTypeDef
+                                     { astTypeDefParameters = []
+                                     , astTypeDefConstructors = []
+                                     , astTypeDefNameHints = []
+                                     }
+                               )
+                             ]
+                       , moduleDefs =
+                           Map.fromList
+                             [ ( "a1"
+                               , DefAST
+                                   ASTDef
+                                     { astDefExpr =
+                                         Case
+                                           (Meta
+                                              3
+                                              (Just
+                                                 (TCChkedAt
+                                                    (TApp () (TEmptyHole ()) (TEmptyHole ()))))
+                                              Nothing)
+                                           (Hole
+                                              (Meta 10 (Just (TCSynthed (TEmptyHole ()))) Nothing)
+                                              (Var
+                                                 (Meta
+                                                    4
+                                                    (Just
+                                                       (TCSynthed
+                                                          (TApp () (TEmptyHole ()) (TEmptyHole ()))))
+                                                    Nothing)
+                                                 (GlobalVarRef $ qualifyName
+                                                    
+                                                      
+                                                          (ModuleName
+                                                            { unModuleName = "M" :| [ "0" ] })
+                                                      "a1"
+                                                      )))
+                                           []
+                                     , astDefType =
+                                         TApp
+                                           (Meta 7 (Just KHole) Nothing)
+                                           (TEmptyHole (Meta 8 (Just KHole) Nothing))
+                                           (TEmptyHole (Meta 9 (Just KHole) Nothing))
+                                     }
+                               )
+                             ]
+                       }
+                   ]
+               , progSelection = Nothing
+               , progSmartHoles = SmartHoles
+               , progLog = Log { unlog = [] }
+               }
+         }
+      a = App.App { App.currentState = as
+              , App.initialState = is
+              }
+   in case fst $ runAppTestM (appIdCounter a) a test of
+        Left err -> assertFailure $ show err
+        Right _ -> pure ()
+
 
 -- Can reference something in an imported module (both types and terms)
 unit_import_reference :: Assertion

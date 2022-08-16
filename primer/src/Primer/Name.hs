@@ -4,6 +4,8 @@ module Primer.Name (
   freshName,
   unName,
   unsafeMkName,
+  -- tmp, for testing
+  NameCounter(NC),
 ) where
 
 import Foreword
