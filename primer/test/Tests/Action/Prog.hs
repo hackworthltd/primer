@@ -750,7 +750,7 @@ unit_tmp =
   let test = do
         handleEditRequest
           [ MoveToDef $ qualifyName (ModuleName { unModuleName = "M" :| [ "0" ] }) "a1"
-          , BodyAction [ SetCursor 10 , ConstructLam (Just "a") ]
+          , BodyAction [ SetCursor 10 , ConstructLAM (Just "a") ]
           ]
       p = Prog
                { progImports = []

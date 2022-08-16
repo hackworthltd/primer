@@ -822,7 +822,7 @@ constructLAM mx ze = do
     Just x -> pure (unsafeMkLocalName x)
   unless (isFresh x (target ze)) $ throwError NameCapture
   result <- flip replace ze <$> lAM x (pure (target ze))
-  moveExpr Child1 result
+  pure result
 
 constructCon :: ActionM m => QualifiedText -> ExprZ -> m ExprZ
 constructCon c ze = case target ze of
