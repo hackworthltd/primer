@@ -32,9 +32,9 @@ import Servant (
 import Servant.API.Generic (
   GenericMode ((:-)),
  )
-import Servant.OpenApi.OperationId (OpId)
+import Servant.OpenApi.OperationId (OperationId)
 
--- Note: the 'OpId' types in the following signatures are only used by
+-- Note: the 'OperationId' types in the following signatures are only used by
 -- the OpenAPI API, but they're harmless in the Servant API.
 
 type CopySession mode =
@@ -48,18 +48,21 @@ type CopySession mode =
           \session-specific API, as it's not scoped by the current \
           \session ID like those methods are."
       :> ReqBody '[JSON] SessionId
-      :> OpId "copySession" Post '[JSON] SessionId
+      :> OperationId "copySession"
+      :> Post '[JSON] SessionId
 
 type GetVersion mode =
   mode
     :- "version"
       :> Summary "Get the current server version"
-      :> OpId "getVersion" Get '[JSON] Text
+      :> OperationId "getVersion"
+      :> Get '[JSON] Text
 
 type CreateSession mode =
   mode
     :- Summary "Create a new session and return its ID"
-      :> OpId "createSession" Post '[JSON] SessionId
+      :> OperationId "createSession"
+      :> Post '[JSON] SessionId
 
 type GetSessionList mode =
   mode
@@ -74,13 +77,15 @@ type GetSessionList mode =
           \testing. Note that in a production system, this endpoint should \
           \obviously be authentication-scoped and only return the list of \
           \sessions that the caller is authorized to see."
-      :> OpId "getSessionList" Get '[JSON] (Paginated Session)
+      :> OperationId "getSessionList"
+      :> Get '[JSON] (Paginated Session)
 
 type GetSessionName mode =
   mode
     :- "name"
       :> Summary "Get the specified session's name"
-      :> OpId "getSessionName" Get '[JSON] Text
+      :> OperationId "getSessionName"
+      :> Get '[JSON] Text
 
 type SetSessionName mode =
   mode
@@ -91,4 +96,5 @@ type SetSessionName mode =
           \new session name. (Note that this may differ from the name \
           \provided.)"
       :> ReqBody '[JSON] Text
-      :> OpId "setSessionName" Put '[JSON] Text
+      :> OperationId "setSessionName"
+      :> Put '[JSON] Text
