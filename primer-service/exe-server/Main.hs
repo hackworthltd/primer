@@ -57,6 +57,10 @@ import Primer.Server (
  )
 import StmContainers.Map qualified as StmMap
 import System.Environment (lookupEnv)
+import System.IO (
+  BufferMode (LineBuffering),
+  hSetBuffering,
+ )
 
 {- HLINT ignore GlobalOptions "Use newtype instead of data" -}
 data GlobalOptions = GlobalOptions
@@ -189,7 +193,12 @@ run opts = case cmd opts of
     runDb (Db.ServiceCfg dbOpQueue ver) db
 
 main :: IO ()
-main = execParser opts >>= run
+main = do
+  -- It's common in Linux containers to log to stdout, so let's ensure
+  -- it's line-buffered, as we can't guarantee what the GHC runtime
+  -- will do by default.
+  hSetBuffering stdout LineBuffering
+  execParser opts >>= run
   where
     opts =
       info
