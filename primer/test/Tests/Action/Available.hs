@@ -15,7 +15,7 @@ import Hedgehog (PropertyT, annotateShow, discard, failure, success, label, coll
 import Hedgehog.Gen qualified as Gen
 import Hedgehog.Internal.Property (forAllWithT)
 import Optics (toListOf, (%), (^..))
-import Primer.Action (ActionInput (..), ActionName (..), OfferedAction (..), UserInput (ChooseOrEnterName, ChooseTypeConstructor, ChooseConstructor, ChooseVariable, ChooseTypeVariable))
+import Primer.Action (ActionInput (..), ActionName (..), OfferedAction (..), UserInput (ChooseOrEnterName, ChooseTypeConstructor, ChooseConstructor, ChooseVariable, ChooseTypeVariable), ActionError (NameCapture))
 import Primer.Action.Available (actionsForDef, actionsForDefBody, actionsForDefSig)
 import Primer.App (App, EditAppM, Prog (..), appProg, handleEditRequest, runEditAppM, progAllModules, progAllDefs, Mutability (Mutable, Immutable), allTyConNames, allValConNames, lookupASTDef)
 import Primer.Core (
@@ -199,6 +199,7 @@ tasty_available_actions_accepted = withTests 500 $
                       actionSucceeds (handleEditRequest act') a
                 InputRequired (ChooseOrEnterName _ opts f) -> do
                   label "ChooseOrEnterName"
+                  annotateShow opts
                   let anOpt = Gen.element opts
                       other = genName
                   n <- forAllT $ if null opts then other else Gen.choice [anOpt,other]
@@ -244,6 +245,8 @@ tasty_available_actions_accepted = withTests 500 $
                 NoInputRequired act' -> label "NoInputRequired" >> annotateShow act' >> actionSucceeds (handleEditRequest act') a
                 -- The actual generated names don't really matter for next actions
                 -- except for shadowing/capture? Do we reject any names?
+                -- NB: the action-continuation tends to be a ChooseOrEnterName, and if we decide to enter a "bad" name, we may still get a NameCapture error.
+                -- TODO: I am not sure how to write this test to account for this slim chance of failure.
                 AskQuestion (GenerateName def' i tk) a' -> do
                   label "GenerateName (recurses)"
                   -- TODO: this is a horrible hack...
