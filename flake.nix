@@ -342,6 +342,8 @@
                 # These are helpful for debugging broken images.
                 bashInteractive
                 coreutils
+                lsof
+                procps
               ]);
 
               config =
