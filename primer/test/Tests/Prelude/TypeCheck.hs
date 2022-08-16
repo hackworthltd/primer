@@ -7,7 +7,7 @@ import Foreword
 import Primer.Core.DSL (create')
 import Primer.Prelude (prelude)
 
-import Primer.Module (Module, builtinModule)
+import Primer.Module (Module, builtinModule, primitiveModule)
 import Primer.Typecheck (
   CheckEverythingRequest (CheckEverything, toCheck, trusted),
   SmartHoles (NoSmartHoles),
@@ -17,7 +17,7 @@ import Test.Tasty.HUnit (Assertion, assertFailure)
 import Tests.Typecheck (TypecheckTestM, runTypecheckTestM)
 
 checkPreludeRequest :: CheckEverythingRequest
-checkPreludeRequest = CheckEverything{trusted = [], toCheck = [create' prelude, builtinModule]}
+checkPreludeRequest = CheckEverything{trusted = [], toCheck = [create' prelude, builtinModule, primitiveModule]}
 
 checkPrelude :: TypecheckTestM [Module]
 checkPrelude = checkEverything NoSmartHoles checkPreludeRequest

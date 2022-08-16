@@ -36,6 +36,7 @@ library
     Primer.Name
     Primer.Name.Fresh
     Primer.Prelude
+    Primer.Prelude.Integer
     Primer.Prelude.Logic
     Primer.Prelude.Utils
     Primer.Pretty
