@@ -17,7 +17,7 @@ import Hedgehog.Internal.Property (forAllWithT)
 import Optics (toListOf, (%), (^..))
 import Primer.Action (ActionInput (..), ActionName (..), OfferedAction (..), UserInput (ChooseOrEnterName, ChooseTypeConstructor, ChooseConstructor, ChooseVariable, ChooseTypeVariable))
 import Primer.Action.Available (actionsForDef, actionsForDefBody, actionsForDefSig)
-import Primer.App (App, EditAppM, Prog (..), appProg, handleEditRequest, runEditAppM, progAllModules, progAllDefs, Mutability (Mutable, Immutable), allTyConNames, allValConNames)
+import Primer.App (App, EditAppM, Prog (..), appProg, handleEditRequest, runEditAppM, progAllModules, progAllDefs, Mutability (Mutable, Immutable), allTyConNames, allValConNames, lookupASTDef)
 import Primer.Core (
   ASTDef (..),
   Def (DefAST, DefPrim),
@@ -43,7 +43,7 @@ import Primer.Core.Utils (
 import Primer.Examples (comprehensive)
 import Primer.Module (moduleDefsQualified)
 import Primer.Name (Name (unName))
-import Primer.Typecheck (SmartHoles (NoSmartHoles,SmartHoles))
+import Primer.Typecheck (SmartHoles (NoSmartHoles,SmartHoles), buildTypingContextFromModules)
 import System.FilePath ((</>))
 import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.Golden (goldenVsString)
@@ -53,8 +53,8 @@ import Text.Pretty.Simple (pShowNoColor)
 import Primer.Builtins (builtinModule)
 import Primer.Primitives (primitiveModule)
 import Gen.Core.Raw (genName)
-import Primer.Questions (variablesInScopeExpr, variablesInScopeTy, Question (GenerateName))
-import Primer.Zipper (focusOn, locToEither, focusOnTy)
+import Primer.Questions (variablesInScopeExpr, variablesInScopeTy, Question (GenerateName), generateNameExpr, generateNameTy)
+import Primer.Zipper (focusOn, locToEither, focusOnTy, Loc' (InType))
 
 -- | Comprehensive DSL test.
 test_1 :: TestTree
@@ -242,9 +242,18 @@ tasty_available_actions_accepted = withTests 500 $
                       annotateShow act'
                       actionSucceeds (handleEditRequest act') a
                 NoInputRequired act' -> label "NoInputRequired" >> annotateShow act' >> actionSucceeds (handleEditRequest act') a
-                -- The actual generated names don't really matter
-                -- TODO: except for shadowing? Do we reject any names?
-                AskQuestion (GenerateName{}) a' -> checkActionInput $ a' ["a","b"]
+                -- The actual generated names don't really matter for next actions
+                -- except for shadowing/capture? Do we reject any names?
+                AskQuestion (GenerateName def' i tk) a' -> do
+                  label "GenerateName (recurses)"
+                  -- TODO: this is a horrible hack...
+                  let names = case lookupASTDef def' (snd <$> allDefs) <&> \def'' ->
+                         (focusOnTy i (astDefType def''), focusOn i (astDefExpr def'')) of
+                        Nothing -> error "invalid GenerateName: no such def"
+                        Just (Nothing, Nothing) -> error "invalid GenerateName: no such id"
+                        Just (Just tz, _) -> runReader (generateNameTy tk tz) $ buildTypingContextFromModules (progAllModules $ appProg a) (progSmartHoles $ appProg a)
+                        Just (_, Just loc) -> runReader (generateNameExpr tk $ locToEither loc) $ buildTypingContextFromModules (progAllModules $ appProg a) (progSmartHoles $ appProg a)
+                  checkActionInput $ a' names
                 _ -> error "VariablesInScope question is never an offered action"
           checkActionInput $ input action
   where
