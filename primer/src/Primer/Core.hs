@@ -486,9 +486,7 @@ data Def
 type DefMap = Map GVarName Def
 
 -- | A primitive, built-in definition.
--- Names and definitions of primitives are hard-coded in Primer.Primitives.
--- A @PrimDef@ simply exposes one of those, and thus the type must match
--- the one stored in the corresponding 'PrimFun'.
+-- For each of these, we should have a test that the evaluator produces expected results.
 data PrimDef
   = ToUpper
   | IsSpace

@@ -11,7 +11,6 @@ module Primer.Primitives (
   primDefName,
   primDefType,
   defType,
-  allPrimDefs,
   primFunDef,
 ) where
 
@@ -75,7 +74,7 @@ primitiveModule =
   Module
     { moduleName = primitiveModuleName
     , moduleTypes = TypeDefPrim <$> M.mapKeys baseName allPrimTypeDefs
-    , moduleDefs = M.fromList $ [(baseName $ primDefName def, DefPrim def) | def <- enumerate]
+    , moduleDefs = M.fromList $ [(primDefName def, DefPrim def) | def <- enumerate]
     }
 
 tChar :: TyConName
@@ -84,7 +83,7 @@ tChar = primitive "Char"
 tInt :: TyConName
 tInt = primitive "Int"
 
--- | Construct a reference to a primitive definition. For use in tests.
+-- | Construct a reference to a primitive definition.
 primitiveGVar :: Name -> GVarName
 primitiveGVar = primitive
 
@@ -115,34 +114,28 @@ allPrimTypeDefs =
       PrimChar _ -> ()
       PrimInt _ -> ()
 
--- | Primitive term definitions.
--- For each of these, we should have a test that the evaluator produces expected results.
-allPrimDefs :: Map GVarName PrimDef
-allPrimDefs = M.fromList [(primDefName def, def) | def <- enumerate]
-
-primDefName :: PrimDef -> GVarName
-primDefName =
-  primitiveGVar . \case
-    ToUpper -> "toUpper"
-    IsSpace -> "isSpace"
-    HexToNat -> "hexToNat"
-    NatToHex -> "natToHex"
-    EqChar -> "eqChar"
-    IntAdd -> "Int.+"
-    IntMinus -> "Int.-"
-    IntMul -> "Int.×"
-    IntQuotient -> "Int.quotient"
-    IntRemainder -> "Int.remainder"
-    IntQuot -> "Int.quot"
-    IntRem -> "Int.rem"
-    IntLT -> "Int.<"
-    IntLTE -> "Int.≤"
-    IntGT -> "Int.>"
-    IntGTE -> "Int.≥"
-    IntEq -> "Int.="
-    IntNeq -> "Int.≠"
-    IntToNat -> "Int.toNat"
-    IntFromNat -> "Int.fromNat"
+primDefName :: PrimDef -> Name
+primDefName = \case
+  ToUpper -> "toUpper"
+  IsSpace -> "isSpace"
+  HexToNat -> "hexToNat"
+  NatToHex -> "natToHex"
+  EqChar -> "eqChar"
+  IntAdd -> "Int.+"
+  IntMinus -> "Int.-"
+  IntMul -> "Int.×"
+  IntQuotient -> "Int.quotient"
+  IntRemainder -> "Int.remainder"
+  IntQuot -> "Int.quot"
+  IntRem -> "Int.rem"
+  IntLT -> "Int.<"
+  IntLTE -> "Int.≤"
+  IntGT -> "Int.>"
+  IntGTE -> "Int.≥"
+  IntEq -> "Int.="
+  IntNeq -> "Int.≠"
+  IntToNat -> "Int.toNat"
+  IntFromNat -> "Int.fromNat"
 
 primDefType :: PrimDef -> Type' ()
 primDefType = uncurry (flip $ foldr $ TFun ()) . primFunTypes

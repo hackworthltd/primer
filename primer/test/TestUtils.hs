@@ -3,7 +3,7 @@ module TestUtils (
   (@?=),
   ExceptionPredicate,
   assertException,
-  withPrimDefs,
+  primDefs,
   constructTCon,
   constructCon,
   constructRefinedCon,
@@ -22,9 +22,8 @@ import Foreword
 import Control.Concurrent.STM (
   newTBQueueIO,
  )
-import Control.Monad.Fresh (MonadFresh)
-import Data.Coerce (coerce)
-import Data.String (String, fromString)
+import Data.Map qualified as Map
+import Data.String (String)
 import Data.Typeable (typeOf)
 import Optics (over, set, view)
 import Primer.API (
@@ -36,6 +35,7 @@ import Primer.Action (
   Action (ConstructCon, ConstructRefinedCon, ConstructTCon),
  )
 import Primer.Core (
+  DefMap,
   Expr',
   ExprMeta,
   GVarName,
@@ -43,7 +43,6 @@ import Primer.Core (
   HasID,
   HasMetadata (_metadata),
   ModuleName (ModuleName, unModuleName),
-  PrimDef (..),
   TyConName,
   Type',
   TypeMeta,
@@ -61,8 +60,9 @@ import Primer.Database (
   runNullDb',
   serve,
  )
+import Primer.Module (Module (moduleDefs))
 import Primer.Name (Name (unName))
-import Primer.Primitives (allPrimDefs)
+import Primer.Primitives (primitiveGVar, primitiveModule)
 import StmContainers.Map qualified as StmMap
 import Test.Tasty.HUnit (
   assertBool,
@@ -70,8 +70,8 @@ import Test.Tasty.HUnit (
  )
 import Test.Tasty.HUnit qualified as HUnit
 
-withPrimDefs :: (Map GVarName PrimDef -> m a) -> m a
-withPrimDefs f = f allPrimDefs
+primDefs :: DefMap
+primDefs = Map.mapKeys primitiveGVar $ moduleDefs primitiveModule
 
 -- impedence mismatch: ConstructTCon takes text, but tChar etc are TyConNames
 constructTCon :: TyConName -> Action

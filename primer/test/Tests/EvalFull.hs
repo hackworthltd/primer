@@ -71,7 +71,7 @@ import Tasty (
 import Test.Tasty.HUnit (Assertion, assertBool, assertFailure, (@?=))
 import TestM
 import TestUtils (
-  withPrimDefs,
+  primDefs,
   zeroIDs,
  )
 import Tests.Action.Prog (runAppTestM)
@@ -742,36 +742,36 @@ tasty_prim_hex_nat :: Property
 tasty_prim_hex_nat = withTests 20 . property $ do
   n <- forAllT $ Gen.integral $ Range.constant 0 50
   let ne = nat n
-      ((e, r, gs), maxID) =
+      ((e, r), maxID) =
         if n <= 15
-          then create . withPrimDefs $ \globals ->
-            (,,)
-              <$> case_
-                ( gvar (primitiveGVar "natToHex")
-                    `app` ne
-                )
-                [ branch
-                    cNothing
-                    []
-                    (con cNothing)
-                , branch
-                    cJust
-                    [("x", Nothing)]
-                    ( gvar (primitiveGVar "hexToNat")
-                        `app` lvar "x"
-                    )
-                ]
-              <*> (con cJust `aPP` tcon tNat)
-              `app` ne
-              <*> pure (DefPrim <$> globals)
-          else create . withPrimDefs $ \globals ->
-            (,,)
-              <$> gvar (primitiveGVar "natToHex")
-              `app` ne
-              <*> con cNothing
-              `aPP` tcon tChar
-              <*> pure (DefPrim <$> globals)
-      s = evalFullTest maxID builtinTypes gs 7 Syn e
+          then
+            create $
+              (,)
+                <$> case_
+                  ( gvar (primitiveGVar "natToHex")
+                      `app` ne
+                  )
+                  [ branch
+                      cNothing
+                      []
+                      (con cNothing)
+                  , branch
+                      cJust
+                      [("x", Nothing)]
+                      ( gvar (primitiveGVar "hexToNat")
+                          `app` lvar "x"
+                      )
+                  ]
+                <*> (con cJust `aPP` tcon tNat)
+                `app` ne
+          else
+            create $
+              (,)
+                <$> gvar (primitiveGVar "natToHex")
+                `app` ne
+                <*> con cNothing
+                `aPP` tcon tChar
+      s = evalFullTest maxID builtinTypes primDefs 7 Syn e
   over evalResultExpr zeroIDs s === Right (zeroIDs r)
 
 unit_prim_char_eq_1 :: Assertion
@@ -792,13 +792,11 @@ unit_prim_char_eq_2 =
 
 unit_prim_char_partial :: Assertion
 unit_prim_char_partial =
-  let ((e, gs), maxID) =
-        create . withPrimDefs $ \globals ->
-          (,)
-            <$> gvar (primitiveGVar "eqChar")
+  let (e, maxID) =
+        create $
+          gvar (primitiveGVar "eqChar")
             `app` char 'a'
-            <*> pure (DefPrim <$> globals)
-      s = evalFullTest maxID mempty gs 1 Syn e
+      s = evalFullTest maxID mempty primDefs 1 Syn e
    in do
         distinctIDs s
         s <~==> Right e
@@ -1108,16 +1106,15 @@ unit_prim_int_fromNat =
 
 unit_prim_ann :: Assertion
 unit_prim_ann =
-  let ((e, r, gs), maxID) =
-        create . withPrimDefs $ \globals ->
-          (,,)
+  let ((e, r), maxID) =
+        create $
+          (,)
             <$> ( gvar (primitiveGVar "toUpper")
                     `ann` (tcon tChar `tfun` tcon tChar)
                 )
             `app` (char 'a' `ann` tcon tChar)
             <*> char 'A'
-            <*> pure (DefPrim <$> globals)
-      s = evalFullTest maxID builtinTypes gs 2 Syn e
+      s = evalFullTest maxID builtinTypes primDefs 2 Syn e
    in do
         distinctIDs s
         s <~==> Right r
@@ -1126,7 +1123,7 @@ unit_prim_partial_map :: Assertion
 unit_prim_partial_map =
   let modName = mkSimpleModuleName "TestModule"
       ((e, r, gs), maxID) =
-        create . withPrimDefs $ \globals -> do
+        create $ do
           (mapName, mapDef) <- Examples.map' modName
           (,,)
             <$> gvar mapName
@@ -1146,8 +1143,8 @@ unit_prim_partial_map =
               , char 'C'
               ]
             `ann` (tcon tList `tapp` tcon tChar)
-            <*> pure (M.singleton mapName mapDef <> (DefPrim <$> globals))
-      s = evalFullTest maxID builtinTypes gs 65 Syn e
+            <*> pure (M.singleton mapName mapDef)
+      s = evalFullTest maxID builtinTypes (gs <> primDefs) 65 Syn e
    in do
         distinctIDs s
         s <~==> Right r
@@ -1227,28 +1224,26 @@ evalFullTest id_ tydefs globals n d e = evalTestM id_ $ evalFull tydefs globals 
 
 unaryPrimTest :: Name -> S Expr -> S Expr -> Assertion
 unaryPrimTest f x y =
-  let ((e, r, gs), maxID) =
-        create . withPrimDefs $ \globals ->
-          (,,)
+  let ((e, r), maxID) =
+        create $
+          (,)
             <$> gvar (primitiveGVar f)
             `app` x
             <*> y
-            <*> pure (DefPrim <$> globals)
-      s = evalFullTest maxID mempty gs 2 Syn e
+      s = evalFullTest maxID mempty primDefs 2 Syn e
    in do
         distinctIDs s
         s <~==> Right r
 binaryPrimTest :: Name -> S Expr -> S Expr -> S Expr -> Assertion
 binaryPrimTest f x y z =
-  let ((e, r, gs), maxID) =
-        create . withPrimDefs $ \globals ->
-          (,,)
+  let ((e, r), maxID) =
+        create $
+          (,)
             <$> gvar (primitiveGVar f)
             `app` x
             `app` y
             <*> z
-            <*> pure (DefPrim <$> globals)
-      s = evalFullTest maxID mempty gs 2 Syn e
+      s = evalFullTest maxID mempty primDefs 2 Syn e
    in do
         distinctIDs s
         s <~==> Right r

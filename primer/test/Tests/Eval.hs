@@ -34,6 +34,7 @@ import Primer.Core (
   Kind (KType),
   Type,
   TypeDef (TypeDefAST),
+  defPrim,
   getID,
   _id,
  )
@@ -65,7 +66,7 @@ import Primer.Primitives (primitiveGVar, primitiveModule, tChar)
 import Primer.Zipper (target)
 import Test.Tasty.HUnit (Assertion, assertBool, assertFailure, (@?=))
 import TestM (evalTestM)
-import TestUtils (gvn, vcn, withPrimDefs)
+import TestUtils (gvn, primDefs, vcn)
 import Tests.Action.Prog (runAppTestM)
 
 -- * 'tryReduce' tests
@@ -625,15 +626,14 @@ unit_tryReduce_case_no_matching_branch = do
 
 unit_tryReduce_prim :: Assertion
 unit_tryReduce_prim = do
-  let ((expr, expectedResult, globals), i) =
-        create . withPrimDefs $ \m ->
-          (,,)
+  let ((expr, expectedResult), i) =
+        create $
+          (,)
             <$> gvar (primitiveGVar "eqChar")
             `app` char 'a'
             `app` char 'a'
             <*> con cTrue
-            <*> pure m
-      result = runTryReduce (DefPrim <$> globals) mempty (expr, i)
+      result = runTryReduce primDefs mempty (expr, i)
   case result of
     Right (expr', ApplyPrimFun detail) -> do
       expr' ~= expectedResult
@@ -646,25 +646,21 @@ unit_tryReduce_prim = do
 
 unit_tryReduce_prim_fail_unsaturated :: Assertion
 unit_tryReduce_prim_fail_unsaturated = do
-  let ((expr, globals), i) =
-        create . withPrimDefs $ \m ->
-          (,)
-            <$> gvar (primitiveGVar "eqChar")
+  let (expr, i) =
+        create $
+          gvar (primitiveGVar "eqChar")
             `app` char 'a'
-            <*> pure m
-      result = runTryReduce (DefPrim <$> globals) mempty (expr, i)
+      result = runTryReduce primDefs mempty (expr, i)
   result @?= Left NotRedex
 
 unit_tryReduce_prim_fail_unreduced_args :: Assertion
 unit_tryReduce_prim_fail_unreduced_args = do
-  let ((expr, globals), i) =
-        create . withPrimDefs $ \m ->
-          (,)
-            <$> gvar (primitiveGVar "eqChar")
+  let (expr, i) =
+        create $
+          gvar (primitiveGVar "eqChar")
             `app` char 'a'
             `app` (gvar (primitiveGVar "toUpper") `app` char 'a')
-            <*> pure m
-      result = runTryReduce (DefPrim <$> globals) mempty (expr, i)
+      result = runTryReduce primDefs mempty (expr, i)
   result @?= Left NotRedex
 
 -- One can call the eval-step api endpoint with an expression and ID
@@ -859,7 +855,7 @@ redexesOf = redexes mempty . create'
 
 -- | A variation of 'redexesOf' for when the expression tested requires primitives to be in scope.
 redexesOfWithPrims :: S Expr -> Set ID
-redexesOfWithPrims x = uncurry redexes $ create' $ withPrimDefs $ \globals -> (globals,) <$> x
+redexesOfWithPrims = redexes (Map.mapMaybe defPrim primDefs) . create'
 
 unit_redexes_con :: Assertion
 unit_redexes_con = redexesOf (con' ["M"] "C") @?= mempty
