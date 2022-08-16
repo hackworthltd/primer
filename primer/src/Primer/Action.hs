@@ -802,7 +802,7 @@ removeAnn ze = case target ze of
   e -> throwError $ NeedAnn RemoveAnn e
 
 -- | Construct a lambda around an expression
--- We leave the cursor on the original expression, which is now the body of the lambda.
+-- We leave the cursor on the new lambda.
 constructLam :: ActionM m => Maybe Text -> ExprZ -> m ExprZ
 constructLam mx ze = do
   -- If a name is provided, use that. Otherwise, generate a fresh one.
@@ -811,7 +811,7 @@ constructLam mx ze = do
     Just x -> pure (unsafeMkLocalName x)
   unless (isFresh x (target ze)) $ throwError NameCapture
   result <- flip replace ze <$> lam x (pure (target ze))
-  moveExpr Child1 result
+  pure result
 
 -- | Similar comments apply here as to 'constructLam'
 constructLAM :: ActionM m => Maybe Text -> ExprZ -> m ExprZ
