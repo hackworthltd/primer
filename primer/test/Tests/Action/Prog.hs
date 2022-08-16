@@ -82,7 +82,7 @@ import Primer.Core (
   defType,
   getID,
   qualifyName,
-  typeDefAST, TypeCache (..),
+  typeDefAST, TypeCache (..), TypeCacheBoth (..),
  )
 import Primer.Core.DSL (
   S,
@@ -738,19 +738,18 @@ unit_import_vars =
 -- TODO: if kept, needs a better name and location
 --
 -- foo :: ? ?
--- foo = case {? foo ?} of []   -- NB: this hole is necessary, since foo is not an element of an ADT
--- edit to wrap the scrutinee in a lambda
--- foo = case λx. {? foo ?} of []
--- and SH annotates the lambda, as it is in SYN position
--- foo = case λx. {? foo ?0} :: ?1 of []
--- But now the hole is redundent as ?1 ~ ?2 -> ?3 and ?3 ∋ foo, so SH elides the hole
--- foo = case λx. foo :: ?1 of []
+-- foo = {? {? foo ?} : ? -> ? ?}
+-- edit to remove annotation
+-- foo = {? {? foo ?} ?}
+-- and SH removes the holes
+-- foo = foo
+-- WHAT ON EARTH SHOULD WE DO WITH THE CURSOR IN THIS CASE?
 unit_tmp :: Assertion
 unit_tmp =
   let test = do
         handleEditRequest
           [ MoveToDef $ qualifyName (ModuleName { unModuleName = "M" :| [ "0" ] }) "a1"
-          , BodyAction [ SetCursor 10 , ConstructLAM (Just "a") ]
+          , BodyAction [ SetCursor 10 , RemoveAnn ]
           ]
       p = Prog
                { progImports = []
@@ -764,28 +763,30 @@ unit_tmp =
                                , DefAST
                                    ASTDef
                                      { astDefExpr =
-                                         Case
+                                         Hole
                                            (Meta
                                               3
-                                              (Just
-                                                 (TCChkedAt
-                                                    (TApp () (TEmptyHole ()) (TEmptyHole ()))))
+                                              (Just (TCEmb (TCBoth {
+                                                               tcChkedAt = TApp () (TEmptyHole ()) (TEmptyHole ())
+                                                             , tcSynthed = TEmptyHole ()})))
                                               Nothing)
-                                           (Hole
-                                              (Meta 10 (Just (TCSynthed (TEmptyHole ()))) Nothing)
-                                              (Var
+                                           (Ann
+                                              (Meta 10 (Just (TCSynthed (TFun () (TEmptyHole ()) (TEmptyHole ())))) Nothing)
+                                              (Hole (Meta 90 (Just (TCEmb (TCBoth {tcChkedAt = TFun () (TEmptyHole ()) (TEmptyHole ()), tcSynthed = TEmptyHole ()}))) Nothing)
+                                                (Var
                                                  (Meta
                                                     4
-                                                    (Just
-                                                       (TCSynthed
-                                                          (TApp () (TEmptyHole ()) (TEmptyHole ()))))
+                                                    (Just (TCSynthed (TApp () (TEmptyHole ()) (TEmptyHole ()))))
                                                     Nothing)
                                                  (GlobalVarRef $ qualifyName
                                                           (ModuleName
                                                             { unModuleName = "M" :| [ "0" ] })
                                                       "a1"
                                                       )))
-                                           []
+                                              (TFun (Meta 91 (Just KType) Nothing)
+                                                (TEmptyHole (Meta 92 (Just KHole) Nothing))
+                                                (TEmptyHole (Meta 93 (Just KHole) Nothing)))
+                                           )
                                      , astDefType =
                                          TApp
                                            (Meta 7 (Just KHole) Nothing)
