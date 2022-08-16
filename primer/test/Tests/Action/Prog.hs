@@ -806,75 +806,11 @@ unit_tmp =
                , progLog = Log { unlog = [] }
                }
          }
-      is =        AppState
-         { idCounter = 11
-         , nameCounter = NC 286
-         , prog =
-             Prog
-               { progImports = []
-               , progModules =
-                   [ Module
-                       { moduleName = ModuleName { unModuleName = "M" :| [ "0" ] }
-                       , moduleTypes =
-                           Map.fromList
-                             [ ( "a"
-                               , TypeDefAST
-                                   ASTTypeDef
-                                     { astTypeDefParameters = []
-                                     , astTypeDefConstructors = []
-                                     , astTypeDefNameHints = []
-                                     }
-                               )
-                             ]
-                       , moduleDefs =
-                           Map.fromList
-                             [ ( "a1"
-                               , DefAST
-                                   ASTDef
-                                     { astDefExpr =
-                                         Case
-                                           (Meta
-                                              3
-                                              (Just
-                                                 (TCChkedAt
-                                                    (TApp () (TEmptyHole ()) (TEmptyHole ()))))
-                                              Nothing)
-                                           (Hole
-                                              (Meta 10 (Just (TCSynthed (TEmptyHole ()))) Nothing)
-                                              (Var
-                                                 (Meta
-                                                    4
-                                                    (Just
-                                                       (TCSynthed
-                                                          (TApp () (TEmptyHole ()) (TEmptyHole ()))))
-                                                    Nothing)
-                                                 (GlobalVarRef $ qualifyName
-                                                    
-                                                      
-                                                          (ModuleName
-                                                            { unModuleName = "M" :| [ "0" ] })
-                                                      "a1"
-                                                      )))
-                                           []
-                                     , astDefType =
-                                         TApp
-                                           (Meta 7 (Just KHole) Nothing)
-                                           (TEmptyHole (Meta 8 (Just KHole) Nothing))
-                                           (TEmptyHole (Meta 9 (Just KHole) Nothing))
-                                     }
-                               )
-                             ]
-                       }
-                   ]
-               , progSelection = Nothing
-               , progSmartHoles = SmartHoles
-               , progLog = Log { unlog = [] }
-               }
-         }
       a = App.App { App.currentState = as
-              , App.initialState = is
+              , App.initialState = as
               }
-   in case fst $ runAppTestM (appIdCounter a) a test of
+   in do
+    case fst $ runAppTestM (appIdCounter a) a test of
         Left err -> assertFailure $ show err
         Right _ -> pure ()
 
