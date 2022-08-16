@@ -40,7 +40,7 @@ import Primer.App (
   nextProgID,
   progAllModules, progAllDefs,
   allValConNames,
-  allValConNames, AppState (..),
+  allValConNames, AppState (..), mkAppSafe,
  )
 import Primer.App qualified as App
 import Primer.Builtins (
@@ -801,7 +801,7 @@ unit_tmp =
                , progSmartHoles = SmartHoles
                , progLog = Log { unlog = [] }
                }
-      a = mkApp 11 (NC 286) p
+      Right a = mkAppSafe (NC 286) p
    in do
     case fst $ runAppTestM (appIdCounter a) a test of
         Left err -> assertFailure $ show err
