@@ -748,17 +748,7 @@ unit_tmp =
                , progModules =
                    [ Module
                        { moduleName = ModuleName { unModuleName = "M" :| [ "0" ] }
-                       , moduleTypes =
-                           Map.fromList
-                             [ ( "a"
-                               , TypeDefAST
-                                   ASTTypeDef
-                                     { astTypeDefParameters = []
-                                     , astTypeDefConstructors = []
-                                     , astTypeDefNameHints = []
-                                     }
-                               )
-                             ]
+                       , moduleTypes = mempty
                        , moduleDefs =
                            Map.fromList
                              [ ( "a1"
