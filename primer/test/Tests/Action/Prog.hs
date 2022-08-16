@@ -793,6 +793,12 @@ unit_tmp =
                }
       Right a = mkAppSafe (NC 286) p
    in do
+    case App.checkAppWellFormed a of
+        Left err -> assertFailure $ show err
+        Right _ -> pure ()
+    case evalTestM (appIdCounter a) $ runExceptT @TypeError $ App.tcWholeProgWithImports p of
+        Left err -> assertFailure $ show err
+        Right p' -> p' @?= p
     case fst $ runAppTestM (appIdCounter a) a test of
         Left err -> assertFailure $ show err
         Right _ -> pure ()
