@@ -1,4 +1,4 @@
-cabal-version: 2.4
+cabal-version: 3.0
 name:          primer-service
 version:       0.7.2.0
 license:       AGPL-3.0-or-later
@@ -13,6 +13,7 @@ category:      Web
 library
   exposed-modules:
     Primer.Client
+    Primer.OpenAPI
     Primer.Pagination
     Primer.Servant.API
     Primer.Servant.OpenAPI
@@ -20,10 +21,7 @@ library
     Primer.Server
 
   hs-source-dirs:     src
-  other-modules:
-    Primer.OpenAPI
-    Servant.OpenApi.OperationId
-
+  other-modules:      Servant.OpenApi.OperationId
   default-language:   GHC2021
   default-extensions:
     NoImplicitPrelude
@@ -40,6 +38,7 @@ library
   build-depends:
     , aeson                >=2.0     && <=2.1
     , base                 >=4.12    && <=4.17
+    , deriving-aeson       >=0.2     && <=0.3
     , exceptions           >=0.10.4  && <=0.11
     , http-client          ^>=0.7.13
     , http-media           >=0.8     && <=0.9
@@ -175,15 +174,19 @@ test-suite service-test
     , base
     , bytestring
     , hasql
+    , hedgehog          ^>=1.1.1
+    , openapi3          >=3.2      && <=3.3
     , postgres-options  ^>=0.2
     , pretty-simple     ^>=4.0.0
     , primer
+    , primer:primer-hedgehog
     , primer-rel8
     , primer-service
     , rel8              ^>=1.3
     , tasty             ^>=1.4.1
     , tasty-discover    ^>=4.2.4
     , tasty-golden      ^>=2.3.5
+    , tasty-hedgehog    ^>=1.2.0
     , tasty-hunit       ^>=0.10.0
     , temporary         ^>=1.3
     , text

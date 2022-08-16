@@ -533,6 +533,7 @@
             "primer/test/outputs"
             "primer-service/test/outputs"
             ".buildkite/"
+            "primer-service/primer-service.cabal"
           ];
         };
 

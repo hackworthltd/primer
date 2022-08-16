@@ -25,11 +25,11 @@ module Primer.API (
   listSessions,
   getVersion,
   Tree,
-  NodeBody,
+  NodeBody (..),
   NodeFlavor,
-  Prog,
-  Module,
-  Def,
+  Prog (Prog),
+  Module (Module),
+  Def (Def),
   getProgram,
   getProgram',
   getSessionName,
@@ -437,7 +437,7 @@ data NodeFlavor
   | FlavorPatternCon
   | FlavorPatternBind
   | FlavorPatternApp
-  deriving (Show, Eq, Generic)
+  deriving (Show, Eq, Generic, Enum, Bounded)
   deriving (ToJSON) via PrimerJSON NodeFlavor
 
 -- | This type is the API's view of a 'App.Prog'
@@ -445,7 +445,7 @@ data NodeFlavor
 newtype Prog = Prog
   { modules :: [Module]
   }
-  deriving (Generic)
+  deriving (Generic, Show)
   deriving (ToJSON) via PrimerJSON Prog
 
 -- | This type is the API's view of a 'Module.Module'
@@ -460,7 +460,7 @@ data Module = Module
     -- corresponding value".
     defs :: [Def]
   }
-  deriving (Generic)
+  deriving (Generic, Show)
   deriving (ToJSON) via PrimerJSON Module
 
 -- | This type is the api's view of a 'Primer.Core.Def'
@@ -471,7 +471,7 @@ data Def = Def
   , term :: Maybe Tree
   -- ^ definitions with no associated tree are primitives
   }
-  deriving (Generic)
+  deriving (Generic, Show)
   deriving (ToJSON) via PrimerJSON Def
 
 viewProg :: App.Prog -> Prog

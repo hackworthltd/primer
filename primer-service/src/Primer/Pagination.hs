@@ -6,13 +6,14 @@
 module Primer.Pagination (
   PaginationParams,
   Pagination (..),
-  Paginated,
+  -- Constructor and field accessors of Pagination exported for testing
+  Paginated (..),
   -- 'Positive' is abstract. Do not export its constructor.
   Positive (getPositive),
   mkPositive,
   pagedDefaultClamp,
   -- the following are exposed for testing
-  meta,
+  PaginatedMeta (PM),
   totalItems,
   pageSize,
   firstPage,
@@ -21,7 +22,8 @@ module Primer.Pagination (
   nextPage,
   lastPage,
   getNonNeg,
-  items,
+  NonNeg,
+  mkNonNeg,
 ) where
 
 import Foreword
@@ -33,7 +35,9 @@ import Optics ((?~))
 import Primer.Database (
   OffsetLimit (OL, limit, offset),
   Page (Page, pageContents, total),
+  Session,
  )
+import Primer.OpenAPI ()
 import Servant (
   DefaultErrorFormatters,
   ErrorFormatters,
@@ -59,7 +63,7 @@ import Servant.OpenApi (HasOpenApi (toOpenApi))
 -- @getPositive x > 0@ is always true (because the only way to create one is
 -- via the 'mkPositive' smart constructor.
 newtype Positive = Pos {getPositive :: Int}
-  deriving (Eq, Ord)
+  deriving (Eq, Ord, Show)
   deriving newtype (FromJSON, ToJSON)
 
 mkPositive :: Int -> Maybe Positive
@@ -129,15 +133,25 @@ data Paginated a = Paginated
   { meta :: PaginatedMeta
   , items :: [a]
   }
-  deriving (Generic)
+  deriving (Generic, Show)
 
-instance ToJSON a => ToJSON (Paginated a)
-instance FromJSON a => FromJSON (Paginated a)
-instance ToSchema a => ToSchema (Paginated a)
+-- We may well need more instances than just Paginated Session in the future.
+-- However, giving polymorphic `instance To... (Paginated a)` can generate
+-- a schema inconsistent with the ToJSON for some 'a'.
+-- This happens because aeson and openapi3 differ in their special handling
+-- for lists (e.g. to serialise strings as strings rather than arrays of
+-- characters). In particular the instance for 'Paginated Char' is broken.
+-- See https://github.com/biocad/openapi3/issues/58
+-- We prefer to explicitly list the particular instances we need, rather
+-- than having a known broken polymorphic instance, even if we expect to
+-- never hit the broken case.
+instance ToJSON (Paginated Session)
+instance FromJSON (Paginated Session)
+instance ToSchema (Paginated Session)
 
 -- Used solely for nice bounds in schema
 newtype NonNeg = NonNeg Int
-  deriving newtype (FromJSON, ToJSON)
+  deriving newtype (FromJSON, ToJSON, Show)
 instance ToParamSchema NonNeg where
   toParamSchema _ = toParamSchema (Proxy @Int) & #minimum ?~ 0
 instance ToSchema NonNeg where
@@ -145,6 +159,10 @@ instance ToSchema NonNeg where
 
 getNonNeg :: NonNeg -> Int
 getNonNeg (NonNeg i) = i
+
+-- For testing purposes
+mkNonNeg :: Int -> Maybe NonNeg
+mkNonNeg a = if a >= 0 then Just (NonNeg a) else Nothing
 
 data PaginatedMeta = PM
   { totalItems :: NonNeg
@@ -155,7 +173,7 @@ data PaginatedMeta = PM
   , nextPage :: Maybe Positive
   , lastPage :: Positive
   }
-  deriving (Generic)
+  deriving (Generic, Show)
 instance FromJSON PaginatedMeta
 instance ToJSON PaginatedMeta
 instance ToSchema PaginatedMeta
