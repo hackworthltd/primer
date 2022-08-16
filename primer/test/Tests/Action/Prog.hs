@@ -801,13 +801,7 @@ unit_tmp =
                , progSmartHoles = SmartHoles
                , progLog = Log { unlog = [] }
                }
-      as = AppState { idCounter = 11
-         , nameCounter = NC 286
-         , prog = p
-         }
-      a = App.App { App.currentState = as
-              , App.initialState = as
-              }
+      a = mkApp 11 (NC 286) p
    in do
     case fst $ runAppTestM (appIdCounter a) a test of
         Left err -> assertFailure $ show err
