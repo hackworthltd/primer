@@ -17,7 +17,7 @@ import Hedgehog.Internal.Property (forAllWithT)
 import Optics (toListOf, (%), (^..))
 import Primer.Action (ActionInput (..), ActionName (..), OfferedAction (..), UserInput (ChooseOrEnterName, ChooseTypeConstructor, ChooseConstructor, ChooseVariable, ChooseTypeVariable), ActionError (NameCapture, CaseBindsClash))
 import Primer.Action.Available (actionsForDef, actionsForDefBody, actionsForDefSig)
-import Primer.App (App, EditAppM, Prog (..), appProg, handleEditRequest, runEditAppM, progAllModules, progAllDefs, Mutability (Mutable, Immutable), allTyConNames, allValConNames, lookupASTDef, ProgError (ActionError),)
+import Primer.App (App, EditAppM, Prog (..), appProg, handleEditRequest, runEditAppM, progAllModules, progAllDefs, Mutability (Mutable, Immutable), allTyConNames, allValConNames, lookupASTDef, ProgError (ActionError), progAllTypeDefs,)
 import Primer.Core (
   ASTDef (..),
   Def (DefAST, DefPrim),
@@ -41,7 +41,7 @@ import Primer.Core.Utils (
   exprIDs, typeIDs,
  )
 import Primer.Examples (comprehensive)
-import Primer.Module (moduleDefsQualified)
+import Primer.Module (moduleDefsQualified, moduleTypesQualified)
 import Primer.Name (Name (unName))
 import Primer.Typecheck (SmartHoles (NoSmartHoles,SmartHoles), buildTypingContextFromModules)
 import System.FilePath ((</>))
@@ -82,7 +82,7 @@ mkTests (defName, DefAST def) =
                   map
                     ( \id ->
                         ( id
-                        , map name $ actionsForDefBody level defName mut id (astDefExpr def)
+                        , map name $ actionsForDefBody (foldMap @[] moduleTypesQualified [builtinModule, primitiveModule]) level defName mut id (astDefExpr def)
                         )
                     )
                     . toListOf exprIDs
@@ -166,7 +166,7 @@ tasty_available_actions_accepted = withTests 500 $
                  ids = expr ^.. exprIDs -- TODO: this gives ids in the expression, including in bindings; it also  gives ids in type annotations etc, but this is ok, we will just not offer any actions there
              i <- Gen.element ids
              let ann = "actionsForDefBody id " <> show i
-             pure (ann, (Just $ Right i, actionsForDefBody l defName defMut i expr))
+             pure (ann, (Just $ Right i, actionsForDefBody (snd <$> progAllTypeDefs (appProg a)) l defName defMut i expr))
          ]
       case acts of
         [] -> success

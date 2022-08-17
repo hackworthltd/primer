@@ -31,6 +31,7 @@ module Primer.App (
   progAllModules,
   Mutability(..),
   progAllDefs,
+  progAllTypeDefs,
   allValConNames,
   allTyConNames,
   tcWholeProg,
@@ -97,7 +98,7 @@ import Optics (
   (^.),
   _Just,
   _Left,
-  _Right, ifoldMap,
+  _Right, ifoldMap, DefName,
  )
 import Primer.Action (
   Action,
@@ -236,6 +237,10 @@ progAllModules p = progModules p <> progImports p
 data Mutability = Mutable | Immutable
   deriving (Bounded, Enum, Show)
 
+progAllTypeDefs :: Prog -> Map TyConName (Mutability,TypeDef)
+progAllTypeDefs p = foldMap (fmap (Mutable,) . moduleTypesQualified) (progModules p)
+                    <> foldMap (fmap (Immutable,) . moduleTypesQualified) (progImports p)
+
 progAllDefs :: Prog -> Map GVarName (Mutability,Def)
 progAllDefs p = foldMap (fmap (Mutable,) . moduleDefsQualified) (progModules p)
              <> foldMap (fmap (Immutable,) . moduleDefsQualified) (progImports p)
@@ -344,7 +349,7 @@ importModules ms = do
 
 -- | Get all type definitions from all modules (including imports)
 allTypes :: Prog -> TypeDefMap
-allTypes p = foldMap moduleTypesQualified $ progAllModules p
+allTypes = fmap snd . progAllTypeDefs
 
 -- | Get all definitions from all modules (including imports)
 allDefs :: Prog -> DefMap

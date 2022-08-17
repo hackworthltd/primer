@@ -55,7 +55,7 @@ import Primer.Core (
   _id,
   _synthed,
   _type,
-  _typeMetaLens, Def,
+  _typeMetaLens, Def, TypeDefMap, TypeDef (TypeDefAST),
  )
 import Primer.Core.Transform (unfoldFun)
 import Primer.Core.Utils (forgetTypeMetadata)
@@ -72,7 +72,7 @@ import Primer.Zipper (
   unfocusType,
   up,
  )
-import Primer.Typecheck (TypeDefError(TDIHoleType, TDIUnknownADT), getTypeDefInfo')
+import Primer.Typecheck (TypeDefError(TDIHoleType, TDIUnknownADT), getTypeDefInfo', TypeDefInfo (TypeDefInfo))
 
 -- | An AST node tagged with its "sort" - i.e. if it's a type or expression or binding etc.
 -- This is probably useful elsewhere, but we currently just need it here
@@ -146,14 +146,15 @@ actionsForDef l defs defName = catMaybes [rename, duplicate, delete]
 
 -- | Given the body of a Def and the ID of a node in it, return the possible actions that can be applied to it
 actionsForDefBody ::
+  TypeDefMap ->
   Level ->
   GVarName ->
   Mutability ->
   ID ->
   Expr ->
   [OfferedAction [ProgAction]]
-actionsForDefBody _ _ Immutable _ _ = mempty
-actionsForDefBody l defName mut@Mutable id expr =
+actionsForDefBody _ _ _ Immutable _ _ = mempty
+actionsForDefBody tydefs l defName mut@Mutable id expr =
   let toProgAction actions = [MoveToDef defName, BodyAction actions]
 
       raiseAction' =
@@ -171,7 +172,7 @@ actionsForDefBody l defName mut@Mutable id expr =
                 Nothing -> [] -- at root already, cannot raise
                 Just (ExprNode (Hole _ _)) -> [] -- in a NE hole, don't offer raise (as hole will probably just be recreated)
                 _ -> [raiseAction']
-           in (toProgAction <<$>> basicActionsForExpr l defName e) <> raiseAction
+           in (toProgAction <<$>> basicActionsForExpr tydefs l defName e) <> raiseAction
         Just (TypeNode t, p) ->
           let raiseAction = case p of
                 Just (ExprNode _) -> [] -- at the root of an annotation, so cannot raise
@@ -327,8 +328,8 @@ realise p m = map (\a -> a p m)
 
 -- | Given an expression, determine what basic actions it supports
 -- Specific projections may provide other actions not listed here
-basicActionsForExpr :: Level -> GVarName -> Expr -> [OfferedAction [Action]]
-basicActionsForExpr l defName expr = case expr of
+basicActionsForExpr :: TypeDefMap -> Level -> GVarName -> Expr -> [OfferedAction [Action]]
+basicActionsForExpr tydefs l defName expr = case expr of
   EmptyHole m -> realise expr m $ universalActions m <> emptyHoleActions m
   Hole m _ -> realise expr m $ defaultActions m <> holeActions
   Ann m _ _ -> realise expr m $ defaultActions m <> annotationActions
@@ -596,9 +597,9 @@ basicActionsForExpr l defName expr = case expr of
               , makeTypeAbstraction m
               ]
           synthTy = m ^? _type % _Just % _synthed
-          synOnly ty = case getTypeDefInfo' mempty ty of
+          synOnly ty = case getTypeDefInfo' tydefs ty of
             Left TDIHoleType{} -> Just patternMatch
-            Left TDIUnknownADT{} -> Just patternMatch
+            Right (TypeDefInfo _ _ TypeDefAST{}) -> Just patternMatch
             _ -> Nothing
       in (synOnly =<< synthTy) ?: both
 
