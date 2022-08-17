@@ -42,6 +42,11 @@ tasty_max_prop2 = property $ do
   n <- forAll $ integral_ (Range.constant (-10) 10)
   functionOutput P.max [int n, int n] 20 <===> Right (create' $ int n)
 
+tasty_negate_prop :: Property
+tasty_negate_prop = property $ do
+  n <- forAll $ integral_ (Range.constant (-10) 10)
+  functionOutput P.negate [int n] 20 <===> Right (create' $ int (-n))
+
 (<===>) :: (HasCallStack, MonadTest m) => Either EvalFullError Expr -> Either EvalFullError Expr -> m ()
 x <===> y = withFrozenCallStack $ on (===) (over evalResultExpr zeroIDs) x y
 
