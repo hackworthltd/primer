@@ -22,34 +22,34 @@ import Tests.EvalFull (evalResultExpr)
 tasty_min_prop1 :: Property
 tasty_min_prop1 = property $ do
   n <- forAll $ integral_ (Range.constant (-10) 10)
-  binTestOutput P.min (int n) (int $ n + 1) 20 <===> Right (create' $ int n)
+  functionOutput P.min [int n, int $ n + 1] 20 <===> Right (create' $ int n)
 
 -- min x x = x
 tasty_min_prop2 :: Property
 tasty_min_prop2 = property $ do
   n <- forAll $ integral_ (Range.constant (-10) 10)
-  binTestOutput P.min (int n) (int n) 20 <===> Right (create' $ int n)
+  functionOutput P.min [int n, int n] 20 <===> Right (create' $ int n)
 
 -- max x (x+1) = x+1
 tasty_max_prop1 :: Property
 tasty_max_prop1 = property $ do
   n <- forAll $ integral_ (Range.constant (-10) 10)
-  binTestOutput P.max (int n) (int $ n + 1) 20 <===> Right (create' $ int $ n + 1)
+  functionOutput P.max [int n, int $ n + 1] 20 <===> Right (create' $ int $ n + 1)
 
 -- max x x = x
 tasty_max_prop2 :: Property
 tasty_max_prop2 = property $ do
   n <- forAll $ integral_ (Range.constant (-10) 10)
-  binTestOutput P.max (int n) (int n) 20 <===> Right (create' $ int n)
+  functionOutput P.max [int n, int n] 20 <===> Right (create' $ int n)
 
 (<===>) :: (HasCallStack, MonadTest m) => Either EvalFullError Expr -> Either EvalFullError Expr -> m ()
 x <===> y = withFrozenCallStack $ on (===) (over evalResultExpr zeroIDs) x y
 
--- Tests a binary prelude function
-binTestOutput :: GVarName -> TestM Expr -> TestM Expr -> TerminationBound -> Either EvalFullError Expr
-binTestOutput f x y depth =
+-- Tests a prelude function
+functionOutput :: GVarName -> [TestM Expr] -> TerminationBound -> Either EvalFullError Expr
+functionOutput f args depth =
   evalTestM 0 $ do
-    e <- apps (gvar f) [x, y]
+    e <- apps (gvar f) args
     evalFull ty def n d e
   where
     mods = [builtinModule, primitiveModule, prelude']
