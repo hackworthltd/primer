@@ -18,6 +18,18 @@ import TestM (TestM, evalTestM)
 import TestUtils (zeroIDs)
 import Tests.EvalFull (evalResultExpr)
 
+-- min x (x+1) = x
+tasty_min_prop1 :: Property
+tasty_min_prop1 = property $ do
+  n <- forAll $ integral_ (Range.constant (-10) 10)
+  binTestOutput P.min (int n) (int $ n + 1) 20 <===> Right (create' $ int n)
+
+-- min x x = x
+tasty_min_prop2 :: Property
+tasty_min_prop2 = property $ do
+  n <- forAll $ integral_ (Range.constant (-10) 10)
+  binTestOutput P.min (int n) (int n) 20 <===> Right (create' $ int n)
+
 -- max x (x+1) = x+1
 tasty_max_prop1 :: Property
 tasty_max_prop1 = property $ do
