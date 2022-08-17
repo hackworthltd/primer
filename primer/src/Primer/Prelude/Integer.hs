@@ -1,10 +1,10 @@
-module Primer.Prelude.Integer (max, maxDef, min, minDef) where
+module Primer.Prelude.Integer (max, maxDef, min, minDef, negate, negateDef) where
 
 import Control.Monad.Fresh (MonadFresh)
 import Foreword (Applicative (pure), ($))
 import Primer.Builtins qualified as B
 import Primer.Core (GVarName, ID, qualifyName)
-import Primer.Core.DSL (branch, case_, gvar, lam, lvar, tcon, tfun)
+import Primer.Core.DSL (branch, case_, gvar, int, lam, lvar, tcon, tfun)
 import Primer.Def (ASTDef (..), Def (..))
 import Primer.Prelude.Utils (apps, modName)
 import Primer.Primitives (PrimDef (..), primDefName, primitiveGVar, tInt)
@@ -47,4 +47,16 @@ maxDef = do
               ]
           )
       )
+  pure $ DefAST $ ASTDef term type_
+
+negate :: GVarName
+negate = qualifyName modName "negate"
+
+negateDef :: MonadFresh ID m => m Def
+negateDef = do
+  type_ <- tcon tInt `tfun` tcon tInt
+  term <-
+    lam
+      "x"
+      (apps (gvar $ primitiveGVar $ primDefName IntMinus) [int 0, lvar "x"])
   pure $ DefAST $ ASTDef term type_
