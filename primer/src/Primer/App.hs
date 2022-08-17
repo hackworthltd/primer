@@ -18,7 +18,7 @@ module Primer.App (
   newEmptyApp,
   checkAppWellFormed,
   checkProgWellFormed,
-  EditAppM,
+  EditAppM(..), -- export ctor for debugging
   QueryAppM,
   runEditAppM,
   runQueryAppM,
