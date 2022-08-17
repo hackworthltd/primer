@@ -122,6 +122,10 @@ unit_def_in_use =
               @?= ["Rename this definition", "Duplicate this definition"]
         )
 
+-- TODO: on 542dc3b3b1231f7c219b207691a1a2e1e0520663
+-- we have a lost id on creation of an annotation
+-- See --hedgehog-replay "Size 37 Seed 10944778205474799014 10690135159793852375"
+
 -- TODO/REVIEW: how to ensure this is kept up to date with changes in action offerings
 -- we have "RenameCon" actions - these are not advertised yet (and presumably should be?)
 -- similarly, eval , questions etc
