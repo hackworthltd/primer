@@ -96,7 +96,7 @@ prettyExpr opts = \case
           <> lname n
           <> col Magenta "."
           <> line
-          <> indent 2 (pE e)
+          <> indent' 2 (pE e)
       )
   LAM _ n e ->
     (if inlineLambda opts then group else identity)
@@ -104,7 +104,7 @@ prettyExpr opts = \case
           <> lname n
           <> col Magenta "."
           <> line
-          <> indent 2 (pE e)
+          <> indent' 2 (pE e)
       )
   Case _ e bs ->
     col Yellow "match" <+> pE e <+> col Yellow "with" <> hardline <> indent 2 printCases
@@ -146,7 +146,7 @@ prettyExpr opts = \case
         <> inlineblock opts (pE e)
         <> col Yellow "in"
         <> line
-        <> indent 2 (pE e')
+        <> indent' 2 (pE e')
   LetType _ v t e ->
     col Yellow "let type"
       <+> lname v
@@ -154,7 +154,7 @@ prettyExpr opts = \case
         <> inlineblock opts (pT t)
         <> col Yellow "in"
         <> line
-        <> indent 2 (pE e)
+        <> indent' 2 (pE e)
   Letrec _ v e t e' ->
     col Yellow "let rec"
       <+> lname v
@@ -162,7 +162,7 @@ prettyExpr opts = \case
         <> inlineblock opts (typeann e t)
         <> col Yellow "in"
         <> line
-        <> indent 2 (pE e')
+        <> indent' 2 (pE e')
   PrimCon _ p -> case p of
     PrimChar c -> "Char" <+> pretty @Text (show c)
     PrimInt n -> "Int" <+> pretty @Text (show n)
