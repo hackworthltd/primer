@@ -11,13 +11,13 @@ import Data.Text.Lazy qualified as TL
 import GHC.Err (error)
 import Gen.App (genApp)
 import Gen.Core.Typed (WT, forAllT, propertyWT)
-import Hedgehog (PropertyT, annotateShow, discard, failure, success, label, collect, assert)
+import Hedgehog (PropertyT, annotateShow, discard, failure, success, label, collect, assert, annotate)
 import Hedgehog.Gen qualified as Gen
 import Hedgehog.Internal.Property (forAllWithT)
 import Optics (toListOf, (%), (^..))
-import Primer.Action (ActionInput (..), ActionName (..), OfferedAction (..), UserInput (ChooseOrEnterName, ChooseTypeConstructor, ChooseConstructor, ChooseVariable, ChooseTypeVariable), ActionError (NameCapture))
+import Primer.Action (ActionInput (..), ActionName (..), OfferedAction (..), UserInput (ChooseOrEnterName, ChooseTypeConstructor, ChooseConstructor, ChooseVariable, ChooseTypeVariable), ActionError (NameCapture, CaseBindsClash))
 import Primer.Action.Available (actionsForDef, actionsForDefBody, actionsForDefSig)
-import Primer.App (App, EditAppM, Prog (..), appProg, handleEditRequest, runEditAppM, progAllModules, progAllDefs, Mutability (Mutable, Immutable), allTyConNames, allValConNames, lookupASTDef)
+import Primer.App (App, EditAppM, Prog (..), appProg, handleEditRequest, runEditAppM, progAllModules, progAllDefs, Mutability (Mutable, Immutable), allTyConNames, allValConNames, lookupASTDef, ProgError (ActionError),)
 import Primer.Core (
   ASTDef (..),
   Def (DefAST, DefPrim),
@@ -200,12 +200,12 @@ tasty_available_actions_accepted = withTests 500 $
                 InputRequired (ChooseOrEnterName _ opts f) -> do
                   label "ChooseOrEnterName"
                   annotateShow opts
-                  let anOpt = Gen.element opts
-                      other = genName
-                  n <- forAllT $ if null opts then other else Gen.choice [anOpt,other]
+                  let anOpt = (True,) <$> Gen.element opts
+                      other = (False,) <$> genName
+                  (wasOffered, n) <- forAllT $ if null opts then other else Gen.choice [anOpt,other]
                   let act' = f n
                   annotateShow act'
-                  actionSucceeds (handleEditRequest act') a
+                  (if wasOffered then actionSucceeds else actionSucceedsOrCapture) (handleEditRequest act') a
                 InputRequired (ChooseVariable _ f) -> do
                   -- TODO/REVIEW: we should revisit this action -- perhaps it should contain a list of constructors?
                   label "ChooseVariable"
@@ -262,6 +262,18 @@ tasty_available_actions_accepted = withTests 500 $
   where
     actionSucceeds :: HasCallStack => EditAppM a -> App -> PropertyT WT ()
     actionSucceeds m a = case runEditAppM m a of
+      (Left err, _) -> annotateShow err >> failure
+      (Right _, _) -> pure ()
+    -- If we submit our own name rather than an offered one, then
+    -- we should expect that name capture/clashing may happen
+    actionSucceedsOrCapture :: HasCallStack => EditAppM a -> App -> PropertyT WT ()
+    actionSucceedsOrCapture m a = case runEditAppM m a of
+      (Left (ActionError NameCapture), _) -> do
+        label "name-capture with entered name"
+        annotate "ignoring name capture error as was generated name, not offered one"
+      (Left (ActionError (CaseBindsClash{})), _) -> do
+        label "name-clash with entered name"
+        annotate "ignoring name clash error as was generated name, not offered one"
       (Left err, _) -> annotateShow err >> failure
       (Right _, _) -> pure ()
     globalNameToQualifiedText n = (fmap unName $ unModuleName $ qualifiedModule n, unName $ baseName n)
