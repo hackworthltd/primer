@@ -105,7 +105,6 @@ Output
             ( 18
             ,
                 [ Code "$"
-                , Code ":"
                 , Code "@"
                 , Code "Λx"
                 , Code "λx"

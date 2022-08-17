@@ -349,7 +349,7 @@ basicActionsForExpr tydefs l defName expr = case expr of
   LAM m _ _ -> realise expr m $ defaultActions m <> bigLambdaActions m
   Let m _ e _ -> realise expr m $ defaultActions m <> letActions (e ^? _exprMetaLens % _type % _Just % _synthed)
   Letrec m _ _ t _ -> realise expr m $ defaultActions m <> letRecActions (Just t)
-  e -> realise expr (e ^. _exprMetaLens) $ defaultActions (e ^. _exprMetaLens)
+  e -> realise expr (e ^. _exprMetaLens) $ defaultActions (e ^. _exprMetaLens) ++ expert annotateExpression
   where
     insertVariable =
       let filterVars = case l of
@@ -545,6 +545,9 @@ basicActionsForExpr tydefs l defName expr = case expr of
     deleteExpr :: forall a. ActionSpec Expr a
     deleteExpr = action (Prose "⌫") "Delete this expression" (P.delete l) Destructive [Delete]
 
+    expert :: a -> [a]
+    expert = if l == Expert then (: []) else const []
+
     emptyHoleActions :: forall a. ExprMeta -> [ActionSpec Expr a]
     emptyHoleActions m = case l of
       Beginner ->
@@ -560,9 +563,10 @@ basicActionsForExpr tydefs l defName expr = case expr of
         , makeLetrec
         , enterHole
         ]
+          ++ expert annotateExpression
 
     holeActions :: forall a. [ActionSpec Expr a]
-    holeActions = [finishHole]
+    holeActions = finishHole : expert annotateExpression
 
     annotationActions :: forall a. [ActionSpec Expr a]
     annotationActions = case l of
@@ -571,22 +575,23 @@ basicActionsForExpr tydefs l defName expr = case expr of
       Expert -> [removeAnnotation]
 
     lambdaActions :: forall a. ExprMeta -> [ActionSpec Expr a]
-    lambdaActions m = [renameVariable m]
+    lambdaActions m = renameVariable m : expert annotateExpression
 
     bigLambdaActions :: forall a. ExprMeta -> [ActionSpec Expr a]
     bigLambdaActions m = case l of
       Beginner -> []
       Intermediate -> []
-      Expert -> [renameTypeVariable m]
+      Expert -> [annotateExpression, renameTypeVariable m]
 
     letActions :: forall a b. Maybe (Type' b) -> [ActionSpec Expr a]
     letActions t =
       [ renameLet t
       , makeLetRecursive
       ]
+        ++ expert annotateExpression
 
     letRecActions :: forall a b. Maybe (Type' b) -> [ActionSpec Expr a]
-    letRecActions t = [renameLet t]
+    letRecActions t = renameLet t : expert annotateExpression
 
     -- Actions for every expression node
     -- We assume that the input program is type-checked, in order to
@@ -602,8 +607,7 @@ basicActionsForExpr tydefs l defName expr = case expr of
               , applyFunction
               ]
             Expert ->
-              [ annotateExpression
-              , applyFunction
+              [ applyFunction
               , applyType
               , makeLambda m
               , makeTypeAbstraction m
