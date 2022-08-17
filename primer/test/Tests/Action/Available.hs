@@ -37,7 +37,12 @@ import Primer.Def (
   Def (DefAST, DefPrim),
  )
 import Primer.Examples (comprehensiveWellTyped)
-import Primer.Module (Module (Module, moduleDefs), builtinModule)
+import Primer.Module (
+  Module (Module, moduleDefs),
+  builtinModule,
+  moduleTypesQualified,
+  primitiveModule,
+ )
 import Primer.Name (Name (unName))
 import Primer.Typecheck (
   CheckEverythingRequest (CheckEverything, toCheck, trusted),
@@ -88,7 +93,15 @@ mkTests deps (defName, DefAST def') =
                   map
                     ( \id ->
                         ( id
-                        , sort' $ map name $ actionsForDefBody level defName mut id (astDefExpr def)
+                        , sort' $
+                            map name $
+                              actionsForDefBody
+                                (foldMap @[] moduleTypesQualified [builtinModule, primitiveModule])
+                                level
+                                defName
+                                mut
+                                id
+                                (astDefExpr def)
                         )
                     )
                     . toListOf exprIDs

@@ -31,6 +31,7 @@ module Primer.App (
   progAllModules,
   Editable (..),
   progAllDefs,
+  progAllTypeDefs,
   tcWholeProg,
   tcWholeProgWithImports,
   nextProgID,
@@ -232,6 +233,11 @@ progAllModules p = progModules p <> progImports p
 data Editable = Editable | NonEditable
   deriving (Bounded, Enum, Show)
 
+progAllTypeDefs :: Prog -> Map TyConName (Editable, TypeDef)
+progAllTypeDefs p =
+  foldMap (fmap (Editable,) . moduleTypesQualified) (progModules p)
+    <> foldMap (fmap (NonEditable,) . moduleTypesQualified) (progImports p)
+
 progAllDefs :: Prog -> Map GVarName (Editable, Def)
 progAllDefs p =
   foldMap (fmap (Editable,) . moduleDefsQualified) (progModules p)
@@ -341,7 +347,7 @@ importModules ms = do
 
 -- | Get all type definitions from all modules (including imports)
 allTypes :: Prog -> TypeDefMap
-allTypes p = foldMap moduleTypesQualified $ progAllModules p
+allTypes = fmap snd . progAllTypeDefs
 
 -- | Get all definitions from all modules (including imports)
 allDefs :: Prog -> DefMap
