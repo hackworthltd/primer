@@ -57,8 +57,6 @@ data PrettyOptions = PrettyOptions
   -- ^ Attempt to print λs and Λs on one line
   , inlineForAll :: Bool
   -- ^ Attempt to print @for all@ and associated type sig on one line
-  , inlineMatch :: Bool
-  -- ^ Attempt to print each case on one line
   }
 
 -- | Default PrettyOptions - makes no attempt to group text
@@ -70,7 +68,6 @@ sparse =
     , inlineLet = False
     , inlineLambda = False
     , inlineForAll = False
-    , inlineMatch = False
     }
 
 -- | Groups whenever possible
@@ -82,7 +79,6 @@ compact =
     , inlineLet = True
     , inlineLambda = True
     , inlineForAll = True
-    , inlineMatch = False
     }
 
 -- | Pretty prints @Expr'@ using Prettyprinter library
