@@ -856,7 +856,7 @@ checkKind k t = do
 data TypeDefError
   = TDIHoleType -- a type hole
   | TDINotADT -- e.g. a function type etc
-  | TDIUnknownADT TyConName -- not in scope
+  | TDIUnknownADT TyConName -- not in scope (NB: may actually be a primitive, not an ADT)
   | TDINotSaturated -- e.g. @List@ or @List a b@ rather than @List a@
 
 data TypeDefInfo a = TypeDefInfo [Type' a] TyConName TypeDef -- instantiated parameters, and the typedef (with its name), i.e. [Int] are the parameters for @List Int@
