@@ -1,7 +1,7 @@
-module Primer.Prelude.Integer (max, maxDef, min, minDef, negate, negateDef, abs, absDef) where
+module Primer.Prelude.Integer (max, maxDef, min, minDef, negate, negateDef, abs, absDef, gcdHelper, gcdHelperDef, gcd, gcdDef) where
 
 import Control.Monad.Fresh (MonadFresh)
-import Foreword (Applicative (pure), ($))
+import Foreword (Applicative (pure), map, ($), (.))
 import Primer.Builtins qualified as B
 import Primer.Core (GVarName, ID, qualifyName)
 import Primer.Core.DSL (app, branch, case_, gvar, int, lam, lvar, tcon, tfun)
@@ -71,4 +71,52 @@ absDef = do
     lam
       "x"
       (apps (gvar max) [lvar "x", app (gvar negate) (lvar "x")])
+  pure $ DefAST $ ASTDef term type_
+
+gcd :: GVarName
+gcd = qualifyName modName "gcd"
+
+gcdDef :: MonadFresh ID m => m Def
+gcdDef = do
+  type_ <- tcon tInt `tfun` (tcon tInt `tfun` tcon tInt)
+  term <-
+    lam
+      "x"
+      ( lam
+          "y"
+          ( apps
+              (gvar gcdHelper)
+              $ map (app (gvar abs) . lvar) ["x", "y"]
+          )
+      )
+  pure $ DefAST $ ASTDef term type_
+
+gcdHelper :: GVarName
+gcdHelper = qualifyName modName "gcdHelper"
+
+gcdHelperDef :: MonadFresh ID m => m Def
+gcdHelperDef = do
+  type_ <- tcon tInt `tfun` (tcon tInt `tfun` tcon tInt)
+  term <-
+    lam
+      "x"
+      ( lam
+          "y"
+          ( case_
+              (apps (gvar $ primitiveGVar $ primDefName IntEq) [lvar "y", int 0])
+              [ branch B.cTrue [] (lvar "x")
+              , branch
+                  B.cFalse
+                  []
+                  ( apps
+                      (gvar gcdHelper)
+                      [ lvar "y"
+                      , apps
+                          (gvar $ primitiveGVar $ primDefName IntRem)
+                          [lvar "x", lvar "y"]
+                      ]
+                  )
+              ]
+          )
+      )
   pure $ DefAST $ ASTDef term type_
