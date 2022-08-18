@@ -304,59 +304,10 @@ unit_tmp = let
             , DefAST
                 ASTDef
                   { astDefExpr = Letrec
-                                 (Meta
-                                    2 (Just (TCChkedAt (TEmptyHole ()))) Nothing)
+                                 (Meta 2 Nothing Nothing)
                                  "z"
-                                 (Ann
-                                          (Meta
-                                             7
-                                             (Just
-                                                (TCEmb
-                                                   TCBoth
-                                                     { tcChkedAt = (TApp
-                                                   ()
-                                                   (TEmptyHole ())
-                                                   (TForall
-                                                      ()
-                                                      "z"
-                                                      KType
-                                                      (TVar
-                                                         ()
-                                                         "z")))
-                                                     , tcSynthed =
-                                                         TApp
-                                                           ()
-                                                           (TEmptyHole ())
-                                                           (TForall
-                                                              ()
-                                                              "z"
-                                                              KType
-                                                              (TVar
-                                                                 ()
-                                                                 "z"))
-                                                     }))
-                                             Nothing)
-                                          (EmptyHole
-                                             (Meta
-                                                8
-                                                (Just
-                                                   (TCEmb
-                                                      TCBoth
-                                                        { tcChkedAt =
-                                                            TApp
-                                                              ()
-                                                              (TEmptyHole ())
-                                                              (TForall
-                                                                 ()
-                                                                 "z"
-                                                                 KType
-                                                                 (TVar
-                                                                    ()
-                                                                    "z"))
-                                                        , tcSynthed =
-                                                            TEmptyHole ()
-                                                        }))
-                                                Nothing))
+                                 (Ann (Meta 7 Nothing Nothing)
+                                          (EmptyHole (Meta 8 Nothing Nothing))
                                           (TApp
                                              (Meta 13 (Just KHole) Nothing)
                                              (TEmptyHole
@@ -378,24 +329,12 @@ unit_tmp = let
                                        (TVar
                                           (Meta 20 (Just KType) Nothing)
                                           "z")))
-                                 (Lam
-                                    (Meta
-                                       9
-                                       (Just (TCChkedAt (TEmptyHole ())))
-                                       Nothing)
+                                 (Lam (Meta 9 Nothing Nothing)
                                     "x"
-                                    (Case
-                                       (Meta
-                                          10
-                                          (Just (TCChkedAt (TEmptyHole ())))
-                                          Nothing)
-                                       (EmptyHole
-                                          (Meta
-                                             11
-                                             (Just (TCSynthed (TEmptyHole ())))
-                                             Nothing))
+                                    (Case (Meta 10 Nothing Nothing)
+                                       (EmptyHole (Meta 11 Nothing Nothing))
                                        []))
-                  , astDefType = TEmptyHole                         (Meta 22 (Just KHole) Nothing)
+                  , astDefType = TEmptyHole (Meta 22 (Just KHole) Nothing)
                   }
             )
           ]
