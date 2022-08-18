@@ -209,7 +209,7 @@ import Primer.Zipper (
   unfocusExpr,
   unfocusType,
   up,
-  _target,
+  _target, foldAboveTypeZ, getBoundHereUp,
  )
 
 -- | The program state, shared between the frontend and backend
@@ -1284,49 +1284,42 @@ copyPasteSig p (fromDefName, fromTyId) toDefName setup = do
 -- We cannot use bindersAbove as that works on names only, and different scopes
 -- may reuse the same names. However, we want to detect that as non-shared.
 -- Instead, we rely on fact that IDs are unique.
--- We get the scope from the second argument, as that is where we are pasting.
 -- NB: we assume that both arguments belong in the same definition (and thus
 -- only require that IDs are unique within one definition -- this is a narrower
 -- uniqueness assumption than we currently enforce, see Note [Modules]).
 getSharedScopeTy :: Either TypeZ TypeZip -> Either TypeZ TypeZip -> Set.Set Name
-getSharedScopeTy l r =
-  let idsR = case r of
-        Right r' -> getID r' : foldAbove ((: []) . getID . current) r'
-        Left r' -> getID r' : foldAbove ((: []) . getID . current) (focusOnlyType r') <> (getID (unfocusType r') : foldAbove ((: []) . getID . current) r')
-      -- Replae use of `unsafeHead` here. See:
-      -- https://github.com/hackworthltd/primer/issues/147
-      rID = unsafeHead idsR
-      idsL = case l of
-        Right l' -> getID l' : foldAbove ((: []) . getID . current) l'
-        Left l' -> getID l' : foldAbove ((: []) . getID . current) (focusOnlyType l') <> (getID (unfocusType l') : foldAbove ((: []) . getID . current) l')
-      commonAncestor = getLast $ foldMap (\(il, ir) -> Last $ if il == ir then Just il else Nothing) $ zip (reverse idsL) (reverse idsR)
-      rAncestor = do
-        a <- commonAncestor
-        flip loopM r $ \r' -> if either getID getID r' == a then pure $ Right r' else Left <$> bimapM up up r'
-      -- we need to pick up bindings that happen at the ancestor iff it
-      -- is an actual ancestor (rather than l being a decendent of r)
-      inScope =
-        rAncestor <&> \case
-          Left ra -> mwhen (rID /= getID ra) (Set.map unLocalName $ getBoundHereTy $ target ra) <> bindersAboveTypeZ ra
-          Right ra -> Set.map unLocalName $ mwhen (rID /= getID ra) (getBoundHereTy $ target ra) <> bindersAboveTy ra
-   in fromMaybe mempty inScope
+getSharedScopeTy = getSharedScope' bindersLocAbove
+  where
+    bindersLocAbove = either bindersLocAboveTypeZ bindersLocAboveTy
+    bindersLocAboveTy :: TypeZip -> Set.Set (ID, Name)
+    bindersLocAboveTy = foldAbove ((\t -> Set.map ((getID t,).unLocalName) $ getBoundHereTy t) . current)
+    bindersLocAboveTypeZ :: TypeZ -> Set.Set (ID, Name)
+    bindersLocAboveTypeZ = foldAboveTypeZ ((\t -> Set.map ((getID t,).unLocalName) $ getBoundHereTy t) . current)
+                             ((\e -> Set.map (getID e,) $ getBoundHere e Nothing) . current)
+                             (\x -> Set.map (getID $ current x,) $ getBoundHereUp x)
 
 -- TODO: there is a lot of duplicated code for copy/paste, often due to types/terms being different...
 getSharedScope :: ExprZ -> ExprZ -> Set.Set Name
-getSharedScope l r =
-  let idsR = getID r : foldAbove ((: []) . getID . current) r
-      idsL = getID l : foldAbove ((: []) . getID . current) l
-      commonAncestor = getLast $ foldMap (\(il, ir) -> Last $ if il == ir then Just il else Nothing) $ zip (reverse idsL) (reverse idsR)
-      rAncestorAndPenultimate = do
-        a <- commonAncestor
-        flip loopM (r, Nothing) $ \(r', p) -> if getID r' == a then pure $ Right (r', p) else Left . (,Just r') <$> up r'
-      -- we need to pick up bindings that happen at the ancestor iff it
-      -- is an actual ancestor (rather than l being a decendent of r)
-      inScope =
-        rAncestorAndPenultimate <&> \(ra, rp) ->
-          let hereBound = maybe mempty (getBoundHere (target ra) . Just . target) rp -- we have a Just exactly when ra/=r
-           in hereBound <> bindersAbove ra
-   in fromMaybe mempty inScope
+getSharedScope = getSharedScope' bindersLocAbove
+ where 
+    bindersLocAbove :: ExprZ -> Set.Set (ID, Name)
+    bindersLocAbove = foldAbove      (\x -> Set.map (getID $ current x,) $ getBoundHereUp x)
+
+getSharedScope' :: (a -> Set.Set (ID, Name)) -> a -> a -> Set.Set Name    
+getSharedScope' bindersLocAbove l r =
+  let lBinds = bindersLocAbove l
+      rBinds = bindersLocAbove r
+      common = names $ Set.intersection lBinds rBinds
+      onlyLeft = names $ lBinds Set.\\ rBinds
+      onlyRight = names $ rBinds Set.\\ lBinds
+      -- NB: 'names' is not injective, thus there can be elements in
+      -- both 'common' and 'onlyLeft'/'onlyRight'
+      -- We must filter these out since any reference to such a name
+      -- would either escape its scope (left) or be captured (right)
+  in (common Set.\\ onlyLeft) Set.\\ onlyRight
+ where 
+    names :: Set.Set (ID, Name) -> Set.Set Name
+    names = Set.map snd
 
 -- | A generalisation of 'when'
 mwhen :: Monoid m => Bool -> m -> m
