@@ -1,4 +1,5 @@
 {-# LANGUAGE GADTs #-}
+{-# LANGUAGE OverloadedLabels #-}
 module Tests.Action.Available where
 
 import Foreword
@@ -14,7 +15,7 @@ import Gen.Core.Typed (WT, forAllT, propertyWT)
 import Hedgehog (PropertyT, annotateShow, discard, failure, success, label, collect, assert, annotate)
 import Hedgehog.Gen qualified as Gen
 import Hedgehog.Internal.Property (forAllWithT)
-import Optics (toListOf, (%), (^..))
+import Optics (toListOf, (%), (^..), (%~))
 import Primer.Action (ActionInput (..), ActionName (..), OfferedAction (..), UserInput (ChooseOrEnterName, ChooseTypeConstructor, ChooseConstructor, ChooseVariable, ChooseTypeVariable), ActionError (NameCapture, CaseBindsClash), ProgAction (..), Action (..), Movement (..))
 import Primer.Action.Available (actionsForDef, actionsForDefBody, actionsForDefSig)
 import Primer.App (App, EditAppM(..), Prog (..), appProg, handleEditRequest, runEditAppM, progAllModules, progAllDefs, Mutability (Mutable, Immutable), allTyConNames, allValConNames, lookupASTDef, ProgError (ActionError), progAllTypeDefs, mkApp, defaultLog, checkAppWellFormed,)
@@ -29,13 +30,13 @@ import Primer.Core (
   mkSimpleModuleName,
   moduleNamePretty,
   qualifyName,
-  _typeMeta, defType, defAST, TmVarRef (GlobalVarRef, LocalVarRef), LocalName (unLocalName), ASTTypeDef (..), ValCon (..), TypeDef (..), Kind (..), Type' (..), TypeCacheBoth (..), TypeCache (..), Expr' (..), Meta (..),
+  _typeMeta, defType, defAST, TmVarRef (GlobalVarRef, LocalVarRef), LocalName (unLocalName), ASTTypeDef (..), ValCon (..), TypeDef (..), Kind (..), Type' (..), TypeCacheBoth (..), TypeCache (..), Expr' (..), Meta (..), getID,
  )
 import Primer.Core.DSL (
   create',
   emptyHole,
   gvar,
-  tEmptyHole,
+  tEmptyHole, letrec, tvar, ann, tforall, tapp,
  )
 import Primer.Core.Utils (
   exprIDs, typeIDs,
@@ -56,6 +57,8 @@ import Gen.Core.Raw (genName)
 import Primer.Questions (variablesInScopeExpr, variablesInScopeTy, Question (GenerateName), generateNameExpr, generateNameTy)
 import Primer.Zipper (focusOn, locToEither, focusOnTy, Loc' (InType))
 import TestM (evalTestM)
+import Tests.Action.Prog (progActionTest, expectSuccess, defaultEmptyProg)
+import Primer.Pretty (prettyExpr, prettyPrintExpr, compact)
 
 -- | Comprehensive DSL test.
 test_1 :: TestTree
@@ -361,3 +364,31 @@ unit_tmp = let
   case runEditAppM (handleEditRequest act) a' of
               (Left err, _) -> assertFailure $ show err
               (Right _, _) -> pure ()
+
+unit_tmp_scope :: Assertion
+unit_tmp_scope = let
+  n = mkSimpleModuleName "M"
+  (p,i) = create' $ do
+    p' <- defaultEmptyProg
+    v <- tvar "x"
+    -- NB, the tapp is important!
+    e <- letrec "x" (emptyHole `ann` (tEmptyHole `tapp` tforall "x" KType (pure v))) tEmptyHole emptyHole
+    t <- tEmptyHole
+    let m = Module n mempty $ Map.singleton "foo" $ DefAST $ ASTDef e t
+    pure (p' & #progModules %~ (m:) , getID v)
+  in
+  progActionTest (pure p)
+    [ MoveToDef $ qualifyName n "foo"
+    , CopyPasteBody
+      (qualifyName n "foo"  , i)
+      [ SetCursor i , Move Parent , Delete ]
+     ]
+    (expectSuccess $ \initial final -> do
+        putStrLn ("Initial" :: Text)
+        for_ (catMaybes $ Map.elems $ (fmap astDefExpr .  defAST) . snd <$> progAllDefs initial)
+                                  $ \e -> prettyPrintExpr compact e
+        putStrLn ("Final" :: Text)
+        for_ (catMaybes $ Map.elems $ (fmap astDefExpr .  defAST) . snd <$> progAllDefs final)
+                                  $ \e -> prettyPrintExpr compact e
+    )
+ 

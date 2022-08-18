@@ -61,6 +61,8 @@ module Primer.App (
   -- TMP, for testing
   AppState(..),
   App(..),
+  getSharedScope,
+  getSharedScopeTy,
 ) where
 
 import Foreword hiding (mod)
