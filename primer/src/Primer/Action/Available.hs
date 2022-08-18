@@ -573,7 +573,7 @@ basicActionsForExpr tydefs l defName expr = case expr of
 
     letActions :: forall a. LVarName -> Expr -> [ActionSpec Expr a]
     letActions v e =
-      mwhen (unLocalName v `Set.member` freeVars e) makeLetRecursive ?:
+      munless (unLocalName v `Set.member` freeVars e) makeLetRecursive ?:
       renameLet (e ^? _exprMetaLens % _type % _Just % _synthed)
       : expert annotateExpression
 
@@ -624,9 +624,9 @@ basicActionsForExpr tydefs l defName expr = case expr of
     defaultActions m = universalActions m <> [deleteExpr]
 
 -- TODO: common this up with other 'mwhen's
-mwhen :: Bool -> a -> Maybe a
-mwhen True = Just
-mwhen False = const Nothing
+munless :: Bool -> a -> Maybe a
+munless True = const Nothing
+munless False = Just
 
 (?:) :: Maybe a -> [a] -> [a]
 Just x ?: xs = x : xs
