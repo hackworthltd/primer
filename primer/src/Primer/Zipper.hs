@@ -33,8 +33,11 @@ module Primer.Zipper (
   left,
   right,
   farthest,
-  FoldAbove (current, prior),
+  FoldAbove,
+  current,
+  prior,
   foldAbove,
+  foldAboveTypeZ,
   foldBelow,
   unfocusExpr,
   unfocusLoc,
@@ -247,7 +250,7 @@ unfocusType :: TypeZ' a b -> ExprZ' a b
 unfocusType (TypeZ zt f) = f (fromZipper zt)
 
 -- | Forget the surrounding expression context
-focusOnlyType :: TypeZ -> TypeZip
+focusOnlyType :: TypeZ' a b -> TypeZip' b
 focusOnlyType (TypeZ zt _) = zt
 
 -- | We want to use up, down, left, right, etc. on 'ExprZ' and 'TypeZ',
@@ -387,7 +390,8 @@ search f z
 farthest :: (a -> Maybe a) -> a -> a
 farthest f = go where go a = maybe a go (f a)
 
-data FoldAbove a = FA {prior :: a, current :: a}
+data FoldAbove' a b = FA {prior :: a, current :: b}
+type FoldAbove a = FoldAbove' a a
 
 -- | Focus on everything 'up', in order, map each to a monoid, and accumulate.
 -- This does not focus on the current target.
@@ -426,16 +430,30 @@ bindersAboveTy = foldAbove (getBoundHereTy . current)
 bindersBelowTy :: Data a => Zipper (Type' a) (Type' a) -> S.Set TyVarName
 bindersBelowTy = foldBelow getBoundHereTy
 
+foldAboveTypeZ ::
+  (Data a, Data b, Monoid m) =>
+  (FoldAbove (Type' b) -> m) ->
+  (FoldAbove' (Type' b) (Expr' a b) -> m) ->
+  (FoldAbove (Expr' a b) -> m) ->
+  TypeZ' a b ->
+  m
+foldAboveTypeZ inTy border inExpr tz =
+  let tyz = focusOnlyType tz
+      wholeTy = fromZipper tyz
+      exz = unfocusType tz
+   in foldAbove inTy tyz
+        <> border FA{prior = wholeTy, current = target exz}
+        <> foldAbove inExpr exz
+
 bindersAboveTypeZ :: TypeZ -> S.Set Name
-bindersAboveTypeZ t =
-  let moreGlobal = S.map unLocalName $ bindersAboveTy $ focusOnlyType t
-      e = unfocusType t
-      -- Since nothing both contains a type and binds a variable, we
-      -- know moreGlobalHere will be empty, but let's keep it around as future
-      -- proofing
-      moreGlobalHere = getBoundHere (target e) Nothing
-      moreGlobal' = bindersAbove e <> moreGlobalHere
-   in moreGlobal <> moreGlobal'
+bindersAboveTypeZ =
+  foldAboveTypeZ
+    (S.map unLocalName . getBoundHereTy . current)
+    -- Since nothing both contains a type and binds a variable, we
+    -- could write (const mempty) for the "border" argument,
+    -- but let's keep it around as future proofing
+    (\FA{current} -> getBoundHere current Nothing)
+    getBoundHereUp
 
 -- Get the names bound by this layer of an expression for a given child.
 getBoundHereUp :: (Eq a, Eq b) => FoldAbove (Expr' a b) -> S.Set Name
