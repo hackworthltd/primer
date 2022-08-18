@@ -10,6 +10,7 @@ import Foreword
 import Data.Data (Data)
 import Data.List.NonEmpty qualified as NE
 import Data.Map qualified as Map
+import Data.Set qualified as Set
 import Optics (
   to,
   (%),
@@ -42,11 +43,13 @@ import Primer.Core (
   GlobalName (baseName, qualifiedModule),
   ID,
   Kind,
+  LVarName,
   Meta (..),
   Type,
   Type' (..),
   TypeCache (..),
   getID,
+  unLocalName,
   _bindMeta,
   _chkedAt,
   _exprMetaLens,
@@ -56,7 +59,7 @@ import Primer.Core (
   _typeMetaLens,
  )
 import Primer.Core.Transform (unfoldFun)
-import Primer.Core.Utils (forgetTypeMetadata)
+import Primer.Core.Utils (forgetTypeMetadata, freeVars)
 import Primer.Def (
   ASTDef (..),
   Def,
@@ -347,7 +350,7 @@ basicActionsForExpr tydefs l defName expr = case expr of
   Ann m _ _ -> realise expr m $ defaultActions m <> annotationActions
   Lam m _ _ -> realise expr m $ defaultActions m <> lambdaActions m
   LAM m _ _ -> realise expr m $ defaultActions m <> bigLambdaActions m
-  Let m _ e _ -> realise expr m $ defaultActions m <> letActions (e ^? _exprMetaLens % _type % _Just % _synthed)
+  Let m v e _ -> realise expr m $ defaultActions m <> letActions v e
   Letrec m _ _ t _ -> realise expr m $ defaultActions m <> letRecActions (Just t)
   e -> realise expr (e ^. _exprMetaLens) $ defaultActions (e ^. _exprMetaLens) ++ expert annotateExpression
   where
@@ -583,12 +586,11 @@ basicActionsForExpr tydefs l defName expr = case expr of
       Intermediate -> []
       Expert -> [annotateExpression, renameTypeVariable m]
 
-    letActions :: forall a b. Maybe (Type' b) -> [ActionSpec Expr a]
-    letActions t =
-      [ renameLet t
-      , makeLetRecursive
-      ]
-        ++ expert annotateExpression
+    letActions :: forall a. LVarName -> Expr -> [ActionSpec Expr a]
+    letActions v e =
+      renameLet (e ^? _exprMetaLens % _type % _Just % _synthed)
+        : munless (unLocalName v `Set.member` freeVars e) [makeLetRecursive]
+          <> expert annotateExpression
 
     letRecActions :: forall a b. Maybe (Type' b) -> [ActionSpec Expr a]
     letRecActions t = renameLet t : expert annotateExpression
@@ -639,6 +641,7 @@ basicActionsForExpr tydefs l defName expr = case expr of
 (?:) :: Maybe a -> [a] -> [a]
 Just x ?: xs = x : xs
 Nothing ?: xs = xs
+infixr 5 ?:
 
 -- | Given a type, determine what basic actions it supports
 -- Specific projections may provide other actions not listed here
