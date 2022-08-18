@@ -127,6 +127,11 @@ unit_def_in_use =
 -- we have a lost id on creation of an annotation
 -- See --hedgehog-replay "Size 37 Seed 10944778205474799014 10690135159793852375"
 
+-- TODO: on f2f67714a29546107fb6bf114634edfb6044faf4
+-- see cabal run -O primer-test -- -p '/Available/&&/accepted/' --hedgehog-replay "Size 35 Seed 13379535943595730636 10173012583778001097"
+-- we have a bad error message WrongSortVariable when renaming a let
+-- presumably we don't check that we could capture a tyvar?
+
 -- TODO/REVIEW: how to ensure this is kept up to date with changes in action offerings
 -- we have "RenameCon" actions - these are not advertised yet (and presumably should be?)
 -- similarly, eval , questions etc

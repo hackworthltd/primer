@@ -88,6 +88,7 @@ renameVar x y expr = case expr of
   -- We assume the term is well-scoped, so do not have any references to the
   -- term vars x,y inside any type child (e.g. annotation), so no need to
   -- consider renaming inside them
+  -- TODO: but we do need to worry about references to the type var y wrt capture
   where
     substAllChildren = descendM (renameVar x y) expr
 
