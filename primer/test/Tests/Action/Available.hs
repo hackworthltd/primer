@@ -17,7 +17,7 @@ import Hedgehog.Internal.Property (forAllWithT)
 import Optics (toListOf, (%), (^..))
 import Primer.Action (ActionInput (..), ActionName (..), OfferedAction (..), UserInput (ChooseOrEnterName, ChooseTypeConstructor, ChooseConstructor, ChooseVariable, ChooseTypeVariable), ActionError (NameCapture, CaseBindsClash), ProgAction (..), Action (..), Movement (..))
 import Primer.Action.Available (actionsForDef, actionsForDefBody, actionsForDefSig)
-import Primer.App (App, EditAppM(..), Prog (..), appProg, handleEditRequest, runEditAppM, progAllModules, progAllDefs, Mutability (Mutable, Immutable), allTyConNames, allValConNames, lookupASTDef, ProgError (ActionError), progAllTypeDefs, mkApp, defaultLog,)
+import Primer.App (App, EditAppM(..), Prog (..), appProg, handleEditRequest, runEditAppM, progAllModules, progAllDefs, Mutability (Mutable, Immutable), allTyConNames, allValConNames, lookupASTDef, ProgError (ActionError), progAllTypeDefs, mkApp, defaultLog, checkAppWellFormed,)
 import Primer.Core (
   ASTDef (..),
   Def (DefAST, DefPrim),
@@ -304,20 +304,7 @@ unit_tmp = let
             , DefAST
                 ASTDef
                   { astDefExpr =
-                      Hole
-                        (Meta
-                           37
-                           (Just
-                              (TCEmb
-                                 TCBoth
-                                   { tcChkedAt =
-                                       TApp () (TEmptyHole ()) (TEmptyHole ())
-                                   , tcSynthed = TEmptyHole ()
-                                   }))
-                           Nothing)
-                        (Ann
-                           (Meta 36 (Just (TCSynthed (TEmptyHole ()))) Nothing)
-                           (Lam
+                           Lam
                               (Meta 1 (Just (TCChkedAt (TEmptyHole ()))) Nothing)
                               "foo"
                               (Letrec
@@ -462,13 +449,8 @@ unit_tmp = let
                                              11
                                              (Just (TCSynthed (TEmptyHole ())))
                                              Nothing))
-                                       []))))
-                           (TEmptyHole (Meta 35 (Just KHole) Nothing)))
-                  , astDefType =
-                      TApp
-                        (Meta 22 (Just KHole) Nothing)
-                        (TEmptyHole (Meta 23 (Just KHole) Nothing))
-                        (TEmptyHole (Meta 24 (Just KHole) Nothing))
+                                       [])))
+                  , astDefType = TEmptyHole                         (Meta 22 (Just KHole) Nothing)
                   }
             )
           ]
@@ -481,6 +463,11 @@ unit_tmp = let
            )
            [ SetCursor 16 , Move Parent , Delete ]
      ]
-  in case runEditAppM (handleEditRequest act) (mkApp 9999 (toEnum 9999) $ Prog [] [pm] Nothing SmartHoles defaultLog) of
-              (Left err, a') -> assertFailure $ show err
+  a = mkApp 9999 (toEnum 9999) $ Prog [] [pm] Nothing SmartHoles defaultLog
+  in do
+  case checkAppWellFormed a of
+        Left err -> assertFailure $ show err
+        Right a' -> a' @?= a
+  case runEditAppM (handleEditRequest act) a of
+              (Left err, _) -> assertFailure $ show err
               (Right _, _) -> pure ()
