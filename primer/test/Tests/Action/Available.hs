@@ -18,7 +18,7 @@ import Hedgehog.Internal.Property (forAllWithT)
 import Optics (toListOf, (%), (^..), (%~))
 import Primer.Action (ActionInput (..), ActionName (..), OfferedAction (..), UserInput (ChooseOrEnterName, ChooseTypeConstructor, ChooseConstructor, ChooseVariable, ChooseTypeVariable), ActionError (NameCapture, CaseBindsClash), ProgAction (..), Action (..), Movement (..))
 import Primer.Action.Available (actionsForDef, actionsForDefBody, actionsForDefSig)
-import Primer.App (App, EditAppM(..), Prog (..), appProg, handleEditRequest, runEditAppM, progAllModules, progAllDefs, Mutability (Mutable, Immutable), allTyConNames, allValConNames, lookupASTDef, ProgError (ActionError), progAllTypeDefs, mkApp, defaultLog, checkAppWellFormed,)
+import Primer.App (App, EditAppM(..), Prog (..), appProg, handleEditRequest, runEditAppM, progAllModules, progAllDefs, Mutability (Mutable, Immutable), allTyConNames, allValConNames, lookupASTDef, ProgError (ActionError), progAllTypeDefs, mkApp, defaultLog, checkAppWellFormed, getSharedScope, getSharedScopeTy,)
 import Primer.Core (
   ASTDef (..),
   Def (DefAST, DefPrim),
@@ -55,7 +55,7 @@ import Primer.Builtins (builtinModule)
 import Primer.Primitives (primitiveModule)
 import Gen.Core.Raw (genName)
 import Primer.Questions (variablesInScopeExpr, variablesInScopeTy, Question (GenerateName), generateNameExpr, generateNameTy)
-import Primer.Zipper (focusOn, locToEither, focusOnTy, Loc' (InType))
+import Primer.Zipper (focusOn, locToEither, focusOnTy, Loc' (InType), target, up)
 import TestM (evalTestM)
 import Tests.Action.Prog (progActionTest, expectSuccess, defaultEmptyProg)
 import Primer.Pretty (prettyExpr, prettyPrintExpr, compact)
@@ -368,20 +368,29 @@ unit_tmp = let
 unit_tmp_scope :: Assertion
 unit_tmp_scope = let
   n = mkSimpleModuleName "M"
-  (p,i) = create' $ do
-    p' <- defaultEmptyProg
+  (e,i) = create' $ do
     v <- tvar "x"
     -- NB, the tapp is important!
     e <- letrec "x" (emptyHole `ann` (tEmptyHole `tapp` tforall "x" KType (pure v))) tEmptyHole emptyHole
-    t <- tEmptyHole
-    let m = Module n mempty $ Map.singleton "foo" $ DefAST $ ASTDef e t
-    pure (p' & #progModules %~ (m:) , getID v)
-  in
+    pure (e, getID v)
+  in do
+  putStrLn ("" :: Text)
+  print e
+  prettyPrintExpr compact e
+  print i
+  let Just (Right z1) = locToEither <$> focusOn i e
+  print $ target z1
+  let Just z2 = up z1
+  print $ target z2
+  let sharedScope = getSharedScopeTy (Left z1) (Left z2)
+  print sharedScope
+  sharedScope @?= []
+  {-
   progActionTest (pure p)
     [ MoveToDef $ qualifyName n "foo"
-    , CopyPasteBody
-      (qualifyName n "foo"  , i)
-      [ SetCursor i , Move Parent , Delete ]
+    , --CopyPasteBody
+      --(qualifyName n "foo"  , i)
+      BodyAction [ SetCursor i , Move Parent , Delete ]
      ]
     (expectSuccess $ \initial final -> do
         putStrLn ("Initial" :: Text)
@@ -392,3 +401,4 @@ unit_tmp_scope = let
                                   $ \e -> prettyPrintExpr compact e
     )
  
+-}
