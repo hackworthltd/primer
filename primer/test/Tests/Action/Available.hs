@@ -303,42 +303,17 @@ unit_tmp = let
           [ ( "a"
             , DefAST
                 ASTDef
-                  { astDefExpr =
-                           Lam
-                              (Meta 1 (Just (TCChkedAt (TEmptyHole ()))) Nothing)
-                              "foo"
-                              (Letrec
+                  { astDefExpr = Letrec
                                  (Meta
                                     2 (Just (TCChkedAt (TEmptyHole ()))) Nothing)
                                  "z"
-                                 (Let
-                                    (Meta
-                                       3
-                                       (Just
-                                          (TCChkedAt
-                                             (TApp
-                                                ()
-                                                (TEmptyHole ())
-                                                (TForall
-                                                   ()
-                                                   "z"
-                                                   KType
-                                                   (TVar
-                                                      ()
-                                                      "z")))))
-                                       Nothing)
-                                    "x"
-                                    (EmptyHole
-                                       (Meta
-                                          4
-                                          (Just (TCSynthed (TEmptyHole ())))
-                                          Nothing))
-                                    (Letrec
-                                       (Meta
-                                          5
-                                          (Just
-                                             (TCChkedAt
-                                                (TApp
+                                 (Ann
+                                          (Meta
+                                             7
+                                             (Just
+                                                (TCEmb
+                                                   TCBoth
+                                                     { tcChkedAt = (TApp
                                                    ()
                                                    (TEmptyHole ())
                                                    (TForall
@@ -347,37 +322,7 @@ unit_tmp = let
                                                       KType
                                                       (TVar
                                                          ()
-                                                         "z")))))
-                                          Nothing)
-                                       "x"
-                                       (EmptyHole
-                                          (Meta
-                                             6
-                                             (Just
-                                                (TCEmb
-                                                   TCBoth
-                                                     { tcChkedAt = TEmptyHole ()
-                                                     , tcSynthed = TEmptyHole ()
-                                                     }))
-                                             Nothing))
-                                       (TEmptyHole (Meta 12 (Just KHole) Nothing))
-                                       (Ann
-                                          (Meta
-                                             7
-                                             (Just
-                                                (TCEmb
-                                                   TCBoth
-                                                     { tcChkedAt =
-                                                         TApp
-                                                           ()
-                                                           (TEmptyHole ())
-                                                           (TForall
-                                                              ()
-                                                              "z"
-                                                              KType
-                                                              (TVar
-                                                                 ()
-                                                                 "z"))
+                                                         "z")))
                                                      , tcSynthed =
                                                          TApp
                                                            ()
@@ -422,7 +367,7 @@ unit_tmp = let
                                                 KType
                                                 (TVar
                                                    (Meta 16 (Just KType) Nothing)
-                                                   "z"))))))
+                                                   "z"))))
                                  (TApp
                                     (Meta 17 (Just KHole) Nothing)
                                     (TEmptyHole (Meta 18 (Just KHole) Nothing))
@@ -449,7 +394,7 @@ unit_tmp = let
                                              11
                                              (Just (TCSynthed (TEmptyHole ())))
                                              Nothing))
-                                       [])))
+                                       []))
                   , astDefType = TEmptyHole                         (Meta 22 (Just KHole) Nothing)
                   }
             )
@@ -465,9 +410,9 @@ unit_tmp = let
      ]
   a = mkApp 9999 (toEnum 9999) $ Prog [] [pm] Nothing SmartHoles defaultLog
   in do
-  case checkAppWellFormed a of
+  a' <- case checkAppWellFormed a of
         Left err -> assertFailure $ show err
-        Right a' -> a' @?= a
-  case runEditAppM (handleEditRequest act) a of
+        Right a' -> pure a' --a' @?= a -- I don't care about metadata
+  case runEditAppM (handleEditRequest act) a' of
               (Left err, _) -> assertFailure $ show err
               (Right _, _) -> pure ()
