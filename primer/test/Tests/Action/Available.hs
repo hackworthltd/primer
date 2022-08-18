@@ -55,7 +55,7 @@ import Primer.Builtins (builtinModule)
 import Primer.Primitives (primitiveModule)
 import Gen.Core.Raw (genName)
 import Primer.Questions (variablesInScopeExpr, variablesInScopeTy, Question (GenerateName), generateNameExpr, generateNameTy)
-import Primer.Zipper (focusOn, locToEither, focusOnTy, Loc' (InType), target, up, replace)
+import Primer.Zipper (focusOn, locToEither, focusOnTy, Loc' (InType), target, up, replace, unfocusType, unfocusExpr)
 import TestM (evalTestM)
 import Tests.Action.Prog (progActionTest, expectSuccess, defaultEmptyProg)
 import Primer.Pretty (prettyExpr, prettyPrintExpr, compact)
@@ -383,7 +383,10 @@ unit_tmp_scope = let
   print $ target z1
   let Just z2 = up z1
   print $ target z2
-  let sharedScope = getSharedScopeTy (Left z1) (Left $ replace h z2)
+  let z2' = replace h z2
+  prettyPrintExpr compact $ unfocusExpr $ unfocusType z1
+  prettyPrintExpr compact $ unfocusExpr $ unfocusType z2'
+  let sharedScope = getSharedScopeTy (Left z1) (Left z2')
   print sharedScope
   sharedScope @?= []
   {-
