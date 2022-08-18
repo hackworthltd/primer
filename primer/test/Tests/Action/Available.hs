@@ -15,9 +15,9 @@ import Hedgehog (PropertyT, annotateShow, discard, failure, success, label, coll
 import Hedgehog.Gen qualified as Gen
 import Hedgehog.Internal.Property (forAllWithT)
 import Optics (toListOf, (%), (^..))
-import Primer.Action (ActionInput (..), ActionName (..), OfferedAction (..), UserInput (ChooseOrEnterName, ChooseTypeConstructor, ChooseConstructor, ChooseVariable, ChooseTypeVariable), ActionError (NameCapture, CaseBindsClash))
+import Primer.Action (ActionInput (..), ActionName (..), OfferedAction (..), UserInput (ChooseOrEnterName, ChooseTypeConstructor, ChooseConstructor, ChooseVariable, ChooseTypeVariable), ActionError (NameCapture, CaseBindsClash), ProgAction (..), Action (..), Movement (..))
 import Primer.Action.Available (actionsForDef, actionsForDefBody, actionsForDefSig)
-import Primer.App (App, EditAppM(..), Prog (..), appProg, handleEditRequest, runEditAppM, progAllModules, progAllDefs, Mutability (Mutable, Immutable), allTyConNames, allValConNames, lookupASTDef, ProgError (ActionError), progAllTypeDefs,)
+import Primer.App (App, EditAppM(..), Prog (..), appProg, handleEditRequest, runEditAppM, progAllModules, progAllDefs, Mutability (Mutable, Immutable), allTyConNames, allValConNames, lookupASTDef, ProgError (ActionError), progAllTypeDefs, mkApp, defaultLog,)
 import Primer.Core (
   ASTDef (..),
   Def (DefAST, DefPrim),
@@ -29,7 +29,7 @@ import Primer.Core (
   mkSimpleModuleName,
   moduleNamePretty,
   qualifyName,
-  _typeMeta, defType, defAST, TmVarRef (GlobalVarRef, LocalVarRef), LocalName (unLocalName),
+  _typeMeta, defType, defAST, TmVarRef (GlobalVarRef, LocalVarRef), LocalName (unLocalName), ASTTypeDef (..), ValCon (..), TypeDef (..), Kind (..), Type' (..), TypeCacheBoth (..), TypeCache (..), Expr' (..), Meta (..),
  )
 import Primer.Core.DSL (
   create',
@@ -41,13 +41,13 @@ import Primer.Core.Utils (
   exprIDs, typeIDs,
  )
 import Primer.Examples (comprehensive)
-import Primer.Module (moduleDefsQualified, moduleTypesQualified)
+import Primer.Module (moduleDefsQualified, moduleTypesQualified, Module (..))
 import Primer.Name (Name (unName))
 import Primer.Typecheck (SmartHoles (NoSmartHoles,SmartHoles), buildTypingContextFromModules)
 import System.FilePath ((</>))
 import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.Golden (goldenVsString)
-import Test.Tasty.HUnit (Assertion, (@?=))
+import Test.Tasty.HUnit (Assertion, (@?=), assertFailure)
 import TestUtils (Property, withDiscards, withTests)
 import Text.Pretty.Simple (pShowNoColor)
 import Primer.Builtins (builtinModule)
@@ -290,3 +290,349 @@ tasty_available_actions_accepted = withTests 500 $
       (Right _, _) -> pure ()
 -}
     globalNameToQualifiedText n = (fmap unName $ unModuleName $ qualifiedModule n, unName $ baseName n)
+
+-- This is an offered action which gives a
+-- ActionError (TypeError (WrongSortVariable "z"))
+unit_tmp :: Assertion
+unit_tmp = let
+  pi =  Module -- I think this is just builtins...
+     { moduleName = ModuleName { unModuleName = "Builtins" :| [] }
+     , moduleTypes =
+         Map.fromList
+           [ ( "Bool"
+             , TypeDefAST
+                 ASTTypeDef
+                   { astTypeDefParameters = []
+                   , astTypeDefConstructors =
+                       [ ValCon
+                           { valConName = qualifyName (ModuleName { unModuleName = "Builtins" :| [] }) "True"
+                           , valConArgs = []
+                           }
+                       , ValCon
+                           { valConName = qualifyName (ModuleName { unModuleName = "Builtins" :| [] }) "False"
+                           , valConArgs = []
+                           }
+                       ]
+                   , astTypeDefNameHints = [ "p" , "q" ]
+                   }
+             )
+           , ( "Either"
+             , TypeDefAST
+                 ASTTypeDef
+                   { astTypeDefParameters =
+                       [ ( "a" , KType )
+                       , ( "b" , KType )
+                       ]
+                   , astTypeDefConstructors =
+                       [ ValCon
+                           { valConName = qualifyName (ModuleName { unModuleName = "Builtins" :| [] }) "Left"
+                           , valConArgs = [ TVar () "a" ]
+                           }
+                       , ValCon
+                           { valConName = qualifyName (ModuleName { unModuleName = "Builtins" :| [] }) "Right"
+                           , valConArgs = [ TVar () "b" ]
+                           }
+                       ]
+                   , astTypeDefNameHints = []
+                   }
+             )
+           , ( "List"
+             , TypeDefAST
+                 ASTTypeDef
+                   { astTypeDefParameters =
+                       [ ( "a" , KType ) ]
+                   , astTypeDefConstructors =
+                       [ ValCon
+                           { valConName = qualifyName (ModuleName { unModuleName = "Builtins" :| [] }) "Nil"
+                           , valConArgs = []
+                           }
+                       , ValCon
+                           { valConName = qualifyName (ModuleName { unModuleName = "Builtins" :| [] }) "Cons"
+                           , valConArgs =
+                               [ TVar () "a"
+                               , TApp
+                                   ()
+                                   (TCon () $ qualifyName (ModuleName { unModuleName = "Builtins" :| [] }) "List")
+                                   (TVar () "a")
+                               ]
+                           }
+                       ]
+                   , astTypeDefNameHints = [ "xs" , "ys" , "zs" ]
+                   }
+             )
+             {-
+           , ( "Maybe"
+             , TypeDefAST
+                 ASTTypeDef
+                   { astTypeDefParameters =
+                       [ ( "a" , KType ) ]
+                   , astTypeDefConstructors =
+                       [ ValCon
+                           { valConName =
+                               GlobalName
+                                 { qualifiedModule = ModuleName { unModuleName = "Builtins" :| [] }
+                                 , baseName = "Nothing"
+                                 }
+                           , valConArgs = []
+                           }
+                       , ValCon
+                           { valConName =
+                               GlobalName
+                                 { qualifiedModule = ModuleName { unModuleName = "Builtins" :| [] }
+                                 , baseName = "Just"
+                                 }
+                           , valConArgs = [ TVar () "a" ]
+                           }
+                       ]
+                   , astTypeDefNameHints = [ "mx" , "my" , "mz" ]
+                   }
+             )
+           , ( "Nat"
+             , TypeDefAST
+                 ASTTypeDef
+                   { astTypeDefParameters = []
+                   , astTypeDefConstructors =
+                       [ ValCon
+                           { valConName =
+                               GlobalName
+                                 { qualifiedModule = ModuleName { unModuleName = "Builtins" :| [] }
+                                 , baseName = "Zero"
+                                 }
+                           , valConArgs = []
+                           }
+                       , ValCon
+                           { valConName =
+                               GlobalName
+                                 { qualifiedModule = ModuleName { unModuleName = "Builtins" :| [] }
+                                 , baseName = "Succ"
+                                 }
+                           , valConArgs =
+                               [ TCon
+                                   ()
+                                   GlobalName
+                                     { qualifiedModule =
+                                         ModuleName { unModuleName = "Builtins" :| [] }
+                                     , baseName = "Nat"
+                                     }
+                               ]
+                           }
+                       ]
+                   , astTypeDefNameHints = [ "i" , "j" , "n" , "m" ]
+                   }
+             )
+           , ( "Pair"
+             , TypeDefAST
+                 ASTTypeDef
+                   { astTypeDefParameters =
+                       [ ( "a" , KType )
+                       , ( "b" , KType )
+                       ]
+                   , astTypeDefConstructors =
+                       [ ValCon
+                           { valConName =
+                               GlobalName
+                                 { qualifiedModule = ModuleName { unModuleName = "Builtins" :| [] }
+                                 , baseName = "MakePair"
+                                 }
+                           , valConArgs =
+                               [ TVar () "a"
+                               , TVar () "b"
+                               ]
+                           }
+                       ]
+                   , astTypeDefNameHints = []
+                   }
+             )
+-}
+           ]
+     , moduleDefs = Map.fromList []
+     }
+  pm = Module
+    { moduleName = ModuleName { unModuleName = "M" :| [ "0" ] }
+    , moduleTypes = Map.fromList []
+    , moduleDefs =
+        Map.fromList
+          [ ( "a"
+            , DefAST
+                ASTDef
+                  { astDefExpr =
+                      Hole
+                        (Meta
+                           37
+                           (Just
+                              (TCEmb
+                                 TCBoth
+                                   { tcChkedAt =
+                                       TApp () (TEmptyHole ()) (TEmptyHole ())
+                                   , tcSynthed = TEmptyHole ()
+                                   }))
+                           Nothing)
+                        (Ann
+                           (Meta 36 (Just (TCSynthed (TEmptyHole ()))) Nothing)
+                           (Lam
+                              (Meta 1 (Just (TCChkedAt (TEmptyHole ()))) Nothing)
+                              "foo"
+                              (Letrec
+                                 (Meta
+                                    2 (Just (TCChkedAt (TEmptyHole ()))) Nothing)
+                                 "z"
+                                 (Let
+                                    (Meta
+                                       3
+                                       (Just
+                                          (TCChkedAt
+                                             (TApp
+                                                ()
+                                                (TEmptyHole ())
+                                                (TForall
+                                                   ()
+                                                   "z"
+                                                   KType
+                                                   (TVar
+                                                      ()
+                                                      "z")))))
+                                       Nothing)
+                                    "x"
+                                    (EmptyHole
+                                       (Meta
+                                          4
+                                          (Just (TCSynthed (TEmptyHole ())))
+                                          Nothing))
+                                    (Letrec
+                                       (Meta
+                                          5
+                                          (Just
+                                             (TCChkedAt
+                                                (TApp
+                                                   ()
+                                                   (TEmptyHole ())
+                                                   (TForall
+                                                      ()
+                                                      "z"
+                                                      KType
+                                                      (TVar
+                                                         ()
+                                                         "z")))))
+                                          Nothing)
+                                       "x"
+                                       (EmptyHole
+                                          (Meta
+                                             6
+                                             (Just
+                                                (TCEmb
+                                                   TCBoth
+                                                     { tcChkedAt = TEmptyHole ()
+                                                     , tcSynthed = TEmptyHole ()
+                                                     }))
+                                             Nothing))
+                                       (TEmptyHole (Meta 12 (Just KHole) Nothing))
+                                       (Ann
+                                          (Meta
+                                             7
+                                             (Just
+                                                (TCEmb
+                                                   TCBoth
+                                                     { tcChkedAt =
+                                                         TApp
+                                                           ()
+                                                           (TEmptyHole ())
+                                                           (TForall
+                                                              ()
+                                                              "z"
+                                                              KType
+                                                              (TVar
+                                                                 ()
+                                                                 "z"))
+                                                     , tcSynthed =
+                                                         TApp
+                                                           ()
+                                                           (TEmptyHole ())
+                                                           (TForall
+                                                              ()
+                                                              "z"
+                                                              KType
+                                                              (TVar
+                                                                 ()
+                                                                 "z"))
+                                                     }))
+                                             Nothing)
+                                          (EmptyHole
+                                             (Meta
+                                                8
+                                                (Just
+                                                   (TCEmb
+                                                      TCBoth
+                                                        { tcChkedAt =
+                                                            TApp
+                                                              ()
+                                                              (TEmptyHole ())
+                                                              (TForall
+                                                                 ()
+                                                                 "z"
+                                                                 KType
+                                                                 (TVar
+                                                                    ()
+                                                                    "z"))
+                                                        , tcSynthed =
+                                                            TEmptyHole ()
+                                                        }))
+                                                Nothing))
+                                          (TApp
+                                             (Meta 13 (Just KHole) Nothing)
+                                             (TEmptyHole
+                                                (Meta 14 (Just KHole) Nothing))
+                                             (TForall
+                                                (Meta 15 (Just KType) Nothing)
+                                                "z"
+                                                KType
+                                                (TVar
+                                                   (Meta 16 (Just KType) Nothing)
+                                                   "z"))))))
+                                 (TApp
+                                    (Meta 17 (Just KHole) Nothing)
+                                    (TEmptyHole (Meta 18 (Just KHole) Nothing))
+                                    (TForall
+                                       (Meta 19 (Just KType) Nothing)
+                                       "z"
+                                       KType
+                                       (TVar
+                                          (Meta 20 (Just KType) Nothing)
+                                          "z")))
+                                 (Lam
+                                    (Meta
+                                       9
+                                       (Just (TCChkedAt (TEmptyHole ())))
+                                       Nothing)
+                                    "x"
+                                    (Case
+                                       (Meta
+                                          10
+                                          (Just (TCChkedAt (TEmptyHole ())))
+                                          Nothing)
+                                       (EmptyHole
+                                          (Meta
+                                             11
+                                             (Just (TCSynthed (TEmptyHole ())))
+                                             Nothing))
+                                       []))))
+                           (TEmptyHole (Meta 35 (Just KHole) Nothing)))
+                  , astDefType =
+                      TApp
+                        (Meta 22 (Just KHole) Nothing)
+                        (TEmptyHole (Meta 23 (Just KHole) Nothing))
+                        (TEmptyHole (Meta 24 (Just KHole) Nothing))
+                  }
+            )
+          ]
+    }
+  act :: [ProgAction]
+  act =  [ MoveToDef $ qualifyName (ModuleName { unModuleName = "M" :| [ "0" ] }) "a"
+         , CopyPasteBody
+           (qualifyName (ModuleName { unModuleName = "M" :| [ "0" ] }) "a"
+           , 16
+           )
+           [ SetCursor 16 , Move Parent , Delete ]
+     ]
+  in case runEditAppM (handleEditRequest act) (mkApp 9999 (toEnum 9999) $ Prog [pi] [pm] Nothing SmartHoles defaultLog) of
+              (Left err, a') -> assertFailure $ show err
+              (Right _, _) -> pure ()
