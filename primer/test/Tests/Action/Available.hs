@@ -18,7 +18,7 @@ import Hedgehog.Internal.Property (forAllWithT)
 import Optics (toListOf, (%), (^..), (%~))
 import Primer.Action (ActionInput (..), ActionName (..), OfferedAction (..), UserInput (ChooseOrEnterName, ChooseTypeConstructor, ChooseConstructor, ChooseVariable, ChooseTypeVariable), ActionError (NameCapture, CaseBindsClash), ProgAction (..), Action (..), Movement (..))
 import Primer.Action.Available (actionsForDef, actionsForDefBody, actionsForDefSig)
-import Primer.App (App, EditAppM(..), Prog (..), appProg, handleEditRequest, runEditAppM, progAllModules, progAllDefs, Mutability (Mutable, Immutable), allTyConNames, allValConNames, lookupASTDef, ProgError (ActionError), progAllTypeDefs, mkApp, defaultLog, checkAppWellFormed, getSharedScope, getSharedScopeTy,)
+import Primer.App (App, EditAppM, Prog (..), appProg, handleEditRequest, runEditAppM, progAllModules, progAllDefs, Mutability (Mutable, Immutable), allTyConNames, allValConNames, lookupASTDef, ProgError (ActionError), progAllTypeDefs,)
 import Primer.Core (
   ASTDef (..),
   Def (DefAST, DefPrim),
@@ -55,10 +55,7 @@ import Primer.Builtins (builtinModule)
 import Primer.Primitives (primitiveModule)
 import Gen.Core.Raw (genName)
 import Primer.Questions (variablesInScopeExpr, variablesInScopeTy, Question (GenerateName), generateNameExpr, generateNameTy)
-import Primer.Zipper (focusOn, locToEither, focusOnTy, Loc' (InType), target, up, replace, unfocusType, unfocusExpr)
-import TestM (evalTestM)
-import Tests.Action.Prog (progActionTest, expectSuccess, defaultEmptyProg)
-import Primer.Pretty (prettyExpr, prettyPrintExpr, compact)
+import Primer.Zipper (focusOn, locToEither, focusOnTy, Loc' (InType))
 
 -- | Comprehensive DSL test.
 test_1 :: TestTree
@@ -268,20 +265,13 @@ tasty_available_actions_accepted = withTests 500 $
                 _ -> error "VariablesInScope question is never an offered action"
           checkActionInput $ input action
   where
---    actionSucceeds :: HasCallStack => EditAppM a -> App -> PropertyT WT ()
-{-    actionSucceeds m a = case runEditAppM m a of
-      (Left err, a') -> annotateShow err >> annotateShow a' >> failure
+    actionSucceeds :: HasCallStack => EditAppM a -> App -> PropertyT WT ()
+    actionSucceeds m a = case runEditAppM m a of
+      (Left err, _) -> annotateShow err >> failure
       (Right _, _) -> pure ()
--}
-    actionSucceeds m a = case evalTestM 99999 $ runStateT (runExceptT m) a of
-      (Left err, a') -> annotateShow err >> annotateShow a' >> failure
-      (Right _, _) -> pure ()
-
     -- If we submit our own name rather than an offered one, then
     -- we should expect that name capture/clashing may happen
---    actionSucceedsOrCapture :: HasCallStack => EditAppM a -> App -> PropertyT WT ()
-    actionSucceedsOrCapture m a = pure ()
-{-
+    actionSucceedsOrCapture :: HasCallStack => EditAppM a -> App -> PropertyT WT ()
     actionSucceedsOrCapture m a = case runEditAppM m a of
       (Left (ActionError NameCapture), _) -> do
         label "name-capture with entered name"
@@ -291,5 +281,4 @@ tasty_available_actions_accepted = withTests 500 $
         annotate "ignoring name clash error as was generated name, not offered one"
       (Left err, _) -> annotateShow err >> failure
       (Right _, _) -> pure ()
--}
     globalNameToQualifiedText n = (fmap unName $ unModuleName $ qualifiedModule n, unName $ baseName n)
