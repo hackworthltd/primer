@@ -18,7 +18,7 @@ import Hedgehog.Internal.Property (forAllWithT)
 import Optics (toListOf, (%), (^..), (%~))
 import Primer.Action (ActionInput (..), ActionName (..), OfferedAction (..), UserInput (ChooseOrEnterName, ChooseTypeConstructor, ChooseConstructor, ChooseVariable, ChooseTypeVariable), ActionError (NameCapture, CaseBindsClash), ProgAction (..), Action (..), Movement (..))
 import Primer.Action.Available (actionsForDef, actionsForDefBody, actionsForDefSig)
-import Primer.App (App, EditAppM, Prog (..), appProg, handleEditRequest, runEditAppM, progAllModules, progAllDefs, Mutability (Mutable, Immutable), allTyConNames, allValConNames, lookupASTDef, ProgError (ActionError), progAllTypeDefs,)
+import Primer.App (App, EditAppM, Prog (..), appProg, handleEditRequest, runEditAppM, progAllModules, progAllDefs, Mutability (Mutable, Immutable), allTyConNames, allValConNames, lookupASTDef, ProgError (ActionError, DefAlreadyExists), progAllTypeDefs,)
 import Primer.Core (
   ASTDef (..),
   Def (DefAST, DefPrim),
@@ -279,6 +279,9 @@ tasty_available_actions_accepted = withTests 500 $
       (Left (ActionError (CaseBindsClash{})), _) -> do
         label "name-clash with entered name"
         annotate "ignoring name clash error as was generated name, not offered one"
+      (Left DefAlreadyExists{}, _) -> do
+        label "rename def name clash with entered name"
+        annotate "ignoring def already exists error as was generated name, not offered one"
       (Left err, _) -> annotateShow err >> failure
       (Right _, _) -> pure ()
     globalNameToQualifiedText n = (fmap unName $ unModuleName $ qualifiedModule n, unName $ baseName n)
