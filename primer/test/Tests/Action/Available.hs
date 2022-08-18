@@ -293,6 +293,12 @@ tasty_available_actions_accepted = withTests 500 $
 
 -- This is an offered action which gives a
 -- ActionError (TypeError (WrongSortVariable "z"))
+-- Problem is now obvious: we have
+-- letrec z = ? : ∀z.z in _
+-- and we want to raise the occurrance of z, but this results in 
+-- letrec z = ? : z in _
+-- which is ill-typed
+-- The issue is scoping after the raise!
 unit_tmp :: Assertion
 unit_tmp = let
   pm = Module
