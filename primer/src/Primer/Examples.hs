@@ -61,8 +61,6 @@ import Primer.Builtins.DSL (
   nat,
  )
 import Primer.Core (
-  ASTDef (ASTDef),
-  Def (DefAST),
   GVarName,
   ID,
   Kind (KType),
@@ -96,8 +94,13 @@ import Primer.Core.DSL (
   thole,
   tvar,
  )
+import Primer.Def (
+  ASTDef (ASTDef),
+  Def (DefAST),
+ )
 import Primer.Module (
   Module (..),
+  builtinModule,
  )
 import Primer.Name (
   NameCounter,
@@ -334,7 +337,7 @@ even3Prog =
         let globs = [("even", evenDef), ("odd", oddDef), ("even 3?", even3Def)]
         pure globs
    in ( defaultProg
-          { progImports = [B.builtinModule]
+          { progImports = [builtinModule]
           , progModules =
               [ Module
                   { moduleName = modName
@@ -363,7 +366,7 @@ mapOddProg =
         let globs = [("even", evenDef), ("odd", oddDef), ("map", mapDef), ("mapOdd", mapOddDef)]
         pure globs
    in ( defaultProg
-          { progImports = [B.builtinModule]
+          { progImports = [builtinModule]
           , progModules =
               [ Module
                   { moduleName = modName
@@ -391,7 +394,7 @@ badEven3Prog =
         let globs = [("even", evenDef), ("odd", oddDef), ("even 3?", even3Def)]
         pure globs
    in ( defaultProg
-          { progImports = [B.builtinModule]
+          { progImports = [builtinModule]
           , progModules =
               [ Module
                   { moduleName = modName

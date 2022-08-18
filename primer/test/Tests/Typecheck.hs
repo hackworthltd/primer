@@ -21,7 +21,6 @@ import Primer.App (
 import Primer.App qualified as App
 import Primer.Builtins (
   boolDef,
-  builtinModule,
   cCons,
   cFalse,
   cNil,
@@ -38,9 +37,6 @@ import Primer.Builtins (
   tNat,
  )
 import Primer.Core (
-  ASTDef (ASTDef, astDefExpr),
-  ASTTypeDef (..),
-  Def (..),
   Expr,
   Expr' (..),
   ExprMeta,
@@ -55,12 +51,6 @@ import Primer.Core (
   Type' (..),
   TypeCache (..),
   TypeCacheBoth (..),
-  TypeDef (..),
-  ValCon (..),
-  astTypeDefConstructors,
-  defAST,
-  typeDefKind,
-  valConType,
   _exprMeta,
   _exprTypeMeta,
   _type,
@@ -68,6 +58,12 @@ import Primer.Core (
  )
 import Primer.Core.DSL
 import Primer.Core.Utils (alphaEqTy, forgetMetadata, forgetTypeMetadata, generateIDs, generateTypeIDs)
+import Primer.Def (
+  ASTDef (ASTDef, astDefExpr),
+  Def (..),
+  defAST,
+  defType,
+ )
 import Primer.Gen.App (genProg)
 import Primer.Gen.Core.Raw (
   evalExprGen,
@@ -81,9 +77,17 @@ import Primer.Gen.Core.Typed (
   genWTType,
   propertyWT,
  )
-import Primer.Module
+import Primer.Module (Module (..), builtinModule, primitiveModule)
 import Primer.Name (Name, NameCounter)
-import Primer.Primitives (defType, primitiveGVar, primitiveModule, tChar)
+import Primer.Primitives (primitiveGVar, tChar)
+import Primer.TypeDef (
+  ASTTypeDef (..),
+  TypeDef (..),
+  ValCon (..),
+  astTypeDefConstructors,
+  typeDefKind,
+  valConType,
+ )
 import Primer.Typecheck (
   CheckEverythingRequest (CheckEverything, toCheck, trusted),
   Cxt (smartHoles),

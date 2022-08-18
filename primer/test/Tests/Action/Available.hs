@@ -12,8 +12,6 @@ import Optics (toListOf, (%))
 import Primer.Action (ActionName (..), OfferedAction (description, name))
 import Primer.Action.Available (actionsForDef, actionsForDefBody, actionsForDefSig)
 import Primer.Core (
-  ASTDef (..),
-  Def (DefAST, DefPrim),
   GVarName,
   GlobalName (baseName, qualifiedModule),
   HasID (_id),
@@ -32,6 +30,10 @@ import Primer.Core.DSL (
  )
 import Primer.Core.Utils (
   exprIDs,
+ )
+import Primer.Def (
+  ASTDef (..),
+  Def (DefAST, DefPrim),
  )
 import Primer.Examples (comprehensive)
 import Primer.Name (Name (unName))

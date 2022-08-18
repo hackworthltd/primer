@@ -3,21 +3,23 @@
 
 module Primer.Primitives (
   PrimDef (..),
-  primitiveModule,
   allPrimTypeDefs,
   tInt,
   tChar,
   primitiveGVar,
+  primConName,
   primDefName,
   primDefType,
-  defType,
   primFunDef,
+  PrimFunError (..),
+  primitiveModuleName,
 ) where
 
 import Foreword
 
 import Control.Monad.Fresh (MonadFresh)
-import Data.List.Extra (enumerate)
+import Data.Aeson (FromJSON (..), ToJSON (..))
+import Data.Data (Data)
 import Data.Map qualified as M
 import Numeric.Natural (Natural)
 import Primer.Builtins (
@@ -31,21 +33,15 @@ import Primer.Builtins (
  )
 import Primer.Builtins.DSL (bool_, maybe_, nat)
 import Primer.Core (
-  ASTDef (..),
-  Def (..),
   Expr,
   Expr' (App, Con, PrimCon),
   GVarName,
-  GlobalName (baseName),
+  GlobalName,
   ID,
   ModuleName,
-  PrimCon (..),
-  PrimDef (..),
-  PrimFunError (..),
-  PrimTypeDef (..),
+  PrimCon (PrimChar, PrimInt),
   TyConName,
   Type' (..),
-  TypeDef (TypeDefPrim),
   mkSimpleModuleName,
   qualifyName,
  )
@@ -57,25 +53,57 @@ import Primer.Core.DSL (
   int,
   tcon,
  )
-import Primer.Core.Utils (forgetTypeMetadata)
-import Primer.Module (Module (Module, moduleDefs, moduleName, moduleTypes))
+import Primer.JSON (CustomJSON (..), PrimerJSON)
 import Primer.Name (Name)
+import Primer.TypeDef (PrimTypeDef (..))
+
+-- | A primitive, built-in definition.
+-- For each of these, we should have a test that the evaluator produces expected results.
+data PrimDef
+  = ToUpper
+  | IsSpace
+  | HexToNat
+  | NatToHex
+  | EqChar
+  | IntAdd
+  | IntMinus
+  | IntMul
+  | IntQuotient
+  | IntRemainder
+  | IntQuot
+  | IntRem
+  | IntLT
+  | IntLTE
+  | IntGT
+  | IntGTE
+  | IntEq
+  | IntNeq
+  | IntToNat
+  | IntFromNat
+  deriving (Eq, Show, Enum, Bounded, Data, Generic)
+  deriving (FromJSON, ToJSON) via PrimerJSON PrimDef
+
+data PrimFunError
+  = -- | We have attempted to apply a primitive function to invalid args.
+    PrimFunError
+      PrimDef
+      [Expr' () ()]
+      -- ^ Arguments
+  deriving (Eq, Show, Data, Generic)
+  deriving (FromJSON, ToJSON) via PrimerJSON PrimFunError
 
 primitiveModuleName :: ModuleName
 primitiveModuleName = mkSimpleModuleName "Primitives"
 
+-- | The name of the type to which this primitive constructor belongs.
+-- This should be a key in `allPrimTypeDefs`.
+primConName :: PrimCon -> TyConName
+primConName = \case
+  PrimChar _ -> tChar
+  PrimInt _ -> tInt
+
 primitive :: Name -> GlobalName k
 primitive = qualifyName primitiveModuleName
-
--- | This module depends on the builtin module, due to some terms referencing builtin types.
--- It contains all primitive types and terms.
-primitiveModule :: Module
-primitiveModule =
-  Module
-    { moduleName = primitiveModuleName
-    , moduleTypes = TypeDefPrim <$> M.mapKeys baseName allPrimTypeDefs
-    , moduleDefs = M.fromList $ [(primDefName def, DefPrim def) | def <- enumerate]
-    }
 
 tChar :: TyConName
 tChar = primitive "Char"
@@ -139,11 +167,6 @@ primDefName = \case
 
 primDefType :: PrimDef -> Type' ()
 primDefType = uncurry (flip $ foldr $ TFun ()) . primFunTypes
-
-defType :: Def -> Type' ()
-defType = \case
-  DefPrim d -> primDefType d
-  DefAST d -> forgetTypeMetadata $ astDefType d
 
 primFunTypes :: PrimDef -> ([Type' ()], Type' ())
 primFunTypes = \case

@@ -31,10 +31,6 @@ import Data.Set qualified as Set
 import Data.Text qualified as T
 import Optics (set, (%), (?~))
 import Primer.Core (
-  ASTDef (..),
-  ASTTypeDef (..),
-  Def (..),
-  DefMap,
   Expr,
   Expr' (..),
   GVarName,
@@ -50,7 +46,6 @@ import Primer.Core (
   Type' (..),
   TypeCache (..),
   TypeCacheBoth (..),
-  TypeDef (..),
   ValConName,
   baseName,
   bindName,
@@ -58,9 +53,6 @@ import Primer.Core (
   qualifiedModule,
   unsafeMkGlobalName,
   unsafeMkLocalName,
-  valConArgs,
-  valConName,
-  valConType,
  )
 import Primer.Core qualified as C
 import Primer.Core.DSL (
@@ -86,6 +78,11 @@ import Primer.Core.DSL (
  )
 import Primer.Core.Transform (renameLocalVar, renameTyVar, renameTyVarExpr)
 import Primer.Core.Utils (forgetTypeMetadata, generateTypeIDs)
+import Primer.Def (
+  ASTDef (..),
+  Def (..),
+  DefMap,
+ )
 import Primer.JSON
 import Primer.Module (Module, insertDef)
 import Primer.Name (Name, NameCounter, unName, unsafeMkName)
@@ -97,6 +94,7 @@ import Primer.Name.Fresh (
  )
 import Primer.Questions (Question, uniquify)
 import Primer.Refine (Inst (InstAPP, InstApp, InstUnconstrainedAPP), refine)
+import Primer.TypeDef (ASTTypeDef (..), TypeDef (..), ValCon (..), valConType)
 import Primer.Typecheck (
   CheckEverythingRequest (CheckEverything, toCheck, trusted),
   SmartHoles,

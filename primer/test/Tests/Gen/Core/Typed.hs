@@ -13,7 +13,6 @@ import Hedgehog (
   (===),
  )
 import Hedgehog.Internal.Property (forAllT)
-import Primer.Builtins (builtinModule)
 import Primer.Core (
   Expr,
   Kind (KType),
@@ -37,8 +36,7 @@ import Primer.Gen.Core.Typed (
   genWTType,
   propertyWT,
  )
-import Primer.Module (Module)
-import Primer.Primitives (primitiveModule)
+import Primer.Module (Module, builtinModule, primitiveModule)
 import Primer.Typecheck (
   Cxt (..),
   ExprT,

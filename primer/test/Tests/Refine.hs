@@ -15,16 +15,12 @@ import Hedgehog (
  )
 import Hedgehog.Gen qualified as Gen
 import Hedgehog.Range qualified as Range
-import Primer.Builtins (builtinModule, tBool, tList, tNat)
+import Primer.Builtins (tBool, tList, tNat)
 import Primer.Core (
   Expr' (APP, Ann, App, EmptyHole),
   ID,
   Kind (KFun, KType),
   Type' (TApp, TCon, TEmptyHole, TForall, TFun, THole, TVar),
-  astTypeDefConstructors,
-  astTypeDefParameters,
-  typeDefAST,
-  valConType,
  )
 import Primer.Core.Utils (forgetMetadata, freeVarsTy, generateIDs, noHoles)
 import Primer.Gen.Core.Typed (
@@ -34,10 +30,11 @@ import Primer.Gen.Core.Typed (
   genWTKind,
   genWTType,
  )
+import Primer.Module (builtinModule, primitiveModule)
 import Primer.Name (NameCounter)
-import Primer.Primitives (primitiveModule)
 import Primer.Refine (Inst (InstAPP, InstApp, InstUnconstrainedAPP), refine)
 import Primer.Subst (substTy, substTys)
+import Primer.TypeDef (astTypeDefConstructors, astTypeDefParameters, typeDefAST, valConType)
 import Primer.Typecheck (
   Cxt,
   SmartHoles (NoSmartHoles),

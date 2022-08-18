@@ -9,27 +9,54 @@ module Primer.Module (
   renameModule,
   renameModule',
   nextModuleID,
+  builtinModule,
+  primitiveModule,
 ) where
+
+import Foreword
 
 import Data.Data (Data)
 import Data.Generics.Uniplate.Data (transformBi)
+import Data.List.Extra (enumerate)
 import Data.Map (delete, insert, mapKeys, member)
-import Foreword
+import Data.Map qualified as M
+import Primer.Builtins (
+  boolDef,
+  builtinModuleName,
+  eitherDef,
+  listDef,
+  maybeDef,
+  natDef,
+  pairDef,
+  tBool,
+  tEither,
+  tList,
+  tMaybe,
+  tNat,
+  tPair,
+ )
 import Primer.Core (
-  Def,
-  DefMap,
   GVarName,
   GlobalName (baseName),
   ID,
   ModuleName,
   TyConName,
-  TypeDef,
-  TypeDefMap,
   qualifyName,
  )
-import Primer.Core.Utils (nextID)
-import Primer.JSON
+import Primer.Def (
+  Def (..),
+  DefMap,
+ )
+import Primer.Def.Utils (nextID)
+import Primer.JSON (
+  CustomJSON (CustomJSON),
+  FromJSON,
+  PrimerJSON,
+  ToJSON,
+ )
 import Primer.Name (Name)
+import Primer.Primitives (allPrimTypeDefs, primDefName, primitiveModuleName)
+import Primer.TypeDef (TypeDef (..), TypeDefMap)
 
 data Module = Module
   { moduleName :: ModuleName
@@ -86,3 +113,29 @@ renameModule' fromName toName = transformBi (\n -> if n == fromName then toName 
 -- change in the future.
 nextModuleID :: Module -> ID
 nextModuleID m = foldl' (\id_ d -> max (nextID d) id_) minBound (moduleDefs m)
+
+-- | This module depends on the builtin module, due to some terms referencing builtin types.
+-- It contains all primitive types and terms.
+primitiveModule :: Module
+primitiveModule =
+  Module
+    { moduleName = primitiveModuleName
+    , moduleTypes = TypeDefPrim <$> M.mapKeys baseName allPrimTypeDefs
+    , moduleDefs = M.fromList $ [(primDefName def, DefPrim def) | def <- enumerate]
+    }
+
+builtinModule :: Module
+builtinModule =
+  Module
+    { moduleName = builtinModuleName
+    , moduleTypes =
+        M.fromList
+          [ (baseName tBool, TypeDefAST boolDef)
+          , (baseName tNat, TypeDefAST natDef)
+          , (baseName tList, TypeDefAST listDef)
+          , (baseName tMaybe, TypeDefAST maybeDef)
+          , (baseName tPair, TypeDefAST pairDef)
+          , (baseName tEither, TypeDefAST eitherDef)
+          ]
+    , moduleDefs = mempty
+    }

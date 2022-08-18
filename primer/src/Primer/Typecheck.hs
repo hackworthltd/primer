@@ -93,12 +93,8 @@ import Optics (
  )
 import Optics.Traversal (traversed)
 import Primer.Core (
-  ASTDef (..),
-  ASTTypeDef (..),
   Bind' (..),
   CaseBranch' (..),
-  Def (..),
-  DefMap,
   Expr,
   Expr' (..),
   ExprMeta,
@@ -117,19 +113,11 @@ import Primer.Core (
   Type' (..),
   TypeCache (..),
   TypeCacheBoth (..),
-  TypeDef (..),
-  TypeDefMap,
   TypeMeta,
-  ValCon (valConArgs, valConName),
   ValConName,
   bindName,
-  primConName,
   qualifyName,
-  typeDefAST,
-  typeDefKind,
-  typeDefParameters,
   unLocalName,
-  valConType,
   _bindMeta,
   _exprMeta,
   _exprMetaLens,
@@ -146,6 +134,12 @@ import Primer.Core.Utils (
   generateTypeIDs,
   noHoles,
  )
+import Primer.Def (
+  ASTDef (..),
+  Def (..),
+  DefMap,
+  defType,
+ )
 import Primer.JSON (CustomJSON (CustomJSON), FromJSON, PrimerJSON, ToJSON)
 import Primer.Module (
   Module (
@@ -156,8 +150,18 @@ import Primer.Module (
   moduleTypesQualified,
  )
 import Primer.Name (Name, NameCounter)
-import Primer.Primitives (defType)
+import Primer.Primitives (primConName)
 import Primer.Subst (substTy)
+import Primer.TypeDef (
+  ASTTypeDef (astTypeDefConstructors, astTypeDefParameters),
+  TypeDef (..),
+  TypeDefMap,
+  ValCon (valConArgs, valConName),
+  typeDefAST,
+  typeDefKind,
+  typeDefParameters,
+  valConType,
+ )
 
 -- | Typechecking takes as input an Expr with 'Maybe Type' annotations and
 -- produces an Expr with 'Type' annotations - i.e. every node in the output is

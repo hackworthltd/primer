@@ -18,18 +18,20 @@ import Foreword
 import Data.Map.Strict qualified as Map
 import Data.Set qualified as Set
 import Primer.Core (
-  DefMap,
   GVarName,
   ID,
   Kind (KFun, KType),
   LVarName,
   TyVarName,
   Type' (..),
-  typeDefNameHints,
+ )
+import Primer.Def (
+  DefMap,
+  defType,
  )
 import Primer.Name (Name, unName, unsafeMkName)
 import Primer.Name.Fresh (mkAvoidForFreshName, mkAvoidForFreshNameTy, mkAvoidForFreshNameTypeZ)
-import Primer.Primitives (defType)
+import Primer.TypeDef (typeDefNameHints)
 import Primer.Typecheck (Cxt, decomposeTAppCon, typeDefs)
 import Primer.Zipper (
   ExprZ,

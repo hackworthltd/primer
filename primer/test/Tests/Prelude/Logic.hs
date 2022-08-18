@@ -4,12 +4,11 @@ module Tests.Prelude.Logic where
 
 import Foreword hiding (exp)
 
-import Primer.Builtins (builtinModule)
 import Primer.Builtins.DSL (bool_)
 import Primer.Core (Expr, GVarName)
 import Primer.Core.DSL (app, create', gvar)
 import Primer.EvalFull (Dir (Chk), evalFull)
-import Primer.Module (moduleDefsQualified, moduleTypesQualified)
+import Primer.Module (builtinModule, moduleDefsQualified, moduleTypesQualified)
 import Primer.Prelude (prelude)
 import Primer.Prelude.Logic qualified as P
 import Test.Tasty.HUnit (Assertion)

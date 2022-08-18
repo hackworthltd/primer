@@ -24,9 +24,6 @@ import Primer.App (
  )
 import Primer.Builtins (tNat)
 import Primer.Core (
-  ASTDef (..),
-  ASTTypeDef (..),
-  Def (..),
   Expr,
   Expr' (EmptyHole, PrimCon),
   ExprMeta,
@@ -38,10 +35,12 @@ import Primer.Core (
   Type' (TApp, TCon, TEmptyHole, TVar),
   TypeCache (TCSynthed),
   TypeCacheBoth (TCBoth),
-  TypeDef (..),
   TypeMeta,
-  ValCon (..),
   qualifyName,
+ )
+import Primer.Def (
+  ASTDef (..),
+  Def (..),
  )
 import Primer.Eval (
   BetaReductionDetail (
@@ -59,6 +58,11 @@ import Primer.Eval (
  )
 import Primer.Module (Module (Module, moduleDefs, moduleTypes), moduleName)
 import Primer.Name (Name, unsafeMkName)
+import Primer.TypeDef (
+  ASTTypeDef (..),
+  TypeDef (..),
+  ValCon (..),
+ )
 import Primer.Typecheck (SmartHoles (SmartHoles))
 import System.FilePath (takeBaseName)
 import Test.Tasty hiding (after)

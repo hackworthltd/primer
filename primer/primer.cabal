@@ -26,6 +26,8 @@ library
     Primer.Core.Transform
     Primer.Core.Utils
     Primer.Database
+    Primer.Def
+    Primer.Def.Utils
     Primer.Eval
     Primer.EvalFull
     Primer.Examples
@@ -42,6 +44,7 @@ library
     Primer.Refine
     Primer.Subst
     Primer.Typecheck
+    Primer.TypeDef
     Primer.Unification
     Primer.Zipper
     Primer.ZipperCxt

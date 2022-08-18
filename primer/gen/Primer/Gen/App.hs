@@ -10,11 +10,11 @@ module Primer.Gen.App (
 ) where
 
 import Primer.App (Prog (Prog, progImports, progLog, progModules, progSelection, progSmartHoles), defaultLog)
-import Primer.Core (ASTDef (ASTDef), Def (DefAST), GlobalName (baseName), Kind (KType), ModuleName (ModuleName), qualifyName)
+import Primer.Core (GlobalName (baseName), Kind (KType), ModuleName (ModuleName), qualifyName)
 import Primer.Core.Utils (forgetTypeMetadata, generateIDs, generateTypeIDs)
+import Primer.Def (ASTDef (ASTDef), Def (DefAST), defType)
 import Primer.Module (Module (Module, moduleDefs, moduleName, moduleTypes), moduleDefsQualified, moduleTypesQualified)
 import Primer.Name (Name, unsafeMkName)
-import Primer.Primitives (defType)
 import Primer.Typecheck (Cxt, SmartHoles, extendGlobalCxt, extendTypeDefCxt)
 
 import Primer.Gen.Core.Typed (WT, freshNameForCxt, genChk, genTypeDefGroup, genWTType)
