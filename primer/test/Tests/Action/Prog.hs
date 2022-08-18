@@ -546,33 +546,35 @@ unit_copy_paste_duplicate = do
             assertBool "equal to toDef" $ src /= lookupASTDef' "blank" r
             clearIDs src @?= clearIDs (lookupASTDef' "blank" r)
 
--- ∀a . (∀b,c . a -> b -> ∀d. c -> d)  -> ∀c. ?
--- copy         ^------------------^
--- paste                                      ^
+-- ∀a,d . (∀b,c . a -> b -> ∀e. c -> d -> e)  -> ∀c. ?
+-- copy           ^-----------------------^
+-- paste                                             ^
 -- should result in
--- ∀a . (∀b,c . a -> b -> ∀d. c -> d)  -> ∀c. a -> ? -> ∀d. ? -> d
+-- ∀a,d . (∀b,c . a -> b -> ∀e. c -> d -> e)  -> ∀c. a -> ? -> ∀e. ? -> ? -> e
 --
 -- This tests that we handle scoping correctly:
 -- - The a is in-scope: so copied
--- - The b is out-of-scope, so replaced with a hole
+-- - The b is out-of-scope so replaced with a hole
 -- - The c is out-of-scope (even though the target has a 'c' in-scope, it is a
 --   different binder), so replace with a hole
--- - The d is bound within the copied subtree, so it is in-scope
+-- - The d is out-of-scope (even though a different 'd' is in scope in the common
+--   ancestor of the source and target), so replaced with a hole
+-- - The e is bound within the copied subtree, so it is in-scope
 unit_copy_paste_type_scoping :: Assertion
 unit_copy_paste_type_scoping = do
   let mainName = gvn "main"
       ((pInitial, srcID, pExpected), maxID) = create $ do
-        toCopy <- tvar "a" `tfun` tvar "b" `tfun` tforall "d" KType (tvar "c" `tfun` tvar "d")
-        let skel r = tforall "a" KType $ tfun (tforall "b" KType $ tforall "c" KType $ pure toCopy) $ tforall "c" KType r
+        toCopy <- tvar "a" `tfun` tvar "b" `tfun` tforall "e" KType (tvar "c" `tfun` tvar "d"`tfun` tvar "e")
+        let skel r = tforall "a" KType $ tforall "d" KType $ tfun (tforall "b" KType $ tforall "c" KType $ pure toCopy) $ tforall "c" KType r
         defInitial <- ASTDef <$> emptyHole <*> skel tEmptyHole
-        expected <- ASTDef <$> emptyHole <*> skel (tvar "a" `tfun` tEmptyHole `tfun` tforall "d" KType (tEmptyHole `tfun` tvar "d"))
+        expected <- ASTDef <$> emptyHole <*> skel (tvar "a" `tfun` tEmptyHole `tfun` tforall "e" KType (tEmptyHole `tfun` tEmptyHole `tfun` tvar "e"))
         pure
           ( newEmptyProg' & #progModules % _head % #moduleDefs .~ Map.fromList [("main", DefAST defInitial)]
           , getID toCopy
           , newEmptyProg' & #progModules % _head % #moduleDefs .~ Map.fromList [("main", DefAST expected)]
           )
   let a = mkEmptyTestApp pInitial
-      actions = [MoveToDef mainName, CopyPasteSig (mainName, srcID) [Move Child1, Move Child2, Move Child1]]
+      actions = [MoveToDef mainName, CopyPasteSig (mainName, srcID) [Move Child1, Move Child1, Move Child2, Move Child1]]
       (result, _) = runAppTestM maxID a $ (,) <$> tcWholeProg pExpected <*> handleEditRequest actions
   case result of
     Left e -> assertFailure $ show e
