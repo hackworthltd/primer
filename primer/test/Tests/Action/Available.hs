@@ -55,7 +55,7 @@ import Primer.Builtins (builtinModule)
 import Primer.Primitives (primitiveModule)
 import Gen.Core.Raw (genName)
 import Primer.Questions (variablesInScopeExpr, variablesInScopeTy, Question (GenerateName), generateNameExpr, generateNameTy)
-import Primer.Zipper (focusOn, locToEither, focusOnTy, Loc' (InType), target, up)
+import Primer.Zipper (focusOn, locToEither, focusOnTy, Loc' (InType), target, up, replace)
 import TestM (evalTestM)
 import Tests.Action.Prog (progActionTest, expectSuccess, defaultEmptyProg)
 import Primer.Pretty (prettyExpr, prettyPrintExpr, compact)
@@ -368,11 +368,12 @@ unit_tmp = let
 unit_tmp_scope :: Assertion
 unit_tmp_scope = let
   n = mkSimpleModuleName "M"
-  (e,i) = create' $ do
+  (e,i,h) = create' $ do
     v <- tvar "x"
     -- NB, the tapp is important!
     e <- letrec "x" (emptyHole `ann` (tEmptyHole `tapp` tforall "x" KType (pure v))) tEmptyHole emptyHole
-    pure (e, getID v)
+    h <- tEmptyHole
+    pure (e, getID v, h)
   in do
   putStrLn ("" :: Text)
   print e
@@ -382,7 +383,7 @@ unit_tmp_scope = let
   print $ target z1
   let Just z2 = up z1
   print $ target z2
-  let sharedScope = getSharedScopeTy (Left z1) (Left z2)
+  let sharedScope = getSharedScopeTy (Left z1) (Left $ replace h z2)
   print sharedScope
   sharedScope @?= []
   {-
