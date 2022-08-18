@@ -8,14 +8,17 @@ module Primer.Pretty (
   compact,
 ) where
 
-import Foreword hiding (group)
+import Foreword hiding (group, list)
 
+import Data.Text qualified as T
 import Prettyprinter (
   Doc,
   Pretty (pretty),
   annotate,
+  fill,
   flatAlt,
   group,
+  hardline,
   indent,
   line,
   line',
@@ -54,8 +57,6 @@ data PrettyOptions = PrettyOptions
   -- ^ Attempt to print λs and Λs on one line
   , inlineForAll :: Bool
   -- ^ Attempt to print @for all@ and associated type sig on one line
-  , inlineMatch :: Bool
-  -- ^ Attempt to print each case on one line
   }
 
 -- | Default PrettyOptions - makes no attempt to group text
@@ -67,7 +68,6 @@ sparse =
     , inlineLet = False
     , inlineLambda = False
     , inlineForAll = False
-    , inlineMatch = False
     }
 
 -- | Groups whenever possible
@@ -79,7 +79,6 @@ compact =
     , inlineLet = True
     , inlineLambda = True
     , inlineForAll = True
-    , inlineMatch = True
     }
 
 -- | Pretty prints @Expr'@ using Prettyprinter library
@@ -97,7 +96,7 @@ prettyExpr opts = \case
           <> lname n
           <> col Magenta "."
           <> line
-          <> indent 2 (pE e)
+          <> indent' 2 (pE e)
       )
   LAM _ n e ->
     (if inlineLambda opts then group else identity)
@@ -105,36 +104,38 @@ prettyExpr opts = \case
           <> lname n
           <> col Magenta "."
           <> line
-          <> indent 2 (pE e)
+          <> indent' 2 (pE e)
       )
   Case _ e bs ->
-    col Yellow "match"
-      <+> pE e
-      <+> col Yellow "with"
-        <> line
-      <+> indent'
-        2
-        ( mconcat
-            ( intersperse
-                line
-                $ map
-                  ( \(CaseBranch n bs' e') ->
-                      col Green (gname opts n)
-                        <+> mconcat
-                          ( intersperse space $
-                              map
-                                (\(Bind _ n') -> lname n')
-                                bs'
-                          )
-                        <+> col Yellow "→"
-                          <> (if inlineMatch opts then group else identity)
-                            ( line
-                                <> indent' 2 (pE e')
-                            )
-                  )
-                  bs
-            )
-        )
+    col Yellow "match" <+> pE e <+> col Yellow "with" <> hardline <> indent 2 printCases
+    where
+      -- Cases split into two parts for printing: (Value, "→" + Expression)
+      caseParts :: [(Doc AnsiStyle, Doc AnsiStyle)]
+      caseParts =
+        map
+          ( \(CaseBranch n bs' e') ->
+              ( col Green (gname opts n)
+                  <> mconcat
+                    ( intersperse'
+                        space
+                        ( map
+                            (\(Bind _ n') -> lname n')
+                            bs'
+                        )
+                    )
+              , col Yellow "→"
+                  <+> pE e'
+              )
+          )
+          bs
+      intersperse' x = foldr (\y z -> x : y : z) [x]
+
+      printCases = mconcat . intersperse hardline $ casesAligned
+
+      casesAligned :: [Doc AnsiStyle]
+      casesAligned = map (\(f, s) -> fill caseWidth f <> s) caseParts
+      caseWidth :: Int
+      caseWidth = maximum $ map (T.length . show . fst) caseParts
   Ann _ e t -> typeann e t
   App _ e e' -> brac Round White (pE e) <> line <> brac Round White (pE e')
   APP _ e t -> brac Round Yellow (pE e) <+> col Yellow "@" <> pT t
@@ -145,7 +146,7 @@ prettyExpr opts = \case
         <> inlineblock opts (pE e)
         <> col Yellow "in"
         <> line
-        <> indent 2 (pE e')
+        <> indent' 2 (pE e')
   LetType _ v t e ->
     col Yellow "let type"
       <+> lname v
@@ -153,7 +154,7 @@ prettyExpr opts = \case
         <> inlineblock opts (pT t)
         <> col Yellow "in"
         <> line
-        <> indent 2 (pE e)
+        <> indent' 2 (pE e)
   Letrec _ v e t e' ->
     col Yellow "let rec"
       <+> lname v
@@ -161,14 +162,14 @@ prettyExpr opts = \case
         <> inlineblock opts (typeann e t)
         <> col Yellow "in"
         <> line
-        <> indent 2 (pE e')
+        <> indent' 2 (pE e')
   PrimCon _ p -> case p of
     PrimChar c -> "Char" <+> pretty @Text (show c)
     PrimInt n -> "Int" <+> pretty @Text (show n)
   where
-    typeann e t = brac Round Yellow (pE e) <+> col Yellow "::" <> line <> brac Round Yellow (pT t)
     pT = prettyType opts
     pE = prettyExpr opts
+    typeann e t = brac Round Yellow (pE e) <+> col Yellow "::" <> line <> brac Round Yellow (pT t)
 
 -- When grouped: " x "
 -- When ungrouped: "\n\tx\n"
