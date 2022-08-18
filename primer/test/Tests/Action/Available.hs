@@ -303,114 +303,153 @@ unit_tmp = let
           [ ( "a"
             , DefAST
                 ASTDef
-                  { astDefExpr = Let
-                                    ( Meta
-                                        3
-                                        ( Just ( TCChkedAt (TEmptyHole ())))
-                                        Nothing
-                                    )
+                  { astDefExpr =
+                           Lam
+                              (Meta 1 (Just (TCChkedAt (TEmptyHole ()))) Nothing)
+                              "foo"
+                              (Letrec
+                                 (Meta
+                                    2 (Just (TCChkedAt (TEmptyHole ()))) Nothing)
+                                 "z"
+                                 (Let
+                                    (Meta
+                                       3
+                                       (Just
+                                          (TCChkedAt
+                                             (TApp
+                                                ()
+                                                (TEmptyHole ())
+                                                (TForall
+                                                   ()
+                                                   "z"
+                                                   KType
+                                                   (TVar
+                                                      ()
+                                                      "z")))))
+                                       Nothing)
                                     "x"
-                                    ( EmptyHole
-                                        ( Meta
-                                            4
-                                            (Just (TCSynthed (TEmptyHole ())))
-                                            Nothing
-                                        )
-                                    )
-                                    ( Letrec
-                                        ( Meta
-                                            5
-                                            ( Just
-                                                ( TCChkedAt (TEmptyHole ()))
-                                            )
-                                            Nothing
-                                        )
-                                        "x"
-                                        ( EmptyHole
-                                            ( Meta
-                                                6
-                                                ( Just
-                                                    ( TCEmb
-                                                        TCBoth
-                                                          { tcChkedAt = TEmptyHole (),
-                                                            tcSynthed = TEmptyHole ()
-                                                          }
-                                                    )
-                                                )
-                                                Nothing
-                                            )
-                                        )
-                                        (TEmptyHole (Meta 12 (Just KHole) Nothing))
-                                        ( Ann
-                                            ( Meta
-                                                7
-                                                ( Just
-                                                    ( TCEmb
-                                                        TCBoth
-                                                          { tcChkedAt = TEmptyHole ()
-                                                          , tcSynthed =
-                                                              TApp
-                                                                ()
-                                                                (TEmptyHole ())
-                                                                ( TForall
+                                    (EmptyHole
+                                       (Meta
+                                          4
+                                          (Just (TCSynthed (TEmptyHole ())))
+                                          Nothing))
+                                    (Letrec
+                                       (Meta
+                                          5
+                                          (Just
+                                             (TCChkedAt
+                                                (TApp
+                                                   ()
+                                                   (TEmptyHole ())
+                                                   (TForall
+                                                      ()
+                                                      "z"
+                                                      KType
+                                                      (TVar
+                                                         ()
+                                                         "z")))))
+                                          Nothing)
+                                       "x"
+                                       (EmptyHole
+                                          (Meta
+                                             6
+                                             (Just
+                                                (TCEmb
+                                                   TCBoth
+                                                     { tcChkedAt = TEmptyHole ()
+                                                     , tcSynthed = TEmptyHole ()
+                                                     }))
+                                             Nothing))
+                                       (TEmptyHole (Meta 12 (Just KHole) Nothing))
+                                       (Ann
+                                          (Meta
+                                             7
+                                             (Just
+                                                (TCEmb
+                                                   TCBoth
+                                                     { tcChkedAt =
+                                                         TApp
+                                                           ()
+                                                           (TEmptyHole ())
+                                                           (TForall
+                                                              ()
+                                                              "z"
+                                                              KType
+                                                              (TVar
+                                                                 ()
+                                                                 "z"))
+                                                     , tcSynthed =
+                                                         TApp
+                                                           ()
+                                                           (TEmptyHole ())
+                                                           (TForall
+                                                              ()
+                                                              "z"
+                                                              KType
+                                                              (TVar
+                                                                 ()
+                                                                 "z"))
+                                                     }))
+                                             Nothing)
+                                          (EmptyHole
+                                             (Meta
+                                                8
+                                                (Just
+                                                   (TCEmb
+                                                      TCBoth
+                                                        { tcChkedAt =
+                                                            TApp
+                                                              ()
+                                                              (TEmptyHole ())
+                                                              (TForall
+                                                                 ()
+                                                                 "z"
+                                                                 KType
+                                                                 (TVar
                                                                     ()
-                                                                    "z"
-                                                                    KType
-                                                                    ( TVar
-                                                                        ()
-                                                                        "z"
-                                                                    )
-                                                                )
-                                                          }
-                                                    )
-                                                )
-                                                Nothing
-                                            )
-                                            ( EmptyHole
-                                                ( Meta
-                                                    8
-                                                    ( Just
-                                                        ( TCEmb
-                                                            TCBoth
-                                                              { tcChkedAt =
-                                                                  TApp
-                                                                    ()
-                                                                    (TEmptyHole ())
-                                                                    ( TForall
-                                                                        ()
-                                                                        "z"
-                                                                        KType
-                                                                        ( TVar
-                                                                            ()
-                                                                            "z"
-                                                                        )
-                                                                    ),
-                                                                tcSynthed =
-                                                                  TEmptyHole ()
-                                                              }
-                                                        )
-                                                    )
-                                                    Nothing
-                                                )
-                                            )
-                                            ( TApp
-                                                (Meta 13 (Just KHole) Nothing)
-                                                ( TEmptyHole
-                                                    (Meta 14 (Just KHole) Nothing)
-                                                )
-                                                ( TForall
-                                                    (Meta 15 (Just KType) Nothing)
-                                                    "z"
-                                                    KType
-                                                    ( TVar
-                                                        (Meta 16 (Just KType) Nothing)
-                                                        "z"
-                                                    )
-                                                )
-                                            )
-                                        )
-                                    )
-
+                                                                    "z"))
+                                                        , tcSynthed =
+                                                            TEmptyHole ()
+                                                        }))
+                                                Nothing))
+                                          (TApp
+                                             (Meta 13 (Just KHole) Nothing)
+                                             (TEmptyHole
+                                                (Meta 14 (Just KHole) Nothing))
+                                             (TForall
+                                                (Meta 15 (Just KType) Nothing)
+                                                "z"
+                                                KType
+                                                (TVar
+                                                   (Meta 16 (Just KType) Nothing)
+                                                   "z"))))))
+                                 (TApp
+                                    (Meta 17 (Just KHole) Nothing)
+                                    (TEmptyHole (Meta 18 (Just KHole) Nothing))
+                                    (TForall
+                                       (Meta 19 (Just KType) Nothing)
+                                       "z"
+                                       KType
+                                       (TVar
+                                          (Meta 20 (Just KType) Nothing)
+                                          "z")))
+                                 (Lam
+                                    (Meta
+                                       9
+                                       (Just (TCChkedAt (TEmptyHole ())))
+                                       Nothing)
+                                    "x"
+                                    (Case
+                                       (Meta
+                                          10
+                                          (Just (TCChkedAt (TEmptyHole ())))
+                                          Nothing)
+                                       (EmptyHole
+                                          (Meta
+                                             11
+                                             (Just (TCSynthed (TEmptyHole ())))
+                                             Nothing))
+                                       [])))
                   , astDefType = TEmptyHole                         (Meta 22 (Just KHole) Nothing)
                   }
             )
