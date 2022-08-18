@@ -365,6 +365,18 @@ unit_tmp = let
               (Left err, _) -> assertFailure $ show err
               (Right _, _) -> pure ()
 
+-- OH NO, I see the bug.
+-- The whole idea of getSharedScope* in copyPaste is wrong (because of reference-by-name)!
+-- Consider (using numbers to make references obvious, but all variables are named "x")
+--   λx0 . ? $ λx1 (x1, λx2.x2)
+-- and copy-paste the pair into the hole
+-- We need to get
+--   λx0 . (?, λx2.x2) $ λx1 (x1, λx2.x2)
+-- but the "shared scope" is [x] (recall, numeric suffix is only for presentation, not part of the name!)
+-- The problem is that shadowing means we don't notice we have gone out of a binder.
+--
+-- The solution is to "not squeeze the toothpaste out of the tube": just compute what binders have been escaped!
+-- i.e. get all binders between source and common ancestor, and filter those fvs out
 unit_tmp_scope :: Assertion
 unit_tmp_scope = let
   n = mkSimpleModuleName "M"
