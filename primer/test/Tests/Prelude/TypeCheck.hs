@@ -7,8 +7,7 @@ import Foreword
 import Primer.Core.DSL (create')
 import Primer.Prelude (prelude)
 
-import Primer.Builtins (builtinModule)
-import Primer.Module (Module)
+import Primer.Module (Module, builtinModule)
 import Primer.Typecheck (
   CheckEverythingRequest (CheckEverything, toCheck, trusted),
   SmartHoles (NoSmartHoles),

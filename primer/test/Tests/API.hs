@@ -32,6 +32,7 @@ import Primer.Database (
   defaultSessionName,
   fromSessionName,
  )
+import Primer.Def (astDefExpr, astDefType, defAST)
 import Primer.Examples (
   comprehensive,
   even3App,

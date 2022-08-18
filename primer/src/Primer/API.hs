@@ -89,7 +89,6 @@ import Primer.App (
  )
 import Primer.App qualified as App
 import Primer.Core (
-  ASTDef (..),
   Bind' (..),
   CaseBranch' (..),
   Expr,
@@ -107,13 +106,11 @@ import Primer.Core (
   TyVarName,
   Type,
   Type' (..),
-  defAST,
   moduleNamePretty,
   unLocalName,
   _typeMeta,
   _typeMetaLens,
  )
-import Primer.Core qualified as Core
 import Primer.Database (
   OffsetLimit,
   Page,
@@ -142,6 +139,11 @@ import Primer.Database qualified as Database (
     Success
   ),
  )
+import Primer.Def (
+  ASTDef (..),
+  defAST,
+ )
+import Primer.Def qualified as Def
 import Primer.JSON (
   CustomJSON (..),
   PrimerJSON,
@@ -490,8 +492,8 @@ viewProg p =
                   , term = viewTreeExpr . astDefExpr <$> defAST d
                   , type_ =
                       case d of
-                        Core.DefAST d' -> viewTreeType $ astDefType d'
-                        Core.DefPrim d' -> viewTreeType' $ labelNodes $ primDefType d'
+                        Def.DefAST d' -> viewTreeType $ astDefType d'
+                        Def.DefPrim d' -> viewTreeType' $ labelNodes $ primDefType d'
                           where
                             labelNodes =
                               flip evalState (0 :: Int) . traverseOf _typeMeta \() -> do

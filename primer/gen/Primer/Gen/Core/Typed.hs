@@ -42,7 +42,6 @@ import Hedgehog.Gen qualified as Gen
 import Hedgehog.Internal.Property (forAllT)
 import Hedgehog.Range qualified as Range
 import Primer.Core (
-  ASTTypeDef (..),
   Bind' (Bind),
   CaseBranch' (CaseBranch),
   Expr' (..),
@@ -58,14 +57,8 @@ import Primer.Core (
   TyConName,
   TyVarName,
   Type' (..),
-  TypeDef (..),
-  ValCon (..),
   ValConName,
   qualifyName,
-  typeDefKind,
-  typeDefParameters,
-  valConName,
-  valConType,
  )
 import Primer.Core.Utils (freeVarsTy)
 import Primer.Gen.Core.Raw (genLVarName, genModuleName, genName, genTyVarName)
@@ -73,6 +66,14 @@ import Primer.Module (Module (..))
 import Primer.Name (Name, NameCounter, freshName, unName, unsafeMkName)
 import Primer.Refine (Inst (InstAPP, InstApp, InstUnconstrainedAPP), refine)
 import Primer.Subst (substTy, substTys)
+import Primer.TypeDef (
+  ASTTypeDef (..),
+  TypeDef (..),
+  ValCon (..),
+  typeDefKind,
+  typeDefParameters,
+  valConType,
+ )
 import Primer.Typecheck (
   Cxt (),
   SmartHoles (NoSmartHoles),

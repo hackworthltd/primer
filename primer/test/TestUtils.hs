@@ -35,7 +35,6 @@ import Primer.Action (
   Action (ConstructCon, ConstructRefinedCon, ConstructTCon),
  )
 import Primer.Core (
-  DefMap,
   Expr',
   ExprMeta,
   GVarName,
@@ -60,9 +59,10 @@ import Primer.Database (
   runNullDb',
   serve,
  )
-import Primer.Module (Module (moduleDefs))
+import Primer.Def (DefMap)
+import Primer.Module (Module (moduleDefs), primitiveModule)
 import Primer.Name (Name (unName))
-import Primer.Primitives (primitiveGVar, primitiveModule)
+import Primer.Primitives (primitiveGVar)
 import StmContainers.Map qualified as StmMap
 import Test.Tasty.HUnit (
   assertBool,

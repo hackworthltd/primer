@@ -10,12 +10,6 @@ module Primer.Core (
   TmVarRef (..),
   CaseBranch,
   CaseBranch' (..),
-  Def (..),
-  DefMap,
-  ASTDef (..),
-  defAST,
-  PrimDef (..),
-  defPrim,
   HasID (..),
   getID,
   setID,
@@ -43,19 +37,7 @@ module Primer.Core (
   _chkedAt,
   _synthed,
   Kind (..),
-  TypeDef (..),
-  TypeDefMap,
-  typeDefAST,
-  typeDefKind,
-  typeDefNameHints,
-  typeDefParameters,
-  ASTTypeDef (..),
-  PrimTypeDef (..),
   PrimCon (..),
-  primConName,
-  PrimFunError (..),
-  ValCon (..),
-  valConType,
   Value,
   ExprMeta,
   TypeMeta,
@@ -476,135 +458,8 @@ instance HasMetadata (Type' TypeMeta) where
 instance HasMetadata (Bind' ExprMeta) where
   _metadata = position @1 % typed @(Maybe Value)
 
-data Def
-  = DefPrim PrimDef
-  | DefAST ASTDef
-  deriving (Eq, Show, Data, Generic)
-  deriving (FromJSON, ToJSON) via PrimerJSON Def
-
--- | A mapping of global names to 'Def's.
-type DefMap = Map GVarName Def
-
--- | A primitive, built-in definition.
--- For each of these, we should have a test that the evaluator produces expected results.
-data PrimDef
-  = ToUpper
-  | IsSpace
-  | HexToNat
-  | NatToHex
-  | EqChar
-  | IntAdd
-  | IntMinus
-  | IntMul
-  | IntQuotient
-  | IntRemainder
-  | IntQuot
-  | IntRem
-  | IntLT
-  | IntLTE
-  | IntGT
-  | IntGTE
-  | IntEq
-  | IntNeq
-  | IntToNat
-  | IntFromNat
-  deriving (Eq, Show, Enum, Bounded, Data, Generic)
-  deriving (FromJSON, ToJSON) via PrimerJSON PrimDef
-
--- | A top-level definition, built from an 'Expr'
-data ASTDef = ASTDef
-  { astDefExpr :: Expr
-  , astDefType :: Type
-  }
-  deriving (Eq, Show, Data, Generic)
-  deriving (FromJSON, ToJSON) via PrimerJSON ASTDef
-
-defAST :: Def -> Maybe ASTDef
-defAST = \case
-  DefPrim _ -> Nothing
-  DefAST t -> Just t
-defPrim :: Def -> Maybe PrimDef
-defPrim = \case
-  DefPrim t -> Just t
-  DefAST _ -> Nothing
-
 data PrimCon
   = PrimChar Char
   | PrimInt Integer
   deriving (Eq, Show, Data, Generic)
   deriving (FromJSON, ToJSON) via PrimerJSON PrimCon
-
--- | The name of the type to which this primitive constructor belongs.
--- This should be a key in `allPrimTypeDefs`.
-primConName :: PrimCon -> TyConName
-primConName = \case
-  PrimChar _ -> qualifyName (mkSimpleModuleName "Primitives") "Char"
-  PrimInt _ -> qualifyName (mkSimpleModuleName "Primitives") "Int"
-
-data PrimFunError
-  = -- | We have attempted to apply a primitive function to invalid args.
-    PrimFunError
-      PrimDef
-      [Expr' () ()]
-      -- ^ Arguments
-  deriving (Eq, Show, Data, Generic)
-  deriving (FromJSON, ToJSON) via PrimerJSON PrimFunError
-
-data TypeDef
-  = TypeDefPrim PrimTypeDef
-  | TypeDefAST ASTTypeDef
-  deriving (Eq, Show, Data, Generic)
-  deriving (FromJSON, ToJSON) via PrimerJSON TypeDef
-
--- | A mapping of global names to 'TypeDef's.
-type TypeDefMap = Map TyConName TypeDef
-
--- | Definition of a primitive data type
-data PrimTypeDef = PrimTypeDef
-  { primTypeDefParameters :: [Kind]
-  , primTypeDefNameHints :: [Name]
-  }
-  deriving (Eq, Show, Data, Generic)
-  deriving (FromJSON, ToJSON) via PrimerJSON PrimTypeDef
-
--- | Definition of an algebraic data type
---
--- Consider the type T = ASTTypeDef "T" [("a",TYPE),("b",TYPE->TYPE)] [ValCon "C" [b a, Nat]]
--- The kind of the type is TYPE{\-a-\} -> (TYPE -> TYPE){\-b-\} -> TYPE{\-always returns a type-\}
--- The type of the constructor is C :: forall a:TYPE. forall b:(TYPE->TYPE). b a -> Nat -> T a b
-data ASTTypeDef = ASTTypeDef
-  { astTypeDefParameters :: [(TyVarName, Kind)] -- These names scope over the constructors
-  , astTypeDefConstructors :: [ValCon]
-  , astTypeDefNameHints :: [Name]
-  }
-  deriving (Eq, Show, Data, Generic)
-  deriving (FromJSON, ToJSON) via PrimerJSON ASTTypeDef
-
-data ValCon = ValCon
-  { valConName :: ValConName
-  , valConArgs :: [Type' ()]
-  }
-  deriving (Eq, Show, Data, Generic)
-  deriving (FromJSON, ToJSON) via PrimerJSON ValCon
-
-valConType :: TyConName -> ASTTypeDef -> ValCon -> Type' ()
-valConType tc td vc =
-  let ret = foldl' (\t (n, _) -> TApp () t (TVar () n)) (TCon () tc) (astTypeDefParameters td)
-      args = foldr (TFun ()) ret (valConArgs vc)
-      foralls = foldr (\(n, k) t -> TForall () n k t) args (astTypeDefParameters td)
-   in foralls
-
-typeDefNameHints :: TypeDef -> [Name]
-typeDefNameHints = \case
-  TypeDefPrim t -> primTypeDefNameHints t
-  TypeDefAST t -> astTypeDefNameHints t
-typeDefParameters :: TypeDef -> [Kind]
-typeDefParameters = \case
-  TypeDefPrim t -> primTypeDefParameters t
-  TypeDefAST t -> snd <$> astTypeDefParameters t
-typeDefAST :: TypeDef -> Maybe ASTTypeDef
-typeDefAST = \case
-  TypeDefPrim _ -> Nothing
-  TypeDefAST t -> Just t
-typeDefKind :: TypeDef -> Kind
-typeDefKind = foldr KFun KType . typeDefParameters

@@ -9,7 +9,6 @@ module Primer.Core.Utils (
   generateIDs,
   regenerateExprIDs,
   forgetMetadata,
-  nextID,
   noHoles,
   _freeTmVars,
   _freeTyVars,
@@ -35,7 +34,6 @@ import Optics (
   Traversal,
   Traversal',
   adjoin,
-  foldlOf',
   getting,
   hasn't,
   set,
@@ -48,10 +46,9 @@ import Optics (
   _Left,
   _Right,
  )
+
 import Primer.Core (
-  ASTDef (..),
   CaseBranch' (..),
-  Def (..),
   Expr,
   Expr' (..),
   GVarName,
@@ -260,15 +257,3 @@ exprIDs = (_exprMeta % _id) `adjoin` (_exprTypeMeta % _id)
 -- | Traverse the 'ID's in a 'Type''.
 typeIDs :: HasID a => Traversal' (Type' a) ID
 typeIDs = _typeMeta % _id
-
--- | Given a 'Def', return its next 'ID'.
---
--- Note: do not rely on the implementation of this function, as it may
--- change in the future.
-nextID :: Def -> ID
-nextID (DefAST (ASTDef e t)) =
-  let eid = foldlOf' exprIDs max minBound e
-      tid = foldlOf' typeIDs max minBound t
-   in succ $ max eid tid
-nextID (DefPrim _) = 0
-{-# INLINE nextID #-}

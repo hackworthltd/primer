@@ -99,15 +99,10 @@ import Primer.Action (
   applyActionsToBody,
   applyActionsToTypeSig,
  )
-import Primer.Builtins (builtinModule)
 import Primer.Core (
-  ASTDef (..),
-  ASTTypeDef (..),
   Bind' (Bind),
   CaseBranch,
   CaseBranch' (CaseBranch),
-  Def (..),
-  DefMap,
   Expr,
   Expr' (Case, Con, EmptyHole, Hole, Var),
   ExprMeta,
@@ -122,17 +117,11 @@ import Primer.Core (
   TyVarName,
   Type,
   Type' (..),
-  TypeDef (..),
-  TypeDefMap,
   TypeMeta,
-  ValCon (..),
   ValConName,
-  defAST,
-  defPrim,
   getID,
   mkSimpleModuleName,
   qualifyName,
-  typeDefAST,
   typesInExpr,
   unModuleName,
   unsafeMkGlobalName,
@@ -144,29 +133,44 @@ import Primer.Core.DSL (create, emptyHole, tEmptyHole)
 import Primer.Core.DSL qualified as DSL
 import Primer.Core.Transform (foldApp, renameVar, unfoldAPP, unfoldApp, unfoldTApp)
 import Primer.Core.Utils (freeGlobalVars, freeVars, regenerateExprIDs, regenerateTypeIDs, _freeTmVars, _freeTyVars, _freeVarsTy)
+import Primer.Def (
+  ASTDef (..),
+  Def (..),
+  DefMap,
+  defAST,
+  defPrim,
+ )
 import Primer.Eval (EvalDetail, EvalError)
 import Primer.Eval qualified as Eval
 import Primer.EvalFull (Dir, EvalFullError (TimedOut), TerminationBound, evalFull)
 import Primer.JSON
 import Primer.Module (
   Module (Module, moduleDefs, moduleName, moduleTypes),
+  builtinModule,
   deleteDef,
   insertDef,
   moduleDefsQualified,
   moduleTypesQualified,
   nextModuleID,
+  primitiveModule,
   qualifyDefName,
   renameModule,
   renameModule',
  )
 import Primer.Name (Name (unName), NameCounter, freshName, unsafeMkName)
-import Primer.Primitives (primitiveModule)
 import Primer.Questions (
   Question (..),
   generateNameExpr,
   generateNameTy,
   variablesInScopeExpr,
   variablesInScopeTy,
+ )
+import Primer.TypeDef (
+  ASTTypeDef (..),
+  TypeDef (..),
+  TypeDefMap,
+  ValCon (..),
+  typeDefAST,
  )
 import Primer.Typecheck (
   CheckEverythingRequest (CheckEverything, toCheck, trusted),

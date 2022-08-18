@@ -3,7 +3,6 @@
 --   for the fact that some of the primitive functions (see "Primer.Primitives")
 --   refer to these types.
 module Primer.Builtins (
-  builtinModule,
   tBool,
   cTrue,
   cFalse,
@@ -27,53 +26,27 @@ module Primer.Builtins (
   cLeft,
   cRight,
   eitherDef,
+  builtinModuleName,
 ) where
 
-import Foreword
-
-import Data.Map qualified as Map
 import Primer.Core (
-  ASTTypeDef (
-    ASTTypeDef,
-    astTypeDefConstructors,
-    astTypeDefNameHints,
-    astTypeDefParameters
-  ),
-  GlobalName (baseName),
+  GlobalName,
   Kind (KType),
   ModuleName,
   TyConName,
   Type' (TApp, TCon, TVar),
-  TypeDef (TypeDefAST),
-  ValCon (ValCon),
   ValConName,
   mkSimpleModuleName,
   qualifyName,
  )
-import Primer.Module (Module (Module, moduleDefs, moduleName, moduleTypes))
 import Primer.Name (Name)
+import Primer.TypeDef (ASTTypeDef (..), ValCon (ValCon))
 
 builtinModuleName :: ModuleName
 builtinModuleName = mkSimpleModuleName "Builtins"
 
 builtin :: Name -> GlobalName k
 builtin = qualifyName builtinModuleName
-
-builtinModule :: Module
-builtinModule =
-  Module
-    { moduleName = builtinModuleName
-    , moduleTypes =
-        Map.fromList
-          [ (baseName tBool, TypeDefAST boolDef)
-          , (baseName tNat, TypeDefAST natDef)
-          , (baseName tList, TypeDefAST listDef)
-          , (baseName tMaybe, TypeDefAST maybeDef)
-          , (baseName tPair, TypeDefAST pairDef)
-          , (baseName tEither, TypeDefAST eitherDef)
-          ]
-    , moduleDefs = mempty
-    }
 
 tBool :: TyConName
 tBool = builtin "Bool"

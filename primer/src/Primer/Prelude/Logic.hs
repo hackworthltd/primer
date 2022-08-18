@@ -9,8 +9,6 @@ import Foreword hiding (and, not, or, xor)
 import Control.Monad.Fresh (MonadFresh)
 import Primer.Builtins qualified as B
 import Primer.Core (
-  ASTDef (ASTDef),
-  Def (DefAST),
   GVarName,
   ID,
   qualifyName,
@@ -25,6 +23,10 @@ import Primer.Core.DSL (
   lvar,
   tcon,
   tfun,
+ )
+import Primer.Def (
+  ASTDef (ASTDef),
+  Def (DefAST),
  )
 import Primer.Prelude.Utils (apps, modName)
 

@@ -29,13 +29,9 @@ import GHC.Err (error)
 import Numeric.Natural (Natural)
 import Optics (AffineFold, Fold, afolding, anyOf, getting, summing, to, (%), _2, _3)
 import Primer.Core (
-  ASTDef (..),
-  ASTTypeDef (..),
   Bind' (Bind),
   CaseBranch,
   CaseBranch' (CaseBranch),
-  Def (..),
-  DefMap,
   Expr,
   Expr' (
     APP,
@@ -66,11 +62,9 @@ import Primer.Core (
     TFun,
     TVar
   ),
-  TypeDefMap,
   TypeMeta,
   ValConName,
   bindName,
-  defPrim,
  )
 import Primer.Core.DSL (ann, letType, let_, letrec, lvar, tvar)
 import Primer.Core.Transform (renameTyVar, unfoldAPP, unfoldApp)
@@ -87,9 +81,19 @@ import Primer.Core.Utils (
   _freeVars,
   _freeVarsTy,
  )
+import Primer.Def (
+  ASTDef (..),
+  Def (..),
+  DefMap,
+  defPrim,
+ )
 import Primer.Eval (tryPrimFun)
 import Primer.JSON (CustomJSON (CustomJSON), FromJSON, PrimerJSON, ToJSON)
 import Primer.Name (Name, NameCounter)
+import Primer.TypeDef (
+  ASTTypeDef (astTypeDefParameters),
+  TypeDefMap,
+ )
 import Primer.Typecheck (instantiateValCons', lookupConstructor, mkTAppCon)
 import Primer.Zipper (
   ExprZ,

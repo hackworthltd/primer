@@ -48,11 +48,8 @@ import Optics (
   _2,
  )
 import Primer.Core (
-  ASTDef (..),
   Bind' (..),
   CaseBranch' (..),
-  Def (..),
-  DefMap,
   Expr,
   Expr' (..),
   GVarName,
@@ -63,7 +60,6 @@ import Primer.Core (
   LocalName (LocalName, unLocalName),
   LocalNameKind (..),
   Meta,
-  PrimFunError (..),
   TmVarRef (..),
   TyVarName,
   Type,
@@ -71,7 +67,6 @@ import Primer.Core (
   TypeCache,
   ValConName,
   bindName,
-  defPrim,
   getID,
   _exprMetaLens,
   _type,
@@ -90,10 +85,21 @@ import Primer.Core.Utils (
   _freeVars,
   _freeVarsTy,
  )
-import Primer.JSON
+import Primer.Def (
+  ASTDef (..),
+  Def (..),
+  DefMap,
+  defPrim,
+ )
+import Primer.JSON (
+  CustomJSON (CustomJSON),
+  FromJSON,
+  PrimerJSON,
+  ToJSON,
+ )
 import Primer.Name (Name, unName, unsafeMkName)
 import Primer.Name.Fresh (isFresh, isFreshTy)
-import Primer.Primitives (PrimDef, primFunDef)
+import Primer.Primitives (PrimDef, PrimFunError, primFunDef)
 import Primer.Zipper (
   ExprZ,
   FoldAbove,

@@ -3,7 +3,6 @@ module Tests.Utils where
 import Foreword
 
 import Primer.Core (
-  Def,
   GVarName,
   ID (..),
   ModuleName,
@@ -13,7 +12,8 @@ import Primer.Core.DSL (
   S,
   create,
  )
-import Primer.Core.Utils (
+import Primer.Def (Def)
+import Primer.Def.Utils (
   nextID,
  )
 import Primer.Examples as Examples

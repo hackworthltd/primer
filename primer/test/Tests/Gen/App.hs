@@ -10,12 +10,11 @@ import Hedgehog (
  )
 import Hedgehog.Internal.Property (forAllT)
 import Primer.App (checkProgWellFormed)
-import Primer.Builtins (builtinModule)
 import Primer.Gen.App (genProg)
 import Primer.Gen.Core.Typed (
   propertyWT,
  )
-import Primer.Primitives (primitiveModule)
+import Primer.Module (builtinModule, primitiveModule)
 import Primer.Typecheck (SmartHoles (NoSmartHoles), TypeError)
 import Tasty (Property, withDiscards, withTests)
 

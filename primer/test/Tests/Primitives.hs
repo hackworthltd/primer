@@ -6,17 +6,19 @@ import Foreword
 
 import Data.Map qualified as M
 import Primer.Core (
+  Kind (KFun, KType),
+ )
+import Primer.Core.DSL (char, tcon)
+import Primer.Primitives (tChar)
+import Primer.TypeDef (
   ASTTypeDef (
     ASTTypeDef,
     astTypeDefConstructors,
     astTypeDefNameHints,
     astTypeDefParameters
   ),
-  Kind (KFun, KType),
   TypeDef (TypeDefAST),
  )
-import Primer.Core.DSL (char, tcon)
-import Primer.Primitives (tChar)
 import Primer.Typecheck (
   SmartHoles (NoSmartHoles),
   TypeError (PrimitiveTypeNotInScope, UnknownTypeConstructor),

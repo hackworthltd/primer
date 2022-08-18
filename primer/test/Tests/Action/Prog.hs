@@ -52,7 +52,6 @@ import Primer.App (
  )
 import Primer.App qualified as App
 import Primer.Builtins (
-  builtinModule,
   cCons,
   cJust,
   cMakePair,
@@ -67,10 +66,6 @@ import Primer.Builtins (
   tPair,
  )
 import Primer.Core (
-  ASTDef (..),
-  ASTTypeDef (..),
-  Def (..),
-  DefMap,
   Expr,
   Expr' (..),
   GVarName,
@@ -83,13 +78,9 @@ import Primer.Core (
   TyConName,
   Type,
   Type' (..),
-  TypeDef (..),
-  ValCon (..),
   ValConName,
-  defAST,
   getID,
   qualifyName,
-  typeDefAST,
  )
 import Primer.Core.DSL (
   S,
@@ -114,9 +105,11 @@ import Primer.Core.DSL (
   tvar,
  )
 import Primer.Core.Utils (forgetMetadata)
-import Primer.Module (Module (Module, moduleDefs, moduleName, moduleTypes), moduleDefsQualified, moduleTypesQualified)
+import Primer.Def (ASTDef (..), Def (..), DefMap, defAST)
+import Primer.Module (Module (Module, moduleDefs, moduleName, moduleTypes), builtinModule, moduleDefsQualified, moduleTypesQualified, primitiveModule)
 import Primer.Name
-import Primer.Primitives (primitiveGVar, primitiveModule, tChar)
+import Primer.Primitives (primitiveGVar, tChar)
+import Primer.TypeDef (ASTTypeDef (..), TypeDef (..), ValCon (..), typeDefAST)
 import Primer.Typecheck (SmartHoles (NoSmartHoles, SmartHoles), TypeError (UnknownTypeConstructor))
 import Test.Tasty.HUnit (Assertion, assertBool, assertFailure, (@=?), (@?=))
 import TestM (TestM, evalTestM)

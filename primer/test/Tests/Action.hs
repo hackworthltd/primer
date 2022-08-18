@@ -32,6 +32,7 @@ import Primer.Gen.Core.Raw (
   evalExprGen,
   genExpr,
  )
+import Primer.Module (builtinModule)
 import Primer.Typecheck (SmartHoles (NoSmartHoles, SmartHoles))
 import Primer.Zipper (
   down,

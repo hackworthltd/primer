@@ -24,7 +24,6 @@ import Primer.App (
  )
 import Primer.Builtins (
   boolDef,
-  builtinModule,
   cFalse,
   cJust,
   cMakePair,
@@ -45,6 +44,7 @@ import Primer.Core.Utils (
   forgetMetadata,
   generateIDs,
  )
+import Primer.Def (ASTDef (..), Def (..), DefMap)
 import Primer.EvalFull
 import Primer.Examples qualified as Examples (
   even,
@@ -53,9 +53,10 @@ import Primer.Examples qualified as Examples (
   odd,
  )
 import Primer.Gen.Core.Typed (WT, forAllT, genChk, genSyn, genWTType, isolateWT, propertyWT)
-import Primer.Module (Module (Module, moduleDefs, moduleName, moduleTypes), moduleDefsQualified, moduleTypesQualified)
+import Primer.Module (Module (Module, moduleDefs, moduleName, moduleTypes), builtinModule, moduleDefsQualified, moduleTypesQualified, primitiveModule)
 import Primer.Name (Name)
-import Primer.Primitives (primitiveGVar, primitiveModule, tChar, tInt)
+import Primer.Primitives (primitiveGVar, tChar, tInt)
+import Primer.TypeDef (TypeDef (..), TypeDefMap)
 import Primer.Typecheck (
   SmartHoles (NoSmartHoles),
   check,

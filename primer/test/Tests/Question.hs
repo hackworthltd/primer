@@ -25,6 +25,7 @@ import Primer.Core (
 import Primer.Core.DSL
 import Primer.Core.Utils (forgetTypeMetadata)
 import Primer.Gen.Core.Raw (evalExprGen, genKind, genName, genTyVarName, genType)
+import Primer.Module (builtinModule)
 import Primer.Name
 import Primer.Questions (
   ShadowedVarsExpr (M),

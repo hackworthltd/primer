@@ -44,7 +44,6 @@ import Primer.App (
   defaultProg,
   mkApp,
  )
-import Primer.Builtins (builtinModule)
 import Primer.Core (
   baseName,
   mkSimpleModuleName,
@@ -63,8 +62,9 @@ import Primer.Module (
     moduleName,
     moduleTypes
   ),
+  builtinModule,
+  primitiveModule,
  )
-import Primer.Primitives (primitiveModule)
 import Rel8 (
   Expr,
   Insert (Insert, into, onConflict, returning, rows),

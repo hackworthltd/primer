@@ -17,7 +17,6 @@ import Primer.App (
  )
 import Primer.Builtins (
   boolDef,
-  builtinModule,
   cFalse,
   cNil,
   cTrue,
@@ -25,21 +24,17 @@ import Primer.Builtins (
   tBool,
  )
 import Primer.Core (
-  ASTDef (..),
-  Def (..),
-  DefMap,
   Expr,
   GlobalName (baseName, qualifiedModule),
   ID,
   Kind (KType),
   Type,
-  TypeDef (TypeDefAST),
-  defPrim,
   getID,
   _id,
  )
 import Primer.Core.DSL
 import Primer.Core.Utils (forgetMetadata, forgetTypeMetadata)
+import Primer.Def (ASTDef (..), Def (..), DefMap, defPrim)
 import Primer.Eval (
   ApplyPrimFunDetail (..),
   BetaReductionDetail (..),
@@ -61,8 +56,9 @@ import Primer.Eval (
   tryReduceExpr,
   tryReduceType,
  )
-import Primer.Module (Module (Module, moduleDefs, moduleName, moduleTypes))
-import Primer.Primitives (primitiveGVar, primitiveModule, tChar)
+import Primer.Module (Module (Module, moduleDefs, moduleName, moduleTypes), builtinModule, primitiveModule)
+import Primer.Primitives (primitiveGVar, tChar)
+import Primer.TypeDef (TypeDef (..))
 import Primer.Zipper (target)
 import Test.Tasty.HUnit (Assertion, assertBool, assertFailure, (@?=))
 import TestM (evalTestM)

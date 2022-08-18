@@ -34,9 +34,7 @@ import Primer.Action (
 import Primer.Action.Priorities qualified as P
 import Primer.App (globalInUse)
 import Primer.Core (
-  ASTDef (..),
   Bind' (..),
-  DefMap,
   Expr,
   Expr' (..),
   ExprMeta,
@@ -48,7 +46,6 @@ import Primer.Core (
   Type,
   Type' (..),
   TypeCache (..),
-  defAST,
   getID,
   _bindMeta,
   _chkedAt,
@@ -60,6 +57,11 @@ import Primer.Core (
  )
 import Primer.Core.Transform (unfoldFun)
 import Primer.Core.Utils (forgetTypeMetadata)
+import Primer.Def (
+  ASTDef (..),
+  DefMap,
+  defAST,
+ )
 import Primer.Name (unName)
 import Primer.Questions (Question (..))
 import Primer.Zipper (
