@@ -76,6 +76,7 @@ makeTest {
       environment.systemPackages = [
         pkgs.curl
         pkgs.jq
+        pkgs.podman
       ];
     };
   };
@@ -103,7 +104,8 @@ makeTest {
 
       with subtest("fails if the database hasn't been deployed"):
           primer.sleep(5)
-          primer.require_unit_state("podman-primer-service.service", "failed")
+          primer.fail("podman healthcheck run primer-service")
+          primer.systemctl("stop podman-primer-service.service")
 
       postgres.succeed(
           "primer-sqitch deploy --verify db:${database_url}"
