@@ -7,7 +7,7 @@ module Primer.Action.Actions (
 import Foreword
 
 import Data.Aeson (FromJSON (..), ToJSON (..), Value)
-import Primer.Core (ID, TmVarRef, ValConName)
+import Primer.Core.Meta (ID, TmVarRef, ValConName)
 import Primer.JSON (CustomJSON (..), PrimerJSON)
 
 -- We split this module to increase parallelism in our build.

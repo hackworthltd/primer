@@ -6,7 +6,8 @@ module Primer.Subst (
 import Foreword
 
 import Control.Monad.Fresh (MonadFresh)
-import Primer.Core (TyVarName, Type' (..))
+import Primer.Core (Type' (..))
+import Primer.Core.Meta (TyVarName)
 import Primer.Core.Utils (freeVarsTy, freshLocalName)
 import Primer.Name (NameCounter)
 

@@ -12,7 +12,8 @@ import Foreword
 
 import Data.Aeson (FromJSON (..), ToJSON (..))
 import Primer.Action.Actions (Action)
-import Primer.Core (GVarName, ID, ModuleName, TyConName, TyVarName, Type', ValConName)
+import Primer.Core (Type')
+import Primer.Core.Meta (GVarName, ID, ModuleName, TyConName, TyVarName, ValConName)
 import Primer.JSON (CustomJSON (..), PrimerJSON)
 import Primer.TypeDef (ASTTypeDef)
 import Primer.Typecheck (SmartHoles)

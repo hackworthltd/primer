@@ -55,6 +55,7 @@ library
     Primer.Action.Actions
     Primer.Action.Errors
     Primer.Action.ProgAction
+    Primer.Core.Meta
     Primer.Primitives.PrimDef
 
   default-language:   GHC2021

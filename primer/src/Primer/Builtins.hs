@@ -30,11 +30,13 @@ module Primer.Builtins (
 ) where
 
 import Primer.Core (
-  GlobalName,
   Kind (KType),
+  Type' (TApp, TCon, TVar),
+ )
+import Primer.Core.Meta (
+  GlobalName,
   ModuleName,
   TyConName,
-  Type' (TApp, TCon, TVar),
   ValConName,
   mkSimpleModuleName,
   qualifyName,

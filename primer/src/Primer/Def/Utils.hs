@@ -3,7 +3,7 @@ module Primer.Def.Utils (nextID) where
 import Foreword
 
 import Optics (foldlOf')
-import Primer.Core (ID)
+import Primer.Core.Meta (ID)
 import Primer.Core.Utils (exprIDs, typeIDs)
 import Primer.Def (ASTDef (ASTDef), Def (..))
 
