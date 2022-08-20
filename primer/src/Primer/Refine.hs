@@ -5,9 +5,8 @@ import Foreword
 import Control.Monad.Fresh (MonadFresh)
 import Data.Map qualified as Map
 import Data.Set qualified as Set
-import Primer.Core (Type' (TForall, TFun, TVar))
-import Primer.Core qualified as C
-import Primer.Core.Meta (TyVarName)
+import Primer.Core (Kind, Type' (TForall, TFun, TVar))
+import Primer.Core.Meta (ID, TyVarName)
 import Primer.Core.Utils (freshLocalName)
 import Primer.Name (NameCounter)
 import Primer.Subst (substTy, substTys)
@@ -18,7 +17,7 @@ import Primer.Zipper (bindersBelowTy, focus)
 data Inst
   = InstApp TC.Type
   | InstAPP TC.Type
-  | InstUnconstrainedAPP TyVarName C.Kind
+  | InstUnconstrainedAPP TyVarName Kind
   deriving (Show, Eq)
 
 -- | Given a target type @T@ and a source type @S@, find an instantiation @I@
@@ -32,7 +31,7 @@ data Inst
 -- The names in @InstUnconstrainedAPP@s scope over all the @Inst@s to the right, as well as the returned @Type@.
 refine ::
   forall m.
-  (MonadFresh C.ID m, MonadFresh NameCounter m, MonadError InternalUnifyError m) =>
+  (MonadFresh ID m, MonadFresh NameCounter m, MonadError InternalUnifyError m) =>
   -- | only care about local type vars and typedefs
   TC.Cxt ->
   TC.Type ->
@@ -42,7 +41,7 @@ refine cxt tgtTy srcTy = go [] srcTy
   where
     boundNames = bindersBelowTy (focus tgtTy) <> bindersBelowTy (focus srcTy)
     avoidNames = Map.keysSet (TC.localTyVars cxt) <> boundNames
-    go :: [Either TC.Type (TyVarName, C.Kind)] -> TC.Type -> m (Maybe ([Inst], TC.Type))
+    go :: [Either TC.Type (TyVarName, Kind)] -> TC.Type -> m (Maybe ([Inst], TC.Type))
     go instantiation tmTy =
       let cxt' = extendCxtTys (rights instantiation) cxt
           uvs = Set.fromList $ map fst $ rights instantiation
@@ -66,5 +65,5 @@ refine cxt tgtTy srcTy = go [] srcTy
               _ -> pure Nothing
 
 -- NB: this assumes the list is ordered st the /last/ element is most global
-extendCxtTys :: [(TyVarName, C.Kind)] -> TC.Cxt -> TC.Cxt
+extendCxtTys :: [(TyVarName, Kind)] -> TC.Cxt -> TC.Cxt
 extendCxtTys = TC.extendLocalCxtTys . reverse
