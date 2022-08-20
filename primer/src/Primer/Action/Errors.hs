@@ -1,0 +1,57 @@
+module Primer.Action.Errors (ActionError (..)) where
+
+-- We split this module to increase parallelism in our build.
+-- This module does not depend on much, but takes a long time
+-- to build because of
+-- https://gitlab.haskell.org/ghc/ghc/-/issues/5642
+--
+-- It is split from Actions because this depends on Expr
+
+import Foreword
+
+import Data.Aeson (FromJSON (..), ToJSON (..))
+import Primer.Action.Actions (Action)
+import Primer.Core (Expr, GVarName, ID, LVarName, ModuleName)
+import Primer.JSON (CustomJSON (..), PrimerJSON)
+import Primer.Typecheck (TypeError)
+
+-- | Errors that may arise when applying an action
+-- TODO: convert all CustomFailures to individual constructors
+-- https://github.com/hackworthltd/primer/issues/8
+data ActionError
+  = CustomFailure
+      Action
+      -- ^ action that caused the error
+      Text
+      -- ^ the error message
+  | InternalFailure Text
+  | IDNotFound ID
+  | UnknownDef GVarName
+  | NeedEmptyHole Action Expr
+  | NeedNonEmptyHole Action Expr
+  | NeedAnn Action Expr
+  | TypeError TypeError
+  | -- | Both actual and potential, eg renaming the lambda x to y in any of
+    -- λx.y     the binder captures the existing y
+    -- λx.λy.x  occurance gets captured by the inner binder
+    -- λx.λy.y  this would be ok, but we are paranoid and bail out
+    NameCapture
+  | CaseBindsClash LVarName [LVarName]
+  | -- TODO: semantic errors.
+    -- https://github.com/hackworthltd/primer/issues/8
+    SaturatedApplicationError (Either Text TypeError)
+  | -- | @RefineError@ should never happen unless we use the API wrong or have
+    -- a bug. It does not get thrown for "no valid refinement found"
+    -- - see Note [No valid refinement]
+    RefineError (Either Text TypeError)
+  | -- | Cannot import modules whose names clash with previously-imported things
+    -- (or with each other)
+    ImportNameClash [ModuleName]
+  | -- | Importing some modules failed.
+    -- This should be impossible as long as the requested modules are well-typed
+    -- and all of their dependencies are already imported
+    ImportFailed () TypeError
+  -- The extra unit is to avoid having two constructors with a single
+  -- TypeError field, breaking our MonadNestedError machinery...
+  deriving (Eq, Show, Generic)
+  deriving (FromJSON, ToJSON) via PrimerJSON ActionError
