@@ -54,6 +54,7 @@ library
     Control.Monad.NestedError
     Primer.Action.Actions
     Primer.Action.Errors
+    Primer.Action.ProgAction
     Primer.Primitives.PrimDef
 
   default-language:   GHC2021

@@ -32,17 +32,15 @@ import Data.Text qualified as T
 import Optics (set, (%), (?~))
 import Primer.Action.Actions (Action (..), Movement (..), QualifiedText)
 import Primer.Action.Errors (ActionError (..))
+import Primer.Action.ProgAction (ProgAction (..))
 import Primer.Core (
   Expr,
   Expr' (..),
-  GVarName,
   HasMetadata (_metadata),
   ID,
   LVarName,
   LocalName (LocalName, unLocalName),
-  ModuleName,
   TmVarRef (..),
-  TyConName,
   TyVarName,
   Type,
   Type' (..),
@@ -85,7 +83,6 @@ import Primer.Def (
   Def (..),
   DefMap,
  )
-import Primer.JSON
 import Primer.Module (Module, insertDef)
 import Primer.Name (Name, NameCounter, unName, unsafeMkName)
 import Primer.Name.Fresh (
@@ -240,54 +237,6 @@ uniquifyDefName m name' defs = unName $ uniquify avoid $ unsafeMkName name'
       | otherwise = mempty
     avoid :: Set Name
     avoid = foldMap f $ Map.keys defs
-
--- | High level actions
--- These actions move around the whole program or modify definitions
-data ProgAction
-  = -- | Move the cursor to the definition with the given Name
-    MoveToDef GVarName
-  | -- | Rename the definition with the given (base) Name
-    RenameDef GVarName Text
-  | -- | Create a new definition
-    CreateDef ModuleName (Maybe Text)
-  | -- | Delete a new definition
-    DeleteDef GVarName
-  | -- | Add a new type definition
-    AddTypeDef TyConName ASTTypeDef
-  | -- | Rename the type definition with the given name, and its type constructor
-    RenameType TyConName Text
-  | -- | Rename the value constructor with the given name, in the given type
-    RenameCon TyConName ValConName Text
-  | -- | Rename the type parameter with the given name, in the given type
-    RenameTypeParam TyConName TyVarName Text
-  | -- | Add a value constructor at the given position, in the given type
-    AddCon TyConName Int Text
-  | -- | Change the type of the field at the given index of the given constructor
-    SetConFieldType TyConName ValConName Int (Type' ())
-  | -- | Add a new field, at the given index, to the given constructor
-    AddConField TyConName ValConName Int (Type' ())
-  | -- | Execute a sequence of actions on the body of the definition
-    BodyAction [Action]
-  | -- | Execute a sequence of actions on the type annotation of the definition
-    SigAction [Action]
-  | SetSmartHoles SmartHoles
-  | -- | CopyPaste (d,i) as
-    --   remembers the tree in def d, node i
-    --   runs actions as (in the currently selected def), which should end up in a hole
-    --   and then tries to paste the remembered subtree
-    --   This rather complex setup enables encoding 'raise' operations,
-    --     f s ~> f
-    --   where we remember f, then delete f s, then paste f back
-    --   as well as allowing cross-definition copy+paste
-    --   whilst letting the backend avoid remembering the 'copied' thing in some state.
-    --   The cursor is left on the root of the inserted subtree, which may or may not be inside a hole and/or annotation.
-    --   At the start of the actions, the cursor starts at the root of the definition's type/expression
-    CopyPasteSig (GVarName, ID) [Action]
-  | CopyPasteBody (GVarName, ID) [Action]
-  | -- | Renames an editable module (will return an error if asked to rename an imported module)
-    RenameModule ModuleName (NonEmpty Text)
-  deriving (Eq, Show, Generic)
-  deriving (FromJSON, ToJSON) via PrimerJSON ProgAction
 
 -- | A shorthand for the constraints needed when applying actions
 type ActionM m =
