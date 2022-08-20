@@ -52,6 +52,7 @@ library
   hs-source-dirs:     src
   other-modules:
     Control.Monad.NestedError
+    Primer.Action.Actions
     Primer.Primitives.PrimDef
 
   default-language:   GHC2021
