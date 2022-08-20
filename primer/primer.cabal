@@ -50,7 +50,10 @@ library
     Primer.ZipperCxt
 
   hs-source-dirs:     src
-  other-modules:      Control.Monad.NestedError
+  other-modules:
+    Control.Monad.NestedError
+    Primer.Primitives.PrimDef
+
   default-language:   GHC2021
   default-extensions:
     NoImplicitPrelude

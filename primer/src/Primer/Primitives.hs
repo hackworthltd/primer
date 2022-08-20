@@ -55,33 +55,8 @@ import Primer.Core.DSL (
  )
 import Primer.JSON (CustomJSON (..), PrimerJSON)
 import Primer.Name (Name)
+import Primer.Primitives.PrimDef (PrimDef (..))
 import Primer.TypeDef (PrimTypeDef (..))
-
--- | A primitive, built-in definition.
--- For each of these, we should have a test that the evaluator produces expected results.
-data PrimDef
-  = ToUpper
-  | IsSpace
-  | HexToNat
-  | NatToHex
-  | EqChar
-  | IntAdd
-  | IntMinus
-  | IntMul
-  | IntQuotient
-  | IntRemainder
-  | IntQuot
-  | IntRem
-  | IntLT
-  | IntLTE
-  | IntGT
-  | IntGTE
-  | IntEq
-  | IntNeq
-  | IntToNat
-  | IntFromNat
-  deriving (Eq, Show, Enum, Bounded, Data, Generic)
-  deriving (FromJSON, ToJSON) via PrimerJSON PrimDef
 
 data PrimFunError
   = -- | We have attempted to apply a primitive function to invalid args.
