@@ -14,12 +14,14 @@ module Primer.TypeDef (
 import Foreword
 
 import Data.Data (Data)
-import Primer.Core (
-  Kind (KFun, KType),
+import Primer.Core.Meta (
   TyConName,
   TyVarName,
-  Type' (TApp, TCon, TForall, TFun, TVar),
   ValConName,
+ )
+import Primer.Core.Type (
+  Kind (KFun, KType),
+  Type' (TApp, TCon, TForall, TFun, TVar),
  )
 import Primer.JSON (
   CustomJSON (CustomJSON),

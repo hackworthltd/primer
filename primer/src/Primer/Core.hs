@@ -10,21 +10,16 @@ module Primer.Core (
   CaseBranch,
   CaseBranch' (..),
   module Primer.Core.Meta,
-  Type,
-  Type' (..),
+  module Primer.Core.Type,
   TypeCache (..),
   TypeCacheBoth (..),
   _chkedAt,
   _synthed,
-  Kind (..),
   PrimCon (..),
   ExprMeta,
-  TypeMeta,
   _exprMeta,
   _exprMetaLens,
   _exprTypeMeta,
-  _typeMeta,
-  _typeMetaLens,
   bindName,
   _bindMeta,
   typesInExpr,
@@ -72,6 +67,14 @@ import Primer.Core.Meta (
   unsafeMkGlobalName,
   unsafeMkLocalName,
   _type,
+ )
+import Primer.Core.Type (
+  Kind (..),
+  Type,
+  Type' (..),
+  TypeMeta,
+  _typeMeta,
+  _typeMetaLens,
  )
 import Primer.JSON
 
@@ -264,28 +267,6 @@ bindName (Bind _ n) = n
 _bindMeta :: forall a b. Lens (Bind' a) (Bind' b) a b
 _bindMeta = position @1
 
--- | Core types.
---  Type variables are currently represented as text, and we have no compile-time
---  checks on scoping. We may want to introduce de Bruijn indices or use
---  bound/unbound in the future.
-type Type = Type' TypeMeta
-
--- | Type metadata. Each type is optionally annotated with a kind.
--- Currently we don't fill these in during typechecking.
-type TypeMeta = Meta (Maybe Kind)
-
--- | NB: Be careful with equality -- it is on-the-nose, rather than up-to-alpha: see Subst:alphaEqTy
-data Type' a
-  = TEmptyHole a
-  | THole a (Type' a)
-  | TCon a TyConName
-  | TFun a (Type' a) (Type' a)
-  | TVar a TyVarName
-  | TApp a (Type' a) (Type' a)
-  | TForall a TyVarName Kind (Type' a)
-  deriving (Eq, Show, Data, Generic)
-  deriving (FromJSON, ToJSON) via PrimerJSON (Type' a)
-
 -- | Note that this does not recurse in to sub-expressions or sub-types.
 typesInExpr :: AffineTraversal' (Expr' a b) (Type' b)
 typesInExpr = atraversalVL $ \point f -> \case
@@ -295,34 +276,13 @@ typesInExpr = atraversalVL $ \point f -> \case
   Letrec m x b ty e -> (\ty' -> Letrec m x b ty' e) <$> f ty
   e -> point e
 
--- | A traversal over the metadata of a type
-_typeMeta :: Traversal (Type' a) (Type' b) a b
-_typeMeta = param @0
-
--- | A lens on to the metadata of a type.
--- Note that unlike '_typeMeta', this is shallow i.e. it does not recurse in to sub-expressions.
--- And for this reason, it cannot be type-changing.
-_typeMetaLens :: Lens' (Type' a) a
-_typeMetaLens = position @1
-
--- | Core kinds.
-data Kind = KHole | KType | KFun Kind Kind
-  deriving (Eq, Show, Data, Generic)
-  deriving (FromJSON, ToJSON) via PrimerJSON Kind
-
 instance HasID a => HasID (Expr' a b) where
-  _id = position @1 % _id
-
-instance HasID a => HasID (Type' a) where
   _id = position @1 % _id
 
 instance HasID a => HasID (Bind' a) where
   _id = position @1 % _id
 
 instance HasMetadata (Expr' ExprMeta b) where
-  _metadata = position @1 % typed @(Maybe Value)
-
-instance HasMetadata (Type' TypeMeta) where
   _metadata = position @1 % typed @(Maybe Value)
 
 instance HasMetadata (Bind' ExprMeta) where
