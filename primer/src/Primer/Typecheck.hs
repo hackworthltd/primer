@@ -179,8 +179,6 @@ type ExprT = Expr' (Meta TypeCache) (Meta Kind)
 
 type TypeT = Type' (Meta Kind)
 
--- We should replace this use of `String`. See:
--- https://github.com/hackworthltd/primer/issues/149
 data TypeError
   = InternalError Text
   | UnknownVariable TmVarRef
