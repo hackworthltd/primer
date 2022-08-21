@@ -59,6 +59,8 @@ library
     Primer.Core.Meta
     Primer.Core.Type
     Primer.Primitives.PrimDef
+    Primer.Typecheck.SmartHoles
+    Primer.Typecheck.TypeError
 
   default-language:   GHC2021
   default-extensions:

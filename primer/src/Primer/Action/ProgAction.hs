@@ -16,7 +16,7 @@ import Primer.Core.Meta (GVarName, ID, ModuleName, TyConName, TyVarName, ValConN
 import Primer.Core.Type (Type')
 import Primer.JSON (CustomJSON (..), PrimerJSON)
 import Primer.TypeDef (ASTTypeDef)
-import Primer.Typecheck (SmartHoles)
+import Primer.Typecheck.SmartHoles (SmartHoles)
 
 -- | High level actions
 -- These actions move around the whole program or modify definitions

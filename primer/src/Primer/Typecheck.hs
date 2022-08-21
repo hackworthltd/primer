@@ -140,7 +140,6 @@ import Primer.Def (
   DefMap,
   defType,
  )
-import Primer.JSON (CustomJSON (CustomJSON), FromJSON, PrimerJSON, ToJSON)
 import Primer.Module (
   Module (
     moduleDefs,
@@ -162,6 +161,8 @@ import Primer.TypeDef (
   typeDefParameters,
   valConType,
  )
+import Primer.Typecheck.SmartHoles (SmartHoles (..))
+import Primer.Typecheck.TypeError (TypeError (..))
 
 -- | Typechecking takes as input an Expr with 'Maybe Type' annotations and
 -- produces an Expr with 'Type' annotations - i.e. every node in the output is
@@ -179,37 +180,8 @@ type ExprT = Expr' (Meta TypeCache) (Meta Kind)
 
 type TypeT = Type' (Meta Kind)
 
-data TypeError
-  = InternalError Text
-  | UnknownVariable TmVarRef
-  | UnknownTypeVariable TyVarName
-  | WrongSortVariable Name -- type var instead of term var or vice versa
-  | UnknownConstructor ValConName
-  | UnknownTypeConstructor TyConName
-  | -- | Cannot use a PrimCon when either no type of the appropriate name is
-    -- in scope, or it is a user-defined type
-    PrimitiveTypeNotInScope TyConName
-  | CannotSynthesiseType Expr
-  | InconsistentTypes Type Type
-  | TypeDoesNotMatchArrow Type
-  | TypeDoesNotMatchForall Type
-  | CaseOfHoleNeedsEmptyBranches
-  | CannotCaseNonADT Type
-  | CannotCaseNonSaturatedADT Type
-  | -- | Either wrong number, wrong constructors or wrong order. The fields are @name of the ADT@, @branches given@
-    WrongCaseBranches TyConName [ValConName]
-  | CaseBranchWrongNumberPatterns
-  | InconsistentKinds Kind Kind
-  | KindDoesNotMatchArrow Kind
-  deriving (Eq, Show, Generic)
-  deriving (FromJSON, ToJSON) via PrimerJSON TypeError
-
 assert :: MonadNestedError TypeError e m => Bool -> Text -> m ()
 assert b s = unless b $ throwError' (InternalError s)
-
-data SmartHoles = SmartHoles | NoSmartHoles
-  deriving (Eq, Show, Generic)
-  deriving (FromJSON, ToJSON) via PrimerJSON SmartHoles
 
 data KindOrType = K Kind | T Type
   deriving (Show, Eq)

@@ -13,7 +13,7 @@ import Data.Aeson (FromJSON (..), ToJSON (..))
 import Primer.Action.Actions (Action)
 import Primer.Core (Expr, GVarName, ID, LVarName, ModuleName)
 import Primer.JSON (CustomJSON (..), PrimerJSON)
-import Primer.Typecheck (TypeError)
+import Primer.Typecheck.TypeError (TypeError)
 
 -- | Errors that may arise when applying an action
 -- TODO: convert all CustomFailures to individual constructors
