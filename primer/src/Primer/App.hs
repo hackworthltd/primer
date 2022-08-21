@@ -99,6 +99,7 @@ import Primer.Action (
   applyActionsToBody,
   applyActionsToTypeSig,
  )
+import Primer.Action.ProgError (ProgError (..))
 import Primer.Core (
   Bind' (Bind),
   CaseBranch,
@@ -114,7 +115,6 @@ import Primer.Core (
   ModuleName (ModuleName),
   TmVarRef (GlobalVarRef, LocalVarRef),
   TyConName,
-  TyVarName,
   Type,
   Type' (..),
   TypeMeta,
@@ -140,7 +140,7 @@ import Primer.Def (
   defAST,
   defPrim,
  )
-import Primer.Eval (EvalDetail, EvalError)
+import Primer.Eval (EvalDetail)
 import Primer.Eval qualified as Eval
 import Primer.EvalFull (Dir, EvalFullError (TimedOut), TerminationBound, evalFull)
 import Primer.JSON
@@ -383,43 +383,6 @@ data MutationRequest
   | Edit [ProgAction]
   deriving (Eq, Show, Generic)
   deriving (FromJSON, ToJSON) via PrimerJSON MutationRequest
-
-data ProgError
-  = NoDefSelected
-  | DefNotFound GVarName
-  | DefAlreadyExists GVarName
-  | DefInUse GVarName
-  | TypeDefIsPrim TyConName
-  | TypeDefNotFound TyConName
-  | TypeDefAlreadyExists TyConName
-  | ConNotFound ValConName
-  | ConAlreadyExists ValConName
-  | ParamNotFound TyVarName
-  | ParamAlreadyExists TyVarName
-  | TyConParamClash Name
-  | ValConParamClash Name
-  | ActionError ActionError
-  | EvalError EvalError
-  | -- | Currently copy/paste is only exposed in the frontend via select
-    --   channels, which should never go wrong. Consequently, this is an
-    --   "internal error" which should never happen!
-    --   If/when we expose it more broadly, we should refactor this to contain
-    --   a descriptive ADT, rather than a string.
-    CopyPasteError Text
-  | -- | Currently one can only add a typedef by a form in the frontend,
-    --   which does its own error checking. Thus this is an "internal error"
-    --   that should never happen!
-    --   (However, this is not entirely true currently, see
-    --    https://github.com/hackworthltd/primer/issues/3)
-    TypeDefError Text
-  | IndexOutOfRange Int
-  | -- | Cannot rename a module to the same name as some other module
-    RenameModuleNameClash
-  | ModuleNotFound ModuleName
-  | -- | Cannot edit an imported module
-    ModuleReadonly ModuleName
-  deriving (Eq, Show, Generic)
-  deriving (FromJSON, ToJSON) via PrimerJSON ProgError
 
 data EvalReq = EvalReq
   { evalReqExpr :: Expr

@@ -55,6 +55,7 @@ library
     Primer.Action.Actions
     Primer.Action.Errors
     Primer.Action.ProgAction
+    Primer.Action.ProgError
     Primer.API.NodeFlavor
     Primer.Core.Meta
     Primer.Core.Type
