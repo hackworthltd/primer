@@ -55,17 +55,14 @@ import Primer.Core (
   GVarName,
   HasID (_id),
   ID,
-  Kind,
   LVarName,
   LocalName (LocalName, unLocalName),
-  LocalNameKind (..),
   Meta,
   TmVarRef (..),
   TyVarName,
   Type,
   Type' (..),
   TypeCache,
-  ValConName,
   bindName,
   getID,
   _exprMetaLens,
@@ -91,13 +88,18 @@ import Primer.Def (
   DefMap,
   defPrim,
  )
-import Primer.Eval.EvalError (EvalError (..))
-import Primer.JSON (
-  CustomJSON (CustomJSON),
-  FromJSON,
-  PrimerJSON,
-  ToJSON,
+import Primer.Eval.Detail (
+  ApplyPrimFunDetail (..),
+  BetaReductionDetail (..),
+  CaseReductionDetail (..),
+  EvalDetail (..),
+  GlobalVarInlineDetail (..),
+  LetRemovalDetail (..),
+  LetRenameDetail (..),
+  LocalVarInlineDetail (..),
+  PushAppIntoLetrecDetail (..),
  )
+import Primer.Eval.EvalError (EvalError (..))
 import Primer.Name (Name, unName, unsafeMkName)
 import Primer.Name.Fresh (isFresh, isFreshTy)
 import Primer.Primitives (PrimDef, primFunDef)
@@ -117,174 +119,6 @@ import Primer.Zipper (
   unfocusExpr,
   unfocusType,
  )
-
--- | Detailed information about a reduction step
-data EvalDetail
-  = -- | Reduction of (λx. a) b
-    BetaReduction (BetaReductionDetail 'ATmVar Type Type)
-  | -- | Reduction of (Λx. a) b
-    BETAReduction (BetaReductionDetail 'ATyVar Kind Type)
-  | -- | Inlining of a local variable
-    LocalVarInline (LocalVarInlineDetail 'ATmVar)
-  | -- | Inlining of a local type variable
-    LocalTypeVarInline (LocalVarInlineDetail 'ATyVar)
-  | -- | ID of definition, name of variable
-    GlobalVarInline GlobalVarInlineDetail
-  | -- | ID of let(rec)
-    LetRemoval LetRemovalDetail
-  | -- | Renaming of binding in let x = ...x... in ...x...x...
-    LetRename LetRenameDetail
-  | -- | TODO: some details here
-    CaseReduction CaseReductionDetail
-  | -- | Push the argument of an application inside a letrec
-    PushAppIntoLetrec PushAppIntoLetrecDetail
-  | -- | Apply a primitive function
-    ApplyPrimFun ApplyPrimFunDetail
-  deriving (Eq, Show, Generic)
-  deriving (FromJSON, ToJSON) via PrimerJSON EvalDetail
-
--- | Detailed information about a beta reduction (of a λ or Λ).
--- If λ:
--- - 'lambdaID' is the ID of the λ
--- - 'letID' is the ID of the let
--- - 'types' is optionally the domain type and codomain type of the λ
--- - i.e. k ~ ATmVar, domain ~ Type, codomain ~ Type
--- If Λ:
--- - 'lambdaID' is the ID of the Λ
--- - 'letID' is the ID of the "let type"
--- - 'types' is optionally the domain kind and codomain type of the λ
--- - i.e. k ~ ATyVar, domain ~ Kind, codomain ~ Type
-data BetaReductionDetail k domain codomain = BetaReductionDetail
-  { before :: Expr
-  , after :: Expr
-  , bindingName :: LocalName k
-  , lambdaID :: ID
-  , letID :: ID
-  , argID :: ID
-  , bodyID :: ID
-  , types :: Maybe (domain, codomain)
-  }
-  deriving (Eq, Show, Generic)
-  deriving (FromJSON, ToJSON) via PrimerJSON (BetaReductionDetail k domain codomain)
-
-data LocalVarInlineDetail k = LocalVarInlineDetail
-  { letID :: ID
-  -- ^ ID of the let expression that binds this variable
-  , varID :: ID
-  -- ^ ID of the variable being replaced
-  , bindingName :: LocalName k
-  -- ^ Name of the variable
-  , valueID :: ID
-  -- ^ ID of the expression or type that the variable is bound to
-  , replacementID :: ID
-  -- ^ ID of the expression or type that has replaced the variable in the result
-  , isTypeVar :: Bool
-  -- ^ If 'True', the variable being inlined is a type variable.
-  -- Otherwise it is a term variable.
-  }
-  deriving (Eq, Show, Generic)
-  deriving (FromJSON, ToJSON) via PrimerJSON (LocalVarInlineDetail k)
-
-data GlobalVarInlineDetail = GlobalVarInlineDetail
-  { def :: ASTDef
-  -- ^ The definition that the variable refers to
-  , var :: Expr
-  -- ^ The variable being replaced
-  , after :: Expr
-  -- ^ The result of the reduction
-  }
-  deriving (Eq, Show, Generic)
-  deriving (FromJSON, ToJSON) via PrimerJSON GlobalVarInlineDetail
-
-data CaseReductionDetail = CaseReductionDetail
-  { before :: Expr
-  -- ^ the case expression before reduction
-  , after :: Expr
-  -- ^ the resulting expression after reduction
-  , targetID :: ID
-  -- ^ the ID of the target (scrutinee)
-  , targetCtorID :: ID
-  -- ^ the ID of the constructor node in the target
-  , ctorName :: ValConName
-  -- ^ the name of the matching constructor
-  , targetArgIDs :: [ID]
-  -- ^ the arguments to the constructor in the target
-  , branchBindingIDs :: [ID]
-  -- ^ the bindings in the case branch (one for each arg above)
-  , branchRhsID :: ID
-  -- ^ the right hand side of the selected case branch
-  , letIDs :: [ID]
-  -- ^ the let expressions binding each argument in the result
-  }
-  deriving (Eq, Show, Generic)
-  deriving (FromJSON, ToJSON) via PrimerJSON CaseReductionDetail
-
-data LetRemovalDetail = LetRemovalDetail
-  { before :: Expr
-  -- ^ the let expression before reduction
-  , after :: Expr
-  -- ^ the resulting expression after reduction
-  , bindingName :: Name
-  -- ^ the name of the unused bound variable (either term or type variable)
-  , letID :: ID
-  -- ^ the full let expression
-  , bodyID :: ID
-  -- ^ the right hand side of the let
-  }
-  deriving (Eq, Show, Generic)
-  deriving (FromJSON, ToJSON) via PrimerJSON LetRemovalDetail
-
-data LetRenameDetail = LetRenameDetail
-  { before :: Expr
-  -- ^ the let expression before reduction
-  , after :: Expr
-  -- ^ the resulting expression after reduction
-  , bindingNameOld :: Name
-  -- ^ the old name of the let-bound variable
-  , bindingNameNew :: Name
-  -- ^ the new name of the let-bound variable
-  , letID :: ID
-  -- ^ the full let expression
-  , bindingOccurrences :: [ID]
-  -- ^ where the old name occurred inside the bound expression
-  , bodyID :: ID
-  -- ^ the right hand side of the let
-  }
-  deriving (Eq, Show, Generic)
-  deriving (FromJSON, ToJSON) via PrimerJSON LetRenameDetail
-
-data PushAppIntoLetrecDetail = PushAppIntoLetrecDetail
-  { before :: Expr
-  -- ^ the expression before reduction
-  , after :: Expr
-  -- ^ the expression after reduction
-  , argID :: ID
-  -- ^ the ID of the argument to the application
-  , letrecID :: ID
-  -- ^ the ID of the letrec
-  , lamID :: ID
-  -- ^ the ID of the lambda
-  , letBindingName :: LVarName
-  -- ^ The name of the variable bound by the letrec
-  , isTypeApplication :: Bool
-  -- ^ If 'True', the application is of a big lambda to a type.
-  -- Otherwise it is of a small lambda to a term.
-  }
-  deriving (Eq, Show, Generic)
-  deriving (FromJSON, ToJSON) via PrimerJSON PushAppIntoLetrecDetail
-
-data ApplyPrimFunDetail = ApplyPrimFunDetail
-  { before :: Expr
-  -- ^ the expression before reduction
-  , after :: Expr
-  -- ^ the expression after reduction
-  , name :: GVarName
-  -- ^ the name of the primitive function
-  , argIDs :: [ID]
-  -- ^ the IDs of the arguments to the application
-  }
-  deriving (Eq, Show, Generic)
-  deriving (FromJSON, ToJSON) via PrimerJSON ApplyPrimFunDetail
 
 -- | A map from local variable names to the ID of their binding, their bound
 -- value and whether anything in their value would be captured by an intervening
