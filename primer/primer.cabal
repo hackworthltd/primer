@@ -67,6 +67,7 @@ library
     Primer.Eval.Let
     Primer.Eval.Prim
     Primer.Eval.Push
+    Primer.Eval.Utils
     Primer.Primitives.PrimDef
     Primer.Typecheck.SmartHoles
     Primer.Typecheck.TypeError
