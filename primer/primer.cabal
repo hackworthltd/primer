@@ -58,6 +58,7 @@ library
     Primer.API.NodeFlavor
     Primer.Core.Meta
     Primer.Core.Type
+    Primer.Eval.EvalError
     Primer.Primitives.PrimDef
     Primer.Typecheck.SmartHoles
     Primer.Typecheck.TypeError
