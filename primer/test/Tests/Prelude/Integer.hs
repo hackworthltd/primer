@@ -18,29 +18,17 @@ import TestM (TestM, evalTestM)
 import TestUtils (zeroIDs)
 import Tests.EvalFull (evalResultExpr)
 
--- min x (x+1) = x
-tasty_min_prop1 :: Property
-tasty_min_prop1 = property $ do
+tasty_min_prop :: Property
+tasty_min_prop = property $ do
   n <- forAll $ integral_ (Range.constant (-10) 10)
-  functionOutput P.min [int n, int $ n + 1] 20 <===> Right (create' $ int n)
+  m <- forAll $ integral_ (Range.constant (-10) 10)
+  functionOutput P.min [int n, int m] 20 <===> Right (create' $ int $ min m n)
 
--- min x x = x
-tasty_min_prop2 :: Property
-tasty_min_prop2 = property $ do
+tasty_max_prop :: Property
+tasty_max_prop = property $ do
   n <- forAll $ integral_ (Range.constant (-10) 10)
-  functionOutput P.min [int n, int n] 20 <===> Right (create' $ int n)
-
--- max x (x+1) = x+1
-tasty_max_prop1 :: Property
-tasty_max_prop1 = property $ do
-  n <- forAll $ integral_ (Range.constant (-10) 10)
-  functionOutput P.max [int n, int $ n + 1] 20 <===> Right (create' $ int $ n + 1)
-
--- max x x = x
-tasty_max_prop2 :: Property
-tasty_max_prop2 = property $ do
-  n <- forAll $ integral_ (Range.constant (-10) 10)
-  functionOutput P.max [int n, int n] 20 <===> Right (create' $ int n)
+  m <- forAll $ integral_ (Range.constant (-10) 10)
+  functionOutput P.max [int n, int m] 20 <===> Right (create' $ int $ max m n)
 
 tasty_negate_prop :: Property
 tasty_negate_prop = property $ do
