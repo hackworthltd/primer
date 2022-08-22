@@ -1,4 +1,17 @@
-module Primer.Prelude.Integer (max, maxDef, min, minDef, negate, negateDef, abs, absDef, gcdHelper, gcdHelperDef, gcd, gcdDef) where
+module Primer.Prelude.Integer (
+  max,
+  maxDef,
+  min,
+  minDef,
+  negate,
+  negateDef,
+  abs,
+  absDef,
+  gcdHelper,
+  gcdHelperDef,
+  gcd,
+  gcdDef,
+) where
 
 import Control.Monad.Fresh (MonadFresh)
 import Foreword (Applicative (pure), map, ($), (.))
