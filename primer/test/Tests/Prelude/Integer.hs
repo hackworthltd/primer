@@ -40,19 +40,19 @@ tasty_abs_prop = property $ do
   n <- forAll $ integral_ (Range.constant (-10) 10)
   functionOutput P.abs [int n] 40 <===> Right (create' $ int $ abs n)
 
+-- NOTE: Termination bound is experimental, do not know how it varies with n, m
 tasty_gcd_prop :: Property
 tasty_gcd_prop = withTests 5 $ property $ do
   n <- forAll $ integral_ (Range.linear (-10) 10)
   m <- forAll $ integral_ (Range.linear (-10) 10)
   functionOutput P.gcd [int n, int m] 4000 <===> Right (create' $ int $ gcd n m)
 
+-- NOTE: Termination bound is experimental, do not know how it varies with n, m
 tasty_lcm_prop :: Property
 tasty_lcm_prop = withTests 5 $ property $ do
   n <- forAll $ integral_ (Range.linear (-10) 10)
   m <- forAll $ integral_ (Range.linear (-10) 10)
   functionOutput P.lcm [int n, int m] 4000 <===> Right (create' $ int $ lcm n m)
-
--- NOTE: Termination bound is calculated experimentally, do not know how it varies with n, m
 
 (<===>) :: (HasCallStack, MonadTest m) => Either EvalFullError Expr -> Either EvalFullError Expr -> m ()
 x <===> y = withFrozenCallStack $ on (===) (over evalResultExpr zeroIDs) x y
