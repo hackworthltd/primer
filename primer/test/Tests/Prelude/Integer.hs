@@ -13,7 +13,7 @@ import Primer.Module (builtinModule, moduleDefsQualified, moduleTypesQualified, 
 import Primer.Prelude (prelude)
 import Primer.Prelude.Integer qualified as P
 import Primer.Prelude.Utils (apps)
-import Tasty (Property, property)
+import Tasty (Property, property, withTests)
 import TestM (TestM, evalTestM)
 import TestUtils (zeroIDs)
 import Tests.EvalFull (evalResultExpr)
@@ -53,13 +53,13 @@ tasty_abs_prop = property $ do
   functionOutput P.abs [int n] 40 <===> Right (create' $ int $ abs n)
 
 tasty_gcd_prop :: Property
-tasty_gcd_prop = property $ do
+tasty_gcd_prop = withTests 5 $ property $ do
   n <- forAll $ integral_ (Range.linear (-10) 10)
   m <- forAll $ integral_ (Range.linear (-10) 10)
   functionOutput P.gcd [int n, int m] 4000 <===> Right (create' $ int $ gcd n m)
 
 tasty_lcm_prop :: Property
-tasty_lcm_prop = property $ do
+tasty_lcm_prop = withTests 5 $ property $ do
   n <- forAll $ integral_ (Range.linear (-10) 10)
   m <- forAll $ integral_ (Range.linear (-10) 10)
   functionOutput P.lcm [int n, int m] 4000 <===> Right (create' $ int $ lcm n m)
