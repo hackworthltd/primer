@@ -5,7 +5,7 @@ import Data.Map qualified as Map
 import Foreword
 import Primer.Core (ID)
 import Primer.Module (Module (Module, moduleDefs, moduleName, moduleTypes))
-import Primer.Prelude.Integer (absDef, gcdDef, gcdHelperDef, maxDef, minDef, negateDef)
+import Primer.Prelude.Integer (absDef, gcdDef, gcdHelperDef, lcmDef, maxDef, minDef, negateDef)
 import Primer.Prelude.Logic (andDef, impliesDef, notDef, orDef, xorDef)
 import Primer.Prelude.Utils (modName)
 
@@ -25,5 +25,6 @@ prelude = do
       , ("abs", absDef)
       , ("gcd", gcdDef)
       , ("gcdHelper", gcdHelperDef)
+      , ("lcm", lcmDef)
       ]
   pure Module{moduleName = modName, moduleTypes = Map.empty, moduleDefs = Map.fromList defs}

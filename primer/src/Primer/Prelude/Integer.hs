@@ -11,13 +11,15 @@ module Primer.Prelude.Integer (
   gcdHelperDef,
   gcd,
   gcdDef,
+  lcm,
+  lcmDef,
 ) where
 
 import Control.Monad.Fresh (MonadFresh)
 import Foreword (Applicative (pure), map, ($), (.))
 import Primer.Builtins qualified as B
 import Primer.Core (GVarName, ID, qualifyName)
-import Primer.Core.DSL (app, branch, case_, gvar, int, lam, lvar, tcon, tfun)
+import Primer.Core.DSL (app, branch, case_, gvar, int, lam, let_, lvar, tcon, tfun)
 import Primer.Def (ASTDef (..), Def (..))
 import Primer.Prelude.Utils (apps, modName)
 import Primer.Primitives (PrimDef (..), primDefName, primitiveGVar, tInt)
@@ -128,6 +130,44 @@ gcdHelperDef = do
                           (gvar $ primitiveGVar $ primDefName IntRem)
                           [lvar "x", lvar "y"]
                       ]
+                  )
+              ]
+          )
+      )
+  pure $ DefAST $ ASTDef term type_
+
+lcm :: GVarName
+lcm = qualifyName modName "lcm"
+
+lcmDef :: MonadFresh ID m => m Def
+lcmDef = do
+  type_ <- tcon tInt `tfun` (tcon tInt `tfun` tcon tInt)
+  term <-
+    lam
+      "x"
+      ( lam
+          "y"
+          ( case_
+              ( apps
+                  (gvar $ primitiveGVar $ primDefName IntEq)
+                  [apps (gvar $ primitiveGVar $ primDefName IntMul) [lvar "x", lvar "y"], int 0]
+              )
+              [ branch B.cTrue [] $ int 0
+              , branch
+                  B.cFalse
+                  []
+                  ( let_
+                      "m"
+                      (apps (gvar gcd) [lvar "x", lvar "y"])
+                      ( apps
+                          (gvar $ primitiveGVar $ primDefName IntQuot)
+                          [ app (gvar abs) $
+                              apps
+                                (gvar $ primitiveGVar $ primDefName IntMul)
+                                [lvar "x", lvar "y"]
+                          , lvar "m"
+                          ]
+                      )
                   )
               ]
           )
