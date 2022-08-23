@@ -15,6 +15,8 @@ module Primer.Prelude.Integer (
   lcmDef,
   even,
   evenDef,
+  odd,
+  oddDef,
 ) where
 
 import Control.Monad.Fresh (MonadFresh)
@@ -24,6 +26,7 @@ import Primer.Builtins qualified as B
 import Primer.Core (GVarName, ID, qualifyName)
 import Primer.Core.DSL (app, branch, case_, gvar, int, lam, let_, lvar, tcon, tfun)
 import Primer.Def (ASTDef (..), Def (..))
+import Primer.Prelude.Logic (not)
 import Primer.Prelude.Utils (apps, modName)
 import Primer.Primitives (PrimDef (..), primDefName, primitiveGVar, tInt)
 
@@ -190,4 +193,16 @@ evenDef = do
           (gvar $ primitiveGVar $ primDefName IntEq)
           [int 0, apps (gvar $ primitiveGVar $ primDefName IntRem) [lvar "x", int 2]]
       )
+  pure $ DefAST $ ASTDef term type_
+
+odd :: GVarName
+odd = qualifyName modName "odd"
+
+oddDef :: MonadFresh ID m => m Def
+oddDef = do
+  type_ <- tcon tInt `tfun` tcon tBool
+  term <-
+    lam
+      "x"
+      (app (gvar not) (app (gvar even) (lvar "x")))
   pure $ DefAST $ ASTDef term type_
