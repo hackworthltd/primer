@@ -405,9 +405,7 @@ data Kind = KHole | KType | KFun Kind Kind
 -- This makes it easier to change the underlying metadata representation without
 -- breaking code that needs to work with IDs, because they use this class
 -- instead of hardcoding paths to IDs or using chained 'HasType' instances,
--- which can lead to ambiguity errors. These instances are undecidable but
--- they're contained to this module at least (and are in reality not
--- problematic).
+-- which can lead to ambiguity errors.
 class HasID a where
   _id :: Lens' a ID
 
