@@ -13,10 +13,13 @@ module Primer.Prelude.Integer (
   gcdDef,
   lcm,
   lcmDef,
+  even,
+  evenDef,
 ) where
 
 import Control.Monad.Fresh (MonadFresh)
 import Foreword (Applicative (pure), map, ($), (.))
+import Primer.Builtins (tBool)
 import Primer.Builtins qualified as B
 import Primer.Core (GVarName, ID, qualifyName)
 import Primer.Core.DSL (app, branch, case_, gvar, int, lam, let_, lvar, tcon, tfun)
@@ -171,5 +174,20 @@ lcmDef = do
                   )
               ]
           )
+      )
+  pure $ DefAST $ ASTDef term type_
+
+even :: GVarName
+even = qualifyName modName "even"
+
+evenDef :: MonadFresh ID m => m Def
+evenDef = do
+  type_ <- tcon tInt `tfun` tcon tBool
+  term <-
+    lam
+      "x"
+      ( apps
+          (gvar $ primitiveGVar $ primDefName IntEq)
+          [int 0, apps (gvar $ primitiveGVar $ primDefName IntRem) [lvar "x", int 2]]
       )
   pure $ DefAST $ ASTDef term type_
