@@ -60,6 +60,11 @@ tasty_even_prop = property $ do
   n <- forAll $ integral_ (Range.constant (-10) 10)
   functionOutput P.even [int n] 20 <===> Right (create' $ bool_ $ even n)
 
+tasty_odd_prop :: Property
+tasty_odd_prop = property $ do
+  n <- forAll $ integral_ (Range.constant (-10) 10)
+  functionOutput P.odd [int n] 20 <===> Right (create' $ bool_ $ odd n)
+
 (<===>) :: (HasCallStack, MonadTest m) => Either EvalFullError Expr -> Either EvalFullError Expr -> m ()
 x <===> y = withFrozenCallStack $ on (===) (over evalResultExpr zeroIDs) x y
 
