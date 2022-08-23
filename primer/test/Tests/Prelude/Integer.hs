@@ -6,6 +6,7 @@ import Hedgehog (MonadTest, forAll, (===))
 import Hedgehog.Gen (integral_)
 import Hedgehog.Range qualified as Range
 import Optics (over)
+import Primer.Builtins.DSL (bool_)
 import Primer.Core (Expr, GVarName)
 import Primer.Core.DSL (create', gvar, int)
 import Primer.EvalFull (Dir (Chk), EvalFullError, TerminationBound, evalFull)
@@ -53,6 +54,11 @@ tasty_lcm_prop = withTests 5 $ property $ do
   n <- forAll $ integral_ (Range.linearFrom 0 (-10) 10)
   m <- forAll $ integral_ (Range.linearFrom 0 (-10) 10)
   functionOutput P.lcm [int n, int m] 4000 <===> Right (create' $ int $ lcm n m)
+
+tasty_even_prop :: Property
+tasty_even_prop = property $ do
+  n <- forAll $ integral_ (Range.constant (-10) 10)
+  functionOutput P.even [int n] 20 <===> Right (create' $ bool_ $ even n)
 
 (<===>) :: (HasCallStack, MonadTest m) => Either EvalFullError Expr -> Either EvalFullError Expr -> m ()
 x <===> y = withFrozenCallStack $ on (===) (over evalResultExpr zeroIDs) x y
