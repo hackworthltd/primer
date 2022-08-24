@@ -58,6 +58,8 @@ library
     Primer.Action.ProgAction
     Primer.Action.ProgError
     Primer.API.NodeFlavor
+    Primer.Core.DSL.Meta
+    Primer.Core.DSL.Type
     Primer.Core.Meta
     Primer.Core.Type
     Primer.Eval.Beta
