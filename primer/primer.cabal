@@ -38,6 +38,7 @@ library
     Primer.Prelude
     Primer.Prelude.Integer
     Primer.Prelude.Logic
+    Primer.Prelude.Polymorphism
     Primer.Prelude.Utils
     Primer.Pretty
     Primer.Primitives
@@ -178,6 +179,7 @@ test-suite primer-test
     Tests.NullDb
     Tests.Prelude.Integer
     Tests.Prelude.Logic
+    Tests.Prelude.Polymorphism
     Tests.Prelude.TypeCheck
     Tests.Prelude.Utils
     Tests.Pretty
