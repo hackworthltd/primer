@@ -25,6 +25,7 @@ module Primer.Typecheck (
   buildTypingContext,
   buildTypingContextFromModules,
   TypeError (..),
+  KindError (..),
   typeOf,
   maybeTypeOf,
   matchArrowType,
@@ -44,7 +45,6 @@ module Primer.Typecheck (
   getGlobalNames,
   getGlobalBaseNames,
   lookupGlobal,
-  lookupLocalTy,
   lookupVar,
   primConInScope,
   consistentKinds,
@@ -157,9 +157,22 @@ import Primer.TypeDef (
   TypeDefMap,
   ValCon (valConArgs, valConName),
   typeDefAST,
-  typeDefKind,
   typeDefParameters,
   valConType,
+ )
+import Primer.Typecheck.Kindcheck (
+  Cxt (Cxt, globalCxt, localCxt, smartHoles, typeDefs),
+  KindError (..),
+  KindOrType (K, T),
+  Type,
+  TypeT,
+  annotate,
+  checkKind,
+  consistentKinds,
+  extendLocalCxtTy,
+  extendLocalCxtTys,
+  localTyVars,
+  synthKind,
  )
 import Primer.Typecheck.SmartHoles (SmartHoles (..))
 import Primer.Typecheck.TypeError (TypeError (..))
@@ -167,49 +180,23 @@ import Primer.Typecheck.TypeError (TypeError (..))
 -- | Typechecking takes as input an Expr with 'Maybe Type' annotations and
 -- produces an Expr with 'Type' annotations - i.e. every node in the output is
 -- given a type. The type annotation isn't itself part of the editable program
--- so it has no metadata - hence the '()' argument.
+-- so it has no metadata - hence the '()' argument inside 'TypeCache'.
 --
 -- The 'Type' annotations cache the type which a term synthesised/was checked
 -- at. For "embeddings" where typechecking defers to synthesis, we record the
 -- synthesised type, not the checked one. For example, when checking that
 -- @Int -> ?@ accepts @\x . x@, we record that the variable node has type
 -- @Int@, rather than @?@.
-type Type = Type' ()
-
 type ExprT = Expr' (Meta TypeCache) (Meta Kind)
-
-type TypeT = Type' (Meta Kind)
 
 assert :: MonadNestedError TypeError e m => Bool -> Text -> m ()
 assert b s = unless b $ throwError' (InternalError s)
 
-data KindOrType = K Kind | T Type
-  deriving (Show, Eq)
-
-data Cxt = Cxt
-  { smartHoles :: SmartHoles
-  , typeDefs :: TypeDefMap
-  , localCxt :: Map Name KindOrType
-  -- ^ local variables. invariant: the Name comes from a @LocalName k@, and
-  -- the tag @k@ should say whether the value is a kind or a type.
-  -- We detect violations of this in 'lookupLocal' (thus we key this map
-  -- by the underlying 'Name', rather than use a dependent map)
-  , globalCxt :: Map GVarName Type
-  -- ^ global variables (i.e. IDs of top-level definitions)
-  }
-  deriving (Show)
-
 lookupLocal :: LVarName -> Cxt -> Either TypeError Type
 lookupLocal v cxt = case M.lookup (unLocalName v) $ localCxt cxt of
   Just (T t) -> Right t
-  Just (K _) -> Left $ WrongSortVariable (unLocalName v)
+  Just (K _) -> Left $ TmVarWrongSort (unLocalName v)
   Nothing -> Left $ UnknownVariable $ LocalVarRef v
-
-lookupLocalTy :: TyVarName -> Cxt -> Either TypeError Kind
-lookupLocalTy v cxt = case M.lookup (unLocalName v) $ localCxt cxt of
-  Just (K k) -> Right k
-  Just (T _) -> Left $ WrongSortVariable (unLocalName v)
-  Nothing -> Left $ UnknownTypeVariable v
 
 lookupGlobal :: GVarName -> Cxt -> Maybe Type
 lookupGlobal v cxt = M.lookup v $ globalCxt cxt
@@ -227,14 +214,8 @@ lookupVar v cxt = case v of
 extendLocalCxt :: (LVarName, Type) -> Cxt -> Cxt
 extendLocalCxt (name, ty) cxt = cxt{localCxt = Map.insert (unLocalName name) (T ty) (localCxt cxt)}
 
-extendLocalCxtTy :: (TyVarName, Kind) -> Cxt -> Cxt
-extendLocalCxtTy (name, k) cxt = cxt{localCxt = Map.insert (unLocalName name) (K k) (localCxt cxt)}
-
 extendLocalCxts :: [(LVarName, Type)] -> Cxt -> Cxt
 extendLocalCxts x cxt = cxt{localCxt = Map.fromList (bimap unLocalName T <$> x) <> localCxt cxt}
-
-extendLocalCxtTys :: [(TyVarName, Kind)] -> Cxt -> Cxt
-extendLocalCxtTys x cxt = cxt{localCxt = Map.fromList (bimap unLocalName K <$> x) <> localCxt cxt}
 
 extendGlobalCxt :: [(GVarName, Type)] -> Cxt -> Cxt
 extendGlobalCxt globals cxt = cxt{globalCxt = Map.fromList globals <> globalCxt cxt}
@@ -244,9 +225,6 @@ extendTypeDefCxt typedefs cxt = cxt{typeDefs = typedefs <> typeDefs cxt}
 
 localTmVars :: Cxt -> Map LVarName Type
 localTmVars = M.mapKeys LocalName . M.mapMaybe (\case T t -> Just t; K _ -> Nothing) . localCxt
-
-localTyVars :: Cxt -> Map TyVarName Kind
-localTyVars = M.mapKeys LocalName . M.mapMaybe (\case K k -> Just k; T _ -> Nothing) . localCxt
 
 noSmartHoles :: Cxt -> Cxt
 noSmartHoles cxt = cxt{smartHoles = NoSmartHoles}
@@ -273,7 +251,7 @@ buildTypingContextFromModules modules =
     (foldMap moduleTypesQualified modules)
     (foldMap moduleDefsQualified modules)
 
--- | A shorthand for the constraints needed when typechecking
+-- | A shorthand for the constraints needed when kindchecking
 type TypeM e m =
   ( Monad m
   , MonadReader Cxt m -- has access to a typing context, and SmartHoles option
@@ -295,11 +273,6 @@ maybeTypeOf = view _typecache
 typeOf :: ExprT -> TypeCache
 typeOf = view _typecache
 
--- | Extend the metadata of an 'Expr' or 'Type'
--- (usually with a 'TypeCache' or 'Kind')
-annotate :: b -> Meta a -> Meta b
-annotate t (Meta i _ v) = Meta i t v
-
 -- | Check a context is valid
 checkValidContext ::
   (MonadFresh ID m, MonadFresh NameCounter m, MonadNestedError TypeError e (ReaderT Cxt m)) =>
@@ -312,10 +285,10 @@ checkValidContext cxt = do
   checkLocalCxtTys $ localTyVars cxt
   runReaderT (checkLocalCxtTms $ localTmVars cxt) $ extendLocalCxtTys (M.toList $ localTyVars cxt) (initialCxt NoSmartHoles){typeDefs = tds}
   where
-    checkGlobalCxt = mapM_ (checkKind KType <=< fakeMeta)
+    checkGlobalCxt = mapM_ (checkKind' KType <=< fakeMeta)
     -- a tyvar just declares its kind. There are no possible errors in kinds.
     checkLocalCxtTys _tyvars = pure ()
-    checkLocalCxtTms = mapM_ (checkKind KType <=< fakeMeta)
+    checkLocalCxtTms = mapM_ (checkKind' KType <=< fakeMeta)
     -- We need metadata to use checkKind, but we don't care about the output,
     -- just a yes/no answer. In this case it is fine to put nonsense in the
     -- metadata as it won't be inspected.
@@ -380,7 +353,7 @@ checkTypeDefs tds = do
         (notElem (baseName tc) $ map (unLocalName . fst) params)
         "Duplicate names in one tydef: between type-def-name and parameter-names"
       local (noSmartHoles . extendLocalCxtTys params) $
-        mapM_ (checkKind KType <=< fakeMeta) $
+        mapM_ (checkKind' KType <=< fakeMeta) $
           concatMap valConArgs cons
     -- We need metadata to use checkKind, but we don't care about the output,
     -- just a yes/no answer. In this case it is fine to put nonsense in the
@@ -427,7 +400,7 @@ checkEverything sh CheckEverything{trusted, toCheck} =
           -- Kind check and update (for smartholes) all the types.
           -- Note that this may give ill-typed definitions if the type changes
           -- since we have not checked the expressions against the new types.
-          updatedTypes <- traverseOf (traverseDefs % #_DefAST % #astDefType) (fmap typeTtoType . checkKind KType) toCheck
+          updatedTypes <- traverseOf (traverseDefs % #_DefAST % #astDefType) (fmap typeTtoType . checkKind' KType) toCheck
           -- Now extend the context with the new types
           let defsUpdatedTypes = itoListOf foldDefTypesWithName updatedTypes
           local (extendGlobalCxt defsUpdatedTypes) $
@@ -516,7 +489,7 @@ synth = \case
     (et, e') <- synth e
     matchForallType et >>= \case
       Just (v, vk, b) -> do
-        t' <- checkKind vk t
+        t' <- checkKind' vk t
         bSub <- substTy v (forgetTypeMetadata t') b
         pure (bSub, APP (annotate (TCSynthed bSub) i) e' t')
       Nothing ->
@@ -527,7 +500,7 @@ synth = \case
             synth $ APP i eWrap t
   Ann i e t -> do
     -- Check that the type is well-formed by synthesising its kind
-    t' <- checkKind KType t
+    t' <- checkKind' KType t
     let t'' = forgetTypeMetadata t'
     -- Check e against the annotation
     e' <- check t'' e
@@ -563,7 +536,7 @@ synth = \case
     pure $ annSynth3 bT i Let x a' b'
   Letrec i x a tA b -> do
     -- Check that tA is well-formed
-    tA' <- checkKind KType tA
+    tA' <- checkKind' KType tA
     let t = forgetTypeMetadata tA'
         ctx' = extendLocalCxt (x, t)
     -- Check the bound expression against its annotation
@@ -658,7 +631,7 @@ check t = \case
     pure $ Let (annotate (typeOf b') i) x a' b'
   Letrec i x a tA b -> do
     -- Check that tA is well-formed
-    tA' <- checkKind KType tA
+    tA' <- checkKind' KType tA
     let ctx' = extendLocalCxt (x, forgetTypeMetadata tA')
     -- Check the bound expression against its annotation
     a' <- local ctx' $ check (forgetTypeMetadata tA') a
@@ -744,87 +717,6 @@ check t = \case
             Hole{} -> default_ -- Don't let the recursive call mint a hole.
             e'' -> pure e''
       _ -> default_
-
--- Synthesise a kind for the given type
--- TypeHoles are always considered to have kind KHole - a kind hole.
--- When SmartHoles is on, we essentially remove all holes, and re-insert where
--- necessary.
--- However, we take care not to remove a non-empty hole only to immediately
--- re-insert it, since this would needlessly change its ID, resulting in
--- problems if an action left the cursor on such a hole: "lost ID after
--- typechecking". For example, consider (numbers are denoting IDs inside the
--- metadata)
---   synthKind $ TApp 0 (THole 1 (TCon 2 Bool)) t
--- If we removed the hole, we would then note that Bool does not have an arrow
--- kind, and so wrap it in a hole again, returning something like
---   TApp 0 (THole 3 (TCon 2 Bool)) t
--- A similar thing would happen with
---   synthKind $ TApp 0 (TCon 1 List) (THole 2 (TCon 3 List))
--- because we do not have checkKind KType List
-synthKind :: TypeM e m => Type' (Meta a) -> m (Kind, TypeT)
-synthKind = \case
-  TEmptyHole m -> pure (KHole, TEmptyHole (annotate KHole m))
-  THole m t -> do
-    sh <- asks smartHoles
-    (k, t') <- synthKind t
-    case sh of
-      NoSmartHoles -> pure (KHole, THole (annotate KHole m) t')
-      SmartHoles -> pure (k, t')
-  TCon m c -> do
-    typeDef <- asks (M.lookup c . typeDefs)
-    case typeDef of
-      Nothing -> throwError' $ UnknownTypeConstructor c
-      Just def -> let k = typeDefKind def in pure (k, TCon (annotate k m) c)
-  TFun m a b -> do
-    a' <- checkKind KType a
-    b' <- checkKind KType b
-    pure (KType, TFun (annotate KType m) a' b')
-  TVar m v -> do
-    asks (lookupLocalTy v) >>= \case
-      Right k -> pure (k, TVar (annotate k m) v)
-      Left err -> throwError' err
-  TApp ma (THole mh s) t -> do
-    -- If we didn't have this special case, we might remove this hole (in a
-    -- recursive call), only to reintroduce it again with a different ID
-    -- TODO: ugly and duplicated...
-    sh <- asks smartHoles
-    (k, s') <- synthKind s
-    case (matchArrowKind k, sh) of
-      (_, NoSmartHoles) -> checkKind KHole t >>= \t' -> pure (KHole, TApp (annotate KHole ma) (THole (annotate KHole mh) s') t')
-      (Nothing, SmartHoles) -> checkKind KHole t >>= \t' -> pure (KHole, TApp (annotate KHole ma) (THole (annotate KHole mh) s') t')
-      (Just (k1, k2), SmartHoles) -> checkKind k1 t >>= \t' -> pure (k2, TApp (annotate k2 ma) s' t')
-  TApp m s t -> do
-    sh <- asks smartHoles
-    (k, s') <- synthKind s
-    case (matchArrowKind k, sh) of
-      (Nothing, NoSmartHoles) -> throwError' $ KindDoesNotMatchArrow k
-      (Nothing, SmartHoles) -> do
-        sWrap <- THole <$> meta' KHole <*> pure s'
-        t' <- checkKind KHole t
-        pure (KHole, TApp (annotate KHole m) sWrap t')
-      (Just (k1, k2), _) -> checkKind k1 t >>= \t' -> pure (k2, TApp (annotate k2 m) s' t')
-  TForall m n k t -> do
-    t' <- local (extendLocalCxtTy (n, k)) $ checkKind KType t
-    pure (KType, TForall (annotate KType m) n k t')
-
-checkKind :: TypeM e m => Kind -> Type' (Meta a) -> m TypeT
-checkKind k (THole m t) = do
-  -- If we didn't have this special case, we might remove this hole (in a
-  -- recursive call), only to reintroduce it again with a different ID
-  -- TODO: ugly and duplicated...
-  sh <- asks smartHoles
-  (k', t') <- synthKind t
-  case (consistentKinds k k', sh) of
-    (_, NoSmartHoles) -> pure $ THole (annotate KHole m) t'
-    (True, SmartHoles) -> pure t'
-    (False, SmartHoles) -> pure $ THole (annotate KHole m) t'
-checkKind k t = do
-  sh <- asks smartHoles
-  (k', t') <- synthKind t
-  case (consistentKinds k k', sh) of
-    (True, _) -> pure t'
-    (False, NoSmartHoles) -> throwError' $ InconsistentKinds k k'
-    (False, SmartHoles) -> THole <$> meta' KHole <*> pure t'
 
 data TypeDefError
   = TDIHoleType -- a type hole
@@ -975,11 +867,6 @@ matchForallType (THole _ _) = (\n -> Just (n, KType, TEmptyHole ())) <$> freshLo
 matchForallType (TForall _ a k t) = pure $ Just (a, k, t)
 matchForallType _ = pure Nothing
 
-matchArrowKind :: Kind -> Maybe (Kind, Kind)
-matchArrowKind KHole = pure (KHole, KHole)
-matchArrowKind KType = Nothing
-matchArrowKind (KFun k1 k2) = pure (k1, k2)
-
 -- | Two types are consistent if they are equal (up to IDs and alpha) when we
 -- also count holes as being equal to anything.
 consistentTypes :: Type -> Type -> Bool
@@ -1005,13 +892,6 @@ consistentTypes x y = uncurry eqType $ holepunch x y
        in -- Perhaps we need to compare the kinds up to holes also?
           (TForall () n k hs, TForall () m l ht)
     holepunch s t = (s, t)
-
-consistentKinds :: Kind -> Kind -> Bool
-consistentKinds KHole _ = True
-consistentKinds _ KHole = True
-consistentKinds KType KType = True
-consistentKinds (KFun k1 k2) (KFun k1' k2') = consistentKinds k1 k1' && consistentKinds k2 k2'
-consistentKinds _ _ = False
 
 -- | Compare two types for alpha equality, ignoring their IDs
 eqType :: Type' a -> Type' b -> Bool
@@ -1046,3 +926,9 @@ getGlobalNames = do
 
 getGlobalBaseNames :: MonadReader Cxt m => m (S.Set Name)
 getGlobalBaseNames = S.map snd <$> getGlobalNames
+
+checkKind' :: TypeM e m => Kind -> Type' (Meta a) -> m TypeT
+checkKind' k t =
+  runExceptT (checkKind k t) >>= \case
+    Left err -> throwError' $ KindError err
+    Right t' -> pure t'

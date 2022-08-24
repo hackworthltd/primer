@@ -10,7 +10,7 @@ import Primer.Core.Type (Kind, Type' (TForall, TFun, TVar))
 import Primer.Core.Utils (freshLocalName)
 import Primer.Name (NameCounter)
 import Primer.Subst (substTy, substTys)
-import Primer.Typecheck qualified as TC
+import Primer.Typecheck.Kindcheck qualified as TC
 import Primer.Unification (InternalUnifyError, unify)
 import Primer.Zipper (bindersBelowTy, focus)
 

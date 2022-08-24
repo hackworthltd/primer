@@ -110,7 +110,11 @@ import Primer.Module (Module (Module, moduleDefs, moduleName, moduleTypes), buil
 import Primer.Name
 import Primer.Primitives (primitiveGVar, tChar)
 import Primer.TypeDef (ASTTypeDef (..), TypeDef (..), ValCon (..), typeDefAST)
-import Primer.Typecheck (SmartHoles (NoSmartHoles, SmartHoles), TypeError (UnknownTypeConstructor))
+import Primer.Typecheck (
+  KindError (UnknownTypeConstructor),
+  SmartHoles (NoSmartHoles, SmartHoles),
+  TypeError (KindError),
+ )
 import Test.Tasty.HUnit (Assertion, assertBool, assertFailure, (@=?), (@?=))
 import TestM (TestM, evalTestM)
 import TestUtils (constructCon, constructTCon, zeroIDs, zeroTypeIDs)
@@ -338,7 +342,7 @@ unit_create_typedef_bad_1 =
           , astTypeDefNameHints = ["xs", "ys", "zs"]
           }
    in progActionTest defaultEmptyProg [AddTypeDef (tcn "Tree") td] $
-        expectError (@?= (TypeDefError $ show $ UnknownTypeConstructor (tcn "List")))
+        expectError (@?= (TypeDefError $ show $ KindError $ UnknownTypeConstructor (tcn "List")))
 
 -- duplicate type(names) added
 unit_create_typedef_bad_2 :: Assertion

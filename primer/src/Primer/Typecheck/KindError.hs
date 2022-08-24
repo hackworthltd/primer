@@ -1,0 +1,17 @@
+module Primer.Typecheck.KindError (KindError (..)) where
+
+import Foreword
+
+import Primer.Core.Meta (TyConName, TyVarName)
+import Primer.Core.Type (Kind)
+import Primer.JSON (CustomJSON (..), FromJSON, PrimerJSON, ToJSON)
+import Primer.Name (Name)
+
+data KindError
+  = UnknownTypeVariable TyVarName
+  | TyVarWrongSort Name -- term var instead of type var
+  | UnknownTypeConstructor TyConName
+  | InconsistentKinds Kind Kind
+  | KindDoesNotMatchArrow Kind
+  deriving (Eq, Show, Generic)
+  deriving (FromJSON, ToJSON) via PrimerJSON KindError
