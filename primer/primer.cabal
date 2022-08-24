@@ -36,6 +36,7 @@ library
     Primer.Name
     Primer.Name.Fresh
     Primer.Prelude
+    Primer.Prelude.Integer
     Primer.Prelude.Logic
     Primer.Prelude.Utils
     Primer.Pretty
@@ -143,6 +144,7 @@ test-suite primer-test
     Tests.Gen.Core.Typed
     Tests.Module
     Tests.NullDb
+    Tests.Prelude.Integer
     Tests.Prelude.Logic
     Tests.Prelude.TypeCheck
     Tests.Pretty
