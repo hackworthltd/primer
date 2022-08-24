@@ -17,7 +17,7 @@ import Control.Monad.Fresh (MonadFresh)
 import Data.Data (Data)
 import Data.Generics.Uniplate.Data (descendM)
 import Data.List.NonEmpty qualified as NE
-import Optics (traverseOf)
+import Optics (Field2 (_2), getting, noneOf, traverseOf, (%))
 import Primer.Core (
   CaseBranch' (..),
   Expr,
@@ -32,6 +32,7 @@ import Primer.Core (
   typesInExpr,
  )
 import Primer.Core.DSL (meta)
+import Primer.Core.Utils (_freeVarsTy)
 
 -- AST transformations.
 -- This module contains global transformations on expressions and types, in
@@ -56,15 +57,19 @@ renameVar x y expr = case expr of
     | sameVarRef v x -> Let m v <$> renameVar x y e1 <*> pure e2
     | sameVarRef v y -> Nothing
     | otherwise -> substAllChildren
-  LetType _ v _ty _e
+  LetType _ v ty _e
     -- the binding only scopes over _e, but due to assuming well-scoped-ness,
-    -- we don't need to rename inside _ty.
-    | sameVarRef v x -> pure expr
+    -- we don't need to rename inside ty. However, we need to check y is
+    -- not free, as type and term variables live in the same namespace,
+    -- so can capture each other.
+    | sameVarRef v x -> guard (noneOf (getting _freeVarsTy % _2) (`sameVarRef` y) ty) >> pure expr
     | sameVarRef v y -> Nothing
     | otherwise -> substAllChildren
-  Letrec _ v _ _ _
+  Letrec _ v _ ty _
     -- the binding scopes over both expressions, and we need not rename inside types
-    | sameVarRef v x -> pure expr
+    -- however, we need to check y is not free in the type (since type and term
+    -- variables live in the same namespace).
+    | sameVarRef v x -> guard (noneOf (getting _freeVarsTy % _2) (`sameVarRef` y) ty) >> pure expr
     | sameVarRef v y -> Nothing
     | otherwise -> substAllChildren
   Case m scrut branches -> Case m <$> renameVar x y scrut <*> mapM renameBranch branches
@@ -87,9 +92,13 @@ renameVar x y expr = case expr of
   PrimCon{} -> substAllChildren
   -- We assume the term is well-scoped, so do not have any references to the
   -- term vars x,y inside any type child (e.g. annotation), so no need to
-  -- consider renaming inside them
+  -- consider renaming inside them. However, but we do need to worry about
+  -- references to the type var y (term and type variables are in the same
+  -- namespace) -- we do not want to capture such a y.
   where
-    substAllChildren = descendM (renameVar x y) expr
+    substAllChildren = do
+      guard $ noneOf (typesInExpr % getting _freeVarsTy % _2) (`sameVarRef` y) expr
+      descendM (renameVar x y) expr
 
 sameVarRef :: LocalName k -> TmVarRef -> Bool
 sameVarRef v (LocalVarRef v') = sameVar v v'
