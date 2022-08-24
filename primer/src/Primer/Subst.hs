@@ -6,9 +6,10 @@ module Primer.Subst (
 import Foreword
 
 import Control.Monad.Fresh (MonadFresh)
+import Primer.Core.Fresh (freshLocalName)
 import Primer.Core.Meta (TyVarName)
 import Primer.Core.Type (Type' (..))
-import Primer.Core.Utils (freeVarsTy, freshLocalName)
+import Primer.Core.Type.Utils (freeVarsTy)
 import Primer.Name (NameCounter)
 
 -- | Simple and inefficient capture-avoiding substitution.

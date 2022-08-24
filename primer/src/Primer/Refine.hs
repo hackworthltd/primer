@@ -5,9 +5,9 @@ import Foreword
 import Control.Monad.Fresh (MonadFresh)
 import Data.Map qualified as Map
 import Data.Set qualified as Set
+import Primer.Core.Fresh (freshLocalName)
 import Primer.Core.Meta (ID, TyVarName)
 import Primer.Core.Type (Kind, Type' (TForall, TFun, TVar))
-import Primer.Core.Utils (freshLocalName)
 import Primer.Name (NameCounter)
 import Primer.Subst (substTy, substTys)
 import Primer.Typecheck.Kindcheck qualified as TC

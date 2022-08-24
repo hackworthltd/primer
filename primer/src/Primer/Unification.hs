@@ -15,7 +15,7 @@ import Primer.Core.Type (
   Type' (TApp, TCon, TEmptyHole, TForall, TFun, THole, TVar),
   _typeMeta,
  )
-import Primer.Core.Utils (_freeVarsTy)
+import Primer.Core.Type.Utils (_freeVarsTy)
 import Primer.Name (NameCounter)
 import Primer.Subst (substTy)
 import Primer.Typecheck.Kindcheck (
