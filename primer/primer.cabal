@@ -74,10 +74,12 @@ library
     Primer.Eval.Push
     Primer.Eval.Utils
     Primer.Primitives.PrimDef
+    Primer.Typecheck.Cxt
     Primer.Typecheck.Kindcheck
     Primer.Typecheck.KindError
     Primer.Typecheck.SmartHoles
     Primer.Typecheck.TypeError
+    Primer.Typecheck.Utils
     Primer.Zipper.Type
 
   default-language:   GHC2021

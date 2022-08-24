@@ -4,7 +4,6 @@ module Primer.Typecheck.Kindcheck (
   synthKind,
   Type,
   TypeT,
-  Cxt (..),
   KindOrType (..),
   extendLocalCxtTy,
   extendLocalCxtTys,
@@ -20,13 +19,14 @@ import Control.Monad.Fresh (MonadFresh)
 import Control.Monad.NestedError (MonadNestedError, throwError')
 import Data.Map qualified as Map
 import Primer.Core.DSL.Meta (meta')
-import Primer.Core.Meta (GVarName, ID, LocalName (LocalName), Meta (Meta), TyVarName, unLocalName)
+import Primer.Core.Meta (ID, LocalName (LocalName), Meta (Meta), TyVarName, unLocalName)
 import Primer.Core.Type (
   Kind (KFun, KHole, KType),
   Type' (TApp, TCon, TEmptyHole, TForall, TFun, THole, TVar),
  )
-import Primer.Name (Name, NameCounter)
-import Primer.TypeDef (TypeDefMap, typeDefKind)
+import Primer.Name (NameCounter)
+import Primer.TypeDef (typeDefKind)
+import Primer.Typecheck.Cxt (Cxt (localCxt, smartHoles, typeDefs), KindOrType (K, T), Type)
 import Primer.Typecheck.KindError (
   KindError (
     InconsistentKinds,
@@ -48,23 +48,7 @@ type KindM e m =
   , MonadNestedError KindError e m -- can throw kind errors
   )
 
-type Type = Type' ()
-
-data KindOrType = K Kind | T Type
-  deriving (Show, Eq)
-
-data Cxt = Cxt
-  { smartHoles :: SmartHoles
-  , typeDefs :: TypeDefMap
-  , localCxt :: Map Name KindOrType
-  -- ^ local variables. invariant: the Name comes from a @LocalName k@, and
-  -- the tag @k@ should say whether the value is a kind or a type.
-  -- We detect violations of this in 'lookupLocal' (thus we key this map
-  -- by the underlying 'Name', rather than use a dependent map)
-  , globalCxt :: Map GVarName Type
-  -- ^ global variables (i.e. IDs of top-level definitions)
-  }
-  deriving (Show)
+type TypeT = Type' (Meta Kind)
 
 lookupLocalTy :: TyVarName -> Cxt -> Either KindError Kind
 lookupLocalTy v cxt = case Map.lookup (unLocalName v) $ localCxt cxt of
@@ -80,8 +64,6 @@ extendLocalCxtTy (name, k) cxt = cxt{localCxt = Map.insert (unLocalName name) (K
 
 extendLocalCxtTys :: [(TyVarName, Kind)] -> Cxt -> Cxt
 extendLocalCxtTys x cxt = cxt{localCxt = Map.fromList (bimap unLocalName K <$> x) <> localCxt cxt}
-
-type TypeT = Type' (Meta Kind)
 
 -- Synthesise a kind for the given type
 -- TypeHoles are always considered to have kind KHole - a kind hole.

@@ -18,8 +18,10 @@ import Primer.Core.Type (
 import Primer.Core.Type.Utils (_freeVarsTy)
 import Primer.Name (NameCounter)
 import Primer.Subst (substTy)
-import Primer.Typecheck.Kindcheck (
+import Primer.Typecheck.Cxt (
   Cxt (smartHoles),
+ )
+import Primer.Typecheck.Kindcheck (
   KindError,
   Type,
   checkKind,

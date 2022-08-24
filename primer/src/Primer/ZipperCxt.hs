@@ -29,7 +29,7 @@ import Primer.Core (
   _typeMetaLens,
  )
 import Primer.Core.Utils (forgetTypeMetadata)
-import Primer.Typecheck (maybeTypeOf)
+import Primer.Typecheck.Utils (maybeTypeOf)
 import Primer.Zipper (
   ExprZ,
   FoldAbove,
