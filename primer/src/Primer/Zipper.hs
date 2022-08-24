@@ -1,4 +1,3 @@
-{-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE OverloadedLabels #-}
 
 -- | This module contains the zipper types @ExprZ@ and @TypeZ@, and functions for
@@ -60,10 +59,8 @@ import Data.Generics.Uniplate.Data ()
 import Data.Generics.Uniplate.Zipper (
   Zipper,
   fromZipper,
-  replaceHole,
   zipper,
  )
-import Data.Generics.Uniplate.Zipper qualified as Z
 import Data.List as List (delete)
 import Data.Set qualified as S
 import Optics (
@@ -75,7 +72,6 @@ import Optics (
   iso,
   ix,
   only,
-  over,
   preview,
   set,
   view,
@@ -85,8 +81,7 @@ import Optics (
   (<%>),
   (^?),
  )
-import Optics.Lens (Lens', equality', lens)
-import Optics.Traversal (traverseOf)
+import Optics.Lens (Lens', lens)
 import Primer.Core (
   Bind' (..),
   CaseBranch' (CaseBranch),
@@ -96,14 +91,36 @@ import Primer.Core (
   HasID (..),
   ID,
   LocalName (unLocalName),
-  TyVarName,
-  Type' (TForall),
+  Type' (),
   TypeMeta,
   bindName,
   getID,
   typesInExpr,
  )
 import Primer.Name (Name)
+import Primer.Zipper.Type (
+  FoldAbove,
+  FoldAbove' (..),
+  IsZipper (..),
+  TypeZip,
+  bindersAboveTy,
+  bindersBelowTy,
+  down,
+  farthest,
+  focus,
+  focusOnTy,
+  foldAbove,
+  foldBelow,
+  getBoundHereTy,
+  left,
+  replace,
+  right,
+  search,
+  target,
+  top,
+  up,
+  _target,
+ )
 
 type ExprZ' a b = Zipper (Expr' a b) (Expr' a b)
 
@@ -111,9 +128,6 @@ type ExprZ' a b = Zipper (Expr' a b) (Expr' a b)
 type ExprZ = ExprZ' ExprMeta TypeMeta
 
 type TypeZip' b = Zipper (Type' b) (Type' b)
-
--- | An ordinary zipper for 'Type's
-type TypeZip = TypeZip' TypeMeta
 
 -- | A zipper for 'Type's embedded in expressions.
 -- For such types, we need a way
@@ -253,17 +267,6 @@ unfocusType (TypeZ zt f) = f (fromZipper zt)
 focusOnlyType :: TypeZ' a b -> TypeZip' b
 focusOnlyType (TypeZ zt _) = zt
 
--- | We want to use up, down, left, right, etc. on 'ExprZ' and 'TypeZ',
--- despite them being very different types. This class enables that, by proxying
--- each method through to the underlying Zipper.
--- @za@ is the user-facing type, i.e. 'ExprZ' or 'TypeZ'.
--- @a@ is the type of targets of the internal zipper, i.e. 'Expr' or 'Type'.
-class Data a => IsZipper za a | za -> a where
-  asZipper :: Lens' za (Z.Zipper a a)
-
-instance Data a => IsZipper (Z.Zipper a a) a where
-  asZipper = equality'
-
 instance Data b => IsZipper (TypeZ' a b) (Type' b) where
   asZipper = position @1
 
@@ -272,32 +275,6 @@ instance Data b => IsZipper (TypeZ' a b) (Type' b) where
 -- consistent interface for 'ExprZ', 'TypeZ' and 'CaseBindZ'.
 instance IsZipper CaseBindZ (Bind' ExprMeta) where
   asZipper = #caseBindZFocus % iso zipper fromZipper
-
-target :: IsZipper za a => za -> a
-target = Z.hole . view asZipper
-
--- | A 'Lens' for the target of a zipper
-_target :: IsZipper za a => Lens' za a
-_target = lens target (flip replace)
-
-up :: IsZipper za a => za -> Maybe za
-up = traverseOf asZipper Z.up
-
-down :: (IsZipper za a) => za -> Maybe za
-down = traverseOf asZipper Z.down
-
-left :: IsZipper za a => za -> Maybe za
-left = traverseOf asZipper Z.left
-
-right :: IsZipper za a => za -> Maybe za
-right = traverseOf asZipper Z.right
-
-top :: IsZipper za a => za -> za
-top = farthest up
-
--- | Convert a normal 'Expr' to a cursored one, focusing on the root
-focus :: (Data a) => a -> Zipper a a
-focus = zipper
 
 -- | Convert an 'Expr' to a 'Loc' which focuses on the top of the expression.
 focusLoc :: Expr -> Loc
@@ -332,10 +309,6 @@ locToEither (InType z) = Right z
 unfocus :: Loc -> Expr
 unfocus = unfocusExpr . unfocusLoc
 
--- | Replace the node at the cursor with the given value.
-replace :: (IsZipper za a) => a -> za -> za
-replace = over asZipper . replaceHole
-
 -- | Focus on the node with the given 'ID', if it exists in the expression
 focusOn :: (Data a, Data b, Eq a, HasID a, HasID b) => ID -> Expr' a b -> Maybe (Loc' a b)
 focusOn i = focusOn' i . focus
@@ -354,81 +327,9 @@ focusOn' i = fmap snd . search matchesID
               inCaseBinds = findInCaseBinds i z
            in inType <|> inCaseBinds
 
--- | Focus on the node with the given 'ID', if it exists in the type
-focusOnTy ::
-  (Data b, HasID b) =>
-  ID ->
-  Type' b ->
-  Maybe (Zipper (Type' b) (Type' b))
-focusOnTy i = focusOnTy' i . focus
-
--- | Focus on the node with the given 'ID', if it exists in the focussed type
-focusOnTy' ::
-  (Data b, HasID b) =>
-  ID ->
-  Zipper (Type' b) (Type' b) ->
-  Maybe (Zipper (Type' b) (Type' b))
-focusOnTy' i = fmap snd . search matchesID
-  where
-    matchesID z
-      -- If the current target has the correct ID, return that
-      | getID (target z) == i = Just z
-      | otherwise = Nothing
-
--- | Search for a node for which @f@ returns @Just@ something.
--- Performs a depth-first, leftmost-first search.
-search :: (IsZipper za a) => (za -> Maybe b) -> za -> Maybe (za, b)
-search f z
-  | Just x <- f z = Just (z, x)
-  | otherwise =
-      -- if the node has children, recurse on the leftmost child
-      (down z >>= search f . farthest left)
-        -- then recurse on the sibling to the right
-        <|> (right z >>= search f)
-
--- | Move the zipper focus as far in one direction as possible
-farthest :: (a -> Maybe a) -> a -> a
-farthest f = go where go a = maybe a go (f a)
-
-data FoldAbove' a b = FA {prior :: a, current :: b}
-type FoldAbove a = FoldAbove' a a
-
--- | Focus on everything 'up', in order, map each to a monoid, and accumulate.
--- This does not focus on the current target.
--- We keep track of which child we just came up from, as that can be important
--- in applications: e.g. finding enclosing binders, where @let x=e1 in e2@ has
--- two children, but only binds a variable in one of them.
--- NB: 'foldAbove' + 'foldBelow' does not encompass the whole term: it misses
--- siblings.
-foldAbove :: (IsZipper za a, Monoid m) => (FoldAbove a -> m) -> za -> m
-foldAbove f z = go (target z) (up z)
-  where
-    go p c = case c of
-      Nothing -> mempty
-      Just z' -> let cur = target z' in f (FA{prior = p, current = cur}) <> go cur (up z')
-
--- | Focus on the current thing, and then everything 'below', in depth-first,
--- leftmost-first order;
--- map each to a monoid, and accumulate
--- NB: 'foldAbove' + 'foldBelow' does not encompass the whole term: it misses
--- siblings.
-foldBelow :: (IsZipper za a, Monoid m) => (a -> m) -> za -> m
-foldBelow f z = f (target z) <> maybe mempty (go . farthest left) (down z)
-  where
-    go z' = f (target z') <> maybe mempty (go . farthest left) (down z') <> maybe mempty go (right z')
-
 -- Gets all binders that scope over the focussed subtree
 bindersAbove :: ExprZ -> S.Set Name
 bindersAbove = foldAbove getBoundHereUp
-
-bindersAboveTy :: TypeZip -> S.Set TyVarName
-bindersAboveTy = foldAbove (getBoundHereTy . current)
-
--- Note that we have two specialisations we care about:
--- bindersBelowTy :: TypeZip -> S.Set Name
--- bindersBelowTy :: Zipper (Type' One) (Type' One) -> S.Set Name
-bindersBelowTy :: Data a => Zipper (Type' a) (Type' a) -> S.Set TyVarName
-bindersBelowTy = foldBelow getBoundHereTy
 
 foldAboveTypeZ ::
   (Data a, Data b, Monoid m) =>
@@ -490,8 +391,3 @@ getBoundHere e prev = case e of
   _ -> mempty
   where
     singleton = S.singleton . unLocalName
-
-getBoundHereTy :: Type' a -> S.Set TyVarName
-getBoundHereTy = \case
-  TForall _ v _ _ -> S.singleton v
-  _ -> mempty

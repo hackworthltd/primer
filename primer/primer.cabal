@@ -78,6 +78,7 @@ library
     Primer.Typecheck.KindError
     Primer.Typecheck.SmartHoles
     Primer.Typecheck.TypeError
+    Primer.Zipper.Type
 
   default-language:   GHC2021
   default-extensions:

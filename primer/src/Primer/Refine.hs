@@ -12,7 +12,7 @@ import Primer.Name (NameCounter)
 import Primer.Subst (substTy, substTys)
 import Primer.Typecheck.Kindcheck qualified as TC
 import Primer.Unification (InternalUnifyError, unify)
-import Primer.Zipper (bindersBelowTy, focus)
+import Primer.Zipper.Type (bindersBelowTy, focus)
 
 data Inst
   = InstApp TC.Type
