@@ -28,7 +28,8 @@ import Primer.Core.DSL (app, apps, branch, case_, gvar, int, lam, let_, lvar, tc
 import Primer.Def (ASTDef (..), Def (..))
 import Primer.Prelude.Logic (not)
 import Primer.Prelude.Utils (modName)
-import Primer.Primitives (PrimDef (..), primDefName, primitiveGVar, tInt)
+import Primer.Primitives (PrimDef (..), tInt)
+import Primer.Primitives.DSL (pfun)
 
 min :: GVarName
 min = qualifyName modName "min"
@@ -42,7 +43,7 @@ minDef = do
       ( lam
           "y"
           ( case_
-              (apps (gvar $ primitiveGVar $ primDefName IntLTE) [lvar "x", lvar "y"])
+              (apps (pfun IntLTE) [lvar "x", lvar "y"])
               [ branch B.cTrue [] $ lvar "x"
               , branch B.cFalse [] $ lvar "y"
               ]
@@ -62,7 +63,7 @@ maxDef = do
       ( lam
           "y"
           ( case_
-              (apps (gvar $ primitiveGVar $ primDefName IntLTE) [lvar "x", lvar "y"])
+              (apps (pfun IntLTE) [lvar "x", lvar "y"])
               [ branch B.cTrue [] $ lvar "y"
               , branch B.cFalse [] $ lvar "x"
               ]
@@ -79,7 +80,7 @@ negateDef = do
   term <-
     lam
       "x"
-      (apps (gvar $ primitiveGVar $ primDefName IntMinus) [int 0, lvar "x"])
+      (apps (pfun IntMinus) [int 0, lvar "x"])
   pure $ DefAST $ ASTDef term type_
 
 abs :: GVarName
@@ -124,7 +125,7 @@ gcdHelperDef = do
       ( lam
           "y"
           ( case_
-              (apps (gvar $ primitiveGVar $ primDefName IntEq) [lvar "y", int 0])
+              (apps (pfun IntEq) [lvar "y", int 0])
               [ branch B.cTrue [] (lvar "x")
               , branch
                   B.cFalse
@@ -133,7 +134,7 @@ gcdHelperDef = do
                       (gvar gcdHelper)
                       [ lvar "y"
                       , apps
-                          (gvar $ primitiveGVar $ primDefName IntRem)
+                          (pfun IntRem)
                           [lvar "x", lvar "y"]
                       ]
                   )
@@ -155,8 +156,8 @@ lcmDef = do
           "y"
           ( case_
               ( apps
-                  (gvar $ primitiveGVar $ primDefName IntEq)
-                  [apps (gvar $ primitiveGVar $ primDefName IntMul) [lvar "x", lvar "y"], int 0]
+                  (pfun IntEq)
+                  [apps (pfun IntMul) [lvar "x", lvar "y"], int 0]
               )
               [ branch B.cTrue [] $ int 0
               , branch
@@ -166,10 +167,10 @@ lcmDef = do
                       "m"
                       (apps (gvar gcd) [lvar "x", lvar "y"])
                       ( apps
-                          (gvar $ primitiveGVar $ primDefName IntQuot)
+                          (pfun IntQuot)
                           [ app (gvar abs) $
                               apps
-                                (gvar $ primitiveGVar $ primDefName IntMul)
+                                (pfun IntMul)
                                 [lvar "x", lvar "y"]
                           , lvar "m"
                           ]
@@ -190,8 +191,8 @@ evenDef = do
     lam
       "x"
       ( apps
-          (gvar $ primitiveGVar $ primDefName IntEq)
-          [int 0, apps (gvar $ primitiveGVar $ primDefName IntRem) [lvar "x", int 2]]
+          (pfun IntEq)
+          [int 0, apps (pfun IntRem) [lvar "x", int 2]]
       )
   pure $ DefAST $ ASTDef term type_
 

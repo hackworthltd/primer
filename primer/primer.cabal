@@ -41,6 +41,7 @@ library
     Primer.Prelude.Utils
     Primer.Pretty
     Primer.Primitives
+    Primer.Primitives.DSL
     Primer.Questions
     Primer.Refine
     Primer.Subst
