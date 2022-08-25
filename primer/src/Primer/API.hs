@@ -65,6 +65,7 @@ import Data.Map qualified as Map
 import Data.Text qualified as T
 import ListT qualified (toList)
 import Optics (ifoldr, over, traverseOf, view, (^.))
+import Primer.API.NodeFlavor (NodeFlavor (..))
 import Primer.App (
   App,
   EditAppM,
@@ -409,38 +410,6 @@ data NodeBody
     NoBody
   deriving (Show, Eq, Generic)
   deriving (ToJSON) via PrimerJSON NodeBody
-
--- | An indication of the meaning of a node, which frontend may use for labelling, colour etc.
--- These mostly correspond to constructors of `Expr'` or `Type'`.
-data NodeFlavor
-  = FlavorHole
-  | FlavorEmptyHole
-  | FlavorAnn
-  | FlavorApp
-  | FlavorAPP
-  | FlavorCon
-  | FlavorLam
-  | FlavorLAM
-  | FlavorGlobalVar
-  | FlavorLocalVar
-  | FlavorLet
-  | FlavorLetType
-  | FlavorLetrec
-  | FlavorCase
-  | FlavorPrimCon
-  | FlavorTEmptyHole
-  | FlavorTHole
-  | FlavorTCon
-  | FlavorTFun
-  | FlavorTVar
-  | FlavorTApp
-  | FlavorTForall
-  | FlavorPattern
-  | FlavorPatternCon
-  | FlavorPatternBind
-  | FlavorPatternApp
-  deriving (Show, Eq, Generic, Enum, Bounded)
-  deriving (ToJSON) via PrimerJSON NodeFlavor
 
 -- | This type is the API's view of a 'App.Prog'
 -- (this is expected to evolve as we flesh out the API)

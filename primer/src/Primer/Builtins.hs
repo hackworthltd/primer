@@ -29,15 +29,17 @@ module Primer.Builtins (
   builtinModuleName,
 ) where
 
-import Primer.Core (
+import Primer.Core.Meta (
   GlobalName,
-  Kind (KType),
   ModuleName,
   TyConName,
-  Type' (TApp, TCon, TVar),
   ValConName,
   mkSimpleModuleName,
   qualifyName,
+ )
+import Primer.Core.Type (
+  Kind (KType),
+  Type' (TApp, TCon, TVar),
  )
 import Primer.Name (Name)
 import Primer.TypeDef (ASTTypeDef (..), ValCon (ValCon))

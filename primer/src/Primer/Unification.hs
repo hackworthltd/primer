@@ -6,11 +6,13 @@ import Control.Monad.Fresh (MonadFresh)
 import Data.Map qualified as M
 import Data.Set qualified as S
 import Optics (anyOf, getting, over, set)
-import Primer.Core (
+import Primer.Core.Meta (
   ID,
   TyVarName,
-  Type' (TApp, TCon, TEmptyHole, TForall, TFun, THole, TVar),
   trivialMeta,
+ )
+import Primer.Core.Type (
+  Type' (TApp, TCon, TEmptyHole, TForall, TFun, THole, TVar),
   _typeMeta,
  )
 import Primer.Core.Utils (_freeVarsTy)

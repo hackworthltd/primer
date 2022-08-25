@@ -87,7 +87,7 @@ import Primer.Def (
   DefMap,
   defPrim,
  )
-import Primer.Eval (tryPrimFun)
+import Primer.Eval.Prim (tryPrimFun)
 import Primer.JSON (CustomJSON (CustomJSON), FromJSON, PrimerJSON, ToJSON)
 import Primer.Name (Name, NameCounter)
 import Primer.TypeDef (

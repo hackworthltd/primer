@@ -51,7 +51,28 @@ library
     Primer.ZipperCxt
 
   hs-source-dirs:     src
-  other-modules:      Control.Monad.NestedError
+  other-modules:
+    Control.Monad.NestedError
+    Primer.Action.Actions
+    Primer.Action.Errors
+    Primer.Action.ProgAction
+    Primer.Action.ProgError
+    Primer.API.NodeFlavor
+    Primer.Core.Meta
+    Primer.Core.Type
+    Primer.Eval.Beta
+    Primer.Eval.Case
+    Primer.Eval.Detail
+    Primer.Eval.EvalError
+    Primer.Eval.Inline
+    Primer.Eval.Let
+    Primer.Eval.Prim
+    Primer.Eval.Push
+    Primer.Eval.Utils
+    Primer.Primitives.PrimDef
+    Primer.Typecheck.SmartHoles
+    Primer.Typecheck.TypeError
+
   default-language:   GHC2021
   default-extensions:
     NoImplicitPrelude

@@ -30,17 +30,17 @@ import Data.Map.Strict qualified as Map
 import Data.Set qualified as Set
 import Data.Text qualified as T
 import Optics (set, (%), (?~))
+import Primer.Action.Actions (Action (..), Movement (..), QualifiedText)
+import Primer.Action.Errors (ActionError (..))
+import Primer.Action.ProgAction (ProgAction (..))
 import Primer.Core (
   Expr,
   Expr' (..),
-  GVarName,
   HasMetadata (_metadata),
   ID,
   LVarName,
   LocalName (LocalName, unLocalName),
-  ModuleName,
   TmVarRef (..),
-  TyConName,
   TyVarName,
   Type,
   Type' (..),
@@ -83,7 +83,6 @@ import Primer.Def (
   Def (..),
   DefMap,
  )
-import Primer.JSON
 import Primer.Module (Module, insertDef)
 import Primer.Name (Name, NameCounter, unName, unsafeMkName)
 import Primer.Name.Fresh (
@@ -238,186 +237,6 @@ uniquifyDefName m name' defs = unName $ uniquify avoid $ unsafeMkName name'
       | otherwise = mempty
     avoid :: Set Name
     avoid = foldMap f $ Map.keys defs
-
-type QualifiedText = (NonEmpty Text, Text)
-
--- | Core actions.
---  These describe edits to the core AST.
---  Some of them take Text arguments rather than Name because they represent
---  untrusted input from the frontend.
-data Action
-  = -- | Do nothing
-    NoOp
-  | -- | Move the cursor to the expression with this ID
-    SetCursor ID
-  | -- | Move one step in some direction
-    Move Movement
-  | -- | Delete the expression under the cursor
-    Delete
-  | -- | Set metadata under the cursor
-    SetMetadata Value
-  | -- | Enter the hole under the cursor.
-    -- You can only enter an empty hole, changing it into a non-empty hole in the process.
-    -- To enter a non-empty hole, use 'Move Child1'
-    EnterHole
-  | -- | Replace a non-empty hole with its contents
-    FinishHole
-  | -- | Construct a variable in an empty hole
-    ConstructVar TmVarRef
-  | -- | Insert a variable, with a saturated spine of term/type applications in an empty hole
-    InsertSaturatedVar TmVarRef
-  | -- | Insert a variable, with an infered spine of term/type applications in an empty hole
-    InsertRefinedVar TmVarRef
-  | -- | Apply the expression under the cursor
-    ConstructApp
-  | -- | Apply the expression under the cursor to a type
-    ConstructAPP
-  | -- | Annotate the expression under the cursor (with a type hole)
-    ConstructAnn
-  | -- | Remove an annotation, leaving a now non-annotated term
-    RemoveAnn
-  | -- | Construct a lambda
-    ConstructLam (Maybe Text)
-  | -- | Construct a type abstraction "big-lambda"
-    ConstructLAM (Maybe Text)
-  | -- | Put a constructor in an empty hole
-    ConstructCon QualifiedText
-  | -- | Put a constructor applied to a saturated spine in an empty hole
-    ConstructSaturatedCon QualifiedText
-  | -- | Put a constructor in an empty hole, and infer what it should be applied to
-    ConstructRefinedCon QualifiedText
-  | -- | Put a let expression in an empty hole
-    ConstructLet (Maybe Text)
-  | -- | Put a letrec expression in an empty hole
-    ConstructLetrec (Maybe Text)
-  | -- | Convert a let to a letrec
-    ConvertLetToLetrec
-  | -- | Scrutinise the expression under the cursor with a @case@
-    ConstructCase
-  | -- | Rename a lambda binding
-    RenameLam Text
-  | -- | Rename a big lambda binding
-    RenameLAM Text
-  | -- | Rename a let or letrec binding
-    RenameLet Text
-  | -- | Move from an annotation to its type
-    EnterType
-  | -- | Move from a type up into the surrounding annotation
-    ExitType
-  | -- | Construct a function type around the type under the cursor.
-    -- The type under the cursor is placed in the domain (left) position.
-    ConstructArrowL
-  | -- | Construct a function type around the type under the cursor.
-    -- The type under the cursor is placed in the range (right) position.
-    ConstructArrowR
-  | -- | Put a type constructor in a type hole
-    ConstructTCon QualifiedText
-  | -- | Construct a type variable in an empty type hole
-    ConstructTVar Text
-  | -- | Construct a forall type (only at kind KType for now)
-    ConstructTForall (Maybe Text)
-  | -- | Construct an application in types
-    ConstructTApp
-  | -- | Rename a forall binding
-    RenameForall Text
-  | -- | Rename a case binding
-    RenameCaseBinding Text
-  deriving (Eq, Show, Generic)
-  deriving (FromJSON, ToJSON) via PrimerJSON Action
-
--- | Core movements
-data Movement = Child1 | Child2 | Parent | Branch ValConName
-  deriving (Eq, Show, Generic)
-  deriving (FromJSON, ToJSON) via PrimerJSON Movement
-
--- | Errors that may arise when applying an action
--- TODO: convert all CustomFailures to individual constructors
--- https://github.com/hackworthltd/primer/issues/8
-data ActionError
-  = CustomFailure
-      Action
-      -- ^ action that caused the error
-      Text
-      -- ^ the error message
-  | InternalFailure Text
-  | IDNotFound ID
-  | UnknownDef GVarName
-  | NeedEmptyHole Action Expr
-  | NeedNonEmptyHole Action Expr
-  | NeedAnn Action Expr
-  | TypeError TypeError
-  | -- | Both actual and potential, eg renaming the lambda x to y in any of
-    -- λx.y     the binder captures the existing y
-    -- λx.λy.x  occurance gets captured by the inner binder
-    -- λx.λy.y  this would be ok, but we are paranoid and bail out
-    NameCapture
-  | CaseBindsClash LVarName [LVarName]
-  | -- TODO: semantic errors.
-    -- https://github.com/hackworthltd/primer/issues/8
-    SaturatedApplicationError (Either Text TypeError)
-  | -- | @RefineError@ should never happen unless we use the API wrong or have
-    -- a bug. It does not get thrown for "no valid refinement found"
-    -- - see Note [No valid refinement]
-    RefineError (Either Text TypeError)
-  | -- | Cannot import modules whose names clash with previously-imported things
-    -- (or with each other)
-    ImportNameClash [ModuleName]
-  | -- | Importing some modules failed.
-    -- This should be impossible as long as the requested modules are well-typed
-    -- and all of their dependencies are already imported
-    ImportFailed () TypeError
-  -- The extra unit is to avoid having two constructors with a single
-  -- TypeError field, breaking our MonadNestedError machinery...
-  deriving (Eq, Show, Generic)
-  deriving (FromJSON, ToJSON) via PrimerJSON ActionError
-
--- | High level actions
--- These actions move around the whole program or modify definitions
-data ProgAction
-  = -- | Move the cursor to the definition with the given Name
-    MoveToDef GVarName
-  | -- | Rename the definition with the given (base) Name
-    RenameDef GVarName Text
-  | -- | Create a new definition
-    CreateDef ModuleName (Maybe Text)
-  | -- | Delete a new definition
-    DeleteDef GVarName
-  | -- | Add a new type definition
-    AddTypeDef TyConName ASTTypeDef
-  | -- | Rename the type definition with the given name, and its type constructor
-    RenameType TyConName Text
-  | -- | Rename the value constructor with the given name, in the given type
-    RenameCon TyConName ValConName Text
-  | -- | Rename the type parameter with the given name, in the given type
-    RenameTypeParam TyConName TyVarName Text
-  | -- | Add a value constructor at the given position, in the given type
-    AddCon TyConName Int Text
-  | -- | Change the type of the field at the given index of the given constructor
-    SetConFieldType TyConName ValConName Int (Type' ())
-  | -- | Add a new field, at the given index, to the given constructor
-    AddConField TyConName ValConName Int (Type' ())
-  | -- | Execute a sequence of actions on the body of the definition
-    BodyAction [Action]
-  | -- | Execute a sequence of actions on the type annotation of the definition
-    SigAction [Action]
-  | SetSmartHoles SmartHoles
-  | -- | CopyPaste (d,i) as
-    --   remembers the tree in def d, node i
-    --   runs actions as (in the currently selected def), which should end up in a hole
-    --   and then tries to paste the remembered subtree
-    --   This rather complex setup enables encoding 'raise' operations,
-    --     f s ~> f
-    --   where we remember f, then delete f s, then paste f back
-    --   as well as allowing cross-definition copy+paste
-    --   whilst letting the backend avoid remembering the 'copied' thing in some state.
-    --   The cursor is left on the root of the inserted subtree, which may or may not be inside a hole and/or annotation.
-    --   At the start of the actions, the cursor starts at the root of the definition's type/expression
-    CopyPasteSig (GVarName, ID) [Action]
-  | CopyPasteBody (GVarName, ID) [Action]
-  | -- | Renames an editable module (will return an error if asked to rename an imported module)
-    RenameModule ModuleName (NonEmpty Text)
-  deriving (Eq, Show, Generic)
-  deriving (FromJSON, ToJSON) via PrimerJSON ProgAction
 
 -- | A shorthand for the constraints needed when applying actions
 type ActionM m =
