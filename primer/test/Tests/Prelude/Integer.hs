@@ -2,21 +2,14 @@ module Tests.Prelude.Integer where
 
 import Foreword
 
-import Hedgehog (MonadTest, forAll, (===))
+import Hedgehog (forAll)
 import Hedgehog.Gen (integral_)
 import Hedgehog.Range qualified as Range
-import Optics (over)
 import Primer.Builtins.DSL (bool_)
-import Primer.Core (Expr, GVarName)
-import Primer.Core.DSL (apps, create', gvar, int)
-import Primer.EvalFull (Dir (Chk), EvalFullError, TerminationBound, evalFull)
-import Primer.Module (builtinModule, moduleDefsQualified, moduleTypesQualified, primitiveModule)
-import Primer.Prelude (prelude)
+import Primer.Core.DSL (create', int)
 import Primer.Prelude.Integer qualified as P
 import Tasty (Property, property, withTests)
-import TestM (TestM, evalTestM)
-import TestUtils (zeroIDs)
-import Tests.EvalFull (evalResultExpr)
+import Tests.Prelude.Utils (functionOutput, (<===>))
 
 tasty_min_prop :: Property
 tasty_min_prop = property $ do
@@ -63,19 +56,3 @@ tasty_odd_prop :: Property
 tasty_odd_prop = property $ do
   n <- forAll $ integral_ (Range.constant (-10) 10)
   functionOutput P.odd [int n] 20 <===> Right (create' $ bool_ $ odd n)
-
-(<===>) :: (HasCallStack, MonadTest m) => Either EvalFullError Expr -> Either EvalFullError Expr -> m ()
-x <===> y = withFrozenCallStack $ on (===) (over evalResultExpr zeroIDs) x y
-
--- Tests a prelude function
-functionOutput :: GVarName -> [TestM Expr] -> TerminationBound -> Either EvalFullError Expr
-functionOutput f args depth =
-  evalTestM 0 $ do
-    e <- apps (gvar f) args
-    evalFull ty def n d e
-  where
-    mods = [builtinModule, primitiveModule, prelude']
-    (ty, def) = mconcat $ map (\m -> (moduleTypesQualified m, moduleDefsQualified m)) mods
-    n = depth
-    d = Chk
-    prelude' = create' prelude

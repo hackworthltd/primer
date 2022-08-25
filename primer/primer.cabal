@@ -178,6 +178,7 @@ test-suite primer-test
     Tests.Prelude.Integer
     Tests.Prelude.Logic
     Tests.Prelude.TypeCheck
+    Tests.Prelude.Utils
     Tests.Pretty
     Tests.Primitives
     Tests.Prog
