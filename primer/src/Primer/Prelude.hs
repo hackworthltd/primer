@@ -14,19 +14,24 @@ prelude = do
   defs <-
     traverse
       sequence
-      [ ("not", notDef)
-      , ("and", andDef)
-      , ("or", orDef)
-      , ("xor", xorDef)
-      , ("implies", impliesDef)
-      , ("min", minDef)
-      , ("max", maxDef)
-      , ("negate", negateDef)
-      , ("abs", absDef)
-      , ("gcd", gcdDef)
-      , ("gcdHelper", gcdHelperDef)
-      , ("lcm", lcmDef)
-      , ("even", evenDef)
-      , ("odd", oddDef)
-      ]
+      ( let logic =
+              [ ("not", notDef)
+              , ("and", andDef)
+              , ("or", orDef)
+              , ("xor", xorDef)
+              , ("implies", impliesDef)
+              ]
+            integer =
+              [ ("min", minDef)
+              , ("max", maxDef)
+              , ("negate", negateDef)
+              , ("abs", absDef)
+              , ("gcd", gcdDef)
+              , ("gcdHelper", gcdHelperDef)
+              , ("lcm", lcmDef)
+              , ("even", evenDef)
+              , ("odd", oddDef)
+              ]
+         in logic ++ integer
+      )
   pure Module{moduleName = modName, moduleTypes = Map.empty, moduleDefs = Map.fromList defs}
