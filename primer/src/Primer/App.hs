@@ -29,6 +29,8 @@ module Primer.App (
   newProg,
   newProg',
   progAllModules,
+  Editable (..),
+  progAllDefs,
   tcWholeProg,
   tcWholeProgWithImports,
   nextProgID,
@@ -227,6 +229,14 @@ defaultProg = Prog mempty mempty Nothing SmartHoles defaultLog
 progAllModules :: Prog -> [Module]
 progAllModules p = progModules p <> progImports p
 
+data Editable = Editable | NonEditable
+  deriving (Bounded, Enum, Show)
+
+progAllDefs :: Prog -> Map GVarName (Editable, Def)
+progAllDefs p =
+  foldMap (fmap (Editable,) . moduleDefsQualified) (progModules p)
+    <> foldMap (fmap (NonEditable,) . moduleDefsQualified) (progImports p)
+
 -- Note [Modules]
 -- The invariant is that the @progImports@ modules are never edited, but
 -- one can insert new ones (and perhaps delete unneeded ones).
@@ -335,7 +345,7 @@ allTypes p = foldMap moduleTypesQualified $ progAllModules p
 
 -- | Get all definitions from all modules (including imports)
 allDefs :: Prog -> DefMap
-allDefs p = foldMap moduleDefsQualified $ progAllModules p
+allDefs = fmap snd . progAllDefs
 
 -- | The action log
 --  This is the canonical store of the program - we can recreate any current or
@@ -848,17 +858,17 @@ data RenameMods a = RM {imported :: [a], editable :: [a]}
 lookupEditableModule :: MonadError ProgError m => ModuleName -> Prog -> m Module
 lookupEditableModule n p =
   lookupModule' n p >>= \case
-    Editable m -> pure m
-    Imported _ -> throwError $ ModuleReadonly n
+    MLEditable m -> pure m
+    MLImported _ -> throwError $ ModuleReadonly n
 
 -- | Describes return type of successfully looking a module up in the program.
 -- We get the module and also whether it is imported or not.
-data ModuleLookup = Editable Module | Imported Module
+data ModuleLookup = MLEditable Module | MLImported Module
 
 lookupModule' :: MonadError ProgError m => ModuleName -> Prog -> m ModuleLookup
 lookupModule' n p = case (find ((n ==) . moduleName) (progModules p), find ((n ==) . moduleName) (progImports p)) of
-  (Just m, _) -> pure $ Editable m
-  (Nothing, Just m) -> pure $ Imported m
+  (Just m, _) -> pure $ MLEditable m
+  (Nothing, Just m) -> pure $ MLImported m
   (Nothing, Nothing) -> throwError $ ModuleNotFound n
 
 editModule ::

@@ -50,6 +50,7 @@ import Primer.App (
   newEmptyProg',
   newProg',
   nextProgID,
+  progAllDefs,
   progAllModules,
  )
 import Primer.App qualified as App
@@ -1530,7 +1531,7 @@ unit_sh_lost_id_2 =
 -- * Utilities
 
 findGlobalByName :: Prog -> GVarName -> Maybe Def
-findGlobalByName p n = Map.lookup n . foldMap moduleDefsQualified $ progAllModules p
+findGlobalByName p n = Map.lookup n . fmap snd $ progAllDefs p
 
 -- We use a program with two defs: "main" and "other"
 defaultEmptyProg :: MonadFresh ID m => m Prog
