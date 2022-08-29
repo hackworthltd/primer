@@ -15,12 +15,14 @@ import Primer.Action (
     ConstructApp,
     ConstructArrowL,
     ConstructCase,
+    ConstructLam,
     ConstructLet,
     ConstructTCon,
     ConstructVar,
     Delete,
     EnterType,
-    Move
+    Move,
+    RemoveAnn
   ),
   ActionError (ImportNameClash),
   Movement (Branch, Child1, Child2, Parent),
@@ -93,6 +95,7 @@ import Primer.Core.DSL (
   create,
   create',
   emptyHole,
+  gvar,
   hole,
   lAM,
   lam,
@@ -1425,6 +1428,91 @@ unit_cross_module_actions =
         case fst $ runAppTestM (appIdCounter a) a test of
           Left err -> assertFailure $ show err
           Right _ -> pure ()
+
+-- Consider
+--   foo :: ? ?
+--   foo = {? {? foo ?} : ? -> ? ?}
+-- and editing to remove annotation, giving
+--   foo = {? {? foo ?} ?}
+-- with the selection on the inner hole and then SH removes the holes, giving
+--   foo = foo
+-- When SH elides the hole that the selection is pointing at, it should update
+-- the selection to the contents of said hole.
+unit_sh_lost_id :: Assertion
+unit_sh_lost_id =
+  progActionTest
+    prog
+    [MoveToDef foo, BodyAction [Move Child1, RemoveAnn]]
+    $ expectSuccess
+    $ \_ prog' ->
+      case findGlobalByName prog' foo of
+        Just def ->
+          case astDefExpr <$> defAST def of
+            Just (Var m (GlobalVarRef f)) | f == foo -> case progSelection prog' of
+              Just Selection{selectedDef, selectedNode = Just NodeSelection{nodeId}} ->
+                unless (selectedDef == foo && nodeId == getID m) $
+                  assertFailure "expected selection to point at the recursive reference"
+              _ -> assertFailure "expected the selection to point at some node"
+            _ -> assertFailure "expected foo"
+        _ -> assertFailure "definition not found"
+  where
+    n = ModuleName ["Module2"]
+    qualifyM = qualifyName n
+    foo = qualifyM "foo"
+    prog = do
+      p <- defaultEmptyProg
+      e <- hole $ hole (gvar foo) `ann` (tEmptyHole `tfun` tEmptyHole)
+      t <- tEmptyHole `tapp` tEmptyHole
+      let m =
+            Module n mempty $
+              Map.singleton "foo" $
+                DefAST $
+                  ASTDef e t
+      pure $ p & #progModules %~ (m :)
+
+-- Consider (where we put a numeric suffix on annotation ':'s to reference later)
+--   foo :: ? ?
+--   foo = {? (λx.?) :0 ? ?}
+-- Add lambda directly around the non-empty hole
+--   foo = λy . {? (λx.?) :0 ? ?}
+-- SH adds an outer hole-and-annotation
+--   foo = {? (λy . {? (λx.?) :0 ? ?}) :1 ? ?}
+-- and removes the the trivial inner hole-and-annotation
+--   foo = {? (λy . λx.?) :1 ? ?}
+-- When SH elides the annotation that the selection is pointing at (:0 here),
+-- it should update the selection to the expression said annotation was
+-- annotating.
+unit_sh_lost_id_2 :: Assertion
+unit_sh_lost_id_2 =
+  progActionTest
+    prog
+    [MoveToDef foo, BodyAction [ConstructLam $ Just "y"]]
+    $ expectSuccess
+    $ \_ prog' ->
+      case findGlobalByName prog' foo of
+        Just def ->
+          case astDefExpr <$> defAST def of
+            Just (Hole _ (Ann _ (Lam _ "y" (Lam m "x" (EmptyHole _))) (TEmptyHole _))) -> case progSelection prog' of
+              Just Selection{selectedDef, selectedNode = Just NodeSelection{nodeId}} ->
+                unless (selectedDef == foo && nodeId == getID m) $
+                  assertFailure "expected selection to point at λx"
+              _ -> assertFailure "expected the selection to point at some node"
+            _ -> assertFailure "expected {? (λy. λx.?) : ? ?}"
+        _ -> assertFailure "definition not found"
+  where
+    n = ModuleName ["Module2"]
+    qualifyM = qualifyName n
+    foo = qualifyM "foo"
+    prog = do
+      p <- defaultEmptyProg
+      e <- hole $ lam "x" emptyHole `ann` tEmptyHole
+      t <- tEmptyHole `tapp` tEmptyHole
+      let m =
+            Module n mempty $
+              Map.singleton "foo" $
+                DefAST $
+                  ASTDef e t
+      pure $ p & #progModules %~ (m :)
 
 -- * Utilities
 
