@@ -1243,110 +1243,6 @@ unit_generate_names_import =
         Left err -> assertFailure $ show err
         Right assertion -> assertion
 
--- * Utilities
-
-findGlobalByName :: Prog -> GVarName -> Maybe Def
-findGlobalByName p n = Map.lookup n . foldMap moduleDefsQualified $ progAllModules p
-
--- We use a program with two defs: "main" and "other"
-defaultEmptyProg :: MonadFresh ID m => m Prog
-defaultEmptyProg = do
-  mainExpr <- emptyHole
-  mainType <- tEmptyHole
-  otherExpr <- emptyHole
-  otherType <- tEmptyHole
-  let mainDef = ASTDef mainExpr mainType
-      otherDef = ASTDef otherExpr otherType
-   in pure $
-        newEmptyProg'
-          { progSelection =
-              Just $
-                Selection (gvn "main") $
-                  Just
-                    NodeSelection
-                      { nodeType = BodyNode
-                      , nodeId = 1
-                      , meta = Left (Meta 1 Nothing Nothing)
-                      }
-          }
-          & #progModules
-            % _head
-            % #moduleDefs
-            .~ Map.fromList [("main", DefAST mainDef), ("other", DefAST otherDef)]
-
-unit_good_defaultEmptyProg :: Assertion
-unit_good_defaultEmptyProg = checkProgWellFormed defaultEmptyProg
-
--- `defaultEmptyProg`, plus all primitive definitions (types and terms)
--- and all builtin types, all moved into an editable module
--- NB: this means that primitive constructors are unusable, since they
--- will not typecheck (we now have only a "Main.Char" type, not a
--- "Primitive.Char" type), but we can now test our error handling for
--- adding types whose name clashes with that of a primitive etc.
-defaultFullProg :: MonadFresh ID m => m Prog
-defaultFullProg = do
-  p <- defaultEmptyProg
-  let m = moduleName $ unsafeHead $ progModules p
-      -- We need to move the primitives, which requires renaming
-      -- unit_defaultFullModule_no_clash ensures that there will be no clashes
-      renamed :: [Module]
-      renamed = transformBi (const m) [builtinModule, primitiveModule]
-      renamedTypes = foldOf (folded % #moduleTypes) renamed
-      renamedDefs = foldOf (folded % #moduleDefs) renamed
-  pure $
-    p
-      & #progModules % _head % #moduleTypes %~ (renamedTypes <>)
-      & #progModules % _head % #moduleDefs %~ (renamedDefs <>)
-
-findTypeDef :: TyConName -> Prog -> IO ASTTypeDef
-findTypeDef d p = maybe (assertFailure "couldn't find typedef") pure $ (typeDefAST <=< Map.lookup d) $ foldMap moduleTypesQualified $ progModules p
-
-findDef :: GVarName -> Prog -> IO ASTDef
-findDef d p = maybe (assertFailure "couldn't find def") pure $ (defAST <=< Map.lookup d) $ foldMap moduleDefsQualified $ progModules p
-
--- We use the same type definition for all tests related to editing type definitions
--- (This is added to `defaultFullProg`)
--- The qualified name for this is recorded in 'tT', and its constructors are 'cA' and 'cB'
-defaultProgEditableTypeDefs :: MonadFresh ID f => f [(Name, ASTDef)] -> f Prog
-defaultProgEditableTypeDefs ds = do
-  p <- defaultFullProg
-  ds' <- ds
-  let td =
-        TypeDefAST
-          ASTTypeDef
-            { astTypeDefParameters = [("a", KType), ("b", KType)]
-            , astTypeDefConstructors = [ValCon cA (replicate 3 $ TCon () (tcn "Bool")), ValCon cB [TCon () tT, TVar () "b"]]
-            , astTypeDefNameHints = []
-            }
-
-  pure $
-    p
-      & (#progModules % _head % #moduleTypes) %~ (Map.singleton (baseName tT) td <>)
-      & (#progModules % _head % #moduleDefs) %~ (Map.fromList (second DefAST <$> ds') <>)
-
-tT :: TyConName
-tT = tcn "T"
-
-cA :: ValConName
-cA = vcn "A"
-
-cB :: ValConName
-cB = vcn "B"
-
-unit_good_defaultFullProg :: Assertion
-unit_good_defaultFullProg = checkProgWellFormed defaultFullProg
-
--- All primitives,builtins and defaultEmptyProg things have distinct base names (defaultFullProg expects this)
-unit_defaultFullProg_no_clash :: Assertion
-unit_defaultFullProg_no_clash =
-  let p = create' defaultEmptyProg
-      ms = progModules p <> [builtinModule, primitiveModule]
-      typeNames = ms ^.. folded % #moduleTypes % to Map.keys % folded
-      termNames = ms ^.. folded % #moduleDefs % to Map.keys % folded
-   in do
-        assertBool "Expected every type making up defaultFullProg to have distinct names" $ not $ anySame typeNames
-        assertBool "Expected every term making up defaultFullProg to have distinct names" $ not $ anySame termNames
-
 -- We make sure to check that references get updated, including in our selection
 unit_rename_module :: Assertion
 unit_rename_module =
@@ -1529,6 +1425,110 @@ unit_cross_module_actions =
         case fst $ runAppTestM (appIdCounter a) a test of
           Left err -> assertFailure $ show err
           Right _ -> pure ()
+
+-- * Utilities
+
+findGlobalByName :: Prog -> GVarName -> Maybe Def
+findGlobalByName p n = Map.lookup n . foldMap moduleDefsQualified $ progAllModules p
+
+-- We use a program with two defs: "main" and "other"
+defaultEmptyProg :: MonadFresh ID m => m Prog
+defaultEmptyProg = do
+  mainExpr <- emptyHole
+  mainType <- tEmptyHole
+  otherExpr <- emptyHole
+  otherType <- tEmptyHole
+  let mainDef = ASTDef mainExpr mainType
+      otherDef = ASTDef otherExpr otherType
+   in pure $
+        newEmptyProg'
+          { progSelection =
+              Just $
+                Selection (gvn "main") $
+                  Just
+                    NodeSelection
+                      { nodeType = BodyNode
+                      , nodeId = 1
+                      , meta = Left (Meta 1 Nothing Nothing)
+                      }
+          }
+          & #progModules
+            % _head
+            % #moduleDefs
+            .~ Map.fromList [("main", DefAST mainDef), ("other", DefAST otherDef)]
+
+unit_good_defaultEmptyProg :: Assertion
+unit_good_defaultEmptyProg = checkProgWellFormed defaultEmptyProg
+
+-- `defaultEmptyProg`, plus all primitive definitions (types and terms)
+-- and all builtin types, all moved into an editable module
+-- NB: this means that primitive constructors are unusable, since they
+-- will not typecheck (we now have only a "Main.Char" type, not a
+-- "Primitive.Char" type), but we can now test our error handling for
+-- adding types whose name clashes with that of a primitive etc.
+defaultFullProg :: MonadFresh ID m => m Prog
+defaultFullProg = do
+  p <- defaultEmptyProg
+  let m = moduleName $ unsafeHead $ progModules p
+      -- We need to move the primitives, which requires renaming
+      -- unit_defaultFullModule_no_clash ensures that there will be no clashes
+      renamed :: [Module]
+      renamed = transformBi (const m) [builtinModule, primitiveModule]
+      renamedTypes = foldOf (folded % #moduleTypes) renamed
+      renamedDefs = foldOf (folded % #moduleDefs) renamed
+  pure $
+    p
+      & #progModules % _head % #moduleTypes %~ (renamedTypes <>)
+      & #progModules % _head % #moduleDefs %~ (renamedDefs <>)
+
+findTypeDef :: TyConName -> Prog -> IO ASTTypeDef
+findTypeDef d p = maybe (assertFailure "couldn't find typedef") pure $ (typeDefAST <=< Map.lookup d) $ foldMap moduleTypesQualified $ progModules p
+
+findDef :: GVarName -> Prog -> IO ASTDef
+findDef d p = maybe (assertFailure "couldn't find def") pure $ (defAST <=< Map.lookup d) $ foldMap moduleDefsQualified $ progModules p
+
+-- We use the same type definition for all tests related to editing type definitions
+-- (This is added to `defaultFullProg`)
+-- The qualified name for this is recorded in 'tT', and its constructors are 'cA' and 'cB'
+defaultProgEditableTypeDefs :: MonadFresh ID f => f [(Name, ASTDef)] -> f Prog
+defaultProgEditableTypeDefs ds = do
+  p <- defaultFullProg
+  ds' <- ds
+  let td =
+        TypeDefAST
+          ASTTypeDef
+            { astTypeDefParameters = [("a", KType), ("b", KType)]
+            , astTypeDefConstructors = [ValCon cA (replicate 3 $ TCon () (tcn "Bool")), ValCon cB [TCon () tT, TVar () "b"]]
+            , astTypeDefNameHints = []
+            }
+
+  pure $
+    p
+      & (#progModules % _head % #moduleTypes) %~ (Map.singleton (baseName tT) td <>)
+      & (#progModules % _head % #moduleDefs) %~ (Map.fromList (second DefAST <$> ds') <>)
+
+tT :: TyConName
+tT = tcn "T"
+
+cA :: ValConName
+cA = vcn "A"
+
+cB :: ValConName
+cB = vcn "B"
+
+unit_good_defaultFullProg :: Assertion
+unit_good_defaultFullProg = checkProgWellFormed defaultFullProg
+
+-- All primitives,builtins and defaultEmptyProg things have distinct base names (defaultFullProg expects this)
+unit_defaultFullProg_no_clash :: Assertion
+unit_defaultFullProg_no_clash =
+  let p = create' defaultEmptyProg
+      ms = progModules p <> [builtinModule, primitiveModule]
+      typeNames = ms ^.. folded % #moduleTypes % to Map.keys % folded
+      termNames = ms ^.. folded % #moduleDefs % to Map.keys % folded
+   in do
+        assertBool "Expected every type making up defaultFullProg to have distinct names" $ not $ anySame typeNames
+        assertBool "Expected every term making up defaultFullProg to have distinct names" $ not $ anySame termNames
 
 clearASTDefIDs :: ASTDef -> ASTDef
 clearASTDefIDs = over #astDefExpr zeroIDs . over #astDefType zeroTypeIDs
