@@ -32,12 +32,13 @@ import Primer.Core.Utils (forgetTypeMetadata)
 import Primer.Typecheck (maybeTypeOf)
 import Primer.Zipper (
   ExprZ,
-  FoldAbove (current, prior),
+  FoldAbove,
   TypeZ,
   TypeZip,
   asZipper,
   current,
   foldAbove,
+  prior,
   unfocusType,
  )
 
