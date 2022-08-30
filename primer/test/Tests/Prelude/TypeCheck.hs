@@ -1,5 +1,3 @@
-{-# OPTIONS_GHC -Wno-deprecations #-}
-
 module Tests.Prelude.TypeCheck where
 
 import Foreword
