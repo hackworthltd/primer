@@ -1494,7 +1494,7 @@ findTypeDef :: TyConName -> Prog -> IO ASTTypeDef
 findTypeDef d p = maybe (assertFailure "couldn't find typedef") pure $ (typeDefAST <=< Map.lookup d) $ foldMap moduleTypesQualified $ progModules p
 
 findDef :: GVarName -> Prog -> IO ASTDef
-findDef d p = maybe (assertFailure "couldn't find def") pure $ (defAST <=< Map.lookup d) $ foldMap moduleDefsQualified $ progModules p
+findDef d p = maybe (assertFailure "couldn't find def") pure $ defAST =<< findGlobalByName p d
 
 -- We use the same type definition for all tests related to editing type definitions
 -- (This is added to `defaultFullProg`)
