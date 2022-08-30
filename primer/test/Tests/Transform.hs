@@ -136,6 +136,18 @@ unit_var_1 = afterRename "x" "y" (app (lvar "f") (lvar "y")) Nothing
 unit_var_2 :: Assertion
 unit_var_2 = afterRename "x" "y" (app (lvar "f") (lvar "x")) (Just (app (lvar "f") (lvar "y")))
 
+-- We can't rename if there's a free type variable equal to the variable we're renaming to.
+unit_var_3 :: Assertion
+unit_var_3 = afterRename "x" "y" (aPP (lvar "f") (tvar "y")) Nothing
+
+-- We can't rename if there's a free type variable equal to the variable we're renaming to.
+unit_var_4 :: Assertion
+unit_var_4 = afterRename "bar" "foo" (letrec "bar" emptyHole (tvar "foo") emptyHole) Nothing
+
+-- We can't rename if there's a free type variable equal to the variable we're renaming to.
+unit_var_5 :: Assertion
+unit_var_5 = afterRename "bar" "foo" (letType "bar" (tvar "foo") emptyHole) Nothing
+
 -- All other expressions are renamed as expected
 
 unit_hole :: Assertion
