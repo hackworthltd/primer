@@ -64,7 +64,7 @@ import Primer.Def (
  )
 import Primer.Name (unName)
 import Primer.Questions (Question (..))
-import Primer.Typecheck (TypeDefError (TDIHoleType, TDIUnknownADT), getTypeDefInfo')
+import Primer.Typecheck (TypeDefError (TDIHoleType, TDIUnknown), getTypeDefInfo')
 import Primer.Zipper (
   BindLoc' (BindCase),
   Loc' (InBind, InExpr, InType),
@@ -602,7 +602,7 @@ basicActionsForExpr l defName expr = case expr of
           synthTy = m ^? _type % _Just % _synthed
           synOnly ty = case getTypeDefInfo' mempty ty of
             Left TDIHoleType{} -> Just patternMatch
-            Left TDIUnknownADT{} -> Just patternMatch
+            Left TDIUnknown{} -> Just patternMatch
             _ -> Nothing
        in (synOnly =<< synthTy) ?: both
 

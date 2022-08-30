@@ -168,7 +168,7 @@ import Primer.Typecheck.Kindcheck (
 import Primer.Typecheck.SmartHoles (SmartHoles (..))
 import Primer.Typecheck.TypeError (TypeError (..))
 import Primer.Typecheck.Utils (
-  TypeDefError (TDIHoleType, TDINotADT, TDINotSaturated, TDIUnknownADT),
+  TypeDefError (TDIHoleType, TDINotADT, TDINotSaturated, TDIUnknown),
   TypeDefInfo (TypeDefInfo),
   decomposeTAppCon,
   getGlobalBaseNames,
@@ -644,7 +644,7 @@ check t = \case
             -- NB: we wrap the scrutinee in a hole and DELETE the branches
             scrutWrap <- Hole <$> meta' (TCSynthed (TEmptyHole ())) <*> pure e'
             pure $ Case caseMeta scrutWrap []
-      Left (TDIUnknownADT ty) -> throwError' $ InternalError $ "We somehow synthesised the unknown type " <> show ty <> " for the scrutinee of a case"
+      Left (TDIUnknown ty) -> throwError' $ InternalError $ "We somehow synthesised the unknown type " <> show ty <> " for the scrutinee of a case"
       Left TDINotSaturated ->
         asks smartHoles >>= \case
           NoSmartHoles -> throwError' $ CannotCaseNonSaturatedADT eT

@@ -57,7 +57,7 @@ mkTAppCon c = foldl' (TApp ()) (TCon () c)
 data TypeDefError
   = TDIHoleType -- a type hole
   | TDINotADT -- e.g. a function type etc
-  | TDIUnknownADT TyConName -- not in scope
+  | TDIUnknown TyConName -- not in scope
   | TDINotSaturated -- e.g. @List@ or @List a b@ rather than @List a@
 
 data TypeDefInfo a = TypeDefInfo [Type' a] TyConName TypeDef -- instantiated parameters, and the typedef (with its name), i.e. [Int] are the parameters for @List Int@
@@ -73,7 +73,7 @@ getTypeDefInfo' tydefs ty =
     Nothing -> Left TDINotADT
     Just (tycon, params) -> do
       case M.lookup tycon tydefs of
-        Nothing -> Left $ TDIUnknownADT tycon
+        Nothing -> Left $ TDIUnknown tycon
         Just tydef
           -- this check would be redundant if we were sure that the input type
           -- were of kind KType, alternatively we should do kind checking here
