@@ -23,6 +23,7 @@ module Primer.Examples (
   even,
   odd,
   comprehensive,
+  comprehensiveWellTyped,
 
   -- * Example modules.
   mapModule,
@@ -200,10 +201,27 @@ even modName = do
 -- | A comprehensive 'Def' containing most of the non-primitive
 -- built-in constructs in Primer.
 --
--- Note that this 'Def' is nonsensical and is provided only for
--- language coverage.
+-- Note that this 'Def' is nonsensical (and not well-typed)
+-- and is provided only for language coverage.
 comprehensive :: MonadFresh ID m => ModuleName -> m (GVarName, Def)
-comprehensive modName = do
+comprehensive = comprehensive' False
+
+-- | A comprehensive 'Def' containing most of the non-primitive
+-- built-in constructs in Primer.
+--
+-- Note that this 'Def' is nonsensical (but well-typed)
+-- and is provided only for language coverage.
+--
+-- It is similar to 'comprehensive', but with at few ill-typed subtrees
+-- replaced with less comprehensive well-typed alternatives.
+comprehensiveWellTyped :: MonadFresh ID m => ModuleName -> m (GVarName, Def)
+comprehensiveWellTyped = comprehensive' True
+
+-- | A helper for 'comprehensive' and 'comprehensiveWellTyped'
+-- which optionally disables a few constructs which are not typeable
+-- (namely, an unbound name and letType)
+comprehensive' :: MonadFresh ID m => Bool -> ModuleName -> m (GVarName, Def)
+comprehensive' typeable modName = do
   type_ <-
     tfun
       (tcon B.tNat)
@@ -230,8 +248,7 @@ comprehensive modName = do
               ( hole
                   (con B.cJust)
               )
-              ( hole
-                  (gvar' (unModuleName modName) "unboundName")
+              ( if typeable then emptyHole else hole $ gvar' (unModuleName modName) "unboundName"
               )
           )
           ( thole
@@ -244,13 +261,19 @@ comprehensive modName = do
                       "β"
                       ( app
                           ( aPP
-                              ( letType
-                                  "b"
-                                  (tcon B.tBool)
-                                  ( aPP
+                              ( if typeable
+                                  then
+                                    aPP
                                       (con B.cLeft)
-                                      (tvar "b")
-                                  )
+                                      (tcon B.tBool)
+                                  else
+                                    letType
+                                      "b"
+                                      (tcon B.tBool)
+                                      ( aPP
+                                          (con B.cLeft)
+                                          (tvar "b")
+                                      )
                               )
                               (tvar "β")
                           )

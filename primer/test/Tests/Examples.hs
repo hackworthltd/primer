@@ -8,6 +8,7 @@ import Data.Map qualified as Map
 import Primer.Core (GlobalName (baseName), ModuleName (ModuleName))
 import Primer.Examples (
   comprehensive,
+  comprehensiveWellTyped,
   evenOddModule,
   mapModule,
   not,
@@ -37,6 +38,7 @@ checkExamplesRequest =
       Module others mempty $
         Map.fromList
           [ first baseName $ create' $ not others
+          , first baseName $ create' $ comprehensiveWellTyped others
           ]
 
 unit_check_examples :: Assertion
