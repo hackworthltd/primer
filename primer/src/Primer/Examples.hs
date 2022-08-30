@@ -318,7 +318,7 @@ evenOddModule modName =
   let (defs, nextID) = create $ do
         (_, evenDef) <- even modName
         (_, oddDef) <- odd modName
-        pure [("even", evenDef), ("odd'", oddDef)]
+        pure [("even", evenDef), ("odd", oddDef)]
    in ( Module modName mempty $ Map.fromList defs
       , nextID
       )
