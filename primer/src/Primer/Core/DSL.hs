@@ -36,6 +36,8 @@ module Primer.Core.DSL (
   con',
   gvar',
   branch',
+  apps,
+  apps',
 ) where
 
 import Foreword
@@ -91,6 +93,17 @@ setMeta m e = set _metadata (Just m) <$> e
 
 app :: MonadFresh ID m => m Expr -> m Expr -> m Expr
 app e1 e2 = App <$> meta <*> e1 <*> e2
+
+-- | `app` for multiple args
+apps :: MonadFresh ID m => m Expr -> [m Expr] -> m Expr
+apps e es = apps' e (map Left es)
+
+-- | `apps` for expressions and types
+apps' :: MonadFresh ID m => m Expr -> [Either (m Expr) (m Type)] -> m Expr
+apps' = foldl app'
+  where
+    app' e (Left e') = e `app` e'
+    app' e (Right t) = e `aPP` t
 
 aPP :: MonadFresh ID m => m Expr -> m Type -> m Expr
 aPP e t = APP <$> meta <*> e <*> t
