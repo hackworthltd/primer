@@ -44,7 +44,7 @@
 --     • The type Bool does not contain a constructor whose field is of type SpecificError
 --     • In the expression:
 --           throwError' SpecificError :: MonadError Bool m => m a
-module Control.Monad.NestedError (MonadNestedError (..)) where
+module Control.Monad.NestedError (MonadNestedError (..), modifyError') where
 
 import Foreword
 
@@ -72,3 +72,7 @@ instance
   where
   throwError' = throwError . injectTyped
   catchError' ma f = catchError ma $ \e -> maybe ma f (projectTyped e)
+
+-- | Change the type of a nested error.
+modifyError' :: MonadNestedError smaller larger m => (e -> smaller) -> ExceptT e m a -> m a
+modifyError' f = runExceptT >=> either (throwError' . f) pure

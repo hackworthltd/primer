@@ -6,6 +6,7 @@ module Foreword (
   adjustAt,
   findAndAdjust,
   findAndAdjustA,
+  modifyError,
 ) where
 
 -- In general, we should defer to "Protolude"'s exports and avoid name
@@ -97,3 +98,7 @@ findAndAdjustA :: Applicative m => (a -> Bool) -> (a -> m a) -> [a] -> m (Maybe 
 findAndAdjustA p f = \case
   [] -> pure Nothing
   x : xs -> if p x then Just . (: xs) <$> f x else (x :) <<$>> findAndAdjustA p f xs
+
+-- | Change the type of an error.
+modifyError :: MonadError e' m => (e -> e') -> ExceptT e m a -> m a
+modifyError f = runExceptT >=> either (throwError . f) pure

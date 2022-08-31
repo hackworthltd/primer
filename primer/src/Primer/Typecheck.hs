@@ -62,7 +62,7 @@ module Primer.Typecheck (
 import Foreword
 
 import Control.Monad.Fresh (MonadFresh (..))
-import Control.Monad.NestedError (MonadNestedError (..))
+import Control.Monad.NestedError (MonadNestedError (..), modifyError')
 import Data.Map qualified as M
 import Data.Map.Strict qualified as Map
 import Data.Set qualified as S
@@ -808,7 +808,4 @@ typeTtoType :: TypeT -> Type' TypeMeta
 typeTtoType = over _typeMeta (fmap Just)
 
 checkKind' :: TypeM e m => Kind -> Type' (Meta a) -> m TypeT
-checkKind' k t =
-  runExceptT (checkKind k t) >>= \case
-    Left err -> throwError' $ KindError err
-    Right t' -> pure t'
+checkKind' k t = modifyError' KindError (checkKind k t)
