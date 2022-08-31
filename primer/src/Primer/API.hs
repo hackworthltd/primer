@@ -588,55 +588,55 @@ viewTreeExpr e0 = case e0 of
         --  which should only happen when matching on `Void`
         rightChild =
           ifoldr
-            ( \i (CaseBranch con binds rhs) next ->
-                let -- these IDs will not clash with any others in the tree,
-                    -- since node IDs in the input expression are unique,
-                    -- and don't contain non-numerical characters
-                    boxId = nodeId <> "P" <> show i
-                    patternRootId = boxId <> "B"
-                    patternBindAppID id = show id <> "A"
-                 in Just
-                      Tree
-                        { nodeId = boxId
-                        , flavor = FlavorPattern
-                        , body =
-                            BoxBody $
-                              foldl
-                                ( \t (Bind m v) ->
-                                    let id = m ^. _id
-                                     in Tree
-                                          { nodeId = patternBindAppID id
-                                          , flavor = FlavorPatternApp
-                                          , body = NoBody
-                                          , childTrees =
-                                              [ t
-                                              , Tree
-                                                  { nodeId = show id
-                                                  , flavor = FlavorPatternBind
-                                                  , body = TextBody $ unName $ unLocalName v
-                                                  , childTrees = []
-                                                  , rightChild = Nothing
-                                                  }
-                                              ]
-                                          , rightChild = Nothing
-                                          }
-                                )
-                                ( Tree
-                                    { nodeId = patternRootId
-                                    , flavor = FlavorPatternCon
-                                    , body = TextBody $ showGlobal con
-                                    , childTrees = []
-                                    , rightChild = Nothing
-                                    }
-                                )
-                                binds
-                        , childTrees = [viewTreeExpr rhs]
-                        , rightChild = next
-                        }
-            )
+            (\i b next -> Just $ (viewCaseBranch i b){rightChild = next})
             Nothing
             bs
       }
+    where
+      viewCaseBranch i (CaseBranch con binds rhs) =
+        let -- these IDs will not clash with any others in the tree,
+            -- since node IDs in the input expression are unique,
+            -- and don't contain non-numerical characters
+            boxId = nodeId <> "P" <> show i
+            patternRootId = boxId <> "B"
+            patternBindAppID id = show id <> "A"
+         in Tree
+              { nodeId = boxId
+              , flavor = FlavorPattern
+              , body =
+                  BoxBody $
+                    foldl
+                      ( \t (Bind m v) ->
+                          let id = m ^. _id
+                           in Tree
+                                { nodeId = patternBindAppID id
+                                , flavor = FlavorPatternApp
+                                , body = NoBody
+                                , childTrees =
+                                    [ t
+                                    , Tree
+                                        { nodeId = show id
+                                        , flavor = FlavorPatternBind
+                                        , body = TextBody $ unName $ unLocalName v
+                                        , childTrees = []
+                                        , rightChild = Nothing
+                                        }
+                                    ]
+                                , rightChild = Nothing
+                                }
+                      )
+                      ( Tree
+                          { nodeId = patternRootId
+                          , flavor = FlavorPatternCon
+                          , body = TextBody $ showGlobal con
+                          , childTrees = []
+                          , rightChild = Nothing
+                          }
+                      )
+                      binds
+              , childTrees = [viewTreeExpr rhs]
+              , rightChild = Nothing
+              }
   PrimCon _ pc ->
     Tree
       { nodeId
