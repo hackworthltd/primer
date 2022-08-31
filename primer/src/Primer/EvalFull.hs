@@ -94,7 +94,7 @@ import Primer.TypeDef (
   ASTTypeDef (astTypeDefParameters),
   TypeDefMap,
  )
-import Primer.Typecheck (instantiateValCons', lookupConstructor, mkTAppCon)
+import Primer.Typecheck.Utils (instantiateValCons', lookupConstructor, mkTAppCon)
 import Primer.Zipper (
   ExprZ,
   TypeZ,

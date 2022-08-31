@@ -15,7 +15,8 @@ import Data.Set qualified as S
 import Primer.Core (Expr, LocalName (LocalName, unLocalName), Type)
 import Primer.Core.Utils (freeVars, freeVarsTy)
 import Primer.Name (Name, NameCounter, freshName)
-import Primer.Typecheck qualified as TC
+import Primer.Typecheck.Cxt (Cxt)
+import Primer.Typecheck.Utils (getGlobalBaseNames)
 import Primer.Zipper (
   ExprZ,
   TypeZ,
@@ -60,29 +61,29 @@ isFreshTy v t = unLocalName v `S.notMember` S.map unLocalName (freeVarsTy t)
 -- constructors. However, for the sake of non-confusingness, we don't care
 -- about that here. Thus when we avoid more-globally bound names, we will also
 -- include globally-scoped things.
-mkFreshName :: (MonadFresh NameCounter m, MonadReader TC.Cxt m) => ExprZ -> m (LocalName k)
+mkFreshName :: (MonadFresh NameCounter m, MonadReader Cxt m) => ExprZ -> m (LocalName k)
 mkFreshName e = LocalName <$> (freshName =<< mkAvoidForFreshName e)
 
-mkAvoidForFreshNameTy :: MonadReader TC.Cxt m => TypeZip -> m (S.Set Name)
+mkAvoidForFreshNameTy :: MonadReader Cxt m => TypeZip -> m (S.Set Name)
 mkAvoidForFreshNameTy t = do
   let moreGlobal = S.map unLocalName $ bindersAboveTy t
       moreLocal = S.map unLocalName $ bindersBelowTy t
-  globals <- TC.getGlobalBaseNames
+  globals <- getGlobalBaseNames
   pure $ S.unions [moreGlobal, moreLocal, globals]
 
-mkAvoidForFreshNameTypeZ :: MonadReader TC.Cxt m => TypeZ -> m (S.Set Name)
+mkAvoidForFreshNameTypeZ :: MonadReader Cxt m => TypeZ -> m (S.Set Name)
 mkAvoidForFreshNameTypeZ t = do
   let moreGlobal = bindersAboveTypeZ t
       moreLocal = S.map unLocalName $ bindersBelowTy $ focusOnlyType t
-  globals <- TC.getGlobalBaseNames
+  globals <- getGlobalBaseNames
   pure $ S.unions [moreGlobal, moreLocal, globals]
 
-mkFreshNameTy :: (MonadFresh NameCounter m, MonadReader TC.Cxt m) => TypeZ -> m Name
+mkFreshNameTy :: (MonadFresh NameCounter m, MonadReader Cxt m) => TypeZ -> m Name
 mkFreshNameTy t = freshName =<< mkAvoidForFreshNameTypeZ t
 
-mkAvoidForFreshName :: MonadReader TC.Cxt m => ExprZ -> m (S.Set Name)
+mkAvoidForFreshName :: MonadReader Cxt m => ExprZ -> m (S.Set Name)
 mkAvoidForFreshName e = do
   let moreGlobal = bindersAbove e
       moreLocal = bindersBelow e
-  globals <- TC.getGlobalBaseNames
+  globals <- getGlobalBaseNames
   pure $ S.unions [moreGlobal, moreLocal, globals]

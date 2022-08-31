@@ -92,6 +92,7 @@ import Primer.Typecheck (
   CheckEverythingRequest (CheckEverything, toCheck, trusted),
   Cxt (smartHoles),
   ExprT,
+  KindError (..),
   SmartHoles (NoSmartHoles, SmartHoles),
   TypeError (..),
   buildTypingContextFromModules,
@@ -318,7 +319,7 @@ unit_case_badType =
 -- Cannot annotate something with a non-existent type constructor
 unit_ann_bad :: Assertion
 unit_ann_bad =
-  ann emptyHole (tcon nonexistant) `expectFailsWith` const (UnknownTypeConstructor nonexistant)
+  ann emptyHole (tcon nonexistant) `expectFailsWith` const (KindError $ UnknownTypeConstructor nonexistant)
   where
     nonexistant = tcn ["M"] "IDoNotExist"
 

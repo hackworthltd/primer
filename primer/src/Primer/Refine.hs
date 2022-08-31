@@ -5,14 +5,15 @@ import Foreword
 import Control.Monad.Fresh (MonadFresh)
 import Data.Map qualified as Map
 import Data.Set qualified as Set
+import Primer.Core.Fresh (freshLocalName)
 import Primer.Core.Meta (ID, TyVarName)
 import Primer.Core.Type (Kind, Type' (TForall, TFun, TVar))
-import Primer.Core.Utils (freshLocalName)
 import Primer.Name (NameCounter)
 import Primer.Subst (substTy, substTys)
-import Primer.Typecheck qualified as TC
+import Primer.Typecheck.Cxt (Cxt)
+import Primer.Typecheck.Kindcheck qualified as TC
 import Primer.Unification (InternalUnifyError, unify)
-import Primer.Zipper (bindersBelowTy, focus)
+import Primer.Zipper.Type (bindersBelowTy, focus)
 
 data Inst
   = InstApp TC.Type
@@ -33,7 +34,7 @@ refine ::
   forall m.
   (MonadFresh ID m, MonadFresh NameCounter m, MonadError InternalUnifyError m) =>
   -- | only care about local type vars and typedefs
-  TC.Cxt ->
+  Cxt ->
   TC.Type ->
   TC.Type ->
   m (Maybe ([Inst], TC.Type))
@@ -65,5 +66,5 @@ refine cxt tgtTy srcTy = go [] srcTy
               _ -> pure Nothing
 
 -- NB: this assumes the list is ordered st the /last/ element is most global
-extendCxtTys :: [(TyVarName, Kind)] -> TC.Cxt -> TC.Cxt
+extendCxtTys :: [(TyVarName, Kind)] -> Cxt -> Cxt
 extendCxtTys = TC.extendLocalCxtTys . reverse

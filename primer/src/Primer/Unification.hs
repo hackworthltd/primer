@@ -15,17 +15,21 @@ import Primer.Core.Type (
   Type' (TApp, TCon, TEmptyHole, TForall, TFun, THole, TVar),
   _typeMeta,
  )
-import Primer.Core.Utils (_freeVarsTy)
+import Primer.Core.Type.Utils (_freeVarsTy)
 import Primer.Name (NameCounter)
 import Primer.Subst (substTy)
-import Primer.Typecheck (
+import Primer.Typecheck.Cxt (
   Cxt (smartHoles),
-  SmartHoles (NoSmartHoles),
+ )
+import Primer.Typecheck.Kindcheck (
+  KindError,
   Type,
-  TypeError,
   checkKind,
   consistentKinds,
   lookupLocalTy,
+ )
+import Primer.Typecheck.SmartHoles (
+  SmartHoles (NoSmartHoles),
  )
 
 -- | This should never be thrown - it indicates a bug in either this module, or in how it is called
@@ -75,7 +79,7 @@ unify cxt unificationVars s t = do
       -- TODO: this is a bit of a code smell!
       let addPointlessMeta = set _typeMeta $ trivialMeta 0
       let f v vt = case lookupLocalTy v cxt of
-            Right k -> All . isRight <$> runExceptT @TypeError (runReaderT (checkKind k $ addPointlessMeta vt) (cxt{smartHoles = NoSmartHoles}))
+            Right k -> All . isRight <$> runExceptT @KindError (runReaderT (checkKind k $ addPointlessMeta vt) (cxt{smartHoles = NoSmartHoles}))
             -- this catchall should never happen: sb should only contain
             -- solutions for unification variables, which should be a subset
             -- of the context!

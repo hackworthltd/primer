@@ -58,8 +58,12 @@ library
     Primer.Action.ProgAction
     Primer.Action.ProgError
     Primer.API.NodeFlavor
+    Primer.Core.DSL.Meta
+    Primer.Core.DSL.Type
+    Primer.Core.Fresh
     Primer.Core.Meta
     Primer.Core.Type
+    Primer.Core.Type.Utils
     Primer.Eval.Beta
     Primer.Eval.Case
     Primer.Eval.Detail
@@ -70,8 +74,13 @@ library
     Primer.Eval.Push
     Primer.Eval.Utils
     Primer.Primitives.PrimDef
+    Primer.Typecheck.Cxt
+    Primer.Typecheck.Kindcheck
+    Primer.Typecheck.KindError
     Primer.Typecheck.SmartHoles
     Primer.Typecheck.TypeError
+    Primer.Typecheck.Utils
+    Primer.Zipper.Type
 
   default-language:   GHC2021
   default-extensions:

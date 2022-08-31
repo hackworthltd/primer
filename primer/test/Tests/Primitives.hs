@@ -20,8 +20,9 @@ import Primer.TypeDef (
   TypeDef (TypeDefAST),
  )
 import Primer.Typecheck (
+  KindError (UnknownTypeConstructor),
   SmartHoles (NoSmartHoles),
-  TypeError (PrimitiveTypeNotInScope, UnknownTypeConstructor),
+  TypeError (KindError, PrimitiveTypeNotInScope),
   buildTypingContext,
   buildTypingContextFromModules,
   checkKind,
@@ -36,7 +37,7 @@ import Tests.Typecheck (runTypecheckTestMIn)
 unit_prim_con_scope :: Assertion
 unit_prim_con_scope = do
   -- Char is indeed not in scope
-  test (checkKind KType =<< tcon tChar) @?= Left (UnknownTypeConstructor tChar)
+  test (checkKind KType =<< tcon tChar) @?= Left (KindError $ UnknownTypeConstructor tChar)
   test (synth =<< char 'a') @?= Left (PrimitiveTypeNotInScope tChar)
   where
     cxt = buildTypingContextFromModules mempty NoSmartHoles

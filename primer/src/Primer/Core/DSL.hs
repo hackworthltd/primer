@@ -40,7 +40,7 @@ module Primer.Core.DSL (
 
 import Foreword
 
-import Control.Monad.Fresh (MonadFresh, fresh)
+import Control.Monad.Fresh (MonadFresh)
 import Optics (set)
 import Primer.Core (
   Bind' (..),
@@ -50,41 +50,30 @@ import Primer.Core (
   Expr' (..),
   GVarName,
   ID,
-  Kind,
   LVarName,
-  Meta (..),
   ModuleName (ModuleName),
   PrimCon (..),
   TmVarRef (..),
-  TyConName,
   TyVarName,
   Type,
-  Type' (..),
   TypeCache,
   ValConName,
   Value,
   qualifyName,
   _metadata,
  )
+import Primer.Core.DSL.Meta (S, create, create', meta, meta')
+import Primer.Core.DSL.Type (
+  tEmptyHole,
+  tapp,
+  tcon,
+  tcon',
+  tforall,
+  tfun,
+  thole,
+  tvar,
+ )
 import Primer.Name (Name)
-
-newtype S a = S {unS :: State ID a}
-  deriving newtype (Functor, Applicative, Monad)
-
-instance MonadFresh ID S where
-  fresh = S $ do
-    i <- get
-    put (i + 1)
-    pure i
-
--- | Evaluate a DSL expression with a starting ID of 0, producing an
--- @a@ and the next available fresh 'ID'.
-create :: S a -> (a, ID)
-create = flip runState 0 . unS
-
--- | As 'create', but drop the 'ID'.
-create' :: S a -> a
-create' = fst . create
 
 setMeta :: Functor m => Value -> m Expr -> m Expr
 setMeta m e = set _metadata (Just m) <$> e
@@ -144,38 +133,6 @@ char c = PrimCon <$> meta <*> pure (PrimChar c)
 
 int :: MonadFresh ID m => Integer -> m Expr
 int n = PrimCon <$> meta <*> pure (PrimInt n)
-
-tEmptyHole :: MonadFresh ID m => m Type
-tEmptyHole = TEmptyHole <$> meta
-
-thole :: MonadFresh ID m => m Type -> m Type
-thole t = THole <$> meta <*> t
-
-tcon :: MonadFresh ID m => TyConName -> m Type
-tcon t = TCon <$> meta <*> pure t
-
-tforall :: MonadFresh ID m => TyVarName -> Kind -> m Type -> m Type
-tforall v k t = TForall <$> meta <*> pure v <*> pure k <*> t
-
-tfun :: MonadFresh ID m => m Type -> m Type -> m Type
-tfun a b = TFun <$> meta <*> a <*> b
-
-tapp :: MonadFresh ID m => m Type -> m Type -> m Type
-tapp a b = TApp <$> meta <*> a <*> b
-
-tvar :: MonadFresh ID m => TyVarName -> m Type
-tvar v = TVar <$> meta <*> pure v
-
-meta :: MonadFresh ID m => m (Meta (Maybe a))
-meta = meta' Nothing
-
-meta' :: MonadFresh ID m => a -> m (Meta a)
-meta' a = Meta <$> fresh <*> pure a <*> pure Nothing
-
--- | A helper for use in testsuite. With OverloadedStrings one can use literals
--- for both arguments
-tcon' :: MonadFresh ID m => NonEmpty Name -> Name -> m Type
-tcon' m n = tcon $ qualifyName (ModuleName m) n
 
 con' :: MonadFresh ID m => NonEmpty Name -> Name -> m Expr
 con' m n = con $ qualifyName (ModuleName m) n

@@ -26,7 +26,6 @@ import Foreword
 import Control.Monad.Fresh (MonadFresh, fresh)
 import Data.Data (Data)
 import Data.Generics.Uniplate.Data (universe)
-import Data.Map.Strict qualified as M
 import Data.Set qualified as S
 import Data.Set.Optics (setOf)
 import Optics (
@@ -35,7 +34,6 @@ import Optics (
   Traversal',
   adjoin,
   getting,
-  hasn't,
   set,
   summing,
   to,
@@ -54,44 +52,30 @@ import Primer.Core (
   GVarName,
   HasID (_id),
   ID,
-  Kind (KHole),
   LVarName,
-  LocalName (LocalName, unLocalName),
+  LocalName (unLocalName),
   TmVarRef (GlobalVarRef, LocalVarRef),
   TyVarName,
-  Type,
   Type' (..),
   bindName,
   trivialMeta,
   _exprMeta,
   _exprTypeMeta,
-  _typeMeta,
  )
-import Primer.Name (Name, NameCounter, freshName)
-
--- | Helper, wrapping 'freshName'
-freshLocalName :: MonadFresh NameCounter m => S.Set (LocalName k) -> m (LocalName k)
-freshLocalName = freshLocalName' . S.map unLocalName
-
--- | Helper, wrapping 'freshName'
-freshLocalName' :: MonadFresh NameCounter m => S.Set Name -> m (LocalName k)
-freshLocalName' = fmap LocalName . freshName
-
--- | Regenerate all IDs, not changing any other metadata
-regenerateTypeIDs :: (HasID a, MonadFresh ID m) => Type' a -> m (Type' a)
-regenerateTypeIDs = regenerateTypeIDs' (set _id)
-
-regenerateTypeIDs' :: MonadFresh ID m => (ID -> a -> b) -> Type' a -> m (Type' b)
-regenerateTypeIDs' s = traverseOf _typeMeta (\a -> flip s a <$> fresh)
-
--- | Adds 'ID's and trivial metadata
-generateTypeIDs :: MonadFresh ID m => Type' () -> m Type
-generateTypeIDs = regenerateTypeIDs' $ const . trivialMeta
-
--- | Replace all 'ID's in a Type with unit.
--- Technically this replaces all annotations, regardless of what they are.
-forgetTypeMetadata :: Type' a -> Type' ()
-forgetTypeMetadata = set _typeMeta ()
+import Primer.Core.Fresh (freshLocalName, freshLocalName')
+import Primer.Core.Type.Utils (
+  alphaEqTy,
+  concreteTy,
+  forgetTypeMetadata,
+  freeVarsTy,
+  generateTypeIDs,
+  noHoles,
+  regenerateTypeIDs,
+  traverseFreeVarsTy,
+  typeIDs,
+  _freeVarsTy,
+ )
+import Primer.Name (Name)
 
 -- | Regenerate all IDs, not changing any other metadata
 regenerateExprIDs :: (HasID a, HasID b, MonadFresh ID m) => Expr' a b -> m (Expr' a b)
@@ -109,64 +93,6 @@ generateIDs = regenerateExprIDs' (const . trivialMeta) (const . trivialMeta)
 -- | Like 'forgetTypeMetadata', but for expressions
 forgetMetadata :: Expr' a b -> Expr' () ()
 forgetMetadata = set _exprTypeMeta () . set _exprMeta ()
-
--- | Test whether an type contains any holes
--- (empty or non-empty, or inside a kind)
-noHoles :: Data a => Type' a -> Bool
-noHoles t = flip all (universe t) $ \case
-  THole{} -> False
-  TEmptyHole{} -> False
-  TForall _ _ k _ -> flip all (universe k) $ \case
-    KHole -> False
-    _ -> True
-  _ -> True
-
-freeVarsTy :: Type' a -> Set TyVarName
-freeVarsTy = setOf (getting _freeVarsTy % _2)
-
-_freeVarsTy :: Traversal (Type' a) (Type' a) (a, TyVarName) (Type' a)
-_freeVarsTy = traversalVL $ traverseFreeVarsTy mempty
-
--- Helper for _freeVarsTy and _freeTyVars
--- Takes a set of considered-to-be-bound variables
-traverseFreeVarsTy :: Applicative f => Set TyVarName -> ((a, TyVarName) -> f (Type' a)) -> Type' a -> f (Type' a)
-traverseFreeVarsTy = go
-  where
-    go bound f = \case
-      t@TEmptyHole{} -> pure t
-      THole m t -> THole m <$> go bound f t
-      t@TCon{} -> pure t
-      TFun m s t -> TFun m <$> go bound f s <*> go bound f t
-      v@(TVar m a)
-        | S.member a bound -> pure v
-        | otherwise -> curry f m a
-      TApp m s t -> TApp m <$> go bound f s <*> go bound f t
-      TForall m a k s -> TForall m a k <$> go (S.insert a bound) f s
-
--- Check two types for alpha equality
---
--- it makes usage easier if this is pure
--- i.e. we don't want to need a fresh name supply
--- We assume both inputs are both from the same context
-alphaEqTy :: Type' () -> Type' () -> Bool
-alphaEqTy = go (0, mempty, mempty)
-  where
-    go _ (TEmptyHole _) (TEmptyHole _) = True
-    go bs (THole _ s) (THole _ t) = go bs s t
-    go _ (TCon _ n) (TCon _ m) = n == m
-    go bs (TFun _ a b) (TFun _ c d) = go bs a c && go bs b d
-    go (_, p, q) (TVar _ n) (TVar _ m) = p ! n == q ! m
-    go bs (TApp _ a b) (TApp _ c d) = go bs a c && go bs b d
-    go bs (TForall _ n k s) (TForall _ m l t) = k == l && go (new bs n m) s t
-    go _ _ _ = False
-    p ! n = case p M.!? n of
-      Nothing -> Left n -- free vars: compare by name
-      Just i -> Right i -- bound vars: up to alpha
-      -- Note that the maps 'p' and 'q' map names to "which forall
-      -- they came from", in some sense.  The @c@ value is how many
-      -- binders we have gone under, and is thus the next value free
-      -- in the map.
-    new (c, p, q) n m = (c + 1 :: Int, M.insert n c p, M.insert m c q)
 
 -- Both term and type vars, but not constructors or global variables.
 -- This is because constructor names and global variables are never
@@ -247,13 +173,6 @@ _freeTyVars = traversalVL $ go mempty
 freeGlobalVars :: (Data a, Data b) => Expr' a b -> Set GVarName
 freeGlobalVars e = S.fromList [v | Var _ (GlobalVarRef v) <- universe e]
 
-concreteTy :: Data b => Type' b -> Bool
-concreteTy ty = hasn't (getting _freeVarsTy) ty && noHoles ty
-
 -- | Traverse the 'ID's in an 'Expr''.
 exprIDs :: (HasID a, HasID b) => Traversal' (Expr' a b) ID
 exprIDs = (_exprMeta % _id) `adjoin` (_exprTypeMeta % _id)
-
--- | Traverse the 'ID's in a 'Type''.
-typeIDs :: HasID a => Traversal' (Type' a) ID
-typeIDs = _typeMeta % _id
