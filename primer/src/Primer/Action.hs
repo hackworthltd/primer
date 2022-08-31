@@ -304,6 +304,34 @@ applyActionsToTypeSig smartHoles imports (mod, mods) (defName, def) actions =
             -- In this case we just refocus on the top of the type.
             z -> maybe unwrapError pure (focusType (unfocusLoc z))
 
+data Refocus = Refocus
+  { pre :: Loc
+  , post :: Expr
+  }
+
+-- If smartholes is on, we may refocus on the interior of an elided hole,
+-- or the expression under an elided annotation
+refocus :: MonadReader TC.Cxt m => Refocus -> m (Maybe Loc)
+refocus Refocus{pre, post} = do
+  sh <- asks TC.smartHoles
+  let candidateIDs = case sh of
+        TC.NoSmartHoles -> [getID pre]
+        TC.SmartHoles -> case pre of
+          InExpr e -> candidateIDsExpr $ target e
+          InType t -> candidateIDsType $ target t
+          InBind (BindCase ze) -> [getID ze]
+  pure . getFirst . mconcat $ fmap (\i -> First $ focusOn i post) candidateIDs
+  where
+    candidateIDsExpr e =
+      getID e : case e of
+        Hole _ e' -> candidateIDsExpr e'
+        Ann _ e' _ -> candidateIDsExpr e'
+        _ -> []
+    candidateIDsType t =
+      getID t : case t of
+        THole _ t' -> candidateIDsType t'
+        _ -> []
+
 -- | Apply a sequence of actions to the body of a definition, producing a new Expr or an error if
 -- any of the actions failed to apply.
 -- After applying the actions, we check the new Expr against the type sig of the definition.
@@ -322,22 +350,18 @@ applyActionsToBody sh modules def actions =
     go :: ActionM m => m (ASTDef, Loc)
     go = do
       ze <- foldM (flip (applyActionAndCheck (astDefType def))) (focusLoc (astDefExpr def)) actions
-      let targetID = getID ze
-          e = unfocus ze
-      e' <- exprTtoExpr <$> check (forgetTypeMetadata (astDefType def)) e
+      e' <- exprTtoExpr <$> check (forgetTypeMetadata (astDefType def)) (unfocus ze)
       let def' = def{astDefExpr = e'}
-      case focusOn targetID e' of
+      refocus Refocus{pre = ze, post = e'} >>= \case
         Nothing -> throwError $ InternalFailure "lost ID after typechecking"
         Just z -> pure (def', z)
 
 applyActionAndCheck :: ActionM m => Type -> Action -> Loc -> m Loc
 applyActionAndCheck ty action z = do
   z' <- applyAction' action z
-  let e = unfocus z'
-      targetID = getID z'
-  typedAST <- check (forgetTypeMetadata ty) e
+  typedAST <- check (forgetTypeMetadata ty) $ unfocus z'
   -- Refocus on where we were previously
-  case focusOn targetID (exprTtoExpr typedAST) of
+  refocus Refocus{pre = z', post = exprTtoExpr typedAST} >>= \case
     Just z'' -> pure z''
     Nothing -> throwError $ CustomFailure action "internal error: lost ID after typechecking"
 
@@ -365,13 +389,10 @@ applyActionAndSynth action z = do
 --
 -- 'Nothing' means the current focussed ID disappeared after typechecking
 synthZ :: ActionM m => Loc -> m (Maybe Loc)
-synthZ z =
-  let e = unfocus z
-      targetID = getID z
-   in do
-        (_, typedAST) <- synth e
-        -- Refocus on where we were previously
-        pure $ focusOn targetID $ exprTtoExpr typedAST
+synthZ z = do
+  (_, typedAST) <- synth $ unfocus z
+  -- Refocus on where we were previously
+  refocus Refocus{pre = z, post = exprTtoExpr typedAST}
 
 applyAction' :: ActionM m => Action -> Loc -> m Loc
 applyAction' a = case a of
