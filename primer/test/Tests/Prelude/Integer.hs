@@ -8,12 +8,11 @@ import Hedgehog.Range qualified as Range
 import Optics (over)
 import Primer.Builtins.DSL (bool_)
 import Primer.Core (Expr, GVarName)
-import Primer.Core.DSL (create', gvar, int)
+import Primer.Core.DSL (apps, create', gvar, int)
 import Primer.EvalFull (Dir (Chk), EvalFullError, TerminationBound, evalFull)
 import Primer.Module (builtinModule, moduleDefsQualified, moduleTypesQualified, primitiveModule)
 import Primer.Prelude (prelude)
 import Primer.Prelude.Integer qualified as P
-import Primer.Prelude.Utils (apps)
 import Tasty (Property, property, withTests)
 import TestM (TestM, evalTestM)
 import TestUtils (zeroIDs)

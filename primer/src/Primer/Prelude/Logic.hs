@@ -15,6 +15,7 @@ import Primer.Core (
  )
 import Primer.Core.DSL (
   app,
+  apps,
   branch,
   case_,
   con,
@@ -28,7 +29,7 @@ import Primer.Def (
   ASTDef (ASTDef),
   Def (DefAST),
  )
-import Primer.Prelude.Utils (apps, modName)
+import Primer.Prelude.Utils (modName)
 
 not :: GVarName
 not = qualifyName modName "not"

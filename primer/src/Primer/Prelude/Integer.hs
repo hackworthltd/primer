@@ -24,10 +24,10 @@ import Foreword (Applicative (pure), map, ($), (.))
 import Primer.Builtins (tBool)
 import Primer.Builtins qualified as B
 import Primer.Core (GVarName, ID, qualifyName)
-import Primer.Core.DSL (app, branch, case_, gvar, int, lam, let_, lvar, tcon, tfun)
+import Primer.Core.DSL (app, apps, branch, case_, gvar, int, lam, let_, lvar, tcon, tfun)
 import Primer.Def (ASTDef (..), Def (..))
 import Primer.Prelude.Logic (not)
-import Primer.Prelude.Utils (apps, modName)
+import Primer.Prelude.Utils (modName)
 import Primer.Primitives (PrimDef (..), primDefName, primitiveGVar, tInt)
 
 min :: GVarName
