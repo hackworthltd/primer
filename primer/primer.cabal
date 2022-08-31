@@ -169,6 +169,7 @@ test-suite primer-test
     Tests.Database
     Tests.Eval
     Tests.EvalFull
+    Tests.Examples
     Tests.FreeVars
     Tests.Gen.App
     Tests.Gen.Core.Typed
