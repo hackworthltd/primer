@@ -162,6 +162,7 @@ genType =
     , TFun <$> genMeta <*> genType <*> genType
     , TApp <$> genMeta <*> genType <*> genType
     , TForall <$> genMeta <*> genTyVarName <*> genKind <*> genType
+    , TLet <$> genMeta <*> genTyVarName <*> genType <*> genType
     ]
 
 genTyConName :: ExprGen TyConName

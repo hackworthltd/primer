@@ -430,6 +430,15 @@ genWTType k = do
       if k == KHole || k == KType
         then Just $ TFun () <$> genWTType KType <*> genWTType KType
         else Nothing
+    {- TODO: reinstate once the TC handles them! and then be careful to do
+               interesting things where we need to expand the synonym
+               See https://github.com/hackworthltd/primer/issues/5
+    tlet :: GenT WT TypeG
+    tlet = do
+      k' <- genWTKind
+      n <- genTyVarName
+      TLet () n <$> genWTType k' <*> local (extendLocalCxtTy (n,k')) (genWTType k)
+    -}
     poly :: Maybe (GenT WT TypeG)
     poly =
       if k == KHole || k == KType
