@@ -5,17 +5,23 @@ module Primer.Prelude.Polymorphism (
   constDef,
   map,
   mapDef,
+  foldr,
+  foldrDef,
+  sum,
+  sumDef,
 ) where
 
-import Foreword hiding (const, map)
+import Foreword hiding (const, foldr, map, sum)
 
 import Control.Monad.Fresh (MonadFresh)
 import Primer.Builtins (cCons, cNil)
 import Primer.Builtins qualified as B
-import Primer.Core (GVarName, ID, Kind (KType), qualifyName)
-import Primer.Core.DSL (aPP, app, apps, apps', branch, case_, con, gvar, lAM, lam, lvar, tapp, tcon, tforall, tfun, tvar)
+import Primer.Core (GVarName, ID, Kind (KType), Type, qualifyName)
+import Primer.Core.DSL (aPP, app, apps, apps', branch, case_, con, gvar, int, lAM, lam, lvar, tapp, tcon, tforall, tfun, tvar)
 import Primer.Def (ASTDef (..), Def (..))
 import Primer.Prelude.Utils (modName)
+import Primer.Primitives (PrimDef (..), tInt)
+import Primer.Primitives.DSL (pfun)
 
 id :: GVarName
 id = qualifyName modName "id"
@@ -44,7 +50,7 @@ mapDef = do
     tforall "a" KType $
       tforall "b" KType $
         (tvar "a" `tfun` tvar "b")
-          `tfun` (tapp (tcon B.tList) (tvar "a") `tfun` tapp (tcon B.tList) (tvar "b"))
+          `tfun` (listOf (tvar "a") `tfun` listOf (tvar "b"))
   term <-
     lAM "a" $
       lAM "b" $
@@ -59,3 +65,39 @@ mapDef = do
                    in apps (con cCons `aPP` tvar "b") [fy, fys]
               ]
   pure $ DefAST $ ASTDef term type_
+
+foldr :: GVarName
+foldr = qualifyName modName "foldr"
+
+foldrDef :: MonadFresh ID m => m Def
+foldrDef = do
+  type_ <- tforall "a" KType $ tforall "b" KType $ (tvar "a" `tfun` (tvar "b" `tfun` tvar "b")) `tfun` (tvar "b" `tfun` (listOf (tvar "a") `tfun` tvar "b"))
+  term <-
+    lAM "a" $
+      lAM "b" $
+        lam "f" $
+          lam "y" $
+            lam "xs" $
+              case_
+                (lvar "xs")
+                [ branch cNil [] (lvar "y")
+                , branch
+                    cCons
+                    [("x'", Nothing), ("xs'", Nothing)]
+                    ( let foldxs' = apps' (gvar foldr) [Right $ tvar "a", Right $ tvar "b", Left $ lvar "f", Left $ lvar "y", Left $ lvar "xs'"]
+                       in apps (lvar "f") [lvar "x'", foldxs']
+                    )
+                ]
+  pure $ DefAST $ ASTDef term type_
+
+sum :: GVarName
+sum = qualifyName modName "sum"
+
+sumDef :: MonadFresh ID m => m Def
+sumDef = do
+  type_ <- listOf (tcon tInt) `tfun` tcon tInt
+  term <- lam "ns" $ apps' (gvar foldr) [Right $ tcon tInt, Right $ tcon tInt, Left $ pfun IntAdd, Left $ int 0, Left $ lvar "ns"]
+  pure $ DefAST $ ASTDef term type_
+
+listOf :: MonadFresh ID m => m Type -> m Type
+listOf = tapp (tcon B.tList)

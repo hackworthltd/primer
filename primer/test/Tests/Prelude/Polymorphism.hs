@@ -13,7 +13,7 @@ import Primer.Prelude.Polymorphism qualified as P
 import Primer.Primitives (PrimDef (IntAdd), tInt)
 import Primer.Primitives.DSL (pfun)
 import Tasty (Property, property)
-import Tests.Prelude.Utils (functionOutput', (<===>))
+import Tests.Prelude.Utils (functionOutput, functionOutput', (<===>))
 
 tasty_id_prop :: Property
 tasty_id_prop = property $ do
@@ -72,3 +72,8 @@ tasty_map_prop = property $ do
     [Right $ tcon tBool, Right $ tcon tBool, Left (gvar L.not), Left $ list_ tBool $ map bool_ bs]
     1000
     <===> Right (create' $ list_ tBool $ map (bool_ . not) bs)
+
+tasty_sum_prop :: Property
+tasty_sum_prop = property $ do
+  ns <- forAll $ G.list (Range.linear 0 10) (G.integral_ (Range.constant (-10) 10))
+  functionOutput P.sum [list_ tInt $ map int ns] 2000 <===> Right (create' $ int $ sum ns)
