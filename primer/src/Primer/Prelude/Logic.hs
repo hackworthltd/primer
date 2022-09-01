@@ -1,7 +1,3 @@
-{-# LANGUAGE NoMonomorphismRestriction #-}
-{-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
-
-{-# HLINT ignore "Use tuple-section" #-}
 module Primer.Prelude.Logic (not, notDef, and, andDef, or, orDef, xor, xorDef, implies, impliesDef) where
 
 import Foreword hiding (and, not, or, xor)
