@@ -60,13 +60,14 @@ import Primer.Core (
   Type' (
     TForall,
     TFun,
+    TLet,
     TVar
   ),
   TypeMeta,
   ValConName,
   bindName,
  )
-import Primer.Core.DSL (ann, letType, let_, letrec, lvar, tvar)
+import Primer.Core.DSL (ann, letType, let_, letrec, lvar, tlet, tvar)
 import Primer.Core.Transform (renameTyVar, unfoldAPP, unfoldApp)
 import Primer.Core.Utils (
   concreteTy,
@@ -163,10 +164,15 @@ data Redex
     RenameSelfLetType TyVarName Type Expr
   | ApplyPrimFun (forall m. MonadFresh ID m => m Expr)
 
--- there are only trivial redexes in types.
--- Note that the let must appear in the surrounding Expr (not in a type itself)
 data RedexType
   = InlineLetInType TyVarName Type
+  | -- let a = s in t  ~>  t  if a does not appear in t
+    ElideLetInType (Local 'ATyVar) Type
+  | -- let a = s a in t a a  ~>  let b = s a in let a = b in t a a
+    -- Note that we cannot substitute the let in the initial term, since
+    -- we only substitute one occurence at a time, and the 'let' would capture the 'a'
+    -- in the expansion if we did a substitution.
+    RenameSelfLetInType TyVarName Type Type
   | -- ∀a:k.t  ~>  ∀b:k.t[b/a]  for fresh b, avoiding the given set
     RenameForall TypeMeta TyVarName Kind Type (S.Set TyVarName)
 
@@ -426,7 +432,12 @@ findRedex tydefs globals dir = go . focus
     go ez
       | Just (LSome l, bz) <- viewLet ez = pure <$> goLet l ez bz
       | Just mr <- viewRedex tydefs globals (focusDir dir ez) (target ez) = Just $ RExpr ez <$> mr
-      | otherwise = eachChild ez go
+      | otherwise =
+          -- We reduce any types first, as computation in types is simple (just inlining)
+          (focusType ez >>= goType) <<||>> eachChild ez go
+    goType tz
+      | TLet _ a t _body <- target tz = fmap pure $ down tz >>= right >>= goTLet (LLetType a t) tz
+      | otherwise = eachChild tz goType
     -- This should always return Just
     -- It finds either this let is redundant, or somewhere to substitute it
     -- or something inside that we need to rename to unblock substitution
@@ -441,6 +452,17 @@ findRedex tydefs globals dir = go . focus
         _ ->
           goSubst l bodyz
             <<||>> Just (RExpr letz $ ElideLet (LSome l) (target bodyz))
+    -- As goLet, but for TLet
+    goTLet :: Local 'ATyVar -> TypeZ -> TypeZ -> Maybe RedexWithContext
+    goTLet l@(LLetType a s) tletz bodyz =
+      if anyOf (getting _freeVarsTy % _2) (== a) s
+        then -- We have something like Λa. _ : tlet a = s a in t a
+        -- We cannot substitute this let as we would get Λa. _ : tlet a = s a in t (s a)
+        -- where a variable has been captured
+          pure $ RType tletz $ RenameSelfLetInType a s (target bodyz)
+        else
+          goSubstTy a s bodyz
+            <<||>> Just (RType tletz $ ElideLetInType l (target bodyz))
     goSubst :: Local k -> ExprZ -> Maybe RedexWithContext
     goSubst l ez = case target ez of
       -- We've found one
@@ -497,7 +519,13 @@ findRedex tydefs globals dir = go . focus
     goSubstTy n t tz = case target tz of
       -- found one
       TVar _ x | x == n -> pure $ RType tz $ InlineLetInType n t
-      -- The only binding form is a forall
+      -- Swap to an inner let, as long as it would make progress,
+      -- but prefer eliding an outer binder if possible
+      TLet _ m s _body
+        | m /= n
+        , anyOf (getting _freeVarsTy % _2) (== m) t ->
+            down tz >>= right >>= goTLet (LLetType m s) tz
+      -- The only other binding form is a forall
       -- Don't go under bindings of 'n'
       (TForall i m k s)
         | n == m -> Nothing
@@ -566,6 +594,12 @@ runRedex = \case
 
 runRedexTy :: (MonadFresh ID m, MonadFresh NameCounter m) => RedexType -> m Type
 runRedexTy (InlineLetInType _ t) = regenerateTypeIDs t
+-- let a = s in t  ~>  t  if a does not appear in t
+runRedexTy (ElideLetInType _ t) = pure t
+-- let a = s a in t a a  ~>  let b = s a in let a = b in t a a
+runRedexTy (RenameSelfLetInType a s t) = do
+  b <- freshLocalName (freeVarsTy s <> freeVarsTy t)
+  tlet b (pure s) $ tlet a (tvar b) $ pure t
 runRedexTy (RenameForall m a k s avoid) = do
   -- It should never be necessary to try more than once, since
   -- we pick a new name disjoint from any that appear in @s@

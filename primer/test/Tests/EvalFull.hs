@@ -373,6 +373,68 @@ unit_hole_ann_case =
   let (tm, maxID) = create $ hole $ ann (case_ emptyHole []) (tcon tBool)
    in evalFullTest maxID builtinTypes mempty 1 Chk tm @?= Right tm
 
+-- tlet x = C in D x x
+--   ==>
+-- tlet x = C in D C x
+--   ==>
+-- tlet x = C in D C C
+--   ==>
+-- D C C
+unit_tlet :: Assertion
+unit_tlet =
+  let ((expr, expected), maxID) = create $ do
+        e0 <- ann emptyHole $ tlet "x" (tcon' ["M"] "C") (tcon' ["M"] "D" `tapp` tvar "x" `tapp` tvar "x")
+        e1 <- ann emptyHole $ tlet "x" (tcon' ["M"] "C") (tcon' ["M"] "D" `tapp` tcon' ["M"] "C" `tapp` tvar "x")
+        e2 <- ann emptyHole $ tlet "x" (tcon' ["M"] "C") (tcon' ["M"] "D" `tapp` tcon' ["M"] "C" `tapp` tcon' ["M"] "C")
+        e3 <- ann emptyHole $ tcon' ["M"] "D" `tapp` tcon' ["M"] "C" `tapp` tcon' ["M"] "C"
+        pure (e0, map (Left . TimedOut) [e0, e1, e2, e3] ++ [Right e3])
+      test (n, expect) = do
+        let r = evalFullTest maxID mempty mempty n Syn expr
+        distinctIDs r
+        r <~==> expect
+   in mapM_ test (zip [0 ..] expected)
+
+-- tlet x = C in ty ==> ty  when x not occur free in ty
+unit_tlet_elide :: Assertion
+unit_tlet_elide = do
+  let ((expr, expected), maxID) = create $ do
+        e0 <- ann emptyHole $ tlet "x" (tcon' ["M"] "C") (tcon' ["M"] "D")
+        e1 <- ann emptyHole $ tcon' ["M"] "D"
+        pure (e0, map (Left . TimedOut) [e0, e1] ++ [Right e1])
+      test (n, expect) = do
+        let r = evalFullTest maxID mempty mempty n Syn expr
+        distinctIDs r
+        r <~==> expect
+   in mapM_ test (zip [0 ..] expected)
+
+-- tlet x = x in x
+--   ==>
+-- tlet y = x in let x = y in x
+--   ==>
+-- tlet y = x in let x = y in y
+--   ==>
+-- tlet y = x in y
+--   ==>
+-- tlet y = x in x
+--   ==>
+-- x
+unit_tlet_self_capture :: Assertion
+unit_tlet_self_capture = do
+  let y = "a32"
+      ((expr, expected), maxID) = create $ do
+        e0 <- ann emptyHole $ tlet "x" (tvar "x") $ tvar "x"
+        e1 <- ann emptyHole $ tlet y (tvar "x") $ tlet "x" (tvar y) $ tvar "x"
+        e2 <- ann emptyHole $ tlet y (tvar "x") $ tlet "x" (tvar y) $ tvar y
+        e3 <- ann emptyHole $ tlet y (tvar "x") $ tvar y
+        e4 <- ann emptyHole $ tlet y (tvar "x") $ tvar "x"
+        e5 <- ann emptyHole $ tvar "x"
+        pure (e0, map (Left . TimedOut) [e0, e1, e2, e3, e4, e5] ++ [Right e5])
+      test (n, expect) = do
+        let r = evalFullTest maxID mempty mempty n Syn expr
+        distinctIDs r
+        r <~==> expect
+   in mapM_ test (zip [0 ..] expected)
+
 -- TODO: examples with holes
 
 -- TODO: most of these property tests could benefit from generating an
