@@ -54,15 +54,29 @@ import Primer.Examples qualified as Examples (
  )
 import Primer.Gen.Core.Typed (WT, forAllT, genChk, genSyn, genWTType, isolateWT, propertyWT)
 import Primer.Module (Module (Module, moduleDefs, moduleName, moduleTypes), builtinModule, moduleDefsQualified, moduleTypesQualified, primitiveModule)
-import Primer.Name (Name)
 import Primer.Primitives (
   PrimDef (
     EqChar,
     HexToNat,
+    IntAdd,
+    IntEq,
+    IntFromNat,
+    IntGT,
+    IntGTE,
+    IntLT,
+    IntLTE,
+    IntMinus,
+    IntMul,
+    IntNeq,
+    IntQuot,
+    IntQuotient,
+    IntRem,
+    IntRemainder,
+    IntToNat,
+    IsSpace,
     NatToHex,
     ToUpper
   ),
-  primitive,
   tChar,
   tInt,
  )
@@ -732,21 +746,21 @@ tasty_type_preservation = withTests 1000 $
 unit_prim_toUpper :: Assertion
 unit_prim_toUpper =
   unaryPrimTest
-    "toUpper"
+    ToUpper
     (char 'a')
     (char 'A')
 
 unit_prim_isSpace_1 :: Assertion
 unit_prim_isSpace_1 =
   unaryPrimTest
-    "isSpace"
+    IsSpace
     (char '\n')
     (bool_ True)
 
 unit_prim_isSpace_2 :: Assertion
 unit_prim_isSpace_2 =
   unaryPrimTest
-    "isSpace"
+    IsSpace
     (char 'a')
     (bool_ False)
 
@@ -789,7 +803,7 @@ tasty_prim_hex_nat = withTests 20 . property $ do
 unit_prim_char_eq_1 :: Assertion
 unit_prim_char_eq_1 =
   binaryPrimTest
-    "eqChar"
+    EqChar
     (char 'a')
     (char 'a')
     (con cTrue)
@@ -797,7 +811,7 @@ unit_prim_char_eq_1 =
 unit_prim_char_eq_2 :: Assertion
 unit_prim_char_eq_2 =
   binaryPrimTest
-    "eqChar"
+    EqChar
     (char 'a')
     (char 'A')
     (con cFalse)
@@ -816,7 +830,7 @@ unit_prim_char_partial =
 unit_prim_int_add :: Assertion
 unit_prim_int_add =
   binaryPrimTest
-    "Int.+"
+    IntAdd
     (int 2)
     (int 2)
     (int 4)
@@ -824,7 +838,7 @@ unit_prim_int_add =
 unit_prim_int_add_big :: Assertion
 unit_prim_int_add_big =
   binaryPrimTest
-    "Int.+"
+    IntAdd
     (int big)
     (int big)
     (int (2 * big :: Integer))
@@ -834,7 +848,7 @@ unit_prim_int_add_big =
 unit_prim_int_sub :: Assertion
 unit_prim_int_sub =
   binaryPrimTest
-    "Int.-"
+    IntMinus
     (int 5)
     (int 3)
     (int 2)
@@ -842,7 +856,7 @@ unit_prim_int_sub =
 unit_prim_int_sub_negative :: Assertion
 unit_prim_int_sub_negative =
   binaryPrimTest
-    "Int.-"
+    IntMinus
     (int 3)
     (int 5)
     (int (-2))
@@ -850,7 +864,7 @@ unit_prim_int_sub_negative =
 unit_prim_int_mul :: Assertion
 unit_prim_int_mul =
   binaryPrimTest
-    "Int.×"
+    IntMul
     (int 3)
     (int 2)
     (int 6)
@@ -858,7 +872,7 @@ unit_prim_int_mul =
 unit_prim_int_quotient :: Assertion
 unit_prim_int_quotient =
   binaryPrimTest
-    "Int.quotient"
+    IntQuotient
     (int 7)
     (int 3)
     (con cJust `aPP` tcon tInt `app` int 2)
@@ -866,7 +880,7 @@ unit_prim_int_quotient =
 unit_prim_int_quotient_negative :: Assertion
 unit_prim_int_quotient_negative =
   binaryPrimTest
-    "Int.quotient"
+    IntQuotient
     (int (-7))
     (int 3)
     (con cJust `aPP` tcon tInt `app` int (-3))
@@ -874,7 +888,7 @@ unit_prim_int_quotient_negative =
 unit_prim_int_quotient_zero :: Assertion
 unit_prim_int_quotient_zero =
   binaryPrimTest
-    "Int.quotient"
+    IntQuotient
     (int (-7))
     (int 0)
     (con cNothing `aPP` tcon tInt)
@@ -882,7 +896,7 @@ unit_prim_int_quotient_zero =
 unit_prim_int_remainder :: Assertion
 unit_prim_int_remainder =
   binaryPrimTest
-    "Int.remainder"
+    IntRemainder
     (int 7)
     (int 3)
     (con cJust `aPP` tcon tInt `app` int 1)
@@ -890,7 +904,7 @@ unit_prim_int_remainder =
 unit_prim_int_remainder_negative_1 :: Assertion
 unit_prim_int_remainder_negative_1 =
   binaryPrimTest
-    "Int.remainder"
+    IntRemainder
     (int (-7))
     (int (-3))
     (con cJust `aPP` tcon tInt `app` int (-1))
@@ -898,7 +912,7 @@ unit_prim_int_remainder_negative_1 =
 unit_prim_int_remainder_negative_2 :: Assertion
 unit_prim_int_remainder_negative_2 =
   binaryPrimTest
-    "Int.remainder"
+    IntRemainder
     (int (-7))
     (int 3)
     (con cJust `aPP` tcon tInt `app` int 2)
@@ -906,7 +920,7 @@ unit_prim_int_remainder_negative_2 =
 unit_prim_int_remainder_negative_3 :: Assertion
 unit_prim_int_remainder_negative_3 =
   binaryPrimTest
-    "Int.remainder"
+    IntRemainder
     (int 7)
     (int (-3))
     (con cJust `aPP` tcon tInt `app` int (-2))
@@ -914,7 +928,7 @@ unit_prim_int_remainder_negative_3 =
 unit_prim_int_remainder_zero :: Assertion
 unit_prim_int_remainder_zero =
   binaryPrimTest
-    "Int.remainder"
+    IntRemainder
     (int 7)
     (int 0)
     (con cNothing `aPP` tcon tInt)
@@ -922,7 +936,7 @@ unit_prim_int_remainder_zero =
 unit_prim_int_quot :: Assertion
 unit_prim_int_quot =
   binaryPrimTest
-    "Int.quot"
+    IntQuot
     (int 7)
     (int 3)
     (int 2)
@@ -930,7 +944,7 @@ unit_prim_int_quot =
 unit_prim_int_quot_negative :: Assertion
 unit_prim_int_quot_negative =
   binaryPrimTest
-    "Int.quot"
+    IntQuot
     (int (-7))
     (int 3)
     (int (-3))
@@ -938,7 +952,7 @@ unit_prim_int_quot_negative =
 unit_prim_int_quot_zero :: Assertion
 unit_prim_int_quot_zero =
   binaryPrimTest
-    "Int.quot"
+    IntQuot
     (int (-7))
     (int 0)
     (int 0)
@@ -946,7 +960,7 @@ unit_prim_int_quot_zero =
 unit_prim_int_rem :: Assertion
 unit_prim_int_rem =
   binaryPrimTest
-    "Int.rem"
+    IntRem
     (int 7)
     (int 3)
     (int 1)
@@ -954,7 +968,7 @@ unit_prim_int_rem =
 unit_prim_int_rem_negative_1 :: Assertion
 unit_prim_int_rem_negative_1 =
   binaryPrimTest
-    "Int.rem"
+    IntRem
     (int (-7))
     (int (-3))
     (int (-1))
@@ -962,7 +976,7 @@ unit_prim_int_rem_negative_1 =
 unit_prim_int_rem_negative_2 :: Assertion
 unit_prim_int_rem_negative_2 =
   binaryPrimTest
-    "Int.rem"
+    IntRem
     (int (-7))
     (int 3)
     (int 2)
@@ -970,7 +984,7 @@ unit_prim_int_rem_negative_2 =
 unit_prim_int_rem_negative_3 :: Assertion
 unit_prim_int_rem_negative_3 =
   binaryPrimTest
-    "Int.rem"
+    IntRem
     (int 7)
     (int (-3))
     (int (-2))
@@ -978,7 +992,7 @@ unit_prim_int_rem_negative_3 =
 unit_prim_int_rem_zero :: Assertion
 unit_prim_int_rem_zero =
   binaryPrimTest
-    "Int.rem"
+    IntRem
     (int 7)
     (int 0)
     (int 7)
@@ -986,7 +1000,7 @@ unit_prim_int_rem_zero =
 unit_prim_int_eq_1 :: Assertion
 unit_prim_int_eq_1 =
   binaryPrimTest
-    "Int.="
+    IntEq
     (int 2)
     (int 2)
     (bool_ True)
@@ -994,7 +1008,7 @@ unit_prim_int_eq_1 =
 unit_prim_int_eq_2 :: Assertion
 unit_prim_int_eq_2 =
   binaryPrimTest
-    "Int.="
+    IntEq
     (int 2)
     (int 1)
     (bool_ False)
@@ -1002,7 +1016,7 @@ unit_prim_int_eq_2 =
 unit_prim_int_neq_1 :: Assertion
 unit_prim_int_neq_1 =
   binaryPrimTest
-    "Int.≠"
+    IntNeq
     (int 2)
     (int 2)
     (bool_ False)
@@ -1010,7 +1024,7 @@ unit_prim_int_neq_1 =
 unit_prim_int_neq_2 :: Assertion
 unit_prim_int_neq_2 =
   binaryPrimTest
-    "Int.≠"
+    IntNeq
     (int 2)
     (int 1)
     (bool_ True)
@@ -1018,7 +1032,7 @@ unit_prim_int_neq_2 =
 unit_prim_int_less_than_1 :: Assertion
 unit_prim_int_less_than_1 =
   binaryPrimTest
-    "Int.<"
+    IntLT
     (int 1)
     (int 2)
     (bool_ True)
@@ -1026,7 +1040,7 @@ unit_prim_int_less_than_1 =
 unit_prim_int_less_than_2 :: Assertion
 unit_prim_int_less_than_2 =
   binaryPrimTest
-    "Int.<"
+    IntLT
     (int 1)
     (int 1)
     (bool_ False)
@@ -1034,7 +1048,7 @@ unit_prim_int_less_than_2 =
 unit_prim_int_less_than_or_equal_1 :: Assertion
 unit_prim_int_less_than_or_equal_1 =
   binaryPrimTest
-    "Int.≤"
+    IntLTE
     (int 1)
     (int 2)
     (bool_ True)
@@ -1042,7 +1056,7 @@ unit_prim_int_less_than_or_equal_1 =
 unit_prim_int_less_than_or_equal_2 :: Assertion
 unit_prim_int_less_than_or_equal_2 =
   binaryPrimTest
-    "Int.≤"
+    IntLTE
     (int 1)
     (int 1)
     (bool_ True)
@@ -1050,7 +1064,7 @@ unit_prim_int_less_than_or_equal_2 =
 unit_prim_int_less_than_or_equal_3 :: Assertion
 unit_prim_int_less_than_or_equal_3 =
   binaryPrimTest
-    "Int.≤"
+    IntLTE
     (int 2)
     (int 1)
     (bool_ False)
@@ -1058,7 +1072,7 @@ unit_prim_int_less_than_or_equal_3 =
 unit_prim_int_greater_than_1 :: Assertion
 unit_prim_int_greater_than_1 =
   binaryPrimTest
-    "Int.>"
+    IntGT
     (int 2)
     (int 1)
     (bool_ True)
@@ -1066,7 +1080,7 @@ unit_prim_int_greater_than_1 =
 unit_prim_int_greater_than_2 :: Assertion
 unit_prim_int_greater_than_2 =
   binaryPrimTest
-    "Int.>"
+    IntGT
     (int 1)
     (int 1)
     (bool_ False)
@@ -1074,7 +1088,7 @@ unit_prim_int_greater_than_2 =
 unit_prim_int_greater_than_or_equal_1 :: Assertion
 unit_prim_int_greater_than_or_equal_1 =
   binaryPrimTest
-    "Int.≥"
+    IntGTE
     (int 1)
     (int 2)
     (bool_ False)
@@ -1082,7 +1096,7 @@ unit_prim_int_greater_than_or_equal_1 =
 unit_prim_int_greater_than_or_equal_2 :: Assertion
 unit_prim_int_greater_than_or_equal_2 =
   binaryPrimTest
-    "Int.≥"
+    IntGTE
     (int 1)
     (int 1)
     (bool_ True)
@@ -1090,7 +1104,7 @@ unit_prim_int_greater_than_or_equal_2 =
 unit_prim_int_greater_than_or_equal_3 :: Assertion
 unit_prim_int_greater_than_or_equal_3 =
   binaryPrimTest
-    "Int.≥"
+    IntGTE
     (int 2)
     (int 1)
     (bool_ True)
@@ -1098,21 +1112,21 @@ unit_prim_int_greater_than_or_equal_3 =
 unit_prim_int_toNat :: Assertion
 unit_prim_int_toNat =
   unaryPrimTest
-    "Int.toNat"
+    IntToNat
     (int 0)
     (con cJust `aPP` tcon tNat `app` nat 0)
 
 unit_prim_int_toNat_negative :: Assertion
 unit_prim_int_toNat_negative =
   unaryPrimTest
-    "Int.toNat"
+    IntToNat
     (int (-1))
     (con cNothing `aPP` tcon tNat)
 
 unit_prim_int_fromNat :: Assertion
 unit_prim_int_fromNat =
   unaryPrimTest
-    "Int.fromNat"
+    IntFromNat
     (nat 4)
     (int 4)
 
@@ -1234,24 +1248,24 @@ tasty_unique_ids = withTests 1000 $
 evalFullTest :: ID -> TypeDefMap -> DefMap -> TerminationBound -> Dir -> Expr -> Either EvalFullError Expr
 evalFullTest id_ tydefs globals n d e = evalTestM id_ $ evalFull tydefs globals n d e
 
-unaryPrimTest :: Name -> S Expr -> S Expr -> Assertion
+unaryPrimTest :: PrimDef -> S Expr -> S Expr -> Assertion
 unaryPrimTest f x y =
   let ((e, r), maxID) =
         create $
           (,)
-            <$> gvar (primitive f)
+            <$> pfun f
             `app` x
             <*> y
       s = evalFullTest maxID mempty primDefs 2 Syn e
    in do
         distinctIDs s
         s <~==> Right r
-binaryPrimTest :: Name -> S Expr -> S Expr -> S Expr -> Assertion
+binaryPrimTest :: PrimDef -> S Expr -> S Expr -> S Expr -> Assertion
 binaryPrimTest f x y z =
   let ((e, r), maxID) =
         create $
           (,)
-            <$> gvar (primitive f)
+            <$> pfun f
             `app` x
             `app` y
             <*> z
