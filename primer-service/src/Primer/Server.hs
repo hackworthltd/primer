@@ -36,6 +36,7 @@ import Network.Wai.Middleware.Cors (
 import Optics ((%), (.~), (?~))
 import Primer.API (
   Env (..),
+  ExprTreeOpts (..),
   PrimerErr (..),
   PrimerIO,
   edit,
@@ -92,7 +93,7 @@ openAPISessionsServer =
 openAPISessionServer :: SessionId -> OpenAPI.SessionAPI (AsServerT PrimerIO)
 openAPISessionServer sid =
   OpenAPI.SessionAPI
-    { OpenAPI.getProgram = API.getProgram' sid
+    { OpenAPI.getProgram = \patternsUnder -> API.getProgram' (ExprTreeOpts{patternsUnder}) sid
     , OpenAPI.getSessionName = API.getSessionName sid
     , OpenAPI.setSessionName = renameSession sid
     }

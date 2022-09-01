@@ -14,6 +14,7 @@ import Hedgehog.Gen qualified as G
 import Hedgehog.Range qualified as R
 import Primer.API (
   Def (Def),
+  ExprTreeOpts,
   Module (Module),
   NodeBody (BoxBody, NoBody, TextBody),
   NodeFlavor,
@@ -24,6 +25,7 @@ import Primer.API (
  )
 import Primer.Core (ID (ID))
 import Primer.Database (Session (Session), SessionName, safeMkSessionName)
+import Primer.Gen.API (genExprTreeOpts)
 import Primer.Gen.Core.Raw (
   ExprGen,
   evalExprGen,
@@ -115,7 +117,7 @@ genTree :: Gen Tree
 genTree = evalExprGen 0 $ G.choice [genExprTree, genTypeTree]
 
 genExprTree :: ExprGen Tree
-genExprTree = viewTreeExpr <$> genExpr
+genExprTree = viewTreeExpr <$> genExprTreeOpts <*> genExpr
 
 genTypeTree :: ExprGen Tree
 genTypeTree = viewTreeType <$> genType
@@ -210,3 +212,5 @@ instance Arbitrary (Paginated Session) where
   arbitrary = hedgehog genPaginatedSession
 instance Arbitrary Prog where
   arbitrary = hedgehog genProg
+instance Arbitrary ExprTreeOpts where
+  arbitrary = hedgehog genExprTreeOpts

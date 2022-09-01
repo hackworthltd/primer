@@ -29,6 +29,7 @@ import Servant (
   Get,
   JSON,
   NamedRoutes,
+  QueryFlag,
   Summary,
   (:>),
  )
@@ -72,6 +73,7 @@ data SessionAPI mode = SessionAPI
       mode
         :- "program"
           :> Summary "Get the current program state"
+          :> QueryFlag "patternsUnder"
           :> OperationId "getProgram"
           :> Get '[JSON] API.Prog
   , getSessionName :: GetSessionName mode
