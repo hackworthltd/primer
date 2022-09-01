@@ -93,6 +93,7 @@ import Primer.Core.DSL (
   tforall,
   tfun,
   thole,
+  tlet,
   tvar,
  )
 import Primer.Def (
@@ -272,7 +273,7 @@ comprehensive' typeable modName = do
                                       (tcon B.tBool)
                                       ( aPP
                                           (con B.cLeft)
-                                          (tvar "b")
+                                          (tlet "c" (tvar "b") $ tvar "c")
                                       )
                               )
                               (tvar "β")

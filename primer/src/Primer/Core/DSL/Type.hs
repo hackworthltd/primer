@@ -5,6 +5,7 @@ module Primer.Core.DSL.Type (
   thole,
   tcon,
   tforall,
+  tlet,
   tfun,
   tapp,
   tvar,
@@ -40,6 +41,9 @@ tcon t = TCon <$> meta <*> pure t
 
 tforall :: MonadFresh ID m => TyVarName -> Kind -> m Type -> m Type
 tforall v k t = TForall <$> meta <*> pure v <*> pure k <*> t
+
+tlet :: MonadFresh ID m => TyVarName -> m Type -> m Type -> m Type
+tlet v t b = TLet <$> meta <*> pure v <*> t <*> b
 
 tfun :: MonadFresh ID m => m Type -> m Type -> m Type
 tfun a b = TFun <$> meta <*> a <*> b

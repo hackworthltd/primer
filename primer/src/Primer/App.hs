@@ -196,8 +196,8 @@ import Primer.Zipper (
   foldAbove,
   foldAboveTypeZ,
   getBoundHere,
-  getBoundHereTy,
   getBoundHereUp,
+  getBoundHereUpTy,
   locToEither,
   replace,
   target,
@@ -1251,11 +1251,11 @@ getSharedScopeTy = getSharedScope' bindersLocAbove
   where
     bindersLocAbove = either bindersLocAboveTypeZ bindersLocAboveTy
     bindersLocAboveTy :: TypeZip -> Set.Set (ID, Name)
-    bindersLocAboveTy = foldAbove ((\t -> Set.map ((getID t,) . unLocalName) $ getBoundHereTy t) . current)
+    bindersLocAboveTy = foldAbove (\t -> Set.map ((getID $ current t,) . unLocalName) $ getBoundHereUpTy t)
     bindersLocAboveTypeZ :: TypeZ -> Set.Set (ID, Name)
     bindersLocAboveTypeZ =
       foldAboveTypeZ
-        ((\t -> Set.map ((getID t,) . unLocalName) $ getBoundHereTy t) . current)
+        (\t -> Set.map ((getID $ current t,) . unLocalName) $ getBoundHereUpTy t)
         ((\e -> Set.map (getID e,) $ getBoundHere e Nothing) . current)
         (\x -> Set.map (getID $ current x,) $ getBoundHereUp x)
 

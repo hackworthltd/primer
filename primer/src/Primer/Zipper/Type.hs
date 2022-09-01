@@ -23,6 +23,8 @@ module Primer.Zipper.Type (
   foldBelow,
   bindersAboveTy,
   getBoundHereTy,
+  getBoundHereUpTy,
+  getBoundHereDnTy,
   bindersBelowTy,
 ) where
 
@@ -50,7 +52,7 @@ import Primer.Core.Meta (
   getID,
  )
 import Primer.Core.Type (
-  Type' (TForall),
+  Type' (TForall, TLet),
   TypeMeta,
  )
 
@@ -164,15 +166,27 @@ foldBelow f z = f (target z) <> maybe mempty (go . farthest left) (down z)
     go z' = f (target z') <> maybe mempty (go . farthest left) (down z') <> maybe mempty go (right z')
 
 bindersAboveTy :: TypeZip -> S.Set TyVarName
-bindersAboveTy = foldAbove (getBoundHereTy . current)
+bindersAboveTy = foldAbove getBoundHereUpTy
 
 -- Note that we have two specialisations we care about:
 -- bindersBelowTy :: TypeZip -> S.Set Name
 -- bindersBelowTy :: Zipper (Type' One) (Type' One) -> S.Set Name
-bindersBelowTy :: Data a => Zipper (Type' a) (Type' a) -> S.Set TyVarName
-bindersBelowTy = foldBelow getBoundHereTy
+bindersBelowTy :: (Data a, Eq a) => Zipper (Type' a) (Type' a) -> S.Set TyVarName
+bindersBelowTy = foldBelow getBoundHereDnTy
 
-getBoundHereTy :: Type' a -> S.Set TyVarName
-getBoundHereTy = \case
+-- Get the names bound by this layer of an type for a given child.
+getBoundHereUpTy :: Eq a => FoldAbove (Type' a) -> S.Set TyVarName
+getBoundHereUpTy e = getBoundHereTy (current e) (Just $ prior e)
+
+-- Get all names bound by this layer of an type, for any child.
+getBoundHereDnTy :: Eq a => Type' a -> S.Set TyVarName
+getBoundHereDnTy e = getBoundHereTy e Nothing
+
+getBoundHereTy :: Eq a => Type' a -> Maybe (Type' a) -> S.Set TyVarName
+getBoundHereTy t prev = case t of
   TForall _ v _ _ -> S.singleton v
+  TLet _ v _ b ->
+    if maybe True (== b) prev
+      then S.singleton v
+      else mempty
   _ -> mempty

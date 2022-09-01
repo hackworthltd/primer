@@ -48,6 +48,8 @@ module Primer.Zipper (
   bindersAboveTy,
   bindersAboveTypeZ,
   getBoundHereTy,
+  getBoundHereUpTy,
+  getBoundHereDnTy,
   bindersBelowTy,
 ) where
 
@@ -111,7 +113,9 @@ import Primer.Zipper.Type (
   focusOnTy,
   foldAbove,
   foldBelow,
+  getBoundHereDnTy,
   getBoundHereTy,
+  getBoundHereUpTy,
   left,
   replace,
   right,
@@ -349,7 +353,7 @@ foldAboveTypeZ inTy border inExpr tz =
 bindersAboveTypeZ :: TypeZ -> S.Set Name
 bindersAboveTypeZ =
   foldAboveTypeZ
-    (S.map unLocalName . getBoundHereTy . current)
+    (S.map unLocalName . getBoundHereUpTy)
     -- Since nothing both contains a type and binds a variable, we
     -- could write (const mempty) for the "border" argument,
     -- but let's keep it around as future proofing

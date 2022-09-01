@@ -33,6 +33,10 @@ substTy n a = go
         -- these names will not enter the user's program, so we don't need to worry about shadowing, only variable capture
         | m `elem` avoid -> freshLocalName (avoid <> freeVarsTy s) >>= \m' -> substTy m (TVar () m') s >>= fmap (TForall () m' k) . go
         | otherwise -> TForall () m k <$> go s
+      TLet _ m s b
+        | m == n -> TLet () m <$> go s <*> pure b
+        | m `elem` avoid -> freshLocalName (avoid <> freeVarsTy b) >>= \m' -> substTy m (TVar () m') b >>= ap (TLet () m' <$> go s) . go
+        | otherwise -> TLet () m <$> go s <*> go b
 
 substTys :: MonadFresh NameCounter m => [(TyVarName, Type' ())] -> Type' () -> m (Type' ())
 substTys sb t = foldrM (uncurry substTy) t sb

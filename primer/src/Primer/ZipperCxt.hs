@@ -155,12 +155,16 @@ instance Monoid ShadowedVarsTy where
 
 -- | As for 'variablesInScopeExpr', but when you are focussed somewhere inside
 -- a type, rather than somewhere inside an expr
+-- Note that kind information is extracted from the cached kind (for 'TLet')
 variablesInScopeTy :: TypeZip -> [(TyVarName, Kind)]
 variablesInScopeTy e =
-  let N vs = foldAbove (getBoundHere . current) e
+  let N vs = foldAbove getBoundHere e
    in reverse vs -- keep most-global first
   where
-    getBoundHere :: Type' a -> ShadowedVarsTy
-    getBoundHere = \case
+    getBoundHere :: FoldAbove Type -> ShadowedVarsTy
+    getBoundHere t = case current t of
       TForall _ v k _ -> N [(v, k)]
+      TLet _ v t' b
+        | prior t == b -> N [(v, kindOrHoleOf t')]
+        | otherwise -> mempty
       _ -> mempty

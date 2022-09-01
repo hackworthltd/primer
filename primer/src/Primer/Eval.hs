@@ -305,6 +305,9 @@ redexes primDefs = go mempty
             TFun _ a b -> goType locals a <> goType locals b
             TApp _ a b -> goType locals a <> goType locals b
             TForall _ x _ t -> goType (removeTy x locals) t
+            TLet _ _ t b ->
+              -- NB: Type-level `let` is not yet supported
+              goType locals t <> goType locals b
     -- When going under a binder, outer binders of that name go out of scope,
     -- and any outer let bindings mentioning that name are not available for
     -- substitution (as the binder we are going under would capture such a
