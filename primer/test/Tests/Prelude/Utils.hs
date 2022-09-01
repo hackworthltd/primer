@@ -1,19 +1,43 @@
 module Tests.Prelude.Utils where
 
-import Foreword
-import Hedgehog (MonadTest, (===))
+import Data.String (String, unlines)
+import Foreword hiding (exp, unlines)
+import Hedgehog.Internal.Property
 import Optics (over)
 import Primer.Core (Expr, GVarName, Type)
 import Primer.Core.DSL (apps', create', gvar)
 import Primer.EvalFull (Dir (Chk), EvalFullError, TerminationBound, evalFull)
 import Primer.Module (builtinModule, moduleDefsQualified, moduleTypesQualified, primitiveModule)
 import Primer.Prelude (prelude)
+import Primer.Pretty (prettyExpr, sparse)
 import TestM (TestM, evalTestM)
 import TestUtils (zeroIDs)
 import Tests.EvalFull (evalResultExpr)
 
 (<===>) :: (HasCallStack, MonadTest m) => Either EvalFullError Expr -> Either EvalFullError Expr -> m ()
-x <===> y = withFrozenCallStack $ on (===) (over evalResultExpr zeroIDs) x y
+x <===> y = withFrozenCallStack $ on compareExpr (over evalResultExpr zeroIDs) x y
+  where
+    compareExpr :: (HasCallStack, MonadTest m) => Either EvalFullError Expr -> Either EvalFullError Expr -> m ()
+    compareExpr a b = do
+      ok <- withFrozenCallStack $ eval (a == b)
+      if ok
+        then success
+        else do
+          annotate $
+            unlines
+              [ "Pretty Printed Output:"
+              , "LHS____________________________________________________"
+              , prettyWrap a
+              , ""
+              , "RHS____________________________________________________"
+              , prettyWrap b
+              , ""
+              ]
+          failDiff a b
+
+    prettyWrap :: Either EvalFullError Expr -> String
+    prettyWrap (Left err) = show err
+    prettyWrap (Right exp) = show $ prettyExpr sparse exp
 
 -- Tests a prelude function with Expr arguments
 functionOutput :: GVarName -> [TestM Expr] -> TerminationBound -> Either EvalFullError Expr
