@@ -111,7 +111,7 @@ import Primer.Core.Utils (forgetMetadata)
 import Primer.Def (ASTDef (..), Def (..), DefMap, defAST)
 import Primer.Module (Module (Module, moduleDefs, moduleName, moduleTypes), builtinModule, moduleDefsQualified, moduleTypesQualified, primitiveModule)
 import Primer.Name
-import Primer.Primitives (primitiveGVar, tChar)
+import Primer.Primitives (PrimDef (IntAdd, ToUpper), primitiveGVar, tChar)
 import Primer.TypeDef (ASTTypeDef (..), TypeDef (..), ValCon (..), typeDefAST)
 import Primer.Typecheck (
   KindError (UnknownTypeConstructor),
@@ -744,7 +744,7 @@ unit_import_vars =
             (_, vs) <- runReaderT (handleQuestion (VariablesInScope i $ getID $ astDefExpr d)) a'
             pure $
               assertBool "VariablesInScope did not report the imported Int.+" $
-                any ((== primitiveGVar "Int.+") . fst) vs
+                any ((== primitiveGVar IntAdd) . fst) vs
           _ -> pure $ assertFailure "Expected one def 'main' from newEmptyApp"
       a = newEmptyApp
    in case fst $ runAppTestM (appIdCounter a) a test of
@@ -757,13 +757,13 @@ unit_import_reference =
   let test = do
         importModules [builtinModule, primitiveModule]
         prog <- gets appProg
-        case (findGlobalByName prog $ primitiveGVar "toUpper", Map.assocs . moduleDefsQualified <$> progModules prog) of
+        case (findGlobalByName prog $ primitiveGVar ToUpper, Map.assocs . moduleDefsQualified <$> progModules prog) of
           (Just _, [[(i, _)]]) -> do
             _ <-
               handleEditRequest
                 [ MoveToDef i
                 , SigAction [constructTCon tChar]
-                , BodyAction [ConstructVar $ GlobalVarRef $ primitiveGVar "toUpper"]
+                , BodyAction [ConstructVar $ GlobalVarRef $ primitiveGVar ToUpper]
                 ]
             pure $ pure ()
           (Nothing, _) -> pure $ assertFailure "Could not find the imported toUpper"

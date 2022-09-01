@@ -637,7 +637,7 @@ unit_tryReduce_prim = do
 
       detail.before ~= expr
       detail.after ~= expr'
-      detail.name @?= primitiveGVar "eqChar"
+      detail.name @?= primitiveGVar EqChar
       detail.argIDs @?= [3, 4]
     _ -> assertFailure $ show result
 

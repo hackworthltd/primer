@@ -62,7 +62,7 @@ import Primer.Database (
 import Primer.Def (DefMap)
 import Primer.Module (Module (moduleDefs), primitiveModule)
 import Primer.Name (Name (unName))
-import Primer.Primitives (primitiveGVar)
+import Primer.Primitives (primitive)
 import StmContainers.Map qualified as StmMap
 import Test.Tasty.HUnit (
   assertBool,
@@ -71,7 +71,7 @@ import Test.Tasty.HUnit (
 import Test.Tasty.HUnit qualified as HUnit
 
 primDefs :: DefMap
-primDefs = Map.mapKeys primitiveGVar $ moduleDefs primitiveModule
+primDefs = Map.mapKeys primitive $ moduleDefs primitiveModule
 
 -- impedence mismatch: ConstructTCon takes text, but tChar etc are TyConNames
 constructTCon :: TyConName -> Action

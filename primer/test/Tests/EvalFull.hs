@@ -62,7 +62,7 @@ import Primer.Primitives (
     NatToHex,
     ToUpper
   ),
-  primitiveGVar,
+  primitive,
   tChar,
   tInt,
  )
@@ -1239,7 +1239,7 @@ unaryPrimTest f x y =
   let ((e, r), maxID) =
         create $
           (,)
-            <$> gvar (primitiveGVar f)
+            <$> gvar (primitive f)
             `app` x
             <*> y
       s = evalFullTest maxID mempty primDefs 2 Syn e
@@ -1251,7 +1251,7 @@ binaryPrimTest f x y z =
   let ((e, r), maxID) =
         create $
           (,)
-            <$> gvar (primitiveGVar f)
+            <$> gvar (primitive f)
             `app` x
             `app` y
             <*> z
