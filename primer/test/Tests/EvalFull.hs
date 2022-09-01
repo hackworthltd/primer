@@ -55,7 +55,18 @@ import Primer.Examples qualified as Examples (
 import Primer.Gen.Core.Typed (WT, forAllT, genChk, genSyn, genWTType, isolateWT, propertyWT)
 import Primer.Module (Module (Module, moduleDefs, moduleName, moduleTypes), builtinModule, moduleDefsQualified, moduleTypesQualified, primitiveModule)
 import Primer.Name (Name)
-import Primer.Primitives (primitiveGVar, tChar, tInt)
+import Primer.Primitives (
+  PrimDef (
+    EqChar,
+    HexToNat,
+    NatToHex,
+    ToUpper
+  ),
+  primitiveGVar,
+  tChar,
+  tInt,
+ )
+import Primer.Primitives.DSL (pfun)
 import Primer.TypeDef (TypeDef (..), TypeDefMap)
 import Primer.Typecheck (
   SmartHoles (NoSmartHoles),
@@ -749,7 +760,7 @@ tasty_prim_hex_nat = withTests 20 . property $ do
             create $
               (,)
                 <$> case_
-                  ( gvar (primitiveGVar "natToHex")
+                  ( pfun NatToHex
                       `app` ne
                   )
                   [ branch
@@ -759,7 +770,7 @@ tasty_prim_hex_nat = withTests 20 . property $ do
                   , branch
                       cJust
                       [("x", Nothing)]
-                      ( gvar (primitiveGVar "hexToNat")
+                      ( pfun HexToNat
                           `app` lvar "x"
                       )
                   ]
@@ -768,7 +779,7 @@ tasty_prim_hex_nat = withTests 20 . property $ do
           else
             create $
               (,)
-                <$> gvar (primitiveGVar "natToHex")
+                <$> pfun NatToHex
                 `app` ne
                 <*> con cNothing
                 `aPP` tcon tChar
@@ -795,7 +806,7 @@ unit_prim_char_partial :: Assertion
 unit_prim_char_partial =
   let (e, maxID) =
         create $
-          gvar (primitiveGVar "eqChar")
+          pfun EqChar
             `app` char 'a'
       s = evalFullTest maxID mempty primDefs 1 Syn e
    in do
@@ -1110,7 +1121,7 @@ unit_prim_ann =
   let ((e, r), maxID) =
         create $
           (,)
-            <$> ( gvar (primitiveGVar "toUpper")
+            <$> ( pfun ToUpper
                     `ann` (tcon tChar `tfun` tcon tChar)
                 )
             `app` (char 'a' `ann` tcon tChar)
@@ -1130,7 +1141,7 @@ unit_prim_partial_map =
             <$> gvar mapName
             `aPP` tcon tChar
             `aPP` tcon tChar
-            `app` gvar (primitiveGVar "toUpper")
+            `app` pfun ToUpper
             `app` list_
               tChar
               [ char 'a'
@@ -1155,7 +1166,7 @@ unit_eval_full_modules :: Assertion
 unit_eval_full_modules =
   let test = do
         importModules [primitiveModule, builtinModule]
-        foo <- gvar (primitiveGVar "toUpper") `app` char 'a'
+        foo <- pfun ToUpper `app` char 'a'
         resp <-
           handleEvalFullRequest
             EvalFullReq

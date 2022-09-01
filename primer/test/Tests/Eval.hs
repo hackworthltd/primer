@@ -57,7 +57,8 @@ import Primer.Eval (
   tryReduceType,
  )
 import Primer.Module (Module (Module, moduleDefs, moduleName, moduleTypes), builtinModule, primitiveModule)
-import Primer.Primitives (primitiveGVar, tChar)
+import Primer.Primitives (PrimDef (EqChar, ToUpper), primitiveGVar, tChar)
+import Primer.Primitives.DSL (pfun)
 import Primer.TypeDef (TypeDef (..))
 import Primer.Zipper (target)
 import Test.Tasty.HUnit (Assertion, assertBool, assertFailure, (@?=))
@@ -625,7 +626,7 @@ unit_tryReduce_prim = do
   let ((expr, expectedResult), i) =
         create $
           (,)
-            <$> gvar (primitiveGVar "eqChar")
+            <$> pfun EqChar
             `app` char 'a'
             `app` char 'a'
             <*> con cTrue
@@ -644,7 +645,7 @@ unit_tryReduce_prim_fail_unsaturated :: Assertion
 unit_tryReduce_prim_fail_unsaturated = do
   let (expr, i) =
         create $
-          gvar (primitiveGVar "eqChar")
+          pfun EqChar
             `app` char 'a'
       result = runTryReduce primDefs mempty (expr, i)
   result @?= Left NotRedex
@@ -653,9 +654,9 @@ unit_tryReduce_prim_fail_unreduced_args :: Assertion
 unit_tryReduce_prim_fail_unreduced_args = do
   let (expr, i) =
         create $
-          gvar (primitiveGVar "eqChar")
+          pfun EqChar
             `app` char 'a'
-            `app` (gvar (primitiveGVar "toUpper") `app` char 'a')
+            `app` (pfun ToUpper `app` char 'a')
       result = runTryReduce primDefs mempty (expr, i)
   result @?= Left NotRedex
 
@@ -1020,22 +1021,22 @@ unit_redexes_case_5 =
 
 unit_redexes_prim_1 :: Assertion
 unit_redexes_prim_1 =
-  redexesOfWithPrims (gvar (primitiveGVar "eqChar") `app` char 'a' `app` char 'b') @?= Set.fromList [0]
+  redexesOfWithPrims (pfun EqChar `app` char 'a' `app` char 'b') @?= Set.fromList [0]
 
 unit_redexes_prim_2 :: Assertion
 unit_redexes_prim_2 =
-  redexesOfWithPrims (gvar (primitiveGVar "eqChar") `app` lvar "a" `app` char 'b') @?= Set.empty
+  redexesOfWithPrims (pfun EqChar `app` lvar "a" `app` char 'b') @?= Set.empty
 
 unit_redexes_prim_3 :: Assertion
 unit_redexes_prim_3 =
-  redexesOfWithPrims (gvar (primitiveGVar "eqChar") `app` char 'a') @?= Set.empty
+  redexesOfWithPrims (pfun EqChar `app` char 'a') @?= Set.empty
 
 unit_redexes_prim_ann :: Assertion
 unit_redexes_prim_ann =
   redexesOfWithPrims expr @?= Set.singleton 0
   where
     expr =
-      gvar (primitiveGVar "toUpper")
+      pfun ToUpper
         `ann` (tcon tChar `tfun` tcon tChar)
         `app` (char 'a' `ann` tcon tChar)
 
@@ -1044,7 +1045,7 @@ unit_eval_modules :: Assertion
 unit_eval_modules =
   let test = do
         importModules [primitiveModule, builtinModule]
-        foo <- gvar (primitiveGVar "toUpper") `app` char 'a'
+        foo <- pfun ToUpper `app` char 'a'
         EvalResp{evalRespExpr = e} <-
           handleEvalRequest
             EvalReq{evalReqExpr = foo, evalReqRedex = getID foo}
