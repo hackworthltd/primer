@@ -9,9 +9,11 @@ module Primer.Prelude.Polymorphism (
   foldrDef,
   sum,
   sumDef,
+  product,
+  productDef,
 ) where
 
-import Foreword hiding (const, foldr, map, sum)
+import Foreword hiding (const, foldr, map, product, sum)
 
 import Control.Monad.Fresh (MonadFresh)
 import Primer.Builtins (cCons, cNil)
@@ -101,3 +103,12 @@ sumDef = do
 
 listOf :: MonadFresh ID m => m Type -> m Type
 listOf = tapp (tcon B.tList)
+
+product :: GVarName
+product = qualifyName modName "product"
+
+productDef :: MonadFresh ID m => m Def
+productDef = do
+  type_ <- listOf (tcon tInt) `tfun` tcon tInt
+  term <- lam "ns" $ apps' (gvar foldr) [Right $ tcon tInt, Right $ tcon tInt, Left $ pfun IntMul, Left $ int 1, Left $ lvar "ns"]
+  pure $ DefAST $ ASTDef term type_
