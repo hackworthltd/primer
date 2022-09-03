@@ -22,6 +22,14 @@
     # Temporary workaround for HLS issues until the next release.
     haskell-language-server.url = github:haskell/haskell-language-server;
     haskell-language-server.flake = false;
+
+    # Temporary fixes for HLS.
+    hiedb.url = github:wz1000/hiedb/67b92df2359558091df9102db5b701327308b930;
+    hiedb.flake = false;
+    hie-bios.url = github:wz1000/hie-bios/aa73d3d2eb89df0003d2468a105e326d71b62cc7;
+    hie-bios.flake = false;
+    lsp.url = github:haskell/lsp/c95eb06c70c35f1e13c37ed11a7d9e5b36bfa2e8;
+    lsp.flake = false;
   };
 
   outputs =
@@ -159,6 +167,11 @@
                   inherit nonReinstallablePkgs;
                 }
               ];
+
+              # Temporary fixes for HLS's git pins.
+              inputMap."https://github.com/wz1000/hiedb" = inputs.hiedb;
+              inputMap."https://github.com/wz1000/hie-bios" = inputs.hie-bios;
+              inputMap."https://github.com/haskell/lsp" = inputs.lsp;
             }).hsPkgs.haskell-language-server.components.exes.haskell-language-server;
 
             primer = final.haskell-nix.cabalProject {
