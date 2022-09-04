@@ -1,3 +1,5 @@
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+
 module Tests.Database where
 
 import Foreword
@@ -9,16 +11,22 @@ import Control.Concurrent.STM (
   newTBQueueIO,
   writeTBQueue,
  )
+import Control.Monad.Trans (
+  MonadTrans,
+ )
+import Control.Monad.Trans.Identity (
+  IdentityT (..),
+ )
 import Data.Text qualified as Text
 import Primer.API (
   Env (..),
   PrimerIO,
   addSession,
   edit,
-  listSessions,
   renameSession,
   runPrimerIO,
  )
+import Primer.API qualified as API
 import Primer.App (
   MutationRequest (Edit),
   ProgAction (CreateDef),
@@ -27,6 +35,7 @@ import Primer.Core (
   mkSimpleModuleName,
  )
 import Primer.Database (
+  MonadDb (..),
   OffsetLimit (OL),
   Op (LoadSession),
   ServiceCfg (..),
@@ -127,22 +136,22 @@ test_invalid =
             safeMkSessionName t @?= defaultSessionName
         ]
 
-test_insert_empty_q :: TestTree
-test_insert_empty_q = empty_q_harness "database Insert leaves an empty op queue" $ do
+insertTest :: PrimerIO ()
+insertTest = do
   void $ addSession "even3App" even3App
 
-test_updateapp_empty_q :: TestTree
-test_updateapp_empty_q = empty_q_harness "database UpdateApp leaves an empty op queue" $ do
+updateAppTest :: PrimerIO ()
+updateAppTest = do
   sid <- addSession "even3App" even3App
   void $ edit sid $ Edit [CreateDef (mkSimpleModuleName "Even3") $ Just "newDef"]
 
-test_updatename_empty_q :: TestTree
-test_updatename_empty_q = empty_q_harness "database UpdateName leaves an empty op queue" $ do
+updateNameTest :: PrimerIO ()
+updateNameTest = do
   sid <- addSession "even3App" even3App
   void $ renameSession sid "even3App'"
 
-test_loadsession_empty_q :: TestTree
-test_loadsession_empty_q = empty_q_harness "database LoadSession leaves an empty op queue" $ do
+loadSessionTest :: PrimerIO ()
+loadSessionTest = do
   sid <- addSession "even3App" even3App
   -- No easy way to do this from the API, so we do it here by hand.
   callback <- liftIO newEmptyTMVarIO
@@ -150,10 +159,50 @@ test_loadsession_empty_q = empty_q_harness "database LoadSession leaves an empty
   ss <- asks sessions
   void $ liftIO $ atomically $ writeTBQueue q $ LoadSession sid ss callback
 
+listSessionsTest :: PrimerIO ()
+listSessionsTest = do
+  void $ addSession "even3App" even3App
+  void $ API.listSessions True $ OL 0 $ Just 100
+
+test_insert_empty_q :: TestTree
+test_insert_empty_q = empty_q_harness "database Insert leaves an empty op queue" $ do
+  insertTest
+
+test_updateapp_empty_q :: TestTree
+test_updateapp_empty_q = empty_q_harness "database UpdateApp leaves an empty op queue" $ do
+  updateAppTest
+
+test_updatename_empty_q :: TestTree
+test_updatename_empty_q = empty_q_harness "database UpdateName leaves an empty op queue" $ do
+  updateNameTest
+
+test_loadsession_empty_q :: TestTree
+test_loadsession_empty_q = empty_q_harness "database LoadSession leaves an empty op queue" $ do
+  loadSessionTest
+
 test_listsessions_empty_q :: TestTree
 test_listsessions_empty_q = empty_q_harness "database ListSessions leaves an empty op queue" $ do
-  void $ addSession "even3App" even3App
-  void $ listSessions True $ OL 0 $ Just 100
+  listSessionsTest
+
+test_insert_faildb :: TestTree
+test_insert_faildb = faildb_harness "database Insert leaves behind an op" $ do
+  insertTest
+
+test_updateapp_faildb :: TestTree
+test_updateapp_faildb = faildb_harness "database UpdateApp leaves behind an op" $ do
+  updateAppTest
+
+test_updatename_faildb :: TestTree
+test_updatename_faildb = faildb_harness "database UpdateName leaves behind an op" $ do
+  updateNameTest
+
+test_loadsession_faildb :: TestTree
+test_loadsession_faildb = faildb_harness "database LoadSession leaves behind an op" $ do
+  loadSessionTest
+
+test_listsessions_faildb :: TestTree
+test_listsessions_faildb = faildb_harness "database ListSessions leaves behind an op" $ do
+  listSessionsTest
 
 testSessionName :: TestName -> Text -> Text -> TestTree
 testSessionName testName t expected =
@@ -189,4 +238,69 @@ empty_q_harness desc test = testCaseSteps (toS desc) $ \step' -> do
     Left e ->
       if p == testProc
         then assertFailure $ "nullDbProc threw an exception: " <> show e
+        else assertFailure $ "testProc threw an exception: " <> show e
+
+-- | A "fail" database that fails on every operation.
+newtype FailDbT m a = FailDbT {unFailDbT :: IdentityT m a}
+  deriving newtype
+    ( Functor
+    , Applicative
+    , Alternative
+    , Monad
+    , MonadError e
+    , MonadThrow
+    , MonadCatch
+    , MonadMask
+    , MonadIO
+    , MonadFail
+    , MonadPlus
+    , MonadTrans
+    )
+
+-- | The 'FailDbT' monad transformer applied to 'IO'.
+type FailDb a = FailDbT IO a
+
+-- | A simple 'Exception' type for 'FailDb' computations.
+newtype FailDbException = FailDbException Text
+  deriving (Eq, Show)
+
+instance Exception FailDbException
+
+instance (MonadThrow m) => MonadDb (FailDbT m) where
+  insertSession _ _ _ _ = throwM $ FailDbException "insertSession"
+  updateSessionApp _ _ _ = throwM $ FailDbException "updateSessionApp"
+  updateSessionName _ _ _ = throwM $ FailDbException "updateSessionName"
+  listSessions _ = throwM $ FailDbException "listSessions"
+  querySessionId _ = throwM $ FailDbException "querySessionId"
+
+-- | Run a 'FailDbT' action in a transformer stack.
+runFailDbT :: FailDbT m a -> m a
+runFailDbT m = runIdentityT $ unFailDbT m
+
+-- | Run a 'FailDb' action in 'IO'.
+runFailDb :: FailDb a -> IO a
+runFailDb = runFailDbT
+
+faildb_harness :: Text -> PrimerIO () -> TestTree
+faildb_harness desc test = testCaseSteps (toS desc) $ \step' -> do
+  dbOpQueue <- newTBQueueIO 4
+  inMemorySessions <- StmMap.newIO
+  let version = "git123"
+  failDbProc <- async $ runFailDb $ serve $ ServiceCfg dbOpQueue version
+  testProc <- async $ flip runPrimerIO (Env inMemorySessions dbOpQueue version) $ do
+    test
+    -- Give 'failDbProc' time to throw.
+    liftIO $ threadDelay 100000
+  (p, result) <- waitAnyCatchCancel [failDbProc, testProc]
+  case result of
+    Right _ ->
+      if p == testProc
+        then assertFailure "failDbProc should have thrown an exception, but it didn't (hint: we might need to increase the threadDelay)"
+        else assertFailure "the impossible happened: failDbProc exited"
+    Left e ->
+      if p == failDbProc
+        then do
+          step' "Check that the database op queue is non-empty"
+          qempty <- liftIO $ atomically $ isEmptyTBQueue dbOpQueue
+          assertBool "Queue should not be empty" (not qempty)
         else assertFailure $ "testProc threw an exception: " <> show e
