@@ -43,6 +43,7 @@ import Primer.App (
 import Primer.Database (Version)
 import Primer.Database qualified as Db (
   ServiceCfg (..),
+  discardOp,
   serve,
  )
 import Primer.Database.Rel8 (
@@ -115,12 +116,17 @@ runDb cfg =
     -- Connect to the database.
     connect u = acquire u >>= either (fail . show) return
 
-    -- Catch exceptions for which we can restart the database service.
-    -- For the time being, this is any 'Rel8DbException', but later we
-    -- should be more selective about this. See:
+    -- In some cases, when a database operation fails, we may be able
+    -- to continue serving subsequent operations. However, the failed
+    -- operation cannot be recovered, and should be discarded (after
+    -- taking whatever measures are needed to log it, inform the
+    -- client, etc.) For the time being, this is any
+    -- 'Rel8DbException', but later we should be more selective about
+    -- this. See:
+    --
     -- https://github.com/hackworthltd/primer/issues/381
-    restartableException :: Rel8DbException -> Maybe Rel8DbException
-    restartableException = Just
+    discardAndRestartException :: Rel8DbException -> Maybe Rel8DbException
+    discardAndRestartException = Just
 
     -- The database computation server.
     go = runRel8DbT $ Db.serve cfg
@@ -131,18 +137,13 @@ runDb cfg =
     logDbException e = putErrLn (show e :: Text)
 
     -- The database computation exception handler. If an exception
-    -- occurs and it's restartable, we make a note of it and restart.
-    --
-    -- Note that forward progress in this implementation is only
-    -- guaranteed if the database computation server has removed the
-    -- operation that caused the original exception from the database
-    -- operation queue. This is, in fact, how the 'Db.serve' server is
-    -- implemented, but this note is left as a caveat, regardless.
+    -- occurs and it's restartable, we make a note of it, discard the
+    -- failed operation, and continue serving.
     restart conn =
       catchJust
-        restartableException
+        discardAndRestartException
         (go conn)
-        (\e -> logDbException e >> restart conn)
+        (\e -> logDbException e >> Db.discardOp (Db.opQueue cfg) >> restart conn)
 
 -- A list of 'App's used to seed the database.
 seedApps :: [(Text, App)]
