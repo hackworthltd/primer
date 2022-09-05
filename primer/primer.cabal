@@ -220,6 +220,7 @@ test-suite primer-test
     build-depends:
       , aeson
       , aeson-pretty                 ^>=0.8.9
+      , async                        ^>=2.2.4
       , base
       , bytestring
       , containers
@@ -248,6 +249,7 @@ test-suite primer-test
       , tasty-hedgehog               ^>=1.2.0
       , tasty-hunit                  ^>=0.10.0
       , text
+      , transformers
       , uniplate
       , uuid
 

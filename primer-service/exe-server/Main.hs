@@ -11,7 +11,10 @@ import Control.Monad.Fail (fail)
 import Data.ByteString as BS
 import Data.ByteString.UTF8 (fromString)
 import Data.String (String)
-import Hasql.Connection
+import Hasql.Pool (
+  acquire,
+  release,
+ )
 import Numeric.Natural (Natural)
 import Options.Applicative (
   Parser,
@@ -43,10 +46,11 @@ import Primer.App (
 import Primer.Database (Version)
 import Primer.Database qualified as Db (
   ServiceCfg (..),
+  discardOp,
   serve,
  )
 import Primer.Database.Rel8 (
-  Rel8DbException,
+  Rel8DbException (..),
   runRel8DbT,
  )
 import Primer.Examples (
@@ -110,17 +114,20 @@ runDb :: Db.ServiceCfg -> Database -> IO ()
 runDb cfg =
   \case
     PostgreSQL uri ->
-      bracket (connect uri) release restart
+      bracket (acquire poolSize timeout uri) release start
   where
-    -- Connect to the database.
-    connect u = acquire u >>= either (fail . show) return
+    -- Note: pool size must be 1 in order to guarantee
+    -- read-after-write and write-after-write semantics for individual
+    -- sessions. See:
+    --
+    -- https://github.com/hackworthltd/primer/issues/640#issuecomment-1217290598
+    poolSize = 1
 
-    -- Catch exceptions for which we can restart the database service.
-    -- For the time being, this is any 'Rel8DbException', but later we
-    -- should be more selective about this. See:
-    -- https://github.com/hackworthltd/primer/issues/381
-    restartableException :: Rel8DbException -> Maybe Rel8DbException
-    restartableException = Just
+    -- 10 seconds, which is pretty arbitrary.
+    timeout = Just $ 10 * 1000000
+
+    justRel8DbException :: Rel8DbException -> Maybe Rel8DbException
+    justRel8DbException = Just
 
     -- The database computation server.
     go = runRel8DbT $ Db.serve cfg
@@ -130,19 +137,35 @@ runDb cfg =
     -- https://github.com/hackworthltd/primer/issues/179.
     logDbException e = putErrLn (show e :: Text)
 
-    -- The database computation exception handler. If an exception
-    -- occurs and it's restartable, we make a note of it and restart.
-    --
-    -- Note that forward progress in this implementation is only
-    -- guaranteed if the database computation server has removed the
-    -- operation that caused the original exception from the database
-    -- operation queue. This is, in fact, how the 'Db.serve' server is
-    -- implemented, but this note is left as a caveat, regardless.
-    restart conn =
+    -- The database computation exception handler.
+    start pool =
       catchJust
-        restartableException
-        (go conn)
-        (\e -> logDbException e >> restart conn)
+        justRel8DbException
+        (go pool)
+        $ \e -> do
+          logDbException e
+          case e of
+            -- Retry the same operation until it succeeds.
+            -- Note: we need some backoff here. See:
+            --
+            -- https://github.com/hackworthltd/primer/issues/678
+            ConnectionFailed _ -> start pool
+            -- Retry the same operation until it succeeds.
+            TimeoutError -> start pool
+            -- The operation will probably fail if we try it again,
+            -- but other operations might be fine, so discard the
+            -- failed op from the queue and continue serving
+            -- subsequent ops.
+            --
+            -- Note that we should be more selective than this: some
+            -- exceptions may indicate a serious problem with the
+            -- database, in which case we may not want to restart.
+            -- See:
+            --
+            -- https://github.com/hackworthltd/primer/issues/381
+            _ -> do
+              Db.discardOp (Db.opQueue cfg)
+              start pool
 
 -- A list of 'App's used to seed the database.
 seedApps :: [(Text, App)]

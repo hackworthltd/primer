@@ -13,6 +13,7 @@ module Primer.Database (
   Sessions,
   newSessionId,
   Op (..),
+  discardOp,
   OpStatus (..),
   OffsetLimit (..),
   Page (..),
@@ -35,6 +36,7 @@ import Foreword
 import Control.Concurrent.STM (
   TBQueue,
   TMVar,
+  peekTBQueue,
   putTMVar,
   readTBQueue,
  )
@@ -186,6 +188,12 @@ data ServiceCfg = ServiceCfg
   , version :: Version
   -- ^ The running version of Primer.
   }
+
+-- | Discard the next operation in the queue.
+--
+-- This is useful when handling exceptions.
+discardOp :: MonadIO m => TBQueue Op -> m ()
+discardOp q = liftIO $ atomically $ void $ readTBQueue q
 
 -- | A 'Page' is a portion of the results of some DB query, along with the
 -- total number of results.
@@ -363,33 +371,38 @@ runNullDb' m = do
 -- Because it will block, this computation should be run on its own
 -- thread.
 serve :: (MonadDb m, MonadIO m) => ServiceCfg -> m ()
-serve cfg =
-  let q = opQueue cfg
-      v = version cfg
-   in forever $ do
-        op <- liftIO $ atomically $ readTBQueue q
-        case op of
-          Insert s a n -> insertSession v s a n
-          UpdateApp s a -> updateSessionApp v s a
-          UpdateName s n -> updateSessionName v s n
-          ListSessions ol result -> do
-            ss <- listSessions ol
-            liftIO $ atomically $ putTMVar result ss
-          -- Note that we split the in-memory session insertion (i.e.,
-          -- the 'StmMap.insert') and the signal to the caller (i.e.,
-          -- the 'putTMVar') across 2 'atomically' blocks. This is
-          -- fine, because the signal to the caller doesn't mean that
-          -- they have exclusive access to the session, only that they
-          -- can try their session transaction again.
-          LoadSession sid memdb status -> do
-            result <- loadSession
-            liftIO $ atomically $ putTMVar status result
-            where
-              loadSession = do
-                queryResult <- querySessionId sid
-                case queryResult of
-                  Left (SessionIdNotFound s) ->
-                    return $ Failure $ "Couldn't load the requested session: no such session ID " <> UUID.toText s
-                  Right sd -> do
-                    liftIO $ atomically $ StmMap.insert sd sid memdb
-                    return Success
+serve (ServiceCfg q v) =
+  forever $ do
+    -- Don't remove the op from the queue until we're certain it
+    -- has completed; i.e., if an exception occurs while
+    -- performing the corresponding database operation, op should
+    -- remain in the queue so that the caller can decide whether
+    -- to discard it or retry it.
+    op <- liftIO $ atomically $ peekTBQueue q
+    perform op
+    discardOp q
+  where
+    perform (Insert s a n) = insertSession v s a n
+    perform (UpdateApp s a) = updateSessionApp v s a
+    perform (UpdateName s n) = updateSessionName v s n
+    perform (ListSessions ol result) = do
+      ss <- listSessions ol
+      liftIO $ atomically $ putTMVar result ss
+    perform (LoadSession sid memdb status) = do
+      -- Note that we split the in-memory session insertion (i.e.,
+      -- the 'StmMap.insert') and the signal to the caller (i.e.,
+      -- the 'putTMVar') across 2 'atomically' blocks. This is
+      -- fine, because the signal to the caller doesn't mean that
+      -- they have exclusive access to the session, only that they
+      -- can try their session transaction again.
+      result <- loadSession
+      liftIO $ atomically $ putTMVar status result
+      where
+        loadSession = do
+          queryResult <- querySessionId sid
+          case queryResult of
+            Left (SessionIdNotFound s) ->
+              return $ Failure $ "Couldn't load the requested session: no such session ID " <> UUID.toText s
+            Right sd -> do
+              liftIO $ atomically $ StmMap.insert sd sid memdb
+              return Success

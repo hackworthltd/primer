@@ -30,10 +30,16 @@ import Control.Monad.Writer (MonadWriter)
 import Control.Monad.Zip (MonadZip)
 import Data.Functor.Contravariant ((>$<))
 import Data.UUID (UUID)
-import Hasql.Connection (Connection)
+import Hasql.Connection (
+  ConnectionError,
+ )
+import Hasql.Pool (
+  Pool,
+  UsageError (..),
+  use,
+ )
 import Hasql.Session (
   QueryError,
-  run,
   statement,
  )
 import Hasql.Statement (Statement)
@@ -76,7 +82,7 @@ import Rel8 (
  )
 
 -- | A wrapper type for managing Rel8 operations.
-newtype Rel8DbT m a = Rel8DbT {unRel8DbT :: ReaderT Connection m a}
+newtype Rel8DbT m a = Rel8DbT {unRel8DbT :: ReaderT Pool m a}
   deriving
     ( Functor
     , Applicative
@@ -86,7 +92,7 @@ newtype Rel8DbT m a = Rel8DbT {unRel8DbT :: ReaderT Connection m a}
     , MonadThrow
     , MonadCatch
     , MonadMask
-    , MonadReader Connection
+    , MonadReader Pool
     , MonadIO
     , MonadFail
     , MonadFix
@@ -101,13 +107,13 @@ newtype Rel8DbT m a = Rel8DbT {unRel8DbT :: ReaderT Connection m a}
 -- | The 'Rel8DbT' monad transformer applied to 'IO'.
 type Rel8Db a = Rel8DbT IO a
 
--- | Run an action in the 'Rel8DbT' monad with the given 'Connection'.
-runRel8DbT :: Rel8DbT m a -> Connection -> m a
+-- | Run an action in the 'Rel8DbT' monad with the given 'Pool'.
+runRel8DbT :: Rel8DbT m a -> Pool -> m a
 runRel8DbT m = runReaderT (unRel8DbT m)
 
 -- | Run an 'IO' action in the 'Rel8Db' monad with the given
--- 'Connection'.
-runRel8Db :: Rel8DbT IO a -> Connection -> IO a
+-- 'Pool'.
+runRel8Db :: Rel8DbT IO a -> Pool -> IO a
 runRel8Db = runRel8DbT
 
 -- | A 'MonadDb' instance for 'Rel8DbT'.
@@ -235,7 +241,11 @@ instance (MonadThrow m, MonadIO m) => MonadDb (Rel8DbT m) where
 -- operation until the exceptional condition has been resolved; e.g.,
 -- when the connection to the database is temporarily severed.
 data Rel8DbException
-  = -- | An error occurred during an 'Insert' operation on the given
+  = -- | A connection-related error.
+    ConnectionFailed ConnectionError
+  | -- | A connection timeout occurred.
+    TimeoutError
+  | -- | An error occurred during an 'Insert' operation on the given
     -- 'SessionId'.
     InsertError SessionId QueryError
   | -- | An error occurred during an 'UpdateApp' operation on the
@@ -276,19 +286,25 @@ instance Exception Rel8DbException
 -- See the note on 'Rel8DbT's 'MonadDb' instance for an explanation of
 -- why we handle "Hasql.Session" exceptions the way we do.
 
-runStatement :: (MonadIO m, MonadThrow m, MonadReader Connection m) => (QueryError -> Rel8DbException) -> Statement () a -> m a
+runStatement :: (MonadIO m, MonadThrow m, MonadReader Pool m) => (QueryError -> Rel8DbException) -> Statement () a -> m a
 runStatement exc s = do
-  conn <- ask
-  result <- liftIO $ flip run conn $ statement () s
+  pool <- ask
+  result <- liftIO $ use pool $ statement () s
   case result of
     Left e ->
       -- Something went wrong with the database or database
       -- connection. This is the responsibility of the caller to
       -- handle.
-      throwM $ exc e
+      throwM $ err e
     Right r -> pure r
+  where
+    -- Convert a 'UsageError' to a 'Rel8DbException'.
+    err :: UsageError -> Rel8DbException
+    err (ConnectionUsageError e) = ConnectionFailed e
+    err AcquisitionTimeoutUsageError = TimeoutError
+    err (SessionUsageError e) = exc e
 
-runStatement_ :: (MonadIO m, MonadThrow m, MonadReader Connection m) => (QueryError -> Rel8DbException) -> Statement () a -> m ()
+runStatement_ :: (MonadIO m, MonadThrow m, MonadReader Pool m) => (QueryError -> Rel8DbException) -> Statement () a -> m ()
 runStatement_ exc = void . runStatement exc
 
 -- "Rel8" queries and other operations.
