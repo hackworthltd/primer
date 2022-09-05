@@ -284,7 +284,7 @@ genSyns ty = do
                (lettype a = Nat -> Nat in λx.x : a), for instance
                See https://github.com/hackworthltd/primer/issues/5
             do
-              x <- genLVarNameAvoiding [ty]
+              x <- genTyVarNameAvoiding ty
               k <- genWTKind
               t <- genWTType k
               (e, eTy) <- local (extendLocalCxtTy (x, k)) $ genSyns ty
@@ -371,7 +371,7 @@ genChk ty = do
                (lettype a = Nat -> Nat in λx.x : a), for instance
                See https://github.com/hackworthltd/primer/issues/5
             do
-              x <- genLVarNameAvoiding [ty]
+              x <- genTyVarNameAvoiding ty
               k <- genWTKind
               LetType () x <$> genWTType k <*> local (extendLocalCxtTy (x, k)) (genChk ty)
             -}
