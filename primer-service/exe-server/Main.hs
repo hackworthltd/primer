@@ -123,8 +123,8 @@ runDb cfg =
     -- https://github.com/hackworthltd/primer/issues/640#issuecomment-1217290598
     poolSize = 1
 
-    -- 10 seconds, which is pretty arbitrary.
-    timeout = Just $ 10 * 1000000
+    -- 1 second, which is pretty arbitrary.
+    timeout = Just $ 1 * 1000000
 
     justRel8DbException :: Rel8DbException -> Maybe Rel8DbException
     justRel8DbException = Just
