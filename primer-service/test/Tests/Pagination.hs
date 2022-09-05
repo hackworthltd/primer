@@ -6,7 +6,6 @@ module Tests.Pagination where
 import Foreword
 
 import Data.String (String)
-import Data.Text (unpack)
 import Data.UUID.V4 (nextRandom)
 import Database.PostgreSQL.Simple.Options qualified as Options
 import Database.Postgres.Temp (
@@ -22,9 +21,8 @@ import Database.Postgres.Temp (
   withConfig,
   withDbCacheConfig,
  )
-import GHC.Err (error)
-import Hasql.Connection (
-  Connection,
+import Hasql.Pool (
+  Pool,
   acquire,
   release,
  )
@@ -84,10 +82,6 @@ user = "postgres"
 password :: String
 password = "primer"
 
-connectDb :: DB -> IO Connection
-connectDb =
-  acquire . toConnectionString >=> either (maybe empty (error . unpack . decodeUtf8)) pure
-
 -- | This action requires that the Sqitch script @primer-sqitch@ is in
 -- the process's path. If you run this test via Nix, Nix will
 -- guarantee that precondition.
@@ -96,7 +90,7 @@ deployDb _ =
   let url = "db:postgres://" <> user <> ":" <> password <> "@" <> host <> ":" <> show port
    in runProcess_ $ proc "primer-sqitch" ["deploy", "--verify", url]
 
-withSetup :: (Connection -> IO ()) -> IO ()
+withSetup :: (Pool -> IO ()) -> IO ()
 withSetup f =
   let throwEither x = either throwIO pure =<< x
       dbConfig =
@@ -120,7 +114,7 @@ withSetup f =
                    in do
                         migratedConfig <- throwEither $ cacheAction (tmpdir <> "/pagination") deployDb combinedConfig
                         withConfig migratedConfig $ \db ->
-                          bracket (connectDb db) release f
+                          bracket (acquire 1 (Just 1000000) $ toConnectionString db) release f
 
 mkSession :: Int -> IO (SessionRow Result)
 mkSession n = do

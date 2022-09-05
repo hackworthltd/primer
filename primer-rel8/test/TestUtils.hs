@@ -14,7 +14,6 @@ import Foreword
 import Data.ByteString.Lazy.UTF8 as BL
 import Data.Map.Strict qualified as Map
 import Data.String (String)
-import Data.Text (unpack)
 import Data.Typeable (typeOf)
 import Database.PostgreSQL.Simple.Options qualified as Options
 import Database.Postgres.Temp (
@@ -31,12 +30,13 @@ import Database.Postgres.Temp (
   withDbCacheConfig,
  )
 import GHC.Err (error)
-import Hasql.Connection (
-  Connection,
+import Hasql.Pool (
+  Pool,
   acquire,
   release,
+  use,
  )
-import Hasql.Session (run, statement)
+import Hasql.Session (statement)
 import Network.Socket.Free (getFreePort)
 import Primer.App (
   App,
@@ -98,10 +98,6 @@ user = "postgres"
 password :: String
 password = "primer"
 
-connectDb :: DB -> IO Connection
-connectDb =
-  acquire . toConnectionString >=> either (maybe empty (error . unpack . decodeUtf8)) pure
-
 -- | This action requires that the Sqitch script @primer-sqitch@ is in
 -- the process's path. If you run this test via Nix, Nix will
 -- guarantee that precondition.
@@ -120,7 +116,7 @@ sqitchEventChangeId = do
     ExitFailure n -> error $ "`primer-sqitch plan` failed with exit code " <> show n
     _ -> pure $ takeWhile (/= '\n') $ BL.toString output
 
-withDbSetup :: (Connection -> IO ()) -> IO ()
+withDbSetup :: (Pool -> IO ()) -> IO ()
 withDbSetup f = do
   -- NOTE: there's a race where the returned port could be opened by
   -- another process before we can use it, but it's extremely unlikely
@@ -148,11 +144,11 @@ withDbSetup f = do
                 hash_ <- sqitchEventChangeId
                 migratedConfig <- throwEither $ cacheAction (tmpdir <> "/" <> hash_) (deployDb port) combinedConfig
                 withConfig migratedConfig $ \db ->
-                  bracket (connectDb db) release f
+                  bracket (acquire 1 (Just 1000000) $ toConnectionString db) release f
 
 runTmpDb :: Rel8Db () -> IO ()
 runTmpDb tests =
-  withDbSetup $ \conn -> runRel8Db tests conn
+  withDbSetup $ \pool -> runRel8Db tests pool
 
 (@?=) :: (MonadIO m, Eq a, Show a) => a -> a -> m ()
 x @?= y = liftIO $ x HUnit.@?= y
@@ -178,10 +174,10 @@ assertException msg p action = do
 -- | Like @MonadDb.insertSession@, but allows us to insert things
 -- directly into the database that otherwise might not be permitted by
 -- the type system. This is useful for testing purposes.
-insertSessionRow :: Schema.SessionRow Expr -> Connection -> IO ()
-insertSessionRow row conn =
+insertSessionRow :: Schema.SessionRow Expr -> Pool -> IO ()
+insertSessionRow row pool =
   void $
-    flip run conn $
+    use pool $
       statement () $
         insert
           Insert
