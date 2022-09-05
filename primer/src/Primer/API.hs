@@ -607,7 +607,16 @@ viewTreeExpr opts@ExprTreeOpts{patternsUnder} e0 = case e0 of
       (childTrees, rightChild) =
         if patternsUnder
           then
-            ( viewTreeExpr opts e : zipWith viewCaseBranch [0 :: Int ..] bs
+            (
+              [ viewTreeExpr opts e
+              , Tree
+                  { nodeId = nodeId <> "W" -- this will not clash with anything (see `boxId` etc.)
+                  , flavor = FlavorCaseWith
+                  , body = NoBody
+                  , childTrees = zipWith viewCaseBranch [0 :: Int ..] bs
+                  , rightChild = Nothing
+                  }
+              ]
             , Nothing
             )
           else

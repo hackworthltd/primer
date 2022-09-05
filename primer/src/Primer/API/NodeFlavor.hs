@@ -28,6 +28,7 @@ data NodeFlavor
   | FlavorLetType
   | FlavorLetrec
   | FlavorCase
+  | FlavorCaseWith
   | FlavorPrimCon
   | FlavorTEmptyHole
   | FlavorTHole
