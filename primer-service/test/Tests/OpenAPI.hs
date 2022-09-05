@@ -14,7 +14,6 @@ import Hedgehog.Gen qualified as G
 import Hedgehog.Range qualified as R
 import Primer.API (
   Def (Def),
-  ExprTreeOpts,
   Module (Module),
   NodeBody (BoxBody, NoBody, TextBody),
   NodeFlavor,
@@ -212,5 +211,3 @@ instance Arbitrary (Paginated Session) where
   arbitrary = hedgehog genPaginatedSession
 instance Arbitrary Prog where
   arbitrary = hedgehog genProg
-instance Arbitrary ExprTreeOpts where
-  arbitrary = hedgehog genExprTreeOpts
