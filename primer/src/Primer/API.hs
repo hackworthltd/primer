@@ -1,6 +1,8 @@
 {-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE GADTs #-}
 
+{- HLINT ignore "Use newtype instead of data" -}
+
 -- | The Primer API.
 --
 -- This module defines the Primer API, which is collection of
@@ -40,6 +42,8 @@ module Primer.API (
   evalStep,
   evalFull,
   flushSessions,
+  ExprTreeOpts (..),
+  defaultExprTreeOpts,
   -- The following are exported only for testing.
   viewTreeType,
   viewTreeExpr,
@@ -147,6 +151,7 @@ import Primer.Def (
 import Primer.Def qualified as Def
 import Primer.JSON (
   CustomJSON (..),
+  FromJSON,
   PrimerJSON,
   ToJSON,
  )
@@ -378,8 +383,8 @@ getApp sid = withSession' sid $ QueryApp identity
 --
 -- Note that this returns a simplified version of 'App.Prog' intended
 -- for use with non-Haskell clients.
-getProgram' :: (MonadIO m, MonadThrow m) => SessionId -> PrimerM m Prog
-getProgram' sid = viewProg <$> getProgram sid
+getProgram' :: (MonadIO m, MonadThrow m) => ExprTreeOpts -> SessionId -> PrimerM m Prog
+getProgram' opts sid = viewProg opts <$> getProgram sid
 
 -- | Given a 'SessionId', return the session's 'App.Prog'.
 getProgram :: (MonadIO m, MonadThrow m) => SessionId -> PrimerM m App.Prog
@@ -445,8 +450,8 @@ data Def = Def
   deriving (Generic, Show)
   deriving (ToJSON) via PrimerJSON Def
 
-viewProg :: App.Prog -> Prog
-viewProg p =
+viewProg :: ExprTreeOpts -> App.Prog -> Prog
+viewProg exprTreeOpts p =
   Prog{modules = map (viewModule True) (progModules p) <> map (viewModule False) (progImports p)}
   where
     viewModule e m =
@@ -458,7 +463,7 @@ viewProg p =
             ( \(name, d) ->
                 Def
                   { name
-                  , term = viewTreeExpr . astDefExpr <$> defAST d
+                  , term = viewTreeExpr exprTreeOpts . astDefExpr <$> defAST d
                   , type_ =
                       case d of
                         Def.DefAST d' -> viewTreeType $ astDefType d'
@@ -474,15 +479,28 @@ viewProg p =
               <$> Map.assocs (moduleDefsQualified m)
         }
 
+data ExprTreeOpts = ExprTreeOpts
+  { patternsUnder :: Bool
+  -- ^ Some renderers may struggle with aligning subtrees to the right.
+  -- This option outputs trees where patterns are direct children of the `match` node instead.
+  }
+  deriving (Eq, Ord, Show, Generic)
+  deriving (FromJSON, ToJSON) via PrimerJSON ExprTreeOpts
+defaultExprTreeOpts :: ExprTreeOpts
+defaultExprTreeOpts =
+  ExprTreeOpts
+    { patternsUnder = False
+    }
+
 -- | A simple method to extract 'Tree's from 'Expr's. This is injective.
-viewTreeExpr :: Expr -> Tree
-viewTreeExpr e0 = case e0 of
+viewTreeExpr :: ExprTreeOpts -> Expr -> Tree
+viewTreeExpr opts@ExprTreeOpts{patternsUnder} e0 = case e0 of
   Hole _ e ->
     Tree
       { nodeId
       , flavor = FlavorHole
       , body = NoBody
-      , childTrees = [viewTreeExpr e]
+      , childTrees = [viewTreeExpr opts e]
       , rightChild = Nothing
       }
   EmptyHole _ ->
@@ -498,7 +516,7 @@ viewTreeExpr e0 = case e0 of
       { nodeId
       , flavor = FlavorAnn
       , body = NoBody
-      , childTrees = [viewTreeExpr e, viewTreeType t]
+      , childTrees = [viewTreeExpr opts e, viewTreeType t]
       , rightChild = Nothing
       }
   App _ e1 e2 ->
@@ -506,7 +524,7 @@ viewTreeExpr e0 = case e0 of
       { nodeId
       , flavor = FlavorApp
       , body = NoBody
-      , childTrees = [viewTreeExpr e1, viewTreeExpr e2]
+      , childTrees = [viewTreeExpr opts e1, viewTreeExpr opts e2]
       , rightChild = Nothing
       }
   APP _ e t ->
@@ -514,7 +532,7 @@ viewTreeExpr e0 = case e0 of
       { nodeId
       , flavor = FlavorAPP
       , body = NoBody
-      , childTrees = [viewTreeExpr e, viewTreeType t]
+      , childTrees = [viewTreeExpr opts e, viewTreeType t]
       , rightChild = Nothing
       }
   Con _ s ->
@@ -530,7 +548,7 @@ viewTreeExpr e0 = case e0 of
       { nodeId
       , flavor = FlavorLam
       , body = TextBody $ unName $ unLocalName s
-      , childTrees = [viewTreeExpr e]
+      , childTrees = [viewTreeExpr opts e]
       , rightChild = Nothing
       }
   LAM _ s e ->
@@ -538,7 +556,7 @@ viewTreeExpr e0 = case e0 of
       { nodeId
       , flavor = FlavorLAM
       , body = TextBody $ unName $ unLocalName s
-      , childTrees = [viewTreeExpr e]
+      , childTrees = [viewTreeExpr opts e]
       , rightChild = Nothing
       }
   Var _ ref ->
@@ -558,7 +576,7 @@ viewTreeExpr e0 = case e0 of
       { nodeId
       , flavor = FlavorLet
       , body = TextBody $ unName $ unLocalName s
-      , childTrees = [viewTreeExpr e1, viewTreeExpr e2]
+      , childTrees = [viewTreeExpr opts e1, viewTreeExpr opts e2]
       , rightChild = Nothing
       }
   LetType _ s t e ->
@@ -566,7 +584,7 @@ viewTreeExpr e0 = case e0 of
       { nodeId
       , flavor = FlavorLetType
       , body = TextBody $ unName $ unLocalName s
-      , childTrees = [viewTreeExpr e, viewTreeType t]
+      , childTrees = [viewTreeExpr opts e, viewTreeType t]
       , rightChild = Nothing
       }
   Letrec _ s e1 t e2 ->
@@ -574,7 +592,7 @@ viewTreeExpr e0 = case e0 of
       { nodeId
       , flavor = FlavorLetrec
       , body = TextBody $ unName $ unLocalName s
-      , childTrees = [viewTreeExpr e1, viewTreeType t, viewTreeExpr e2]
+      , childTrees = [viewTreeExpr opts e1, viewTreeType t, viewTreeExpr opts e2]
       , rightChild = Nothing
       }
   Case _ e bs ->
@@ -582,61 +600,79 @@ viewTreeExpr e0 = case e0 of
       { nodeId
       , flavor = FlavorCase
       , body = NoBody
-      , childTrees = [viewTreeExpr e]
-      , -- seeing as the inner function always returns a `Just`,
-        -- this would only be `Nothing` if the list of branches were empty,
-        --  which should only happen when matching on `Void`
-        rightChild =
-          ifoldr
-            ( \i (CaseBranch con binds rhs) next ->
-                let -- these IDs will not clash with any others in the tree,
-                    -- since node IDs in the input expression are unique,
-                    -- and don't contain non-numerical characters
-                    boxId = nodeId <> "P" <> show i
-                    patternRootId = boxId <> "B"
-                    patternBindAppID id = show id <> "A"
-                 in Just
-                      Tree
-                        { nodeId = boxId
-                        , flavor = FlavorPattern
-                        , body =
-                            BoxBody $
-                              foldl
-                                ( \t (Bind m v) ->
-                                    let id = m ^. _id
-                                     in Tree
-                                          { nodeId = patternBindAppID id
-                                          , flavor = FlavorPatternApp
-                                          , body = NoBody
-                                          , childTrees =
-                                              [ t
-                                              , Tree
-                                                  { nodeId = show id
-                                                  , flavor = FlavorPatternBind
-                                                  , body = TextBody $ unName $ unLocalName v
-                                                  , childTrees = []
-                                                  , rightChild = Nothing
-                                                  }
-                                              ]
-                                          , rightChild = Nothing
-                                          }
-                                )
-                                ( Tree
-                                    { nodeId = patternRootId
-                                    , flavor = FlavorPatternCon
-                                    , body = TextBody $ showGlobal con
-                                    , childTrees = []
-                                    , rightChild = Nothing
-                                    }
-                                )
-                                binds
-                        , childTrees = [viewTreeExpr rhs]
-                        , rightChild = next
-                        }
-            )
-            Nothing
-            bs
+      , childTrees
+      , rightChild
       }
+    where
+      (childTrees, rightChild) =
+        if patternsUnder
+          then
+            (
+              [ viewTreeExpr opts e
+              , Tree
+                  { nodeId = nodeId <> "W" -- this will not clash with anything (see `boxId` etc.)
+                  , flavor = FlavorCaseWith
+                  , body = NoBody
+                  , childTrees = zipWith viewCaseBranch [0 :: Int ..] bs
+                  , rightChild = Nothing
+                  }
+              ]
+            , Nothing
+            )
+          else
+            ( [viewTreeExpr opts e]
+            , -- seeing as the inner function always returns a `Just`,
+              -- this would only be `Nothing` if the list of branches were empty,
+              --  which should only happen when matching on `Void`
+              ifoldr
+                (\i b next -> Just $ (viewCaseBranch i b){rightChild = next})
+                Nothing
+                bs
+            )
+      viewCaseBranch i (CaseBranch con binds rhs) =
+        let -- these IDs will not clash with any others in the tree,
+            -- since node IDs in the input expression are unique,
+            -- and don't contain non-numerical characters
+            boxId = nodeId <> "P" <> show i
+            patternRootId = boxId <> "B"
+            patternBindAppID id = show id <> "A"
+         in Tree
+              { nodeId = boxId
+              , flavor = FlavorPattern
+              , body =
+                  BoxBody $
+                    foldl
+                      ( \t (Bind m v) ->
+                          let id = m ^. _id
+                           in Tree
+                                { nodeId = patternBindAppID id
+                                , flavor = FlavorPatternApp
+                                , body = NoBody
+                                , childTrees =
+                                    [ t
+                                    , Tree
+                                        { nodeId = show id
+                                        , flavor = FlavorPatternBind
+                                        , body = TextBody $ unName $ unLocalName v
+                                        , childTrees = []
+                                        , rightChild = Nothing
+                                        }
+                                    ]
+                                , rightChild = Nothing
+                                }
+                      )
+                      ( Tree
+                          { nodeId = patternRootId
+                          , flavor = FlavorPatternCon
+                          , body = TextBody $ showGlobal con
+                          , childTrees = []
+                          , rightChild = Nothing
+                          }
+                      )
+                      binds
+              , childTrees = [viewTreeExpr opts rhs]
+              , rightChild = Nothing
+              }
   PrimCon _ pc ->
     Tree
       { nodeId

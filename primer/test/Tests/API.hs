@@ -10,6 +10,7 @@ import Primer.API (
   PrimerErr,
   addSession,
   copySession,
+  defaultExprTreeOpts,
   flushSessions,
   getApp,
   getSessionName,
@@ -37,6 +38,7 @@ import Primer.Examples (
   comprehensive,
   even3App,
  )
+import Primer.Gen.API (genExprTreeOpts)
 import Primer.Gen.Core.Raw (evalExprGen, genExpr, genType)
 import Protolude.Unsafe (unsafeFromJust)
 import Tasty (
@@ -56,10 +58,11 @@ import Text.Pretty.Simple (pShowNoColor)
 
 tasty_viewTreeExpr_injective :: Property
 tasty_viewTreeExpr_injective = property $ do
+  opts <- forAll genExprTreeOpts
   e1 <- forAll $ evalExprGen 0 genExpr
   e2 <- forAll $ evalExprGen 0 genExpr
   when (e1 == e2) discard
-  viewTreeExpr e1 /== viewTreeExpr e2
+  viewTreeExpr opts e1 /== viewTreeExpr opts e2
 
 tasty_viewTreeType_injective :: Property
 tasty_viewTreeType_injective = property $ do
@@ -73,7 +76,7 @@ test_golden =
   testGroup
     "golden"
     [ goldenVsString "expr" "test/outputs/APITree/Expr" $ do
-        pure . BSL.fromStrict . encodeUtf8 . TL.toStrict . pShowNoColor . viewTreeExpr $ astDefExpr def
+        pure . BSL.fromStrict . encodeUtf8 . TL.toStrict . pShowNoColor . viewTreeExpr defaultExprTreeOpts $ astDefExpr def
     , goldenVsString "type" "test/outputs/APITree/Type" $ do
         pure . BSL.fromStrict . encodeUtf8 . TL.toStrict . pShowNoColor . viewTreeType $ astDefType def
     ]
@@ -149,8 +152,8 @@ unit_viewTreeType_injective_forall_kind =
 
 distinctTreeExpr :: S Expr -> S Expr -> Assertion
 distinctTreeExpr e1 e2 =
-  let t1 = viewTreeExpr $ create' e1
-      t2 = viewTreeExpr $ create' e2
+  let t1 = viewTreeExpr defaultExprTreeOpts $ create' e1
+      t2 = viewTreeExpr defaultExprTreeOpts $ create' e2
    in assertBool ("non-injective viewTreeExpr: " ++ show t1) (t1 /= t2)
 
 distinctTreeType :: S Type -> S Type -> Assertion

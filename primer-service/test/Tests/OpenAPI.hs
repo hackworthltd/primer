@@ -24,6 +24,7 @@ import Primer.API (
  )
 import Primer.Core (ID (ID))
 import Primer.Database (Session (Session), SessionName, safeMkSessionName)
+import Primer.Gen.API (genExprTreeOpts)
 import Primer.Gen.Core.Raw (
   ExprGen,
   evalExprGen,
@@ -115,7 +116,7 @@ genTree :: Gen Tree
 genTree = evalExprGen 0 $ G.choice [genExprTree, genTypeTree]
 
 genExprTree :: ExprGen Tree
-genExprTree = viewTreeExpr <$> genExpr
+genExprTree = viewTreeExpr <$> genExprTreeOpts <*> genExpr
 
 genTypeTree :: ExprGen Tree
 genTypeTree = viewTreeType <$> genType

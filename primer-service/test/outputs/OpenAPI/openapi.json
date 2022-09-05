@@ -142,6 +142,7 @@
                     "FlavorLetType",
                     "FlavorLetrec",
                     "FlavorCase",
+                    "FlavorCaseWith",
                     "FlavorPrimCon",
                     "FlavorTEmptyHole",
                     "FlavorTHole",
@@ -495,6 +496,15 @@
                             "format": "uuid",
                             "type": "string"
                         }
+                    },
+                    {
+                        "allowEmptyValue": true,
+                        "in": "query",
+                        "name": "patternsUnder",
+                        "schema": {
+                            "default": false,
+                            "type": "boolean"
+                        }
                     }
                 ],
                 "responses": {
@@ -507,6 +517,9 @@
                             }
                         },
                         "description": ""
+                    },
+                    "400": {
+                        "description": "Invalid `patternsUnder`"
                     },
                     "404": {
                         "description": "`sessionId` not found"
