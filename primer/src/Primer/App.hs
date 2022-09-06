@@ -1469,7 +1469,7 @@ progCxt p = buildTypingContextFromModules (progAllModules p) (progSmartHoles p)
 
 -- | Run a computation in some context whose errors can be promoted to `ProgError`.
 liftError :: MonadError ProgError m => (e -> ProgError) -> ExceptT e m b -> m b
-liftError f = runExceptT >=> either (throwError . f) pure
+liftError = modifyError
 
 allConNames :: Prog -> [ValConName]
 allConNames =
