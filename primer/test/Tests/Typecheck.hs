@@ -79,7 +79,8 @@ import Primer.Gen.Core.Typed (
  )
 import Primer.Module (Module (..), builtinModule, primitiveModule)
 import Primer.Name (Name, NameCounter)
-import Primer.Primitives (primitiveGVar, tChar)
+import Primer.Primitives (PrimDef (HexToNat), tChar)
+import Primer.Primitives.DSL (pfun)
 import Primer.TypeDef (
   ASTTypeDef (..),
   TypeDef (..),
@@ -504,11 +505,11 @@ unit_prim_char =
 
 unit_prim_fun :: Assertion
 unit_prim_fun =
-  expectTypedWithPrims $ ann (gvar $ primitiveGVar "hexToNat") (tfun (tcon tChar) (tapp (tcon tMaybe) (tcon tNat)))
+  expectTypedWithPrims $ ann (pfun HexToNat) (tfun (tcon tChar) (tapp (tcon tMaybe) (tcon tNat)))
 
 unit_prim_fun_applied :: Assertion
 unit_prim_fun_applied =
-  expectTypedWithPrims $ ann (app (gvar $ primitiveGVar "hexToNat") (char 'a')) (tapp (tcon tMaybe) (tcon tNat))
+  expectTypedWithPrims $ ann (app (pfun HexToNat) (char 'a')) (tapp (tcon tMaybe) (tcon tNat))
 
 -- Whenever we synthesise a type, then it kind-checks against KType
 tasty_synth_well_typed_extcxt :: Property

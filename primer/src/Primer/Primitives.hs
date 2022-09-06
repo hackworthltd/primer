@@ -6,6 +6,7 @@ module Primer.Primitives (
   allPrimTypeDefs,
   tInt,
   tChar,
+  primitive,
   primitiveGVar,
   primConName,
   primDefName,
@@ -87,8 +88,8 @@ tInt :: TyConName
 tInt = primitive "Int"
 
 -- | Construct a reference to a primitive definition.
-primitiveGVar :: Name -> GVarName
-primitiveGVar = primitive
+primitiveGVar :: PrimDef -> GVarName
+primitiveGVar = primitive . primDefName
 
 -- | Primitive type definitions.
 -- There should be one entry here for each constructor of `PrimCon`.
