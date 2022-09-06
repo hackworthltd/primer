@@ -175,6 +175,15 @@ freshTyConNameForCxt = qualifyName <$> genModuleName <*> freshNameForCxt
 -- Thus we must avoid free variables occuring in the types assigned
 -- by the context to term variables as well as those in the aimed-for
 -- type.
+--
+-- NB: the returned name may itself count as one of these term
+-- variables in the context; i.e. if this name will be used to make a
+-- binding whose scope we enter, we need to avoid names appearing free
+-- in the type assigned to the returned name itself. This avoids
+-- situations where we have original context "foo : K KType" and then
+-- bind a term variable "foo : T foo": if we changed the aimed-for
+-- type to the type of the term variable "foo", we would have captured
+-- the original type variable "foo" by our new term variable "foo".
 genLVarNameAvoiding :: [TypeG] -> GenT WT LVarName
 genLVarNameAvoiding ty =
   (\vs -> freshen (foldMap freeVarsTy ty <> foldMap freeVarsTy vs) 0)
@@ -258,8 +267,8 @@ genSyns ty = do
       Gen.choice
         [ -- let
           do
-            x <- genLVarNameAvoiding [ty]
             (e, eTy) <- genSyn
+            x <- genLVarNameAvoiding [ty, eTy]
             (f, fTy) <- local (extendLocalCxt (x, eTy)) $ genSyns ty
             pure (Let () x e f, fTy)
         , -- letrec
@@ -275,7 +284,7 @@ genSyns ty = do
                (lettype a = Nat -> Nat in λx.x : a), for instance
                See https://github.com/hackworthltd/primer/issues/5
             do
-              x <- genLVarNameAvoiding [ty]
+              x <- genTyVarNameAvoiding ty
               k <- genWTKind
               t <- genWTType k
               (e, eTy) <- local (extendLocalCxtTy (x, k)) $ genSyns ty
@@ -334,7 +343,7 @@ genChk ty = do
     emb = fst <$> genSyns ty
     lambda =
       matchArrowType ty <&> \(sTy, tTy) -> do
-        n <- genLVarNameAvoiding [tTy]
+        n <- genLVarNameAvoiding [tTy, sTy]
         Lam () n <$> local (extendLocalCxt (n, sTy)) (genChk tTy)
     abst = do
       mfa <- matchForallType ty
@@ -347,8 +356,8 @@ genChk ty = do
       Gen.choice
         [ -- let
           do
-            x <- genLVarNameAvoiding [ty]
             (e, eTy) <- genSyn
+            x <- genLVarNameAvoiding [ty, eTy]
             Let () x e <$> local (extendLocalCxt (x, eTy)) (genChk ty)
         , -- letrec
           do
@@ -362,7 +371,7 @@ genChk ty = do
                (lettype a = Nat -> Nat in λx.x : a), for instance
                See https://github.com/hackworthltd/primer/issues/5
             do
-              x <- genLVarNameAvoiding [ty]
+              x <- genTyVarNameAvoiding ty
               k <- genWTKind
               LetType () x <$> genWTType k <*> local (extendLocalCxtTy (x, k)) (genChk ty)
             -}
@@ -382,9 +391,9 @@ genChk ty = do
                 Left TDIHoleType -> pure $ Just []
                 Left _err -> pure Nothing -- if we didn't get an instance of t, try again; TODO: this is rather inefficient, and discards a lot...
                 Right (_, _, vcs) -> fmap Just . for vcs $ \(c, params) -> do
-                  ns <- replicateM (length params) $ genLVarNameAvoiding [ty]
-                  let binds = map (Bind ()) ns
-                  CaseBranch c binds <$> local (extendLocalCxts $ zip ns params) (genChk ty)
+                  ns <- for params $ \nt -> (,nt) <$> genLVarNameAvoiding [ty, nt]
+                  let binds = map (Bind () . fst) ns
+                  CaseBranch c binds <$> local (extendLocalCxts ns) (genChk ty)
             pure $ Case () e brs
 
 -- | Generates types which infer kinds consistent with the argument
