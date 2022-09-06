@@ -186,7 +186,7 @@ test-suite primer-test
     Tests.Pretty
     Tests.Primitives
     Tests.Prog
-    Tests.Question
+    Tests.Questions
     Tests.Refine
     Tests.Serialization
     Tests.Subst

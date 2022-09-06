@@ -1,5 +1,5 @@
 -- | Tests for Question logic
-module Tests.Question where
+module Tests.Questions where
 
 import Foreword hiding (diff)
 
