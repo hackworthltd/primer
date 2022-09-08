@@ -108,9 +108,9 @@ openAPISessionServer sid =
 openAPIAvailableActionsServer :: SessionId -> OpenAPI.AvailableActionsAPI (AsServerT PrimerIO)
 openAPIAvailableActionsServer sid =
   OpenAPI.SessionAPI'
-    { OpenAPI.getBodyActions = \level mut id d m ms -> do
+    { OpenAPI.getBodyActions = \level mut id d m -> do
         prog <- getProgram sid
-        let gn = qualifyName (ModuleName $ m :| ms) d
+        let gn = qualifyName (ModuleName $ m :| []) d
         Just (_, DefAST ASTDef{astDefExpr = expr}) <- pure $ progAllDefs prog !? gn -- TODO uses `MonadFail` - bad error messages
         pure $ map API.convertOfferedAction $ actionsForDefBody (snd <$> progAllTypeDefs prog) level gn mut id expr
         -- , OpenAPI.getTypeActions = undefined

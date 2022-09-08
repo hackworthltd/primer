@@ -32,7 +32,7 @@ import Primer.Servant.Types (
   GetVersion,
   SetSessionName,
  )
-import Servant (Capture, Capture', CaptureAll, Description, Get, JSON, NamedRoutes, QueryFlag, Summary, (:>))
+import Servant (Capture, Capture', Description, Get, JSON, NamedRoutes, QueryFlag, Summary, (:>))
 import Servant.API.Generic (
   GenericMode ((:-)),
  )
@@ -106,7 +106,6 @@ data AvailableActionsAPI mode = SessionAPI'
         -- :> Capture' '[] "id" ID
         -- :> Capture' '[] "def" Name
         :> Capture "module" Name
-        :> CaptureAll "modules" Name -- TODO generalise this way of encoding global names as params (or just use body)
         :> Get '[JSON] [API.OfferedAction]
         -- , getTypeActions :: ()
   }

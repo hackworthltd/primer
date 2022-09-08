@@ -479,7 +479,7 @@
                 "summary": "Create a new session and return its ID"
             }
         },
-        "/openapi/sessions/{sessionId}/action/available/body/{level}/{mut}/{id}/{def}/{module}/{modules}": {
+        "/openapi/sessions/{sessionId}/action/available/body/{level}/{mut}/{id}/{def}/{module}": {
             "get": {
                 "parameters": [
                     {
@@ -542,14 +542,6 @@
                         "schema": {
                             "type": "string"
                         }
-                    },
-                    {
-                        "in": "path",
-                        "name": "modules",
-                        "required": true,
-                        "schema": {
-                            "type": "string"
-                        }
                     }
                 ],
                 "responses": {
@@ -567,7 +559,7 @@
                         "description": ""
                     },
                     "404": {
-                        "description": "`sessionId` or `level` or `mut` or `id` or `def` or `module` or `modules` not found"
+                        "description": "`sessionId` or `level` or `mut` or `id` or `def` or `module` not found"
                     }
                 },
                 "summary": "Get available actions at the given body node"
