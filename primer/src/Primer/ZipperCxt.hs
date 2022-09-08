@@ -10,7 +10,7 @@ module Primer.ZipperCxt (
 import Foreword
 
 import Data.Set qualified as Set
-import Optics ((^.))
+import Optics ((%), (^.))
 import Primer.Core (
   Bind' (..),
   CaseBranch' (..),
@@ -23,9 +23,11 @@ import Primer.Core (
   LocalName (unLocalName),
   Meta (Meta),
   TyVarName,
+  Type,
   Type' (..),
   TypeCache (..),
   TypeCacheBoth (..),
+  _type,
   _typeMetaLens,
  )
 import Primer.Core.Utils (forgetTypeMetadata)
@@ -112,7 +114,7 @@ extractLocalsExprZ = foldAbove getBoundHere
         | prior e == e1 -> mempty
         | otherwise -> M [] [(x, typeOrHole' $ maybeTypeOf e1)] []
       Letrec _ x _ ty _ -> M [] [(x, forgetTypeMetadata ty)] []
-      LetType _ x ty _ -> M [(x, kindOrHole (ty ^. _typeMetaLens))] [] []
+      LetType _ x ty _ -> M [(x, kindOrHoleOf ty)] [] []
       Case _ _ branches ->
         let fromBinding (Bind m n) = (n, typeOrHole m)
             binderss = map (\(CaseBranch _ ns rhs) -> (rhs, map fromBinding ns)) branches
@@ -126,15 +128,15 @@ extractLocalsExprZ = foldAbove getBoundHere
     typeOrHole' :: Maybe TypeCache -> Type' ()
     typeOrHole' = maybe (TEmptyHole ()) uncache
 
-    -- If a type has no kind we assign it kind KHole
-    kindOrHole :: Meta (Maybe Kind) -> Kind
-    kindOrHole (Meta _ k _) = fromMaybe KHole k
-
     -- Extract a Type from a TypeCache
     uncache :: TypeCache -> Type' ()
     uncache (TCSynthed t) = t
     uncache (TCChkedAt t) = t
     uncache (TCEmb TCBoth{tcSynthed = t}) = t
+
+-- If a type has no cached kind we report it has kind KHole
+kindOrHoleOf :: Type -> Kind
+kindOrHoleOf t = fromMaybe KHole $ t ^. _typeMetaLens % _type
 
 -- Helper for variablesInScopeTy: collect variables, most local first, eliding
 -- shadowed vars, as with 'ShadowedVarsExpr'
