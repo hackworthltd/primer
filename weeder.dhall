@@ -15,6 +15,9 @@ let
       , "^Primer.Pretty.prettyPrintExpr"
       , "^Primer.Pretty.prettyPrintType"
       , "^Primer.Client"
+      , "^Primer.Log.logDebug"
+      , "^Primer.Log.logEmergency"
+      , "^Primer.Log.logWarning"
       ]
 
 in  { roots = [ "^Main.main$" ] # tmpRoots # ignoreRoots, type-class-roots = True }

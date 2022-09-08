@@ -5,6 +5,11 @@ module Tests.Pagination where
 
 import Foreword
 
+import Control.Monad.Log (
+  DiscardLoggingT,
+  WithSeverity,
+  discardLogging,
+ )
 import Data.String (String)
 import Data.UUID.V4 (nextRandom)
 import Database.PostgreSQL.Simple.Options qualified as Options
@@ -34,8 +39,9 @@ import Primer.Database (
   safeMkSessionName,
  )
 import Primer.Database.Rel8 (
+  Rel8DbT,
   SessionRow (SessionRow, app, gitversion, name, uuid),
-  runRel8Db,
+  runRel8DbT,
  )
 import Primer.Pagination (
   Pagination (Pagination, page, size),
@@ -116,6 +122,14 @@ withSetup f =
                         withConfig migratedConfig $ \db ->
                           bracket (acquire 1 (Just 1000000) $ toConnectionString db) release f
 
+-- This is copied from `primer-rel8` and should be refactored into a
+-- common testing library. See:
+--
+-- https://github.com/hackworthltd/primer/issues/273
+runTmpDb :: Rel8DbT (DiscardLoggingT (WithSeverity ()) IO) () -> IO ()
+runTmpDb tests =
+  withSetup $ \pool -> discardLogging $ runRel8DbT tests pool
+
 mkSession :: Int -> IO (SessionRow Result)
 mkSession n = do
   u <- nextRandom
@@ -129,33 +143,32 @@ mkSession n = do
 
 test_pagination :: TestTree
 test_pagination = testCaseSteps "pagination" $ \step' ->
-  withSetup \conn -> do
-    flip runRel8Db conn $ do
-      let step = liftIO . step'
-      let m = 345
-      step "Insert all sessions"
-      rows <- liftIO $ sortOn name <$> traverse mkSession [1 .. m]
-      forM_ rows (\SessionRow{..} -> insertSession gitversion uuid newApp (safeMkSessionName name))
-      let expectedRows = map (\r -> Session (uuid r) (safeMkSessionName $ name r)) rows
-      step "Get all, paged"
-      onePos <- maybe (assertFailure "1 is positive") pure $ mkPositive 1
-      pAllPaged <- pagedDefaultClamp (m + 2) (Pagination{page = onePos, size = Nothing}) listSessions
-      getMeta pAllPaged @?= (m, m + 2, 1, Nothing, 1, Nothing, 1)
-      items pAllPaged @?= expectedRows
-      step "Get 25, paged"
-      p25Paged <- pagedDefaultClamp (m + 2) (Pagination{page = onePos, size = mkPositive 25}) listSessions
-      getMeta p25Paged @?= (m, 25, 1, Nothing, 1, Just 2, 14)
-      items p25Paged @?= take 25 expectedRows
-      step "Get 76-100, paged"
-      fourPos <- maybe (assertFailure "4 is positive") pure $ mkPositive 4
-      p75Paged <- pagedDefaultClamp (m + 2) (Pagination{page = fourPos, size = mkPositive 25}) listSessions
-      getMeta p75Paged @?= (m, 25, 1, Just 3, 4, Just 5, 14)
-      items p75Paged @?= take 25 (drop 75 expectedRows)
-      step "Get crossing end, paged"
-      fourteenPos <- maybe (assertFailure "14 is positive") pure $ mkPositive 14
-      pLastPaged <- pagedDefaultClamp (m + 2) (Pagination{page = fourteenPos, size = mkPositive 25}) listSessions
-      getMeta pLastPaged @?= (m, 25, 1, Just 13, 14, Nothing, 14)
-      items pLastPaged @?= drop 325 expectedRows
+  runTmpDb $ do
+    let step = liftIO . step'
+    let m = 345
+    step "Insert all sessions"
+    rows <- liftIO $ sortOn name <$> traverse mkSession [1 .. m]
+    forM_ rows (\SessionRow{..} -> insertSession gitversion uuid newApp (safeMkSessionName name))
+    let expectedRows = map (\r -> Session (uuid r) (safeMkSessionName $ name r)) rows
+    step "Get all, paged"
+    onePos <- maybe (assertFailure "1 is positive") pure $ mkPositive 1
+    pAllPaged <- pagedDefaultClamp (m + 2) (Pagination{page = onePos, size = Nothing}) listSessions
+    getMeta pAllPaged @?= (m, m + 2, 1, Nothing, 1, Nothing, 1)
+    items pAllPaged @?= expectedRows
+    step "Get 25, paged"
+    p25Paged <- pagedDefaultClamp (m + 2) (Pagination{page = onePos, size = mkPositive 25}) listSessions
+    getMeta p25Paged @?= (m, 25, 1, Nothing, 1, Just 2, 14)
+    items p25Paged @?= take 25 expectedRows
+    step "Get 76-100, paged"
+    fourPos <- maybe (assertFailure "4 is positive") pure $ mkPositive 4
+    p75Paged <- pagedDefaultClamp (m + 2) (Pagination{page = fourPos, size = mkPositive 25}) listSessions
+    getMeta p75Paged @?= (m, 25, 1, Just 3, 4, Just 5, 14)
+    items p75Paged @?= take 25 (drop 75 expectedRows)
+    step "Get crossing end, paged"
+    fourteenPos <- maybe (assertFailure "14 is positive") pure $ mkPositive 14
+    pLastPaged <- pagedDefaultClamp (m + 2) (Pagination{page = fourteenPos, size = mkPositive 25}) listSessions
+    getMeta pLastPaged @?= (m, 25, 1, Just 13, 14, Nothing, 14)
+    items pLastPaged @?= drop 325 expectedRows
   where
     -- Returns (totalItems,pageSize,firstPage,prevPage,thisPage,nextPage,lastPage) as Int/Maybe Int
     getMeta p =

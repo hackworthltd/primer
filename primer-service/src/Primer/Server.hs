@@ -184,7 +184,6 @@ apiCors =
 
 serve :: Sessions -> TBQueue Database.Op -> Version -> Int -> IO ()
 serve ss q v port = do
-  putText $ "Listening on port " <> show port
   Warp.runSettings warpSettings $
     noCache $
       cors (const $ Just apiCors) $
