@@ -88,7 +88,7 @@ data SessionAPI mode = SessionAPI
 
 -- POST needed for body, but lose caching etc.: https://stackoverflow.com/a/29210375 (and elsewhere)
 -- :> Get '[JSON] [API.OfferedAction]
-data AvailableActionsAPI mode = SessionAPI'
+data AvailableActionsAPI mode = AvailableActionsAPI
   { getBodyActions ::
       mode
         :- "body"

@@ -107,7 +107,7 @@ openAPISessionServer sid =
 
 openAPIAvailableActionsServer :: SessionId -> OpenAPI.AvailableActionsAPI (AsServerT PrimerIO)
 openAPIAvailableActionsServer sid =
-  OpenAPI.SessionAPI'
+  OpenAPI.AvailableActionsAPI
     { OpenAPI.getBodyActions = \level mut id d m -> do
         prog <- getProgram sid
         let gn = qualifyName (ModuleName $ m :| []) d
