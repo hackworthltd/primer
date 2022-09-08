@@ -414,6 +414,42 @@ unit_tryReduce_lettype_self_capture = do
       detail.bodyID @?= 2
     _ -> assertFailure $ show result
 
+-- tlet x = C in ty ==> ty  when x not occur free in ty
+unit_tryReduce_tlet_elide :: Assertion
+unit_tryReduce_tlet_elide = do
+  let (ty, i) = create $ tlet "x" (tcon' ["M"] "C") (tcon' ["M"] "D")
+      result = runTryReduceType mempty mempty (ty, i)
+      expectedResult = create' $ tcon' ["M"] "D"
+  case result of
+    Right (ty', TLetRemoval detail) -> do
+      ty' ~~= expectedResult
+
+      detail.before @?= ty
+      detail.after ~~= expectedResult
+      detail.bindingName @?= "x"
+      detail.letID @?= 0
+      detail.bodyID @?= 2
+    _ -> assertFailure $ show result
+
+-- tlet x = x in x ==> tlet y = x in y
+unit_tryReduce_tlet_self_capture :: Assertion
+unit_tryReduce_tlet_self_capture = do
+  let (ty, i) = create $ tlet "x" (tvar "x") (tvar "x")
+      result = runTryReduceType mempty mempty (ty, i)
+      expectedResult = create' $ tlet "x0" (tvar "x") (tvar "x0")
+  case result of
+    Right (ty', TLetRename detail) -> do
+      ty' ~~= expectedResult
+
+      detail.before @?= ty
+      detail.after ~~= expectedResult
+      detail.bindingNameOld @?= "x"
+      detail.bindingNameNew @?= "x0"
+      detail.letID @?= 0
+      detail.bindingOccurrences @?= [1]
+      detail.bodyID @?= 2
+    _ -> assertFailure $ show result
+
 unit_tryReduce_letrec :: Assertion
 unit_tryReduce_letrec = do
   let (expr, i) = create $ letrec "x" (con' ["M"] "C") (tcon' ["M"] "T") (con' ["M"] "D")
@@ -770,6 +806,26 @@ unit_findNodeByID_2 = do
       target z ~~= x
     _ -> assertFailure "node 0 not found"
 
+unit_findNodeByID_tlet :: Assertion
+unit_findNodeByID_tlet = do
+  let (x, t, expr) = create' $ do
+        -- id 0
+        x_ <- tvar "x"
+        -- id 1
+        t_ <- tcon' ["M"] "T"
+        -- id 2
+        e <- ann (lvar "y") (tlet "x" (tcon' ["M"] "T") (pure x_))
+        pure (x_, t_, e)
+  case findNodeByID 0 expr of
+    Just (locals, Right z) -> do
+      case Map.lookup "x" locals of
+        Just (i, LLetType e, NoCapture) -> do
+          i @?= 4
+          e ~~= t
+        _ -> assertFailure $ show locals
+      target z ~~= x
+    _ -> assertFailure "node 0 not found"
+
 unit_findNodeByID_scoping_1 :: Assertion
 unit_findNodeByID_scoping_1 = do
   let expr = create' $ let_ "x" (con' ["M"] "C") $ lam "x" $ lvar "x"
@@ -819,17 +875,18 @@ unit_findNodeByID_capture_type :: Assertion
 unit_findNodeByID_capture_type = do
   let (expr, varOcc, reduct) = create' $ do
         v <- tvar "x"
-        e <- letType "x" (tvar "y") (emptyHole `ann` tforall "y" KType (pure v))
+        e <- letType "x" (tvar "y") (emptyHole `ann` tlet "z" (tvar "y") (tforall "y" KType (pure v)))
         let r = getID v
         s <- step mempty expr r
         pure (e, r, s)
    in do
         case findNodeByID varOcc expr of
           Just (locals, Right _)
-            | Map.size locals == 1
-            , Just (1, LLetType _, Capture) <- Map.lookup "x" locals ->
+            | Map.size locals == 2
+            , Just (1, LLetType _, Capture) <- Map.lookup "x" locals
+            , Just (5, LLetType _, Capture) <- Map.lookup "z" locals ->
                 pure ()
-          Just (_, Right _) -> assertFailure "Expected lettype binding of 'x' to be reported as captured-if-inlined"
+          Just (_, Right _) -> assertFailure "Expected lettype binding of 'x' and the tlet binding of 'z' to be reported as captured-if-inlined"
           _ -> assertFailure "Expected to find the lvar 'x'"
         case reduct of
           Left NotRedex -> pure ()
@@ -984,6 +1041,26 @@ unit_redexes_lettype_4 :: Assertion
 unit_redexes_lettype_4 = do
   -- NB we must not say node 5 (the occurrence of the variable) is a redex
   redexesOf (lAM "x" $ letType "x" (tvar "x") (emptyHole `ann` tvar "x")) @?= Set.fromList [1]
+
+unit_redexes_tlet_1 :: Assertion
+unit_redexes_tlet_1 =
+  redexesOf (emptyHole `ann` tlet "x" (tcon' ["M"] "T") (tcon' ["M"] "S")) @?= Set.fromList [2]
+
+unit_redexes_tlet_2 :: Assertion
+unit_redexes_tlet_2 =
+  redexesOf (emptyHole `ann` tlet "x" (tcon' ["M"] "T") (tapp (tcon' ["M"] "S") (tvar "x"))) @?= Set.fromList [6]
+
+unit_redexes_tlet_3 :: Assertion
+unit_redexes_tlet_3 =
+  redexesOf (emptyHole `ann` tlet "x" (tcon' ["M"] "T") (tlet "y" (tcon' ["M"] "S") (tapp (tvar "x") (tvar "y")))) @?= Set.fromList [7, 8]
+
+-- We cannot substitute one occurrence of a let-bound variable if it
+-- would result in capture of a free variable in the bound term by the
+-- let binder itself.
+unit_redexes_tlet_4 :: Assertion
+unit_redexes_tlet_4 = do
+  -- NB we must not say node 5 (the occurrence of the variable) is a redex
+  redexesOf (lAM "x" $ emptyHole `ann` tlet "x" (tvar "x") (tvar "x")) @?= Set.fromList [3]
 
 unit_redexes_case_1 :: Assertion
 unit_redexes_case_1 =

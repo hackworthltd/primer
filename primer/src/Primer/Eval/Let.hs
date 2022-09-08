@@ -22,10 +22,15 @@ import Primer.Eval.Utils (makeSafeLetBinding, makeSafeLetTypeBinding)
 import Primer.JSON (CustomJSON (CustomJSON), FromJSON, PrimerJSON, ToJSON)
 import Primer.Name (Name)
 
-data LetRemovalDetail = LetRemovalDetail
-  { before :: Expr
+-- | Detailed information about a removal of a let binding.
+-- This can be any of: a term-level non-recursive let, a
+-- term-level recursive let, a term-level let binding a type
+-- or a type-level let.
+-- If term-level: t ~ Expr; if type-level: t ~ Type
+data LetRemovalDetail t = LetRemovalDetail
+  { before :: t
   -- ^ the let expression before reduction
-  , after :: Expr
+  , after :: t
   -- ^ the resulting expression after reduction
   , bindingName :: Name
   -- ^ the name of the unused bound variable (either term or type variable)
@@ -35,12 +40,17 @@ data LetRemovalDetail = LetRemovalDetail
   -- ^ the right hand side of the let
   }
   deriving (Eq, Show, Generic)
-  deriving (FromJSON, ToJSON) via PrimerJSON LetRemovalDetail
+  deriving (FromJSON, ToJSON) via PrimerJSON (LetRemovalDetail t)
 
-data LetRenameDetail = LetRenameDetail
-  { before :: Expr
+-- | Detailed information about a removal of a let binding.
+-- This can be any of: a term-level non-recursive let, a
+-- term-level recursive let, a term-level let binding a type
+-- or a type-level let.
+-- If term-level: t ~ Expr; if type-level: t ~ Type
+data LetRenameDetail t = LetRenameDetail
+  { before :: t
   -- ^ the let expression before reduction
-  , after :: Expr
+  , after :: t
   -- ^ the resulting expression after reduction
   , bindingNameOld :: Name
   -- ^ the old name of the let-bound variable
@@ -54,12 +64,12 @@ data LetRenameDetail = LetRenameDetail
   -- ^ the right hand side of the let
   }
   deriving (Eq, Show, Generic)
-  deriving (FromJSON, ToJSON) via PrimerJSON LetRenameDetail
+  deriving (FromJSON, ToJSON) via PrimerJSON (LetRenameDetail t)
 
 tryLetRemoval ::
   MonadFresh ID m =>
   Expr ->
-  Maybe (m (Expr, Either LetRenameDetail LetRemovalDetail))
+  Maybe (m (Expr, Either (LetRenameDetail Expr) (LetRemovalDetail Expr)))
 tryLetRemoval = \case
   expr@(Let meta x e body)
     -- Redundant let removal
