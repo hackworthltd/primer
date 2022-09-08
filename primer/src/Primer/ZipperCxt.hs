@@ -78,6 +78,7 @@ instance Monoid ShadowedVarsExpr where
 -- binders.
 -- The first list is local type variables, the second list is local term variables.
 -- We remove shadowed variables.
+-- Note that type/kind information is extracted from the TypeCache.
 localVariablesInScopeExpr ::
   Either ExprZ TypeZ ->
   ([(TyVarName, Kind)], [(LVarName, Type' ())])
