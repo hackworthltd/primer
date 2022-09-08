@@ -4,13 +4,17 @@ module TestUtils (
   (@?=),
   assertException,
   insertSessionRow,
-  runTmpDb,
   testApp,
   withDbSetup,
+  runTmpDb,
 ) where
 
 import Foreword
 
+import Control.Monad.Log (
+  DiscardLoggingT,
+  discardLogging,
+ )
 import Data.ByteString.Lazy.UTF8 as BL
 import Data.Map.Strict qualified as Map
 import Data.String (String)
@@ -49,9 +53,9 @@ import Primer.Core (
   mkSimpleModuleName,
  )
 import Primer.Core.DSL (create)
-import Primer.Database.Rel8.Rel8Db (
-  Rel8Db,
-  runRel8Db,
+import Primer.Database.Rel8 (
+  Rel8DbT,
+  runRel8DbT,
  )
 import Primer.Database.Rel8.Schema as Schema hiding (app)
 import Primer.Examples (comprehensive)
@@ -116,7 +120,7 @@ sqitchEventChangeId = do
     ExitFailure n -> error $ "`primer-sqitch plan` failed with exit code " <> show n
     _ -> pure $ takeWhile (/= '\n') $ BL.toString output
 
-withDbSetup :: (Pool -> IO ()) -> IO ()
+withDbSetup :: (Pool -> IO b) -> IO b
 withDbSetup f = do
   -- NOTE: there's a race where the returned port could be opened by
   -- another process before we can use it, but it's extremely unlikely
@@ -146,9 +150,9 @@ withDbSetup f = do
                 withConfig migratedConfig $ \db ->
                   bracket (acquire 1 (Just 1000000) $ toConnectionString db) release f
 
-runTmpDb :: Rel8Db () -> IO ()
+runTmpDb :: Rel8DbT (DiscardLoggingT msg IO) b -> IO b
 runTmpDb tests =
-  withDbSetup $ \pool -> runRel8Db tests pool
+  withDbSetup $ \pool -> discardLogging $ runRel8DbT tests pool
 
 (@?=) :: (MonadIO m, Eq a, Show a) => a -> a -> m ()
 x @?= y = liftIO $ x HUnit.@?= y

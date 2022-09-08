@@ -5,6 +5,9 @@ module Tests.Pagination where
 
 import Foreword
 
+import Control.Monad.Log (
+  discardLogging,
+ )
 import Data.String (String)
 import Data.UUID.V4 (nextRandom)
 import Database.PostgreSQL.Simple.Options qualified as Options
@@ -35,7 +38,7 @@ import Primer.Database (
  )
 import Primer.Database.Rel8 (
   SessionRow (SessionRow, app, gitversion, name, uuid),
-  runRel8Db,
+  runRel8DbT,
  )
 import Primer.Pagination (
   Pagination (Pagination, page, size),
@@ -129,8 +132,8 @@ mkSession n = do
 
 test_pagination :: TestTree
 test_pagination = testCaseSteps "pagination" $ \step' ->
-  withSetup \conn -> do
-    flip runRel8Db conn $ do
+  withSetup \pool -> do
+    discardLogging $ flip runRel8DbT pool $ do
       let step = liftIO . step'
       let m = 345
       step "Insert all sessions"

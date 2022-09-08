@@ -4,6 +4,9 @@ module Tests.QuerySessionId where
 
 import Foreword
 
+import Control.Monad.Log (
+  discardLogging,
+ )
 import Primer.App (
   newApp,
  )
@@ -17,7 +20,7 @@ import Primer.Database (
   safeMkSessionName,
  )
 import Primer.Database.Rel8.Rel8Db (
-  runRel8Db,
+  runRel8DbT,
  )
 import Primer.Database.Rel8.Schema qualified as Schema (
   SessionRow (SessionRow, app, gitversion, name, uuid),
@@ -45,35 +48,34 @@ import TestUtils (
 
 test_querySessionId :: TestTree
 test_querySessionId = testCaseSteps "querySessionId corner cases" $ \step' ->
-  withDbSetup \conn -> do
-    flip runRel8Db conn $ do
-      let step = liftIO . step'
+  withDbSetup $ \pool -> discardLogging $ flip runRel8DbT pool $ do
+    let step = liftIO . step'
 
-      step "Insert program"
-      let version = "git123"
-      let name = safeMkSessionName "test querySessionId"
-      sessionId <- liftIO newSessionId
-      insertSession version sessionId newApp name
+    step "Insert program"
+    let version = "git123"
+    let name = safeMkSessionName "test querySessionId"
+    sessionId <- liftIO newSessionId
+    insertSession version sessionId newApp name
 
-      step "Attempt to look up a session that doesn't exist"
-      nonexistentSessionId <- liftIO newSessionId
-      r1 <- querySessionId nonexistentSessionId
-      r1 @?= Left (SessionIdNotFound nonexistentSessionId)
+    step "Attempt to look up a session that doesn't exist"
+    nonexistentSessionId <- liftIO newSessionId
+    r1 <- querySessionId nonexistentSessionId
+    r1 @?= Left (SessionIdNotFound nonexistentSessionId)
 
-      step "Attempt to fetch a session whose name is invalid"
-      invalidNameSessionId <- liftIO newSessionId
-      let invalidName = ""
-      let invalidNameRow =
-            lit
-              Schema.SessionRow
-                { Schema.uuid = invalidNameSessionId
-                , Schema.gitversion = version
-                , Schema.app = newApp
-                , Schema.name = invalidName
-                }
-      liftIO $ insertSessionRow invalidNameRow conn
-      r3 <- querySessionId invalidNameSessionId
-      -- In this scenario, we should get the program back with the
-      -- default session name, rather than the invalid name we used to
-      -- store it in the database.
-      r3 @?= Right (SessionData newApp defaultSessionName)
+    step "Attempt to fetch a session whose name is invalid"
+    invalidNameSessionId <- liftIO newSessionId
+    let invalidName = ""
+    let invalidNameRow =
+          lit
+            Schema.SessionRow
+              { Schema.uuid = invalidNameSessionId
+              , Schema.gitversion = version
+              , Schema.app = newApp
+              , Schema.name = invalidName
+              }
+    liftIO $ insertSessionRow invalidNameRow pool
+    r3 <- querySessionId invalidNameSessionId
+    -- In this scenario, we should get the program back with the
+    -- default session name, rather than the invalid name we used to
+    -- store it in the database.
+    r3 @?= Right (SessionData newApp defaultSessionName)

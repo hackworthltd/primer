@@ -1,5 +1,7 @@
 {-# LANGUAGE BlockArguments #-}
+{-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE DuplicateRecordFields #-}
+{-# LANGUAGE UndecidableInstances #-}
 
 -- |
 --Module      : Primer.Database.Rel8.Rel8Db
@@ -12,10 +14,13 @@
 --A "Rel8"- and @Hasql@-based implementation of 'MonadDb'.
 module Primer.Database.Rel8.Rel8Db (
   -- * The "Rel8" database adapter
+  MonadRel8Db,
   Rel8DbT (..),
   Rel8Db,
   runRel8DbT,
-  runRel8Db,
+
+  -- * Logging
+  Rel8DbLogMessage (..),
 
   -- * Exceptions
   Rel8DbException (..),
@@ -25,6 +30,11 @@ import Foreword hiding (filter)
 
 import Control.Monad.Cont (MonadCont)
 import Control.Monad.Fix (MonadFix)
+import Control.Monad.Log (
+  MonadLog,
+  WithSeverity (..),
+  logError,
+ )
 import Control.Monad.Trans (MonadTrans)
 import Control.Monad.Writer (MonadWriter)
 import Control.Monad.Zip (MonadZip)
@@ -58,6 +68,9 @@ import Primer.Database.Rel8.Schema as Schema (
   SessionRow (..),
   sessionRowSchema,
  )
+import Primer.Log (
+  LogMessage (..),
+ )
 import Rel8 (
   Expr,
   Insert (Insert, into, onConflict, returning, rows),
@@ -83,7 +96,7 @@ import Rel8 (
 
 -- | A wrapper type for managing Rel8 operations.
 newtype Rel8DbT m a = Rel8DbT {unRel8DbT :: ReaderT Pool m a}
-  deriving
+  deriving newtype
     ( Functor
     , Applicative
     , Alternative
@@ -102,6 +115,7 @@ newtype Rel8DbT m a = Rel8DbT {unRel8DbT :: ReaderT Pool m a}
     , MonadWriter w
     , MonadZip
     , MonadCont
+    , MonadLog msg
     )
 
 -- | The 'Rel8DbT' monad transformer applied to 'IO'.
@@ -111,10 +125,8 @@ type Rel8Db a = Rel8DbT IO a
 runRel8DbT :: Rel8DbT m a -> Pool -> m a
 runRel8DbT m = runReaderT (unRel8DbT m)
 
--- | Run an 'IO' action in the 'Rel8Db' monad with the given
--- 'Pool'.
-runRel8Db :: Rel8DbT IO a -> Pool -> IO a
-runRel8Db = runRel8DbT
+-- | A convenient type alias.
+type MonadRel8Db m = (MonadThrow m, MonadIO m, MonadLog (WithSeverity Rel8DbLogMessage) m)
 
 -- | A 'MonadDb' instance for 'Rel8DbT'.
 --
@@ -126,7 +138,7 @@ runRel8Db = runRel8DbT
 -- database. The latter sorts of exceptions are expressed via the
 -- types of the 'MonadDb' methods and are handled by Primer
 -- internally.
-instance (MonadThrow m, MonadIO m) => MonadDb (Rel8DbT m) where
+instance MonadRel8Db m => MonadDb (Rel8DbT m) where
   insertSession v s a n =
     runStatement_ (InsertError s) $
       insert
@@ -214,24 +226,26 @@ instance (MonadThrow m, MonadIO m) => MonadDb (Rel8DbT m) where
     result <- runStatement (LoadSessionError sid) $ select $ sessionById sid
     case result of
       [] -> return $ Left $ SessionIdNotFound sid
-      (s : _) ->
+      (s : _) -> do
         -- Note that we have 2 choices here if the session name
         -- returned by the database is not a valid 'SessionName':
-        -- either we can return a failure, or we can convert it to
-        -- a valid 'SessionName', possibly including a helpful
-        -- message. This situation can only ever happen if we've
-        -- made a mistake (e.g., we've changed the rules on what's
-        -- a valid 'SessionName' and didn't run a migration), or
-        -- if someone has edited the database directly, without
-        -- going through the API. In either case, it would be bad
-        -- if a student can't load their session just because a
-        -- session name was invalid, so we opt for the "convert it
-        -- to a valid 'SessionName'" strategy. For now, we elide
-        -- the helpful message.
-        --
-        -- We should probably log an event when this occurs. See:
-        -- https://github.com/hackworthltd/primer/issues/179
-        pure $ Right (SessionData (Schema.app s) (safeMkSessionName $ Schema.name s))
+        -- either we can return a failure, or we can convert it to a
+        -- valid 'SessionName', possibly including a helpful message.
+        -- This situation can only ever happen if we've made a mistake
+        -- (e.g., we've changed the rules on what's a valid
+        -- 'SessionName' and didn't run a migration), or if someone
+        -- has edited the database directly, without going through the
+        -- API. In either case, it would be bad if a student can't
+        -- load their session just because a session name was invalid,
+        -- so we opt for the "convert it to a valid 'SessionName'"
+        -- strategy and log an error. For now, we elide the helpful
+        -- message.
+        let dbSessionName = Schema.name s
+            sessionName = safeMkSessionName dbSessionName
+        when (fromSessionName sessionName /= dbSessionName) $
+          logError $
+            IllegalSessionName sid dbSessionName
+        pure $ Right (SessionData (Schema.app s) sessionName)
 
 -- | Exceptions that can be thrown by 'Rel8DbT' computations.
 --
@@ -277,9 +291,21 @@ data Rel8DbException
     -- operation. This should never occur unless there's a bug in
     -- 'Rel8'.
     ListSessionsRel8Error
-  deriving (Eq, Show)
+  deriving stock (Eq, Show, Generic)
 
 instance Exception Rel8DbException
+
+-- | 'Rel8DbT'-related log messages.
+data Rel8DbLogMessage
+  = -- | An illegal session name was found in the database. This is
+    -- probably an indication that a database migration wasn't run
+    -- properly, but may also indicate that the database has been
+    -- modified outside the API.
+    IllegalSessionName SessionId Text
+  | -- | A 'Rel8DBException' occurred.
+    LogRel8DbException Rel8DbException
+  deriving stock (Eq, Show, Generic)
+  deriving anyclass (LogMessage)
 
 -- Helpers to make dealing with "Hasql.Session" easier.
 --
