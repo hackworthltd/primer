@@ -17,11 +17,13 @@ import Primer.API (
   Module (Module),
   NodeBody (BoxBody, NoBody, TextBody),
   NodeFlavor,
+  OfferedAction (..),
   Prog (Prog),
   Tree,
   viewTreeExpr,
   viewTreeType,
  )
+import Primer.Action (ActionName (..), ActionType (..))
 import Primer.Core (ID (ID))
 import Primer.Database (Session (Session), SessionName, safeMkSessionName)
 import Primer.Gen.API (genExprTreeOpts)
@@ -44,7 +46,7 @@ import Primer.Server (openAPIInfo)
 import Servant.OpenApi.Test (validateEveryToJSON)
 import Tasty (Property, property)
 import Test.Hspec (Spec)
-import Test.QuickCheck (Arbitrary (arbitrary))
+import Test.QuickCheck (Arbitrary (arbitrary), arbitraryBoundedEnum, oneof)
 import Test.QuickCheck.Hedgehog (hedgehog)
 import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.Golden (goldenVsString)
@@ -211,3 +213,12 @@ instance Arbitrary (Paginated Session) where
   arbitrary = hedgehog genPaginatedSession
 instance Arbitrary Prog where
   arbitrary = hedgehog genProg
+
+instance Arbitrary OfferedAction where
+  arbitrary = OfferedAction <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
+instance Arbitrary ActionName where
+  arbitrary = oneof [map Code arbitrary, map Prose arbitrary]
+deriving instance Bounded ActionType
+deriving instance Enum ActionType
+instance Arbitrary ActionType where
+  arbitrary = arbitraryBoundedEnum

@@ -1,9 +1,14 @@
+{-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
+
+{-# HLINT ignore "Use newtype instead of data" #-}
+
 -- | An OpenAPI service for the Primer API.
 module Primer.Servant.OpenAPI (
   API,
   RootAPI (..),
   SessionsAPI (..),
   SessionAPI (..),
+  AvailableActionsAPI (..),
   Spec,
 ) where
 
@@ -11,9 +16,13 @@ import Foreword
 
 import Data.OpenApi (OpenApi)
 import Primer.API qualified as API
+import Primer.Action (Level)
+import Primer.App (Mutability)
+import Primer.Core
 import Primer.Database (
   SessionId,
  )
+import Primer.Name (Name)
 import Primer.OpenAPI ()
 import Primer.Servant.Types (
   CopySession,
@@ -23,16 +32,7 @@ import Primer.Servant.Types (
   GetVersion,
   SetSessionName,
  )
-import Servant (
-  Capture',
-  Description,
-  Get,
-  JSON,
-  NamedRoutes,
-  QueryFlag,
-  Summary,
-  (:>),
- )
+import Servant (Capture, Capture', CaptureAll, Description, Get, JSON, NamedRoutes, QueryFlag, Summary, (:>))
 import Servant.API.Generic (
   GenericMode ((:-)),
  )
@@ -50,7 +50,7 @@ data RootAPI mode = RootAPI
   , sessionsAPI ::
       mode
         :- "sessions"
-          :> NamedRoutes SessionsAPI
+        :> NamedRoutes SessionsAPI
   }
   deriving (Generic)
 
@@ -63,7 +63,7 @@ data SessionsAPI mode = SessionsAPI
   , sessionAPI ::
       mode
         :- Capture' '[Description "The session ID"] "sessionId" SessionId
-          :> NamedRoutes SessionAPI
+        :> NamedRoutes SessionAPI
   }
   deriving (Generic)
 
@@ -72,11 +72,42 @@ data SessionAPI mode = SessionAPI
   { getProgram ::
       mode
         :- "program"
-          :> Summary "Get the current program state"
-          :> QueryFlag "patternsUnder"
-          :> OperationId "getProgram"
-          :> Get '[JSON] API.Prog
+        :> Summary "Get the current program state"
+        :> QueryFlag "patternsUnder"
+        :> OperationId "getProgram"
+        :> Get '[JSON] API.Prog
   , getSessionName :: GetSessionName mode
   , setSessionName :: SetSessionName mode
+  , availableActionsAPI ::
+      mode
+        :- "action"
+        :> "available"
+        :> NamedRoutes AvailableActionsAPI
+  }
+  deriving (Generic)
+
+-- POST needed for body, but lose caching etc.: https://stackoverflow.com/a/29210375 (and elsewhere)
+-- :> Get '[JSON] [API.OfferedAction]
+data AvailableActionsAPI mode = SessionAPI'
+  { getBodyActions ::
+      mode
+        :- "body"
+        :> Summary "Get available actions at the given body node"
+        -- :> QueryParam "level" Level
+        -- :> QueryParam "mut" Mutability
+        -- :> QueryParam "id" ID
+        -- :> QueryParam "def" Name
+        :> Capture "level" Level
+        :> Capture "mut" Mutability
+        :> Capture "id" ID
+        :> Capture "def" Name
+        -- :> Capture' '[] "level" Level
+        -- :> Capture' '[] "mut" Mutability
+        -- :> Capture' '[] "id" ID
+        -- :> Capture' '[] "def" Name
+        :> Capture "module" Name
+        :> CaptureAll "modules" Name -- TODO generalise this way of encoding global names as params (or just use body)
+        :> Get '[JSON] [API.OfferedAction]
+        -- , getTypeActions :: ()
   }
   deriving (Generic)

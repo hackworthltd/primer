@@ -83,6 +83,7 @@ import Primer.Def (
   Def (..),
   DefMap,
  )
+import Primer.JSON (CustomJSON (..), PrimerJSON, ToJSON)
 import Primer.Module (Module, insertDef)
 import Primer.Name (Name, NameCounter, unName, unsafeMkName)
 import Primer.Name.Fresh (
@@ -155,6 +156,8 @@ data OfferedAction a = OfferedAction
 data ActionType
   = Primary
   | Destructive
+  deriving (Show, Generic)
+  deriving (ToJSON) via (PrimerJSON ActionType)
 
 -- | Filter on variables and constructors according to whether they
 -- have a function type.
@@ -162,6 +165,7 @@ data FunctionFiltering
   = Everything
   | OnlyFunctions
   | NoFunctions
+  deriving (Generic)
 
 -- | Further user input is sometimes required to construct an action.
 -- For example, when inserting a constructor the user must tell us what
@@ -185,7 +189,7 @@ data UserInput a
       -- ^ What to do with whatever name is chosen
   | ChooseVariable FunctionFiltering (TmVarRef -> a)
   | ChooseTypeVariable (Text -> a)
-  deriving (Functor)
+  deriving (Functor, Generic)
 
 data ActionInput a where
   InputRequired :: UserInput a -> ActionInput a
@@ -198,7 +202,8 @@ deriving instance Functor ActionInput
 data ActionName
   = Code Text
   | Prose Text
-  deriving (Eq, Show)
+  deriving (Eq, Show, Generic)
+  deriving (ToJSON) via (PrimerJSON ActionName)
 
 -- | The current programming "level". This setting determines which
 -- actions are displayed to the student, the labels on UI elements,
@@ -212,7 +217,7 @@ data Level
     Intermediate
   | -- | All features.
     Expert
-  deriving (Eq, Show, Enum, Bounded)
+  deriving (Eq, Show, Enum, Bounded, Generic)
 
 -- | Sigh, yes, this is required so that Safari doesn't try to
 -- autocomplete these fields with your contact data.
@@ -308,6 +313,7 @@ data Refocus = Refocus
   { pre :: Loc
   , post :: Expr
   }
+  deriving (Generic)
 
 -- If smartholes is on, we may refocus on the interior of an elided hole,
 -- or the expression under an elided annotation

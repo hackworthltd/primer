@@ -1,6 +1,54 @@
 {
     "components": {
         "schemas": {
+            "ActionName": {
+                "oneOf": [
+                    {
+                        "properties": {
+                            "contents": {
+                                "type": "string"
+                            },
+                            "tag": {
+                                "enum": [
+                                    "Code"
+                                ],
+                                "type": "string"
+                            }
+                        },
+                        "required": [
+                            "tag",
+                            "contents"
+                        ],
+                        "type": "object"
+                    },
+                    {
+                        "properties": {
+                            "contents": {
+                                "type": "string"
+                            },
+                            "tag": {
+                                "enum": [
+                                    "Prose"
+                                ],
+                                "type": "string"
+                            }
+                        },
+                        "required": [
+                            "tag",
+                            "contents"
+                        ],
+                        "type": "object"
+                    }
+                ],
+                "type": "object"
+            },
+            "ActionType": {
+                "enum": [
+                    "Primary",
+                    "Destructive"
+                ],
+                "type": "string"
+            },
             "Def": {
                 "properties": {
                     "name": {
@@ -157,6 +205,31 @@
                     "FlavorPatternApp"
                 ],
                 "type": "string"
+            },
+            "OfferedAction": {
+                "properties": {
+                    "actionType": {
+                        "$ref": "#/components/schemas/ActionType"
+                    },
+                    "description": {
+                        "type": "string"
+                    },
+                    "name": {
+                        "$ref": "#/components/schemas/ActionName"
+                    },
+                    "priority": {
+                        "maximum": 9223372036854775807,
+                        "minimum": -9223372036854775808,
+                        "type": "integer"
+                    }
+                },
+                "required": [
+                    "name",
+                    "description",
+                    "priority",
+                    "actionType"
+                ],
+                "type": "object"
             },
             "PaginatedMeta": {
                 "properties": {
@@ -404,6 +477,100 @@
                     }
                 },
                 "summary": "Create a new session and return its ID"
+            }
+        },
+        "/openapi/sessions/{sessionId}/action/available/body/{level}/{mut}/{id}/{def}/{module}/{modules}": {
+            "get": {
+                "parameters": [
+                    {
+                        "description": "The session ID",
+                        "in": "path",
+                        "name": "sessionId",
+                        "required": true,
+                        "schema": {
+                            "format": "uuid",
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "in": "path",
+                        "name": "level",
+                        "required": true,
+                        "schema": {
+                            "enum": [
+                                "Beginner",
+                                "Intermediate",
+                                "Expert"
+                            ],
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "in": "path",
+                        "name": "mut",
+                        "required": true,
+                        "schema": {
+                            "enum": [
+                                "Mutable",
+                                "Immutable"
+                            ],
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "in": "path",
+                        "name": "id",
+                        "required": true,
+                        "schema": {
+                            "maximum": 9223372036854775807,
+                            "minimum": -9223372036854775808,
+                            "type": "integer"
+                        }
+                    },
+                    {
+                        "in": "path",
+                        "name": "def",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "in": "path",
+                        "name": "module",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "in": "path",
+                        "name": "modules",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json;charset=utf-8": {
+                                "schema": {
+                                    "items": {
+                                        "$ref": "#/components/schemas/OfferedAction"
+                                    },
+                                    "type": "array"
+                                }
+                            }
+                        },
+                        "description": ""
+                    },
+                    "404": {
+                        "description": "`sessionId` or `level` or `mut` or `id` or `def` or `module` or `modules` not found"
+                    }
+                },
+                "summary": "Get available actions at the given body node"
             }
         },
         "/openapi/sessions/{sessionId}/name": {

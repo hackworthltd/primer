@@ -231,7 +231,7 @@ progAllModules :: Prog -> [Module]
 progAllModules p = progModules p <> progImports p
 
 data Editable = Editable | NonEditable
-  deriving (Bounded, Enum, Show)
+  deriving (Bounded, Enum, Show, Generic)
 
 progAllTypeDefs :: Prog -> Map TyConName (Editable, TypeDef)
 progAllTypeDefs p =

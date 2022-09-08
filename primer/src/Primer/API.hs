@@ -1,5 +1,7 @@
 {-# LANGUAGE BlockArguments #-}
+{-# LANGUAGE DuplicateRecordFields #-}
 {-# LANGUAGE GADTs #-}
+{-# LANGUAGE RecordWildCards #-}
 
 {- HLINT ignore "Use newtype instead of data" -}
 
@@ -48,6 +50,8 @@ module Primer.API (
   viewTreeType,
   viewTreeExpr,
   getApp,
+  OfferedAction (..),
+  convertOfferedAction,
 ) where
 
 import Foreword
@@ -70,6 +74,8 @@ import Data.Text qualified as T
 import ListT qualified (toList)
 import Optics (ifoldr, over, traverseOf, view, (^.))
 import Primer.API.NodeFlavor (NodeFlavor (..))
+import Primer.Action (ActionName, ActionType)
+import Primer.Action qualified as Action
 import Primer.App (
   App,
   EditAppM,
@@ -791,3 +797,16 @@ flushSessions = do
   sessionsTransaction $ \ss _ -> do
     StmMap.reset ss
   pure ()
+
+-- TODO this is `OfferedAction` without the `input` field - we haven't decided what to do with that yet
+data OfferedAction = OfferedAction
+  { name :: ActionName
+  , description :: Text
+  , priority :: Int
+  , actionType :: ActionType
+  }
+  deriving (Show, Generic)
+  deriving (ToJSON) via (PrimerJSON OfferedAction)
+convertOfferedAction :: Action.OfferedAction a -> OfferedAction
+-- neat side effect of DuplicateRecordFields
+convertOfferedAction Action.OfferedAction{..} = OfferedAction{..}

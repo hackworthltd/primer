@@ -1,3 +1,4 @@
+{-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE UndecidableInstances #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
@@ -6,10 +7,15 @@ module Primer.OpenAPI (
   -- $orphanInstances
 ) where
 
-import Data.OpenApi (ToSchema (declareNamedSchema), fromAesonOptions, genericDeclareNamedSchema)
+import Foreword
+
+import Data.OpenApi (ToParamSchema, ToSchema (declareNamedSchema), fromAesonOptions, genericDeclareNamedSchema)
 import Data.OpenApi.Internal.Schema (GToSchema, rename)
+import Data.Text qualified as T
 import Deriving.Aeson (AesonOptions (aesonOptions))
-import Primer.API (Def, ExprTreeOpts, Module, NodeBody, NodeFlavor, Prog, Tree)
+import Primer.API (Def, ExprTreeOpts, Module, NodeBody, NodeFlavor, OfferedAction, Prog, Tree)
+import Primer.Action (ActionName, ActionType, Level (..))
+import Primer.App (Mutability (..))
 import Primer.Core (
   GlobalName,
   GlobalNameKind (ADefName, ATyCon, AValCon),
@@ -19,9 +25,9 @@ import Primer.Core (
  )
 import Primer.Database (Session, SessionName)
 import Primer.JSON (CustomJSON, PrimerJSON)
-import Primer.Name (Name)
-
-import Foreword
+import Primer.Name (Name (..))
+import Servant (FromHttpApiData)
+import Servant.API (FromHttpApiData (parseUrlPiece))
 
 -- $orphanInstances
 --
@@ -55,8 +61,12 @@ deriving via Text instance (ToSchema Name)
 -- simplified view, so this collapse is in the correct spirit.
 instance ToSchema (GlobalName 'ADefName) where
   declareNamedSchema _ = rename (Just "GlobalName") <$> declareNamedSchema (Proxy @(PrimerJSON (GlobalName 'ADefName)))
+
+-- TODO vias don't much instance - weird?
 deriving via GlobalName 'ADefName instance ToSchema (GlobalName 'ATyCon)
 deriving via GlobalName 'ADefName instance ToSchema (GlobalName 'AValCon)
+
+-- deriving via Name instance Typeable a => (ToSchema (GlobalName a))
 
 deriving via Name instance (ToSchema LVarName)
 deriving via PrimerJSON Tree instance ToSchema Tree
@@ -67,3 +77,42 @@ deriving via NonEmpty Name instance ToSchema ModuleName
 deriving via PrimerJSON Module instance ToSchema Module
 deriving via PrimerJSON Prog instance ToSchema Prog
 deriving via PrimerJSON ExprTreeOpts instance ToSchema ExprTreeOpts
+deriving via PrimerJSON OfferedAction instance ToSchema OfferedAction
+deriving via PrimerJSON ActionName instance ToSchema ActionName
+deriving via PrimerJSON ActionType instance ToSchema ActionType
+deriving via PrimerJSON Level instance ToSchema Level
+
+deriving anyclass instance ToParamSchema Level
+
+-- deriving anyclass instance FromHttpApiData Level
+deriving anyclass instance ToParamSchema Mutability
+deriving newtype instance ToParamSchema ID
+deriving via Text instance ToParamSchema Name
+
+-- TODO this class should be derivable for enums at least - https://github.com/haskell-servant/servant/issues/1014
+instance FromHttpApiData Mutability where
+  parseUrlPiece = maybeToEither "no read" . readMaybe . T.unpack
+deriving instance Read Mutability
+instance FromHttpApiData Level where
+  parseUrlPiece = maybeToEither "no read" . readMaybe . T.unpack
+deriving instance Read Level
+
+deriving newtype instance FromHttpApiData Name
+deriving newtype instance FromHttpApiData ID
+
+-- deriving via Text instance FromHttpApiData Name
+
+-- deriving via PrimerJSON (OfferedAction a) instance ToSchema a => ToSchema (OfferedAction a)
+
+-- deriving via PrimerJSON ProgAction instance ToSchema ProgAction
+-- deriving via PrimerJSON APIProgAction instance ToSchema APIProgAction
+
+-- instance ToSchema (Type' ()) where
+--   declareNamedSchema = undefined
+-- instance ToSchema ASTTypeDef where
+--   declareNamedSchema = undefined
+-- instance ToSchema SmartHoles where
+--   declareNamedSchema = undefined
+
+-- instance ToSchema (Off) where
+--   declareNamedSchema = undefined

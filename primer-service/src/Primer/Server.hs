@@ -13,6 +13,7 @@ import Control.Concurrent.STM (
   TBQueue,
  )
 
+import Data.Map ((!?))
 import Data.OpenApi (OpenApi)
 import Data.Streaming.Network.Internal (HostPreference (HostIPv4Only))
 import Data.Text.Lazy qualified as LT (fromStrict)
@@ -40,12 +41,16 @@ import Primer.API (
   PrimerErr (..),
   PrimerIO,
   edit,
+  getProgram,
   listSessions,
   newSession,
   renameSession,
   runPrimerIO,
  )
 import Primer.API qualified as API
+import Primer.Action.Available (actionsForDefBody)
+import Primer.App (progAllDefs, progAllTypeDefs)
+import Primer.Core (ModuleName (ModuleName), qualifyName)
 import Primer.Database (
   SessionId,
   Sessions,
@@ -54,6 +59,7 @@ import Primer.Database (
 import Primer.Database qualified as Database (
   Op,
  )
+import Primer.Def (ASTDef (..), Def (..))
 import Primer.Pagination (pagedDefaultClamp)
 import Primer.Servant.API qualified as S
 import Primer.Servant.OpenAPI qualified as OpenAPI
@@ -96,6 +102,18 @@ openAPISessionServer sid =
     { OpenAPI.getProgram = \patternsUnder -> API.getProgram' (ExprTreeOpts{patternsUnder}) sid
     , OpenAPI.getSessionName = API.getSessionName sid
     , OpenAPI.setSessionName = renameSession sid
+    , OpenAPI.availableActionsAPI = openAPIAvailableActionsServer sid
+    }
+
+openAPIAvailableActionsServer :: SessionId -> OpenAPI.AvailableActionsAPI (AsServerT PrimerIO)
+openAPIAvailableActionsServer sid =
+  OpenAPI.SessionAPI'
+    { OpenAPI.getBodyActions = \level mut id d m ms -> do
+        prog <- getProgram sid
+        let gn = qualifyName (ModuleName $ m :| ms) d
+        Just (_, DefAST ASTDef{astDefExpr = expr}) <- pure $ progAllDefs prog !? gn -- TODO uses `MonadFail` - bad error messages
+        pure $ map API.convertOfferedAction $ actionsForDefBody (snd <$> progAllTypeDefs prog) level gn mut id expr
+        -- , OpenAPI.getTypeActions = undefined
     }
 
 apiServer :: S.RootAPI (AsServerT PrimerIO)
