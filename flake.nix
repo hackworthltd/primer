@@ -28,7 +28,7 @@
     hiedb.flake = false;
     hie-bios.url = github:wz1000/hie-bios/aa73d3d2eb89df0003d2468a105e326d71b62cc7;
     hie-bios.flake = false;
-    lsp.url = github:haskell/lsp/c95eb06c70c35f1e13c37ed11a7d9e5b36bfa2e8;
+    lsp.url = github:haskell/lsp/b0f8596887088b8ab65fc1015c773f45b47234ae;
     lsp.flake = false;
   };
 
