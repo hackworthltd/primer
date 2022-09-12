@@ -32,16 +32,7 @@ import Options.Applicative (
   option,
   progDesc,
   str,
-  switch,
   value,
- )
-import Primer.API (
-  Env (..),
-  addSession,
-  runPrimerIO,
- )
-import Primer.App (
-  App,
  )
 import Primer.Database (Version)
 import Primer.Database qualified as Db (
@@ -52,9 +43,6 @@ import Primer.Database qualified as Db (
 import Primer.Database.Rel8 (
   Rel8DbException (..),
   runRel8DbT,
- )
-import Primer.Examples (
-  even3App,
  )
 import Primer.Server (
   serve,
@@ -77,7 +65,7 @@ parseDatabase :: Parser Database
 parseDatabase = PostgreSQL <$> option auto (long "pgsql-url")
 
 data Command
-  = Serve Version (Maybe Database) Int Natural Bool
+  = Serve Version (Maybe Database) Int Natural
 
 serveCmd :: Parser Command
 serveCmd =
@@ -86,7 +74,6 @@ serveCmd =
     <*> optional parseDatabase
     <*> option auto (long "port" <> value 8081)
     <*> option auto (long "db-op-queue-size" <> value 128)
-    <*> switch (long "seed-db")
 
 cmds :: Parser GlobalOptions
 cmds =
@@ -167,12 +154,6 @@ runDb cfg =
               Db.discardOp (Db.opQueue cfg)
               start pool
 
--- A list of 'App's used to seed the database.
-seedApps :: [(Text, App)]
-seedApps =
-  [ ("even3", even3App)
-  ]
-
 banner :: Text
 banner =
   "                      ███                                    \n\
@@ -200,17 +181,12 @@ banner =
 -- and reported (to the student, via HTTP error codes) by Servant.
 run :: GlobalOptions -> IO ()
 run opts = case cmd opts of
-  Serve ver dbFlag port qsz seedDb -> do
+  Serve ver dbFlag port qsz -> do
     dbOpQueue <- newTBQueueIO qsz
     initialSessions <- StmMap.newIO
     putText banner
     putText $ "primer-server version " <> ver
-    _ <- forkIO $ do
-      when seedDb $ do
-        let env = Env initialSessions dbOpQueue ver
-        flip runPrimerIO env $
-          forM_ seedApps $
-            uncurry addSession
+    _ <- forkIO $
       serve initialSessions dbOpQueue ver port
     db <- maybe defaultDb pure dbFlag
     runDb (Db.ServiceCfg dbOpQueue ver) db
