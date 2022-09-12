@@ -17,6 +17,7 @@ import Hedgehog (
   failure,
   label,
   success,
+  (===),
  )
 import Hedgehog.Gen qualified as Gen
 import Hedgehog.Internal.Property (forAllWithT)
@@ -44,6 +45,7 @@ import Primer.App (
   allTyConNames,
   allValConNames,
   appProg,
+  checkAppWellFormed,
   handleEditRequest,
   handleQuestion,
   progAllDefs,
@@ -103,7 +105,7 @@ import Tasty (Property, withDiscards, withTests)
 import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.Golden (goldenVsString)
 import Test.Tasty.HUnit (Assertion, (@?=))
-import Tests.Typecheck (runTypecheckTestMIn)
+import Tests.Typecheck (TypeCacheAlpha (TypeCacheAlpha), runTypecheckTestMIn)
 import Text.Pretty.Simple (pShowNoColor)
 
 -- | Comprehensive DSL test.
@@ -319,7 +321,7 @@ tasty_available_actions_accepted = withTests 500 $
     actionSucceeds :: HasCallStack => EditAppM a -> App -> PropertyT WT ()
     actionSucceeds m a = case runEditAppM m a of
       (Left err, _) -> annotateShow err >> failure
-      (Right _, _) -> pure ()
+      (Right _, a') -> ensureSHNormal a'
     -- If we submit our own name rather than an offered one, then
     -- we should expect that name capture/clashing may happen
     actionSucceedsOrCapture :: HasCallStack => EditAppM a -> App -> PropertyT WT ()
@@ -334,7 +336,10 @@ tasty_available_actions_accepted = withTests 500 $
         label "rename def name clash with entered name"
         annotate "ignoring def already exists error as was generated name, not offered one"
       (Left err, _) -> annotateShow err >> failure
-      (Right _, _) -> pure ()
+      (Right _, a') -> ensureSHNormal a'
+    ensureSHNormal a = case checkAppWellFormed a of
+      Left err -> annotateShow err >> failure
+      Right a' -> TypeCacheAlpha a === TypeCacheAlpha a'
     querySucceeds :: HasCallStack => QueryAppM a -> App -> PropertyT WT a
     querySucceeds m a = case runQueryAppM m a of
       Left err -> annotateShow err >> failure
