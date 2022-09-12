@@ -10,6 +10,7 @@
 module Primer.Gen.Core.Typed (
   WT,
   isolateWT,
+  genList,
   genWTType,
   genWTKind,
   genSyns,
@@ -456,6 +457,12 @@ genGlobalCxtExtension =
 forgetLocals :: Cxt -> Cxt
 forgetLocals cxt = cxt{localCxt = mempty}
 
+-- | Like 'Gen.list', but weighted to produce empty list 10% of time,
+-- and length between 1 and argument the rest of the time (linearly
+-- scaled with size)
+genList :: MonadGen g => Int -> g a -> g [a]
+genList n g = Gen.frequency [(1, pure []), (9, Gen.list (Range.linear 1 n) g)]
+
 -- Generates a group of potentially-mutually-recursive typedefs
 -- If given a module name, they will all live in that module,
 -- otherwise they may live in disparate modules
@@ -465,7 +472,7 @@ genTypeDefGroup mod = local forgetLocals $ do
   let tyconName = case mod of
         Nothing -> freshTyConNameForCxt
         Just m -> qualifyName m <$> freshNameForCxt
-  nps <- Gen.list (Range.linear 1 5) $ (,) <$> tyconName <*> genParams
+  nps <- genList 5 $ (,) <$> tyconName <*> genParams
   -- create empty typedefs to temporarilly extend the context, so can do recursive types
   let types =
         map

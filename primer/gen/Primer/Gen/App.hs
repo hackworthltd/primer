@@ -35,6 +35,7 @@ import Primer.Gen.Core.Typed (
   WT,
   freshNameForCxt,
   genChk,
+  genList,
   genTypeDefGroup,
   genWTType,
   isolateWT,
@@ -96,7 +97,7 @@ genProg sh initialImports = local (extendCxtByModules initialImports) $ do
 -- Generate a mutually-recursive group of term definitions
 genASTDefGroup :: ModuleName -> GenT WT (Map Name Def)
 genASTDefGroup mod = do
-  nts <- Gen.list (Range.linear 0 5) $ (\n t -> (qualifyName mod n, t)) <$> freshNameForCxt <*> genWTType KType
+  nts <- genList 5 $ (\n t -> (qualifyName mod n, t)) <$> freshNameForCxt <*> genWTType KType
   nTyTms <- local (extendGlobalCxt nts) $ for nts $ \(n, ty) -> (n,ty,) <$> genChk ty
   fmap M.fromList . for nTyTms $ \(n, ty, tm) -> do
     tm' <- generateIDs tm

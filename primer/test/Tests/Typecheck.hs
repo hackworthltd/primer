@@ -752,7 +752,7 @@ unit_tcWholeProg_notice_type_updates =
 -- This is only up to alpha in the TypeCaches, for the same reasons as
 -- unit_smartholes_idempotent_alpha_typecache
 tasty_tcWholeProg_idempotent :: Property
-tasty_tcWholeProg_idempotent = withTests 1000 $
+tasty_tcWholeProg_idempotent = withTests 500 $
   withDiscards 2000 $
     propertyWT [] $ do
       base <- forAllT $ Gen.element [[], [builtinModule], [builtinModule, primitiveModule]]
