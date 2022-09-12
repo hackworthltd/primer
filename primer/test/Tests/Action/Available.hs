@@ -3,21 +3,62 @@ module Tests.Action.Available where
 import Foreword
 
 import Data.ByteString.Lazy.Char8 qualified as BS
-import Data.List.Extra (enumerate)
+import Data.List.Extra (enumerate, partition)
 import Data.Map qualified as Map
 import Data.Text qualified as T
 import Data.Text.Lazy qualified as TL
 import GHC.Err (error)
-import Optics (toListOf, (%))
-import Primer.Action (ActionName (..), OfferedAction (description, name))
+import Hedgehog (
+  PropertyT,
+  annotate,
+  annotateShow,
+  collect,
+  discard,
+  failure,
+  label,
+  success,
+ )
+import Hedgehog.Gen qualified as Gen
+import Hedgehog.Internal.Property (forAllWithT)
+import Optics (toListOf, (%), (^..))
+import Primer.Action (
+  ActionError (CaseBindsClash, NameCapture),
+  ActionInput (..),
+  ActionName (..),
+  OfferedAction (..),
+  UserInput (
+    ChooseConstructor,
+    ChooseOrEnterName,
+    ChooseTypeConstructor,
+    ChooseTypeVariable,
+    ChooseVariable
+  ),
+ )
 import Primer.Action.Available (actionsForDef, actionsForDefBody, actionsForDefSig)
-import Primer.App (Editable (Editable))
+import Primer.App (
+  App,
+  EditAppM,
+  Editable (Editable, NonEditable),
+  ProgError (ActionError, DefAlreadyExists),
+  QueryAppM,
+  allTyConNames,
+  allValConNames,
+  appProg,
+  handleEditRequest,
+  handleQuestion,
+  progAllDefs,
+  progAllTypeDefs,
+  runEditAppM,
+  runQueryAppM,
+ )
 import Primer.Core (
   GVarName,
   GlobalName (baseName, qualifiedModule),
   HasID (_id),
   ID,
-  ModuleName (ModuleName),
+  LocalName (unLocalName),
+  ModuleName (ModuleName, unModuleName),
+  TmVarRef (GlobalVarRef, LocalVarRef),
   mkSimpleModuleName,
   moduleNamePretty,
   qualifyName,
@@ -31,12 +72,17 @@ import Primer.Core.DSL (
  )
 import Primer.Core.Utils (
   exprIDs,
+  typeIDs,
  )
 import Primer.Def (
   ASTDef (..),
   Def (DefAST, DefPrim),
+  defAST,
  )
 import Primer.Examples (comprehensiveWellTyped)
+import Primer.Gen.App (genApp)
+import Primer.Gen.Core.Raw (genName)
+import Primer.Gen.Core.Typed (WT, forAllT, propertyWT)
 import Primer.Module (
   Module (Module, moduleDefs),
   builtinModule,
@@ -44,13 +90,16 @@ import Primer.Module (
   primitiveModule,
  )
 import Primer.Name (Name (unName))
+import Primer.Questions (variablesInScopeExpr, variablesInScopeTy)
 import Primer.Typecheck (
   CheckEverythingRequest (CheckEverything, toCheck, trusted),
-  SmartHoles (NoSmartHoles),
+  SmartHoles (NoSmartHoles, SmartHoles),
   buildTypingContextFromModules,
   checkEverything,
  )
+import Primer.Zipper (focusOn, focusOnTy, locToEither)
 import System.FilePath ((</>))
+import Tasty (Property, withDiscards, withTests)
 import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.Golden (goldenVsString)
 import Test.Tasty.HUnit (Assertion, (@?=))
@@ -145,3 +194,149 @@ unit_def_in_use =
             description <$> actionsForDef l defs d
               @?= ["Rename this definition", "Duplicate this definition"]
         )
+
+tasty_available_actions_accepted :: Property
+tasty_available_actions_accepted = withTests 500 $
+  withDiscards 2000 $
+    propertyWT [] $ do
+      l <- forAllT $ Gen.element enumerate
+      cxt <- forAllT $ Gen.element [[], [builtinModule], [builtinModule, primitiveModule]]
+      -- We only test SmartHoles mode (which is the only supported user-facing
+      -- mode - NoSmartHoles is only used for internal sanity testing etc)
+      a <- forAllT $ genApp SmartHoles cxt
+      let allDefs = progAllDefs $ appProg a
+      let isMutable = \case
+            Editable -> True
+            NonEditable -> False
+      (defName, (defMut, def)) <- case partition (isMutable . fst . snd) $ Map.toList allDefs of
+        ([], []) -> discard
+        (mut, []) -> label "all mut" >> forAllT (Gen.element mut)
+        ([], immut) -> label "all immut" >> forAllT (Gen.element immut)
+        (mut, immut) -> label "mixed mut/immut" >> forAllT (Gen.frequency [(9, Gen.element mut), (1, Gen.element immut)])
+      collect defMut
+      case def of
+        DefAST{} -> label "AST"
+        DefPrim{} -> label "Prim"
+      (loc, acts) <-
+        fmap snd . forAllWithT fst $
+          Gen.frequency $
+            catMaybes
+              [ Just (1, pure ("actionsForDef", (Nothing, actionsForDef l allDefs defName)))
+              , defAST def <&> \d' -> (2,) $ do
+                  let ty = astDefType d'
+                      ids = ty ^.. typeIDs
+                  i <- Gen.element ids
+                  let ann = "actionsForDefSig id " <> show i
+                  pure (ann, (Just $ Left i, actionsForDefSig l defName defMut i ty))
+              , defAST def <&> \d' -> (7,) $ do
+                  let expr = astDefExpr d'
+                      ids = expr ^.. exprIDs
+                  i <- Gen.element ids
+                  let ann = "actionsForDefBody id " <> show i
+                  pure (ann, (Just $ Right i, actionsForDefBody (snd <$> progAllTypeDefs (appProg a)) l defName defMut i expr))
+              ]
+      case acts of
+        [] -> label "no offered actions" >> success
+        acts' -> do
+          action <- forAllWithT (toS . description) $ Gen.element acts'
+          let checkActionInput = \case
+                InputRequired (ChooseConstructor _ f) -> do
+                  label "ChooseConstructor"
+                  let cons = allValConNames $ appProg a
+                  if null cons
+                    then label "no valcons, skip" >> success
+                    else do
+                      c <- forAllT $ Gen.element cons
+                      let act' = f $ globalNameToQualifiedText c
+                      annotateShow act'
+                      actionSucceeds (handleEditRequest act') a
+                InputRequired (ChooseTypeConstructor f) -> do
+                  label "ChooseTypeConstructor"
+                  let cons = allTyConNames $ appProg a
+                  if null cons
+                    then label "no tycons, skip" >> success
+                    else do
+                      c <- forAllT $ Gen.element cons
+                      let act' = f $ globalNameToQualifiedText c
+                      annotateShow act'
+                      actionSucceeds (handleEditRequest act') a
+                InputRequired (ChooseOrEnterName _ opts f) -> do
+                  label "ChooseOrEnterName"
+                  annotateShow opts
+                  let anOpt = (True,) <$> Gen.element opts
+                      other = (False,) <$> genName
+                  (wasOffered, n) <- forAllT $ if null opts then other else Gen.choice [anOpt, other]
+                  let act' = f n
+                  annotateShow act'
+                  (if wasOffered then actionSucceeds else actionSucceedsOrCapture) (handleEditRequest act') a
+                InputRequired (ChooseVariable _ f) -> do
+                  label "ChooseVariable"
+                  let vars = case loc of
+                        Nothing -> error "actionsForDef only ever gives ChooseOrEnterName or NoInputRequired"
+                        Just (Left _) -> error "Shouldn't offer ChooseVariable in a type!"
+                        Just (Right i) -> case focusOn i . astDefExpr =<< defAST def of
+                          Nothing -> error "cannot focus on an id in the expr?"
+                          Just ez ->
+                            let (_, lvars, gvars) = variablesInScopeExpr (snd <$> allDefs) $ locToEither ez
+                             in map (LocalVarRef . fst) lvars <> map (GlobalVarRef . fst) gvars
+                  if null vars
+                    then label "no vars, skip" >> success
+                    else do
+                      v <- forAllT $ Gen.element vars
+                      let act' = f v
+                      annotateShow act'
+                      actionSucceeds (handleEditRequest act') a
+                InputRequired (ChooseTypeVariable f) -> do
+                  label "ChooseTypeVariable"
+                  let vars = case loc of
+                        Nothing -> error "actionsForDef only ever gives ChooseOrEnterName or NoInputRequired"
+                        Just (Left i) -> case focusOnTy i . astDefType =<< defAST def of
+                          Nothing -> error "cannot focus on an id in the type?"
+                          Just tz -> fst <$> variablesInScopeTy tz
+                        Just (Right i) -> case focusOn i . astDefExpr =<< defAST def of
+                          Nothing -> error "cannot focus on an id in the expr?"
+                          Just ez ->
+                            let (tyvars, _, _) = variablesInScopeExpr (snd <$> allDefs) $ locToEither ez
+                             in fst <$> tyvars
+                  if null vars
+                    then label "no tyvars, skip" >> success
+                    else do
+                      v <- forAllT $ Gen.element vars
+                      let act' = f $ unName $ unLocalName v
+                      annotateShow act'
+                      actionSucceeds (handleEditRequest act') a
+                NoInputRequired act' -> do
+                  label "NoInputRequired"
+                  annotateShow act'
+                  actionSucceeds (handleEditRequest act') a
+                AskQuestion q act' -> do
+                  label "GenerateName (recurses)"
+                  answer <- querySucceeds (handleQuestion q) a
+                  checkActionInput $ act' answer
+          collect $ description action
+          checkActionInput $ input action
+  where
+    actionSucceeds :: HasCallStack => EditAppM a -> App -> PropertyT WT ()
+    actionSucceeds m a = case runEditAppM m a of
+      (Left err, _) -> annotateShow err >> failure
+      (Right _, _) -> pure ()
+    -- If we submit our own name rather than an offered one, then
+    -- we should expect that name capture/clashing may happen
+    actionSucceedsOrCapture :: HasCallStack => EditAppM a -> App -> PropertyT WT ()
+    actionSucceedsOrCapture m a = case runEditAppM m a of
+      (Left (ActionError NameCapture), _) -> do
+        label "name-capture with entered name"
+        annotate "ignoring name capture error as was generated name, not offered one"
+      (Left (ActionError (CaseBindsClash{})), _) -> do
+        label "name-clash with entered name"
+        annotate "ignoring name clash error as was generated name, not offered one"
+      (Left DefAlreadyExists{}, _) -> do
+        label "rename def name clash with entered name"
+        annotate "ignoring def already exists error as was generated name, not offered one"
+      (Left err, _) -> annotateShow err >> failure
+      (Right _, _) -> pure ()
+    querySucceeds :: HasCallStack => QueryAppM a -> App -> PropertyT WT a
+    querySucceeds m a = case runQueryAppM m a of
+      Left err -> annotateShow err >> failure
+      Right x -> pure x
+    globalNameToQualifiedText n = (fmap unName $ unModuleName $ qualifiedModule n, unName $ baseName n)
