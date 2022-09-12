@@ -1155,7 +1155,7 @@ checkAppWellFormed app =
   -- check rather pointless. See:
   --
   -- https://github.com/hackworthltd/primer/issues/510
-  fst . flip runEditAppM app $ mkApp (appIdCounter app) (appNameCounter app) <$> liftError ActionError (checkProgWellFormed (appProg app))
+  fst . flip runEditAppM app $ traverseOf (#currentState % #prog) (liftError ActionError . checkProgWellFormed) app
 
 checkProgWellFormed ::
   ( MonadFresh ID m
