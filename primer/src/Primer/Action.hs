@@ -23,7 +23,7 @@ module Primer.Action (
 import Foreword hiding (mod)
 
 import Control.Monad.Fresh (MonadFresh)
-import Data.Aeson (Value)
+import Data.Aeson (FromJSON, Value)
 import Data.Generics.Product (typed)
 import Data.List (findIndex)
 import Data.Map.Strict qualified as Map
@@ -218,6 +218,7 @@ data Level
   | -- | All features.
     Expert
   deriving (Eq, Show, Enum, Bounded, Generic)
+  deriving (FromJSON, ToJSON) via PrimerJSON Level
 
 -- | Sigh, yes, this is required so that Safari doesn't try to
 -- autocomplete these fields with your contact data.

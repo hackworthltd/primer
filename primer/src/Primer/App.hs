@@ -232,6 +232,7 @@ progAllModules p = progModules p <> progImports p
 
 data Editable = Editable | NonEditable
   deriving (Bounded, Enum, Show, Generic)
+  deriving (FromJSON, ToJSON) via PrimerJSON Mutability
 
 progAllTypeDefs :: Prog -> Map TyConName (Editable, TypeDef)
 progAllTypeDefs p =

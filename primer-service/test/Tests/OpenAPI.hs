@@ -23,7 +23,8 @@ import Primer.API (
   viewTreeExpr,
   viewTreeType,
  )
-import Primer.Action (ActionName (..), ActionType (..))
+import Primer.Action (ActionName (..), ActionType (..), Level)
+import Primer.App (Mutability)
 import Primer.Core (ID (ID))
 import Primer.Database (Session (Session), SessionName, safeMkSessionName)
 import Primer.Gen.API (genExprTreeOpts)
@@ -39,14 +40,15 @@ import Primer.Gen.Core.Raw (
   genType,
   genValConName,
  )
+import Primer.Name (Name, unsafeMkName)
 import Primer.OpenAPI ()
 import Primer.Pagination (NonNeg, Paginated (Paginated), PaginatedMeta (..), Positive, mkNonNeg, mkPositive)
-import Primer.Servant.OpenAPI (API)
+import Primer.Servant.OpenAPI (API, AvailableActionsAPIBody (..))
 import Primer.Server (openAPIInfo)
 import Servant.OpenApi.Test (validateEveryToJSON)
 import Tasty (Property, property)
 import Test.Hspec (Spec)
-import Test.QuickCheck (Arbitrary (arbitrary), arbitraryBoundedEnum, oneof)
+import Test.QuickCheck (Arbitrary (arbitrary), arbitraryBoundedEnum, discard, oneof)
 import Test.QuickCheck.Hedgehog (hedgehog)
 import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.Golden (goldenVsString)
@@ -216,6 +218,17 @@ instance Arbitrary Prog where
 
 instance Arbitrary OfferedAction where
   arbitrary = OfferedAction <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
+instance Arbitrary AvailableActionsAPIBody where
+  arbitrary = AvailableActionsAPIBody <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
+instance Arbitrary a => Arbitrary (NonEmpty a) where
+  arbitrary = maybe discard pure . nonEmpty =<< arbitrary
+instance Arbitrary Level where
+  arbitrary = arbitraryBoundedEnum
+instance Arbitrary Mutability where
+  arbitrary = arbitraryBoundedEnum
+deriving newtype instance Arbitrary ID
+instance Arbitrary Name where
+  arbitrary = unsafeMkName <$> arbitrary @Text
 instance Arbitrary ActionName where
   arbitrary = oneof [map Code arbitrary, map Prose arbitrary]
 deriving instance Bounded ActionType

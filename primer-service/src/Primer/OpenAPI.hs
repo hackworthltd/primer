@@ -81,6 +81,7 @@ deriving via PrimerJSON OfferedAction instance ToSchema OfferedAction
 deriving via PrimerJSON ActionName instance ToSchema ActionName
 deriving via PrimerJSON ActionType instance ToSchema ActionType
 deriving via PrimerJSON Level instance ToSchema Level
+deriving via PrimerJSON Mutability instance ToSchema Mutability
 
 deriving anyclass instance ToParamSchema Level
 

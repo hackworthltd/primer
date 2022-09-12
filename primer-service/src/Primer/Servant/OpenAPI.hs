@@ -9,12 +9,15 @@ module Primer.Servant.OpenAPI (
   SessionsAPI (..),
   SessionAPI (..),
   AvailableActionsAPI (..),
+  AvailableActionsAPIBody (..),
   Spec,
 ) where
 
 import Foreword
 
+import Data.Aeson (FromJSON, ToJSON)
 import Data.OpenApi (OpenApi)
+import Data.OpenApi.Schema (ToSchema)
 import Primer.API qualified as API
 import Primer.Action (Level)
 import Primer.App (Mutability)
@@ -22,6 +25,7 @@ import Primer.Core
 import Primer.Database (
   SessionId,
  )
+import Primer.JSON (CustomJSON (..), PrimerJSON)
 import Primer.Name (Name)
 import Primer.OpenAPI ()
 import Primer.Servant.Types (
@@ -32,7 +36,7 @@ import Primer.Servant.Types (
   GetVersion,
   SetSessionName,
  )
-import Servant (Capture, Capture', Description, Get, JSON, NamedRoutes, QueryFlag, Summary, (:>))
+import Servant (Capture', Description, Get, JSON, NamedRoutes, Post, QueryFlag, ReqBody, Summary, (:>))
 import Servant.API.Generic (
   GenericMode ((:-)),
  )
@@ -86,27 +90,22 @@ data SessionAPI mode = SessionAPI
   }
   deriving (Generic)
 
--- POST needed for body, but lose caching etc.: https://stackoverflow.com/a/29210375 (and elsewhere)
--- :> Get '[JSON] [API.OfferedAction]
 data AvailableActionsAPI mode = AvailableActionsAPI
   { getBodyActions ::
       mode
         :- "body"
         :> Summary "Get available actions at the given body node"
-        -- :> QueryParam "level" Level
-        -- :> QueryParam "mut" Mutability
-        -- :> QueryParam "id" ID
-        -- :> QueryParam "def" Name
-        :> Capture "level" Level
-        :> Capture "mut" Mutability
-        :> Capture "id" ID
-        :> Capture "def" Name
-        -- :> Capture' '[] "level" Level
-        -- :> Capture' '[] "mut" Mutability
-        -- :> Capture' '[] "id" ID
-        -- :> Capture' '[] "def" Name
-        :> Capture "module" Name
-        :> Get '[JSON] [API.OfferedAction]
+        :> ReqBody '[JSON] AvailableActionsAPIBody
+        :> Post '[JSON] [API.OfferedAction]
         -- , getTypeActions :: ()
   }
   deriving (Generic)
+data AvailableActionsAPIBody = AvailableActionsAPIBody
+  { level :: Level
+  , mut :: Mutability
+  , id :: ID
+  , def :: Name
+  , module_ :: NonEmpty Name
+  }
+  deriving (Show, Generic)
+  deriving (FromJSON, ToJSON, ToSchema) via PrimerJSON AvailableActionsAPIBody

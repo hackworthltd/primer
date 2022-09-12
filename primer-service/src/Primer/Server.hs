@@ -1,5 +1,6 @@
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE OverloadedLabels #-}
+{-# LANGUAGE RecordWildCards #-}
 
 -- | An HTTP service for the Primer API.
 module Primer.Server (
@@ -62,6 +63,7 @@ import Primer.Database qualified as Database (
 import Primer.Def (ASTDef (..), Def (..))
 import Primer.Pagination (pagedDefaultClamp)
 import Primer.Servant.API qualified as S
+import Primer.Servant.OpenAPI (AvailableActionsAPIBody (AvailableActionsAPIBody))
 import Primer.Servant.OpenAPI qualified as OpenAPI
 import Servant (
   Handler (Handler),
@@ -108,9 +110,9 @@ openAPISessionServer sid =
 openAPIAvailableActionsServer :: SessionId -> OpenAPI.AvailableActionsAPI (AsServerT PrimerIO)
 openAPIAvailableActionsServer sid =
   OpenAPI.AvailableActionsAPI
-    { OpenAPI.getBodyActions = \level mut id d m -> do
+    { OpenAPI.getBodyActions = \AvailableActionsAPIBody{..} -> do
         prog <- getProgram sid
-        let gn = qualifyName (ModuleName $ m :| []) d
+        let gn = qualifyName (ModuleName module_) def
         Just (_, DefAST ASTDef{astDefExpr = expr}) <- pure $ progAllDefs prog !? gn -- TODO uses `MonadFail` - bad error messages
         pure $ map API.convertOfferedAction $ actionsForDefBody (snd <$> progAllTypeDefs prog) level gn mut id expr
         -- , OpenAPI.getTypeActions = undefined
