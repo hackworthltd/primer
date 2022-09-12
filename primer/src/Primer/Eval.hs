@@ -235,7 +235,7 @@ redexes primDefs = go mempty
             -- If it was, it would be a different x and we'd cause variable capture if we
             -- substituted e into the λ body.
             App _ e1@(Letrec _ x _ _ Lam{}) e4 ->
-              (self `mwhen` isFresh x e4) <> go locals e1 <> go locals e4
+              mwhen (isFresh x e4) self <> go locals e1 <> go locals e4
             -- Application of a primitive (fully-applied, with all arguments in normal form).
             App{} | Just _ <- tryPrimFun primDefs expr -> self
             -- f x
@@ -245,7 +245,7 @@ redexes primDefs = go mempty
             -- (letrec x : T = t in Λ ...) e  ~>  letrec x : T = t in ((Λ ...) e)
             -- This is the same as the letrec case above, but for Λ
             APP _ e1@(Letrec _ x _ _ LAM{}) e4 ->
-              (self `mwhen` isFreshTy x e4) <> go locals e1 <> goType letTy e4
+              mwhen (isFreshTy x e4) self <> go locals e1 <> goType letTy e4
             APP _ e t -> go locals e <> goType letTy t
             Var _ (LocalVarRef x)
               | Map.member x letTm -> self
@@ -264,11 +264,11 @@ redexes primDefs = go mempty
                     ( if selfCapture then letTm else insertTm x e1 letTm
                     , letTy
                     )
-               in go locals e1 <> go locals' e2 <> (self `munless` (not selfCapture && freeTmVar x e2))
+               in go locals e1 <> go locals' e2 <> munless (not selfCapture && freeTmVar x e2) self
             -- Whereas here, x is in scope in both e1 and e2.
             Letrec _ x e1 t e2 ->
               let locals' = (insertTm x e1 letTm, letTy)
-               in go locals' e1 <> go locals' e2 <> goType letTy t <> (self `munless` freeTmVar x e2)
+               in go locals' e1 <> go locals' e2 <> goType letTy t <> munless (freeTmVar x e2) self
             -- As with Let, x is in scope in e but not in t
             LetType _ x t e ->
               -- We need to be careful that the LetType will not capture a
@@ -276,7 +276,7 @@ redexes primDefs = go mempty
               -- of itself. See the comment on 'Let' above for an example.
               let selfCapture = not $ isFreshTy x t
                   locals' = (removeTmTy x letTm, if selfCapture then letTy else insertTy x t letTy)
-               in goType (snd locals) t <> go locals' e <> self `munless` (not selfCapture && freeTyVar x e)
+               in goType (snd locals) t <> go locals' e <> munless (not selfCapture && freeTyVar x e) self
             Lam _ x e -> go (removeTm x letTm, letTy) e
             LAM _ x e -> go (letTm, removeTy x letTy) e
             EmptyHole{} -> mempty
@@ -398,13 +398,3 @@ tryReduceType _globals locals = \case
                 }
           )
   _ -> throwError NotRedex
-
--- | @x `munless` b@ is `x` if `b` is 'False', otherwise it is 'mempty'.
--- It's like 'Control.Monad.unless' but for Monoids rather than Applicatives.
-munless :: Monoid a => a -> Bool -> a
-munless x b = if b then mempty else x
-
--- | @x `mwhen` b@ is `x` if `b` is 'True', otherwise it is 'mempty'.
--- It's like 'Control.Monad.when' but for Monoids rather than Applicatives.
-mwhen :: Monoid a => a -> Bool -> a
-mwhen x b = if b then x else mempty

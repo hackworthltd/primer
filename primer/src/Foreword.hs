@@ -7,6 +7,8 @@ module Foreword (
   findAndAdjust,
   findAndAdjustA,
   modifyError,
+  mwhen,
+  munless,
 ) where
 
 -- In general, we should defer to "Protolude"'s exports and avoid name
@@ -102,3 +104,13 @@ findAndAdjustA p f = \case
 -- | Change the type of an error.
 modifyError :: MonadError e' m => (e -> e') -> ExceptT e m a -> m a
 modifyError f = runExceptT >=> either (throwError . f) pure
+
+-- | @munless b x@ is `x` if `b` is 'False', otherwise it is 'mempty'.
+-- It's like 'Control.Monad.unless' but for Monoids rather than Applicatives.
+munless :: Monoid a => Bool -> a -> a
+munless b x = if b then mempty else x
+
+-- | @mwhen b x@ is `x` if `b` is 'True', otherwise it is 'mempty'.
+-- It's like 'Control.Monad.when' but for Monoids rather than Applicatives.
+mwhen :: Monoid a => Bool -> a -> a
+mwhen b x = if b then x else mempty

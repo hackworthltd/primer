@@ -10,6 +10,7 @@ import Foreword
 import Data.Data (Data)
 import Data.List.NonEmpty qualified as NE
 import Data.Map qualified as Map
+import Data.Set qualified as Set
 import Optics (
   to,
   (%),
@@ -32,7 +33,7 @@ import Primer.Action (
   uniquifyDefName,
  )
 import Primer.Action.Priorities qualified as P
-import Primer.App (globalInUse)
+import Primer.App (Editable (Editable, NonEditable), globalInUse)
 import Primer.Core (
   Bind' (..),
   Expr,
@@ -42,11 +43,13 @@ import Primer.Core (
   GlobalName (baseName, qualifiedModule),
   ID,
   Kind,
+  LVarName,
   Meta (..),
   Type,
   Type' (..),
   TypeCache (..),
   getID,
+  unLocalName,
   _bindMeta,
   _chkedAt,
   _exprMetaLens,
@@ -56,14 +59,23 @@ import Primer.Core (
   _typeMetaLens,
  )
 import Primer.Core.Transform (unfoldFun)
-import Primer.Core.Utils (forgetTypeMetadata)
+import Primer.Core.Utils (forgetTypeMetadata, freeVars)
 import Primer.Def (
   ASTDef (..),
-  DefMap,
+  Def,
   defAST,
  )
 import Primer.Name (unName)
 import Primer.Questions (Question (..))
+import Primer.TypeDef (
+  TypeDef (TypeDefAST),
+  TypeDefMap,
+ )
+import Primer.Typecheck (
+  TypeDefError (TDIHoleType),
+  TypeDefInfo (TypeDefInfo),
+  getTypeDefInfo',
+ )
 import Primer.Zipper (
   BindLoc' (BindCase),
   Loc' (InBind, InExpr, InType),
@@ -86,28 +98,30 @@ data SomeNode a b
 
 actionsForDef ::
   Level ->
-  -- | All existing definitions
-  DefMap ->
+  -- | All existing definitions, along with their mutability
+  Map GVarName (Editable, Def) ->
   -- | The name of a definition in the map
   GVarName ->
   [OfferedAction [ProgAction]]
-actionsForDef l defs defName = catMaybes [Just rename, duplicate, delete]
+actionsForDef l defs defName = catMaybes [rename, duplicate, delete]
   where
-    rename =
-      OfferedAction
-        { name = Prose "r"
-        , description = "Rename this definition"
-        , input =
-            InputRequired $
-              ChooseOrEnterName
-                ("Enter a new " <> nameString <> " for the definition")
-                []
-                (\name -> [RenameDef defName (unName name)])
-        , priority = P.rename l
-        , actionType = Primary
-        }
+    rename = do
+      _ <- getEditableASTDef
+      pure $
+        OfferedAction
+          { name = Prose "r"
+          , description = "Rename this definition"
+          , input =
+              InputRequired $
+                ChooseOrEnterName
+                  ("Enter a new " <> nameString <> " for the definition")
+                  []
+                  (\name -> [RenameDef defName (unName name)])
+          , priority = P.rename l
+          , actionType = Primary
+          }
     duplicate = do
-      def <- defAST =<< Map.lookup defName defs
+      def <- getEditableASTDef
       pure $
         OfferedAction
           { name = Prose "d"
@@ -117,7 +131,7 @@ actionsForDef l defs defName = catMaybes [Just rename, duplicate, delete]
 
                   bodyID = getID $ astDefExpr def
 
-                  copyName = uniquifyDefName (qualifiedModule defName) (unName (baseName defName) <> "Copy") defs
+                  copyName = uniquifyDefName (qualifiedModule defName) (unName (baseName defName) <> "Copy") $ fmap snd defs
                in NoInputRequired
                     [ CreateDef (qualifiedModule defName) (Just copyName)
                     , CopyPasteSig (defName, sigID) []
@@ -128,7 +142,8 @@ actionsForDef l defs defName = catMaybes [Just rename, duplicate, delete]
           }
     delete = do
       -- Ensure it is not in use, otherwise the action will not succeed
-      guard $ not $ globalInUse defName $ Map.delete defName defs
+      _ <- getEditableDef
+      guard $ not $ globalInUse defName $ Map.delete defName $ fmap snd defs
       pure
         OfferedAction
           { name = Prose "⌫"
@@ -137,15 +152,24 @@ actionsForDef l defs defName = catMaybes [Just rename, duplicate, delete]
           , priority = P.delete l
           , actionType = Destructive
           }
+    getEditableDef = do
+      (m, d) <- Map.lookup defName defs
+      case m of
+        NonEditable -> Nothing
+        Editable -> pure d
+    getEditableASTDef = defAST =<< getEditableDef
 
 -- | Given the body of a Def and the ID of a node in it, return the possible actions that can be applied to it
 actionsForDefBody ::
+  TypeDefMap ->
   Level ->
   GVarName ->
+  Editable ->
   ID ->
   Expr ->
   [OfferedAction [ProgAction]]
-actionsForDefBody l defName id expr =
+actionsForDefBody _ _ _ NonEditable _ _ = mempty
+actionsForDefBody tydefs l defName mut@Editable id expr =
   let toProgAction actions = [MoveToDef defName, BodyAction actions]
 
       raiseAction' =
@@ -163,7 +187,7 @@ actionsForDefBody l defName id expr =
                 Nothing -> [] -- at root already, cannot raise
                 Just (ExprNode (Hole _ _)) -> [] -- in a NE hole, don't offer raise (as hole will probably just be recreated)
                 _ -> [raiseAction']
-           in (toProgAction <<$>> basicActionsForExpr l defName e) <> raiseAction
+           in (toProgAction <<$>> basicActionsForExpr tydefs l defName e) <> raiseAction
         Just (TypeNode t, p) ->
           let raiseAction = case p of
                 Just (ExprNode _) -> [] -- at the root of an annotation, so cannot raise
@@ -172,17 +196,19 @@ actionsForDefBody l defName id expr =
                   <<$>> (basicActionsForType l defName t <> compoundActionsForType l t)
               )
                 <> raiseAction
-        Just (CaseBindNode b, _) -> toProgAction <<$>> actionsForBinding l defName b
+        Just (CaseBindNode b, _) -> toProgAction <<$>> actionsForBinding l defName mut b
 
 -- | Given a the type signature of a Def and the ID of a node in it,
 -- return the possible actions that can be applied to it
 actionsForDefSig ::
   Level ->
   GVarName ->
+  Editable ->
   ID ->
   Type ->
   [OfferedAction [ProgAction]]
-actionsForDefSig l defName id ty =
+actionsForDefSig _ _ NonEditable _ _ = mempty
+actionsForDefSig l defName Editable id ty =
   let toProgAction actions = [MoveToDef defName, SigAction actions]
 
       raiseAction =
@@ -207,9 +233,11 @@ actionsForDefSig l defName id ty =
 actionsForBinding ::
   Level ->
   GVarName ->
+  Editable ->
   Bind' (Meta (Maybe TypeCache)) ->
   [OfferedAction [Action]]
-actionsForBinding l defName b =
+actionsForBinding _ _ NonEditable _ = mempty
+actionsForBinding l defName Editable b =
   realise
     b
     (b ^. _bindMeta)
@@ -315,16 +343,16 @@ realise p m = map (\a -> a p m)
 
 -- | Given an expression, determine what basic actions it supports
 -- Specific projections may provide other actions not listed here
-basicActionsForExpr :: Level -> GVarName -> Expr -> [OfferedAction [Action]]
-basicActionsForExpr l defName expr = case expr of
+basicActionsForExpr :: TypeDefMap -> Level -> GVarName -> Expr -> [OfferedAction [Action]]
+basicActionsForExpr tydefs l defName expr = case expr of
   EmptyHole m -> realise expr m $ universalActions m <> emptyHoleActions m
   Hole m _ -> realise expr m $ defaultActions m <> holeActions
   Ann m _ _ -> realise expr m $ defaultActions m <> annotationActions
   Lam m _ _ -> realise expr m $ defaultActions m <> lambdaActions m
   LAM m _ _ -> realise expr m $ defaultActions m <> bigLambdaActions m
-  Let m _ e _ -> realise expr m $ defaultActions m <> letActions (e ^? _exprMetaLens % _type % _Just % _synthed)
+  Let m v e _ -> realise expr m $ defaultActions m <> letActions v e
   Letrec m _ _ t _ -> realise expr m $ defaultActions m <> letRecActions (Just t)
-  e -> realise expr (e ^. _exprMetaLens) $ defaultActions (e ^. _exprMetaLens)
+  e -> realise expr (e ^. _exprMetaLens) $ defaultActions (e ^. _exprMetaLens) ++ expert annotateExpression
   where
     insertVariable =
       let filterVars = case l of
@@ -520,6 +548,9 @@ basicActionsForExpr l defName expr = case expr of
     deleteExpr :: forall a. ActionSpec Expr a
     deleteExpr = action (Prose "⌫") "Delete this expression" (P.delete l) Destructive [Delete]
 
+    expert :: a -> [a]
+    expert = if l == Expert then (: []) else const []
+
     emptyHoleActions :: forall a. ExprMeta -> [ActionSpec Expr a]
     emptyHoleActions m = case l of
       Beginner ->
@@ -535,9 +566,10 @@ basicActionsForExpr l defName expr = case expr of
         , makeLetrec
         , enterHole
         ]
+          ++ expert annotateExpression
 
     holeActions :: forall a. [ActionSpec Expr a]
-    holeActions = [finishHole]
+    holeActions = finishHole : expert annotateExpression
 
     annotationActions :: forall a. [ActionSpec Expr a]
     annotationActions = case l of
@@ -546,43 +578,48 @@ basicActionsForExpr l defName expr = case expr of
       Expert -> [removeAnnotation]
 
     lambdaActions :: forall a. ExprMeta -> [ActionSpec Expr a]
-    lambdaActions m = [renameVariable m]
+    lambdaActions m = renameVariable m : expert annotateExpression
 
     bigLambdaActions :: forall a. ExprMeta -> [ActionSpec Expr a]
     bigLambdaActions m = case l of
       Beginner -> []
       Intermediate -> []
-      Expert -> [renameTypeVariable m]
+      Expert -> [annotateExpression, renameTypeVariable m]
 
-    letActions :: forall a b. Maybe (Type' b) -> [ActionSpec Expr a]
-    letActions t =
-      [ renameLet t
-      , makeLetRecursive
-      ]
+    letActions :: forall a. LVarName -> Expr -> [ActionSpec Expr a]
+    letActions v e =
+      renameLet (e ^? _exprMetaLens % _type % _Just % _synthed)
+        : munless (unLocalName v `Set.member` freeVars e) [makeLetRecursive]
+          <> expert annotateExpression
 
     letRecActions :: forall a b. Maybe (Type' b) -> [ActionSpec Expr a]
-    letRecActions t = [renameLet t]
+    letRecActions t = renameLet t : expert annotateExpression
 
     -- Actions for every expression node
+    -- We assume that the input program is type-checked, in order to
+    -- filter some actions by Syn/Chk
     universalActions :: forall a. ExprMeta -> [ActionSpec Expr a]
-    universalActions m = case l of
-      Beginner ->
-        [ makeLambda m
-        , patternMatch
-        ]
-      Intermediate ->
-        [ makeLambda m
-        , patternMatch
-        , applyFunction
-        ]
-      Expert ->
-        [ annotateExpression
-        , applyFunction
-        , applyType
-        , patternMatch
-        , makeLambda m
-        , makeTypeAbstraction m
-        ]
+    universalActions m =
+      let both = case l of
+            Beginner ->
+              [ makeLambda m
+              ]
+            Intermediate ->
+              [ makeLambda m
+              , applyFunction
+              ]
+            Expert ->
+              [ applyFunction
+              , applyType
+              , makeLambda m
+              , makeTypeAbstraction m
+              ]
+          synthTy = m ^? _type % _Just % _synthed
+          synOnly ty = case getTypeDefInfo' tydefs ty of
+            Left TDIHoleType{} -> Just patternMatch
+            Right (TypeDefInfo _ _ TypeDefAST{}) -> Just patternMatch
+            _ -> Nothing
+       in (synOnly =<< synthTy) ?: both
 
     -- Extract the source of the function type we were checked at
     -- i.e. the type that a lambda-bound variable would have here
@@ -600,6 +637,11 @@ basicActionsForExpr l defName expr = case expr of
     -- Actions for every expression node except holes and annotations
     defaultActions :: forall a. ExprMeta -> [ActionSpec Expr a]
     defaultActions m = universalActions m <> [deleteExpr]
+
+(?:) :: Maybe a -> [a] -> [a]
+Just x ?: xs = x : xs
+Nothing ?: xs = xs
+infixr 5 ?:
 
 -- | Given a type, determine what basic actions it supports
 -- Specific projections may provide other actions not listed here
