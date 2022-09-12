@@ -80,6 +80,7 @@ executable primer-service
     -threaded -rtsopts -with-rtsopts=-N
 
   build-depends:
+    , async                 ^>=2.2.4
     , base
     , bytestring            >=0.10.8.2 && <=0.12
     , directory             ^>=1.3

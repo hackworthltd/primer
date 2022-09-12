@@ -4,6 +4,9 @@ module Main (main) where
 
 import Foreword
 
+import Control.Concurrent.Async (
+  concurrently_,
+ )
 import Control.Concurrent.STM (
   newTBQueueIO,
  )
@@ -168,17 +171,6 @@ banner =
   \ █████                                                       \n\
   \░░░░░                                                        "
 
--- The choice of which process to fork and which to run in the "main"
--- thread doesn't particularly matter for our purposes, as far as I
--- can determine. We do need some proper exception handling, however,
--- and we'll also need to shut down properly on SIGINT or similar once
--- we have an actual persistent database, so we may need to reconsider
--- what to do on the main thread when we implement those additional
--- process-related features.
---
--- For now, we run the Servant service in the forked thread, because
--- exceptions in the web service are already reasonably well-handled
--- and reported (to the student, via HTTP error codes) by Servant.
 run :: GlobalOptions -> IO ()
 run opts = case cmd opts of
   Serve ver dbFlag port qsz -> do
@@ -186,10 +178,9 @@ run opts = case cmd opts of
     initialSessions <- StmMap.newIO
     putText banner
     putText $ "primer-server version " <> ver
-    _ <- forkIO $
-      serve initialSessions dbOpQueue ver port
-    db <- maybe defaultDb pure dbFlag
-    runDb (Db.ServiceCfg dbOpQueue ver) db
+    concurrently_
+      (serve initialSessions dbOpQueue ver port)
+      (maybe defaultDb pure dbFlag >>= runDb (Db.ServiceCfg dbOpQueue ver))
 
 main :: IO ()
 main = do
