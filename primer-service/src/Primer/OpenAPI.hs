@@ -15,7 +15,7 @@ import Data.Text qualified as T
 import Deriving.Aeson (AesonOptions (aesonOptions))
 import Primer.API (Def, ExprTreeOpts, Module, NodeBody, NodeFlavor, OfferedAction, Prog, Tree)
 import Primer.Action (ActionName, ActionType, Level (..))
-import Primer.App (Mutability (..))
+import Primer.App (Editable (..))
 import Primer.Core (
   GlobalName,
   GlobalNameKind (ADefName, ATyCon, AValCon),
