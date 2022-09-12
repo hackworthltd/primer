@@ -173,14 +173,21 @@ banner =
 
 run :: GlobalOptions -> IO ()
 run opts = case cmd opts of
-  Serve ver dbFlag port qsz -> do
-    dbOpQueue <- newTBQueueIO qsz
-    initialSessions <- StmMap.newIO
-    putText banner
-    putText $ "primer-server version " <> ver
-    concurrently_
-      (serve initialSessions dbOpQueue ver port)
-      (maybe defaultDb pure dbFlag >>= runDb (Db.ServiceCfg dbOpQueue ver))
+  Serve ver dbFlag port qsz ->
+    handleAll bye $ do
+      dbOpQueue <- newTBQueueIO qsz
+      initialSessions <- StmMap.newIO
+      putText banner
+      putText $ "primer-server version " <> ver
+      concurrently_
+        (serve initialSessions dbOpQueue ver port)
+        (maybe defaultDb pure dbFlag >>= runDb (Db.ServiceCfg dbOpQueue ver))
+  where
+    bye :: HasCallStack => SomeException -> IO ()
+    bye e = do
+      putErrText $ "Fatal exception: " <> show e
+      putErrLn $ prettyCallStack callStack
+      exitFailure
 
 main :: IO ()
 main = do
