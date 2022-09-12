@@ -36,7 +36,7 @@ import Primer.Def (
   ASTDef (..),
   Def (DefAST, DefPrim),
  )
-import Primer.Examples (comprehensive)
+import Primer.Examples (comprehensiveWellTyped)
 import Primer.Name (Name (unName))
 import System.FilePath ((</>))
 import Test.Tasty (TestTree, testGroup)
@@ -46,7 +46,7 @@ import Text.Pretty.Simple (pShowNoColor)
 
 -- | Comprehensive DSL test.
 test_1 :: TestTree
-test_1 = mkTests $ create' $ comprehensive $ mkSimpleModuleName "M"
+test_1 = mkTests $ create' $ comprehensiveWellTyped $ mkSimpleModuleName "M"
 
 data Output = Output
   { defActions :: [ActionName]
