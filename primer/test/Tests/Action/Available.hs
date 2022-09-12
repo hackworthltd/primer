@@ -63,12 +63,13 @@ mkTests (defName, DefAST def) =
    in testGroup testName $
         enumerate
           <&> \level ->
-            let defActions = map name $ actionsForDef level (Map.singleton defName $ DefAST def) d
+            -- We sort the offered actions to make the test output more stable
+            let defActions = sort' $ map name $ actionsForDef level (Map.singleton defName $ DefAST def) d
                 bodyActions =
                   map
                     ( \id ->
                         ( id
-                        , map name $ actionsForDefBody level defName id (astDefExpr def)
+                        , sort' $ map name $ actionsForDefBody level defName id (astDefExpr def)
                         )
                     )
                     . toListOf exprIDs
@@ -77,7 +78,7 @@ mkTests (defName, DefAST def) =
                   map
                     ( \id ->
                         ( id
-                        , map name $ actionsForDefSig level defName id (astDefType def)
+                        , sort' $ map name $ actionsForDefSig level defName id (astDefType def)
                         )
                     )
                     . toListOf (_typeMeta % _id)
@@ -89,6 +90,11 @@ mkTests (defName, DefAST def) =
                       , bodyActions
                       , sigActions
                       }
+  where
+    -- To avoid having an Ord instance on ActionName just for this test, we
+    -- can just sort by how the action is shown.
+    sort' :: [ActionName] -> [ActionName]
+    sort' = sortOn $ show @_ @Text
 
 -- We should not offer to delete a definition that is in use, as that
 -- action cannot possibly succeed

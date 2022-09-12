@@ -1,16 +1,16 @@
 Output
     { defActions =
-        [ Prose "r"
+        [ Prose "⌫"
         , Prose "d"
-        , Prose "⌫"
+        , Prose "r"
         ]
     , bodyActions =
         [
             ( 9
             ,
-                [ Code "λx"
+                [ Code "$"
+                , Code "λx"
                 , Code "m"
-                , Code "$"
                 , Prose "⌫"
                 , Prose "r"
                 , Prose "rec"
@@ -19,183 +19,183 @@ Output
         ,
             ( 10
             ,
-                [ Code "λx"
+                [ Code "$"
+                , Code "λx"
                 , Code "m"
-                , Code "$"
-                , Prose "⌫"
                 , Prose "↑"
+                , Prose "⌫"
                 ]
             )
         ,
             ( 11
             ,
-                [ Code "λx"
+                [ Code "$"
+                , Code "λx"
                 , Code "m"
-                , Code "$"
+                , Prose "↑"
                 , Prose "⌫"
                 , Prose "r"
-                , Prose "↑"
                 ]
             )
         ,
             ( 12
             ,
-                [ Code "λx"
+                [ Code "$"
+                , Code "λx"
                 , Code "m"
-                , Code "$"
-                , Prose "⌫"
                 , Prose "↑"
+                , Prose "⌫"
                 ]
             )
         ,
             ( 13
             ,
-                [ Code "λx"
+                [ Code "$"
+                , Code "λx"
                 , Code "m"
-                , Code "$"
+                , Prose "↑"
                 , Prose "⌫"
                 , Prose "e"
-                , Prose "↑"
                 ]
             )
         ,
             ( 14
             ,
-                [ Code "λx"
+                [ Code "$"
+                , Code "λx"
                 , Code "m"
-                , Code "$"
                 , Prose "⌫"
                 ]
             )
         ,
             ( 15
             ,
-                [ Code "λx"
+                [ Code "$"
+                , Code "λx"
                 , Code "m"
-                , Code "$"
+                , Prose "↑"
                 , Prose "⌫"
                 , Prose "e"
-                , Prose "↑"
                 ]
             )
         ,
             ( 16
             ,
-                [ Code "λx"
+                [ Code "$"
+                , Code "λx"
                 , Code "m"
-                , Code "$"
                 , Prose "⌫"
                 ]
             )
         ,
             ( 19
             ,
-                [ Code "λx"
+                [ Code "$"
+                , Code "λx"
                 , Code "m"
-                , Code "$"
-                , Prose "⌫"
                 , Prose "↑"
+                , Prose "⌫"
                 ]
             )
         ,
             ( 20
             ,
-                [ Code "λx"
+                [ Code "$"
+                , Code "λx"
                 , Code "m"
-                , Code "$"
+                , Prose "↑"
                 , Prose "⌫"
                 , Prose "r"
-                , Prose "↑"
                 ]
             )
         ,
             ( 21
             ,
-                [ Code "λx"
+                [ Code "$"
+                , Code "λx"
                 , Code "m"
-                , Code "$"
-                , Prose "⌫"
                 , Prose "↑"
+                , Prose "⌫"
                 ]
             )
         ,
             ( 22
             ,
-                [ Code "λx"
+                [ Code "$"
+                , Code "λx"
                 , Code "m"
-                , Code "$"
-                , Prose "⌫"
                 , Prose "↑"
+                , Prose "⌫"
                 ]
             )
         ,
             ( 23
             ,
-                [ Code "λx"
+                [ Code "$"
+                , Code "λx"
                 , Code "m"
-                , Code "$"
-                , Prose "⌫"
                 , Prose "↑"
+                , Prose "⌫"
                 ]
             )
         ,
             ( 24
             ,
-                [ Code "λx"
+                [ Code "$"
+                , Code "λx"
                 , Code "m"
-                , Code "$"
-                , Prose "⌫"
                 , Prose "↑"
+                , Prose "⌫"
                 ]
             )
         ,
             ( 26
             ,
-                [ Code "λx"
+                [ Code "$"
+                , Code "λx"
                 , Code "m"
-                , Code "$"
-                , Prose "⌫"
                 , Prose "↑"
+                , Prose "⌫"
                 ]
             )
         ,
             ( 27
             ,
-                [ Code "λx"
+                [ Code "$"
+                , Code "λx"
                 , Code "m"
-                , Code "$"
-                , Prose "⌫"
                 , Prose "↑"
+                , Prose "⌫"
                 ]
             )
         ,
             ( 30
             ,
-                [ Code "λx"
+                [ Code "$"
+                , Code "λx"
                 , Code "m"
-                , Code "$"
-                , Prose "⌫"
                 , Prose "↑"
+                , Prose "⌫"
                 ]
             )
         ,
             ( 31
             ,
-                [ Code "λx"
+                [ Code "$"
+                , Code "λx"
                 , Code "m"
-                , Code "$"
-                , Prose "⌫"
                 , Prose "↑"
+                , Prose "⌫"
                 ]
             )
         ,
             ( 32
             ,
-                [ Code "λx"
+                [ Code "$"
+                , Code "λx"
                 , Code "m"
-                , Code "$"
-                , Prose "⌫"
                 , Prose "↑"
+                , Prose "⌫"
                 ]
             )
         ,
@@ -206,57 +206,57 @@ Output
         ,
             ( 34
             ,
-                [ Code "λx"
+                [ Code "$"
+                , Code "λx"
                 , Code "m"
-                , Code "$"
-                , Prose "⌫"
                 , Prose "↑"
+                , Prose "⌫"
                 ]
             )
         ,
             ( 35
             ,
-                [ Code "λx"
+                [ Code "$"
+                , Code "λx"
                 , Code "m"
-                , Code "$"
-                , Prose "⌫"
                 , Prose "↑"
+                , Prose "⌫"
                 ]
             )
         ,
             ( 36
             ,
-                [ Code "λx"
-                , Code "m"
-                , Code "$"
-                , Code "x"
-                , Code "f $ ?"
-                , Code "V"
-                , Code "V $ ?"
+                [ Code "$"
                 , Code "="
                 , Code "=,="
-                , Prose "h"
+                , Code "V $ ?"
+                , Code "V"
+                , Code "λx"
+                , Code "f $ ?"
+                , Code "m"
+                , Code "x"
                 , Prose "↑"
+                , Prose "h"
                 ]
             )
         ,
             ( 37
             ,
-                [ Code "λx"
+                [ Code "$"
+                , Code "λx"
                 , Code "m"
-                , Code "$"
-                , Prose "⌫"
                 , Prose "↑"
+                , Prose "⌫"
                 ]
             )
         ,
             ( 38
             ,
-                [ Code "λx"
+                [ Code "$"
+                , Code "λx"
                 , Code "m"
-                , Code "$"
-                , Prose "⌫"
                 , Prose "↑"
+                , Prose "⌫"
                 ]
             )
         ,
@@ -270,8 +270,8 @@ Output
             ( 18
             ,
                 [ Code "→"
-                , Prose "⌫"
                 , Prose "↑"
+                , Prose "⌫"
                 ]
             )
         ,
@@ -299,64 +299,64 @@ Output
             ( 39
             ,
                 [ Code "→"
-                , Prose "⌫"
                 , Code "→A→"
+                , Prose "⌫"
                 ]
             )
         ,
             ( 40
             ,
                 [ Code "→"
-                , Prose "⌫"
                 , Prose "↑"
+                , Prose "⌫"
                 ]
             )
         ,
             ( 41
             ,
                 [ Code "→"
-                , Prose "⌫"
                 , Prose "↑"
+                , Prose "⌫"
                 ]
             )
         ,
             ( 42
             ,
                 [ Code "→"
-                , Prose "⌫"
                 , Prose "↑"
+                , Prose "⌫"
                 ]
             )
         ,
             ( 43
             ,
                 [ Code "→"
-                , Prose "⌫"
                 , Prose "↑"
+                , Prose "⌫"
                 ]
             )
         ,
             ( 44
             ,
                 [ Code "→"
-                , Prose "⌫"
                 , Prose "↑"
+                , Prose "⌫"
                 ]
             )
         ,
             ( 45
             ,
                 [ Code "→"
-                , Prose "⌫"
                 , Prose "↑"
+                , Prose "⌫"
                 ]
             )
         ,
             ( 46
             ,
                 [ Code "→"
-                , Prose "⌫"
                 , Prose "↑"
+                , Prose "⌫"
                 ]
             )
         ]
@@ -365,63 +365,63 @@ Output
             ( 0
             ,
                 [ Code "→"
-                , Prose "⌫"
                 , Code "→A→"
+                , Prose "⌫"
                 ]
             )
         ,
             ( 1
             ,
                 [ Code "→"
-                , Prose "⌫"
                 , Prose "↑"
+                , Prose "⌫"
                 ]
             )
         ,
             ( 2
             ,
                 [ Code "→"
-                , Prose "⌫"
                 , Prose "↑"
+                , Prose "⌫"
                 ]
             )
         ,
             ( 3
             ,
                 [ Code "→"
-                , Prose "⌫"
                 , Prose "↑"
+                , Prose "⌫"
                 ]
             )
         ,
             ( 4
             ,
                 [ Code "→"
-                , Prose "⌫"
                 , Prose "↑"
+                , Prose "⌫"
                 ]
             )
         ,
             ( 5
             ,
                 [ Code "→"
-                , Prose "⌫"
                 , Prose "↑"
+                , Prose "⌫"
                 ]
             )
         ,
             ( 6
             ,
                 [ Code "→"
-                , Prose "⌫"
                 , Prose "↑"
+                , Prose "⌫"
                 ]
             )
         ,
             ( 7
             ,
-                [ Code "→"
-                , Code "T"
+                [ Code "T"
+                , Code "→"
                 , Prose "↑"
                 ]
             )
@@ -429,8 +429,8 @@ Output
             ( 8
             ,
                 [ Code "→"
-                , Prose "⌫"
                 , Prose "↑"
+                , Prose "⌫"
                 ]
             )
         ]
