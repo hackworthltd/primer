@@ -11,6 +11,10 @@ import Hedgehog.Range qualified as Range
 import Optics (over, set, (%), (%~))
 import Primer.App (
   Prog (Prog, progImports, progLog, progSelection, progSmartHoles),
+  appIdCounter,
+  appInit,
+  appNameCounter,
+  appProg,
   defaultLog,
   newEmptyProg',
   newProg',
@@ -669,6 +673,12 @@ instance Eq (TypeCacheAlpha Prog) where
       && TypeCacheAlpha s1 == TypeCacheAlpha s2
       && sh1 == sh2
       && l1 == l2
+instance Eq (TypeCacheAlpha App.App) where
+  TypeCacheAlpha a1 == TypeCacheAlpha a2 =
+    appInit a1 == appInit a2
+      && appIdCounter a1 == appIdCounter a2
+      && appNameCounter a1 == appNameCounter a2
+      && TypeCacheAlpha (appProg a1) == TypeCacheAlpha (appProg a2)
 
 -- Test that smartholes is idempotent (for well-typed input)
 tasty_smartholes_idempotent_syn :: Property
@@ -742,7 +752,7 @@ unit_tcWholeProg_notice_type_updates =
 -- This is only up to alpha in the TypeCaches, for the same reasons as
 -- unit_smartholes_idempotent_alpha_typecache
 tasty_tcWholeProg_idempotent :: Property
-tasty_tcWholeProg_idempotent = withTests 1000 $
+tasty_tcWholeProg_idempotent = withTests 500 $
   withDiscards 2000 $
     propertyWT [] $ do
       base <- forAllT $ Gen.element [[], [builtinModule], [builtinModule, primitiveModule]]
