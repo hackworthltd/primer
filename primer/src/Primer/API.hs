@@ -757,6 +757,14 @@ viewTreeType' t0 = case t0 of
       withKindAnn = case k of
         KType -> identity
         _ -> (<> (" :: " <> show k))
+  TLet _ n t b ->
+    Tree
+      { nodeId
+      , flavor = FlavorTLet
+      , body = TextBody $ unName $ unLocalName n
+      , childTrees = [viewTreeType' t, viewTreeType' b]
+      , rightChild = Nothing
+      }
   where
     nodeId = t0 ^. _typeMetaLens
 

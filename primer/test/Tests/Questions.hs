@@ -201,6 +201,10 @@ unit_variablesInScope_letrec = do
   hasVariables expr down [("x", TCon () tBool)]
   hasVariables expr (down >=> right) [("x", TCon () tBool)]
 
+-- NB: there are no tests for LetType or TLet because they are unsupported by the typechecker
+-- and should never appear in programs. Thus they shouldn't appear in anything of which we
+-- ask the variablesInScope question.
+
 -- Given a case expression, any variables bound by its branches are in scope in their corresponding
 -- LHS.
 unit_variablesInScope_case :: Assertion

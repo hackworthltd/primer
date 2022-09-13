@@ -3,6 +3,7 @@ module Primer.Eval.Utils (
   annotate,
   makeSafeLetBinding,
   makeSafeLetTypeBinding,
+  makeSafeTLetBinding,
 ) where
 
 import Foreword
@@ -15,11 +16,12 @@ import Primer.Core (
   LocalName (LocalName, unLocalName),
   Meta,
   TyVarName,
+  Type,
   TypeCache,
   _exprMetaLens,
   _type,
  )
-import Primer.Core.Transform (renameLocalVar, renameTyVarExpr)
+import Primer.Core.Transform (renameLocalVar, renameTyVar, renameTyVarExpr)
 import Primer.Name (Name (unName), unsafeMkName)
 
 -- | This function helps us create let bindings which are easy to substitute
@@ -69,6 +71,23 @@ makeSafeLetBinding' rename name others body = go 0
        in if Set.member newName' others
             then go (n + 1)
             else case rename name newName body of
+              Just body' -> (newName, body')
+              Nothing -> go (n + 1)
+
+makeSafeTLetBinding ::
+  TyVarName ->
+  Set TyVarName ->
+  Type ->
+  (TyVarName, Type)
+makeSafeTLetBinding name others body | Set.notMember name others = (name, body)
+makeSafeTLetBinding name others body = go 0
+  where
+    go :: Int -> (TyVarName, Type)
+    go n =
+      let newName = LocalName . unsafeMkName $ unName (unLocalName name) <> show n
+       in if Set.member newName others
+            then go (n + 1)
+            else case renameTyVar name newName body of
               Just body' -> (newName, body')
               Nothing -> go (n + 1)
 

@@ -231,6 +231,14 @@ prettyType opts typ = case typ of
       ( col Yellow "∀"
           <+> lname n <> col Yellow "." <> line <> indent' 2 (pT t)
       )
+  TLet _ v t b ->
+    col Yellow "let"
+      <+> lname v
+      <+> col Yellow "="
+        <> inlineblock opts (pT t)
+        <> col Yellow "in"
+        <> line
+        <> indent' 2 (pT b)
   where
     pT = prettyType opts
 

@@ -112,9 +112,24 @@ Tree
                                                                             }
                                                                         , Tree
                                                                             { nodeId = "28"
-                                                                            , flavor = FlavorTVar
-                                                                            , body = TextBody "b"
-                                                                            , childTrees = []
+                                                                            , flavor = FlavorTLet
+                                                                            , body = TextBody "c"
+                                                                            , childTrees =
+                                                                                [ Tree
+                                                                                    { nodeId = "29"
+                                                                                    , flavor = FlavorTVar
+                                                                                    , body = TextBody "b"
+                                                                                    , childTrees = []
+                                                                                    , rightChild = Nothing
+                                                                                    }
+                                                                                , Tree
+                                                                                    { nodeId = "30"
+                                                                                    , flavor = FlavorTVar
+                                                                                    , body = TextBody "c"
+                                                                                    , childTrees = []
+                                                                                    , rightChild = Nothing
+                                                                                    }
+                                                                                ]
                                                                             , rightChild = Nothing
                                                                             }
                                                                         ]
@@ -131,7 +146,7 @@ Tree
                                                             , rightChild = Nothing
                                                             }
                                                         , Tree
-                                                            { nodeId = "29"
+                                                            { nodeId = "31"
                                                             , flavor = FlavorTVar
                                                             , body = TextBody "β"
                                                             , childTrees = []
@@ -141,12 +156,12 @@ Tree
                                                     , rightChild = Nothing
                                                     }
                                                 , Tree
-                                                    { nodeId = "30"
+                                                    { nodeId = "32"
                                                     , flavor = FlavorCase
                                                     , body = NoBody
                                                     , childTrees =
                                                         [ Tree
-                                                            { nodeId = "31"
+                                                            { nodeId = "33"
                                                             , flavor = FlavorLocalVar
                                                             , body = TextBody "i"
                                                             , childTrees = []
@@ -155,11 +170,11 @@ Tree
                                                         ]
                                                     , rightChild = Just
                                                         ( Tree
-                                                            { nodeId = "30P0"
+                                                            { nodeId = "32P0"
                                                             , flavor = FlavorPattern
                                                             , body = BoxBody
                                                                 ( Tree
-                                                                    { nodeId = "30P0B"
+                                                                    { nodeId = "32P0B"
                                                                     , flavor = FlavorPatternCon
                                                                     , body = TextBody "Builtins.Zero"
                                                                     , childTrees = []
@@ -168,7 +183,7 @@ Tree
                                                                 )
                                                             , childTrees =
                                                                 [ Tree
-                                                                    { nodeId = "32"
+                                                                    { nodeId = "34"
                                                                     , flavor = FlavorCon
                                                                     , body = TextBody "Builtins.False"
                                                                     , childTrees = []
@@ -177,23 +192,23 @@ Tree
                                                                 ]
                                                             , rightChild = Just
                                                                 ( Tree
-                                                                    { nodeId = "30P1"
+                                                                    { nodeId = "32P1"
                                                                     , flavor = FlavorPattern
                                                                     , body = BoxBody
                                                                         ( Tree
-                                                                            { nodeId = "33A"
+                                                                            { nodeId = "35A"
                                                                             , flavor = FlavorPatternApp
                                                                             , body = NoBody
                                                                             , childTrees =
                                                                                 [ Tree
-                                                                                    { nodeId = "30P1B"
+                                                                                    { nodeId = "32P1B"
                                                                                     , flavor = FlavorPatternCon
                                                                                     , body = TextBody "Builtins.Succ"
                                                                                     , childTrees = []
                                                                                     , rightChild = Nothing
                                                                                     }
                                                                                 , Tree
-                                                                                    { nodeId = "33"
+                                                                                    { nodeId = "35"
                                                                                     , flavor = FlavorPatternBind
                                                                                     , body = TextBody "n"
                                                                                     , childTrees = []
@@ -205,24 +220,24 @@ Tree
                                                                         )
                                                                     , childTrees =
                                                                         [ Tree
-                                                                            { nodeId = "34"
+                                                                            { nodeId = "36"
                                                                             , flavor = FlavorApp
                                                                             , body = NoBody
                                                                             , childTrees =
                                                                                 [ Tree
-                                                                                    { nodeId = "35"
+                                                                                    { nodeId = "37"
                                                                                     , flavor = FlavorApp
                                                                                     , body = NoBody
                                                                                     , childTrees =
                                                                                         [ Tree
-                                                                                            { nodeId = "36"
+                                                                                            { nodeId = "38"
                                                                                             , flavor = FlavorEmptyHole
                                                                                             , body = NoBody
                                                                                             , childTrees = []
                                                                                             , rightChild = Nothing
                                                                                             }
                                                                                         , Tree
-                                                                                            { nodeId = "37"
+                                                                                            { nodeId = "39"
                                                                                             , flavor = FlavorLocalVar
                                                                                             , body = TextBody "x"
                                                                                             , childTrees = []
@@ -232,7 +247,7 @@ Tree
                                                                                     , rightChild = Nothing
                                                                                     }
                                                                                 , Tree
-                                                                                    { nodeId = "38"
+                                                                                    { nodeId = "40"
                                                                                     , flavor = FlavorLocalVar
                                                                                     , body = TextBody "y"
                                                                                     , childTrees = []
@@ -258,41 +273,41 @@ Tree
                             , rightChild = Nothing
                             }
                         , Tree
-                            { nodeId = "39"
+                            { nodeId = "41"
                             , flavor = FlavorTFun
                             , body = NoBody
                             , childTrees =
                                 [ Tree
-                                    { nodeId = "40"
+                                    { nodeId = "42"
                                     , flavor = FlavorTCon
                                     , body = TextBody "Builtins.Nat"
                                     , childTrees = []
                                     , rightChild = Nothing
                                     }
                                 , Tree
-                                    { nodeId = "41"
+                                    { nodeId = "43"
                                     , flavor = FlavorTForall
                                     , body = TextBody "α"
                                     , childTrees =
                                         [ Tree
-                                            { nodeId = "42"
+                                            { nodeId = "44"
                                             , flavor = FlavorTApp
                                             , body = NoBody
                                             , childTrees =
                                                 [ Tree
-                                                    { nodeId = "43"
+                                                    { nodeId = "45"
                                                     , flavor = FlavorTApp
                                                     , body = NoBody
                                                     , childTrees =
                                                         [ Tree
-                                                            { nodeId = "44"
+                                                            { nodeId = "46"
                                                             , flavor = FlavorTCon
                                                             , body = TextBody "Builtins.Either"
                                                             , childTrees = []
                                                             , rightChild = Nothing
                                                             }
                                                         , Tree
-                                                            { nodeId = "45"
+                                                            { nodeId = "47"
                                                             , flavor = FlavorTCon
                                                             , body = TextBody "Builtins.Bool"
                                                             , childTrees = []
@@ -302,7 +317,7 @@ Tree
                                                     , rightChild = Nothing
                                                     }
                                                 , Tree
-                                                    { nodeId = "46"
+                                                    { nodeId = "48"
                                                     , flavor = FlavorTVar
                                                     , body = TextBody "α"
                                                     , childTrees = []

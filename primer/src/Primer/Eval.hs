@@ -32,10 +32,15 @@ import Data.Map.Strict qualified as Map
 import Data.Set qualified as Set
 import Optics (
   elemOf,
+  filtered,
   getting,
+  notElemOf,
+  to,
   view,
   (%),
   (^.),
+  (^..),
+  _1,
   _2,
  )
 import Primer.Core (
@@ -52,7 +57,9 @@ import Primer.Core (
   Type,
   Type' (..),
   bindName,
+  getID,
  )
+import Primer.Core.DSL.Type (tlet)
 import Primer.Core.Transform (removeAnn, unfoldAPP, unfoldApp)
 import Primer.Core.Utils (
   freeVars,
@@ -60,6 +67,7 @@ import Primer.Core.Utils (
   regenerateTypeIDs,
   _freeTmVars,
   _freeTyVars,
+  _freeVarsTy,
  )
 import Primer.Def (DefMap)
 import Primer.Eval.Detail (
@@ -86,6 +94,7 @@ import Primer.Eval.Detail (
   tryReducePush,
  )
 import Primer.Eval.EvalError (EvalError (..))
+import Primer.Eval.Utils (makeSafeTLetBinding)
 import Primer.Name (Name)
 import Primer.Name.Fresh (isFresh, isFreshTy)
 import Primer.Primitives.PrimDef (PrimDef)
@@ -94,12 +103,12 @@ import Primer.Zipper (
   FoldAbove,
   Loc' (InBind, InExpr, InType),
   TypeZ,
-  bindersAboveTy,
   current,
   focusOn,
-  focusOnlyType,
   foldAbove,
+  foldAboveTypeZ,
   getBoundHereUp,
+  getBoundHereUpTy,
   replace,
   target,
   unfocusExpr,
@@ -138,14 +147,15 @@ findNodeByID i expr = do
       let fls = foldAbove collectBinding z
        in pure (dropCache $ lets fls, Left z)
     InType z ->
-      let -- Since we are only collecting various sorts of let bindings,
-          -- we don't need to look in types, as they cannot contain let bindings
-          fls = foldAbove collectBinding (unfocusType z)
-          -- However, we need to look for binders in the type that may capture
-          -- a free variable if we substitue a lettype binding from outside the
-          -- type
-          fas = flOthers $ Set.map unLocalName $ bindersAboveTy $ focusOnlyType z
-       in pure (dropCache $ lets $ fas <> fls, Right z)
+      let fls' =
+            foldAboveTypeZ
+              collectBindingTy
+              -- Since nothing both contains a type and binds a variable, we
+              -- can write (const mempty) for the "border" argument,
+              (const mempty)
+              collectBinding
+              z
+       in pure (dropCache $ lets fls', Right z)
     InBind{} -> Nothing
   where
     collectBinding :: FoldAbove Expr -> FindLet
@@ -162,9 +172,14 @@ findNodeByID i expr = do
         flLet (unLocalName x) (view _id m) (LLetRec e)
       (_bs, LetType m x t _bdy) ->
         --  | Set.member (unLocalName x) bs -- This guard is always true: we only
-        -- look at Exprs, so we must be considering binders for bdy, not t
+        -- can have prior::Expr, so we must be considering binders for bdy, not t
         flLet (unLocalName x) (view _id m) (LLetType t)
       (bs, _) -> flOthers bs
+    collectBindingTy :: FoldAbove Type -> FindLet
+    collectBindingTy a = case (getBoundHereUpTy a, current a) of
+      (bs, _) | Set.null bs -> mempty
+      (_bs, TLet m v t _bdy) -> flLet (unLocalName v) (view _id m) (LLetType t)
+      (bs, _) -> flOthers $ Set.map unLocalName bs
 
 -- Helper for findNodeByID
 data FindLet = FL
@@ -305,6 +320,12 @@ redexes primDefs = go mempty
             TFun _ a b -> goType locals a <> goType locals b
             TApp _ a b -> goType locals a <> goType locals b
             TForall _ x _ t -> goType (removeTy x locals) t
+            TLet _ x t b ->
+              -- As with term-level lets, we need to be careful about capture
+              let selfCapture = not $ isFreshTy x t
+                  locals' = if selfCapture then locals else insertTy x t locals
+                  freeTyVar = elemOf $ getting _freeVarsTy % _2
+               in goType locals t <> goType locals' b <> munless (not selfCapture && freeTyVar x b) self
     -- When going under a binder, outer binders of that name go out of scope,
     -- and any outer let bindings mentioning that name are not available for
     -- substitution (as the binder we are going under would capture such a
@@ -395,6 +416,39 @@ tryReduceType _globals locals = \case
                 , bindingName = x
                 , replacementID = t' ^. _id
                 , isTypeVar = True
+                }
+          )
+  ty@(TLet meta x t body)
+    -- Redundant let removal
+    -- tlet x = t1 in t2 ==> t2   if x not free in t2
+    | notElemOf (getting _freeVarsTy % _2) x body ->
+        pure
+          ( body
+          , TLetRemoval $
+              LetRemovalDetail
+                { before = ty
+                , after = body
+                , bindingName = unLocalName x
+                , letID = meta ^. _id
+                , bodyID = body ^. _id
+                }
+          )
+    -- Renaming a potentially self-capturing let
+    -- tlet x = f[x] in g[x] ==> tlet y = f[x] in g[y]
+    | otherwise -> do
+        let (y, body') = makeSafeTLetBinding x (freeVarsTy t) body
+        ty' <- tlet y (pure t) (pure body')
+        pure
+          ( ty'
+          , TLetRename $
+              LetRenameDetail
+                { before = ty
+                , after = ty'
+                , bindingNameOld = unLocalName x
+                , bindingNameNew = unLocalName y
+                , letID = meta ^. _id
+                , bindingOccurrences = t ^.. getting _freeVarsTy % to (first getID) % filtered ((== x) . snd) % _1
+                , bodyID = body ^. _id
                 }
           )
   _ -> throwError NotRedex

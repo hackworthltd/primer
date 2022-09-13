@@ -23,6 +23,7 @@ module Primer.Core.DSL (
   thole,
   tcon,
   tforall,
+  tlet,
   tfun,
   tapp,
   tvar,
@@ -73,6 +74,7 @@ import Primer.Core.DSL.Type (
   tforall,
   tfun,
   thole,
+  tlet,
   tvar,
  )
 import Primer.Name (Name)

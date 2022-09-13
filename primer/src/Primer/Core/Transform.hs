@@ -126,6 +126,10 @@ renameTyVar x y ty = case ty of
     | v == x -> pure $ TVar m y
     | v == y -> Nothing
     | otherwise -> substAllChildren
+  TLet m v t b
+    | v == x -> TLet m v <$> renameTyVar x y t <*> pure b
+    | v == y -> Nothing
+    | otherwise -> substAllChildren
   TEmptyHole{} -> substAllChildren
   THole{} -> substAllChildren
   TCon{} -> substAllChildren

@@ -373,6 +373,68 @@ unit_hole_ann_case =
   let (tm, maxID) = create $ hole $ ann (case_ emptyHole []) (tcon tBool)
    in evalFullTest maxID builtinTypes mempty 1 Chk tm @?= Right tm
 
+-- tlet x = C in D x x
+--   ==>
+-- tlet x = C in D C x
+--   ==>
+-- tlet x = C in D C C
+--   ==>
+-- D C C
+unit_tlet :: Assertion
+unit_tlet =
+  let ((expr, expected), maxID) = create $ do
+        e0 <- ann emptyHole $ tlet "x" (tcon' ["M"] "C") (tcon' ["M"] "D" `tapp` tvar "x" `tapp` tvar "x")
+        e1 <- ann emptyHole $ tlet "x" (tcon' ["M"] "C") (tcon' ["M"] "D" `tapp` tcon' ["M"] "C" `tapp` tvar "x")
+        e2 <- ann emptyHole $ tlet "x" (tcon' ["M"] "C") (tcon' ["M"] "D" `tapp` tcon' ["M"] "C" `tapp` tcon' ["M"] "C")
+        e3 <- ann emptyHole $ tcon' ["M"] "D" `tapp` tcon' ["M"] "C" `tapp` tcon' ["M"] "C"
+        pure (e0, map (Left . TimedOut) [e0, e1, e2, e3] ++ [Right e3])
+      test (n, expect) = do
+        let r = evalFullTest maxID mempty mempty n Syn expr
+        distinctIDs r
+        r <~==> expect
+   in mapM_ test (zip [0 ..] expected)
+
+-- tlet x = C in ty ==> ty  when x not occur free in ty
+unit_tlet_elide :: Assertion
+unit_tlet_elide = do
+  let ((expr, expected), maxID) = create $ do
+        e0 <- ann emptyHole $ tlet "x" (tcon' ["M"] "C") (tcon' ["M"] "D")
+        e1 <- ann emptyHole $ tcon' ["M"] "D"
+        pure (e0, map (Left . TimedOut) [e0, e1] ++ [Right e1])
+      test (n, expect) = do
+        let r = evalFullTest maxID mempty mempty n Syn expr
+        distinctIDs r
+        r <~==> expect
+   in mapM_ test (zip [0 ..] expected)
+
+-- tlet x = x in x
+--   ==>
+-- tlet y = x in let x = y in x
+--   ==>
+-- tlet y = x in let x = y in y
+--   ==>
+-- tlet y = x in y
+--   ==>
+-- tlet y = x in x
+--   ==>
+-- x
+unit_tlet_self_capture :: Assertion
+unit_tlet_self_capture = do
+  let y = "a32"
+      ((expr, expected), maxID) = create $ do
+        e0 <- ann emptyHole $ tlet "x" (tvar "x") $ tvar "x"
+        e1 <- ann emptyHole $ tlet y (tvar "x") $ tlet "x" (tvar y) $ tvar "x"
+        e2 <- ann emptyHole $ tlet y (tvar "x") $ tlet "x" (tvar y) $ tvar y
+        e3 <- ann emptyHole $ tlet y (tvar "x") $ tvar y
+        e4 <- ann emptyHole $ tlet y (tvar "x") $ tvar "x"
+        e5 <- ann emptyHole $ tvar "x"
+        pure (e0, map (Left . TimedOut) [e0, e1, e2, e3, e4, e5] ++ [Right e5])
+      test (n, expect) = do
+        let r = evalFullTest maxID mempty mempty n Syn expr
+        distinctIDs r
+        r <~==> expect
+   in mapM_ test (zip [0 ..] expected)
+
 -- TODO: examples with holes
 
 -- TODO: most of these property tests could benefit from generating an
@@ -519,60 +581,79 @@ unit_type_preservation_case_regression_ty =
 unit_type_preservation_BETA_regression :: Assertion
 unit_type_preservation_BETA_regression =
   let (((exprA, expectedAs), (exprB, expectedBs)), maxID) = create $ do
-        let n = "a145"
         -- The 'A' sequence previously captured in the type "S" above
-        let eA' b =
+        -- Λb x. (Λa λc (_ : a) : ∀b.(Nat -> b)) @(b -> Bool) x
+        eA <-
+          lAM "b" $
+            lam "x" $
               ( lAM "a" (lam "c" $ emptyHole `ann` tvar "a")
                   `ann` tforall "b" KType (tcon tNat `tfun` tvar "b")
               )
-                `aPP` (tvar b `tapp` tcon tBool)
-        eA <- lAM "b" $ eA' "b"
-        -- Do some renaming to set up
-        expectA1 <- lAM "b" $ letType n (tvar "b") $ letType "b" (tvar n) $ eA' "b"
-        -- Resolve the renaming
-        expectA3 <- lAM "b" $ letType n (tvar "b") $ eA' n
+                `aPP` (tvar "b" `tapp` tcon tBool)
+                `app` lvar "x"
         -- Do the BETA step
+        -- Λb x. ((lettype a = b Bool in λc (_ : a)) : (let b = b Bool in Nat -> b)) x
+        expectA1 <-
+          lAM "b" $
+            lam "x" $
+              ( letType "a" (tvar "b" `tapp` tcon tBool) (lam "c" $ emptyHole `ann` tvar "a")
+                  `ann` tlet "b" (tvar "b" `tapp` tcon tBool) (tcon tNat `tfun` tvar "b")
+              )
+                `app` lvar "x"
+        -- NB: the point of the ... `app` lvar x is to make the annotated term be in SYN position
+        -- so we reduce the type, rather than taking an upsilon step
+        -- Rename the let b
+        -- Λb. λx. ((lettype a = b Bool in λc (_ : a)) : (let c = b Bool in let b = c in Nat -> b)) x
+        let b' = "a132"
+        expectA2 <-
+          lAM "b" $
+            lam "x" $
+              ( letType "a" (tvar "b" `tapp` tcon tBool) (lam "c" $ emptyHole `ann` tvar "a")
+                  `ann` tlet b' (tvar "b" `tapp` tcon tBool) (tlet "b" (tvar b') $ tcon tNat `tfun` tvar "b")
+              )
+                `app` lvar "x"
+        -- Resolve the renaming
+        -- Λb. λx. ((lettype a = b Bool in λc (_ : a)) : (let c = b Bool in Nat -> c)) x
         expectA4 <-
           lAM "b" $
-            letType n (tvar "b") $
-              letType "b" (tvar n `tapp` tcon tBool) $
-                letType
-                  "a"
-                  (tvar n `tapp` tcon tBool)
-                  (lam "c" $ emptyHole `ann` tvar "a")
-                  `ann` (tcon tNat `tfun` tvar "b")
-        -- Resolve all the letTypes
-        expectA11 <-
-          lAM "b" $
-            lam "c" (emptyHole `ann` (tvar "b" `tapp` tcon tBool))
-              `ann` (tcon tNat `tfun` (tvar "b" `tapp` tcon tBool))
-        -- The 'B' sequence previously captured in the term "t" above
-        let eB' b =
-              ( lAM "a" (gvar foo `aPP` (tvar b `tapp` tcon tBool))
-                  `ann` tforall "b" KType (tcon tNat)
+            lam "x" $
+              ( letType "a" (tvar "b" `tapp` tcon tBool) (lam "c" $ emptyHole `ann` tvar "a")
+                  `ann` tlet b' (tvar "b" `tapp` tcon tBool) (tcon tNat `tfun` tvar b')
               )
-                `aPP` tcon tChar
-        eB <- lAM "b" $ eB' "b"
-        -- Do some renaming to set up
-        expectB1 <- lAM "b" $ letType n (tvar "b") $ letType "b" (tvar n) $ eB' "b"
-        -- Resolve the renaming
-        expectB3 <- lAM "b" $ letType n (tvar "b") $ eB' n
-        -- Do the BETA step
-        expectB4 <-
+                `app` lvar "x"
+        -- Resolve all the letTypes
+        -- Λb. λx. ((λc (_ : b Bool)) : (Nat -> b Bool)) x
+        expectA8 <-
           lAM "b" $
-            letType n (tvar "b") $
-              letType "b" (tcon tChar) $
-                letType "a" (tcon tChar) (gvar foo `aPP` (tvar n `tapp` tcon tBool))
-                  `ann` tcon tNat
-        -- Resolve all the letTypes (and elide an annotation)
-        expectB9 <- lAM "b" $ gvar foo `aPP` (tvar "b" `tapp` tcon tBool)
+            lam "x" $
+              ( lam "c" (emptyHole `ann` (tvar "b" `tapp` tcon tBool))
+                  `ann` (tcon tNat `tfun` (tvar "b" `tapp` tcon tBool))
+              )
+                `app` lvar "x"
+        -- The 'B' sequence previously captured in the term "t" above
+        -- Λb. (Λa (foo @(b Bool) : ∀b.Nat) @Char
+        eB <-
+          lAM "b" $
+            ( lAM "a" (gvar foo `aPP` (tvar "b" `tapp` tcon tBool))
+                `ann` tforall "b" KType (tcon tNat)
+            )
+              `aPP` tcon tChar
+        -- BETA step
+        -- Λb. (lettype a = Char in foo @(b Bool)) : (let b = Char in Nat)
+        expectB1 <-
+          lAM "b" $
+            letType "a" (tcon tChar) (gvar foo `aPP` (tvar "b" `tapp` tcon tBool))
+              `ann` tlet "b" (tcon tChar) (tcon tNat)
+        -- Drop annotation and elide lettype
+        -- Λb. foo @(b Bool)
+        expectB3 <- lAM "b" $ gvar foo `aPP` (tvar "b" `tapp` tcon tBool)
         -- Note that the reduction of eA and eB take slightly
         -- different paths: we do not remove the annotation in eA
         -- because it has an occurrence of a type variable and is thus
         -- not "concrete"
         pure
-          ( (eA, [(1, expectA1), (3, expectA3), (4, expectA4), (11, expectA11)])
-          , (eB, [(1, expectB1), (3, expectB3), (4, expectB4), (9, expectB9)])
+          ( (eA, [(1, expectA1), (2, expectA2), (4, expectA4), (8, expectA8)])
+          , (eB, [(1, expectB1), (3, expectB3)])
           )
       sA n = evalFullTest maxID builtinTypes mempty n Chk exprA
       sB n = evalFullTest maxID builtinTypes mempty n Chk exprB
@@ -1170,7 +1251,7 @@ unit_prim_partial_map =
               ]
             `ann` (tcon tList `tapp` tcon tChar)
             <*> pure (M.singleton mapName mapDef)
-      s = evalFullTest maxID builtinTypes (gs <> primDefs) 65 Syn e
+      s = evalFullTest maxID builtinTypes (gs <> primDefs) 67 Syn e
    in do
         distinctIDs s
         s <~==> Right r

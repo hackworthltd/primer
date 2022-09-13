@@ -37,6 +37,7 @@ data NodeFlavor
   | FlavorTVar
   | FlavorTApp
   | FlavorTForall
+  | FlavorTLet
   | FlavorPattern
   | FlavorPatternCon
   | FlavorPatternBind

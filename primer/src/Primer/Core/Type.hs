@@ -45,6 +45,17 @@ data Type' a
   | TVar a TyVarName
   | TApp a (Type' a) (Type' a)
   | TForall a TyVarName Kind (Type' a)
+  | -- | TLet is a let binding at the type level.
+    -- It is currently only constructed automatically during evaluation -
+    -- the student can't directly make it.
+    TLet
+      a
+      TyVarName
+      -- ^ bound variable
+      (Type' a)
+      -- ^ type the variable is bound to; the variable itself is not in scope, this is a non-recursive let
+      (Type' a)
+      -- ^ body of the let; binding scopes over this
   deriving (Eq, Show, Data, Generic)
   deriving (FromJSON, ToJSON) via PrimerJSON (Type' a)
 

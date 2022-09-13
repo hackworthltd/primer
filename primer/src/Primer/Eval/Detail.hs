@@ -12,6 +12,7 @@ module Primer.Eval.Detail (
 
 import Foreword
 
+import Primer.Core (Expr)
 import Primer.Core.Meta (LocalNameKind (..))
 import Primer.Core.Type (Kind, Type)
 import Primer.Eval.Beta as Beta
@@ -35,9 +36,11 @@ data EvalDetail
   | -- | ID of definition, name of variable
     GlobalVarInline GlobalVarInlineDetail
   | -- | ID of let(rec)
-    LetRemoval LetRemovalDetail
+    LetRemoval (LetRemovalDetail Expr)
+  | TLetRemoval (LetRemovalDetail Type)
   | -- | Renaming of binding in let x = ...x... in ...x...x...
-    LetRename LetRenameDetail
+    LetRename (LetRenameDetail Expr)
+  | TLetRename (LetRenameDetail Type)
   | -- | TODO: some details here
     CaseReduction CaseReductionDetail
   | -- | Push the argument of an application inside a letrec

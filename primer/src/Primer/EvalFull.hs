@@ -60,13 +60,14 @@ import Primer.Core (
   Type' (
     TForall,
     TFun,
+    TLet,
     TVar
   ),
   TypeMeta,
   ValConName,
   bindName,
  )
-import Primer.Core.DSL (ann, letType, let_, letrec, lvar, tvar)
+import Primer.Core.DSL (ann, letType, let_, letrec, lvar, tlet, tvar)
 import Primer.Core.Transform (renameTyVar, unfoldAPP, unfoldApp)
 import Primer.Core.Utils (
   concreteTy,
@@ -98,7 +99,6 @@ import Primer.Typecheck.Utils (instantiateValCons', lookupConstructor, mkTAppCon
 import Primer.Zipper (
   ExprZ,
   TypeZ,
-  bindersBelow,
   bindersBelowTy,
   down,
   focus,
@@ -128,10 +128,8 @@ data Redex
     ElideLet SomeLocal Expr
   | -- (λx.t : S -> T) s  ~>  let x = s:S in t : T
     Beta LVarName Expr Type Type Expr
-  | -- (Λa.t : ∀b.T) S  ~>  lettype b = S in (lettype a = S in t) : T for b not free in S,t
+  | -- (Λa.t : ∀b.T) S  ~>  (lettype a = S in t) : (lettype b = S in T)
     BETA TyVarName Expr TyVarName Type Type
-  | -- (Λa.t : ∀b.T) S  ~> letType c = b in letType b = c in (Λa.t : ∀b.T) S  for b free in t or S, and fresh c
-    RenameBETA TyVarName Expr (Set Name)
   | -- case C as : T of ... ; C xs -> e ; ...   ~>  let xs=as:As in e for constructor C of type T, where args have types As
     -- also the non-annotated case, as we consider constructors to be synthesisable
     -- case C as of ... ; C xs -> e ; ...   ~>  let xs=as:As in e for constructor C of type T, where args have types As
@@ -163,10 +161,15 @@ data Redex
     RenameSelfLetType TyVarName Type Expr
   | ApplyPrimFun (forall m. MonadFresh ID m => m Expr)
 
--- there are only trivial redexes in types.
--- Note that the let must appear in the surrounding Expr (not in a type itself)
 data RedexType
   = InlineLetInType TyVarName Type
+  | -- let a = s in t  ~>  t  if a does not appear in t
+    ElideLetInType (Local 'ATyVar) Type
+  | -- let a = s a in t a a  ~>  let b = s a in let a = b in t a a
+    -- Note that we cannot substitute the let in the initial term, since
+    -- we only substitute one occurence at a time, and the 'let' would capture the 'a'
+    -- in the expansion if we did a substitution.
+    RenameSelfLetInType TyVarName Type Type
   | -- ∀a:k.t  ~>  ∀b:k.t[b/a]  for fresh b, avoiding the given set
     RenameForall TypeMeta TyVarName Kind Type (S.Set TyVarName)
 
@@ -363,21 +366,8 @@ viewRedex tydefs globals dir = \case
   Var _ (GlobalVarRef x) | Just (DefAST y) <- x `M.lookup` globals -> pure $ pure $ InlineGlobal x y
   App _ (Ann _ (Lam _ x t) (TFun _ src tgt)) s -> pure $ pure $ Beta x t src tgt s
   e@App{} -> pure . ApplyPrimFun . thd3 <$> tryPrimFun (M.mapMaybe defPrim globals) e
-  e@(APP _ (Ann _ (LAM _ a t) (TForall _ b _ ty1)) ty2) ->
-    -- We would like to say (Λa.t : ∀b.T) S  ~> (letType a = S in t) : (letType b = S in T)
-    -- but we do not have letTypes inside types, so the best we can do is
-    -- (Λa.t : ∀b.T) S  ~> letType b = S in ((letType a = S in t) : T)
-    -- We need to be careful if a /= b: as this can capture a 'b' inside 'S' or 't'.
-    -- Thus if necessary we do some renaming
-    -- (Λa.t : ∀b.T) S  ~> letType c = b in letType b = c in (Λa.t : ∀b.T) S  for b free in t or S, and fresh c
-    -- We then ensure the delicate property that we reduce the b=c first, then the BETA, then the c=b
-    let fvs = freeVars t <> S.map unLocalName (freeVarsTy ty2)
-        -- we only really need to avoid free things, but avoiding bound
-        -- things means we do not need to do any further renaming
-        bvs = bindersBelow (focus t) <> S.map unLocalName (bindersBelowTy $ focus ty2)
-     in if a /= b && S.member (unLocalName b) fvs
-          then pure $ pure $ RenameBETA b e (fvs <> bvs)
-          else pure $ pure $ BETA a t b ty1 ty2
+  -- (Λa.t : ∀b.T) S  ~> (letType a = S in t) : (letType b = S in T)
+  APP _ (Ann _ (LAM _ a t) (TForall _ b _ ty1)) ty2 -> pure $ pure $ BETA a t b ty1 ty2
   e | Just r <- viewCaseRedex tydefs e -> Just r
   Ann _ t ty | Chk <- dir, concreteTy ty -> pure $ pure $ Upsilon t ty
   _ -> Nothing
@@ -426,7 +416,12 @@ findRedex tydefs globals dir = go . focus
     go ez
       | Just (LSome l, bz) <- viewLet ez = pure <$> goLet l ez bz
       | Just mr <- viewRedex tydefs globals (focusDir dir ez) (target ez) = Just $ RExpr ez <$> mr
-      | otherwise = eachChild ez go
+      | otherwise =
+          -- We reduce any types first, as computation in types is simple (just inlining)
+          (focusType ez >>= goType) <<||>> eachChild ez go
+    goType tz
+      | TLet _ a t _body <- target tz = fmap pure $ down tz >>= right >>= goTLet (LLetType a t) tz
+      | otherwise = eachChild tz goType
     -- This should always return Just
     -- It finds either this let is redundant, or somewhere to substitute it
     -- or something inside that we need to rename to unblock substitution
@@ -441,6 +436,17 @@ findRedex tydefs globals dir = go . focus
         _ ->
           goSubst l bodyz
             <<||>> Just (RExpr letz $ ElideLet (LSome l) (target bodyz))
+    -- As goLet, but for TLet
+    goTLet :: Local 'ATyVar -> TypeZ -> TypeZ -> Maybe RedexWithContext
+    goTLet l@(LLetType a s) tletz bodyz =
+      if anyOf (getting _freeVarsTy % _2) (== a) s
+        then -- We have something like Λa. _ : tlet a = s a in t a
+        -- We cannot substitute this let as we would get Λa. _ : tlet a = s a in t (s a)
+        -- where a variable has been captured
+          pure $ RType tletz $ RenameSelfLetInType a s (target bodyz)
+        else
+          goSubstTy a s bodyz
+            <<||>> Just (RType tletz $ ElideLetInType l (target bodyz))
     goSubst :: Local k -> ExprZ -> Maybe RedexWithContext
     goSubst l ez = case target ez of
       -- We've found one
@@ -449,14 +455,6 @@ findRedex tydefs globals dir = go . focus
         LLetrec n le lt -> pure $ RExpr ez $ InlineLetrec n le lt
         -- This case should have caught by the TC: a term var is bound by a lettype
         LLetType _ _ -> Nothing
-      -- We have found something like
-      --   letType c=b in (Λa.t : ∀b.T) S
-      -- where inlining 'c' would block the BETA redex. Thus we do the BETA first
-      APP _ (Ann _ (LAM _ a t) (TForall _ b1 _ ty1)) ty2
-        | LLetType c (TVar _ b2) <- l
-        , b1 == b2
-        , S.member (unLocalName c) (freeVars t <> S.map unLocalName (freeVarsTy ty2)) ->
-            pure $ RExpr ez $ BETA a t b1 ty1 ty2
       -- We have found something like
       --   let x=y in let y=z in t
       -- to substitute the 'x' inside 't' we would need to rename the 'let y'
@@ -497,7 +495,13 @@ findRedex tydefs globals dir = go . focus
     goSubstTy n t tz = case target tz of
       -- found one
       TVar _ x | x == n -> pure $ RType tz $ InlineLetInType n t
-      -- The only binding form is a forall
+      -- Swap to an inner let, as long as it would make progress,
+      -- but prefer eliding an outer binder if possible
+      TLet _ m s _body
+        | m /= n
+        , anyOf (getting _freeVarsTy % _2) (== m) t ->
+            down tz >>= right >>= goTLet (LLetType m s) tz
+      -- The only other binding form is a forall
       -- Don't go under bindings of 'n'
       (TForall i m k s)
         | n == m -> Nothing
@@ -518,15 +522,8 @@ runRedex = \case
   ElideLet _ t -> pure t
   -- (λx.t : S -> T) s  ~>  let x = s:S in t : T
   Beta x t tyS tyT s -> let_ x (pure s `ann` pure tyS) (pure t) `ann` pure tyT
-  -- (Λa.t : ∀b.T) S  ~>  lettype b = S in (lettype a = S in t) : T
-  --  if b is not free in t or S
-  BETA a t b tyT tyS
-    | a == b -> letType a (pure tyS) $ pure t `ann` pure tyT
-    | otherwise -> letType b (regenerateTypeIDs tyS) $ letType a (pure tyS) (pure t) `ann` pure tyT
-  -- (Λa.t : ∀b.T) S  ~> letType c = b in letType b = c in (Λa.t : ∀b.T) S  for b free in t or S, and fresh c
-  RenameBETA b beta avoid -> do
-    c <- freshLocalName' avoid
-    letType c (tvar b) $ letType b (tvar c) $ pure beta
+  -- (Λa.t : ∀b.T) S  ~>  (lettype a = S in t) : (lettype b = S in T)
+  BETA a t b tyT tyS -> letType a (pure tyS) (pure t) `ann` tlet b (regenerateTypeIDs tyS) (pure tyT)
   -- case C as : T of ... ; C xs -> e ; ...   ~>  let xs=as:As in e for constructor C of type T, where args have types As
   -- (and also the non-annotated-constructor case)
   -- Note that when forming the CaseRedex we checked that the variables @xs@ were fresh for @as@ and @As@,
@@ -566,6 +563,12 @@ runRedex = \case
 
 runRedexTy :: (MonadFresh ID m, MonadFresh NameCounter m) => RedexType -> m Type
 runRedexTy (InlineLetInType _ t) = regenerateTypeIDs t
+-- let a = s in t  ~>  t  if a does not appear in t
+runRedexTy (ElideLetInType _ t) = pure t
+-- let a = s a in t a a  ~>  let b = s a in let a = b in t a a
+runRedexTy (RenameSelfLetInType a s t) = do
+  b <- freshLocalName (freeVarsTy s <> freeVarsTy t)
+  tlet b (pure s) $ tlet a (tvar b) $ pure t
 runRedexTy (RenameForall m a k s avoid) = do
   -- It should never be necessary to try more than once, since
   -- we pick a new name disjoint from any that appear in @s@
