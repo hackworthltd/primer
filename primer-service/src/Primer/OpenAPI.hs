@@ -81,19 +81,19 @@ deriving via PrimerJSON OfferedAction instance ToSchema OfferedAction
 deriving via PrimerJSON ActionName instance ToSchema ActionName
 deriving via PrimerJSON ActionType instance ToSchema ActionType
 deriving via PrimerJSON Level instance ToSchema Level
-deriving via PrimerJSON Mutability instance ToSchema Mutability
+deriving via PrimerJSON Editable instance ToSchema Editable
 
 deriving anyclass instance ToParamSchema Level
 
 -- deriving anyclass instance FromHttpApiData Level
-deriving anyclass instance ToParamSchema Mutability
+deriving anyclass instance ToParamSchema Editable
 deriving newtype instance ToParamSchema ID
 deriving via Text instance ToParamSchema Name
 
 -- TODO this class should be derivable for enums at least - https://github.com/haskell-servant/servant/issues/1014
-instance FromHttpApiData Mutability where
+instance FromHttpApiData Editable where
   parseUrlPiece = maybeToEither "no read" . readMaybe . T.unpack
-deriving instance Read Mutability
+deriving instance Read Editable
 instance FromHttpApiData Level where
   parseUrlPiece = maybeToEither "no read" . readMaybe . T.unpack
 deriving instance Read Level
