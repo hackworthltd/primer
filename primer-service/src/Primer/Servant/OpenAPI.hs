@@ -96,6 +96,7 @@ data AvailableActionsAPI mode = AvailableActionsAPI
         :- "body"
         :> Summary "Get available actions at the given body node"
         :> ReqBody '[JSON] AvailableActionsAPIBody
+        :> OperationId "getBodyActions"
         :> Post '[JSON] [API.OfferedAction]
         -- , getTypeActions :: ()
   }
