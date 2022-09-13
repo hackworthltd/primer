@@ -1,17 +1,29 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE UndecidableInstances #-}
 
 module Main (main) where
 
-import Foreword
+import Foreword hiding (Handler)
 
+import Control.Concurrent.Async (
+  concurrently_,
+ )
 import Control.Concurrent.STM (
   newTBQueueIO,
  )
 import Control.Monad.Fail (fail)
+import Control.Monad.Log (
+  Handler,
+  WithSeverity (..),
+  defaultBatchingOptions,
+  runLoggingT,
+  withBatchedHandler,
+ )
 import Data.ByteString as BS
 import Data.ByteString.UTF8 (fromString)
 import Data.String (String)
 import Hasql.Pool (
+  Pool,
   acquire,
   release,
  )
@@ -32,33 +44,25 @@ import Options.Applicative (
   option,
   progDesc,
   str,
-  switch,
   value,
  )
-import Primer.API (
-  Env (..),
-  addSession,
-  runPrimerIO,
- )
-import Primer.App (
-  App,
- )
 import Primer.Database (Version)
-import Primer.Database qualified as Db (
-  ServiceCfg (..),
-  discardOp,
-  serve,
- )
+import Primer.Database qualified as Db
 import Primer.Database.Rel8 (
+  MonadRel8Db,
   Rel8DbException (..),
+  Rel8DbLogMessage (..),
   runRel8DbT,
  )
-import Primer.Examples (
-  even3App,
+import Primer.Log (
+  ConvertLogMessage (..),
+  logCritical,
+  logError,
+  logInfo,
+  logNotice,
+  textWithSeverity,
  )
-import Primer.Server (
-  serve,
- )
+import Primer.Server qualified as Server
 import StmContainers.Map qualified as StmMap
 import System.Environment (lookupEnv)
 import System.IO (
@@ -67,9 +71,7 @@ import System.IO (
  )
 
 {- HLINT ignore GlobalOptions "Use newtype instead of data" -}
-data GlobalOptions = GlobalOptions
-  { cmd :: !Command
-  }
+data GlobalOptions = GlobalOptions !Command
 
 newtype Database = PostgreSQL BS.ByteString
 
@@ -77,7 +79,7 @@ parseDatabase :: Parser Database
 parseDatabase = PostgreSQL <$> option auto (long "pgsql-url")
 
 data Command
-  = Serve Version (Maybe Database) Int Natural Bool
+  = Serve Version (Maybe Database) Int Natural
 
 serveCmd :: Parser Command
 serveCmd =
@@ -86,7 +88,6 @@ serveCmd =
     <*> optional parseDatabase
     <*> option auto (long "port" <> value 8081)
     <*> option auto (long "db-op-queue-size" <> value 128)
-    <*> switch (long "seed-db")
 
 cmds :: Parser GlobalOptions
 cmds =
@@ -110,38 +111,19 @@ defaultDb = do
     Nothing -> fail "You must provide a PostgreSQL connection URL either via the command line, or by setting the DATABASE_URL environment variable."
     Just uri -> pure $ PostgreSQL $ fromString uri
 
-runDb :: Db.ServiceCfg -> Database -> IO ()
-runDb cfg =
-  \case
-    PostgreSQL uri ->
-      bracket (acquire poolSize timeout uri) release start
+runDb :: MonadRel8Db m l => Db.ServiceCfg -> Pool -> m ()
+runDb cfg = start
   where
-    -- Note: pool size must be 1 in order to guarantee
-    -- read-after-write and write-after-write semantics for individual
-    -- sessions. See:
-    --
-    -- https://github.com/hackworthltd/primer/issues/640#issuecomment-1217290598
-    poolSize = 1
-
-    -- 1 second, which is pretty arbitrary.
-    timeout = Just $ 1 * 1000000
-
     justRel8DbException :: Rel8DbException -> Maybe Rel8DbException
     justRel8DbException = Just
 
-    -- The database computation server.
-    go = runRel8DbT $ Db.serve cfg
-
-    -- This action should log exceptions somewhere useful. For now, it
-    -- only outputs the exception to 'stderr'. See
-    -- https://github.com/hackworthltd/primer/issues/179.
-    logDbException e = putErrLn (show e :: Text)
+    logDbException = logError . LogRel8DbException
 
     -- The database computation exception handler.
     start pool =
       catchJust
         justRel8DbException
-        (go pool)
+        (flip runRel8DbT pool $ Db.serve cfg)
         $ \e -> do
           logDbException e
           case e of
@@ -167,53 +149,52 @@ runDb cfg =
               Db.discardOp (Db.opQueue cfg)
               start pool
 
--- A list of 'App's used to seed the database.
-seedApps :: [(Text, App)]
-seedApps =
-  [ ("even3", even3App)
+banner :: [Text]
+banner =
+  [ "                      ███                                    "
+  , "                     ░░░                                     "
+  , " ████████  ████████  ████  █████████████    ██████  ████████ "
+  , "░░███░░███░░███░░███░░███ ░░███░░███░░███  ███░░███░░███░░███"
+  , " ░███ ░███ ░███ ░░░  ░███  ░███ ░███ ░███ ░███████  ░███ ░░░ "
+  , " ░███ ░███ ░███      ░███  ░███ ░███ ░███ ░███░░░   ░███     "
+  , " ░███████  █████     █████ █████░███ █████░░██████  █████    "
+  , " ░███░░░  ░░░░░     ░░░░░ ░░░░░ ░░░ ░░░░░  ░░░░░░  ░░░░░     "
+  , " ░███                                                        "
+  , " █████                                                       "
+  , "░░░░░                                                        "
   ]
 
-banner :: Text
-banner =
-  "                      ███                                    \n\
-  \                     ░░░                                     \n\
-  \ ████████  ████████  ████  █████████████    ██████  ████████ \n\
-  \░░███░░███░░███░░███░░███ ░░███░░███░░███  ███░░███░░███░░███\n\
-  \ ░███ ░███ ░███ ░░░  ░███  ░███ ░███ ░███ ░███████  ░███ ░░░ \n\
-  \ ░███ ░███ ░███      ░███  ░███ ░███ ░███ ░███░░░   ░███     \n\
-  \ ░███████  █████     █████ █████░███ █████░░██████  █████    \n\
-  \ ░███░░░  ░░░░░     ░░░░░ ░░░░░ ░░░ ░░░░░  ░░░░░░  ░░░░░     \n\
-  \ ░███                                                        \n\
-  \ █████                                                       \n\
-  \░░░░░                                                        "
-
--- The choice of which process to fork and which to run in the "main"
--- thread doesn't particularly matter for our purposes, as far as I
--- can determine. We do need some proper exception handling, however,
--- and we'll also need to shut down properly on SIGINT or similar once
--- we have an actual persistent database, so we may need to reconsider
--- what to do on the main thread when we implement those additional
--- process-related features.
---
--- For now, we run the Servant service in the forked thread, because
--- exceptions in the web service are already reasonably well-handled
--- and reported (to the student, via HTTP error codes) by Servant.
-run :: GlobalOptions -> IO ()
-run opts = case cmd opts of
-  Serve ver dbFlag port qsz seedDb -> do
+serve ::
+  ( ConvertLogMessage Rel8DbLogMessage l
+  , ConvertLogMessage Text l
+  ) =>
+  Database ->
+  Version ->
+  Int ->
+  Natural ->
+  Handler IO (WithSeverity l) ->
+  IO ()
+serve (PostgreSQL uri) ver port qsz logger =
+  bracket (acquire poolSize timeout uri) release $ \pool -> do
     dbOpQueue <- newTBQueueIO qsz
     initialSessions <- StmMap.newIO
-    putText banner
-    putText $ "primer-server version " <> ver
-    _ <- forkIO $ do
-      when seedDb $ do
-        let env = Env initialSessions dbOpQueue ver
-        flip runPrimerIO env $
-          forM_ seedApps $
-            uncurry addSession
-      serve initialSessions dbOpQueue ver port
-    db <- maybe defaultDb pure dbFlag
-    runDb (Db.ServiceCfg dbOpQueue ver) db
+    flip runLoggingT logger $ do
+      forM_ banner logInfo
+      logNotice $ "primer-server version " <> ver
+      logNotice ("Listening on port " <> show port :: Text)
+    concurrently_
+      (Server.serve initialSessions dbOpQueue ver port)
+      (flip runLoggingT logger $ runDb (Db.ServiceCfg dbOpQueue ver) pool)
+  where
+    -- Note: pool size must be 1 in order to guarantee
+    -- read-after-write and write-after-write semantics for individual
+    -- sessions. See:
+    --
+    -- https://github.com/hackworthltd/primer/issues/640#issuecomment-1217290598
+    poolSize = 1
+
+    -- 1 second, which is pretty arbitrary.
+    timeout = Just $ 1 * 1000000
 
 main :: IO ()
 main = do
@@ -221,7 +202,13 @@ main = do
   -- it's line-buffered, as we can't guarantee what the GHC runtime
   -- will do by default.
   hSetBuffering stdout LineBuffering
-  execParser opts >>= run
+  withBatchedHandler defaultBatchingOptions flush $ \logToStdout ->
+    handleAll (bye (logToStdout . logMsgWithSeverity)) $ do
+      args <- execParser opts
+      case args of
+        GlobalOptions (Serve ver dbFlag port qsz) -> do
+          db <- maybe defaultDb pure dbFlag
+          serve db ver port qsz (logToStdout . logMsgWithSeverity)
   where
     opts =
       info
@@ -231,3 +218,24 @@ main = do
             <> header
               "primer-service - A web service for Primer."
         )
+    bye :: Handler IO (WithSeverity LogMsg) -> SomeException -> IO ()
+    bye logger e = do
+      flip runLoggingT logger $ logCritical e
+      exitFailure
+    flush :: (Foldable t, MonadIO m, Print a) => t a -> m ()
+    flush messages = forM_ messages putStrLn
+
+-- | Avoid orphan instances.
+newtype LogMsg = LogMsg {unLogMsg :: Text}
+
+logMsgWithSeverity :: WithSeverity LogMsg -> Text
+logMsgWithSeverity (WithSeverity s m) = textWithSeverity $ WithSeverity s (unLogMsg m)
+
+instance ConvertLogMessage Text LogMsg where
+  convert = LogMsg
+
+instance ConvertLogMessage Rel8DbLogMessage LogMsg where
+  convert = LogMsg . show
+
+instance ConvertLogMessage SomeException LogMsg where
+  convert = LogMsg . show

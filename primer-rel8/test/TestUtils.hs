@@ -4,13 +4,19 @@ module TestUtils (
   (@?=),
   assertException,
   insertSessionRow,
-  runTmpDb,
   testApp,
   withDbSetup,
+  runTmpDb,
+  runTmpDbWithPool,
 ) where
 
 import Foreword
 
+import Control.Monad.Log (
+  DiscardLoggingT,
+  WithSeverity,
+  discardLogging,
+ )
 import Data.ByteString.Lazy.UTF8 as BL
 import Data.Map.Strict qualified as Map
 import Data.String (String)
@@ -49,9 +55,9 @@ import Primer.Core (
   mkSimpleModuleName,
  )
 import Primer.Core.DSL (create)
-import Primer.Database.Rel8.Rel8Db (
-  Rel8Db,
-  runRel8Db,
+import Primer.Database.Rel8 (
+  Rel8DbT,
+  runRel8DbT,
  )
 import Primer.Database.Rel8.Schema as Schema hiding (app)
 import Primer.Examples (comprehensive)
@@ -146,9 +152,14 @@ withDbSetup f = do
                 withConfig migratedConfig $ \db ->
                   bracket (acquire 1 (Just 1000000) $ toConnectionString db) release f
 
-runTmpDb :: Rel8Db () -> IO ()
+runTmpDb :: Rel8DbT (DiscardLoggingT (WithSeverity ()) IO) () -> IO ()
 runTmpDb tests =
-  withDbSetup $ \pool -> runRel8Db tests pool
+  withDbSetup $ \pool -> discardLogging $ runRel8DbT tests pool
+
+-- | Some tests need access to the pool
+runTmpDbWithPool :: (Pool -> Rel8DbT (DiscardLoggingT (WithSeverity ()) IO) ()) -> IO ()
+runTmpDbWithPool tests =
+  withDbSetup $ \pool -> discardLogging $ runRel8DbT (tests pool) pool
 
 (@?=) :: (MonadIO m, Eq a, Show a) => a -> a -> m ()
 x @?= y = liftIO $ x HUnit.@?= y
