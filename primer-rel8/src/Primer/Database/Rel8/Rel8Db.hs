@@ -126,7 +126,7 @@ runRel8DbT :: Rel8DbT m a -> Pool -> m a
 runRel8DbT m = runReaderT (unRel8DbT m)
 
 -- | A convenient type alias.
-type MonadRel8Db m = (MonadThrow m, MonadIO m, MonadLog (WithSeverity Rel8DbLogMessage) m)
+type MonadRel8Db m a = (LogMessage a, MonadCatch m, MonadThrow m, MonadIO m, MonadLog (WithSeverity a) m)
 
 -- | A 'MonadDb' instance for 'Rel8DbT'.
 --
@@ -138,7 +138,7 @@ type MonadRel8Db m = (MonadThrow m, MonadIO m, MonadLog (WithSeverity Rel8DbLogM
 -- database. The latter sorts of exceptions are expressed via the
 -- types of the 'MonadDb' methods and are handled by Primer
 -- internally.
-instance MonadRel8Db m => MonadDb (Rel8DbT m) where
+instance MonadRel8Db m Rel8DbLogMessage => MonadDb (Rel8DbT m) where
   insertSession v s a n =
     runStatement_ (InsertError s) $
       insert
@@ -305,7 +305,9 @@ data Rel8DbLogMessage
   | -- | A 'Rel8DBException' occurred.
     LogRel8DbException Rel8DbException
   deriving stock (Eq, Show, Generic)
-  deriving anyclass (LogMessage)
+  --deriving anyclass (LogMessage)
+
+instance LogMessage Rel8DbLogMessage
 
 -- Helpers to make dealing with "Hasql.Session" easier.
 --

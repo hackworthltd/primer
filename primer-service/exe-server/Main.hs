@@ -52,9 +52,14 @@ import Options.Applicative (
 import Primer.Database (Version)
 import Primer.Database qualified as Db
 import Primer.Database.Rel8 (
+  MonadRel8Db,
   Rel8DbException (..),
   Rel8DbLogMessage (..),
   runRel8DbT,
+ )
+import Primer.Log (
+  LogMessage (..),
+  textWithSeverity,
  )
 import Primer.Server qualified as Server
 import StmContainers.Map qualified as StmMap
@@ -105,7 +110,7 @@ defaultDb = do
     Nothing -> fail "You must provide a PostgreSQL connection URL either via the command line, or by setting the DATABASE_URL environment variable."
     Just uri -> pure $ PostgreSQL $ fromString uri
 
-runDb :: (MonadCatch m, MonadIO m, MonadLog (WithSeverity Rel8DbLogMessage) m) => Db.ServiceCfg -> Pool -> m ()
+runDb :: MonadRel8Db m Rel8DbLogMessage => Db.ServiceCfg -> Pool -> m ()
 runDb cfg = start
   where
     justRel8DbException :: Rel8DbException -> Maybe Rel8DbException
@@ -158,12 +163,12 @@ banner =
   , "░░░░░                                                        "
   ]
 
-serve ::
+serve :: (LogMessage a) =>
   Database ->
   Version ->
   Int ->
   Natural ->
-  Handler IO (WithSeverity Text) ->
+  Handler IO (WithSeverity a) ->
   IO ()
 serve (PostgreSQL uri) ver port qsz logger =
   bracket (acquire poolSize timeout uri) release $ \pool -> do
@@ -174,7 +179,7 @@ serve (PostgreSQL uri) ver port qsz logger =
       logNotice $ "primer-server version " <> ver
     concurrently_
       (Server.serve initialSessions dbOpQueue ver port)
-      (flip runLoggingT (\(WithSeverity s t) -> logger $ WithSeverity s (show t)) $ runDb (Db.ServiceCfg dbOpQueue ver) pool)
+      (flip runLoggingT logger $ runDb (Db.ServiceCfg dbOpQueue ver) pool)
   where
     -- Note: pool size must be 1 in order to guarantee
     -- read-after-write and write-after-write semantics for individual
@@ -192,13 +197,13 @@ main = do
   -- it's line-buffered, as we can't guarantee what the GHC runtime
   -- will do by default.
   hSetBuffering stdout LineBuffering
-  withBatchedHandler defaultBatchingOptions flush $ \(logToStdout :: Handler IO (WithSeverity Text)) ->
-    handleAll (bye logToStdout) $ do
+  withBatchedHandler defaultBatchingOptions flush $ \(logToStdout :: Handler IO Text) ->
+    handleAll (bye (logToStdout . textWithSeverity)) $ do
       args <- execParser opts
       case args of
         GlobalOptions (Serve ver dbFlag port qsz) -> do
           db <- maybe defaultDb pure dbFlag
-          serve db ver port qsz logToStdout
+          serve db ver port qsz (logToStdout . textWithSeverity)
   where
     opts =
       info
