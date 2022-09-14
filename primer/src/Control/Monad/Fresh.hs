@@ -1,6 +1,7 @@
 module Control.Monad.Fresh (MonadFresh (..)) where
 
 import Foreword
+import Control.Monad.Log (PureLoggingT)
 
 -- | This class gives access to a method @fresh@ which generates a new, unique
 --  value of type i.
@@ -17,4 +18,7 @@ instance MonadFresh i m => MonadFresh i (StateT s m) where
   fresh = lift fresh
 
 instance MonadFresh i m => MonadFresh i (ReaderT e m) where
+  fresh = lift fresh
+
+instance MonadFresh i m => MonadFresh i (PureLoggingT l m) where
   fresh = lift fresh

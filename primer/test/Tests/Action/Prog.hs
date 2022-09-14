@@ -125,6 +125,9 @@ import TestUtils (constructCon, constructTCon, zeroIDs, zeroTypeIDs)
 import TestUtils qualified
 import Tests.Typecheck (checkProgWellFormed)
 import Prelude (error)
+import Control.Monad.Log (MonadLog (logMessageFree), WithSeverity, PureLoggingT, runPureLoggingT)
+import Primer.Log (ConvertLogMessage (convert))
+import qualified Data.Sequence as Seq
 
 -- Note: the use of 'appNameCounter' in this helper functions is a
 -- hack, but it is probably safe for these tests, anyway.
@@ -1657,7 +1660,7 @@ progActionTest inputProg actions testOutput = do
   let a = mkEmptyTestApp prog
   testOutput prog $ fst $ runAppTestM maxID a (handleEditRequest actions)
 
-newtype AppTestM a = AppTestM {unAppTestM :: StateT App (ExceptT ProgError TestM) a}
+newtype AppTestM a = AppTestM {unAppTestM :: PureLoggingT (Seq (WithSeverity TestLog)) (StateT App (ExceptT ProgError TestM)) a}
   deriving newtype
     ( Functor
     , Applicative
@@ -1668,9 +1671,19 @@ newtype AppTestM a = AppTestM {unAppTestM :: StateT App (ExceptT ProgError TestM
     , MonadError ProgError
     )
 
+-- TODO: factor this out...
+newtype TestLog = TestLog Text
+instance ConvertLogMessage Text TestLog where
+  convert = TestLog
+instance MonadLog (WithSeverity TestLog) AppTestM where
+  logMessageFree m = AppTestM $ logMessageFree $ m . (. Seq.singleton)
+
 runAppTestM :: ID -> App -> AppTestM a -> (Either ProgError a, App)
-runAppTestM startID a m =
-  case evalTestM startID $ runExceptT $ flip runStateT a $ unAppTestM m of
+runAppTestM startID a m = first (fmap fst) $ runAppTestM' startID a m
+
+runAppTestM' :: ID -> App -> AppTestM a -> (Either ProgError (a, Seq (WithSeverity TestLog)), App)
+runAppTestM' startID a m =
+  case evalTestM startID $ runExceptT $ flip runStateT a $ runPureLoggingT $ unAppTestM m of
     Left err -> (Left err, a)
     Right (res, app') -> (Right res, app')
 
