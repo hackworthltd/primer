@@ -58,7 +58,7 @@ import Control.Concurrent.STM (
   atomically,
   newEmptyTMVar,
   takeTMVar,
-  writeTBQueue,
+  writeTBQueue, TMVar,
  )
 import Control.Monad.Cont (MonadCont)
 import Control.Monad.Fix (MonadFix)
@@ -129,7 +129,7 @@ import Primer.Database (
   fromSessionName,
   newSessionId,
   pageList,
-  safeMkSessionName,
+  safeMkSessionName, OpStatus,
  )
 import Primer.Database qualified as Database (
   Op (
@@ -159,6 +159,8 @@ import Primer.Module (moduleDefsQualified, moduleName, moduleTypesQualified)
 import Primer.Name (Name, unName)
 import Primer.Primitives (primDefType)
 import StmContainers.Map qualified as StmMap
+import Control.Monad.Log (MonadLog, WithSeverity)
+import Primer.Log (ConvertLogMessage)
 
 -- | The API environment.
 data Env = Env
@@ -188,6 +190,7 @@ newtype PrimerM m a = PrimerM {unPrimerM :: ReaderT Env m a}
     , MonadWriter w
     , MonadZip
     , MonadCont
+    , MonadLog l
     )
 
 -- | Run a 'PrimerM' action with the given 'Env'.
@@ -214,12 +217,13 @@ sessionsTransaction f = do
   q <- asks dbOpQueue
   liftIO $ atomically $ f ss q
 
-data SessionOp a where
-  EditApp :: (App -> (a, App)) -> SessionOp a
-  QueryApp :: (App -> a) -> SessionOp a
-  GetSessionName :: SessionOp Text
-  GetSessionData :: SessionOp SessionData
-  RenameSession :: Text -> SessionOp Text
+-- The monad m is solely for logging
+data SessionOp m a where
+  EditApp :: (App -> m (a, App)) -> SessionOp m a
+  QueryApp :: (App -> a) -> SessionOp m a
+  GetSessionName :: SessionOp m Text
+  GetSessionData :: SessionOp m SessionData
+  RenameSession :: Text -> SessionOp m Text
 
 -- A note about the implementation here. When the session is missing
 -- from the in-memory database, we can't queue the database request to
@@ -229,9 +233,9 @@ data SessionOp a where
 -- transaction from completing, but the database request won't
 -- actually be sent until the transaction is complete. This would
 -- cause a deadlock!
-withSession' :: (MonadIO m, MonadThrow m) => SessionId -> SessionOp a -> PrimerM m a
+withSession' :: (MonadIO m, MonadThrow m) => SessionId -> SessionOp m a -> PrimerM m a
 withSession' sid op = do
-  hndl <- sessionsTransaction $ \ss q -> do
+  hndl :: Either (TMVar OpStatus) a <- sessionsTransaction $ \ss q -> do
     query <- StmMap.lookup sid ss
     case query of
       Nothing -> do
@@ -244,23 +248,23 @@ withSession' sid op = do
         callback <- newEmptyTMVar
         writeTBQueue q $ Database.LoadSession sid ss callback
         return $ Left callback
-      Just s@(SessionData appl n) ->
+      Just s@(SessionData appl n) -> Right <$>
         -- The session is in memory, let's do this.
         case op of
           EditApp f -> do
-            let (res, appl') = f appl
+            let (res, appl') = undefined -- f appl
             StmMap.insert (SessionData appl' n) sid ss
             writeTBQueue q $ Database.UpdateApp sid appl'
-            pure $ Right res
-          QueryApp f -> pure $ Right $ f appl
-          GetSessionName -> pure $ Right (fromSessionName n)
-          GetSessionData -> pure $ Right s
+            pure res
+          QueryApp f -> pure $ f appl
+          GetSessionName -> pure $ fromSessionName n
+          GetSessionData -> pure s
           RenameSession n' ->
             let newName = safeMkSessionName n'
              in do
                   StmMap.insert (SessionData appl newName) sid ss
                   writeTBQueue q $ Database.UpdateName sid newName
-                  pure $ Right (fromSessionName newName)
+                  pure $ fromSessionName newName
   case hndl of
     Left callback -> do
       -- The session was missing from the in-memory database. Once we
@@ -363,7 +367,7 @@ renameSession sid n = withSession' sid $ RenameSession n
 
 -- Run an 'EditAppM' action, using the given session ID to look up and
 -- pass in the app state for that session.
-liftEditAppM :: (MonadIO m, MonadThrow m) => EditAppM a -> SessionId -> PrimerM m (Either ProgError a)
+liftEditAppM :: (MonadIO m, MonadThrow m) => EditAppM m a -> SessionId -> PrimerM m (Either ProgError a)
 liftEditAppM h sid = withSession' sid (EditApp $ runEditAppM h)
 
 -- Run a 'QueryAppM' action, using the given session ID to look up and
@@ -771,7 +775,8 @@ viewTreeType' t0 = case t0 of
 showGlobal :: GlobalName k -> Text
 showGlobal n = moduleNamePretty (qualifiedModule n) <> "." <> unName (baseName n)
 
-edit :: (MonadIO m, MonadThrow m) => SessionId -> MutationRequest -> PrimerM m (Either ProgError App.Prog)
+edit :: (MonadIO m, MonadThrow m, MonadLog (WithSeverity l) m, ConvertLogMessage Text l)
+  => SessionId -> MutationRequest -> PrimerM m (Either ProgError App.Prog)
 edit sid req = liftEditAppM (handleMutationRequest req) sid
 
 variablesInScope ::
@@ -786,11 +791,13 @@ generateNames :: (MonadIO m, MonadThrow m) => SessionId -> ((GVarName, ID), Eith
 generateNames sid ((defname, exprid), tk) =
   liftQueryAppM (handleQuestion $ GenerateName defname exprid tk) sid
 
-evalStep :: (MonadIO m, MonadThrow m) => SessionId -> EvalReq -> PrimerM m (Either ProgError EvalResp)
+evalStep :: (MonadIO m, MonadThrow m, MonadLog (WithSeverity l) m, ConvertLogMessage Text l)
+  => SessionId -> EvalReq -> PrimerM m (Either ProgError EvalResp)
 evalStep sid req =
   liftEditAppM (handleEvalRequest req) sid
 
-evalFull :: (MonadIO m, MonadThrow m) => SessionId -> EvalFullReq -> PrimerM m (Either ProgError EvalFullResp)
+evalFull :: (MonadIO m, MonadThrow m, MonadLog (WithSeverity l) m, ConvertLogMessage Text l)
+  => SessionId -> EvalFullReq -> PrimerM m (Either ProgError EvalFullResp)
 evalFull sid req =
   liftEditAppM (handleEvalFullRequest req) sid
 
