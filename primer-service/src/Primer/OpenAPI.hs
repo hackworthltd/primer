@@ -11,7 +11,6 @@ import Data.OpenApi.Internal.Schema (GToSchema, rename)
 import Deriving.Aeson (AesonOptions (aesonOptions))
 import Primer.API (Def, ExprTreeOpts, Module, NodeBody, NodeFlavor, OfferedAction, Prog, Tree)
 import Primer.Action (ActionName, ActionType, Level (..))
-import Primer.App (Editable (..))
 import Primer.Core (
   GlobalName,
   GlobalNameKind (ADefName, ATyCon, AValCon),
@@ -73,4 +72,3 @@ deriving via PrimerJSON OfferedAction instance ToSchema OfferedAction
 deriving via PrimerJSON ActionName instance ToSchema ActionName
 deriving via PrimerJSON ActionType instance ToSchema ActionType
 deriving via PrimerJSON Level instance ToSchema Level
-deriving via PrimerJSON Editable instance ToSchema Editable

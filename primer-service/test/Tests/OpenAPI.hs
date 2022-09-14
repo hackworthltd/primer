@@ -24,7 +24,6 @@ import Primer.API (
   viewTreeType,
  )
 import Primer.Action (ActionName (..), ActionType (..), Level)
-import Primer.App (Editable)
 import Primer.Core (ID (ID))
 import Primer.Database (Session (Session), SessionName, safeMkSessionName)
 import Primer.Gen.API (genExprTreeOpts)
@@ -218,12 +217,10 @@ instance Arbitrary Prog where
 instance Arbitrary OfferedAction where
   arbitrary = OfferedAction <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
 instance Arbitrary AvailableActionsAPIBody where
-  arbitrary = AvailableActionsAPIBody <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
+  arbitrary = AvailableActionsAPIBody <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
 instance Arbitrary a => Arbitrary (NonEmpty a) where
   arbitrary = maybe discard pure . nonEmpty =<< arbitrary
 instance Arbitrary Level where
-  arbitrary = arbitraryBoundedEnum
-instance Arbitrary Editable where
   arbitrary = arbitraryBoundedEnum
 deriving newtype instance Arbitrary ID
 instance Arbitrary Name where

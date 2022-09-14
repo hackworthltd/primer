@@ -115,8 +115,8 @@ openAPIAvailableActionsServer sid =
     { OpenAPI.getBodyActions = \AvailableActionsAPIBody{..} -> do
         prog <- getProgram sid
         let gn = qualifyName (ModuleName module_) def
-        (_, DefAST ASTDef{astDefExpr = expr}) <- maybe (throwM $ UnknownDef gn) pure $ progAllDefs prog !? gn
-        pure $ map API.convertOfferedAction $ actionsForDefBody (snd <$> progAllTypeDefs prog) level gn mut id expr
+        (editable, DefAST ASTDef{astDefExpr = expr}) <- maybe (throwM $ UnknownDef gn) pure $ progAllDefs prog !? gn
+        pure $ map API.convertOfferedAction $ actionsForDefBody (snd <$> progAllTypeDefs prog) level gn editable id expr
     }
 
 apiServer :: S.RootAPI (AsServerT PrimerIO)

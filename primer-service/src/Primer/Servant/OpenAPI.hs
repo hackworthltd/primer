@@ -16,7 +16,6 @@ import Data.OpenApi (OpenApi)
 import Data.OpenApi.Schema (ToSchema)
 import Primer.API qualified as API
 import Primer.Action (Level)
-import Primer.App (Editable)
 import Primer.Core
 import Primer.Database (
   SessionId,
@@ -109,7 +108,6 @@ data AvailableActionsAPI mode = AvailableActionsAPI
   deriving (Generic)
 data AvailableActionsAPIBody = AvailableActionsAPIBody
   { level :: Level
-  , mut :: Editable
   , id :: ID
   , def :: Name
   , module_ :: NonEmpty Name
