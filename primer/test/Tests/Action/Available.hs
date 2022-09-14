@@ -107,6 +107,9 @@ import Test.Tasty.Golden (goldenVsString)
 import Test.Tasty.HUnit (Assertion, (@?=))
 import Tests.Typecheck (TypeCacheAlpha (TypeCacheAlpha), runTypecheckTestMIn)
 import Text.Pretty.Simple (pShowNoColor)
+import Control.Monad.Log (PureLoggingT, runPureLoggingT, mapLogMessage, LoggingT, WithSeverity)
+import qualified Data.Sequence as Seq
+import Primer.Log (ConvertLogMessage (convert))
 
 -- | Comprehensive DSL test.
 test_1 :: TestTree
@@ -318,25 +321,46 @@ tasty_available_actions_accepted = withTests 500 $
           collect $ description action
           checkActionInput $ input action
   where
-    actionSucceeds :: HasCallStack => EditAppM a -> App -> PropertyT WT ()
-    actionSucceeds m a = case runEditAppM m a of
-      (Left err, _) -> annotateShow err >> failure
-      (Right _, a') -> ensureSHNormal a'
+    actionSucceeds :: HasCallStack
+                   => EditAppM (LoggingT TestLog (PureLoggingT (Seq TestLog) Identity)) a
+                   -> App -> PropertyT WT ()
+    -- REVIEW/TODO: runIdentity . runPureLoggingT . mapLogMessage singleton
+    --   should be factored out - I use it elsewhere ...
+    --   also TestLog
+    actionSucceeds m a = case runIdentity $ runPureLoggingT $ mapLogMessage Seq.singleton $ runEditAppM m a of
+      ((Left err, _),logs) -> do
+        annotateShow err
+        annotateShow logs
+        failure
+      ((Right _, a'),logs) -> do
+        ensureEmptyLogs logs
+        ensureSHNormal a'
     -- If we submit our own name rather than an offered one, then
     -- we should expect that name capture/clashing may happen
-    actionSucceedsOrCapture :: HasCallStack => EditAppM a -> App -> PropertyT WT ()
-    actionSucceedsOrCapture m a = case runEditAppM m a of
-      (Left (ActionError NameCapture), _) -> do
+    actionSucceedsOrCapture :: HasCallStack
+                            => EditAppM (LoggingT TestLog (PureLoggingT (Seq TestLog) Identity)) a
+                            -> App -> PropertyT WT ()
+    actionSucceedsOrCapture m a = case runIdentity $ runPureLoggingT $ mapLogMessage Seq.singleton $ runEditAppM m a of
+      ((Left (ActionError NameCapture), _),logs) -> do
         label "name-capture with entered name"
         annotate "ignoring name capture error as was generated name, not offered one"
-      (Left (ActionError (CaseBindsClash{})), _) -> do
+        ensureEmptyLogs logs
+      ((Left (ActionError (CaseBindsClash{})), _), logs) -> do
         label "name-clash with entered name"
         annotate "ignoring name clash error as was generated name, not offered one"
-      (Left DefAlreadyExists{}, _) -> do
+        ensureEmptyLogs logs
+      ((Left DefAlreadyExists{}, _), logs) -> do
         label "rename def name clash with entered name"
         annotate "ignoring def already exists error as was generated name, not offered one"
-      (Left err, _) -> annotateShow err >> failure
-      (Right _, a') -> ensureSHNormal a'
+        ensureEmptyLogs logs
+      ((Left err, _),logs) -> do
+        annotateShow err
+        annotateShow logs
+        failure
+      ((Right _, a'),logs) ->         do
+        ensureEmptyLogs logs
+        ensureSHNormal a'
+    ensureEmptyLogs logs = if Seq.null logs then success else annotateShow logs >> failure
     ensureSHNormal a = case checkAppWellFormed a of
       Left err -> annotateShow err >> failure
       Right a' -> TypeCacheAlpha a === TypeCacheAlpha a'
@@ -345,3 +369,10 @@ tasty_available_actions_accepted = withTests 500 $
       Left err -> annotateShow err >> failure
       Right x -> pure x
     globalNameToQualifiedText n = (fmap unName $ unModuleName $ qualifiedModule n, unName $ baseName n)
+
+type TestLog = WithSeverity TestLogMessage
+newtype TestLogMessage = TestLogMessage Text
+  deriving newtype Show
+
+instance ConvertLogMessage Text TestLogMessage where
+  convert = TestLogMessage
