@@ -1,3 +1,5 @@
+{-# LANGUAGE RecordWildCards #-}
+
 module Primer.Core.Meta (
   HasID (..),
   getID,
@@ -7,6 +9,7 @@ module Primer.Core.Meta (
   ModuleName (ModuleName, unModuleName),
   mkSimpleModuleName,
   moduleNamePretty,
+  globalNamePretty,
   GlobalNameKind (..),
   GlobalName (qualifiedModule, baseName),
   qualifyName,
@@ -78,6 +81,9 @@ mkSimpleModuleName n = ModuleName $ n :| []
 
 moduleNamePretty :: ModuleName -> Text
 moduleNamePretty = mconcat . intersperse "." . toList . fmap unName . unModuleName
+
+globalNamePretty :: GlobalName k -> Text
+globalNamePretty GlobalName{..} = moduleNamePretty qualifiedModule <> "." <> unName baseName
 
 -- | Tags for 'GlobalName'
 data GlobalNameKind

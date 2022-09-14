@@ -210,7 +210,10 @@ runPrimerIO = runPrimerM
 {- HLINT ignore PrimerErr "Use newtype instead of data" -}
 
 -- | Primer exception class.
-data PrimerErr = DatabaseErr Text deriving (Show)
+data PrimerErr
+  = DatabaseErr Text
+  | UnknownDef GVarName
+  deriving (Show)
 
 instance Exception PrimerErr
 

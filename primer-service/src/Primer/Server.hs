@@ -52,6 +52,7 @@ import Primer.API qualified as API
 import Primer.Action.Available (actionsForDefBody)
 import Primer.App (progAllDefs, progAllTypeDefs)
 import Primer.Core (ModuleName (ModuleName), qualifyName)
+import Primer.Core.Meta (globalNamePretty)
 import Primer.Database (
   SessionId,
   Sessions,
@@ -69,6 +70,7 @@ import Servant (
   Handler (Handler),
   NoContent (NoContent),
   ServerError (errBody),
+  err404,
   err500,
  )
 import Servant.API.Generic (GenericMode ((:-)))
@@ -113,7 +115,7 @@ openAPIAvailableActionsServer sid =
     { OpenAPI.getBodyActions = \AvailableActionsAPIBody{..} -> do
         prog <- getProgram sid
         let gn = qualifyName (ModuleName module_) def
-        Just (_, DefAST ASTDef{astDefExpr = expr}) <- pure $ progAllDefs prog !? gn -- TODO uses `MonadFail` - bad error messages
+        (_, DefAST ASTDef{astDefExpr = expr}) <- maybe (throwM $ UnknownDef gn) pure $ progAllDefs prog !? gn
         pure $ map API.convertOfferedAction $ actionsForDefBody (snd <$> progAllTypeDefs prog) level gn mut id expr
     }
 
@@ -226,4 +228,8 @@ serve ss q v port = do
     -- Catch exceptions from the API and convert them to Servant
     -- errors via 'Either'.
     handler :: PrimerErr -> IO (Either ServerError a)
-    handler (DatabaseErr msg) = pure $ Left $ err500{errBody = (LT.encodeUtf8 . LT.fromStrict) msg}
+    handler = \case
+      DatabaseErr msg -> pure $ Left $ err500{errBody = encode msg}
+      UnknownDef d -> pure $ Left err404{errBody = "Unknown definition: " <> encode (globalNamePretty d)}
+      where
+        encode = LT.encodeUtf8 . LT.fromStrict
