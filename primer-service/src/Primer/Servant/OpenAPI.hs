@@ -1,7 +1,3 @@
-{-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
-
-{-# HLINT ignore "Use newtype instead of data" #-}
-
 -- | An OpenAPI service for the Primer API.
 module Primer.Servant.OpenAPI (
   API,
@@ -36,7 +32,18 @@ import Primer.Servant.Types (
   GetVersion,
   SetSessionName,
  )
-import Servant (Capture', Description, Get, JSON, NamedRoutes, Post, QueryFlag, ReqBody, Summary, (:>))
+import Servant (
+  Capture',
+  Description,
+  Get,
+  JSON,
+  NamedRoutes,
+  Post,
+  QueryFlag,
+  ReqBody,
+  Summary,
+  (:>),
+ )
 import Servant.API.Generic (
   GenericMode ((:-)),
  )
@@ -54,7 +61,7 @@ data RootAPI mode = RootAPI
   , sessionsAPI ::
       mode
         :- "sessions"
-        :> NamedRoutes SessionsAPI
+          :> NamedRoutes SessionsAPI
   }
   deriving (Generic)
 
@@ -67,7 +74,7 @@ data SessionsAPI mode = SessionsAPI
   , sessionAPI ::
       mode
         :- Capture' '[Description "The session ID"] "sessionId" SessionId
-        :> NamedRoutes SessionAPI
+          :> NamedRoutes SessionAPI
   }
   deriving (Generic)
 
@@ -76,17 +83,17 @@ data SessionAPI mode = SessionAPI
   { getProgram ::
       mode
         :- "program"
-        :> Summary "Get the current program state"
-        :> QueryFlag "patternsUnder"
-        :> OperationId "getProgram"
-        :> Get '[JSON] API.Prog
+          :> Summary "Get the current program state"
+          :> QueryFlag "patternsUnder"
+          :> OperationId "getProgram"
+          :> Get '[JSON] API.Prog
   , getSessionName :: GetSessionName mode
   , setSessionName :: SetSessionName mode
   , availableActionsAPI ::
       mode
         :- "action"
-        :> "available"
-        :> NamedRoutes AvailableActionsAPI
+          :> "available"
+          :> NamedRoutes AvailableActionsAPI
   }
   deriving (Generic)
 
@@ -94,11 +101,10 @@ data AvailableActionsAPI mode = AvailableActionsAPI
   { getBodyActions ::
       mode
         :- "body"
-        :> Summary "Get available actions at the given body node"
-        :> ReqBody '[JSON] AvailableActionsAPIBody
-        :> OperationId "getBodyActions"
-        :> Post '[JSON] [API.OfferedAction]
-        -- , getTypeActions :: ()
+          :> Summary "Get available actions at the given body node"
+          :> ReqBody '[JSON] AvailableActionsAPIBody
+          :> OperationId "getBodyActions"
+          :> Post '[JSON] [API.OfferedAction]
   }
   deriving (Generic)
 data AvailableActionsAPIBody = AvailableActionsAPIBody

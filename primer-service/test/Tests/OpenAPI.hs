@@ -215,7 +215,6 @@ instance Arbitrary (Paginated Session) where
   arbitrary = hedgehog genPaginatedSession
 instance Arbitrary Prog where
   arbitrary = hedgehog genProg
-
 instance Arbitrary OfferedAction where
   arbitrary = OfferedAction <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
 instance Arbitrary AvailableActionsAPIBody where

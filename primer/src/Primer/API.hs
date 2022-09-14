@@ -798,7 +798,6 @@ flushSessions = do
     StmMap.reset ss
   pure ()
 
--- TODO this is `OfferedAction` without the `input` field - we haven't decided what to do with that yet
 data OfferedAction = OfferedAction
   { name :: ActionName
   , description :: Text
@@ -808,5 +807,4 @@ data OfferedAction = OfferedAction
   deriving (Show, Generic)
   deriving (ToJSON) via (PrimerJSON OfferedAction)
 convertOfferedAction :: Action.OfferedAction a -> OfferedAction
--- neat side effect of DuplicateRecordFields
 convertOfferedAction Action.OfferedAction{..} = OfferedAction{..}

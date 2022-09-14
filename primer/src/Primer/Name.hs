@@ -1,7 +1,8 @@
 module Primer.Name (
-  Name (..), -- TODO hmm... needed for some deriving
+  Name (),
   NameCounter,
   freshName,
+  unName,
   unsafeMkName,
 ) where
 

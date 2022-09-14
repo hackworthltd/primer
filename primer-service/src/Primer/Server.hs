@@ -115,7 +115,6 @@ openAPIAvailableActionsServer sid =
         let gn = qualifyName (ModuleName module_) def
         Just (_, DefAST ASTDef{astDefExpr = expr}) <- pure $ progAllDefs prog !? gn -- TODO uses `MonadFail` - bad error messages
         pure $ map API.convertOfferedAction $ actionsForDefBody (snd <$> progAllTypeDefs prog) level gn mut id expr
-        -- , OpenAPI.getTypeActions = undefined
     }
 
 apiServer :: S.RootAPI (AsServerT PrimerIO)

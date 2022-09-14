@@ -165,7 +165,6 @@ data FunctionFiltering
   = Everything
   | OnlyFunctions
   | NoFunctions
-  deriving (Generic)
 
 -- | Further user input is sometimes required to construct an action.
 -- For example, when inserting a constructor the user must tell us what
@@ -189,7 +188,7 @@ data UserInput a
       -- ^ What to do with whatever name is chosen
   | ChooseVariable FunctionFiltering (TmVarRef -> a)
   | ChooseTypeVariable (Text -> a)
-  deriving (Functor, Generic)
+  deriving (Functor)
 
 data ActionInput a where
   InputRequired :: UserInput a -> ActionInput a
@@ -314,7 +313,6 @@ data Refocus = Refocus
   { pre :: Loc
   , post :: Expr
   }
-  deriving (Generic)
 
 -- If smartholes is on, we may refocus on the interior of an elided hole,
 -- or the expression under an elided annotation
