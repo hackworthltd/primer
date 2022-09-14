@@ -24,7 +24,7 @@ import Primer.API (
   addSession,
   edit,
   renameSession,
-  runPrimerIO,
+  runPrimerIO, PrimerM(PrimerM), runPrimerM,
  )
 import Primer.API qualified as API
 import Primer.App (
@@ -52,6 +52,9 @@ import Primer.Examples (
 import StmContainers.Map qualified as StmMap
 import Test.Tasty
 import Test.Tasty.HUnit
+import Control.Monad.Log (PureLoggingT, runPureLoggingT, WithSeverity, mapLogMessage, LoggingT, MonadLog, DiscardLoggingT (discardLogging))
+import qualified Data.Sequence as Seq
+import Primer.Log (ConvertLogMessage (convert))
 
 test_unmodified :: TestTree
 test_unmodified =
@@ -140,12 +143,22 @@ insertTest :: PrimerIO ()
 insertTest = do
   void $ addSession "even3App" even3App
 
-updateAppTest :: PrimerIO ()
+pureLogs :: PrimerM (LoggingT l (PureLoggingT (Seq l) IO)) () -> PrimerIO (Seq l)
+pureLogs m = PrimerM $ ReaderT $ fmap snd . runPureLoggingT . mapLogMessage Seq.singleton . runPrimerM m
+
+dropLogs :: PrimerM (DiscardLoggingT l IO) a -> PrimerIO a
+dropLogs m = PrimerM $ ReaderT $ discardLogging . runPrimerM m
+
+newtype TestLog = TestLog Text
+instance ConvertLogMessage Text TestLog where
+  convert = TestLog
+
+updateAppTest :: (MonadIO m, MonadThrow m, MonadLog (WithSeverity TestLog) m) => PrimerM m ()
 updateAppTest = do
   sid <- addSession "even3App" even3App
   void $ edit sid $ Edit [CreateDef (mkSimpleModuleName "Even3") $ Just "newDef"]
 
-updateNameTest :: PrimerIO ()
+updateNameTest ::(MonadIO m, MonadThrow m, MonadLog (WithSeverity TestLog) m) => PrimerM m ()
 updateNameTest = do
   sid <- addSession "even3App" even3App
   void $ renameSession sid "even3App'"
@@ -169,11 +182,15 @@ test_insert_empty_q = empty_q_harness "database Insert leaves an empty op queue"
   insertTest
 
 test_updateapp_empty_q :: TestTree
-test_updateapp_empty_q = empty_q_harness "database UpdateApp leaves an empty op queue" $ do
+test_updateapp_empty_q = empty_q_harness_withLogs
+  "database UpdateApp leaves an empty op queue"
+  (assertBool "No logs" . Seq.null) -- TODO: can I get this to fail the test. I.e. are logs plumbed correctly?
   updateAppTest
 
 test_updatename_empty_q :: TestTree
-test_updatename_empty_q = empty_q_harness "database UpdateName leaves an empty op queue" $ do
+test_updatename_empty_q = empty_q_harness_withLogs
+  "database UpdateName leaves an empty op queue"
+  (assertBool "No logs" . Seq.null) -- TODO: can I get this to fail the test. I.e. are logs plumbed correctly?
   updateNameTest
 
 test_loadsession_empty_q :: TestTree
@@ -190,11 +207,11 @@ test_insert_faildb = faildb_harness "database Insert leaves behind an op" $ do
 
 test_updateapp_faildb :: TestTree
 test_updateapp_faildb = faildb_harness "database UpdateApp leaves behind an op" $ do
-  updateAppTest
+  dropLogs updateAppTest
 
 test_updatename_faildb :: TestTree
 test_updatename_faildb = faildb_harness "database UpdateName leaves behind an op" $ do
-  updateNameTest
+  dropLogs updateNameTest
 
 test_loadsession_faildb :: TestTree
 test_loadsession_faildb = faildb_harness "database LoadSession leaves behind an op" $ do
@@ -216,29 +233,37 @@ testSessionName testName t expected =
     ]
 
 empty_q_harness :: Text -> PrimerIO () -> TestTree
-empty_q_harness desc test = testCaseSteps (toS desc) $ \step' -> do
+empty_q_harness desc = empty_q_harness' desc pure
+
+empty_q_harness_withLogs :: Text -> (Seq l -> Assertion)
+  -> (forall m . (MonadIO m, MonadThrow m, MonadLog l m) => PrimerM m ())
+  -> TestTree
+empty_q_harness_withLogs desc f m = empty_q_harness' desc f $ pureLogs m
+
+empty_q_harness' :: Text -> (a -> Assertion) -> PrimerIO a -> TestTree
+empty_q_harness' desc f test = testCaseSteps (toS desc) $ \step' -> do
   dbOpQueue <- newTBQueueIO 4
   inMemorySessions <- StmMap.newIO
   dbSessions <- StmMap.newIO
   let version = "git123"
   nullDbProc <- async $ runNullDb dbSessions $ serve $ ServiceCfg dbOpQueue version
   testProc <- async $ flip runPrimerIO (Env inMemorySessions dbOpQueue version) $ do
-    test
+    res <- test
     -- Give 'nullDbProc' time to empty the queue.
     liftIO $ threadDelay 100000
-  (p, result) <- waitAnyCatchCancel [nullDbProc, testProc]
+    pure res
+  result <- waitEitherCatchCancel nullDbProc testProc
   case result of
-    Right _ ->
-      if p == testProc
-        then do
+    Right (Right r) -> do
           step' "Check that the database op queue is empty"
           qempty <- liftIO $ atomically $ isEmptyTBQueue dbOpQueue
           assertBool "Queue should be empty" qempty
-        else assertFailure "the impossible happened: nullDbProc exited"
-    Left e ->
-      if p == testProc
-        then assertFailure $ "nullDbProc threw an exception: " <> show e
-        else assertFailure $ "testProc threw an exception: " <> show e
+          step' "Check custom assertion on return type"
+          f r
+    Right (Left e) -> assertFailure $ "testProc threw an exception: " <> show e
+    Left (Left e) -> assertFailure $ "nullDbProc threw an exception: " <> show e
+    -- REVIEW: should 'serve' return a Void, so it is obvious that it will not return?
+    Left (Right _) -> assertFailure "the impossible happened: nullDbProc exited"
 
 -- | A "fail" database that fails on every operation.
 newtype FailDbT m a = FailDbT {unFailDbT :: IdentityT m a}
@@ -281,6 +306,7 @@ runFailDbT m = runIdentityT $ unFailDbT m
 runFailDb :: FailDb a -> IO a
 runFailDb = runFailDbT
 
+-- REVIEW: NB: since we run with an empty initial db, we expect to fail on the first InsertSession, which is before any logs could be generated. Thus there is no point in a variant that checks the logs!
 faildb_harness :: Text -> PrimerIO () -> TestTree
 faildb_harness desc test = testCaseSteps (toS desc) $ \step' -> do
   dbOpQueue <- newTBQueueIO 4

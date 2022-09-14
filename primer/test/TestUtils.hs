@@ -29,7 +29,7 @@ import Optics (over, set, view)
 import Primer.API (
   Env (..),
   PrimerIO,
-  runPrimerIO,
+  runPrimerIO, PrimerM, runPrimerM
  )
 import Primer.Action (
   Action (ConstructCon, ConstructRefinedCon, ConstructTCon),
@@ -69,6 +69,7 @@ import Test.Tasty.HUnit (
   assertFailure,
  )
 import Test.Tasty.HUnit qualified as HUnit
+import Control.Monad.Log (DiscardLoggingT, discardLogging)
 
 primDefs :: DefMap
 primDefs = Map.mapKeys primitive $ moduleDefs primitiveModule
@@ -139,7 +140,7 @@ assertException msg p action = do
 -- until it's terminated. The Primer API action will run on the main
 -- thread and terminate the database thread when the API action runs
 -- to completion or throws.
-runAPI :: PrimerIO a -> IO a
+runAPI :: PrimerM (DiscardLoggingT l IO) a -> IO a
 runAPI action = do
   -- This is completely arbitrary and just for testing. In production,
   -- this value will be provided by the production environment and
@@ -149,4 +150,4 @@ runAPI action = do
   dbOpQueue <- newTBQueueIO 1
   initialSessions <- StmMap.newIO
   _ <- forkIO $ runNullDb' $ serve (ServiceCfg dbOpQueue version)
-  runPrimerIO action $ Env initialSessions dbOpQueue version
+  discardLogging . runPrimerM action $ Env initialSessions dbOpQueue version
