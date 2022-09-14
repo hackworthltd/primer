@@ -831,7 +831,11 @@ tasty_type_preservation = withTests 1000 $
                 forgetMetadata s === forgetMetadata s' -- check no smart holes happened
               else label (msg <> "skipped due to LetType") >> success
       maxSteps <- forAllT $ Gen.integral $ Range.linear 1 1000 -- Arbitrary limit here
-      (steps, s) <- dropLogs $ evalFullStepCount tds globs maxSteps dir t
+      ((steps, s),logs) <- pureLogs $ evalFullStepCount tds globs maxSteps dir t
+      -- REVIEW/TODO: we also check our invariant that we only need to choose a name to RenameForall once
+      -- this is maybe worth splitting out into its own test...
+      annotateShow logs
+      unless (null logs) failure
       annotateShow steps
       annotateShow s
       -- s is often reduced to normal form

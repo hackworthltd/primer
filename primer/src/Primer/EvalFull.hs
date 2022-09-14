@@ -586,7 +586,7 @@ runRedexTy (RenameForall m a k s avoid) = do
         b <- freshLocalName (avoid <> freeVarsTy s <> bindersBelowTy (focus s))
         pure (b, TForall m b k <$> renameTyVar a b s)
   rename >>= \case
-    (_, Just t') -> pure t'
+    (_, Just t') -> logNotice ("only had to choose once!"::Text) >> pure t'
     (b, Nothing) -> do
       logNotice $ "runRedexTy.RenameForall: initial name choice was not fresh enough: chose " <> show b <> " for " <>
            show @_ @Text (m,a,k,s,avoid)
