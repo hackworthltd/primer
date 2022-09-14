@@ -28,8 +28,7 @@ import Data.Typeable (typeOf)
 import Optics (over, set, view)
 import Primer.API (
   Env (..),
-  PrimerIO,
-  runPrimerIO, PrimerM, runPrimerM
+  PrimerM, runPrimerM
  )
 import Primer.Action (
   Action (ConstructCon, ConstructRefinedCon, ConstructTCon),

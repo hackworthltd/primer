@@ -104,6 +104,10 @@ import Tests.Action.Prog (runAppTestM)
 import Tests.Eval ((~=))
 import Tests.Gen.Core.Typed (checkTest)
 import Tests.Typecheck (runTypecheckTestM, runTypecheckTestMWithPrims)
+import Control.Monad.Log (PureLoggingT, runPureLoggingT, MonadLog (logMessageFree), WithSeverity ())
+import qualified Data.Sequence as Seq
+import Control.Monad.Fresh (MonadFresh)
+import Tests.Action.Available (TestLogMessage())
 
 unit_1 :: Assertion
 unit_1 =
@@ -448,6 +452,22 @@ tasty_resume = withDiscards 2000 $
     (dir, t, _) <- genDirTm
     resumeTest testModules dir t
 
+-- TODO: better home
+newtype PureLog l m a = PureLog (PureLoggingT (Seq l) m a)
+  deriving newtype (Functor,Applicative,Monad,MonadFresh i)
+pureLogs' :: PureLog l m a -> m (a, Seq l)
+pureLogs' (PureLog m) = runPureLoggingT m
+instance Monad m => MonadLog l (PureLog l m) where
+  logMessageFree m = PureLog $ logMessageFree $ m . (. Seq.singleton)
+pureLogs :: PureLog (WithSeverity TestLogMessage) m a
+         -> m (a, Seq (WithSeverity TestLogMessage))
+pureLogs = pureLogs'
+dropLogs' :: Functor m => PureLog l m a -> m a
+dropLogs' = fmap fst . pureLogs'
+dropLogs :: Functor m => PureLog (WithSeverity TestLogMessage) m a
+         -> m a
+dropLogs = dropLogs'
+
 -- A helper for tasty_resume, and tasty_resume_regression
 resumeTest :: [Module] -> Dir -> Expr -> PropertyT WT ()
 resumeTest mods dir t = do
@@ -461,18 +481,18 @@ resumeTest mods dir t = do
   -- exactly the same as "reducing n steps and then further reducing m
   -- steps" (including generated names). (A happy consequence of this is that
   -- it is precisely the same including ids in metadata.)
-  (stepsFinal', sFinal) <- lift $ isolateWT $ evalFullStepCount tds globs n dir t
+  (stepsFinal', sFinal) <- lift $ isolateWT $ dropLogs $ evalFullStepCount tds globs n dir t
   when (stepsFinal' < 2) discard
   let stepsFinal = case sFinal of Left _ -> stepsFinal'; Right _ -> 1 + stepsFinal'
   m <- forAllT $ Gen.integral $ Range.constant 1 (stepsFinal - 1)
-  (stepsMid, sMid') <- evalFullStepCount tds globs m dir t
+  (stepsMid, sMid') <- dropLogs $ evalFullStepCount tds globs m dir t
   stepsMid === m
   sMid <- case sMid' of
     Left (TimedOut e) -> pure e
     -- This should never happen: we know we are not taking enough steps to
     -- hit a normal form (as m < stepsFinal)
     Right e -> assert False >> pure e
-  (stepsTotal, sTotal) <- evalFullStepCount tds globs (stepsFinal - m) dir sMid
+  (stepsTotal, sTotal) <- dropLogs $ evalFullStepCount tds globs (stepsFinal - m) dir sMid
   stepsMid + stepsTotal === stepsFinal'
   sFinal === sTotal
 
@@ -811,7 +831,7 @@ tasty_type_preservation = withTests 1000 $
                 forgetMetadata s === forgetMetadata s' -- check no smart holes happened
               else label (msg <> "skipped due to LetType") >> success
       maxSteps <- forAllT $ Gen.integral $ Range.linear 1 1000 -- Arbitrary limit here
-      (steps, s) <- evalFullStepCount tds globs maxSteps dir t
+      (steps, s) <- dropLogs $ evalFullStepCount tds globs maxSteps dir t
       annotateShow steps
       annotateShow s
       -- s is often reduced to normal form
@@ -821,7 +841,7 @@ tasty_type_preservation = withTests 1000 $
         then label "generated a normal form"
         else do
           midSteps <- forAllT $ Gen.integral $ Range.linear 1 (steps - 1)
-          (_, s') <- evalFullStepCount tds globs midSteps dir t
+          (_, s') <- dropLogs $ evalFullStepCount tds globs midSteps dir t
           test "mid " s'
 
 unit_prim_toUpper :: Assertion
@@ -1314,7 +1334,7 @@ tasty_unique_ids = withTests 1000 $
       let go n t
             | n == (0 :: Int) = pure ()
             | otherwise = do
-                t' <- evalFull tds globs 1 dir t
+                t' <- dropLogs $ evalFull tds globs 1 dir t
                 case t' of
                   Left (TimedOut e) -> uniqueIDs e >> go (n - 1) e
                   Right e -> uniqueIDs e
@@ -1327,7 +1347,7 @@ tasty_unique_ids = withTests 1000 $
 -- * Utilities
 
 evalFullTest :: ID -> TypeDefMap -> DefMap -> TerminationBound -> Dir -> Expr -> Either EvalFullError Expr
-evalFullTest id_ tydefs globals n d e = evalTestM id_ $ evalFull tydefs globals n d e
+evalFullTest id_ tydefs globals n d e = evalTestM id_ $ dropLogs $ evalFull tydefs globals n d e
 
 unaryPrimTest :: PrimDef -> S Expr -> S Expr -> Assertion
 unaryPrimTest f x y =
