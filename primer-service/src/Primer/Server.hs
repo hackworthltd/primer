@@ -184,6 +184,7 @@ apiCors =
 
 serve :: Sessions -> TBQueue Database.Op -> Version -> Int -> IO ()
 serve ss q v port = do
+  -- TODO/REVIEW: Warp / WAI is very IO-centric. How do I combine logging with the DB server?
   Warp.runSettings warpSettings $
     noCache $
       cors (const $ Just apiCors) $

@@ -183,6 +183,7 @@ serve (PostgreSQL uri) ver port qsz logger =
       logNotice $ "primer-server version " <> ver
       logNotice ("Listening on port " <> show port :: Text)
     concurrently_
+    -- TODO/REVIEW: I don't know how to do logging for Server
       (Server.serve initialSessions dbOpQueue ver port)
       (flip runLoggingT logger $ runDb (Db.ServiceCfg dbOpQueue ver) pool)
   where
