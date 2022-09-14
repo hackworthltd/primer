@@ -55,6 +55,7 @@ import TestUtils (
   (@?=),
  )
 import Text.Pretty.Simple (pShowNoColor)
+import Tests.Action.Available (TestLogMessage())
 
 tasty_viewTreeExpr_injective :: Property
 tasty_viewTreeExpr_injective = property $ do
@@ -234,7 +235,7 @@ test_copySession =
       step "Add a session"
       sid <- addSession "foo" even3App
       step "Change its name"
-      name <- renameSession sid "original session"
+      name <- renameSession @_ @TestLogMessage sid "original session"
       step "Copy it to a new session"
       sid' <- copySession sid
       step "Ensure the session IDs are distinct"
@@ -287,7 +288,7 @@ test_renameSession =
       step "Create a session"
       sid <- newSession
       step "Change its name"
-      name <- renameSession sid "new name"
+      name <- renameSession @_ @TestLogMessage sid "new name"
       step "Get the session's name"
       name' <- getSessionName sid
       name' @?= name
@@ -299,7 +300,7 @@ test_renameSession_failure =
       let step = liftIO . step'
       step "rename a nonexistent session"
       id_ <- liftIO nextRandom
-      assertException "renameSession" (const True :: ExceptionPredicate PrimerErr) $ renameSession id_ "new name"
+      assertException "renameSession" (const True :: ExceptionPredicate PrimerErr) $ renameSession @_ @TestLogMessage id_ "new name"
 
 test_renameSession_invalid_name :: TestTree
 test_renameSession_invalid_name =
@@ -308,7 +309,7 @@ test_renameSession_invalid_name =
       let step = liftIO . step'
       step "rename a session"
       sid <- newSession
-      void $ renameSession sid "abcd"
+      void $ renameSession @_ @TestLogMessage sid "abcd"
       step "rename it again with an invalid name"
       name <- renameSession sid ""
       step "it should be the default session name"
@@ -322,6 +323,6 @@ test_renameSession_too_long =
       sid <- newSession
       -- Note: we cut off session names rather arbitrarily at 64 characters.
       step "rename a session with a name longer than 64 characters"
-      name <- renameSession sid $ toS $ replicate 65 'a'
+      name <- renameSession @_ @TestLogMessage sid $ toS $ replicate 65 'a'
       step "it should be truncated at 64 characters"
       name @?= toS (replicate 64 'a')

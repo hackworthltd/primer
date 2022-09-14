@@ -160,7 +160,7 @@ import Primer.Name (Name, unName)
 import Primer.Primitives (primDefType)
 import StmContainers.Map qualified as StmMap
 import Control.Monad.Log (MonadLog, WithSeverity, PureLoggingT, mapLogMessage, runPureLoggingT, logMessage)
-import Primer.Log (ConvertLogMessage)
+import Primer.Log (ConvertLogMessage, logInfo)
 import qualified Data.Sequence as Seq
 
 -- | The API environment.
@@ -364,8 +364,8 @@ getVersion = asks version
 getSessionName :: (MonadIO m, MonadThrow m, MonadLog l m) => SessionId -> PrimerM m Text
 getSessionName sid = withSession' sid GetSessionName
 
-renameSession :: (MonadIO m, MonadThrow m, MonadLog l m) => SessionId -> Text -> PrimerM m Text
-renameSession sid n = withSession' sid $ RenameSession n
+renameSession :: (MonadIO m, MonadThrow m, MonadLog (WithSeverity l) m, ConvertLogMessage Text l) => SessionId -> Text -> PrimerM m Text
+renameSession sid n = logInfo ("renaming a session" :: Text) >> withSession' sid ( RenameSession n)
 
 -- Run an 'EditAppM' action, using the given session ID to look up and
 -- pass in the app state for that session.

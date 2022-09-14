@@ -150,6 +150,7 @@ dropLogs :: PrimerM (DiscardLoggingT l IO) a -> PrimerIO a
 dropLogs m = PrimerM $ ReaderT $ discardLogging . runPrimerM m
 
 newtype TestLog = TestLog Text
+  deriving newtype (Eq, Show)
 instance ConvertLogMessage Text TestLog where
   convert = TestLog
 
@@ -184,13 +185,13 @@ test_insert_empty_q = empty_q_harness "database Insert leaves an empty op queue"
 test_updateapp_empty_q :: TestTree
 test_updateapp_empty_q = empty_q_harness_withLogs
   "database UpdateApp leaves an empty op queue"
-  (assertBool "No logs" . Seq.null) -- TODO: can I get this to fail the test. I.e. are logs plumbed correctly?
+  (Seq.empty @=?) -- REVIEW: Note that I can get this to fail, by adding a log message in handleMutationRequest
   updateAppTest
 
 test_updatename_empty_q :: TestTree
 test_updatename_empty_q = empty_q_harness_withLogs
   "database UpdateName leaves an empty op queue"
-  (assertBool "No logs" . Seq.null) -- TODO: can I get this to fail the test. I.e. are logs plumbed correctly?
+  (Seq.empty @=?) -- REVIEW: Note that I can get this to fail, by adding a log message in renameSession
   updateNameTest
 
 test_loadsession_empty_q :: TestTree
@@ -258,7 +259,7 @@ empty_q_harness' desc f test = testCaseSteps (toS desc) $ \step' -> do
           step' "Check that the database op queue is empty"
           qempty <- liftIO $ atomically $ isEmptyTBQueue dbOpQueue
           assertBool "Queue should be empty" qempty
-          step' "Check custom assertion on return type"
+          step' "Check custom assertion on return"
           f r
     Right (Left e) -> assertFailure $ "testProc threw an exception: " <> show e
     Left (Left e) -> assertFailure $ "nullDbProc threw an exception: " <> show e

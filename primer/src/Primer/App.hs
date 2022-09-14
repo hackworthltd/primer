@@ -207,7 +207,7 @@ import Primer.Zipper (
   unfocusType,
   _target,
  )
-import Primer.Log (ConvertLogMessage)
+import Primer.Log (ConvertLogMessage, logInfo)
 import Control.Monad.Log (MonadLog, WithSeverity, DiscardLoggingT (discardLogging))
 
 -- | The program state, shared between the frontend and backend
@@ -484,7 +484,7 @@ handleGetProgramRequest = asks appProg
 -- | Handle a request to mutate the app state
 handleMutationRequest :: MonadEditApp m l => MutationRequest -> m Prog
 handleMutationRequest = \case
-  Edit as -> handleEditRequest as
+  Edit as -> logInfo ("handleMutationRequest" :: Text) >> handleEditRequest as
   Undo -> handleUndoRequest
 
 -- | Handle an edit request
