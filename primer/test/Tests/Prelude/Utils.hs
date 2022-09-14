@@ -13,6 +13,8 @@ import Primer.Pretty (prettyExpr, sparse)
 import TestM (TestM, evalTestM)
 import TestUtils (zeroIDs)
 import Tests.EvalFull (evalResultExpr)
+import Control.Monad.Log (DiscardLoggingT(discardLogging))
+import Tests.Action.Available (TestLogMessage)
 
 (<===>) :: (HasCallStack, MonadTest m) => Either EvalFullError Expr -> Either EvalFullError Expr -> m ()
 x <===> y = withFrozenCallStack $ on compareExpr (over evalResultExpr zeroIDs) x y
@@ -48,7 +50,7 @@ functionOutput' :: GVarName -> [Either (TestM Expr) (TestM Type)] -> Termination
 functionOutput' f args depth =
   evalTestM 0 $ do
     e <- apps' (gvar f) args
-    evalFull ty def n d e
+    discardLogging $ evalFull @TestLogMessage ty def n d e
   where
     mods = [builtinModule, primitiveModule, prelude']
     (ty, def) = mconcat $ map (\m -> (moduleTypesQualified m, moduleDefsQualified m)) mods
