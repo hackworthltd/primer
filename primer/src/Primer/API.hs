@@ -159,8 +159,9 @@ import Primer.Module (moduleDefsQualified, moduleName, moduleTypesQualified)
 import Primer.Name (Name, unName)
 import Primer.Primitives (primDefType)
 import StmContainers.Map qualified as StmMap
-import Control.Monad.Log (MonadLog, WithSeverity)
+import Control.Monad.Log (MonadLog, WithSeverity, PureLoggingT, mapLogMessage, runPureLoggingT, logMessage)
 import Primer.Log (ConvertLogMessage)
+import qualified Data.Sequence as Seq
 
 -- | The API environment.
 data Env = Env
@@ -217,9 +218,9 @@ sessionsTransaction f = do
   q <- asks dbOpQueue
   liftIO $ atomically $ f ss q
 
--- The monad m is solely for logging
+-- The monad m is solely for logging -- TODO: changed mind, is a message
 data SessionOp m a where
-  EditApp :: (App -> m (a, App)) -> SessionOp m a
+  EditApp :: (App -> PureLoggingT (Seq m) Identity (a, App)) -> SessionOp m a
   QueryApp :: (App -> a) -> SessionOp m a
   GetSessionName :: SessionOp m Text
   GetSessionData :: SessionOp m SessionData
@@ -233,9 +234,9 @@ data SessionOp m a where
 -- transaction from completing, but the database request won't
 -- actually be sent until the transaction is complete. This would
 -- cause a deadlock!
-withSession' :: (MonadIO m, MonadThrow m) => SessionId -> SessionOp m a -> PrimerM m a
+withSession' :: (MonadIO m, MonadThrow m, MonadLog l m) => SessionId -> SessionOp l a -> PrimerM m a
 withSession' sid op = do
-  hndl :: Either (TMVar OpStatus) a <- sessionsTransaction $ \ss q -> do
+  hndl :: Either (TMVar OpStatus) (a,Seq l) <- sessionsTransaction $ \ss q -> do
     query <- StmMap.lookup sid ss
     case query of
       Nothing -> do
@@ -252,19 +253,19 @@ withSession' sid op = do
         -- The session is in memory, let's do this.
         case op of
           EditApp f -> do
-            let (res, appl') = undefined -- f appl
+            let ((res, appl'),logMessages) = runIdentity $ runPureLoggingT $ f appl
             StmMap.insert (SessionData appl' n) sid ss
             writeTBQueue q $ Database.UpdateApp sid appl'
-            pure res
-          QueryApp f -> pure $ f appl
-          GetSessionName -> pure $ fromSessionName n
-          GetSessionData -> pure s
+            pure (res,logMessages)
+          QueryApp f -> pure (f appl, mempty)
+          GetSessionName -> pure (fromSessionName n, mempty)
+          GetSessionData -> pure (s, mempty)
           RenameSession n' ->
             let newName = safeMkSessionName n'
              in do
                   StmMap.insert (SessionData appl newName) sid ss
                   writeTBQueue q $ Database.UpdateName sid newName
-                  pure $ fromSessionName newName
+                  pure (fromSessionName newName, mempty)
   case hndl of
     Left callback -> do
       -- The session was missing from the in-memory database. Once we
@@ -285,7 +286,8 @@ withSession' sid op = do
           -- saturated. Ref:
           -- https://gitlab.haskell.org/ghc/ghc/-/wikis/commentary/rts/haskell-execution/function-calls
           withSession' sid op
-    Right result ->
+    Right (result, logMessages) -> do
+      mapM_ logMessage logMessages
       -- We performed the session transaction, now return the result.
       pure result
 
@@ -327,7 +329,7 @@ addSession' n a = do
 -- source session, and 1 to insert the copy. Semantically, this is
 -- fine, and it should be more fair on a busy system than a single
 -- transaction which takes longer.
-copySession :: (MonadIO m, MonadThrow m) => SessionId -> PrimerM m SessionId
+copySession :: (MonadIO m, MonadThrow m, MonadLog l m) => SessionId -> PrimerM m SessionId
 copySession srcId = do
   copy <- withSession' srcId GetSessionData
   nextSID <- liftIO newSessionId
@@ -359,20 +361,23 @@ listSessions _ ol = sessionsTransaction $ \ss _ -> do
 getVersion :: (Monad m) => PrimerM m Version
 getVersion = asks version
 
-getSessionName :: (MonadIO m, MonadThrow m) => SessionId -> PrimerM m Text
+getSessionName :: (MonadIO m, MonadThrow m, MonadLog l m) => SessionId -> PrimerM m Text
 getSessionName sid = withSession' sid GetSessionName
 
-renameSession :: (MonadIO m, MonadThrow m) => SessionId -> Text -> PrimerM m Text
+renameSession :: (MonadIO m, MonadThrow m, MonadLog l m) => SessionId -> Text -> PrimerM m Text
 renameSession sid n = withSession' sid $ RenameSession n
 
 -- Run an 'EditAppM' action, using the given session ID to look up and
 -- pass in the app state for that session.
-liftEditAppM :: (MonadIO m, MonadThrow m) => EditAppM m a -> SessionId -> PrimerM m (Either ProgError a)
-liftEditAppM h sid = withSession' sid (EditApp $ runEditAppM h)
+liftEditAppM :: (MonadIO m, MonadThrow m, MonadLog l m) =>
+--  EditAppM (PureLoggingT (Seq (WithSeverity l)) Identity) a
+  (forall ml. MonadLog l ml => EditAppM ml a)
+  -> SessionId -> PrimerM m (Either ProgError a)
+liftEditAppM h sid = withSession' sid (EditApp $  mapLogMessage Seq.singleton . runEditAppM h) -- @(PureLoggingT (Seq _) Identity))
 
 -- Run a 'QueryAppM' action, using the given session ID to look up and
 -- pass in the app state for that session.
-liftQueryAppM :: (MonadIO m, MonadThrow m) => QueryAppM a -> SessionId -> PrimerM m (Either ProgError a)
+liftQueryAppM :: (MonadIO m, MonadThrow m, MonadLog l m) => QueryAppM a -> SessionId -> PrimerM m (Either ProgError a)
 liftQueryAppM h sid = withSession' sid (QueryApp $ runQueryAppM h)
 
 -- | Given a 'SessionId', return the session's 'App'.
@@ -380,18 +385,18 @@ liftQueryAppM h sid = withSession' sid (QueryApp $ runQueryAppM h)
 -- Note: this API method is currently a special case, and we do not
 -- expect typical API clients to use it. Its primary use is for
 -- testing.
-getApp :: (MonadIO m, MonadThrow m) => SessionId -> PrimerM m App
+getApp :: (MonadIO m, MonadThrow m, MonadLog l m) => SessionId -> PrimerM m App
 getApp sid = withSession' sid $ QueryApp identity
 
 -- | Given a 'SessionId', return the session's 'Prog'.
 --
 -- Note that this returns a simplified version of 'App.Prog' intended
 -- for use with non-Haskell clients.
-getProgram' :: (MonadIO m, MonadThrow m) => ExprTreeOpts -> SessionId -> PrimerM m Prog
+getProgram' :: (MonadIO m, MonadThrow m, MonadLog l m) => ExprTreeOpts -> SessionId -> PrimerM m Prog
 getProgram' opts sid = viewProg opts <$> getProgram sid
 
 -- | Given a 'SessionId', return the session's 'App.Prog'.
-getProgram :: (MonadIO m, MonadThrow m) => SessionId -> PrimerM m App.Prog
+getProgram :: (MonadIO m, MonadThrow m, MonadLog l m) => SessionId -> PrimerM m App.Prog
 getProgram sid = withSession' sid $ QueryApp handleGetProgramRequest
 
 -- | A frontend will be mostly concerned with rendering, and does not need the
@@ -775,31 +780,32 @@ viewTreeType' t0 = case t0 of
 showGlobal :: GlobalName k -> Text
 showGlobal n = moduleNamePretty (qualifiedModule n) <> "." <> unName (baseName n)
 
-edit :: (MonadIO m, MonadThrow m, MonadLog (WithSeverity l) m, ConvertLogMessage Text l)
+edit :: forall m l . (MonadIO m, MonadThrow m, MonadLog (WithSeverity l) m, ConvertLogMessage Text l)
   => SessionId -> MutationRequest -> PrimerM m (Either ProgError App.Prog)
-edit sid req = liftEditAppM (handleMutationRequest req) sid
+edit sid req = liftEditAppM (handleMutationRequest @(EditAppM _) @l req) sid
 
 variablesInScope ::
-  (MonadIO m, MonadThrow m) =>
+  (MonadIO m, MonadThrow m, MonadLog l m) =>
   SessionId ->
   (GVarName, ID) ->
   PrimerM m (Either ProgError (([(TyVarName, Kind)], [(LVarName, Type' ())]), [(GVarName, Type' ())]))
 variablesInScope sid (defname, exprid) =
   liftQueryAppM (handleQuestion (VariablesInScope defname exprid)) sid
 
-generateNames :: (MonadIO m, MonadThrow m) => SessionId -> ((GVarName, ID), Either (Maybe (Type' ())) (Maybe Kind)) -> PrimerM m (Either ProgError [Name])
+generateNames :: (MonadIO m, MonadThrow m, MonadLog l m)
+   => SessionId -> ((GVarName, ID), Either (Maybe (Type' ())) (Maybe Kind)) -> PrimerM m (Either ProgError [Name])
 generateNames sid ((defname, exprid), tk) =
   liftQueryAppM (handleQuestion $ GenerateName defname exprid tk) sid
 
-evalStep :: (MonadIO m, MonadThrow m, MonadLog (WithSeverity l) m, ConvertLogMessage Text l)
+evalStep ::forall m l. (MonadIO m, MonadThrow m, MonadLog (WithSeverity l) m, ConvertLogMessage Text l)
   => SessionId -> EvalReq -> PrimerM m (Either ProgError EvalResp)
 evalStep sid req =
-  liftEditAppM (handleEvalRequest req) sid
+  liftEditAppM (handleEvalRequest @_ @l req) sid
 
-evalFull :: (MonadIO m, MonadThrow m, MonadLog (WithSeverity l) m, ConvertLogMessage Text l)
+evalFull :: forall m l . (MonadIO m, MonadThrow m, MonadLog (WithSeverity l) m, ConvertLogMessage Text l)
   => SessionId -> EvalFullReq -> PrimerM m (Either ProgError EvalFullResp)
 evalFull sid req =
-  liftEditAppM (handleEvalFullRequest req) sid
+  liftEditAppM (handleEvalFullRequest @_ @l req) sid
 
 flushSessions :: (MonadIO m) => PrimerM m ()
 flushSessions = do
