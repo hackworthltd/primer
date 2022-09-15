@@ -61,16 +61,19 @@ import Primer.Database qualified as Database (
 import Primer.Pagination (pagedDefaultClamp)
 import Primer.Servant.API qualified as S
 import Primer.Servant.OpenAPI qualified as OpenAPI
+import qualified Servant
 import Servant (
   Handler (Handler),
   NoContent (NoContent),
   ServerError (errBody),
-  err500,
+  err500, Get, PlainText, Capture, (:>)
  )
 import Servant.API.Generic (GenericMode ((:-)))
 import Servant.OpenApi (toOpenApi)
 import Servant.Server.Generic (AsServerT, genericServeT)
 import Network.Wai
+import qualified Control.Monad.Log as Log
+import qualified Data.Text as Text
 {-
 openAPIInfo :: OpenApi
 openAPIInfo =
@@ -187,6 +190,24 @@ apiCors =
     , corsRequestHeaders = simpleHeaders <> ["Content-Type", "Authorization"]
     }
 -}
+
+type API = Capture "toupper" Text :> Get '[PlainText] Text
+
+endpointImpl :: Monad m => Text -> LoggingT Text m Text
+endpointImpl p = do
+  logMessage "endpointImpl log"
+  pure $ "Servant says hi, " <> Text.toUpper p
+
+-- runLoggingT just interleaves the log handler, which I can do manually...
+endpoint :: Log.Handler IO Text -> Text -> Servant.Handler Text
+endpoint logger p = do
+  liftIO $ logger $ "endpoint log, for path " <> p
+  Handler $ ExceptT $ Right <$> runLoggingT (endpointImpl p) logger
+
+app :: Log.Handler IO Text -> Application
+app = Servant.serve (Proxy @API) . endpoint --control $ \run -> do
+--  _ run --pure "Servant says hi"
+
 --serve :: Sessions -> TBQueue Database.Op -> Version -> Int -> IO ()
 --serve ss q v port = do
 serve :: Int -> LoggingT Text IO ()
@@ -195,10 +216,14 @@ serve port = do
   -- TODO/REVIEW: Warp / WAI is very IO-centric. How do I combine logging with the DB server?
 --  control $ \run -> run $ Warp.run port $ \_req resp -> putStrLn ("LOG MESSAGE" :: Text) >>  resp (responseLBS (toEnum 200) [] "Hello World")
   logMessage "logging-effect message"
-  control $ \run -> Warp.run port $ \_req resp -> do
+  logHandler <- LoggingT ask
+  liftIO $ Warp.run port $ app logHandler
+  
+--  control $ \run -> Warp.run port $
+    {- \_req resp -> do
     putStrLn ("putStrLn message" :: Text)
     run $ logMessage "logging-effect inside server"
-    resp (responseLBS (toEnum 200) [] "Hello World")
+    resp (responseLBS (toEnum 200) [] "Hello World") -}
   {-
   Warp.runSettings warpSettings $
     noCache $
