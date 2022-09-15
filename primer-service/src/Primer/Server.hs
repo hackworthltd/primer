@@ -240,9 +240,10 @@ serve ss q v port = do
     -- Catch exceptions from the API and convert them to Servant
     -- errors via 'Either'.
     handler :: PrimerErr -> IO (Either ServerError a)
-    handler = \case
-      DatabaseErr msg -> pure $ Left $ err500{errBody = encode msg}
-      UnknownDef d -> pure $ Left err404{errBody = "Unknown definition: " <> encode (globalNamePretty d)}
-      UnexpectedPrimDef d -> pure $ Left err400{errBody = "Unexpected primitive definition: " <> encode (globalNamePretty d)}
+    handler =
+      pure . Left . \case
+        DatabaseErr msg -> err500{errBody = encode msg}
+        UnknownDef d -> err404{errBody = "Unknown definition: " <> encode (globalNamePretty d)}
+        UnexpectedPrimDef d -> err400{errBody = "Unexpected primitive definition: " <> encode (globalNamePretty d)}
       where
         encode = LT.encodeUtf8 . LT.fromStrict
