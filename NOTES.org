@@ -1,0 +1,61 @@
+Notes on adding logging to the core and server:
+
+* Generic note
+The code and history is messy, but this please ignore this for now :-)
+
+* Logging & Servant
+How to integrate logging with servant/wai/threads?
+
+The API server must run in IO directly, rather than some logging monad.
+Thus we cannot combine the logging for servant and the db into one =runLoggingT=.
+Would we even want to, because of threading?
+
+It would be fairly easy to have the DB do its own IO-based logging and servant to
+also do its independent IO-based logging ("on their own threads") but I don't know
+how sensible this is:
+- could we get "mangling" of the output, where two logs happen simultaneously and overwrite/interleave?
+- I guess we could write our own glue using some IO-based concurrent queue to combine the two streams,
+  logging to this queue in each thread, and draining this queue into the actual log in a third
+  However, this seems rather convoluted (and I'm not confident writing it) and rather duplicates
+  the work in logging-effect, which IIUC does async logging stuff (at least for logging to files)
+
+Note that
+https://github.com/ocharles/logging-effect/blob/master/Benchmark.hs
+has an example of logging from concurrent threads (using
+https://hackage.haskell.org/package/lifted-async-0.10.2.3). However,
+this has one =runLoggingT=, and uses some =MonadBaseControl= magic
+that I don't understand.
+
+* Logging & STM
+How should logging and STM interact?
+
+I am not totally sure why/how we are using STM in the first place --
+is it just to deal with concurrent requests for the same session?
+
+Two questions here: what are the semantics, and how do we implement them?
+
+Semantically, what should happen if an STM transaction is aborted?
+Should we discard the incomplete/inconsistant logs, or log them anyway?
+
+Implementationally, I have a version working where we discard them.
+We capture all the logs in a pure =Seq=, and after the tx completes, we
+individually re-log them. This works, but is worrying:
+- Logs may be delayed getting to stdout/a logging server
+- how would this affect timestamping?
+- perhaps the log could grow fairly large, and we would prefer to stream them
+  to avoid excessive memory usage
+
+* PureLogs
+In a few places: testsuite and for STM reasons I grab the logs "purely".
+This works, but is a bit worrying: how large may these logs grow?
+(I don't particularly care about the testsuite, and the STM issue is addresed above)
+
+* Tests
+Is it even a good idea to inspect the logs in the testsuite?
+It seems like a decent way to check invariants etc, but also feels a bit wrong.
+** Future work "Analysis monoid"
+It may be nice to have the ability to say "grab the logs and analyse
+via this monoid", rather than grabbing the logs as a =Seq= and
+analysing as a separate step.
+
+This would presumably be more efficient (or, at least, more robustly so).
