@@ -59,6 +59,7 @@ import Primer.Core.Meta (
   ValConName,
   Value,
   getID,
+  globalNamePretty,
   mkSimpleModuleName,
   moduleNamePretty,
   qualifyName,

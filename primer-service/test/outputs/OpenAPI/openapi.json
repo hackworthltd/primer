@@ -1,6 +1,72 @@
 {
     "components": {
         "schemas": {
+            "ActionName": {
+                "oneOf": [
+                    {
+                        "properties": {
+                            "contents": {
+                                "type": "string"
+                            },
+                            "tag": {
+                                "enum": [
+                                    "Code"
+                                ],
+                                "type": "string"
+                            }
+                        },
+                        "required": [
+                            "tag",
+                            "contents"
+                        ],
+                        "type": "object"
+                    },
+                    {
+                        "properties": {
+                            "contents": {
+                                "type": "string"
+                            },
+                            "tag": {
+                                "enum": [
+                                    "Prose"
+                                ],
+                                "type": "string"
+                            }
+                        },
+                        "required": [
+                            "tag",
+                            "contents"
+                        ],
+                        "type": "object"
+                    }
+                ],
+                "type": "object"
+            },
+            "ActionType": {
+                "enum": [
+                    "Primary",
+                    "Destructive"
+                ],
+                "type": "string"
+            },
+            "AvailableActionsAPIBody": {
+                "properties": {
+                    "def": {
+                        "$ref": "#/components/schemas/GlobalName"
+                    },
+                    "id": {
+                        "$ref": "#/components/schemas/SigOrBodyID"
+                    },
+                    "level": {
+                        "$ref": "#/components/schemas/Level"
+                    }
+                },
+                "required": [
+                    "def",
+                    "level"
+                ],
+                "type": "object"
+            },
             "Def": {
                 "properties": {
                     "name": {
@@ -37,6 +103,14 @@
                     "baseName"
                 ],
                 "type": "object"
+            },
+            "Level": {
+                "enum": [
+                    "Beginner",
+                    "Intermediate",
+                    "Expert"
+                ],
+                "type": "string"
             },
             "Module": {
                 "properties": {
@@ -159,6 +233,31 @@
                 ],
                 "type": "string"
             },
+            "OfferedAction": {
+                "properties": {
+                    "actionType": {
+                        "$ref": "#/components/schemas/ActionType"
+                    },
+                    "description": {
+                        "type": "string"
+                    },
+                    "name": {
+                        "$ref": "#/components/schemas/ActionName"
+                    },
+                    "priority": {
+                        "maximum": 9223372036854775807,
+                        "minimum": -9223372036854775808,
+                        "type": "integer"
+                    }
+                },
+                "required": [
+                    "name",
+                    "description",
+                    "priority",
+                    "actionType"
+                ],
+                "type": "object"
+            },
             "PaginatedMeta": {
                 "properties": {
                     "firstPage": {
@@ -261,6 +360,51 @@
             },
             "SessionName": {
                 "type": "string"
+            },
+            "SigOrBodyID": {
+                "oneOf": [
+                    {
+                        "properties": {
+                            "contents": {
+                                "maximum": 9223372036854775807,
+                                "minimum": -9223372036854775808,
+                                "type": "integer"
+                            },
+                            "tag": {
+                                "enum": [
+                                    "SigID"
+                                ],
+                                "type": "string"
+                            }
+                        },
+                        "required": [
+                            "tag",
+                            "contents"
+                        ],
+                        "type": "object"
+                    },
+                    {
+                        "properties": {
+                            "contents": {
+                                "maximum": 9223372036854775807,
+                                "minimum": -9223372036854775808,
+                                "type": "integer"
+                            },
+                            "tag": {
+                                "enum": [
+                                    "BodyID"
+                                ],
+                                "type": "string"
+                            }
+                        },
+                        "required": [
+                            "tag",
+                            "contents"
+                        ],
+                        "type": "object"
+                    }
+                ],
+                "type": "object"
             },
             "Tree": {
                 "properties": {
@@ -405,6 +549,54 @@
                     }
                 },
                 "summary": "Create a new session and return its ID"
+            }
+        },
+        "/openapi/sessions/{sessionId}/action/available/available": {
+            "post": {
+                "operationId": "getAvailableActions",
+                "parameters": [
+                    {
+                        "description": "The session ID",
+                        "in": "path",
+                        "name": "sessionId",
+                        "required": true,
+                        "schema": {
+                            "format": "uuid",
+                            "type": "string"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json;charset=utf-8": {
+                            "schema": {
+                                "$ref": "#/components/schemas/AvailableActionsAPIBody"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json;charset=utf-8": {
+                                "schema": {
+                                    "items": {
+                                        "$ref": "#/components/schemas/OfferedAction"
+                                    },
+                                    "type": "array"
+                                }
+                            }
+                        },
+                        "description": ""
+                    },
+                    "400": {
+                        "description": "Invalid `body`"
+                    },
+                    "404": {
+                        "description": "`sessionId` not found"
+                    }
+                },
+                "summary": "Get available actions for the definition, or a node within it"
             }
         },
         "/openapi/sessions/{sessionId}/name": {

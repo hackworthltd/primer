@@ -1,19 +1,29 @@
+{-# LANGUAGE DuplicateRecordFields #-}
+
 -- | An OpenAPI service for the Primer API.
 module Primer.Servant.OpenAPI (
   API,
   RootAPI (..),
   SessionsAPI (..),
   SessionAPI (..),
+  ActionAPI (..),
+  AvailableActionsAPIBody (..),
+  SigOrBodyID (..),
   Spec,
 ) where
 
 import Foreword
 
+import Data.Aeson (FromJSON, ToJSON)
 import Data.OpenApi (OpenApi)
+import Data.OpenApi.Schema (ToSchema)
 import Primer.API qualified as API
+import Primer.Action (Level)
+import Primer.Core
 import Primer.Database (
   SessionId,
  )
+import Primer.JSON (CustomJSON (..), PrimerJSON)
 import Primer.OpenAPI ()
 import Primer.Servant.Types (
   CopySession,
@@ -29,7 +39,9 @@ import Servant (
   Get,
   JSON,
   NamedRoutes,
+  Post,
   QueryFlag,
+  ReqBody,
   Summary,
   (:>),
  )
@@ -78,5 +90,34 @@ data SessionAPI mode = SessionAPI
           :> Get '[JSON] API.Prog
   , getSessionName :: GetSessionName mode
   , setSessionName :: SetSessionName mode
+  , actions ::
+      mode
+        :- "action"
+          :> "available"
+          :> NamedRoutes ActionAPI
   }
   deriving (Generic)
+
+{- HLINT ignore ActionAPI "Use newtype instead of data" -}
+data ActionAPI mode = ActionAPI
+  { available ::
+      mode
+        :- "available"
+          :> Summary "Get available actions for the definition, or a node within it"
+          :> ReqBody '[JSON] AvailableActionsAPIBody
+          :> OperationId "getAvailableActions"
+          :> Post '[JSON] [API.OfferedAction]
+  }
+  deriving (Generic)
+data AvailableActionsAPIBody = AvailableActionsAPIBody
+  { def :: GVarName
+  , id :: Maybe SigOrBodyID
+  , level :: Level
+  }
+  deriving (Show, Generic)
+  deriving (FromJSON, ToJSON, ToSchema) via PrimerJSON AvailableActionsAPIBody
+data SigOrBodyID
+  = SigID ID
+  | BodyID ID
+  deriving (Show, Generic)
+  deriving (FromJSON, ToJSON, ToSchema) via PrimerJSON SigOrBodyID

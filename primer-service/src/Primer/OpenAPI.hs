@@ -9,7 +9,8 @@ module Primer.OpenAPI (
 import Data.OpenApi (ToSchema (declareNamedSchema), fromAesonOptions, genericDeclareNamedSchema)
 import Data.OpenApi.Internal.Schema (GToSchema, rename)
 import Deriving.Aeson (AesonOptions (aesonOptions))
-import Primer.API (Def, ExprTreeOpts, Module, NodeBody, NodeFlavor, Prog, Tree)
+import Primer.API (Def, ExprTreeOpts, Module, NodeBody, NodeFlavor, OfferedAction, Prog, Tree)
+import Primer.Action (ActionName, ActionType, Level)
 import Primer.Core (
   GlobalName,
   GlobalNameKind (ADefName, ATyCon, AValCon),
@@ -67,3 +68,7 @@ deriving via NonEmpty Name instance ToSchema ModuleName
 deriving via PrimerJSON Module instance ToSchema Module
 deriving via PrimerJSON Prog instance ToSchema Prog
 deriving via PrimerJSON ExprTreeOpts instance ToSchema ExprTreeOpts
+deriving via PrimerJSON OfferedAction instance ToSchema OfferedAction
+deriving via PrimerJSON ActionName instance ToSchema ActionName
+deriving via PrimerJSON ActionType instance ToSchema ActionType
+deriving via PrimerJSON Level instance ToSchema Level
