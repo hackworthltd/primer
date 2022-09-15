@@ -36,6 +36,8 @@ library
     -Wcompat -Widentities -Wredundant-constraints -fhide-source-paths
 
   build-depends:
+    , monad-control
+    , logging-effect
     , aeson                >=2.0     && <=2.1
     , base                 >=4.12    && <=4.17
     , deriving-aeson       >=0.2     && <=0.3

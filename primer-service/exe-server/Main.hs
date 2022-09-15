@@ -163,7 +163,7 @@ banner =
   , " █████                                                       "
   , "░░░░░                                                        "
   ]
-
+{-
 serve ::
   ( ConvertLogMessage Rel8DbLogMessage l
   , ConvertLogMessage Text l
@@ -225,6 +225,9 @@ main = do
       exitFailure
     flush :: (Foldable t, MonadIO m, Print a) => t a -> m ()
     flush messages = forM_ messages putStrLn
+-}
+main :: IO ()
+main = runLoggingT (Server.serve 8000) print
 
 -- | Avoid orphan instances.
 newtype LogMsg = LogMsg {unLogMsg :: Text}

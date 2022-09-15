@@ -4,10 +4,14 @@
 -- | An HTTP service for the Primer API.
 module Primer.Server (
   serve,
-  openAPIInfo,
+  -- openAPIInfo,
 ) where
 
 import Foreword hiding (Handler)
+
+
+import Control.Monad.Trans.Control
+import Control.Monad.Log
 
 import Control.Concurrent.STM (
   TBQueue,
@@ -23,7 +27,7 @@ import Network.Wai.Handler.Warp (
   setHost,
   setPort,
  )
-import Network.Wai.Handler.Warp qualified as Warp (runSettings)
+import Network.Wai.Handler.Warp qualified as Warp (runSettings, run)
 import Network.Wai.Middleware.Cors (
   CorsResourcePolicy (..),
   cors,
@@ -66,7 +70,8 @@ import Servant (
 import Servant.API.Generic (GenericMode ((:-)))
 import Servant.OpenApi (toOpenApi)
 import Servant.Server.Generic (AsServerT, genericServeT)
-
+import Network.Wai
+{-
 openAPIInfo :: OpenApi
 openAPIInfo =
   toOpenApi (Proxy @OpenAPI.API)
@@ -181,10 +186,20 @@ apiCors =
     { corsMethods = simpleMethods <> ["PUT", "OPTIONS"]
     , corsRequestHeaders = simpleHeaders <> ["Content-Type", "Authorization"]
     }
-
-serve :: Sessions -> TBQueue Database.Op -> Version -> Int -> IO ()
-serve ss q v port = do
+-}
+--serve :: Sessions -> TBQueue Database.Op -> Version -> Int -> IO ()
+--serve ss q v port = do
+serve :: Int -> LoggingT Text IO ()
+serve port = do
+  putStrLn $ "Running on port " <> (show port :: Text)
   -- TODO/REVIEW: Warp / WAI is very IO-centric. How do I combine logging with the DB server?
+--  control $ \run -> run $ Warp.run port $ \_req resp -> putStrLn ("LOG MESSAGE" :: Text) >>  resp (responseLBS (toEnum 200) [] "Hello World")
+  logMessage "logging-effect message"
+  control $ \run -> Warp.run port $ \_req resp -> do
+    putStrLn ("putStrLn message" :: Text)
+    run $ logMessage "logging-effect inside server"
+    resp (responseLBS (toEnum 200) [] "Hello World")
+  {-
   Warp.runSettings warpSettings $
     noCache $
       cors (const $ Just apiCors) $
@@ -208,3 +223,4 @@ serve ss q v port = do
     -- errors via 'Either'.
     handler :: PrimerErr -> IO (Either ServerError a)
     handler (DatabaseErr msg) = pure $ Left $ err500{errBody = (LT.encodeUtf8 . LT.fromStrict) msg}
+-}
