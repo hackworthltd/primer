@@ -18,18 +18,6 @@
     pre-commit-hooks-nix.inputs.nixpkgs.follows = "nixpkgs";
     # Fixes aarch64-darwin support.
     pre-commit-hooks-nix.inputs.flake-utils.follows = "flake-utils";
-
-    # Temporary workaround for HLS issues until the next release.
-    haskell-language-server.url = github:haskell/haskell-language-server;
-    haskell-language-server.flake = false;
-
-    # Temporary fixes for HLS.
-    hiedb.url = github:wz1000/hiedb/67b92df2359558091df9102db5b701327308b930;
-    hiedb.flake = false;
-    hie-bios.url = github:wz1000/hie-bios/aa73d3d2eb89df0003d2468a105e326d71b62cc7;
-    hie-bios.flake = false;
-    lsp.url = github:haskell/lsp/b0f8596887088b8ab65fc1015c773f45b47234ae;
-    lsp.flake = false;
   };
 
   outputs =
@@ -39,7 +27,6 @@
     , hacknix
     , flake-utils
     , pre-commit-hooks-nix
-    , haskell-language-server
     , ...
     }@inputs:
     let
@@ -60,57 +47,6 @@
         in
         builtins.trace "Nix Primer version is ${v}" "git-${v}";
 
-      # Workaround for https://github.com/input-output-hk/haskell.nix/issues/1177.
-      exceptionsWorkaround = version: {
-        inherit version;
-        modules = [
-          ({ lib, ... }: {
-            reinstallableLibGhc = true;
-          })
-        ];
-      };
-
-      # https://github.com/input-output-hk/haskell.nix/issues/1177
-      nonReinstallablePkgs = [
-        "rts"
-        "ghc-heap"
-        "ghc-prim"
-        "integer-gmp"
-        "integer-simple"
-        "base"
-        "deepseq"
-        "array"
-        "ghc-boot-th"
-        "pretty"
-        "template-haskell"
-        "ghc-bignum"
-        "exceptions"
-        "stm"
-        "ghc-boot"
-        "ghc"
-        "Cabal"
-        "Win32"
-        "array"
-        "binary"
-        "bytestring"
-        "containers"
-        "directory"
-        "filepath"
-        "ghc-boot"
-        "ghc-compact"
-        "ghc-prim"
-        "hpc"
-        "mtl"
-        "parsec"
-        "process"
-        "text"
-        "time"
-        "transformers"
-        "unix"
-        "xhtml"
-        "terminfo"
-      ];
-
       ghcVersion = "ghc924";
 
       # We must keep the weeder version in sync with the version of
@@ -119,7 +55,7 @@
 
       # Fourmolu updates often alter formatting arbitrarily, and we want to
       # have more control over this.
-      fourmoluVersion = "0.7.0.1";
+      fourmoluVersion = "0.8.2.0";
 
       forAllSupportedSystems = flake-utils.lib.eachSystem [
         "x86_64-linux"
@@ -136,11 +72,6 @@
         haskell-nix.overlay
         (final: prev:
           let
-            ghc8107Tools = final.haskell-nix.tools "ghc8107" {
-              cabal-fmt = "latest";
-              cabal-edit = "latest";
-            };
-
             postgres-dev-password = "primer-dev";
             postgres-dev-base-url = "postgres://postgres:${postgres-dev-password}@localhost:5432";
             postgres-dev-primer-url = "${postgres-dev-base-url}/primer";
@@ -156,31 +87,10 @@
               inherit version;
             });
 
-            # Temporary workaround for HLS issues until the next release.
-            hls = (final.haskell-nix.cabalProject' {
-              compiler-nix-name = ghcVersion;
-              src = haskell-language-server;
-              sha256map."https://github.com/pepeiborra/ekg-json"."7a0af7a8fd38045fd15fb13445bdcc7085325460" = "fVwKxGgM0S4Kv/4egVAAiAjV7QB5PBqMVMCfsv7otIQ=";
-
-              modules = [
-                {
-                  inherit nonReinstallablePkgs;
-                }
-              ];
-
-              # Temporary fixes for HLS's git pins.
-              inputMap."https://github.com/wz1000/hiedb" = inputs.hiedb;
-              inputMap."https://github.com/wz1000/hie-bios" = inputs.hie-bios;
-              inputMap."https://github.com/haskell/lsp" = inputs.lsp;
-            }).hsPkgs.haskell-language-server.components.exes.haskell-language-server;
-
             primer = final.haskell-nix.cabalProject {
               compiler-nix-name = ghcVersion;
               src = ./.;
               modules = [
-                {
-                  inherit nonReinstallablePkgs;
-                }
                 {
                   # We want -Werror for Nix builds (primarily for CI).
                   packages =
@@ -270,28 +180,21 @@
 
                 tools = {
                   ghcid = "latest";
-
-                  # Temporary workaround for HLS issues until the next release.
-                  #haskell-language-server = "latest";
+                  haskell-language-server = "latest";
 
                   cabal = "latest";
-                  hlint = exceptionsWorkaround "latest";
-                  weeder = exceptionsWorkaround weederVersion;
+                  hlint = "latest";
+                  weeder = weederVersion;
 
                   fourmolu = fourmoluVersion;
 
-                  # Not yet working with GHC 9.2.2.
-                  #cabal-edit = "latest";
-                  #cabal-fmt = "latest";
+                  cabal-fmt = "latest";
 
                   #TODO Explicitly requiring tasty-discover shouldn't be necessary - see the commented-out `build-tool-depends` in primer.cabal.
                   tasty-discover = "latest";
                 };
 
                 buildInputs = (with final; [
-                  # Temporary workaround for HLS issues until the next release.
-                  hls
-
                   nixpkgs-fmt
                   postgresql
                   openapi-generator-cli
@@ -320,9 +223,6 @@
                   delete-local-db
                   dump-local-db
                   restore-local-db
-
-                  ghc8107Tools.cabal-edit
-                  ghc8107Tools.cabal-fmt
                 ]);
 
                 shellHook = ''
@@ -447,9 +347,6 @@
             inherit primer-openapi-spec;
             inherit run-primer;
             inherit primer-service-docker-image;
-
-            inherit (ghc8107Tools) cabal-edit cabal-fmt;
-            inherit hls;
           }
         )
       ];
@@ -477,7 +374,7 @@
 
       weeder =
         let
-          weederTool = pkgs.haskell-nix.tool ghcVersion "weeder" (exceptionsWorkaround weederVersion);
+          weederTool = pkgs.haskell-nix.tool ghcVersion "weeder" weederVersion;
           getLibHIE = package:
             pkgs.lib.optional (package.components ? library)
               { name = "${package.identifier.name}-library"; path = package.components.library.hie; };
@@ -519,11 +416,9 @@
           # Override the default nix-pre-commit-hooks tools with the version
           # we're using.
           haskellNixTools = pkgs.haskell-nix.tools ghcVersion {
-            hlint = exceptionsWorkaround "latest";
+            hlint = "latest";
             fourmolu = fourmoluVersion;
-
-            # Not yet working with GHC 9.2.2.
-            #cabal-fmt = "latest";
+            cabal-fmt = "latest";
           };
         in
         pre-commit-hooks-nix.lib.${system}.run {
@@ -547,7 +442,6 @@
           # we're using.
           tools = {
             inherit (pkgs) nixpkgs-fmt;
-            inherit (pkgs) cabal-fmt;
           } // haskellNixTools;
 
           excludes = [
@@ -700,30 +594,31 @@
               checks.x86_64-linux
               checks.aarch64-linux
               checks.aarch64-darwin
-              tests.x86_64-linux
-              tests.aarch64-linux
+              # tests.x86_64-linux
+              # tests.aarch64-linux
               devShell
             ]);
             meta.description = "Required CI builds";
           };
       }
 
-      // forAllTestSystems (system: {
-        tests =
-          let
-            pkgs = pkgsFor system;
-          in
-          (hacknix.lib.testing.nixos.importFromDirectory ./nixos-tests
-            {
-              inherit system pkgs;
-            }
-            {
-              inherit (pkgs) primer-service-docker-image;
-              inherit (pkgs) primer-sqitch pg_prove primer-pgtap-tests;
-              inherit (pkgs.lib.primer) defaultServicePort;
-              inherit version;
-            });
-      });
+        # // forAllTestSystems (system: {
+        #   tests =
+        #     let
+        #       pkgs = pkgsFor system;
+        #     in
+        #     (hacknix.lib.testing.nixos.importFromDirectory ./nixos-tests
+        #       {
+        #         inherit system pkgs;
+        #       }
+        #       {
+        #         inherit (pkgs) primer-service-docker-image;
+        #         inherit (pkgs) primer-sqitch pg_prove primer-pgtap-tests;
+        #         inherit (pkgs.lib.primer) defaultServicePort;
+        #         inherit version;
+        #       });
+        # })
+      ;
 
       ciJobs = hacknix.lib.flakes.recurseIntoHydraJobs self.hydraJobs;
     };
