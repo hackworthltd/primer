@@ -1,12 +1,12 @@
 module Tasty (Property, property, withTests, withDiscards) where
 
+import Foreword
+
 import Data.Coerce (coerce)
 import Data.String (fromString)
 import Hedgehog qualified as H
 import Test.Tasty.Discover qualified as TD
 import Test.Tasty.Hedgehog qualified as TH
-
-import Foreword
 
 -- | Work around tasty changes which give deprecation warnings for tasty-discover generated code
 newtype Property = Property

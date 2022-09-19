@@ -7,6 +7,8 @@ module Primer.OpenAPI (
   -- $orphanInstances
 ) where
 
+import Foreword
+
 import Data.OpenApi (ToParamSchema, ToSchema (declareNamedSchema), fromAesonOptions, genericDeclareNamedSchema)
 import Data.OpenApi.Internal.Schema (GToSchema, rename)
 import Deriving.Aeson (AesonOptions (aesonOptions))
@@ -23,8 +25,6 @@ import Primer.Database (Session, SessionName)
 import Primer.JSON (CustomJSON, PrimerJSON)
 import Primer.Name (Name)
 import Servant.API (FromHttpApiData (parseQueryParam))
-
-import Foreword
 
 -- $orphanInstances
 --
