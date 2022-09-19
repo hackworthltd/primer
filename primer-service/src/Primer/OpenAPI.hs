@@ -1,3 +1,4 @@
+{-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE UndecidableInstances #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
@@ -6,11 +7,11 @@ module Primer.OpenAPI (
   -- $orphanInstances
 ) where
 
-import Data.OpenApi (ToSchema (declareNamedSchema), fromAesonOptions, genericDeclareNamedSchema)
+import Data.OpenApi (ToParamSchema, ToSchema (declareNamedSchema), fromAesonOptions, genericDeclareNamedSchema)
 import Data.OpenApi.Internal.Schema (GToSchema, rename)
 import Deriving.Aeson (AesonOptions (aesonOptions))
 import Primer.API (Def, ExprTreeOpts, Module, NodeBody, NodeFlavor, OfferedAction, Prog, Tree)
-import Primer.Action (ActionName, ActionType, Level)
+import Primer.Action (ActionName, ActionType, Level (..))
 import Primer.Core (
   GlobalName,
   GlobalNameKind (ADefName, ATyCon, AValCon),
@@ -21,6 +22,7 @@ import Primer.Core (
 import Primer.Database (Session, SessionName)
 import Primer.JSON (CustomJSON, PrimerJSON)
 import Primer.Name (Name)
+import Servant.API (FromHttpApiData (parseQueryParam))
 
 import Foreword
 
@@ -72,3 +74,6 @@ deriving via PrimerJSON OfferedAction instance ToSchema OfferedAction
 deriving via PrimerJSON ActionName instance ToSchema ActionName
 deriving via PrimerJSON ActionType instance ToSchema ActionType
 deriving via PrimerJSON Level instance ToSchema Level
+deriving instance ToParamSchema Level
+instance FromHttpApiData Level where
+  parseQueryParam t = maybeToEither ("unknown level: " <> t) $ readMaybe t

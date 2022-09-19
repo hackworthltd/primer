@@ -41,7 +41,10 @@ import Servant (
   NamedRoutes,
   Post,
   QueryFlag,
+  QueryParam',
   ReqBody,
+  Required,
+  Strict,
   Summary,
   (:>),
  )
@@ -104,6 +107,7 @@ data ActionAPI mode = ActionAPI
       mode
         :- "available"
           :> Summary "Get available actions for the definition, or a node within it"
+          :> QueryParam' '[Required, Strict] "level" Level
           :> ReqBody '[JSON] AvailableActionsAPIBody
           :> OperationId "getAvailableActions"
           :> Post '[JSON] [API.OfferedAction]
@@ -112,7 +116,6 @@ data ActionAPI mode = ActionAPI
 data AvailableActionsAPIBody = AvailableActionsAPIBody
   { def :: GVarName
   , id :: Maybe SigOrBodyID
-  , level :: Level
   }
   deriving (Show, Generic)
   deriving (FromJSON, ToJSON, ToSchema) via PrimerJSON AvailableActionsAPIBody

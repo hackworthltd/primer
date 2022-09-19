@@ -216,7 +216,7 @@ data Level
     Intermediate
   | -- | All features.
     Expert
-  deriving (Eq, Show, Enum, Bounded, Generic)
+  deriving (Eq, Read, Show, Enum, Bounded, Generic)
   deriving (FromJSON, ToJSON) via PrimerJSON Level
 
 -- | Sigh, yes, this is required so that Safari doesn't try to

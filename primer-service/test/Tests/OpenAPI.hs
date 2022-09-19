@@ -217,7 +217,7 @@ instance Arbitrary Prog where
 instance Arbitrary OfferedAction where
   arbitrary = OfferedAction <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
 instance Arbitrary AvailableActionsAPIBody where
-  arbitrary = AvailableActionsAPIBody <$> arbitrary <*> arbitrary <*> arbitrary
+  arbitrary = AvailableActionsAPIBody <$> arbitrary <*> arbitrary
 instance Arbitrary a => Arbitrary (NonEmpty a) where
   arbitrary = maybe discard pure . nonEmpty =<< arbitrary
 instance Arbitrary Level where

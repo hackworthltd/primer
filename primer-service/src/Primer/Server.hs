@@ -113,11 +113,11 @@ openAPIActionServer :: SessionId -> OpenAPI.ActionAPI (AsServerT PrimerIO)
 openAPIActionServer sid =
   OpenAPI.ActionAPI
     { available =
-        map (map API.convertOfferedAction) . \OpenAPI.AvailableActionsAPIBody{id = mid, ..} -> do
+        \level OpenAPI.AvailableActionsAPIBody{id = mid, ..} -> do
           prog <- getProgram sid
           let allDefs = progAllDefs prog
               allTypeDefs = progAllTypeDefs prog
-          case mid of
+          map (map API.convertOfferedAction) $ case mid of
             Nothing ->
               pure $ actionsForDef level allDefs def
             Just id -> do
