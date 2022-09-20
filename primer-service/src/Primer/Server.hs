@@ -185,7 +185,7 @@ apiCors =
     , corsRequestHeaders = simpleHeaders <> ["Content-Type", "Authorization"]
     }
 
-serve :: 
+serve :: ConvertLogMessage PrimerErr l =>
   Sessions -> TBQueue Database.Op -> Version -> Int -> Log.Handler IO (Log.WithSeverity l)
   -> IO ()
 serve ss q v port logger = do
@@ -211,4 +211,6 @@ serve ss q v port logger = do
     -- Catch exceptions from the API and convert them to Servant
     -- errors via 'Either'.
     handler :: PrimerErr -> IO (Either ServerError a)
-    handler (DatabaseErr msg) = pure $ Left $ err500{errBody = (LT.encodeUtf8 . LT.fromStrict) msg}
+    handler e@(DatabaseErr msg) = flip runLoggingT logger $ do
+      logWarning e
+      pure $ Left $ err500{errBody = (LT.encodeUtf8 . LT.fromStrict) msg}
