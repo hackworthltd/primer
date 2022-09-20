@@ -17,6 +17,7 @@ module TestUtils (
   PrimerLog,
   PrimerLogs,
   runPrimerLogs,
+  assertNoSevereLogs,
   runAPI,
 ) where
 
@@ -161,8 +162,12 @@ type PrimerLogs = PrimerM (LoggingT (WithSeverity PrimerLog) (PureLoggingT (Seq 
 runPrimerLogs :: PrimerLogs a -> Env -> IO (a,Seq (WithSeverity PrimerLog))
 runPrimerLogs m e = runPureLoggingT $ mapLogMessage Seq.singleton $ runPrimerM m e 
 
---noCriticalLogs :: PrimerLogs a -> _
---noCriticalLogs = _
+assertNoSevereLogs :: Seq (WithSeverity PrimerLog) -> IO ()
+assertNoSevereLogs =
+-- Note that more-severe errors are earlier in the ordering
+  Seq.filter ((<= Error).msgSeverity) <&> \case
+    Seq.Empty -> pure ()
+    e Seq.:<| _ -> assertFailure $ "There was a severe error: " <> show e
 
 -- Run 2 threads: one that serves a 'NullDb', and one that runs Primer
 -- API actions. This allows us to simulate a database and API service.
@@ -183,10 +188,5 @@ runAPI action = do
   initialSessions <- StmMap.newIO
   _ <- forkIO $ void $ runNullDb' $ serve (ServiceCfg dbOpQueue version)
   (ret,logs) <- runPrimerLogs action $ Env initialSessions dbOpQueue version
-  -- Note that more-severe errors are earlier in the ordering
-  let severe = Seq.filter ((<= Error).msgSeverity) logs
-  -- TODO: "no severe logs"
-  case severe of
-    Seq.Empty -> pure ()
-    e Seq.:<| _ -> assertFailure $ "There was a severe error: " <> show e
+  assertNoSevereLogs logs
   pure ret
