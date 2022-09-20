@@ -160,6 +160,8 @@ import Primer.Primitives (primDefType)
 import StmContainers.Map qualified as StmMap
 import Control.Monad.Log (MonadLog, WithSeverity)
 import Primer.Log (logInfo, ConvertLogMessage)
+import Data.UUID.V4 (nextRandom)
+import Data.UUID (UUID)
 
 -- | The API environment.
 data Env = Env
@@ -204,8 +206,8 @@ data PrimerErr = DatabaseErr Text deriving (Show)
 instance Exception PrimerErr
 
 data SessionTXLog =
-  SessionTXStart ()
-  | SessionTXEnd ()
+  SessionTXStart UUID
+  | SessionTXEnd UUID
   deriving Show
 
 sessionsTransaction :: (MonadIO m, MonadLog (WithSeverity l) m, ConvertLogMessage SessionTXLog l)
@@ -213,7 +215,7 @@ sessionsTransaction :: (MonadIO m, MonadLog (WithSeverity l) m, ConvertLogMessag
 sessionsTransaction f = do
   ss <- asks sessions
   q <- asks dbOpQueue
-  txid <- pure ()
+  txid <- liftIO nextRandom
   logInfo $ SessionTXStart txid
   ret <- liftIO $ atomically $ f ss q
   logInfo $ SessionTXEnd txid
