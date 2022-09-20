@@ -225,19 +225,14 @@ empty_q_harness desc test = testCaseSteps (toS desc) $ \step' -> do
     test
     -- Give 'nullDbProc' time to empty the queue.
     liftIO $ threadDelay 100000
-  (p, result) <- waitAnyCatchCancel [nullDbProc, testProc]
-  case result of
-    Right _ ->
-      if p == testProc
-        then do
-          step' "Check that the database op queue is empty"
-          qempty <- liftIO $ atomically $ isEmptyTBQueue dbOpQueue
-          assertBool "Queue should be empty" qempty
-        else assertFailure "the impossible happened: nullDbProc exited"
-    Left e ->
-      if p == testProc
-        then assertFailure $ "nullDbProc threw an exception: " <> show e
-        else assertFailure $ "testProc threw an exception: " <> show e
+  waitEitherCatchCancel nullDbProc testProc >>= \case
+    Left (Left e) -> assertFailure $ "nullDbProc threw an exception: " <> show e
+    Left (Right v) -> absurd v
+    Right (Left e) -> assertFailure $ "testProc threw an exception: " <> show e
+    Right (Right _) -> do
+      step' "Check that the database op queue is empty"
+      qempty <- liftIO $ atomically $ isEmptyTBQueue dbOpQueue
+      assertBool "Queue should be empty" qempty
 
 -- | A "fail" database that fails on every operation.
 newtype FailDbT m a = FailDbT {unFailDbT :: IdentityT m a}
@@ -290,16 +285,11 @@ faildb_harness desc test = testCaseSteps (toS desc) $ \step' -> do
     test
     -- Give 'failDbProc' time to throw.
     liftIO $ threadDelay 100000
-  (p, result) <- waitAnyCatchCancel [failDbProc, testProc]
-  case result of
-    Right _ ->
-      if p == testProc
-        then assertFailure "failDbProc should have thrown an exception, but it didn't (hint: we might need to increase the threadDelay)"
-        else assertFailure "the impossible happened: failDbProc exited"
-    Left e ->
-      if p == failDbProc
-        then do
-          step' "Check that the database op queue is non-empty"
-          qempty <- liftIO $ atomically $ isEmptyTBQueue dbOpQueue
-          assertBool "Queue should not be empty" (not qempty)
-        else assertFailure $ "testProc threw an exception: " <> show e
+  waitEitherCatchCancel failDbProc testProc >>= \case
+    Left (Left _) -> do
+      step' "Check that the database op queue is non-empty"
+      qempty <- liftIO $ atomically $ isEmptyTBQueue dbOpQueue
+      assertBool "Queue should not be empty" (not qempty)
+    Left (Right v) -> absurd v
+    Right (Left e) -> assertFailure $ "testProc threw an exception: " <> show e
+    Right (Right _) -> assertFailure "failDbProc should have thrown an exception, but it didn't (hint: we might need to increase the threadDelay)"

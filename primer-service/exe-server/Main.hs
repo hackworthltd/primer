@@ -112,7 +112,7 @@ defaultDb = do
     Nothing -> fail "You must provide a PostgreSQL connection URL either via the command line, or by setting the DATABASE_URL environment variable."
     Just uri -> pure $ PostgreSQL $ fromString uri
 
-runDb :: MonadRel8Db m l => Db.ServiceCfg -> Pool -> m ()
+runDb :: MonadRel8Db m l => Db.ServiceCfg -> Pool -> m Void
 runDb cfg = start
   where
     justRel8DbException :: Rel8DbException -> Maybe Rel8DbException

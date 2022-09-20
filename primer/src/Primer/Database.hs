@@ -370,7 +370,7 @@ runNullDb' m = do
 --
 -- Because it will block, this computation should be run on its own
 -- thread.
-serve :: (MonadDb m, MonadIO m) => ServiceCfg -> m ()
+serve :: (MonadDb m, MonadIO m) => ServiceCfg -> m Void
 serve (ServiceCfg q v) =
   forever $ do
     -- Don't remove the op from the queue until we're certain it

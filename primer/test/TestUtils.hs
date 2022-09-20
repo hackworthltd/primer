@@ -181,7 +181,7 @@ runAPI action = do
   let version = "git123"
   dbOpQueue <- newTBQueueIO 1
   initialSessions <- StmMap.newIO
-  _ <- forkIO $ runNullDb' $ serve (ServiceCfg dbOpQueue version)
+  _ <- forkIO $ void $ runNullDb' $ serve (ServiceCfg dbOpQueue version)
   (ret,logs) <- runPrimerLogs action $ Env initialSessions dbOpQueue version
   -- Note that more-severe errors are earlier in the ordering
   let severe = Seq.filter ((<= Error).msgSeverity) logs
