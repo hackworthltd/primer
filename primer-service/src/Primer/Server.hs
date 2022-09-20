@@ -13,6 +13,7 @@ import Control.Concurrent.STM (
   TBQueue,
  )
 
+import Control.Monad.Log qualified as Log
 import Data.OpenApi (OpenApi)
 import Data.Streaming.Network.Internal (HostPreference (HostIPv4Only))
 import Data.Text.Lazy qualified as LT (fromStrict)
@@ -66,6 +67,8 @@ import Servant (
 import Servant.API.Generic (GenericMode ((:-)))
 import Servant.OpenApi (toOpenApi)
 import Servant.Server.Generic (AsServerT, genericServeT)
+import Control.Monad.Log (runLoggingT)
+import Primer.Log (logWarning, ConvertLogMessage)
 
 openAPIInfo :: OpenApi
 openAPIInfo =
@@ -182,8 +185,10 @@ apiCors =
     , corsRequestHeaders = simpleHeaders <> ["Content-Type", "Authorization"]
     }
 
-serve :: Sessions -> TBQueue Database.Op -> Version -> Int -> IO ()
-serve ss q v port = do
+serve :: 
+  Sessions -> TBQueue Database.Op -> Version -> Int -> Log.Handler IO (Log.WithSeverity l)
+  -> IO ()
+serve ss q v port logger = do
   Warp.runSettings warpSettings $
     noCache $
       cors (const $ Just apiCors) $

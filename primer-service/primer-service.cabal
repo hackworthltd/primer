@@ -42,6 +42,7 @@ library
     , exceptions           >=0.10.4  && <=0.11
     , http-client          ^>=0.7.13
     , http-media           >=0.8     && <=0.9
+    , logging-effect       ^>=1.3.13
     , mtl                  >=2.2.2   && <=2.4
     , openapi3             >=3.2     && <=3.3
     , optics               >=0.4     && <=0.5
