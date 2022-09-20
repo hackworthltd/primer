@@ -39,12 +39,11 @@ import Primer.API (
   Env (..),
   ExprTreeOpts (..),
   PrimerErr (..),
-  PrimerIO,
   edit,
   listSessions,
   newSession,
   renameSession,
-  runPrimerIO,
+  PrimerM, SessionTXLog, runPrimerM,
  )
 import Primer.API qualified as API
 import Primer.Database (
@@ -67,7 +66,7 @@ import Servant (
 import Servant.API.Generic (GenericMode ((:-)))
 import Servant.OpenApi (toOpenApi)
 import Servant.Server.Generic (AsServerT, genericServeT)
-import Control.Monad.Log (runLoggingT)
+import Control.Monad.Log (runLoggingT, WithSeverity)
 import Primer.Log (logWarning, ConvertLogMessage)
 
 openAPIInfo :: OpenApi
@@ -77,7 +76,8 @@ openAPIInfo =
     & #info % #description ?~ "A backend service implementing a pedagogic functional programming language."
     & #info % #version .~ "0.7"
 
-openAPIServer :: OpenAPI.RootAPI (AsServerT PrimerIO)
+openAPIServer :: ConvertLogMessage SessionTXLog l =>
+  OpenAPI.RootAPI (AsServerT (PrimerM (Log.LoggingT (WithSeverity l) IO)))
 openAPIServer =
   OpenAPI.RootAPI
     { OpenAPI.copySession = API.copySession
@@ -85,7 +85,8 @@ openAPIServer =
     , OpenAPI.sessionsAPI = openAPISessionsServer
     }
 
-openAPISessionsServer :: OpenAPI.SessionsAPI (AsServerT PrimerIO)
+openAPISessionsServer :: ConvertLogMessage SessionTXLog l =>
+  OpenAPI.SessionsAPI (AsServerT (PrimerM (Log.LoggingT (WithSeverity l) IO)))
 openAPISessionsServer =
   OpenAPI.SessionsAPI
     { OpenAPI.createSession = newSession
@@ -93,7 +94,8 @@ openAPISessionsServer =
     , OpenAPI.sessionAPI = openAPISessionServer
     }
 
-openAPISessionServer :: SessionId -> OpenAPI.SessionAPI (AsServerT PrimerIO)
+openAPISessionServer :: ConvertLogMessage SessionTXLog l =>
+  SessionId -> OpenAPI.SessionAPI  (AsServerT (PrimerM (Log.LoggingT (WithSeverity l) IO)))
 openAPISessionServer sid =
   OpenAPI.SessionAPI
     { OpenAPI.getProgram = \patternsUnder -> API.getProgram' (ExprTreeOpts{patternsUnder}) sid
@@ -101,7 +103,8 @@ openAPISessionServer sid =
     , OpenAPI.setSessionName = renameSession sid
     }
 
-apiServer :: S.RootAPI (AsServerT PrimerIO)
+apiServer :: ConvertLogMessage SessionTXLog l =>
+  S.RootAPI (AsServerT (PrimerM (Log.LoggingT (WithSeverity l) IO)))
 apiServer =
   S.RootAPI
     { S.copySession = API.copySession
@@ -110,7 +113,8 @@ apiServer =
     , S.sessionsAPI = sessionsAPIServer
     }
 
-sessionsAPIServer :: S.SessionsAPI (AsServerT PrimerIO)
+sessionsAPIServer :: ConvertLogMessage SessionTXLog l =>
+  S.SessionsAPI (AsServerT (PrimerM (Log.LoggingT (WithSeverity l) IO)))
 sessionsAPIServer =
   S.SessionsAPI
     { S.createSession = newSession
@@ -119,7 +123,8 @@ sessionsAPIServer =
     , S.sessionAPI = sessionAPIServer
     }
 
-sessionAPIServer :: SessionId -> S.SessionAPI (AsServerT PrimerIO)
+sessionAPIServer :: ConvertLogMessage SessionTXLog l =>
+  SessionId -> S.SessionAPI (AsServerT (PrimerM (Log.LoggingT (WithSeverity l) IO)))
 sessionAPIServer sid =
   S.SessionAPI
     { S.getProgram = API.getProgram sid
@@ -132,14 +137,16 @@ sessionAPIServer sid =
     , S.evalFull = API.evalFull sid
     }
 
-questionAPIServer :: SessionId -> S.QuestionAPI (AsServerT PrimerIO)
+questionAPIServer :: ConvertLogMessage SessionTXLog l =>
+  SessionId -> S.QuestionAPI (AsServerT (PrimerM (Log.LoggingT (WithSeverity l) IO)))
 questionAPIServer sid =
   S.QuestionAPI
     { S.variablesInScope = API.variablesInScope sid
     , S.generateNames = API.generateNames sid
     }
 
-adminAPIServer :: S.AdminAPI (AsServerT PrimerIO)
+adminAPIServer :: ConvertLogMessage SessionTXLog l =>
+  S.AdminAPI (AsServerT (PrimerM (Log.LoggingT (WithSeverity l) IO)))
 adminAPIServer =
   S.AdminAPI
     { S.flushSessions = API.flushSessions >> pure NoContent
@@ -166,7 +173,8 @@ data API mode = API
   }
   deriving (Generic)
 
-server :: API (AsServerT PrimerIO)
+server :: ConvertLogMessage SessionTXLog l =>
+  API (AsServerT (PrimerM (Log.LoggingT (WithSeverity l) IO)))
 server =
   API
     { getSpec = pure openAPIInfo
@@ -185,7 +193,7 @@ apiCors =
     , corsRequestHeaders = simpleHeaders <> ["Content-Type", "Authorization"]
     }
 
-serve :: ConvertLogMessage PrimerErr l =>
+serve :: forall l . (ConvertLogMessage PrimerErr l, ConvertLogMessage SessionTXLog l) =>
   Sessions -> TBQueue Database.Op -> Version -> Int -> Log.Handler IO (Log.WithSeverity l)
   -> IO ()
 serve ss q v port logger = do
@@ -205,12 +213,12 @@ serve ss q v port logger = do
     noCache :: WAI.Middleware
     noCache = WAI.modifyResponse $ WAI.mapResponseHeaders (("Cache-Control", "no-store") :)
 
-    nt :: PrimerIO a -> Handler a
-    nt m = Handler $ ExceptT $ catch (Right <$> runPrimerIO m (Env ss q v)) handler
+    nt :: PrimerM (Log.LoggingT (WithSeverity l) IO) a -> Handler a
+    nt m = Handler $ ExceptT $ flip runLoggingT logger $ catch (Right <$> runPrimerM m (Env ss q v)) handler
 
     -- Catch exceptions from the API and convert them to Servant
     -- errors via 'Either'.
-    handler :: PrimerErr -> IO (Either ServerError a)
-    handler e@(DatabaseErr msg) = flip runLoggingT logger $ do
+    handler :: PrimerErr -> Log.LoggingT (WithSeverity l) IO (Either ServerError a)
+    handler e@(DatabaseErr msg) = do
       logWarning e
       pure $ Left $ err500{errBody = (LT.encodeUtf8 . LT.fromStrict) msg}
