@@ -50,7 +50,7 @@ import Primer.Examples (
 import StmContainers.Map qualified as StmMap
 import Test.Tasty
 import Test.Tasty.HUnit
-import TestUtils (PrimerLogs, runPrimerLogs)
+import TestUtils (PrimerLogs, runPrimerLogs, assertNoSevereLogs)
 
 test_unmodified :: TestTree
 test_unmodified =
@@ -229,7 +229,9 @@ empty_q_harness desc test = testCaseSteps (toS desc) $ \step' -> do
     Left (Left e) -> assertFailure $ "nullDbProc threw an exception: " <> show e
     Left (Right v) -> absurd v
     Right (Left e) -> assertFailure $ "testProc threw an exception: " <> show e
-    Right (Right _) -> do
+    Right (Right (_,logs)) -> do
+      step' "No severe logs"
+      assertNoSevereLogs logs
       step' "Check that the database op queue is empty"
       qempty <- liftIO $ atomically $ isEmptyTBQueue dbOpQueue
       assertBool "Queue should be empty" qempty
@@ -281,7 +283,7 @@ faildb_harness desc test = testCaseSteps (toS desc) $ \step' -> do
   inMemorySessions <- StmMap.newIO
   let version = "git123"
   failDbProc <- async $ runFailDb $ serve $ ServiceCfg dbOpQueue version
-  testProc <- async $ flip runPrimerM (Env inMemorySessions dbOpQueue version) $ do
+  testProc <- async $ flip runPrimerLogs (Env inMemorySessions dbOpQueue version) $ do
     test
     -- Give 'failDbProc' time to throw.
     liftIO $ threadDelay 100000
