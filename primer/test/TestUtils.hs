@@ -148,5 +148,5 @@ runAPI action = do
   let version = "git123"
   dbOpQueue <- newTBQueueIO 1
   initialSessions <- StmMap.newIO
-  _ <- forkIO $ runNullDb' $ serve (ServiceCfg dbOpQueue version)
+  _ <- forkIO $ void $ runNullDb' $ serve (ServiceCfg dbOpQueue version)
   runPrimerIO action $ Env initialSessions dbOpQueue version
