@@ -14,6 +14,9 @@ module TestUtils (
   zeroTypeIDs,
   clearMeta,
   clearTypeMeta,
+  PrimerLog,
+  PrimerLogs,
+  runPrimerLogs,
   runAPI,
 ) where
 
@@ -28,8 +31,8 @@ import Data.Typeable (typeOf)
 import Optics (over, set, view)
 import Primer.API (
   Env (..),
-  PrimerIO,
-  runPrimerIO,
+  PrimerM,
+  runPrimerM, SessionTXLog,
  )
 import Primer.Action (
   Action (ConstructCon, ConstructRefinedCon, ConstructTCon),
@@ -66,9 +69,12 @@ import Primer.Primitives (primitive)
 import StmContainers.Map qualified as StmMap
 import Test.Tasty.HUnit (
   assertBool,
-  assertFailure,
+  assertFailure, Assertion,
  )
 import Test.Tasty.HUnit qualified as HUnit
+import Control.Monad.Log (LoggingT, WithSeverity (msgSeverity), PureLoggingT, runPureLoggingT, mapLogMessage, Severity (Error))
+import qualified Data.Sequence as Seq
+import Primer.Log (ConvertLogMessage (convert))
 
 primDefs :: DefMap
 primDefs = Map.mapKeys primitive $ moduleDefs primitiveModule
@@ -132,6 +138,32 @@ assertException msg p action = do
     wrongException e = msg <> " threw " <> show e <> ", but we expected " <> exceptionType
     exceptionType = (show . typeOf) p
 
+newtype PrimerLog = PrimerLog Text
+  deriving newtype Show
+{-
+instance ConvertLogMessage Text PrimerLog where
+  convert = PrimerLog
+
+instance ConvertLogMessage Rel8DbLogMessage PrimerLog where
+  convert = PrimerLog . show
+
+instance ConvertLogMessage SomeException PrimerLog where
+  convert = PrimerLog . show
+
+instance ConvertLogMessage PrimerErr PrimerLog where
+  convert (DatabaseErr e) = PrimerLog e
+-}
+instance ConvertLogMessage SessionTXLog PrimerLog where
+  convert = PrimerLog . show
+
+type PrimerLogs = PrimerM (LoggingT (WithSeverity PrimerLog) (PureLoggingT (Seq (WithSeverity PrimerLog)) IO))
+
+runPrimerLogs :: PrimerLogs a -> Env -> IO (a,Seq (WithSeverity PrimerLog))
+runPrimerLogs m e = runPureLoggingT $ mapLogMessage Seq.singleton $ runPrimerM m e 
+
+--noCriticalLogs :: PrimerLogs a -> _
+--noCriticalLogs = _
+
 -- Run 2 threads: one that serves a 'NullDb', and one that runs Primer
 -- API actions. This allows us to simulate a database and API service.
 --
@@ -139,7 +171,8 @@ assertException msg p action = do
 -- until it's terminated. The Primer API action will run on the main
 -- thread and terminate the database thread when the API action runs
 -- to completion or throws.
-runAPI :: PrimerIO a -> IO a
+--
+runAPI :: PrimerLogs () -> Assertion
 runAPI action = do
   -- This is completely arbitrary and just for testing. In production,
   -- this value will be provided by the production environment and
@@ -149,4 +182,11 @@ runAPI action = do
   dbOpQueue <- newTBQueueIO 1
   initialSessions <- StmMap.newIO
   _ <- forkIO $ runNullDb' $ serve (ServiceCfg dbOpQueue version)
-  runPrimerIO action $ Env initialSessions dbOpQueue version
+  (ret,logs) <- runPrimerLogs action $ Env initialSessions dbOpQueue version
+  -- Note that more-severe errors are earlier in the ordering
+  let severe = Seq.filter ((<= Error).msgSeverity) logs
+  -- TODO: "no severe logs"
+  case severe of
+    Seq.Empty -> pure ()
+    e Seq.:<| _ -> assertFailure $ "There was a severe error: " <> show e
+  pure ret

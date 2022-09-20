@@ -69,7 +69,7 @@ import System.IO (
   BufferMode (LineBuffering),
   hSetBuffering,
  )
-import Primer.API (PrimerErr (DatabaseErr))
+import Primer.API (PrimerErr (DatabaseErr), SessionTXLog)
 
 {- HLINT ignore GlobalOptions "Use newtype instead of data" -}
 data GlobalOptions = GlobalOptions !Command
@@ -168,7 +168,7 @@ banner =
 serve ::
   ( ConvertLogMessage Rel8DbLogMessage l
   , ConvertLogMessage Text l
-  , ConvertLogMessage PrimerErr l
+  , ConvertLogMessage PrimerErr l, ConvertLogMessage SessionTXLog l
   ) =>
   Database ->
   Version ->
@@ -249,3 +249,6 @@ instance ConvertLogMessage SomeException LogMsg where
 
 instance ConvertLogMessage PrimerErr LogMsg where
   convert (DatabaseErr e) = LogMsg e
+
+instance ConvertLogMessage SessionTXLog LogMsg where
+  convert = LogMsg . show

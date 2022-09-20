@@ -20,11 +20,9 @@ import Control.Monad.Trans.Identity (
 import Data.Text qualified as Text
 import Primer.API (
   Env (..),
-  PrimerIO,
   addSession,
   edit,
-  renameSession,
-  runPrimerIO,
+  renameSession, PrimerM, runPrimerM,
  )
 import Primer.API qualified as API
 import Primer.App (
@@ -52,6 +50,7 @@ import Primer.Examples (
 import StmContainers.Map qualified as StmMap
 import Test.Tasty
 import Test.Tasty.HUnit
+import TestUtils (PrimerLogs, runPrimerLogs)
 
 test_unmodified :: TestTree
 test_unmodified =
@@ -136,21 +135,21 @@ test_invalid =
             safeMkSessionName t @?= defaultSessionName
         ]
 
-insertTest :: PrimerIO ()
+insertTest :: PrimerLogs ()
 insertTest = do
   void $ addSession "even3App" even3App
 
-updateAppTest :: PrimerIO ()
+updateAppTest :: PrimerLogs ()
 updateAppTest = do
   sid <- addSession "even3App" even3App
   void $ edit sid $ Edit [CreateDef (mkSimpleModuleName "Even3") $ Just "newDef"]
 
-updateNameTest :: PrimerIO ()
+updateNameTest :: PrimerLogs ()
 updateNameTest = do
   sid <- addSession "even3App" even3App
   void $ renameSession sid "even3App'"
 
-loadSessionTest :: PrimerIO ()
+loadSessionTest :: PrimerLogs ()
 loadSessionTest = do
   sid <- addSession "even3App" even3App
   -- No easy way to do this from the API, so we do it here by hand.
@@ -159,7 +158,7 @@ loadSessionTest = do
   ss <- asks sessions
   void $ liftIO $ atomically $ writeTBQueue q $ LoadSession sid ss callback
 
-listSessionsTest :: PrimerIO ()
+listSessionsTest :: PrimerLogs ()
 listSessionsTest = do
   void $ addSession "even3App" even3App
   void $ API.listSessions True $ OL 0 $ Just 100
@@ -215,14 +214,14 @@ testSessionName testName t expected =
         fromSessionName (safeMkSessionName t) @?= expected
     ]
 
-empty_q_harness :: Text -> PrimerIO () -> TestTree
+empty_q_harness :: Text -> PrimerLogs () -> TestTree
 empty_q_harness desc test = testCaseSteps (toS desc) $ \step' -> do
   dbOpQueue <- newTBQueueIO 4
   inMemorySessions <- StmMap.newIO
   dbSessions <- StmMap.newIO
   let version = "git123"
   nullDbProc <- async $ runNullDb dbSessions $ serve $ ServiceCfg dbOpQueue version
-  testProc <- async $ flip runPrimerIO (Env inMemorySessions dbOpQueue version) $ do
+  testProc <- async $ flip runPrimerLogs (Env inMemorySessions dbOpQueue version) $ do
     test
     -- Give 'nullDbProc' time to empty the queue.
     liftIO $ threadDelay 100000
@@ -281,13 +280,13 @@ runFailDbT m = runIdentityT $ unFailDbT m
 runFailDb :: FailDb a -> IO a
 runFailDb = runFailDbT
 
-faildb_harness :: Text -> PrimerIO () -> TestTree
+faildb_harness :: Text -> PrimerLogs () -> TestTree
 faildb_harness desc test = testCaseSteps (toS desc) $ \step' -> do
   dbOpQueue <- newTBQueueIO 4
   inMemorySessions <- StmMap.newIO
   let version = "git123"
   failDbProc <- async $ runFailDb $ serve $ ServiceCfg dbOpQueue version
-  testProc <- async $ flip runPrimerIO (Env inMemorySessions dbOpQueue version) $ do
+  testProc <- async $ flip runPrimerM (Env inMemorySessions dbOpQueue version) $ do
     test
     -- Give 'failDbProc' time to throw.
     liftIO $ threadDelay 100000
