@@ -14,6 +14,8 @@ import Control.Concurrent.STM (
   TBQueue,
  )
 
+import Control.Monad.Log (runLoggingT)
+import Control.Monad.Log qualified as Log
 import Data.Map ((!?))
 import Data.OpenApi (OpenApi)
 import Data.Streaming.Network.Internal (HostPreference (HostIPv4Only))
@@ -63,6 +65,7 @@ import Primer.Database qualified as Database (
   Op,
  )
 import Primer.Def (ASTDef (..), Def (..))
+import Primer.Log (ConvertLogMessage, logWarning)
 import Primer.Pagination (pagedDefaultClamp)
 import Primer.Servant.API qualified as S
 import Primer.Servant.OpenAPI qualified as OpenAPI
@@ -217,8 +220,15 @@ apiCors =
     , corsRequestHeaders = simpleHeaders <> ["Content-Type", "Authorization"]
     }
 
-serve :: Sessions -> TBQueue Database.Op -> Version -> Int -> IO ()
-serve ss q v port = do
+serve ::
+  ConvertLogMessage PrimerErr l =>
+  Sessions ->
+  TBQueue Database.Op ->
+  Version ->
+  Int ->
+  Log.Handler IO (Log.WithSeverity l) ->
+  IO ()
+serve ss q v port logger = do
   Warp.runSettings warpSettings $
     noCache $
       cors (const $ Just apiCors) $
@@ -241,8 +251,9 @@ serve ss q v port = do
     -- Catch exceptions from the API and convert them to Servant
     -- errors via 'Either'.
     handler :: PrimerErr -> IO (Either ServerError a)
-    handler =
-      pure . Left . \case
+    handler e = flip runLoggingT logger $ do
+      logWarning e
+      pure . Left $ case e of
         DatabaseErr msg -> err500{errBody = encode msg}
         UnknownDef d -> err404{errBody = "Unknown definition: " <> encode (globalNamePretty d)}
         UnexpectedPrimDef d -> err400{errBody = "Unexpected primitive definition: " <> encode (globalNamePretty d)}

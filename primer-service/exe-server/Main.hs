@@ -46,6 +46,7 @@ import Options.Applicative (
   str,
   value,
  )
+import Primer.API (PrimerErr (DatabaseErr, UnexpectedPrimDef, UnknownDef))
 import Primer.Database (Version)
 import Primer.Database qualified as Db
 import Primer.Database.Rel8 (
@@ -167,11 +168,17 @@ banner =
 serve ::
   ( ConvertLogMessage Rel8DbLogMessage l
   , ConvertLogMessage Text l
+  , ConvertLogMessage PrimerErr l
   ) =>
   Database ->
   Version ->
   Int ->
   Natural ->
+  -- | NB: this logging handler will be called concurrently in multiple threads.
+  -- It is expected that we use and pass around one global 'withBatchedHandler',
+  -- which is thread-safe (in the sense that messages will be logged atomically:
+  -- they will all appear, and will not interleave like
+  -- @concurrently_ (putStrLn s1) (putStrLn s2)@ can.)
   Handler IO (WithSeverity l) ->
   IO ()
 serve (PostgreSQL uri) ver port qsz logger =
@@ -183,7 +190,7 @@ serve (PostgreSQL uri) ver port qsz logger =
       logNotice $ "primer-server version " <> ver
       logNotice ("Listening on port " <> show port :: Text)
     concurrently_
-      (Server.serve initialSessions dbOpQueue ver port)
+      (Server.serve initialSessions dbOpQueue ver port logger)
       (flip runLoggingT logger $ runDb (Db.ServiceCfg dbOpQueue ver) pool)
   where
     -- Note: pool size must be 1 in order to guarantee
@@ -239,3 +246,8 @@ instance ConvertLogMessage Rel8DbLogMessage LogMsg where
 
 instance ConvertLogMessage SomeException LogMsg where
   convert = LogMsg . show
+
+instance ConvertLogMessage PrimerErr LogMsg where
+  convert (DatabaseErr e) = LogMsg e
+  convert (UnknownDef e) = LogMsg $ show e
+  convert (UnexpectedPrimDef e) = LogMsg $ show e
