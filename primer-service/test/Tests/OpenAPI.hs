@@ -27,7 +27,7 @@ import Primer.API (
  )
 import Primer.Action (ActionName (..), ActionType (..), Level)
 import Primer.App (NodeType (..))
-import Primer.Core (GlobalName, ID (ID), unsafeMkGlobalName)
+import Primer.Core (GVarName, ID (ID))
 import Primer.Database (Session (Session), SessionName, safeMkSessionName)
 import Primer.Gen.API (genExprTreeOpts)
 import Primer.Gen.Core.Raw (
@@ -42,7 +42,7 @@ import Primer.Gen.Core.Raw (
   genType,
   genValConName,
  )
-import Primer.Name (Name, unsafeMkName)
+import Primer.Name (Name)
 import Primer.OpenAPI ()
 import Primer.Pagination (NonNeg, Paginated (Paginated), PaginatedMeta (..), Positive, mkNonNeg, mkPositive)
 import Primer.Servant.OpenAPI (API)
@@ -229,12 +229,12 @@ instance Arbitrary Level where
   arbitrary = arbitraryBoundedEnum
 deriving newtype instance Arbitrary ID
 instance Arbitrary Name where
-  arbitrary = unsafeMkName <$> arbitrary @Text
+  arbitrary = hedgehog genName
 instance Arbitrary ActionName where
   arbitrary = oneof [map Code arbitrary, map Prose arbitrary]
 instance Arbitrary ActionType where
   arbitrary = arbitraryBoundedEnum
 instance Arbitrary NodeType where
   arbitrary = arbitraryBoundedEnum
-instance Arbitrary (GlobalName a) where
-  arbitrary = curry unsafeMkGlobalName <$> arbitrary <*> arbitrary
+instance Arbitrary GVarName where
+  arbitrary = hedgehog genGVarName
