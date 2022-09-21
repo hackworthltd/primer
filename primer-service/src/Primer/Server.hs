@@ -103,7 +103,7 @@ openAPISessionServer sid =
     , OpenAPI.setSessionName = renameSession sid
     }
 
-apiServer :: ConvertLogMessage SessionTXLog l =>
+apiServer :: (ConvertLogMessage SessionTXLog l, ConvertLogMessage Text l) =>
   S.RootAPI (AsServerT (PrimerM (Log.LoggingT (WithSeverity (WithTraceId l)) IO)))
 apiServer =
   S.RootAPI
@@ -113,7 +113,7 @@ apiServer =
     , S.sessionsAPI = sessionsAPIServer
     }
 
-sessionsAPIServer :: ConvertLogMessage SessionTXLog l =>
+sessionsAPIServer :: (ConvertLogMessage SessionTXLog l, ConvertLogMessage Text l) =>
   S.SessionsAPI (AsServerT (PrimerM (Log.LoggingT (WithSeverity (WithTraceId l)) IO)))
 sessionsAPIServer =
   S.SessionsAPI
@@ -123,7 +123,7 @@ sessionsAPIServer =
     , S.sessionAPI = sessionAPIServer
     }
 
-sessionAPIServer :: ConvertLogMessage SessionTXLog l =>
+sessionAPIServer :: (ConvertLogMessage SessionTXLog l, ConvertLogMessage Text l) =>
   SessionId -> S.SessionAPI (AsServerT (PrimerM (Log.LoggingT (WithSeverity (WithTraceId l)) IO)))
 sessionAPIServer sid =
   S.SessionAPI
@@ -173,7 +173,7 @@ data API mode = API
   }
   deriving (Generic)
 
-server :: ConvertLogMessage SessionTXLog l =>
+server :: (ConvertLogMessage SessionTXLog l, ConvertLogMessage Text l) =>
   API (AsServerT (PrimerM (Log.LoggingT (WithSeverity (WithTraceId l)) IO)))
 server =
   API
@@ -193,7 +193,8 @@ apiCors =
     , corsRequestHeaders = simpleHeaders <> ["Content-Type", "Authorization"]
     }
 
-serve :: forall l . (ConvertLogMessage PrimerErr (WithTraceId l), ConvertLogMessage SessionTXLog l) =>
+serve :: forall l . (ConvertLogMessage PrimerErr (WithTraceId l)
+                    , ConvertLogMessage SessionTXLog l, ConvertLogMessage Text l) =>
   Sessions -> TBQueue Database.Op -> Version -> Int -> Log.Handler IO (Log.WithSeverity (WithTraceId l))
   -> IO ()
 serve ss q v port logger = do
