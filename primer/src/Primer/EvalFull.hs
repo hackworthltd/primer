@@ -111,7 +111,7 @@ import Primer.Zipper (
   unfocusType,
   up,
  )
-import Primer.Log (logInfo, ConvertLogMessage, logError)
+import Primer.Log (logInfo, ConvertLogMessage)
 import Control.Monad.Log (MonadLog, WithSeverity)
 
 newtype EvalFullError
@@ -573,7 +573,7 @@ runRedexTy (RenameSelfLetInType a s t) = do
   b <- freshLocalName (freeVarsTy s <> freeVarsTy t)
   tlet b (pure s) $ tlet a (tvar b) $ pure t
 runRedexTy (RenameForall m a k s avoid) = do
-  logError ("runRedexTy" :: Text)
+  logInfo ("runRedexTy" :: Text)
   -- It should never be necessary to try more than once, since
   -- we pick a new name disjoint from any that appear in @s@
   -- thus renaming will never capture (so @renameTyVar@ will always succeed).
