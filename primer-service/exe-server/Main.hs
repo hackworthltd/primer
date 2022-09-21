@@ -3,7 +3,7 @@
 
 module Main (main) where
 
-import Foreword hiding (Handler)
+import Foreword hiding (Handler, traceId)
 
 import Control.Concurrent.Async (
   concurrently_,
@@ -69,7 +69,7 @@ import System.IO (
   BufferMode (LineBuffering),
   hSetBuffering,
  )
-import Primer.API (PrimerErr (DatabaseErr), SessionTXLog)
+import Primer.API (PrimerErr (DatabaseErr), SessionTXLog, WithTraceId (discardTraceId, traceId))
 
 {- HLINT ignore GlobalOptions "Use newtype instead of data" -}
 data GlobalOptions = GlobalOptions !Command
@@ -166,10 +166,6 @@ banner =
   ]
 
 serve ::
-  ( ConvertLogMessage Rel8DbLogMessage l
-  , ConvertLogMessage Text l
-  , ConvertLogMessage PrimerErr l, ConvertLogMessage SessionTXLog l
-  ) =>
   Database ->
   Version ->
   Int ->
@@ -179,18 +175,18 @@ serve ::
   -- which is thread-safe (in the sense that messages will be logged atomically:
   -- they will all appear, and will not interleave like
   -- @concurrently_ (putStrLn s1) (putStrLn s2)@ can.)
-  Handler IO (WithSeverity l) ->
+  Handler IO (WithSeverity LogMsg) ->
   IO ()
 serve (PostgreSQL uri) ver port qsz logger =
   bracket (acquire poolSize timeout uri) release $ \pool -> do
     dbOpQueue <- newTBQueueIO qsz
     initialSessions <- StmMap.newIO
-    flip runLoggingT logger $ do
+    flip runLoggingT (logger . fmap Untraced) $ do
       forM_ banner logInfo
       logNotice $ "primer-server version " <> ver
       logNotice ("Listening on port " <> show port :: Text)
     concurrently_
-      (Server.serve initialSessions dbOpQueue ver port logger)
+      (Server.serve initialSessions dbOpQueue ver port (logger . fmap Traced))
       (flip runLoggingT logger $ runDb (Db.ServiceCfg dbOpQueue ver) pool)
   where
     -- Note: pool size must be 1 in order to guarantee
@@ -233,22 +229,28 @@ main = do
     flush messages = forM_ messages putStrLn
 
 -- | Avoid orphan instances.
-newtype LogMsg = LogMsg {unLogMsg :: Text}
+newtype LogMsg' = LogMsg {unLogMsg :: Text}
+data LogMsg = Traced (WithTraceId LogMsg') | Untraced LogMsg'
 
 logMsgWithSeverity :: WithSeverity LogMsg -> Text
-logMsgWithSeverity (WithSeverity s m) = textWithSeverity $ WithSeverity s (unLogMsg m)
+logMsgWithSeverity (WithSeverity s (Untraced m)) = textWithSeverity $ WithSeverity s $ unLogMsg m
+logMsgWithSeverity (WithSeverity s (Traced m)) = textWithSeverity $ WithSeverity s  $ "TraceID: " <> show (traceId m) <> "  " <> unLogMsg (discardTraceId m)
 
-instance ConvertLogMessage Text LogMsg where
+--logMsgWithSeverityAndTraceId :: WithSeverity (WithTraceId LogMsg) -> Text
+--logMsgWithSeverityAndTraceId (WithSeverity s m) = textWithSeverity $ WithSeverity s
+
+instance ConvertLogMessage Text LogMsg' where
   convert = LogMsg
 
 instance ConvertLogMessage Rel8DbLogMessage LogMsg where
-  convert = LogMsg . show
+  convert = Untraced . LogMsg . show
 
 instance ConvertLogMessage SomeException LogMsg where
-  convert = LogMsg . show
+  convert = Untraced . LogMsg . show
 
-instance ConvertLogMessage PrimerErr LogMsg where
-  convert (DatabaseErr e) = LogMsg e
+-- TODO: why do I need this weid instance?
+instance ConvertLogMessage PrimerErr (WithTraceId LogMsg') where
+  convert (DatabaseErr e) = fmap LogMsg e
 
-instance ConvertLogMessage SessionTXLog LogMsg where
+instance ConvertLogMessage SessionTXLog LogMsg' where
   convert = LogMsg . show
