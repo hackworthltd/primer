@@ -49,20 +49,6 @@
                 ],
                 "type": "string"
             },
-            "AvailableActionsAPIBody": {
-                "properties": {
-                    "def": {
-                        "$ref": "#/components/schemas/GlobalName"
-                    },
-                    "id": {
-                        "$ref": "#/components/schemas/SigOrBodyID"
-                    }
-                },
-                "required": [
-                    "def"
-                ],
-                "type": "object"
-            },
             "Def": {
                 "properties": {
                     "name": {
@@ -221,6 +207,30 @@
                 ],
                 "type": "string"
             },
+            "NodeSelection": {
+                "properties": {
+                    "id": {
+                        "maximum": 9223372036854775807,
+                        "minimum": -9223372036854775808,
+                        "type": "integer"
+                    },
+                    "nodeType": {
+                        "$ref": "#/components/schemas/NodeType"
+                    }
+                },
+                "required": [
+                    "nodeType",
+                    "id"
+                ],
+                "type": "object"
+            },
+            "NodeType": {
+                "enum": [
+                    "BodyNode",
+                    "SigNode"
+                ],
+                "type": "string"
+            },
             "OfferedAction": {
                 "properties": {
                     "actionType": {
@@ -331,6 +341,20 @@
                 ],
                 "type": "object"
             },
+            "Selection": {
+                "properties": {
+                    "def": {
+                        "$ref": "#/components/schemas/GlobalName"
+                    },
+                    "node": {
+                        "$ref": "#/components/schemas/NodeSelection"
+                    }
+                },
+                "required": [
+                    "def"
+                ],
+                "type": "object"
+            },
             "Session": {
                 "properties": {
                     "id": {
@@ -348,51 +372,6 @@
             },
             "SessionName": {
                 "type": "string"
-            },
-            "SigOrBodyID": {
-                "oneOf": [
-                    {
-                        "properties": {
-                            "contents": {
-                                "maximum": 9223372036854775807,
-                                "minimum": -9223372036854775808,
-                                "type": "integer"
-                            },
-                            "tag": {
-                                "enum": [
-                                    "SigID"
-                                ],
-                                "type": "string"
-                            }
-                        },
-                        "required": [
-                            "tag",
-                            "contents"
-                        ],
-                        "type": "object"
-                    },
-                    {
-                        "properties": {
-                            "contents": {
-                                "maximum": 9223372036854775807,
-                                "minimum": -9223372036854775808,
-                                "type": "integer"
-                            },
-                            "tag": {
-                                "enum": [
-                                    "BodyID"
-                                ],
-                                "type": "string"
-                            }
-                        },
-                        "required": [
-                            "tag",
-                            "contents"
-                        ],
-                        "type": "object"
-                    }
-                ],
-                "type": "object"
             },
             "Tree": {
                 "properties": {
@@ -571,7 +550,7 @@
                     "content": {
                         "application/json;charset=utf-8": {
                             "schema": {
-                                "$ref": "#/components/schemas/AvailableActionsAPIBody"
+                                "$ref": "#/components/schemas/Selection"
                             }
                         }
                     }

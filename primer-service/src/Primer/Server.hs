@@ -39,8 +39,10 @@ import Optics ((%), (.~), (?~))
 import Primer.API (
   Env (..),
   ExprTreeOpts (..),
+  NodeSelection (..),
   PrimerErr (..),
   PrimerIO,
+  Selection (..),
   edit,
   getProgram,
   listSessions,
@@ -50,7 +52,7 @@ import Primer.API (
  )
 import Primer.API qualified as API
 import Primer.Action.Available (actionsForDef, actionsForDefBody, actionsForDefSig)
-import Primer.App (progAllDefs, progAllTypeDefs)
+import Primer.App (NodeType (..), progAllDefs, progAllTypeDefs)
 import Primer.Core (globalNamePretty)
 import Primer.Database (
   SessionId,
@@ -63,7 +65,6 @@ import Primer.Database qualified as Database (
 import Primer.Def (ASTDef (..), Def (..))
 import Primer.Pagination (pagedDefaultClamp)
 import Primer.Servant.API qualified as S
-import Primer.Servant.OpenAPI (SigOrBodyID (..))
 import Primer.Servant.OpenAPI qualified as OpenAPI
 import Servant (
   Handler (Handler),
@@ -113,23 +114,23 @@ openAPIActionServer :: SessionId -> OpenAPI.ActionAPI (AsServerT PrimerIO)
 openAPIActionServer sid =
   OpenAPI.ActionAPI
     { available =
-        \level OpenAPI.AvailableActionsAPIBody{id = mid, ..} -> do
+        \level Selection{..} -> do
           prog <- getProgram sid
           let allDefs = progAllDefs prog
               allTypeDefs = progAllTypeDefs prog
-          map (map API.convertOfferedAction) $ case mid of
+          map (map API.convertOfferedAction) $ case node of
             Nothing ->
               pure $ actionsForDef level allDefs def
-            Just id -> do
+            Just NodeSelection{..} -> do
               case allDefs !? def of
                 Nothing -> throwM $ UnknownDef def
                 Just (_, DefPrim _) -> throwM $ UnexpectedPrimDef def
                 Just (editable, DefAST ASTDef{astDefType = type_, astDefExpr = expr}) ->
-                  pure $ case id of
-                    SigID sigID -> do
-                      actionsForDefSig level def editable sigID type_
-                    BodyID bodyID -> do
-                      actionsForDefBody (snd <$> allTypeDefs) level def editable bodyID expr
+                  pure $ case nodeType of
+                    SigNode -> do
+                      actionsForDefSig level def editable id type_
+                    BodyNode -> do
+                      actionsForDefBody (snd <$> allTypeDefs) level def editable id expr
     }
 
 apiServer :: S.RootAPI (AsServerT PrimerIO)

@@ -52,6 +52,10 @@ module Primer.API (
   getApp,
   OfferedAction (..),
   convertOfferedAction,
+  Selection (..),
+  convertSelection,
+  NodeSelection (..),
+  convertNodeSelection,
 ) where
 
 import Foreword
@@ -84,6 +88,7 @@ import Primer.App (
   EvalReq (..),
   EvalResp (..),
   MutationRequest,
+  NodeType,
   ProgError,
   QueryAppM,
   Question (..),
@@ -822,3 +827,25 @@ data OfferedAction = OfferedAction
   deriving (ToJSON) via (PrimerJSON OfferedAction)
 convertOfferedAction :: Action.OfferedAction a -> OfferedAction
 convertOfferedAction Action.OfferedAction{..} = OfferedAction{..}
+
+-- | 'App.Selection' without any node metadata.
+data Selection = Selection
+  { def :: GVarName
+  , node :: Maybe NodeSelection
+  }
+  deriving (Eq, Show, Generic)
+  deriving (FromJSON, ToJSON) via PrimerJSON Selection
+
+convertSelection :: App.Selection -> Selection
+convertSelection App.Selection{..} = Selection{def = selectedDef, node = convertNodeSelection <$> selectedNode}
+
+-- | 'App.NodeSelection' without any node metadata.
+data NodeSelection = NodeSelection
+  { nodeType :: NodeType
+  , id :: ID
+  }
+  deriving (Eq, Show, Generic)
+  deriving (FromJSON, ToJSON) via PrimerJSON NodeSelection
+
+convertNodeSelection :: App.NodeSelection -> NodeSelection
+convertNodeSelection App.NodeSelection{..} = NodeSelection{nodeType, id = nodeId}
