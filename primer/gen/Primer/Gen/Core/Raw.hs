@@ -98,7 +98,7 @@ genModuleName =
       , (1, Gen.nonEmpty (Range.linear 1 3) genName)
       ]
 
-genValConName :: ExprGen ValConName
+genValConName :: MonadGen m => m ValConName
 genValConName = qualifyName <$> genModuleName <*> genName
 
 genCon :: ExprGen Expr
@@ -116,7 +116,7 @@ genLocalVar = Var <$> genMeta <*> (LocalVarRef <$> genLVarName)
 genGlobalVar :: ExprGen Expr
 genGlobalVar = Var <$> genMeta <*> (GlobalVarRef <$> genGVarName)
 
-genGVarName :: ExprGen GVarName
+genGVarName :: MonadGen m => m GVarName
 genGVarName = qualifyName <$> genModuleName <*> genName
 
 genLet :: ExprGen Expr
@@ -165,10 +165,10 @@ genType =
     , TLet <$> genMeta <*> genTyVarName <*> genType <*> genType
     ]
 
-genTyConName :: ExprGen TyConName
+genTyConName :: MonadGen m => m TyConName
 genTyConName = qualifyName <$> genModuleName <*> genName
 
-genKind :: ExprGen Kind
+genKind :: MonadGen m => m Kind
 genKind = Gen.recursive Gen.choice [pure KType, pure KHole] [KFun <$> genKind <*> genKind]
 
 genMeta :: ExprGen (Meta (Maybe a))
