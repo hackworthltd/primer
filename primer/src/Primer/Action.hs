@@ -156,7 +156,7 @@ data OfferedAction a = OfferedAction
 data ActionType
   = Primary
   | Destructive
-  deriving (Show, Generic)
+  deriving (Show, Bounded, Enum, Generic)
   deriving (ToJSON) via (PrimerJSON ActionType)
 
 -- | Filter on variables and constructors according to whether they

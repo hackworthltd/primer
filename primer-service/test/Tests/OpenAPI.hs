@@ -232,12 +232,8 @@ instance Arbitrary Name where
   arbitrary = unsafeMkName <$> arbitrary @Text
 instance Arbitrary ActionName where
   arbitrary = oneof [map Code arbitrary, map Prose arbitrary]
-deriving instance Bounded ActionType
-deriving instance Enum ActionType
 instance Arbitrary ActionType where
   arbitrary = arbitraryBoundedEnum
-deriving instance Bounded NodeType
-deriving instance Enum NodeType
 instance Arbitrary NodeType where
   arbitrary = arbitraryBoundedEnum
 instance Arbitrary (GlobalName a) where
