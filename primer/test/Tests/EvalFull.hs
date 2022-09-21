@@ -3,7 +3,7 @@ module Tests.EvalFull where
 import Foreword hiding (unlines)
 
 import Data.Generics.Uniplate.Data (universe)
-import Data.List (span, (\\))
+import Data.List ((\\))
 import Data.List.NonEmpty qualified as NE
 import Data.Map qualified as M
 import Data.Map qualified as Map
@@ -106,6 +106,7 @@ import Tests.Eval ((~=))
 import Tests.Gen.Core.Typed (checkTest)
 import Tests.Typecheck (runTypecheckTestM, runTypecheckTestMWithPrims)
 import Control.Monad.Log (WithSeverity)
+import Protolude.Partial (fromJust)
 
 unit_1 :: Assertion
 unit_1 =
@@ -752,9 +753,8 @@ unit_let_self_capture =
       s3 n = evalFullTest maxID mempty mempty n Chk expr3
       s4 n = evalFullTest maxID mempty mempty n Chk expr4
       typePres ty f = do
-        fs <- traverse f [0..]
-        let (timeout, term) = span isLeft fs
-         in forM_ (timeout <> [unsafeHead term]) $ \e ->
+         (timeout, term) <- spanM isLeft $ f <$> [0..]
+         forM_ (timeout <> [fst $ fromJust term]) $ \e ->
               let e' = case e of
                     Left (TimedOut e'') -> e''
                     Right e'' -> e''
@@ -771,6 +771,23 @@ unit_let_self_capture =
         s3 6 >>= (<~==> Right expected3b)
         s4 1 >>= (<~==> Left (TimedOut expected4a))
         s4 2 >>= (<~==> Left (TimedOut expected4b))
+
+-- | @spanM p mxs@ returns a tuple where the first component is the
+-- values coming from the longest prefix of @mxs@ all of which satisfy
+-- @p@, and the second component is the rest of @mxs@. It only runs
+-- the necessary actions from @mxs@: those giving the prefix of
+-- elements satisfying the predicate, and also the first action giving
+-- an element that fails the predicate. (Thus the second component has
+-- one element and a list of actions.)
+--
+-- Compare 'Data.List.span p =<< sequence mxs'.
+spanM :: Monad m => (a -> Bool        ) -> [m a] -> m ([a], Maybe (a, [m a]))
+spanM _ [] = pure ([], Nothing)
+spanM f (x : xs) = do
+  x' <- x
+  if f x'
+    then first (x':) <$> spanM f xs
+    else pure ([] , Just (x',xs))
 
 -- We previously had a bug where we would refuse to inline a let if it would "self-capture"
 -- (e.g.  λx. let x=f x in C x x : we cannot inline one occurrence of this non-recursive let
