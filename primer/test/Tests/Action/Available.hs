@@ -107,7 +107,9 @@ import Test.Tasty.Golden (goldenVsString)
 import Test.Tasty.HUnit (Assertion, (@?=))
 import Tests.Typecheck (TypeCacheAlpha (TypeCacheAlpha), runTypecheckTestMIn)
 import Text.Pretty.Simple (pShowNoColor)
-import TestUtils (runPureLogT, PureLogT, failWhenSevereLogs)
+import TestUtils (runPureLogT, PureLogT, failWhenSevereLogs, PrimerLog)
+import Control.Monad.Log (WithSeverity)
+import Primer.API (WithTraceId)
 
 -- | Comprehensive DSL test.
 test_1 :: TestTree
@@ -319,7 +321,7 @@ tasty_available_actions_accepted = withTests 500 $
           collect $ description action
           checkActionInput $ input action
   where
-    actionSucceeds :: HasCallStack => EditAppM (PureLogT Identity) a -> App -> PropertyT WT ()
+    actionSucceeds :: HasCallStack => EditAppM (PureLogT (WithSeverity (WithTraceId PrimerLog)) Identity) a -> App -> PropertyT WT ()
     actionSucceeds m a = do
       let (r,logs) = runIdentity $ runPureLogT $ runEditAppM m a
       failWhenSevereLogs logs
@@ -328,7 +330,7 @@ tasty_available_actions_accepted = withTests 500 $
         (Right _, a') -> ensureSHNormal a'
     -- If we submit our own name rather than an offered one, then
     -- we should expect that name capture/clashing may happen
-    actionSucceedsOrCapture :: HasCallStack => EditAppM (PureLogT Identity) a -> App -> PropertyT WT ()
+    actionSucceedsOrCapture :: HasCallStack => EditAppM (PureLogT (WithSeverity (WithTraceId PrimerLog)) Identity) a -> App -> PropertyT WT ()
     actionSucceedsOrCapture m a = do
       let (r,logs) = runIdentity $ runPureLogT $ runEditAppM m a
       failWhenSevereLogs logs

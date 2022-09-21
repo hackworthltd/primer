@@ -111,6 +111,8 @@ import Primer.Zipper (
   unfocusType,
   up,
  )
+import Primer.Log (logInfo, ConvertLogMessage)
+import Control.Monad.Log (MonadLog, WithSeverity)
 
 newtype EvalFullError
   = TimedOut Expr
@@ -177,7 +179,8 @@ data RedexType
 type TerminationBound = Natural
 
 -- A naive implementation of normal-order reduction
-evalFull :: (MonadFresh NameCounter m, MonadFresh ID m) => TypeDefMap -> DefMap -> TerminationBound -> Dir -> Expr -> m (Either EvalFullError Expr)
+evalFull :: (MonadFresh NameCounter m, MonadFresh ID m, MonadLog (WithSeverity l) m, ConvertLogMessage Text l)
+  => TypeDefMap -> DefMap -> TerminationBound -> Dir -> Expr -> m (Either EvalFullError Expr)
 evalFull tydefs env n d expr = snd <$> evalFullStepCount tydefs env n d expr
 
 -- | As 'evalFull', but also returns how many reduction steps were taken.
@@ -189,7 +192,7 @@ evalFull tydefs env n d expr = snd <$> evalFullStepCount tydefs env n d expr
 -- we have @m >= s+1@, as we do @s@ reductions, and then need to attempt one
 -- more to notice termination.
 evalFullStepCount ::
-  (MonadFresh NameCounter m, MonadFresh ID m) =>
+  (MonadFresh NameCounter m, MonadFresh ID m, MonadLog (WithSeverity l) m, ConvertLogMessage Text l) =>
   TypeDefMap ->
   DefMap ->
   TerminationBound ->
@@ -207,7 +210,7 @@ evalFullStepCount tydefs env n d = go 0
 -- The 'Dir' argument only affects what happens if the root is an annotation:
 -- do we keep it (Syn) or remove it (Chk). I.e. is an upsilon reduction allowed
 -- at the root?
-step :: (MonadFresh NameCounter m, MonadFresh ID m) => TypeDefMap -> DefMap -> Dir -> Expr -> Maybe (m Expr)
+step :: (MonadFresh NameCounter m, MonadFresh ID m, MonadLog (WithSeverity l) m, ConvertLogMessage Text l) => TypeDefMap -> DefMap -> Dir -> Expr -> Maybe (m Expr)
 step tydefs g d e = case findRedex tydefs g d e of
   Nothing -> Nothing
   Just mr ->
@@ -561,7 +564,7 @@ runRedex = \case
     letType b (pure ty) $ letType a (tvar b) $ pure body
   ApplyPrimFun e -> e
 
-runRedexTy :: (MonadFresh ID m, MonadFresh NameCounter m) => RedexType -> m Type
+runRedexTy :: (MonadLog (WithSeverity l) m, MonadFresh ID m, MonadFresh NameCounter m, ConvertLogMessage Text l) => RedexType -> m Type
 runRedexTy (InlineLetInType _ t) = regenerateTypeIDs t
 -- let a = s in t  ~>  t  if a does not appear in t
 runRedexTy (ElideLetInType _ t) = pure t
@@ -570,6 +573,7 @@ runRedexTy (RenameSelfLetInType a s t) = do
   b <- freshLocalName (freeVarsTy s <> freeVarsTy t)
   tlet b (pure s) $ tlet a (tvar b) $ pure t
 runRedexTy (RenameForall m a k s avoid) = do
+  logInfo ("runRedexTy" :: Text)
   -- It should never be necessary to try more than once, since
   -- we pick a new name disjoint from any that appear in @s@
   -- thus renaming will never capture (so @renameTyVar@ will always succeed).

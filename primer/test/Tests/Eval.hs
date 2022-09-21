@@ -13,7 +13,7 @@ import Primer.App (
   appIdCounter,
   handleEvalRequest,
   importModules,
-  newEmptyApp,
+  newEmptyApp, ProgError, App,
  )
 import Primer.Builtins (
   boolDef,
@@ -64,7 +64,8 @@ import Primer.Zipper (target)
 import Test.Tasty.HUnit (Assertion, assertBool, assertFailure, (@?=))
 import TestM (evalTestM)
 import TestUtils (gvn, primDefs, vcn)
-import Tests.Action.Prog (runAppTestMNoSevereMsgs)
+import qualified Tests.Action.Prog
+import Tests.Action.Prog (AppTestM)
 
 -- * 'tryReduce' tests
 
@@ -1166,3 +1167,6 @@ x ~= y = forgetMetadata x @?= forgetMetadata y
 -- | Like '~=' but for types.
 (~~=) :: HasCallStack => Type -> Type -> Assertion
 x ~~= y = forgetTypeMetadata x @?= forgetTypeMetadata y
+
+runAppTestMNoSevereMsgs :: ID -> App -> AppTestM Text Assertion -> (Either ProgError Assertion, App)
+runAppTestMNoSevereMsgs = Tests.Action.Prog.runAppTestMNoSevereMsgs

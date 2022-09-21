@@ -11,8 +11,10 @@ import Primer.Module (builtinModule, moduleDefsQualified, moduleTypesQualified, 
 import Primer.Prelude (prelude)
 import Primer.Pretty (prettyExpr, sparse)
 import TestM (TestM, evalTestM)
-import TestUtils (zeroIDs)
+import TestUtils (zeroIDs, runPureLog, runPureLogT, PureLogT, firstSevere, PrimerLog)
 import Tests.EvalFull (evalResultExpr)
+import Control.Monad.Log (WithSeverity)
+import Prelude (error)
 
 (<===>) :: (HasCallStack, MonadTest m) => Either EvalFullError Expr -> Either EvalFullError Expr -> m ()
 x <===> y = withFrozenCallStack $ on compareExpr (over evalResultExpr zeroIDs) x y
@@ -46,9 +48,13 @@ functionOutput f args = functionOutput' f (map Left args)
 -- Tests a prelude function with a combination of Expr/Type arguments to be applied
 functionOutput' :: GVarName -> [Either (TestM Expr) (TestM Type)] -> TerminationBound -> Either EvalFullError Expr
 functionOutput' f args depth =
-  evalTestM 0 $ do
-    e <- apps' (gvar f) args
-    evalFull ty def n d e
+  let (r,msgs) = evalTestM 0 . runPureLogT @_ @(WithSeverity PrimerLog) $ do
+        -- TODO: need lift.lift since PureLogT is a synonym for 2 stacked transformers. This would perhaps be nicer if it were a newtype and a transformer in its own right (or, use mmorph:ComposeT?)
+        e <- apps' (gvar f) $ bimap (lift . lift) (lift . lift) <$>  args
+        evalFull ty def n d e
+  in case firstSevere msgs of
+    Nothing -> r
+    Just e -> error $ "There was a severe log message: " <> show e
   where
     mods = [builtinModule, primitiveModule, prelude']
     (ty, def) = mconcat $ map (\m -> (moduleTypesQualified m, moduleDefsQualified m)) mods

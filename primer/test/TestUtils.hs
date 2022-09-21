@@ -14,7 +14,7 @@ module TestUtils (
   zeroTypeIDs,
   clearMeta,
   clearTypeMeta,
-  PureLogT,runPureLogT,
+  PureLogT,runPureLogT,runPureLog,firstSevere,
   PrimerLog,
   PrimerLogs,
   runPrimerLogs,
@@ -144,10 +144,10 @@ assertException msg p action = do
 
 newtype PrimerLog = PrimerLog Text
   deriving newtype Show
-{-
+
 instance ConvertLogMessage Text PrimerLog where
   convert = PrimerLog
-
+{-
 instance ConvertLogMessage Rel8DbLogMessage PrimerLog where
   convert = PrimerLog . show
 
@@ -160,12 +160,17 @@ instance ConvertLogMessage PrimerErr PrimerLog where
 instance ConvertLogMessage SessionTXLog PrimerLog where
   convert = PrimerLog . show
 
-type PureLogT m = LoggingT (WithSeverity (WithTraceId PrimerLog)) (PureLoggingT (Seq (WithSeverity (WithTraceId PrimerLog))) m)
-type PrimerLogs = PrimerM (PureLogT IO)
+--type PureLogT m = LoggingT (WithSeverity (WithTraceId PrimerLog)) (PureLoggingT (Seq (WithSeverity (WithTraceId PrimerLog))) m)
+type PureLogT l m = LoggingT l (PureLoggingT (Seq l) m)
+type PrimerLogs = PrimerM (PureLogT  (WithSeverity (WithTraceId PrimerLog)) IO)
 
 -- TODO: common up with API.pureLogs?
-runPureLogT :: Monad m => PureLogT m a -> m (a, Seq  (WithSeverity (WithTraceId PrimerLog)))
+runPureLogT :: Monad m => PureLogT l m a -> m (a, Seq l)
 runPureLogT = runPureLoggingT . mapLogMessage Seq.singleton
+
+-- TODO: use more often...
+runPureLog  :: PureLogT l Identity a -> (a, Seq l)
+runPureLog = runIdentity . runPureLogT
 
 runPrimerLogs :: PrimerLogs a -> Env -> IO (a,Seq (WithSeverity (WithTraceId PrimerLog)))
 runPrimerLogs m e = runPureLogT $ runPrimerM m e 

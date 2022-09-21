@@ -209,6 +209,7 @@ import Primer.Zipper (
   _target,
  )
 import Control.Monad.Log (MonadLog, WithSeverity)
+import Primer.Log (ConvertLogMessage)
 
 -- | The program state, shared between the frontend and backend
 --  This is much more info than we need to send - for example we probably don't
@@ -517,7 +518,7 @@ handleEvalRequest req = do
           }
 
 -- | Handle an eval-to-normal-form request
-handleEvalFullRequest :: MonadEditApp l m => EvalFullReq -> m EvalFullResp
+handleEvalFullRequest :: (MonadEditApp l m, ConvertLogMessage Text l) => EvalFullReq -> m EvalFullResp
 handleEvalFullRequest (EvalFullReq{evalFullReqExpr, evalFullCxtDir, evalFullMaxSteps}) = do
   prog <- gets appProg
   result <- evalFull (allTypes prog) (allDefs prog) evalFullMaxSteps evalFullCxtDir evalFullReqExpr

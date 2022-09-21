@@ -757,7 +757,7 @@ unit_import_vars =
                 any ((== primitiveGVar IntAdd) . fst) vs
           _ -> pure $ assertFailure "Expected one def 'main' from newEmptyApp"
       a = newEmptyApp
-   in case fst $ runAppTestMNoSevereMsgs (appIdCounter a) a test of
+   in case fst $ runAppTestMNoSevereMsgs @Void (appIdCounter a) a test of
         Left err -> assertFailure $ show err
         Right assertion -> assertion
 
@@ -779,7 +779,7 @@ unit_import_reference =
           (Nothing, _) -> pure $ assertFailure "Could not find the imported toUpper"
           (Just _, _) -> pure $ assertFailure "Expected one def 'main' from newEmptyApp"
       a = newEmptyApp
-   in case fst $ runAppTestMNoSevereMsgs (appIdCounter a) a test of
+   in case fst $ runAppTestMNoSevereMsgs @Void (appIdCounter a) a test of
         Left err -> assertFailure $ show err
         Right assertion -> assertion
 
@@ -833,7 +833,7 @@ unit_copy_paste_import =
           (Nothing, _) -> pure $ assertFailure "Could not find the imported 'foo'"
           (Just _, _) -> pure $ assertFailure "Expected one def 'main' from newEmptyApp"
       a = newEmptyApp
-   in case fst $ runAppTestMNoSevereMsgs (appIdCounter a) a test of
+   in case fst $ runAppTestMNoSevereMsgs @Void (appIdCounter a) a test of
         Left err -> assertFailure $ show err
         Right assertion -> assertion
 
@@ -1265,7 +1265,7 @@ unit_generate_names_import =
             pure $ ns @?= ["p", "q"]
           _ -> pure $ assertFailure "Expected one def 'main' from newEmptyApp"
       a = newEmptyApp
-   in case fst $ runAppTestMNoSevereMsgs (appIdCounter a) a test of
+   in case fst $ runAppTestMNoSevereMsgs @Void (appIdCounter a) a test of
         Left err -> assertFailure $ show err
         Right assertion -> assertion
 
@@ -1283,7 +1283,7 @@ unit_rename_module =
    in case fst $ runAppTestM (appIdCounter a) a test of
         Left err -> assertFailure $ show err
         Right (p,msgs) -> do
-          assertNoSevereLogs msgs
+          assertNoSevereLogs @Void msgs
           fmap (unModuleName . moduleName) (progModules p) @?= [["Module2"]]
           selectedDef <$> progSelection p @?= Just (qualifyName (ModuleName ["Module2"]) "main")
           case fmap (Map.assocs . moduleDefsQualified) (progModules p) of
@@ -1669,11 +1669,11 @@ progActionTest inputProg actions testOutput = do
   resultProg <- case result of
     Left err -> pure $ Left err
     Right (p,logs) -> do
-      assertNoSevereLogs logs
+      assertNoSevereLogs @Void logs
       pure $ Right p
   testOutput prog resultProg
 
-newtype AppTestM a = AppTestM {unAppTestM :: PureLogT (StateT App (ExceptT ProgError TestM)) a}
+newtype AppTestM l a = AppTestM {unAppTestM :: PureLogT (WithSeverity l) (StateT App (ExceptT ProgError TestM)) a}
   deriving newtype
     ( Functor
     , Applicative
@@ -1682,17 +1682,17 @@ newtype AppTestM a = AppTestM {unAppTestM :: PureLogT (StateT App (ExceptT ProgE
     , MonadFresh NameCounter
     , MonadState App
     , MonadError ProgError
-    , MonadLog (WithSeverity (WithTraceId PrimerLog))
+    , MonadLog (WithSeverity l)
     )
 
-runAppTestMDiscardLogs :: ID -> App -> AppTestM a -> (Either ProgError a, App)
+runAppTestMDiscardLogs :: ID -> App -> AppTestM l a -> (Either ProgError a, App)
 runAppTestMDiscardLogs startID a m = first (fmap fst) $ runAppTestM startID a m
 
-runAppTestMNoSevereMsgs :: ID -> App -> AppTestM Assertion -> (Either ProgError Assertion, App)
+runAppTestMNoSevereMsgs :: Show l => ID -> App -> AppTestM l Assertion -> (Either ProgError Assertion, App)
 runAppTestMNoSevereMsgs startID a m = first (fmap $ \(assertion,logs) -> assertNoSevereLogs logs >> assertion)
   $ runAppTestM startID a m
 
-runAppTestM :: ID -> App -> AppTestM a -> (Either ProgError (a, Seq (WithSeverity (WithTraceId PrimerLog))), App)
+runAppTestM :: ID -> App -> AppTestM l a -> (Either ProgError (a, Seq (WithSeverity l)), App)
 runAppTestM startID a m =
   case evalTestM startID $ runExceptT $ flip runStateT a $ runPureLogT $ unAppTestM m of
     Left err -> (Left err, a)
@@ -1746,5 +1746,5 @@ copyPasteBody (d, i) = CopyPasteBody (gvn d, i)
 globalVarRef :: Name -> TmVarRef
 globalVarRef = GlobalVarRef . gvn
 
-tcWholeProg :: Prog -> AppTestM Prog
+tcWholeProg :: Prog -> AppTestM (WithTraceId PrimerLog) Prog
 tcWholeProg = App.liftError ActionError . App.tcWholeProg

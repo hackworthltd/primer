@@ -830,7 +830,7 @@ evalStep :: forall l m . (MonadIO m, MonadThrow m, MonadLog (WithSeverity (WithT
 evalStep sid req =
   liftEditAppM (handleEvalRequest req) sid
 
-evalFull :: forall l m . (MonadIO m, MonadThrow m, MonadLog (WithSeverity (WithTraceId l)) m, ConvertLogMessage SessionTXLog l)
+evalFull :: forall l m . (MonadIO m, MonadThrow m, MonadLog (WithSeverity (WithTraceId l)) m, ConvertLogMessage SessionTXLog l, ConvertLogMessage Text l)
   => SessionId -> EvalFullReq -> PrimerM m (Either ProgError EvalFullResp)
 evalFull sid req =
   liftEditAppM (handleEvalFullRequest req) sid
