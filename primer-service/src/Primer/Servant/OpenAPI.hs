@@ -1,16 +1,21 @@
+{-# LANGUAGE DuplicateRecordFields #-}
+
 -- | An OpenAPI service for the Primer API.
 module Primer.Servant.OpenAPI (
   API,
   RootAPI (..),
   SessionsAPI (..),
   SessionAPI (..),
+  ActionAPI (..),
   Spec,
 ) where
 
 import Foreword
 
 import Data.OpenApi (OpenApi)
+import Primer.API (Selection)
 import Primer.API qualified as API
+import Primer.Action (Level)
 import Primer.Database (
   SessionId,
  )
@@ -29,7 +34,12 @@ import Servant (
   Get,
   JSON,
   NamedRoutes,
+  Post,
   QueryFlag,
+  QueryParam',
+  ReqBody,
+  Required,
+  Strict,
   Summary,
   (:>),
  )
@@ -78,5 +88,23 @@ data SessionAPI mode = SessionAPI
           :> Get '[JSON] API.Prog
   , getSessionName :: GetSessionName mode
   , setSessionName :: SetSessionName mode
+  , actions ::
+      mode
+        :- "action"
+          :> "available"
+          :> NamedRoutes ActionAPI
+  }
+  deriving (Generic)
+
+{- HLINT ignore ActionAPI "Use newtype instead of data" -}
+data ActionAPI mode = ActionAPI
+  { available ::
+      mode
+        :- "available"
+          :> Summary "Get available actions for the definition, or a node within it"
+          :> QueryParam' '[Required, Strict] "level" Level
+          :> ReqBody '[JSON] Selection
+          :> OperationId "getAvailableActions"
+          :> Post '[JSON] [API.OfferedAction]
   }
   deriving (Generic)

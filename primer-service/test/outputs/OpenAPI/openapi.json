@@ -1,6 +1,54 @@
 {
     "components": {
         "schemas": {
+            "ActionName": {
+                "oneOf": [
+                    {
+                        "properties": {
+                            "contents": {
+                                "type": "string"
+                            },
+                            "tag": {
+                                "enum": [
+                                    "Code"
+                                ],
+                                "type": "string"
+                            }
+                        },
+                        "required": [
+                            "tag",
+                            "contents"
+                        ],
+                        "type": "object"
+                    },
+                    {
+                        "properties": {
+                            "contents": {
+                                "type": "string"
+                            },
+                            "tag": {
+                                "enum": [
+                                    "Prose"
+                                ],
+                                "type": "string"
+                            }
+                        },
+                        "required": [
+                            "tag",
+                            "contents"
+                        ],
+                        "type": "object"
+                    }
+                ],
+                "type": "object"
+            },
+            "ActionType": {
+                "enum": [
+                    "Primary",
+                    "Destructive"
+                ],
+                "type": "string"
+            },
             "Def": {
                 "properties": {
                     "name": {
@@ -159,6 +207,55 @@
                 ],
                 "type": "string"
             },
+            "NodeSelection": {
+                "properties": {
+                    "id": {
+                        "maximum": 9223372036854775807,
+                        "minimum": -9223372036854775808,
+                        "type": "integer"
+                    },
+                    "nodeType": {
+                        "$ref": "#/components/schemas/NodeType"
+                    }
+                },
+                "required": [
+                    "nodeType",
+                    "id"
+                ],
+                "type": "object"
+            },
+            "NodeType": {
+                "enum": [
+                    "BodyNode",
+                    "SigNode"
+                ],
+                "type": "string"
+            },
+            "OfferedAction": {
+                "properties": {
+                    "actionType": {
+                        "$ref": "#/components/schemas/ActionType"
+                    },
+                    "description": {
+                        "type": "string"
+                    },
+                    "name": {
+                        "$ref": "#/components/schemas/ActionName"
+                    },
+                    "priority": {
+                        "maximum": 9223372036854775807,
+                        "minimum": -9223372036854775808,
+                        "type": "integer"
+                    }
+                },
+                "required": [
+                    "name",
+                    "description",
+                    "priority",
+                    "actionType"
+                ],
+                "type": "object"
+            },
             "PaginatedMeta": {
                 "properties": {
                     "firstPage": {
@@ -241,6 +338,20 @@
                 },
                 "required": [
                     "modules"
+                ],
+                "type": "object"
+            },
+            "Selection": {
+                "properties": {
+                    "def": {
+                        "$ref": "#/components/schemas/GlobalName"
+                    },
+                    "node": {
+                        "$ref": "#/components/schemas/NodeSelection"
+                    }
+                },
+                "required": [
+                    "def"
                 ],
                 "type": "object"
             },
@@ -405,6 +516,67 @@
                     }
                 },
                 "summary": "Create a new session and return its ID"
+            }
+        },
+        "/openapi/sessions/{sessionId}/action/available/available": {
+            "post": {
+                "operationId": "getAvailableActions",
+                "parameters": [
+                    {
+                        "description": "The session ID",
+                        "in": "path",
+                        "name": "sessionId",
+                        "required": true,
+                        "schema": {
+                            "format": "uuid",
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "in": "query",
+                        "name": "level",
+                        "required": true,
+                        "schema": {
+                            "enum": [
+                                "Beginner",
+                                "Intermediate",
+                                "Expert"
+                            ],
+                            "type": "string"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json;charset=utf-8": {
+                            "schema": {
+                                "$ref": "#/components/schemas/Selection"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json;charset=utf-8": {
+                                "schema": {
+                                    "items": {
+                                        "$ref": "#/components/schemas/OfferedAction"
+                                    },
+                                    "type": "array"
+                                }
+                            }
+                        },
+                        "description": ""
+                    },
+                    "400": {
+                        "description": "Invalid `body` or `level`"
+                    },
+                    "404": {
+                        "description": "`sessionId` not found"
+                    }
+                },
+                "summary": "Get available actions for the definition, or a node within it"
             }
         },
         "/openapi/sessions/{sessionId}/name": {

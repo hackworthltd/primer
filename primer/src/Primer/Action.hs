@@ -23,7 +23,7 @@ module Primer.Action (
 import Foreword hiding (mod)
 
 import Control.Monad.Fresh (MonadFresh)
-import Data.Aeson (Value)
+import Data.Aeson (FromJSON, Value)
 import Data.Generics.Product (typed)
 import Data.List (findIndex)
 import Data.Map.Strict qualified as Map
@@ -83,6 +83,7 @@ import Primer.Def (
   Def (..),
   DefMap,
  )
+import Primer.JSON (CustomJSON (..), PrimerJSON, ToJSON)
 import Primer.Module (Module, insertDef)
 import Primer.Name (Name, NameCounter, unName, unsafeMkName)
 import Primer.Name.Fresh (
@@ -155,6 +156,8 @@ data OfferedAction a = OfferedAction
 data ActionType
   = Primary
   | Destructive
+  deriving (Show, Bounded, Enum, Generic)
+  deriving (ToJSON) via (PrimerJSON ActionType)
 
 -- | Filter on variables and constructors according to whether they
 -- have a function type.
@@ -198,7 +201,8 @@ deriving instance Functor ActionInput
 data ActionName
   = Code Text
   | Prose Text
-  deriving (Eq, Show)
+  deriving (Eq, Show, Generic)
+  deriving (ToJSON) via (PrimerJSON ActionName)
 
 -- | The current programming "level". This setting determines which
 -- actions are displayed to the student, the labels on UI elements,
@@ -212,7 +216,8 @@ data Level
     Intermediate
   | -- | All features.
     Expert
-  deriving (Eq, Show, Enum, Bounded)
+  deriving (Eq, Read, Show, Enum, Bounded, Generic)
+  deriving (FromJSON, ToJSON) via PrimerJSON Level
 
 -- | Sigh, yes, this is required so that Safari doesn't try to
 -- autocomplete these fields with your contact data.

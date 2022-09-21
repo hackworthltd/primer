@@ -389,7 +389,7 @@ data NodeSelection = NodeSelection
   deriving (FromJSON, ToJSON) via PrimerJSON NodeSelection
 
 data NodeType = BodyNode | SigNode
-  deriving (Eq, Show, Generic, Data)
+  deriving (Eq, Show, Bounded, Enum, Generic, Data)
   deriving (FromJSON, ToJSON) via PrimerJSON NodeType
 
 -- | The type of requests which can mutate the application state.

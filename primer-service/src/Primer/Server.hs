@@ -1,5 +1,6 @@
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE OverloadedLabels #-}
+{-# LANGUAGE RecordWildCards #-}
 
 -- | An HTTP service for the Primer API.
 module Primer.Server (
@@ -13,6 +14,7 @@ import Control.Concurrent.STM (
   TBQueue,
  )
 
+import Data.Map ((!?))
 import Data.OpenApi (OpenApi)
 import Data.Streaming.Network.Internal (HostPreference (HostIPv4Only))
 import Data.Text.Lazy qualified as LT (fromStrict)
@@ -37,15 +39,21 @@ import Optics ((%), (.~), (?~))
 import Primer.API (
   Env (..),
   ExprTreeOpts (..),
+  NodeSelection (..),
   PrimerErr (..),
   PrimerIO,
+  Selection (..),
   edit,
+  getProgram,
   listSessions,
   newSession,
   renameSession,
   runPrimerIO,
  )
 import Primer.API qualified as API
+import Primer.Action.Available (actionsForDef, actionsForDefBody, actionsForDefSig)
+import Primer.App (NodeType (..), progAllDefs, progAllTypeDefs)
+import Primer.Core (globalNamePretty)
 import Primer.Database (
   SessionId,
   Sessions,
@@ -54,6 +62,7 @@ import Primer.Database (
 import Primer.Database qualified as Database (
   Op,
  )
+import Primer.Def (ASTDef (..), Def (..))
 import Primer.Pagination (pagedDefaultClamp)
 import Primer.Servant.API qualified as S
 import Primer.Servant.OpenAPI qualified as OpenAPI
@@ -61,6 +70,8 @@ import Servant (
   Handler (Handler),
   NoContent (NoContent),
   ServerError (errBody),
+  err400,
+  err404,
   err500,
  )
 import Servant.API.Generic (GenericMode ((:-)))
@@ -96,6 +107,30 @@ openAPISessionServer sid =
     { OpenAPI.getProgram = \patternsUnder -> API.getProgram' (ExprTreeOpts{patternsUnder}) sid
     , OpenAPI.getSessionName = API.getSessionName sid
     , OpenAPI.setSessionName = renameSession sid
+    , OpenAPI.actions = openAPIActionServer sid
+    }
+
+openAPIActionServer :: SessionId -> OpenAPI.ActionAPI (AsServerT PrimerIO)
+openAPIActionServer sid =
+  OpenAPI.ActionAPI
+    { available =
+        \level Selection{..} -> do
+          prog <- getProgram sid
+          let allDefs = progAllDefs prog
+              allTypeDefs = progAllTypeDefs prog
+          map (map API.convertOfferedAction) $ case node of
+            Nothing ->
+              pure $ actionsForDef level allDefs def
+            Just NodeSelection{..} -> do
+              case allDefs !? def of
+                Nothing -> throwM $ UnknownDef def
+                Just (_, DefPrim _) -> throwM $ UnexpectedPrimDef def
+                Just (editable, DefAST ASTDef{astDefType = type_, astDefExpr = expr}) ->
+                  pure $ case nodeType of
+                    SigNode -> do
+                      actionsForDefSig level def editable id type_
+                    BodyNode -> do
+                      actionsForDefBody (snd <$> allTypeDefs) level def editable id expr
     }
 
 apiServer :: S.RootAPI (AsServerT PrimerIO)
@@ -206,4 +241,10 @@ serve ss q v port = do
     -- Catch exceptions from the API and convert them to Servant
     -- errors via 'Either'.
     handler :: PrimerErr -> IO (Either ServerError a)
-    handler (DatabaseErr msg) = pure $ Left $ err500{errBody = (LT.encodeUtf8 . LT.fromStrict) msg}
+    handler =
+      pure . Left . \case
+        DatabaseErr msg -> err500{errBody = encode msg}
+        UnknownDef d -> err404{errBody = "Unknown definition: " <> encode (globalNamePretty d)}
+        UnexpectedPrimDef d -> err400{errBody = "Unexpected primitive definition: " <> encode (globalNamePretty d)}
+      where
+        encode = LT.encodeUtf8 . LT.fromStrict

@@ -1,5 +1,7 @@
 {-# LANGUAGE BlockArguments #-}
+{-# LANGUAGE DuplicateRecordFields #-}
 {-# LANGUAGE GADTs #-}
+{-# LANGUAGE RecordWildCards #-}
 
 {- HLINT ignore "Use newtype instead of data" -}
 
@@ -48,6 +50,12 @@ module Primer.API (
   viewTreeType,
   viewTreeExpr,
   getApp,
+  OfferedAction (..),
+  convertOfferedAction,
+  Selection (..),
+  convertSelection,
+  NodeSelection (..),
+  convertNodeSelection,
 ) where
 
 import Foreword
@@ -70,6 +78,8 @@ import Data.Text qualified as T
 import ListT qualified (toList)
 import Optics (ifoldr, over, traverseOf, view, (^.))
 import Primer.API.NodeFlavor (NodeFlavor (..))
+import Primer.Action (ActionName, ActionType)
+import Primer.Action qualified as Action
 import Primer.App (
   App,
   EditAppM,
@@ -78,6 +88,7 @@ import Primer.App (
   EvalReq (..),
   EvalResp (..),
   MutationRequest,
+  NodeType,
   ProgError,
   QueryAppM,
   Question (..),
@@ -204,7 +215,11 @@ runPrimerIO = runPrimerM
 {- HLINT ignore PrimerErr "Use newtype instead of data" -}
 
 -- | Primer exception class.
-data PrimerErr = DatabaseErr Text deriving (Show)
+data PrimerErr
+  = DatabaseErr Text
+  | UnknownDef GVarName
+  | UnexpectedPrimDef GVarName
+  deriving (Show)
 
 instance Exception PrimerErr
 
@@ -799,3 +814,38 @@ flushSessions = do
   sessionsTransaction $ \ss _ -> do
     StmMap.reset ss
   pure ()
+
+-- This is (for now) just `Action.Available.OfferedAction` without the `input` field.
+-- This is a placeholder while we work out a new, serialisable available actions API.
+data OfferedAction = OfferedAction
+  { name :: ActionName
+  , description :: Text
+  , priority :: Int
+  , actionType :: ActionType
+  }
+  deriving (Show, Generic)
+  deriving (ToJSON) via (PrimerJSON OfferedAction)
+convertOfferedAction :: Action.OfferedAction a -> OfferedAction
+convertOfferedAction Action.OfferedAction{..} = OfferedAction{..}
+
+-- | 'App.Selection' without any node metadata.
+data Selection = Selection
+  { def :: GVarName
+  , node :: Maybe NodeSelection
+  }
+  deriving (Eq, Show, Generic)
+  deriving (FromJSON, ToJSON) via PrimerJSON Selection
+
+convertSelection :: App.Selection -> Selection
+convertSelection App.Selection{..} = Selection{def = selectedDef, node = convertNodeSelection <$> selectedNode}
+
+-- | 'App.NodeSelection' without any node metadata.
+data NodeSelection = NodeSelection
+  { nodeType :: NodeType
+  , id :: ID
+  }
+  deriving (Eq, Show, Generic)
+  deriving (FromJSON, ToJSON) via PrimerJSON NodeSelection
+
+convertNodeSelection :: App.NodeSelection -> NodeSelection
+convertNodeSelection App.NodeSelection{..} = NodeSelection{nodeType, id = nodeId}

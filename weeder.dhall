@@ -1,10 +1,4 @@
-let
-    -- TODO remove the Primer.Action overrides once this code
-    -- (recently ported from old frontend) is exercised
-    tmpRoots =
-      [ "^Primer.Action.Available"
-      , "^Primer.Action.Priorities"
-      ]
+let tmpRoots = [ "^Primer.API.convertSelection" ] : List Text
 
 let
     -- Anything specific we want Weeder to ignore goes here. This
