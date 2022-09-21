@@ -100,7 +100,7 @@ import TestUtils (
   primDefs,
   zeroIDs,
  )
-import Tests.Action.Prog (runAppTestM)
+import Tests.Action.Prog (runAppTestMNoSevereMsgs)
 import Tests.Eval ((~=))
 import Tests.Gen.Core.Typed (checkTest)
 import Tests.Typecheck (runTypecheckTestM, runTypecheckTestMWithPrims)
@@ -1274,7 +1274,7 @@ unit_eval_full_modules =
           EvalFullRespTimedOut _ -> assertFailure "EvalFull timed out"
           EvalFullRespNormal e -> e ~= expect
       a = newEmptyApp
-   in case fst $ runAppTestM (appIdCounter a) a test of
+   in case fst $ runAppTestMNoSevereMsgs (appIdCounter a) a test of
         Left err -> assertFailure $ show err
         Right assertion -> assertion
 
@@ -1292,7 +1292,7 @@ unit_eval_full_modules_scrutinize_imported_type =
           EvalFullRespTimedOut _ -> assertFailure "EvalFull timed out"
           EvalFullRespNormal e -> e ~= expect
       a = newEmptyApp
-   in case fst $ runAppTestM (appIdCounter a) a test of
+   in case fst $ runAppTestMNoSevereMsgs (appIdCounter a) a test of
         Left err -> assertFailure $ show err
         Right assertion -> assertion
   where

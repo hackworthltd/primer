@@ -14,10 +14,12 @@ module TestUtils (
   zeroTypeIDs,
   clearMeta,
   clearTypeMeta,
+  PureLogT,runPureLogT,
   PrimerLog,
   PrimerLogs,
   runPrimerLogs,
   assertNoSevereLogs,
+  failWhenSevereLogs,
   runAPI,
 ) where
 
@@ -76,6 +78,7 @@ import Test.Tasty.HUnit qualified as HUnit
 import Control.Monad.Log (LoggingT, WithSeverity (msgSeverity), PureLoggingT, runPureLoggingT, mapLogMessage, Severity (Error))
 import qualified Data.Sequence as Seq
 import Primer.Log (ConvertLogMessage (convert))
+import Hedgehog (annotateShow, failure, MonadTest)
 
 primDefs :: DefMap
 primDefs = Map.mapKeys primitive $ moduleDefs primitiveModule
@@ -157,17 +160,36 @@ instance ConvertLogMessage PrimerErr PrimerLog where
 instance ConvertLogMessage SessionTXLog PrimerLog where
   convert = PrimerLog . show
 
-type PrimerLogs = PrimerM (LoggingT (WithSeverity (WithTraceId PrimerLog)) (PureLoggingT (Seq (WithSeverity (WithTraceId PrimerLog))) IO))
+type PureLogT m = LoggingT (WithSeverity (WithTraceId PrimerLog)) (PureLoggingT (Seq (WithSeverity (WithTraceId PrimerLog))) m)
+type PrimerLogs = PrimerM (PureLogT IO)
+
+-- TODO: common up with API.pureLogs?
+runPureLogT :: Monad m => PureLogT m a -> m (a, Seq  (WithSeverity (WithTraceId PrimerLog)))
+runPureLogT = runPureLoggingT . mapLogMessage Seq.singleton
 
 runPrimerLogs :: PrimerLogs a -> Env -> IO (a,Seq (WithSeverity (WithTraceId PrimerLog)))
-runPrimerLogs m e = runPureLoggingT $ mapLogMessage Seq.singleton $ runPrimerM m e 
+runPrimerLogs m e = runPureLogT $ runPrimerM m e 
+
+firstSevere :: Seq (WithSeverity l) -> Maybe (WithSeverity l)
+firstSevere logs = 
+-- Note that more-severe errors are earlier in the ordering
+  case Seq.filter ((<= Error).msgSeverity) logs of
+    Seq.Empty -> Nothing
+    e Seq.:<| _ -> Just e
 
 assertNoSevereLogs :: Show l => Seq (WithSeverity l) -> IO ()
-assertNoSevereLogs =
--- Note that more-severe errors are earlier in the ordering
-  Seq.filter ((<= Error).msgSeverity) <&> \case
-    Seq.Empty -> pure ()
-    e Seq.:<| _ -> assertFailure $ "There was a severe error: " <> show e
+assertNoSevereLogs = firstSevere <&> \case
+    Nothing -> pure ()
+    Just e -> assertFailure $ "There was a severe error: " <> show e
+
+failWhenSevereLogs :: (MonadTest m, Show l) => Seq (WithSeverity l) -> m ()
+failWhenSevereLogs = firstSevere <&> \case
+    Nothing -> pure ()
+    Just e -> do
+      -- There was a severe error
+      annotateShow e
+      failure
+
 
 -- Run 2 threads: one that serves a 'NullDb', and one that runs Primer
 -- API actions. This allows us to simulate a database and API service.

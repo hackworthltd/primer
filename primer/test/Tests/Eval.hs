@@ -64,7 +64,7 @@ import Primer.Zipper (target)
 import Test.Tasty.HUnit (Assertion, assertBool, assertFailure, (@?=))
 import TestM (evalTestM)
 import TestUtils (gvn, primDefs, vcn)
-import Tests.Action.Prog (runAppTestM)
+import Tests.Action.Prog (runAppTestMNoSevereMsgs)
 
 -- * 'tryReduce' tests
 
@@ -1129,7 +1129,7 @@ unit_eval_modules =
         expect <- char 'A'
         pure $ e ~= expect
       a = newEmptyApp
-   in case fst $ runAppTestM (appIdCounter a) a test of
+   in case fst $ runAppTestMNoSevereMsgs (appIdCounter a) a test of
         Left err -> assertFailure $ show err
         Right assertion -> assertion
 
@@ -1145,7 +1145,7 @@ unit_eval_modules_scrutinize_imported_type =
         expect <- con cFalse
         pure $ e ~= expect
       a = newEmptyApp
-   in case fst $ runAppTestM (appIdCounter a) a test of
+   in case fst $ runAppTestMNoSevereMsgs (appIdCounter a) a test of
         Left err -> assertFailure $ show err
         Right assertion -> assertion
   where
