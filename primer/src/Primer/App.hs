@@ -98,6 +98,7 @@ import Optics (
   _Left,
   _Right,
  )
+import Optics.State.Operators ((<<%=))
 import Primer.Action (
   Action,
   ActionError (..),
@@ -1159,7 +1160,16 @@ checkAppWellFormed app =
   -- check rather pointless. See:
   --
   -- https://github.com/hackworthltd/primer/issues/510
-  fst . flip runEditAppM app $ traverseOf (#currentState % #prog) (liftError ActionError . checkProgWellFormed) app
+  runTC app $ traverseOf (#currentState % #prog) (liftError ActionError . checkProgWellFormed) app
+
+newtype M e a = M {unM :: StateT (ID, NameCounter) (Except e) a}
+  deriving newtype (Functor, Applicative, Monad, MonadError e)
+instance MonadFresh ID (M e) where
+  fresh = M $ _1 <<%= succ
+instance MonadFresh NameCounter (M e) where
+  fresh = M $ _2 <<%= succ
+runTC :: App -> M e a -> Either e a
+runTC a = runExcept . flip evalStateT (appIdCounter a, appNameCounter a) . unM
 
 checkProgWellFormed ::
   ( MonadFresh ID m
