@@ -2,6 +2,7 @@ module Tests.Action.Available where
 
 import Foreword
 
+import Control.Monad.Log (WithSeverity)
 import Data.ByteString.Lazy.Char8 qualified as BS
 import Data.List.Extra (enumerate, partition)
 import Data.Map qualified as Map
@@ -85,6 +86,7 @@ import Primer.Examples (comprehensiveWellTyped)
 import Primer.Gen.App (genApp)
 import Primer.Gen.Core.Raw (genName)
 import Primer.Gen.Core.Typed (WT, forAllT, propertyWT)
+import Primer.Log (PureLog, runPureLog)
 import Primer.Module (
   Module (Module, moduleDefs),
   builtinModule,
@@ -105,6 +107,7 @@ import Tasty (Property, withDiscards, withTests)
 import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.Golden (goldenVsString)
 import Test.Tasty.HUnit (Assertion, (@?=))
+import TestUtils (testNoSevereLogs)
 import Tests.Typecheck (TypeCacheAlpha (TypeCacheAlpha), runTypecheckTestMIn)
 import Text.Pretty.Simple (pShowNoColor)
 
@@ -318,25 +321,34 @@ tasty_available_actions_accepted = withTests 500 $
           collect $ description action
           checkActionInput $ input action
   where
-    actionSucceeds :: HasCallStack => EditAppM a -> App -> PropertyT WT ()
-    actionSucceeds m a = case runEditAppM m a of
-      (Left err, _) -> annotateShow err >> failure
-      (Right _, a') -> ensureSHNormal a'
+    runEditAppMLogs ::
+      HasCallStack =>
+      EditAppM (PureLog (WithSeverity ())) a ->
+      App ->
+      PropertyT WT (Either ProgError a, App)
+    runEditAppMLogs m a = case runPureLog $ runEditAppM m a of
+      (r, logs) -> testNoSevereLogs logs >> pure r
+    actionSucceeds :: HasCallStack => EditAppM (PureLog (WithSeverity ())) a -> App -> PropertyT WT ()
+    actionSucceeds m a =
+      runEditAppMLogs m a >>= \case
+        (Left err, _) -> annotateShow err >> failure
+        (Right _, a') -> ensureSHNormal a'
     -- If we submit our own name rather than an offered one, then
     -- we should expect that name capture/clashing may happen
-    actionSucceedsOrCapture :: HasCallStack => EditAppM a -> App -> PropertyT WT ()
-    actionSucceedsOrCapture m a = case runEditAppM m a of
-      (Left (ActionError NameCapture), _) -> do
-        label "name-capture with entered name"
-        annotate "ignoring name capture error as was generated name, not offered one"
-      (Left (ActionError (CaseBindsClash{})), _) -> do
-        label "name-clash with entered name"
-        annotate "ignoring name clash error as was generated name, not offered one"
-      (Left DefAlreadyExists{}, _) -> do
-        label "rename def name clash with entered name"
-        annotate "ignoring def already exists error as was generated name, not offered one"
-      (Left err, _) -> annotateShow err >> failure
-      (Right _, a') -> ensureSHNormal a'
+    actionSucceedsOrCapture :: HasCallStack => EditAppM (PureLog (WithSeverity ())) a -> App -> PropertyT WT ()
+    actionSucceedsOrCapture m a =
+      runEditAppMLogs m a >>= \case
+        (Left (ActionError NameCapture), _) -> do
+          label "name-capture with entered name"
+          annotate "ignoring name capture error as was generated name, not offered one"
+        (Left (ActionError (CaseBindsClash{})), _) -> do
+          label "name-clash with entered name"
+          annotate "ignoring name clash error as was generated name, not offered one"
+        (Left DefAlreadyExists{}, _) -> do
+          label "rename def name clash with entered name"
+          annotate "ignoring def already exists error as was generated name, not offered one"
+        (Left err, _) -> annotateShow err >> failure
+        (Right _, a') -> ensureSHNormal a'
     ensureSHNormal a = case checkAppWellFormed a of
       Left err -> annotateShow err >> failure
       Right a' -> TypeCacheAlpha a === TypeCacheAlpha a'

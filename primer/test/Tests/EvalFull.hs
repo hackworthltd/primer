@@ -1270,7 +1270,7 @@ unit_eval_full_modules =
           EvalFullRespTimedOut _ -> assertFailure "EvalFull timed out"
           EvalFullRespNormal e -> e ~= expect
       a = newEmptyApp
-   in case fst $ runAppTestM (appIdCounter a) a test of
+   in runAppTestM (appIdCounter a) a test <&> fst >>= \case
         Left err -> assertFailure $ show err
         Right assertion -> assertion
 
@@ -1288,7 +1288,7 @@ unit_eval_full_modules_scrutinize_imported_type =
           EvalFullRespTimedOut _ -> assertFailure "EvalFull timed out"
           EvalFullRespNormal e -> e ~= expect
       a = newEmptyApp
-   in case fst $ runAppTestM (appIdCounter a) a test of
+   in runAppTestM (appIdCounter a) a test <&> fst >>= \case
         Left err -> assertFailure $ show err
         Right assertion -> assertion
   where
