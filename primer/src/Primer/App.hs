@@ -48,8 +48,10 @@ module Primer.App (
   handleEvalFullRequest,
   importModules,
   MutationRequest (..),
-  Selection (..),
-  NodeSelection (..),
+  Selection,
+  Selection' (..),
+  NodeSelection,
+  NodeSelection' (..),
   NodeType (..),
   EvalReq (..),
   EvalResp (..),
@@ -370,23 +372,28 @@ defaultLog = Log mempty
 
 -- | Describes what interface element the user has selected.
 -- A definition in the left hand nav bar, and possibly a node in that definition.
-data Selection = Selection
+type Selection = Selection' ExprMeta TypeMeta
+
+data Selection' a b = Selection
   { selectedDef :: GVarName
   -- ^ the ID of some ASTDef
-  , selectedNode :: Maybe NodeSelection
+  , selectedNode :: Maybe (NodeSelection' a b)
   }
   deriving (Eq, Show, Generic, Data)
-  deriving (FromJSON, ToJSON) via PrimerJSON Selection
+  deriving (FromJSON, ToJSON) via PrimerJSON (Selection' a b)
 
 -- | A selected node, in the body or type signature of some definition.
 -- We have the following invariant: @nodeType = SigNode ==> isRight meta@
-data NodeSelection = NodeSelection
+type NodeSelection = NodeSelection' ExprMeta TypeMeta
+
+-- | 'NodeSelection', parameterised by metadata types.
+data NodeSelection' a b = NodeSelection
   { nodeType :: NodeType
   , nodeId :: ID
-  , meta :: Either ExprMeta TypeMeta
+  , meta :: Either a b
   }
   deriving (Eq, Show, Generic, Data)
-  deriving (FromJSON, ToJSON) via PrimerJSON NodeSelection
+  deriving (FromJSON, ToJSON) via PrimerJSON (NodeSelection' a b)
 
 data NodeType = BodyNode | SigNode
   deriving (Eq, Show, Generic, Data)
