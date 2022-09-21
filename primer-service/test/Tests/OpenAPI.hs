@@ -24,6 +24,7 @@ import Primer.API (
   viewTreeType,
  )
 import Primer.Action (ActionName (..), ActionType (..), Level)
+import Primer.App (NodeSelection' (..), NodeType (..), Selection' (..))
 import Primer.Core (GlobalName, ID (ID), unsafeMkGlobalName)
 import Primer.Database (Session (Session), SessionName, safeMkSessionName)
 import Primer.Gen.API (genExprTreeOpts)
@@ -42,7 +43,7 @@ import Primer.Gen.Core.Raw (
 import Primer.Name (Name, unsafeMkName)
 import Primer.OpenAPI ()
 import Primer.Pagination (NonNeg, Paginated (Paginated), PaginatedMeta (..), Positive, mkNonNeg, mkPositive)
-import Primer.Servant.OpenAPI (API, AvailableActionsAPIBody (..), SigOrBodyID (BodyID, SigID))
+import Primer.Servant.OpenAPI (API)
 import Primer.Server (openAPIInfo)
 import Servant.OpenApi.Test (validateEveryToJSON)
 import Tasty (Property, property)
@@ -216,8 +217,10 @@ instance Arbitrary Prog where
   arbitrary = hedgehog genProg
 instance Arbitrary OfferedAction where
   arbitrary = OfferedAction <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-instance Arbitrary AvailableActionsAPIBody where
-  arbitrary = AvailableActionsAPIBody <$> arbitrary <*> arbitrary
+instance Arbitrary (Selection' () ()) where
+  arbitrary = Selection <$> arbitrary <*> arbitrary
+instance Arbitrary (NodeSelection' () ()) where
+  arbitrary = NodeSelection <$> arbitrary <*> arbitrary <*> arbitrary
 instance Arbitrary a => Arbitrary (NonEmpty a) where
   arbitrary = maybe discard pure . nonEmpty =<< arbitrary
 instance Arbitrary Level where
@@ -231,7 +234,9 @@ deriving instance Bounded ActionType
 deriving instance Enum ActionType
 instance Arbitrary ActionType where
   arbitrary = arbitraryBoundedEnum
-instance Arbitrary SigOrBodyID where
-  arbitrary = oneof [map SigID arbitrary, map BodyID arbitrary]
+deriving instance Bounded NodeType
+deriving instance Enum NodeType
+instance Arbitrary NodeType where
+  arbitrary = arbitraryBoundedEnum
 instance Arbitrary (GlobalName a) where
   arbitrary = curry unsafeMkGlobalName <$> arbitrary <*> arbitrary

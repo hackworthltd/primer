@@ -7,23 +7,18 @@ module Primer.Servant.OpenAPI (
   SessionsAPI (..),
   SessionAPI (..),
   ActionAPI (..),
-  AvailableActionsAPIBody (..),
-  SigOrBodyID (..),
   Spec,
 ) where
 
 import Foreword
 
-import Data.Aeson (FromJSON, ToJSON)
 import Data.OpenApi (OpenApi)
-import Data.OpenApi.Schema (ToSchema)
 import Primer.API qualified as API
 import Primer.Action (Level)
-import Primer.Core
+import Primer.App (Selection')
 import Primer.Database (
   SessionId,
  )
-import Primer.JSON (CustomJSON (..), PrimerJSON)
 import Primer.OpenAPI ()
 import Primer.Servant.Types (
   CopySession,
@@ -108,19 +103,8 @@ data ActionAPI mode = ActionAPI
         :- "available"
           :> Summary "Get available actions for the definition, or a node within it"
           :> QueryParam' '[Required, Strict] "level" Level
-          :> ReqBody '[JSON] AvailableActionsAPIBody
+          :> ReqBody '[JSON] (Selection' () ())
           :> OperationId "getAvailableActions"
           :> Post '[JSON] [API.OfferedAction]
   }
   deriving (Generic)
-data AvailableActionsAPIBody = AvailableActionsAPIBody
-  { def :: GVarName
-  , id :: Maybe SigOrBodyID
-  }
-  deriving (Show, Generic)
-  deriving (FromJSON, ToJSON, ToSchema) via PrimerJSON AvailableActionsAPIBody
-data SigOrBodyID
-  = SigID ID
-  | BodyID ID
-  deriving (Show, Generic)
-  deriving (FromJSON, ToJSON, ToSchema) via PrimerJSON SigOrBodyID

@@ -14,6 +14,7 @@ import Data.OpenApi.Internal.Schema (GToSchema, rename)
 import Deriving.Aeson (AesonOptions (aesonOptions))
 import Primer.API (Def, ExprTreeOpts, Module, NodeBody, NodeFlavor, OfferedAction, Prog, Tree)
 import Primer.Action (ActionName, ActionType, Level (..))
+import Primer.App (NodeSelection', NodeType, Selection')
 import Primer.Core (
   GlobalName,
   GlobalNameKind (ADefName, ATyCon, AValCon),
@@ -74,6 +75,9 @@ deriving via PrimerJSON OfferedAction instance ToSchema OfferedAction
 deriving via PrimerJSON ActionName instance ToSchema ActionName
 deriving via PrimerJSON ActionType instance ToSchema ActionType
 deriving via PrimerJSON Level instance ToSchema Level
+deriving via PrimerJSON NodeType instance ToSchema NodeType
+deriving via PrimerJSON (NodeSelection' () ()) instance ToSchema (NodeSelection' () ())
+deriving via PrimerJSON (Selection' () ()) instance ToSchema (Selection' () ())
 deriving instance ToParamSchema Level
 instance FromHttpApiData Level where
   parseQueryParam t = maybeToEither ("unknown level: " <> t) $ readMaybe t

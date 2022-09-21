@@ -49,20 +49,6 @@
                 ],
                 "type": "string"
             },
-            "AvailableActionsAPIBody": {
-                "properties": {
-                    "def": {
-                        "$ref": "#/components/schemas/GlobalName"
-                    },
-                    "id": {
-                        "$ref": "#/components/schemas/SigOrBodyID"
-                    }
-                },
-                "required": [
-                    "def"
-                ],
-                "type": "object"
-            },
             "Def": {
                 "properties": {
                     "name": {
@@ -78,6 +64,39 @@
                 "required": [
                     "name",
                     "type_"
+                ],
+                "type": "object"
+            },
+            "Either_()_()": {
+                "oneOf": [
+                    {
+                        "properties": {
+                            "Left": {
+                                "example": [],
+                                "items": {},
+                                "maxItems": 0,
+                                "type": "array"
+                            }
+                        },
+                        "required": [
+                            "Left"
+                        ],
+                        "type": "object"
+                    },
+                    {
+                        "properties": {
+                            "Right": {
+                                "example": [],
+                                "items": {},
+                                "maxItems": 0,
+                                "type": "array"
+                            }
+                        },
+                        "required": [
+                            "Right"
+                        ],
+                        "type": "object"
+                    }
                 ],
                 "type": "object"
             },
@@ -221,6 +240,34 @@
                 ],
                 "type": "string"
             },
+            "NodeSelection'_()_()": {
+                "properties": {
+                    "meta": {
+                        "$ref": "#/components/schemas/Either_()_()"
+                    },
+                    "nodeId": {
+                        "maximum": 9223372036854775807,
+                        "minimum": -9223372036854775808,
+                        "type": "integer"
+                    },
+                    "nodeType": {
+                        "$ref": "#/components/schemas/NodeType"
+                    }
+                },
+                "required": [
+                    "nodeType",
+                    "nodeId",
+                    "meta"
+                ],
+                "type": "object"
+            },
+            "NodeType": {
+                "enum": [
+                    "BodyNode",
+                    "SigNode"
+                ],
+                "type": "string"
+            },
             "OfferedAction": {
                 "properties": {
                     "actionType": {
@@ -331,6 +378,20 @@
                 ],
                 "type": "object"
             },
+            "Selection'_()_()": {
+                "properties": {
+                    "selectedDef": {
+                        "$ref": "#/components/schemas/GlobalName"
+                    },
+                    "selectedNode": {
+                        "$ref": "#/components/schemas/NodeSelection'_()_()"
+                    }
+                },
+                "required": [
+                    "selectedDef"
+                ],
+                "type": "object"
+            },
             "Session": {
                 "properties": {
                     "id": {
@@ -348,51 +409,6 @@
             },
             "SessionName": {
                 "type": "string"
-            },
-            "SigOrBodyID": {
-                "oneOf": [
-                    {
-                        "properties": {
-                            "contents": {
-                                "maximum": 9223372036854775807,
-                                "minimum": -9223372036854775808,
-                                "type": "integer"
-                            },
-                            "tag": {
-                                "enum": [
-                                    "SigID"
-                                ],
-                                "type": "string"
-                            }
-                        },
-                        "required": [
-                            "tag",
-                            "contents"
-                        ],
-                        "type": "object"
-                    },
-                    {
-                        "properties": {
-                            "contents": {
-                                "maximum": 9223372036854775807,
-                                "minimum": -9223372036854775808,
-                                "type": "integer"
-                            },
-                            "tag": {
-                                "enum": [
-                                    "BodyID"
-                                ],
-                                "type": "string"
-                            }
-                        },
-                        "required": [
-                            "tag",
-                            "contents"
-                        ],
-                        "type": "object"
-                    }
-                ],
-                "type": "object"
             },
             "Tree": {
                 "properties": {
@@ -571,7 +587,7 @@
                     "content": {
                         "application/json;charset=utf-8": {
                             "schema": {
-                                "$ref": "#/components/schemas/AvailableActionsAPIBody"
+                                "$ref": "#/components/schemas/Selection'_()_()"
                             }
                         }
                     }
