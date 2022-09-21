@@ -50,7 +50,7 @@ import Primer.Server (openAPIInfo)
 import Servant.OpenApi.Test (validateEveryToJSON)
 import Tasty (Property, property)
 import Test.Hspec (Spec)
-import Test.QuickCheck (Arbitrary (arbitrary), arbitraryBoundedEnum, discard, oneof)
+import Test.QuickCheck (Arbitrary (arbitrary), arbitraryBoundedEnum, oneof)
 import Test.QuickCheck.Hedgehog (hedgehog)
 import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.Golden (goldenVsString)
@@ -224,7 +224,7 @@ instance Arbitrary Selection where
 instance Arbitrary NodeSelection where
   arbitrary = NodeSelection <$> arbitrary <*> arbitrary
 instance Arbitrary a => Arbitrary (NonEmpty a) where
-  arbitrary = maybe discard pure . nonEmpty =<< arbitrary
+  arbitrary = (:|) <$> arbitrary <*> arbitrary
 instance Arbitrary Level where
   arbitrary = arbitraryBoundedEnum
 deriving newtype instance Arbitrary ID
