@@ -487,8 +487,8 @@ resumeTest mods dir t = do
 failWhenSevereLogs :: (MonadTest m) => PureLogT (WithSeverity ()) m a -> m a
 failWhenSevereLogs = failWhenSevereLogs' <=< runPureLogT
 -- TODO/REVIEW: can I use this or similar elsewhere, esp in Tests.Action.Prog?
-failWhenSevereLogs' :: (MonadTest m) => (a, Seq (WithSeverity ())) -> m a
-failWhenSevereLogs' (a,logs) = TestUtils.failWhenSevereLogs logs $> a
+failWhenSevereLogs' :: (HasCallStack, MonadTest m) => (a, Seq (WithSeverity ())) -> m a
+failWhenSevereLogs' (a,logs) = withFrozenCallStack $ TestUtils.failWhenSevereLogs logs $> a
 
 -- A pseudo-unit regression test: when reduction needs to create fresh names,
 -- the two reduction attempts in resumeTest should not interfere with each
@@ -1360,7 +1360,7 @@ tasty_unique_ids = withTests 1000 $
 -- * Utilities
 
 -- TODO: separate, prior, PR: do this but for distinctIDs
-evalFullTest :: ID -> TypeDefMap -> DefMap -> TerminationBound -> Dir -> Expr -> IO (Either EvalFullError Expr)
+evalFullTest :: HasCallStack => ID -> TypeDefMap -> DefMap -> TerminationBound -> Dir -> Expr -> IO (Either EvalFullError Expr)
 evalFullTest id_ tydefs globals n d e =
   let (r,logs) = evalFullTest' id_ tydefs globals n d e
   in assertNoSevereLogs logs $> r

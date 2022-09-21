@@ -78,7 +78,7 @@ import Test.Tasty.HUnit qualified as HUnit
 import Control.Monad.Log (LoggingT, WithSeverity (msgSeverity), PureLoggingT, runPureLoggingT, mapLogMessage, Severity (Error))
 import qualified Data.Sequence as Seq
 import Primer.Log (ConvertLogMessage (convert))
-import Hedgehog (annotateShow, failure, MonadTest)
+import Hedgehog (annotateShow, failure, MonadTest, annotate)
 
 primDefs :: DefMap
 primDefs = Map.mapKeys primitive $ moduleDefs primitiveModule
@@ -182,16 +182,16 @@ firstSevere logs =
     Seq.Empty -> Nothing
     e Seq.:<| _ -> Just e
 
-assertNoSevereLogs :: Show l => Seq (WithSeverity l) -> IO ()
+assertNoSevereLogs :: (HasCallStack, Show l) => Seq (WithSeverity l) -> IO ()
 assertNoSevereLogs = firstSevere <&> \case
     Nothing -> pure ()
     Just e -> assertFailure $ "There was a severe error: " <> show e
 
-failWhenSevereLogs :: (MonadTest m, Show l) => Seq (WithSeverity l) -> m ()
-failWhenSevereLogs = firstSevere <&> \case
+failWhenSevereLogs :: (HasCallStack, MonadTest m, Show l) => Seq (WithSeverity l) -> m ()
+failWhenSevereLogs = withFrozenCallStack $ firstSevere <&> \case
     Nothing -> pure ()
     Just e -> do
-      -- There was a severe error
+      annotate "There was a severe error:"
       annotateShow e
       failure
 
