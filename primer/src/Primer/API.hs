@@ -158,10 +158,11 @@ import Primer.Module (moduleDefsQualified, moduleName, moduleTypesQualified)
 import Primer.Name (Name, unName)
 import Primer.Primitives (primDefType)
 import StmContainers.Map qualified as StmMap
-import Control.Monad.Log (MonadLog, WithSeverity)
+import Control.Monad.Log (MonadLog, WithSeverity, LoggingT, PureLoggingT, runPureLoggingT, mapLogMessage, logMessage)
 import Primer.Log (logInfo, ConvertLogMessage)
 import Data.UUID.V4 (nextRandom)
 import Data.UUID (UUID)
+import Data.Functor.Compose (Compose(Compose))
 
 -- | The API environment.
 data Env = Env
@@ -217,16 +218,21 @@ sessionsTransaction f = do
   q <- asks dbOpQueue
   txid <- liftIO nextRandom
   logInfo $ SessionTXStart txid
-  ret <- liftIO $ atomically $ f ss q
+  ret <- liftIO $ atomically $ f ss q -- TODO: we don't add trace to these messages
+  -- TODO: test that can fail a test if f logs a critical message
   logInfo $ SessionTXEnd txid
   pure ret
 
-data SessionOp a where
-  EditApp :: (App -> (a, App)) -> SessionOp a
-  QueryApp :: (App -> a) -> SessionOp a
-  GetSessionName :: SessionOp Text
-  GetSessionData :: SessionOp SessionData
-  RenameSession :: Text -> SessionOp Text
+data SessionOp l a where
+  -- TODO: maybe specialise this to the specific m we use?
+  EditApp :: (forall m . MonadLog l m => App -> m (a, App)) -> SessionOp l a
+  QueryApp :: (App -> a) -> SessionOp l a
+  GetSessionName :: SessionOp l Text
+  GetSessionData :: SessionOp l SessionData
+  RenameSession :: Text -> SessionOp l Text
+
+pureLogs :: LoggingT l (PureLoggingT (Seq l) Identity) a -> (a, Seq l)
+pureLogs = runIdentity . runPureLoggingT . mapLogMessage pure
 
 -- A note about the implementation here. When the session is missing
 -- from the in-memory database, we can't queue the database request to
@@ -237,7 +243,7 @@ data SessionOp a where
 -- actually be sent until the transaction is complete. This would
 -- cause a deadlock!
 withSession' :: (MonadIO m, MonadThrow m, MonadLog (WithSeverity l) m, ConvertLogMessage SessionTXLog l)
-  => SessionId -> SessionOp a -> PrimerM m a
+  => SessionId -> SessionOp (WithSeverity l) a -> PrimerM m a
 withSession' sid op = do
   hndl <- sessionsTransaction $ \ss q -> do
     query <- StmMap.lookup sid ss
@@ -256,19 +262,19 @@ withSession' sid op = do
         -- The session is in memory, let's do this.
         case op of
           EditApp f -> do
-            let (res, appl') = f appl
+            let ((res, appl'),logs) = pureLogs $ f appl
             StmMap.insert (SessionData appl' n) sid ss
             writeTBQueue q $ Database.UpdateApp sid appl'
-            pure $ Right res
-          QueryApp f -> pure $ Right $ f appl
-          GetSessionName -> pure $ Right (fromSessionName n)
-          GetSessionData -> pure $ Right s
+            pure $ Right (res, Just logs)
+          QueryApp f -> pure $ Right (f appl, Nothing)
+          GetSessionName -> pure $ Right (fromSessionName n, Nothing)
+          GetSessionData -> pure $ Right (s, Nothing)
           RenameSession n' ->
             let newName = safeMkSessionName n'
              in do
                   StmMap.insert (SessionData appl newName) sid ss
                   writeTBQueue q $ Database.UpdateName sid newName
-                  pure $ Right (fromSessionName newName)
+                  pure $ Right (fromSessionName newName, Nothing)
   case hndl of
     Left callback -> do
       -- The session was missing from the in-memory database. Once we
@@ -289,7 +295,9 @@ withSession' sid op = do
           -- saturated. Ref:
           -- https://gitlab.haskell.org/ghc/ghc/-/wikis/commentary/rts/haskell-execution/function-calls
           withSession' sid op
-    Right result ->
+    Right (result, logs) -> do
+      -- Actually log the batched messages
+      mapM_ logMessage $ Compose logs
       -- We performed the session transaction, now return the result.
       pure result
 
@@ -380,7 +388,7 @@ renameSession sid n = withSession' sid $ RenameSession n
 -- pass in the app state for that session.
 liftEditAppM :: (MonadIO m, MonadThrow m, MonadLog (WithSeverity l) m, ConvertLogMessage SessionTXLog l)
   => EditAppM a -> SessionId -> PrimerM m (Either ProgError a)
-liftEditAppM h sid = withSession' sid (EditApp $ runEditAppM h)
+liftEditAppM h sid = withSession' sid (EditApp $ pure . runEditAppM h)
 
 -- Run a 'QueryAppM' action, using the given session ID to look up and
 -- pass in the app state for that session.
