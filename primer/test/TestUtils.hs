@@ -33,7 +33,7 @@ import Optics (over, set, view)
 import Primer.API (
   Env (..),
   PrimerM,
-  runPrimerM, SessionTXLog,
+  runPrimerM, SessionTXLog, WithTraceId,
  )
 import Primer.Action (
   Action (ConstructCon, ConstructRefinedCon, ConstructTCon),
@@ -157,12 +157,12 @@ instance ConvertLogMessage PrimerErr PrimerLog where
 instance ConvertLogMessage SessionTXLog PrimerLog where
   convert = PrimerLog . show
 
-type PrimerLogs = PrimerM (LoggingT (WithSeverity PrimerLog) (PureLoggingT (Seq (WithSeverity PrimerLog)) IO))
+type PrimerLogs = PrimerM (LoggingT (WithSeverity (WithTraceId PrimerLog)) (PureLoggingT (Seq (WithSeverity (WithTraceId PrimerLog))) IO))
 
-runPrimerLogs :: PrimerLogs a -> Env -> IO (a,Seq (WithSeverity PrimerLog))
+runPrimerLogs :: PrimerLogs a -> Env -> IO (a,Seq (WithSeverity (WithTraceId PrimerLog)))
 runPrimerLogs m e = runPureLoggingT $ mapLogMessage Seq.singleton $ runPrimerM m e 
 
-assertNoSevereLogs :: Seq (WithSeverity PrimerLog) -> IO ()
+assertNoSevereLogs :: Show l => Seq (WithSeverity l) -> IO ()
 assertNoSevereLogs =
 -- Note that more-severe errors are earlier in the ordering
   Seq.filter ((<= Error).msgSeverity) <&> \case

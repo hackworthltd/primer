@@ -43,7 +43,7 @@ import Primer.API (
   listSessions,
   newSession,
   renameSession,
-  PrimerM, SessionTXLog, runPrimerM,
+  PrimerM, SessionTXLog, runPrimerM, WithTraceId (discardTraceId),
  )
 import Primer.API qualified as API
 import Primer.Database (
@@ -77,7 +77,7 @@ openAPIInfo =
     & #info % #version .~ "0.7"
 
 openAPIServer :: ConvertLogMessage SessionTXLog l =>
-  OpenAPI.RootAPI (AsServerT (PrimerM (Log.LoggingT (WithSeverity l) IO)))
+  OpenAPI.RootAPI (AsServerT (PrimerM (Log.LoggingT (WithSeverity (WithTraceId l)) IO)))
 openAPIServer =
   OpenAPI.RootAPI
     { OpenAPI.copySession = API.copySession
@@ -86,7 +86,7 @@ openAPIServer =
     }
 
 openAPISessionsServer :: ConvertLogMessage SessionTXLog l =>
-  OpenAPI.SessionsAPI (AsServerT (PrimerM (Log.LoggingT (WithSeverity l) IO)))
+  OpenAPI.SessionsAPI (AsServerT (PrimerM (Log.LoggingT (WithSeverity (WithTraceId l)) IO)))
 openAPISessionsServer =
   OpenAPI.SessionsAPI
     { OpenAPI.createSession = newSession
@@ -95,7 +95,7 @@ openAPISessionsServer =
     }
 
 openAPISessionServer :: ConvertLogMessage SessionTXLog l =>
-  SessionId -> OpenAPI.SessionAPI  (AsServerT (PrimerM (Log.LoggingT (WithSeverity l) IO)))
+  SessionId -> OpenAPI.SessionAPI  (AsServerT (PrimerM (Log.LoggingT (WithSeverity (WithTraceId l)) IO)))
 openAPISessionServer sid =
   OpenAPI.SessionAPI
     { OpenAPI.getProgram = \patternsUnder -> API.getProgram' (ExprTreeOpts{patternsUnder}) sid
@@ -104,7 +104,7 @@ openAPISessionServer sid =
     }
 
 apiServer :: ConvertLogMessage SessionTXLog l =>
-  S.RootAPI (AsServerT (PrimerM (Log.LoggingT (WithSeverity l) IO)))
+  S.RootAPI (AsServerT (PrimerM (Log.LoggingT (WithSeverity (WithTraceId l)) IO)))
 apiServer =
   S.RootAPI
     { S.copySession = API.copySession
@@ -114,7 +114,7 @@ apiServer =
     }
 
 sessionsAPIServer :: ConvertLogMessage SessionTXLog l =>
-  S.SessionsAPI (AsServerT (PrimerM (Log.LoggingT (WithSeverity l) IO)))
+  S.SessionsAPI (AsServerT (PrimerM (Log.LoggingT (WithSeverity (WithTraceId l)) IO)))
 sessionsAPIServer =
   S.SessionsAPI
     { S.createSession = newSession
@@ -124,7 +124,7 @@ sessionsAPIServer =
     }
 
 sessionAPIServer :: ConvertLogMessage SessionTXLog l =>
-  SessionId -> S.SessionAPI (AsServerT (PrimerM (Log.LoggingT (WithSeverity l) IO)))
+  SessionId -> S.SessionAPI (AsServerT (PrimerM (Log.LoggingT (WithSeverity (WithTraceId l)) IO)))
 sessionAPIServer sid =
   S.SessionAPI
     { S.getProgram = API.getProgram sid
@@ -138,7 +138,7 @@ sessionAPIServer sid =
     }
 
 questionAPIServer :: ConvertLogMessage SessionTXLog l =>
-  SessionId -> S.QuestionAPI (AsServerT (PrimerM (Log.LoggingT (WithSeverity l) IO)))
+  SessionId -> S.QuestionAPI (AsServerT (PrimerM (Log.LoggingT (WithSeverity (WithTraceId l)) IO)))
 questionAPIServer sid =
   S.QuestionAPI
     { S.variablesInScope = API.variablesInScope sid
@@ -146,7 +146,7 @@ questionAPIServer sid =
     }
 
 adminAPIServer :: ConvertLogMessage SessionTXLog l =>
-  S.AdminAPI (AsServerT (PrimerM (Log.LoggingT (WithSeverity l) IO)))
+  S.AdminAPI (AsServerT (PrimerM (Log.LoggingT (WithSeverity (WithTraceId l)) IO)))
 adminAPIServer =
   S.AdminAPI
     { S.flushSessions = API.flushSessions >> pure NoContent
@@ -174,7 +174,7 @@ data API mode = API
   deriving (Generic)
 
 server :: ConvertLogMessage SessionTXLog l =>
-  API (AsServerT (PrimerM (Log.LoggingT (WithSeverity l) IO)))
+  API (AsServerT (PrimerM (Log.LoggingT (WithSeverity (WithTraceId l)) IO)))
 server =
   API
     { getSpec = pure openAPIInfo
@@ -193,8 +193,8 @@ apiCors =
     , corsRequestHeaders = simpleHeaders <> ["Content-Type", "Authorization"]
     }
 
-serve :: forall l . (ConvertLogMessage PrimerErr l, ConvertLogMessage SessionTXLog l) =>
-  Sessions -> TBQueue Database.Op -> Version -> Int -> Log.Handler IO (Log.WithSeverity l)
+serve :: forall l . (ConvertLogMessage PrimerErr (WithTraceId l), ConvertLogMessage SessionTXLog l) =>
+  Sessions -> TBQueue Database.Op -> Version -> Int -> Log.Handler IO (Log.WithSeverity (WithTraceId l))
   -> IO ()
 serve ss q v port logger = do
   Warp.runSettings warpSettings $
@@ -213,12 +213,12 @@ serve ss q v port logger = do
     noCache :: WAI.Middleware
     noCache = WAI.modifyResponse $ WAI.mapResponseHeaders (("Cache-Control", "no-store") :)
 
-    nt :: PrimerM (Log.LoggingT (WithSeverity l) IO) a -> Handler a
+    nt :: PrimerM (Log.LoggingT (WithSeverity (WithTraceId l)) IO) a -> Handler a
     nt m = Handler $ ExceptT $ flip runLoggingT logger $ catch (Right <$> runPrimerM m (Env ss q v)) handler
 
     -- Catch exceptions from the API and convert them to Servant
     -- errors via 'Either'.
-    handler :: PrimerErr -> Log.LoggingT (WithSeverity l) IO (Either ServerError a)
+    handler :: PrimerErr -> Log.LoggingT (WithSeverity (WithTraceId l)) IO (Either ServerError a)
     handler e@(DatabaseErr msg) = do
       logWarning e
-      pure $ Left $ err500{errBody = (LT.encodeUtf8 . LT.fromStrict) msg}
+      pure $ Left $ err500{errBody = (LT.encodeUtf8 . LT.fromStrict) $ discardTraceId msg}
