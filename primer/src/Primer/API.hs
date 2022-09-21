@@ -396,8 +396,8 @@ renameSession sid n = withSession' sid $ RenameSession n
 -- Run an 'EditAppM' action, using the given session ID to look up and
 -- pass in the app state for that session.
 liftEditAppM :: (MonadIO m, MonadThrow m, MonadLog (WithSeverity (WithTraceId l)) m, ConvertLogMessage SessionTXLog l)
-  => EditAppM a -> SessionId -> PrimerM m (Either ProgError a)
-liftEditAppM h sid = withSession' sid (EditApp $ pure . runEditAppM h)
+  => (forall m' . MonadLog (WithSeverity l) m' => EditAppM m' a) -> SessionId -> PrimerM m (Either ProgError a)
+liftEditAppM h sid = withSession' sid (EditApp $ runEditAppM h)
 
 -- Run a 'QueryAppM' action, using the given session ID to look up and
 -- pass in the app state for that session.

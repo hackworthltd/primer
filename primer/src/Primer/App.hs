@@ -208,6 +208,7 @@ import Primer.Zipper (
   unfocusType,
   _target,
  )
+import Control.Monad.Log (MonadLog, WithSeverity)
 
 -- | The program state, shared between the frontend and backend
 --  This is much more info than we need to send - for example we probably don't
@@ -328,7 +329,7 @@ newProg' = let (p, _, _) = newProg in p
 
 -- | Imports some explicitly-given modules, ensuring that they are well-typed
 -- (and all their dependencies are already imported)
-importModules :: MonadEditApp m => [Module] -> m ()
+importModules :: MonadEditApp l m => [Module] -> m ()
 importModules ms = do
   p <- gets appProg
   -- Module names must be unique
@@ -481,13 +482,13 @@ handleGetProgramRequest :: MonadReader App m => m Prog
 handleGetProgramRequest = asks appProg
 
 -- | Handle a request to mutate the app state
-handleMutationRequest :: MonadEditApp m => MutationRequest -> m Prog
+handleMutationRequest :: MonadEditApp l m => MutationRequest -> m Prog
 handleMutationRequest = \case
   Edit as -> handleEditRequest as
   Undo -> handleUndoRequest
 
 -- | Handle an edit request
-handleEditRequest :: forall m. MonadEditApp m => [ProgAction] -> m Prog
+handleEditRequest :: forall m l. MonadEditApp l m => [ProgAction] -> m Prog
 handleEditRequest actions = do
   (prog, _) <- gets appProg >>= \p -> foldM go (p, Nothing) actions
   let Log l = progLog prog
@@ -501,7 +502,7 @@ handleEditRequest actions = do
         (prog', selectedDef <$> progSelection prog')
 
 -- | Handle an eval request
-handleEvalRequest :: MonadEditApp m => EvalReq -> m EvalResp
+handleEvalRequest :: MonadEditApp l m => EvalReq -> m EvalResp
 handleEvalRequest req = do
   prog <- gets appProg
   result <- Eval.step (allDefs prog) (evalReqExpr req) (evalReqRedex req)
@@ -516,7 +517,7 @@ handleEvalRequest req = do
           }
 
 -- | Handle an eval-to-normal-form request
-handleEvalFullRequest :: MonadEditApp m => EvalFullReq -> m EvalFullResp
+handleEvalFullRequest :: MonadEditApp l m => EvalFullReq -> m EvalFullResp
 handleEvalFullRequest (EvalFullReq{evalFullReqExpr, evalFullCxtDir, evalFullMaxSteps}) = do
   prog <- gets appProg
   result <- evalFull (allTypes prog) (allDefs prog) evalFullMaxSteps evalFullCxtDir evalFullReqExpr
@@ -962,21 +963,21 @@ editModuleOfCross mdefName prog f = case mdefName of
 -- Because actions often refer to the IDs of nodes created by previous actions
 -- we must reset the ID and name counter to their original state before we
 -- replay. We do this by resetting the entire app state.
-handleUndoRequest :: MonadEditApp m => m Prog
+handleUndoRequest :: MonadEditApp l m => m Prog
 handleUndoRequest = do
   prog <- gets appProg
   start <- gets appInit
   case unlog (progLog prog) of
     [] -> pure prog
     (_ : as) -> do
-      case runEditAppM (replay (reverse as)) start of
+      runEditAppM (replay (reverse as)) start >>= \case
         (Right _, app') -> do
           put app'
           gets appProg
         (Left err, _) -> throwError err
 
 -- Replay a series of actions, updating the app state with the new program
-replay :: MonadEditApp m => [[ProgAction]] -> m ()
+replay :: MonadEditApp l m => [[ProgAction]] -> m ()
 replay = mapM_ handleEditRequest
 
 -- | A shorthand for the constraints we need when performing mutation
@@ -984,7 +985,7 @@ replay = mapM_ handleEditRequest
 --
 -- Note we do not want @MonadFresh Name m@, as @fresh :: m Name@ has
 -- no way of avoiding user-specified names. Instead, use 'freshName'.
-type MonadEditApp m = (MonadEdit m, MonadState App m)
+type MonadEditApp l m = (MonadLog (WithSeverity l) m, MonadEdit m, MonadState App m)
 
 -- | A shorthand for constraints needed when doing low-level mutation
 -- operations which do not themselves update the 'App' contained in a
@@ -1002,13 +1003,13 @@ type MonadQueryApp m = (Monad m, MonadReader App m, MonadError ProgError m)
 -- state so that an action that throws an error does not modify the
 -- state. This is important to ensure that we can reliably replay the
 -- log without having ID mismatches.
-newtype EditAppM a = EditAppM (StateT App (Except ProgError) a)
-  deriving newtype (Functor, Applicative, Monad, MonadState App, MonadError ProgError)
+newtype EditAppM m a = EditAppM (StateT App (ExceptT ProgError m) a)
+  deriving newtype (Functor, Applicative, Monad, MonadState App, MonadError ProgError, MonadLog l)
 
 -- | Run an 'EditAppM' action, returning a result and an updated
 -- 'App'.
-runEditAppM :: EditAppM a -> App -> (Either ProgError a, App)
-runEditAppM (EditAppM m) appState = case runExcept (runStateT m appState) of
+runEditAppM :: Functor m => EditAppM m a -> App -> m (Either ProgError a, App)
+runEditAppM (EditAppM m) appState = runExceptT (runStateT m appState) <&> \case
   Left err -> (Left err, appState)
   Right (res, appState') -> (Right res, appState')
 
@@ -1198,7 +1199,7 @@ newType = do
   pure $ TEmptyHole (Meta id_ Nothing Nothing)
 
 -- | Support for generating fresh IDs
-instance MonadFresh ID EditAppM where
+instance Monad m => MonadFresh ID (EditAppM m) where
   fresh = do
     id_ <- gets appIdCounter
     modify (\s -> s & #currentState % #idCounter .~ id_ + 1)
@@ -1206,7 +1207,7 @@ instance MonadFresh ID EditAppM where
 
 -- | Support for generating names. Basically just a counter so we don't
 -- generate the same automatic name twice.
-instance MonadFresh NameCounter EditAppM where
+instance Monad m => MonadFresh NameCounter (EditAppM m) where
   fresh = do
     nc <- gets appNameCounter
     modify (\s -> s & #currentState % #nameCounter .~ succ nc)
