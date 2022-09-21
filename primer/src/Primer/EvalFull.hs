@@ -111,7 +111,7 @@ import Primer.Zipper (
   unfocusType,
   up,
  )
-import Primer.Log (logInfo, ConvertLogMessage, logError)
+import Primer.Log (logInfo, ConvertLogMessage, logError, logCritical)
 import Control.Monad.Log (MonadLog, WithSeverity)
 
 newtype EvalFullError
@@ -199,7 +199,7 @@ evalFullStepCount ::
   Dir ->
   Expr ->
   m (Natural, Either EvalFullError Expr)
-evalFullStepCount tydefs env n d = go 0
+evalFullStepCount tydefs env n d e = logCritical ("HI" :: Text) >> go 0 e
   where
     go s expr
       | s >= n = pure (s, Left $ TimedOut expr)
