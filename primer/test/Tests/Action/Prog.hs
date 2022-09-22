@@ -490,9 +490,9 @@ unit_construct_arrow_in_sig =
             TFun _ lhs _ ->
               -- Check that the selection is focused on the lhs, as we instructed
               case progSelection prog' of
-                Just (Selection d (Just NodeSelection{nodeType = SigNode, nodeId})) -> do
+                Just (Selection d (Just sel@NodeSelection{nodeType = SigNode})) -> do
                   d @?= qualifyName mainModuleName "other"
-                  nodeId @?= getID lhs
+                  getID sel @?= getID lhs
                 _ -> assertFailure "no selection"
             _ -> assertFailure "not a function"
         _ -> assertFailure "definition not found"
@@ -1463,8 +1463,8 @@ unit_sh_lost_id =
         Just def ->
           case astDefExpr <$> defAST def of
             Just (Var m (GlobalVarRef f)) | f == foo -> case progSelection prog' of
-              Just Selection{selectedDef, selectedNode = Just NodeSelection{nodeId}} ->
-                unless (selectedDef == foo && nodeId == getID m) $
+              Just Selection{selectedDef, selectedNode = Just sel} ->
+                unless (selectedDef == foo && getID sel == getID m) $
                   assertFailure "expected selection to point at the recursive reference"
               _ -> assertFailure "expected the selection to point at some node"
             _ -> assertFailure "expected foo"
@@ -1507,8 +1507,8 @@ unit_sh_lost_id_2 =
         Just def ->
           case astDefExpr <$> defAST def of
             Just (Hole _ (Ann _ (Lam _ "y" (Lam m "x" (EmptyHole _))) (TEmptyHole _))) -> case progSelection prog' of
-              Just Selection{selectedDef, selectedNode = Just NodeSelection{nodeId}} ->
-                unless (selectedDef == foo && nodeId == getID m) $
+              Just Selection{selectedDef, selectedNode = Just sel} ->
+                unless (selectedDef == foo && getID sel == getID m) $
                   assertFailure "expected selection to point at λx"
               _ -> assertFailure "expected the selection to point at some node"
             _ -> assertFailure "expected {? (λy. λx.?) : ? ?}"
@@ -1550,7 +1550,6 @@ defaultEmptyProg = do
                   Just
                     NodeSelection
                       { nodeType = BodyNode
-                      , nodeId = 1
                       , meta = Left (Meta 1 Nothing Nothing)
                       }
           }
