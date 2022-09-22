@@ -81,8 +81,10 @@ import Optics (
   anyOf,
   folded,
   ifoldMap,
+  lens,
   mapped,
   over,
+  set,
   to,
   traverseOf,
   traversed,
@@ -113,6 +115,7 @@ import Primer.Core (
   ExprMeta,
   GVarName,
   GlobalName (baseName, qualifiedModule),
+  HasID (_id),
   ID (..),
   LocalName (LocalName, unLocalName),
   Meta (..),
@@ -382,11 +385,16 @@ data Selection = Selection
 -- We have the following invariant: @nodeType = SigNode ==> isRight meta@
 data NodeSelection = NodeSelection
   { nodeType :: NodeType
-  , nodeId :: ID
   , meta :: Either ExprMeta TypeMeta
   }
   deriving (Eq, Show, Generic, Data)
   deriving (FromJSON, ToJSON) via PrimerJSON NodeSelection
+
+instance HasID NodeSelection where
+  _id =
+    lens
+      (either getID getID . meta)
+      (flip $ \id -> over #meta $ bimap (set _id id) (set _id id))
 
 data NodeType = BodyNode | SigNode
   deriving (Eq, Show, Bounded, Enum, Generic, Data)
@@ -788,7 +796,6 @@ applyProgAction prog mdefName = \case
       Left err -> throwError $ ActionError err
       Right (def', z) -> do
         let meta = bimap (view _exprMetaLens . target) (view _typeMetaLens . target) $ locToEither z
-            nodeId = either getID getID meta
         pure
           ( insertDef m defName (DefAST def')
           , Just $
@@ -796,7 +803,6 @@ applyProgAction prog mdefName = \case
                 Just
                   NodeSelection
                     { nodeType = BodyNode
-                    , nodeId
                     , meta
                     }
           )
@@ -808,7 +814,6 @@ applyProgAction prog mdefName = \case
       Right (mod', zt) -> do
         let node = target zt
             meta = view _typeMetaLens node
-            nodeId = getID meta
          in pure
               ( mod'
               , Just $
@@ -816,7 +821,6 @@ applyProgAction prog mdefName = \case
                     Just
                       NodeSelection
                         { nodeType = SigNode
-                        , nodeId
                         , meta = Right meta
                         }
               )
@@ -1238,7 +1242,7 @@ copyPasteSig p (fromDefName, fromTyId) toDefName setup = do
       TEmptyHole _ -> pure $ replace freshCopy tgt
       _ -> throwError $ CopyPasteError "copy/paste setup didn't select an empty hole"
     let newDef = oldDef{astDefType = fromZipper pasted}
-    let newSel = NodeSelection SigNode (getID $ target pasted) (pasted ^. _target % _typeMetaLens % re _Right)
+    let newSel = NodeSelection SigNode (pasted ^. _target % _typeMetaLens % re _Right)
     pure (insertDef mod toDefBaseName (DefAST newDef), Just (Selection toDefName $ Just newSel))
   liftError ActionError $ tcWholeProg finalProg
 
@@ -1311,11 +1315,11 @@ tcWholeProg p = do
       let defName_ = s ^. #selectedDef
       updatedNode <- case s ^. #selectedNode of
         Nothing -> pure Nothing
-        Just NodeSelection{nodeType, nodeId} -> do
-          n <- runExceptT $ focusNode p' defName_ nodeId
+        Just sel@NodeSelection{nodeType} -> do
+          n <- runExceptT $ focusNode p' defName_ $ getID sel
           case (nodeType, n) of
-            (BodyNode, Right (Left x)) -> pure $ Just $ NodeSelection BodyNode nodeId $ bimap (view _exprMetaLens . target) (view _typeMetaLens . target) x
-            (SigNode, Right (Right x)) -> pure $ Just $ NodeSelection SigNode nodeId $ x ^. _target % _typeMetaLens % re _Right
+            (BodyNode, Right (Left x)) -> pure $ Just $ NodeSelection BodyNode $ bimap (view _exprMetaLens . target) (view _typeMetaLens . target) x
+            (SigNode, Right (Right x)) -> pure $ Just $ NodeSelection SigNode $ x ^. _target % _typeMetaLens % re _Right
             _ -> pure Nothing -- something's gone wrong: expected a SigNode, but found it in the body, or vv, or just not found it
       pure $
         Just $
@@ -1374,7 +1378,7 @@ copyPasteBody p (fromDefName, fromId) toDefName setup = do
           TEmptyHole _ -> pure $ replace freshCopy tgtT
           _ -> throwError $ CopyPasteError "copy/paste setup didn't select an empty hole"
         let newDef = oldDef{astDefExpr = unfocusExpr $ unfocusType pasted}
-        let newSel = NodeSelection BodyNode (getID $ target pasted) (pasted ^. _target % _typeMetaLens % re _Right)
+        let newSel = NodeSelection BodyNode (pasted ^. _target % _typeMetaLens % re _Right)
         pure (insertDef mod toDefBaseName (DefAST newDef), Just (Selection toDefName $ Just newSel))
       (Left srcE, InExpr tgtE) -> do
         let sharedScope =
@@ -1431,7 +1435,7 @@ copyPasteBody p (fromDefName, fromId) toDefName setup = do
           EmptyHole _ -> pure $ replace freshCopy tgtE
           _ -> throwError $ CopyPasteError "copy/paste setup didn't select an empty hole"
         let newDef = oldDef{astDefExpr = unfocusExpr pasted}
-        let newSel = NodeSelection BodyNode (getID $ target pasted) (pasted ^. _target % _exprMetaLens % re _Left)
+        let newSel = NodeSelection BodyNode (pasted ^. _target % _exprMetaLens % re _Left)
         pure (insertDef mod toDefBaseName (DefAST newDef), Just (Selection toDefName $ Just newSel))
   liftError ActionError $ tcWholeProg finalProg
 

@@ -122,6 +122,7 @@ import Primer.Core (
   TyVarName,
   Type,
   Type' (..),
+  getID,
   moduleNamePretty,
   unLocalName,
   _typeMeta,
@@ -848,4 +849,4 @@ data NodeSelection = NodeSelection
   deriving (FromJSON, ToJSON) via PrimerJSON NodeSelection
 
 convertNodeSelection :: App.NodeSelection -> NodeSelection
-convertNodeSelection App.NodeSelection{..} = NodeSelection{nodeType, id = nodeId}
+convertNodeSelection sel@App.NodeSelection{nodeType} = NodeSelection{nodeType, id = getID sel}

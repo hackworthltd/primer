@@ -149,7 +149,6 @@ fixtures =
           Just
             NodeSelection
               { nodeType = BodyNode
-              , nodeId = id0
               , meta = Left exprMeta
               }
       reductionDetail :: EvalDetail
