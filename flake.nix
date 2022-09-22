@@ -248,12 +248,20 @@
                     final.primer-sqitch
                   ];
                 }
-                {
-                  #TODO Haskell.nix would ideally pick this up from `cabal.project`.
-                  # See: https://github.com/input-output-hk/haskell.nix/issues/1149#issuecomment-946664684
-                  packages.primer.components.tests.primer-test.testFlags = [ "--size-cutoff=32768" ];
-                  packages.primer-service.components.tests.service-test.testFlags = [ "--size-cutoff=32768" ];
-                }
+                (
+                  let
+                    # This makes it a lot easier to see which test is the culprit when CI fails.
+                    hide-successes = [ "--hide-successes" ];
+                    #TODO Haskell.nix would ideally pick this up from `cabal.project`.
+                    # See: https://github.com/input-output-hk/haskell.nix/issues/1149#issuecomment-946664684
+                    size-cutoff = [ "--size-cutoff=32768" ];
+                  in
+                  {
+                    packages.primer.components.tests.primer-test.testFlags = hide-successes ++ size-cutoff;
+                    packages.primer-service.components.tests.service-test.testFlags = hide-successes ++ size-cutoff;
+                    packages.primer-rel8.components.tests.primer-rel8-test.testFlags = hide-successes;
+                  }
+                )
               ];
 
               shell = {
