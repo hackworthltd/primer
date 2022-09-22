@@ -6,6 +6,7 @@ module Primer.Subst (
 import Foreword
 
 import Control.Monad.Fresh (MonadFresh)
+import Data.Set qualified as Set
 import Primer.Core.Fresh (freshLocalName)
 import Primer.Core.Meta (TyVarName)
 import Primer.Core.Type (Type' (..))
@@ -18,7 +19,7 @@ import Primer.Name (NameCounter)
 substTy :: MonadFresh NameCounter m => TyVarName -> Type' () -> Type' () -> m (Type' ())
 substTy n a = go
   where
-    avoid = freeVarsTy a
+    avoid = Set.singleton n <> freeVarsTy a
     go = \case
       t@TEmptyHole{} -> pure t
       THole m t -> THole m <$> go t
