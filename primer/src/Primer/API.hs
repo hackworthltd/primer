@@ -164,6 +164,7 @@ import Primer.Log (logInfo, ConvertLogMessage (convert))
 import Data.UUID.V4 (nextRandom)
 import Data.UUID (UUID)
 import Data.Functor.Compose (Compose(Compose))
+import Primer.Action (ActionLog)
 
 -- | The API environment.
 data Env = Env
@@ -808,7 +809,8 @@ viewTreeType' t0 = case t0 of
 showGlobal :: GlobalName k -> Text
 showGlobal n = moduleNamePretty (qualifiedModule n) <> "." <> unName (baseName n)
 
-edit :: forall l m . (MonadIO m, MonadThrow m, MonadLog (WithSeverity (WithTraceId l)) m, ConvertLogMessage SessionTXLog l)
+edit :: forall l m . (MonadIO m, MonadThrow m, MonadLog (WithSeverity (WithTraceId l)) m, ConvertLogMessage SessionTXLog l
+                     ,ConvertLogMessage ActionLog l)
   => SessionId -> MutationRequest -> PrimerM m (Either ProgError App.Prog)
 edit sid req = liftEditAppM (handleMutationRequest req) sid
 
@@ -825,12 +827,14 @@ generateNames :: forall l m . (MonadIO m, MonadThrow m, MonadLog (WithSeverity (
 generateNames sid ((defname, exprid), tk) =
   liftQueryAppM (handleQuestion $ GenerateName defname exprid tk) sid
 
-evalStep :: forall l m . (MonadIO m, MonadThrow m, MonadLog (WithSeverity (WithTraceId l)) m, ConvertLogMessage SessionTXLog l)
+evalStep :: forall l m . (MonadIO m, MonadThrow m, MonadLog (WithSeverity (WithTraceId l)) m, ConvertLogMessage SessionTXLog l
+                     ,ConvertLogMessage ActionLog l)
   => SessionId -> EvalReq -> PrimerM m (Either ProgError EvalResp)
 evalStep sid req =
   liftEditAppM (handleEvalRequest req) sid
 
-evalFull :: forall l m . (MonadIO m, MonadThrow m, MonadLog (WithSeverity (WithTraceId l)) m, ConvertLogMessage SessionTXLog l, ConvertLogMessage Text l)
+evalFull :: forall l m . (MonadIO m, MonadThrow m, MonadLog (WithSeverity (WithTraceId l)) m, ConvertLogMessage SessionTXLog l, ConvertLogMessage Text l
+                     ,ConvertLogMessage ActionLog l)
   => SessionId -> EvalFullReq -> PrimerM m (Either ProgError EvalFullResp)
 evalFull sid req =
   liftEditAppM (handleEvalFullRequest req) sid

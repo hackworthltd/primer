@@ -3,6 +3,7 @@
 module Primer.Action (
   Action (..),
   ActionError (..),
+  ActionLog(..),
   Movement (..),
   ProgAction (..),
   applyActionsToBody,
@@ -136,6 +137,8 @@ import Primer.Zipper (
   _target,
  )
 import Primer.ZipperCxt (localVariablesInScopeExpr)
+import Primer.Log (logError, ConvertLogMessage)
+import Control.Monad.Log (MonadLog, WithSeverity)
 
 -- | An OfferedAction is an option that we show to the user.
 -- It may require some user input (e.g. to choose what to name a binder, or
@@ -239,12 +242,14 @@ uniquifyDefName m name' defs = unName $ uniquify avoid $ unsafeMkName name'
     avoid = foldMap f $ Map.keys defs
 
 -- | A shorthand for the constraints needed when applying actions
-type ActionM m =
+type ActionM l m =
   ( Monad m
   , MonadFresh ID m -- can generate fresh IDs
   , MonadFresh NameCounter m -- can generate fresh names
   , MonadError ActionError m -- can raise errors
   , MonadReader TC.Cxt m -- has access to a typing context
+  , MonadLog (WithSeverity l) m -- can log errors
+  , ConvertLogMessage ActionLog l
   )
 
 -- | Apply a sequence of actions to the type signature of a definition
@@ -254,7 +259,7 @@ type ActionM m =
 -- return a whole set of modules as well as the one definition we wanted to
 -- change.
 applyActionsToTypeSig ::
-  (MonadFresh ID m, MonadFresh NameCounter m) =>
+  (MonadFresh ID m, MonadFresh NameCounter m, MonadLog (WithSeverity l) m, ConvertLogMessage ActionLog l) =>
   SmartHoles ->
   [Module] ->
   -- | The @Module@ we are focused on, and all the other editable modules
@@ -269,7 +274,7 @@ applyActionsToTypeSig smartHoles imports (mod, mods) (defName, def) actions =
     (buildTypingContextFromModules (mod : mods <> imports) smartHoles)
     & runExceptT
   where
-    go :: ActionM m => m ([Module], TypeZ)
+    go :: ActionM l m => m ([Module], TypeZ)
     go = do
       zt <- withWrappedType (astDefType def) (\zt -> foldM (flip applyActionAndSynth) (InType zt) actions)
       let t = target (top zt)
@@ -287,7 +292,7 @@ applyActionsToTypeSig smartHoles imports (mod, mods) (defName, def) actions =
     -- Actions expect that all ASTs have a top-level expression of some sort.
     -- Signatures don't have this: they're just a type.
     -- We fake it by wrapping the type in a top-level annotation node, then unwrapping afterwards.
-    withWrappedType :: ActionM m => Type -> (TypeZ -> m Loc) -> m TypeZ
+    withWrappedType :: ActionM l m => Type -> (TypeZ -> m Loc) -> m TypeZ
     withWrappedType ty f = do
       wrappedType <- ann emptyHole (pure ty)
       let unwrapError = throwError $ InternalFailure "applyActionsToTypeSig: failed to unwrap type"
@@ -336,7 +341,7 @@ refocus Refocus{pre, post} = do
 -- any of the actions failed to apply.
 -- After applying the actions, we check the new Expr against the type sig of the definition.
 applyActionsToBody ::
-  (MonadFresh ID m, MonadFresh NameCounter m) =>
+  (MonadFresh ID m, MonadFresh NameCounter m, MonadLog (WithSeverity l) m, ConvertLogMessage ActionLog l) =>
   SmartHoles ->
   [Module] ->
   ASTDef ->
@@ -347,7 +352,7 @@ applyActionsToBody sh modules def actions =
     & flip runReaderT (buildTypingContextFromModules modules sh)
     & runExceptT
   where
-    go :: ActionM m => m (ASTDef, Loc)
+    go :: ActionM l m => m (ASTDef, Loc)
     go = do
       ze <- foldM (flip (applyActionAndCheck (astDefType def))) (focusLoc (astDefExpr def)) actions
       e' <- exprTtoExpr <$> check (forgetTypeMetadata (astDefType def)) (unfocus ze)
@@ -356,7 +361,7 @@ applyActionsToBody sh modules def actions =
         Nothing -> throwError $ InternalFailure "lost ID after typechecking"
         Just z -> pure (def', z)
 
-applyActionAndCheck :: ActionM m => Type -> Action -> Loc -> m Loc
+applyActionAndCheck :: ActionM l m => Type -> Action -> Loc -> m Loc
 applyActionAndCheck ty action z = do
   z' <- applyAction' action z
   typedAST <- check (forgetTypeMetadata ty) $ unfocus z'
@@ -368,14 +373,15 @@ applyActionAndCheck ty action z = do
 -- This is currently only used for tests.
 -- We may need it in the future for a REPL, where we want to build standalone expressions.
 -- We take a list of the modules that should be in scope for the test.
-applyActionsToExpr :: (MonadFresh ID m, MonadFresh NameCounter m) => SmartHoles -> [Module] -> Expr -> [Action] -> m (Either ActionError (Either ExprZ TypeZ))
+applyActionsToExpr :: (MonadFresh ID m, MonadFresh NameCounter m, MonadLog (WithSeverity l) m, ConvertLogMessage ActionLog l)
+  => SmartHoles -> [Module] -> Expr -> [Action] -> m (Either ActionError (Either ExprZ TypeZ))
 applyActionsToExpr sh modules expr actions =
   foldM (flip applyActionAndSynth) (focusLoc expr) actions -- apply all actions
     <&> locToEither
     & flip runReaderT (buildTypingContextFromModules modules sh)
     & runExceptT -- catch any errors
 
-applyActionAndSynth :: ActionM m => Action -> Loc -> m Loc
+applyActionAndSynth :: ActionM l m => Action -> Loc -> m Loc
 applyActionAndSynth action z = do
   z' <- applyAction' action z
   synthZ z' >>= \case
@@ -388,13 +394,13 @@ applyActionAndSynth action z = do
 -- type and kind annotation in @Just@.
 --
 -- 'Nothing' means the current focussed ID disappeared after typechecking
-synthZ :: ActionM m => Loc -> m (Maybe Loc)
+synthZ :: ActionM l m => Loc -> m (Maybe Loc)
 synthZ z = do
   (_, typedAST) <- synth $ unfocus z
   -- Refocus on where we were previously
   refocus Refocus{pre = z, post = exprTtoExpr typedAST}
 
-applyAction' :: ActionM m => Action -> Loc -> m Loc
+applyAction' :: ActionM l m => Action -> Loc -> m Loc
 applyAction' a = case a of
   NoOp -> pure
   SetCursor i -> setCursor i . unfocusLoc
@@ -459,13 +465,13 @@ applyAction' a = case a of
       InType zt -> InType <$> f zt
       _ -> throwError $ CustomFailure a s
 
-setCursor :: ActionM m => ID -> ExprZ -> m Loc
+setCursor :: ActionM l m => ID -> ExprZ -> m Loc
 setCursor i e = case focusOn i (unfocusExpr e) of
   Just e' -> pure e'
   Nothing -> throwError $ IDNotFound i
 
 -- | Apply a movement to a zipper
-moveExpr :: ActionM m => Movement -> ExprZ -> m ExprZ
+moveExpr :: ActionM l m => Movement -> ExprZ -> m ExprZ
 moveExpr m@(Branch c) z | Case _ _ brs <- target z =
   case findIndex (\(C.CaseBranch n _ _) -> c == n) brs of
     Nothing -> throwError $ CustomFailure (Move m) "Move-to-branch failed: no such branch"
@@ -481,17 +487,23 @@ moveExpr Child2 z
 moveExpr m z = move m z
 
 -- | Apply a movement to a zipper
-moveType :: ActionM m => Movement -> TypeZ -> m TypeZ
+moveType :: ActionM l m => Movement -> TypeZ -> m TypeZ
 moveType m@(Branch _) _ = throwError $ CustomFailure (Move m) "Move-to-branch unsupported in types (there are no cases in types!)"
 moveType m z = move m z
 
+newtype ActionLog = ActionLog Text
+
 -- | Apply a movement to a generic zipper - does not support movement to a case
 -- branch
-move :: forall m za a. (ActionM m, IsZipper za a) => Movement -> za -> m za
+move :: (ActionM l m, IsZipper za a) => Movement -> za -> m za
 move m z = case move' m z of
-  Left MoveBranch -> throwError $ CustomFailure (Move m) "internal error: move does not support Branch moves"
-  Left MoveFailed -> throwError $ CustomFailure (Move m) "movement failed"
+  Left MoveBranch -> fail "internal error: move does not support Branch moves"
+  Left MoveFailed -> fail "movement failed"
   Right z' -> pure z'
+  where
+    fail err = do
+      logError $ ActionLog err
+      throwError $ CustomFailure (Move m) err
 
 data MoveError
   = MoveBranch -- ^ a generic zipper does not support branches
@@ -509,24 +521,24 @@ move' = \case
 setMetadata :: (IsZipper za a, HasMetadata a) => Value -> za -> za
 setMetadata d z = z & _target % _metadata ?~ d
 
-enterHole :: ActionM m => ExprZ -> m ExprZ
+enterHole :: ActionM l m => ExprZ -> m ExprZ
 enterHole ze = case target ze of
   EmptyHole{} -> do
     result <- flip replace ze <$> hole emptyHole
     move Child1 result
   e -> throwError $ NeedEmptyHole EnterHole e
 
-finishHole :: ActionM m => ExprZ -> m ExprZ
+finishHole :: ActionM l m => ExprZ -> m ExprZ
 finishHole ze = case target ze of
   Hole _ e -> pure $ replace e ze
   e -> throwError $ NeedNonEmptyHole FinishHole e
 
-constructVar :: ActionM m => TmVarRef -> ExprZ -> m ExprZ
+constructVar :: ActionM l m => TmVarRef -> ExprZ -> m ExprZ
 constructVar x ast = case target ast of
   EmptyHole{} -> flip replace ast <$> var x
   e -> throwError $ NeedEmptyHole (ConstructVar x) e
 
-insertSatVar :: ActionM m => TmVarRef -> ExprZ -> m ExprZ
+insertSatVar :: ActionM l m => TmVarRef -> ExprZ -> m ExprZ
 insertSatVar x ast = case target ast of
   -- TODO: for now, rely on SmartHoles to fix up the type. I think we may want
   -- to do this manually to handle running with NoSmartHoles. There is no concern
@@ -540,7 +552,7 @@ insertSatVar x ast = case target ast of
 
 -- TODO: Add some tests for this. See:
 -- https://github.com/hackworthltd/primer/issues/10
-saturatedApplication :: ActionM m => ExprZ -> TmVarRef -> m Expr
+saturatedApplication :: ActionM l m => ExprZ -> TmVarRef -> m Expr
 saturatedApplication ast v = do
   (appHead, vTy) <-
     getVarType ast v >>= \case
@@ -575,7 +587,7 @@ mkSaturatedApplication e = \case
   TForall _ _ _ t -> mkSaturatedApplication (e `aPP` tEmptyHole) t
   _ -> e
 
-insertRefinedVar :: ActionM m => TmVarRef -> ExprZ -> m ExprZ
+insertRefinedVar :: ActionM l m => TmVarRef -> ExprZ -> m ExprZ
 insertRefinedVar x ast = do
   (v, vTy) <-
     getVarType ast x >>= \case
@@ -602,7 +614,7 @@ put the requested function inside a hole when we cannot find a suitable
 application spine.
 -}
 
-mkRefinedApplication :: ActionM m => TC.Cxt -> m Expr -> TC.Type -> Maybe TypeCache -> m Expr
+mkRefinedApplication :: ActionM l m => TC.Cxt -> m Expr -> TC.Type -> Maybe TypeCache -> m Expr
 mkRefinedApplication cxt e eTy tgtTy' = do
   tgtTy <- case tgtTy' of
     Just (TCChkedAt t) -> pure t
@@ -631,23 +643,23 @@ mkRefinedApplication cxt e eTy tgtTy' = do
       InstAPP a -> x `aPP` generateTypeIDs a
       InstUnconstrainedAPP _ _ -> x `aPP` tEmptyHole
 
-constructApp :: ActionM m => ExprZ -> m ExprZ
+constructApp :: ActionM l m => ExprZ -> m ExprZ
 constructApp ze = flip replace ze <$> app (pure (target ze)) emptyHole
 
-constructAPP :: ActionM m => ExprZ -> m ExprZ
+constructAPP :: ActionM l m => ExprZ -> m ExprZ
 constructAPP ze = flip replace ze <$> aPP (pure (target ze)) tEmptyHole
 
-constructAnn :: ActionM m => ExprZ -> m ExprZ
+constructAnn :: ActionM l m => ExprZ -> m ExprZ
 constructAnn ze = flip replace ze <$> ann (pure (target ze)) tEmptyHole
 
-removeAnn :: ActionM m => ExprZ -> m ExprZ
+removeAnn :: ActionM l m => ExprZ -> m ExprZ
 removeAnn ze = case target ze of
   Ann _ e _ -> pure $ replace e ze
   e -> throwError $ NeedAnn RemoveAnn e
 
 -- | Construct a lambda around an expression
 -- We leave the cursor on the original expression, which is now the body of the lambda.
-constructLam :: ActionM m => Maybe Text -> ExprZ -> m ExprZ
+constructLam :: ActionM l m => Maybe Text -> ExprZ -> m ExprZ
 constructLam mx ze = do
   -- If a name is provided, use that. Otherwise, generate a fresh one.
   x <- case mx of
@@ -658,7 +670,7 @@ constructLam mx ze = do
   moveExpr Child1 result
 
 -- | Similar comments apply here as to 'constructLam'
-constructLAM :: ActionM m => Maybe Text -> ExprZ -> m ExprZ
+constructLAM :: ActionM l m => Maybe Text -> ExprZ -> m ExprZ
 constructLAM mx ze = do
   -- If a name is provided, use that. Otherwise, generate a fresh one.
   x <- case mx of
@@ -668,12 +680,12 @@ constructLAM mx ze = do
   result <- flip replace ze <$> lAM x (pure (target ze))
   moveExpr Child1 result
 
-constructCon :: ActionM m => QualifiedText -> ExprZ -> m ExprZ
+constructCon :: ActionM l m => QualifiedText -> ExprZ -> m ExprZ
 constructCon c ze = case target ze of
   EmptyHole{} -> flip replace ze <$> con (unsafeMkGlobalName c)
   e -> throwError $ NeedEmptyHole (ConstructCon c) e
 
-constructSatCon :: ActionM m => QualifiedText -> ExprZ -> m ExprZ
+constructSatCon :: ActionM l m => QualifiedText -> ExprZ -> m ExprZ
 constructSatCon c ze = case target ze of
   -- Similar comments re smartholes apply as to insertSatVar
   EmptyHole{} -> do
@@ -695,7 +707,7 @@ getConstructorType c =
     Just (vc, tc, td) -> Right $ valConType tc td vc
     Nothing -> Left $ "Could not find constructor " <> show c
 
-constructRefinedCon :: ActionM m => QualifiedText -> ExprZ -> m ExprZ
+constructRefinedCon :: ActionM l m => QualifiedText -> ExprZ -> m ExprZ
 constructRefinedCon c ze = do
   let n = unsafeMkGlobalName c
   cTy <-
@@ -712,7 +724,7 @@ constructRefinedCon c ze = do
     EmptyHole{} -> flip replace ze <$> mkRefinedApplication cxt (con n) cTy tgtTyCache
     e -> throwError $ NeedEmptyHole (ConstructRefinedCon c) e
 
-constructLet :: ActionM m => Maybe Text -> ExprZ -> m ExprZ
+constructLet :: ActionM l m => Maybe Text -> ExprZ -> m ExprZ
 constructLet mx ze = case target ze of
   EmptyHole{} -> do
     -- If a name is provided, use that. Otherwise, generate a fresh one.
@@ -722,7 +734,7 @@ constructLet mx ze = case target ze of
     flip replace ze <$> let_ x emptyHole emptyHole
   e -> throwError $ NeedEmptyHole (ConstructLet mx) e
 
-constructLetrec :: ActionM m => Maybe Text -> ExprZ -> m ExprZ
+constructLetrec :: ActionM l m => Maybe Text -> ExprZ -> m ExprZ
 constructLetrec mx ze = case target ze of
   EmptyHole{} -> do
     -- If a name is provided, use that. Otherwise, generate a fresh one.
@@ -732,7 +744,7 @@ constructLetrec mx ze = case target ze of
     flip replace ze <$> letrec x emptyHole tEmptyHole emptyHole
   e -> throwError $ NeedEmptyHole (ConstructLetrec mx) e
 
-convertLetToLetrec :: ActionM m => ExprZ -> m ExprZ
+convertLetToLetrec :: ActionM l m => ExprZ -> m ExprZ
 convertLetToLetrec ze = case target ze of
   Let m x e1 e2 -> do
     t1 <- tEmptyHole
@@ -740,7 +752,7 @@ convertLetToLetrec ze = case target ze of
     pure $ replace (Letrec m x e1 t1 e2) ze
   _ -> throwError $ CustomFailure ConvertLetToLetrec "can only convert let to letrec"
 
-constructCase :: ActionM m => ExprZ -> m ExprZ
+constructCase :: ActionM l m => ExprZ -> m ExprZ
 constructCase ze = do
   ty' <- case maybeTypeOf $ target ze of
     Just t -> pure t
@@ -788,7 +800,7 @@ constructCase ze = do
     _ -> throwError $ CustomFailure ConstructCase ("can only construct case on expression with type a exactly saturated ADT, not " <> show ty)
 
 -- | Replace @x@ with @y@ in @λx. e@
-renameLam :: ActionM m => Text -> ExprZ -> m ExprZ
+renameLam :: ActionM l m => Text -> ExprZ -> m ExprZ
 renameLam y ze = case target ze of
   Lam m x e
     | unName (unLocalName x) == y -> pure ze
@@ -802,7 +814,7 @@ renameLam y ze = case target ze of
     throwError $ CustomFailure (RenameLam y) "the focused expression is not a lambda"
 
 -- | Replace @a@ with @b@ in @Λa. e@
-renameLAM :: ActionM m => Text -> ExprZ -> m ExprZ
+renameLAM :: ActionM l m => Text -> ExprZ -> m ExprZ
 renameLAM b ze = case target ze of
   LAM m a e
     | unName (unLocalName a) == b -> pure ze
@@ -816,7 +828,7 @@ renameLAM b ze = case target ze of
     throwError $ CustomFailure (RenameLAM b) "the focused expression is not a type abstraction"
 
 -- | Replace @x@ with @y@ in @let x = e1 in e2@ or @letrec x : t = e1 in e2@
-renameLet :: ActionM m => Text -> ExprZ -> m ExprZ
+renameLet :: ActionM l m => Text -> ExprZ -> m ExprZ
 renameLet y ze = case target ze of
   Let m x e1 e2
     | unName (unLocalName x) == y -> pure ze
@@ -840,12 +852,12 @@ renameLet y ze = case target ze of
   _ ->
     throwError $ CustomFailure (RenameLet y) "the focused expression is not a let"
   where
-    rename :: ActionM m => LVarName -> LVarName -> Expr -> m Expr
+    rename :: ActionM l m => LVarName -> LVarName -> Expr -> m Expr
     rename fromName toName e = maybe (throwError NameCapture) pure $ renameLocalVar fromName toName e
-    rename' :: ActionM m => TyVarName -> TyVarName -> Expr -> m Expr
+    rename' :: ActionM l m => TyVarName -> TyVarName -> Expr -> m Expr
     rename' fromName toName e = maybe (throwError NameCapture) pure $ renameTyVarExpr fromName toName e
 
-renameCaseBinding :: forall m. ActionM m => Text -> CaseBindZ -> m CaseBindZ
+renameCaseBinding :: forall m l. ActionM l m => Text -> CaseBindZ -> m CaseBindZ
 renameCaseBinding y caseBind = updateCaseBind caseBind $ \bind otherBindings rhs -> do
   let y' = unsafeMkLocalName y
 
@@ -864,28 +876,28 @@ renameCaseBinding y caseBind = updateCaseBind caseBind $ \bind otherBindings rhs
   -- Update the outer expression with these changes
   pure (bind', rhs')
 
-enterType :: ActionM m => ExprZ -> m TypeZ
+enterType :: ActionM l m => ExprZ -> m TypeZ
 enterType z = case focusType z of
   Nothing -> throwError $ CustomFailure EnterType "cannot enter type - no type in expression"
   Just zt -> pure zt
 
-constructArrowL :: ActionM m => TypeZ -> m TypeZ
+constructArrowL :: ActionM l m => TypeZ -> m TypeZ
 constructArrowL zt = flip replace zt <$> tfun (pure (target zt)) tEmptyHole
 
-constructArrowR :: ActionM m => TypeZ -> m TypeZ
+constructArrowR :: ActionM l m => TypeZ -> m TypeZ
 constructArrowR zt = flip replace zt <$> tfun tEmptyHole (pure (target zt))
 
-constructTCon :: ActionM m => QualifiedText -> TypeZ -> m TypeZ
+constructTCon :: ActionM l m => QualifiedText -> TypeZ -> m TypeZ
 constructTCon c zt = case target zt of
   TEmptyHole{} -> flip replace zt <$> tcon (unsafeMkGlobalName c)
   _ -> throwError $ CustomFailure (ConstructTCon c) "can only construct tcon in hole"
 
-constructTVar :: ActionM m => Text -> TypeZ -> m TypeZ
+constructTVar :: ActionM l m => Text -> TypeZ -> m TypeZ
 constructTVar x ast = case target ast of
   TEmptyHole{} -> flip replace ast <$> tvar (unsafeMkLocalName x)
   _ -> throwError $ CustomFailure (ConstructTVar x) "can only construct tvar in hole"
 
-constructTForall :: ActionM m => Maybe Text -> TypeZ -> m TypeZ
+constructTForall :: ActionM l m => Maybe Text -> TypeZ -> m TypeZ
 constructTForall mx zt = do
   x <- case mx of
     Nothing -> LocalName <$> mkFreshNameTy zt
@@ -893,11 +905,11 @@ constructTForall mx zt = do
   unless (isFreshTy x $ target zt) $ throwError NameCapture
   flip replace zt <$> tforall x C.KType (pure (target zt))
 
-constructTApp :: ActionM m => TypeZ -> m TypeZ
+constructTApp :: ActionM l m => TypeZ -> m TypeZ
 constructTApp zt = flip replace zt <$> tapp (pure (target zt)) tEmptyHole
 
 -- | Replace @a@ with @b@ in @∀a. e@
-renameForall :: ActionM m => Text -> TypeZ -> m TypeZ
+renameForall :: ActionM l m => Text -> TypeZ -> m TypeZ
 renameForall b zt = case target zt of
   TForall m a k t
     | unName (unLocalName a) == b -> pure zt
