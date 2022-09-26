@@ -518,7 +518,7 @@
                 "summary": "Create a new session and return its ID"
             }
         },
-        "/openapi/sessions/{sessionId}/action/available/available": {
+        "/openapi/sessions/{sessionId}/action/available": {
             "post": {
                 "operationId": "getAvailableActions",
                 "parameters": [

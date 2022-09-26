@@ -91,7 +91,6 @@ data SessionAPI mode = SessionAPI
   , actions ::
       mode
         :- "action"
-          :> "available"
           :> NamedRoutes ActionAPI
   }
   deriving (Generic)
