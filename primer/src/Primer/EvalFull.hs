@@ -92,7 +92,7 @@ import Primer.Def (
  )
 import Primer.Eval.Prim (tryPrimFun)
 import Primer.JSON (CustomJSON (CustomJSON), FromJSON, PrimerJSON, ToJSON)
-import Primer.Log (ConvertLogMessage (convert))
+import Primer.Log (ConvertLogMessage (convert), logWarning)
 import Primer.Name (Name, NameCounter)
 import Primer.TypeDef (
   ASTTypeDef (astTypeDefParameters),
@@ -583,9 +583,21 @@ runRedexTy (RenameForall m a k s avoid) = do
   -- we pick a new name disjoint from any that appear in @s@
   -- thus renaming will never capture (so @renameTyVar@ will always succeed).
   -- However, the type system does not know about this.
-  untilJustM $ do
-    b <- freshLocalName (avoid <> freeVarsTy s <> bindersBelowTy (focus s))
-    pure $ TForall m b k <$> renameTyVar a b s
+  -- We explicitly try once, and log if that fails before trying again.
+  -- We do not log on retries
+  let rename = do
+        b <- freshLocalName (avoid <> freeVarsTy s <> bindersBelowTy (focus s))
+        pure (b, TForall m b k <$> renameTyVar a b s)
+  rename >>= \case
+    (_, Just t') -> pure t'
+    (b, Nothing) -> do
+      logWarning $
+        InvariantFailure $
+          "runRedexTy.RenameForall: initial name choice was not fresh enough: chose "
+            <> show b
+            <> " for "
+            <> show @_ @Text (m, a, k, s, avoid)
+      untilJustM $ snd <$> rename
 
 type MonadEvalFull l m =
   ( MonadFresh ID m
