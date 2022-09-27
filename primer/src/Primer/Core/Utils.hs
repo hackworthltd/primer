@@ -16,6 +16,7 @@ module Primer.Core.Utils (
   freeVars,
   _freeVarsTy,
   freeVarsTy,
+  boundVarsTy,
   freeGlobalVars,
   alphaEqTy,
   concreteTy,
@@ -65,6 +66,7 @@ import Primer.Core (
 import Primer.Core.Fresh (freshLocalName, freshLocalName')
 import Primer.Core.Type.Utils (
   alphaEqTy,
+  boundVarsTy,
   concreteTy,
   forgetTypeMetadata,
   freeVarsTy,

@@ -7,6 +7,7 @@ module Primer.Core.Type.Utils (
   _freeVarsTy,
   traverseFreeVarsTy,
   freeVarsTy,
+  boundVarsTy,
   alphaEqTy,
   concreteTy,
 ) where
@@ -43,6 +44,7 @@ import Primer.Core.Type (
   Type' (..),
   _typeMeta,
  )
+import Primer.Zipper.Type (getBoundHereDnTy)
 
 -- | Regenerate all IDs, not changing any other metadata
 regenerateTypeIDs :: (HasID a, MonadFresh ID m) => Type' a -> m (Type' a)
@@ -93,6 +95,9 @@ traverseFreeVarsTy = go
       TApp m s t -> TApp m <$> go bound f s <*> go bound f t
       TForall m a k s -> TForall m a k <$> go (S.insert a bound) f s
       TLet m a t b -> TLet m a t <$> go (S.insert a bound) f b
+
+boundVarsTy :: (Data a, Eq a) => Type' a -> Set TyVarName
+boundVarsTy = foldMap getBoundHereDnTy . universe
 
 -- Check two types for alpha equality
 --
