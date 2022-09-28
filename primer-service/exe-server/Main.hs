@@ -70,6 +70,7 @@ import System.IO (
   hSetBuffering,
  )
 import Primer.API (PrimerErr (DatabaseErr), SessionTXLog, WithTraceId (discardTraceId, traceId))
+import Primer.Action (ActionLog)
 
 {- HLINT ignore GlobalOptions "Use newtype instead of data" -}
 data GlobalOptions = GlobalOptions !Command
@@ -253,4 +254,7 @@ instance ConvertLogMessage PrimerErr (WithTraceId LogMsg') where
   convert (DatabaseErr e) = fmap LogMsg e
 
 instance ConvertLogMessage SessionTXLog LogMsg' where
+  convert = LogMsg . show
+
+instance ConvertLogMessage ActionLog LogMsg' where
   convert = LogMsg . show

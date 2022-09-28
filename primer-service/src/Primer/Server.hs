@@ -68,6 +68,7 @@ import Servant.OpenApi (toOpenApi)
 import Servant.Server.Generic (AsServerT, genericServeT)
 import Control.Monad.Log (runLoggingT, WithSeverity)
 import Primer.Log (logWarning, ConvertLogMessage)
+import Primer.Action (ActionLog)
 
 openAPIInfo :: OpenApi
 openAPIInfo =
@@ -103,7 +104,7 @@ openAPISessionServer sid =
     , OpenAPI.setSessionName = renameSession sid
     }
 
-apiServer :: (ConvertLogMessage SessionTXLog l, ConvertLogMessage Text l) =>
+apiServer :: (ConvertLogMessage SessionTXLog l, ConvertLogMessage Text l, ConvertLogMessage ActionLog l) =>
   S.RootAPI (AsServerT (PrimerM (Log.LoggingT (WithSeverity (WithTraceId l)) IO)))
 apiServer =
   S.RootAPI
@@ -113,7 +114,7 @@ apiServer =
     , S.sessionsAPI = sessionsAPIServer
     }
 
-sessionsAPIServer :: (ConvertLogMessage SessionTXLog l, ConvertLogMessage Text l) =>
+sessionsAPIServer :: (ConvertLogMessage SessionTXLog l, ConvertLogMessage Text l, ConvertLogMessage ActionLog l) =>
   S.SessionsAPI (AsServerT (PrimerM (Log.LoggingT (WithSeverity (WithTraceId l)) IO)))
 sessionsAPIServer =
   S.SessionsAPI
@@ -123,7 +124,7 @@ sessionsAPIServer =
     , S.sessionAPI = sessionAPIServer
     }
 
-sessionAPIServer :: (ConvertLogMessage SessionTXLog l, ConvertLogMessage Text l) =>
+sessionAPIServer :: (ConvertLogMessage SessionTXLog l, ConvertLogMessage Text l, ConvertLogMessage ActionLog l) =>
   SessionId -> S.SessionAPI (AsServerT (PrimerM (Log.LoggingT (WithSeverity (WithTraceId l)) IO)))
 sessionAPIServer sid =
   S.SessionAPI
@@ -173,7 +174,7 @@ data API mode = API
   }
   deriving (Generic)
 
-server :: (ConvertLogMessage SessionTXLog l, ConvertLogMessage Text l) =>
+server :: (ConvertLogMessage SessionTXLog l, ConvertLogMessage Text l, ConvertLogMessage ActionLog l) =>
   API (AsServerT (PrimerM (Log.LoggingT (WithSeverity (WithTraceId l)) IO)))
 server =
   API
@@ -194,7 +195,7 @@ apiCors =
     }
 
 serve :: forall l . (ConvertLogMessage PrimerErr (WithTraceId l)
-                    , ConvertLogMessage SessionTXLog l, ConvertLogMessage Text l) =>
+                    , ConvertLogMessage SessionTXLog l, ConvertLogMessage Text l, ConvertLogMessage ActionLog l) =>
   Sessions -> TBQueue Database.Op -> Version -> Int -> Log.Handler IO (Log.WithSeverity (WithTraceId l))
   -> IO ()
 serve ss q v port logger = do
