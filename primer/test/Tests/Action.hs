@@ -15,7 +15,7 @@ import Primer.Action (
   Action (..),
   ActionError (CaseBindsClash, RefineError),
   Movement (..),
-  applyActionsToExpr,
+  applyActionsToExpr
  )
 import Primer.Builtins
 import Primer.Core (
@@ -45,7 +45,10 @@ import Primer.Zipper (
 import Tasty (Property, property)
 import Test.Tasty.HUnit (Assertion, assertFailure, (@?=))
 import TestM (evalTestM)
-import TestUtils (clearMeta, constructCon, constructRefinedCon, constructTCon)
+import TestUtils (clearMeta, constructCon, constructRefinedCon, constructTCon, runPureLogT, PrimerLog, assertNoSevereLogs, failWhenSevereLogs)
+import Control.Monad.Log (WithSeverity)
+import qualified Primer.Action as PA
+import Primer.Log (ConvertLogMessage (convert))
 
 -- Note: 'maximum' is partial, but we believe that 'maxID' itself is
 -- safe due to the fact that 'universe x' always contains at least
@@ -58,13 +61,13 @@ tasty_ConstructVar_succeeds_on_hole_when_in_scope = property $ do
   -- Generate \x -> ?
   let expr = create' $ ann (lam "x" emptyHole) (tfun tEmptyHole tEmptyHole)
   annotateShow expr
-  expr' <-
-    either (\err -> footnoteShow err >> failure) pure $
-      runTestActions
+  let (res,logs) =    runTestActions
         NoSmartHoles
         (maxID expr)
         expr
         [SetCursor (getID expr), Move Child1, Move Child1, ConstructVar $ LocalVarRef "x"]
+  failWhenSevereLogs logs
+  expr' <- either (\err -> footnoteShow err >> failure) pure res
 
   -- Extract the same point in the resulting AST
   -- We should now find the variable "x"
@@ -88,7 +91,9 @@ tasty_SetCursor_fails_when_ID_doesn't_exist = property $ do
   -- TODO: generate a random list of actions to run
   let actions = [SetCursor (-1)]
   e <- forAll $ evalExprGen 0 genExpr
-  either (const success) (\r -> annotateShow r >> failure) $ runTestActions NoSmartHoles (maxID e) e actions
+  let (res,logs) = runTestActions NoSmartHoles (maxID e) e actions
+  failWhenSevereLogs logs
+  either (const success) (\r -> annotateShow r >> failure) res
 
 unit_1 :: Assertion
 unit_1 =
@@ -1044,7 +1049,9 @@ unit_refine_5 =
 actionTest :: SmartHoles -> S Expr -> [Action] -> S Expr -> Assertion
 actionTest sh inputExpr actions expectedOutput = do
   let (expr, i) = create inputExpr
-  result <- either (assertFailure . show) pure $ runTestActions sh i expr actions
+  let (r,logs) = runTestActions sh i expr actions
+  assertNoSevereLogs logs
+  result <- either (assertFailure . show) pure r
   let expected = create' expectedOutput
   -- Compare result to input, ignoring any difference in metadata
   -- NB: we don't compare up-to-alpha, as names should be determined by the
@@ -1055,16 +1062,21 @@ actionTest sh inputExpr actions expectedOutput = do
 -- in fact cause an error to be raised.
 actionTestExpectFail :: (ActionError -> Bool) -> SmartHoles -> S Expr -> [Action] -> Assertion
 actionTestExpectFail f sh expr actions =
-  case runTestActions sh i e actions of
-    Right _ -> assertFailure "action succeeded"
-    Left err | not (f err) -> assertFailure $ "error does not satisfy predicate: " <> show err
-    _ -> pure ()
+  let (r,logs) = runTestActions sh i e actions
+  in do
+    assertNoSevereLogs logs
+    case r of
+      Right _ -> assertFailure "action succeeded"
+      Left err | not (f err) -> assertFailure $ "error does not satisfy predicate: " <> show err
+      _ -> pure ()
   where
     (e, i) = create expr
 
 -- | Run the actions against the given AST, setting the ID counter to (1+) the
--- given value. Fails if the actions fail.
-runTestActions :: SmartHoles -> ID -> Expr -> [Action] -> Either ActionError Expr
+-- given value.
+runTestActions :: SmartHoles -> ID -> Expr -> [Action] -> (Either ActionError Expr, Seq (WithSeverity PrimerLog))
 runTestActions sh i expr actions =
-  either unfocusExpr (unfocusExpr . unfocusType)
-    <$> evalTestM (i + 1) (applyActionsToExpr sh [builtinModule] expr actions)
+  first (fmap $ either unfocusExpr (unfocusExpr . unfocusType))
+  $ evalTestM (i + 1) (runPureLogT $ applyActionsToExpr sh [builtinModule] expr actions)
+--  either unfocusExpr (unfocusExpr . unfocusType)
+--    <$> evalTestM (i + 1) (runPureLogT $ applyActionsToExpr sh [builtinModule] expr actions)

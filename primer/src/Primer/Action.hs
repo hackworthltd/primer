@@ -492,6 +492,7 @@ moveType m@(Branch _) _ = throwError $ CustomFailure (Move m) "Move-to-branch un
 moveType m z = move m z
 
 newtype ActionLog = ActionLog Text
+  deriving newtype Show
 
 -- | Apply a movement to a generic zipper - does not support movement to a case
 -- branch

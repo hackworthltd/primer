@@ -6,7 +6,7 @@ import Foreword
 import Data.Set qualified as S
 import Primer.Action (
   Movement (..),
-  moveExpr,
+  moveExpr, ActionLog,
  )
 import Primer.Builtins (cSucc, cZero, tNat)
 import Primer.Core (
@@ -18,6 +18,7 @@ import Primer.Typecheck (SmartHoles (NoSmartHoles), initialCxt)
 import Primer.Zipper (bindersAbove, focus)
 import Test.Tasty.HUnit (Assertion, assertFailure, (@?=))
 import TestM (evalTestM)
+import TestUtils (runPureLogT, assertNoSevereLogs, PrimerLog)
 
 unit_1 :: Assertion
 unit_1 = bindersAboveTest emptyHole [] mempty
@@ -86,8 +87,8 @@ unit_10 =
 
 bindersAboveTest :: S Expr -> [Movement] -> S.Set Name -> Assertion
 bindersAboveTest expr path expected =
-  case evalTestM (i + 1) $ runExceptT $ runReaderT (foldM (flip moveExpr) (focus e) path) (initialCxt NoSmartHoles) of
-    Left err -> assertFailure $ show err
-    Right z -> bindersAbove z @?= expected
+  case evalTestM (i + 1) $ runExceptT $ runPureLogT $ runReaderT (foldM (flip moveExpr) (focus e) path) (initialCxt NoSmartHoles) of
+        Left err -> assertFailure $ show err
+        Right (z,logs) -> assertNoSevereLogs @PrimerLog logs >> (bindersAbove z @?= expected)
   where
     (e, i) = create expr

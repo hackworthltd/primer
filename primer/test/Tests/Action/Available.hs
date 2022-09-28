@@ -321,7 +321,7 @@ tasty_available_actions_accepted = withTests 500 $
           collect $ description action
           checkActionInput $ input action
   where
-    actionSucceeds :: HasCallStack => EditAppM (PureLogT (WithSeverity (WithTraceId PrimerLog)) Identity) a -> App -> PropertyT WT ()
+    actionSucceeds :: HasCallStack => EditAppM (PureLogT (WithSeverity ( PrimerLog)) Identity) a -> App -> PropertyT WT ()
     actionSucceeds m a = do
       let (r,logs) = runIdentity $ runPureLogT $ runEditAppM m a
       failWhenSevereLogs logs
@@ -330,7 +330,7 @@ tasty_available_actions_accepted = withTests 500 $
         (Right _, a') -> ensureSHNormal a'
     -- If we submit our own name rather than an offered one, then
     -- we should expect that name capture/clashing may happen
-    actionSucceedsOrCapture :: HasCallStack => EditAppM (PureLogT (WithSeverity (WithTraceId PrimerLog)) Identity) a -> App -> PropertyT WT ()
+    actionSucceedsOrCapture :: HasCallStack => EditAppM (PureLogT (WithSeverity ( PrimerLog)) Identity) a -> App -> PropertyT WT ()
     actionSucceedsOrCapture m a = do
       let (r,logs) = runIdentity $ runPureLogT $ runEditAppM m a
       failWhenSevereLogs logs

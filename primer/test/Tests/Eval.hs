@@ -63,7 +63,7 @@ import Primer.TypeDef (TypeDef (..))
 import Primer.Zipper (target)
 import Test.Tasty.HUnit (Assertion, assertBool, assertFailure, (@?=))
 import TestM (evalTestM)
-import TestUtils (gvn, primDefs, vcn)
+import TestUtils (gvn, primDefs, vcn, PrimerLog)
 import qualified Tests.Action.Prog
 import Tests.Action.Prog (AppTestM)
 
@@ -1168,5 +1168,5 @@ x ~= y = forgetMetadata x @?= forgetMetadata y
 (~~=) :: HasCallStack => Type -> Type -> Assertion
 x ~~= y = forgetTypeMetadata x @?= forgetTypeMetadata y
 
-runAppTestMNoSevereMsgs :: ID -> App -> AppTestM Text Assertion -> (Either ProgError Assertion, App)
+runAppTestMNoSevereMsgs :: ID -> App -> AppTestM PrimerLog Assertion -> (Either ProgError Assertion, App)
 runAppTestMNoSevereMsgs = Tests.Action.Prog.runAppTestMNoSevereMsgs

@@ -38,7 +38,7 @@ import Primer.API (
   runPrimerM, SessionTXLog, WithTraceId,
  )
 import Primer.Action (
-  Action (ConstructCon, ConstructRefinedCon, ConstructTCon),
+  Action (ConstructCon, ConstructRefinedCon, ConstructTCon), ActionLog,
  )
 import Primer.Core (
   Expr',
@@ -158,6 +158,9 @@ instance ConvertLogMessage PrimerErr PrimerLog where
   convert (DatabaseErr e) = PrimerLog e
 -}
 instance ConvertLogMessage SessionTXLog PrimerLog where
+  convert = PrimerLog . show
+
+instance ConvertLogMessage ActionLog PrimerLog where
   convert = PrimerLog . show
 
 --type PureLogT m = LoggingT (WithSeverity (WithTraceId PrimerLog)) (PureLoggingT (Seq (WithSeverity (WithTraceId PrimerLog))) m)
