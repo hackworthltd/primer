@@ -409,25 +409,22 @@ findRedex ::
   Maybe (m RedexWithContext)
 findRedex tydefs globals dir = go . focus
   where
-    -- it may be nice to use First and write <> rather than <<||>>, but down returns a maybe, so the monadic binds work better if go returns Maybe rather than First...
-    Nothing <<||>> y = y
-    x@(Just _) <<||>> _ = x
     eachChild z f = case down z of
       Nothing -> Nothing
       Just z' ->
         let children = z' : unfoldr (fmap (\x -> (x, x)) . right) z'
-         in foldr ((<<||>>) . f) Nothing children
+         in foldr ((<|>) . f) Nothing children
     eachChildWithBinding z f = case down z of
       Nothing -> Nothing
       Just z' ->
         let children = z' : unfoldr (fmap (\x -> (x, x)) . right) z'
-         in foldr (\c acc -> f (getBoundHere (target z) (Just $ target c)) c <<||>> acc) Nothing children
+         in foldr (\c acc -> f (getBoundHere (target z) (Just $ target c)) c <|> acc) Nothing children
     go ez
       | Just (LSome l, bz) <- viewLet ez = pure <$> goLet l ez bz
       | Just mr <- viewRedex tydefs globals (focusDir dir ez) (target ez) = Just $ RExpr ez <$> mr
       | otherwise =
           -- We reduce any types first, as computation in types is simple (just inlining)
-          (focusType ez >>= goType) <<||>> eachChild ez go
+          (focusType ez >>= goType) <|> eachChild ez go
     goType tz
       | TLet _ a t _body <- target tz = fmap pure $ down tz >>= right >>= goTLet (LLetType a t) tz
       | otherwise = eachChild tz goType
@@ -444,7 +441,7 @@ findRedex tydefs globals dir = go . focus
         (LLetType a ty, True) -> pure $ RExpr letz $ RenameSelfLetType a ty (target bodyz)
         _ ->
           goSubst l bodyz
-            <<||>> Just (RExpr letz $ ElideLet (LSome l) (target bodyz))
+            <|> Just (RExpr letz $ ElideLet (LSome l) (target bodyz))
     -- As goLet, but for TLet
     goTLet :: Local 'ATyVar -> TypeZ -> TypeZ -> Maybe RedexWithContext
     goTLet l@(LLetType a s) tletz bodyz =
@@ -455,7 +452,7 @@ findRedex tydefs globals dir = go . focus
           pure $ RType tletz $ RenameSelfLetInType a s (target bodyz)
         else
           goSubstTy a s bodyz
-            <<||>> Just (RType tletz $ ElideLetInType l (target bodyz))
+            <|> Just (RType tletz $ ElideLetInType l (target bodyz))
     goSubst :: Local k -> ExprZ -> Maybe RedexWithContext
     goSubst l ez = case target ez of
       -- We've found one
@@ -482,7 +479,7 @@ findRedex tydefs globals dir = go . focus
         , elemOf _freeVarsLocal (localName l') l ->
             goLet l' ez bz'
         -- Otherwise recurse into subexpressions (including let bindings) and types (if appropriate)
-        | LLetType n t <- l -> eachChildWithBinding ez rec <<||>> (focusType ez >>= goSubstTy n t)
+        | LLetType n t <- l -> eachChildWithBinding ez rec <|> (focusType ez >>= goSubstTy n t)
         | otherwise -> eachChildWithBinding ez rec
       where
         rec bs z
