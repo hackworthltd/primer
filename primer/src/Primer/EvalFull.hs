@@ -142,7 +142,7 @@ data Redex
     -- reduction steps. E.g.
     --     cons ==  (Λa λx λxs. Cons @a x xs) : ∀a. a -> List a -> List a
     -- )
-    CaseRedex ValConName [(Expr, Type)] (Either Type (Type' ())) [LVarName] Expr
+    CaseRedex ValConName [(Expr, forall m. MonadFresh NameCounter m => m (Type' ()))] (Either Type (Type' ())) [LVarName] Expr
   | -- [ t : T ]  ~>  t  writing [_] for the embedding of syn into chk
     -- This only fires for concrete (non-holey, no free vars) T, as otherwise the
     -- annotation can act as a type-changing cast:
@@ -215,11 +215,8 @@ evalFullStepCount tydefs env n d = go 0
 step :: (MonadFresh NameCounter m, MonadFresh ID m, MonadLog (WithSeverity l) m, ConvertLogMessage Text l) => TypeDefMap -> DefMap -> Dir -> Expr -> Maybe (m Expr)
 step tydefs g d e = case findRedex tydefs g d e of
   Nothing -> Nothing
-  Just mr ->
-    Just $
-      mr >>= \case
-        RExpr ez r -> unfocusExpr . flip replace ez <$> runRedex r
-        RType et r -> unfocusExpr . unfocusType . flip replace et <$> runRedexTy r
+  Just (RExpr ez r) -> Just $ unfocusExpr . flip replace ez <$> runRedex r
+  Just (RType et r) -> Just $ unfocusExpr . unfocusType . flip replace et <$> runRedexTy r
 
 -- We don't really want a zipper here, but a one-hole context, but it is easier
 -- to just reuse the zipper machinery and ignore the target of the zipper.
@@ -290,7 +287,7 @@ viewLet ez = case target ez of
   LetType _ a ty _t -> (LSome $ LLetType a ty,) <$> down ez
   _ -> Nothing
 
-viewCaseRedex :: (MonadFresh ID m, MonadFresh NameCounter m) => TypeDefMap -> Expr -> Maybe (m Redex)
+viewCaseRedex :: TypeDefMap -> Expr -> Maybe Redex
 viewCaseRedex tydefs = \case
   -- The patterns in the case branch have a Maybe TypeCache attached, but we
   -- should not assume that this has been filled in correctly, so we record
@@ -325,7 +322,7 @@ viewCaseRedex tydefs = \case
               CaseBranch _ xs e <- find (\(CaseBranch n _ _) -> n == c) brs
               pure (c, params, as, xs, e)
             _ -> Nothing
-    instantiateCon :: MonadFresh NameCounter m => Type' a -> ValConName -> Maybe [m (Type' ())]
+    instantiateCon :: Type' a -> ValConName -> Maybe [forall m. MonadFresh NameCounter m => m (Type' ())]
     instantiateCon ty c
       | Right (_, _, instVCs) <- instantiateValCons' tydefs $ forgetTypeMetadata ty
       , Just (_, argTys) <- find ((== c) . fst) instVCs =
@@ -360,13 +357,18 @@ viewCaseRedex tydefs = \case
           binders = S.fromList $ map (unLocalName . bindName) patterns
        in if S.disjoint avoid binders
             then Nothing
-            else Just $ pure $ RenameBindingsCase m expr brs avoid
-    formCaseRedex ty c argTys args patterns br = pure $ do
-      argTys' <- sequence argTys
-      -- TODO: we are putting trivial metadata in here...
-      -- See https://github.com/hackworthltd/primer/issues/6
-      argTys'' <- traverse generateTypeIDs argTys'
-      pure $ CaseRedex c (zip args argTys'') ty (map bindName patterns) br
+            else Just $ RenameBindingsCase m expr brs avoid
+    formCaseRedex ::
+      Either Type (Type' ()) ->
+      ValConName ->
+      [forall m. MonadFresh NameCounter m => m (Type' ())] ->
+      [Expr] ->
+      [Bind' a] ->
+      Expr ->
+      Maybe Redex
+    formCaseRedex ty c argTys args patterns br =
+      Just $
+        CaseRedex c (zip args argTys) ty (map bindName patterns) br
 
 -- We record each binder, along with its let-bound RHS (if any)
 -- and its original binding location and  context (to be able to detect capture)
@@ -512,8 +514,6 @@ fvCxtTy vs = do
 -- well here (movements are Maybe, I know what should happen, but cannot
 -- express the moves nicely...)
 findRedex ::
-  forall m.
-  (MonadFresh ID m, MonadFresh NameCounter m) =>
   TypeDefMap ->
   DefMap ->
   Dir ->
@@ -671,7 +671,10 @@ runRedex = \case
   -- (and also the non-annotated-constructor case)
   -- Note that when forming the CaseRedex we checked that the variables @xs@ were fresh for @as@ and @As@,
   -- so this will not capture any variables.
-  CaseRedex _ as _ xs e -> foldrM (\(x, (a, tyA)) t -> let_ x (pure a `ann` pure tyA) (pure t)) e (zip xs as)
+  CaseRedex _ as _ xs e -> do
+    -- TODO: we are putting trivial metadata in here...
+    -- See https://github.com/hackworthltd/primer/issues/6
+    foldrM (\(x, (a, tyA)) t -> let_ x (pure a `ann` (generateTypeIDs =<< tyA)) (pure t)) e (zip xs as)
   -- [ t : T ]  ~>  t  writing [_] for the embedding of syn into chk
   Upsilon e _ -> pure e
   -- λy.t  ~>  λz.let y = z in t (and similar for other binding forms, except let)
