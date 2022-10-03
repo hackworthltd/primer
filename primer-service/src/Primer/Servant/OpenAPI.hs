@@ -13,7 +13,6 @@ module Primer.Servant.OpenAPI (
 import Foreword
 
 import Data.OpenApi (OpenApi)
-import Primer.API (Selection)
 import Primer.API qualified as API
 import Primer.Action (Level)
 import Primer.Database (
@@ -34,10 +33,8 @@ import Servant (
   Get,
   JSON,
   NamedRoutes,
-  Post,
   QueryFlag,
   QueryParam',
-  ReqBody,
   Required,
   Strict,
   Summary,
@@ -102,8 +99,7 @@ data ActionAPI mode = ActionAPI
         :- "available"
           :> Summary "Get available actions for the definition, or a node within it"
           :> QueryParam' '[Required, Strict] "level" Level
-          :> ReqBody '[JSON] Selection
           :> OperationId "getAvailableActions"
-          :> Post '[JSON] [API.OfferedAction]
+          :> Get '[JSON] [API.OfferedAction]
   }
   deriving (Generic)

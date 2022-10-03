@@ -207,30 +207,6 @@
                 ],
                 "type": "string"
             },
-            "NodeSelection": {
-                "properties": {
-                    "id": {
-                        "maximum": 9223372036854775807,
-                        "minimum": -9223372036854775808,
-                        "type": "integer"
-                    },
-                    "nodeType": {
-                        "$ref": "#/components/schemas/NodeType"
-                    }
-                },
-                "required": [
-                    "nodeType",
-                    "id"
-                ],
-                "type": "object"
-            },
-            "NodeType": {
-                "enum": [
-                    "BodyNode",
-                    "SigNode"
-                ],
-                "type": "string"
-            },
             "OfferedAction": {
                 "properties": {
                     "actionType": {
@@ -338,20 +314,6 @@
                 },
                 "required": [
                     "modules"
-                ],
-                "type": "object"
-            },
-            "Selection": {
-                "properties": {
-                    "def": {
-                        "$ref": "#/components/schemas/GlobalName"
-                    },
-                    "node": {
-                        "$ref": "#/components/schemas/NodeSelection"
-                    }
-                },
-                "required": [
-                    "def"
                 ],
                 "type": "object"
             },
@@ -519,7 +481,7 @@
             }
         },
         "/openapi/sessions/{sessionId}/action/available": {
-            "post": {
+            "get": {
                 "operationId": "getAvailableActions",
                 "parameters": [
                     {
@@ -546,15 +508,6 @@
                         }
                     }
                 ],
-                "requestBody": {
-                    "content": {
-                        "application/json;charset=utf-8": {
-                            "schema": {
-                                "$ref": "#/components/schemas/Selection"
-                            }
-                        }
-                    }
-                },
                 "responses": {
                     "200": {
                         "content": {
@@ -570,7 +523,7 @@
                         "description": ""
                     },
                     "400": {
-                        "description": "Invalid `body` or `level`"
+                        "description": "Invalid `level`"
                     },
                     "404": {
                         "description": "`sessionId` not found"

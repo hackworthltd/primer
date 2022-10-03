@@ -1,6 +1,6 @@
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE OverloadedLabels #-}
-{-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE OverloadedRecordDot #-}
 
 -- | An HTTP service for the Primer API.
 module Primer.Server (
@@ -35,14 +35,12 @@ import Network.Wai.Middleware.Cors (
   simpleHeaders,
   simpleMethods,
  )
-import Optics ((%), (.~), (?~))
+import Optics ((%), (.~), (?~), (^.))
 import Primer.API (
   Env (..),
   ExprTreeOpts (..),
-  NodeSelection (..),
   PrimerErr (..),
   PrimerIO,
-  Selection (..),
   edit,
   getProgram,
   listSessions,
@@ -52,8 +50,9 @@ import Primer.API (
  )
 import Primer.API qualified as API
 import Primer.Action.Available (actionsForDef, actionsForDefBody, actionsForDefSig)
-import Primer.App (NodeType (..), progAllDefs, progAllTypeDefs)
-import Primer.Core (globalNamePretty)
+import Primer.App (NodeType (..), Prog (progSelection), progAllDefs, progAllTypeDefs)
+import Primer.App qualified as App
+import Primer.Core (globalNamePretty, _id)
 import Primer.Database (
   SessionId,
   Sessions,
@@ -113,24 +112,26 @@ openAPISessionServer sid =
 openAPIActionServer :: SessionId -> OpenAPI.ActionAPI (AsServerT PrimerIO)
 openAPIActionServer sid =
   OpenAPI.ActionAPI
-    { available =
-        \level Selection{..} -> do
-          prog <- getProgram sid
-          let allDefs = progAllDefs prog
-              allTypeDefs = progAllTypeDefs prog
-          map (map API.convertOfferedAction) $ case node of
-            Nothing ->
-              pure $ actionsForDef level allDefs def
-            Just NodeSelection{..} -> do
-              case allDefs !? def of
-                Nothing -> throwM $ UnknownDef def
-                Just (_, DefPrim _) -> throwM $ UnexpectedPrimDef def
-                Just (editable, DefAST ASTDef{astDefType = type_, astDefExpr = expr}) ->
-                  pure $ case nodeType of
-                    SigNode -> do
-                      actionsForDefSig level def editable id type_
-                    BodyNode -> do
-                      actionsForDefBody (snd <$> allTypeDefs) level def editable id expr
+    { OpenAPI.available = \level -> do
+        prog <- getProgram sid
+        case prog.progSelection of
+          Nothing -> pure []
+          Just sel -> do
+            let allDefs = progAllDefs prog
+                allTypeDefs = progAllTypeDefs prog
+            map (map API.convertOfferedAction) $ case sel.selectedNode of
+              Nothing ->
+                pure $ actionsForDef level allDefs sel.selectedDef
+              Just node -> do
+                case allDefs !? sel.selectedDef of
+                  Nothing -> throwM $ UnknownDef sel.selectedDef
+                  Just (_, DefPrim _) -> throwM $ UnexpectedPrimDef sel.selectedDef
+                  Just (editable, DefAST ASTDef{astDefType = type_, astDefExpr = expr}) ->
+                    pure $ case node.nodeType of
+                      SigNode -> do
+                        actionsForDefSig level sel.selectedDef editable (node ^. _id) type_
+                      BodyNode -> do
+                        actionsForDefBody (snd <$> allTypeDefs) level sel.selectedDef editable (node ^. _id) expr
     }
 
 apiServer :: S.RootAPI (AsServerT PrimerIO)
