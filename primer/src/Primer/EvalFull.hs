@@ -547,67 +547,29 @@ findRedex tydefs globals dir = flip evalAccum mempty . runMaybeT . go . focus
     goSubst :: Local k -> ExprZ -> MaybeT (Accum Cxt) RedexWithContext
     goSubst l ez = 
       lift (readerToAccumT $ viewRedex tydefs globals (focusDir dir ez) $ target ez) >>= \case
-        Just r -> _
-        {-
-        -- We should inline such 'v'
-        Just r@(InlineLet w e) | i == j -> pure $ RExpr ez r -- TODO: is this the only place I use the ID? I know I have not gone under any 'v' binders, so can just compare by name...
-        Just r@(InlineLetrec w e t) | i == j -> pure $ RExpr ez r
+        -- We should inline such 'v' (note that we will not go under any 'v' binders)
+        Just r@(InlineLet w e) | localName l == unLocalName w -> pure $ RExpr ez r
+        Just r@(InlineLetrec w e t) | localName l == unLocalName w -> pure $ RExpr ez r
         -- Elide a let only if it blocks the reduction
-        Just r@(ElideLet w _) | elemOf freeVarsLocal w l -> pure $ RExpr ez r
+        Just r@(ElideLet (LSome w) _) | elemOf _freeVarsLocal (localName w) l -> pure $ RExpr ez r
         -- Rename a binder only if it blocks the reduction
-        Just r@(RenameBindingsLam _ w _ _) | elemOf freeVarsLocal (unLocalName w) l -> pure $ RExpr ez r
-        Just r@(RenameBindingsLAM _ w _ _) | elemOf freeVarsLocal (unLocalName w) l -> pure $ RExpr ez r
+        Just r@(RenameBindingsLam _ w _ _) | elemOf _freeVarsLocal (unLocalName w) l -> pure $ RExpr ez r
+        Just r@(RenameBindingsLAM _ w _ _) | elemOf _freeVarsLocal (unLocalName w) l -> pure $ RExpr ez r
 --        Redex r@(RenameBindingsCase _ e brs avoid)
 --          | not $ S.disjoint (setOf freeVarsLocal l) (setOf (folded % #_CaseBranch % _2 % folded % to bindName % to unLocalName) brs) ->
 --              pure $ RExpr ez r
-        Just r@(RenameSelfLet w _ _) | elemOf freeVarsLocal (unLocalName w) l -> pure $ RExpr ez r
-        Just r@(RenameSelfLetType w _ _) | elemOf freeVarsLocal (unLocalName w) l -> pure $ RExpr ez r
--}
-{-
- case target ez of
-      -- We've found one
-      Var _ (LocalVarRef x) | unLocalName x == localName l -> case l of
-        LLet n le -> pure $ RExpr ez $ InlineLet n le
-        LLetrec n le lt -> pure $ RExpr ez $ InlineLetrec n le lt
-        -- This case should have caught by the TC: a term var is bound by a lettype
-        LLetType _ _ -> Nothing
-      -- We have found something like
-      --   let x=y in let y=z in t
-      -- to substitute the 'x' inside 't' we would need to rename the 'let y'
-      -- binding, but that is implemented in terms of let:
-      --   let x=y in let w=z in let y=w in t
-      -- and this doesn't make progress for let! (c.f. if the 'y' was bound by a
-      -- lambda). Instead, we swap to reducing the let y. Similarly for lettype.
-      -- LetRec can make progress, but we treat it the same as let, for
-      -- consistency. We are careful to not start substituting the inner let in
-      --   letrec x = x:T in let x=True in x
-      -- as we prefer to elide the outer. This is important to avoid an growing
-      -- expansion when evaluating letrec x = x:T in x.
-      _
-        | Just (LSome l', bz') <- viewLet ez
-        , localName l' /= localName l
-        , anyOf _freeVarsLocal (== localName l') l ->
-            goLet l' ez bz'
-        -- Otherwise recurse into subexpressions (including let bindings) and types (if appropriate)
-        | LLetType n t <- l -> eachChildWithBinding ez rec <|> (focusType ez >>= goSubstTy n t)
-        | otherwise -> eachChildWithBinding ez rec
-      where
-        rec bs z
-          -- Don't go under binding of 'n': those won't be the 'n's we are looking for
-          | localName l `S.member` bs = Nothing
-          -- If we are substituting x->y in e.g. λy.x, we rename the y to avoid capture
-          -- This may recompute the FV set of l quite a lot. We could be more efficient here!
-          | fvs <- setOf _freeVarsLocal l
-          , not $ S.null $ fvs `S.intersection` bs =
-              up z <&> \z' -> case target z' of
-                Lam m x e -> RExpr z' $ RenameBindingsLam m x e fvs
-                LAM m x e -> RExpr z' $ RenameBindingsLAM m x e fvs
-                Case m s brs -> RExpr z' $ RenameBindingsCase m s brs fvs
-                -- We should replace this with a proper exception. See:
-                -- https://github.com/hackworthltd/primer/issues/148
-                e -> error $ "Internal Error: something other than Lam/LAM/Case was a binding: " ++ show e
-          | otherwise = goSubst l z
--}
+        Just r@(RenameSelfLet w _ _) | elemOf _freeVarsLocal (unLocalName w) l -> pure $ RExpr ez r
+        Just r@(RenameSelfLetType w _ _) | elemOf _freeVarsLocal (unLocalName w) l -> pure $ RExpr ez r
+        -- Switch to an inner let if substituting under it would cause capture
+        Nothing | Just (LSome l',bz) <- viewLet ez
+                , localName l' /= localName l
+                , elemOf _freeVarsLocal (localName l') l -> goSubst l' bz
+        -- We should not go under 'v' binders, but otherwise substitute in each child
+        _ ->
+          let substChild c = do
+                guard $ S.notMember (localName l) $ getBoundHere (target ez) (Just $ target c)
+                goSubst l c
+          in msum $ map substChild (children ez)
     goSubstTy :: TyVarName -> Type -> TypeZ -> MaybeT (Accum Cxt) RedexWithContext
     goSubstTy v t tz = let isFreeIn = elemOf (getting _freeVarsTy % _2)
                        in lift (readerToAccumT $ viewRedexType $ target tz) >>= \case
