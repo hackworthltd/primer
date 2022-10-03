@@ -148,6 +148,24 @@ unit_var_4 = afterRename "bar" "foo" (letrec "bar" emptyHole (tvar "foo") emptyH
 unit_var_5 :: Assertion
 unit_var_5 = afterRename "bar" "foo" (letType "bar" (tvar "foo") emptyHole) Nothing
 
+-- We notice such free variables under binders
+unit_var_6 :: Assertion
+unit_var_6 = do
+  let tst c = afterRename "foo" "bar" (c $ emptyHole `ann` tvar "bar") Nothing
+  tst $ lam "foo"
+  tst $ lAM "foo"
+  tst $ let_ "foo" emptyHole
+  tst $ letType "foo" tEmptyHole
+  tst $ letrec "foo" emptyHole tEmptyHole
+  tst $ \e -> case_ emptyHole [branch cJust [("foo", Nothing)] e]
+
+-- We notice such free variables under binders in types
+unit_var_7 :: Assertion
+unit_var_7 = do
+  let tst c = afterRenameTy "foo" "bar" (c $ tvar "bar") Nothing
+  tst $ tforall "foo" KType
+  tst $ tlet "foo" tEmptyHole
+
 -- All other expressions are renamed as expected
 
 unit_hole :: Assertion

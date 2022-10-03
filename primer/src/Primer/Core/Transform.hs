@@ -17,7 +17,7 @@ import Control.Monad.Fresh (MonadFresh)
 import Data.Data (Data)
 import Data.Generics.Uniplate.Data (descendM)
 import Data.List.NonEmpty qualified as NE
-import Optics (Field2 (_2), getting, noneOf, traverseOf, (%))
+import Optics (Field2 (_2), getting, noneOf, notElemOf, to, traverseOf, (%))
 import Primer.Core (
   CaseBranch' (..),
   Expr,
@@ -32,7 +32,7 @@ import Primer.Core (
   typesInExpr,
  )
 import Primer.Core.DSL (meta)
-import Primer.Core.Utils (_freeVarsTy)
+import Primer.Core.Utils (_freeVars, _freeVarsTy)
 
 -- AST transformations.
 -- This module contains global transformations on expressions and types, in
@@ -44,39 +44,39 @@ import Primer.Core.Utils (_freeVarsTy)
 renameVar :: (Data a, Data b) => TmVarRef -> TmVarRef -> Expr' a b -> Maybe (Expr' a b)
 renameVar x y expr = case expr of
   Lam _ v _
-    | sameVarRef v x -> pure expr
+    | sameVarRef v x -> whenNotFreeIn y expr
     | sameVarRef v y -> Nothing
     | otherwise -> substAllChildren
   LAM _ v _
     -- NB: local term and type variables are in the same namespace
-    | sameVarRef v x -> pure expr
+    | sameVarRef v x -> whenNotFreeIn y expr
     | sameVarRef v y -> Nothing
     | otherwise -> substAllChildren
   Let m v e1 e2
     -- the binding only scopes over e2
-    | sameVarRef v x -> Let m v <$> renameVar x y e1 <*> pure e2
+    | sameVarRef v x -> Let m v <$> renameVar x y e1 <*> whenNotFreeIn y e2
     | sameVarRef v y -> Nothing
     | otherwise -> substAllChildren
-  LetType _ v ty _e
+  LetType _ v _ _
     -- the binding only scopes over _e, but due to assuming well-scoped-ness,
     -- we don't need to rename inside ty. However, we need to check y is
-    -- not free, as type and term variables live in the same namespace,
-    -- so can capture each other.
-    | sameVarRef v x -> guard (noneOf (getting _freeVarsTy % _2) (`sameVarRef` y) ty) >> pure expr
+    -- not free in both the type and term, as type and term variables live
+    -- in the same namespace, so can capture each other.
+    | sameVarRef v x -> whenNotFreeIn y expr
     | sameVarRef v y -> Nothing
     | otherwise -> substAllChildren
-  Letrec _ v _ ty _
+  Letrec _ v _ _ _
     -- the binding scopes over both expressions, and we need not rename inside types
     -- however, we need to check y is not free in the type (since type and term
     -- variables live in the same namespace).
-    | sameVarRef v x -> guard (noneOf (getting _freeVarsTy % _2) (`sameVarRef` y) ty) >> pure expr
+    | sameVarRef v x -> whenNotFreeIn y expr
     | sameVarRef v y -> Nothing
     | otherwise -> substAllChildren
   Case m scrut branches -> Case m <$> renameVar x y scrut <*> mapM renameBranch branches
     where
       renameBranch b@(CaseBranch con termargs rhs)
-        | any (`sameVarRef` x) $ bindingNames b = pure b
         | any (`sameVarRef` y) $ bindingNames b = Nothing
+        | any (`sameVarRef` x) $ bindingNames b = guard (notFreeIn y rhs) >> pure b
         | otherwise = CaseBranch con termargs <$> renameVar x y rhs
       bindingNames (CaseBranch _ bs _) = map bindName bs
   Var m v
@@ -100,6 +100,22 @@ renameVar x y expr = case expr of
       guard $ noneOf (typesInExpr % getting _freeVarsTy % _2) (`sameVarRef` y) expr
       descendM (renameVar x y) expr
 
+whenNotFreeIn :: TmVarRef -> Expr' a b -> Maybe (Expr' a b)
+whenNotFreeIn x e = do
+  guard $ notFreeIn x e
+  pure e
+
+notFreeIn :: TmVarRef -> Expr' a b -> Bool
+notFreeIn x = noneOf (_freeVars % to (bimap snd snd)) (either (`sameVarRef` x) (`sameVarRef` x))
+
+whenNotFreeInTy :: TyVarName -> Type' b -> Maybe (Type' b)
+whenNotFreeInTy x ty = do
+  guard $ notFreeInTy x ty
+  pure ty
+
+notFreeInTy :: TyVarName -> Type' b -> Bool
+notFreeInTy = notElemOf (getting _freeVarsTy % _2)
+
 sameVarRef :: LocalName k -> TmVarRef -> Bool
 sameVarRef v (LocalVarRef v') = sameVar v v'
 sameVarRef _ (GlobalVarRef _) = False
@@ -119,7 +135,7 @@ renameTyVar :: Data a => TyVarName -> TyVarName -> Type' a -> Maybe (Type' a)
 -- duplicate metadata. But for renaming, we know that will not happen.
 renameTyVar x y ty = case ty of
   TForall _ v _ _
-    | v == x -> pure ty
+    | v == x -> whenNotFreeInTy y ty
     | v == y -> Nothing
     | otherwise -> substAllChildren
   TVar m v
@@ -127,7 +143,7 @@ renameTyVar x y ty = case ty of
     | v == y -> Nothing
     | otherwise -> substAllChildren
   TLet m v t b
-    | v == x -> TLet m v <$> renameTyVar x y t <*> pure b
+    | v == x -> TLet m v <$> renameTyVar x y t <*> whenNotFreeInTy y b
     | v == y -> Nothing
     | otherwise -> substAllChildren
   TEmptyHole{} -> substAllChildren
