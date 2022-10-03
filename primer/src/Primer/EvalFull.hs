@@ -435,13 +435,9 @@ viewRedex :: TypeDefMap ->
   Dir ->
   Expr -> Reader Cxt (Maybe Redex)
 viewRedex tydefs globals dir = \case
-  e | trace @Text ("viewRedex " <> show e) False -> undefined
   Var _ (GlobalVarRef x) | Just (DefAST y) <- x `M.lookup` globals -> purer $ InlineGlobal x y
   Var _ (LocalVarRef v) -> do
-    x <- getNonCapturedLocal v
-    trace @Text ("viewRedex, gncl: " <> show x) $
-     pure $
---    getNonCapturedLocal v <&> \x -> do
+    getNonCapturedLocal v <&> \x -> do
       case x of
         Just (LSome (LLet _ e)) -> pure $ InlineLet v e
         Just (LSome (LLetrec _ e t)) -> pure $ InlineLetrec v e t
