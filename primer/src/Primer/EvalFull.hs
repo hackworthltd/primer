@@ -400,7 +400,7 @@ viewRedex :: TypeDefMap ->
   DefMap ->
   Dir ->
   Expr -> Reader Cxt (Maybe Redex)
-viewRedex tydefs globals dir = \case -- STATUS: need to remove m, fixing cherry-pick
+viewRedex tydefs globals dir = \case
   Var _ (GlobalVarRef x) | Just (DefAST y) <- x `M.lookup` globals -> purer $ InlineGlobal x y
   Var _ (LocalVarRef v) -> do
     getNonCapturedLocal v <&> \x -> do
