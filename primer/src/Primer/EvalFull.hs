@@ -17,7 +17,8 @@ module Primer.EvalFull (
 -- (Perhaps we should just run a TC pass after each step?)
 -- See https://github.com/hackworthltd/primer/issues/6
 
-import Foreword
+import Foreword hiding (hoistAccum)
+import Foreword qualified
 
 import Control.Monad.Extra (untilJustM)
 import Control.Monad.Fresh (MonadFresh)
@@ -112,9 +113,10 @@ import Primer.Zipper (
   up, getBoundHereDn, getBoundHereTy, IsZipper,
  )
 import Primer.Log (logError, ConvertLogMessage)
+import Control.Monad.Morph (generalize)
 import Control.Monad.Log (MonadLog, WithSeverity)
 import Control.Monad.Trans.Maybe (MaybeT(runMaybeT))
-import Control.Monad.Trans.Accum (runAccum, evalAccum, readerToAccumT, Accum, look, add)
+import Control.Monad.Trans.Accum (runAccum, evalAccum, readerToAccumT, Accum, look, add, evalAccumT, AccumT)
 import Primer.Pretty (prettyExpr, compact)
 import Protolude.Base (Show(showsPrec))
 import Prelude (shows, showString)
@@ -548,35 +550,41 @@ findRedex ::
   Dir ->
   Expr ->
   Maybe RedexWithContext
-findRedex tydefs globals dir = flip evalAccum mempty . runMaybeT . go . focus
+findRedex tydefs globals dir = runIdentity . runMaybeT . flip evalAccumT mempty . go . focus
   where
+    focusType' :: ExprZ -> AccumT Cxt (MaybeT Identity) TypeZ
+    -- Note that nothing in Expr binds a variable which scopes over a type child
+    -- so we don't need to 'add' anything
+    focusType' = lift . hoistMaybe . focusType
+    hoistAccum :: Accum Cxt a -> AccumT Cxt (MaybeT Identity) a
+    hoistAccum = Foreword.hoistAccum generalize
     go ez = do
-     c <- lift look
-     lift (readerToAccumT $ viewRedex tydefs globals (focusDir dir ez) (target ez)) >>= \case
+     c <- look
+     hoistAccum (readerToAccumT $ viewRedex tydefs globals (focusDir dir ez) (target ez)) >>= \case
       r | trace @Text ("go, target:" <> show (target ez))
          (trace @Text ("    cxt: " <> show c))
          (trace @Text ("    viewredex: " <> show r) False) -> undefined
       Just r -> pure $ RExpr ez r
-      Nothing | Just (LSome l, bz) <- viewLet ez -> goSubst l =<< lift bz
+      Nothing | Just (LSome l, bz) <- viewLet ez -> goSubst l =<< hoistAccum bz
               -- Since stuck things other than lets are stuck on the first child or
               -- its type annotation, we can handle them all uniformly
-              | otherwise ->  (goType =<<  hoistMaybe (focusType ez))
-                              <|> msum (map (go <=< lift) $ exprChildren ez)
+              | otherwise -> msum $  (goType =<< focusType' ez)
+                                  : (map (go <=< hoistAccum) $ exprChildren ez)
                 --(_ >>= goType) <|> msum (map (go <=< lift) $ exprChildren ez)
     goType tz = do
-     c <- lift look
-     lift (readerToAccumT $ viewRedexType $ target tz) >>= \case
+     c <- look
+     hoistAccum (readerToAccumT $ viewRedexType $ target tz) >>= \case
       r | trace @Text ("goType, target:" <> show (target tz))
          (trace @Text ("    cxt: " <> show c)
          (trace @Text ("    viewredex: " <> show r) False)) -> undefined
       Just r -> pure $ RType tz r
       Nothing | TLet _ a t _body <- target tz
-              , [_,bz] <- typeChildren tz -> goSubstTy a t =<< lift bz
-              | otherwise -> msum $ map (goType <=< lift) $ typeChildren tz
-    goSubst :: Local k -> ExprZ -> MaybeT (Accum Cxt) RedexWithContext
+              , [_,bz] <- typeChildren tz -> goSubstTy a t =<< hoistAccum bz
+              | otherwise -> msum $ map (goType <=< hoistAccum) $ typeChildren tz
+    goSubst :: Local k -> ExprZ -> AccumT Cxt (MaybeT Identity) RedexWithContext
     goSubst l ez = do
-      c <- lift look
-      lift (readerToAccumT $ viewRedex tydefs globals (focusDir dir ez) $ target ez) >>= \case
+      c <- look
+      hoistAccum (readerToAccumT $ viewRedex tydefs globals (focusDir dir ez) $ target ez) >>= \case
         r | trace @Text ("goSubst " <> show l <> " target:" <> show (target ez))
            (trace @Text ("    cxt: " <> show c)
            (trace @Text ("    viewredex: " <> show r) False)) -> undefined
@@ -596,23 +604,21 @@ findRedex tydefs globals dir = flip evalAccum mempty . runMaybeT . go . focus
         -- Switch to an inner let if substituting under it would cause capture
         Nothing | Just (LSome l',bz) <- viewLet ez
                 , localName l' /= localName l
-                , elemOf _freeVarsLocal (localName l') l -> goSubst l' =<< lift bz
+                , elemOf _freeVarsLocal (localName l') l -> goSubst l' =<< hoistAccum bz
         -- We should not go under 'v' binders, but otherwise substitute in each child
         _ ->
           let substChild c = do
                 guard $ S.notMember (localName l) $ getBoundHere (target ez) (Just $ target c)
                 goSubst l c
-              -- Note that nothing in Expr binds a variable which scopes over a type child
-              focusType' = hoistMaybe . focusType
               substTyChild c = case l of
                 LLetType v t -> goSubstTy v t c
                 _ -> mzero
-          in msum @[] $ (substTyChild =<< focusType' ez) : map (substChild <=< lift) (exprChildren ez)
-    goSubstTy :: TyVarName -> Type -> TypeZ -> MaybeT (Accum Cxt) RedexWithContext
+          in msum @[] $ (substTyChild =<< focusType' ez) : map (substChild <=< hoistAccum) (exprChildren ez)
+    goSubstTy :: TyVarName -> Type -> TypeZ -> AccumT Cxt (MaybeT Identity) RedexWithContext
     goSubstTy v t tz = let isFreeIn = elemOf (getting _freeVarsTy % _2)
                        in do
-     c <- lift look
-     lift (readerToAccumT $ viewRedexType $ target tz) >>= \case
+     c <- look
+     hoistAccum (readerToAccumT $ viewRedexType $ target tz) >>= \case
       r | trace @Text ("goSubstTy " <> show (v,t) <> ",  target:" <> show (target tz))
          (trace @Text ("    cxt: " <> show c)
          (trace @Text ("    viewredex: " <> show r) False)) -> undefined
@@ -628,14 +634,14 @@ findRedex tydefs globals dir = flip evalAccum mempty . runMaybeT . go . focus
         | TLet _ w s _ <- target tz
         , [_,bz] <- typeChildren tz
         , v /= w
-        , w `isFreeIn` t -> goSubstTy w s =<< lift bz
+        , w `isFreeIn` t -> goSubstTy w s =<< hoistAccum bz
       -- We should not go under 'v' binders, but otherwise substitute in each child
       _ ->
         let substChild c = do
               guard $ S.notMember (unLocalName v)
                 $ S.map unLocalName $ getBoundHereTy (target tz) (Just $ target c)
               goSubstTy v t c
-         in msum $ map (substChild <=< lift) (typeChildren tz)
+         in msum $ map (substChild <=< hoistAccum) (typeChildren tz)
 
 
 children' :: IsZipper za a => za -> [za]
