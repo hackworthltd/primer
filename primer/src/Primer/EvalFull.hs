@@ -29,7 +29,7 @@ import Data.Set.Optics (setOf)
 import Data.Tuple.Extra (thd3)
 import GHC.Err (error)
 import Numeric.Natural (Natural)
-import Optics (AffineFold, Fold, afolding, anyOf, getting, summing, to, (%), _2, _3)
+import Optics (AffineFold, Fold, afolding, elemOf, getting, summing, to, (%), _2, _3)
 import Primer.Core (
   Bind' (Bind),
   CaseBranch,
@@ -436,7 +436,7 @@ findRedex tydefs globals dir = go . focus
     -- or something inside that we need to rename to unblock substitution
     goLet :: Local k -> ExprZ -> ExprZ -> Maybe RedexWithContext
     goLet l letz bodyz =
-      case (l, anyOf _freeVarsLocal (== localName l) l) of
+      case (l, elemOf _freeVarsLocal (localName l) l) of
         -- We have something like λx.let x = f x in g x (NB: non-recursive let)
         -- We cannot substitute this let as we would get λx. let x = f x in g (f x)
         -- where a variable has been captured
@@ -448,7 +448,7 @@ findRedex tydefs globals dir = go . focus
     -- As goLet, but for TLet
     goTLet :: Local 'ATyVar -> TypeZ -> TypeZ -> Maybe RedexWithContext
     goTLet l@(LLetType a s) tletz bodyz =
-      if anyOf (getting _freeVarsTy % _2) (== a) s
+      if elemOf (getting _freeVarsTy % _2) a s
         then -- We have something like Λa. _ : tlet a = s a in t a
         -- We cannot substitute this let as we would get Λa. _ : tlet a = s a in t (s a)
         -- where a variable has been captured
@@ -479,7 +479,7 @@ findRedex tydefs globals dir = go . focus
       _
         | Just (LSome l', bz') <- viewLet ez
         , localName l' /= localName l
-        , anyOf _freeVarsLocal (== localName l') l ->
+        , elemOf _freeVarsLocal (localName l') l ->
             goLet l' ez bz'
         -- Otherwise recurse into subexpressions (including let bindings) and types (if appropriate)
         | LLetType n t <- l -> eachChildWithBinding ez rec <<||>> (focusType ez >>= goSubstTy n t)
@@ -508,7 +508,7 @@ findRedex tydefs globals dir = go . focus
       -- but prefer eliding an outer binder if possible
       TLet _ m s _body
         | m /= n
-        , anyOf (getting _freeVarsTy % _2) (== m) t ->
+        , elemOf (getting _freeVarsTy % _2) m t ->
             down tz >>= right >>= goTLet (LLetType m s) tz
       -- The only other binding form is a forall
       -- Don't go under bindings of 'n'
