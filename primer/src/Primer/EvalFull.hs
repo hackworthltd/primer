@@ -228,10 +228,9 @@ evalFullStepCount ::
 evalFullStepCount tydefs env n d = go 0
   where
     go s expr
-      | trace @Text ("step " <> show s) $ trace @Text (show $ prettyExpr compact expr) False = undefined
       | s >= n = pure (s, Left $ TimedOut expr)
       | otherwise = case step tydefs env d expr of
-          Nothing -> trace @Text "Got a NF" $ pure (s, Right expr) -- this is a normal form
+          Nothing -> pure (s, Right expr) -- this is a normal form
           Just me -> me >>= go (s + 1)
 
 -- The 'Dir' argument only affects what happens if the root is an annotation:
@@ -240,7 +239,7 @@ evalFullStepCount tydefs env n d = go 0
 step :: (MonadFresh NameCounter m, MonadFresh ID m, MonadLog (WithSeverity l) m, ConvertLogMessage Text l) => TypeDefMap -> DefMap -> Dir -> Expr -> Maybe (m Expr)
 step tydefs g d e = case findRedex tydefs g d e of
   Nothing -> Nothing
-  Just (RExpr ez r) ->  trace ("focussed " <> show @_ @Text r) $ Just $ unfocusExpr . flip replace ez <$> runRedex r
+  Just (RExpr ez r) -> Just $ unfocusExpr . flip replace ez <$> runRedex r
   Just (RType et r) -> Just $ unfocusExpr . unfocusType . flip replace et <$> runRedexTy r
 
 -- We don't really want a zipper here, but a one-hole context, but it is easier
@@ -306,7 +305,6 @@ focusDir dirIfTop ez = case up ez of
 
 viewLet :: ExprZ -> Maybe (SomeLocal, Accum Cxt ExprZ)
 viewLet ez = case (target ez, exprChildren ez) of
-  (t,xxx) | trace @Text ("viewLet " <> show t) (trace @Text ("    " <> show (length xxx)) False) -> undefined
   (Let _ x e _b, [_,bz]) -> Just (LSome $ LLet x e, bz)
   (Letrec _ x e ty _b, [_,bz]) -> Just (LSome $ LLetrec x e ty,bz)
   (LetType _ a ty _b, [bz]) -> bz `seq` Just (LSome $ LLetType a ty,bz)
@@ -479,7 +477,6 @@ viewRedex tydefs globals dir = \case
 
 viewRedexType :: Type -> Reader Cxt (Maybe RedexType)
 viewRedexType = \case
-  t | trace @Text ("viewRedexType: " <> show t) False -> undefined
   TVar _ v -> getNonCapturedLocal v <&> \case
         Just (LSome (LLetType _ t)) -> pure $ InlineLetInType v t
         _ -> Nothing
@@ -490,10 +487,7 @@ viewRedexType = \case
     | otherwise -> pure Nothing
   fa@(TForall m v s t) -> do
     c <- ask
-    fvcxt' <- fvCxtTy $ freeVarsTy fa
-    let fvcxt = trace @Text ("viewRedexType " <> show fa) $
-                trace @Text ("   " <> show c) $
-                trace @Text ("   " <> show fvcxt') $ fvcxt'
+    fvcxt <- fvCxtTy $ freeVarsTy fa
     pure $
       if v `S.member` fvcxt
         then -- If anything we may substitute would cause capture, we should rename this binder
@@ -561,9 +555,6 @@ findRedex tydefs globals dir = runIdentity . runMaybeT . flip evalAccumT mempty 
     go ez = do
      c <- look
      hoistAccum (readerToAccumT $ viewRedex tydefs globals (focusDir dir ez) (target ez)) >>= \case
-      r | trace @Text ("go, target:" <> show (target ez))
-         (trace @Text ("    cxt: " <> show c))
-         (trace @Text ("    viewredex: " <> show r) False) -> undefined
       Just r -> pure $ RExpr ez r
       Nothing | Just (LSome l, bz) <- viewLet ez -> goSubst l =<< hoistAccum bz
               -- Since stuck things other than lets are stuck on the first child or
@@ -574,9 +565,6 @@ findRedex tydefs globals dir = runIdentity . runMaybeT . flip evalAccumT mempty 
     goType tz = do
      c <- look
      hoistAccum (readerToAccumT $ viewRedexType $ target tz) >>= \case
-      r | trace @Text ("goType, target:" <> show (target tz))
-         (trace @Text ("    cxt: " <> show c)
-         (trace @Text ("    viewredex: " <> show r) False)) -> undefined
       Just r -> pure $ RType tz r
       Nothing | TLet _ a t _body <- target tz
               , [_,bz] <- typeChildren tz -> goSubstTy a t =<< hoistAccum bz
@@ -585,9 +573,6 @@ findRedex tydefs globals dir = runIdentity . runMaybeT . flip evalAccumT mempty 
     goSubst l ez = do
       c <- look
       hoistAccum (readerToAccumT $ viewRedex tydefs globals (focusDir dir ez) $ target ez) >>= \case
-        r | trace @Text ("goSubst " <> show l <> " target:" <> show (target ez))
-           (trace @Text ("    cxt: " <> show c)
-           (trace @Text ("    viewredex: " <> show r) False)) -> undefined
         -- We should inline such 'v' (note that we will not go under any 'v' binders)
         Just r@(InlineLet w e) | localName l == unLocalName w -> pure $ RExpr ez r
         Just r@(InlineLetrec w e t) | localName l == unLocalName w -> pure $ RExpr ez r
@@ -619,9 +604,6 @@ findRedex tydefs globals dir = runIdentity . runMaybeT . flip evalAccumT mempty 
                        in do
      c <- look
      hoistAccum (readerToAccumT $ viewRedexType $ target tz) >>= \case
-      r | trace @Text ("goSubstTy " <> show (v,t) <> ",  target:" <> show (target tz))
-         (trace @Text ("    cxt: " <> show c)
-         (trace @Text ("    viewredex: " <> show r) False)) -> undefined
       -- We should inline such 'v' (note that we will not go under any 'v' binders)
       Just r@(InlineLetInType w _) | w == v -> pure $ RType tz r
       -- Elide a let only if it blocks the reduction
@@ -661,7 +643,6 @@ exprChildren ez = children' ez <&!> \c -> do
                   in y `seq` (y : xs <&!> f)
 
 typeChildren :: TypeZ -> [Accum Cxt TypeZ]
-typeChildren tz | trace @Text ("typeChildren " <> show (target tz)) False = undefined
 typeChildren tz = children' tz <&> \c -> do
                             let bs = getBoundHereTy' (target tz) (Just $ target c)
                             addBinds tz bs
@@ -685,10 +666,7 @@ addBinds :: HasID i => i -> [Either Name SomeLocal] -> Accum Cxt ()
 addBinds i' bs = do
   let i = getID i'
   cxt <- look
-  traceM "addBinds"
-  traceM $ "  cxt: " <> show cxt
-  traceM $ "  adding: "
-  add $ traceShowId $ Cxt $ M.fromList $ bs <&> \case
+  add $ Cxt $ M.fromList $ bs <&> \case
     Left n -> (n,(Nothing,i,cxt))
     Right ls@(LSome l) -> (localName l,(Just ls,i,cxt))
 
