@@ -124,6 +124,21 @@ unit_2 =
         distinctIDs s
         s <~==> Right e
 
+unit_tmp:: Assertion
+unit_tmp =
+  let ((expr, expected), maxID) = create $ do
+        e <- letType "a" (tvar "b") $ emptyHole `ann` ((tforall "a" KType tEmptyHole)
+                                                `tapp` tvar "a")
+        let b' = "a33" -- NB: fragile name a33
+        expect <- emptyHole `ann` ((tforall "a" KType tEmptyHole)
+                            `tapp` tvar "a")
+        pure (e, expect)
+   in do
+        s <- evalFullTest maxID mempty mempty 5 Syn expr
+        distinctIDs s
+        s <~==> Right expected
+
+
 -- Check we don't have shadowing issues in types
 unit_3 :: Assertion
 unit_3 =

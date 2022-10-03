@@ -109,12 +109,15 @@ import Primer.Zipper (
   target,
   unfocusExpr,
   unfocusType,
-  up, getBoundHereDn, getBoundHereTy,
+  up, getBoundHereDn, getBoundHereTy, IsZipper,
  )
 import Primer.Log (logError, ConvertLogMessage)
 import Control.Monad.Log (MonadLog, WithSeverity)
 import Control.Monad.Trans.Maybe (MaybeT(runMaybeT))
 import Control.Monad.Trans.Accum (runAccum, evalAccum, readerToAccumT, Accum, look, add)
+import Primer.Pretty (prettyExpr, compact)
+import Protolude.Base (Show(showsPrec))
+import Prelude (shows, showString)
 
 newtype EvalFullError
   = TimedOut Expr
@@ -165,6 +168,23 @@ data Redex
     RenameSelfLetType TyVarName Type Expr
   | ApplyPrimFun (forall m. MonadFresh ID m => m Expr)
 
+instance Show Redex where
+  showsPrec _ = \case
+    InlineGlobal x _ -> showString "InlineGlobal " <> shows x
+    InlineLet x _ -> showString "InlineLet " <> shows x
+    InlineLetrec x _ _ -> showString "InlineLetrec " <> shows x
+    ElideLet l e -> showString "ElideLet"
+    Beta _ _ _ _ _ -> showString "Beta"
+    BETA _ _ _ _ _ -> showString "BETA"
+    CaseRedex _ _ _ _ _ -> showString "Case"
+    Upsilon _ _ -> showString "Upsilon"
+    RenameBindingsLam _ _ _ _ -> showString "RenameBindingsLam"
+    RenameBindingsLAM _ _ _ _ -> showString "RenameBindingsLAM"
+    RenameBindingsCase _ _ _ _ -> showString "RenameBindingsCase"
+    RenameSelfLet x _ _ -> showString "RenameSelfLet " <> shows x
+    RenameSelfLetType x _ _ -> showString "RenameSelfLetType " <> shows x
+    ApplyPrimFun _ -> showString "ApplyPrimFun"
+
 data RedexType
   = InlineLetInType TyVarName Type
   | -- let a = s in t  ~>  t  if a does not appear in t
@@ -176,6 +196,8 @@ data RedexType
     RenameSelfLetInType TyVarName Type Type
   | -- ∀a:k.t  ~>  ∀b:k.t[b/a]  for fresh b, avoiding the given set
     RenameForall TypeMeta TyVarName Kind Type (S.Set TyVarName)
+    deriving Show
+deriving instance Show (Local k)
 
 -- Currently just a step limit
 type TerminationBound = Natural
@@ -204,9 +226,10 @@ evalFullStepCount ::
 evalFullStepCount tydefs env n d = go 0
   where
     go s expr
+      | trace @Text ("step " <> show s) $ trace @Text (show $ prettyExpr compact expr) False = undefined
       | s >= n = pure (s, Left $ TimedOut expr)
       | otherwise = case step tydefs env d expr of
-          Nothing -> pure (s, Right expr) -- this is a normal form
+          Nothing -> trace @Text "Got a NF" $ pure (s, Right expr) -- this is a normal form
           Just me -> me >>= go (s + 1)
 
 -- The 'Dir' argument only affects what happens if the root is an annotation:
@@ -215,7 +238,7 @@ evalFullStepCount tydefs env n d = go 0
 step :: (MonadFresh NameCounter m, MonadFresh ID m, MonadLog (WithSeverity l) m, ConvertLogMessage Text l) => TypeDefMap -> DefMap -> Dir -> Expr -> Maybe (m Expr)
 step tydefs g d e = case findRedex tydefs g d e of
   Nothing -> Nothing
-  Just (RExpr ez r) -> Just $ unfocusExpr . flip replace ez <$> runRedex r
+  Just (RExpr ez r) ->  trace ("focussed " <> show @_ @Text r) $ Just $ unfocusExpr . flip replace ez <$> runRedex r
   Just (RType et r) -> Just $ unfocusExpr . unfocusType . flip replace et <$> runRedexTy r
 
 -- We don't really want a zipper here, but a one-hole context, but it is easier
@@ -281,9 +304,10 @@ focusDir dirIfTop ez = case up ez of
 
 viewLet :: ExprZ -> Maybe (SomeLocal, Accum Cxt ExprZ)
 viewLet ez = case (target ez, exprChildren ez) of
+  (t,xxx) | trace @Text ("viewLet " <> show t) (trace @Text ("    " <> show (length xxx)) False) -> undefined
   (Let _ x e _b, [_,bz]) -> Just (LSome $ LLet x e, bz)
   (Letrec _ x e ty _b, [_,bz]) -> Just (LSome $ LLetrec x e ty,bz)
-  (LetType _ a ty _b, [bz]) -> Just (LSome $ LLetType a ty,bz)
+  (LetType _ a ty _b, [bz]) -> bz `seq` Just (LSome $ LLetType a ty,bz)
   _ -> Nothing
 
 viewCaseRedex :: TypeDefMap -> Expr -> Maybe Redex
@@ -376,6 +400,8 @@ newtype Cxt = Cxt (M.Map Name (Maybe SomeLocal, ID, Cxt))
   -- and want later 'add's to overwrite earlier (more-global) context entries
   deriving (Semigroup, Monoid) via Dual (M.Map Name (Maybe SomeLocal, ID, Cxt))
 -- TODO/REVIEW: is it worth trying to use a dependent map here?
+  deriving Show
+deriving instance Show (SomeLocal)
 
 lookup :: Name -> Cxt -> Maybe (Maybe SomeLocal, ID, Cxt)
 lookup n (Cxt cxt) = M.lookup n cxt
@@ -451,6 +477,7 @@ viewRedex tydefs globals dir = \case
 
 viewRedexType :: Type -> Reader Cxt (Maybe RedexType)
 viewRedexType = \case
+  t | trace @Text ("viewRedexType: " <> show t) False -> undefined
   TVar _ v -> getNonCapturedLocal v <&> \case
         Just (LSome (LLetType _ t)) -> pure $ InlineLetInType v t
         _ -> Nothing
@@ -460,7 +487,11 @@ viewRedexType = \case
     | elemOf (getting _freeVarsTy % _2) v s -> purer $ RenameSelfLetInType v s t
     | otherwise -> pure Nothing
   fa@(TForall m v s t) -> do
-    fvcxt <- fvCxtTy $ freeVarsTy fa
+    c <- ask
+    fvcxt' <- fvCxtTy $ freeVarsTy fa
+    let fvcxt = trace @Text ("viewRedexType " <> show fa) $
+                trace @Text ("   " <> show c) $
+                trace @Text ("   " <> show fvcxt') $ fvcxt'
     pure $
       if v `S.member` fvcxt
         then -- If anything we may substitute would cause capture, we should rename this binder
@@ -519,7 +550,12 @@ findRedex ::
   Maybe RedexWithContext
 findRedex tydefs globals dir = flip evalAccum mempty . runMaybeT . go . focus
   where
-    go ez = lift (readerToAccumT $ viewRedex tydefs globals (focusDir dir ez) (target ez)) >>= \case
+    go ez = do
+     c <- lift look
+     lift (readerToAccumT $ viewRedex tydefs globals (focusDir dir ez) (target ez)) >>= \case
+      r | trace @Text ("go, target:" <> show (target ez))
+         (trace @Text ("    cxt: " <> show c))
+         (trace @Text ("    viewredex: " <> show r) False) -> undefined
       Just r -> pure $ RExpr ez r
       Nothing | Just (LSome l, bz) <- viewLet ez -> goSubst l =<< lift bz
               -- Since stuck things other than lets are stuck on the first child or
@@ -527,14 +563,23 @@ findRedex tydefs globals dir = flip evalAccum mempty . runMaybeT . go . focus
               | otherwise ->  (goType =<<  hoistMaybe (focusType ez))
                               <|> msum (map (go <=< lift) $ exprChildren ez)
                 --(_ >>= goType) <|> msum (map (go <=< lift) $ exprChildren ez)
-    goType tz = lift (readerToAccumT $ viewRedexType $ target tz) >>= \case
+    goType tz = do
+     c <- lift look
+     lift (readerToAccumT $ viewRedexType $ target tz) >>= \case
+      r | trace @Text ("goType, target:" <> show (target tz))
+         (trace @Text ("    cxt: " <> show c)
+         (trace @Text ("    viewredex: " <> show r) False)) -> undefined
       Just r -> pure $ RType tz r
       Nothing | TLet _ a t _body <- target tz
               , [_,bz] <- typeChildren tz -> goSubstTy a t =<< lift bz
               | otherwise -> msum $ map (goType <=< lift) $ typeChildren tz
     goSubst :: Local k -> ExprZ -> MaybeT (Accum Cxt) RedexWithContext
-    goSubst l ez = 
+    goSubst l ez = do
+      c <- lift look
       lift (readerToAccumT $ viewRedex tydefs globals (focusDir dir ez) $ target ez) >>= \case
+        r | trace @Text ("goSubst " <> show l <> " target:" <> show (target ez))
+           (trace @Text ("    cxt: " <> show c)
+           (trace @Text ("    viewredex: " <> show r) False)) -> undefined
         -- We should inline such 'v' (note that we will not go under any 'v' binders)
         Just r@(InlineLet w e) | localName l == unLocalName w -> pure $ RExpr ez r
         Just r@(InlineLetrec w e t) | localName l == unLocalName w -> pure $ RExpr ez r
@@ -565,7 +610,12 @@ findRedex tydefs globals dir = flip evalAccum mempty . runMaybeT . go . focus
           in msum @[] $ (substTyChild =<< focusType' ez) : map (substChild <=< lift) (exprChildren ez)
     goSubstTy :: TyVarName -> Type -> TypeZ -> MaybeT (Accum Cxt) RedexWithContext
     goSubstTy v t tz = let isFreeIn = elemOf (getting _freeVarsTy % _2)
-                       in lift (readerToAccumT $ viewRedexType $ target tz) >>= \case
+                       in do
+     c <- lift look
+     lift (readerToAccumT $ viewRedexType $ target tz) >>= \case
+      r | trace @Text ("goSubstTy " <> show (v,t) <> ",  target:" <> show (target tz))
+         (trace @Text ("    cxt: " <> show c)
+         (trace @Text ("    viewredex: " <> show r) False)) -> undefined
       -- We should inline such 'v' (note that we will not go under any 'v' binders)
       Just r@(InlineLetInType w _) | w == v -> pure $ RType tz r
       -- Elide a let only if it blocks the reduction
@@ -629,7 +679,10 @@ addBinds :: HasID i => i -> [Either Name SomeLocal] -> Accum Cxt ()
 addBinds i' bs = do
   let i = getID i'
   cxt <- look
-  add $ Cxt $ M.fromList $ bs <&> \case
+  traceM "addBinds"
+  traceM $ "  cxt: " <> show cxt
+  traceM $ "  adding: "
+  add $ traceShowId $ Cxt $ M.fromList $ bs <&> \case
     Left n -> (n,(Nothing,i,cxt))
     Right ls@(LSome l) -> (localName l,(Just ls,i,cxt))
 
