@@ -534,7 +534,7 @@ findRedex tydefs globals dir = flip evalAccum mempty . runMaybeT . go . focus
                             pure c
     go ez = lift (readerToAccumT $ viewRedex tydefs globals (focusDir dir ez) (target ez)) >>= \case
       Just r -> pure $ RExpr ez <$> r
-      Nothing | Just (LSome l, bz) <- viewLet ez -> pure <$> goSubst l bz
+      Nothing | Just (LSome l, bz) <- viewLet ez -> goSubst l bz
               -- Since stuck things other than lets are stuck on the first child or
               -- its type annotation, we can handle them all uniformly
               | otherwise ->  (purer =<< goType =<<  hoistMaybe (focusType ez))
@@ -543,11 +543,27 @@ findRedex tydefs globals dir = flip evalAccum mempty . runMaybeT . go . focus
     goType tz = lift (readerToAccumT $ viewRedexType $ target tz) >>= \case
       Just r -> pure $ RType tz r
       Nothing | TLet _ a t _body <- target tz
-              , [_,bz] <- typeChildren tz -> goSubstTy a t $ lift bz
+              , [_,bz] <- typeChildren tz -> goSubstTy a t =<< lift bz
               | otherwise -> msum $ map (goType <=< lift) $ typeChildren tz
-
-    goSubst :: Local k -> ExprZ -> MaybeT (Accum Cxt) RedexWithContext
-    goSubst l ez = _
+    goSubst :: Local k -> ExprZ -> MaybeT (Accum Cxt) (m RedexWithContext)
+    goSubst l ez = 
+      lift (readerToAccumT $ viewRedex tydefs globals (focusDir dir ez) $ target ez) >>= \case
+        Just r -> _
+        {-
+        -- We should inline such 'v'
+        Just r@(InlineLet w e) | i == j -> pure $ RExpr ez r -- TODO: is this the only place I use the ID? I know I have not gone under any 'v' binders, so can just compare by name...
+        Just r@(InlineLetrec w e t) | i == j -> pure $ RExpr ez r
+        -- Elide a let only if it blocks the reduction
+        Just r@(ElideLet w _) | elemOf freeVarsLocal w l -> pure $ RExpr ez r
+        -- Rename a binder only if it blocks the reduction
+        Just r@(RenameBindingsLam _ w _ _) | elemOf freeVarsLocal (unLocalName w) l -> pure $ RExpr ez r
+        Just r@(RenameBindingsLAM _ w _ _) | elemOf freeVarsLocal (unLocalName w) l -> pure $ RExpr ez r
+--        Redex r@(RenameBindingsCase _ e brs avoid)
+--          | not $ S.disjoint (setOf freeVarsLocal l) (setOf (folded % #_CaseBranch % _2 % folded % to bindName % to unLocalName) brs) ->
+--              pure $ RExpr ez r
+        Just r@(RenameSelfLet w _ _) | elemOf freeVarsLocal (unLocalName w) l -> pure $ RExpr ez r
+        Just r@(RenameSelfLetType w _ _) | elemOf freeVarsLocal (unLocalName w) l -> pure $ RExpr ez r
+-}
 {-
  case target ez of
       -- We've found one
@@ -594,21 +610,21 @@ findRedex tydefs globals dir = flip evalAccum mempty . runMaybeT . go . focus
           | otherwise = goSubst l z
 -}
     goSubstTy :: TyVarName -> Type -> TypeZ -> MaybeT (Accum Cxt) RedexWithContext
-    goSubstTy v t tz = lift (readerToAccumT $ viewRedexType $ target tz) >>= \case
+    goSubstTy v t tz = let isFreeIn = elemOf (getting _freeVarsTy % _2)
+                       in lift (readerToAccumT $ viewRedexType $ target tz) >>= \case
       -- We should inline such 'v' (note that we will not go under any 'v' binders)
       Just r@(InlineLetInType w _) | w == v -> pure $ RType tz r
       -- Elide a let only if it blocks the reduction
-      Just r@(ElideLetInType (LLetType w _) _)
-        | elemOf (getting _freeVarsTy % _2) w t -> pure $ RType tz r
+      Just r@(ElideLetInType (LLetType w _) _)        | w `isFreeIn` t -> pure $ RType tz r
       -- Rename a binder only if it blocks the reduction
-      Just r@(RenameSelfLetInType w _ _) | elemOf (getting _freeVarsTy % _2) w t -> pure $ RType tz r
-      Just r@(RenameForall _ w _ _ _) | elemOf (getting _freeVarsTy % _2) w t -> pure $ RType tz r
+      Just r@(RenameSelfLetInType w _ _) | w `isFreeIn` t -> pure $ RType tz r
+      Just r@(RenameForall _ w _ _ _) | w `isFreeIn` t -> pure $ RType tz r
       -- We switch to an inner let if substituting under it would cause capture
       Nothing
         | TLet _ w s _ <- target tz
         , [_,bz] <- typeChildren tz
         , v /= w
-        , elemOf (getting _freeVarsTy % _2) w t -> goSubstTy w s =<< lift bz
+        , w `isFreeIn` t -> goSubstTy w s =<< lift bz
       -- We should not go under 'v' binders, but otherwise substitute in each child
       _ ->
         let substChild c = do
