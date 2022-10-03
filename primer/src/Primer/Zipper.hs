@@ -49,6 +49,7 @@ module Primer.Zipper (
   getBoundHere',
   getBoundHere,
   getBoundHereUp,
+  getBoundHereDn,
   bindersAboveTy,
   bindersAboveTypeZ,
   getBoundHereTy,
