@@ -9,6 +9,7 @@ module Foreword (
   modifyError,
   mwhen,
   munless,
+  hoistMaybe,
 ) where
 
 -- In general, we should defer to "Protolude"'s exports and avoid name
@@ -72,6 +73,7 @@ import Protolude.Unsafe as Unsafe (unsafeHead)
 
 -- We want @exceptions@ rather than @base@'s equivalents.
 import Control.Monad.Catch as Catch
+import Control.Monad.Trans.Maybe (MaybeT (MaybeT))
 
 -- | Insert an element at some index, returning `Nothing` if it is out of bounds.
 insertAt :: Int -> a -> [a] -> Maybe [a]
@@ -114,3 +116,10 @@ munless b x = if b then mempty else x
 -- It's like 'Control.Monad.when' but for Monoids rather than Applicatives.
 mwhen :: Monoid a => Bool -> a -> a
 mwhen b x = if b then x else mempty
+
+-- This will be exported from Control.Monad.Trans.Maybe
+-- in transformers 0.6.0.0 and later
+-- TODO: tighten bounds, currently have transformers <= 0.7, which is wrong!
+--  (or bump lower bound?)
+hoistMaybe :: Applicative m => Maybe a -> MaybeT m a
+hoistMaybe = MaybeT . pure
