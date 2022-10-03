@@ -279,12 +279,11 @@ focusDir dirIfTop ez = case up ez of
     Hole _ _ -> Syn
     _ -> Chk
 
-viewLet :: ExprZ -> Maybe (SomeLocal, ExprZ)
-viewLet ez = case target ez of
-  -- the movements return Maybe but will obviously not fail in this scenario
-  Let _ x e _t -> (LSome $ LLet x e,) <$> (right =<< down ez)
-  Letrec _ x e ty _t -> (LSome $ LLetrec x e ty,) <$> (right =<< down ez)
-  LetType _ a ty _t -> (LSome $ LLetType a ty,) <$> down ez
+viewLet :: ExprZ -> Maybe (SomeLocal, Accum Cxt ExprZ)
+viewLet ez = case (target ez, exprChildren ez) of
+  (Let _ x e _b, [_,bz]) -> Just (LSome $ LLet x e, bz)
+  (Letrec _ x e ty _b, [_,bz]) -> Just (LSome $ LLetrec x e ty,bz)
+  (LetType _ a ty _b, [bz]) -> Just (LSome $ LLetType a ty,bz)
   _ -> Nothing
 
 viewCaseRedex :: TypeDefMap -> Expr -> Maybe Redex
@@ -520,20 +519,9 @@ findRedex ::
   Maybe RedexWithContext
 findRedex tydefs globals dir = flip evalAccum mempty . runMaybeT . go . focus
   where
-    children z = case down z of
-      Nothing -> mempty
-      Just z' -> z' : unfoldr (fmap (\x -> (x, x)) . right) z'
-    exprChildren ez = children ez <&> \c -> do
-                            let bs = getBoundHere' (target ez) (Just $ target c)
-                            addBinds ez bs
-                            pure c
-    typeChildren tz = children tz <&> \c -> do
-                            let bs = getBoundHereTy' (target tz) (Just $ target c)
-                            addBinds tz bs
-                            pure c
     go ez = lift (readerToAccumT $ viewRedex tydefs globals (focusDir dir ez) (target ez)) >>= \case
       Just r -> pure $ RExpr ez r
-      Nothing | Just (LSome l, bz) <- viewLet ez -> goSubst l bz
+      Nothing | Just (LSome l, bz) <- viewLet ez -> goSubst l =<< lift bz
               -- Since stuck things other than lets are stuck on the first child or
               -- its type annotation, we can handle them all uniformly
               | otherwise ->  (goType =<<  hoistMaybe (focusType ez))
@@ -563,13 +551,18 @@ findRedex tydefs globals dir = flip evalAccum mempty . runMaybeT . go . focus
         -- Switch to an inner let if substituting under it would cause capture
         Nothing | Just (LSome l',bz) <- viewLet ez
                 , localName l' /= localName l
-                , elemOf _freeVarsLocal (localName l') l -> goSubst l' bz
+                , elemOf _freeVarsLocal (localName l') l -> goSubst l' =<< lift bz
         -- We should not go under 'v' binders, but otherwise substitute in each child
         _ ->
           let substChild c = do
                 guard $ S.notMember (localName l) $ getBoundHere (target ez) (Just $ target c)
                 goSubst l c
-          in msum $ map substChild (children ez)
+              -- Note that nothing in Expr binds a variable which scopes over a type child
+              focusType' = hoistMaybe . focusType
+              substTyChild c = case l of
+                LLetType v t -> goSubstTy v t c
+                _ -> mzero
+          in msum @[] $ (substTyChild =<< focusType' ez) : map (substChild <=< lift) (exprChildren ez)
     goSubstTy :: TyVarName -> Type -> TypeZ -> MaybeT (Accum Cxt) RedexWithContext
     goSubstTy v t tz = let isFreeIn = elemOf (getting _freeVarsTy % _2)
                        in lift (readerToAccumT $ viewRedexType $ target tz) >>= \case
@@ -592,7 +585,31 @@ findRedex tydefs globals dir = flip evalAccum mempty . runMaybeT . go . focus
               guard $ S.notMember (unLocalName v)
                 $ S.map unLocalName $ getBoundHereTy (target tz) (Just $ target c)
               goSubstTy v t c
-         in msum $ map substChild (children tz)
+         in msum $ map (substChild <=< lift) (typeChildren tz)
+
+
+children' :: IsZipper za a => za -> [za]
+children' z = case down z of
+      Nothing -> mempty
+      Just z' -> z' : unfoldr (fmap (\x -> (x, x)) . right) z'
+
+exprChildren :: ExprZ -> [Accum Cxt ExprZ]
+exprChildren ez = children' ez <&!> \c -> do
+                            let bs = getBoundHere' (target ez) (Just $ target c)
+                            addBinds ez bs
+                            pure c
+
+(<&!>) :: [a] -> (a -> b) -> [b]
+[] <&!> f = []
+(x : xs) <&!> f = let !y = f x
+                  in y `seq` (y : xs <&!> f)
+
+typeChildren :: TypeZ -> [Accum Cxt TypeZ]
+typeChildren tz | trace @Text ("typeChildren " <> show (target tz)) False = undefined
+typeChildren tz = children' tz <&> \c -> do
+                            let bs = getBoundHereTy' (target tz) (Just $ target c)
+                            addBinds tz bs
+                            pure c
 
 
 -- TODO: Yuck, is there another way?
