@@ -28,7 +28,8 @@ import Data.Set.Optics (setOf)
 import Data.Tuple.Extra (thd3, snd3)
 import GHC.Err (error)
 import Numeric.Natural (Natural)
-import Optics (AffineFold, Fold, afolding, anyOf, getting, summing, to, (%), _2, _3, notElemOf, elemOf, _Just, Field1 (_1), foldVL, traverseOf_, allOf)
+import Optics (AffineFold,
+               Fold, afolding, getting, summing, to, (%), _2, notElemOf, elemOf, _Just, Field1 (_1), foldVL, traverseOf_, allOf, isnd, ifiltered, (<%))
 import Primer.Core (
   Bind' (Bind),
   CaseBranch,
@@ -282,7 +283,13 @@ _freeVarsTy' = getting _freeVarsTy % _2 % to unLocalName
 _freeVarsLocal :: Fold (Local k) Name
 _freeVarsLocal =
   _LLet % _2 % _freeVars'
-    `summing` _LLetrec % (_2 % _freeVars' `summing` _3 % _freeVarsTy')
+  -- Since letrec bound variables expand with a local letrec,
+  -- we don't consider the recursively-bound variable free
+  -- (since it will not be in the inlining)
+    `summing` _LLetrec <% (to (\(a,b,c) -> (a,(b,c)))
+                         % isnd
+                         % (_1 % _freeVars' `summing` _2 % _freeVarsTy')
+                         & ifiltered ((/=) . unLocalName))
     `summing` _LLetType % _2 % _freeVarsTy'
 
 _freeVarsSomeLocal :: Fold SomeLocal Name
