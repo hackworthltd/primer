@@ -396,47 +396,46 @@ lookupTy n c = case lookup (unLocalName n) c of
 -- - stuck on its left-most child
 -- - stuck on the type annotation on its left-most child
 -- - stuck on expression under the type annotation in its left-most child
-viewRedex :: (MonadFresh ID m, MonadFresh NameCounter m) =>
-  TypeDefMap ->
+viewRedex :: TypeDefMap ->
   DefMap ->
   Dir ->
-  Expr -> Reader Cxt (Maybe (m Redex))
-viewRedex tydefs globals dir = \case
-  Var _ (GlobalVarRef x) | Just (DefAST y) <- x `M.lookup` globals -> purer $ pure $ InlineGlobal x y
+  Expr -> Reader Cxt (Maybe Redex)
+viewRedex tydefs globals dir = \case -- STATUS: need to remove m, fixing cherry-pick
+  Var _ (GlobalVarRef x) | Just (DefAST y) <- x `M.lookup` globals -> purer $ InlineGlobal x y
   Var _ (LocalVarRef v) -> do
     getNonCapturedLocal v <&> \x -> do
       case x of
-        Just (LSome (LLet _ e)) -> purer $ InlineLet v e
-        Just (LSome (LLetrec _ e t)) -> purer $ InlineLetrec v e t
+        Just (LSome (LLet _ e)) -> pure $ InlineLet v e
+        Just (LSome (LLetrec _ e t)) -> pure $ InlineLetrec v e t
         _ -> Nothing
   Let _ v e1 e2
   -- TODO: we will recompute the freeVars set a lot (especially when doing EvalFull iterations)
-    | unLocalName v `S.notMember` freeVars e2 -> pure $ purer $ ElideLet (LSome $ LLet v e1) e2
-    | unLocalName v `S.member` freeVars e1 -> pure $ purer $ RenameSelfLet v e1 e2
+    | unLocalName v `S.notMember` freeVars e2 -> purer $ ElideLet (LSome $ LLet v e1) e2
+    | unLocalName v `S.member` freeVars e1 -> purer $ RenameSelfLet v e1 e2
     | otherwise -> pure Nothing
   LetType _ v t e
-    | unLocalName v `S.notMember` freeVars e -> pure $ purer $ ElideLet (LSome $ LLetType v t) e
-    | v `S.member` freeVarsTy t -> pure $ purer $ RenameSelfLetType v t e
+    | unLocalName v `S.notMember` freeVars e -> purer $ ElideLet (LSome $ LLetType v t) e
+    | v `S.member` freeVarsTy t -> purer $ RenameSelfLetType v t e
     | otherwise -> pure Nothing
   Letrec _ v e1 t e2
-    | unLocalName v `S.notMember` freeVars e2 -> pure $ purer $ ElideLet (LSome $ LLetrec v e1 t) e2
+    | unLocalName v `S.notMember` freeVars e2 -> purer $ ElideLet (LSome $ LLetrec v e1 t) e2
     | otherwise -> pure Nothing
   Lam m v e -> do
     fvcxt <- fvCxt $ freeVars e
     pure $
       if unLocalName v `S.member` fvcxt
-        then purer $ RenameBindingsLam m v e fvcxt
+        then pure $ RenameBindingsLam m v e fvcxt
         else Nothing
   LAM m v e -> do
     fvcxt <- fvCxt $ freeVars e
     pure $
       if unLocalName v `S.member` fvcxt
-        then purer $ RenameBindingsLAM m v e fvcxt
+        then pure $ RenameBindingsLAM m v e fvcxt
         else Nothing
-  App _ (Ann _ (Lam _ x t) (TFun _ src tgt)) s -> pure $ purer $ Beta x t src tgt s
-  e@App{} -> pure $ pure . ApplyPrimFun . thd3 <$> tryPrimFun (M.mapMaybe defPrim globals) e
+  App _ (Ann _ (Lam _ x t) (TFun _ src tgt)) s -> purer $ Beta x t src tgt s
+  e@App{} -> pure $ ApplyPrimFun . thd3 <$> tryPrimFun (M.mapMaybe defPrim globals) e
   -- (Λa.t : ∀b.T) S  ~> (letType a = S in t) : (letType b = S in T)
-  APP _ (Ann _ (LAM _ a t) (TForall _ b _ ty1)) ty2 -> pure $ purer $ BETA a t b ty1 ty2
+  APP _ (Ann _ (LAM _ a t) (TForall _ b _ ty1)) ty2 -> purer $ BETA a t b ty1 ty2
   APP{} -> pure Nothing
   e@(Case m s brs) -> do
     fvcxt <- fvCxt $ freeVars e
@@ -447,8 +446,8 @@ viewRedex tydefs globals dir = \case
       then case viewCaseRedex tydefs e of
         Nothing -> pure Nothing
         Just r -> purer r
-      else pure $ purer $ RenameBindingsCase m s brs fvcxt
-  Ann _ t ty | Chk <- dir, concreteTy ty -> pure $ purer $ Upsilon t ty
+      else pure $ pure $ RenameBindingsCase m s brs fvcxt
+  Ann _ t ty | Chk <- dir, concreteTy ty -> purer $ Upsilon t ty
   _ -> pure Nothing
 
 viewRedexType :: Type -> Reader Cxt (Maybe RedexType)
@@ -518,7 +517,7 @@ findRedex ::
   DefMap ->
   Dir ->
   Expr ->
-  Maybe (m RedexWithContext)
+  Maybe RedexWithContext
 findRedex tydefs globals dir = flip evalAccum mempty . runMaybeT . go . focus
   where
     children z = case down z of
@@ -533,11 +532,11 @@ findRedex tydefs globals dir = flip evalAccum mempty . runMaybeT . go . focus
                             addBinds tz bs
                             pure c
     go ez = lift (readerToAccumT $ viewRedex tydefs globals (focusDir dir ez) (target ez)) >>= \case
-      Just r -> pure $ RExpr ez <$> r
+      Just r -> pure $ RExpr ez r
       Nothing | Just (LSome l, bz) <- viewLet ez -> goSubst l bz
               -- Since stuck things other than lets are stuck on the first child or
               -- its type annotation, we can handle them all uniformly
-              | otherwise ->  (purer =<< goType =<<  hoistMaybe (focusType ez))
+              | otherwise ->  (goType =<<  hoistMaybe (focusType ez))
                               <|> msum (map (go <=< lift) $ exprChildren ez)
                 --(_ >>= goType) <|> msum (map (go <=< lift) $ exprChildren ez)
     goType tz = lift (readerToAccumT $ viewRedexType $ target tz) >>= \case
@@ -545,7 +544,7 @@ findRedex tydefs globals dir = flip evalAccum mempty . runMaybeT . go . focus
       Nothing | TLet _ a t _body <- target tz
               , [_,bz] <- typeChildren tz -> goSubstTy a t =<< lift bz
               | otherwise -> msum $ map (goType <=< lift) $ typeChildren tz
-    goSubst :: Local k -> ExprZ -> MaybeT (Accum Cxt) (m RedexWithContext)
+    goSubst :: Local k -> ExprZ -> MaybeT (Accum Cxt) RedexWithContext
     goSubst l ez = 
       lift (readerToAccumT $ viewRedex tydefs globals (focusDir dir ez) $ target ez) >>= \case
         Just r -> _
