@@ -420,14 +420,14 @@ viewRedex tydefs globals dir = \case -- STATUS: need to remove m, fixing cherry-
   Letrec _ v e1 t e2
     | unLocalName v `S.notMember` freeVars e2 -> purer $ ElideLet (LSome $ LLetrec v e1 t) e2
     | otherwise -> pure Nothing
-  Lam m v e -> do
-    fvcxt <- fvCxt $ freeVars e
+  l@(Lam m v e) -> do
+    fvcxt <- fvCxt $ freeVars l
     pure $
       if unLocalName v `S.member` fvcxt
         then pure $ RenameBindingsLam m v e fvcxt
         else Nothing
-  LAM m v e -> do
-    fvcxt <- fvCxt $ freeVars e
+  l@(LAM m v e) -> do
+    fvcxt <- fvCxt $ freeVars l
     pure $
       if unLocalName v `S.member` fvcxt
         then pure $ RenameBindingsLAM m v e fvcxt
@@ -460,8 +460,8 @@ viewRedexType = \case
     | notElemOf (getting _freeVarsTy % _2) v t -> purer $ ElideLetInType (LLetType v s) t
     | elemOf (getting _freeVarsTy % _2) v s -> purer $ RenameSelfLetInType v s t
     | otherwise -> pure Nothing
-  TForall m v s t -> do
-    fvcxt <- fvCxtTy $ freeVarsTy t
+  fa@(TForall m v s t) -> do
+    fvcxt <- fvCxtTy $ freeVarsTy fa
     pure $
       if v `S.member` fvcxt
         then -- If anything we may substitute would cause capture, we should rename this binder
