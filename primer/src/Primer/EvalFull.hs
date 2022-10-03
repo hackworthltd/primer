@@ -147,7 +147,7 @@ data Redex
     -- reduction steps. E.g.
     --     cons ==  (Λa λx λxs. Cons @a x xs) : ∀a. a -> List a -> List a
     -- )
-    CaseRedex ValConName [(Expr, Type)] (Either Type (Type' ())) [LVarName] Expr
+    CaseRedex ValConName (forall m. MonadFresh NameCounter m => [(Expr, m (Type' ()))]) (Either Type (Type' ())) [LVarName] Expr
   | -- [ t : T ]  ~>  t  writing [_] for the embedding of syn into chk
     -- This only fires for concrete (non-holey, no free vars) T, as otherwise the
     -- annotation can act as a type-changing cast:
@@ -219,11 +219,8 @@ evalFullStepCount tydefs env n d = go 0
 step :: MonadEvalFull l m => TypeDefMap -> DefMap -> Dir -> Expr -> Maybe (m Expr)
 step tydefs g d e = case findRedex tydefs g d e of
   Nothing -> Nothing
-  Just mr ->
-    Just $
-      mr >>= \case
-        RExpr ez r -> unfocusExpr . flip replace ez <$> runRedex r
-        RType et r -> unfocusExpr . unfocusType . flip replace et <$> runRedexTy r
+  Just (RExpr ez r) -> Just $ unfocusExpr . flip replace ez <$> runRedex r
+  Just (RType et r) -> Just $ unfocusExpr . unfocusType . flip replace et <$> runRedexTy r
 
 -- We don't really want a zipper here, but a one-hole context, but it is easier
 -- to just reuse the zipper machinery and ignore the target of the zipper.
@@ -291,7 +288,7 @@ viewLet ez = case target ez of
   LetType _ a ty _t -> (LSome $ LLetType a ty,) <$> down ez
   _ -> Nothing
 
-viewCaseRedex :: MonadEvalFull l m => TypeDefMap -> Expr -> Maybe (m Redex)
+viewCaseRedex :: TypeDefMap -> Expr -> Maybe Redex
 viewCaseRedex tydefs = \case
   -- The patterns in the case branch have a Maybe TypeCache attached, but we
   -- should not assume that this has been filled in correctly, so we record
@@ -326,7 +323,7 @@ viewCaseRedex tydefs = \case
               CaseBranch _ xs e <- find (\(CaseBranch n _ _) -> n == c) brs
               pure (c, params, as, xs, e)
             _ -> Nothing
-    instantiateCon :: MonadFresh NameCounter m => Type' a -> ValConName -> Maybe [m (Type' ())]
+    instantiateCon :: Type' a -> ValConName -> Maybe (forall m. MonadFresh NameCounter m => [m (Type' ())])
     instantiateCon ty c
       | Right (_, _, instVCs) <- instantiateValCons' tydefs $ forgetTypeMetadata ty
       , Just (_, argTys) <- find ((== c) . fst) instVCs =
@@ -361,24 +358,29 @@ viewCaseRedex tydefs = \case
           binders = S.fromList $ map (unLocalName . bindName) patterns
        in if S.disjoint avoid binders
             then Nothing
-            else Just $ pure $ RenameBindingsCase m expr brs avoid
-    formCaseRedex ty c argTys args patterns br = pure $ do
-      argTys' <- sequence argTys
-      -- TODO: we are putting trivial metadata in here...
-      -- See https://github.com/hackworthltd/primer/issues/6
-      argTys'' <- traverse generateTypeIDs argTys'
-      pure $ CaseRedex c (zip args argTys'') ty (map bindName patterns) br
+            else Just $ RenameBindingsCase m expr brs avoid
+    formCaseRedex ::
+      Either Type (Type' ()) ->
+      ValConName ->
+      (forall m. MonadFresh NameCounter m => [m (Type' ())]) ->
+      [Expr] ->
+      [Bind' a] ->
+      Expr ->
+      Maybe Redex
+    formCaseRedex ty c argTys args patterns br =
+      Just $
+        CaseRedex c (zip args argTys) ty (map bindName patterns) br
 
 -- This spots all redexs other than InlineLet
-viewRedex :: MonadEvalFull l m => TypeDefMap -> DefMap -> Dir -> Expr -> Maybe (m Redex)
+viewRedex :: TypeDefMap -> DefMap -> Dir -> Expr -> Maybe Redex
 viewRedex tydefs globals dir = \case
-  Var _ (GlobalVarRef x) | Just (DefAST y) <- x `M.lookup` globals -> pure $ pure $ InlineGlobal x y
-  App _ (Ann _ (Lam _ x t) (TFun _ src tgt)) s -> pure $ pure $ Beta x t src tgt s
-  e@App{} -> pure . ApplyPrimFun . thd3 <$> tryPrimFun (M.mapMaybe defPrim globals) e
+  Var _ (GlobalVarRef x) | Just (DefAST y) <- x `M.lookup` globals -> pure $ InlineGlobal x y
+  App _ (Ann _ (Lam _ x t) (TFun _ src tgt)) s -> pure $ Beta x t src tgt s
+  e@App{} -> ApplyPrimFun . thd3 <$> tryPrimFun (M.mapMaybe defPrim globals) e
   -- (Λa.t : ∀b.T) S  ~> (letType a = S in t) : (letType b = S in T)
-  APP _ (Ann _ (LAM _ a t) (TForall _ b _ ty1)) ty2 -> pure $ pure $ BETA a t b ty1 ty2
+  APP _ (Ann _ (LAM _ a t) (TForall _ b _ ty1)) ty2 -> pure $ BETA a t b ty1 ty2
   e | Just r <- viewCaseRedex tydefs e -> Just r
-  Ann _ t ty | Chk <- dir, concreteTy ty -> pure $ pure $ Upsilon t ty
+  Ann _ t ty | Chk <- dir, concreteTy ty -> pure $ Upsilon t ty
   _ -> Nothing
 
 -- We find the normal-order redex.
@@ -400,13 +402,11 @@ viewRedex tydefs globals dir = \case
 -- well here (movements are Maybe, I know what should happen, but cannot
 -- express the moves nicely...)
 findRedex ::
-  forall m l.
-  MonadEvalFull l m =>
   TypeDefMap ->
   DefMap ->
   Dir ->
   Expr ->
-  Maybe (m RedexWithContext)
+  Maybe RedexWithContext
 findRedex tydefs globals dir = go . focus
   where
     eachChild z f = case down z of
@@ -420,13 +420,13 @@ findRedex tydefs globals dir = go . focus
         let children = z' : unfoldr (fmap (\x -> (x, x)) . right) z'
          in foldr (\c acc -> f (getBoundHere (target z) (Just $ target c)) c <|> acc) Nothing children
     go ez
-      | Just (LSome l, bz) <- viewLet ez = pure <$> goLet l ez bz
-      | Just mr <- viewRedex tydefs globals (focusDir dir ez) (target ez) = Just $ RExpr ez <$> mr
+      | Just (LSome l, bz) <- viewLet ez = goLet l ez bz
+      | Just mr <- viewRedex tydefs globals (focusDir dir ez) (target ez) = Just $ RExpr ez mr
       | otherwise =
           -- We reduce any types first, as computation in types is simple (just inlining)
           (focusType ez >>= goType) <|> eachChild ez go
     goType tz
-      | TLet _ a t _body <- target tz = fmap pure $ down tz >>= right >>= goTLet (LLetType a t) tz
+      | TLet _ a t _body <- target tz = down tz >>= right >>= goTLet (LLetType a t) tz
       | otherwise = eachChild tz goType
     -- This should always return Just
     -- It finds either this let is redundant, or somewhere to substitute it
@@ -534,7 +534,10 @@ runRedex = \case
   -- (and also the non-annotated-constructor case)
   -- Note that when forming the CaseRedex we checked that the variables @xs@ were fresh for @as@ and @As@,
   -- so this will not capture any variables.
-  CaseRedex _ as _ xs e -> foldrM (\(x, (a, tyA)) t -> let_ x (pure a `ann` pure tyA) (pure t)) e (zip xs as)
+  CaseRedex _ as _ xs e -> do
+    -- TODO: we are putting trivial metadata in here...
+    -- See https://github.com/hackworthltd/primer/issues/6
+    foldrM (\(x, (a, tyA)) t -> let_ x (pure a `ann` (generateTypeIDs =<< tyA)) (pure t)) e (zip xs as)
   -- [ t : T ]  ~>  t  writing [_] for the embedding of syn into chk
   Upsilon e _ -> pure e
   -- λy.t  ~>  λz.let y = z in t (and similar for other binding forms, except let)
