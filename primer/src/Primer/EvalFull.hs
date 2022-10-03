@@ -543,12 +543,13 @@ findRedex tydefs globals dir = flip evalAccum mempty . runMaybeT . go . focus
     goType tz = lift (readerToAccumT $ viewRedexType $ target tz) >>= \case
       Just r -> pure $ RType tz r
       Nothing | TLet _ a t _body <- target tz
-              , [_,bz] <- typeChildren tz -> goSubstTy (LLetType a t) $ lift bz
+              , [_,bz] <- typeChildren tz -> goSubstTy a t $ lift bz
               | otherwise -> msum $ map (goType <=< lift) $ typeChildren tz
 
+    goSubst :: Local k -> ExprZ -> MaybeT (Accum Cxt) RedexWithContext
+    goSubst l ez = _
 {-
-    goSubst :: Local k -> ExprZ -> Maybe RedexWithContext
-    goSubst l ez = case target ez of
+ case target ez of
       -- We've found one
       Var _ (LocalVarRef x) | unLocalName x == localName l -> case l of
         LLet n le -> pure $ RExpr ez $ InlineLet n le
@@ -591,27 +592,30 @@ findRedex tydefs globals dir = flip evalAccum mempty . runMaybeT . go . focus
                 -- https://github.com/hackworthltd/primer/issues/148
                 e -> error $ "Internal Error: something other than Lam/LAM/Case was a binding: " ++ show e
           | otherwise = goSubst l z
-    goSubstTy :: TyVarName -> Type -> TypeZ -> Maybe RedexWithContext
-    goSubstTy n t tz = case target tz of
-      -- found one
-      TVar _ x | x == n -> pure $ RType tz $ InlineLetInType n t
-      -- Swap to an inner let, as long as it would make progress,
-      -- but prefer eliding an outer binder if possible
-      TLet _ m s _body
-        | m /= n
-        , anyOf (getting _freeVarsTy % _2) (== m) t ->
-            down tz >>= right >>= goTLet (LLetType m s) tz
-      -- The only other binding form is a forall
-      -- Don't go under bindings of 'n'
-      (TForall i m k s)
-        | n == m -> Nothing
-        -- If we are substituting x->y in forall y.s, we rename the y to avoid capture
-        -- As we don't have 'let's in types, this is a big step
-        | fvs <- freeVarsTy t
-        , m `S.member` fvs ->
-            pure $ RType tz $ RenameForall i m k s fvs
-      _ -> eachChild tz (goSubstTy n t)
 -}
+    goSubstTy :: TyVarName -> Type -> TypeZ -> MaybeT (Accum Cxt) RedexWithContext
+    goSubstTy v t tz = lift (readerToAccumT $ viewRedexType $ target tz) >>= \case
+      -- We should inline such 'v' (note that we will not go under any 'v' binders)
+      Just r@(InlineLetInType w _) | w == v -> pure $ RType tz r
+      -- Elide a let only if it blocks the reduction
+      Just r@(ElideLetInType (LLetType w _) _)
+        | elemOf (getting _freeVarsTy % _2) w t -> pure $ RType tz r
+      -- Rename a binder only if it blocks the reduction
+      Just r@(RenameSelfLetInType w _ _) | elemOf (getting _freeVarsTy % _2) w t -> pure $ RType tz r
+      Just r@(RenameForall _ w _ _ _) | elemOf (getting _freeVarsTy % _2) w t -> pure $ RType tz r
+      -- We switch to an inner let if substituting under it would cause capture
+      Nothing
+        | TLet _ w s _ <- target tz
+        , [_,bz] <- typeChildren tz
+        , v /= w
+        , elemOf (getting _freeVarsTy % _2) w t -> goSubstTy w s =<< lift bz
+      -- We should not go under 'v' binders, but otherwise substitute in each child
+      _ ->
+        let substChild c = do
+              guard $ S.notMember (unLocalName v)
+                $ S.map unLocalName $ getBoundHereTy (target tz) (Just $ target c)
+              goSubstTy v t c
+         in msum $ map substChild (children tz)
 
 
 -- TODO: Yuck, is there another way?
