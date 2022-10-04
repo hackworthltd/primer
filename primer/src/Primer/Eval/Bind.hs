@@ -30,3 +30,4 @@ data BindRenameDetail t = BindRenameDetail
   }
   deriving (Eq, Show, Generic)
   deriving (FromJSON, ToJSON) via PrimerJSON (BindRenameDetail t)
+-- TODO/REVIEW: no more occurenceID , but ok because we only locally add lets, and don't do a big renaming pass anymore?
