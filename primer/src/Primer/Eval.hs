@@ -73,7 +73,7 @@ import Primer.Core.Utils (
   _freeTyVars,
   _freeVarsTy,
  )
-import Primer.Def (DefMap)
+import Primer.Def (DefMap, defPrim)
 import Primer.Eval.Detail (
   ApplyPrimFunDetail (..),
   BetaReductionDetail (..),
@@ -95,7 +95,7 @@ import Primer.Eval.Detail (
   tryReduceBETA,
   tryReduceBeta,
   tryReducePrim,
-  tryReducePush, RemoveAnnDetail (..),
+  tryReducePush, RemoveAnnDetail (..), BindRenameDetail (..),
  )
 import Primer.Eval.EvalError (EvalError (..))
 import Primer.Eval.Utils (makeSafeTLetBinding)
@@ -119,12 +119,15 @@ import Primer.Zipper (
   unfocusType,
  )
 import Primer.Eval.Redex (Dir(..), viewRedex, viewRedexType, runRedexTy, Cxt(Cxt), runRedex,
-                         Local(..),SomeLocal(LSome), getNonCapturedLocal, Redex (InlineGlobal, InlineLet, InlineLetrec, ElideLet, Beta, BETA, CaseRedex, Upsilon, RenameBindingsLam), localName)
+                         Local(..),SomeLocal(LSome), getNonCapturedLocal, Redex (InlineGlobal, InlineLet, InlineLetrec, ElideLet, Beta, BETA, CaseRedex, Upsilon, RenameBindingsLam, RenameBindingsLAM, RenameBindingsCase, RenameSelfLet, RenameSelfLetType), localName)
+import Primer.Eval.Redex qualified as Redex
 import Primer.TypeDef (TypeDefMap)
 import Primer.Eval.NormalOrder (foldMapExpr, FMExpr (FMExpr, subst, substTy, expr, ty)
                                ,singletonCxtLet,singletonCxtLetType,singletonCxtLetrec)
 import Control.Monad.Log (WithSeverity, MonadLog)
 import Primer.Log (ConvertLogMessage)
+import qualified Data.Set as S
+import qualified Data.Map as M
 
 -- | Perform one step of reduction on the node with the given ID
 -- Returns the new expression and its redexes.
@@ -458,47 +461,68 @@ tryReduceExpr tydefs globals cxt dir expr = case flip runReader cxt $ viewRedex 
       ,branchBindingIDs = brs ^.. folded % filtered (\(CaseBranch c _ _) -> c == ctorName)
                                         % #_CaseBranch % _2 % folded % to getID
       ,branchRhsID = getID rhs
-      ,letIDs = unfoldr (\case Let i _ _ b | getID i /= getID rhs -> Just (getID i,b) ; _ -> Nothing) after
+      ,letIDs = after `getLetsUntil` rhs
       }
     details  (Upsilon _ _) before@(Ann _ _ ty) after = RemoveAnn RemoveAnnDetail {
       before,after,typeID = getID ty
       }
-    details  (RenameBindingsLam m x e avoid) before after = LetRename LetRenameDetail {
-
+    details  (RenameBindingsLam m x e avoid) before after@(Lam _ x' l) = BindRename BindRenameDetail {
+      before,after
+      ,bindingNameOld = [unLocalName x]
+      ,bindingNameNew = [unLocalName x']
+      ,binderID = [getID before]
+      ,renameLetID = [getID l]
+      ,bodyID = getID e
       }
-  -- -- λy.t  ~>  λz.let y = z in t (and similar for other binding forms, except let)
-  -- RenameBindingsLam m x e avoid -> do
-  --   y <- freshLocalName' (avoid <> freeVars e)
-  --   Lam m y <$> let_ x (lvar y) (pure e)
-  -- RenameBindingsLAM m x e avoid -> do
-  --   y <- freshLocalName' (avoid <> freeVars e)
-  --   LAM m y <$> letType x (tvar y) (pure e)
-  -- RenameBindingsCase m s brs avoid
-  --   | (brs0, CaseBranch ctor binds rhs : brs1) <- break (\(CaseBranch _ bs _) -> any ((`S.member` avoid) . unLocalName . bindName) bs) brs ->
-  --       let bns = map bindName binds
-  --           avoid' = avoid <> freeVars rhs <> S.fromList (map unLocalName bns)
-  --        in do
-  --             rn <- traverse (\b -> if unLocalName b `S.member` avoid then Right . (b,) <$> freshLocalName' avoid' else pure $ Left b) bns
-  --             let f b@(Bind i _) = \case Left _ -> b; Right (_, w) -> Bind i w
-  --             let binds' = zipWith f binds rn
-  --             rhs' <- foldrM (\(v, w) -> let_ v (lvar w) . pure) rhs $ rights rn
-  --             pure $ Case m s $ brs0 ++ CaseBranch ctor binds' rhs' : brs1
-  --   -- We should replace this with a proper exception. See:
-  --   -- https://github.com/hackworthltd/primer/issues/148
-  --   | otherwise -> error "Internal Error: RenameBindingsCase found no applicable branches"
-  -- -- let x = f x in g x x  ~>  let y = f x in let x = y in g x x
-  -- RenameSelfLet x e body -> do
-  --   y <- freshLocalName' (freeVars e <> freeVars body)
-  --   let_ y (pure e) $ let_ x (lvar y) $ pure body
-  -- -- As RenameSelfLet, but for LetType
-  -- RenameSelfLetType a ty body -> do
-  --   b <- freshLocalName' (S.map unLocalName (freeVarsTy ty) <> freeVars body)
-  --   letType b (pure ty) $ letType a (tvar b) $ pure body
-  -- ApplyPrimFun e -> e
+    details  (RenameBindingsLAM m x e avoid) before after@(LAM _ x' l) = BindRename BindRenameDetail {
+      before,after
+      ,bindingNameOld = [unLocalName x]
+      ,bindingNameNew = [unLocalName x']
+      ,binderID = [getID before]
+      ,renameLetID = [getID l]
+      ,bodyID = getID e
+      }
+    details  (RenameBindingsCase m s brs avoid) before@(Case _ _ _) after@(Case _ _ brs')
+      | (brs0, CaseBranch _ binds rhs : _) <- break (\(CaseBranch _ bs _) -> any ((`S.member` avoid) . unLocalName . bindName) bs) brs
+      , (CaseBranch _ binds' rhs' : _) <- drop (length brs0) brs'
+      = BindRename BindRenameDetail {
+      before,after
+      ,bindingNameOld = map (unLocalName . bindName) binds
+      ,bindingNameNew = map (unLocalName . bindName) binds'
+      ,binderID = map getID binds
+      ,renameLetID = rhs' `getLetsUntil` rhs
+      ,bodyID = getID rhs
+      }
+    details (RenameSelfLet x _ body) before after@(Let _ y _ l) = BindRename BindRenameDetail {
+      before,after
+      ,bindingNameOld = [unLocalName x]
+      ,bindingNameNew = [unLocalName y]
+      ,binderID = [getID before]
+      ,renameLetID = [getID l]
+      ,bodyID = getID body
+      }
+    details (RenameSelfLetType a _ body) before after@(LetType _ b _ l) = BindRename BindRenameDetail {
+      before,after
+      ,bindingNameOld = [unLocalName a]
+      ,bindingNameNew = [unLocalName b]
+      ,binderID = [getID before]
+      ,renameLetID = [getID l]
+      ,bodyID = getID body
+      }
+    details (Redex.ApplyPrimFun e) before after = case tryPrimFun  (M.mapMaybe defPrim globals) before of
+          Just (name,args,_) -> ApplyPrimFun ApplyPrimFunDetail {
+          before,after
+          ,name
+          ,argIDs = map getID args
+          }
+
     getLocalBodyID :: SomeLocal -> ID
     getLocalBodyID (LSome (LLet _ e)) = getID e
     getLocalBodyID (LSome (LLetType _ t)) = getID t
     getLocalBodyID (LSome (LLetrec _ e _)) = getID e
+
+    getLetsUntil expr until = unfoldr (\case Let i _ _ b | getID i /= getID until -> Just (getID i,b) ; _ -> Nothing) expr
+
 {-
   (tryReduceBeta -> Just m) -> second BetaReduction <$> m
   (tryReduceBETA -> Just m) -> second BETAReduction <$> m

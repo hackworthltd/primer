@@ -4,6 +4,7 @@ module Primer.Eval.Detail (
   EvalDetail (..),
   module Ann,
   module Beta,
+  module Bind,
   module Inline,
   module Case,
   module Forall,
@@ -18,6 +19,7 @@ import Primer.Core (Expr)
 import Primer.Core.Meta (LocalNameKind (..))
 import Primer.Core.Type (Kind, Type)
 import Primer.Eval.Beta as Beta
+import Primer.Eval.Bind as Bind
 import Primer.Eval.Case as Case
 import Primer.Eval.Forall as Forall
 import Primer.Eval.Inline as Inline
@@ -43,7 +45,8 @@ data EvalDetail
     LetRemoval (LetRemovalDetail Expr)
   | TLetRemoval (LetRemovalDetail Type)
   | -- | Renaming of binding in let x = ...x... in ...x...x...
-    LetRename (LetRenameDetail Expr)
+    BindRename (BindRenameDetail Expr) -- TODO: use this more, eg for TForall
+--  | LetRename (LetRenameDetail Expr)
   | TLetRename (LetRenameDetail Type)
   | TForallRename ForallRenameDetail
   | -- | TODO: some details here
