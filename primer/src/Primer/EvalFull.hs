@@ -1,6 +1,22 @@
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE ImpredicativeTypes #-}
 
+-- STATUS:
+-- re-implemented evalfull to be factored nicer
+--   - viewing redex is  disentangled from finding normal order
+-- everything compiles, primer-test test suite passes
+-- EvalFull tests take ~14s now (default options, under -O0)
+-- previously they took (on log-move-failure) ~15s
+-- with --hedgehog-tests 0, is 0.69s vs 0.79s
+-- no idea why... maybe agressive elision is a minor win even though have to look for free vars more often?
+--                or maybe less monadic (fresh name/id) overhead?
+--
+-- Next steps:
+--   - PR this?
+--   - common up Eval
+--   - push lets down
+--   - audit
+
 module Primer.EvalFull (
   Dir (..),
   EvalFullError (..),
