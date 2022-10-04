@@ -570,14 +570,15 @@ findRedex ::
   Dir ->
   Expr ->
   Maybe RedexWithContext
-findRedex tydefs globals dir = runIdentity . runMaybeT . flip evalAccumT mempty . go . focus
+findRedex tydefs globals dir = flip evalAccumT mempty . go . focus
   where
-    focusType' :: ExprZ -> AccumT Cxt (MaybeT Identity) TypeZ
+    focusType' :: ExprZ -> AccumT Cxt Maybe TypeZ
     -- Note that nothing in Expr binds a variable which scopes over a type child
     -- so we don't need to 'add' anything
-    focusType' = lift . hoistMaybe . focusType
-    hoistAccum :: Accum Cxt a -> AccumT Cxt (MaybeT Identity) a
+    focusType' = lift .  focusType
+    hoistAccum :: Accum Cxt a -> AccumT Cxt Maybe a
     hoistAccum = Foreword.hoistAccum generalize
+    go :: ExprZ -> AccumT Cxt Maybe RedexWithContext
     go ez = do
      c <- look
      hoistAccum (readerToAccumT $ viewRedex tydefs globals (focusDir dir ez) (target ez)) >>= \case
@@ -588,6 +589,7 @@ findRedex tydefs globals dir = runIdentity . runMaybeT . flip evalAccumT mempty 
               | otherwise -> msum $  (goType =<< focusType' ez)
                                   : (map (go <=< hoistAccum) $ exprChildren ez)
                 --(_ >>= goType) <|> msum (map (go <=< lift) $ exprChildren ez)
+    goType :: TypeZ -> AccumT Cxt Maybe RedexWithContext
     goType tz = do
      c <- look
      hoistAccum (readerToAccumT $ viewRedexType $ target tz) >>= \case
@@ -595,7 +597,7 @@ findRedex tydefs globals dir = runIdentity . runMaybeT . flip evalAccumT mempty 
       Nothing | TLet _ a t _body <- target tz
               , [_,bz] <- typeChildren tz -> goSubstTy a t =<< hoistAccum bz
               | otherwise -> msum $ map (goType <=< hoistAccum) $ typeChildren tz
-    goSubst :: Local k -> ExprZ -> AccumT Cxt (MaybeT Identity) RedexWithContext
+    goSubst :: Local k -> ExprZ -> AccumT Cxt Maybe RedexWithContext
     goSubst l ez = do
       c <- look
       hoistAccum (readerToAccumT $ viewRedex tydefs globals (focusDir dir ez) $ target ez) >>= \case
@@ -625,7 +627,7 @@ findRedex tydefs globals dir = runIdentity . runMaybeT . flip evalAccumT mempty 
                 LLetType v t -> goSubstTy v t c
                 _ -> mzero
           in msum @[] $ (substTyChild =<< focusType' ez) : map (substChild <=< hoistAccum) (exprChildren ez)
-    goSubstTy :: TyVarName -> Type -> TypeZ -> AccumT Cxt (MaybeT Identity) RedexWithContext
+    goSubstTy :: TyVarName -> Type -> TypeZ -> AccumT Cxt Maybe RedexWithContext
     goSubstTy v t tz = let isFreeIn = elemOf (getting _freeVarsTy % _2)
                        in do
      c <- look
