@@ -95,7 +95,7 @@ import Primer.Eval.Detail (
   tryReduceBETA,
   tryReduceBeta,
   tryReducePrim,
-  tryReducePush, RemoveAnnDetail (RemoveAnnDetail),
+  tryReducePush, RemoveAnnDetail (..),
  )
 import Primer.Eval.EvalError (EvalError (..))
 import Primer.Eval.Utils (makeSafeTLetBinding)
@@ -454,14 +454,14 @@ tryReduceExpr tydefs globals cxt dir expr = case flip runReader cxt $ viewRedex 
       ,targetID = getID scrutinee
       ,targetCtorID = getID $ fst $ unfoldAPP $ fst $ unfoldApp scrutinee
       ,ctorName
-      ,targetArgIDs = getID . fst <$> as
+  --    ,targetArgIDs = getID . fst <$> as
       ,branchBindingIDs = brs ^.. folded % filtered (\(CaseBranch c _ _) -> c == ctorName)
                                         % #_CaseBranch % _2 % folded % to getID
       ,branchRhsID = getID rhs
       ,letIDs = unfoldr (\case Let i _ _ b | getID i /= getID rhs -> Just (getID i,b) ; _ -> Nothing) after
       }
     details  (Upsilon _ _) before@(Ann _ _ ty) after = RemoveAnn RemoveAnnDetail {
-      before --,after,typeID = getID ty
+      before,after,typeID = getID ty
       }
     details  (RenameBindingsLam m x e avoid) before after = LetRename LetRenameDetail {
 
