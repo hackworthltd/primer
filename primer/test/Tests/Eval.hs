@@ -39,6 +39,7 @@ import Primer.Def (ASTDef (..), Def (..), DefMap, defPrim)
 import Primer.Eval (
   ApplyPrimFunDetail (..),
   BetaReductionDetail (..),
+  BindRenameDetail (..),
   CaseReductionDetail (..),
   EvalDetail (..),
   EvalError (..),
@@ -324,15 +325,14 @@ unit_tryReduce_let_self_capture = do
       result = runTryReduce tydefs mempty mempty (expr, i)
       expectedResult = create' $ let_ "x0" (lvar "x") (lvar "x0")
   case result of
-    Right (expr', LetRename detail) -> do
+    Right (expr', BindRename detail) -> do
       expr' ~= expectedResult
 
       detail.before @?= expr
       detail.after ~= expectedResult
-      detail.bindingNameOld @?= "x"
-      detail.bindingNameNew @?= "x0"
-      detail.letID @?= 0
-      detail.bindingOccurrences @?= [1]
+      detail.bindingNameOld @?= ["x"]
+      detail.bindingNameNew @?= ["x0"]
+      detail.binderID @?= [0]
       detail.bodyID @?= 2
     _ -> assertFailure $ show result
 
@@ -359,15 +359,14 @@ unit_tryReduce_lettype_self_capture = do
       result = runTryReduce tydefs mempty mempty (expr, i)
       expectedResult = create' $ letType "x0" (tvar "x") (emptyHole `ann` tvar "x0")
   case result of
-    Right (expr', LetRename detail) -> do
+    Right (expr', BindRename detail) -> do
       expr' ~= expectedResult
 
       detail.before @?= expr
       detail.after ~= expectedResult
-      detail.bindingNameOld @?= "x"
-      detail.bindingNameNew @?= "x0"
-      detail.letID @?= 0
-      detail.bindingOccurrences @?= [1]
+      detail.bindingNameOld @?= ["x"]
+      detail.bindingNameNew @?= ["x0"]
+      detail.binderID @?= [0]
       detail.bodyID @?= 2
     _ -> assertFailure $ show result
 

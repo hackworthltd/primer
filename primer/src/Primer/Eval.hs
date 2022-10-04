@@ -9,6 +9,7 @@ module Primer.Eval (
   EvalError (..),
   EvalDetail (..),
   BetaReductionDetail (..),
+  BindRenameDetail (..),
   LocalVarInlineDetail (..),
   CaseReductionDetail (..),
   GlobalVarInlineDetail (..),
