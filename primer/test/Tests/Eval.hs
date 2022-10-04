@@ -720,8 +720,9 @@ unit_findNodeByID_scoping_1 :: Assertion
 unit_findNodeByID_scoping_1 = do
   let expr = create' $ let_ "x" (con' ["M"] "C") $ lam "x" $ lvar "x"
   case findNodeByID 3 Syn expr of
-    _ -> assertFailure "expected failure"
-    Just (Cxt locals, Left _) -> assertBool "Expected 'x' not to be in scope" (Map.null locals)
+    Just (Cxt locals, Left _) | Just (Nothing,_,_) <- Map.lookup "x" locals
+                                -> pure ()
+                              | otherwise -> assertFailure "Expected 'x' to be in scope but not have a substitution"
     _ -> assertFailure "Expected to find the lvar 'x'"
 
 unit_findNodeByID_scoping_2 :: Assertion
