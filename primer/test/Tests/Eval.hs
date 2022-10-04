@@ -1088,6 +1088,17 @@ unit_redexes_case_5 :: Assertion
 unit_redexes_case_5 =
   redexesOf (let_ "x" (con' ["M"] "C") (case_ (lvar "x") [])) @?= Set.fromList [3]
 
+-- The body of a let has the same directionality as the let itself
+unit_redexes_let_upsilon :: Assertion
+unit_redexes_let_upsilon = do
+  let t = tforall "a" KType (tvar "a")
+  redexesOf (let_ "x" (lam "x" emptyHole `ann` t) $ lam "x" emptyHole `ann` t) @?= Set.fromList [0]
+  redexesOf (lam "x" $ let_ "x" (lam "x" emptyHole `ann` t) $ emptyHole `ann` t) @?= Set.fromList [1,7]
+  redexesOf (letType "x" t $ lam "x" emptyHole `ann` t) @?= Set.fromList [0]
+  redexesOf (lam "x" $ letType "x" t $ emptyHole `ann` t) @?= Set.fromList [1,4]
+  redexesOf (letrec "x" (lam "x" emptyHole `ann` t) t $ lam "x" emptyHole `ann` t) @?= Set.fromList [0,1]
+  redexesOf (lam "x" $ letrec "x" (lam "x" emptyHole `ann` t) t $ emptyHole `ann` t) @?= Set.fromList [1,2,9]
+
 unit_redexes_prim_1 :: Assertion
 unit_redexes_prim_1 =
   redexesOfWithPrims (pfun EqChar `app` char 'a' `app` char 'b') @?= Set.fromList [0]

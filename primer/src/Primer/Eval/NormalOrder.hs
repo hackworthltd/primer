@@ -87,6 +87,13 @@ focusDir dirIfTop ez = case up ez of
     APP _ f _ | f == target ez -> Syn
     Case _ scrut _ | scrut == target ez -> Syn
     Hole _ _ -> Syn
+    -- bodies of lets are the same direction as
+    -- the let themselves
+    Let _ _ e b | target ez == e -> Syn
+                | otherwise -> focusDir dirIfTop z
+    LetType _ _ t b -> focusDir dirIfTop z
+    Letrec _ _ e t b | target ez == e -> Chk
+                     | otherwise -> focusDir dirIfTop z
     _ -> Chk
 
 viewLet :: ExprZ -> Maybe (SomeLocal, Accum Cxt ExprZ)
