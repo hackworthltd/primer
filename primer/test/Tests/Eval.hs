@@ -988,7 +988,7 @@ unit_redexes_letrec_3 =
 -- we inline the letrec enough we would be able to see the beta.
 unit_redexes_letrec_app_1 :: Assertion
 unit_redexes_letrec_app_1 =
-  redexesOf (app (letrec "e" (con' ["M"] "C") (tcon' ["M"] "T") (lam "x" (lvar "e") `ann` (tvar "a" `tfun` tvar "a")))
+  redexesOf (app (letrec "e" (con' ["M"] "C") (tcon' ["M"] "T") (lam "x" (lvar "e") `ann` (tvar "a" `tfun` tcon' ["M"] "T")))
              (con' ["M"] "D"))
     @?= Set.fromList [6]
 
