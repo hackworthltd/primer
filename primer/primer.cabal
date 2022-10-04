@@ -67,6 +67,7 @@ library
     Primer.Core.Meta
     Primer.Core.Type
     Primer.Core.Type.Utils
+    Primer.Eval.Ann
     Primer.Eval.Beta
     Primer.Eval.Case
     Primer.Eval.Detail

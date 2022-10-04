@@ -2,6 +2,7 @@
 
 module Primer.Eval.Detail (
   EvalDetail (..),
+  module Ann,
   module Beta,
   module Inline,
   module Case,
@@ -24,6 +25,7 @@ import Primer.Eval.Let as Let
 import Primer.Eval.Prim as Prim
 import Primer.Eval.Push as Push
 import Primer.JSON (CustomJSON (CustomJSON), FromJSON, PrimerJSON, ToJSON)
+import Primer.Eval.Ann as Ann
 
 -- | Detailed information about a reduction step
 data EvalDetail
@@ -46,6 +48,8 @@ data EvalDetail
   | TForallRename ForallRenameDetail
   | -- | TODO: some details here
     CaseReduction CaseReductionDetail
+  | -- | Elide annotation
+    RemoveAnn RemoveAnnDetail
   | -- | Push the argument of an application inside a letrec
     PushAppIntoLetrec PushAppIntoLetrecDetail
   | -- | Apply a primitive function

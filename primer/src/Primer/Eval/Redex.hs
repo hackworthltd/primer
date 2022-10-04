@@ -101,7 +101,7 @@ import Prelude (error)
 import Control.Monad.Extra (untilJustM)
 import Primer.Log (ConvertLogMessage, logError)
 import Control.Monad.Log (MonadLog, WithSeverity)
-import Primer.Eval.Detail (EvalDetail (LocalTypeVarInline, TLetRemoval, TLetRename, TForallRename), LocalVarInlineDetail (LocalVarInlineDetail), LetRemovalDetail (LetRemovalDetail), LetRenameDetail (LetRenameDetail))
+import Primer.Eval.Detail (EvalDetail (LocalTypeVarInline, TLetRemoval, TLetRename, TForallRename, LocalVarInline), LocalVarInlineDetail (LocalVarInlineDetail), LetRemovalDetail (LetRemovalDetail), LetRenameDetail (LetRenameDetail))
 import Primer.Eval.Detail qualified
 import Primer.Eval.Forall (ForallRenameDetail(ForallRenameDetail))
 
@@ -482,9 +482,8 @@ fvCxtTy vs = do
 
 -- TODO: where should run go?
 -- TODO: deal with metadata. https://github.com/hackworthltd/primer/issues/6
-runRedex :: (MonadFresh ID m, MonadFresh NameCounter m) => Redex -> m (Expr, EvalDetail)
+runRedex :: (MonadFresh ID m, MonadFresh NameCounter m) => Redex -> m (Expr)
 runRedex = \case
-  {-
   InlineGlobal _ def -> ann (regenerateExprIDs $ astDefExpr def) (regenerateTypeIDs $ astDefType def)
   InlineLet _ e -> regenerateExprIDs e
   InlineLetrec x e t -> letrec x (regenerateExprIDs e) (regenerateTypeIDs t) $ ann (regenerateExprIDs e) (regenerateTypeIDs t)
@@ -533,7 +532,6 @@ runRedex = \case
     b <- freshLocalName' (S.map unLocalName (freeVarsTy ty) <> freeVars body)
     letType b (pure ty) $ letType a (tvar b) $ pure body
   ApplyPrimFun e -> e
--}
   
 runRedexTy :: (MonadLog (WithSeverity l) m, MonadFresh ID m, MonadFresh NameCounter m, ConvertLogMessage Text l) => RedexType -> m (Type, EvalDetail)
 runRedexTy (InlineLetInType {ty,letID,varID,var}) = do

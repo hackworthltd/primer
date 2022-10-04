@@ -1,4 +1,6 @@
 {-# LANGUAGE DuplicateRecordFields #-}
+{-# LANGUAGE GADTs #-}
+{-# LANGUAGE OverloadedLabels #-}
 
 module Primer.Eval (
   -- The public API of this module
@@ -43,7 +45,7 @@ import Optics (
   (^.),
   (^..),
   _1,
-  _2,
+  _2, folded,
  )
 import Primer.Core (
   CaseBranch' (..),
@@ -80,7 +82,7 @@ import Primer.Eval.Detail (
   GlobalVarInlineDetail (..),
   LetRemovalDetail (..),
   LetRenameDetail (..),
-  LocalLet (LLet, LLetRec, LLetType),
+--  LocalLet (LLet, LLetRec, LLetType),
   LocalVarInlineDetail (..),
   Locals,
   PushAppIntoLetrecDetail (..),
@@ -93,7 +95,7 @@ import Primer.Eval.Detail (
   tryReduceBETA,
   tryReduceBeta,
   tryReducePrim,
-  tryReducePush,
+  tryReducePush, RemoveAnnDetail (RemoveAnnDetail),
  )
 import Primer.Eval.EvalError (EvalError (..))
 import Primer.Eval.Utils (makeSafeTLetBinding)
@@ -117,7 +119,7 @@ import Primer.Zipper (
   unfocusType,
  )
 import Primer.Eval.Redex (Dir(..), viewRedex, viewRedexType, runRedexTy, Cxt(Cxt), runRedex,
-                         Local(..),SomeLocal(LSome), getNonCapturedLocal)
+                         Local(..),SomeLocal(LSome), getNonCapturedLocal, Redex (InlineGlobal, InlineLet, InlineLetrec, ElideLet, Beta, BETA, CaseRedex, Upsilon, RenameBindingsLam), localName)
 import Primer.TypeDef (TypeDefMap)
 import Primer.Eval.NormalOrder (foldMapExpr, FMExpr (FMExpr, subst, substTy, expr, ty)
                                ,singletonCxtLet,singletonCxtLetType,singletonCxtLetrec)
@@ -396,9 +398,107 @@ tryReduceExpr ::
   Dir ->
   Expr ->
   m (Expr, EvalDetail)
-tryReduceExpr tydefs globals cxt dir = flip runReader cxt . viewRedex tydefs globals dir <&> \case
-  Just r -> runRedex r
+  -- REVIEW: I've implemented this in a different style: look at the redex and the pre/post to compute details
+  -- rather than recording more info in the redex to compute details. Thoughts? (compare with type version)
+tryReduceExpr tydefs globals cxt dir expr = case flip runReader cxt $ viewRedex tydefs globals dir expr of
+  Just r -> runRedex r <&> \after -> (after,details r expr after)
   _ -> throwError NotRedex
+  where
+    details (InlineGlobal _ def) var after = GlobalVarInline GlobalVarInlineDetail{      def      , var      , after      }
+    details (InlineLet var e) (Var i (LocalVarRef _)) after = case runReader (getNonCapturedLocal var) cxt of
+      Just (letID,_) -> LocalVarInline LocalVarInlineDetail {
+        letID
+        , varID = getID i
+        ,valueID = getID e -- TODO/REVIEW: I'm not sure this is a sensible notion, given the letrec rule -- what is the interest of the ID of e in letrec v = e : T in ...?
+        ,bindingName = var
+        ,replacementID = getID after
+        ,isTypeVar = False}
+    details (InlineLetrec var e _t) (Var i (LocalVarRef _)) after = case runReader (getNonCapturedLocal var) cxt of
+      Just (letID,_) -> LocalVarInline LocalVarInlineDetail {
+        letID
+        , varID = getID i
+        ,valueID = getID e -- TODO/REVIEW: I'm not sure this is a sensible notion, given the letrec rule -- what is the interest of the ID of e in letrec v = e : T in ...?
+        ,bindingName = var
+        ,replacementID = getID after
+        ,isTypeVar = False}                                                                                
+    details (ElideLet (LSome l) t) before after = LetRemoval LetRemovalDetail {
+      before
+      , after
+      , bindingName = localName l
+      , letID = getID before
+      , bodyID = getID after
+      }
+    details  (Beta bindingName body tyS tyT arg)
+             before@(App _ (Ann _ lam _) _)
+             after = BetaReduction BetaReductionDetail {
+      before, after,bindingName
+      ,lambdaID=getID lam
+      ,letID = getID after
+      ,argID = getID arg
+      ,bodyID= getID body
+      ,types = Just (tyS,tyT)
+      }
+    details  (BETA bindingName body _ tyT arg)
+             before@(APP _ (Ann _ lam (TForall _ _ k _)) _)
+             after = BETAReduction BetaReductionDetail {
+      before, after,bindingName
+      ,lambdaID=getID lam
+      ,letID = getID after
+      ,argID = getID arg
+      ,bodyID= getID body
+      ,types = Just (k,tyT)
+      }
+    details  (CaseRedex ctorName as _ xs rhs)
+             before@(Case _ scrutinee brs)  after = CaseReduction CaseReductionDetail {
+      before,after
+      ,targetID = getID scrutinee
+      ,targetCtorID = getID $ fst $ unfoldAPP $ fst $ unfoldApp scrutinee
+      ,ctorName
+      ,targetArgIDs = getID . fst <$> as
+      ,branchBindingIDs = brs ^.. folded % filtered (\(CaseBranch c _ _) -> c == ctorName)
+                                        % #_CaseBranch % _2 % folded % to getID
+      ,branchRhsID = getID rhs
+      ,letIDs = unfoldr (\case Let i _ _ b | getID i /= getID rhs -> Just (getID i,b) ; _ -> Nothing) after
+      }
+    details  (Upsilon _ _) before@(Ann _ _ ty) after = RemoveAnn RemoveAnnDetail {
+      before --,after,typeID = getID ty
+      }
+    details  (RenameBindingsLam m x e avoid) before after = LetRename LetRenameDetail {
+
+      }
+  -- -- λy.t  ~>  λz.let y = z in t (and similar for other binding forms, except let)
+  -- RenameBindingsLam m x e avoid -> do
+  --   y <- freshLocalName' (avoid <> freeVars e)
+  --   Lam m y <$> let_ x (lvar y) (pure e)
+  -- RenameBindingsLAM m x e avoid -> do
+  --   y <- freshLocalName' (avoid <> freeVars e)
+  --   LAM m y <$> letType x (tvar y) (pure e)
+  -- RenameBindingsCase m s brs avoid
+  --   | (brs0, CaseBranch ctor binds rhs : brs1) <- break (\(CaseBranch _ bs _) -> any ((`S.member` avoid) . unLocalName . bindName) bs) brs ->
+  --       let bns = map bindName binds
+  --           avoid' = avoid <> freeVars rhs <> S.fromList (map unLocalName bns)
+  --        in do
+  --             rn <- traverse (\b -> if unLocalName b `S.member` avoid then Right . (b,) <$> freshLocalName' avoid' else pure $ Left b) bns
+  --             let f b@(Bind i _) = \case Left _ -> b; Right (_, w) -> Bind i w
+  --             let binds' = zipWith f binds rn
+  --             rhs' <- foldrM (\(v, w) -> let_ v (lvar w) . pure) rhs $ rights rn
+  --             pure $ Case m s $ brs0 ++ CaseBranch ctor binds' rhs' : brs1
+  --   -- We should replace this with a proper exception. See:
+  --   -- https://github.com/hackworthltd/primer/issues/148
+  --   | otherwise -> error "Internal Error: RenameBindingsCase found no applicable branches"
+  -- -- let x = f x in g x x  ~>  let y = f x in let x = y in g x x
+  -- RenameSelfLet x e body -> do
+  --   y <- freshLocalName' (freeVars e <> freeVars body)
+  --   let_ y (pure e) $ let_ x (lvar y) $ pure body
+  -- -- As RenameSelfLet, but for LetType
+  -- RenameSelfLetType a ty body -> do
+  --   b <- freshLocalName' (S.map unLocalName (freeVarsTy ty) <> freeVars body)
+  --   letType b (pure ty) $ letType a (tvar b) $ pure body
+  -- ApplyPrimFun e -> e
+    getLocalBodyID :: SomeLocal -> ID
+    getLocalBodyID (LSome (LLet _ e)) = getID e
+    getLocalBodyID (LSome (LLetType _ t)) = getID t
+    getLocalBodyID (LSome (LLetrec _ e _)) = getID e
 {-
   (tryReduceBeta -> Just m) -> second BetaReduction <$> m
   (tryReduceBETA -> Just m) -> second BETAReduction <$> m
