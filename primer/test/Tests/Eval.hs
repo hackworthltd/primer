@@ -1102,7 +1102,7 @@ unit_redexes_prim_3 =
 
 unit_redexes_prim_ann :: Assertion
 unit_redexes_prim_ann =
-  redexesOfWithPrims expr @?= Set.singleton 0
+  redexesOfWithPrims expr @?= Set.fromList [0,6]
   where
     expr =
       pfun ToUpper
