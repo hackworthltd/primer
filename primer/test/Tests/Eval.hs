@@ -126,30 +126,19 @@ unit_tryReduce_beta_annotation = do
       r ~~= resultType
     _ -> assertFailure $ show result
 
+-- We don't reduce @(λx. t : ?) a@, where the annotation
+-- is a hole rather than an arrow
 unit_tryReduce_beta_annotation_hole :: Assertion
 unit_tryReduce_beta_annotation_hole = do
-  let ((lambda, body, arg, input, expectedResult, argType, resultType), maxid) =
+  let (input, maxid) =
         create $ do
-          t1 <- tEmptyHole
-          t2 <- tEmptyHole
           x <- lvar "x"
           l <- lam "x" (pure x)
           a <- con' ["M"] "C"
-          i <- app (ann (pure l) tEmptyHole) (pure a)
-          r <- hole (let_ "x" (hole (pure a)) (pure x))
-          pure (l, x, a, i, r, t1, t2)
+          app (ann (pure l) tEmptyHole) (pure a)
       result = runTryReduce tydefs mempty mempty (input, maxid)
   case result of
-    Right (expr, BetaReduction detail@BetaReductionDetail{types = Just (l, r)}) -> do
-      expr ~= expectedResult
-      detail.before ~= input
-      detail.after ~= expectedResult
-      detail.bindingName @?= "x"
-      detail.lambdaID @?= lambda ^. _id
-      detail.argID @?= arg ^. _id
-      detail.bodyID @?= body ^. _id
-      l ~~= argType
-      r ~~= resultType
+    Left NotRedex -> pure ()
     _ -> assertFailure $ show result
 
 -- This test looks at the case where we are reducing a lambda applicatin by constructing a let, and
