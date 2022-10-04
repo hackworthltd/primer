@@ -957,17 +957,15 @@ unit_redexes_let_3 = do
 -- some intervening binder.
 unit_redexes_let_capture :: Assertion
 unit_redexes_let_capture =
-  -- We should maybe rename the lambda, see https://github.com/hackworthltd/primer/issues/509
-  assertBool "Cannot inline the variable, as would cause capture" $
-    Set.null $
-      redexesOf (let_ "x" (lvar "y") $ lam "y" $ lvar "x")
+  -- We should maybe rename the lambda, and not inline the variable
+  -- TODO: update https://github.com/hackworthltd/primer/issues/509
+      redexesOf (let_ "x" (lvar "y") $ lam "y" $ lvar "x") @?= Set.singleton 2
 
 unit_redexes_lettype_capture :: Assertion
 unit_redexes_lettype_capture =
-  -- We should maybe rename the forall, see https://github.com/hackworthltd/primer/issues/509
-  assertBool "Cannot inline the variable, as would cause capture" $
-    Set.null $
-      redexesOf (letType "x" (tvar "y") (emptyHole `ann` tforall "y" KType (tvar "x")))
+  -- We should rename the forall and not inline the variable
+  -- TODO: update https://github.com/hackworthltd/primer/issues/509
+  redexesOf (letType "x" (tvar "y") (emptyHole `ann` tforall "y" KType (tvar "x"))) @?= Set.singleton 4
 
 unit_redexes_letrec_1 :: Assertion
 unit_redexes_letrec_1 =
