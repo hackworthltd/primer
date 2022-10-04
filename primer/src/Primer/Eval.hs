@@ -1,5 +1,4 @@
 {-# LANGUAGE DuplicateRecordFields #-}
-{-# LANGUAGE ViewPatterns #-}
 
 module Primer.Eval (
   -- The public API of this module
@@ -16,13 +15,14 @@ module Primer.Eval (
   PushAppIntoLetrecDetail (..),
   ApplyPrimFunDetail (..),
   -- Only exported for testing
-  Locals,
-  LocalLet (..),
-  Cxt,singletonCxtLet,singletonCxtLetType,singletonCxtLetrec,
+--  Locals,
+--  LocalLet (..),
+  Local(..),SomeLocal(..),
+  Cxt(Cxt),singletonCxtLet,singletonCxtLetType,singletonCxtLetrec,getNonCapturedLocal,
   tryReduceExpr,
   tryReduceType,
   findNodeByID,
-  singletonLocal,
+--  singletonLocal,
   RHSCaptured (..),
   Dir(..),
 ) where
@@ -116,7 +116,8 @@ import Primer.Zipper (
   unfocusExpr,
   unfocusType,
  )
-import Primer.Eval.Redex (Dir(..), viewRedex, viewRedexType, runRedexTy, Cxt(Cxt))
+import Primer.Eval.Redex (Dir(..), viewRedex, viewRedexType, runRedexTy, Cxt(Cxt), runRedex,
+                         Local(..),SomeLocal(LSome), getNonCapturedLocal)
 import Primer.TypeDef (TypeDefMap)
 import Primer.Eval.NormalOrder (foldMapExpr, FMExpr (FMExpr, subst, substTy, expr, ty)
                                ,singletonCxtLet,singletonCxtLetType,singletonCxtLetrec)
@@ -128,35 +129,35 @@ import Primer.Log (ConvertLogMessage)
 step ::
   (MonadFresh ID m, MonadFresh NameCounter m
   , MonadLog (WithSeverity l) m, ConvertLogMessage Text l) =>
+  TypeDefMap ->
   DefMap ->
   Expr ->
+  Dir -> 
   ID ->
   m (Either EvalError (Expr, EvalDetail))
-step globals expr i = runExceptT $ do
-  (locals, nodeZ) <- maybe (throwError (NodeNotFound i)) pure (findNodeByID i expr)
+step tydefs globals expr d i = runExceptT $ do
+  (cxt,nodeZ) <- maybe (throwError (NodeNotFound i)) pure (findNodeByID i d expr)
   case nodeZ of
-    Left z -> do
-      (node', detail) <- tryReduceExpr globals locals (target z)
+    Left (d',z) -> do
+      (node', detail) <- tryReduceExpr tydefs globals cxt d' (target z)
       let expr' = unfocusExpr $ replace node' z
       pure (expr', detail)
-    Right _ -> do
-      case findNodeByID' i expr of
-        Just (cxt,Right z) -> do
+    Right z -> do
           (node', detail) <- tryReduceType globals cxt (target z)
           let expr' = unfocusExpr $ unfocusType $ replace node' z
           pure (expr', detail)
-        _ -> throwError $ NodeNotFound i
+
 
 -- TODO: docs
-findNodeByID' :: ID -> Expr -> Maybe (Cxt, Either ExprZ TypeZ)
-findNodeByID' i  = foldMapExpr (FMExpr {
-  expr = \ez _ c -> if getID ez == i then Just (c,Left ez) else Nothing
+findNodeByID :: ID -> Dir -> Expr -> Maybe (Cxt, Either (Dir,ExprZ) TypeZ)
+findNodeByID i  = foldMapExpr FMExpr {
+  expr = \ez d c -> if getID ez == i then Just (c,Left (d,ez)) else Nothing
   ,ty = \tz c -> if getID tz == i then Just (c,Right tz) else Nothing
   ,subst = Nothing
   ,substTy = Nothing
-  }) Syn -- the direction does not actually matter, as it is ignored everywhere
+  }
   
-
+{-
 -- | Search for the given node by its ID.
 -- Collect all local let, letrec and lettype bindings in scope and return them
 -- along with the focused node.
@@ -244,7 +245,7 @@ singletonLocal' n (i, l) = Map.singleton n (i, l, fvs, c)
       LLetType t ->
         let fvs' = Set.map unLocalName $ freeVarsTy t
          in (fvs', if Set.member n fvs' then Capture else NoCapture)
-
+-}
 -- | Return the IDs of nodes which are reducible.
 -- We assume the expression is well scoped, and do not e.g. check whether
 -- @e@ refers to a type variable @x@ when deciding if we can reduce a
@@ -388,12 +389,17 @@ redexes primDefs = go mempty
 -- | Given a context of local and global variables and an expression, try to reduce that expression.
 -- Expects that the expression is redex and will throw an error if not.
 tryReduceExpr ::
-  (MonadFresh ID m, MonadError EvalError m) =>
+  (MonadFresh ID m, MonadFresh NameCounter m, MonadError EvalError m) =>
+  TypeDefMap ->
   DefMap ->
-  Locals ->
+  Cxt ->
+  Dir ->
   Expr ->
   m (Expr, EvalDetail)
-tryReduceExpr globals locals = \case
+tryReduceExpr tydefs globals cxt dir = flip runReader cxt . viewRedex tydefs globals dir <&> \case
+  Just r -> runRedex r
+  _ -> throwError NotRedex
+{-
   (tryReduceBeta -> Just m) -> second BetaReduction <$> m
   (tryReduceBETA -> Just m) -> second BETAReduction <$> m
   (tryReducePush -> Just m) -> second PushAppIntoLetrec <$> m
@@ -403,6 +409,7 @@ tryReduceExpr globals locals = \case
   (tryLetRemoval -> Just m) -> second (either LetRename LetRemoval) <$> m
   (tryCaseReduction -> Just m) -> second CaseReduction <$> m
   _ -> throwError NotRedex
+-}
 
 tryReduceType ::
   (MonadFresh ID m, MonadFresh NameCounter m
