@@ -562,7 +562,7 @@ runRedexTy (RenameSelfLetInType {letBinding = LLetType a s,body,origLet}) = do
                 , bindingNameOld = unLocalName a
                 , bindingNameNew = unLocalName b
                 , letID = getID origLet
-                , bindingOccurrences = getFreeOccurrancesTy a body
+                , bindingOccurrences = getFreeOccurrancesTy a s
                 , bodyID = getID body
                 }
   pure (result, TLetRename details)

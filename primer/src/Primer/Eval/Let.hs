@@ -60,6 +60,7 @@ data LetRenameDetail t = LetRenameDetail
   -- ^ the full let expression
   , bindingOccurrences :: [ID]
   -- ^ where the old name occurred inside the bound expression
+  --   (i.e., why did we need to rename this let)
   , bodyID :: ID
   -- ^ the right hand side of the let
   }
