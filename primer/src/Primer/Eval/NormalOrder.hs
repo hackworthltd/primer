@@ -8,6 +8,7 @@ module Primer.Eval.NormalOrder (
 -- TODO: share code with Primer.Eval
 -- I hope to reuse this code in Eval - the current implementation does some weird things with annotations and metadata
 -- but that will come later
+-- TODO/REVIEW: delete this comment!
 
 -- TODO: ensure do sane things to metadata
 -- (Perhaps we should just run a TC pass after each step?)
