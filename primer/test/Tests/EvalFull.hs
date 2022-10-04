@@ -794,23 +794,23 @@ spanM f (x : xs) = do
 -- consider an inner let  (e.g. let x = y in let y = _ in t : we cannot inline the outer
 -- let in 't' as the inner let would capture the 'y', so we decide to inline the inner
 -- let first). Thus we would mess up an example like
--- Λy. let x = ?:y in let y = _:y in y
+-- Λy. let x = ?:y in let y = _:y in y x
 -- reducing it to
--- Λy. let x = ?:y in let y = _:y in _:y
+-- Λy. let x = ?:y in let y = _:y in (_:y) x
 unit_regression_self_capture_let_let :: Assertion
 unit_regression_self_capture_let_let = do
   let e =
         lAM "y" $
           let_ "x" (emptyHole `ann` tvar "y") $
             let_ "y" (emptyHole `ann` tvar "y") $
-              lvar "y"
-      z = "a10"
+              (lvar "y" `app` lvar "x") -- TODO: I have edited this. Check if  test still picks up bug on old primer
+      z = "a12"
       f =
         lAM "y" $
           let_ "x" (emptyHole `ann` tvar "y") $
             let_ z (emptyHole `ann` tvar "y") $
               let_ "y" (lvar z) $
-                lvar "y"
+              (lvar "y" `app` lvar "x")
       (e', i) = create e
       ev n = evalFullTest i mempty mempty n Chk e'
       x ~ y = x >>= (<~==> Left (TimedOut (create' y)))
