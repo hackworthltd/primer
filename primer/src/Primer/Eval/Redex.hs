@@ -212,6 +212,8 @@ deriving Show
 deriving instance Show (Local k)
 -}
 
+-- TODO: common up names for orig* stuff
+
 data Local k where
   LLet :: LVarName -> Expr -> Local 'ATmVar
   LLetrec :: LVarName -> Expr -> Type -> Local 'ATmVar
