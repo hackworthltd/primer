@@ -29,7 +29,7 @@ module Primer.Eval (
   Dir(..),
 ) where
 
-import Foreword
+import Foreword hiding (until)
 
 import Control.Monad.Fresh (MonadFresh)
 import Data.Map.Strict qualified as Map
@@ -408,23 +408,23 @@ tryReduceExpr tydefs globals cxt dir expr = case flip runReader cxt $ viewRedex 
   _ -> throwError NotRedex
   where
     details (InlineGlobal _ def) var after = GlobalVarInline GlobalVarInlineDetail{      def      , var      , after      }
-    details (InlineLet var e) (Var i (LocalVarRef _)) after = case runReader (getNonCapturedLocal var) cxt of
-      Just (letID,_) -> LocalVarInline LocalVarInlineDetail {
+    details (InlineLet var e) (Var i (LocalVarRef _)) after
+      | Just (letID,_) <- runReader (getNonCapturedLocal var) cxt = LocalVarInline LocalVarInlineDetail {
         letID
         , varID = getID i
         ,valueID = getID e -- TODO/REVIEW: I'm not sure this is a sensible notion, given the letrec rule -- what is the interest of the ID of e in letrec v = e : T in ...?
         ,bindingName = var
         ,replacementID = getID after
         ,isTypeVar = False}
-    details (InlineLetrec var e _t) (Var i (LocalVarRef _)) after = case runReader (getNonCapturedLocal var) cxt of
-      Just (letID,_) -> LocalVarInline LocalVarInlineDetail {
+    details (InlineLetrec var e _t) (Var i (LocalVarRef _)) after
+      | Just (letID,_) <- runReader (getNonCapturedLocal var) cxt = LocalVarInline LocalVarInlineDetail {
         letID
         , varID = getID i
         ,valueID = getID e -- TODO/REVIEW: I'm not sure this is a sensible notion, given the letrec rule -- what is the interest of the ID of e in letrec v = e : T in ...?
         ,bindingName = var
         ,replacementID = getID after
         ,isTypeVar = False}                                                                                
-    details (ElideLet (LSome l) t) before after = LetRemoval LetRemovalDetail {
+    details (ElideLet (LSome l) _) before after = LetRemoval LetRemovalDetail {
       before
       , after
       , bindingName = localName l
@@ -451,13 +451,13 @@ tryReduceExpr tydefs globals cxt dir expr = case flip runReader cxt $ viewRedex 
       ,bodyID= getID body
       ,types = Just (k,tyT)
       }
-    details  (CaseRedex ctorName as _ xs rhs)
+    details  (CaseRedex ctorName as _ _ rhs)
              before@(Case _ scrutinee brs)  after = CaseReduction CaseReductionDetail {
       before,after
       ,targetID = getID scrutinee
       ,targetCtorID = getID $ fst $ unfoldAPP $ fst $ unfoldApp scrutinee
       ,ctorName
-  --    ,targetArgIDs = getID . fst <$> as
+      ,targetArgIDs = getID . fst <$> as
       ,branchBindingIDs = brs ^.. folded % filtered (\(CaseBranch c _ _) -> c == ctorName)
                                         % #_CaseBranch % _2 % folded % to getID
       ,branchRhsID = getID rhs
@@ -466,7 +466,7 @@ tryReduceExpr tydefs globals cxt dir expr = case flip runReader cxt $ viewRedex 
     details  (Upsilon _ _) before@(Ann _ _ ty) after = RemoveAnn RemoveAnnDetail {
       before,after,typeID = getID ty
       }
-    details  (RenameBindingsLam m x e avoid) before after@(Lam _ x' l) = BindRename BindRenameDetail {
+    details  (RenameBindingsLam _ x e _) before after@(Lam _ x' l) = BindRename BindRenameDetail {
       before,after
       ,bindingNameOld = [unLocalName x]
       ,bindingNameNew = [unLocalName x']
@@ -474,7 +474,7 @@ tryReduceExpr tydefs globals cxt dir expr = case flip runReader cxt $ viewRedex 
       ,renameLetID = [getID l]
       ,bodyID = getID e
       }
-    details  (RenameBindingsLAM m x e avoid) before after@(LAM _ x' l) = BindRename BindRenameDetail {
+    details  (RenameBindingsLAM _ x e _) before after@(LAM _ x' l) = BindRename BindRenameDetail {
       before,after
       ,bindingNameOld = [unLocalName x]
       ,bindingNameNew = [unLocalName x']
@@ -482,7 +482,7 @@ tryReduceExpr tydefs globals cxt dir expr = case flip runReader cxt $ viewRedex 
       ,renameLetID = [getID l]
       ,bodyID = getID e
       }
-    details  (RenameBindingsCase m s brs avoid) before@(Case _ _ _) after@(Case _ _ brs')
+    details  (RenameBindingsCase _ _ brs avoid) before@Case{} after@(Case _ _ brs')
       | (brs0, CaseBranch _ binds rhs : _) <- break (\(CaseBranch _ bs _) -> any ((`S.member` avoid) . unLocalName . bindName) bs) brs
       , (CaseBranch _ binds' rhs' : _) <- drop (length brs0) brs'
       = BindRename BindRenameDetail {
@@ -509,19 +509,15 @@ tryReduceExpr tydefs globals cxt dir expr = case flip runReader cxt $ viewRedex 
       ,renameLetID = [getID l]
       ,bodyID = getID body
       }
-    details (Redex.ApplyPrimFun e) before after = case tryPrimFun  (M.mapMaybe defPrim globals) before of
-          Just (name,args,_) -> ApplyPrimFun ApplyPrimFunDetail {
+    details (Redex.ApplyPrimFun _) before after
+      | Just (name,args,_) <- tryPrimFun  (M.mapMaybe defPrim globals) before = ApplyPrimFun ApplyPrimFunDetail {
           before,after
           ,name
           ,argIDs = map getID args
           }
+    details _ _ _ = _
 
-    getLocalBodyID :: SomeLocal -> ID
-    getLocalBodyID (LSome (LLet _ e)) = getID e
-    getLocalBodyID (LSome (LLetType _ t)) = getID t
-    getLocalBodyID (LSome (LLetrec _ e _)) = getID e
-
-    getLetsUntil expr until = unfoldr (\case Let i _ _ b | getID i /= getID until -> Just (getID i,b) ; _ -> Nothing) expr
+    getLetsUntil e until = unfoldr (\case Let i _ _ b | getID i /= getID until -> Just (getID i,b) ; _ -> Nothing) e
 
 {-
   (tryReduceBeta -> Just m) -> second BetaReduction <$> m
