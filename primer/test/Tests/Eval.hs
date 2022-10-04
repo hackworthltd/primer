@@ -28,7 +28,7 @@ import Primer.Core (
   Expr,
   GlobalName (baseName, qualifiedModule),
   ID,
-  Kind (KType),
+  Kind (KType, KFun),
   Type,
   getID,
   _id, qualifyName, mkSimpleModuleName, unsafeMkGlobalName, unLocalName, LocalName,
@@ -143,14 +143,16 @@ unit_tryReduce_beta_annotation_hole = do
 
 unit_tryReduce_BETA :: Assertion
 unit_tryReduce_BETA = do
-  let ((body, lambda, arg, input, expectedResult), maxid) =
+  let ((body, lambda, arg, input, expectedResult, k, ty), maxid) =
         create $ do
           b <- aPP (con cNil) (tvar "x")
           l <- lAM "x" (pure b)
           a <- tcon tBool
-          i <- aPP (pure l) (pure a)
-          r <- letType "x" (pure a) (pure b)
-          pure (b, l, a, i, r)
+          let k_ = KFun KType KType
+          ty_ <- tEmptyHole
+          i <- aPP (pure l `ann` tforall "a" k_ (pure ty_)) (pure a)
+          r <- letType "x" (pure a) (pure b) `ann` tlet "a" (pure a) (pure ty_)
+          pure (b, l, a, i, r, k_, ty_)
       result = runTryReduce tydefs mempty mempty (input, maxid)
   case result of
     Right (expr, BETAReduction detail) -> do
@@ -162,7 +164,7 @@ unit_tryReduce_BETA = do
       detail.letID @?= expr ^. _id
       detail.argID @?= arg ^. _id
       detail.bodyID @?= body ^. _id
-      detail.types @?= Nothing
+      detail.types @?= Just (k,ty)
     _ -> assertFailure $ show result
 
 unit_tryReduce_BETA_name_clash :: Assertion
