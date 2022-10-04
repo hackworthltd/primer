@@ -496,7 +496,7 @@ failWhenSevereLogs' (a,logs) = withFrozenCallStack $ TestUtils.failWhenSevereLog
 tasty_resume_regression :: Property
 tasty_resume_regression = propertyWT [] $ do
   -- This indeed requires fresh names when reducing (see unit_type_preservation_rename_LAM_regression)
-  t <- lAM "a" (letrec "b" emptyHole (tvar "a") (lAM "a" emptyHole))
+  t <- lAM "a" (letrec "b" emptyHole (tvar "a") (lAM "a" $ lvar "b")) -- TODO/REVIEW: check still picks up bug in old primer
   resumeTest mempty Chk t
 
 -- A regression test: previously EvalFull would rename to avoid variable
