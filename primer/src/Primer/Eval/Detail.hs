@@ -59,3 +59,5 @@ data EvalDetail
     ApplyPrimFun ApplyPrimFunDetail
   deriving (Eq, Show, Generic)
   deriving (FromJSON, ToJSON) via PrimerJSON EvalDetail
+
+-- TODO: are all the above actually used?
