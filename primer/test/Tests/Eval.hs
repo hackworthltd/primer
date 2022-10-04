@@ -485,17 +485,19 @@ unit_tryReduce_case_name_clash = do
       detail.bodyID @?= 8
     _ -> assertFailure $ show result
 
-unit_tryReduce_case_too_many_bindings :: Assertion
-unit_tryReduce_case_too_many_bindings = do
+{-
+--unit_tryReduce_case_too_many_bindings :: Assertion
+--unit_tryReduce_case_too_many_bindings = do
   let (expr, i) = create $ case_ (con' ["M"] "C") [branch' (["M"], "C") [("b", Nothing)] (con' ["M"] "D")]
       result = runTryReduce tydefs mempty mempty (expr, i)
   result @?= Left CaseBranchBindingLengthMismatch
 
-unit_tryReduce_case_too_few_bindings :: Assertion
-unit_tryReduce_case_too_few_bindings = do
+--unit_tryReduce_case_too_few_bindings :: Assertion
+--unit_tryReduce_case_too_few_bindings = do
   let (expr, i) = create $ case_ (app (con' ["M"] "B") (lvar "y")) [branch' (["M"], "B") [] (con' ["M"] "D")]
       result = runTryReduce tydefs mempty mempty (expr, i)
   result @?= Left CaseBranchBindingLengthMismatch
+-}
 
 unit_tryReduce_case_scrutinee_not_redex :: Assertion
 unit_tryReduce_case_scrutinee_not_redex = do
@@ -503,11 +505,13 @@ unit_tryReduce_case_scrutinee_not_redex = do
       result = runTryReduce tydefs mempty mempty (expr, i)
   result @?= Left NotRedex
 
-unit_tryReduce_case_no_matching_branch :: Assertion
-unit_tryReduce_case_no_matching_branch = do
+{-
+--unit_tryReduce_case_no_matching_branch :: Assertion
+--unit_tryReduce_case_no_matching_branch = do
   let (expr, i) = create $ case_ (con' ["M"] "C") [branch' (["M"], "B") [] (con' ["M"] "D")]
       result = runTryReduce tydefs mempty mempty (expr, i)
   result @?= Left NoMatchingCaseBranch
+-}
 
 unit_tryReduce_prim :: Assertion
 unit_tryReduce_prim = do
