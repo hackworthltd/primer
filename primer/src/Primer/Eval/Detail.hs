@@ -5,6 +5,7 @@ module Primer.Eval.Detail (
   module Beta,
   module Inline,
   module Case,
+  module Forall,
   module Let,
   module Push,
   module Prim,
@@ -17,6 +18,7 @@ import Primer.Core.Meta (LocalNameKind (..))
 import Primer.Core.Type (Kind, Type)
 import Primer.Eval.Beta as Beta
 import Primer.Eval.Case as Case
+import Primer.Eval.Forall as Forall
 import Primer.Eval.Inline as Inline
 import Primer.Eval.Let as Let
 import Primer.Eval.Prim as Prim
@@ -41,6 +43,7 @@ data EvalDetail
   | -- | Renaming of binding in let x = ...x... in ...x...x...
     LetRename (LetRenameDetail Expr)
   | TLetRename (LetRenameDetail Type)
+  | TForallRename ForallRenameDetail
   | -- | TODO: some details here
     CaseReduction CaseReductionDetail
   | -- | Push the argument of an application inside a letrec

@@ -71,6 +71,7 @@ library
     Primer.Eval.Case
     Primer.Eval.Detail
     Primer.Eval.EvalError
+    Primer.Eval.Forall
     Primer.Eval.Inline
     Primer.Eval.Let
     Primer.Eval.NormalOrder

@@ -101,8 +101,9 @@ import Prelude (error)
 import Control.Monad.Extra (untilJustM)
 import Primer.Log (ConvertLogMessage, logError)
 import Control.Monad.Log (MonadLog, WithSeverity)
-import Primer.Eval.Detail (EvalDetail (LocalTypeVarInline, TLetRemoval, TLetRename), LocalVarInlineDetail (LocalVarInlineDetail), LetRemovalDetail (LetRemovalDetail), LetRenameDetail (LetRenameDetail))
+import Primer.Eval.Detail (EvalDetail (LocalTypeVarInline, TLetRemoval, TLetRename, TForallRename), LocalVarInlineDetail (LocalVarInlineDetail), LetRemovalDetail (LetRemovalDetail), LetRenameDetail (LetRenameDetail))
 import Primer.Eval.Detail qualified
+import Primer.Eval.Forall (ForallRenameDetail(ForallRenameDetail))
 
 newtype EvalFullError
   = TimedOut Expr
@@ -201,6 +202,7 @@ data RedexType
       ,kind :: Kind -- kind of bound var (used for reduction)
       ,body :: Type -- body of forall (used for reduction)
       ,avoid :: S.Set TyVarName -- must freshen to avoid this set (used for reduction)
+      ,origForall :: Type
       }
 {-
 deriving Show
@@ -439,12 +441,14 @@ viewRedexType = \case
         , origLet = t
         }
     | otherwise -> pure Nothing
-  fa@(TForall m v s t) -> do
+  fa@(TForall meta origBinder kind body) -> do
     fvcxt <- fvCxtTy $ freeVarsTy fa
     pure $
-      if v `S.member` fvcxt
+      if origBinder `S.member` fvcxt
         then -- If anything we may substitute would cause capture, we should rename this binder
-          pure $ RenameForall m v s t fvcxt
+          pure $ RenameForall{
+              meta,origBinder,kind,body,avoid = fvcxt,origForall=fa
+              }
         else Nothing
   _ -> pure Nothing
 
@@ -558,12 +562,11 @@ runRedexTy (RenameSelfLetInType {letBinding = LLetType a s,body,origLet}) = do
                 , bindingNameOld = unLocalName a
                 , bindingNameNew = unLocalName b
                 , letID = getID origLet
-                , bindingOccurrences = body ^.. getting _freeVarsTy % to (first getID) % filtered ((== a) . snd) % _1
+                , bindingOccurrences = getFreeOccurrancesTy a body
                 , bodyID = getID body
                 }
   pure (result, TLetRename details)
-  {-
-runRedexTy (RenameForall {meta, origBinder,kind,body,avoid}) = do
+runRedexTy (RenameForall {meta, origBinder,kind,body,avoid,origForall}) = do
   -- It should never be necessary to try more than once, since
   -- we pick a new name disjoint from any that appear in @s@
   -- thus renaming will never capture (so @renameTyVar@ will always succeed).
@@ -572,11 +575,25 @@ runRedexTy (RenameForall {meta, origBinder,kind,body,avoid}) = do
   -- We do not log on retries
   let rename = do
         newBinder <- freshLocalName (avoid <> freeVarsTy body <> bindersBelowTy (focus body))
-        pure (newBinder, TForall meta newBinder kind <$> renameTyVar origBinder newBinder body)
+        let ret = renameTyVar origBinder newBinder body <&> \body' ->
+              let result = TForall meta newBinder kind body' in
+              (result
+              ,TForallRename $ ForallRenameDetail {
+                  before = origForall
+                  ,after = result
+                  ,bindingNameOld = unLocalName origBinder
+                  ,bindingNameNew = unLocalName newBinder
+                  ,forallID = getID origForall
+                  ,bindingOccurrences = getFreeOccurrancesTy origBinder body
+                  ,bodyID = getID body
+                                                  })
+        pure (newBinder, ret)
   rename >>= \case
     (_, Just t') -> pure t'
     (b, Nothing) -> do
       logError $ "runRedexTy.RenameForall: initial name choice was not fresh enough: chose " <> show b <> " for " <>
            show @_ @Text (meta,origBinder,kind,body,avoid)
       untilJustM $ snd <$> rename
--}
+
+getFreeOccurrancesTy :: TyVarName -> Type -> [ID]
+getFreeOccurrancesTy a body = body ^.. getting _freeVarsTy % to (first getID) % filtered ((== a) . snd) % _1
