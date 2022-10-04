@@ -997,6 +997,8 @@ unit_redexes_letrec_app_2 :: Assertion
 unit_redexes_letrec_app_2 =
   redexesOf (let_ "e" (con' ["M"] "D") (app (letrec "e" (con' ["M"] "C") (tcon' ["M"] "T") (lam "x" (lvar "e"))) (lvar "e")))
     @?= Set.fromList [7, 8]
+-- TODO: this ^ and probably other tests pass, but for the "wrong reason" -- I should
+-- audit them and (at the least) add annotations
 
 unit_redexes_letrec_APP_1 :: Assertion
 unit_redexes_letrec_APP_1 =
