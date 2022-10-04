@@ -273,12 +273,12 @@ unit_tryReduce_lettype = do
       detail.bodyID @?= 2
     _ -> assertFailure $ show result
 
--- let type x = x in _ :: x ==> let type y = x in _ :: y
+-- let type x = x in _ :: x ==> let type y = x in lettype x = y in _ :: x
 unit_tryReduce_lettype_self_capture :: Assertion
 unit_tryReduce_lettype_self_capture = do
   let (expr, i) = create $ letType "x" (tvar "x") (emptyHole `ann` tvar "x")
       result = runTryReduce tydefs mempty mempty (expr, i)
-      expectedResult = create' $ letType "x0" (tvar "x") (emptyHole `ann` tvar "x0")
+      expectedResult = create' $ letType "a5" (tvar "x") $ letType "x" (tvar "a5") (emptyHole `ann` tvar "x")
   case result of
     Right (expr', BindRename detail) -> do
       expr' ~= expectedResult
@@ -286,7 +286,7 @@ unit_tryReduce_lettype_self_capture = do
       detail.before @?= expr
       detail.after ~= expectedResult
       detail.bindingNameOld @?= ["x"]
-      detail.bindingNameNew @?= ["x0"]
+      detail.bindingNameNew @?= ["a5"]
       detail.binderID @?= [0]
       detail.bodyID @?= 2
     _ -> assertFailure $ show result
