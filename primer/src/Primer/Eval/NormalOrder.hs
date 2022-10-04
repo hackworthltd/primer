@@ -65,7 +65,7 @@ import Primer.Zipper (
  )
 import Control.Monad.Morph (generalize)
 import Control.Monad.Trans.Accum (readerToAccumT, Accum, look, add, evalAccumT, AccumT (AccumT), accum, runAccumT)
-import Primer.Eval.Redex (Redex (InlineLet, InlineLetrec, ElideLet, RenameBindingsLam, RenameBindingsLAM, RenameSelfLet, RenameSelfLetType), RedexType (InlineLetInType, ElideLetInType, RenameSelfLetInType, RenameForall), Dir (Syn, Chk), SomeLocal (LSome), Cxt(Cxt),
+import Primer.Eval.Redex (Redex (InlineLet, InlineLetrec, ElideLet, RenameBindingsLam, RenameBindingsLAM, RenameSelfLet, RenameSelfLetType), RedexType (InlineLetInType, ElideLetInType, RenameSelfLetInType, RenameForall, var, letBinding, origBinder), Dir (Syn, Chk), SomeLocal (LSome), Cxt(Cxt),
                               _freeVarsLocal,
                               Local (LLetType, LLet, LLetrec), viewRedex, viewRedexType, localName)
 
@@ -210,12 +210,12 @@ findRedex tydefs globals dir = --flip evalAccumT mempty . go . focus
                        in do
      hoistAccum (readerToAccumT $ viewRedexType $ target tz) >>= \case
       -- We should inline such 'v' (note that we will not go under any 'v' binders)
-      Just r@(InlineLetInType w _) | w == v -> pure $ RType tz r
+      Just r@(InlineLetInType {var}) | var == v -> pure $ RType tz r
       -- Elide a let only if it blocks the reduction
-      Just r@(ElideLetInType (LLetType w _) _)        | w `isFreeIn` t -> pure $ RType tz r
+      Just r@(ElideLetInType {letBinding = (LLetType w _)})        | w `isFreeIn` t -> pure $ RType tz r
       -- Rename a binder only if it blocks the reduction
-      Just r@(RenameSelfLetInType w _ _) | w `isFreeIn` t -> pure $ RType tz r
-      Just r@(RenameForall _ w _ _ _) | w `isFreeIn` t -> pure $ RType tz r
+      Just r@(RenameSelfLetInType {letBinding = (LLetType w _)}) | w `isFreeIn` t -> pure $ RType tz r
+      Just r@(RenameForall {origBinder}) | origBinder `isFreeIn` t -> pure $ RType tz r
       -- We switch to an inner let if substituting under it would cause capture
       Nothing
         | TLet _ w s _ <- target tz
