@@ -31,7 +31,7 @@ import Primer.Core (
   Kind (KType, KFun),
   Type,
   getID,
-  _id, qualifyName, mkSimpleModuleName, unsafeMkGlobalName, unLocalName, LocalName,
+  _id, qualifyName, mkSimpleModuleName, unsafeMkGlobalName, unLocalName, LocalName, Type' (TEmptyHole, TCon),
  )
 import Primer.Core.DSL
 import Primer.Core.Utils (forgetMetadata, forgetTypeMetadata)
@@ -394,8 +394,20 @@ unit_tryReduce_case_2 = do
             [ branch' (["M"], "B") [("b", Nothing)] (con' ["M"] "D")
             , branch' (["M"], "C") [("c", Nothing), ("d", Nothing), ("e", Nothing)] (con' ["M"] "E")
             ]
-      result = runTryReduce tydefs mempty mempty (expr, i)
-      expectedResult = create' $ let_ "c" (lam "x" (lvar "x")) (let_ "d" (lvar "y") (let_ "e" (lvar "z") (con' ["M"] "E")))
+      result = runTryReduce tydef mempty mempty (expr, i)
+      x = unsafeMkGlobalName (["M"],"X")
+      y = unsafeMkGlobalName (["M"],"Y")
+      z = unsafeMkGlobalName (["M"],"Z")
+      tydef = Map.singleton (unsafeMkGlobalName (["M"], "T")) $ TypeDefAST $ ASTTypeDef {
+          astTypeDefParameters = []
+          , astTypeDefConstructors = [ValCon (unsafeMkGlobalName (["M"], "B")) [TEmptyHole ()]
+                                     ,ValCon (unsafeMkGlobalName (["M"], "C")) [TCon () x,TCon () y,TCon () z]]
+          , astTypeDefNameHints = []
+          }
+      expectedResult = create' $ let_ "c" (lam "x" (lvar "x") `ann` tcon x)
+                                (let_ "d" (lvar "y" `ann` tcon y)
+                                (let_ "e" (lvar "z" `ann` tcon z)
+                                 (con' ["M"] "E")))
   case result of
     Right (expr', CaseReduction detail) -> do
       expr' ~= expectedResult
@@ -408,7 +420,7 @@ unit_tryReduce_case_2 = do
       detail.targetArgIDs @?= [5, 7, 8]
       detail.branchBindingIDs @?= [11, 12, 13]
       detail.branchRhsID @?= 14
-      detail.letIDs @?= [17, 16, 15]
+      detail.letIDs @?= [21, 18, 15]
     _ -> assertFailure $ show result
 
 unit_tryReduce_case_3 :: Assertion
