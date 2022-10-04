@@ -432,8 +432,14 @@ unit_tryReduce_case_3 = do
             [ branch' (["M"], "B") [("b", Nothing)] (con' ["M"] "D")
             , branch' (["M"], "C") [("c", Nothing)] (con' ["M"] "F")
             ]
-      result = runTryReduce tydefs mempty mempty (expr, i)
-      expectedResult = create' $ let_ "c" (con' ["M"] "E") (con' ["M"] "F")
+      result = runTryReduce tydef mempty mempty (expr, i)
+      tydef = Map.singleton (unsafeMkGlobalName (["M"], "T")) $ TypeDefAST $ ASTTypeDef {
+          astTypeDefParameters = []
+          , astTypeDefConstructors = [ValCon (unsafeMkGlobalName (["M"], "B")) [TEmptyHole ()]
+                                     ,ValCon (unsafeMkGlobalName (["M"], "C")) [TEmptyHole ()]]
+          , astTypeDefNameHints = []
+          }
+      expectedResult = create' $ let_ "c" (con' ["M"] "E" `ann` tEmptyHole) (con' ["M"] "F")
   case result of
     Right (expr', CaseReduction detail) -> do
       expr' ~= expectedResult
