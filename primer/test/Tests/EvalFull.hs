@@ -508,12 +508,10 @@ tasty_resume_regression = propertyWT [] $ do
 unit_type_preservation_rename_LAM_regression :: Assertion
 unit_type_preservation_rename_LAM_regression =
   let ((expr, expected), maxID) = create $ do
-        e <- lAM "a" (letrec "b" emptyHole (tvar "a") (lAM "a" emptyHole))
-        -- We may expect the following, but our evaluator doesn't notice that
-        -- the letrec never engenders a substitution.
-        --   expect <- lAM "a" (lAM "a" emptyHole)
-        -- and out of an abundance of caution we rename the potentially-capturing inner lambda
-        expect <- lAM "a" (letrec "b" emptyHole (tvar "a") (lAM "a14" (letType "a" (tvar "a14") emptyHole))) -- NB: fragile name a14
+        e <- lAM "a" (letrec "b" emptyHole (tvar "a") (lAM "a" $ lvar "b"))
+        -- TODO/REVIEW: I have modified this test, and should check that it tests the correct thing
+        -- i.e. check it fails on an old enough primer
+        expect <- lAM "a" (letrec "b" emptyHole (tvar "a") (lAM "a14" (letType "a" (tvar "a14") $ lvar "b"))) -- NB: fragile name a14
         pure (e, expect)
    in do
         s <- evalFullTest maxID mempty mempty 1 Chk expr
