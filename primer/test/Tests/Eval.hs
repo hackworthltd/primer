@@ -141,40 +141,6 @@ unit_tryReduce_beta_annotation_hole = do
     Left NotRedex -> pure ()
     _ -> assertFailure $ show result
 
--- This test looks at the case where we are reducing a lambda applicatin by constructing a let, and
--- the name bound by the lambda is already used in the argument of the application. We therefore
--- need to change the name of the let and then rename any references to the old name in the lambda
--- body. We also need to avoid choosing a name that would clash with any bound in the body of the
--- lambda.
---     let x = C in (\x. \x0. x) x
--- ==> let x = C in (let x1 = x in \x0. x1)   [reduce middle λ]
--- ==> let x = C in (let x1 = x in \x0. x)    [inline x1]
--- ==> let x = C in \x0. x                    [remove redundant let]
-unit_tryReduce_beta_name_clash :: Assertion
-unit_tryReduce_beta_name_clash = do
-  let ((c, lambda, body, arg, input, expectedResult), maxid) =
-        create $ do
-          c_ <- con' ["M"] "C"
-          e <- lam "x0" (lvar "x")
-          l <- lam "x" (pure e)
-          a <- lvar "x"
-          i <- app (pure l) (pure a)
-          r <- let_ "x1" (pure a) (lam "x0" (lvar "x1"))
-          pure (c_, l, e, a, i, r)
-      result = runTryReduce tydefs mempty (singletonCxtLet @ID 0 "x" c) (input, maxid)
-  case result of
-    Right (expr, BetaReduction detail) -> do
-      expr ~= expectedResult
-      detail.before ~= input
-      detail.after ~= expectedResult
-      detail.bindingName @?= "x"
-      detail.lambdaID @?= lambda ^. _id
-      detail.letID @?= expr ^. _id
-      detail.argID @?= arg ^. _id
-      detail.bodyID @?= body ^. _id
-      detail.types @?= Nothing
-    _ -> assertFailure $ show result
-
 unit_tryReduce_BETA :: Assertion
 unit_tryReduce_BETA = do
   let ((body, lambda, arg, input, expectedResult), maxid) =
