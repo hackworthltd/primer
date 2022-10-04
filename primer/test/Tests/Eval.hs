@@ -462,24 +462,27 @@ unit_tryReduce_case_name_clash = do
           case_
             (con' ["M"] "C" `app` emptyHole `app` lvar "x")
             [branch' (["M"], "C") [("x", Nothing), ("y", Nothing)] emptyHole]
-      result = runTryReduce tydefs mempty mempty (expr, i)
+      result = runTryReduce tydef mempty mempty (expr, i)
+      tydef = Map.singleton (unsafeMkGlobalName (["M"], "T")) $ TypeDefAST $ ASTTypeDef {
+          astTypeDefParameters = []
+          , astTypeDefConstructors = [ValCon (unsafeMkGlobalName (["M"], "C")) [TEmptyHole (),TEmptyHole ()]]
+          , astTypeDefNameHints = []
+          }
       expectedResult =
         create' $
-          let_ "x0" emptyHole $
-            let_ "y" (lvar "x") emptyHole
+          case_
+            (con' ["M"] "C" `app` emptyHole `app` lvar "x")
+            [branch' (["M"], "C") [("a9", Nothing), ("y", Nothing)] $ let_ "x" (lvar "a9") emptyHole]
   case result of
-    Right (expr', CaseReduction detail) -> do
+    Right (expr', BindRename detail) -> do
       expr' ~= expectedResult
 
       detail.before ~= expr
       detail.after ~= expectedResult
-      detail.targetID @?= 1
-      detail.targetCtorID @?= 3
-      detail.ctorName @?= vcn ["M"] "C"
-      detail.targetArgIDs @?= [4, 5]
-      detail.branchBindingIDs @?= [6, 7]
-      detail.branchRhsID @?= 8
-      detail.letIDs @?= [10, 9]
+      detail.bindingNameOld @?= ["x","y"]
+      detail.bindingNameNew @?= ["a9","y"]
+      detail.binderID @?= [6,7]
+      detail.bodyID @?= 8
     _ -> assertFailure $ show result
 
 unit_tryReduce_case_too_many_bindings :: Assertion
