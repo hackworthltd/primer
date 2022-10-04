@@ -344,6 +344,7 @@ unit_tryReduce_letrec = do
       detail.bodyID @?= 3
     _ -> assertFailure $ show result
 
+-- TODO: whilst tests pass, I only looked at failures. Should audit successes in case accidentally pass!
 
 -- let f = D in (letrec f = λx. x : T in λx. f x) f
 --                                                ^
