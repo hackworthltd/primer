@@ -102,4 +102,4 @@ step :: (MonadFresh NameCounter m, MonadFresh ID m, MonadLog (WithSeverity l) m,
 step tydefs g d e = case findRedex tydefs g d e of
   Nothing -> Nothing
   Just (RExpr ez r) -> Just $ unfocusExpr . flip replace ez <$> runRedex r
-  Just (RType et r) -> Just $ unfocusExpr . unfocusType . flip replace et <$> runRedexTy r
+  Just (RType et r) -> Just $ unfocusExpr . unfocusType . flip replace et . fst <$> runRedexTy r

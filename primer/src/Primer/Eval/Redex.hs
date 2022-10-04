@@ -1,3 +1,4 @@
+{-# LANGUAGE DisambiguateRecordFields #-}  -- TODO/REVIEW: globally enable? see #140
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE ImpredicativeTypes #-}
 
@@ -30,7 +31,7 @@ import Data.Set qualified as S
 import Data.Set.Optics (setOf)
 import Data.Tuple.Extra (thd3, snd3)
 import Optics (AffineFold,
-               Fold, afolding, getting, summing, to, (%), _2, notElemOf, elemOf, _Just, Field1 (_1), foldVL, traverseOf_, allOf, isnd, ifiltered, (<%))
+               Fold, afolding, getting, summing, to, (%), _2, notElemOf, elemOf, _Just, Field1 (_1), foldVL, traverseOf_, allOf, isnd, ifiltered, (<%), (^..), filtered)
 import Primer.Core (
   Bind' (Bind),
   CaseBranch,
@@ -100,6 +101,8 @@ import Prelude (error)
 import Control.Monad.Extra (untilJustM)
 import Primer.Log (ConvertLogMessage, logError)
 import Control.Monad.Log (MonadLog, WithSeverity)
+import Primer.Eval.Detail (EvalDetail (LocalTypeVarInline, TLetRemoval, TLetRename), LocalVarInlineDetail (LocalVarInlineDetail), LetRemovalDetail (LetRemovalDetail), LetRenameDetail (LetRenameDetail))
+import Primer.Eval.Detail qualified
 
 newtype EvalFullError
   = TimedOut Expr
@@ -179,7 +182,8 @@ data RedexType
     ElideLetInType {
       letBinding :: Local 'ATyVar -- ^ original binding (name is used for finding normal-order redex; used for details)
       , body :: Type -- ^ Body, in which the bound var does not occur (used for reduction)
-      , letID :: ID -- ^ ID of the original let (used for details)
+    --  , letID :: ID -- ^ ID of the original let (used for details)
+      , origLet :: Type -- ^ the original let, used for details
       }
   | -- let a = s a in t a a  ~>  let b = s a in let a = b in t a a
     -- Note that we cannot substitute the let in the initial term, since
@@ -188,7 +192,7 @@ data RedexType
     RenameSelfLetInType {
       letBinding :: Local 'ATyVar -- ^ binding (name is used for finding normal-order redex; used for reduction)
       , body :: Type  -- ^ body, in which th e bound var may occur (used for reduction)
-      , letID :: ID -- ^ ID of the original let (used for details)
+      , origLet :: Type -- ^  the original let (used for details)
       }
   | -- ∀a:k.t  ~>  ∀b:k.t[b/a]  for fresh b, avoiding the given set
     RenameForall {
@@ -425,14 +429,14 @@ viewRedexType = \case
         Just (letID, LSome (LLetType _ ty)) -> pure $ InlineLetInType {var,ty,letID, varID= getID m}
         _ -> Nothing
   -- TODO: We may be able to do better if we grab the free vars out of the "catamorphism"
-  TLet m v s body
+  t@(TLet _ v s body)
     | notElemOf (getting _freeVarsTy % _2) v body -> purer $ ElideLetInType {
         letBinding = LLetType v s
-        , body , letID = getID m}
+        , body , origLet = t}
     | elemOf (getting _freeVarsTy % _2) v s -> purer $ RenameSelfLetInType {
         letBinding = LLetType v s
         , body
-        , letID = getID m
+        , origLet = t
         }
     | otherwise -> pure Nothing
   fa@(TForall m v s t) -> do
@@ -523,14 +527,42 @@ runRedex = \case
     letType b (pure ty) $ letType a (tvar b) $ pure body
   ApplyPrimFun e -> e
 
-runRedexTy :: (MonadLog (WithSeverity l) m, MonadFresh ID m, MonadFresh NameCounter m, ConvertLogMessage Text l) => RedexType -> m Type
-runRedexTy (InlineLetInType {ty}) = regenerateTypeIDs ty
+runRedexTy :: (MonadLog (WithSeverity l) m, MonadFresh ID m, MonadFresh NameCounter m, ConvertLogMessage Text l) => RedexType -> m (Type, EvalDetail)
+runRedexTy (InlineLetInType {ty,letID,varID,var}) = do
+  ty' <- regenerateTypeIDs ty
+  let details = LocalVarInlineDetail {
+        letID, varID
+        ,valueID = getID ty,
+         bindingName = var
+        ,replacementID = getID ty'
+        ,isTypeVar = True
+                                          }
+  pure (ty',LocalTypeVarInline details)
 -- let a = s in t  ~>  t  if a does not appear in t
-runRedexTy (ElideLetInType {body}) = pure body
+runRedexTy (ElideLetInType {body, origLet,letBinding=(LLetType v _)}) = do
+  let details = LetRemovalDetail
+                { before = origLet
+                , after = body
+                , bindingName = unLocalName v
+                , letID = getID origLet
+                , bodyID = getID body
+                }
+  pure (body,TLetRemoval details)
 -- let a = s a in t a a  ~>  let b = s a in let a = b in t a a
-runRedexTy (RenameSelfLetInType {letBinding = LLetType a s,body}) = do
+runRedexTy (RenameSelfLetInType {letBinding = LLetType a s,body,origLet}) = do
   b <- freshLocalName (freeVarsTy s <> freeVarsTy body)
-  tlet b (pure s) $ tlet a (tvar b) $ pure body
+  result <- tlet b (pure s) $ tlet a (tvar b) $ pure body
+  let details =               LetRenameDetail
+                { before = origLet
+                , after = result
+                , bindingNameOld = unLocalName a
+                , bindingNameNew = unLocalName b
+                , letID = getID origLet
+                , bindingOccurrences = body ^.. getting _freeVarsTy % to (first getID) % filtered ((== a) . snd) % _1
+                , bodyID = getID body
+                }
+  pure (result, TLetRename details)
+  {-
 runRedexTy (RenameForall {meta, origBinder,kind,body,avoid}) = do
   -- It should never be necessary to try more than once, since
   -- we pick a new name disjoint from any that appear in @s@
@@ -547,3 +579,4 @@ runRedexTy (RenameForall {meta, origBinder,kind,body,avoid}) = do
       logError $ "runRedexTy.RenameForall: initial name choice was not fresh enough: chose " <> show b <> " for " <>
            show @_ @Text (meta,origBinder,kind,body,avoid)
       untilJustM $ snd <$> rename
+-}
