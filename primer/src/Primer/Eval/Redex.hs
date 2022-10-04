@@ -259,6 +259,11 @@ data Dir = Syn | Chk
   deriving (Eq, Show, Generic)
   deriving (FromJSON, ToJSON) via PrimerJSON Dir
 
+-- TODO: log/throw if assumption that #args-in-tydef == #args-in-app fails
+-- (and similar others?)? (maybe in runRedex?)
+-- this should be caught by TC and we assume that input is well-typed, so not important
+-- but did trip over this in a test case, where got weird results until I realised that
+-- by type definition did not match my usage! (Eval tests are not TCd)
 viewCaseRedex :: TypeDefMap -> Expr -> Maybe Redex
 viewCaseRedex tydefs = \case
   -- The patterns in the case branch have a Maybe TypeCache attached, but we
