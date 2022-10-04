@@ -275,6 +275,7 @@ addBinds i' bs = do
 
 -- TODO: cannot easily export Local as ctors conflict with old Locals
 -- so difficult to join these three into a singletonCxt to replace singletonLocal
+-- TODO: now have finished details work, we can join these up
 singletonCxtLet :: HasID i => i -> LVarName -> Expr -> Cxt
 singletonCxtLet i x e = addBinds i [Right $ LSome $ LLet x e] `execAccum`  mempty
 
