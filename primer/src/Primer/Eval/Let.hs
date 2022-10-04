@@ -42,7 +42,7 @@ data LetRemovalDetail t = LetRemovalDetail
   deriving (Eq, Show, Generic)
   deriving (FromJSON, ToJSON) via PrimerJSON (LetRemovalDetail t)
 
--- | Detailed information about a removal of a let binding.
+-- | Detailed information about a renaming of a let binding.
 -- This can be any of: a term-level non-recursive let, a
 -- term-level recursive let, a term-level let binding a type
 -- or a type-level let.
