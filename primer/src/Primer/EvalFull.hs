@@ -167,7 +167,7 @@ data Redex
     -- reduction steps. E.g.
     --     cons ==  (Λa λx λxs. Cons @a x xs) : ∀a. a -> List a -> List a
     -- )
-    CaseRedex ValConName [(Expr, forall m. MonadFresh NameCounter m => m (Type' ()))] (Either Type (Type' ())) [LVarName] Expr
+    CaseRedex ValConName (forall m. MonadFresh NameCounter m => [(Expr,  m (Type' ()))]) (Either Type (Type' ())) [LVarName] Expr
   | -- [ t : T ]  ~>  t  writing [_] for the embedding of syn into chk
     -- This only fires for concrete (non-holey, no free vars) T, as otherwise the
     -- annotation can act as a type-changing cast:
@@ -371,7 +371,7 @@ viewCaseRedex tydefs = \case
               CaseBranch _ xs e <- find (\(CaseBranch n _ _) -> n == c) brs
               pure (c, params, as, xs, e)
             _ -> Nothing
-    instantiateCon :: Type' a -> ValConName -> Maybe [forall m. MonadFresh NameCounter m => m (Type' ())]
+    instantiateCon :: Type' a -> ValConName -> Maybe (forall m. MonadFresh NameCounter m => [ m (Type' ())])
     instantiateCon ty c
       | Right (_, _, instVCs) <- instantiateValCons' tydefs $ forgetTypeMetadata ty
       , Just (_, argTys) <- find ((== c) . fst) instVCs =
@@ -410,7 +410,7 @@ viewCaseRedex tydefs = \case
     formCaseRedex ::
       Either Type (Type' ()) ->
       ValConName ->
-      [forall m. MonadFresh NameCounter m => m (Type' ())] ->
+      (forall m. MonadFresh NameCounter m => [m (Type' ())]) ->
       [Expr] ->
       [Bind' a] ->
       Expr ->
