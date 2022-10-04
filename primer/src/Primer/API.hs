@@ -828,7 +828,7 @@ generateNames sid ((defname, exprid), tk) =
   liftQueryAppM (handleQuestion $ GenerateName defname exprid tk) sid
 
 evalStep :: forall l m . (MonadIO m, MonadThrow m, MonadLog (WithSeverity (WithTraceId l)) m, ConvertLogMessage SessionTXLog l
-                     ,ConvertLogMessage ActionLog l)
+                     ,ConvertLogMessage ActionLog l, ConvertLogMessage Text l)
   => SessionId -> EvalReq -> PrimerM m (Either ProgError EvalResp)
 evalStep sid req =
   liftEditAppM (handleEvalRequest req) sid

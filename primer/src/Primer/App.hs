@@ -503,7 +503,7 @@ handleEditRequest actions = do
         (prog', selectedDef <$> progSelection prog')
 
 -- | Handle an eval request
-handleEvalRequest :: MonadEditApp l m => EvalReq -> m EvalResp
+handleEvalRequest :: (MonadEditApp l m, ConvertLogMessage Text l) => EvalReq -> m EvalResp
 handleEvalRequest req = do
   prog <- gets appProg
   result <- Eval.step (allDefs prog) (evalReqExpr req) (evalReqRedex req)

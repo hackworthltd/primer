@@ -20,7 +20,7 @@ module TestUtils (
   runPrimerLogs,
   assertNoSevereLogs,
   failWhenSevereLogs,
-  runAPI,
+  runAPI,evalTestMNoSevereLogs,
 ) where
 
 import Foreword
@@ -57,7 +57,7 @@ import Primer.Core (
   setID,
   _exprMeta,
   _exprTypeMeta,
-  _typeMeta,
+  _typeMeta, ID,
  )
 import Primer.Core.Utils (exprIDs)
 import Primer.Database (
@@ -79,6 +79,7 @@ import Control.Monad.Log (LoggingT, WithSeverity (msgSeverity), PureLoggingT, ru
 import qualified Data.Sequence as Seq
 import Primer.Log (ConvertLogMessage (convert))
 import Hedgehog (annotateShow, failure, MonadTest, annotate)
+import TestM (evalTestM, TestM)
 
 primDefs :: DefMap
 primDefs = Map.mapKeys primitive $ moduleDefs primitiveModule
@@ -174,6 +175,10 @@ runPureLogT = runPureLoggingT . mapLogMessage Seq.singleton
 -- TODO: use more often...
 runPureLog  :: PureLogT l Identity a -> (a, Seq l)
 runPureLog = runIdentity . runPureLogT
+
+-- recall that Assertion = IO ()
+evalTestMNoSevereLogs :: Show l => ID -> PureLogT (WithSeverity l) TestM a -> IO a
+evalTestMNoSevereLogs i = evalTestM i . runPureLogT <&> \(a,msgs) -> assertNoSevereLogs msgs >> pure a
 
 runPrimerLogs :: PrimerLogs a -> Env -> IO (a,Seq (WithSeverity (WithTraceId PrimerLog)))
 runPrimerLogs m e = runPureLogT $ runPrimerM m e 

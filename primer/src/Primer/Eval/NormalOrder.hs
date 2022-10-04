@@ -5,7 +5,11 @@ module Primer.Eval.NormalOrder (
   RedexWithContext(RExpr,RType),
   findRedex,
   foldMapExpr,
-  FMExpr(..)
+  FMExpr(..),
+  -- Exported for testing
+  singletonCxtLet,
+  singletonCxtLetType,
+  singletonCxtLetrec,
 ) where
 
 -- TODO: share code with Primer.Eval
@@ -40,7 +44,7 @@ import Primer.Core (
   Type,
   Type' (
     TLet
-  ), HasID, getID,
+  ), HasID, getID, LVarName,
  )
 import Primer.Core.Utils (
   _freeVarsTy,
@@ -64,7 +68,7 @@ import Primer.Zipper (
   up, getBoundHereTy, IsZipper,
  )
 import Control.Monad.Morph (generalize)
-import Control.Monad.Trans.Accum (readerToAccumT, Accum, look, add, evalAccumT, AccumT (AccumT), accum, runAccumT)
+import Control.Monad.Trans.Accum (readerToAccumT, Accum, look, add, evalAccumT, AccumT (AccumT), accum, runAccumT, evalAccum, execAccum)
 import Primer.Eval.Redex (Redex (InlineLet, InlineLetrec, ElideLet, RenameBindingsLam, RenameBindingsLAM, RenameSelfLet, RenameSelfLetType), RedexType (InlineLetInType, ElideLetInType, RenameSelfLetInType, RenameForall, var, letBinding, origBinder), Dir (Syn, Chk), SomeLocal (LSome), Cxt(Cxt),
                               _freeVarsLocal,
                               Local (LLetType, LLet, LLetrec), viewRedex, viewRedexType, localName)
@@ -268,3 +272,14 @@ addBinds i' bs = do
   add $ Cxt $ M.fromList $ bs <&> \case
     Left n -> (n,(Nothing,i,cxt))
     Right ls@(LSome l) -> (localName l,(Just ls,i,cxt))
+
+-- TODO: cannot easily export Local as ctors conflict with old Locals
+-- so difficult to join these three into a singletonCxt to replace singletonLocal
+singletonCxtLet :: HasID i => i -> LVarName -> Expr -> Cxt
+singletonCxtLet i x e = addBinds i [Right $ LSome $ LLet x e] `execAccum`  mempty
+
+singletonCxtLetType :: HasID i => i -> TyVarName -> Type -> Cxt
+singletonCxtLetType i x t = addBinds i [Right $ LSome $ LLetType x t] `execAccum`  mempty
+
+singletonCxtLetrec :: HasID i => i -> LVarName -> Expr -> Type -> Cxt
+singletonCxtLetrec i x e t = addBinds i [Right $ LSome $  LLetrec x e t] `execAccum`  mempty

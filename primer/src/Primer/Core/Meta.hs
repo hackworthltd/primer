@@ -38,7 +38,7 @@ import Optics (
   Lens',
   lens,
   set,
-  view,
+  view, equality'
  )
 import Primer.JSON
 import Primer.Name (Name, unName, unsafeMkName)
@@ -139,6 +139,9 @@ data TmVarRef
 -- which can lead to ambiguity errors.
 class HasID a where
   _id :: Lens' a ID
+
+instance HasID ID where
+  _id = equality'
 
 instance HasID (Meta a) where
   _id = position @1

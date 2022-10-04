@@ -18,6 +18,7 @@ module Primer.Eval (
   -- Only exported for testing
   Locals,
   LocalLet (..),
+  Cxt,singletonCxtLet,singletonCxtLetType,singletonCxtLetrec,
   tryReduceExpr,
   tryReduceType,
   findNodeByID,
@@ -96,7 +97,7 @@ import Primer.Eval.Detail (
  )
 import Primer.Eval.EvalError (EvalError (..))
 import Primer.Eval.Utils (makeSafeTLetBinding)
-import Primer.Name (Name)
+import Primer.Name (Name, NameCounter)
 import Primer.Name.Fresh (isFresh, isFreshTy)
 import Primer.Primitives.PrimDef (PrimDef)
 import Primer.Zipper (
@@ -115,14 +116,18 @@ import Primer.Zipper (
   unfocusExpr,
   unfocusType,
  )
-import Primer.Eval.Redex (Dir(..), viewRedex, viewRedexType)
+import Primer.Eval.Redex (Dir(..), viewRedex, viewRedexType, runRedexTy, Cxt(Cxt))
 import Primer.TypeDef (TypeDefMap)
-import Primer.Eval.NormalOrder (foldMapExpr, FMExpr (FMExpr, subst, substTy, expr, ty))
+import Primer.Eval.NormalOrder (foldMapExpr, FMExpr (FMExpr, subst, substTy, expr, ty)
+                               ,singletonCxtLet,singletonCxtLetType,singletonCxtLetrec)
+import Control.Monad.Log (WithSeverity, MonadLog)
+import Primer.Log (ConvertLogMessage)
 
 -- | Perform one step of reduction on the node with the given ID
 -- Returns the new expression and its redexes.
 step ::
-  MonadFresh ID m =>
+  (MonadFresh ID m, MonadFresh NameCounter m
+  , MonadLog (WithSeverity l) m, ConvertLogMessage Text l) =>
   DefMap ->
   Expr ->
   ID ->
@@ -134,10 +139,23 @@ step globals expr i = runExceptT $ do
       (node', detail) <- tryReduceExpr globals locals (target z)
       let expr' = unfocusExpr $ replace node' z
       pure (expr', detail)
-    Right z -> do
-      (node', detail) <- tryReduceType globals locals (target z)
-      let expr' = unfocusExpr $ unfocusType $ replace node' z
-      pure (expr', detail)
+    Right _ -> do
+      case findNodeByID' i expr of
+        Just (cxt,Right z) -> do
+          (node', detail) <- tryReduceType globals cxt (target z)
+          let expr' = unfocusExpr $ unfocusType $ replace node' z
+          pure (expr', detail)
+        _ -> throwError $ NodeNotFound i
+
+-- TODO: docs
+findNodeByID' :: ID -> Expr -> Maybe (Cxt, Either ExprZ TypeZ)
+findNodeByID' i  = foldMapExpr (FMExpr {
+  expr = \ez _ c -> if getID ez == i then Just (c,Left ez) else Nothing
+  ,ty = \tz c -> if getID tz == i then Just (c,Right tz) else Nothing
+  ,subst = Nothing
+  ,substTy = Nothing
+  }) Syn -- the direction does not actually matter, as it is ignored everywhere
+  
 
 -- | Search for the given node by its ID.
 -- Collect all local let, letrec and lettype bindings in scope and return them
@@ -387,11 +405,16 @@ tryReduceExpr globals locals = \case
   _ -> throwError NotRedex
 
 tryReduceType ::
-  (MonadFresh ID m, MonadError EvalError m) =>
+  (MonadFresh ID m, MonadFresh NameCounter m
+  , MonadError EvalError m, MonadLog (WithSeverity l) m, ConvertLogMessage Text l) =>
   DefMap ->
-  Locals ->
+  Cxt ->
   Type ->
   m (Type, EvalDetail)
+tryReduceType _globals cxt = flip runReader cxt . viewRedexType <&> \case
+  Just r -> runRedexTy r
+  _ -> throwError NotRedex
+{-
 tryReduceType _globals locals = \case
   -- Inline local type variable
   -- x=t |- x ==> t
@@ -446,4 +469,4 @@ tryReduceType _globals locals = \case
                 , bodyID = body ^. _id
                 }
           )
-  _ -> throwError NotRedex
+-}
