@@ -470,7 +470,7 @@ resumeTest mods dir t = do
 tasty_resume_regression :: Property
 tasty_resume_regression = propertyWT [] $ do
   -- This indeed requires fresh names when reducing (see unit_type_preservation_rename_LAM_regression)
-  t <- lAM "a" (letrec "b" emptyHole (tvar "a") (lAM "a" emptyHole))
+  t <- lAM "a" (letrec "b" emptyHole (tvar "a") (lAM "a" $ lvar "b"))
   resumeTest mempty Chk t
 
 -- A regression test: previously EvalFull would rename to avoid variable
@@ -482,12 +482,8 @@ tasty_resume_regression = propertyWT [] $ do
 unit_type_preservation_rename_LAM_regression :: Assertion
 unit_type_preservation_rename_LAM_regression =
   let ((expr, expected), maxID) = create $ do
-        e <- lAM "a" (letrec "b" emptyHole (tvar "a") (lAM "a" emptyHole))
-        -- We may expect the following, but our evaluator doesn't notice that
-        -- the letrec never engenders a substitution.
-        --   expect <- lAM "a" (lAM "a" emptyHole)
-        -- and out of an abundance of caution we rename the potentially-capturing inner lambda
-        expect <- lAM "a" (letrec "b" emptyHole (tvar "a") (lAM "a14" (letType "a" (tvar "a14") emptyHole))) -- NB: fragile name a14
+        e <- lAM "a" (letrec "b" emptyHole (tvar "a") (lAM "a" $ lvar "b"))
+        expect <- lAM "a" (letrec "b" emptyHole (tvar "a") (lAM "a14" (letType "a" (tvar "a14") $ lvar "b"))) -- NB: fragile name a14
         pure (e, expect)
    in do
         s <- evalFullTest maxID mempty mempty 1 Chk expr
@@ -769,23 +765,23 @@ spanM f (x : xs) = do
 -- consider an inner let  (e.g. let x = y in let y = _ in t : we cannot inline the outer
 -- let in 't' as the inner let would capture the 'y', so we decide to inline the inner
 -- let first). Thus we would mess up an example like
--- Λy. let x = ?:y in let y = _:y in y
+-- Λy. let x = ?:y in let y = _:y in y x
 -- reducing it to
--- Λy. let x = ?:y in let y = _:y in _:y
+-- Λy. let x = ?:y in let y = _:y in (_:y) x
 unit_regression_self_capture_let_let :: Assertion
 unit_regression_self_capture_let_let = do
   let e =
         lAM "y" $
           let_ "x" (emptyHole `ann` tvar "y") $
             let_ "y" (emptyHole `ann` tvar "y") $
-              lvar "y"
-      z = "a10"
+              lvar "y" `app` lvar "x"
+      z = "a12"
       f =
         lAM "y" $
           let_ "x" (emptyHole `ann` tvar "y") $
             let_ z (emptyHole `ann` tvar "y") $
               let_ "y" (lvar z) $
-                lvar "y"
+                lvar "y" `app` lvar "x"
       (e', i) = create e
       ev n = evalFullTest i mempty mempty n Chk e'
       x ~ y = x >>= (<~==> Left (TimedOut (create' y)))
