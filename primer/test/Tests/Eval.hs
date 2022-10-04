@@ -239,12 +239,12 @@ unit_tryReduce_let = do
       detail.bodyID @?= 2
     _ -> assertFailure $ show result
 
--- let x = x in x ==> let y = x in y
+-- let x = x in x ==> let y = x in let x = y in x
 unit_tryReduce_let_self_capture :: Assertion
 unit_tryReduce_let_self_capture = do
   let (expr, i) = create $ let_ "x" (lvar "x") (lvar "x")
       result = runTryReduce tydefs mempty mempty (expr, i)
-      expectedResult = create' $ let_ "x0" (lvar "x") (lvar "x0")
+      expectedResult = create' $ let_ "a3" (lvar "x") $ let_ "x" (lvar "a3") (lvar "x")
   case result of
     Right (expr', BindRename detail) -> do
       expr' ~= expectedResult
@@ -252,7 +252,7 @@ unit_tryReduce_let_self_capture = do
       detail.before @?= expr
       detail.after ~= expectedResult
       detail.bindingNameOld @?= ["x"]
-      detail.bindingNameNew @?= ["x0"]
+      detail.bindingNameNew @?= ["a3"]
       detail.binderID @?= [0]
       detail.bodyID @?= 2
     _ -> assertFailure $ show result
