@@ -421,6 +421,7 @@ viewCaseRedex tydefs = \case
 
 -- We record each binder, along with its let-bound RHS (if any)
 -- and its original binding location and  context (to be able to detect capture)
+-- Invariant: lookup x c == Just (Just l,_,_) ==> localName l == x
 newtype Cxt = Cxt (M.Map Name (Maybe SomeLocal, ID, Cxt))
   -- We want right-biased mappend, as we will use this with 'Accum'
   -- and want later 'add's to overwrite earlier (more-global) context entries
