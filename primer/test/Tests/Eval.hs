@@ -983,11 +983,13 @@ unit_redexes_letrec_3 =
   -- If this were a let, we would not be able to substitute, but it is possible for letrec
   redexesOf (lAM "a" $ lam "x" $ letrec "x" (lvar "x") (tvar "a") (lvar "x")) @?= Set.fromList [3, 5]
 
--- The application can be reduced by pushing the argument inside the letrec
+-- The application could potentially be reduced by pushing the
+-- argument inside the letrec, but that is not an reduction rule. Once
+-- we inline the letrec enough we would be able to see the beta.
 unit_redexes_letrec_app_1 :: Assertion
 unit_redexes_letrec_app_1 =
   redexesOf (app (letrec "e" (con' ["M"] "C") (tcon' ["M"] "T") (lam "x" (lvar "e"))) (con' ["M"] "D"))
-    @?= Set.fromList [0, 5]
+    @?= Set.fromList [5]
 
 -- The application can't be reduced because variables in the argument clash with the letrec
 unit_redexes_letrec_app_2 :: Assertion
