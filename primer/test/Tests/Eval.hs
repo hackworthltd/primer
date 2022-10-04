@@ -30,7 +30,7 @@ import Primer.Core (
   Kind (KType),
   Type,
   getID,
-  _id, qualifyName, mkSimpleModuleName, unsafeMkGlobalName,
+  _id, qualifyName, mkSimpleModuleName, unsafeMkGlobalName, unLocalName,
  )
 import Primer.Core.DSL
 import Primer.Core.Utils (forgetMetadata, forgetTypeMetadata)
@@ -386,11 +386,12 @@ unit_tryReduce_tlet_elide = do
       detail.bodyID @?= 2
     _ -> assertFailure $ show result
 
--- tlet x = x in x ==> tlet y = x in y
+-- tlet x = x in x ==> tlet y = x in  tlet x = y in x
 unit_tryReduce_tlet_self_capture :: Assertion
 unit_tryReduce_tlet_self_capture = do
   let (ty, i) = create $ tlet "x" (tvar "x") (tvar "x")
-      expectedResult = create' $ tlet "x0" (tvar "x") (tvar "x0")
+      n = "a3"
+      expectedResult = create' $ tlet n (tvar "x") $ tlet "x" (tvar n) (tvar "x")
   result <- runTryReduceType mempty mempty (ty, i)
   case result of
     Right (ty', TLetRename detail) -> do
@@ -399,7 +400,7 @@ unit_tryReduce_tlet_self_capture = do
       detail.before @?= ty
       detail.after ~~= expectedResult
       detail.bindingNameOld @?= "x"
-      detail.bindingNameNew @?= "x0"
+      detail.bindingNameNew @?= unLocalName n
       detail.letID @?= 0
       detail.bindingOccurrences @?= [1]
       detail.bodyID @?= 2
