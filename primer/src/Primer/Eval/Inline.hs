@@ -72,6 +72,10 @@ data GlobalVarInlineDetail = GlobalVarInlineDetail
 -- Values of this type are constructed by 'findNodeByID'.
 type Locals = Map Name (ID, LocalLet, RHSCaptured)
 
+-- TODO: delete lots of code. here and elsewhere
+-- weeder reports a bunch of stuff, but note have typeclass roots on (not sure if relevent)
+--  and I'm not sure if it reports unused constructors etc
+
 data LocalLet = LLet Expr | LLetRec Expr | LLetType Type
   deriving (Eq, Show)
 
