@@ -23,6 +23,7 @@ module Primer.Eval (
   findNodeByID,
   singletonLocal,
   RHSCaptured (..),
+  Dir(..),
 ) where
 
 import Foreword
@@ -114,6 +115,9 @@ import Primer.Zipper (
   unfocusExpr,
   unfocusType,
  )
+import Primer.Eval.Redex (Dir(..), viewRedex, viewRedexType)
+import Primer.TypeDef (TypeDefMap)
+import Primer.Eval.NormalOrder (foldMapExpr, FMExpr (FMExpr, subst, substTy, expr, ty))
 
 -- | Perform one step of reduction on the node with the given ID
 -- Returns the new expression and its redexes.
@@ -228,6 +232,21 @@ singletonLocal' n (i, l) = Map.singleton n (i, l, fvs, c)
 -- @e@ refers to a type variable @x@ when deciding if we can reduce a
 -- @let x = _ in e@ (we of course check whether @e@ refers to a term variable
 -- @x@)
+-- TODO/REVIEW: review comment^
+redexes :: TypeDefMap ->
+  DefMap ->
+  Dir ->
+  Expr -> Seq ID
+redexes tydefs globals = foldMapExpr $ FMExpr {
+    expr = \ez d -> runReader (maybe mempty (const $ pure $ getID ez) <$> viewRedex tydefs globals d (target ez))
+  , ty = \tz -> runReader (whenJust (getID tz) <$> viewRedexType (target tz))
+  , subst = Nothing
+  , substTy = Nothing
+                                               }
+  where
+    --whenJust :: Alternative f => a -> Maybe b -> f a
+    whenJust = maybe empty . const . pure
+{-
 redexes :: Map GVarName PrimDef -> Expr -> Set ID
 redexes primDefs = go mempty
   where
@@ -346,6 +365,7 @@ redexes primDefs = go mempty
     insertTm x e = Map.insert x (freeVars e) . removeTm x
     insertTy :: TyVarName -> Type -> Map TyVarName (Set TyVarName) -> Map TyVarName (Set TyVarName)
     insertTy x t = Map.insert x (freeVarsTy t) . removeTy x
+-}
 
 -- | Given a context of local and global variables and an expression, try to reduce that expression.
 -- Expects that the expression is redex and will throw an error if not.

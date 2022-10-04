@@ -4,6 +4,8 @@
 module Primer.Eval.NormalOrder (
   RedexWithContext(RExpr,RType),
   findRedex,
+  foldMapExpr,
+  FMExpr(..)
 ) where
 
 -- TODO: share code with Primer.Eval
@@ -112,8 +114,8 @@ foldMapExpr extract topDir = flip evalAccumT mempty . go . focus
               _ -> msum $  (goType =<< focusType' ez)
                                   : (map (go <=< hoistAccum) $ exprChildren ez)
     goType :: TypeZ -> AccumT Cxt f a
-    goType tz = readerToAccumT (ReaderT $ extract.ty tz)
-            <|> case (extract.substTy,target tz) of
+    goType tz = readerToAccumT (ReaderT $ extract.ty tz) 
+           <|> case (extract.substTy,target tz) of
                   (Just goSubstTy             , TLet _ a t _body)
                     | [_,bz] <- typeChildren tz -> (readerToAccumT . ReaderT . goSubstTy a t) =<< hoistAccum bz
                   _  -> msum $ map (goType <=< hoistAccum) $ typeChildren tz

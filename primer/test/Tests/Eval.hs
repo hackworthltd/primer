@@ -30,7 +30,7 @@ import Primer.Core (
   Kind (KType),
   Type,
   getID,
-  _id,
+  _id, qualifyName, mkSimpleModuleName, unsafeMkGlobalName,
  )
 import Primer.Core.DSL
 import Primer.Core.Utils (forgetMetadata, forgetTypeMetadata)
@@ -59,13 +59,16 @@ import Primer.Eval (
 import Primer.Module (Module (Module, moduleDefs, moduleName, moduleTypes), builtinModule, primitiveModule)
 import Primer.Primitives (PrimDef (EqChar, ToUpper), primitiveGVar, tChar)
 import Primer.Primitives.DSL (pfun)
-import Primer.TypeDef (TypeDef (..))
+import Primer.TypeDef (TypeDef (..), TypeDefMap,
+                       ASTTypeDef (ASTTypeDef, astTypeDefParameters, astTypeDefConstructors,
+                                   astTypeDefNameHints),ValCon(ValCon))
 import Primer.Zipper (target)
 import Test.Tasty.HUnit (Assertion, assertBool, assertFailure, (@?=))
 import TestM (evalTestM)
 import TestUtils (gvn, primDefs, vcn, PrimerLog)
 import qualified Tests.Action.Prog
 import Tests.Action.Prog (AppTestM)
+import Primer.Eval (Dir(Syn))
 
 -- * 'tryReduce' tests
 
@@ -662,7 +665,7 @@ unit_step_non_redex =
         let i2 = 8 -- NB: e1 has nodes 0,1,2,3; e2 has 4,5,6,7,8
         s1' <- step mempty e1 i1
         s2' <- step mempty e2 i2
-        pure ((Set.member i1 $ redexes mempty e1, s1'), (Set.member i2 $ redexes mempty e2, s2'))
+        pure ((elem i1 $ redexes mempty mempty Syn e1, s1'), (elem i2 $ redexes mempty mempty Syn e2, s2'))
    in do
         assertBool "Should not be in 'redexes', as shadowed by a lambda" $ not r1
         assertBool "Should not be in 'redexes', as would self-capture" $ not r2
@@ -856,11 +859,27 @@ unit_findNodeByID_capture_type = do
 
 -- | A helper for these tests
 redexesOf :: S Expr -> Set ID
-redexesOf = redexes mempty . create'
+redexesOf = foldMap Set.singleton . redexes tydefs mempty Syn . create'
 
 -- | A variation of 'redexesOf' for when the expression tested requires primitives to be in scope.
 redexesOfWithPrims :: S Expr -> Set ID
-redexesOfWithPrims = redexes (Map.mapMaybe defPrim primDefs) . create'
+redexesOfWithPrims = foldMap Set.singleton . redexes tydefs primDefs Syn . create'
+
+-- TODO: do we really want to say nothing in scope?
+-- will need a typedef for data M.C = M.C ; data M.D = M.D
+tydefs :: TypeDefMap
+tydefs = c <> d
+  where
+    c = Map.singleton (unsafeMkGlobalName (["M"], "C")) $ TypeDefAST $ ASTTypeDef {
+      astTypeDefParameters = []
+      , astTypeDefConstructors = [ValCon (unsafeMkGlobalName (["M"], "C")) []]
+      , astTypeDefNameHints = []
+      }
+    d = Map.singleton (unsafeMkGlobalName (["M"], "D")) $ TypeDefAST $ ASTTypeDef {
+      astTypeDefParameters = []
+      , astTypeDefConstructors = [ValCon (unsafeMkGlobalName (["M"], "D")) []]
+      , astTypeDefNameHints = []
+      }
 
 unit_redexes_con :: Assertion
 unit_redexes_con = redexesOf (con' ["M"] "C") @?= mempty
