@@ -1005,8 +1005,9 @@ unit_redexes_letrec_app_2 =
 -- we inline the letrec enough we would be able to see the beta.
 unit_redexes_letrec_APP_1 :: Assertion
 unit_redexes_letrec_APP_1 =
-  redexesOf (aPP (letrec "e" (con' ["M"] "C") (tcon' ["M"] "T") (lAM "x" (lvar "e"))) (tcon' ["M"] "D"))
-    @?= Set.fromList [5]
+  redexesOf (aPP (letrec "e" (con' ["M"] "C") (tcon' ["M"] "T")
+                  (lAM "x" (lvar "e") `ann` tforall "a" KType (tcon' ["M"] "T"))) (tcon' ["M"] "D"))
+    @?= Set.fromList [6]
 
 unit_redexes_letrec_APP_2 :: Assertion
 unit_redexes_letrec_APP_2 =
