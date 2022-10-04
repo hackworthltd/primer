@@ -5,11 +5,14 @@
 -- re-implemented evalfull to be factored nicer
 --   - viewing redex is  disentangled from finding normal order
 -- everything compiles, primer-test test suite passes
--- EvalFull tests take ~14s now (default options, under -O0)
+-- EvalFull tests take ~14s now (default options, under -O0, as reported by tasty)
 -- previously they took (on log-move-failure) ~15s
 -- with --hedgehog-tests 0, is 0.69s vs 0.79s
 -- no idea why... maybe agressive elision is a minor win even though have to look for free vars more often?
 --                or maybe less monadic (fresh name/id) overhead?
+-- With -O1 we get
+--  new: 7s ; 0.31s
+--  old: 7s ; 0.35s
 --
 -- Next steps:
 --   - PR this?
