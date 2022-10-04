@@ -1000,10 +1000,13 @@ unit_redexes_letrec_app_2 =
 -- TODO: this ^ and probably other tests pass, but for the "wrong reason" -- I should
 -- audit them and (at the least) add annotations
 
+-- The application could potentially be reduced by pushing the
+-- argument inside the letrec, but that is not an reduction rule. Once
+-- we inline the letrec enough we would be able to see the beta.
 unit_redexes_letrec_APP_1 :: Assertion
 unit_redexes_letrec_APP_1 =
   redexesOf (aPP (letrec "e" (con' ["M"] "C") (tcon' ["M"] "T") (lAM "x" (lvar "e"))) (tcon' ["M"] "D"))
-    @?= Set.fromList [0, 5]
+    @?= Set.fromList [5]
 
 unit_redexes_letrec_APP_2 :: Assertion
 unit_redexes_letrec_APP_2 =
