@@ -411,7 +411,6 @@ viewRedexType = \case
     | elemOf (getting _freeVarsTy % _2) v s -> purer $ RenameSelfLetInType v s t
     | otherwise -> pure Nothing
   fa@(TForall m v s t) -> do
-    c <- ask
     fvcxt <- fvCxtTy $ freeVarsTy fa
     pure $
       if v `S.member` fvcxt

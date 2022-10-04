@@ -129,7 +129,6 @@ findRedex tydefs globals dir = flip evalAccumT mempty . go . focus
     hoistAccum = Foreword.hoistAccum generalize
     go :: ExprZ -> AccumT Cxt Maybe RedexWithContext
     go ez = do
-     c <- look
      hoistAccum (readerToAccumT $ viewRedex tydefs globals (focusDir dir ez) (target ez)) >>= \case
       Just r -> pure $ RExpr ez r
       Nothing | Just (LSome l, bz) <- viewLet ez -> goSubst l =<< hoistAccum bz
@@ -140,7 +139,6 @@ findRedex tydefs globals dir = flip evalAccumT mempty . go . focus
                 --(_ >>= goType) <|> msum (map (go <=< lift) $ exprChildren ez)
     goType :: TypeZ -> AccumT Cxt Maybe RedexWithContext
     goType tz = do
-     c <- look
      hoistAccum (readerToAccumT $ viewRedexType $ target tz) >>= \case
       Just r -> pure $ RType tz r
       Nothing | TLet _ a t _body <- target tz
@@ -148,7 +146,6 @@ findRedex tydefs globals dir = flip evalAccumT mempty . go . focus
               | otherwise -> msum $ map (goType <=< hoistAccum) $ typeChildren tz
     goSubst :: Local k -> ExprZ -> AccumT Cxt Maybe RedexWithContext
     goSubst l ez = do
-      c <- look
       hoistAccum (readerToAccumT $ viewRedex tydefs globals (focusDir dir ez) $ target ez) >>= \case
         -- We should inline such 'v' (note that we will not go under any 'v' binders)
         Just r@(InlineLet w e) | localName l == unLocalName w -> pure $ RExpr ez r
@@ -179,7 +176,6 @@ findRedex tydefs globals dir = flip evalAccumT mempty . go . focus
     goSubstTy :: TyVarName -> Type -> TypeZ -> AccumT Cxt Maybe RedexWithContext
     goSubstTy v t tz = let isFreeIn = elemOf (getting _freeVarsTy % _2)
                        in do
-     c <- look
      hoistAccum (readerToAccumT $ viewRedexType $ target tz) >>= \case
       -- We should inline such 'v' (note that we will not go under any 'v' binders)
       Just r@(InlineLetInType w _) | w == v -> pure $ RType tz r
