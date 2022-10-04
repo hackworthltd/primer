@@ -36,5 +36,7 @@ data EvalError
     CaseBranchBindingLengthMismatch
   | -- | An error occurred while evaluating a primitive function.
     PrimFunError PrimFunError
+  | -- | We did a reduction, but our assumptions were flawed when working out details
+    InternalDetailError
   deriving (Eq, Show, Generic)
   deriving (FromJSON, ToJSON) via PrimerJSON EvalError

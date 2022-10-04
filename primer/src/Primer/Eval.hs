@@ -393,7 +393,7 @@ redexes primDefs = go mempty
 
 -- | Given a context of local and global variables and an expression, try to reduce that expression.
 -- Expects that the expression is redex and will throw an error if not.
-tryReduceExpr ::
+tryReduceExpr :: forall m .
   (MonadFresh ID m, MonadFresh NameCounter m, MonadError EvalError m) =>
   TypeDefMap ->
   DefMap ->
@@ -404,12 +404,15 @@ tryReduceExpr ::
   -- REVIEW: I've implemented this in a different style: look at the redex and the pre/post to compute details
   -- rather than recording more info in the redex to compute details. Thoughts? (compare with type version)
 tryReduceExpr tydefs globals cxt dir expr = case flip runReader cxt $ viewRedex tydefs globals dir expr of
-  Just r -> runRedex r <&> \after -> (after,details r expr after)
+  Just r -> runRedex r >>= \after -> case details r expr after of
+    Nothing -> throwError InternalDetailError
+    Just d -> pure (after,d)
   _ -> throwError NotRedex
   where
-    details (InlineGlobal _ def) var after = GlobalVarInline GlobalVarInlineDetail{      def      , var      , after      }
+    details :: Redex -> Expr -> Expr -> Maybe EvalDetail
+    details (InlineGlobal _ def) var after = pure $ GlobalVarInline GlobalVarInlineDetail{      def      , var      , after      }
     details (InlineLet var e) (Var i (LocalVarRef _)) after
-      | Just (letID,_) <- runReader (getNonCapturedLocal var) cxt = LocalVarInline LocalVarInlineDetail {
+      | Just (letID,_) <- runReader (getNonCapturedLocal var) cxt = pure $ LocalVarInline LocalVarInlineDetail {
         letID
         , varID = getID i
         ,valueID = getID e -- TODO/REVIEW: I'm not sure this is a sensible notion, given the letrec rule -- what is the interest of the ID of e in letrec v = e : T in ...?
@@ -417,14 +420,14 @@ tryReduceExpr tydefs globals cxt dir expr = case flip runReader cxt $ viewRedex 
         ,replacementID = getID after
         ,isTypeVar = False}
     details (InlineLetrec var e _t) (Var i (LocalVarRef _)) after
-      | Just (letID,_) <- runReader (getNonCapturedLocal var) cxt = LocalVarInline LocalVarInlineDetail {
+      | Just (letID,_) <- runReader (getNonCapturedLocal var) cxt = pure $ LocalVarInline LocalVarInlineDetail {
         letID
         , varID = getID i
         ,valueID = getID e -- TODO/REVIEW: I'm not sure this is a sensible notion, given the letrec rule -- what is the interest of the ID of e in letrec v = e : T in ...?
         ,bindingName = var
         ,replacementID = getID after
         ,isTypeVar = False}                                                                                
-    details (ElideLet (LSome l) _) before after = LetRemoval LetRemovalDetail {
+    details (ElideLet (LSome l) _) before after = pure $ LetRemoval LetRemovalDetail {
       before
       , after
       , bindingName = localName l
@@ -433,7 +436,7 @@ tryReduceExpr tydefs globals cxt dir expr = case flip runReader cxt $ viewRedex 
       }
     details  (Beta bindingName body tyS tyT arg)
              before@(App _ (Ann _ lam _) _)
-             after = BetaReduction BetaReductionDetail {
+             after = pure $ BetaReduction BetaReductionDetail {
       before, after,bindingName
       ,lambdaID=getID lam
       ,letID = getID after
@@ -443,7 +446,7 @@ tryReduceExpr tydefs globals cxt dir expr = case flip runReader cxt $ viewRedex 
       }
     details  (BETA bindingName body _ tyT arg)
              before@(APP _ (Ann _ lam (TForall _ _ k _)) _)
-             after = BETAReduction BetaReductionDetail {
+             after = pure $ BETAReduction BetaReductionDetail {
       before, after,bindingName
       ,lambdaID=getID lam
       ,letID = getID after
@@ -452,21 +455,21 @@ tryReduceExpr tydefs globals cxt dir expr = case flip runReader cxt $ viewRedex 
       ,types = Just (k,tyT)
       }
     details  (CaseRedex ctorName as _ _ rhs)
-             before@(Case _ scrutinee brs)  after = CaseReduction CaseReductionDetail {
+             before@(Case _ scrutinee brs)  after = pure $ CaseReduction CaseReductionDetail {
       before,after
       ,targetID = getID scrutinee
       ,targetCtorID = getID $ fst $ unfoldAPP $ fst $ unfoldApp scrutinee
       ,ctorName
-      ,targetArgIDs = getID . fst <$> as
+      ,targetArgIDs = getID . fst <$> as @m
       ,branchBindingIDs = brs ^.. folded % filtered (\(CaseBranch c _ _) -> c == ctorName)
                                         % #_CaseBranch % _2 % folded % to getID
       ,branchRhsID = getID rhs
       ,letIDs = after `getLetsUntil` rhs
       }
-    details  (Upsilon _ _) before@(Ann _ _ ty) after = RemoveAnn RemoveAnnDetail {
+    details  (Upsilon _ _) before@(Ann _ _ ty) after = pure $ RemoveAnn RemoveAnnDetail {
       before,after,typeID = getID ty
       }
-    details  (RenameBindingsLam _ x e _) before after@(Lam _ x' l) = BindRename BindRenameDetail {
+    details  (RenameBindingsLam _ x e _) before after@(Lam _ x' l) = pure $ BindRename BindRenameDetail {
       before,after
       ,bindingNameOld = [unLocalName x]
       ,bindingNameNew = [unLocalName x']
@@ -474,7 +477,7 @@ tryReduceExpr tydefs globals cxt dir expr = case flip runReader cxt $ viewRedex 
       ,renameLetID = [getID l]
       ,bodyID = getID e
       }
-    details  (RenameBindingsLAM _ x e _) before after@(LAM _ x' l) = BindRename BindRenameDetail {
+    details  (RenameBindingsLAM _ x e _) before after@(LAM _ x' l) = pure $ BindRename BindRenameDetail {
       before,after
       ,bindingNameOld = [unLocalName x]
       ,bindingNameNew = [unLocalName x']
@@ -485,7 +488,7 @@ tryReduceExpr tydefs globals cxt dir expr = case flip runReader cxt $ viewRedex 
     details  (RenameBindingsCase _ _ brs avoid) before@Case{} after@(Case _ _ brs')
       | (brs0, CaseBranch _ binds rhs : _) <- break (\(CaseBranch _ bs _) -> any ((`S.member` avoid) . unLocalName . bindName) bs) brs
       , (CaseBranch _ binds' rhs' : _) <- drop (length brs0) brs'
-      = BindRename BindRenameDetail {
+      = pure $ BindRename BindRenameDetail {
       before,after
       ,bindingNameOld = map (unLocalName . bindName) binds
       ,bindingNameNew = map (unLocalName . bindName) binds'
@@ -493,7 +496,7 @@ tryReduceExpr tydefs globals cxt dir expr = case flip runReader cxt $ viewRedex 
       ,renameLetID = rhs' `getLetsUntil` rhs
       ,bodyID = getID rhs
       }
-    details (RenameSelfLet x _ body) before after@(Let _ y _ l) = BindRename BindRenameDetail {
+    details (RenameSelfLet x _ body) before after@(Let _ y _ l) = pure $ BindRename BindRenameDetail {
       before,after
       ,bindingNameOld = [unLocalName x]
       ,bindingNameNew = [unLocalName y]
@@ -501,7 +504,7 @@ tryReduceExpr tydefs globals cxt dir expr = case flip runReader cxt $ viewRedex 
       ,renameLetID = [getID l]
       ,bodyID = getID body
       }
-    details (RenameSelfLetType a _ body) before after@(LetType _ b _ l) = BindRename BindRenameDetail {
+    details (RenameSelfLetType a _ body) before after@(LetType _ b _ l) = pure $ BindRename BindRenameDetail {
       before,after
       ,bindingNameOld = [unLocalName a]
       ,bindingNameNew = [unLocalName b]
@@ -510,12 +513,12 @@ tryReduceExpr tydefs globals cxt dir expr = case flip runReader cxt $ viewRedex 
       ,bodyID = getID body
       }
     details (Redex.ApplyPrimFun _) before after
-      | Just (name,args,_) <- tryPrimFun  (M.mapMaybe defPrim globals) before = ApplyPrimFun ApplyPrimFunDetail {
+      | Just (name,args,_) <- tryPrimFun  (M.mapMaybe defPrim globals) before = pure $ ApplyPrimFun ApplyPrimFunDetail {
           before,after
           ,name
           ,argIDs = map getID args
           }
-    details _ _ _ = _
+    details _ _ _ = Nothing
 
     getLetsUntil e until = unfoldr (\case Let i _ _ b | getID i /= getID until -> Just (getID i,b) ; _ -> Nothing) e
 
