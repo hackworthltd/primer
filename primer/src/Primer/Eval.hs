@@ -360,31 +360,6 @@ tryReduceExpr globals locals = \case
   (tryReduceBETA -> Just m) -> second BETAReduction <$> m
   (tryReducePush -> Just m) -> second PushAppIntoLetrec <$> m
   (tryReducePrim globals -> Just m) -> second ApplyPrimFun <$> m
-  -- Beta reduction of an inner application
-  -- This rule is theoretically redundant but because we render nested applications with just one
-  -- 'App' node in the tupled style, the user can only select the top-most application even if the
-  -- redex is in an inner application. So if we're given an application we must try to reduce its
-  -- left hand side before giving up.
-  --   a ==> b
-  -- -----------
-  -- a c ==> b c
-  App mApp e1 e2 -> do
-    -- Try to reduce e1
-    (e1', detail) <- tryReduceExpr globals locals e1
-    pure (App mApp e1' e2, detail)
-
-  -- Beta reduction of an inner big lambda application
-  -- This rule is theoretically redundant but because we render nested applications with just one
-  -- 'APP' node in the tupled style, the user can only select the top-most application even if the
-  -- redex is in an inner application. So if we're given an application we must try to reduce its
-  -- left hand side before giving up.
-  --   a ==> b
-  -- -----------
-  -- a c ==> b c
-  APP mAPP e t -> do
-    -- Try to reduce e
-    (e', detail) <- tryReduceExpr globals locals e
-    pure (APP mAPP e' t, detail)
   (tryInlineLocal locals -> Just m) -> second LocalVarInline <$> m
   (tryInlineGlobal globals -> Just m) -> second GlobalVarInline <$> m
   (tryLetRemoval -> Just m) -> second (either LetRename LetRemoval) <$> m
