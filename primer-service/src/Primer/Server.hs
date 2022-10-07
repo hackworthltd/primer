@@ -6,6 +6,9 @@
 module Primer.Server (
   serve,
   openAPIInfo,
+  TraceId,
+  WithTraceId (traceId, discardTraceId),
+  TraceBoundary (TraceStart, TraceEnd),
 ) where
 
 import Foreword hiding (Handler)
@@ -21,6 +24,8 @@ import Data.OpenApi (OpenApi)
 import Data.Streaming.Network.Internal (HostPreference (HostIPv4Only))
 import Data.Text.Lazy qualified as LT (fromStrict)
 import Data.Text.Lazy.Encoding qualified as LT (encodeUtf8)
+import Data.UUID
+import Data.UUID.V4 (nextRandom)
 import Network.Wai qualified as WAI
 import Network.Wai.Handler.Warp (
   defaultSettings,
@@ -65,7 +70,7 @@ import Primer.Database qualified as Database (
   Op,
  )
 import Primer.Def (ASTDef (..), Def (..))
-import Primer.Log (ConvertLogMessage, logWarning)
+import Primer.Log (ConvertLogMessage (convert), logInfo, logWarning)
 import Primer.Pagination (pagedDefaultClamp)
 import Primer.Servant.API qualified as S
 import Primer.Servant.OpenAPI qualified as OpenAPI
@@ -221,12 +226,13 @@ apiCors =
     }
 
 serve ::
-  ConvertLogMessage PrimerErr l =>
+  forall l.
+  (ConvertLogMessage PrimerErr l, ConvertLogMessage TraceBoundary l) =>
   Sessions ->
   TBQueue Database.Op ->
   Version ->
   Int ->
-  Log.Handler IO (Log.WithSeverity l) ->
+  Log.Handler IO (Log.WithSeverity (WithTraceId l)) ->
   IO ()
 serve ss q v port logger = do
   Warp.runSettings warpSettings $
@@ -246,12 +252,17 @@ serve ss q v port logger = do
     noCache = WAI.modifyResponse $ WAI.mapResponseHeaders (("Cache-Control", "no-store") :)
 
     nt :: PrimerIO a -> Handler a
-    nt m = Handler $ ExceptT $ catch (Right <$> runPrimerIO m (Env ss q v)) handler
-
+    nt m = Handler $ ExceptT $ do
+      txid <- TraceId <$> nextRandom
+      flip runLoggingT (logger . fmap (WithTraceId txid)) $ do
+        logInfo TraceStart
+        res <- catch (lift . fmap Right $ runPrimerIO m (Env ss q v)) handler
+        logInfo TraceEnd
+        pure res
     -- Catch exceptions from the API and convert them to Servant
     -- errors via 'Either'.
-    handler :: PrimerErr -> IO (Either ServerError a)
-    handler e = flip runLoggingT logger $ do
+    handler :: PrimerErr -> Log.LoggingT (Log.WithSeverity l) IO (Either ServerError a)
+    handler e = do
       logWarning e
       pure . Left $ case e of
         DatabaseErr msg -> err500{errBody = encode msg}
@@ -259,3 +270,18 @@ serve ss q v port logger = do
         UnexpectedPrimDef d -> err400{errBody = "Unexpected primitive definition: " <> encode (globalNamePretty d)}
       where
         encode = LT.encodeUtf8 . LT.fromStrict
+
+data TraceBoundary = TraceStart | TraceEnd
+  deriving (Show)
+
+newtype TraceId = TraceId UUID
+  deriving newtype (Show)
+
+data WithTraceId l = WithTraceId
+  { traceId :: TraceId
+  , discardTraceId :: l
+  }
+  deriving (Functor)
+
+instance ConvertLogMessage l l' => ConvertLogMessage (WithTraceId l) (WithTraceId l') where
+  convert = fmap convert

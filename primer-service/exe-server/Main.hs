@@ -3,7 +3,7 @@
 
 module Main (main) where
 
-import Foreword hiding (Handler)
+import Foreword hiding (Handler, traceId)
 
 import Control.Concurrent.Async (
   concurrently_,
@@ -63,6 +63,7 @@ import Primer.Log (
   logNotice,
   textWithSeverity,
  )
+import Primer.Server (TraceBoundary, WithTraceId (discardTraceId, traceId))
 import Primer.Server qualified as Server
 import StmContainers.Map qualified as StmMap
 import System.Environment (lookupEnv)
@@ -169,6 +170,7 @@ serve ::
   ( ConvertLogMessage Rel8DbLogMessage l
   , ConvertLogMessage Text l
   , ConvertLogMessage PrimerErr l
+  , ConvertLogMessage TraceBoundary l
   ) =>
   Database ->
   Version ->
@@ -179,19 +181,20 @@ serve ::
   -- which is thread-safe (in the sense that messages will be logged atomically:
   -- they will all appear, and will not interleave like
   -- @concurrently_ (putStrLn s1) (putStrLn s2)@ can.)
-  Handler IO (WithSeverity l) ->
+  Handler IO (WithSeverity (LogMsg' l)) ->
   IO ()
 serve (PostgreSQL uri) ver port qsz logger =
   bracket (acquire poolSize timeout uri) release $ \pool -> do
     dbOpQueue <- newTBQueueIO qsz
     initialSessions <- StmMap.newIO
-    flip runLoggingT logger $ do
+    flip runLoggingT (logger . fmap Untraced) $ do
       forM_ banner logInfo
       logNotice $ "primer-server version " <> ver
       logNotice ("Listening on port " <> show port :: Text)
     concurrently_
-      (Server.serve initialSessions dbOpQueue ver port logger)
-      (flip runLoggingT logger $ runDb (Db.ServiceCfg dbOpQueue ver) pool)
+      (Server.serve initialSessions dbOpQueue ver port (logger . fmap Traced))
+      (flip runLoggingT (logger . fmap Untraced) $ runDb (Db.ServiceCfg dbOpQueue ver) pool)
+    pure ()
   where
     -- Note: pool size must be 1 in order to guarantee
     -- read-after-write and write-after-write semantics for individual
@@ -215,7 +218,7 @@ main = do
       case args of
         GlobalOptions (Serve ver dbFlag port qsz) -> do
           db <- maybe defaultDb pure dbFlag
-          serve db ver port qsz (logToStdout . logMsgWithSeverity)
+          serve db ver port qsz (logToStdout . logMsgWithSeverityAndTrace)
   where
     opts =
       info
@@ -234,9 +237,19 @@ main = do
 
 -- | Avoid orphan instances.
 newtype LogMsg = LogMsg {unLogMsg :: Text}
+  deriving newtype (Semigroup)
 
 logMsgWithSeverity :: WithSeverity LogMsg -> Text
 logMsgWithSeverity (WithSeverity s m) = textWithSeverity $ WithSeverity s (unLogMsg m)
+
+logMsgWithSeverityAndTrace :: WithSeverity (LogMsg' LogMsg) -> Text
+logMsgWithSeverityAndTrace (WithSeverity s m) = case m of
+  Untraced m' -> logMsgWithSeverity (WithSeverity s m')
+  Traced m' -> logMsgWithSeverity (WithSeverity s $ logTraceId (traceId m') <> discardTraceId m')
+    where
+      logTraceId i = LogMsg $ "[" <> show i <> "] "
+
+data LogMsg' l = Untraced l | Traced (WithTraceId l)
 
 instance ConvertLogMessage Text LogMsg where
   convert = LogMsg
@@ -251,3 +264,6 @@ instance ConvertLogMessage PrimerErr LogMsg where
   convert (DatabaseErr e) = LogMsg e
   convert (UnknownDef e) = LogMsg $ show e
   convert (UnexpectedPrimDef e) = LogMsg $ show e
+
+instance ConvertLogMessage TraceBoundary LogMsg where
+  convert = LogMsg . show
