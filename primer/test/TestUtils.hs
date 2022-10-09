@@ -16,6 +16,7 @@ module TestUtils (
   clearTypeMeta,
   runAPI,
   LogMsg,
+  isSevereLog,
   assertNoSevereLogs,
   testNoSevereLogs,
 ) where

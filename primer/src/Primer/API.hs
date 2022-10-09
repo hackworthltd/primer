@@ -173,6 +173,7 @@ import Primer.Def (
   defAST,
  )
 import Primer.Def qualified as Def
+import Primer.EvalFull (EvalFullLog)
 import Primer.JSON (
   CustomJSON (..),
   FromJSON,
@@ -885,7 +886,7 @@ evalStep = curry $ logAPI (leftResultError EvalStep) $ \(sid, req) ->
   liftEditAppM (handleEvalRequest req) sid
 
 evalFull ::
-  (MonadIO m, MonadThrow m, MonadAPILog l m) =>
+  (MonadIO m, MonadThrow m, MonadAPILog l m, ConvertLogMessage EvalFullLog l) =>
   SessionId ->
   EvalFullReq ->
   PrimerM m (Either ProgError EvalFullResp)

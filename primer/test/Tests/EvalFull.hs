@@ -2,6 +2,7 @@ module Tests.EvalFull where
 
 import Foreword hiding (unlines)
 
+import Control.Monad.Log (WithSeverity)
 import Data.Generics.Uniplate.Data (universe)
 import Data.List ((\\))
 import Data.List.NonEmpty qualified as NE
@@ -53,6 +54,7 @@ import Primer.Examples qualified as Examples (
   odd,
  )
 import Primer.Gen.Core.Typed (WT, forAllT, genChk, genSyn, genWTType, isolateWT, propertyWT)
+import Primer.Log (PureLogT, runPureLogT)
 import Primer.Module (Module (Module, moduleDefs, moduleName, moduleTypes), builtinModule, moduleDefsQualified, moduleTypesQualified, primitiveModule)
 import Primer.Primitives (
   PrimDef (
@@ -98,7 +100,9 @@ import Tasty (
 import Test.Tasty.HUnit (Assertion, assertBool, assertFailure, (@?=))
 import TestM
 import TestUtils (
+  assertNoSevereLogs,
   primDefs,
+  testNoSevereLogs,
   zeroIDs,
  )
 import Tests.Action.Prog (runAppTestM)
@@ -444,18 +448,19 @@ resumeTest mods dir t = do
   -- exactly the same as "reducing n steps and then further reducing m
   -- steps" (including generated names). (A happy consequence of this is that
   -- it is precisely the same including ids in metadata.)
-  (stepsFinal', sFinal) <- lift $ isolateWT $ evalFullStepCount tds globs n dir t
+  ((stepsFinal', sFinal), logs) <- lift $ isolateWT $ runPureLogT $ evalFullStepCount @EvalFullLog tds globs n dir t
+  testNoSevereLogs logs
   when (stepsFinal' < 2) discard
   let stepsFinal = case sFinal of Left _ -> stepsFinal'; Right _ -> 1 + stepsFinal'
   m <- forAllT $ Gen.integral $ Range.constant 1 (stepsFinal - 1)
-  (stepsMid, sMid') <- evalFullStepCount tds globs m dir t
+  (stepsMid, sMid') <- failWhenSevereLogs $ evalFullStepCount tds globs m dir t
   stepsMid === m
   sMid <- case sMid' of
     Left (TimedOut e) -> pure e
     -- This should never happen: we know we are not taking enough steps to
     -- hit a normal form (as m < stepsFinal)
     Right e -> assert False >> pure e
-  (stepsTotal, sTotal) <- evalFullStepCount tds globs (stepsFinal - m) dir sMid
+  (stepsTotal, sTotal) <- failWhenSevereLogs $ evalFullStepCount tds globs (stepsFinal - m) dir sMid
   stepsMid + stepsTotal === stepsFinal'
   sFinal === sTotal
 
@@ -810,7 +815,7 @@ tasty_type_preservation = withTests 1000 $
                 forgetMetadata s === forgetMetadata s' -- check no smart holes happened
               else label (msg <> "skipped due to LetType") >> success
       maxSteps <- forAllT $ Gen.integral $ Range.linear 1 1000 -- Arbitrary limit here
-      (steps, s) <- evalFullStepCount tds globs maxSteps dir t
+      (steps, s) <- failWhenSevereLogs $ evalFullStepCount tds globs maxSteps dir t
       annotateShow steps
       annotateShow s
       -- s is often reduced to normal form
@@ -820,7 +825,7 @@ tasty_type_preservation = withTests 1000 $
         then label "generated a normal form"
         else do
           midSteps <- forAllT $ Gen.integral $ Range.linear 1 (steps - 1)
-          (_, s') <- evalFullStepCount tds globs midSteps dir t
+          (_, s') <- failWhenSevereLogs $ evalFullStepCount tds globs midSteps dir t
           test "mid " s'
 
 unit_prim_toUpper :: Assertion
@@ -1310,7 +1315,7 @@ tasty_unique_ids = withTests 1000 $
       let go n t
             | n == (0 :: Int) = pure ()
             | otherwise = do
-                t' <- evalFull tds globs 1 dir t
+                t' <- failWhenSevereLogs $ evalFull @EvalFullLog tds globs 1 dir t
                 case t' of
                   Left (TimedOut e) -> uniqueIDs e >> go (n - 1) e
                   Right e -> uniqueIDs e
@@ -1324,15 +1329,23 @@ tasty_unique_ids = withTests 1000 $
 
 evalFullTest :: ID -> TypeDefMap -> DefMap -> TerminationBound -> Dir -> Expr -> IO (Either EvalFullError Expr)
 evalFullTest id_ tydefs globals n d e = do
-  let r = evalTestM id_ $ evalFull tydefs globals n d e
+  let (r, logs) = evalTestM id_ $ runPureLogT $ evalFull @EvalFullLog tydefs globals n d e
+  assertNoSevereLogs logs
   distinctIDs r
   pure r
 
 evalFullTasty :: MonadTest m => ID -> TypeDefMap -> DefMap -> TerminationBound -> Dir -> Expr -> m (Either EvalFullError Expr)
 evalFullTasty id_ tydefs globals n d e = do
-  let r = evalTestM id_ $ evalFull tydefs globals n d e
+  let (r, logs) = evalTestM id_ $ runPureLogT $ evalFull @EvalFullLog tydefs globals n d e
+  testNoSevereLogs logs
   let ids = r ^.. evalResultExpr % exprIDs
   ids === ordNub ids
+  pure r
+
+failWhenSevereLogs :: MonadTest m => PureLogT (WithSeverity EvalFullLog) m a -> m a
+failWhenSevereLogs m = do
+  (r, logs) <- runPureLogT m
+  testNoSevereLogs logs
   pure r
 
 unaryPrimTest :: PrimDef -> S Expr -> S Expr -> Assertion

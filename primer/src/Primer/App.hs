@@ -151,8 +151,9 @@ import Primer.Def (
  )
 import Primer.Eval (EvalDetail)
 import Primer.Eval qualified as Eval
-import Primer.EvalFull (Dir, EvalFullError (TimedOut), TerminationBound, evalFull)
+import Primer.EvalFull (Dir, EvalFullError (TimedOut), EvalFullLog, TerminationBound, evalFull)
 import Primer.JSON
+import Primer.Log (ConvertLogMessage)
 import Primer.Module (
   Module (Module, moduleDefs, moduleName, moduleTypes),
   builtinModule,
@@ -525,7 +526,7 @@ handleEvalRequest req = do
           }
 
 -- | Handle an eval-to-normal-form request
-handleEvalFullRequest :: MonadEditApp l m => EvalFullReq -> m EvalFullResp
+handleEvalFullRequest :: (MonadEditApp l m, ConvertLogMessage EvalFullLog l) => EvalFullReq -> m EvalFullResp
 handleEvalFullRequest (EvalFullReq{evalFullReqExpr, evalFullCxtDir, evalFullMaxSteps}) = do
   prog <- gets appProg
   result <- evalFull (allTypes prog) (allDefs prog) evalFullMaxSteps evalFullCxtDir evalFullReqExpr

@@ -36,6 +36,7 @@ import Control.Monad.Log qualified as Log (
   logNotice,
   logWarning,
  )
+import Control.Monad.Trans (MonadTrans)
 
 logSeverity :: Severity -> Text
 logSeverity Debug = "[DEBUG]     "
@@ -90,6 +91,9 @@ newtype PureLogT l m a = PureLogs (LoggingT l (PureLoggingT (Seq l) m) a)
     , MonadCatch
     , MonadFresh i
     )
+
+instance MonadTrans (PureLogT l) where
+  lift = PureLogs . lift . lift
 
 -- | Purely accumulate log messages in a 'Seq'.
 -- Note that this may cause a large amount of memory to be retained if you
