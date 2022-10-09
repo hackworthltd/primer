@@ -177,7 +177,7 @@ data RedexType
 type TerminationBound = Natural
 
 -- A naive implementation of normal-order reduction
-evalFull :: (MonadFresh NameCounter m, MonadFresh ID m) => TypeDefMap -> DefMap -> TerminationBound -> Dir -> Expr -> m (Either EvalFullError Expr)
+evalFull :: MonadEvalFull m => TypeDefMap -> DefMap -> TerminationBound -> Dir -> Expr -> m (Either EvalFullError Expr)
 evalFull tydefs env n d expr = snd <$> evalFullStepCount tydefs env n d expr
 
 -- | As 'evalFull', but also returns how many reduction steps were taken.
@@ -189,7 +189,7 @@ evalFull tydefs env n d expr = snd <$> evalFullStepCount tydefs env n d expr
 -- we have @m >= s+1@, as we do @s@ reductions, and then need to attempt one
 -- more to notice termination.
 evalFullStepCount ::
-  (MonadFresh NameCounter m, MonadFresh ID m) =>
+  MonadEvalFull m =>
   TypeDefMap ->
   DefMap ->
   TerminationBound ->
@@ -207,7 +207,7 @@ evalFullStepCount tydefs env n d = go 0
 -- The 'Dir' argument only affects what happens if the root is an annotation:
 -- do we keep it (Syn) or remove it (Chk). I.e. is an upsilon reduction allowed
 -- at the root?
-step :: (MonadFresh NameCounter m, MonadFresh ID m) => TypeDefMap -> DefMap -> Dir -> Expr -> Maybe (m Expr)
+step :: MonadEvalFull m => TypeDefMap -> DefMap -> Dir -> Expr -> Maybe (m Expr)
 step tydefs g d e = case findRedex tydefs g d e of
   Nothing -> Nothing
   Just mr ->
@@ -282,7 +282,7 @@ viewLet ez = case target ez of
   LetType _ a ty _t -> (LSome $ LLetType a ty,) <$> down ez
   _ -> Nothing
 
-viewCaseRedex :: (MonadFresh ID m, MonadFresh NameCounter m) => TypeDefMap -> Expr -> Maybe (m Redex)
+viewCaseRedex :: MonadEvalFull m => TypeDefMap -> Expr -> Maybe (m Redex)
 viewCaseRedex tydefs = \case
   -- The patterns in the case branch have a Maybe TypeCache attached, but we
   -- should not assume that this has been filled in correctly, so we record
@@ -361,7 +361,7 @@ viewCaseRedex tydefs = \case
       pure $ CaseRedex c (zip args argTys'') ty (map bindName patterns) br
 
 -- This spots all redexs other than InlineLet
-viewRedex :: (MonadFresh ID m, MonadFresh NameCounter m) => TypeDefMap -> DefMap -> Dir -> Expr -> Maybe (m Redex)
+viewRedex :: MonadEvalFull m => TypeDefMap -> DefMap -> Dir -> Expr -> Maybe (m Redex)
 viewRedex tydefs globals dir = \case
   Var _ (GlobalVarRef x) | Just (DefAST y) <- x `M.lookup` globals -> pure $ pure $ InlineGlobal x y
   App _ (Ann _ (Lam _ x t) (TFun _ src tgt)) s -> pure $ pure $ Beta x t src tgt s
@@ -392,7 +392,7 @@ viewRedex tydefs globals dir = \case
 -- express the moves nicely...)
 findRedex ::
   forall m.
-  (MonadFresh ID m, MonadFresh NameCounter m) =>
+  MonadEvalFull m =>
   TypeDefMap ->
   DefMap ->
   Dir ->
@@ -513,7 +513,7 @@ findRedex tydefs globals dir = go . focus
       _ -> eachChild tz (goSubstTy n t)
 
 -- TODO: deal with metadata. https://github.com/hackworthltd/primer/issues/6
-runRedex :: (MonadFresh ID m, MonadFresh NameCounter m) => Redex -> m Expr
+runRedex :: MonadEvalFull m => Redex -> m Expr
 runRedex = \case
   InlineGlobal _ def -> ann (regenerateExprIDs $ astDefExpr def) (regenerateTypeIDs $ astDefType def)
   InlineLet _ e -> regenerateExprIDs e
@@ -561,7 +561,7 @@ runRedex = \case
     letType b (pure ty) $ letType a (tvar b) $ pure body
   ApplyPrimFun e -> e
 
-runRedexTy :: (MonadFresh ID m, MonadFresh NameCounter m) => RedexType -> m Type
+runRedexTy :: MonadEvalFull m => RedexType -> m Type
 runRedexTy (InlineLetInType _ t) = regenerateTypeIDs t
 -- let a = s in t  ~>  t  if a does not appear in t
 runRedexTy (ElideLetInType _ t) = pure t
@@ -577,3 +577,5 @@ runRedexTy (RenameForall m a k s avoid) = do
   untilJustM $ do
     b <- freshLocalName (avoid <> freeVarsTy s <> bindersBelowTy (focus s))
     pure $ TForall m b k <$> renameTyVar a b s
+
+type MonadEvalFull m = (MonadFresh ID m, MonadFresh NameCounter m)
