@@ -3,7 +3,7 @@ module Tests.EvalFull where
 import Foreword hiding (unlines)
 
 import Data.Generics.Uniplate.Data (universe)
-import Data.List (span, (\\))
+import Data.List ((\\))
 import Data.List.NonEmpty qualified as NE
 import Data.Map qualified as M
 import Data.Map qualified as Map
@@ -88,6 +88,7 @@ import Primer.Typecheck (
   extendGlobalCxt,
   typeDefs,
  )
+import Protolude.Partial (fromJust)
 import Tasty (
   Property,
   property,
@@ -108,17 +109,15 @@ import Tests.Typecheck (runTypecheckTestM, runTypecheckTestMWithPrims)
 unit_1 :: Assertion
 unit_1 =
   let (e, maxID) = create emptyHole
-      s = evalFullTest maxID mempty mempty 0 Syn e
    in do
-        distinctIDs s
+        s <- evalFullTest maxID mempty mempty 0 Syn e
         s <~==> Left (TimedOut e)
 
 unit_2 :: Assertion
 unit_2 =
   let (e, maxID) = create emptyHole
-      s = evalFullTest maxID mempty mempty 1 Syn e
    in do
-        distinctIDs s
+        s <- evalFullTest maxID mempty mempty 1 Syn e
         s <~==> Right e
 
 -- Check we don't have shadowing issues in types
@@ -129,9 +128,8 @@ unit_3 =
         let b' = "a33" -- NB: fragile name a33
         expect <- emptyHole `ann` (tcon' ["M"] "T" `tapp` tvar "b" `tapp` tforall "a" KType (tvar "a") `tapp` tforall b' KType (tcon' ["M"] "S" `tapp` tvar "b" `tapp` tvar b'))
         pure (e, expect)
-      s = evalFullTest maxID mempty mempty 5 Syn expr
    in do
-        distinctIDs s
+        s <- evalFullTest maxID mempty mempty 5 Syn expr
         s <~==> Right expected
 
 -- Check we don't have shadowing issues in terms
@@ -142,9 +140,8 @@ unit_4 =
         let b' = "a29" -- NB: fragile name a29
         expect <- con' ["M"] "C" `app` lvar "b" `app` lam "a" (lvar "a") `app` lam b' (con' ["M"] "D" `app` lvar "b" `app` lvar b')
         pure (e, expect)
-      s = evalFullTest maxID mempty mempty 7 Syn expr
    in do
-        distinctIDs s
+        s <- evalFullTest maxID mempty mempty 7 Syn expr
         s <~==> Right expected
 
 -- This test is slightly unfortunate for two reasons
@@ -159,9 +156,8 @@ unit_5 =
         a <- letrec "x" (lvar "x") (tcon tBool) (lvar "x")
         b <- letrec "x" (lvar "x") (tcon tBool) (lvar "x" `ann` tcon tBool) `ann` tcon tBool
         pure (a, b)
-      s = evalFullTest maxID mempty mempty 100 Syn e
    in do
-        distinctIDs s
+        s <- evalFullTest maxID mempty mempty 100 Syn e
         s <~==> Left (TimedOut expt)
 
 unit_6 :: Assertion
@@ -170,12 +166,10 @@ unit_6 =
         tr <- con cTrue
         an <- ann (pure tr) (tcon tBool)
         pure (an, tr)
-      s = evalFullTest maxID mempty mempty 1 Syn e
-      t = evalFullTest maxID mempty mempty 2 Chk e
    in do
-        distinctIDs s
+        s <- evalFullTest maxID mempty mempty 1 Syn e
         s <~==> Right e
-        distinctIDs t
+        t <- evalFullTest maxID mempty mempty 2 Chk e
         t <~==> Right expt
 
 -- TODO: do we want to expand
@@ -190,8 +184,10 @@ unit_7 =
   let (e, maxID) = create $ do
         let l = lam "x" $ lvar "x" `app` lvar "x"
         (l `ann` tEmptyHole) `app` l
-   in -- in evalFullTest maxID mempty mempty 100 Syn e <~==> Left (TimedOut e)
-      evalFullTest maxID mempty mempty 100 Syn e <~==> Right e
+   in do
+        -- in evalFullTest maxID mempty mempty 100 Syn e <~==> Left (TimedOut e)
+        s <- evalFullTest maxID mempty mempty 100 Syn e
+        s <~==> Right e
 
 unit_8 :: Assertion
 unit_8 =
@@ -207,11 +203,10 @@ unit_8 =
         expect <- list_ tBool (take n $ cycle [con cTrue, con cFalse]) `ann` (tcon tList `tapp` tcon tBool)
         pure (globs, expr, expect)
    in do
-        case evalFullTest maxID builtinTypes (M.fromList globals) 500 Syn e of
+        evalFullTest maxID builtinTypes (M.fromList globals) 500 Syn e >>= \case
           Left (TimedOut _) -> pure ()
           x -> assertFailure $ show x
-        let s = evalFullTest maxID builtinTypes (M.fromList globals) 1000 Syn e
-        distinctIDs s
+        s <- evalFullTest maxID builtinTypes (M.fromList globals) 1000 Syn e
         s <~==> Right expected
 
 -- A worker/wrapper'd map
@@ -229,11 +224,10 @@ unit_9 =
         expect <- list_ tBool (take n $ cycle [con cTrue, con cFalse]) `ann` (tcon tList `tapp` tcon tBool)
         pure (globs, expr, expect)
    in do
-        case evalFullTest maxID builtinTypes (M.fromList globals) 500 Syn e of
+        evalFullTest maxID builtinTypes (M.fromList globals) 500 Syn e >>= \case
           Left (TimedOut _) -> pure ()
           x -> assertFailure $ show x
-        let s = evalFullTest maxID builtinTypes (M.fromList globals) 1000 Syn e
-        distinctIDs s
+        s <- evalFullTest maxID builtinTypes (M.fromList globals) 1000 Syn e
         s <~==> Right expected
 
 -- Check that we handle constructors-are-synthesisable well
@@ -258,11 +252,9 @@ unit_10 =
         expect <- con cTrue
         pure (annCase, noannCase, expect)
    in do
-        let s' = evalFullTest maxID builtinTypes mempty 2 Syn s
-            t' = evalFullTest maxID builtinTypes mempty 2 Syn t
-        distinctIDs s'
+        s' <- evalFullTest maxID builtinTypes mempty 2 Syn s
         s' <~==> Right expected
-        distinctIDs t'
+        t' <- evalFullTest maxID builtinTypes mempty 2 Syn t
         t' <~==> Right expected
 
 -- This example shows that when we are under even a 'let' all we can do is
@@ -285,11 +277,10 @@ unit_11 =
             `ann` (tcon tPair `tapp` tcon tBool `tapp` tcon tNat)
         pure (globs, expr, expect)
    in do
-        case evalFullTest maxID builtinTypes (M.fromList globals) 10 Syn e of
+        evalFullTest maxID builtinTypes (M.fromList globals) 10 Syn e >>= \case
           Left (TimedOut _) -> pure ()
           x -> assertFailure $ show x
-        let s = evalFullTest maxID builtinTypes (M.fromList globals) 20 Syn e
-        distinctIDs s
+        s <- evalFullTest maxID builtinTypes (M.fromList globals) 20 Syn e
         s <~==> Right expected
 
 -- This example shows that we may only substitute the top-most let otherwise we
@@ -310,8 +301,7 @@ unit_12 =
         expect <- con cTrue `ann` tcon tBool
         pure (expr, expect)
    in do
-        let s = evalFullTest maxID builtinTypes mempty 15 Syn e
-        distinctIDs s
+        s <- evalFullTest maxID builtinTypes mempty 15 Syn e
         s <~==> Right expected
 
 unit_13 :: Assertion
@@ -321,8 +311,7 @@ unit_13 =
         expect <- (con' ["M"] "C" `app` con cZero `app` con cTrue `app` con cZero) `ann` tcon tBool
         pure (expr, expect)
    in do
-        let s = evalFullTest maxID builtinTypes mempty 15 Syn e
-        distinctIDs s
+        s <- evalFullTest maxID builtinTypes mempty 15 Syn e
         s <~==> Right expected
 
 unit_14 :: Assertion
@@ -332,8 +321,7 @@ unit_14 =
         expect <- con cZero `ann` tcon tNat
         pure (expr, expect)
    in do
-        let s = evalFullTest maxID builtinTypes mempty 15 Syn e
-        distinctIDs s
+        s <- evalFullTest maxID builtinTypes mempty 15 Syn e
         s <~==> Right expected
 
 -- Need to swap to substituting an inner let, when it (could have) arises from
@@ -359,19 +347,17 @@ unit_15 =
         e5 <- lam y' $ c "y" y'
         pure (e0, [e0, e1, e2, e3, e4, e5], e5)
    in do
-        let si = map (\i -> evalFullTest maxID builtinTypes mempty i Syn expr) [0 .. fromIntegral $ length steps - 1]
-            f s e = do
-              distinctIDs s
-              s <~==> Left (TimedOut e)
-        zipWithM_ f si steps
-        let s = evalFullTest maxID builtinTypes mempty (fromIntegral $ length steps) Syn expr
-        distinctIDs s
+        si <- traverse (\i -> evalFullTest maxID builtinTypes mempty i Syn expr) [0 .. fromIntegral $ length steps - 1]
+        zipWithM_ (\s e -> s <~==> Left (TimedOut e)) si steps
+        s <- evalFullTest maxID builtinTypes mempty (fromIntegral $ length steps) Syn expr
         s <~==> Right expected
 
 unit_hole_ann_case :: Assertion
 unit_hole_ann_case =
   let (tm, maxID) = create $ hole $ ann (case_ emptyHole []) (tcon tBool)
-   in evalFullTest maxID builtinTypes mempty 1 Chk tm @?= Right tm
+   in do
+        t <- evalFullTest maxID builtinTypes mempty 1 Chk tm
+        t @?= Right tm
 
 -- tlet x = C in D x x
 --   ==>
@@ -389,8 +375,7 @@ unit_tlet =
         e3 <- ann emptyHole $ tcon' ["M"] "D" `tapp` tcon' ["M"] "C" `tapp` tcon' ["M"] "C"
         pure (e0, map (Left . TimedOut) [e0, e1, e2, e3] ++ [Right e3])
       test (n, expect) = do
-        let r = evalFullTest maxID mempty mempty n Syn expr
-        distinctIDs r
+        r <- evalFullTest maxID mempty mempty n Syn expr
         r <~==> expect
    in mapM_ test (zip [0 ..] expected)
 
@@ -402,8 +387,7 @@ unit_tlet_elide = do
         e1 <- ann emptyHole $ tcon' ["M"] "D"
         pure (e0, map (Left . TimedOut) [e0, e1] ++ [Right e1])
       test (n, expect) = do
-        let r = evalFullTest maxID mempty mempty n Syn expr
-        distinctIDs r
+        r <- evalFullTest maxID mempty mempty n Syn expr
         r <~==> expect
    in mapM_ test (zip [0 ..] expected)
 
@@ -430,8 +414,7 @@ unit_tlet_self_capture = do
         e5 <- ann emptyHole $ tvar "x"
         pure (e0, map (Left . TimedOut) [e0, e1, e2, e3, e4, e5] ++ [Right e5])
       test (n, expect) = do
-        let r = evalFullTest maxID mempty mempty n Syn expr
-        distinctIDs r
+        r <- evalFullTest maxID mempty mempty n Syn expr
         r <~==> expect
    in mapM_ test (zip [0 ..] expected)
 
@@ -501,9 +484,8 @@ unit_type_preservation_rename_LAM_regression =
         -- and out of an abundance of caution we rename the potentially-capturing inner lambda
         expect <- lAM "a" (letrec "b" emptyHole (tvar "a") (lAM "a14" (letType "a" (tvar "a14") emptyHole))) -- NB: fragile name a14
         pure (e, expect)
-      s = evalFullTest maxID mempty mempty 1 Chk expr
    in do
-        distinctIDs s
+        s <- evalFullTest maxID mempty mempty 1 Chk expr
         s <~==> Left (TimedOut expected)
 
 -- Previously EvalFull reducing a case expression could result in variable
@@ -530,10 +512,10 @@ unit_type_preservation_case_regression_tm =
               let_ "y" (lvar "x" `ann` tcon tBool) $
                 let_ "x" (lvar "a42") emptyHole
         pure (e, expect1, expect2)
-      s1 = evalFullTest maxID builtinTypes mempty 1 Chk expr
-      s2 = evalFullTest maxID builtinTypes mempty 2 Chk expr
    in do
+        s1 <- evalFullTest maxID builtinTypes mempty 1 Chk expr
         s1 <~==> Left (TimedOut expected1)
+        s2 <- evalFullTest maxID builtinTypes mempty 2 Chk expr
         s2 <~==> Left (TimedOut expected2)
 
 -- A regression test for the same issue as
@@ -568,10 +550,10 @@ unit_type_preservation_case_regression_ty =
               let_ "y" (emptyHole `ann` tvar "x") $
                 let_ "x" (lvar "a54") emptyHole
         pure (e, expect1, expect2)
-      s1 = evalFullTest maxID builtinTypes mempty 1 Chk expr
-      s2 = evalFullTest maxID builtinTypes mempty 2 Chk expr
    in do
+        s1 <- evalFullTest maxID builtinTypes mempty 1 Chk expr
         s1 <~==> Left (TimedOut expected1)
+        s2 <- evalFullTest maxID builtinTypes mempty 2 Chk expr
         s2 <~==> Left (TimedOut expected2)
 
 -- Previously EvalFull reducing a BETA expression could result in variable
@@ -668,10 +650,10 @@ unit_type_preservation_BETA_regression =
         Right _ -> pure ()
    in do
         tmp tyA exprA
-        for_ expectedAs $ \(n, e) -> sA n <~==> Left (TimedOut e)
+        for_ expectedAs $ \(n, e) -> sA n >>= (<~==> Left (TimedOut e))
         tmp tyA $ snd $ NE.last expectedAs
         tmp tyB exprB
-        for_ expectedBs $ \(n, e) -> sB n <~==> Left (TimedOut e)
+        for_ expectedBs $ \(n, e) -> sB n >>= (<~==> Left (TimedOut e))
         tmp tyB $ snd $ NE.last expectedBs
 
 -- Previously EvalFull reducing a let expression could result in variable
@@ -738,25 +720,42 @@ unit_let_self_capture =
       s2 n = evalFullTest maxID mempty mempty n Chk expr2
       s3 n = evalFullTest maxID mempty mempty n Chk expr3
       s4 n = evalFullTest maxID mempty mempty n Chk expr4
-      typePres ty f =
-        let (timeout, term) = span isLeft $ f <$> [0 ..]
-         in forM_ (timeout <> [unsafeHead term]) $ \e ->
-              let e' = case e of
-                    Left (TimedOut e'') -> e''
-                    Right e'' -> e''
-               in case runTypecheckTestM NoSmartHoles $ check ty e' of
-                    Left err -> assertFailure $ show err
-                    Right _ -> pure ()
+      typePres ty f = do
+        (timeout, term) <- spanM isLeft $ f <$> [0 ..]
+        forM_ (timeout <> [fst $ fromJust term]) $ \e ->
+          let e' = case e of
+                Left (TimedOut e'') -> e''
+                Right e'' -> e''
+           in case runTypecheckTestM NoSmartHoles $ check ty e' of
+                Left err -> assertFailure $ show err
+                Right _ -> pure ()
    in do
         typePres ty1 s1
-        s2 1 <~==> Left (TimedOut expected2a)
-        s2 5 <~==> Left (TimedOut expected2b)
-        s2 6 <~==> Right expected2b
-        s3 1 <~==> Left (TimedOut expected3a)
-        s3 5 <~==> Left (TimedOut expected3b)
-        s3 6 <~==> Right expected3b
-        s4 1 <~==> Left (TimedOut expected4a)
-        s4 2 <~==> Left (TimedOut expected4b)
+        s2 1 >>= (<~==> Left (TimedOut expected2a))
+        s2 5 >>= (<~==> Left (TimedOut expected2b))
+        s2 6 >>= (<~==> Right expected2b)
+        s3 1 >>= (<~==> Left (TimedOut expected3a))
+        s3 5 >>= (<~==> Left (TimedOut expected3b))
+        s3 6 >>= (<~==> Right expected3b)
+        s4 1 >>= (<~==> Left (TimedOut expected4a))
+        s4 2 >>= (<~==> Left (TimedOut expected4b))
+
+-- | @spanM p mxs@ returns a tuple where the first component is the
+-- values coming from the longest prefix of @mxs@ all of which satisfy
+-- @p@, and the second component is the rest of @mxs@. It only runs
+-- the necessary actions from @mxs@: those giving the prefix of
+-- elements satisfying the predicate, and also the first action giving
+-- an element that fails the predicate. (Thus the second component has
+-- one element and a list of actions.)
+--
+-- Compare 'Data.List.span p =<< sequence mxs'.
+spanM :: Monad m => (a -> Bool) -> [m a] -> m ([a], Maybe (a, [m a]))
+spanM _ [] = pure ([], Nothing)
+spanM f (x : xs) = do
+  x' <- x
+  if f x'
+    then first (x' :) <$> spanM f xs
+    else pure ([], Just (x', xs))
 
 -- We previously had a bug where we would refuse to inline a let if it would "self-capture"
 -- (e.g.  λx. let x=f x in C x x : we cannot inline one occurrence of this non-recursive let
@@ -784,7 +783,7 @@ unit_regression_self_capture_let_let = do
                 lvar "y"
       (e', i) = create e
       ev n = evalFullTest i mempty mempty n Chk e'
-      x ~ y = x <~==> Left (TimedOut (create' y))
+      x ~ y = x >>= (<~==> Left (TimedOut (create' y)))
   ev 0 ~ e
   ev 1 ~ f
 
@@ -878,7 +877,7 @@ tasty_prim_hex_nat = withTests 20 . property $ do
                 `app` ne
                 <*> con cNothing
                 `aPP` tcon tChar
-      s = evalFullTest maxID builtinTypes primDefs 7 Syn e
+  s <- evalFullTasty maxID builtinTypes primDefs 7 Syn e
   over evalResultExpr zeroIDs s === Right (zeroIDs r)
 
 unit_prim_char_eq_1 :: Assertion
@@ -903,9 +902,8 @@ unit_prim_char_partial =
         create $
           pfun EqChar
             `app` char 'a'
-      s = evalFullTest maxID mempty primDefs 1 Syn e
    in do
-        distinctIDs s
+        s <- evalFullTest maxID mempty primDefs 1 Syn e
         s <~==> Right e
 
 unit_prim_int_add :: Assertion
@@ -1221,9 +1219,8 @@ unit_prim_ann =
                 )
             `app` (char 'a' `ann` tcon tChar)
             <*> char 'A'
-      s = evalFullTest maxID builtinTypes primDefs 2 Syn e
    in do
-        distinctIDs s
+        s <- evalFullTest maxID builtinTypes primDefs 2 Syn e
         s <~==> Right r
 
 unit_prim_partial_map :: Assertion
@@ -1251,9 +1248,8 @@ unit_prim_partial_map =
               ]
             `ann` (tcon tList `tapp` tcon tChar)
             <*> pure (M.singleton mapName mapDef)
-      s = evalFullTest maxID builtinTypes (gs <> primDefs) 67 Syn e
    in do
-        distinctIDs s
+        s <- evalFullTest maxID builtinTypes (gs <> primDefs) 67 Syn e
         s <~==> Right r
 
 -- Test that handleEvalFullRequest will reduce imported terms
@@ -1326,8 +1322,18 @@ tasty_unique_ids = withTests 1000 $
 
 -- * Utilities
 
-evalFullTest :: ID -> TypeDefMap -> DefMap -> TerminationBound -> Dir -> Expr -> Either EvalFullError Expr
-evalFullTest id_ tydefs globals n d e = evalTestM id_ $ evalFull tydefs globals n d e
+evalFullTest :: ID -> TypeDefMap -> DefMap -> TerminationBound -> Dir -> Expr -> IO (Either EvalFullError Expr)
+evalFullTest id_ tydefs globals n d e = do
+  let r = evalTestM id_ $ evalFull tydefs globals n d e
+  distinctIDs r
+  pure r
+
+evalFullTasty :: MonadTest m => ID -> TypeDefMap -> DefMap -> TerminationBound -> Dir -> Expr -> m (Either EvalFullError Expr)
+evalFullTasty id_ tydefs globals n d e = do
+  let r = evalTestM id_ $ evalFull tydefs globals n d e
+  let ids = r ^.. evalResultExpr % exprIDs
+  ids === ordNub ids
+  pure r
 
 unaryPrimTest :: PrimDef -> S Expr -> S Expr -> Assertion
 unaryPrimTest f x y =
@@ -1337,9 +1343,8 @@ unaryPrimTest f x y =
             <$> pfun f
             `app` x
             <*> y
-      s = evalFullTest maxID mempty primDefs 2 Syn e
    in do
-        distinctIDs s
+        s <- evalFullTest maxID mempty primDefs 2 Syn e
         s <~==> Right r
 binaryPrimTest :: PrimDef -> S Expr -> S Expr -> S Expr -> Assertion
 binaryPrimTest f x y z =
@@ -1350,9 +1355,8 @@ binaryPrimTest f x y z =
             `app` x
             `app` y
             <*> z
-      s = evalFullTest maxID mempty primDefs 2 Syn e
    in do
-        distinctIDs s
+        s <- evalFullTest maxID mempty primDefs 2 Syn e
         s <~==> Right r
 
 -- | Generates
