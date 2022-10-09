@@ -42,6 +42,7 @@ module Primer.API (
   evalStep,
   evalFull,
   flushSessions,
+  availableActions,
   ExprTreeOpts (..),
   defaultExprTreeOpts,
   -- The following are exported only for testing.
@@ -76,8 +77,9 @@ import Data.Text qualified as T
 import ListT qualified (toList)
 import Optics (ifoldr, over, traverseOf, view, (^.))
 import Primer.API.NodeFlavor (NodeFlavor (..))
-import Primer.Action (ActionName, ActionType)
+import Primer.Action (ActionName, ActionType, Level)
 import Primer.Action qualified as Action
+import Primer.Action.Available (actionsForDef, actionsForDefBody, actionsForDefSig)
 import Primer.App (
   App,
   EditAppM,
@@ -86,7 +88,7 @@ import Primer.App (
   EvalReq (..),
   EvalResp (..),
   MutationRequest,
-  NodeType,
+  NodeType (BodyNode, SigNode),
   ProgError,
   QueryAppM,
   Question (..),
@@ -96,6 +98,8 @@ import Primer.App (
   handleMutationRequest,
   handleQuestion,
   newApp,
+  progAllDefs,
+  progAllTypeDefs,
   progImports,
   progModules,
   runEditAppM,
@@ -812,6 +816,25 @@ flushSessions = do
   sessionsTransaction $ \ss _ -> do
     StmMap.reset ss
   pure ()
+
+availableActions :: (MonadIO m, MonadThrow m) => SessionId -> Level -> Selection -> PrimerM m [OfferedAction]
+availableActions sid level Selection{..} = do
+  prog <- getProgram sid
+  let allDefs = progAllDefs prog
+      allTypeDefs = progAllTypeDefs prog
+  map (map convertOfferedAction) $ case node of
+    Nothing ->
+      pure $ actionsForDef level allDefs def
+    Just NodeSelection{..} -> do
+      case allDefs Map.!? def of
+        Nothing -> throwM $ UnknownDef def
+        Just (_, Def.DefPrim _) -> throwM $ UnexpectedPrimDef def
+        Just (editable, Def.DefAST ASTDef{astDefType = type_, astDefExpr = expr}) ->
+          pure $ case nodeType of
+            SigNode -> do
+              actionsForDefSig level def editable id type_
+            BodyNode -> do
+              actionsForDefBody (snd <$> allTypeDefs) level def editable id expr
 
 -- This is (for now) just `Action.Available.OfferedAction` without the `input` field.
 -- This is a placeholder while we work out a new, serialisable available actions API.
