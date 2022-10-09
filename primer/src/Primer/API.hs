@@ -18,8 +18,8 @@ module Primer.API (
   Env (..),
   PrimerM (..),
   runPrimerM,
-  PrimerIO,
-  runPrimerIO,
+  APILog (..),
+  MonadAPILog,
   PrimerErr (..),
   newSession,
   addSession,
@@ -69,11 +69,13 @@ import Control.Concurrent.STM (
  )
 import Control.Monad.Cont (MonadCont)
 import Control.Monad.Fix (MonadFix)
+import Control.Monad.Log (MonadLog, WithSeverity)
 import Control.Monad.Trans (MonadTrans)
 import Control.Monad.Writer (MonadWriter)
 import Control.Monad.Zip (MonadZip)
 import Data.Map qualified as Map
 import Data.Text qualified as T
+import Data.Tuple.Extra (curry3)
 import ListT qualified (toList)
 import Optics (ifoldr, over, traverseOf, view, (^.))
 import Primer.API.NodeFlavor (NodeFlavor (..))
@@ -91,7 +93,7 @@ import Primer.App (
   NodeType (BodyNode, SigNode),
   ProgError,
   QueryAppM,
-  Question (..),
+  Question (GenerateName),
   handleEvalFullRequest,
   handleEvalRequest,
   handleGetProgramRequest,
@@ -169,6 +171,7 @@ import Primer.JSON (
   PrimerJSON,
   ToJSON,
  )
+import Primer.Log (ConvertLogMessage, logInfo)
 import Primer.Module (moduleDefsQualified, moduleName, moduleTypesQualified)
 import Primer.Name (Name, unName)
 import Primer.Primitives (primDefType)
@@ -191,6 +194,7 @@ newtype PrimerM m a = PrimerM {unPrimerM :: ReaderT Env m a}
     , MonadError e
     , MonadThrow
     , MonadCatch
+    , MonadLog l
     , MonadMask
     , MonadReader Env
     , MonadIO
@@ -207,13 +211,6 @@ newtype PrimerM m a = PrimerM {unPrimerM :: ReaderT Env m a}
 -- | Run a 'PrimerM' action with the given 'Env'.
 runPrimerM :: PrimerM m a -> Env -> m a
 runPrimerM = runReaderT . unPrimerM
-
--- | The Primer API monad transformer applied to IO.
-type PrimerIO = PrimerM IO
-
--- | Run a 'PrimerIO' action with the given 'Env'.
-runPrimerIO :: PrimerIO a -> Env -> IO a
-runPrimerIO = runPrimerM
 
 -- | Primer exception class.
 data PrimerErr
@@ -233,9 +230,9 @@ sessionsTransaction f = do
 data SessionOp a where
   EditApp :: (App -> (a, App)) -> SessionOp a
   QueryApp :: (App -> a) -> SessionOp a
-  GetSessionName :: SessionOp Text
+  OpGetSessionName :: SessionOp Text
   GetSessionData :: SessionOp SessionData
-  RenameSession :: Text -> SessionOp Text
+  OpRenameSession :: Text -> SessionOp Text
 
 -- A note about the implementation here. When the session is missing
 -- from the in-memory database, we can't queue the database request to
@@ -269,9 +266,9 @@ withSession' sid op = do
             writeTBQueue q $ Database.UpdateApp sid appl'
             pure $ Right res
           QueryApp f -> pure $ Right $ f appl
-          GetSessionName -> pure $ Right (fromSessionName n)
+          OpGetSessionName -> pure $ Right (fromSessionName n)
           GetSessionData -> pure $ Right s
-          RenameSession n' ->
+          OpRenameSession n' ->
             let newName = safeMkSessionName n'
              in do
                   StmMap.insert (SessionData appl newName) sid ss
@@ -301,11 +298,48 @@ withSession' sid op = do
       -- We performed the session transaction, now return the result.
       pure result
 
+data ReqResp a b = Req a | Resp b
+  deriving (Show)
+
+data APILog
+  = NewSession (ReqResp () SessionId)
+  | AddSession (ReqResp (Text, App) SessionId)
+  | CopySession (ReqResp SessionId SessionId)
+  | ListSessions (ReqResp (Bool, OffsetLimit) (Page Session))
+  | GetVersion (ReqResp () Version)
+  | GetSessionName (ReqResp SessionId Text)
+  | RenameSession (ReqResp (SessionId, Text) Text)
+  | GetApp (ReqResp SessionId App)
+  | GetProgram' (ReqResp (ExprTreeOpts, SessionId) Prog)
+  | GetProgram (ReqResp SessionId App.Prog)
+  | Edit (ReqResp (SessionId, MutationRequest) (Either ProgError App.Prog))
+  | VariablesInScope (ReqResp (SessionId, (GVarName, ID)) (Either ProgError (([(TyVarName, Kind)], [(LVarName, Type' ())]), [(GVarName, Type' ())])))
+  | GenerateNames (ReqResp (SessionId, ((GVarName, ID), Either (Maybe (Type' ())) (Maybe Kind))) (Either ProgError [Name]))
+  | EvalStep (ReqResp (SessionId, EvalReq) (Either ProgError EvalResp))
+  | EvalFull (ReqResp (SessionId, EvalFullReq) (Either ProgError EvalFullResp))
+  | FlushSessions (ReqResp () ())
+  | AvailableActions (ReqResp (SessionId, Level, Selection) [OfferedAction])
+  deriving (Show)
+
+type MonadAPILog l m = (MonadLog (WithSeverity l) m, ConvertLogMessage APILog l)
+
+-- | A wrapper to log an API call
+logAPI :: MonadAPILog l m => (ReqResp a b -> APILog) -> (a -> PrimerM m b) -> a -> PrimerM m b
+logAPI c resp req = do
+  logInfo $ c $ Req req
+  r <- resp req
+  logInfo $ c $ Resp r
+  pure r
+
+-- | A variant of 'logAPI' for actions with no input
+logAPI' :: MonadAPILog l m => (ReqResp () b -> APILog) -> PrimerM m b -> PrimerM m b
+logAPI' c m = logAPI c (const m) ()
+
 -- | Create a new session and return the session ID.
 --
 -- The session's initial program is 'newApp'.
-newSession :: (MonadIO m) => PrimerM m SessionId
-newSession = addSession' defaultSessionName newApp
+newSession :: (MonadIO m, MonadAPILog l m) => PrimerM m SessionId
+newSession = logAPI' NewSession $ addSession' defaultSessionName newApp
 
 -- | Given an 'App' and a proposed session name as 'Text', create a
 -- new session with the given app and name, and return the session ID.
@@ -321,8 +355,8 @@ newSession = addSession' defaultSessionName newApp
 -- into the database. The chief use case for this API method is to
 -- insert pre-made programs built with the Primer Haskell DSL into a
 -- new Primer database.
-addSession :: (MonadIO m) => Text -> App -> PrimerM m SessionId
-addSession n = addSession' $ safeMkSessionName n
+addSession :: (MonadIO m, MonadAPILog l m) => Text -> App -> PrimerM m SessionId
+addSession = curry $ logAPI AddSession $ \(n, a) -> addSession' (safeMkSessionName n) a
 
 addSession' :: (MonadIO m) => SessionName -> App -> PrimerM m SessionId
 addSession' n a = do
@@ -339,8 +373,8 @@ addSession' n a = do
 -- source session, and 1 to insert the copy. Semantically, this is
 -- fine, and it should be more fair on a busy system than a single
 -- transaction which takes longer.
-copySession :: (MonadIO m, MonadThrow m) => SessionId -> PrimerM m SessionId
-copySession srcId = do
+copySession :: (MonadIO m, MonadThrow m, MonadAPILog l m) => SessionId -> PrimerM m SessionId
+copySession = logAPI CopySession $ \srcId -> do
   copy <- withSession' srcId GetSessionData
   nextSID <- liftIO newSessionId
   sessionsTransaction $ \ss q -> do
@@ -354,28 +388,29 @@ copySession srcId = do
 -- Currently the pagination support is "extract the whole list from the DB,
 -- then select a portion". This should be improved to only extract the
 -- appropriate section from the DB in the first place.
-listSessions :: (MonadIO m) => Bool -> OffsetLimit -> PrimerM m (Page Session)
-listSessions False ol = do
-  q <- asks dbOpQueue
-  callback <- liftIO $
-    atomically $ do
-      cb <- newEmptyTMVar
-      writeTBQueue q $ Database.ListSessions ol cb
-      return cb
-  liftIO $ atomically $ takeTMVar callback
-listSessions _ ol = sessionsTransaction $ \ss _ -> do
-  kvs' <- ListT.toList $ StmMap.listT ss
-  let kvs = uncurry Session . second sessionName <$> kvs'
-  pure $ pageList ol kvs
+listSessions :: (MonadIO m, MonadAPILog l m) => Bool -> OffsetLimit -> PrimerM m (Page Session)
+listSessions = curry $ logAPI ListSessions $ \case
+  (False, ol) -> do
+    q <- asks dbOpQueue
+    callback <- liftIO $
+      atomically $ do
+        cb <- newEmptyTMVar
+        writeTBQueue q $ Database.ListSessions ol cb
+        return cb
+    liftIO $ atomically $ takeTMVar callback
+  (_, ol) -> sessionsTransaction $ \ss _ -> do
+    kvs' <- ListT.toList $ StmMap.listT ss
+    let kvs = uncurry Session . second sessionName <$> kvs'
+    pure $ pageList ol kvs
 
-getVersion :: (Monad m) => PrimerM m Version
-getVersion = asks version
+getVersion :: (MonadAPILog l m) => PrimerM m Version
+getVersion = logAPI' GetVersion $ asks version
 
-getSessionName :: (MonadIO m, MonadThrow m) => SessionId -> PrimerM m Text
-getSessionName sid = withSession' sid GetSessionName
+getSessionName :: (MonadIO m, MonadThrow m, MonadAPILog l m) => SessionId -> PrimerM m Text
+getSessionName = logAPI GetSessionName $ \sid -> withSession' sid OpGetSessionName
 
-renameSession :: (MonadIO m, MonadThrow m) => SessionId -> Text -> PrimerM m Text
-renameSession sid n = withSession' sid $ RenameSession n
+renameSession :: (MonadIO m, MonadThrow m, MonadAPILog l m) => SessionId -> Text -> PrimerM m Text
+renameSession = curry $ logAPI RenameSession $ \(sid, n) -> withSession' sid $ OpRenameSession n
 
 -- Run an 'EditAppM' action, using the given session ID to look up and
 -- pass in the app state for that session.
@@ -392,19 +427,19 @@ liftQueryAppM h sid = withSession' sid (QueryApp $ runQueryAppM h)
 -- Note: this API method is currently a special case, and we do not
 -- expect typical API clients to use it. Its primary use is for
 -- testing.
-getApp :: (MonadIO m, MonadThrow m) => SessionId -> PrimerM m App
-getApp sid = withSession' sid $ QueryApp identity
+getApp :: (MonadIO m, MonadThrow m, MonadAPILog l m) => SessionId -> PrimerM m App
+getApp = logAPI GetApp $ \sid -> withSession' sid $ QueryApp identity
 
 -- | Given a 'SessionId', return the session's 'Prog'.
 --
 -- Note that this returns a simplified version of 'App.Prog' intended
 -- for use with non-Haskell clients.
-getProgram' :: (MonadIO m, MonadThrow m) => ExprTreeOpts -> SessionId -> PrimerM m Prog
-getProgram' opts sid = viewProg opts <$> getProgram sid
+getProgram' :: (MonadIO m, MonadThrow m, MonadAPILog l m) => ExprTreeOpts -> SessionId -> PrimerM m Prog
+getProgram' = curry $ logAPI GetProgram' $ \(opts, sid) -> viewProg opts <$> getProgram sid
 
 -- | Given a 'SessionId', return the session's 'App.Prog'.
-getProgram :: (MonadIO m, MonadThrow m) => SessionId -> PrimerM m App.Prog
-getProgram sid = withSession' sid $ QueryApp handleGetProgramRequest
+getProgram :: (MonadIO m, MonadThrow m, MonadAPILog l m) => SessionId -> PrimerM m App.Prog
+getProgram = logAPI GetProgram $ \sid -> withSession' sid $ QueryApp handleGetProgramRequest
 
 -- | A frontend will be mostly concerned with rendering, and does not need the
 -- full complexity of our AST for that task. 'Tree' is a simplified view with
@@ -788,37 +823,58 @@ viewTreeType' t0 = case t0 of
 showGlobal :: GlobalName k -> Text
 showGlobal n = moduleNamePretty (qualifiedModule n) <> "." <> unName (baseName n)
 
-edit :: (MonadIO m, MonadThrow m) => SessionId -> MutationRequest -> PrimerM m (Either ProgError App.Prog)
-edit sid req = liftEditAppM (handleMutationRequest req) sid
+edit ::
+  (MonadIO m, MonadThrow m, MonadAPILog l m) =>
+  SessionId ->
+  MutationRequest ->
+  PrimerM m (Either ProgError App.Prog)
+edit = curry $ logAPI Edit $ \(sid, req) -> liftEditAppM (handleMutationRequest req) sid
 
 variablesInScope ::
-  (MonadIO m, MonadThrow m) =>
+  (MonadIO m, MonadThrow m, MonadAPILog l m) =>
   SessionId ->
   (GVarName, ID) ->
   PrimerM m (Either ProgError (([(TyVarName, Kind)], [(LVarName, Type' ())]), [(GVarName, Type' ())]))
-variablesInScope sid (defname, exprid) =
-  liftQueryAppM (handleQuestion (VariablesInScope defname exprid)) sid
+variablesInScope = curry $ logAPI VariablesInScope $ \(sid, (defname, exprid)) ->
+  liftQueryAppM (handleQuestion (App.VariablesInScope defname exprid)) sid
 
-generateNames :: (MonadIO m, MonadThrow m) => SessionId -> ((GVarName, ID), Either (Maybe (Type' ())) (Maybe Kind)) -> PrimerM m (Either ProgError [Name])
-generateNames sid ((defname, exprid), tk) =
+generateNames ::
+  (MonadIO m, MonadThrow m, MonadAPILog l m) =>
+  SessionId ->
+  ((GVarName, ID), Either (Maybe (Type' ())) (Maybe Kind)) ->
+  PrimerM m (Either ProgError [Name])
+generateNames = curry $ logAPI GenerateNames $ \(sid, ((defname, exprid), tk)) ->
   liftQueryAppM (handleQuestion $ GenerateName defname exprid tk) sid
 
-evalStep :: (MonadIO m, MonadThrow m) => SessionId -> EvalReq -> PrimerM m (Either ProgError EvalResp)
-evalStep sid req =
+evalStep ::
+  (MonadIO m, MonadThrow m, MonadAPILog l m) =>
+  SessionId ->
+  EvalReq ->
+  PrimerM m (Either ProgError EvalResp)
+evalStep = curry $ logAPI EvalStep $ \(sid, req) ->
   liftEditAppM (handleEvalRequest req) sid
 
-evalFull :: (MonadIO m, MonadThrow m) => SessionId -> EvalFullReq -> PrimerM m (Either ProgError EvalFullResp)
-evalFull sid req =
+evalFull ::
+  (MonadIO m, MonadThrow m, MonadAPILog l m) =>
+  SessionId ->
+  EvalFullReq ->
+  PrimerM m (Either ProgError EvalFullResp)
+evalFull = curry $ logAPI EvalFull $ \(sid, req) ->
   liftEditAppM (handleEvalFullRequest req) sid
 
-flushSessions :: (MonadIO m) => PrimerM m ()
-flushSessions = do
+flushSessions :: (MonadIO m, MonadAPILog l m) => PrimerM m ()
+flushSessions = logAPI' FlushSessions $ do
   sessionsTransaction $ \ss _ -> do
     StmMap.reset ss
   pure ()
 
-availableActions :: (MonadIO m, MonadThrow m) => SessionId -> Level -> Selection -> PrimerM m [OfferedAction]
-availableActions sid level Selection{..} = do
+availableActions ::
+  (MonadIO m, MonadThrow m, MonadAPILog l m) =>
+  SessionId ->
+  Level ->
+  Selection ->
+  PrimerM m [OfferedAction]
+availableActions = curry3 $ logAPI AvailableActions $ \(sid, level, Selection{..}) -> do
   prog <- getProgram sid
   let allDefs = progAllDefs prog
       allTypeDefs = progAllTypeDefs prog

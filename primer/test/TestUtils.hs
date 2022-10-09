@@ -15,6 +15,8 @@ module TestUtils (
   clearMeta,
   clearTypeMeta,
   runAPI,
+  LogMsg,
+  assertNoSevereLogs,
 ) where
 
 import Foreword
@@ -22,14 +24,16 @@ import Foreword
 import Control.Concurrent.STM (
   newTBQueueIO,
  )
+import Control.Monad.Log (Severity (Informational), WithSeverity (msgSeverity))
 import Data.Map qualified as Map
+import Data.Sequence qualified as Seq
 import Data.String (String)
 import Data.Typeable (typeOf)
 import Optics (over, set, view)
 import Primer.API (
   Env (..),
-  PrimerIO,
-  runPrimerIO,
+  PrimerM,
+  runPrimerM,
  )
 import Primer.Action (
   Action (ConstructCon, ConstructRefinedCon, ConstructTCon),
@@ -60,11 +64,13 @@ import Primer.Database (
   serve,
  )
 import Primer.Def (DefMap)
+import Primer.Log (ConvertLogMessage (convert), PureLogT, runPureLogT)
 import Primer.Module (Module (moduleDefs), primitiveModule)
 import Primer.Name (Name (unName))
 import Primer.Primitives (primitive)
 import StmContainers.Map qualified as StmMap
 import Test.Tasty.HUnit (
+  Assertion,
   assertBool,
   assertFailure,
  )
@@ -132,6 +138,22 @@ assertException msg p action = do
     wrongException e = msg <> " threw " <> show e <> ", but we expected " <> exceptionType
     exceptionType = (show . typeOf) p
 
+newtype LogMsg = LogMsg Text
+  deriving newtype (Show)
+
+instance Show l => ConvertLogMessage l LogMsg where
+  convert = LogMsg . show
+
+isSevereLog :: WithSeverity l -> Bool
+isSevereLog l = msgSeverity l < Informational
+
+assertNoSevereLogs :: Show l => Seq (WithSeverity l) -> Assertion
+assertNoSevereLogs logs =
+  let severe = Seq.filter isSevereLog logs
+   in if null severe
+        then pure ()
+        else assertFailure $ toS $ unlines $ "Test logged severe errors:" : foldMap ((: []) . show) severe
+
 -- Run 2 threads: one that serves a 'NullDb', and one that runs Primer
 -- API actions. This allows us to simulate a database and API service.
 --
@@ -139,7 +161,7 @@ assertException msg p action = do
 -- until it's terminated. The Primer API action will run on the main
 -- thread and terminate the database thread when the API action runs
 -- to completion or throws.
-runAPI :: PrimerIO a -> IO a
+runAPI :: PrimerM (PureLogT (WithSeverity LogMsg) IO) a -> IO a
 runAPI action = do
   -- This is completely arbitrary and just for testing. In production,
   -- this value will be provided by the production environment and
@@ -149,4 +171,6 @@ runAPI action = do
   dbOpQueue <- newTBQueueIO 1
   initialSessions <- StmMap.newIO
   _ <- forkIO $ void $ runNullDb' $ serve (ServiceCfg dbOpQueue version)
-  runPrimerIO action $ Env initialSessions dbOpQueue version
+  (r, logs) <- runPureLogT . runPrimerM action $ Env initialSessions dbOpQueue version
+  assertNoSevereLogs logs
+  pure r

@@ -11,6 +11,7 @@ import Control.Concurrent.STM (
   newTBQueueIO,
   writeTBQueue,
  )
+import Control.Monad.Log (WithSeverity)
 import Control.Monad.Trans (
   MonadTrans,
  )
@@ -20,11 +21,12 @@ import Control.Monad.Trans.Identity (
 import Data.Text qualified as Text
 import Primer.API (
   Env (..),
-  PrimerIO,
+  MonadAPILog,
+  PrimerM,
   addSession,
   edit,
   renameSession,
-  runPrimerIO,
+  runPrimerM,
  )
 import Primer.API qualified as API
 import Primer.App (
@@ -49,9 +51,11 @@ import Primer.Database (
 import Primer.Examples (
   even3App,
  )
+import Primer.Log (PureLogT, runPureLogT)
 import StmContainers.Map qualified as StmMap
 import Test.Tasty
 import Test.Tasty.HUnit
+import TestUtils (LogMsg, assertNoSevereLogs)
 
 test_unmodified :: TestTree
 test_unmodified =
@@ -136,21 +140,21 @@ test_invalid =
             safeMkSessionName t @?= defaultSessionName
         ]
 
-insertTest :: PrimerIO ()
+insertTest :: (MonadIO m, MonadAPILog l m) => PrimerM m ()
 insertTest = do
   void $ addSession "even3App" even3App
 
-updateAppTest :: PrimerIO ()
+updateAppTest :: (MonadIO m, MonadThrow m, MonadAPILog l m) => PrimerM m ()
 updateAppTest = do
   sid <- addSession "even3App" even3App
   void $ edit sid $ Edit [CreateDef (mkSimpleModuleName "Even3") $ Just "newDef"]
 
-updateNameTest :: PrimerIO ()
+updateNameTest :: (MonadIO m, MonadThrow m, MonadAPILog l m) => PrimerM m ()
 updateNameTest = do
   sid <- addSession "even3App" even3App
   void $ renameSession sid "even3App'"
 
-loadSessionTest :: PrimerIO ()
+loadSessionTest :: (MonadIO m, MonadAPILog l m) => PrimerM m ()
 loadSessionTest = do
   sid <- addSession "even3App" even3App
   -- No easy way to do this from the API, so we do it here by hand.
@@ -159,7 +163,7 @@ loadSessionTest = do
   ss <- asks sessions
   void $ liftIO $ atomically $ writeTBQueue q $ LoadSession sid ss callback
 
-listSessionsTest :: PrimerIO ()
+listSessionsTest :: (MonadIO m, MonadAPILog l m) => PrimerM m ()
 listSessionsTest = do
   void $ addSession "even3App" even3App
   void $ API.listSessions True $ OL 0 $ Just 100
@@ -214,15 +218,14 @@ testSessionName testName t expected =
     , testCase "safe" $
         fromSessionName (safeMkSessionName t) @?= expected
     ]
-
-empty_q_harness :: Text -> PrimerIO () -> TestTree
+empty_q_harness :: Text -> PrimerM (PureLogT (WithSeverity LogMsg) IO) () -> TestTree
 empty_q_harness desc test = testCaseSteps (toS desc) $ \step' -> do
   dbOpQueue <- newTBQueueIO 4
   inMemorySessions <- StmMap.newIO
   dbSessions <- StmMap.newIO
   let version = "git123"
   nullDbProc <- async $ runNullDb dbSessions $ serve $ ServiceCfg dbOpQueue version
-  testProc <- async $ flip runPrimerIO (Env inMemorySessions dbOpQueue version) $ do
+  testProc <- async $ runPureLogT $ flip runPrimerM (Env inMemorySessions dbOpQueue version) $ do
     test
     -- Give 'nullDbProc' time to empty the queue.
     liftIO $ threadDelay 100000
@@ -230,10 +233,11 @@ empty_q_harness desc test = testCaseSteps (toS desc) $ \step' -> do
     Left (Left e) -> assertFailure $ "nullDbProc threw an exception: " <> show e
     Left (Right v) -> absurd v
     Right (Left e) -> assertFailure $ "testProc threw an exception: " <> show e
-    Right (Right _) -> do
+    Right (Right (_, logs)) -> do
       step' "Check that the database op queue is empty"
       qempty <- liftIO $ atomically $ isEmptyTBQueue dbOpQueue
       assertBool "Queue should be empty" qempty
+      assertNoSevereLogs logs
 
 -- | A "fail" database that fails on every operation.
 newtype FailDbT m a = FailDbT {unFailDbT :: IdentityT m a}
@@ -276,13 +280,13 @@ runFailDbT m = runIdentityT $ unFailDbT m
 runFailDb :: FailDb a -> IO a
 runFailDb = runFailDbT
 
-faildb_harness :: Text -> PrimerIO () -> TestTree
+faildb_harness :: Text -> PrimerM (PureLogT (WithSeverity LogMsg) IO) () -> TestTree
 faildb_harness desc test = testCaseSteps (toS desc) $ \step' -> do
   dbOpQueue <- newTBQueueIO 4
   inMemorySessions <- StmMap.newIO
   let version = "git123"
   failDbProc <- async $ runFailDb $ serve $ ServiceCfg dbOpQueue version
-  testProc <- async $ flip runPrimerIO (Env inMemorySessions dbOpQueue version) $ do
+  testProc <- async $ runPureLogT $ flip runPrimerM (Env inMemorySessions dbOpQueue version) $ do
     test
     -- Give 'failDbProc' time to throw.
     liftIO $ threadDelay 100000

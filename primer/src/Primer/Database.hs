@@ -198,10 +198,12 @@ discardOp q = liftIO $ atomically $ void $ readTBQueue q
 -- | A 'Page' is a portion of the results of some DB query, along with the
 -- total number of results.
 data Page a = Page {total :: Int, pageContents :: [a]}
+  deriving (Show)
 
 -- | Enable extracting a subset of the results of a query, for later
 -- pagination.
 data OffsetLimit = OL {offset :: !Int, limit :: Maybe Int}
+  deriving (Show)
 
 -- | If one has all the results at hand, it is trivial to extract a page.
 pageList :: OffsetLimit -> [a] -> Page a

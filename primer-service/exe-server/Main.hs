@@ -46,7 +46,7 @@ import Options.Applicative (
   str,
   value,
  )
-import Primer.API (PrimerErr (DatabaseErr, UnexpectedPrimDef, UnknownDef))
+import Primer.API (APILog, PrimerErr (DatabaseErr, UnexpectedPrimDef, UnknownDef))
 import Primer.Database (Version)
 import Primer.Database qualified as Db
 import Primer.Database.Rel8 (
@@ -63,6 +63,7 @@ import Primer.Log (
   logNotice,
   textWithSeverity,
  )
+import Primer.Server (ConvertServerLogs)
 import Primer.Server qualified as Server
 import Prometheus qualified as P
 import Prometheus.Metric.GHC qualified as P
@@ -171,6 +172,7 @@ serve ::
   ( ConvertLogMessage Rel8DbLogMessage l
   , ConvertLogMessage Text l
   , ConvertLogMessage PrimerErr l
+  , ConvertServerLogs l
   ) =>
   Database ->
   Version ->
@@ -257,3 +259,6 @@ instance ConvertLogMessage PrimerErr LogMsg where
   convert (DatabaseErr e) = LogMsg e
   convert (UnknownDef e) = LogMsg $ show e
   convert (UnexpectedPrimDef e) = LogMsg $ show e
+
+instance ConvertLogMessage APILog LogMsg where
+  convert = LogMsg . show
