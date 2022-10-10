@@ -90,5 +90,8 @@ newtype PureLogT l m a = PureLogs (LoggingT l (PureLoggingT (Seq l) m) a)
 -- | Purely accumulate log messages in a 'Seq'.
 -- Note that this may cause a large amount of memory to be retained if you
 -- use this with an action that logs excessively.
+-- Note that the logs are accumulated strictly, i.e. each element in the
+-- resulting 'Seq' will be in WHNF.
 runPureLogT :: Monad m => PureLogT l m a -> m (a, Seq l)
-runPureLogT (PureLogs m) = runPureLoggingT $ runLoggingT m (logMessage . pure)
+runPureLogT (PureLogs m) = runPureLoggingT $ runLoggingT m $ \l ->
+  let !l' = l in logMessage $ pure l'
