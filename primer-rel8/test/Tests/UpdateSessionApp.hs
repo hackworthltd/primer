@@ -20,6 +20,7 @@ import Primer.Database (
 import Primer.Database.Rel8 (
   Rel8DbException (UpdateAppNonExistentSession),
  )
+import Primer.Log (WithTraceId (discardTraceId))
 import Test.Tasty (TestTree)
 import Test.Tasty.HUnit (testCaseSteps)
 import TestUtils (
@@ -68,4 +69,4 @@ test_updateSessionApp_failure = testCaseSteps "updateSessionApp failure modes" $
     step "Attempt to update a session that hasn't yet been inserted"
     let version = "git123"
     sessionId <- liftIO newSessionId
-    assertException "updateSessionApp" (expectedError sessionId) $ updateSessionApp version sessionId newApp
+    assertException "updateSessionApp" (expectedError sessionId . discardTraceId) $ updateSessionApp version sessionId newApp

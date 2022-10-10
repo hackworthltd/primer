@@ -60,6 +60,7 @@ import Primer.Database (
   serve,
  )
 import Primer.Def (DefMap)
+import Primer.Log (nextTraceId)
 import Primer.Module (Module (moduleDefs), primitiveModule)
 import Primer.Name (Name (unName))
 import Primer.Primitives (primitive)
@@ -149,4 +150,4 @@ runAPI action = do
   dbOpQueue <- newTBQueueIO 1
   initialSessions <- StmMap.newIO
   _ <- forkIO $ void $ runNullDb' $ serve (ServiceCfg dbOpQueue version)
-  runPrimerIO action $ Env initialSessions dbOpQueue version
+  runPrimerIO action . Env initialSessions dbOpQueue version =<< nextTraceId

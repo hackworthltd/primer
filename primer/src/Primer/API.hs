@@ -58,7 +58,7 @@ module Primer.API (
   convertNodeSelection,
 ) where
 
-import Foreword
+import Foreword hiding (traceId)
 
 import Control.Concurrent.STM (
   STM,
@@ -167,6 +167,7 @@ import Primer.JSON (
   PrimerJSON,
   ToJSON,
  )
+import Primer.Log (TraceId, WithTraceId (WithTraceId))
 import Primer.Module (moduleDefsQualified, moduleName, moduleTypesQualified)
 import Primer.Name (Name, unName)
 import Primer.Primitives (primDefType)
@@ -175,8 +176,14 @@ import StmContainers.Map qualified as StmMap
 -- | The API environment.
 data Env = Env
   { sessions :: Sessions
-  , dbOpQueue :: TBQueue Database.Op
+  , dbOpQueue :: TBQueue (WithTraceId Database.Op)
   , version :: Version
+  , traceId :: TraceId
+  -- ^ The trace id of the current top-level api call.
+  -- This should not be required much, since we consider it the responsibility
+  -- of our caller to generate this id and include it in any log messages etc.
+  -- However, we are required to pass it along to any "external" services, for
+  -- instance the db, via the queue.
   }
 
 -- | The Primer API monad transformer.
@@ -224,11 +231,15 @@ data PrimerErr
 
 instance Exception PrimerErr
 
-sessionsTransaction :: (MonadIO m) => (Sessions -> TBQueue Database.Op -> STM a) -> PrimerM m a
+sessionsTransaction ::
+  (MonadIO m) =>
+  (TraceId -> Sessions -> TBQueue (WithTraceId Database.Op) -> STM a) ->
+  PrimerM m a
 sessionsTransaction f = do
   ss <- asks sessions
   q <- asks dbOpQueue
-  liftIO $ atomically $ f ss q
+  tid <- asks traceId
+  liftIO $ atomically $ f tid ss q
 
 data SessionOp a where
   EditApp :: (App -> (a, App)) -> SessionOp a
@@ -236,6 +247,9 @@ data SessionOp a where
   GetSessionName :: SessionOp Text
   GetSessionData :: SessionOp SessionData
   RenameSession :: Text -> SessionOp Text
+
+enqueue :: TBQueue (WithTraceId a) -> TraceId -> a -> STM ()
+enqueue q tid = writeTBQueue q . WithTraceId tid
 
 -- A note about the implementation here. When the session is missing
 -- from the in-memory database, we can't queue the database request to
@@ -247,7 +261,8 @@ data SessionOp a where
 -- cause a deadlock!
 withSession' :: (MonadIO m, MonadThrow m) => SessionId -> SessionOp a -> PrimerM m a
 withSession' sid op = do
-  hndl <- sessionsTransaction $ \ss q -> do
+  hndl <- sessionsTransaction $ \tid ss q -> do
+    let enqueue' = enqueue q tid
     query <- StmMap.lookup sid ss
     case query of
       Nothing -> do
@@ -258,7 +273,7 @@ withSession' sid op = do
         -- Note: see above for why we don't immediately wait
         -- for the callback.
         callback <- newEmptyTMVar
-        writeTBQueue q $ Database.LoadSession sid ss callback
+        enqueue' $ Database.LoadSession sid ss callback
         return $ Left callback
       Just s@(SessionData appl n) ->
         -- The session is in memory, let's do this.
@@ -266,7 +281,7 @@ withSession' sid op = do
           EditApp f -> do
             let (res, appl') = f appl
             StmMap.insert (SessionData appl' n) sid ss
-            writeTBQueue q $ Database.UpdateApp sid appl'
+            enqueue' $ Database.UpdateApp sid appl'
             pure $ Right res
           QueryApp f -> pure $ Right $ f appl
           GetSessionName -> pure $ Right (fromSessionName n)
@@ -275,7 +290,7 @@ withSession' sid op = do
             let newName = safeMkSessionName n'
              in do
                   StmMap.insert (SessionData appl newName) sid ss
-                  writeTBQueue q $ Database.UpdateName sid newName
+                  enqueue' $ Database.UpdateName sid newName
                   pure $ Right (fromSessionName newName)
   case hndl of
     Left callback -> do
@@ -327,9 +342,9 @@ addSession n = addSession' $ safeMkSessionName n
 addSession' :: (MonadIO m) => SessionName -> App -> PrimerM m SessionId
 addSession' n a = do
   nextSID <- liftIO newSessionId
-  sessionsTransaction $ \ss q -> do
+  sessionsTransaction $ \tid ss q -> do
     StmMap.insert (SessionData a n) nextSID ss
-    writeTBQueue q $ Database.Insert nextSID a n
+    enqueue q tid $ Database.Insert nextSID a n
     pure nextSID
 
 -- | Copy the given session to a new session, and return the new
@@ -343,9 +358,9 @@ copySession :: (MonadIO m, MonadThrow m) => SessionId -> PrimerM m SessionId
 copySession srcId = do
   copy <- withSession' srcId GetSessionData
   nextSID <- liftIO newSessionId
-  sessionsTransaction $ \ss q -> do
+  sessionsTransaction $ \tid ss q -> do
     StmMap.insert copy nextSID ss
-    writeTBQueue q $ Database.Insert nextSID (sessionApp copy) (sessionName copy)
+    enqueue q tid $ Database.Insert nextSID (sessionApp copy) (sessionName copy)
     pure nextSID
 
 -- If the input is 'False', return all sessions in the database;
@@ -357,13 +372,14 @@ copySession srcId = do
 listSessions :: (MonadIO m) => Bool -> OffsetLimit -> PrimerM m (Page Session)
 listSessions False ol = do
   q <- asks dbOpQueue
+  tid <- asks traceId
   callback <- liftIO $
     atomically $ do
       cb <- newEmptyTMVar
-      writeTBQueue q $ Database.ListSessions ol cb
+      enqueue q tid $ Database.ListSessions ol cb
       return cb
   liftIO $ atomically $ takeTMVar callback
-listSessions _ ol = sessionsTransaction $ \ss _ -> do
+listSessions _ ol = sessionsTransaction $ \_ ss _ -> do
   kvs' <- ListT.toList $ StmMap.listT ss
   let kvs = uncurry Session . second sessionName <$> kvs'
   pure $ pageList ol kvs
@@ -812,7 +828,7 @@ evalFull sid req =
 
 flushSessions :: (MonadIO m) => PrimerM m ()
 flushSessions = do
-  sessionsTransaction $ \ss _ -> do
+  sessionsTransaction $ \_ ss _ -> do
     StmMap.reset ss
   pure ()
 

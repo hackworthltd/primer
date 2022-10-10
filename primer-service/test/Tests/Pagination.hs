@@ -43,6 +43,7 @@ import Primer.Database.Rel8 (
   SessionRow (SessionRow, app, gitversion, name, uuid),
   runRel8DbT,
  )
+import Primer.Log (TraceId, WithTraceId, nextTraceId)
 import Primer.Pagination (
   Pagination (Pagination, page, size),
   firstPage,
@@ -126,9 +127,10 @@ withSetup f =
 -- common testing library. See:
 --
 -- https://github.com/hackworthltd/primer/issues/273
-runTmpDb :: Rel8DbT (DiscardLoggingT (WithSeverity ()) IO) () -> IO ()
-runTmpDb tests =
-  withSetup $ \pool -> discardLogging $ runRel8DbT tests pool
+runTmpDb :: ReaderT TraceId (Rel8DbT (DiscardLoggingT (WithSeverity (WithTraceId ())) IO)) () -> IO ()
+runTmpDb tests = do
+  tid <- nextTraceId
+  withSetup $ \pool -> discardLogging $ runRel8DbT (runReaderT tests tid) pool
 
 mkSession :: Int -> IO (SessionRow Result)
 mkSession n = do

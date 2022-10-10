@@ -1,4 +1,5 @@
 {-# LANGUAGE BlockArguments #-}
+{-# LANGUAGE ViewPatterns #-}
 
 module Tests.InsertSession where
 
@@ -19,6 +20,7 @@ import Primer.Database (
 import Primer.Database.Rel8.Rel8Db (
   Rel8DbException (InsertError),
  )
+import Primer.Log (WithTraceId (discardTraceId))
 import Test.Tasty (TestTree)
 import Test.Tasty.HUnit (testCaseSteps)
 import TestUtils (
@@ -28,8 +30,8 @@ import TestUtils (
   (@?=),
  )
 
-expectedError :: SessionId -> Rel8DbException -> Bool
-expectedError id_ (InsertError s _) = s == id_
+expectedError :: SessionId -> WithTraceId Rel8DbException -> Bool
+expectedError id_ (discardTraceId -> InsertError s _) = s == id_
 expectedError _ _ = False
 
 test_insertSession_roundtrip :: TestTree

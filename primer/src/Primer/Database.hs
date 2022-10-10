@@ -31,7 +31,7 @@ module Primer.Database (
   serve,
 ) where
 
-import Foreword
+import Foreword hiding (traceId)
 
 import Control.Concurrent.STM (
   TBQueue,
@@ -65,6 +65,7 @@ import Primer.JSON (
   PrimerJSON,
   ToJSON,
  )
+import Primer.Log (TraceId, WithTraceId (discardTraceId, traceId))
 import StmContainers.Map qualified as StmMap
 
 -- | A Primer version.
@@ -183,7 +184,7 @@ data Op
 
 -- | A config for the 'serve' computation.
 data ServiceCfg = ServiceCfg
-  { opQueue :: TBQueue Op
+  { opQueue :: TBQueue (WithTraceId Op)
   -- ^ The database operation queue.
   , version :: Version
   -- ^ The running version of Primer.
@@ -192,7 +193,7 @@ data ServiceCfg = ServiceCfg
 -- | Discard the next operation in the queue.
 --
 -- This is useful when handling exceptions.
-discardOp :: MonadIO m => TBQueue Op -> m ()
+discardOp :: MonadIO m => TBQueue a -> m ()
 discardOp q = liftIO $ atomically $ void $ readTBQueue q
 
 -- | A 'Page' is a portion of the results of some DB query, along with the
@@ -336,6 +337,13 @@ instance (MonadThrow m, MonadIO m) => MonadDb (NullDbT m) where
       Nothing -> pure $ Left $ SessionIdNotFound sid
       Just s -> pure $ Right s
 
+instance (MonadThrow m, MonadIO m) => MonadDb (ReaderT r (NullDbT m)) where
+  insertSession v id_ a n = lift $ insertSession v id_ a n
+  updateSessionApp v id_ a = lift $ updateSessionApp v id_ a
+  updateSessionName v id_ n = lift $ updateSessionName v id_ n
+  listSessions = lift . listSessions
+  querySessionId = lift . querySessionId
+
 updateOrFail :: (MonadThrow m, MonadIO m) => SessionId -> (SessionData -> SessionData) -> Sessions -> m ()
 updateOrFail id_ f ss = do
   result <- liftIO $
@@ -370,7 +378,7 @@ runNullDb' m = do
 --
 -- Because it will block, this computation should be run on its own
 -- thread.
-serve :: (MonadDb m, MonadIO m) => ServiceCfg -> m Void
+serve :: (MonadDb (ReaderT TraceId m), MonadIO m) => ServiceCfg -> m Void
 serve (ServiceCfg q v) =
   forever $ do
     -- Don't remove the op from the queue until we're certain it
@@ -379,7 +387,7 @@ serve (ServiceCfg q v) =
     -- remain in the queue so that the caller can decide whether
     -- to discard it or retry it.
     op <- liftIO $ atomically $ peekTBQueue q
-    perform op
+    runReaderT (perform (discardTraceId op)) (traceId op)
     discardOp q
   where
     perform (Insert s a n) = insertSession v s a n

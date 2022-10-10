@@ -68,6 +68,8 @@ import Primer.Database.Rel8.Schema as Schema (
  )
 import Primer.Log (
   ConvertLogMessage (..),
+  TraceId,
+  WithTraceId (WithTraceId),
   logError,
  )
 import Rel8 (
@@ -127,7 +129,7 @@ runRel8DbT m = runReaderT (unRel8DbT m)
 -- | A convenient type alias.
 --
 -- Note that 'MonadLog' has a functional dependency from 'm' to 'l'.
-type MonadRel8Db m l = (ConvertLogMessage Rel8DbLogMessage l, MonadCatch m, MonadThrow m, MonadIO m, MonadLog (WithSeverity l) m)
+type MonadRel8Db m l = (ConvertLogMessage Rel8DbLogMessage l, MonadCatch m, MonadThrow m, MonadIO m, MonadLog (WithSeverity (WithTraceId l)) m)
 
 -- | A 'MonadDb' instance for 'Rel8DbT'.
 --
@@ -139,7 +141,7 @@ type MonadRel8Db m l = (ConvertLogMessage Rel8DbLogMessage l, MonadCatch m, Mona
 -- database. The latter sorts of exceptions are expressed via the
 -- types of the 'MonadDb' methods and are handled by Primer
 -- internally.
-instance MonadRel8Db m l => MonadDb (Rel8DbT m) where
+instance MonadRel8Db m l => MonadDb (ReaderT TraceId (Rel8DbT m)) where
   insertSession v s a n =
     runStatement_ (InsertError s) $
       insert
@@ -177,9 +179,9 @@ instance MonadRel8Db m l => MonadDb (Rel8DbT m) where
 
     -- This operation should affect exactly one row.
     case nr of
-      0 -> throwM $ UpdateAppNonExistentSession s
+      0 -> withTraceId throwM $ UpdateAppNonExistentSession s
       1 -> pure ()
-      _ -> throwM $ UpdateAppConsistencyError s
+      _ -> withTraceId throwM $ UpdateAppConsistencyError s
 
   updateSessionName v s n = do
     nr <-
@@ -199,9 +201,9 @@ instance MonadRel8Db m l => MonadDb (Rel8DbT m) where
 
     -- This operation should affect exactly one row.
     case nr of
-      0 -> throwM $ UpdateNameNonExistentSession s
+      0 -> withTraceId throwM $ UpdateNameNonExistentSession s
       1 -> pure ()
-      _ -> throwM $ UpdateNameConsistencyError s
+      _ -> withTraceId throwM $ UpdateNameConsistencyError s
 
   listSessions ol = do
     n' <- runStatement ListSessionsError $ select numSessions
@@ -215,7 +217,7 @@ instance MonadRel8Db m l => MonadDb (Rel8DbT m) where
       -- This case should never occur, as 'countRows' (used by
       -- 'numSessions' above) should never return the empty list:
       -- https://hackage.haskell.org/package/rel8-1.3.1.0/docs/Rel8.html#v:countRows
-      _ -> throwM ListSessionsRel8Error
+      _ -> withTraceId throwM ListSessionsRel8Error
     ss :: [(UUID, Text)] <- runStatement ListSessionsError $ select $ paginatedSessionMeta ol
     pure $ Page{total = n, pageContents = safeMkSession <$> ss}
     where
@@ -244,9 +246,12 @@ instance MonadRel8Db m l => MonadDb (Rel8DbT m) where
         let dbSessionName = Schema.name s
             sessionName = safeMkSessionName dbSessionName
         when (fromSessionName sessionName /= dbSessionName) $
-          logError $
+          withTraceId logError $
             IllegalSessionName sid dbSessionName
         pure $ Right (SessionData (Schema.app s) sessionName)
+
+withTraceId :: (WithTraceId a -> m b) -> a -> ReaderT TraceId m b
+withTraceId f a = ReaderT $ \tid -> f (WithTraceId tid a)
 
 -- | Exceptions that can be thrown by 'Rel8DbT' computations.
 --
@@ -294,7 +299,7 @@ data Rel8DbException
     ListSessionsRel8Error
   deriving stock (Eq, Show, Generic)
 
-instance Exception Rel8DbException
+instance Exception (WithTraceId Rel8DbException)
 
 -- | 'Rel8DbT'-related log messages.
 data Rel8DbLogMessage
@@ -312,16 +317,20 @@ data Rel8DbLogMessage
 -- See the note on 'Rel8DbT's 'MonadDb' instance for an explanation of
 -- why we handle "Hasql.Session" exceptions the way we do.
 
-runStatement :: (MonadIO m, MonadThrow m, MonadReader Pool m) => (QueryError -> Rel8DbException) -> Statement () a -> m a
+runStatement ::
+  (MonadIO m, MonadThrow m, MonadReader Pool m) =>
+  (QueryError -> Rel8DbException) ->
+  Statement () a ->
+  ReaderT TraceId m a
 runStatement exc s = do
-  pool <- ask
+  pool <- lift ask
   result <- liftIO $ use pool $ statement () s
   case result of
     Left e ->
       -- Something went wrong with the database or database
       -- connection. This is the responsibility of the caller to
       -- handle.
-      throwM $ err e
+      withTraceId throwM $ err e
     Right r -> pure r
   where
     -- Convert a 'UsageError' to a 'Rel8DbException'.
@@ -330,7 +339,11 @@ runStatement exc s = do
     err AcquisitionTimeoutUsageError = TimeoutError
     err (SessionUsageError e) = exc e
 
-runStatement_ :: (MonadIO m, MonadThrow m, MonadReader Pool m) => (QueryError -> Rel8DbException) -> Statement () a -> m ()
+runStatement_ ::
+  (MonadIO m, MonadThrow m, MonadReader Pool m) =>
+  (QueryError -> Rel8DbException) ->
+  Statement () a ->
+  ReaderT TraceId m ()
 runStatement_ exc = void . runStatement exc
 
 -- "Rel8" queries and other operations.

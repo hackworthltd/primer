@@ -6,8 +6,6 @@
 module Primer.Server (
   serve,
   openAPIInfo,
-  TraceId,
-  WithTraceId (traceId, discardTraceId),
   TraceBoundary (TraceStart, TraceEnd),
 ) where
 
@@ -24,8 +22,6 @@ import Data.OpenApi (OpenApi)
 import Data.Streaming.Network.Internal (HostPreference (HostIPv4Only))
 import Data.Text.Lazy qualified as LT (fromStrict)
 import Data.Text.Lazy.Encoding qualified as LT (encodeUtf8)
-import Data.UUID
-import Data.UUID.V4 (nextRandom)
 import Network.Wai qualified as WAI
 import Network.Wai.Handler.Warp (
   defaultSettings,
@@ -70,7 +66,7 @@ import Primer.Database qualified as Database (
   Op,
  )
 import Primer.Def (ASTDef (..), Def (..))
-import Primer.Log (ConvertLogMessage (convert), logInfo, logWarning)
+import Primer.Log (ConvertLogMessage, WithTraceId (WithTraceId), logInfo, logWarning, nextTraceId)
 import Primer.Pagination (pagedDefaultClamp)
 import Primer.Servant.API qualified as S
 import Primer.Servant.OpenAPI qualified as OpenAPI
@@ -229,7 +225,7 @@ serve ::
   forall l.
   (ConvertLogMessage PrimerErr l, ConvertLogMessage TraceBoundary l) =>
   Sessions ->
-  TBQueue Database.Op ->
+  TBQueue (WithTraceId Database.Op) ->
   Version ->
   Int ->
   Log.Handler IO (Log.WithSeverity (WithTraceId l)) ->
@@ -253,10 +249,10 @@ serve ss q v port logger = do
 
     nt :: PrimerIO a -> Handler a
     nt m = Handler $ ExceptT $ do
-      txid <- TraceId <$> nextRandom
+      txid <- nextTraceId
       flip runLoggingT (logger . fmap (WithTraceId txid)) $ do
         logInfo TraceStart
-        res <- catch (lift . fmap Right $ runPrimerIO m (Env ss q v)) handler
+        res <- catch (lift . fmap Right $ runPrimerIO m (Env ss q v txid)) handler
         logInfo TraceEnd
         pure res
     -- Catch exceptions from the API and convert them to Servant
@@ -273,15 +269,3 @@ serve ss q v port logger = do
 
 data TraceBoundary = TraceStart | TraceEnd
   deriving (Show)
-
-newtype TraceId = TraceId UUID
-  deriving newtype (Show)
-
-data WithTraceId l = WithTraceId
-  { traceId :: TraceId
-  , discardTraceId :: l
-  }
-  deriving (Functor)
-
-instance ConvertLogMessage l l' => ConvertLogMessage (WithTraceId l) (WithTraceId l') where
-  convert = fmap convert

@@ -61,6 +61,7 @@ import Primer.Database.Rel8 (
  )
 import Primer.Database.Rel8.Schema as Schema hiding (app)
 import Primer.Examples (comprehensive)
+import Primer.Log (TraceId, WithTraceId, nextTraceId)
 import Primer.Module (
   Module (
     Module,
@@ -152,14 +153,18 @@ withDbSetup f = do
                 withConfig migratedConfig $ \db ->
                   bracket (acquire 1 (Just 1000000) $ toConnectionString db) release f
 
-runTmpDb :: Rel8DbT (DiscardLoggingT (WithSeverity ()) IO) () -> IO ()
+runTmpDb :: ReaderT TraceId (Rel8DbT (DiscardLoggingT (WithSeverity (WithTraceId ())) IO)) () -> IO ()
 runTmpDb tests =
-  withDbSetup $ \pool -> discardLogging $ runRel8DbT tests pool
+  withDbSetup $ \pool -> do
+    tid <- nextTraceId
+    discardLogging $ runRel8DbT (runReaderT tests tid) pool
 
 -- | Some tests need access to the pool
-runTmpDbWithPool :: (Pool -> Rel8DbT (DiscardLoggingT (WithSeverity ()) IO) ()) -> IO ()
+runTmpDbWithPool :: (Pool -> ReaderT TraceId (Rel8DbT (DiscardLoggingT (WithSeverity (WithTraceId ())) IO)) ()) -> IO ()
 runTmpDbWithPool tests =
-  withDbSetup $ \pool -> discardLogging $ runRel8DbT (tests pool) pool
+  withDbSetup $ \pool -> do
+    tid <- nextTraceId
+    discardLogging $ runRel8DbT (runReaderT (tests pool) tid) pool
 
 (@?=) :: (MonadIO m, Eq a, Show a) => a -> a -> m ()
 x @?= y = liftIO $ x HUnit.@?= y

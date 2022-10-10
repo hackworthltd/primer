@@ -57,13 +57,14 @@ import Primer.Database.Rel8 (
  )
 import Primer.Log (
   ConvertLogMessage (..),
+  WithTraceId (discardTraceId, traceId),
   logCritical,
   logError,
   logInfo,
   logNotice,
   textWithSeverity,
  )
-import Primer.Server (TraceBoundary, WithTraceId (discardTraceId, traceId))
+import Primer.Server (TraceBoundary)
 import Primer.Server qualified as Server
 import StmContainers.Map qualified as StmMap
 import System.Environment (lookupEnv)
@@ -116,10 +117,10 @@ defaultDb = do
 runDb :: MonadRel8Db m l => Db.ServiceCfg -> Pool -> m Void
 runDb cfg = start
   where
-    justRel8DbException :: Rel8DbException -> Maybe Rel8DbException
+    justRel8DbException :: WithTraceId Rel8DbException -> Maybe (WithTraceId Rel8DbException)
     justRel8DbException = Just
 
-    logDbException = logError . LogRel8DbException
+    logDbException = logError . fmap LogRel8DbException
 
     -- The database computation exception handler.
     start pool =
@@ -128,7 +129,7 @@ runDb cfg = start
         (flip runRel8DbT pool $ Db.serve cfg)
         $ \e -> do
           logDbException e
-          case e of
+          case discardTraceId e of
             -- Retry the same operation until it succeeds.
             -- Note: we need some backoff here. See:
             --
@@ -193,7 +194,7 @@ serve (PostgreSQL uri) ver port qsz logger =
       logNotice ("Listening on port " <> show port :: Text)
     concurrently_
       (Server.serve initialSessions dbOpQueue ver port (logger . fmap Traced))
-      (flip runLoggingT (logger . fmap Untraced) $ runDb (Db.ServiceCfg dbOpQueue ver) pool)
+      (flip runLoggingT (logger . fmap Traced) $ runDb (Db.ServiceCfg dbOpQueue ver) pool)
     pure ()
   where
     -- Note: pool size must be 1 in order to guarantee

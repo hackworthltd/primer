@@ -49,6 +49,7 @@ import Primer.Database (
 import Primer.Examples (
   even3App,
  )
+import Primer.Log (WithTraceId (WithTraceId), nextTraceId)
 import StmContainers.Map qualified as StmMap
 import Test.Tasty
 import Test.Tasty.HUnit
@@ -157,7 +158,8 @@ loadSessionTest = do
   callback <- liftIO newEmptyTMVarIO
   q <- asks dbOpQueue
   ss <- asks sessions
-  void $ liftIO $ atomically $ writeTBQueue q $ LoadSession sid ss callback
+  tid <- liftIO nextTraceId
+  void $ liftIO $ atomically $ writeTBQueue q $ WithTraceId tid $ LoadSession sid ss callback
 
 listSessionsTest :: PrimerIO ()
 listSessionsTest = do
@@ -217,12 +219,13 @@ testSessionName testName t expected =
 
 empty_q_harness :: Text -> PrimerIO () -> TestTree
 empty_q_harness desc test = testCaseSteps (toS desc) $ \step' -> do
+  tid <- nextTraceId
   dbOpQueue <- newTBQueueIO 4
   inMemorySessions <- StmMap.newIO
   dbSessions <- StmMap.newIO
   let version = "git123"
   nullDbProc <- async $ runNullDb dbSessions $ serve $ ServiceCfg dbOpQueue version
-  testProc <- async $ flip runPrimerIO (Env inMemorySessions dbOpQueue version) $ do
+  testProc <- async $ flip runPrimerIO (Env inMemorySessions dbOpQueue version tid) $ do
     test
     -- Give 'nullDbProc' time to empty the queue.
     liftIO $ threadDelay 100000
@@ -261,7 +264,7 @@ newtype FailDbException = FailDbException Text
 
 instance Exception FailDbException
 
-instance (MonadThrow m) => MonadDb (FailDbT m) where
+instance (MonadThrow m) => MonadDb (ReaderT r (FailDbT m)) where
   insertSession _ _ _ _ = throwM $ FailDbException "insertSession"
   updateSessionApp _ _ _ = throwM $ FailDbException "updateSessionApp"
   updateSessionName _ _ _ = throwM $ FailDbException "updateSessionName"
@@ -278,11 +281,12 @@ runFailDb = runFailDbT
 
 faildb_harness :: Text -> PrimerIO () -> TestTree
 faildb_harness desc test = testCaseSteps (toS desc) $ \step' -> do
+  tid <- nextTraceId
   dbOpQueue <- newTBQueueIO 4
   inMemorySessions <- StmMap.newIO
   let version = "git123"
   failDbProc <- async $ runFailDb $ serve $ ServiceCfg dbOpQueue version
-  testProc <- async $ flip runPrimerIO (Env inMemorySessions dbOpQueue version) $ do
+  testProc <- async $ flip runPrimerIO (Env inMemorySessions dbOpQueue version tid) $ do
     test
     -- Give 'failDbProc' time to throw.
     liftIO $ threadDelay 100000

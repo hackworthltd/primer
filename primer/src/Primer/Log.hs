@@ -8,6 +8,9 @@ module Primer.Log (
   logNotice,
   logWarning,
   textWithSeverity,
+  TraceId,
+  nextTraceId,
+  WithTraceId (WithTraceId, traceId, discardTraceId),
 ) where
 
 import Foreword
@@ -26,6 +29,8 @@ import Control.Monad.Log qualified as Log (
   logNotice,
   logWarning,
  )
+import Data.UUID (UUID)
+import Data.UUID.V4 (nextRandom)
 
 logSeverity :: Severity -> Text
 logSeverity Debug = "[DEBUG]     "
@@ -67,3 +72,18 @@ textWithSeverity (WithSeverity s m) = logSeverity s <> m
 -- | Convenient for discarding logging.
 instance ConvertLogMessage a () where
   convert = pure ()
+
+newtype TraceId = TraceId UUID
+  deriving newtype (Show)
+
+nextTraceId :: IO TraceId
+nextTraceId = TraceId <$> nextRandom
+
+data WithTraceId l = WithTraceId
+  { traceId :: TraceId
+  , discardTraceId :: l
+  }
+  deriving (Functor, Show)
+
+instance ConvertLogMessage l l' => ConvertLogMessage (WithTraceId l) (WithTraceId l') where
+  convert = fmap convert

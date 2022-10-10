@@ -19,6 +19,7 @@ import Primer.Database (
 import Primer.Database.Rel8 (
   Rel8DbException (UpdateNameNonExistentSession),
  )
+import Primer.Log (WithTraceId (discardTraceId))
 import Test.Tasty (TestTree)
 import Test.Tasty.HUnit (testCaseSteps)
 import TestUtils (
@@ -92,4 +93,4 @@ test_updateSessionName_failure = testCaseSteps "updateSessionName failure modes"
     let version = "git123"
     let name = safeMkSessionName "this session doesn't exist"
     sessionId <- liftIO newSessionId
-    assertException "updateSessionName" (expectedError sessionId) $ updateSessionName version sessionId name
+    assertException "updateSessionName" (expectedError sessionId . discardTraceId) $ updateSessionName version sessionId name
