@@ -239,9 +239,8 @@ actionsForBinding ::
 actionsForBinding _ _ NonEditable _ = mempty
 actionsForBinding l defName Editable b =
   realise
-    b
     (b ^. _bindMeta)
-    [ \_p m' ->
+    [ \m' ->
         OfferedAction
           { name = Prose "r"
           , description = "Rename this pattern variable"
@@ -287,18 +286,12 @@ findType id ty = target <$> focusOnTy id ty
 -- | An ActionSpec is an OfferedAction that needs
 -- metadata in order to be used. Typically this is because it starts with
 -- SetCursor, which needs an ID.
---
--- Type parameter 'p' is a ghost parameter that provides some type
--- safety, to prevent the accidental mixing of actions for different
--- types (e.g., to prevent the mixing of actions for 'Expr's and
--- 'Type's). The argument of type 'p' in the type signature is not
--- used other than to provide proof that you have a value of type 'p'.
 type ActionSpec p a =
-  p -> Meta a -> OfferedAction [Action]
+  Meta a -> OfferedAction [Action]
 
 -- | From multiple actions, construct an ActionSpec which starts with SetCursor
 action :: forall a p. ActionName -> Text -> Int -> ActionType -> [Action] -> ActionSpec p a
-action name description priority actionType as _p m =
+action name description priority actionType as m =
   OfferedAction
     { name
     , description
@@ -309,7 +302,7 @@ action name description priority actionType as _p m =
 
 -- | Construct an ActionSpec which requires some input, and then starts with SetCursor
 actionWithInput :: forall a p. ActionName -> Text -> Int -> ActionType -> UserInput [Action] -> ActionSpec p a
-actionWithInput name description priority actionType input _p m =
+actionWithInput name description priority actionType input m =
   OfferedAction
     { name
     , description
@@ -338,21 +331,21 @@ actionWithNames defName tk k m prompt =
         (\n -> SetCursor (m ^. _id) : k (unName n))
 
 -- | A set of ActionSpecs can be realised by providing them with metadata.
-realise :: forall a p. p -> Meta a -> [ActionSpec p a] -> [OfferedAction [Action]]
-realise p m = map (\a -> a p m)
+realise :: forall a p. Meta a -> [ActionSpec p a] -> [OfferedAction [Action]]
+realise m = map (\a -> a m)
 
 -- | Given an expression, determine what basic actions it supports
 -- Specific projections may provide other actions not listed here
 basicActionsForExpr :: TypeDefMap -> Level -> GVarName -> Expr -> [OfferedAction [Action]]
 basicActionsForExpr tydefs l defName expr = case expr of
-  EmptyHole m -> realise expr m $ universalActions m <> emptyHoleActions m
-  Hole m _ -> realise expr m $ defaultActions m <> holeActions
-  Ann m _ _ -> realise expr m $ defaultActions m <> annotationActions
-  Lam m _ _ -> realise expr m $ defaultActions m <> lambdaActions m
-  LAM m _ _ -> realise expr m $ defaultActions m <> bigLambdaActions m
-  Let m v e _ -> realise expr m $ defaultActions m <> letActions v e
-  Letrec m _ _ t _ -> realise expr m $ defaultActions m <> letRecActions (Just t)
-  e -> realise expr (e ^. _exprMetaLens) $ defaultActions (e ^. _exprMetaLens) ++ expert annotateExpression
+  EmptyHole m -> realise m $ universalActions m <> emptyHoleActions m
+  Hole m _ -> realise m $ defaultActions m <> holeActions
+  Ann m _ _ -> realise m $ defaultActions m <> annotationActions
+  Lam m _ _ -> realise m $ defaultActions m <> lambdaActions m
+  LAM m _ _ -> realise m $ defaultActions m <> bigLambdaActions m
+  Let m v e _ -> realise m $ defaultActions m <> letActions v e
+  Letrec m _ _ t _ -> realise m $ defaultActions m <> letRecActions (Just t)
+  e -> realise (e ^. _exprMetaLens) $ defaultActions (e ^. _exprMetaLens) ++ expert annotateExpression
   where
     insertVariable =
       let filterVars = case l of
@@ -398,7 +391,7 @@ basicActionsForExpr tydefs l defName expr = case expr of
       Expert -> "Pattern match"
 
     makeLambda :: forall a. Meta (Maybe TypeCache) -> ActionSpec Expr a
-    makeLambda m _p m' =
+    makeLambda m m' =
       OfferedAction
         { name = Code "λx"
         , description = "Make a function with an input"
@@ -414,7 +407,7 @@ basicActionsForExpr tydefs l defName expr = case expr of
         }
 
     makeTypeAbstraction :: forall a. ExprMeta -> ActionSpec Expr a
-    makeTypeAbstraction m _p m' =
+    makeTypeAbstraction m m' =
       OfferedAction
         { name = Code "Λx"
         , description = "Make a type abstraction"
@@ -454,7 +447,7 @@ basicActionsForExpr tydefs l defName expr = case expr of
         $ ChooseConstructor OnlyFunctions (\c -> [if offerRefined m then ConstructRefinedCon c else ConstructSaturatedCon c])
 
     makeLetBinding :: forall a. ActionSpec Expr a
-    makeLetBinding _p m' =
+    makeLetBinding m' =
       OfferedAction
         { name = Code "="
         , description = "Make a let binding"
@@ -470,7 +463,7 @@ basicActionsForExpr tydefs l defName expr = case expr of
         }
 
     makeLetrec :: forall a. ActionSpec Expr a
-    makeLetrec _p m' =
+    makeLetrec m' =
       OfferedAction
         { name = Code "=,="
         , description = "Make a recursive let binding"
@@ -495,7 +488,7 @@ basicActionsForExpr tydefs l defName expr = case expr of
     removeAnnotation = action (Prose "⌫:") "Remove this annotation" (P.removeAnnotation l) Destructive [RemoveAnn]
 
     renameVariable :: forall a. ExprMeta -> ActionSpec Expr a
-    renameVariable m _p m' =
+    renameVariable m m' =
       OfferedAction
         { name = Prose "r"
         , description = "Rename this input variable"
@@ -511,7 +504,7 @@ basicActionsForExpr tydefs l defName expr = case expr of
         }
 
     renameTypeVariable :: forall a. ExprMeta -> ActionSpec Expr a
-    renameTypeVariable m _p m' =
+    renameTypeVariable m m' =
       OfferedAction
         { name = Prose "r"
         , description = "Rename this type variable"
@@ -530,7 +523,7 @@ basicActionsForExpr tydefs l defName expr = case expr of
     makeLetRecursive = action (Prose "rec") "Make this let recursive" (P.makeLetRecursive l) Primary [ConvertLetToLetrec]
 
     renameLet :: forall a b. Maybe (Type' b) -> ActionSpec Expr a
-    renameLet t _p m' =
+    renameLet t m' =
       OfferedAction
         { name = Prose "r"
         , description = "Rename this let binding"
@@ -647,9 +640,9 @@ infixr 5 ?:
 -- Specific projections may provide other actions not listed here
 basicActionsForType :: Level -> GVarName -> Type -> [OfferedAction [Action]]
 basicActionsForType l defName ty = case ty of
-  TEmptyHole m -> realise ty m $ universalActions <> emptyHoleActions
-  TForall m _ k _ -> realise ty m $ defaultActions <> forAllActions k
-  t -> realise ty (t ^. _typeMetaLens) defaultActions
+  TEmptyHole m -> realise m $ universalActions <> emptyHoleActions
+  TForall m _ k _ -> realise m $ defaultActions <> forAllActions k
+  t -> realise (t ^. _typeMetaLens) defaultActions
   where
     -- We arbitrarily choose that the "construct a function type" action places the focused expression
     -- on the domain (left) side of the arrow.
@@ -657,7 +650,7 @@ basicActionsForType l defName ty = case ty of
     constructFunctionType = action (Code "→") "Construct a function type" (P.constructFunction l) Primary [ConstructArrowL, Move Child1]
 
     constructPolymorphicType :: forall a. ActionSpec Type a
-    constructPolymorphicType _p m' =
+    constructPolymorphicType m' =
       OfferedAction
         { name = Code "∀"
         , description = "Construct a polymorphic type"
@@ -682,7 +675,7 @@ basicActionsForType l defName ty = case ty of
     useTypeVariable = actionWithInput (Code "t") "Use a type variable" (P.useTypeVar l) Primary $ ChooseTypeVariable (\v -> [ConstructTVar v])
 
     renameTypeVariable :: forall a. Kind -> ActionSpec Type a
-    renameTypeVariable k _p m' =
+    renameTypeVariable k m' =
       OfferedAction
         { name = Prose "r"
         , description = "Rename this type variable"
@@ -734,7 +727,7 @@ basicActionsForType l defName ty = case ty of
 -- They may involve moving around the AST and performing several basic actions.
 compoundActionsForType :: forall a. Level -> Type' (Meta a) -> [OfferedAction [Action]]
 compoundActionsForType l ty = case ty of
-  TFun m a b -> realise ty m [addFunctionArgument a b]
+  TFun m a b -> realise m [addFunctionArgument a b]
   _ -> []
   where
     -- This action traverses the function type and adds a function arrow to the end of it,
