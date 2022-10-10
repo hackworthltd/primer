@@ -238,8 +238,8 @@ actionsForBinding ::
   [OfferedAction [Action]]
 actionsForBinding _ _ NonEditable _ = mempty
 actionsForBinding l defName Editable b =
-  realise
-    (b ^. _bindMeta)
+  map
+    ($ (b ^. _bindMeta))
     [ \m' ->
         OfferedAction
           { name = Prose "r"
@@ -324,22 +324,18 @@ actionWithNames defName tk k m prompt =
         options
         (\n -> SetCursor (m ^. _id) : k (unName n))
 
--- | A set of ActionSpecs can be realised by providing them with metadata.
-realise :: forall a. Meta a -> [Meta a -> OfferedAction [Action]] -> [OfferedAction [Action]]
-realise m = map (\a -> a m)
-
 -- | Given an expression, determine what basic actions it supports
 -- Specific projections may provide other actions not listed here
 basicActionsForExpr :: TypeDefMap -> Level -> GVarName -> Expr -> [OfferedAction [Action]]
 basicActionsForExpr tydefs l defName expr = case expr of
-  EmptyHole m -> realise m $ universalActions m <> emptyHoleActions m
-  Hole m _ -> realise m $ defaultActions m <> holeActions
-  Ann m _ _ -> realise m $ defaultActions m <> annotationActions
-  Lam m _ _ -> realise m $ defaultActions m <> lambdaActions m
-  LAM m _ _ -> realise m $ defaultActions m <> bigLambdaActions m
-  Let m v e _ -> realise m $ defaultActions m <> letActions v e
-  Letrec m _ _ t _ -> realise m $ defaultActions m <> letRecActions (Just t)
-  e -> realise (e ^. _exprMetaLens) $ defaultActions (e ^. _exprMetaLens) ++ expert annotateExpression
+  EmptyHole m -> map ($ m) $ universalActions m <> emptyHoleActions m
+  Hole m _ -> map ($ m) $ defaultActions m <> holeActions
+  Ann m _ _ -> map ($ m) $ defaultActions m <> annotationActions
+  Lam m _ _ -> map ($ m) $ defaultActions m <> lambdaActions m
+  LAM m _ _ -> map ($ m) $ defaultActions m <> bigLambdaActions m
+  Let m v e _ -> map ($ m) $ defaultActions m <> letActions v e
+  Letrec m _ _ t _ -> map ($ m) $ defaultActions m <> letRecActions (Just t)
+  e -> map ($ (e ^. _exprMetaLens)) $ defaultActions (e ^. _exprMetaLens) ++ expert annotateExpression
   where
     insertVariable =
       let filterVars = case l of
@@ -634,9 +630,9 @@ infixr 5 ?:
 -- Specific projections may provide other actions not listed here
 basicActionsForType :: Level -> GVarName -> Type -> [OfferedAction [Action]]
 basicActionsForType l defName ty = case ty of
-  TEmptyHole m -> realise m $ universalActions <> emptyHoleActions
-  TForall m _ k _ -> realise m $ defaultActions <> forAllActions k
-  t -> realise (t ^. _typeMetaLens) defaultActions
+  TEmptyHole m -> map ($ m) $ universalActions <> emptyHoleActions
+  TForall m _ k _ -> map ($ m) $ defaultActions <> forAllActions k
+  t -> map ($ (t ^. _typeMetaLens)) defaultActions
   where
     -- We arbitrarily choose that the "construct a function type" action places the focused expression
     -- on the domain (left) side of the arrow.
@@ -721,7 +717,7 @@ basicActionsForType l defName ty = case ty of
 -- They may involve moving around the AST and performing several basic actions.
 compoundActionsForType :: forall a. Level -> Type' (Meta a) -> [OfferedAction [Action]]
 compoundActionsForType l ty = case ty of
-  TFun m a b -> realise m [addFunctionArgument a b]
+  TFun m a b -> map ($ m) [addFunctionArgument a b]
   _ -> []
   where
     -- This action traverses the function type and adds a function arrow to the end of it,
