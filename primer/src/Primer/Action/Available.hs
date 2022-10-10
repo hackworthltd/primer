@@ -284,7 +284,7 @@ findType :: forall b. Data b => ID -> Type' (Meta b) -> Maybe (Type' (Meta b))
 findType id ty = target <$> focusOnTy id ty
 
 -- | From multiple actions, construct an ActionSpec which starts with SetCursor
-action :: forall a p. ActionName -> Text -> Int -> ActionType -> [Action] -> Meta a -> OfferedAction [Action]
+action :: forall a. ActionName -> Text -> Int -> ActionType -> [Action] -> Meta a -> OfferedAction [Action]
 action name description priority actionType as m =
   OfferedAction
     { name
@@ -295,7 +295,7 @@ action name description priority actionType as m =
     }
 
 -- | Construct an ActionSpec which requires some input, and then starts with SetCursor
-actionWithInput :: forall a p. ActionName -> Text -> Int -> ActionType -> UserInput [Action] -> Meta a -> OfferedAction [Action]
+actionWithInput :: forall a. ActionName -> Text -> Int -> ActionType -> UserInput [Action] -> Meta a -> OfferedAction [Action]
 actionWithInput name description priority actionType input m =
   OfferedAction
     { name
@@ -325,7 +325,7 @@ actionWithNames defName tk k m prompt =
         (\n -> SetCursor (m ^. _id) : k (unName n))
 
 -- | A set of ActionSpecs can be realised by providing them with metadata.
-realise :: forall a p. Meta a -> [Meta a -> OfferedAction [Action]] -> [OfferedAction [Action]]
+realise :: forall a. Meta a -> [Meta a -> OfferedAction [Action]] -> [OfferedAction [Action]]
 realise m = map (\a -> a m)
 
 -- | Given an expression, determine what basic actions it supports
