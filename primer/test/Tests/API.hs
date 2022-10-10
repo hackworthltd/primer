@@ -223,7 +223,7 @@ test_listSessions =
       --
       -- See:
       -- https://github.com/hackworthltd/primer/issues/545
-      {- HLINT ignore "Functor law" -}
+      {- HLINT ignore test_listSessions "Functor law" -}
       sort (id <$> pageContents ss') @?= sort ss
 
 test_copySession :: TestTree
