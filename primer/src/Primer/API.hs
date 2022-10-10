@@ -213,8 +213,6 @@ type PrimerIO = PrimerM IO
 runPrimerIO :: PrimerIO a -> Env -> IO a
 runPrimerIO = runPrimerM
 
-{- HLINT ignore PrimerErr "Use newtype instead of data" -}
-
 -- | Primer exception class.
 data PrimerErr
   = DatabaseErr Text
