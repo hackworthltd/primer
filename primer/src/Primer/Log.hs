@@ -8,14 +8,21 @@ module Primer.Log (
   logNotice,
   logWarning,
   textWithSeverity,
+  PureLogT,
+  runPureLogT,
 ) where
 
 import Foreword
 
 import Control.Monad.Log (
+  LoggingT,
   MonadLog,
+  PureLoggingT,
   Severity (..),
   WithSeverity (..),
+  logMessage,
+  runLoggingT,
+  runPureLoggingT,
  )
 import Control.Monad.Log qualified as Log (
   logCritical,
@@ -67,3 +74,24 @@ textWithSeverity (WithSeverity s m) = logSeverity s <> m
 -- | Convenient for discarding logging.
 instance ConvertLogMessage a () where
   convert = pure ()
+
+-- | Purely collect log messages in a 'Seq'
+newtype PureLogT l m a = PureLogs (LoggingT l (PureLoggingT (Seq l) m) a)
+  deriving
+    ( Functor
+    , Applicative
+    , Monad
+    , MonadLog l
+    , MonadIO
+    , MonadThrow
+    , MonadCatch
+    )
+
+-- | Purely accumulate log messages in a 'Seq'.
+-- Note that this may cause a large amount of memory to be retained if you
+-- use this with an action that logs excessively.
+-- Note that the logs are accumulated strictly, i.e. each element in the
+-- resulting 'Seq' will be in WHNF.
+runPureLogT :: Monad m => PureLogT l m a -> m (a, Seq l)
+runPureLogT (PureLogs m) = runPureLoggingT $ runLoggingT m $ \l ->
+  let !l' = l in logMessage $ pure l'

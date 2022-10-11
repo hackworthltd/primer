@@ -1,10 +1,11 @@
+{-# LANGUAGE DisambiguateRecordFields #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE OverloadedLabels #-}
-{-# LANGUAGE RecordWildCards #-}
 
 -- | An HTTP service for the Primer API.
 module Primer.Server (
   serve,
+  ConvertServerLogs,
   openAPIInfo,
 ) where
 
@@ -14,9 +15,8 @@ import Control.Concurrent.STM (
   TBQueue,
  )
 
-import Control.Monad.Log (runLoggingT)
+import Control.Monad.Log (LoggingT, WithSeverity, runLoggingT)
 import Control.Monad.Log qualified as Log
-import Data.Map ((!?))
 import Data.OpenApi (OpenApi)
 import Data.Streaming.Network.Internal (HostPreference (HostIPv4Only))
 import Data.Text.Lazy qualified as LT (fromStrict)
@@ -40,22 +40,19 @@ import Network.Wai.Middleware.Cors (
 import Network.Wai.Middleware.Prometheus qualified as P
 import Optics ((%), (.~), (?~))
 import Primer.API (
+  APILog,
   Env (..),
   ExprTreeOpts (..),
-  NodeSelection (..),
   PrimerErr (..),
-  PrimerIO,
-  Selection (..),
+  PrimerM,
+  availableActions,
   edit,
-  getProgram,
   listSessions,
   newSession,
   renameSession,
-  runPrimerIO,
+  runPrimerM,
  )
 import Primer.API qualified as API
-import Primer.Action.Available (actionsForDef, actionsForDefBody, actionsForDefSig)
-import Primer.App (NodeType (..), progAllDefs, progAllTypeDefs)
 import Primer.Core (globalNamePretty)
 import Primer.Database (
   SessionId,
@@ -65,7 +62,6 @@ import Primer.Database (
 import Primer.Database qualified as Database (
   Op,
  )
-import Primer.Def (ASTDef (..), Def (..))
 import Primer.Log (ConvertLogMessage, logWarning)
 import Primer.Pagination (pagedDefaultClamp)
 import Primer.Servant.API qualified as S
@@ -82,6 +78,10 @@ import Servant.API.Generic (GenericMode ((:-)))
 import Servant.OpenApi (toOpenApi)
 import Servant.Server.Generic (AsServerT, genericServeT)
 
+type Primer l = (PrimerM (LoggingT (WithSeverity l) IO))
+
+type ConvertServerLogs l = ConvertLogMessage APILog l
+
 openAPIInfo :: OpenApi
 openAPIInfo =
   toOpenApi (Proxy @OpenAPI.API)
@@ -89,7 +89,7 @@ openAPIInfo =
     & #info % #description ?~ "A backend service implementing a pedagogic functional programming language."
     & #info % #version .~ "0.7"
 
-openAPIServer :: OpenAPI.RootAPI (AsServerT PrimerIO)
+openAPIServer :: ConvertServerLogs l => OpenAPI.RootAPI (AsServerT (Primer l))
 openAPIServer =
   OpenAPI.RootAPI
     { OpenAPI.copySession = API.copySession
@@ -97,7 +97,7 @@ openAPIServer =
     , OpenAPI.sessionsAPI = openAPISessionsServer
     }
 
-openAPISessionsServer :: OpenAPI.SessionsAPI (AsServerT PrimerIO)
+openAPISessionsServer :: ConvertServerLogs l => OpenAPI.SessionsAPI (AsServerT (Primer l))
 openAPISessionsServer =
   OpenAPI.SessionsAPI
     { OpenAPI.createSession = newSession
@@ -105,7 +105,7 @@ openAPISessionsServer =
     , OpenAPI.sessionAPI = openAPISessionServer
     }
 
-openAPISessionServer :: SessionId -> OpenAPI.SessionAPI (AsServerT PrimerIO)
+openAPISessionServer :: ConvertServerLogs l => SessionId -> OpenAPI.SessionAPI (AsServerT (Primer l))
 openAPISessionServer sid =
   OpenAPI.SessionAPI
     { OpenAPI.getProgram = \patternsUnder -> API.getProgram' (ExprTreeOpts{patternsUnder}) sid
@@ -114,30 +114,11 @@ openAPISessionServer sid =
     , OpenAPI.actions = openAPIActionServer sid
     }
 
-openAPIActionServer :: SessionId -> OpenAPI.ActionAPI (AsServerT PrimerIO)
+openAPIActionServer :: ConvertServerLogs l => SessionId -> OpenAPI.ActionAPI (AsServerT (Primer l))
 openAPIActionServer sid =
-  OpenAPI.ActionAPI
-    { available =
-        \level Selection{..} -> do
-          prog <- getProgram sid
-          let allDefs = progAllDefs prog
-              allTypeDefs = progAllTypeDefs prog
-          map (map API.convertOfferedAction) $ case node of
-            Nothing ->
-              pure $ actionsForDef level allDefs def
-            Just NodeSelection{..} -> do
-              case allDefs !? def of
-                Nothing -> throwM $ UnknownDef def
-                Just (_, DefPrim _) -> throwM $ UnexpectedPrimDef def
-                Just (editable, DefAST ASTDef{astDefType = type_, astDefExpr = expr}) ->
-                  pure $ case nodeType of
-                    SigNode -> do
-                      actionsForDefSig level def editable id type_
-                    BodyNode -> do
-                      actionsForDefBody (snd <$> allTypeDefs) level def editable id expr
-    }
+  OpenAPI.ActionAPI{available = availableActions sid}
 
-apiServer :: S.RootAPI (AsServerT PrimerIO)
+apiServer :: ConvertServerLogs l => S.RootAPI (AsServerT (Primer l))
 apiServer =
   S.RootAPI
     { S.copySession = API.copySession
@@ -146,7 +127,7 @@ apiServer =
     , S.sessionsAPI = sessionsAPIServer
     }
 
-sessionsAPIServer :: S.SessionsAPI (AsServerT PrimerIO)
+sessionsAPIServer :: ConvertServerLogs l => S.SessionsAPI (AsServerT (Primer l))
 sessionsAPIServer =
   S.SessionsAPI
     { S.createSession = newSession
@@ -155,7 +136,7 @@ sessionsAPIServer =
     , S.sessionAPI = sessionAPIServer
     }
 
-sessionAPIServer :: SessionId -> S.SessionAPI (AsServerT PrimerIO)
+sessionAPIServer :: ConvertServerLogs l => SessionId -> S.SessionAPI (AsServerT (Primer l))
 sessionAPIServer sid =
   S.SessionAPI
     { S.getProgram = API.getProgram sid
@@ -168,14 +149,14 @@ sessionAPIServer sid =
     , S.evalFull = API.evalFull sid
     }
 
-questionAPIServer :: SessionId -> S.QuestionAPI (AsServerT PrimerIO)
+questionAPIServer :: ConvertServerLogs l => SessionId -> S.QuestionAPI (AsServerT (Primer l))
 questionAPIServer sid =
   S.QuestionAPI
     { S.variablesInScope = API.variablesInScope sid
     , S.generateNames = API.generateNames sid
     }
 
-adminAPIServer :: S.AdminAPI (AsServerT PrimerIO)
+adminAPIServer :: ConvertServerLogs l => S.AdminAPI (AsServerT (Primer l))
 adminAPIServer =
   S.AdminAPI
     { S.flushSessions = API.flushSessions >> pure NoContent
@@ -202,7 +183,7 @@ data API mode = API
   }
   deriving (Generic)
 
-server :: API (AsServerT PrimerIO)
+server :: ConvertServerLogs l => API (AsServerT (Primer l))
 server =
   API
     { getSpec = pure openAPIInfo
@@ -222,7 +203,8 @@ apiCors =
     }
 
 serve ::
-  ConvertLogMessage PrimerErr l =>
+  forall l.
+  (ConvertLogMessage PrimerErr l, ConvertServerLogs l) =>
   Sessions ->
   TBQueue Database.Op ->
   Version ->
@@ -250,13 +232,17 @@ serve ss q v port logger = do
     metrics :: WAI.Middleware
     metrics = P.prometheus P.def
 
-    nt :: PrimerIO a -> Handler a
-    nt m = Handler $ ExceptT $ catch (Right <$> runPrimerIO m (Env ss q v)) handler
+    nt :: Primer l a -> Handler a
+    nt m =
+      Handler $
+        ExceptT $
+          flip runLoggingT logger $
+            catch (Right <$> runPrimerM m (Env ss q v)) handler
 
     -- Catch exceptions from the API and convert them to Servant
     -- errors via 'Either'.
-    handler :: PrimerErr -> IO (Either ServerError a)
-    handler e = flip runLoggingT logger $ do
+    handler :: PrimerErr -> LoggingT (WithSeverity l) IO (Either ServerError a)
+    handler e = do
       logWarning e
       pure . Left $ case e of
         DatabaseErr msg -> err500{errBody = encode msg}
