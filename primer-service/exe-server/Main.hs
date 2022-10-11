@@ -64,6 +64,8 @@ import Primer.Log (
   textWithSeverity,
  )
 import Primer.Server qualified as Server
+import Prometheus qualified as P
+import Prometheus.Metric.GHC qualified as P
 import StmContainers.Map qualified as StmMap
 import System.Environment (lookupEnv)
 import System.IO (
@@ -205,6 +207,10 @@ serve (PostgreSQL uri) ver port qsz logger =
 
 main :: IO ()
 main = do
+  -- Register GHC metrics with Prometheus. This needs to be done very
+  -- early in the program.
+  void $ P.register P.ghcMetrics
+
   -- It's common in Linux containers to log to stdout, so let's ensure
   -- it's line-buffered, as we can't guarantee what the GHC runtime
   -- will do by default.
