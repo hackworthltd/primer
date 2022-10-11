@@ -170,7 +170,7 @@ actionsForDefBody ::
   [OfferedAction [ProgAction]]
 actionsForDefBody _ _ _ NonEditable _ _ = mempty
 actionsForDefBody tydefs l defName mut@Editable id expr =
-  let toProgAction actions = [MoveToDef defName, BodyAction actions]
+  let toProgAction actions = [MoveToDef defName, BodyAction $ SetCursor id : actions]
 
       raiseAction' =
         OfferedAction
@@ -209,7 +209,7 @@ actionsForDefSig ::
   [OfferedAction [ProgAction]]
 actionsForDefSig _ _ NonEditable _ _ = mempty
 actionsForDefSig l defName Editable id ty =
-  let toProgAction actions = [MoveToDef defName, SigAction actions]
+  let toProgAction actions = [MoveToDef defName, SigAction $ SetCursor id : actions]
 
       raiseAction =
         [ OfferedAction
@@ -281,22 +281,22 @@ findType id ty = target <$> focusOnTy id ty
 
 -- | From multiple actions, construct an ActionSpec which starts with SetCursor
 action :: ActionName -> Text -> Int -> ActionType -> [Action] -> Meta a -> OfferedAction [Action]
-action name description priority actionType as m =
+action name description priority actionType as _m =
   OfferedAction
     { name
     , description
-    , input = NoInputRequired $ SetCursor (m ^. _id) : as
+    , input = NoInputRequired as
     , priority
     , actionType
     }
 
 -- | Construct an ActionSpec which requires some input, and then starts with SetCursor
 actionWithInput :: ActionName -> Text -> Int -> ActionType -> UserInput [Action] -> Meta a -> OfferedAction [Action]
-actionWithInput name description priority actionType input m =
+actionWithInput name description priority actionType input _m =
   OfferedAction
     { name
     , description
-    , input = InputRequired $ map (\as -> SetCursor (m ^. _id) : as) input
+    , input = InputRequired input
     , priority
     , actionType
     }
@@ -317,7 +317,7 @@ actionWithNames defName tk k m prompt =
       ChooseOrEnterName
         prompt
         options
-        (\n -> SetCursor (m ^. _id) : k (unName n))
+        (k . unName)
 
 -- | Given an expression, determine what basic actions it supports
 -- Specific projections may provide other actions not listed here
