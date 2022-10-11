@@ -280,8 +280,8 @@ findType :: forall b. Data b => ID -> Type' (Meta b) -> Maybe (Type' (Meta b))
 findType id ty = target <$> focusOnTy id ty
 
 -- | From multiple actions, construct an ActionSpec which starts with SetCursor
-action :: ActionName -> Text -> Int -> ActionType -> [Action] -> Meta a -> OfferedAction [Action]
-action name description priority actionType as _m =
+action :: ActionName -> Text -> Int -> ActionType -> [Action] -> OfferedAction [Action]
+action name description priority actionType as =
   OfferedAction
     { name
     , description
@@ -291,8 +291,8 @@ action name description priority actionType as _m =
     }
 
 -- | Construct an ActionSpec which requires some input, and then starts with SetCursor
-actionWithInput :: ActionName -> Text -> Int -> ActionType -> UserInput [Action] -> Meta a -> OfferedAction [Action]
-actionWithInput name description priority actionType input _m =
+actionWithInput :: ActionName -> Text -> Int -> ActionType -> UserInput [Action] -> OfferedAction [Action]
+actionWithInput name description priority actionType input =
   OfferedAction
     { name
     , description
@@ -324,13 +324,13 @@ actionWithNames defName tk k m prompt =
 basicActionsForExpr :: TypeDefMap -> Level -> GVarName -> Expr -> [OfferedAction [Action]]
 basicActionsForExpr tydefs l defName expr = case expr of
   EmptyHole m -> universalActions m <> emptyHoleActions m
-  Hole m _ -> defaultActions m <> holeActions m
-  Ann m _ _ -> defaultActions m <> annotationActions m
+  Hole m _ -> defaultActions m <> holeActions
+  Ann m _ _ -> defaultActions m <> annotationActions
   Lam m _ _ -> defaultActions m <> lambdaActions m
   LAM m _ _ -> defaultActions m <> bigLambdaActions m
   Let m v e _ -> defaultActions m <> letActions v e m
   Letrec m _ _ t _ -> defaultActions m <> letRecActions (Just t) m
-  e -> let m = e ^. _exprMetaLens in defaultActions m ++ expert (annotateExpression m)
+  e -> let m = e ^. _exprMetaLens in defaultActions m ++ expert annotateExpression
   where
     insertVariable =
       let filterVars = case l of
@@ -362,18 +362,17 @@ basicActionsForExpr tydefs l defName expr = case expr of
         ( ChooseVariable OnlyFunctions $
             \name -> [if offerRefined m then InsertRefinedVar name else InsertSaturatedVar name]
         )
-        m
 
-    annotateExpression :: Meta a -> OfferedAction [Action]
+    annotateExpression :: OfferedAction [Action]
     annotateExpression = action (Code ":") "Annotate this expression with a type" (P.annotateExpr l) Primary [ConstructAnn]
 
-    applyFunction :: Meta a -> OfferedAction [Action]
+    applyFunction :: OfferedAction [Action]
     applyFunction = action (Code "$") "Apply function" (P.applyFunction l) Primary [ConstructApp, Move Child2]
 
-    applyType :: Meta a -> OfferedAction [Action]
+    applyType :: OfferedAction [Action]
     applyType = action (Code "@") "Apply type" (P.applyType l) Destructive [ConstructAPP, EnterType]
 
-    patternMatch :: Meta a -> OfferedAction [Action]
+    patternMatch :: OfferedAction [Action]
     patternMatch = action (Code "m") patternMatchProse (P.makeCase l) Destructive [ConstructCase]
 
     patternMatchProse = case l of
@@ -413,7 +412,7 @@ basicActionsForExpr tydefs l defName expr = case expr of
         , actionType = Primary
         }
 
-    useValueConstructor :: Meta a -> OfferedAction [Action]
+    useValueConstructor :: OfferedAction [Action]
     useValueConstructor =
       let filterCtors = case l of
             Beginner -> NoFunctions
@@ -439,7 +438,6 @@ basicActionsForExpr tydefs l defName expr = case expr of
             OnlyFunctions
             (\c -> [if offerRefined m then ConstructRefinedCon c else ConstructSaturatedCon c])
         )
-        m
 
     makeLetBinding :: Meta a -> OfferedAction [Action]
     makeLetBinding m =
@@ -473,13 +471,13 @@ basicActionsForExpr tydefs l defName expr = case expr of
         , actionType = Primary
         }
 
-    enterHole :: Meta a -> OfferedAction [Action]
+    enterHole :: OfferedAction [Action]
     enterHole = action (Prose "h") "Make this hole into a non-empty hole" (P.enterHole l) Primary [EnterHole]
 
-    finishHole :: Meta a -> OfferedAction [Action]
+    finishHole :: OfferedAction [Action]
     finishHole = action (Prose "e") "Convert this into a normal expression" (P.finishHole l) Primary [FinishHole]
 
-    removeAnnotation :: Meta a -> OfferedAction [Action]
+    removeAnnotation :: OfferedAction [Action]
     removeAnnotation = action (Prose "⌫:") "Remove this annotation" (P.removeAnnotation l) Destructive [RemoveAnn]
 
     renameVariable :: ExprMeta -> OfferedAction [Action]
@@ -514,7 +512,7 @@ basicActionsForExpr tydefs l defName expr = case expr of
         , actionType = Primary
         }
 
-    makeLetRecursive :: Meta a -> OfferedAction [Action]
+    makeLetRecursive :: OfferedAction [Action]
     makeLetRecursive = action (Prose "rec") "Make this let recursive" (P.makeLetRecursive l) Primary [ConvertLetToLetrec]
 
     renameLet :: Maybe (Type' b) -> Meta a -> OfferedAction [Action]
@@ -533,7 +531,7 @@ basicActionsForExpr tydefs l defName expr = case expr of
         , actionType = Primary
         }
 
-    deleteExpr :: Meta a -> OfferedAction [Action]
+    deleteExpr :: OfferedAction [Action]
     deleteExpr = action (Prose "⌫") "Delete this expression" (P.delete l) Destructive [Delete]
 
     expert :: a -> [a]
@@ -542,46 +540,46 @@ basicActionsForExpr tydefs l defName expr = case expr of
     emptyHoleActions :: ExprMeta -> [OfferedAction [Action]]
     emptyHoleActions m = case l of
       Beginner ->
-        [ insertVariable m
-        , useValueConstructor m
+        [ insertVariable
+        , useValueConstructor
         ]
       _ ->
-        [ insertVariable m
+        [ insertVariable
         , insertVariableSaturatedRefined m
-        , useValueConstructor m
+        , useValueConstructor
         , useSaturatedRefinedValueConstructor m
         , makeLetBinding m
         , makeLetrec m
-        , enterHole m
+        , enterHole
         ]
-          ++ expert (annotateExpression m)
+          ++ expert annotateExpression
 
-    holeActions :: Meta a -> [OfferedAction [Action]]
-    holeActions m = finishHole m : expert (annotateExpression m)
+    holeActions :: [OfferedAction [Action]]
+    holeActions = finishHole : expert annotateExpression
 
-    annotationActions :: Meta a -> [OfferedAction [Action]]
-    annotationActions m = case l of
+    annotationActions :: [OfferedAction [Action]]
+    annotationActions = case l of
       Beginner -> []
       Intermediate -> []
-      Expert -> [removeAnnotation m]
+      Expert -> [removeAnnotation]
 
     lambdaActions :: ExprMeta -> [OfferedAction [Action]]
-    lambdaActions m = renameVariable m : expert (annotateExpression m)
+    lambdaActions m = renameVariable m : expert annotateExpression
 
     bigLambdaActions :: ExprMeta -> [OfferedAction [Action]]
     bigLambdaActions m = case l of
       Beginner -> []
       Intermediate -> []
-      Expert -> [annotateExpression m, renameTypeVariable m]
+      Expert -> [annotateExpression, renameTypeVariable m]
 
     letActions :: LVarName -> Expr -> Meta a -> [OfferedAction [Action]]
     letActions v e m =
       renameLet (e ^? _exprMetaLens % _type % _Just % _synthed) m
-        : munless (unLocalName v `Set.member` freeVars e) [makeLetRecursive m]
-          <> expert (annotateExpression m)
+        : munless (unLocalName v `Set.member` freeVars e) [makeLetRecursive]
+          <> expert annotateExpression
 
     letRecActions :: Maybe (Type' b) -> Meta a -> [OfferedAction [Action]]
-    letRecActions t m = renameLet t m : expert (annotateExpression m)
+    letRecActions t m = renameLet t m : expert annotateExpression
 
     -- Actions for every expression node
     -- We assume that the input program is type-checked, in order to
@@ -594,18 +592,18 @@ basicActionsForExpr tydefs l defName expr = case expr of
               ]
             Intermediate ->
               [ makeLambda m
-              , applyFunction m
+              , applyFunction
               ]
             Expert ->
-              [ applyFunction m
-              , applyType m
+              [ applyFunction
+              , applyType
               , makeLambda m
               , makeTypeAbstraction m
               ]
           synthTy = m ^? _type % _Just % _synthed
           synOnly ty = case getTypeDefInfo' tydefs ty of
-            Left TDIHoleType{} -> Just $ patternMatch m
-            Right (TypeDefInfo _ _ TypeDefAST{}) -> Just $ patternMatch m
+            Left TDIHoleType{} -> Just patternMatch
+            Right (TypeDefInfo _ _ TypeDefAST{}) -> Just patternMatch
             _ -> Nothing
        in (synOnly =<< synthTy) ?: both
 
@@ -624,7 +622,7 @@ basicActionsForExpr tydefs l defName expr = case expr of
 
     -- Actions for every expression node except holes and annotations
     defaultActions :: ExprMeta -> [OfferedAction [Action]]
-    defaultActions m = universalActions m <> [deleteExpr m]
+    defaultActions m = universalActions m <> [deleteExpr]
 
 (?:) :: Maybe a -> [a] -> [a]
 Just x ?: xs = x : xs
@@ -635,17 +633,17 @@ infixr 5 ?:
 -- Specific projections may provide other actions not listed here
 basicActionsForType :: Level -> GVarName -> Type -> [OfferedAction [Action]]
 basicActionsForType l defName ty = case ty of
-  TEmptyHole m -> universalActions m <> emptyHoleActions m
+  TEmptyHole m -> universalActions m <> emptyHoleActions
   TForall m _ k _ -> defaultActions m <> forAllActions k m
   t -> defaultActions $ t ^. _typeMetaLens
   where
     -- We arbitrarily choose that the "construct a function type" action places the focused expression
     -- on the domain (left) side of the arrow.
-    constructFunctionType :: Meta a -> OfferedAction [Action]
+    constructFunctionType :: OfferedAction [Action]
     constructFunctionType = action (Code "→") "Construct a function type" (P.constructFunction l) Primary [ConstructArrowL, Move Child1]
 
     constructPolymorphicType :: Meta a -> OfferedAction [Action]
-    constructPolymorphicType m' =
+    constructPolymorphicType m =
       OfferedAction
         { name = Code "∀"
         , description = "Construct a polymorphic type"
@@ -654,19 +652,19 @@ basicActionsForType l defName ty = case ty of
               defName
               (Right Nothing)
               (\n -> [ConstructTForall (Just n), Move Child1])
-              m'
+              m
               ("Choose a " <> nameString <> " for the bound type variable")
         , priority = P.constructForall l
         , actionType = Primary
         }
 
-    constructTypeApplication :: Meta a -> OfferedAction [Action]
+    constructTypeApplication :: OfferedAction [Action]
     constructTypeApplication = action (Code "$") "Construct a type application" (P.constructTypeApp l) Primary [ConstructTApp, Move Child1]
 
-    useTypeConstructor :: Meta a -> OfferedAction [Action]
+    useTypeConstructor :: OfferedAction [Action]
     useTypeConstructor = actionWithInput (Code "T") "Use a type constructor" (P.useTypeCon l) Primary $ ChooseTypeConstructor (\t -> [ConstructTCon t])
 
-    useTypeVariable :: Meta a -> OfferedAction [Action]
+    useTypeVariable :: OfferedAction [Action]
     useTypeVariable = actionWithInput (Code "t") "Use a type variable" (P.useTypeVar l) Primary $ ChooseTypeVariable (\v -> [ConstructTVar v])
 
     renameTypeVariable :: Kind -> Meta a -> OfferedAction [Action]
@@ -685,16 +683,16 @@ basicActionsForType l defName ty = case ty of
         , actionType = Primary
         }
 
-    deleteType :: Meta a -> OfferedAction [Action]
+    deleteType :: OfferedAction [Action]
     deleteType = action (Prose "⌫") "Delete this type" (P.delete l) Destructive [Delete]
 
-    emptyHoleActions :: Meta a -> [OfferedAction [Action]]
-    emptyHoleActions m = case l of
-      Beginner -> [useTypeConstructor m]
-      Intermediate -> [useTypeConstructor m]
+    emptyHoleActions :: [OfferedAction [Action]]
+    emptyHoleActions = case l of
+      Beginner -> [useTypeConstructor]
+      Intermediate -> [useTypeConstructor]
       Expert ->
-        [ useTypeConstructor m
-        , useTypeVariable m
+        [ useTypeConstructor
+        , useTypeVariable
         ]
 
     forAllActions :: Kind -> Meta a -> [OfferedAction [Action]]
@@ -706,23 +704,23 @@ basicActionsForType l defName ty = case ty of
     -- Actions for every type node
     universalActions :: Meta a -> [OfferedAction [Action]]
     universalActions m = case l of
-      Beginner -> [constructFunctionType m]
-      Intermediate -> [constructFunctionType m]
+      Beginner -> [constructFunctionType]
+      Intermediate -> [constructFunctionType]
       Expert ->
-        [ constructFunctionType m
+        [ constructFunctionType
         , constructPolymorphicType m
-        , constructTypeApplication m
+        , constructTypeApplication
         ]
 
     -- Actions for every type node except empty holes
     defaultActions :: Meta a -> [OfferedAction [Action]]
-    defaultActions m = universalActions m <> [deleteType m]
+    defaultActions m = universalActions m <> [deleteType]
 
 -- | These actions are more involved than the basic actions.
 -- They may involve moving around the AST and performing several basic actions.
 compoundActionsForType :: Level -> Type' (Meta a) -> [OfferedAction [Action]]
 compoundActionsForType l ty = case ty of
-  TFun m a b -> [addFunctionArgument a b m]
+  TFun _m a b -> [addFunctionArgument a b]
   _ -> []
   where
     -- This action traverses the function type and adds a function arrow to the end of it,
