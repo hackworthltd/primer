@@ -205,7 +205,7 @@ in
         exit 1
       fi
       primer-sqitch verify db:"$DATABASE_URL"
-      exec primer-service serve "${version}" --port ${toString lib.primer.defaultServicePort}
+      exec primer-service serve "${version}" --port ${toString lib.primer.defaultServicePort} +RTS -T
     '';
   };
 }

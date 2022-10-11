@@ -37,6 +37,7 @@ import Network.Wai.Middleware.Cors (
   simpleHeaders,
   simpleMethods,
  )
+import Network.Wai.Middleware.Prometheus qualified as P
 import Optics ((%), (.~), (?~))
 import Primer.API (
   Env (..),
@@ -232,7 +233,8 @@ serve ss q v port logger = do
   Warp.runSettings warpSettings $
     noCache $
       cors (const $ Just apiCors) $
-        genericServeT nt server
+        metrics $
+          genericServeT nt server
   where
     -- By default Warp will try to bind on either IPv4 or IPv6, whichever is
     -- available.
@@ -244,6 +246,9 @@ serve ss q v port logger = do
 
     noCache :: WAI.Middleware
     noCache = WAI.modifyResponse $ WAI.mapResponseHeaders (("Cache-Control", "no-store") :)
+
+    metrics :: WAI.Middleware
+    metrics = P.prometheus P.def
 
     nt :: PrimerIO a -> Handler a
     nt m = Handler $ ExceptT $ catch (Right <$> runPrimerIO m (Env ss q v)) handler
