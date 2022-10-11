@@ -3,8 +3,6 @@
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE RecordWildCards #-}
 
-{- HLINT ignore "Use newtype instead of data" -}
-
 -- | The Primer API.
 --
 -- This module defines the Primer API, which is collection of
@@ -212,8 +210,6 @@ type PrimerIO = PrimerM IO
 -- | Run a 'PrimerIO' action with the given 'Env'.
 runPrimerIO :: PrimerIO a -> Env -> IO a
 runPrimerIO = runPrimerM
-
-{- HLINT ignore PrimerErr "Use newtype instead of data" -}
 
 -- | Primer exception class.
 data PrimerErr
@@ -495,6 +491,7 @@ viewProg exprTreeOpts p =
               <$> Map.assocs (moduleDefsQualified m)
         }
 
+{- HLINT ignore ExprTreeOpts "Use newtype instead of data" -}
 data ExprTreeOpts = ExprTreeOpts
   { patternsUnder :: Bool
   -- ^ Some renderers may struggle with aligning subtrees to the right.
