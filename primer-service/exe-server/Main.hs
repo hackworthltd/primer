@@ -55,6 +55,7 @@ import Primer.Database.Rel8 (
   Rel8DbLogMessage (..),
   runRel8DbT,
  )
+import Primer.EvalFull (EvalFullLog)
 import Primer.Log (
   ConvertLogMessage (..),
   logCritical,
@@ -261,4 +262,7 @@ instance ConvertLogMessage PrimerErr LogMsg where
   convert (UnexpectedPrimDef e) = LogMsg $ show e
 
 instance ConvertLogMessage APILog LogMsg where
+  convert = LogMsg . show
+
+instance ConvertLogMessage EvalFullLog LogMsg where
   convert = LogMsg . show

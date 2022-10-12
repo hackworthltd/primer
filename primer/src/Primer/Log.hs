@@ -10,10 +10,13 @@ module Primer.Log (
   textWithSeverity,
   PureLogT,
   runPureLogT,
+  PureLog,
+  runPureLog,
 ) where
 
 import Foreword
 
+import Control.Monad.Fresh (MonadFresh)
 import Control.Monad.Log (
   LoggingT,
   MonadLog,
@@ -33,6 +36,7 @@ import Control.Monad.Log qualified as Log (
   logNotice,
   logWarning,
  )
+import Control.Monad.Trans (MonadTrans)
 
 logSeverity :: Severity -> Text
 logSeverity Debug = "[DEBUG]     "
@@ -85,7 +89,11 @@ newtype PureLogT l m a = PureLogs (LoggingT l (PureLoggingT (Seq l) m) a)
     , MonadIO
     , MonadThrow
     , MonadCatch
+    , MonadFresh i
     )
+
+instance MonadTrans (PureLogT l) where
+  lift = PureLogs . lift . lift
 
 -- | Purely accumulate log messages in a 'Seq'.
 -- Note that this may cause a large amount of memory to be retained if you
@@ -95,3 +103,8 @@ newtype PureLogT l m a = PureLogs (LoggingT l (PureLoggingT (Seq l) m) a)
 runPureLogT :: Monad m => PureLogT l m a -> m (a, Seq l)
 runPureLogT (PureLogs m) = runPureLoggingT $ runLoggingT m $ \l ->
   let !l' = l in logMessage $ pure l'
+
+type PureLog l = PureLogT l Identity
+
+runPureLog :: PureLog l a -> (a, Seq l)
+runPureLog = runIdentity . runPureLogT

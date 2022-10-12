@@ -16,7 +16,9 @@ module TestUtils (
   clearTypeMeta,
   runAPI,
   LogMsg,
+  isSevereLog,
   assertNoSevereLogs,
+  testNoSevereLogs,
 ) where
 
 import Foreword
@@ -29,6 +31,7 @@ import Data.Map qualified as Map
 import Data.Sequence qualified as Seq
 import Data.String (String)
 import Data.Typeable (typeOf)
+import Hedgehog (MonadTest, (===))
 import Optics (over, set, view)
 import Primer.API (
   Env (..),
@@ -153,6 +156,9 @@ assertNoSevereLogs logs =
    in if null severe
         then pure ()
         else assertFailure $ toS $ unlines $ "Test logged severe errors:" : foldMap ((: []) . show) severe
+
+testNoSevereLogs :: (HasCallStack, MonadTest m, Eq l, Show l) => Seq (WithSeverity l) -> m ()
+testNoSevereLogs logs = Seq.filter isSevereLog logs === mempty
 
 -- Run 2 threads: one that serves a 'NullDb', and one that runs Primer
 -- API actions. This allows us to simulate a database and API service.

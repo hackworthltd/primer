@@ -5,6 +5,7 @@ module Tests.Action.Prog where
 import Foreword
 
 import Control.Monad.Fresh
+import Control.Monad.Log (MonadLog, WithSeverity)
 import Data.Generics.Uniplate.Data (transformBi)
 import Data.List.Extra (anySame)
 import Data.Map.Strict qualified as Map
@@ -110,6 +111,7 @@ import Primer.Core.DSL (
  )
 import Primer.Core.Utils (forgetMetadata)
 import Primer.Def (ASTDef (..), Def (..), DefMap, defAST)
+import Primer.Log (PureLogT, runPureLogT)
 import Primer.Module (Module (Module, moduleDefs, moduleName, moduleTypes), builtinModule, moduleDefsQualified, moduleTypesQualified, primitiveModule)
 import Primer.Name
 import Primer.Primitives (PrimDef (IntAdd, ToUpper), primitiveGVar, tChar)
@@ -121,7 +123,7 @@ import Primer.Typecheck (
  )
 import Test.Tasty.HUnit (Assertion, assertBool, assertFailure, (@=?), (@?=))
 import TestM (TestM, evalTestM)
-import TestUtils (constructCon, constructTCon, zeroIDs, zeroTypeIDs)
+import TestUtils (LogMsg, assertNoSevereLogs, constructCon, constructTCon, zeroIDs, zeroTypeIDs)
 import TestUtils qualified
 import Tests.Typecheck (checkProgWellFormed)
 import Prelude (error)
@@ -306,7 +308,7 @@ unit_create_def_imported_module =
         handleEditRequest [CreateDef builtins $ Just "newDef"]
       a = newEmptyApp
    in do
-        case fst $ runAppTestM (appIdCounter a) a test of
+        runAppTestM (appIdCounter a) a test <&> fst >>= \case
           Left err -> err @?= ModuleReadonly builtins
           Right _ -> assertFailure "Expected CreateDef to complain about module being read-only"
 
@@ -541,18 +543,19 @@ unit_copy_paste_duplicate = do
           )
   let a = mkTestApp p
       actions = [MoveToDef toDef, CopyPasteSig (fromDef, fromType) [], CopyPasteBody (fromDef, fromExpr) []]
-      (result, _) = runAppTestM maxID a $ (,) <$> tcWholeProg p <*> handleEditRequest actions
-  case result of
-    Left e -> assertFailure $ show e
-    Right (tcp, r) ->
-      -- use the typechecked input p, as the result will have had a typecheck run, so
-      -- we need the cached kinds to match up
-      let src = lookupASTDef fromDef (foldMap moduleDefsQualified $ progModules tcp)
-          clearIDs = fmap clearASTDefIDs
-       in do
-            src @?= lookupASTDef fromDef (foldMap moduleDefsQualified $ progModules r)
-            assertBool "equal to toDef" $ src /= lookupASTDef' "blank" r
-            clearIDs src @?= clearIDs (lookupASTDef' "blank" r)
+  do
+    (result, _) <- runAppTestM maxID a $ (,) <$> tcWholeProg p <*> handleEditRequest actions
+    case result of
+      Left e -> assertFailure $ show e
+      Right (tcp, r) ->
+        -- use the typechecked input p, as the result will have had a typecheck run, so
+        -- we need the cached kinds to match up
+        let src = lookupASTDef fromDef (foldMap moduleDefsQualified $ progModules tcp)
+            clearIDs = fmap clearASTDefIDs
+         in do
+              src @?= lookupASTDef fromDef (foldMap moduleDefsQualified $ progModules r)
+              assertBool "equal to toDef" $ src /= lookupASTDef' "blank" r
+              clearIDs src @?= clearIDs (lookupASTDef' "blank" r)
 
 -- ∀a,d,f . (∀b,c,d . a -> b -> ∀e. c -> d -> e -> f)  -> ∀c,f. ?
 -- copy               ^----------------------------^
@@ -590,13 +593,14 @@ unit_copy_paste_type_scoping = do
           )
   let a = mkEmptyTestApp pInitial
       actions = [MoveToDef mainName, CopyPasteSig (mainName, srcID) [Move Child1, Move Child1, Move Child1, Move Child2, Move Child1, Move Child1]]
-      (result, _) = runAppTestM maxID a $ (,) <$> tcWholeProg pExpected <*> handleEditRequest actions
-  case result of
-    Left e -> assertFailure $ show e
-    Right (tcpExpected, r) ->
-      -- use the typechecked input p, as the result will have had a typecheck run, so
-      -- we need the cached kinds to match up
-      clearDefMapIDs (foldMap moduleDefsQualified $ progModules r) @?= clearDefMapIDs (foldMap moduleDefsQualified $ progModules tcpExpected)
+  do
+    (result, _) <- runAppTestM maxID a $ (,) <$> tcWholeProg pExpected <*> handleEditRequest actions
+    case result of
+      Left e -> assertFailure $ show e
+      Right (tcpExpected, r) ->
+        -- use the typechecked input p, as the result will have had a typecheck run, so
+        -- we need the cached kinds to match up
+        clearDefMapIDs (foldMap moduleDefsQualified $ progModules r) @?= clearDefMapIDs (foldMap moduleDefsQualified $ progModules tcpExpected)
 
 -- ∀a b.a ~> ∀a.a
 unit_raise :: Assertion
@@ -614,13 +618,14 @@ unit_raise = do
           )
   let a = mkEmptyTestApp pInitial
       actions = [MoveToDef mainName, CopyPasteSig (mainName, srcID) [Move Child1, Delete]]
-      (result, _) = runAppTestM maxID a $ (,) <$> tcWholeProg pExpected <*> handleEditRequest actions
-  case result of
-    Left e -> assertFailure $ show e
-    Right (tcpExpected, r) ->
-      -- use the typechecked input p, as the result will have had a typecheck run, so
-      -- we need the cached kinds to match up
-      clearDefMapIDs (foldMap moduleDefsQualified $ progModules r) @?= clearDefMapIDs (foldMap moduleDefsQualified $ progModules tcpExpected)
+  do
+    (result, _) <- runAppTestM maxID a $ (,) <$> tcWholeProg pExpected <*> handleEditRequest actions
+    case result of
+      Left e -> assertFailure $ show e
+      Right (tcpExpected, r) ->
+        -- use the typechecked input p, as the result will have had a typecheck run, so
+        -- we need the cached kinds to match up
+        clearDefMapIDs (foldMap moduleDefsQualified $ progModules r) @?= clearDefMapIDs (foldMap moduleDefsQualified $ progModules tcpExpected)
 
 -- ∀a. List a -> ∀b. b -> Pair a b
 -- /\a . λ x . case x of Nil -> ? ; Cons y ys -> /\@b z -> Pair @a @b y z
@@ -655,13 +660,14 @@ unit_copy_paste_expr_1 = do
           )
   let a = mkTestApp pInitial
       actions = [MoveToDef mainName, CopyPasteBody (mainName, srcID) [Move Child1, Move Child1, Move (Branch cNil)]]
-      (result, _) = runAppTestM maxID a $ (,) <$> tcWholeProg pExpected <*> handleEditRequest actions
-  case result of
-    Left e -> assertFailure $ show e
-    Right (tcpExpected, r) ->
-      -- use the typechecked input p, as the result will have had a typecheck run, so
-      -- we need the cached kinds to match up
-      clearDefMapIDs (foldMap moduleDefsQualified $ progModules r) @?= clearDefMapIDs (foldMap moduleDefsQualified $ progModules tcpExpected)
+  do
+    (result, _) <- runAppTestM maxID a $ (,) <$> tcWholeProg pExpected <*> handleEditRequest actions
+    case result of
+      Left e -> assertFailure $ show e
+      Right (tcpExpected, r) ->
+        -- use the typechecked input p, as the result will have had a typecheck run, so
+        -- we need the cached kinds to match up
+        clearDefMapIDs (foldMap moduleDefsQualified $ progModules r) @?= clearDefMapIDs (foldMap moduleDefsQualified $ progModules tcpExpected)
 
 unit_copy_paste_ann :: Assertion
 unit_copy_paste_ann = do
@@ -679,18 +685,19 @@ unit_copy_paste_ann = do
           )
   let a = mkTestApp p
       actions = [MoveToDef toDef, CopyPasteBody (fromDef, fromAnn) [EnterType]]
-  let (result, _) = runAppTestM maxID a $ (,) <$> tcWholeProg p <*> handleEditRequest actions
-  case result of
-    Left e -> assertFailure $ show e
-    Right (tcp, r) ->
-      -- use the typechecked input p, as the result will have had a typecheck run, so
-      -- we need the cached kinds to match up
-      let src = lookupASTDef' fromDef' tcp
-          clearIDs = fmap clearASTDefIDs
-       in do
-            src @?= lookupASTDef' fromDef' r
-            assertBool "equal to blank" $ src /= lookupASTDef' toDef' r
-            clearIDs src @?= clearIDs (lookupASTDef' toDef' r)
+  do
+    (result, _) <- runAppTestM maxID a $ (,) <$> tcWholeProg p <*> handleEditRequest actions
+    case result of
+      Left e -> assertFailure $ show e
+      Right (tcp, r) ->
+        -- use the typechecked input p, as the result will have had a typecheck run, so
+        -- we need the cached kinds to match up
+        let src = lookupASTDef' fromDef' tcp
+            clearIDs = fmap clearASTDefIDs
+         in do
+              src @?= lookupASTDef' fromDef' r
+              assertBool "equal to blank" $ src /= lookupASTDef' toDef' r
+              clearIDs src @?= clearIDs (lookupASTDef' toDef' r)
 
 unit_copy_paste_ann2sig :: Assertion
 unit_copy_paste_ann2sig = do
@@ -705,13 +712,14 @@ unit_copy_paste_ann2sig = do
           )
   let a = mkTestApp pInitial
       actions = [moveToDef "main", copyPasteSig ("main", srcID) []]
-      (result, _) = runAppTestM maxID a $ (,) <$> tcWholeProg pExpected <*> handleEditRequest actions
-  case result of
-    Left e -> assertFailure $ show e
-    Right (tcpExpected, r) ->
-      -- use the typechecked input p, as the result will have had a typecheck run, so
-      -- we need the cached kinds to match up
-      clearDefMapIDs (foldMap moduleDefsQualified $ progModules r) @?= clearDefMapIDs (foldMap moduleDefsQualified $ progModules tcpExpected)
+  do
+    (result, _) <- runAppTestM maxID a $ (,) <$> tcWholeProg pExpected <*> handleEditRequest actions
+    case result of
+      Left e -> assertFailure $ show e
+      Right (tcpExpected, r) ->
+        -- use the typechecked input p, as the result will have had a typecheck run, so
+        -- we need the cached kinds to match up
+        clearDefMapIDs (foldMap moduleDefsQualified $ progModules r) @?= clearDefMapIDs (foldMap moduleDefsQualified $ progModules tcpExpected)
 
 unit_copy_paste_sig2ann :: Assertion
 unit_copy_paste_sig2ann = do
@@ -726,13 +734,14 @@ unit_copy_paste_sig2ann = do
           )
   let a = mkTestApp pInitial
       actions = [moveToDef "main", copyPasteBody ("main", srcID) [ConstructAnn, EnterType]]
-      (result, _) = runAppTestM maxID a $ (,) <$> tcWholeProg pExpected <*> handleEditRequest actions
-  case result of
-    Left e -> assertFailure $ show e
-    Right (tcpExpected, r) ->
-      -- use the typechecked input p, as the result will have had a typecheck run, so
-      -- we need the cached kinds to match up
-      clearDefMapIDs (foldMap moduleDefsQualified $ progModules r) @?= clearDefMapIDs (foldMap moduleDefsQualified $ progModules tcpExpected)
+  do
+    (result, _) <- runAppTestM maxID a $ (,) <$> tcWholeProg pExpected <*> handleEditRequest actions
+    case result of
+      Left e -> assertFailure $ show e
+      Right (tcpExpected, r) ->
+        -- use the typechecked input p, as the result will have had a typecheck run, so
+        -- we need the cached kinds to match up
+        clearDefMapIDs (foldMap moduleDefsQualified $ progModules r) @?= clearDefMapIDs (foldMap moduleDefsQualified $ progModules tcpExpected)
 
 -- VariablesInScope sees imported terms
 unit_import_vars :: Assertion
@@ -748,7 +757,7 @@ unit_import_vars =
                 any ((== primitiveGVar IntAdd) . fst) vs
           _ -> pure $ assertFailure "Expected one def 'main' from newEmptyApp"
       a = newEmptyApp
-   in case fst $ runAppTestM (appIdCounter a) a test of
+   in runAppTestM (appIdCounter a) a test <&> fst >>= \case
         Left err -> assertFailure $ show err
         Right assertion -> assertion
 
@@ -770,7 +779,7 @@ unit_import_reference =
           (Nothing, _) -> pure $ assertFailure "Could not find the imported toUpper"
           (Just _, _) -> pure $ assertFailure "Expected one def 'main' from newEmptyApp"
       a = newEmptyApp
-   in case fst $ runAppTestM (appIdCounter a) a test of
+   in runAppTestM (appIdCounter a) a test <&> fst >>= \case
         Left err -> assertFailure $ show err
         Right assertion -> assertion
 
@@ -780,7 +789,7 @@ unit_import_twice_1 =
         importModules [builtinModule]
         importModules [builtinModule]
       a = newEmptyApp
-   in case fst $ runAppTestM (appIdCounter a) a test of
+   in runAppTestM (appIdCounter a) a test <&> fst >>= \case
         Left err -> err @?= ActionError (ImportNameClash [moduleName builtinModule])
         Right _ -> assertFailure "Expected importModules to error, since module names clash with prior import"
 
@@ -789,7 +798,7 @@ unit_import_twice_2 =
   let test = do
         importModules [builtinModule, builtinModule]
       a = newEmptyApp
-   in case fst $ runAppTestM (appIdCounter a) a test of
+   in runAppTestM (appIdCounter a) a test <&> fst >>= \case
         Left err -> err @?= ActionError (ImportNameClash [moduleName builtinModule])
         Right _ -> assertFailure "Expected importModules to error, since module names clash within one import"
 
@@ -824,7 +833,7 @@ unit_copy_paste_import =
           (Nothing, _) -> pure $ assertFailure "Could not find the imported 'foo'"
           (Just _, _) -> pure $ assertFailure "Expected one def 'main' from newEmptyApp"
       a = newEmptyApp
-   in case fst $ runAppTestM (appIdCounter a) a test of
+   in runAppTestM (appIdCounter a) a test <&> fst >>= \case
         Left err -> assertFailure $ show err
         Right assertion -> assertion
 
@@ -1256,7 +1265,7 @@ unit_generate_names_import =
             pure $ ns @?= ["p", "q"]
           _ -> pure $ assertFailure "Expected one def 'main' from newEmptyApp"
       a = newEmptyApp
-   in case fst $ runAppTestM (appIdCounter a) a test of
+   in runAppTestM (appIdCounter a) a test <&> fst >>= \case
         Left err -> assertFailure $ show err
         Right assertion -> assertion
 
@@ -1271,7 +1280,7 @@ unit_rename_module =
           , RenameModule mainModuleName ["Module2"]
           ]
       a = newEmptyApp
-   in case fst $ runAppTestM (appIdCounter a) a test of
+   in runAppTestM (appIdCounter a) a test <&> fst >>= \case
         Left err -> assertFailure $ show err
         Right p -> do
           fmap (unModuleName . moduleName) (progModules p) @?= [["Module2"]]
@@ -1293,7 +1302,7 @@ unit_rename_module_clash =
       a = newEmptyApp
    in do
         unModuleName (moduleName builtinModule) @?= ["Builtins"]
-        case fst $ runAppTestM (appIdCounter a) a test of
+        runAppTestM (appIdCounter a) a test <&> fst >>= \case
           Left err -> err @?= RenameModuleNameClash
           Right _ -> assertFailure "Expected RenameModule to error, since module names clash with prior import"
 
@@ -1311,7 +1320,7 @@ unit_rename_module_imported =
         handleEditRequest [RenameModule builtins ["NewModule"]]
       a = newEmptyApp
    in do
-        case fst $ runAppTestM (appIdCounter a) a test of
+        runAppTestM (appIdCounter a) a test <&> fst >>= \case
           Left err -> err @?= ModuleReadonly builtins
           Right _ -> assertFailure "Expected RenameModule to complain about module being read-only"
 
@@ -1439,7 +1448,7 @@ unit_cross_module_actions =
       p = newEmptyProg' & #progModules %~ (m :) & #progSmartHoles .~ NoSmartHoles
       a = mkEmptyTestApp p
    in do
-        case fst $ runAppTestM (appIdCounter a) a test of
+        runAppTestM (appIdCounter a) a test <&> fst >>= \case
           Left err -> assertFailure $ show err
           Right _ -> pure ()
 
@@ -1654,24 +1663,47 @@ progActionTest :: S Prog -> [ProgAction] -> (Prog -> Either ProgError Prog -> As
 progActionTest inputProg actions testOutput = do
   let (prog, maxID) = create inputProg
   let a = mkEmptyTestApp prog
-  testOutput prog $ fst $ runAppTestM maxID a (handleEditRequest actions)
+  (r, _) <- runAppTestM maxID a (handleEditRequest actions)
+  testOutput prog r
 
-newtype AppTestM a = AppTestM {unAppTestM :: StateT App (ExceptT ProgError TestM) a}
+newtype AppTestM a = AppTestM
+  { unAppTestM ::
+      ( StateT
+          App
+          ( ExceptT
+              ProgError
+              (PureLogT (WithSeverity LogMsg) TestM)
+          )
+      )
+        a
+  }
   deriving newtype
     ( Functor
     , Applicative
     , Monad
     , MonadFresh ID
     , MonadFresh NameCounter
+    , MonadLog (WithSeverity LogMsg)
     , MonadState App
     , MonadError ProgError
     )
 
-runAppTestM :: ID -> App -> AppTestM a -> (Either ProgError a, App)
-runAppTestM startID a m =
-  case evalTestM startID $ runExceptT $ flip runStateT a $ unAppTestM m of
-    Left err -> (Left err, a)
-    Right (res, app') -> (Right res, app')
+-- Recall that Assertion = IO ()
+-- This is in IO as it asserts that there were no severe log messages
+runAppTestM :: ID -> App -> AppTestM a -> IO (Either ProgError a, App)
+runAppTestM i a m =
+  let (r, logs) = runAppTestM' i a m
+   in assertNoSevereLogs logs $> r
+
+runAppTestM' :: ID -> App -> AppTestM a -> ((Either ProgError a, App), Seq (WithSeverity LogMsg))
+runAppTestM' startID a m =
+  case evalTestM startID $ runPureLogT $ runExceptT $ flip runStateT a $ unAppTestM m of
+    (Left err, logs) -> ((Left err, a), logs)
+    (Right (res, app'), logs) -> ((Right res, app'), logs)
+
+--  case evalTestM startID $ runExceptT $ flip runStateT a $ unAppTestM m of
+--    Left err -> (Left err, a)
+--    Right (res, app') -> (Right res, app')
 
 -- Looks up a definition in the main module
 -- Useful in these tests so we don't have to specify

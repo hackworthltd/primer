@@ -1079,7 +1079,7 @@ unit_eval_modules =
         expect <- char 'A'
         pure $ e ~= expect
       a = newEmptyApp
-   in case fst $ runAppTestM (appIdCounter a) a test of
+   in runAppTestM (appIdCounter a) a test <&> fst >>= \case
         Left err -> assertFailure $ show err
         Right assertion -> assertion
 
@@ -1095,7 +1095,7 @@ unit_eval_modules_scrutinize_imported_type =
         expect <- con cFalse
         pure $ e ~= expect
       a = newEmptyApp
-   in case fst $ runAppTestM (appIdCounter a) a test of
+   in runAppTestM (appIdCounter a) a test <&> fst >>= \case
         Left err -> assertFailure $ show err
         Right assertion -> assertion
   where

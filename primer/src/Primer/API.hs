@@ -2,6 +2,7 @@
 {-# LANGUAGE DuplicateRecordFields #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE TypeFamilies #-}
 
 -- | The Primer API.
 --
@@ -62,6 +63,7 @@ import Foreword
 import Control.Concurrent.STM (
   STM,
   TBQueue,
+  TMVar,
   atomically,
   newEmptyTMVar,
   takeTMVar,
@@ -139,6 +141,7 @@ import Primer.Core (
  )
 import Primer.Database (
   OffsetLimit,
+  OpStatus,
   Page,
   Session (Session),
   SessionData (..),
@@ -170,13 +173,18 @@ import Primer.Def (
   defAST,
  )
 import Primer.Def qualified as Def
+import Primer.EvalFull (EvalFullLog)
 import Primer.JSON (
   CustomJSON (..),
   FromJSON,
   PrimerJSON,
   ToJSON,
  )
-import Primer.Log (ConvertLogMessage (convert))
+import Primer.Log (
+  ConvertLogMessage (convert),
+  PureLog,
+  runPureLog,
+ )
 import Primer.Module (moduleDefsQualified, moduleName, moduleTypesQualified)
 import Primer.Name (Name, unName)
 import Primer.Primitives (primDefType)
@@ -232,12 +240,12 @@ sessionsTransaction f = do
   q <- asks dbOpQueue
   liftIO $ atomically $ f ss q
 
-data SessionOp a where
-  EditApp :: (App -> (a, App)) -> SessionOp a
-  QueryApp :: (App -> a) -> SessionOp a
-  OpGetSessionName :: SessionOp Text
-  GetSessionData :: SessionOp SessionData
-  OpRenameSession :: Text -> SessionOp Text
+data SessionOp l a where
+  EditApp :: (App -> PureLog l (a, App)) -> SessionOp l a
+  QueryApp :: (App -> a) -> SessionOp l a
+  OpGetSessionName :: SessionOp l Text
+  GetSessionData :: SessionOp l SessionData
+  OpRenameSession :: Text -> SessionOp l Text
 
 -- A note about the implementation here. When the session is missing
 -- from the in-memory database, we can't queue the database request to
@@ -247,9 +255,9 @@ data SessionOp a where
 -- transaction from completing, but the database request won't
 -- actually be sent until the transaction is complete. This would
 -- cause a deadlock!
-withSession' :: (MonadIO m, MonadThrow m) => SessionId -> SessionOp a -> PrimerM m a
+withSession' :: (MonadIO m, MonadThrow m, MonadLog l m) => SessionId -> SessionOp l a -> PrimerM m a
 withSession' sid op = do
-  hndl <- sessionsTransaction $ \ss q -> do
+  hndl :: Either (TMVar OpStatus) (a, m ()) <- sessionsTransaction $ \ss q -> do
     query <- StmMap.lookup sid ss
     case query of
       Nothing -> do
@@ -266,19 +274,21 @@ withSession' sid op = do
         -- The session is in memory, let's do this.
         case op of
           EditApp f -> do
-            let (res, appl') = f appl
+            -- We batch the logs, as we are running in STM
+            let ((res, appl'), logs) = runPureLog $ f appl
             StmMap.insert (SessionData appl' n) sid ss
             writeTBQueue q $ Database.UpdateApp sid appl'
-            pure $ Right res
-          QueryApp f -> pure $ Right $ f appl
-          OpGetSessionName -> pure $ Right (fromSessionName n)
-          GetSessionData -> pure $ Right s
+            -- We return an action which, when run, will log the messages
+            pure $ Right (res, traverse_ logMessage logs)
+          QueryApp f -> pure $ Right (f appl, pure ())
+          OpGetSessionName -> pure $ Right (fromSessionName n, pure ())
+          GetSessionData -> pure $ Right (s, pure ())
           OpRenameSession n' ->
             let newName = safeMkSessionName n'
              in do
                   StmMap.insert (SessionData appl newName) sid ss
                   writeTBQueue q $ Database.UpdateName sid newName
-                  pure $ Right (fromSessionName newName)
+                  pure $ Right (fromSessionName newName, pure ())
   case hndl of
     Left callback -> do
       -- The session was missing from the in-memory database. Once we
@@ -299,7 +309,9 @@ withSession' sid op = do
           -- saturated. Ref:
           -- https://gitlab.haskell.org/ghc/ghc/-/wikis/commentary/rts/haskell-execution/function-calls
           withSession' sid op
-    Right result ->
+    Right (result, logAction) -> do
+      -- Actually log the batched messages
+      logAction
       -- We performed the session transaction, now return the result.
       pure result
 
@@ -428,12 +440,17 @@ renameSession = curry $ logAPI (noError RenameSession) $ \(sid, n) -> withSessio
 
 -- Run an 'EditAppM' action, using the given session ID to look up and
 -- pass in the app state for that session.
-liftEditAppM :: (MonadIO m, MonadThrow m) => EditAppM a -> SessionId -> PrimerM m (Either ProgError a)
+liftEditAppM ::
+  forall m l a.
+  (MonadIO m, MonadThrow m, MonadLog (WithSeverity l) m) =>
+  EditAppM (PureLog (WithSeverity l)) a ->
+  SessionId ->
+  PrimerM m (Either ProgError a)
 liftEditAppM h sid = withSession' sid (EditApp $ runEditAppM h)
 
 -- Run a 'QueryAppM' action, using the given session ID to look up and
 -- pass in the app state for that session.
-liftQueryAppM :: (MonadIO m, MonadThrow m) => QueryAppM a -> SessionId -> PrimerM m (Either ProgError a)
+liftQueryAppM :: (MonadIO m, MonadThrow m, MonadLog l m) => QueryAppM a -> SessionId -> PrimerM m (Either ProgError a)
 liftQueryAppM h sid = withSession' sid (QueryApp $ runQueryAppM h)
 
 -- | Given a 'SessionId', return the session's 'App'.
@@ -869,7 +886,7 @@ evalStep = curry $ logAPI (leftResultError EvalStep) $ \(sid, req) ->
   liftEditAppM (handleEvalRequest req) sid
 
 evalFull ::
-  (MonadIO m, MonadThrow m, MonadAPILog l m) =>
+  (MonadIO m, MonadThrow m, MonadAPILog l m, ConvertLogMessage EvalFullLog l) =>
   SessionId ->
   EvalFullReq ->
   PrimerM m (Either ProgError EvalFullResp)

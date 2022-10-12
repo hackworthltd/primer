@@ -7,6 +7,7 @@ module Primer.EvalFull (
   TerminationBound,
   evalFull,
   evalFullStepCount,
+  EvalFullLog (..),
 ) where
 
 -- TODO: share code with Primer.Eval
@@ -21,6 +22,7 @@ import Foreword
 
 import Control.Monad.Extra (untilJustM)
 import Control.Monad.Fresh (MonadFresh)
+import Control.Monad.Log (MonadLog, WithSeverity)
 import Data.Map qualified as M
 import Data.Set qualified as S
 import Data.Set.Optics (setOf)
@@ -90,6 +92,7 @@ import Primer.Def (
  )
 import Primer.Eval.Prim (tryPrimFun)
 import Primer.JSON (CustomJSON (CustomJSON), FromJSON, PrimerJSON, ToJSON)
+import Primer.Log (ConvertLogMessage (convert), logWarning)
 import Primer.Name (Name, NameCounter)
 import Primer.TypeDef (
   ASTTypeDef (astTypeDefParameters),
@@ -111,6 +114,12 @@ import Primer.Zipper (
   unfocusType,
   up,
  )
+
+newtype EvalFullLog = InvariantFailure Text
+  deriving newtype (Show, Eq)
+
+instance ConvertLogMessage EvalFullLog EvalFullLog where
+  convert = identity
 
 newtype EvalFullError
   = TimedOut Expr
@@ -177,7 +186,7 @@ data RedexType
 type TerminationBound = Natural
 
 -- A naive implementation of normal-order reduction
-evalFull :: MonadEvalFull m => TypeDefMap -> DefMap -> TerminationBound -> Dir -> Expr -> m (Either EvalFullError Expr)
+evalFull :: MonadEvalFull l m => TypeDefMap -> DefMap -> TerminationBound -> Dir -> Expr -> m (Either EvalFullError Expr)
 evalFull tydefs env n d expr = snd <$> evalFullStepCount tydefs env n d expr
 
 -- | As 'evalFull', but also returns how many reduction steps were taken.
@@ -189,7 +198,7 @@ evalFull tydefs env n d expr = snd <$> evalFullStepCount tydefs env n d expr
 -- we have @m >= s+1@, as we do @s@ reductions, and then need to attempt one
 -- more to notice termination.
 evalFullStepCount ::
-  MonadEvalFull m =>
+  MonadEvalFull l m =>
   TypeDefMap ->
   DefMap ->
   TerminationBound ->
@@ -207,7 +216,7 @@ evalFullStepCount tydefs env n d = go 0
 -- The 'Dir' argument only affects what happens if the root is an annotation:
 -- do we keep it (Syn) or remove it (Chk). I.e. is an upsilon reduction allowed
 -- at the root?
-step :: MonadEvalFull m => TypeDefMap -> DefMap -> Dir -> Expr -> Maybe (m Expr)
+step :: MonadEvalFull l m => TypeDefMap -> DefMap -> Dir -> Expr -> Maybe (m Expr)
 step tydefs g d e = case findRedex tydefs g d e of
   Nothing -> Nothing
   Just mr ->
@@ -282,7 +291,7 @@ viewLet ez = case target ez of
   LetType _ a ty _t -> (LSome $ LLetType a ty,) <$> down ez
   _ -> Nothing
 
-viewCaseRedex :: MonadEvalFull m => TypeDefMap -> Expr -> Maybe (m Redex)
+viewCaseRedex :: MonadEvalFull l m => TypeDefMap -> Expr -> Maybe (m Redex)
 viewCaseRedex tydefs = \case
   -- The patterns in the case branch have a Maybe TypeCache attached, but we
   -- should not assume that this has been filled in correctly, so we record
@@ -361,7 +370,7 @@ viewCaseRedex tydefs = \case
       pure $ CaseRedex c (zip args argTys'') ty (map bindName patterns) br
 
 -- This spots all redexs other than InlineLet
-viewRedex :: MonadEvalFull m => TypeDefMap -> DefMap -> Dir -> Expr -> Maybe (m Redex)
+viewRedex :: MonadEvalFull l m => TypeDefMap -> DefMap -> Dir -> Expr -> Maybe (m Redex)
 viewRedex tydefs globals dir = \case
   Var _ (GlobalVarRef x) | Just (DefAST y) <- x `M.lookup` globals -> pure $ pure $ InlineGlobal x y
   App _ (Ann _ (Lam _ x t) (TFun _ src tgt)) s -> pure $ pure $ Beta x t src tgt s
@@ -391,8 +400,8 @@ viewRedex tydefs globals dir = \case
 -- well here (movements are Maybe, I know what should happen, but cannot
 -- express the moves nicely...)
 findRedex ::
-  forall m.
-  MonadEvalFull m =>
+  forall m l.
+  MonadEvalFull l m =>
   TypeDefMap ->
   DefMap ->
   Dir ->
@@ -513,7 +522,7 @@ findRedex tydefs globals dir = go . focus
       _ -> eachChild tz (goSubstTy n t)
 
 -- TODO: deal with metadata. https://github.com/hackworthltd/primer/issues/6
-runRedex :: MonadEvalFull m => Redex -> m Expr
+runRedex :: MonadEvalFull l m => Redex -> m Expr
 runRedex = \case
   InlineGlobal _ def -> ann (regenerateExprIDs $ astDefExpr def) (regenerateTypeIDs $ astDefType def)
   InlineLet _ e -> regenerateExprIDs e
@@ -561,7 +570,7 @@ runRedex = \case
     letType b (pure ty) $ letType a (tvar b) $ pure body
   ApplyPrimFun e -> e
 
-runRedexTy :: MonadEvalFull m => RedexType -> m Type
+runRedexTy :: MonadEvalFull l m => RedexType -> m Type
 runRedexTy (InlineLetInType _ t) = regenerateTypeIDs t
 -- let a = s in t  ~>  t  if a does not appear in t
 runRedexTy (ElideLetInType _ t) = pure t
@@ -574,8 +583,25 @@ runRedexTy (RenameForall m a k s avoid) = do
   -- we pick a new name disjoint from any that appear in @s@
   -- thus renaming will never capture (so @renameTyVar@ will always succeed).
   -- However, the type system does not know about this.
-  untilJustM $ do
-    b <- freshLocalName (avoid <> freeVarsTy s <> bindersBelowTy (focus s))
-    pure $ TForall m b k <$> renameTyVar a b s
+  -- We explicitly try once, and log if that fails before trying again.
+  -- We do not log on retries
+  let rename = do
+        b <- freshLocalName (avoid <> freeVarsTy s <> bindersBelowTy (focus s))
+        pure (b, TForall m b k <$> renameTyVar a b s)
+  rename >>= \case
+    (_, Just t') -> pure t'
+    (b, Nothing) -> do
+      logWarning $
+        InvariantFailure $
+          "runRedexTy.RenameForall: initial name choice was not fresh enough: chose "
+            <> show b
+            <> " for "
+            <> show @_ @Text (m, a, k, s, avoid)
+      untilJustM $ snd <$> rename
 
-type MonadEvalFull m = (MonadFresh ID m, MonadFresh NameCounter m)
+type MonadEvalFull l m =
+  ( MonadFresh ID m
+  , MonadFresh NameCounter m
+  , MonadLog (WithSeverity l) m
+  , ConvertLogMessage EvalFullLog l
+  )
