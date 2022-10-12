@@ -599,19 +599,13 @@ basicActionsForExpr tydefs l defName expr = case expr of
     holeActions = finishHole : expert annotateExpression
 
     annotationActions :: [OfferedAction [Action]]
-    annotationActions = case l of
-      Beginner -> []
-      Intermediate -> []
-      Expert -> [removeAnnotation]
+    annotationActions = expert removeAnnotation
 
     lambdaActions :: ExprMeta -> [OfferedAction [Action]]
     lambdaActions m = renameVariable m : expert annotateExpression
 
     bigLambdaActions :: ExprMeta -> [OfferedAction [Action]]
-    bigLambdaActions m = case l of
-      Beginner -> []
-      Intermediate -> []
-      Expert -> [annotateExpression, renameTypeVariable m]
+    bigLambdaActions m = concatMap expert [annotateExpression, renameTypeVariable m]
 
     letActions :: LVarName -> Expr -> Meta a -> [OfferedAction [Action]]
     letActions v e m =
@@ -769,34 +763,27 @@ basicActionsForType l defName ty = case ty of
         }
 
     emptyHoleActions :: [OfferedAction [Action]]
-    emptyHoleActions = case l of
-      Beginner -> [useTypeConstructor]
-      Intermediate -> [useTypeConstructor]
-      Expert ->
-        [ useTypeConstructor
-        , useTypeVariable
-        ]
+    emptyHoleActions = [useTypeConstructor] <> expert useTypeVariable
 
     forAllActions :: Kind -> Meta a -> [OfferedAction [Action]]
-    forAllActions k m = case l of
-      Beginner -> mempty
-      Intermediate -> mempty
-      Expert -> [renameTypeVariable k m]
+    forAllActions k m = expert $ renameTypeVariable k m
 
     -- Actions for every type node
     universalActions :: Meta a -> [OfferedAction [Action]]
-    universalActions m = case l of
-      Beginner -> [constructFunctionType]
-      Intermediate -> [constructFunctionType]
-      Expert ->
-        [ constructFunctionType
-        , constructPolymorphicType m
-        , constructTypeApplication
-        ]
+    universalActions m =
+      [constructFunctionType]
+        <> concatMap
+          expert
+          [ constructPolymorphicType m
+          , constructTypeApplication
+          ]
 
     -- Actions for every type node except empty holes
     defaultActions :: Meta a -> [OfferedAction [Action]]
     defaultActions m = universalActions m <> [deleteType]
+
+    expert :: a -> [a]
+    expert = if l == Expert then (: []) else const []
 
 -- | These actions are more involved than the basic actions.
 -- They may involve moving around the AST and performing several basic actions.
