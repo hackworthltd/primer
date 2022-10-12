@@ -78,8 +78,8 @@ import Data.Text qualified as T
 import ListT qualified (toList)
 import Optics (ifoldr, over, traverseOf, view, (^.))
 import Primer.API.NodeFlavor (NodeFlavor (..))
-import Primer.Action (ActionName, ActionType)
-import Primer.Action qualified as Action
+import Primer.Action.Available (ActionName, ActionType)
+import Primer.Action.Available qualified as Action
 import Primer.App (
   App,
   EditAppM,

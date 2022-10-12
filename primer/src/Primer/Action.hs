@@ -9,12 +9,6 @@ module Primer.Action (
   applyActionsToTypeSig,
   applyActionsToExpr,
   moveExpr,
-  OfferedAction (..),
-  ActionType (..),
-  FunctionFiltering (..),
-  UserInput (..),
-  ActionInput (..),
-  ActionName (..),
   Level (..),
   nameString,
   uniquifyDefName,
@@ -92,7 +86,7 @@ import Primer.Name.Fresh (
   mkFreshName,
   mkFreshNameTy,
  )
-import Primer.Questions (Question, uniquify)
+import Primer.Questions (uniquify)
 import Primer.Refine (Inst (InstAPP, InstApp, InstUnconstrainedAPP), refine)
 import Primer.TypeDef (ASTTypeDef (..), TypeDef (..), ValCon (..), valConType)
 import Primer.Typecheck (
@@ -137,72 +131,6 @@ import Primer.Zipper (
   _target,
  )
 import Primer.ZipperCxt (localVariablesInScopeExpr)
-
--- | An OfferedAction is an option that we show to the user.
--- It may require some user input (e.g. to choose what to name a binder, or
--- choose which variable to insert).
--- If picked, it will submit a particular set of actions to the backend.
-data OfferedAction a = OfferedAction
-  { name :: ActionName
-  , description :: Text
-  , input :: ActionInput a
-  , priority :: Int
-  , actionType :: ActionType
-  -- ^ Used primarily for display purposes.
-  }
-  deriving (Functor)
-
--- We will probably add more constructors in future.
-data ActionType
-  = Primary
-  | Destructive
-  deriving (Show, Bounded, Enum, Generic)
-  deriving (ToJSON) via (PrimerJSON ActionType)
-
--- | Filter on variables and constructors according to whether they
--- have a function type.
-data FunctionFiltering
-  = Everything
-  | OnlyFunctions
-  | NoFunctions
-
--- | Further user input is sometimes required to construct an action.
--- For example, when inserting a constructor the user must tell us what
--- constructor.
--- This type models that input and the corresponding output.
--- Currently we can only take a single input per action - in the future this
--- may need to be extended to support multiple inputs.
--- This type is parameterised because we may need it for other things in
--- future, and because it lets us derive a useful functor instance.
-data UserInput a
-  = ChooseConstructor FunctionFiltering (QualifiedText -> a)
-  | ChooseTypeConstructor (QualifiedText -> a)
-  | -- | Renders a choice between some options (as buttons),
-    -- plus a textbox to manually enter a name
-    ChooseOrEnterName
-      Text
-      -- ^ Prompt to show the user, e.g. "choose a name, or enter your own"
-      [Name]
-      -- ^ A bunch of options
-      (Name -> a)
-      -- ^ What to do with whatever name is chosen
-  | ChooseVariable FunctionFiltering (TmVarRef -> a)
-  | ChooseTypeVariable (Text -> a)
-  deriving (Functor)
-
-data ActionInput a where
-  InputRequired :: UserInput a -> ActionInput a
-  NoInputRequired :: a -> ActionInput a
-  AskQuestion :: Question r -> (r -> ActionInput a) -> ActionInput a
-deriving instance Functor ActionInput
-
--- | Some actions' names are meant to be rendered as code, others as
--- prose.
-data ActionName
-  = Code Text
-  | Prose Text
-  deriving (Eq, Show, Generic)
-  deriving (ToJSON) via (PrimerJSON ActionName)
 
 -- | The current programming "level". This setting determines which
 -- actions are displayed to the student, the labels on UI elements,
