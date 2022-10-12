@@ -242,12 +242,12 @@ actionsForBinding l defName Editable b =
       { name = Prose "r"
       , description = "Rename this pattern variable"
       , input =
-          actionWithNames
-            defName
-            (Left $ b ^? _bindMeta % _type % _Just % _chkedAt)
-            (\n -> [RenameCaseBinding n])
-            (b ^. _bindMeta)
-            ("Choose a new " <> nameString <> " for the pattern variable")
+          AskQuestion (GenerateName defName (b ^. _bindMeta % _id) (Left $ b ^? _bindMeta % _type % _Just % _chkedAt)) $ \options ->
+            InputRequired $
+              ChooseOrEnterName
+                ("Choose a new " <> nameString <> " for the pattern variable")
+                options
+                ((\n -> [RenameCaseBinding n]) . unName)
       , priority = P.rename l
       , actionType = Primary
       }
@@ -279,46 +279,6 @@ findNodeWithParent id x = do
 findType :: forall b. Data b => ID -> Type' (Meta b) -> Maybe (Type' (Meta b))
 findType id ty = target <$> focusOnTy id ty
 
--- | From multiple actions, construct an ActionSpec which starts with SetCursor
-action :: ActionName -> Text -> Int -> ActionType -> [Action] -> OfferedAction [Action]
-action name description priority actionType as =
-  OfferedAction
-    { name
-    , description
-    , input = NoInputRequired as
-    , priority
-    , actionType
-    }
-
--- | Construct an ActionSpec which requires some input, and then starts with SetCursor
-actionWithInput :: ActionName -> Text -> Int -> ActionType -> UserInput [Action] -> OfferedAction [Action]
-actionWithInput name description priority actionType input =
-  OfferedAction
-    { name
-    , description
-    , input = InputRequired input
-    , priority
-    , actionType
-    }
-
--- | Construct an ActionSpec which requires the user to select from a bunch of
--- generated names for the current location (or specify their own), and starts
--- with SetCursor. Requires the definition name.
-actionWithNames ::
-  GVarName ->
-  Either (Maybe (Type' ())) (Maybe Kind) ->
-  (Text -> [Action]) ->
-  Meta a ->
-  Text ->
-  ActionInput [Action]
-actionWithNames defName tk k m prompt =
-  AskQuestion (GenerateName defName (m ^. _id) tk) $ \options ->
-    InputRequired $
-      ChooseOrEnterName
-        prompt
-        options
-        (k . unName)
-
 -- | Given an expression, determine what basic actions it supports
 -- Specific projections may provide other actions not listed here
 basicActionsForExpr :: TypeDefMap -> Level -> GVarName -> Expr -> [OfferedAction [Action]]
@@ -336,9 +296,17 @@ basicActionsForExpr tydefs l defName expr = case expr of
       let filterVars = case l of
             Beginner -> NoFunctions
             _ -> Everything
-       in actionWithInput (Code "x") "Use a variable" (P.useVar l) Primary $
-            ChooseVariable filterVars $
-              pure . ConstructVar
+       in ( \input ->
+              OfferedAction
+                { name = Code "x"
+                , description = "Use a variable"
+                , input = InputRequired input
+                , priority = P.useVar l
+                , actionType = Primary
+                }
+          )
+            $ ChooseVariable filterVars
+            $ pure . ConstructVar
 
     -- If we have a useful type, offer the refine action, otherwise offer the
     -- saturate action.
@@ -354,26 +322,57 @@ basicActionsForExpr tydefs l defName expr = case expr of
     -- We put the same labels on each.
     insertVariableSaturatedRefined :: ExprMeta -> OfferedAction [Action]
     insertVariableSaturatedRefined m =
-      actionWithInput
-        (Code "f $ ?")
-        "Apply a function to arguments"
-        (P.useFunction l)
-        Primary
-        ( ChooseVariable OnlyFunctions $
-            \name -> [if offerRefined m then InsertRefinedVar name else InsertSaturatedVar name]
-        )
+      OfferedAction
+        { name = Code "f $ ?"
+        , description = "Apply a function to arguments"
+        , input =
+            InputRequired
+              ( ChooseVariable OnlyFunctions $
+                  \name -> [if offerRefined m then InsertRefinedVar name else InsertSaturatedVar name]
+              )
+        , priority = P.useFunction l
+        , actionType = Primary
+        }
 
     annotateExpression :: OfferedAction [Action]
-    annotateExpression = action (Code ":") "Annotate this expression with a type" (P.annotateExpr l) Primary [ConstructAnn]
+    annotateExpression =
+      OfferedAction
+        { name = Code ":"
+        , description = "Annotate this expression with a type"
+        , input = NoInputRequired [ConstructAnn]
+        , priority = P.annotateExpr l
+        , actionType = Primary
+        }
 
     applyFunction :: OfferedAction [Action]
-    applyFunction = action (Code "$") "Apply function" (P.applyFunction l) Primary [ConstructApp, Move Child2]
+    applyFunction =
+      OfferedAction
+        { name = Code "$"
+        , description = "Apply function"
+        , input = NoInputRequired [ConstructApp, Move Child2]
+        , priority = P.applyFunction l
+        , actionType = Primary
+        }
 
     applyType :: OfferedAction [Action]
-    applyType = action (Code "@") "Apply type" (P.applyType l) Destructive [ConstructAPP, EnterType]
+    applyType =
+      OfferedAction
+        { name = Code "@"
+        , description = "Apply type"
+        , input = NoInputRequired [ConstructAPP, EnterType]
+        , priority = P.applyType l
+        , actionType = Destructive
+        }
 
     patternMatch :: OfferedAction [Action]
-    patternMatch = action (Code "m") patternMatchProse (P.makeCase l) Destructive [ConstructCase]
+    patternMatch =
+      OfferedAction
+        { name = Code "m"
+        , description = patternMatchProse
+        , input = NoInputRequired [ConstructCase]
+        , priority = P.makeCase l
+        , actionType = Destructive
+        }
 
     patternMatchProse = case l of
       Beginner -> "Match a variable with its value"
@@ -386,12 +385,12 @@ basicActionsForExpr tydefs l defName expr = case expr of
         { name = Code "λx"
         , description = "Make a function with an input"
         , input =
-            actionWithNames
-              defName
-              (Left $ join $ m ^? _type % _Just % _chkedAt % to lamVarTy)
-              (\n -> [ConstructLam $ Just n])
-              m
-              ("Choose a " <> nameString <> " for the input variable")
+            AskQuestion (GenerateName defName (m ^. _id) (Left $ join $ m ^? _type % _Just % _chkedAt % to lamVarTy)) $ \options ->
+              InputRequired $
+                ChooseOrEnterName
+                  ("Choose a " <> nameString <> " for the input variable")
+                  options
+                  ((\n -> [ConstructLam $ Just n]) . unName)
         , priority = P.makeLambda l
         , actionType = Primary
         }
@@ -402,12 +401,12 @@ basicActionsForExpr tydefs l defName expr = case expr of
         { name = Code "Λx"
         , description = "Make a type abstraction"
         , input =
-            actionWithNames
-              defName
-              (Right $ join $ m ^? _type % _Just % _chkedAt % to lAMVarKind)
-              (\n -> [ConstructLAM $ Just n])
-              m
-              ("Choose a " <> nameString <> " for the bound type variable")
+            AskQuestion (GenerateName defName (m ^. _id) (Right $ join $ m ^? _type % _Just % _chkedAt % to lAMVarKind)) $ \options ->
+              InputRequired $
+                ChooseOrEnterName
+                  ("Choose a " <> nameString <> " for the bound type variable")
+                  options
+                  ((\n -> [ConstructLAM $ Just n]) . unName)
         , priority = P.makeTypeAbstraction l
         , actionType = Primary
         }
@@ -417,11 +416,15 @@ basicActionsForExpr tydefs l defName expr = case expr of
       let filterCtors = case l of
             Beginner -> NoFunctions
             _ -> Everything
-       in actionWithInput
-            (Code "V")
-            "Use a value constructor"
-            (P.useValueCon l)
-            Primary
+       in ( \input ->
+              OfferedAction
+                { name = Code "V"
+                , description = "Use a value constructor"
+                , input = InputRequired input
+                , priority = P.useValueCon l
+                , actionType = Primary
+                }
+          )
             $ ChooseConstructor filterCtors (\c -> [ConstructCon c])
 
     -- NB: Exactly one of the saturated and refined actions will be available
@@ -429,15 +432,18 @@ basicActionsForExpr tydefs l defName expr = case expr of
     -- We put the same labels on each.
     useSaturatedRefinedValueConstructor :: ExprMeta -> OfferedAction [Action]
     useSaturatedRefinedValueConstructor m =
-      actionWithInput
-        (Code "V $ ?")
-        "Apply a value constructor to arguments"
-        (P.useSaturatedValueCon l)
-        Primary
-        ( ChooseConstructor
-            OnlyFunctions
-            (\c -> [if offerRefined m then ConstructRefinedCon c else ConstructSaturatedCon c])
-        )
+      OfferedAction
+        { name = Code "V $ ?"
+        , description = "Apply a value constructor to arguments"
+        , input =
+            InputRequired
+              ( ChooseConstructor
+                  OnlyFunctions
+                  (\c -> [if offerRefined m then ConstructRefinedCon c else ConstructSaturatedCon c])
+              )
+        , priority = P.useSaturatedValueCon l
+        , actionType = Primary
+        }
 
     makeLetBinding :: Meta a -> OfferedAction [Action]
     makeLetBinding m =
@@ -445,12 +451,12 @@ basicActionsForExpr tydefs l defName expr = case expr of
         { name = Code "="
         , description = "Make a let binding"
         , input =
-            actionWithNames
-              defName
-              (Left Nothing)
-              (\n -> [ConstructLet $ Just n])
-              m
-              ("Choose a " <> nameString <> " for the new let binding")
+            AskQuestion (GenerateName defName (m ^. _id) (Left Nothing)) $ \options ->
+              InputRequired $
+                ChooseOrEnterName
+                  ("Choose a " <> nameString <> " for the new let binding")
+                  options
+                  ((\n -> [ConstructLet $ Just n]) . unName)
         , priority = P.makeLet l
         , actionType = Primary
         }
@@ -461,24 +467,45 @@ basicActionsForExpr tydefs l defName expr = case expr of
         { name = Code "=,="
         , description = "Make a recursive let binding"
         , input =
-            actionWithNames
-              defName
-              (Left Nothing)
-              (\n -> [ConstructLetrec $ Just n])
-              m
-              ("Choose a " <> nameString <> " for the new let binding")
+            AskQuestion (GenerateName defName (m ^. _id) (Left Nothing)) $ \options ->
+              InputRequired $
+                ChooseOrEnterName
+                  ("Choose a " <> nameString <> " for the new let binding")
+                  options
+                  ((\n -> [ConstructLetrec $ Just n]) . unName)
         , priority = P.makeLetrec l
         , actionType = Primary
         }
 
     enterHole :: OfferedAction [Action]
-    enterHole = action (Prose "h") "Make this hole into a non-empty hole" (P.enterHole l) Primary [EnterHole]
+    enterHole =
+      OfferedAction
+        { name = Prose "h"
+        , description = "Make this hole into a non-empty hole"
+        , input = NoInputRequired [EnterHole]
+        , priority = P.enterHole l
+        , actionType = Primary
+        }
 
     finishHole :: OfferedAction [Action]
-    finishHole = action (Prose "e") "Convert this into a normal expression" (P.finishHole l) Primary [FinishHole]
+    finishHole =
+      OfferedAction
+        { name = Prose "e"
+        , description = "Convert this into a normal expression"
+        , input = NoInputRequired [FinishHole]
+        , priority = P.finishHole l
+        , actionType = Primary
+        }
 
     removeAnnotation :: OfferedAction [Action]
-    removeAnnotation = action (Prose "⌫:") "Remove this annotation" (P.removeAnnotation l) Destructive [RemoveAnn]
+    removeAnnotation =
+      OfferedAction
+        { name = Prose "⌫:"
+        , description = "Remove this annotation"
+        , input = NoInputRequired [RemoveAnn]
+        , priority = P.removeAnnotation l
+        , actionType = Destructive
+        }
 
     renameVariable :: ExprMeta -> OfferedAction [Action]
     renameVariable m =
@@ -486,12 +513,12 @@ basicActionsForExpr tydefs l defName expr = case expr of
         { name = Prose "r"
         , description = "Rename this input variable"
         , input =
-            actionWithNames
-              defName
-              (Left $ join $ m ^? _type % _Just % _chkedAt % to lamVarTy)
-              (\n -> [RenameLam n])
-              m
-              ("Choose a new " <> nameString <> " for the input variable")
+            AskQuestion (GenerateName defName (m ^. _id) (Left $ join $ m ^? _type % _Just % _chkedAt % to lamVarTy)) $ \options ->
+              InputRequired $
+                ChooseOrEnterName
+                  ("Choose a new " <> nameString <> " for the input variable")
+                  options
+                  ((\n -> [RenameLam n]) . unName)
         , priority = P.rename l
         , actionType = Primary
         }
@@ -502,18 +529,25 @@ basicActionsForExpr tydefs l defName expr = case expr of
         { name = Prose "r"
         , description = "Rename this type variable"
         , input =
-            actionWithNames
-              defName
-              (Right $ join $ m ^? _type % _Just % _chkedAt % to lAMVarKind)
-              (\n -> [RenameLAM n])
-              m
-              ("Choose a new " <> nameString <> " for the type variable")
+            AskQuestion (GenerateName defName (m ^. _id) (Right $ join $ m ^? _type % _Just % _chkedAt % to lAMVarKind)) $ \options ->
+              InputRequired $
+                ChooseOrEnterName
+                  ("Choose a new " <> nameString <> " for the type variable")
+                  options
+                  ((\n -> [RenameLAM n]) . unName)
         , priority = P.rename l
         , actionType = Primary
         }
 
     makeLetRecursive :: OfferedAction [Action]
-    makeLetRecursive = action (Prose "rec") "Make this let recursive" (P.makeLetRecursive l) Primary [ConvertLetToLetrec]
+    makeLetRecursive =
+      OfferedAction
+        { name = Prose "rec"
+        , description = "Make this let recursive"
+        , input = NoInputRequired [ConvertLetToLetrec]
+        , priority = P.makeLetRecursive l
+        , actionType = Primary
+        }
 
     renameLet :: Maybe (Type' b) -> Meta a -> OfferedAction [Action]
     renameLet t m' =
@@ -521,18 +555,25 @@ basicActionsForExpr tydefs l defName expr = case expr of
         { name = Prose "r"
         , description = "Rename this let binding"
         , input =
-            actionWithNames
-              defName
-              (Left $ forgetTypeMetadata <$> t)
-              (\n -> [RenameLet n])
-              m'
-              ("Choose a new " <> nameString <> " for the let binding")
+            AskQuestion (GenerateName defName (m' ^. _id) (Left $ forgetTypeMetadata <$> t)) $ \options ->
+              InputRequired $
+                ChooseOrEnterName
+                  ("Choose a new " <> nameString <> " for the let binding")
+                  options
+                  ((\n -> [RenameLet n]) . unName)
         , priority = P.rename l
         , actionType = Primary
         }
 
     deleteExpr :: OfferedAction [Action]
-    deleteExpr = action (Prose "⌫") "Delete this expression" (P.delete l) Destructive [Delete]
+    deleteExpr =
+      OfferedAction
+        { name = Prose "⌫"
+        , description = "Delete this expression"
+        , input = NoInputRequired [Delete]
+        , priority = P.delete l
+        , actionType = Destructive
+        }
 
     expert :: a -> [a]
     expert = if l == Expert then (: []) else const []
@@ -640,7 +681,14 @@ basicActionsForType l defName ty = case ty of
     -- We arbitrarily choose that the "construct a function type" action places the focused expression
     -- on the domain (left) side of the arrow.
     constructFunctionType :: OfferedAction [Action]
-    constructFunctionType = action (Code "→") "Construct a function type" (P.constructFunction l) Primary [ConstructArrowL, Move Child1]
+    constructFunctionType =
+      OfferedAction
+        { name = Code "→"
+        , description = "Construct a function type"
+        , input = NoInputRequired [ConstructArrowL, Move Child1]
+        , priority = P.constructFunction l
+        , actionType = Primary
+        }
 
     constructPolymorphicType :: Meta a -> OfferedAction [Action]
     constructPolymorphicType m =
@@ -648,24 +696,51 @@ basicActionsForType l defName ty = case ty of
         { name = Code "∀"
         , description = "Construct a polymorphic type"
         , input =
-            actionWithNames
-              defName
-              (Right Nothing)
-              (\n -> [ConstructTForall (Just n), Move Child1])
-              m
-              ("Choose a " <> nameString <> " for the bound type variable")
+            AskQuestion (GenerateName defName (m ^. _id) (Right Nothing)) $ \options ->
+              InputRequired $
+                ChooseOrEnterName
+                  ("Choose a " <> nameString <> " for the bound type variable")
+                  options
+                  ((\n -> [ConstructTForall (Just n), Move Child1]) . unName)
         , priority = P.constructForall l
         , actionType = Primary
         }
 
     constructTypeApplication :: OfferedAction [Action]
-    constructTypeApplication = action (Code "$") "Construct a type application" (P.constructTypeApp l) Primary [ConstructTApp, Move Child1]
+    constructTypeApplication =
+      OfferedAction
+        { name = Code "$"
+        , description = "Construct a type application"
+        , input = NoInputRequired [ConstructTApp, Move Child1]
+        , priority = P.constructTypeApp l
+        , actionType = Primary
+        }
 
     useTypeConstructor :: OfferedAction [Action]
-    useTypeConstructor = actionWithInput (Code "T") "Use a type constructor" (P.useTypeCon l) Primary $ ChooseTypeConstructor (\t -> [ConstructTCon t])
+    useTypeConstructor =
+      ( \input ->
+          OfferedAction
+            { name = Code "T"
+            , description = "Use a type constructor"
+            , input = InputRequired input
+            , priority = P.useTypeCon l
+            , actionType = Primary
+            }
+      )
+        $ ChooseTypeConstructor (\t -> [ConstructTCon t])
 
     useTypeVariable :: OfferedAction [Action]
-    useTypeVariable = actionWithInput (Code "t") "Use a type variable" (P.useTypeVar l) Primary $ ChooseTypeVariable (\v -> [ConstructTVar v])
+    useTypeVariable =
+      ( \input ->
+          OfferedAction
+            { name = Code "t"
+            , description = "Use a type variable"
+            , input = InputRequired input
+            , priority = P.useTypeVar l
+            , actionType = Primary
+            }
+      )
+        $ ChooseTypeVariable (\v -> [ConstructTVar v])
 
     renameTypeVariable :: Kind -> Meta a -> OfferedAction [Action]
     renameTypeVariable k m' =
@@ -673,18 +748,25 @@ basicActionsForType l defName ty = case ty of
         { name = Prose "r"
         , description = "Rename this type variable"
         , input =
-            actionWithNames
-              defName
-              (Right $ Just k)
-              (\n -> [RenameForall n])
-              m'
-              ("Choose a new " <> nameString <> " for the bound type variable")
+            AskQuestion (GenerateName defName (m' ^. _id) (Right $ Just k)) $ \options ->
+              InputRequired $
+                ChooseOrEnterName
+                  ("Choose a new " <> nameString <> " for the bound type variable")
+                  options
+                  ((\n -> [RenameForall n]) . unName)
         , priority = P.rename l
         , actionType = Primary
         }
 
     deleteType :: OfferedAction [Action]
-    deleteType = action (Prose "⌫") "Delete this type" (P.delete l) Destructive [Delete]
+    deleteType =
+      OfferedAction
+        { name = Prose "⌫"
+        , description = "Delete this type"
+        , input = NoInputRequired [Delete]
+        , priority = P.delete l
+        , actionType = Destructive
+        }
 
     emptyHoleActions :: [OfferedAction [Action]]
     emptyHoleActions = case l of
@@ -733,4 +815,13 @@ compoundActionsForType l ty = case ty of
           moveToLastArg = replicate (NE.length argTypes) (Move Child2)
 
           moveBack = replicate (NE.length argTypes) (Move Parent)
-       in action (Code "→A→") "Add an input to this function" (P.addInput l) Primary $ moveToLastArg <> [ConstructArrowR] <> moveBack
+       in ( \as ->
+              OfferedAction
+                { name = Code "→A→"
+                , description = "Add an input to this function"
+                , input = NoInputRequired as
+                , priority = P.addInput l
+                , actionType = Primary
+                }
+          )
+            $ moveToLastArg <> [ConstructArrowR] <> moveBack
