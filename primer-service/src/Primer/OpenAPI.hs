@@ -37,7 +37,7 @@ import Optics (
   (?~),
  )
 import Primer.API (Def, ExprTreeOpts, Module, NodeBody, NodeFlavor, NodeSelection (..), OfferedAction, Prog, Selection (..), Tree)
-import Primer.Action (ActionName, ActionType, Level (..))
+import Primer.Action.Available (ActionName, ActionType, Level (..))
 import Primer.App (NodeType)
 import Primer.Core (
   GlobalName,

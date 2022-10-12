@@ -25,6 +25,8 @@ import Hedgehog.Internal.Property (forAllWithT)
 import Optics (toListOf, (%), (^..))
 import Primer.Action (
   ActionError (CaseBindsClash, NameCapture),
+ )
+import Primer.Action.Available (
   ActionInput (..),
   ActionName (..),
   OfferedAction (..),
@@ -35,8 +37,10 @@ import Primer.Action (
     ChooseTypeVariable,
     ChooseVariable
   ),
+  actionsForDef,
+  actionsForDefBody,
+  actionsForDefSig,
  )
-import Primer.Action.Available (actionsForDef, actionsForDefBody, actionsForDefSig)
 import Primer.App (
   App,
   EditAppM,

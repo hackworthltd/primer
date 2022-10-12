@@ -36,7 +36,7 @@ import Primer.API (
   viewTreeExpr,
   viewTreeType,
  )
-import Primer.Action (ActionName (..), ActionType (..), Level)
+import Primer.Action.Available (ActionName (..), ActionType (..), Level)
 import Primer.App (NodeType (..))
 import Primer.Core (GVarName, ID (ID))
 import Primer.Database (

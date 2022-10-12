@@ -86,9 +86,8 @@ import Data.Tuple.Extra (curry3)
 import ListT qualified (toList)
 import Optics (ifoldr, over, traverseOf, view, (^.))
 import Primer.API.NodeFlavor (NodeFlavor (..))
-import Primer.Action (ActionName, ActionType, Level)
-import Primer.Action qualified as Action
-import Primer.Action.Available (actionsForDef, actionsForDefBody, actionsForDefSig)
+import Primer.Action.Available (ActionName, ActionType, Level, actionsForDef, actionsForDefBody, actionsForDefSig)
+import Primer.Action.Available qualified as Action
 import Primer.App (
   App,
   EditAppM,

@@ -60,7 +60,7 @@ data RootAPI mode = RootAPI
   , sessionsAPI ::
       mode
         :- "sessions"
-          :> NamedRoutes SessionsAPI
+        :> NamedRoutes SessionsAPI
   }
   deriving (Generic)
 
@@ -73,7 +73,7 @@ data SessionsAPI mode = SessionsAPI
   , sessionAPI ::
       mode
         :- Capture' '[Description "The session ID"] "sessionId" SessionId
-          :> NamedRoutes SessionAPI
+        :> NamedRoutes SessionAPI
   }
   deriving (Generic)
 
@@ -82,16 +82,16 @@ data SessionAPI mode = SessionAPI
   { getProgram ::
       mode
         :- "program"
-          :> Summary "Get the current program state"
-          :> QueryFlag "patternsUnder"
-          :> OperationId "getProgram"
-          :> Get '[JSON] API.Prog
+        :> Summary "Get the current program state"
+        :> QueryFlag "patternsUnder"
+        :> OperationId "getProgram"
+        :> Get '[JSON] API.Prog
   , getSessionName :: GetSessionName mode
   , setSessionName :: SetSessionName mode
   , actions ::
       mode
         :- "action"
-          :> NamedRoutes ActionAPI
+        :> NamedRoutes ActionAPI
   }
   deriving (Generic)
 
@@ -100,10 +100,10 @@ data ActionAPI mode = ActionAPI
   { available ::
       mode
         :- "available"
-          :> Summary "Get available actions for the definition, or a node within it"
-          :> QueryParam' '[Required, Strict] "level" Level
-          :> ReqBody '[JSON] Selection
-          :> OperationId "getAvailableActions"
-          :> Post '[JSON] [API.OfferedAction]
+        :> Summary "Get available actions for the definition, or a node within it"
+        :> QueryParam' '[Required, Strict] "level" Level
+        :> ReqBody '[JSON] Selection
+        :> OperationId "getAvailableActions"
+        :> Post '[JSON] [API.OfferedAction]
   }
   deriving (Generic)
