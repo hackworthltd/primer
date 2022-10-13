@@ -30,6 +30,11 @@
     hie-bios.flake = false;
     lsp.url = github:haskell/lsp/b0f8596887088b8ab65fc1015c773f45b47234ae;
     lsp.flake = false;
+
+    # Temporary fixes for colima on linux
+    colimaOverride.url = github:abiosoft/colima/355e01f67471461df8277f63d0dfac774448fbb3;
+    colimaOverride.inputs.nixpkgs.follows = "nixpkgs";
+    colimaOverride.inputs.flake-utils.follows = "flake-utils";
   };
 
   outputs =
@@ -40,6 +45,7 @@
     , flake-utils
     , pre-commit-hooks-nix
     , haskell-language-server
+    , colimaOverride
     , ...
     }@inputs:
     let
@@ -458,6 +464,9 @@
         inherit system;
         inherit (haskell-nix) config;
         overlays = [
+          (final: prev: {
+            colima = colimaOverride.packages.${system}.default;
+          })
           overlays.primer
         ];
       };
