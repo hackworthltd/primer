@@ -304,18 +304,6 @@ data Dir = Syn | Chk
   deriving (Eq, Show, Generic)
   deriving (FromJSON, ToJSON) via PrimerJSON Dir
 
--- What is the direction from the context?
--- i.e. are we in the head of an elimination (or inside a hole)?
-focusDir :: Dir -> ExprZ -> Dir
-focusDir dirIfTop ez = case up ez of
-  Nothing -> dirIfTop
-  Just z -> case target z of
-    App _ f _ | f == target ez -> Syn
-    APP _ f _ | f == target ez -> Syn
-    Case _ scrut _ | scrut == target ez -> Syn
-    Hole _ _ -> Syn
-    _ -> Chk
-
 viewLet :: ExprZ -> Maybe (LetBinding, Accum Cxt ExprZ)
 viewLet ez = case (target ez, exprChildren ez) of
   (Let _ x e _b, [_, bz]) -> Just (LetBind x e, bz)
@@ -558,8 +546,19 @@ findRedex ::
   Dir ->
   Expr ->
   Maybe RedexWithContext
-findRedex tydefs globals dir = flip evalAccumT mempty . go . focus
+findRedex tydefs globals topDir = flip evalAccumT mempty . go . focus
   where
+    -- What is the direction from the context?
+    -- i.e. are we in the head of an elimination (or inside a hole)?
+    focusDir :: ExprZ -> Dir
+    focusDir ez = case up ez of
+      Nothing -> topDir
+      Just z -> case target z of
+        App _ f _ | f == target ez -> Syn
+        APP _ f _ | f == target ez -> Syn
+        Case _ scrut _ | scrut == target ez -> Syn
+        Hole _ _ -> Syn
+        _ -> Chk
     focusType' :: ExprZ -> AccumT Cxt Maybe TypeZ
     -- Note that nothing in Expr binds a variable which scopes over a type child
     -- so we don't need to 'add' anything
@@ -568,7 +567,7 @@ findRedex tydefs globals dir = flip evalAccumT mempty . go . focus
     hoistAccum = Foreword.hoistAccum generalize
     go :: ExprZ -> AccumT Cxt Maybe RedexWithContext
     go ez = do
-      hoistAccum (readerToAccumT $ viewRedex tydefs globals (focusDir dir ez) (target ez)) >>= \case
+      hoistAccum (readerToAccumT $ viewRedex tydefs globals (focusDir ez) (target ez)) >>= \case
         Just r -> pure $ RExpr ez r
         Nothing
           | Just (l, bz) <- viewLet ez -> goSubst l =<< hoistAccum bz
@@ -589,7 +588,7 @@ findRedex tydefs globals dir = flip evalAccumT mempty . go . focus
           | otherwise -> msum $ map (goType <=< hoistAccum) $ typeChildren tz
     goSubst :: LetBinding -> ExprZ -> AccumT Cxt Maybe RedexWithContext
     goSubst l ez = do
-      hoistAccum (readerToAccumT $ viewRedex tydefs globals (focusDir dir ez) $ target ez) >>= \case
+      hoistAccum (readerToAccumT $ viewRedex tydefs globals (focusDir ez) $ target ez) >>= \case
         -- We should inline such 'v' (note that we will not go under any 'v' binders)
         Just r@(InlineLet w _) | letBindingName l == unLocalName w -> pure $ RExpr ez r
         Just r@(InlineLetrec w _ _) | letBindingName l == unLocalName w -> pure $ RExpr ez r
