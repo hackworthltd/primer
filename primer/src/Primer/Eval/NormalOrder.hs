@@ -89,7 +89,6 @@ import Primer.Zipper (
   letBindingName,
   right,
   target,
-  up,
  )
 import Primer.Zipper.Type (
   LetTypeBinding' (LetTypeBind),
@@ -103,8 +102,8 @@ data RedexWithContext
   = RExpr ExprZ Redex
   | RType TypeZ RedexType
 
-viewLet :: ExprZ -> Maybe (LetBinding, Accum Cxt ExprZ)
-viewLet ez = case (target ez, exprChildren ez) of
+viewLet :: (Dir, ExprZ) -> Maybe (LetBinding, Accum Cxt (Dir, ExprZ))
+viewLet dez@(_, ez) = case (target ez, exprChildren dez) of
   (Let _ x e _b, [_, bz]) -> Just (LetBind x e, bz)
   (Letrec _ x e ty _b, [_, bz]) -> Just (LetrecBind x e ty, bz)
   (LetType _ a ty _b, [bz]) -> bz `seq` Just (LetTyBind $ LetTypeBind a ty, bz)
@@ -132,37 +131,26 @@ findRedex ::
   Dir ->
   Expr ->
   MaybeT m RedexWithContext
-findRedex tydefs globals topDir = flip evalAccumT mempty . go . focus
+findRedex tydefs globals topDir = flip evalAccumT mempty . go . (topDir,) . focus
   where
-    -- What is the direction from the context?
-    -- i.e. are we in the head of an elimination (or inside a hole)?
-    focusDir :: ExprZ -> Dir
-    focusDir ez = case up ez of
-      Nothing -> topDir
-      Just z -> case target z of
-        App _ f _ | f == target ez -> Syn
-        APP _ f _ | f == target ez -> Syn
-        Case _ scrut _ | scrut == target ez -> Syn
-        Hole _ _ -> Syn
-        _ -> Chk
     focusType' :: ExprZ -> AccumT Cxt Maybe TypeZ
     -- Note that nothing in Expr binds a variable which scopes over a type child
     -- so we don't need to 'add' anything
     focusType' = lift . focusType
     hoistAccum :: Monad m' => Accum Cxt a -> AccumT Cxt m' a
     hoistAccum = Foreword.hoistAccum generalize
-    go :: ExprZ -> AccumT Cxt (MaybeT m) RedexWithContext
-    go ez =
+    go :: (Dir, ExprZ) -> AccumT Cxt (MaybeT m) RedexWithContext
+    go dez@(d, ez) =
       do
-        RExpr ez <$> readerToAccumT (viewRedex tydefs globals (focusDir ez) (target ez))
-        <|> case viewLet ez of
+        RExpr ez <$> readerToAccumT (viewRedex tydefs globals d (target ez))
+        <|> case viewLet (d, ez) of
           Just (l, bz) -> goSubst l =<< hoistAccum bz
           -- Since stuck things other than lets are stuck on the first child or
           -- its type annotation, we can handle them all uniformly
           _ ->
             msum $
               Foreword.hoistAccum hoistMaybe (goType =<< focusType' ez)
-                : map (go <=< hoistAccum) (exprChildren ez)
+                : map (go <=< hoistAccum) (exprChildren dez)
     goType :: TypeZ -> AccumT Cxt Maybe RedexWithContext
     goType tz = do
       hoistAccum (readerToAccumT $ viewRedexType $ target tz) >>= \case
@@ -172,10 +160,10 @@ findRedex tydefs globals topDir = flip evalAccumT mempty . go . focus
           , [_, bz] <- typeChildren tz ->
               goSubstTy a t =<< hoistAccum bz
           | otherwise -> msum $ map (goType <=< hoistAccum) $ typeChildren tz
-    goSubst :: LetBinding -> ExprZ -> AccumT Cxt (MaybeT m) RedexWithContext
-    goSubst l ez =
+    goSubst :: LetBinding -> (Dir, ExprZ) -> AccumT Cxt (MaybeT m) RedexWithContext
+    goSubst l dez@(d, ez) =
       let here =
-            readerToAccumT (viewRedex tydefs globals (focusDir ez) (target ez)) >>= \case
+            readerToAccumT (viewRedex tydefs globals d $ target ez) >>= \case
               -- We should inline such 'v' (note that we will not go under any 'v' binders)
               r@(InlineLet w _) | letBindingName l == unLocalName w -> pure $ RExpr ez r
               r@(InlineLetrec w _ _) | letBindingName l == unLocalName w -> pure $ RExpr ez r
@@ -191,7 +179,7 @@ findRedex tydefs globals topDir = flip evalAccumT mempty . go . focus
               r@(RenameSelfLetType w _ _) | elemOf _freeVarsLetBinding (unLocalName w) l -> pure $ RExpr ez r
               _ -> mzero
           -- Switch to an inner let if substituting under it would cause capture
-          innerLet = case viewLet ez of
+          innerLet = case viewLet dez of
             Just (l', bz)
               | letBindingName l' /= letBindingName l
               , elemOf _freeVarsLetBinding (letBindingName l') l ->
@@ -200,14 +188,14 @@ findRedex tydefs globals topDir = flip evalAccumT mempty . go . focus
           dive =
             let substChild c = do
                   -- We should not go under 'v' binders, but otherwise substitute in each child
-                  guard $ S.notMember (letBindingName l) $ getBoundHere (target ez) (Just $ target c)
+                  guard $ S.notMember (letBindingName l) $ getBoundHere (target ez) (Just $ target $ snd c)
                   goSubst l c
                 substTyChild c = case l of
                   LetTyBind (LetTypeBind v t) -> goSubstTy v t c
                   _ -> mzero
              in msum @[] $
                   Foreword.hoistAccum hoistMaybe (substTyChild =<< focusType' ez)
-                    : map (substChild <=< hoistAccum) (exprChildren ez)
+                    : map (substChild <=< hoistAccum) (exprChildren dez)
        in here <|> innerLet <|> dive
     goSubstTy :: TyVarName -> Type -> TypeZ -> AccumT Cxt Maybe RedexWithContext
     goSubstTy v t tz =
@@ -243,12 +231,18 @@ children' z = case down z of
   Nothing -> mempty
   Just z' -> z' : unfoldr (fmap (\x -> (x, x)) . right) z'
 
-exprChildren :: ExprZ -> [Accum Cxt ExprZ]
-exprChildren ez =
+exprChildren :: (Dir, ExprZ) -> [Accum Cxt (Dir, ExprZ)]
+exprChildren (_, ez) =
   children' ez <&> \c -> do
     let bs = getBoundHere' (target ez) (Just $ target c)
+    let d' = case target ez of
+          App _ f _ | f == target c -> Syn
+          APP _ f _ | f == target c -> Syn
+          Case _ scrut _ | scrut == target c -> Syn
+          Hole _ _ -> Syn
+          _ -> Chk
     addBinds ez bs
-    pure c
+    pure (d', c)
 
 typeChildren :: TypeZ -> [Accum Cxt TypeZ]
 typeChildren tz =
