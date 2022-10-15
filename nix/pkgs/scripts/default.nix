@@ -11,6 +11,7 @@
 , gnugrep
 , sqitchDir
 , primer-service
+, perlPackages
 }:
 
 let
@@ -54,10 +55,21 @@ let
       mv * $out/libexec/pgtap/test
     '';
   };
+
+  pg_prove = perlPackages.TAPParserSourceHandlerpgTAP;
+  primer-pg-prove = writeShellApplication {
+    name = "primer-pg-prove";
+    runtimeInputs = [
+      pg_prove
+    ];
+    text = ''
+      pg_prove -v -d primer --ext .sql ${primer-pgtap-tests}/libexec/pgtap/test/
+    '';
+  };
 in
 {
   inherit primer-sqitch;
-  inherit primer-pgtap-tests;
+  inherit primer-pg-prove;
 
   deploy-postgresql-container = writeShellApplication {
     name = "deploy-postgresql-container";

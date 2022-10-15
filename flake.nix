@@ -80,8 +80,6 @@
               postgresqlSupport = true;
             };
 
-            pg_prove = final.perlPackages.TAPParserSourceHandlerpgTAP;
-
             scripts = final.lib.recurseIntoAttrs (final.callPackage ./nix/pkgs/scripts {
               sqitchDir = ./sqitch;
               inherit version;
@@ -211,7 +209,7 @@
                   nix-generate-from-cpan
                   sqitch
                   primer-sqitch
-                  pg_prove
+                  primer-pg-prove
 
                   # Local scripts.
                   create-local-db
@@ -321,7 +319,6 @@
             };
 
             inherit sqitch;
-            inherit pg_prove;
 
             inherit (scripts)
               deploy-postgresql-container
@@ -337,7 +334,7 @@
               dump-local-db
               restore-local-db
               primer-sqitch
-              primer-pgtap-tests;
+              primer-pg-prove;
 
             inherit primer;
 
@@ -361,6 +358,10 @@
     in
     {
       inherit overlays;
+
+      nixosModule = {
+        nixpkgs.overlays = [ overlays.primer ];
+      };
     }
 
     // forAllSupportedSystems (system:
@@ -506,9 +507,8 @@
             restore-local-db
 
             sqitch
-            pg_prove
             primer-sqitch
-            primer-pgtap-tests
+            primer-pg-prove
 
             deploy-postgresql-container
             start-postgresql-container
@@ -601,23 +601,18 @@
             meta.description = "Required CI builds";
           };
       }
-
-        # // forAllTestSystems (system: {
-        #   tests =
-        #     let
-        #       pkgs = pkgsFor system;
-        #     in
-        #     (hacknix.lib.testing.nixos.importFromDirectory ./nixos-tests
-        #       {
-        #         inherit system pkgs;
-        #       }
-        #       {
-        #         inherit (pkgs) primer-service-docker-image;
-        #         inherit (pkgs) primer-sqitch pg_prove primer-pgtap-tests;
-        #         inherit (pkgs.lib.primer) defaultServicePort;
-        #         inherit version;
-        #       });
-        # })
+      // forAllTestSystems (system: {
+        tests =
+          let
+            pkgs = pkgsFor system;
+          in
+          (hacknix.lib.testing.nixos.importFromDirectory ./nixos-tests
+            {
+              hostPkgs = pkgs;
+              defaults.imports = [ self.nixosModule ];
+            }
+          );
+      })
       ;
 
       ciJobs = hacknix.lib.flakes.recurseIntoHydraJobs self.hydraJobs;

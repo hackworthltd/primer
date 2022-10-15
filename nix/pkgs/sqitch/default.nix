@@ -134,7 +134,7 @@ let
         TryTiny
         TypeTiny
         URI
-        libintlperl
+        libintl-perl
         namespaceautoclean
       ]);
 
