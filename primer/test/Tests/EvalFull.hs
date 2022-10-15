@@ -133,7 +133,7 @@ unit_3 =
         expect <- emptyHole `ann` (tcon' ["M"] "T" `tapp` tvar "b" `tapp` tforall "a" KType (tvar "a") `tapp` tforall b' KType (tcon' ["M"] "S" `tapp` tvar "b" `tapp` tvar b'))
         pure (e, expect)
    in do
-        s <- evalFullTest maxID mempty mempty 5 Syn expr
+        s <- evalFullTest maxID mempty mempty 7 Syn expr
         s <~==> Right expected
 
 -- Check we don't have shadowing issues in terms
