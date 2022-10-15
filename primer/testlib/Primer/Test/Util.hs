@@ -19,6 +19,7 @@ module Primer.Test.Util (
   isSevereLog,
   assertNoSevereLogs,
   testNoSevereLogs,
+  failWhenSevereLogs,
 ) where
 
 import Foreword
@@ -159,6 +160,12 @@ assertNoSevereLogs logs =
 
 testNoSevereLogs :: (HasCallStack, MonadTest m, Eq l, Show l) => Seq (WithSeverity l) -> m ()
 testNoSevereLogs logs = Seq.filter isSevereLog logs === mempty
+
+failWhenSevereLogs :: (MonadTest m, Eq l, Show l) => PureLogT (WithSeverity l) m a -> m a
+failWhenSevereLogs m = do
+  (r, logs) <- runPureLogT m
+  testNoSevereLogs logs
+  pure r
 
 -- Run 2 threads: one that serves a 'NullDb', and one that runs Primer
 -- API actions. This allows us to simulate a database and API service.

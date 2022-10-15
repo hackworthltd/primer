@@ -38,7 +38,6 @@ import Primer.Core (
   _id,
  )
 import Primer.Core.DSL
-import Primer.Core.Utils (forgetMetadata, forgetTypeMetadata)
 import Primer.Def (ASTDef (..), Def (..), DefMap)
 import Primer.Eval (
   ApplyPrimFunDetail (..),
@@ -86,6 +85,7 @@ import Primer.Zipper (
 import Test.Tasty.HUnit (Assertion, assertBool, assertFailure, (@?=))
 import TestM (evalTestM)
 import Tests.Action.Prog (runAppTestM)
+import Tests.Eval.Utils ((~=), (~~=))
 
 -- * 'tryReduce' tests
 
@@ -1175,14 +1175,3 @@ unit_eval_modules_scrutinize_imported_type =
         , moduleTypes = Map.singleton (baseName tBool) (TypeDefAST boolDef)
         , moduleDefs = mempty
         }
-
--- * Misc helpers
-
--- | Like '@?=' but specifically for expressions.
--- Ignores IDs and metadata.
-(~=) :: HasCallStack => Expr -> Expr -> Assertion
-x ~= y = forgetMetadata x @?= forgetMetadata y
-
--- | Like '~=' but for types.
-(~~=) :: HasCallStack => Type -> Type -> Assertion
-x ~~= y = forgetTypeMetadata x @?= forgetTypeMetadata y
