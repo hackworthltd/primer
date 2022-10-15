@@ -637,6 +637,22 @@ lookupTy n c = case lookup (unLocalName n) c of
 -- - stuck on its left-most child
 -- - stuck on the type annotation on its left-most child
 -- - stuck on expression under the type annotation in its left-most child
+--
+--
+-- TODO/REVIEW: we use this to choose order, by going into type annotations first.
+-- However, consider
+--    (Λa.Λb. t : ∀a.∀b. T) @x @y
+-- which reduces to
+--    (let a = x in Λb. t : let a=x in ∀b. T) @y
+-- one step in type and one in term would give
+--    (Λb. let a = x in t : ∀b. let a=x in T) @y
+-- which would then reduce the top application:
+--    (let b = y in let a = x in t : let b = y in let a=x in T) @y
+-- rather than forcing us to push the substitution through the annotation first.
+-- This way would be more efficient (with grouped lets): we only have to push one large
+-- substitution through T (and t) once, rather than two small ones.
+--
+-- IDEAS: either have an annotation "why stuck", or just say "do let-push in each (ty&tm) child first, before anything else)
 viewRedex ::
   (MonadLog (WithSeverity l) m, ConvertLogMessage EvalLog l) =>
   TypeDefMap ->
