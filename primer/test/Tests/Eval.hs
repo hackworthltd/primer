@@ -6,11 +6,12 @@ import Foreword
 
 import Control.Monad.Trans.Maybe (runMaybeT)
 import Data.Generics.Uniplate.Data (universe)
+import Data.List (delete)
 import Data.Map.Strict qualified as Map
 import Data.Set qualified as Set
-import Hedgehog (annotateShow, discard, failure, label, success, (===))
+import Hedgehog (annotateShow, assert, discard, failure, label, success, (===))
 import Hedgehog.Gen qualified as Gen
-import Optics ((^.))
+import Optics (elemOf, (^.))
 import Primer.App (
   EvalReq (EvalReq, evalReqExpr, evalReqRedex),
   EvalResp (EvalResp, evalRespExpr),
@@ -42,7 +43,7 @@ import Primer.Core (
   _id,
  )
 import Primer.Core.DSL
-import Primer.Core.Utils (forgetMetadata)
+import Primer.Core.Utils (exprIDs, forgetMetadata)
 import Primer.Def (ASTDef (..), Def (..), DefMap)
 import Primer.Eval (
   ApplyPrimFunDetail (..),
@@ -1209,3 +1210,35 @@ tasty_type_preservation =
                     s'' <- checkTest ty s'
                     forgetMetadata s' === forgetMetadata s'' -- check no smart holes happened
                   else label "skipped due to LetType" >> success
+
+-- | Reductions do not interfere with each other
+-- if @i,j ∈ redexes e@  (and @i /= j@), and @e@ reduces to @e'@ via redex @i@
+-- then @j ∈ redexes e'@,
+-- unless @j@ no longer exists in @e'@ or @j@ was a rename-binding which is no longer required
+tasty_redex_independent :: Property
+tasty_redex_independent =
+  let testModules = [builtinModule, primitiveModule]
+   in withTests 200 $
+        withDiscards 2000 $
+          propertyWT testModules $ do
+            let globs = foldMap moduleDefsQualified testModules
+            tds <- asks typeDefs
+            (dir, t, _) <- genDirTm
+            annotateShow dir
+            annotateShow t
+            rs <- failWhenSevereLogs $ redexes @EvalLog tds globs dir t
+            when (length rs <= 1) discard
+            i <- forAllT $ Gen.element rs
+            j <- forAllT $ Gen.element $ delete i rs
+            s <- failWhenSevereLogs $ step @EvalLog tds globs t dir i
+            case s of
+              Left err -> annotateShow err >> failure
+              Right (s', _) -> do
+                annotateShow s'
+                if elemOf exprIDs j s'
+                  then do
+                    sj <- failWhenSevereLogs $ step @EvalLog tds globs t dir j
+                    case sj of
+                      Right (_, BindRename{}) -> success
+                      _ -> assert . elem j =<< failWhenSevereLogs (redexes @EvalLog tds globs dir s')
+                  else success
