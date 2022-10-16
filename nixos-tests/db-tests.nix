@@ -1,15 +1,7 @@
-{ testingPython
-, primer-sqitch
-, primer-pgtap-tests
-, pg_prove
+{ hostPkgs
 , ...
 }:
-with testingPython;
-makeTest {
-  name = "db-tests";
-
-  meta = with pkgs.lib.maintainers; { maintainers = [ dhess ]; };
-
+{
   nodes = {
     server = { pkgs, config, ... }: {
       services.postgresql = {
@@ -43,6 +35,11 @@ makeTest {
           description = "Primer PostgreSQL user";
           isSystemUser = true;
         };
+
+      environment.systemPackages = with pkgs; [
+        primer-sqitch
+        primer-pg-prove
+      ];
     };
   };
 
@@ -53,13 +50,11 @@ makeTest {
     ''
       start_all()
       server.wait_for_unit("postgresql")
-
       server.succeed(
-        "${pkgs.sudo}/bin/sudo -u primer ${primer-sqitch}/bin/primer-sqitch deploy --verify db:pg:primer"
+        "sudo -u primer primer-sqitch deploy --verify db:pg:primer"
       )
-
       server.succeed(
-        "${pkgs.sudo}/bin/sudo -u primer ${pg_prove}/bin/pg_prove -v -d primer --ext .sql ${primer-pgtap-tests}/libexec/pgtap/test/"
+        "sudo -u primer primer-pg-prove"
       )
     '';
 }

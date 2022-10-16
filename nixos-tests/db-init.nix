@@ -1,13 +1,7 @@
-{ testingPython
-, primer-sqitch
+{ hostPkgs
 , ...
 }:
-with testingPython;
-makeTest {
-  name = "db-init";
-
-  meta = with pkgs.lib.maintainers; { maintainers = [ dhess ]; };
-
+{
   nodes = {
     server = { pkgs, config, ... }: {
       services.postgresql = {
@@ -39,6 +33,10 @@ makeTest {
           description = "Primer PostgreSQL user";
           isSystemUser = true;
         };
+
+      environment.systemPackages = with pkgs; [
+        primer-sqitch
+      ];
     };
   };
 
@@ -50,7 +48,7 @@ makeTest {
       start_all()
       server.wait_for_unit("postgresql")
       server.succeed(
-        "${pkgs.sudo}/bin/sudo -u primer ${primer-sqitch}/bin/primer-sqitch deploy --verify db:pg:primer"
+        "sudo -u primer primer-sqitch deploy --verify db:pg:primer"
       )
     '';
 }
