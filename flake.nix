@@ -307,6 +307,10 @@
                   ];
                 };
             };
+
+            # The version used in haskell.nix nixpkgs is broken, so we
+            # override it until that's fixed.
+            colima = final.callPackage ./nix/pkgs/colima { };
           in
           {
             lib = (prev.lib or { }) // {
@@ -344,6 +348,8 @@
             inherit primer-openapi-spec;
             inherit run-primer;
             inherit primer-service-docker-image;
+
+            inherit colima;
           }
         )
       ];
