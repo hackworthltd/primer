@@ -129,7 +129,7 @@ data ApplyActionBody = ApplyActionBody
 
 -- only temporary
 data AvailableActionResult = AvailableActionResult
-  { extra :: OfferedAction
+  { extra :: OfferedAction -- TODO eventually this will be just the input field
   , action :: Either NoInputAction InputAction
   }
   deriving (Generic, Show)
