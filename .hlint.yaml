@@ -17,3 +17,12 @@
 - ignore:
     name: "Use module export list"
     within: Tests.**
+
+- warn:
+    lhs: anyOf o (== x)
+    rhs: elemOf o x
+    name: "Use elemOf"
+- warn:
+    lhs: noneOf o (== x)
+    rhs: notElemOf o x
+    name: "Use notElemOf"

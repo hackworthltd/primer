@@ -1,3 +1,5 @@
+{-# LANGUAGE ImpredicativeTypes #-}
+
 module Primer.Typecheck.Utils (
   TypeDefError (..),
   TypeDefInfo (..),
@@ -102,23 +104,27 @@ instantiateValCons t = do
           . Compose
           . Compose
           . Compose
-  fmap (fmap reassoc') $ sequence4 $ fmap reassoc instCons
+  -- We eta-expand here to deal with simplified subsumption
+  {- HLINT ignore instantiateValCons "Use id" -}
+  fmap (fmap reassoc') $ sequence4 $ fmap (fmap (fmap $ fmap $ \x -> x) . reassoc) instCons
 
 -- | As 'instantiateValCons', but pulls out the relevant bits of the monadic
 -- context into an argument
 instantiateValCons' ::
-  MonadFresh NameCounter m =>
   TypeDefMap ->
   Type' () ->
-  Either TypeDefError (TyConName, ASTTypeDef, [(ValConName, [m (Type' ())])])
-instantiateValCons' tyDefs t = do
-  TypeDefInfo params tc def <- getTypeDefInfo' tyDefs t
-  case def of
-    TypeDefPrim _ -> Left TDINotADT
-    TypeDefAST tda -> do
-      let defparams = map fst $ astTypeDefParameters tda
-          f c = (valConName c, map (substituteTypeVars $ zip defparams params) $ valConArgs c)
-      pure (tc, tda, map f $ astTypeDefConstructors tda)
+  Either TypeDefError (TyConName, ASTTypeDef, [(ValConName, forall m. MonadFresh NameCounter m => [m (Type' ())])])
+instantiateValCons' tyDefs t =
+  getTypeDefInfo' tyDefs t
+    >>= \(TypeDefInfo params tc def) -> case def of
+      TypeDefPrim _ -> Left TDINotADT
+      TypeDefAST tda -> do
+        let defparams = map fst $ astTypeDefParameters tda
+            f :: ValCon -> (ValConName, forall m. MonadFresh NameCounter m => [m (Type' ())])
+            -- eta expand to deal with shallow subsumption
+            {- HLINT ignore instantiateValCons' "Avoid lambda" -}
+            f c = (valConName c, map (\a -> substituteTypeVars (zip defparams params) a) $ valConArgs c)
+        pure (tc, tda, map f $ astTypeDefConstructors tda)
 
 substituteTypeVars :: MonadFresh NameCounter m => [(TyVarName, Type' ())] -> Type' () -> m (Type' ())
 substituteTypeVars = flip $ foldrM (uncurry substTy)
