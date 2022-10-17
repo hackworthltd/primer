@@ -80,6 +80,7 @@ import Primer.Core (
   LVarName,
   LocalName (unLocalName),
   TmVarRef (..),
+  TyConName,
   TyVarName,
   Type,
   Type' (
@@ -121,7 +122,12 @@ import Primer.Name (Name, NameCounter)
 import Primer.TypeDef (
   TypeDefMap,
  )
-import Primer.Typecheck.Utils (instantiateValCons', lookupConstructor, mkTAppCon)
+import Primer.Typecheck.Utils (
+  TypeDefError (TDIHoleType, TDINotADT, TDINotSaturated, TDIUnknown),
+  instantiateValCons',
+  lookupConstructor,
+  mkTAppCon,
+ )
 import Primer.Zipper (
   ExprZ,
   IsZipper,
@@ -150,8 +156,34 @@ import Primer.Zipper.Type (
   getBoundHereTy',
  )
 
-newtype EvalFullLog = InvariantFailure Text
-  deriving newtype (Show, Eq)
+data EvalFullLog
+  = -- | Found something that may have been a case redex,
+    -- but the scrutinee's head is an out-of-scope constructor.
+    -- This should not happen if the expression is type correct.
+    CaseRedexUnknownCtor ValConName
+  | -- | Found something that may have been a case redex,
+    -- but there is no branch matching the constructor at the head of the scrutinee.
+    -- This should not happen if the expression is type correct.
+    CaseRedexMissingBranch ValConName
+  | -- | Found something that may have been a case redex,
+    -- but the scrutinee's type is not in scope
+    -- This should not happen if the expression is type correct.
+    CaseRedexUnknownType TyConName
+  | -- | Found something that may have been a case redex,
+    -- but the scrutinee's type is either under or over saturated.
+    -- This should not happen if the expression is type correct.
+    CaseRedexNotSaturated (Type' ())
+  | -- | Found something that may have been a case redex,
+    -- but the scrutinee's head (value) constructor does not construct a member of the scrutinee's type.
+    -- This should not happen if the expression is type correct.
+    CaseRedexCtorMismatch TyConName ValConName
+  | -- | Found something that may have been a case redex,
+    -- but the number of arguments in the scrutinee differs from the number of bindings in the corresponding branch.
+    -- (Or the number of arguments expected from the scrutinee's type differs from either of these.)
+    -- This should not happen if the expression is type correct.
+    CaseRedexWrongArgNum ValConName [Expr] [Type' ()] [LVarName]
+  | InvariantFailure Text
+  deriving (Show, Eq)
 
 instance ConvertLogMessage EvalFullLog EvalFullLog where
   convert = identity
@@ -315,7 +347,7 @@ viewLet ez = case (target ez, exprChildren ez) of
 
 viewCaseRedex ::
   forall l m.
-  MonadLog (WithSeverity l) m =>
+  (MonadLog (WithSeverity l) m, ConvertLogMessage EvalFullLog l) =>
   TypeDefMap ->
   Expr ->
   MaybeT m Redex
@@ -327,7 +359,7 @@ viewCaseRedex tydefs = \case
   -- metadata correctly in this evaluator (for instance, substituting when we
   -- do a BETA reduction)!
   Case m expr brs -> do
-    (c, tyargs, args, patterns, br) <- extract (removeAnn expr) brs
+    (c, tyargs, args) <- extractCon (removeAnn expr)
     ty <- case expr of
       Ann _ _ ty' -> pure $ forgetTypeMetadata ty'
       _ -> do
@@ -335,35 +367,47 @@ viewCaseRedex tydefs = \case
         -- an explicit annotation, and have to work out the type based off the name
         -- of the constructor.
         case lookupConstructor tydefs c of
-          Nothing -> mzero
-          Just (_, tc, _) -> pure $ mkTAppCon tc (forgetTypeMetadata <$> tyargs)
+          Nothing -> do
+            logWarning $ CaseRedexUnknownCtor c
+            mzero
+          Just (_, tc, _) -> do
+            pure $ mkTAppCon tc (forgetTypeMetadata <$> tyargs)
     -- Style note: unfortunately do notation does not work well with polytyped binds on ghc 9.2.4
     -- Thus we write this with an explicit bind instead.
     -- See https://gitlab.haskell.org/ghc/ghc/-/issues/18324
     -- and https://gitlab.haskell.org/ghc/ghc/-/issues/20020
-    instantiateCon ty c >>= \argTys ->
+    instantiateCon ty c >>= \argTys -> do
+      (patterns, br) <- extractBranch c brs
       renameBindings m expr brs [ty] args patterns
         <|> pure (formCaseRedex ty c argTys args patterns br)
   _ -> mzero
   where
-    extract expr brs =
+    extractCon expr =
       -- NB: constructors never have mixed App and APPs: they are always of the
       -- form C @a @b ... x y ...
       let (h, as) = unfoldApp expr
           (h', params) = unfoldAPP h
        in case h' of
-            Con _ c -> do
-              case find (\(CaseBranch n _ _) -> n == c) brs of
-                Nothing -> mzero
-                Just (CaseBranch _ xs e) -> pure (c, params, as, xs, e)
+            Con _ c -> pure (c, params, as)
             _ -> mzero
+    extractBranch c brs =
+      case find (\(CaseBranch n _ _) -> n == c) brs of
+        Nothing -> do
+          logWarning $ CaseRedexMissingBranch c
+          mzero
+        Just (CaseBranch _ xs e) -> pure (xs, e)
+
     instantiateCon :: Type' () -> ValConName -> MaybeT m (forall m'. MonadFresh NameCounter m' => [m' (Type' ())])
     instantiateCon ty c =
-      case instantiateValCons' tydefs $ forgetTypeMetadata ty of
-        Left _ -> mzero
-        Right (_, _, instVCs) -> case find ((== c) . fst) instVCs of
-          Nothing -> mzero
-          Just (_, argTys) -> pure argTys
+      let fail err = logWarning err >> mzero
+       in case instantiateValCons' tydefs $ forgetTypeMetadata ty of
+            Left (TDIUnknown t) -> fail $ CaseRedexUnknownType t
+            Left TDINotSaturated -> fail $ CaseRedexNotSaturated ty
+            Left TDIHoleType -> mzero -- this is not a redex, but not unexpected
+            Left TDINotADT -> mzero -- note that this could happen if we had a type let, in which case this is not unexpected
+            Right (t, _, instVCs) -> case find ((== c) . fst) instVCs of
+              Nothing -> fail $ CaseRedexCtorMismatch t c
+              Just (_, argTys) -> pure argTys
     {- Note [Case reduction and variable capture]
        There is a subtlety here around variable capture.
        Consider
@@ -433,7 +477,7 @@ lookupTy n c = case lookup (unLocalName n) c of
 -- - stuck on the type annotation on its left-most child
 -- - stuck on expression under the type annotation in its left-most child
 viewRedex ::
-  (MonadLog (WithSeverity l) m) =>
+  (MonadLog (WithSeverity l) m, ConvertLogMessage EvalFullLog l) =>
   TypeDefMap ->
   DefMap ->
   Dir ->
@@ -551,7 +595,7 @@ fvCxtTy vs = do
 -- "expand a" redex to be the 'lettype' rather than the variable occurrance.
 findRedex ::
   forall l m.
-  (MonadLog (WithSeverity l) m) =>
+  (MonadLog (WithSeverity l) m, ConvertLogMessage EvalFullLog l) =>
   TypeDefMap ->
   DefMap ->
   Dir ->
@@ -709,8 +753,11 @@ runRedex = \case
   -- (and also the non-annotated-constructor case)
   -- Note that when forming the CaseRedex we checked that the variables @xs@ were fresh for @as@ and @As@,
   -- so this will not capture any variables.
-  CaseRedex _ as aTys' _ xs e -> do
+  CaseRedex c as aTys' _ xs e -> do
     aTys <- sequence aTys'
+    unless (length as == length aTys && length as == length xs) $
+      logWarning $
+        CaseRedexWrongArgNum c as aTys xs
     -- TODO: we are putting trivial metadata in here...
     -- See https://github.com/hackworthltd/primer/issues/6
     foldrM (\(x, a, tyA) t -> let_ x (pure a `ann` generateTypeIDs tyA) (pure t)) e (zip3 xs as aTys)
