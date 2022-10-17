@@ -181,7 +181,7 @@ data Redex
     -- reduction steps. E.g.
     --     cons ==  (Λa λx λxs. Cons @a x xs) : ∀a. a -> List a -> List a
     -- )
-    CaseRedex ValConName (forall m. MonadFresh NameCounter m => [(Expr, m (Type' ()))]) (Either Type (Type' ())) [LVarName] Expr
+    CaseRedex ValConName (forall m. MonadFresh NameCounter m => [(Expr, m (Type' ()))]) (Type' ()) [LVarName] Expr
   | -- [ t : T ]  ~>  t  writing [_] for the embedding of syn into chk
     -- This only fires for concrete (non-holey, no free vars) T, as otherwise the
     -- annotation can act as a type-changing cast:
@@ -323,7 +323,7 @@ viewCaseRedex tydefs = \case
     | Just (c, _, as, xs, e) <- extract expr brs
     , Just argTys <- instantiateCon ty c ->
         renameBindings m expr' brs [ty] as xs
-          <|> formCaseRedex (Left ty) c argTys as xs e
+          <|> formCaseRedex (forgetTypeMetadata ty) c argTys as xs e
   -- In the constructors-are-synthesisable case, we don't have the benefit of
   -- an explicit annotation, and have to work out the type based off the name
   -- of the constructor.
@@ -333,7 +333,7 @@ viewCaseRedex tydefs = \case
     , ty <- mkTAppCon tc (forgetTypeMetadata <$> take (length $ astTypeDefParameters tydef) tyargs)
     , Just argTys <- instantiateCon ty c ->
         renameBindings m expr brs tyargs args patterns
-          <|> formCaseRedex (Right ty) c argTys args patterns br
+          <|> formCaseRedex ty c argTys args patterns br
   _ -> Nothing
   where
     extract expr brs =
@@ -383,7 +383,7 @@ viewCaseRedex tydefs = \case
             then Nothing
             else Just $ RenameBindingsCase m expr brs avoid
     formCaseRedex ::
-      Either Type (Type' ()) ->
+      Type' () ->
       ValConName ->
       (forall m. MonadFresh NameCounter m => [m (Type' ())]) ->
       [Expr] ->
