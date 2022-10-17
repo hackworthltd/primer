@@ -599,8 +599,8 @@
               checks.x86_64-linux
               checks.aarch64-linux
               checks.aarch64-darwin
-              # tests.x86_64-linux
-              # tests.aarch64-linux
+              tests.x86_64-linux
+              tests.aarch64-linux
               devShell
             ]);
             meta.description = "Required CI builds";
