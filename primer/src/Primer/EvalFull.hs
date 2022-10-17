@@ -324,7 +324,7 @@ viewCaseRedex tydefs = \case
     | Just (c, _, as, xs, e) <- extract expr brs
     , Just argTys <- instantiateCon ty c ->
         renameBindings m expr' brs [ty] as xs
-          <|> formCaseRedex (forgetTypeMetadata ty) c argTys as xs e
+          <|> pure (formCaseRedex (forgetTypeMetadata ty) c argTys as xs e)
   -- In the constructors-are-synthesisable case, we don't have the benefit of
   -- an explicit annotation, and have to work out the type based off the name
   -- of the constructor.
@@ -334,7 +334,7 @@ viewCaseRedex tydefs = \case
     , ty <- mkTAppCon tc (forgetTypeMetadata <$> take (length $ astTypeDefParameters tydef) tyargs)
     , Just argTys <- instantiateCon ty c ->
         renameBindings m expr brs tyargs args patterns
-          <|> formCaseRedex ty c argTys args patterns br
+          <|> pure (formCaseRedex ty c argTys args patterns br)
   _ -> Nothing
   where
     extract expr brs =
@@ -390,10 +390,9 @@ viewCaseRedex tydefs = \case
       [Expr] ->
       [Bind' a] ->
       Expr ->
-      Maybe Redex
-    formCaseRedex ty c argTys args patterns br =
-      Just $
-        CaseRedex c args argTys ty (map bindName patterns) br
+      Redex
+    formCaseRedex ty c argTys args patterns =
+      CaseRedex c args argTys ty (map bindName patterns)
 
 -- We record each binder, along with its let-bound RHS (if any)
 -- and its original binding location and  context (to be able to detect capture)
