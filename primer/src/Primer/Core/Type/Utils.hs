@@ -94,7 +94,7 @@ traverseFreeVarsTy = go
         | otherwise -> curry f m a
       TApp m s t -> TApp m <$> go bound f s <*> go bound f t
       TForall m a k s -> TForall m a k <$> go (S.insert a bound) f s
-      TLet m a t b -> TLet m a t <$> go (S.insert a bound) f b
+      TLet m a t b -> TLet m a <$> go bound f t <*> go (S.insert a bound) f b
 
 boundVarsTy :: (Data a, Eq a) => Type' a -> Set TyVarName
 boundVarsTy = foldMap getBoundHereDnTy . universe
