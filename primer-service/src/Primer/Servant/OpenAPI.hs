@@ -16,6 +16,7 @@ import Data.OpenApi (OpenApi)
 import Primer.API (Selection)
 import Primer.API qualified as API
 import Primer.Action (Level)
+import Primer.Action.Available (OfferedAction)
 import Primer.Database (
   SessionId,
  )
@@ -104,6 +105,6 @@ data ActionAPI mode = ActionAPI
         :> QueryParam' '[Required, Strict] "level" Level
         :> ReqBody '[JSON] Selection
         :> OperationId "getAvailableActions"
-        :> Post '[JSON] [API.OfferedAction]
+        :> Post '[JSON] [OfferedAction]
   }
   deriving (Generic)

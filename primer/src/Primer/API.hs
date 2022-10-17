@@ -50,8 +50,6 @@ module Primer.API (
   viewTreeType,
   viewTreeExpr,
   getApp,
-  OfferedAction (..),
-  convertOfferedAction,
   Selection (..),
   convertSelection,
   NodeSelection (..),
@@ -815,19 +813,6 @@ flushSessions = do
   sessionsTransaction $ \ss _ -> do
     StmMap.reset ss
   pure ()
-
--- This is (for now) just `Action.Available.OfferedAction` without the `input` field.
--- This is a placeholder while we work out a new, serialisable available actions API.
-data OfferedAction = OfferedAction
-  { name :: ActionName
-  , description :: Text
-  , priority :: Int
-  , actionType :: ActionType
-  }
-  deriving (Show, Generic)
-  deriving (ToJSON) via (PrimerJSON OfferedAction)
-convertOfferedAction :: Action.OfferedAction a -> OfferedAction
-convertOfferedAction Action.OfferedAction{..} = OfferedAction{..}
 
 -- | 'App.Selection' without any node metadata.
 data Selection = Selection

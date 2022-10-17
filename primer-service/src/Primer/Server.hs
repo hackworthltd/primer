@@ -117,7 +117,7 @@ openAPIActionServer sid =
         prog <- getProgram sid
         let allDefs = progAllDefs prog
             allTypeDefs = progAllTypeDefs prog
-        map (map API.convertOfferedAction) $ case node of
+        case node of
           Nothing ->
             pure $ actionsForDef level allDefs def
           Just NodeSelection{..} -> do
