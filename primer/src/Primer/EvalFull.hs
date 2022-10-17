@@ -347,7 +347,7 @@ viewCaseRedex tydefs = \case
               CaseBranch _ xs e <- find (\(CaseBranch n _ _) -> n == c) brs
               pure (c, params, as, xs, e)
             _ -> Nothing
-    instantiateCon :: Type' a -> ValConName -> Maybe (forall m. MonadFresh NameCounter m => [m (Type' ())])
+    instantiateCon :: Type' a -> ValConName -> Maybe (forall m'. MonadFresh NameCounter m' => [m' (Type' ())])
     instantiateCon ty c
       | Right (_, _, instVCs) <- instantiateValCons' tydefs $ forgetTypeMetadata ty
       , Just (_, argTys) <- find ((== c) . fst) instVCs =
@@ -386,7 +386,7 @@ viewCaseRedex tydefs = \case
     formCaseRedex ::
       Type' () ->
       ValConName ->
-      (forall m. MonadFresh NameCounter m => [m (Type' ())]) ->
+      (forall m'. MonadFresh NameCounter m' => [m' (Type' ())]) ->
       [Expr] ->
       [Bind' a] ->
       Expr ->
