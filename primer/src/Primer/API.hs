@@ -31,6 +31,7 @@ module Primer.API (
   Tree,
   NodeBody (..),
   NodeFlavor,
+  viewProg,
   Prog (Prog),
   Module (Module),
   Def (Def),
@@ -87,6 +88,7 @@ import Primer.App (
   EvalResp (..),
   MutationRequest,
   NodeType,
+  ProgAction,
   ProgError,
   QueryAppM,
   Question (..),
@@ -218,6 +220,8 @@ data PrimerErr
   = DatabaseErr Text
   | UnknownDef GVarName
   | UnexpectedPrimDef GVarName
+  | MiscPrimerErr Text -- TODO remove
+  | ApplyActionError [ProgAction] ProgError -- TODO add more info? e.g. actual types from API call (ProgAction is a bit low-level)
   deriving (Show)
 
 instance Exception PrimerErr

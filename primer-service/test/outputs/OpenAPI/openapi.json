@@ -1,6 +1,56 @@
 {
     "components": {
         "schemas": {
+            "ActionInput": {
+                "oneOf": [
+                    {
+                        "properties": {
+                            "tag": {
+                                "enum": [
+                                    "NoInputRequired"
+                                ],
+                                "type": "string"
+                            }
+                        },
+                        "required": [
+                            "tag"
+                        ],
+                        "type": "object"
+                    },
+                    {
+                        "properties": {
+                            "contents": {
+                                "items": [
+                                    {
+                                        "items": {
+                                            "type": "string"
+                                        },
+                                        "type": "array"
+                                    },
+                                    {
+                                        "type": "boolean"
+                                    }
+                                ],
+                                "maxItems": 2,
+                                "minItems": 2,
+                                "type": "array"
+                            },
+                            "tag": {
+                                "enum": [
+                                    "InputRequired"
+                                ],
+                                "type": "string"
+                            }
+                        },
+                        "required": [
+                            "tag",
+                            "contents"
+                        ],
+                        "type": "object"
+                    }
+                ],
+                "type": "object"
+            },
             "ActionName": {
                 "oneOf": [
                     {
@@ -48,6 +98,21 @@
                     "Destructive"
                 ],
                 "type": "string"
+            },
+            "ApplyActionBody": {
+                "properties": {
+                    "action": {
+                        "$ref": "#/components/schemas/NoInputAction"
+                    },
+                    "selection": {
+                        "$ref": "#/components/schemas/Selection"
+                    }
+                },
+                "required": [
+                    "selection",
+                    "action"
+                ],
+                "type": "object"
             },
             "Def": {
                 "properties": {
@@ -118,6 +183,28 @@
                     "defs"
                 ],
                 "type": "object"
+            },
+            "NoInputAction": {
+                "enum": [
+                    "AMakeCase",
+                    "AConvertLetToLetrec",
+                    "AConstructApp",
+                    "AConstructAPP",
+                    "AConstructAnn",
+                    "ARemoveAnn",
+                    "AFinishHole",
+                    "AEnterHole",
+                    "AConstructFun",
+                    "AAddInput",
+                    "AConstructTypeApp",
+                    "ADuplicateDef",
+                    "ARaise",
+                    "ARaiseType",
+                    "ADeleteDef",
+                    "ADeleteExpr",
+                    "ADeleteType"
+                ],
+                "type": "string"
             },
             "NodeBody": {
                 "oneOf": [
@@ -239,6 +326,9 @@
                     "description": {
                         "type": "string"
                     },
+                    "input": {
+                        "$ref": "#/components/schemas/ActionInput"
+                    },
                     "name": {
                         "$ref": "#/components/schemas/ActionName"
                     },
@@ -252,7 +342,8 @@
                     "name",
                     "description",
                     "priority",
-                    "actionType"
+                    "actionType",
+                    "input"
                 ],
                 "type": "object"
             },
@@ -516,6 +607,50 @@
                     }
                 },
                 "summary": "Create a new session and return its ID"
+            }
+        },
+        "/openapi/sessions/{sessionId}/action/apply": {
+            "post": {
+                "operationId": "applyAction",
+                "parameters": [
+                    {
+                        "description": "The session ID",
+                        "in": "path",
+                        "name": "sessionId",
+                        "required": true,
+                        "schema": {
+                            "format": "uuid",
+                            "type": "string"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json;charset=utf-8": {
+                            "schema": {
+                                "$ref": "#/components/schemas/ApplyActionBody"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json;charset=utf-8": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Prog"
+                                }
+                            }
+                        },
+                        "description": ""
+                    },
+                    "400": {
+                        "description": "Invalid `body`"
+                    },
+                    "404": {
+                        "description": "`sessionId` not found"
+                    }
+                }
             }
         },
         "/openapi/sessions/{sessionId}/action/available": {

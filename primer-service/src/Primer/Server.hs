@@ -1,5 +1,6 @@
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE OverloadedLabels #-}
+{-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE RecordWildCards #-}
 
 -- | An HTTP service for the Primer API.
@@ -49,10 +50,11 @@ import Primer.API (
   newSession,
   renameSession,
   runPrimerIO,
+  viewProg,
  )
 import Primer.API qualified as API
-import Primer.Action.Available (actionsForDef, actionsForDefBody, actionsForDefSig)
-import Primer.App (NodeType (..), progAllDefs, progAllTypeDefs)
+import Primer.Action.Available (ActionRequest (ActionRequestSimple), actionsForDef, actionsForDefBody, actionsForDefSig, inputAction, mkAction, noInputAction)
+import Primer.App (MutationRequest (Edit), NodeType (..), progAllDefs, progAllTypeDefs)
 import Primer.Core (globalNamePretty)
 import Primer.Database (
   SessionId,
@@ -117,7 +119,8 @@ openAPIActionServer sid =
         prog <- getProgram sid
         let allDefs = progAllDefs prog
             allTypeDefs = progAllTypeDefs prog
-        case node of
+        -- (\x -> OpenAPI.AvailableActionResult  (either (noInputAction level) (inputAction level) x) x) <<$>> case node of
+        join (OpenAPI.AvailableActionResult . either (noInputAction level) (inputAction level)) <<$>> case node of
           Nothing ->
             pure $ actionsForDef level allDefs def
           Just NodeSelection{..} -> do
@@ -130,6 +133,28 @@ openAPIActionServer sid =
                     actionsForDefSig level def editable id type_
                   BodyNode -> do
                     actionsForDefBody (snd <$> allTypeDefs) level def editable id expr
+    , apply = \OpenAPI.ApplyActionBody{selection, action} -> do
+        -- TODO DRY with above
+        prog <- getProgram sid
+        let allDefs = progAllDefs prog
+            _allTypeDefs = progAllTypeDefs prog
+        case allDefs !? selection.def of
+          Nothing -> throwM $ UnknownDef selection.def
+          Just (_, DefPrim _) -> throwM $ UnexpectedPrimDef selection.def
+          Just (_, DefAST def) -> do
+            let patternsUnder = True -- TODO don't hardcode (then again, I expect the option itself to be short-lived)
+            actions <-
+              either (throwM . MiscPrimerErr) pure
+                $ mkAction
+                  (snd <$> progAllDefs prog)
+                  def
+                  selection.def
+                  (selection.node <&> \s -> (s.nodeType, s.id))
+                $ ActionRequestSimple action
+            edit sid (Edit actions)
+              >>= either
+                (throwM . ApplyActionError actions)
+                (pure . viewProg (ExprTreeOpts{patternsUnder}))
     }
 
 apiServer :: S.RootAPI (AsServerT PrimerIO)
@@ -245,5 +270,7 @@ serve ss q v port = do
         DatabaseErr msg -> err500{errBody = encode msg}
         UnknownDef d -> err404{errBody = "Unknown definition: " <> encode (globalNamePretty d)}
         UnexpectedPrimDef d -> err400{errBody = "Unexpected primitive definition: " <> encode (globalNamePretty d)}
+        ApplyActionError as e -> err400{errBody = "Error while applying action"}
+        MiscPrimerErr t -> err400{errBody = "Misc error: " <> encode t}
       where
         encode = LT.encodeUtf8 . LT.fromStrict

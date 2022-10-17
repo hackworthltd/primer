@@ -8,18 +8,21 @@ module Primer.Servant.OpenAPI (
   SessionAPI (..),
   ActionAPI (..),
   Spec,
+  ApplyActionBody (..),
+  AvailableActionResult (..),
 ) where
 
 import Foreword
 
-import Data.OpenApi (OpenApi)
+import Data.OpenApi (OpenApi, ToSchema)
 import Primer.API (Selection)
 import Primer.API qualified as API
 import Primer.Action (Level)
-import Primer.Action.Available (OfferedAction)
+import Primer.Action.Available (InputAction, NoInputAction, OfferedAction)
 import Primer.Database (
   SessionId,
  )
+import Primer.JSON (CustomJSON (CustomJSON), FromJSON, PrimerJSON, ToJSON)
 import Primer.OpenAPI ()
 import Primer.Servant.Types (
   CopySession,
@@ -105,6 +108,29 @@ data ActionAPI mode = ActionAPI
         :> QueryParam' '[Required, Strict] "level" Level
         :> ReqBody '[JSON] Selection
         :> OperationId "getAvailableActions"
-        :> Post '[JSON] [OfferedAction]
+        :> Post '[JSON] [AvailableActionResult]
+  , apply ::
+      mode
+        :- "apply"
+        -- :> Summary "Get available actions for the definition, or a node within it"
+        :> ReqBody '[JSON] ApplyActionBody
+        :> OperationId "applyAction"
+        :> Post '[JSON] API.Prog -- TODO return prog? or get from separate call? in the long run, this will return some kind of patch/diff
   }
   deriving (Generic)
+
+-- TODO tuple would be nice, but I don't think OpenAPI supports it - find where B previously worked around
+data ApplyActionBody = ApplyActionBody
+  { selection :: Selection
+  , action :: NoInputAction
+  }
+  deriving (Generic, Show)
+  deriving (FromJSON, ToJSON, ToSchema) via PrimerJSON ApplyActionBody
+
+-- only temporary
+data AvailableActionResult = AvailableActionResult
+  { extra :: OfferedAction
+  , action :: Either NoInputAction InputAction
+  }
+  deriving (Generic, Show)
+  deriving (FromJSON, ToJSON, ToSchema) via PrimerJSON AvailableActionResult
