@@ -1,8 +1,8 @@
+{-# HLINT ignore "Use section" #-}
+{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
 {-# OPTIONS_GHC -Wno-unused-imports #-}
-
-{-# HLINT ignore "Use section" #-}
 
 -- | Compute all the possible actions which can be performed on a definition
 module Primer.Action.Available (
@@ -17,6 +17,7 @@ module Primer.Action.Available (
   ActionRequest (..),
   inputAction,
   mkAction,
+  OfferedActionInputRequired (..),
 ) where
 
 import Foreword
@@ -110,17 +111,27 @@ import Primer.Zipper (
 -- TODO rip out questions - kind of meaningless now that this all goes on in backend
 -- TODO move to `Primer.Action`? incl. child types
 data OfferedAction -- TODO rename incl. constructors and subtypes
-  = NoInputRequired
-      NoInputAction
-  | InputRequired
-      -- Text -- TODO newtype `Prompt`? or just put this on the frontend, like I probably will for `description` field etc.
-      -- Bool -- TODO this is whether we provide a list to choose from - I haven't decided whether that will be a separate API call, or if we send them all upfront (see `[InputOption]` below)
-      [InputOption] -- options - newtype? distinguish "this sort of action doesn't come with options" from e.g. "no variables in scope"?
-      -- [InputOption]
-      Bool -- TODO Bool is "allow free text?" - use newtype? also, bear in mind frontend will need to keep asking whether name is valid (or we always send it set of invalid names (clashes, rude words etc.))
-      InputAction
+  = NoInputRequired NoInputAction
+  | InputRequired OfferedActionInputRequired
   deriving (Show, Generic)
   deriving (ToJSON, FromJSON) via PrimerJSON OfferedAction
+
+-- TODO inline this
+inputRequired options allowFreeText action = OfferedActionInputRequired{..}
+
+data OfferedActionInputRequired = OfferedActionInputRequired
+  { options :: [InputOption]
+  , allowFreeText :: Bool
+  , action :: InputAction
+  -- -- Text -- TODO newtype `Prompt`? or just put this on the frontend, like I probably will for `description` field etc.
+  -- -- Bool -- TODO this is whether we provide a list to choose from - I haven't decided whether that will be a separate API call, or if we send them all upfront (see `[InputOption]` below)
+  -- [InputOption] -- options - newtype? distinguish "this sort of action doesn't come with options" from e.g. "no variables in scope"?
+  -- -- [InputOption]
+  -- Bool -- TODO Bool is "allow free text?" - use newtype? also, bear in mind frontend will need to keep asking whether name is valid (or we always send it set of invalid names (clashes, rude words etc.))
+  -- InputAction
+  }
+  deriving (Show, Generic)
+  deriving (ToJSON, FromJSON) via PrimerJSON OfferedActionInputRequired
 
 type InputOption = Text -- TODO this may need to become more structured
 
@@ -536,13 +547,13 @@ inputAction l = \case
         --       ("Choose a " <> nameString <> " for the input variable")
         --       options
         --     $ \n ->
-        InputRequired
+        inputRequired
           [] -- TODO note 2
           True
       AUseVar ->
         -- ChooseVariable filterVars $
         --   pure . ConstructVar
-        InputRequired
+        inputRequired
           [] -- TODO note 1
           False
       AUseValueCon ->
@@ -551,7 +562,7 @@ inputAction l = \case
               _ -> Everything
          in -- ChooseConstructor filterCtors $
             --   \c ->
-            InputRequired
+            inputRequired
               [] -- TODO note 1
               False
       AUseSaturatedValueCon ->
@@ -561,11 +572,11 @@ inputAction l = \case
 
         -- . ChooseConstructor OnlyFunctions
         --  $ \c ->
-        InputRequired
+        inputRequired
           [] -- TODO note 1
           False
       ASaturatedFunction ->
-        InputRequired
+        inputRequired
           -- . ChooseVariable OnlyFunctions
           -- \$ \name ->
           [] -- TODO note 1
@@ -573,123 +584,123 @@ inputAction l = \case
       AMakeLet ->
         -- (GenerateName defName (m ^. _id) (Left Nothing))
         --  $ \options ->
-        --   InputRequired
+        --   inputRequired
         --     . ChooseOrEnterName
         --       ("Choose a " <> nameString <> " for the new let binding")
         --       options
         --     $ \n -> [ConstructLet $ Just $ unName n]
         -- AskQuestion
-        InputRequired
+        inputRequired
           [] -- TODO note 2
           True
       AMakeLetRec ->
         -- (GenerateName defName (m ^. _id) (Left Nothing)) $ \options ->
-        -- InputRequired
+        -- inputRequired
         --   . ChooseOrEnterName
         --     ("Choose a " <> nameString <> " for the new let binding")
         --     options
         --   $ \n -> [ConstructLetrec $ Just $ unName n]
         -- AskQuestion
-        InputRequired
+        inputRequired
           [] -- TODO note 2
           True
       AConstructBigLambda ->
         -- AskQuestion
         -- (GenerateName defName (m ^. _id) (Right $ join $ m ^? _type % _Just % _chkedAt % to lAMVarKind)) $ \options ->
-        --   InputRequired
+        --   inputRequired
         --     $ ChooseOrEnterName
         --       ("Choose a " <> nameString <> " for the bound type variable")
         --       options
         --     $ \n -> [ConstructLAM $ Just $ unName n]
-        InputRequired
+        inputRequired
           [] -- TODO note 2
           True
       AUseTypeVar ->
         -- ChooseTypeVariable $
         --   \v -> [ConstructTVar v]
-        InputRequired
+        inputRequired
           [] -- TODO note 1
           False
       AUseTypeCon ->
         -- ChooseTypeConstructor $
         --   \t -> [ConstructTCon t]
-        InputRequired
+        inputRequired
           [] -- TODO note 1
           False
       AConstructForall ->
         --  (GenerateName defName (m ^. _id) (Right Nothing)) $ \options ->
-        -- InputRequired
+        -- inputRequired
         --   . ChooseOrEnterName
         --     ("Choose a " <> nameString <> " for the bound type variable")
         --     options
         --   $ \n -> [ConstructTForall $ Just $ unName n, Move Child1]
         -- AskQuestion
-        InputRequired
+        inputRequired
           [] -- TODO note 2
           True
       ARenameDef ->
         -- ("Enter a new " <> nameString <> " for the definition")
         -- (\name -> [RenameDef defName (unName name)])
-        InputRequired
+        inputRequired
           []
           True
       ARenamePatternVar ->
         -- AskQuestion
         -- (GenerateName defName (b ^. _bindMeta % _id) (Left $ b ^? _bindMeta % _type % _Just % _chkedAt))
         --  $ \options ->
-        --   InputRequired
+        --   inputRequired
         --     $ ChooseOrEnterName
         --       ("Choose a new " <> nameString <> " for the pattern variable")
         --       options
         --     $ \n -> [RenameCaseBinding $ unName n]
-        InputRequired
+        inputRequired
           [] -- TODO note 2
           True
       ARenameLambda ->
         -- (GenerateName defName (m ^. _id) (Left $ join $ m ^? _type % _Just % _chkedAt % to lamVarTy))
         --   $ \options ->
-        --   InputRequired
+        --   inputRequired
         --     . ChooseOrEnterName
         --       ("Choose a new " <> nameString <> " for the input variable")
         --       options
         --     $ \n -> [RenameLam $ unName n]
         -- AskQuestion
-        InputRequired
+        inputRequired
           [] -- TODO note 2
           True
       ARenameLAM ->
         -- (GenerateName defName (m ^. _id) (Right $ join $ m ^? _type % _Just % _chkedAt % to lAMVarKind))
         --  $ \options ->
-        --   InputRequired
+        --   inputRequired
         --     . ChooseOrEnterName
         --       ("Choose a new " <> nameString <> " for the type variable")
         --       options
         --     $ \n -> [RenameLAM $ unName n]
         -- AskQuestion
-        InputRequired
+        inputRequired
           [] -- TODO note 2
           True
       ARenameLetBinding ->
         -- (GenerateName defName (m ^. _id) (Left $ forgetTypeMetadata <$> t))
         --   $ \options ->
-        --   InputRequired
+        --   inputRequired
         --     . ChooseOrEnterName
         --       ("Choose a new " <> nameString <> " for the let binding")
         --       options
         --     $ \n -> [RenameLet $ unName n]
         -- AskQuestion
-        InputRequired
+        inputRequired
           [] -- TODO note 2
           True
       ARenameForall ->
         --  (GenerateName defName (m' ^. _id) (Right $ Just k)) $ \options ->
-        -- InputRequired
+        -- inputRequired
         --   $ ChooseOrEnterName
         --     ("Choose a new " <> nameString <> " for the bound type variable")
         --     options
         --   $ \n -> [RenameForall $ unName n]
         -- AskQuestion
-        InputRequired
+        inputRequired
           [] -- TODO note 2
           True
 

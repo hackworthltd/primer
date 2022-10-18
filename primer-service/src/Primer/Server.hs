@@ -119,7 +119,7 @@ openAPIActionServer sid =
         prog <- getProgram sid
         let allDefs = progAllDefs prog
             allTypeDefs = progAllTypeDefs prog
-        either NoInputRequired (\a -> inputAction level a a) <<$>> case node of
+        either NoInputRequired (\a -> InputRequired $ inputAction level a a) <<$>> case node of
           Nothing ->
             pure $ actionsForDef level allDefs def
           Just NodeSelection{..} -> do
