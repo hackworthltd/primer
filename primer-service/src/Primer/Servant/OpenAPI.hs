@@ -9,7 +9,6 @@ module Primer.Servant.OpenAPI (
   ActionAPI (..),
   Spec,
   ApplyActionBody (..),
-  AvailableActionResult (..),
 ) where
 
 import Foreword
@@ -18,7 +17,7 @@ import Data.OpenApi (OpenApi, ToSchema)
 import Primer.API (Selection)
 import Primer.API qualified as API
 import Primer.Action (Level)
-import Primer.Action.Available (InputAction, NoInputAction, OfferedAction)
+import Primer.Action.Available (ActionRequest, InputAction, NoInputAction, OfferedAction)
 import Primer.Database (
   SessionId,
  )
@@ -108,7 +107,7 @@ data ActionAPI mode = ActionAPI
         :> QueryParam' '[Required, Strict] "level" Level
         :> ReqBody '[JSON] Selection
         :> OperationId "getAvailableActions"
-        :> Post '[JSON] [AvailableActionResult]
+        :> Post '[JSON] [OfferedAction]
   , apply ::
       mode
         :- "apply"
@@ -122,15 +121,7 @@ data ActionAPI mode = ActionAPI
 -- TODO tuple would be nice, but I don't think OpenAPI supports it - find where B previously worked around
 data ApplyActionBody = ApplyActionBody
   { selection :: Selection
-  , action :: NoInputAction
+  , action :: ActionRequest
   }
   deriving (Generic, Show)
   deriving (FromJSON, ToJSON, ToSchema) via PrimerJSON ApplyActionBody
-
--- only temporary
-data AvailableActionResult = AvailableActionResult
-  { extra :: OfferedAction -- TODO eventually this will be just the input field
-  , action :: Either NoInputAction InputAction
-  }
-  deriving (Generic, Show)
-  deriving (FromJSON, ToJSON, ToSchema) via PrimerJSON AvailableActionResult

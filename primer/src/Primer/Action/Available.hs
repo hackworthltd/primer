@@ -1,5 +1,8 @@
 {-# LANGUAGE TypeFamilies #-}
+{-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
 {-# OPTIONS_GHC -Wno-unused-imports #-}
+
+{-# HLINT ignore "Use section" #-}
 
 -- | Compute all the possible actions which can be performed on a definition
 module Primer.Action.Available (
@@ -8,12 +11,10 @@ module Primer.Action.Available (
   actionsForDefSig,
   OfferedAction (..),
   FunctionFiltering (..),
-  ActionInput (..),
   InputAction (..),
   NoInputAction (..),
   Level (..),
   ActionRequest (..),
-  noInputAction,
   inputAction,
   mkAction,
 ) where
@@ -102,28 +103,24 @@ import Primer.Zipper (
   up,
  )
 
--- TODO rename?
--- TODO remove most fields, just mapping on frontend instead? perhaps use (Priority, AvailableAction) here, and sort and strip priority before passing to frontend
-data OfferedAction = OfferedAction
-  { priority :: Int
-  , input :: ActionInput
-  }
-  deriving (Show, Generic)
-  deriving (ToJSON, FromJSON) via PrimerJSON OfferedAction
+-- deriving (Show, Generic)
+-- deriving (ToJSON, FromJSON) via PrimerJSON OfferedAction
 
 -- TODO split `InputRequired` up - `InputAction` implies the `Bool` and whether the `[Text]` is empty
 -- TODO rip out questions - kind of meaningless now that this all goes on in backend
 -- TODO move to `Primer.Action`? incl. child types
-data ActionInput -- TODO rename to `OfferedAction`? also, rename incl. constructors and subtypes
+data OfferedAction -- TODO rename incl. constructors and subtypes
   = NoInputRequired
+      NoInputAction
   | InputRequired
       -- Text -- TODO newtype `Prompt`? or just put this on the frontend, like I probably will for `description` field etc.
       -- Bool -- TODO this is whether we provide a list to choose from - I haven't decided whether that will be a separate API call, or if we send them all upfront (see `[InputOption]` below)
       [InputOption] -- options - newtype? distinguish "this sort of action doesn't come with options" from e.g. "no variables in scope"?
       -- [InputOption]
       Bool -- TODO Bool is "allow free text?" - use newtype? also, bear in mind frontend will need to keep asking whether name is valid (or we always send it set of invalid names (clashes, rude words etc.))
+      InputAction
   deriving (Show, Generic)
-  deriving (ToJSON, FromJSON) via PrimerJSON ActionInput
+  deriving (ToJSON, FromJSON) via PrimerJSON OfferedAction
 
 type InputOption = Text -- TODO this may need to become more structured
 
@@ -188,6 +185,8 @@ data ActionRequest
   | ActionRequestComplex
       InputAction
       Text -- TODO or number from list? would that require backend to remember some state?
+  deriving (Generic, Show)
+  deriving (FromJSON, ToJSON) via PrimerJSON ActionRequest
 
 -- | Filter on variables and constructors according to whether they
 -- have a function type.
@@ -211,7 +210,7 @@ actionsForDef ::
   -- | The name of a definition in the map
   GVarName ->
   [Either NoInputAction InputAction]
-actionsForDef l defs defName = catMaybes [rename, duplicate, delete]
+actionsForDef l defs defName = prioritySort l $ catMaybes [rename, duplicate, delete]
   where
     rename = do
       _ <- getEditableASTDef defs defName
@@ -239,7 +238,7 @@ actionsForDefBody ::
 actionsForDefBody _ _ _ NonEditable _ _ = mempty
 actionsForDefBody tydefs l defName mut@Editable id expr =
   let raiseAction' = Left ARaise
-   in case findNodeWithParent id expr of
+   in prioritySort l $ case findNodeWithParent id expr of
         Nothing -> mempty
         Just (ExprNode e, p) ->
           let raiseAction = case p of
@@ -270,7 +269,7 @@ actionsForDefSig l defName Editable id ty =
         [ Left ARaiseType
         | id /= getID ty
         ]
-   in case findType id ty of
+   in prioritySort l $ case findType id ty of
         Nothing -> mempty
         Just t ->
           basicActionsForType l defName t
@@ -471,48 +470,48 @@ compoundActionsForType l ty = case ty of
     addFunctionArgument a b = Left AAddInput
 
 -- do we stull want/need this?
--- priorityNoInputAction :: NoInputAction -> Level -> Int
--- priorityNoInputAction = \case
---   AMakeCase -> P.makeCase
---   AConvertLetToLetrec -> P.makeLetRecursive
---   AConstructApp -> P.applyFunction
---   AConstructAPP -> P.applyType
---   AConstructAnn -> P.annotateExpr
---   ARemoveAnn -> P.removeAnnotation
---   AFinishHole -> P.finishHole
---   AEnterHole -> P.enterHole
---   AConstructFun -> P.constructFunction
---   AAddInput -> P.addInput
---   AConstructTypeApp -> P.constructTypeApp
---   ADuplicateDef -> P.duplicate
---   ARaise -> P.raise
---   ARaiseType -> P.raise
---   ADeleteDef -> P.delete
---   ADeleteExpr -> P.delete
---   ADeleteType -> P.delete
--- priorityInputAction :: InputAction -> Level -> Int
--- priorityInputAction = \case
---   AMakeLambda -> P.makeLambda
---   AUseVar -> P.useVar
---   AUseValueCon -> P.useValueCon
---   AUseSaturatedValueCon -> P.useSaturatedValueCon
---   ASaturatedFunction -> P.useFunction
---   AMakeLet -> P.makeLet
---   AMakeLetRec -> P.makeLetrec
---   AConstructBigLambda -> P.makeTypeAbstraction
---   AUseTypeVar -> P.useTypeVar
---   AUseTypeCon -> P.useTypeCon
---   AConstructForall -> P.constructForall
---   ARenameDef -> P.rename
---   ARenamePatternVar -> P.rename
---   ARenameLambda -> P.rename
---   ARenameLAM -> P.rename
---   ARenameLetBinding -> P.rename
---   ARenameForall -> P.rename
+priorityNoInputAction :: NoInputAction -> Level -> Int
+priorityNoInputAction = \case
+  AMakeCase -> P.makeCase
+  AConvertLetToLetrec -> P.makeLetRecursive
+  AConstructApp -> P.applyFunction
+  AConstructAPP -> P.applyType
+  AConstructAnn -> P.annotateExpr
+  ARemoveAnn -> P.removeAnnotation
+  AFinishHole -> P.finishHole
+  AEnterHole -> P.enterHole
+  AConstructFun -> P.constructFunction
+  AAddInput -> P.addInput
+  AConstructTypeApp -> P.constructTypeApp
+  ADuplicateDef -> P.duplicate
+  ARaise -> P.raise
+  ARaiseType -> P.raise
+  ADeleteDef -> P.delete
+  ADeleteExpr -> P.delete
+  ADeleteType -> P.delete
+priorityInputAction :: InputAction -> Level -> Int
+priorityInputAction = \case
+  AMakeLambda -> P.makeLambda
+  AUseVar -> P.useVar
+  AUseValueCon -> P.useValueCon
+  AUseSaturatedValueCon -> P.useSaturatedValueCon
+  ASaturatedFunction -> P.useFunction
+  AMakeLet -> P.makeLet
+  AMakeLetRec -> P.makeLetrec
+  AConstructBigLambda -> P.makeTypeAbstraction
+  AUseTypeVar -> P.useTypeVar
+  AUseTypeCon -> P.useTypeCon
+  AConstructForall -> P.constructForall
+  ARenameDef -> P.rename
+  ARenamePatternVar -> P.rename
+  ARenameLambda -> P.rename
+  ARenameLAM -> P.rename
+  ARenameLetBinding -> P.rename
+  ARenameForall -> P.rename
 
 -- getInput :: Either NoInputAction InputAction -> (OfferedAction, [ProgAction])
 -- getInput :: Level -> Either NoInputAction InputAction -> (OfferedAction, [ProgAction])
--- TODO obviously don't use `Text` for arrows
+-- TODO obviously don't use `Text` for errors
 -- TODO but can we avoid errors here completely by shifting more responsibility to `ProgAction`
 -- TODO fewer args?
 -- inputAction ::
@@ -524,326 +523,175 @@ compoundActionsForType l ty = case ty of
 --   Either Expr Type ->
 --   Either NoInputAction InputAction ->
 --   (OfferedAction, Either Text [ProgAction])
-noInputAction l = \case
-  AMakeCase ->
-    OfferedAction
-      { input = NoInputRequired
-      , priority = P.makeCase l
-      }
-  AConvertLetToLetrec ->
-    OfferedAction
-      { input = NoInputRequired
-      , priority = P.makeLetRecursive l
-      }
-  AConstructApp ->
-    OfferedAction
-      { input = NoInputRequired
-      , priority = P.applyFunction l
-      }
-  AConstructAPP ->
-    OfferedAction
-      { input = NoInputRequired
-      , priority = P.applyType l
-      }
-  AConstructAnn ->
-    OfferedAction
-      { input = NoInputRequired
-      , priority = P.annotateExpr l
-      }
-  ARemoveAnn ->
-    OfferedAction
-      { input = NoInputRequired
-      , priority = P.removeAnnotation l
-      }
-  AFinishHole ->
-    OfferedAction
-      { input = NoInputRequired
-      , priority = P.finishHole l
-      }
-  AEnterHole ->
-    OfferedAction
-      { input = NoInputRequired
-      , priority = P.enterHole l
-      }
-  AConstructFun ->
-    OfferedAction
-      { input = NoInputRequired
-      , priority = P.constructFunction l
-      }
-  AAddInput ->
-    OfferedAction
-      { input = NoInputRequired
-      , priority = P.addInput l
-      }
-  AConstructTypeApp ->
-    OfferedAction
-      { input = NoInputRequired
-      , priority = P.constructTypeApp l
-      }
-  ADuplicateDef ->
-    OfferedAction
-      { input = NoInputRequired
-      , priority = P.duplicate l
-      }
-  ARaise ->
-    OfferedAction
-      { input = NoInputRequired
-      , priority = P.raise l
-      }
-  ARaiseType ->
-    OfferedAction
-      { input = NoInputRequired
-      , priority = P.raise l
-      }
-  ADeleteDef ->
-    OfferedAction
-      { input = NoInputRequired
-      , priority = P.delete l
-      }
-  ADeleteExpr ->
-    OfferedAction
-      { input = NoInputRequired
-      , priority = P.delete l
-      }
-  ADeleteType ->
-    OfferedAction
-      { input = NoInputRequired
-      , priority = P.delete l
-      }
+
+-- TODO bit of a red flag when result is always `InputRequired` and we always need to apply self on end
 inputAction l = \case
   action ->
     case action of
       AMakeLambda ->
-        OfferedAction
-          { input =
-              -- AskQuestion
-              -- (GenerateName defName (m ^. _id) (Left $ join $ m ^? _type % _Just % _chkedAt % to lamVarTy)) $ \options ->
-              --   InputRequired
-              --     $ ChooseOrEnterName
-              --       ("Choose a " <> nameString <> " for the input variable")
-              --       options
-              --     $ \n ->
-              InputRequired
-                [] -- TODO note 2
-                True
-          , priority = P.makeLambda l
-          }
+        -- AskQuestion
+        -- (GenerateName defName (m ^. _id) (Left $ join $ m ^? _type % _Just % _chkedAt % to lamVarTy)) $ \options ->
+        --   InputRequired
+        --     $ ChooseOrEnterName
+        --       ("Choose a " <> nameString <> " for the input variable")
+        --       options
+        --     $ \n ->
+        InputRequired
+          [] -- TODO note 2
+          True
       AUseVar ->
-        OfferedAction
-          { input =
-              -- ChooseVariable filterVars $
-              --   pure . ConstructVar
-              InputRequired
-                [] -- TODO note 1
-                False
-          , priority = P.useVar l
-          }
+        -- ChooseVariable filterVars $
+        --   pure . ConstructVar
+        InputRequired
+          [] -- TODO note 1
+          False
       AUseValueCon ->
         let filterCtors = case l of
               Beginner -> NoFunctions
               _ -> Everything
-         in OfferedAction
-              { input =
-                  -- ChooseConstructor filterCtors $
-                  --   \c ->
-                  InputRequired
-                    [] -- TODO note 1
-                    False
-              , priority = P.useValueCon l
-              }
+         in -- ChooseConstructor filterCtors $
+            --   \c ->
+            InputRequired
+              [] -- TODO note 1
+              False
       AUseSaturatedValueCon ->
         -- NB: Exactly one of the saturated and refined actions will be available
         -- (depending on whether we have useful type information to hand).
         -- We put the same labels on each.
-        OfferedAction
-          { input =
-              -- . ChooseConstructor OnlyFunctions
-              --  $ \c ->
-              InputRequired
-                [] -- TODO note 1
-                False
-          , priority = P.useSaturatedValueCon l
-          }
+
+        -- . ChooseConstructor OnlyFunctions
+        --  $ \c ->
+        InputRequired
+          [] -- TODO note 1
+          False
       ASaturatedFunction ->
-        OfferedAction
-          { input =
-              InputRequired
-                -- . ChooseVariable OnlyFunctions
-                -- \$ \name ->
-                [] -- TODO note 1
-                False
-          , priority = P.useFunction l
-          }
+        InputRequired
+          -- . ChooseVariable OnlyFunctions
+          -- \$ \name ->
+          [] -- TODO note 1
+          False
       AMakeLet ->
-        OfferedAction
-          { input =
-              -- (GenerateName defName (m ^. _id) (Left Nothing))
-              --  $ \options ->
-              --   InputRequired
-              --     . ChooseOrEnterName
-              --       ("Choose a " <> nameString <> " for the new let binding")
-              --       options
-              --     $ \n -> [ConstructLet $ Just $ unName n]
-              -- AskQuestion
-              InputRequired
-                [] -- TODO note 2
-                True
-          , priority = P.makeLet l
-          }
+        -- (GenerateName defName (m ^. _id) (Left Nothing))
+        --  $ \options ->
+        --   InputRequired
+        --     . ChooseOrEnterName
+        --       ("Choose a " <> nameString <> " for the new let binding")
+        --       options
+        --     $ \n -> [ConstructLet $ Just $ unName n]
+        -- AskQuestion
+        InputRequired
+          [] -- TODO note 2
+          True
       AMakeLetRec ->
-        OfferedAction
-          { input =
-              -- (GenerateName defName (m ^. _id) (Left Nothing)) $ \options ->
-              -- InputRequired
-              --   . ChooseOrEnterName
-              --     ("Choose a " <> nameString <> " for the new let binding")
-              --     options
-              --   $ \n -> [ConstructLetrec $ Just $ unName n]
-              -- AskQuestion
-              InputRequired
-                [] -- TODO note 2
-                True
-          , priority = P.makeLetrec l
-          }
+        -- (GenerateName defName (m ^. _id) (Left Nothing)) $ \options ->
+        -- InputRequired
+        --   . ChooseOrEnterName
+        --     ("Choose a " <> nameString <> " for the new let binding")
+        --     options
+        --   $ \n -> [ConstructLetrec $ Just $ unName n]
+        -- AskQuestion
+        InputRequired
+          [] -- TODO note 2
+          True
       AConstructBigLambda ->
-        OfferedAction
-          { input =
-              -- AskQuestion
-              -- (GenerateName defName (m ^. _id) (Right $ join $ m ^? _type % _Just % _chkedAt % to lAMVarKind)) $ \options ->
-              --   InputRequired
-              --     $ ChooseOrEnterName
-              --       ("Choose a " <> nameString <> " for the bound type variable")
-              --       options
-              --     $ \n -> [ConstructLAM $ Just $ unName n]
-              InputRequired
-                [] -- TODO note 2
-                True
-          , priority = P.makeTypeAbstraction l
-          }
+        -- AskQuestion
+        -- (GenerateName defName (m ^. _id) (Right $ join $ m ^? _type % _Just % _chkedAt % to lAMVarKind)) $ \options ->
+        --   InputRequired
+        --     $ ChooseOrEnterName
+        --       ("Choose a " <> nameString <> " for the bound type variable")
+        --       options
+        --     $ \n -> [ConstructLAM $ Just $ unName n]
+        InputRequired
+          [] -- TODO note 2
+          True
       AUseTypeVar ->
-        OfferedAction
-          { input =
-              -- ChooseTypeVariable $
-              --   \v -> [ConstructTVar v]
-              InputRequired
-                [] -- TODO note 1
-                False
-          , priority = P.useTypeVar l
-          }
+        -- ChooseTypeVariable $
+        --   \v -> [ConstructTVar v]
+        InputRequired
+          [] -- TODO note 1
+          False
       AUseTypeCon ->
-        OfferedAction
-          { input =
-              -- ChooseTypeConstructor $
-              --   \t -> [ConstructTCon t]
-              InputRequired
-                [] -- TODO note 1
-                False
-          , priority = P.useTypeCon l
-          }
+        -- ChooseTypeConstructor $
+        --   \t -> [ConstructTCon t]
+        InputRequired
+          [] -- TODO note 1
+          False
       AConstructForall ->
-        OfferedAction
-          { input =
-              --  (GenerateName defName (m ^. _id) (Right Nothing)) $ \options ->
-              -- InputRequired
-              --   . ChooseOrEnterName
-              --     ("Choose a " <> nameString <> " for the bound type variable")
-              --     options
-              --   $ \n -> [ConstructTForall $ Just $ unName n, Move Child1]
-              -- AskQuestion
-              InputRequired
-                [] -- TODO note 2
-                True
-          , priority = P.constructForall l
-          }
+        --  (GenerateName defName (m ^. _id) (Right Nothing)) $ \options ->
+        -- InputRequired
+        --   . ChooseOrEnterName
+        --     ("Choose a " <> nameString <> " for the bound type variable")
+        --     options
+        --   $ \n -> [ConstructTForall $ Just $ unName n, Move Child1]
+        -- AskQuestion
+        InputRequired
+          [] -- TODO note 2
+          True
       ARenameDef ->
-        OfferedAction
-          { input =
-              -- ("Enter a new " <> nameString <> " for the definition")
-              -- (\name -> [RenameDef defName (unName name)])
-              InputRequired
-                []
-                True
-          , priority = P.rename l
-          }
+        -- ("Enter a new " <> nameString <> " for the definition")
+        -- (\name -> [RenameDef defName (unName name)])
+        InputRequired
+          []
+          True
       ARenamePatternVar ->
-        OfferedAction
-          { input =
-              -- AskQuestion
-              -- (GenerateName defName (b ^. _bindMeta % _id) (Left $ b ^? _bindMeta % _type % _Just % _chkedAt))
-              --  $ \options ->
-              --   InputRequired
-              --     $ ChooseOrEnterName
-              --       ("Choose a new " <> nameString <> " for the pattern variable")
-              --       options
-              --     $ \n -> [RenameCaseBinding $ unName n]
-              InputRequired
-                [] -- TODO note 2
-                True
-          , priority = P.rename l
-          }
+        -- AskQuestion
+        -- (GenerateName defName (b ^. _bindMeta % _id) (Left $ b ^? _bindMeta % _type % _Just % _chkedAt))
+        --  $ \options ->
+        --   InputRequired
+        --     $ ChooseOrEnterName
+        --       ("Choose a new " <> nameString <> " for the pattern variable")
+        --       options
+        --     $ \n -> [RenameCaseBinding $ unName n]
+        InputRequired
+          [] -- TODO note 2
+          True
       ARenameLambda ->
-        OfferedAction
-          { input =
-              -- (GenerateName defName (m ^. _id) (Left $ join $ m ^? _type % _Just % _chkedAt % to lamVarTy))
-              --   $ \options ->
-              --   InputRequired
-              --     . ChooseOrEnterName
-              --       ("Choose a new " <> nameString <> " for the input variable")
-              --       options
-              --     $ \n -> [RenameLam $ unName n]
-              -- AskQuestion
-              InputRequired
-                [] -- TODO note 2
-                True
-          , priority = P.rename l
-          }
+        -- (GenerateName defName (m ^. _id) (Left $ join $ m ^? _type % _Just % _chkedAt % to lamVarTy))
+        --   $ \options ->
+        --   InputRequired
+        --     . ChooseOrEnterName
+        --       ("Choose a new " <> nameString <> " for the input variable")
+        --       options
+        --     $ \n -> [RenameLam $ unName n]
+        -- AskQuestion
+        InputRequired
+          [] -- TODO note 2
+          True
       ARenameLAM ->
-        OfferedAction
-          { input =
-              -- (GenerateName defName (m ^. _id) (Right $ join $ m ^? _type % _Just % _chkedAt % to lAMVarKind))
-              --  $ \options ->
-              --   InputRequired
-              --     . ChooseOrEnterName
-              --       ("Choose a new " <> nameString <> " for the type variable")
-              --       options
-              --     $ \n -> [RenameLAM $ unName n]
-              -- AskQuestion
-              InputRequired
-                [] -- TODO note 2
-                True
-          , priority = P.rename l
-          }
+        -- (GenerateName defName (m ^. _id) (Right $ join $ m ^? _type % _Just % _chkedAt % to lAMVarKind))
+        --  $ \options ->
+        --   InputRequired
+        --     . ChooseOrEnterName
+        --       ("Choose a new " <> nameString <> " for the type variable")
+        --       options
+        --     $ \n -> [RenameLAM $ unName n]
+        -- AskQuestion
+        InputRequired
+          [] -- TODO note 2
+          True
       ARenameLetBinding ->
-        OfferedAction
-          { input =
-              -- (GenerateName defName (m ^. _id) (Left $ forgetTypeMetadata <$> t))
-              --   $ \options ->
-              --   InputRequired
-              --     . ChooseOrEnterName
-              --       ("Choose a new " <> nameString <> " for the let binding")
-              --       options
-              --     $ \n -> [RenameLet $ unName n]
-              -- AskQuestion
-              InputRequired
-                [] -- TODO note 2
-                True
-          , priority = P.rename l
-          }
+        -- (GenerateName defName (m ^. _id) (Left $ forgetTypeMetadata <$> t))
+        --   $ \options ->
+        --   InputRequired
+        --     . ChooseOrEnterName
+        --       ("Choose a new " <> nameString <> " for the let binding")
+        --       options
+        --     $ \n -> [RenameLet $ unName n]
+        -- AskQuestion
+        InputRequired
+          [] -- TODO note 2
+          True
       ARenameForall ->
-        OfferedAction
-          { input =
-              --  (GenerateName defName (m' ^. _id) (Right $ Just k)) $ \options ->
-              -- InputRequired
-              --   $ ChooseOrEnterName
-              --     ("Choose a new " <> nameString <> " for the bound type variable")
-              --     options
-              --   $ \n -> [RenameForall $ unName n]
-              -- AskQuestion
-              InputRequired
-                [] -- TODO note 2
-                True
-          , priority = P.rename l
-          }
+        --  (GenerateName defName (m' ^. _id) (Right $ Just k)) $ \options ->
+        -- InputRequired
+        --   $ ChooseOrEnterName
+        --     ("Choose a new " <> nameString <> " for the bound type variable")
+        --     options
+        --   $ \n -> [RenameForall $ unName n]
+        -- AskQuestion
+        InputRequired
+          [] -- TODO note 2
+          True
 
 -- TODO rename
 -- essentially, map a high-level (and serialisation-friendly) action to a sequence of low-level ones
@@ -1004,6 +852,8 @@ getEditableASTDef defs defName = defAST =<< getEditableDef defs defName
 withExpr et as = case et of
   Left e -> pure $ as e
   Right _ -> Left "expected expression" -- TODO we should really be able to rule this out statically
+
+prioritySort l = sortOn (either (flip priorityNoInputAction l) (flip priorityInputAction l))
 
 -- data Loc = LocDef | LocSig | LocBody
 -- type family LocContents loc where

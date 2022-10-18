@@ -53,7 +53,7 @@ import Primer.API (
   viewProg,
  )
 import Primer.API qualified as API
-import Primer.Action.Available (ActionRequest (ActionRequestSimple), actionsForDef, actionsForDefBody, actionsForDefSig, inputAction, mkAction, noInputAction)
+import Primer.Action.Available (ActionRequest (ActionRequestSimple), OfferedAction (InputRequired, NoInputRequired), actionsForDef, actionsForDefBody, actionsForDefSig, inputAction, mkAction)
 import Primer.App (MutationRequest (Edit), NodeType (..), progAllDefs, progAllTypeDefs)
 import Primer.Core (globalNamePretty)
 import Primer.Database (
@@ -119,8 +119,7 @@ openAPIActionServer sid =
         prog <- getProgram sid
         let allDefs = progAllDefs prog
             allTypeDefs = progAllTypeDefs prog
-        -- (\x -> OpenAPI.AvailableActionResult  (either (noInputAction level) (inputAction level) x) x) <<$>> case node of
-        join (OpenAPI.AvailableActionResult . either (noInputAction level) (inputAction level)) <<$>> case node of
+        either NoInputRequired (\a -> inputAction level a a) <<$>> case node of
           Nothing ->
             pure $ actionsForDef level allDefs def
           Just NodeSelection{..} -> do
@@ -144,13 +143,13 @@ openAPIActionServer sid =
           Just (_, DefAST def) -> do
             let patternsUnder = True -- TODO don't hardcode (then again, I expect the option itself to be short-lived)
             actions <-
-              either (throwM . MiscPrimerErr) pure
-                $ mkAction
+              either (throwM . MiscPrimerErr) pure $
+                mkAction
                   (snd <$> progAllDefs prog)
                   def
                   selection.def
                   (selection.node <&> \s -> (s.nodeType, s.id))
-                $ ActionRequestSimple action
+                  action
             edit sid (Edit actions)
               >>= either
                 (throwM . ApplyActionError actions)

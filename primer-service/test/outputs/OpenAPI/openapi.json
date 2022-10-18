@@ -1,19 +1,23 @@
 {
     "components": {
         "schemas": {
-            "ActionInput": {
+            "ActionRequest": {
                 "oneOf": [
                     {
                         "properties": {
+                            "contents": {
+                                "$ref": "#/components/schemas/NoInputAction"
+                            },
                             "tag": {
                                 "enum": [
-                                    "NoInputRequired"
+                                    "ActionRequestSimple"
                                 ],
                                 "type": "string"
                             }
                         },
                         "required": [
-                            "tag"
+                            "tag",
+                            "contents"
                         ],
                         "type": "object"
                     },
@@ -22,13 +26,10 @@
                             "contents": {
                                 "items": [
                                     {
-                                        "items": {
-                                            "type": "string"
-                                        },
-                                        "type": "array"
+                                        "$ref": "#/components/schemas/InputAction"
                                     },
                                     {
-                                        "type": "boolean"
+                                        "type": "string"
                                     }
                                 ],
                                 "maxItems": 2,
@@ -37,7 +38,7 @@
                             },
                             "tag": {
                                 "enum": [
-                                    "InputRequired"
+                                    "ActionRequestComplex"
                                 ],
                                 "type": "string"
                             }
@@ -50,59 +51,11 @@
                     }
                 ],
                 "type": "object"
-            },
-            "ActionName": {
-                "oneOf": [
-                    {
-                        "properties": {
-                            "contents": {
-                                "type": "string"
-                            },
-                            "tag": {
-                                "enum": [
-                                    "Code"
-                                ],
-                                "type": "string"
-                            }
-                        },
-                        "required": [
-                            "tag",
-                            "contents"
-                        ],
-                        "type": "object"
-                    },
-                    {
-                        "properties": {
-                            "contents": {
-                                "type": "string"
-                            },
-                            "tag": {
-                                "enum": [
-                                    "Prose"
-                                ],
-                                "type": "string"
-                            }
-                        },
-                        "required": [
-                            "tag",
-                            "contents"
-                        ],
-                        "type": "object"
-                    }
-                ],
-                "type": "object"
-            },
-            "ActionType": {
-                "enum": [
-                    "Primary",
-                    "Destructive"
-                ],
-                "type": "string"
             },
             "ApplyActionBody": {
                 "properties": {
                     "action": {
-                        "$ref": "#/components/schemas/NoInputAction"
+                        "$ref": "#/components/schemas/ActionRequest"
                     },
                     "selection": {
                         "$ref": "#/components/schemas/Selection"
@@ -110,21 +63,6 @@
                 },
                 "required": [
                     "selection",
-                    "action"
-                ],
-                "type": "object"
-            },
-            "AvailableActionResult": {
-                "properties": {
-                    "action": {
-                        "$ref": "#/components/schemas/Either_NoInputAction_InputAction"
-                    },
-                    "extra": {
-                        "$ref": "#/components/schemas/OfferedAction"
-                    }
-                },
-                "required": [
-                    "extra",
                     "action"
                 ],
                 "type": "object"
@@ -144,33 +82,6 @@
                 "required": [
                     "name",
                     "type_"
-                ],
-                "type": "object"
-            },
-            "Either_NoInputAction_InputAction": {
-                "oneOf": [
-                    {
-                        "properties": {
-                            "Left": {
-                                "$ref": "#/components/schemas/NoInputAction"
-                            }
-                        },
-                        "required": [
-                            "Left"
-                        ],
-                        "type": "object"
-                    },
-                    {
-                        "properties": {
-                            "Right": {
-                                "$ref": "#/components/schemas/InputAction"
-                            }
-                        },
-                        "required": [
-                            "Right"
-                        ],
-                        "type": "object"
-                    }
                 ],
                 "type": "object"
             },
@@ -383,31 +294,59 @@
                 "type": "string"
             },
             "OfferedAction": {
-                "properties": {
-                    "actionType": {
-                        "$ref": "#/components/schemas/ActionType"
+                "oneOf": [
+                    {
+                        "properties": {
+                            "contents": {
+                                "$ref": "#/components/schemas/NoInputAction"
+                            },
+                            "tag": {
+                                "enum": [
+                                    "NoInputRequired"
+                                ],
+                                "type": "string"
+                            }
+                        },
+                        "required": [
+                            "tag",
+                            "contents"
+                        ],
+                        "type": "object"
                     },
-                    "description": {
-                        "type": "string"
-                    },
-                    "input": {
-                        "$ref": "#/components/schemas/ActionInput"
-                    },
-                    "name": {
-                        "$ref": "#/components/schemas/ActionName"
-                    },
-                    "priority": {
-                        "maximum": 9223372036854775807,
-                        "minimum": -9223372036854775808,
-                        "type": "integer"
+                    {
+                        "properties": {
+                            "contents": {
+                                "items": [
+                                    {
+                                        "items": {
+                                            "type": "string"
+                                        },
+                                        "type": "array"
+                                    },
+                                    {
+                                        "type": "boolean"
+                                    },
+                                    {
+                                        "$ref": "#/components/schemas/InputAction"
+                                    }
+                                ],
+                                "maxItems": 3,
+                                "minItems": 3,
+                                "type": "array"
+                            },
+                            "tag": {
+                                "enum": [
+                                    "InputRequired"
+                                ],
+                                "type": "string"
+                            }
+                        },
+                        "required": [
+                            "tag",
+                            "contents"
+                        ],
+                        "type": "object"
                     }
-                },
-                "required": [
-                    "name",
-                    "description",
-                    "priority",
-                    "actionType",
-                    "input"
                 ],
                 "type": "object"
             },
@@ -760,7 +699,7 @@
                             "application/json;charset=utf-8": {
                                 "schema": {
                                     "items": {
-                                        "$ref": "#/components/schemas/AvailableActionResult"
+                                        "$ref": "#/components/schemas/OfferedAction"
                                     },
                                     "type": "array"
                                 }

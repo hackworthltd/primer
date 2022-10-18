@@ -26,8 +26,6 @@ import Primer.Action (
   ActionError (CaseBindsClash, NameCapture),
  )
 import Primer.Action.Available (
-  ActionInput (..),
-  ActionName (..),
   OfferedAction (..),
   actionsForDef,
   actionsForDefBody,
