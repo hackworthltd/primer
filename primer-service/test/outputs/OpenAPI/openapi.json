@@ -24,17 +24,7 @@
                     {
                         "properties": {
                             "contents": {
-                                "items": [
-                                    {
-                                        "$ref": "#/components/schemas/InputAction"
-                                    },
-                                    {
-                                        "type": "string"
-                                    }
-                                ],
-                                "maxItems": 2,
-                                "minItems": 2,
-                                "type": "array"
+                                "$ref": "#/components/schemas/ActionRequestComplex"
                             },
                             "tag": {
                                 "enum": [
@@ -49,6 +39,21 @@
                         ],
                         "type": "object"
                     }
+                ],
+                "type": "object"
+            },
+            "ActionRequestComplex": {
+                "properties": {
+                    "action": {
+                        "$ref": "#/components/schemas/InputAction"
+                    },
+                    "option": {
+                        "type": "string"
+                    }
+                },
+                "required": [
+                    "action",
+                    "option"
                 ],
                 "type": "object"
             },
@@ -316,23 +321,7 @@
                     {
                         "properties": {
                             "contents": {
-                                "items": [
-                                    {
-                                        "items": {
-                                            "type": "string"
-                                        },
-                                        "type": "array"
-                                    },
-                                    {
-                                        "type": "boolean"
-                                    },
-                                    {
-                                        "$ref": "#/components/schemas/InputAction"
-                                    }
-                                ],
-                                "maxItems": 3,
-                                "minItems": 3,
-                                "type": "array"
+                                "$ref": "#/components/schemas/OfferedActionInputRequired"
                             },
                             "tag": {
                                 "enum": [
@@ -347,6 +336,28 @@
                         ],
                         "type": "object"
                     }
+                ],
+                "type": "object"
+            },
+            "OfferedActionInputRequired": {
+                "properties": {
+                    "action": {
+                        "$ref": "#/components/schemas/InputAction"
+                    },
+                    "allowFreeText": {
+                        "type": "boolean"
+                    },
+                    "options": {
+                        "items": {
+                            "type": "string"
+                        },
+                        "type": "array"
+                    }
+                },
+                "required": [
+                    "options",
+                    "allowFreeText",
+                    "action"
                 ],
                 "type": "object"
             },

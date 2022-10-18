@@ -13,7 +13,15 @@ import Data.OpenApi (ToParamSchema, ToSchema (declareNamedSchema), fromAesonOpti
 import Data.OpenApi.Internal.Schema (GToSchema, rename)
 import Deriving.Aeson (AesonOptions (aesonOptions))
 import Primer.API (Def, ExprTreeOpts, Module, NodeBody, NodeFlavor, NodeSelection (..), Prog, Selection (..), Tree)
-import Primer.Action.Available (ActionRequest, InputAction, Level (..), NoInputAction, OfferedAction, OfferedActionInputRequired (..))
+import Primer.Action.Available (
+  ActionRequest,
+  ActionRequestComplex (..),
+  InputAction,
+  Level (..),
+  NoInputAction,
+  OfferedAction,
+  OfferedActionInputRequired (..),
+ )
 import Primer.App (NodeType)
 import Primer.Core (
   GlobalName,
@@ -76,6 +84,7 @@ deriving via PrimerJSON InputAction instance ToSchema InputAction
 deriving via PrimerJSON OfferedAction instance ToSchema OfferedAction
 deriving via PrimerJSON OfferedActionInputRequired instance ToSchema OfferedActionInputRequired
 deriving via PrimerJSON ActionRequest instance ToSchema ActionRequest
+deriving via PrimerJSON ActionRequestComplex instance ToSchema ActionRequestComplex
 deriving via PrimerJSON Selection instance ToSchema Selection
 deriving via PrimerJSON NodeSelection instance ToSchema NodeSelection
 deriving via PrimerJSON NodeType instance ToSchema NodeType

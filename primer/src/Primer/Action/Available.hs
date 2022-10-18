@@ -1,3 +1,4 @@
+{-# LANGUAGE DuplicateRecordFields #-}
 {-# HLINT ignore "Use section" #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE TypeFamilies #-}
@@ -18,6 +19,7 @@ module Primer.Action.Available (
   inputAction,
   mkAction,
   OfferedActionInputRequired (..),
+  ActionRequestComplex (..),
 ) where
 
 import Foreword
@@ -191,13 +193,17 @@ data InputAction
 -- TODO GADT for actions would also be nice as we could tag by `Expr`/`Sig`/`Def` (EDIT: actually this gets complex because they're not mutually exclusive e.g. all sig actions can also appear in bodies)
 -- TODO ditch the type and make these separate API calls / functions
 data ActionRequest
-  = ActionRequestSimple
-      NoInputAction
-  | ActionRequestComplex
-      InputAction
-      Text -- TODO or number from list? would that require backend to remember some state?
+  = ActionRequestSimple NoInputAction
+  | ActionRequestComplex ActionRequestComplex
   deriving (Generic, Show)
   deriving (FromJSON, ToJSON) via PrimerJSON ActionRequest
+
+data ActionRequestComplex = MkActionRequestComplex
+  { action :: InputAction
+  , option :: Text -- TODO or number from list? would that require backend to remember some state?
+  }
+  deriving (Generic, Show)
+  deriving (FromJSON, ToJSON) via PrimerJSON ActionRequestComplex
 
 -- | Filter on variables and constructors according to whether they
 -- have a function type.
@@ -781,7 +787,7 @@ mkAction defs def defName mNodeSel = \case
   ActionRequestSimple ADeleteType ->
     toProgAction [Delete]
   -- TODO rename `tInput`
-  ActionRequestComplex action tInput ->
+  ActionRequestComplex MkActionRequestComplex{action, option = tInput} ->
     let -- TODO should we handle "parsing" in to trusted input here
         -- see the comment on `Action` - given that we're now not exposing that type via the API, it should probably use the rich versions
         -- I think we previously were inconsistent, or just hadn't given this much thought
