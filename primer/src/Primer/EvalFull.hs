@@ -118,7 +118,6 @@ import Primer.JSON (CustomJSON (CustomJSON), FromJSON, PrimerJSON, ToJSON)
 import Primer.Log (ConvertLogMessage (convert), logWarning)
 import Primer.Name (Name, NameCounter)
 import Primer.TypeDef (
-  ASTTypeDef (astTypeDefParameters),
   TypeDefMap,
  )
 import Primer.Typecheck.Utils (instantiateValCons', lookupConstructor, mkTAppCon)
@@ -330,8 +329,8 @@ viewCaseRedex tydefs = \case
   -- of the constructor.
   Case m expr brs
     | Just (c, tyargs, args, patterns, br) <- extract expr brs
-    , Just (_, tc, tydef) <- lookupConstructor tydefs c
-    , ty <- mkTAppCon tc (forgetTypeMetadata <$> take (length $ astTypeDefParameters tydef) tyargs)
+    , Just (_, tc, _) <- lookupConstructor tydefs c
+    , ty <- mkTAppCon tc (forgetTypeMetadata <$> tyargs)
     , Just argTys <- instantiateCon ty c ->
         renameBindings m expr brs tyargs args patterns
           <|> pure (formCaseRedex ty c argTys args patterns br)
