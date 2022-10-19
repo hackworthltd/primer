@@ -11,6 +11,12 @@ import Control.Monad.Log (
   discardLogging,
  )
 import Data.String (String)
+import Data.Time (
+  UTCTime (..),
+  diffTimeToPicoseconds,
+  getCurrentTime,
+  picosecondsToDiffTime,
+ )
 import Data.UUID.V4 (nextRandom)
 import Database.PostgreSQL.Simple.Options qualified as Options
 import Database.Postgres.Temp (
@@ -40,7 +46,7 @@ import Primer.Database (
  )
 import Primer.Database.Rel8 (
   Rel8DbT,
-  SessionRow (SessionRow, app, gitversion, name, uuid),
+  SessionRow (SessionRow, app, gitversion, lastmodified, name, uuid),
   runRel8DbT,
  )
 import Primer.Pagination (
@@ -68,6 +74,20 @@ import System.Process.Typed (
 import Test.Tasty (TestTree)
 import Test.Tasty.HUnit (testCaseSteps)
 import Test.Tasty.HUnit qualified as HUnit
+
+-- | PostgreSQL's timestamp type has a precision of 1 microsecond, but
+-- 'getCurrentTime' has a precision of 1 picosecond. In order to
+-- compare times for our tests, we need to truncate the precision of
+-- the time returned by 'getCurrentTime'.
+--
+-- Ref:
+-- https://www.postgresql.org/docs/13/datatype-datetime.html
+lowPrecisionCurrentTime :: (MonadIO m) => m UTCTime
+lowPrecisionCurrentTime = do
+  (UTCTime day time) <- liftIO getCurrentTime
+  -- truncate to microseconds
+  let time' = picosecondsToDiffTime $ diffTimeToPicoseconds time `div` 1000000 * 1000000
+  pure $ UTCTime day time'
 
 (@?=) :: (MonadIO m, Eq a, Show a) => a -> a -> m ()
 x @?= y = liftIO $ x HUnit.@?= y
@@ -133,12 +153,14 @@ runTmpDb tests =
 mkSession :: Int -> IO (SessionRow Result)
 mkSession n = do
   u <- nextRandom
+  now <- lowPrecisionCurrentTime
   pure $
     SessionRow
       { uuid = u
       , gitversion = "test-version"
       , app = newApp
       , name = "name-" <> show n
+      , lastmodified = now
       }
 
 test_pagination :: TestTree
@@ -148,8 +170,8 @@ test_pagination = testCaseSteps "pagination" $ \step' ->
     let m = 345
     step "Insert all sessions"
     rows <- liftIO $ sortOn name <$> traverse mkSession [1 .. m]
-    forM_ rows (\SessionRow{..} -> insertSession gitversion uuid newApp (safeMkSessionName name))
-    let expectedRows = map (\r -> Session (uuid r) (safeMkSessionName $ name r)) rows
+    forM_ rows (\SessionRow{..} -> insertSession gitversion uuid newApp (safeMkSessionName name) lastmodified)
+    let expectedRows = map (\r -> Session (uuid r) (safeMkSessionName $ name r) (lastmodified r)) rows
     step "Get all, paged"
     onePos <- maybe (assertFailure "1 is positive") pure $ mkPositive 1
     pAllPaged <- pagedDefaultClamp (m + 2) (Pagination{page = onePos, size = Nothing}) listSessions

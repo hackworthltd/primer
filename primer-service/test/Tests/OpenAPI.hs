@@ -8,8 +8,19 @@ import Data.Aeson (ToJSON)
 import Data.Aeson.Encode.Pretty (encodePretty)
 import Data.OpenApi (ToSchema, validatePrettyToJSON)
 import Data.Text qualified as T
+import Data.Time (
+  UTCTime (..),
+  fromGregorian,
+  secondsToDiffTime,
+ )
 import Data.UUID (UUID, fromWords64)
-import Hedgehog (Gen, annotate, failure, forAll)
+import Hedgehog (
+  Gen,
+  MonadGen,
+  annotate,
+  failure,
+  forAll,
+ )
 import Hedgehog.Gen qualified as G
 import Hedgehog.Range qualified as R
 import Primer.API (
@@ -86,8 +97,28 @@ tasty_SessionName = testToJSON genSessionName
 genUUID :: Gen UUID
 genUUID = fromWords64 <$> G.word64 R.linearBounded <*> G.word64 R.linearBounded
 
+-- Hedgehog doesn't have this, so we take it from here:
+--
+-- https://github.com/hedgehogqa/haskell-hedgehog/issues/215#issue-349965804
+--
+-- Note that this generator is not meant to be extensive. We're just
+-- trying to generate reasonably variable (pure) values for 'UTCTime'.
+-- It suffices for our very simple needs of ensuring that JSON
+-- serialization of our session type works, and it is not our intent
+-- to ensure that Aeson's 'UTCTime' serialization is correct, as we'd
+-- expect that to have been tested upstream.
+genUTCTime :: MonadGen m => m UTCTime
+genUTCTime = do
+  y <- toInteger <$> G.int (R.constant 2000 2023)
+  m <- G.int (R.constant 1 12)
+  d <- G.int (R.constant 1 28)
+  let day = fromGregorian y m d
+  secs <- toInteger <$> G.int (R.constant 0 86401)
+  let diffTime = secondsToDiffTime secs
+  pure $ UTCTime day diffTime
+
 genSession :: Gen Session
-genSession = Session <$> genUUID <*> genSessionName
+genSession = Session <$> genUUID <*> genSessionName <*> genUTCTime
 
 tasty_Session :: Property
 tasty_Session = testToJSON genSession

@@ -17,13 +17,14 @@ import Primer.Database (
   safeMkSessionName,
  )
 import Primer.Database.Rel8.Schema qualified as Schema (
-  SessionRow (SessionRow, app, gitversion, name, uuid),
+  SessionRow (SessionRow, app, gitversion, lastmodified, name, uuid),
  )
 import Rel8 (lit)
 import Test.Tasty (TestTree)
 import Test.Tasty.HUnit (testCaseSteps)
 import TestUtils (
   insertSessionRow,
+  lowPrecisionCurrentTime,
   runTmpDbWithPool,
   (@?=),
  )
@@ -46,10 +47,11 @@ test_querySessionId = testCaseSteps "querySessionId corner cases" $ \step' ->
     let step = liftIO . step'
 
     step "Insert program"
+    now <- lowPrecisionCurrentTime
     let version = "git123"
     let name = safeMkSessionName "test querySessionId"
     sessionId <- liftIO newSessionId
-    insertSession version sessionId newApp name
+    insertSession version sessionId newApp name now
 
     step "Attempt to look up a session that doesn't exist"
     nonexistentSessionId <- liftIO newSessionId
@@ -66,10 +68,11 @@ test_querySessionId = testCaseSteps "querySessionId corner cases" $ \step' ->
               , Schema.gitversion = version
               , Schema.app = newApp
               , Schema.name = invalidName
+              , Schema.lastmodified = now
               }
     liftIO $ insertSessionRow invalidNameRow pool
     r3 <- querySessionId invalidNameSessionId
     -- In this scenario, we should get the program back with the
     -- default session name, rather than the invalid name we used to
     -- store it in the database.
-    r3 @?= Right (SessionData newApp defaultSessionName)
+    r3 @?= Right (SessionData newApp defaultSessionName now)

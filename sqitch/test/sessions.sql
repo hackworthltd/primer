@@ -4,7 +4,7 @@ CREATE EXTENSION IF NOT EXISTS pgtap;
 RESET client_min_messages;
 
 BEGIN;
-SELECT plan(27);
+SELECT plan(34);
 
 SET search_path TO primer,public;
 
@@ -39,6 +39,14 @@ SELECT col_not_null(      'sessions', 'name' );
 SELECT col_hasnt_default( 'sessions', 'name' );
 SELECT col_isnt_pk(       'sessions', 'name' );
 SELECT col_isnt_fk(       'sessions', 'name' );
+
+SELECT has_column(        'sessions', 'lastmodified' );
+SELECT col_type_is(       'sessions', 'lastmodified', 'timestamp with time zone' );
+SELECT col_not_null(      'sessions', 'lastmodified' );
+SELECT col_has_default(   'sessions', 'lastmodified' );
+SELECT col_default_is(    'sessions', 'lastmodified', 'now()' );
+SELECT col_isnt_pk(       'sessions', 'lastmodified' );
+SELECT col_isnt_fk(       'sessions', 'lastmodified' );
 
 SELECT finish();
 ROLLBACK;

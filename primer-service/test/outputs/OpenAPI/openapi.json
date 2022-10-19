@@ -360,13 +360,17 @@
                     "id": {
                         "$ref": "#/components/schemas/UUID"
                     },
+                    "lastModified": {
+                        "$ref": "#/components/schemas/UTCTime"
+                    },
                     "name": {
                         "$ref": "#/components/schemas/SessionName"
                     }
                 },
                 "required": [
                     "id",
-                    "name"
+                    "name",
+                    "lastModified"
                 ],
                 "type": "object"
             },
@@ -401,6 +405,11 @@
                     "childTrees"
                 ],
                 "type": "object"
+            },
+            "UTCTime": {
+                "example": "2016-07-22T00:00:00Z",
+                "format": "yyyy-mm-ddThh:MM:ssZ",
+                "type": "string"
             },
             "UUID": {
                 "example": "00000000-0000-0000-0000-000000000000",

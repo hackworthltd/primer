@@ -82,6 +82,7 @@ import Control.Monad.Writer (MonadWriter)
 import Control.Monad.Zip (MonadZip)
 import Data.Map qualified as Map
 import Data.Text qualified as T
+import Data.Time.Clock (getCurrentTime)
 import Data.Tuple.Extra (curry3)
 import ListT qualified (toList)
 import Optics (ifoldr, over, traverseOf, view, (^.))
@@ -257,6 +258,15 @@ data SessionOp l a where
 -- cause a deadlock!
 withSession' :: (MonadIO m, MonadThrow m, MonadLog l m) => SessionId -> SessionOp l a -> PrimerM m a
 withSession' sid op = do
+  -- Not all operations need this, but we can't do it on demand
+  -- because we'll be inside STM. We could check the op type here and
+  -- wrap this in a 'Maybe', but then we'd need to assert that it's a
+  -- 'Just' when we use it inside the transaction, which complicates
+  -- error handling and logging, so that's not without a cost, either.
+  --
+  -- We can revisit this if the performance impact of 'getCurrentTime'
+  -- becomes a problem.
+  now <- liftIO getCurrentTime
   hndl :: Either (TMVar OpStatus) (a, m ()) <- sessionsTransaction $ \ss q -> do
     query <- StmMap.lookup sid ss
     case query of
@@ -270,14 +280,14 @@ withSession' sid op = do
         callback <- newEmptyTMVar
         writeTBQueue q $ Database.LoadSession sid ss callback
         return $ Left callback
-      Just s@(SessionData appl n) ->
+      Just s@(SessionData appl n _) ->
         -- The session is in memory, let's do this.
         case op of
           EditApp f -> do
             -- We batch the logs, as we are running in STM
             let ((res, appl'), logs) = runPureLog $ f appl
-            StmMap.insert (SessionData appl' n) sid ss
-            writeTBQueue q $ Database.UpdateApp sid appl'
+            StmMap.insert (SessionData appl' n now) sid ss
+            writeTBQueue q $ Database.UpdateApp sid appl' now
             -- We return an action which, when run, will log the messages
             pure $ Right (res, traverse_ logMessage logs)
           QueryApp f -> pure $ Right (f appl, pure ())
@@ -286,8 +296,8 @@ withSession' sid op = do
           OpRenameSession n' ->
             let newName = safeMkSessionName n'
              in do
-                  StmMap.insert (SessionData appl newName) sid ss
-                  writeTBQueue q $ Database.UpdateName sid newName
+                  StmMap.insert (SessionData appl newName now) sid ss
+                  writeTBQueue q $ Database.UpdateName sid newName now
                   pure $ Right (fromSessionName newName, pure ())
   case hndl of
     Left callback -> do
@@ -387,9 +397,10 @@ addSession = curry $ logAPI (noError AddSession) $ \(n, a) -> addSession' (safeM
 addSession' :: (MonadIO m) => SessionName -> App -> PrimerM m SessionId
 addSession' n a = do
   nextSID <- liftIO newSessionId
+  now <- liftIO getCurrentTime
   sessionsTransaction $ \ss q -> do
-    StmMap.insert (SessionData a n) nextSID ss
-    writeTBQueue q $ Database.Insert nextSID a n
+    StmMap.insert (SessionData a n now) nextSID ss
+    writeTBQueue q $ Database.Insert nextSID a n now
     pure nextSID
 
 -- | Copy the given session to a new session, and return the new
@@ -399,13 +410,17 @@ addSession' n a = do
 -- source session, and 1 to insert the copy. Semantically, this is
 -- fine, and it should be more fair on a busy system than a single
 -- transaction which takes longer.
+--
+-- Note that we copy the original session's timestamp to the new
+-- session. This is an arbitrary choice and could be changed, if
+-- there's some need to do so.
 copySession :: (MonadIO m, MonadThrow m, MonadAPILog l m) => SessionId -> PrimerM m SessionId
 copySession = logAPI (noError CopySession) $ \srcId -> do
   copy <- withSession' srcId GetSessionData
   nextSID <- liftIO newSessionId
   sessionsTransaction $ \ss q -> do
     StmMap.insert copy nextSID ss
-    writeTBQueue q $ Database.Insert nextSID (sessionApp copy) (sessionName copy)
+    writeTBQueue q $ Database.Insert nextSID (sessionApp copy) (sessionName copy) (lastModified copy)
     pure nextSID
 
 -- If the input is 'False', return all sessions in the database;
@@ -426,7 +441,7 @@ listSessions = curry $ logAPI (noError ListSessions) $ \case
     liftIO $ atomically $ takeTMVar callback
   (_, ol) -> sessionsTransaction $ \ss _ -> do
     kvs' <- ListT.toList $ StmMap.listT ss
-    let kvs = uncurry Session . second sessionName <$> kvs'
+    let kvs = (\(i, SessionData _ n t) -> Session i n t) <$> kvs'
     pure $ pageList ol kvs
 
 getVersion :: (MonadAPILog l m) => PrimerM m Version

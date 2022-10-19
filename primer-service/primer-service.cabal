@@ -202,6 +202,7 @@ test-suite service-test
     , tasty-hunit                       ^>=0.10.0
     , temporary                         ^>=1.3
     , text
+    , time                              ^>=1.11
     , tmp-postgres                      ^>=1.34.1.0
     , typed-process                     ^>=0.2.8
     , uuid

@@ -37,6 +37,7 @@ import Control.Monad.Trans (MonadTrans)
 import Control.Monad.Writer (MonadWriter)
 import Control.Monad.Zip (MonadZip)
 import Data.Functor.Contravariant ((>$<))
+import Data.Time.Clock (UTCTime)
 import Data.UUID (UUID)
 import Hasql.Connection (
   ConnectionError,
@@ -51,6 +52,11 @@ import Hasql.Session (
   statement,
  )
 import Hasql.Statement (Statement)
+import Optics (
+  view,
+  _2,
+  _3,
+ )
 import Primer.Database (
   DbError (SessionIdNotFound),
   MonadDb (..),
@@ -79,6 +85,7 @@ import Rel8 (
   Update (Update, from, returning, set, target, updateWhere),
   asc,
   countRows,
+  desc,
   each,
   filter,
   insert,
@@ -140,7 +147,7 @@ type MonadRel8Db m l = (ConvertLogMessage Rel8DbLogMessage l, MonadCatch m, Mona
 -- types of the 'MonadDb' methods and are handled by Primer
 -- internally.
 instance MonadRel8Db m l => MonadDb (Rel8DbT m) where
-  insertSession v s a n =
+  insertSession v s a n t =
     runStatement_ (InsertError s) $
       insert
         Insert
@@ -153,13 +160,14 @@ instance MonadRel8Db m l => MonadDb (Rel8DbT m) where
                       , Schema.gitversion = v
                       , Schema.app = a
                       , Schema.name = fromSessionName n
+                      , Schema.lastmodified = t
                       }
                 ]
           , onConflict = Abort
           , returning = NumberOfRowsAffected
           }
 
-  updateSessionApp v s a = do
+  updateSessionApp v s a t = do
     nr <-
       runStatement (UpdateAppError s) $
         update
@@ -170,6 +178,7 @@ instance MonadRel8Db m l => MonadDb (Rel8DbT m) where
                 row
                   { Schema.gitversion = lit v
                   , Schema.app = lit a
+                  , Schema.lastmodified = lit t
                   }
             , updateWhere = \_ row -> Schema.uuid row ==. litExpr s
             , returning = NumberOfRowsAffected
@@ -181,7 +190,7 @@ instance MonadRel8Db m l => MonadDb (Rel8DbT m) where
       1 -> pure ()
       _ -> throwM $ UpdateAppConsistencyError s
 
-  updateSessionName v s n = do
+  updateSessionName v s n t = do
     nr <-
       runStatement (UpdateNameError s) $
         update
@@ -192,6 +201,7 @@ instance MonadRel8Db m l => MonadDb (Rel8DbT m) where
                 row
                   { Schema.gitversion = lit v
                   , Schema.name = lit $ fromSessionName n
+                  , Schema.lastmodified = lit t
                   }
             , updateWhere = \_ row -> Schema.uuid row ==. litExpr s
             , returning = NumberOfRowsAffected
@@ -216,12 +226,12 @@ instance MonadRel8Db m l => MonadDb (Rel8DbT m) where
       -- 'numSessions' above) should never return the empty list:
       -- https://hackage.haskell.org/package/rel8-1.3.1.0/docs/Rel8.html#v:countRows
       _ -> throwM ListSessionsRel8Error
-    ss :: [(UUID, Text)] <- runStatement ListSessionsError $ select $ paginatedSessionMeta ol
+    ss :: [(UUID, Text, UTCTime)] <- runStatement ListSessionsError $ select $ paginatedSessionMeta ol
     pure $ Page{total = n, pageContents = safeMkSession <$> ss}
     where
       -- See comment in 'querySessionId' re: dealing with invalid
       -- session names loaded from the database.
-      safeMkSession (s, n) = Session s (safeMkSessionName n)
+      safeMkSession (s, n, t) = Session s (safeMkSessionName n) t
 
   querySessionId sid = do
     result <- runStatement (LoadSessionError sid) $ select $ sessionById sid
@@ -246,7 +256,7 @@ instance MonadRel8Db m l => MonadDb (Rel8DbT m) where
         when (fromSessionName sessionName /= dbSessionName) $
           logError $
             IllegalSessionName sid dbSessionName
-        pure $ Right (SessionData (Schema.app s) sessionName)
+        pure $ Right (SessionData (Schema.app s) sessionName (Schema.lastmodified s))
 
 -- | Exceptions that can be thrown by 'Rel8DbT' computations.
 --
@@ -362,11 +372,14 @@ paginate (OL o _) = offset (fromIntegral o)
 
 -- Return the metadata (represented as a tuple) for all sessions in
 -- the database.
-sessionMeta :: Query (Expr UUID, Expr Text)
+sessionMeta :: Query (Expr UUID, Expr Text, Expr UTCTime)
 sessionMeta = do
   s <- allSessions
-  return (Schema.uuid s, Schema.name s)
+  return (Schema.uuid s, Schema.name s, Schema.lastmodified s)
 
--- Paginated session metadata, sorted by session name.
-paginatedSessionMeta :: OffsetLimit -> Query (Expr UUID, Expr Text)
-paginatedSessionMeta ol = paginate ol $ orderBy (snd >$< asc) sessionMeta
+-- Paginated session metadata, sorted by session name (primary) and
+-- last-modified (secondary, newest to oldest).
+paginatedSessionMeta :: OffsetLimit -> Query (Expr UUID, Expr Text, Expr UTCTime)
+paginatedSessionMeta ol =
+  paginate ol $
+    orderBy (mconcat [view _2 >$< asc, view _3 >$< desc]) sessionMeta

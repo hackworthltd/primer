@@ -266,9 +266,9 @@ newtype FailDbException = FailDbException Text
 instance Exception FailDbException
 
 instance (MonadThrow m) => MonadDb (FailDbT m) where
-  insertSession _ _ _ _ = throwM $ FailDbException "insertSession"
-  updateSessionApp _ _ _ = throwM $ FailDbException "updateSessionApp"
-  updateSessionName _ _ _ = throwM $ FailDbException "updateSessionName"
+  insertSession _ _ _ _ _ = throwM $ FailDbException "insertSession"
+  updateSessionApp _ _ _ _ = throwM $ FailDbException "updateSessionApp"
+  updateSessionName _ _ _ _ = throwM $ FailDbException "updateSessionName"
   listSessions _ = throwM $ FailDbException "listSessions"
   querySessionId _ = throwM $ FailDbException "querySessionId"
 
