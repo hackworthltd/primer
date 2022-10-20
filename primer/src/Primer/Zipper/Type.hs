@@ -22,6 +22,9 @@ module Primer.Zipper.Type (
   foldAbove,
   foldBelow,
   bindersAboveTy,
+  LetTypeBinding' (LetTypeBind),
+  LetTypeBinding,
+  getBoundHereTy',
   getBoundHereTy,
   getBoundHereUpTy,
   getBoundHereDnTy,
@@ -183,10 +186,16 @@ getBoundHereDnTy :: Eq a => Type' a -> S.Set TyVarName
 getBoundHereDnTy e = getBoundHereTy e Nothing
 
 getBoundHereTy :: Eq a => Type' a -> Maybe (Type' a) -> S.Set TyVarName
-getBoundHereTy t prev = case t of
-  TForall _ v _ _ -> S.singleton v
-  TLet _ v _ b ->
+getBoundHereTy t prev = S.fromList $ either identity (\(LetTypeBind n _) -> n) <$> getBoundHereTy' t prev
+
+data LetTypeBinding' a = LetTypeBind TyVarName (Type' a)
+type LetTypeBinding = LetTypeBinding' TypeMeta
+
+getBoundHereTy' :: Eq a => Type' a -> Maybe (Type' a) -> [Either TyVarName (LetTypeBinding' a)]
+getBoundHereTy' t prev = case t of
+  TForall _ v _ _ -> [Left v]
+  TLet _ v rhs b ->
     if maybe True (== b) prev
-      then S.singleton v
+      then [Right $ LetTypeBind v rhs]
       else mempty
   _ -> mempty
