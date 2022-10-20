@@ -9,6 +9,7 @@ import Primer.App (
  )
 import Primer.Database (
   DbError (SessionIdNotFound),
+  LastModified (..),
   SessionData (..),
   defaultSessionName,
   insertSession,
@@ -68,7 +69,7 @@ test_querySessionId = testCaseSteps "querySessionId corner cases" $ \step' ->
               , Schema.gitversion = version
               , Schema.app = newApp
               , Schema.name = invalidName
-              , Schema.lastmodified = now
+              , Schema.lastmodified = utcTime now
               }
     liftIO $ insertSessionRow invalidNameRow pool
     r3 <- querySessionId invalidNameSessionId

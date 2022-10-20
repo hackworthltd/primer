@@ -13,6 +13,8 @@ module Primer.Database (
   SessionData (..),
   Sessions,
   newSessionId,
+  LastModified (..),
+  getCurrentTime,
   Op (..),
   discardOp,
   OpStatus (..),
@@ -54,6 +56,9 @@ import Data.Text qualified as Text (
  )
 import Data.Time.Clock (
   UTCTime,
+ )
+import Data.Time.Clock qualified as UTC (
+  getCurrentTime,
  )
 import Data.UUID (UUID)
 import Data.UUID qualified as UUID (toText)
@@ -138,13 +143,29 @@ fromSessionName (SessionName t) = t
 defaultSessionName :: SessionName
 defaultSessionName = SessionName "Untitled Program"
 
+-- | This newtype is a workaround for the fact that our OpenAPI 3
+-- implementation serializes 'UTCTime' with a custom string format,
+-- rather than using the standard @date-time@ format.
+--
+-- See:
+--
+-- https://github.com/hackworthltd/primer/issues/735
+-- https://github.com/biocad/openapi3/issues/16
+newtype LastModified = LastModified {utcTime :: UTCTime}
+  deriving (Generic, Eq, Ord, Show, Read)
+  deriving newtype (FromJSON, ToJSON)
+
+-- | Convenience wrapper around 'UTC.getCurrentTime'.
+getCurrentTime :: (MonadIO m) => m LastModified
+getCurrentTime = LastModified <$> liftIO UTC.getCurrentTime
+
 -- | Bulk-queryable per-session information. See also 'SessionData'.
 data Session = Session
   { id :: SessionId
   -- ^ The session ID.
   , name :: SessionName
   -- ^ The session's name.
-  , lastModified :: UTCTime
+  , lastModified :: LastModified
   -- ^ The last time the session was modified. See
   -- 'SessionData.lastModified' for details.
   }
@@ -157,7 +178,7 @@ data SessionData = SessionData
   -- ^ The session's 'App'.
   , sessionName :: SessionName
   -- ^ The session's name.
-  , lastModified :: UTCTime
+  , lastModified :: LastModified
   -- ^ The last time the session was modified (or when it was created,
   -- if it hasn't yet been modified). This accounts for modifications
   -- either to the session's name, or to its corresponding 'App'.
@@ -190,13 +211,13 @@ data OpStatus
 data Op
   = -- | Insert a new session ID and 'App' with the given session name
     -- and creation date.
-    Insert !SessionId !App !SessionName !UTCTime
+    Insert !SessionId !App !SessionName !LastModified
   | -- | Update the 'App' associated with the given session ID and
     -- specified timestamp.
-    UpdateApp !SessionId !App !UTCTime
+    UpdateApp !SessionId !App !LastModified
   | -- | Update the session name associated with the given session ID
     -- and specified timestamp.
-    UpdateName !SessionId !SessionName !UTCTime
+    UpdateName !SessionId !SessionName !LastModified
   | -- | Query the database for a session with the given ID. If found,
     -- insert it into the given in-memory database. Then signal the
     -- caller via the supplied 'TMVar' whether the lookup was
@@ -243,17 +264,17 @@ class (Monad m) => MonadDb m where
   -- | Insert a session into the database.
   --
   -- Corresponds to the 'Insert' operation.
-  insertSession :: Version -> SessionId -> App -> SessionName -> UTCTime -> m ()
+  insertSession :: Version -> SessionId -> App -> SessionName -> LastModified -> m ()
 
   -- | Update an 'App'.
   --
   -- Corresponds to the 'UpdateApp' operation.
-  updateSessionApp :: Version -> SessionId -> App -> UTCTime -> m ()
+  updateSessionApp :: Version -> SessionId -> App -> LastModified -> m ()
 
   -- | Update a session's name.
   --
   -- Corresponds to the 'UpdateName' operation.
-  updateSessionName :: Version -> SessionId -> SessionName -> UTCTime -> m ()
+  updateSessionName :: Version -> SessionId -> SessionName -> LastModified -> m ()
 
   -- | Get a page of the list of all session IDs and their names.
   --

@@ -86,6 +86,11 @@
                 ],
                 "type": "object"
             },
+            "LastModified": {
+                "example": "2022-10-20T00:00:00Z",
+                "format": "date-time",
+                "type": "string"
+            },
             "Module": {
                 "properties": {
                     "defs": {
@@ -361,7 +366,7 @@
                         "$ref": "#/components/schemas/UUID"
                     },
                     "lastModified": {
-                        "$ref": "#/components/schemas/UTCTime"
+                        "$ref": "#/components/schemas/LastModified"
                     },
                     "name": {
                         "$ref": "#/components/schemas/SessionName"
@@ -405,11 +410,6 @@
                     "childTrees"
                 ],
                 "type": "object"
-            },
-            "UTCTime": {
-                "example": "2016-07-22T00:00:00Z",
-                "format": "yyyy-mm-ddThh:MM:ssZ",
-                "type": "string"
             },
             "UUID": {
                 "example": "00000000-0000-0000-0000-000000000000",

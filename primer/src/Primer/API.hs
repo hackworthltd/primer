@@ -82,7 +82,6 @@ import Control.Monad.Writer (MonadWriter)
 import Control.Monad.Zip (MonadZip)
 import Data.Map qualified as Map
 import Data.Text qualified as T
-import Data.Time.Clock (getCurrentTime)
 import Data.Tuple.Extra (curry3)
 import ListT qualified (toList)
 import Optics (ifoldr, over, traverseOf, view, (^.))
@@ -152,6 +151,7 @@ import Primer.Database (
   Version,
   defaultSessionName,
   fromSessionName,
+  getCurrentTime,
   newSessionId,
   pageList,
   safeMkSessionName,
@@ -266,7 +266,7 @@ withSession' sid op = do
   --
   -- We can revisit this if the performance impact of 'getCurrentTime'
   -- becomes a problem.
-  now <- liftIO getCurrentTime
+  now <- getCurrentTime
   hndl :: Either (TMVar OpStatus) (a, m ()) <- sessionsTransaction $ \ss q -> do
     query <- StmMap.lookup sid ss
     case query of
@@ -397,7 +397,7 @@ addSession = curry $ logAPI (noError AddSession) $ \(n, a) -> addSession' (safeM
 addSession' :: (MonadIO m) => SessionName -> App -> PrimerM m SessionId
 addSession' n a = do
   nextSID <- liftIO newSessionId
-  now <- liftIO getCurrentTime
+  now <- getCurrentTime
   sessionsTransaction $ \ss q -> do
     StmMap.insert (SessionData a n now) nextSID ss
     writeTBQueue q $ Database.Insert nextSID a n now

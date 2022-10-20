@@ -2,7 +2,6 @@ module Tests.NullDb where
 
 import Foreword
 
-import Data.Time.Clock (getCurrentTime)
 import Data.UUID.V4 (nextRandom)
 import Primer.App (
   newApp,
@@ -17,6 +16,7 @@ import Primer.Database (
   Session (..),
   SessionData (..),
   SessionId,
+  getCurrentTime,
   newSessionId,
   runNullDb',
   safeMkSessionName,
@@ -42,7 +42,7 @@ expectedError _ _ = True
 test_insertSession_roundtrip :: TestTree
 test_insertSession_roundtrip = testCaseSteps "insertSession database round-tripping" $ \step' ->
   runNullDb' $ do
-    now1 <- liftIO getCurrentTime
+    now1 <- getCurrentTime
     let step = liftIO . step'
     step "Insert even3App"
     let version = "git123"
@@ -54,7 +54,7 @@ test_insertSession_roundtrip = testCaseSteps "insertSession database round-tripp
     result <- querySessionId sessionId
     result @?= Right (SessionData even3App name now1)
 
-    now2 <- liftIO getCurrentTime
+    now2 <- getCurrentTime
     let jpName = safeMkSessionName "サンプルプログラム"
     step "Insert mapOddApp with Japanese name"
     sid1 <- liftIO newSessionId
@@ -62,7 +62,7 @@ test_insertSession_roundtrip = testCaseSteps "insertSession database round-tripp
     r1 <- querySessionId sid1
     r1 @?= Right (SessionData mapOddApp jpName now2)
 
-    now3 <- liftIO getCurrentTime
+    now3 <- getCurrentTime
     let cnName = safeMkSessionName "示例程序"
     step "Insert even3App with simplified Chinese name"
     sid2 <- liftIO newSessionId
@@ -70,7 +70,7 @@ test_insertSession_roundtrip = testCaseSteps "insertSession database round-tripp
     r2 <- querySessionId sid2
     r2 @?= Right (SessionData even3App cnName now3)
 
-    now4 <- liftIO getCurrentTime
+    now4 <- getCurrentTime
     let arName = safeMkSessionName "برنامج مثال"
     step "Insert mapOddApp with Arabic name"
     sid3 <- liftIO newSessionId
@@ -78,7 +78,7 @@ test_insertSession_roundtrip = testCaseSteps "insertSession database round-tripp
     r3 <- querySessionId sid3
     r3 @?= Right (SessionData mapOddApp arName now4)
 
-    now5 <- liftIO getCurrentTime
+    now5 <- getCurrentTime
     let emName = safeMkSessionName "😄😂🤣🤗 🦊 🦈"
     step "Insert even3App with emoji name"
     sid4 <- liftIO newSessionId
@@ -89,7 +89,7 @@ test_insertSession_roundtrip = testCaseSteps "insertSession database round-tripp
 test_insertSession_failure :: TestTree
 test_insertSession_failure = testCaseSteps "insertSession failure modes" $ \step' ->
   runNullDb' $ do
-    now <- liftIO getCurrentTime
+    now <- getCurrentTime
     let step = liftIO . step'
 
     step "Insert program"
@@ -113,13 +113,13 @@ test_insertSession_failure = testCaseSteps "insertSession failure modes" $ \step
     assertException "insertSession" (expectedError sessionId) $ insertSession version sessionId mapOddApp newName now
 
     step "Attempt to insert the same program with a different timestamp"
-    now' <- liftIO getCurrentTime
+    now' <- getCurrentTime
     assertException "insertSession" (expectedError sessionId) $ insertSession version sessionId mapOddApp name now'
 
 mkSession :: Int -> IO (SessionId, SessionData)
 mkSession n = do
   u <- nextRandom
-  now <- liftIO getCurrentTime
+  now <- getCurrentTime
   pure (u, SessionData newApp (safeMkSessionName $ "name-" <> show n) now)
 
 test_listSessions :: TestTree
@@ -155,7 +155,7 @@ test_updateSessionApp_roundtrip = testCaseSteps "updateSessionApp database round
     let step = liftIO . step'
 
     step "Insert a new session"
-    now <- liftIO getCurrentTime
+    now <- getCurrentTime
     let version = "git123"
     let name = safeMkSessionName "new app"
     sessionId <- liftIO newSessionId
@@ -178,7 +178,7 @@ test_updateSessionApp_roundtrip = testCaseSteps "updateSessionApp database round
     r3 @?= Right (SessionData even3App name now)
 
     step "Update it with a new timestamp"
-    now' <- liftIO getCurrentTime
+    now' <- getCurrentTime
     updateSessionApp newVersion sessionId even3App now'
     r4 <- querySessionId sessionId
     r4 @?= Right (SessionData even3App name now')
@@ -189,7 +189,7 @@ test_updateSessionApp_failure = testCaseSteps "updateSessionApp failure modes" $
     let step = liftIO . step'
 
     step "Attempt to update a session that hasn't yet been inserted"
-    now <- liftIO getCurrentTime
+    now <- getCurrentTime
     let version = "git123"
     sessionId <- liftIO newSessionId
     assertException "updateSessionApp" (expectedError sessionId) $ updateSessionApp version sessionId newApp now
@@ -200,7 +200,7 @@ test_updateSessionName_roundtrip = testCaseSteps "updateSessionName database rou
     let step = liftIO . step'
 
     step "Insert a new session"
-    now <- liftIO getCurrentTime
+    now <- getCurrentTime
     let version = "git123"
     let name = safeMkSessionName "new app"
     sessionId <- liftIO newSessionId
@@ -224,7 +224,7 @@ test_updateSessionName_roundtrip = testCaseSteps "updateSessionName database rou
     r3 @?= Right (SessionData mapOddApp newName now)
 
     step "Update it with a new timestamp"
-    now' <- liftIO getCurrentTime
+    now' <- getCurrentTime
     updateSessionName newVersion sessionId newName now'
     r4 <- querySessionId sessionId
     r4 @?= Right (SessionData mapOddApp newName now')
@@ -259,7 +259,7 @@ test_updateSessionName_failure = testCaseSteps "updateSessionName failure modes"
     let step = liftIO . step'
 
     step "Attempt to update a session that hasn't yet been inserted"
-    now <- liftIO getCurrentTime
+    now <- getCurrentTime
     let version = "git123"
     let name = safeMkSessionName "this session doesn't exist"
     sessionId <- liftIO newSessionId
@@ -271,7 +271,7 @@ test_querySessionId = testCaseSteps "querySessionId corner cases" $ \step' ->
     let step = liftIO . step'
 
     step "Insert program"
-    now <- liftIO getCurrentTime
+    now <- getCurrentTime
     let version = "git123"
     let name = safeMkSessionName "test querySessionId"
     sessionId <- liftIO newSessionId

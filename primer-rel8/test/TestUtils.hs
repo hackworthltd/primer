@@ -24,7 +24,6 @@ import Data.String (String)
 import Data.Time (
   UTCTime (..),
   diffTimeToPicoseconds,
-  getCurrentTime,
   picosecondsToDiffTime,
  )
 import Data.Typeable (typeOf)
@@ -62,6 +61,10 @@ import Primer.Core (
   mkSimpleModuleName,
  )
 import Primer.Core.DSL (create)
+import Primer.Database (
+  LastModified (..),
+  getCurrentTime,
+ )
 import Primer.Database.Rel8 (
   Rel8DbT,
   runRel8DbT,
@@ -236,9 +239,12 @@ testApp =
 --
 -- Ref:
 -- https://www.postgresql.org/docs/13/datatype-datetime.html
-lowPrecisionCurrentTime :: (MonadIO m) => m UTCTime
+--
+-- Note: we should DRY this, see:
+-- https://github.com/hackworthltd/primer/issues/273
+lowPrecisionCurrentTime :: (MonadIO m) => m LastModified
 lowPrecisionCurrentTime = do
-  (UTCTime day time) <- liftIO getCurrentTime
+  LastModified (UTCTime day time) <- getCurrentTime
   -- truncate to microseconds
   let time' = picosecondsToDiffTime $ diffTimeToPicoseconds time `div` 1000000 * 1000000
-  pure $ UTCTime day time'
+  pure $ LastModified $ UTCTime day time'

@@ -14,7 +14,6 @@ import Data.String (String)
 import Data.Time (
   UTCTime (..),
   diffTimeToPicoseconds,
-  getCurrentTime,
   picosecondsToDiffTime,
  )
 import Data.UUID.V4 (nextRandom)
@@ -39,7 +38,9 @@ import Hasql.Pool (
  )
 import Primer.App (newApp)
 import Primer.Database (
+  LastModified (..),
   Session (Session),
+  getCurrentTime,
   insertSession,
   listSessions,
   safeMkSessionName,
@@ -82,12 +83,15 @@ import Test.Tasty.HUnit qualified as HUnit
 --
 -- Ref:
 -- https://www.postgresql.org/docs/13/datatype-datetime.html
-lowPrecisionCurrentTime :: (MonadIO m) => m UTCTime
+--
+-- Note: we should DRY this, see:
+-- https://github.com/hackworthltd/primer/issues/273
+lowPrecisionCurrentTime :: (MonadIO m) => m LastModified
 lowPrecisionCurrentTime = do
-  (UTCTime day time) <- liftIO getCurrentTime
+  LastModified (UTCTime day time) <- getCurrentTime
   -- truncate to microseconds
   let time' = picosecondsToDiffTime $ diffTimeToPicoseconds time `div` 1000000 * 1000000
-  pure $ UTCTime day time'
+  pure $ LastModified $ UTCTime day time'
 
 (@?=) :: (MonadIO m, Eq a, Show a) => a -> a -> m ()
 x @?= y = liftIO $ x HUnit.@?= y
@@ -160,7 +164,7 @@ mkSession n = do
       , gitversion = "test-version"
       , app = newApp
       , name = "name-" <> show n
-      , lastmodified = now
+      , lastmodified = utcTime now
       }
 
 test_pagination :: TestTree
@@ -170,8 +174,8 @@ test_pagination = testCaseSteps "pagination" $ \step' ->
     let m = 345
     step "Insert all sessions"
     rows <- liftIO $ sortOn name <$> traverse mkSession [1 .. m]
-    forM_ rows (\SessionRow{..} -> insertSession gitversion uuid newApp (safeMkSessionName name) lastmodified)
-    let expectedRows = map (\r -> Session (uuid r) (safeMkSessionName $ name r) (lastmodified r)) rows
+    forM_ rows (\SessionRow{..} -> insertSession gitversion uuid newApp (safeMkSessionName name) (LastModified lastmodified))
+    let expectedRows = map (\r -> Session (uuid r) (safeMkSessionName $ name r) (LastModified $ lastmodified r)) rows
     step "Get all, paged"
     onePos <- maybe (assertFailure "1 is positive") pure $ mkPositive 1
     pAllPaged <- pagedDefaultClamp (m + 2) (Pagination{page = onePos, size = Nothing}) listSessions
