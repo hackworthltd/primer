@@ -24,7 +24,7 @@ import Data.Map.Strict qualified as Map
 import Data.Set qualified as Set
 import Data.Text qualified as T
 import Optics (set, (%), (?~))
-import Primer.Action.Actions (Action (..), Movement (..), QualifiedText (QualifiedText))
+import Primer.Action.Actions (Action (..), Movement (..), QualifiedText)
 import Primer.Action.Errors (ActionError (..))
 import Primer.Action.ProgAction (ProgAction (..))
 import Primer.Core (
@@ -597,7 +597,7 @@ constructLAM mx ze = do
 
 constructCon :: ActionM m => QualifiedText -> ExprZ -> m ExprZ
 constructCon c ze = case target ze of
-  EmptyHole{} -> flip replace ze <$> con (unsafeMkGlobalName' c)
+  EmptyHole{} -> flip replace ze <$> con (unsafeMkGlobalName c)
   e -> throwError $ NeedEmptyHole (ConstructCon c) e
 
 constructSatCon :: ActionM m => QualifiedText -> ExprZ -> m ExprZ
@@ -611,7 +611,7 @@ constructSatCon c ze = case target ze of
     flip replace ze <$> mkSaturatedApplication (con n) ctorType
   e -> throwError $ NeedEmptyHole (ConstructSaturatedCon c) e
   where
-    n = unsafeMkGlobalName' c
+    n = unsafeMkGlobalName c
 
 getConstructorType ::
   MonadReader TC.Cxt m =>
@@ -624,7 +624,7 @@ getConstructorType c =
 
 constructRefinedCon :: ActionM m => QualifiedText -> ExprZ -> m ExprZ
 constructRefinedCon c ze = do
-  let n = unsafeMkGlobalName' c
+  let n = unsafeMkGlobalName c
   cTy <-
     getConstructorType n >>= \case
       Left err -> throwError $ RefineError $ Left err
@@ -804,7 +804,7 @@ constructArrowR zt = flip replace zt <$> tfun tEmptyHole (pure (target zt))
 
 constructTCon :: ActionM m => QualifiedText -> TypeZ -> m TypeZ
 constructTCon c zt = case target zt of
-  TEmptyHole{} -> flip replace zt <$> tcon (unsafeMkGlobalName' c)
+  TEmptyHole{} -> flip replace zt <$> tcon (unsafeMkGlobalName c)
   _ -> throwError $ CustomFailure (ConstructTCon c) "can only construct tcon in hole"
 
 constructTVar :: ActionM m => Text -> TypeZ -> m TypeZ
@@ -836,7 +836,3 @@ renameForall b zt = case target zt of
             throwError NameCapture
   _ ->
     throwError $ CustomFailure (RenameForall b) "the focused expression is not a forall type"
-
--- TODO we really shouldn't be doing this here (we already were)
-unsafeMkGlobalName' :: QualifiedText -> C.GlobalName k
-unsafeMkGlobalName' (QualifiedText c t) = unsafeMkGlobalName (c, t)

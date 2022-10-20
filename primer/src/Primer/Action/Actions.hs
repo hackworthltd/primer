@@ -1,7 +1,7 @@
 module Primer.Action.Actions (
   Action (..),
   Movement (..),
-  QualifiedText (..),
+  QualifiedText,
 ) where
 
 import Foreword
@@ -15,12 +15,7 @@ import Primer.JSON (CustomJSON (..), PrimerJSON)
 -- to build because of
 -- https://gitlab.haskell.org/ghc/ghc/-/issues/5642
 
-data QualifiedText = QualifiedText
-  { context :: NonEmpty Text
-  , text :: Text
-  }
-  deriving (Eq, Show, Generic)
-  deriving (FromJSON, ToJSON) via PrimerJSON QualifiedText
+type QualifiedText = (NonEmpty Text, Text)
 
 -- | Core actions.
 --  These describe edits to the core AST.

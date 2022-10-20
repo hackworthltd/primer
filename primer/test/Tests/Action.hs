@@ -17,7 +17,6 @@ import Primer.Action (
   Movement (..),
   applyActionsToExpr,
  )
-import Primer.Action.Actions (QualifiedText (QualifiedText))
 import Primer.Builtins
 import Primer.Core (
   Expr,
@@ -382,7 +381,7 @@ unit_bad_constructor =
     (const True)
     NoSmartHoles
     emptyHole
-    [ConstructCon $ QualifiedText ["M"] "NotARealConstructor"]
+    [ConstructCon (["M"], "NotARealConstructor")]
 
 unit_bad_type_constructor :: Assertion
 unit_bad_type_constructor =
@@ -390,7 +389,7 @@ unit_bad_type_constructor =
     (const True)
     NoSmartHoles
     (ann emptyHole tEmptyHole)
-    [EnterType, ConstructTCon $ QualifiedText ["M"] "NotARealTypeConstructor"]
+    [EnterType, ConstructTCon (["M"], "NotARealTypeConstructor")]
 
 unit_bad_app :: Assertion
 unit_bad_app =

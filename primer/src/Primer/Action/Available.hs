@@ -2,6 +2,7 @@
 {-# HLINT ignore "Use section" #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE ViewPatterns #-}
 {-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
 {-# OPTIONS_GHC -Wno-unused-imports #-}
 
@@ -27,6 +28,8 @@ module Primer.Action.Available (
   inputActionQualified,
   mkAction,
   QualifiedText (..),
+  fromQualifiedText,
+  toQualifiedText,
 ) where
 
 import Foreword
@@ -53,7 +56,7 @@ import Primer.Action (
   nameString,
   uniquifyDefName,
  )
-import Primer.Action.Actions (QualifiedText (..))
+import Primer.Action.Actions ()
 import Primer.Action.Priorities qualified as P
 import Primer.App (Editable (Editable, NonEditable), NodeType (..), globalInUse)
 import Primer.Core (
@@ -112,6 +115,18 @@ import Primer.Zipper (
   unfocusType,
   up,
  )
+
+-- TODO work out what to do with this - bite the bullet and do the DB migration?
+data QualifiedText = QualifiedText
+  { context :: NonEmpty Text
+  , text :: Text
+  }
+  deriving (Eq, Show, Generic)
+  deriving (FromJSON, ToJSON) via PrimerJSON QualifiedText
+toQualifiedText :: (NonEmpty Text, Text) -> QualifiedText
+toQualifiedText (context, text) = QualifiedText{..}
+fromQualifiedText :: QualifiedText -> (NonEmpty Text, Text)
+fromQualifiedText QualifiedText{..} = (context, text)
 
 -- deriving (Show, Generic)
 -- deriving (ToJSON, FromJSON) via PrimerJSON OfferedAction
@@ -865,7 +880,7 @@ mkAction defs def defName mNodeSel = \case
             toProgAction [RenameLet tInput]
           ARenameForall ->
             toProgAction [RenameForall tInput]
-  ActionRequestQualified MkActionRequestQualified{action, option} -> case action of
+  ActionRequestQualified MkActionRequestQualified{action, option = (fromQualifiedText -> option)} -> case action of
     AUseValueCon ->
       toProgAction [ConstructCon option]
     AUseSaturatedValueCon -> do

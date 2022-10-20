@@ -34,7 +34,6 @@ import Primer.API (
 import Primer.Action (
   Action (ConstructCon, ConstructRefinedCon, ConstructTCon),
  )
-import Primer.Action.Actions (QualifiedText (QualifiedText))
 import Primer.Core (
   Expr',
   ExprMeta,
@@ -84,8 +83,8 @@ constructCon = ConstructCon . toQualText
 constructRefinedCon :: ValConName -> Action
 constructRefinedCon = ConstructRefinedCon . toQualText
 
-toQualText :: GlobalName k -> QualifiedText
-toQualText n = QualifiedText (map unName $ unModuleName $ qualifiedModule n) (unName $ baseName n)
+toQualText :: GlobalName k -> (NonEmpty Text, Text)
+toQualText n = (map unName $ unModuleName $ qualifiedModule n, unName $ baseName n)
 
 vcn :: NonEmpty Name -> Name -> ValConName
 vcn = qualifyName . ModuleName
