@@ -143,13 +143,6 @@ data OfferedAction -- TODO rename incl. constructors and subtypes
   deriving (Show, Generic)
   deriving (ToJSON, FromJSON) via PrimerJSON OfferedAction
 
--- TODO inline this
-inputRequired options allowFreeText action =
-  if allowFreeText
-    then ChooseOrEnterText OfferedActionChooseOrEnterText{..}
-    else ChooseText OfferedActionChooseText{..}
-inputRequiredQual options allowFreeText action = ChooseQualified OfferedActionChooseQualified{..}
-
 -- TODO we need another for variables, which may be qualified or unqualified (see also `tInputTmVar`) - actually maybe just modify `ChooseQualified` to `Choose`?
 -- TODO we would "inline" all these types in to `OfferedAction`, but `openapi3` wouldn't like that
 data OfferedActionChooseQualified = OfferedActionChooseQualified
@@ -607,147 +600,132 @@ inputAction l = \case
         --       ("Choose a " <> nameString <> " for the input variable")
         --       options
         --     $ \n ->
-        inputRequired
-          [] -- TODO note 2
-          True
+        ChooseOrEnterText OfferedActionChooseOrEnterText{action, options = []}
+      -- TODO note 2
       AUseVar ->
         -- ChooseVariable filterVars $
         --   pure . ConstructVar
-        inputRequired
-          [] -- TODO note 1
-          False
+        ChooseText OfferedActionChooseText{action, options = []}
+      -- TODO note 1
       ASaturatedFunction ->
-        inputRequired
-          -- . ChooseVariable OnlyFunctions
-          -- \$ \name ->
-          [] -- TODO note 1
-          False
+        ChooseText OfferedActionChooseText{action, options = []}
+      -- . ChooseVariable OnlyFunctions
+      --  $ \name ->
+      -- TODO note 1
       AMakeLet ->
         -- (GenerateName defName (m ^. _id) (Left Nothing))
         --  $ \options ->
-        --   inputRequired
+        --    flip inputRequired'
         --     . ChooseOrEnterName
         --       ("Choose a " <> nameString <> " for the new let binding")
         --       options
         --     $ \n -> [ConstructLet $ Just $ unName n]
         -- AskQuestion
-        inputRequired
-          [] -- TODO note 2
-          True
+        ChooseOrEnterText OfferedActionChooseOrEnterText{action, options = []}
+      -- TODO note 2
       AMakeLetRec ->
         -- (GenerateName defName (m ^. _id) (Left Nothing)) $ \options ->
-        -- inputRequired
+        --  flip inputRequired'
         --   . ChooseOrEnterName
         --     ("Choose a " <> nameString <> " for the new let binding")
         --     options
         --   $ \n -> [ConstructLetrec $ Just $ unName n]
         -- AskQuestion
-        inputRequired
-          [] -- TODO note 2
-          True
+        ChooseOrEnterText OfferedActionChooseOrEnterText{action, options = []}
+      -- TODO note 2
       AConstructBigLambda ->
         -- AskQuestion
         -- (GenerateName defName (m ^. _id) (Right $ join $ m ^? _type % _Just % _chkedAt % to lAMVarKind)) $ \options ->
-        --   inputRequired
+        --    flip inputRequired'
         --     $ ChooseOrEnterName
         --       ("Choose a " <> nameString <> " for the bound type variable")
         --       options
         --     $ \n -> [ConstructLAM $ Just $ unName n]
-        inputRequired
-          [] -- TODO note 2
-          True
+        ChooseOrEnterText OfferedActionChooseOrEnterText{action, options = []}
+      -- TODO note 2
       AUseTypeVar ->
         -- ChooseTypeVariable $
         --   \v -> [ConstructTVar v]
-        inputRequired
-          [] -- TODO note 1
-          False
+        ChooseText OfferedActionChooseText{action, options = []}
+      -- TODO note 1
       AConstructForall ->
         --  (GenerateName defName (m ^. _id) (Right Nothing)) $ \options ->
-        -- inputRequired
+        --  flip inputRequired'
         --   . ChooseOrEnterName
         --     ("Choose a " <> nameString <> " for the bound type variable")
         --     options
         --   $ \n -> [ConstructTForall $ Just $ unName n, Move Child1]
         -- AskQuestion
-        inputRequired
-          [] -- TODO note 2
-          True
+        ChooseOrEnterText OfferedActionChooseOrEnterText{action, options = []}
+      -- TODO note 2
       ARenameDef ->
         -- ("Enter a new " <> nameString <> " for the definition")
         -- (\name -> [RenameDef defName (unName name)])
-        inputRequired
-          []
-          True
+        ChooseOrEnterText OfferedActionChooseOrEnterText{action, options = []}
       ARenamePatternVar ->
         -- AskQuestion
         -- (GenerateName defName (b ^. _bindMeta % _id) (Left $ b ^? _bindMeta % _type % _Just % _chkedAt))
         --  $ \options ->
-        --   inputRequired
+        --    flip inputRequired'
         --     $ ChooseOrEnterName
         --       ("Choose a new " <> nameString <> " for the pattern variable")
         --       options
         --     $ \n -> [RenameCaseBinding $ unName n]
-        inputRequired
-          [] -- TODO note 2
-          True
+        ChooseOrEnterText OfferedActionChooseOrEnterText{action, options = []}
+      -- TODO note 2
       ARenameLambda ->
         -- (GenerateName defName (m ^. _id) (Left $ join $ m ^? _type % _Just % _chkedAt % to lamVarTy))
         --   $ \options ->
-        --   inputRequired
+        --    flip inputRequired'
         --     . ChooseOrEnterName
         --       ("Choose a new " <> nameString <> " for the input variable")
         --       options
         --     $ \n -> [RenameLam $ unName n]
         -- AskQuestion
-        inputRequired
-          [] -- TODO note 2
-          True
+        ChooseOrEnterText OfferedActionChooseOrEnterText{action, options = []}
+      -- TODO note 2
       ARenameLAM ->
         -- (GenerateName defName (m ^. _id) (Right $ join $ m ^? _type % _Just % _chkedAt % to lAMVarKind))
         --  $ \options ->
-        --   inputRequired
+        --    flip inputRequired'
         --     . ChooseOrEnterName
         --       ("Choose a new " <> nameString <> " for the type variable")
         --       options
         --     $ \n -> [RenameLAM $ unName n]
         -- AskQuestion
-        inputRequired
-          [] -- TODO note 2
-          True
+        ChooseOrEnterText OfferedActionChooseOrEnterText{action, options = []}
+      -- TODO note 2
       ARenameLetBinding ->
         -- (GenerateName defName (m ^. _id) (Left $ forgetTypeMetadata <$> t))
         --   $ \options ->
-        --   inputRequired
+        --    flip inputRequired'
         --     . ChooseOrEnterName
         --       ("Choose a new " <> nameString <> " for the let binding")
         --       options
         --     $ \n -> [RenameLet $ unName n]
         -- AskQuestion
-        inputRequired
-          [] -- TODO note 2
-          True
+        ChooseOrEnterText OfferedActionChooseOrEnterText{action, options = []}
+      -- TODO note 2
       ARenameForall ->
         --  (GenerateName defName (m' ^. _id) (Right $ Just k)) $ \options ->
-        -- inputRequired
+        --  flip inputRequired'
         --   $ ChooseOrEnterName
         --     ("Choose a new " <> nameString <> " for the bound type variable")
         --     options
         --   $ \n -> [RenameForall $ unName n]
         -- AskQuestion
-        inputRequired
-          [] -- TODO note 2
-          True
-inputActionQualified l = \case
+        -- TODO note 2
+        ChooseOrEnterText OfferedActionChooseOrEnterText{action, options = []}
+
+inputActionQualified l action = case action of
   AUseValueCon ->
     let filterCtors = case l of
           Beginner -> NoFunctions
           _ -> Everything
      in -- ChooseConstructor filterCtors $
         --   \c ->
-        inputRequiredQual
-          [] -- TODO note 1
-          False
+        ChooseQualified OfferedActionChooseQualified{action, options = []}
+  -- TODO note 1
   AUseSaturatedValueCon ->
     -- NB: Exactly one of the saturated and refined actions will be available
     -- (depending on whether we have useful type information to hand).
@@ -755,15 +733,14 @@ inputActionQualified l = \case
 
     -- . ChooseConstructor OnlyFunctions
     --  $ \c ->
-    inputRequiredQual
-      [] -- TODO note 1
-      False
+    ChooseQualified OfferedActionChooseQualified{action, options = []}
+  -- TODO note 1
   AUseTypeCon ->
     -- ChooseTypeConstructor $
     --   \t -> [ConstructTCon t]
-    inputRequiredQual
-      [] -- TODO note 1
-      False
+    ChooseQualified OfferedActionChooseQualified{action, options = []}
+
+-- TODO note 1
 
 -- TODO rename
 -- essentially, map a high-level (and serialisation-friendly) action to a sequence of low-level ones
