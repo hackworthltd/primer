@@ -587,7 +587,6 @@ priorityInputActionQualified = \case
 --   SomeAction ->
 --   (OfferedAction, Either Text [ProgAction])
 
--- TODO bit of a red flag when result is always `InputRequired` and we always need to apply self on end
 inputAction l action = case action of
   AMakeLambda ->
     -- AskQuestion
