@@ -46,7 +46,7 @@ import Primer.Action (
   nameString,
   uniquifyDefName,
  )
-import Primer.Action.Actions (QualifiedText)
+import Primer.Action.Actions (QualifiedText (..))
 import Primer.Action.Priorities qualified as P
 import Primer.App (Editable (Editable, NonEditable), NodeType (..), globalInUse)
 import Primer.Core (
@@ -798,7 +798,7 @@ mkAction defs def defName mNodeSel = \case
         -- this needs a big rethink
         -- `ActionRequestComplex` field shouldn't be just `Text` (same as `InputOption`?)?
         tInputTmVar = LocalVarRef $ unsafeMkLocalName tInput
-        tInputQT = (pure "Builtins", tInput)
+        tInputQT = QualifiedText (pure "Builtins") tInput
      in case action of
           AMakeLambda ->
             toProgAction [ConstructLam $ Just tInput]

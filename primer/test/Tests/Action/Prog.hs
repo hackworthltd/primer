@@ -27,6 +27,7 @@ import Primer.Action (
   ActionError (ImportNameClash),
   Movement (Branch, Child1, Child2, Parent),
  )
+import Primer.Action.Actions (QualifiedText (QualifiedText))
 import Primer.App (
   App,
   Log (..),
@@ -502,15 +503,15 @@ unit_sigaction_creates_holes =
   let acts =
         [ -- main :: Char
           moveToDef "main"
-        , SigAction [ConstructTCon (mainModuleNameText, "Char")]
+        , SigAction [ConstructTCon $ QualifiedText mainModuleNameText "Char"]
         , -- other :: Char; other = main
           moveToDef "other"
-        , SigAction [ConstructTCon (mainModuleNameText, "Char")]
+        , SigAction [ConstructTCon $ QualifiedText mainModuleNameText "Char"]
         , BodyAction [ConstructVar $ GlobalVarRef $ gvn "main"]
         , -- main :: Int
           -- We expect this to change 'other' to contain a hole
           moveToDef "main"
-        , SigAction [Delete, ConstructTCon (mainModuleNameText, "Int")]
+        , SigAction [Delete, ConstructTCon $ QualifiedText mainModuleNameText "Int"]
         ]
    in progActionTest defaultFullProg acts $
         expectSuccess $ \_ prog' ->
