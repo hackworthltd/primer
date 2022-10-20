@@ -53,7 +53,7 @@ import Primer.API (
   viewProg,
  )
 import Primer.API qualified as API
-import Primer.Action.Available (ActionRequest (ActionRequestSimple), OfferedAction (InputRequired, NoInputRequired), actionsForDef, actionsForDefBody, actionsForDefSig, inputAction, mkAction)
+import Primer.Action.Available (ActionRequest (ActionRequestSimple), OfferedAction (..), SomeAction (..), actionsForDef, actionsForDefBody, actionsForDefSig, inputAction, inputActionQualified, mkAction)
 import Primer.App (MutationRequest (Edit), NodeType (..), progAllDefs, progAllTypeDefs)
 import Primer.Core (globalNamePretty)
 import Primer.Database (
@@ -119,7 +119,7 @@ openAPIActionServer sid =
         prog <- getProgram sid
         let allDefs = progAllDefs prog
             allTypeDefs = progAllTypeDefs prog
-        either NoInputRequired (\a -> InputRequired $ inputAction level a a) <<$>> case node of
+        (\case NoInputAction a -> NoInputRequired a; InputAction a -> inputAction level a a; InputActionQualified a -> inputActionQualified level a a) <<$>> case node of
           Nothing ->
             pure $ actionsForDef level allDefs def
           Just NodeSelection{..} -> do

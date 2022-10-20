@@ -15,12 +15,17 @@ import Deriving.Aeson (AesonOptions (aesonOptions))
 import Primer.API (Def, ExprTreeOpts, Module, NodeBody, NodeFlavor, NodeSelection (..), Prog, Selection (..), Tree)
 import Primer.Action.Available (
   ActionRequest,
-  ActionRequestComplex (..),
+  ActionRequestQualified,
+  ActionRequestText (..),
   InputAction,
+  InputActionQualified,
   Level (..),
   NoInputAction,
   OfferedAction,
-  OfferedActionInputRequired (..),
+  OfferedActionChooseOrEnterText,
+  OfferedActionChooseQualified,
+  OfferedActionChooseText,
+  QualifiedText (..),
  )
 import Primer.App (NodeType)
 import Primer.Core (
@@ -81,10 +86,15 @@ deriving via PrimerJSON Prog instance ToSchema Prog
 deriving via PrimerJSON ExprTreeOpts instance ToSchema ExprTreeOpts
 deriving via PrimerJSON NoInputAction instance ToSchema NoInputAction
 deriving via PrimerJSON InputAction instance ToSchema InputAction
+deriving via PrimerJSON InputActionQualified instance ToSchema InputActionQualified
+deriving via PrimerJSON QualifiedText instance ToSchema QualifiedText
+deriving via PrimerJSON OfferedActionChooseQualified instance ToSchema OfferedActionChooseQualified
+deriving via PrimerJSON OfferedActionChooseText instance ToSchema OfferedActionChooseText
+deriving via PrimerJSON OfferedActionChooseOrEnterText instance ToSchema OfferedActionChooseOrEnterText
 deriving via PrimerJSON OfferedAction instance ToSchema OfferedAction
-deriving via PrimerJSON OfferedActionInputRequired instance ToSchema OfferedActionInputRequired
 deriving via PrimerJSON ActionRequest instance ToSchema ActionRequest
-deriving via PrimerJSON ActionRequestComplex instance ToSchema ActionRequestComplex
+deriving via PrimerJSON ActionRequestText instance ToSchema ActionRequestText
+deriving via PrimerJSON ActionRequestQualified instance ToSchema ActionRequestQualified
 deriving via PrimerJSON Selection instance ToSchema Selection
 deriving via PrimerJSON NodeSelection instance ToSchema NodeSelection
 deriving via PrimerJSON NodeType instance ToSchema NodeType

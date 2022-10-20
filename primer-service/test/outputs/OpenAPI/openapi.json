@@ -24,11 +24,29 @@
                     {
                         "properties": {
                             "contents": {
-                                "$ref": "#/components/schemas/ActionRequestComplex"
+                                "$ref": "#/components/schemas/ActionRequestText"
                             },
                             "tag": {
                                 "enum": [
-                                    "ActionRequestComplex"
+                                    "ActionRequestText"
+                                ],
+                                "type": "string"
+                            }
+                        },
+                        "required": [
+                            "tag",
+                            "contents"
+                        ],
+                        "type": "object"
+                    },
+                    {
+                        "properties": {
+                            "contents": {
+                                "$ref": "#/components/schemas/ActionRequestQualified"
+                            },
+                            "tag": {
+                                "enum": [
+                                    "ActionRequestQualified"
                                 ],
                                 "type": "string"
                             }
@@ -42,7 +60,22 @@
                 ],
                 "type": "object"
             },
-            "ActionRequestComplex": {
+            "ActionRequestQualified": {
+                "properties": {
+                    "action": {
+                        "$ref": "#/components/schemas/InputActionQualified"
+                    },
+                    "option": {
+                        "$ref": "#/components/schemas/QualifiedText"
+                    }
+                },
+                "required": [
+                    "action",
+                    "option"
+                ],
+                "type": "object"
+            },
+            "ActionRequestText": {
                 "properties": {
                     "action": {
                         "$ref": "#/components/schemas/InputAction"
@@ -113,14 +146,11 @@
                 "enum": [
                     "AMakeLambda",
                     "AUseVar",
-                    "AUseValueCon",
-                    "AUseSaturatedValueCon",
                     "ASaturatedFunction",
                     "AMakeLet",
                     "AMakeLetRec",
                     "AConstructBigLambda",
                     "AUseTypeVar",
-                    "AUseTypeCon",
                     "AConstructForall",
                     "ARenameDef",
                     "ARenamePatternVar",
@@ -128,6 +158,14 @@
                     "ARenameLAM",
                     "ARenameLetBinding",
                     "ARenameForall"
+                ],
+                "type": "string"
+            },
+            "InputActionQualified": {
+                "enum": [
+                    "AUseValueCon",
+                    "AUseSaturatedValueCon",
+                    "AUseTypeCon"
                 ],
                 "type": "string"
             },
@@ -321,11 +359,65 @@
                     {
                         "properties": {
                             "contents": {
-                                "$ref": "#/components/schemas/OfferedActionInputRequired"
+                                "$ref": "#/components/schemas/OfferedActionChooseQualified"
                             },
                             "tag": {
                                 "enum": [
-                                    "InputRequired"
+                                    "ChooseQualified"
+                                ],
+                                "type": "string"
+                            }
+                        },
+                        "required": [
+                            "tag",
+                            "contents"
+                        ],
+                        "type": "object"
+                    },
+                    {
+                        "properties": {
+                            "contents": {
+                                "$ref": "#/components/schemas/OfferedActionChooseText"
+                            },
+                            "tag": {
+                                "enum": [
+                                    "ChooseText"
+                                ],
+                                "type": "string"
+                            }
+                        },
+                        "required": [
+                            "tag",
+                            "contents"
+                        ],
+                        "type": "object"
+                    },
+                    {
+                        "properties": {
+                            "contents": {
+                                "$ref": "#/components/schemas/InputAction"
+                            },
+                            "tag": {
+                                "enum": [
+                                    "EnterText"
+                                ],
+                                "type": "string"
+                            }
+                        },
+                        "required": [
+                            "tag",
+                            "contents"
+                        ],
+                        "type": "object"
+                    },
+                    {
+                        "properties": {
+                            "contents": {
+                                "$ref": "#/components/schemas/OfferedActionChooseOrEnterText"
+                            },
+                            "tag": {
+                                "enum": [
+                                    "ChooseOrEnterText"
                                 ],
                                 "type": "string"
                             }
@@ -339,13 +431,10 @@
                 ],
                 "type": "object"
             },
-            "OfferedActionInputRequired": {
+            "OfferedActionChooseOrEnterText": {
                 "properties": {
                     "action": {
                         "$ref": "#/components/schemas/InputAction"
-                    },
-                    "allowFreeText": {
-                        "type": "boolean"
                     },
                     "options": {
                         "items": {
@@ -356,7 +445,42 @@
                 },
                 "required": [
                     "options",
-                    "allowFreeText",
+                    "action"
+                ],
+                "type": "object"
+            },
+            "OfferedActionChooseQualified": {
+                "properties": {
+                    "action": {
+                        "$ref": "#/components/schemas/InputActionQualified"
+                    },
+                    "options": {
+                        "items": {
+                            "$ref": "#/components/schemas/QualifiedText"
+                        },
+                        "type": "array"
+                    }
+                },
+                "required": [
+                    "options",
+                    "action"
+                ],
+                "type": "object"
+            },
+            "OfferedActionChooseText": {
+                "properties": {
+                    "action": {
+                        "$ref": "#/components/schemas/InputAction"
+                    },
+                    "options": {
+                        "items": {
+                            "type": "string"
+                        },
+                        "type": "array"
+                    }
+                },
+                "required": [
+                    "options",
                     "action"
                 ],
                 "type": "object"
@@ -443,6 +567,25 @@
                 },
                 "required": [
                     "modules"
+                ],
+                "type": "object"
+            },
+            "QualifiedText": {
+                "properties": {
+                    "context": {
+                        "items": {
+                            "type": "string"
+                        },
+                        "minItems": 1,
+                        "type": "array"
+                    },
+                    "text": {
+                        "type": "string"
+                    }
+                },
+                "required": [
+                    "context",
+                    "text"
                 ],
                 "type": "object"
             },
