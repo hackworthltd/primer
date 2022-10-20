@@ -5,7 +5,6 @@ import Foreword
 import Primer.Core (Expr)
 import Primer.Core.Meta (ID)
 import Primer.JSON (CustomJSON (..), FromJSON, PrimerJSON, ToJSON)
-import Primer.Primitives (PrimFunError)
 
 -- | Errors that can be raised during reduction.
 --
@@ -34,7 +33,5 @@ data EvalError
   | -- | The number of bindings in a branch pattern doesn't match the number of arguments in the
     -- scrutinee.
     CaseBranchBindingLengthMismatch
-  | -- | An error occurred while evaluating a primitive function.
-    PrimFunError PrimFunError
   deriving (Eq, Show, Generic)
   deriving (FromJSON, ToJSON) via PrimerJSON EvalError
