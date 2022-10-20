@@ -24,6 +24,7 @@ import Test.Tasty (TestTree)
 import Test.Tasty.HUnit (testCaseSteps)
 import TestUtils (
   assertException,
+  lowPrecisionCurrentTime,
   runTmpDb,
   testApp,
   (@?=),
@@ -41,24 +42,31 @@ test_updateSessionApp_roundtrip = testCaseSteps "updateSessionApp database round
     step "Insert a new session"
     let version = "git123"
     let name = safeMkSessionName "new app"
+    now <- lowPrecisionCurrentTime
     sessionId <- liftIO newSessionId
-    insertSession version sessionId newEmptyApp name
+    insertSession version sessionId newEmptyApp name now
 
     step "Update it with the same version and app"
-    updateSessionApp version sessionId newEmptyApp
+    updateSessionApp version sessionId newEmptyApp now
     r1 <- querySessionId sessionId
-    r1 @?= Right (SessionData newEmptyApp name)
+    r1 @?= Right (SessionData newEmptyApp name now)
 
     step "Update it with a new version, but the same app"
     let newVersion = "new-" <> version
-    updateSessionApp newVersion sessionId newEmptyApp
+    updateSessionApp newVersion sessionId newEmptyApp now
     r2 <- querySessionId sessionId
-    r2 @?= Right (SessionData newEmptyApp name)
+    r2 @?= Right (SessionData newEmptyApp name now)
 
     step "Update it with a new app"
-    updateSessionApp newVersion sessionId testApp
+    updateSessionApp newVersion sessionId testApp now
     r3 <- querySessionId sessionId
-    r3 @?= Right (SessionData testApp name)
+    r3 @?= Right (SessionData testApp name now)
+
+    step "Update it with a new time"
+    now' <- lowPrecisionCurrentTime
+    updateSessionApp newVersion sessionId testApp now'
+    r4 <- querySessionId sessionId
+    r4 @?= Right (SessionData testApp name now')
 
 test_updateSessionApp_failure :: TestTree
 test_updateSessionApp_failure = testCaseSteps "updateSessionApp failure modes" $ \step' ->
@@ -67,5 +75,6 @@ test_updateSessionApp_failure = testCaseSteps "updateSessionApp failure modes" $
 
     step "Attempt to update a session that hasn't yet been inserted"
     let version = "git123"
+    now <- lowPrecisionCurrentTime
     sessionId <- liftIO newSessionId
-    assertException "updateSessionApp" (expectedError sessionId) $ updateSessionApp version sessionId newApp
+    assertException "updateSessionApp" (expectedError sessionId) $ updateSessionApp version sessionId newApp now

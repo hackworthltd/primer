@@ -16,12 +16,13 @@ import Primer.Database (
   safeMkSessionName,
  )
 import Primer.Database.Rel8 (
-  SessionRow (SessionRow, app, gitversion, name, uuid),
+  SessionRow (SessionRow, app, gitversion, lastmodified, name, uuid),
  )
 import Rel8 (Result)
 import Test.Tasty (TestTree)
 import Test.Tasty.HUnit (testCaseSteps)
 import TestUtils (
+  lowPrecisionCurrentTime,
   runTmpDb,
   (@?=),
  )
@@ -29,12 +30,14 @@ import TestUtils (
 mkSession :: Int -> IO (SessionRow Result)
 mkSession n = do
   u <- nextRandom
+  now <- lowPrecisionCurrentTime
   pure $
     SessionRow
       { uuid = u
       , gitversion = "test-version"
       , app = newApp
       , name = "name-" <> show n
+      , lastmodified = now
       }
 
 test_listSessions :: TestTree
@@ -44,8 +47,8 @@ test_listSessions = testCaseSteps "listSessions" $ \step' ->
     let m = 345
     step "Insert all sessions"
     rows <- liftIO $ sortOn name <$> traverse mkSession [1 .. m]
-    forM_ rows (\SessionRow{..} -> insertSession gitversion uuid newApp (safeMkSessionName name))
-    let expectedRows = map (\r -> Session (uuid r) (safeMkSessionName $ name r)) rows
+    forM_ rows (\SessionRow{..} -> insertSession gitversion uuid newApp (safeMkSessionName name) lastmodified)
+    let expectedRows = map (\r -> Session (uuid r) (safeMkSessionName $ name r) (lastmodified r)) rows
     step "Get all, offset+limit"
     pAll <- listSessions $ OL{offset = 0, limit = Nothing}
     total pAll @?= m
@@ -53,12 +56,12 @@ test_listSessions = testCaseSteps "listSessions" $ \step' ->
     step "Get 25"
     p25 <- listSessions $ OL{offset = 0, limit = Just 25}
     total p25 @?= m
-    pageContents p25 @?= map (\r -> Session (uuid r) (safeMkSessionName $ name r)) (take 25 rows)
+    pageContents p25 @?= map (\r -> Session (uuid r) (safeMkSessionName $ name r) (lastmodified r)) (take 25 rows)
     step "Get 76-100"
     p75 <- listSessions $ OL{offset = 75, limit = Just 25}
     total p75 @?= m
-    pageContents p75 @?= map (\r -> Session (uuid r) (safeMkSessionName $ name r)) (take 25 $ drop 75 rows)
+    pageContents p75 @?= map (\r -> Session (uuid r) (safeMkSessionName $ name r) (lastmodified r)) (take 25 $ drop 75 rows)
     step "Get crossing end"
     pLast <- listSessions $ OL{offset = m - 10, limit = Just 25}
     total pLast @?= m
-    pageContents pLast @?= map (\r -> Session (uuid r) (safeMkSessionName $ name r)) (drop (m - 10) rows)
+    pageContents pLast @?= map (\r -> Session (uuid r) (safeMkSessionName $ name r) (lastmodified r)) (drop (m - 10) rows)

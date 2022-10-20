@@ -9,6 +9,7 @@ module Primer.Database.Rel8.Schema (
 import Foreword
 
 import Data.String (String)
+import Data.Time.Clock (UTCTime)
 import Data.UUID (UUID)
 import Primer.App (App)
 import Primer.Database (
@@ -32,12 +33,14 @@ data SessionRow f = SessionRow
   -- ^ The session's UUID.
   , gitversion :: Column f Version
   -- ^ Primer's git version. We would prefer that this were a git
-  -- rev, but for technical reasons, it may also be a last-modified
-  -- date.
+  -- rev, but for technical reasons, it may also be the last-modified
+  -- date of the project.
   , app :: Column f App
   -- ^ The session's 'App'.
   , name :: Column f Text
   -- ^ The session's name.
+  , lastmodified :: Column f UTCTime
+  -- ^ The session's last-modified time.
   }
   deriving stock (Generic)
   deriving anyclass (Rel8able)

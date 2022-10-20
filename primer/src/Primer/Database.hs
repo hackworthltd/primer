@@ -1,3 +1,4 @@
+{-# LANGUAGE DuplicateRecordFields #-}
 {-# LANGUAGE OverloadedLabels #-}
 
 module Primer.Database (
@@ -50,6 +51,9 @@ import Data.Text qualified as Text (
   strip,
   take,
   takeWhile,
+ )
+import Data.Time.Clock (
+  UTCTime,
  )
 import Data.UUID (UUID)
 import Data.UUID qualified as UUID (toText)
@@ -134,9 +138,16 @@ fromSessionName (SessionName t) = t
 defaultSessionName :: SessionName
 defaultSessionName = SessionName "Untitled Program"
 
--- | Bulk-queryable per-session information
--- See also 'SessionData'.
-data Session = Session {id :: SessionId, name :: SessionName}
+-- | Bulk-queryable per-session information. See also 'SessionData'.
+data Session = Session
+  { id :: SessionId
+  -- ^ The session ID.
+  , name :: SessionName
+  -- ^ The session's name.
+  , lastModified :: UTCTime
+  -- ^ The last time the session was modified. See
+  -- 'SessionData.lastModified' for details.
+  }
   deriving (Show, Eq, Generic)
   deriving (FromJSON, ToJSON) via PrimerJSON Session
 
@@ -146,6 +157,10 @@ data SessionData = SessionData
   -- ^ The session's 'App'.
   , sessionName :: SessionName
   -- ^ The session's name.
+  , lastModified :: UTCTime
+  -- ^ The last time the session was modified (or when it was created,
+  -- if it hasn't yet been modified). This accounts for modifications
+  -- either to the session's name, or to its corresponding 'App'.
   }
   deriving (Show, Eq, Generic)
 
@@ -165,13 +180,23 @@ data OpStatus
     Failure !Text
 
 -- | A database operation.
+--
+-- Note that operations which modify or create sessions must provide a
+-- modification/creation timestamp. For typical operations, generating
+-- the timestamp could be deferred to the database engine, but this
+-- implementation is more flexible, because it permits replay and
+-- restoration of sessions during a migration, from a database dump,
+-- etc.
 data Op
-  = -- | Insert a new session ID and 'App' with the given session name.
-    Insert !SessionId !App !SessionName
-  | -- | Update the 'App' associated with the given session ID.
-    UpdateApp !SessionId !App
-  | -- | Update the session name associated with the given session ID.
-    UpdateName !SessionId !SessionName
+  = -- | Insert a new session ID and 'App' with the given session name
+    -- and creation date.
+    Insert !SessionId !App !SessionName !UTCTime
+  | -- | Update the 'App' associated with the given session ID and
+    -- specified timestamp.
+    UpdateApp !SessionId !App !UTCTime
+  | -- | Update the session name associated with the given session ID
+    -- and specified timestamp.
+    UpdateName !SessionId !SessionName !UTCTime
   | -- | Query the database for a session with the given ID. If found,
     -- insert it into the given in-memory database. Then signal the
     -- caller via the supplied 'TMVar' whether the lookup was
@@ -218,17 +243,17 @@ class (Monad m) => MonadDb m where
   -- | Insert a session into the database.
   --
   -- Corresponds to the 'Insert' operation.
-  insertSession :: Version -> SessionId -> App -> SessionName -> m ()
+  insertSession :: Version -> SessionId -> App -> SessionName -> UTCTime -> m ()
 
   -- | Update an 'App'.
   --
   -- Corresponds to the 'UpdateApp' operation.
-  updateSessionApp :: Version -> SessionId -> App -> m ()
+  updateSessionApp :: Version -> SessionId -> App -> UTCTime -> m ()
 
   -- | Update a session's name.
   --
   -- Corresponds to the 'UpdateName' operation.
-  updateSessionName :: Version -> SessionId -> SessionName -> m ()
+  updateSessionName :: Version -> SessionId -> SessionName -> UTCTime -> m ()
 
   -- | Get a page of the list of all session IDs and their names.
   --
@@ -306,21 +331,21 @@ newtype NullDbException = NullDbException Text
 instance Exception NullDbException
 
 instance (MonadThrow m, MonadIO m) => MonadDb (NullDbT m) where
-  insertSession _ id_ a n = do
+  insertSession _ id_ a n t = do
     ss <- ask
     result <- liftIO $
       atomically $ do
         lookup <- StmMap.lookup id_ ss
         case lookup of
           Nothing -> do
-            StmMap.insert (SessionData a n) id_ ss
+            StmMap.insert (SessionData a n t) id_ ss
             pure $ Right ()
           Just _ -> pure $ Left $ NullDbException "insertSession failed because session already exists"
     case result of
       Left e -> throwM e
       Right _ -> pure ()
-  updateSessionApp _ id_ a = ask >>= updateOrFail id_ (\s -> s & #sessionApp .~ a)
-  updateSessionName _ id_ n = ask >>= updateOrFail id_ (\s -> s & #sessionName .~ n)
+  updateSessionApp _ id_ a t = ask >>= updateOrFail id_ (\s -> s & #sessionApp .~ a & #lastModified .~ t)
+  updateSessionName _ id_ n t = ask >>= updateOrFail id_ (\s -> s & #sessionName .~ n & #lastModified .~ t)
   listSessions ol = do
     ss <- ask
     kvs <- liftIO $ atomically $ ListT.toList $ StmMap.listT ss
@@ -330,7 +355,7 @@ instance (MonadThrow m, MonadIO m) => MonadDb (NullDbT m) where
     -- by various keys. See:
     --
     -- https://github.com/hackworthltd/primer/issues/533
-    pure $ pageList ol $ sortOn name $ uncurry Session . second sessionName <$> kvs
+    pure $ pageList ol $ sortOn name $ (\(i, SessionData _ n t) -> Session i n t) <$> kvs
   querySessionId sid = do
     ss <- ask
     lookup <- liftIO $ atomically $ StmMap.lookup sid ss
@@ -384,9 +409,9 @@ serve (ServiceCfg q v) =
     perform op
     discardOp q
   where
-    perform (Insert s a n) = insertSession v s a n
-    perform (UpdateApp s a) = updateSessionApp v s a
-    perform (UpdateName s n) = updateSessionName v s n
+    perform (Insert s a n t) = insertSession v s a n t
+    perform (UpdateApp s a t) = updateSessionApp v s a t
+    perform (UpdateName s n t) = updateSessionName v s n t
     perform (ListSessions ol result) = do
       ss <- listSessions ol
       liftIO $ atomically $ putTMVar result ss

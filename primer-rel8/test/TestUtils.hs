@@ -6,6 +6,7 @@ module TestUtils (
   insertSessionRow,
   testApp,
   withDbSetup,
+  lowPrecisionCurrentTime,
   runTmpDb,
   runTmpDbWithPool,
 ) where
@@ -20,6 +21,12 @@ import Control.Monad.Log (
 import Data.ByteString.Lazy.UTF8 as BL
 import Data.Map.Strict qualified as Map
 import Data.String (String)
+import Data.Time (
+  UTCTime (..),
+  diffTimeToPicoseconds,
+  getCurrentTime,
+  picosecondsToDiffTime,
+ )
 import Data.Typeable (typeOf)
 import Database.PostgreSQL.Simple.Options qualified as Options
 import Database.Postgres.Temp (
@@ -221,3 +228,17 @@ testApp =
               ]
           }
    in mkApp id_ (toEnum 0) testProg
+
+-- | PostgreSQL's timestamp type has a precision of 1 microsecond, but
+-- 'getCurrentTime' has a precision of 1 picosecond. In order to
+-- compare times for our tests, we need to truncate the precision of
+-- the time returned by 'getCurrentTime'.
+--
+-- Ref:
+-- https://www.postgresql.org/docs/13/datatype-datetime.html
+lowPrecisionCurrentTime :: (MonadIO m) => m UTCTime
+lowPrecisionCurrentTime = do
+  (UTCTime day time) <- liftIO getCurrentTime
+  -- truncate to microseconds
+  let time' = picosecondsToDiffTime $ diffTimeToPicoseconds time `div` 1000000 * 1000000
+  pure $ UTCTime day time'

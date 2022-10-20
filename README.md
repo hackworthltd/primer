@@ -150,7 +150,12 @@ hacking on Primer.
   Note that this may not always be successful. You should generally
   only need to run this command if you're testing database schema
   migrations. You can specify which git commit to revert to by passing
-  the following flags: `-- --to <rev>`.
+  the following flags: `-- --to <rev>`. For example, to revert any
+  changes made since `HEAD`:
+
+```sh
+nix run .#revert-local-db -- --to @HEAD
+```
 
 ## A note about the Sqitch scripts
 
