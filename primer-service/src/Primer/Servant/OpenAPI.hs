@@ -108,7 +108,7 @@ data ActionAPI mode = ActionAPI
         :> ReqBody '[JSON] Selection
         :> OperationId "getAvailableActions"
         :> Post '[JSON] [OfferedAction]
-  , apply ::
+  , apply :: -- NB this is only really for "action panel" actions - I suppose constructing type definitions (etc.) will have its own API, and we'll keep the old actions as a lower-level implementation detail, away from the API
       mode
         :- "apply"
         -- :> Summary "Get available actions for the definition, or a node within it"
