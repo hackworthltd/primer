@@ -9,6 +9,7 @@ module Foreword (
   modifyError,
   mwhen,
   munless,
+  hoistAccum,
 ) where
 
 -- In general, we should defer to "Protolude"'s exports and avoid name
@@ -73,6 +74,8 @@ import Protolude.Unsafe as Unsafe (unsafeHead)
 -- We want @exceptions@ rather than @base@'s equivalents.
 import Control.Monad.Catch as Catch
 
+import Control.Monad.Trans.Accum (AccumT (AccumT))
+
 -- | Insert an element at some index, returning `Nothing` if it is out of bounds.
 insertAt :: Int -> a -> [a] -> Maybe [a]
 insertAt n y xs =
@@ -114,3 +117,10 @@ munless b x = if b then mempty else x
 -- It's like 'Control.Monad.when' but for Monoids rather than Applicatives.
 mwhen :: Monoid a => Bool -> a -> a
 mwhen b x = if b then x else mempty
+
+-- This is upstream as of https://github.com/Gabriella439/Haskell-MMorph-Library/pull/66
+-- but has not yet been released.
+-- (i.e. there is now a @MFunctor (AccumT a)@ instance,
+--  whose class method @hoist@ is equivalent to this)
+hoistAccum :: (forall x. m x -> n x) -> AccumT a m b -> AccumT a n b
+hoistAccum f (AccumT acc) = AccumT $ f . acc

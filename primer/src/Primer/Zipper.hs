@@ -43,8 +43,13 @@ module Primer.Zipper (
   locToEither,
   bindersAbove,
   bindersBelow,
+  LetBinding' (..),
+  LetBinding,
+  letBindingName,
+  getBoundHere',
   getBoundHere,
   getBoundHereUp,
+  getBoundHereDn,
   bindersAboveTy,
   bindersAboveTypeZ,
   getBoundHereTy,
@@ -92,6 +97,7 @@ import Primer.Core (
   ExprMeta,
   HasID (..),
   ID,
+  LVarName,
   LocalName (unLocalName),
   Type' (),
   TypeMeta,
@@ -104,6 +110,7 @@ import Primer.Zipper.Type (
   FoldAbove,
   FoldAbove' (..),
   IsZipper (..),
+  LetTypeBinding' (LetTypeBind),
   TypeZip,
   bindersAboveTy,
   bindersBelowTy,
@@ -378,20 +385,36 @@ getBoundHereDn e = getBoundHere e Nothing
 -- need to extract binders based on which case branch etc), and Nothing if
 -- traversing down (and want to get all binders regardless of branch).
 getBoundHere :: (Eq a, Eq b) => Expr' a b -> Maybe (Expr' a b) -> S.Set Name
-getBoundHere e prev = case e of
-  Lam _ v _ -> singleton v
-  LAM _ tv _ -> singleton tv
-  Let _ v _ b ->
+getBoundHere e prev = S.fromList $ either identity letBindingName <$> getBoundHere' e prev
+
+data LetBinding' a b
+  = LetBind LVarName (Expr' a b)
+  | LetrecBind LVarName (Expr' a b) (Type' b)
+  | LetTyBind (LetTypeBinding' b)
+type LetBinding = LetBinding' ExprMeta TypeMeta
+
+letBindingName :: LetBinding' a b -> Name
+letBindingName = \case
+  LetBind n _ -> unLocalName n
+  LetrecBind n _ _ -> unLocalName n
+  LetTyBind (LetTypeBind n _) -> unLocalName n
+
+getBoundHere' :: (Eq a, Eq b) => Expr' a b -> Maybe (Expr' a b) -> [Either Name (LetBinding' a b)]
+getBoundHere' e prev = case e of
+  Lam _ v _ -> anon v
+  LAM _ tv _ -> anon tv
+  Let _ v rhs b ->
     if maybe True (== b) prev
-      then singleton v
+      then letBind $ LetBind v rhs
       else mempty
-  Letrec _ v _ _ _ -> singleton v
-  LetType _ v _ _ -> singleton v
+  Letrec _ v rhs t _ -> letBind $ LetrecBind v rhs t
+  LetType _ v t _ -> letBind $ LetTyBind $ LetTypeBind v t
   Case _ _ bs ->
-    let binderss = map (\(CaseBranch _ ns rhs) -> (rhs, S.fromList $ map (unLocalName . bindName) ns)) bs
+    let binderss = map (\(CaseBranch _ ns rhs) -> (rhs, map (unLocalName . bindName) ns)) bs
      in case prev of
-          Nothing -> S.unions $ map snd binderss
-          Just p -> S.unions $ map (\(b, binders) -> if b == p then binders else mempty) binderss
+          Nothing -> concatMap (fmap Left . snd) binderss
+          Just p -> concatMap (\(b, binders) -> if b == p then Left <$> binders else mempty) binderss
   _ -> mempty
   where
-    singleton = S.singleton . unLocalName
+    anon x = [Left $ unLocalName x]
+    letBind l = [Right l]
