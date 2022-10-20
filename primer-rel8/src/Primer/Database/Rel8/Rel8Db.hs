@@ -59,6 +59,7 @@ import Optics (
  )
 import Primer.Database (
   DbError (SessionIdNotFound),
+  LastModified (..),
   MonadDb (..),
   OffsetLimit (OL),
   Page (Page, pageContents, total),
@@ -160,7 +161,7 @@ instance MonadRel8Db m l => MonadDb (Rel8DbT m) where
                       , Schema.gitversion = v
                       , Schema.app = a
                       , Schema.name = fromSessionName n
-                      , Schema.lastmodified = t
+                      , Schema.lastmodified = utcTime t
                       }
                 ]
           , onConflict = Abort
@@ -178,7 +179,7 @@ instance MonadRel8Db m l => MonadDb (Rel8DbT m) where
                 row
                   { Schema.gitversion = lit v
                   , Schema.app = lit a
-                  , Schema.lastmodified = lit t
+                  , Schema.lastmodified = lit $ utcTime t
                   }
             , updateWhere = \_ row -> Schema.uuid row ==. litExpr s
             , returning = NumberOfRowsAffected
@@ -201,7 +202,7 @@ instance MonadRel8Db m l => MonadDb (Rel8DbT m) where
                 row
                   { Schema.gitversion = lit v
                   , Schema.name = lit $ fromSessionName n
-                  , Schema.lastmodified = lit t
+                  , Schema.lastmodified = lit $ utcTime t
                   }
             , updateWhere = \_ row -> Schema.uuid row ==. litExpr s
             , returning = NumberOfRowsAffected
@@ -231,7 +232,7 @@ instance MonadRel8Db m l => MonadDb (Rel8DbT m) where
     where
       -- See comment in 'querySessionId' re: dealing with invalid
       -- session names loaded from the database.
-      safeMkSession (s, n, t) = Session s (safeMkSessionName n) t
+      safeMkSession (s, n, t) = Session s (safeMkSessionName n) (LastModified t)
 
   querySessionId sid = do
     result <- runStatement (LoadSessionError sid) $ select $ sessionById sid
@@ -253,10 +254,11 @@ instance MonadRel8Db m l => MonadDb (Rel8DbT m) where
         -- message.
         let dbSessionName = Schema.name s
             sessionName = safeMkSessionName dbSessionName
+            lastModified = LastModified $ Schema.lastmodified s
         when (fromSessionName sessionName /= dbSessionName) $
           logError $
             IllegalSessionName sid dbSessionName
-        pure $ Right (SessionData (Schema.app s) sessionName (Schema.lastmodified s))
+        pure $ Right (SessionData (Schema.app s) sessionName lastModified)
 
 -- | Exceptions that can be thrown by 'Rel8DbT' computations.
 --

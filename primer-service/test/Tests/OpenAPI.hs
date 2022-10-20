@@ -39,7 +39,12 @@ import Primer.API (
 import Primer.Action (ActionName (..), ActionType (..), Level)
 import Primer.App (NodeType (..))
 import Primer.Core (GVarName, ID (ID))
-import Primer.Database (Session (Session), SessionName, safeMkSessionName)
+import Primer.Database (
+  LastModified (..),
+  Session (Session),
+  SessionName,
+  safeMkSessionName,
+ )
 import Primer.Gen.API (genExprTreeOpts)
 import Primer.Gen.Core.Raw (
   ExprGen,
@@ -97,7 +102,8 @@ tasty_SessionName = testToJSON genSessionName
 genUUID :: Gen UUID
 genUUID = fromWords64 <$> G.word64 R.linearBounded <*> G.word64 R.linearBounded
 
--- Hedgehog doesn't have this, so we take it from here:
+-- Hedgehog doesn't have a generator for 'UTCTime', so we take it from
+-- here:
 --
 -- https://github.com/hedgehogqa/haskell-hedgehog/issues/215#issue-349965804
 --
@@ -107,18 +113,18 @@ genUUID = fromWords64 <$> G.word64 R.linearBounded <*> G.word64 R.linearBounded
 -- serialization of our session type works, and it is not our intent
 -- to ensure that Aeson's 'UTCTime' serialization is correct, as we'd
 -- expect that to have been tested upstream.
-genUTCTime :: MonadGen m => m UTCTime
-genUTCTime = do
+genLastModified :: MonadGen m => m LastModified
+genLastModified = do
   y <- toInteger <$> G.int (R.constant 2000 2023)
   m <- G.int (R.constant 1 12)
   d <- G.int (R.constant 1 28)
   let day = fromGregorian y m d
   secs <- toInteger <$> G.int (R.constant 0 86401)
   let diffTime = secondsToDiffTime secs
-  pure $ UTCTime day diffTime
+  pure $ LastModified $ UTCTime day diffTime
 
 genSession :: Gen Session
-genSession = Session <$> genUUID <*> genSessionName <*> genUTCTime
+genSession = Session <$> genUUID <*> genSessionName <*> genLastModified
 
 tasty_Session :: Property
 tasty_Session = testToJSON genSession

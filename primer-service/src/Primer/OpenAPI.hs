@@ -1,4 +1,5 @@
 {-# LANGUAGE DeriveAnyClass #-}
+{-# LANGUAGE OverloadedLabels #-}
 {-# LANGUAGE UndecidableInstances #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
@@ -9,9 +10,32 @@ module Primer.OpenAPI (
 
 import Foreword
 
-import Data.OpenApi (ToParamSchema, ToSchema (declareNamedSchema), fromAesonOptions, genericDeclareNamedSchema)
-import Data.OpenApi.Internal.Schema (GToSchema, rename)
+import Data.Aeson (
+  toJSON,
+ )
+import Data.OpenApi (
+  ToParamSchema (toParamSchema),
+  ToSchema (declareNamedSchema),
+  fromAesonOptions,
+  genericDeclareNamedSchema,
+ )
+import Data.OpenApi.Internal.ParamSchema (
+  timeParamSchema,
+ )
+import Data.OpenApi.Internal.Schema (
+  GToSchema,
+  named,
+  rename,
+  timeSchema,
+ )
+import Data.Time (
+  UTCTime (..),
+  fromGregorian,
+ )
 import Deriving.Aeson (AesonOptions (aesonOptions))
+import Optics (
+  (?~),
+ )
 import Primer.API (Def, ExprTreeOpts, Module, NodeBody, NodeFlavor, NodeSelection (..), OfferedAction, Prog, Selection (..), Tree)
 import Primer.Action (ActionName, ActionType, Level (..))
 import Primer.App (NodeType)
@@ -22,7 +46,11 @@ import Primer.Core (
   LVarName,
   ModuleName,
  )
-import Primer.Database (Session, SessionName)
+import Primer.Database (
+  LastModified,
+  Session,
+  SessionName,
+ )
 import Primer.JSON (CustomJSON, PrimerJSON)
 import Primer.Name (Name)
 import Servant.API (FromHttpApiData (parseQueryParam))
@@ -43,6 +71,21 @@ instance
 
 instance ToSchema SessionName
 deriving via PrimerJSON Session instance ToSchema Session
+
+-- | The whole point of this newtype is to get the correct
+-- 'toParamSchema' for our UTC timestamps.
+--
+-- Cribbed from:
+-- https://hackage.haskell.org/package/openapi3-3.2.2/docs/src/Data.OpenApi.Internal.Schema.html#line-662
+instance ToSchema LastModified where
+  declareNamedSchema _ =
+    pure $
+      named "LastModified" $
+        timeSchema "date-time"
+          & #example ?~ toJSON (UTCTime (fromGregorian 2022 10 20) 0)
+
+instance ToParamSchema LastModified where
+  toParamSchema _ = timeParamSchema "date-time"
 
 -- We need to GND the ID instance to match its To/FromJSON instances
 deriving newtype instance ToSchema ID
