@@ -119,7 +119,7 @@ openAPIActionServer sid =
         prog <- getProgram sid
         let allDefs = progAllDefs prog
             allTypeDefs = progAllTypeDefs prog
-        (\case NoInputAction a -> NoInputRequired a; InputAction a -> inputAction level a; InputActionQualified a -> inputActionQualified level a) <<$>> case node of
+        actions <- case node of
           Nothing ->
             pure $ actionsForDef level allDefs def
           Just NodeSelection{..} -> do
@@ -132,6 +132,11 @@ openAPIActionServer sid =
                     actionsForDefSig level def editable id type_
                   BodyNode -> do
                     actionsForDefBody (snd <$> allTypeDefs) level def editable id expr
+        pure $
+          actions <&> \case
+            NoInputAction a -> NoInputRequired a
+            InputAction a -> inputAction level a
+            InputActionQualified a -> inputActionQualified level a
     , apply = \OpenAPI.ApplyActionBody{selection, action} -> do
         -- TODO DRY with above
         prog <- getProgram sid
