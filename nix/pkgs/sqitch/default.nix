@@ -85,16 +85,17 @@ let
 
   sqitch = perlPackages.buildPerlModule {
     pname = "App-Sqitch";
-    version = "1.3.0";
+    version = "1.3.1";
     src = fetchurl {
-      url = "mirror://cpan/authors/id/D/DW/DWHEELER/App-Sqitch-v1.3.0.tar.gz";
-      sha256 = "7d07635ec77a7faf3c50281c76ec833c68702f14470996cb2203a8bc6abc5bf2";
+      url = "mirror://cpan/authors/id/D/DW/DWHEELER/App-Sqitch-v1.3.1.tar.gz";
+      sha256 = "sha256-9edo0pjNQEfuKuQjGXgujCzaMSc3vL2/r1gL1H7+i5Q=";
     };
     buildInputs = [
       TestExit
     ] ++ (with perlPackages; [
       CaptureTiny
       ModuleRuntime
+      PodParser
       TestDeep
       TestDir
       TestException
