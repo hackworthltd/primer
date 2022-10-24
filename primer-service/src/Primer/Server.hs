@@ -45,6 +45,7 @@ import Primer.API (
   PrimerIO,
   Selection (..),
   edit,
+  getApp,
   getProgram,
   listSessions,
   newSession,
@@ -54,7 +55,7 @@ import Primer.API (
  )
 import Primer.API qualified as API
 import Primer.Action.Available (ActionRequest (ActionRequestSimple), OfferedAction (..), SomeAction (..), actionsForDef, actionsForDefBody, actionsForDefSig, inputAction, inputActionQualified, mkAction)
-import Primer.App (MutationRequest (Edit), NodeType (..), progAllDefs, progAllTypeDefs)
+import Primer.App (MutationRequest (Edit), NodeType (..), Question (GenerateName), progAllDefs, progAllTypeDefs, runQueryAppM)
 import Primer.Core (globalNamePretty)
 import Primer.Database (
   SessionId,
@@ -132,11 +133,17 @@ openAPIActionServer sid =
                     actionsForDefSig level def editable id type_
                   BodyNode -> do
                     actionsForDefBody (snd <$> allTypeDefs) level def editable id expr
-        pure $
-          actions <&> \case
-            NoInputAction a -> NoInputRequired a
-            InputAction a -> inputAction level a
-            InputActionQualified a -> inputActionQualified level a
+        -- TODO I'm using "Question"s here so as not to rock the boat too much in this PR
+        -- but unless I'm missing something there's really nothing special about questions - they should just be separate endpoints
+        -- let q = GenerateName def (maybe undefined (.id) node) _
+        app <- getApp sid
+        let liftQuery = either (throwM . MiscPrimerErr . show) pure . ($ app) . runQueryAppM -- TODO this is a bit ugly - DRY with e.g. `liftQueryAppM`?
+        for actions $ \case
+          NoInputAction a -> pure $ NoInputRequired a
+          -- InputAction a -> flip liftQueryAppM _ $ inputAction def _ a
+          -- InputAction a -> _ $ inputAction def _ a
+          InputAction a -> liftQuery $ inputAction def (node <&> \s -> s.id) a
+          InputActionQualified a -> pure $ inputActionQualified level a
     , apply = \OpenAPI.ApplyActionBody{selection, action} -> do
         -- TODO DRY with above
         prog <- getProgram sid

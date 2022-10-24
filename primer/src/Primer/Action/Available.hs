@@ -58,7 +58,7 @@ import Primer.Action (
  )
 import Primer.Action.Actions ()
 import Primer.Action.Priorities qualified as P
-import Primer.App (Editable (Editable, NonEditable), NodeType (..), globalInUse)
+import Primer.App (Editable (Editable, NonEditable), MonadQueryApp, NodeType (..), ProgError (SelectionNoID), globalInUse, handleQuestion)
 import Primer.Core (
   Bind' (..),
   Expr,
@@ -94,7 +94,7 @@ import Primer.Def (
  )
 import Primer.JSON (CustomJSON (..), FromJSON, PrimerJSON, ToJSON)
 import Primer.Name (Name, unName)
-import Primer.Questions (Question (..))
+import Primer.Questions (Question (..), generateNameExpr)
 import Primer.TypeDef (
   TypeDef (TypeDefAST),
   TypeDefMap,
@@ -175,6 +175,11 @@ data SomeAction
   = NoInputAction NoInputAction
   | InputAction InputAction
   | InputActionQualified InputActionQualified
+
+-- TODO names
+data OfferedAction' where
+  OfferedAction'Simple :: SomeAction -> OfferedAction'
+  OfferedAction'Question :: Question a -> (a -> SomeAction) -> OfferedAction'
 
 -- TODO more constructors
 -- TODO reorder constructors logically
@@ -467,17 +472,6 @@ basicActionsForExpr tydefs l defName expr = case expr of
             _ -> Nothing
        in (synOnly =<< synthTy) ?: both
 
-    -- Extract the source of the function type we were checked at
-    -- i.e. the type that a lambda-bound variable would have here
-    lamVarTy = \case
-      TFun _ s _ -> pure s
-      _ -> Nothing
-
-    -- Extract the kind a forall-bound variable would have here
-    lAMVarKind = \case
-      TForall _ _ k _ -> Just k
-      _ -> Nothing
-
     -- Actions for every expression node except holes and annotations
     defaultActions = universalActions <> [deleteExpr]
 
@@ -587,24 +581,25 @@ priorityInputActionQualified = \case
 --   SomeAction ->
 --   (OfferedAction, Either Text [ProgAction])
 
-inputAction l action = case action of
-  AMakeLambda ->
-    -- AskQuestion
-    -- (GenerateName defName (m ^. _id) (Left $ join $ m ^? _type % _Just % _chkedAt % to lamVarTy)) $ \options ->
-    --   InputRequired
-    --     $ ChooseOrEnterName
-    --       ("Choose a " <> nameString <> " for the input variable")
-    --       options
-    --     $ \n ->
-    ChooseOrEnterText OfferedActionChooseOrEnterText{action, options = []}
+-- TODO the `Maybe ID` here is awkward - some actions require ID's and others don't, we should reflect this in the types
+inputAction :: MonadQueryApp m => GVarName -> Maybe ID -> InputAction -> m OfferedAction
+inputAction defName mid action = case action of
+  AMakeLambda -> do
+    -- TODO `handleQuestion` imported from `App` - wary of import cycles
+    -- TODO use `generateNameExpr` directly?
+    -- TODO by always passing `Nothing`, we lose good name hints - see `baseNames`
+    id <- maybe (throwError SelectionNoID) pure mid
+    q <- handleQuestion $ GenerateName defName id $ Left Nothing
+    -- q <- handleQuestion $ GenerateName defName (m ^. _id) (Left $ join $ m ^? _type % _Just % _chkedAt % to lamVarTy)
+    pure $ ChooseOrEnterText OfferedActionChooseOrEnterText{action, options = map unName q}
   -- TODO note 2
   AUseVar ->
     -- ChooseVariable filterVars $
     --   pure . ConstructVar
-    ChooseText OfferedActionChooseText{action, options = []}
+    pure $ ChooseText OfferedActionChooseText{action, options = []}
   -- TODO note 1
   ASaturatedFunction ->
-    ChooseText OfferedActionChooseText{action, options = []}
+    pure $ ChooseText OfferedActionChooseText{action, options = []}
   -- . ChooseVariable OnlyFunctions
   --  $ \name ->
   -- TODO note 1
@@ -617,7 +612,7 @@ inputAction l action = case action of
     --       options
     --     $ \n -> [ConstructLet $ Just $ unName n]
     -- AskQuestion
-    ChooseOrEnterText OfferedActionChooseOrEnterText{action, options = []}
+    pure $ ChooseOrEnterText OfferedActionChooseOrEnterText{action, options = []}
   -- TODO note 2
   AMakeLetRec ->
     -- (GenerateName defName (m ^. _id) (Left Nothing)) $ \options ->
@@ -627,7 +622,7 @@ inputAction l action = case action of
     --     options
     --   $ \n -> [ConstructLetrec $ Just $ unName n]
     -- AskQuestion
-    ChooseOrEnterText OfferedActionChooseOrEnterText{action, options = []}
+    pure $ ChooseOrEnterText OfferedActionChooseOrEnterText{action, options = []}
   -- TODO note 2
   AConstructBigLambda ->
     -- AskQuestion
@@ -637,12 +632,12 @@ inputAction l action = case action of
     --       ("Choose a " <> nameString <> " for the bound type variable")
     --       options
     --     $ \n -> [ConstructLAM $ Just $ unName n]
-    ChooseOrEnterText OfferedActionChooseOrEnterText{action, options = []}
+    pure $ ChooseOrEnterText OfferedActionChooseOrEnterText{action, options = []}
   -- TODO note 2
   AUseTypeVar ->
     -- ChooseTypeVariable $
     --   \v -> [ConstructTVar v]
-    ChooseText OfferedActionChooseText{action, options = []}
+    pure $ ChooseText OfferedActionChooseText{action, options = []}
   -- TODO note 1
   AConstructForall ->
     --  (GenerateName defName (m ^. _id) (Right Nothing)) $ \options ->
@@ -652,12 +647,12 @@ inputAction l action = case action of
     --     options
     --   $ \n -> [ConstructTForall $ Just $ unName n, Move Child1]
     -- AskQuestion
-    ChooseOrEnterText OfferedActionChooseOrEnterText{action, options = []}
+    pure $ ChooseOrEnterText OfferedActionChooseOrEnterText{action, options = []}
   -- TODO note 2
   ARenameDef ->
     -- ("Enter a new " <> nameString <> " for the definition")
     -- (\name -> [RenameDef defName (unName name)])
-    ChooseOrEnterText OfferedActionChooseOrEnterText{action, options = []}
+    pure $ ChooseOrEnterText OfferedActionChooseOrEnterText{action, options = []}
   ARenamePatternVar ->
     -- AskQuestion
     -- (GenerateName defName (b ^. _bindMeta % _id) (Left $ b ^? _bindMeta % _type % _Just % _chkedAt))
@@ -667,7 +662,7 @@ inputAction l action = case action of
     --       ("Choose a new " <> nameString <> " for the pattern variable")
     --       options
     --     $ \n -> [RenameCaseBinding $ unName n]
-    ChooseOrEnterText OfferedActionChooseOrEnterText{action, options = []}
+    pure $ ChooseOrEnterText OfferedActionChooseOrEnterText{action, options = []}
   -- TODO note 2
   ARenameLambda ->
     -- (GenerateName defName (m ^. _id) (Left $ join $ m ^? _type % _Just % _chkedAt % to lamVarTy))
@@ -678,7 +673,7 @@ inputAction l action = case action of
     --       options
     --     $ \n -> [RenameLam $ unName n]
     -- AskQuestion
-    ChooseOrEnterText OfferedActionChooseOrEnterText{action, options = []}
+    pure $ ChooseOrEnterText OfferedActionChooseOrEnterText{action, options = []}
   -- TODO note 2
   ARenameLAM ->
     -- (GenerateName defName (m ^. _id) (Right $ join $ m ^? _type % _Just % _chkedAt % to lAMVarKind))
@@ -689,7 +684,7 @@ inputAction l action = case action of
     --       options
     --     $ \n -> [RenameLAM $ unName n]
     -- AskQuestion
-    ChooseOrEnterText OfferedActionChooseOrEnterText{action, options = []}
+    pure $ ChooseOrEnterText OfferedActionChooseOrEnterText{action, options = []}
   -- TODO note 2
   ARenameLetBinding ->
     -- (GenerateName defName (m ^. _id) (Left $ forgetTypeMetadata <$> t))
@@ -700,7 +695,7 @@ inputAction l action = case action of
     --       options
     --     $ \n -> [RenameLet $ unName n]
     -- AskQuestion
-    ChooseOrEnterText OfferedActionChooseOrEnterText{action, options = []}
+    pure $ ChooseOrEnterText OfferedActionChooseOrEnterText{action, options = []}
   -- TODO note 2
   ARenameForall ->
     --  (GenerateName defName (m' ^. _id) (Right $ Just k)) $ \options ->
@@ -711,7 +706,7 @@ inputAction l action = case action of
     --   $ \n -> [RenameForall $ unName n]
     -- AskQuestion
     -- TODO note 2
-    ChooseOrEnterText OfferedActionChooseOrEnterText{action, options = []}
+    pure $ ChooseOrEnterText OfferedActionChooseOrEnterText{action, options = []}
 
 inputActionQualified l action = case action of
   AUseValueCon ->
@@ -912,3 +907,14 @@ prioritySort l = sortOn $ \case
 -- data Act (freeInputAllowed :: Bool) (location :: Loc) (inputData :: Kind.Type)
 
 -- none, choice only (subtypes - text, var, constructor), choice with free text
+
+-- Extract the source of the function type we were checked at
+-- i.e. the type that a lambda-bound variable would have here
+lamVarTy = \case
+  TFun _ s _ -> pure s
+  _ -> Nothing
+
+-- Extract the kind a forall-bound variable would have here
+lAMVarKind = \case
+  TForall _ _ k _ -> Just k
+  _ -> Nothing
