@@ -652,10 +652,6 @@ inputActionQualified l action = case action of
         ChooseQualified OfferedActionChooseQualified{action, options = []}
   -- TODO note 1
   AUseSaturatedValueCon ->
-    -- NB: Exactly one of the saturated and refined actions will be available
-    -- (depending on whether we have useful type information to hand).
-    -- We put the same labels on each.
-
     -- . ChooseConstructor OnlyFunctions
     --  $ \c ->
     ChooseQualified OfferedActionChooseQualified{action, options = []}
@@ -786,6 +782,9 @@ mkAction defs def defName mNodeSel = \case
     AUseValueCon ->
       toProgAction [ConstructCon option]
     AUseSaturatedValueCon -> do
+      -- NB: Exactly one of the saturated and refined actions will be available
+      -- (depending on whether we have useful type information to hand).
+      -- We put the same labels on each.
       oR <- offerRefined
       toProgAction [if oR then ConstructRefinedCon option else ConstructSaturatedCon option]
     AUseTypeCon ->
