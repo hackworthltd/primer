@@ -1,4 +1,5 @@
 {-# LANGUAGE DuplicateRecordFields #-}
+{-# LANGUAGE OverloadedRecordDot #-}
 {-# HLINT ignore "Use section" #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE TypeFamilies #-}
@@ -69,7 +70,9 @@ import Primer.Core (
   Kind,
   LVarName,
   Meta (..),
+  ModuleName (unModuleName),
   TmVarRef (..),
+  TyConName,
   Type,
   Type' (..),
   TypeCache (..),
@@ -96,8 +99,12 @@ import Primer.JSON (CustomJSON (..), FromJSON, PrimerJSON, ToJSON)
 import Primer.Name (Name, unName)
 import Primer.Questions (Question (..), generateNameExpr)
 import Primer.TypeDef (
+  ASTTypeDef (astTypeDefConstructors),
   TypeDef (TypeDefAST),
   TypeDefMap,
+  ValCon (valConArgs),
+  typeDefAST,
+  valConName,
  )
 import Primer.Typecheck (
   TypeDefError (TDIHoleType),
@@ -117,6 +124,7 @@ import Primer.Zipper (
  )
 
 -- TODO work out what to do with this - bite the bullet and do the DB migration?
+-- TODO as we only send `OfferedActionChooseQualified` _to_ the client, I guess those can be the proper types e.g. `TyConName`
 data QualifiedText = QualifiedText
   { context :: NonEmpty Text
   , text :: Text
@@ -175,11 +183,6 @@ data SomeAction
   = NoInputAction NoInputAction
   | InputAction InputAction
   | InputActionQualified InputActionQualified
-
--- TODO names
-data OfferedAction' where
-  OfferedAction'Simple :: SomeAction -> OfferedAction'
-  OfferedAction'Question :: Question a -> (a -> SomeAction) -> OfferedAction'
 
 -- TODO more constructors
 -- TODO reorder constructors logically
@@ -393,11 +396,7 @@ basicActionsForExpr tydefs l defName expr = case expr of
   where
     m = expr ^. _exprMetaLens
 
-    insertVariable =
-      let filterVars = case l of
-            Beginner -> NoFunctions
-            _ -> Everything
-       in InputAction AUseVar
+    insertVariable = InputAction AUseVar
 
     -- NB: Exactly one of the saturated and refined actions will be available
     -- (depending on whether we have useful type information to hand).
@@ -582,22 +581,20 @@ priorityInputActionQualified = \case
 --   (OfferedAction, Either Text [ProgAction])
 
 -- TODO the `Maybe ID` here is awkward - some actions require ID's and others don't, we should reflect this in the types
-inputAction :: MonadQueryApp m => GVarName -> Maybe ID -> InputAction -> m OfferedAction
-inputAction defName mid action = case action of
+inputAction :: MonadQueryApp m => Level -> GVarName -> Maybe ID -> InputAction -> m OfferedAction
+inputAction level defName mid action = case action of
   AMakeLambda -> do
     options <- genName' False
     -- q <- handleQuestion $ GenerateName defName (m ^. _id) (Left $ join $ m ^? _type % _Just % _chkedAt % to lamVarTy)
     pure $ ChooseOrEnterText OfferedActionChooseOrEnterText{action, options}
-  AUseVar ->
-    -- ChooseVariable filterVars $
-    --   pure . ConstructVar
-    pure $ ChooseText OfferedActionChooseText{action, options = []}
-  -- TODO note 1
-  ASaturatedFunction ->
-    pure $ ChooseText OfferedActionChooseText{action, options = []}
-  -- . ChooseVariable OnlyFunctions
-  --  $ \name ->
-  -- TODO note 1
+  AUseVar -> do
+    ((_types, locals), globals) <- varsInScope'
+    let options = unName . unLocalName . fst <$> (if level == Beginner then noFunctions locals else locals)
+    pure $ ChooseText OfferedActionChooseText{action, options}
+  ASaturatedFunction -> do
+    ((_types, locals), globals) <- varsInScope'
+    let options = unName . unLocalName . fst <$> onlyFunctions locals
+    pure $ ChooseText OfferedActionChooseText{action, options}
   AMakeLet -> do
     options <- genName' False
     pure $ ChooseOrEnterText OfferedActionChooseOrEnterText{action, options}
@@ -607,17 +604,14 @@ inputAction defName mid action = case action of
   AConstructBigLambda -> do
     options <- genName' True
     pure $ ChooseOrEnterText OfferedActionChooseOrEnterText{action, options}
-  AUseTypeVar ->
-    -- ChooseTypeVariable $
-    --   \v -> [ConstructTVar v]
-    pure $ ChooseText OfferedActionChooseText{action, options = []}
-  -- TODO note 1
+  AUseTypeVar -> do
+    ((types, _locals), _globals) <- varsInScope'
+    let options = unName . unLocalName . fst <$> types
+    pure $ ChooseText OfferedActionChooseText{action, options}
   AConstructForall -> do
     options <- genName' True
     pure $ ChooseOrEnterText OfferedActionChooseOrEnterText{action, options}
   ARenameDef ->
-    -- ("Enter a new " <> nameString <> " for the definition")
-    -- (\name -> [RenameDef defName (unName name)])
     pure $ ChooseOrEnterText OfferedActionChooseOrEnterText{action, options = []}
   ARenamePatternVar -> do
     options <- genName' True
@@ -641,27 +635,25 @@ inputAction defName mid action = case action of
     genName' tk = do
       id <- maybe (throwError SelectionNoID) pure mid
       unName <<$>> handleQuestion (GenerateName defName id $ if tk then Right Nothing else Left Nothing)
+    -- TODO much as above
+    varsInScope' = do
+      id <- maybe (throwError SelectionNoID) pure mid
+      handleQuestion $ VariablesInScope defName id
 
-inputActionQualified l action = case action of
+inputActionQualified :: TypeDefMap -> Level -> InputActionQualified -> OfferedAction
+inputActionQualified typeDefs level action = case action of
   AUseValueCon ->
-    let filterCtors = case l of
-          Beginner -> NoFunctions
-          _ -> Everything
-     in -- ChooseConstructor filterCtors $
-        --   \c ->
-        ChooseQualified OfferedActionChooseQualified{action, options = []}
+    let options = map (fromGlobal . valConName) . (if level == Beginner then noFunctionsCon else identity) . concatMap astTypeDefConstructors . mapMaybe (typeDefAST . snd) $ Map.toList typeDefs
+     in ChooseQualified OfferedActionChooseQualified{action, options}
   -- TODO note 1
   AUseSaturatedValueCon ->
-    -- . ChooseConstructor OnlyFunctions
-    --  $ \c ->
-    ChooseQualified OfferedActionChooseQualified{action, options = []}
-  -- TODO note 1
+    let options = map (fromGlobal . valConName) . (onlyFunctionsCon) . concatMap astTypeDefConstructors . mapMaybe (typeDefAST . snd) $ Map.toList typeDefs
+     in ChooseQualified OfferedActionChooseQualified{action, options}
   AUseTypeCon ->
-    -- ChooseTypeConstructor $
-    --   \t -> [ConstructTCon t]
-    ChooseQualified OfferedActionChooseQualified{action, options = []}
-
--- TODO note 1
+    let options = fromGlobal . fst <$> Map.toList typeDefs
+     in ChooseQualified OfferedActionChooseQualified{action, options}
+  where
+    fromGlobal n = toQualifiedText (map unName $ unModuleName $ qualifiedModule n, unName $ baseName n)
 
 -- TODO rename
 -- essentially, map a high-level (and serialisation-friendly) action to a sequence of low-level ones
@@ -851,3 +843,13 @@ lamVarTy = \case
 lAMVarKind = \case
   TForall _ _ k _ -> Just k
   _ -> Nothing
+
+-- TODO is each of these only used once?
+noFunctions = filter $ \case
+  (_, TFun{}) -> False
+  _ -> True
+onlyFunctions = filter $ \case
+  (_, TFun{}) -> True
+  _ -> False
+noFunctionsCon = filter $ null . valConArgs
+onlyFunctionsCon = filter $ not . null . valConArgs

@@ -142,8 +142,8 @@ openAPIActionServer sid =
           NoInputAction a -> pure $ NoInputRequired a
           -- InputAction a -> flip liftQueryAppM _ $ inputAction def _ a
           -- InputAction a -> _ $ inputAction def _ a
-          InputAction a -> liftQuery $ inputAction def (node <&> \s -> s.id) a
-          InputActionQualified a -> pure $ inputActionQualified level a
+          InputAction a -> liftQuery $ inputAction level def (node <&> \s -> s.id) a
+          InputActionQualified a -> pure $ inputActionQualified (snd <$> allTypeDefs) level a
     , apply = \OpenAPI.ApplyActionBody{selection, action} -> do
         -- TODO DRY with above
         prog <- getProgram sid
