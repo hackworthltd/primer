@@ -10,6 +10,7 @@ module Foreword (
   mwhen,
   munless,
   hoistAccum,
+  hoistMaybe,
 ) where
 
 -- In general, we should defer to "Protolude"'s exports and avoid name
@@ -73,6 +74,7 @@ import Protolude.Unsafe as Unsafe (unsafeHead)
 
 -- We want @exceptions@ rather than @base@'s equivalents.
 import Control.Monad.Catch as Catch
+import Control.Monad.Trans.Maybe (MaybeT (MaybeT))
 
 import Control.Monad.Trans.Accum (AccumT (AccumT))
 
@@ -124,3 +126,8 @@ mwhen b x = if b then x else mempty
 --  whose class method @hoist@ is equivalent to this)
 hoistAccum :: (forall x. m x -> n x) -> AccumT a m b -> AccumT a n b
 hoistAccum f (AccumT acc) = AccumT $ f . acc
+
+-- This will be exported from Control.Monad.Trans.Maybe
+-- in transformers 0.6.0.0 and later
+hoistMaybe :: Applicative m => Maybe a -> MaybeT m a
+hoistMaybe = MaybeT . pure

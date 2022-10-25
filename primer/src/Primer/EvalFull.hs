@@ -26,6 +26,8 @@ import Control.Monad.Fresh (MonadFresh)
 import Control.Monad.Log (MonadLog, WithSeverity)
 import Control.Monad.Morph (generalize)
 import Control.Monad.Trans.Accum (Accum, AccumT, add, evalAccumT, look, readerToAccumT)
+import Control.Monad.Trans.Maybe (MaybeT (runMaybeT))
+import Data.List (zip3)
 import Data.Map qualified as M
 import Data.Set qualified as S
 import Data.Set.Optics (setOf)
@@ -78,6 +80,7 @@ import Primer.Core (
   LVarName,
   LocalName (unLocalName),
   TmVarRef (..),
+  TyConName,
   TyVarName,
   Type,
   Type' (
@@ -92,7 +95,7 @@ import Primer.Core (
   getID,
  )
 import Primer.Core.DSL (ann, letType, let_, letrec, lvar, tlet, tvar)
-import Primer.Core.Transform (renameTyVar, unfoldAPP, unfoldApp)
+import Primer.Core.Transform (removeAnn, renameTyVar, unfoldAPP, unfoldApp)
 import Primer.Core.Utils (
   concreteTy,
   forgetTypeMetadata,
@@ -117,10 +120,14 @@ import Primer.JSON (CustomJSON (CustomJSON), FromJSON, PrimerJSON, ToJSON)
 import Primer.Log (ConvertLogMessage (convert), logWarning)
 import Primer.Name (Name, NameCounter)
 import Primer.TypeDef (
-  ASTTypeDef (astTypeDefParameters),
   TypeDefMap,
  )
-import Primer.Typecheck.Utils (instantiateValCons', lookupConstructor, mkTAppCon)
+import Primer.Typecheck.Utils (
+  TypeDefError (TDIHoleType, TDINotADT, TDINotSaturated, TDIUnknown),
+  instantiateValCons',
+  lookupConstructor,
+  mkTAppCon,
+ )
 import Primer.Zipper (
   ExprZ,
   IsZipper,
@@ -149,8 +156,34 @@ import Primer.Zipper.Type (
   getBoundHereTy',
  )
 
-newtype EvalFullLog = InvariantFailure Text
-  deriving newtype (Show, Eq)
+data EvalFullLog
+  = -- | Found something that may have been a case redex,
+    -- but the scrutinee's head is an out-of-scope constructor.
+    -- This should not happen if the expression is type correct.
+    CaseRedexUnknownCtor ValConName
+  | -- | Found something that may have been a case redex,
+    -- but there is no branch matching the constructor at the head of the scrutinee.
+    -- This should not happen if the expression is type correct.
+    CaseRedexMissingBranch ValConName
+  | -- | Found something that may have been a case redex,
+    -- but the scrutinee's type is not in scope
+    -- This should not happen if the expression is type correct.
+    CaseRedexUnknownType TyConName
+  | -- | Found something that may have been a case redex,
+    -- but the scrutinee's type is either under or over saturated.
+    -- This should not happen if the expression is type correct.
+    CaseRedexNotSaturated (Type' ())
+  | -- | Found something that may have been a case redex,
+    -- but the scrutinee's head (value) constructor does not construct a member of the scrutinee's type.
+    -- This should not happen if the expression is type correct.
+    CaseRedexCtorMismatch TyConName ValConName
+  | -- | Found something that may have been a case redex,
+    -- but the number of arguments in the scrutinee differs from the number of bindings in the corresponding branch.
+    -- (Or the number of arguments expected from the scrutinee's type differs from either of these.)
+    -- This should not happen if the expression is type correct.
+    CaseRedexWrongArgNum ValConName [Expr] [Type' ()] [LVarName]
+  | InvariantFailure Text
+  deriving (Show, Eq)
 
 instance ConvertLogMessage EvalFullLog EvalFullLog where
   convert = identity
@@ -181,7 +214,7 @@ data Redex
     -- reduction steps. E.g.
     --     cons ==  (Λa λx λxs. Cons @a x xs) : ∀a. a -> List a -> List a
     -- )
-    CaseRedex ValConName (forall m. MonadFresh NameCounter m => [(Expr, m (Type' ()))]) (Either Type (Type' ())) [LVarName] Expr
+    CaseRedex ValConName [Expr] (forall m. MonadFresh NameCounter m => [m (Type' ())]) (Type' ()) [LVarName] Expr
   | -- [ t : T ]  ~>  t  writing [_] for the embedding of syn into chk
     -- This only fires for concrete (non-holey, no free vars) T, as otherwise the
     -- annotation can act as a type-changing cast:
@@ -243,18 +276,19 @@ evalFullStepCount tydefs env n d = go 0
   where
     go s expr
       | s >= n = pure (s, Left $ TimedOut expr)
-      | otherwise = case step tydefs env d expr of
-          Nothing -> pure (s, Right expr) -- this is a normal form
-          Just me -> me >>= go (s + 1)
+      | otherwise =
+          runMaybeT (step tydefs env d expr) >>= \case
+            Nothing -> pure (s, Right expr) -- this is a normal form
+            Just e -> go (s + 1) e
 
 -- The 'Dir' argument only affects what happens if the root is an annotation:
 -- do we keep it (Syn) or remove it (Chk). I.e. is an upsilon reduction allowed
 -- at the root?
-step :: MonadEvalFull l m => TypeDefMap -> DefMap -> Dir -> Expr -> Maybe (m Expr)
-step tydefs g d e = case findRedex tydefs g d e of
-  Nothing -> Nothing
-  Just (RExpr ez r) -> Just $ unfocusExpr . flip replace ez <$> runRedex r
-  Just (RType et r) -> Just $ unfocusExpr . unfocusType . flip replace et <$> runRedexTy r
+step :: MonadEvalFull l m => TypeDefMap -> DefMap -> Dir -> Expr -> MaybeT m Expr
+step tydefs g d e =
+  findRedex tydefs g d e >>= \case
+    RExpr ez r -> lift $ unfocusExpr . flip replace ez <$> runRedex r
+    RType et r -> lift $ unfocusExpr . unfocusType . flip replace et <$> runRedexTy r
 
 -- We don't really want a zipper here, but a one-hole context, but it is easier
 -- to just reuse the zipper machinery and ignore the target of the zipper.
@@ -311,7 +345,12 @@ viewLet ez = case (target ez, exprChildren ez) of
   (LetType _ a ty _b, [bz]) -> bz `seq` Just (LetTyBind $ LetTypeBind a ty, bz)
   _ -> Nothing
 
-viewCaseRedex :: TypeDefMap -> Expr -> Maybe Redex
+viewCaseRedex ::
+  forall l m.
+  (MonadLog (WithSeverity l) m, ConvertLogMessage EvalFullLog l) =>
+  TypeDefMap ->
+  Expr ->
+  MaybeT m Redex
 viewCaseRedex tydefs = \case
   -- The patterns in the case branch have a Maybe TypeCache attached, but we
   -- should not assume that this has been filled in correctly, so we record
@@ -319,39 +358,56 @@ viewCaseRedex tydefs = \case
   -- variables. This is especially important, as we do not (yet?) take care of
   -- metadata correctly in this evaluator (for instance, substituting when we
   -- do a BETA reduction)!
-  Case m expr'@(Ann _ expr ty) brs
-    | Just (c, _, as, xs, e) <- extract expr brs
-    , Just argTys <- instantiateCon ty c ->
-        renameBindings m expr' brs [ty] as xs
-          <|> formCaseRedex (Left ty) c argTys as xs e
-  -- In the constructors-are-synthesisable case, we don't have the benefit of
-  -- an explicit annotation, and have to work out the type based off the name
-  -- of the constructor.
-  Case m expr brs
-    | Just (c, tyargs, args, patterns, br) <- extract expr brs
-    , Just (_, tc, tydef) <- lookupConstructor tydefs c
-    , ty <- mkTAppCon tc (forgetTypeMetadata <$> take (length $ astTypeDefParameters tydef) tyargs)
-    , Just argTys <- instantiateCon ty c ->
-        renameBindings m expr brs tyargs args patterns
-          <|> formCaseRedex (Right ty) c argTys args patterns br
-  _ -> Nothing
+  Case m expr brs -> do
+    (c, tyargs, args) <- extractCon (removeAnn expr)
+    ty <- case expr of
+      Ann _ _ ty' -> pure $ forgetTypeMetadata ty'
+      _ -> do
+        -- In the constructors-are-synthesisable case, we don't have the benefit of
+        -- an explicit annotation, and have to work out the type based off the name
+        -- of the constructor.
+        case lookupConstructor tydefs c of
+          Nothing -> do
+            logWarning $ CaseRedexUnknownCtor c
+            mzero
+          Just (_, tc, _) -> do
+            pure $ mkTAppCon tc (forgetTypeMetadata <$> tyargs)
+    -- Style note: unfortunately do notation does not work well with polytyped binds on ghc 9.2.4
+    -- Thus we write this with an explicit bind instead.
+    -- See https://gitlab.haskell.org/ghc/ghc/-/issues/18324
+    -- and https://gitlab.haskell.org/ghc/ghc/-/issues/20020
+    instantiateCon ty c >>= \argTys -> do
+      (patterns, br) <- extractBranch c brs
+      renameBindings m expr brs [ty] args patterns
+        <|> pure (formCaseRedex ty c argTys args patterns br)
+  _ -> mzero
   where
-    extract expr brs =
+    extractCon expr =
       -- NB: constructors never have mixed App and APPs: they are always of the
       -- form C @a @b ... x y ...
       let (h, as) = unfoldApp expr
           (h', params) = unfoldAPP h
        in case h' of
-            Con _ c -> do
-              CaseBranch _ xs e <- find (\(CaseBranch n _ _) -> n == c) brs
-              pure (c, params, as, xs, e)
-            _ -> Nothing
-    instantiateCon :: Type' a -> ValConName -> Maybe (forall m. MonadFresh NameCounter m => [m (Type' ())])
-    instantiateCon ty c
-      | Right (_, _, instVCs) <- instantiateValCons' tydefs $ forgetTypeMetadata ty
-      , Just (_, argTys) <- find ((== c) . fst) instVCs =
-          Just argTys
-      | otherwise = Nothing
+            Con _ c -> pure (c, params, as)
+            _ -> mzero
+    extractBranch c brs =
+      case find (\(CaseBranch n _ _) -> n == c) brs of
+        Nothing -> do
+          logWarning $ CaseRedexMissingBranch c
+          mzero
+        Just (CaseBranch _ xs e) -> pure (xs, e)
+
+    instantiateCon :: Type' () -> ValConName -> MaybeT m (forall m'. MonadFresh NameCounter m' => [m' (Type' ())])
+    instantiateCon ty c =
+      let fail err = logWarning err >> mzero
+       in case instantiateValCons' tydefs $ forgetTypeMetadata ty of
+            Left (TDIUnknown t) -> fail $ CaseRedexUnknownType t
+            Left TDINotSaturated -> fail $ CaseRedexNotSaturated ty
+            Left TDIHoleType -> mzero -- this is not a redex, but not unexpected
+            Left TDINotADT -> mzero -- note that this could happen if we had a type let, in which case this is not unexpected
+            Right (t, _, instVCs) -> case find ((== c) . fst) instVCs of
+              Nothing -> fail $ CaseRedexCtorMismatch t c
+              Just (_, argTys) -> pure argTys
     {- Note [Case reduction and variable capture]
        There is a subtlety here around variable capture.
        Consider
@@ -379,20 +435,20 @@ viewCaseRedex tydefs = \case
     renameBindings m expr brs tyargs args patterns =
       let avoid = foldMap (S.map unLocalName . freeVarsTy) tyargs <> foldMap freeVars args
           binders = S.fromList $ map (unLocalName . bindName) patterns
-       in if S.disjoint avoid binders
-            then Nothing
-            else Just $ RenameBindingsCase m expr brs avoid
+       in hoistMaybe $
+            if S.disjoint avoid binders
+              then Nothing
+              else Just $ RenameBindingsCase m expr brs avoid
     formCaseRedex ::
-      Either Type (Type' ()) ->
+      Type' () ->
       ValConName ->
-      (forall m. MonadFresh NameCounter m => [m (Type' ())]) ->
+      (forall m'. MonadFresh NameCounter m' => [m' (Type' ())]) ->
       [Expr] ->
       [Bind' a] ->
       Expr ->
-      Maybe Redex
-    formCaseRedex ty c argTys args patterns br =
-      Just $
-        CaseRedex c (zip args argTys) ty (map bindName patterns) br
+      Redex
+    formCaseRedex ty c argTys args patterns =
+      CaseRedex c args argTys ty (map bindName patterns)
 
 -- We record each binder, along with its let-bound RHS (if any)
 -- and its original binding location and  context (to be able to detect capture)
@@ -421,50 +477,49 @@ lookupTy n c = case lookup (unLocalName n) c of
 -- - stuck on the type annotation on its left-most child
 -- - stuck on expression under the type annotation in its left-most child
 viewRedex ::
+  (MonadLog (WithSeverity l) m, ConvertLogMessage EvalFullLog l) =>
   TypeDefMap ->
   DefMap ->
   Dir ->
   Expr ->
-  Reader Cxt (Maybe Redex)
+  ReaderT Cxt (MaybeT m) Redex
 viewRedex tydefs globals dir = \case
-  Var _ (GlobalVarRef x) | Just (DefAST y) <- x `M.lookup` globals -> purer $ InlineGlobal x y
+  Var _ (GlobalVarRef x) | Just (DefAST y) <- x `M.lookup` globals -> pure $ InlineGlobal x y
   Var _ (LocalVarRef v) -> do
-    getNonCapturedLocal v <&> \x -> do
+    runMaybeT (getNonCapturedLocal v) >>= \x -> do
       case x of
         Just (LetBind _ e) -> pure $ InlineLet v e
         Just (LetrecBind _ e t) -> pure $ InlineLetrec v e t
-        _ -> Nothing
+        _ -> mzero
   Let _ v e1 e2
     -- NB: we will recompute the freeVars set a lot (especially when doing EvalFull iterations)
     -- This could be optimised in the future. See
     -- https://github.com/hackworthltd/primer/issues/733
-    | unLocalName v `S.notMember` freeVars e2 -> purer $ ElideLet (LetBind v e1) e2
-    | unLocalName v `S.member` freeVars e1 -> purer $ RenameSelfLet v e1 e2
-    | otherwise -> pure Nothing
+    | unLocalName v `S.notMember` freeVars e2 -> pure $ ElideLet (LetBind v e1) e2
+    | unLocalName v `S.member` freeVars e1 -> pure $ RenameSelfLet v e1 e2
+    | otherwise -> mzero
   LetType _ v t e
-    | unLocalName v `S.notMember` freeVars e -> purer $ ElideLet (LetTyBind $ LetTypeBind v t) e
-    | v `S.member` freeVarsTy t -> purer $ RenameSelfLetType v t e
-    | otherwise -> pure Nothing
+    | unLocalName v `S.notMember` freeVars e -> pure $ ElideLet (LetTyBind $ LetTypeBind v t) e
+    | v `S.member` freeVarsTy t -> pure $ RenameSelfLetType v t e
+    | otherwise -> mzero
   Letrec _ v e1 t e2
-    | unLocalName v `S.notMember` freeVars e2 -> purer $ ElideLet (LetrecBind v e1 t) e2
-    | otherwise -> pure Nothing
+    | unLocalName v `S.notMember` freeVars e2 -> pure $ ElideLet (LetrecBind v e1 t) e2
+    | otherwise -> mzero
   l@(Lam m v e) -> do
     fvcxt <- fvCxt $ freeVars l
-    pure $
-      if unLocalName v `S.member` fvcxt
-        then pure $ RenameBindingsLam m v e fvcxt
-        else Nothing
+    if unLocalName v `S.member` fvcxt
+      then pure $ RenameBindingsLam m v e fvcxt
+      else mzero
   l@(LAM m v e) -> do
     fvcxt <- fvCxt $ freeVars l
-    pure $
-      if unLocalName v `S.member` fvcxt
-        then pure $ RenameBindingsLAM m v e fvcxt
-        else Nothing
-  App _ (Ann _ (Lam _ x t) (TFun _ src tgt)) s -> purer $ Beta x t src tgt s
-  e@App{} -> pure $ ApplyPrimFun . thd3 <$> tryPrimFun (M.mapMaybe defPrim globals) e
+    if unLocalName v `S.member` fvcxt
+      then pure $ RenameBindingsLAM m v e fvcxt
+      else mzero
+  App _ (Ann _ (Lam _ x t) (TFun _ src tgt)) s -> pure $ Beta x t src tgt s
+  e@App{} -> lift $ hoistMaybe $ ApplyPrimFun . thd3 <$> tryPrimFun (M.mapMaybe defPrim globals) e
   -- (Λa.t : ∀b.T) S  ~> (letType a = S in t) : (letType b = S in T)
-  APP _ (Ann _ (LAM _ a t) (TForall _ b _ ty1)) ty2 -> purer $ BETA a t b ty1 ty2
-  APP{} -> pure Nothing
+  APP _ (Ann _ (LAM _ a t) (TForall _ b _ ty1)) ty2 -> pure $ BETA a t b ty1 ty2
+  APP{} -> mzero
   e@(Case m s brs) -> do
     fvcxt <- fvCxt $ freeVars e
     -- TODO: we arbitrarily decide that renaming takes priority over reducing the case
@@ -472,17 +527,15 @@ viewRedex tydefs globals dir = \case
     -- Maybe we want to offer both. See
     -- https://github.com/hackworthltd/primer/issues/734
     if getBoundHereDn e `S.disjoint` fvcxt
-      then case viewCaseRedex tydefs e of
-        Nothing -> pure Nothing
-        Just r -> purer r
-      else pure $ pure $ RenameBindingsCase m s brs fvcxt
-  Ann _ t ty | Chk <- dir, concreteTy ty -> purer $ Upsilon t ty
-  _ -> pure Nothing
+      then lift $ viewCaseRedex tydefs e
+      else pure $ RenameBindingsCase m s brs fvcxt
+  Ann _ t ty | Chk <- dir, concreteTy ty -> pure $ Upsilon t ty
+  _ -> mzero
 
 viewRedexType :: Type -> Reader Cxt (Maybe RedexType)
 viewRedexType = \case
   TVar _ v ->
-    getNonCapturedLocal v <&> \case
+    runMaybeT (getNonCapturedLocal v) <&> \case
       Just (LetTyBind (LetTypeBind _ t)) -> pure $ InlineLetInType v t
       _ -> Nothing
   TLet _ v s t
@@ -503,11 +556,11 @@ viewRedexType = \case
 
 -- Get the let-bound definition of this variable, if some such exists
 -- and is substitutible in the current context
-getNonCapturedLocal :: LocalName k -> Reader Cxt (Maybe LetBinding)
+getNonCapturedLocal :: MonadReader Cxt m => LocalName k -> MaybeT m LetBinding
 getNonCapturedLocal v = do
   def <- asks (lookup $ unLocalName v)
   curCxt <- ask
-  pure $ do
+  hoistMaybe $ do
     (def', _, origCxt) <- def
     def'' <- def'
     let uncaptured x = ((==) `on` fmap snd3 . lookup x) origCxt curCxt
@@ -516,7 +569,7 @@ getNonCapturedLocal v = do
       else Nothing
 
 -- What are the FVs of the RHS of these bindings?
-fvCxt :: S.Set Name -> Reader Cxt (S.Set Name)
+fvCxt :: MonadReader Cxt m => S.Set Name -> m (S.Set Name)
 fvCxt vs = do
   cxt <- ask
   pure $ foldMap (setOf (_Just % _1 % _Just % _freeVarsLetBinding) . flip lookup cxt) vs
@@ -541,11 +594,13 @@ fvCxtTy vs = do
 -- This can be seen as "leftmost-outermost" if you consider the location of the
 -- "expand a" redex to be the 'lettype' rather than the variable occurrance.
 findRedex ::
+  forall l m.
+  (MonadLog (WithSeverity l) m, ConvertLogMessage EvalFullLog l) =>
   TypeDefMap ->
   DefMap ->
   Dir ->
   Expr ->
-  Maybe RedexWithContext
+  MaybeT m RedexWithContext
 findRedex tydefs globals topDir = flip evalAccumT mempty . go . focus
   where
     -- What is the direction from the context?
@@ -563,20 +618,20 @@ findRedex tydefs globals topDir = flip evalAccumT mempty . go . focus
     -- Note that nothing in Expr binds a variable which scopes over a type child
     -- so we don't need to 'add' anything
     focusType' = lift . focusType
-    hoistAccum :: Accum Cxt a -> AccumT Cxt Maybe a
+    hoistAccum :: Monad m' => Accum Cxt a -> AccumT Cxt m' a
     hoistAccum = Foreword.hoistAccum generalize
-    go :: ExprZ -> AccumT Cxt Maybe RedexWithContext
-    go ez = do
-      hoistAccum (readerToAccumT $ viewRedex tydefs globals (focusDir ez) (target ez)) >>= \case
-        Just r -> pure $ RExpr ez r
-        Nothing
-          | Just (l, bz) <- viewLet ez -> goSubst l =<< hoistAccum bz
+    go :: ExprZ -> AccumT Cxt (MaybeT m) RedexWithContext
+    go ez =
+      do
+        RExpr ez <$> readerToAccumT (viewRedex tydefs globals (focusDir ez) (target ez))
+        <|> case viewLet ez of
+          Just (l, bz) -> goSubst l =<< hoistAccum bz
           -- Since stuck things other than lets are stuck on the first child or
           -- its type annotation, we can handle them all uniformly
-          | otherwise ->
-              msum $
-                (goType =<< focusType' ez)
-                  : map (go <=< hoistAccum) (exprChildren ez)
+          _ ->
+            msum $
+              Foreword.hoistAccum hoistMaybe (goType =<< focusType' ez)
+                : map (go <=< hoistAccum) (exprChildren ez)
     goType :: TypeZ -> AccumT Cxt Maybe RedexWithContext
     goType tz = do
       hoistAccum (readerToAccumT $ viewRedexType $ target tz) >>= \case
@@ -586,37 +641,43 @@ findRedex tydefs globals topDir = flip evalAccumT mempty . go . focus
           , [_, bz] <- typeChildren tz ->
               goSubstTy a t =<< hoistAccum bz
           | otherwise -> msum $ map (goType <=< hoistAccum) $ typeChildren tz
-    goSubst :: LetBinding -> ExprZ -> AccumT Cxt Maybe RedexWithContext
-    goSubst l ez = do
-      hoistAccum (readerToAccumT $ viewRedex tydefs globals (focusDir ez) $ target ez) >>= \case
-        -- We should inline such 'v' (note that we will not go under any 'v' binders)
-        Just r@(InlineLet w _) | letBindingName l == unLocalName w -> pure $ RExpr ez r
-        Just r@(InlineLetrec w _ _) | letBindingName l == unLocalName w -> pure $ RExpr ez r
-        -- Elide a let only if it blocks the reduction
-        Just r@(ElideLet w _) | elemOf _freeVarsLetBinding (letBindingName w) l -> pure $ RExpr ez r
-        -- Rename a binder only if it blocks the reduction
-        Just r@(RenameBindingsLam _ w _ _) | elemOf _freeVarsLetBinding (unLocalName w) l -> pure $ RExpr ez r
-        Just r@(RenameBindingsLAM _ w _ _) | elemOf _freeVarsLetBinding (unLocalName w) l -> pure $ RExpr ez r
-        Just r@(RenameBindingsCase _ _ brs _)
-          | not $ S.disjoint (setOf _freeVarsLetBinding l) (setOf (folded % #_CaseBranch % _2 % folded % to bindName % to unLocalName) brs) ->
-              pure $ RExpr ez r
-        Just r@(RenameSelfLet w _ _) | elemOf _freeVarsLetBinding (unLocalName w) l -> pure $ RExpr ez r
-        Just r@(RenameSelfLetType w _ _) | elemOf _freeVarsLetBinding (unLocalName w) l -> pure $ RExpr ez r
-        -- Switch to an inner let if substituting under it would cause capture
-        Nothing
-          | Just (l', bz) <- viewLet ez
-          , letBindingName l' /= letBindingName l
-          , elemOf _freeVarsLetBinding (letBindingName l') l ->
-              goSubst l' =<< hoistAccum bz
-        -- We should not go under 'v' binders, but otherwise substitute in each child
-        _ ->
-          let substChild c = do
-                guard $ S.notMember (letBindingName l) $ getBoundHere (target ez) (Just $ target c)
-                goSubst l c
-              substTyChild c = case l of
-                LetTyBind (LetTypeBind v t) -> goSubstTy v t c
-                _ -> mzero
-           in msum @[] $ (substTyChild =<< focusType' ez) : map (substChild <=< hoistAccum) (exprChildren ez)
+    goSubst :: LetBinding -> ExprZ -> AccumT Cxt (MaybeT m) RedexWithContext
+    goSubst l ez =
+      let here =
+            readerToAccumT (viewRedex tydefs globals (focusDir ez) (target ez)) >>= \case
+              -- We should inline such 'v' (note that we will not go under any 'v' binders)
+              r@(InlineLet w _) | letBindingName l == unLocalName w -> pure $ RExpr ez r
+              r@(InlineLetrec w _ _) | letBindingName l == unLocalName w -> pure $ RExpr ez r
+              -- Elide a let only if it blocks the reduction
+              r@(ElideLet w _) | elemOf _freeVarsLetBinding (letBindingName w) l -> pure $ RExpr ez r
+              -- Rename a binder only if it blocks the reduction
+              r@(RenameBindingsLam _ w _ _) | elemOf _freeVarsLetBinding (unLocalName w) l -> pure $ RExpr ez r
+              r@(RenameBindingsLAM _ w _ _) | elemOf _freeVarsLetBinding (unLocalName w) l -> pure $ RExpr ez r
+              r@(RenameBindingsCase _ _ brs _)
+                | not $ S.disjoint (setOf _freeVarsLetBinding l) (setOf (folded % #_CaseBranch % _2 % folded % to bindName % to unLocalName) brs) ->
+                    pure $ RExpr ez r
+              r@(RenameSelfLet w _ _) | elemOf _freeVarsLetBinding (unLocalName w) l -> pure $ RExpr ez r
+              r@(RenameSelfLetType w _ _) | elemOf _freeVarsLetBinding (unLocalName w) l -> pure $ RExpr ez r
+              _ -> mzero
+          -- Switch to an inner let if substituting under it would cause capture
+          innerLet = case viewLet ez of
+            Just (l', bz)
+              | letBindingName l' /= letBindingName l
+              , elemOf _freeVarsLetBinding (letBindingName l') l ->
+                  goSubst l' =<< hoistAccum bz
+            _ -> mzero
+          dive =
+            let substChild c = do
+                  -- We should not go under 'v' binders, but otherwise substitute in each child
+                  guard $ S.notMember (letBindingName l) $ getBoundHere (target ez) (Just $ target c)
+                  goSubst l c
+                substTyChild c = case l of
+                  LetTyBind (LetTypeBind v t) -> goSubstTy v t c
+                  _ -> mzero
+             in msum @[] $
+                  Foreword.hoistAccum hoistMaybe (substTyChild =<< focusType' ez)
+                    : map (substChild <=< hoistAccum) (exprChildren ez)
+       in here <|> innerLet <|> dive
     goSubstTy :: TyVarName -> Type -> TypeZ -> AccumT Cxt Maybe RedexWithContext
     goSubstTy v t tz =
       let isFreeIn = elemOf (getting _freeVarsTy % _2)
@@ -692,10 +753,14 @@ runRedex = \case
   -- (and also the non-annotated-constructor case)
   -- Note that when forming the CaseRedex we checked that the variables @xs@ were fresh for @as@ and @As@,
   -- so this will not capture any variables.
-  CaseRedex _ as _ xs e -> do
+  CaseRedex c as aTys' _ xs e -> do
+    aTys <- sequence aTys'
+    unless (length as == length aTys && length as == length xs) $
+      logWarning $
+        CaseRedexWrongArgNum c as aTys xs
     -- TODO: we are putting trivial metadata in here...
     -- See https://github.com/hackworthltd/primer/issues/6
-    foldrM (\(x, (a, tyA)) t -> let_ x (pure a `ann` (generateTypeIDs =<< tyA)) (pure t)) e (zip xs as)
+    foldrM (\(x, a, tyA) t -> let_ x (pure a `ann` generateTypeIDs tyA) (pure t)) e (zip3 xs as aTys)
   -- [ t : T ]  ~>  t  writing [_] for the embedding of syn into chk
   Upsilon e _ -> pure e
   -- λy.t  ~>  λz.let y = z in t (and similar for other binding forms, except let)
