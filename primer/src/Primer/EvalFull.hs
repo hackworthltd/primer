@@ -21,7 +21,6 @@ module Primer.EvalFull (
 import Foreword hiding (hoistAccum)
 import Foreword qualified
 
-import Control.Monad.Extra (untilJustM)
 import Control.Monad.Fresh (MonadFresh)
 import Control.Monad.Log (MonadLog, WithSeverity)
 import Control.Monad.Morph (generalize)
@@ -95,7 +94,7 @@ import Primer.Core (
   getID,
  )
 import Primer.Core.DSL (ann, letType, let_, letrec, lvar, tlet, tvar)
-import Primer.Core.Transform (removeAnn, renameTyVar, unfoldAPP, unfoldApp)
+import Primer.Core.Transform (removeAnn, unfoldAPP, unfoldApp)
 import Primer.Core.Utils (
   concreteTy,
   forgetTypeMetadata,
@@ -246,7 +245,7 @@ data RedexType
     -- we only substitute one occurence at a time, and the 'let' would capture the 'a'
     -- in the expansion if we did a substitution.
     RenameSelfLetInType TyVarName Type Type
-  | -- ∀a:k.t  ~>  ∀b:k.t[b/a]  for fresh b, avoiding the given set
+  | -- ∀a:k.t  ~>  ∀b:k. let a = b in t  for fresh b, avoiding the given set
     RenameForall TypeMeta TyVarName Kind Type (S.Set TyVarName)
 
 -- Currently just a step limit
@@ -801,26 +800,10 @@ runRedexTy (ElideLetInType _ t) = pure t
 runRedexTy (RenameSelfLetInType a s t) = do
   b <- freshLocalName (freeVarsTy s <> freeVarsTy t)
   tlet b (pure s) $ tlet a (tvar b) $ pure t
+-- ∀a:k.t  ~>  ∀b:k. let a = b in t  for fresh b, avoiding the given set
 runRedexTy (RenameForall m a k s avoid) = do
-  -- It should never be necessary to try more than once, since
-  -- we pick a new name disjoint from any that appear in @s@
-  -- thus renaming will never capture (so @renameTyVar@ will always succeed).
-  -- However, the type system does not know about this.
-  -- We explicitly try once, and log if that fails before trying again.
-  -- We do not log on retries
-  let rename = do
-        b <- freshLocalName (avoid <> freeVarsTy s <> bindersBelowTy (focus s))
-        pure (b, TForall m b k <$> renameTyVar a b s)
-  rename >>= \case
-    (_, Just t') -> pure t'
-    (b, Nothing) -> do
-      logWarning $
-        InvariantFailure $
-          "runRedexTy.RenameForall: initial name choice was not fresh enough: chose "
-            <> show b
-            <> " for "
-            <> show @_ @Text (m, a, k, s, avoid)
-      untilJustM $ snd <$> rename
+  b <- freshLocalName (avoid <> freeVarsTy s <> bindersBelowTy (focus s))
+  TForall m b k <$> tlet a (tvar b) (pure s)
 
 type MonadEvalFull l m =
   ( MonadFresh ID m
