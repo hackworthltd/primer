@@ -1,6 +1,6 @@
 {-# LANGUAGE DuplicateRecordFields #-}
 
-module Primer.Eval.Let (LetRemovalDetail (..), LetRenameDetail (..), tryLetRemoval) where
+module Primer.Eval.Let (LetRemovalDetail (..), tryLetRemoval) where
 
 import Foreword
 
@@ -18,6 +18,7 @@ import Primer.Core (
  )
 import Primer.Core.DSL (letType, let_)
 import Primer.Core.Utils (freeVars, freeVarsTy, _freeTmVars, _freeTyVars, _freeVars, _freeVarsTy)
+import Primer.Eval.Bind (BindRenameDetail (..))
 import Primer.Eval.Utils (makeSafeLetBinding, makeSafeLetTypeBinding)
 import Primer.JSON (CustomJSON (CustomJSON), FromJSON, PrimerJSON, ToJSON)
 import Primer.Name (Name)
@@ -42,34 +43,10 @@ data LetRemovalDetail t = LetRemovalDetail
   deriving (Eq, Show, Generic)
   deriving (FromJSON, ToJSON) via PrimerJSON (LetRemovalDetail t)
 
--- | Detailed information about a renaming of a let binding.
--- This can be any of: a term-level non-recursive let, a
--- term-level recursive let, a term-level let binding a type
--- or a type-level let.
--- If term-level: t ~ Expr; if type-level: t ~ Type
-data LetRenameDetail t = LetRenameDetail
-  { before :: t
-  -- ^ the let expression before reduction
-  , after :: t
-  -- ^ the resulting expression after reduction
-  , bindingNameOld :: Name
-  -- ^ the old name of the let-bound variable
-  , bindingNameNew :: Name
-  -- ^ the new name of the let-bound variable
-  , letID :: ID
-  -- ^ the full let expression
-  , bindingOccurrences :: [ID]
-  -- ^ where the old name occurred inside the bound expression
-  , bodyID :: ID
-  -- ^ the right hand side of the let
-  }
-  deriving (Eq, Show, Generic)
-  deriving (FromJSON, ToJSON) via PrimerJSON (LetRenameDetail t)
-
 tryLetRemoval ::
   MonadFresh ID m =>
   Expr ->
-  Maybe (m (Expr, Either (LetRenameDetail Expr) (LetRemovalDetail Expr)))
+  Maybe (m (Expr, Either (BindRenameDetail Expr) (LetRemovalDetail Expr)))
 tryLetRemoval = \case
   expr@(Let meta x e body)
     -- Redundant let removal
@@ -118,12 +95,13 @@ tryLetRemoval = \case
       pure
         ( expr'
         , Left $
-            LetRenameDetail
+            BindRenameDetail
               { before = expr
               , after = expr'
-              , bindingNameOld = x
-              , bindingNameNew = y
-              , letID = meta ^. _id
+              , bindingNamesOld = [x]
+              , bindingNamesNew = [y]
+              , bindersOld = [meta ^. _id]
+              , bindersNew = [getID expr']
               , bindingOccurrences = occ
               , bodyID = body ^. _id
               }

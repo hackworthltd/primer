@@ -8,11 +8,11 @@ module Primer.Eval (
   EvalError (..),
   EvalDetail (..),
   BetaReductionDetail (..),
+  BindRenameDetail (..),
   LocalVarInlineDetail (..),
   CaseReductionDetail (..),
   GlobalVarInlineDetail (..),
   LetRemovalDetail (..),
-  LetRenameDetail (..),
   PushAppIntoLetrecDetail (..),
   ApplyPrimFunDetail (..),
   -- Only exported for testing
@@ -73,11 +73,11 @@ import Primer.Def (DefMap)
 import Primer.Eval.Detail (
   ApplyPrimFunDetail (..),
   BetaReductionDetail (..),
+  BindRenameDetail (..),
   CaseReductionDetail (..),
   EvalDetail (..),
   GlobalVarInlineDetail (..),
   LetRemovalDetail (..),
-  LetRenameDetail (..),
   LocalLet (LLet, LLetRec, LLetType),
   LocalVarInlineDetail (..),
   Locals,
@@ -362,7 +362,7 @@ tryReduceExpr globals locals = \case
   (tryReducePrim globals -> Just m) -> second ApplyPrimFun <$> m
   (tryInlineLocal locals -> Just m) -> second LocalVarInline <$> m
   (tryInlineGlobal globals -> Just m) -> second GlobalVarInline <$> m
-  (tryLetRemoval -> Just m) -> second (either LetRename LetRemoval) <$> m
+  (tryLetRemoval -> Just m) -> second (either BindRename LetRemoval) <$> m
   (tryCaseReduction -> Just m) -> second CaseReduction <$> m
   _ -> throwError NotRedex
 
@@ -415,13 +415,14 @@ tryReduceType _globals locals = \case
         ty' <- tlet y (pure t) (pure body')
         pure
           ( ty'
-          , TLetRename $
-              LetRenameDetail
+          , TBindRename $
+              BindRenameDetail
                 { before = ty
                 , after = ty'
-                , bindingNameOld = unLocalName x
-                , bindingNameNew = unLocalName y
-                , letID = meta ^. _id
+                , bindingNamesOld = [unLocalName x]
+                , bindingNamesNew = [unLocalName y]
+                , bindersOld = [meta ^. _id]
+                , bindersNew = [getID ty']
                 , bindingOccurrences = t ^.. getting _freeVarsTy % to (first getID) % filtered ((== x) . snd) % _1
                 , bodyID = body ^. _id
                 }

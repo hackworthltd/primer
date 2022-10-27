@@ -68,6 +68,7 @@ library
     Primer.Core.Type
     Primer.Core.Type.Utils
     Primer.Eval.Beta
+    Primer.Eval.Bind
     Primer.Eval.Case
     Primer.Eval.Detail
     Primer.Eval.EvalError

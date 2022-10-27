@@ -38,12 +38,12 @@ import Primer.Def (ASTDef (..), Def (..), DefMap, defPrim)
 import Primer.Eval (
   ApplyPrimFunDetail (..),
   BetaReductionDetail (..),
+  BindRenameDetail (..),
   CaseReductionDetail (..),
   EvalDetail (..),
   EvalError (..),
   GlobalVarInlineDetail (..),
   LetRemovalDetail (..),
-  LetRenameDetail (..),
   LocalLet (LLet, LLetRec, LLetType),
   LocalVarInlineDetail (..),
   Locals,
@@ -317,14 +317,15 @@ unit_tryReduce_let_self_capture = do
       result = runTryReduce mempty mempty (expr, i)
       expectedResult = create' $ let_ "x0" (lvar "x") (lvar "x0")
   case result of
-    Right (expr', LetRename detail) -> do
+    Right (expr', BindRename detail) -> do
       expr' ~= expectedResult
 
       detail.before @?= expr
       detail.after ~= expectedResult
-      detail.bindingNameOld @?= "x"
-      detail.bindingNameNew @?= "x0"
-      detail.letID @?= 0
+      detail.bindingNamesOld @?= ["x"]
+      detail.bindingNamesNew @?= ["x0"]
+      detail.bindersOld @?= [0]
+      detail.bindersNew @?= [3]
       detail.bindingOccurrences @?= [1]
       detail.bodyID @?= 2
     _ -> assertFailure $ show result
@@ -352,14 +353,15 @@ unit_tryReduce_lettype_self_capture = do
       result = runTryReduce mempty mempty (expr, i)
       expectedResult = create' $ letType "x0" (tvar "x") (emptyHole `ann` tvar "x0")
   case result of
-    Right (expr', LetRename detail) -> do
+    Right (expr', BindRename detail) -> do
       expr' ~= expectedResult
 
       detail.before @?= expr
       detail.after ~= expectedResult
-      detail.bindingNameOld @?= "x"
-      detail.bindingNameNew @?= "x0"
-      detail.letID @?= 0
+      detail.bindingNamesOld @?= ["x"]
+      detail.bindingNamesNew @?= ["x0"]
+      detail.bindersOld @?= [0]
+      detail.bindersNew @?= [5]
       detail.bindingOccurrences @?= [1]
       detail.bodyID @?= 2
     _ -> assertFailure $ show result
@@ -388,14 +390,15 @@ unit_tryReduce_tlet_self_capture = do
       result = runTryReduceType mempty mempty (ty, i)
       expectedResult = create' $ tlet "x0" (tvar "x") (tvar "x0")
   case result of
-    Right (ty', TLetRename detail) -> do
+    Right (ty', TBindRename detail) -> do
       ty' ~~= expectedResult
 
       detail.before @?= ty
       detail.after ~~= expectedResult
-      detail.bindingNameOld @?= "x"
-      detail.bindingNameNew @?= "x0"
-      detail.letID @?= 0
+      detail.bindingNamesOld @?= ["x"]
+      detail.bindingNamesNew @?= ["x0"]
+      detail.bindersOld @?= [0]
+      detail.bindersNew @?= [3]
       detail.bindingOccurrences @?= [1]
       detail.bodyID @?= 2
     _ -> assertFailure $ show result
