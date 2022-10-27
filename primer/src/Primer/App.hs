@@ -58,6 +58,7 @@ module Primer.App (
   lookupASTDef,
   globalInUse,
   liftError,
+  MonadQueryApp,
 ) where
 
 import Foreword hiding (mod)

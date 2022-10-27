@@ -29,14 +29,13 @@ import Primer.API (
   NodeBody (BoxBody, NoBody, TextBody),
   NodeFlavor,
   NodeSelection (..),
-  OfferedAction (..),
   Prog (Prog),
   Selection (..),
   Tree,
   viewTreeExpr,
   viewTreeType,
  )
-import Primer.Action.Available (ActionName (..), ActionType (..), Level)
+import Primer.Action.Available (Level, OfferedAction (..))
 import Primer.App (NodeType (..))
 import Primer.Core (GVarName, ID (ID))
 import Primer.Database (
@@ -61,7 +60,7 @@ import Primer.Gen.Core.Raw (
 import Primer.Name (Name)
 import Primer.OpenAPI ()
 import Primer.Pagination (NonNeg, Paginated (Paginated), PaginatedMeta (..), Positive, mkNonNeg, mkPositive)
-import Primer.Servant.OpenAPI (API)
+import Primer.Servant.OpenAPI (API, ApplyActionBody)
 import Primer.Server (openAPIInfo)
 import Servant.OpenApi.Test (validateEveryToJSON)
 import Tasty (Property, property)
@@ -254,8 +253,10 @@ instance Arbitrary (Paginated Session) where
   arbitrary = hedgehog genPaginatedSession
 instance Arbitrary Prog where
   arbitrary = hedgehog genProg
+instance Arbitrary ApplyActionBody where
+  arbitrary = undefined
 instance Arbitrary OfferedAction where
-  arbitrary = OfferedAction <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
+  arbitrary = undefined
 instance Arbitrary Selection where
   arbitrary = Selection <$> arbitrary <*> arbitrary
 instance Arbitrary NodeSelection where
@@ -267,10 +268,6 @@ instance Arbitrary Level where
 deriving newtype instance Arbitrary ID
 instance Arbitrary Name where
   arbitrary = hedgehog genName
-instance Arbitrary ActionName where
-  arbitrary = oneof [map Code arbitrary, map Prose arbitrary]
-instance Arbitrary ActionType where
-  arbitrary = arbitraryBoundedEnum
 instance Arbitrary NodeType where
   arbitrary = arbitraryBoundedEnum
 instance Arbitrary GVarName where

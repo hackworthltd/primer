@@ -8,17 +8,20 @@ module Primer.Servant.OpenAPI (
   SessionAPI (..),
   ActionAPI (..),
   Spec,
+  ApplyActionBody (..),
 ) where
 
 import Foreword
 
-import Data.OpenApi (OpenApi)
-import Primer.API (Selection)
+import Data.OpenApi (OpenApi, ToSchema)
+import Primer.API (ApplyActionBody, Selection)
 import Primer.API qualified as API
 import Primer.Action (Level)
+import Primer.Action.Available (ActionRequest, InputAction, NoInputAction, OfferedAction)
 import Primer.Database (
   SessionId,
  )
+import Primer.JSON (CustomJSON (CustomJSON), FromJSON, PrimerJSON, ToJSON)
 import Primer.OpenAPI ()
 import Primer.Servant.Types (
   CopySession,
@@ -104,6 +107,13 @@ data ActionAPI mode = ActionAPI
         :> QueryParam' '[Required, Strict] "level" Level
         :> ReqBody '[JSON] Selection
         :> OperationId "getAvailableActions"
-        :> Post '[JSON] [API.OfferedAction]
+        :> Post '[JSON] [OfferedAction]
+  , apply :: -- NB this is only really for "action panel" actions - I suppose constructing type definitions (etc.) will have its own API, and we'll keep the old actions as a lower-level implementation detail, away from the API
+      mode
+        :- "apply"
+        -- :> Summary "Get available actions for the definition, or a node within it"
+        :> ReqBody '[JSON] ApplyActionBody
+        :> OperationId "applyAction"
+        :> Post '[JSON] API.Prog -- TODO return prog? or get from separate call? in the long run, this will return some kind of patch/diff
   }
   deriving (Generic)

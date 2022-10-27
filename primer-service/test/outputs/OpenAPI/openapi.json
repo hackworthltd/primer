@@ -1,16 +1,16 @@
 {
     "components": {
         "schemas": {
-            "ActionName": {
+            "ActionRequest": {
                 "oneOf": [
                     {
                         "properties": {
                             "contents": {
-                                "type": "string"
+                                "$ref": "#/components/schemas/NoInputAction"
                             },
                             "tag": {
                                 "enum": [
-                                    "Code"
+                                    "ActionRequestSimple"
                                 ],
                                 "type": "string"
                             }
@@ -24,11 +24,29 @@
                     {
                         "properties": {
                             "contents": {
-                                "type": "string"
+                                "$ref": "#/components/schemas/ActionRequestText"
                             },
                             "tag": {
                                 "enum": [
-                                    "Prose"
+                                    "ActionRequestText"
+                                ],
+                                "type": "string"
+                            }
+                        },
+                        "required": [
+                            "tag",
+                            "contents"
+                        ],
+                        "type": "object"
+                    },
+                    {
+                        "properties": {
+                            "contents": {
+                                "$ref": "#/components/schemas/ActionRequestQualified"
+                            },
+                            "tag": {
+                                "enum": [
+                                    "ActionRequestQualified"
                                 ],
                                 "type": "string"
                             }
@@ -42,12 +60,50 @@
                 ],
                 "type": "object"
             },
-            "ActionType": {
-                "enum": [
-                    "Primary",
-                    "Destructive"
+            "ActionRequestQualified": {
+                "properties": {
+                    "action": {
+                        "$ref": "#/components/schemas/InputActionQualified"
+                    },
+                    "option": {
+                        "$ref": "#/components/schemas/QualifiedText"
+                    }
+                },
+                "required": [
+                    "action",
+                    "option"
                 ],
-                "type": "string"
+                "type": "object"
+            },
+            "ActionRequestText": {
+                "properties": {
+                    "action": {
+                        "$ref": "#/components/schemas/InputAction"
+                    },
+                    "option": {
+                        "type": "string"
+                    }
+                },
+                "required": [
+                    "action",
+                    "option"
+                ],
+                "type": "object"
+            },
+            "ApplyActionBody": {
+                "properties": {
+                    "action": {
+                        "$ref": "#/components/schemas/ActionRequest"
+                    },
+                    "selection": {
+                        "$ref": "#/components/schemas/Selection"
+                    }
+                },
+                "required": [
+                    "selection",
+                    "action"
+                ],
+                "type": "object"
             },
             "Def": {
                 "properties": {
@@ -86,6 +142,33 @@
                 ],
                 "type": "object"
             },
+            "InputAction": {
+                "enum": [
+                    "AMakeLambda",
+                    "AUseVar",
+                    "ASaturatedFunction",
+                    "AMakeLet",
+                    "AMakeLetRec",
+                    "AConstructBigLambda",
+                    "AUseTypeVar",
+                    "AConstructForall",
+                    "ARenameDef",
+                    "ARenamePatternVar",
+                    "ARenameLambda",
+                    "ARenameLAM",
+                    "ARenameLetBinding",
+                    "ARenameForall"
+                ],
+                "type": "string"
+            },
+            "InputActionQualified": {
+                "enum": [
+                    "AUseValueCon",
+                    "AUseSaturatedValueCon",
+                    "AUseTypeCon"
+                ],
+                "type": "string"
+            },
             "LastModified": {
                 "example": "2022-10-20T00:00:00Z",
                 "format": "date-time",
@@ -123,6 +206,28 @@
                     "defs"
                 ],
                 "type": "object"
+            },
+            "NoInputAction": {
+                "enum": [
+                    "AMakeCase",
+                    "AConvertLetToLetrec",
+                    "AConstructApp",
+                    "AConstructAPP",
+                    "AConstructAnn",
+                    "ARemoveAnn",
+                    "AFinishHole",
+                    "AEnterHole",
+                    "AConstructFun",
+                    "AAddInput",
+                    "AConstructTypeApp",
+                    "ADuplicateDef",
+                    "ARaise",
+                    "ARaiseType",
+                    "ADeleteDef",
+                    "ADeleteExpr",
+                    "ADeleteType"
+                ],
+                "type": "string"
             },
             "NodeBody": {
                 "oneOf": [
@@ -237,27 +342,151 @@
                 "type": "string"
             },
             "OfferedAction": {
+                "oneOf": [
+                    {
+                        "properties": {
+                            "contents": {
+                                "$ref": "#/components/schemas/NoInputAction"
+                            },
+                            "tag": {
+                                "enum": [
+                                    "NoInputRequired"
+                                ],
+                                "type": "string"
+                            }
+                        },
+                        "required": [
+                            "tag",
+                            "contents"
+                        ],
+                        "type": "object"
+                    },
+                    {
+                        "properties": {
+                            "contents": {
+                                "$ref": "#/components/schemas/OfferedActionChooseQualified"
+                            },
+                            "tag": {
+                                "enum": [
+                                    "ChooseQualified"
+                                ],
+                                "type": "string"
+                            }
+                        },
+                        "required": [
+                            "tag",
+                            "contents"
+                        ],
+                        "type": "object"
+                    },
+                    {
+                        "properties": {
+                            "contents": {
+                                "$ref": "#/components/schemas/OfferedActionChooseText"
+                            },
+                            "tag": {
+                                "enum": [
+                                    "ChooseText"
+                                ],
+                                "type": "string"
+                            }
+                        },
+                        "required": [
+                            "tag",
+                            "contents"
+                        ],
+                        "type": "object"
+                    },
+                    {
+                        "properties": {
+                            "contents": {
+                                "$ref": "#/components/schemas/InputAction"
+                            },
+                            "tag": {
+                                "enum": [
+                                    "EnterText"
+                                ],
+                                "type": "string"
+                            }
+                        },
+                        "required": [
+                            "tag",
+                            "contents"
+                        ],
+                        "type": "object"
+                    },
+                    {
+                        "properties": {
+                            "contents": {
+                                "$ref": "#/components/schemas/OfferedActionChooseOrEnterText"
+                            },
+                            "tag": {
+                                "enum": [
+                                    "ChooseOrEnterText"
+                                ],
+                                "type": "string"
+                            }
+                        },
+                        "required": [
+                            "tag",
+                            "contents"
+                        ],
+                        "type": "object"
+                    }
+                ],
+                "type": "object"
+            },
+            "OfferedActionChooseOrEnterText": {
                 "properties": {
-                    "actionType": {
-                        "$ref": "#/components/schemas/ActionType"
+                    "action": {
+                        "$ref": "#/components/schemas/InputAction"
                     },
-                    "description": {
-                        "type": "string"
-                    },
-                    "name": {
-                        "$ref": "#/components/schemas/ActionName"
-                    },
-                    "priority": {
-                        "maximum": 9223372036854775807,
-                        "minimum": -9223372036854775808,
-                        "type": "integer"
+                    "options": {
+                        "items": {
+                            "type": "string"
+                        },
+                        "type": "array"
                     }
                 },
                 "required": [
-                    "name",
-                    "description",
-                    "priority",
-                    "actionType"
+                    "options",
+                    "action"
+                ],
+                "type": "object"
+            },
+            "OfferedActionChooseQualified": {
+                "properties": {
+                    "action": {
+                        "$ref": "#/components/schemas/InputActionQualified"
+                    },
+                    "options": {
+                        "items": {
+                            "$ref": "#/components/schemas/QualifiedText"
+                        },
+                        "type": "array"
+                    }
+                },
+                "required": [
+                    "options",
+                    "action"
+                ],
+                "type": "object"
+            },
+            "OfferedActionChooseText": {
+                "properties": {
+                    "action": {
+                        "$ref": "#/components/schemas/InputAction"
+                    },
+                    "options": {
+                        "items": {
+                            "type": "string"
+                        },
+                        "type": "array"
+                    }
+                },
+                "required": [
+                    "options",
+                    "action"
                 ],
                 "type": "object"
             },
@@ -343,6 +572,25 @@
                 },
                 "required": [
                     "modules"
+                ],
+                "type": "object"
+            },
+            "QualifiedText": {
+                "properties": {
+                    "context": {
+                        "items": {
+                            "type": "string"
+                        },
+                        "minItems": 1,
+                        "type": "array"
+                    },
+                    "text": {
+                        "type": "string"
+                    }
+                },
+                "required": [
+                    "context",
+                    "text"
                 ],
                 "type": "object"
             },
@@ -525,6 +773,50 @@
                     }
                 },
                 "summary": "Create a new session and return its ID"
+            }
+        },
+        "/openapi/sessions/{sessionId}/action/apply": {
+            "post": {
+                "operationId": "applyAction",
+                "parameters": [
+                    {
+                        "description": "The session ID",
+                        "in": "path",
+                        "name": "sessionId",
+                        "required": true,
+                        "schema": {
+                            "format": "uuid",
+                            "type": "string"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json;charset=utf-8": {
+                            "schema": {
+                                "$ref": "#/components/schemas/ApplyActionBody"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json;charset=utf-8": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Prog"
+                                }
+                            }
+                        },
+                        "description": ""
+                    },
+                    "400": {
+                        "description": "Invalid `body`"
+                    },
+                    "404": {
+                        "description": "`sessionId` not found"
+                    }
+                }
             }
         },
         "/openapi/sessions/{sessionId}/action/available": {

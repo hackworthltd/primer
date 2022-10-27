@@ -1,6 +1,8 @@
 {-# LANGUAGE DisambiguateRecordFields #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE OverloadedLabels #-}
+{-# LANGUAGE OverloadedRecordDot #-}
+{-# LANGUAGE RecordWildCards #-}
 
 -- | An HTTP service for the Primer API.
 module Primer.Server (
@@ -45,14 +47,20 @@ import Primer.API (
   ExprTreeOpts (..),
   PrimerErr (..),
   PrimerM,
+  applyAction,
   availableActions,
   edit,
+  getApp,
+  getProgram,
   listSessions,
   newSession,
   renameSession,
   runPrimerM,
+  viewProg,
  )
 import Primer.API qualified as API
+import Primer.Action.Available (ActionRequest (ActionRequestSimple), OfferedAction (..), SomeAction (..), actionsForDef, actionsForDefBody, actionsForDefSig, inputAction, inputActionQualified, mkAction)
+import Primer.App (MutationRequest (Edit), NodeType (..), Question (GenerateName), progAllDefs, progAllTypeDefs, runQueryAppM)
 import Primer.Core (globalNamePretty)
 import Primer.Database (
   SessionId,
@@ -120,7 +128,10 @@ openAPISessionServer sid =
 
 openAPIActionServer :: ConvertServerLogs l => SessionId -> OpenAPI.ActionAPI (AsServerT (Primer l))
 openAPIActionServer sid =
-  OpenAPI.ActionAPI{available = availableActions sid}
+  OpenAPI.ActionAPI
+    { available = availableActions sid
+    , apply = applyAction sid
+    }
 
 apiServer :: ConvertServerLogs l => S.RootAPI (AsServerT (Primer l))
 apiServer =
@@ -252,5 +263,7 @@ serve ss q v port logger = do
         DatabaseErr msg -> err500{errBody = encode msg}
         UnknownDef d -> err404{errBody = "Unknown definition: " <> encode (globalNamePretty d)}
         UnexpectedPrimDef d -> err400{errBody = "Unexpected primitive definition: " <> encode (globalNamePretty d)}
+        ApplyActionError as e -> err400{errBody = "Error while applying action"}
+        MiscPrimerErr t -> err400{errBody = "Misc error: " <> encode t}
       where
         encode = LT.encodeUtf8 . LT.fromStrict
