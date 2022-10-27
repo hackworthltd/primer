@@ -8,7 +8,6 @@ module Primer.Servant.OpenAPI (
   SessionAPI (..),
   ActionAPI (..),
   Spec,
-  ApplyActionBody (..),
 ) where
 
 import Foreword
@@ -17,7 +16,12 @@ import Data.OpenApi (OpenApi, ToSchema)
 import Primer.API (ApplyActionBody, Selection)
 import Primer.API qualified as API
 import Primer.Action (Level)
-import Primer.Action.Available (ActionRequest, InputAction, NoInputAction, OfferedAction)
+import Primer.Action.Available (
+  InputAction,
+  NoInputAction,
+  OfferedAction,
+  SomeAction,
+ )
 import Primer.Database (
   SessionId,
  )
@@ -107,13 +111,31 @@ data ActionAPI mode = ActionAPI
         :> QueryParam' '[Required, Strict] "level" Level
         :> ReqBody '[JSON] Selection
         :> OperationId "getAvailableActions"
-        :> Post '[JSON] [OfferedAction]
+        :> Post '[JSON] [SomeAction]
+  , options :: -- TODO name?
+      mode
+        :- "options"
+        -- :> Summary ""
+        :> QueryParam' '[Required, Strict] "level" Level
+        :> ReqBody '[JSON] Selection
+        :> QueryParam' '[Required, Strict] "action" InputAction
+        :> OperationId "getActionOptions"
+        :> Post '[JSON] OfferedAction
   , apply :: -- NB this is only really for "action panel" actions - I suppose constructing type definitions (etc.) will have its own API, and we'll keep the old actions as a lower-level implementation detail, away from the API
       mode
         :- "apply"
         -- :> Summary "Get available actions for the definition, or a node within it"
-        :> ReqBody '[JSON] ApplyActionBody
+        :> ReqBody '[JSON] Selection
+        :> QueryParam' '[Required, Strict] "action" NoInputAction
         :> OperationId "applyAction"
         :> Post '[JSON] API.Prog -- TODO return prog? or get from separate call? in the long run, this will return some kind of patch/diff
+  , applyWithInput :: -- TODO can we somehow say that whether to expect input depends on which set `action` param is in? and thus combine this endpoint with the above?
+      mode
+        :- "apply1" -- TODO name
+        -- :> Summary ""
+        :> ReqBody '[JSON] ApplyActionBody
+        :> QueryParam' '[Required, Strict] "action" InputAction
+        :> OperationId "applyActionWithInput"
+        :> Post '[JSON] API.Prog
   }
   deriving (Generic)

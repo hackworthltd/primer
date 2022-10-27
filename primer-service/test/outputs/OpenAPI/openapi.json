@@ -1,99 +1,28 @@
 {
     "components": {
         "schemas": {
-            "ActionRequest": {
-                "oneOf": [
-                    {
-                        "properties": {
-                            "contents": {
-                                "$ref": "#/components/schemas/NoInputAction"
-                            },
-                            "tag": {
-                                "enum": [
-                                    "ActionRequestSimple"
-                                ],
-                                "type": "string"
-                            }
-                        },
-                        "required": [
-                            "tag",
-                            "contents"
-                        ],
-                        "type": "object"
-                    },
-                    {
-                        "properties": {
-                            "contents": {
-                                "$ref": "#/components/schemas/ActionRequestText"
-                            },
-                            "tag": {
-                                "enum": [
-                                    "ActionRequestText"
-                                ],
-                                "type": "string"
-                            }
-                        },
-                        "required": [
-                            "tag",
-                            "contents"
-                        ],
-                        "type": "object"
-                    },
-                    {
-                        "properties": {
-                            "contents": {
-                                "$ref": "#/components/schemas/ActionRequestQualified"
-                            },
-                            "tag": {
-                                "enum": [
-                                    "ActionRequestQualified"
-                                ],
-                                "type": "string"
-                            }
-                        },
-                        "required": [
-                            "tag",
-                            "contents"
-                        ],
-                        "type": "object"
-                    }
-                ],
-                "type": "object"
-            },
-            "ActionRequestQualified": {
+            "ActionOption": {
                 "properties": {
-                    "action": {
-                        "$ref": "#/components/schemas/InputActionQualified"
-                    },
-                    "option": {
-                        "$ref": "#/components/schemas/QualifiedText"
-                    }
-                },
-                "required": [
-                    "action",
-                    "option"
-                ],
-                "type": "object"
-            },
-            "ActionRequestText": {
-                "properties": {
-                    "action": {
-                        "$ref": "#/components/schemas/InputAction"
-                    },
                     "option": {
                         "type": "string"
+                    },
+                    "qualification": {
+                        "items": {
+                            "type": "string"
+                        },
+                        "minItems": 1,
+                        "type": "array"
                     }
                 },
                 "required": [
-                    "action",
                     "option"
                 ],
                 "type": "object"
             },
             "ApplyActionBody": {
                 "properties": {
-                    "action": {
-                        "$ref": "#/components/schemas/ActionRequest"
+                    "option": {
+                        "$ref": "#/components/schemas/ActionOption"
                     },
                     "selection": {
                         "$ref": "#/components/schemas/Selection"
@@ -101,7 +30,7 @@
                 },
                 "required": [
                     "selection",
-                    "action"
+                    "option"
                 ],
                 "type": "object"
             },
@@ -157,12 +86,7 @@
                     "ARenameLambda",
                     "ARenameLAM",
                     "ARenameLetBinding",
-                    "ARenameForall"
-                ],
-                "type": "string"
-            },
-            "InputActionQualified": {
-                "enum": [
+                    "ARenameForall",
                     "AUseValueCon",
                     "AUseSaturatedValueCon",
                     "AUseTypeCon"
@@ -342,151 +266,20 @@
                 "type": "string"
             },
             "OfferedAction": {
-                "oneOf": [
-                    {
-                        "properties": {
-                            "contents": {
-                                "$ref": "#/components/schemas/NoInputAction"
-                            },
-                            "tag": {
-                                "enum": [
-                                    "NoInputRequired"
-                                ],
-                                "type": "string"
-                            }
-                        },
-                        "required": [
-                            "tag",
-                            "contents"
-                        ],
-                        "type": "object"
-                    },
-                    {
-                        "properties": {
-                            "contents": {
-                                "$ref": "#/components/schemas/OfferedActionChooseQualified"
-                            },
-                            "tag": {
-                                "enum": [
-                                    "ChooseQualified"
-                                ],
-                                "type": "string"
-                            }
-                        },
-                        "required": [
-                            "tag",
-                            "contents"
-                        ],
-                        "type": "object"
-                    },
-                    {
-                        "properties": {
-                            "contents": {
-                                "$ref": "#/components/schemas/OfferedActionChooseText"
-                            },
-                            "tag": {
-                                "enum": [
-                                    "ChooseText"
-                                ],
-                                "type": "string"
-                            }
-                        },
-                        "required": [
-                            "tag",
-                            "contents"
-                        ],
-                        "type": "object"
-                    },
-                    {
-                        "properties": {
-                            "contents": {
-                                "$ref": "#/components/schemas/InputAction"
-                            },
-                            "tag": {
-                                "enum": [
-                                    "EnterText"
-                                ],
-                                "type": "string"
-                            }
-                        },
-                        "required": [
-                            "tag",
-                            "contents"
-                        ],
-                        "type": "object"
-                    },
-                    {
-                        "properties": {
-                            "contents": {
-                                "$ref": "#/components/schemas/OfferedActionChooseOrEnterText"
-                            },
-                            "tag": {
-                                "enum": [
-                                    "ChooseOrEnterText"
-                                ],
-                                "type": "string"
-                            }
-                        },
-                        "required": [
-                            "tag",
-                            "contents"
-                        ],
-                        "type": "object"
-                    }
-                ],
-                "type": "object"
-            },
-            "OfferedActionChooseOrEnterText": {
                 "properties": {
-                    "action": {
-                        "$ref": "#/components/schemas/InputAction"
+                    "allowFreeText": {
+                        "type": "boolean"
                     },
                     "options": {
                         "items": {
-                            "type": "string"
+                            "$ref": "#/components/schemas/ActionOption"
                         },
                         "type": "array"
                     }
                 },
                 "required": [
                     "options",
-                    "action"
-                ],
-                "type": "object"
-            },
-            "OfferedActionChooseQualified": {
-                "properties": {
-                    "action": {
-                        "$ref": "#/components/schemas/InputActionQualified"
-                    },
-                    "options": {
-                        "items": {
-                            "$ref": "#/components/schemas/QualifiedText"
-                        },
-                        "type": "array"
-                    }
-                },
-                "required": [
-                    "options",
-                    "action"
-                ],
-                "type": "object"
-            },
-            "OfferedActionChooseText": {
-                "properties": {
-                    "action": {
-                        "$ref": "#/components/schemas/InputAction"
-                    },
-                    "options": {
-                        "items": {
-                            "type": "string"
-                        },
-                        "type": "array"
-                    }
-                },
-                "required": [
-                    "options",
-                    "action"
+                    "allowFreeText"
                 ],
                 "type": "object"
             },
@@ -575,25 +368,6 @@
                 ],
                 "type": "object"
             },
-            "QualifiedText": {
-                "properties": {
-                    "context": {
-                        "items": {
-                            "type": "string"
-                        },
-                        "minItems": 1,
-                        "type": "array"
-                    },
-                    "text": {
-                        "type": "string"
-                    }
-                },
-                "required": [
-                    "context",
-                    "text"
-                ],
-                "type": "object"
-            },
             "Selection": {
                 "properties": {
                     "def": {
@@ -629,6 +403,47 @@
             },
             "SessionName": {
                 "type": "string"
+            },
+            "SomeAction": {
+                "oneOf": [
+                    {
+                        "properties": {
+                            "contents": {
+                                "$ref": "#/components/schemas/NoInputAction"
+                            },
+                            "tag": {
+                                "enum": [
+                                    "NoInputAction"
+                                ],
+                                "type": "string"
+                            }
+                        },
+                        "required": [
+                            "tag",
+                            "contents"
+                        ],
+                        "type": "object"
+                    },
+                    {
+                        "properties": {
+                            "contents": {
+                                "$ref": "#/components/schemas/InputAction"
+                            },
+                            "tag": {
+                                "enum": [
+                                    "InputAction"
+                                ],
+                                "type": "string"
+                            }
+                        },
+                        "required": [
+                            "tag",
+                            "contents"
+                        ],
+                        "type": "object"
+                    }
+                ],
+                "type": "object"
             },
             "Tree": {
                 "properties": {
@@ -788,6 +603,104 @@
                             "format": "uuid",
                             "type": "string"
                         }
+                    },
+                    {
+                        "in": "query",
+                        "name": "action",
+                        "required": true,
+                        "schema": {
+                            "enum": [
+                                "AMakeCase",
+                                "AConvertLetToLetrec",
+                                "AConstructApp",
+                                "AConstructAPP",
+                                "AConstructAnn",
+                                "ARemoveAnn",
+                                "AFinishHole",
+                                "AEnterHole",
+                                "AConstructFun",
+                                "AAddInput",
+                                "AConstructTypeApp",
+                                "ADuplicateDef",
+                                "ARaise",
+                                "ARaiseType",
+                                "ADeleteDef",
+                                "ADeleteExpr",
+                                "ADeleteType"
+                            ],
+                            "type": "string"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json;charset=utf-8": {
+                            "schema": {
+                                "$ref": "#/components/schemas/Selection"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json;charset=utf-8": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Prog"
+                                }
+                            }
+                        },
+                        "description": ""
+                    },
+                    "400": {
+                        "description": "Invalid `action` or `body`"
+                    },
+                    "404": {
+                        "description": "`sessionId` not found"
+                    }
+                }
+            }
+        },
+        "/openapi/sessions/{sessionId}/action/apply1": {
+            "post": {
+                "operationId": "applyActionWithInput",
+                "parameters": [
+                    {
+                        "description": "The session ID",
+                        "in": "path",
+                        "name": "sessionId",
+                        "required": true,
+                        "schema": {
+                            "format": "uuid",
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "in": "query",
+                        "name": "action",
+                        "required": true,
+                        "schema": {
+                            "enum": [
+                                "AMakeLambda",
+                                "AUseVar",
+                                "ASaturatedFunction",
+                                "AMakeLet",
+                                "AMakeLetRec",
+                                "AConstructBigLambda",
+                                "AUseTypeVar",
+                                "AConstructForall",
+                                "ARenameDef",
+                                "ARenamePatternVar",
+                                "ARenameLambda",
+                                "ARenameLAM",
+                                "ARenameLetBinding",
+                                "ARenameForall",
+                                "AUseValueCon",
+                                "AUseSaturatedValueCon",
+                                "AUseTypeCon"
+                            ],
+                            "type": "string"
+                        }
                     }
                 ],
                 "requestBody": {
@@ -811,7 +724,7 @@
                         "description": ""
                     },
                     "400": {
-                        "description": "Invalid `body`"
+                        "description": "Invalid `action` or `body`"
                     },
                     "404": {
                         "description": "`sessionId` not found"
@@ -862,7 +775,7 @@
                             "application/json;charset=utf-8": {
                                 "schema": {
                                     "items": {
-                                        "$ref": "#/components/schemas/OfferedAction"
+                                        "$ref": "#/components/schemas/SomeAction"
                                     },
                                     "type": "array"
                                 }
@@ -878,6 +791,90 @@
                     }
                 },
                 "summary": "Get available actions for the definition, or a node within it"
+            }
+        },
+        "/openapi/sessions/{sessionId}/action/options": {
+            "post": {
+                "operationId": "getActionOptions",
+                "parameters": [
+                    {
+                        "description": "The session ID",
+                        "in": "path",
+                        "name": "sessionId",
+                        "required": true,
+                        "schema": {
+                            "format": "uuid",
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "in": "query",
+                        "name": "level",
+                        "required": true,
+                        "schema": {
+                            "enum": [
+                                "Beginner",
+                                "Intermediate",
+                                "Expert"
+                            ],
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "in": "query",
+                        "name": "action",
+                        "required": true,
+                        "schema": {
+                            "enum": [
+                                "AMakeLambda",
+                                "AUseVar",
+                                "ASaturatedFunction",
+                                "AMakeLet",
+                                "AMakeLetRec",
+                                "AConstructBigLambda",
+                                "AUseTypeVar",
+                                "AConstructForall",
+                                "ARenameDef",
+                                "ARenamePatternVar",
+                                "ARenameLambda",
+                                "ARenameLAM",
+                                "ARenameLetBinding",
+                                "ARenameForall",
+                                "AUseValueCon",
+                                "AUseSaturatedValueCon",
+                                "AUseTypeCon"
+                            ],
+                            "type": "string"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json;charset=utf-8": {
+                            "schema": {
+                                "$ref": "#/components/schemas/Selection"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json;charset=utf-8": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/OfferedAction"
+                                }
+                            }
+                        },
+                        "description": ""
+                    },
+                    "400": {
+                        "description": "Invalid `action` or `body` or `level`"
+                    },
+                    "404": {
+                        "description": "`sessionId` not found"
+                    }
+                }
             }
         },
         "/openapi/sessions/{sessionId}/name": {

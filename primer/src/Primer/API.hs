@@ -47,7 +47,8 @@ module Primer.API (
   evalFull,
   flushSessions,
   availableActions,
-  applyAction,
+  applyActionNoInput,
+  applyActionInput,
   ApplyActionBody (..),
   ExprTreeOpts (..),
   defaultExprTreeOpts,
@@ -59,6 +60,7 @@ module Primer.API (
   convertSelection,
   NodeSelection (..),
   convertNodeSelection,
+  inputAction',
 ) where
 
 import Foreword
@@ -90,16 +92,18 @@ import ListT qualified (toList)
 import Optics (ifoldr, over, traverseOf, view, (^.))
 import Primer.API.NodeFlavor (NodeFlavor (..))
 import Primer.Action.Available (
-  ActionRequest,
+  ActionOption,
+  InputAction (..),
   Level (..),
-  OfferedAction (NoInputRequired),
+  NoInputAction (..),
+  OfferedAction,
   SomeAction (..),
   actionsForDef,
   actionsForDefBody,
   actionsForDefSig,
   inputAction,
-  inputActionQualified,
-  mkAction,
+  mkActionInput,
+  mkActionNoInput,
  )
 import Primer.App (
   App,
@@ -360,7 +364,7 @@ data APILog
   | EvalStep (ReqResp (SessionId, EvalReq) (Either ProgError EvalResp))
   | EvalFull (ReqResp (SessionId, EvalFullReq) (Either ProgError EvalFullResp))
   | FlushSessions (ReqResp () ())
-  | AvailableActions (ReqResp (SessionId, Level, Selection) [OfferedAction])
+  | AvailableActions (ReqResp (SessionId, Level, Selection) [SomeAction])
   deriving (Show)
 
 type MonadAPILog l m = (MonadLog (WithSeverity l) m, ConvertLogMessage APILog l)
@@ -934,12 +938,12 @@ availableActions ::
   SessionId ->
   Level ->
   Selection ->
-  PrimerM m [OfferedAction]
+  PrimerM m [SomeAction]
 availableActions = curry3 $ logAPI (noError AvailableActions) $ \(sid, level, Selection{..}) -> do
   prog <- getProgram sid
   let allDefs = progAllDefs prog
       allTypeDefs = progAllTypeDefs prog
-  actions <- case node of
+  case node of
     Nothing ->
       pure $ actionsForDef level allDefs def
     Just NodeSelection{..} -> do
@@ -952,33 +956,38 @@ availableActions = curry3 $ logAPI (noError AvailableActions) $ \(sid, level, Se
               actionsForDefSig level def editable id type_
             BodyNode -> do
               actionsForDefBody (snd <$> allTypeDefs) level def editable id expr
-  -- TODO I'm using "Question"s here so as not to rock the boat too much in this PR
-  -- but unless I'm missing something there's really nothing special about questions - they should just be separate endpoints
-  -- let q = GenerateName def (maybe undefined (.id) node) _
+
+liftQuery app = either (throwM . MiscPrimerErr . show) pure . ($ app) . runQueryAppM -- TODO this is a bit ugly - DRY with e.g. `liftQueryAppM`?
+
+-- TODO `logAPI`
+inputAction' ::
+  (MonadIO m, MonadThrow m, MonadAPILog l m) =>
+  SessionId ->
+  Level ->
+  Selection ->
+  InputAction ->
+  PrimerM m OfferedAction
+inputAction' sid level Selection{..} action = do
   app <- getApp sid
-  let liftQuery = either (throwM . MiscPrimerErr . show) pure . ($ app) . runQueryAppM -- TODO this is a bit ugly - DRY with e.g. `liftQueryAppM`?
-  for actions $ \case
-    NoInputAction a -> pure $ NoInputRequired a
-    -- InputAction a -> flip liftQueryAppM _ $ inputAction def _ a
-    -- InputAction a -> _ $ inputAction def _ a
-    InputAction a -> liftQuery $ inputAction level def (node <&> \s -> s.id) a
-    InputActionQualified a -> pure $ inputActionQualified (snd <$> allTypeDefs) level a
+  allTypeDefs <- progAllTypeDefs <$> getProgram sid
+  liftQuery app $ inputAction (snd <$> allTypeDefs) level def (node <&> \s -> s.id) action
 
 -- TODO tuple would be nice, but I don't think OpenAPI supports it - find where B previously worked around
 data ApplyActionBody = ApplyActionBody
   { selection :: Selection
-  , action :: ActionRequest
+  , option :: ActionOption
   }
   deriving (Generic, Show)
   deriving (FromJSON, ToJSON) via PrimerJSON ApplyActionBody
 
 -- TODO `logAPI`
-applyAction ::
+applyActionNoInput ::
   (MonadIO m, MonadThrow m, MonadAPILog l m) =>
   SessionId ->
-  ApplyActionBody ->
+  Selection ->
+  NoInputAction ->
   PrimerM m Prog
-applyAction sid ApplyActionBody{selection, action} = do
+applyActionNoInput sid selection action = do
   -- TODO DRY with above
   prog <- getProgram sid
   let allDefs = progAllDefs prog
@@ -990,11 +999,41 @@ applyAction sid ApplyActionBody{selection, action} = do
       let patternsUnder = True -- TODO don't hardcode (then again, I expect the option itself to be short-lived)
       actions <-
         either (throwM . MiscPrimerErr) pure $
-          mkAction
+          mkActionNoInput
             (snd <$> progAllDefs prog)
             def
             selection.def
             (selection.node <&> \s -> (s.nodeType, s.id))
+            action
+      edit sid (App.Edit actions)
+        >>= either
+          (throwM . ApplyActionError actions)
+          (pure . viewProg (ExprTreeOpts{patternsUnder}))
+
+-- TODO DRY with above
+applyActionInput ::
+  (MonadIO m, MonadThrow m, MonadAPILog l m) =>
+  SessionId ->
+  ApplyActionBody ->
+  InputAction ->
+  PrimerM m Prog
+applyActionInput sid ApplyActionBody{selection, option} action = do
+  -- TODO DRY with above
+  prog <- getProgram sid
+  let allDefs = progAllDefs prog
+      _allTypeDefs = progAllTypeDefs prog
+  case allDefs Map.!? selection.def of
+    Nothing -> throwM $ UnknownDef selection.def
+    Just (_, Def.DefPrim _) -> throwM $ UnexpectedPrimDef selection.def
+    Just (_, Def.DefAST def) -> do
+      let patternsUnder = True -- TODO don't hardcode (then again, I expect the option itself to be short-lived)
+      actions <-
+        either (throwM . MiscPrimerErr) pure $
+          mkActionInput
+            def
+            selection.def
+            (selection.node <&> \s -> (s.nodeType, s.id))
+            option
             action
       edit sid (App.Edit actions)
         >>= either

@@ -47,11 +47,13 @@ import Primer.API (
   ExprTreeOpts (..),
   PrimerErr (..),
   PrimerM,
-  applyAction,
+  applyActionInput,
+  applyActionNoInput,
   availableActions,
   edit,
   getApp,
   getProgram,
+  inputAction',
   listSessions,
   newSession,
   renameSession,
@@ -59,7 +61,7 @@ import Primer.API (
   viewProg,
  )
 import Primer.API qualified as API
-import Primer.Action.Available (ActionRequest (ActionRequestSimple), OfferedAction (..), SomeAction (..), actionsForDef, actionsForDefBody, actionsForDefSig, inputAction, inputActionQualified, mkAction)
+import Primer.Action.Available (OfferedAction (..), SomeAction (..), actionsForDef, actionsForDefBody, actionsForDefSig, inputAction)
 import Primer.App (MutationRequest (Edit), NodeType (..), Question (GenerateName), progAllDefs, progAllTypeDefs, runQueryAppM)
 import Primer.Core (globalNamePretty)
 import Primer.Database (
@@ -130,7 +132,9 @@ openAPIActionServer :: ConvertServerLogs l => SessionId -> OpenAPI.ActionAPI (As
 openAPIActionServer sid =
   OpenAPI.ActionAPI
     { available = availableActions sid
-    , apply = applyAction sid
+    , options = inputAction' sid
+    , apply = applyActionNoInput sid
+    , applyWithInput = applyActionInput sid
     }
 
 apiServer :: ConvertServerLogs l => S.RootAPI (AsServerT (Primer l))

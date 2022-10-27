@@ -24,6 +24,7 @@ import Hedgehog (
 import Hedgehog.Gen qualified as G
 import Hedgehog.Range qualified as R
 import Primer.API (
+  ApplyActionBody,
   Def (Def),
   Module (Module),
   NodeBody (BoxBody, NoBody, TextBody),
@@ -35,7 +36,7 @@ import Primer.API (
   viewTreeExpr,
   viewTreeType,
  )
-import Primer.Action.Available (Level, OfferedAction (..))
+import Primer.Action.Available (Level, OfferedAction (..), SomeAction)
 import Primer.App (NodeType (..))
 import Primer.Core (GVarName, ID (ID))
 import Primer.Database (
@@ -60,7 +61,7 @@ import Primer.Gen.Core.Raw (
 import Primer.Name (Name)
 import Primer.OpenAPI ()
 import Primer.Pagination (NonNeg, Paginated (Paginated), PaginatedMeta (..), Positive, mkNonNeg, mkPositive)
-import Primer.Servant.OpenAPI (API, ApplyActionBody)
+import Primer.Servant.OpenAPI (API)
 import Primer.Server (openAPIInfo)
 import Servant.OpenApi.Test (validateEveryToJSON)
 import Tasty (Property, property)
@@ -272,3 +273,5 @@ instance Arbitrary NodeType where
   arbitrary = arbitraryBoundedEnum
 instance Arbitrary GVarName where
   arbitrary = hedgehog genGVarName
+instance Arbitrary SomeAction where
+  arbitrary = undefined
