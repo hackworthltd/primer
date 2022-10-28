@@ -12,7 +12,7 @@ module Primer.Servant.OpenAPI (
 
 import Foreword
 
-import Data.OpenApi (OpenApi, ToSchema)
+import Data.OpenApi (OpenApi)
 import Primer.API (ApplyActionBody, Selection)
 import Primer.API qualified as API
 import Primer.Action (Level)
@@ -25,7 +25,6 @@ import Primer.Action.Available (
 import Primer.Database (
   SessionId,
  )
-import Primer.JSON (CustomJSON (CustomJSON), FromJSON, PrimerJSON, ToJSON)
 import Primer.OpenAPI ()
 import Primer.Servant.Types (
   CopySession,

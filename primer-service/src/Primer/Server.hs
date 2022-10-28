@@ -1,8 +1,6 @@
 {-# LANGUAGE DisambiguateRecordFields #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE OverloadedLabels #-}
-{-# LANGUAGE OverloadedRecordDot #-}
-{-# LANGUAGE RecordWildCards #-}
 
 -- | An HTTP service for the Primer API.
 module Primer.Server (
@@ -51,18 +49,13 @@ import Primer.API (
   applyActionNoInput,
   availableActions,
   edit,
-  getApp,
-  getProgram,
   inputAction',
   listSessions,
   newSession,
   renameSession,
   runPrimerM,
-  viewProg,
  )
 import Primer.API qualified as API
-import Primer.Action.Available (OfferedAction (..), SomeAction (..), actionsForDef, actionsForDefBody, actionsForDefSig, inputAction)
-import Primer.App (MutationRequest (Edit), NodeType (..), Question (GenerateName), progAllDefs, progAllTypeDefs, runQueryAppM)
 import Primer.Core (globalNamePretty)
 import Primer.Database (
   SessionId,
@@ -267,7 +260,7 @@ serve ss q v port logger = do
         DatabaseErr msg -> err500{errBody = encode msg}
         UnknownDef d -> err404{errBody = "Unknown definition: " <> encode (globalNamePretty d)}
         UnexpectedPrimDef d -> err400{errBody = "Unexpected primitive definition: " <> encode (globalNamePretty d)}
-        ApplyActionError as e -> err400{errBody = "Error while applying action"}
+        ApplyActionError as pe -> err400{errBody = "Error while applying actions (" <> show as <> "): " <> show pe}
         MiscPrimerErr t -> err400{errBody = "Misc error: " <> encode t}
       where
         encode = LT.encodeUtf8 . LT.fromStrict

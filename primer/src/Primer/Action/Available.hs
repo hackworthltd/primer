@@ -3,7 +3,6 @@
 {-# HLINT ignore "Use section" #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE TypeFamilies #-}
-{-# LANGUAGE ViewPatterns #-}
 {-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
 {-# OPTIONS_GHC -Wno-unused-imports #-}
 
@@ -12,7 +11,6 @@ module Primer.Action.Available (
   actionsForDef,
   actionsForDefBody,
   actionsForDefSig,
-  FunctionFiltering (..),
   SomeAction (..),
   InputAction (..),
   NoInputAction (..),
@@ -193,12 +191,7 @@ data InputAction -- TODO rename for consistency
   deriving (Show, Read, Generic)
   deriving (ToJSON, FromJSON) via PrimerJSON InputAction
 
--- | Filter on variables and constructors according to whether they
--- have a function type.
-data FunctionFiltering
-  = Everything
-  | OnlyFunctions
-  | NoFunctions
+-- TODO simplify?
 
 -- | An AST node tagged with its "sort" - i.e. if it's a type or expression or binding etc.
 -- This is probably useful elsewhere, but we currently just need it here
@@ -218,6 +211,7 @@ actionsForDef ::
 actionsForDef l defs defName = prioritySort l $ catMaybes [rename, duplicate, delete]
   where
     rename = do
+      -- TODO can this be simplified?
       _ <- getEditableASTDef defs defName
       pure $ InputAction ARenameDef
 
@@ -235,13 +229,12 @@ actionsForDef l defs defName = prioritySort l $ catMaybes [rename, duplicate, de
 actionsForDefBody ::
   TypeDefMap ->
   Level ->
-  GVarName ->
   Editable ->
   ID ->
   Expr ->
   [SomeAction]
-actionsForDefBody _ _ _ NonEditable _ _ = mempty
-actionsForDefBody tydefs l defName mut@Editable id expr =
+actionsForDefBody _ _ NonEditable _ _ = mempty
+actionsForDefBody tydefs l Editable id expr =
   let raiseAction' = NoInputAction ARaise
    in prioritySort l $ case findNodeWithParent id expr of
         Nothing -> mempty
@@ -250,26 +243,25 @@ actionsForDefBody tydefs l defName mut@Editable id expr =
                 Nothing -> [] -- at root already, cannot raise
                 Just (ExprNode (Hole _ _)) -> [] -- in a NE hole, don't offer raise (as hole will probably just be recreated)
                 _ -> [raiseAction']
-           in basicActionsForExpr tydefs l defName e <> raiseAction
+           in basicActionsForExpr tydefs l e <> raiseAction
         Just (TypeNode t, p) ->
           let raiseAction = case p of
                 Just (ExprNode _) -> [] -- at the root of an annotation, so cannot raise
                 _ -> [raiseAction']
-           in (basicActionsForType l defName t <> compoundActionsForType l t)
+           in (basicActionsForType l t <> compoundActionsForType t)
                 <> raiseAction
-        Just (CaseBindNode b, _) -> actionsForBinding l defName mut b
+        Just (CaseBindNode _, _) -> [InputAction ARenamePatternVar]
 
 -- | Given a the type signature of a Def and the ID of a node in it,
 -- return the possible actions that can be applied to it
 actionsForDefSig ::
   Level ->
-  GVarName ->
   Editable ->
   ID ->
   Type ->
   [SomeAction]
-actionsForDefSig _ _ NonEditable _ _ = mempty
-actionsForDefSig l defName Editable id ty =
+actionsForDefSig _ NonEditable _ _ = mempty
+actionsForDefSig l Editable id ty =
   let raiseAction =
         [ NoInputAction ARaiseType
         | id /= getID ty
@@ -277,21 +269,9 @@ actionsForDefSig l defName Editable id ty =
    in prioritySort l $ case findType id ty of
         Nothing -> mempty
         Just t ->
-          basicActionsForType l defName t
-            <> compoundActionsForType l t
+          basicActionsForType l t
+            <> compoundActionsForType t
             <> raiseAction
-
--- | Bindings support just one action: renaming.
-actionsForBinding ::
-  Level ->
-  GVarName ->
-  Editable ->
-  Bind' (Meta (Maybe TypeCache)) ->
-  [SomeAction]
-actionsForBinding _ _ NonEditable _ = mempty
-actionsForBinding l defName Editable b =
-  [ InputAction ARenamePatternVar
-  ]
 
 -- | Find a node in the AST by its ID, and also return its parent
 findNodeWithParent ::
@@ -319,145 +299,93 @@ findType id ty = target <$> focusOnTy id ty
 
 -- | Given an expression, determine what basic actions it supports
 -- Specific projections may provide other actions not listed here
-basicActionsForExpr :: TypeDefMap -> Level -> GVarName -> Expr -> [SomeAction]
-basicActionsForExpr tydefs l defName expr = case expr of
+basicActionsForExpr :: TypeDefMap -> Level -> Expr -> [SomeAction]
+basicActionsForExpr tydefs l expr = case expr of
   EmptyHole{} -> universalActions <> emptyHoleActions
   Hole{} -> defaultActions <> holeActions
   Ann{} -> defaultActions <> annotationActions
   Lam{} -> defaultActions <> lambdaActions
   LAM{} -> defaultActions <> bigLambdaActions
   Let _ v e _ -> defaultActions <> letActions v e
-  Letrec _ _ _ t _ -> defaultActions <> letRecActions (Just t)
-  e -> let _ = e ^. _exprMetaLens in defaultActions ++ expert annotateExpression
+  Letrec{} -> defaultActions <> letRecActions
+  e -> let _ = e ^. _exprMetaLens in defaultActions <> annotate
   where
     m = expr ^. _exprMetaLens
-
-    insertVariable = InputAction AUseVar
-
-    -- NB: Exactly one of the saturated and refined actions will be available
-    -- (depending on whether we have useful type information to hand).
-    -- We put the same labels on each.
-    insertVariableSaturatedRefined = InputAction ASaturatedFunction
-    annotateExpression = NoInputAction AConstructAnn
-    applyFunction = NoInputAction AConstructApp
-    applyType = NoInputAction AConstructAPP
-    patternMatch = NoInputAction AMakeCase
-    makeLambda = InputAction AMakeLambda
-    makeTypeAbstraction = InputAction AConstructBigLambda
-    useValueConstructor = InputAction AUseValueCon
-    useSaturatedRefinedValueConstructor = InputAction AUseSaturatedValueCon
-    makeLetBinding = InputAction AMakeLet
-    makeLetrec = InputAction AMakeLetRec
-    enterHole = NoInputAction AEnterHole
-    finishHole = NoInputAction AFinishHole
-    removeAnnotation = NoInputAction ARemoveAnn
-    renameVariable = InputAction ARenameLambda
-    renameTypeVariable = InputAction ARenameLAM
-    makeLetRecursive = NoInputAction AConvertLetToLetrec
-    renameLet t = InputAction ARenameLetBinding
-    deleteExpr = NoInputAction ADeleteExpr
-    expert = if l == Expert then (: []) else const []
+    annotate = mwhen (l == Expert) [NoInputAction AConstructAnn]
     emptyHoleActions = case l of
       Beginner ->
-        [ insertVariable
-        , useValueConstructor
+        [ InputAction AUseVar
+        , InputAction AUseValueCon
         ]
       _ ->
-        [ insertVariable
-        , insertVariableSaturatedRefined
-        , useValueConstructor
-        , useSaturatedRefinedValueConstructor
-        , makeLetBinding
-        , makeLetrec
-        , enterHole
+        [ InputAction AUseVar
+        , InputAction ASaturatedFunction
+        , InputAction AUseValueCon
+        , InputAction AUseSaturatedValueCon
+        , InputAction AMakeLet
+        , InputAction AMakeLetRec
+        , NoInputAction AEnterHole
         ]
-          ++ expert annotateExpression
-    holeActions = finishHole : expert annotateExpression
-    annotationActions = expert removeAnnotation
-    lambdaActions = renameVariable : expert annotateExpression
-    bigLambdaActions = concatMap expert [annotateExpression, renameTypeVariable]
+          <> annotate
+    holeActions = NoInputAction AFinishHole : annotate
+    annotationActions = mwhen (l == Expert) [NoInputAction ARemoveAnn]
+    lambdaActions = InputAction ARenameLambda : annotate
+    bigLambdaActions = annotate <> mwhen (l == Expert) [InputAction ARenameLAM]
     letActions v e =
-      renameLet (e ^? _exprMetaLens % _type % _Just % _synthed)
-        : munless (unLocalName v `Set.member` freeVars e) [makeLetRecursive]
-          <> expert annotateExpression
-    letRecActions t = renameLet t : expert annotateExpression
-
-    -- Actions for every expression node
-    -- We assume that the input program is type-checked, in order to
-    -- filter some actions by Syn/Chk
+      [InputAction ARenameLetBinding]
+        <> munless (unLocalName v `Set.member` freeVars e) [NoInputAction AConvertLetToLetrec]
+        <> annotate
+    letRecActions = InputAction ARenameLetBinding : annotate
     universalActions =
       let both = case l of
             Beginner ->
-              [ makeLambda
+              [ InputAction AMakeLambda
               ]
             Intermediate ->
-              [ makeLambda
-              , applyFunction
+              [ InputAction AMakeLambda
+              , NoInputAction AConstructApp
               ]
             Expert ->
-              [ applyFunction
-              , applyType
-              , makeLambda
-              , makeTypeAbstraction
+              [ NoInputAction AConstructApp
+              , NoInputAction AConstructAPP
+              , InputAction AMakeLambda
+              , InputAction AConstructBigLambda
               ]
+          -- We assume that the input program is type-checked, in order to
+          -- filter some actions by Syn/Chk
           synthTy = m ^? _type % _Just % _synthed
           synOnly ty = case getTypeDefInfo' tydefs ty of
-            Left TDIHoleType{} -> Just patternMatch
-            Right (TypeDefInfo _ _ TypeDefAST{}) -> Just patternMatch
+            Left TDIHoleType{} -> Just $ NoInputAction AMakeCase
+            Right (TypeDefInfo _ _ TypeDefAST{}) -> Just $ NoInputAction AMakeCase
             _ -> Nothing
        in (synOnly =<< synthTy) ?: both
-
-    -- Actions for every expression node except holes and annotations
-    defaultActions = universalActions <> [deleteExpr]
-
-(?:) :: Maybe a -> [a] -> [a]
-Just x ?: xs = x : xs
-Nothing ?: xs = xs
-infixr 5 ?:
+    defaultActions = universalActions <> [NoInputAction ADeleteExpr]
 
 -- | Given a type, determine what basic actions it supports
 -- Specific projections may provide other actions not listed here
-basicActionsForType :: Level -> GVarName -> Type -> [SomeAction]
-basicActionsForType l defName ty = case ty of
-  TEmptyHole _ -> universalActions <> emptyHoleActions
-  TForall _ _ k _ -> defaultActions <> forAllActions k
+basicActionsForType :: Level -> Type -> [SomeAction]
+basicActionsForType l = \case
+  TEmptyHole{} -> universalActions <> [InputAction AUseTypeCon] <> mwhen (l == Expert) [InputAction AUseTypeVar]
+  TForall{} -> defaultActions <> mwhen (l == Expert) [InputAction ARenameForall]
   _ -> defaultActions
   where
-    m = ty ^. _typeMetaLens
-    -- We arbitrarily choose that the "construct a function type" action places the focused expression
-    -- on the domain (left) side of the arrow.
-    constructFunctionType = NoInputAction AConstructFun
-    constructPolymorphicType = InputAction AConstructForall
-    constructTypeApplication = NoInputAction AConstructAPP
-    useTypeConstructor = InputAction AUseTypeCon
-    useTypeVariable = InputAction AUseTypeVar
-    renameTypeVariable k m' = InputAction ARenameForall
-    deleteType = NoInputAction ADeleteType
-    emptyHoleActions = [useTypeConstructor] <> expert useTypeVariable
-    forAllActions k = expert $ renameTypeVariable k m
     universalActions =
-      -- Actions for every type node
-      [constructFunctionType]
-        <> concatMap
-          expert
-          [ constructPolymorphicType
-          , constructTypeApplication
+      [NoInputAction AConstructFun]
+        <> mwhen
+          (l == Expert)
+          [ InputAction AConstructForall
+          , NoInputAction AConstructAPP
           ]
-    defaultActions = universalActions <> [deleteType] -- Actions for every type node except empty holes
-    expert = if l == Expert then (: []) else const []
+    defaultActions = universalActions <> [NoInputAction ADeleteType]
+
+-- TODO inline
 
 -- | These actions are more involved than the basic actions.
 -- They may involve moving around the AST and performing several basic actions.
-compoundActionsForType :: Level -> Type' (Meta a) -> [SomeAction]
-compoundActionsForType l ty = case ty of
-  TFun _m a b -> [addFunctionArgument a b]
+compoundActionsForType :: Type' (Meta a) -> [SomeAction]
+compoundActionsForType ty = case ty of
+  TFun _m _ _ -> [NoInputAction AAddInput]
   _ -> []
-  where
-    -- This action traverses the function type and adds a function arrow to the end of it,
-    -- resulting in a new argument type. The result type is unchanged.
-    -- The cursor location is also unchanged.
-    -- e.g. A -> B -> C ==> A -> B -> ? -> C
-    addFunctionArgument a b = NoInputAction AAddInput
 
 -- TODO just combine these and take a `SomeAction`?
 priorityNoInputAction :: NoInputAction -> Level -> Int
@@ -570,9 +498,8 @@ inputAction typeDefs level defName mid = \case
   AUseValueCon ->
     let options = map (fromGlobal . valConName) . (if level == Beginner then noFunctionsCon else identity) . concatMap astTypeDefConstructors . mapMaybe (typeDefAST . snd) $ Map.toList typeDefs
      in pure OfferedAction{options, allowFreeText = False}
-  -- TODO note 1
   AUseSaturatedValueCon ->
-    let options = map (fromGlobal . valConName) . (onlyFunctionsCon) . concatMap astTypeDefConstructors . mapMaybe (typeDefAST . snd) $ Map.toList typeDefs
+    let options = map (fromGlobal . valConName) . onlyFunctionsCon . concatMap astTypeDefConstructors . mapMaybe (typeDefAST . snd) $ Map.toList typeDefs
      in pure OfferedAction{options, allowFreeText = False}
   AUseTypeCon ->
     let options = fromGlobal . fst <$> Map.toList typeDefs
@@ -619,8 +546,15 @@ mkActionNoInput defs def defName mNodeSel = \case
   AEnterHole ->
     toProgAction [EnterHole]
   AConstructFun ->
+    -- We arbitrarily choose that the "construct a function type" action places the focused expression
+    -- on the domain (left) side of the arrow.
     toProgAction [ConstructArrowL, Move Child1]
   AAddInput -> do
+    -- This action traverses the function type and adds a function arrow to the end of it,
+    -- resulting in a new argument type. The result type is unchanged.
+    -- The cursor location is also unchanged.
+    -- e.g. A -> B -> C ==> A -> B -> ? -> C
+
     -- case et of
     --   Right t ->
     --     let unfoldFun' :: Type' a -> (Type' a, [Type' a])
@@ -767,16 +701,14 @@ mkActionInput def defName mNodeSel tInput0 = \case
       Nothing -> Left "no qual"
       Just q -> pure (q, tInput0.option)
 
+getEditableDef :: Ord k => Map k (Editable, b) -> k -> Maybe b
 getEditableDef defs defName = do
   (m, d) <- Map.lookup defName defs
   case m of
     NonEditable -> Nothing
     Editable -> pure d
+getEditableASTDef :: Ord k => Map k (Editable, Def) -> k -> Maybe ASTDef
 getEditableASTDef defs defName = defAST =<< getEditableDef defs defName
-
-withExpr et as = case et of
-  Left e -> pure $ as e
-  Right _ -> Left "expected expression" -- TODO we should really be able to rule this out statically
 
 prioritySort ::
   Level ->
@@ -786,23 +718,16 @@ prioritySort l = sortOn $ \case
   NoInputAction x -> priorityNoInputAction x l
   InputAction x -> priorityInputAction x l
 
--- Extract the source of the function type we were checked at
--- i.e. the type that a lambda-bound variable would have here
-lamVarTy = \case
-  TFun _ s _ -> pure s
-  _ -> Nothing
-
--- Extract the kind a forall-bound variable would have here
-lAMVarKind = \case
-  TForall _ _ k _ -> Just k
-  _ -> Nothing
-
 -- TODO is each of these only used once?
+noFunctions :: [(a1, Type' a2)] -> [(a1, Type' a2)]
 noFunctions = filter $ \case
   (_, TFun{}) -> False
   _ -> True
+onlyFunctions :: [(a1, Type' a2)] -> [(a1, Type' a2)]
 onlyFunctions = filter $ \case
   (_, TFun{}) -> True
   _ -> False
+noFunctionsCon :: [ValCon] -> [ValCon]
 noFunctionsCon = filter $ null . valConArgs
+onlyFunctionsCon :: [ValCon] -> [ValCon]
 onlyFunctionsCon = filter $ not . null . valConArgs

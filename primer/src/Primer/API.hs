@@ -953,10 +953,11 @@ availableActions = curry3 $ logAPI (noError AvailableActions) $ \(sid, level, Se
         Just (editable, Def.DefAST ASTDef{astDefType = type_, astDefExpr = expr}) ->
           pure $ case nodeType of
             SigNode -> do
-              actionsForDefSig level def editable id type_
+              actionsForDefSig level editable id type_
             BodyNode -> do
-              actionsForDefBody (snd <$> allTypeDefs) level def editable id expr
+              actionsForDefBody (snd <$> allTypeDefs) level editable id expr
 
+liftQuery :: MonadThrow m => App -> QueryAppM a -> m a
 liftQuery app = either (throwM . MiscPrimerErr . show) pure . ($ app) . runQueryAppM -- TODO this is a bit ugly - DRY with e.g. `liftQueryAppM`?
 
 -- TODO `logAPI`
