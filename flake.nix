@@ -221,9 +221,12 @@
                   delete-local-db
                   dump-local-db
                   restore-local-db
+
+                  haskellPackages.implicit-hie
                 ]);
 
                 shellHook = ''
+                  gen-hie > hie.yaml
                   export HIE_HOOGLE_DATABASE="$(cat $(${final.which}/bin/which hoogle) | sed -n -e 's|.*--database \(.*\.hoo\).*|\1|p')"
                 '';
               };
