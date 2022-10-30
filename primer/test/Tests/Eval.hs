@@ -29,6 +29,7 @@ import Primer.Core (
   ID,
   Kind (KType),
   Type,
+  Type' (TCon, TEmptyHole),
   getID,
   unLocalName,
   unsafeMkGlobalName,
@@ -85,8 +86,8 @@ import Tests.Action.Prog (runAppTestM)
 -- * 'tryReduce' tests
 
 -- | A helper for these tests
-runTryReduce :: DefMap -> Locals -> (Expr, ID) -> Either EvalError (Expr, EvalDetail)
-runTryReduce globals locals (expr, i) = evalTestM i $ runExceptT $ tryReduceExpr globals locals expr
+runTryReduce :: TypeDefMap -> DefMap -> Locals -> (Expr, ID) -> Either EvalError (Expr, EvalDetail)
+runTryReduce tys globals locals (expr, i) = evalTestM i $ runExceptT $ tryReduceExpr tys globals locals Syn expr
 
 -- For use in assertions
 runTryReduceType :: DefMap -> Cxt -> (Type, ID) -> IO (Either EvalError (Type, EvalDetail))
@@ -97,7 +98,7 @@ runTryReduceType globals locals (ty, i) = do
 
 unit_tryReduce_no_redex :: Assertion
 unit_tryReduce_no_redex = do
-  runTryReduce mempty mempty (create (con cZero)) @?= Left NotRedex
+  runTryReduce mempty mempty mempty (create (con cZero)) @?= Left NotRedex
 
 unit_tryReduce_beta :: Assertion
 unit_tryReduce_beta = do
@@ -109,7 +110,7 @@ unit_tryReduce_beta = do
           i <- app (pure l) (pure a)
           r <- let_ "x" (pure a) (pure x)
           pure (l, x, a, i, r)
-      result = runTryReduce mempty mempty (input, maxid)
+      result = runTryReduce mempty mempty mempty (input, maxid)
   case result of
     Right (expr, BetaReduction detail) -> do
       expr ~= expectedResult
@@ -135,7 +136,7 @@ unit_tryReduce_beta_annotation = do
           i <- app (ann (pure l) (tfun (pure t1) (pure t2))) (pure a)
           r <- ann (let_ "x" (ann (pure a) (pure t1)) (pure x)) (pure t2)
           pure (l, x, a, i, r, t1, t2)
-      result = runTryReduce mempty mempty (input, maxid)
+      result = runTryReduce tydefs mempty mempty (input, maxid)
   case result of
     Right (expr, BetaReduction detail@BetaReductionDetail{types = Just (l, r)}) -> do
       expr ~= expectedResult
@@ -161,7 +162,7 @@ unit_tryReduce_beta_annotation_hole = do
           i <- app (ann (pure l) tEmptyHole) (pure a)
           r <- hole (let_ "x" (hole (pure a)) (pure x))
           pure (l, x, a, i, r, t1, t2)
-      result = runTryReduce mempty mempty (input, maxid)
+      result = runTryReduce tydefs mempty mempty (input, maxid)
   case result of
     Right (expr, BetaReduction detail@BetaReductionDetail{types = Just (l, r)}) -> do
       expr ~= expectedResult
@@ -185,7 +186,7 @@ unit_tryReduce_BETA = do
           i <- aPP (pure l) (pure a)
           r <- letType "x" (pure a) (pure b)
           pure (b, l, a, i, r)
-      result = runTryReduce mempty mempty (input, maxid)
+      result = runTryReduce tydefs mempty mempty (input, maxid)
   case result of
     Right (expr, BETAReduction detail) -> do
       expr ~= expectedResult
@@ -204,7 +205,7 @@ unit_tryReduce_local_term_var = do
   -- We assume we're inside a larger expression (e.g. a let) where the node that binds x has ID 5.
   let ((expr, val), i) = create $ (,) <$> lvar "x" <*> con' ["M"] "C"
       locals = singletonLocal "x" (5, LLet val)
-      result = runTryReduce mempty locals (expr, i)
+      result = runTryReduce tydefs mempty locals (expr, i)
   case result of
     Right (expr', LocalVarInline detail) -> do
       expr' ~= val
@@ -244,7 +245,7 @@ unit_tryReduce_global_var = do
         t <- tfun (tcon' ["M"] "A") (tcon' ["M"] "B")
         pure (g, ASTDef{astDefExpr = e, astDefType = t})
       globals = Map.singleton f (DefAST def)
-      result = runTryReduce globals mempty (expr, i)
+      result = runTryReduce tydefs globals mempty (expr, i)
       expectedResult = create' $ ann (lam "x" (lvar "x")) (tfun (tcon' ["M"] "A") (tcon' ["M"] "B"))
   case result of
     Right (expr', GlobalVarInline detail) -> do
@@ -258,7 +259,7 @@ unit_tryReduce_global_var = do
 unit_tryReduce_let :: Assertion
 unit_tryReduce_let = do
   let (expr, i) = create $ let_ "x" (con' ["M"] "C") (con' ["M"] "D")
-      result = runTryReduce mempty mempty (expr, i)
+      result = runTryReduce tydefs mempty mempty (expr, i)
       expectedResult = create' $ con' ["M"] "D"
   case result of
     Right (expr', LetRemoval detail) -> do
@@ -275,7 +276,7 @@ unit_tryReduce_let = do
 unit_tryReduce_let_self_capture :: Assertion
 unit_tryReduce_let_self_capture = do
   let (expr, i) = create $ let_ "x" (lvar "x") (lvar "x")
-      result = runTryReduce mempty mempty (expr, i)
+      result = runTryReduce tydefs mempty mempty (expr, i)
       expectedResult = create' $ let_ "x0" (lvar "x") (lvar "x0")
   case result of
     Right (expr', BindRename detail) -> do
@@ -295,7 +296,7 @@ unit_tryReduce_let_self_capture = do
 unit_tryReduce_lettype :: Assertion
 unit_tryReduce_lettype = do
   let (expr, i) = create $ letType "x" (tcon' ["M"] "C") (con' ["M"] "D")
-      result = runTryReduce mempty mempty (expr, i)
+      result = runTryReduce tydefs mempty mempty (expr, i)
       expectedResult = create' $ con' ["M"] "D"
   case result of
     Right (expr', LetRemoval detail) -> do
@@ -312,7 +313,7 @@ unit_tryReduce_lettype = do
 unit_tryReduce_lettype_self_capture :: Assertion
 unit_tryReduce_lettype_self_capture = do
   let (expr, i) = create $ letType "x" (tvar "x") (emptyHole `ann` tvar "x")
-      result = runTryReduce mempty mempty (expr, i)
+      result = runTryReduce tydefs mempty mempty (expr, i)
       expectedResult = create' $ letType "x0" (tvar "x") (emptyHole `ann` tvar "x0")
   case result of
     Right (expr', BindRename detail) -> do
@@ -371,7 +372,7 @@ unit_tryReduce_tlet_self_capture = do
 unit_tryReduce_letrec :: Assertion
 unit_tryReduce_letrec = do
   let (expr, i) = create $ letrec "x" (con' ["M"] "C") (tcon' ["M"] "T") (con' ["M"] "D")
-      result = runTryReduce mempty mempty (expr, i)
+      result = runTryReduce tydefs mempty mempty (expr, i)
       expectedResult = create' $ con' ["M"] "D"
   case result of
     Right (expr', LetRemoval detail) -> do
@@ -387,7 +388,7 @@ unit_tryReduce_letrec = do
 unit_tryReduce_case_1 :: Assertion
 unit_tryReduce_case_1 = do
   let (expr, i) = create $ case_ (con' ["M"] "C") [branch' (["M"], "B") [("b", Nothing)] (con' ["M"] "D"), branch' (["M"], "C") [] (con' ["M"] "E")]
-      result = runTryReduce mempty mempty (expr, i)
+      result = runTryReduce tydefs mempty mempty (expr, i)
       expectedResult = create' $ con' ["M"] "E"
   case result of
     Right (expr', CaseReduction detail) -> do
@@ -413,7 +414,21 @@ unit_tryReduce_case_2 = do
             [ branch' (["M"], "B") [("b", Nothing)] (con' ["M"] "D")
             , branch' (["M"], "C") [("c", Nothing), ("d", Nothing), ("e", Nothing)] (con' ["M"] "E")
             ]
-      result = runTryReduce mempty mempty (expr, i)
+      result = runTryReduce tydef mempty mempty (expr, i)
+      x = unsafeMkGlobalName (["M"], "X")
+      y = unsafeMkGlobalName (["M"], "Y")
+      z = unsafeMkGlobalName (["M"], "Z")
+      tydef =
+        Map.singleton (unsafeMkGlobalName (["M"], "T")) $
+          TypeDefAST $
+            ASTTypeDef
+              { astTypeDefParameters = []
+              , astTypeDefConstructors =
+                  [ ValCon (unsafeMkGlobalName (["M"], "B")) [TEmptyHole ()]
+                  , ValCon (unsafeMkGlobalName (["M"], "C")) [TCon () x, TCon () y, TCon () z]
+                  ]
+              , astTypeDefNameHints = []
+              }
       expectedResult = create' $ let_ "c" (lam "x" (lvar "x")) (let_ "d" (lvar "y") (let_ "e" (lvar "z") (con' ["M"] "E")))
   case result of
     Right (expr', CaseReduction detail) -> do
@@ -439,7 +454,18 @@ unit_tryReduce_case_3 = do
             [ branch' (["M"], "B") [("b", Nothing)] (con' ["M"] "D")
             , branch' (["M"], "C") [("c", Nothing)] (con' ["M"] "F")
             ]
-      result = runTryReduce mempty mempty (expr, i)
+      tydef =
+        Map.singleton (unsafeMkGlobalName (["M"], "T")) $
+          TypeDefAST $
+            ASTTypeDef
+              { astTypeDefParameters = []
+              , astTypeDefConstructors =
+                  [ ValCon (unsafeMkGlobalName (["M"], "B")) [TEmptyHole ()]
+                  , ValCon (unsafeMkGlobalName (["M"], "C")) [TEmptyHole ()]
+                  ]
+              , astTypeDefNameHints = []
+              }
+      result = runTryReduce tydef mempty mempty (expr, i)
       expectedResult = create' $ let_ "c" (con' ["M"] "E") (con' ["M"] "F")
   case result of
     Right (expr', CaseReduction detail) -> do
@@ -463,7 +489,15 @@ unit_tryReduce_case_name_clash = do
           case_
             (con' ["M"] "C" `app` emptyHole `app` lvar "x")
             [branch' (["M"], "C") [("x", Nothing), ("y", Nothing)] emptyHole]
-      result = runTryReduce mempty mempty (expr, i)
+      tydef =
+        Map.singleton (unsafeMkGlobalName (["M"], "T")) $
+          TypeDefAST $
+            ASTTypeDef
+              { astTypeDefParameters = []
+              , astTypeDefConstructors = [ValCon (unsafeMkGlobalName (["M"], "C")) [TEmptyHole (), TEmptyHole ()]]
+              , astTypeDefNameHints = []
+              }
+      result = runTryReduce tydef mempty mempty (expr, i)
       expectedResult =
         create' $
           let_ "x0" emptyHole $
@@ -486,7 +520,7 @@ unit_tryReduce_case_name_clash = do
 unit_tryReduce_case_scrutinee_not_redex :: Assertion
 unit_tryReduce_case_scrutinee_not_redex = do
   let (expr, i) = create $ case_ (lvar "x") [branch' (["M"], "B") [] (con' ["M"] "D")]
-      result = runTryReduce mempty mempty (expr, i)
+      result = runTryReduce tydefs mempty mempty (expr, i)
   result @?= Left NotRedex
 
 unit_tryReduce_prim :: Assertion
@@ -498,7 +532,7 @@ unit_tryReduce_prim = do
             `app` char 'a'
             `app` char 'a'
             <*> con cTrue
-      result = runTryReduce primDefs mempty (expr, i)
+      result = runTryReduce tydefs primDefs mempty (expr, i)
   case result of
     Right (expr', ApplyPrimFun detail) -> do
       expr' ~= expectedResult
@@ -515,7 +549,7 @@ unit_tryReduce_prim_fail_unsaturated = do
         create $
           pfun EqChar
             `app` char 'a'
-      result = runTryReduce primDefs mempty (expr, i)
+      result = runTryReduce tydefs primDefs mempty (expr, i)
   result @?= Left NotRedex
 
 unit_tryReduce_prim_fail_unreduced_args :: Assertion
@@ -525,12 +559,12 @@ unit_tryReduce_prim_fail_unreduced_args = do
           pfun EqChar
             `app` char 'a'
             `app` (pfun ToUpper `app` char 'a')
-      result = runTryReduce primDefs mempty (expr, i)
+      result = runTryReduce tydefs primDefs mempty (expr, i)
   result @?= Left NotRedex
 
-runStep :: ID -> DefMap -> (Expr, ID) -> IO (Either EvalError (Expr, EvalDetail))
-runStep i' globals (e, i) = do
-  let (r, logs) = evalTestM i' $ runPureLogT $ step @EvalFullLog globals e i
+runStep :: ID -> TypeDefMap -> DefMap -> (Expr, ID) -> IO (Either EvalError (Expr, EvalDetail))
+runStep i' tys globals (e, i) = do
+  let (r, logs) = evalTestM i' $ runPureLogT $ step @EvalFullLog tys globals e Syn i
   assertNoSevereLogs logs
   pure r
 
@@ -554,8 +588,8 @@ unit_step_non_redex =
         assertBool "Should not be in 'redexes', as would self-capture"
           . notElem idX
           =<< redexes' mempty mempty Syn e2
-        s1 <- runStep maxID mempty (e1, idX)
-        s2 <- runStep maxID mempty (e2, idX)
+        s1 <- runStep maxID tydefs mempty (e1, idX)
+        s2 <- runStep maxID tydefs mempty (e2, idX)
         case s1 of
           Left NotRedex -> pure ()
           s1' -> assertFailure $ show s1'
@@ -706,7 +740,7 @@ unit_findNodeByID_capture =
                 pure ()
           Just (_, Left _) -> assertFailure "Expected let binding of 'x' to be reported as captured-if-inlined"
           _ -> assertFailure "Expected to find the lvar 'x'"
-        reduct <- runStep maxID mempty (expr, varOcc)
+        reduct <- runStep maxID mempty mempty (expr, varOcc)
         case reduct of
           Left NotRedex -> pure ()
           e -> assertFailure $ show e
@@ -726,7 +760,7 @@ unit_findNodeByID_capture_type =
                 pure ()
           Just (_, Right _) -> assertFailure "Expected lettype binding of 'x' and the tlet binding of 'z' to be reported as captured-if-inlined"
           _ -> assertFailure "Expected to find the lvar 'x'"
-        reduct <- runStep maxID mempty (expr, varOcc)
+        reduct <- runStep maxID mempty mempty (expr, varOcc)
         case reduct of
           Left NotRedex -> pure ()
           e -> assertFailure $ show e

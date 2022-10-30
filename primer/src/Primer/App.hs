@@ -512,7 +512,7 @@ handleEditRequest actions = do
 handleEvalRequest :: (MonadEditApp l m, ConvertLogMessage EvalFullLog l) => EvalReq -> m EvalResp
 handleEvalRequest req = do
   prog <- gets appProg
-  result <- Eval.step (allDefs prog) (evalReqExpr req) (evalReqRedex req)
+  result <- Eval.step (allTypes prog) (allDefs prog) (evalReqExpr req) Syn (evalReqRedex req)
   case result of
     Left err -> throwError $ EvalError err
     Right (expr, detail) -> do

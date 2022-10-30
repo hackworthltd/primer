@@ -116,15 +116,21 @@ import Primer.Zipper (
 -- Returns the new expression and its redexes.
 step ::
   MonadEvalFull l m =>
+  TypeDefMap ->
   DefMap ->
   Expr ->
+  Dir ->
   ID ->
   m (Either EvalError (Expr, EvalDetail))
-step globals expr i = runExceptT $ do
+step tydefs globals expr d i = runExceptT $ do
   (locals, nodeZ) <- maybe (throwError (NodeNotFound i)) pure (findNodeByID i expr)
   case nodeZ of
     Left z -> do
-      (node', detail) <- tryReduceExpr globals locals (target z)
+      -- NB: the @d@ in the line below is incorrect: it should be the direction of
+      -- the targeted sub expression, but @d@ is the direction of the whole @expr@.
+      -- However, this is fine, as @tryReduceExpr@ currently ignores that argument.
+      -- (Since this is a commit halfway to merging the two evaluators.)
+      (node', detail) <- tryReduceExpr tydefs globals locals d (target z)
       let expr' = unfocusExpr $ replace node' z
       pure (expr', detail)
     Right _ -> do
@@ -271,11 +277,13 @@ redexes tydefs globals =
 -- Expects that the expression is redex and will throw an error if not.
 tryReduceExpr ::
   (MonadFresh ID m, MonadError EvalError m) =>
+  TypeDefMap ->
   DefMap ->
   Locals ->
+  Dir ->
   Expr ->
   m (Expr, EvalDetail)
-tryReduceExpr globals locals = \case
+tryReduceExpr _tydefs globals locals _dir = \case
   (tryReduceBeta -> Just m) -> second BetaReduction <$> m
   (tryReduceBETA -> Just m) -> second BETAReduction <$> m
   (tryReducePush -> Just m) -> second PushAppIntoLetrec <$> m
