@@ -516,11 +516,12 @@ handleEvalRequest req = do
   result <- Eval.step (allDefs prog) (evalReqExpr req) (evalReqRedex req)
   case result of
     Left err -> throwError $ EvalError err
-    Right (expr, detail) ->
+    Right (expr, detail) -> do
+      redexes <- Eval.redexes (Map.mapMaybe defPrim $ allDefs prog) expr
       pure
         EvalResp
           { evalRespExpr = expr
-          , evalRespRedexes = Set.toList $ Eval.redexes (Map.mapMaybe defPrim $ allDefs prog) expr
+          , evalRespRedexes = Set.toList redexes
           , evalRespDetail = detail
           }
 

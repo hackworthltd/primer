@@ -25,6 +25,7 @@ import Primer.Builtins (
  )
 import Primer.Core (
   Expr,
+  GVarName,
   GlobalName (baseName, qualifiedModule),
   ID,
   Kind (KType),
@@ -56,10 +57,12 @@ import Primer.Eval (
   tryReduceExpr,
   tryReduceType,
  )
+import Primer.EvalFull (EvalFullLog)
+import Primer.Log (runPureLog)
 import Primer.Module (Module (Module, moduleDefs, moduleName, moduleTypes), builtinModule, primitiveModule)
 import Primer.Primitives (PrimDef (EqChar, ToUpper), primitiveGVar, tChar)
 import Primer.Primitives.DSL (pfun)
-import Primer.Test.Util (gvn, primDefs, vcn)
+import Primer.Test.Util (assertNoSevereLogs, gvn, primDefs, vcn)
 import Primer.TypeDef (TypeDef (..))
 import Primer.Zipper (target)
 import Test.Tasty.HUnit (Assertion, assertBool, assertFailure, (@?=))
@@ -664,10 +667,10 @@ unit_step_non_redex =
         let i2 = 8 -- NB: e1 has nodes 0,1,2,3; e2 has 4,5,6,7,8
         s1' <- step mempty e1 i1
         s2' <- step mempty e2 i2
-        pure ((Set.member i1 $ redexes mempty e1, s1'), (Set.member i2 $ redexes mempty e2, s2'))
+        pure ((Set.member i1 <$> redexes' mempty e1, s1'), (Set.member i2 <$> redexes' mempty e2, s2'))
    in do
-        assertBool "Should not be in 'redexes', as shadowed by a lambda" $ not r1
-        assertBool "Should not be in 'redexes', as would self-capture" $ not r2
+        assertBool "Should not be in 'redexes', as shadowed by a lambda" . not =<< r1
+        assertBool "Should not be in 'redexes', as would self-capture" . not =<< r2
         case s1 of
           Left NotRedex -> pure ()
           s1' -> assertFailure $ show s1'
@@ -857,30 +860,39 @@ unit_findNodeByID_capture_type = do
 -- lam "y" (app (lam "x" (var "x")) (app (lam "z" (var "z")) (con' ["M"] "C")))
 
 -- | A helper for these tests
-redexesOf :: S Expr -> Set ID
-redexesOf = redexes mempty . create'
+redexes' :: Map GVarName PrimDef -> Expr -> IO (Set ID)
+redexes' prims e = do
+  let (rs, logs) = runPureLog $ redexes prims e
+  assertNoSevereLogs @EvalFullLog logs
+  pure rs
+
+redexesOf :: S Expr -> IO (Set ID)
+redexesOf = redexes' mempty . create'
 
 -- | A variation of 'redexesOf' for when the expression tested requires primitives to be in scope.
-redexesOfWithPrims :: S Expr -> Set ID
-redexesOfWithPrims = redexes (Map.mapMaybe defPrim primDefs) . create'
+redexesOfWithPrims :: S Expr -> IO (Set ID)
+redexesOfWithPrims = redexes' (Map.mapMaybe defPrim primDefs) . create'
 
 unit_redexes_con :: Assertion
-unit_redexes_con = redexesOf (con' ["M"] "C") @?= mempty
+unit_redexes_con = redexesOf (con' ["M"] "C") <@?=> mempty
+
+(<@?=>) :: (HasCallStack, Eq a, Show a) => IO a -> a -> Assertion
+m <@?=> x = m >>= (@?= x)
 
 unit_redexes_lam_1 :: Assertion
 unit_redexes_lam_1 = do
-  redexesOf (app (lam "x" (lvar "x")) (con' ["M"] "C")) @?= Set.singleton 0
-  redexesOf (app (lam "x" (lvar "x") `ann` (tvar "a" `tfun` tvar "a")) (con' ["M"] "C")) @?= Set.singleton 0
+  redexesOf (app (lam "x" (lvar "x")) (con' ["M"] "C")) <@?=> Set.singleton 0
+  redexesOf (app (lam "x" (lvar "x") `ann` (tvar "a" `tfun` tvar "a")) (con' ["M"] "C")) <@?=> Set.singleton 0
 
 unit_redexes_lam_2 :: Assertion
 unit_redexes_lam_2 = do
-  redexesOf (lam "y" (app (lam "x" (lvar "x")) (con' ["M"] "C"))) @?= Set.singleton 1
-  redexesOf (lam "y" (app (lam "x" (lvar "x") `ann` (tvar "a" `tfun` tvar "a")) (con' ["M"] "C"))) @?= Set.singleton 1
+  redexesOf (lam "y" (app (lam "x" (lvar "x")) (con' ["M"] "C"))) <@?=> Set.singleton 1
+  redexesOf (lam "y" (app (lam "x" (lvar "x") `ann` (tvar "a" `tfun` tvar "a")) (con' ["M"] "C"))) <@?=> Set.singleton 1
 
 unit_redexes_lam_3 :: Assertion
 unit_redexes_lam_3 = do
   redexesOf (lam "y" (app (lam "x" (lvar "x")) (app (lam "z" (lvar "z")) (con' ["M"] "C"))))
-    @?= Set.fromList [1, 4]
+    <@?=> Set.fromList [1, 4]
   redexesOf
     ( lam
         "y"
@@ -889,12 +901,12 @@ unit_redexes_lam_3 = do
             (app (lam "z" (lvar "z") `ann` (tvar "a" `tfun` tvar "a")) (con' ["M"] "C"))
         )
     )
-    @?= Set.fromList [1, 8]
+    <@?=> Set.fromList [1, 8]
 
 unit_redexes_lam_4 :: Assertion
 unit_redexes_lam_4 = do
   redexesOf (lam "y" (app (lam "x" (lvar "x")) (app (lam "z" (lvar "z")) (con' ["M"] "C"))))
-    @?= Set.fromList [1, 4]
+    <@?=> Set.fromList [1, 4]
   redexesOf
     ( lam
         "y"
@@ -903,25 +915,25 @@ unit_redexes_lam_4 = do
             (app (lam "z" (lvar "z") `ann` (tvar "a" `tfun` tvar "a")) (con' ["M"] "C"))
         )
     )
-    @?= Set.fromList [1, 8]
+    <@?=> Set.fromList [1, 8]
 
 unit_redexes_LAM_1 :: Assertion
 unit_redexes_LAM_1 =
-  redexesOf (lAM "a" (con' ["M"] "C")) @?= mempty
+  redexesOf (lAM "a" (con' ["M"] "C")) <@?=> mempty
 
 unit_redexes_LAM_2 :: Assertion
 unit_redexes_LAM_2 = do
-  redexesOf (aPP (lAM "a" (con' ["M"] "C")) (tcon' ["M"] "A")) @?= Set.fromList [0]
+  redexesOf (aPP (lAM "a" (con' ["M"] "C")) (tcon' ["M"] "A")) <@?=> Set.fromList [0]
   redexesOf
     ( aPP
         (lAM "a" (con' ["M"] "C") `ann` tforall "a" KType (tcon' ["M"] "C"))
         (tcon' ["M"] "A")
     )
-    @?= Set.fromList [0]
+    <@?=> Set.fromList [0]
 
 unit_redexes_LAM_3 :: Assertion
 unit_redexes_LAM_3 = do
-  redexesOf (lAM "a" (aPP (lAM "b" (con' ["M"] "X")) (tcon' ["M"] "T"))) @?= Set.fromList [1]
+  redexesOf (lAM "a" (aPP (lAM "b" (con' ["M"] "X")) (tcon' ["M"] "T"))) <@?=> Set.fromList [1]
   redexesOf
     ( lAM
         "a"
@@ -930,12 +942,12 @@ unit_redexes_LAM_3 = do
             (tcon' ["M"] "T")
         )
     )
-    @?= Set.fromList [1]
+    <@?=> Set.fromList [1]
 
 unit_redexes_LAM_4 :: Assertion
 unit_redexes_LAM_4 = do
   redexesOf (let_ "x" (con' ["M"] "C") (lAM "a" (aPP (lAM "b" (lvar "x")) (tcon' ["M"] "T"))))
-    @?= Set.fromList [3, 5]
+    <@?=> Set.fromList [3, 5]
   redexesOf
     ( let_
         "x"
@@ -950,17 +962,17 @@ unit_redexes_LAM_4 = do
             )
         )
     )
-    @?= Set.fromList [3, 6]
+    <@?=> Set.fromList [3, 6]
 
 unit_redexes_let_1 :: Assertion
 unit_redexes_let_1 =
   redexesOf (let_ "x" (con' ["M"] "C") (app (lvar "x") (lvar "y")))
-    @?= Set.singleton 3
+    <@?=> Set.singleton 3
 
 unit_redexes_let_2 :: Assertion
 unit_redexes_let_2 =
   redexesOf (let_ "x" (con' ["M"] "C") (lam "x" (app (lvar "x") (lvar "y"))))
-    @?= Set.singleton 0
+    <@?=> Set.singleton 0
 
 -- We cannot substitute one occurrence of a let-bound variable if it
 -- would result in capture of a free variable in the bound term by the
@@ -968,7 +980,7 @@ unit_redexes_let_2 =
 unit_redexes_let_3 :: Assertion
 unit_redexes_let_3 = do
   -- NB we must not say node 3 (the occurrence of the variable) is a redex
-  redexesOf (lam "x" $ let_ "x" (lvar "x") (lvar "x")) @?= Set.fromList [1]
+  redexesOf (lam "x" $ let_ "x" (lvar "x") (lvar "x")) <@?=> Set.fromList [1]
 
 -- We cannot substitute one occurrence of a let-bound variable if it
 -- would result in capture of a free variable in the bound term by the
@@ -976,38 +988,36 @@ unit_redexes_let_3 = do
 unit_redexes_let_capture :: Assertion
 unit_redexes_let_capture =
   -- We should maybe rename the lambda, see https://github.com/hackworthltd/primer/issues/509
-  assertBool "Cannot inline the variable, as would cause capture" $
-    Set.null $
-      redexesOf (let_ "x" (lvar "y") $ lam "y" $ lvar "x")
+  assertBool "Cannot inline the variable, as would cause capture" . Set.null
+    =<< redexesOf (let_ "x" (lvar "y") $ lam "y" $ lvar "x")
 
 unit_redexes_lettype_capture :: Assertion
 unit_redexes_lettype_capture =
   -- We should maybe rename the forall, see https://github.com/hackworthltd/primer/issues/509
-  assertBool "Cannot inline the variable, as would cause capture" $
-    Set.null $
-      redexesOf (letType "x" (tvar "y") (emptyHole `ann` tforall "y" KType (tvar "x")))
+  assertBool "Cannot inline the variable, as would cause capture" . Set.null
+    =<< redexesOf (letType "x" (tvar "y") (emptyHole `ann` tforall "y" KType (tvar "x")))
 
 unit_redexes_letrec_1 :: Assertion
 unit_redexes_letrec_1 =
   redexesOf (letrec "x" (app (con' ["M"] "C") (lvar "x")) (tcon' ["M"] "T") (app (lvar "x") (lvar "y")))
-    @?= Set.fromList [3, 6]
+    <@?=> Set.fromList [3, 6]
 
 unit_redexes_letrec_2 :: Assertion
 unit_redexes_letrec_2 =
   redexesOf (letrec "x" (app (con' ["M"] "C") (lvar "x")) (tcon' ["M"] "T") (lvar "y"))
-    @?= Set.fromList [0, 3]
+    <@?=> Set.fromList [0, 3]
 
 -- Test that our self-capture logic does not apply to letrec.
 unit_redexes_letrec_3 :: Assertion
 unit_redexes_letrec_3 =
   -- If this were a let, we would not be able to substitute, but it is possible for letrec
-  redexesOf (lAM "a" $ lam "x" $ letrec "x" (lvar "x") (tvar "a") (lvar "x")) @?= Set.fromList [3, 5]
+  redexesOf (lAM "a" $ lam "x" $ letrec "x" (lvar "x") (tvar "a") (lvar "x")) <@?=> Set.fromList [3, 5]
 
 -- The application can be reduced by pushing the argument inside the letrec
 unit_redexes_letrec_app_1 :: Assertion
 unit_redexes_letrec_app_1 = do
   redexesOf (app (letrec "e" (con' ["M"] "C") (tcon' ["M"] "T") (lam "x" (lvar "e"))) (con' ["M"] "D"))
-    @?= Set.fromList [0, 5]
+    <@?=> Set.fromList [0, 5]
   -- Note that we only push an application into a letrec if there is
   -- no annotation on the lambda
   redexesOf
@@ -1020,12 +1030,12 @@ unit_redexes_letrec_app_1 = do
         )
         (con' ["M"] "D")
     )
-    @?= Set.fromList [6]
+    <@?=> Set.fromList [6]
 
 unit_redexes_letrec_APP_1 :: Assertion
 unit_redexes_letrec_APP_1 = do
   redexesOf (aPP (letrec "e" (con' ["M"] "C") (tcon' ["M"] "T") (lAM "x" (lvar "e"))) (tcon' ["M"] "D"))
-    @?= Set.fromList [0, 5]
+    <@?=> Set.fromList [0, 5]
   -- Note that we only push an application into a letrec if there is
   -- no annotation on the lambda
   redexesOf
@@ -1038,19 +1048,19 @@ unit_redexes_letrec_APP_1 = do
         )
         (tcon' ["M"] "D")
     )
-    @?= Set.fromList [6]
+    <@?=> Set.fromList [6]
 
 unit_redexes_lettype_1 :: Assertion
 unit_redexes_lettype_1 =
-  redexesOf (letType "x" (tcon' ["M"] "T") (con' ["M"] "C")) @?= Set.fromList [0]
+  redexesOf (letType "x" (tcon' ["M"] "T") (con' ["M"] "C")) <@?=> Set.fromList [0]
 
 unit_redexes_lettype_2 :: Assertion
 unit_redexes_lettype_2 =
-  redexesOf (letType "x" (tcon' ["M"] "T") (aPP (con' ["M"] "C") (tvar "x"))) @?= Set.fromList [4]
+  redexesOf (letType "x" (tcon' ["M"] "T") (aPP (con' ["M"] "C") (tvar "x"))) <@?=> Set.fromList [4]
 
 unit_redexes_lettype_3 :: Assertion
 unit_redexes_lettype_3 =
-  redexesOf (letType "x" (tcon' ["M"] "T") (letrec "y" (con' ["M"] "C") (tvar "x") (lvar "y"))) @?= Set.fromList [4, 5]
+  redexesOf (letType "x" (tcon' ["M"] "T") (letrec "y" (con' ["M"] "C") (tvar "x") (lvar "y"))) <@?=> Set.fromList [4, 5]
 
 -- We cannot substitute one occurrence of a let-bound variable if it
 -- would result in capture of a free variable in the bound term by the
@@ -1058,19 +1068,19 @@ unit_redexes_lettype_3 =
 unit_redexes_lettype_4 :: Assertion
 unit_redexes_lettype_4 = do
   -- NB we must not say node 5 (the occurrence of the variable) is a redex
-  redexesOf (lAM "x" $ letType "x" (tvar "x") (emptyHole `ann` tvar "x")) @?= Set.fromList [1]
+  redexesOf (lAM "x" $ letType "x" (tvar "x") (emptyHole `ann` tvar "x")) <@?=> Set.fromList [1]
 
 unit_redexes_tlet_1 :: Assertion
 unit_redexes_tlet_1 =
-  redexesOf (emptyHole `ann` tlet "x" (tcon' ["M"] "T") (tcon' ["M"] "S")) @?= Set.fromList [2]
+  redexesOf (emptyHole `ann` tlet "x" (tcon' ["M"] "T") (tcon' ["M"] "S")) <@?=> Set.fromList [2]
 
 unit_redexes_tlet_2 :: Assertion
 unit_redexes_tlet_2 =
-  redexesOf (emptyHole `ann` tlet "x" (tcon' ["M"] "T") (tapp (tcon' ["M"] "S") (tvar "x"))) @?= Set.fromList [6]
+  redexesOf (emptyHole `ann` tlet "x" (tcon' ["M"] "T") (tapp (tcon' ["M"] "S") (tvar "x"))) <@?=> Set.fromList [6]
 
 unit_redexes_tlet_3 :: Assertion
 unit_redexes_tlet_3 =
-  redexesOf (emptyHole `ann` tlet "x" (tcon' ["M"] "T") (tlet "y" (tcon' ["M"] "S") (tapp (tvar "x") (tvar "y")))) @?= Set.fromList [7, 8]
+  redexesOf (emptyHole `ann` tlet "x" (tcon' ["M"] "T") (tlet "y" (tcon' ["M"] "S") (tapp (tvar "x") (tvar "y")))) <@?=> Set.fromList [7, 8]
 
 -- We cannot substitute one occurrence of a let-bound variable if it
 -- would result in capture of a free variable in the bound term by the
@@ -1078,57 +1088,57 @@ unit_redexes_tlet_3 =
 unit_redexes_tlet_4 :: Assertion
 unit_redexes_tlet_4 = do
   -- NB we must not say node 5 (the occurrence of the variable) is a redex
-  redexesOf (lAM "x" $ emptyHole `ann` tlet "x" (tvar "x") (tvar "x")) @?= Set.fromList [3]
+  redexesOf (lAM "x" $ emptyHole `ann` tlet "x" (tvar "x") (tvar "x")) <@?=> Set.fromList [3]
 
 unit_redexes_case_1 :: Assertion
 unit_redexes_case_1 =
   redexesOf (case_ (con' ["M"] "C") [branch' (["M"], "C") [] (con' ["M"] "D")])
-    @?= Set.singleton 0
+    <@?=> Set.singleton 0
 
 -- Same as above, but the scrutinee has an annotation
 unit_redexes_case_1_annotated :: Assertion
 unit_redexes_case_1_annotated =
   redexesOf (case_ (ann (con' ["M"] "C") (tcon' ["M"] "C")) [branch' (["M"], "C") [] (con' ["M"] "D")])
-    @?= Set.singleton 0
+    <@?=> Set.singleton 0
 
 unit_redexes_case_2 :: Assertion
 unit_redexes_case_2 =
   redexesOf (case_ (lam "x" (lvar "x")) [branch' (["M"], "C") [] (con' ["M"] "D")])
-    @?= mempty
+    <@?=> mempty
 
 -- The case expression can be reduced, as can the variable x in the branch rhs.
 unit_redexes_case_3 :: Assertion
 unit_redexes_case_3 =
   redexesOf (let_ "x" (con' ["M"] "C") (case_ (con' ["M"] "C") [branch' (["M"], "C") [] (lvar "x")]))
-    @?= Set.fromList [2, 4]
+    <@?=> Set.fromList [2, 4]
 
 -- The variable x in the rhs is bound to the branch pattern, so is no longer reducible.
 -- However this means the let is redundant, and can be reduced.
 unit_redexes_case_4 :: Assertion
 unit_redexes_case_4 =
   redexesOf (let_ "x" (con' ["M"] "C") (case_ (con' ["M"] "C") [branch' (["M"], "C") [("x", Nothing)] (lvar "x")]))
-    @?= Set.fromList [0, 2]
+    <@?=> Set.fromList [0, 2]
 
 -- If scrutinee of a case is a redex itself, we recognise that
 unit_redexes_case_5 :: Assertion
 unit_redexes_case_5 =
-  redexesOf (let_ "x" (con' ["M"] "C") (case_ (lvar "x") [])) @?= Set.fromList [3]
+  redexesOf (let_ "x" (con' ["M"] "C") (case_ (lvar "x") [])) <@?=> Set.fromList [3]
 
 unit_redexes_prim_1 :: Assertion
 unit_redexes_prim_1 =
-  redexesOfWithPrims (pfun EqChar `app` char 'a' `app` char 'b') @?= Set.fromList [0]
+  redexesOfWithPrims (pfun EqChar `app` char 'a' `app` char 'b') <@?=> Set.fromList [0]
 
 unit_redexes_prim_2 :: Assertion
 unit_redexes_prim_2 =
-  redexesOfWithPrims (pfun EqChar `app` lvar "a" `app` char 'b') @?= Set.empty
+  redexesOfWithPrims (pfun EqChar `app` lvar "a" `app` char 'b') <@?=> Set.empty
 
 unit_redexes_prim_3 :: Assertion
 unit_redexes_prim_3 =
-  redexesOfWithPrims (pfun EqChar `app` char 'a') @?= Set.empty
+  redexesOfWithPrims (pfun EqChar `app` char 'a') <@?=> Set.empty
 
 unit_redexes_prim_ann :: Assertion
 unit_redexes_prim_ann =
-  redexesOfWithPrims expr @?= Set.singleton 0
+  redexesOfWithPrims expr <@?=> Set.singleton 0
   where
     expr =
       pfun ToUpper

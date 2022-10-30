@@ -28,6 +28,7 @@ module Primer.Eval (
 import Foreword
 
 import Control.Monad.Fresh (MonadFresh)
+import Control.Monad.Log (MonadLog)
 import Data.Map.Strict qualified as Map
 import Data.Set qualified as Set
 import Optics (
@@ -228,8 +229,8 @@ singletonLocal' n (i, l) = Map.singleton n (i, l, fvs, c)
 -- @e@ refers to a type variable @x@ when deciding if we can reduce a
 -- @let x = _ in e@ (we of course check whether @e@ refers to a term variable
 -- @x@)
-redexes :: Map GVarName PrimDef -> Expr -> Set ID
-redexes primDefs = go mempty
+redexes :: MonadLog l m => Map GVarName PrimDef -> Expr -> m (Set ID)
+redexes primDefs = pure . go mempty
   where
     -- letTm and letTy track the set of local variables we have a definition for,
     -- and the free vars of their RHSs, to tell if we go under a capturing binder
