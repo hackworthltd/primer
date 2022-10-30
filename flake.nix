@@ -532,12 +532,6 @@
           source-code-checks = pre-commit-hooks;
           inherit weeder openapi-validate;
 
-        }
-
-        # Broken on NixOS. See:
-        # https://github.com/hackworthltd/primer/issues/632
-        // (pkgs.lib.optionalAttrs (system == "aarch64-darwin") {
-
           # Make sure HLS can typecheck our project.
           check-hls = pkgs.callPackage ./nix/pkgs/check-hls {
             src = onlyHaskellSrc;
@@ -546,7 +540,7 @@
             # This is a bit of a hack, but we don't know a better way.
             inherit (primerFlake) devShell;
           };
-        })
+        }
         // primerFlake.checks;
 
       apps =
