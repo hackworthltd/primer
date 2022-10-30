@@ -868,39 +868,89 @@ unit_redexes_con :: Assertion
 unit_redexes_con = redexesOf (con' ["M"] "C") @?= mempty
 
 unit_redexes_lam_1 :: Assertion
-unit_redexes_lam_1 =
+unit_redexes_lam_1 = do
   redexesOf (app (lam "x" (lvar "x")) (con' ["M"] "C")) @?= Set.singleton 0
+  redexesOf (app (lam "x" (lvar "x") `ann` (tvar "a" `tfun` tvar "a")) (con' ["M"] "C")) @?= Set.singleton 0
 
 unit_redexes_lam_2 :: Assertion
-unit_redexes_lam_2 =
+unit_redexes_lam_2 = do
   redexesOf (lam "y" (app (lam "x" (lvar "x")) (con' ["M"] "C"))) @?= Set.singleton 1
+  redexesOf (lam "y" (app (lam "x" (lvar "x") `ann` (tvar "a" `tfun` tvar "a")) (con' ["M"] "C"))) @?= Set.singleton 1
 
 unit_redexes_lam_3 :: Assertion
-unit_redexes_lam_3 =
+unit_redexes_lam_3 = do
   redexesOf (lam "y" (app (lam "x" (lvar "x")) (app (lam "z" (lvar "z")) (con' ["M"] "C"))))
     @?= Set.fromList [1, 4]
+  redexesOf
+    ( lam
+        "y"
+        ( app
+            (lam "x" (lvar "x") `ann` (tvar "a" `tfun` tvar "a"))
+            (app (lam "z" (lvar "z") `ann` (tvar "a" `tfun` tvar "a")) (con' ["M"] "C"))
+        )
+    )
+    @?= Set.fromList [1, 8]
 
 unit_redexes_lam_4 :: Assertion
-unit_redexes_lam_4 =
+unit_redexes_lam_4 = do
   redexesOf (lam "y" (app (lam "x" (lvar "x")) (app (lam "z" (lvar "z")) (con' ["M"] "C"))))
     @?= Set.fromList [1, 4]
+  redexesOf
+    ( lam
+        "y"
+        ( app
+            (lam "x" (lvar "x") `ann` (tvar "a" `tfun` tvar "a"))
+            (app (lam "z" (lvar "z") `ann` (tvar "a" `tfun` tvar "a")) (con' ["M"] "C"))
+        )
+    )
+    @?= Set.fromList [1, 8]
 
 unit_redexes_LAM_1 :: Assertion
 unit_redexes_LAM_1 =
   redexesOf (lAM "a" (con' ["M"] "C")) @?= mempty
 
 unit_redexes_LAM_2 :: Assertion
-unit_redexes_LAM_2 =
+unit_redexes_LAM_2 = do
   redexesOf (aPP (lAM "a" (con' ["M"] "C")) (tcon' ["M"] "A")) @?= Set.fromList [0]
+  redexesOf
+    ( aPP
+        (lAM "a" (con' ["M"] "C") `ann` tforall "a" KType (tcon' ["M"] "C"))
+        (tcon' ["M"] "A")
+    )
+    @?= Set.fromList [0]
 
 unit_redexes_LAM_3 :: Assertion
-unit_redexes_LAM_3 =
+unit_redexes_LAM_3 = do
   redexesOf (lAM "a" (aPP (lAM "b" (con' ["M"] "X")) (tcon' ["M"] "T"))) @?= Set.fromList [1]
+  redexesOf
+    ( lAM
+        "a"
+        ( aPP
+            (lAM "b" (con' ["M"] "X") `ann` tforall "a" KType (tcon' ["M"] "C"))
+            (tcon' ["M"] "T")
+        )
+    )
+    @?= Set.fromList [1]
 
 unit_redexes_LAM_4 :: Assertion
-unit_redexes_LAM_4 =
+unit_redexes_LAM_4 = do
   redexesOf (let_ "x" (con' ["M"] "C") (lAM "a" (aPP (lAM "b" (lvar "x")) (tcon' ["M"] "T"))))
     @?= Set.fromList [3, 5]
+  redexesOf
+    ( let_
+        "x"
+        (con' ["M"] "C")
+        ( lAM
+            "a"
+            ( aPP
+                ( lAM "b" (lvar "x")
+                    `ann` tforall "a" KType (tcon' ["M"] "C")
+                )
+                (tcon' ["M"] "T")
+            )
+        )
+    )
+    @?= Set.fromList [3, 6]
 
 unit_redexes_let_1 :: Assertion
 unit_redexes_let_1 =
@@ -955,14 +1005,40 @@ unit_redexes_letrec_3 =
 
 -- The application can be reduced by pushing the argument inside the letrec
 unit_redexes_letrec_app_1 :: Assertion
-unit_redexes_letrec_app_1 =
+unit_redexes_letrec_app_1 = do
   redexesOf (app (letrec "e" (con' ["M"] "C") (tcon' ["M"] "T") (lam "x" (lvar "e"))) (con' ["M"] "D"))
     @?= Set.fromList [0, 5]
+  -- Note that we only push an application into a letrec if there is
+  -- no annotation on the lambda
+  redexesOf
+    ( app
+        ( letrec
+            "e"
+            (con' ["M"] "C")
+            (tcon' ["M"] "T")
+            (ann (lam "x" (lvar "e")) (tcon' ["M"] "D" `tfun` tcon' ["M"] "T"))
+        )
+        (con' ["M"] "D")
+    )
+    @?= Set.fromList [6]
 
 unit_redexes_letrec_APP_1 :: Assertion
-unit_redexes_letrec_APP_1 =
+unit_redexes_letrec_APP_1 = do
   redexesOf (aPP (letrec "e" (con' ["M"] "C") (tcon' ["M"] "T") (lAM "x" (lvar "e"))) (tcon' ["M"] "D"))
     @?= Set.fromList [0, 5]
+  -- Note that we only push an application into a letrec if there is
+  -- no annotation on the lambda
+  redexesOf
+    ( aPP
+        ( letrec
+            "e"
+            (con' ["M"] "C")
+            (tcon' ["M"] "T")
+            (lAM "x" (lvar "e") `ann` tforall "a" KType (tcon' ["M"] "T"))
+        )
+        (tcon' ["M"] "D")
+    )
+    @?= Set.fromList [6]
 
 unit_redexes_lettype_1 :: Assertion
 unit_redexes_lettype_1 =
