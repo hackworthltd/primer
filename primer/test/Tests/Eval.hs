@@ -51,7 +51,6 @@ import Primer.Eval (
   LocalLet (LLet, LLetRec, LLetType),
   LocalVarInlineDetail (..),
   Locals,
-  PushAppIntoLetrecDetail (..),
   RHSCaptured (Capture, NoCapture),
   findNodeByID,
   redexes,
@@ -176,40 +175,6 @@ unit_tryReduce_beta_annotation_hole = do
       r ~~= resultType
     _ -> assertFailure $ show result
 
--- This test looks at the case where we are reducing a lambda applicatin by constructing a let, and
--- the name bound by the lambda is already used in the argument of the application. We therefore
--- need to change the name of the let and then rename any references to the old name in the lambda
--- body. We also need to avoid choosing a name that would clash with any bound in the body of the
--- lambda.
---     let x = C in (\x. \x0. x) x
--- ==> let x = C in (let x1 = x in \x0. x1)   [reduce middle λ]
--- ==> let x = C in (let x1 = x in \x0. x)    [inline x1]
--- ==> let x = C in \x0. x                    [remove redundant let]
-unit_tryReduce_beta_name_clash :: Assertion
-unit_tryReduce_beta_name_clash = do
-  let ((c, lambda, body, arg, input, expectedResult), maxid) =
-        create $ do
-          c_ <- con' ["M"] "C"
-          e <- lam "x0" (lvar "x")
-          l <- lam "x" (pure e)
-          a <- lvar "x"
-          i <- app (pure l) (pure a)
-          r <- let_ "x1" (pure a) (lam "x0" (lvar "x1"))
-          pure (c_, l, e, a, i, r)
-      result = runTryReduce mempty (singletonLocal "x" (0, LLet c)) (input, maxid)
-  case result of
-    Right (expr, BetaReduction detail) -> do
-      expr ~= expectedResult
-      detail.before ~= input
-      detail.after ~= expectedResult
-      detail.bindingName @?= "x"
-      detail.lambdaID @?= lambda ^. _id
-      detail.letID @?= expr ^. _id
-      detail.argID @?= arg ^. _id
-      detail.bodyID @?= body ^. _id
-      detail.types @?= Nothing
-    _ -> assertFailure $ show result
-
 unit_tryReduce_BETA :: Assertion
 unit_tryReduce_BETA = do
   let ((body, lambda, arg, input, expectedResult), maxid) =
@@ -221,31 +186,6 @@ unit_tryReduce_BETA = do
           r <- letType "x" (pure a) (pure b)
           pure (b, l, a, i, r)
       result = runTryReduce mempty mempty (input, maxid)
-  case result of
-    Right (expr, BETAReduction detail) -> do
-      expr ~= expectedResult
-      detail.before ~= input
-      detail.after ~= expectedResult
-      detail.bindingName @?= "x"
-      detail.lambdaID @?= lambda ^. _id
-      detail.letID @?= expr ^. _id
-      detail.argID @?= arg ^. _id
-      detail.bodyID @?= body ^. _id
-      detail.types @?= Nothing
-    _ -> assertFailure $ show result
-
-unit_tryReduce_BETA_name_clash :: Assertion
-unit_tryReduce_BETA_name_clash = do
-  let ((c, lambda, body, arg, input, expectedResult), maxid) =
-        create $ do
-          c_ <- tcon' (pure "M") "T"
-          e <- lam "x0" (lvar "x0" `ann` tvar "x")
-          l <- lAM "x" (pure e)
-          a <- tvar "x"
-          i <- aPP (pure l) (pure a)
-          r <- letType "x1" (pure a) (lam "x0" (lvar "x0" `ann` tvar "x1"))
-          pure (c_, l, e, a, i, r)
-      result = runTryReduce mempty (singletonLocal "x" (0, LLetType c)) (input, maxid)
   case result of
     Right (expr, BETAReduction detail) -> do
       expr ~= expectedResult
@@ -444,74 +384,6 @@ unit_tryReduce_letrec = do
       detail.bodyID @?= 3
     _ -> assertFailure $ show result
 
---     (letrec f = λx. x : T in λx. f x) D
--- ==> letrec f = λx. x : T in (λx. f x) D
-unit_tryReduce_letrec_app :: Assertion
-unit_tryReduce_letrec_app = do
-  let ((arg, lambda, letrec_, expr), i) = create $ do
-        arg_ <- con' ["M"] "D"
-        lam_ <- lam "x" $ app (lvar "f") (lvar "x")
-        lr <- letrec "f" (lam "x" (lvar "x")) (tcon' ["M"] "T") (pure lam_)
-        expr_ <- app (pure lr) (pure arg_)
-        pure (arg_, lam_, lr, expr_)
-      result = runTryReduce mempty mempty (expr, i)
-      expectedResult = create' $ letrec "f" (lam "x" (lvar "x")) (tcon' ["M"] "T") (app (lam "x" (app (lvar "f") (lvar "x"))) (con' ["M"] "D"))
-  case result of
-    Right (expr', PushAppIntoLetrec detail) -> do
-      expr' ~= expectedResult
-
-      detail.before ~= expr
-      detail.after ~= expectedResult
-      detail.argID @?= arg ^. _id
-      detail.lamID @?= lambda ^. _id
-      detail.letrecID @?= letrec_ ^. _id
-      detail.letBindingName @?= "f"
-      detail.isTypeApplication @?= False
-    _ -> assertFailure $ show result
-
---     (letrec f = Λx. A : T in Λx. f x) B
--- ==> letrec f = Λx. A : T in (Λx. f x) B
-unit_tryReduce_letrec_APP :: Assertion
-unit_tryReduce_letrec_APP = do
-  let ((arg, lambda, letrec_, expr), i) = create $ do
-        arg_ <- tcon' ["M"] "B"
-        lam_ <- lAM "x" $ aPP (lvar "f") (tvar "x")
-        lr <- letrec "f" (lAM "x" (con' ["M"] "A")) (tcon' ["M"] "T") (pure lam_)
-        expr_ <- aPP (pure lr) (pure arg_)
-        pure (arg_, lam_, lr, expr_)
-      result = runTryReduce mempty mempty (expr, i)
-      expectedResult = create' $ letrec "f" (lAM "x" (con' ["M"] "A")) (tcon' ["M"] "T") (aPP (lAM "x" (aPP (lvar "f") (tvar "x"))) (tcon' ["M"] "B"))
-  case result of
-    Right (expr', PushAppIntoLetrec detail) -> do
-      expr' ~= expectedResult
-
-      detail.before ~= expr
-      detail.after ~= expectedResult
-      detail.argID @?= arg ^. _id
-      detail.lamID @?= lambda ^. _id
-      detail.letrecID @?= letrec_ ^. _id
-      detail.letBindingName @?= "f"
-      detail.isTypeApplication @?= True
-    _ -> assertFailure $ show result
-
--- let f = D in (letrec f = λx. x : T in λx. f x) f
---                                                ^
--- doesn't reduce until this f is inlined, because it would be captured by the letrec.
-unit_tryReduce_letrec_name_clash :: Assertion
-unit_tryReduce_letrec_name_clash = do
-  -- We construct the letrec expression, and a fake "let" expression whose ID we can insert into the
-  -- locals map. This simulates focusing on the letrec inside the let expression.
-  let ((expr, d, letd), i) = create $ do
-        -- the value bound by the outer let
-        d_ <- con' ["M"] "D"
-        -- the application
-        e <- app (letrec "f" (lam "x" (lvar "x")) (tcon' ["M"] "T") (lam "x" (app (lvar "f") (lvar "x")))) (lvar "f")
-        -- the outer let
-        letd_ <- let_ "f" (pure d_) (pure e)
-        pure (e, d_, letd_)
-      result = runTryReduce mempty (singletonLocal "f" (letd ^. _id, LLetRec d)) (expr, i)
-  result @?= Left NotRedex
-
 unit_tryReduce_case_1 :: Assertion
 unit_tryReduce_case_1 = do
   let (expr, i) = create $ case_ (con' ["M"] "C") [branch' (["M"], "B") [("b", Nothing)] (con' ["M"] "D"), branch' (["M"], "C") [] (con' ["M"] "E")]
@@ -611,29 +483,11 @@ unit_tryReduce_case_name_clash = do
       detail.letIDs @?= [10, 9]
     _ -> assertFailure $ show result
 
-unit_tryReduce_case_too_many_bindings :: Assertion
-unit_tryReduce_case_too_many_bindings = do
-  let (expr, i) = create $ case_ (con' ["M"] "C") [branch' (["M"], "C") [("b", Nothing)] (con' ["M"] "D")]
-      result = runTryReduce mempty mempty (expr, i)
-  result @?= Left CaseBranchBindingLengthMismatch
-
-unit_tryReduce_case_too_few_bindings :: Assertion
-unit_tryReduce_case_too_few_bindings = do
-  let (expr, i) = create $ case_ (app (con' ["M"] "B") (lvar "y")) [branch' (["M"], "B") [] (con' ["M"] "D")]
-      result = runTryReduce mempty mempty (expr, i)
-  result @?= Left CaseBranchBindingLengthMismatch
-
 unit_tryReduce_case_scrutinee_not_redex :: Assertion
 unit_tryReduce_case_scrutinee_not_redex = do
   let (expr, i) = create $ case_ (lvar "x") [branch' (["M"], "B") [] (con' ["M"] "D")]
       result = runTryReduce mempty mempty (expr, i)
   result @?= Left NotRedex
-
-unit_tryReduce_case_no_matching_branch :: Assertion
-unit_tryReduce_case_no_matching_branch = do
-  let (expr, i) = create $ case_ (con' ["M"] "C") [branch' (["M"], "B") [] (con' ["M"] "D")]
-      result = runTryReduce mempty mempty (expr, i)
-  result @?= Left NoMatchingCaseBranch
 
 unit_tryReduce_prim :: Assertion
 unit_tryReduce_prim = do
