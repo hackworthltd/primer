@@ -959,21 +959,10 @@ unit_redexes_letrec_app_1 =
   redexesOf (app (letrec "e" (con' ["M"] "C") (tcon' ["M"] "T") (lam "x" (lvar "e"))) (con' ["M"] "D"))
     @?= Set.fromList [0, 5]
 
--- The application can't be reduced because variables in the argument clash with the letrec
-unit_redexes_letrec_app_2 :: Assertion
-unit_redexes_letrec_app_2 =
-  redexesOf (let_ "e" (con' ["M"] "D") (app (letrec "e" (con' ["M"] "C") (tcon' ["M"] "T") (lam "x" (lvar "e"))) (lvar "e")))
-    @?= Set.fromList [7, 8]
-
 unit_redexes_letrec_APP_1 :: Assertion
 unit_redexes_letrec_APP_1 =
   redexesOf (aPP (letrec "e" (con' ["M"] "C") (tcon' ["M"] "T") (lAM "x" (lvar "e"))) (tcon' ["M"] "D"))
     @?= Set.fromList [0, 5]
-
-unit_redexes_letrec_APP_2 :: Assertion
-unit_redexes_letrec_APP_2 =
-  redexesOf (letType "e" (tcon' ["M"] "D") (aPP (letrec "e" (con' ["M"] "C") (tcon' ["M"] "T") (lAM "x" (lvar "e"))) (tvar "e")))
-    @?= Set.fromList [7, 8]
 
 unit_redexes_lettype_1 :: Assertion
 unit_redexes_lettype_1 =
