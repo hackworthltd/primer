@@ -135,7 +135,7 @@ unit_tryReduce_beta_annotation = do
           pure (l, x, a, i, r, t1, t2)
   result <- runTryReduce tydefs mempty mempty (input, maxid)
   case result of
-    Right (expr, BetaReduction detail@BetaReductionDetail{types = Just (l, r)}) -> do
+    Right (expr, BetaReduction detail@BetaReductionDetail{types = (l, r)}) -> do
       expr ~= expectedResult
       detail.before ~= input
       detail.after ~= expectedResult
@@ -185,7 +185,7 @@ unit_tryReduce_BETA = do
       detail.letID @?= expr ^. _id
       detail.argID @?= arg ^. _id
       detail.bodyID @?= body ^. _id
-      detail.types @?= Just (k, ty)
+      detail.types @?= (k, ty)
     _ -> assertFailure $ show result
 
 unit_tryReduce_local_term_var :: Assertion

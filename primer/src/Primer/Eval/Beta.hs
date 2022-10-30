@@ -30,7 +30,7 @@ data BetaReductionDetail k domain codomain = BetaReductionDetail
   , letID :: ID
   , argID :: ID
   , bodyID :: ID
-  , types :: Maybe (domain, codomain)
+  , types :: (domain, codomain)
   }
   deriving (Eq, Show, Generic)
   deriving (FromJSON, ToJSON) via PrimerJSON (BetaReductionDetail k domain codomain)

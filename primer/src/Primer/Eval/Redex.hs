@@ -863,7 +863,7 @@ runRedex = \case
             , letID = getID expr'
             , argID = getID app
             , bodyID = getID body
-            , types = Just (srcTy, tgtTy)
+            , types = (srcTy, tgtTy)
             }
     pure (expr', BetaReduction details)
   -- (Λa.t : ∀b.T) S  ~>  (lettype a = S in t) : (lettype b = S in T)
@@ -878,7 +878,7 @@ runRedex = \case
             , letID = getID expr'
             , argID = getID argTy
             , bodyID = getID body
-            , types = Just (forallKind, tgtTy)
+            , types = (forallKind, tgtTy)
             }
     pure (expr', BETAReduction details)
   -- case C as : T of ... ; C xs -> e ; ...   ~>  let xs=as:As in e for constructor C of type T, where args have types As

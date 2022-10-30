@@ -162,8 +162,7 @@ fixtures =
             , letID = id0
             , argID = id0
             , bodyID = id0
-            , types =
-                Just (TEmptyHole typeMeta, TEmptyHole typeMeta)
+            , types = (TEmptyHole typeMeta, TEmptyHole typeMeta)
             }
    in [ mkFixture "id" id0
       , mkFixture "name" (unsafeMkName "x")
