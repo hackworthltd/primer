@@ -1049,9 +1049,6 @@ unit_redexes_letrec_app_1 :: Assertion
 unit_redexes_letrec_app_1 = do
   redexesOf (app (letrec "e" (con' ["M"] "C") (tcon' ["M"] "T") (lam "x" (lvar "e"))) (con' ["M"] "D"))
     <@?=> Set.fromList [5]
-  -- TODO: this test is expected to fail, as it shows a bug:
-  -- the annotation is (for some reason) considered elidable.
-  -- This will shortly be fixed in a subsequent commit.
   redexesOf
     ( app
         ( letrec
@@ -1071,9 +1068,6 @@ unit_redexes_letrec_APP_1 :: Assertion
 unit_redexes_letrec_APP_1 = do
   redexesOf (aPP (letrec "e" (con' ["M"] "C") (tcon' ["M"] "T") (lAM "x" (lvar "e"))) (tcon' ["M"] "D"))
     <@?=> Set.fromList [5]
-  -- TODO: this test is expected to fail, as it shows a bug:
-  -- the annotation is (for some reason) considered elidable.
-  -- This will shortly be fixed in a subsequent commit.
   redexesOf
     ( aPP
         ( letrec
@@ -1159,6 +1153,17 @@ unit_redexes_case_4 =
 unit_redexes_case_5 :: Assertion
 unit_redexes_case_5 =
   redexesOf (let_ "x" (con' ["M"] "C") (case_ (lvar "x") [])) <@?=> Set.fromList [3]
+
+-- The body of a let has the same directionality as the let itself
+unit_redexes_let_upsilon :: Assertion
+unit_redexes_let_upsilon = do
+  let t = tforall "a" KType (tvar "a")
+  redexesOf (let_ "x" (lam "x" emptyHole `ann` t) $ lam "x" emptyHole `ann` t) <@?=> Set.fromList [0]
+  redexesOf (lam "x" $ let_ "x" (lam "x" emptyHole `ann` t) $ emptyHole `ann` t) <@?=> Set.fromList [1, 7]
+  redexesOf (letType "x" t $ lam "x" emptyHole `ann` t) <@?=> Set.fromList [0]
+  redexesOf (lam "x" $ letType "x" t $ emptyHole `ann` t) <@?=> Set.fromList [1, 4]
+  redexesOf (letrec "x" (lam "x" emptyHole `ann` t) t $ lam "x" emptyHole `ann` t) <@?=> Set.fromList [0, 1]
+  redexesOf (lam "x" $ letrec "x" (lam "x" emptyHole `ann` t) t $ emptyHole `ann` t) <@?=> Set.fromList [1, 2, 9]
 
 unit_redexes_prim_1 :: Assertion
 unit_redexes_prim_1 =
