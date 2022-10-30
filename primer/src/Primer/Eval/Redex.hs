@@ -1,3 +1,4 @@
+{-# LANGUAGE DisambiguateRecordFields #-}
 {-# LANGUAGE ImpredicativeTypes #-}
 {-# LANGUAGE NoFieldSelectors #-}
 
@@ -105,6 +106,14 @@ import Primer.Def (
   DefMap,
   defPrim,
  )
+import Primer.Eval.Detail (
+  BindRenameDetail (BindRenameDetail),
+  EvalDetail (LocalTypeVarInline, TBindRename, TLetRemoval),
+  LetRemovalDetail (LetRemovalDetail),
+  LocalVarInlineDetail (LocalVarInlineDetail),
+  findFreeOccurrencesType,
+ )
+import Primer.Eval.Detail qualified
 import Primer.Eval.Prim (tryPrimFun)
 import Primer.JSON (CustomJSON (CustomJSON), FromJSON, PrimerJSON, ToJSON)
 import Primer.Log (ConvertLogMessage (convert), logInfo, logWarning)
@@ -650,18 +659,66 @@ runRedex = \case
     letType b (pure ty) $ letType a (tvar b) $ pure body
   ApplyPrimFun e -> e
 
-runRedexTy :: MonadEvalFull l m => RedexType -> m Type
-runRedexTy (InlineLetInType{ty}) = regenerateTypeIDs ty
+runRedexTy :: MonadEvalFull l m => RedexType -> m (Type, EvalDetail)
+runRedexTy (InlineLetInType{ty, letID, varID, var}) = do
+  ty' <- regenerateTypeIDs ty
+  let details =
+        LocalVarInlineDetail
+          { letID
+          , varID
+          , valueID = getID ty
+          , bindingName = var
+          , replacementID = getID ty'
+          , isTypeVar = True
+          }
+  pure (ty', LocalTypeVarInline details)
 -- let a = s in t  ~>  t  if a does not appear in t
-runRedexTy (ElideLetInType{body}) = pure body
+runRedexTy (ElideLetInType{body, orig, letBinding = (LetTypeBind v _)}) = do
+  let details =
+        LetRemovalDetail
+          { before = orig
+          , after = body
+          , bindingName = unLocalName v
+          , letID = getID orig
+          , bodyID = getID body
+          }
+  pure (body, TLetRemoval details)
 -- let a = s a in t a a  ~>  let b = s a in let a = b in t a a
-runRedexTy (RenameSelfLetInType{letBinding = LetTypeBind a s, body}) = do
+runRedexTy (RenameSelfLetInType{letBinding = LetTypeBind a s, body, orig}) = do
   b <- freshLocalName (freeVarsTy s <> freeVarsTy body)
-  tlet b (pure s) $ tlet a (tvar b) $ pure body
+  insertedLet <- tlet a (tvar b) $ pure body
+  result <- tlet b (pure s) $ pure insertedLet
+  let details =
+        BindRenameDetail
+          { before = orig
+          , after = result
+          , bindingNamesOld = [unLocalName a]
+          , bindingNamesNew = [unLocalName b]
+          , bindersOld = [getID orig]
+          , bindersNew = [getID result]
+          , bindingOccurrences = findFreeOccurrencesType a s
+          , renamingLets = Just [getID insertedLet]
+          , bodyID = getID body
+          }
+  pure (result, TBindRename details)
 -- ∀a:k.t  ~>  ∀b:k. let a = b in t  for fresh b, avoiding the given set
-runRedexTy (RenameForall{meta, origBinder, kind, body, avoid}) = do
+runRedexTy (RenameForall{meta, origBinder, kind, body, avoid, orig}) = do
   newBinder <- freshLocalName (avoid <> freeVarsTy body <> bindersBelowTy (focus body))
-  TForall meta newBinder kind <$> tlet origBinder (tvar newBinder) (pure body)
+  insertedLet <- tlet origBinder (tvar newBinder) (pure body)
+  let result = TForall meta newBinder kind insertedLet
+  let details =
+        BindRenameDetail
+          { before = orig
+          , after = result
+          , bindingNamesOld = [unLocalName origBinder]
+          , bindingNamesNew = [unLocalName newBinder]
+          , bindersOld = [getID orig]
+          , bindersNew = [getID result]
+          , bindingOccurrences = []
+          , renamingLets = Just [getID insertedLet]
+          , bodyID = getID body
+          }
+  pure (result, TBindRename details)
 
 type MonadEvalFull l m =
   ( MonadFresh ID m

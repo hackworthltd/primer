@@ -46,6 +46,7 @@ module Primer.Zipper (
   LetBinding' (..),
   LetBinding,
   letBindingName,
+  LetTypeBinding' (..),
   getBoundHere',
   getBoundHere,
   getBoundHereUp,

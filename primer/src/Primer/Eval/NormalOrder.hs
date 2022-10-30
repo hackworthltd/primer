@@ -6,6 +6,8 @@ module Primer.Eval.NormalOrder (
   findRedex,
   foldMapExpr,
   FMExpr (..),
+  -- Exported for testing
+  singletonCxt,
 ) where
 
 import Foreword hiding (hoistAccum)
@@ -18,6 +20,7 @@ import Control.Monad.Trans.Accum (
   AccumT,
   add,
   evalAccumT,
+  execAccum,
   look,
   readerToAccumT,
  )
@@ -322,3 +325,6 @@ addBinds i' bs = do
         bs <&> \case
           Left n -> (n, (Nothing, i, cxt))
           Right l -> (letBindingName l, (Just l, i, cxt))
+
+singletonCxt :: HasID i => i -> LetBinding -> Cxt
+singletonCxt i l = addBinds i [Right l] `execAccum` mempty

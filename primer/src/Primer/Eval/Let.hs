@@ -1,6 +1,11 @@
 {-# LANGUAGE DuplicateRecordFields #-}
 
-module Primer.Eval.Let (LetRemovalDetail (..), tryLetRemoval) where
+module Primer.Eval.Let (
+  LetRemovalDetail (..),
+  tryLetRemoval,
+  findFreeOccurrencesExpr,
+  findFreeOccurrencesType,
+) where
 
 import Foreword
 
@@ -13,6 +18,8 @@ import Primer.Core (
   Expr' (Let, LetType, Letrec),
   ID,
   LocalName (unLocalName),
+  TyVarName,
+  Type,
   getID,
   _id,
  )
@@ -85,12 +92,11 @@ tryLetRemoval = \case
       (x, y, occ, expr') <- case binding of
         Left (x, e) -> do
           let (y, body') = makeSafeLetBinding x (freeVars e) body
-          let idName = either (getID *** unLocalName) (getID *** unLocalName)
-          let occ = e ^.. _freeVars % to idName % filtered ((== unLocalName x) . snd) % _1
+          let occ = findFreeOccurrencesExpr x e
           (unLocalName x,unLocalName y,occ,) <$> let_ y (pure e) (pure body')
         Right (x, ty) -> do
           let (y, body') = makeSafeLetTypeBinding x (Set.map unLocalName $ freeVarsTy ty) body
-          let occ = ty ^.. getting _freeVarsTy % to (first getID) % filtered ((== x) . snd) % _1
+          let occ = findFreeOccurrencesType x ty
           (unLocalName x,unLocalName y,occ,) <$> letType y (pure ty) (pure body')
       pure
         ( expr'
@@ -103,6 +109,15 @@ tryLetRemoval = \case
               , bindersOld = [meta ^. _id]
               , bindersNew = [getID expr']
               , bindingOccurrences = occ
+              , renamingLets = Nothing
               , bodyID = body ^. _id
               }
         )
+
+findFreeOccurrencesExpr :: LocalName k -> Expr -> [ID]
+findFreeOccurrencesExpr x e = e ^.. _freeVars % to idName % filtered ((== unLocalName x) . snd) % _1
+  where
+    idName = either (getID *** unLocalName) (getID *** unLocalName)
+
+findFreeOccurrencesType :: TyVarName -> Type -> [ID]
+findFreeOccurrencesType x ty = ty ^.. getting _freeVarsTy % to (first getID) % filtered ((== x) . snd) % _1

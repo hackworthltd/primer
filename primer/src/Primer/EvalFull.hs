@@ -86,4 +86,4 @@ step :: MonadEvalFull l m => TypeDefMap -> DefMap -> Dir -> Expr -> MaybeT m Exp
 step tydefs g d e =
   findRedex tydefs g d e >>= \case
     RExpr ez r -> lift $ unfocusExpr . flip replace ez <$> runRedex r
-    RType et r -> lift $ unfocusExpr . unfocusType . flip replace et <$> runRedexTy r
+    RType et r -> lift $ unfocusExpr . unfocusType . flip replace et . fst <$> runRedexTy r

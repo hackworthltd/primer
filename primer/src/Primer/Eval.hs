@@ -18,6 +18,8 @@ module Primer.Eval (
   -- Only exported for testing
   Locals,
   LocalLet (..),
+  Cxt,
+  singletonCxt,
   tryReduceExpr,
   tryReduceType,
   findNodeByID,
@@ -36,16 +38,7 @@ import Data.Set qualified as Set
 import ListT (ListT (ListT))
 import ListT qualified
 import Optics (
-  filtered,
-  getting,
-  notElemOf,
-  to,
   view,
-  (%),
-  (^.),
-  (^..),
-  _1,
-  _2,
  )
 import Primer.Core (
   Expr,
@@ -57,12 +50,9 @@ import Primer.Core (
   Type' (..),
   getID,
  )
-import Primer.Core.DSL.Type (tlet)
 import Primer.Core.Utils (
   freeVars,
   freeVarsTy,
-  regenerateTypeIDs,
-  _freeVarsTy,
  )
 import Primer.Def (DefMap)
 import Primer.Eval.Detail (
@@ -88,9 +78,20 @@ import Primer.Eval.Detail (
   tryReducePush,
  )
 import Primer.Eval.EvalError (EvalError (..))
-import Primer.Eval.NormalOrder (FMExpr (FMExpr, expr, subst, substTy, ty), foldMapExpr)
-import Primer.Eval.Redex (Dir (..), EvalFullLog, viewRedex, viewRedexType)
-import Primer.Eval.Utils (makeSafeTLetBinding)
+import Primer.Eval.NormalOrder (
+  FMExpr (FMExpr, expr, subst, substTy, ty),
+  foldMapExpr,
+  singletonCxt,
+ )
+import Primer.Eval.Redex (
+  Cxt,
+  Dir (..),
+  EvalFullLog,
+  MonadEvalFull,
+  runRedexTy,
+  viewRedex,
+  viewRedexType,
+ )
 import Primer.Log (ConvertLogMessage)
 import Primer.Name (Name)
 import Primer.TypeDef (TypeDefMap)
@@ -114,7 +115,7 @@ import Primer.Zipper (
 -- | Perform one step of reduction on the node with the given ID
 -- Returns the new expression and its redexes.
 step ::
-  MonadFresh ID m =>
+  MonadEvalFull l m =>
   DefMap ->
   Expr ->
   ID ->
@@ -126,10 +127,30 @@ step globals expr i = runExceptT $ do
       (node', detail) <- tryReduceExpr globals locals (target z)
       let expr' = unfocusExpr $ replace node' z
       pure (expr', detail)
-    Right z -> do
-      (node', detail) <- tryReduceType globals locals (target z)
-      let expr' = unfocusExpr $ unfocusType $ replace node' z
-      pure (expr', detail)
+    Right _ -> do
+      case findNodeByID' i expr of
+        Just (cxt, Right z) -> do
+          (node', detail) <- tryReduceType globals cxt (target z)
+          let expr' = unfocusExpr $ unfocusType $ replace node' z
+          pure (expr', detail)
+        _ -> throwError $ NodeNotFound i
+
+-- | Search for the given node by its ID.
+-- Collect all local bindings in scope and return them
+-- (with their local definition, if applicable)
+-- along with the focused node.
+-- Returns Nothing if the node is a binding, (note that no reduction rules can apply there).
+findNodeByID' :: ID -> Expr -> Maybe (Cxt, Either ExprZ TypeZ)
+findNodeByID' i =
+  foldMapExpr
+    ( FMExpr
+        { expr = \ez _ c -> if getID ez == i then Just (c, Left ez) else Nothing
+        , ty = \tz c -> if getID tz == i then Just (c, Right tz) else Nothing
+        , subst = Nothing
+        , substTy = Nothing
+        }
+    )
+    Syn -- the direction does not actually matter, as it is ignored everywhere
 
 -- | Search for the given node by its ID.
 -- Collect all local let, letrec and lettype bindings in scope and return them
@@ -266,64 +287,14 @@ tryReduceExpr globals locals = \case
   _ -> throwError NotRedex
 
 tryReduceType ::
-  (MonadFresh ID m, MonadError EvalError m) =>
+  ( MonadEvalFull l m
+  , MonadError EvalError m
+  ) =>
   DefMap ->
-  Locals ->
+  Cxt ->
   Type ->
   m (Type, EvalDetail)
-tryReduceType _globals locals = \case
-  -- Inline local type variable
-  -- x=t |- x ==> t
-  -- If the variable is not in the local set, that's fine - it just means it is bound by a big
-  -- lambda that hasn't yet been reduced.
-  TVar mTVar x
-    | Just (i, LLetType t, NoCapture) <- Map.lookup (unLocalName x) locals -> do
-        -- Since we're duplicating @t@, we must regenerate all its IDs.
-        t' <- regenerateTypeIDs t
-        pure
-          ( t'
-          , LocalTypeVarInline
-              LocalVarInlineDetail
-                { letID = i
-                , varID = mTVar ^. _id
-                , valueID = t ^. _id
-                , bindingName = x
-                , replacementID = t' ^. _id
-                , isTypeVar = True
-                }
-          )
-  ty@(TLet meta x t body)
-    -- Redundant let removal
-    -- tlet x = t1 in t2 ==> t2   if x not free in t2
-    | notElemOf (getting _freeVarsTy % _2) x body ->
-        pure
-          ( body
-          , TLetRemoval $
-              LetRemovalDetail
-                { before = ty
-                , after = body
-                , bindingName = unLocalName x
-                , letID = meta ^. _id
-                , bodyID = body ^. _id
-                }
-          )
-    -- Renaming a potentially self-capturing let
-    -- tlet x = f[x] in g[x] ==> tlet y = f[x] in g[y]
-    | otherwise -> do
-        let (y, body') = makeSafeTLetBinding x (freeVarsTy t) body
-        ty' <- tlet y (pure t) (pure body')
-        pure
-          ( ty'
-          , TBindRename $
-              BindRenameDetail
-                { before = ty
-                , after = ty'
-                , bindingNamesOld = [unLocalName x]
-                , bindingNamesNew = [unLocalName y]
-                , bindersOld = [meta ^. _id]
-                , bindersNew = [getID ty']
-                , bindingOccurrences = t ^.. getting _freeVarsTy % to (first getID) % filtered ((== x) . snd) % _1
-                , bodyID = body ^. _id
-                }
-          )
-  _ -> throwError NotRedex
+tryReduceType _globals cxt =
+  flip runReader cxt . viewRedexType <&> \case
+    Just r -> runRedexTy r
+    _ -> throwError NotRedex
