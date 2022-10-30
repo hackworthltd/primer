@@ -458,7 +458,7 @@ unit_tryReduce_case_3 = do
         Map.singleton (unsafeMkGlobalName (["M"], "T")) $
           TypeDefAST $
             ASTTypeDef
-              { astTypeDefParameters = []
+              { astTypeDefParameters = [("a", KType)]
               , astTypeDefConstructors =
                   [ ValCon (unsafeMkGlobalName (["M"], "B")) [TEmptyHole ()]
                   , ValCon (unsafeMkGlobalName (["M"], "C")) [TEmptyHole ()]
