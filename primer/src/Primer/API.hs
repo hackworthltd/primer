@@ -906,7 +906,7 @@ generateNames = curry $ logAPI (leftResultError GenerateNames) $ \(sid, ((defnam
   liftQueryAppM (handleQuestion $ GenerateName defname exprid tk) sid
 
 evalStep ::
-  (MonadIO m, MonadThrow m, MonadAPILog l m) =>
+  (MonadIO m, MonadThrow m, MonadAPILog l m, ConvertLogMessage EvalFullLog l) =>
   SessionId ->
   EvalReq ->
   PrimerM m (Either ProgError EvalResp)

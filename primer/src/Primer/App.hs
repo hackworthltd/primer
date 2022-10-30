@@ -147,12 +147,11 @@ import Primer.Def (
   Def (..),
   DefMap,
   defAST,
-  defPrim,
  )
 import Primer.Def.Utils (globalInUse)
 import Primer.Eval (EvalDetail)
 import Primer.Eval qualified as Eval
-import Primer.EvalFull (Dir, EvalFullError (TimedOut), EvalFullLog, TerminationBound, evalFull)
+import Primer.EvalFull (Dir (Syn), EvalFullError (TimedOut), EvalFullLog, TerminationBound, evalFull)
 import Primer.JSON
 import Primer.Log (ConvertLogMessage)
 import Primer.Module (
@@ -510,18 +509,18 @@ handleEditRequest actions = do
         (prog', selectedDef <$> progSelection prog')
 
 -- | Handle an eval request
-handleEvalRequest :: MonadEditApp l m => EvalReq -> m EvalResp
+handleEvalRequest :: (MonadEditApp l m, ConvertLogMessage EvalFullLog l) => EvalReq -> m EvalResp
 handleEvalRequest req = do
   prog <- gets appProg
   result <- Eval.step (allDefs prog) (evalReqExpr req) (evalReqRedex req)
   case result of
     Left err -> throwError $ EvalError err
     Right (expr, detail) -> do
-      redexes <- Eval.redexes (Map.mapMaybe defPrim $ allDefs prog) expr
+      redexes <- Eval.redexes (allTypes prog) (allDefs prog) Syn expr
       pure
         EvalResp
           { evalRespExpr = expr
-          , evalRespRedexes = Set.toList redexes
+          , evalRespRedexes = redexes
           , evalRespDetail = detail
           }
 

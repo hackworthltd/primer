@@ -25,22 +25,23 @@ import Primer.Builtins (
  )
 import Primer.Core (
   Expr,
-  GVarName,
   GlobalName (baseName, qualifiedModule),
   ID,
   Kind (KType),
   Type,
   getID,
+  unsafeMkGlobalName,
   _id,
  )
 import Primer.Core.DSL
 import Primer.Core.Utils (forgetMetadata, forgetTypeMetadata)
-import Primer.Def (ASTDef (..), Def (..), DefMap, defPrim)
+import Primer.Def (ASTDef (..), Def (..), DefMap)
 import Primer.Eval (
   ApplyPrimFunDetail (..),
   BetaReductionDetail (..),
   BindRenameDetail (..),
   CaseReductionDetail (..),
+  Dir (Syn),
   EvalDetail (..),
   EvalError (..),
   GlobalVarInlineDetail (..),
@@ -63,7 +64,17 @@ import Primer.Module (Module (Module, moduleDefs, moduleName, moduleTypes), buil
 import Primer.Primitives (PrimDef (EqChar, ToUpper), primitiveGVar, tChar)
 import Primer.Primitives.DSL (pfun)
 import Primer.Test.Util (assertNoSevereLogs, gvn, primDefs, vcn)
-import Primer.TypeDef (TypeDef (..))
+import Primer.TypeDef (
+  ASTTypeDef (
+    ASTTypeDef,
+    astTypeDefConstructors,
+    astTypeDefNameHints,
+    astTypeDefParameters
+  ),
+  TypeDef (..),
+  TypeDefMap,
+  ValCon (ValCon),
+ )
 import Primer.Zipper (target)
 import Test.Tasty.HUnit (Assertion, assertBool, assertFailure, (@?=))
 import TestM (evalTestM)
@@ -667,7 +678,7 @@ unit_step_non_redex =
         let i2 = 8 -- NB: e1 has nodes 0,1,2,3; e2 has 4,5,6,7,8
         s1' <- step mempty e1 i1
         s2' <- step mempty e2 i2
-        pure ((Set.member i1 <$> redexes' mempty e1, s1'), (Set.member i2 <$> redexes' mempty e2, s2'))
+        pure ((Set.member i1 <$> redexes' mempty mempty Syn e1, s1'), (Set.member i2 <$> redexes' mempty mempty Syn e2, s2'))
    in do
         assertBool "Should not be in 'redexes', as shadowed by a lambda" . not =<< r1
         assertBool "Should not be in 'redexes', as would self-capture" . not =<< r2
@@ -860,18 +871,38 @@ unit_findNodeByID_capture_type = do
 -- lam "y" (app (lam "x" (var "x")) (app (lam "z" (var "z")) (con' ["M"] "C")))
 
 -- | A helper for these tests
-redexes' :: Map GVarName PrimDef -> Expr -> IO (Set ID)
-redexes' prims e = do
-  let (rs, logs) = runPureLog $ redexes prims e
+redexes' :: TypeDefMap -> DefMap -> Dir -> Expr -> IO (Set ID)
+redexes' types prims d e = do
+  let (rs, logs) = runPureLog $ redexes types prims d e
   assertNoSevereLogs @EvalFullLog logs
-  pure rs
+  pure $ Set.fromList rs
 
 redexesOf :: S Expr -> IO (Set ID)
-redexesOf = redexes' mempty . create'
+redexesOf = redexes' tydefs mempty Syn . create'
 
 -- | A variation of 'redexesOf' for when the expression tested requires primitives to be in scope.
 redexesOfWithPrims :: S Expr -> IO (Set ID)
-redexesOfWithPrims = redexes' (Map.mapMaybe defPrim primDefs) . create'
+redexesOfWithPrims = redexes' tydefs primDefs Syn . create'
+
+tydefs :: TypeDefMap
+tydefs = c <> d
+  where
+    c =
+      Map.singleton (unsafeMkGlobalName (["M"], "C")) $
+        TypeDefAST $
+          ASTTypeDef
+            { astTypeDefParameters = []
+            , astTypeDefConstructors = [ValCon (unsafeMkGlobalName (["M"], "C")) []]
+            , astTypeDefNameHints = []
+            }
+    d =
+      Map.singleton (unsafeMkGlobalName (["M"], "D")) $
+        TypeDefAST $
+          ASTTypeDef
+            { astTypeDefParameters = []
+            , astTypeDefConstructors = [ValCon (unsafeMkGlobalName (["M"], "D")) []]
+            , astTypeDefNameHints = []
+            }
 
 unit_redexes_con :: Assertion
 unit_redexes_con = redexesOf (con' ["M"] "C") <@?=> mempty
@@ -881,18 +912,18 @@ m <@?=> x = m >>= (@?= x)
 
 unit_redexes_lam_1 :: Assertion
 unit_redexes_lam_1 = do
-  redexesOf (app (lam "x" (lvar "x")) (con' ["M"] "C")) <@?=> Set.singleton 0
+  redexesOf (app (lam "x" (lvar "x")) (con' ["M"] "C")) <@?=> mempty
   redexesOf (app (lam "x" (lvar "x") `ann` (tvar "a" `tfun` tvar "a")) (con' ["M"] "C")) <@?=> Set.singleton 0
 
 unit_redexes_lam_2 :: Assertion
 unit_redexes_lam_2 = do
-  redexesOf (lam "y" (app (lam "x" (lvar "x")) (con' ["M"] "C"))) <@?=> Set.singleton 1
+  redexesOf (lam "y" (app (lam "x" (lvar "x")) (con' ["M"] "C"))) <@?=> mempty
   redexesOf (lam "y" (app (lam "x" (lvar "x") `ann` (tvar "a" `tfun` tvar "a")) (con' ["M"] "C"))) <@?=> Set.singleton 1
 
 unit_redexes_lam_3 :: Assertion
 unit_redexes_lam_3 = do
   redexesOf (lam "y" (app (lam "x" (lvar "x")) (app (lam "z" (lvar "z")) (con' ["M"] "C"))))
-    <@?=> Set.fromList [1, 4]
+    <@?=> mempty
   redexesOf
     ( lam
         "y"
@@ -906,7 +937,7 @@ unit_redexes_lam_3 = do
 unit_redexes_lam_4 :: Assertion
 unit_redexes_lam_4 = do
   redexesOf (lam "y" (app (lam "x" (lvar "x")) (app (lam "z" (lvar "z")) (con' ["M"] "C"))))
-    <@?=> Set.fromList [1, 4]
+    <@?=> mempty
   redexesOf
     ( lam
         "y"
@@ -923,7 +954,7 @@ unit_redexes_LAM_1 =
 
 unit_redexes_LAM_2 :: Assertion
 unit_redexes_LAM_2 = do
-  redexesOf (aPP (lAM "a" (con' ["M"] "C")) (tcon' ["M"] "A")) <@?=> Set.fromList [0]
+  redexesOf (aPP (lAM "a" (con' ["M"] "C")) (tcon' ["M"] "A")) <@?=> mempty
   redexesOf
     ( aPP
         (lAM "a" (con' ["M"] "C") `ann` tforall "a" KType (tcon' ["M"] "C"))
@@ -933,7 +964,7 @@ unit_redexes_LAM_2 = do
 
 unit_redexes_LAM_3 :: Assertion
 unit_redexes_LAM_3 = do
-  redexesOf (lAM "a" (aPP (lAM "b" (con' ["M"] "X")) (tcon' ["M"] "T"))) <@?=> Set.fromList [1]
+  redexesOf (lAM "a" (aPP (lAM "b" (con' ["M"] "X")) (tcon' ["M"] "T"))) <@?=> mempty
   redexesOf
     ( lAM
         "a"
@@ -947,7 +978,7 @@ unit_redexes_LAM_3 = do
 unit_redexes_LAM_4 :: Assertion
 unit_redexes_LAM_4 = do
   redexesOf (let_ "x" (con' ["M"] "C") (lAM "a" (aPP (lAM "b" (lvar "x")) (tcon' ["M"] "T"))))
-    <@?=> Set.fromList [3, 5]
+    <@?=> Set.singleton 5
   redexesOf
     ( let_
         "x"
@@ -987,15 +1018,13 @@ unit_redexes_let_3 = do
 -- some intervening binder.
 unit_redexes_let_capture :: Assertion
 unit_redexes_let_capture =
-  -- We should maybe rename the lambda, see https://github.com/hackworthltd/primer/issues/509
-  assertBool "Cannot inline the variable, as would cause capture" . Set.null
-    =<< redexesOf (let_ "x" (lvar "y") $ lam "y" $ lvar "x")
+  -- We should rename the lambda, and not inline the variable
+  redexesOf (let_ "x" (lvar "y") $ lam "y" $ lvar "x") <@?=> Set.singleton 2
 
 unit_redexes_lettype_capture :: Assertion
 unit_redexes_lettype_capture =
-  -- We should maybe rename the forall, see https://github.com/hackworthltd/primer/issues/509
-  assertBool "Cannot inline the variable, as would cause capture" . Set.null
-    =<< redexesOf (letType "x" (tvar "y") (emptyHole `ann` tforall "y" KType (tvar "x")))
+  -- We should rename the forall and not inline the variable
+  redexesOf (letType "x" (tvar "y") (emptyHole `ann` tforall "y" KType (tvar "x"))) <@?=> Set.singleton 4
 
 unit_redexes_letrec_1 :: Assertion
 unit_redexes_letrec_1 =
@@ -1013,13 +1042,16 @@ unit_redexes_letrec_3 =
   -- If this were a let, we would not be able to substitute, but it is possible for letrec
   redexesOf (lAM "a" $ lam "x" $ letrec "x" (lvar "x") (tvar "a") (lvar "x")) <@?=> Set.fromList [3, 5]
 
--- The application can be reduced by pushing the argument inside the letrec
+-- The application could potentially be reduced by pushing the
+-- argument inside the letrec, but that is not a reduction rule. Once
+-- we inline the letrec enough we would be able to see the beta.
 unit_redexes_letrec_app_1 :: Assertion
 unit_redexes_letrec_app_1 = do
   redexesOf (app (letrec "e" (con' ["M"] "C") (tcon' ["M"] "T") (lam "x" (lvar "e"))) (con' ["M"] "D"))
-    <@?=> Set.fromList [0, 5]
-  -- Note that we only push an application into a letrec if there is
-  -- no annotation on the lambda
+    <@?=> Set.fromList [5]
+  -- TODO: this test is expected to fail, as it shows a bug:
+  -- the annotation is (for some reason) considered elidable.
+  -- This will shortly be fixed in a subsequent commit.
   redexesOf
     ( app
         ( letrec
@@ -1032,12 +1064,16 @@ unit_redexes_letrec_app_1 = do
     )
     <@?=> Set.fromList [6]
 
+-- The application could potentially be reduced by pushing the
+-- argument inside the letrec, but that is not a reduction rule. Once
+-- we inline the letrec enough we would be able to see the beta.
 unit_redexes_letrec_APP_1 :: Assertion
 unit_redexes_letrec_APP_1 = do
   redexesOf (aPP (letrec "e" (con' ["M"] "C") (tcon' ["M"] "T") (lAM "x" (lvar "e"))) (tcon' ["M"] "D"))
-    <@?=> Set.fromList [0, 5]
-  -- Note that we only push an application into a letrec if there is
-  -- no annotation on the lambda
+    <@?=> Set.fromList [5]
+  -- TODO: this test is expected to fail, as it shows a bug:
+  -- the annotation is (for some reason) considered elidable.
+  -- This will shortly be fixed in a subsequent commit.
   redexesOf
     ( aPP
         ( letrec
@@ -1138,7 +1174,7 @@ unit_redexes_prim_3 =
 
 unit_redexes_prim_ann :: Assertion
 unit_redexes_prim_ann =
-  redexesOfWithPrims expr <@?=> Set.singleton 0
+  redexesOfWithPrims expr <@?=> Set.fromList [0, 6]
   where
     expr =
       pfun ToUpper

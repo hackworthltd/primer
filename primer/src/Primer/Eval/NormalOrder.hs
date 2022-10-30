@@ -4,6 +4,8 @@
 module Primer.Eval.NormalOrder (
   RedexWithContext (RExpr, RType),
   findRedex,
+  foldMapExpr,
+  FMExpr (..),
 ) where
 
 import Foreword hiding (hoistAccum)

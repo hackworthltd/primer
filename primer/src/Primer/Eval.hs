@@ -23,16 +23,19 @@ module Primer.Eval (
   findNodeByID,
   singletonLocal,
   RHSCaptured (..),
+  Dir (..),
 ) where
 
 import Foreword
 
 import Control.Monad.Fresh (MonadFresh)
-import Control.Monad.Log (MonadLog)
+import Control.Monad.Log (MonadLog, WithSeverity)
+import Control.Monad.Trans.Maybe (MaybeT, runMaybeT)
 import Data.Map.Strict qualified as Map
 import Data.Set qualified as Set
+import ListT (ListT (ListT))
+import ListT qualified
 import Optics (
-  elemOf,
   filtered,
   getting,
   notElemOf,
@@ -45,29 +48,20 @@ import Optics (
   _2,
  )
 import Primer.Core (
-  CaseBranch' (..),
   Expr,
   Expr' (..),
-  GVarName,
   HasID (_id),
   ID,
-  LVarName,
-  LocalName (LocalName, unLocalName),
-  TmVarRef (..),
-  TyVarName,
+  LocalName (unLocalName),
   Type,
   Type' (..),
-  bindName,
   getID,
  )
 import Primer.Core.DSL.Type (tlet)
-import Primer.Core.Transform (removeAnn, unfoldAPP, unfoldApp)
 import Primer.Core.Utils (
   freeVars,
   freeVarsTy,
   regenerateTypeIDs,
-  _freeTmVars,
-  _freeTyVars,
   _freeVarsTy,
  )
 import Primer.Def (DefMap)
@@ -88,17 +82,18 @@ import Primer.Eval.Detail (
   tryInlineGlobal,
   tryInlineLocal,
   tryLetRemoval,
-  tryPrimFun,
   tryReduceBETA,
   tryReduceBeta,
   tryReducePrim,
   tryReducePush,
  )
 import Primer.Eval.EvalError (EvalError (..))
+import Primer.Eval.NormalOrder (FMExpr (FMExpr, expr, subst, substTy, ty), foldMapExpr)
+import Primer.Eval.Redex (Dir (..), EvalFullLog, viewRedex, viewRedexType)
 import Primer.Eval.Utils (makeSafeTLetBinding)
+import Primer.Log (ConvertLogMessage)
 import Primer.Name (Name)
-import Primer.Name.Fresh (isFresh, isFreshTy)
-import Primer.Primitives.PrimDef (PrimDef)
+import Primer.TypeDef (TypeDefMap)
 import Primer.Zipper (
   ExprZ,
   FoldAbove,
@@ -225,128 +220,31 @@ singletonLocal' n (i, l) = Map.singleton n (i, l, fvs, c)
          in (fvs', if Set.member n fvs' then Capture else NoCapture)
 
 -- | Return the IDs of nodes which are reducible.
--- We assume the expression is well scoped, and do not e.g. check whether
--- @e@ refers to a type variable @x@ when deciding if we can reduce a
--- @let x = _ in e@ (we of course check whether @e@ refers to a term variable
--- @x@)
-redexes :: MonadLog l m => Map GVarName PrimDef -> Expr -> m (Set ID)
-redexes primDefs = pure . go mempty
+-- We assume that the expression is well scoped. There are no
+-- guarantees about whether we will claim that an ill-sorted variable
+-- is inlinable, e.g. @lettype a = _ in case a of ...@.
+redexes ::
+  forall l m.
+  (MonadLog (WithSeverity l) m, ConvertLogMessage EvalFullLog l) =>
+  TypeDefMap ->
+  DefMap ->
+  Dir ->
+  Expr ->
+  m [ID]
+redexes tydefs globals =
+  (ListT.toList .)
+    . foldMapExpr
+      FMExpr
+        { expr = \ez d -> liftMaybeT . runReaderT (getID ez <$ viewRedex tydefs globals d (target ez))
+        , ty = \tz -> runReader (whenJust (getID tz) <$> viewRedexType (target tz))
+        , subst = Nothing
+        , substTy = Nothing
+        }
   where
-    -- letTm and letTy track the set of local variables we have a definition for,
-    -- and the free vars of their RHSs, to tell if we go under a capturing binder
-    go locals@(letTm, letTy) expr =
-      -- A set containing just the ID of this expression
-      let self = Set.singleton (expr ^. _id)
-          freeTmVar = elemOf $ getting _freeTmVars % _2
-          freeTyVar = elemOf $ getting _freeTyVars % _2
-       in case expr of
-            -- Application nodes are reducible only if their left child is a λ node or an annotation
-            -- wrapping a λ node.
-            -- (λ ...) x
-            App _ e1@Lam{} e2 -> self <> go locals e1 <> go locals e2
-            -- (λ ... : T) x
-            App _ e1@(Ann _ Lam{} _) e2 -> self <> go locals e1 <> go locals e2
-            -- (letrec x : T = t in λ ...) e  ~>  letrec x : T = t in ((λ...) e)
-            -- We can reduce an application across a letrec as long as x isn't a free variable in e.
-            -- If it was, it would be a different x and we'd cause variable capture if we
-            -- substituted e into the λ body.
-            App _ e1@(Letrec _ x _ _ Lam{}) e4 ->
-              mwhen (isFresh x e4) self <> go locals e1 <> go locals e4
-            -- Application of a primitive (fully-applied, with all arguments in normal form).
-            App{} | Just _ <- tryPrimFun primDefs expr -> self
-            -- f x
-            App _ e1 e2 -> go locals e1 <> go locals e2
-            APP _ e@LAM{} t -> self <> go locals e <> goType letTy t
-            APP _ e@(Ann _ LAM{} _) t -> self <> go locals e <> goType letTy t
-            -- (letrec x : T = t in Λ ...) e  ~>  letrec x : T = t in ((Λ ...) e)
-            -- This is the same as the letrec case above, but for Λ
-            APP _ e1@(Letrec _ x _ _ LAM{}) e4 ->
-              mwhen (isFreshTy x e4) self <> go locals e1 <> goType letTy e4
-            APP _ e t -> go locals e <> goType letTy t
-            Var _ (LocalVarRef x)
-              | Map.member x letTm -> self
-              | otherwise -> mempty
-            Var _ (GlobalVarRef x)
-              | Map.member x primDefs -> mempty
-              | otherwise -> self
-            -- Note that x is in scope in e2 but not e1.
-            Let _ x e1 e2 ->
-              -- If we have something like let x = f x in (x,x), then we cannot
-              -- substitute each occurrence individually, since the let would
-              -- capture the new 'x' in 'f x'. We first rename to
-              -- let y = f x in (y,y)
-              let selfCapture = not $ isFresh x e1
-                  locals' =
-                    ( if selfCapture then letTm else insertTm x e1 letTm
-                    , letTy
-                    )
-               in go locals e1 <> go locals' e2 <> munless (not selfCapture && freeTmVar x e2) self
-            -- Whereas here, x is in scope in both e1 and e2.
-            Letrec _ x e1 t e2 ->
-              let locals' = (insertTm x e1 letTm, letTy)
-               in go locals' e1 <> go locals' e2 <> goType letTy t <> munless (freeTmVar x e2) self
-            -- As with Let, x is in scope in e but not in t
-            LetType _ x t e ->
-              -- We need to be careful that the LetType will not capture a
-              -- variable occurrence arising from any potential substitution
-              -- of itself. See the comment on 'Let' above for an example.
-              let selfCapture = not $ isFreshTy x t
-                  locals' = (removeTmTy x letTm, if selfCapture then letTy else insertTy x t letTy)
-               in goType (snd locals) t <> go locals' e <> munless (not selfCapture && freeTyVar x e) self
-            Lam _ x e -> go (removeTm x letTm, letTy) e
-            LAM _ x e -> go (letTm, removeTy x letTy) e
-            EmptyHole{} -> mempty
-            Hole _ e -> go locals e
-            Ann _ e t -> go locals e <> goType letTy t
-            Con{} -> mempty
-            Case _ e branches ->
-              let branchRedexes (CaseBranch _ binds rhs) =
-                    let locals' = (removeAll (map bindName binds) letTm, letTy)
-                     in go locals' rhs
-                  scrutRedex = case unfoldAPP $ fst $ unfoldApp $ removeAnn e of
-                    (Con{}, _) -> self
-                    _ -> mempty
-               in scrutRedex <> go locals e <> mconcat (map branchRedexes branches)
-            PrimCon{} -> mempty
-    goType locals ty =
-      -- A set containing just the ID of this type
-      let self = Set.singleton (ty ^. _id)
-       in case ty of
-            TEmptyHole _ -> mempty
-            THole _ t -> goType locals t
-            TVar _ x
-              | Map.member x locals -> self
-              | otherwise -> mempty
-            TCon _ _ -> mempty
-            TFun _ a b -> goType locals a <> goType locals b
-            TApp _ a b -> goType locals a <> goType locals b
-            TForall _ x _ t -> goType (removeTy x locals) t
-            TLet _ x t b ->
-              -- As with term-level lets, we need to be careful about capture
-              let selfCapture = not $ isFreshTy x t
-                  locals' = if selfCapture then locals else insertTy x t locals
-                  freeTyVar = elemOf $ getting _freeVarsTy % _2
-               in goType locals t <> goType locals' b <> munless (not selfCapture && freeTyVar x b) self
-    -- When going under a binder, outer binders of that name go out of scope,
-    -- and any outer let bindings mentioning that name are not available for
-    -- substitution (as the binder we are going under would capture such a
-    -- reference)
-    removeTm :: LVarName -> Map LVarName (Set Name) -> Map LVarName (Set Name)
-    removeTm x = Map.filter (Set.notMember $ unLocalName x) . Map.delete x
-    removeTy :: TyVarName -> Map TyVarName (Set TyVarName) -> Map TyVarName (Set TyVarName)
-    removeTy x = Map.filter (Set.notMember x) . Map.delete x
-    removeTmTy :: TyVarName -> Map LVarName (Set Name) -> Map LVarName (Set Name)
-    removeTmTy x = Map.filter (Set.notMember $ unLocalName x) . Map.delete (LocalName $ unLocalName x)
-    removeAll :: [LVarName] -> Map LVarName (Set Name) -> Map LVarName (Set Name)
-    removeAll xs' =
-      let xs = Set.fromList xs'
-          xsNames = Set.fromList $ unLocalName <$> xs'
-       in Map.filter (Set.disjoint xsNames) . flip Map.withoutKeys xs
-    -- insert does not deal with self shadowing (as don't know let vs letrec)
-    insertTm :: LVarName -> Expr -> Map LVarName (Set Name) -> Map LVarName (Set Name)
-    insertTm x e = Map.insert x (freeVars e) . removeTm x
-    insertTy :: TyVarName -> Type -> Map TyVarName (Set TyVarName) -> Map TyVarName (Set TyVarName)
-    insertTy x t = Map.insert x (freeVarsTy t) . removeTy x
+    liftMaybeT :: Monad m' => MaybeT m' a -> ListT m' a
+    liftMaybeT m = ListT $ fmap (,mempty) <$> runMaybeT m
+    -- whenJust :: Alternative f => a -> Maybe b -> f a
+    whenJust = maybe empty . const . pure
 
 -- | Given a context of local and global variables and an expression, try to reduce that expression.
 -- Expects that the expression is redex and will throw an error if not.
