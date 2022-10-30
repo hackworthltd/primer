@@ -8,7 +8,6 @@ module Primer.Core.Transform (
   unfoldAPP,
   unfoldTApp,
   unfoldFun,
-  removeAnn,
 ) where
 
 import Foreword
@@ -238,8 +237,3 @@ unfoldFun a (TFun _ b c) =
   let (argTypes, resultType) = unfoldFun b c
    in (NE.cons a argTypes, resultType)
 unfoldFun a t = (pure a, t)
-
--- | Remove any outer annotations from an expression
-removeAnn :: Expr' a b -> Expr' a b
-removeAnn (Ann _ e _) = removeAnn e
-removeAnn e = e

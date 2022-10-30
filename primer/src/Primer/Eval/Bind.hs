@@ -31,11 +31,9 @@ data BindRenameDetail t = BindRenameDetail
   -- (e.g. @let x = x+1 in x+x ~> let y = x+1 in let x = y in x + x@,
   -- it will contain the @x@ inside @x+1@).
   -- For renaming other binders (e.g. lambdas), this list will be empty.
-  , renamingLets :: Maybe [ID]
-  -- ^ the newly-inserted let (for new-style, small-step renamings
-  -- @x.t[x] ~> y.let x = y in t[x]@)
-  -- NB: the wrapping in 'Maybe' is a temporary state of affairs,
-  -- Once all details are new-style, this will be dropped, giving @renamingLets :: [ID]@.
+  , renamingLets :: [ID]
+  -- ^ the newly-inserted (just under the binder) let
+  -- (for new-style, small-step renamings @x.t[x] ~> y.let x = y in t[x]@)
   , bodyID :: ID
   -- ^ the right hand side of the binders
   }

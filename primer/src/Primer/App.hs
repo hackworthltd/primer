@@ -508,7 +508,7 @@ handleEditRequest actions = do
       applyProgAction prog mdef a <&> \prog' ->
         (prog', selectedDef <$> progSelection prog')
 
--- | Handle an eval request
+-- | Handle an eval request (we assume that all such requests are implicitly in a synthesisable context)
 handleEvalRequest :: (MonadEditApp l m, ConvertLogMessage EvalFullLog l) => EvalReq -> m EvalResp
 handleEvalRequest req = do
   prog <- gets appProg

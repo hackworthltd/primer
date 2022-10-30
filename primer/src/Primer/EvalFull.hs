@@ -7,10 +7,6 @@ module Primer.EvalFull (
   EvalFullLog (..),
 ) where
 
--- TODO: share code with Primer.Eval
--- I hope to reuse this code in Eval - the current implementation does some weird things with annotations and metadata
--- but that will come later
-
 -- TODO: ensure do sane things to metadata
 -- (Perhaps we should just run a TC pass after each step?)
 -- See https://github.com/hackworthltd/primer/issues/6
@@ -85,5 +81,5 @@ evalFullStepCount tydefs env n d = go 0
 step :: MonadEvalFull l m => TypeDefMap -> DefMap -> Dir -> Expr -> MaybeT m Expr
 step tydefs g d e =
   findRedex tydefs g d e >>= \case
-    RExpr ez r -> lift $ unfocusExpr . flip replace ez <$> runRedex r
+    RExpr ez r -> lift $ unfocusExpr . flip replace ez . fst <$> runRedex r
     RType et r -> lift $ unfocusExpr . unfocusType . flip replace et . fst <$> runRedexTy r

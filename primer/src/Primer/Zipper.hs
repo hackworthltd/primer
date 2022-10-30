@@ -398,6 +398,7 @@ data LetBinding' a b
   = LetBind LVarName (Expr' a b)
   | LetrecBind LVarName (Expr' a b) (Type' b)
   | LetTyBind (LetTypeBinding' b)
+  deriving (Eq, Show)
 type LetBinding = LetBinding' ExprMeta TypeMeta
 
 letBindingName :: LetBinding' a b -> Name

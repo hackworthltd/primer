@@ -4,6 +4,7 @@ module Tests.Eval where
 
 import Foreword
 
+import Control.Monad.Trans.Maybe (runMaybeT)
 import Data.Map.Strict qualified as Map
 import Data.Set qualified as Set
 import Optics ((^.))
@@ -27,7 +28,8 @@ import Primer.Core (
   Expr,
   GlobalName (baseName, qualifiedModule),
   ID,
-  Kind (KType),
+  Kind (KFun, KType),
+  LocalName,
   Type,
   Type' (TCon, TEmptyHole),
   getID,
@@ -43,20 +45,17 @@ import Primer.Eval (
   BetaReductionDetail (..),
   BindRenameDetail (..),
   CaseReductionDetail (..),
-  Cxt,
+  Cxt (Cxt),
   Dir (Syn),
   EvalDetail (..),
   EvalError (..),
   GlobalVarInlineDetail (..),
   LetRemovalDetail (..),
-  LocalLet (LLet, LLetRec, LLetType),
   LocalVarInlineDetail (..),
-  Locals,
-  RHSCaptured (Capture, NoCapture),
   findNodeByID,
+  getNonCapturedLocal,
   redexes,
   singletonCxt,
-  singletonLocal,
   step,
   tryReduceExpr,
   tryReduceType,
@@ -78,7 +77,12 @@ import Primer.TypeDef (
   TypeDefMap,
   ValCon (ValCon),
  )
-import Primer.Zipper (LetBinding' (LetTyBind), LetTypeBinding' (LetTypeBind), target)
+import Primer.Zipper (
+  LetBinding,
+  LetBinding' (LetBind, LetTyBind, LetrecBind),
+  LetTypeBinding' (LetTypeBind),
+  target,
+ )
 import Test.Tasty.HUnit (Assertion, assertBool, assertFailure, (@?=))
 import TestM (evalTestM)
 import Tests.Action.Prog (runAppTestM)
@@ -86,8 +90,11 @@ import Tests.Action.Prog (runAppTestM)
 -- * 'tryReduce' tests
 
 -- | A helper for these tests
-runTryReduce :: TypeDefMap -> DefMap -> Locals -> (Expr, ID) -> Either EvalError (Expr, EvalDetail)
-runTryReduce tys globals locals (expr, i) = evalTestM i $ runExceptT $ tryReduceExpr tys globals locals Syn expr
+runTryReduce :: TypeDefMap -> DefMap -> Cxt -> (Expr, ID) -> IO (Either EvalError (Expr, EvalDetail))
+runTryReduce tys globals locals (expr, i) = do
+  let (r, logs) = evalTestM i $ runPureLogT $ runExceptT $ tryReduceExpr @EvalFullLog tys globals locals Syn expr
+  assertNoSevereLogs logs
+  pure r
 
 -- For use in assertions
 runTryReduceType :: DefMap -> Cxt -> (Type, ID) -> IO (Either EvalError (Type, EvalDetail))
@@ -98,30 +105,20 @@ runTryReduceType globals locals (ty, i) = do
 
 unit_tryReduce_no_redex :: Assertion
 unit_tryReduce_no_redex = do
-  runTryReduce mempty mempty mempty (create (con cZero)) @?= Left NotRedex
+  r <- runTryReduce mempty mempty mempty (create (con cZero))
+  r @?= Left NotRedex
 
 unit_tryReduce_beta :: Assertion
 unit_tryReduce_beta = do
-  let ((lambda, body, arg, input, expectedResult), maxid) =
+  let (input, maxid) =
         create $ do
           x <- lvar "x"
           l <- lam "x" (pure x)
           a <- con cZero
-          i <- app (pure l) (pure a)
-          r <- let_ "x" (pure a) (pure x)
-          pure (l, x, a, i, r)
-      result = runTryReduce mempty mempty mempty (input, maxid)
+          app (pure l) (pure a)
+  result <- runTryReduce mempty mempty mempty (input, maxid)
   case result of
-    Right (expr, BetaReduction detail) -> do
-      expr ~= expectedResult
-      detail.before ~= input
-      detail.after ~= expectedResult
-      detail.bindingName @?= "x"
-      detail.lambdaID @?= lambda ^. _id
-      detail.letID @?= expr ^. _id
-      detail.argID @?= arg ^. _id
-      detail.bodyID @?= body ^. _id
-      detail.types @?= Nothing
+    Left NotRedex -> pure ()
     _ -> assertFailure $ show result
 
 unit_tryReduce_beta_annotation :: Assertion
@@ -136,7 +133,7 @@ unit_tryReduce_beta_annotation = do
           i <- app (ann (pure l) (tfun (pure t1) (pure t2))) (pure a)
           r <- ann (let_ "x" (ann (pure a) (pure t1)) (pure x)) (pure t2)
           pure (l, x, a, i, r, t1, t2)
-      result = runTryReduce tydefs mempty mempty (input, maxid)
+  result <- runTryReduce tydefs mempty mempty (input, maxid)
   case result of
     Right (expr, BetaReduction detail@BetaReductionDetail{types = Just (l, r)}) -> do
       expr ~= expectedResult
@@ -150,43 +147,34 @@ unit_tryReduce_beta_annotation = do
       r ~~= resultType
     _ -> assertFailure $ show result
 
+-- We don't reduce @(λx. t : ?) a@, where the annotation
+-- is a hole rather than an arrow
 unit_tryReduce_beta_annotation_hole :: Assertion
 unit_tryReduce_beta_annotation_hole = do
-  let ((lambda, body, arg, input, expectedResult, argType, resultType), maxid) =
+  let (input, maxid) =
         create $ do
-          t1 <- tEmptyHole
-          t2 <- tEmptyHole
           x <- lvar "x"
           l <- lam "x" (pure x)
           a <- con' ["M"] "C"
-          i <- app (ann (pure l) tEmptyHole) (pure a)
-          r <- hole (let_ "x" (hole (pure a)) (pure x))
-          pure (l, x, a, i, r, t1, t2)
-      result = runTryReduce tydefs mempty mempty (input, maxid)
+          app (ann (pure l) tEmptyHole) (pure a)
+  result <- runTryReduce tydefs mempty mempty (input, maxid)
   case result of
-    Right (expr, BetaReduction detail@BetaReductionDetail{types = Just (l, r)}) -> do
-      expr ~= expectedResult
-      detail.before ~= input
-      detail.after ~= expectedResult
-      detail.bindingName @?= "x"
-      detail.lambdaID @?= lambda ^. _id
-      detail.argID @?= arg ^. _id
-      detail.bodyID @?= body ^. _id
-      l ~~= argType
-      r ~~= resultType
+    Left NotRedex -> pure ()
     _ -> assertFailure $ show result
 
 unit_tryReduce_BETA :: Assertion
 unit_tryReduce_BETA = do
-  let ((body, lambda, arg, input, expectedResult), maxid) =
+  let ((body, lambda, arg, input, expectedResult, k, ty), maxid) =
         create $ do
           b <- aPP (con cNil) (tvar "x")
           l <- lAM "x" (pure b)
           a <- tcon tBool
-          i <- aPP (pure l) (pure a)
-          r <- letType "x" (pure a) (pure b)
-          pure (b, l, a, i, r)
-      result = runTryReduce tydefs mempty mempty (input, maxid)
+          let k_ = KFun KType KType
+          ty_ <- tEmptyHole
+          i <- aPP (pure l `ann` tforall "a" k_ (pure ty_)) (pure a)
+          r <- letType "x" (pure a) (pure b) `ann` tlet "a" (pure a) (pure ty_)
+          pure (b, l, a, i, r, k_, ty_)
+  result <- runTryReduce tydefs mempty mempty (input, maxid)
   case result of
     Right (expr, BETAReduction detail) -> do
       expr ~= expectedResult
@@ -197,15 +185,15 @@ unit_tryReduce_BETA = do
       detail.letID @?= expr ^. _id
       detail.argID @?= arg ^. _id
       detail.bodyID @?= body ^. _id
-      detail.types @?= Nothing
+      detail.types @?= Just (k, ty)
     _ -> assertFailure $ show result
 
 unit_tryReduce_local_term_var :: Assertion
 unit_tryReduce_local_term_var = do
   -- We assume we're inside a larger expression (e.g. a let) where the node that binds x has ID 5.
   let ((expr, val), i) = create $ (,) <$> lvar "x" <*> con' ["M"] "C"
-      locals = singletonLocal "x" (5, LLet val)
-      result = runTryReduce tydefs mempty locals (expr, i)
+      locals = singletonCxt @ID 5 $ LetBind "x" val
+  result <- runTryReduce tydefs mempty locals (expr, i)
   case result of
     Right (expr', LocalVarInline detail) -> do
       expr' ~= val
@@ -245,8 +233,8 @@ unit_tryReduce_global_var = do
         t <- tfun (tcon' ["M"] "A") (tcon' ["M"] "B")
         pure (g, ASTDef{astDefExpr = e, astDefType = t})
       globals = Map.singleton f (DefAST def)
-      result = runTryReduce tydefs globals mempty (expr, i)
       expectedResult = create' $ ann (lam "x" (lvar "x")) (tfun (tcon' ["M"] "A") (tcon' ["M"] "B"))
+  result <- runTryReduce tydefs globals mempty (expr, i)
   case result of
     Right (expr', GlobalVarInline detail) -> do
       expr' ~= expectedResult
@@ -259,8 +247,8 @@ unit_tryReduce_global_var = do
 unit_tryReduce_let :: Assertion
 unit_tryReduce_let = do
   let (expr, i) = create $ let_ "x" (con' ["M"] "C") (con' ["M"] "D")
-      result = runTryReduce tydefs mempty mempty (expr, i)
       expectedResult = create' $ con' ["M"] "D"
+  result <- runTryReduce tydefs mempty mempty (expr, i)
   case result of
     Right (expr', LetRemoval detail) -> do
       expr' ~= expectedResult
@@ -272,12 +260,12 @@ unit_tryReduce_let = do
       detail.bodyID @?= 2
     _ -> assertFailure $ show result
 
--- let x = x in x ==> let y = x in y
+-- let x = x in x ==> let y = x in let x = y in x
 unit_tryReduce_let_self_capture :: Assertion
 unit_tryReduce_let_self_capture = do
   let (expr, i) = create $ let_ "x" (lvar "x") (lvar "x")
-      result = runTryReduce tydefs mempty mempty (expr, i)
-      expectedResult = create' $ let_ "x0" (lvar "x") (lvar "x0")
+      expectedResult = create' $ let_ "a3" (lvar "x") $ let_ "x" (lvar "a3") (lvar "x")
+  result <- runTryReduce tydefs mempty mempty (expr, i)
   case result of
     Right (expr', BindRename detail) -> do
       expr' ~= expectedResult
@@ -285,19 +273,19 @@ unit_tryReduce_let_self_capture = do
       detail.before @?= expr
       detail.after ~= expectedResult
       detail.bindingNamesOld @?= ["x"]
-      detail.bindingNamesNew @?= ["x0"]
+      detail.bindingNamesNew @?= ["a3"]
       detail.bindersOld @?= [0]
-      detail.bindersNew @?= [3]
+      detail.bindersNew @?= [6]
       detail.bindingOccurrences @?= [1]
-      detail.renamingLets @?= Nothing
+      detail.renamingLets @?= [4]
       detail.bodyID @?= 2
     _ -> assertFailure $ show result
 
 unit_tryReduce_lettype :: Assertion
 unit_tryReduce_lettype = do
   let (expr, i) = create $ letType "x" (tcon' ["M"] "C") (con' ["M"] "D")
-      result = runTryReduce tydefs mempty mempty (expr, i)
       expectedResult = create' $ con' ["M"] "D"
+  result <- runTryReduce tydefs mempty mempty (expr, i)
   case result of
     Right (expr', LetRemoval detail) -> do
       expr' ~= expectedResult
@@ -309,12 +297,12 @@ unit_tryReduce_lettype = do
       detail.bodyID @?= 2
     _ -> assertFailure $ show result
 
--- let type x = x in _ :: x ==> let type y = x in _ :: y
+-- let type x = x in _ :: x ==> let type y = x in lettype x = y in _ :: x
 unit_tryReduce_lettype_self_capture :: Assertion
 unit_tryReduce_lettype_self_capture = do
   let (expr, i) = create $ letType "x" (tvar "x") (emptyHole `ann` tvar "x")
-      result = runTryReduce tydefs mempty mempty (expr, i)
-      expectedResult = create' $ letType "x0" (tvar "x") (emptyHole `ann` tvar "x0")
+      expectedResult = create' $ letType "a5" (tvar "x") $ letType "x" (tvar "a5") (emptyHole `ann` tvar "x")
+  result <- runTryReduce tydefs mempty mempty (expr, i)
   case result of
     Right (expr', BindRename detail) -> do
       expr' ~= expectedResult
@@ -322,11 +310,11 @@ unit_tryReduce_lettype_self_capture = do
       detail.before @?= expr
       detail.after ~= expectedResult
       detail.bindingNamesOld @?= ["x"]
-      detail.bindingNamesNew @?= ["x0"]
+      detail.bindingNamesNew @?= ["a5"]
       detail.bindersOld @?= [0]
-      detail.bindersNew @?= [5]
+      detail.bindersNew @?= [8]
       detail.bindingOccurrences @?= [1]
-      detail.renamingLets @?= Nothing
+      detail.renamingLets @?= [6]
       detail.bodyID @?= 2
     _ -> assertFailure $ show result
 
@@ -365,15 +353,15 @@ unit_tryReduce_tlet_self_capture = do
       detail.bindersOld @?= [0]
       detail.bindersNew @?= [6]
       detail.bindingOccurrences @?= [1]
-      detail.renamingLets @?= Just [4]
+      detail.renamingLets @?= [4]
       detail.bodyID @?= 2
     _ -> assertFailure $ show result
 
 unit_tryReduce_letrec :: Assertion
 unit_tryReduce_letrec = do
   let (expr, i) = create $ letrec "x" (con' ["M"] "C") (tcon' ["M"] "T") (con' ["M"] "D")
-      result = runTryReduce tydefs mempty mempty (expr, i)
       expectedResult = create' $ con' ["M"] "D"
+  result <- runTryReduce tydefs mempty mempty (expr, i)
   case result of
     Right (expr', LetRemoval detail) -> do
       expr' ~= expectedResult
@@ -388,8 +376,8 @@ unit_tryReduce_letrec = do
 unit_tryReduce_case_1 :: Assertion
 unit_tryReduce_case_1 = do
   let (expr, i) = create $ case_ (con' ["M"] "C") [branch' (["M"], "B") [("b", Nothing)] (con' ["M"] "D"), branch' (["M"], "C") [] (con' ["M"] "E")]
-      result = runTryReduce tydefs mempty mempty (expr, i)
       expectedResult = create' $ con' ["M"] "E"
+  result <- runTryReduce tydefs mempty mempty (expr, i)
   case result of
     Right (expr', CaseReduction detail) -> do
       expr' ~= expectedResult
@@ -414,7 +402,6 @@ unit_tryReduce_case_2 = do
             [ branch' (["M"], "B") [("b", Nothing)] (con' ["M"] "D")
             , branch' (["M"], "C") [("c", Nothing), ("d", Nothing), ("e", Nothing)] (con' ["M"] "E")
             ]
-      result = runTryReduce tydef mempty mempty (expr, i)
       x = unsafeMkGlobalName (["M"], "X")
       y = unsafeMkGlobalName (["M"], "Y")
       z = unsafeMkGlobalName (["M"], "Z")
@@ -429,7 +416,21 @@ unit_tryReduce_case_2 = do
                   ]
               , astTypeDefNameHints = []
               }
-      expectedResult = create' $ let_ "c" (lam "x" (lvar "x")) (let_ "d" (lvar "y") (let_ "e" (lvar "z") (con' ["M"] "E")))
+      expectedResult =
+        create' $
+          let_
+            "c"
+            (lam "x" (lvar "x") `ann` tcon x)
+            ( let_
+                "d"
+                (lvar "y" `ann` tcon y)
+                ( let_
+                    "e"
+                    (lvar "z" `ann` tcon z)
+                    (con' ["M"] "E")
+                )
+            )
+  result <- runTryReduce tydef mempty mempty (expr, i)
   case result of
     Right (expr', CaseReduction detail) -> do
       expr' ~= expectedResult
@@ -442,7 +443,7 @@ unit_tryReduce_case_2 = do
       detail.targetArgIDs @?= [5, 7, 8]
       detail.branchBindingIDs @?= [11, 12, 13]
       detail.branchRhsID @?= 14
-      detail.letIDs @?= [17, 16, 15]
+      detail.letIDs @?= [21, 18, 15]
     _ -> assertFailure $ show result
 
 unit_tryReduce_case_3 :: Assertion
@@ -465,8 +466,8 @@ unit_tryReduce_case_3 = do
                   ]
               , astTypeDefNameHints = []
               }
-      result = runTryReduce tydef mempty mempty (expr, i)
-      expectedResult = create' $ let_ "c" (con' ["M"] "E") (con' ["M"] "F")
+      expectedResult = create' $ let_ "c" (con' ["M"] "E" `ann` tEmptyHole) (con' ["M"] "F")
+  result <- runTryReduce tydef mempty mempty (expr, i)
   case result of
     Right (expr', CaseReduction detail) -> do
       expr' ~= expectedResult
@@ -497,30 +498,31 @@ unit_tryReduce_case_name_clash = do
               , astTypeDefConstructors = [ValCon (unsafeMkGlobalName (["M"], "C")) [TEmptyHole (), TEmptyHole ()]]
               , astTypeDefNameHints = []
               }
-      result = runTryReduce tydef mempty mempty (expr, i)
       expectedResult =
         create' $
-          let_ "x0" emptyHole $
-            let_ "y" (lvar "x") emptyHole
+          case_
+            (con' ["M"] "C" `app` emptyHole `app` lvar "x")
+            [branch' (["M"], "C") [("a9", Nothing), ("y", Nothing)] $ let_ "x" (lvar "a9") emptyHole]
+  result <- runTryReduce tydef mempty mempty (expr, i)
   case result of
-    Right (expr', CaseReduction detail) -> do
+    Right (expr', BindRename detail) -> do
       expr' ~= expectedResult
 
       detail.before ~= expr
       detail.after ~= expectedResult
-      detail.targetID @?= 1
-      detail.targetCtorID @?= 3
-      detail.ctorName @?= vcn ["M"] "C"
-      detail.targetArgIDs @?= [4, 5]
-      detail.branchBindingIDs @?= [6, 7]
-      detail.branchRhsID @?= 8
-      detail.letIDs @?= [10, 9]
+      detail.bindingNamesOld @?= ["x", "y"]
+      detail.bindingNamesNew @?= ["a9", "y"]
+      detail.bindersOld @?= [6, 7]
+      detail.bindersNew @?= [6, 7]
+      detail.bindingOccurrences @?= []
+      detail.renamingLets @?= [10]
+      detail.bodyID @?= 8
     _ -> assertFailure $ show result
 
 unit_tryReduce_case_scrutinee_not_redex :: Assertion
 unit_tryReduce_case_scrutinee_not_redex = do
   let (expr, i) = create $ case_ (lvar "x") [branch' (["M"], "B") [] (con' ["M"] "D")]
-      result = runTryReduce tydefs mempty mempty (expr, i)
+  result <- runTryReduce tydefs mempty mempty (expr, i)
   result @?= Left NotRedex
 
 unit_tryReduce_prim :: Assertion
@@ -532,7 +534,7 @@ unit_tryReduce_prim = do
             `app` char 'a'
             `app` char 'a'
             <*> con cTrue
-      result = runTryReduce tydefs primDefs mempty (expr, i)
+  result <- runTryReduce tydefs primDefs mempty (expr, i)
   case result of
     Right (expr', ApplyPrimFun detail) -> do
       expr' ~= expectedResult
@@ -549,7 +551,7 @@ unit_tryReduce_prim_fail_unsaturated = do
         create $
           pfun EqChar
             `app` char 'a'
-      result = runTryReduce tydefs primDefs mempty (expr, i)
+  result <- runTryReduce tydefs primDefs mempty (expr, i)
   result @?= Left NotRedex
 
 unit_tryReduce_prim_fail_unreduced_args :: Assertion
@@ -559,7 +561,7 @@ unit_tryReduce_prim_fail_unreduced_args = do
           pfun EqChar
             `app` char 'a'
             `app` (pfun ToUpper `app` char 'a')
-      result = runTryReduce tydefs primDefs mempty (expr, i)
+  result <- runTryReduce tydefs primDefs mempty (expr, i)
   result @?= Left NotRedex
 
 runStep :: ID -> TypeDefMap -> DefMap -> (Expr, ID) -> IO (Either EvalError (Expr, EvalDetail))
@@ -599,34 +601,44 @@ unit_step_non_redex =
 
 -- * 'findNodeByID' tests
 
+lookupNonCaptured :: LocalName k -> Cxt -> Maybe (ID, LetBinding)
+lookupNonCaptured = runReader . runMaybeT . getNonCapturedLocal
+
+lookupCaptured :: LocalName k -> Cxt -> Maybe (ID, LetBinding)
+lookupCaptured n c@(Cxt c')
+  | Nothing <- lookupNonCaptured n c
+  , Just (Just r, i, _) <- Map.lookup (unLocalName n) c' =
+      pure (i, r)
+  | otherwise = Nothing
+
 unit_findNodeByID_letrec :: Assertion
 unit_findNodeByID_letrec = do
   let expr = create' $ letrec "x" (lvar "x") (tcon' ["M"] "T") (lvar "x")
       x = create' $ lvar "x"
       t = create' $ tcon' ["M"] "T"
-  case findNodeByID 0 expr of
-    Just (locals, Left z) -> do
+  case findNodeByID 0 Syn expr of
+    Just (Cxt locals, Left (_, z)) -> do
       assertBool "no locals in scope at node 0" $ Map.null locals
       target z ~= expr
     _ -> assertFailure "node 0 not found"
-  case findNodeByID 1 expr of
-    Just (locals, Left z) -> do
+  case findNodeByID 1 Syn expr of
+    Just (locals, Left (_, z)) -> do
       target z ~= x
-      case Map.lookup "x" locals of
-        Just (0, LLetRec e, NoCapture) -> e ~= x
-        _ -> assertFailure $ show locals
+      case lookupNonCaptured "x" locals of
+        Just (0, LetrecBind _ e _) -> e ~= x
+        r -> assertFailure $ "expected to find 'x' bound at id 0, with rhs = 'x', but found " <> show r
     _ -> assertFailure "node 1 not found"
-  case findNodeByID 2 expr of
-    Just (locals, Right z) -> do
+  case findNodeByID 2 Syn expr of
+    Just (Cxt locals, Right z) -> do
       target z ~~= t
       assertBool "no locals in scope at node 2" $ Map.null locals
     _ -> assertFailure "node 2 not found"
-  case findNodeByID 3 expr of
-    Just (locals, Left z) -> do
+  case findNodeByID 3 Syn expr of
+    Just (locals, Left (_, z)) -> do
       target z ~= x
-      case Map.lookup "x" locals of
-        Just (0, LLetRec e, NoCapture) -> e ~= x
-        _ -> assertFailure $ show locals
+      case lookupNonCaptured "x" locals of
+        Just (0, LetrecBind _ e _) -> e ~= x
+        r -> assertFailure $ "expected to find 'x' bound at id 0, with rhs = 'x', but found " <> show r
     _ -> assertFailure "node 3 not found"
 
 unit_findNodeByID_1 :: Assertion
@@ -639,25 +651,26 @@ unit_findNodeByID_1 = do
         -- id 2
         e <- let_ "x" (pure c_) (pure x_)
         pure (x_, c_, e)
-  case findNodeByID 0 expr of
-    Just (locals, Left z) -> do
-      case Map.lookup "x" locals of
-        Just (i, LLet e, NoCapture) -> do
+  case findNodeByID 0 Syn expr of
+    Just (locals, Left (_, z)) -> do
+      case lookupNonCaptured "x" locals of
+        Just (i, LetBind _ e) -> do
           i @?= 2
           e ~= c
-        _ -> assertFailure $ show locals
+        Just _ -> assertFailure "expected to find 'x' let-bound, but found some other flavor of let"
+        Nothing -> assertFailure "expected to find 'x' bound, but did not"
       target z ~= x
     _ -> assertFailure "node 0 not found"
 
-  case findNodeByID 1 expr of
-    Just (locals, Left z) -> do
-      locals @?= mempty
+  case findNodeByID 1 Syn expr of
+    Just (Cxt locals, Left (_, z)) -> do
+      assertBool "expected nothing in scope" $ Map.null locals
       target z ~= c
     _ -> assertFailure "node 1 not found"
 
-  case findNodeByID 2 expr of
-    Just (locals, Left z) -> do
-      locals @?= mempty
+  case findNodeByID 2 Syn expr of
+    Just (Cxt locals, Left (_, z)) -> do
+      assertBool "expected nothing in scope" $ Map.null locals
       target z ~= expr
     _ -> assertFailure "node 2 not found"
 
@@ -671,13 +684,14 @@ unit_findNodeByID_2 = do
         -- id 2
         e <- letType "x" (pure t_) (ann (lvar "y") (pure x_))
         pure (x_, t_, e)
-  case findNodeByID 0 expr of
+  case findNodeByID 0 Syn expr of
     Just (locals, Right z) -> do
-      case Map.lookup "x" locals of
-        Just (i, LLetType e, NoCapture) -> do
+      case lookupNonCaptured "x" locals of
+        Just (i, LetTyBind (LetTypeBind _ e)) -> do
           i @?= 2
           e ~~= t
-        _ -> assertFailure $ show locals
+        Just _ -> assertFailure "expected to find a type 'x' bound, but found a term"
+        Nothing -> assertFailure "expected to find 'x' bound, but did not"
       target z ~~= x
     _ -> assertFailure "node 0 not found"
 
@@ -691,21 +705,25 @@ unit_findNodeByID_tlet = do
         -- id 2
         e <- ann (lvar "y") (tlet "x" (tcon' ["M"] "T") (pure x_))
         pure (x_, t_, e)
-  case findNodeByID 0 expr of
+  case findNodeByID 0 Syn expr of
     Just (locals, Right z) -> do
-      case Map.lookup "x" locals of
-        Just (i, LLetType e, NoCapture) -> do
+      case lookupNonCaptured "x" locals of
+        Just (i, LetTyBind (LetTypeBind _ e)) -> do
           i @?= 4
           e ~~= t
-        _ -> assertFailure $ show locals
+        Just _ -> assertFailure "expected to find a type 'x' bound, but found a term"
+        Nothing -> assertFailure "expected to find 'x' bound, but did not"
       target z ~~= x
     _ -> assertFailure "node 0 not found"
 
 unit_findNodeByID_scoping_1 :: Assertion
 unit_findNodeByID_scoping_1 = do
   let expr = create' $ let_ "x" (con' ["M"] "C") $ lam "x" $ lvar "x"
-  case findNodeByID 3 expr of
-    Just (locals, Left _) -> assertBool "Expected 'x' not to be in scope" (Map.null locals)
+  case findNodeByID 3 Syn expr of
+    Just (Cxt locals, Left _)
+      | Just (Nothing, _, _) <- Map.lookup "x" locals ->
+          pure ()
+      | otherwise -> assertFailure "Expected 'x' to be in scope but not have a substitution"
     _ -> assertFailure "Expected to find the lvar 'x'"
 
 unit_findNodeByID_scoping_2 :: Assertion
@@ -714,10 +732,10 @@ unit_findNodeByID_scoping_2 = do
         b <- con' ["M"] "D"
         e <- let_ "x" (con' ["M"] "C") $ let_ "x" (pure b) $ lvar "x"
         pure (b, e)
-  case findNodeByID 4 expr of
-    Just (locals, Left _)
-      | Map.size locals == 1
-      , Map.lookup "x" locals == Just (3, LLet bind, NoCapture) ->
+  case findNodeByID 4 Syn expr of
+    Just (locals@(Cxt locals'), Left _)
+      | Map.size locals' == 1
+      , lookupNonCaptured "x" locals == Just (3, LetBind "x" bind) ->
           pure ()
     Just (_, Left _) -> assertFailure "Expected to have inner let binding of 'x' reported"
     _ -> assertFailure "Expected to find the lvar 'x'"
@@ -733,10 +751,10 @@ unit_findNodeByID_capture =
         e <- letrec "x" (lvar "y") (tcon tBool) $ lam "y" $ pure v
         pure (e, getID v)
    in do
-        case findNodeByID varOcc expr of
-          Just (locals, Left _)
-            | Map.size locals == 1
-            , Just (1, LLetRec _, Capture) <- Map.lookup "x" locals ->
+        case findNodeByID varOcc Syn expr of
+          Just (locals@(Cxt locals'), Left _)
+            | Map.size locals' == 2
+            , Just (1, LetrecBind{}) <- lookupCaptured "x" locals ->
                 pure ()
           Just (_, Left _) -> assertFailure "Expected let binding of 'x' to be reported as captured-if-inlined"
           _ -> assertFailure "Expected to find the lvar 'x'"
@@ -752,11 +770,11 @@ unit_findNodeByID_capture_type =
         e <- letType "x" (tvar "y") (emptyHole `ann` tlet "z" (tvar "y") (tforall "y" KType (pure v)))
         pure (e, getID v)
    in do
-        case findNodeByID varOcc expr of
-          Just (locals, Right _)
-            | Map.size locals == 2
-            , Just (1, LLetType _, Capture) <- Map.lookup "x" locals
-            , Just (5, LLetType _, Capture) <- Map.lookup "z" locals ->
+        case findNodeByID varOcc Syn expr of
+          Just (locals@(Cxt locals'), Right _)
+            | Map.size locals' == 3
+            , Just (1, LetTyBind _) <- lookupCaptured "x" locals
+            , Just (5, LetTyBind _) <- lookupCaptured "z" locals ->
                 pure ()
           Just (_, Right _) -> assertFailure "Expected lettype binding of 'x' and the tlet binding of 'z' to be reported as captured-if-inlined"
           _ -> assertFailure "Expected to find the lvar 'x'"
