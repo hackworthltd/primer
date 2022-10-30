@@ -1,4 +1,5 @@
 {-# LANGUAGE ImpredicativeTypes #-}
+{-# LANGUAGE NoFieldSelectors #-}
 
 module Primer.Eval.Redex (
   Redex (..),
@@ -80,6 +81,7 @@ import Primer.Core (
   TypeMeta,
   ValConName,
   bindName,
+  getID,
  )
 import Primer.Core.DSL (ann, letType, let_, letrec, lvar, tlet, tvar)
 import Primer.Core.Transform (unfoldAPP, unfoldApp)
@@ -221,16 +223,52 @@ data Redex
   | ApplyPrimFun (forall m. MonadFresh ID m => m Expr)
 
 data RedexType
-  = InlineLetInType TyVarName Type
+  = InlineLetInType
+      { var :: TyVarName
+      -- ^ What variable are we inlining (used for finding normal-order redex)
+      , ty :: Type
+      -- ^ What is its definition (used for reduction)
+      , letID :: ID
+      -- ^ Where was the binding (used for details)
+      , varID :: ID
+      -- ^ Where was the occurrence (used for details)
+      }
   | -- let a = s in t  ~>  t  if a does not appear in t
-    ElideLetInType LetTypeBinding Type
+    ElideLetInType
+      { letBinding :: LetTypeBinding
+      -- ^ original binding (name is used for finding normal-order redex; used for details)
+      , body :: Type
+      -- ^ Body, in which the bound var does not occur (used for reduction)
+      , orig :: Type
+      -- ^ the original let (used for details)
+      }
   | -- let a = s a in t a a  ~>  let b = s a in let a = b in t a a
     -- Note that we cannot substitute the let in the initial term, since
     -- we only substitute one occurence at a time, and the 'let' would capture the 'a'
     -- in the expansion if we did a substitution.
-    RenameSelfLetInType TyVarName Type Type
+    RenameSelfLetInType
+      { letBinding :: LetTypeBinding
+      -- ^ binding (name is used for finding normal-order redex; used for reduction)
+      , body :: Type
+      -- ^ body, in which th e bound var may occur (used for reduction)
+      , orig :: Type
+      -- ^  the original let (used for details)
+      }
   | -- ∀a:k.t  ~>  ∀b:k. let a = b in t  for fresh b, avoiding the given set
-    RenameForall TypeMeta TyVarName Kind Type (S.Set TyVarName)
+    RenameForall
+      { meta :: TypeMeta
+      -- ^ metadata on forall (used for reduction)
+      , origBinder :: TyVarName
+      -- ^ original name, which we want to freshen (used for reduction, and finding normal-order redex)
+      , kind :: Kind
+      -- ^ kind of bound var (used for reduction)
+      , body :: Type
+      -- ^ body of forall (used for reduction)
+      , avoid :: S.Set TyVarName
+      -- ^ must freshen to avoid this set (used for reduction)
+      , orig :: Type
+      -- ^ the original forall (used for details)
+      }
 
 _LetBind :: AffineFold LetBinding (LVarName, Expr)
 _LetBind = afolding $ \case LetBind n e -> pure (n, e); _ -> Nothing
@@ -426,8 +464,8 @@ viewRedex tydefs globals dir = \case
   Var _ (LocalVarRef v) -> do
     runMaybeT (getNonCapturedLocal v) >>= \x -> do
       case x of
-        Just (LetBind _ e) -> pure $ InlineLet v e
-        Just (LetrecBind _ e t) -> pure $ InlineLetrec v e t
+        Just (_, LetBind _ e) -> pure $ InlineLet v e
+        Just (_, LetrecBind _ e t) -> pure $ InlineLetrec v e t
         _ -> mzero
   Let _ v e1 e2
     -- NB: we will recompute the freeVars set a lot (especially when doing EvalFull iterations)
@@ -472,38 +510,60 @@ viewRedex tydefs globals dir = \case
 
 viewRedexType :: Type -> Reader Cxt (Maybe RedexType)
 viewRedexType = \case
-  TVar _ v ->
-    runMaybeT (getNonCapturedLocal v) <&> \case
-      Just (LetTyBind (LetTypeBind _ t)) -> pure $ InlineLetInType v t
+  TVar m var ->
+    runMaybeT (getNonCapturedLocal var) <&> \case
+      Just (letID, LetTyBind (LetTypeBind _ ty)) -> pure $ InlineLetInType{var, ty, letID, varID = getID m}
       _ -> Nothing
-  TLet _ v s t
+  orig@(TLet _ v s body)
     -- NB: we will recompute the freeVars set a lot (especially when doing EvalFull iterations)
     -- This could be optimised in the future. See
     -- https://github.com/hackworthltd/primer/issues/733
-    | notElemOf (getting _freeVarsTy % _2) v t -> purer $ ElideLetInType (LetTypeBind v s) t
-    | elemOf (getting _freeVarsTy % _2) v s -> purer $ RenameSelfLetInType v s t
+    | notElemOf (getting _freeVarsTy % _2) v body ->
+        purer $
+          ElideLetInType
+            { letBinding = LetTypeBind v s
+            , body
+            , orig
+            }
+    | elemOf (getting _freeVarsTy % _2) v s ->
+        purer $
+          RenameSelfLetInType
+            { letBinding = LetTypeBind v s
+            , body
+            , orig
+            }
     | otherwise -> pure Nothing
-  fa@(TForall m v s t) -> do
-    fvcxt <- fvCxtTy $ freeVarsTy fa
+  orig@(TForall meta origBinder kind body) -> do
+    fvcxt <- fvCxtTy $ freeVarsTy orig
     pure $
-      if v `S.member` fvcxt
-        then -- If anything we may substitute would cause capture, we should rename this binder
-          pure $ RenameForall m v s t fvcxt
+      if origBinder `S.member` fvcxt
+        then
+          pure $
+            -- If anything we may substitute would cause capture, we should rename this binder
+            RenameForall
+              { meta
+              , origBinder
+              , kind
+              , body
+              , avoid = fvcxt
+              , orig
+              }
         else Nothing
   _ -> pure Nothing
 
 -- Get the let-bound definition of this variable, if some such exists
--- and is substitutible in the current context
-getNonCapturedLocal :: MonadReader Cxt m => LocalName k -> MaybeT m LetBinding
+-- and is substitutible in the current context. (We also return the
+-- id of the binding site.)
+getNonCapturedLocal :: MonadReader Cxt m => LocalName k -> MaybeT m (ID, LetBinding)
 getNonCapturedLocal v = do
   def <- asks (lookup $ unLocalName v)
   curCxt <- ask
   hoistMaybe $ do
-    (def', _, origCxt) <- def
+    (def', origID, origCxt) <- def
     def'' <- def'
     let uncaptured x = ((==) `on` fmap snd3 . lookup x) origCxt curCxt
     if allOf _freeVarsLetBinding uncaptured def''
-      then Just def''
+      then Just (origID, def'')
       else Nothing
 
 -- What are the FVs of the RHS of these bindings?
@@ -591,17 +651,17 @@ runRedex = \case
   ApplyPrimFun e -> e
 
 runRedexTy :: MonadEvalFull l m => RedexType -> m Type
-runRedexTy (InlineLetInType _ t) = regenerateTypeIDs t
+runRedexTy (InlineLetInType{ty}) = regenerateTypeIDs ty
 -- let a = s in t  ~>  t  if a does not appear in t
-runRedexTy (ElideLetInType _ t) = pure t
+runRedexTy (ElideLetInType{body}) = pure body
 -- let a = s a in t a a  ~>  let b = s a in let a = b in t a a
-runRedexTy (RenameSelfLetInType a s t) = do
-  b <- freshLocalName (freeVarsTy s <> freeVarsTy t)
-  tlet b (pure s) $ tlet a (tvar b) $ pure t
+runRedexTy (RenameSelfLetInType{letBinding = LetTypeBind a s, body}) = do
+  b <- freshLocalName (freeVarsTy s <> freeVarsTy body)
+  tlet b (pure s) $ tlet a (tvar b) $ pure body
 -- ∀a:k.t  ~>  ∀b:k. let a = b in t  for fresh b, avoiding the given set
-runRedexTy (RenameForall m a k s avoid) = do
-  b <- freshLocalName (avoid <> freeVarsTy s <> bindersBelowTy (focus s))
-  TForall m b k <$> tlet a (tvar b) (pure s)
+runRedexTy (RenameForall{meta, origBinder, kind, body, avoid}) = do
+  newBinder <- freshLocalName (avoid <> freeVarsTy body <> bindersBelowTy (focus body))
+  TForall meta newBinder kind <$> tlet origBinder (tvar newBinder) (pure body)
 
 type MonadEvalFull l m =
   ( MonadFresh ID m

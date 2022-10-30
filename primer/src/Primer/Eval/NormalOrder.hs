@@ -74,7 +74,15 @@ import Primer.Eval.Redex (
     RenameSelfLet,
     RenameSelfLetType
   ),
-  RedexType (..),
+  RedexType (
+    ElideLetInType,
+    InlineLetInType,
+    RenameForall,
+    RenameSelfLetInType,
+    letBinding,
+    origBinder,
+    var
+  ),
   viewRedex,
   viewRedexType,
   _freeVarsLetBinding,
@@ -247,12 +255,12 @@ findRedex tydefs globals =
        in do
             hoistAccum (readerToAccumT $ viewRedexType $ target tz) >>= \case
               -- We should inline such 'v' (note that we will not go under any 'v' binders)
-              Just r@(InlineLetInType w _) | w == v -> pure $ RType tz r
+              Just r@(InlineLetInType{var}) | var == v -> pure $ RType tz r
               -- Elide a let only if it blocks the reduction
-              Just r@(ElideLetInType (LetTypeBind w _) _) | w `isFreeIn` t -> pure $ RType tz r
+              Just r@(ElideLetInType{letBinding = (LetTypeBind w _)}) | w `isFreeIn` t -> pure $ RType tz r
               -- Rename a binder only if it blocks the reduction
-              Just r@(RenameSelfLetInType w _ _) | w `isFreeIn` t -> pure $ RType tz r
-              Just r@(RenameForall _ w _ _ _) | w `isFreeIn` t -> pure $ RType tz r
+              Just r@(RenameSelfLetInType{letBinding = (LetTypeBind w _)}) | w `isFreeIn` t -> pure $ RType tz r
+              Just r@(RenameForall{origBinder}) | origBinder `isFreeIn` t -> pure $ RType tz r
               -- We switch to an inner let if substituting under it would cause capture
               Nothing
                 | TLet _ w s _ <- target tz
