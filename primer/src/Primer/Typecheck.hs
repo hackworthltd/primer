@@ -49,6 +49,7 @@ module Primer.Typecheck (
   primConInScope,
   consistentKinds,
   consistentTypes,
+  holepunch,
   extendLocalCxtTy,
   extendLocalCxtTys,
   extendLocalCxt,
@@ -771,34 +772,35 @@ matchForallType _ = pure Nothing
 -- also count holes as being equal to anything.
 consistentTypes :: Type -> Type -> Bool
 consistentTypes x y = uncurry eqType $ holepunch x y
-  where
+
     -- We punch holes in each type so they "match" in the sense that
     -- they have holes in the same places. (At least, until we find
     -- obviously different constructors.)
-    holepunch (TEmptyHole _) _ = (TEmptyHole (), TEmptyHole ())
-    holepunch _ (TEmptyHole _) = (TEmptyHole (), TEmptyHole ())
-    holepunch (THole _ _) _ = (TEmptyHole (), TEmptyHole ())
-    holepunch _ (THole _ _) = (TEmptyHole (), TEmptyHole ())
-    holepunch (TFun _ s t) (TFun _ s' t') =
-      let (hs, hs') = holepunch s s'
-          (ht, ht') = holepunch t t'
-       in (TFun () hs ht, TFun () hs' ht')
-    holepunch (TApp _ s t) (TApp _ s' t') =
-      let (hs, hs') = holepunch s s'
-          (ht, ht') = holepunch t t'
-       in (TApp () hs ht, TApp () hs' ht')
-    holepunch (TForall _ n k s) (TForall _ m l t) =
-      let (hk, hl) = holepunchKinds k l
-          (hs, ht) = holepunch s t
-       in (TForall () n hk hs, TForall () m hl ht)
-    holepunch s t = (s, t)
+holepunch (TEmptyHole _) _ = (TEmptyHole (), TEmptyHole ())
+holepunch _ (TEmptyHole _) = (TEmptyHole (), TEmptyHole ())
+holepunch (THole _ _) _ = (TEmptyHole (), TEmptyHole ())
+holepunch _ (THole _ _) = (TEmptyHole (), TEmptyHole ())
+holepunch (TFun _ s t) (TFun _ s' t') =
+  let (hs, hs') = holepunch s s'
+      (ht, ht') = holepunch t t'
+   in (TFun () hs ht, TFun () hs' ht')
+holepunch (TApp _ s t) (TApp _ s' t') =
+  let (hs, hs') = holepunch s s'
+      (ht, ht') = holepunch t t'
+   in (TApp () hs ht, TApp () hs' ht')
+holepunch (TForall _ n k s) (TForall _ m l t) =
+  let (hk, hl) = holepunchKinds k l
+      (hs, ht) = holepunch s t
+   in (TForall () n hk hs, TForall () m hl ht)
+  where 
     holepunchKinds KHole _ = (KHole, KHole)
     holepunchKinds _ KHole = (KHole, KHole)
     holepunchKinds (KFun k1 k2) (KFun l1 l2) =
       let (hk1, hl1) = holepunchKinds k1 l1
           (hk2, hl2) = holepunchKinds k2 l2
       in (KFun hk1 hk2, KFun hl1 hl2)
-    holepunchKinds k l = (k, l)
+    holepunchKinds k' l' = (k', l')
+holepunch s t = (s, t)
 
 -- | Compare two types for alpha equality, ignoring their IDs
 eqType :: Type' a -> Type' b -> Bool

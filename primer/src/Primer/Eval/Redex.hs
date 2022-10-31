@@ -113,7 +113,7 @@ import Primer.Typecheck.Utils (
   TypeDefError (TDIHoleType, TDINotADT, TDINotSaturated, TDIUnknown),
   instantiateValCons',
   lookupConstructor,
-  mkTAppCon,
+  mkTAppCon, decomposeTAppCon,
  )
 import Primer.Zipper (
   LetBinding,
@@ -126,6 +126,7 @@ import Primer.Zipper.Type (
   LetTypeBinding,
   LetTypeBinding' (LetTypeBind),
  )
+import Primer.Typecheck (holepunch)
 
 data EvalFullLog
   = -- | Found something that may have been a case redex,
@@ -270,10 +271,18 @@ viewCaseRedex tydefs = \case
   -- metadata correctly in this evaluator (for instance, substituting when we
   -- do a BETA reduction)!
   Case m expr brs -> do
-    (c, tyargs, args) <- extractCon (removeAnn expr)
-    ty <- case expr of
-      Ann _ _ ty' -> pure $ forgetTypeMetadata ty'
-      _ -> do
+    (c, tyargs', args) <- extractCon (removeAnn expr)
+    tyargs <- case expr of
+          Ann _ _ ty | Just (Just _, as) <- decomposeTAppCon ty
+                       -> do
+                         unless (length tyargs' == length as) $ logWarning $ InvariantFailure "tyargs' and as different lengths" -- TODO: proper structured error
+                         -- As we assume @expr@ is well-typed, we know that @as@ (from annotation) and @tyargs'@ (from ctor) are consistent
+                         -- thus holepunching will give the same result on both sides of the pair
+                         pure $ zipWith ((fst.) .holepunch) (forgetTypeMetadata <$> tyargs') (forgetTypeMetadata <$> as)
+                     | otherwise -> mzero
+          _ -> pure $ forgetTypeMetadata <$> tyargs'
+    ty <- do
+      -- TODO: move this note; explain what we are doing with holepunching
         -- In the constructors-are-synthesisable case, we don't have the benefit of
         -- an explicit annotation, and have to work out the type based off the name
         -- of the constructor.
@@ -282,7 +291,7 @@ viewCaseRedex tydefs = \case
             logWarning $ CaseRedexUnknownCtor c
             mzero
           Just (_, tc, _) -> do
-            pure $ mkTAppCon tc (forgetTypeMetadata <$> tyargs)
+            pure $ mkTAppCon tc tyargs
     -- Style note: unfortunately do notation does not work well with polytyped binds on ghc 9.2.4
     -- Thus we write this with an explicit bind instead.
     -- See https://gitlab.haskell.org/ghc/ghc/-/issues/18324
