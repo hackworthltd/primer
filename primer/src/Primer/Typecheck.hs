@@ -787,10 +787,17 @@ consistentTypes x y = uncurry eqType $ holepunch x y
           (ht, ht') = holepunch t t'
        in (TApp () hs ht, TApp () hs' ht')
     holepunch (TForall _ n k s) (TForall _ m l t) =
-      let (hs, ht) = holepunch s t
-       in -- Perhaps we need to compare the kinds up to holes also?
-          (TForall () n k hs, TForall () m l ht)
+      let (hk, hl) = holepunchKinds k l
+          (hs, ht) = holepunch s t
+       in (TForall () n hk hs, TForall () m hl ht)
     holepunch s t = (s, t)
+    holepunchKinds KHole _ = (KHole, KHole)
+    holepunchKinds _ KHole = (KHole, KHole)
+    holepunchKinds (KFun k1 k2) (KFun l1 l2) =
+      let (hk1, hl1) = holepunchKinds k1 l1
+          (hk2, hl2) = holepunchKinds k2 l2
+      in (KFun hk1 hk2, KFun hl1 hl2)
+    holepunchKinds k l = (k, l)
 
 -- | Compare two types for alpha equality, ignoring their IDs
 eqType :: Type' a -> Type' b -> Bool
