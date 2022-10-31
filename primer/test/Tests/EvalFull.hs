@@ -113,9 +113,7 @@ import Primer.Pretty (compact, prettyPrintExpr)
 
 expr_tmp :: Expr' () ()
 ty_tmp :: Type' ()
-(expr_tmp,ty_tmp) = (LAM
-                       ()
-                       LocalName { unLocalName = "a" } (
+(expr_tmp,ty_tmp) = (
            Case
               ()
               (Ann
@@ -127,8 +125,23 @@ ty_tmp :: Type' ()
                           (Con
                              ()
                              cJust)
-                       (TEmptyHole ()))
-                    ((Ann () (EmptyHole ()) (TApp () (TVar () LocalName { unLocalName = "a" }) (TEmptyHole ())))))
+                       (TForall
+                          ()
+                          LocalName { unLocalName = "x" }
+                          (KFun KType KType)
+                          (TCon
+                             ()
+                             tBool)))
+                    (LAM
+                       ()
+                       LocalName { unLocalName = "a" }
+                       (Letrec
+                                ()
+                                LocalName { unLocalName = "x" }
+                                (EmptyHole ())
+                                (TApp () (TVar () LocalName { unLocalName = "a" }) (TEmptyHole ()))
+                                (EmptyHole ())
+                          )))
                  (TApp
                     ()
                     (TCon
@@ -143,7 +156,7 @@ ty_tmp :: Type' ()
                   cJust
                   [ Bind () LocalName { unLocalName = "x" } ]
                   (EmptyHole ())
-              ])
+              ]
  , TEmptyHole ()
  )
 
