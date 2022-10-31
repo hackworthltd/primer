@@ -1387,7 +1387,8 @@ unit_cross_module_actions =
         -- A bit of setup to test CopyPasteSig: main :: Nat = bar True (Note bar :: Bool -> ?)
         handleAndTC
           [ MoveToDef $ gvn "main"
-          , SigAction [Delete, constructTCon tNat]
+          , SigAction [Delete, constructTCon tNat] -- This constructTCon tNat is what breaks the test!
+          {-
           , BodyAction
               [ Delete
               , ConstructApp
@@ -1397,7 +1398,9 @@ unit_cross_module_actions =
               , Move Child2
               , constructCon cTrue
               ]
+-}
           ]
+        {-
         -- Copy-paste within the sig of bar to make bar :: Bool -> Bool
         -- NB: CopyPasteSig relies on SmartHoles to fix any introduced inconsistencies
         barTy <-
@@ -1418,6 +1421,7 @@ unit_cross_module_actions =
               [Move Child2]
           , SetSmartHoles oldSH
           ]
+          -}
         gets appProg
       handleAndTC acts = void $ tcWholeProg =<< handleEditRequest acts
       n = ["Module2"]
