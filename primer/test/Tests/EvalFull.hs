@@ -112,7 +112,9 @@ import Tests.Typecheck (runTypecheckTestM, runTypecheckTestMWithPrims, expectTyp
 
 expr_tmp :: Expr' () ()
 ty_tmp :: Type' ()
-(expr_tmp,ty_tmp) = (
+(expr_tmp,ty_tmp) = (LAM
+                       ()
+                       LocalName { unLocalName = "a" } (
            Case
               ()
               (Ann
@@ -124,23 +126,8 @@ ty_tmp :: Type' ()
                           (Con
                              ()
                              cJust)
-                       (TForall
-                          ()
-                          LocalName { unLocalName = "x" }
-                          (KFun KType KType)
-                          (TCon
-                             ()
-                             tBool)))
-                    (LAM
-                       ()
-                       LocalName { unLocalName = "a" }
-                       (Letrec
-                                ()
-                                LocalName { unLocalName = "x" }
-                                (EmptyHole ())
-                                (TApp () (TVar () LocalName { unLocalName = "a" }) (TEmptyHole ()))
-                                (EmptyHole ())
-                          )))
+                       (TEmptyHole ()))
+                    ((Ann () (EmptyHole ()) (TApp () (TVar () LocalName { unLocalName = "a" }) (TEmptyHole ())))))
                  (TApp
                     ()
                     (TCon
@@ -155,7 +142,7 @@ ty_tmp :: Type' ()
                   cJust
                   [ Bind () LocalName { unLocalName = "x" } ]
                   (EmptyHole ())
-              ]
+              ])
  , TEmptyHole ()
  )
 
