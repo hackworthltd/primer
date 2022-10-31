@@ -820,7 +820,7 @@ tasty_holeyer_chk = withTests 1000 $
   ty' <- forAllT $ generateHoleyer ty
   local (const cxt') $ void $ checkTest ty' e
 
-
+-- REVIEW: what do we think of the "holeyer" name
 tasty_holeyer_syn :: Property
 tasty_holeyer_syn = withTests 1000 $
   withDiscards 2000 $
