@@ -184,9 +184,9 @@ unit_tmp = evalTestM 0 $ do
 unit_tmp_2 :: Assertion
 unit_tmp_2 = do
   let fa :: forall m . MonadFresh ID m => m Type
-      fa = tforall "a" (KFun KType KType) (tcon tBool)
+      fa = tforall "a" (KFun KType KType) (tvar "a" `tapp` tcon tBool)
   let e s t = (con cJust `aPP` s
-                 `app` lAM "b" (letrec "x" emptyHole (tvar "b" `tapp` tEmptyHole) emptyHole))
+                `app` lAM "b" ((emptyHole `ann` (tvar "b" `tapp` tEmptyHole))))
               `ann` (tcon tMaybe `tapp` t)
   let expectTyped' :: (forall m . MonadFresh ID m => m Expr) -> IO () 
       expectTyped' t = do
