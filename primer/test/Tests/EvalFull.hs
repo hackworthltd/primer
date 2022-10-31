@@ -237,11 +237,11 @@ unit_tmp_4 = do
 --      - we may change a higher-kinded forall ∀a:(KType `KFun` KType)._ into a type hole
 --        but currently typeholes can only act as foralls quantified over KType
 --   )
-unit_tmp_5 :: Assertion
-unit_tmp_5 = evalTestM 0 $ do
-  -- this is currently a copy of tmp_1...
-  -- I intended to make some better test, but got distracted
-  t <- generateIDs expr_tmp
+unit_tmp_good_bug_report :: Assertion
+unit_tmp_good_bug_report = evalTestM 0 $ do
+  t <- case_ ((con cJust `aPP` tEmptyHole `app` con cFalse) `ann` (tcon tMaybe `tapp` tcon tNat))
+    [branch cNothing [] emptyHole
+    ,branch cJust [("x",Nothing)] emptyHole]
   let tds = foldMap moduleTypesQualified testModules
   let globs = foldMap moduleDefsQualified testModules
   ((_steps, s), logs) <- runPureLogT $ evalFullStepCount tds globs 1 Syn t
