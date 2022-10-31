@@ -37,7 +37,7 @@ tasty_negate_prop = property $ do
 tasty_abs_prop :: Property
 tasty_abs_prop = property $ do
   n <- forAll $ G.integral_ (Range.constant (-10) 10)
-  functionOutput P.abs [int n] 40 <===> Right (create' $ int $ abs n)
+  functionOutput P.abs [int n] 45 <===> Right (create' $ int $ abs n)
 
 -- NOTE: Termination bound is experimental, do not know how it varies with n, m
 tasty_gcd_prop :: Property
@@ -61,7 +61,7 @@ tasty_even_prop = property $ do
 tasty_odd_prop :: Property
 tasty_odd_prop = property $ do
   n <- forAll $ G.integral_ (Range.constant (-10) 10)
-  functionOutput P.odd [int n] 20 <===> Right (create' $ bool_ $ odd n)
+  functionOutput P.odd [int n] 25 <===> Right (create' $ bool_ $ odd n)
 
 tasty_sum_prop :: Property
 tasty_sum_prop = property $ do
