@@ -33,7 +33,7 @@ import Primer.Builtins (
   tList,
   tMaybe,
   tNat,
-  tPair,
+  tPair, cCons,
  )
 import Primer.Builtins.DSL (boolAnn, list_, nat)
 import Primer.Core
@@ -46,6 +46,7 @@ import Primer.Def (DefMap)
 import Primer.EvalFull
 import Primer.Examples qualified as Examples (
   even,
+  map,
   map',
   odd,
  )
@@ -118,6 +119,7 @@ import Tests.Action.Prog (readerToState, runAppTestM)
 import Tests.Eval.Utils (genDirTm, hasTypeLets, testModules, (~=))
 import Tests.Gen.Core.Typed (checkTest)
 import Tests.Typecheck (runTypecheckTestM, runTypecheckTestMWithPrims)
+import Primer.Pretty (prettyPrintExpr, compact)
 
 unit_1 :: Assertion
 unit_1 =
@@ -138,11 +140,11 @@ unit_3 :: Assertion
 unit_3 =
   let ((expr, expected), maxID) = create $ do
         e <- letType "a" (tvar "b") $ emptyHole `ann` (tcon' ["M"] "T" `tapp` tvar "a" `tapp` tforall "a" KType (tvar "a") `tapp` tforall "b" KType (tcon' ["M"] "S" `tapp` tvar "a" `tapp` tvar "b"))
-        let b' = "a33" -- NB: fragile name a33
+        let b' = "a42" -- NB: fragile name
         expect <- emptyHole `ann` (tcon' ["M"] "T" `tapp` tvar "b" `tapp` tforall "a" KType (tvar "a") `tapp` tforall b' KType (tcon' ["M"] "S" `tapp` tvar "b" `tapp` tvar b'))
         pure (e, expect)
    in do
-        s <- evalFullTest maxID mempty mempty 7 Syn expr
+        s <- evalFullTest maxID mempty mempty 12 Syn expr
         s <~==> Right expected
 
 -- Check we don't have shadowing issues in terms
@@ -150,29 +152,25 @@ unit_4 :: Assertion
 unit_4 =
   let ((expr, expected), maxID) = create $ do
         e <- let_ "a" (lvar "b") $ con' ["M"] "C" [lvar "a", lam "a" (lvar "a"), lam "b" (con' ["M"] "D" [lvar "a", lvar "b"])]
-        let b' = "a19" -- NB: fragile name
+        let b' = "a22" -- NB: fragile name
         expect <- con' ["M"] "C" [lvar "b", lam "a" (lvar "a"), lam b' (con' ["M"] "D" [lvar "b", lvar b'])]
         pure (e, expect)
    in do
-        s <- evalFullTest maxID mempty mempty 7 Syn expr
+        s <- evalFullTest maxID mempty mempty 8 Syn expr
         s <~==> Right expected
 
--- This test is slightly unfortunate for two reasons
--- First, maybe we should do upsilon redexes more aggressively, to avoid the
--- inner annotation in the output; alternatively tweak the reduction rule for
--- letrec so that when inlining, the newly-created letrec does not scope over
--- the newly-created annotation
--- Second, writing [_] for embeddings we don't reduce [ e ] : T (and I'm not
--- sure if we should). This leads to the outer annotation in the output.
+-- This test is slightly unfortunate.
+-- Writing [_] for embeddings we don't reduce [ e ] : T (and I'm not
+-- sure if we should). This leads to the annotation in the output.
 -- See https://github.com/hackworthltd/primer/issues/12
 unit_5 :: Assertion
 unit_5 =
   let ((e, expt), maxID) = create $ do
         a <- letrec "x" (lvar "x") (tcon tBool) (lvar "x")
-        b <- letrec "x" (lvar "x") (tcon tBool) (lvar "x" `ann` tcon tBool) `ann` tcon tBool
+        b <- letrec "x" (lvar "x") (tcon tBool) (lvar "x") `ann` tcon tBool
         pure (a, b)
    in do
-        s <- evalFullTest maxID mempty mempty 100 Syn e
+        s <- evalFullTest maxID mempty mempty 101 Syn e
         s <~==> Left (TimedOut expt)
 
 unit_6 :: Assertion
@@ -209,10 +207,10 @@ unit_8 =
   let n = 10
       e = mapEven n
    in do
-        evalFullTest (maxID e) builtinTypes (defMap e) 500 Syn (expr e) >>= \case
+        evalFullTest (maxID e) builtinTypes (defMap e) 1000 Syn (expr e) >>= \case
           Left (TimedOut _) -> pure ()
           x -> assertFailure $ show x
-        s <- evalFullTest (maxID e) builtinTypes (defMap e) 1000 Syn (expr e)
+        s <- evalFullTest (maxID e) builtinTypes (defMap e) 2000 Syn (expr e)
         s <~==> Right (expectedResult e)
 
 -- A worker/wrapper'd map
@@ -262,8 +260,7 @@ unit_10 =
         t' <- evalFullTest maxID builtinTypes mempty 1 Syn t
         t' <~==> Right t
 
--- This example shows that when we are under even a 'let' all we can do is
--- substitute, otherwise we may go down a rabbit hole!
+-- TODO: what is the point of this test in the push-down-let world?
 unit_11 :: Assertion
 unit_11 =
   let modName = mkSimpleModuleName "TestModule"
@@ -288,9 +285,7 @@ unit_11 =
         s <- evalFullTest maxID builtinTypes (M.fromList globals) 20 Syn e
         s <~==> Right expected
 
--- This example shows that we may only substitute the top-most let otherwise we
--- may go down a rabbit hole unrolling a letrec and not doing enough
--- computation to see the recursion should terminate
+-- TODO: what is the point of this test?
 unit_12 :: Assertion
 unit_12 =
   let ((e, expected), maxID) = create $ do
@@ -329,6 +324,7 @@ unit_14 =
         s <- evalFullTest maxID builtinTypes mempty 15 Syn e
         s <~==> Right expected
 
+-- TODO: revisit this comment
 -- Need to swap to substituting an inner let, when it (could have) arises from
 -- a renaming to unblock the outer let.
 -- i.e. when trying to reduce the let x:
@@ -342,14 +338,15 @@ unit_15 :: Assertion
 unit_15 =
   let ((expr, steps, expected), maxID) = create $ do
         let l = let_ "x" (lvar "y")
-        let c a b = con' ["M"] "C" [lvar a, lvar b]
-        e0 <- l $ lam "y" $ c "x" "y"
-        let y' = "a38"
-        e1 <- l $ lam y' $ let_ "y" (lvar y') $ c "x" "y"
-        e2 <- l $ lam y' $ let_ "y" (lvar y') $ c "x" y'
-        e3 <- l $ lam y' $ c "x" y'
-        e4 <- l $ lam y' $ c "y" y'
-        e5 <- lam y' $ c "y" y'
+        let c a b = con' ["M"] "C" [a, b]
+        e0 <- l $ lam "y" $ c (lvar "x") (lvar "y")
+        let y' = "a40"
+        let rny = let_ "y" (lvar y')
+        e1 <- l $ lam y' $ rny $ c (lvar "x") (lvar "y")
+        e2 <- lam y' $ l $ rny $ c (lvar "x") (lvar "y")
+        e3 <- lam y' $ c (l $ lvar "x") (rny $ lvar "y")
+        e4 <- lam y' $ c (lvar "y") (rny $ lvar "y")
+        e5 <- lam y' $ c (lvar "y") (lvar y')
         pure (e0, [e0, e1, e2, e3, e4, e5], e5)
    in do
         si <- traverse (\i -> evalFullTest maxID builtinTypes mempty i Syn expr) [0 .. fromIntegral $ length steps - 1]
@@ -364,21 +361,44 @@ unit_hole_ann_case =
         t <- evalFullTest maxID builtinTypes mempty 1 Chk tm
         t @?= Right tm
 
+-- We must evaluate inside the body of a let before the binding:
+-- consider @let x = ((λy.t : A -> B) r) in letrec xs = s[x] : S in xs@
+-- the two possible reductions are to inline the @letrec@s or to reduce the beta.
+-- We should do the @letrec@ first.
+unit_letrec_body_first :: Assertion
+unit_letrec_body_first =
+  let lx = let_ "x" ((lam "x" (lvar "x") `ann` (tcon tBool `tfun` tcon tBool)) `app` con0 cTrue)
+      lxs = letrec "xs" (con cCons [lvar "x", lvar "xs"])
+                      (tcon tList `tapp` tEmptyHole)
+      ls = lx . lxs
+      (expr, maxID) = create $ ls (lvar "xs")
+      expected1 = create' $ ls ((con cCons [lvar "x", lvar "xs"]) `ann` (tcon tList `tapp` tEmptyHole))
+      expected2 = create' $ (ls (con cCons [lvar "x", lvar "xs"]) `ann` (tcon tList `tapp` tEmptyHole))
+      expected3 = create' $ ((con cCons [lx $ lvar "x",ls $ lvar "xs"]) `ann` (tcon tList `tapp` tEmptyHole))
+   in do
+    e1 <- evalFullTest maxID builtinTypes mempty 1 Syn expr
+    e1 <~==> Left (TimedOut expected1)
+    e2 <- evalFullTest maxID builtinTypes mempty 2 Syn expr
+    e2 <~==> Left (TimedOut expected2)
+    e3 <- evalFullTest maxID builtinTypes mempty 3 Syn expr
+    e3 <~==> Left (TimedOut expected3)
+
 -- tlet x = C in D x x
 --   ==>
--- tlet x = C in D C x
+-- D (tlet x = C in x) (tlet x = C in x)
 --   ==>
--- tlet x = C in D C C
+-- D C (tlet x = C in x)
 --   ==>
 -- D C C
 unit_tlet :: Assertion
 unit_tlet =
   let ((expr, expected), maxID) = create $ do
         e0 <- ann emptyHole $ tlet "x" (tcon' ["M"] "C") (tcon' ["M"] "D" `tapp` tvar "x" `tapp` tvar "x")
-        e1 <- ann emptyHole $ tlet "x" (tcon' ["M"] "C") (tcon' ["M"] "D" `tapp` tcon' ["M"] "C" `tapp` tvar "x")
-        e2 <- ann emptyHole $ tlet "x" (tcon' ["M"] "C") (tcon' ["M"] "D" `tapp` tcon' ["M"] "C" `tapp` tcon' ["M"] "C")
-        e3 <- ann emptyHole $ tcon' ["M"] "D" `tapp` tcon' ["M"] "C" `tapp` tcon' ["M"] "C"
-        pure (e0, map (Left . TimedOut) [e0, e1, e2, e3] ++ [Right e3])
+        e1 <- ann emptyHole $ tlet "x" (tcon' ["M"] "C") (tcon' ["M"] "D" `tapp` tvar "x") `tapp` tlet "x" (tcon' ["M"] "C") (tvar "x")
+        e2 <- ann emptyHole $ tcon' ["M"] "D" `tapp` tlet "x" (tcon' ["M"] "C") (tvar "x") `tapp` tlet "x" (tcon' ["M"] "C") (tvar "x")
+        e3 <- ann emptyHole $ tcon' ["M"] "D" `tapp` tcon' ["M"] "C" `tapp` tlet "x" (tcon' ["M"] "C") (tvar "x")
+        e4 <- ann emptyHole $ tcon' ["M"] "D" `tapp` tcon' ["M"] "C" `tapp` tcon' ["M"] "C"
+        pure (e0, map (Left . TimedOut) [e0, e1, e2, e3, e4] ++ [Right e4])
       test (n, expect) = do
         r <- evalFullTest maxID mempty mempty n Syn expr
         r <~==> expect
@@ -397,27 +417,13 @@ unit_tlet_elide = do
    in mapM_ test (zip [0 ..] expected)
 
 -- tlet x = x in x
---   ==>
--- tlet y = x in let x = y in x
---   ==>
--- tlet y = x in let x = y in y
---   ==>
--- tlet y = x in y
---   ==>
--- tlet y = x in x
---   ==>
 -- x
 unit_tlet_self_capture :: Assertion
 unit_tlet_self_capture = do
-  let y = "a32"
-      ((expr, expected), maxID) = create $ do
+  let ((expr, expected), maxID) = create $ do
         e0 <- ann emptyHole $ tlet "x" (tvar "x") $ tvar "x"
-        e1 <- ann emptyHole $ tlet y (tvar "x") $ tlet "x" (tvar y) $ tvar "x"
-        e2 <- ann emptyHole $ tlet y (tvar "x") $ tlet "x" (tvar y) $ tvar y
-        e3 <- ann emptyHole $ tlet y (tvar "x") $ tvar y
-        e4 <- ann emptyHole $ tlet y (tvar "x") $ tvar "x"
-        e5 <- ann emptyHole $ tvar "x"
-        pure (e0, map (Left . TimedOut) [e0, e1, e2, e3, e4, e5] ++ [Right e5])
+        e1 <- ann emptyHole $ tvar "x"
+        pure (e0, map (Left . TimedOut) [e0, e1] ++ [Right e1])
       test (n, expect) = do
         r <- evalFullTest maxID mempty mempty n Syn expr
         r <~==> expect
@@ -591,34 +597,66 @@ unit_type_preservation_BETA_regression =
                 `app` lvar "x"
         -- NB: the point of the ... `app` lvar x is to make the annotated term be in SYN position
         -- so we reduce the type, rather than taking an upsilon step
-        -- Rename the let b
-        -- Λb. λx. ((lettype a = b Bool in λc (? : a)) : (let c = b Bool in let b = c in Nat -> b)) x
+        -- Push the let b
+        -- Λb. λx. ((lettype a = b Bool in λc (? : a)) : (Nat -> (let b = b Bool in b))) x
         let b' = "a132"
         expectA2 <-
           lAM "b" $
             lam "x" $
               ( letType "a" (tvar "b" `tapp` tcon tBool) (lam "c" $ emptyHole `ann` tvar "a")
-                  `ann` tlet b' (tvar "b" `tapp` tcon tBool) (tlet "b" (tvar b') $ tcon tNat `tfun` tvar "b")
+                  `ann` (tcon tNat `tfun` tlet "b" (tvar "b" `tapp` tcon tBool) (tvar "b"))
               )
                 `app` lvar "x"
-        -- Resolve the renaming
-        -- Λb. λx. ((lettype a = b Bool in λc (? : a)) : (let c = b Bool in Nat -> c)) x
-        expectA4 <-
+        -- Inline the let
+        -- Λb. λx. ((lettype a = b Bool in λc (? : a)) : (Nat -> b Bool)) x
+        expectA3 <-
           lAM "b" $
             lam "x" $
               ( letType "a" (tvar "b" `tapp` tcon tBool) (lam "c" $ emptyHole `ann` tvar "a")
-                  `ann` tlet b' (tvar "b" `tapp` tcon tBool) (tcon tNat `tfun` tvar b')
-              )
-                `app` lvar "x"
-        -- Resolve all the letTypes
-        -- Λb. λx. ((λc (? : b Bool)) : (Nat -> b Bool)) x
-        expectA8 <-
-          lAM "b" $
-            lam "x" $
-              ( lam "c" (emptyHole `ann` (tvar "b" `tapp` tcon tBool))
                   `ann` (tcon tNat `tfun` (tvar "b" `tapp` tcon tBool))
               )
                 `app` lvar "x"
+        -- Push the let
+        -- Λb. λx. (λc (lettype a = b Bool in (? : a)) : (Nat -> b Bool)) x
+        expectA4 <-
+          lAM "b" $
+            lam "x" $
+              ( lam "c" (letType "a" (tvar "b" `tapp` tcon tBool) (emptyHole `ann` tvar "a"))
+                  `ann` (tcon tNat `tfun` (tvar "b" `tapp` tcon tBool))
+              )
+                `app` lvar "x"
+        -- Do the beta step
+        -- Λb. λx. (let c = (x : Nat) in (lettype a = b Bool in (? : a)) : (b Bool))
+        expectA5 <-
+          lAM "b" $
+            lam "x" $
+              ( let_ "c" (lvar "x" `ann` tcon tNat) (letType "a" (tvar "b" `tapp` tcon tBool) (emptyHole `ann` tvar "a"))
+                  `ann` ((tvar "b" `tapp` tcon tBool))
+              )
+        -- Elide a pointless let
+        -- Λb. λx. ((lettype a = b Bool in (? : a)) : (b Bool))
+        expectA6 <-
+          lAM "b" $
+            lam "x" $
+              ( (letType "a" (tvar "b" `tapp` tcon tBool) (emptyHole `ann` tvar "a"))
+                  `ann` ((tvar "b" `tapp` tcon tBool))
+              )
+        -- Push the lets, eliding those that are redundant
+        -- Λb. λx. ((? : lettype a = b Bool in a) : (b Bool))
+        expectA7 <-
+          lAM "b" $
+            lam "x" $
+              ( emptyHole `ann` (tlet "a" (tvar "b" `tapp` tcon tBool) $ tvar "a")
+                  `ann` ((tvar "b" `tapp` tcon tBool))
+              )
+        -- Inline the let
+        -- Λb. λx. ((? : b Bool) : (b Bool))
+        expectA8 <-
+          lAM "b" $
+            lam "x" $
+              ( emptyHole `ann` (tvar "b" `tapp` tcon tBool)
+                  `ann` ((tvar "b" `tapp` tcon tBool))
+              )
         -- The 'B' sequence previously captured in the term "t" above
         -- Λb. (Λa (foo @(b Bool) : ∀b.Nat) @Char
         eB <-
@@ -641,7 +679,8 @@ unit_type_preservation_BETA_regression =
         -- because it has an occurrence of a type variable and is thus
         -- not "concrete"
         pure
-          ( (eA, [(1, expectA1), (2, expectA2), (4, expectA4), (8, expectA8)])
+          ( (eA, [(1, expectA1), (2, expectA2), (3, expectA3), (4, expectA4), (5, expectA5), (6, expectA6), (7, expectA7),
+                  (8, expectA8)])
           , (eB, [(1, expectB1), (3, expectB3)])
           )
       sA n = evalFullTest maxID builtinTypes mempty n Chk exprA
@@ -669,29 +708,29 @@ unit_type_preservation_BETA_regression =
 -- 'let x' has captured the reference to the x in the bound term.
 -- This causes the term to become ill-sorted.
 -- Similarly, we reduce 'λx. let x = x in x' to itself, due to the same capture.
+-- (This was before we changed to "pushing down lets")
 unit_let_self_capture :: Assertion
 unit_let_self_capture =
   let ( ( expr1
           , ty1
           , expr2
-          , expected2a
-          , expected2b
+          , expected2
           , expr3
           , expected3a
           , expected3b
           , expr4
           , expected4a
           , expected4b
+          , expected4c
           )
         , maxID
         ) = create $ do
           e1 <- lAM "x" $ let_ "x" (emptyHole `ann` tvar "x") (lvar "x")
           let t1 = TForall () "a" KType $ TVar () "a"
           e2 <- lam "x" $ let_ "x" (lvar "x") (lvar "x")
-          expect2a <- lam "x" $ let_ "a76" (lvar "x") (let_ "x" (lvar "a76") (lvar "x"))
-          expect2b <- lam "x" $ lvar "x"
+          expect2 <- lam "x" $ lvar "x"
           e3 <- lAM "x" $ letType "x" (tvar "x") (emptyHole `ann` tvar "x")
-          expect3a <- lAM "x" $ letType "a76" (tvar "x") (letType "x" (tvar "a76") (emptyHole `ann` tvar "x"))
+          expect3a <- lAM "x" $ emptyHole `ann` tlet "x" (tvar "x") (tvar "x")
           expect3b <- lAM "x" $ emptyHole `ann` tvar "x"
           -- We do not need to do anything special for letrec
           e4 <- lAM "a" $ lam "f" $ lam "x" $ letrec "x" (lvar "f" `app` lvar "x") (tvar "a") (lvar "x")
@@ -700,28 +739,29 @@ unit_let_self_capture =
               lam "f" $
                 lam "x" $
                   letrec "x" (lvar "f" `app` lvar "x") (tvar "a") $
-                    letrec "x" (lvar "f" `app` lvar "x") (tvar "a") ((lvar "f" `app` lvar "x") `ann` tvar "a")
+                    (lvar "f" `app` lvar "x") `ann` tvar "a"
           expect4b <-
             lAM "a" $
               lam "f" $
                 lam "x" $
-                  letrec
-                    "x"
-                    (lvar "f" `app` lvar "x")
-                    (tvar "a")
-                    ((lvar "f" `app` lvar "x") `ann` tvar "a")
+                  (letrec "x" (lvar "f" `app` lvar "x") (tvar "a") $ lvar "f" `app` lvar "x") `ann` tvar "a"
+          expect4c <-
+            lAM "a" $
+              lam "f" $
+                lam "x" $
+                  (lvar "f" `app` letrec "x" (lvar "f" `app` lvar "x") (tvar "a") (lvar "x")) `ann` tvar "a"
           pure
             ( e1
             , t1
             , e2
-            , expect2a
-            , expect2b
+            , expect2
             , e3
             , expect3a
             , expect3b
             , e4
             , expect4a
             , expect4b
+            , expect4c
             )
       s1 n = evalFullTest maxID mempty mempty n Chk expr1
       s2 n = evalFullTest maxID mempty mempty n Chk expr2
@@ -738,14 +778,14 @@ unit_let_self_capture =
                 Right _ -> pure ()
    in do
         typePres ty1 s1
-        s2 1 >>= (<~==> Left (TimedOut expected2a))
-        s2 5 >>= (<~==> Left (TimedOut expected2b))
-        s2 6 >>= (<~==> Right expected2b)
+        s2 1 >>= (<~==> Left (TimedOut expected2))
+        s2 2 >>= (<~==> Right expected2)
         s3 1 >>= (<~==> Left (TimedOut expected3a))
-        s3 5 >>= (<~==> Left (TimedOut expected3b))
-        s3 6 >>= (<~==> Right expected3b)
+        s3 2 >>= (<~==> Left (TimedOut expected3b))
+        s3 3 >>= (<~==> Right expected3b)
         s4 1 >>= (<~==> Left (TimedOut expected4a))
         s4 2 >>= (<~==> Left (TimedOut expected4b))
+        s4 3 >>= (<~==> Left (TimedOut expected4c))
 
 -- | @spanM p mxs@ returns a tuple where the first component is the
 -- values coming from the longest prefix of @mxs@ all of which satisfy
@@ -774,6 +814,7 @@ spanM f (x : xs) = do
 -- Λy. let x = ?:y in let y = _:y in y x
 -- reducing it to
 -- Λy. let x = ?:y in let y = _:y in (_:y) x
+-- (This was before we changed to "pushing down lets")
 unit_regression_self_capture_let_let :: Assertion
 unit_regression_self_capture_let_let = do
   let e =
@@ -781,13 +822,10 @@ unit_regression_self_capture_let_let = do
           let_ "x" (emptyHole `ann` tvar "y") $
             let_ "y" (emptyHole `ann` tvar "y") $
               lvar "y" `app` lvar "x"
-      z = "a12"
       f =
         lAM "y" $
-          let_ "x" (emptyHole `ann` tvar "y") $
-            let_ z (emptyHole `ann` tvar "y") $
-              let_ "y" (lvar z) $
-                lvar "y" `app` lvar "x"
+            let_ "y" (emptyHole `ann` tvar "y") (lvar "y")
+            `app` let_ "x" (emptyHole `ann` tvar "y") (lvar "x")
       (e', i) = create e
       ev n = evalFullTest i mempty mempty n Chk e'
       x ~ y = x >>= (<~==> Left (TimedOut (create' y)))
@@ -1261,7 +1299,13 @@ unit_prim_partial_map =
             `ann` (tcon tList `tapp` tcon tChar)
             <*> pure (M.singleton mapName mapDef)
    in do
-        s <- evalFullTest maxID builtinTypes (gs <> primDefs) 67 Syn e
+    -- TODO/REVIEW:
+    -- note that ww/map is somewhat pointless when push down lets -- maybe we should push lets inside letrecs (maybe just inside type?)?
+    --     nb, get something like @let α=Char, β=Char, f=toUpper in (letrec go : List α -> List β; go = λxs.RHS in go)
+    --     and then in two steps (expand @go@, push stack of let+letrec)
+    --        @λxs. let α=Char, β=Char, f=toUpper in (letrec go : List α -> List β; go = λxs.RHS in RHS : List α -> List β)
+    --     we carry around the subst for α,β and f, using α,β inside annotation and f in RHS each time expand the letrec
+        s <- evalFullTest maxID builtinTypes (gs <> primDefs) 91 Syn e
         s <~==> Right r
 
 -- Test that handleEvalFullRequest will reduce imported terms
@@ -1347,11 +1391,10 @@ unit_wildcard =
       (eTerm, maxIDTerm) = create $ caseFB_ loop [] (con0 cTrue)
       expectTerm = create' $ con0 cTrue
       (eDiverge, maxIDDiverge) = create $ caseFB_ loop [branch cZero [] $ con0 cFalse] (con0 cTrue)
-      -- This has an annotation within the body of the letrec for the same reason as unit_5
       expectDiverge =
         create' $
           caseFB_
-            ( letrec "x" (lvar "x") (tcon tNat) (lvar "x" `ann` tcon tNat)
+            ( letrec "x" (lvar "x") (tcon tNat) (lvar "x")
                 `ann` tcon tNat
             )
             [branch cZero [] $ con0 cFalse]
@@ -1359,7 +1402,7 @@ unit_wildcard =
    in do
         s <- evalFullTest maxIDTerm mempty mempty 2 Syn eTerm
         s <~==> Right expectTerm
-        t <- evalFullTest maxIDDiverge mempty mempty 22 Syn eDiverge
+        t <- evalFullTest maxIDDiverge mempty mempty 5 Syn eDiverge
         t <~==> Left (TimedOut expectDiverge)
 
 unit_case_prim :: Assertion

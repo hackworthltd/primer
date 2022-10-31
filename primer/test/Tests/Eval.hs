@@ -24,7 +24,7 @@ import Primer.Builtins (
   cNil,
   cTrue,
   cZero,
-  tBool,
+  tBool, tList, cCons,
  )
 import Primer.Core (
   Expr,
@@ -58,6 +58,7 @@ import Primer.Eval (
   GlobalVarInlineDetail (..),
   LetRemovalDetail (..),
   LocalVarInlineDetail (..),
+  PushLetDetail (..),
   findNodeByID,
   getNonCapturedLocal,
   redexes,
@@ -205,17 +206,7 @@ unit_tryReduce_local_term_var = do
   let ((expr, val), i) = create $ (,) <$> lvar "x" <*> con0' ["M"] "C"
       locals = singletonCxt @ID 5 $ LetBind "x" val
   result <- runTryReduce tydefs mempty locals (expr, i)
-  case result of
-    Right (expr', LocalVarInline detail) -> do
-      expr' ~= val
-
-      detail.letID @?= 5
-      detail.varID @?= 0
-      detail.bindingName @?= "x"
-      detail.valueID @?= 1
-      detail.replacementID @?= 2
-      detail.isTypeVar @?= False
-    _ -> assertFailure $ show result
+  result @?= Left NotRedex
 
 unit_tryReduce_local_type_var :: Assertion
 unit_tryReduce_local_type_var = do
@@ -223,17 +214,7 @@ unit_tryReduce_local_type_var = do
   let ((tyvar, val), i) = create $ (,) <$> tvar "x" <*> tcon' ["M"] "C"
       locals = singletonCxt @ID 5 $ LetTyBind $ LetTypeBind "x" val
   result <- runTryReduceType mempty locals (tyvar, i)
-  case result of
-    Right (ty, LocalTypeVarInline detail) -> do
-      ty ~~= val
-
-      detail.letID @?= 5
-      detail.varID @?= 0
-      detail.bindingName @?= "x"
-      detail.valueID @?= 1
-      detail.replacementID @?= 2
-      detail.isTypeVar @?= True
-    _ -> assertFailure $ show result
+  result @?= Left NotRedex
 
 unit_tryReduce_global_var :: Assertion
 unit_tryReduce_global_var = do
@@ -271,25 +252,22 @@ unit_tryReduce_let = do
       detail.bodyID @?= 2
     _ -> assertFailure $ show result
 
--- let x = x in x ==> let y = x in let x = y in x
+-- let x = x in x ==> x
 unit_tryReduce_let_self_capture :: Assertion
 unit_tryReduce_let_self_capture = do
   let (expr, i) = create $ let_ "x" (lvar "x") (lvar "x")
-      expectedResult = create' $ let_ "a3" (lvar "x") $ let_ "x" (lvar "a3") (lvar "x")
+      expectedResult = create' $ lvar "x"
   result <- runTryReduce tydefs mempty mempty (expr, i)
   case result of
-    Right (expr', BindRename detail) -> do
+    Right (expr', LocalVarInline detail) -> do
       expr' ~= expectedResult
 
-      detail.before @?= expr
-      detail.after ~= expectedResult
-      detail.bindingNamesOld @?= ["x"]
-      detail.bindingNamesNew @?= ["a3"]
-      detail.bindersOld @?= [0]
-      detail.bindersNew @?= [6]
-      detail.bindingOccurrences @?= [1]
-      detail.renamingLets @?= [4]
-      detail.bodyID @?= 2
+      detail.letID @?= 0
+      detail.varID @?= 2
+      detail.bindingName @?= "x"
+      detail.valueID @?= 1
+      detail.replacementID @?= 1
+      detail.isTypeVar @?= False
     _ -> assertFailure $ show result
 
 unit_tryReduce_lettype :: Assertion
@@ -308,25 +286,21 @@ unit_tryReduce_lettype = do
       detail.bodyID @?= 2
     _ -> assertFailure $ show result
 
--- let type x = x in _ :: x ==> let type y = x in lettype x = y in _ :: x
+-- let type x = x in ? :: x ==> ? :: (tlet x = x in x)
 unit_tryReduce_lettype_self_capture :: Assertion
 unit_tryReduce_lettype_self_capture = do
   let (expr, i) = create $ letType "x" (tvar "x") (emptyHole `ann` tvar "x")
-      expectedResult = create' $ letType "a5" (tvar "x") $ letType "x" (tvar "a5") (emptyHole `ann` tvar "x")
+      expectedResult = create' $ emptyHole `ann` tlet "x" (tvar "x") (tvar "x")
   result <- runTryReduce tydefs mempty mempty (expr, i)
   case result of
-    Right (expr', BindRename detail) -> do
+    Right (expr', PushLetDown detail) -> do
       expr' ~= expectedResult
 
       detail.before @?= expr
       detail.after ~= expectedResult
-      detail.bindingNamesOld @?= ["x"]
-      detail.bindingNamesNew @?= ["a5"]
-      detail.bindersOld @?= [0]
-      detail.bindersNew @?= [8]
-      detail.bindingOccurrences @?= [1]
-      detail.renamingLets @?= [6]
-      detail.bodyID @?= 2
+      detail.letIDs @?= [0]
+      detail.letBindingNames @?= ["x"]
+      detail.intoID @?= 2
     _ -> assertFailure $ show result
 
 -- tlet x = C in ty ==> ty  when x not occur free in ty
@@ -346,26 +320,22 @@ unit_tryReduce_tlet_elide = do
       detail.bodyID @?= 2
     _ -> assertFailure $ show result
 
--- tlet x = x in x ==> tlet y = x in  tlet x = y in x
+-- tlet x = x in x ==> x
 unit_tryReduce_tlet_self_capture :: Assertion
 unit_tryReduce_tlet_self_capture = do
   let (ty, i) = create $ tlet "x" (tvar "x") (tvar "x")
-      n = "a3"
-      expectedResult = create' $ tlet n (tvar "x") $ tlet "x" (tvar n) (tvar "x")
+      expectedResult = create' $ tvar "x"
   result <- runTryReduceType mempty mempty (ty, i)
   case result of
-    Right (ty', TBindRename detail) -> do
+    Right (ty', LocalTypeVarInline detail) -> do
       ty' ~~= expectedResult
 
-      detail.before @?= ty
-      detail.after ~~= expectedResult
-      detail.bindingNamesOld @?= ["x"]
-      detail.bindingNamesNew @?= [unLocalName n]
-      detail.bindersOld @?= [0]
-      detail.bindersNew @?= [6]
-      detail.bindingOccurrences @?= [1]
-      detail.renamingLets @?= [4]
-      detail.bodyID @?= 2
+      detail.letID @?= 0
+      detail.varID @?= 2
+      detail.bindingName @?= "x"
+      detail.valueID @?= 1
+      detail.replacementID @?= 1
+      detail.isTypeVar @?= True
     _ -> assertFailure $ show result
 
 unit_tryReduce_letrec :: Assertion
@@ -961,7 +931,7 @@ unit_findNodeByID_capture_type =
             , Just (1, LetTyBind _) <- lookupCaptured "x" locals
             , Just (5, LetTyBind _) <- lookupCaptured "z" locals ->
                 pure ()
-          Just (_, Right _) -> assertFailure "Expected lettype binding of 'x' and the tlet binding of 'z' to be reported as captured-if-inlined"
+          Just (_, Right _) -> assertFailure "Expected lettype binding of 'x' and the tlet binding of 'z' to be reported as captured-if-inlined" -- TODO: can probably remove all the "captured-if-inlined" stuff as don't do inlining like that now
           _ -> assertFailure "Expected to find the lvar 'x'"
         reduct <- runStep maxID mempty mempty (expr, varOcc)
         case reduct of
@@ -1130,25 +1100,21 @@ unit_redexes_LAM_4 =
               )
           )
    in do
-        redexesOf (e noAnn) <@?=> Set.singleton 5
-        redexesOf (e withAnn) <@?=> Set.fromList [3, 6]
+        redexesOf (e noAnn) <@?=> Set.singleton 0
+        redexesOf (e withAnn) <@?=> Set.fromList [0, 3]
 
 unit_redexes_let_1 :: Assertion
 unit_redexes_let_1 =
   redexesOf (let_ "x" (con0' ["M"] "C") (app (lvar "x") (lvar "y")))
-    <@?=> Set.singleton 3
+    <@?=> Set.singleton 0
 
 unit_redexes_let_2 :: Assertion
 unit_redexes_let_2 =
   redexesOf (let_ "x" (con0' ["M"] "C") (lam "x" (app (lvar "x") (lvar "y"))))
     <@?=> Set.singleton 0
 
--- We cannot substitute one occurrence of a let-bound variable if it
--- would result in capture of a free variable in the bound term by the
--- let binder itself.
 unit_redexes_let_3 :: Assertion
 unit_redexes_let_3 = do
-  -- NB we must not say node 3 (the occurrence of the variable) is a redex
   redexesOf (lam "x" $ let_ "x" (lvar "x") (lvar "x")) <@?=> Set.fromList [1]
 
 -- We cannot substitute one occurrence of a let-bound variable if it
@@ -1160,29 +1126,30 @@ unit_redexes_let_capture =
   redexesOf (let_ "x" (lvar "y") $ lam "y" $ lvar "x") <@?=> Set.singleton 2
 
 unit_redexes_lettype_capture :: Assertion
-unit_redexes_lettype_capture =
-  -- We should rename the forall and not inline the variable
-  redexesOf (letType "x" (tvar "y") (emptyHole `ann` tforall "y" KType (tvar "x"))) <@?=> Set.singleton 4
+unit_redexes_lettype_capture = do
+  -- We can push the letType down once
+  redexesOf (letType "x" (tvar "y") (emptyHole `ann` tforall "y" KType (tvar "x"))) <@?=> Set.singleton 0 -- TODO: we don't want the "forall y" to be a redex, do we? It is only a rename, and not blocking anything yet...
+  -- But now we should rename the forall and not push the tlet further
+  redexesOf (emptyHole `ann` tlet "x" (tvar "y") (tforall "y" KType (tvar "x"))) <@?=> Set.singleton 4
 
 unit_redexes_letrec_1 :: Assertion
 unit_redexes_letrec_1 =
   redexesOf (letrec "x" (con1' ["M"] "C" $ lvar "x") (tcon' ["M"] "T") (app (lvar "x") (lvar "y")))
-    <@?=> Set.fromList [2, 5]
+    <@?=> Set.fromList [0]
 
 unit_redexes_letrec_2 :: Assertion
 unit_redexes_letrec_2 =
   redexesOf (letrec "x" (con1' ["M"] "C" $ lvar "x") (tcon' ["M"] "T") (lvar "y"))
-    <@?=> Set.fromList [0, 2]
+    <@?=> Set.fromList [0]
 
--- Test that our self-capture logic does not apply to letrec.
 unit_redexes_letrec_3 :: Assertion
 unit_redexes_letrec_3 =
-  -- If this were a let, we would not be able to substitute, but it is possible for letrec
-  redexesOf (lAM "a" $ lam "x" $ letrec "x" (lvar "x") (tvar "a") (lvar "x")) <@?=> Set.fromList [3, 5]
+  redexesOf (lAM "a" $ lam "x" $ letrec "x" (lvar "x") (tvar "a") (lvar "x")) <@?=> Set.fromList [2]
 
--- The application could potentially be reduced by pushing the
--- argument inside the letrec, but that is not a reduction rule. Once
--- we inline the letrec enough we would be able to see the beta.
+unit_redexes_letrec_4 :: Assertion
+unit_redexes_letrec_4 =
+  redexesOf (let_ "x" ((lam "x" (lvar "x") `ann` (tcon tBool `tfun` tcon tBool)) `app` con0 cTrue) $ letrec "xs" (con cCons [lvar "x", lvar "xs"]) (tcon tList `tapp` tEmptyHole) (lvar "xs")) <@?=> Set.fromList [1,9]
+
 unit_redexes_letrec_app_1 :: Assertion
 unit_redexes_letrec_app_1 =
   let e mkAnn =
@@ -1195,12 +1162,9 @@ unit_redexes_letrec_app_1 =
           )
           (con0' ["M"] "D")
    in do
-        redexesOf (e noAnn) <@?=> Set.fromList [5]
-        redexesOf (e withAnn) <@?=> Set.fromList [6]
+        redexesOf (e noAnn) <@?=> Set.fromList [1]
+        redexesOf (e withAnn) <@?=> Set.fromList [1]
 
--- The application could potentially be reduced by pushing the
--- argument inside the letrec, but that is not a reduction rule. Once
--- we inline the letrec enough we would be able to see the beta.
 unit_redexes_letrec_APP_1 :: Assertion
 unit_redexes_letrec_APP_1 =
   let e mkAnn =
@@ -1213,8 +1177,8 @@ unit_redexes_letrec_APP_1 =
           )
           (tcon' ["M"] "D")
    in do
-        redexesOf (e noAnn) <@?=> Set.fromList [5]
-        redexesOf (e withAnn) <@?=> Set.fromList [6]
+        redexesOf (e noAnn) <@?=> Set.fromList [1]
+        redexesOf (e withAnn) <@?=> Set.fromList [1]
 
 unit_redexes_lettype_1 :: Assertion
 unit_redexes_lettype_1 =
@@ -1222,18 +1186,14 @@ unit_redexes_lettype_1 =
 
 unit_redexes_lettype_2 :: Assertion
 unit_redexes_lettype_2 =
-  redexesOf (letType "x" (tcon' ["M"] "T") (con0' ["M"] "C" `ann` tvar "x")) <@?=> Set.fromList [4]
+  redexesOf (letType "x" (tcon' ["M"] "T") (con0' ["M"] "C" `ann` tvar "x")) <@?=> Set.fromList [0]
 
 unit_redexes_lettype_3 :: Assertion
 unit_redexes_lettype_3 =
-  redexesOf (letType "x" (tcon' ["M"] "T") (letrec "y" (con0' ["M"] "C") (tvar "x") (lvar "y"))) <@?=> Set.fromList [4, 5]
+  redexesOf (letType "x" (tcon' ["M"] "T") (letrec "y" (con0' ["M"] "C") (tvar "x") (lvar "y"))) <@?=> Set.fromList [2]
 
--- We cannot substitute one occurrence of a let-bound variable if it
--- would result in capture of a free variable in the bound term by the
--- let binder itself.
 unit_redexes_lettype_4 :: Assertion
 unit_redexes_lettype_4 = do
-  -- NB we must not say node 5 (the occurrence of the variable) is a redex
   redexesOf (lAM "x" $ letType "x" (tvar "x") (emptyHole `ann` tvar "x")) <@?=> Set.fromList [1]
 
 unit_redexes_tlet_1 :: Assertion
@@ -1242,18 +1202,14 @@ unit_redexes_tlet_1 =
 
 unit_redexes_tlet_2 :: Assertion
 unit_redexes_tlet_2 =
-  redexesOf (emptyHole `ann` tlet "x" (tcon' ["M"] "T") (tapp (tcon' ["M"] "S") (tvar "x"))) <@?=> Set.fromList [6]
+  redexesOf (emptyHole `ann` tlet "x" (tcon' ["M"] "T") (tapp (tcon' ["M"] "S") (tvar "x"))) <@?=> Set.fromList [2]
 
 unit_redexes_tlet_3 :: Assertion
 unit_redexes_tlet_3 =
-  redexesOf (emptyHole `ann` tlet "x" (tcon' ["M"] "T") (tlet "y" (tcon' ["M"] "S") (tapp (tvar "x") (tvar "y")))) <@?=> Set.fromList [7, 8]
+  redexesOf (emptyHole `ann` tlet "x" (tcon' ["M"] "T") (tlet "y" (tcon' ["M"] "S") (tapp (tvar "x") (tvar "y")))) <@?=> Set.fromList [2,4]
 
--- We cannot substitute one occurrence of a let-bound variable if it
--- would result in capture of a free variable in the bound term by the
--- let binder itself.
 unit_redexes_tlet_4 :: Assertion
 unit_redexes_tlet_4 = do
-  -- NB we must not say node 5 (the occurrence of the variable) is a redex
   redexesOf (lAM "x" $ emptyHole `ann` tlet "x" (tvar "x") (tvar "x")) <@?=> Set.fromList [3]
 
 -- case-of-constructor does not reduce if the constructor is not annotated
@@ -1278,7 +1234,7 @@ unit_redexes_case_2 =
     )
     <@?=> mempty
 
--- The case expression can be reduced, as can the variable x in the branch rhs.
+-- The case expression can be reduced, and the @let x@ can be pushed down
 unit_redexes_case_3 :: Assertion
 unit_redexes_case_3 =
   redexesOf
@@ -1290,9 +1246,9 @@ unit_redexes_case_3 =
             [branch' (["M"], "C") [] (lvar "x")]
         )
     )
-    <@?=> Set.fromList [2, 6]
+    <@?=> Set.fromList [0, 2]
 
--- The variable x in the rhs is bound to the branch pattern, so is no longer reducible.
+-- The variable x in the rhs is bound to the branch pattern, so is no longer refering to the @let@.
 -- However this means the let is redundant, and can be reduced.
 unit_redexes_case_4 :: Assertion
 unit_redexes_case_4 =
@@ -1307,10 +1263,14 @@ unit_redexes_case_4 =
     )
     <@?=> Set.fromList [0, 2]
 
--- If scrutinee of a case is a redex itself, we recognise that
 unit_redexes_case_5 :: Assertion
 unit_redexes_case_5 =
-  redexesOf (let_ "x" (con0' ["M"] "C") (case_ (lvar "x") [])) <@?=> Set.fromList [3]
+  redexesOf (let_ "x" (con0' ["M"] "C") (case_ (lvar "x") [])) <@?=> Set.fromList [0]
+
+-- If scrutinee of a case is a redex itself, we recognise that
+unit_redexes_case_6 :: Assertion
+unit_redexes_case_6 =
+  redexesOf (case_ (let_ "x" (con0' ["M"] "C") $ lvar "x") []) <@?=> Set.fromList [1]
 
 unit_redexes_case_fallback_1 :: Assertion
 unit_redexes_case_fallback_1 =

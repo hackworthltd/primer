@@ -81,6 +81,7 @@ library
     Primer.Eval.Let
     Primer.Eval.NormalOrder
     Primer.Eval.Prim
+    Primer.Eval.Push
     Primer.Eval.Redex
     Primer.Primitives.PrimDef
     Primer.Typecheck.Cxt

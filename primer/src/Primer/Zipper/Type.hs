@@ -25,6 +25,7 @@ module Primer.Zipper.Type (
   bindersAboveTy,
   LetTypeBinding' (LetTypeBind),
   LetTypeBinding,
+  letTypeBindingName,
   getBoundHereTy',
   getBoundHereTy,
   getBoundHereUpTy,
@@ -53,12 +54,13 @@ import Primer.Core.Meta (
   HasID (..),
   ID,
   TyVarName,
-  getID,
+  getID, unLocalName,
  )
 import Primer.Core.Type (
   Type' (TForall, TLet),
   TypeMeta,
  )
+import Primer.Name (Name)
 
 type TypeZip' b = Zipper (Type' b) (Type' b)
 
@@ -192,6 +194,9 @@ getBoundHereTy t prev = S.fromList $ either identity (\(LetTypeBind n _) -> n) <
 data LetTypeBinding' a = LetTypeBind TyVarName (Type' a)
   deriving stock (Eq, Show)
 type LetTypeBinding = LetTypeBinding' TypeMeta
+
+letTypeBindingName :: LetTypeBinding' a -> Name
+letTypeBindingName (LetTypeBind n _) = unLocalName n
 
 getBoundHereTy' :: Eq a => Type' a -> Maybe (Type' a) -> [Either TyVarName (LetTypeBinding' a)]
 getBoundHereTy' t prev = case t of

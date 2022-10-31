@@ -16,6 +16,7 @@ module Primer.Eval (
   GlobalVarInlineDetail (..),
   LetRemovalDetail (..),
   ApplyPrimFunDetail (..),
+  PushLetDetail (..),
   -- Only exported for testing
   Cxt (Cxt),
   singletonCxt,
@@ -49,6 +50,7 @@ import Primer.Eval.Detail (
   GlobalVarInlineDetail (..),
   LetRemovalDetail (..),
   LocalVarInlineDetail (..),
+  PushLetDetail (..),
  )
 import Primer.Eval.EvalError (EvalError (..))
 import Primer.Eval.NormalOrder (
