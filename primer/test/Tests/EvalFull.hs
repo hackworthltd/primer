@@ -161,6 +161,7 @@ unit_tmp = evalTestM 0 $ do
   pure $ do
       putStrLn @Text "Before"
       prettyPrintExpr compact t
+      expectTypedWithPrims $ pure t `ann` generateTypeIDs ty_tmp
       putStrLn @Text "After"
       prettyPrintExpr compact s'
       assertNoSevereLogs @EvalFullLog logs
