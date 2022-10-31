@@ -211,7 +211,39 @@ unit_tmp_4 = do
   -- This last test fails, and is I expect the root cause
   expectTyped $ lAM "b" ((emptyHole `ann` (tvar "b" `tapp` tEmptyHole)))
           `ann` tEmptyHole
-  
+
+
+-- data T a b = C a b
+-- S ∋ case C @? @B t1 t2 : T A ? of C u v -> s
+--   if ? ∋ t1 , B ∋ t2 , u : A, v : ? |- S ∋ s
+-- so it should reduce to
+-- S ∋ let u = t1 : U; v = t2 : V in s
+-- for some annotations U,V, which must satisfy
+--  U ∋ t1, V ∋ t2 (so t1 : U and t2 : V are well-typed)
+--  U = A, V = ? (so u : U, v : V |- S ∋ s is well-typed)
+-- But notice that these constraints are in conflict!
+-- We have some constraints from the constructor, and some from the type.
+-- We may make constructor ones holey-er to match the one from the type (see ...) -- TODO: property test that "making inputs holier infects outputs, but keeps well-typed"
+-- but not vice versa (i.e. setting V = ? is ok, but we cannot pick either U=? or U=A). -- TODO: actually, why not U=?
+-- TODO: ok, so let's just take the "hole-meet" of ctor and ann
+unit_tmp_5 :: Assertion
+unit_tmp_5 = evalTestM 0 $ do
+  t <- generateIDs expr_tmp
+  let tds = foldMap moduleTypesQualified testModules
+  let globs = foldMap moduleDefsQualified testModules
+  ((_steps, s), logs) <- runPureLogT $ evalFullStepCount tds globs 1 Syn t
+  let s' = case s of
+        Left (TimedOut e) -> e
+        Right e -> e
+  pure $ do
+      putStrLn @Text "Before"
+      prettyPrintExpr compact t
+      expectTypedWithPrims $ pure t `ann` generateTypeIDs ty_tmp
+      putStrLn @Text "After"
+      prettyPrintExpr compact s'
+      assertNoSevereLogs @EvalFullLog logs
+      expectTypedWithPrims $ pure s' `ann` generateTypeIDs ty_tmp
+
 
 unit_1 :: Assertion
 unit_1 =
