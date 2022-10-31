@@ -35,7 +35,7 @@ import Primer.Builtins (
   tBool,
   tList,
   tNat,
-  tPair, cRight, tEither, cLeft,
+  tPair, cRight, tEither, cLeft, tMaybe,
  )
 import Primer.Builtins.DSL (bool_, list_, nat)
 import Primer.Core
@@ -121,12 +121,9 @@ ty_tmp :: Type' ()
                     ()
                     (APP
                        ()
-                       (APP
-                          ()
                           (Con
                              ()
-                             cRight)
-                          (TEmptyHole ()))
+                             cJust)
                        (TForall
                           ()
                           LocalName { unLocalName = "x" }
@@ -146,19 +143,16 @@ ty_tmp :: Type' ()
                           )))
                  (TApp
                     ()
-                    (TApp
-                       ()
-                       (TCon
-                          ()
-                          tEither)
-                       (TEmptyHole ()))
+                    (TCon
+                         ()
+                         tMaybe )
                     (TEmptyHole ())))
               [ CaseBranch
-                  cLeft
-                  [ Bind () LocalName { unLocalName = "x" } ]
+                  cNothing
+                  [ ]
                   (EmptyHole ())
               , CaseBranch
-                  cRight
+                  cJust
                   [ Bind () LocalName { unLocalName = "x" } ]
                   (EmptyHole ())
               ]
