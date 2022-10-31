@@ -108,7 +108,7 @@ import TestUtils (
 import Tests.Action.Prog (runAppTestM)
 import Tests.Eval ((~=))
 import Tests.Gen.Core.Typed (checkTest)
-import Tests.Typecheck (runTypecheckTestM, runTypecheckTestMWithPrims, expectTyped, expectTypedWithPrims)
+import Tests.Typecheck (runTypecheckTestM, runTypecheckTestMWithPrims, expectTyped, expectTypedWithPrims, expectKinded)
 import Primer.Pretty (compact, prettyPrintExpr)
 import Control.Monad.Fresh (MonadFresh)
 
@@ -163,8 +163,8 @@ ty_tmp :: Type' ()
 
 -- Test from
 -- https://buildkite.com/hackworthltd/primer/builds/2263#01842afa-92dd-499e-aa77-60f44dcba2c4
-unit_tmp :: Assertion
-unit_tmp = evalTestM 0 $ do
+unit_tmp_1 :: Assertion
+unit_tmp_1 = evalTestM 0 $ do
   t <- generateIDs expr_tmp
   let tds = foldMap moduleTypesQualified testModules
   let globs = foldMap moduleDefsQualified testModules
@@ -197,6 +197,21 @@ unit_tmp_2 = do
   expectTyped' $ e fa fa
   expectTyped' $ e tEmptyHole tEmptyHole
 
+unit_tmp_3 :: Assertion
+unit_tmp_3 = do
+  expectKinded tEmptyHole KHole
+  expectKinded (tforall "a" (KFun KType KType) $ tvar "a" `tapp` tcon tBool) KType
+  
+unit_tmp_4 :: Assertion
+unit_tmp_4 = do
+  expectTyped $ lAM "b" ((emptyHole `ann` (tvar "b" `tapp` tEmptyHole)))
+          `ann` tforall "a" (KFun KType KType) (tvar "a" `tapp` tcon tBool)
+  expectTyped $ emptyHole
+          `ann` tforall "a" (KFun KType KType) (tvar "a" `tapp` tcon tBool)
+  -- This last test fails, and is I expect the root cause
+  expectTyped $ lAM "b" ((emptyHole `ann` (tvar "b" `tapp` tEmptyHole)))
+          `ann` tEmptyHole
+  
 
 unit_1 :: Assertion
 unit_1 =
