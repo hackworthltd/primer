@@ -760,12 +760,10 @@ matchArrowType _ = Nothing
 
 -- | Checks if a type can be hole-refined to a forall, and if so returns the
 -- forall'd version.
--- NB: holes can behave as ∀(a:KType). ..., but not of any higher kind
--- (We may revisit this later)
 matchForallType :: MonadFresh NameCounter m => Type -> m (Maybe (TyVarName, Kind, Type))
 -- These names will never enter the program, so we don't need to avoid shadowing
-matchForallType (TEmptyHole _) = (\n -> Just (n, KType, TEmptyHole ())) <$> freshLocalName mempty
-matchForallType (THole _ _) = (\n -> Just (n, KType, TEmptyHole ())) <$> freshLocalName mempty
+matchForallType (TEmptyHole _) = (\n -> Just (n, KHole, TEmptyHole ())) <$> freshLocalName mempty
+matchForallType (THole _ _) = (\n -> Just (n, KHole, TEmptyHole ())) <$> freshLocalName mempty
 matchForallType (TForall _ a k t) = pure $ Just (a, k, t)
 matchForallType _ = pure Nothing
 
