@@ -73,7 +73,8 @@ getTypeDefInfo' _ (THole _ _) = Left TDIHoleType
 getTypeDefInfo' tydefs ty =
   case decomposeTAppCon ty of
     Nothing -> Left TDINotADT
-    Just (tycon, params) -> do
+    Just (Nothing, _) -> Left TDIHoleType -- TODO: a hack, reporting "hole-applied-to-spine" as "hole", to see if that is the only remaining problem with the "holeyer" test
+    Just (Just tycon, params) -> do
       case M.lookup tycon tydefs of
         Nothing -> Left $ TDIUnknown tycon
         Just tydef
@@ -129,13 +130,17 @@ instantiateValCons' tyDefs t =
 substituteTypeVars :: MonadFresh NameCounter m => [(TyVarName, Type' ())] -> Type' () -> m (Type' ())
 substituteTypeVars = flip $ foldrM (uncurry substTy)
 
--- | Decompose @C X Y Z@ to @(C,[X,Y,Z])@
-decomposeTAppCon :: Type' a -> Maybe (TyConName, [Type' a])
+-- | Decompose @C X Y Z@ to @(C,[X,Y,Z])@, for @C@ a constructor
+-- @Just (Nothing, _)@ means @C@ was some hole
+decomposeTAppCon :: Type' a -> Maybe (Maybe TyConName, [Type' a])
+-- TODO: this "or maybe hole" is a bit of a hack...
 decomposeTAppCon ty = do
   (con, args) <- go ty
   pure (con, reverse args)
   where
-    go (TCon _ con) = Just (con, [])
+    go (TCon _ con) = Just (Just con, [])
+    go (TEmptyHole _) = Just (Nothing, [])
+    go (THole _ _) = Just (Nothing, [])
     go (TApp _ t s) = do
       (con, args) <- go t
       pure (con, s : args)

@@ -264,7 +264,7 @@ tasty_decomposeTAppCon = property $ do
   -- We correctly decompose "good" values
   let genArgs = Gen.list (Range.linear 0 5) $ forgetTypeMetadata <$> genType
   nargs <- forAll $ evalExprGen 0 $ liftA2 (,) genTyConName genArgs
-  tripping nargs (uncurry mkTAppCon) decomposeTAppCon
+  tripping nargs (uncurry mkTAppCon) $ fmap swap . join . fmap sequence . fmap swap . decomposeTAppCon
   -- Also test that if we decompose, then it was "good"
   ty <- forAll $ evalExprGen 0 $ forgetTypeMetadata <$> genType
   let dec = decomposeTAppCon ty
@@ -273,7 +273,8 @@ tasty_decomposeTAppCon = property $ do
   -- cover 30 "non-decomposable" $ isNothing dec
   case dec of
     Nothing -> success
-    Just (n, args) -> ty === mkTAppCon n args
+    Just (Just n, args) -> ty === mkTAppCon n args
+    Just (Nothing, args) -> success
 
 unit_typeDefKind :: Assertion
 unit_typeDefKind = do

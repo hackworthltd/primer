@@ -112,7 +112,7 @@ baseNames tk = do
   tys <- asks typeDefs
   pure $ case tk of
     Left (Just ty)
-      | Just c <- headCon ty
+      | Just (Just c) <- headCon ty
       , Just hints@(_ : _) <- typeDefNameHints <$> Map.lookup c tys ->
           hints
     Left (Just TFun{}) -> ["f", "g", "h"]
