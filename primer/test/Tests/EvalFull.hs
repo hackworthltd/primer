@@ -110,6 +110,7 @@ import Tests.Eval ((~=))
 import Tests.Gen.Core.Typed (checkTest)
 import Tests.Typecheck (runTypecheckTestM, runTypecheckTestMWithPrims, expectTyped, expectTypedWithPrims)
 import Primer.Pretty (compact, prettyPrintExpr)
+import Control.Monad.Fresh (MonadFresh)
 
 expr_tmp :: Expr' () ()
 ty_tmp :: Type' ()
@@ -179,6 +180,22 @@ unit_tmp = evalTestM 0 $ do
       prettyPrintExpr compact s'
       assertNoSevereLogs @EvalFullLog logs
       expectTypedWithPrims $ pure s' `ann` generateTypeIDs ty_tmp
+
+unit_tmp_2 :: Assertion
+unit_tmp_2 = do
+  let fa :: forall m . MonadFresh ID m => m Type
+      fa = tforall "a" (KFun KType KType) (tcon tBool)
+  let e s t = (con cJust `aPP` s
+                 `app` lAM "b" (letrec "x" emptyHole (tvar "b" `tapp` tEmptyHole) emptyHole))
+              `ann` (tcon tMaybe `tapp` t)
+  let expectTyped' :: (forall m . MonadFresh ID m => m Expr) -> IO () 
+      expectTyped' t = do
+        putText "\nTypechecking "
+        prettyPrintExpr compact $ create' t
+        expectTyped t
+  expectTyped' $ e fa tEmptyHole
+  expectTyped' $ e fa fa
+  expectTyped' $ e tEmptyHole tEmptyHole
 
 
 unit_1 :: Assertion
