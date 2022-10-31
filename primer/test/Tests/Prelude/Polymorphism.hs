@@ -63,7 +63,7 @@ tasty_const_prop = property $ do
     , Right $ tcon tBool
     , Left $ bool_ True
     ]
-    20
+    21
     <===> Right (create' $ int n)
   functionOutput' -- Bool Test
     P.const
@@ -72,7 +72,7 @@ tasty_const_prop = property $ do
     , Right $ tcon tInt
     , Left $ int n
     ]
-    20
+    21
     <===> Right (create' $ bool_ b)
   functionOutput' -- List of Int Test
     P.const
@@ -81,7 +81,7 @@ tasty_const_prop = property $ do
     , Right $ tcon tInt
     , Left $ int n
     ]
-    20
+    21
     <===> Right (create' $ list_ $ map int ns)
 
 tasty_map_prop :: Property

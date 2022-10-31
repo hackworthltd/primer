@@ -1,5 +1,4 @@
 {-# LANGUAGE DisambiguateRecordFields #-}
-{-# LANGUAGE OverloadedLabels #-}
 {-# LANGUAGE OverloadedRecordDot #-}
 
 module Primer.Eval.NormalOrder (
@@ -27,16 +26,6 @@ import Control.Monad.Trans.Accum (
  )
 import Control.Monad.Trans.Maybe (MaybeT)
 import Data.Map qualified as M
-import Data.Set qualified as S
-import Data.Set.Optics (setOf)
-import Optics (
-  elemOf,
-  folded,
-  getting,
-  to,
-  (%),
-  _2,
- )
 import Primer.Core (
   Expr,
   Expr' (
@@ -55,11 +44,7 @@ import Primer.Core (
   Type' (
     TLet
   ),
-  bindName,
   getID,
- )
-import Primer.Core.Utils (
-  _freeVarsTy,
  )
 import Primer.Def (
   DefMap,
@@ -68,32 +53,10 @@ import Primer.Eval.Redex (
   Cxt (..),
   Dir (..),
   EvalLog,
-  Redex (
-    ElideLet,
-    InlineLet,
-    InlineLetrec,
-    RenameBindingsCase,
-    RenameBindingsLAM,
-    RenameBindingsLam,
-    RenameSelfLet,
-    RenameSelfLetType,
-    branches,
-    letBinding,
-    tyvar,
-    var
-  ),
-  RedexType (
-    ElideLetInType,
-    InlineLetInType,
-    RenameForall,
-    RenameSelfLetInType,
-    letBinding,
-    origBinder,
-    var
-  ),
+  Redex,
+  RedexType,
   viewRedex,
   viewRedexType,
-  _freeVarsLetBinding,
  )
 import Primer.Log (ConvertLogMessage)
 import Primer.Name (Name)
@@ -109,9 +72,7 @@ import Primer.Zipper (
   down,
   focus,
   focusType,
-  getBoundHere,
   getBoundHere',
-  getBoundHereTy,
   letBindingName,
   right,
   target,
@@ -128,12 +89,26 @@ data RedexWithContext
   = RExpr ExprZ Redex
   | RType TypeZ RedexType
 
-viewLet :: (Dir, ExprZ) -> Maybe (LetBinding, Accum Cxt (Dir, ExprZ))
+data ViewLet = ViewLet
+  { bindingVL :: LetBinding
+  -- ^ the binding itself
+  , bodyVL :: Accum Cxt (Dir, ExprZ)
+  -- ^ the body (i.e. after the `in`)
+  , typeChildrenVL :: [Accum Cxt TypeZ]
+  -- ^ any non-body type children
+  , termChildrenVL :: [Accum Cxt (Dir, ExprZ)]
+  -- ^ any non-body term children (i.e. rhs of the binding)
+  }
+viewLet :: (Dir, ExprZ) -> Maybe ViewLet
 viewLet dez@(_, ez) = case (target ez, exprChildren dez) of
-  (Let _ x e _b, [_, bz]) -> Just (LetBind x e, bz)
-  (Letrec _ x e ty _b, [_, bz]) -> Just (LetrecBind x e ty, bz)
-  (LetType _ a ty _b, [bz]) -> bz `seq` Just (LetTyBind $ LetTypeBind a ty, bz)
+  (Let _ x e _b, [ez', bz]) -> Just (ViewLet (LetBind x e) bz [] [ez'])
+  (Letrec _ x e ty _b, [ez', bz]) -> Just (ViewLet (LetrecBind x e ty) bz tz [ez'])
+  (LetType _ a ty _b, [bz]) -> bz `seq` Just (ViewLet (LetTyBind $ LetTypeBind a ty) bz tz [])
   _ -> Nothing
+  where
+    tz :: [Accum Cxt TypeZ]
+    -- as with focusType', we don't need to bind anything here
+    tz = maybe [] ((: []) . pure) $ focusType ez
 
 -- | This is similar to 'foldMap', with a few differences:
 -- - 'Expr' is not foldable
@@ -158,7 +133,13 @@ foldMapExpr extract topDir = flip evalAccumT mempty . go . (topDir,) . focus
     go dez@(d, ez) =
       readerToAccumT (ReaderT $ extract.expr ez d)
         <|> case (extract.subst, viewLet dez) of
-          (Just goSubst, Just (l, bz)) -> (readerToAccumT . ReaderT . (\(d', b) -> goSubst l b d')) =<< hoistAccum bz
+          (Just goSubst, Just (ViewLet{bindingVL, bodyVL})) -> (readerToAccumT . ReaderT . (\(d', b) -> goSubst bindingVL b d')) =<< hoistAccum bodyVL
+          -- Prefer to compute inside the body of a let, but otherwise compute in the binding
+          (Nothing, Just (ViewLet{bodyVL, typeChildrenVL, termChildrenVL})) ->
+            msum $
+              (go =<< hoistAccum bodyVL)
+                : map (goType <=< hoistAccum) typeChildrenVL
+                  <> map (go <=< hoistAccum) termChildrenVL
           -- Since stuck things other than lets are stuck on the first child or
           -- its type annotation, we can handle them all uniformly
           _ ->
@@ -171,6 +152,9 @@ foldMapExpr extract topDir = flip evalAccumT mempty . go . (topDir,) . focus
         <|> case (extract.substTy, target tz) of
           (Just goSubstTy, TLet _ a t _body)
             | [_, bz] <- typeChildren tz -> (readerToAccumT . ReaderT . goSubstTy a t) =<< hoistAccum bz
+          (Nothing, TLet _ _ _t _body)
+            -- Prefer to compute inside the body of a let, but otherwise compute in the binding
+            | [tz', bz] <- typeChildren tz -> (goType =<< hoistAccum bz) <|> (goType =<< hoistAccum tz')
           _ -> msum $ map (goType <=< hoistAccum) $ typeChildren tz
 
 data FMExpr m = FMExpr
@@ -189,19 +173,6 @@ hoistAccum :: Monad m => Accum Cxt b -> AccumT Cxt m b
 hoistAccum = Foreword.hoistAccum generalize
 
 -- We find the normal-order redex.
--- Annoyingly this is not quite leftmost-outermost wrt our Expr type, as we
--- are using 'let's to encode something similar to explicit substitution, and
--- reduce them by substituting one occurrance at a time, removing the 'let'
--- when there are no more substitutions to be done. Note that the 'let' itself
--- doesn't get "pushed down" in the tree.
--- example:
---   lettype a = Bool -> Bool in (λx.not x : a) True
--- reduces to
---   lettype a = Bool -> Bool in (λx.not x : Bool -> Bool) True
--- and then to
---   (λx.not x : Bool -> Bool) True
--- This can be seen as "leftmost-outermost" if you consider the location of the
--- "expand a" redex to be the 'lettype' rather than the variable occurrance.
 findRedex ::
   forall l m.
   (MonadLog (WithSeverity l) m, ConvertLogMessage EvalLog l) =>
@@ -215,76 +186,10 @@ findRedex tydefs globals =
     ( FMExpr
         { expr = \ez d -> runReaderT (RExpr ez <$> viewRedex tydefs globals d (target ez))
         , ty = \tz -> hoistMaybe . runReader (RType tz <<$>> viewRedexType (target tz))
-        , subst = Just (\l -> fmap evalAccumT . goSubst l)
-        , substTy = Just (\v t -> fmap hoistMaybe . evalAccumT . goSubstTy v t)
+        , subst = Nothing
+        , substTy = Nothing
         }
     )
-  where
-    goSubst :: LetBinding -> ExprZ -> Dir -> AccumT Cxt (MaybeT m) RedexWithContext
-    goSubst l ez d = do
-      let here =
-            readerToAccumT (viewRedex tydefs globals d $ target ez) >>= \case
-              -- We should inline such 'v' (note that we will not go under any 'v' binders)
-              r@(InlineLet{var}) | letBindingName l == unLocalName var -> pure $ RExpr ez r
-              r@(InlineLetrec{var}) | letBindingName l == unLocalName var -> pure $ RExpr ez r
-              -- Elide a let only if it blocks the reduction
-              r@(ElideLet{letBinding}) | elemOf _freeVarsLetBinding (letBindingName letBinding) l -> pure $ RExpr ez r
-              -- Rename a binder only if it blocks the reduction
-              r@(RenameBindingsLam{var}) | elemOf _freeVarsLetBinding (unLocalName var) l -> pure $ RExpr ez r
-              r@(RenameBindingsLAM{tyvar}) | elemOf _freeVarsLetBinding (unLocalName tyvar) l -> pure $ RExpr ez r
-              r@(RenameBindingsCase{branches})
-                | not $ S.disjoint (setOf _freeVarsLetBinding l) (setOf (folded % #_CaseBranch % _2 % folded % to bindName % to unLocalName) branches) ->
-                    pure $ RExpr ez r
-              r@(RenameSelfLet{var}) | elemOf _freeVarsLetBinding (unLocalName var) l -> pure $ RExpr ez r
-              r@(RenameSelfLetType{tyvar}) | elemOf _freeVarsLetBinding (unLocalName tyvar) l -> pure $ RExpr ez r
-              _ -> mzero
-          -- Switch to an inner let if substituting under it would cause capture
-          innerLet = case viewLet (d, ez) of
-            Just (l', bz)
-              | letBindingName l' /= letBindingName l
-              , elemOf _freeVarsLetBinding (letBindingName l') l ->
-                  (\(d', b) -> goSubst l' b d') =<< hoistAccum bz
-            _ -> mzero
-          dive =
-            let substChild (d', c) = do
-                  -- We should not go under 'v' binders, but otherwise substitute in each child
-                  guard $ S.notMember (letBindingName l) $ getBoundHere (target ez) (Just $ target c)
-                  goSubst l c d'
-                substTyChild c = case l of
-                  LetTyBind (LetTypeBind v t) -> goSubstTy v t c
-                  _ -> mzero
-             in msum @[] $
-                  Foreword.hoistAccum hoistMaybe (substTyChild =<< focusType' ez)
-                    : map (substChild <=< hoistAccum) (exprChildren (d, ez))
-       in here <|> innerLet <|> dive
-    goSubstTy :: TyVarName -> Type -> TypeZ -> AccumT Cxt Maybe RedexWithContext
-    goSubstTy v t tz =
-      let isFreeIn = elemOf (getting _freeVarsTy % _2)
-       in do
-            hoistAccum (readerToAccumT $ viewRedexType $ target tz) >>= \case
-              -- We should inline such 'v' (note that we will not go under any 'v' binders)
-              Just r@(InlineLetInType{var}) | var == v -> pure $ RType tz r
-              -- Elide a let only if it blocks the reduction
-              Just r@(ElideLetInType{letBinding = (LetTypeBind w _)}) | w `isFreeIn` t -> pure $ RType tz r
-              -- Rename a binder only if it blocks the reduction
-              Just r@(RenameSelfLetInType{letBinding = (LetTypeBind w _)}) | w `isFreeIn` t -> pure $ RType tz r
-              Just r@(RenameForall{origBinder}) | origBinder `isFreeIn` t -> pure $ RType tz r
-              -- We switch to an inner let if substituting under it would cause capture
-              Nothing
-                | TLet _ w s _ <- target tz
-                , [_, bz] <- typeChildren tz
-                , v /= w
-                , w `isFreeIn` t ->
-                    goSubstTy w s =<< hoistAccum bz
-              -- We should not go under 'v' binders, but otherwise substitute in each child
-              _ ->
-                let substChild c = do
-                      guard $
-                        S.notMember (unLocalName v) $
-                          S.map unLocalName $
-                            getBoundHereTy (target tz) (Just $ target c)
-                      goSubstTy v t c
-                 in msum $ map (substChild <=< hoistAccum) (typeChildren tz)
 
 children' :: IsZipper za a => za -> [za]
 children' z = case down z of
