@@ -79,7 +79,7 @@ import Primer.Gen.Core.Typed (
   genChk,
   genSyn,
   genWTType,
-  propertyWT,
+  propertyWT, WT, genWTKind,
  )
 import Primer.Module (Module (..), builtinModule, primitiveModule)
 import Primer.Name (Name, NameCounter)
@@ -95,7 +95,7 @@ import Primer.TypeDef (
  )
 import Primer.Typecheck (
   CheckEverythingRequest (CheckEverything, toCheck, trusted),
-  Cxt (smartHoles),
+  Cxt (smartHoles, localCxt, globalCxt),
   ExprT,
   KindError (..),
   SmartHoles (NoSmartHoles, SmartHoles),
@@ -109,7 +109,7 @@ import Primer.Typecheck (
   mkTAppCon,
   synth,
   synthKind,
-  typeTtoType,
+  typeTtoType, KindOrType (K, T), extendLocalCxtTy,
  )
 import Tasty (Property, property, withDiscards, withTests)
 import Test.Tasty.HUnit (Assertion, assertBool, assertFailure, (@?=))
@@ -790,6 +790,45 @@ unit_good_maybeT = case runTypecheckTestM NoSmartHoles $
   Left err -> assertFailure $ show err
   Right _ -> pure ()
 
+
+-- If something typechecks, then making the inputs holey-er will result in
+-- something well-typed, but the output may be holey-er. Explicitly:
+--  if  Γ |- S ∋ s  ,  Γ' < Γ  and  S' < S  then  Γ' |- S' ∋ s
+--  if  Γ |- e ∈ S  and  Γ' < Γ  then  Γ' |- e ∈ S'  for some S' < S
+-- where here '<' means "the same, except some subterms have been replaced
+-- with a hole", (applied pointwise to contexts)
+tasty_holeyer_chk :: Property
+tasty_holeyer_chk = withTests 1000 $
+  withDiscards 2000 $
+  propertyWT [builtinModule, primitiveModule] $
+  local (\c -> c{smartHoles = NoSmartHoles}) -- be explicit that smartholes is off
+  $ do
+  (cxt,ty,e) <- inExtendedGlobalCxt $ inExtendedLocalCxt $ do
+    ty <- forAllT $ genWTType KType
+    e <- forAllT $ generateIDs =<< genChk ty
+    _ <- checkTest ty e
+    cxt <- ask
+    pure (cxt,ty,e)
+  cxt' <- forAllT $ generateHoleyerCxt cxt
+  ty' <- forAllT $ generateHoleyer ty
+  local (const cxt') $ void $ checkTest ty' e
+
+
+tasty_holeyer_syn :: Property
+tasty_holeyer_syn = withTests 1000 $
+  withDiscards 2000 $
+  propertyWT [builtinModule, primitiveModule] $
+  local (\c -> c{smartHoles = NoSmartHoles}) -- be explicit that smartholes is off
+  $ do
+  (cxt,e,ty) <- inExtendedGlobalCxt $ inExtendedLocalCxt $ do
+    e <- forAllT $ generateIDs . fst =<< genSyn
+    (ty, _) <- synthTest e
+    cxt <- ask
+    pure (cxt,e,ty)
+  cxt' <- forAllT $ generateHoleyerCxt cxt
+  (ty', _) <- local (const cxt') $ synthTest e
+  assert (ty' `isHoleyerThan` ty)
+
 -- * Helpers
 expectTyped :: HasCallStack => TypecheckTestM Expr -> Assertion
 expectTyped m =
@@ -890,3 +929,75 @@ maybeTDef =
     , astTypeDefConstructors = [ValCon (vcn ["TestModule"] "MakeMaybeT") [TApp () (TVar () "m") (TApp () (TCon () tMaybe) (TVar () "a"))]]
     , astTypeDefNameHints = []
     }
+
+
+generateHoleyer :: Type' () -> GenT WT (Type' ())
+generateHoleyer ty =
+  let def  = [pure $ TEmptyHole (), THole () <$> (genWTType =<< genWTKind)]
+  in case ty of
+ TEmptyHole _ -> Gen.choice def
+ THole _ _ -> Gen.choice def
+ TCon _ _ -> Gen.choice $ pure ty : def
+ TFun _ s t -> Gen.recursive Gen.choice def [TFun () <$> generateHoleyer s <*> generateHoleyer t]
+ TVar _ _ -> Gen.choice $ pure ty : def
+ TApp _ s t -> Gen.recursive Gen.choice def [TApp () <$> generateHoleyer s <*> generateHoleyer t]
+ TForall _ n k t ->    Gen.recursive Gen.choice def [TForall () n <$> generateHoleyerKind k <*> local (extendLocalCxtTy (n,k)) (generateHoleyer t)]
+ TLet _ n s t -> do
+   s' <- generateTypeIDs s
+   -- If this pattern fails to match, then ty must have been ill typed,
+   -- which is unsupported
+   Right k <- runExceptT $ fst <$> synthKind @KindError s'
+   Gen.recursive Gen.choice def [TLet () n <$> local (extendLocalCxtTy (n,k)) (generateHoleyer s) <*> generateHoleyer t]
+
+generateHoleyerKind :: Kind -> GenT WT Kind
+generateHoleyerKind = \case
+  KHole -> pure KHole
+  KType -> Gen.element [KHole, KType]
+  KFun k1 k2 -> Gen.recursive Gen.choice [pure KHole] [KFun <$> generateHoleyerKind k1 <*> generateHoleyerKind k2]
+
+tasty_generateHoleyerKind :: Property
+tasty_generateHoleyerKind = propertyWT [builtinModule] $ do
+  k <- forAllT genWTKind
+  k' <- forAllT $ generateHoleyerKind k
+  assert $ k' `isHoleyerThanKind` k
+
+tasty_generateHoleyer :: Property
+tasty_generateHoleyer = propertyWT [builtinModule] $ do
+  k <- forAllT genWTKind
+  ty <- forAllT $ genWTType k
+  ty' <- forAllT $ generateHoleyer ty
+  assert $ ty' `isHoleyerThan` ty
+
+generateHoleyerCxt :: Cxt -> GenT WT Cxt
+generateHoleyerCxt cxt = do
+  global' <- for (globalCxt cxt) generateHoleyer
+  local' <- for (localCxt cxt) $ \case
+    K k -> K <$> generateHoleyerKind k
+    T t -> T <$> generateHoleyer t
+  pure cxt{globalCxt = global' , localCxt = local' }
+
+-- We don't compare up to alpha, although arguably we should
+isHoleyerThan :: Type' () -> Type' () -> Bool
+isHoleyerThan (TEmptyHole _) = const True
+isHoleyerThan (THole _ _) = const True
+isHoleyerThan (TCon _ c) = \case TCon _ c' -> c == c' ; _ -> False
+isHoleyerThan (TFun _ s t) = \case
+  TFun _ s' t' -> isHoleyerThan s s' && isHoleyerThan t t'
+  _ -> False
+isHoleyerThan (TVar _ v) = \case TVar _ v' -> v == v' ; _ -> False
+isHoleyerThan (TApp _ s t) = \case
+  TApp _ s' t' -> isHoleyerThan s s' && isHoleyerThan t t'
+  _ -> False
+isHoleyerThan (TForall _ n k t) = \case
+  TForall _ m k' t' -> n == m && isHoleyerThanKind k k' && isHoleyerThan t t'
+  _ -> False
+isHoleyerThan (TLet _ n s t) = \case
+  TLet _ m s' t' -> n == m && isHoleyerThan s s' && isHoleyerThan t t'
+  _ -> False
+
+isHoleyerThanKind :: Kind -> Kind -> Bool
+isHoleyerThanKind KHole = const True
+isHoleyerThanKind KType = \case KType -> True ; _ -> False
+isHoleyerThanKind (KFun k1 k2) = \case
+  KFun k1' k2' -> isHoleyerThanKind k1 k1' && isHoleyerThanKind k2 k2'
+  _ -> False
