@@ -35,7 +35,7 @@ import Primer.Builtins (
   tBool,
   tList,
   tNat,
-  tPair,
+  tPair, cRight, tEither, cLeft,
  )
 import Primer.Builtins.DSL (bool_, list_, nat)
 import Primer.Core
@@ -43,7 +43,7 @@ import Primer.Core.DSL
 import Primer.Core.Utils (
   exprIDs,
   forgetMetadata,
-  generateIDs,
+  generateIDs, generateTypeIDs,
  )
 import Primer.Def (ASTDef (..), Def (..), DefMap)
 import Primer.EvalFull
@@ -80,7 +80,7 @@ import Primer.Primitives (
     ToUpper
   ),
   tChar,
-  tInt,
+  tInt, primitiveGVar,
  )
 import Primer.Primitives.DSL (pfun)
 import Primer.TypeDef (TypeDef (..), TypeDefMap)
@@ -108,7 +108,93 @@ import TestUtils (
 import Tests.Action.Prog (runAppTestM)
 import Tests.Eval ((~=))
 import Tests.Gen.Core.Typed (checkTest)
-import Tests.Typecheck (runTypecheckTestM, runTypecheckTestMWithPrims)
+import Tests.Typecheck (runTypecheckTestM, runTypecheckTestMWithPrims, expectTyped, expectTypedWithPrims)
+
+expr_tmp :: Expr' () ()
+ty_tmp :: Type' ()
+(expr_tmp,ty_tmp) = ( Ann
+     ()
+     (Lam
+        ()
+        LocalName { unLocalName = "x" }
+        (LAM
+           ()
+           LocalName { unLocalName = "y" }
+           (Case
+              ()
+              (Ann
+                 ()
+                 (App
+                    ()
+                    (APP
+                       ()
+                       (APP
+                          ()
+                          (Con
+                             ()
+                             cRight)
+                          (TEmptyHole ()))
+                       (TForall
+                          ()
+                          LocalName { unLocalName = "x" }
+                          (KFun KType KType)
+                          (TCon
+                             ()
+                             tBool)))
+                    (LAM
+                       ()
+                       LocalName { unLocalName = "a" }
+                       (App
+                          ()
+                          (App
+                             ()
+                             (Var
+                                ()
+                                $ GlobalVarRef $ primitiveGVar IntNeq)
+                             (Letrec
+                                ()
+                                LocalName { unLocalName = "x" }
+                                (EmptyHole ())
+                                (TApp () (TVar () LocalName { unLocalName = "a" }) (TEmptyHole ()))
+                                (EmptyHole ())))
+                          (EmptyHole ()))))
+                 (TApp
+                    ()
+                    (TApp
+                       ()
+                       (TCon
+                          ()
+                          tEither)
+                       (TEmptyHole ()))
+                    (TEmptyHole ())))
+              [ CaseBranch
+                  cLeft
+                  [ Bind () LocalName { unLocalName = "x" } ]
+                  (EmptyHole ())
+              , CaseBranch
+                  cRight
+                  [ Bind () LocalName { unLocalName = "x" } ]
+                  (EmptyHole ())
+              ])))
+     (TEmptyHole ())
+ , TEmptyHole ()
+ )
+
+-- Test from
+-- https://buildkite.com/hackworthltd/primer/builds/2263#01842afa-92dd-499e-aa77-60f44dcba2c4
+unit_tmp :: Assertion
+unit_tmp = evalTestM 0 $ do
+  t <- generateIDs expr_tmp
+  let tds = foldMap moduleTypesQualified testModules
+  let globs = foldMap moduleDefsQualified testModules
+  ((_steps, s), logs) <- runPureLogT $ evalFullStepCount tds globs 1 Syn t
+  let s' = case s of
+        Left (TimedOut e) -> e
+        Right e -> e
+  pure $ do
+      assertNoSevereLogs @EvalFullLog logs
+      expectTypedWithPrims $ pure s' `ann` generateTypeIDs ty_tmp
+
 
 unit_1 :: Assertion
 unit_1 =
