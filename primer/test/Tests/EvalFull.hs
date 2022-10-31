@@ -112,15 +112,8 @@ import Tests.Typecheck (runTypecheckTestM, runTypecheckTestMWithPrims, expectTyp
 
 expr_tmp :: Expr' () ()
 ty_tmp :: Type' ()
-(expr_tmp,ty_tmp) = ( Ann
-     ()
-     (Lam
-        ()
-        LocalName { unLocalName = "x" }
-        (LAM
-           ()
-           LocalName { unLocalName = "y" }
-           (Case
+(expr_tmp,ty_tmp) = (
+           Case
               ()
               (Ann
                  ()
@@ -144,20 +137,13 @@ ty_tmp :: Type' ()
                     (LAM
                        ()
                        LocalName { unLocalName = "a" }
-                       (App
-                          ()
-                          (App
-                             ()
-                             (Var
-                                ()
-                                $ GlobalVarRef $ primitiveGVar IntNeq)
-                             (Letrec
+                       (Letrec
                                 ()
                                 LocalName { unLocalName = "x" }
                                 (EmptyHole ())
                                 (TApp () (TVar () LocalName { unLocalName = "a" }) (TEmptyHole ()))
-                                (EmptyHole ())))
-                          (EmptyHole ()))))
+                                (EmptyHole ())
+                          )))
                  (TApp
                     ()
                     (TApp
@@ -175,8 +161,7 @@ ty_tmp :: Type' ()
                   cRight
                   [ Bind () LocalName { unLocalName = "x" } ]
                   (EmptyHole ())
-              ])))
-     (TEmptyHole ())
+              ]
  , TEmptyHole ()
  )
 
