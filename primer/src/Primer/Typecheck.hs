@@ -629,14 +629,13 @@ check t = \case
     (eT, e') <- synth e
     let caseMeta = annotate (TCChkedAt t) i
     instantiateValCons eT >>= \case
-      -- we allow 'case' on a thing of type TEmptyHole iff we have zero branches
-      Left TDIHoleType ->
-        if null brs
-          then pure $ Case caseMeta e' []
-          else
-            asks smartHoles >>= \case
-              NoSmartHoles -> throwError' CaseOfHoleNeedsEmptyBranches
-              SmartHoles -> pure $ Case caseMeta e' []
+      -- we allow 'case' on a thing of type TEmptyHole for any set of branches
+      -- REVIEW: is this sensible? is very relaxed compared to ADT case;
+      --         may want "all ctors from same type, in correct order"?
+      Left TDIHoleType -> do
+        let expected = brs <&> \(CaseBranch c xs _) -> (c, TEmptyHole () <$ xs)
+        brs'' <- zipWithM (checkBranch t) expected brs
+        pure $ Case caseMeta e' brs''
       Left TDINotADT ->
         asks smartHoles >>= \case
           NoSmartHoles -> throwError' $ CannotCaseNonADT eT
