@@ -632,6 +632,7 @@ check t = \case
       -- we allow 'case' on a thing of type TEmptyHole for any set of branches
       -- REVIEW: is this sensible? is very relaxed compared to ADT case;
       --         may want "all ctors from same type, in correct order"?
+      --         If we change this, do we want to change "DELETE" below, or any actions?
       Left TDIHoleType -> do
         let expected = brs <&> \(CaseBranch c xs _) -> (c, TEmptyHole () <$ xs)
         brs'' <- zipWithM (checkBranch t) expected brs
