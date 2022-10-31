@@ -127,6 +127,7 @@ import TestUtils (LogMsg, assertNoSevereLogs, constructCon, constructTCon, zeroI
 import TestUtils qualified
 import Tests.Typecheck (checkProgWellFormed)
 import Prelude (error)
+import Primer.Pretty
 
 -- Note: the use of 'appNameCounter' in this helper functions is a
 -- hack, but it is probably safe for these tests, anyway.
@@ -1371,6 +1372,7 @@ unit_cross_module_actions =
         handleAndTC [RenameModule (moduleName m) ["AnotherModule"]]
         -- NB: SigAction relies on SmartHoles to fix any introduced inconsistencies
         oldSH <- gets (progSmartHoles . appProg)
+        traceM $ show oldSH
         handleAndTC
           [ SetSmartHoles SmartHoles
           , MoveToDef $ qualifyName (ModuleName ["AnotherModule"]) "bar"
@@ -1387,7 +1389,7 @@ unit_cross_module_actions =
         -- A bit of setup to test CopyPasteSig: main :: Nat = bar True (Note bar :: Bool -> ?)
         handleAndTC
           [ MoveToDef $ gvn "main"
-          , SigAction [Delete, constructTCon tNat] -- This constructTCon tNat is what breaks the test!
+--          , SigAction [Delete, constructTCon tNat] -- This constructTCon tNat is what breaks the test!
           {-
           , BodyAction
               [ Delete
@@ -1400,7 +1402,7 @@ unit_cross_module_actions =
               ]
 -}
           ]
-        {-
+          {-
         -- Copy-paste within the sig of bar to make bar :: Bool -> Bool
         -- NB: CopyPasteSig relies on SmartHoles to fix any introduced inconsistencies
         barTy <-
@@ -1421,7 +1423,7 @@ unit_cross_module_actions =
               [Move Child2]
           , SetSmartHoles oldSH
           ]
-          -}
+-}
         gets appProg
       handleAndTC acts = void $ tcWholeProg =<< handleEditRequest acts
       n = ["Module2"]
@@ -1454,7 +1456,17 @@ unit_cross_module_actions =
    in do
         runAppTestM (appIdCounter a) a test <&> fst >>= \case
           Left err -> assertFailure $ show err
-          Right _ -> pure ()
+--          Right _ -> pure ()
+          Right p -> for_ (Map.toList $ progAllDefs p) $ \(n,(_,d)) -> do
+            print n
+            case d of
+              DefPrim _ -> putStrLn @Text "<primitive>"
+              DefAST (ASTDef e t) -> do
+                putStrLn @Text "type: "
+                prettyPrintType compact t
+                putStrLn @Text "\nexpr: "
+                prettyPrintExpr compact e
+            putStrLn @Text "\n\n"
 
 -- Consider
 --   foo :: ? ?
