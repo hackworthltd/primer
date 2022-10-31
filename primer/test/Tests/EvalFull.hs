@@ -109,6 +109,7 @@ import Tests.Action.Prog (runAppTestM)
 import Tests.Eval ((~=))
 import Tests.Gen.Core.Typed (checkTest)
 import Tests.Typecheck (runTypecheckTestM, runTypecheckTestMWithPrims, expectTyped, expectTypedWithPrims)
+import Primer.Pretty (compact, prettyPrintExpr)
 
 expr_tmp :: Expr' () ()
 ty_tmp :: Type' ()
@@ -158,6 +159,10 @@ unit_tmp = evalTestM 0 $ do
         Left (TimedOut e) -> e
         Right e -> e
   pure $ do
+      putStrLn @Text "Before"
+      prettyPrintExpr compact t
+      putStrLn @Text "After"
+      prettyPrintExpr compact s'
       assertNoSevereLogs @EvalFullLog logs
       expectTypedWithPrims $ pure s' `ann` generateTypeIDs ty_tmp
 
