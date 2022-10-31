@@ -24,7 +24,7 @@ import Hedgehog (
 import Hedgehog.Gen qualified as G
 import Hedgehog.Range qualified as R
 import Primer.API (
-  ApplyActionBody,
+  ApplyActionBody (..),
   Def (Def),
   Module (Module),
   NodeBody (BoxBody, NoBody, TextBody),
@@ -36,7 +36,14 @@ import Primer.API (
   viewTreeExpr,
   viewTreeType,
  )
-import Primer.Action.Available (Level, OfferedAction (..), SomeAction)
+import Primer.Action.Available (
+  ActionOption (..),
+  InputAction (..),
+  Level,
+  NoInputAction (..),
+  OfferedAction (..),
+  SomeAction (..),
+ )
 import Primer.App (NodeType (..))
 import Primer.Core (GVarName, ID (ID))
 import Primer.Database (
@@ -255,9 +262,11 @@ instance Arbitrary (Paginated Session) where
 instance Arbitrary Prog where
   arbitrary = hedgehog genProg
 instance Arbitrary ApplyActionBody where
-  arbitrary = undefined
+  arbitrary = ApplyActionBody <$> arbitrary <*> arbitrary
+instance Arbitrary ActionOption where
+  arbitrary = ActionOption <$> arbitrary <*> arbitrary
 instance Arbitrary OfferedAction where
-  arbitrary = undefined
+  arbitrary = OfferedAction <$> arbitrary <*> arbitrary
 instance Arbitrary Selection where
   arbitrary = Selection <$> arbitrary <*> arbitrary
 instance Arbitrary NodeSelection where
@@ -273,5 +282,9 @@ instance Arbitrary NodeType where
   arbitrary = arbitraryBoundedEnum
 instance Arbitrary GVarName where
   arbitrary = hedgehog genGVarName
+instance Arbitrary InputAction where
+  arbitrary = arbitraryBoundedEnum
+instance Arbitrary NoInputAction where
+  arbitrary = arbitraryBoundedEnum
 instance Arbitrary SomeAction where
-  arbitrary = undefined
+  arbitrary = either NoInputAction InputAction <$> arbitrary

@@ -70,6 +70,7 @@ import Primer.Core (
   TypeCache (..),
   getID,
   unLocalName,
+  unsafeMkGlobalName,
   unsafeMkLocalName,
   _bindMeta,
   _chkedAt,
@@ -146,7 +147,7 @@ data OfferedAction = OfferedAction
 data SomeAction
   = NoInputAction NoInputAction
   | InputAction InputAction
-  deriving (Show, Generic)
+  deriving (Eq, Ord, Show, Generic)
   deriving (ToJSON) via PrimerJSON SomeAction
 
 -- TODO rename constructors - descriptive names, also drop the prefix and we'll always qualify
@@ -168,7 +169,7 @@ data NoInputAction
   | ADeleteDef
   | ADeleteExpr
   | ADeleteType
-  deriving (Show, Read, Generic)
+  deriving (Eq, Ord, Show, Read, Enum, Bounded, Generic)
   deriving (ToJSON, FromJSON) via PrimerJSON NoInputAction
 data InputAction -- TODO rename for consistency
   = AMakeLambda
@@ -188,7 +189,7 @@ data InputAction -- TODO rename for consistency
   | AUseValueCon -- TODO sort these (incl. use sites) - were at bottom because qualified
   | AUseSaturatedValueCon
   | AUseTypeCon
-  deriving (Show, Read, Generic)
+  deriving (Eq, Ord, Show, Read, Enum, Bounded, Generic)
   deriving (ToJSON, FromJSON) via PrimerJSON InputAction
 
 -- TODO simplify?
@@ -374,7 +375,7 @@ basicActionsForType l = \case
         <> mwhen
           (l == Expert)
           [ InputAction AConstructForall
-          , NoInputAction AConstructAPP
+          , NoInputAction AConstructTypeApp
           ]
     defaultActions = universalActions <> [NoInputAction ADeleteType]
 
@@ -623,35 +624,47 @@ mkActionInput ::
   Either Text [ProgAction]
 -- TODO rename `tInput`
 mkActionInput def defName mNodeSel tInput0 = \case
-  AMakeLambda ->
-    toProgAction [ConstructLam $ Just tInput]
+  AMakeLambda -> do
+    t <- tInputLocal
+    toProgAction [ConstructLam $ Just t]
   AUseVar ->
     toProgAction [ConstructVar tInputTmVar]
   ASaturatedFunction -> do
     oR <- offerRefined
     toProgAction [if oR then InsertRefinedVar tInputTmVar else InsertSaturatedVar tInputTmVar]
-  AMakeLet ->
-    toProgAction [ConstructLet $ Just tInput]
-  AMakeLetRec ->
-    toProgAction [ConstructLetrec $ Just tInput]
-  AConstructBigLambda ->
-    toProgAction [ConstructLAM $ Just tInput]
-  AUseTypeVar ->
-    toProgAction [ConstructTVar tInput]
-  AConstructForall ->
-    toProgAction [ConstructTForall $ Just tInput, Move Child1]
-  ARenameDef ->
-    pure [RenameDef defName tInput]
-  ARenamePatternVar ->
-    toProgAction [RenameCaseBinding tInput]
-  ARenameLambda ->
-    toProgAction [RenameLam tInput]
-  ARenameLAM ->
-    toProgAction [RenameLAM tInput]
-  ARenameLetBinding ->
-    toProgAction [RenameLet tInput]
-  ARenameForall ->
-    toProgAction [RenameForall tInput]
+  AMakeLet -> do
+    t <- tInputLocal
+    toProgAction [ConstructLet $ Just t]
+  AMakeLetRec -> do
+    t <- tInputLocal
+    toProgAction [ConstructLetrec $ Just t]
+  AConstructBigLambda -> do
+    t <- tInputLocal
+    toProgAction [ConstructLAM $ Just t]
+  AUseTypeVar -> do
+    t <- tInputLocal
+    toProgAction [ConstructTVar t]
+  AConstructForall -> do
+    t <- tInputLocal
+    toProgAction [ConstructTForall $ Just t, Move Child1]
+  ARenameDef -> do
+    t <- tInputLocal
+    pure [RenameDef defName t]
+  ARenamePatternVar -> do
+    t <- tInputLocal
+    toProgAction [RenameCaseBinding t]
+  ARenameLambda -> do
+    t <- tInputLocal
+    toProgAction [RenameLam t]
+  ARenameLAM -> do
+    t <- tInputLocal
+    toProgAction [RenameLAM t]
+  ARenameLetBinding -> do
+    t <- tInputLocal
+    toProgAction [RenameLet t]
+  ARenameForall -> do
+    t <- tInputLocal
+    toProgAction [RenameForall t]
   AUseValueCon -> do
     o <- option
     toProgAction [ConstructCon o]
@@ -670,9 +683,10 @@ mkActionInput def defName mNodeSel tInput0 = \case
     -- see the comment on `Action` - given that we're now not exposing that type via the API, it should probably use the rich versions
     -- I think we previously were inconsistent, or just hadn't given this much thought
 
-    -- TODO hmm this needn't necessarily be local
-    -- and obviously we shouldn't use `unsafeMkLocalName` etc.
-    tInputTmVar = LocalVarRef $ unsafeMkLocalName tInput
+    -- TODO obviously we shouldn't use "unsafe" functions
+    tInputTmVar = case tInput0.qualification of
+      Just q -> GlobalVarRef $ unsafeMkGlobalName (q, tInput0.option)
+      Nothing -> LocalVarRef $ unsafeMkLocalName tInput0.option
     -- TODO DRY
     toProgAction actions = do
       id <- id'
@@ -695,8 +709,9 @@ mkActionInput def defName mNodeSel tInput0 = \case
           _ -> False
         _ -> Left "expected TypeNode"
     id' = maybeToEither "no node selection" $ snd <$> mNodeSel
-    -- TODO error out of qualification is `Just`?
-    tInput = tInput0.option
+    tInputLocal = case tInput0.qualification of
+      Just _ -> Left $ "unexpected global: " <> show tInput0
+      Nothing -> pure tInput0.option
     option = case tInput0.qualification of
       Nothing -> Left "no qual"
       Just q -> pure (q, tInput0.option)

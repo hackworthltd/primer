@@ -1,423 +1,422 @@
 Output
     { defActions =
-        [ Prose "⌫"
-        , Prose "d"
-        , Prose "r"
+        [ NoInputAction ADuplicateDef
+        , NoInputAction ADeleteDef
+        , InputAction ARenameDef
         ]
     , bodyActions =
         [
             ( 9
             ,
-                [ Code "$"
-                , Code ":"
-                , Code "@"
-                , Code "Λx"
-                , Code "λx"
-                , Prose "⌫"
-                , Prose "r"
-                , Prose "rec"
+                [ NoInputAction AConvertLetToLetrec
+                , NoInputAction AConstructApp
+                , NoInputAction AConstructAPP
+                , NoInputAction AConstructAnn
+                , NoInputAction ADeleteExpr
+                , InputAction AMakeLambda
+                , InputAction AConstructBigLambda
+                , InputAction ARenameLetBinding
                 ]
             )
         ,
             ( 10
             ,
-                [ Code "$"
-                , Code ":"
-                , Code "@"
-                , Code "Λx"
-                , Code "λx"
-                , Code "m"
-                , Prose "↑"
-                , Prose "⌫"
+                [ NoInputAction AMakeCase
+                , NoInputAction AConstructApp
+                , NoInputAction AConstructAPP
+                , NoInputAction AConstructAnn
+                , NoInputAction ARaise
+                , NoInputAction ADeleteExpr
+                , InputAction AMakeLambda
+                , InputAction AConstructBigLambda
                 ]
             )
         ,
             ( 11
             ,
-                [ Code "$"
-                , Code ":"
-                , Code "@"
-                , Code "Λx"
-                , Code "λx"
-                , Prose "↑"
-                , Prose "⌫"
-                , Prose "r"
+                [ NoInputAction AConstructApp
+                , NoInputAction AConstructAPP
+                , NoInputAction AConstructAnn
+                , NoInputAction ARaise
+                , NoInputAction ADeleteExpr
+                , InputAction AMakeLambda
+                , InputAction AConstructBigLambda
+                , InputAction ARenameLetBinding
                 ]
             )
         ,
             ( 12
             ,
-                [ Code "$"
-                , Code ":"
-                , Code "@"
-                , Code "Λx"
-                , Code "λx"
-                , Code "m"
-                , Prose "↑"
-                , Prose "⌫"
+                [ NoInputAction AMakeCase
+                , NoInputAction AConstructApp
+                , NoInputAction AConstructAPP
+                , NoInputAction AConstructAnn
+                , NoInputAction ARaise
+                , NoInputAction ADeleteExpr
+                , InputAction AMakeLambda
+                , InputAction AConstructBigLambda
                 ]
             )
         ,
             ( 13
             ,
-                [ Code "$"
-                , Code ":"
-                , Code "@"
-                , Code "Λx"
-                , Code "λx"
-                , Code "m"
-                , Prose "↑"
-                , Prose "⌫"
-                , Prose "e"
+                [ NoInputAction AMakeCase
+                , NoInputAction AConstructApp
+                , NoInputAction AConstructAPP
+                , NoInputAction AConstructAnn
+                , NoInputAction AFinishHole
+                , NoInputAction ARaise
+                , NoInputAction ADeleteExpr
+                , InputAction AMakeLambda
+                , InputAction AConstructBigLambda
                 ]
             )
         ,
             ( 14
             ,
-                [ Code "$"
-                , Code ":"
-                , Code "@"
-                , Code "Λx"
-                , Code "λx"
-                , Prose "⌫"
+                [ NoInputAction AConstructApp
+                , NoInputAction AConstructAPP
+                , NoInputAction AConstructAnn
+                , NoInputAction ADeleteExpr
+                , InputAction AMakeLambda
+                , InputAction AConstructBigLambda
                 ]
             )
         ,
             ( 15
             ,
-                [ Code "$"
-                , Code ":"
-                , Code "="
-                , Code "=,="
-                , Code "@"
-                , Code "V $ ?"
-                , Code "V"
-                , Code "Λx"
-                , Code "λx"
-                , Code "f $ ?"
-                , Code "m"
-                , Code "x"
-                , Prose "↑"
-                , Prose "h"
+                [ NoInputAction AMakeCase
+                , NoInputAction AConstructApp
+                , NoInputAction AConstructAPP
+                , NoInputAction AConstructAnn
+                , NoInputAction AEnterHole
+                , NoInputAction ARaise
+                , InputAction AMakeLambda
+                , InputAction AUseVar
+                , InputAction ASaturatedFunction
+                , InputAction AMakeLet
+                , InputAction AMakeLetRec
+                , InputAction AConstructBigLambda
+                , InputAction AUseValueCon
+                , InputAction AUseSaturatedValueCon
                 ]
             )
         ,
             ( 18
             ,
-                [ Code "$"
-                , Code "@"
-                , Code "Λx"
-                , Code "λx"
-                , Prose "↑"
-                , Prose "⌫"
-                , Prose "⌫:"
+                [ NoInputAction AConstructApp
+                , NoInputAction AConstructAPP
+                , NoInputAction ARemoveAnn
+                , NoInputAction ARaise
+                , NoInputAction ADeleteExpr
+                , InputAction AMakeLambda
+                , InputAction AConstructBigLambda
                 ]
             )
         ,
             ( 19
             ,
-                [ Code "$"
-                , Code ":"
-                , Code "@"
-                , Code "Λx"
-                , Code "λx"
-                , Prose "↑"
-                , Prose "⌫"
-                , Prose "r"
+                [ NoInputAction AConstructApp
+                , NoInputAction AConstructAPP
+                , NoInputAction AConstructAnn
+                , NoInputAction ARaise
+                , NoInputAction ADeleteExpr
+                , InputAction AMakeLambda
+                , InputAction AConstructBigLambda
+                , InputAction ARenameLambda
                 ]
             )
         ,
             ( 20
             ,
-                [ Code "$"
-                , Code ":"
-                , Code "@"
-                , Code "Λx"
-                , Code "λx"
-                , Prose "↑"
-                , Prose "⌫"
-                , Prose "r"
+                [ NoInputAction AConstructApp
+                , NoInputAction AConstructAPP
+                , NoInputAction AConstructAnn
+                , NoInputAction ARaise
+                , NoInputAction ADeleteExpr
+                , InputAction AMakeLambda
+                , InputAction AConstructBigLambda
+                , InputAction ARenameLAM
                 ]
             )
         ,
             ( 21
             ,
-                [ Code "$"
-                , Code ":"
-                , Code "@"
-                , Code "Λx"
-                , Code "λx"
-                , Code "m"
-                , Prose "↑"
-                , Prose "⌫"
+                [ NoInputAction AMakeCase
+                , NoInputAction AConstructApp
+                , NoInputAction AConstructAPP
+                , NoInputAction AConstructAnn
+                , NoInputAction ARaise
+                , NoInputAction ADeleteExpr
+                , InputAction AMakeLambda
+                , InputAction AConstructBigLambda
                 ]
             )
         ,
             ( 22
             ,
-                [ Code "$"
-                , Code ":"
-                , Code "@"
-                , Code "Λx"
-                , Code "λx"
-                , Prose "↑"
-                , Prose "⌫"
+                [ NoInputAction AConstructApp
+                , NoInputAction AConstructAPP
+                , NoInputAction AConstructAnn
+                , NoInputAction ARaise
+                , NoInputAction ADeleteExpr
+                , InputAction AMakeLambda
+                , InputAction AConstructBigLambda
                 ]
             )
         ,
             ( 23
             ,
-                [ Code "$"
-                , Code ":"
-                , Code "@"
-                , Code "Λx"
-                , Code "λx"
-                , Prose "↑"
-                , Prose "⌫"
+                [ NoInputAction AConstructApp
+                , NoInputAction AConstructAPP
+                , NoInputAction AConstructAnn
+                , NoInputAction ARaise
+                , NoInputAction ADeleteExpr
+                , InputAction AMakeLambda
+                , InputAction AConstructBigLambda
                 ]
             )
         ,
             ( 24
             ,
-                [ Code "$"
-                , Code ":"
-                , Code "@"
-                , Code "Λx"
-                , Code "λx"
-                , Prose "↑"
-                , Prose "⌫"
+                [ NoInputAction AConstructApp
+                , NoInputAction AConstructAPP
+                , NoInputAction AConstructAnn
+                , NoInputAction ARaise
+                , NoInputAction ADeleteExpr
+                , InputAction AMakeLambda
+                , InputAction AConstructBigLambda
                 ]
             )
         ,
             ( 27
             ,
-                [ Code "$"
-                , Code ":"
-                , Code "@"
-                , Code "Λx"
-                , Code "λx"
-                , Prose "↑"
-                , Prose "⌫"
+                [ NoInputAction AConstructApp
+                , NoInputAction AConstructAPP
+                , NoInputAction AConstructAnn
+                , NoInputAction ARaise
+                , NoInputAction ADeleteExpr
+                , InputAction AMakeLambda
+                , InputAction AConstructBigLambda
                 ]
             )
         ,
             ( 28
             ,
-                [ Code "$"
-                , Code ":"
-                , Code "@"
-                , Code "Λx"
-                , Code "λx"
-                , Code "m"
-                , Prose "↑"
-                , Prose "⌫"
+                [ NoInputAction AMakeCase
+                , NoInputAction AConstructApp
+                , NoInputAction AConstructAPP
+                , NoInputAction AConstructAnn
+                , NoInputAction ARaise
+                , NoInputAction ADeleteExpr
+                , InputAction AMakeLambda
+                , InputAction AConstructBigLambda
                 ]
             )
         ,
             ( 29
             ,
-                [ Code "$"
-                , Code ":"
-                , Code "@"
-                , Code "Λx"
-                , Code "λx"
-                , Code "m"
-                , Prose "↑"
-                , Prose "⌫"
+                [ NoInputAction AMakeCase
+                , NoInputAction AConstructApp
+                , NoInputAction AConstructAPP
+                , NoInputAction AConstructAnn
+                , NoInputAction ARaise
+                , NoInputAction ADeleteExpr
+                , InputAction AMakeLambda
+                , InputAction AConstructBigLambda
                 ]
             )
         ,
             ( 30
-            ,
-                [ Prose "r" ]
+            , [ InputAction ARenamePatternVar ]
             )
         ,
             ( 31
             ,
-                [ Code "$"
-                , Code ":"
-                , Code "@"
-                , Code "Λx"
-                , Code "λx"
-                , Code "m"
-                , Prose "↑"
-                , Prose "⌫"
+                [ NoInputAction AMakeCase
+                , NoInputAction AConstructApp
+                , NoInputAction AConstructAPP
+                , NoInputAction AConstructAnn
+                , NoInputAction ARaise
+                , NoInputAction ADeleteExpr
+                , InputAction AMakeLambda
+                , InputAction AConstructBigLambda
                 ]
             )
         ,
             ( 32
             ,
-                [ Code "$"
-                , Code ":"
-                , Code "@"
-                , Code "Λx"
-                , Code "λx"
-                , Code "m"
-                , Prose "↑"
-                , Prose "⌫"
+                [ NoInputAction AMakeCase
+                , NoInputAction AConstructApp
+                , NoInputAction AConstructAPP
+                , NoInputAction AConstructAnn
+                , NoInputAction ARaise
+                , NoInputAction ADeleteExpr
+                , InputAction AMakeLambda
+                , InputAction AConstructBigLambda
                 ]
             )
         ,
             ( 33
             ,
-                [ Code "$"
-                , Code ":"
-                , Code "="
-                , Code "=,="
-                , Code "@"
-                , Code "V $ ?"
-                , Code "V"
-                , Code "Λx"
-                , Code "λx"
-                , Code "f $ ?"
-                , Code "m"
-                , Code "x"
-                , Prose "↑"
-                , Prose "h"
+                [ NoInputAction AMakeCase
+                , NoInputAction AConstructApp
+                , NoInputAction AConstructAPP
+                , NoInputAction AConstructAnn
+                , NoInputAction AEnterHole
+                , NoInputAction ARaise
+                , InputAction AMakeLambda
+                , InputAction AUseVar
+                , InputAction ASaturatedFunction
+                , InputAction AMakeLet
+                , InputAction AMakeLetRec
+                , InputAction AConstructBigLambda
+                , InputAction AUseValueCon
+                , InputAction AUseSaturatedValueCon
                 ]
             )
         ,
             ( 34
             ,
-                [ Code "$"
-                , Code ":"
-                , Code "@"
-                , Code "Λx"
-                , Code "λx"
-                , Code "m"
-                , Prose "↑"
-                , Prose "⌫"
+                [ NoInputAction AMakeCase
+                , NoInputAction AConstructApp
+                , NoInputAction AConstructAPP
+                , NoInputAction AConstructAnn
+                , NoInputAction ARaise
+                , NoInputAction ADeleteExpr
+                , InputAction AMakeLambda
+                , InputAction AConstructBigLambda
                 ]
             )
         ,
             ( 35
             ,
-                [ Code "$"
-                , Code ":"
-                , Code "@"
-                , Code "Λx"
-                , Code "λx"
-                , Code "m"
-                , Prose "↑"
-                , Prose "⌫"
+                [ NoInputAction AMakeCase
+                , NoInputAction AConstructApp
+                , NoInputAction AConstructAPP
+                , NoInputAction AConstructAnn
+                , NoInputAction ARaise
+                , NoInputAction ADeleteExpr
+                , InputAction AMakeLambda
+                , InputAction AConstructBigLambda
                 ]
             )
         ,
             ( 16
             ,
-                [ Code "$"
-                , Code "→"
-                , Code "∀"
-                , Prose "⌫"
+                [ NoInputAction AConstructFun
+                , NoInputAction AConstructTypeApp
+                , NoInputAction ADeleteType
+                , InputAction AConstructForall
                 ]
             )
         ,
             ( 17
             ,
-                [ Code "$"
-                , Code "→"
-                , Code "∀"
-                , Prose "↑"
-                , Prose "⌫"
+                [ NoInputAction AConstructFun
+                , NoInputAction AConstructTypeApp
+                , NoInputAction ARaise
+                , NoInputAction ADeleteType
+                , InputAction AConstructForall
                 ]
             )
         ,
             ( 25
             ,
-                [ Code "$"
-                , Code "→"
-                , Code "∀"
-                , Prose "⌫"
+                [ NoInputAction AConstructFun
+                , NoInputAction AConstructTypeApp
+                , NoInputAction ADeleteType
+                , InputAction AConstructForall
                 ]
             )
         ,
             ( 26
             ,
-                [ Code "$"
-                , Code "→"
-                , Code "∀"
-                , Prose "⌫"
+                [ NoInputAction AConstructFun
+                , NoInputAction AConstructTypeApp
+                , NoInputAction ADeleteType
+                , InputAction AConstructForall
                 ]
             )
         ,
             ( 36
             ,
-                [ Code "$"
-                , Code "→"
-                , Code "→A→"
-                , Code "∀"
-                , Prose "⌫"
+                [ NoInputAction AConstructFun
+                , NoInputAction AAddInput
+                , NoInputAction AConstructTypeApp
+                , NoInputAction ADeleteType
+                , InputAction AConstructForall
                 ]
             )
         ,
             ( 37
             ,
-                [ Code "$"
-                , Code "→"
-                , Code "∀"
-                , Prose "↑"
-                , Prose "⌫"
+                [ NoInputAction AConstructFun
+                , NoInputAction AConstructTypeApp
+                , NoInputAction ARaise
+                , NoInputAction ADeleteType
+                , InputAction AConstructForall
                 ]
             )
         ,
             ( 38
             ,
-                [ Code "$"
-                , Code "→"
-                , Code "∀"
-                , Prose "↑"
-                , Prose "⌫"
-                , Prose "r"
+                [ NoInputAction AConstructFun
+                , NoInputAction AConstructTypeApp
+                , NoInputAction ARaise
+                , NoInputAction ADeleteType
+                , InputAction AConstructForall
+                , InputAction ARenameForall
                 ]
             )
         ,
             ( 39
             ,
-                [ Code "$"
-                , Code "→"
-                , Code "∀"
-                , Prose "↑"
-                , Prose "⌫"
+                [ NoInputAction AConstructFun
+                , NoInputAction AConstructTypeApp
+                , NoInputAction ARaise
+                , NoInputAction ADeleteType
+                , InputAction AConstructForall
                 ]
             )
         ,
             ( 40
             ,
-                [ Code "$"
-                , Code "→"
-                , Code "∀"
-                , Prose "↑"
-                , Prose "⌫"
+                [ NoInputAction AConstructFun
+                , NoInputAction AConstructTypeApp
+                , NoInputAction ARaise
+                , NoInputAction ADeleteType
+                , InputAction AConstructForall
                 ]
             )
         ,
             ( 41
             ,
-                [ Code "$"
-                , Code "→"
-                , Code "∀"
-                , Prose "↑"
-                , Prose "⌫"
+                [ NoInputAction AConstructFun
+                , NoInputAction AConstructTypeApp
+                , NoInputAction ARaise
+                , NoInputAction ADeleteType
+                , InputAction AConstructForall
                 ]
             )
         ,
             ( 42
             ,
-                [ Code "$"
-                , Code "→"
-                , Code "∀"
-                , Prose "↑"
-                , Prose "⌫"
+                [ NoInputAction AConstructFun
+                , NoInputAction AConstructTypeApp
+                , NoInputAction ARaise
+                , NoInputAction ADeleteType
+                , InputAction AConstructForall
                 ]
             )
         ,
             ( 43
             ,
-                [ Code "$"
-                , Code "→"
-                , Code "∀"
-                , Prose "↑"
-                , Prose "⌫"
+                [ NoInputAction AConstructFun
+                , NoInputAction AConstructTypeApp
+                , NoInputAction ARaise
+                , NoInputAction ADeleteType
+                , InputAction AConstructForall
                 ]
             )
         ]
@@ -425,93 +424,93 @@ Output
         [
             ( 0
             ,
-                [ Code "$"
-                , Code "→"
-                , Code "→A→"
-                , Code "∀"
-                , Prose "⌫"
+                [ NoInputAction AConstructFun
+                , NoInputAction AAddInput
+                , NoInputAction AConstructTypeApp
+                , NoInputAction ADeleteType
+                , InputAction AConstructForall
                 ]
             )
         ,
             ( 1
             ,
-                [ Code "$"
-                , Code "→"
-                , Code "∀"
-                , Prose "↑"
-                , Prose "⌫"
+                [ NoInputAction AConstructFun
+                , NoInputAction AConstructTypeApp
+                , NoInputAction ARaiseType
+                , NoInputAction ADeleteType
+                , InputAction AConstructForall
                 ]
             )
         ,
             ( 2
             ,
-                [ Code "$"
-                , Code "→"
-                , Code "∀"
-                , Prose "↑"
-                , Prose "⌫"
-                , Prose "r"
+                [ NoInputAction AConstructFun
+                , NoInputAction AConstructTypeApp
+                , NoInputAction ARaiseType
+                , NoInputAction ADeleteType
+                , InputAction AConstructForall
+                , InputAction ARenameForall
                 ]
             )
         ,
             ( 3
             ,
-                [ Code "$"
-                , Code "→"
-                , Code "∀"
-                , Prose "↑"
-                , Prose "⌫"
+                [ NoInputAction AConstructFun
+                , NoInputAction AConstructTypeApp
+                , NoInputAction ARaiseType
+                , NoInputAction ADeleteType
+                , InputAction AConstructForall
                 ]
             )
         ,
             ( 4
             ,
-                [ Code "$"
-                , Code "→"
-                , Code "∀"
-                , Prose "↑"
-                , Prose "⌫"
+                [ NoInputAction AConstructFun
+                , NoInputAction AConstructTypeApp
+                , NoInputAction ARaiseType
+                , NoInputAction ADeleteType
+                , InputAction AConstructForall
                 ]
             )
         ,
             ( 5
             ,
-                [ Code "$"
-                , Code "→"
-                , Code "∀"
-                , Prose "↑"
-                , Prose "⌫"
+                [ NoInputAction AConstructFun
+                , NoInputAction AConstructTypeApp
+                , NoInputAction ARaiseType
+                , NoInputAction ADeleteType
+                , InputAction AConstructForall
                 ]
             )
         ,
             ( 6
             ,
-                [ Code "$"
-                , Code "→"
-                , Code "∀"
-                , Prose "↑"
-                , Prose "⌫"
+                [ NoInputAction AConstructFun
+                , NoInputAction AConstructTypeApp
+                , NoInputAction ARaiseType
+                , NoInputAction ADeleteType
+                , InputAction AConstructForall
                 ]
             )
         ,
             ( 7
             ,
-                [ Code "$"
-                , Code "T"
-                , Code "→"
-                , Code "∀"
-                , Code "t"
-                , Prose "↑"
+                [ NoInputAction AConstructFun
+                , NoInputAction AConstructTypeApp
+                , NoInputAction ARaiseType
+                , InputAction AUseTypeVar
+                , InputAction AConstructForall
+                , InputAction AUseTypeCon
                 ]
             )
         ,
             ( 8
             ,
-                [ Code "$"
-                , Code "→"
-                , Code "∀"
-                , Prose "↑"
-                , Prose "⌫"
+                [ NoInputAction AConstructFun
+                , NoInputAction AConstructTypeApp
+                , NoInputAction ARaiseType
+                , NoInputAction ADeleteType
+                , InputAction AConstructForall
                 ]
             )
         ]

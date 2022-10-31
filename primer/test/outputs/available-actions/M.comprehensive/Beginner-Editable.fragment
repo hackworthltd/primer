@@ -1,299 +1,298 @@
 Output
     { defActions =
-        [ Prose "⌫"
-        , Prose "d"
-        , Prose "r"
+        [ NoInputAction ADuplicateDef
+        , NoInputAction ADeleteDef
+        , InputAction ARenameDef
         ]
     , bodyActions =
         [
             ( 9
             ,
-                [ Code "λx"
-                , Prose "⌫"
-                , Prose "r"
-                , Prose "rec"
+                [ NoInputAction AConvertLetToLetrec
+                , NoInputAction ADeleteExpr
+                , InputAction AMakeLambda
+                , InputAction ARenameLetBinding
                 ]
             )
         ,
             ( 10
             ,
-                [ Code "λx"
-                , Code "m"
-                , Prose "↑"
-                , Prose "⌫"
+                [ NoInputAction AMakeCase
+                , NoInputAction ARaise
+                , NoInputAction ADeleteExpr
+                , InputAction AMakeLambda
                 ]
             )
         ,
             ( 11
             ,
-                [ Code "λx"
-                , Prose "↑"
-                , Prose "⌫"
-                , Prose "r"
+                [ NoInputAction ARaise
+                , NoInputAction ADeleteExpr
+                , InputAction AMakeLambda
+                , InputAction ARenameLetBinding
                 ]
             )
         ,
             ( 12
             ,
-                [ Code "λx"
-                , Code "m"
-                , Prose "↑"
-                , Prose "⌫"
+                [ NoInputAction AMakeCase
+                , NoInputAction ARaise
+                , NoInputAction ADeleteExpr
+                , InputAction AMakeLambda
                 ]
             )
         ,
             ( 13
             ,
-                [ Code "λx"
-                , Code "m"
-                , Prose "↑"
-                , Prose "⌫"
-                , Prose "e"
+                [ NoInputAction AMakeCase
+                , NoInputAction AFinishHole
+                , NoInputAction ARaise
+                , NoInputAction ADeleteExpr
+                , InputAction AMakeLambda
                 ]
             )
         ,
             ( 14
             ,
-                [ Code "λx"
-                , Prose "⌫"
+                [ NoInputAction ADeleteExpr
+                , InputAction AMakeLambda
                 ]
             )
         ,
             ( 15
             ,
-                [ Code "V"
-                , Code "λx"
-                , Code "m"
-                , Code "x"
-                , Prose "↑"
+                [ NoInputAction AMakeCase
+                , NoInputAction ARaise
+                , InputAction AMakeLambda
+                , InputAction AUseVar
+                , InputAction AUseValueCon
                 ]
             )
         ,
             ( 18
             ,
-                [ Code "λx"
-                , Prose "↑"
-                , Prose "⌫"
+                [ NoInputAction ARaise
+                , NoInputAction ADeleteExpr
+                , InputAction AMakeLambda
                 ]
             )
         ,
             ( 19
             ,
-                [ Code "λx"
-                , Prose "↑"
-                , Prose "⌫"
-                , Prose "r"
+                [ NoInputAction ARaise
+                , NoInputAction ADeleteExpr
+                , InputAction AMakeLambda
+                , InputAction ARenameLambda
                 ]
             )
         ,
             ( 20
             ,
-                [ Code "λx"
-                , Prose "↑"
-                , Prose "⌫"
+                [ NoInputAction ARaise
+                , NoInputAction ADeleteExpr
+                , InputAction AMakeLambda
                 ]
             )
         ,
             ( 21
             ,
-                [ Code "λx"
-                , Code "m"
-                , Prose "↑"
-                , Prose "⌫"
+                [ NoInputAction AMakeCase
+                , NoInputAction ARaise
+                , NoInputAction ADeleteExpr
+                , InputAction AMakeLambda
                 ]
             )
         ,
             ( 22
             ,
-                [ Code "λx"
-                , Prose "↑"
-                , Prose "⌫"
+                [ NoInputAction ARaise
+                , NoInputAction ADeleteExpr
+                , InputAction AMakeLambda
                 ]
             )
         ,
             ( 23
             ,
-                [ Code "λx"
-                , Prose "↑"
-                , Prose "⌫"
+                [ NoInputAction ARaise
+                , NoInputAction ADeleteExpr
+                , InputAction AMakeLambda
                 ]
             )
         ,
             ( 24
             ,
-                [ Code "λx"
-                , Prose "↑"
-                , Prose "⌫"
+                [ NoInputAction ARaise
+                , NoInputAction ADeleteExpr
+                , InputAction AMakeLambda
                 ]
             )
         ,
             ( 27
             ,
-                [ Code "λx"
-                , Prose "↑"
-                , Prose "⌫"
+                [ NoInputAction ARaise
+                , NoInputAction ADeleteExpr
+                , InputAction AMakeLambda
                 ]
             )
         ,
             ( 28
             ,
-                [ Code "λx"
-                , Code "m"
-                , Prose "↑"
-                , Prose "⌫"
+                [ NoInputAction AMakeCase
+                , NoInputAction ARaise
+                , NoInputAction ADeleteExpr
+                , InputAction AMakeLambda
                 ]
             )
         ,
             ( 29
             ,
-                [ Code "λx"
-                , Code "m"
-                , Prose "↑"
-                , Prose "⌫"
+                [ NoInputAction AMakeCase
+                , NoInputAction ARaise
+                , NoInputAction ADeleteExpr
+                , InputAction AMakeLambda
                 ]
             )
         ,
             ( 30
-            ,
-                [ Prose "r" ]
+            , [ InputAction ARenamePatternVar ]
             )
         ,
             ( 31
             ,
-                [ Code "λx"
-                , Code "m"
-                , Prose "↑"
-                , Prose "⌫"
+                [ NoInputAction AMakeCase
+                , NoInputAction ARaise
+                , NoInputAction ADeleteExpr
+                , InputAction AMakeLambda
                 ]
             )
         ,
             ( 32
             ,
-                [ Code "λx"
-                , Code "m"
-                , Prose "↑"
-                , Prose "⌫"
+                [ NoInputAction AMakeCase
+                , NoInputAction ARaise
+                , NoInputAction ADeleteExpr
+                , InputAction AMakeLambda
                 ]
             )
         ,
             ( 33
             ,
-                [ Code "V"
-                , Code "λx"
-                , Code "m"
-                , Code "x"
-                , Prose "↑"
+                [ NoInputAction AMakeCase
+                , NoInputAction ARaise
+                , InputAction AMakeLambda
+                , InputAction AUseVar
+                , InputAction AUseValueCon
                 ]
             )
         ,
             ( 34
             ,
-                [ Code "λx"
-                , Code "m"
-                , Prose "↑"
-                , Prose "⌫"
+                [ NoInputAction AMakeCase
+                , NoInputAction ARaise
+                , NoInputAction ADeleteExpr
+                , InputAction AMakeLambda
                 ]
             )
         ,
             ( 35
             ,
-                [ Code "λx"
-                , Code "m"
-                , Prose "↑"
-                , Prose "⌫"
+                [ NoInputAction AMakeCase
+                , NoInputAction ARaise
+                , NoInputAction ADeleteExpr
+                , InputAction AMakeLambda
                 ]
             )
         ,
             ( 16
             ,
-                [ Code "→"
-                , Prose "⌫"
+                [ NoInputAction AConstructFun
+                , NoInputAction ADeleteType
                 ]
             )
         ,
             ( 17
             ,
-                [ Code "→"
-                , Prose "↑"
-                , Prose "⌫"
+                [ NoInputAction AConstructFun
+                , NoInputAction ARaise
+                , NoInputAction ADeleteType
                 ]
             )
         ,
             ( 25
             ,
-                [ Code "→"
-                , Prose "⌫"
+                [ NoInputAction AConstructFun
+                , NoInputAction ADeleteType
                 ]
             )
         ,
             ( 26
             ,
-                [ Code "→"
-                , Prose "⌫"
+                [ NoInputAction AConstructFun
+                , NoInputAction ADeleteType
                 ]
             )
         ,
             ( 36
             ,
-                [ Code "→"
-                , Code "→A→"
-                , Prose "⌫"
+                [ NoInputAction AConstructFun
+                , NoInputAction AAddInput
+                , NoInputAction ADeleteType
                 ]
             )
         ,
             ( 37
             ,
-                [ Code "→"
-                , Prose "↑"
-                , Prose "⌫"
+                [ NoInputAction AConstructFun
+                , NoInputAction ARaise
+                , NoInputAction ADeleteType
                 ]
             )
         ,
             ( 38
             ,
-                [ Code "→"
-                , Prose "↑"
-                , Prose "⌫"
+                [ NoInputAction AConstructFun
+                , NoInputAction ARaise
+                , NoInputAction ADeleteType
                 ]
             )
         ,
             ( 39
             ,
-                [ Code "→"
-                , Prose "↑"
-                , Prose "⌫"
+                [ NoInputAction AConstructFun
+                , NoInputAction ARaise
+                , NoInputAction ADeleteType
                 ]
             )
         ,
             ( 40
             ,
-                [ Code "→"
-                , Prose "↑"
-                , Prose "⌫"
+                [ NoInputAction AConstructFun
+                , NoInputAction ARaise
+                , NoInputAction ADeleteType
                 ]
             )
         ,
             ( 41
             ,
-                [ Code "→"
-                , Prose "↑"
-                , Prose "⌫"
+                [ NoInputAction AConstructFun
+                , NoInputAction ARaise
+                , NoInputAction ADeleteType
                 ]
             )
         ,
             ( 42
             ,
-                [ Code "→"
-                , Prose "↑"
-                , Prose "⌫"
+                [ NoInputAction AConstructFun
+                , NoInputAction ARaise
+                , NoInputAction ADeleteType
                 ]
             )
         ,
             ( 43
             ,
-                [ Code "→"
-                , Prose "↑"
-                , Prose "⌫"
+                [ NoInputAction AConstructFun
+                , NoInputAction ARaise
+                , NoInputAction ADeleteType
                 ]
             )
         ]
@@ -301,73 +300,73 @@ Output
         [
             ( 0
             ,
-                [ Code "→"
-                , Code "→A→"
-                , Prose "⌫"
+                [ NoInputAction AConstructFun
+                , NoInputAction AAddInput
+                , NoInputAction ADeleteType
                 ]
             )
         ,
             ( 1
             ,
-                [ Code "→"
-                , Prose "↑"
-                , Prose "⌫"
+                [ NoInputAction AConstructFun
+                , NoInputAction ARaiseType
+                , NoInputAction ADeleteType
                 ]
             )
         ,
             ( 2
             ,
-                [ Code "→"
-                , Prose "↑"
-                , Prose "⌫"
+                [ NoInputAction AConstructFun
+                , NoInputAction ARaiseType
+                , NoInputAction ADeleteType
                 ]
             )
         ,
             ( 3
             ,
-                [ Code "→"
-                , Prose "↑"
-                , Prose "⌫"
+                [ NoInputAction AConstructFun
+                , NoInputAction ARaiseType
+                , NoInputAction ADeleteType
                 ]
             )
         ,
             ( 4
             ,
-                [ Code "→"
-                , Prose "↑"
-                , Prose "⌫"
+                [ NoInputAction AConstructFun
+                , NoInputAction ARaiseType
+                , NoInputAction ADeleteType
                 ]
             )
         ,
             ( 5
             ,
-                [ Code "→"
-                , Prose "↑"
-                , Prose "⌫"
+                [ NoInputAction AConstructFun
+                , NoInputAction ARaiseType
+                , NoInputAction ADeleteType
                 ]
             )
         ,
             ( 6
             ,
-                [ Code "→"
-                , Prose "↑"
-                , Prose "⌫"
+                [ NoInputAction AConstructFun
+                , NoInputAction ARaiseType
+                , NoInputAction ADeleteType
                 ]
             )
         ,
             ( 7
             ,
-                [ Code "T"
-                , Code "→"
-                , Prose "↑"
+                [ NoInputAction AConstructFun
+                , NoInputAction ARaiseType
+                , InputAction AUseTypeCon
                 ]
             )
         ,
             ( 8
             ,
-                [ Code "→"
-                , Prose "↑"
-                , Prose "⌫"
+                [ NoInputAction AConstructFun
+                , NoInputAction ARaiseType
+                , NoInputAction ADeleteType
                 ]
             )
         ]
