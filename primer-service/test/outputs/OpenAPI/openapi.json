@@ -1,1021 +1,948 @@
 {
-    "components": {
-        "schemas": {
-            "ActionOption": {
-                "properties": {
-                    "option": {
-                        "type": "string"
-                    },
-                    "qualification": {
-                        "items": {
-                            "type": "string"
-                        },
-                        "minItems": 1,
-                        "type": "array"
-                    }
-                },
-                "required": [
-                    "option"
-                ],
-                "type": "object"
+  "components": {
+    "schemas": {
+      "ActionOption": {
+        "properties": {
+          "option": {
+            "type": "string"
+          },
+          "qualification": {
+            "items": {
+              "type": "string"
             },
-            "ApplyActionBody": {
-                "properties": {
-                    "option": {
-                        "$ref": "#/components/schemas/ActionOption"
-                    },
-                    "selection": {
-                        "$ref": "#/components/schemas/Selection"
-                    }
-                },
-                "required": [
-                    "selection",
-                    "option"
-                ],
-                "type": "object"
+            "minItems": 1,
+            "type": "array"
+          }
+        },
+        "required": ["option"],
+        "type": "object"
+      },
+      "ApplyActionBody": {
+        "properties": {
+          "option": {
+            "$ref": "#/components/schemas/ActionOption"
+          },
+          "selection": {
+            "$ref": "#/components/schemas/Selection"
+          }
+        },
+        "required": ["selection", "option"],
+        "type": "object"
+      },
+      "Def": {
+        "properties": {
+          "name": {
+            "$ref": "#/components/schemas/GlobalName"
+          },
+          "term": {
+            "$ref": "#/components/schemas/Tree"
+          },
+          "type_": {
+            "$ref": "#/components/schemas/Tree"
+          }
+        },
+        "required": ["name", "type_"],
+        "type": "object"
+      },
+      "GlobalName": {
+        "properties": {
+          "baseName": {
+            "type": "string"
+          },
+          "qualifiedModule": {
+            "items": {
+              "type": "string"
             },
-            "Def": {
-                "properties": {
-                    "name": {
-                        "$ref": "#/components/schemas/GlobalName"
-                    },
-                    "term": {
-                        "$ref": "#/components/schemas/Tree"
-                    },
-                    "type_": {
-                        "$ref": "#/components/schemas/Tree"
-                    }
-                },
-                "required": [
-                    "name",
-                    "type_"
-                ],
-                "type": "object"
+            "minItems": 1,
+            "type": "array"
+          }
+        },
+        "required": ["qualifiedModule", "baseName"],
+        "type": "object"
+      },
+      "InputAction": {
+        "enum": [
+          "AMakeLambda",
+          "AUseVar",
+          "ASaturatedFunction",
+          "AMakeLet",
+          "AMakeLetRec",
+          "AConstructBigLambda",
+          "AUseTypeVar",
+          "AConstructForall",
+          "ARenameDef",
+          "ARenamePatternVar",
+          "ARenameLambda",
+          "ARenameLAM",
+          "ARenameLetBinding",
+          "ARenameForall",
+          "AUseValueCon",
+          "AUseSaturatedValueCon",
+          "AUseTypeCon"
+        ],
+        "type": "string"
+      },
+      "LastModified": {
+        "example": "2022-10-20T00:00:00Z",
+        "format": "date-time",
+        "type": "string"
+      },
+      "Module": {
+        "properties": {
+          "defs": {
+            "items": {
+              "$ref": "#/components/schemas/Def"
             },
-            "GlobalName": {
-                "properties": {
-                    "baseName": {
-                        "type": "string"
-                    },
-                    "qualifiedModule": {
-                        "items": {
-                            "type": "string"
-                        },
-                        "minItems": 1,
-                        "type": "array"
-                    }
-                },
-                "required": [
-                    "qualifiedModule",
-                    "baseName"
-                ],
-                "type": "object"
+            "type": "array"
+          },
+          "editable": {
+            "type": "boolean"
+          },
+          "modname": {
+            "items": {
+              "type": "string"
             },
-            "InputAction": {
-                "enum": [
-                    "AMakeLambda",
-                    "AUseVar",
-                    "ASaturatedFunction",
-                    "AMakeLet",
-                    "AMakeLetRec",
-                    "AConstructBigLambda",
-                    "AUseTypeVar",
-                    "AConstructForall",
-                    "ARenameDef",
-                    "ARenamePatternVar",
-                    "ARenameLambda",
-                    "ARenameLAM",
-                    "ARenameLetBinding",
-                    "ARenameForall",
-                    "AUseValueCon",
-                    "AUseSaturatedValueCon",
-                    "AUseTypeCon"
-                ],
+            "minItems": 1,
+            "type": "array"
+          },
+          "types": {
+            "items": {
+              "$ref": "#/components/schemas/GlobalName"
+            },
+            "type": "array"
+          }
+        },
+        "required": ["modname", "editable", "types", "defs"],
+        "type": "object"
+      },
+      "NoInputAction": {
+        "enum": [
+          "AMakeCase",
+          "AConvertLetToLetrec",
+          "AConstructApp",
+          "AConstructAPP",
+          "AConstructAnn",
+          "ARemoveAnn",
+          "AFinishHole",
+          "AEnterHole",
+          "AConstructFun",
+          "AAddInput",
+          "AConstructTypeApp",
+          "ADuplicateDef",
+          "ARaise",
+          "ARaiseType",
+          "ADeleteDef",
+          "ADeleteExpr",
+          "ADeleteType"
+        ],
+        "type": "string"
+      },
+      "NodeBody": {
+        "oneOf": [
+          {
+            "properties": {
+              "contents": {
                 "type": "string"
-            },
-            "LastModified": {
-                "example": "2022-10-20T00:00:00Z",
-                "format": "date-time",
+              },
+              "tag": {
+                "enum": ["TextBody"],
                 "type": "string"
+              }
             },
-            "Module": {
-                "properties": {
-                    "defs": {
-                        "items": {
-                            "$ref": "#/components/schemas/Def"
-                        },
-                        "type": "array"
-                    },
-                    "editable": {
-                        "type": "boolean"
-                    },
-                    "modname": {
-                        "items": {
-                            "type": "string"
-                        },
-                        "minItems": 1,
-                        "type": "array"
-                    },
-                    "types": {
-                        "items": {
-                            "$ref": "#/components/schemas/GlobalName"
-                        },
-                        "type": "array"
-                    }
-                },
-                "required": [
-                    "modname",
-                    "editable",
-                    "types",
-                    "defs"
-                ],
-                "type": "object"
-            },
-            "NoInputAction": {
-                "enum": [
-                    "AMakeCase",
-                    "AConvertLetToLetrec",
-                    "AConstructApp",
-                    "AConstructAPP",
-                    "AConstructAnn",
-                    "ARemoveAnn",
-                    "AFinishHole",
-                    "AEnterHole",
-                    "AConstructFun",
-                    "AAddInput",
-                    "AConstructTypeApp",
-                    "ADuplicateDef",
-                    "ARaise",
-                    "ARaiseType",
-                    "ADeleteDef",
-                    "ADeleteExpr",
-                    "ADeleteType"
-                ],
+            "required": ["tag", "contents"],
+            "type": "object"
+          },
+          {
+            "properties": {
+              "contents": {
+                "$ref": "#/components/schemas/Tree"
+              },
+              "tag": {
+                "enum": ["BoxBody"],
                 "type": "string"
+              }
             },
-            "NodeBody": {
-                "oneOf": [
-                    {
-                        "properties": {
-                            "contents": {
-                                "type": "string"
-                            },
-                            "tag": {
-                                "enum": [
-                                    "TextBody"
-                                ],
-                                "type": "string"
-                            }
-                        },
-                        "required": [
-                            "tag",
-                            "contents"
-                        ],
-                        "type": "object"
-                    },
-                    {
-                        "properties": {
-                            "contents": {
-                                "$ref": "#/components/schemas/Tree"
-                            },
-                            "tag": {
-                                "enum": [
-                                    "BoxBody"
-                                ],
-                                "type": "string"
-                            }
-                        },
-                        "required": [
-                            "tag",
-                            "contents"
-                        ],
-                        "type": "object"
-                    },
-                    {
-                        "properties": {
-                            "tag": {
-                                "enum": [
-                                    "NoBody"
-                                ],
-                                "type": "string"
-                            }
-                        },
-                        "required": [
-                            "tag"
-                        ],
-                        "type": "object"
-                    }
-                ],
-                "type": "object"
-            },
-            "NodeFlavor": {
-                "enum": [
-                    "FlavorHole",
-                    "FlavorEmptyHole",
-                    "FlavorAnn",
-                    "FlavorApp",
-                    "FlavorAPP",
-                    "FlavorCon",
-                    "FlavorLam",
-                    "FlavorLAM",
-                    "FlavorGlobalVar",
-                    "FlavorLocalVar",
-                    "FlavorLet",
-                    "FlavorLetType",
-                    "FlavorLetrec",
-                    "FlavorCase",
-                    "FlavorCaseWith",
-                    "FlavorPrimCon",
-                    "FlavorTEmptyHole",
-                    "FlavorTHole",
-                    "FlavorTCon",
-                    "FlavorTFun",
-                    "FlavorTVar",
-                    "FlavorTApp",
-                    "FlavorTForall",
-                    "FlavorTLet",
-                    "FlavorPattern",
-                    "FlavorPatternCon",
-                    "FlavorPatternBind",
-                    "FlavorPatternApp"
-                ],
+            "required": ["tag", "contents"],
+            "type": "object"
+          },
+          {
+            "properties": {
+              "tag": {
+                "enum": ["NoBody"],
                 "type": "string"
+              }
             },
-            "NodeSelection": {
-                "properties": {
-                    "id": {
-                        "maximum": 9223372036854775807,
-                        "minimum": -9223372036854775808,
-                        "type": "integer"
-                    },
-                    "nodeType": {
-                        "$ref": "#/components/schemas/NodeType"
-                    }
-                },
-                "required": [
-                    "nodeType",
-                    "id"
-                ],
-                "type": "object"
+            "required": ["tag"],
+            "type": "object"
+          }
+        ],
+        "type": "object"
+      },
+      "NodeFlavor": {
+        "enum": [
+          "FlavorHole",
+          "FlavorEmptyHole",
+          "FlavorAnn",
+          "FlavorApp",
+          "FlavorAPP",
+          "FlavorCon",
+          "FlavorLam",
+          "FlavorLAM",
+          "FlavorGlobalVar",
+          "FlavorLocalVar",
+          "FlavorLet",
+          "FlavorLetType",
+          "FlavorLetrec",
+          "FlavorCase",
+          "FlavorCaseWith",
+          "FlavorPrimCon",
+          "FlavorTEmptyHole",
+          "FlavorTHole",
+          "FlavorTCon",
+          "FlavorTFun",
+          "FlavorTVar",
+          "FlavorTApp",
+          "FlavorTForall",
+          "FlavorTLet",
+          "FlavorPattern",
+          "FlavorPatternCon",
+          "FlavorPatternBind",
+          "FlavorPatternApp"
+        ],
+        "type": "string"
+      },
+      "NodeSelection": {
+        "properties": {
+          "id": {
+            "maximum": 9223372036854775807,
+            "minimum": -9223372036854775808,
+            "type": "integer"
+          },
+          "nodeType": {
+            "$ref": "#/components/schemas/NodeType"
+          }
+        },
+        "required": ["nodeType", "id"],
+        "type": "object"
+      },
+      "NodeType": {
+        "enum": ["BodyNode", "SigNode"],
+        "type": "string"
+      },
+      "OfferedAction": {
+        "properties": {
+          "free": {
+            "type": "boolean"
+          },
+          "options": {
+            "items": {
+              "$ref": "#/components/schemas/ActionOption"
             },
-            "NodeType": {
-                "enum": [
-                    "BodyNode",
-                    "SigNode"
-                ],
+            "type": "array"
+          }
+        },
+        "required": ["options", "free"],
+        "type": "object"
+      },
+      "PaginatedMeta": {
+        "properties": {
+          "firstPage": {
+            "exclusiveMinimum": true,
+            "maximum": 9223372036854775807,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "lastPage": {
+            "exclusiveMinimum": true,
+            "maximum": 9223372036854775807,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "nextPage": {
+            "exclusiveMinimum": true,
+            "maximum": 9223372036854775807,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "pageSize": {
+            "exclusiveMinimum": true,
+            "maximum": 9223372036854775807,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "prevPage": {
+            "exclusiveMinimum": true,
+            "maximum": 9223372036854775807,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "thisPage": {
+            "exclusiveMinimum": true,
+            "maximum": 9223372036854775807,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "totalItems": {
+            "maximum": 9223372036854775807,
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "totalItems",
+          "pageSize",
+          "firstPage",
+          "thisPage",
+          "lastPage"
+        ],
+        "type": "object"
+      },
+      "Paginated_Session": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/Session"
+            },
+            "type": "array"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/PaginatedMeta"
+          }
+        },
+        "required": ["meta", "items"],
+        "type": "object"
+      },
+      "Prog": {
+        "properties": {
+          "modules": {
+            "items": {
+              "$ref": "#/components/schemas/Module"
+            },
+            "type": "array"
+          }
+        },
+        "required": ["modules"],
+        "type": "object"
+      },
+      "Selection": {
+        "properties": {
+          "def": {
+            "$ref": "#/components/schemas/GlobalName"
+          },
+          "node": {
+            "$ref": "#/components/schemas/NodeSelection"
+          }
+        },
+        "required": ["def"],
+        "type": "object"
+      },
+      "Session": {
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/UUID"
+          },
+          "lastModified": {
+            "$ref": "#/components/schemas/LastModified"
+          },
+          "name": {
+            "$ref": "#/components/schemas/SessionName"
+          }
+        },
+        "required": ["id", "name", "lastModified"],
+        "type": "object"
+      },
+      "SessionName": {
+        "type": "string"
+      },
+      "SomeAction": {
+        "oneOf": [
+          {
+            "properties": {
+              "contents": {
+                "$ref": "#/components/schemas/NoInputAction"
+              },
+              "tag": {
+                "enum": ["NoInputAction"],
                 "type": "string"
+              }
             },
-            "OfferedAction": {
-                "properties": {
-                    "allowFreeText": {
-                        "type": "boolean"
-                    },
-                    "options": {
-                        "items": {
-                            "$ref": "#/components/schemas/ActionOption"
-                        },
-                        "type": "array"
-                    }
-                },
-                "required": [
-                    "options",
-                    "allowFreeText"
-                ],
-                "type": "object"
-            },
-            "PaginatedMeta": {
-                "properties": {
-                    "firstPage": {
-                        "exclusiveMinimum": true,
-                        "maximum": 9223372036854775807,
-                        "minimum": 0,
-                        "type": "integer"
-                    },
-                    "lastPage": {
-                        "exclusiveMinimum": true,
-                        "maximum": 9223372036854775807,
-                        "minimum": 0,
-                        "type": "integer"
-                    },
-                    "nextPage": {
-                        "exclusiveMinimum": true,
-                        "maximum": 9223372036854775807,
-                        "minimum": 0,
-                        "type": "integer"
-                    },
-                    "pageSize": {
-                        "exclusiveMinimum": true,
-                        "maximum": 9223372036854775807,
-                        "minimum": 0,
-                        "type": "integer"
-                    },
-                    "prevPage": {
-                        "exclusiveMinimum": true,
-                        "maximum": 9223372036854775807,
-                        "minimum": 0,
-                        "type": "integer"
-                    },
-                    "thisPage": {
-                        "exclusiveMinimum": true,
-                        "maximum": 9223372036854775807,
-                        "minimum": 0,
-                        "type": "integer"
-                    },
-                    "totalItems": {
-                        "maximum": 9223372036854775807,
-                        "minimum": 0,
-                        "type": "integer"
-                    }
-                },
-                "required": [
-                    "totalItems",
-                    "pageSize",
-                    "firstPage",
-                    "thisPage",
-                    "lastPage"
-                ],
-                "type": "object"
-            },
-            "Paginated_Session": {
-                "properties": {
-                    "items": {
-                        "items": {
-                            "$ref": "#/components/schemas/Session"
-                        },
-                        "type": "array"
-                    },
-                    "meta": {
-                        "$ref": "#/components/schemas/PaginatedMeta"
-                    }
-                },
-                "required": [
-                    "meta",
-                    "items"
-                ],
-                "type": "object"
-            },
-            "Prog": {
-                "properties": {
-                    "modules": {
-                        "items": {
-                            "$ref": "#/components/schemas/Module"
-                        },
-                        "type": "array"
-                    }
-                },
-                "required": [
-                    "modules"
-                ],
-                "type": "object"
-            },
-            "Selection": {
-                "properties": {
-                    "def": {
-                        "$ref": "#/components/schemas/GlobalName"
-                    },
-                    "node": {
-                        "$ref": "#/components/schemas/NodeSelection"
-                    }
-                },
-                "required": [
-                    "def"
-                ],
-                "type": "object"
-            },
-            "Session": {
-                "properties": {
-                    "id": {
-                        "$ref": "#/components/schemas/UUID"
-                    },
-                    "lastModified": {
-                        "$ref": "#/components/schemas/LastModified"
-                    },
-                    "name": {
-                        "$ref": "#/components/schemas/SessionName"
-                    }
-                },
-                "required": [
-                    "id",
-                    "name",
-                    "lastModified"
-                ],
-                "type": "object"
-            },
-            "SessionName": {
+            "required": ["tag", "contents"],
+            "type": "object"
+          },
+          {
+            "properties": {
+              "contents": {
+                "$ref": "#/components/schemas/InputAction"
+              },
+              "tag": {
+                "enum": ["InputAction"],
                 "type": "string"
+              }
             },
-            "SomeAction": {
-                "oneOf": [
-                    {
-                        "properties": {
-                            "contents": {
-                                "$ref": "#/components/schemas/NoInputAction"
-                            },
-                            "tag": {
-                                "enum": [
-                                    "NoInputAction"
-                                ],
-                                "type": "string"
-                            }
-                        },
-                        "required": [
-                            "tag",
-                            "contents"
-                        ],
-                        "type": "object"
-                    },
-                    {
-                        "properties": {
-                            "contents": {
-                                "$ref": "#/components/schemas/InputAction"
-                            },
-                            "tag": {
-                                "enum": [
-                                    "InputAction"
-                                ],
-                                "type": "string"
-                            }
-                        },
-                        "required": [
-                            "tag",
-                            "contents"
-                        ],
-                        "type": "object"
-                    }
-                ],
-                "type": "object"
+            "required": ["tag", "contents"],
+            "type": "object"
+          }
+        ],
+        "type": "object"
+      },
+      "Tree": {
+        "properties": {
+          "body": {
+            "$ref": "#/components/schemas/NodeBody"
+          },
+          "childTrees": {
+            "items": {
+              "$ref": "#/components/schemas/Tree"
             },
-            "Tree": {
-                "properties": {
-                    "body": {
-                        "$ref": "#/components/schemas/NodeBody"
-                    },
-                    "childTrees": {
-                        "items": {
-                            "$ref": "#/components/schemas/Tree"
-                        },
-                        "type": "array"
-                    },
-                    "flavor": {
-                        "$ref": "#/components/schemas/NodeFlavor"
-                    },
-                    "nodeId": {
-                        "type": "string"
-                    },
-                    "rightChild": {
-                        "$ref": "#/components/schemas/Tree"
-                    }
-                },
-                "required": [
-                    "nodeId",
-                    "flavor",
-                    "body",
-                    "childTrees"
-                ],
-                "type": "object"
-            },
-            "UUID": {
-                "example": "00000000-0000-0000-0000-000000000000",
-                "format": "uuid",
-                "type": "string"
-            }
-        }
-    },
-    "info": {
-        "description": "A backend service implementing a pedagogic functional programming language.",
-        "title": "Primer backend API",
-        "version": "0.7"
-    },
-    "openapi": "3.0.0",
-    "paths": {
-        "/openapi/copy-session": {
-            "post": {
-                "description": "Copy the session whose ID is given in the request body to a new session, and return the new session's ID. Note that this method can be called at any time and is not part of the session-specific API, as it's not scoped by the current session ID like those methods are.",
-                "operationId": "copySession",
-                "requestBody": {
-                    "content": {
-                        "application/json;charset=utf-8": {
-                            "schema": {
-                                "$ref": "#/components/schemas/UUID"
-                            }
-                        }
-                    }
-                },
-                "responses": {
-                    "200": {
-                        "content": {
-                            "application/json;charset=utf-8": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/UUID"
-                                }
-                            }
-                        },
-                        "description": ""
-                    },
-                    "400": {
-                        "description": "Invalid `body`"
-                    }
-                },
-                "summary": "Copy a session to a new session"
-            }
+            "type": "array"
+          },
+          "flavor": {
+            "$ref": "#/components/schemas/NodeFlavor"
+          },
+          "nodeId": {
+            "type": "string"
+          },
+          "rightChild": {
+            "$ref": "#/components/schemas/Tree"
+          }
         },
-        "/openapi/sessions": {
-            "get": {
-                "description": "Get a list of all sessions and their human-readable names. By default, this method returns the list of all sessions in the persistent database, but optionally it can return just the list of all sessions in memory, which is mainly useful for testing. Note that in a production system, this endpoint should obviously be authentication-scoped and only return the list of sessions that the caller is authorized to see.",
-                "operationId": "getSessionList",
-                "parameters": [
-                    {
-                        "allowEmptyValue": true,
-                        "in": "query",
-                        "name": "inMemory",
-                        "schema": {
-                            "default": false,
-                            "type": "boolean"
-                        }
-                    },
-                    {
-                        "in": "query",
-                        "name": "page",
-                        "required": false,
-                        "schema": {
-                            "exclusiveMinimum": true,
-                            "maximum": 9223372036854775807,
-                            "minimum": 0,
-                            "type": "integer"
-                        }
-                    },
-                    {
-                        "in": "query",
-                        "name": "pageSize",
-                        "required": false,
-                        "schema": {
-                            "exclusiveMinimum": true,
-                            "maximum": 9223372036854775807,
-                            "minimum": 0,
-                            "type": "integer"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "content": {
-                            "application/json;charset=utf-8": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/Paginated_Session"
-                                }
-                            }
-                        },
-                        "description": ""
-                    },
-                    "400": {
-                        "description": "Invalid `pageSize` or `page` or `inMemory`"
-                    }
-                },
-                "summary": "Get the list of sessions"
-            },
-            "post": {
-                "operationId": "createSession",
-                "responses": {
-                    "200": {
-                        "content": {
-                            "application/json;charset=utf-8": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/UUID"
-                                }
-                            }
-                        },
-                        "description": ""
-                    }
-                },
-                "summary": "Create a new session and return its ID"
-            }
-        },
-        "/openapi/sessions/{sessionId}/action/apply": {
-            "post": {
-                "operationId": "applyAction",
-                "parameters": [
-                    {
-                        "description": "The session ID",
-                        "in": "path",
-                        "name": "sessionId",
-                        "required": true,
-                        "schema": {
-                            "format": "uuid",
-                            "type": "string"
-                        }
-                    },
-                    {
-                        "in": "query",
-                        "name": "action",
-                        "required": true,
-                        "schema": {
-                            "enum": [
-                                "AMakeCase",
-                                "AConvertLetToLetrec",
-                                "AConstructApp",
-                                "AConstructAPP",
-                                "AConstructAnn",
-                                "ARemoveAnn",
-                                "AFinishHole",
-                                "AEnterHole",
-                                "AConstructFun",
-                                "AAddInput",
-                                "AConstructTypeApp",
-                                "ADuplicateDef",
-                                "ARaise",
-                                "ARaiseType",
-                                "ADeleteDef",
-                                "ADeleteExpr",
-                                "ADeleteType"
-                            ],
-                            "type": "string"
-                        }
-                    }
-                ],
-                "requestBody": {
-                    "content": {
-                        "application/json;charset=utf-8": {
-                            "schema": {
-                                "$ref": "#/components/schemas/Selection"
-                            }
-                        }
-                    }
-                },
-                "responses": {
-                    "200": {
-                        "content": {
-                            "application/json;charset=utf-8": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/Prog"
-                                }
-                            }
-                        },
-                        "description": ""
-                    },
-                    "400": {
-                        "description": "Invalid `action` or `body`"
-                    },
-                    "404": {
-                        "description": "`sessionId` not found"
-                    }
-                }
-            }
-        },
-        "/openapi/sessions/{sessionId}/action/apply1": {
-            "post": {
-                "operationId": "applyActionWithInput",
-                "parameters": [
-                    {
-                        "description": "The session ID",
-                        "in": "path",
-                        "name": "sessionId",
-                        "required": true,
-                        "schema": {
-                            "format": "uuid",
-                            "type": "string"
-                        }
-                    },
-                    {
-                        "in": "query",
-                        "name": "action",
-                        "required": true,
-                        "schema": {
-                            "enum": [
-                                "AMakeLambda",
-                                "AUseVar",
-                                "ASaturatedFunction",
-                                "AMakeLet",
-                                "AMakeLetRec",
-                                "AConstructBigLambda",
-                                "AUseTypeVar",
-                                "AConstructForall",
-                                "ARenameDef",
-                                "ARenamePatternVar",
-                                "ARenameLambda",
-                                "ARenameLAM",
-                                "ARenameLetBinding",
-                                "ARenameForall",
-                                "AUseValueCon",
-                                "AUseSaturatedValueCon",
-                                "AUseTypeCon"
-                            ],
-                            "type": "string"
-                        }
-                    }
-                ],
-                "requestBody": {
-                    "content": {
-                        "application/json;charset=utf-8": {
-                            "schema": {
-                                "$ref": "#/components/schemas/ApplyActionBody"
-                            }
-                        }
-                    }
-                },
-                "responses": {
-                    "200": {
-                        "content": {
-                            "application/json;charset=utf-8": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/Prog"
-                                }
-                            }
-                        },
-                        "description": ""
-                    },
-                    "400": {
-                        "description": "Invalid `action` or `body`"
-                    },
-                    "404": {
-                        "description": "`sessionId` not found"
-                    }
-                }
-            }
-        },
-        "/openapi/sessions/{sessionId}/action/available": {
-            "post": {
-                "operationId": "getAvailableActions",
-                "parameters": [
-                    {
-                        "description": "The session ID",
-                        "in": "path",
-                        "name": "sessionId",
-                        "required": true,
-                        "schema": {
-                            "format": "uuid",
-                            "type": "string"
-                        }
-                    },
-                    {
-                        "in": "query",
-                        "name": "level",
-                        "required": true,
-                        "schema": {
-                            "enum": [
-                                "Beginner",
-                                "Intermediate",
-                                "Expert"
-                            ],
-                            "type": "string"
-                        }
-                    }
-                ],
-                "requestBody": {
-                    "content": {
-                        "application/json;charset=utf-8": {
-                            "schema": {
-                                "$ref": "#/components/schemas/Selection"
-                            }
-                        }
-                    }
-                },
-                "responses": {
-                    "200": {
-                        "content": {
-                            "application/json;charset=utf-8": {
-                                "schema": {
-                                    "items": {
-                                        "$ref": "#/components/schemas/SomeAction"
-                                    },
-                                    "type": "array"
-                                }
-                            }
-                        },
-                        "description": ""
-                    },
-                    "400": {
-                        "description": "Invalid `body` or `level`"
-                    },
-                    "404": {
-                        "description": "`sessionId` not found"
-                    }
-                },
-                "summary": "Get available actions for the definition, or a node within it"
-            }
-        },
-        "/openapi/sessions/{sessionId}/action/options": {
-            "post": {
-                "operationId": "getActionOptions",
-                "parameters": [
-                    {
-                        "description": "The session ID",
-                        "in": "path",
-                        "name": "sessionId",
-                        "required": true,
-                        "schema": {
-                            "format": "uuid",
-                            "type": "string"
-                        }
-                    },
-                    {
-                        "in": "query",
-                        "name": "level",
-                        "required": true,
-                        "schema": {
-                            "enum": [
-                                "Beginner",
-                                "Intermediate",
-                                "Expert"
-                            ],
-                            "type": "string"
-                        }
-                    },
-                    {
-                        "in": "query",
-                        "name": "action",
-                        "required": true,
-                        "schema": {
-                            "enum": [
-                                "AMakeLambda",
-                                "AUseVar",
-                                "ASaturatedFunction",
-                                "AMakeLet",
-                                "AMakeLetRec",
-                                "AConstructBigLambda",
-                                "AUseTypeVar",
-                                "AConstructForall",
-                                "ARenameDef",
-                                "ARenamePatternVar",
-                                "ARenameLambda",
-                                "ARenameLAM",
-                                "ARenameLetBinding",
-                                "ARenameForall",
-                                "AUseValueCon",
-                                "AUseSaturatedValueCon",
-                                "AUseTypeCon"
-                            ],
-                            "type": "string"
-                        }
-                    }
-                ],
-                "requestBody": {
-                    "content": {
-                        "application/json;charset=utf-8": {
-                            "schema": {
-                                "$ref": "#/components/schemas/Selection"
-                            }
-                        }
-                    }
-                },
-                "responses": {
-                    "200": {
-                        "content": {
-                            "application/json;charset=utf-8": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/OfferedAction"
-                                }
-                            }
-                        },
-                        "description": ""
-                    },
-                    "400": {
-                        "description": "Invalid `action` or `body` or `level`"
-                    },
-                    "404": {
-                        "description": "`sessionId` not found"
-                    }
-                }
-            }
-        },
-        "/openapi/sessions/{sessionId}/name": {
-            "get": {
-                "operationId": "getSessionName",
-                "parameters": [
-                    {
-                        "description": "The session ID",
-                        "in": "path",
-                        "name": "sessionId",
-                        "required": true,
-                        "schema": {
-                            "format": "uuid",
-                            "type": "string"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "content": {
-                            "application/json;charset=utf-8": {
-                                "schema": {
-                                    "type": "string"
-                                }
-                            }
-                        },
-                        "description": ""
-                    },
-                    "404": {
-                        "description": "`sessionId` not found"
-                    }
-                },
-                "summary": "Get the specified session's name"
-            },
-            "put": {
-                "description": "Attempt to set the current session name. Returns the actual new session name. (Note that this may differ from the name provided.)",
-                "operationId": "setSessionName",
-                "parameters": [
-                    {
-                        "description": "The session ID",
-                        "in": "path",
-                        "name": "sessionId",
-                        "required": true,
-                        "schema": {
-                            "format": "uuid",
-                            "type": "string"
-                        }
-                    }
-                ],
-                "requestBody": {
-                    "content": {
-                        "application/json;charset=utf-8": {
-                            "schema": {
-                                "type": "string"
-                            }
-                        }
-                    }
-                },
-                "responses": {
-                    "200": {
-                        "content": {
-                            "application/json;charset=utf-8": {
-                                "schema": {
-                                    "type": "string"
-                                }
-                            }
-                        },
-                        "description": ""
-                    },
-                    "400": {
-                        "description": "Invalid `body`"
-                    },
-                    "404": {
-                        "description": "`sessionId` not found"
-                    }
-                },
-                "summary": "Set the specified session's name"
-            }
-        },
-        "/openapi/sessions/{sessionId}/program": {
-            "get": {
-                "operationId": "getProgram",
-                "parameters": [
-                    {
-                        "description": "The session ID",
-                        "in": "path",
-                        "name": "sessionId",
-                        "required": true,
-                        "schema": {
-                            "format": "uuid",
-                            "type": "string"
-                        }
-                    },
-                    {
-                        "allowEmptyValue": true,
-                        "in": "query",
-                        "name": "patternsUnder",
-                        "schema": {
-                            "default": false,
-                            "type": "boolean"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "content": {
-                            "application/json;charset=utf-8": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/Prog"
-                                }
-                            }
-                        },
-                        "description": ""
-                    },
-                    "400": {
-                        "description": "Invalid `patternsUnder`"
-                    },
-                    "404": {
-                        "description": "`sessionId` not found"
-                    }
-                },
-                "summary": "Get the current program state"
-            }
-        },
-        "/openapi/version": {
-            "get": {
-                "operationId": "getVersion",
-                "responses": {
-                    "200": {
-                        "content": {
-                            "application/json;charset=utf-8": {
-                                "schema": {
-                                    "type": "string"
-                                }
-                            }
-                        },
-                        "description": ""
-                    }
-                },
-                "summary": "Get the current server version"
-            }
-        }
+        "required": ["nodeId", "flavor", "body", "childTrees"],
+        "type": "object"
+      },
+      "UUID": {
+        "example": "00000000-0000-0000-0000-000000000000",
+        "format": "uuid",
+        "type": "string"
+      }
     }
+  },
+  "info": {
+    "description": "A backend service implementing a pedagogic functional programming language.",
+    "title": "Primer backend API",
+    "version": "0.7"
+  },
+  "openapi": "3.0.0",
+  "paths": {
+    "/openapi/copy-session": {
+      "post": {
+        "description": "Copy the session whose ID is given in the request body to a new session, and return the new session's ID. Note that this method can be called at any time and is not part of the session-specific API, as it's not scoped by the current session ID like those methods are.",
+        "operationId": "copySession",
+        "requestBody": {
+          "content": {
+            "application/json;charset=utf-8": {
+              "schema": {
+                "$ref": "#/components/schemas/UUID"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json;charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/UUID"
+                }
+              }
+            },
+            "description": ""
+          },
+          "400": {
+            "description": "Invalid `body`"
+          }
+        },
+        "summary": "Copy a session to a new session"
+      }
+    },
+    "/openapi/sessions": {
+      "get": {
+        "description": "Get a list of all sessions and their human-readable names. By default, this method returns the list of all sessions in the persistent database, but optionally it can return just the list of all sessions in memory, which is mainly useful for testing. Note that in a production system, this endpoint should obviously be authentication-scoped and only return the list of sessions that the caller is authorized to see.",
+        "operationId": "getSessionList",
+        "parameters": [
+          {
+            "allowEmptyValue": true,
+            "in": "query",
+            "name": "inMemory",
+            "schema": {
+              "default": false,
+              "type": "boolean"
+            }
+          },
+          {
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "exclusiveMinimum": true,
+              "maximum": 9223372036854775807,
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "pageSize",
+            "required": false,
+            "schema": {
+              "exclusiveMinimum": true,
+              "maximum": 9223372036854775807,
+              "minimum": 0,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json;charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/Paginated_Session"
+                }
+              }
+            },
+            "description": ""
+          },
+          "400": {
+            "description": "Invalid `pageSize` or `page` or `inMemory`"
+          }
+        },
+        "summary": "Get the list of sessions"
+      },
+      "post": {
+        "operationId": "createSession",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json;charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/UUID"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "summary": "Create a new session and return its ID"
+      }
+    },
+    "/openapi/sessions/{sessionId}/action/apply": {
+      "post": {
+        "operationId": "applyAction",
+        "parameters": [
+          {
+            "description": "The session ID",
+            "in": "path",
+            "name": "sessionId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "action",
+            "required": true,
+            "schema": {
+              "enum": [
+                "AMakeCase",
+                "AConvertLetToLetrec",
+                "AConstructApp",
+                "AConstructAPP",
+                "AConstructAnn",
+                "ARemoveAnn",
+                "AFinishHole",
+                "AEnterHole",
+                "AConstructFun",
+                "AAddInput",
+                "AConstructTypeApp",
+                "ADuplicateDef",
+                "ARaise",
+                "ARaiseType",
+                "ADeleteDef",
+                "ADeleteExpr",
+                "ADeleteType"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json;charset=utf-8": {
+              "schema": {
+                "$ref": "#/components/schemas/Selection"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json;charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/Prog"
+                }
+              }
+            },
+            "description": ""
+          },
+          "400": {
+            "description": "Invalid `action` or `body`"
+          },
+          "404": {
+            "description": "`sessionId` not found"
+          }
+        }
+      }
+    },
+    "/openapi/sessions/{sessionId}/action/apply1": {
+      "post": {
+        "operationId": "applyActionWithInput",
+        "parameters": [
+          {
+            "description": "The session ID",
+            "in": "path",
+            "name": "sessionId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "action",
+            "required": true,
+            "schema": {
+              "enum": [
+                "AMakeLambda",
+                "AUseVar",
+                "ASaturatedFunction",
+                "AMakeLet",
+                "AMakeLetRec",
+                "AConstructBigLambda",
+                "AUseTypeVar",
+                "AConstructForall",
+                "ARenameDef",
+                "ARenamePatternVar",
+                "ARenameLambda",
+                "ARenameLAM",
+                "ARenameLetBinding",
+                "ARenameForall",
+                "AUseValueCon",
+                "AUseSaturatedValueCon",
+                "AUseTypeCon"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json;charset=utf-8": {
+              "schema": {
+                "$ref": "#/components/schemas/ApplyActionBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json;charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/Prog"
+                }
+              }
+            },
+            "description": ""
+          },
+          "400": {
+            "description": "Invalid `action` or `body`"
+          },
+          "404": {
+            "description": "`sessionId` not found"
+          }
+        }
+      }
+    },
+    "/openapi/sessions/{sessionId}/action/available": {
+      "post": {
+        "operationId": "getAvailableActions",
+        "parameters": [
+          {
+            "description": "The session ID",
+            "in": "path",
+            "name": "sessionId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "level",
+            "required": true,
+            "schema": {
+              "enum": ["Beginner", "Intermediate", "Expert"],
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json;charset=utf-8": {
+              "schema": {
+                "$ref": "#/components/schemas/Selection"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json;charset=utf-8": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/SomeAction"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": ""
+          },
+          "400": {
+            "description": "Invalid `body` or `level`"
+          },
+          "404": {
+            "description": "`sessionId` not found"
+          }
+        },
+        "summary": "Get available actions for the definition, or a node within it"
+      }
+    },
+    "/openapi/sessions/{sessionId}/action/options": {
+      "post": {
+        "operationId": "getActionOptions",
+        "parameters": [
+          {
+            "description": "The session ID",
+            "in": "path",
+            "name": "sessionId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "level",
+            "required": true,
+            "schema": {
+              "enum": ["Beginner", "Intermediate", "Expert"],
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "action",
+            "required": true,
+            "schema": {
+              "enum": [
+                "AMakeLambda",
+                "AUseVar",
+                "ASaturatedFunction",
+                "AMakeLet",
+                "AMakeLetRec",
+                "AConstructBigLambda",
+                "AUseTypeVar",
+                "AConstructForall",
+                "ARenameDef",
+                "ARenamePatternVar",
+                "ARenameLambda",
+                "ARenameLAM",
+                "ARenameLetBinding",
+                "ARenameForall",
+                "AUseValueCon",
+                "AUseSaturatedValueCon",
+                "AUseTypeCon"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json;charset=utf-8": {
+              "schema": {
+                "$ref": "#/components/schemas/Selection"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json;charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/OfferedAction"
+                }
+              }
+            },
+            "description": ""
+          },
+          "400": {
+            "description": "Invalid `action` or `body` or `level`"
+          },
+          "404": {
+            "description": "`sessionId` not found"
+          }
+        }
+      }
+    },
+    "/openapi/sessions/{sessionId}/name": {
+      "get": {
+        "operationId": "getSessionName",
+        "parameters": [
+          {
+            "description": "The session ID",
+            "in": "path",
+            "name": "sessionId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json;charset=utf-8": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": ""
+          },
+          "404": {
+            "description": "`sessionId` not found"
+          }
+        },
+        "summary": "Get the specified session's name"
+      },
+      "put": {
+        "description": "Attempt to set the current session name. Returns the actual new session name. (Note that this may differ from the name provided.)",
+        "operationId": "setSessionName",
+        "parameters": [
+          {
+            "description": "The session ID",
+            "in": "path",
+            "name": "sessionId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json;charset=utf-8": {
+              "schema": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json;charset=utf-8": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": ""
+          },
+          "400": {
+            "description": "Invalid `body`"
+          },
+          "404": {
+            "description": "`sessionId` not found"
+          }
+        },
+        "summary": "Set the specified session's name"
+      }
+    },
+    "/openapi/sessions/{sessionId}/program": {
+      "get": {
+        "operationId": "getProgram",
+        "parameters": [
+          {
+            "description": "The session ID",
+            "in": "path",
+            "name": "sessionId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "allowEmptyValue": true,
+            "in": "query",
+            "name": "patternsUnder",
+            "schema": {
+              "default": false,
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json;charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/Prog"
+                }
+              }
+            },
+            "description": ""
+          },
+          "400": {
+            "description": "Invalid `patternsUnder`"
+          },
+          "404": {
+            "description": "`sessionId` not found"
+          }
+        },
+        "summary": "Get the current program state"
+      }
+    },
+    "/openapi/version": {
+      "get": {
+        "operationId": "getVersion",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json;charset=utf-8": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "summary": "Get the current server version"
+      }
+    }
+  }
 }

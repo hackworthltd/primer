@@ -108,7 +108,8 @@ fromQualifiedText QualifiedText{..} = (context, text)
 -- TODO rename `ActionOptions` or similar? this doesn't seem right as it doesn't contain the action itself
 data OfferedAction = OfferedAction
   { options :: [ActionOption]
-  , allowFreeText :: Bool
+  , free :: Bool
+  -- ^ allow free text input, rather than just selections from the list
   }
   deriving (Show, Generic)
   deriving (ToJSON) via PrimerJSON OfferedAction
@@ -392,62 +393,62 @@ inputAction typeDefs defs def cxt level mid = \case
   AMakeLambda -> do
     options <- genName' False
     -- q <- handleQuestion $ GenerateName defName (m ^. _id) (Left $ join $ m ^? _type % _Just % _chkedAt % to lamVarTy)
-    pure OfferedAction{options, allowFreeText = True}
+    pure OfferedAction{options, free = True}
   AUseVar -> do
     -- TODO DRY next 10 lines or so
     (_types, locals, globals) <- varsInScope'
     let optionsLoc = flip ActionOption Nothing . unName . unLocalName . fst <$> (if level == Beginner then noFunctions locals else locals)
         optionsGlob = fromGlobal . fst <$> (if level == Beginner then noFunctions globals else globals)
         options = optionsLoc <> optionsGlob
-    pure OfferedAction{options, allowFreeText = False}
+    pure OfferedAction{options, free = False}
   ASaturatedFunction -> do
     (_types, locals, globals) <- varsInScope'
     let optionsLoc = flip ActionOption Nothing . unName . unLocalName . fst <$> onlyFunctions locals
         optionsGlob = fromGlobal . fst <$> onlyFunctions globals
         options = optionsLoc <> optionsGlob
-    pure OfferedAction{options, allowFreeText = False}
+    pure OfferedAction{options, free = False}
   AMakeLet -> do
     options <- genName' False
-    pure OfferedAction{options, allowFreeText = True}
+    pure OfferedAction{options, free = True}
   AMakeLetRec -> do
     options <- genName' False
-    pure OfferedAction{options, allowFreeText = True}
+    pure OfferedAction{options, free = True}
   AConstructBigLambda -> do
     options <- genName' True
-    pure OfferedAction{options, allowFreeText = True}
+    pure OfferedAction{options, free = True}
   AUseTypeVar -> do
     (types, _locals, _globals) <- varsInScope'
     let options = flip ActionOption Nothing . unName . unLocalName . fst <$> types
-    pure OfferedAction{options, allowFreeText = False}
+    pure OfferedAction{options, free = False}
   AConstructForall -> do
     options <- genName' True
-    pure OfferedAction{options, allowFreeText = True}
+    pure OfferedAction{options, free = True}
   ARenameDef ->
-    pure OfferedAction{options = [], allowFreeText = True}
+    pure OfferedAction{options = [], free = True}
   ARenamePatternVar -> do
     options <- genName' True
-    pure OfferedAction{options, allowFreeText = True}
+    pure OfferedAction{options, free = True}
   ARenameLambda -> do
     options <- genName' False
-    pure OfferedAction{options, allowFreeText = True}
+    pure OfferedAction{options, free = True}
   ARenameLAM -> do
     options <- genName' True
-    pure OfferedAction{options, allowFreeText = True}
+    pure OfferedAction{options, free = True}
   ARenameLetBinding -> do
     options <- genName' False
-    pure OfferedAction{options, allowFreeText = True}
+    pure OfferedAction{options, free = True}
   ARenameForall -> do
     options <- genName' True
-    pure OfferedAction{options, allowFreeText = True}
+    pure OfferedAction{options, free = True}
   AUseValueCon ->
     let options = map (fromGlobal . valConName) . (if level == Beginner then noFunctionsCon else identity) . concatMap astTypeDefConstructors . mapMaybe (typeDefAST . snd) $ Map.toList typeDefs
-     in pure OfferedAction{options, allowFreeText = False}
+     in pure OfferedAction{options, free = False}
   AUseSaturatedValueCon ->
     let options = map (fromGlobal . valConName) . onlyFunctionsCon . concatMap astTypeDefConstructors . mapMaybe (typeDefAST . snd) $ Map.toList typeDefs
-     in pure OfferedAction{options, allowFreeText = False}
+     in pure OfferedAction{options, free = False}
   AUseTypeCon ->
     let options = fromGlobal . fst <$> Map.toList typeDefs
-     in pure OfferedAction{options, allowFreeText = False}
+     in pure OfferedAction{options, free = False}
   where
     -- TODO by always passing `Nothing`, we lose good name hints - see `baseNames` (we previously passed `Just` for only AMakeLambda,AConstructBigLambda,ARenamePatternVar,ARenameLambda,ARenameLAM,ARenameLetBinding,ARenameForall)
     -- TODO there's some repetition here (EDIT: though not much, after inlining and simplifying) from `handleQuestion` (and `focusNodeDefs`, which uses too concrete an error type)

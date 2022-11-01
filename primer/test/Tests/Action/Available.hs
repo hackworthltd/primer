@@ -28,7 +28,7 @@ import Primer.Action.Available (
   ActionOption (ActionOption),
   InputAction (ARenameDef),
   NoInputAction (ADuplicateDef),
-  OfferedAction (OfferedAction, allowFreeText, options),
+  OfferedAction (OfferedAction, free, options),
   SomeAction (..),
   actionsForDef,
   actionsForDefBody,
@@ -238,7 +238,7 @@ tasty_available_actions_accepted = withTests 500 $
             InputAction act' -> do
               -- TODO don't just fail - log
               DefAST def' <- pure def
-              OfferedAction{options, allowFreeText} <-
+              OfferedAction{options, free} <-
                 either (\e -> annotateShow e >> failure) pure $
                   inputAction
                     (map snd $ progAllTypeDefs $ appProg a)
@@ -253,7 +253,7 @@ tasty_available_actions_accepted = withTests 500 $
                 -- [] -> annotate "no options" >> failure
                 [] -> annotate "no options" >> success
                 opts -> do
-                  opt <- forAllT $ Gen.choice $ [Gen.element opts] <> mwhen allowFreeText [flip ActionOption Nothing <$> (unName <$> genName)]
+                  opt <- forAllT $ Gen.choice $ [Gen.element opts] <> mwhen free [flip ActionOption Nothing <$> (unName <$> genName)]
                   progActs <- either (\t -> annotate (T.unpack t) >> failure) pure $ mkActionInput def' defName loc opt act'
                   actionSucceedsOrCapture (handleEditRequest progActs) a
   where
