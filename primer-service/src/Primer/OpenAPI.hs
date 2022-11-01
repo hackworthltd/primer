@@ -44,7 +44,6 @@ import Primer.Action.Available (
   Level (..),
   NoInputAction (..),
   OfferedAction,
-  QualifiedText (..),
  )
 import Primer.Core (
   GlobalName,
@@ -125,7 +124,6 @@ deriving via PrimerJSON Prog instance ToSchema Prog
 deriving via PrimerJSON ExprTreeOpts instance ToSchema ExprTreeOpts
 deriving via PrimerJSON NoInputAction instance ToSchema NoInputAction
 deriving via PrimerJSON InputAction instance ToSchema InputAction
-deriving via PrimerJSON QualifiedText instance ToSchema QualifiedText
 deriving via PrimerJSON ActionOption instance ToSchema ActionOption
 deriving via PrimerJSON ActionOptions instance ToSchema ActionOptions
 deriving via PrimerJSON OfferedAction instance ToSchema OfferedAction

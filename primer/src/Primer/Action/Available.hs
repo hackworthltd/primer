@@ -13,9 +13,6 @@ module Primer.Action.Available (
   NoInputAction (..),
   Level (..),
   inputAction,
-  QualifiedText (..),
-  fromQualifiedText,
-  toQualifiedText,
   ActionOption (..),
   ActionOptions (..),
   InputActionError (..),
@@ -91,19 +88,6 @@ data ActionOption = ActionOption
   }
   deriving (Eq, Show, Generic)
   deriving (FromJSON, ToJSON) via PrimerJSON ActionOption
-
--- TODO work out what to do with this - bite the bullet and do the DB migration?
--- TODO as we only send `ActionOptionsChooseQualified` _to_ the client, I guess those can be the proper types e.g. `TyConName`
-data QualifiedText = QualifiedText
-  { context :: NonEmpty Text
-  , text :: Text
-  }
-  deriving (Eq, Show, Generic)
-  deriving (FromJSON, ToJSON) via PrimerJSON QualifiedText
-toQualifiedText :: (NonEmpty Text, Text) -> QualifiedText
-toQualifiedText (context, text) = QualifiedText{..}
-fromQualifiedText :: QualifiedText -> (NonEmpty Text, Text)
-fromQualifiedText QualifiedText{..} = (context, text)
 
 data ActionOptions = ActionOptions
   { options :: [ActionOption]
