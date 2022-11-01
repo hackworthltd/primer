@@ -28,7 +28,8 @@ import Data.Set qualified as Set
 import Data.Text qualified as T
 import Optics (set, (%), (?~), (^.), (^?), _Just)
 import Primer.Action.Actions (Action (..), Movement (..), QualifiedText)
-import Primer.Action.Available (ActionOption (..), InputAction (..), Level (..), NoInputAction (..))
+import Primer.Action.Available (ActionOption (..), InputAction, Level (..), NoInputAction)
+import Primer.Action.Available qualified as Available
 import Primer.Action.Errors (ActionError (..))
 import Primer.Action.ProgAction (ProgAction (..))
 import Primer.Core (
@@ -844,27 +845,27 @@ mkActionNoInput ::
   NoInputAction ->
   Either Text [ProgAction]
 mkActionNoInput defs def defName mNodeSel = \case
-  AMakeCase ->
+  Available.MakeCase ->
     toProgAction [ConstructCase]
-  AConvertLetToLetrec ->
+  Available.ConvertLetToLetrec ->
     toProgAction [ConvertLetToLetrec]
-  AConstructApp ->
+  Available.ConstructApp ->
     toProgAction [ConstructApp, Move Child2]
-  AConstructAPP ->
+  Available.ConstructAPP ->
     toProgAction [ConstructAPP, EnterType]
-  AConstructAnn ->
+  Available.ConstructAnn ->
     toProgAction [ConstructAnn]
-  ARemoveAnn ->
+  Available.RemoveAnn ->
     toProgAction [RemoveAnn]
-  AFinishHole ->
+  Available.FinishHole ->
     toProgAction [FinishHole]
-  AEnterHole ->
+  Available.EnterHole ->
     toProgAction [EnterHole]
-  AConstructFun ->
+  Available.ConstructFun ->
     -- We arbitrarily choose that the "construct a function type" action places the focused expression
     -- on the domain (left) side of the arrow.
     toProgAction [ConstructArrowL, Move Child1]
-  AAddInput -> do
+  Available.AddInput -> do
     -- This action traverses the function type and adds a function arrow to the end of it,
     -- resulting in a new argument type. The result type is unchanged.
     -- The cursor location is also unchanged.
@@ -891,9 +892,9 @@ mkActionNoInput defs def defName mNodeSel = \case
     let moveToLastArg = replicate l (Move Child2)
         moveBack = replicate l (Move Parent)
      in toProgAction $ moveToLastArg <> [ConstructArrowR] <> moveBack
-  AConstructTypeApp ->
+  Available.ConstructTypeApp ->
     toProgAction [ConstructTApp, Move Child1]
-  ADuplicateDef ->
+  Available.DuplicateDef ->
     let sigID = getID $ astDefType def
 
         bodyID = getID $ astDefExpr def
@@ -904,17 +905,17 @@ mkActionNoInput defs def defName mNodeSel = \case
           , CopyPasteSig (defName, sigID) []
           , CopyPasteBody (defName, bodyID) []
           ]
-  ARaise -> do
+  Available.Raise -> do
     id <- id'
     pure [MoveToDef defName, CopyPasteBody (defName, id) [SetCursor id, Move Parent, Delete]]
-  ARaiseType -> do
+  Available.RaiseType -> do
     id <- id'
     pure [MoveToDef defName, CopyPasteSig (defName, id) [SetCursor id, Move Parent, Delete]]
-  ADeleteDef ->
+  Available.DeleteDef ->
     pure [DeleteDef defName]
-  ADeleteExpr ->
+  Available.DeleteExpr ->
     toProgAction [Delete]
-  ADeleteType ->
+  Available.DeleteType ->
     toProgAction [Delete]
   where
     -- TODO DRY
@@ -936,58 +937,58 @@ mkActionInput ::
   Either Text [ProgAction]
 -- TODO rename `tInput`
 mkActionInput def defName mNodeSel tInput0 = \case
-  AMakeLambda -> do
+  Available.MakeLambda -> do
     t <- tInputLocal
     toProgAction [ConstructLam $ Just t]
-  AUseVar ->
+  Available.UseVar ->
     toProgAction [ConstructVar tInputTmVar]
-  ASaturatedFunction -> do
+  Available.SaturatedFunction -> do
     oR <- offerRefined
     toProgAction [if oR then InsertRefinedVar tInputTmVar else InsertSaturatedVar tInputTmVar]
-  AMakeLet -> do
+  Available.MakeLet -> do
     t <- tInputLocal
     toProgAction [ConstructLet $ Just t]
-  AMakeLetRec -> do
+  Available.MakeLetRec -> do
     t <- tInputLocal
     toProgAction [ConstructLetrec $ Just t]
-  AConstructBigLambda -> do
+  Available.ConstructBigLambda -> do
     t <- tInputLocal
     toProgAction [ConstructLAM $ Just t]
-  AUseTypeVar -> do
+  Available.UseTypeVar -> do
     t <- tInputLocal
     toProgAction [ConstructTVar t]
-  AConstructForall -> do
+  Available.ConstructForall -> do
     t <- tInputLocal
     toProgAction [ConstructTForall $ Just t, Move Child1]
-  ARenameDef -> do
+  Available.RenameDef -> do
     t <- tInputLocal
     pure [RenameDef defName t]
-  ARenamePatternVar -> do
+  Available.RenamePatternVar -> do
     t <- tInputLocal
     toProgAction [RenameCaseBinding t]
-  ARenameLambda -> do
+  Available.RenameLambda -> do
     t <- tInputLocal
     toProgAction [RenameLam t]
-  ARenameLAM -> do
+  Available.RenameLAM -> do
     t <- tInputLocal
     toProgAction [RenameLAM t]
-  ARenameLetBinding -> do
+  Available.RenameLetBinding -> do
     t <- tInputLocal
     toProgAction [RenameLet t]
-  ARenameForall -> do
+  Available.RenameForall -> do
     t <- tInputLocal
     toProgAction [RenameForall t]
-  AUseValueCon -> do
+  Available.UseValueCon -> do
     o <- option
     toProgAction [ConstructCon o]
-  AUseSaturatedValueCon -> do
+  Available.UseSaturatedValueCon -> do
     -- NB: Exactly one of the saturated and refined actions will be available
     -- (depending on whether we have useful type information to hand).
     -- We put the same labels on each.
     oR <- offerRefined
     o <- option
     toProgAction [if oR then ConstructRefinedCon o else ConstructSaturatedCon o]
-  AUseTypeCon -> do
+  Available.UseTypeCon -> do
     o <- option
     toProgAction [ConstructTCon o]
   where

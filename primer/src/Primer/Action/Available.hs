@@ -105,43 +105,43 @@ data OfferedAction
 
 -- TODO rename constructors - descriptive names, also drop the prefix and we'll always qualify
 data NoInputAction
-  = AMakeCase
-  | AConvertLetToLetrec
-  | AConstructApp
-  | AConstructAPP
-  | AConstructAnn
-  | ARemoveAnn
-  | AFinishHole
-  | AEnterHole
-  | AConstructFun
-  | AAddInput
-  | AConstructTypeApp
-  | ADuplicateDef
-  | ARaise
-  | ARaiseType
-  | ADeleteDef
-  | ADeleteExpr
-  | ADeleteType
+  = MakeCase
+  | ConvertLetToLetrec
+  | ConstructApp
+  | ConstructAPP
+  | ConstructAnn
+  | RemoveAnn
+  | FinishHole
+  | EnterHole
+  | ConstructFun
+  | AddInput
+  | ConstructTypeApp
+  | DuplicateDef
+  | Raise
+  | RaiseType
+  | DeleteDef
+  | DeleteExpr
+  | DeleteType
   deriving (Eq, Ord, Show, Read, Enum, Bounded, Generic)
   deriving (ToJSON, FromJSON) via PrimerJSON NoInputAction
 data InputAction -- TODO rename for consistency
-  = AMakeLambda
-  | AUseVar
-  | ASaturatedFunction
-  | AMakeLet
-  | AMakeLetRec
-  | AConstructBigLambda
-  | AUseTypeVar
-  | AConstructForall
-  | ARenameDef
-  | ARenamePatternVar
-  | ARenameLambda
-  | ARenameLAM
-  | ARenameLetBinding
-  | ARenameForall
-  | AUseValueCon -- TODO sort these (incl. use sites) - were at bottom because qualified
-  | AUseSaturatedValueCon
-  | AUseTypeCon
+  = MakeLambda
+  | UseVar
+  | SaturatedFunction
+  | MakeLet
+  | MakeLetRec
+  | ConstructBigLambda
+  | UseTypeVar
+  | ConstructForall
+  | RenameDef
+  | RenamePatternVar
+  | RenameLambda
+  | RenameLAM
+  | RenameLetBinding
+  | RenameForall
+  | UseValueCon -- TODO sort these (incl. use sites) - were at bottom because qualified
+  | UseSaturatedValueCon
+  | UseTypeCon
   deriving (Eq, Ord, Show, Read, Enum, Bounded, Generic)
   deriving (ToJSON, FromJSON) via PrimerJSON InputAction
 
@@ -157,17 +157,17 @@ actionsForDef l defs defName = prioritySort l $ catMaybes [rename, duplicate, de
     rename = do
       -- TODO can this be simplified?
       _ <- getEditableASTDef defs defName
-      pure $ Input ARenameDef
+      pure $ Input RenameDef
 
     duplicate = do
       _ <- getEditableASTDef defs defName
-      pure $ NoInput ADuplicateDef
+      pure $ NoInput DuplicateDef
 
     delete = do
       -- Ensure it is not in use, otherwise the action will not succeed
       _ <- getEditableDef defs defName
       guard $ not $ globalInUse defName $ Map.delete defName $ fmap snd defs
-      pure $ NoInput ADeleteDef
+      pure $ NoInput DeleteDef
 
 -- | Given the body of a Def and the ID of a node in it, return the possible actions that can be applied to it
 actionsForDefBody ::
@@ -179,7 +179,7 @@ actionsForDefBody ::
   [OfferedAction]
 actionsForDefBody _ _ NonEditable _ _ = mempty
 actionsForDefBody tydefs l Editable id expr =
-  let raiseAction' = NoInput ARaise
+  let raiseAction' = NoInput Raise
    in prioritySort l $ case findNodeWithParent id expr of
         Nothing -> mempty
         Just (ExprNode e, p) ->
@@ -194,7 +194,7 @@ actionsForDefBody tydefs l Editable id expr =
                 _ -> [raiseAction']
            in (basicActionsForType l t <> compoundActionsForType t)
                 <> raiseAction
-        Just (CaseBindNode _, _) -> [Input ARenamePatternVar]
+        Just (CaseBindNode _, _) -> [Input RenamePatternVar]
 
 -- | Given a the type signature of a Def and the ID of a node in it,
 -- return the possible actions that can be applied to it
@@ -207,7 +207,7 @@ actionsForDefSig ::
 actionsForDefSig _ NonEditable _ _ = mempty
 actionsForDefSig l Editable id ty =
   let raiseAction =
-        [ NoInput ARaiseType
+        [ NoInput RaiseType
         | id /= getID ty
         ]
    in prioritySort l $ case findType id ty of
@@ -231,72 +231,72 @@ basicActionsForExpr tydefs l expr = case expr of
   e -> let _ = e ^. _exprMetaLens in defaultActions <> annotate
   where
     m = expr ^. _exprMetaLens
-    annotate = mwhen (l == Expert) [NoInput AConstructAnn]
+    annotate = mwhen (l == Expert) [NoInput ConstructAnn]
     emptyHoleActions = case l of
       Beginner ->
-        [ Input AUseVar
-        , Input AUseValueCon
+        [ Input UseVar
+        , Input UseValueCon
         ]
       _ ->
-        [ Input AUseVar
-        , Input ASaturatedFunction
-        , Input AUseValueCon
-        , Input AUseSaturatedValueCon
-        , Input AMakeLet
-        , Input AMakeLetRec
-        , NoInput AEnterHole
+        [ Input UseVar
+        , Input SaturatedFunction
+        , Input UseValueCon
+        , Input UseSaturatedValueCon
+        , Input MakeLet
+        , Input MakeLetRec
+        , NoInput EnterHole
         ]
           <> annotate
-    holeActions = NoInput AFinishHole : annotate
-    annotationActions = mwhen (l == Expert) [NoInput ARemoveAnn]
-    lambdaActions = Input ARenameLambda : annotate
-    bigLambdaActions = annotate <> mwhen (l == Expert) [Input ARenameLAM]
+    holeActions = NoInput FinishHole : annotate
+    annotationActions = mwhen (l == Expert) [NoInput RemoveAnn]
+    lambdaActions = Input RenameLambda : annotate
+    bigLambdaActions = annotate <> mwhen (l == Expert) [Input RenameLAM]
     letActions v e =
-      [Input ARenameLetBinding]
-        <> munless (unLocalName v `Set.member` freeVars e) [NoInput AConvertLetToLetrec]
+      [Input RenameLetBinding]
+        <> munless (unLocalName v `Set.member` freeVars e) [NoInput ConvertLetToLetrec]
         <> annotate
-    letRecActions = Input ARenameLetBinding : annotate
+    letRecActions = Input RenameLetBinding : annotate
     universalActions =
       let both = case l of
             Beginner ->
-              [ Input AMakeLambda
+              [ Input MakeLambda
               ]
             Intermediate ->
-              [ Input AMakeLambda
-              , NoInput AConstructApp
+              [ Input MakeLambda
+              , NoInput ConstructApp
               ]
             Expert ->
-              [ NoInput AConstructApp
-              , NoInput AConstructAPP
-              , Input AMakeLambda
-              , Input AConstructBigLambda
+              [ NoInput ConstructApp
+              , NoInput ConstructAPP
+              , Input MakeLambda
+              , Input ConstructBigLambda
               ]
           -- We assume that the input program is type-checked, in order to
           -- filter some actions by Syn/Chk
           synthTy = m ^? _type % _Just % _synthed
           synOnly ty = case getTypeDefInfo' tydefs ty of
-            Left TDIHoleType{} -> Just $ NoInput AMakeCase
-            Right (TypeDefInfo _ _ TypeDefAST{}) -> Just $ NoInput AMakeCase
+            Left TDIHoleType{} -> Just $ NoInput MakeCase
+            Right (TypeDefInfo _ _ TypeDefAST{}) -> Just $ NoInput MakeCase
             _ -> Nothing
        in (synOnly =<< synthTy) ?: both
-    defaultActions = universalActions <> [NoInput ADeleteExpr]
+    defaultActions = universalActions <> [NoInput DeleteExpr]
 
 -- | Given a type, determine what basic actions it supports
 -- Specific projections may provide other actions not listed here
 basicActionsForType :: Level -> Type -> [OfferedAction]
 basicActionsForType l = \case
-  TEmptyHole{} -> universalActions <> [Input AUseTypeCon] <> mwhen (l == Expert) [Input AUseTypeVar]
-  TForall{} -> defaultActions <> mwhen (l == Expert) [Input ARenameForall]
+  TEmptyHole{} -> universalActions <> [Input UseTypeCon] <> mwhen (l == Expert) [Input UseTypeVar]
+  TForall{} -> defaultActions <> mwhen (l == Expert) [Input RenameForall]
   _ -> defaultActions
   where
     universalActions =
-      [NoInput AConstructFun]
+      [NoInput ConstructFun]
         <> mwhen
           (l == Expert)
-          [ Input AConstructForall
-          , NoInput AConstructTypeApp
+          [ Input ConstructForall
+          , NoInput ConstructTypeApp
           ]
-    defaultActions = universalActions <> [NoInput ADeleteType]
+    defaultActions = universalActions <> [NoInput DeleteType]
 
 -- TODO inline
 
@@ -304,48 +304,48 @@ basicActionsForType l = \case
 -- They may involve moving around the AST and performing several basic actions.
 compoundActionsForType :: Type' (Meta a) -> [OfferedAction]
 compoundActionsForType ty = case ty of
-  TFun _m _ _ -> [NoInput AAddInput]
+  TFun _m _ _ -> [NoInput AddInput]
   _ -> []
 
 -- TODO just combine these and take a `OfferedAction`?
 priorityNoInputAction :: NoInputAction -> Level -> Int
 priorityNoInputAction = \case
-  AMakeCase -> P.makeCase
-  AConvertLetToLetrec -> P.makeLetRecursive
-  AConstructApp -> P.applyFunction
-  AConstructAPP -> P.applyType
-  AConstructAnn -> P.annotateExpr
-  ARemoveAnn -> P.removeAnnotation
-  AFinishHole -> P.finishHole
-  AEnterHole -> P.enterHole
-  AConstructFun -> P.constructFunction
-  AAddInput -> P.addInput
-  AConstructTypeApp -> P.constructTypeApp
-  ADuplicateDef -> P.duplicate
-  ARaise -> P.raise
-  ARaiseType -> P.raise
-  ADeleteDef -> P.delete
-  ADeleteExpr -> P.delete
-  ADeleteType -> P.delete
+  MakeCase -> P.makeCase
+  ConvertLetToLetrec -> P.makeLetRecursive
+  ConstructApp -> P.applyFunction
+  ConstructAPP -> P.applyType
+  ConstructAnn -> P.annotateExpr
+  RemoveAnn -> P.removeAnnotation
+  FinishHole -> P.finishHole
+  EnterHole -> P.enterHole
+  ConstructFun -> P.constructFunction
+  AddInput -> P.addInput
+  ConstructTypeApp -> P.constructTypeApp
+  DuplicateDef -> P.duplicate
+  Raise -> P.raise
+  RaiseType -> P.raise
+  DeleteDef -> P.delete
+  DeleteExpr -> P.delete
+  DeleteType -> P.delete
 priorityInputAction :: InputAction -> Level -> Int
 priorityInputAction = \case
-  AMakeLambda -> P.makeLambda
-  AUseVar -> P.useVar
-  ASaturatedFunction -> P.useFunction
-  AMakeLet -> P.makeLet
-  AMakeLetRec -> P.makeLetrec
-  AConstructBigLambda -> P.makeTypeAbstraction
-  AUseTypeVar -> P.useTypeVar
-  AConstructForall -> P.constructForall
-  ARenameDef -> P.rename
-  ARenamePatternVar -> P.rename
-  ARenameLambda -> P.rename
-  ARenameLAM -> P.rename
-  ARenameLetBinding -> P.rename
-  ARenameForall -> P.rename
-  AUseValueCon -> P.useValueCon
-  AUseSaturatedValueCon -> P.useSaturatedValueCon
-  AUseTypeCon -> P.useTypeCon
+  MakeLambda -> P.makeLambda
+  UseVar -> P.useVar
+  SaturatedFunction -> P.useFunction
+  MakeLet -> P.makeLet
+  MakeLetRec -> P.makeLetrec
+  ConstructBigLambda -> P.makeTypeAbstraction
+  UseTypeVar -> P.useTypeVar
+  ConstructForall -> P.constructForall
+  RenameDef -> P.rename
+  RenamePatternVar -> P.rename
+  RenameLambda -> P.rename
+  RenameLAM -> P.rename
+  RenameLetBinding -> P.rename
+  RenameForall -> P.rename
+  UseValueCon -> P.useValueCon
+  UseSaturatedValueCon -> P.useSaturatedValueCon
+  UseTypeCon -> P.useTypeCon
 
 -- getInput :: OfferedAction -> (ActionOptions, [ProgAction])
 -- getInput :: Level -> OfferedAction -> (ActionOptions, [ProgAction])
@@ -373,63 +373,63 @@ inputAction ::
   InputAction ->
   Either InputActionError ActionOptions
 inputAction typeDefs defs def cxt level mid = \case
-  AMakeLambda -> do
+  MakeLambda -> do
     options <- genName' False
     -- q <- handleQuestion $ GenerateName defName (m ^. _id) (Left $ join $ m ^? _type % _Just % _chkedAt % to lamVarTy)
     pure ActionOptions{options, free = True}
-  AUseVar -> do
+  UseVar -> do
     -- TODO DRY next 10 lines or so
     (_types, locals, globals) <- varsInScope'
     let optionsLoc = flip ActionOption Nothing . unName . unLocalName . fst <$> (if level == Beginner then noFunctions locals else locals)
         optionsGlob = fromGlobal . fst <$> (if level == Beginner then noFunctions globals else globals)
         options = optionsLoc <> optionsGlob
     pure ActionOptions{options, free = False}
-  ASaturatedFunction -> do
+  SaturatedFunction -> do
     (_types, locals, globals) <- varsInScope'
     let optionsLoc = flip ActionOption Nothing . unName . unLocalName . fst <$> onlyFunctions locals
         optionsGlob = fromGlobal . fst <$> onlyFunctions globals
         options = optionsLoc <> optionsGlob
     pure ActionOptions{options, free = False}
-  AMakeLet -> do
+  MakeLet -> do
     options <- genName' False
     pure ActionOptions{options, free = True}
-  AMakeLetRec -> do
+  MakeLetRec -> do
     options <- genName' False
     pure ActionOptions{options, free = True}
-  AConstructBigLambda -> do
+  ConstructBigLambda -> do
     options <- genName' True
     pure ActionOptions{options, free = True}
-  AUseTypeVar -> do
+  UseTypeVar -> do
     (types, _locals, _globals) <- varsInScope'
     let options = flip ActionOption Nothing . unName . unLocalName . fst <$> types
     pure ActionOptions{options, free = False}
-  AConstructForall -> do
+  ConstructForall -> do
     options <- genName' True
     pure ActionOptions{options, free = True}
-  ARenameDef ->
+  RenameDef ->
     pure ActionOptions{options = [], free = True}
-  ARenamePatternVar -> do
+  RenamePatternVar -> do
     options <- genName' True
     pure ActionOptions{options, free = True}
-  ARenameLambda -> do
+  RenameLambda -> do
     options <- genName' False
     pure ActionOptions{options, free = True}
-  ARenameLAM -> do
+  RenameLAM -> do
     options <- genName' True
     pure ActionOptions{options, free = True}
-  ARenameLetBinding -> do
+  RenameLetBinding -> do
     options <- genName' False
     pure ActionOptions{options, free = True}
-  ARenameForall -> do
+  RenameForall -> do
     options <- genName' True
     pure ActionOptions{options, free = True}
-  AUseValueCon ->
+  UseValueCon ->
     let options = map (fromGlobal . valConName) . (if level == Beginner then noFunctionsCon else identity) . concatMap astTypeDefConstructors . mapMaybe (typeDefAST . snd) $ Map.toList typeDefs
      in pure ActionOptions{options, free = False}
-  AUseSaturatedValueCon ->
+  UseSaturatedValueCon ->
     let options = map (fromGlobal . valConName) . onlyFunctionsCon . concatMap astTypeDefConstructors . mapMaybe (typeDefAST . snd) $ Map.toList typeDefs
      in pure ActionOptions{options, free = False}
-  AUseTypeCon ->
+  UseTypeCon ->
     let options = fromGlobal . fst <$> Map.toList typeDefs
      in pure ActionOptions{options, free = False}
   where

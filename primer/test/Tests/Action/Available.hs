@@ -27,8 +27,8 @@ import Primer.Action (ActionError (CaseBindsClash, NameCapture), mkActionInput, 
 import Primer.Action.Available (
   ActionOption (ActionOption),
   ActionOptions (ActionOptions, free, options),
-  InputAction (ARenameDef),
-  NoInputAction (ADuplicateDef),
+  InputAction (RenameDef),
+  NoInputAction (DuplicateDef),
   OfferedAction (..),
   actionsForDef,
   actionsForDefBody,
@@ -181,7 +181,7 @@ unit_def_in_use =
         enumerate
         ( \l ->
             actionsForDef l defs d
-              @?= [Input ARenameDef, NoInput ADuplicateDef]
+              @?= [Input RenameDef, NoInput DuplicateDef]
         )
 
 tasty_available_actions_accepted :: Property
