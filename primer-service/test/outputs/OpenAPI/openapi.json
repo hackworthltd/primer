@@ -354,7 +354,7 @@
       "SessionName": {
         "type": "string"
       },
-      "SomeAction": {
+      "OfferedAction": {
         "oneOf": [
           {
             "properties": {
@@ -706,7 +706,7 @@
               "application/json;charset=utf-8": {
                 "schema": {
                   "items": {
-                    "$ref": "#/components/schemas/SomeAction"
+                    "$ref": "#/components/schemas/OfferedAction"
                   },
                   "type": "array"
                 }

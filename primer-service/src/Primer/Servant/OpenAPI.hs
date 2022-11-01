@@ -20,7 +20,7 @@ import Primer.Action.Available (
   ActionOptions,
   InputAction,
   NoInputAction,
-  SomeAction,
+  OfferedAction,
  )
 import Primer.Database (
   SessionId,
@@ -110,7 +110,7 @@ data ActionAPI mode = ActionAPI
         :> QueryParam' '[Required, Strict] "level" Level
         :> ReqBody '[JSON] Selection
         :> OperationId "getAvailableActions"
-        :> Post '[JSON] [SomeAction]
+        :> Post '[JSON] [OfferedAction]
   , options :: -- TODO name?
       mode
         :- "options"

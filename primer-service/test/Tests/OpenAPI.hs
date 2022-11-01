@@ -42,7 +42,7 @@ import Primer.Action.Available (
   InputAction (..),
   Level,
   NoInputAction (..),
-  SomeAction (..),
+  OfferedAction (..),
  )
 import Primer.Core (GVarName, ID (ID), NodeType (..))
 import Primer.Database (
@@ -285,5 +285,5 @@ instance Arbitrary InputAction where
   arbitrary = arbitraryBoundedEnum
 instance Arbitrary NoInputAction where
   arbitrary = arbitraryBoundedEnum
-instance Arbitrary SomeAction where
+instance Arbitrary OfferedAction where
   arbitrary = either NoInputAction InputAction <$> arbitrary

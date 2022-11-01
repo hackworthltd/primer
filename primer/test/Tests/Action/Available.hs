@@ -29,7 +29,7 @@ import Primer.Action.Available (
   ActionOptions (ActionOptions, free, options),
   InputAction (ARenameDef),
   NoInputAction (ADuplicateDef),
-  SomeAction (..),
+  OfferedAction (..),
   actionsForDef,
   actionsForDefBody,
   actionsForDefSig,
@@ -107,9 +107,9 @@ test_1 :: TestTree
 test_1 = mkTests [builtinModule] $ create' $ comprehensiveWellTyped $ mkSimpleModuleName "M"
 
 data Output = Output
-  { defActions :: [SomeAction]
-  , bodyActions :: [(ID, [SomeAction])]
-  , sigActions :: [(ID, [SomeAction])]
+  { defActions :: [OfferedAction]
+  , bodyActions :: [(ID, [OfferedAction])]
+  , sigActions :: [(ID, [OfferedAction])]
   }
   deriving (Show)
 

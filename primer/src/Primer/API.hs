@@ -99,7 +99,7 @@ import Primer.Action.Available (
   InputActionError,
   Level (..),
   NoInputAction (..),
-  SomeAction (..),
+  OfferedAction (..),
   actionsForDef,
   actionsForDefBody,
   actionsForDefSig,
@@ -367,7 +367,7 @@ data APILog
   | EvalStep (ReqResp (SessionId, EvalReq) (Either ProgError EvalResp))
   | EvalFull (ReqResp (SessionId, EvalFullReq) (Either ProgError EvalFullResp))
   | FlushSessions (ReqResp () ())
-  | AvailableActions (ReqResp (SessionId, Level, Selection) [SomeAction])
+  | AvailableActions (ReqResp (SessionId, Level, Selection) [OfferedAction])
   deriving (Show)
 
 type MonadAPILog l m = (MonadLog (WithSeverity l) m, ConvertLogMessage APILog l)
@@ -941,7 +941,7 @@ availableActions ::
   SessionId ->
   Level ->
   Selection ->
-  PrimerM m [SomeAction]
+  PrimerM m [OfferedAction]
 availableActions = curry3 $ logAPI (noError AvailableActions) $ \(sid, level, Selection{..}) -> do
   prog <- getProgram sid
   let allDefs = progAllDefs prog

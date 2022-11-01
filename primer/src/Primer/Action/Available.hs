@@ -8,7 +8,7 @@ module Primer.Action.Available (
   actionsForDef,
   actionsForDefBody,
   actionsForDefSig,
-  SomeAction (..),
+  OfferedAction (..),
   InputAction (..),
   NoInputAction (..),
   Level (..),
@@ -113,11 +113,11 @@ data ActionOptions = ActionOptions
   deriving (Show, Generic)
   deriving (ToJSON) via PrimerJSON ActionOptions
 
-data SomeAction
+data OfferedAction
   = NoInputAction NoInputAction
   | InputAction InputAction
   deriving (Eq, Ord, Show, Generic)
-  deriving (ToJSON) via PrimerJSON SomeAction
+  deriving (ToJSON) via PrimerJSON OfferedAction
 
 -- TODO rename constructors - descriptive names, also drop the prefix and we'll always qualify
 data NoInputAction
@@ -167,7 +167,7 @@ actionsForDef ::
   Map GVarName (Editable, Def) ->
   -- | The name of a definition in the map
   GVarName ->
-  [SomeAction]
+  [OfferedAction]
 actionsForDef l defs defName = prioritySort l $ catMaybes [rename, duplicate, delete]
   where
     rename = do
@@ -192,7 +192,7 @@ actionsForDefBody ::
   Editable ->
   ID ->
   Expr ->
-  [SomeAction]
+  [OfferedAction]
 actionsForDefBody _ _ NonEditable _ _ = mempty
 actionsForDefBody tydefs l Editable id expr =
   let raiseAction' = NoInputAction ARaise
@@ -219,7 +219,7 @@ actionsForDefSig ::
   Editable ->
   ID ->
   Type ->
-  [SomeAction]
+  [OfferedAction]
 actionsForDefSig _ NonEditable _ _ = mempty
 actionsForDefSig l Editable id ty =
   let raiseAction =
@@ -235,7 +235,7 @@ actionsForDefSig l Editable id ty =
 
 -- | Given an expression, determine what basic actions it supports
 -- Specific projections may provide other actions not listed here
-basicActionsForExpr :: TypeDefMap -> Level -> Expr -> [SomeAction]
+basicActionsForExpr :: TypeDefMap -> Level -> Expr -> [OfferedAction]
 basicActionsForExpr tydefs l expr = case expr of
   EmptyHole{} -> universalActions <> emptyHoleActions
   Hole{} -> defaultActions <> holeActions
@@ -299,7 +299,7 @@ basicActionsForExpr tydefs l expr = case expr of
 
 -- | Given a type, determine what basic actions it supports
 -- Specific projections may provide other actions not listed here
-basicActionsForType :: Level -> Type -> [SomeAction]
+basicActionsForType :: Level -> Type -> [OfferedAction]
 basicActionsForType l = \case
   TEmptyHole{} -> universalActions <> [InputAction AUseTypeCon] <> mwhen (l == Expert) [InputAction AUseTypeVar]
   TForall{} -> defaultActions <> mwhen (l == Expert) [InputAction ARenameForall]
@@ -318,12 +318,12 @@ basicActionsForType l = \case
 
 -- | These actions are more involved than the basic actions.
 -- They may involve moving around the AST and performing several basic actions.
-compoundActionsForType :: Type' (Meta a) -> [SomeAction]
+compoundActionsForType :: Type' (Meta a) -> [OfferedAction]
 compoundActionsForType ty = case ty of
   TFun _m _ _ -> [NoInputAction AAddInput]
   _ -> []
 
--- TODO just combine these and take a `SomeAction`?
+-- TODO just combine these and take a `OfferedAction`?
 priorityNoInputAction :: NoInputAction -> Level -> Int
 priorityNoInputAction = \case
   AMakeCase -> P.makeCase
@@ -363,8 +363,8 @@ priorityInputAction = \case
   AUseSaturatedValueCon -> P.useSaturatedValueCon
   AUseTypeCon -> P.useTypeCon
 
--- getInput :: SomeAction -> (ActionOptions, [ProgAction])
--- getInput :: Level -> SomeAction -> (ActionOptions, [ProgAction])
+-- getInput :: OfferedAction -> (ActionOptions, [ProgAction])
+-- getInput :: Level -> OfferedAction -> (ActionOptions, [ProgAction])
 -- TODO obviously don't use `Text` for errors
 -- TODO but can we avoid errors here completely by shifting more responsibility to `ProgAction`
 -- TODO fewer args?
@@ -375,7 +375,7 @@ priorityInputAction = \case
 --   ID ->
 --   Level ->
 --   Either Expr Type ->
---   SomeAction ->
+--   OfferedAction ->
 --   (ActionOptions, Either Text [ProgAction])
 
 -- TODO the `Maybe ID` here is awkward - some actions require ID's and others don't, we should reflect this in the types
@@ -489,8 +489,8 @@ getEditableASTDef defs defName = defAST =<< getEditableDef defs defName
 
 prioritySort ::
   Level ->
-  [SomeAction] ->
-  [SomeAction]
+  [OfferedAction] ->
+  [OfferedAction]
 prioritySort l = sortOn $ \case
   NoInputAction x -> priorityNoInputAction x l
   InputAction x -> priorityInputAction x l
