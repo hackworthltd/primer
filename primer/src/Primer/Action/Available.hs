@@ -1,10 +1,5 @@
-{-# LANGUAGE DuplicateRecordFields #-}
 {-# LANGUAGE OverloadedRecordDot #-}
-{-# HLINT ignore "Use section" #-}
 {-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE TypeFamilies #-}
-{-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
-{-# OPTIONS_GHC -Wno-unused-imports #-}
 
 -- | Compute all the possible actions which can be performed on a definition
 module Primer.Action.Available (
@@ -27,15 +22,10 @@ module Primer.Action.Available (
 
 import Foreword
 
-import Data.Aeson.Types (ToJSON (toJSON))
 import Data.Data (Data)
-import Data.Kind qualified as Kind
-import Data.List.NonEmpty qualified as NE
 import Data.Map qualified as Map
 import Data.Set qualified as Set
 import Optics (
-  to,
-  view,
   (%),
   (^.),
   (^?),
@@ -46,10 +36,8 @@ import Primer.Action (
   Level (..),
   Movement (..),
   ProgAction (..),
-  nameString,
   uniquifyDefName,
  )
-import Primer.Action.Actions ()
 import Primer.Action.Priorities qualified as P
 import Primer.App (Editable (Editable, NonEditable), MonadQueryApp, NodeType (..), ProgError (SelectionNoID), globalInUse, handleQuestion)
 import Primer.Core (
@@ -59,29 +47,21 @@ import Primer.Core (
   GVarName,
   GlobalName (baseName, qualifiedModule),
   ID,
-  Kind,
-  LVarName,
   Meta (..),
   ModuleName (unModuleName),
   TmVarRef (..),
-  TyConName,
   Type,
   Type' (..),
-  TypeCache (..),
   getID,
   unLocalName,
   unsafeMkGlobalName,
   unsafeMkLocalName,
-  _bindMeta,
   _chkedAt,
   _exprMetaLens,
-  _id,
   _synthed,
   _type,
-  _typeMetaLens,
  )
-import Primer.Core.Transform (unfoldFun)
-import Primer.Core.Utils (forgetTypeMetadata, freeVars)
+import Primer.Core.Utils (freeVars)
 import Primer.Def (
   ASTDef (..),
   Def,
@@ -89,8 +69,8 @@ import Primer.Def (
   defAST,
  )
 import Primer.JSON (CustomJSON (..), FromJSON, PrimerJSON, ToJSON)
-import Primer.Name (Name, unName)
-import Primer.Questions (Question (..), generateNameExpr)
+import Primer.Name (unName)
+import Primer.Questions (Question (..))
 import Primer.TypeDef (
   ASTTypeDef (astTypeDefConstructors),
   TypeDef (TypeDefAST),
