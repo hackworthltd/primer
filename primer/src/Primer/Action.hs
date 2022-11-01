@@ -925,8 +925,6 @@ mkActionNoInput defs def defName mNodeSel = \case
             SigNode -> SigAction
             BodyNode -> BodyAction
       pure [MoveToDef defName, a $ SetCursor id : actions]
-    -- If we have a useful type, offer the refine action, otherwise offer the
-    -- saturate action.
     id' = maybeToEither "no node selection" $ snd <$> mNodeSel
 
 mkActionInput ::
