@@ -23,7 +23,7 @@ import Hedgehog (
 import Hedgehog.Gen qualified as Gen
 import Hedgehog.Internal.Property (forAllWithT)
 import Optics (toListOf, (%), (^..))
-import Primer.Action (ActionError (CaseBindsClash, NameCapture))
+import Primer.Action (ActionError (CaseBindsClash, NameCapture), mkActionInput, mkActionNoInput)
 import Primer.Action.Available (
   ActionOption (ActionOption),
   InputAction (ARenameDef),
@@ -34,23 +34,19 @@ import Primer.Action.Available (
   actionsForDefBody,
   actionsForDefSig,
   inputAction,
-  mkActionInput,
-  mkActionNoInput,
  )
 import Primer.App (
   App,
   EditAppM,
   Editable (Editable, NonEditable),
-  NodeType (..),
   ProgError (ActionError, DefAlreadyExists),
-  QueryAppM,
   appProg,
   checkAppWellFormed,
   handleEditRequest,
   progAllDefs,
   progAllTypeDefs,
+  progCxt,
   runEditAppM,
-  runQueryAppM,
  )
 import Primer.Core (
   GVarName,
@@ -58,6 +54,7 @@ import Primer.Core (
   HasID (_id),
   ID,
   ModuleName (ModuleName),
+  NodeType (..),
   mkSimpleModuleName,
   moduleNamePretty,
   qualifyName,
@@ -241,7 +238,16 @@ tasty_available_actions_accepted = withTests 500 $
             InputAction act' -> do
               -- TODO don't just fail - log
               DefAST def' <- pure def
-              OfferedAction{options, allowFreeText} <- flip querySucceeds a $ inputAction (map snd $ progAllTypeDefs $ appProg a) l defName (snd <$> loc) act'
+              OfferedAction{options, allowFreeText} <-
+                either (\e -> annotateShow e >> failure) pure $
+                  inputAction
+                    (map snd $ progAllTypeDefs $ appProg a)
+                    (map snd $ progAllDefs $ appProg a)
+                    def'
+                    (progCxt $ appProg a)
+                    l
+                    (snd <$> loc)
+                    act'
               case options of
                 -- TODO investigate how this can happen
                 -- [] -> annotate "no options" >> failure
@@ -282,7 +288,3 @@ tasty_available_actions_accepted = withTests 500 $
     ensureSHNormal a = case checkAppWellFormed a of
       Left err -> annotateShow err >> failure
       Right a' -> TypeCacheAlpha a === TypeCacheAlpha a'
-    querySucceeds :: HasCallStack => QueryAppM a -> App -> PropertyT WT a
-    querySucceeds m a = case runQueryAppM m a of
-      Left err -> annotateShow err >> failure
-      Right x -> pure x

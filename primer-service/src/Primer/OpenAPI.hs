@@ -46,13 +46,13 @@ import Primer.Action.Available (
   QualifiedText (..),
   SomeAction,
  )
-import Primer.App (NodeType)
 import Primer.Core (
   GlobalName,
   GlobalNameKind (ADefName, ATyCon, AValCon),
   ID (..),
   LVarName,
   ModuleName,
+  NodeType,
  )
 import Primer.Database (
   LastModified,

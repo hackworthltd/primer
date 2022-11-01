@@ -1,4 +1,5 @@
 {-# LANGUAGE GADTs #-}
+{-# LANGUAGE OverloadedRecordDot #-}
 
 module Primer.Action (
   Action (..),
@@ -12,28 +13,33 @@ module Primer.Action (
   Level (..),
   nameString,
   uniquifyDefName,
+  mkActionInput,
+  mkActionNoInput,
 ) where
 
 import Foreword hiding (mod)
 
 import Control.Monad.Fresh (MonadFresh)
-import Data.Aeson (FromJSON, Value)
+import Data.Aeson (Value)
 import Data.Generics.Product (typed)
 import Data.List (findIndex)
 import Data.Map.Strict qualified as Map
 import Data.Set qualified as Set
 import Data.Text qualified as T
-import Optics (set, (%), (?~))
+import Optics (set, (%), (?~), (^.), (^?), _Just)
 import Primer.Action.Actions (Action (..), Movement (..), QualifiedText)
+import Primer.Action.Available (ActionOption (..), InputAction (..), Level (..), NoInputAction (..))
 import Primer.Action.Errors (ActionError (..))
 import Primer.Action.ProgAction (ProgAction (..))
 import Primer.Core (
   Expr,
   Expr' (..),
+  GVarName,
   HasMetadata (_metadata),
   ID,
   LVarName,
   LocalName (LocalName, unLocalName),
+  NodeType (..),
   TmVarRef (..),
   TyVarName,
   Type,
@@ -47,6 +53,9 @@ import Primer.Core (
   qualifiedModule,
   unsafeMkGlobalName,
   unsafeMkLocalName,
+  _chkedAt,
+  _exprMetaLens,
+  _type,
  )
 import Primer.Core qualified as C
 import Primer.Core.DSL (
@@ -77,7 +86,6 @@ import Primer.Def (
   Def (..),
   DefMap,
  )
-import Primer.JSON (CustomJSON (..), PrimerJSON, ToJSON)
 import Primer.Module (Module, insertDef)
 import Primer.Name (Name, NameCounter, unName, unsafeMkName)
 import Primer.Name.Fresh (
@@ -111,8 +119,10 @@ import Primer.Zipper (
   IsZipper,
   Loc,
   Loc' (..),
+  SomeNode (..),
   TypeZ,
   down,
+  findNodeWithParent,
   focus,
   focusLoc,
   focusOn,
@@ -131,21 +141,6 @@ import Primer.Zipper (
   _target,
  )
 import Primer.ZipperCxt (localVariablesInScopeExpr)
-
--- | The current programming "level". This setting determines which
--- actions are displayed to the student, the labels on UI elements,
--- etc.
-data Level
-  = -- | Bare minimum features to define sum types, and functions on
-    -- those types using simple pattern matching.
-    Beginner
-  | -- | Function application & monomorphic HoF. (Support for the latter
-    -- should probably be split into a separate level.)
-    Intermediate
-  | -- | All features.
-    Expert
-  deriving (Eq, Read, Show, Enum, Bounded, Generic)
-  deriving (FromJSON, ToJSON) via PrimerJSON Level
 
 -- | Sigh, yes, this is required so that Safari doesn't try to
 -- autocomplete these fields with your contact data.
@@ -836,3 +831,201 @@ renameForall b zt = case target zt of
             throwError NameCapture
   _ ->
     throwError $ CustomFailure (RenameForall b) "the focused expression is not a forall type"
+
+-- TODO move out of this module?
+-- TODO rename
+-- essentially, map a high-level (and serialisation-friendly) action to a sequence of low-level ones
+-- TODO ID is unused for a def action - probably indicates we need to split the action type up
+mkActionNoInput ::
+  DefMap ->
+  ASTDef ->
+  GVarName ->
+  Maybe (NodeType, ID) -> -- TODO why tuple rather than `NodeSelection`?
+  NoInputAction ->
+  Either Text [ProgAction]
+mkActionNoInput defs def defName mNodeSel = \case
+  AMakeCase ->
+    toProgAction [ConstructCase]
+  AConvertLetToLetrec ->
+    toProgAction [ConvertLetToLetrec]
+  AConstructApp ->
+    toProgAction [ConstructApp, Move Child2]
+  AConstructAPP ->
+    toProgAction [ConstructAPP, EnterType]
+  AConstructAnn ->
+    toProgAction [ConstructAnn]
+  ARemoveAnn ->
+    toProgAction [RemoveAnn]
+  AFinishHole ->
+    toProgAction [FinishHole]
+  AEnterHole ->
+    toProgAction [EnterHole]
+  AConstructFun ->
+    -- We arbitrarily choose that the "construct a function type" action places the focused expression
+    -- on the domain (left) side of the arrow.
+    toProgAction [ConstructArrowL, Move Child1]
+  AAddInput -> do
+    -- This action traverses the function type and adds a function arrow to the end of it,
+    -- resulting in a new argument type. The result type is unchanged.
+    -- The cursor location is also unchanged.
+    -- e.g. A -> B -> C ==> A -> B -> ? -> C
+
+    -- case et of
+    --   Right t ->
+    --     let unfoldFun' :: Type' a -> (Type' a, [Type' a])
+    --         unfoldFun' = undefined
+
+    --         (_resultType, argTypes) = unfoldFun' t
+
+    --         moveToLastArg = replicate (length argTypes) (Move Child2)
+
+    --         moveBack = replicate (length argTypes) (Move Parent)
+    --      in toProgAction $ moveToLastArg <> [ConstructArrowR] <> moveBack
+    --   _ -> Left "expected TFun"
+    -- l <- case et of
+    --   Right (TFun _ a b) -> pure $ NE.length $ fst $ unfoldFun a b
+    --   _ -> Left "expected TFun"
+    -- TODO don't hardcode
+    -- it's awkward though - there's a reason this was in its own section before this commit
+    let l = 1
+    let moveToLastArg = replicate l (Move Child2)
+        moveBack = replicate l (Move Parent)
+     in toProgAction $ moveToLastArg <> [ConstructArrowR] <> moveBack
+  AConstructTypeApp ->
+    toProgAction [ConstructTApp, Move Child1]
+  ADuplicateDef ->
+    let sigID = getID $ astDefType def
+
+        bodyID = getID $ astDefExpr def
+
+        copyName = uniquifyDefName (qualifiedModule defName) (unName (baseName defName) <> "Copy") defs
+     in pure
+          [ CreateDef (qualifiedModule defName) (Just copyName)
+          , CopyPasteSig (defName, sigID) []
+          , CopyPasteBody (defName, bodyID) []
+          ]
+  ARaise -> do
+    id <- id'
+    pure [MoveToDef defName, CopyPasteBody (defName, id) [SetCursor id, Move Parent, Delete]]
+  ARaiseType -> do
+    id <- id'
+    pure [MoveToDef defName, CopyPasteSig (defName, id) [SetCursor id, Move Parent, Delete]]
+  ADeleteDef ->
+    pure [DeleteDef defName]
+  ADeleteExpr ->
+    toProgAction [Delete]
+  ADeleteType ->
+    toProgAction [Delete]
+  where
+    -- TODO DRY
+    toProgAction actions = do
+      id <- id'
+      sigOrBody <- maybeToEither "no node selection" $ fst <$> mNodeSel
+      let a = case sigOrBody of
+            SigNode -> SigAction
+            BodyNode -> BodyAction
+      pure [MoveToDef defName, a $ SetCursor id : actions]
+    -- If we have a useful type, offer the refine action, otherwise offer the
+    -- saturate action.
+    id' = maybeToEither "no node selection" $ snd <$> mNodeSel
+
+mkActionInput ::
+  ASTDef ->
+  GVarName ->
+  Maybe (NodeType, ID) ->
+  ActionOption ->
+  InputAction ->
+  Either Text [ProgAction]
+-- TODO rename `tInput`
+mkActionInput def defName mNodeSel tInput0 = \case
+  AMakeLambda -> do
+    t <- tInputLocal
+    toProgAction [ConstructLam $ Just t]
+  AUseVar ->
+    toProgAction [ConstructVar tInputTmVar]
+  ASaturatedFunction -> do
+    oR <- offerRefined
+    toProgAction [if oR then InsertRefinedVar tInputTmVar else InsertSaturatedVar tInputTmVar]
+  AMakeLet -> do
+    t <- tInputLocal
+    toProgAction [ConstructLet $ Just t]
+  AMakeLetRec -> do
+    t <- tInputLocal
+    toProgAction [ConstructLetrec $ Just t]
+  AConstructBigLambda -> do
+    t <- tInputLocal
+    toProgAction [ConstructLAM $ Just t]
+  AUseTypeVar -> do
+    t <- tInputLocal
+    toProgAction [ConstructTVar t]
+  AConstructForall -> do
+    t <- tInputLocal
+    toProgAction [ConstructTForall $ Just t, Move Child1]
+  ARenameDef -> do
+    t <- tInputLocal
+    pure [RenameDef defName t]
+  ARenamePatternVar -> do
+    t <- tInputLocal
+    toProgAction [RenameCaseBinding t]
+  ARenameLambda -> do
+    t <- tInputLocal
+    toProgAction [RenameLam t]
+  ARenameLAM -> do
+    t <- tInputLocal
+    toProgAction [RenameLAM t]
+  ARenameLetBinding -> do
+    t <- tInputLocal
+    toProgAction [RenameLet t]
+  ARenameForall -> do
+    t <- tInputLocal
+    toProgAction [RenameForall t]
+  AUseValueCon -> do
+    o <- option
+    toProgAction [ConstructCon o]
+  AUseSaturatedValueCon -> do
+    -- NB: Exactly one of the saturated and refined actions will be available
+    -- (depending on whether we have useful type information to hand).
+    -- We put the same labels on each.
+    oR <- offerRefined
+    o <- option
+    toProgAction [if oR then ConstructRefinedCon o else ConstructSaturatedCon o]
+  AUseTypeCon -> do
+    o <- option
+    toProgAction [ConstructTCon o]
+  where
+    -- TODO should we handle "parsing" in to trusted input here
+    -- see the comment on `Action` - given that we're now not exposing that type via the API, it should probably use the rich versions
+    -- I think we previously were inconsistent, or just hadn't given this much thought
+
+    -- TODO obviously we shouldn't use "unsafe" functions
+    tInputTmVar = case tInput0.qualification of
+      Just q -> GlobalVarRef $ unsafeMkGlobalName (q, tInput0.option)
+      Nothing -> LocalVarRef $ unsafeMkLocalName tInput0.option
+    -- TODO DRY
+    toProgAction actions = do
+      id <- id'
+      sigOrBody <- maybeToEither "no node selection" $ fst <$> mNodeSel
+      let a = case sigOrBody of
+            SigNode -> SigAction
+            BodyNode -> BodyAction
+      pure [MoveToDef defName, a $ SetCursor id : actions]
+    -- If we have a useful type, offer the refine action, otherwise offer the
+    -- saturate action.
+    -- TODO I don't really understand the difference that `offerRefined` represents
+    -- and maybe we should be moving all this to a higher level anyway - the rest of this function has little logic, and we could potentially avoid error handling
+    offerRefined = do
+      id <- id'
+      case findNodeWithParent id $ astDefExpr def of
+        Just (ExprNode e, _) -> pure $ case e ^. _exprMetaLens ^? _type % _Just % _chkedAt of
+          Just (TEmptyHole _) -> False
+          Just (THole _ _) -> False
+          Just _ -> True
+          _ -> False
+        _ -> Left "expected TypeNode"
+    id' = maybeToEither "no node selection" $ snd <$> mNodeSel
+    tInputLocal = case tInput0.qualification of
+      Just _ -> Left $ "unexpected global: " <> show tInput0
+      Nothing -> pure tInput0.option
+    option = case tInput0.qualification of
+      Nothing -> Left "no qual"
+      Just q -> pure (q, tInput0.option)

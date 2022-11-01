@@ -91,9 +91,11 @@ import Data.Tuple.Extra (curry3)
 import ListT qualified (toList)
 import Optics (ifoldr, over, traverseOf, view, (^.))
 import Primer.API.NodeFlavor (NodeFlavor (..))
+import Primer.Action (mkActionInput, mkActionNoInput)
 import Primer.Action.Available (
   ActionOption,
   InputAction (..),
+  InputActionError,
   Level (..),
   NoInputAction (..),
   OfferedAction,
@@ -102,8 +104,6 @@ import Primer.Action.Available (
   actionsForDefBody,
   actionsForDefSig,
   inputAction,
-  mkActionInput,
-  mkActionNoInput,
  )
 import Primer.App (
   App,
@@ -113,11 +113,11 @@ import Primer.App (
   EvalReq (..),
   EvalResp (..),
   MutationRequest,
-  NodeType (BodyNode, SigNode),
   ProgAction,
   ProgError,
   QueryAppM,
   Question (GenerateName),
+  appProg,
   handleEvalFullRequest,
   handleEvalRequest,
   handleGetProgramRequest,
@@ -126,6 +126,7 @@ import Primer.App (
   newApp,
   progAllDefs,
   progAllTypeDefs,
+  progCxt,
   progImports,
   progModules,
   runEditAppM,
@@ -144,6 +145,7 @@ import Primer.Core (
   Kind (..),
   LVarName,
   ModuleName,
+  NodeType (..),
   PrimCon (..),
   TmVarRef (GlobalVarRef, LocalVarRef),
   TyConName,
@@ -249,6 +251,7 @@ data PrimerErr
   | UnknownDef GVarName
   | UnexpectedPrimDef GVarName
   | MiscPrimerErr Text -- TODO remove
+  | InputActionError InputActionError
   | ApplyActionError [ProgAction] ProgError -- TODO add more info? e.g. actual types from API call (ProgAction is a bit low-level)
   deriving (Show)
 
@@ -947,18 +950,12 @@ availableActions = curry3 $ logAPI (noError AvailableActions) $ \(sid, level, Se
     Nothing ->
       pure $ actionsForDef level allDefs def
     Just NodeSelection{..} -> do
-      case allDefs Map.!? def of
-        Nothing -> throwM $ UnknownDef def
-        Just (_, Def.DefPrim _) -> throwM $ UnexpectedPrimDef def
-        Just (editable, Def.DefAST ASTDef{astDefType = type_, astDefExpr = expr}) ->
-          pure $ case nodeType of
-            SigNode -> do
-              actionsForDefSig level editable id type_
-            BodyNode -> do
-              actionsForDefBody (snd <$> allTypeDefs) level editable id expr
-
-liftQuery :: MonadThrow m => App -> QueryAppM a -> m a
-liftQuery app = either (throwM . MiscPrimerErr . show) pure . ($ app) . runQueryAppM -- TODO this is a bit ugly - DRY with e.g. `liftQueryAppM`?
+      (editable, ASTDef{astDefType = type_, astDefExpr = expr}) <- findDef allDefs def
+      pure $ case nodeType of
+        SigNode -> do
+          actionsForDefSig level editable id type_
+        BodyNode -> do
+          actionsForDefBody (snd <$> allTypeDefs) level editable id expr
 
 -- TODO `logAPI`
 inputAction' ::
@@ -970,8 +967,25 @@ inputAction' ::
   PrimerM m OfferedAction
 inputAction' sid level Selection{..} action = do
   app <- getApp sid
-  allTypeDefs <- progAllTypeDefs <$> getProgram sid
-  liftQuery app $ inputAction (snd <$> allTypeDefs) level def (node <&> \s -> s.id) action
+  let prog = appProg app
+      allTypeDefs = progAllTypeDefs prog
+      allDefs = progAllDefs prog
+  def' <- snd <$> findDef allDefs def
+  either (throwM . InputActionError) pure $
+    inputAction
+      (snd <$> allTypeDefs)
+      (snd <$> allDefs)
+      def'
+      (progCxt prog)
+      level
+      (node <&> \s -> s.id)
+      action
+
+findDef :: MonadThrow m => Map GVarName (a, Def.Def) -> GVarName -> m (a, ASTDef)
+findDef allDefs def = case allDefs Map.!? def of
+  Nothing -> throwM $ UnknownDef def
+  Just (_, Def.DefPrim _) -> throwM $ UnexpectedPrimDef def
+  Just (editable, Def.DefAST d) -> pure (editable, d)
 
 -- TODO tuple would be nice, but I don't think OpenAPI supports it - find where B previously worked around
 data ApplyActionBody = ApplyActionBody

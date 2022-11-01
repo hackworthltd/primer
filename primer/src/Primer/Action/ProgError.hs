@@ -12,7 +12,6 @@ import Primer.Name (Name)
 data ProgError
   = NoDefSelected
   | DefNotFound GVarName
-  | SelectionNoID -- TODO ideally, we'll remove this
   | DefAlreadyExists GVarName
   | DefInUse GVarName
   | TypeDefIsPrim TyConName

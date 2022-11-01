@@ -44,8 +44,7 @@ import Primer.Action.Available (
   OfferedAction (..),
   SomeAction (..),
  )
-import Primer.App (NodeType (..))
-import Primer.Core (GVarName, ID (ID))
+import Primer.Core (GVarName, ID (ID), NodeType (..))
 import Primer.Database (
   LastModified (..),
   Session (Session),
