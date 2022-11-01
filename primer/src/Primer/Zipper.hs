@@ -447,6 +447,8 @@ findNodeWithParent id x = do
 findType :: forall b. Data b => ID -> Type' (Meta b) -> Maybe (Type' (Meta b))
 findType id ty = target <$> focusOnTy id ty
 
+-- TODO simpler types? e.g. always has metadata?
+
 -- | An AST node tagged with its "sort" - i.e. if it's a type or expression or binding etc.
 data SomeNode a b
   = ExprNode (Expr' (Meta a) (Meta b))

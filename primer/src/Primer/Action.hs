@@ -23,6 +23,7 @@ import Control.Monad.Fresh (MonadFresh)
 import Data.Aeson (Value)
 import Data.Generics.Product (typed)
 import Data.List (findIndex)
+import Data.List.NonEmpty qualified as NE
 import Data.Map.Strict qualified as Map
 import Data.Set qualified as Set
 import Data.Text qualified as T
@@ -80,7 +81,7 @@ import Primer.Core.DSL (
   tvar,
   var,
  )
-import Primer.Core.Transform (renameLocalVar, renameTyVar, renameTyVarExpr)
+import Primer.Core.Transform (renameLocalVar, renameTyVar, renameTyVarExpr, unfoldFun)
 import Primer.Core.Utils (forgetTypeMetadata, generateTypeIDs)
 import Primer.Def (
   ASTDef (..),
@@ -870,25 +871,11 @@ mkActionNoInput defs def defName mNodeSel = \case
     -- resulting in a new argument type. The result type is unchanged.
     -- The cursor location is also unchanged.
     -- e.g. A -> B -> C ==> A -> B -> ? -> C
-
-    -- case et of
-    --   Right t ->
-    --     let unfoldFun' :: Type' a -> (Type' a, [Type' a])
-    --         unfoldFun' = undefined
-
-    --         (_resultType, argTypes) = unfoldFun' t
-
-    --         moveToLastArg = replicate (length argTypes) (Move Child2)
-
-    --         moveBack = replicate (length argTypes) (Move Parent)
-    --      in toProgAction $ moveToLastArg <> [ConstructArrowR] <> moveBack
-    --   _ -> Left "expected TFun"
-    -- l <- case et of
-    --   Right (TFun _ a b) -> pure $ NE.length $ fst $ unfoldFun a b
-    --   _ -> Left "expected TFun"
-    -- TODO don't hardcode
-    -- it's awkward though - there's a reason this was in its own section before this commit
-    let l = 1
+    id <- id'
+    (node, _) <- maybeToEither "node not found" $ findNodeWithParent id $ astDefExpr def
+    l <- case node of
+      TypeNode (TFun _ a b) -> pure $ NE.length $ fst $ unfoldFun a b
+      _ -> Left "expected TFun"
     let moveToLastArg = replicate l (Move Child2)
         moveBack = replicate l (Move Parent)
      in toProgAction $ moveToLastArg <> [ConstructArrowR] <> moveBack
