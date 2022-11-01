@@ -17,9 +17,9 @@ import Primer.API (ApplyActionBody, Selection)
 import Primer.API qualified as API
 import Primer.Action (Level)
 import Primer.Action.Available (
+  ActionOptions,
   InputAction,
   NoInputAction,
-  OfferedAction,
   SomeAction,
  )
 import Primer.Database (
@@ -119,7 +119,7 @@ data ActionAPI mode = ActionAPI
         :> ReqBody '[JSON] Selection
         :> QueryParam' '[Required, Strict] "action" InputAction
         :> OperationId "getActionOptions"
-        :> Post '[JSON] OfferedAction
+        :> Post '[JSON] ActionOptions
   , apply :: -- NB this is only really for "action panel" actions - I suppose constructing type definitions (etc.) will have its own API, and we'll keep the old actions as a lower-level implementation detail, away from the API
       mode
         :- "apply"

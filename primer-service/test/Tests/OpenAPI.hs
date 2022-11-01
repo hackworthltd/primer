@@ -38,10 +38,10 @@ import Primer.API (
  )
 import Primer.Action.Available (
   ActionOption (..),
+  ActionOptions (..),
   InputAction (..),
   Level,
   NoInputAction (..),
-  OfferedAction (..),
   SomeAction (..),
  )
 import Primer.Core (GVarName, ID (ID), NodeType (..))
@@ -264,8 +264,8 @@ instance Arbitrary ApplyActionBody where
   arbitrary = ApplyActionBody <$> arbitrary <*> arbitrary
 instance Arbitrary ActionOption where
   arbitrary = ActionOption <$> arbitrary <*> arbitrary
-instance Arbitrary OfferedAction where
-  arbitrary = OfferedAction <$> arbitrary <*> arbitrary
+instance Arbitrary ActionOptions where
+  arbitrary = ActionOptions <$> arbitrary <*> arbitrary
 instance Arbitrary Selection where
   arbitrary = Selection <$> arbitrary <*> arbitrary
 instance Arbitrary NodeSelection where

@@ -17,7 +17,7 @@ module Primer.Action.Available (
   fromQualifiedText,
   toQualifiedText,
   ActionOption (..),
-  OfferedAction (..),
+  ActionOptions (..),
   InputActionError (..),
 ) where
 
@@ -93,7 +93,7 @@ data ActionOption = ActionOption
   deriving (FromJSON, ToJSON) via PrimerJSON ActionOption
 
 -- TODO work out what to do with this - bite the bullet and do the DB migration?
--- TODO as we only send `OfferedActionChooseQualified` _to_ the client, I guess those can be the proper types e.g. `TyConName`
+-- TODO as we only send `ActionOptionsChooseQualified` _to_ the client, I guess those can be the proper types e.g. `TyConName`
 data QualifiedText = QualifiedText
   { context :: NonEmpty Text
   , text :: Text
@@ -105,14 +105,13 @@ toQualifiedText (context, text) = QualifiedText{..}
 fromQualifiedText :: QualifiedText -> (NonEmpty Text, Text)
 fromQualifiedText QualifiedText{..} = (context, text)
 
--- TODO rename `ActionOptions` or similar? this doesn't seem right as it doesn't contain the action itself
-data OfferedAction = OfferedAction
+data ActionOptions = ActionOptions
   { options :: [ActionOption]
   , free :: Bool
   -- ^ allow free text input, rather than just selections from the list
   }
   deriving (Show, Generic)
-  deriving (ToJSON) via PrimerJSON OfferedAction
+  deriving (ToJSON) via PrimerJSON ActionOptions
 
 data SomeAction
   = NoInputAction NoInputAction
@@ -364,8 +363,8 @@ priorityInputAction = \case
   AUseSaturatedValueCon -> P.useSaturatedValueCon
   AUseTypeCon -> P.useTypeCon
 
--- getInput :: SomeAction -> (OfferedAction, [ProgAction])
--- getInput :: Level -> SomeAction -> (OfferedAction, [ProgAction])
+-- getInput :: SomeAction -> (ActionOptions, [ProgAction])
+-- getInput :: Level -> SomeAction -> (ActionOptions, [ProgAction])
 -- TODO obviously don't use `Text` for errors
 -- TODO but can we avoid errors here completely by shifting more responsibility to `ProgAction`
 -- TODO fewer args?
@@ -377,7 +376,7 @@ priorityInputAction = \case
 --   Level ->
 --   Either Expr Type ->
 --   SomeAction ->
---   (OfferedAction, Either Text [ProgAction])
+--   (ActionOptions, Either Text [ProgAction])
 
 -- TODO the `Maybe ID` here is awkward - some actions require ID's and others don't, we should reflect this in the types
 inputAction ::
@@ -388,67 +387,67 @@ inputAction ::
   Level ->
   Maybe ID ->
   InputAction ->
-  Either InputActionError OfferedAction
+  Either InputActionError ActionOptions
 inputAction typeDefs defs def cxt level mid = \case
   AMakeLambda -> do
     options <- genName' False
     -- q <- handleQuestion $ GenerateName defName (m ^. _id) (Left $ join $ m ^? _type % _Just % _chkedAt % to lamVarTy)
-    pure OfferedAction{options, free = True}
+    pure ActionOptions{options, free = True}
   AUseVar -> do
     -- TODO DRY next 10 lines or so
     (_types, locals, globals) <- varsInScope'
     let optionsLoc = flip ActionOption Nothing . unName . unLocalName . fst <$> (if level == Beginner then noFunctions locals else locals)
         optionsGlob = fromGlobal . fst <$> (if level == Beginner then noFunctions globals else globals)
         options = optionsLoc <> optionsGlob
-    pure OfferedAction{options, free = False}
+    pure ActionOptions{options, free = False}
   ASaturatedFunction -> do
     (_types, locals, globals) <- varsInScope'
     let optionsLoc = flip ActionOption Nothing . unName . unLocalName . fst <$> onlyFunctions locals
         optionsGlob = fromGlobal . fst <$> onlyFunctions globals
         options = optionsLoc <> optionsGlob
-    pure OfferedAction{options, free = False}
+    pure ActionOptions{options, free = False}
   AMakeLet -> do
     options <- genName' False
-    pure OfferedAction{options, free = True}
+    pure ActionOptions{options, free = True}
   AMakeLetRec -> do
     options <- genName' False
-    pure OfferedAction{options, free = True}
+    pure ActionOptions{options, free = True}
   AConstructBigLambda -> do
     options <- genName' True
-    pure OfferedAction{options, free = True}
+    pure ActionOptions{options, free = True}
   AUseTypeVar -> do
     (types, _locals, _globals) <- varsInScope'
     let options = flip ActionOption Nothing . unName . unLocalName . fst <$> types
-    pure OfferedAction{options, free = False}
+    pure ActionOptions{options, free = False}
   AConstructForall -> do
     options <- genName' True
-    pure OfferedAction{options, free = True}
+    pure ActionOptions{options, free = True}
   ARenameDef ->
-    pure OfferedAction{options = [], free = True}
+    pure ActionOptions{options = [], free = True}
   ARenamePatternVar -> do
     options <- genName' True
-    pure OfferedAction{options, free = True}
+    pure ActionOptions{options, free = True}
   ARenameLambda -> do
     options <- genName' False
-    pure OfferedAction{options, free = True}
+    pure ActionOptions{options, free = True}
   ARenameLAM -> do
     options <- genName' True
-    pure OfferedAction{options, free = True}
+    pure ActionOptions{options, free = True}
   ARenameLetBinding -> do
     options <- genName' False
-    pure OfferedAction{options, free = True}
+    pure ActionOptions{options, free = True}
   ARenameForall -> do
     options <- genName' True
-    pure OfferedAction{options, free = True}
+    pure ActionOptions{options, free = True}
   AUseValueCon ->
     let options = map (fromGlobal . valConName) . (if level == Beginner then noFunctionsCon else identity) . concatMap astTypeDefConstructors . mapMaybe (typeDefAST . snd) $ Map.toList typeDefs
-     in pure OfferedAction{options, free = False}
+     in pure ActionOptions{options, free = False}
   AUseSaturatedValueCon ->
     let options = map (fromGlobal . valConName) . onlyFunctionsCon . concatMap astTypeDefConstructors . mapMaybe (typeDefAST . snd) $ Map.toList typeDefs
-     in pure OfferedAction{options, free = False}
+     in pure ActionOptions{options, free = False}
   AUseTypeCon ->
     let options = fromGlobal . fst <$> Map.toList typeDefs
-     in pure OfferedAction{options, free = False}
+     in pure ActionOptions{options, free = False}
   where
     -- TODO by always passing `Nothing`, we lose good name hints - see `baseNames` (we previously passed `Just` for only AMakeLambda,AConstructBigLambda,ARenamePatternVar,ARenameLambda,ARenameLAM,ARenameLetBinding,ARenameForall)
     -- TODO there's some repetition here (EDIT: though not much, after inlining and simplifying) from `handleQuestion` (and `focusNodeDefs`, which uses too concrete an error type)

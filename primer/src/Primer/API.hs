@@ -94,11 +94,11 @@ import Primer.API.NodeFlavor (NodeFlavor (..))
 import Primer.Action (mkActionInput, mkActionNoInput)
 import Primer.Action.Available (
   ActionOption,
+  ActionOptions,
   InputAction (..),
   InputActionError,
   Level (..),
   NoInputAction (..),
-  OfferedAction,
   SomeAction (..),
   actionsForDef,
   actionsForDefBody,
@@ -964,7 +964,7 @@ inputAction' ::
   Level ->
   Selection ->
   InputAction ->
-  PrimerM m OfferedAction
+  PrimerM m ActionOptions
 inputAction' sid level Selection{..} action = do
   app <- getApp sid
   let prog = appProg app

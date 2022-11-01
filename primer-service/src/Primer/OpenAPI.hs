@@ -39,10 +39,10 @@ import Optics (
 import Primer.API (ApplyActionBody, Def, ExprTreeOpts, Module, NodeBody, NodeFlavor, NodeSelection (..), Prog, Selection (..), Tree)
 import Primer.Action.Available (
   ActionOption,
+  ActionOptions,
   InputAction (..),
   Level (..),
   NoInputAction (..),
-  OfferedAction,
   QualifiedText (..),
   SomeAction,
  )
@@ -127,7 +127,7 @@ deriving via PrimerJSON NoInputAction instance ToSchema NoInputAction
 deriving via PrimerJSON InputAction instance ToSchema InputAction
 deriving via PrimerJSON QualifiedText instance ToSchema QualifiedText
 deriving via PrimerJSON ActionOption instance ToSchema ActionOption
-deriving via PrimerJSON OfferedAction instance ToSchema OfferedAction
+deriving via PrimerJSON ActionOptions instance ToSchema ActionOptions
 deriving via PrimerJSON SomeAction instance ToSchema SomeAction
 deriving via PrimerJSON Selection instance ToSchema Selection
 deriving via PrimerJSON ApplyActionBody instance ToSchema ApplyActionBody

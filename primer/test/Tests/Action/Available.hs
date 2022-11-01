@@ -26,9 +26,9 @@ import Optics (toListOf, (%), (^..))
 import Primer.Action (ActionError (CaseBindsClash, NameCapture), mkActionInput, mkActionNoInput)
 import Primer.Action.Available (
   ActionOption (ActionOption),
+  ActionOptions (ActionOptions, free, options),
   InputAction (ARenameDef),
   NoInputAction (ADuplicateDef),
-  OfferedAction (OfferedAction, free, options),
   SomeAction (..),
   actionsForDef,
   actionsForDefBody,
@@ -238,7 +238,7 @@ tasty_available_actions_accepted = withTests 500 $
             InputAction act' -> do
               -- TODO don't just fail - log
               DefAST def' <- pure def
-              OfferedAction{options, free} <-
+              ActionOptions{options, free} <-
                 either (\e -> annotateShow e >> failure) pure $
                   inputAction
                     (map snd $ progAllTypeDefs $ appProg a)

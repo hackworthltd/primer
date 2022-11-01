@@ -229,7 +229,7 @@
         "enum": ["BodyNode", "SigNode"],
         "type": "string"
       },
-      "OfferedAction": {
+      "ActionOptions": {
         "properties": {
           "free": {
             "type": "boolean"
@@ -789,7 +789,7 @@
             "content": {
               "application/json;charset=utf-8": {
                 "schema": {
-                  "$ref": "#/components/schemas/OfferedAction"
+                  "$ref": "#/components/schemas/ActionOptions"
                 }
               }
             },
