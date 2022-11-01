@@ -181,7 +181,7 @@ unit_def_in_use =
         enumerate
         ( \l ->
             actionsForDef l defs d
-              @?= [InputAction ARenameDef, NoInputAction ADuplicateDef]
+              @?= [Input ARenameDef, NoInput ADuplicateDef]
         )
 
 tasty_available_actions_accepted :: Property
@@ -230,12 +230,12 @@ tasty_available_actions_accepted = withTests 500 $
           action <- forAllT $ Gen.element acts'
           collect action
           case action of
-            NoInputAction act' -> do
+            NoInput act' -> do
               -- TODO don't just fail - log
               DefAST def' <- pure def
               Right progActs <- pure $ mkActionNoInput (map snd $ progAllDefs $ appProg a) def' defName loc act'
               actionSucceeds (handleEditRequest progActs) a
-            InputAction act' -> do
+            Input act' -> do
               -- TODO don't just fail - log
               DefAST def' <- pure def
               ActionOptions{options, free} <-

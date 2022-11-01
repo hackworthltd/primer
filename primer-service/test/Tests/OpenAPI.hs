@@ -286,4 +286,4 @@ instance Arbitrary InputAction where
 instance Arbitrary NoInputAction where
   arbitrary = arbitraryBoundedEnum
 instance Arbitrary OfferedAction where
-  arbitrary = either NoInputAction InputAction <$> arbitrary
+  arbitrary = either NoInput Input <$> arbitrary
