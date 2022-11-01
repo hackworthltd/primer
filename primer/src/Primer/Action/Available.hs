@@ -178,23 +178,20 @@ actionsForDefBody ::
   Expr ->
   [OfferedAction]
 actionsForDefBody _ _ NonEditable _ _ = mempty
-actionsForDefBody tydefs l Editable id expr =
-  let raiseAction' = NoInput Raise
-   in prioritySort l $ case findNodeWithParent id expr of
-        Nothing -> mempty
-        Just (ExprNode e, p) ->
-          let raiseAction = case p of
-                Nothing -> [] -- at root already, cannot raise
-                Just (ExprNode (Hole _ _)) -> [] -- in a NE hole, don't offer raise (as hole will probably just be recreated)
-                _ -> [raiseAction']
-           in basicActionsForExpr tydefs l e <> raiseAction
-        Just (TypeNode t, p) ->
-          let raiseAction = case p of
-                Just (ExprNode _) -> [] -- at the root of an annotation, so cannot raise
-                _ -> [raiseAction']
-           in (basicActionsForType l t <> compoundActionsForType t)
-                <> raiseAction
-        Just (CaseBindNode _, _) -> [Input RenamePatternVar]
+actionsForDefBody tydefs l Editable id expr = prioritySort l $ case findNodeWithParent id expr of
+  Nothing -> mempty
+  Just (ExprNode e, p) ->
+    let raiseAction = case p of
+          Nothing -> [] -- at root already, cannot raise
+          Just (ExprNode (Hole _ _)) -> [] -- in a NE hole, don't offer raise (as hole will probably just be recreated)
+          _ -> [NoInput Raise]
+     in basicActionsForExpr tydefs l e <> raiseAction
+  Just (TypeNode t, p) ->
+    let raiseAction = case p of
+          Just (ExprNode _) -> [] -- at the root of an annotation, so cannot raise
+          _ -> [NoInput Raise]
+     in basicActionsForType l t <> compoundActionsForType t <> raiseAction
+  Just (CaseBindNode _, _) -> [Input RenamePatternVar]
 
 -- | Given a the type signature of a Def and the ID of a node in it,
 -- return the possible actions that can be applied to it
@@ -205,17 +202,12 @@ actionsForDefSig ::
   Type ->
   [OfferedAction]
 actionsForDefSig _ NonEditable _ _ = mempty
-actionsForDefSig l Editable id ty =
-  let raiseAction =
-        [ NoInput RaiseType
-        | id /= getID ty
-        ]
-   in prioritySort l $ case findType id ty of
-        Nothing -> mempty
-        Just t ->
-          basicActionsForType l t
-            <> compoundActionsForType t
-            <> raiseAction
+actionsForDefSig l Editable id ty = prioritySort l $ case findType id ty of
+  Nothing -> mempty
+  Just t ->
+    basicActionsForType l t
+      <> compoundActionsForType t
+      <> mwhen (id /= getID ty) [NoInput RaiseType]
 
 -- | Given an expression, determine what basic actions it supports
 -- Specific projections may provide other actions not listed here
