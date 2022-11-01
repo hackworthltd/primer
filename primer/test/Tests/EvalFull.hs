@@ -212,22 +212,35 @@ unit_tmp_4 = do
   expectTyped $ lAM "b" ((emptyHole `ann` (tvar "b" `tapp` tEmptyHole)))
           `ann` tEmptyHole
 
-
--- data T a b = C a b
--- S ∋ case C @? @B t1 t2 : T A ? of C u v -> s
---   if ? ∋ t1 , B ∋ t2 , u : A, v : ? |- S ∋ s
--- so it should reduce to
--- S ∋ let u = t1 : U; v = t2 : V in s
+-- There is a bug, that evalfull does not always preserve well-typed-ness!
+-- What is the cause of this bug?
+-- Consider some datatype
+--   data T a b = C a b
+-- and the following judgement (i.e. fraction of a well-typed expression)
+--   S ∋ case C @? @B t1 t2 : T A ? of C u v -> s
+-- which is valid if
+--     ? ∋ t1 , B ∋ t2 , u : A, v : ? |- S ∋ s
+-- How should this case-of-known-constructor reduce?
+-- Surely to something like
+--   S ∋ let u = t1 : U; v = t2 : V in s
 -- for some annotations U,V, which must satisfy
---  U ∋ t1, V ∋ t2 (so t1 : U and t2 : V are well-typed)
---  U = A, V = ? (so u : U, v : V |- S ∋ s is well-typed)
+--   U ∋ t1, V ∋ t2 (so t1 : U and t2 : V are well-typed)
+--   U = A, V = ? (so u : U, v : V |- S ∋ s is well-typed)
 -- But notice that these constraints are in conflict!
 -- We have some constraints from the constructor, and some from the type.
--- We may make constructor ones holey-er to match the one from the type (see ...) -- TODO: property test that "making inputs holier infects outputs, but keeps well-typed"
--- but not vice versa (i.e. setting V = ? is ok, but we cannot pick either U=? or U=A). -- TODO: actually, why not U=?
--- TODO: ok, so let's just take the "hole-meet" of ctor and ann
+-- We may solve this by making them holey-er to match
+--   TODO: property test that "making judgement inputs holeyer infects outputs, but keeps well-typed"
+--   (note from the future: it turns out that this is not quite true for a few reasons:
+--      - doing this may change the type of a case-scrutinee from some ADT into a hole
+--        but TC insists that branches match the expected ctors from the type (for an adt)
+--        or there are no branches (for a hole-typed scrutinee). This would have to be relaxed.
+--      - we may change a higher-kinded forall ∀a:(KType `KFun` KType)._ into a type hole
+--        but currently typeholes can only act as foralls quantified over KType
+--   )
 unit_tmp_5 :: Assertion
 unit_tmp_5 = evalTestM 0 $ do
+  -- this is currently a copy of tmp_1...
+  -- I intended to make some better test, but got distracted
   t <- generateIDs expr_tmp
   let tds = foldMap moduleTypesQualified testModules
   let globs = foldMap moduleDefsQualified testModules
