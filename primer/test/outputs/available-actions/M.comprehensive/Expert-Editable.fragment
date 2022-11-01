@@ -1,422 +1,1879 @@
 Output
     { defActions =
-        [ NoInputAction ADuplicateDef
-        , NoInputAction ADeleteDef
-        , InputAction ARenameDef
+        [ NoInput' DuplicateDef
+        , NoInput' DeleteDef
+        , Input' RenameDef
+            ( ActionOptions
+                { options = []
+                , free = True
+                }
+            )
         ]
     , bodyActions =
         [
             ( 9
             ,
-                [ NoInputAction AConvertLetToLetrec
-                , NoInputAction AConstructApp
-                , NoInputAction AConstructAPP
-                , NoInputAction AConstructAnn
-                , NoInputAction ADeleteExpr
-                , InputAction AMakeLambda
-                , InputAction AConstructBigLambda
-                , InputAction ARenameLetBinding
+                [ NoInput' ConvertLetToLetrec
+                , NoInput' ConstructApp
+                , NoInput' ConstructAPP
+                , NoInput' ConstructAnn
+                , NoInput' DeleteExpr
+                , Input' MakeLambda
+                    ( ActionOptions
+                        { options =
+                            [ ActionOption
+                                { option = "z"
+                                , qualification = Nothing
+                                }
+                            , ActionOption
+                                { option = "x1"
+                                , qualification = Nothing
+                                }
+                            , ActionOption
+                                { option = "y1"
+                                , qualification = Nothing
+                                }
+                            ]
+                        , free = True
+                        }
+                    )
+                , Input' ConstructBigLambda
+                    ( ActionOptions
+                        { options =
+                            [ ActionOption
+                                { option = "α"
+                                , qualification = Nothing
+                                }
+                            , ActionOption
+                                { option = "γ"
+                                , qualification = Nothing
+                                }
+                            , ActionOption
+                                { option = "β1"
+                                , qualification = Nothing
+                                }
+                            ]
+                        , free = True
+                        }
+                    )
+                , Input' RenameLetBinding
+                    ( ActionOptions
+                        { options =
+                            [ ActionOption
+                                { option = "z"
+                                , qualification = Nothing
+                                }
+                            , ActionOption
+                                { option = "x1"
+                                , qualification = Nothing
+                                }
+                            , ActionOption
+                                { option = "y1"
+                                , qualification = Nothing
+                                }
+                            ]
+                        , free = True
+                        }
+                    )
                 ]
             )
         ,
             ( 10
             ,
-                [ NoInputAction AMakeCase
-                , NoInputAction AConstructApp
-                , NoInputAction AConstructAPP
-                , NoInputAction AConstructAnn
-                , NoInputAction ARaise
-                , NoInputAction ADeleteExpr
-                , InputAction AMakeLambda
-                , InputAction AConstructBigLambda
+                [ NoInput' MakeCase
+                , NoInput' ConstructApp
+                , NoInput' ConstructAPP
+                , NoInput' ConstructAnn
+                , NoInput' Raise
+                , NoInput' DeleteExpr
+                , Input' MakeLambda
+                    ( ActionOptions
+                        { options =
+                            [ ActionOption
+                                { option = "x"
+                                , qualification = Nothing
+                                }
+                            , ActionOption
+                                { option = "y"
+                                , qualification = Nothing
+                                }
+                            , ActionOption
+                                { option = "z"
+                                , qualification = Nothing
+                                }
+                            ]
+                        , free = True
+                        }
+                    )
+                , Input' ConstructBigLambda
+                    ( ActionOptions
+                        { options =
+                            [ ActionOption
+                                { option = "α"
+                                , qualification = Nothing
+                                }
+                            , ActionOption
+                                { option = "β"
+                                , qualification = Nothing
+                                }
+                            , ActionOption
+                                { option = "γ"
+                                , qualification = Nothing
+                                }
+                            ]
+                        , free = True
+                        }
+                    )
                 ]
             )
         ,
             ( 11
             ,
-                [ NoInputAction AConstructApp
-                , NoInputAction AConstructAPP
-                , NoInputAction AConstructAnn
-                , NoInputAction ARaise
-                , NoInputAction ADeleteExpr
-                , InputAction AMakeLambda
-                , InputAction AConstructBigLambda
-                , InputAction ARenameLetBinding
+                [ NoInput' ConstructApp
+                , NoInput' ConstructAPP
+                , NoInput' ConstructAnn
+                , NoInput' Raise
+                , NoInput' DeleteExpr
+                , Input' MakeLambda
+                    ( ActionOptions
+                        { options =
+                            [ ActionOption
+                                { option = "z"
+                                , qualification = Nothing
+                                }
+                            , ActionOption
+                                { option = "x1"
+                                , qualification = Nothing
+                                }
+                            , ActionOption
+                                { option = "y1"
+                                , qualification = Nothing
+                                }
+                            ]
+                        , free = True
+                        }
+                    )
+                , Input' ConstructBigLambda
+                    ( ActionOptions
+                        { options =
+                            [ ActionOption
+                                { option = "α"
+                                , qualification = Nothing
+                                }
+                            , ActionOption
+                                { option = "γ"
+                                , qualification = Nothing
+                                }
+                            , ActionOption
+                                { option = "β1"
+                                , qualification = Nothing
+                                }
+                            ]
+                        , free = True
+                        }
+                    )
+                , Input' RenameLetBinding
+                    ( ActionOptions
+                        { options =
+                            [ ActionOption
+                                { option = "z"
+                                , qualification = Nothing
+                                }
+                            , ActionOption
+                                { option = "x1"
+                                , qualification = Nothing
+                                }
+                            , ActionOption
+                                { option = "y1"
+                                , qualification = Nothing
+                                }
+                            ]
+                        , free = True
+                        }
+                    )
                 ]
             )
         ,
             ( 12
             ,
-                [ NoInputAction AMakeCase
-                , NoInputAction AConstructApp
-                , NoInputAction AConstructAPP
-                , NoInputAction AConstructAnn
-                , NoInputAction ARaise
-                , NoInputAction ADeleteExpr
-                , InputAction AMakeLambda
-                , InputAction AConstructBigLambda
+                [ NoInput' MakeCase
+                , NoInput' ConstructApp
+                , NoInput' ConstructAPP
+                , NoInput' ConstructAnn
+                , NoInput' Raise
+                , NoInput' DeleteExpr
+                , Input' MakeLambda
+                    ( ActionOptions
+                        { options =
+                            [ ActionOption
+                                { option = "z"
+                                , qualification = Nothing
+                                }
+                            , ActionOption
+                                { option = "x1"
+                                , qualification = Nothing
+                                }
+                            , ActionOption
+                                { option = "y1"
+                                , qualification = Nothing
+                                }
+                            ]
+                        , free = True
+                        }
+                    )
+                , Input' ConstructBigLambda
+                    ( ActionOptions
+                        { options =
+                            [ ActionOption
+                                { option = "α"
+                                , qualification = Nothing
+                                }
+                            , ActionOption
+                                { option = "β"
+                                , qualification = Nothing
+                                }
+                            , ActionOption
+                                { option = "γ"
+                                , qualification = Nothing
+                                }
+                            ]
+                        , free = True
+                        }
+                    )
                 ]
             )
         ,
             ( 13
             ,
-                [ NoInputAction AMakeCase
-                , NoInputAction AConstructApp
-                , NoInputAction AConstructAPP
-                , NoInputAction AConstructAnn
-                , NoInputAction AFinishHole
-                , NoInputAction ARaise
-                , NoInputAction ADeleteExpr
-                , InputAction AMakeLambda
-                , InputAction AConstructBigLambda
+                [ NoInput' MakeCase
+                , NoInput' ConstructApp
+                , NoInput' ConstructAPP
+                , NoInput' ConstructAnn
+                , NoInput' FinishHole
+                , NoInput' Raise
+                , NoInput' DeleteExpr
+                , Input' MakeLambda
+                    ( ActionOptions
+                        { options =
+                            [ ActionOption
+                                { option = "z"
+                                , qualification = Nothing
+                                }
+                            , ActionOption
+                                { option = "x1"
+                                , qualification = Nothing
+                                }
+                            , ActionOption
+                                { option = "y1"
+                                , qualification = Nothing
+                                }
+                            ]
+                        , free = True
+                        }
+                    )
+                , Input' ConstructBigLambda
+                    ( ActionOptions
+                        { options =
+                            [ ActionOption
+                                { option = "α"
+                                , qualification = Nothing
+                                }
+                            , ActionOption
+                                { option = "β"
+                                , qualification = Nothing
+                                }
+                            , ActionOption
+                                { option = "γ"
+                                , qualification = Nothing
+                                }
+                            ]
+                        , free = True
+                        }
+                    )
                 ]
             )
         ,
             ( 14
             ,
-                [ NoInputAction AConstructApp
-                , NoInputAction AConstructAPP
-                , NoInputAction AConstructAnn
-                , NoInputAction ADeleteExpr
-                , InputAction AMakeLambda
-                , InputAction AConstructBigLambda
+                [ NoInput' ConstructApp
+                , NoInput' ConstructAPP
+                , NoInput' ConstructAnn
+                , NoInput' DeleteExpr
+                , Input' MakeLambda
+                    ( ActionOptions
+                        { options =
+                            [ ActionOption
+                                { option = "z"
+                                , qualification = Nothing
+                                }
+                            , ActionOption
+                                { option = "x1"
+                                , qualification = Nothing
+                                }
+                            , ActionOption
+                                { option = "y1"
+                                , qualification = Nothing
+                                }
+                            ]
+                        , free = True
+                        }
+                    )
+                , Input' ConstructBigLambda
+                    ( ActionOptions
+                        { options =
+                            [ ActionOption
+                                { option = "α"
+                                , qualification = Nothing
+                                }
+                            , ActionOption
+                                { option = "β"
+                                , qualification = Nothing
+                                }
+                            , ActionOption
+                                { option = "γ"
+                                , qualification = Nothing
+                                }
+                            ]
+                        , free = True
+                        }
+                    )
                 ]
             )
         ,
             ( 15
             ,
-                [ NoInputAction AMakeCase
-                , NoInputAction AConstructApp
-                , NoInputAction AConstructAPP
-                , NoInputAction AConstructAnn
-                , NoInputAction AEnterHole
-                , NoInputAction ARaise
-                , InputAction AMakeLambda
-                , InputAction AUseVar
-                , InputAction ASaturatedFunction
-                , InputAction AMakeLet
-                , InputAction AMakeLetRec
-                , InputAction AConstructBigLambda
-                , InputAction AUseValueCon
-                , InputAction AUseSaturatedValueCon
+                [ NoInput' MakeCase
+                , NoInput' ConstructApp
+                , NoInput' ConstructAPP
+                , NoInput' ConstructAnn
+                , NoInput' EnterHole
+                , NoInput' Raise
+                , Input' MakeLambda
+                    ( ActionOptions
+                        { options =
+                            [ ActionOption
+                                { option = "z"
+                                , qualification = Nothing
+                                }
+                            , ActionOption
+                                { option = "x1"
+                                , qualification = Nothing
+                                }
+                            , ActionOption
+                                { option = "y1"
+                                , qualification = Nothing
+                                }
+                            ]
+                        , free = True
+                        }
+                    )
+                , Input' UseVar
+                    ( ActionOptions
+                        { options =
+                            [ ActionOption
+                                { option = "x"
+                                , qualification = Nothing
+                                }
+                            , ActionOption
+                                { option = "y"
+                                , qualification = Nothing
+                                }
+                            , ActionOption
+                                { option = "comprehensive"
+                                , qualification = Just
+                                    ( "M" :| [] )
+                                }
+                            ]
+                        , free = False
+                        }
+                    )
+                , Input' SaturatedFunction
+                    ( ActionOptions
+                        { options =
+                            [ ActionOption
+                                { option = "comprehensive"
+                                , qualification = Just
+                                    ( "M" :| [] )
+                                }
+                            ]
+                        , free = False
+                        }
+                    )
+                , Input' MakeLet
+                    ( ActionOptions
+                        { options =
+                            [ ActionOption
+                                { option = "z"
+                                , qualification = Nothing
+                                }
+                            , ActionOption
+                                { option = "x1"
+                                , qualification = Nothing
+                                }
+                            , ActionOption
+                                { option = "y1"
+                                , qualification = Nothing
+                                }
+                            ]
+                        , free = True
+                        }
+                    )
+                , Input' MakeLetRec
+                    ( ActionOptions
+                        { options =
+                            [ ActionOption
+                                { option = "z"
+                                , qualification = Nothing
+                                }
+                            , ActionOption
+                                { option = "x1"
+                                , qualification = Nothing
+                                }
+                            , ActionOption
+                                { option = "y1"
+                                , qualification = Nothing
+                                }
+                            ]
+                        , free = True
+                        }
+                    )
+                , Input' ConstructBigLambda
+                    ( ActionOptions
+                        { options =
+                            [ ActionOption
+                                { option = "α"
+                                , qualification = Nothing
+                                }
+                            , ActionOption
+                                { option = "β"
+                                , qualification = Nothing
+                                }
+                            , ActionOption
+                                { option = "γ"
+                                , qualification = Nothing
+                                }
+                            ]
+                        , free = True
+                        }
+                    )
+                , Input' UseValueCon
+                    ( ActionOptions
+                        { options =
+                            [ ActionOption
+                                { option = "True"
+                                , qualification = Just
+                                    ( "Builtins" :| [] )
+                                }
+                            , ActionOption
+                                { option = "False"
+                                , qualification = Just
+                                    ( "Builtins" :| [] )
+                                }
+                            , ActionOption
+                                { option = "Left"
+                                , qualification = Just
+                                    ( "Builtins" :| [] )
+                                }
+                            , ActionOption
+                                { option = "Right"
+                                , qualification = Just
+                                    ( "Builtins" :| [] )
+                                }
+                            , ActionOption
+                                { option = "Nil"
+                                , qualification = Just
+                                    ( "Builtins" :| [] )
+                                }
+                            , ActionOption
+                                { option = "Cons"
+                                , qualification = Just
+                                    ( "Builtins" :| [] )
+                                }
+                            , ActionOption
+                                { option = "Nothing"
+                                , qualification = Just
+                                    ( "Builtins" :| [] )
+                                }
+                            , ActionOption
+                                { option = "Just"
+                                , qualification = Just
+                                    ( "Builtins" :| [] )
+                                }
+                            , ActionOption
+                                { option = "Zero"
+                                , qualification = Just
+                                    ( "Builtins" :| [] )
+                                }
+                            , ActionOption
+                                { option = "Succ"
+                                , qualification = Just
+                                    ( "Builtins" :| [] )
+                                }
+                            , ActionOption
+                                { option = "MakePair"
+                                , qualification = Just
+                                    ( "Builtins" :| [] )
+                                }
+                            ]
+                        , free = False
+                        }
+                    )
+                , Input' UseSaturatedValueCon
+                    ( ActionOptions
+                        { options =
+                            [ ActionOption
+                                { option = "Left"
+                                , qualification = Just
+                                    ( "Builtins" :| [] )
+                                }
+                            , ActionOption
+                                { option = "Right"
+                                , qualification = Just
+                                    ( "Builtins" :| [] )
+                                }
+                            , ActionOption
+                                { option = "Cons"
+                                , qualification = Just
+                                    ( "Builtins" :| [] )
+                                }
+                            , ActionOption
+                                { option = "Just"
+                                , qualification = Just
+                                    ( "Builtins" :| [] )
+                                }
+                            , ActionOption
+                                { option = "Succ"
+                                , qualification = Just
+                                    ( "Builtins" :| [] )
+                                }
+                            , ActionOption
+                                { option = "MakePair"
+                                , qualification = Just
+                                    ( "Builtins" :| [] )
+                                }
+                            ]
+                        , free = False
+                        }
+                    )
                 ]
             )
         ,
             ( 18
             ,
-                [ NoInputAction AConstructApp
-                , NoInputAction AConstructAPP
-                , NoInputAction ARemoveAnn
-                , NoInputAction ARaise
-                , NoInputAction ADeleteExpr
-                , InputAction AMakeLambda
-                , InputAction AConstructBigLambda
+                [ NoInput' ConstructApp
+                , NoInput' ConstructAPP
+                , NoInput' RemoveAnn
+                , NoInput' Raise
+                , NoInput' DeleteExpr
+                , Input' MakeLambda
+                    ( ActionOptions
+                        { options =
+                            [ ActionOption
+                                { option = "z"
+                                , qualification = Nothing
+                                }
+                            , ActionOption
+                                { option = "x1"
+                                , qualification = Nothing
+                                }
+                            , ActionOption
+                                { option = "y1"
+                                , qualification = Nothing
+                                }
+                            ]
+                        , free = True
+                        }
+                    )
+                , Input' ConstructBigLambda
+                    ( ActionOptions
+                        { options =
+                            [ ActionOption
+                                { option = "α"
+                                , qualification = Nothing
+                                }
+                            , ActionOption
+                                { option = "γ"
+                                , qualification = Nothing
+                                }
+                            , ActionOption
+                                { option = "β1"
+                                , qualification = Nothing
+                                }
+                            ]
+                        , free = True
+                        }
+                    )
                 ]
             )
         ,
             ( 19
             ,
-                [ NoInputAction AConstructApp
-                , NoInputAction AConstructAPP
-                , NoInputAction AConstructAnn
-                , NoInputAction ARaise
-                , NoInputAction ADeleteExpr
-                , InputAction AMakeLambda
-                , InputAction AConstructBigLambda
-                , InputAction ARenameLambda
+                [ NoInput' ConstructApp
+                , NoInput' ConstructAPP
+                , NoInput' ConstructAnn
+                , NoInput' Raise
+                , NoInput' DeleteExpr
+                , Input' MakeLambda
+                    ( ActionOptions
+                        { options =
+                            [ ActionOption
+                                { option = "z"
+                                , qualification = Nothing
+                                }
+                            , ActionOption
+                                { option = "x1"
+                                , qualification = Nothing
+                                }
+                            , ActionOption
+                                { option = "y1"
+                                , qualification = Nothing
+                                }
+                            ]
+                        , free = True
+                        }
+                    )
+                , Input' ConstructBigLambda
+                    ( ActionOptions
+                        { options =
+                            [ ActionOption
+                                { option = "α"
+                                , qualification = Nothing
+                                }
+                            , ActionOption
+                                { option = "γ"
+                                , qualification = Nothing
+                                }
+                            , ActionOption
+                                { option = "β1"
+                                , qualification = Nothing
+                                }
+                            ]
+                        , free = True
+                        }
+                    )
+                , Input' RenameLambda
+                    ( ActionOptions
+                        { options =
+                            [ ActionOption
+                                { option = "z"
+                                , qualification = Nothing
+                                }
+                            , ActionOption
+                                { option = "x1"
+                                , qualification = Nothing
+                                }
+                            , ActionOption
+                                { option = "y1"
+                                , qualification = Nothing
+                                }
+                            ]
+                        , free = True
+                        }
+                    )
                 ]
             )
         ,
             ( 20
             ,
-                [ NoInputAction AConstructApp
-                , NoInputAction AConstructAPP
-                , NoInputAction AConstructAnn
-                , NoInputAction ARaise
-                , NoInputAction ADeleteExpr
-                , InputAction AMakeLambda
-                , InputAction AConstructBigLambda
-                , InputAction ARenameLAM
+                [ NoInput' ConstructApp
+                , NoInput' ConstructAPP
+                , NoInput' ConstructAnn
+                , NoInput' Raise
+                , NoInput' DeleteExpr
+                , Input' MakeLambda
+                    ( ActionOptions
+                        { options =
+                            [ ActionOption
+                                { option = "z"
+                                , qualification = Nothing
+                                }
+                            , ActionOption
+                                { option = "x1"
+                                , qualification = Nothing
+                                }
+                            , ActionOption
+                                { option = "y1"
+                                , qualification = Nothing
+                                }
+                            ]
+                        , free = True
+                        }
+                    )
+                , Input' ConstructBigLambda
+                    ( ActionOptions
+                        { options =
+                            [ ActionOption
+                                { option = "α"
+                                , qualification = Nothing
+                                }
+                            , ActionOption
+                                { option = "γ"
+                                , qualification = Nothing
+                                }
+                            , ActionOption
+                                { option = "β1"
+                                , qualification = Nothing
+                                }
+                            ]
+                        , free = True
+                        }
+                    )
+                , Input' RenameLAM
+                    ( ActionOptions
+                        { options =
+                            [ ActionOption
+                                { option = "α"
+                                , qualification = Nothing
+                                }
+                            , ActionOption
+                                { option = "γ"
+                                , qualification = Nothing
+                                }
+                            , ActionOption
+                                { option = "β1"
+                                , qualification = Nothing
+                                }
+                            ]
+                        , free = True
+                        }
+                    )
                 ]
             )
         ,
             ( 21
             ,
-                [ NoInputAction AMakeCase
-                , NoInputAction AConstructApp
-                , NoInputAction AConstructAPP
-                , NoInputAction AConstructAnn
-                , NoInputAction ARaise
-                , NoInputAction ADeleteExpr
-                , InputAction AMakeLambda
-                , InputAction AConstructBigLambda
+                [ NoInput' MakeCase
+                , NoInput' ConstructApp
+                , NoInput' ConstructAPP
+                , NoInput' ConstructAnn
+                , NoInput' Raise
+                , NoInput' DeleteExpr
+                , Input' MakeLambda
+                    ( ActionOptions
+                        { options =
+                            [ ActionOption
+                                { option = "z"
+                                , qualification = Nothing
+                                }
+                            , ActionOption
+                                { option = "x1"
+                                , qualification = Nothing
+                                }
+                            , ActionOption
+                                { option = "y1"
+                                , qualification = Nothing
+                                }
+                            ]
+                        , free = True
+                        }
+                    )
+                , Input' ConstructBigLambda
+                    ( ActionOptions
+                        { options =
+                            [ ActionOption
+                                { option = "α"
+                                , qualification = Nothing
+                                }
+                            , ActionOption
+                                { option = "γ"
+                                , qualification = Nothing
+                                }
+                            , ActionOption
+                                { option = "β1"
+                                , qualification = Nothing
+                                }
+                            ]
+                        , free = True
+                        }
+                    )
                 ]
             )
         ,
             ( 22
             ,
-                [ NoInputAction AConstructApp
-                , NoInputAction AConstructAPP
-                , NoInputAction AConstructAnn
-                , NoInputAction ARaise
-                , NoInputAction ADeleteExpr
-                , InputAction AMakeLambda
-                , InputAction AConstructBigLambda
+                [ NoInput' ConstructApp
+                , NoInput' ConstructAPP
+                , NoInput' ConstructAnn
+                , NoInput' Raise
+                , NoInput' DeleteExpr
+                , Input' MakeLambda
+                    ( ActionOptions
+                        { options =
+                            [ ActionOption
+                                { option = "z"
+                                , qualification = Nothing
+                                }
+                            , ActionOption
+                                { option = "x1"
+                                , qualification = Nothing
+                                }
+                            , ActionOption
+                                { option = "y1"
+                                , qualification = Nothing
+                                }
+                            ]
+                        , free = True
+                        }
+                    )
+                , Input' ConstructBigLambda
+                    ( ActionOptions
+                        { options =
+                            [ ActionOption
+                                { option = "α"
+                                , qualification = Nothing
+                                }
+                            , ActionOption
+                                { option = "γ"
+                                , qualification = Nothing
+                                }
+                            , ActionOption
+                                { option = "β1"
+                                , qualification = Nothing
+                                }
+                            ]
+                        , free = True
+                        }
+                    )
                 ]
             )
         ,
             ( 23
             ,
-                [ NoInputAction AConstructApp
-                , NoInputAction AConstructAPP
-                , NoInputAction AConstructAnn
-                , NoInputAction ARaise
-                , NoInputAction ADeleteExpr
-                , InputAction AMakeLambda
-                , InputAction AConstructBigLambda
+                [ NoInput' ConstructApp
+                , NoInput' ConstructAPP
+                , NoInput' ConstructAnn
+                , NoInput' Raise
+                , NoInput' DeleteExpr
+                , Input' MakeLambda
+                    ( ActionOptions
+                        { options =
+                            [ ActionOption
+                                { option = "z"
+                                , qualification = Nothing
+                                }
+                            , ActionOption
+                                { option = "x1"
+                                , qualification = Nothing
+                                }
+                            , ActionOption
+                                { option = "y1"
+                                , qualification = Nothing
+                                }
+                            ]
+                        , free = True
+                        }
+                    )
+                , Input' ConstructBigLambda
+                    ( ActionOptions
+                        { options =
+                            [ ActionOption
+                                { option = "α"
+                                , qualification = Nothing
+                                }
+                            , ActionOption
+                                { option = "γ"
+                                , qualification = Nothing
+                                }
+                            , ActionOption
+                                { option = "β1"
+                                , qualification = Nothing
+                                }
+                            ]
+                        , free = True
+                        }
+                    )
                 ]
             )
         ,
             ( 24
             ,
-                [ NoInputAction AConstructApp
-                , NoInputAction AConstructAPP
-                , NoInputAction AConstructAnn
-                , NoInputAction ARaise
-                , NoInputAction ADeleteExpr
-                , InputAction AMakeLambda
-                , InputAction AConstructBigLambda
+                [ NoInput' ConstructApp
+                , NoInput' ConstructAPP
+                , NoInput' ConstructAnn
+                , NoInput' Raise
+                , NoInput' DeleteExpr
+                , Input' MakeLambda
+                    ( ActionOptions
+                        { options =
+                            [ ActionOption
+                                { option = "z"
+                                , qualification = Nothing
+                                }
+                            , ActionOption
+                                { option = "x1"
+                                , qualification = Nothing
+                                }
+                            , ActionOption
+                                { option = "y1"
+                                , qualification = Nothing
+                                }
+                            ]
+                        , free = True
+                        }
+                    )
+                , Input' ConstructBigLambda
+                    ( ActionOptions
+                        { options =
+                            [ ActionOption
+                                { option = "α"
+                                , qualification = Nothing
+                                }
+                            , ActionOption
+                                { option = "γ"
+                                , qualification = Nothing
+                                }
+                            , ActionOption
+                                { option = "β1"
+                                , qualification = Nothing
+                                }
+                            ]
+                        , free = True
+                        }
+                    )
                 ]
             )
         ,
             ( 27
             ,
-                [ NoInputAction AConstructApp
-                , NoInputAction AConstructAPP
-                , NoInputAction AConstructAnn
-                , NoInputAction ARaise
-                , NoInputAction ADeleteExpr
-                , InputAction AMakeLambda
-                , InputAction AConstructBigLambda
+                [ NoInput' ConstructApp
+                , NoInput' ConstructAPP
+                , NoInput' ConstructAnn
+                , NoInput' Raise
+                , NoInput' DeleteExpr
+                , Input' MakeLambda
+                    ( ActionOptions
+                        { options =
+                            [ ActionOption
+                                { option = "z"
+                                , qualification = Nothing
+                                }
+                            , ActionOption
+                                { option = "x1"
+                                , qualification = Nothing
+                                }
+                            , ActionOption
+                                { option = "y1"
+                                , qualification = Nothing
+                                }
+                            ]
+                        , free = True
+                        }
+                    )
+                , Input' ConstructBigLambda
+                    ( ActionOptions
+                        { options =
+                            [ ActionOption
+                                { option = "α"
+                                , qualification = Nothing
+                                }
+                            , ActionOption
+                                { option = "γ"
+                                , qualification = Nothing
+                                }
+                            , ActionOption
+                                { option = "β1"
+                                , qualification = Nothing
+                                }
+                            ]
+                        , free = True
+                        }
+                    )
                 ]
             )
         ,
             ( 28
             ,
-                [ NoInputAction AMakeCase
-                , NoInputAction AConstructApp
-                , NoInputAction AConstructAPP
-                , NoInputAction AConstructAnn
-                , NoInputAction ARaise
-                , NoInputAction ADeleteExpr
-                , InputAction AMakeLambda
-                , InputAction AConstructBigLambda
+                [ NoInput' MakeCase
+                , NoInput' ConstructApp
+                , NoInput' ConstructAPP
+                , NoInput' ConstructAnn
+                , NoInput' Raise
+                , NoInput' DeleteExpr
+                , Input' MakeLambda
+                    ( ActionOptions
+                        { options =
+                            [ ActionOption
+                                { option = "z"
+                                , qualification = Nothing
+                                }
+                            , ActionOption
+                                { option = "x1"
+                                , qualification = Nothing
+                                }
+                            , ActionOption
+                                { option = "y1"
+                                , qualification = Nothing
+                                }
+                            ]
+                        , free = True
+                        }
+                    )
+                , Input' ConstructBigLambda
+                    ( ActionOptions
+                        { options =
+                            [ ActionOption
+                                { option = "α"
+                                , qualification = Nothing
+                                }
+                            , ActionOption
+                                { option = "γ"
+                                , qualification = Nothing
+                                }
+                            , ActionOption
+                                { option = "β1"
+                                , qualification = Nothing
+                                }
+                            ]
+                        , free = True
+                        }
+                    )
                 ]
             )
         ,
             ( 29
             ,
-                [ NoInputAction AMakeCase
-                , NoInputAction AConstructApp
-                , NoInputAction AConstructAPP
-                , NoInputAction AConstructAnn
-                , NoInputAction ARaise
-                , NoInputAction ADeleteExpr
-                , InputAction AMakeLambda
-                , InputAction AConstructBigLambda
+                [ NoInput' MakeCase
+                , NoInput' ConstructApp
+                , NoInput' ConstructAPP
+                , NoInput' ConstructAnn
+                , NoInput' Raise
+                , NoInput' DeleteExpr
+                , Input' MakeLambda
+                    ( ActionOptions
+                        { options =
+                            [ ActionOption
+                                { option = "z"
+                                , qualification = Nothing
+                                }
+                            , ActionOption
+                                { option = "x1"
+                                , qualification = Nothing
+                                }
+                            , ActionOption
+                                { option = "y1"
+                                , qualification = Nothing
+                                }
+                            ]
+                        , free = True
+                        }
+                    )
+                , Input' ConstructBigLambda
+                    ( ActionOptions
+                        { options =
+                            [ ActionOption
+                                { option = "α"
+                                , qualification = Nothing
+                                }
+                            , ActionOption
+                                { option = "γ"
+                                , qualification = Nothing
+                                }
+                            , ActionOption
+                                { option = "β1"
+                                , qualification = Nothing
+                                }
+                            ]
+                        , free = True
+                        }
+                    )
                 ]
             )
         ,
             ( 30
-            , [ InputAction ARenamePatternVar ]
+            ,
+                [ Input' RenamePatternVar
+                    ( ActionOptions
+                        { options =
+                            [ ActionOption
+                                { option = "α"
+                                , qualification = Nothing
+                                }
+                            , ActionOption
+                                { option = "γ"
+                                , qualification = Nothing
+                                }
+                            , ActionOption
+                                { option = "β1"
+                                , qualification = Nothing
+                                }
+                            ]
+                        , free = True
+                        }
+                    )
+                ]
             )
         ,
             ( 31
             ,
-                [ NoInputAction AMakeCase
-                , NoInputAction AConstructApp
-                , NoInputAction AConstructAPP
-                , NoInputAction AConstructAnn
-                , NoInputAction ARaise
-                , NoInputAction ADeleteExpr
-                , InputAction AMakeLambda
-                , InputAction AConstructBigLambda
+                [ NoInput' MakeCase
+                , NoInput' ConstructApp
+                , NoInput' ConstructAPP
+                , NoInput' ConstructAnn
+                , NoInput' Raise
+                , NoInput' DeleteExpr
+                , Input' MakeLambda
+                    ( ActionOptions
+                        { options =
+                            [ ActionOption
+                                { option = "z"
+                                , qualification = Nothing
+                                }
+                            , ActionOption
+                                { option = "x1"
+                                , qualification = Nothing
+                                }
+                            , ActionOption
+                                { option = "y1"
+                                , qualification = Nothing
+                                }
+                            ]
+                        , free = True
+                        }
+                    )
+                , Input' ConstructBigLambda
+                    ( ActionOptions
+                        { options =
+                            [ ActionOption
+                                { option = "α"
+                                , qualification = Nothing
+                                }
+                            , ActionOption
+                                { option = "γ"
+                                , qualification = Nothing
+                                }
+                            , ActionOption
+                                { option = "β1"
+                                , qualification = Nothing
+                                }
+                            ]
+                        , free = True
+                        }
+                    )
                 ]
             )
         ,
             ( 32
             ,
-                [ NoInputAction AMakeCase
-                , NoInputAction AConstructApp
-                , NoInputAction AConstructAPP
-                , NoInputAction AConstructAnn
-                , NoInputAction ARaise
-                , NoInputAction ADeleteExpr
-                , InputAction AMakeLambda
-                , InputAction AConstructBigLambda
+                [ NoInput' MakeCase
+                , NoInput' ConstructApp
+                , NoInput' ConstructAPP
+                , NoInput' ConstructAnn
+                , NoInput' Raise
+                , NoInput' DeleteExpr
+                , Input' MakeLambda
+                    ( ActionOptions
+                        { options =
+                            [ ActionOption
+                                { option = "z"
+                                , qualification = Nothing
+                                }
+                            , ActionOption
+                                { option = "x1"
+                                , qualification = Nothing
+                                }
+                            , ActionOption
+                                { option = "y1"
+                                , qualification = Nothing
+                                }
+                            ]
+                        , free = True
+                        }
+                    )
+                , Input' ConstructBigLambda
+                    ( ActionOptions
+                        { options =
+                            [ ActionOption
+                                { option = "α"
+                                , qualification = Nothing
+                                }
+                            , ActionOption
+                                { option = "γ"
+                                , qualification = Nothing
+                                }
+                            , ActionOption
+                                { option = "β1"
+                                , qualification = Nothing
+                                }
+                            ]
+                        , free = True
+                        }
+                    )
                 ]
             )
         ,
             ( 33
             ,
-                [ NoInputAction AMakeCase
-                , NoInputAction AConstructApp
-                , NoInputAction AConstructAPP
-                , NoInputAction AConstructAnn
-                , NoInputAction AEnterHole
-                , NoInputAction ARaise
-                , InputAction AMakeLambda
-                , InputAction AUseVar
-                , InputAction ASaturatedFunction
-                , InputAction AMakeLet
-                , InputAction AMakeLetRec
-                , InputAction AConstructBigLambda
-                , InputAction AUseValueCon
-                , InputAction AUseSaturatedValueCon
+                [ NoInput' MakeCase
+                , NoInput' ConstructApp
+                , NoInput' ConstructAPP
+                , NoInput' ConstructAnn
+                , NoInput' EnterHole
+                , NoInput' Raise
+                , Input' MakeLambda
+                    ( ActionOptions
+                        { options =
+                            [ ActionOption
+                                { option = "z"
+                                , qualification = Nothing
+                                }
+                            , ActionOption
+                                { option = "x1"
+                                , qualification = Nothing
+                                }
+                            , ActionOption
+                                { option = "y1"
+                                , qualification = Nothing
+                                }
+                            ]
+                        , free = True
+                        }
+                    )
+                , Input' UseVar
+                    ( ActionOptions
+                        { options =
+                            [ ActionOption
+                                { option = "x"
+                                , qualification = Nothing
+                                }
+                            , ActionOption
+                                { option = "y"
+                                , qualification = Nothing
+                                }
+                            , ActionOption
+                                { option = "i"
+                                , qualification = Nothing
+                                }
+                            , ActionOption
+                                { option = "n"
+                                , qualification = Nothing
+                                }
+                            , ActionOption
+                                { option = "comprehensive"
+                                , qualification = Just
+                                    ( "M" :| [] )
+                                }
+                            ]
+                        , free = False
+                        }
+                    )
+                , Input' SaturatedFunction
+                    ( ActionOptions
+                        { options =
+                            [ ActionOption
+                                { option = "comprehensive"
+                                , qualification = Just
+                                    ( "M" :| [] )
+                                }
+                            ]
+                        , free = False
+                        }
+                    )
+                , Input' MakeLet
+                    ( ActionOptions
+                        { options =
+                            [ ActionOption
+                                { option = "z"
+                                , qualification = Nothing
+                                }
+                            , ActionOption
+                                { option = "x1"
+                                , qualification = Nothing
+                                }
+                            , ActionOption
+                                { option = "y1"
+                                , qualification = Nothing
+                                }
+                            ]
+                        , free = True
+                        }
+                    )
+                , Input' MakeLetRec
+                    ( ActionOptions
+                        { options =
+                            [ ActionOption
+                                { option = "z"
+                                , qualification = Nothing
+                                }
+                            , ActionOption
+                                { option = "x1"
+                                , qualification = Nothing
+                                }
+                            , ActionOption
+                                { option = "y1"
+                                , qualification = Nothing
+                                }
+                            ]
+                        , free = True
+                        }
+                    )
+                , Input' ConstructBigLambda
+                    ( ActionOptions
+                        { options =
+                            [ ActionOption
+                                { option = "α"
+                                , qualification = Nothing
+                                }
+                            , ActionOption
+                                { option = "γ"
+                                , qualification = Nothing
+                                }
+                            , ActionOption
+                                { option = "β1"
+                                , qualification = Nothing
+                                }
+                            ]
+                        , free = True
+                        }
+                    )
+                , Input' UseValueCon
+                    ( ActionOptions
+                        { options =
+                            [ ActionOption
+                                { option = "True"
+                                , qualification = Just
+                                    ( "Builtins" :| [] )
+                                }
+                            , ActionOption
+                                { option = "False"
+                                , qualification = Just
+                                    ( "Builtins" :| [] )
+                                }
+                            , ActionOption
+                                { option = "Left"
+                                , qualification = Just
+                                    ( "Builtins" :| [] )
+                                }
+                            , ActionOption
+                                { option = "Right"
+                                , qualification = Just
+                                    ( "Builtins" :| [] )
+                                }
+                            , ActionOption
+                                { option = "Nil"
+                                , qualification = Just
+                                    ( "Builtins" :| [] )
+                                }
+                            , ActionOption
+                                { option = "Cons"
+                                , qualification = Just
+                                    ( "Builtins" :| [] )
+                                }
+                            , ActionOption
+                                { option = "Nothing"
+                                , qualification = Just
+                                    ( "Builtins" :| [] )
+                                }
+                            , ActionOption
+                                { option = "Just"
+                                , qualification = Just
+                                    ( "Builtins" :| [] )
+                                }
+                            , ActionOption
+                                { option = "Zero"
+                                , qualification = Just
+                                    ( "Builtins" :| [] )
+                                }
+                            , ActionOption
+                                { option = "Succ"
+                                , qualification = Just
+                                    ( "Builtins" :| [] )
+                                }
+                            , ActionOption
+                                { option = "MakePair"
+                                , qualification = Just
+                                    ( "Builtins" :| [] )
+                                }
+                            ]
+                        , free = False
+                        }
+                    )
+                , Input' UseSaturatedValueCon
+                    ( ActionOptions
+                        { options =
+                            [ ActionOption
+                                { option = "Left"
+                                , qualification = Just
+                                    ( "Builtins" :| [] )
+                                }
+                            , ActionOption
+                                { option = "Right"
+                                , qualification = Just
+                                    ( "Builtins" :| [] )
+                                }
+                            , ActionOption
+                                { option = "Cons"
+                                , qualification = Just
+                                    ( "Builtins" :| [] )
+                                }
+                            , ActionOption
+                                { option = "Just"
+                                , qualification = Just
+                                    ( "Builtins" :| [] )
+                                }
+                            , ActionOption
+                                { option = "Succ"
+                                , qualification = Just
+                                    ( "Builtins" :| [] )
+                                }
+                            , ActionOption
+                                { option = "MakePair"
+                                , qualification = Just
+                                    ( "Builtins" :| [] )
+                                }
+                            ]
+                        , free = False
+                        }
+                    )
                 ]
             )
         ,
             ( 34
             ,
-                [ NoInputAction AMakeCase
-                , NoInputAction AConstructApp
-                , NoInputAction AConstructAPP
-                , NoInputAction AConstructAnn
-                , NoInputAction ARaise
-                , NoInputAction ADeleteExpr
-                , InputAction AMakeLambda
-                , InputAction AConstructBigLambda
+                [ NoInput' MakeCase
+                , NoInput' ConstructApp
+                , NoInput' ConstructAPP
+                , NoInput' ConstructAnn
+                , NoInput' Raise
+                , NoInput' DeleteExpr
+                , Input' MakeLambda
+                    ( ActionOptions
+                        { options =
+                            [ ActionOption
+                                { option = "z"
+                                , qualification = Nothing
+                                }
+                            , ActionOption
+                                { option = "x1"
+                                , qualification = Nothing
+                                }
+                            , ActionOption
+                                { option = "y1"
+                                , qualification = Nothing
+                                }
+                            ]
+                        , free = True
+                        }
+                    )
+                , Input' ConstructBigLambda
+                    ( ActionOptions
+                        { options =
+                            [ ActionOption
+                                { option = "α"
+                                , qualification = Nothing
+                                }
+                            , ActionOption
+                                { option = "γ"
+                                , qualification = Nothing
+                                }
+                            , ActionOption
+                                { option = "β1"
+                                , qualification = Nothing
+                                }
+                            ]
+                        , free = True
+                        }
+                    )
                 ]
             )
         ,
             ( 35
             ,
-                [ NoInputAction AMakeCase
-                , NoInputAction AConstructApp
-                , NoInputAction AConstructAPP
-                , NoInputAction AConstructAnn
-                , NoInputAction ARaise
-                , NoInputAction ADeleteExpr
-                , InputAction AMakeLambda
-                , InputAction AConstructBigLambda
+                [ NoInput' MakeCase
+                , NoInput' ConstructApp
+                , NoInput' ConstructAPP
+                , NoInput' ConstructAnn
+                , NoInput' Raise
+                , NoInput' DeleteExpr
+                , Input' MakeLambda
+                    ( ActionOptions
+                        { options =
+                            [ ActionOption
+                                { option = "z"
+                                , qualification = Nothing
+                                }
+                            , ActionOption
+                                { option = "x1"
+                                , qualification = Nothing
+                                }
+                            , ActionOption
+                                { option = "y1"
+                                , qualification = Nothing
+                                }
+                            ]
+                        , free = True
+                        }
+                    )
+                , Input' ConstructBigLambda
+                    ( ActionOptions
+                        { options =
+                            [ ActionOption
+                                { option = "α"
+                                , qualification = Nothing
+                                }
+                            , ActionOption
+                                { option = "γ"
+                                , qualification = Nothing
+                                }
+                            , ActionOption
+                                { option = "β1"
+                                , qualification = Nothing
+                                }
+                            ]
+                        , free = True
+                        }
+                    )
                 ]
             )
         ,
             ( 16
             ,
-                [ NoInputAction AConstructFun
-                , NoInputAction AConstructTypeApp
-                , NoInputAction ADeleteType
-                , InputAction AConstructForall
+                [ NoInput' ConstructFun
+                , NoInput' ConstructTypeApp
+                , NoInput' DeleteType
+                , Input' ConstructForall
+                    ( ActionOptions
+                        { options =
+                            [ ActionOption
+                                { option = "α"
+                                , qualification = Nothing
+                                }
+                            , ActionOption
+                                { option = "β"
+                                , qualification = Nothing
+                                }
+                            , ActionOption
+                                { option = "γ"
+                                , qualification = Nothing
+                                }
+                            ]
+                        , free = True
+                        }
+                    )
                 ]
             )
         ,
             ( 17
             ,
-                [ NoInputAction AConstructFun
-                , NoInputAction AConstructTypeApp
-                , NoInputAction ARaise
-                , NoInputAction ADeleteType
-                , InputAction AConstructForall
+                [ NoInput' ConstructFun
+                , NoInput' ConstructTypeApp
+                , NoInput' Raise
+                , NoInput' DeleteType
+                , Input' ConstructForall
+                    ( ActionOptions
+                        { options =
+                            [ ActionOption
+                                { option = "α"
+                                , qualification = Nothing
+                                }
+                            , ActionOption
+                                { option = "β"
+                                , qualification = Nothing
+                                }
+                            , ActionOption
+                                { option = "γ"
+                                , qualification = Nothing
+                                }
+                            ]
+                        , free = True
+                        }
+                    )
                 ]
             )
         ,
             ( 25
             ,
-                [ NoInputAction AConstructFun
-                , NoInputAction AConstructTypeApp
-                , NoInputAction ADeleteType
-                , InputAction AConstructForall
+                [ NoInput' ConstructFun
+                , NoInput' ConstructTypeApp
+                , NoInput' DeleteType
+                , Input' ConstructForall
+                    ( ActionOptions
+                        { options =
+                            [ ActionOption
+                                { option = "α"
+                                , qualification = Nothing
+                                }
+                            , ActionOption
+                                { option = "γ"
+                                , qualification = Nothing
+                                }
+                            , ActionOption
+                                { option = "β1"
+                                , qualification = Nothing
+                                }
+                            ]
+                        , free = True
+                        }
+                    )
                 ]
             )
         ,
             ( 26
             ,
-                [ NoInputAction AConstructFun
-                , NoInputAction AConstructTypeApp
-                , NoInputAction ADeleteType
-                , InputAction AConstructForall
+                [ NoInput' ConstructFun
+                , NoInput' ConstructTypeApp
+                , NoInput' DeleteType
+                , Input' ConstructForall
+                    ( ActionOptions
+                        { options =
+                            [ ActionOption
+                                { option = "α"
+                                , qualification = Nothing
+                                }
+                            , ActionOption
+                                { option = "γ"
+                                , qualification = Nothing
+                                }
+                            , ActionOption
+                                { option = "β1"
+                                , qualification = Nothing
+                                }
+                            ]
+                        , free = True
+                        }
+                    )
                 ]
             )
         ,
             ( 36
             ,
-                [ NoInputAction AConstructFun
-                , NoInputAction AAddInput
-                , NoInputAction AConstructTypeApp
-                , NoInputAction ADeleteType
-                , InputAction AConstructForall
+                [ NoInput' ConstructFun
+                , NoInput' AddInput
+                , NoInput' ConstructTypeApp
+                , NoInput' DeleteType
+                , Input' ConstructForall
+                    ( ActionOptions
+                        { options =
+                            [ ActionOption
+                                { option = "β"
+                                , qualification = Nothing
+                                }
+                            , ActionOption
+                                { option = "γ"
+                                , qualification = Nothing
+                                }
+                            , ActionOption
+                                { option = "α1"
+                                , qualification = Nothing
+                                }
+                            ]
+                        , free = True
+                        }
+                    )
                 ]
             )
         ,
             ( 37
             ,
-                [ NoInputAction AConstructFun
-                , NoInputAction AConstructTypeApp
-                , NoInputAction ARaise
-                , NoInputAction ADeleteType
-                , InputAction AConstructForall
+                [ NoInput' ConstructFun
+                , NoInput' ConstructTypeApp
+                , NoInput' Raise
+                , NoInput' DeleteType
+                , Input' ConstructForall
+                    ( ActionOptions
+                        { options =
+                            [ ActionOption
+                                { option = "α"
+                                , qualification = Nothing
+                                }
+                            , ActionOption
+                                { option = "β"
+                                , qualification = Nothing
+                                }
+                            , ActionOption
+                                { option = "γ"
+                                , qualification = Nothing
+                                }
+                            ]
+                        , free = True
+                        }
+                    )
                 ]
             )
         ,
             ( 38
             ,
-                [ NoInputAction AConstructFun
-                , NoInputAction AConstructTypeApp
-                , NoInputAction ARaise
-                , NoInputAction ADeleteType
-                , InputAction AConstructForall
-                , InputAction ARenameForall
+                [ NoInput' ConstructFun
+                , NoInput' ConstructTypeApp
+                , NoInput' Raise
+                , NoInput' DeleteType
+                , Input' ConstructForall
+                    ( ActionOptions
+                        { options =
+                            [ ActionOption
+                                { option = "β"
+                                , qualification = Nothing
+                                }
+                            , ActionOption
+                                { option = "γ"
+                                , qualification = Nothing
+                                }
+                            , ActionOption
+                                { option = "α1"
+                                , qualification = Nothing
+                                }
+                            ]
+                        , free = True
+                        }
+                    )
+                , Input' RenameForall
+                    ( ActionOptions
+                        { options =
+                            [ ActionOption
+                                { option = "β"
+                                , qualification = Nothing
+                                }
+                            , ActionOption
+                                { option = "γ"
+                                , qualification = Nothing
+                                }
+                            , ActionOption
+                                { option = "α1"
+                                , qualification = Nothing
+                                }
+                            ]
+                        , free = True
+                        }
+                    )
                 ]
             )
         ,
             ( 39
             ,
-                [ NoInputAction AConstructFun
-                , NoInputAction AConstructTypeApp
-                , NoInputAction ARaise
-                , NoInputAction ADeleteType
-                , InputAction AConstructForall
+                [ NoInput' ConstructFun
+                , NoInput' ConstructTypeApp
+                , NoInput' Raise
+                , NoInput' DeleteType
+                , Input' ConstructForall
+                    ( ActionOptions
+                        { options =
+                            [ ActionOption
+                                { option = "β"
+                                , qualification = Nothing
+                                }
+                            , ActionOption
+                                { option = "γ"
+                                , qualification = Nothing
+                                }
+                            , ActionOption
+                                { option = "α1"
+                                , qualification = Nothing
+                                }
+                            ]
+                        , free = True
+                        }
+                    )
                 ]
             )
         ,
             ( 40
             ,
-                [ NoInputAction AConstructFun
-                , NoInputAction AConstructTypeApp
-                , NoInputAction ARaise
-                , NoInputAction ADeleteType
-                , InputAction AConstructForall
+                [ NoInput' ConstructFun
+                , NoInput' ConstructTypeApp
+                , NoInput' Raise
+                , NoInput' DeleteType
+                , Input' ConstructForall
+                    ( ActionOptions
+                        { options =
+                            [ ActionOption
+                                { option = "β"
+                                , qualification = Nothing
+                                }
+                            , ActionOption
+                                { option = "γ"
+                                , qualification = Nothing
+                                }
+                            , ActionOption
+                                { option = "α1"
+                                , qualification = Nothing
+                                }
+                            ]
+                        , free = True
+                        }
+                    )
                 ]
             )
         ,
             ( 41
             ,
-                [ NoInputAction AConstructFun
-                , NoInputAction AConstructTypeApp
-                , NoInputAction ARaise
-                , NoInputAction ADeleteType
-                , InputAction AConstructForall
+                [ NoInput' ConstructFun
+                , NoInput' ConstructTypeApp
+                , NoInput' Raise
+                , NoInput' DeleteType
+                , Input' ConstructForall
+                    ( ActionOptions
+                        { options =
+                            [ ActionOption
+                                { option = "β"
+                                , qualification = Nothing
+                                }
+                            , ActionOption
+                                { option = "γ"
+                                , qualification = Nothing
+                                }
+                            , ActionOption
+                                { option = "α1"
+                                , qualification = Nothing
+                                }
+                            ]
+                        , free = True
+                        }
+                    )
                 ]
             )
         ,
             ( 42
             ,
-                [ NoInputAction AConstructFun
-                , NoInputAction AConstructTypeApp
-                , NoInputAction ARaise
-                , NoInputAction ADeleteType
-                , InputAction AConstructForall
+                [ NoInput' ConstructFun
+                , NoInput' ConstructTypeApp
+                , NoInput' Raise
+                , NoInput' DeleteType
+                , Input' ConstructForall
+                    ( ActionOptions
+                        { options =
+                            [ ActionOption
+                                { option = "β"
+                                , qualification = Nothing
+                                }
+                            , ActionOption
+                                { option = "γ"
+                                , qualification = Nothing
+                                }
+                            , ActionOption
+                                { option = "α1"
+                                , qualification = Nothing
+                                }
+                            ]
+                        , free = True
+                        }
+                    )
                 ]
             )
         ,
             ( 43
             ,
-                [ NoInputAction AConstructFun
-                , NoInputAction AConstructTypeApp
-                , NoInputAction ARaise
-                , NoInputAction ADeleteType
-                , InputAction AConstructForall
+                [ NoInput' ConstructFun
+                , NoInput' ConstructTypeApp
+                , NoInput' Raise
+                , NoInput' DeleteType
+                , Input' ConstructForall
+                    ( ActionOptions
+                        { options =
+                            [ ActionOption
+                                { option = "β"
+                                , qualification = Nothing
+                                }
+                            , ActionOption
+                                { option = "γ"
+                                , qualification = Nothing
+                                }
+                            , ActionOption
+                                { option = "α1"
+                                , qualification = Nothing
+                                }
+                            ]
+                        , free = True
+                        }
+                    )
                 ]
             )
         ]
@@ -424,93 +1881,329 @@ Output
         [
             ( 0
             ,
-                [ NoInputAction AConstructFun
-                , NoInputAction AAddInput
-                , NoInputAction AConstructTypeApp
-                , NoInputAction ADeleteType
-                , InputAction AConstructForall
+                [ NoInput' ConstructFun
+                , NoInput' AddInput
+                , NoInput' ConstructTypeApp
+                , NoInput' DeleteType
+                , Input' ConstructForall
+                    ( ActionOptions
+                        { options =
+                            [ ActionOption
+                                { option = "α"
+                                , qualification = Nothing
+                                }
+                            , ActionOption
+                                { option = "β"
+                                , qualification = Nothing
+                                }
+                            , ActionOption
+                                { option = "γ"
+                                , qualification = Nothing
+                                }
+                            ]
+                        , free = True
+                        }
+                    )
                 ]
             )
         ,
             ( 1
             ,
-                [ NoInputAction AConstructFun
-                , NoInputAction AConstructTypeApp
-                , NoInputAction ARaiseType
-                , NoInputAction ADeleteType
-                , InputAction AConstructForall
+                [ NoInput' ConstructFun
+                , NoInput' ConstructTypeApp
+                , NoInput' RaiseType
+                , NoInput' DeleteType
+                , Input' ConstructForall
+                    ( ActionOptions
+                        { options =
+                            [ ActionOption
+                                { option = "α"
+                                , qualification = Nothing
+                                }
+                            , ActionOption
+                                { option = "β"
+                                , qualification = Nothing
+                                }
+                            , ActionOption
+                                { option = "γ"
+                                , qualification = Nothing
+                                }
+                            ]
+                        , free = True
+                        }
+                    )
                 ]
             )
         ,
             ( 2
             ,
-                [ NoInputAction AConstructFun
-                , NoInputAction AConstructTypeApp
-                , NoInputAction ARaiseType
-                , NoInputAction ADeleteType
-                , InputAction AConstructForall
-                , InputAction ARenameForall
+                [ NoInput' ConstructFun
+                , NoInput' ConstructTypeApp
+                , NoInput' RaiseType
+                , NoInput' DeleteType
+                , Input' ConstructForall
+                    ( ActionOptions
+                        { options =
+                            [ ActionOption
+                                { option = "α"
+                                , qualification = Nothing
+                                }
+                            , ActionOption
+                                { option = "β"
+                                , qualification = Nothing
+                                }
+                            , ActionOption
+                                { option = "γ"
+                                , qualification = Nothing
+                                }
+                            ]
+                        , free = True
+                        }
+                    )
+                , Input' RenameForall
+                    ( ActionOptions
+                        { options =
+                            [ ActionOption
+                                { option = "α"
+                                , qualification = Nothing
+                                }
+                            , ActionOption
+                                { option = "β"
+                                , qualification = Nothing
+                                }
+                            , ActionOption
+                                { option = "γ"
+                                , qualification = Nothing
+                                }
+                            ]
+                        , free = True
+                        }
+                    )
                 ]
             )
         ,
             ( 3
             ,
-                [ NoInputAction AConstructFun
-                , NoInputAction AConstructTypeApp
-                , NoInputAction ARaiseType
-                , NoInputAction ADeleteType
-                , InputAction AConstructForall
+                [ NoInput' ConstructFun
+                , NoInput' ConstructTypeApp
+                , NoInput' RaiseType
+                , NoInput' DeleteType
+                , Input' ConstructForall
+                    ( ActionOptions
+                        { options =
+                            [ ActionOption
+                                { option = "α"
+                                , qualification = Nothing
+                                }
+                            , ActionOption
+                                { option = "β"
+                                , qualification = Nothing
+                                }
+                            , ActionOption
+                                { option = "γ"
+                                , qualification = Nothing
+                                }
+                            ]
+                        , free = True
+                        }
+                    )
                 ]
             )
         ,
             ( 4
             ,
-                [ NoInputAction AConstructFun
-                , NoInputAction AConstructTypeApp
-                , NoInputAction ARaiseType
-                , NoInputAction ADeleteType
-                , InputAction AConstructForall
+                [ NoInput' ConstructFun
+                , NoInput' ConstructTypeApp
+                , NoInput' RaiseType
+                , NoInput' DeleteType
+                , Input' ConstructForall
+                    ( ActionOptions
+                        { options =
+                            [ ActionOption
+                                { option = "α"
+                                , qualification = Nothing
+                                }
+                            , ActionOption
+                                { option = "β"
+                                , qualification = Nothing
+                                }
+                            , ActionOption
+                                { option = "γ"
+                                , qualification = Nothing
+                                }
+                            ]
+                        , free = True
+                        }
+                    )
                 ]
             )
         ,
             ( 5
             ,
-                [ NoInputAction AConstructFun
-                , NoInputAction AConstructTypeApp
-                , NoInputAction ARaiseType
-                , NoInputAction ADeleteType
-                , InputAction AConstructForall
+                [ NoInput' ConstructFun
+                , NoInput' ConstructTypeApp
+                , NoInput' RaiseType
+                , NoInput' DeleteType
+                , Input' ConstructForall
+                    ( ActionOptions
+                        { options =
+                            [ ActionOption
+                                { option = "α"
+                                , qualification = Nothing
+                                }
+                            , ActionOption
+                                { option = "β"
+                                , qualification = Nothing
+                                }
+                            , ActionOption
+                                { option = "γ"
+                                , qualification = Nothing
+                                }
+                            ]
+                        , free = True
+                        }
+                    )
                 ]
             )
         ,
             ( 6
             ,
-                [ NoInputAction AConstructFun
-                , NoInputAction AConstructTypeApp
-                , NoInputAction ARaiseType
-                , NoInputAction ADeleteType
-                , InputAction AConstructForall
+                [ NoInput' ConstructFun
+                , NoInput' ConstructTypeApp
+                , NoInput' RaiseType
+                , NoInput' DeleteType
+                , Input' ConstructForall
+                    ( ActionOptions
+                        { options =
+                            [ ActionOption
+                                { option = "α"
+                                , qualification = Nothing
+                                }
+                            , ActionOption
+                                { option = "β"
+                                , qualification = Nothing
+                                }
+                            , ActionOption
+                                { option = "γ"
+                                , qualification = Nothing
+                                }
+                            ]
+                        , free = True
+                        }
+                    )
                 ]
             )
         ,
             ( 7
             ,
-                [ NoInputAction AConstructFun
-                , NoInputAction AConstructTypeApp
-                , NoInputAction ARaiseType
-                , InputAction AUseTypeVar
-                , InputAction AConstructForall
-                , InputAction AUseTypeCon
+                [ NoInput' ConstructFun
+                , NoInput' ConstructTypeApp
+                , NoInput' RaiseType
+                , Input' UseTypeVar
+                    ( ActionOptions
+                        { options =
+                            [ ActionOption
+                                { option = "a"
+                                , qualification = Nothing
+                                }
+                            ]
+                        , free = False
+                        }
+                    )
+                , Input' ConstructForall
+                    ( ActionOptions
+                        { options =
+                            [ ActionOption
+                                { option = "α"
+                                , qualification = Nothing
+                                }
+                            , ActionOption
+                                { option = "β"
+                                , qualification = Nothing
+                                }
+                            , ActionOption
+                                { option = "γ"
+                                , qualification = Nothing
+                                }
+                            ]
+                        , free = True
+                        }
+                    )
+                , Input' UseTypeCon
+                    ( ActionOptions
+                        { options =
+                            [ ActionOption
+                                { option = "Bool"
+                                , qualification = Just
+                                    ( "Builtins" :| [] )
+                                }
+                            , ActionOption
+                                { option = "Either"
+                                , qualification = Just
+                                    ( "Builtins" :| [] )
+                                }
+                            , ActionOption
+                                { option = "List"
+                                , qualification = Just
+                                    ( "Builtins" :| [] )
+                                }
+                            , ActionOption
+                                { option = "Maybe"
+                                , qualification = Just
+                                    ( "Builtins" :| [] )
+                                }
+                            , ActionOption
+                                { option = "Nat"
+                                , qualification = Just
+                                    ( "Builtins" :| [] )
+                                }
+                            , ActionOption
+                                { option = "Pair"
+                                , qualification = Just
+                                    ( "Builtins" :| [] )
+                                }
+                            , ActionOption
+                                { option = "Char"
+                                , qualification = Just
+                                    ( "Primitives" :| [] )
+                                }
+                            , ActionOption
+                                { option = "Int"
+                                , qualification = Just
+                                    ( "Primitives" :| [] )
+                                }
+                            ]
+                        , free = False
+                        }
+                    )
                 ]
             )
         ,
             ( 8
             ,
-                [ NoInputAction AConstructFun
-                , NoInputAction AConstructTypeApp
-                , NoInputAction ARaiseType
-                , NoInputAction ADeleteType
-                , InputAction AConstructForall
+                [ NoInput' ConstructFun
+                , NoInput' ConstructTypeApp
+                , NoInput' RaiseType
+                , NoInput' DeleteType
+                , Input' ConstructForall
+                    ( ActionOptions
+                        { options =
+                            [ ActionOption
+                                { option = "α"
+                                , qualification = Nothing
+                                }
+                            , ActionOption
+                                { option = "β"
+                                , qualification = Nothing
+                                }
+                            , ActionOption
+                                { option = "γ"
+                                , qualification = Nothing
+                                }
+                            ]
+                        , free = True
+                        }
+                    )
                 ]
             )
         ]

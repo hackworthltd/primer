@@ -1,3 +1,5 @@
+{-# LANGUAGE PartialTypeSignatures #-}
+
 module Tests.Action.Available where
 
 import Foreword
@@ -107,10 +109,14 @@ test_1 :: TestTree
 test_1 = mkTests [builtinModule] $ create' $ comprehensiveWellTyped $ mkSimpleModuleName "M"
 
 data Output = Output
-  { defActions :: [OfferedAction]
-  , bodyActions :: [(ID, [OfferedAction])]
-  , sigActions :: [(ID, [OfferedAction])]
+  { defActions :: [OfferedAction']
+  , bodyActions :: [(ID, [OfferedAction'])]
+  , sigActions :: [(ID, [OfferedAction'])]
   }
+  deriving (Show)
+data OfferedAction'
+  = NoInput' NoInputAction
+  | Input' InputAction ActionOptions
   deriving (Show)
 
 -- | Golden tests for the available actions at each node of the definition, for each level.
@@ -119,8 +125,9 @@ mkTests _ (_, DefPrim _) = error "mkTests is unimplemented for primitive definit
 mkTests deps (defName, DefAST def') =
   let d = defName
       m = Module (qualifiedModule d) mempty $ Map.singleton (baseName d) $ DefAST def'
+      cxt = buildTypingContextFromModules deps NoSmartHoles
       def = case runTypecheckTestMIn
-        (buildTypingContextFromModules deps NoSmartHoles)
+        cxt
         (checkEverything NoSmartHoles CheckEverything{trusted = deps, toCheck = [m]}) of
         Left err -> error $ "mkTests: no typecheck: " <> show err
         Right [m'] -> case Map.toList $ moduleDefs m' of
@@ -129,18 +136,27 @@ mkTests deps (defName, DefAST def') =
         _ -> error "mkTests: expected exactly one module checked modules"
       testName = T.unpack $ moduleNamePretty (qualifiedModule defName) <> "." <> unName (baseName defName)
       enumeratePairs = (,) <$> enumerate <*> enumerate
+      defs = Map.singleton defName $ DefAST def
+      typeDefs = foldMap @[] moduleTypesQualified [builtinModule, primitiveModule]
+      convert level id = \case
+        NoInput a -> NoInput' a
+        Input a ->
+          Input' a
+            . either (error . show) identity
+            $ inputAction typeDefs defs def cxt level id a
    in testGroup testName $
         enumeratePairs
           <&> \(level, mut) ->
             -- We sort the offered actions to make the test output more stable
-            let defActions = sort $ actionsForDef level (Map.singleton defName (mut, DefAST def)) d
+            let defActions = map (convert level Nothing) $ sort $ actionsForDef level ((mut,) <$> defs) d
                 bodyActions =
                   map
                     ( \id ->
                         ( id
-                        , sort $
-                            actionsForDefBody
-                              (foldMap @[] moduleTypesQualified [builtinModule, primitiveModule])
+                        , map (convert level (Just id))
+                            . sort
+                            $ actionsForDefBody
+                              typeDefs
                               level
                               mut
                               id
@@ -153,7 +169,7 @@ mkTests deps (defName, DefAST def') =
                   map
                     ( \id ->
                         ( id
-                        , sort $ actionsForDefSig level mut id (astDefType def)
+                        , map (convert level (Just id)) $ sort $ actionsForDefSig level mut id (astDefType def)
                         )
                     )
                     . toListOf (_typeMeta % _id)

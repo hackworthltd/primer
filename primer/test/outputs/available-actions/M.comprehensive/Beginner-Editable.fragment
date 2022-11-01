@@ -1,298 +1,871 @@
 Output
     { defActions =
-        [ NoInputAction ADuplicateDef
-        , NoInputAction ADeleteDef
-        , InputAction ARenameDef
+        [ NoInput' DuplicateDef
+        , NoInput' DeleteDef
+        , Input' RenameDef
+            ( ActionOptions
+                { options = []
+                , free = True
+                }
+            )
         ]
     , bodyActions =
         [
             ( 9
             ,
-                [ NoInputAction AConvertLetToLetrec
-                , NoInputAction ADeleteExpr
-                , InputAction AMakeLambda
-                , InputAction ARenameLetBinding
+                [ NoInput' ConvertLetToLetrec
+                , NoInput' DeleteExpr
+                , Input' MakeLambda
+                    ( ActionOptions
+                        { options =
+                            [ ActionOption
+                                { option = "z"
+                                , qualification = Nothing
+                                }
+                            , ActionOption
+                                { option = "x1"
+                                , qualification = Nothing
+                                }
+                            , ActionOption
+                                { option = "y1"
+                                , qualification = Nothing
+                                }
+                            ]
+                        , free = True
+                        }
+                    )
+                , Input' RenameLetBinding
+                    ( ActionOptions
+                        { options =
+                            [ ActionOption
+                                { option = "z"
+                                , qualification = Nothing
+                                }
+                            , ActionOption
+                                { option = "x1"
+                                , qualification = Nothing
+                                }
+                            , ActionOption
+                                { option = "y1"
+                                , qualification = Nothing
+                                }
+                            ]
+                        , free = True
+                        }
+                    )
                 ]
             )
         ,
             ( 10
             ,
-                [ NoInputAction AMakeCase
-                , NoInputAction ARaise
-                , NoInputAction ADeleteExpr
-                , InputAction AMakeLambda
+                [ NoInput' MakeCase
+                , NoInput' Raise
+                , NoInput' DeleteExpr
+                , Input' MakeLambda
+                    ( ActionOptions
+                        { options =
+                            [ ActionOption
+                                { option = "x"
+                                , qualification = Nothing
+                                }
+                            , ActionOption
+                                { option = "y"
+                                , qualification = Nothing
+                                }
+                            , ActionOption
+                                { option = "z"
+                                , qualification = Nothing
+                                }
+                            ]
+                        , free = True
+                        }
+                    )
                 ]
             )
         ,
             ( 11
             ,
-                [ NoInputAction ARaise
-                , NoInputAction ADeleteExpr
-                , InputAction AMakeLambda
-                , InputAction ARenameLetBinding
+                [ NoInput' Raise
+                , NoInput' DeleteExpr
+                , Input' MakeLambda
+                    ( ActionOptions
+                        { options =
+                            [ ActionOption
+                                { option = "z"
+                                , qualification = Nothing
+                                }
+                            , ActionOption
+                                { option = "x1"
+                                , qualification = Nothing
+                                }
+                            , ActionOption
+                                { option = "y1"
+                                , qualification = Nothing
+                                }
+                            ]
+                        , free = True
+                        }
+                    )
+                , Input' RenameLetBinding
+                    ( ActionOptions
+                        { options =
+                            [ ActionOption
+                                { option = "z"
+                                , qualification = Nothing
+                                }
+                            , ActionOption
+                                { option = "x1"
+                                , qualification = Nothing
+                                }
+                            , ActionOption
+                                { option = "y1"
+                                , qualification = Nothing
+                                }
+                            ]
+                        , free = True
+                        }
+                    )
                 ]
             )
         ,
             ( 12
             ,
-                [ NoInputAction AMakeCase
-                , NoInputAction ARaise
-                , NoInputAction ADeleteExpr
-                , InputAction AMakeLambda
+                [ NoInput' MakeCase
+                , NoInput' Raise
+                , NoInput' DeleteExpr
+                , Input' MakeLambda
+                    ( ActionOptions
+                        { options =
+                            [ ActionOption
+                                { option = "z"
+                                , qualification = Nothing
+                                }
+                            , ActionOption
+                                { option = "x1"
+                                , qualification = Nothing
+                                }
+                            , ActionOption
+                                { option = "y1"
+                                , qualification = Nothing
+                                }
+                            ]
+                        , free = True
+                        }
+                    )
                 ]
             )
         ,
             ( 13
             ,
-                [ NoInputAction AMakeCase
-                , NoInputAction AFinishHole
-                , NoInputAction ARaise
-                , NoInputAction ADeleteExpr
-                , InputAction AMakeLambda
+                [ NoInput' MakeCase
+                , NoInput' FinishHole
+                , NoInput' Raise
+                , NoInput' DeleteExpr
+                , Input' MakeLambda
+                    ( ActionOptions
+                        { options =
+                            [ ActionOption
+                                { option = "z"
+                                , qualification = Nothing
+                                }
+                            , ActionOption
+                                { option = "x1"
+                                , qualification = Nothing
+                                }
+                            , ActionOption
+                                { option = "y1"
+                                , qualification = Nothing
+                                }
+                            ]
+                        , free = True
+                        }
+                    )
                 ]
             )
         ,
             ( 14
             ,
-                [ NoInputAction ADeleteExpr
-                , InputAction AMakeLambda
+                [ NoInput' DeleteExpr
+                , Input' MakeLambda
+                    ( ActionOptions
+                        { options =
+                            [ ActionOption
+                                { option = "z"
+                                , qualification = Nothing
+                                }
+                            , ActionOption
+                                { option = "x1"
+                                , qualification = Nothing
+                                }
+                            , ActionOption
+                                { option = "y1"
+                                , qualification = Nothing
+                                }
+                            ]
+                        , free = True
+                        }
+                    )
                 ]
             )
         ,
             ( 15
             ,
-                [ NoInputAction AMakeCase
-                , NoInputAction ARaise
-                , InputAction AMakeLambda
-                , InputAction AUseVar
-                , InputAction AUseValueCon
+                [ NoInput' MakeCase
+                , NoInput' Raise
+                , Input' MakeLambda
+                    ( ActionOptions
+                        { options =
+                            [ ActionOption
+                                { option = "z"
+                                , qualification = Nothing
+                                }
+                            , ActionOption
+                                { option = "x1"
+                                , qualification = Nothing
+                                }
+                            , ActionOption
+                                { option = "y1"
+                                , qualification = Nothing
+                                }
+                            ]
+                        , free = True
+                        }
+                    )
+                , Input' UseVar
+                    ( ActionOptions
+                        { options =
+                            [ ActionOption
+                                { option = "x"
+                                , qualification = Nothing
+                                }
+                            , ActionOption
+                                { option = "y"
+                                , qualification = Nothing
+                                }
+                            ]
+                        , free = False
+                        }
+                    )
+                , Input' UseValueCon
+                    ( ActionOptions
+                        { options =
+                            [ ActionOption
+                                { option = "True"
+                                , qualification = Just
+                                    ( "Builtins" :| [] )
+                                }
+                            , ActionOption
+                                { option = "False"
+                                , qualification = Just
+                                    ( "Builtins" :| [] )
+                                }
+                            , ActionOption
+                                { option = "Nil"
+                                , qualification = Just
+                                    ( "Builtins" :| [] )
+                                }
+                            , ActionOption
+                                { option = "Nothing"
+                                , qualification = Just
+                                    ( "Builtins" :| [] )
+                                }
+                            , ActionOption
+                                { option = "Zero"
+                                , qualification = Just
+                                    ( "Builtins" :| [] )
+                                }
+                            ]
+                        , free = False
+                        }
+                    )
                 ]
             )
         ,
             ( 18
             ,
-                [ NoInputAction ARaise
-                , NoInputAction ADeleteExpr
-                , InputAction AMakeLambda
+                [ NoInput' Raise
+                , NoInput' DeleteExpr
+                , Input' MakeLambda
+                    ( ActionOptions
+                        { options =
+                            [ ActionOption
+                                { option = "z"
+                                , qualification = Nothing
+                                }
+                            , ActionOption
+                                { option = "x1"
+                                , qualification = Nothing
+                                }
+                            , ActionOption
+                                { option = "y1"
+                                , qualification = Nothing
+                                }
+                            ]
+                        , free = True
+                        }
+                    )
                 ]
             )
         ,
             ( 19
             ,
-                [ NoInputAction ARaise
-                , NoInputAction ADeleteExpr
-                , InputAction AMakeLambda
-                , InputAction ARenameLambda
+                [ NoInput' Raise
+                , NoInput' DeleteExpr
+                , Input' MakeLambda
+                    ( ActionOptions
+                        { options =
+                            [ ActionOption
+                                { option = "z"
+                                , qualification = Nothing
+                                }
+                            , ActionOption
+                                { option = "x1"
+                                , qualification = Nothing
+                                }
+                            , ActionOption
+                                { option = "y1"
+                                , qualification = Nothing
+                                }
+                            ]
+                        , free = True
+                        }
+                    )
+                , Input' RenameLambda
+                    ( ActionOptions
+                        { options =
+                            [ ActionOption
+                                { option = "z"
+                                , qualification = Nothing
+                                }
+                            , ActionOption
+                                { option = "x1"
+                                , qualification = Nothing
+                                }
+                            , ActionOption
+                                { option = "y1"
+                                , qualification = Nothing
+                                }
+                            ]
+                        , free = True
+                        }
+                    )
                 ]
             )
         ,
             ( 20
             ,
-                [ NoInputAction ARaise
-                , NoInputAction ADeleteExpr
-                , InputAction AMakeLambda
+                [ NoInput' Raise
+                , NoInput' DeleteExpr
+                , Input' MakeLambda
+                    ( ActionOptions
+                        { options =
+                            [ ActionOption
+                                { option = "z"
+                                , qualification = Nothing
+                                }
+                            , ActionOption
+                                { option = "x1"
+                                , qualification = Nothing
+                                }
+                            , ActionOption
+                                { option = "y1"
+                                , qualification = Nothing
+                                }
+                            ]
+                        , free = True
+                        }
+                    )
                 ]
             )
         ,
             ( 21
             ,
-                [ NoInputAction AMakeCase
-                , NoInputAction ARaise
-                , NoInputAction ADeleteExpr
-                , InputAction AMakeLambda
+                [ NoInput' MakeCase
+                , NoInput' Raise
+                , NoInput' DeleteExpr
+                , Input' MakeLambda
+                    ( ActionOptions
+                        { options =
+                            [ ActionOption
+                                { option = "z"
+                                , qualification = Nothing
+                                }
+                            , ActionOption
+                                { option = "x1"
+                                , qualification = Nothing
+                                }
+                            , ActionOption
+                                { option = "y1"
+                                , qualification = Nothing
+                                }
+                            ]
+                        , free = True
+                        }
+                    )
                 ]
             )
         ,
             ( 22
             ,
-                [ NoInputAction ARaise
-                , NoInputAction ADeleteExpr
-                , InputAction AMakeLambda
+                [ NoInput' Raise
+                , NoInput' DeleteExpr
+                , Input' MakeLambda
+                    ( ActionOptions
+                        { options =
+                            [ ActionOption
+                                { option = "z"
+                                , qualification = Nothing
+                                }
+                            , ActionOption
+                                { option = "x1"
+                                , qualification = Nothing
+                                }
+                            , ActionOption
+                                { option = "y1"
+                                , qualification = Nothing
+                                }
+                            ]
+                        , free = True
+                        }
+                    )
                 ]
             )
         ,
             ( 23
             ,
-                [ NoInputAction ARaise
-                , NoInputAction ADeleteExpr
-                , InputAction AMakeLambda
+                [ NoInput' Raise
+                , NoInput' DeleteExpr
+                , Input' MakeLambda
+                    ( ActionOptions
+                        { options =
+                            [ ActionOption
+                                { option = "z"
+                                , qualification = Nothing
+                                }
+                            , ActionOption
+                                { option = "x1"
+                                , qualification = Nothing
+                                }
+                            , ActionOption
+                                { option = "y1"
+                                , qualification = Nothing
+                                }
+                            ]
+                        , free = True
+                        }
+                    )
                 ]
             )
         ,
             ( 24
             ,
-                [ NoInputAction ARaise
-                , NoInputAction ADeleteExpr
-                , InputAction AMakeLambda
+                [ NoInput' Raise
+                , NoInput' DeleteExpr
+                , Input' MakeLambda
+                    ( ActionOptions
+                        { options =
+                            [ ActionOption
+                                { option = "z"
+                                , qualification = Nothing
+                                }
+                            , ActionOption
+                                { option = "x1"
+                                , qualification = Nothing
+                                }
+                            , ActionOption
+                                { option = "y1"
+                                , qualification = Nothing
+                                }
+                            ]
+                        , free = True
+                        }
+                    )
                 ]
             )
         ,
             ( 27
             ,
-                [ NoInputAction ARaise
-                , NoInputAction ADeleteExpr
-                , InputAction AMakeLambda
+                [ NoInput' Raise
+                , NoInput' DeleteExpr
+                , Input' MakeLambda
+                    ( ActionOptions
+                        { options =
+                            [ ActionOption
+                                { option = "z"
+                                , qualification = Nothing
+                                }
+                            , ActionOption
+                                { option = "x1"
+                                , qualification = Nothing
+                                }
+                            , ActionOption
+                                { option = "y1"
+                                , qualification = Nothing
+                                }
+                            ]
+                        , free = True
+                        }
+                    )
                 ]
             )
         ,
             ( 28
             ,
-                [ NoInputAction AMakeCase
-                , NoInputAction ARaise
-                , NoInputAction ADeleteExpr
-                , InputAction AMakeLambda
+                [ NoInput' MakeCase
+                , NoInput' Raise
+                , NoInput' DeleteExpr
+                , Input' MakeLambda
+                    ( ActionOptions
+                        { options =
+                            [ ActionOption
+                                { option = "z"
+                                , qualification = Nothing
+                                }
+                            , ActionOption
+                                { option = "x1"
+                                , qualification = Nothing
+                                }
+                            , ActionOption
+                                { option = "y1"
+                                , qualification = Nothing
+                                }
+                            ]
+                        , free = True
+                        }
+                    )
                 ]
             )
         ,
             ( 29
             ,
-                [ NoInputAction AMakeCase
-                , NoInputAction ARaise
-                , NoInputAction ADeleteExpr
-                , InputAction AMakeLambda
+                [ NoInput' MakeCase
+                , NoInput' Raise
+                , NoInput' DeleteExpr
+                , Input' MakeLambda
+                    ( ActionOptions
+                        { options =
+                            [ ActionOption
+                                { option = "z"
+                                , qualification = Nothing
+                                }
+                            , ActionOption
+                                { option = "x1"
+                                , qualification = Nothing
+                                }
+                            , ActionOption
+                                { option = "y1"
+                                , qualification = Nothing
+                                }
+                            ]
+                        , free = True
+                        }
+                    )
                 ]
             )
         ,
             ( 30
-            , [ InputAction ARenamePatternVar ]
+            ,
+                [ Input' RenamePatternVar
+                    ( ActionOptions
+                        { options =
+                            [ ActionOption
+                                { option = "α"
+                                , qualification = Nothing
+                                }
+                            , ActionOption
+                                { option = "γ"
+                                , qualification = Nothing
+                                }
+                            , ActionOption
+                                { option = "β1"
+                                , qualification = Nothing
+                                }
+                            ]
+                        , free = True
+                        }
+                    )
+                ]
             )
         ,
             ( 31
             ,
-                [ NoInputAction AMakeCase
-                , NoInputAction ARaise
-                , NoInputAction ADeleteExpr
-                , InputAction AMakeLambda
+                [ NoInput' MakeCase
+                , NoInput' Raise
+                , NoInput' DeleteExpr
+                , Input' MakeLambda
+                    ( ActionOptions
+                        { options =
+                            [ ActionOption
+                                { option = "z"
+                                , qualification = Nothing
+                                }
+                            , ActionOption
+                                { option = "x1"
+                                , qualification = Nothing
+                                }
+                            , ActionOption
+                                { option = "y1"
+                                , qualification = Nothing
+                                }
+                            ]
+                        , free = True
+                        }
+                    )
                 ]
             )
         ,
             ( 32
             ,
-                [ NoInputAction AMakeCase
-                , NoInputAction ARaise
-                , NoInputAction ADeleteExpr
-                , InputAction AMakeLambda
+                [ NoInput' MakeCase
+                , NoInput' Raise
+                , NoInput' DeleteExpr
+                , Input' MakeLambda
+                    ( ActionOptions
+                        { options =
+                            [ ActionOption
+                                { option = "z"
+                                , qualification = Nothing
+                                }
+                            , ActionOption
+                                { option = "x1"
+                                , qualification = Nothing
+                                }
+                            , ActionOption
+                                { option = "y1"
+                                , qualification = Nothing
+                                }
+                            ]
+                        , free = True
+                        }
+                    )
                 ]
             )
         ,
             ( 33
             ,
-                [ NoInputAction AMakeCase
-                , NoInputAction ARaise
-                , InputAction AMakeLambda
-                , InputAction AUseVar
-                , InputAction AUseValueCon
+                [ NoInput' MakeCase
+                , NoInput' Raise
+                , Input' MakeLambda
+                    ( ActionOptions
+                        { options =
+                            [ ActionOption
+                                { option = "z"
+                                , qualification = Nothing
+                                }
+                            , ActionOption
+                                { option = "x1"
+                                , qualification = Nothing
+                                }
+                            , ActionOption
+                                { option = "y1"
+                                , qualification = Nothing
+                                }
+                            ]
+                        , free = True
+                        }
+                    )
+                , Input' UseVar
+                    ( ActionOptions
+                        { options =
+                            [ ActionOption
+                                { option = "x"
+                                , qualification = Nothing
+                                }
+                            , ActionOption
+                                { option = "y"
+                                , qualification = Nothing
+                                }
+                            , ActionOption
+                                { option = "i"
+                                , qualification = Nothing
+                                }
+                            , ActionOption
+                                { option = "n"
+                                , qualification = Nothing
+                                }
+                            ]
+                        , free = False
+                        }
+                    )
+                , Input' UseValueCon
+                    ( ActionOptions
+                        { options =
+                            [ ActionOption
+                                { option = "True"
+                                , qualification = Just
+                                    ( "Builtins" :| [] )
+                                }
+                            , ActionOption
+                                { option = "False"
+                                , qualification = Just
+                                    ( "Builtins" :| [] )
+                                }
+                            , ActionOption
+                                { option = "Nil"
+                                , qualification = Just
+                                    ( "Builtins" :| [] )
+                                }
+                            , ActionOption
+                                { option = "Nothing"
+                                , qualification = Just
+                                    ( "Builtins" :| [] )
+                                }
+                            , ActionOption
+                                { option = "Zero"
+                                , qualification = Just
+                                    ( "Builtins" :| [] )
+                                }
+                            ]
+                        , free = False
+                        }
+                    )
                 ]
             )
         ,
             ( 34
             ,
-                [ NoInputAction AMakeCase
-                , NoInputAction ARaise
-                , NoInputAction ADeleteExpr
-                , InputAction AMakeLambda
+                [ NoInput' MakeCase
+                , NoInput' Raise
+                , NoInput' DeleteExpr
+                , Input' MakeLambda
+                    ( ActionOptions
+                        { options =
+                            [ ActionOption
+                                { option = "z"
+                                , qualification = Nothing
+                                }
+                            , ActionOption
+                                { option = "x1"
+                                , qualification = Nothing
+                                }
+                            , ActionOption
+                                { option = "y1"
+                                , qualification = Nothing
+                                }
+                            ]
+                        , free = True
+                        }
+                    )
                 ]
             )
         ,
             ( 35
             ,
-                [ NoInputAction AMakeCase
-                , NoInputAction ARaise
-                , NoInputAction ADeleteExpr
-                , InputAction AMakeLambda
+                [ NoInput' MakeCase
+                , NoInput' Raise
+                , NoInput' DeleteExpr
+                , Input' MakeLambda
+                    ( ActionOptions
+                        { options =
+                            [ ActionOption
+                                { option = "z"
+                                , qualification = Nothing
+                                }
+                            , ActionOption
+                                { option = "x1"
+                                , qualification = Nothing
+                                }
+                            , ActionOption
+                                { option = "y1"
+                                , qualification = Nothing
+                                }
+                            ]
+                        , free = True
+                        }
+                    )
                 ]
             )
         ,
             ( 16
             ,
-                [ NoInputAction AConstructFun
-                , NoInputAction ADeleteType
+                [ NoInput' ConstructFun
+                , NoInput' DeleteType
                 ]
             )
         ,
             ( 17
             ,
-                [ NoInputAction AConstructFun
-                , NoInputAction ARaise
-                , NoInputAction ADeleteType
+                [ NoInput' ConstructFun
+                , NoInput' Raise
+                , NoInput' DeleteType
                 ]
             )
         ,
             ( 25
             ,
-                [ NoInputAction AConstructFun
-                , NoInputAction ADeleteType
+                [ NoInput' ConstructFun
+                , NoInput' DeleteType
                 ]
             )
         ,
             ( 26
             ,
-                [ NoInputAction AConstructFun
-                , NoInputAction ADeleteType
+                [ NoInput' ConstructFun
+                , NoInput' DeleteType
                 ]
             )
         ,
             ( 36
             ,
-                [ NoInputAction AConstructFun
-                , NoInputAction AAddInput
-                , NoInputAction ADeleteType
+                [ NoInput' ConstructFun
+                , NoInput' AddInput
+                , NoInput' DeleteType
                 ]
             )
         ,
             ( 37
             ,
-                [ NoInputAction AConstructFun
-                , NoInputAction ARaise
-                , NoInputAction ADeleteType
+                [ NoInput' ConstructFun
+                , NoInput' Raise
+                , NoInput' DeleteType
                 ]
             )
         ,
             ( 38
             ,
-                [ NoInputAction AConstructFun
-                , NoInputAction ARaise
-                , NoInputAction ADeleteType
+                [ NoInput' ConstructFun
+                , NoInput' Raise
+                , NoInput' DeleteType
                 ]
             )
         ,
             ( 39
             ,
-                [ NoInputAction AConstructFun
-                , NoInputAction ARaise
-                , NoInputAction ADeleteType
+                [ NoInput' ConstructFun
+                , NoInput' Raise
+                , NoInput' DeleteType
                 ]
             )
         ,
             ( 40
             ,
-                [ NoInputAction AConstructFun
-                , NoInputAction ARaise
-                , NoInputAction ADeleteType
+                [ NoInput' ConstructFun
+                , NoInput' Raise
+                , NoInput' DeleteType
                 ]
             )
         ,
             ( 41
             ,
-                [ NoInputAction AConstructFun
-                , NoInputAction ARaise
-                , NoInputAction ADeleteType
+                [ NoInput' ConstructFun
+                , NoInput' Raise
+                , NoInput' DeleteType
                 ]
             )
         ,
             ( 42
             ,
-                [ NoInputAction AConstructFun
-                , NoInputAction ARaise
-                , NoInputAction ADeleteType
+                [ NoInput' ConstructFun
+                , NoInput' Raise
+                , NoInput' DeleteType
                 ]
             )
         ,
             ( 43
             ,
-                [ NoInputAction AConstructFun
-                , NoInputAction ARaise
-                , NoInputAction ADeleteType
+                [ NoInput' ConstructFun
+                , NoInput' Raise
+                , NoInput' DeleteType
                 ]
             )
         ]
@@ -300,73 +873,119 @@ Output
         [
             ( 0
             ,
-                [ NoInputAction AConstructFun
-                , NoInputAction AAddInput
-                , NoInputAction ADeleteType
+                [ NoInput' ConstructFun
+                , NoInput' AddInput
+                , NoInput' DeleteType
                 ]
             )
         ,
             ( 1
             ,
-                [ NoInputAction AConstructFun
-                , NoInputAction ARaiseType
-                , NoInputAction ADeleteType
+                [ NoInput' ConstructFun
+                , NoInput' RaiseType
+                , NoInput' DeleteType
                 ]
             )
         ,
             ( 2
             ,
-                [ NoInputAction AConstructFun
-                , NoInputAction ARaiseType
-                , NoInputAction ADeleteType
+                [ NoInput' ConstructFun
+                , NoInput' RaiseType
+                , NoInput' DeleteType
                 ]
             )
         ,
             ( 3
             ,
-                [ NoInputAction AConstructFun
-                , NoInputAction ARaiseType
-                , NoInputAction ADeleteType
+                [ NoInput' ConstructFun
+                , NoInput' RaiseType
+                , NoInput' DeleteType
                 ]
             )
         ,
             ( 4
             ,
-                [ NoInputAction AConstructFun
-                , NoInputAction ARaiseType
-                , NoInputAction ADeleteType
+                [ NoInput' ConstructFun
+                , NoInput' RaiseType
+                , NoInput' DeleteType
                 ]
             )
         ,
             ( 5
             ,
-                [ NoInputAction AConstructFun
-                , NoInputAction ARaiseType
-                , NoInputAction ADeleteType
+                [ NoInput' ConstructFun
+                , NoInput' RaiseType
+                , NoInput' DeleteType
                 ]
             )
         ,
             ( 6
             ,
-                [ NoInputAction AConstructFun
-                , NoInputAction ARaiseType
-                , NoInputAction ADeleteType
+                [ NoInput' ConstructFun
+                , NoInput' RaiseType
+                , NoInput' DeleteType
                 ]
             )
         ,
             ( 7
             ,
-                [ NoInputAction AConstructFun
-                , NoInputAction ARaiseType
-                , InputAction AUseTypeCon
+                [ NoInput' ConstructFun
+                , NoInput' RaiseType
+                , Input' UseTypeCon
+                    ( ActionOptions
+                        { options =
+                            [ ActionOption
+                                { option = "Bool"
+                                , qualification = Just
+                                    ( "Builtins" :| [] )
+                                }
+                            , ActionOption
+                                { option = "Either"
+                                , qualification = Just
+                                    ( "Builtins" :| [] )
+                                }
+                            , ActionOption
+                                { option = "List"
+                                , qualification = Just
+                                    ( "Builtins" :| [] )
+                                }
+                            , ActionOption
+                                { option = "Maybe"
+                                , qualification = Just
+                                    ( "Builtins" :| [] )
+                                }
+                            , ActionOption
+                                { option = "Nat"
+                                , qualification = Just
+                                    ( "Builtins" :| [] )
+                                }
+                            , ActionOption
+                                { option = "Pair"
+                                , qualification = Just
+                                    ( "Builtins" :| [] )
+                                }
+                            , ActionOption
+                                { option = "Char"
+                                , qualification = Just
+                                    ( "Primitives" :| [] )
+                                }
+                            , ActionOption
+                                { option = "Int"
+                                , qualification = Just
+                                    ( "Primitives" :| [] )
+                                }
+                            ]
+                        , free = False
+                        }
+                    )
                 ]
             )
         ,
             ( 8
             ,
-                [ NoInputAction AConstructFun
-                , NoInputAction ARaiseType
-                , NoInputAction ADeleteType
+                [ NoInput' ConstructFun
+                , NoInput' RaiseType
+                , NoInput' DeleteType
                 ]
             )
         ]
