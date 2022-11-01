@@ -106,7 +106,7 @@ data ActionAPI mode = ActionAPI
   { available ::
       mode
         :- "available"
-        :> Summary "Get available actions for the definition, or a node within it"
+        :> Summary "Get available actions for the definition, or a node within it - sorted by priority"
         :> QueryParam' '[Required, Strict] "level" Level
         :> ReqBody '[JSON] Selection
         :> OperationId "getAvailableActions"
