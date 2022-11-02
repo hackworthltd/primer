@@ -85,21 +85,6 @@ import Primer.Zipper (
   locToEither,
  )
 
-data ActionOption = ActionOption
-  { option :: Text
-  , context :: Maybe (NonEmpty Text)
-  }
-  deriving (Eq, Show, Generic)
-  deriving (FromJSON, ToJSON) via PrimerJSON ActionOption
-
-data ActionOptions = ActionOptions
-  { options :: [ActionOption]
-  , free :: Bool
-  -- ^ allow free text input, rather than just selections from the list
-  }
-  deriving (Show, Generic)
-  deriving (ToJSON) via PrimerJSON ActionOptions
-
 data OfferedAction
   = NoInput NoInputAction
   | Input InputAction
@@ -340,6 +325,21 @@ priorityInputAction = \case
   UseValueCon -> P.useValueCon
   UseSaturatedValueCon -> P.useSaturatedValueCon
   UseTypeCon -> P.useTypeCon
+
+data ActionOption = ActionOption
+  { option :: Text
+  , context :: Maybe (NonEmpty Text)
+  }
+  deriving (Eq, Show, Generic)
+  deriving (FromJSON, ToJSON) via PrimerJSON ActionOption
+
+data ActionOptions = ActionOptions
+  { options :: [ActionOption]
+  , free :: Bool
+  -- ^ allow free text input, rather than just selections from the list
+  }
+  deriving (Show, Generic)
+  deriving (ToJSON) via PrimerJSON ActionOptions
 
 -- getInput :: OfferedAction -> (ActionOptions, [ProgAction])
 -- getInput :: Level -> OfferedAction -> (ActionOptions, [ProgAction])
