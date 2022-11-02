@@ -68,7 +68,7 @@ import Rel8 (
   insert,
   values,
  )
-import System.IO.Temp (getCanonicalTemporaryDirectory)
+import System.IO.Temp (withSystemTempDirectory)
 import System.Process.Typed (
   proc,
   readProcessStdout,
@@ -122,19 +122,19 @@ withDbSetup f = do
             , Options.host = pure host
             }
   throwEither $ do
-    tmpdir <- getCanonicalTemporaryDirectory
-    let cc =
-          defaultCacheConfig
-            { cacheTemporaryDirectory = tmpdir
-            , cacheDirectoryType = Temporary
-            }
-     in withDbCacheConfig cc $ \dbCache ->
-          let combinedConfig = dbConfig <> cacheConfig dbCache
-           in do
-                hash_ <- sqitchEventChangeId
-                migratedConfig <- throwEither $ cacheAction (tmpdir <> "/" <> hash_) (deployDb port) combinedConfig
-                withConfig migratedConfig $ \db ->
-                  bracket (acquire 1 (Just 1000000) $ toConnectionString db) release f
+    withSystemTempDirectory "primer-tmp-postgres" $ \tmpdir ->
+      let cc =
+            defaultCacheConfig
+              { cacheTemporaryDirectory = tmpdir
+              , cacheDirectoryType = Temporary
+              }
+       in withDbCacheConfig cc $ \dbCache ->
+            let combinedConfig = dbConfig <> cacheConfig dbCache
+             in do
+                  hash_ <- sqitchEventChangeId
+                  migratedConfig <- throwEither $ cacheAction (tmpdir <> "/" <> hash_) (deployDb port) combinedConfig
+                  withConfig migratedConfig $ \db ->
+                    bracket (acquire 1 (Just 1000000) $ toConnectionString db) release f
 
 runTmpDb :: Rel8DbT (DiscardLoggingT (WithSeverity ()) IO) () -> IO ()
 runTmpDb tests =
