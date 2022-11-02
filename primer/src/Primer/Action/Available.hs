@@ -22,13 +22,7 @@ import Foreword
 
 import Data.Map qualified as Map
 import Data.Set qualified as Set
-import Optics (
-  (%),
-  (^.),
-  (^?),
-  _Just,
- )
-
+import Optics ((%), (^.), (^?), _Just)
 import Primer.Action.Priorities qualified as P
 import Primer.Core (
   Editable (..),
@@ -93,42 +87,43 @@ data OfferedAction
 
 data NoInputAction
   = MakeCase
-  | ConvertLetToLetrec
-  | ConstructApp
-  | ConstructAPP
-  | ConstructAnn
+  | MakeApp
+  | MakeAPP
+  | MakeAnn
   | RemoveAnn
-  | FinishHole
-  | EnterHole
-  | ConstructFun
-  | AddInput
-  | ConstructTypeApp
-  | DuplicateDef
+  | LetToRec
   | Raise
-  | RaiseType
-  | DeleteDef
+  | EnterHole
+  | RemoveHole
   | DeleteExpr
+  | MakeFun
+  | AddInput
+  | MakeTApp
+  | RaiseType
   | DeleteType
+  | DuplicateDef
+  | DeleteDef
   deriving (Eq, Ord, Show, Read, Enum, Bounded, Generic)
   deriving (ToJSON, FromJSON) via PrimerJSON NoInputAction
+
 data InputAction
-  = MakeLambda
-  | UseVar
-  | SaturatedFunction
+  = MakeCon
+  | MakeConSat
+  | MakeVar
+  | MakeVarSat
   | MakeLet
   | MakeLetRec
-  | ConstructBigLambda
-  | UseTypeVar
-  | ConstructForall
-  | RenameDef
-  | RenamePatternVar
-  | RenameLambda
+  | MakeLam
+  | MakeLAM
+  | RenamePattern
+  | RenameLet
+  | RenameLam
   | RenameLAM
-  | RenameLetBinding
+  | MakeTCon
+  | MakeTVar
+  | MakeForall
   | RenameForall
-  | UseValueCon -- TODO sort these (incl. use sites) - were at bottom because qualified
-  | UseSaturatedValueCon
-  | UseTypeCon
+  | RenameDef
   deriving (Eq, Ord, Show, Read, Enum, Bounded, Generic)
   deriving (ToJSON, FromJSON) via PrimerJSON InputAction
 
@@ -178,7 +173,7 @@ actionsForDefBody tydefs l Editable id expr = prioritySort l $ case findNodeWith
           Just (ExprNode _) -> [] -- at the root of an annotation, so cannot raise
           _ -> [NoInput Raise]
      in basicActionsForType l t <> compoundActionsForType t <> raiseAction
-  Just (CaseBindNode _, _) -> [Input RenamePatternVar]
+  Just (CaseBindNode _, _) -> [Input RenamePattern]
 
 -- | Given a the type signature of a Def and the ID of a node in it,
 -- return the possible actions that can be applied to it
@@ -210,45 +205,45 @@ basicActionsForExpr tydefs l expr = case expr of
   e -> let _ = e ^. _exprMetaLens in defaultActions <> annotate
   where
     m = expr ^. _exprMetaLens
-    annotate = mwhen (l == Expert) [NoInput ConstructAnn]
+    annotate = mwhen (l == Expert) [NoInput MakeAnn]
     emptyHoleActions = case l of
       Beginner ->
-        [ Input UseVar
-        , Input UseValueCon
+        [ Input MakeVar
+        , Input MakeCon
         ]
       _ ->
-        [ Input UseVar
-        , Input SaturatedFunction
-        , Input UseValueCon
-        , Input UseSaturatedValueCon
+        [ Input MakeVar
+        , Input MakeVarSat
+        , Input MakeCon
+        , Input MakeConSat
         , Input MakeLet
         , Input MakeLetRec
         , NoInput EnterHole
         ]
           <> annotate
-    holeActions = NoInput FinishHole : annotate
+    holeActions = NoInput RemoveHole : annotate
     annotationActions = mwhen (l == Expert) [NoInput RemoveAnn]
-    lambdaActions = Input RenameLambda : annotate
+    lambdaActions = Input RenameLam : annotate
     bigLambdaActions = annotate <> mwhen (l == Expert) [Input RenameLAM]
     letActions v e =
-      [Input RenameLetBinding]
-        <> munless (unLocalName v `Set.member` freeVars e) [NoInput ConvertLetToLetrec]
+      [Input RenameLet]
+        <> munless (unLocalName v `Set.member` freeVars e) [NoInput LetToRec]
         <> annotate
-    letRecActions = Input RenameLetBinding : annotate
+    letRecActions = Input RenameLet : annotate
     universalActions =
       let both = case l of
             Beginner ->
-              [ Input MakeLambda
+              [ Input MakeLam
               ]
             Intermediate ->
-              [ Input MakeLambda
-              , NoInput ConstructApp
+              [ Input MakeLam
+              , NoInput MakeApp
               ]
             Expert ->
-              [ NoInput ConstructApp
-              , NoInput ConstructAPP
-              , Input MakeLambda
-              , Input ConstructBigLambda
+              [ NoInput MakeApp
+              , NoInput MakeAPP
+              , Input MakeLam
+              , Input MakeLAM
               ]
           -- We assume that the input program is type-checked, in order to
           -- filter some actions by Syn/Chk
@@ -264,16 +259,16 @@ basicActionsForExpr tydefs l expr = case expr of
 -- Specific projections may provide other actions not listed here
 basicActionsForType :: Level -> Type -> [OfferedAction]
 basicActionsForType l = \case
-  TEmptyHole{} -> universalActions <> [Input UseTypeCon] <> mwhen (l == Expert) [Input UseTypeVar]
+  TEmptyHole{} -> universalActions <> [Input MakeTCon] <> mwhen (l == Expert) [Input MakeTVar]
   TForall{} -> defaultActions <> mwhen (l == Expert) [Input RenameForall]
   _ -> defaultActions
   where
     universalActions =
-      [NoInput ConstructFun]
+      [NoInput MakeFun]
         <> mwhen
           (l == Expert)
-          [ Input ConstructForall
-          , NoInput ConstructTypeApp
+          [ Input MakeForall
+          , NoInput MakeTApp
           ]
     defaultActions = universalActions <> [NoInput DeleteType]
 
@@ -290,16 +285,16 @@ compoundActionsForType ty = case ty of
 priorityNoInputAction :: NoInputAction -> Level -> Int
 priorityNoInputAction = \case
   MakeCase -> P.makeCase
-  ConvertLetToLetrec -> P.makeLetRecursive
-  ConstructApp -> P.applyFunction
-  ConstructAPP -> P.applyType
-  ConstructAnn -> P.annotateExpr
+  LetToRec -> P.makeLetRecursive
+  MakeApp -> P.applyFunction
+  MakeAPP -> P.applyType
+  MakeAnn -> P.annotateExpr
   RemoveAnn -> P.removeAnnotation
-  FinishHole -> P.finishHole
+  RemoveHole -> P.finishHole
   EnterHole -> P.enterHole
-  ConstructFun -> P.constructFunction
+  MakeFun -> P.constructFunction
   AddInput -> P.addInput
-  ConstructTypeApp -> P.constructTypeApp
+  MakeTApp -> P.constructTypeApp
   DuplicateDef -> P.duplicate
   Raise -> P.raise
   RaiseType -> P.raise
@@ -308,23 +303,23 @@ priorityNoInputAction = \case
   DeleteType -> P.delete
 priorityInputAction :: InputAction -> Level -> Int
 priorityInputAction = \case
-  MakeLambda -> P.makeLambda
-  UseVar -> P.useVar
-  SaturatedFunction -> P.useFunction
+  MakeLam -> P.makeLambda
+  MakeVar -> P.useVar
+  MakeVarSat -> P.useFunction
   MakeLet -> P.makeLet
   MakeLetRec -> P.makeLetrec
-  ConstructBigLambda -> P.makeTypeAbstraction
-  UseTypeVar -> P.useTypeVar
-  ConstructForall -> P.constructForall
+  MakeLAM -> P.makeTypeAbstraction
+  MakeTVar -> P.useTypeVar
+  MakeForall -> P.constructForall
   RenameDef -> P.rename
-  RenamePatternVar -> P.rename
-  RenameLambda -> P.rename
+  RenamePattern -> P.rename
+  RenameLam -> P.rename
   RenameLAM -> P.rename
-  RenameLetBinding -> P.rename
+  RenameLet -> P.rename
   RenameForall -> P.rename
-  UseValueCon -> P.useValueCon
-  UseSaturatedValueCon -> P.useSaturatedValueCon
-  UseTypeCon -> P.useTypeCon
+  MakeCon -> P.useValueCon
+  MakeConSat -> P.useSaturatedValueCon
+  MakeTCon -> P.useTypeCon
 
 data ActionOption = ActionOption
   { option :: Text
@@ -367,18 +362,18 @@ inputAction ::
   InputAction ->
   Either InputActionError ActionOptions
 inputAction typeDefs defs def cxt level mid = \case
-  MakeLambda -> do
+  MakeLam -> do
     options <- genName'
     -- q <- handleQuestion $ GenerateName defName (m ^. _id) (Left $ join $ m ^? _type % _Just % _chkedAt % to lamVarTy)
     pure ActionOptions{options, free = True}
-  UseVar -> do
+  MakeVar -> do
     -- TODO DRY next 10 lines or so
     (_types, locals, globals) <- varsInScope'
     let optionsLoc = flip ActionOption Nothing . unName . unLocalName . fst <$> (if level == Beginner then noFunctions locals else locals)
         optionsGlob = fromGlobal . fst <$> (if level == Beginner then noFunctions globals else globals)
         options = optionsLoc <> optionsGlob
     pure ActionOptions{options, free = False}
-  SaturatedFunction -> do
+  MakeVarSat -> do
     (_types, locals, globals) <- varsInScope'
     let optionsLoc = flip ActionOption Nothing . unName . unLocalName . fst <$> onlyFunctions locals
         optionsGlob = fromGlobal . fst <$> onlyFunctions globals
@@ -390,40 +385,40 @@ inputAction typeDefs defs def cxt level mid = \case
   MakeLetRec -> do
     options <- genName'
     pure ActionOptions{options, free = True}
-  ConstructBigLambda -> do
+  MakeLAM -> do
     options <- genName'
     pure ActionOptions{options, free = True}
-  UseTypeVar -> do
+  MakeTVar -> do
     (types, _locals, _globals) <- varsInScope'
     let options = flip ActionOption Nothing . unName . unLocalName . fst <$> types
     pure ActionOptions{options, free = False}
-  ConstructForall -> do
+  MakeForall -> do
     options <- genName'
     pure ActionOptions{options, free = True}
   RenameDef ->
     pure ActionOptions{options = [], free = True}
-  RenamePatternVar -> do
+  RenamePattern -> do
     options <- genName'
     pure ActionOptions{options, free = True}
-  RenameLambda -> do
+  RenameLam -> do
     options <- genName'
     pure ActionOptions{options, free = True}
   RenameLAM -> do
     options <- genName'
     pure ActionOptions{options, free = True}
-  RenameLetBinding -> do
+  RenameLet -> do
     options <- genName'
     pure ActionOptions{options, free = True}
   RenameForall -> do
     options <- genName'
     pure ActionOptions{options, free = True}
-  UseValueCon ->
+  MakeCon ->
     let options = map (fromGlobal . valConName) . (if level == Beginner then noFunctionsCon else identity) . concatMap astTypeDefConstructors . mapMaybe (typeDefAST . snd) $ Map.toList typeDefs
      in pure ActionOptions{options, free = False}
-  UseSaturatedValueCon ->
+  MakeConSat ->
     let options = map (fromGlobal . valConName) . onlyFunctionsCon . concatMap astTypeDefConstructors . mapMaybe (typeDefAST . snd) $ Map.toList typeDefs
      in pure ActionOptions{options, free = False}
-  UseTypeCon ->
+  MakeTCon ->
     let options = fromGlobal . fst <$> Map.toList typeDefs
      in pure ActionOptions{options, free = False}
   where
