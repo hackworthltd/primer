@@ -142,7 +142,7 @@ mkTests deps (defName, DefAST def') =
         NoInput a -> NoInput' a
         Input a ->
           Input' a
-            . either (error . show) identity
+            . fromMaybe (error "id not found")
             $ inputAction typeDefs defs def cxt level id a
    in testGroup testName $
         enumeratePairs
@@ -253,7 +253,7 @@ tasty_available_actions_accepted = withTests 500 $
               -- TODO don't just fail - log
               DefAST def' <- pure def
               ActionOptions{options, free} <-
-                either (\e -> annotateShow e >> failure) pure $
+                maybe (annotate "id not found" >> failure) pure $
                   inputAction
                     (map snd $ progAllTypeDefs $ appProg a)
                     (map snd $ progAllDefs $ appProg a)

@@ -261,7 +261,7 @@ serve ss q v port logger = do
         UnknownDef d -> err404{errBody = "Unknown definition: " <> encode (globalNamePretty d)}
         UnexpectedPrimDef d -> err400{errBody = "Unexpected primitive definition: " <> encode (globalNamePretty d)}
         ApplyActionError as pe -> err400{errBody = "Error while applying actions (" <> show as <> "): " <> show pe}
-        InputActionError e' -> err400{errBody = "Error while generating input options: " <> show e'}
+        InputActionIDNotFound e' -> err400{errBody = "Error while generating input options: " <> show e'}
         MiscPrimerErr t -> err400{errBody = "Misc error: " <> encode t}
       where
         encode = LT.encodeUtf8 . LT.fromStrict

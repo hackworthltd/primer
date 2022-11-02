@@ -96,7 +96,6 @@ import Primer.Action.Available (
   ActionOption,
   ActionOptions,
   InputAction (..),
-  InputActionError,
   Level (..),
   NoInputAction (..),
   OfferedAction (..),
@@ -250,8 +249,8 @@ data PrimerErr
   = DatabaseErr Text
   | UnknownDef GVarName
   | UnexpectedPrimDef GVarName
+  | InputActionIDNotFound (Maybe ID)
   | MiscPrimerErr Text -- TODO remove
-  | InputActionError InputActionError
   | ApplyActionError [ProgAction] ProgError -- TODO add more info? e.g. actual types from API call (ProgAction is a bit low-level)
   deriving (Show)
 
@@ -970,15 +969,16 @@ inputAction' sid level Selection{..} action = do
   let prog = appProg app
       allTypeDefs = progAllTypeDefs prog
       allDefs = progAllDefs prog
+      id = node <&> \s -> s.id
   def' <- snd <$> findDef allDefs def
-  either (throwM . InputActionError) pure $
+  maybe (throwM $ InputActionIDNotFound id) pure $
     inputAction
       (snd <$> allTypeDefs)
       (snd <$> allDefs)
       def'
       (progCxt prog)
       level
-      (node <&> \s -> s.id)
+      id
       action
 
 findDef :: MonadThrow m => Map GVarName (a, Def.Def) -> GVarName -> m (a, ASTDef)

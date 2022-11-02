@@ -18,7 +18,6 @@ module Primer.Action.Available (
   inputAction,
   ActionOption (..),
   ActionOptions (..),
-  InputActionError (..),
 ) where
 
 import Foreword
@@ -268,6 +267,7 @@ data ActionOptions = ActionOptions
   deriving (Show, Generic)
   deriving (ToJSON) via PrimerJSON ActionOptions
 
+-- returns `Nothing` if an ID was required but not passes, or the ID was passed but no node with that ID was found
 inputAction ::
   TypeDefMap ->
   DefMap ->
@@ -276,7 +276,7 @@ inputAction ::
   Level ->
   Maybe ID ->
   InputAction ->
-  Either InputActionError ActionOptions
+  Maybe ActionOptions
 inputAction typeDefs defs def cxt level mid = \case
   MakeCon ->
     let options = map (fromGlobal . valConName) . (if level == Beginner then noFunctionsCon else identity) . concatMap astTypeDefConstructors . mapMaybe (typeDefAST . snd) $ Map.toList typeDefs
@@ -339,12 +339,12 @@ inputAction typeDefs defs def cxt level mid = \case
     pure ActionOptions{options = [], free = True}
   where
     genName' = do
-      id <- maybe (throwError NoID) pure mid
+      id <- maybe (throwError ()) pure mid
       let chkOrSynth tc = (tc ^? _chkedAt) <|> (tc ^? _synthed)
       typeKind <-
         (fst <$> findNodeWithParent id (astDefExpr def)) <|> (TypeNode <$> findType id (astDefType def))
           & maybe
-            (throwError IDNotFound)
+            (throwError ())
             ( \case
                 ExprNode e -> pure $ Left $ do
                   tc <- e ^. _exprMetaLens % _type
@@ -360,7 +360,7 @@ inputAction typeDefs defs def cxt level mid = \case
           Right zT -> generateNameTy typeKind zT
       pure $ flip ActionOption Nothing . unName <$> runReader names cxt
     varsInScope' = do
-      id <- maybe (throwError NoID) pure mid
+      id <- maybe (throwError ()) pure mid
       node <- focusNode id
       pure $ case node of
         Left zE -> variablesInScopeExpr defs zE
@@ -370,12 +370,8 @@ inputAction typeDefs defs def cxt level mid = \case
       let mzE = locToEither <$> focusOn id (astDefExpr def)
           mzT = focusOnTy id $ astDefType def
        in case fmap Left mzE <|> fmap Right mzT of
-            Nothing -> throwError IDNotFound
+            Nothing -> throwError () -- TODO simplify
             Just x -> pure x
-data InputActionError -- TODO can we somehow remove this? maybe combine with `ActionError`
-  = IDNotFound
-  | NoID
-  deriving (Show)
 
 sortByPriority ::
   Level ->
