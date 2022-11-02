@@ -5,21 +5,10 @@ module Tests.Pagination where
 
 import Foreword
 
-import Control.Monad.Log (
-  DiscardLoggingT,
-  WithSeverity,
-  discardLogging,
- )
 import Data.String (String)
-import Data.Time (
-  UTCTime (..),
-  diffTimeToPicoseconds,
-  picosecondsToDiffTime,
- )
 import Data.UUID.V4 (nextRandom)
 import Database.PostgreSQL.Simple.Options qualified as Options
 import Database.Postgres.Temp (
-  DB,
   DirectoryType (Temporary),
   cacheAction,
   cacheConfig,
@@ -40,15 +29,12 @@ import Primer.App (newApp)
 import Primer.Database (
   LastModified (..),
   Session (Session),
-  getCurrentTime,
   insertSession,
   listSessions,
   safeMkSessionName,
  )
 import Primer.Database.Rel8 (
-  Rel8DbT,
   SessionRow (SessionRow, app, gitversion, lastmodified, name, uuid),
-  runRel8DbT,
  )
 import Primer.Pagination (
   Pagination (Pagination, page, size),
@@ -66,33 +52,17 @@ import Primer.Pagination (
   thisPage,
   totalItems,
  )
+import Primer.Database.Rel8.Test.Util (
+  deployDb,
+  lowPrecisionCurrentTime,
+  runTmpDb,
+ )
 import Primer.Test.Util ((@?=))
 import Rel8 (Result)
 import System.IO.Temp (withSystemTempDirectory)
-import System.Process.Typed (
-  proc,
-  runProcess_,
- )
 import Test.Tasty (TestTree)
 import Test.Tasty.HUnit (testCaseSteps)
 import Test.Tasty.HUnit qualified as HUnit
-
--- | PostgreSQL's timestamp type has a precision of 1 microsecond, but
--- 'getCurrentTime' has a precision of 1 picosecond. In order to
--- compare times for our tests, we need to truncate the precision of
--- the time returned by 'getCurrentTime'.
---
--- Ref:
--- https://www.postgresql.org/docs/13/datatype-datetime.html
---
--- Note: we should DRY this, see:
--- https://github.com/hackworthltd/primer/issues/273
-lowPrecisionCurrentTime :: (MonadIO m) => m LastModified
-lowPrecisionCurrentTime = do
-  LastModified (UTCTime day time) <- getCurrentTime
-  -- truncate to microseconds
-  let time' = picosecondsToDiffTime $ diffTimeToPicoseconds time `div` 1000000 * 1000000
-  pure $ LastModified $ UTCTime day time'
 
 assertFailure :: MonadIO m => Text -> m a
 assertFailure = liftIO . HUnit.assertFailure . toS
@@ -109,14 +79,10 @@ user = "postgres"
 password :: String
 password = "primer"
 
--- | This action requires that the Sqitch script @primer-sqitch@ is in
--- the process's path. If you run this test via Nix, Nix will
--- guarantee that precondition.
-deployDb :: DB -> IO ()
-deployDb _ =
-  let url = "db:postgres://" <> user <> ":" <> password <> "@" <> host <> ":" <> show port
-   in runProcess_ $ proc "primer-sqitch" ["deploy", "--verify", url]
-
+-- Note: this action is ever so slightly different than the one in
+-- primer-rel8-testlib, mainly because the latter is designed for
+-- testing sqitch migrations, and here we don't need to worry about
+-- that.
 withSetup :: (Pool -> IO ()) -> IO ()
 withSetup f =
   let throwEither x = either throwIO pure =<< x
@@ -139,17 +105,9 @@ withSetup f =
              in withDbCacheConfig cc $ \dbCache ->
                   let combinedConfig = dbConfig <> cacheConfig dbCache
                    in do
-                        migratedConfig <- throwEither $ cacheAction (tmpdir <> "/pagination") deployDb combinedConfig
+                        migratedConfig <- throwEither $ cacheAction (tmpdir <> "/pagination") (deployDb port) combinedConfig
                         withConfig migratedConfig $ \db ->
                           bracket (acquire 1 (Just 1000000) $ toConnectionString db) release f
-
--- This is copied from `primer-rel8` and should be refactored into a
--- common testing library. See:
---
--- https://github.com/hackworthltd/primer/issues/273
-runTmpDb :: Rel8DbT (DiscardLoggingT (WithSeverity ()) IO) () -> IO ()
-runTmpDb tests =
-  withSetup $ \pool -> discardLogging $ runRel8DbT tests pool
 
 mkSession :: Int -> IO (SessionRow Result)
 mkSession n = do

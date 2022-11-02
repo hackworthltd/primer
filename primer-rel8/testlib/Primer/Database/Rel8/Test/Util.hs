@@ -1,6 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 
 module Primer.Database.Rel8.Test.Util (
+  deployDb,
   insertSessionRow,
   withDbSetup,
   lowPrecisionCurrentTime,
