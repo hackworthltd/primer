@@ -147,15 +147,13 @@ mkTests deps (defName, DefAST def') =
    in testGroup testName $
         enumeratePairs
           <&> \(level, mut) ->
-            -- We sort the offered actions to make the test output more stable
-            let defActions = map (convert level Nothing) $ sort $ actionsForDef defs level mut d
+            let defActions = map (convert level Nothing) $ actionsForDef defs level mut d
                 bodyActions =
                   map
                     ( \id ->
                         ( id
-                        , map (convert level (Just id))
-                            . sort
-                            $ actionsForDefBody
+                        , map (convert level (Just id)) $
+                            actionsForDefBody
                               typeDefs
                               level
                               mut
@@ -169,7 +167,7 @@ mkTests deps (defName, DefAST def') =
                   map
                     ( \id ->
                         ( id
-                        , map (convert level (Just id)) $ sort $ actionsForDefSig level mut id (astDefType def)
+                        , map (convert level (Just id)) $ actionsForDefSig level mut id (astDefType def)
                         )
                     )
                     . toListOf (_typeMeta % _id)
