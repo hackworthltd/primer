@@ -132,7 +132,7 @@ actionsForDef ::
   [OfferedAction]
 actionsForDef _ _ NonEditable _ = []
 actionsForDef defs l Editable defName =
-  prioritySort l $
+  sortByPriority l $
     [Input RenameDef, NoInput DuplicateDef]
       <> mwhen
         -- Ensure it is not in use, otherwise the action will not succeed
@@ -147,7 +147,7 @@ actionsForDefBody ::
   Expr ->
   [OfferedAction]
 actionsForDefBody _ _ NonEditable _ _ = mempty
-actionsForDefBody tydefs l Editable id expr = prioritySort l $ case findNodeWithParent id expr of
+actionsForDefBody tydefs l Editable id expr = sortByPriority l $ case findNodeWithParent id expr of
   Nothing -> mempty
   Just (ExprNode e, p) ->
     let raiseAction = case p of
@@ -169,7 +169,7 @@ actionsForDefSig ::
   Type ->
   [OfferedAction]
 actionsForDefSig _ NonEditable _ _ = mempty
-actionsForDefSig l Editable id ty = prioritySort l $ case findType id ty of
+actionsForDefSig l Editable id ty = sortByPriority l $ case findType id ty of
   Nothing -> mempty
   Just t ->
     actionsForType l t
@@ -377,11 +377,11 @@ data InputActionError -- TODO can we somehow remove this? maybe combine with `Ac
   | NoID
   deriving (Show)
 
-prioritySort ::
+sortByPriority ::
   Level ->
   [OfferedAction] ->
   [OfferedAction]
-prioritySort l =
+sortByPriority l =
   sortOn $
     ($ l) . \case
       NoInput a -> case a of
