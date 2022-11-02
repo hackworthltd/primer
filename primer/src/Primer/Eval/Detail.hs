@@ -3,6 +3,7 @@
 module Primer.Eval.Detail (
   EvalDetail (..),
   module Beta,
+  module Bind,
   module Inline,
   module Case,
   module Let,
@@ -16,6 +17,7 @@ import Primer.Core (Expr)
 import Primer.Core.Meta (LocalNameKind (..))
 import Primer.Core.Type (Kind, Type)
 import Primer.Eval.Beta as Beta
+import Primer.Eval.Bind as Bind
 import Primer.Eval.Case as Case
 import Primer.Eval.Inline as Inline
 import Primer.Eval.Let as Let
@@ -38,9 +40,10 @@ data EvalDetail
   | -- | ID of let(rec)
     LetRemoval (LetRemovalDetail Expr)
   | TLetRemoval (LetRemovalDetail Type)
-  | -- | Renaming of binding in let x = ...x... in ...x...x...
-    LetRename (LetRenameDetail Expr)
-  | TLetRename (LetRenameDetail Type)
+  | -- | Renaming of binding
+    BindRename (BindRenameDetail Expr)
+  | -- | Renaming of binding in a type
+    TBindRename (BindRenameDetail Type)
   | -- | TODO: some details here
     CaseReduction CaseReductionDetail
   | -- | Push the argument of an application inside a letrec
