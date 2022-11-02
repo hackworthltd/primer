@@ -285,41 +285,41 @@ compoundActionsForType ty = case ty of
 priorityNoInputAction :: NoInputAction -> Level -> Int
 priorityNoInputAction = \case
   MakeCase -> P.makeCase
-  LetToRec -> P.makeLetRecursive
   MakeApp -> P.applyFunction
   MakeAPP -> P.applyType
   MakeAnn -> P.annotateExpr
   RemoveAnn -> P.removeAnnotation
-  RemoveHole -> P.finishHole
+  LetToRec -> P.makeLetRecursive
+  Raise -> P.raise
   EnterHole -> P.enterHole
+  RemoveHole -> P.finishHole
+  DeleteExpr -> P.delete
   MakeFun -> P.constructFunction
   AddInput -> P.addInput
   MakeTApp -> P.constructTypeApp
-  DuplicateDef -> P.duplicate
-  Raise -> P.raise
   RaiseType -> P.raise
-  DeleteDef -> P.delete
-  DeleteExpr -> P.delete
   DeleteType -> P.delete
+  DuplicateDef -> P.duplicate
+  DeleteDef -> P.delete
 priorityInputAction :: InputAction -> Level -> Int
 priorityInputAction = \case
-  MakeLam -> P.makeLambda
+  MakeCon -> P.useValueCon
+  MakeConSat -> P.useSaturatedValueCon
   MakeVar -> P.useVar
   MakeVarSat -> P.useFunction
   MakeLet -> P.makeLet
   MakeLetRec -> P.makeLetrec
+  MakeLam -> P.makeLambda
   MakeLAM -> P.makeTypeAbstraction
-  MakeTVar -> P.useTypeVar
-  MakeForall -> P.constructForall
-  RenameDef -> P.rename
   RenamePattern -> P.rename
+  RenameLet -> P.rename
   RenameLam -> P.rename
   RenameLAM -> P.rename
-  RenameLet -> P.rename
-  RenameForall -> P.rename
-  MakeCon -> P.useValueCon
-  MakeConSat -> P.useSaturatedValueCon
   MakeTCon -> P.useTypeCon
+  MakeTVar -> P.useTypeVar
+  MakeForall -> P.constructForall
+  RenameForall -> P.rename
+  RenameDef -> P.rename
 
 data ActionOption = ActionOption
   { option :: Text
@@ -362,10 +362,12 @@ inputAction ::
   InputAction ->
   Either InputActionError ActionOptions
 inputAction typeDefs defs def cxt level mid = \case
-  MakeLam -> do
-    options <- genName'
-    -- q <- handleQuestion $ GenerateName defName (m ^. _id) (Left $ join $ m ^? _type % _Just % _chkedAt % to lamVarTy)
-    pure ActionOptions{options, free = True}
+  MakeCon ->
+    let options = map (fromGlobal . valConName) . (if level == Beginner then noFunctionsCon else identity) . concatMap astTypeDefConstructors . mapMaybe (typeDefAST . snd) $ Map.toList typeDefs
+     in pure ActionOptions{options, free = False}
+  MakeConSat ->
+    let options = map (fromGlobal . valConName) . onlyFunctionsCon . concatMap astTypeDefConstructors . mapMaybe (typeDefAST . snd) $ Map.toList typeDefs
+     in pure ActionOptions{options, free = False}
   MakeVar -> do
     -- TODO DRY next 10 lines or so
     (_types, locals, globals) <- varsInScope'
@@ -385,19 +387,17 @@ inputAction typeDefs defs def cxt level mid = \case
   MakeLetRec -> do
     options <- genName'
     pure ActionOptions{options, free = True}
+  MakeLam -> do
+    options <- genName'
+    -- q <- handleQuestion $ GenerateName defName (m ^. _id) (Left $ join $ m ^? _type % _Just % _chkedAt % to lamVarTy)
+    pure ActionOptions{options, free = True}
   MakeLAM -> do
     options <- genName'
     pure ActionOptions{options, free = True}
-  MakeTVar -> do
-    (types, _locals, _globals) <- varsInScope'
-    let options = flip ActionOption Nothing . unName . unLocalName . fst <$> types
-    pure ActionOptions{options, free = False}
-  MakeForall -> do
+  RenamePattern -> do
     options <- genName'
     pure ActionOptions{options, free = True}
-  RenameDef ->
-    pure ActionOptions{options = [], free = True}
-  RenamePattern -> do
+  RenameLet -> do
     options <- genName'
     pure ActionOptions{options, free = True}
   RenameLam -> do
@@ -406,21 +406,21 @@ inputAction typeDefs defs def cxt level mid = \case
   RenameLAM -> do
     options <- genName'
     pure ActionOptions{options, free = True}
-  RenameLet -> do
+  MakeTCon ->
+    let options = fromGlobal . fst <$> Map.toList typeDefs
+     in pure ActionOptions{options, free = False}
+  MakeTVar -> do
+    (types, _locals, _globals) <- varsInScope'
+    let options = flip ActionOption Nothing . unName . unLocalName . fst <$> types
+    pure ActionOptions{options, free = False}
+  MakeForall -> do
     options <- genName'
     pure ActionOptions{options, free = True}
   RenameForall -> do
     options <- genName'
     pure ActionOptions{options, free = True}
-  MakeCon ->
-    let options = map (fromGlobal . valConName) . (if level == Beginner then noFunctionsCon else identity) . concatMap astTypeDefConstructors . mapMaybe (typeDefAST . snd) $ Map.toList typeDefs
-     in pure ActionOptions{options, free = False}
-  MakeConSat ->
-    let options = map (fromGlobal . valConName) . onlyFunctionsCon . concatMap astTypeDefConstructors . mapMaybe (typeDefAST . snd) $ Map.toList typeDefs
-     in pure ActionOptions{options, free = False}
-  MakeTCon ->
-    let options = fromGlobal . fst <$> Map.toList typeDefs
-     in pure ActionOptions{options, free = False}
+  RenameDef ->
+    pure ActionOptions{options = [], free = True}
   where
     -- TODO there's some repetition here (EDIT: though not much, after inlining and simplifying) from `handleQuestion` (and `focusNodeDefs`, which uses too concrete an error type)
     genName' = do

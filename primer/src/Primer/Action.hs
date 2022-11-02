@@ -848,8 +848,6 @@ mkActionNoInput ::
 mkActionNoInput defs def defName mNodeSel = \case
   Available.MakeCase ->
     toProgAction [ConstructCase]
-  Available.LetToRec ->
-    toProgAction [ConvertLetToLetrec]
   Available.MakeApp ->
     toProgAction [ConstructApp, Move Child2]
   Available.MakeAPP ->
@@ -858,10 +856,17 @@ mkActionNoInput defs def defName mNodeSel = \case
     toProgAction [ConstructAnn]
   Available.RemoveAnn ->
     toProgAction [RemoveAnn]
-  Available.RemoveHole ->
-    toProgAction [FinishHole]
+  Available.LetToRec ->
+    toProgAction [ConvertLetToLetrec]
+  Available.Raise -> do
+    id <- id'
+    pure [MoveToDef defName, CopyPasteBody (defName, id) [SetCursor id, Move Parent, Delete]]
   Available.EnterHole ->
     toProgAction [EnterHole]
+  Available.RemoveHole ->
+    toProgAction [FinishHole]
+  Available.DeleteExpr ->
+    toProgAction [Delete]
   Available.MakeFun ->
     -- We arbitrarily choose that the "construct a function type" action places the focused expression
     -- on the domain (left) side of the arrow.
@@ -881,6 +886,11 @@ mkActionNoInput defs def defName mNodeSel = \case
      in toProgAction $ moveToLastArg <> [ConstructArrowR] <> moveBack
   Available.MakeTApp ->
     toProgAction [ConstructTApp, Move Child1]
+  Available.RaiseType -> do
+    id <- id'
+    pure [MoveToDef defName, CopyPasteSig (defName, id) [SetCursor id, Move Parent, Delete]]
+  Available.DeleteType ->
+    toProgAction [Delete]
   Available.DuplicateDef ->
     let sigID = getID $ astDefType def
 
@@ -892,18 +902,8 @@ mkActionNoInput defs def defName mNodeSel = \case
           , CopyPasteSig (defName, sigID) []
           , CopyPasteBody (defName, bodyID) []
           ]
-  Available.Raise -> do
-    id <- id'
-    pure [MoveToDef defName, CopyPasteBody (defName, id) [SetCursor id, Move Parent, Delete]]
-  Available.RaiseType -> do
-    id <- id'
-    pure [MoveToDef defName, CopyPasteSig (defName, id) [SetCursor id, Move Parent, Delete]]
   Available.DeleteDef ->
     pure [DeleteDef defName]
-  Available.DeleteExpr ->
-    toProgAction [Delete]
-  Available.DeleteType ->
-    toProgAction [Delete]
   where
     -- TODO DRY
     toProgAction actions = do
@@ -924,9 +924,16 @@ mkActionInput ::
   Either Text [ProgAction]
 -- TODO rename `tInput`
 mkActionInput def defName mNodeSel tInput0 = \case
-  Available.MakeLam -> do
-    t <- tInputLocal
-    toProgAction [ConstructLam $ Just t]
+  Available.MakeCon -> do
+    o <- option
+    toProgAction [ConstructCon o]
+  Available.MakeConSat -> do
+    -- NB: Exactly one of the saturated and refined actions will be available
+    -- (depending on whether we have useful type information to hand).
+    -- We put the same labels on each.
+    oR <- offerRefined
+    o <- option
+    toProgAction [if oR then ConstructRefinedCon o else ConstructSaturatedCon o]
   Available.MakeVar ->
     toProgAction [ConstructVar tInputTmVar]
   Available.MakeVarSat -> do
@@ -938,46 +945,39 @@ mkActionInput def defName mNodeSel tInput0 = \case
   Available.MakeLetRec -> do
     t <- tInputLocal
     toProgAction [ConstructLetrec $ Just t]
+  Available.MakeLam -> do
+    t <- tInputLocal
+    toProgAction [ConstructLam $ Just t]
   Available.MakeLAM -> do
     t <- tInputLocal
     toProgAction [ConstructLAM $ Just t]
-  Available.MakeTVar -> do
-    t <- tInputLocal
-    toProgAction [ConstructTVar t]
-  Available.MakeForall -> do
-    t <- tInputLocal
-    toProgAction [ConstructTForall $ Just t, Move Child1]
-  Available.RenameDef -> do
-    t <- tInputLocal
-    pure [RenameDef defName t]
   Available.RenamePattern -> do
     t <- tInputLocal
     toProgAction [RenameCaseBinding t]
+  Available.RenameLet -> do
+    t <- tInputLocal
+    toProgAction [RenameLet t]
   Available.RenameLam -> do
     t <- tInputLocal
     toProgAction [RenameLam t]
   Available.RenameLAM -> do
     t <- tInputLocal
     toProgAction [RenameLAM t]
-  Available.RenameLet -> do
-    t <- tInputLocal
-    toProgAction [RenameLet t]
-  Available.RenameForall -> do
-    t <- tInputLocal
-    toProgAction [RenameForall t]
-  Available.MakeCon -> do
-    o <- option
-    toProgAction [ConstructCon o]
-  Available.MakeConSat -> do
-    -- NB: Exactly one of the saturated and refined actions will be available
-    -- (depending on whether we have useful type information to hand).
-    -- We put the same labels on each.
-    oR <- offerRefined
-    o <- option
-    toProgAction [if oR then ConstructRefinedCon o else ConstructSaturatedCon o]
   Available.MakeTCon -> do
     o <- option
     toProgAction [ConstructTCon o]
+  Available.MakeTVar -> do
+    t <- tInputLocal
+    toProgAction [ConstructTVar t]
+  Available.MakeForall -> do
+    t <- tInputLocal
+    toProgAction [ConstructTForall $ Just t, Move Child1]
+  Available.RenameForall -> do
+    t <- tInputLocal
+    toProgAction [RenameForall t]
+  Available.RenameDef -> do
+    t <- tInputLocal
+    pure [RenameDef defName t]
   where
     -- TODO should we handle "parsing" in to trusted input here
     -- see the comment on `Action` - given that we're now not exposing that type via the API, it should probably use the rich versions
