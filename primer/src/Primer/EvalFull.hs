@@ -94,7 +94,7 @@ import Primer.Core (
   getID,
  )
 import Primer.Core.DSL (ann, letType, let_, letrec, lvar, tlet, tvar)
-import Primer.Core.Transform (removeAnn, unfoldAPP, unfoldApp)
+import Primer.Core.Transform (unfoldAPP, unfoldApp)
 import Primer.Core.Utils (
   concreteTy,
   forgetTypeMetadata,
@@ -358,7 +358,10 @@ viewCaseRedex tydefs = \case
   -- metadata correctly in this evaluator (for instance, substituting when we
   -- do a BETA reduction)!
   Case m expr brs -> do
-    (c, tyargs, args) <- extractCon (removeAnn expr)
+    let expr' = case expr of
+          Ann _ e _ -> e
+          _ -> expr
+    (c, tyargs, args) <- extractCon expr'
     ty <- case expr of
       Ann _ _ ty' -> pure $ forgetTypeMetadata ty'
       _ -> do
