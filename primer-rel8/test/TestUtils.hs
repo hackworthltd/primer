@@ -1,8 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 
 module TestUtils (
-  (@?=),
-  assertException,
   insertSessionRow,
   testApp,
   withDbSetup,
@@ -26,7 +24,6 @@ import Data.Time (
   diffTimeToPicoseconds,
   picosecondsToDiffTime,
  )
-import Data.Typeable (typeOf)
 import Database.PostgreSQL.Simple.Options qualified as Options
 import Database.Postgres.Temp (
   DB,
@@ -95,11 +92,6 @@ import System.Process.Typed (
   readProcessStdout,
   runProcess_,
  )
-import Test.Tasty.HUnit (
-  assertBool,
-  assertFailure,
- )
-import Test.Tasty.HUnit qualified as HUnit
 
 -- The PostgreSQL host, username, and password can be chosen
 -- statically, but we need to choose the port dynamically in order to
@@ -170,27 +162,6 @@ runTmpDb tests =
 runTmpDbWithPool :: (Pool -> Rel8DbT (DiscardLoggingT (WithSeverity ()) IO) ()) -> IO ()
 runTmpDbWithPool tests =
   withDbSetup $ \pool -> discardLogging $ runRel8DbT (tests pool) pool
-
-(@?=) :: (MonadIO m, Eq a, Show a) => a -> a -> m ()
-x @?= y = liftIO $ x HUnit.@?= y
-infix 1 @?=
-
-type ExceptionPredicate e = (e -> Bool)
-
-assertException ::
-  (HasCallStack, Exception e, MonadIO m, MonadCatch m) =>
-  String ->
-  ExceptionPredicate e ->
-  m a ->
-  m ()
-assertException msg p action = do
-  r <- try action
-  case r of
-    Right _ -> liftIO $ assertFailure $ msg <> " should have thrown " <> exceptionType <> ", but it succeeded"
-    Left e -> liftIO $ assertBool (wrongException e) (p e)
-  where
-    wrongException e = msg <> " threw " <> show e <> ", but we expected " <> exceptionType
-    exceptionType = (show . typeOf) p
 
 -- | Like @MonadDb.insertSession@, but allows us to insert things
 -- directly into the database that otherwise might not be permitted by

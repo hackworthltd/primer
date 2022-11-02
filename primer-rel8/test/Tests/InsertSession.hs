@@ -19,14 +19,16 @@ import Primer.Database (
 import Primer.Database.Rel8.Rel8Db (
   Rel8DbException (InsertError),
  )
+import Primer.Test.Util (
+  assertException,
+  (@?=),
+ )
 import Test.Tasty (TestTree)
 import Test.Tasty.HUnit (testCaseSteps)
 import TestUtils (
-  assertException,
   lowPrecisionCurrentTime,
   runTmpDb,
   testApp,
-  (@?=),
  )
 
 expectedError :: SessionId -> Rel8DbException -> Bool

@@ -1,4 +1,4 @@
-cabal-version: 2.4
+cabal-version: 3.0
 name:          primer-rel8
 version:       0.7.2.0
 license:       AGPL-3.0-or-later
@@ -87,20 +87,20 @@ test-suite primer-rel8-test
       , hasql
       , hasql-pool
       , logging-effect
-      , port-utils        ^>=0.2.1
-      , postgres-options  ^>=0.2
-      , primer
+      , port-utils                       ^>=0.2.1
+      , postgres-options                 ^>=0.2
       , primer-rel8
+      , primer:{primer, primer-testlib}
       , rel8
-      , tasty             ^>=1.4.2.1
-      , tasty-discover    ^>=4.2.4
-      , tasty-hunit       ^>=0.10.0
-      , temporary         ^>=1.3
+      , tasty                            ^>=1.4.2.1
+      , tasty-discover                   ^>=4.2.4
+      , tasty-hunit                      ^>=0.10.0
+      , temporary                        ^>=1.3
       , text
       , time
-      , tmp-postgres      ^>=1.34.1.0
-      , typed-process     >=0.2.8     && <0.2.11
-      , utf8-string       ^>=1.0
+      , tmp-postgres                     ^>=1.34.1.0
+      , typed-process                    >=0.2.8     && <0.2.11
+      , utf8-string                      ^>=1.0
       , uuid
 
 --TODO This currently breaks with haskell.nix, so we manually add it to `flake.nix` instead.
