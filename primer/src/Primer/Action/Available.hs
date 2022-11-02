@@ -340,12 +340,9 @@ inputAction typeDefs defs def cxt level mid = \case
   RenameDef ->
     pure ActionOptions{options = [], free = True}
   where
-    -- TODO there's some repetition here (EDIT: though not much, after inlining and simplifying) from `handleQuestion` (and `focusNodeDefs`, which uses too concrete an error type)
     genName' = do
       id <- maybe (throwError NoID) pure mid
-      -- TODO by always passing `Nothing`, we lose good name hints - see `baseNames`
-      -- we previously passed `Just` for only AMakeLambda,AConstructBigLambda,ARenamePatternVar,ARenameLambda,ARenameLAM,ARenameLetBinding,ARenameForall
-      -- not  MakeLet,MakeLetRec,ConstructForall
+      let chkOrSynth tc = (tc ^? _chkedAt) <|> (tc ^? _synthed)
       typeKind <-
         (fst <$> findNodeWithParent id (astDefExpr def)) <|> (TypeNode <$> findType id (astDefType def))
           & maybe
@@ -353,12 +350,11 @@ inputAction typeDefs defs def cxt level mid = \case
             ( \case
                 ExprNode e -> pure $ Left $ do
                   tc <- e ^. _exprMetaLens % _type
-                  (tc ^? _chkedAt) <|> (tc ^? _synthed) -- TODO which to prioritise? ask Ben
+                  chkOrSynth tc
                 TypeNode t -> pure $ Right $ t ^. _typeMetaLens % _type
                 CaseBindNode b -> pure $ Left $ do
                   tc <- b ^. _bindMeta % _type
-                  -- TODO DRY this line with above
-                  (tc ^? _chkedAt) <|> (tc ^? _synthed)
+                  chkOrSynth tc
             )
       names <-
         focusNode id <&> \case
