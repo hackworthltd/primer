@@ -4,6 +4,8 @@
 {-# LANGUAGE PartialTypeSignatures #-}
 {-# LANGUAGE RecordWildCards #-}
 
+-- TODO shorten names and always import everything in this module qualified (`Available` or `Offered`)? maybe split `inputAction` etc. in to separate module
+
 -- | Compute all the possible actions which can be performed on a definition
 module Primer.Action.Available (
   actionsForDef,
@@ -152,12 +154,12 @@ actionsForDefBody tydefs l Editable id expr = prioritySort l $ case findNodeWith
           Nothing -> [] -- at root already, cannot raise
           Just (ExprNode (Hole _ _)) -> [] -- in a NE hole, don't offer raise (as hole will probably just be recreated)
           _ -> [NoInput Raise]
-     in basicActionsForExpr tydefs l e <> raiseAction
+     in actionsForExpr tydefs l e <> raiseAction
   Just (TypeNode t, p) ->
     let raiseAction = case p of
           Just (ExprNode _) -> [] -- at the root of an annotation, so cannot raise
           _ -> [NoInput Raise]
-     in basicActionsForType l t <> raiseAction
+     in actionsForType l t <> raiseAction
   Just (CaseBindNode _, _) -> [Input RenamePattern]
 
 actionsForDefSig ::
@@ -170,13 +172,11 @@ actionsForDefSig _ NonEditable _ _ = mempty
 actionsForDefSig l Editable id ty = prioritySort l $ case findType id ty of
   Nothing -> mempty
   Just t ->
-    basicActionsForType l t
+    actionsForType l t
       <> mwhen (id /= getID ty) [NoInput RaiseType]
 
--- | Given an expression, determine what basic actions it supports
--- Specific projections may provide other actions not listed here
-basicActionsForExpr :: TypeDefMap -> Level -> Expr -> [OfferedAction]
-basicActionsForExpr tydefs l expr = case expr of
+actionsForExpr :: TypeDefMap -> Level -> Expr -> [OfferedAction]
+actionsForExpr tydefs l expr = case expr of
   EmptyHole{} -> universalActions <> emptyHoleActions
   Hole{} -> defaultActions <> holeActions
   Ann{} -> defaultActions <> annotationActions
@@ -237,10 +237,8 @@ basicActionsForExpr tydefs l expr = case expr of
        in (synOnly =<< synthTy) ?: both
     defaultActions = universalActions <> [NoInput DeleteExpr]
 
--- | Given a type, determine what basic actions it supports
--- Specific projections may provide other actions not listed here
-basicActionsForType :: Level -> Type -> [OfferedAction]
-basicActionsForType l ty = case ty of
+actionsForType :: Level -> Type -> [OfferedAction]
+actionsForType l ty = case ty of
   TEmptyHole{} -> universalActions <> [Input MakeTCon] <> mwhen (l == Expert) [Input MakeTVar]
   TForall{} -> defaultActions <> mwhen (l == Expert) [Input RenameForall]
   TFun{} -> defaultActions <> [NoInput AddInput]
