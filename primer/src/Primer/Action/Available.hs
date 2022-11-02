@@ -44,9 +44,12 @@ import Primer.Core (
   Type' (..),
   getID,
   unLocalName,
+  _bindMeta,
+  _chkedAt,
   _exprMetaLens,
   _synthed,
   _type,
+  _typeMetaLens,
  )
 import Primer.Core.Utils (freeVars)
 import Primer.Def (
@@ -366,7 +369,7 @@ inputAction ::
   Either InputActionError ActionOptions
 inputAction typeDefs defs def cxt level mid = \case
   MakeLambda -> do
-    options <- genName' False
+    options <- genName'
     -- q <- handleQuestion $ GenerateName defName (m ^. _id) (Left $ join $ m ^? _type % _Just % _chkedAt % to lamVarTy)
     pure ActionOptions{options, free = True}
   UseVar -> do
@@ -383,37 +386,37 @@ inputAction typeDefs defs def cxt level mid = \case
         options = optionsLoc <> optionsGlob
     pure ActionOptions{options, free = False}
   MakeLet -> do
-    options <- genName' False
+    options <- genName'
     pure ActionOptions{options, free = True}
   MakeLetRec -> do
-    options <- genName' False
+    options <- genName'
     pure ActionOptions{options, free = True}
   ConstructBigLambda -> do
-    options <- genName' True
+    options <- genName'
     pure ActionOptions{options, free = True}
   UseTypeVar -> do
     (types, _locals, _globals) <- varsInScope'
     let options = flip ActionOption Nothing . unName . unLocalName . fst <$> types
     pure ActionOptions{options, free = False}
   ConstructForall -> do
-    options <- genName' True
+    options <- genName'
     pure ActionOptions{options, free = True}
   RenameDef ->
     pure ActionOptions{options = [], free = True}
   RenamePatternVar -> do
-    options <- genName' True
+    options <- genName'
     pure ActionOptions{options, free = True}
   RenameLambda -> do
-    options <- genName' False
+    options <- genName'
     pure ActionOptions{options, free = True}
   RenameLAM -> do
-    options <- genName' True
+    options <- genName'
     pure ActionOptions{options, free = True}
   RenameLetBinding -> do
-    options <- genName' False
+    options <- genName'
     pure ActionOptions{options, free = True}
   RenameForall -> do
-    options <- genName' True
+    options <- genName'
     pure ActionOptions{options, free = True}
   UseValueCon ->
     let options = map (fromGlobal . valConName) . (if level == Beginner then noFunctionsCon else identity) . concatMap astTypeDefConstructors . mapMaybe (typeDefAST . snd) $ Map.toList typeDefs
@@ -425,17 +428,31 @@ inputAction typeDefs defs def cxt level mid = \case
     let options = fromGlobal . fst <$> Map.toList typeDefs
      in pure ActionOptions{options, free = False}
   where
-    -- TODO by always passing `Nothing`, we lose good name hints - see `baseNames` (we previously passed `Just` for only AMakeLambda,AConstructBigLambda,ARenamePatternVar,ARenameLambda,ARenameLAM,ARenameLetBinding,ARenameForall)
     -- TODO there's some repetition here (EDIT: though not much, after inlining and simplifying) from `handleQuestion` (and `focusNodeDefs`, which uses too concrete an error type)
-    genName' tk = do
+    genName' = do
       id <- maybe (throwError NoID) pure mid
+      -- TODO by always passing `Nothing`, we lose good name hints - see `baseNames`
+      -- we previously passed `Just` for only AMakeLambda,AConstructBigLambda,ARenamePatternVar,ARenameLambda,ARenameLAM,ARenameLetBinding,ARenameForall
+      -- not  MakeLet,MakeLetRec,ConstructForall
+      typeKind <-
+        (fst <$> findNodeWithParent id (astDefExpr def)) <|> (TypeNode <$> findType id (astDefType def))
+          & maybe
+            (throwError IDNotFound)
+            ( \case
+                ExprNode e -> pure $ Left $ do
+                  tc <- e ^. _exprMetaLens % _type
+                  (tc ^? _chkedAt) <|> (tc ^? _synthed) -- TODO which to prioritise? ask Ben
+                TypeNode t -> pure $ Right $ t ^. _typeMetaLens % _type
+                CaseBindNode b -> pure $ Left $ do
+                  tc <- b ^. _bindMeta % _type
+                  -- TODO DRY this line with above
+                  (tc ^? _chkedAt) <|> (tc ^? _synthed)
+            )
       names <-
         focusNode id <&> \case
           Left zE -> generateNameExpr typeKind zE
           Right zT -> generateNameTy typeKind zT
       pure $ flip ActionOption Nothing . unName <$> runReader names cxt
-      where
-        typeKind = if tk then Right Nothing else Left Nothing
     varsInScope' = do
       id <- maybe (throwError NoID) pure mid
       node <- focusNode id

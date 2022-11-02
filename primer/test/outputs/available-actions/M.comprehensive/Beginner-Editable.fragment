@@ -19,15 +19,15 @@ Output
                     ( ActionOptions
                         { options =
                             [ ActionOption
-                                { option = "z"
+                                { option = "f"
                                 , qualification = Nothing
                                 }
                             , ActionOption
-                                { option = "x1"
+                                { option = "g"
                                 , qualification = Nothing
                                 }
                             , ActionOption
-                                { option = "y1"
+                                { option = "h"
                                 , qualification = Nothing
                                 }
                             ]
@@ -38,15 +38,15 @@ Output
                     ( ActionOptions
                         { options =
                             [ ActionOption
-                                { option = "z"
+                                { option = "f"
                                 , qualification = Nothing
                                 }
                             , ActionOption
-                                { option = "x1"
+                                { option = "g"
                                 , qualification = Nothing
                                 }
                             , ActionOption
-                                { option = "y1"
+                                { option = "h"
                                 , qualification = Nothing
                                 }
                             ]
@@ -65,15 +65,11 @@ Output
                     ( ActionOptions
                         { options =
                             [ ActionOption
-                                { option = "x"
+                                { option = "p"
                                 , qualification = Nothing
                                 }
                             , ActionOption
-                                { option = "y"
-                                , qualification = Nothing
-                                }
-                            , ActionOption
-                                { option = "z"
+                                { option = "q"
                                 , qualification = Nothing
                                 }
                             ]
@@ -91,15 +87,15 @@ Output
                     ( ActionOptions
                         { options =
                             [ ActionOption
-                                { option = "z"
+                                { option = "f"
                                 , qualification = Nothing
                                 }
                             , ActionOption
-                                { option = "x1"
+                                { option = "g"
                                 , qualification = Nothing
                                 }
                             , ActionOption
-                                { option = "y1"
+                                { option = "h"
                                 , qualification = Nothing
                                 }
                             ]
@@ -110,15 +106,15 @@ Output
                     ( ActionOptions
                         { options =
                             [ ActionOption
-                                { option = "z"
+                                { option = "f"
                                 , qualification = Nothing
                                 }
                             , ActionOption
-                                { option = "x1"
+                                { option = "g"
                                 , qualification = Nothing
                                 }
                             , ActionOption
-                                { option = "y1"
+                                { option = "h"
                                 , qualification = Nothing
                                 }
                             ]
@@ -289,15 +285,15 @@ Output
                     ( ActionOptions
                         { options =
                             [ ActionOption
-                                { option = "z"
+                                { option = "f"
                                 , qualification = Nothing
                                 }
                             , ActionOption
-                                { option = "x1"
+                                { option = "g"
                                 , qualification = Nothing
                                 }
                             , ActionOption
-                                { option = "y1"
+                                { option = "h"
                                 , qualification = Nothing
                                 }
                             ]
@@ -315,15 +311,15 @@ Output
                     ( ActionOptions
                         { options =
                             [ ActionOption
-                                { option = "z"
+                                { option = "f"
                                 , qualification = Nothing
                                 }
                             , ActionOption
-                                { option = "x1"
+                                { option = "g"
                                 , qualification = Nothing
                                 }
                             , ActionOption
-                                { option = "y1"
+                                { option = "h"
                                 , qualification = Nothing
                                 }
                             ]
@@ -334,15 +330,15 @@ Output
                     ( ActionOptions
                         { options =
                             [ ActionOption
-                                { option = "z"
+                                { option = "f"
                                 , qualification = Nothing
                                 }
                             , ActionOption
-                                { option = "x1"
+                                { option = "g"
                                 , qualification = Nothing
                                 }
                             , ActionOption
-                                { option = "y1"
+                                { option = "h"
                                 , qualification = Nothing
                                 }
                             ]
@@ -413,15 +409,15 @@ Output
                     ( ActionOptions
                         { options =
                             [ ActionOption
-                                { option = "z"
+                                { option = "f"
                                 , qualification = Nothing
                                 }
                             , ActionOption
-                                { option = "x1"
+                                { option = "g"
                                 , qualification = Nothing
                                 }
                             , ActionOption
-                                { option = "y1"
+                                { option = "h"
                                 , qualification = Nothing
                                 }
                             ]
@@ -491,15 +487,11 @@ Output
                     ( ActionOptions
                         { options =
                             [ ActionOption
-                                { option = "z"
+                                { option = "p"
                                 , qualification = Nothing
                                 }
                             , ActionOption
-                                { option = "x1"
-                                , qualification = Nothing
-                                }
-                            , ActionOption
-                                { option = "y1"
+                                { option = "q"
                                 , qualification = Nothing
                                 }
                             ]
@@ -518,15 +510,19 @@ Output
                     ( ActionOptions
                         { options =
                             [ ActionOption
-                                { option = "z"
+                                { option = "j"
                                 , qualification = Nothing
                                 }
                             , ActionOption
-                                { option = "x1"
+                                { option = "m"
                                 , qualification = Nothing
                                 }
                             , ActionOption
-                                { option = "y1"
+                                { option = "n"
+                                , qualification = Nothing
+                                }
+                            , ActionOption
+                                { option = "i1"
                                 , qualification = Nothing
                                 }
                             ]
@@ -545,15 +541,11 @@ Output
                     ( ActionOptions
                         { options =
                             [ ActionOption
-                                { option = "z"
+                                { option = "p"
                                 , qualification = Nothing
                                 }
                             , ActionOption
-                                { option = "x1"
-                                , qualification = Nothing
-                                }
-                            , ActionOption
-                                { option = "y1"
+                                { option = "q"
                                 , qualification = Nothing
                                 }
                             ]
@@ -569,15 +561,19 @@ Output
                     ( ActionOptions
                         { options =
                             [ ActionOption
-                                { option = "α"
+                                { option = "j"
                                 , qualification = Nothing
                                 }
                             , ActionOption
-                                { option = "γ"
+                                { option = "m"
                                 , qualification = Nothing
                                 }
                             , ActionOption
-                                { option = "β1"
+                                { option = "i1"
+                                , qualification = Nothing
+                                }
+                            , ActionOption
+                                { option = "n1"
                                 , qualification = Nothing
                                 }
                             ]
@@ -596,15 +592,11 @@ Output
                     ( ActionOptions
                         { options =
                             [ ActionOption
-                                { option = "z"
+                                { option = "p"
                                 , qualification = Nothing
                                 }
                             , ActionOption
-                                { option = "x1"
-                                , qualification = Nothing
-                                }
-                            , ActionOption
-                                { option = "y1"
+                                { option = "q"
                                 , qualification = Nothing
                                 }
                             ]
