@@ -2,7 +2,6 @@
 
 module TestUtils (
   insertSessionRow,
-  testApp,
   withDbSetup,
   lowPrecisionCurrentTime,
   runTmpDb,
@@ -17,7 +16,6 @@ import Control.Monad.Log (
   discardLogging,
  )
 import Data.ByteString.Lazy.UTF8 as BL
-import Data.Map.Strict qualified as Map
 import Data.String (String)
 import Data.Time (
   UTCTime (..),
@@ -47,17 +45,6 @@ import Hasql.Pool (
  )
 import Hasql.Session (statement)
 import Network.Socket.Free (getFreePort)
-import Primer.App (
-  App,
-  Prog (..),
-  defaultProg,
-  mkApp,
- )
-import Primer.Core (
-  baseName,
-  mkSimpleModuleName,
- )
-import Primer.Core.DSL (create)
 import Primer.Database (
   LastModified (..),
   getCurrentTime,
@@ -67,17 +54,6 @@ import Primer.Database.Rel8 (
   runRel8DbT,
  )
 import Primer.Database.Rel8.Schema as Schema hiding (app)
-import Primer.Examples (comprehensive)
-import Primer.Module (
-  Module (
-    Module,
-    moduleDefs,
-    moduleName,
-    moduleTypes
-  ),
-  builtinModule,
-  primitiveModule,
- )
 import Rel8 (
   Expr,
   Insert (Insert, into, onConflict, returning, rows),
@@ -181,27 +157,6 @@ insertSessionRow row pool =
             , onConflict = Abort
             , returning = NumberOfRowsAffected
             }
-
--- | An initial test 'App' instance that contains all default type
--- definitions (including primitive types), all primitive functions,
--- and a top-level definition with extensive coverage of Primer's
--- core language.
-testApp :: App
-testApp =
-  let modName = mkSimpleModuleName "TestModule"
-      ((defName, def), id_) = create $ comprehensive modName
-      testProg =
-        defaultProg
-          { progImports = [builtinModule, primitiveModule]
-          , progModules =
-              [ Module
-                  { moduleName = mkSimpleModuleName "TestModule"
-                  , moduleTypes = mempty
-                  , moduleDefs = Map.singleton (baseName defName) def
-                  }
-              ]
-          }
-   in mkApp id_ (toEnum 0) testProg
 
 -- | PostgreSQL's timestamp type has a precision of 1 microsecond, but
 -- 'getCurrentTime' has a precision of 1 picosecond. In order to

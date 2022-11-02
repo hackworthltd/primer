@@ -20,6 +20,9 @@ import Primer.Database (
 import Primer.Database.Rel8 (
   Rel8DbException (UpdateAppNonExistentSession),
  )
+import Primer.Test.App (
+  comprehensive,
+ )
 import Primer.Test.Util (
   assertException,
   (@?=),
@@ -29,7 +32,6 @@ import Test.Tasty.HUnit (testCaseSteps)
 import TestUtils (
   lowPrecisionCurrentTime,
   runTmpDb,
-  testApp,
  )
 
 expectedError :: SessionId -> Rel8DbException -> Bool
@@ -60,15 +62,15 @@ test_updateSessionApp_roundtrip = testCaseSteps "updateSessionApp database round
     r2 @?= Right (SessionData newEmptyApp name now)
 
     step "Update it with a new app"
-    updateSessionApp newVersion sessionId testApp now
+    updateSessionApp newVersion sessionId comprehensive now
     r3 <- querySessionId sessionId
-    r3 @?= Right (SessionData testApp name now)
+    r3 @?= Right (SessionData comprehensive name now)
 
     step "Update it with a new time"
     now' <- lowPrecisionCurrentTime
-    updateSessionApp newVersion sessionId testApp now'
+    updateSessionApp newVersion sessionId comprehensive now'
     r4 <- querySessionId sessionId
-    r4 @?= Right (SessionData testApp name now')
+    r4 @?= Right (SessionData comprehensive name now')
 
 test_updateSessionApp_failure :: TestTree
 test_updateSessionApp_failure = testCaseSteps "updateSessionApp failure modes" $ \step' ->

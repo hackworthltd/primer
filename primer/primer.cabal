@@ -166,7 +166,10 @@ library primer-hedgehog
 
 library primer-testlib
   visibility:         public
-  exposed-modules:    Primer.Test.Util
+  exposed-modules:
+    Primer.Test.App
+    Primer.Test.Util
+
   other-modules:
   hs-source-dirs:     testlib
   default-language:   GHC2021
