@@ -3,6 +3,7 @@
 module Primer.Database.Rel8.Test.Util (
   deployDb,
   insertSessionRow,
+  mkSessionRow,
   withDbSetup,
   lowPrecisionCurrentTime,
   runTmpDb,
@@ -23,6 +24,7 @@ import Data.Time (
   diffTimeToPicoseconds,
   picosecondsToDiffTime,
  )
+import Data.UUID.V4 (nextRandom)
 import Database.PostgreSQL.Simple.Options qualified as Options
 import Database.Postgres.Temp (
   DB,
@@ -46,12 +48,14 @@ import Hasql.Pool (
  )
 import Hasql.Session (statement)
 import Network.Socket.Free (getFreePort)
+import Primer.App (newApp)
 import Primer.Database (
   LastModified (..),
   getCurrentTime,
  )
 import Primer.Database.Rel8 (
   Rel8DbT,
+  SessionRow (..),
   runRel8DbT,
  )
 import Primer.Database.Rel8.Schema as Schema hiding (app)
@@ -59,6 +63,7 @@ import Rel8 (
   Expr,
   Insert (Insert, into, onConflict, returning, rows),
   OnConflict (Abort),
+  Result,
   Returning (NumberOfRowsAffected),
   insert,
   values,
@@ -172,3 +177,18 @@ lowPrecisionCurrentTime = do
   -- truncate to microseconds
   let time' = picosecondsToDiffTime $ diffTimeToPicoseconds time `div` 1000000 * 1000000
   pure $ LastModified $ UTCTime day time'
+
+-- | Return a 'SessionRow', which is useful for testing the database
+-- without needing to go through the Primer API.
+mkSessionRow :: Int -> IO (SessionRow Result)
+mkSessionRow n = do
+  u <- nextRandom
+  now <- lowPrecisionCurrentTime
+  pure $
+    SessionRow
+      { uuid = u
+      , gitversion = "test-version"
+      , app = newApp
+      , name = "name-" <> show n
+      , lastmodified = utcTime now
+      }

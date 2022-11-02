@@ -81,6 +81,7 @@ library primer-rel8-testlib
     , tmp-postgres      ^>=1.34.1.0
     , typed-process     >=0.2.8     && <0.2.11
     , utf8-string       ^>=1.0
+    , uuid
 
 test-suite primer-rel8-test
   type:               exitcode-stdio-1.0

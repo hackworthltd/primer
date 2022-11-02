@@ -5,7 +5,6 @@ module Tests.ListSessions where
 
 import Foreword
 
-import Data.UUID.V4 (nextRandom)
 import Primer.App (newApp)
 import Primer.Database (
   LastModified (..),
@@ -20,26 +19,12 @@ import Primer.Database.Rel8 (
   SessionRow (SessionRow, app, gitversion, lastmodified, name, uuid),
  )
 import Primer.Database.Rel8.Test.Util (
-  lowPrecisionCurrentTime,
+  mkSessionRow,
   runTmpDb,
  )
 import Primer.Test.Util ((@?=))
-import Rel8 (Result)
 import Test.Tasty (TestTree)
 import Test.Tasty.HUnit (testCaseSteps)
-
-mkSession :: Int -> IO (SessionRow Result)
-mkSession n = do
-  u <- nextRandom
-  now <- lowPrecisionCurrentTime
-  pure $
-    SessionRow
-      { uuid = u
-      , gitversion = "test-version"
-      , app = newApp
-      , name = "name-" <> show n
-      , lastmodified = utcTime now
-      }
 
 test_listSessions :: TestTree
 test_listSessions = testCaseSteps "listSessions" $ \step' ->
@@ -47,7 +32,7 @@ test_listSessions = testCaseSteps "listSessions" $ \step' ->
     let step = liftIO . step'
     let m = 345
     step "Insert all sessions"
-    rows <- liftIO $ sortOn name <$> traverse mkSession [1 .. m]
+    rows <- liftIO $ sortOn name <$> traverse mkSessionRow [1 .. m]
     forM_ rows (\SessionRow{..} -> insertSession gitversion uuid newApp (safeMkSessionName name) (LastModified lastmodified))
     let expectedRows = map (\r -> Session (uuid r) (safeMkSessionName $ name r) (LastModified $ lastmodified r)) rows
     step "Get all, offset+limit"

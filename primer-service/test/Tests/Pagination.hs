@@ -6,7 +6,6 @@ module Tests.Pagination where
 import Foreword
 
 import Data.String (String)
-import Data.UUID.V4 (nextRandom)
 import Database.PostgreSQL.Simple.Options qualified as Options
 import Database.Postgres.Temp (
   DirectoryType (Temporary),
@@ -33,8 +32,11 @@ import Primer.Database (
   listSessions,
   safeMkSessionName,
  )
-import Primer.Database.Rel8 (
-  SessionRow (SessionRow, app, gitversion, lastmodified, name, uuid),
+import Primer.Database.Rel8 (SessionRow (..))
+import Primer.Database.Rel8.Test.Util (
+  deployDb,
+  mkSessionRow,
+  runTmpDb,
  )
 import Primer.Pagination (
   Pagination (Pagination, page, size),
@@ -52,13 +54,7 @@ import Primer.Pagination (
   thisPage,
   totalItems,
  )
-import Primer.Database.Rel8.Test.Util (
-  deployDb,
-  lowPrecisionCurrentTime,
-  runTmpDb,
- )
 import Primer.Test.Util ((@?=))
-import Rel8 (Result)
 import System.IO.Temp (withSystemTempDirectory)
 import Test.Tasty (TestTree)
 import Test.Tasty.HUnit (testCaseSteps)
@@ -109,26 +105,13 @@ withSetup f =
                         withConfig migratedConfig $ \db ->
                           bracket (acquire 1 (Just 1000000) $ toConnectionString db) release f
 
-mkSession :: Int -> IO (SessionRow Result)
-mkSession n = do
-  u <- nextRandom
-  now <- lowPrecisionCurrentTime
-  pure $
-    SessionRow
-      { uuid = u
-      , gitversion = "test-version"
-      , app = newApp
-      , name = "name-" <> show n
-      , lastmodified = utcTime now
-      }
-
 test_pagination :: TestTree
 test_pagination = testCaseSteps "pagination" $ \step' ->
   runTmpDb $ do
     let step = liftIO . step'
     let m = 345
     step "Insert all sessions"
-    rows <- liftIO $ sortOn name <$> traverse mkSession [1 .. m]
+    rows <- liftIO $ sortOn name <$> traverse mkSessionRow [1 .. m]
     forM_ rows (\SessionRow{..} -> insertSession gitversion uuid newApp (safeMkSessionName name) (LastModified lastmodified))
     let expectedRows = map (\r -> Session (uuid r) (safeMkSessionName $ name r) (LastModified $ lastmodified r)) rows
     step "Get all, paged"
