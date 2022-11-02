@@ -1,3 +1,4 @@
+{-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE PartialTypeSignatures #-}
@@ -271,45 +272,6 @@ basicActionsForType l ty = case ty of
           ]
     defaultActions = universalActions <> [NoInput DeleteType]
 
-actionPriority :: OfferedAction -> Level -> Int
-actionPriority = \case
-  NoInput a -> case a of
-    MakeCase -> P.makeCase
-    MakeApp -> P.applyFunction
-    MakeAPP -> P.applyType
-    MakeAnn -> P.annotateExpr
-    RemoveAnn -> P.removeAnnotation
-    LetToRec -> P.makeLetRecursive
-    Raise -> P.raise
-    EnterHole -> P.enterHole
-    RemoveHole -> P.finishHole
-    DeleteExpr -> P.delete
-    MakeFun -> P.constructFunction
-    AddInput -> P.addInput
-    MakeTApp -> P.constructTypeApp
-    RaiseType -> P.raise
-    DeleteType -> P.delete
-    DuplicateDef -> P.duplicate
-    DeleteDef -> P.delete
-  Input a -> case a of
-    MakeCon -> P.useValueCon
-    MakeConSat -> P.useSaturatedValueCon
-    MakeVar -> P.useVar
-    MakeVarSat -> P.useFunction
-    MakeLet -> P.makeLet
-    MakeLetRec -> P.makeLetrec
-    MakeLam -> P.makeLambda
-    MakeLAM -> P.makeTypeAbstraction
-    RenamePattern -> P.rename
-    RenameLet -> P.rename
-    RenameLam -> P.rename
-    RenameLAM -> P.rename
-    MakeTCon -> P.useTypeCon
-    MakeTVar -> P.useTypeVar
-    MakeForall -> P.constructForall
-    RenameForall -> P.rename
-    RenameDef -> P.rename
-
 data ActionOption = ActionOption
   { option :: Text
   , context :: Maybe (NonEmpty Text)
@@ -467,7 +429,45 @@ prioritySort ::
   Level ->
   [OfferedAction] ->
   [OfferedAction]
-prioritySort = sortOn . flip actionPriority
+prioritySort l =
+  sortOn $
+    ($ l) . \case
+      NoInput a -> case a of
+        MakeCase -> P.makeCase
+        MakeApp -> P.applyFunction
+        MakeAPP -> P.applyType
+        MakeAnn -> P.annotateExpr
+        RemoveAnn -> P.removeAnnotation
+        LetToRec -> P.makeLetRecursive
+        Raise -> P.raise
+        EnterHole -> P.enterHole
+        RemoveHole -> P.finishHole
+        DeleteExpr -> P.delete
+        MakeFun -> P.constructFunction
+        AddInput -> P.addInput
+        MakeTApp -> P.constructTypeApp
+        RaiseType -> P.raise
+        DeleteType -> P.delete
+        DuplicateDef -> P.duplicate
+        DeleteDef -> P.delete
+      Input a -> case a of
+        MakeCon -> P.useValueCon
+        MakeConSat -> P.useSaturatedValueCon
+        MakeVar -> P.useVar
+        MakeVarSat -> P.useFunction
+        MakeLet -> P.makeLet
+        MakeLetRec -> P.makeLetrec
+        MakeLam -> P.makeLambda
+        MakeLAM -> P.makeTypeAbstraction
+        RenamePattern -> P.rename
+        RenameLet -> P.rename
+        RenameLam -> P.rename
+        RenameLAM -> P.rename
+        MakeTCon -> P.useTypeCon
+        MakeTVar -> P.useTypeVar
+        MakeForall -> P.constructForall
+        RenameForall -> P.rename
+        RenameDef -> P.rename
 
 -- TODO is each of these only used once?
 noFunctions :: [(a1, Type' a2)] -> [(a1, Type' a2)]
