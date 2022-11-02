@@ -6,6 +6,9 @@ cradle:
     - path: "primer/gen"
       component: "primer:lib:primer-hedgehog"
 
+    - path: "primer/testlib"
+      component: "primer:lib:primer-testlib"
+
     - path: "primer/test"
       component: "primer:test:primer-test"
 

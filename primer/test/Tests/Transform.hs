@@ -6,8 +6,8 @@ import Primer.Builtins
 import Primer.Core
 import Primer.Core.DSL
 import Primer.Core.Transform
+import Primer.Test.Util (clearMeta, clearTypeMeta, vcn)
 import Test.Tasty.HUnit (Assertion, assertFailure, (@?=))
-import TestUtils (clearMeta, clearTypeMeta, vcn)
 
 -- When renaming we have to be careful of binding sites. If we're renaming x to
 -- y and we encounter a binding site for a new variable v, then there are three

@@ -40,6 +40,12 @@ import Primer.Examples (
  )
 import Primer.Gen.API (genExprTreeOpts)
 import Primer.Gen.Core.Raw (evalExprGen, genExpr, genType)
+import Primer.Test.Util (
+  ExceptionPredicate,
+  assertException,
+  runAPI,
+  (@?=),
+ )
 import Protolude.Unsafe (unsafeFromJust)
 import Tasty (
   Property,
@@ -48,12 +54,6 @@ import Tasty (
 import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.Golden (goldenVsString)
 import Test.Tasty.HUnit hiding ((@?=))
-import TestUtils (
-  ExceptionPredicate,
-  assertException,
-  runAPI,
-  (@?=),
- )
 import Text.Pretty.Simple (pShowNoColor)
 
 tasty_viewTreeExpr_injective :: Property

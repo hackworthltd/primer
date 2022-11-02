@@ -115,6 +115,8 @@ import Primer.Log (PureLogT, runPureLogT)
 import Primer.Module (Module (Module, moduleDefs, moduleName, moduleTypes), builtinModule, moduleDefsQualified, moduleTypesQualified, primitiveModule)
 import Primer.Name
 import Primer.Primitives (PrimDef (IntAdd, ToUpper), primitiveGVar, tChar)
+import Primer.Test.Util (LogMsg, assertNoSevereLogs, constructCon, constructTCon, zeroIDs, zeroTypeIDs)
+import Primer.Test.Util qualified as Util
 import Primer.TypeDef (ASTTypeDef (..), TypeDef (..), ValCon (..), typeDefAST)
 import Primer.Typecheck (
   KindError (UnknownTypeConstructor),
@@ -123,8 +125,6 @@ import Primer.Typecheck (
  )
 import Test.Tasty.HUnit (Assertion, assertBool, assertFailure, (@=?), (@?=))
 import TestM (TestM, evalTestM)
-import TestUtils (LogMsg, assertNoSevereLogs, constructCon, constructTCon, zeroIDs, zeroTypeIDs)
-import TestUtils qualified
 import Tests.Typecheck (checkProgWellFormed)
 import Prelude (error)
 
@@ -818,9 +818,9 @@ unit_copy_paste_import =
                 }
         importModules [m]
         prog <- gets appProg
-        case (findGlobalByName prog $ TestUtils.gvn ["M"] "foo", Map.assocs . moduleDefsQualified <$> progModules prog) of
+        case (findGlobalByName prog $ Util.gvn ["M"] "foo", Map.assocs . moduleDefsQualified <$> progModules prog) of
           (Just (DefAST fooDef), [[(i, _)]]) -> do
-            let fromDef = TestUtils.gvn ["M"] "foo"
+            let fromDef = Util.gvn ["M"] "foo"
                 fromType = getID $ astDefType fooDef
                 fromExpr = getID $ astDefExpr fooDef
             _ <-
@@ -1733,13 +1733,13 @@ deleteDef :: Name -> ProgAction
 deleteDef = DeleteDef . gvn
 
 tcn :: Name -> TyConName
-tcn = TestUtils.tcn $ unModuleName mainModuleName
+tcn = Util.tcn $ unModuleName mainModuleName
 
 vcn :: Name -> ValConName
-vcn = TestUtils.vcn $ unModuleName mainModuleName
+vcn = Util.vcn $ unModuleName mainModuleName
 
 gvn :: Name -> GVarName
-gvn = TestUtils.gvn $ unModuleName mainModuleName
+gvn = Util.gvn $ unModuleName mainModuleName
 
 astDef :: Name -> Expr -> Type -> (Name, ASTDef)
 astDef n e t = (n, ASTDef e t)

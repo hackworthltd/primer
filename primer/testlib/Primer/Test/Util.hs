@@ -1,5 +1,5 @@
 -- | Utilities useful across several types of tests.
-module TestUtils (
+module Primer.Test.Util (
   (@?=),
   ExceptionPredicate,
   assertException,
