@@ -32,7 +32,6 @@ import Primer.Core (
   GlobalName (baseName, qualifiedModule),
   ID,
   Level (..),
-  Meta (..),
   ModuleName (unModuleName),
   Type,
   Type' (..),
@@ -272,45 +271,44 @@ basicActionsForType l ty = case ty of
           ]
     defaultActions = universalActions <> [NoInput DeleteType]
 
--- TODO just combine these and take a `OfferedAction`?
-priorityNoInputAction :: NoInputAction -> Level -> Int
-priorityNoInputAction = \case
-  MakeCase -> P.makeCase
-  MakeApp -> P.applyFunction
-  MakeAPP -> P.applyType
-  MakeAnn -> P.annotateExpr
-  RemoveAnn -> P.removeAnnotation
-  LetToRec -> P.makeLetRecursive
-  Raise -> P.raise
-  EnterHole -> P.enterHole
-  RemoveHole -> P.finishHole
-  DeleteExpr -> P.delete
-  MakeFun -> P.constructFunction
-  AddInput -> P.addInput
-  MakeTApp -> P.constructTypeApp
-  RaiseType -> P.raise
-  DeleteType -> P.delete
-  DuplicateDef -> P.duplicate
-  DeleteDef -> P.delete
-priorityInputAction :: InputAction -> Level -> Int
-priorityInputAction = \case
-  MakeCon -> P.useValueCon
-  MakeConSat -> P.useSaturatedValueCon
-  MakeVar -> P.useVar
-  MakeVarSat -> P.useFunction
-  MakeLet -> P.makeLet
-  MakeLetRec -> P.makeLetrec
-  MakeLam -> P.makeLambda
-  MakeLAM -> P.makeTypeAbstraction
-  RenamePattern -> P.rename
-  RenameLet -> P.rename
-  RenameLam -> P.rename
-  RenameLAM -> P.rename
-  MakeTCon -> P.useTypeCon
-  MakeTVar -> P.useTypeVar
-  MakeForall -> P.constructForall
-  RenameForall -> P.rename
-  RenameDef -> P.rename
+actionPriority :: OfferedAction -> Level -> Int
+actionPriority = \case
+  NoInput a -> case a of
+    MakeCase -> P.makeCase
+    MakeApp -> P.applyFunction
+    MakeAPP -> P.applyType
+    MakeAnn -> P.annotateExpr
+    RemoveAnn -> P.removeAnnotation
+    LetToRec -> P.makeLetRecursive
+    Raise -> P.raise
+    EnterHole -> P.enterHole
+    RemoveHole -> P.finishHole
+    DeleteExpr -> P.delete
+    MakeFun -> P.constructFunction
+    AddInput -> P.addInput
+    MakeTApp -> P.constructTypeApp
+    RaiseType -> P.raise
+    DeleteType -> P.delete
+    DuplicateDef -> P.duplicate
+    DeleteDef -> P.delete
+  Input a -> case a of
+    MakeCon -> P.useValueCon
+    MakeConSat -> P.useSaturatedValueCon
+    MakeVar -> P.useVar
+    MakeVarSat -> P.useFunction
+    MakeLet -> P.makeLet
+    MakeLetRec -> P.makeLetrec
+    MakeLam -> P.makeLambda
+    MakeLAM -> P.makeTypeAbstraction
+    RenamePattern -> P.rename
+    RenameLet -> P.rename
+    RenameLam -> P.rename
+    RenameLAM -> P.rename
+    MakeTCon -> P.useTypeCon
+    MakeTVar -> P.useTypeVar
+    MakeForall -> P.constructForall
+    RenameForall -> P.rename
+    RenameDef -> P.rename
 
 data ActionOption = ActionOption
   { option :: Text
@@ -469,9 +467,7 @@ prioritySort ::
   Level ->
   [OfferedAction] ->
   [OfferedAction]
-prioritySort l = sortOn $ \case
-  NoInput x -> priorityNoInputAction x l
-  Input x -> priorityInputAction x l
+prioritySort = sortOn . flip actionPriority
 
 -- TODO is each of these only used once?
 noFunctions :: [(a1, Type' a2)] -> [(a1, Type' a2)]
