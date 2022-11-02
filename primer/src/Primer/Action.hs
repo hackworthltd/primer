@@ -984,7 +984,7 @@ mkActionInput def defName mNodeSel tInput0 = \case
     -- I think we previously were inconsistent, or just hadn't given this much thought
 
     -- TODO obviously we shouldn't use "unsafe" functions
-    tInputTmVar = case tInput0.qualification of
+    tInputTmVar = case tInput0.context of
       Just q -> GlobalVarRef $ unsafeMkGlobalName (q, tInput0.option)
       Nothing -> LocalVarRef $ unsafeMkLocalName tInput0.option
     -- TODO DRY
@@ -1009,9 +1009,9 @@ mkActionInput def defName mNodeSel tInput0 = \case
           _ -> False
         _ -> Left "expected TypeNode"
     id' = maybeToEither "no node selection" $ snd <$> mNodeSel
-    tInputLocal = case tInput0.qualification of
+    tInputLocal = case tInput0.context of
       Just _ -> Left $ "unexpected global: " <> show tInput0
       Nothing -> pure tInput0.option
-    option = case tInput0.qualification of
+    option = case tInput0.context of
       Nothing -> Left "no qual"
       Just q -> pure (q, tInput0.option)

@@ -87,7 +87,7 @@ import Primer.Zipper (
 
 data ActionOption = ActionOption
   { option :: Text
-  , qualification :: Maybe (NonEmpty Text) -- TODO hmm - this is isomorphic to normal list - too cute? also rename
+  , context :: Maybe (NonEmpty Text)
   }
   deriving (Eq, Show, Generic)
   deriving (FromJSON, ToJSON) via PrimerJSON ActionOption
@@ -106,7 +106,6 @@ data OfferedAction
   deriving (Eq, Ord, Show, Generic)
   deriving (ToJSON) via PrimerJSON OfferedAction
 
--- TODO rename constructors - descriptive names, also drop the prefix and we'll always qualify
 data NoInputAction
   = MakeCase
   | ConvertLetToLetrec
@@ -127,7 +126,7 @@ data NoInputAction
   | DeleteType
   deriving (Eq, Ord, Show, Read, Enum, Bounded, Generic)
   deriving (ToJSON, FromJSON) via PrimerJSON NoInputAction
-data InputAction -- TODO rename for consistency
+data InputAction
   = MakeLambda
   | UseVar
   | SaturatedFunction
@@ -459,7 +458,7 @@ inputAction typeDefs defs def cxt level mid = \case
       pure $ case node of
         Left zE -> variablesInScopeExpr defs zE
         Right zT -> (variablesInScopeTy zT, [], [])
-    fromGlobal n = ActionOption{option = unName $ baseName n, qualification = Just $ map unName $ unModuleName $ qualifiedModule n}
+    fromGlobal n = ActionOption{option = unName $ baseName n, context = Just $ map unName $ unModuleName $ qualifiedModule n}
     focusNode id =
       let mzE = locToEither <$> focusOn id (astDefExpr def)
           mzT = focusOnTy id $ astDefType def
