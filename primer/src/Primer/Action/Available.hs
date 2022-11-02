@@ -287,22 +287,6 @@ data ActionOptions = ActionOptions
   deriving (Show, Generic)
   deriving (ToJSON) via PrimerJSON ActionOptions
 
--- getInput :: OfferedAction -> (ActionOptions, [ProgAction])
--- getInput :: Level -> OfferedAction -> (ActionOptions, [ProgAction])
--- TODO obviously don't use `Text` for errors
--- TODO but can we avoid errors here completely by shifting more responsibility to `ProgAction`
--- TODO fewer args?
--- inputAction ::
---   Map GVarName (a, Def) ->
---   ASTDef ->
---   GVarName ->
---   ID ->
---   Level ->
---   Either Expr Type ->
---   OfferedAction ->
---   (ActionOptions, Either Text [ProgAction])
-
--- TODO the `Maybe ID` here is awkward - some actions require ID's and others don't, we should reflect this in the types
 inputAction ::
   TypeDefMap ->
   DefMap ->
