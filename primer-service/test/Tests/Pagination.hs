@@ -66,6 +66,7 @@ import Primer.Pagination (
   thisPage,
   totalItems,
  )
+import Primer.Test.Util ((@?=))
 import Rel8 (Result)
 import System.IO.Temp (withSystemTempDirectory)
 import System.Process.Typed (
@@ -92,10 +93,6 @@ lowPrecisionCurrentTime = do
   -- truncate to microseconds
   let time' = picosecondsToDiffTime $ diffTimeToPicoseconds time `div` 1000000 * 1000000
   pure $ LastModified $ UTCTime day time'
-
-(@?=) :: (MonadIO m, Eq a, Show a) => a -> a -> m ()
-x @?= y = liftIO $ x HUnit.@?= y
-infix 1 @?=
 
 assertFailure :: MonadIO m => Text -> m a
 assertFailure = liftIO . HUnit.assertFailure . toS
