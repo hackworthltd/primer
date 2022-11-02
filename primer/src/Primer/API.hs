@@ -946,11 +946,11 @@ availableActions = curry3 $ logAPI (noError AvailableActions) $ \(sid, level, Se
   prog <- getProgram sid
   let allDefs = progAllDefs prog
       allTypeDefs = progAllTypeDefs prog
+  (editable, ASTDef{astDefType = type_, astDefExpr = expr}) <- findDef allDefs def
   case node of
     Nothing ->
-      pure $ actionsForDef level allDefs def
+      pure $ actionsForDef (snd <$> allDefs) level editable def
     Just NodeSelection{..} -> do
-      (editable, ASTDef{astDefType = type_, astDefExpr = expr}) <- findDef allDefs def
       pure $ case nodeType of
         SigNode -> do
           actionsForDefSig level editable id type_

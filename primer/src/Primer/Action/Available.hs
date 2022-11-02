@@ -46,12 +46,7 @@ import Primer.Core (
   _typeMetaLens,
  )
 import Primer.Core.Utils (freeVars)
-import Primer.Def (
-  ASTDef (..),
-  Def,
-  DefMap,
-  defAST,
- )
+import Primer.Def (ASTDef (..), DefMap)
 import Primer.Def.Utils (globalInUse)
 import Primer.JSON (CustomJSON (..), FromJSON, PrimerJSON, ToJSON)
 import Primer.Name (unName)
@@ -128,30 +123,20 @@ data InputAction
   deriving (ToJSON, FromJSON) via PrimerJSON InputAction
 
 actionsForDef ::
+  DefMap ->
   Level ->
-  -- | All existing definitions, along with their mutability
-  Map GVarName (Editable, Def) ->
-  -- | The name of a definition in the map
+  Editable ->
   GVarName ->
   [OfferedAction]
-actionsForDef l defs defName = prioritySort l $ catMaybes [rename, duplicate, delete]
-  where
-    rename = do
-      -- TODO can this be simplified?
-      _ <- getEditableASTDef defs defName
-      pure $ Input RenameDef
+actionsForDef _ _ NonEditable _ = []
+actionsForDef defs l Editable defName =
+  prioritySort l $
+    [Input RenameDef, NoInput DuplicateDef]
+      <> mwhen
+        -- Ensure it is not in use, otherwise the action will not succeed
+        (not $ globalInUse defName $ Map.delete defName defs)
+        [NoInput DeleteDef]
 
-    duplicate = do
-      _ <- getEditableASTDef defs defName
-      pure $ NoInput DuplicateDef
-
-    delete = do
-      -- Ensure it is not in use, otherwise the action will not succeed
-      _ <- getEditableDef defs defName
-      guard $ not $ globalInUse defName $ Map.delete defName $ fmap snd defs
-      pure $ NoInput DeleteDef
-
--- | Given the body of a Def and the ID of a node in it, return the possible actions that can be applied to it
 actionsForDefBody ::
   TypeDefMap ->
   Level ->
@@ -175,8 +160,6 @@ actionsForDefBody tydefs l Editable id expr = prioritySort l $ case findNodeWith
      in basicActionsForType l t <> raiseAction
   Just (CaseBindNode _, _) -> [Input RenamePattern]
 
--- | Given a the type signature of a Def and the ID of a node in it,
--- return the possible actions that can be applied to it
 actionsForDefSig ::
   Level ->
   Editable ->
@@ -399,15 +382,6 @@ data InputActionError -- TODO can we somehow remove this? maybe combine with `Ac
   = IDNotFound
   | NoID
   deriving (Show)
-
-getEditableDef :: Ord k => Map k (Editable, b) -> k -> Maybe b
-getEditableDef defs defName = do
-  (m, d) <- Map.lookup defName defs
-  case m of
-    NonEditable -> Nothing
-    Editable -> pure d
-getEditableASTDef :: Ord k => Map k (Editable, Def) -> k -> Maybe ASTDef
-getEditableASTDef defs defName = defAST =<< getEditableDef defs defName
 
 prioritySort ::
   Level ->

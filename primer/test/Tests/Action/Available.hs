@@ -148,7 +148,7 @@ mkTests deps (defName, DefAST def') =
         enumeratePairs
           <&> \(level, mut) ->
             -- We sort the offered actions to make the test output more stable
-            let defActions = map (convert level Nothing) $ sort $ actionsForDef level ((mut,) <$> defs) d
+            let defActions = map (convert level Nothing) $ sort $ actionsForDef defs level mut d
                 bodyActions =
                   map
                     ( \id ->
@@ -196,7 +196,7 @@ unit_def_in_use =
    in for_
         enumerate
         ( \l ->
-            actionsForDef l defs d
+            actionsForDef (snd <$> defs) l Editable d
               @?= [Input RenameDef, NoInput DuplicateDef]
         )
 
@@ -226,7 +226,7 @@ tasty_available_actions_accepted = withTests 500 $
         fmap snd . forAllWithT fst $
           Gen.frequency $
             catMaybes
-              [ Just (1, pure ("actionsForDef", (Nothing, actionsForDef l allDefs defName)))
+              [ Just (1, pure ("actionsForDef", (Nothing, actionsForDef (snd <$> allDefs) l defMut defName)))
               , defAST def <&> \d' -> (2,) $ do
                   let ty = astDefType d'
                       ids = ty ^.. typeIDs
