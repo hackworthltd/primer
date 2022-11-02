@@ -13,41 +13,41 @@ Output
         [
             ( 9
             ,
-                [ NoInput' ConvertLetToLetrec
+                [ NoInput' LetToRec
                 , NoInput' DeleteExpr
-                , Input' MakeLambda
+                , Input' MakeLam
                     ( ActionOptions
                         { options =
                             [ ActionOption
                                 { option = "f"
-                                , qualification = Nothing
+                                , context = Nothing
                                 }
                             , ActionOption
                                 { option = "g"
-                                , qualification = Nothing
+                                , context = Nothing
                                 }
                             , ActionOption
                                 { option = "h"
-                                , qualification = Nothing
+                                , context = Nothing
                                 }
                             ]
                         , free = True
                         }
                     )
-                , Input' RenameLetBinding
+                , Input' RenameLet
                     ( ActionOptions
                         { options =
                             [ ActionOption
                                 { option = "f"
-                                , qualification = Nothing
+                                , context = Nothing
                                 }
                             , ActionOption
                                 { option = "g"
-                                , qualification = Nothing
+                                , context = Nothing
                                 }
                             , ActionOption
                                 { option = "h"
-                                , qualification = Nothing
+                                , context = Nothing
                                 }
                             ]
                         , free = True
@@ -61,16 +61,16 @@ Output
                 [ NoInput' MakeCase
                 , NoInput' Raise
                 , NoInput' DeleteExpr
-                , Input' MakeLambda
+                , Input' MakeLam
                     ( ActionOptions
                         { options =
                             [ ActionOption
                                 { option = "p"
-                                , qualification = Nothing
+                                , context = Nothing
                                 }
                             , ActionOption
                                 { option = "q"
-                                , qualification = Nothing
+                                , context = Nothing
                                 }
                             ]
                         , free = True
@@ -83,39 +83,39 @@ Output
             ,
                 [ NoInput' Raise
                 , NoInput' DeleteExpr
-                , Input' MakeLambda
+                , Input' MakeLam
                     ( ActionOptions
                         { options =
                             [ ActionOption
                                 { option = "f"
-                                , qualification = Nothing
+                                , context = Nothing
                                 }
                             , ActionOption
                                 { option = "g"
-                                , qualification = Nothing
+                                , context = Nothing
                                 }
                             , ActionOption
                                 { option = "h"
-                                , qualification = Nothing
+                                , context = Nothing
                                 }
                             ]
                         , free = True
                         }
                     )
-                , Input' RenameLetBinding
+                , Input' RenameLet
                     ( ActionOptions
                         { options =
                             [ ActionOption
                                 { option = "f"
-                                , qualification = Nothing
+                                , context = Nothing
                                 }
                             , ActionOption
                                 { option = "g"
-                                , qualification = Nothing
+                                , context = Nothing
                                 }
                             , ActionOption
                                 { option = "h"
-                                , qualification = Nothing
+                                , context = Nothing
                                 }
                             ]
                         , free = True
@@ -129,20 +129,20 @@ Output
                 [ NoInput' MakeCase
                 , NoInput' Raise
                 , NoInput' DeleteExpr
-                , Input' MakeLambda
+                , Input' MakeLam
                     ( ActionOptions
                         { options =
                             [ ActionOption
                                 { option = "z"
-                                , qualification = Nothing
+                                , context = Nothing
                                 }
                             , ActionOption
                                 { option = "x1"
-                                , qualification = Nothing
+                                , context = Nothing
                                 }
                             , ActionOption
                                 { option = "y1"
-                                , qualification = Nothing
+                                , context = Nothing
                                 }
                             ]
                         , free = True
@@ -154,23 +154,23 @@ Output
             ( 13
             ,
                 [ NoInput' MakeCase
-                , NoInput' FinishHole
                 , NoInput' Raise
+                , NoInput' RemoveHole
                 , NoInput' DeleteExpr
-                , Input' MakeLambda
+                , Input' MakeLam
                     ( ActionOptions
                         { options =
                             [ ActionOption
                                 { option = "z"
-                                , qualification = Nothing
+                                , context = Nothing
                                 }
                             , ActionOption
                                 { option = "x1"
-                                , qualification = Nothing
+                                , context = Nothing
                                 }
                             , ActionOption
                                 { option = "y1"
-                                , qualification = Nothing
+                                , context = Nothing
                                 }
                             ]
                         , free = True
@@ -182,20 +182,20 @@ Output
             ( 14
             ,
                 [ NoInput' DeleteExpr
-                , Input' MakeLambda
+                , Input' MakeLam
                     ( ActionOptions
                         { options =
                             [ ActionOption
                                 { option = "z"
-                                , qualification = Nothing
+                                , context = Nothing
                                 }
                             , ActionOption
                                 { option = "x1"
-                                , qualification = Nothing
+                                , context = Nothing
                                 }
                             , ActionOption
                                 { option = "y1"
-                                , qualification = Nothing
+                                , context = Nothing
                                 }
                             ]
                         , free = True
@@ -208,70 +208,70 @@ Output
             ,
                 [ NoInput' MakeCase
                 , NoInput' Raise
-                , Input' MakeLambda
-                    ( ActionOptions
-                        { options =
-                            [ ActionOption
-                                { option = "z"
-                                , qualification = Nothing
-                                }
-                            , ActionOption
-                                { option = "x1"
-                                , qualification = Nothing
-                                }
-                            , ActionOption
-                                { option = "y1"
-                                , qualification = Nothing
-                                }
-                            ]
-                        , free = True
-                        }
-                    )
-                , Input' UseVar
-                    ( ActionOptions
-                        { options =
-                            [ ActionOption
-                                { option = "x"
-                                , qualification = Nothing
-                                }
-                            , ActionOption
-                                { option = "y"
-                                , qualification = Nothing
-                                }
-                            ]
-                        , free = False
-                        }
-                    )
-                , Input' UseValueCon
+                , Input' MakeCon
                     ( ActionOptions
                         { options =
                             [ ActionOption
                                 { option = "True"
-                                , qualification = Just
+                                , context = Just
                                     ( "Builtins" :| [] )
                                 }
                             , ActionOption
                                 { option = "False"
-                                , qualification = Just
+                                , context = Just
                                     ( "Builtins" :| [] )
                                 }
                             , ActionOption
                                 { option = "Nil"
-                                , qualification = Just
+                                , context = Just
                                     ( "Builtins" :| [] )
                                 }
                             , ActionOption
                                 { option = "Nothing"
-                                , qualification = Just
+                                , context = Just
                                     ( "Builtins" :| [] )
                                 }
                             , ActionOption
                                 { option = "Zero"
-                                , qualification = Just
+                                , context = Just
                                     ( "Builtins" :| [] )
                                 }
                             ]
                         , free = False
+                        }
+                    )
+                , Input' MakeVar
+                    ( ActionOptions
+                        { options =
+                            [ ActionOption
+                                { option = "x"
+                                , context = Nothing
+                                }
+                            , ActionOption
+                                { option = "y"
+                                , context = Nothing
+                                }
+                            ]
+                        , free = False
+                        }
+                    )
+                , Input' MakeLam
+                    ( ActionOptions
+                        { options =
+                            [ ActionOption
+                                { option = "z"
+                                , context = Nothing
+                                }
+                            , ActionOption
+                                { option = "x1"
+                                , context = Nothing
+                                }
+                            , ActionOption
+                                { option = "y1"
+                                , context = Nothing
+                                }
+                            ]
+                        , free = True
                         }
                     )
                 ]
@@ -281,20 +281,20 @@ Output
             ,
                 [ NoInput' Raise
                 , NoInput' DeleteExpr
-                , Input' MakeLambda
+                , Input' MakeLam
                     ( ActionOptions
                         { options =
                             [ ActionOption
                                 { option = "f"
-                                , qualification = Nothing
+                                , context = Nothing
                                 }
                             , ActionOption
                                 { option = "g"
-                                , qualification = Nothing
+                                , context = Nothing
                                 }
                             , ActionOption
                                 { option = "h"
-                                , qualification = Nothing
+                                , context = Nothing
                                 }
                             ]
                         , free = True
@@ -307,39 +307,39 @@ Output
             ,
                 [ NoInput' Raise
                 , NoInput' DeleteExpr
-                , Input' MakeLambda
+                , Input' MakeLam
                     ( ActionOptions
                         { options =
                             [ ActionOption
                                 { option = "f"
-                                , qualification = Nothing
+                                , context = Nothing
                                 }
                             , ActionOption
                                 { option = "g"
-                                , qualification = Nothing
+                                , context = Nothing
                                 }
                             , ActionOption
                                 { option = "h"
-                                , qualification = Nothing
+                                , context = Nothing
                                 }
                             ]
                         , free = True
                         }
                     )
-                , Input' RenameLambda
+                , Input' RenameLam
                     ( ActionOptions
                         { options =
                             [ ActionOption
                                 { option = "f"
-                                , qualification = Nothing
+                                , context = Nothing
                                 }
                             , ActionOption
                                 { option = "g"
-                                , qualification = Nothing
+                                , context = Nothing
                                 }
                             , ActionOption
                                 { option = "h"
-                                , qualification = Nothing
+                                , context = Nothing
                                 }
                             ]
                         , free = True
@@ -352,20 +352,20 @@ Output
             ,
                 [ NoInput' Raise
                 , NoInput' DeleteExpr
-                , Input' MakeLambda
+                , Input' MakeLam
                     ( ActionOptions
                         { options =
                             [ ActionOption
                                 { option = "z"
-                                , qualification = Nothing
+                                , context = Nothing
                                 }
                             , ActionOption
                                 { option = "x1"
-                                , qualification = Nothing
+                                , context = Nothing
                                 }
                             , ActionOption
                                 { option = "y1"
-                                , qualification = Nothing
+                                , context = Nothing
                                 }
                             ]
                         , free = True
@@ -379,20 +379,20 @@ Output
                 [ NoInput' MakeCase
                 , NoInput' Raise
                 , NoInput' DeleteExpr
-                , Input' MakeLambda
+                , Input' MakeLam
                     ( ActionOptions
                         { options =
                             [ ActionOption
                                 { option = "z"
-                                , qualification = Nothing
+                                , context = Nothing
                                 }
                             , ActionOption
                                 { option = "x1"
-                                , qualification = Nothing
+                                , context = Nothing
                                 }
                             , ActionOption
                                 { option = "y1"
-                                , qualification = Nothing
+                                , context = Nothing
                                 }
                             ]
                         , free = True
@@ -405,20 +405,20 @@ Output
             ,
                 [ NoInput' Raise
                 , NoInput' DeleteExpr
-                , Input' MakeLambda
+                , Input' MakeLam
                     ( ActionOptions
                         { options =
                             [ ActionOption
                                 { option = "f"
-                                , qualification = Nothing
+                                , context = Nothing
                                 }
                             , ActionOption
                                 { option = "g"
-                                , qualification = Nothing
+                                , context = Nothing
                                 }
                             , ActionOption
                                 { option = "h"
-                                , qualification = Nothing
+                                , context = Nothing
                                 }
                             ]
                         , free = True
@@ -431,20 +431,20 @@ Output
             ,
                 [ NoInput' Raise
                 , NoInput' DeleteExpr
-                , Input' MakeLambda
+                , Input' MakeLam
                     ( ActionOptions
                         { options =
                             [ ActionOption
                                 { option = "z"
-                                , qualification = Nothing
+                                , context = Nothing
                                 }
                             , ActionOption
                                 { option = "x1"
-                                , qualification = Nothing
+                                , context = Nothing
                                 }
                             , ActionOption
                                 { option = "y1"
-                                , qualification = Nothing
+                                , context = Nothing
                                 }
                             ]
                         , free = True
@@ -457,20 +457,20 @@ Output
             ,
                 [ NoInput' Raise
                 , NoInput' DeleteExpr
-                , Input' MakeLambda
+                , Input' MakeLam
                     ( ActionOptions
                         { options =
                             [ ActionOption
                                 { option = "z"
-                                , qualification = Nothing
+                                , context = Nothing
                                 }
                             , ActionOption
                                 { option = "x1"
-                                , qualification = Nothing
+                                , context = Nothing
                                 }
                             , ActionOption
                                 { option = "y1"
-                                , qualification = Nothing
+                                , context = Nothing
                                 }
                             ]
                         , free = True
@@ -483,16 +483,16 @@ Output
             ,
                 [ NoInput' Raise
                 , NoInput' DeleteExpr
-                , Input' MakeLambda
+                , Input' MakeLam
                     ( ActionOptions
                         { options =
                             [ ActionOption
                                 { option = "p"
-                                , qualification = Nothing
+                                , context = Nothing
                                 }
                             , ActionOption
                                 { option = "q"
-                                , qualification = Nothing
+                                , context = Nothing
                                 }
                             ]
                         , free = True
@@ -506,24 +506,24 @@ Output
                 [ NoInput' MakeCase
                 , NoInput' Raise
                 , NoInput' DeleteExpr
-                , Input' MakeLambda
+                , Input' MakeLam
                     ( ActionOptions
                         { options =
                             [ ActionOption
                                 { option = "j"
-                                , qualification = Nothing
+                                , context = Nothing
                                 }
                             , ActionOption
                                 { option = "m"
-                                , qualification = Nothing
+                                , context = Nothing
                                 }
                             , ActionOption
                                 { option = "n"
-                                , qualification = Nothing
+                                , context = Nothing
                                 }
                             , ActionOption
                                 { option = "i1"
-                                , qualification = Nothing
+                                , context = Nothing
                                 }
                             ]
                         , free = True
@@ -537,16 +537,16 @@ Output
                 [ NoInput' MakeCase
                 , NoInput' Raise
                 , NoInput' DeleteExpr
-                , Input' MakeLambda
+                , Input' MakeLam
                     ( ActionOptions
                         { options =
                             [ ActionOption
                                 { option = "p"
-                                , qualification = Nothing
+                                , context = Nothing
                                 }
                             , ActionOption
                                 { option = "q"
-                                , qualification = Nothing
+                                , context = Nothing
                                 }
                             ]
                         , free = True
@@ -557,24 +557,24 @@ Output
         ,
             ( 30
             ,
-                [ Input' RenamePatternVar
+                [ Input' RenamePattern
                     ( ActionOptions
                         { options =
                             [ ActionOption
                                 { option = "j"
-                                , qualification = Nothing
+                                , context = Nothing
                                 }
                             , ActionOption
                                 { option = "m"
-                                , qualification = Nothing
+                                , context = Nothing
                                 }
                             , ActionOption
                                 { option = "i1"
-                                , qualification = Nothing
+                                , context = Nothing
                                 }
                             , ActionOption
                                 { option = "n1"
-                                , qualification = Nothing
+                                , context = Nothing
                                 }
                             ]
                         , free = True
@@ -588,16 +588,16 @@ Output
                 [ NoInput' MakeCase
                 , NoInput' Raise
                 , NoInput' DeleteExpr
-                , Input' MakeLambda
+                , Input' MakeLam
                     ( ActionOptions
                         { options =
                             [ ActionOption
                                 { option = "p"
-                                , qualification = Nothing
+                                , context = Nothing
                                 }
                             , ActionOption
                                 { option = "q"
-                                , qualification = Nothing
+                                , context = Nothing
                                 }
                             ]
                         , free = True
@@ -611,20 +611,20 @@ Output
                 [ NoInput' MakeCase
                 , NoInput' Raise
                 , NoInput' DeleteExpr
-                , Input' MakeLambda
+                , Input' MakeLam
                     ( ActionOptions
                         { options =
                             [ ActionOption
                                 { option = "z"
-                                , qualification = Nothing
+                                , context = Nothing
                                 }
                             , ActionOption
                                 { option = "x1"
-                                , qualification = Nothing
+                                , context = Nothing
                                 }
                             , ActionOption
                                 { option = "y1"
-                                , qualification = Nothing
+                                , context = Nothing
                                 }
                             ]
                         , free = True
@@ -637,78 +637,78 @@ Output
             ,
                 [ NoInput' MakeCase
                 , NoInput' Raise
-                , Input' MakeLambda
-                    ( ActionOptions
-                        { options =
-                            [ ActionOption
-                                { option = "z"
-                                , qualification = Nothing
-                                }
-                            , ActionOption
-                                { option = "x1"
-                                , qualification = Nothing
-                                }
-                            , ActionOption
-                                { option = "y1"
-                                , qualification = Nothing
-                                }
-                            ]
-                        , free = True
-                        }
-                    )
-                , Input' UseVar
-                    ( ActionOptions
-                        { options =
-                            [ ActionOption
-                                { option = "x"
-                                , qualification = Nothing
-                                }
-                            , ActionOption
-                                { option = "y"
-                                , qualification = Nothing
-                                }
-                            , ActionOption
-                                { option = "i"
-                                , qualification = Nothing
-                                }
-                            , ActionOption
-                                { option = "n"
-                                , qualification = Nothing
-                                }
-                            ]
-                        , free = False
-                        }
-                    )
-                , Input' UseValueCon
+                , Input' MakeCon
                     ( ActionOptions
                         { options =
                             [ ActionOption
                                 { option = "True"
-                                , qualification = Just
+                                , context = Just
                                     ( "Builtins" :| [] )
                                 }
                             , ActionOption
                                 { option = "False"
-                                , qualification = Just
+                                , context = Just
                                     ( "Builtins" :| [] )
                                 }
                             , ActionOption
                                 { option = "Nil"
-                                , qualification = Just
+                                , context = Just
                                     ( "Builtins" :| [] )
                                 }
                             , ActionOption
                                 { option = "Nothing"
-                                , qualification = Just
+                                , context = Just
                                     ( "Builtins" :| [] )
                                 }
                             , ActionOption
                                 { option = "Zero"
-                                , qualification = Just
+                                , context = Just
                                     ( "Builtins" :| [] )
                                 }
                             ]
                         , free = False
+                        }
+                    )
+                , Input' MakeVar
+                    ( ActionOptions
+                        { options =
+                            [ ActionOption
+                                { option = "x"
+                                , context = Nothing
+                                }
+                            , ActionOption
+                                { option = "y"
+                                , context = Nothing
+                                }
+                            , ActionOption
+                                { option = "i"
+                                , context = Nothing
+                                }
+                            , ActionOption
+                                { option = "n"
+                                , context = Nothing
+                                }
+                            ]
+                        , free = False
+                        }
+                    )
+                , Input' MakeLam
+                    ( ActionOptions
+                        { options =
+                            [ ActionOption
+                                { option = "z"
+                                , context = Nothing
+                                }
+                            , ActionOption
+                                { option = "x1"
+                                , context = Nothing
+                                }
+                            , ActionOption
+                                { option = "y1"
+                                , context = Nothing
+                                }
+                            ]
+                        , free = True
                         }
                     )
                 ]
@@ -719,20 +719,20 @@ Output
                 [ NoInput' MakeCase
                 , NoInput' Raise
                 , NoInput' DeleteExpr
-                , Input' MakeLambda
+                , Input' MakeLam
                     ( ActionOptions
                         { options =
                             [ ActionOption
                                 { option = "z"
-                                , qualification = Nothing
+                                , context = Nothing
                                 }
                             , ActionOption
                                 { option = "x1"
-                                , qualification = Nothing
+                                , context = Nothing
                                 }
                             , ActionOption
                                 { option = "y1"
-                                , qualification = Nothing
+                                , context = Nothing
                                 }
                             ]
                         , free = True
@@ -746,20 +746,20 @@ Output
                 [ NoInput' MakeCase
                 , NoInput' Raise
                 , NoInput' DeleteExpr
-                , Input' MakeLambda
+                , Input' MakeLam
                     ( ActionOptions
                         { options =
                             [ ActionOption
                                 { option = "z"
-                                , qualification = Nothing
+                                , context = Nothing
                                 }
                             , ActionOption
                                 { option = "x1"
-                                , qualification = Nothing
+                                , context = Nothing
                                 }
                             , ActionOption
                                 { option = "y1"
-                                , qualification = Nothing
+                                , context = Nothing
                                 }
                             ]
                         , free = True
@@ -770,36 +770,36 @@ Output
         ,
             ( 16
             ,
-                [ NoInput' ConstructFun
+                [ NoInput' MakeFun
                 , NoInput' DeleteType
                 ]
             )
         ,
             ( 17
             ,
-                [ NoInput' ConstructFun
-                , NoInput' Raise
+                [ NoInput' Raise
+                , NoInput' MakeFun
                 , NoInput' DeleteType
                 ]
             )
         ,
             ( 25
             ,
-                [ NoInput' ConstructFun
+                [ NoInput' MakeFun
                 , NoInput' DeleteType
                 ]
             )
         ,
             ( 26
             ,
-                [ NoInput' ConstructFun
+                [ NoInput' MakeFun
                 , NoInput' DeleteType
                 ]
             )
         ,
             ( 36
             ,
-                [ NoInput' ConstructFun
+                [ NoInput' MakeFun
                 , NoInput' AddInput
                 , NoInput' DeleteType
                 ]
@@ -807,56 +807,56 @@ Output
         ,
             ( 37
             ,
-                [ NoInput' ConstructFun
-                , NoInput' Raise
+                [ NoInput' Raise
+                , NoInput' MakeFun
                 , NoInput' DeleteType
                 ]
             )
         ,
             ( 38
             ,
-                [ NoInput' ConstructFun
-                , NoInput' Raise
+                [ NoInput' Raise
+                , NoInput' MakeFun
                 , NoInput' DeleteType
                 ]
             )
         ,
             ( 39
             ,
-                [ NoInput' ConstructFun
-                , NoInput' Raise
+                [ NoInput' Raise
+                , NoInput' MakeFun
                 , NoInput' DeleteType
                 ]
             )
         ,
             ( 40
             ,
-                [ NoInput' ConstructFun
-                , NoInput' Raise
+                [ NoInput' Raise
+                , NoInput' MakeFun
                 , NoInput' DeleteType
                 ]
             )
         ,
             ( 41
             ,
-                [ NoInput' ConstructFun
-                , NoInput' Raise
+                [ NoInput' Raise
+                , NoInput' MakeFun
                 , NoInput' DeleteType
                 ]
             )
         ,
             ( 42
             ,
-                [ NoInput' ConstructFun
-                , NoInput' Raise
+                [ NoInput' Raise
+                , NoInput' MakeFun
                 , NoInput' DeleteType
                 ]
             )
         ,
             ( 43
             ,
-                [ NoInput' ConstructFun
-                , NoInput' Raise
+                [ NoInput' Raise
+                , NoInput' MakeFun
                 , NoInput' DeleteType
                 ]
             )
@@ -865,7 +865,7 @@ Output
         [
             ( 0
             ,
-                [ NoInput' ConstructFun
+                [ NoInput' MakeFun
                 , NoInput' AddInput
                 , NoInput' DeleteType
                 ]
@@ -873,7 +873,7 @@ Output
         ,
             ( 1
             ,
-                [ NoInput' ConstructFun
+                [ NoInput' MakeFun
                 , NoInput' RaiseType
                 , NoInput' DeleteType
                 ]
@@ -881,7 +881,7 @@ Output
         ,
             ( 2
             ,
-                [ NoInput' ConstructFun
+                [ NoInput' MakeFun
                 , NoInput' RaiseType
                 , NoInput' DeleteType
                 ]
@@ -889,7 +889,7 @@ Output
         ,
             ( 3
             ,
-                [ NoInput' ConstructFun
+                [ NoInput' MakeFun
                 , NoInput' RaiseType
                 , NoInput' DeleteType
                 ]
@@ -897,7 +897,7 @@ Output
         ,
             ( 4
             ,
-                [ NoInput' ConstructFun
+                [ NoInput' MakeFun
                 , NoInput' RaiseType
                 , NoInput' DeleteType
                 ]
@@ -905,7 +905,7 @@ Output
         ,
             ( 5
             ,
-                [ NoInput' ConstructFun
+                [ NoInput' MakeFun
                 , NoInput' RaiseType
                 , NoInput' DeleteType
                 ]
@@ -913,7 +913,7 @@ Output
         ,
             ( 6
             ,
-                [ NoInput' ConstructFun
+                [ NoInput' MakeFun
                 , NoInput' RaiseType
                 , NoInput' DeleteType
                 ]
@@ -921,49 +921,49 @@ Output
         ,
             ( 7
             ,
-                [ NoInput' ConstructFun
+                [ NoInput' MakeFun
                 , NoInput' RaiseType
-                , Input' UseTypeCon
+                , Input' MakeTCon
                     ( ActionOptions
                         { options =
                             [ ActionOption
                                 { option = "Bool"
-                                , qualification = Just
+                                , context = Just
                                     ( "Builtins" :| [] )
                                 }
                             , ActionOption
                                 { option = "Either"
-                                , qualification = Just
+                                , context = Just
                                     ( "Builtins" :| [] )
                                 }
                             , ActionOption
                                 { option = "List"
-                                , qualification = Just
+                                , context = Just
                                     ( "Builtins" :| [] )
                                 }
                             , ActionOption
                                 { option = "Maybe"
-                                , qualification = Just
+                                , context = Just
                                     ( "Builtins" :| [] )
                                 }
                             , ActionOption
                                 { option = "Nat"
-                                , qualification = Just
+                                , context = Just
                                     ( "Builtins" :| [] )
                                 }
                             , ActionOption
                                 { option = "Pair"
-                                , qualification = Just
+                                , context = Just
                                     ( "Builtins" :| [] )
                                 }
                             , ActionOption
                                 { option = "Char"
-                                , qualification = Just
+                                , context = Just
                                     ( "Primitives" :| [] )
                                 }
                             , ActionOption
                                 { option = "Int"
-                                , qualification = Just
+                                , context = Just
                                     ( "Primitives" :| [] )
                                 }
                             ]
@@ -975,7 +975,7 @@ Output
         ,
             ( 8
             ,
-                [ NoInput' ConstructFun
+                [ NoInput' MakeFun
                 , NoInput' RaiseType
                 , NoInput' DeleteType
                 ]
