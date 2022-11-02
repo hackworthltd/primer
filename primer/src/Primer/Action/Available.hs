@@ -172,7 +172,7 @@ actionsForDefBody tydefs l Editable id expr = prioritySort l $ case findNodeWith
     let raiseAction = case p of
           Just (ExprNode _) -> [] -- at the root of an annotation, so cannot raise
           _ -> [NoInput Raise]
-     in basicActionsForType l t <> compoundActionsForType t <> raiseAction
+     in basicActionsForType l t <> raiseAction
   Just (CaseBindNode _, _) -> [Input RenamePattern]
 
 -- | Given a the type signature of a Def and the ID of a node in it,
@@ -188,7 +188,6 @@ actionsForDefSig l Editable id ty = prioritySort l $ case findType id ty of
   Nothing -> mempty
   Just t ->
     basicActionsForType l t
-      <> compoundActionsForType t
       <> mwhen (id /= getID ty) [NoInput RaiseType]
 
 -- | Given an expression, determine what basic actions it supports
@@ -258,9 +257,10 @@ basicActionsForExpr tydefs l expr = case expr of
 -- | Given a type, determine what basic actions it supports
 -- Specific projections may provide other actions not listed here
 basicActionsForType :: Level -> Type -> [OfferedAction]
-basicActionsForType l = \case
+basicActionsForType l ty = case ty of
   TEmptyHole{} -> universalActions <> [Input MakeTCon] <> mwhen (l == Expert) [Input MakeTVar]
   TForall{} -> defaultActions <> mwhen (l == Expert) [Input RenameForall]
+  TFun{} -> defaultActions <> [NoInput AddInput]
   _ -> defaultActions
   where
     universalActions =
@@ -271,15 +271,6 @@ basicActionsForType l = \case
           , NoInput MakeTApp
           ]
     defaultActions = universalActions <> [NoInput DeleteType]
-
--- TODO inline
-
--- | These actions are more involved than the basic actions.
--- They may involve moving around the AST and performing several basic actions.
-compoundActionsForType :: Type' (Meta a) -> [OfferedAction]
-compoundActionsForType ty = case ty of
-  TFun _m _ _ -> [NoInput AddInput]
-  _ -> []
 
 -- TODO just combine these and take a `OfferedAction`?
 priorityNoInputAction :: NoInputAction -> Level -> Int
