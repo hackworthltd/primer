@@ -19,14 +19,14 @@ import Primer.Database (
 import Primer.Database.Rel8 (
   SessionRow (SessionRow, app, gitversion, lastmodified, name, uuid),
  )
+import Primer.Database.Rel8.Test.Util (
+  lowPrecisionCurrentTime,
+  runTmpDb,
+ )
 import Primer.Test.Util ((@?=))
 import Rel8 (Result)
 import Test.Tasty (TestTree)
 import Test.Tasty.HUnit (testCaseSteps)
-import TestUtils (
-  lowPrecisionCurrentTime,
-  runTmpDb,
- )
 
 mkSession :: Int -> IO (SessionRow Result)
 mkSession n = do

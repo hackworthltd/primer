@@ -19,6 +19,10 @@ import Primer.Database (
 import Primer.Database.Rel8.Rel8Db (
   Rel8DbException (InsertError),
  )
+import Primer.Database.Rel8.Test.Util (
+  lowPrecisionCurrentTime,
+  runTmpDb,
+ )
 import Primer.Test.App (
   comprehensive,
  )
@@ -28,10 +32,6 @@ import Primer.Test.Util (
  )
 import Test.Tasty (TestTree)
 import Test.Tasty.HUnit (testCaseSteps)
-import TestUtils (
-  lowPrecisionCurrentTime,
-  runTmpDb,
- )
 
 expectedError :: SessionId -> Rel8DbException -> Bool
 expectedError id_ (InsertError s _) = s == id_

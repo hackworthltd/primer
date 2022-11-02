@@ -19,16 +19,16 @@ import Primer.Database (
 import Primer.Database.Rel8 (
   Rel8DbException (UpdateNameNonExistentSession),
  )
+import Primer.Database.Rel8.Test.Util (
+  lowPrecisionCurrentTime,
+  runTmpDb,
+ )
 import Primer.Test.Util (
   assertException,
   (@?=),
  )
 import Test.Tasty (TestTree)
 import Test.Tasty.HUnit (testCaseSteps)
-import TestUtils (
-  lowPrecisionCurrentTime,
-  runTmpDb,
- )
 
 expectedError :: SessionId -> Rel8DbException -> Bool
 expectedError id_ (UpdateNameNonExistentSession s) = s == id_

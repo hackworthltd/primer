@@ -1,6 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module TestUtils (
+module Primer.Database.Rel8.Test.Util (
   insertSessionRow,
   withDbSetup,
   lowPrecisionCurrentTime,
@@ -165,9 +165,6 @@ insertSessionRow row pool =
 --
 -- Ref:
 -- https://www.postgresql.org/docs/13/datatype-datetime.html
---
--- Note: we should DRY this, see:
--- https://github.com/hackworthltd/primer/issues/273
 lowPrecisionCurrentTime :: (MonadIO m) => m LastModified
 lowPrecisionCurrentTime = do
   LastModified (UTCTime day time) <- getCurrentTime
