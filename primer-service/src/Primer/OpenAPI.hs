@@ -41,7 +41,6 @@ import Primer.Action.Available (
   ActionOption,
   ActionOptions,
   InputAction (..),
-  Level (..),
   NoInputAction (..),
   OfferedAction,
  )
@@ -50,6 +49,7 @@ import Primer.Core (
   GlobalNameKind (ADefName, ATyCon, AValCon),
   ID (..),
   LVarName,
+  Level,
   ModuleName,
   NodeType,
  )

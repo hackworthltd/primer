@@ -29,7 +29,7 @@ import Data.Set qualified as Set
 import Data.Text qualified as T
 import Optics (set, (%), (?~), (^.), (^?), _Just)
 import Primer.Action.Actions (Action (..), Movement (..), QualifiedText)
-import Primer.Action.Available (ActionOption (..), InputAction, Level (..), NoInputAction)
+import Primer.Action.Available (ActionOption (..), InputAction, NoInputAction)
 import Primer.Action.Available qualified as Available
 import Primer.Action.Errors (ActionError (..))
 import Primer.Action.ProgAction (ProgAction (..))
@@ -40,6 +40,7 @@ import Primer.Core (
   HasMetadata (_metadata),
   ID,
   LVarName,
+  Level,
   LocalName (LocalName, unLocalName),
   NodeType (..),
   TmVarRef (..),

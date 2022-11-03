@@ -40,11 +40,10 @@ import Primer.Action.Available (
   ActionOption (..),
   ActionOptions (..),
   InputAction (..),
-  Level,
   NoInputAction (..),
   OfferedAction (..),
  )
-import Primer.Core (GVarName, ID (ID), NodeType (..))
+import Primer.Core (GVarName, ID (ID), Level, NodeType (..))
 import Primer.Database (
   LastModified (..),
   Session (Session),

@@ -14,7 +14,6 @@ module Primer.Action.Available (
   OfferedAction (..),
   InputAction (..),
   NoInputAction (..),
-  Level (..),
   actionOptions,
   ActionOption (..),
   ActionOptions (..),
