@@ -56,7 +56,6 @@ module Primer.App (
   EvalFullReq (..),
   EvalFullResp (..),
   lookupASTDef,
-  globalInUse,
   liftError,
 ) where
 
@@ -79,14 +78,11 @@ import Optics (
   Field2 (_2),
   Field3 (_3),
   ReversibleOptic (re),
-  anyOf,
-  folded,
   ifoldMap,
   lens,
   mapped,
   over,
   set,
-  to,
   traverseOf,
   traversed,
   view,
@@ -141,7 +137,7 @@ import Primer.Core (
 import Primer.Core.DSL (create, emptyHole, tEmptyHole)
 import Primer.Core.DSL qualified as DSL
 import Primer.Core.Transform (foldApp, renameVar, unfoldAPP, unfoldApp, unfoldTApp)
-import Primer.Core.Utils (freeGlobalVars, freeVars, regenerateExprIDs, regenerateTypeIDs, _freeTmVars, _freeTyVars, _freeVarsTy)
+import Primer.Core.Utils (freeVars, regenerateExprIDs, regenerateTypeIDs, _freeTmVars, _freeTyVars, _freeVarsTy)
 import Primer.Def (
   ASTDef (..),
   Def (..),
@@ -149,6 +145,7 @@ import Primer.Def (
   defAST,
   defPrim,
  )
+import Primer.Def.Utils (globalInUse)
 import Primer.Eval (EvalDetail)
 import Primer.Eval qualified as Eval
 import Primer.EvalFull (Dir, EvalFullError (TimedOut), EvalFullLog, TerminationBound, evalFull)
@@ -859,12 +856,6 @@ applyProgAction prog mdefName = \case
                     -- from the name of any import
                     ActionError $
                       InternalFailure "RenameModule: imported modules were edited by renaming"
-
-globalInUse :: Foldable f => GVarName -> f Def -> Bool
-globalInUse v =
-  anyOf
-    (folded % #_DefAST % #astDefExpr % to freeGlobalVars)
-    (Set.member v)
 
 -- Helper for RenameModule action
 data RenameMods a = RM {imported :: [a], editable :: [a]}

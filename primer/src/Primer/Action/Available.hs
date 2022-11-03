@@ -33,7 +33,7 @@ import Primer.Action (
   uniquifyDefName,
  )
 import Primer.Action.Priorities qualified as P
-import Primer.App (Editable (Editable, NonEditable), globalInUse)
+import Primer.App (Editable (Editable, NonEditable))
 import Primer.Core (
   Bind' (..),
   Expr,
@@ -65,6 +65,7 @@ import Primer.Def (
   Def,
   defAST,
  )
+import Primer.Def.Utils (globalInUse)
 import Primer.Name (unName)
 import Primer.Questions (Question (..))
 import Primer.TypeDef (
