@@ -296,7 +296,7 @@ options typeDefs defs cxt level def mid = \case
   MakeCon ->
     pure
       . noFree
-      . map (fromGlobal . valConName)
+      . map (globalOpt . valConName)
       . (if level == Beginner then filter $ null . valConArgs else identity)
       . concatMap astTypeDefConstructors
       . mapMaybe (typeDefAST . snd)
@@ -304,7 +304,7 @@ options typeDefs defs cxt level def mid = \case
   MakeConSat ->
     pure
       . noFree
-      . map (fromGlobal . valConName)
+      . map (globalOpt . valConName)
       . filter (not . null . valConArgs)
       . concatMap astTypeDefConstructors
       . mapMaybe (typeDefAST . snd)
@@ -338,9 +338,9 @@ options typeDefs defs cxt level def mid = \case
   RenameLAM ->
     free <$> genNames
   MakeTCon ->
-    pure $ noFree $ fromGlobal . fst <$> Map.toList typeDefs
+    pure $ noFree $ globalOpt . fst <$> Map.toList typeDefs
   MakeTVar ->
-    pure . noFree . map (simpleOpt . unName . unLocalName . fst) . fst3 =<< varsInScope
+    pure . noFree . map (localOpt . unLocalName . fst) . fst3 =<< varsInScope
   MakeForall ->
     free <$> genNames
   RenameForall ->
@@ -350,12 +350,17 @@ options typeDefs defs cxt level def mid = \case
   where
     free opts = Options{opts, free = True}
     noFree opts = Options{opts, free = False}
-    simpleOpt = flip Option Nothing
+    localOpt = flip Option Nothing . unName
+    globalOpt n =
+      Option
+        { option = unName $ baseName n
+        , context = Just $ map unName $ unModuleName $ qualifiedModule n
+        }
     varOpts = do
       (_, locals, globals) <- varsInScope
       pure $
-        (first (simpleOpt . unName . unLocalName) <$> locals)
-          <> (first fromGlobal <$> globals)
+        (first (localOpt . unLocalName) <$> locals)
+          <> (first globalOpt <$> globals)
     genNames = do
       id <- mid
       node <- (fst <$> findNodeWithParent id (astDefExpr def)) <|> (TypeNode <$> findType id (astDefType def))
@@ -364,21 +369,20 @@ options typeDefs defs cxt level def mid = \case
         TypeNode t -> pure $ Right $ t ^. _typeMetaLens % _type
         CaseBindNode b -> pure $ Left $ chkOrSyn =<< b ^. _bindMeta % _type
       z <- focusNode id
-      pure $ map (simpleOpt . unName) $ flip runReader cxt $ case z of
+      pure $ map localOpt $ flip runReader cxt $ case z of
         Left zE -> generateNameExpr typeOrKind zE
         Right zT -> generateNameTy typeOrKind zT
       where
         chkOrSyn tc = (tc ^? _chkedAt) <|> (tc ^? _synthed)
     varsInScope = do
       id <- mid
-      z <- focusNode id
-      pure $ case z of
+      focusNode id <&> \case
         Left zE -> variablesInScopeExpr defs zE
         Right zT -> (variablesInScopeTy zT, [], [])
-    fromGlobal n = Option{option = unName $ baseName n, context = Just $ map unName $ unModuleName $ qualifiedModule n}
-    focusNode id = map Left (focusNodeE id) <|> map Right (focusNodeT id)
-    focusNodeE id = locToEither <$> focusOn id (astDefExpr def)
-    focusNodeT id = focusOnTy id $ astDefType def
+    focusNode id =
+      let mzE = locToEither <$> focusOn id (astDefExpr def)
+          mzT = focusOnTy id $ astDefType def
+       in fmap Left mzE <|> fmap Right mzT
 
 sortByPriority ::
   Level ->
