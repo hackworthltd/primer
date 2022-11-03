@@ -253,12 +253,18 @@ instance Arbitrary (Paginated Session) where
   arbitrary = hedgehog genPaginatedSession
 instance Arbitrary Prog where
   arbitrary = hedgehog genProg
-instance Arbitrary ApplyActionBody where
-  arbitrary = ApplyActionBody <$> arbitrary <*> arbitrary
+instance Arbitrary Available.NoInputAction where
+  arbitrary = arbitraryBoundedEnum
+instance Arbitrary Available.InputAction where
+  arbitrary = arbitraryBoundedEnum
+instance Arbitrary Available.Action where
+  arbitrary = either Available.NoInput Available.Input <$> arbitrary
 instance Arbitrary Available.Option where
   arbitrary = Available.Option <$> arbitrary <*> arbitrary
 instance Arbitrary Available.Options where
   arbitrary = Available.Options <$> arbitrary <*> arbitrary
+instance Arbitrary ApplyActionBody where
+  arbitrary = ApplyActionBody <$> arbitrary <*> arbitrary
 instance Arbitrary Selection where
   arbitrary = Selection <$> arbitrary <*> arbitrary
 instance Arbitrary NodeSelection where
@@ -274,9 +280,3 @@ instance Arbitrary NodeType where
   arbitrary = arbitraryBoundedEnum
 instance Arbitrary GVarName where
   arbitrary = hedgehog genGVarName
-instance Arbitrary Available.InputAction where
-  arbitrary = arbitraryBoundedEnum
-instance Arbitrary Available.NoInputAction where
-  arbitrary = arbitraryBoundedEnum
-instance Arbitrary Available.Action where
-  arbitrary = either Available.NoInput Available.Input <$> arbitrary

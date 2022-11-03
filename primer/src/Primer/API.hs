@@ -2,7 +2,6 @@
 {-# LANGUAGE DuplicateRecordFields #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE OverloadedRecordDot #-}
-{-# LANGUAGE PartialTypeSignatures #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE TypeFamilies #-}
 
@@ -941,10 +940,8 @@ availableActions = curry3 $ logAPI (noError AvailableActions) $ \(sid, level, Se
       pure $ Available.forDef (snd <$> allDefs) level editable def
     Just NodeSelection{..} -> do
       pure $ case nodeType of
-        SigNode -> do
-          Available.forSig level editable type_ id
-        BodyNode -> do
-          Available.forBody (snd <$> allTypeDefs) level editable expr id
+        SigNode -> Available.forSig level editable type_ id
+        BodyNode -> Available.forBody (snd <$> allTypeDefs) level editable expr id
 
 -- TODO `logAPI`
 inputAction' ::

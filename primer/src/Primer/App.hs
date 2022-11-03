@@ -1,12 +1,10 @@
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE OverloadedLabels #-}
-{-# LANGUAGE PartialTypeSignatures #-}
 {-# LANGUAGE ViewPatterns #-}
 
 -- This module defines the high level application functions.
 
 module Primer.App (
-  progCxt,
   Log (..),
   defaultLog,
   App,
@@ -36,6 +34,7 @@ module Primer.App (
   progAllTypeDefs,
   allValConNames,
   allTyConNames,
+  progCxt,
   tcWholeProg,
   tcWholeProgWithImports,
   nextProgID,
