@@ -99,14 +99,14 @@ test_1 :: TestTree
 test_1 = mkTests [builtinModule] $ create' $ comprehensiveWellTyped $ mkSimpleModuleName "M"
 
 data Output = Output
-  { defActions :: [OfferedAction']
-  , bodyActions :: [(ID, [OfferedAction'])]
-  , sigActions :: [(ID, [OfferedAction'])]
+  { defActions :: [OfferedAction]
+  , bodyActions :: [(ID, [OfferedAction])]
+  , sigActions :: [(ID, [OfferedAction])]
   }
   deriving (Show)
-data OfferedAction'
-  = NoInput' Available.NoInputAction
-  | Input' Available.InputAction Available.Options
+data OfferedAction
+  = NoInput Available.NoInputAction
+  | Input Available.InputAction Available.Options
   deriving (Show)
 
 -- | Golden tests for the available actions at each node of the definition, for each level.
@@ -128,21 +128,21 @@ mkTests deps (defName, DefAST def') =
       enumeratePairs = (,) <$> enumerate <*> enumerate
       defs = Map.singleton defName $ DefAST def
       typeDefs = foldMap @[] moduleTypesQualified [builtinModule, primitiveModule]
-      convert level id = \case
-        Available.NoInput a -> NoInput' a
+      offered level id = \case
+        Available.NoInput a -> NoInput a
         Available.Input a ->
-          Input' a
+          Input a
             . fromMaybe (error "id not found")
             $ Available.options typeDefs defs cxt level def id a
    in testGroup testName $
         enumeratePairs
           <&> \(level, mut) ->
-            let defActions = map (convert level Nothing) $ Available.forDef defs level mut d
+            let defActions = map (offered level Nothing) $ Available.forDef defs level mut d
                 bodyActions =
                   map
                     ( \id ->
                         ( id
-                        , map (convert level (Just id)) $
+                        , map (offered level (Just id)) $
                             Available.forBody
                               typeDefs
                               level
@@ -157,7 +157,7 @@ mkTests deps (defName, DefAST def') =
                   map
                     ( \id ->
                         ( id
-                        , map (convert level (Just id)) $ Available.forSig level mut (astDefType def) id
+                        , map (offered level (Just id)) $ Available.forSig level mut (astDefType def) id
                         )
                     )
                     . toListOf (_typeMeta % _id)
