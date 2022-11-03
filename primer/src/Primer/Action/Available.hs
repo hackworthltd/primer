@@ -127,7 +127,7 @@ forDef ::
   Editable ->
   GVarName ->
   [Action]
-forDef _ _ NonEditable _ = []
+forDef _ _ NonEditable _ = mempty
 forDef defs l Editable defName =
   sortByPriority l $
     [Input RenameDef, NoInput DuplicateDef]
