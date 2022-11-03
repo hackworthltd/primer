@@ -5,7 +5,8 @@ let
     -- includes things that we export for the convenience of users of
     -- these packages, but don't actually make use of ourselves.
     ignoreRoots =
-      [ "^Primer.Database.Rel8.Rel8Db.runRel8Db"
+      [ "^Foreword"
+      , "^Primer.Database.Rel8.Rel8Db.runRel8Db"
       , "^Primer.Pretty.prettyPrintExpr"
       , "^Primer.Pretty.prettyPrintType"
       , "^Primer.Client"
