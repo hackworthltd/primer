@@ -1,8 +1,4 @@
 {-# LANGUAGE BlockArguments #-}
-{-# LANGUAGE GADTs #-}
-{-# LANGUAGE OverloadedRecordDot #-}
-{-# LANGUAGE PartialTypeSignatures #-}
-{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE NoFieldSelectors #-}
 
 -- | Compute all the possible actions which can be performed on a definition.
