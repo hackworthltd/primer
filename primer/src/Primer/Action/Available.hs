@@ -7,7 +7,6 @@ module Primer.Action.Available (
 
 import Foreword
 
-import Data.Data (Data)
 import Data.List.NonEmpty qualified as NE
 import Data.Map qualified as Map
 import Data.Set qualified as Set
@@ -78,24 +77,10 @@ import Primer.Typecheck (
   getTypeDefInfo',
  )
 import Primer.Zipper (
-  BindLoc' (BindCase),
-  Loc' (InBind, InExpr, InType),
-  caseBindZFocus,
-  focusOn,
-  focusOnTy,
-  target,
-  unfocusCaseBind,
-  unfocusType,
-  up,
+  SomeNode (..),
+  findNodeWithParent,
+  findType,
  )
-
--- | An AST node tagged with its "sort" - i.e. if it's a type or expression or binding etc.
--- This is probably useful elsewhere, but we currently just need it here
-data SomeNode a b
-  = ExprNode (Expr' (Meta a) (Meta b))
-  | TypeNode (Type' (Meta b))
-  | -- | If/when we model all bindings with 'Bind'', we will want to generalise this.
-    CaseBindNode (Bind' (Meta a))
 
 actionsForDef ::
   Level ->
@@ -257,33 +242,6 @@ actionsForBinding l defName Editable b =
           , actionType = Primary
           }
     ]
-
--- | Find a node in the AST by its ID, and also return its parent
-findNodeWithParent ::
-  forall a b.
-  (Data a, Data b, Eq a) =>
-  ID ->
-  Expr' (Meta a) (Meta b) ->
-  Maybe (SomeNode a b, Maybe (SomeNode a b))
-findNodeWithParent id x = do
-  z <- focusOn id x
-  Just
-    ( case z of
-        InExpr ez -> (ExprNode $ target ez, ExprNode . target <$> up ez)
-        InType tz ->
-          ( TypeNode $ target tz
-          , Just $
-              maybe
-                (ExprNode $ target $ unfocusType tz)
-                (TypeNode . target)
-                (up tz)
-          )
-        InBind (BindCase bz) -> (CaseBindNode $ caseBindZFocus bz, Just . ExprNode . target . unfocusCaseBind $ bz)
-    )
-
--- | Find a sub-type in a larger type by its ID.
-findType :: forall b. Data b => ID -> Type' (Meta b) -> Maybe (Type' (Meta b))
-findType id ty = target <$> focusOnTy id ty
 
 -- | An ActionSpec is an OfferedAction that needs
 -- metadata in order to be used. Typically this is because it starts with
