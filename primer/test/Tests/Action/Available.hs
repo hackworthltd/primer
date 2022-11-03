@@ -133,7 +133,7 @@ mkTests deps (defName, DefAST def') =
         Available.Input a ->
           Input' a
             . fromMaybe (error "id not found")
-            $ Available.options typeDefs defs def cxt level id a
+            $ Available.options typeDefs defs cxt level def id a
    in testGroup testName $
         enumeratePairs
           <&> \(level, mut) ->
@@ -147,8 +147,8 @@ mkTests deps (defName, DefAST def') =
                               typeDefs
                               level
                               mut
-                              id
                               (astDefExpr def)
+                              id
                         )
                     )
                     . toListOf exprIDs
@@ -157,7 +157,7 @@ mkTests deps (defName, DefAST def') =
                   map
                     ( \id ->
                         ( id
-                        , map (convert level (Just id)) $ Available.forSig level mut id (astDefType def)
+                        , map (convert level (Just id)) $ Available.forSig level mut (astDefType def) id
                         )
                     )
                     . toListOf (_typeMeta % _id)
@@ -220,13 +220,13 @@ tasty_available_actions_accepted = withTests 500 $
                       ids = ty ^.. typeIDs
                   i <- Gen.element ids
                   let ann = "actionsForDefSig id " <> show i
-                  pure (ann, (Just (SigNode, i), Available.forSig l defMut i ty))
+                  pure (ann, (Just (SigNode, i), Available.forSig l defMut ty i))
               , defAST def <&> \d' -> (7,) $ do
                   let expr = astDefExpr d'
                       ids = expr ^.. exprIDs
                   i <- Gen.element ids
                   let ann = "actionsForDefBody id " <> show i
-                  pure (ann, (Just (BodyNode, i), Available.forBody (snd <$> progAllTypeDefs (appProg a)) l defMut i expr))
+                  pure (ann, (Just (BodyNode, i), Available.forBody (snd <$> progAllTypeDefs (appProg a)) l defMut expr i))
               ]
       case acts of
         [] -> label "no offered actions" >> success
@@ -245,9 +245,9 @@ tasty_available_actions_accepted = withTests 500 $
                   Available.options
                     (map snd $ progAllTypeDefs $ appProg a)
                     (map snd $ progAllDefs $ appProg a)
-                    def'
                     (progCxt $ appProg a)
                     l
+                    def'
                     (snd <$> loc)
                     act'
               case opts of

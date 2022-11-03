@@ -942,9 +942,9 @@ availableActions = curry3 $ logAPI (noError AvailableActions) $ \(sid, level, Se
     Just NodeSelection{..} -> do
       pure $ case nodeType of
         SigNode -> do
-          Available.forSig level editable id type_
+          Available.forSig level editable type_ id
         BodyNode -> do
-          Available.forBody (snd <$> allTypeDefs) level editable id expr
+          Available.forBody (snd <$> allTypeDefs) level editable expr id
 
 -- TODO `logAPI`
 inputAction' ::
@@ -965,9 +965,9 @@ inputAction' sid level Selection{..} action = do
     Available.options
       (snd <$> allTypeDefs)
       (snd <$> allDefs)
-      def'
       (progCxt prog)
       level
+      def'
       id
       action
 

@@ -140,11 +140,11 @@ forBody ::
   TypeDefMap ->
   Level ->
   Editable ->
-  ID ->
   Expr ->
+  ID ->
   [Action]
 forBody _ _ NonEditable _ _ = mempty
-forBody tydefs l Editable id expr = sortByPriority l $ case findNodeWithParent id expr of
+forBody tydefs l Editable expr id = sortByPriority l $ case findNodeWithParent id expr of
   Nothing -> mempty
   Just (ExprNode e, p) ->
     let raiseAction = case p of
@@ -162,11 +162,11 @@ forBody tydefs l Editable id expr = sortByPriority l $ case findNodeWithParent i
 forSig ::
   Level ->
   Editable ->
-  ID ->
   Type ->
+  ID ->
   [Action]
 forSig _ NonEditable _ _ = mempty
-forSig l Editable id ty = sortByPriority l $ case findType id ty of
+forSig l Editable ty id = sortByPriority l $ case findType id ty of
   Nothing -> mempty
   Just t ->
     forType l t
@@ -270,14 +270,14 @@ data Options = Options
 options ::
   TypeDefMap ->
   DefMap ->
-  ASTDef ->
   Cxt ->
   Level ->
+  ASTDef ->
   Maybe ID ->
   InputAction ->
   -- | Returns 'Nothing' if an ID was required but not passed, or if an ID was passed but not found in the tree.
   Maybe Options
-options typeDefs defs def cxt level mid = \case
+options typeDefs defs cxt level def mid = \case
   MakeCon ->
     let opts = map (fromGlobal . valConName) . (if level == Beginner then filter $ null . valConArgs else identity) . concatMap astTypeDefConstructors . mapMaybe (typeDefAST . snd) $ Map.toList typeDefs
      in pure Options{opts, free = False}
