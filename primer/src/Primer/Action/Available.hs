@@ -279,23 +279,26 @@ inputAction ::
   Maybe ActionOptions
 inputAction typeDefs defs def cxt level mid = \case
   MakeCon ->
-    let options = map (fromGlobal . valConName) . (if level == Beginner then noFunctionsCon else identity) . concatMap astTypeDefConstructors . mapMaybe (typeDefAST . snd) $ Map.toList typeDefs
+    let options = map (fromGlobal . valConName) . (if level == Beginner then filter $ null . valConArgs else identity) . concatMap astTypeDefConstructors . mapMaybe (typeDefAST . snd) $ Map.toList typeDefs
      in pure ActionOptions{options, free = False}
   MakeConSat ->
-    let options = map (fromGlobal . valConName) . onlyFunctionsCon . concatMap astTypeDefConstructors . mapMaybe (typeDefAST . snd) $ Map.toList typeDefs
+    let options = map (fromGlobal . valConName) . filter (not . null . valConArgs) . concatMap astTypeDefConstructors . mapMaybe (typeDefAST . snd) $ Map.toList typeDefs
      in pure ActionOptions{options, free = False}
   MakeVar -> do
-    -- TODO DRY next 10 lines or so
-    (_types, locals, globals) <- varsInScope'
-    let optionsLoc = flip ActionOption Nothing . unName . unLocalName . fst <$> (if level == Beginner then noFunctions locals else locals)
-        optionsGlob = fromGlobal . fst <$> (if level == Beginner then noFunctions globals else globals)
-        options = optionsLoc <> optionsGlob
+    options <-
+      varOptions
+        <&> map fst . filter \case
+          -- don't show functions here in beginner mode
+          (_, TFun{}) -> level /= Beginner
+          _ -> True
     pure ActionOptions{options, free = False}
   MakeVarSat -> do
-    (_types, locals, globals) <- varsInScope'
-    let optionsLoc = flip ActionOption Nothing . unName . unLocalName . fst <$> onlyFunctions locals
-        optionsGlob = fromGlobal . fst <$> onlyFunctions globals
-        options = optionsLoc <> optionsGlob
+    options <-
+      varOptions
+        <&> map fst . filter \case
+          -- only display functions
+          (_, TFun{}) -> True
+          _ -> False
     pure ActionOptions{options, free = False}
   MakeLet -> do
     options <- genName'
@@ -338,6 +341,11 @@ inputAction typeDefs defs def cxt level mid = \case
   RenameDef ->
     pure ActionOptions{options = [], free = True}
   where
+    varOptions = do
+      (_types, locals, globals) <- varsInScope'
+      let optionsLoc = first (flip ActionOption Nothing . unName . unLocalName) <$> locals
+          optionsGlob = first fromGlobal <$> globals
+      pure $ optionsLoc <> optionsGlob
     genName' = do
       id <- mid
       let chkOrSynth tc = (tc ^? _chkedAt) <|> (tc ^? _synthed)
@@ -410,17 +418,3 @@ sortByPriority l =
         MakeForall -> P.constructForall
         RenameForall -> P.rename
         RenameDef -> P.rename
-
--- TODO is each of these only used once?
-noFunctions :: [(a1, Type' a2)] -> [(a1, Type' a2)]
-noFunctions = filter $ \case
-  (_, TFun{}) -> False
-  _ -> True
-onlyFunctions :: [(a1, Type' a2)] -> [(a1, Type' a2)]
-onlyFunctions = filter $ \case
-  (_, TFun{}) -> True
-  _ -> False
-noFunctionsCon :: [ValCon] -> [ValCon]
-noFunctionsCon = filter $ null . valConArgs
-onlyFunctionsCon :: [ValCon] -> [ValCon]
-onlyFunctionsCon = filter $ not . null . valConArgs
