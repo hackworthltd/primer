@@ -235,13 +235,11 @@ tasty_available_actions_accepted = withTests 500 $
           collect action
           case action of
             Available.NoInput act' -> do
-              -- TODO don't just fail - log
-              DefAST def' <- pure def
+              def' <- maybe (annotate "primitive def" >> failure) pure $ defAST def
               Right progActs <- pure $ mkActionNoInput (map snd $ progAllDefs $ appProg a) def' defName loc act'
               actionSucceeds (handleEditRequest progActs) a
             Available.Input act' -> do
-              -- TODO don't just fail - log
-              DefAST def' <- pure def
+              def' <- maybe (annotate "primitive def" >> failure) pure $ defAST def
               Available.Options{Available.opts, Available.free} <-
                 maybe (annotate "id not found" >> failure) pure $
                   Available.options
@@ -253,8 +251,6 @@ tasty_available_actions_accepted = withTests 500 $
                     (snd <$> loc)
                     act'
               case opts of
-                -- TODO investigate how this can happen
-                -- [] -> annotate "no options" >> failure
                 [] -> annotate "no options" >> success
                 options -> do
                   opt <- forAllT $ Gen.choice $ [Gen.element options] <> mwhen free [flip Available.Option Nothing <$> (unName <$> genName)]
