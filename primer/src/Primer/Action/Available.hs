@@ -24,7 +24,6 @@ import Primer.Action (
   ActionName (..),
   ActionType (..),
   FunctionFiltering (..),
-  Level (..),
   Movement (..),
   OfferedAction (..),
   ProgAction (..),
@@ -66,6 +65,7 @@ import Primer.Def (
  )
 import Primer.Def.Utils (globalInUse)
 import Primer.Editable (Editable (Editable, NonEditable))
+import Primer.Level (Level (..))
 import Primer.Name (unName)
 import Primer.Questions (Question (..))
 import Primer.TypeDef (

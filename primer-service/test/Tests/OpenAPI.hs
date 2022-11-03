@@ -36,7 +36,7 @@ import Primer.API (
   viewTreeExpr,
   viewTreeType,
  )
-import Primer.Action (ActionName (..), ActionType (..), Level)
+import Primer.Action (ActionName (..), ActionType (..))
 import Primer.App (NodeType (..))
 import Primer.Core (GVarName, ID (ID))
 import Primer.Database (
@@ -58,6 +58,7 @@ import Primer.Gen.Core.Raw (
   genType,
   genValConName,
  )
+import Primer.Level (Level)
 import Primer.Name (Name)
 import Primer.OpenAPI ()
 import Primer.Pagination (NonNeg, Paginated (Paginated), PaginatedMeta (..), Positive, mkNonNeg, mkPositive)

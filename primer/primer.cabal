@@ -33,6 +33,7 @@ library
     Primer.EvalFull
     Primer.Examples
     Primer.JSON
+    Primer.Level
     Primer.Log
     Primer.Module
     Primer.Name

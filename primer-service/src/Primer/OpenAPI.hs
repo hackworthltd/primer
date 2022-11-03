@@ -37,7 +37,7 @@ import Optics (
   (?~),
  )
 import Primer.API (Def, ExprTreeOpts, Module, NodeBody, NodeFlavor, NodeSelection (..), OfferedAction, Prog, Selection (..), Tree)
-import Primer.Action (ActionName, ActionType, Level (..))
+import Primer.Action (ActionName, ActionType)
 import Primer.App (NodeType)
 import Primer.Core (
   GlobalName,
@@ -52,6 +52,7 @@ import Primer.Database (
   SessionName,
  )
 import Primer.JSON (CustomJSON, PrimerJSON)
+import Primer.Level (Level (..))
 import Primer.Name (Name)
 import Servant.API (FromHttpApiData (parseQueryParam))
 

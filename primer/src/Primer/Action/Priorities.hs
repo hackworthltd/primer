@@ -63,7 +63,7 @@ module Primer.Action.Priorities (
 
 import Foreword
 
-import Primer.Action (Level)
+import Primer.Level (Level)
 
 makeLambda :: Level -> Int
 makeLambda _ = 5

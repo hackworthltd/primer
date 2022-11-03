@@ -86,7 +86,7 @@ import Data.Tuple.Extra (curry3)
 import ListT qualified (toList)
 import Optics (ifoldr, over, traverseOf, view, (^.))
 import Primer.API.NodeFlavor (NodeFlavor (..))
-import Primer.Action (ActionName, ActionType, Level)
+import Primer.Action (ActionName, ActionType)
 import Primer.Action qualified as Action
 import Primer.Action.Available (actionsForDef, actionsForDefBody, actionsForDefSig)
 import Primer.App (
@@ -181,6 +181,7 @@ import Primer.JSON (
   PrimerJSON,
   ToJSON,
  )
+import Primer.Level (Level (..))
 import Primer.Log (
   ConvertLogMessage (convert),
   PureLog,

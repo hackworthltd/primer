@@ -15,10 +15,10 @@ import Foreword
 import Data.OpenApi (OpenApi)
 import Primer.API (Selection)
 import Primer.API qualified as API
-import Primer.Action (Level)
 import Primer.Database (
   SessionId,
  )
+import Primer.Level (Level)
 import Primer.OpenAPI ()
 import Primer.Servant.Types (
   CopySession,

@@ -15,7 +15,6 @@ module Primer.Action (
   UserInput (..),
   ActionInput (..),
   ActionName (..),
-  Level (..),
   nameString,
   uniquifyDefName,
 ) where
@@ -23,7 +22,7 @@ module Primer.Action (
 import Foreword hiding (mod)
 
 import Control.Monad.Fresh (MonadFresh)
-import Data.Aeson (FromJSON, Value)
+import Data.Aeson (Value)
 import Data.Generics.Product (typed)
 import Data.List (findIndex)
 import Data.Map.Strict qualified as Map
@@ -203,21 +202,6 @@ data ActionName
   | Prose Text
   deriving (Eq, Show, Generic)
   deriving (ToJSON) via (PrimerJSON ActionName)
-
--- | The current programming "level". This setting determines which
--- actions are displayed to the student, the labels on UI elements,
--- etc.
-data Level
-  = -- | Bare minimum features to define sum types, and functions on
-    -- those types using simple pattern matching.
-    Beginner
-  | -- | Function application & monomorphic HoF. (Support for the latter
-    -- should probably be split into a separate level.)
-    Intermediate
-  | -- | All features.
-    Expert
-  deriving (Eq, Read, Show, Enum, Bounded, Generic)
-  deriving (FromJSON, ToJSON) via PrimerJSON Level
 
 -- | Sigh, yes, this is required so that Safari doesn't try to
 -- autocomplete these fields with your contact data.
