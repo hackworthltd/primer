@@ -99,10 +99,10 @@ import Primer.Action.Available (
   Level (..),
   NoInputAction (..),
   OfferedAction (..),
+  actionOptions,
   actionsForDef,
   actionsForDefBody,
   actionsForDefSig,
-  inputAction,
  )
 import Primer.App (
   App,
@@ -972,7 +972,7 @@ inputAction' sid level Selection{..} action = do
       id = node <&> \s -> s.id
   def' <- snd <$> findDef allDefs def
   maybe (throwM $ InputActionIDNotFound id) pure $
-    inputAction
+    actionOptions
       (snd <$> allTypeDefs)
       (snd <$> allDefs)
       def'

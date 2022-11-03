@@ -4,7 +4,7 @@
 {-# LANGUAGE PartialTypeSignatures #-}
 {-# LANGUAGE RecordWildCards #-}
 
--- TODO shorten names and always import everything in this module qualified (`Available` or `Offered`)? maybe split `inputAction` etc. in to separate module
+-- TODO shorten names and always import everything in this module qualified (`Available` or `Offered`)? maybe split `actionOptions` etc. in to separate module
 
 -- | Compute all the possible actions which can be performed on a definition
 module Primer.Action.Available (
@@ -15,7 +15,7 @@ module Primer.Action.Available (
   InputAction (..),
   NoInputAction (..),
   Level (..),
-  inputAction,
+  actionOptions,
   ActionOption (..),
   ActionOptions (..),
 ) where
@@ -267,8 +267,8 @@ data ActionOptions = ActionOptions
   deriving (Show, Generic)
   deriving (ToJSON) via PrimerJSON ActionOptions
 
--- returns `Nothing` if an ID was required but not passes, or the ID was passed but no node with that ID was found
-inputAction ::
+-- returns `Nothing` if an ID was required but not passed, or the ID was passed but no node with that ID was found
+actionOptions ::
   TypeDefMap ->
   DefMap ->
   ASTDef ->
@@ -277,7 +277,7 @@ inputAction ::
   Maybe ID ->
   InputAction ->
   Maybe ActionOptions
-inputAction typeDefs defs def cxt level mid = \case
+actionOptions typeDefs defs def cxt level mid = \case
   MakeCon ->
     let options = map (fromGlobal . valConName) . (if level == Beginner then filter $ null . valConArgs else identity) . concatMap astTypeDefConstructors . mapMaybe (typeDefAST . snd) $ Map.toList typeDefs
      in pure ActionOptions{options, free = False}
@@ -308,7 +308,6 @@ inputAction typeDefs defs def cxt level mid = \case
     pure ActionOptions{options, free = True}
   MakeLam -> do
     options <- genName'
-    -- q <- handleQuestion $ GenerateName defName (m ^. _id) (Left $ join $ m ^? _type % _Just % _chkedAt % to lamVarTy)
     pure ActionOptions{options, free = True}
   MakeLAM -> do
     options <- genName'

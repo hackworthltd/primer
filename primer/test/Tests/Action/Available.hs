@@ -32,10 +32,10 @@ import Primer.Action.Available (
   InputAction (RenameDef),
   NoInputAction (DuplicateDef),
   OfferedAction (..),
+  actionOptions,
   actionsForDef,
   actionsForDefBody,
   actionsForDefSig,
-  inputAction,
  )
 import Primer.App (
   App,
@@ -143,7 +143,7 @@ mkTests deps (defName, DefAST def') =
         Input a ->
           Input' a
             . fromMaybe (error "id not found")
-            $ inputAction typeDefs defs def cxt level id a
+            $ actionOptions typeDefs defs def cxt level id a
    in testGroup testName $
         enumeratePairs
           <&> \(level, mut) ->
@@ -254,7 +254,7 @@ tasty_available_actions_accepted = withTests 500 $
               DefAST def' <- pure def
               ActionOptions{options, free} <-
                 maybe (annotate "id not found" >> failure) pure $
-                  inputAction
+                  actionOptions
                     (map snd $ progAllTypeDefs $ appProg a)
                     (map snd $ progAllDefs $ appProg a)
                     def'
