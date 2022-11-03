@@ -40,7 +40,6 @@ import Primer.Action.Available (actionsForDef, actionsForDefBody, actionsForDefS
 import Primer.App (
   App,
   EditAppM,
-  Editable (Editable, NonEditable),
   ProgError (ActionError, DefAlreadyExists),
   QueryAppM,
   allTyConNames,
@@ -82,6 +81,7 @@ import Primer.Def (
   Def (DefAST, DefPrim),
   defAST,
  )
+import Primer.Editable (Editable (Editable, NonEditable))
 import Primer.Examples (comprehensiveWellTyped)
 import Primer.Gen.App (genApp)
 import Primer.Gen.Core.Raw (genName)

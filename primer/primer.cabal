@@ -28,6 +28,7 @@ library
     Primer.Database
     Primer.Def
     Primer.Def.Utils
+    Primer.Editable
     Primer.Eval
     Primer.EvalFull
     Primer.Examples

@@ -29,7 +29,6 @@ module Primer.App (
   newProg,
   newProg',
   progAllModules,
-  Editable (..),
   progAllDefs,
   progAllTypeDefs,
   allValConNames,
@@ -146,6 +145,7 @@ import Primer.Def (
   defPrim,
  )
 import Primer.Def.Utils (globalInUse)
+import Primer.Editable (Editable (..))
 import Primer.Eval (EvalDetail)
 import Primer.Eval qualified as Eval
 import Primer.EvalFull (Dir, EvalFullError (TimedOut), EvalFullLog, TerminationBound, evalFull)
@@ -234,9 +234,6 @@ defaultProg = Prog mempty mempty Nothing SmartHoles defaultLog
 
 progAllModules :: Prog -> [Module]
 progAllModules p = progModules p <> progImports p
-
-data Editable = Editable | NonEditable
-  deriving (Bounded, Enum, Show)
 
 progAllTypeDefs :: Prog -> Map TyConName (Editable, TypeDef)
 progAllTypeDefs p =
