@@ -23,7 +23,6 @@ import Data.Tuple.Extra (fst3)
 import Optics (to, (%), (^.), (^..), (^?), _Just)
 import Primer.Action.Priorities qualified as P
 import Primer.Core (
-  Editable (..),
   Expr,
   Expr' (..),
   GVarName,
@@ -44,6 +43,7 @@ import Primer.Core (
 import Primer.Core.Utils (freeVars)
 import Primer.Def (ASTDef (..), DefMap)
 import Primer.Def.Utils (globalInUse)
+import Primer.Editable (Editable (..))
 import Primer.JSON (CustomJSON (..), FromJSON, PrimerJSON, ToJSON)
 import Primer.Level (Level (..))
 import Primer.Name (unName)

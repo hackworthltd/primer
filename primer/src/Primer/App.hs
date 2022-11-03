@@ -109,7 +109,6 @@ import Primer.Core (
   Bind' (Bind),
   CaseBranch,
   CaseBranch' (CaseBranch),
-  Editable (..),
   Expr,
   Expr' (Case, Con, EmptyHole, Hole, Var),
   ExprMeta,
@@ -149,6 +148,7 @@ import Primer.Def (
   defPrim,
  )
 import Primer.Def.Utils (globalInUse)
+import Primer.Editable (Editable (..))
 import Primer.Eval (EvalDetail)
 import Primer.Eval qualified as Eval
 import Primer.EvalFull (Dir, EvalFullError (TimedOut), EvalFullLog, TerminationBound, evalFull)

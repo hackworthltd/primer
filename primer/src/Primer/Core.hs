@@ -4,7 +4,6 @@
 -- This module defines the core AST and some functions for operating on it.
 
 module Primer.Core (
-  Editable (..),
   NodeType (..),
   Expr,
   Expr' (..),
@@ -299,9 +298,6 @@ data PrimCon
   | PrimInt Integer
   deriving (Eq, Show, Data, Generic)
   deriving (FromJSON, ToJSON) via PrimerJSON PrimCon
-
-data Editable = Editable | NonEditable
-  deriving (Bounded, Enum, Show)
 
 data NodeType = BodyNode | SigNode
   deriving (Eq, Show, Bounded, Enum, Generic, Data)
