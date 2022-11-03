@@ -221,6 +221,7 @@
                   delete-local-db
                   dump-local-db
                   restore-local-db
+                  connect-local-db
                   delete-all-local-sessions
 
                   haskellPackages.implicit-hie
@@ -343,6 +344,7 @@
               restore-local-db
               primer-sqitch
               primer-pg-prove
+              connect-local-db
               delete-all-local-sessions;
 
             inherit primer;
@@ -515,6 +517,7 @@
             delete-local-db
             dump-local-db
             restore-local-db
+            connect-local-db
             delete-all-local-sessions
 
             sqitch
@@ -572,6 +575,7 @@
             delete-local-db
             dump-local-db
             restore-local-db
+            connect-local-db
             delete-all-local-sessions
 
             primer-sqitch

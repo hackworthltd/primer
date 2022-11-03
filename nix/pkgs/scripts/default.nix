@@ -205,6 +205,16 @@ in
     '';
   };
 
+  connect-local-db = writeShellApplication {
+    name = "connect-local-db";
+    runtimeInputs = [
+      postgresql
+    ];
+    text = ''
+      psql ${lib.primer.postgres-dev-primer-url} "$@"
+    '';
+  };
+
   delete-all-local-sessions = writeShellApplication {
     name = "delete-all-local-sessions";
     runtimeInputs = [
