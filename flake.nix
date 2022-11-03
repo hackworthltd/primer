@@ -105,15 +105,15 @@
                     in
                     {
                       primer = {
-                        ghcOptions = [ ];
+                        ghcOptions = [ "-Werror" ];
                         preCheck = preCheckTasty;
                       };
                       primer-rel8 = {
-                        ghcOptions = [ ];
+                        ghcOptions = [ "-Werror" ];
                         preCheck = preCheckTasty;
                       };
                       primer-service = {
-                        ghcOptions = [ ];
+                        ghcOptions = [ "-Werror" ];
 
                         # The tests need PostgreSQL binaries.
                         preCheck = ''
