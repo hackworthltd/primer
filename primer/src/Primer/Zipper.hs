@@ -3,7 +3,7 @@
 -- | This module contains the zipper types @ExprZ@ and @TypeZ@, and functions for
 --  operating on them.
 module Primer.Zipper (
-  findNodeWithParent, -- TODO relationship with `findNodeByID`?
+  findNodeWithParent,
   findType,
   SomeNode (..),
   ExprZ,
@@ -93,6 +93,7 @@ import Optics (
  )
 import Optics.Lens (Lens', lens)
 import Primer.Core (
+  Bind,
   Bind' (..),
   CaseBranch' (CaseBranch),
   Expr,
@@ -102,7 +103,7 @@ import Primer.Core (
   ID,
   LVarName,
   LocalName (unLocalName),
-  Meta,
+  Type,
   Type' (),
   TypeMeta,
   bindName,
@@ -425,10 +426,9 @@ getBoundHere' e prev = case e of
 
 -- | Find a node in the AST by its ID, and also return its parent
 findNodeWithParent ::
-  (Data a, Data b, Eq a) =>
   ID ->
-  Expr' (Meta a) (Meta b) ->
-  Maybe (SomeNode a b, Maybe (SomeNode a b))
+  Expr ->
+  Maybe (SomeNode, Maybe SomeNode)
 findNodeWithParent id x = do
   z <- focusOn id x
   Just $ case z of
@@ -444,12 +444,12 @@ findNodeWithParent id x = do
     InBind (BindCase bz) -> (CaseBindNode $ caseBindZFocus bz, Just . ExprNode . target . unfocusCaseBind $ bz)
 
 -- | Find a sub-type in a larger type by its ID.
-findType :: Data b => ID -> Type' (Meta b) -> Maybe (Type' (Meta b))
+findType :: ID -> Type -> Maybe Type
 findType id ty = target <$> focusOnTy id ty
 
 -- | An AST node tagged with its "sort" - i.e. if it's a type or expression or binding etc.
-data SomeNode a b
-  = ExprNode (Expr' (Meta a) (Meta b))
-  | TypeNode (Type' (Meta b))
+data SomeNode
+  = ExprNode Expr
+  | TypeNode Type
   | -- | If/when we model all bindings with 'Bind'', we will want to generalise this.
-    CaseBindNode (Bind' (Meta a))
+    CaseBindNode Bind
