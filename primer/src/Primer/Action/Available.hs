@@ -339,28 +339,24 @@ inputAction typeDefs defs def cxt level mid = \case
     pure ActionOptions{options = [], free = True}
   where
     genName' = do
-      id <- maybe (throwError ()) pure mid
+      id <- mid
       let chkOrSynth tc = (tc ^? _chkedAt) <|> (tc ^? _synthed)
       typeKind <-
-        (fst <$> findNodeWithParent id (astDefExpr def)) <|> (TypeNode <$> findType id (astDefType def))
-          & maybe
-            (throwError ())
-            ( \case
-                ExprNode e -> pure $ Left $ do
-                  tc <- e ^. _exprMetaLens % _type
-                  chkOrSynth tc
-                TypeNode t -> pure $ Right $ t ^. _typeMetaLens % _type
-                CaseBindNode b -> pure $ Left $ do
-                  tc <- b ^. _bindMeta % _type
-                  chkOrSynth tc
-            )
+        ((fst <$> findNodeWithParent id (astDefExpr def)) <|> (TypeNode <$> findType id (astDefType def))) >>= \case
+          ExprNode e -> pure $ Left $ do
+            tc <- e ^. _exprMetaLens % _type
+            chkOrSynth tc
+          TypeNode t -> pure $ Right $ t ^. _typeMetaLens % _type
+          CaseBindNode b -> pure $ Left $ do
+            tc <- b ^. _bindMeta % _type
+            chkOrSynth tc
       names <-
         focusNode id <&> \case
           Left zE -> generateNameExpr typeKind zE
           Right zT -> generateNameTy typeKind zT
       pure $ flip ActionOption Nothing . unName <$> runReader names cxt
     varsInScope' = do
-      id <- maybe (throwError ()) pure mid
+      id <- mid
       node <- focusNode id
       pure $ case node of
         Left zE -> variablesInScopeExpr defs zE
@@ -369,9 +365,7 @@ inputAction typeDefs defs def cxt level mid = \case
     focusNode id =
       let mzE = locToEither <$> focusOn id (astDefExpr def)
           mzT = focusOnTy id $ astDefType def
-       in case fmap Left mzE <|> fmap Right mzT of
-            Nothing -> throwError () -- TODO simplify
-            Just x -> pure x
+       in fmap Left mzE <|> fmap Right mzT
 
 sortByPriority ::
   Level ->
