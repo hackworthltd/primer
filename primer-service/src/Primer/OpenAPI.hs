@@ -43,7 +43,6 @@ import Primer.Core (
   GlobalNameKind (ADefName, ATyCon, AValCon),
   ID (..),
   LVarName,
-  Level,
   ModuleName,
   NodeType,
  )
@@ -53,6 +52,7 @@ import Primer.Database (
   SessionName,
  )
 import Primer.JSON (CustomJSON, PrimerJSON)
+import Primer.Level (Level (..))
 import Primer.Name (Name)
 import Servant.API (FromHttpApiData (parseQueryParam))
 

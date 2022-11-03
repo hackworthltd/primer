@@ -29,7 +29,6 @@ import Primer.Core (
   GVarName,
   GlobalName (baseName, qualifiedModule),
   ID,
-  Level (..),
   ModuleName (unModuleName),
   Type,
   Type' (..),
@@ -46,6 +45,7 @@ import Primer.Core.Utils (freeVars)
 import Primer.Def (ASTDef (..), DefMap)
 import Primer.Def.Utils (globalInUse)
 import Primer.JSON (CustomJSON (..), FromJSON, PrimerJSON, ToJSON)
+import Primer.Level (Level (..))
 import Primer.Name (unName)
 import Primer.Questions (generateNameExpr, generateNameTy, variablesInScopeExpr, variablesInScopeTy)
 import Primer.TypeDef (

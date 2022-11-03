@@ -131,7 +131,6 @@ import Primer.Core (
   ID,
   Kind (..),
   LVarName,
-  Level,
   ModuleName,
   NodeType (..),
   PrimCon (..),
@@ -188,6 +187,7 @@ import Primer.JSON (
   PrimerJSON,
   ToJSON,
  )
+import Primer.Level (Level (..))
 import Primer.Log (
   ConvertLogMessage (convert),
   PureLog,

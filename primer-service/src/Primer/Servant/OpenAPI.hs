@@ -19,6 +19,7 @@ import Primer.Action.Available qualified as Available
 import Primer.Database (
   SessionId,
  )
+import Primer.Level (Level (..))
 import Primer.OpenAPI ()
 import Primer.Servant.Types (
   CopySession,
@@ -47,7 +48,6 @@ import Servant.API.Generic (
   GenericMode ((:-)),
  )
 import Servant.OpenApi.OperationId (OperationId)
-import Primer.Core (Level)
 
 -- | Enable clients to obtain the OpenAPI specification.
 type Spec = "openapi.json" :> Get '[JSON] OpenApi
@@ -61,7 +61,7 @@ data RootAPI mode = RootAPI
   , sessionsAPI ::
       mode
         :- "sessions"
-          :> NamedRoutes SessionsAPI
+        :> NamedRoutes SessionsAPI
   }
   deriving (Generic)
 
@@ -74,7 +74,7 @@ data SessionsAPI mode = SessionsAPI
   , sessionAPI ::
       mode
         :- Capture' '[Description "The session ID"] "sessionId" SessionId
-          :> NamedRoutes SessionAPI
+        :> NamedRoutes SessionAPI
   }
   deriving (Generic)
 
@@ -83,16 +83,16 @@ data SessionAPI mode = SessionAPI
   { getProgram ::
       mode
         :- "program"
-          :> Summary "Get the current program state"
-          :> QueryFlag "patternsUnder"
-          :> OperationId "getProgram"
-          :> Get '[JSON] API.Prog
+        :> Summary "Get the current program state"
+        :> QueryFlag "patternsUnder"
+        :> OperationId "getProgram"
+        :> Get '[JSON] API.Prog
   , getSessionName :: GetSessionName mode
   , setSessionName :: SetSessionName mode
   , actions ::
       mode
         :- "action"
-          :> NamedRoutes ActionAPI
+        :> NamedRoutes ActionAPI
   }
   deriving (Generic)
 
@@ -101,28 +101,28 @@ data ActionAPI mode = ActionAPI
   { available ::
       mode
         :- "available"
-          :> Summary "Get available actions for the definition, or a node within it. Sorted by priority."
-          :> QueryParam' '[Required, Strict] "level" Level
-          :> ReqBody '[JSON] Selection
-          :> OperationId "getAvailableActions"
-          :> Post '[JSON] [Available.Action]
-  , options :: 
+        :> Summary "Get available actions for the definition, or a node within it. Sorted by priority."
+        :> QueryParam' '[Required, Strict] "level" Level
+        :> ReqBody '[JSON] Selection
+        :> OperationId "getAvailableActions"
+        :> Post '[JSON] [Available.Action]
+  , options ::
       mode
         :- "options"
-          :> Summary "Get the input options for an action."
-          :> QueryParam' '[Required, Strict] "level" Level
-          :> ReqBody '[JSON] Selection
-          :> QueryParam' '[Required, Strict] "action" Available.InputAction
-          :> OperationId "getActionOptions"
-          :> Post '[JSON] Available.Options
+        :> Summary "Get the input options for an action."
+        :> QueryParam' '[Required, Strict] "level" Level
+        :> ReqBody '[JSON] Selection
+        :> QueryParam' '[Required, Strict] "action" Available.InputAction
+        :> OperationId "getActionOptions"
+        :> Post '[JSON] Available.Options
   , apply :: -- NB this is only really for "action panel" actions - I suppose constructing type definitions (etc.) will have its own API, and we'll keep the old actions as a lower-level implementation detail, away from the API
       mode
         :- "apply"
-          -- :> Summary "Get available actions for the definition, or a node within it"
-          :> ReqBody '[JSON] Selection
-          :> QueryParam' '[Required, Strict] "action" Available.NoInputAction
-          :> OperationId "applyAction"
-          :> Post '[JSON] API.Prog -- TODO return prog? or get from separate call? in the long run, this will return some kind of patch/diff
+        -- :> Summary "Get available actions for the definition, or a node within it"
+        :> ReqBody '[JSON] Selection
+        :> QueryParam' '[Required, Strict] "action" Available.NoInputAction
+        :> OperationId "applyAction"
+        :> Post '[JSON] API.Prog -- TODO return prog? or get from separate call? in the long run, this will return some kind of patch/diff
   , applyWithInput :: -- TODO can we somehow say that whether to expect input depends on which set `action` param is in? and thus combine this endpoint with the above?
       mode
         :- "apply1" -- TODO name

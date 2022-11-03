@@ -37,7 +37,7 @@ import Primer.API (
   viewTreeType,
  )
 import Primer.Action.Available qualified as Available
-import Primer.Core (GVarName, ID (ID), Level, NodeType (..))
+import Primer.Core (GVarName, ID (ID), NodeType (..))
 import Primer.Database (
   LastModified (..),
   Session (Session),
@@ -57,6 +57,7 @@ import Primer.Gen.Core.Raw (
   genType,
   genValConName,
  )
+import Primer.Level (Level (..))
 import Primer.Name (Name)
 import Primer.OpenAPI ()
 import Primer.Pagination (NonNeg, Paginated (Paginated), PaginatedMeta (..), Positive, mkNonNeg, mkPositive)
