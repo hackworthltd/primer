@@ -70,12 +70,14 @@ import Primer.Zipper (
   locToEither,
  )
 
+-- | An offered action.
 data Action
   = NoInput NoInputAction
   | Input InputAction
   deriving (Eq, Ord, Show, Generic)
   deriving (ToJSON) via PrimerJSON Action
 
+-- | An action which can be applied without requiring further input.
 data NoInputAction
   = MakeCase
   | MakeApp
@@ -97,6 +99,7 @@ data NoInputAction
   deriving (Eq, Ord, Show, Read, Enum, Bounded, Generic)
   deriving (ToJSON, FromJSON) via PrimerJSON NoInputAction
 
+-- | An action which requires extra data (often a name) before it can be applied.
 data InputAction
   = MakeCon
   | MakeConSat
