@@ -14,8 +14,7 @@ module Primer.Servant.OpenAPI (
 import Foreword
 
 import Data.OpenApi (OpenApi)
-import Primer.API (ApplyActionBody, Selection)
-import Primer.API qualified as API
+import Primer.API (ApplyActionBody, Prog, Selection)
 import Primer.Action.Available qualified as Available
 import Primer.Database (
   SessionId,
@@ -87,7 +86,7 @@ data SessionAPI mode = SessionAPI
           :> Summary "Get the current program state"
           :> QueryFlag "patternsUnder"
           :> OperationId "getProgram"
-          :> Get '[JSON] API.Prog
+          :> Get '[JSON] Prog
   , getSessionName :: GetSessionName mode
   , setSessionName :: SetSessionName mode
   , actions ::
@@ -131,7 +130,7 @@ data ApplyActionAPI mode = ApplyActionAPI
           :> ReqBody '[JSON] Selection
           :> QueryParam' '[Required, Strict] "action" Available.NoInputAction
           :> OperationId "applyAction"
-          :> Post '[JSON] API.Prog
+          :> Post '[JSON] Prog
   , input ::
       mode
         :- "input"
@@ -140,6 +139,6 @@ data ApplyActionAPI mode = ApplyActionAPI
           :> ReqBody '[JSON] ApplyActionBody
           :> QueryParam' '[Required, Strict] "action" Available.InputAction
           :> OperationId "applyActionWithInput"
-          :> Post '[JSON] API.Prog
+          :> Post '[JSON] Prog
   }
   deriving (Generic)
