@@ -37,13 +37,7 @@ import Optics (
   (?~),
  )
 import Primer.API (ApplyActionBody, Def, ExprTreeOpts, Module, NodeBody, NodeFlavor, NodeSelection (..), Prog, Selection (..), Tree)
-import Primer.Action.Available (
-  ActionOption,
-  ActionOptions,
-  InputAction (..),
-  NoInputAction (..),
-  OfferedAction,
- )
+import Primer.Action.Available qualified as Available
 import Primer.Core (
   GlobalName,
   GlobalNameKind (ADefName, ATyCon, AValCon),
@@ -122,11 +116,11 @@ deriving via NonEmpty Name instance ToSchema ModuleName
 deriving via PrimerJSON Module instance ToSchema Module
 deriving via PrimerJSON Prog instance ToSchema Prog
 deriving via PrimerJSON ExprTreeOpts instance ToSchema ExprTreeOpts
-deriving via PrimerJSON NoInputAction instance ToSchema NoInputAction
-deriving via PrimerJSON InputAction instance ToSchema InputAction
-deriving via PrimerJSON ActionOption instance ToSchema ActionOption
-deriving via PrimerJSON ActionOptions instance ToSchema ActionOptions
-deriving via PrimerJSON OfferedAction instance ToSchema OfferedAction
+deriving via PrimerJSON Available.NoInputAction instance ToSchema Available.NoInputAction
+deriving via PrimerJSON Available.InputAction instance ToSchema Available.InputAction
+deriving via PrimerJSON Available.Option instance ToSchema Available.Option
+deriving via PrimerJSON Available.Options instance ToSchema Available.Options
+deriving via PrimerJSON Available.Action instance ToSchema Available.Action
 deriving via PrimerJSON Selection instance ToSchema Selection
 deriving via PrimerJSON ApplyActionBody instance ToSchema ApplyActionBody
 deriving via PrimerJSON NodeSelection instance ToSchema NodeSelection
@@ -134,11 +128,11 @@ deriving via PrimerJSON NodeType instance ToSchema NodeType
 deriving via PrimerJSON Level instance ToSchema Level
 
 -- TODO can we derive these (and thus remove the `Read` instances)?
-deriving instance ToParamSchema NoInputAction
-instance FromHttpApiData NoInputAction where
+deriving instance ToParamSchema Available.NoInputAction
+instance FromHttpApiData Available.NoInputAction where
   parseQueryParam t = maybeToEither ("unknown NoInputAction: " <> t) $ readMaybe t
-deriving instance ToParamSchema InputAction
-instance FromHttpApiData InputAction where
+deriving instance ToParamSchema Available.InputAction
+instance FromHttpApiData Available.InputAction where
   parseQueryParam t = maybeToEither ("unknown InputAction: " <> t) $ readMaybe t
 deriving instance ToParamSchema Level
 instance FromHttpApiData Level where

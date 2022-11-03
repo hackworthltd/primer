@@ -29,7 +29,6 @@ import Data.Set qualified as Set
 import Data.Text qualified as T
 import Optics (set, (%), (?~), (^.), (^?), _Just)
 import Primer.Action.Actions (Action (..), Movement (..), QualifiedText)
-import Primer.Action.Available (ActionOption (..), InputAction, NoInputAction)
 import Primer.Action.Available qualified as Available
 import Primer.Action.Errors (ActionError (..))
 import Primer.Action.ProgAction (ProgAction (..))
@@ -844,7 +843,7 @@ mkActionNoInput ::
   ASTDef ->
   GVarName ->
   Maybe (NodeType, ID) -> -- TODO why tuple rather than `NodeSelection`?
-  NoInputAction ->
+  Available.NoInputAction ->
   Either Text [ProgAction]
 mkActionNoInput defs def defName mNodeSel = \case
   Available.MakeCase ->
@@ -920,8 +919,8 @@ mkActionInput ::
   ASTDef ->
   GVarName ->
   Maybe (NodeType, ID) ->
-  ActionOption ->
-  InputAction ->
+  Available.Option ->
+  Available.InputAction ->
   Either Text [ProgAction]
 -- TODO rename `tInput`
 mkActionInput def defName mNodeSel tInput0 = \case

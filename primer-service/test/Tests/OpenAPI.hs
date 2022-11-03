@@ -36,13 +36,7 @@ import Primer.API (
   viewTreeExpr,
   viewTreeType,
  )
-import Primer.Action.Available (
-  ActionOption (..),
-  ActionOptions (..),
-  InputAction (..),
-  NoInputAction (..),
-  OfferedAction (..),
- )
+import Primer.Action.Available qualified as Available
 import Primer.Core (GVarName, ID (ID), Level, NodeType (..))
 import Primer.Database (
   LastModified (..),
@@ -261,10 +255,10 @@ instance Arbitrary Prog where
   arbitrary = hedgehog genProg
 instance Arbitrary ApplyActionBody where
   arbitrary = ApplyActionBody <$> arbitrary <*> arbitrary
-instance Arbitrary ActionOption where
-  arbitrary = ActionOption <$> arbitrary <*> arbitrary
-instance Arbitrary ActionOptions where
-  arbitrary = ActionOptions <$> arbitrary <*> arbitrary
+instance Arbitrary Available.Option where
+  arbitrary = Available.Option <$> arbitrary <*> arbitrary
+instance Arbitrary Available.Options where
+  arbitrary = Available.Options <$> arbitrary <*> arbitrary
 instance Arbitrary Selection where
   arbitrary = Selection <$> arbitrary <*> arbitrary
 instance Arbitrary NodeSelection where
@@ -280,9 +274,9 @@ instance Arbitrary NodeType where
   arbitrary = arbitraryBoundedEnum
 instance Arbitrary GVarName where
   arbitrary = hedgehog genGVarName
-instance Arbitrary InputAction where
+instance Arbitrary Available.InputAction where
   arbitrary = arbitraryBoundedEnum
-instance Arbitrary NoInputAction where
+instance Arbitrary Available.NoInputAction where
   arbitrary = arbitraryBoundedEnum
-instance Arbitrary OfferedAction where
-  arbitrary = either NoInput Input <$> arbitrary
+instance Arbitrary Available.Action where
+  arbitrary = either Available.NoInput Available.Input <$> arbitrary

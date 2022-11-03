@@ -92,17 +92,7 @@ import ListT qualified (toList)
 import Optics (ifoldr, over, traverseOf, view, (^.))
 import Primer.API.NodeFlavor (NodeFlavor (..))
 import Primer.Action (mkActionInput, mkActionNoInput)
-import Primer.Action.Available (
-  ActionOption,
-  ActionOptions,
-  InputAction (..),
-  NoInputAction (..),
-  OfferedAction (..),
-  actionOptions,
-  actionsForDef,
-  actionsForDefBody,
-  actionsForDefSig,
- )
+import Primer.Action.Available qualified as Available
 import Primer.App (
   App,
   EditAppM,
@@ -366,7 +356,7 @@ data APILog
   | EvalStep (ReqResp (SessionId, EvalReq) (Either ProgError EvalResp))
   | EvalFull (ReqResp (SessionId, EvalFullReq) (Either ProgError EvalFullResp))
   | FlushSessions (ReqResp () ())
-  | AvailableActions (ReqResp (SessionId, Level, Selection) [OfferedAction])
+  | AvailableActions (ReqResp (SessionId, Level, Selection) [Available.Action])
   deriving (Show)
 
 type MonadAPILog l m = (MonadLog (WithSeverity l) m, ConvertLogMessage APILog l)
@@ -940,7 +930,7 @@ availableActions ::
   SessionId ->
   Level ->
   Selection ->
-  PrimerM m [OfferedAction]
+  PrimerM m [Available.Action]
 availableActions = curry3 $ logAPI (noError AvailableActions) $ \(sid, level, Selection{..}) -> do
   prog <- getProgram sid
   let allDefs = progAllDefs prog
@@ -948,13 +938,13 @@ availableActions = curry3 $ logAPI (noError AvailableActions) $ \(sid, level, Se
   (editable, ASTDef{astDefType = type_, astDefExpr = expr}) <- findDef allDefs def
   case node of
     Nothing ->
-      pure $ actionsForDef (snd <$> allDefs) level editable def
+      pure $ Available.forDef (snd <$> allDefs) level editable def
     Just NodeSelection{..} -> do
       pure $ case nodeType of
         SigNode -> do
-          actionsForDefSig level editable id type_
+          Available.forSig level editable id type_
         BodyNode -> do
-          actionsForDefBody (snd <$> allTypeDefs) level editable id expr
+          Available.forBody (snd <$> allTypeDefs) level editable id expr
 
 -- TODO `logAPI`
 inputAction' ::
@@ -962,8 +952,8 @@ inputAction' ::
   SessionId ->
   Level ->
   Selection ->
-  InputAction ->
-  PrimerM m ActionOptions
+  Available.InputAction ->
+  PrimerM m Available.Options
 inputAction' sid level Selection{..} action = do
   app <- getApp sid
   let prog = appProg app
@@ -972,7 +962,7 @@ inputAction' sid level Selection{..} action = do
       id = node <&> \s -> s.id
   def' <- snd <$> findDef allDefs def
   maybe (throwM $ InputActionIDNotFound id) pure $
-    actionOptions
+    Available.options
       (snd <$> allTypeDefs)
       (snd <$> allDefs)
       def'
@@ -990,7 +980,7 @@ findDef allDefs def = case allDefs Map.!? def of
 -- TODO tuple would be nice, but I don't think OpenAPI supports it - find where B previously worked around
 data ApplyActionBody = ApplyActionBody
   { selection :: Selection
-  , option :: ActionOption
+  , option :: Available.Option
   }
   deriving (Generic, Show)
   deriving (FromJSON, ToJSON) via PrimerJSON ApplyActionBody
@@ -1000,7 +990,7 @@ applyActionNoInput ::
   (MonadIO m, MonadThrow m, MonadAPILog l m) =>
   SessionId ->
   Selection ->
-  NoInputAction ->
+  Available.NoInputAction ->
   PrimerM m Prog
 applyActionNoInput sid selection action = do
   -- TODO DRY with above
@@ -1030,7 +1020,7 @@ applyActionInput ::
   (MonadIO m, MonadThrow m, MonadAPILog l m) =>
   SessionId ->
   ApplyActionBody ->
-  InputAction ->
+  Available.InputAction ->
   PrimerM m Prog
 applyActionInput sid ApplyActionBody{selection, option} action = do
   -- TODO DRY with above

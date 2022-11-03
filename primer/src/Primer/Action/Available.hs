@@ -3,20 +3,20 @@
 {-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE PartialTypeSignatures #-}
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE NoFieldSelectors #-}
 
--- TODO shorten names and always import everything in this module qualified (`Available` or `Offered`)? maybe split `actionOptions` etc. in to separate module
-
--- | Compute all the possible actions which can be performed on a definition
+-- | Compute all the possible actions which can be performed on a definition.
+-- This module is exected to be imported qualified, due to various potential name clashes.
 module Primer.Action.Available (
-  actionsForDef,
-  actionsForDefBody,
-  actionsForDefSig,
-  OfferedAction (..),
+  Action (..),
   InputAction (..),
   NoInputAction (..),
-  actionOptions,
-  ActionOption (..),
-  ActionOptions (..),
+  forDef,
+  forBody,
+  forSig,
+  Option (..),
+  Options (..),
+  options,
 ) where
 
 import Foreword
@@ -74,11 +74,11 @@ import Primer.Zipper (
   locToEither,
  )
 
-data OfferedAction
+data Action
   = NoInput NoInputAction
   | Input InputAction
   deriving (Eq, Ord, Show, Generic)
-  deriving (ToJSON) via PrimerJSON OfferedAction
+  deriving (ToJSON) via PrimerJSON Action
 
 data NoInputAction
   = MakeCase
@@ -122,14 +122,14 @@ data InputAction
   deriving (Eq, Ord, Show, Read, Enum, Bounded, Generic)
   deriving (ToJSON, FromJSON) via PrimerJSON InputAction
 
-actionsForDef ::
+forDef ::
   DefMap ->
   Level ->
   Editable ->
   GVarName ->
-  [OfferedAction]
-actionsForDef _ _ NonEditable _ = []
-actionsForDef defs l Editable defName =
+  [Action]
+forDef _ _ NonEditable _ = []
+forDef defs l Editable defName =
   sortByPriority l $
     [Input RenameDef, NoInput DuplicateDef]
       <> mwhen
@@ -137,15 +137,15 @@ actionsForDef defs l Editable defName =
         (not $ globalInUse defName $ Map.delete defName defs)
         [NoInput DeleteDef]
 
-actionsForDefBody ::
+forBody ::
   TypeDefMap ->
   Level ->
   Editable ->
   ID ->
   Expr ->
-  [OfferedAction]
-actionsForDefBody _ _ NonEditable _ _ = mempty
-actionsForDefBody tydefs l Editable id expr = sortByPriority l $ case findNodeWithParent id expr of
+  [Action]
+forBody _ _ NonEditable _ _ = mempty
+forBody tydefs l Editable id expr = sortByPriority l $ case findNodeWithParent id expr of
   Nothing -> mempty
   Just (ExprNode e, p) ->
     let raiseAction = case p of
@@ -160,20 +160,20 @@ actionsForDefBody tydefs l Editable id expr = sortByPriority l $ case findNodeWi
      in actionsForType l t <> raiseAction
   Just (CaseBindNode _, _) -> [Input RenamePattern]
 
-actionsForDefSig ::
+forSig ::
   Level ->
   Editable ->
   ID ->
   Type ->
-  [OfferedAction]
-actionsForDefSig _ NonEditable _ _ = mempty
-actionsForDefSig l Editable id ty = sortByPriority l $ case findType id ty of
+  [Action]
+forSig _ NonEditable _ _ = mempty
+forSig l Editable id ty = sortByPriority l $ case findType id ty of
   Nothing -> mempty
   Just t ->
     actionsForType l t
       <> mwhen (id /= getID ty) [NoInput RaiseType]
 
-actionsForExpr :: TypeDefMap -> Level -> Expr -> [OfferedAction]
+actionsForExpr :: TypeDefMap -> Level -> Expr -> [Action]
 actionsForExpr tydefs l expr = case expr of
   EmptyHole{} -> universalActions <> emptyHoleActions
   Hole{} -> defaultActions <> holeActions
@@ -235,7 +235,7 @@ actionsForExpr tydefs l expr = case expr of
        in (synOnly =<< synthTy) ?: both
     defaultActions = universalActions <> [NoInput DeleteExpr]
 
-actionsForType :: Level -> Type -> [OfferedAction]
+actionsForType :: Level -> Type -> [Action]
 actionsForType l ty = case ty of
   TEmptyHole{} -> universalActions <> [Input MakeTCon] <> mwhen (l == Expert) [Input MakeTVar]
   TForall{} -> defaultActions <> mwhen (l == Expert) [Input RenameForall]
@@ -251,23 +251,23 @@ actionsForType l ty = case ty of
           ]
     defaultActions = universalActions <> [NoInput DeleteType]
 
-data ActionOption = ActionOption
+data Option = Option
   { option :: Text
   , context :: Maybe (NonEmpty Text)
   }
   deriving (Eq, Show, Generic)
-  deriving (FromJSON, ToJSON) via PrimerJSON ActionOption
+  deriving (FromJSON, ToJSON) via PrimerJSON Option
 
-data ActionOptions = ActionOptions
-  { options :: [ActionOption]
+data Options = Options
+  { opts :: [Option]
   , free :: Bool
   -- ^ allow free text input, rather than just selections from the list
   }
   deriving (Show, Generic)
-  deriving (ToJSON) via PrimerJSON ActionOptions
+  deriving (ToJSON) via PrimerJSON Options
 
 -- returns `Nothing` if an ID was required but not passed, or the ID was passed but no node with that ID was found
-actionOptions ::
+options ::
   TypeDefMap ->
   DefMap ->
   ASTDef ->
@@ -275,73 +275,73 @@ actionOptions ::
   Level ->
   Maybe ID ->
   InputAction ->
-  Maybe ActionOptions
-actionOptions typeDefs defs def cxt level mid = \case
+  Maybe Options
+options typeDefs defs def cxt level mid = \case
   MakeCon ->
-    let options = map (fromGlobal . valConName) . (if level == Beginner then filter $ null . valConArgs else identity) . concatMap astTypeDefConstructors . mapMaybe (typeDefAST . snd) $ Map.toList typeDefs
-     in pure ActionOptions{options, free = False}
+    let opts = map (fromGlobal . valConName) . (if level == Beginner then filter $ null . valConArgs else identity) . concatMap astTypeDefConstructors . mapMaybe (typeDefAST . snd) $ Map.toList typeDefs
+     in pure Options{opts, free = False}
   MakeConSat ->
-    let options = map (fromGlobal . valConName) . filter (not . null . valConArgs) . concatMap astTypeDefConstructors . mapMaybe (typeDefAST . snd) $ Map.toList typeDefs
-     in pure ActionOptions{options, free = False}
+    let opts = map (fromGlobal . valConName) . filter (not . null . valConArgs) . concatMap astTypeDefConstructors . mapMaybe (typeDefAST . snd) $ Map.toList typeDefs
+     in pure Options{opts, free = False}
   MakeVar -> do
-    options <-
+    opts <-
       varOptions
         <&> map fst . filter \case
           -- don't show functions here in beginner mode
           (_, TFun{}) -> level /= Beginner
           _ -> True
-    pure ActionOptions{options, free = False}
+    pure Options{opts, free = False}
   MakeVarSat -> do
-    options <-
+    opts <-
       varOptions
         <&> map fst . filter \case
           -- only display functions
           (_, TFun{}) -> True
           _ -> False
-    pure ActionOptions{options, free = False}
+    pure Options{opts, free = False}
   MakeLet -> do
-    options <- genName'
-    pure ActionOptions{options, free = True}
+    opts <- genName'
+    pure Options{opts, free = True}
   MakeLetRec -> do
-    options <- genName'
-    pure ActionOptions{options, free = True}
+    opts <- genName'
+    pure Options{opts, free = True}
   MakeLam -> do
-    options <- genName'
-    pure ActionOptions{options, free = True}
+    opts <- genName'
+    pure Options{opts, free = True}
   MakeLAM -> do
-    options <- genName'
-    pure ActionOptions{options, free = True}
+    opts <- genName'
+    pure Options{opts, free = True}
   RenamePattern -> do
-    options <- genName'
-    pure ActionOptions{options, free = True}
+    opts <- genName'
+    pure Options{opts, free = True}
   RenameLet -> do
-    options <- genName'
-    pure ActionOptions{options, free = True}
+    opts <- genName'
+    pure Options{opts, free = True}
   RenameLam -> do
-    options <- genName'
-    pure ActionOptions{options, free = True}
+    opts <- genName'
+    pure Options{opts, free = True}
   RenameLAM -> do
-    options <- genName'
-    pure ActionOptions{options, free = True}
+    opts <- genName'
+    pure Options{opts, free = True}
   MakeTCon ->
-    let options = fromGlobal . fst <$> Map.toList typeDefs
-     in pure ActionOptions{options, free = False}
+    let opts = fromGlobal . fst <$> Map.toList typeDefs
+     in pure Options{opts, free = False}
   MakeTVar -> do
     (types, _locals, _globals) <- varsInScope'
-    let options = flip ActionOption Nothing . unName . unLocalName . fst <$> types
-    pure ActionOptions{options, free = False}
+    let opts = flip Option Nothing . unName . unLocalName . fst <$> types
+    pure Options{opts, free = False}
   MakeForall -> do
-    options <- genName'
-    pure ActionOptions{options, free = True}
+    opts <- genName'
+    pure Options{opts, free = True}
   RenameForall -> do
-    options <- genName'
-    pure ActionOptions{options, free = True}
+    opts <- genName'
+    pure Options{opts, free = True}
   RenameDef ->
-    pure ActionOptions{options = [], free = True}
+    pure Options{opts = [], free = True}
   where
     varOptions = do
       (_types, locals, globals) <- varsInScope'
-      let optionsLoc = first (flip ActionOption Nothing . unName . unLocalName) <$> locals
+      let optionsLoc = first (flip Option Nothing . unName . unLocalName) <$> locals
           optionsGlob = first fromGlobal <$> globals
       pure $ optionsLoc <> optionsGlob
     genName' = do
@@ -360,14 +360,14 @@ actionOptions typeDefs defs def cxt level mid = \case
         focusNode id <&> \case
           Left zE -> generateNameExpr typeKind zE
           Right zT -> generateNameTy typeKind zT
-      pure $ flip ActionOption Nothing . unName <$> runReader names cxt
+      pure $ flip Option Nothing . unName <$> runReader names cxt
     varsInScope' = do
       id <- mid
       node <- focusNode id
       pure $ case node of
         Left zE -> variablesInScopeExpr defs zE
         Right zT -> (variablesInScopeTy zT, [], [])
-    fromGlobal n = ActionOption{option = unName $ baseName n, context = Just $ map unName $ unModuleName $ qualifiedModule n}
+    fromGlobal n = Option{option = unName $ baseName n, context = Just $ map unName $ unModuleName $ qualifiedModule n}
     focusNode id =
       let mzE = locToEither <$> focusOn id (astDefExpr def)
           mzT = focusOnTy id $ astDefType def
@@ -375,8 +375,8 @@ actionOptions typeDefs defs def cxt level mid = \case
 
 sortByPriority ::
   Level ->
-  [OfferedAction] ->
-  [OfferedAction]
+  [Action] ->
+  [Action]
 sortByPriority l =
   sortOn $
     ($ l) . \case

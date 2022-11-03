@@ -26,17 +26,7 @@ import Hedgehog.Gen qualified as Gen
 import Hedgehog.Internal.Property (forAllWithT)
 import Optics (toListOf, (%), (^..))
 import Primer.Action (ActionError (CaseBindsClash, NameCapture), mkActionInput, mkActionNoInput)
-import Primer.Action.Available (
-  ActionOption (ActionOption),
-  ActionOptions (ActionOptions, free, options),
-  InputAction (RenameDef),
-  NoInputAction (DuplicateDef),
-  OfferedAction (..),
-  actionOptions,
-  actionsForDef,
-  actionsForDefBody,
-  actionsForDefSig,
- )
+import Primer.Action.Available qualified as Available
 import Primer.App (
   App,
   EditAppM,
@@ -115,8 +105,8 @@ data Output = Output
   }
   deriving (Show)
 data OfferedAction'
-  = NoInput' NoInputAction
-  | Input' InputAction ActionOptions
+  = NoInput' Available.NoInputAction
+  | Input' Available.InputAction Available.Options
   deriving (Show)
 
 -- | Golden tests for the available actions at each node of the definition, for each level.
@@ -139,21 +129,21 @@ mkTests deps (defName, DefAST def') =
       defs = Map.singleton defName $ DefAST def
       typeDefs = foldMap @[] moduleTypesQualified [builtinModule, primitiveModule]
       convert level id = \case
-        NoInput a -> NoInput' a
-        Input a ->
+        Available.NoInput a -> NoInput' a
+        Available.Input a ->
           Input' a
             . fromMaybe (error "id not found")
-            $ actionOptions typeDefs defs def cxt level id a
+            $ Available.options typeDefs defs def cxt level id a
    in testGroup testName $
         enumeratePairs
           <&> \(level, mut) ->
-            let defActions = map (convert level Nothing) $ actionsForDef defs level mut d
+            let defActions = map (convert level Nothing) $ Available.forDef defs level mut d
                 bodyActions =
                   map
                     ( \id ->
                         ( id
                         , map (convert level (Just id)) $
-                            actionsForDefBody
+                            Available.forBody
                               typeDefs
                               level
                               mut
@@ -167,7 +157,7 @@ mkTests deps (defName, DefAST def') =
                   map
                     ( \id ->
                         ( id
-                        , map (convert level (Just id)) $ actionsForDefSig level mut id (astDefType def)
+                        , map (convert level (Just id)) $ Available.forSig level mut id (astDefType def)
                         )
                     )
                     . toListOf (_typeMeta % _id)
@@ -194,8 +184,8 @@ unit_def_in_use =
    in for_
         enumerate
         ( \l ->
-            actionsForDef (snd <$> defs) l Editable d
-              @?= [Input RenameDef, NoInput DuplicateDef]
+            Available.forDef (snd <$> defs) l Editable d
+              @?= [Available.Input Available.RenameDef, Available.NoInput Available.DuplicateDef]
         )
 
 tasty_available_actions_accepted :: Property
@@ -224,19 +214,19 @@ tasty_available_actions_accepted = withTests 500 $
         fmap snd . forAllWithT fst $
           Gen.frequency $
             catMaybes
-              [ Just (1, pure ("actionsForDef", (Nothing, actionsForDef (snd <$> allDefs) l defMut defName)))
+              [ Just (1, pure ("actionsForDef", (Nothing, Available.forDef (snd <$> allDefs) l defMut defName)))
               , defAST def <&> \d' -> (2,) $ do
                   let ty = astDefType d'
                       ids = ty ^.. typeIDs
                   i <- Gen.element ids
                   let ann = "actionsForDefSig id " <> show i
-                  pure (ann, (Just (SigNode, i), actionsForDefSig l defMut i ty))
+                  pure (ann, (Just (SigNode, i), Available.forSig l defMut i ty))
               , defAST def <&> \d' -> (7,) $ do
                   let expr = astDefExpr d'
                       ids = expr ^.. exprIDs
                   i <- Gen.element ids
                   let ann = "actionsForDefBody id " <> show i
-                  pure (ann, (Just (BodyNode, i), actionsForDefBody (snd <$> progAllTypeDefs (appProg a)) l defMut i expr))
+                  pure (ann, (Just (BodyNode, i), Available.forBody (snd <$> progAllTypeDefs (appProg a)) l defMut i expr))
               ]
       case acts of
         [] -> label "no offered actions" >> success
@@ -244,17 +234,17 @@ tasty_available_actions_accepted = withTests 500 $
           action <- forAllT $ Gen.element acts'
           collect action
           case action of
-            NoInput act' -> do
+            Available.NoInput act' -> do
               -- TODO don't just fail - log
               DefAST def' <- pure def
               Right progActs <- pure $ mkActionNoInput (map snd $ progAllDefs $ appProg a) def' defName loc act'
               actionSucceeds (handleEditRequest progActs) a
-            Input act' -> do
+            Available.Input act' -> do
               -- TODO don't just fail - log
               DefAST def' <- pure def
-              ActionOptions{options, free} <-
+              Available.Options{Available.opts, Available.free} <-
                 maybe (annotate "id not found" >> failure) pure $
-                  actionOptions
+                  Available.options
                     (map snd $ progAllTypeDefs $ appProg a)
                     (map snd $ progAllDefs $ appProg a)
                     def'
@@ -262,12 +252,12 @@ tasty_available_actions_accepted = withTests 500 $
                     l
                     (snd <$> loc)
                     act'
-              case options of
+              case opts of
                 -- TODO investigate how this can happen
                 -- [] -> annotate "no options" >> failure
                 [] -> annotate "no options" >> success
-                opts -> do
-                  opt <- forAllT $ Gen.choice $ [Gen.element opts] <> mwhen free [flip ActionOption Nothing <$> (unName <$> genName)]
+                options -> do
+                  opt <- forAllT $ Gen.choice $ [Gen.element options] <> mwhen free [flip Available.Option Nothing <$> (unName <$> genName)]
                   progActs <- either (\t -> annotate (T.unpack t) >> failure) pure $ mkActionInput def' defName loc opt act'
                   actionSucceedsOrCapture (handleEditRequest progActs) a
   where
