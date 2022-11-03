@@ -39,6 +39,7 @@ import Primer.Module (Module, builtinModule, primitiveModule)
 import Primer.Name (NameCounter)
 import Primer.Primitives (tInt)
 import Primer.Subst (substTys)
+import Primer.Test.Util (tcn)
 import Primer.TypeDef (ASTTypeDef (ASTTypeDef, astTypeDefConstructors, astTypeDefNameHints, astTypeDefParameters), TypeDef (TypeDefAST))
 import Primer.Typecheck (
   Cxt,
@@ -54,7 +55,6 @@ import Primer.Unification (unify)
 import Tasty (Property, withDiscards)
 import Test.Tasty.HUnit (Assertion, assertBool, (@?=))
 import TestM (evalTestM)
-import TestUtils (tcn)
 import Tests.Gen.Core.Typed (
   checkKindTest,
   checkValidContextTest,

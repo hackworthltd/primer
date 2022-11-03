@@ -85,6 +85,12 @@ import Primer.Module (Module (..), builtinModule, primitiveModule)
 import Primer.Name (Name, NameCounter)
 import Primer.Primitives (PrimDef (HexToNat), tChar)
 import Primer.Primitives.DSL (pfun)
+import Primer.Test.Util (
+  tcn,
+  vcn,
+  zeroIDs,
+  zeroTypeIDs,
+ )
 import Primer.TypeDef (
   ASTTypeDef (..),
   TypeDef (..),
@@ -114,12 +120,6 @@ import Primer.Typecheck (
 import Tasty (Property, property, withDiscards, withTests)
 import Test.Tasty.HUnit (Assertion, assertBool, assertFailure, (@?=))
 import TestM (TestM, evalTestM)
-import TestUtils (
-  tcn,
-  vcn,
-  zeroIDs,
-  zeroTypeIDs,
- )
 import Tests.Gen.Core.Typed
 
 unit_identity :: Assertion

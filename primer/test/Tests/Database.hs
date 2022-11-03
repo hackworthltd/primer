@@ -52,10 +52,10 @@ import Primer.Examples (
   even3App,
  )
 import Primer.Log (PureLogT, runPureLogT)
+import Primer.Test.Util (LogMsg, assertNoSevereLogs)
 import StmContainers.Map qualified as StmMap
 import Test.Tasty
 import Test.Tasty.HUnit
-import TestUtils (LogMsg, assertNoSevereLogs)
 
 test_unmodified :: TestTree
 test_unmodified =

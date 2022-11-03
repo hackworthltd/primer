@@ -95,6 +95,7 @@ import Primer.Module (
  )
 import Primer.Name (Name (unName))
 import Primer.Questions (variablesInScopeExpr, variablesInScopeTy)
+import Primer.Test.Util (testNoSevereLogs)
 import Primer.Typecheck (
   CheckEverythingRequest (CheckEverything, toCheck, trusted),
   SmartHoles (NoSmartHoles, SmartHoles),
@@ -107,7 +108,6 @@ import Tasty (Property, withDiscards, withTests)
 import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.Golden (goldenVsString)
 import Test.Tasty.HUnit (Assertion, (@?=))
-import TestUtils (testNoSevereLogs)
 import Tests.Typecheck (TypeCacheAlpha (TypeCacheAlpha), runTypecheckTestMIn)
 import Text.Pretty.Simple (pShowNoColor)
 

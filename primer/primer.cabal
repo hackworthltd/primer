@@ -164,6 +164,39 @@ library primer-hedgehog
     , tasty-discover  ^>=4.2.4
     , tasty-hedgehog  ^>=1.2.0
 
+library primer-testlib
+  visibility:         public
+  exposed-modules:
+    Primer.Test.App
+    Primer.Test.Util
+
+  other-modules:
+  hs-source-dirs:     testlib
+  default-language:   GHC2021
+  default-extensions:
+    NoImplicitPrelude
+    DataKinds
+    DerivingStrategies
+    DerivingVia
+    LambdaCase
+    OverloadedStrings
+
+  ghc-options:
+    -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
+    -Wcompat -Widentities -Wredundant-constraints -fhide-source-paths
+
+  build-depends:
+    , base
+    , containers
+    , exceptions
+    , hedgehog
+    , logging-effect
+    , optics
+    , primer
+    , stm
+    , stm-containers
+    , tasty-hunit     ^>=0.10.0
+
 test-suite primer-test
   type:               exitcode-stdio-1.0
   main-is:            Test.hs
@@ -203,7 +236,6 @@ test-suite primer-test
     Tests.Utils
     Tests.Zipper
     Tests.Zipper.BindersAbove
-    TestUtils
 
   default-language:   GHC2021
   default-extensions:
@@ -248,6 +280,7 @@ test-suite primer-test
       , prettyprinter-ansi-terminal
       , primer
       , primer-hedgehog
+      , primer-testlib
       , protolude
       , stm
       , stm-containers
@@ -255,7 +288,7 @@ test-suite primer-test
       , tasty-discover
       , tasty-golden                 ^>=2.3.5
       , tasty-hedgehog
-      , tasty-hunit                  ^>=0.10.0
+      , tasty-hunit
       , text
       , time
       , transformers

@@ -58,6 +58,7 @@ import Primer.Eval (
  )
 import Primer.Module (Module (Module, moduleDefs, moduleTypes), moduleName)
 import Primer.Name (Name, unsafeMkName)
+import Primer.Test.Util (gvn, vcn)
 import Primer.TypeDef (
   ASTTypeDef (..),
   TypeDef (..),
@@ -68,7 +69,6 @@ import System.FilePath (takeBaseName)
 import Test.Tasty hiding (after)
 import Test.Tasty.Golden
 import Test.Tasty.HUnit
-import TestUtils (gvn, vcn)
 
 -- | Check that encoding the value produces the file.
 test_encode :: TestTree

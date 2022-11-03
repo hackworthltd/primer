@@ -20,15 +20,15 @@ import Primer.Database (
 import Primer.Database.Rel8.Schema qualified as Schema (
   SessionRow (SessionRow, app, gitversion, lastmodified, name, uuid),
  )
-import Rel8 (lit)
-import Test.Tasty (TestTree)
-import Test.Tasty.HUnit (testCaseSteps)
-import TestUtils (
+import Primer.Database.Rel8.Test.Util (
   insertSessionRow,
   lowPrecisionCurrentTime,
   runTmpDbWithPool,
-  (@?=),
  )
+import Primer.Test.Util ((@?=))
+import Rel8 (lit)
+import Test.Tasty (TestTree)
+import Test.Tasty.HUnit (testCaseSteps)
 
 -- Note: 'querySessionId' gets plenty of coverage in our other unit
 -- tests by virtue of the fact we use it to retrieve results that we

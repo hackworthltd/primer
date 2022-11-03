@@ -19,15 +19,19 @@ import Primer.Database (
 import Primer.Database.Rel8.Rel8Db (
   Rel8DbException (InsertError),
  )
-import Test.Tasty (TestTree)
-import Test.Tasty.HUnit (testCaseSteps)
-import TestUtils (
-  assertException,
+import Primer.Database.Rel8.Test.Util (
   lowPrecisionCurrentTime,
   runTmpDb,
-  testApp,
+ )
+import Primer.Test.App (
+  comprehensive,
+ )
+import Primer.Test.Util (
+  assertException,
   (@?=),
  )
+import Test.Tasty (TestTree)
+import Test.Tasty.HUnit (testCaseSteps)
 
 expectedError :: SessionId -> Rel8DbException -> Bool
 expectedError id_ (InsertError s _) = s == id_
@@ -37,44 +41,44 @@ test_insertSession_roundtrip :: TestTree
 test_insertSession_roundtrip = testCaseSteps "insertSession database round-tripping" $ \step' ->
   runTmpDb $ do
     let step = liftIO . step'
-    step "Insert testApp"
+    step "Insert comprehensive"
     now <- lowPrecisionCurrentTime
     let version = "git123"
-    let name = safeMkSessionName "testApp"
+    let name = safeMkSessionName "comprehensive"
     sessionId <- liftIO newSessionId
-    insertSession version sessionId testApp name now
+    insertSession version sessionId comprehensive name now
 
     step "Retrieve it"
     result <- querySessionId sessionId
-    result @?= Right (SessionData testApp name now)
+    result @?= Right (SessionData comprehensive name now)
 
     let jpName = safeMkSessionName "サンプルプログラム"
     step "Insert app with Japanese name"
     sid1 <- liftIO newSessionId
-    insertSession version sid1 testApp jpName now
+    insertSession version sid1 comprehensive jpName now
     r1 <- querySessionId sid1
-    r1 @?= Right (SessionData testApp jpName now)
+    r1 @?= Right (SessionData comprehensive jpName now)
 
     let cnName = safeMkSessionName "示例程序"
     step "Insert app with simplified Chinese name"
     sid2 <- liftIO newSessionId
-    insertSession version sid2 testApp cnName now
+    insertSession version sid2 comprehensive cnName now
     r2 <- querySessionId sid2
-    r2 @?= Right (SessionData testApp cnName now)
+    r2 @?= Right (SessionData comprehensive cnName now)
 
     let arName = safeMkSessionName "برنامج مثال"
     step "Insert app with Arabic name"
     sid3 <- liftIO newSessionId
-    insertSession version sid3 testApp arName now
+    insertSession version sid3 comprehensive arName now
     r3 <- querySessionId sid3
-    r3 @?= Right (SessionData testApp arName now)
+    r3 @?= Right (SessionData comprehensive arName now)
 
     let emName = safeMkSessionName "😄😂🤣🤗 🦊 🦈"
     step "Insert app with emoji name"
     sid4 <- liftIO newSessionId
-    insertSession version sid4 testApp emName now
+    insertSession version sid4 comprehensive emName now
     r4 <- querySessionId sid4
-    r4 @?= Right (SessionData testApp emName now)
+    r4 @?= Right (SessionData comprehensive emName now)
 
 test_insertSession_failure :: TestTree
 test_insertSession_failure = testCaseSteps "insertSession failure modes" $ \step' ->

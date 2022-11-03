@@ -1,10 +1,9 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module TestUtils (
-  (@?=),
-  assertException,
+module Primer.Database.Rel8.Test.Util (
+  deployDb,
   insertSessionRow,
-  testApp,
+  mkSessionRow,
   withDbSetup,
   lowPrecisionCurrentTime,
   runTmpDb,
@@ -19,14 +18,13 @@ import Control.Monad.Log (
   discardLogging,
  )
 import Data.ByteString.Lazy.UTF8 as BL
-import Data.Map.Strict qualified as Map
 import Data.String (String)
 import Data.Time (
   UTCTime (..),
   diffTimeToPicoseconds,
   picosecondsToDiffTime,
  )
-import Data.Typeable (typeOf)
+import Data.UUID.V4 (nextRandom)
 import Database.PostgreSQL.Simple.Options qualified as Options
 import Database.Postgres.Temp (
   DB,
@@ -50,56 +48,32 @@ import Hasql.Pool (
  )
 import Hasql.Session (statement)
 import Network.Socket.Free (getFreePort)
-import Primer.App (
-  App,
-  Prog (..),
-  defaultProg,
-  mkApp,
- )
-import Primer.Core (
-  baseName,
-  mkSimpleModuleName,
- )
-import Primer.Core.DSL (create)
+import Primer.App (newApp)
 import Primer.Database (
   LastModified (..),
   getCurrentTime,
  )
 import Primer.Database.Rel8 (
   Rel8DbT,
+  SessionRow (..),
   runRel8DbT,
  )
 import Primer.Database.Rel8.Schema as Schema hiding (app)
-import Primer.Examples (comprehensive)
-import Primer.Module (
-  Module (
-    Module,
-    moduleDefs,
-    moduleName,
-    moduleTypes
-  ),
-  builtinModule,
-  primitiveModule,
- )
 import Rel8 (
   Expr,
   Insert (Insert, into, onConflict, returning, rows),
   OnConflict (Abort),
+  Result,
   Returning (NumberOfRowsAffected),
   insert,
   values,
  )
-import System.IO.Temp (getCanonicalTemporaryDirectory)
+import System.IO.Temp (withSystemTempDirectory)
 import System.Process.Typed (
   proc,
   readProcessStdout,
   runProcess_,
  )
-import Test.Tasty.HUnit (
-  assertBool,
-  assertFailure,
- )
-import Test.Tasty.HUnit qualified as HUnit
 
 -- The PostgreSQL host, username, and password can be chosen
 -- statically, but we need to choose the port dynamically in order to
@@ -148,19 +122,19 @@ withDbSetup f = do
             , Options.host = pure host
             }
   throwEither $ do
-    tmpdir <- getCanonicalTemporaryDirectory
-    let cc =
-          defaultCacheConfig
-            { cacheTemporaryDirectory = tmpdir
-            , cacheDirectoryType = Temporary
-            }
-     in withDbCacheConfig cc $ \dbCache ->
-          let combinedConfig = dbConfig <> cacheConfig dbCache
-           in do
-                hash_ <- sqitchEventChangeId
-                migratedConfig <- throwEither $ cacheAction (tmpdir <> "/" <> hash_) (deployDb port) combinedConfig
-                withConfig migratedConfig $ \db ->
-                  bracket (acquire 1 (Just 1000000) $ toConnectionString db) release f
+    withSystemTempDirectory "primer-tmp-postgres" $ \tmpdir ->
+      let cc =
+            defaultCacheConfig
+              { cacheTemporaryDirectory = tmpdir
+              , cacheDirectoryType = Temporary
+              }
+       in withDbCacheConfig cc $ \dbCache ->
+            let combinedConfig = dbConfig <> cacheConfig dbCache
+             in do
+                  hash_ <- sqitchEventChangeId
+                  migratedConfig <- throwEither $ cacheAction (tmpdir <> "/" <> hash_) (deployDb port) combinedConfig
+                  withConfig migratedConfig $ \db ->
+                    bracket (acquire 1 (Just 1000000) $ toConnectionString db) release f
 
 runTmpDb :: Rel8DbT (DiscardLoggingT (WithSeverity ()) IO) () -> IO ()
 runTmpDb tests =
@@ -170,27 +144,6 @@ runTmpDb tests =
 runTmpDbWithPool :: (Pool -> Rel8DbT (DiscardLoggingT (WithSeverity ()) IO) ()) -> IO ()
 runTmpDbWithPool tests =
   withDbSetup $ \pool -> discardLogging $ runRel8DbT (tests pool) pool
-
-(@?=) :: (MonadIO m, Eq a, Show a) => a -> a -> m ()
-x @?= y = liftIO $ x HUnit.@?= y
-infix 1 @?=
-
-type ExceptionPredicate e = (e -> Bool)
-
-assertException ::
-  (HasCallStack, Exception e, MonadIO m, MonadCatch m) =>
-  String ->
-  ExceptionPredicate e ->
-  m a ->
-  m ()
-assertException msg p action = do
-  r <- try action
-  case r of
-    Right _ -> liftIO $ assertFailure $ msg <> " should have thrown " <> exceptionType <> ", but it succeeded"
-    Left e -> liftIO $ assertBool (wrongException e) (p e)
-  where
-    wrongException e = msg <> " threw " <> show e <> ", but we expected " <> exceptionType
-    exceptionType = (show . typeOf) p
 
 -- | Like @MonadDb.insertSession@, but allows us to insert things
 -- directly into the database that otherwise might not be permitted by
@@ -211,27 +164,6 @@ insertSessionRow row pool =
             , returning = NumberOfRowsAffected
             }
 
--- | An initial test 'App' instance that contains all default type
--- definitions (including primitive types), all primitive functions,
--- and a top-level definition with extensive coverage of Primer's
--- core language.
-testApp :: App
-testApp =
-  let modName = mkSimpleModuleName "TestModule"
-      ((defName, def), id_) = create $ comprehensive modName
-      testProg =
-        defaultProg
-          { progImports = [builtinModule, primitiveModule]
-          , progModules =
-              [ Module
-                  { moduleName = mkSimpleModuleName "TestModule"
-                  , moduleTypes = mempty
-                  , moduleDefs = Map.singleton (baseName defName) def
-                  }
-              ]
-          }
-   in mkApp id_ (toEnum 0) testProg
-
 -- | PostgreSQL's timestamp type has a precision of 1 microsecond, but
 -- 'getCurrentTime' has a precision of 1 picosecond. In order to
 -- compare times for our tests, we need to truncate the precision of
@@ -239,12 +171,24 @@ testApp =
 --
 -- Ref:
 -- https://www.postgresql.org/docs/13/datatype-datetime.html
---
--- Note: we should DRY this, see:
--- https://github.com/hackworthltd/primer/issues/273
 lowPrecisionCurrentTime :: (MonadIO m) => m LastModified
 lowPrecisionCurrentTime = do
   LastModified (UTCTime day time) <- getCurrentTime
   -- truncate to microseconds
   let time' = picosecondsToDiffTime $ diffTimeToPicoseconds time `div` 1000000 * 1000000
   pure $ LastModified $ UTCTime day time'
+
+-- | Return a 'SessionRow', which is useful for testing the database
+-- without needing to go through the Primer API.
+mkSessionRow :: Int -> IO (SessionRow Result)
+mkSessionRow n = do
+  u <- nextRandom
+  now <- lowPrecisionCurrentTime
+  pure $
+    SessionRow
+      { uuid = u
+      , gitversion = "test-version"
+      , app = newApp
+      , name = "name-" <> show n
+      , lastmodified = utcTime now
+      }

@@ -25,12 +25,12 @@ import Primer.Examples (
   even3App,
   mapOddApp,
  )
-import Test.Tasty
-import Test.Tasty.HUnit (testCaseSteps)
-import TestUtils (
+import Primer.Test.Util (
   assertException,
   (@?=),
  )
+import Test.Tasty
+import Test.Tasty.HUnit (testCaseSteps)
 
 -- 'Primer.Database.NullDbT' is only used to implement tests, but we
 -- test it here to ensure that any tests built on top of it should

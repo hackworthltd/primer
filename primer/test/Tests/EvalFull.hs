@@ -83,6 +83,12 @@ import Primer.Primitives (
   tInt,
  )
 import Primer.Primitives.DSL (pfun)
+import Primer.Test.Util (
+  assertNoSevereLogs,
+  primDefs,
+  testNoSevereLogs,
+  zeroIDs,
+ )
 import Primer.TypeDef (TypeDef (..), TypeDefMap)
 import Primer.Typecheck (
   SmartHoles (NoSmartHoles),
@@ -99,12 +105,6 @@ import Tasty (
  )
 import Test.Tasty.HUnit (Assertion, assertBool, assertFailure, (@?=))
 import TestM
-import TestUtils (
-  assertNoSevereLogs,
-  primDefs,
-  testNoSevereLogs,
-  zeroIDs,
- )
 import Tests.Action.Prog (runAppTestM)
 import Tests.Eval ((~=))
 import Tests.Gen.Core.Typed (checkTest)
