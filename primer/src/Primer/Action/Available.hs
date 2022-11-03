@@ -19,7 +19,7 @@ import Foreword
 
 import Data.Map qualified as Map
 import Data.Set qualified as Set
-import Optics ((%), (^.), (^?), _Just)
+import Optics (to, (%), (^.), (^..), (^?), _Just)
 import Primer.Action.Priorities qualified as P
 import Primer.Core (
   Editable (..),
@@ -157,7 +157,8 @@ forBody tydefs l Editable expr id = sortByPriority l $ case findNodeWithParent i
           Just (ExprNode _) -> [] -- at the root of an annotation, so cannot raise
           _ -> [NoInput Raise]
      in forType l t <> raiseAction
-  Just (CaseBindNode _, _) -> [Input RenamePattern]
+  Just (CaseBindNode _, _) ->
+    [Input RenamePattern]
 
 forSig ::
   Level ->
@@ -173,73 +174,86 @@ forSig l Editable ty id = sortByPriority l $ case findType id ty of
       <> mwhen (id /= getID ty) [NoInput RaiseType]
 
 forExpr :: TypeDefMap -> Level -> Expr -> [Action]
-forExpr tydefs l expr = case expr of
-  EmptyHole{} -> universalActions <> emptyHoleActions
-  Hole{} -> defaultActions <> holeActions
-  Ann{} -> defaultActions <> annotationActions
-  Lam{} -> defaultActions <> lambdaActions
-  LAM{} -> defaultActions <> bigLambdaActions
-  Let _ v e _ -> defaultActions <> letActions v e
-  Letrec{} -> defaultActions <> letRecActions
-  e -> let _ = e ^. _exprMetaLens in defaultActions <> annotate
-  where
-    m = expr ^. _exprMetaLens
-    annotate = mwhen (l == Expert) [NoInput MakeAnn]
-    emptyHoleActions = case l of
-      Beginner ->
-        [ Input MakeVar
-        , Input MakeCon
-        ]
-      _ ->
-        [ Input MakeVar
-        , Input MakeVarSat
-        , Input MakeCon
-        , Input MakeConSat
-        , Input MakeLet
-        , Input MakeLetRec
-        , NoInput EnterHole
-        ]
-          <> annotate
-    holeActions = NoInput RemoveHole : annotate
-    annotationActions = mwhen (l == Expert) [NoInput RemoveAnn]
-    lambdaActions = Input RenameLam : annotate
-    bigLambdaActions = annotate <> mwhen (l == Expert) [Input RenameLAM]
-    letActions v e =
-      [Input RenameLet]
-        <> munless (unLocalName v `Set.member` freeVars e) [NoInput LetToRec]
+forExpr tydefs l expr =
+  universalActions <> synOnly <> case expr of
+    EmptyHole{} ->
+      annotate
+        <> [ Input MakeVar
+           , Input MakeCon
+           ]
+        <> mwhen
+          (l /= Beginner)
+          [ Input MakeVar
+          , Input MakeVarSat
+          , Input MakeCon
+          , Input MakeConSat
+          , Input MakeLet
+          , Input MakeLetRec
+          , NoInput EnterHole
+          ]
+    Hole{} ->
+      delete
         <> annotate
-    letRecActions = Input RenameLet : annotate
-    universalActions =
-      let both = case l of
-            Beginner ->
-              [ Input MakeLam
-              ]
-            Intermediate ->
-              [ Input MakeLam
-              , NoInput MakeApp
-              ]
-            Expert ->
-              [ NoInput MakeApp
-              , NoInput MakeAPP
-              , Input MakeLam
-              , Input MakeLAM
-              ]
-          -- We assume that the input program is type-checked, in order to
-          -- filter some actions by Syn/Chk
-          synthTy = m ^? _type % _Just % _synthed
-          synOnly ty = case getTypeDefInfo' tydefs ty of
-            Left TDIHoleType{} -> Just $ NoInput MakeCase
-            Right (TypeDefInfo _ _ TypeDefAST{}) -> Just $ NoInput MakeCase
-            _ -> Nothing
-       in (synOnly =<< synthTy) ?: both
-    defaultActions = universalActions <> [NoInput DeleteExpr]
+        <> [NoInput RemoveHole]
+    Ann{} ->
+      delete
+        <> mwhen (l == Expert) [NoInput RemoveAnn]
+    Lam{} ->
+      delete
+        <> annotate
+        <> [Input RenameLam]
+    LAM{} ->
+      delete
+        <> annotate
+        <> mwhen (l == Expert) [Input RenameLAM]
+    Let _ v e _ ->
+      delete
+        <> annotate
+        <> [Input RenameLet]
+        <> munless (unLocalName v `Set.member` freeVars e) [NoInput LetToRec]
+    Letrec{} ->
+      delete
+        <> annotate
+        <> [Input RenameLet]
+    _ ->
+      delete
+        <> annotate
+  where
+    universalActions = case l of
+      Beginner ->
+        [ Input MakeLam
+        ]
+      Intermediate ->
+        [ Input MakeLam
+        , NoInput MakeApp
+        ]
+      Expert ->
+        [ NoInput MakeApp
+        , NoInput MakeAPP
+        , Input MakeLam
+        , Input MakeLAM
+        ]
+    -- We assume that the input program is type-checked, in order to
+    -- filter some actions by Syn/Chk
+    synOnly =
+      expr ^.. _exprMetaLens % _type % _Just % _synthed % to (getTypeDefInfo' tydefs) >>= \case
+        Left TDIHoleType{} -> [NoInput MakeCase]
+        Right (TypeDefInfo _ _ TypeDefAST{}) -> [NoInput MakeCase]
+        _ -> []
+    annotate = mwhen (l == Expert) [NoInput MakeAnn]
+    delete = [NoInput DeleteExpr]
 
 forType :: Level -> Type -> [Action]
-forType l ty = case ty of
-  TEmptyHole{} -> universalActions <> [Input MakeTCon] <> mwhen (l == Expert) [Input MakeTVar]
-  TForall{} -> defaultActions <> mwhen (l == Expert) [Input RenameForall]
-  TFun{} -> defaultActions <> [NoInput AddInput]
-  _ -> defaultActions
+forType l type_ =
+  universalActions <> case type_ of
+    TEmptyHole{} ->
+      [Input MakeTCon] <> mwhen (l == Expert) [Input MakeTVar]
+    TForall{} ->
+      delete <> mwhen (l == Expert) [Input RenameForall]
+    TFun{} ->
+      delete <> [NoInput AddInput]
+    _ ->
+      delete
   where
     universalActions =
       [NoInput MakeFun]
@@ -248,7 +262,7 @@ forType l ty = case ty of
           [ Input MakeForall
           , NoInput MakeTApp
           ]
-    defaultActions = universalActions <> [NoInput DeleteType]
+    delete = [NoInput DeleteType]
 
 -- | An input for an 'InputAction'.
 data Option = Option
@@ -347,16 +361,16 @@ options typeDefs defs cxt level def mid = \case
       pure $ optionsLoc <> optionsGlob
     genName' = do
       id <- mid
-      let chkOrSynth tc = (tc ^? _chkedAt) <|> (tc ^? _synthed)
+      let chkOrSyn tc = (tc ^? _chkedAt) <|> (tc ^? _synthed)
       typeKind <-
         ((fst <$> findNodeWithParent id (astDefExpr def)) <|> (TypeNode <$> findType id (astDefType def))) >>= \case
           ExprNode e -> pure $ Left $ do
             tc <- e ^. _exprMetaLens % _type
-            chkOrSynth tc
+            chkOrSyn tc
           TypeNode t -> pure $ Right $ t ^. _typeMetaLens % _type
           CaseBindNode b -> pure $ Left $ do
             tc <- b ^. _bindMeta % _type
-            chkOrSynth tc
+            chkOrSyn tc
       names <-
         focusNode id <&> \case
           Left zE -> generateNameExpr typeKind zE
