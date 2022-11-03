@@ -15,10 +15,11 @@ import Foreword
 import Data.OpenApi (OpenApi)
 import Primer.API (Selection)
 import Primer.API qualified as API
+import Primer.Action.Available qualified as Available
 import Primer.Database (
   SessionId,
  )
-import Primer.Level (Level)
+import Primer.Level (Level (..))
 import Primer.OpenAPI ()
 import Primer.Servant.Types (
   CopySession,
@@ -95,15 +96,23 @@ data SessionAPI mode = SessionAPI
   }
   deriving (Generic)
 
-{- HLINT ignore ActionAPI "Use newtype instead of data" -}
 data ActionAPI mode = ActionAPI
   { available ::
       mode
         :- "available"
-          :> Summary "Get available actions for the definition, or a node within it"
+          :> Summary "Get available actions for the definition, or a node within it, sorted by priority"
           :> QueryParam' '[Required, Strict] "level" Level
           :> ReqBody '[JSON] Selection
           :> OperationId "getAvailableActions"
-          :> Post '[JSON] [API.OfferedAction]
+          :> Post '[JSON] [Available.Action]
+  , options ::
+      mode
+        :- "options"
+          :> Summary "Get the input options for an action"
+          :> QueryParam' '[Required, Strict] "level" Level
+          :> ReqBody '[JSON] Selection
+          :> QueryParam' '[Required, Strict] "action" Available.InputAction
+          :> OperationId "getActionOptions"
+          :> Post '[JSON] Available.Options
   }
   deriving (Generic)

@@ -23,44 +23,27 @@ import Hedgehog (
 import Hedgehog.Gen qualified as Gen
 import Hedgehog.Internal.Property (forAllWithT)
 import Optics (toListOf, (%), (^..))
-import Primer.Action (
-  ActionError (CaseBindsClash, NameCapture),
-  ActionInput (..),
-  ActionName (..),
-  OfferedAction (..),
-  UserInput (
-    ChooseConstructor,
-    ChooseOrEnterName,
-    ChooseTypeConstructor,
-    ChooseTypeVariable,
-    ChooseVariable
-  ),
- )
-import Primer.Action.Available (actionsForDef, actionsForDefBody, actionsForDefSig)
+import Primer.Action (ActionError (CaseBindsClash, NameCapture), toProgActionInput, toProgActionNoInput)
+import Primer.Action.Available qualified as Available
 import Primer.App (
   App,
   EditAppM,
   ProgError (ActionError, DefAlreadyExists),
-  QueryAppM,
-  allTyConNames,
-  allValConNames,
   appProg,
   checkAppWellFormed,
   handleEditRequest,
-  handleQuestion,
   progAllDefs,
   progAllTypeDefs,
+  progCxt,
   runEditAppM,
-  runQueryAppM,
  )
 import Primer.Core (
   GVarName,
   GlobalName (baseName, qualifiedModule),
   HasID (_id),
   ID,
-  LocalName (unLocalName),
-  ModuleName (ModuleName, unModuleName),
-  TmVarRef (GlobalVarRef, LocalVarRef),
+  ModuleName (ModuleName),
+  NodeType (..),
   mkSimpleModuleName,
   moduleNamePretty,
   qualifyName,
@@ -81,7 +64,7 @@ import Primer.Def (
   Def (DefAST, DefPrim),
   defAST,
  )
-import Primer.Editable (Editable (Editable, NonEditable))
+import Primer.Editable (Editable (..))
 import Primer.Examples (comprehensiveWellTyped)
 import Primer.Gen.App (genApp)
 import Primer.Gen.Core.Raw (genName)
@@ -94,7 +77,6 @@ import Primer.Module (
   primitiveModule,
  )
 import Primer.Name (Name (unName))
-import Primer.Questions (variablesInScopeExpr, variablesInScopeTy)
 import Primer.Test.Util (testNoSevereLogs)
 import Primer.Typecheck (
   CheckEverythingRequest (CheckEverything, toCheck, trusted),
@@ -102,7 +84,6 @@ import Primer.Typecheck (
   buildTypingContextFromModules,
   checkEverything,
  )
-import Primer.Zipper (focusOn, focusOnTy, locToEither)
 import System.FilePath ((</>))
 import Tasty (Property, withDiscards, withTests)
 import Test.Tasty (TestTree, testGroup)
@@ -116,10 +97,14 @@ test_1 :: TestTree
 test_1 = mkTests [builtinModule] $ create' $ comprehensiveWellTyped $ mkSimpleModuleName "M"
 
 data Output = Output
-  { defActions :: [ActionName]
-  , bodyActions :: [(ID, [ActionName])]
-  , sigActions :: [(ID, [ActionName])]
+  { defActions :: [OfferedAction]
+  , bodyActions :: [(ID, [OfferedAction])]
+  , sigActions :: [(ID, [OfferedAction])]
   }
+  deriving (Show)
+data OfferedAction
+  = NoInput Available.NoInputAction
+  | Input Available.InputAction Available.Options
   deriving (Show)
 
 -- | Golden tests for the available actions at each node of the definition, for each level.
@@ -128,8 +113,9 @@ mkTests _ (_, DefPrim _) = error "mkTests is unimplemented for primitive definit
 mkTests deps (defName, DefAST def') =
   let d = defName
       m = Module (qualifiedModule d) mempty $ Map.singleton (baseName d) $ DefAST def'
+      cxt = buildTypingContextFromModules deps NoSmartHoles
       def = case runTypecheckTestMIn
-        (buildTypingContextFromModules deps NoSmartHoles)
+        cxt
         (checkEverything NoSmartHoles CheckEverything{trusted = deps, toCheck = [m]}) of
         Left err -> error $ "mkTests: no typecheck: " <> show err
         Right [m'] -> case Map.toList $ moduleDefs m' of
@@ -138,24 +124,29 @@ mkTests deps (defName, DefAST def') =
         _ -> error "mkTests: expected exactly one module checked modules"
       testName = T.unpack $ moduleNamePretty (qualifiedModule defName) <> "." <> unName (baseName defName)
       enumeratePairs = (,) <$> enumerate <*> enumerate
+      defs = Map.singleton defName $ DefAST def
+      typeDefs = foldMap @[] moduleTypesQualified [builtinModule, primitiveModule]
+      offered level id = \case
+        Available.NoInput a -> NoInput a
+        Available.Input a ->
+          Input a
+            . fromMaybe (error "id not found")
+            $ Available.options typeDefs defs cxt level def id a
    in testGroup testName $
         enumeratePairs
           <&> \(level, mut) ->
-            -- We sort the offered actions to make the test output more stable
-            let defActions = sort' $ map name $ actionsForDef level (Map.singleton defName (mut, DefAST def)) d
+            let defActions = map (offered level Nothing) $ Available.forDef defs level mut d
                 bodyActions =
                   map
                     ( \id ->
                         ( id
-                        , sort' $
-                            map name $
-                              actionsForDefBody
-                                (foldMap @[] moduleTypesQualified [builtinModule, primitiveModule])
-                                level
-                                defName
-                                mut
-                                id
-                                (astDefExpr def)
+                        , map (offered level (Just (BodyNode, id))) $
+                            Available.forBody
+                              typeDefs
+                              level
+                              mut
+                              (astDefExpr def)
+                              id
                         )
                     )
                     . toListOf exprIDs
@@ -164,7 +155,7 @@ mkTests deps (defName, DefAST def') =
                   map
                     ( \id ->
                         ( id
-                        , sort' $ map name $ actionsForDefSig level defName mut id (astDefType def)
+                        , map (offered level (Just (SigNode, id))) $ Available.forSig level mut (astDefType def) id
                         )
                     )
                     . toListOf (_typeMeta % _id)
@@ -176,11 +167,6 @@ mkTests deps (defName, DefAST def') =
                       , bodyActions
                       , sigActions
                       }
-  where
-    -- To avoid having an Ord instance on ActionName just for this test, we
-    -- can just sort by how the action is shown.
-    sort' :: [ActionName] -> [ActionName]
-    sort' = sortOn $ show @_ @Text
 
 -- We should not offer to delete a definition that is in use, as that
 -- action cannot possibly succeed
@@ -196,8 +182,8 @@ unit_def_in_use =
    in for_
         enumerate
         ( \l ->
-            description <$> actionsForDef l defs d
-              @?= ["Rename this definition", "Duplicate this definition"]
+            Available.forDef (snd <$> defs) l Editable d
+              @?= [Available.Input Available.RenameDef, Available.NoInput Available.DuplicateDef]
         )
 
 tasty_available_actions_accepted :: Property
@@ -226,100 +212,50 @@ tasty_available_actions_accepted = withTests 500 $
         fmap snd . forAllWithT fst $
           Gen.frequency $
             catMaybes
-              [ Just (1, pure ("actionsForDef", (Nothing, actionsForDef l allDefs defName)))
+              [ Just (1, pure ("actionsForDef", (Nothing, Available.forDef (snd <$> allDefs) l defMut defName)))
               , defAST def <&> \d' -> (2,) $ do
                   let ty = astDefType d'
                       ids = ty ^.. typeIDs
                   i <- Gen.element ids
                   let ann = "actionsForDefSig id " <> show i
-                  pure (ann, (Just $ Left i, actionsForDefSig l defName defMut i ty))
+                  pure (ann, (Just (SigNode, i), Available.forSig l defMut ty i))
               , defAST def <&> \d' -> (7,) $ do
                   let expr = astDefExpr d'
                       ids = expr ^.. exprIDs
                   i <- Gen.element ids
                   let ann = "actionsForDefBody id " <> show i
-                  pure (ann, (Just $ Right i, actionsForDefBody (snd <$> progAllTypeDefs (appProg a)) l defName defMut i expr))
+                  pure (ann, (Just (BodyNode, i), Available.forBody (snd <$> progAllTypeDefs (appProg a)) l defMut expr i))
               ]
       case acts of
         [] -> label "no offered actions" >> success
         acts' -> do
-          action <- forAllWithT (toS . description) $ Gen.element acts'
-          let checkActionInput = \case
-                InputRequired (ChooseConstructor _ f) -> do
-                  label "ChooseConstructor"
-                  let cons = allValConNames $ appProg a
-                  if null cons
-                    then label "no valcons, skip" >> success
-                    else do
-                      c <- forAllT $ Gen.element cons
-                      let act' = f $ globalNameToQualifiedText c
-                      annotateShow act'
-                      actionSucceeds (handleEditRequest act') a
-                InputRequired (ChooseTypeConstructor f) -> do
-                  label "ChooseTypeConstructor"
-                  let cons = allTyConNames $ appProg a
-                  if null cons
-                    then label "no tycons, skip" >> success
-                    else do
-                      c <- forAllT $ Gen.element cons
-                      let act' = f $ globalNameToQualifiedText c
-                      annotateShow act'
-                      actionSucceeds (handleEditRequest act') a
-                InputRequired (ChooseOrEnterName _ opts f) -> do
-                  label "ChooseOrEnterName"
-                  annotateShow opts
-                  let anOpt = (True,) <$> Gen.element opts
-                      other = (False,) <$> genName
-                  (wasOffered, n) <- forAllT $ if null opts then other else Gen.choice [anOpt, other]
-                  let act' = f n
-                  annotateShow act'
-                  (if wasOffered then actionSucceeds else actionSucceedsOrCapture) (handleEditRequest act') a
-                InputRequired (ChooseVariable _ f) -> do
-                  label "ChooseVariable"
-                  let vars = case loc of
-                        Nothing -> error "actionsForDef only ever gives ChooseOrEnterName or NoInputRequired"
-                        Just (Left _) -> error "Shouldn't offer ChooseVariable in a type!"
-                        Just (Right i) -> case focusOn i . astDefExpr =<< defAST def of
-                          Nothing -> error "cannot focus on an id in the expr?"
-                          Just ez ->
-                            let (_, lvars, gvars) = variablesInScopeExpr (snd <$> allDefs) $ locToEither ez
-                             in map (LocalVarRef . fst) lvars <> map (GlobalVarRef . fst) gvars
-                  if null vars
-                    then label "no vars, skip" >> success
-                    else do
-                      v <- forAllT $ Gen.element vars
-                      let act' = f v
-                      annotateShow act'
-                      actionSucceeds (handleEditRequest act') a
-                InputRequired (ChooseTypeVariable f) -> do
-                  label "ChooseTypeVariable"
-                  let vars = case loc of
-                        Nothing -> error "actionsForDef only ever gives ChooseOrEnterName or NoInputRequired"
-                        Just (Left i) -> case focusOnTy i . astDefType =<< defAST def of
-                          Nothing -> error "cannot focus on an id in the type?"
-                          Just tz -> fst <$> variablesInScopeTy tz
-                        Just (Right i) -> case focusOn i . astDefExpr =<< defAST def of
-                          Nothing -> error "cannot focus on an id in the expr?"
-                          Just ez ->
-                            let (tyvars, _, _) = variablesInScopeExpr (snd <$> allDefs) $ locToEither ez
-                             in fst <$> tyvars
-                  if null vars
-                    then label "no tyvars, skip" >> success
-                    else do
-                      v <- forAllT $ Gen.element vars
-                      let act' = f $ unName $ unLocalName v
-                      annotateShow act'
-                      actionSucceeds (handleEditRequest act') a
-                NoInputRequired act' -> do
-                  label "NoInputRequired"
-                  annotateShow act'
-                  actionSucceeds (handleEditRequest act') a
-                AskQuestion q act' -> do
-                  label "GenerateName (recurses)"
-                  answer <- querySucceeds (handleQuestion q) a
-                  checkActionInput $ act' answer
-          collect $ description action
-          checkActionInput $ input action
+          action <- forAllT $ Gen.element acts'
+          collect action
+          case action of
+            Available.NoInput act' -> do
+              def' <- maybe (annotate "primitive def" >> failure) pure $ defAST def
+              progActs <-
+                either (\e -> annotateShow e >> failure) pure $
+                  toProgActionNoInput (map snd $ progAllDefs $ appProg a) def' defName loc act'
+              actionSucceeds (handleEditRequest progActs) a
+            Available.Input act' -> do
+              def' <- maybe (annotate "primitive def" >> failure) pure $ defAST def
+              Available.Options{Available.opts, Available.free} <-
+                maybe (annotate "id not found" >> failure) pure $
+                  Available.options
+                    (map snd $ progAllTypeDefs $ appProg a)
+                    (map snd $ progAllDefs $ appProg a)
+                    (progCxt $ appProg a)
+                    l
+                    def'
+                    loc
+                    act'
+              case opts of
+                [] -> annotate "no options" >> success
+                options -> do
+                  opt <- forAllT $ Gen.choice $ [Gen.element options] <> mwhen free [flip Available.Option Nothing <$> (unName <$> genName)]
+                  progActs <- either (\e -> annotateShow e >> failure) pure $ toProgActionInput def' defName loc opt act'
+                  actionSucceedsOrCapture (handleEditRequest progActs) a
   where
     runEditAppMLogs ::
       HasCallStack =>
@@ -352,8 +288,3 @@ tasty_available_actions_accepted = withTests 500 $
     ensureSHNormal a = case checkAppWellFormed a of
       Left err -> annotateShow err >> failure
       Right a' -> TypeCacheAlpha a === TypeCacheAlpha a'
-    querySucceeds :: HasCallStack => QueryAppM a -> App -> PropertyT WT a
-    querySucceeds m a = case runQueryAppM m a of
-      Left err -> annotateShow err >> failure
-      Right x -> pure x
-    globalNameToQualifiedText n = (fmap unName $ unModuleName $ qualifiedModule n, unName $ baseName n)

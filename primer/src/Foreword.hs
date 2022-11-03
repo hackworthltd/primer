@@ -12,6 +12,7 @@ module Foreword (
   hoistAccum,
   hoistMaybe,
   (?:),
+  curry4,
 ) where
 
 -- In general, we should defer to "Protolude"'s exports and avoid name
@@ -139,3 +140,6 @@ Just x ?: xs = x : xs
 Nothing ?: xs = xs
 
 infixr 5 ?:
+
+curry4 :: ((a, b, c, d) -> r) -> a -> b -> c -> d -> r
+curry4 f a b c d = f (a, b, c, d)
