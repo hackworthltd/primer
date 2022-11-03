@@ -7,13 +7,14 @@ module Primer.Servant.OpenAPI (
   SessionsAPI (..),
   SessionAPI (..),
   ActionAPI (..),
+  ApplyActionAPI (..),
   Spec,
 ) where
 
 import Foreword
 
 import Data.OpenApi (OpenApi)
-import Primer.API (Selection)
+import Primer.API (ApplyActionBody, Selection)
 import Primer.API qualified as API
 import Primer.Action.Available qualified as Available
 import Primer.Database (
@@ -114,5 +115,31 @@ data ActionAPI mode = ActionAPI
           :> QueryParam' '[Required, Strict] "action" Available.InputAction
           :> OperationId "getActionOptions"
           :> Post '[JSON] Available.Options
+  , apply ::
+      mode
+        :- "apply"
+          :> NamedRoutes ApplyActionAPI
+  }
+  deriving (Generic)
+
+data ApplyActionAPI mode = ApplyActionAPI
+  { simple ::
+      mode
+        :- "simple"
+          :> Summary "Apply a simple action i.e. one which requires no further user input"
+          :> QueryFlag "patternsUnder"
+          :> ReqBody '[JSON] Selection
+          :> QueryParam' '[Required, Strict] "action" Available.NoInputAction
+          :> OperationId "applyAction"
+          :> Post '[JSON] API.Prog
+  , input ::
+      mode
+        :- "input"
+          :> Summary "Apply an action with some user input"
+          :> QueryFlag "patternsUnder"
+          :> ReqBody '[JSON] ApplyActionBody
+          :> QueryParam' '[Required, Strict] "action" Available.InputAction
+          :> OperationId "applyActionWithInput"
+          :> Post '[JSON] API.Prog
   }
   deriving (Generic)
