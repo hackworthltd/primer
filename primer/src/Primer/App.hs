@@ -167,6 +167,7 @@ import Primer.Module (
   renameModule',
  )
 import Primer.Name (Name (unName), NameCounter, freshName, unsafeMkName)
+import Primer.Prelude (prelude)
 import Primer.Questions (
   Question (..),
   generateNameExpr,
@@ -317,7 +318,12 @@ newEmptyProg' = let (p, _, _) = newEmptyProgImporting [] in p
 -- counter when using 'newProg' as the app's program.
 newProg :: (Prog, ID, NameCounter)
 newProg =
-  let (p, nextID, nc) = newEmptyProgImporting [pure builtinModule, pure primitiveModule]
+  let (p, nextID, nc) =
+        newEmptyProgImporting
+          [ prelude
+          , pure builtinModule
+          , pure primitiveModule
+          ]
    in ( p
       , nextID
       , nc
