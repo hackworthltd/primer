@@ -54,6 +54,7 @@ import Primer.Core.Meta (
   LocalNameKind (..),
   Meta (Meta),
   ModuleName (ModuleName, unModuleName),
+  NodeType (..),
   TmVarRef (..),
   TyConName,
   TyVarName,

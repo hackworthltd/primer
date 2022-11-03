@@ -117,6 +117,7 @@ import Primer.Core (
   LocalName (LocalName, unLocalName),
   Meta (..),
   ModuleName (ModuleName),
+  NodeType (..),
   TmVarRef (GlobalVarRef, LocalVarRef),
   TyConName,
   Type,
@@ -392,10 +393,6 @@ instance HasID NodeSelection where
     lens
       (either getID getID . meta)
       (flip $ \id -> over #meta $ bimap (set _id id) (set _id id))
-
-data NodeType = BodyNode | SigNode
-  deriving (Eq, Show, Bounded, Enum, Generic, Data)
-  deriving (FromJSON, ToJSON) via PrimerJSON NodeType
 
 -- | The type of requests which can mutate the application state.
 data MutationRequest
