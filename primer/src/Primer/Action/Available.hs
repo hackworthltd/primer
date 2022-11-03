@@ -19,6 +19,7 @@ import Foreword
 
 import Data.Map qualified as Map
 import Data.Set qualified as Set
+import Data.Tuple.Extra (fst3)
 import Optics (to, (%), (^.), (^..), (^?), _Just)
 import Primer.Action.Priorities qualified as P
 import Primer.Core (
@@ -293,100 +294,91 @@ options ::
   Maybe Options
 options typeDefs defs cxt level def mid = \case
   MakeCon ->
-    let opts = map (fromGlobal . valConName) . (if level == Beginner then filter $ null . valConArgs else identity) . concatMap astTypeDefConstructors . mapMaybe (typeDefAST . snd) $ Map.toList typeDefs
-     in pure Options{opts, free = False}
+    pure
+      . noFree
+      . map (fromGlobal . valConName)
+      . (if level == Beginner then filter $ null . valConArgs else identity)
+      . concatMap astTypeDefConstructors
+      . mapMaybe (typeDefAST . snd)
+      $ Map.toList typeDefs
   MakeConSat ->
-    let opts = map (fromGlobal . valConName) . filter (not . null . valConArgs) . concatMap astTypeDefConstructors . mapMaybe (typeDefAST . snd) $ Map.toList typeDefs
-     in pure Options{opts, free = False}
-  MakeVar -> do
-    opts <-
-      varOptions
-        <&> map fst . filter \case
-          -- don't show functions here in beginner mode
-          (_, TFun{}) -> level /= Beginner
-          _ -> True
-    pure Options{opts, free = False}
-  MakeVarSat -> do
-    opts <-
-      varOptions
-        <&> map fst . filter \case
-          -- only display functions
-          (_, TFun{}) -> True
-          _ -> False
-    pure Options{opts, free = False}
-  MakeLet -> do
-    opts <- genName'
-    pure Options{opts, free = True}
-  MakeLetRec -> do
-    opts <- genName'
-    pure Options{opts, free = True}
-  MakeLam -> do
-    opts <- genName'
-    pure Options{opts, free = True}
-  MakeLAM -> do
-    opts <- genName'
-    pure Options{opts, free = True}
-  RenamePattern -> do
-    opts <- genName'
-    pure Options{opts, free = True}
-  RenameLet -> do
-    opts <- genName'
-    pure Options{opts, free = True}
-  RenameLam -> do
-    opts <- genName'
-    pure Options{opts, free = True}
-  RenameLAM -> do
-    opts <- genName'
-    pure Options{opts, free = True}
+    pure
+      . noFree
+      . map (fromGlobal . valConName)
+      . filter (not . null . valConArgs)
+      . concatMap astTypeDefConstructors
+      . mapMaybe (typeDefAST . snd)
+      $ Map.toList typeDefs
+  MakeVar ->
+    varOpts
+      <&> noFree . map fst . filter \case
+        -- don't show functions here in beginner mode
+        (_, TFun{}) -> level /= Beginner
+        _ -> True
+  MakeVarSat ->
+    varOpts
+      <&> noFree . map fst . filter \case
+        -- only display functions
+        (_, TFun{}) -> True
+        _ -> False
+  MakeLet ->
+    free <$> genNames
+  MakeLetRec ->
+    free <$> genNames
+  MakeLam ->
+    free <$> genNames
+  MakeLAM ->
+    free <$> genNames
+  RenamePattern ->
+    free <$> genNames
+  RenameLet ->
+    free <$> genNames
+  RenameLam ->
+    free <$> genNames
+  RenameLAM ->
+    free <$> genNames
   MakeTCon ->
-    let opts = fromGlobal . fst <$> Map.toList typeDefs
-     in pure Options{opts, free = False}
-  MakeTVar -> do
-    (types, _locals, _globals) <- varsInScope'
-    let opts = flip Option Nothing . unName . unLocalName . fst <$> types
-    pure Options{opts, free = False}
-  MakeForall -> do
-    opts <- genName'
-    pure Options{opts, free = True}
-  RenameForall -> do
-    opts <- genName'
-    pure Options{opts, free = True}
+    pure $ noFree $ fromGlobal . fst <$> Map.toList typeDefs
+  MakeTVar ->
+    pure . noFree . map (simpleOpt . unName . unLocalName . fst) . fst3 =<< varsInScope
+  MakeForall ->
+    free <$> genNames
+  RenameForall ->
+    free <$> genNames
   RenameDef ->
-    pure Options{opts = [], free = True}
+    pure $ free []
   where
-    varOptions = do
-      (_types, locals, globals) <- varsInScope'
-      let optionsLoc = first (flip Option Nothing . unName . unLocalName) <$> locals
-          optionsGlob = first fromGlobal <$> globals
-      pure $ optionsLoc <> optionsGlob
-    genName' = do
+    free opts = Options{opts, free = True}
+    noFree opts = Options{opts, free = False}
+    simpleOpt = flip Option Nothing
+    varOpts = do
+      (_, locals, globals) <- varsInScope
+      pure $
+        (first (simpleOpt . unName . unLocalName) <$> locals)
+          <> (first fromGlobal <$> globals)
+    genNames = do
       id <- mid
-      let chkOrSyn tc = (tc ^? _chkedAt) <|> (tc ^? _synthed)
-      typeKind <-
-        ((fst <$> findNodeWithParent id (astDefExpr def)) <|> (TypeNode <$> findType id (astDefType def))) >>= \case
-          ExprNode e -> pure $ Left $ do
-            tc <- e ^. _exprMetaLens % _type
-            chkOrSyn tc
-          TypeNode t -> pure $ Right $ t ^. _typeMetaLens % _type
-          CaseBindNode b -> pure $ Left $ do
-            tc <- b ^. _bindMeta % _type
-            chkOrSyn tc
-      names <-
-        focusNode id <&> \case
-          Left zE -> generateNameExpr typeKind zE
-          Right zT -> generateNameTy typeKind zT
-      pure $ flip Option Nothing . unName <$> runReader names cxt
-    varsInScope' = do
+      node <- (fst <$> findNodeWithParent id (astDefExpr def)) <|> (TypeNode <$> findType id (astDefType def))
+      typeOrKind <- case node of
+        ExprNode e -> pure $ Left $ chkOrSyn =<< e ^. _exprMetaLens % _type
+        TypeNode t -> pure $ Right $ t ^. _typeMetaLens % _type
+        CaseBindNode b -> pure $ Left $ chkOrSyn =<< b ^. _bindMeta % _type
+      z <- focusNode id
+      pure $ map (simpleOpt . unName) $ flip runReader cxt $ case z of
+        Left zE -> generateNameExpr typeOrKind zE
+        Right zT -> generateNameTy typeOrKind zT
+      where
+        chkOrSyn tc = (tc ^? _chkedAt) <|> (tc ^? _synthed)
+    varsInScope = do
       id <- mid
-      node <- focusNode id
-      pure $ case node of
+      z <- focusNode id
+      pure $ case z of
         Left zE -> variablesInScopeExpr defs zE
         Right zT -> (variablesInScopeTy zT, [], [])
     fromGlobal n = Option{option = unName $ baseName n, context = Just $ map unName $ unModuleName $ qualifiedModule n}
-    focusNode id =
-      let mzE = locToEither <$> focusOn id (astDefExpr def)
-          mzT = focusOnTy id $ astDefType def
-       in fmap Left mzE <|> fmap Right mzT
+    focusNode id = map Left (focusNodeE id) <|> map Right (focusNodeT id)
+    focusNodeE id = locToEither <$> focusOn id (astDefExpr def)
+    focusNodeT id = focusOnTy id $ astDefType def
 
 sortByPriority ::
   Level ->
