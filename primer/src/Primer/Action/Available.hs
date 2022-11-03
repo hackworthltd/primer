@@ -2,7 +2,7 @@
 {-# LANGUAGE NoFieldSelectors #-}
 
 -- | Compute all the possible actions which can be performed on a definition.
--- This module is exected to be imported qualified, due to various potential name clashes.
+-- This module is expected to be imported qualified, due to various potential name clashes.
 module Primer.Action.Available (
   Action (..),
   InputAction (..),
@@ -132,7 +132,7 @@ forDef defs l Editable defName =
   sortByPriority l $
     [Input RenameDef, NoInput DuplicateDef]
       <> mwhen
-        -- Ensure it is not in use, otherwise the action will not succeed
+        -- ensure the definition is not in use, otherwise the action will not succeed
         (not $ globalInUse defName $ Map.delete defName defs)
         [NoInput DeleteDef]
 
@@ -151,12 +151,12 @@ forBody tydefs l Editable id expr = sortByPriority l $ case findNodeWithParent i
           Nothing -> [] -- at root already, cannot raise
           Just (ExprNode (Hole _ _)) -> [] -- in a NE hole, don't offer raise (as hole will probably just be recreated)
           _ -> [NoInput Raise]
-     in actionsForExpr tydefs l e <> raiseAction
+     in forExpr tydefs l e <> raiseAction
   Just (TypeNode t, p) ->
     let raiseAction = case p of
           Just (ExprNode _) -> [] -- at the root of an annotation, so cannot raise
           _ -> [NoInput Raise]
-     in actionsForType l t <> raiseAction
+     in forType l t <> raiseAction
   Just (CaseBindNode _, _) -> [Input RenamePattern]
 
 forSig ::
@@ -169,11 +169,11 @@ forSig _ NonEditable _ _ = mempty
 forSig l Editable id ty = sortByPriority l $ case findType id ty of
   Nothing -> mempty
   Just t ->
-    actionsForType l t
+    forType l t
       <> mwhen (id /= getID ty) [NoInput RaiseType]
 
-actionsForExpr :: TypeDefMap -> Level -> Expr -> [Action]
-actionsForExpr tydefs l expr = case expr of
+forExpr :: TypeDefMap -> Level -> Expr -> [Action]
+forExpr tydefs l expr = case expr of
   EmptyHole{} -> universalActions <> emptyHoleActions
   Hole{} -> defaultActions <> holeActions
   Ann{} -> defaultActions <> annotationActions
@@ -234,8 +234,8 @@ actionsForExpr tydefs l expr = case expr of
        in (synOnly =<< synthTy) ?: both
     defaultActions = universalActions <> [NoInput DeleteExpr]
 
-actionsForType :: Level -> Type -> [Action]
-actionsForType l ty = case ty of
+forType :: Level -> Type -> [Action]
+forType l ty = case ty of
   TEmptyHole{} -> universalActions <> [Input MakeTCon] <> mwhen (l == Expert) [Input MakeTVar]
   TForall{} -> defaultActions <> mwhen (l == Expert) [Input RenameForall]
   TFun{} -> defaultActions <> [NoInput AddInput]
@@ -250,6 +250,7 @@ actionsForType l ty = case ty of
           ]
     defaultActions = universalActions <> [NoInput DeleteType]
 
+-- | An input for an 'InputAction'.
 data Option = Option
   { option :: Text
   , context :: Maybe (NonEmpty Text)
@@ -257,15 +258,15 @@ data Option = Option
   deriving (Eq, Show, Generic)
   deriving (FromJSON, ToJSON) via PrimerJSON Option
 
+-- | The available inputs for an 'InputAction'.
 data Options = Options
   { opts :: [Option]
   , free :: Bool
-  -- ^ allow free text input, rather than just selections from the list
+  -- ^ Allow free text input, rather than just selections from the list.
   }
   deriving (Show, Generic)
   deriving (ToJSON) via PrimerJSON Options
 
--- returns `Nothing` if an ID was required but not passed, or the ID was passed but no node with that ID was found
 options ::
   TypeDefMap ->
   DefMap ->
@@ -274,6 +275,7 @@ options ::
   Level ->
   Maybe ID ->
   InputAction ->
+  -- | Returns 'Nothing' if an ID was required but not passed, or if an ID was passed but not found in the tree.
   Maybe Options
 options typeDefs defs def cxt level mid = \case
   MakeCon ->
