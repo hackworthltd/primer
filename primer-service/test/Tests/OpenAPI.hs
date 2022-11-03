@@ -24,6 +24,7 @@ import Hedgehog (
 import Hedgehog.Gen qualified as G
 import Hedgehog.Range qualified as R
 import Primer.API (
+  ApplyActionBody (..),
   Def (Def),
   Module (Module),
   NodeBody (BoxBody, NoBody, TextBody),
@@ -263,6 +264,8 @@ instance Arbitrary Available.Option where
   arbitrary = Available.Option <$> arbitrary <*> arbitrary
 instance Arbitrary Available.Options where
   arbitrary = Available.Options <$> arbitrary <*> arbitrary
+instance Arbitrary ApplyActionBody where
+  arbitrary = ApplyActionBody <$> arbitrary <*> arbitrary
 instance Arbitrary Selection where
   arbitrary = Selection <$> arbitrary <*> arbitrary
 instance Arbitrary NodeSelection where

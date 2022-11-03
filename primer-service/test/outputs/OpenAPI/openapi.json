@@ -42,6 +42,21 @@
                 ],
                 "type": "object"
             },
+            "ApplyActionBody": {
+                "properties": {
+                    "option": {
+                        "$ref": "#/components/schemas/Option"
+                    },
+                    "selection": {
+                        "$ref": "#/components/schemas/Selection"
+                    }
+                },
+                "required": [
+                    "selection",
+                    "option"
+                ],
+                "type": "object"
+            },
             "Def": {
                 "properties": {
                     "name": {
@@ -573,6 +588,168 @@
                     }
                 },
                 "summary": "Create a new session and return its ID"
+            }
+        },
+        "/openapi/sessions/{sessionId}/action/apply/input": {
+            "post": {
+                "operationId": "applyActionWithInput",
+                "parameters": [
+                    {
+                        "description": "The session ID",
+                        "in": "path",
+                        "name": "sessionId",
+                        "required": true,
+                        "schema": {
+                            "format": "uuid",
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "allowEmptyValue": true,
+                        "in": "query",
+                        "name": "patternsUnder",
+                        "schema": {
+                            "default": false,
+                            "type": "boolean"
+                        }
+                    },
+                    {
+                        "in": "query",
+                        "name": "action",
+                        "required": true,
+                        "schema": {
+                            "enum": [
+                                "MakeCon",
+                                "MakeConSat",
+                                "MakeVar",
+                                "MakeVarSat",
+                                "MakeLet",
+                                "MakeLetRec",
+                                "MakeLam",
+                                "MakeLAM",
+                                "RenamePattern",
+                                "RenameLet",
+                                "RenameLam",
+                                "RenameLAM",
+                                "MakeTCon",
+                                "MakeTVar",
+                                "MakeForall",
+                                "RenameForall",
+                                "RenameDef"
+                            ],
+                            "type": "string"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json;charset=utf-8": {
+                            "schema": {
+                                "$ref": "#/components/schemas/ApplyActionBody"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json;charset=utf-8": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Prog"
+                                }
+                            }
+                        },
+                        "description": ""
+                    },
+                    "400": {
+                        "description": "Invalid `action` or `body` or `patternsUnder`"
+                    },
+                    "404": {
+                        "description": "`sessionId` not found"
+                    }
+                },
+                "summary": "Apply an action with some additional input"
+            }
+        },
+        "/openapi/sessions/{sessionId}/action/apply/simple": {
+            "post": {
+                "operationId": "applyAction",
+                "parameters": [
+                    {
+                        "description": "The session ID",
+                        "in": "path",
+                        "name": "sessionId",
+                        "required": true,
+                        "schema": {
+                            "format": "uuid",
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "allowEmptyValue": true,
+                        "in": "query",
+                        "name": "patternsUnder",
+                        "schema": {
+                            "default": false,
+                            "type": "boolean"
+                        }
+                    },
+                    {
+                        "in": "query",
+                        "name": "action",
+                        "required": true,
+                        "schema": {
+                            "enum": [
+                                "MakeCase",
+                                "MakeApp",
+                                "MakeAPP",
+                                "MakeAnn",
+                                "RemoveAnn",
+                                "LetToRec",
+                                "Raise",
+                                "EnterHole",
+                                "RemoveHole",
+                                "DeleteExpr",
+                                "MakeFun",
+                                "AddInput",
+                                "MakeTApp",
+                                "RaiseType",
+                                "DeleteType",
+                                "DuplicateDef",
+                                "DeleteDef"
+                            ],
+                            "type": "string"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json;charset=utf-8": {
+                            "schema": {
+                                "$ref": "#/components/schemas/Selection"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json;charset=utf-8": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Prog"
+                                }
+                            }
+                        },
+                        "description": ""
+                    },
+                    "400": {
+                        "description": "Invalid `action` or `body` or `patternsUnder`"
+                    },
+                    "404": {
+                        "description": "`sessionId` not found"
+                    }
+                },
+                "summary": "Apply a simple action i.e. one which requires no further input"
             }
         },
         "/openapi/sessions/{sessionId}/action/available": {

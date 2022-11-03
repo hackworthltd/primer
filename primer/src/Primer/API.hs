@@ -47,6 +47,9 @@ module Primer.API (
   flushSessions,
   availableActions,
   actionOptions,
+  applyActionNoInput,
+  applyActionInput,
+  ApplyActionBody (..),
   ExprTreeOpts (..),
   defaultExprTreeOpts,
   -- The following are exported only for testing.
@@ -87,6 +90,7 @@ import Data.Tuple.Extra (curry3)
 import ListT qualified (toList)
 import Optics (ifoldr, over, traverseOf, view, (^.))
 import Primer.API.NodeFlavor (NodeFlavor (..))
+import Primer.Action (ActionError, ProgAction, toProgActionInput, toProgActionNoInput)
 import Primer.Action.Available qualified as Available
 import Primer.App (
   App,
@@ -235,6 +239,8 @@ data PrimerErr
   | UnknownDef GVarName
   | UnexpectedPrimDef GVarName
   | ActionOptionsNoID (Maybe (NodeType, ID))
+  | ToProgActionError Available.Action ActionError
+  | ApplyActionError [ProgAction] ProgError
   deriving (Show)
 
 instance Exception PrimerErr
@@ -351,6 +357,8 @@ data APILog
   | FlushSessions (ReqResp () ())
   | AvailableActions (ReqResp (SessionId, Level, Selection) [Available.Action])
   | ActionOptions (ReqResp (SessionId, Level, Selection, Available.InputAction) Available.Options)
+  | ApplyActionNoInput (ReqResp (ExprTreeOpts, SessionId, Selection, Available.NoInputAction) Prog)
+  | ApplyActionInput (ReqResp (ExprTreeOpts, SessionId, ApplyActionBody, Available.InputAction) Prog)
   deriving (Show)
 
 type MonadAPILog l m = (MonadLog (WithSeverity l) m, ConvertLogMessage APILog l)
@@ -967,6 +975,60 @@ findASTDef allDefs def = case allDefs Map.!? def of
   Nothing -> throwM $ UnknownDef def
   Just (_, Def.DefPrim _) -> throwM $ UnexpectedPrimDef def
   Just (editable, Def.DefAST d) -> pure (editable, d)
+
+applyActionNoInput ::
+  (MonadIO m, MonadThrow m, MonadAPILog l m) =>
+  ExprTreeOpts ->
+  SessionId ->
+  Selection ->
+  Available.NoInputAction ->
+  PrimerM m Prog
+applyActionNoInput = curry4 $ logAPI (noError ApplyActionNoInput) $ \(opts, sid, selection, action) -> do
+  prog <- getProgram sid
+  def <- snd <$> findASTDef (progAllDefs prog) selection.def
+  actions <-
+    either (throwM . ToProgActionError (Available.NoInput action)) pure $
+      toProgActionNoInput
+        (snd <$> progAllDefs prog)
+        def
+        selection.def
+        (selection.node <&> \s -> (s.nodeType, s.id))
+        action
+  applyActions opts sid actions
+
+applyActionInput ::
+  (MonadIO m, MonadThrow m, MonadAPILog l m) =>
+  ExprTreeOpts ->
+  SessionId ->
+  ApplyActionBody ->
+  Available.InputAction ->
+  PrimerM m Prog
+applyActionInput = curry4 $ logAPI (noError ApplyActionInput) $ \(opts, sid, body, action) -> do
+  prog <- getProgram sid
+  def <- snd <$> findASTDef (progAllDefs prog) body.selection.def
+  actions <-
+    either (throwM . ToProgActionError (Available.Input action)) pure $
+      toProgActionInput
+        def
+        body.selection.def
+        (body.selection.node <&> \s -> (s.nodeType, s.id))
+        body.option
+        action
+  applyActions opts sid actions
+
+data ApplyActionBody = ApplyActionBody
+  { selection :: Selection
+  , option :: Available.Option
+  }
+  deriving (Generic, Show)
+  deriving (FromJSON, ToJSON) via PrimerJSON ApplyActionBody
+
+applyActions :: (MonadIO m, MonadThrow m, MonadAPILog l m) => ExprTreeOpts -> SessionId -> [ProgAction] -> PrimerM m Prog
+applyActions opts sid actions =
+  edit sid (App.Edit actions)
+    >>= either
+      (throwM . ApplyActionError actions)
+      (pure . viewProg opts)
 
 -- | 'App.Selection' without any node metadata.
 data Selection = Selection

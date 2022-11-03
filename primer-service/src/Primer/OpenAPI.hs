@@ -36,7 +36,7 @@ import Deriving.Aeson (AesonOptions (aesonOptions))
 import Optics (
   (?~),
  )
-import Primer.API (Def, ExprTreeOpts, Module, NodeBody, NodeFlavor, NodeSelection (..), Prog, Selection (..), Tree)
+import Primer.API (ApplyActionBody, Def, ExprTreeOpts, Module, NodeBody, NodeFlavor, NodeSelection (..), Prog, Selection (..), Tree)
 import Primer.Action.Available qualified as Available
 import Primer.Core (
   GlobalName,
@@ -120,6 +120,7 @@ deriving via PrimerJSON Available.InputAction instance ToSchema Available.InputA
 deriving via PrimerJSON Available.Option instance ToSchema Available.Option
 deriving via PrimerJSON Available.Options instance ToSchema Available.Options
 deriving via PrimerJSON Available.Action instance ToSchema Available.Action
+deriving via PrimerJSON ApplyActionBody instance ToSchema ApplyActionBody
 deriving via PrimerJSON Selection instance ToSchema Selection
 deriving via PrimerJSON NodeSelection instance ToSchema NodeSelection
 deriving via PrimerJSON NodeType instance ToSchema NodeType
