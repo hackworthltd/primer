@@ -639,11 +639,6 @@ basicActionsForExpr tydefs l defName expr = case expr of
     defaultActions :: forall a. ExprMeta -> [ActionSpec Expr a]
     defaultActions m = universalActions m <> [deleteExpr]
 
-(?:) :: Maybe a -> [a] -> [a]
-Just x ?: xs = x : xs
-Nothing ?: xs = xs
-infixr 5 ?:
-
 -- | Given a type, determine what basic actions it supports
 -- Specific projections may provide other actions not listed here
 basicActionsForType :: Level -> GVarName -> Type -> [OfferedAction [Action]]
