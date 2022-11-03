@@ -1,77 +1,79 @@
--- | Compute all the possible actions which can be performed on a definition
+{-# LANGUAGE BlockArguments #-}
+{-# LANGUAGE NoFieldSelectors #-}
+
+-- | Compute all the possible actions which can be performed on a definition.
+-- This module is expected to be imported qualified, due to various potential name clashes.
 module Primer.Action.Available (
-  actionsForDef,
-  actionsForDefBody,
-  actionsForDefSig,
+  Action (..),
+  InputAction (..),
+  NoInputAction (..),
+  forDef,
+  forBody,
+  forSig,
+  Option (..),
+  Options (..),
+  options,
 ) where
 
 import Foreword
 
-import Data.List.NonEmpty qualified as NE
 import Data.Map qualified as Map
 import Data.Set qualified as Set
+import Data.Tuple.Extra (fst3)
 import Optics (
   to,
   (%),
   (^.),
+  (^..),
   (^?),
   _Just,
  )
-import Primer.Action (
-  Action (..),
-  ActionInput (..),
-  ActionName (..),
-  ActionType (..),
-  FunctionFiltering (..),
-  Movement (..),
-  OfferedAction (..),
-  ProgAction (..),
-  UserInput (..),
-  nameString,
-  uniquifyDefName,
- )
 import Primer.Action.Priorities qualified as P
 import Primer.Core (
-  Bind' (..),
   Expr,
   Expr' (..),
-  ExprMeta,
   GVarName,
   GlobalName (baseName, qualifiedModule),
   ID,
-  Kind,
-  LVarName,
-  Meta (..),
+  ModuleName (unModuleName),
+  NodeType (..),
   Type,
   Type' (..),
-  TypeCache (..),
   getID,
   unLocalName,
   _bindMeta,
   _chkedAt,
   _exprMetaLens,
-  _id,
   _synthed,
   _type,
   _typeMetaLens,
  )
-import Primer.Core.Transform (unfoldFun)
-import Primer.Core.Utils (forgetTypeMetadata, freeVars)
+import Primer.Core.Utils (freeVars)
 import Primer.Def (
   ASTDef (..),
-  Def,
-  defAST,
+  DefMap,
  )
 import Primer.Def.Utils (globalInUse)
-import Primer.Editable (Editable (Editable, NonEditable))
+import Primer.Editable (Editable (..))
+import Primer.JSON (CustomJSON (..), FromJSON, PrimerJSON, ToJSON)
 import Primer.Level (Level (..))
 import Primer.Name (unName)
-import Primer.Questions (Question (..))
+import Primer.Questions (
+  generateNameExpr,
+  generateNameTy,
+  variablesInScopeExpr,
+  variablesInScopeTy,
+ )
 import Primer.TypeDef (
+  ASTTypeDef (astTypeDefConstructors),
   TypeDef (TypeDefAST),
   TypeDefMap,
+  ValCon (valConArgs),
+  typeDefAST,
+  valConName,
  )
 import Primer.Typecheck (
+  Cxt,
   TypeDefError (TDIHoleType),
   TypeDefInfo (TypeDefInfo),
   getTypeDefInfo',
@@ -80,625 +82,375 @@ import Primer.Zipper (
   SomeNode (..),
   findNodeWithParent,
   findType,
+  focusOn,
+  focusOnTy,
+  locToEither,
  )
 
-actionsForDef ::
+-- | An offered action.
+data Action
+  = NoInput NoInputAction
+  | Input InputAction
+  deriving (Eq, Ord, Show, Generic)
+  deriving (ToJSON) via PrimerJSON Action
+
+-- | An action which can be applied without requiring further input.
+data NoInputAction
+  = MakeCase
+  | MakeApp
+  | MakeAPP
+  | MakeAnn
+  | RemoveAnn
+  | LetToRec
+  | Raise
+  | EnterHole
+  | RemoveHole
+  | DeleteExpr
+  | MakeFun
+  | AddInput
+  | MakeTApp
+  | RaiseType
+  | DeleteType
+  | DuplicateDef
+  | DeleteDef
+  deriving (Eq, Ord, Show, Read, Enum, Bounded, Generic)
+  deriving (ToJSON, FromJSON) via PrimerJSON NoInputAction
+
+-- | An action which requires extra data (often a name) before it can be applied.
+data InputAction
+  = MakeCon
+  | MakeConSat
+  | MakeVar
+  | MakeVarSat
+  | MakeLet
+  | MakeLetRec
+  | MakeLam
+  | MakeLAM
+  | RenamePattern
+  | RenameLet
+  | RenameLam
+  | RenameLAM
+  | MakeTCon
+  | MakeTVar
+  | MakeForall
+  | RenameForall
+  | RenameDef
+  deriving (Eq, Ord, Show, Read, Enum, Bounded, Generic)
+  deriving (ToJSON, FromJSON) via PrimerJSON InputAction
+
+forDef ::
+  DefMap ->
   Level ->
-  -- | All existing definitions, along with their mutability
-  Map GVarName (Editable, Def) ->
-  -- | The name of a definition in the map
+  Editable ->
   GVarName ->
-  [OfferedAction [ProgAction]]
-actionsForDef l defs defName = catMaybes [rename, duplicate, delete]
-  where
-    rename = do
-      _ <- getEditableASTDef
-      pure $
-        OfferedAction
-          { name = Prose "r"
-          , description = "Rename this definition"
-          , input =
-              InputRequired $
-                ChooseOrEnterName
-                  ("Enter a new " <> nameString <> " for the definition")
-                  []
-                  (\name -> [RenameDef defName (unName name)])
-          , priority = P.rename l
-          , actionType = Primary
-          }
-    duplicate = do
-      def <- getEditableASTDef
-      pure $
-        OfferedAction
-          { name = Prose "d"
-          , description = "Duplicate this definition"
-          , input =
-              let sigID = getID $ astDefType def
+  [Action]
+forDef _ _ NonEditable _ = mempty
+forDef defs l Editable defName =
+  sortByPriority l $
+    [Input RenameDef, NoInput DuplicateDef]
+      <> mwhen
+        -- ensure the definition is not in use, otherwise the action will not succeed
+        (not $ globalInUse defName $ Map.delete defName defs)
+        [NoInput DeleteDef]
 
-                  bodyID = getID $ astDefExpr def
-
-                  copyName = uniquifyDefName (qualifiedModule defName) (unName (baseName defName) <> "Copy") $ fmap snd defs
-               in NoInputRequired
-                    [ CreateDef (qualifiedModule defName) (Just copyName)
-                    , CopyPasteSig (defName, sigID) []
-                    , CopyPasteBody (defName, bodyID) []
-                    ]
-          , priority = P.duplicate l
-          , actionType = Primary
-          }
-    delete = do
-      -- Ensure it is not in use, otherwise the action will not succeed
-      _ <- getEditableDef
-      guard $ not $ globalInUse defName $ Map.delete defName $ fmap snd defs
-      pure
-        OfferedAction
-          { name = Prose "⌫"
-          , description = "Delete this definition"
-          , input = NoInputRequired [DeleteDef defName]
-          , priority = P.delete l
-          , actionType = Destructive
-          }
-    getEditableDef = do
-      (m, d) <- Map.lookup defName defs
-      case m of
-        NonEditable -> Nothing
-        Editable -> pure d
-    getEditableASTDef = defAST =<< getEditableDef
-
--- | Given the body of a Def and the ID of a node in it, return the possible actions that can be applied to it
-actionsForDefBody ::
+forBody ::
   TypeDefMap ->
   Level ->
-  GVarName ->
   Editable ->
-  ID ->
   Expr ->
-  [OfferedAction [ProgAction]]
-actionsForDefBody _ _ _ NonEditable _ _ = mempty
-actionsForDefBody tydefs l defName mut@Editable id expr =
-  let toProgAction actions = [MoveToDef defName, BodyAction actions]
-
-      raiseAction' =
-        OfferedAction
-          { name = Prose "↑"
-          , description = "Replace parent with this subtree"
-          , input = NoInputRequired [MoveToDef defName, CopyPasteBody (defName, id) [SetCursor id, Move Parent, Delete]]
-          , priority = P.raise l
-          , actionType = Destructive
-          }
-   in case findNodeWithParent id expr of
-        Nothing -> mempty
-        Just (ExprNode e, p) ->
-          let raiseAction = case p of
-                Nothing -> [] -- at root already, cannot raise
-                Just (ExprNode (Hole _ _)) -> [] -- in a NE hole, don't offer raise (as hole will probably just be recreated)
-                _ -> [raiseAction']
-           in (toProgAction <<$>> basicActionsForExpr tydefs l defName e) <> raiseAction
-        Just (TypeNode t, p) ->
-          let raiseAction = case p of
-                Just (ExprNode _) -> [] -- at the root of an annotation, so cannot raise
-                _ -> [raiseAction']
-           in ( toProgAction
-                  <<$>> (basicActionsForType l defName t <> compoundActionsForType l t)
-              )
-                <> raiseAction
-        Just (CaseBindNode b, _) -> toProgAction <<$>> actionsForBinding l defName mut b
-
--- | Given a the type signature of a Def and the ID of a node in it,
--- return the possible actions that can be applied to it
-actionsForDefSig ::
-  Level ->
-  GVarName ->
-  Editable ->
   ID ->
-  Type ->
-  [OfferedAction [ProgAction]]
-actionsForDefSig _ _ NonEditable _ _ = mempty
-actionsForDefSig l defName Editable id ty =
-  let toProgAction actions = [MoveToDef defName, SigAction actions]
+  [Action]
+forBody _ _ NonEditable _ _ = mempty
+forBody tydefs l Editable expr id = sortByPriority l $ case findNodeWithParent id expr of
+  Nothing -> mempty
+  Just (ExprNode e, p) ->
+    let raiseAction = case p of
+          Nothing -> [] -- at root already, cannot raise
+          Just (ExprNode (Hole _ _)) -> [] -- in a NE hole, don't offer raise (as hole will probably just be recreated)
+          _ -> [NoInput Raise]
+     in forExpr tydefs l e <> raiseAction
+  Just (TypeNode t, p) ->
+    let raiseAction = case p of
+          Just (ExprNode _) -> [] -- at the root of an annotation, so cannot raise
+          _ -> [NoInput Raise]
+     in forType l t <> raiseAction
+  Just (CaseBindNode _, _) ->
+    [Input RenamePattern]
 
-      raiseAction =
-        [ OfferedAction
-          { name = Prose "↑"
-          , description = "Replace parent with this subtree"
-          , input = NoInputRequired [MoveToDef defName, CopyPasteSig (defName, id) [SetCursor id, Move Parent, Delete]]
-          , priority = P.raise l
-          , actionType = Destructive
-          }
-        | id /= getID ty
-        ]
-   in case findType id ty of
-        Nothing -> mempty
-        Just t ->
-          ( toProgAction
-              <<$>> (basicActionsForType l defName t <> compoundActionsForType l t)
-          )
-            <> raiseAction
-
--- | Bindings support just one action: renaming.
-actionsForBinding ::
+forSig ::
   Level ->
-  GVarName ->
   Editable ->
-  Bind' (Meta (Maybe TypeCache)) ->
-  [OfferedAction [Action]]
-actionsForBinding _ _ NonEditable _ = mempty
-actionsForBinding l defName Editable b =
-  realise
-    b
-    (b ^. _bindMeta)
-    [ \_p m' ->
-        OfferedAction
-          { name = Prose "r"
-          , description = "Rename this pattern variable"
-          , input =
-              actionWithNames
-                defName
-                (Left $ b ^? _bindMeta % _type % _Just % _chkedAt)
-                (\n -> [RenameCaseBinding n])
-                m'
-                ("Choose a new " <> nameString <> " for the pattern variable")
-          , priority = P.rename l
-          , actionType = Primary
-          }
-    ]
+  Type ->
+  ID ->
+  [Action]
+forSig _ NonEditable _ _ = mempty
+forSig l Editable ty id = sortByPriority l $ case findType id ty of
+  Nothing -> mempty
+  Just t ->
+    forType l t
+      <> mwhen (id /= getID ty) [NoInput RaiseType]
 
--- | An ActionSpec is an OfferedAction that needs
--- metadata in order to be used. Typically this is because it starts with
--- SetCursor, which needs an ID.
---
--- Type parameter 'p' is a ghost parameter that provides some type
--- safety, to prevent the accidental mixing of actions for different
--- types (e.g., to prevent the mixing of actions for 'Expr's and
--- 'Type's). The argument of type 'p' in the type signature is not
--- used other than to provide proof that you have a value of type 'p'.
-type ActionSpec p a =
-  p -> Meta a -> OfferedAction [Action]
-
--- | From multiple actions, construct an ActionSpec which starts with SetCursor
-action :: forall a p. ActionName -> Text -> Int -> ActionType -> [Action] -> ActionSpec p a
-action name description priority actionType as _p m =
-  OfferedAction
-    { name
-    , description
-    , input = NoInputRequired $ SetCursor (m ^. _id) : as
-    , priority
-    , actionType
-    }
-
--- | Construct an ActionSpec which requires some input, and then starts with SetCursor
-actionWithInput :: forall a p. ActionName -> Text -> Int -> ActionType -> UserInput [Action] -> ActionSpec p a
-actionWithInput name description priority actionType input _p m =
-  OfferedAction
-    { name
-    , description
-    , input = InputRequired $ map (\as -> SetCursor (m ^. _id) : as) input
-    , priority
-    , actionType
-    }
-
--- | Construct an ActionSpec which requires the user to select from a bunch of
--- generated names for the current location (or specify their own), and starts
--- with SetCursor. Requires the definition name.
-actionWithNames ::
-  forall a.
-  GVarName ->
-  Either (Maybe (Type' ())) (Maybe Kind) ->
-  (Text -> [Action]) ->
-  Meta a ->
-  Text ->
-  ActionInput [Action]
-actionWithNames defName tk k m prompt =
-  AskQuestion (GenerateName defName (m ^. _id) tk) $ \options ->
-    InputRequired $
-      ChooseOrEnterName
-        prompt
-        options
-        (\n -> SetCursor (m ^. _id) : k (unName n))
-
--- | A set of ActionSpecs can be realised by providing them with metadata.
-realise :: forall a p. p -> Meta a -> [ActionSpec p a] -> [OfferedAction [Action]]
-realise p m = map (\a -> a p m)
-
--- | Given an expression, determine what basic actions it supports
--- Specific projections may provide other actions not listed here
-basicActionsForExpr :: TypeDefMap -> Level -> GVarName -> Expr -> [OfferedAction [Action]]
-basicActionsForExpr tydefs l defName expr = case expr of
-  EmptyHole m -> realise expr m $ universalActions m <> emptyHoleActions m
-  Hole m _ -> realise expr m $ defaultActions m <> holeActions
-  Ann m _ _ -> realise expr m $ defaultActions m <> annotationActions
-  Lam m _ _ -> realise expr m $ defaultActions m <> lambdaActions m
-  LAM m _ _ -> realise expr m $ defaultActions m <> bigLambdaActions m
-  Let m v e _ -> realise expr m $ defaultActions m <> letActions v e
-  Letrec m _ _ t _ -> realise expr m $ defaultActions m <> letRecActions (Just t)
-  e -> realise expr (e ^. _exprMetaLens) $ defaultActions (e ^. _exprMetaLens) ++ expert annotateExpression
+forExpr :: TypeDefMap -> Level -> Expr -> [Action]
+forExpr tydefs l expr =
+  universalActions <> synOnly <> case expr of
+    EmptyHole{} ->
+      annotate
+        <> [ Input MakeVar
+           , Input MakeCon
+           ]
+        <> mwhen
+          (l /= Beginner)
+          [ Input MakeVarSat
+          , Input MakeConSat
+          , Input MakeLet
+          , Input MakeLetRec
+          , NoInput EnterHole
+          ]
+    Hole{} ->
+      delete
+        <> annotate
+        <> [NoInput RemoveHole]
+    Ann{} ->
+      delete
+        <> mwhen (l == Expert) [NoInput RemoveAnn]
+    Lam{} ->
+      delete
+        <> annotate
+        <> [Input RenameLam]
+    LAM{} ->
+      delete
+        <> annotate
+        <> mwhen (l == Expert) [Input RenameLAM]
+    Let _ v e _ ->
+      delete
+        <> annotate
+        <> [Input RenameLet]
+        <> munless (unLocalName v `Set.member` freeVars e) [NoInput LetToRec]
+    Letrec{} ->
+      delete
+        <> annotate
+        <> [Input RenameLet]
+    _ ->
+      delete
+        <> annotate
   where
-    insertVariable =
-      let filterVars = case l of
-            Beginner -> NoFunctions
-            _ -> Everything
-       in actionWithInput (Code "x") "Use a variable" (P.useVar l) Primary $
-            ChooseVariable filterVars $
-              pure . ConstructVar
-
-    -- If we have a useful type, offer the refine action, otherwise offer the
-    -- saturate action.
-    offerRefined :: ExprMeta -> Bool
-    offerRefined m = case m ^? _type % _Just % _chkedAt of
-      Just (TEmptyHole _) -> False
-      Just (THole _ _) -> False
-      Just _ -> True
-      _ -> False
-
-    -- NB: Exactly one of the saturated and refined actions will be available
-    -- (depending on whether we have useful type information to hand).
-    -- We put the same labels on each.
-    insertVariableSaturatedRefined :: forall a. ExprMeta -> ActionSpec Expr a
-    insertVariableSaturatedRefined m =
-      actionWithInput (Code "f $ ?") "Apply a function to arguments" (P.useFunction l) Primary $
-        ChooseVariable OnlyFunctions $
-          \name -> [if offerRefined m then InsertRefinedVar name else InsertSaturatedVar name]
-
-    annotateExpression :: forall a. ActionSpec Expr a
-    annotateExpression = action (Code ":") "Annotate this expression with a type" (P.annotateExpr l) Primary [ConstructAnn]
-
-    applyFunction :: forall a. ActionSpec Expr a
-    applyFunction = action (Code "$") "Apply function" (P.applyFunction l) Primary [ConstructApp, Move Child2]
-
-    applyType :: forall a. ActionSpec Expr a
-    applyType = action (Code "@") "Apply type" (P.applyType l) Destructive [ConstructAPP, EnterType]
-
-    patternMatch :: forall a. ActionSpec Expr a
-    patternMatch = action (Code "m") patternMatchProse (P.makeCase l) Destructive [ConstructCase]
-
-    patternMatchProse = case l of
-      Beginner -> "Match a variable with its value"
-      Intermediate -> "Match a variable with its value"
-      Expert -> "Pattern match"
-
-    makeLambda :: forall a. Meta (Maybe TypeCache) -> ActionSpec Expr a
-    makeLambda m _p m' =
-      OfferedAction
-        { name = Code "λx"
-        , description = "Make a function with an input"
-        , input =
-            actionWithNames
-              defName
-              (Left $ join $ m ^? _type % _Just % _chkedAt % to lamVarTy)
-              (\n -> [ConstructLam $ Just n])
-              m'
-              ("Choose a " <> nameString <> " for the input variable")
-        , priority = P.makeLambda l
-        , actionType = Primary
-        }
-
-    makeTypeAbstraction :: forall a. ExprMeta -> ActionSpec Expr a
-    makeTypeAbstraction m _p m' =
-      OfferedAction
-        { name = Code "Λx"
-        , description = "Make a type abstraction"
-        , input =
-            actionWithNames
-              defName
-              (Right $ join $ m ^? _type % _Just % _chkedAt % to lAMVarKind)
-              (\n -> [ConstructLAM $ Just n])
-              m'
-              ("Choose a " <> nameString <> " for the bound type variable")
-        , priority = P.makeTypeAbstraction l
-        , actionType = Primary
-        }
-
-    useValueConstructor :: forall a. ActionSpec Expr a
-    useValueConstructor =
-      let filterCtors = case l of
-            Beginner -> NoFunctions
-            _ -> Everything
-       in actionWithInput
-            (Code "V")
-            "Use a value constructor"
-            (P.useValueCon l)
-            Primary
-            $ ChooseConstructor filterCtors (\c -> [ConstructCon c])
-
-    -- NB: Exactly one of the saturated and refined actions will be available
-    -- (depending on whether we have useful type information to hand).
-    -- We put the same labels on each.
-    useSaturatedRefinedValueConstructor :: forall a. ExprMeta -> ActionSpec Expr a
-    useSaturatedRefinedValueConstructor m =
-      actionWithInput
-        (Code "V $ ?")
-        "Apply a value constructor to arguments"
-        (P.useSaturatedValueCon l)
-        Primary
-        $ ChooseConstructor OnlyFunctions (\c -> [if offerRefined m then ConstructRefinedCon c else ConstructSaturatedCon c])
-
-    makeLetBinding :: forall a. ActionSpec Expr a
-    makeLetBinding _p m' =
-      OfferedAction
-        { name = Code "="
-        , description = "Make a let binding"
-        , input =
-            actionWithNames
-              defName
-              (Left Nothing)
-              (\n -> [ConstructLet $ Just n])
-              m'
-              ("Choose a " <> nameString <> " for the new let binding")
-        , priority = P.makeLet l
-        , actionType = Primary
-        }
-
-    makeLetrec :: forall a. ActionSpec Expr a
-    makeLetrec _p m' =
-      OfferedAction
-        { name = Code "=,="
-        , description = "Make a recursive let binding"
-        , input =
-            actionWithNames
-              defName
-              (Left Nothing)
-              (\n -> [ConstructLetrec $ Just n])
-              m'
-              ("Choose a " <> nameString <> " for the new let binding")
-        , priority = P.makeLetrec l
-        , actionType = Primary
-        }
-
-    enterHole :: forall a. ActionSpec Expr a
-    enterHole = action (Prose "h") "Make this hole into a non-empty hole" (P.enterHole l) Primary [EnterHole]
-
-    finishHole :: forall a. ActionSpec Expr a
-    finishHole = action (Prose "e") "Convert this into a normal expression" (P.finishHole l) Primary [FinishHole]
-
-    removeAnnotation :: forall a. ActionSpec Expr a
-    removeAnnotation = action (Prose "⌫:") "Remove this annotation" (P.removeAnnotation l) Destructive [RemoveAnn]
-
-    renameVariable :: forall a. ExprMeta -> ActionSpec Expr a
-    renameVariable m _p m' =
-      OfferedAction
-        { name = Prose "r"
-        , description = "Rename this input variable"
-        , input =
-            actionWithNames
-              defName
-              (Left $ join $ m ^? _type % _Just % _chkedAt % to lamVarTy)
-              (\n -> [RenameLam n])
-              m'
-              ("Choose a new " <> nameString <> " for the input variable")
-        , priority = P.rename l
-        , actionType = Primary
-        }
-
-    renameTypeVariable :: forall a. ExprMeta -> ActionSpec Expr a
-    renameTypeVariable m _p m' =
-      OfferedAction
-        { name = Prose "r"
-        , description = "Rename this type variable"
-        , input =
-            actionWithNames
-              defName
-              (Right $ join $ m ^? _type % _Just % _chkedAt % to lAMVarKind)
-              (\n -> [RenameLAM n])
-              m'
-              ("Choose a new " <> nameString <> " for the type variable")
-        , priority = P.rename l
-        , actionType = Primary
-        }
-
-    makeLetRecursive :: forall a. ActionSpec Expr a
-    makeLetRecursive = action (Prose "rec") "Make this let recursive" (P.makeLetRecursive l) Primary [ConvertLetToLetrec]
-
-    renameLet :: forall a b. Maybe (Type' b) -> ActionSpec Expr a
-    renameLet t _p m' =
-      OfferedAction
-        { name = Prose "r"
-        , description = "Rename this let binding"
-        , input =
-            actionWithNames
-              defName
-              (Left $ forgetTypeMetadata <$> t)
-              (\n -> [RenameLet n])
-              m'
-              ("Choose a new " <> nameString <> " for the let binding")
-        , priority = P.rename l
-        , actionType = Primary
-        }
-
-    deleteExpr :: forall a. ActionSpec Expr a
-    deleteExpr = action (Prose "⌫") "Delete this expression" (P.delete l) Destructive [Delete]
-
-    expert :: a -> [a]
-    expert = if l == Expert then (: []) else const []
-
-    emptyHoleActions :: forall a. ExprMeta -> [ActionSpec Expr a]
-    emptyHoleActions m = case l of
+    universalActions = case l of
       Beginner ->
-        [ insertVariable
-        , useValueConstructor
+        [ Input MakeLam
         ]
-      _ ->
-        [ insertVariable
-        , insertVariableSaturatedRefined m
-        , useValueConstructor
-        , useSaturatedRefinedValueConstructor m
-        , makeLetBinding
-        , makeLetrec
-        , enterHole
+      Intermediate ->
+        [ Input MakeLam
+        , NoInput MakeApp
         ]
-          ++ expert annotateExpression
-
-    holeActions :: forall a. [ActionSpec Expr a]
-    holeActions = finishHole : expert annotateExpression
-
-    annotationActions :: forall a. [ActionSpec Expr a]
-    annotationActions = case l of
-      Beginner -> []
-      Intermediate -> []
-      Expert -> [removeAnnotation]
-
-    lambdaActions :: forall a. ExprMeta -> [ActionSpec Expr a]
-    lambdaActions m = renameVariable m : expert annotateExpression
-
-    bigLambdaActions :: forall a. ExprMeta -> [ActionSpec Expr a]
-    bigLambdaActions m = case l of
-      Beginner -> []
-      Intermediate -> []
-      Expert -> [annotateExpression, renameTypeVariable m]
-
-    letActions :: forall a. LVarName -> Expr -> [ActionSpec Expr a]
-    letActions v e =
-      renameLet (e ^? _exprMetaLens % _type % _Just % _synthed)
-        : munless (unLocalName v `Set.member` freeVars e) [makeLetRecursive]
-          <> expert annotateExpression
-
-    letRecActions :: forall a b. Maybe (Type' b) -> [ActionSpec Expr a]
-    letRecActions t = renameLet t : expert annotateExpression
-
-    -- Actions for every expression node
+      Expert ->
+        [ NoInput MakeApp
+        , NoInput MakeAPP
+        , Input MakeLam
+        , Input MakeLAM
+        ]
     -- We assume that the input program is type-checked, in order to
     -- filter some actions by Syn/Chk
-    universalActions :: forall a. ExprMeta -> [ActionSpec Expr a]
-    universalActions m =
-      let both = case l of
-            Beginner ->
-              [ makeLambda m
-              ]
-            Intermediate ->
-              [ makeLambda m
-              , applyFunction
-              ]
-            Expert ->
-              [ applyFunction
-              , applyType
-              , makeLambda m
-              , makeTypeAbstraction m
-              ]
-          synthTy = m ^? _type % _Just % _synthed
-          synOnly ty = case getTypeDefInfo' tydefs ty of
-            Left TDIHoleType{} -> Just patternMatch
-            Right (TypeDefInfo _ _ TypeDefAST{}) -> Just patternMatch
-            _ -> Nothing
-       in (synOnly =<< synthTy) ?: both
+    synOnly =
+      expr ^.. _exprMetaLens % _type % _Just % _synthed % to (getTypeDefInfo' tydefs) >>= \case
+        Left TDIHoleType{} -> [NoInput MakeCase]
+        Right (TypeDefInfo _ _ TypeDefAST{}) -> [NoInput MakeCase]
+        _ -> []
+    annotate = mwhen (l == Expert) [NoInput MakeAnn]
+    delete = [NoInput DeleteExpr]
 
+forType :: Level -> Type -> [Action]
+forType l type_ =
+  universalActions <> case type_ of
+    TEmptyHole{} ->
+      [Input MakeTCon] <> mwhen (l == Expert) [Input MakeTVar]
+    TForall{} ->
+      delete <> mwhen (l == Expert) [Input RenameForall]
+    TFun{} ->
+      delete <> [NoInput AddInput]
+    _ ->
+      delete
+  where
+    universalActions =
+      [NoInput MakeFun]
+        <> mwhen
+          (l == Expert)
+          [ Input MakeForall
+          , NoInput MakeTApp
+          ]
+    delete = [NoInput DeleteType]
+
+-- | An input for an 'InputAction'.
+data Option = Option
+  { option :: Text
+  , context :: Maybe (NonEmpty Text)
+  }
+  deriving (Eq, Show, Generic)
+  deriving (FromJSON, ToJSON) via PrimerJSON Option
+
+-- | The available inputs for an 'InputAction'.
+data Options = Options
+  { opts :: [Option]
+  , free :: Bool
+  -- ^ Allow free text input, rather than just selections from the list.
+  }
+  deriving (Show, Generic)
+  deriving (ToJSON) via PrimerJSON Options
+
+options ::
+  TypeDefMap ->
+  DefMap ->
+  Cxt ->
+  Level ->
+  ASTDef ->
+  Maybe (NodeType, ID) ->
+  InputAction ->
+  -- | Returns 'Nothing' if an ID was required but not passed, passed but not found in the tree,
+  -- or found but didn't correspond to the expected sort of entity (type/expr/pattern).
+  Maybe Options
+options typeDefs defs cxt level def mNodeSel = \case
+  MakeCon ->
+    pure
+      . noFree
+      . map (globalOpt . valConName)
+      . (if level == Beginner then filter $ null . valConArgs else identity)
+      . concatMap astTypeDefConstructors
+      . mapMaybe (typeDefAST . snd)
+      $ Map.toList typeDefs
+  MakeConSat ->
+    pure
+      . noFree
+      . map (globalOpt . valConName)
+      . filter (not . null . valConArgs)
+      . concatMap astTypeDefConstructors
+      . mapMaybe (typeDefAST . snd)
+      $ Map.toList typeDefs
+  MakeVar ->
+    varOpts
+      <&> noFree . map fst . filter \case
+        -- don't show functions here in beginner mode
+        (_, TFun{}) -> level /= Beginner
+        _ -> True
+  MakeVarSat ->
+    varOpts
+      <&> noFree . map fst . filter \case
+        -- only display functions
+        (_, TFun{}) -> True
+        _ -> False
+  MakeLet ->
+    free <$> genNames (Left Nothing)
+  MakeLetRec ->
+    free <$> genNames (Left Nothing)
+  MakeLam -> do
+    ExprNode e <- findNode
+    free <$> genNames (Left $ join $ e ^? _exprMetaLens % _type % _Just % _chkedAt % to lamVarTy)
+  MakeLAM -> do
+    ExprNode e <- findNode
+    free <$> genNames (Right $ join $ e ^? _exprMetaLens % _type % _Just % _chkedAt % to lAMVarKind)
+  RenamePattern -> do
+    CaseBindNode b <- findNode
+    free <$> genNames (Left $ b ^? _bindMeta % _type % _Just % _chkedAt)
+  RenameLet -> do
+    ExprNode e <- findNode
+    free <$> genNames (Left $ e ^? _exprMetaLens % _type % _Just % _synthed)
+  RenameLam -> do
+    ExprNode e <- findNode
+    free <$> genNames (Left $ join $ e ^? _exprMetaLens % _type % _Just % _chkedAt % to lamVarTy)
+  RenameLAM -> do
+    ExprNode e <- findNode
+    free <$> genNames (Right $ join $ e ^? _exprMetaLens % _type % _Just % _chkedAt % to lAMVarKind)
+  MakeTCon ->
+    pure $ noFree $ globalOpt . fst <$> Map.toList typeDefs
+  MakeTVar ->
+    noFree . map (localOpt . unLocalName . fst) . fst3 <$> varsInScope
+  MakeForall ->
+    free <$> genNames (Right Nothing)
+  RenameForall -> do
+    TypeNode t <- findNode
+    free <$> genNames (Right $ t ^. _typeMetaLens % _type)
+  RenameDef ->
+    pure $ free []
+  where
+    free opts = Options{opts, free = True}
+    noFree opts = Options{opts, free = False}
+    localOpt = flip Option Nothing . unName
+    globalOpt n =
+      Option
+        { option = unName $ baseName n
+        , context = Just $ map unName $ unModuleName $ qualifiedModule n
+        }
+    varOpts = do
+      (_, locals, globals) <- varsInScope
+      pure $
+        (first (localOpt . unLocalName) <$> locals)
+          <> (first globalOpt <$> globals)
+    findNode = do
+      (nt, id) <- mNodeSel
+      case nt of
+        BodyNode -> fst <$> findNodeWithParent id (astDefExpr def)
+        SigNode -> TypeNode <$> findType id (astDefType def)
+    genNames typeOrKind = do
+      z <- focusNode =<< mNodeSel
+      pure $ map localOpt $ flip runReader cxt $ case z of
+        Left zE -> generateNameExpr typeOrKind zE
+        Right zT -> generateNameTy typeOrKind zT
+    varsInScope = do
+      nodeSel <- mNodeSel
+      focusNode nodeSel <&> \case
+        Left zE -> variablesInScopeExpr defs zE
+        Right zT -> (variablesInScopeTy zT, [], [])
+    focusNode (nt, id) = case nt of
+      BodyNode -> Left . locToEither <$> focusOn id (astDefExpr def)
+      SigNode -> fmap Right $ focusOnTy id $ astDefType def
     -- Extract the source of the function type we were checked at
     -- i.e. the type that a lambda-bound variable would have here
-    lamVarTy :: Type' () -> Maybe (Type' ())
     lamVarTy = \case
       TFun _ s _ -> pure s
       _ -> Nothing
-
     -- Extract the kind a forall-bound variable would have here
-    lAMVarKind :: Type' () -> Maybe Kind
     lAMVarKind = \case
       TForall _ _ k _ -> Just k
       _ -> Nothing
 
-    -- Actions for every expression node except holes and annotations
-    defaultActions :: forall a. ExprMeta -> [ActionSpec Expr a]
-    defaultActions m = universalActions m <> [deleteExpr]
-
--- | Given a type, determine what basic actions it supports
--- Specific projections may provide other actions not listed here
-basicActionsForType :: Level -> GVarName -> Type -> [OfferedAction [Action]]
-basicActionsForType l defName ty = case ty of
-  TEmptyHole m -> realise ty m $ universalActions <> emptyHoleActions
-  TForall m _ k _ -> realise ty m $ defaultActions <> forAllActions k
-  t -> realise ty (t ^. _typeMetaLens) defaultActions
-  where
-    -- We arbitrarily choose that the "construct a function type" action places the focused expression
-    -- on the domain (left) side of the arrow.
-    constructFunctionType :: forall a. ActionSpec Type a
-    constructFunctionType = action (Code "→") "Construct a function type" (P.constructFunction l) Primary [ConstructArrowL, Move Child1]
-
-    constructPolymorphicType :: forall a. ActionSpec Type a
-    constructPolymorphicType _p m' =
-      OfferedAction
-        { name = Code "∀"
-        , description = "Construct a polymorphic type"
-        , input =
-            actionWithNames
-              defName
-              (Right Nothing)
-              (\n -> [ConstructTForall (Just n), Move Child1])
-              m'
-              ("Choose a " <> nameString <> " for the bound type variable")
-        , priority = P.constructForall l
-        , actionType = Primary
-        }
-
-    constructTypeApplication :: forall a. ActionSpec Type a
-    constructTypeApplication = action (Code "$") "Construct a type application" (P.constructTypeApp l) Primary [ConstructTApp, Move Child1]
-
-    useTypeConstructor :: forall a. ActionSpec Type a
-    useTypeConstructor = actionWithInput (Code "T") "Use a type constructor" (P.useTypeCon l) Primary $ ChooseTypeConstructor (\t -> [ConstructTCon t])
-
-    useTypeVariable :: forall a. ActionSpec Type a
-    useTypeVariable = actionWithInput (Code "t") "Use a type variable" (P.useTypeVar l) Primary $ ChooseTypeVariable (\v -> [ConstructTVar v])
-
-    renameTypeVariable :: forall a. Kind -> ActionSpec Type a
-    renameTypeVariable k _p m' =
-      OfferedAction
-        { name = Prose "r"
-        , description = "Rename this type variable"
-        , input =
-            actionWithNames
-              defName
-              (Right $ Just k)
-              (\n -> [RenameForall n])
-              m'
-              ("Choose a new " <> nameString <> " for the bound type variable")
-        , priority = P.rename l
-        , actionType = Primary
-        }
-
-    deleteType :: forall a. ActionSpec Type a
-    deleteType = action (Prose "⌫") "Delete this type" (P.delete l) Destructive [Delete]
-
-    emptyHoleActions :: forall a. [ActionSpec Type a]
-    emptyHoleActions = case l of
-      Beginner -> [useTypeConstructor]
-      Intermediate -> [useTypeConstructor]
-      Expert ->
-        [ useTypeConstructor
-        , useTypeVariable
-        ]
-
-    forAllActions :: forall a. Kind -> [ActionSpec Type a]
-    forAllActions k = case l of
-      Beginner -> mempty
-      Intermediate -> mempty
-      Expert -> [renameTypeVariable k]
-
-    -- Actions for every type node
-    universalActions :: forall a. [ActionSpec Type a]
-    universalActions = case l of
-      Beginner -> [constructFunctionType]
-      Intermediate -> [constructFunctionType]
-      Expert ->
-        [ constructFunctionType
-        , constructPolymorphicType
-        , constructTypeApplication
-        ]
-
-    -- Actions for every type node except empty holes
-    defaultActions :: forall a. [ActionSpec Type a]
-    defaultActions = universalActions <> [deleteType]
-
--- | These actions are more involved than the basic actions.
--- They may involve moving around the AST and performing several basic actions.
-compoundActionsForType :: forall a. Level -> Type' (Meta a) -> [OfferedAction [Action]]
-compoundActionsForType l ty = case ty of
-  TFun m a b -> realise ty m [addFunctionArgument a b]
-  _ -> []
-  where
-    -- This action traverses the function type and adds a function arrow to the end of it,
-    -- resulting in a new argument type. The result type is unchanged.
-    -- The cursor location is also unchanged.
-    -- e.g. A -> B -> C ==> A -> B -> ? -> C
-    addFunctionArgument a b =
-      let (argTypes, _resultType) = unfoldFun a b
-
-          moveToLastArg = replicate (NE.length argTypes) (Move Child2)
-
-          moveBack = replicate (NE.length argTypes) (Move Parent)
-       in action (Code "→A→") "Add an input to this function" (P.addInput l) Primary $ moveToLastArg <> [ConstructArrowR] <> moveBack
+sortByPriority ::
+  Level ->
+  [Action] ->
+  [Action]
+sortByPriority l =
+  sortOn $
+    ($ l) . \case
+      NoInput a -> case a of
+        MakeCase -> P.makeCase
+        MakeApp -> P.applyFunction
+        MakeAPP -> P.applyType
+        MakeAnn -> P.annotateExpr
+        RemoveAnn -> P.removeAnnotation
+        LetToRec -> P.makeLetRecursive
+        Raise -> P.raise
+        EnterHole -> P.enterHole
+        RemoveHole -> P.finishHole
+        DeleteExpr -> P.delete
+        MakeFun -> P.constructFunction
+        AddInput -> P.addInput
+        MakeTApp -> P.constructTypeApp
+        RaiseType -> P.raise
+        DeleteType -> P.delete
+        DuplicateDef -> P.duplicate
+        DeleteDef -> P.delete
+      Input a -> case a of
+        MakeCon -> P.useValueCon
+        MakeConSat -> P.useSaturatedValueCon
+        MakeVar -> P.useVar
+        MakeVarSat -> P.useFunction
+        MakeLet -> P.makeLet
+        MakeLetRec -> P.makeLetrec
+        MakeLam -> P.makeLambda
+        MakeLAM -> P.makeTypeAbstraction
+        RenamePattern -> P.rename
+        RenameLet -> P.rename
+        RenameLam -> P.rename
+        RenameLAM -> P.rename
+        MakeTCon -> P.useTypeCon
+        MakeTVar -> P.useTypeVar
+        MakeForall -> P.constructForall
+        RenameForall -> P.rename
+        RenameDef -> P.rename

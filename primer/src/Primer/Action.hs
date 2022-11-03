@@ -1,4 +1,5 @@
 {-# LANGUAGE GADTs #-}
+{-# LANGUAGE OverloadedRecordDot #-}
 
 module Primer.Action (
   Action (..),
@@ -9,14 +10,9 @@ module Primer.Action (
   applyActionsToTypeSig,
   applyActionsToExpr,
   moveExpr,
-  OfferedAction (..),
-  ActionType (..),
-  FunctionFiltering (..),
-  UserInput (..),
-  ActionInput (..),
-  ActionName (..),
-  nameString,
   uniquifyDefName,
+  toProgActionInput,
+  toProgActionNoInput,
 ) where
 
 import Foreword hiding (mod)
@@ -25,20 +21,23 @@ import Control.Monad.Fresh (MonadFresh)
 import Data.Aeson (Value)
 import Data.Generics.Product (typed)
 import Data.List (findIndex)
+import Data.List.NonEmpty qualified as NE
 import Data.Map.Strict qualified as Map
 import Data.Set qualified as Set
-import Data.Text qualified as T
-import Optics (set, (%), (?~))
+import Optics (set, (%), (?~), (^.), (^?), _Just)
 import Primer.Action.Actions (Action (..), Movement (..), QualifiedText)
+import Primer.Action.Available qualified as Available
 import Primer.Action.Errors (ActionError (..))
 import Primer.Action.ProgAction (ProgAction (..))
 import Primer.Core (
   Expr,
   Expr' (..),
+  GVarName,
   HasMetadata (_metadata),
   ID,
   LVarName,
   LocalName (LocalName, unLocalName),
+  NodeType (..),
   TmVarRef (..),
   TyVarName,
   Type,
@@ -52,6 +51,9 @@ import Primer.Core (
   qualifiedModule,
   unsafeMkGlobalName,
   unsafeMkLocalName,
+  _chkedAt,
+  _exprMetaLens,
+  _type,
  )
 import Primer.Core qualified as C
 import Primer.Core.DSL (
@@ -75,14 +77,13 @@ import Primer.Core.DSL (
   tvar,
   var,
  )
-import Primer.Core.Transform (renameLocalVar, renameTyVar, renameTyVarExpr)
+import Primer.Core.Transform (renameLocalVar, renameTyVar, renameTyVarExpr, unfoldFun)
 import Primer.Core.Utils (forgetTypeMetadata, generateTypeIDs)
 import Primer.Def (
   ASTDef (..),
   Def (..),
   DefMap,
  )
-import Primer.JSON (CustomJSON (..), PrimerJSON, ToJSON)
 import Primer.Module (Module, insertDef)
 import Primer.Name (Name, NameCounter, unName, unsafeMkName)
 import Primer.Name.Fresh (
@@ -91,7 +92,7 @@ import Primer.Name.Fresh (
   mkFreshName,
   mkFreshNameTy,
  )
-import Primer.Questions (Question, uniquify)
+import Primer.Questions (uniquify)
 import Primer.Refine (Inst (InstAPP, InstApp, InstUnconstrainedAPP), refine)
 import Primer.TypeDef (ASTTypeDef (..), TypeDef (..), ValCon (..), valConType)
 import Primer.Typecheck (
@@ -116,8 +117,11 @@ import Primer.Zipper (
   IsZipper,
   Loc,
   Loc' (..),
+  SomeNode (..),
   TypeZ,
   down,
+  findNodeWithParent,
+  findType,
   focus,
   focusLoc,
   focusOn,
@@ -136,83 +140,6 @@ import Primer.Zipper (
   _target,
  )
 import Primer.ZipperCxt (localVariablesInScopeExpr)
-
--- | An OfferedAction is an option that we show to the user.
--- It may require some user input (e.g. to choose what to name a binder, or
--- choose which variable to insert).
--- If picked, it will submit a particular set of actions to the backend.
-data OfferedAction a = OfferedAction
-  { name :: ActionName
-  , description :: Text
-  , input :: ActionInput a
-  , priority :: Int
-  , actionType :: ActionType
-  -- ^ Used primarily for display purposes.
-  }
-  deriving (Functor)
-
--- We will probably add more constructors in future.
-data ActionType
-  = Primary
-  | Destructive
-  deriving (Show, Bounded, Enum, Generic)
-  deriving (ToJSON) via (PrimerJSON ActionType)
-
--- | Filter on variables and constructors according to whether they
--- have a function type.
-data FunctionFiltering
-  = Everything
-  | OnlyFunctions
-  | NoFunctions
-
--- | Further user input is sometimes required to construct an action.
--- For example, when inserting a constructor the user must tell us what
--- constructor.
--- This type models that input and the corresponding output.
--- Currently we can only take a single input per action - in the future this
--- may need to be extended to support multiple inputs.
--- This type is parameterised because we may need it for other things in
--- future, and because it lets us derive a useful functor instance.
-data UserInput a
-  = ChooseConstructor FunctionFiltering (QualifiedText -> a)
-  | ChooseTypeConstructor (QualifiedText -> a)
-  | -- | Renders a choice between some options (as buttons),
-    -- plus a textbox to manually enter a name
-    ChooseOrEnterName
-      Text
-      -- ^ Prompt to show the user, e.g. "choose a name, or enter your own"
-      [Name]
-      -- ^ A bunch of options
-      (Name -> a)
-      -- ^ What to do with whatever name is chosen
-  | ChooseVariable FunctionFiltering (TmVarRef -> a)
-  | ChooseTypeVariable (Text -> a)
-  deriving (Functor)
-
-data ActionInput a where
-  InputRequired :: UserInput a -> ActionInput a
-  NoInputRequired :: a -> ActionInput a
-  AskQuestion :: Question r -> (r -> ActionInput a) -> ActionInput a
-deriving instance Functor ActionInput
-
--- | Some actions' names are meant to be rendered as code, others as
--- prose.
-data ActionName
-  = Code Text
-  | Prose Text
-  deriving (Eq, Show, Generic)
-  deriving (ToJSON) via (PrimerJSON ActionName)
-
--- | Sigh, yes, this is required so that Safari doesn't try to
--- autocomplete these fields with your contact data.
---
--- See
--- https://stackoverflow.com/questions/43058018/how-to-disable-autocomplete-in-address-fields-for-safari
---
--- Note that, according to a comment in the above StackOverflow
--- post, this is screenreader-safe.
-nameString :: Text
-nameString = "n" <> T.singleton '\x200C' <> "ame"
 
 -- | Given a definition name and a program, return a unique variant of
 -- that name (within the specified module). Note that if no definition
@@ -892,3 +819,170 @@ renameForall b zt = case target zt of
             throwError NameCapture
   _ ->
     throwError $ CustomFailure (RenameForall b) "the focused expression is not a forall type"
+
+-- | Convert a high-level 'Available.NoInputAction' to a concrete sequence of 'ProgAction's.
+toProgActionNoInput ::
+  DefMap ->
+  ASTDef ->
+  GVarName ->
+  Maybe (NodeType, ID) ->
+  Available.NoInputAction ->
+  Either ActionError [ProgAction]
+toProgActionNoInput defs def defName mNodeSel = \case
+  Available.MakeCase ->
+    toProgAction [ConstructCase]
+  Available.MakeApp ->
+    toProgAction [ConstructApp, Move Child2]
+  Available.MakeAPP ->
+    toProgAction [ConstructAPP, EnterType]
+  Available.MakeAnn ->
+    toProgAction [ConstructAnn]
+  Available.RemoveAnn ->
+    toProgAction [RemoveAnn]
+  Available.LetToRec ->
+    toProgAction [ConvertLetToLetrec]
+  Available.Raise -> do
+    id <- mid
+    pure [MoveToDef defName, CopyPasteBody (defName, id) [SetCursor id, Move Parent, Delete]]
+  Available.EnterHole ->
+    toProgAction [EnterHole]
+  Available.RemoveHole ->
+    toProgAction [FinishHole]
+  Available.DeleteExpr ->
+    toProgAction [Delete]
+  Available.MakeFun ->
+    -- We arbitrarily choose that the "construct a function type" action places the focused expression
+    -- on the domain (left) side of the arrow.
+    toProgAction [ConstructArrowL, Move Child1]
+  Available.AddInput -> do
+    -- This action traverses the function type and adds a function arrow to the end of it,
+    -- resulting in a new argument type. The result type is unchanged.
+    -- The cursor location is also unchanged.
+    -- e.g. A -> B -> C ==> A -> B -> ? -> C
+    id <- mid
+    type_ <- case findType id $ astDefType def of
+      Just t -> pure t
+      Nothing -> case map fst $ findNodeWithParent id $ astDefExpr def of
+        Just (TypeNode t) -> pure t
+        Just sm -> Left $ NeedType sm
+        Nothing -> Left $ IDNotFound id
+    l <- case type_ of
+      TFun _ a b -> pure $ NE.length $ fst $ unfoldFun a b
+      t -> Left $ NeedTFun t
+    let moveToLastArg = replicate l (Move Child2)
+        moveBack = replicate l (Move Parent)
+     in toProgAction $ moveToLastArg <> [ConstructArrowR] <> moveBack
+  Available.MakeTApp ->
+    toProgAction [ConstructTApp, Move Child1]
+  Available.RaiseType -> do
+    id <- mid
+    pure [MoveToDef defName, CopyPasteSig (defName, id) [SetCursor id, Move Parent, Delete]]
+  Available.DeleteType ->
+    toProgAction [Delete]
+  Available.DuplicateDef ->
+    let sigID = getID $ astDefType def
+        bodyID = getID $ astDefExpr def
+        copyName = uniquifyDefName (qualifiedModule defName) (unName (baseName defName) <> "Copy") defs
+     in pure
+          [ CreateDef (qualifiedModule defName) (Just copyName)
+          , CopyPasteSig (defName, sigID) []
+          , CopyPasteBody (defName, bodyID) []
+          ]
+  Available.DeleteDef ->
+    pure [DeleteDef defName]
+  where
+    toProgAction actions = toProg' actions defName <$> maybeToEither NoNodeSelection mNodeSel
+    mid = maybeToEither NoNodeSelection $ snd <$> mNodeSel
+
+-- | Convert a high-level 'Available.InputAction', and associated 'Available.Option',
+-- to a concrete sequence of 'ProgAction's.
+toProgActionInput ::
+  ASTDef ->
+  GVarName ->
+  Maybe (NodeType, ID) ->
+  Available.Option ->
+  Available.InputAction ->
+  Either ActionError [ProgAction]
+toProgActionInput def defName mNodeSel opt0 = \case
+  Available.MakeCon -> do
+    opt <- optGlobal
+    toProg [ConstructCon opt]
+  Available.MakeConSat -> do
+    ref <- offerRefined
+    opt <- optGlobal
+    toProg [if ref then ConstructRefinedCon opt else ConstructSaturatedCon opt]
+  Available.MakeVar ->
+    toProg [ConstructVar optVar]
+  Available.MakeVarSat -> do
+    ref <- offerRefined
+    toProg [if ref then InsertRefinedVar optVar else InsertSaturatedVar optVar]
+  Available.MakeLet -> do
+    opt <- optLocal
+    toProg [ConstructLet $ Just opt]
+  Available.MakeLetRec -> do
+    opt <- optLocal
+    toProg [ConstructLetrec $ Just opt]
+  Available.MakeLam -> do
+    opt <- optLocal
+    toProg [ConstructLam $ Just opt]
+  Available.MakeLAM -> do
+    opt <- optLocal
+    toProg [ConstructLAM $ Just opt]
+  Available.RenamePattern -> do
+    opt <- optLocal
+    toProg [RenameCaseBinding opt]
+  Available.RenameLet -> do
+    opt <- optLocal
+    toProg [RenameLet opt]
+  Available.RenameLam -> do
+    opt <- optLocal
+    toProg [RenameLam opt]
+  Available.RenameLAM -> do
+    opt <- optLocal
+    toProg [RenameLAM opt]
+  Available.MakeTCon -> do
+    opt <- optGlobal
+    toProg [ConstructTCon opt]
+  Available.MakeTVar -> do
+    opt <- optLocal
+    toProg [ConstructTVar opt]
+  Available.MakeForall -> do
+    opt <- optLocal
+    toProg [ConstructTForall $ Just opt, Move Child1]
+  Available.RenameForall -> do
+    opt <- optLocal
+    toProg [RenameForall opt]
+  Available.RenameDef -> do
+    opt <- optLocal
+    pure [RenameDef defName opt]
+  where
+    mid = maybeToEither NoNodeSelection $ snd <$> mNodeSel
+    optVar = case opt0.context of
+      Just q -> GlobalVarRef $ unsafeMkGlobalName (q, opt0.option)
+      Nothing -> LocalVarRef $ unsafeMkLocalName opt0.option
+    optLocal = case opt0.context of
+      Just _ -> Left $ NeedGlobal opt0
+      Nothing -> pure opt0.option
+    optGlobal = case opt0.context of
+      Nothing -> Left $ NeedLocal opt0
+      Just q -> pure (q, opt0.option)
+    toProg actions = toProg' actions defName <$> maybeToEither NoNodeSelection mNodeSel
+    offerRefined = do
+      id <- mid
+      -- If we have a useful type, offer the refine action, otherwise offer the saturate action.
+      case findNodeWithParent id $ astDefExpr def of
+        Just (ExprNode e, _) -> pure $ case e ^. _exprMetaLens ^? _type % _Just % _chkedAt of
+          Just (TEmptyHole _) -> False
+          Just (THole _ _) -> False
+          Just _ -> True
+          _ -> False
+        Just (sm, _) -> Left $ NeedType sm
+        Nothing -> Left $ IDNotFound id
+
+toProg' :: [Action] -> GVarName -> (NodeType, ID) -> [ProgAction]
+toProg' actions defName (nt, id) =
+  [ MoveToDef defName
+  , (SetCursor id : actions) & case nt of
+      SigNode -> SigAction
+      BodyNode -> BodyAction
+  ]

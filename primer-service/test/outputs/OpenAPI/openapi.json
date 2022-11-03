@@ -1,16 +1,16 @@
 {
     "components": {
         "schemas": {
-            "ActionName": {
+            "Action": {
                 "oneOf": [
                     {
                         "properties": {
                             "contents": {
-                                "type": "string"
+                                "$ref": "#/components/schemas/NoInputAction"
                             },
                             "tag": {
                                 "enum": [
-                                    "Code"
+                                    "NoInput"
                                 ],
                                 "type": "string"
                             }
@@ -24,11 +24,11 @@
                     {
                         "properties": {
                             "contents": {
-                                "type": "string"
+                                "$ref": "#/components/schemas/InputAction"
                             },
                             "tag": {
                                 "enum": [
-                                    "Prose"
+                                    "Input"
                                 ],
                                 "type": "string"
                             }
@@ -41,13 +41,6 @@
                     }
                 ],
                 "type": "object"
-            },
-            "ActionType": {
-                "enum": [
-                    "Primary",
-                    "Destructive"
-                ],
-                "type": "string"
             },
             "Def": {
                 "properties": {
@@ -86,6 +79,28 @@
                 ],
                 "type": "object"
             },
+            "InputAction": {
+                "enum": [
+                    "MakeCon",
+                    "MakeConSat",
+                    "MakeVar",
+                    "MakeVarSat",
+                    "MakeLet",
+                    "MakeLetRec",
+                    "MakeLam",
+                    "MakeLAM",
+                    "RenamePattern",
+                    "RenameLet",
+                    "RenameLam",
+                    "RenameLAM",
+                    "MakeTCon",
+                    "MakeTVar",
+                    "MakeForall",
+                    "RenameForall",
+                    "RenameDef"
+                ],
+                "type": "string"
+            },
             "LastModified": {
                 "example": "2022-10-20T00:00:00Z",
                 "format": "date-time",
@@ -123,6 +138,28 @@
                     "defs"
                 ],
                 "type": "object"
+            },
+            "NoInputAction": {
+                "enum": [
+                    "MakeCase",
+                    "MakeApp",
+                    "MakeAPP",
+                    "MakeAnn",
+                    "RemoveAnn",
+                    "LetToRec",
+                    "Raise",
+                    "EnterHole",
+                    "RemoveHole",
+                    "DeleteExpr",
+                    "MakeFun",
+                    "AddInput",
+                    "MakeTApp",
+                    "RaiseType",
+                    "DeleteType",
+                    "DuplicateDef",
+                    "DeleteDef"
+                ],
+                "type": "string"
             },
             "NodeBody": {
                 "oneOf": [
@@ -236,28 +273,39 @@
                 ],
                 "type": "string"
             },
-            "OfferedAction": {
+            "Option": {
                 "properties": {
-                    "actionType": {
-                        "$ref": "#/components/schemas/ActionType"
+                    "context": {
+                        "items": {
+                            "type": "string"
+                        },
+                        "minItems": 1,
+                        "type": "array"
                     },
-                    "description": {
+                    "option": {
                         "type": "string"
-                    },
-                    "name": {
-                        "$ref": "#/components/schemas/ActionName"
-                    },
-                    "priority": {
-                        "maximum": 9223372036854775807,
-                        "minimum": -9223372036854775808,
-                        "type": "integer"
                     }
                 },
                 "required": [
-                    "name",
-                    "description",
-                    "priority",
-                    "actionType"
+                    "option"
+                ],
+                "type": "object"
+            },
+            "Options": {
+                "properties": {
+                    "free": {
+                        "type": "boolean"
+                    },
+                    "opts": {
+                        "items": {
+                            "$ref": "#/components/schemas/Option"
+                        },
+                        "type": "array"
+                    }
+                },
+                "required": [
+                    "opts",
+                    "free"
                 ],
                 "type": "object"
             },
@@ -570,7 +618,7 @@
                             "application/json;charset=utf-8": {
                                 "schema": {
                                     "items": {
-                                        "$ref": "#/components/schemas/OfferedAction"
+                                        "$ref": "#/components/schemas/Action"
                                     },
                                     "type": "array"
                                 }
@@ -585,7 +633,92 @@
                         "description": "`sessionId` not found"
                     }
                 },
-                "summary": "Get available actions for the definition, or a node within it"
+                "summary": "Get available actions for the definition, or a node within it, sorted by priority"
+            }
+        },
+        "/openapi/sessions/{sessionId}/action/options": {
+            "post": {
+                "operationId": "getActionOptions",
+                "parameters": [
+                    {
+                        "description": "The session ID",
+                        "in": "path",
+                        "name": "sessionId",
+                        "required": true,
+                        "schema": {
+                            "format": "uuid",
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "in": "query",
+                        "name": "level",
+                        "required": true,
+                        "schema": {
+                            "enum": [
+                                "Beginner",
+                                "Intermediate",
+                                "Expert"
+                            ],
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "in": "query",
+                        "name": "action",
+                        "required": true,
+                        "schema": {
+                            "enum": [
+                                "MakeCon",
+                                "MakeConSat",
+                                "MakeVar",
+                                "MakeVarSat",
+                                "MakeLet",
+                                "MakeLetRec",
+                                "MakeLam",
+                                "MakeLAM",
+                                "RenamePattern",
+                                "RenameLet",
+                                "RenameLam",
+                                "RenameLAM",
+                                "MakeTCon",
+                                "MakeTVar",
+                                "MakeForall",
+                                "RenameForall",
+                                "RenameDef"
+                            ],
+                            "type": "string"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json;charset=utf-8": {
+                            "schema": {
+                                "$ref": "#/components/schemas/Selection"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json;charset=utf-8": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Options"
+                                }
+                            }
+                        },
+                        "description": ""
+                    },
+                    "400": {
+                        "description": "Invalid `action` or `body` or `level`"
+                    },
+                    "404": {
+                        "description": "`sessionId` not found"
+                    }
+                },
+                "summary": "Get the input options for an action"
             }
         },
         "/openapi/sessions/{sessionId}/name": {

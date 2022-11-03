@@ -1,6 +1,7 @@
 {-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE DuplicateRecordFields #-}
 {-# LANGUAGE GADTs #-}
+{-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE TypeFamilies #-}
 
@@ -30,6 +31,7 @@ module Primer.API (
   Tree,
   NodeBody (..),
   NodeFlavor,
+  viewProg,
   Prog (Prog),
   Module (Module),
   Def (Def),
@@ -44,14 +46,13 @@ module Primer.API (
   evalFull,
   flushSessions,
   availableActions,
+  actionOptions,
   ExprTreeOpts (..),
   defaultExprTreeOpts,
   -- The following are exported only for testing.
   viewTreeType,
   viewTreeExpr,
   getApp,
-  OfferedAction (..),
-  convertOfferedAction,
   Selection (..),
   convertSelection,
   NodeSelection (..),
@@ -86,9 +87,7 @@ import Data.Tuple.Extra (curry3)
 import ListT qualified (toList)
 import Optics (ifoldr, over, traverseOf, view, (^.))
 import Primer.API.NodeFlavor (NodeFlavor (..))
-import Primer.Action (ActionName, ActionType)
-import Primer.Action qualified as Action
-import Primer.Action.Available (actionsForDef, actionsForDefBody, actionsForDefSig)
+import Primer.Action.Available qualified as Available
 import Primer.App (
   App,
   EditAppM,
@@ -97,10 +96,10 @@ import Primer.App (
   EvalReq (..),
   EvalResp (..),
   MutationRequest,
-  NodeType (BodyNode, SigNode),
   ProgError,
   QueryAppM,
   Question (GenerateName),
+  appProg,
   handleEvalFullRequest,
   handleEvalRequest,
   handleGetProgramRequest,
@@ -109,6 +108,7 @@ import Primer.App (
   newApp,
   progAllDefs,
   progAllTypeDefs,
+  progCxt,
   progImports,
   progModules,
   runEditAppM,
@@ -127,6 +127,7 @@ import Primer.Core (
   Kind (..),
   LVarName,
   ModuleName,
+  NodeType (..),
   PrimCon (..),
   TmVarRef (GlobalVarRef, LocalVarRef),
   TyConName,
@@ -174,6 +175,7 @@ import Primer.Def (
   defAST,
  )
 import Primer.Def qualified as Def
+import Primer.Editable (Editable)
 import Primer.EvalFull (EvalFullLog)
 import Primer.JSON (
   CustomJSON (..),
@@ -232,6 +234,7 @@ data PrimerErr
   = DatabaseErr Text
   | UnknownDef GVarName
   | UnexpectedPrimDef GVarName
+  | ActionOptionsNoID (Maybe (NodeType, ID))
   deriving (Show)
 
 instance Exception PrimerErr
@@ -346,7 +349,8 @@ data APILog
   | EvalStep (ReqResp (SessionId, EvalReq) (Either ProgError EvalResp))
   | EvalFull (ReqResp (SessionId, EvalFullReq) (Either ProgError EvalFullResp))
   | FlushSessions (ReqResp () ())
-  | AvailableActions (ReqResp (SessionId, Level, Selection) [OfferedAction])
+  | AvailableActions (ReqResp (SessionId, Level, Selection) [Available.Action])
+  | ActionOptions (ReqResp (SessionId, Level, Selection, Available.InputAction) Available.Options)
   deriving (Show)
 
 type MonadAPILog l m = (MonadLog (WithSeverity l) m, ConvertLogMessage APILog l)
@@ -920,37 +924,49 @@ availableActions ::
   SessionId ->
   Level ->
   Selection ->
-  PrimerM m [OfferedAction]
-availableActions = curry3 $ logAPI (noError AvailableActions) $ \(sid, level, Selection{..}) -> do
+  PrimerM m [Available.Action]
+availableActions = curry3 $ logAPI (noError AvailableActions) $ \(sid, level, selection) -> do
   prog <- getProgram sid
   let allDefs = progAllDefs prog
       allTypeDefs = progAllTypeDefs prog
-  map (map convertOfferedAction) $ case node of
+  (editable, ASTDef{astDefType = type_, astDefExpr = expr}) <- findASTDef allDefs selection.def
+  case selection.node of
     Nothing ->
-      pure $ actionsForDef level allDefs def
+      pure $ Available.forDef (snd <$> allDefs) level editable selection.def
     Just NodeSelection{..} -> do
-      case allDefs Map.!? def of
-        Nothing -> throwM $ UnknownDef def
-        Just (_, Def.DefPrim _) -> throwM $ UnexpectedPrimDef def
-        Just (editable, Def.DefAST ASTDef{astDefType = type_, astDefExpr = expr}) ->
-          pure $ case nodeType of
-            SigNode -> do
-              actionsForDefSig level def editable id type_
-            BodyNode -> do
-              actionsForDefBody (snd <$> allTypeDefs) level def editable id expr
+      pure $ case nodeType of
+        SigNode -> Available.forSig level editable type_ id
+        BodyNode -> Available.forBody (snd <$> allTypeDefs) level editable expr id
 
--- This is (for now) just `Action.Available.OfferedAction` without the `input` field.
--- This is a placeholder while we work out a new, serialisable available actions API.
-data OfferedAction = OfferedAction
-  { name :: ActionName
-  , description :: Text
-  , priority :: Int
-  , actionType :: ActionType
-  }
-  deriving (Show, Generic)
-  deriving (ToJSON) via (PrimerJSON OfferedAction)
-convertOfferedAction :: Action.OfferedAction a -> OfferedAction
-convertOfferedAction Action.OfferedAction{..} = OfferedAction{..}
+actionOptions ::
+  (MonadIO m, MonadThrow m, MonadAPILog l m) =>
+  SessionId ->
+  Level ->
+  Selection ->
+  Available.InputAction ->
+  PrimerM m Available.Options
+actionOptions = curry4 $ logAPI (noError ActionOptions) $ \(sid, level, selection, action) -> do
+  app <- getApp sid
+  let prog = appProg app
+      allDefs = progAllDefs prog
+      allTypeDefs = progAllTypeDefs prog
+      nodeSel = selection.node <&> \s -> (s.nodeType, s.id)
+  def' <- snd <$> findASTDef allDefs selection.def
+  maybe (throwM $ ActionOptionsNoID nodeSel) pure $
+    Available.options
+      (snd <$> allTypeDefs)
+      (snd <$> allDefs)
+      (progCxt prog)
+      level
+      def'
+      nodeSel
+      action
+
+findASTDef :: MonadThrow m => Map GVarName (Editable, Def.Def) -> GVarName -> m (Editable, ASTDef)
+findASTDef allDefs def = case allDefs Map.!? def of
+  Nothing -> throwM $ UnknownDef def
+  Just (_, Def.DefPrim _) -> throwM $ UnexpectedPrimDef def
+  Just (editable, Def.DefAST d) -> pure (editable, d)
 
 -- | 'App.Selection' without any node metadata.
 data Selection = Selection
