@@ -15,7 +15,6 @@ import Foreword
 import Data.OpenApi (OpenApi)
 import Primer.API (ApplyActionBody, Selection)
 import Primer.API qualified as API
-import Primer.Action (Level)
 import Primer.Action.Available qualified as Available
 import Primer.Database (
   SessionId,
@@ -48,6 +47,7 @@ import Servant.API.Generic (
   GenericMode ((:-)),
  )
 import Servant.OpenApi.OperationId (OperationId)
+import Primer.Core (Level)
 
 -- | Enable clients to obtain the OpenAPI specification.
 type Spec = "openapi.json" :> Get '[JSON] OpenApi
