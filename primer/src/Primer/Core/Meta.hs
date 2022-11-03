@@ -27,6 +27,7 @@ module Primer.Core.Meta (
   Meta (Meta),
   trivialMeta,
   _type,
+  NodeType (..),
 ) where
 
 import Foreword
@@ -174,3 +175,7 @@ class HasMetadata a where
 
 instance HasMetadata (Meta a) where
   _metadata = position @3
+
+data NodeType = BodyNode | SigNode
+  deriving (Eq, Show, Bounded, Enum, Generic, Data)
+  deriving (FromJSON, ToJSON) via PrimerJSON NodeType

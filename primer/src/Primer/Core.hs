@@ -4,7 +4,6 @@
 -- This module defines the core AST and some functions for operating on it.
 
 module Primer.Core (
-  NodeType (..),
   Expr,
   Expr' (..),
   Bind,
@@ -55,6 +54,7 @@ import Primer.Core.Meta (
   LocalNameKind (..),
   Meta (Meta),
   ModuleName (ModuleName, unModuleName),
+  NodeType (..),
   TmVarRef (..),
   TyConName,
   TyVarName,
@@ -298,7 +298,3 @@ data PrimCon
   | PrimInt Integer
   deriving (Eq, Show, Data, Generic)
   deriving (FromJSON, ToJSON) via PrimerJSON PrimCon
-
-data NodeType = BodyNode | SigNode
-  deriving (Eq, Show, Bounded, Enum, Generic, Data)
-  deriving (FromJSON, ToJSON) via PrimerJSON NodeType
