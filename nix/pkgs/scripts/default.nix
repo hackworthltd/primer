@@ -205,6 +205,16 @@ in
     '';
   };
 
+  delete-all-local-sessions = writeShellApplication {
+    name = "delete-all-local-sessions";
+    runtimeInputs = [
+      postgresql
+    ];
+    text = ''
+      psql ${lib.primer.postgres-dev-primer-url} --command "DELETE FROM primer.sessions;"
+    '';
+  };
+
   primer-service-entrypoint = writeShellApplication {
     name = "primer-service-entrypoint";
     runtimeInputs = [
