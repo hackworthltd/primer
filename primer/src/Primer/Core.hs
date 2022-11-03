@@ -6,6 +6,7 @@
 module Primer.Core (
   Expr,
   Expr' (..),
+  Bind,
   Bind' (..),
   CaseBranch,
   CaseBranch' (..),
@@ -257,6 +258,8 @@ data CaseBranch' a b
 -- | Variable bindings
 -- These are used in case branches to represent the binding of a variable.
 -- They aren't currently used in lambdas or lets, but in the future that may change.
+type Bind = Bind' ExprMeta
+
 data Bind' a = Bind a LVarName
   deriving (Eq, Show, Data, Generic)
   deriving (FromJSON, ToJSON) via PrimerJSON (Bind' a)
