@@ -106,7 +106,6 @@ instance ToSchema (GlobalName 'ADefName) where
 deriving via GlobalName 'ADefName instance ToSchema (GlobalName 'ATyCon)
 deriving via GlobalName 'ADefName instance ToSchema (GlobalName 'AValCon)
 
--- TODO check for unnecessary instances
 deriving via Name instance (ToSchema LVarName)
 deriving via PrimerJSON Tree instance ToSchema Tree
 deriving via PrimerJSON NodeBody instance ToSchema NodeBody
@@ -121,19 +120,19 @@ deriving via PrimerJSON Available.InputAction instance ToSchema Available.InputA
 deriving via PrimerJSON Available.Option instance ToSchema Available.Option
 deriving via PrimerJSON Available.Options instance ToSchema Available.Options
 deriving via PrimerJSON Available.Action instance ToSchema Available.Action
-deriving via PrimerJSON Selection instance ToSchema Selection
 deriving via PrimerJSON ApplyActionBody instance ToSchema ApplyActionBody
+deriving via PrimerJSON Selection instance ToSchema Selection
 deriving via PrimerJSON NodeSelection instance ToSchema NodeSelection
 deriving via PrimerJSON NodeType instance ToSchema NodeType
 deriving via PrimerJSON Level instance ToSchema Level
-
--- TODO can we derive these (and thus remove the `Read` instances)?
 deriving instance ToParamSchema Available.NoInputAction
 instance FromHttpApiData Available.NoInputAction where
-  parseQueryParam t = maybeToEither ("unknown NoInputAction: " <> t) $ readMaybe t
+  parseQueryParam = parseQueryParamRead "action"
 deriving instance ToParamSchema Available.InputAction
 instance FromHttpApiData Available.InputAction where
-  parseQueryParam t = maybeToEither ("unknown InputAction: " <> t) $ readMaybe t
+  parseQueryParam = parseQueryParamRead "action"
 deriving instance ToParamSchema Level
 instance FromHttpApiData Level where
-  parseQueryParam t = maybeToEither ("unknown level: " <> t) $ readMaybe t
+  parseQueryParam = parseQueryParamRead "level"
+parseQueryParamRead :: Read a => Text -> Text -> Either Text a
+parseQueryParamRead m t = maybeToEither ("unknown " <> m <> ": " <> t) $ readMaybe t
