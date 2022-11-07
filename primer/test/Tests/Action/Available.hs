@@ -104,7 +104,7 @@ data Output = Output
   deriving (Show)
 data OfferedAction
   = NoInput Available.NoInputAction
-  | Input Available.InputAction Available.Options
+  | Input Available.InputAction
   deriving (Show)
 
 -- | Golden tests for the available actions at each node of the definition, for each level.
@@ -128,10 +128,7 @@ mkTests deps (defName, DefAST def') =
       typeDefs = foldMap @[] moduleTypesQualified [builtinModule, primitiveModule]
       offered level id = \case
         Available.NoInput a -> NoInput a
-        Available.Input a ->
-          Input a
-            . fromMaybe (error "id not found")
-            $ Available.options typeDefs defs cxt level def id a
+        Available.Input a -> Input a
    in testGroup testName $
         enumeratePairs
           <&> \(level, mut) ->
