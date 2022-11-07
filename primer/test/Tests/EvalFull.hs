@@ -34,6 +34,7 @@ import Primer.Builtins (
   cZero,
   tBool,
   tList,
+  tMaybe,
   tNat,
   tPair,
  )
@@ -108,7 +109,7 @@ import TestM
 import Tests.Action.Prog (runAppTestM)
 import Tests.Eval ((~=))
 import Tests.Gen.Core.Typed (checkTest)
-import Tests.Typecheck (runTypecheckTestM, runTypecheckTestMWithPrims)
+import Tests.Typecheck (expectTypedWithPrims, runTypecheckTestM, runTypecheckTestMWithPrims)
 
 unit_1 :: Assertion
 unit_1 =
@@ -556,6 +557,33 @@ unit_type_preservation_case_regression_ty =
         s1 <~==> Left (TimedOut expected1)
         s2 <- evalFullTest maxID builtinTypes mempty 2 Chk expr
         s2 <~==> Left (TimedOut expected2)
+
+-- Consider
+--   case Just @? False : Maybe Nat of Just x -> Succ x ; Nothing -> ?
+-- In the past we would reduce this to
+--   let x = False : Nat in Succ x
+-- which is ill-typed (we ignored the hole in the type-application,
+-- which acts as a type-changing cast).
+-- We simply test that the one-step reduction of this expression is well-typed,
+-- without mandating what the result should be.
+unit_type_preservation_case_hole_regression :: Assertion
+unit_type_preservation_case_hole_regression = evalTestM 0 $ do
+  t <-
+    case_
+      ((con cJust `aPP` tEmptyHole `app` con cFalse) `ann` (tcon tMaybe `tapp` tcon tNat))
+      [ branch cNothing [] emptyHole
+      , branch cJust [("x", Nothing)] $ con cSucc `app` lvar "x"
+      ]
+  let tds = foldMap moduleTypesQualified testModules
+  let globs = foldMap moduleDefsQualified testModules
+  ((_steps, s), logs) <- runPureLogT $ evalFullStepCount tds globs 1 Syn t
+  let s' = case s of
+        Left (TimedOut e) -> e
+        Right e -> e
+  pure $ do
+    expectTypedWithPrims $ pure t `ann` tEmptyHole
+    assertNoSevereLogs @EvalFullLog logs
+    expectTypedWithPrims $ pure s' `ann` tEmptyHole
 
 -- Previously EvalFull reducing a BETA expression could result in variable
 -- capture. We would reduce (Λa.t : ∀b.T) S to
