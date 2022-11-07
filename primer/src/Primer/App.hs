@@ -24,7 +24,6 @@ module Primer.App (
   runQueryAppM,
   Prog (..),
   defaultProg,
-  newEmptyProg,
   newEmptyProg',
   newProg,
   newProg',
@@ -138,7 +137,7 @@ import Primer.Core (
   _exprMetaLens,
   _typeMetaLens,
  )
-import Primer.Core.DSL (create, emptyHole, tEmptyHole)
+import Primer.Core.DSL (S, create, emptyHole, tEmptyHole)
 import Primer.Core.DSL qualified as DSL
 import Primer.Core.Transform (foldApp, renameVar, unfoldAPP, unfoldApp, unfoldTApp)
 import Primer.Core.Utils (freeGlobalVars, freeVars, regenerateExprIDs, regenerateTypeIDs, _freeTmVars, _freeTyVars, _freeVarsTy)
@@ -168,6 +167,7 @@ import Primer.Module (
   renameModule',
  )
 import Primer.Name (Name (unName), NameCounter, freshName, unsafeMkName)
+import Primer.Prelude (prelude)
 import Primer.Questions (
   Question (..),
   generateNameExpr,
@@ -272,9 +272,9 @@ progAllDefs p =
 --
 -- The 'NameCounter' is a safe value for seeding an 'App''s name
 -- counter when using 'newEmptyProg' as the app's program.
-newEmptyProg :: (Prog, ID, NameCounter)
-newEmptyProg =
-  let (defs, nextID) = create $ do
+newEmptyProgImporting :: [S Module] -> (Prog, ID, NameCounter)
+newEmptyProgImporting imported =
+  let ((imported', defs), nextID) = create $ do
         mainExpr <- emptyHole
         mainType <- tEmptyHole
         let astDefs =
@@ -285,7 +285,7 @@ newEmptyProg =
                     , astDefType = mainType
                     }
                 )
-        pure $ fmap DefAST astDefs
+        (,fmap DefAST astDefs) <$> sequence imported
    in ( defaultProg
           { progModules =
               [ Module
@@ -294,6 +294,7 @@ newEmptyProg =
                   , moduleDefs = defs
                   }
               ]
+          , progImports = imported'
           }
       , nextID
       , toEnum 0
@@ -303,7 +304,7 @@ newEmptyProg =
 --
 -- This value should probably only be used for testing.
 newEmptyProg' :: Prog
-newEmptyProg' = let (p, _, _) = newEmptyProg in p
+newEmptyProg' = let (p, _, _) = newEmptyProgImporting [] in p
 
 -- | A triple of 'Prog' and 'ID'.
 --
@@ -317,10 +318,13 @@ newEmptyProg' = let (p, _, _) = newEmptyProg in p
 -- counter when using 'newProg' as the app's program.
 newProg :: (Prog, ID, NameCounter)
 newProg =
-  let (p, nextID, nc) = newEmptyProg
+  let (p, nextID, nc) =
+        newEmptyProgImporting
+          [ prelude
+          , pure builtinModule
+          , pure primitiveModule
+          ]
    in ( p
-          { progImports = [builtinModule, primitiveModule]
-          }
       , nextID
       , nc
       )
@@ -1131,7 +1135,7 @@ appInit a =
 -- | An initial app whose program is completely empty.
 newEmptyApp :: App
 newEmptyApp =
-  let (p, id_, nc) = newEmptyProg
+  let (p, id_, nc) = newEmptyProgImporting []
    in mkApp id_ nc p
 
 -- | An initial app whose program includes some useful definitions.
