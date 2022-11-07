@@ -425,6 +425,13 @@ unit_poly_head_Nat =
       )
       ((tcon tList `tapp` tcon tNat) `tfun` tcon tNat)
 
+-- ? ∋ Λa . (? : (a ?))
+-- note that this requires 'a' to be higher-kinded, a : Type -> Type.
+-- and thus requires that a type hole can act as a higher-kinded forall.
+unit_higher_kinded_match_forall :: Assertion
+unit_higher_kinded_match_forall =
+  expectTyped $ lAM "a" (emptyHole `ann` (tvar "a" `tapp` tEmptyHole)) `ann` tEmptyHole
+
 unit_type_hole_1 :: Assertion
 unit_type_hole_1 = tEmptyHole `expectKinded` KHole
 
