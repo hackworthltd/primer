@@ -67,7 +67,7 @@ import Primer.Questions (
   variablesInScopeTy,
  )
 import Primer.TypeDef (
-  ASTTypeDef (astTypeDefConstructors),
+  ASTTypeDef (..),
   TypeDef (TypeDefAST),
   TypeDefMap,
   ValCon (valConArgs),
@@ -313,31 +313,25 @@ options typeDefs defs cxt level def mNodeSel = \case
   MakeCon ->
     pure
       . noFree
-      . map (globalOpt . valConName)
-      . (if level == Beginner then filter $ null . valConArgs else identity)
-      . concatMap astTypeDefConstructors
+      . map (globalOpt . valConName . snd)
+      . filter (not . (&& level == Beginner) . uncurry hasArgsCon)
+      . concatMap (\td -> (td,) <$> astTypeDefConstructors td)
       . mapMaybe (typeDefAST . snd)
       $ Map.toList typeDefs
   MakeConSat ->
     pure
       . noFree
-      . map (globalOpt . valConName)
-      . filter (not . null . valConArgs)
-      . concatMap astTypeDefConstructors
+      . map (globalOpt . valConName . snd)
+      . filter (uncurry hasArgsCon)
+      . concatMap (\td -> (td,) <$> astTypeDefConstructors td)
       . mapMaybe (typeDefAST . snd)
       $ Map.toList typeDefs
   MakeVar ->
     varOpts
-      <&> noFree . map fst . filter \case
-        -- don't show functions here in beginner mode
-        (_, TFun{}) -> level /= Beginner
-        _ -> True
+      <&> noFree . map fst . filter (not . (&& level == Beginner) . hasArgsVar . snd)
   MakeVarSat ->
     varOpts
-      <&> noFree . map fst . filter \case
-        -- only display functions
-        (_, TFun{}) -> True
-        _ -> False
+      <&> noFree . map fst . filter (hasArgsVar . snd)
   MakeLet ->
     free <$> genNames (Left Nothing)
   MakeLetRec ->
@@ -412,6 +406,14 @@ options typeDefs defs cxt level def mNodeSel = \case
     lAMVarKind = \case
       TForall _ _ k _ -> Just k
       _ -> Nothing
+    -- Constructor has either type or value arguments
+    hasArgsCon td vc =
+      not (null (astTypeDefParameters td)) || not (null (valConArgs vc))
+    -- Variable can be applied to something i.e. is a function or a polymorphic value
+    hasArgsVar = \case
+      TFun{} -> True
+      TForall{} -> True
+      _ -> False
 
 sortByPriority ::
   Level ->

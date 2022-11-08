@@ -266,16 +266,6 @@ Output
                                     ( "Builtins" :| [] )
                                 }
                             , Option
-                                { option = "Nil"
-                                , context = Just
-                                    ( "Builtins" :| [] )
-                                }
-                            , Option
-                                { option = "Nothing"
-                                , context = Just
-                                    ( "Builtins" :| [] )
-                                }
-                            , Option
                                 { option = "Zero"
                                 , context = Just
                                     ( "Builtins" :| [] )
@@ -719,16 +709,6 @@ Output
                                 }
                             , Option
                                 { option = "False"
-                                , context = Just
-                                    ( "Builtins" :| [] )
-                                }
-                            , Option
-                                { option = "Nil"
-                                , context = Just
-                                    ( "Builtins" :| [] )
-                                }
-                            , Option
-                                { option = "Nothing"
                                 , context = Just
                                     ( "Builtins" :| [] )
                                 }

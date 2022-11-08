@@ -340,7 +340,17 @@ Output
                                     ( "Builtins" :| [] )
                                 }
                             , Option
+                                { option = "Nil"
+                                , context = Just
+                                    ( "Builtins" :| [] )
+                                }
+                            , Option
                                 { option = "Cons"
+                                , context = Just
+                                    ( "Builtins" :| [] )
+                                }
+                            , Option
+                                { option = "Nothing"
                                 , context = Just
                                     ( "Builtins" :| [] )
                                 }
@@ -933,7 +943,17 @@ Output
                                     ( "Builtins" :| [] )
                                 }
                             , Option
+                                { option = "Nil"
+                                , context = Just
+                                    ( "Builtins" :| [] )
+                                }
+                            , Option
                                 { option = "Cons"
+                                , context = Just
+                                    ( "Builtins" :| [] )
+                                }
+                            , Option
+                                { option = "Nothing"
                                 , context = Just
                                     ( "Builtins" :| [] )
                                 }
