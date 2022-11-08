@@ -120,6 +120,10 @@
                           export PATH="${final.postgresql}/bin:${"$PATH"}"
                         '' + preCheckTasty;
                       };
+                      primer-benchmark = {
+                        ghcOptions = [ "-Werror" ];
+                        preCheck = preCheckTasty;
+                      };
                     };
                 }
                 {
@@ -242,6 +246,7 @@
                 meta.platforms = final.lib.platforms.all;
               });
 
+
             run-primer = final.writeShellApplication {
               name = "run-primer";
               runtimeInputs = [
@@ -316,6 +321,28 @@
             # The version used in haskell.nix nixpkgs is broken, so we
             # override it until that's fixed.
             colima = final.callPackage ./nix/pkgs/colima { };
+
+
+            # Note: The following benchmarks need to be run on a
+            # dedicated machine for accurate results. At the moment,
+            # we don't have any way to do that, so don't pay attention
+            # to these results yet.
+
+            # Generate Primer benchmark results as HTML.
+            primer-benchmark-results-html = (final.runCommand "primer-benchmark-results-html" { }
+              ''
+                ${final.coreutils}/bin/mkdir -p $out
+                ${final.primer-benchmark}/bin/primer-benchmark --output $out/results.html
+              ''
+            );
+
+            # Generate Primer benchmark results as JSON.
+            primer-benchmark-results-json = (final.runCommand "primer-benchmark-results-json" { }
+              ''
+                ${final.coreutils}/bin/mkdir -p $out
+                ${final.primer-benchmark}/bin/primer-benchmark --template json --output $out/results.json
+              ''
+            );
           in
           {
             lib = (prev.lib or { }) // {
@@ -351,10 +378,13 @@
 
             primer-service = primerFlake.packages."primer-service:exe:primer-service";
             primer-openapi = primerFlake.packages."primer-service:exe:primer-openapi";
+            primer-benchmark = primerFlake.packages."primer-benchmark:bench:primer-benchmark";
 
-            inherit primer-openapi-spec;
             inherit run-primer;
             inherit primer-service-docker-image;
+
+            inherit primer-openapi-spec;
+            inherit primer-benchmark-results-html primer-benchmark-results-json;
 
             inherit colima;
           }
@@ -507,6 +537,7 @@
       packages =
         {
           inherit (pkgs) primer-service primer-openapi-spec run-primer;
+          inherit (pkgs) primer-benchmark;
           inherit (pkgs)
             create-local-db
             deploy-local-db
@@ -530,6 +561,12 @@
         }
         // (pkgs.lib.optionalAttrs (system == "x86_64-linux" || system == "aarch64-linux") {
           inherit (pkgs) primer-service-docker-image;
+        })
+        // (pkgs.lib.optionalAttrs (system == "x86_64-linux") {
+
+          # For now, we only generate these on x86_64-linux, as we
+          # need a dedicated machine to run them reliably.
+          inherit (pkgs) primer-benchmark primer-benchmark-results-html primer-benchmark-results-json;
         })
         // primerFlake.packages;
 
@@ -564,6 +601,7 @@
         in
         (pkgs.lib.mapAttrs (name: pkg: mkApp pkg name) {
           inherit (pkgs) run-primer primer-openapi-spec;
+          inherit (pkgs) primer-benchmark;
 
           inherit (pkgs)
             create-local-db

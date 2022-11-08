@@ -1,0 +1,40 @@
+cabal-version: 3.0
+name:          primer-benchmark
+version:       0.7.2.0
+license:       AGPL-3.0-or-later
+license-file:  COPYING
+copyright:     (c) 2022 Hackworth Ltd
+maintainer:    src@hackworthltd.com
+author:        Hackworth Ltd <src@hackworthltd.com>
+stability:     experimental
+synopsis:      Benchmarks for Primer
+homepage:      https://github.com/hackworthltd/primer
+bug-reports:   https://github.com/hackworthltd/primer/issues
+
+source-repository head
+  type:     git
+  location: https://github.com/hackworthltd/primer
+
+common options
+  default-language:   GHC2021
+  default-extensions:
+    NoImplicitPrelude
+    DataKinds
+    DerivingStrategies
+    DerivingVia
+    LambdaCase
+    OverloadedStrings
+
+  ghc-options:
+    -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
+    -Wcompat -Widentities -Wredundant-constraints -fhide-source-paths
+
+benchmark primer-benchmark
+  import:         options
+  type:           exitcode-stdio-1.0
+  main-is:        Main.hs
+  hs-source-dirs: src
+  build-depends:
+    , base       >=4.12     && <4.17.0
+    , criterion  ^>=1.6.0.0
+    , primer     ^>=0.7.2
