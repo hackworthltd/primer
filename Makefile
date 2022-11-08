@@ -3,12 +3,13 @@
 # Most commands assume you're running this from the top-level `nix
 # develop` shell.
 
-targets = build configure check test generate-fixtures docs clean realclean deps
+targets = build configure check test bench generate-fixtures docs clean realclean deps
 
 $(targets):
 	$(MAKE) -C primer $@
 	$(MAKE) -C primer-rel8 $@
 	$(MAKE) -C primer-service $@
+	$(MAKE) -C primer-benchmark $@
 
 weeder:
 	cabal build all --enable-benchmarks --enable-tests

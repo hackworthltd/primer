@@ -157,6 +157,19 @@ hacking on Primer.
 nix run .#revert-local-db -- --to @HEAD
 ```
 
+### `make` targets
+
+We use `Makefile`s for convenient local development commands:
+
+* `make` runs `cabal build` across all projects.
+
+* `make test` runs `cabal test` across all projects.
+
+* `make bench` runs `cabal bench` across all projects.
+
+However, due to the complexity of setup, you should use `nix run
+.#run-primer` rather than `make` to run the service locally.
+
 ## A note about the Sqitch scripts
 
 Each Sqitch script bundles a copy of the Sqitch config. This means you
