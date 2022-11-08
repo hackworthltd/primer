@@ -101,7 +101,7 @@ data ActionAPI mode = ActionAPI
       mode
         :- "available"
           :> Summary "Get available actions for the definition, or a node within it, sorted by priority"
-          :> QueryParam' '[Required, Strict] "level" Level
+          :> LevelParam
           :> ReqBody '[JSON] Selection
           :> OperationId "getAvailableActions"
           :> Post '[JSON] [Available.Action]
@@ -109,7 +109,7 @@ data ActionAPI mode = ActionAPI
       mode
         :- "options"
           :> Summary "Get the input options for an action"
-          :> QueryParam' '[Required, Strict] "level" Level
+          :> LevelParam
           :> ReqBody '[JSON] Selection
           :> QueryParam' '[Required, Strict] "action" Available.InputAction
           :> OperationId "getActionOptions"
@@ -142,3 +142,5 @@ data ApplyActionAPI mode = ApplyActionAPI
           :> Post '[JSON] Prog
   }
   deriving (Generic)
+
+type LevelParam = QueryParam' '[Required, Strict] "level" Level
