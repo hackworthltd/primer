@@ -105,7 +105,7 @@ import Primer.Def (
  )
 import Primer.Eval.Prim (tryPrimFun)
 import Primer.JSON (CustomJSON (CustomJSON), FromJSON, PrimerJSON, ToJSON)
-import Primer.Log (ConvertLogMessage (convert), logWarning)
+import Primer.Log (ConvertLogMessage (convert), logInfo, logWarning)
 import Primer.Name (Name, NameCounter)
 import Primer.TypeDef (
   TypeDefMap,
@@ -154,6 +154,11 @@ data EvalFullLog
     -- (Or the number of arguments expected from the scrutinee's type differs from either of these.)
     -- This should not happen if the expression is type correct.
     CaseRedexWrongArgNum ValConName [Expr] [Type' ()] (Maybe [Type' ()]) [LVarName]
+  | -- | A case redex required a double annotation on (some of) its resultant let binding(s)
+    -- This is expected to happen for e.g. @case Just \@? True : Maybe Int of ...@, and
+    -- does not represent any problem. We log it to obtain insight about how common this
+    -- is in practice.
+    CaseRedexDoubleAnn ValConName [Expr] [Type' ()] (Maybe [Type' ()]) [LVarName]
   | InvariantFailure Text
   deriving (Show, Eq)
 
@@ -537,12 +542,22 @@ runRedex = \case
     -- TODO: we are putting trivial metadata in here...
     -- See https://github.com/hackworthltd/primer/issues/6
     let ann' x t = x `ann` generateTypeIDs t
-    let ann2 x (tyC, tyA') = case tyA' of
-          Nothing -> x `ann'` tyC
+    let mkAnn (tyC, tyA') = case tyA' of
+          Nothing -> (False, (`ann'` tyC))
           Just tyA
-            | alphaEqTy tyC tyA -> x `ann'` tyC
-            | otherwise -> x `ann'` tyC `ann'` tyA
-    foldrM (\(x, a, tyC, tyA) t -> let_ x (pure a `ann2` (tyC, tyA)) (pure t)) e (zip4 xs as aTysC $ maybe (repeat Nothing) (fmap Just) aTysA)
+            | alphaEqTy tyC tyA -> (False, (`ann'` tyC))
+            | otherwise -> (True, \x -> x `ann'` tyC `ann'` tyA)
+    (diffAnn, res) <-
+      foldrM
+        ( \(x, a, tyC, tyA) (diffAnn, t) ->
+            let (d, putAnn) = mkAnn (tyC, tyA)
+             in (diffAnn || d,)
+                  <$> let_ x (putAnn $ pure a) (pure t)
+        )
+        (False, e)
+        (zip4 xs as aTysC $ maybe (repeat Nothing) (fmap Just) aTysA)
+    when diffAnn $ logInfo $ CaseRedexDoubleAnn c as aTysC aTysA xs
+    pure res
   -- [ t : T ]  ~>  t  writing [_] for the embedding of syn into chk
   Upsilon e _ -> pure e
   -- λy.t  ~>  λz.let y = z in t (and similar for other binding forms, except let)
