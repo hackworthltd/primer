@@ -29,6 +29,7 @@ import Primer.Action.Actions (Action (..), Movement (..), QualifiedText)
 import Primer.Action.Available qualified as Available
 import Primer.Action.Errors (ActionError (..))
 import Primer.Action.ProgAction (ProgAction (..))
+import Primer.App.Base (NodeType (..))
 import Primer.Core (
   Expr,
   Expr' (..),
@@ -37,7 +38,6 @@ import Primer.Core (
   ID,
   LVarName,
   LocalName (LocalName, unLocalName),
-  NodeType (..),
   TmVarRef (..),
   TyVarName,
   Type,

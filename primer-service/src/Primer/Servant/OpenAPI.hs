@@ -16,10 +16,10 @@ import Foreword
 import Data.OpenApi (OpenApi)
 import Primer.API (ApplyActionBody, Prog, Selection)
 import Primer.Action.Available qualified as Available
+import Primer.App (Level)
 import Primer.Database (
   SessionId,
  )
-import Primer.Level (Level (..))
 import Primer.OpenAPI ()
 import Primer.Servant.Types (
   CopySession,

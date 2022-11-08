@@ -1,7 +1,14 @@
-module Primer.Level (Level (..)) where
+-- | Definitions needed to build the app.
+-- These are not part of the core language, but we may want to use them in dependencies of 'Primer.App'.
+module Primer.App.Base (
+  Level (..),
+  Editable (..),
+  NodeType (..),
+) where
 
 import Protolude
 
+import Data.Data (Data)
 import Primer.JSON (
   CustomJSON (CustomJSON),
   FromJSON,
@@ -23,3 +30,10 @@ data Level
     Expert
   deriving (Eq, Read, Show, Enum, Bounded, Generic)
   deriving (FromJSON, ToJSON) via PrimerJSON Level
+
+data Editable = Editable | NonEditable
+  deriving (Bounded, Enum, Show)
+
+data NodeType = BodyNode | SigNode
+  deriving (Eq, Show, Bounded, Enum, Generic, Data)
+  deriving (FromJSON, ToJSON) via PrimerJSON NodeType

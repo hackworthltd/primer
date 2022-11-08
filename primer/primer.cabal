@@ -19,6 +19,7 @@ library
     Primer.Action.Priorities
     Primer.API
     Primer.App
+    Primer.App.Base
     Primer.Builtins
     Primer.Builtins.DSL
     Primer.Core
@@ -28,12 +29,10 @@ library
     Primer.Database
     Primer.Def
     Primer.Def.Utils
-    Primer.Editable
     Primer.Eval
     Primer.EvalFull
     Primer.Examples
     Primer.JSON
-    Primer.Level
     Primer.Log
     Primer.Module
     Primer.Name

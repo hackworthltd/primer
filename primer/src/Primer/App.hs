@@ -5,6 +5,7 @@
 -- This module defines the high level application functions.
 
 module Primer.App (
+  module Primer.App.Base,
   Log (..),
   defaultLog,
   App,
@@ -103,6 +104,11 @@ import Primer.Action (
   applyActionsToTypeSig,
  )
 import Primer.Action.ProgError (ProgError (..))
+import Primer.App.Base (
+  Editable (..),
+  Level (..),
+  NodeType (..),
+ )
 import Primer.Core (
   Bind' (Bind),
   CaseBranch,
@@ -117,7 +123,6 @@ import Primer.Core (
   LocalName (LocalName, unLocalName),
   Meta (..),
   ModuleName (ModuleName),
-  NodeType (..),
   TmVarRef (GlobalVarRef, LocalVarRef),
   TyConName,
   Type,
@@ -146,7 +151,6 @@ import Primer.Def (
   defPrim,
  )
 import Primer.Def.Utils (globalInUse)
-import Primer.Editable (Editable (..))
 import Primer.Eval (EvalDetail)
 import Primer.Eval qualified as Eval
 import Primer.EvalFull (Dir, EvalFullError (TimedOut), EvalFullLog, TerminationBound, evalFull)

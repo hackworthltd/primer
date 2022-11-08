@@ -28,6 +28,8 @@ import Primer.Action.Available qualified as Available
 import Primer.App (
   App,
   EditAppM,
+  Editable (..),
+  NodeType (..),
   ProgError (ActionError, DefAlreadyExists),
   appProg,
   checkAppWellFormed,
@@ -43,7 +45,6 @@ import Primer.Core (
   HasID (_id),
   ID,
   ModuleName (ModuleName),
-  NodeType (..),
   mkSimpleModuleName,
   moduleNamePretty,
   qualifyName,
@@ -64,7 +65,6 @@ import Primer.Def (
   Def (DefAST, DefPrim),
   defAST,
  )
-import Primer.Editable (Editable (..))
 import Primer.Examples (comprehensiveWellTyped)
 import Primer.Gen.App (genApp)
 import Primer.Gen.Core.Raw (genName)

@@ -29,6 +29,11 @@ import Optics (
   _Just,
  )
 import Primer.Action.Priorities qualified as P
+import Primer.App.Base (
+  Editable (..),
+  Level (..),
+  NodeType (..),
+ )
 import Primer.Core (
   Expr,
   Expr' (..),
@@ -36,7 +41,6 @@ import Primer.Core (
   GlobalName (baseName, qualifiedModule),
   ID,
   ModuleName (unModuleName),
-  NodeType (..),
   Type,
   Type' (..),
   getID,
@@ -54,9 +58,7 @@ import Primer.Def (
   DefMap,
  )
 import Primer.Def.Utils (globalInUse)
-import Primer.Editable (Editable (..))
 import Primer.JSON (CustomJSON (..), FromJSON, PrimerJSON, ToJSON)
-import Primer.Level (Level (..))
 import Primer.Name (unName)
 import Primer.Questions (
   generateNameExpr,

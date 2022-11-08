@@ -95,11 +95,14 @@ import Primer.Action.Available qualified as Available
 import Primer.App (
   App,
   EditAppM,
+  Editable,
   EvalFullReq (..),
   EvalFullResp (..),
   EvalReq (..),
   EvalResp (..),
+  Level,
   MutationRequest,
+  NodeType (..),
   ProgError,
   QueryAppM,
   Question (GenerateName),
@@ -131,7 +134,6 @@ import Primer.Core (
   Kind (..),
   LVarName,
   ModuleName,
-  NodeType (..),
   PrimCon (..),
   TmVarRef (GlobalVarRef, LocalVarRef),
   TyConName,
@@ -179,7 +181,6 @@ import Primer.Def (
   defAST,
  )
 import Primer.Def qualified as Def
-import Primer.Editable (Editable)
 import Primer.EvalFull (EvalFullLog)
 import Primer.JSON (
   CustomJSON (..),
@@ -187,7 +188,6 @@ import Primer.JSON (
   PrimerJSON,
   ToJSON,
  )
-import Primer.Level (Level (..))
 import Primer.Log (
   ConvertLogMessage (convert),
   PureLog,

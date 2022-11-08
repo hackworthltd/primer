@@ -38,13 +38,14 @@ import Optics (
  )
 import Primer.API (ApplyActionBody, Def, ExprTreeOpts, Module, NodeBody, NodeFlavor, NodeSelection (..), Prog, Selection (..), Tree)
 import Primer.Action.Available qualified as Available
+import Primer.App (NodeType)
+import Primer.App.Base (Level)
 import Primer.Core (
   GlobalName,
   GlobalNameKind (ADefName, ATyCon, AValCon),
   ID (..),
   LVarName,
   ModuleName,
-  NodeType,
  )
 import Primer.Database (
   LastModified,
@@ -52,7 +53,6 @@ import Primer.Database (
   SessionName,
  )
 import Primer.JSON (CustomJSON, PrimerJSON)
-import Primer.Level (Level (..))
 import Primer.Name (Name)
 import Servant.API (FromHttpApiData (parseQueryParam))
 
