@@ -24,20 +24,20 @@ import Hedgehog (
 import Hedgehog.Gen qualified as G
 import Hedgehog.Range qualified as R
 import Primer.API (
+  ApplyActionBody (..),
   Def (Def),
   Module (Module),
   NodeBody (BoxBody, NoBody, TextBody),
   NodeFlavor,
   NodeSelection (..),
-  OfferedAction (..),
   Prog (Prog),
   Selection (..),
   Tree,
   viewTreeExpr,
   viewTreeType,
  )
-import Primer.Action (ActionName (..), ActionType (..), Level)
-import Primer.App (NodeType (..))
+import Primer.Action.Available qualified as Available
+import Primer.App (Level, NodeType)
 import Primer.Core (GVarName, ID (ID))
 import Primer.Database (
   LastModified (..),
@@ -66,7 +66,7 @@ import Primer.Server (openAPIInfo)
 import Servant.OpenApi.Test (validateEveryToJSON)
 import Tasty (Property, property)
 import Test.Hspec (Spec)
-import Test.QuickCheck (Arbitrary (arbitrary), arbitraryBoundedEnum, oneof)
+import Test.QuickCheck (Arbitrary (arbitrary), arbitraryBoundedEnum)
 import Test.QuickCheck.Hedgehog (hedgehog)
 import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.Golden (goldenVsString)
@@ -254,8 +254,18 @@ instance Arbitrary (Paginated Session) where
   arbitrary = hedgehog genPaginatedSession
 instance Arbitrary Prog where
   arbitrary = hedgehog genProg
-instance Arbitrary OfferedAction where
-  arbitrary = OfferedAction <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
+instance Arbitrary Available.NoInputAction where
+  arbitrary = arbitraryBoundedEnum
+instance Arbitrary Available.InputAction where
+  arbitrary = arbitraryBoundedEnum
+instance Arbitrary Available.Action where
+  arbitrary = either Available.NoInput Available.Input <$> arbitrary
+instance Arbitrary Available.Option where
+  arbitrary = Available.Option <$> arbitrary <*> arbitrary
+instance Arbitrary Available.Options where
+  arbitrary = Available.Options <$> arbitrary <*> arbitrary
+instance Arbitrary ApplyActionBody where
+  arbitrary = ApplyActionBody <$> arbitrary <*> arbitrary
 instance Arbitrary Selection where
   arbitrary = Selection <$> arbitrary <*> arbitrary
 instance Arbitrary NodeSelection where
@@ -267,10 +277,6 @@ instance Arbitrary Level where
 deriving newtype instance Arbitrary ID
 instance Arbitrary Name where
   arbitrary = hedgehog genName
-instance Arbitrary ActionName where
-  arbitrary = oneof [map Code arbitrary, map Prose arbitrary]
-instance Arbitrary ActionType where
-  arbitrary = arbitraryBoundedEnum
 instance Arbitrary NodeType where
   arbitrary = arbitraryBoundedEnum
 instance Arbitrary GVarName where

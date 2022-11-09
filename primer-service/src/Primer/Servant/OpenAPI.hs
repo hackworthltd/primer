@@ -7,15 +7,16 @@ module Primer.Servant.OpenAPI (
   SessionsAPI (..),
   SessionAPI (..),
   ActionAPI (..),
+  ApplyActionAPI (..),
   Spec,
 ) where
 
 import Foreword
 
 import Data.OpenApi (OpenApi)
-import Primer.API (Selection)
-import Primer.API qualified as API
-import Primer.Action (Level)
+import Primer.API (ApplyActionBody, Prog, Selection)
+import Primer.Action.Available qualified as Available
+import Primer.App (Level)
 import Primer.Database (
   SessionId,
  )
@@ -85,7 +86,7 @@ data SessionAPI mode = SessionAPI
           :> Summary "Get the current program state"
           :> QueryFlag "patternsUnder"
           :> OperationId "getProgram"
-          :> Get '[JSON] API.Prog
+          :> Get '[JSON] Prog
   , getSessionName :: GetSessionName mode
   , setSessionName :: SetSessionName mode
   , actions ::
@@ -95,15 +96,51 @@ data SessionAPI mode = SessionAPI
   }
   deriving (Generic)
 
-{- HLINT ignore ActionAPI "Use newtype instead of data" -}
 data ActionAPI mode = ActionAPI
   { available ::
       mode
         :- "available"
-          :> Summary "Get available actions for the definition, or a node within it"
-          :> QueryParam' '[Required, Strict] "level" Level
+          :> Summary "Get available actions for the definition, or a node within it, sorted by priority"
+          :> LevelParam
           :> ReqBody '[JSON] Selection
           :> OperationId "getAvailableActions"
-          :> Post '[JSON] [API.OfferedAction]
+          :> Post '[JSON] [Available.Action]
+  , options ::
+      mode
+        :- "options"
+          :> Summary "Get the input options for an action"
+          :> LevelParam
+          :> ReqBody '[JSON] Selection
+          :> QueryParam' '[Required, Strict] "action" Available.InputAction
+          :> OperationId "getActionOptions"
+          :> Post '[JSON] Available.Options
+  , apply ::
+      mode
+        :- "apply"
+          :> NamedRoutes ApplyActionAPI
   }
   deriving (Generic)
+
+data ApplyActionAPI mode = ApplyActionAPI
+  { simple ::
+      mode
+        :- "simple"
+          :> Summary "Apply a simple action i.e. one which requires no further input"
+          :> QueryFlag "patternsUnder"
+          :> ReqBody '[JSON] Selection
+          :> QueryParam' '[Required, Strict] "action" Available.NoInputAction
+          :> OperationId "applyAction"
+          :> Post '[JSON] Prog
+  , input ::
+      mode
+        :- "input"
+          :> Summary "Apply an action with some additional input"
+          :> QueryFlag "patternsUnder"
+          :> ReqBody '[JSON] ApplyActionBody
+          :> QueryParam' '[Required, Strict] "action" Available.InputAction
+          :> OperationId "applyActionWithInput"
+          :> Post '[JSON] Prog
+  }
+  deriving (Generic)
+
+type LevelParam = QueryParam' '[Required, Strict] "level" Level

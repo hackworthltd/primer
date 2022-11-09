@@ -11,9 +11,11 @@ import Foreword
 
 import Data.Aeson (FromJSON (..), ToJSON (..))
 import Primer.Action.Actions (Action)
-import Primer.Core (Expr, GVarName, ID, LVarName, ModuleName)
+import Primer.Action.Available qualified as Available
+import Primer.Core (Expr, GVarName, ID, LVarName, ModuleName, Type)
 import Primer.JSON (CustomJSON (..), PrimerJSON)
 import Primer.Typecheck.TypeError (TypeError)
+import Primer.Zipper (SomeNode)
 
 -- | Errors that may arise when applying an action
 -- TODO: convert all CustomFailures to individual constructors
@@ -50,8 +52,13 @@ data ActionError
   | -- | Importing some modules failed.
     -- This should be impossible as long as the requested modules are well-typed
     -- and all of their dependencies are already imported
+    -- The extra unit is to avoid having two constructors with a single
+    -- TypeError field, breaking our MonadNestedError machinery...
     ImportFailed () TypeError
-  -- The extra unit is to avoid having two constructors with a single
-  -- TypeError field, breaking our MonadNestedError machinery...
+  | NeedTFun Type
+  | NeedType SomeNode
+  | NeedGlobal Available.Option
+  | NeedLocal Available.Option
+  | NoNodeSelection
   deriving (Eq, Show, Generic)
   deriving (FromJSON, ToJSON) via PrimerJSON ActionError

@@ -19,6 +19,7 @@ library
     Primer.Action.Priorities
     Primer.API
     Primer.App
+    Primer.App.Base
     Primer.Builtins
     Primer.Builtins.DSL
     Primer.Core

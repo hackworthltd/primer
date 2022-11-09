@@ -46,7 +46,7 @@ import Options.Applicative (
   str,
   value,
  )
-import Primer.API (APILog, PrimerErr (DatabaseErr, UnexpectedPrimDef, UnknownDef))
+import Primer.API (APILog, PrimerErr (..))
 import Primer.Database (Version)
 import Primer.Database qualified as Db
 import Primer.Database.Rel8 (
@@ -260,6 +260,9 @@ instance ConvertLogMessage PrimerErr LogMsg where
   convert (DatabaseErr e) = LogMsg e
   convert (UnknownDef e) = LogMsg $ show e
   convert (UnexpectedPrimDef e) = LogMsg $ show e
+  convert (ActionOptionsNoID e) = LogMsg $ show e
+  convert (ToProgActionError a e) = LogMsg $ show (a, e)
+  convert (ApplyActionError as e) = LogMsg $ show (as, e)
 
 instance ConvertLogMessage APILog LogMsg where
   convert = LogMsg . show

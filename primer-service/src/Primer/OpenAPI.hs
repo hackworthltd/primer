@@ -36,9 +36,10 @@ import Deriving.Aeson (AesonOptions (aesonOptions))
 import Optics (
   (?~),
  )
-import Primer.API (Def, ExprTreeOpts, Module, NodeBody, NodeFlavor, NodeSelection (..), OfferedAction, Prog, Selection (..), Tree)
-import Primer.Action (ActionName, ActionType, Level (..))
+import Primer.API (ApplyActionBody, Def, ExprTreeOpts, Module, NodeBody, NodeFlavor, NodeSelection (..), Prog, Selection (..), Tree)
+import Primer.Action.Available qualified as Available
 import Primer.App (NodeType)
+import Primer.App.Base (Level)
 import Primer.Core (
   GlobalName,
   GlobalNameKind (ADefName, ATyCon, AValCon),
@@ -114,13 +115,24 @@ deriving via NonEmpty Name instance ToSchema ModuleName
 deriving via PrimerJSON Module instance ToSchema Module
 deriving via PrimerJSON Prog instance ToSchema Prog
 deriving via PrimerJSON ExprTreeOpts instance ToSchema ExprTreeOpts
-deriving via PrimerJSON OfferedAction instance ToSchema OfferedAction
-deriving via PrimerJSON ActionName instance ToSchema ActionName
-deriving via PrimerJSON ActionType instance ToSchema ActionType
+deriving via PrimerJSON Available.NoInputAction instance ToSchema Available.NoInputAction
+deriving via PrimerJSON Available.InputAction instance ToSchema Available.InputAction
+deriving via PrimerJSON Available.Option instance ToSchema Available.Option
+deriving via PrimerJSON Available.Options instance ToSchema Available.Options
+deriving via PrimerJSON Available.Action instance ToSchema Available.Action
+deriving via PrimerJSON ApplyActionBody instance ToSchema ApplyActionBody
 deriving via PrimerJSON Selection instance ToSchema Selection
 deriving via PrimerJSON NodeSelection instance ToSchema NodeSelection
 deriving via PrimerJSON NodeType instance ToSchema NodeType
 deriving via PrimerJSON Level instance ToSchema Level
+deriving instance ToParamSchema Available.NoInputAction
+instance FromHttpApiData Available.NoInputAction where
+  parseQueryParam = parseQueryParamRead "action"
+deriving instance ToParamSchema Available.InputAction
+instance FromHttpApiData Available.InputAction where
+  parseQueryParam = parseQueryParamRead "action"
 deriving instance ToParamSchema Level
 instance FromHttpApiData Level where
-  parseQueryParam t = maybeToEither ("unknown level: " <> t) $ readMaybe t
+  parseQueryParam = parseQueryParamRead "level"
+parseQueryParamRead :: Read a => Text -> Text -> Either Text a
+parseQueryParamRead m t = maybeToEither ("unknown " <> m <> ": " <> t) $ readMaybe t

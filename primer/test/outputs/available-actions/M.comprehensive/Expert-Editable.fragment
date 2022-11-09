@@ -1,423 +1,1923 @@
 Output
     { defActions =
-        [ Prose "⌫"
-        , Prose "d"
-        , Prose "r"
+        [ Input RenameDef
+            ( Options
+                { opts = []
+                , free = True
+                }
+            )
+        , NoInput DuplicateDef
+        , NoInput DeleteDef
         ]
     , bodyActions =
         [
             ( 9
             ,
-                [ Code "$"
-                , Code ":"
-                , Code "@"
-                , Code "Λx"
-                , Code "λx"
-                , Prose "⌫"
-                , Prose "r"
-                , Prose "rec"
+                [ Input MakeLam
+                    ( Options
+                        { opts =
+                            [ Option
+                                { option = "j"
+                                , context = Nothing
+                                }
+                            , Option
+                                { option = "m"
+                                , context = Nothing
+                                }
+                            , Option
+                                { option = "i1"
+                                , context = Nothing
+                                }
+                            , Option
+                                { option = "n1"
+                                , context = Nothing
+                                }
+                            ]
+                        , free = True
+                        }
+                    )
+                , NoInput LetToRec
+                , NoInput MakeApp
+                , NoInput MakeAPP
+                , Input MakeLAM
+                    ( Options
+                        { opts =
+                            [ Option
+                                { option = "α"
+                                , context = Nothing
+                                }
+                            , Option
+                                { option = "γ"
+                                , context = Nothing
+                                }
+                            , Option
+                                { option = "β1"
+                                , context = Nothing
+                                }
+                            ]
+                        , free = True
+                        }
+                    )
+                , NoInput MakeAnn
+                , Input RenameLet
+                    ( Options
+                        { opts =
+                            [ Option
+                                { option = "z"
+                                , context = Nothing
+                                }
+                            , Option
+                                { option = "x1"
+                                , context = Nothing
+                                }
+                            , Option
+                                { option = "y1"
+                                , context = Nothing
+                                }
+                            ]
+                        , free = True
+                        }
+                    )
+                , NoInput DeleteExpr
                 ]
             )
         ,
             ( 10
             ,
-                [ Code "$"
-                , Code ":"
-                , Code "@"
-                , Code "Λx"
-                , Code "λx"
-                , Code "m"
-                , Prose "↑"
-                , Prose "⌫"
+                [ Input MakeLam
+                    ( Options
+                        { opts =
+                            [ Option
+                                { option = "x"
+                                , context = Nothing
+                                }
+                            , Option
+                                { option = "y"
+                                , context = Nothing
+                                }
+                            , Option
+                                { option = "z"
+                                , context = Nothing
+                                }
+                            ]
+                        , free = True
+                        }
+                    )
+                , NoInput MakeCase
+                , NoInput MakeApp
+                , NoInput MakeAPP
+                , Input MakeLAM
+                    ( Options
+                        { opts =
+                            [ Option
+                                { option = "α"
+                                , context = Nothing
+                                }
+                            , Option
+                                { option = "β"
+                                , context = Nothing
+                                }
+                            , Option
+                                { option = "γ"
+                                , context = Nothing
+                                }
+                            ]
+                        , free = True
+                        }
+                    )
+                , NoInput MakeAnn
+                , NoInput Raise
+                , NoInput DeleteExpr
                 ]
             )
         ,
             ( 11
             ,
-                [ Code "$"
-                , Code ":"
-                , Code "@"
-                , Code "Λx"
-                , Code "λx"
-                , Prose "↑"
-                , Prose "⌫"
-                , Prose "r"
+                [ Input MakeLam
+                    ( Options
+                        { opts =
+                            [ Option
+                                { option = "j"
+                                , context = Nothing
+                                }
+                            , Option
+                                { option = "m"
+                                , context = Nothing
+                                }
+                            , Option
+                                { option = "i1"
+                                , context = Nothing
+                                }
+                            , Option
+                                { option = "n1"
+                                , context = Nothing
+                                }
+                            ]
+                        , free = True
+                        }
+                    )
+                , NoInput MakeApp
+                , NoInput MakeAPP
+                , Input MakeLAM
+                    ( Options
+                        { opts =
+                            [ Option
+                                { option = "α"
+                                , context = Nothing
+                                }
+                            , Option
+                                { option = "γ"
+                                , context = Nothing
+                                }
+                            , Option
+                                { option = "β1"
+                                , context = Nothing
+                                }
+                            ]
+                        , free = True
+                        }
+                    )
+                , NoInput MakeAnn
+                , Input RenameLet
+                    ( Options
+                        { opts =
+                            [ Option
+                                { option = "z"
+                                , context = Nothing
+                                }
+                            , Option
+                                { option = "x1"
+                                , context = Nothing
+                                }
+                            , Option
+                                { option = "y1"
+                                , context = Nothing
+                                }
+                            ]
+                        , free = True
+                        }
+                    )
+                , NoInput Raise
+                , NoInput DeleteExpr
                 ]
             )
         ,
             ( 12
             ,
-                [ Code "$"
-                , Code ":"
-                , Code "@"
-                , Code "Λx"
-                , Code "λx"
-                , Code "m"
-                , Prose "↑"
-                , Prose "⌫"
+                [ Input MakeLam
+                    ( Options
+                        { opts =
+                            [ Option
+                                { option = "z"
+                                , context = Nothing
+                                }
+                            , Option
+                                { option = "x1"
+                                , context = Nothing
+                                }
+                            , Option
+                                { option = "y1"
+                                , context = Nothing
+                                }
+                            ]
+                        , free = True
+                        }
+                    )
+                , NoInput MakeCase
+                , NoInput MakeApp
+                , NoInput MakeAPP
+                , Input MakeLAM
+                    ( Options
+                        { opts =
+                            [ Option
+                                { option = "α"
+                                , context = Nothing
+                                }
+                            , Option
+                                { option = "β"
+                                , context = Nothing
+                                }
+                            , Option
+                                { option = "γ"
+                                , context = Nothing
+                                }
+                            ]
+                        , free = True
+                        }
+                    )
+                , NoInput MakeAnn
+                , NoInput Raise
+                , NoInput DeleteExpr
                 ]
             )
         ,
             ( 13
             ,
-                [ Code "$"
-                , Code ":"
-                , Code "@"
-                , Code "Λx"
-                , Code "λx"
-                , Code "m"
-                , Prose "↑"
-                , Prose "⌫"
-                , Prose "e"
+                [ Input MakeLam
+                    ( Options
+                        { opts =
+                            [ Option
+                                { option = "z"
+                                , context = Nothing
+                                }
+                            , Option
+                                { option = "x1"
+                                , context = Nothing
+                                }
+                            , Option
+                                { option = "y1"
+                                , context = Nothing
+                                }
+                            ]
+                        , free = True
+                        }
+                    )
+                , NoInput MakeCase
+                , NoInput MakeApp
+                , NoInput MakeAPP
+                , Input MakeLAM
+                    ( Options
+                        { opts =
+                            [ Option
+                                { option = "α"
+                                , context = Nothing
+                                }
+                            , Option
+                                { option = "β"
+                                , context = Nothing
+                                }
+                            , Option
+                                { option = "γ"
+                                , context = Nothing
+                                }
+                            ]
+                        , free = True
+                        }
+                    )
+                , NoInput MakeAnn
+                , NoInput Raise
+                , NoInput RemoveHole
+                , NoInput DeleteExpr
                 ]
             )
         ,
             ( 14
             ,
-                [ Code "$"
-                , Code ":"
-                , Code "@"
-                , Code "Λx"
-                , Code "λx"
-                , Prose "⌫"
+                [ Input MakeLam
+                    ( Options
+                        { opts =
+                            [ Option
+                                { option = "z"
+                                , context = Nothing
+                                }
+                            , Option
+                                { option = "x1"
+                                , context = Nothing
+                                }
+                            , Option
+                                { option = "y1"
+                                , context = Nothing
+                                }
+                            ]
+                        , free = True
+                        }
+                    )
+                , NoInput MakeApp
+                , NoInput MakeAPP
+                , Input MakeLAM
+                    ( Options
+                        { opts =
+                            [ Option
+                                { option = "α"
+                                , context = Nothing
+                                }
+                            , Option
+                                { option = "β"
+                                , context = Nothing
+                                }
+                            , Option
+                                { option = "γ"
+                                , context = Nothing
+                                }
+                            ]
+                        , free = True
+                        }
+                    )
+                , NoInput MakeAnn
+                , NoInput DeleteExpr
                 ]
             )
         ,
             ( 15
             ,
-                [ Code "$"
-                , Code ":"
-                , Code "="
-                , Code "=,="
-                , Code "@"
-                , Code "V $ ?"
-                , Code "V"
-                , Code "Λx"
-                , Code "λx"
-                , Code "f $ ?"
-                , Code "m"
-                , Code "x"
-                , Prose "↑"
-                , Prose "h"
+                [ Input MakeLam
+                    ( Options
+                        { opts =
+                            [ Option
+                                { option = "z"
+                                , context = Nothing
+                                }
+                            , Option
+                                { option = "x1"
+                                , context = Nothing
+                                }
+                            , Option
+                                { option = "y1"
+                                , context = Nothing
+                                }
+                            ]
+                        , free = True
+                        }
+                    )
+                , Input MakeVar
+                    ( Options
+                        { opts =
+                            [ Option
+                                { option = "x"
+                                , context = Nothing
+                                }
+                            , Option
+                                { option = "y"
+                                , context = Nothing
+                                }
+                            , Option
+                                { option = "comprehensive"
+                                , context = Just
+                                    ( "M" :| [] )
+                                }
+                            ]
+                        , free = False
+                        }
+                    )
+                , Input MakeCon
+                    ( Options
+                        { opts =
+                            [ Option
+                                { option = "True"
+                                , context = Just
+                                    ( "Builtins" :| [] )
+                                }
+                            , Option
+                                { option = "False"
+                                , context = Just
+                                    ( "Builtins" :| [] )
+                                }
+                            , Option
+                                { option = "Left"
+                                , context = Just
+                                    ( "Builtins" :| [] )
+                                }
+                            , Option
+                                { option = "Right"
+                                , context = Just
+                                    ( "Builtins" :| [] )
+                                }
+                            , Option
+                                { option = "Nil"
+                                , context = Just
+                                    ( "Builtins" :| [] )
+                                }
+                            , Option
+                                { option = "Cons"
+                                , context = Just
+                                    ( "Builtins" :| [] )
+                                }
+                            , Option
+                                { option = "Nothing"
+                                , context = Just
+                                    ( "Builtins" :| [] )
+                                }
+                            , Option
+                                { option = "Just"
+                                , context = Just
+                                    ( "Builtins" :| [] )
+                                }
+                            , Option
+                                { option = "Zero"
+                                , context = Just
+                                    ( "Builtins" :| [] )
+                                }
+                            , Option
+                                { option = "Succ"
+                                , context = Just
+                                    ( "Builtins" :| [] )
+                                }
+                            , Option
+                                { option = "MakePair"
+                                , context = Just
+                                    ( "Builtins" :| [] )
+                                }
+                            ]
+                        , free = False
+                        }
+                    )
+                , NoInput MakeCase
+                , Input MakeConSat
+                    ( Options
+                        { opts =
+                            [ Option
+                                { option = "Left"
+                                , context = Just
+                                    ( "Builtins" :| [] )
+                                }
+                            , Option
+                                { option = "Right"
+                                , context = Just
+                                    ( "Builtins" :| [] )
+                                }
+                            , Option
+                                { option = "Nil"
+                                , context = Just
+                                    ( "Builtins" :| [] )
+                                }
+                            , Option
+                                { option = "Cons"
+                                , context = Just
+                                    ( "Builtins" :| [] )
+                                }
+                            , Option
+                                { option = "Nothing"
+                                , context = Just
+                                    ( "Builtins" :| [] )
+                                }
+                            , Option
+                                { option = "Just"
+                                , context = Just
+                                    ( "Builtins" :| [] )
+                                }
+                            , Option
+                                { option = "Succ"
+                                , context = Just
+                                    ( "Builtins" :| [] )
+                                }
+                            , Option
+                                { option = "MakePair"
+                                , context = Just
+                                    ( "Builtins" :| [] )
+                                }
+                            ]
+                        , free = False
+                        }
+                    )
+                , Input MakeVarSat
+                    ( Options
+                        { opts =
+                            [ Option
+                                { option = "comprehensive"
+                                , context = Just
+                                    ( "M" :| [] )
+                                }
+                            ]
+                        , free = False
+                        }
+                    )
+                , Input MakeLet
+                    ( Options
+                        { opts =
+                            [ Option
+                                { option = "z"
+                                , context = Nothing
+                                }
+                            , Option
+                                { option = "x1"
+                                , context = Nothing
+                                }
+                            , Option
+                                { option = "y1"
+                                , context = Nothing
+                                }
+                            ]
+                        , free = True
+                        }
+                    )
+                , Input MakeLetRec
+                    ( Options
+                        { opts =
+                            [ Option
+                                { option = "z"
+                                , context = Nothing
+                                }
+                            , Option
+                                { option = "x1"
+                                , context = Nothing
+                                }
+                            , Option
+                                { option = "y1"
+                                , context = Nothing
+                                }
+                            ]
+                        , free = True
+                        }
+                    )
+                , NoInput MakeApp
+                , NoInput MakeAPP
+                , Input MakeLAM
+                    ( Options
+                        { opts =
+                            [ Option
+                                { option = "α"
+                                , context = Nothing
+                                }
+                            , Option
+                                { option = "β"
+                                , context = Nothing
+                                }
+                            , Option
+                                { option = "γ"
+                                , context = Nothing
+                                }
+                            ]
+                        , free = True
+                        }
+                    )
+                , NoInput MakeAnn
+                , NoInput Raise
+                , NoInput EnterHole
                 ]
             )
         ,
             ( 18
             ,
-                [ Code "$"
-                , Code "@"
-                , Code "Λx"
-                , Code "λx"
-                , Prose "↑"
-                , Prose "⌫"
-                , Prose "⌫:"
+                [ Input MakeLam
+                    ( Options
+                        { opts =
+                            [ Option
+                                { option = "j"
+                                , context = Nothing
+                                }
+                            , Option
+                                { option = "m"
+                                , context = Nothing
+                                }
+                            , Option
+                                { option = "i1"
+                                , context = Nothing
+                                }
+                            , Option
+                                { option = "n1"
+                                , context = Nothing
+                                }
+                            ]
+                        , free = True
+                        }
+                    )
+                , NoInput MakeApp
+                , NoInput MakeAPP
+                , Input MakeLAM
+                    ( Options
+                        { opts =
+                            [ Option
+                                { option = "α"
+                                , context = Nothing
+                                }
+                            , Option
+                                { option = "γ"
+                                , context = Nothing
+                                }
+                            , Option
+                                { option = "β1"
+                                , context = Nothing
+                                }
+                            ]
+                        , free = True
+                        }
+                    )
+                , NoInput RemoveAnn
+                , NoInput Raise
+                , NoInput DeleteExpr
                 ]
             )
         ,
             ( 19
             ,
-                [ Code "$"
-                , Code ":"
-                , Code "@"
-                , Code "Λx"
-                , Code "λx"
-                , Prose "↑"
-                , Prose "⌫"
-                , Prose "r"
+                [ Input MakeLam
+                    ( Options
+                        { opts =
+                            [ Option
+                                { option = "j"
+                                , context = Nothing
+                                }
+                            , Option
+                                { option = "m"
+                                , context = Nothing
+                                }
+                            , Option
+                                { option = "i1"
+                                , context = Nothing
+                                }
+                            , Option
+                                { option = "n1"
+                                , context = Nothing
+                                }
+                            ]
+                        , free = True
+                        }
+                    )
+                , NoInput MakeApp
+                , NoInput MakeAPP
+                , Input MakeLAM
+                    ( Options
+                        { opts =
+                            [ Option
+                                { option = "α"
+                                , context = Nothing
+                                }
+                            , Option
+                                { option = "γ"
+                                , context = Nothing
+                                }
+                            , Option
+                                { option = "β1"
+                                , context = Nothing
+                                }
+                            ]
+                        , free = True
+                        }
+                    )
+                , NoInput MakeAnn
+                , Input RenameLam
+                    ( Options
+                        { opts =
+                            [ Option
+                                { option = "j"
+                                , context = Nothing
+                                }
+                            , Option
+                                { option = "m"
+                                , context = Nothing
+                                }
+                            , Option
+                                { option = "i1"
+                                , context = Nothing
+                                }
+                            , Option
+                                { option = "n1"
+                                , context = Nothing
+                                }
+                            ]
+                        , free = True
+                        }
+                    )
+                , NoInput Raise
+                , NoInput DeleteExpr
                 ]
             )
         ,
             ( 20
             ,
-                [ Code "$"
-                , Code ":"
-                , Code "@"
-                , Code "Λx"
-                , Code "λx"
-                , Prose "↑"
-                , Prose "⌫"
-                , Prose "r"
+                [ Input MakeLam
+                    ( Options
+                        { opts =
+                            [ Option
+                                { option = "z"
+                                , context = Nothing
+                                }
+                            , Option
+                                { option = "x1"
+                                , context = Nothing
+                                }
+                            , Option
+                                { option = "y1"
+                                , context = Nothing
+                                }
+                            ]
+                        , free = True
+                        }
+                    )
+                , NoInput MakeApp
+                , NoInput MakeAPP
+                , Input MakeLAM
+                    ( Options
+                        { opts =
+                            [ Option
+                                { option = "α"
+                                , context = Nothing
+                                }
+                            , Option
+                                { option = "γ"
+                                , context = Nothing
+                                }
+                            , Option
+                                { option = "β1"
+                                , context = Nothing
+                                }
+                            ]
+                        , free = True
+                        }
+                    )
+                , NoInput MakeAnn
+                , Input RenameLAM
+                    ( Options
+                        { opts =
+                            [ Option
+                                { option = "α"
+                                , context = Nothing
+                                }
+                            , Option
+                                { option = "γ"
+                                , context = Nothing
+                                }
+                            , Option
+                                { option = "β1"
+                                , context = Nothing
+                                }
+                            ]
+                        , free = True
+                        }
+                    )
+                , NoInput Raise
+                , NoInput DeleteExpr
                 ]
             )
         ,
             ( 21
             ,
-                [ Code "$"
-                , Code ":"
-                , Code "@"
-                , Code "Λx"
-                , Code "λx"
-                , Code "m"
-                , Prose "↑"
-                , Prose "⌫"
+                [ Input MakeLam
+                    ( Options
+                        { opts =
+                            [ Option
+                                { option = "z"
+                                , context = Nothing
+                                }
+                            , Option
+                                { option = "x1"
+                                , context = Nothing
+                                }
+                            , Option
+                                { option = "y1"
+                                , context = Nothing
+                                }
+                            ]
+                        , free = True
+                        }
+                    )
+                , NoInput MakeCase
+                , NoInput MakeApp
+                , NoInput MakeAPP
+                , Input MakeLAM
+                    ( Options
+                        { opts =
+                            [ Option
+                                { option = "α"
+                                , context = Nothing
+                                }
+                            , Option
+                                { option = "γ"
+                                , context = Nothing
+                                }
+                            , Option
+                                { option = "β1"
+                                , context = Nothing
+                                }
+                            ]
+                        , free = True
+                        }
+                    )
+                , NoInput MakeAnn
+                , NoInput Raise
+                , NoInput DeleteExpr
                 ]
             )
         ,
             ( 22
             ,
-                [ Code "$"
-                , Code ":"
-                , Code "@"
-                , Code "Λx"
-                , Code "λx"
-                , Prose "↑"
-                , Prose "⌫"
+                [ Input MakeLam
+                    ( Options
+                        { opts =
+                            [ Option
+                                { option = "z"
+                                , context = Nothing
+                                }
+                            , Option
+                                { option = "x1"
+                                , context = Nothing
+                                }
+                            , Option
+                                { option = "y1"
+                                , context = Nothing
+                                }
+                            ]
+                        , free = True
+                        }
+                    )
+                , NoInput MakeApp
+                , NoInput MakeAPP
+                , Input MakeLAM
+                    ( Options
+                        { opts =
+                            [ Option
+                                { option = "α"
+                                , context = Nothing
+                                }
+                            , Option
+                                { option = "γ"
+                                , context = Nothing
+                                }
+                            , Option
+                                { option = "β1"
+                                , context = Nothing
+                                }
+                            ]
+                        , free = True
+                        }
+                    )
+                , NoInput MakeAnn
+                , NoInput Raise
+                , NoInput DeleteExpr
                 ]
             )
         ,
             ( 23
             ,
-                [ Code "$"
-                , Code ":"
-                , Code "@"
-                , Code "Λx"
-                , Code "λx"
-                , Prose "↑"
-                , Prose "⌫"
+                [ Input MakeLam
+                    ( Options
+                        { opts =
+                            [ Option
+                                { option = "z"
+                                , context = Nothing
+                                }
+                            , Option
+                                { option = "x1"
+                                , context = Nothing
+                                }
+                            , Option
+                                { option = "y1"
+                                , context = Nothing
+                                }
+                            ]
+                        , free = True
+                        }
+                    )
+                , NoInput MakeApp
+                , NoInput MakeAPP
+                , Input MakeLAM
+                    ( Options
+                        { opts =
+                            [ Option
+                                { option = "α"
+                                , context = Nothing
+                                }
+                            , Option
+                                { option = "γ"
+                                , context = Nothing
+                                }
+                            , Option
+                                { option = "β1"
+                                , context = Nothing
+                                }
+                            ]
+                        , free = True
+                        }
+                    )
+                , NoInput MakeAnn
+                , NoInput Raise
+                , NoInput DeleteExpr
                 ]
             )
         ,
             ( 24
             ,
-                [ Code "$"
-                , Code ":"
-                , Code "@"
-                , Code "Λx"
-                , Code "λx"
-                , Prose "↑"
-                , Prose "⌫"
+                [ Input MakeLam
+                    ( Options
+                        { opts =
+                            [ Option
+                                { option = "z"
+                                , context = Nothing
+                                }
+                            , Option
+                                { option = "x1"
+                                , context = Nothing
+                                }
+                            , Option
+                                { option = "y1"
+                                , context = Nothing
+                                }
+                            ]
+                        , free = True
+                        }
+                    )
+                , NoInput MakeApp
+                , NoInput MakeAPP
+                , Input MakeLAM
+                    ( Options
+                        { opts =
+                            [ Option
+                                { option = "α"
+                                , context = Nothing
+                                }
+                            , Option
+                                { option = "γ"
+                                , context = Nothing
+                                }
+                            , Option
+                                { option = "β1"
+                                , context = Nothing
+                                }
+                            ]
+                        , free = True
+                        }
+                    )
+                , NoInput MakeAnn
+                , NoInput Raise
+                , NoInput DeleteExpr
                 ]
             )
         ,
             ( 27
             ,
-                [ Code "$"
-                , Code ":"
-                , Code "@"
-                , Code "Λx"
-                , Code "λx"
-                , Prose "↑"
-                , Prose "⌫"
+                [ Input MakeLam
+                    ( Options
+                        { opts =
+                            [ Option
+                                { option = "z"
+                                , context = Nothing
+                                }
+                            , Option
+                                { option = "x1"
+                                , context = Nothing
+                                }
+                            , Option
+                                { option = "y1"
+                                , context = Nothing
+                                }
+                            ]
+                        , free = True
+                        }
+                    )
+                , NoInput MakeApp
+                , NoInput MakeAPP
+                , Input MakeLAM
+                    ( Options
+                        { opts =
+                            [ Option
+                                { option = "α"
+                                , context = Nothing
+                                }
+                            , Option
+                                { option = "γ"
+                                , context = Nothing
+                                }
+                            , Option
+                                { option = "β1"
+                                , context = Nothing
+                                }
+                            ]
+                        , free = True
+                        }
+                    )
+                , NoInput MakeAnn
+                , NoInput Raise
+                , NoInput DeleteExpr
                 ]
             )
         ,
             ( 28
             ,
-                [ Code "$"
-                , Code ":"
-                , Code "@"
-                , Code "Λx"
-                , Code "λx"
-                , Code "m"
-                , Prose "↑"
-                , Prose "⌫"
+                [ Input MakeLam
+                    ( Options
+                        { opts =
+                            [ Option
+                                { option = "z"
+                                , context = Nothing
+                                }
+                            , Option
+                                { option = "x1"
+                                , context = Nothing
+                                }
+                            , Option
+                                { option = "y1"
+                                , context = Nothing
+                                }
+                            ]
+                        , free = True
+                        }
+                    )
+                , NoInput MakeCase
+                , NoInput MakeApp
+                , NoInput MakeAPP
+                , Input MakeLAM
+                    ( Options
+                        { opts =
+                            [ Option
+                                { option = "α"
+                                , context = Nothing
+                                }
+                            , Option
+                                { option = "γ"
+                                , context = Nothing
+                                }
+                            , Option
+                                { option = "β1"
+                                , context = Nothing
+                                }
+                            ]
+                        , free = True
+                        }
+                    )
+                , NoInput MakeAnn
+                , NoInput Raise
+                , NoInput DeleteExpr
                 ]
             )
         ,
             ( 29
             ,
-                [ Code "$"
-                , Code ":"
-                , Code "@"
-                , Code "Λx"
-                , Code "λx"
-                , Code "m"
-                , Prose "↑"
-                , Prose "⌫"
+                [ Input MakeLam
+                    ( Options
+                        { opts =
+                            [ Option
+                                { option = "z"
+                                , context = Nothing
+                                }
+                            , Option
+                                { option = "x1"
+                                , context = Nothing
+                                }
+                            , Option
+                                { option = "y1"
+                                , context = Nothing
+                                }
+                            ]
+                        , free = True
+                        }
+                    )
+                , NoInput MakeCase
+                , NoInput MakeApp
+                , NoInput MakeAPP
+                , Input MakeLAM
+                    ( Options
+                        { opts =
+                            [ Option
+                                { option = "α"
+                                , context = Nothing
+                                }
+                            , Option
+                                { option = "γ"
+                                , context = Nothing
+                                }
+                            , Option
+                                { option = "β1"
+                                , context = Nothing
+                                }
+                            ]
+                        , free = True
+                        }
+                    )
+                , NoInput MakeAnn
+                , NoInput Raise
+                , NoInput DeleteExpr
                 ]
             )
         ,
             ( 30
             ,
-                [ Prose "r" ]
+                [ Input RenamePattern
+                    ( Options
+                        { opts =
+                            [ Option
+                                { option = "j"
+                                , context = Nothing
+                                }
+                            , Option
+                                { option = "m"
+                                , context = Nothing
+                                }
+                            , Option
+                                { option = "i1"
+                                , context = Nothing
+                                }
+                            , Option
+                                { option = "n1"
+                                , context = Nothing
+                                }
+                            ]
+                        , free = True
+                        }
+                    )
+                ]
             )
         ,
             ( 31
             ,
-                [ Code "$"
-                , Code ":"
-                , Code "@"
-                , Code "Λx"
-                , Code "λx"
-                , Code "m"
-                , Prose "↑"
-                , Prose "⌫"
+                [ Input MakeLam
+                    ( Options
+                        { opts =
+                            [ Option
+                                { option = "z"
+                                , context = Nothing
+                                }
+                            , Option
+                                { option = "x1"
+                                , context = Nothing
+                                }
+                            , Option
+                                { option = "y1"
+                                , context = Nothing
+                                }
+                            ]
+                        , free = True
+                        }
+                    )
+                , NoInput MakeCase
+                , NoInput MakeApp
+                , NoInput MakeAPP
+                , Input MakeLAM
+                    ( Options
+                        { opts =
+                            [ Option
+                                { option = "α"
+                                , context = Nothing
+                                }
+                            , Option
+                                { option = "γ"
+                                , context = Nothing
+                                }
+                            , Option
+                                { option = "β1"
+                                , context = Nothing
+                                }
+                            ]
+                        , free = True
+                        }
+                    )
+                , NoInput MakeAnn
+                , NoInput Raise
+                , NoInput DeleteExpr
                 ]
             )
         ,
             ( 32
             ,
-                [ Code "$"
-                , Code ":"
-                , Code "@"
-                , Code "Λx"
-                , Code "λx"
-                , Code "m"
-                , Prose "↑"
-                , Prose "⌫"
+                [ Input MakeLam
+                    ( Options
+                        { opts =
+                            [ Option
+                                { option = "z"
+                                , context = Nothing
+                                }
+                            , Option
+                                { option = "x1"
+                                , context = Nothing
+                                }
+                            , Option
+                                { option = "y1"
+                                , context = Nothing
+                                }
+                            ]
+                        , free = True
+                        }
+                    )
+                , NoInput MakeCase
+                , NoInput MakeApp
+                , NoInput MakeAPP
+                , Input MakeLAM
+                    ( Options
+                        { opts =
+                            [ Option
+                                { option = "α"
+                                , context = Nothing
+                                }
+                            , Option
+                                { option = "γ"
+                                , context = Nothing
+                                }
+                            , Option
+                                { option = "β1"
+                                , context = Nothing
+                                }
+                            ]
+                        , free = True
+                        }
+                    )
+                , NoInput MakeAnn
+                , NoInput Raise
+                , NoInput DeleteExpr
                 ]
             )
         ,
             ( 33
             ,
-                [ Code "$"
-                , Code ":"
-                , Code "="
-                , Code "=,="
-                , Code "@"
-                , Code "V $ ?"
-                , Code "V"
-                , Code "Λx"
-                , Code "λx"
-                , Code "f $ ?"
-                , Code "m"
-                , Code "x"
-                , Prose "↑"
-                , Prose "h"
+                [ Input MakeLam
+                    ( Options
+                        { opts =
+                            [ Option
+                                { option = "z"
+                                , context = Nothing
+                                }
+                            , Option
+                                { option = "x1"
+                                , context = Nothing
+                                }
+                            , Option
+                                { option = "y1"
+                                , context = Nothing
+                                }
+                            ]
+                        , free = True
+                        }
+                    )
+                , Input MakeVar
+                    ( Options
+                        { opts =
+                            [ Option
+                                { option = "x"
+                                , context = Nothing
+                                }
+                            , Option
+                                { option = "y"
+                                , context = Nothing
+                                }
+                            , Option
+                                { option = "i"
+                                , context = Nothing
+                                }
+                            , Option
+                                { option = "n"
+                                , context = Nothing
+                                }
+                            , Option
+                                { option = "comprehensive"
+                                , context = Just
+                                    ( "M" :| [] )
+                                }
+                            ]
+                        , free = False
+                        }
+                    )
+                , Input MakeCon
+                    ( Options
+                        { opts =
+                            [ Option
+                                { option = "True"
+                                , context = Just
+                                    ( "Builtins" :| [] )
+                                }
+                            , Option
+                                { option = "False"
+                                , context = Just
+                                    ( "Builtins" :| [] )
+                                }
+                            , Option
+                                { option = "Left"
+                                , context = Just
+                                    ( "Builtins" :| [] )
+                                }
+                            , Option
+                                { option = "Right"
+                                , context = Just
+                                    ( "Builtins" :| [] )
+                                }
+                            , Option
+                                { option = "Nil"
+                                , context = Just
+                                    ( "Builtins" :| [] )
+                                }
+                            , Option
+                                { option = "Cons"
+                                , context = Just
+                                    ( "Builtins" :| [] )
+                                }
+                            , Option
+                                { option = "Nothing"
+                                , context = Just
+                                    ( "Builtins" :| [] )
+                                }
+                            , Option
+                                { option = "Just"
+                                , context = Just
+                                    ( "Builtins" :| [] )
+                                }
+                            , Option
+                                { option = "Zero"
+                                , context = Just
+                                    ( "Builtins" :| [] )
+                                }
+                            , Option
+                                { option = "Succ"
+                                , context = Just
+                                    ( "Builtins" :| [] )
+                                }
+                            , Option
+                                { option = "MakePair"
+                                , context = Just
+                                    ( "Builtins" :| [] )
+                                }
+                            ]
+                        , free = False
+                        }
+                    )
+                , NoInput MakeCase
+                , Input MakeConSat
+                    ( Options
+                        { opts =
+                            [ Option
+                                { option = "Left"
+                                , context = Just
+                                    ( "Builtins" :| [] )
+                                }
+                            , Option
+                                { option = "Right"
+                                , context = Just
+                                    ( "Builtins" :| [] )
+                                }
+                            , Option
+                                { option = "Nil"
+                                , context = Just
+                                    ( "Builtins" :| [] )
+                                }
+                            , Option
+                                { option = "Cons"
+                                , context = Just
+                                    ( "Builtins" :| [] )
+                                }
+                            , Option
+                                { option = "Nothing"
+                                , context = Just
+                                    ( "Builtins" :| [] )
+                                }
+                            , Option
+                                { option = "Just"
+                                , context = Just
+                                    ( "Builtins" :| [] )
+                                }
+                            , Option
+                                { option = "Succ"
+                                , context = Just
+                                    ( "Builtins" :| [] )
+                                }
+                            , Option
+                                { option = "MakePair"
+                                , context = Just
+                                    ( "Builtins" :| [] )
+                                }
+                            ]
+                        , free = False
+                        }
+                    )
+                , Input MakeVarSat
+                    ( Options
+                        { opts =
+                            [ Option
+                                { option = "comprehensive"
+                                , context = Just
+                                    ( "M" :| [] )
+                                }
+                            ]
+                        , free = False
+                        }
+                    )
+                , Input MakeLet
+                    ( Options
+                        { opts =
+                            [ Option
+                                { option = "z"
+                                , context = Nothing
+                                }
+                            , Option
+                                { option = "x1"
+                                , context = Nothing
+                                }
+                            , Option
+                                { option = "y1"
+                                , context = Nothing
+                                }
+                            ]
+                        , free = True
+                        }
+                    )
+                , Input MakeLetRec
+                    ( Options
+                        { opts =
+                            [ Option
+                                { option = "z"
+                                , context = Nothing
+                                }
+                            , Option
+                                { option = "x1"
+                                , context = Nothing
+                                }
+                            , Option
+                                { option = "y1"
+                                , context = Nothing
+                                }
+                            ]
+                        , free = True
+                        }
+                    )
+                , NoInput MakeApp
+                , NoInput MakeAPP
+                , Input MakeLAM
+                    ( Options
+                        { opts =
+                            [ Option
+                                { option = "α"
+                                , context = Nothing
+                                }
+                            , Option
+                                { option = "γ"
+                                , context = Nothing
+                                }
+                            , Option
+                                { option = "β1"
+                                , context = Nothing
+                                }
+                            ]
+                        , free = True
+                        }
+                    )
+                , NoInput MakeAnn
+                , NoInput Raise
+                , NoInput EnterHole
                 ]
             )
         ,
             ( 34
             ,
-                [ Code "$"
-                , Code ":"
-                , Code "@"
-                , Code "Λx"
-                , Code "λx"
-                , Code "m"
-                , Prose "↑"
-                , Prose "⌫"
+                [ Input MakeLam
+                    ( Options
+                        { opts =
+                            [ Option
+                                { option = "z"
+                                , context = Nothing
+                                }
+                            , Option
+                                { option = "x1"
+                                , context = Nothing
+                                }
+                            , Option
+                                { option = "y1"
+                                , context = Nothing
+                                }
+                            ]
+                        , free = True
+                        }
+                    )
+                , NoInput MakeCase
+                , NoInput MakeApp
+                , NoInput MakeAPP
+                , Input MakeLAM
+                    ( Options
+                        { opts =
+                            [ Option
+                                { option = "α"
+                                , context = Nothing
+                                }
+                            , Option
+                                { option = "γ"
+                                , context = Nothing
+                                }
+                            , Option
+                                { option = "β1"
+                                , context = Nothing
+                                }
+                            ]
+                        , free = True
+                        }
+                    )
+                , NoInput MakeAnn
+                , NoInput Raise
+                , NoInput DeleteExpr
                 ]
             )
         ,
             ( 35
             ,
-                [ Code "$"
-                , Code ":"
-                , Code "@"
-                , Code "Λx"
-                , Code "λx"
-                , Code "m"
-                , Prose "↑"
-                , Prose "⌫"
+                [ Input MakeLam
+                    ( Options
+                        { opts =
+                            [ Option
+                                { option = "z"
+                                , context = Nothing
+                                }
+                            , Option
+                                { option = "x1"
+                                , context = Nothing
+                                }
+                            , Option
+                                { option = "y1"
+                                , context = Nothing
+                                }
+                            ]
+                        , free = True
+                        }
+                    )
+                , NoInput MakeCase
+                , NoInput MakeApp
+                , NoInput MakeAPP
+                , Input MakeLAM
+                    ( Options
+                        { opts =
+                            [ Option
+                                { option = "α"
+                                , context = Nothing
+                                }
+                            , Option
+                                { option = "γ"
+                                , context = Nothing
+                                }
+                            , Option
+                                { option = "β1"
+                                , context = Nothing
+                                }
+                            ]
+                        , free = True
+                        }
+                    )
+                , NoInput MakeAnn
+                , NoInput Raise
+                , NoInput DeleteExpr
                 ]
             )
         ,
             ( 16
             ,
-                [ Code "$"
-                , Code "→"
-                , Code "∀"
-                , Prose "⌫"
+                [ NoInput MakeFun
+                , NoInput MakeTApp
+                , Input MakeForall
+                    ( Options
+                        { opts =
+                            [ Option
+                                { option = "α"
+                                , context = Nothing
+                                }
+                            , Option
+                                { option = "β"
+                                , context = Nothing
+                                }
+                            , Option
+                                { option = "γ"
+                                , context = Nothing
+                                }
+                            ]
+                        , free = True
+                        }
+                    )
+                , NoInput DeleteType
                 ]
             )
         ,
             ( 17
             ,
-                [ Code "$"
-                , Code "→"
-                , Code "∀"
-                , Prose "↑"
-                , Prose "⌫"
+                [ NoInput MakeFun
+                , NoInput MakeTApp
+                , Input MakeForall
+                    ( Options
+                        { opts =
+                            [ Option
+                                { option = "α"
+                                , context = Nothing
+                                }
+                            , Option
+                                { option = "β"
+                                , context = Nothing
+                                }
+                            , Option
+                                { option = "γ"
+                                , context = Nothing
+                                }
+                            ]
+                        , free = True
+                        }
+                    )
+                , NoInput Raise
+                , NoInput DeleteType
                 ]
             )
         ,
             ( 25
             ,
-                [ Code "$"
-                , Code "→"
-                , Code "∀"
-                , Prose "⌫"
+                [ NoInput MakeFun
+                , NoInput MakeTApp
+                , Input MakeForall
+                    ( Options
+                        { opts =
+                            [ Option
+                                { option = "α"
+                                , context = Nothing
+                                }
+                            , Option
+                                { option = "γ"
+                                , context = Nothing
+                                }
+                            , Option
+                                { option = "β1"
+                                , context = Nothing
+                                }
+                            ]
+                        , free = True
+                        }
+                    )
+                , NoInput DeleteType
                 ]
             )
         ,
             ( 26
             ,
-                [ Code "$"
-                , Code "→"
-                , Code "∀"
-                , Prose "⌫"
+                [ NoInput MakeFun
+                , NoInput MakeTApp
+                , Input MakeForall
+                    ( Options
+                        { opts =
+                            [ Option
+                                { option = "α"
+                                , context = Nothing
+                                }
+                            , Option
+                                { option = "γ"
+                                , context = Nothing
+                                }
+                            , Option
+                                { option = "β1"
+                                , context = Nothing
+                                }
+                            ]
+                        , free = True
+                        }
+                    )
+                , NoInput DeleteType
                 ]
             )
         ,
             ( 36
             ,
-                [ Code "$"
-                , Code "→"
-                , Code "→A→"
-                , Code "∀"
-                , Prose "⌫"
+                [ NoInput MakeFun
+                , NoInput AddInput
+                , NoInput MakeTApp
+                , Input MakeForall
+                    ( Options
+                        { opts =
+                            [ Option
+                                { option = "β"
+                                , context = Nothing
+                                }
+                            , Option
+                                { option = "γ"
+                                , context = Nothing
+                                }
+                            , Option
+                                { option = "α1"
+                                , context = Nothing
+                                }
+                            ]
+                        , free = True
+                        }
+                    )
+                , NoInput DeleteType
                 ]
             )
         ,
             ( 37
             ,
-                [ Code "$"
-                , Code "→"
-                , Code "∀"
-                , Prose "↑"
-                , Prose "⌫"
+                [ NoInput MakeFun
+                , NoInput MakeTApp
+                , Input MakeForall
+                    ( Options
+                        { opts =
+                            [ Option
+                                { option = "α"
+                                , context = Nothing
+                                }
+                            , Option
+                                { option = "β"
+                                , context = Nothing
+                                }
+                            , Option
+                                { option = "γ"
+                                , context = Nothing
+                                }
+                            ]
+                        , free = True
+                        }
+                    )
+                , NoInput Raise
+                , NoInput DeleteType
                 ]
             )
         ,
             ( 38
             ,
-                [ Code "$"
-                , Code "→"
-                , Code "∀"
-                , Prose "↑"
-                , Prose "⌫"
-                , Prose "r"
+                [ NoInput MakeFun
+                , NoInput MakeTApp
+                , Input MakeForall
+                    ( Options
+                        { opts =
+                            [ Option
+                                { option = "β"
+                                , context = Nothing
+                                }
+                            , Option
+                                { option = "γ"
+                                , context = Nothing
+                                }
+                            , Option
+                                { option = "α1"
+                                , context = Nothing
+                                }
+                            ]
+                        , free = True
+                        }
+                    )
+                , Input RenameForall
+                    ( Options
+                        { opts =
+                            [ Option
+                                { option = "β"
+                                , context = Nothing
+                                }
+                            , Option
+                                { option = "γ"
+                                , context = Nothing
+                                }
+                            , Option
+                                { option = "α1"
+                                , context = Nothing
+                                }
+                            ]
+                        , free = True
+                        }
+                    )
+                , NoInput Raise
+                , NoInput DeleteType
                 ]
             )
         ,
             ( 39
             ,
-                [ Code "$"
-                , Code "→"
-                , Code "∀"
-                , Prose "↑"
-                , Prose "⌫"
+                [ NoInput MakeFun
+                , NoInput MakeTApp
+                , Input MakeForall
+                    ( Options
+                        { opts =
+                            [ Option
+                                { option = "β"
+                                , context = Nothing
+                                }
+                            , Option
+                                { option = "γ"
+                                , context = Nothing
+                                }
+                            , Option
+                                { option = "α1"
+                                , context = Nothing
+                                }
+                            ]
+                        , free = True
+                        }
+                    )
+                , NoInput Raise
+                , NoInput DeleteType
                 ]
             )
         ,
             ( 40
             ,
-                [ Code "$"
-                , Code "→"
-                , Code "∀"
-                , Prose "↑"
-                , Prose "⌫"
+                [ NoInput MakeFun
+                , NoInput MakeTApp
+                , Input MakeForall
+                    ( Options
+                        { opts =
+                            [ Option
+                                { option = "β"
+                                , context = Nothing
+                                }
+                            , Option
+                                { option = "γ"
+                                , context = Nothing
+                                }
+                            , Option
+                                { option = "α1"
+                                , context = Nothing
+                                }
+                            ]
+                        , free = True
+                        }
+                    )
+                , NoInput Raise
+                , NoInput DeleteType
                 ]
             )
         ,
             ( 41
             ,
-                [ Code "$"
-                , Code "→"
-                , Code "∀"
-                , Prose "↑"
-                , Prose "⌫"
+                [ NoInput MakeFun
+                , NoInput MakeTApp
+                , Input MakeForall
+                    ( Options
+                        { opts =
+                            [ Option
+                                { option = "β"
+                                , context = Nothing
+                                }
+                            , Option
+                                { option = "γ"
+                                , context = Nothing
+                                }
+                            , Option
+                                { option = "α1"
+                                , context = Nothing
+                                }
+                            ]
+                        , free = True
+                        }
+                    )
+                , NoInput Raise
+                , NoInput DeleteType
                 ]
             )
         ,
             ( 42
             ,
-                [ Code "$"
-                , Code "→"
-                , Code "∀"
-                , Prose "↑"
-                , Prose "⌫"
+                [ NoInput MakeFun
+                , NoInput MakeTApp
+                , Input MakeForall
+                    ( Options
+                        { opts =
+                            [ Option
+                                { option = "β"
+                                , context = Nothing
+                                }
+                            , Option
+                                { option = "γ"
+                                , context = Nothing
+                                }
+                            , Option
+                                { option = "α1"
+                                , context = Nothing
+                                }
+                            ]
+                        , free = True
+                        }
+                    )
+                , NoInput Raise
+                , NoInput DeleteType
                 ]
             )
         ,
             ( 43
             ,
-                [ Code "$"
-                , Code "→"
-                , Code "∀"
-                , Prose "↑"
-                , Prose "⌫"
+                [ NoInput MakeFun
+                , NoInput MakeTApp
+                , Input MakeForall
+                    ( Options
+                        { opts =
+                            [ Option
+                                { option = "β"
+                                , context = Nothing
+                                }
+                            , Option
+                                { option = "γ"
+                                , context = Nothing
+                                }
+                            , Option
+                                { option = "α1"
+                                , context = Nothing
+                                }
+                            ]
+                        , free = True
+                        }
+                    )
+                , NoInput Raise
+                , NoInput DeleteType
                 ]
             )
         ]
@@ -425,93 +1925,329 @@ Output
         [
             ( 0
             ,
-                [ Code "$"
-                , Code "→"
-                , Code "→A→"
-                , Code "∀"
-                , Prose "⌫"
+                [ NoInput MakeFun
+                , NoInput AddInput
+                , NoInput MakeTApp
+                , Input MakeForall
+                    ( Options
+                        { opts =
+                            [ Option
+                                { option = "α"
+                                , context = Nothing
+                                }
+                            , Option
+                                { option = "β"
+                                , context = Nothing
+                                }
+                            , Option
+                                { option = "γ"
+                                , context = Nothing
+                                }
+                            ]
+                        , free = True
+                        }
+                    )
+                , NoInput DeleteType
                 ]
             )
         ,
             ( 1
             ,
-                [ Code "$"
-                , Code "→"
-                , Code "∀"
-                , Prose "↑"
-                , Prose "⌫"
+                [ NoInput MakeFun
+                , NoInput MakeTApp
+                , Input MakeForall
+                    ( Options
+                        { opts =
+                            [ Option
+                                { option = "α"
+                                , context = Nothing
+                                }
+                            , Option
+                                { option = "β"
+                                , context = Nothing
+                                }
+                            , Option
+                                { option = "γ"
+                                , context = Nothing
+                                }
+                            ]
+                        , free = True
+                        }
+                    )
+                , NoInput RaiseType
+                , NoInput DeleteType
                 ]
             )
         ,
             ( 2
             ,
-                [ Code "$"
-                , Code "→"
-                , Code "∀"
-                , Prose "↑"
-                , Prose "⌫"
-                , Prose "r"
+                [ NoInput MakeFun
+                , NoInput MakeTApp
+                , Input MakeForall
+                    ( Options
+                        { opts =
+                            [ Option
+                                { option = "α"
+                                , context = Nothing
+                                }
+                            , Option
+                                { option = "β"
+                                , context = Nothing
+                                }
+                            , Option
+                                { option = "γ"
+                                , context = Nothing
+                                }
+                            ]
+                        , free = True
+                        }
+                    )
+                , Input RenameForall
+                    ( Options
+                        { opts =
+                            [ Option
+                                { option = "α"
+                                , context = Nothing
+                                }
+                            , Option
+                                { option = "β"
+                                , context = Nothing
+                                }
+                            , Option
+                                { option = "γ"
+                                , context = Nothing
+                                }
+                            ]
+                        , free = True
+                        }
+                    )
+                , NoInput RaiseType
+                , NoInput DeleteType
                 ]
             )
         ,
             ( 3
             ,
-                [ Code "$"
-                , Code "→"
-                , Code "∀"
-                , Prose "↑"
-                , Prose "⌫"
+                [ NoInput MakeFun
+                , NoInput MakeTApp
+                , Input MakeForall
+                    ( Options
+                        { opts =
+                            [ Option
+                                { option = "α"
+                                , context = Nothing
+                                }
+                            , Option
+                                { option = "β"
+                                , context = Nothing
+                                }
+                            , Option
+                                { option = "γ"
+                                , context = Nothing
+                                }
+                            ]
+                        , free = True
+                        }
+                    )
+                , NoInput RaiseType
+                , NoInput DeleteType
                 ]
             )
         ,
             ( 4
             ,
-                [ Code "$"
-                , Code "→"
-                , Code "∀"
-                , Prose "↑"
-                , Prose "⌫"
+                [ NoInput MakeFun
+                , NoInput MakeTApp
+                , Input MakeForall
+                    ( Options
+                        { opts =
+                            [ Option
+                                { option = "α"
+                                , context = Nothing
+                                }
+                            , Option
+                                { option = "β"
+                                , context = Nothing
+                                }
+                            , Option
+                                { option = "γ"
+                                , context = Nothing
+                                }
+                            ]
+                        , free = True
+                        }
+                    )
+                , NoInput RaiseType
+                , NoInput DeleteType
                 ]
             )
         ,
             ( 5
             ,
-                [ Code "$"
-                , Code "→"
-                , Code "∀"
-                , Prose "↑"
-                , Prose "⌫"
+                [ NoInput MakeFun
+                , NoInput MakeTApp
+                , Input MakeForall
+                    ( Options
+                        { opts =
+                            [ Option
+                                { option = "α"
+                                , context = Nothing
+                                }
+                            , Option
+                                { option = "β"
+                                , context = Nothing
+                                }
+                            , Option
+                                { option = "γ"
+                                , context = Nothing
+                                }
+                            ]
+                        , free = True
+                        }
+                    )
+                , NoInput RaiseType
+                , NoInput DeleteType
                 ]
             )
         ,
             ( 6
             ,
-                [ Code "$"
-                , Code "→"
-                , Code "∀"
-                , Prose "↑"
-                , Prose "⌫"
+                [ NoInput MakeFun
+                , NoInput MakeTApp
+                , Input MakeForall
+                    ( Options
+                        { opts =
+                            [ Option
+                                { option = "α"
+                                , context = Nothing
+                                }
+                            , Option
+                                { option = "β"
+                                , context = Nothing
+                                }
+                            , Option
+                                { option = "γ"
+                                , context = Nothing
+                                }
+                            ]
+                        , free = True
+                        }
+                    )
+                , NoInput RaiseType
+                , NoInput DeleteType
                 ]
             )
         ,
             ( 7
             ,
-                [ Code "$"
-                , Code "T"
-                , Code "→"
-                , Code "∀"
-                , Code "t"
-                , Prose "↑"
+                [ NoInput MakeFun
+                , Input MakeTVar
+                    ( Options
+                        { opts =
+                            [ Option
+                                { option = "a"
+                                , context = Nothing
+                                }
+                            ]
+                        , free = False
+                        }
+                    )
+                , Input MakeTCon
+                    ( Options
+                        { opts =
+                            [ Option
+                                { option = "Bool"
+                                , context = Just
+                                    ( "Builtins" :| [] )
+                                }
+                            , Option
+                                { option = "Either"
+                                , context = Just
+                                    ( "Builtins" :| [] )
+                                }
+                            , Option
+                                { option = "List"
+                                , context = Just
+                                    ( "Builtins" :| [] )
+                                }
+                            , Option
+                                { option = "Maybe"
+                                , context = Just
+                                    ( "Builtins" :| [] )
+                                }
+                            , Option
+                                { option = "Nat"
+                                , context = Just
+                                    ( "Builtins" :| [] )
+                                }
+                            , Option
+                                { option = "Pair"
+                                , context = Just
+                                    ( "Builtins" :| [] )
+                                }
+                            , Option
+                                { option = "Char"
+                                , context = Just
+                                    ( "Primitives" :| [] )
+                                }
+                            , Option
+                                { option = "Int"
+                                , context = Just
+                                    ( "Primitives" :| [] )
+                                }
+                            ]
+                        , free = False
+                        }
+                    )
+                , NoInput MakeTApp
+                , Input MakeForall
+                    ( Options
+                        { opts =
+                            [ Option
+                                { option = "α"
+                                , context = Nothing
+                                }
+                            , Option
+                                { option = "β"
+                                , context = Nothing
+                                }
+                            , Option
+                                { option = "γ"
+                                , context = Nothing
+                                }
+                            ]
+                        , free = True
+                        }
+                    )
+                , NoInput RaiseType
                 ]
             )
         ,
             ( 8
             ,
-                [ Code "$"
-                , Code "→"
-                , Code "∀"
-                , Prose "↑"
-                , Prose "⌫"
+                [ NoInput MakeFun
+                , NoInput MakeTApp
+                , Input MakeForall
+                    ( Options
+                        { opts =
+                            [ Option
+                                { option = "α"
+                                , context = Nothing
+                                }
+                            , Option
+                                { option = "β"
+                                , context = Nothing
+                                }
+                            , Option
+                                { option = "γ"
+                                , context = Nothing
+                                }
+                            ]
+                        , free = True
+                        }
+                    )
+                , NoInput RaiseType
+                , NoInput DeleteType
                 ]
             )
         ]

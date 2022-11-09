@@ -5,6 +5,7 @@
 -- This module defines the high level application functions.
 
 module Primer.App (
+  module Primer.App.Base,
   Log (..),
   defaultLog,
   App,
@@ -28,11 +29,11 @@ module Primer.App (
   newProg,
   newProg',
   progAllModules,
-  Editable (..),
   progAllDefs,
   progAllTypeDefs,
   allValConNames,
   allTyConNames,
+  progCxt,
   tcWholeProg,
   tcWholeProgWithImports,
   nextProgID,
@@ -49,13 +50,11 @@ module Primer.App (
   MutationRequest (..),
   Selection (..),
   NodeSelection (..),
-  NodeType (..),
   EvalReq (..),
   EvalResp (..),
   EvalFullReq (..),
   EvalFullResp (..),
   lookupASTDef,
-  globalInUse,
   liftError,
 ) where
 
@@ -78,14 +77,11 @@ import Optics (
   Field2 (_2),
   Field3 (_3),
   ReversibleOptic (re),
-  anyOf,
-  folded,
   ifoldMap,
   lens,
   mapped,
   over,
   set,
-  to,
   traverseOf,
   traversed,
   view,
@@ -107,6 +103,11 @@ import Primer.Action (
   applyActionsToTypeSig,
  )
 import Primer.Action.ProgError (ProgError (..))
+import Primer.App.Base (
+  Editable (..),
+  Level (..),
+  NodeType (..),
+ )
 import Primer.Core (
   Bind' (Bind),
   CaseBranch,
@@ -140,7 +141,7 @@ import Primer.Core (
 import Primer.Core.DSL (S, create, emptyHole, tEmptyHole)
 import Primer.Core.DSL qualified as DSL
 import Primer.Core.Transform (foldApp, renameVar, unfoldAPP, unfoldApp, unfoldTApp)
-import Primer.Core.Utils (freeGlobalVars, freeVars, regenerateExprIDs, regenerateTypeIDs, _freeTmVars, _freeTyVars, _freeVarsTy)
+import Primer.Core.Utils (freeVars, regenerateExprIDs, regenerateTypeIDs, _freeTmVars, _freeTyVars, _freeVarsTy)
 import Primer.Def (
   ASTDef (..),
   Def (..),
@@ -148,6 +149,7 @@ import Primer.Def (
   defAST,
   defPrim,
  )
+import Primer.Def.Utils (globalInUse)
 import Primer.Eval (EvalDetail)
 import Primer.Eval qualified as Eval
 import Primer.EvalFull (Dir, EvalFullError (TimedOut), EvalFullLog, TerminationBound, evalFull)
@@ -237,9 +239,6 @@ defaultProg = Prog mempty mempty Nothing SmartHoles defaultLog
 
 progAllModules :: Prog -> [Module]
 progAllModules p = progModules p <> progImports p
-
-data Editable = Editable | NonEditable
-  deriving (Bounded, Enum, Show)
 
 progAllTypeDefs :: Prog -> Map TyConName (Editable, TypeDef)
 progAllTypeDefs p =
@@ -402,10 +401,6 @@ instance HasID NodeSelection where
     lens
       (either getID getID . meta)
       (flip $ \id -> over #meta $ bimap (set _id id) (set _id id))
-
-data NodeType = BodyNode | SigNode
-  deriving (Eq, Show, Bounded, Enum, Generic, Data)
-  deriving (FromJSON, ToJSON) via PrimerJSON NodeType
 
 -- | The type of requests which can mutate the application state.
 data MutationRequest
@@ -863,12 +858,6 @@ applyProgAction prog mdefName = \case
                     -- from the name of any import
                     ActionError $
                       InternalFailure "RenameModule: imported modules were edited by renaming"
-
-globalInUse :: Foldable f => GVarName -> f Def -> Bool
-globalInUse v =
-  anyOf
-    (folded % #_DefAST % #astDefExpr % to freeGlobalVars)
-    (Set.member v)
 
 -- Helper for RenameModule action
 data RenameMods a = RM {imported :: [a], editable :: [a]}

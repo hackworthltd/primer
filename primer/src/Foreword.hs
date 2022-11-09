@@ -11,6 +11,8 @@ module Foreword (
   munless,
   hoistAccum,
   hoistMaybe,
+  (?:),
+  curry4,
 ) where
 
 -- In general, we should defer to "Protolude"'s exports and avoid name
@@ -131,3 +133,13 @@ hoistAccum f (AccumT acc) = AccumT $ f . acc
 -- in transformers 0.6.0.0 and later
 hoistMaybe :: Applicative m => Maybe a -> MaybeT m a
 hoistMaybe = MaybeT . pure
+
+-- | An optional version of '(:)'.
+(?:) :: Maybe a -> [a] -> [a]
+Just x ?: xs = x : xs
+Nothing ?: xs = xs
+
+infixr 5 ?:
+
+curry4 :: ((a, b, c, d) -> r) -> a -> b -> c -> d -> r
+curry4 f a b c d = f (a, b, c, d)

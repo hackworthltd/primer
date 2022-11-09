@@ -45,6 +45,9 @@ import Primer.API (
   ExprTreeOpts (..),
   PrimerErr (..),
   PrimerM,
+  actionOptions,
+  applyActionInput,
+  applyActionNoInput,
   availableActions,
   edit,
   listSessions,
@@ -120,7 +123,15 @@ openAPISessionServer sid =
 
 openAPIActionServer :: ConvertServerLogs l => SessionId -> OpenAPI.ActionAPI (AsServerT (Primer l))
 openAPIActionServer sid =
-  OpenAPI.ActionAPI{available = availableActions sid}
+  OpenAPI.ActionAPI
+    { available = availableActions sid
+    , options = actionOptions sid
+    , apply =
+        OpenAPI.ApplyActionAPI
+          { simple = \patternsUnder -> applyActionNoInput ExprTreeOpts{patternsUnder} sid
+          , input = \patternsUnder -> applyActionInput ExprTreeOpts{patternsUnder} sid
+          }
+    }
 
 apiServer :: ConvertServerLogs l => S.RootAPI (AsServerT (Primer l))
 apiServer =
@@ -252,5 +263,8 @@ serve ss q v port logger = do
         DatabaseErr msg -> err500{errBody = encode msg}
         UnknownDef d -> err404{errBody = "Unknown definition: " <> encode (globalNamePretty d)}
         UnexpectedPrimDef d -> err400{errBody = "Unexpected primitive definition: " <> encode (globalNamePretty d)}
+        ActionOptionsNoID id -> err404{errBody = "ID not found for action input options: " <> show id}
+        ApplyActionError as pe -> err400{errBody = "Error while applying actions (" <> show as <> "): " <> show pe}
+        ToProgActionError a ae -> err400{errBody = "Error while converting action (" <> show a <> "): " <> show ae}
       where
         encode = LT.encodeUtf8 . LT.fromStrict
