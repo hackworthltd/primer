@@ -1,8 +1,11 @@
 -- | Utilities useful across several types of tests.
 module Primer.Test.Util (
   (@?=),
+  (<~==>),
   ExceptionPredicate,
   assertException,
+  builtinTypes,
+  distinctIDs,
   primDefs,
   constructTCon,
   constructCon,
@@ -15,10 +18,14 @@ module Primer.Test.Util (
   clearMeta,
   clearTypeMeta,
   runAPI,
+  evalFullTest,
+  evalResultExpr,
   LogMsg,
   isSevereLog,
   assertNoSevereLogs,
   testNoSevereLogs,
+  testModule,
+  testModules,
 ) where
 
 import Foreword
@@ -27,12 +34,15 @@ import Control.Concurrent.STM (
   newTBQueueIO,
  )
 import Control.Monad.Log (Severity (Informational), WithSeverity (msgSeverity))
+import Data.List ((\\))
 import Data.Map qualified as Map
 import Data.Sequence qualified as Seq
+import Data.Set qualified as S
 import Data.String (String)
+import Data.String qualified as String
 import Data.Typeable (typeOf)
 import Hedgehog (MonadTest, (===))
-import Optics (over, set, view)
+import Optics
 import Primer.API (
   Env (..),
   PrimerM,
@@ -42,13 +52,15 @@ import Primer.Action (
   Action (ConstructCon, ConstructRefinedCon, ConstructTCon),
  )
 import Primer.Core (
+  Expr,
   Expr',
   ExprMeta,
   GVarName,
   GlobalName (baseName, qualifiedModule),
   HasID,
   HasMetadata (_metadata),
-  ModuleName (ModuleName, unModuleName),
+  ID,
+  ModuleName (..),
   TyConName,
   Type',
   TypeMeta,
@@ -60,17 +72,25 @@ import Primer.Core (
   _exprTypeMeta,
   _typeMeta,
  )
-import Primer.Core.Utils (exprIDs)
+import Primer.Core.DSL
+import Primer.Core.Utils
 import Primer.Database (
   ServiceCfg (..),
   runNullDb',
   serve,
  )
-import Primer.Def (DefMap)
+import Primer.Def
+import Primer.EvalFull
 import Primer.Log (ConvertLogMessage (convert), PureLogT, runPureLogT)
-import Primer.Module (Module (moduleDefs), primitiveModule)
+import Primer.Module
 import Primer.Name (Name (unName))
-import Primer.Primitives (primitive)
+import Primer.Primitives
+import Primer.Test.TestM (
+  evalTestM,
+ )
+import Primer.TypeDef (
+  TypeDefMap,
+ )
 import StmContainers.Map qualified as StmMap
 import Test.Tasty.HUnit (
   Assertion,
@@ -120,7 +140,7 @@ clearMeta = over _exprMeta (view _metadata) . over _exprTypeMeta (view _metadata
 clearTypeMeta :: Type' TypeMeta -> Type' (Maybe Value)
 clearTypeMeta = over _typeMeta (view _metadata)
 
-(@?=) :: (MonadIO m, Eq a, Show a) => a -> a -> m ()
+(@?=) :: (HasCallStack, MonadIO m, Eq a, Show a) => a -> a -> m ()
 x @?= y = liftIO $ x HUnit.@?= y
 infix 1 @?=
 
@@ -180,3 +200,57 @@ runAPI action = do
   (r, logs) <- runPureLogT . runPrimerM action $ Env initialSessions dbOpQueue version
   assertNoSevereLogs logs
   pure r
+
+evalFullTest :: ID -> TypeDefMap -> DefMap -> TerminationBound -> Dir -> Expr -> IO (Either EvalFullError Expr)
+evalFullTest id_ tydefs globals n d e = do
+  let (r, logs) = evalTestM id_ $ runPureLogT $ evalFull @EvalFullLog tydefs globals n d e
+  assertNoSevereLogs logs
+  distinctIDs r
+  pure r
+
+distinctIDs :: Either EvalFullError Expr -> Assertion
+distinctIDs e =
+  let ids = e ^.. evalResultExpr % exprIDs
+      nIds = length ids
+      uniqIDs = S.fromList ids
+      nDistinct = S.size uniqIDs
+   in assertBool
+        ( String.unlines
+            [ "Failure: non-distinct ids; had " <> show nIds <> " ids, but only " <> show nDistinct <> " unique ones"
+            , "The duplicates were"
+            , show $ ids \\ S.toList uniqIDs
+            ]
+        )
+        (nIds == nDistinct)
+
+builtinTypes :: TypeDefMap
+builtinTypes = moduleTypesQualified builtinModule
+
+-- | Some generally-useful globals to have around when testing.
+-- Currently: an AST identity function on Char and all builtins and
+-- primitives
+testModules :: [Module]
+testModules = [builtinModule, primitiveModule, testModule]
+
+testModule :: Module
+testModule =
+  let (ty, expr) = create' $ (,) <$> tcon tChar `tfun` tcon tChar <*> lam "x" (lvar "x")
+   in Module
+        { moduleName = ModuleName ["M"]
+        , moduleTypes = mempty
+        , moduleDefs =
+            Map.singleton "idChar" $
+              DefAST
+                ASTDef
+                  { astDefType = ty
+                  , astDefExpr = expr
+                  }
+        }
+
+evalResultExpr :: Traversal' (Either EvalFullError Expr) Expr
+evalResultExpr = _Left % timedOut `adjoin` _Right
+  where
+    timedOut = prism TimedOut (Right . \case TimedOut e -> e)
+
+(<~==>) :: HasCallStack => Either EvalFullError Expr -> Either EvalFullError Expr -> Assertion
+x <~==> y = on (@?=) (over evalResultExpr zeroIDs) x y

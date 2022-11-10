@@ -16,6 +16,7 @@ module Primer.Eval (
   PushAppIntoLetrecDetail (..),
   ApplyPrimFunDetail (..),
   -- Only exported for testing
+  Dir (..),
   Locals,
   LocalLet (..),
   tryReduceExpr,
@@ -94,6 +95,7 @@ import Primer.Eval.Detail (
   tryReducePush,
  )
 import Primer.Eval.EvalError (EvalError (..))
+import Primer.Eval.Redex (Dir (..))
 import Primer.Eval.Utils (makeSafeTLetBinding)
 import Primer.Name (Name)
 import Primer.Name.Fresh (isFresh, isFreshTy)

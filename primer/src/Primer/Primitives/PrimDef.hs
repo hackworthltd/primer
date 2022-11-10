@@ -1,3 +1,5 @@
+{-# LANGUAGE DeriveAnyClass #-}
+
 module Primer.Primitives.PrimDef (PrimDef (..)) where
 
 -- We split this module to increase parallelism in our build.
@@ -36,3 +38,4 @@ data PrimDef
   | IntFromNat
   deriving (Eq, Show, Enum, Bounded, Data, Generic)
   deriving (FromJSON, ToJSON) via PrimerJSON PrimDef
+  deriving anyclass (NFData)

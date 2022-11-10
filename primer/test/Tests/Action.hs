@@ -33,6 +33,7 @@ import Primer.Gen.Core.Raw (
   genExpr,
  )
 import Primer.Module (builtinModule)
+import Primer.Test.TestM (evalTestM)
 import Primer.Test.Util (clearMeta, constructCon, constructRefinedCon, constructTCon)
 import Primer.Typecheck (SmartHoles (NoSmartHoles, SmartHoles))
 import Primer.Zipper (
@@ -45,7 +46,6 @@ import Primer.Zipper (
  )
 import Tasty (Property, property)
 import Test.Tasty.HUnit (Assertion, assertFailure, (@?=))
-import TestM (evalTestM)
 
 -- Note: 'maximum' is partial, but we believe that 'maxID' itself is
 -- safe due to the fact that 'universe x' always contains at least

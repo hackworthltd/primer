@@ -18,9 +18,9 @@ import Primer.Core.Utils (boundVarsTy, forgetTypeMetadata, freeVarsTy)
 import Primer.Gen.Core.Raw (genTyVarName)
 import Primer.Gen.Core.Typed (forAllT, genWTKind, genWTType, propertyWT)
 import Primer.Subst
+import Primer.Test.TestM (evalTestM)
 import Tasty (Property, withDiscards)
 import Test.Tasty.HUnit hiding (assert)
-import TestM (evalTestM)
 import Tests.AlphaEquality (Alpha (Alpha))
 import Tests.Gen.Core.Typed (inExtendedLocalCxt)
 

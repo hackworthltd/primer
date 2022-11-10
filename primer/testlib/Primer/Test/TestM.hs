@@ -1,5 +1,9 @@
 -- A test monad for generating names and IDs and typechecking
-module TestM (TestM, evalTestM, isolateTestM) where
+module Primer.Test.TestM (
+  TestM,
+  evalTestM,
+  isolateTestM,
+) where
 
 import Foreword
 

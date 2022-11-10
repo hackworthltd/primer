@@ -1,3 +1,5 @@
+{-# LANGUAGE DeriveAnyClass #-}
+
 module Primer.Core.Type (
   Type,
   Type' (..),
@@ -58,6 +60,7 @@ data Type' a
       -- ^ body of the let; binding scopes over this
   deriving (Eq, Show, Data, Generic)
   deriving (FromJSON, ToJSON) via PrimerJSON (Type' a)
+  deriving anyclass (NFData)
 
 -- | A traversal over the metadata of a type
 _typeMeta :: Traversal (Type' a) (Type' b) a b
@@ -73,6 +76,7 @@ _typeMetaLens = position @1
 data Kind = KHole | KType | KFun Kind Kind
   deriving (Eq, Show, Data, Generic)
   deriving (FromJSON, ToJSON) via PrimerJSON Kind
+  deriving anyclass (NFData)
 
 instance HasID a => HasID (Type' a) where
   _id = position @1 % _id

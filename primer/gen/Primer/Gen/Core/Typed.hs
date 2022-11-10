@@ -67,6 +67,7 @@ import Primer.Module (Module (..))
 import Primer.Name (Name, NameCounter, freshName, unName, unsafeMkName)
 import Primer.Refine (Inst (InstAPP, InstApp, InstUnconstrainedAPP), refine)
 import Primer.Subst (substTy, substTys)
+import Primer.Test.TestM (TestM, evalTestM, isolateTestM)
 import Primer.TypeDef (
   ASTTypeDef (..),
   TypeDef (..),
@@ -99,7 +100,6 @@ import Primer.Typecheck (
   typeDefs,
  )
 import Tasty (Property, property)
-import TestM (TestM, evalTestM, isolateTestM)
 
 {-
 Generate well scoped and typed expressions.
