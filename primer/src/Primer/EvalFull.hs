@@ -1,3 +1,5 @@
+{-# LANGUAGE DeriveAnyClass #-}
+
 module Primer.EvalFull (
   Dir (..),
   EvalFullError (..),
@@ -17,6 +19,7 @@ module Primer.EvalFull (
 
 import Foreword
 
+import Data.Data (Data)
 import Control.Monad.Trans.Maybe (MaybeT (runMaybeT))
 import Numeric.Natural (Natural)
 import Primer.Core (
@@ -45,7 +48,8 @@ import Primer.Zipper (
 newtype EvalFullError
   = TimedOut Expr
   -- We assume the input is type-correct, and don't even detect the most egregious flouting of that assumption
-  deriving (Eq, Show)
+  deriving (Eq, Show, Data, Generic)
+  deriving anyclass (NFData)
 
 -- Currently just a step limit
 type TerminationBound = Natural

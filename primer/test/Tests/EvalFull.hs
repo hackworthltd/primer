@@ -1,15 +1,12 @@
 module Tests.EvalFull where
 
-import Foreword hiding (unlines)
+import Foreword
 
 import Control.Monad.Log (WithSeverity)
 import Data.Generics.Uniplate.Data (universe)
-import Data.List ((\\))
 import Data.List.NonEmpty qualified as NE
 import Data.Map qualified as M
 import Data.Map qualified as Map
-import Data.Set qualified as S
-import Data.String (unlines)
 import Hedgehog hiding (Property, Var, check, property, test, withDiscards, withTests)
 import Hedgehog.Gen qualified as Gen
 import Hedgehog.Internal.Property (LabelName (unLabelName))
@@ -46,7 +43,7 @@ import Primer.Core.Utils (
   forgetMetadata,
   generateIDs,
  )
-import Primer.Def (ASTDef (..), Def (..), DefMap)
+import Primer.Def (DefMap)
 import Primer.EvalFull
 import Primer.Examples qualified as Examples (
   even,
@@ -56,7 +53,7 @@ import Primer.Examples qualified as Examples (
  )
 import Primer.Gen.Core.Typed (WT, forAllT, genChk, genSyn, genWTType, isolateWT, propertyWT)
 import Primer.Log (PureLogT, runPureLogT)
-import Primer.Module (Module (Module, moduleDefs, moduleName, moduleTypes), builtinModule, moduleDefsQualified, moduleTypesQualified, primitiveModule)
+import Primer.Module (Module (Module, moduleDefs, moduleName, moduleTypes), builtinModule, moduleDefsQualified, primitiveModule)
 import Primer.Primitives (
   PrimDef (
     EqChar,
@@ -84,9 +81,14 @@ import Primer.Primitives (
   tInt,
  )
 import Primer.Primitives.DSL (pfun)
+import Primer.Test.TestM
 import Primer.Test.Util (
-  assertNoSevereLogs,
+  (<~==>),
+  builtinTypes,
+  evalFullTest,
+  evalResultExpr,
   primDefs,
+  testModules,
   testNoSevereLogs,
   zeroIDs,
  )
@@ -104,8 +106,7 @@ import Tasty (
   withDiscards,
   withTests,
  )
-import Test.Tasty.HUnit (Assertion, assertBool, assertFailure, (@?=))
-import TestM
+import Test.Tasty.HUnit (Assertion, assertFailure, (@?=))
 import Tests.Action.Prog (runAppTestM)
 import Tests.Eval ((~=))
 import Tests.Gen.Core.Typed (checkTest)
@@ -1351,13 +1352,6 @@ tasty_unique_ids = withTests 1000 $
 
 -- * Utilities
 
-evalFullTest :: ID -> TypeDefMap -> DefMap -> TerminationBound -> Dir -> Expr -> IO (Either EvalFullError Expr)
-evalFullTest id_ tydefs globals n d e = do
-  let (r, logs) = evalTestM id_ $ runPureLogT $ evalFull @EvalFullLog tydefs globals n d e
-  assertNoSevereLogs logs
-  distinctIDs r
-  pure r
-
 evalFullTasty :: MonadTest m => ID -> TypeDefMap -> DefMap -> TerminationBound -> Dir -> Expr -> m (Either EvalFullError Expr)
 evalFullTasty id_ tydefs globals n d e = do
   let (r, logs) = evalTestM id_ $ runPureLogT $ evalFull @EvalFullLog tydefs globals n d e
@@ -1416,50 +1410,3 @@ genDirTm = do
     Syn -> forAllT genSyn
   t <- generateIDs t'
   pure (dir, t, ty)
-
--- | Some generally-useful globals to have around when testing.
--- Currently: an AST identity function on Char and all builtins and
--- primitives
-testModules :: [Module]
-testModules = [builtinModule, primitiveModule, testModule]
-
-testModule :: Module
-testModule =
-  let (ty, expr) = create' $ (,) <$> tcon tChar `tfun` tcon tChar <*> lam "x" (lvar "x")
-   in Module
-        { moduleName = ModuleName ["M"]
-        , moduleTypes = mempty
-        , moduleDefs =
-            Map.singleton "idChar" $
-              DefAST
-                ASTDef
-                  { astDefType = ty
-                  , astDefExpr = expr
-                  }
-        }
-
-evalResultExpr :: Traversal' (Either EvalFullError Expr) Expr
-evalResultExpr = _Left % timedOut `adjoin` _Right
-  where
-    timedOut = prism TimedOut (Right . \case TimedOut e -> e)
-
-(<~==>) :: HasCallStack => Either EvalFullError Expr -> Either EvalFullError Expr -> Assertion
-x <~==> y = on (@?=) (over evalResultExpr zeroIDs) x y
-
-distinctIDs :: Either EvalFullError Expr -> Assertion
-distinctIDs e =
-  let ids = e ^.. evalResultExpr % exprIDs
-      nIds = length ids
-      uniqIDs = S.fromList ids
-      nDistinct = S.size uniqIDs
-   in assertBool
-        ( unlines
-            [ "Failure: non-distinct ids; had " ++ show nIds ++ " ids, but only " ++ show nDistinct ++ " unique ones"
-            , "The duplicates were"
-            , show $ ids \\ S.toList uniqIDs
-            ]
-        )
-        (nIds == nDistinct)
-
-builtinTypes :: TypeDefMap
-builtinTypes = moduleTypesQualified builtinModule

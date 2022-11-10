@@ -34,6 +34,7 @@ import Primer.Module (builtinModule, primitiveModule)
 import Primer.Name (NameCounter)
 import Primer.Refine (Inst (InstAPP, InstApp, InstUnconstrainedAPP), refine)
 import Primer.Subst (substTy, substTys)
+import Primer.Test.TestM (evalTestM)
 import Primer.TypeDef (astTypeDefConstructors, astTypeDefParameters, typeDefAST, valConType)
 import Primer.Typecheck (
   Cxt,
@@ -47,7 +48,6 @@ import Primer.Typecheck (
  )
 import Tasty (Property, withDiscards)
 import Test.Tasty.HUnit (Assertion, (@?=))
-import TestM (evalTestM)
 import Tests.Gen.Core.Typed (propertyWTInExtendedLocalGlobalCxt, synthTest)
 
 defaultCxt :: Cxt

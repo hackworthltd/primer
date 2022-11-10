@@ -14,10 +14,10 @@ import Primer.Core (
  )
 import Primer.Core.DSL
 import Primer.Name (Name)
+import Primer.Test.TestM (evalTestM)
 import Primer.Typecheck (SmartHoles (NoSmartHoles), initialCxt)
 import Primer.Zipper (bindersAbove, focus)
 import Test.Tasty.HUnit (Assertion, assertFailure, (@?=))
-import TestM (evalTestM)
 
 unit_1 :: Assertion
 unit_1 = bindersAboveTest emptyHole [] mempty

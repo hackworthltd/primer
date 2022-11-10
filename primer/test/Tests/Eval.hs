@@ -59,11 +59,11 @@ import Primer.Eval (
 import Primer.Module (Module (Module, moduleDefs, moduleName, moduleTypes), builtinModule, primitiveModule)
 import Primer.Primitives (PrimDef (EqChar, ToUpper), primitiveGVar, tChar)
 import Primer.Primitives.DSL (pfun)
+import Primer.Test.TestM (evalTestM)
 import Primer.Test.Util (gvn, primDefs, vcn)
 import Primer.TypeDef (TypeDef (..))
 import Primer.Zipper (target)
 import Test.Tasty.HUnit (Assertion, assertBool, assertFailure, (@?=))
-import TestM (evalTestM)
 import Tests.Action.Prog (runAppTestM)
 
 -- * 'tryReduce' tests
