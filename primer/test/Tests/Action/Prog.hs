@@ -154,7 +154,7 @@ unit_move_to_def_main = progActionTest defaultEmptyProg [moveToDef "main"] $
     prog'
       @?= prog
         { progLog = Log [[moveToDef "main"]]
-        , progSelection = Just $ Selection (gvn "main") Nothing
+        , progSelection = Selection (gvn "main") Nothing
         }
 
 -- Expression actions are tested in ActionTest - here we just check that we can modify the correct
@@ -276,10 +276,6 @@ unit_move_to_unknown_def =
 unit_rename_unknown_def :: Assertion
 unit_rename_unknown_def =
   progActionTest defaultEmptyProg [renameDef "unknown" "foo"] $ expectError (@?= DefNotFound (gvn "unknown"))
-
-unit_construct_let_without_moving_to_def_first :: Assertion
-unit_construct_let_without_moving_to_def_first =
-  progActionTest defaultEmptyProg [BodyAction [ConstructLet (Just "x")]] $ expectError (@?= NoDefSelected)
 
 unit_create_def :: Assertion
 unit_create_def = progActionTest defaultEmptyProg [CreateDef mainModuleName $ Just "newDef"] $
@@ -492,7 +488,7 @@ unit_construct_arrow_in_sig =
             TFun _ lhs _ ->
               -- Check that the selection is focused on the lhs, as we instructed
               case progSelection prog' of
-                Just (Selection d (Just sel@NodeSelection{nodeType = SigNode})) -> do
+                Selection d (Just sel@NodeSelection{nodeType = SigNode}) -> do
                   d @?= qualifyName mainModuleName "other"
                   getID sel @?= getID lhs
                 _ -> assertFailure "no selection"
@@ -534,7 +530,7 @@ unit_copy_paste_duplicate = do
         let mainDef = ASTDef mainExpr mainType
         blankDef <- ASTDef <$> emptyHole <*> tEmptyHole
         pure
-          ( newProg'{progSelection = Nothing}
+          ( newProg'{progSelection = undefined}
               & #progModules % _head % #moduleDefs .~ Map.fromList [("main", DefAST mainDef), ("blank", DefAST blankDef)]
           , getID mainType
           , getID mainExpr
@@ -680,7 +676,7 @@ unit_copy_paste_ann = do
         mainDef <- ASTDef <$> emptyHole `ann` pure toCopy <*> tEmptyHole
         blankDef <- ASTDef <$> emptyHole `ann` tEmptyHole <*> tEmptyHole
         pure
-          ( newProg'{progSelection = Nothing} & #progModules % _head % #moduleDefs .~ Map.fromList [(fromDef', DefAST mainDef), ("blank", DefAST blankDef)]
+          ( newProg'{progSelection = undefined} & #progModules % _head % #moduleDefs .~ Map.fromList [(fromDef', DefAST mainDef), ("blank", DefAST blankDef)]
           , getID toCopy
           )
   let a = mkTestApp p
@@ -1284,7 +1280,7 @@ unit_rename_module =
         Left err -> assertFailure $ show err
         Right p -> do
           fmap (unModuleName . moduleName) (progModules p) @?= [["Module2"]]
-          selectedDef <$> progSelection p @?= Just (qualifyName (ModuleName ["Module2"]) "main")
+          selectedDef (progSelection p) @?= qualifyName (ModuleName ["Module2"]) "main"
           case fmap (Map.assocs . moduleDefsQualified) (progModules p) of
             [[(n, DefAST d)]] -> do
               let expectedName = qualifyName (ModuleName ["Module2"]) "main"
@@ -1472,7 +1468,7 @@ unit_sh_lost_id =
         Just def ->
           case astDefExpr <$> defAST def of
             Just (Var m (GlobalVarRef f)) | f == foo -> case progSelection prog' of
-              Just Selection{selectedDef, selectedNode = Just sel} ->
+              Selection{selectedDef, selectedNode = Just sel} ->
                 unless (selectedDef == foo && getID sel == getID m) $
                   assertFailure "expected selection to point at the recursive reference"
               _ -> assertFailure "expected the selection to point at some node"
@@ -1516,7 +1512,7 @@ unit_sh_lost_id_2 =
         Just def ->
           case astDefExpr <$> defAST def of
             Just (Hole _ (Ann _ (Lam _ "y" (Lam m "x" (EmptyHole _))) (TEmptyHole _))) -> case progSelection prog' of
-              Just Selection{selectedDef, selectedNode = Just sel} ->
+              Selection{selectedDef, selectedNode = Just sel} ->
                 unless (selectedDef == foo && getID sel == getID m) $
                   assertFailure "expected selection to point at λx"
               _ -> assertFailure "expected the selection to point at some node"
@@ -1554,13 +1550,12 @@ defaultEmptyProg = do
    in pure $
         newEmptyProg'
           { progSelection =
-              Just $
-                Selection (gvn "main") $
-                  Just
-                    NodeSelection
-                      { nodeType = BodyNode
-                      , meta = Left (Meta 1 Nothing Nothing)
-                      }
+              Selection (gvn "main") $
+                Just
+                  NodeSelection
+                    { nodeType = BodyNode
+                    , meta = Left (Meta 1 Nothing Nothing)
+                    }
           }
           & #progModules
             % _head

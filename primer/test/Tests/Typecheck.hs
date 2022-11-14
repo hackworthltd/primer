@@ -746,7 +746,7 @@ unit_tcWholeProg_notice_type_updates =
           { progImports = [builtinModule]
           , progModules = [Module (ModuleName ["M"]) mempty ds]
           , progSmartHoles = SmartHoles
-          , progSelection = Nothing
+          , progSelection = undefined
           , progLog = defaultLog
           }
       a0 = mkProg d0

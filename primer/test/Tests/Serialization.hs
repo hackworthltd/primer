@@ -19,7 +19,7 @@ import Primer.App (
   NodeType (..),
   Prog (..),
   ProgAction (BodyAction, MoveToDef),
-  ProgError (NoDefSelected),
+  ProgError (DefNotFound),
   Selection (..),
  )
 import Primer.Builtins (tNat)
@@ -125,7 +125,7 @@ fixtures =
             , astTypeDefNameHints = []
             }
       progerror :: ProgError
-      progerror = NoDefSelected
+      progerror = DefNotFound $ qualifyName modName defName
       progaction :: ProgAction
       progaction = MoveToDef $ gvn ["M"] "main"
       modName = ModuleName ["M"]
@@ -139,7 +139,7 @@ fixtures =
                   , moduleDefs = Map.singleton defName (DefAST def)
                   }
               ]
-          , progSelection = Just selection
+          , progSelection = selection
           , progSmartHoles = SmartHoles
           , progLog = log
           }

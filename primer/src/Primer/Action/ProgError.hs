@@ -10,8 +10,7 @@ import Primer.JSON (CustomJSON (..), PrimerJSON)
 import Primer.Name (Name)
 
 data ProgError
-  = NoDefSelected
-  | DefNotFound GVarName
+  = DefNotFound GVarName
   | DefAlreadyExists GVarName
   | DefInUse GVarName
   | TypeDefIsPrim TyConName

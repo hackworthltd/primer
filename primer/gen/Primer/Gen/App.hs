@@ -62,7 +62,7 @@ genProg sh initialImports = local (extendCxtByModules initialImports) $ do
     Prog
       { progImports = initialImports <> imports
       , progModules = home
-      , progSelection = Nothing
+      , progSelection = undefined
       , progSmartHoles = sh
       , progLog = defaultLog
       }

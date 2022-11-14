@@ -88,9 +88,7 @@ import Optics (
   (%),
   (%~),
   (.~),
-  (?~),
   (^.),
-  _Just,
   _Left,
   _Right,
  )
@@ -225,7 +223,7 @@ data Prog = Prog
   -- ^ Some immutable imported modules
   , progModules :: [Module]
   -- ^ The editable "home" modules
-  , progSelection :: Maybe Selection
+  , progSelection :: Selection
   , progSmartHoles :: SmartHoles
   , progLog :: Log -- The log of all actions
   }
@@ -235,7 +233,7 @@ data Prog = Prog
 -- | The default 'Prog'. It has no imports, no definitions, no current
 -- 'Selection', and an empty 'Log'. Smart holes are enabled.
 defaultProg :: Prog
-defaultProg = Prog mempty mempty Nothing SmartHoles defaultLog
+defaultProg = Prog mempty mempty undefined SmartHoles defaultLog
 
 progAllModules :: Prog -> [Module]
 progAllModules p = progModules p <> progImports p
@@ -498,16 +496,16 @@ handleMutationRequest = \case
 -- | Handle an edit request
 handleEditRequest :: forall m l. MonadEditApp l m => [ProgAction] -> m Prog
 handleEditRequest actions = do
-  (prog, _) <- gets appProg >>= \p -> foldM go (p, Nothing) actions
+  (prog, _) <- gets appProg >>= \p -> foldM go (p, selectedDef $ progSelection p) actions
   let Log l = progLog prog
   let prog' = prog{progLog = Log (actions : l)}
   modify (\s -> s & #currentState % #prog .~ prog')
   pure prog'
   where
-    go :: (Prog, Maybe GVarName) -> ProgAction -> m (Prog, Maybe GVarName)
+    go :: (Prog, GVarName) -> ProgAction -> m (Prog, GVarName)
     go (prog, mdef) a =
       applyProgAction prog mdef a <&> \prog' ->
-        (prog', selectedDef <$> progSelection prog')
+        (prog', selectedDef $ progSelection prog')
 
 -- | Handle an eval request
 handleEvalRequest :: MonadEditApp l m => EvalReq -> m EvalResp
@@ -536,13 +534,13 @@ handleEvalFullRequest (EvalFullReq{evalFullReqExpr, evalFullCxtDir, evalFullMaxS
 -- | Handle a 'ProgAction'
 -- The 'GVarName' argument is the currently-selected definition, which is
 -- provided for convenience: it is the same as the one in the progSelection.
-applyProgAction :: MonadEdit m => Prog -> Maybe GVarName -> ProgAction -> m Prog
+applyProgAction :: MonadEdit m => Prog -> GVarName -> ProgAction -> m Prog
 applyProgAction prog mdefName = \case
   MoveToDef d -> do
     m <- lookupEditableModule (qualifiedModule d) prog
     case Map.lookup d $ moduleDefsQualified m of
       Nothing -> throwError $ DefNotFound d
-      Just _ -> pure $ prog & #progSelection ?~ Selection d Nothing
+      Just _ -> pure $ prog & #progSelection .~ Selection d Nothing
   DeleteDef d -> editModuleCross (qualifiedModule d) prog $ \(m, ms) ->
     case deleteDef m d of
       Nothing -> throwError $ DefNotFound d
@@ -550,8 +548,8 @@ applyProgAction prog mdefName = \case
         when (globalInUse d $ foldMap moduleDefs $ mod' : ms) $
           throwError $
             DefInUse d
-        pure (mod' : ms, Nothing)
-  RenameDef d nameStr -> editModuleOfCross (Just d) prog $ \(m, ms) defName def -> do
+        pure (mod' : ms, undefined)
+  RenameDef d nameStr -> editModuleOfCross d prog $ \(m, ms) defName def -> do
     let defs = moduleDefs m
         newNameBase = unsafeMkName nameStr
         newName = qualifyName (moduleName m) newNameBase
@@ -565,7 +563,7 @@ applyProgAction prog mdefName = \case
               (traversed % #moduleDefs % traversed % #_DefAST % #astDefExpr)
               (renameVar (GlobalVarRef d) (GlobalVarRef newName))
               (m' : ms)
-        pure (renamedModules, Just $ Selection newName Nothing)
+        pure (renamedModules, Selection newName Nothing)
   CreateDef modName n -> editModule modName prog $ \mod -> do
     let defs = moduleDefs mod
     name <- case n of
@@ -579,7 +577,7 @@ applyProgAction prog mdefName = \case
     expr <- newExpr
     ty <- newType
     let def = ASTDef expr ty
-    pure (insertDef mod name $ DefAST def, Just $ Selection (qualifyName modName name) Nothing)
+    pure (insertDef mod name $ DefAST def, Selection (qualifyName modName name) Nothing)
   AddTypeDef tc td -> editModuleSameSelection (qualifiedModule tc) prog $ \m -> do
     let tydefs' = moduleTypes m <> Map.singleton (baseName tc) (TypeDefAST td)
     m{moduleTypes = tydefs'}
@@ -800,13 +798,12 @@ applyProgAction prog mdefName = \case
         let meta = bimap (view _exprMetaLens . target) (view _typeMetaLens . target) $ locToEither z
         pure
           ( insertDef m defName (DefAST def')
-          , Just $
-              Selection (qualifyDefName m defName) $
-                Just
-                  NodeSelection
-                    { nodeType = BodyNode
-                    , meta
-                    }
+          , Selection (qualifyDefName m defName) $
+              Just
+                NodeSelection
+                  { nodeType = BodyNode
+                  , meta
+                  }
           )
   SigAction actions -> editModuleOfCross mdefName prog $ \ms@(curMod, _) defName def -> do
     let smartHoles = progSmartHoles prog
@@ -818,22 +815,19 @@ applyProgAction prog mdefName = \case
             meta = view _typeMetaLens node
          in pure
               ( mod'
-              , Just $
-                  Selection (qualifyDefName curMod defName) $
-                    Just
-                      NodeSelection
-                        { nodeType = SigNode
-                        , meta = Right meta
-                        }
+              , Selection (qualifyDefName curMod defName) $
+                  Just
+                    NodeSelection
+                      { nodeType = SigNode
+                      , meta = Right meta
+                      }
               )
   SetSmartHoles smartHoles ->
     pure $ prog & #progSmartHoles .~ smartHoles
-  CopyPasteSig fromIds setup -> case mdefName of
-    Nothing -> throwError NoDefSelected
-    Just i -> copyPasteSig prog fromIds i setup
-  CopyPasteBody fromIds setup -> case mdefName of
-    Nothing -> throwError NoDefSelected
-    Just i -> copyPasteBody prog fromIds i setup
+  CopyPasteSig fromIds setup ->
+    copyPasteSig prog fromIds mdefName setup
+  CopyPasteBody fromIds setup ->
+    copyPasteBody prog fromIds mdefName setup
   RenameModule oldName newName -> do
     -- Call editModuleSameSelection solely for checking that 'oldName'
     -- is an editable module
@@ -850,7 +844,7 @@ applyProgAction prog mdefName = \case
                   pure $
                     prog
                       & #progModules .~ editable renamedMods
-                      & #progSelection % _Just %~ renameModule' oldName n
+                      & #progSelection %~ renameModule' oldName n
                 else
                   throwError $
                     -- It should never happen that the action edits an
@@ -883,7 +877,7 @@ editModule ::
   MonadError ProgError m =>
   ModuleName ->
   Prog ->
-  (Module -> m (Module, Maybe Selection)) ->
+  (Module -> m (Module, Selection)) ->
   m Prog
 editModule n p f = do
   m <- lookupEditableModule n p
@@ -899,7 +893,7 @@ editModuleCross ::
   MonadError ProgError m =>
   ModuleName ->
   Prog ->
-  ((Module, [Module]) -> m ([Module], Maybe Selection)) ->
+  ((Module, [Module]) -> m ([Module], Selection)) ->
   m Prog
 editModuleCross n p f = do
   m <- lookupEditableModule n p
@@ -930,13 +924,12 @@ editModuleSameSelectionCross n p f = editModuleCross n p (fmap (,progSelection p
 
 editModuleOf ::
   MonadError ProgError m =>
-  Maybe GVarName ->
+  GVarName ->
   Prog ->
-  (Module -> Name -> ASTDef -> m (Module, Maybe Selection)) ->
+  (Module -> Name -> ASTDef -> m (Module, Selection)) ->
   m Prog
-editModuleOf mdefName prog f = case mdefName of
-  Nothing -> throwError NoDefSelected
-  Just defname -> editModule (qualifiedModule defname) prog $ \m ->
+editModuleOf defname prog f =
+  editModule (qualifiedModule defname) prog $ \m ->
     case Map.lookup (baseName defname) (moduleDefs m) of
       Just (DefAST def) -> f m (baseName defname) def
       _ -> throwError $ DefNotFound defname
@@ -944,13 +937,12 @@ editModuleOf mdefName prog f = case mdefName of
 -- A variant of 'editModuleOf' for actions which can affect multiple modules
 editModuleOfCross ::
   MonadError ProgError m =>
-  Maybe GVarName ->
+  GVarName ->
   Prog ->
-  ((Module, [Module]) -> Name -> ASTDef -> m ([Module], Maybe Selection)) ->
+  ((Module, [Module]) -> Name -> ASTDef -> m ([Module], Selection)) ->
   m Prog
-editModuleOfCross mdefName prog f = case mdefName of
-  Nothing -> throwError NoDefSelected
-  Just defname -> editModuleCross (qualifiedModule defname) prog $ \ms@(m, _) ->
+editModuleOfCross defname prog f =
+  editModuleCross (qualifiedModule defname) prog $ \ms@(m, _) ->
     case Map.lookup (baseName defname) (moduleDefs m) of
       Just (DefAST def) -> f ms (baseName defname) def
       _ -> throwError $ DefNotFound defname
@@ -1220,7 +1212,7 @@ copyPasteSig p (fromDefName, fromTyId) toDefName setup = do
     Left (Right zt) -> pure $ Left zt
     Right zt -> pure $ Right zt
   let smartHoles = progSmartHoles p
-  finalProg <- editModuleOf (Just toDefName) p $ \mod toDefBaseName oldDef -> do
+  finalProg <- editModuleOf toDefName p $ \mod toDefBaseName oldDef -> do
     let otherModules = filter ((/= moduleName mod) . moduleName) (progModules p)
     -- We intentionally throw away any changes in doneSetup other than via 'tgt'
     -- as these could be in other definitions referencing this one, due to
@@ -1249,7 +1241,7 @@ copyPasteSig p (fromDefName, fromTyId) toDefName setup = do
       _ -> throwError $ CopyPasteError "copy/paste setup didn't select an empty hole"
     let newDef = oldDef{astDefType = fromZipper pasted}
     let newSel = NodeSelection SigNode (pasted ^. _target % _typeMetaLens % re _Right)
-    pure (insertDef mod toDefBaseName (DefAST newDef), Just (Selection toDefName $ Just newSel))
+    pure (insertDef mod toDefBaseName (DefAST newDef), Selection toDefName $ Just newSel)
   liftError ActionError $ tcWholeProg finalProg
 
 -- We cannot use bindersAbove as that works on names only, and different scopes
@@ -1314,25 +1306,21 @@ tcWholeProg p = do
         }
   let p' = p{progModules = mods'}
   -- We need to update the metadata cached in the selection
-  let oldSel = progSelection p
-  newSel <- case oldSel of
-    Nothing -> pure Nothing
-    Just s -> do
-      let defName_ = s ^. #selectedDef
-      updatedNode <- case s ^. #selectedNode of
-        Nothing -> pure Nothing
-        Just sel@NodeSelection{nodeType} -> do
-          n <- runExceptT $ focusNode p' defName_ $ getID sel
-          case (nodeType, n) of
-            (BodyNode, Right (Left x)) -> pure $ Just $ NodeSelection BodyNode $ bimap (view _exprMetaLens . target) (view _typeMetaLens . target) x
-            (SigNode, Right (Right x)) -> pure $ Just $ NodeSelection SigNode $ x ^. _target % _typeMetaLens % re _Right
-            _ -> pure Nothing -- something's gone wrong: expected a SigNode, but found it in the body, or vv, or just not found it
-      pure $
-        Just $
-          Selection
-            { selectedDef = defName_
-            , selectedNode = updatedNode
-            }
+  newSel <- do
+    let defName_ = progSelection p ^. #selectedDef
+    updatedNode <- case progSelection p ^. #selectedNode of
+      Nothing -> pure Nothing
+      Just sel@NodeSelection{nodeType} -> do
+        n <- runExceptT $ focusNode p' defName_ $ getID sel
+        case (nodeType, n) of
+          (BodyNode, Right (Left x)) -> pure $ Just $ NodeSelection BodyNode $ bimap (view _exprMetaLens . target) (view _typeMetaLens . target) x
+          (SigNode, Right (Right x)) -> pure $ Just $ NodeSelection SigNode $ x ^. _target % _typeMetaLens % re _Right
+          _ -> pure Nothing -- something's gone wrong: expected a SigNode, but found it in the body, or vv, or just not found it
+    pure $
+      Selection
+        { selectedDef = defName_
+        , selectedNode = updatedNode
+        }
   pure $ p'{progSelection = newSel}
 
 -- | Do a full check of a 'Prog', both the imports and the local modules
@@ -1356,7 +1344,7 @@ copyPasteBody p (fromDefName, fromId) toDefName setup = do
         Left (Right t) -> Right (Left t)
         Right t -> Right (Right t)
   let smartHoles = progSmartHoles p
-  finalProg <- editModuleOf (Just toDefName) p $ \mod toDefBaseName oldDef -> do
+  finalProg <- editModuleOf toDefName p $ \mod toDefBaseName oldDef -> do
     -- The Loc zipper captures all the changes, they are only reflected in the
     -- returned Def, which we thus ignore
     doneSetup <- applyActionsToBody smartHoles (progAllModules p) oldDef setup
@@ -1385,7 +1373,7 @@ copyPasteBody p (fromDefName, fromId) toDefName setup = do
           _ -> throwError $ CopyPasteError "copy/paste setup didn't select an empty hole"
         let newDef = oldDef{astDefExpr = unfocusExpr $ unfocusType pasted}
         let newSel = NodeSelection BodyNode (pasted ^. _target % _typeMetaLens % re _Right)
-        pure (insertDef mod toDefBaseName (DefAST newDef), Just (Selection toDefName $ Just newSel))
+        pure (insertDef mod toDefBaseName (DefAST newDef), Selection toDefName $ Just newSel)
       (Left srcE, InExpr tgtE) -> do
         let sharedScope =
               if fromDefName == toDefName
@@ -1442,7 +1430,7 @@ copyPasteBody p (fromDefName, fromId) toDefName setup = do
           _ -> throwError $ CopyPasteError "copy/paste setup didn't select an empty hole"
         let newDef = oldDef{astDefExpr = unfocusExpr pasted}
         let newSel = NodeSelection BodyNode (pasted ^. _target % _exprMetaLens % re _Left)
-        pure (insertDef mod toDefBaseName (DefAST newDef), Just (Selection toDefName $ Just newSel))
+        pure (insertDef mod toDefBaseName (DefAST newDef), Selection toDefName $ Just newSel)
   liftError ActionError $ tcWholeProg finalProg
 
 lookupASTDef :: GVarName -> DefMap -> Maybe ASTDef
