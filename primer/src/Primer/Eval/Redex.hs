@@ -1,4 +1,4 @@
-{-# LANGUAGE DisambiguateRecordFields #-}
+{-# LANGUAGE DuplicateRecordFields #-}
 {-# LANGUAGE ImpredicativeTypes #-}
 {-# LANGUAGE NoFieldSelectors #-}
 
@@ -25,7 +25,7 @@ import Data.List.Extra (zip4)
 import Data.Map qualified as M
 import Data.Set qualified as S
 import Data.Set.Optics (setOf)
-import Data.Tuple.Extra (snd3, thd3)
+import Data.Tuple.Extra (snd3)
 import GHC.Err (error)
 import Optics (
   AffineFold,
@@ -178,17 +178,61 @@ instance ConvertLogMessage EvalFullLog EvalFullLog where
 
 data Redex
   = -- f  ~>  e : T  where we have  f : T ; f = e  in (global) scope
-    InlineGlobal GVarName ASTDef
+    InlineGlobal
+      { gvar :: GVarName
+      -- ^ What variable are we inlining
+      , def :: ASTDef
+      -- ^ What is its definition
+      }
   | -- x  ~>  e   where we are inside the scope of a  let x = e in ...
-    InlineLet LVarName Expr
+    InlineLet
+      { var :: LVarName
+      -- ^ What variable are we inlining
+      , expr :: Expr
+      -- ^ What is its definition
+      }
   | -- x  ~>  letrec x:T=t in t:T   where we are inside the scope of a  letrec x : T = t in ...
-    InlineLetrec LVarName Expr Type
+    InlineLetrec
+      { var :: LVarName
+      -- ^ What variable are we inlining
+      , expr :: Expr
+      -- ^ What is its definition
+      , ty :: Type
+      -- ^ What type was it defined at
+      }
   | -- let(rec/type) x = e in t  ~>  t  if x does not appear in t
-    ElideLet LetBinding Expr
+    ElideLet
+      { letBinding :: LetBinding
+      -- ^ Original binding
+      , body :: Expr
+      -- ^ Body, in which the bound var does not occur
+      }
   | -- (λx.t : S -> T) s  ~>  let x = s:S in t : T
-    Beta LVarName Expr Type Type Expr
+    Beta
+      { var :: LVarName
+      -- ^ The lambda bound variable
+      , body :: Expr
+      -- ^ The body of the lambda
+      , srcTy :: Type
+      -- ^ The left-hand-side of the annotation (which is headed by an arrow)
+      , tgtTy :: Type
+      -- ^ The right-hand-side of the annotation
+      , app :: Expr
+      -- ^ The expression the lambda is applied to
+      }
   | -- (Λa.t : ∀b.T) S  ~>  (lettype a = S in t) : (lettype b = S in T)
-    BETA TyVarName Expr TyVarName Type Type
+    BETA
+      { tyvar :: TyVarName
+      -- ^ The Λ bound variable
+      , body :: Expr
+      -- ^ The body of the Λ
+      , forallVar :: TyVarName
+      -- ^ The annotation on the Λ must be a ∀, which binds this variable
+      , tgtTy :: Type
+      -- ^ The body of the ∀ in the annotation
+      , argTy :: Type
+      -- ^ The type to which the Λ is applied
+      }
   | -- case C as : T of ... ; C xs -> e ; ...   ~>  let xs=as:As in e for constructor C of type T, where args have types As
     -- [However, for technical reasons (a hole type can act as a type-changing cast)
     -- we need to annotate the let bindings with *both* the type arising from the constructor,
@@ -208,28 +252,89 @@ data Redex
     -- reduction steps. E.g.
     --     cons ==  (Λa λx λxs. Cons @a x xs) : ∀a. a -> List a -> List a
     -- )
-    CaseRedex ValConName [Expr] (forall m. MonadFresh NameCounter m => ([m (Type' ())], Maybe [m (Type' ())])) [LVarName] Expr
+    CaseRedex
+      { con :: ValConName
+      -- ^ The head of the scrutinee
+      , args :: [Expr]
+      -- ^ The arguments of the scrutinee
+      , argTys :: forall m. MonadFresh NameCounter m => ([m (Type' ())], Maybe [m (Type' ())])
+      -- ^ The type of each scrutinee's argument
+      -- (from inspecting the constructor's type applications and (maybe) the type annotation on the scrutinee)
+      , binders :: [LVarName]
+      -- ^ The binders of the matching branch
+      , rhs :: Expr
+      -- ^ The rhs of the matching branch
+      }
   | -- [ t : T ]  ~>  t  writing [_] for the embedding of syn into chk
     -- This only fires for concrete (non-holey, no free vars) T, as otherwise the
     -- annotation can act as a type-changing cast:
     --   Nat ∋ [ True : ? ] checks, but Nat ∋ True fails
-    Upsilon Expr Type
+    Upsilon
+      { expr :: Expr
+      -- ^ The bare expression
+      , ann :: Type
+      -- ^ The annotation on @expr@ which we are removing
+      }
   | -- λy.t  ~>  λz.let y = z in t (and similar for other binding forms, but not
     -- let - that would create an infinite loop)
     -- This only fires when trying to do a substitution x|->y, and we need to go
     -- under a binder and avoid variable capture.
     -- We only record what names to avoid, and do the renaming in runRedex
-    RenameBindingsLam ExprMeta LVarName Expr (S.Set Name)
-  | RenameBindingsLAM ExprMeta TyVarName Expr (S.Set Name)
-  | RenameBindingsCase ExprMeta Expr [CaseBranch] (S.Set Name)
+    RenameBindingsLam
+      { var :: LVarName
+      -- ^ The (original) variable this lambda binds
+      , meta :: ExprMeta
+      -- ^ The metadata attached to the lambda
+      , body :: Expr
+      -- ^ The body of the lambda
+      , avoid :: S.Set Name
+      -- ^ What names to avoid when renaming
+      }
+  | RenameBindingsLAM
+      { tyvar :: TyVarName
+      -- ^ The (original) variable this Λ binds
+      , meta :: ExprMeta
+      -- ^ The metadata attached to the Λ
+      , body :: Expr
+      -- ^ The body of the Λ
+      , avoid :: S.Set Name
+      -- ^ What names to avoid when renaming
+      }
+  | RenameBindingsCase
+      { meta :: ExprMeta
+      -- ^ The metadata attached to the @case@
+      , scrutinee :: Expr
+      -- ^ The scrutinised expression
+      , branches :: [CaseBranch]
+      -- ^ The branches of the @case@
+      , avoid :: S.Set Name
+      -- ^ What names to avoid when renaming
+      }
   | -- let x = f x in g x x  ~>  let y = f x in let x = y in g x x
     -- Note that we cannot substitute the let in the initial term, since
     -- we only substitute one occurence at a time, and the 'let' would capture the 'x'
     -- in the expansion if we did a substitution.
-    RenameSelfLet LVarName Expr Expr
+    RenameSelfLet
+      { var :: LVarName
+      -- ^ The bound variable
+      , rhs :: Expr
+      -- ^ The local definition of @var@
+      , body :: Expr
+      -- ^ The body of the @let@, in which @var@ can occur free
+      }
   | -- As RenameSelfLet, but for LetType. (Note that it is unnecessary for letrec.)
-    RenameSelfLetType TyVarName Type Expr
-  | ApplyPrimFun (forall m. MonadFresh ID m => m Expr)
+    RenameSelfLetType
+      { tyvar :: TyVarName
+      -- ^ The bound variable
+      , trhs :: Type
+      -- ^ The local definition of @var@
+      , body :: Expr
+      -- ^ The body of the @let_type@, in which @var@ can occur free
+      }
+  | ApplyPrimFun
+      { result :: forall m. MonadFresh ID m => m Expr
+      -- ^ The result of the applied primitive function
+      }
 
 data RedexType
   = InlineLetInType
@@ -432,8 +537,8 @@ viewCaseRedex tydefs = \case
       [Bind' a] ->
       Expr ->
       Redex
-    formCaseRedex c argTys args patterns =
-      CaseRedex c args argTys (map bindName patterns)
+    formCaseRedex con argTys args patterns rhs =
+      CaseRedex{con, args, argTys, binders = map bindName patterns, rhs}
 
 -- We record each binder, along with its let-bound RHS (if any)
 -- and its original binding location and  context (to be able to detect capture)
@@ -469,43 +574,65 @@ viewRedex ::
   Expr ->
   ReaderT Cxt (MaybeT m) Redex
 viewRedex tydefs globals dir = \case
-  Var _ (GlobalVarRef x) | Just (DefAST y) <- x `M.lookup` globals -> pure $ InlineGlobal x y
-  Var _ (LocalVarRef v) -> do
-    runMaybeT (getNonCapturedLocal v) >>= \x -> do
+  Var _ (GlobalVarRef gvar)
+    | Just (DefAST def) <- gvar `M.lookup` globals ->
+        pure $
+          InlineGlobal{gvar, def}
+  Var _ (LocalVarRef var) -> do
+    runMaybeT (getNonCapturedLocal var) >>= \x -> do
       case x of
-        Just (_, LetBind _ e) -> pure $ InlineLet v e
-        Just (_, LetrecBind _ e t) -> pure $ InlineLetrec v e t
+        Just (_, LetBind _ expr) -> pure $ InlineLet{var, expr}
+        Just (_, LetrecBind _ expr ty) -> pure $ InlineLetrec{var, expr, ty}
         _ -> mzero
-  Let _ v e1 e2
+  Let _ var rhs body
     -- NB: we will recompute the freeVars set a lot (especially when doing EvalFull iterations)
     -- This could be optimised in the future. See
     -- https://github.com/hackworthltd/primer/issues/733
-    | unLocalName v `S.notMember` freeVars e2 -> pure $ ElideLet (LetBind v e1) e2
-    | unLocalName v `S.member` freeVars e1 -> pure $ RenameSelfLet v e1 e2
+    | unLocalName var `S.notMember` freeVars body ->
+        pure $
+          ElideLet
+            { letBinding = LetBind var rhs
+            , body
+            }
+    | unLocalName var `S.member` freeVars rhs -> pure $ RenameSelfLet{var, rhs, body}
     | otherwise -> mzero
-  LetType _ v t e
-    | unLocalName v `S.notMember` freeVars e -> pure $ ElideLet (LetTyBind $ LetTypeBind v t) e
-    | v `S.member` freeVarsTy t -> pure $ RenameSelfLetType v t e
+  LetType _ var trhs body
+    | unLocalName var `S.notMember` freeVars body ->
+        pure $
+          ElideLet
+            { letBinding = LetTyBind $ LetTypeBind var trhs
+            , body
+            }
+    | var `S.member` freeVarsTy trhs -> pure $ RenameSelfLetType{tyvar = var, trhs, body}
     | otherwise -> mzero
-  Letrec _ v e1 t e2
-    | unLocalName v `S.notMember` freeVars e2 -> pure $ ElideLet (LetrecBind v e1 t) e2
+  Letrec _ v e1 t body
+    | unLocalName v `S.notMember` freeVars body ->
+        pure $
+          ElideLet
+            { letBinding = LetrecBind v e1 t
+            , body
+            }
     | otherwise -> mzero
-  l@(Lam m v e) -> do
+  l@(Lam meta var body) -> do
+    fvcxt <- fvCxt $ freeVars l
+    if unLocalName var `S.member` fvcxt
+      then pure $ RenameBindingsLam{var, meta, body, avoid = fvcxt}
+      else mzero
+  l@(LAM meta v body) -> do
     fvcxt <- fvCxt $ freeVars l
     if unLocalName v `S.member` fvcxt
-      then pure $ RenameBindingsLam m v e fvcxt
+      then pure $ RenameBindingsLAM{tyvar = v, meta, body, avoid = fvcxt}
       else mzero
-  l@(LAM m v e) -> do
-    fvcxt <- fvCxt $ freeVars l
-    if unLocalName v `S.member` fvcxt
-      then pure $ RenameBindingsLAM m v e fvcxt
-      else mzero
-  App _ (Ann _ (Lam _ x t) (TFun _ src tgt)) s -> pure $ Beta x t src tgt s
-  e@App{} -> lift $ hoistMaybe $ ApplyPrimFun . thd3 <$> tryPrimFun (M.mapMaybe defPrim globals) e
+  App _ (Ann _ (Lam _ var body) (TFun _ srcTy tgtTy)) app -> pure $ Beta{var, body, srcTy, tgtTy, app}
+  e@App{} ->
+    lift $
+      hoistMaybe $
+        tryPrimFun (M.mapMaybe defPrim globals) e >>= \(_, _, result) ->
+          pure ApplyPrimFun{result}
   -- (Λa.t : ∀b.T) S  ~> (letType a = S in t) : (letType b = S in T)
-  APP _ (Ann _ (LAM _ a t) (TForall _ b _ ty1)) ty2 -> pure $ BETA a t b ty1 ty2
+  APP _ (Ann _ (LAM _ a body) (TForall _ forallVar _ tgtTy)) argTy -> pure $ BETA{tyvar = a, body, forallVar, tgtTy, argTy}
   APP{} -> mzero
-  e@(Case m s brs) -> do
+  e@(Case meta scrutinee branches) -> do
     fvcxt <- fvCxt $ freeVars e
     -- TODO: we arbitrarily decide that renaming takes priority over reducing the case
     -- This is good for evalfull, but bad for interactive use.
@@ -513,8 +640,8 @@ viewRedex tydefs globals dir = \case
     -- https://github.com/hackworthltd/primer/issues/734
     if getBoundHereDn e `S.disjoint` fvcxt
       then lift $ viewCaseRedex tydefs e
-      else pure $ RenameBindingsCase m s brs fvcxt
-  Ann _ t ty | Chk <- dir, concreteTy ty -> pure $ Upsilon t ty
+      else pure $ RenameBindingsCase{meta, scrutinee, branches, avoid = fvcxt}
+  Ann _ expr ty | Chk <- dir, concreteTy ty -> pure $ Upsilon{expr, ann = ty}
   _ -> mzero
 
 viewRedexType :: Type -> Reader Cxt (Maybe RedexType)
@@ -589,25 +716,25 @@ fvCxtTy vs = do
 -- TODO: deal with metadata. https://github.com/hackworthltd/primer/issues/6
 runRedex :: MonadEvalFull l m => Redex -> m Expr
 runRedex = \case
-  InlineGlobal _ def -> ann (regenerateExprIDs $ astDefExpr def) (regenerateTypeIDs $ astDefType def)
-  InlineLet _ e -> regenerateExprIDs e
-  InlineLetrec x e t -> letrec x (regenerateExprIDs e) (regenerateTypeIDs t) $ ann (regenerateExprIDs e) (regenerateTypeIDs t)
+  InlineGlobal{def} -> ann (regenerateExprIDs $ astDefExpr def) (regenerateTypeIDs $ astDefType def)
+  InlineLet{expr} -> regenerateExprIDs expr
+  InlineLetrec{var, expr, ty} -> letrec var (regenerateExprIDs expr) (regenerateTypeIDs ty) $ ann (regenerateExprIDs expr) (regenerateTypeIDs ty)
   -- let(rec/type) x = e in t  ~>  t  if e does not appear in t
-  ElideLet _ t -> pure t
+  ElideLet{body} -> pure body
   -- (λx.t : S -> T) s  ~>  let x = s:S in t : T
-  Beta x t tyS tyT s -> let_ x (pure s `ann` pure tyS) (pure t) `ann` pure tyT
+  Beta{var, body, srcTy, tgtTy, app} -> let_ var (pure app `ann` pure srcTy) (pure body) `ann` pure tgtTy
   -- (Λa.t : ∀b.T) S  ~>  (lettype a = S in t) : (lettype b = S in T)
-  BETA a t b tyT tyS -> letType a (pure tyS) (pure t) `ann` tlet b (regenerateTypeIDs tyS) (pure tyT)
+  BETA{tyvar, body, forallVar, tgtTy, argTy} -> letType tyvar (pure argTy) (pure body) `ann` tlet forallVar (regenerateTypeIDs argTy) (pure tgtTy)
   -- case C as : T of ... ; C xs -> e ; ...   ~>  let xs=as:As in e for constructor C of type T, where args have types As
   -- (and also the non-annotated-constructor case)
   -- Note that when forming the CaseRedex we checked that the variables @xs@ were fresh for @as@ and @As@,
   -- so this will not capture any variables.
-  CaseRedex c as (aTysFromCon, aTysFromAnn) xs e -> do
-    aTysC <- sequence aTysFromCon
-    aTysA <- traverse sequence aTysFromAnn
-    unless (length as == length aTysC && maybe True ((length as ==) . length) aTysA && length as == length xs) $
+  CaseRedex{con, args, argTys = (argTysFromCon, argTysFromAnn), binders, rhs} -> do
+    aTysC <- sequence argTysFromCon
+    aTysA <- traverse sequence argTysFromAnn
+    unless (length args == length aTysC && maybe True ((length args ==) . length) aTysA && length args == length binders) $
       logWarning $
-        CaseRedexWrongArgNum c as aTysC aTysA xs
+        CaseRedexWrongArgNum con args aTysC aTysA binders
     -- TODO: we are putting trivial metadata in here...
     -- See https://github.com/hackworthltd/primer/issues/6
     let ann' x t = x `ann` generateTypeIDs t
@@ -623,21 +750,21 @@ runRedex = \case
              in (diffAnn || d,)
                   <$> let_ x (putAnn $ pure a) (pure t)
         )
-        (False, e)
-        (zip4 xs as aTysC $ maybe (repeat Nothing) (fmap Just) aTysA)
-    when diffAnn $ logInfo $ CaseRedexDoubleAnn c as aTysC aTysA xs
+        (False, rhs)
+        (zip4 binders args aTysC $ maybe (repeat Nothing) (fmap Just) aTysA)
+    when diffAnn $ logInfo $ CaseRedexDoubleAnn con args aTysC aTysA binders
     pure res
   -- [ t : T ]  ~>  t  writing [_] for the embedding of syn into chk
-  Upsilon e _ -> pure e
+  Upsilon{expr} -> pure expr
   -- λy.t  ~>  λz.let y = z in t (and similar for other binding forms, except let)
-  RenameBindingsLam m x e avoid -> do
-    y <- freshLocalName' (avoid <> freeVars e)
-    Lam m y <$> let_ x (lvar y) (pure e)
-  RenameBindingsLAM m x e avoid -> do
-    y <- freshLocalName' (avoid <> freeVars e)
-    LAM m y <$> letType x (tvar y) (pure e)
-  RenameBindingsCase m s brs avoid
-    | (brs0, CaseBranch ctor binds rhs : brs1) <- break (\(CaseBranch _ bs _) -> any ((`S.member` avoid) . unLocalName . bindName) bs) brs ->
+  RenameBindingsLam{var, meta, body, avoid} -> do
+    y <- freshLocalName' (avoid <> freeVars body)
+    Lam meta y <$> let_ var (lvar y) (pure body)
+  RenameBindingsLAM{tyvar, meta, body, avoid} -> do
+    y <- freshLocalName' (avoid <> freeVars body)
+    LAM meta y <$> letType tyvar (tvar y) (pure body)
+  RenameBindingsCase{meta, scrutinee, branches, avoid}
+    | (brs0, CaseBranch ctor binds rhs : brs1) <- break (\(CaseBranch _ bs _) -> any ((`S.member` avoid) . unLocalName . bindName) bs) branches ->
         let bns = map bindName binds
             avoid' = avoid <> freeVars rhs <> S.fromList (map unLocalName bns)
          in do
@@ -645,19 +772,19 @@ runRedex = \case
               let f b@(Bind i _) = \case Left _ -> b; Right (_, w) -> Bind i w
               let binds' = zipWith f binds rn
               rhs' <- foldrM (\(v, w) -> let_ v (lvar w) . pure) rhs $ rights rn
-              pure $ Case m s $ brs0 ++ CaseBranch ctor binds' rhs' : brs1
+              pure $ Case meta scrutinee $ brs0 ++ CaseBranch ctor binds' rhs' : brs1
     -- We should replace this with a proper exception. See:
     -- https://github.com/hackworthltd/primer/issues/148
     | otherwise -> error "Internal Error: RenameBindingsCase found no applicable branches"
   -- let x = f x in g x x  ~>  let y = f x in let x = y in g x x
-  RenameSelfLet x e body -> do
-    y <- freshLocalName' (freeVars e <> freeVars body)
-    let_ y (pure e) $ let_ x (lvar y) $ pure body
+  RenameSelfLet{var, rhs, body} -> do
+    y <- freshLocalName' (freeVars rhs <> freeVars body)
+    let_ y (pure rhs) $ let_ var (lvar y) $ pure body
   -- As RenameSelfLet, but for LetType
-  RenameSelfLetType a ty body -> do
-    b <- freshLocalName' (S.map unLocalName (freeVarsTy ty) <> freeVars body)
-    letType b (pure ty) $ letType a (tvar b) $ pure body
-  ApplyPrimFun e -> e
+  RenameSelfLetType{tyvar, trhs, body} -> do
+    b <- freshLocalName' (S.map unLocalName (freeVarsTy trhs) <> freeVars body)
+    letType b (pure trhs) $ letType tyvar (tvar b) $ pure body
+  ApplyPrimFun{result} -> result
 
 runRedexTy :: MonadEvalFull l m => RedexType -> m (Type, EvalDetail)
 runRedexTy (InlineLetInType{ty, letID, varID, var}) = do

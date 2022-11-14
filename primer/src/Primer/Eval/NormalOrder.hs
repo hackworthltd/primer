@@ -1,3 +1,4 @@
+{-# LANGUAGE DisambiguateRecordFields #-}
 {-# LANGUAGE OverloadedLabels #-}
 {-# LANGUAGE OverloadedRecordDot #-}
 
@@ -75,7 +76,11 @@ import Primer.Eval.Redex (
     RenameBindingsLAM,
     RenameBindingsLam,
     RenameSelfLet,
-    RenameSelfLetType
+    RenameSelfLetType,
+    branches,
+    letBinding,
+    tyvar,
+    var
   ),
   RedexType (
     ElideLetInType,
@@ -220,18 +225,18 @@ findRedex tydefs globals =
       let here =
             readerToAccumT (viewRedex tydefs globals d $ target ez) >>= \case
               -- We should inline such 'v' (note that we will not go under any 'v' binders)
-              r@(InlineLet w _) | letBindingName l == unLocalName w -> pure $ RExpr ez r
-              r@(InlineLetrec w _ _) | letBindingName l == unLocalName w -> pure $ RExpr ez r
+              r@(InlineLet{var}) | letBindingName l == unLocalName var -> pure $ RExpr ez r
+              r@(InlineLetrec{var}) | letBindingName l == unLocalName var -> pure $ RExpr ez r
               -- Elide a let only if it blocks the reduction
-              r@(ElideLet w _) | elemOf _freeVarsLetBinding (letBindingName w) l -> pure $ RExpr ez r
+              r@(ElideLet{letBinding}) | elemOf _freeVarsLetBinding (letBindingName letBinding) l -> pure $ RExpr ez r
               -- Rename a binder only if it blocks the reduction
-              r@(RenameBindingsLam _ w _ _) | elemOf _freeVarsLetBinding (unLocalName w) l -> pure $ RExpr ez r
-              r@(RenameBindingsLAM _ w _ _) | elemOf _freeVarsLetBinding (unLocalName w) l -> pure $ RExpr ez r
-              r@(RenameBindingsCase _ _ brs _)
-                | not $ S.disjoint (setOf _freeVarsLetBinding l) (setOf (folded % #_CaseBranch % _2 % folded % to bindName % to unLocalName) brs) ->
+              r@(RenameBindingsLam{var}) | elemOf _freeVarsLetBinding (unLocalName var) l -> pure $ RExpr ez r
+              r@(RenameBindingsLAM{tyvar}) | elemOf _freeVarsLetBinding (unLocalName tyvar) l -> pure $ RExpr ez r
+              r@(RenameBindingsCase{branches})
+                | not $ S.disjoint (setOf _freeVarsLetBinding l) (setOf (folded % #_CaseBranch % _2 % folded % to bindName % to unLocalName) branches) ->
                     pure $ RExpr ez r
-              r@(RenameSelfLet w _ _) | elemOf _freeVarsLetBinding (unLocalName w) l -> pure $ RExpr ez r
-              r@(RenameSelfLetType w _ _) | elemOf _freeVarsLetBinding (unLocalName w) l -> pure $ RExpr ez r
+              r@(RenameSelfLet{var}) | elemOf _freeVarsLetBinding (unLocalName var) l -> pure $ RExpr ez r
+              r@(RenameSelfLetType{tyvar}) | elemOf _freeVarsLetBinding (unLocalName tyvar) l -> pure $ RExpr ez r
               _ -> mzero
           -- Switch to an inner let if substituting under it would cause capture
           innerLet = case viewLet (d, ez) of
