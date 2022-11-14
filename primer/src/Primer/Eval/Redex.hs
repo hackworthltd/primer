@@ -19,7 +19,7 @@ import Foreword
 import Control.Monad.Fresh (MonadFresh)
 import Control.Monad.Log (MonadLog, WithSeverity)
 import Control.Monad.Trans.Maybe (MaybeT (runMaybeT))
-import Data.List.Extra (zip3)
+import Data.List.Extra (zip4)
 import Data.Map qualified as M
 import Data.Set qualified as S
 import Data.Set.Optics (setOf)
@@ -84,6 +84,7 @@ import Primer.Core (
 import Primer.Core.DSL (ann, letType, let_, letrec, lvar, tlet, tvar)
 import Primer.Core.Transform (unfoldAPP, unfoldApp)
 import Primer.Core.Utils (
+  alphaEqTy,
   concreteTy,
   forgetTypeMetadata,
   freeVars,
@@ -104,7 +105,7 @@ import Primer.Def (
  )
 import Primer.Eval.Prim (tryPrimFun)
 import Primer.JSON (CustomJSON (CustomJSON), FromJSON, PrimerJSON, ToJSON)
-import Primer.Log (ConvertLogMessage (convert), logWarning)
+import Primer.Log (ConvertLogMessage (convert), logInfo, logWarning)
 import Primer.Name (Name, NameCounter)
 import Primer.TypeDef (
   TypeDefMap,
@@ -152,7 +153,12 @@ data EvalFullLog
     -- but the number of arguments in the scrutinee differs from the number of bindings in the corresponding branch.
     -- (Or the number of arguments expected from the scrutinee's type differs from either of these.)
     -- This should not happen if the expression is type correct.
-    CaseRedexWrongArgNum ValConName [Expr] [Type' ()] [LVarName]
+    CaseRedexWrongArgNum ValConName [Expr] [Type' ()] (Maybe [Type' ()]) [LVarName]
+  | -- | A case redex required a double annotation on (some of) its resultant let binding(s)
+    -- This is expected to happen for e.g. @case Just \@? True : Maybe Int of ...@, and
+    -- does not represent any problem. We log it to obtain insight about how common this
+    -- is in practice.
+    CaseRedexDoubleAnn ValConName [Expr] [Type' ()] (Maybe [Type' ()]) [LVarName]
   | InvariantFailure Text
   deriving (Show, Eq)
 
@@ -173,6 +179,17 @@ data Redex
   | -- (Λa.t : ∀b.T) S  ~>  (lettype a = S in t) : (lettype b = S in T)
     BETA TyVarName Expr TyVarName Type Type
   | -- case C as : T of ... ; C xs -> e ; ...   ~>  let xs=as:As in e for constructor C of type T, where args have types As
+    -- [However, for technical reasons (a hole type can act as a type-changing cast)
+    -- we need to annotate the let bindings with *both* the type arising from the constructor,
+    -- and that arising from the annotation, since these may differ in the presence of holes.
+    -- In particular,
+    --  case C @A a : T B of C x -> e
+    -- should reduce to
+    --  let x=a:S[A]:S[B] in e
+    -- when we have
+    --  data T p = C S[p]
+    -- If the two annotations happen to be the same, then we only need one copy.
+    -- ]
     -- also the non-annotated case, as we consider constructors to be synthesisable
     -- case C as of ... ; C xs -> e ; ...   ~>  let xs=as:As in e for constructor C of type T, where args have types As
     -- (This is the natural rule if we consider non-annotated constructors to
@@ -180,7 +197,7 @@ data Redex
     -- reduction steps. E.g.
     --     cons ==  (Λa λx λxs. Cons @a x xs) : ∀a. a -> List a -> List a
     -- )
-    CaseRedex ValConName [Expr] (forall m. MonadFresh NameCounter m => [m (Type' ())]) (Type' ()) [LVarName] Expr
+    CaseRedex ValConName [Expr] (forall m. MonadFresh NameCounter m => ([m (Type' ())], Maybe [m (Type' ())])) [LVarName] Expr
   | -- [ t : T ]  ~>  t  writing [_] for the embedding of syn into chk
     -- This only fires for concrete (non-holey, no free vars) T, as otherwise the
     -- annotation can act as a type-changing cast:
@@ -274,28 +291,34 @@ viewCaseRedex tydefs = \case
           Ann _ e _ -> e
           _ -> expr
     (c, tyargs, args) <- extractCon expr'
-    ty <- case expr of
-      Ann _ _ ty' -> pure $ forgetTypeMetadata ty'
-      _ -> do
-        -- In the constructors-are-synthesisable case, we don't have the benefit of
-        -- an explicit annotation, and have to work out the type based off the name
-        -- of the constructor.
-        case lookupConstructor tydefs c of
-          Nothing -> do
-            logWarning $ CaseRedexUnknownCtor c
-            mzero
-          Just (_, tc, _) -> do
-            pure $ mkTAppCon tc (forgetTypeMetadata <$> tyargs)
+    tyFromCon <- case lookupConstructor tydefs c of
+      Nothing -> do
+        logWarning $ CaseRedexUnknownCtor c
+        mzero
+      Just (_, tc, _) -> do
+        pure $ mkTAppCon tc (forgetTypeMetadata <$> tyargs)
+    -- If the constructor had an annotation we must preserve it in the output
+    let tyFromAnn = case expr of
+          Ann _ _ ty' -> Just $ forgetTypeMetadata ty'
+          _ -> Nothing
     -- Style note: unfortunately do notation does not work well with polytyped binds on ghc 9.2.4
     -- Thus we write this with an explicit bind instead.
     -- See https://gitlab.haskell.org/ghc/ghc/-/issues/18324
     -- and https://gitlab.haskell.org/ghc/ghc/-/issues/20020
-    instantiateCon ty c >>= \argTys -> do
-      (patterns, br) <- extractBranch c brs
-      renameBindings m expr brs [ty] args patterns
-        <|> pure (formCaseRedex ty c argTys args patterns br)
+    -- Implementation note: it is important to instantiate with the type-from-the-annotation first,
+    -- since we could have 'case Cons : ? of {}' and we would like to silently say "not a redex,
+    -- because hole type", rather than logging that the Cons is not saturated.
+    traverse (`instantiateCon` c) tyFromAnn <&> pushMaybe >>= \argTysFromAnn ->
+      instantiateCon tyFromCon c >>= \argTysFromCon -> do
+        (patterns, br) <- extractBranch c brs
+        renameBindings m expr brs (tyFromCon : toList tyFromAnn) args patterns
+          <|> pure (formCaseRedex c (argTysFromCon, argTysFromAnn) args patterns br)
   _ -> mzero
   where
+    pushMaybe :: Maybe (forall m'. c m' => [m' a]) -> forall m'. c m' => Maybe [m' a]
+    pushMaybe Nothing = Nothing
+    pushMaybe (Just xs) = Just xs
+
     extractCon expr =
       -- NB: constructors never have mixed App and APPs: they are always of the
       -- form C @a @b ... x y ...
@@ -325,19 +348,21 @@ viewCaseRedex tydefs = \case
     {- Note [Case reduction and variable capture]
        There is a subtlety here around variable capture.
        Consider
-         case C s t : T A B of C a b -> e
+         case C @A' @B' s t : T A B of C a b -> e
        We would like to reduce this to
-         let a = s : S; let b = t : T in e
-       where we have annotated `s` and `t` with their types, which will be
+         let a = s : S' : S; let b = t : T' : T in e
+       where we have annotated `s` and `t` with their two types
+       (one from the arguments `A'` `B'` to the constructor,
+        one from the arguments `A` `B` to the annotation), which will be
        built from `A` and `B` according to the definition of the type `T`
        (for reasons of bidirectionality).
        Note that the binding of `a` may capture a reference in `t`
-       or (assuming type and term variables can shadow) in `T`.
+       or (assuming type and term variables can shadow) in `T'` or `T`.
        We must catch this case and rename the case binders as a first step.
-       Note that the free vars in `t : T` are a subset of the free vars in the
+       Note that the free vars in `t : T' : T` are a subset of the free vars in the
        arguments of the scrutinee (s, t) plus the arguments to its type
-       annotation (A, B). (In the non-annotated case, we instead look at the
-       type arguments of the scrutinee).
+       annotations (A', B', A, B). (In the non-annotated case, we only have
+       `A', B'` and not `A, B`).
        We shall be conservative and rename all binders in every branch apart
        from these free vars.
        (We could get away with only renaming within the matching branch, only
@@ -354,15 +379,14 @@ viewCaseRedex tydefs = \case
               then Nothing
               else Just $ RenameBindingsCase m expr brs avoid
     formCaseRedex ::
-      Type' () ->
       ValConName ->
-      (forall m'. MonadFresh NameCounter m' => [m' (Type' ())]) ->
+      (forall m'. MonadFresh NameCounter m' => ([m' (Type' ())], Maybe [m' (Type' ())])) ->
       [Expr] ->
       [Bind' a] ->
       Expr ->
       Redex
-    formCaseRedex ty c argTys args patterns =
-      CaseRedex c args argTys ty (map bindName patterns)
+    formCaseRedex c argTys args patterns =
+      CaseRedex c args argTys (map bindName patterns)
 
 -- We record each binder, along with its let-bound RHS (if any)
 -- and its original binding location and  context (to be able to detect capture)
@@ -509,14 +533,31 @@ runRedex = \case
   -- (and also the non-annotated-constructor case)
   -- Note that when forming the CaseRedex we checked that the variables @xs@ were fresh for @as@ and @As@,
   -- so this will not capture any variables.
-  CaseRedex c as aTys' _ xs e -> do
-    aTys <- sequence aTys'
-    unless (length as == length aTys && length as == length xs) $
+  CaseRedex c as (aTysFromCon, aTysFromAnn) xs e -> do
+    aTysC <- sequence aTysFromCon
+    aTysA <- traverse sequence aTysFromAnn
+    unless (length as == length aTysC && maybe True ((length as ==) . length) aTysA && length as == length xs) $
       logWarning $
-        CaseRedexWrongArgNum c as aTys xs
+        CaseRedexWrongArgNum c as aTysC aTysA xs
     -- TODO: we are putting trivial metadata in here...
     -- See https://github.com/hackworthltd/primer/issues/6
-    foldrM (\(x, a, tyA) t -> let_ x (pure a `ann` generateTypeIDs tyA) (pure t)) e (zip3 xs as aTys)
+    let ann' x t = x `ann` generateTypeIDs t
+    let mkAnn (tyC, tyA') = case tyA' of
+          Nothing -> (False, (`ann'` tyC))
+          Just tyA
+            | alphaEqTy tyC tyA -> (False, (`ann'` tyC))
+            | otherwise -> (True, \x -> x `ann'` tyC `ann'` tyA)
+    (diffAnn, res) <-
+      foldrM
+        ( \(x, a, tyC, tyA) (diffAnn, t) ->
+            let (d, putAnn) = mkAnn (tyC, tyA)
+             in (diffAnn || d,)
+                  <$> let_ x (putAnn $ pure a) (pure t)
+        )
+        (False, e)
+        (zip4 xs as aTysC $ maybe (repeat Nothing) (fmap Just) aTysA)
+    when diffAnn $ logInfo $ CaseRedexDoubleAnn c as aTysC aTysA xs
+    pure res
   -- [ t : T ]  ~>  t  writing [_] for the embedding of syn into chk
   Upsilon e _ -> pure e
   -- λy.t  ~>  λz.let y = z in t (and similar for other binding forms, except let)
