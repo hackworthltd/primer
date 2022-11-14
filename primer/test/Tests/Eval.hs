@@ -834,90 +834,119 @@ unit_redexes_con = redexesOf (con' ["M"] "C") <@?=> mempty
 (<@?=>) :: (HasCallStack, Eq a, Show a) => IO a -> a -> Assertion
 m <@?=> x = m >>= (@?= x)
 
+-- | Helper for some tests, see 'withAnn'
+noAnn :: S Expr -> S Type -> S Expr
+noAnn e _ = e
+
+-- | Helper for some tests, c.f. 'noAnn'
+--
+-- These are intended to be used to define some term which is parameterised
+-- by "does it have annotations": @let e mkAnn = ... `mkAnn` ...@.
+-- This term can then be tested with @e withAnn@ and without @e noAnn@ said annotations.
+-- The aim is to make the relationship between these two tests clearer than writing out
+-- the same expression twice, differing in whether annotations are included.
+-- (This is mostly a concern for larger terms).
+withAnn :: S Expr -> S Type -> S Expr
+withAnn = ann
+
 unit_redexes_lam_1 :: Assertion
-unit_redexes_lam_1 = do
-  redexesOf (app (lam "x" (lvar "x")) (con' ["M"] "C")) <@?=> mempty
-  redexesOf (app (lam "x" (lvar "x") `ann` (tvar "a" `tfun` tvar "a")) (con' ["M"] "C")) <@?=> Set.singleton 0
+unit_redexes_lam_1 =
+  let e mkAnn =
+        app
+          ( lam "x" (lvar "x")
+              `mkAnn` (tvar "a" `tfun` tvar "a")
+          )
+          (con' ["M"] "C")
+   in do
+        redexesOf (e noAnn) <@?=> mempty
+        redexesOf (e withAnn) <@?=> Set.singleton 0
 
 unit_redexes_lam_2 :: Assertion
-unit_redexes_lam_2 = do
-  redexesOf (lam "y" (app (lam "x" (lvar "x")) (con' ["M"] "C"))) <@?=> mempty
-  redexesOf (lam "y" (app (lam "x" (lvar "x") `ann` (tvar "a" `tfun` tvar "a")) (con' ["M"] "C"))) <@?=> Set.singleton 1
+unit_redexes_lam_2 =
+  let e mkAnn =
+        lam
+          "y"
+          ( app
+              ( lam "x" (lvar "x")
+                  `mkAnn` (tvar "a" `tfun` tvar "a")
+              )
+              (con' ["M"] "C")
+          )
+   in do
+        redexesOf (e noAnn) <@?=> mempty
+        redexesOf (e withAnn) <@?=> Set.singleton 1
 
 unit_redexes_lam_3 :: Assertion
-unit_redexes_lam_3 = do
-  redexesOf (lam "y" (app (lam "x" (lvar "x")) (app (lam "z" (lvar "z")) (con' ["M"] "C"))))
-    <@?=> mempty
-  redexesOf
-    ( lam
-        "y"
-        ( app
-            (lam "x" (lvar "x") `ann` (tvar "a" `tfun` tvar "a"))
-            (app (lam "z" (lvar "z") `ann` (tvar "a" `tfun` tvar "a")) (con' ["M"] "C"))
-        )
-    )
-    <@?=> Set.fromList [1, 8]
+unit_redexes_lam_3 =
+  let e mkAnn =
+        lam
+          "y"
+          ( app
+              (lam "x" (lvar "x") `mkAnn` (tvar "a" `tfun` tvar "a"))
+              (app (lam "z" (lvar "z") `mkAnn` (tvar "a" `tfun` tvar "a")) (con' ["M"] "C"))
+          )
+   in do
+        redexesOf (e noAnn) <@?=> mempty
+        redexesOf (e withAnn) <@?=> Set.fromList [1, 8]
 
 unit_redexes_lam_4 :: Assertion
-unit_redexes_lam_4 = do
-  redexesOf (lam "y" (app (lam "x" (lvar "x")) (app (lam "z" (lvar "z")) (con' ["M"] "C"))))
-    <@?=> mempty
-  redexesOf
-    ( lam
-        "y"
-        ( app
-            (lam "x" (lvar "x") `ann` (tvar "a" `tfun` tvar "a"))
-            (app (lam "z" (lvar "z") `ann` (tvar "a" `tfun` tvar "a")) (con' ["M"] "C"))
-        )
-    )
-    <@?=> Set.fromList [1, 8]
+unit_redexes_lam_4 =
+  let e mkAnn =
+        lam
+          "y"
+          ( app
+              (lam "x" (lvar "x") `mkAnn` (tvar "a" `tfun` tvar "a"))
+              (app (lam "z" (lvar "z") `mkAnn` (tvar "a" `tfun` tvar "a")) (con' ["M"] "C"))
+          )
+   in do
+        redexesOf (e noAnn) <@?=> mempty
+        redexesOf (e withAnn) <@?=> Set.fromList [1, 8]
 
 unit_redexes_LAM_1 :: Assertion
 unit_redexes_LAM_1 =
   redexesOf (lAM "a" (con' ["M"] "C")) <@?=> mempty
 
 unit_redexes_LAM_2 :: Assertion
-unit_redexes_LAM_2 = do
-  redexesOf (aPP (lAM "a" (con' ["M"] "C")) (tcon' ["M"] "A")) <@?=> mempty
-  redexesOf
-    ( aPP
-        (lAM "a" (con' ["M"] "C") `ann` tforall "a" KType (tcon' ["M"] "C"))
-        (tcon' ["M"] "A")
-    )
-    <@?=> Set.fromList [0]
+unit_redexes_LAM_2 =
+  let e mkAnn =
+        aPP
+          (lAM "a" (con' ["M"] "C") `mkAnn` tforall "a" KType (tcon' ["M"] "C"))
+          (tcon' ["M"] "A")
+   in do
+        redexesOf (e noAnn) <@?=> mempty
+        redexesOf (e withAnn) <@?=> Set.fromList [0]
 
 unit_redexes_LAM_3 :: Assertion
-unit_redexes_LAM_3 = do
-  redexesOf (lAM "a" (aPP (lAM "b" (con' ["M"] "X")) (tcon' ["M"] "T"))) <@?=> mempty
-  redexesOf
-    ( lAM
-        "a"
-        ( aPP
-            (lAM "b" (con' ["M"] "X") `ann` tforall "a" KType (tcon' ["M"] "C"))
-            (tcon' ["M"] "T")
-        )
-    )
-    <@?=> Set.fromList [1]
+unit_redexes_LAM_3 =
+  let e mkAnn =
+        lAM
+          "a"
+          ( aPP
+              (lAM "b" (con' ["M"] "X") `mkAnn` tforall "a" KType (tcon' ["M"] "C"))
+              (tcon' ["M"] "T")
+          )
+   in do
+        redexesOf (e noAnn) <@?=> mempty
+        redexesOf (e withAnn) <@?=> Set.fromList [1]
 
 unit_redexes_LAM_4 :: Assertion
-unit_redexes_LAM_4 = do
-  redexesOf (let_ "x" (con' ["M"] "C") (lAM "a" (aPP (lAM "b" (lvar "x")) (tcon' ["M"] "T"))))
-    <@?=> Set.singleton 5
-  redexesOf
-    ( let_
-        "x"
-        (con' ["M"] "C")
-        ( lAM
-            "a"
-            ( aPP
-                ( lAM "b" (lvar "x")
-                    `ann` tforall "a" KType (tcon' ["M"] "C")
-                )
-                (tcon' ["M"] "T")
-            )
-        )
-    )
-    <@?=> Set.fromList [3, 6]
+unit_redexes_LAM_4 =
+  let e mkAnn =
+        let_
+          "x"
+          (con' ["M"] "C")
+          ( lAM
+              "a"
+              ( aPP
+                  ( lAM "b" (lvar "x")
+                      `mkAnn` tforall "a" KType (tcon' ["M"] "C")
+                  )
+                  (tcon' ["M"] "T")
+              )
+          )
+   in do
+        redexesOf (e noAnn) <@?=> Set.singleton 5
+        redexesOf (e withAnn) <@?=> Set.fromList [3, 6]
 
 unit_redexes_let_1 :: Assertion
 unit_redexes_let_1 =
@@ -970,39 +999,37 @@ unit_redexes_letrec_3 =
 -- argument inside the letrec, but that is not a reduction rule. Once
 -- we inline the letrec enough we would be able to see the beta.
 unit_redexes_letrec_app_1 :: Assertion
-unit_redexes_letrec_app_1 = do
-  redexesOf (app (letrec "e" (con' ["M"] "C") (tcon' ["M"] "T") (lam "x" (lvar "e"))) (con' ["M"] "D"))
-    <@?=> Set.fromList [5]
-  redexesOf
-    ( app
-        ( letrec
-            "e"
-            (con' ["M"] "C")
-            (tcon' ["M"] "T")
-            (ann (lam "x" (lvar "e")) (tcon' ["M"] "D" `tfun` tcon' ["M"] "T"))
-        )
-        (con' ["M"] "D")
-    )
-    <@?=> Set.fromList [6]
+unit_redexes_letrec_app_1 =
+  let e mkAnn =
+        app
+          ( letrec
+              "e"
+              (con' ["M"] "C")
+              (tcon' ["M"] "T")
+              (mkAnn (lam "x" (lvar "e")) (tcon' ["M"] "D" `tfun` tcon' ["M"] "T"))
+          )
+          (con' ["M"] "D")
+   in do
+        redexesOf (e noAnn) <@?=> Set.fromList [5]
+        redexesOf (e withAnn) <@?=> Set.fromList [6]
 
 -- The application could potentially be reduced by pushing the
 -- argument inside the letrec, but that is not a reduction rule. Once
 -- we inline the letrec enough we would be able to see the beta.
 unit_redexes_letrec_APP_1 :: Assertion
-unit_redexes_letrec_APP_1 = do
-  redexesOf (aPP (letrec "e" (con' ["M"] "C") (tcon' ["M"] "T") (lAM "x" (lvar "e"))) (tcon' ["M"] "D"))
-    <@?=> Set.fromList [5]
-  redexesOf
-    ( aPP
-        ( letrec
-            "e"
-            (con' ["M"] "C")
-            (tcon' ["M"] "T")
-            (lAM "x" (lvar "e") `ann` tforall "a" KType (tcon' ["M"] "T"))
-        )
-        (tcon' ["M"] "D")
-    )
-    <@?=> Set.fromList [6]
+unit_redexes_letrec_APP_1 =
+  let e mkAnn =
+        aPP
+          ( letrec
+              "e"
+              (con' ["M"] "C")
+              (tcon' ["M"] "T")
+              (lAM "x" (lvar "e") `mkAnn` tforall "a" KType (tcon' ["M"] "T"))
+          )
+          (tcon' ["M"] "D")
+   in do
+        redexesOf (e noAnn) <@?=> Set.fromList [5]
+        redexesOf (e withAnn) <@?=> Set.fromList [6]
 
 unit_redexes_lettype_1 :: Assertion
 unit_redexes_lettype_1 =
