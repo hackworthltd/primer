@@ -181,7 +181,7 @@ import Primer.Def (
   defAST,
  )
 import Primer.Def qualified as Def
-import Primer.EvalFull (EvalFullLog)
+import Primer.Eval.Redex (EvalLog)
 import Primer.JSON (
   CustomJSON (..),
   FromJSON,
@@ -906,7 +906,7 @@ generateNames = curry $ logAPI (leftResultError GenerateNames) $ \(sid, ((defnam
   liftQueryAppM (handleQuestion $ GenerateName defname exprid tk) sid
 
 evalStep ::
-  (MonadIO m, MonadThrow m, MonadAPILog l m, ConvertLogMessage EvalFullLog l) =>
+  (MonadIO m, MonadThrow m, MonadAPILog l m, ConvertLogMessage EvalLog l) =>
   SessionId ->
   EvalReq ->
   PrimerM m (Either ProgError EvalResp)
@@ -914,7 +914,7 @@ evalStep = curry $ logAPI (leftResultError EvalStep) $ \(sid, req) ->
   liftEditAppM (handleEvalRequest req) sid
 
 evalFull ::
-  (MonadIO m, MonadThrow m, MonadAPILog l m, ConvertLogMessage EvalFullLog l) =>
+  (MonadIO m, MonadThrow m, MonadAPILog l m, ConvertLogMessage EvalLog l) =>
   SessionId ->
   EvalFullReq ->
   PrimerM m (Either ProgError EvalFullResp)

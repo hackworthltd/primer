@@ -55,7 +55,7 @@ import Primer.Database.Rel8 (
   Rel8DbLogMessage (..),
   runRel8DbT,
  )
-import Primer.EvalFull (EvalFullLog)
+import Primer.Eval (EvalLog)
 import Primer.Log (
   ConvertLogMessage (..),
   logCritical,
@@ -267,5 +267,5 @@ instance ConvertLogMessage PrimerErr LogMsg where
 instance ConvertLogMessage APILog LogMsg where
   convert = LogMsg . show
 
-instance ConvertLogMessage EvalFullLog LogMsg where
+instance ConvertLogMessage EvalLog LogMsg where
   convert = LogMsg . show

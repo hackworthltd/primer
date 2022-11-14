@@ -5,6 +5,7 @@ module Primer.Eval (
   -- The public API of this module
   step,
   redexes,
+  EvalLog (..),
   EvalError (..),
   EvalDetail (..),
   BetaReductionDetail (..),
@@ -56,8 +57,8 @@ import Primer.Eval.NormalOrder (
 import Primer.Eval.Redex (
   Cxt (Cxt),
   Dir (..),
-  EvalFullLog,
-  MonadEvalFull,
+  EvalLog (..),
+  MonadEval,
   getNonCapturedLocal,
   runRedex,
   runRedexTy,
@@ -78,7 +79,7 @@ import Primer.Zipper (
 -- | Perform one step of reduction on the node with the given ID
 -- Returns the new expression and its redexes.
 step ::
-  MonadEvalFull l m =>
+  MonadEval l m =>
   TypeDefMap ->
   DefMap ->
   Expr ->
@@ -118,7 +119,7 @@ findNodeByID i =
 -- is inlinable, e.g. @lettype a = _ in case a of ...@.
 redexes ::
   forall l m.
-  (MonadLog (WithSeverity l) m, ConvertLogMessage EvalFullLog l) =>
+  (MonadLog (WithSeverity l) m, ConvertLogMessage EvalLog l) =>
   TypeDefMap ->
   DefMap ->
   Dir ->
@@ -143,7 +144,7 @@ redexes tydefs globals =
 -- Expects that the expression is redex and will throw an error if not.
 tryReduceExpr ::
   forall l m.
-  (MonadEvalFull l m, MonadError EvalError m) =>
+  (MonadEval l m, MonadError EvalError m) =>
   TypeDefMap ->
   DefMap ->
   Cxt ->
@@ -156,7 +157,7 @@ tryReduceExpr tydefs globals cxt dir expr =
     _ -> throwError NotRedex
 
 tryReduceType ::
-  ( MonadEvalFull l m
+  ( MonadEval l m
   , MonadError EvalError m
   ) =>
   DefMap ->

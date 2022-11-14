@@ -49,6 +49,7 @@ import Primer.Eval (
   Dir (Syn),
   EvalDetail (..),
   EvalError (..),
+  EvalLog,
   GlobalVarInlineDetail (..),
   LetRemovalDetail (..),
   LocalVarInlineDetail (..),
@@ -60,7 +61,6 @@ import Primer.Eval (
   tryReduceExpr,
   tryReduceType,
  )
-import Primer.EvalFull (EvalFullLog)
 import Primer.Log (runPureLog, runPureLogT)
 import Primer.Module (Module (Module, moduleDefs, moduleName, moduleTypes), builtinModule, primitiveModule)
 import Primer.Primitives (PrimDef (EqChar, ToUpper), primitiveGVar, tChar)
@@ -92,14 +92,14 @@ import Tests.Action.Prog (runAppTestM)
 -- | A helper for these tests
 runTryReduce :: TypeDefMap -> DefMap -> Cxt -> (Expr, ID) -> IO (Either EvalError (Expr, EvalDetail))
 runTryReduce tys globals locals (expr, i) = do
-  let (r, logs) = evalTestM i $ runPureLogT $ runExceptT $ tryReduceExpr @EvalFullLog tys globals locals Syn expr
+  let (r, logs) = evalTestM i $ runPureLogT $ runExceptT $ tryReduceExpr @EvalLog tys globals locals Syn expr
   assertNoSevereLogs logs
   pure r
 
 -- For use in assertions
 runTryReduceType :: DefMap -> Cxt -> (Type, ID) -> IO (Either EvalError (Type, EvalDetail))
 runTryReduceType globals locals (ty, i) = do
-  let (r, logs) = evalTestM i $ runPureLogT $ runExceptT $ tryReduceType @EvalFullLog globals locals ty
+  let (r, logs) = evalTestM i $ runPureLogT $ runExceptT $ tryReduceType @EvalLog globals locals ty
   assertNoSevereLogs logs
   pure r
 
@@ -566,7 +566,7 @@ unit_tryReduce_prim_fail_unreduced_args = do
 
 runStep :: ID -> TypeDefMap -> DefMap -> (Expr, ID) -> IO (Either EvalError (Expr, EvalDetail))
 runStep i' tys globals (e, i) = do
-  let (r, logs) = evalTestM i' $ runPureLogT $ step @EvalFullLog tys globals e Syn i
+  let (r, logs) = evalTestM i' $ runPureLogT $ step @EvalLog tys globals e Syn i
   assertNoSevereLogs logs
   pure r
 
@@ -798,7 +798,7 @@ unit_findNodeByID_capture_type =
 redexes' :: TypeDefMap -> DefMap -> Dir -> Expr -> IO (Set ID)
 redexes' types prims d e = do
   let (rs, logs) = runPureLog $ redexes types prims d e
-  assertNoSevereLogs @EvalFullLog logs
+  assertNoSevereLogs @EvalLog logs
   pure $ Set.fromList rs
 
 redexesOf :: S Expr -> IO (Set ID)

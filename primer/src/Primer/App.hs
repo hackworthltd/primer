@@ -149,9 +149,10 @@ import Primer.Def (
   defAST,
  )
 import Primer.Def.Utils (globalInUse)
-import Primer.Eval (EvalDetail)
 import Primer.Eval qualified as Eval
-import Primer.EvalFull (Dir (Syn), EvalFullError (TimedOut), EvalFullLog, TerminationBound, evalFull)
+import Primer.Eval.Detail (EvalDetail)
+import Primer.Eval.Redex (EvalLog)
+import Primer.EvalFull (Dir (Syn), EvalFullError (TimedOut), TerminationBound, evalFull)
 import Primer.JSON
 import Primer.Log (ConvertLogMessage)
 import Primer.Module (
@@ -509,7 +510,7 @@ handleEditRequest actions = do
         (prog', selectedDef <$> progSelection prog')
 
 -- | Handle an eval request (we assume that all such requests are implicitly in a synthesisable context)
-handleEvalRequest :: (MonadEditApp l m, ConvertLogMessage EvalFullLog l) => EvalReq -> m EvalResp
+handleEvalRequest :: (MonadEditApp l m, ConvertLogMessage EvalLog l) => EvalReq -> m EvalResp
 handleEvalRequest req = do
   prog <- gets appProg
   result <- Eval.step (allTypes prog) (allDefs prog) (evalReqExpr req) Syn (evalReqRedex req)
@@ -525,7 +526,7 @@ handleEvalRequest req = do
           }
 
 -- | Handle an eval-to-normal-form request
-handleEvalFullRequest :: (MonadEditApp l m, ConvertLogMessage EvalFullLog l) => EvalFullReq -> m EvalFullResp
+handleEvalFullRequest :: (MonadEditApp l m, ConvertLogMessage EvalLog l) => EvalFullReq -> m EvalFullResp
 handleEvalFullRequest (EvalFullReq{evalFullReqExpr, evalFullCxtDir, evalFullMaxSteps}) = do
   prog <- gets appProg
   result <- evalFull (allTypes prog) (allDefs prog) evalFullMaxSteps evalFullCxtDir evalFullReqExpr

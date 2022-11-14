@@ -12,8 +12,8 @@ module Primer.Eval.Redex (
   Dir (Syn, Chk),
   Cxt (Cxt),
   _freeVarsLetBinding,
-  EvalFullLog (..),
-  MonadEvalFull,
+  EvalLog (..),
+  MonadEval,
   -- Exported for testing
   getNonCapturedLocal,
 ) where
@@ -161,7 +161,7 @@ import Primer.Zipper.Type (
   LetTypeBinding' (LetTypeBind),
  )
 
-data EvalFullLog
+data EvalLog
   = -- | Found something that may have been a case redex,
     -- but the scrutinee's head is an out-of-scope constructor.
     -- This should not happen if the expression is type correct.
@@ -195,7 +195,7 @@ data EvalFullLog
   | InvariantFailure Text
   deriving (Show, Eq)
 
-instance ConvertLogMessage EvalFullLog EvalFullLog where
+instance ConvertLogMessage EvalLog EvalLog where
   convert = identity
 
 data Redex
@@ -495,7 +495,7 @@ data Dir = Syn | Chk
 
 viewCaseRedex ::
   forall l m.
-  (MonadLog (WithSeverity l) m, ConvertLogMessage EvalFullLog l) =>
+  (MonadLog (WithSeverity l) m, ConvertLogMessage EvalLog l) =>
   TypeDefMap ->
   Expr ->
   MaybeT m Redex
@@ -636,7 +636,7 @@ lookupTy n c = case lookup (unLocalName n) c of
 -- - stuck on the type annotation on its left-most child
 -- - stuck on expression under the type annotation in its left-most child
 viewRedex ::
-  (MonadLog (WithSeverity l) m, ConvertLogMessage EvalFullLog l) =>
+  (MonadLog (WithSeverity l) m, ConvertLogMessage EvalLog l) =>
   TypeDefMap ->
   DefMap ->
   Dir ->
@@ -808,7 +808,7 @@ fvCxtTy vs = do
   pure $ foldMap (setOf (_Just % _1 % _Just % _LetTypeBind % _2 % getting _freeVarsTy % _2) . flip lookupTy cxt) vs
 
 -- TODO: deal with metadata. https://github.com/hackworthltd/primer/issues/6
-runRedex :: MonadEvalFull l m => Redex -> m (Expr, EvalDetail)
+runRedex :: MonadEval l m => Redex -> m (Expr, EvalDetail)
 runRedex = \case
   InlineGlobal{def, orig} -> do
     after <- ann (regenerateExprIDs $ astDefExpr def) (regenerateTypeIDs $ astDefType def)
@@ -1056,7 +1056,7 @@ runRedex = \case
             }
     pure (expr', Primer.Eval.Detail.ApplyPrimFun details)
 
-runRedexTy :: MonadEvalFull l m => RedexType -> m (Type, EvalDetail)
+runRedexTy :: MonadEval l m => RedexType -> m (Type, EvalDetail)
 runRedexTy (InlineLetInType{ty, letID, varID, var}) = do
   ty' <- regenerateTypeIDs ty
   let details =
@@ -1117,9 +1117,9 @@ runRedexTy (RenameForall{meta, origBinder, kind, body, avoid, orig}) = do
           }
   pure (result, TBindRename details)
 
-type MonadEvalFull l m =
+type MonadEval l m =
   ( MonadFresh ID m
   , MonadFresh NameCounter m
   , MonadLog (WithSeverity l) m
-  , ConvertLogMessage EvalFullLog l
+  , ConvertLogMessage EvalLog l
   )

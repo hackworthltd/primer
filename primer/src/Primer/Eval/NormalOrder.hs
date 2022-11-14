@@ -67,7 +67,7 @@ import Primer.Def (
 import Primer.Eval.Redex (
   Cxt (..),
   Dir (..),
-  EvalFullLog,
+  EvalLog,
   Redex (
     ElideLet,
     InlineLet,
@@ -204,7 +204,7 @@ hoistAccum = Foreword.hoistAccum generalize
 -- "expand a" redex to be the 'lettype' rather than the variable occurrance.
 findRedex ::
   forall l m.
-  (MonadLog (WithSeverity l) m, ConvertLogMessage EvalFullLog l) =>
+  (MonadLog (WithSeverity l) m, ConvertLogMessage EvalLog l) =>
   TypeDefMap ->
   DefMap ->
   Dir ->

@@ -449,7 +449,7 @@ resumeTest mods dir t = do
   -- exactly the same as "reducing n steps and then further reducing m
   -- steps" (including generated names). (A happy consequence of this is that
   -- it is precisely the same including ids in metadata.)
-  ((stepsFinal', sFinal), logs) <- lift $ isolateWT $ runPureLogT $ evalFullStepCount @EvalFullLog tds globs n dir t
+  ((stepsFinal', sFinal), logs) <- lift $ isolateWT $ runPureLogT $ evalFullStepCount @EvalLog tds globs n dir t
   testNoSevereLogs logs
   when (stepsFinal' < 2) discard
   let stepsFinal = case sFinal of Left _ -> stepsFinal'; Right _ -> 1 + stepsFinal'
@@ -582,7 +582,7 @@ unit_type_preservation_case_hole_regression = evalTestM 0 $ do
         Right e -> e
   pure $ do
     expectTypedWithPrims $ pure t `ann` tEmptyHole
-    assertNoSevereLogs @EvalFullLog logs
+    assertNoSevereLogs @EvalLog logs
     expectTypedWithPrims $ pure s' `ann` tEmptyHole
 
 -- Previously EvalFull reducing a BETA expression could result in variable
@@ -1339,7 +1339,7 @@ tasty_unique_ids = withTests 1000 $
       let go n t
             | n == (0 :: Int) = pure ()
             | otherwise = do
-                t' <- failWhenSevereLogs $ evalFull @EvalFullLog tds globs 1 dir t
+                t' <- failWhenSevereLogs $ evalFull @EvalLog tds globs 1 dir t
                 case t' of
                   Left (TimedOut e) -> uniqueIDs e >> go (n - 1) e
                   Right e -> uniqueIDs e
@@ -1353,20 +1353,20 @@ tasty_unique_ids = withTests 1000 $
 
 evalFullTest :: ID -> TypeDefMap -> DefMap -> TerminationBound -> Dir -> Expr -> IO (Either EvalFullError Expr)
 evalFullTest id_ tydefs globals n d e = do
-  let (r, logs) = evalTestM id_ $ runPureLogT $ evalFull @EvalFullLog tydefs globals n d e
+  let (r, logs) = evalTestM id_ $ runPureLogT $ evalFull @EvalLog tydefs globals n d e
   assertNoSevereLogs logs
   distinctIDs r
   pure r
 
 evalFullTasty :: MonadTest m => ID -> TypeDefMap -> DefMap -> TerminationBound -> Dir -> Expr -> m (Either EvalFullError Expr)
 evalFullTasty id_ tydefs globals n d e = do
-  let (r, logs) = evalTestM id_ $ runPureLogT $ evalFull @EvalFullLog tydefs globals n d e
+  let (r, logs) = evalTestM id_ $ runPureLogT $ evalFull @EvalLog tydefs globals n d e
   testNoSevereLogs logs
   let ids = r ^.. evalResultExpr % exprIDs
   ids === ordNub ids
   pure r
 
-failWhenSevereLogs :: MonadTest m => PureLogT (WithSeverity EvalFullLog) m a -> m a
+failWhenSevereLogs :: MonadTest m => PureLogT (WithSeverity EvalLog) m a -> m a
 failWhenSevereLogs m = do
   (r, logs) <- runPureLogT m
   testNoSevereLogs logs
