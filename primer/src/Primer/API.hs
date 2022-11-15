@@ -58,9 +58,9 @@ module Primer.API (
   viewTreeExpr,
   getApp,
   Selection (..),
-  convertSelection,
+  viewSelection,
   NodeSelection (..),
-  convertNodeSelection,
+  viewNodeSelection,
 ) where
 
 import Foreword
@@ -1065,8 +1065,8 @@ data Selection = Selection
   deriving (Eq, Show, Generic)
   deriving (FromJSON, ToJSON) via PrimerJSON Selection
 
-convertSelection :: App.Selection -> Selection
-convertSelection App.Selection{..} = Selection{def = selectedDef, node = convertNodeSelection <$> selectedNode}
+viewSelection :: App.Selection -> Selection
+viewSelection App.Selection{..} = Selection{def = selectedDef, node = viewNodeSelection <$> selectedNode}
 
 -- | 'App.NodeSelection' without any node metadata.
 data NodeSelection = NodeSelection
@@ -1076,5 +1076,5 @@ data NodeSelection = NodeSelection
   deriving (Eq, Show, Generic)
   deriving (FromJSON, ToJSON) via PrimerJSON NodeSelection
 
-convertNodeSelection :: App.NodeSelection -> NodeSelection
-convertNodeSelection sel@App.NodeSelection{nodeType} = NodeSelection{nodeType, id = getID sel}
+viewNodeSelection :: App.NodeSelection -> NodeSelection
+viewNodeSelection sel@App.NodeSelection{nodeType} = NodeSelection{nodeType, id = getID sel}
