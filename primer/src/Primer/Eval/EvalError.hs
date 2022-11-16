@@ -2,7 +2,6 @@ module Primer.Eval.EvalError (EvalError (..)) where
 
 import Foreword
 
-import Primer.Core (Expr)
 import Primer.Core.Meta (ID)
 import Primer.JSON (CustomJSON (..), FromJSON, PrimerJSON, ToJSON)
 
@@ -21,17 +20,7 @@ data EvalError
     NotRedex
   | -- | The node with the given ID could not be found in the expression
     NodeNotFound ID
-  | -- | A lambda expression was annotated with a non-function type.
-    -- The expression is the offending annotation node
-    BadLambdaAnnotation Expr
-  | -- | A big lambda expression was annotated with a non-forall type.
-    -- The expression is the offending annotation node
-    BadBigLambdaAnnotation Expr
-  | -- | The outer constructor of a case scrutinee didn't match any of the constructors in the case
-    -- branches.
-    NoMatchingCaseBranch
-  | -- | The number of bindings in a branch pattern doesn't match the number of arguments in the
-    -- scrutinee.
-    CaseBranchBindingLengthMismatch
+  | -- | We did a reduction, but our assumptions were flawed when working out details
+    InternalDetailError
   deriving (Eq, Show, Generic)
   deriving (FromJSON, ToJSON) via PrimerJSON EvalError

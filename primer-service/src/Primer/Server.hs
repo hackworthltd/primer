@@ -65,7 +65,7 @@ import Primer.Database (
 import Primer.Database qualified as Database (
   Op,
  )
-import Primer.EvalFull (EvalFullLog)
+import Primer.Eval (EvalLog)
 import Primer.Log (ConvertLogMessage, logWarning)
 import Primer.Pagination (pagedDefaultClamp)
 import Primer.Servant.API qualified as S
@@ -86,7 +86,7 @@ type Primer l = (PrimerM (LoggingT (WithSeverity l) IO))
 
 type ConvertServerLogs l =
   ( ConvertLogMessage APILog l
-  , ConvertLogMessage EvalFullLog l
+  , ConvertLogMessage EvalLog l
   )
 
 openAPIInfo :: OpenApi

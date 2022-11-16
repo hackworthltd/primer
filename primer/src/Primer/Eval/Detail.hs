@@ -2,12 +2,12 @@
 
 module Primer.Eval.Detail (
   EvalDetail (..),
+  module Ann,
   module Beta,
   module Bind,
   module Inline,
   module Case,
   module Let,
-  module Push,
   module Prim,
 ) where
 
@@ -16,13 +16,13 @@ import Foreword
 import Primer.Core (Expr)
 import Primer.Core.Meta (LocalNameKind (..))
 import Primer.Core.Type (Kind, Type)
+import Primer.Eval.Ann as Ann
 import Primer.Eval.Beta as Beta
 import Primer.Eval.Bind as Bind
 import Primer.Eval.Case as Case
 import Primer.Eval.Inline as Inline
 import Primer.Eval.Let as Let
 import Primer.Eval.Prim as Prim
-import Primer.Eval.Push as Push
 import Primer.JSON (CustomJSON (CustomJSON), FromJSON, PrimerJSON, ToJSON)
 
 -- | Detailed information about a reduction step
@@ -46,8 +46,8 @@ data EvalDetail
     TBindRename (BindRenameDetail Type)
   | -- | TODO: some details here
     CaseReduction CaseReductionDetail
-  | -- | Push the argument of an application inside a letrec
-    PushAppIntoLetrec PushAppIntoLetrecDetail
+  | -- | Elide annotation
+    RemoveAnn RemoveAnnDetail
   | -- | Apply a primitive function
     ApplyPrimFun ApplyPrimFunDetail
   deriving (Eq, Show, Generic)

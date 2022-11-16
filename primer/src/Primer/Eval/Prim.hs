@@ -1,24 +1,21 @@
 {-# LANGUAGE DuplicateRecordFields #-}
 {-# LANGUAGE ImpredicativeTypes #-}
 
-module Primer.Eval.Prim (ApplyPrimFunDetail (..), tryPrimFun, tryReducePrim) where
+module Primer.Eval.Prim (ApplyPrimFunDetail (..), tryPrimFun) where
 
 import Foreword
 
 import Control.Monad.Fresh (MonadFresh)
 import Data.Map qualified as Map
-import Optics (mapping, (^.))
 import Primer.Core (
   Expr,
-  Expr' (Ann, App, Var),
+  Expr' (Ann, Var),
   GVarName,
   ID,
   TmVarRef (GlobalVarRef),
-  _id,
  )
 import Primer.Core.Transform (unfoldApp)
 import Primer.Core.Utils (concreteTy, forgetMetadata)
-import Primer.Def (DefMap, defPrim)
 import Primer.JSON (CustomJSON (CustomJSON), FromJSON, PrimerJSON, ToJSON)
 import Primer.Primitives (PrimDef, primFunDef)
 
@@ -55,24 +52,3 @@ tryPrimFun primDefs expr
     stripAnns = \case
       Ann _ e t | concreteTy t -> stripAnns e
       e -> e
-
-tryReducePrim ::
-  MonadFresh ID m =>
-  DefMap ->
-  Expr ->
-  Maybe (m (Expr, ApplyPrimFunDetail))
-tryReducePrim globals = \case
-  -- apply primitive function
-  before@App{}
-    | Just (name, args, e) <- tryPrimFun (Map.mapMaybe defPrim globals) before -> Just $ do
-        expr <- e
-        pure
-          ( expr
-          , ApplyPrimFunDetail
-              { before = before
-              , after = expr
-              , name = name
-              , argIDs = args ^. mapping _id
-              }
-          )
-  _ -> Nothing

@@ -68,6 +68,7 @@ library
     Primer.Core.Meta
     Primer.Core.Type
     Primer.Core.Type.Utils
+    Primer.Eval.Ann
     Primer.Eval.Beta
     Primer.Eval.Bind
     Primer.Eval.Case
@@ -77,9 +78,7 @@ library
     Primer.Eval.Let
     Primer.Eval.NormalOrder
     Primer.Eval.Prim
-    Primer.Eval.Push
     Primer.Eval.Redex
-    Primer.Eval.Utils
     Primer.Primitives.PrimDef
     Primer.Typecheck.Cxt
     Primer.Typecheck.Kindcheck

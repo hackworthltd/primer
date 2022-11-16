@@ -7,7 +7,7 @@ import Hedgehog.Internal.Property
 import Optics (over)
 import Primer.Core (Expr, GVarName, Type)
 import Primer.Core.DSL (apps', create', gvar)
-import Primer.EvalFull (Dir (Chk), EvalFullError, EvalFullLog, TerminationBound, evalFull)
+import Primer.EvalFull (Dir (Chk), EvalFullError, EvalLog, TerminationBound, evalFull)
 import Primer.Log (runPureLogT)
 import Primer.Module (builtinModule, moduleDefsQualified, moduleTypesQualified, primitiveModule)
 import Primer.Prelude (prelude)
@@ -51,7 +51,7 @@ functionOutput' :: GVarName -> [Either (TestM Expr) (TestM Type)] -> Termination
 functionOutput' f args depth =
   let (r, logs) = evalTestM 0 $ runPureLogT $ do
         e <- apps' (gvar f) $ bimap lift lift <$> args
-        evalFull @EvalFullLog ty def n d e
+        evalFull @EvalLog ty def n d e
       severe = Seq.filter isSevereLog logs
    in if null severe
         then r

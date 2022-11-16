@@ -4,12 +4,8 @@ module Primer.EvalFull (
   TerminationBound,
   evalFull,
   evalFullStepCount,
-  EvalFullLog (..),
+  EvalLog (..),
 ) where
-
--- TODO: share code with Primer.Eval
--- I hope to reuse this code in Eval - the current implementation does some weird things with annotations and metadata
--- but that will come later
 
 -- TODO: ensure do sane things to metadata
 -- (Perhaps we should just run a TC pass after each step?)
@@ -28,8 +24,8 @@ import Primer.Def (
 import Primer.Eval.NormalOrder (RedexWithContext (RExpr, RType), findRedex)
 import Primer.Eval.Redex (
   Dir (Chk, Syn),
-  EvalFullLog (..),
-  MonadEvalFull,
+  EvalLog (..),
+  MonadEval,
   runRedex,
   runRedexTy,
  )
@@ -51,7 +47,7 @@ newtype EvalFullError
 type TerminationBound = Natural
 
 -- A naive implementation of normal-order reduction
-evalFull :: MonadEvalFull l m => TypeDefMap -> DefMap -> TerminationBound -> Dir -> Expr -> m (Either EvalFullError Expr)
+evalFull :: MonadEval l m => TypeDefMap -> DefMap -> TerminationBound -> Dir -> Expr -> m (Either EvalFullError Expr)
 evalFull tydefs env n d expr = snd <$> evalFullStepCount tydefs env n d expr
 
 -- | As 'evalFull', but also returns how many reduction steps were taken.
@@ -63,7 +59,7 @@ evalFull tydefs env n d expr = snd <$> evalFullStepCount tydefs env n d expr
 -- we have @m >= s+1@, as we do @s@ reductions, and then need to attempt one
 -- more to notice termination.
 evalFullStepCount ::
-  MonadEvalFull l m =>
+  MonadEval l m =>
   TypeDefMap ->
   DefMap ->
   TerminationBound ->
@@ -82,8 +78,8 @@ evalFullStepCount tydefs env n d = go 0
 -- The 'Dir' argument only affects what happens if the root is an annotation:
 -- do we keep it (Syn) or remove it (Chk). I.e. is an upsilon reduction allowed
 -- at the root?
-step :: MonadEvalFull l m => TypeDefMap -> DefMap -> Dir -> Expr -> MaybeT m Expr
+step :: MonadEval l m => TypeDefMap -> DefMap -> Dir -> Expr -> MaybeT m Expr
 step tydefs g d e =
   findRedex tydefs g d e >>= \case
-    RExpr ez r -> lift $ unfocusExpr . flip replace ez <$> runRedex r
-    RType et r -> lift $ unfocusExpr . unfocusType . flip replace et <$> runRedexTy r
+    RExpr ez r -> lift $ unfocusExpr . flip replace ez . fst <$> runRedex r
+    RType et r -> lift $ unfocusExpr . unfocusType . flip replace et . fst <$> runRedexTy r

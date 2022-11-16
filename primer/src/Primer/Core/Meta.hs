@@ -39,6 +39,7 @@ import Data.Generics.Uniplate.Zipper (Zipper, hole, replaceHole)
 import Optics (
   Lens,
   Lens',
+  equality',
   lens,
   set,
   view,
@@ -145,6 +146,9 @@ data TmVarRef
 -- which can lead to ambiguity errors.
 class HasID a where
   _id :: Lens' a ID
+
+instance HasID ID where
+  _id = equality'
 
 instance HasID (Meta a) where
   _id = position @1
