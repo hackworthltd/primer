@@ -211,6 +211,7 @@ test-suite primer-test
     Tests.App
     Tests.Database
     Tests.Eval
+    Tests.Eval.Utils
     Tests.EvalFull
     Tests.Examples
     Tests.FreeVars

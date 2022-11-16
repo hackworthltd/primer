@@ -2,7 +2,6 @@ module Tests.EvalFull where
 
 import Foreword hiding (unlines)
 
-import Control.Monad.Log (WithSeverity)
 import Data.Generics.Uniplate.Data (universe)
 import Data.List ((\\))
 import Data.List.NonEmpty qualified as NE
@@ -44,9 +43,8 @@ import Primer.Core.DSL
 import Primer.Core.Utils (
   exprIDs,
   forgetMetadata,
-  generateIDs,
  )
-import Primer.Def (ASTDef (..), Def (..), DefMap)
+import Primer.Def (DefMap)
 import Primer.EvalFull
 import Primer.Examples qualified as Examples (
   even,
@@ -54,8 +52,8 @@ import Primer.Examples qualified as Examples (
   map',
   odd,
  )
-import Primer.Gen.Core.Typed (WT, forAllT, genChk, genSyn, genWTType, isolateWT, propertyWT)
-import Primer.Log (PureLogT, runPureLogT)
+import Primer.Gen.Core.Typed (WT, forAllT, isolateWT, propertyWT)
+import Primer.Log (runPureLogT)
 import Primer.Module (Module (Module, moduleDefs, moduleName, moduleTypes), builtinModule, moduleDefsQualified, moduleTypesQualified, primitiveModule)
 import Primer.Primitives (
   PrimDef (
@@ -86,6 +84,7 @@ import Primer.Primitives (
 import Primer.Primitives.DSL (pfun)
 import Primer.Test.Util (
   assertNoSevereLogs,
+  failWhenSevereLogs,
   primDefs,
   testNoSevereLogs,
   zeroIDs,
@@ -107,7 +106,7 @@ import Tasty (
 import Test.Tasty.HUnit (Assertion, assertBool, assertFailure, (@?=))
 import TestM
 import Tests.Action.Prog (runAppTestM)
-import Tests.Eval ((~=))
+import Tests.Eval.Utils (genDirTm, testModules, (~=))
 import Tests.Gen.Core.Typed (checkTest)
 import Tests.Typecheck (expectTypedWithPrims, runTypecheckTestM, runTypecheckTestMWithPrims)
 
@@ -454,14 +453,14 @@ resumeTest mods dir t = do
   when (stepsFinal' < 2) discard
   let stepsFinal = case sFinal of Left _ -> stepsFinal'; Right _ -> 1 + stepsFinal'
   m <- forAllT $ Gen.integral $ Range.constant 1 (stepsFinal - 1)
-  (stepsMid, sMid') <- failWhenSevereLogs $ evalFullStepCount tds globs m dir t
+  (stepsMid, sMid') <- failWhenSevereLogs $ evalFullStepCount @EvalLog tds globs m dir t
   stepsMid === m
   sMid <- case sMid' of
     Left (TimedOut e) -> pure e
     -- This should never happen: we know we are not taking enough steps to
     -- hit a normal form (as m < stepsFinal)
     Right e -> assert False >> pure e
-  (stepsTotal, sTotal) <- failWhenSevereLogs $ evalFullStepCount tds globs (stepsFinal - m) dir sMid
+  (stepsTotal, sTotal) <- failWhenSevereLogs $ evalFullStepCount @EvalLog tds globs (stepsFinal - m) dir sMid
   stepsMid + stepsTotal === stepsFinal'
   sFinal === sTotal
 
@@ -839,7 +838,7 @@ tasty_type_preservation = withTests 1000 $
                 forgetMetadata s === forgetMetadata s' -- check no smart holes happened
               else label (msg <> "skipped due to LetType") >> success
       maxSteps <- forAllT $ Gen.integral $ Range.linear 1 1000 -- Arbitrary limit here
-      (steps, s) <- failWhenSevereLogs $ evalFullStepCount tds globs maxSteps dir t
+      (steps, s) <- failWhenSevereLogs $ evalFullStepCount @EvalLog tds globs maxSteps dir t
       annotateShow steps
       annotateShow s
       -- s is often reduced to normal form
@@ -849,7 +848,7 @@ tasty_type_preservation = withTests 1000 $
         then label "generated a normal form"
         else do
           midSteps <- forAllT $ Gen.integral $ Range.linear 1 (steps - 1)
-          (_, s') <- failWhenSevereLogs $ evalFullStepCount tds globs midSteps dir t
+          (_, s') <- failWhenSevereLogs $ evalFullStepCount @EvalLog tds globs midSteps dir t
           test "mid " s'
 
 unit_prim_toUpper :: Assertion
@@ -1366,12 +1365,6 @@ evalFullTasty id_ tydefs globals n d e = do
   ids === ordNub ids
   pure r
 
-failWhenSevereLogs :: MonadTest m => PureLogT (WithSeverity EvalLog) m a -> m a
-failWhenSevereLogs m = do
-  (r, logs) <- runPureLogT m
-  testNoSevereLogs logs
-  pure r
-
 unaryPrimTest :: PrimDef -> S Expr -> S Expr -> Assertion
 unaryPrimTest f x y =
   let ((e, r), maxID) =
@@ -1395,48 +1388,6 @@ binaryPrimTest f x y z =
    in do
         s <- evalFullTest maxID mempty primDefs 2 Syn e
         s <~==> Right r
-
--- | Generates
---
---  * a term (to be the subject of some evaluation steps)
---
--- Also returns
---
---  * whether the term is synthesisable or checkable
---
---  * the type of the term
-genDirTm :: PropertyT WT (Dir, Expr, Type' ())
-genDirTm = do
-  dir <- forAllT $ Gen.element [Chk, Syn]
-  (t', ty) <- case dir of
-    Chk -> do
-      ty' <- forAllT $ genWTType KType
-      t' <- forAllT $ genChk ty'
-      pure (t', ty')
-    Syn -> forAllT genSyn
-  t <- generateIDs t'
-  pure (dir, t, ty)
-
--- | Some generally-useful globals to have around when testing.
--- Currently: an AST identity function on Char and all builtins and
--- primitives
-testModules :: [Module]
-testModules = [builtinModule, primitiveModule, testModule]
-
-testModule :: Module
-testModule =
-  let (ty, expr) = create' $ (,) <$> tcon tChar `tfun` tcon tChar <*> lam "x" (lvar "x")
-   in Module
-        { moduleName = ModuleName ["M"]
-        , moduleTypes = mempty
-        , moduleDefs =
-            Map.singleton "idChar" $
-              DefAST
-                ASTDef
-                  { astDefType = ty
-                  , astDefExpr = expr
-                  }
-        }
 
 evalResultExpr :: Traversal' (Either EvalFullError Expr) Expr
 evalResultExpr = _Left % timedOut `adjoin` _Right
