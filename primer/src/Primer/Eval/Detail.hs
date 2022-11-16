@@ -27,24 +27,25 @@ import Primer.JSON (CustomJSON (CustomJSON), FromJSON, PrimerJSON, ToJSON)
 
 -- | Detailed information about a reduction step
 data EvalDetail
-  = -- | Reduction of (λx. a) b
+  = -- | Reduction of (λx. a : S -> T) b
     BetaReduction (BetaReductionDetail 'ATmVar Type Type)
-  | -- | Reduction of (Λx. a) b
+  | -- | Reduction of (Λx. a : ∀y:k. T) S
     BETAReduction (BetaReductionDetail 'ATyVar Kind Type)
-  | -- | Inlining of a local variable
+  | -- | Inlining of a local (let-bound) variable
     LocalVarInline (LocalVarInlineDetail 'ATmVar)
-  | -- | Inlining of a local type variable
+  | -- | Inlining of a local (let-bound) type variable
     LocalTypeVarInline (LocalVarInlineDetail 'ATyVar)
-  | -- | ID of definition, name of variable
+  | -- | Inlining of a global variable (top-level definition)
     GlobalVarInline GlobalVarInlineDetail
-  | -- | ID of let(rec)
+  | -- | Removing a term-level @let@ whose bound variable is unused
     LetRemoval (LetRemovalDetail Expr)
-  | TLetRemoval (LetRemovalDetail Type)
-  | -- | Renaming of binding
+  | -- | Removing a type-level @let@ whose bound variable is unused
+    TLetRemoval (LetRemovalDetail Type)
+  | -- | Renaming of binding in an expression
     BindRename (BindRenameDetail Expr)
   | -- | Renaming of binding in a type
     TBindRename (BindRenameDetail Type)
-  | -- | TODO: some details here
+  | -- | Reduction of case-of-known-constructor
     CaseReduction CaseReductionDetail
   | -- | Elide annotation
     RemoveAnn RemoveAnnDetail

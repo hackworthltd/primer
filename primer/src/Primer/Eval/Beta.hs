@@ -20,7 +20,7 @@ import Primer.JSON (CustomJSON (CustomJSON), FromJSON, PrimerJSON, ToJSON)
 -- If Λ:
 -- - 'lambdaID' is the ID of the Λ
 -- - 'letID' is the ID of the "let type"
--- - 'types' is optionally the domain kind and codomain type of the λ
+-- - 'types' is the domain kind and codomain type of the Λ
 -- - i.e. k ~ ATyVar, domain ~ Kind, codomain ~ Type
 data BetaReductionDetail k domain codomain = BetaReductionDetail
   { before :: Expr

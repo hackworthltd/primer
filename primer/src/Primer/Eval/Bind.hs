@@ -11,6 +11,7 @@ import Primer.JSON (CustomJSON (CustomJSON), FromJSON, PrimerJSON, ToJSON)
 import Primer.Name (Name)
 
 -- | Detailed information about a renaming of a binding.
+-- (Possibly of multiple bindings in one branch of a case expression.)
 -- If term-level: t ~ Expr; if type-level: t ~ Type
 data BindRenameDetail t = BindRenameDetail
   { before :: t
@@ -32,8 +33,8 @@ data BindRenameDetail t = BindRenameDetail
   -- it will contain the @x@ inside @x+1@).
   -- For renaming other binders (e.g. lambdas), this list will be empty.
   , renamingLets :: [ID]
-  -- ^ the newly-inserted (just under the binder) let
-  -- (for new-style, small-step renamings @x.t[x] ~> y.let x = y in t[x]@)
+  -- ^ the newly-inserted (just under the binder) @let@
+  -- (note that renamings are small-step: @x.t[x] ~> y.let x = y in t[x]@)
   , bodyID :: ID
   -- ^ the right hand side of the binders
   }
