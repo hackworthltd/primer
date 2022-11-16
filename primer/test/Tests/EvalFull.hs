@@ -48,7 +48,6 @@ import Primer.Def (DefMap)
 import Primer.EvalFull
 import Primer.Examples qualified as Examples (
   even,
-  map,
   map',
   odd,
  )
@@ -82,6 +81,10 @@ import Primer.Primitives (
   tInt,
  )
 import Primer.Primitives.DSL (pfun)
+import Primer.Test.Expected (
+  Expected (defMap, expectedResult, expr, maxID),
+  mapEven,
+ )
 import Primer.Test.Util (
   assertNoSevereLogs,
   failWhenSevereLogs,
@@ -196,22 +199,13 @@ unit_7 =
 unit_8 :: Assertion
 unit_8 =
   let n = 10
-      modName = mkSimpleModuleName "TestModule"
-      ((globals, e, expected), maxID) = create $ do
-        (mapName, mapDef) <- Examples.map modName
-        (evenName, evenDef) <- Examples.even modName
-        (oddName, oddDef) <- Examples.odd modName
-        let lst = list_ tNat $ take n $ iterate (con cSucc `app`) (con cZero)
-        expr <- gvar mapName `aPP` tcon tNat `aPP` tcon tBool `app` gvar evenName `app` lst
-        let globs = [(mapName, mapDef), (evenName, evenDef), (oddName, oddDef)]
-        expect <- list_ tBool (take n $ cycle [con cTrue, con cFalse]) `ann` (tcon tList `tapp` tcon tBool)
-        pure (globs, expr, expect)
+      e = mapEven n
    in do
-        evalFullTest maxID builtinTypes (M.fromList globals) 500 Syn e >>= \case
+        evalFullTest (maxID e) builtinTypes (defMap e) 500 Syn (expr e) >>= \case
           Left (TimedOut _) -> pure ()
           x -> assertFailure $ show x
-        s <- evalFullTest maxID builtinTypes (M.fromList globals) 1000 Syn e
-        s <~==> Right expected
+        s <- evalFullTest (maxID e) builtinTypes (defMap e) 1000 Syn (expr e)
+        s <~==> Right (expectedResult e)
 
 -- A worker/wrapper'd map
 unit_9 :: Assertion
