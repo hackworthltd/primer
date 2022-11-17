@@ -36,6 +36,8 @@ benchmark primer-benchmark
   main-is:        Main.hs
   hs-source-dirs: src
   build-depends:
-    , base       >=4.12     && <4.17.0
-    , criterion  ^>=1.6.0.0
-    , primer     ^>=0.7.2
+    , base                             >=4.12     && <4.17.0
+    , containers                       >=0.6.0.1  && <0.7.0
+    , criterion                        ^>=1.6.0.0
+    , logging-effect                   ^>=1.3.13
+    , primer:{primer, primer-testlib}

@@ -115,6 +115,7 @@ import Primer.Log (PureLogT, runPureLogT)
 import Primer.Module (Module (Module, moduleDefs, moduleName, moduleTypes), builtinModule, moduleDefsQualified, moduleTypesQualified, primitiveModule)
 import Primer.Name
 import Primer.Primitives (PrimDef (IntAdd, ToUpper), primitiveGVar, tChar)
+import Primer.Test.TestM (TestM, evalTestM)
 import Primer.Test.Util (LogMsg, assertNoSevereLogs, constructCon, constructTCon, zeroIDs, zeroTypeIDs)
 import Primer.Test.Util qualified as Util
 import Primer.TypeDef (ASTTypeDef (..), TypeDef (..), ValCon (..), typeDefAST)
@@ -124,7 +125,6 @@ import Primer.Typecheck (
   TypeError (KindError),
  )
 import Test.Tasty.HUnit (Assertion, assertBool, assertFailure, (@=?), (@?=))
-import TestM (TestM, evalTestM)
 import Tests.Typecheck (checkProgWellFormed)
 import Prelude (error)
 

@@ -1,3 +1,4 @@
+{-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE ImpredicativeTypes #-}
 {-# LANGUAGE OverloadedLabels #-}
 
@@ -95,6 +96,7 @@ data TypeCache
   | TCEmb TypeCacheBoth
   deriving (Eq, Show, Generic, Data)
   deriving (FromJSON, ToJSON) via PrimerJSON TypeCache
+  deriving anyclass (NFData)
 
 -- We were checking at the first, but term was synthesisable and synth'd the
 -- second We don't inline this into TypeCache because then we would get partial
@@ -103,6 +105,7 @@ data TypeCache
 data TypeCacheBoth = TCBoth {tcChkedAt :: Type' (), tcSynthed :: Type' ()}
   deriving (Eq, Show, Generic, Data)
   deriving (FromJSON, ToJSON) via PrimerJSON TypeCacheBoth
+  deriving anyclass (NFData)
 
 -- TODO `_chkedAt` and `_synthed` should be `AffineTraversal`s,
 -- but there is currently no `failing` for AffineTraversals, only for AffineFolds (`afailing`).
@@ -180,6 +183,7 @@ data Expr' a b
   | PrimCon a PrimCon
   deriving (Eq, Show, Data, Generic)
   deriving (FromJSON, ToJSON) via PrimerJSON (Expr' a b)
+  deriving anyclass (NFData)
 
 -- Note [Synthesisable constructors]
 -- Whilst our calculus is heavily inspired by bidirectional type systems
@@ -254,6 +258,7 @@ data CaseBranch' a b
       -- ^ right hand side
   deriving (Eq, Show, Data, Generic)
   deriving (FromJSON, ToJSON) via PrimerJSON (CaseBranch' a b)
+  deriving anyclass (NFData)
 
 -- | Variable bindings
 -- These are used in case branches to represent the binding of a variable.
@@ -263,6 +268,7 @@ type Bind = Bind' ExprMeta
 data Bind' a = Bind a LVarName
   deriving (Eq, Show, Data, Generic)
   deriving (FromJSON, ToJSON) via PrimerJSON (Bind' a)
+  deriving anyclass (NFData)
 
 bindName :: Bind' a -> LVarName
 bindName (Bind _ n) = n
@@ -297,3 +303,4 @@ data PrimCon
   | PrimInt Integer
   deriving (Eq, Show, Data, Generic)
   deriving (FromJSON, ToJSON) via PrimerJSON PrimCon
+  deriving anyclass (NFData)

@@ -53,7 +53,14 @@ import Primer.Examples qualified as Examples (
  )
 import Primer.Gen.Core.Typed (WT, forAllT, isolateWT, propertyWT)
 import Primer.Log (runPureLogT)
-import Primer.Module (Module (Module, moduleDefs, moduleName, moduleTypes), builtinModule, moduleDefsQualified, moduleTypesQualified, primitiveModule)
+import Primer.Module (
+  Module (Module, moduleDefs, moduleName, moduleTypes),
+  builtinModule,
+  builtinTypes,
+  moduleDefsQualified,
+  moduleTypesQualified,
+  primitiveModule,
+ )
 import Primer.Primitives (
   PrimDef (
     EqChar,
@@ -85,6 +92,9 @@ import Primer.Test.Expected (
   Expected (defMap, expectedResult, expr, maxID),
   mapEven,
  )
+import Primer.Test.TestM (
+  evalTestM,
+ )
 import Primer.Test.Util (
   assertNoSevereLogs,
   failWhenSevereLogs,
@@ -107,7 +117,6 @@ import Tasty (
   withTests,
  )
 import Test.Tasty.HUnit (Assertion, assertBool, assertFailure, (@?=))
-import TestM
 import Tests.Action.Prog (runAppTestM)
 import Tests.Eval.Utils (genDirTm, testModules, (~=))
 import Tests.Gen.Core.Typed (checkTest)
@@ -1405,6 +1414,3 @@ distinctIDs e =
             ]
         )
         (nIds == nDistinct)
-
-builtinTypes :: TypeDefMap
-builtinTypes = moduleTypesQualified builtinModule

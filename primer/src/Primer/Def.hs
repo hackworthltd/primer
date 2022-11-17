@@ -1,3 +1,5 @@
+{-# LANGUAGE DeriveAnyClass #-}
+
 module Primer.Def (
   Def (..),
   DefMap,
@@ -30,6 +32,7 @@ data Def
   | DefAST ASTDef
   deriving (Eq, Show, Data, Generic)
   deriving (FromJSON, ToJSON) via PrimerJSON Def
+  deriving anyclass (NFData)
 
 defType :: Def -> Type' ()
 defType = \case
@@ -46,6 +49,7 @@ data ASTDef = ASTDef
   }
   deriving (Eq, Show, Data, Generic)
   deriving (FromJSON, ToJSON) via PrimerJSON ASTDef
+  deriving anyclass (NFData)
 
 defAST :: Def -> Maybe ASTDef
 defAST = \case

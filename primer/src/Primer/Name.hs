@@ -1,3 +1,5 @@
+{-# LANGUAGE DeriveAnyClass #-}
+
 module Primer.Name (
   Name (),
   NameCounter,
@@ -24,6 +26,7 @@ newtype Name = Name {unName :: Text}
   deriving (Eq, Ord, Generic, Data)
   deriving newtype (Show, IsString)
   deriving newtype (FromJSON, ToJSON, FromJSONKey, ToJSONKey)
+  deriving anyclass (NFData)
 
 -- | Construct a name from a Text. This is called unsafe because there are no
 -- guarantees about whether the name refers to anything that is in scope.

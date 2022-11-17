@@ -1,3 +1,5 @@
+{-# LANGUAGE DeriveAnyClass #-}
+
 module Primer.Test.Expected (
   Expected (..),
   mapEven,
@@ -46,6 +48,7 @@ data Expected = Expected
   , expectedResult :: Expr
   }
   deriving stock (Eq, Show, Data, Generic)
+  deriving anyclass (NFData)
 
 -- | Implements @map even [0, 1, ..., n]@ in Primer, where each @n@ is
 -- a @Nat@. Normal-order evaluation of the Primer expression is O(n^2)
