@@ -331,7 +331,7 @@
             primer-benchmark-results-html = (final.runCommand "primer-benchmark-results-html" { }
               ''
                 ${final.coreutils}/bin/mkdir -p $out
-                ${final.primer-benchmark}/bin/primer-benchmark --output $out/results.html
+                ${final.primer-benchmark}/bin/primer-benchmark --output $out/results.html --regress allocated:iters --regress numGcs:iters +RTS -T
               ''
             ).overrideAttrs
               (drv: {
@@ -342,7 +342,7 @@
             primer-benchmark-results-json = (final.runCommand "primer-benchmark-results-json" { }
               ''
                 ${final.coreutils}/bin/mkdir -p $out
-                ${final.primer-benchmark}/bin/primer-benchmark --template json --output $out/results.json
+                ${final.primer-benchmark}/bin/primer-benchmark --template json --output $out/results.json --regress allocated:iters --regress numGcs:iters +RTS -T
               ''
             ).overrideAttrs
               (drv: {
