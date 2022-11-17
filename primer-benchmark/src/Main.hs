@@ -39,7 +39,8 @@ main =
             "pure logs"
             [ env (mapEvenEnv 1) $ \e -> bench "mapEven 1" $ nf (evalTestMPureLogs e) 100
             , env (mapEvenEnv 10) $ \e -> bench "mapEven 10" $ nf (evalTestMPureLogs e) 1000
-            , env (mapEvenEnv 100) $ \e -> bench "mapEven 100" $ nf (evalTestMPureLogs e) 10000
+            -- This benchmark is too slow to be practical for CI.
+            --, env (mapEvenEnv 100) $ \e -> bench "mapEven 100" $ nf (evalTestMPureLogs e) 10000
             ]
         ]
     ]
