@@ -13,6 +13,7 @@ let
       , "^Primer.Log.logDebug"
       , "^Primer.Log.logEmergency"
       , "^Primer.Log.logWarning"
+      , "^Primer.Log.runDiscardLog"
       ]
 
 in  { roots = [ "^Main.main$" ] # tmpRoots # ignoreRoots, type-class-roots = True }

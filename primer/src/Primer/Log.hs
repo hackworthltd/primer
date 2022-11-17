@@ -12,17 +12,23 @@ module Primer.Log (
   runPureLogT,
   PureLog,
   runPureLog,
+  DiscardLogT,
+  runDiscardLogT,
+  DiscardLog,
+  runDiscardLog,
 ) where
 
 import Foreword
 
 import Control.Monad.Fresh (MonadFresh)
 import Control.Monad.Log (
+  DiscardLoggingT,
   LoggingT,
   MonadLog,
   PureLoggingT,
   Severity (..),
   WithSeverity (..),
+  discardLogging,
   logMessage,
   runLoggingT,
   runPureLoggingT,
@@ -108,3 +114,27 @@ type PureLog l = PureLogT l Identity
 
 runPureLog :: PureLog l a -> (a, Seq l)
 runPureLog = runIdentity . runPureLogT
+
+-- | Discard log messages.
+newtype DiscardLogT l m a = DiscardLogs (DiscardLoggingT l m a)
+  deriving
+    ( Functor
+    , Applicative
+    , Monad
+    , MonadLog l
+    , MonadIO
+    , MonadThrow
+    , MonadCatch
+    , MonadFresh i
+    )
+
+instance MonadTrans (DiscardLogT l) where
+  lift = DiscardLogs . lift
+
+runDiscardLogT :: DiscardLogT l m a -> m a
+runDiscardLogT (DiscardLogs m) = discardLogging m
+
+type DiscardLog l = DiscardLogT l Identity
+
+runDiscardLog :: DiscardLog l a -> a
+runDiscardLog = runIdentity . runDiscardLogT
