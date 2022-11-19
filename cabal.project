@@ -15,3 +15,5 @@ package primer
 
 package primer-service
   test-options: "--size-cutoff=32768"
+
+allow-newer: logging-effect:text
