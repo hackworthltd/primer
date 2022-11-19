@@ -71,6 +71,7 @@ import Primer.Log (runPureLog, runPureLogT)
 import Primer.Module (Module (Module, moduleDefs, moduleName, moduleTypes), builtinModule, moduleDefsQualified, primitiveModule)
 import Primer.Primitives (PrimDef (EqChar, ToUpper), primitiveGVar, tChar)
 import Primer.Primitives.DSL (pfun)
+import Primer.Test.TestM (evalTestM)
 import Primer.Test.Util (assertNoSevereLogs, failWhenSevereLogs, gvn, primDefs, vcn)
 import Primer.TypeDef (
   ASTTypeDef (
@@ -92,7 +93,6 @@ import Primer.Zipper (
  )
 import Tasty (Property, withDiscards, withTests)
 import Test.Tasty.HUnit (Assertion, assertBool, assertFailure, (@?=))
-import TestM (evalTestM)
 import Tests.Action.Prog (runAppTestM)
 import Tests.Eval.Utils (genDirTm, (~=), (~~=))
 import Tests.Gen.Core.Typed (checkTest)

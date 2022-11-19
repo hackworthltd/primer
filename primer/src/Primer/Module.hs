@@ -10,6 +10,7 @@ module Primer.Module (
   renameModule',
   nextModuleID,
   builtinModule,
+  builtinTypes,
   primitiveModule,
 ) where
 
@@ -139,3 +140,6 @@ builtinModule =
           ]
     , moduleDefs = mempty
     }
+
+builtinTypes :: TypeDefMap
+builtinTypes = moduleTypesQualified builtinModule

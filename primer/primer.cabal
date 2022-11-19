@@ -137,7 +137,6 @@ library primer-hedgehog
     Primer.Gen.Core.Raw
     Primer.Gen.Core.Typed
     Tasty
-    TestM
 
   other-modules:
   hs-source-dirs:     gen
@@ -161,6 +160,7 @@ library primer-hedgehog
     , mmorph          ^>=1.2.0
     , mtl
     , primer
+    , primer-testlib
     , tasty-discover  ^>=4.2.4
     , tasty-hedgehog  ^>=1.2.0
 
@@ -168,6 +168,8 @@ library primer-testlib
   visibility:         public
   exposed-modules:
     Primer.Test.App
+    Primer.Test.Expected
+    Primer.Test.TestM
     Primer.Test.Util
 
   other-modules:

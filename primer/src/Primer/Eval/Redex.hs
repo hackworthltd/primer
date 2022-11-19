@@ -1,3 +1,4 @@
+{-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE DuplicateRecordFields #-}
 {-# LANGUAGE ImpredicativeTypes #-}
 {-# LANGUAGE NoFieldSelectors #-}
@@ -23,6 +24,7 @@ import Foreword
 import Control.Monad.Fresh (MonadFresh)
 import Control.Monad.Log (MonadLog, WithSeverity)
 import Control.Monad.Trans.Maybe (MaybeT (runMaybeT))
+import Data.Data (Data)
 import Data.List.Extra (zip4)
 import Data.Map qualified as M
 import Data.Set qualified as S
@@ -193,7 +195,8 @@ data EvalLog
     -- is in practice.
     CaseRedexDoubleAnn ValConName [Expr] [Type' ()] (Maybe [Type' ()]) [LVarName]
   | InvariantFailure Text
-  deriving (Show, Eq)
+  deriving (Show, Eq, Data, Generic)
+  deriving anyclass (NFData)
 
 instance ConvertLogMessage EvalLog EvalLog where
   convert = identity

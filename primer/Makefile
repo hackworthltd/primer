@@ -26,8 +26,10 @@ docs:
 clean:
 	cabal clean
 
+bench:
+
 realclean:
 
 deps:
 
-.PHONY: build configure test docs clean realclean deps
+.PHONY: build bench configure test docs clean realclean deps

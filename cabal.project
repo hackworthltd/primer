@@ -4,11 +4,13 @@ packages:
   primer
   primer-rel8
   primer-service
+  primer-benchmark
 
 optimization: 0
 
 package *
   ghc-options: -fwrite-ide-info
+  benchmarks: True
 
 package primer
   test-options: "--size-cutoff=32768"
