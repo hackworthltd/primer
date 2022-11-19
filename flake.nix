@@ -348,6 +348,40 @@
               (drv: {
                 requiredSystemFeatures = (drv.requiredSystemFeatures or [ ]) ++ [ "benchmark" ];
               });
+
+
+            # Convert Primer benchmark results to the format expected
+            # by
+            # https://github.com/benchmark-action/github-action-benchmark
+            #
+            # For each benchmark, we report:
+            # - the mean execution time, including the standard deviation.
+            #
+            # - the outlier variance (the degree to which the standard
+            #   deviation is inflated by outlying measurements).
+            #
+            # - each OLS regression measured by the benchmark run, and its R² value.
+
+            primer-benchmark-results-github-benchmark-action =
+              let
+                jqscript = final.writeText "extract-criterion.jq" ''
+                  [.[]
+                  | .reportName as $name
+                  | .reportAnalysis as $report
+                  | { name: $name, unit: "mean time", value: $report.anMean.estPoint, range: $report.anStdDev.estPoint }
+                  , { name: $name, unit: "outlier variance", value: $report.anOutlierVar.ovFraction }
+                  , $report.anRegress[] as $regress
+                  | { name: $name, unit: $regress.regResponder, value: $regress.regCoeffs.iters.estPoint }
+                  , { name: $name, unit: "\($regress.regResponder) R²", value: $regress.regRSquare.estPoint }
+                  ]
+                '';
+              in
+              (final.runCommand "primer-benchmark-results-github-benchmark-action" { }
+                ''
+                  ${final.coreutils}/bin/mkdir -p $out
+                  ${final.jq}/bin/jq -f ${jqscript} ${final.primer-benchmark-results-json}/results.json > $out/results.json
+                ''
+              );
           in
           {
             lib = (prev.lib or { }) // {
@@ -390,6 +424,7 @@
 
             inherit primer-openapi-spec;
             inherit primer-benchmark-results-html primer-benchmark-results-json;
+            inherit primer-benchmark-results-github-benchmark-action;
 
             inherit colima;
           }
@@ -572,6 +607,7 @@
           # For now, we only generate these on x86_64-linux, as we
           # need a dedicated machine to run them reliably.
           inherit (pkgs) primer-benchmark-results-html primer-benchmark-results-json;
+          inherit (pkgs) primer-benchmark-results-github-benchmark-action;
         })
         // primerFlake.packages;
 
