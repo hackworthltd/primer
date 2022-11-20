@@ -625,7 +625,11 @@
           # Make sure HLS can typecheck our project.
           check-hls = pkgs.callPackage ./nix/pkgs/check-hls {
             src = onlyHaskellSrc;
-            inherit version;
+
+            # Don't use the flake's version here; we only want to run
+            # this HLS check when the Haskell source files have
+            # changed, not on every commit to this repo.
+            version = "1.0";
 
             # This is a bit of a hack, but we don't know a better way.
             inherit (primerFlake) devShell;
