@@ -1,4 +1,4 @@
-Name: Benchmark regression checks
+name: Benchmark regression checks
 
 on:
   push:
