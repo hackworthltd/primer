@@ -40,3 +40,6 @@ cabal.project.local*
 
 # generated files
 /openapi.json
+
+# LSP detritus.
+.log/
