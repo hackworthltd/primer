@@ -1,0 +1,82 @@
+Name: Benchmark regression checks
+
+on:
+  push:
+
+    # NOTE: if you want to add a branch here other than `main`, please
+    # consider whether it will cause an unnecessary Primer Nix build
+    # on a GitHub runner! See the note below.
+    branches:
+      - main
+
+jobs:
+  benchmark:
+    name: Performance regression check
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      id-token: write
+      deployments: write
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v3.0.2
+        with:
+          # Required by flakes
+          fetch-depth: 0
+
+      - name: Import secrets from Vault
+        uses: hashicorp/vault-action@v2.4.3
+        id: secrets
+        with:
+          url: https://secrets.hackworth-corp.com
+          path: "github-actions"
+          caCertificate: ${{ secrets.VAULT_CA_CERT }}
+          role: primer-workflow-benchmark-regressions
+          method: jwt
+          secrets: |
+            secret/data/cachix/hackworthltd-private/github-workflows token | CACHIX_AUTH_TOKEN ;
+
+      - name: Install & configure Nix
+        uses: cachix/install-nix-action@v18
+        with:
+          extra_nix_config: |
+            trusted-public-keys = cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY= hackworthltd.cachix.org-1:0JTCI0qDo2J+tonOalrSQP3yRNleN6bQucJ05yDltRI= hydra.iohk.io:f/Ea+s+dFdN+3Y/G+FDgSq+a5NEWhJGzdjvKNGv0/EQ= loony-tools:pr9m4BkM/5/eSTZlkQyRt57Jz7OMBxNSUiMC4FkcNfk=
+            substituters = https://cache.nixos.org?priority=10 https://hackworthltd.cachix.org?priority=30 https://cache.iog.io?priority=40 https://cache.zw3rk.com?priority=50
+
+      - name: Configure Cachix for private Hackworth Ltd cache
+        uses: cachix/cachix-action@v12
+        with:
+          name: hackworthltd-private
+          authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
+          skipPush: true
+
+        # Note: if this Nix derivation hasn't been built yet, it will
+        # kick off a Primer Nix build on a GitHub runner, which isn't
+        # ideal. However, because we use GitHub merge queues with this
+        # repo, and because this workflow is (currently) only
+        # configured to run on pushes to `main`, we can be confident
+        # that it will already have been built and can be pulled from
+        # our Cachix cache without kicking off any builds.
+      - name: Fetch Primer benchmark results
+        run: |
+          nix build -L .#packages.x86_64-linux.primer-benchmark-results-github-benchmark-action
+
+      - name: Publish results
+        uses: benchmark-action/github-action-benchmark@v1.15.0
+        with:
+          name: Primer benchmarks
+          tool: "customSmallerIsBetter"
+          output-file-path: result/results.json
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+          auto-push: true
+          gh-pages-branch: "gh-pages"
+          benchmark-data-dir-path: "dev/bench"
+
+          # Alert dhess if there's a regression.
+          alert-comment-cc-users: "@dhess"
+          alert-threshold: "200%"
+          comment-on-alert: true
+          fail-on-alert: true
