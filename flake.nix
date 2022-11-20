@@ -367,12 +367,12 @@
               let
                 jqscript = final.writeText "extract-criterion.jq" ''
                   [.[]
-                  | .reportName as $name
+                  | .reportName as $basename
                   | .reportAnalysis as $report
-                  | { name: $name, unit: "mean time", value: $report.anMean.estPoint, range: $report.anStdDev.estPoint }
-                  , { name: $name, unit: "outlier variance", value: $report.anOutlierVar.ovFraction }
+                  | { name: "\($basename): mean time", unit: "mean time", value: $report.anMean.estPoint, range: $report.anStdDev.estPoint }
+                  , { name: "\($basename): outlier variance", unit: "outlier variance", value: $report.anOutlierVar.ovFraction }
                   , $report.anRegress[] as $regress
-                  | { name: $name, unit: $regress.regResponder, value: $regress.regCoeffs.iters.estPoint, extra: "R²: \($regress.regRSquare.estPoint)" }
+                  | { name: "\($basename): \($regress.regResponder)", unit: "\($regress.regResponder)/iter", value: $regress.regCoeffs.iters.estPoint, extra: "R²: \($regress.regRSquare.estPoint)" }
                   ]
                 '';
               in
