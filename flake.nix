@@ -360,7 +360,8 @@
             # - the outlier variance (the degree to which the standard
             #   deviation is inflated by outlying measurements).
             #
-            # - each OLS regression measured by the benchmark run, and its R² value.
+            # - each OLS regression measured by the benchmark run, and
+            # - its R² value as a tooltip.
 
             primer-benchmark-results-github-benchmark-action =
               let
@@ -371,8 +372,7 @@
                   | { name: $name, unit: "mean time", value: $report.anMean.estPoint, range: $report.anStdDev.estPoint }
                   , { name: $name, unit: "outlier variance", value: $report.anOutlierVar.ovFraction }
                   , $report.anRegress[] as $regress
-                  | { name: $name, unit: $regress.regResponder, value: $regress.regCoeffs.iters.estPoint }
-                  , { name: $name, unit: "\($regress.regResponder) R²", value: $regress.regRSquare.estPoint }
+                  | { name: $name, unit: $regress.regResponder, value: $regress.regCoeffs.iters.estPoint, extra: "R²: \($regress.regRSquare.estPoint)" }
                   ]
                 '';
               in
