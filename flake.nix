@@ -363,7 +363,7 @@
             # - each OLS regression measured by the benchmark run, and
             # - its R² value as a tooltip.
 
-            primer-benchmark-results-github-benchmark-action =
+            primer-benchmark-results-github-action-benchmark =
               let
                 jqscript = final.writeText "extract-criterion.jq" ''
                   [.[]
@@ -376,7 +376,7 @@
                   ]
                 '';
               in
-              (final.runCommand "primer-benchmark-results-github-benchmark-action" { }
+              (final.runCommand "primer-benchmark-results-github-action-benchmark" { }
                 ''
                   ${final.coreutils}/bin/mkdir -p $out
                   ${final.jq}/bin/jq -f ${jqscript} ${final.primer-benchmark-results-json}/results.json > $out/results.json
@@ -424,7 +424,7 @@
 
             inherit primer-openapi-spec;
             inherit primer-benchmark-results-html primer-benchmark-results-json;
-            inherit primer-benchmark-results-github-benchmark-action;
+            inherit primer-benchmark-results-github-action-benchmark;
 
             inherit colima;
           }
@@ -607,7 +607,7 @@
           # For now, we only generate these on x86_64-linux, as we
           # need a dedicated machine to run them reliably.
           inherit (pkgs) primer-benchmark-results-html primer-benchmark-results-json;
-          inherit (pkgs) primer-benchmark-results-github-benchmark-action;
+          inherit (pkgs) primer-benchmark-results-github-action-benchmark;
         })
         // primerFlake.packages;
 
