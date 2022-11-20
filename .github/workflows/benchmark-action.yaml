@@ -79,4 +79,4 @@ jobs:
           alert-comment-cc-users: "@dhess"
           alert-threshold: "200%"
           comment-on-alert: true
-          fail-on-alert: true
+          fail-on-alert: false
