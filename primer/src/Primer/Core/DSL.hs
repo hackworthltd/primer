@@ -17,6 +17,7 @@ module Primer.Core.DSL (
   letType,
   case_,
   branch,
+  prim,
   char,
   int,
   tEmptyHole,
@@ -143,11 +144,14 @@ branch c vs e = CaseBranch c <$> mapM binding vs <*> e
   where
     binding (name, ty) = Bind <$> meta' ty <*> pure name
 
+prim :: MonadFresh ID m => PrimCon -> m Expr
+prim p = PrimCon <$> meta <*> pure p
+
 char :: MonadFresh ID m => Char -> m Expr
-char c = PrimCon <$> meta <*> pure (PrimChar c)
+char = prim . PrimChar
 
 int :: MonadFresh ID m => Integer -> m Expr
-int n = PrimCon <$> meta <*> pure (PrimInt n)
+int = prim . PrimInt
 
 con' :: MonadFresh ID m => NonEmpty Name -> Name -> m Expr
 con' m n = con $ qualifyName (ModuleName m) n
