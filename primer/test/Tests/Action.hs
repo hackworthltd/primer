@@ -24,6 +24,7 @@ import Primer.Core (
   HasID,
   ID (..),
   Kind (KType),
+  PrimCon (PrimChar),
   TmVarRef (LocalVarRef),
   getID,
  )
@@ -1043,8 +1044,19 @@ unit_primitive_1 =
   actionTest
     NoSmartHoles
     emptyHole
-    [ConstructAnn, EnterType, constructTCon tInt, ConstructArrowL, Move Child2, constructTCon tChar]
-    (emptyHole `ann` (tcon tInt `tfun` tcon tChar))
+    [ ConstructAnn
+    , EnterType
+    , constructTCon tInt
+    , ConstructArrowL
+    , Move Child2
+    , constructTCon tChar
+    , Move Parent
+    , ExitType
+    , Move Child1
+    , ConstructLam (Just "x")
+    , ConstructPrim (PrimChar 'c')
+    ]
+    (lam "x" (char 'c') `ann` (tcon tInt `tfun` tcon tChar))
 
 -- * Helpers
 

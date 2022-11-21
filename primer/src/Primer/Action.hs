@@ -38,6 +38,7 @@ import Primer.Core (
   ID,
   LVarName,
   LocalName (LocalName, unLocalName),
+  PrimCon,
   TmVarRef (..),
   TyVarName,
   Type,
@@ -69,6 +70,7 @@ import Primer.Core.DSL (
   lam,
   let_,
   letrec,
+  prim,
   tEmptyHole,
   tapp,
   tcon,
@@ -342,6 +344,7 @@ applyAction' a = case a of
   ConstructLam x -> termAction (constructLam x) "cannot construct function in type"
   ConstructLAM x -> termAction (constructLAM x) "cannot construct function in type"
   ConstructCon c -> termAction (constructCon c) "cannot construct con in type"
+  ConstructPrim p -> termAction (constructPrim p) "cannot construct primitive literal in type"
   ConstructSaturatedCon c -> termAction (constructSatCon c) "cannot construct con in type"
   ConstructRefinedCon c -> termAction (constructRefinedCon c) "cannot construct con in type"
   ConstructLet x -> termAction (constructLet x) "cannot construct let in type"
@@ -582,6 +585,11 @@ constructCon :: ActionM m => QualifiedText -> ExprZ -> m ExprZ
 constructCon c ze = case target ze of
   EmptyHole{} -> flip replace ze <$> con (unsafeMkGlobalName c)
   e -> throwError $ NeedEmptyHole (ConstructCon c) e
+
+constructPrim :: ActionM m => PrimCon -> ExprZ -> m ExprZ
+constructPrim p ze = case target ze of
+  EmptyHole{} -> flip replace ze <$> prim p
+  e -> throwError $ NeedEmptyHole (ConstructPrim p) e
 
 constructSatCon :: ActionM m => QualifiedText -> ExprZ -> m ExprZ
 constructSatCon c ze = case target ze of
