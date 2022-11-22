@@ -250,15 +250,15 @@ tasty_available_actions_accepted = withTests 500 $
                     def'
                     loc
                     act'
-              case opts of
+              let opts' = [Gen.element opts | not (null opts)]
+              let opts'' =
+                    opts' <> case free of
+                      Available.FreeNone -> []
+                      Available.FreeVarName -> [flip Available.Option Nothing <$> (unName <$> genName)]
+              case opts'' of
                 [] -> annotate "no options" >> success
                 options -> do
-                  opt <-
-                    forAllT $
-                      Gen.choice $
-                        [Gen.element options] <> case free of
-                          Available.FreeNone -> []
-                          Available.FreeVarName -> [flip Available.Option Nothing <$> (unName <$> genName)]
+                  opt <- forAllT $ Gen.choice options
                   progActs <- either (\e -> annotateShow e >> failure) pure $ toProgActionInput def' defName loc opt act'
                   actionSucceedsOrCapture (handleEditRequest progActs) a
   where
