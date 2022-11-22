@@ -78,7 +78,9 @@
             "FreeInput": {
                 "enum": [
                     "FreeNone",
-                    "FreeVarName"
+                    "FreeVarName",
+                    "FreeInt",
+                    "FreeChar"
                 ],
                 "type": "string"
             },
@@ -105,6 +107,8 @@
                 "enum": [
                     "MakeCon",
                     "MakeConSat",
+                    "MakeInt",
+                    "MakeChar",
                     "MakeVar",
                     "MakeVarSat",
                     "MakeLet",
@@ -628,6 +632,8 @@
                             "enum": [
                                 "MakeCon",
                                 "MakeConSat",
+                                "MakeInt",
+                                "MakeChar",
                                 "MakeVar",
                                 "MakeVarSat",
                                 "MakeLet",
@@ -855,6 +861,8 @@
                             "enum": [
                                 "MakeCon",
                                 "MakeConSat",
+                                "MakeInt",
+                                "MakeChar",
                                 "MakeVar",
                                 "MakeVarSat",
                                 "MakeLet",

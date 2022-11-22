@@ -59,6 +59,8 @@ data ActionError
   | NeedType SomeNode
   | NeedGlobal Available.Option
   | NeedLocal Available.Option
+  | NeedInt Available.Option
+  | NeedChar Available.Option
   | NoNodeSelection
   deriving (Eq, Show, Generic)
   deriving (FromJSON, ToJSON) via PrimerJSON ActionError

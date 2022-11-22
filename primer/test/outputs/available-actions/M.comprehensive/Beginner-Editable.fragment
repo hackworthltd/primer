@@ -275,6 +275,18 @@ Output
                         }
                     )
                 , NoInput MakeCase
+                , Input MakeInt
+                    ( Options
+                        { opts = []
+                        , free = FreeInt
+                        }
+                    )
+                , Input MakeChar
+                    ( Options
+                        { opts = []
+                        , free = FreeChar
+                        }
+                    )
                 , NoInput Raise
                 ]
             )
@@ -722,6 +734,18 @@ Output
                         }
                     )
                 , NoInput MakeCase
+                , Input MakeInt
+                    ( Options
+                        { opts = []
+                        , free = FreeInt
+                        }
+                    )
+                , Input MakeChar
+                    ( Options
+                        { opts = []
+                        , free = FreeChar
+                        }
+                    )
                 , NoInput Raise
                 ]
             )

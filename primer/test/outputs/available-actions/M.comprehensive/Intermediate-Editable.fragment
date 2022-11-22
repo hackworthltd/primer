@@ -385,6 +385,18 @@ Output
                         , free = FreeNone
                         }
                     )
+                , Input MakeInt
+                    ( Options
+                        { opts = []
+                        , free = FreeInt
+                        }
+                    )
+                , Input MakeChar
+                    ( Options
+                        { opts = []
+                        , free = FreeChar
+                        }
+                    )
                 , Input MakeLet
                     ( Options
                         { opts =
@@ -986,6 +998,18 @@ Output
                                 }
                             ]
                         , free = FreeNone
+                        }
+                    )
+                , Input MakeInt
+                    ( Options
+                        { opts = []
+                        , free = FreeInt
+                        }
+                    )
+                , Input MakeChar
+                    ( Options
+                        { opts = []
+                        , free = FreeChar
                         }
                     )
                 , Input MakeLet
