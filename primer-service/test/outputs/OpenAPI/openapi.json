@@ -75,6 +75,13 @@
                 ],
                 "type": "object"
             },
+            "FreeInput": {
+                "enum": [
+                    "FreeNone",
+                    "FreeVarName"
+                ],
+                "type": "string"
+            },
             "GlobalName": {
                 "properties": {
                     "baseName": {
@@ -309,7 +316,7 @@
             "Options": {
                 "properties": {
                     "free": {
-                        "type": "boolean"
+                        "$ref": "#/components/schemas/FreeInput"
                     },
                     "opts": {
                         "items": {

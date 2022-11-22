@@ -11,6 +11,7 @@ module Primer.Action.Available (
   forBody,
   forSig,
   Option (..),
+  FreeInput (..),
   Options (..),
   options,
 ) where
@@ -289,11 +290,19 @@ data Option = Option
   deriving (Eq, Show, Generic)
   deriving (FromJSON, ToJSON) via PrimerJSON Option
 
+-- | The available sorts of free-form input for an 'InputAction'.
+data FreeInput
+  = -- | Free-form input is not allowed
+    FreeNone
+  | -- | A free-form string input is allowed, and represents a variable name
+    FreeVarName
+  deriving (Show, Generic, Bounded, Enum)
+  deriving (ToJSON) via PrimerJSON FreeInput
+
 -- | The available inputs for an 'InputAction'.
 data Options = Options
   { opts :: [Option]
-  , free :: Bool
-  -- ^ Allow free text input, rather than just selections from the list.
+  , free :: FreeInput
   }
   deriving (Show, Generic)
   deriving (ToJSON) via PrimerJSON Options
@@ -333,41 +342,41 @@ options typeDefs defs cxt level def mNodeSel = \case
     varOpts
       <&> noFree . map fst . filter (hasArgsVar . snd)
   MakeLet ->
-    free <$> genNames (Left Nothing)
+    freeVar <$> genNames (Left Nothing)
   MakeLetRec ->
-    free <$> genNames (Left Nothing)
+    freeVar <$> genNames (Left Nothing)
   MakeLam -> do
     ExprNode e <- findNode
-    free <$> genNames (Left $ join $ e ^? _exprMetaLens % _type % _Just % _chkedAt % to lamVarTy)
+    freeVar <$> genNames (Left $ join $ e ^? _exprMetaLens % _type % _Just % _chkedAt % to lamVarTy)
   MakeLAM -> do
     ExprNode e <- findNode
-    free <$> genNames (Right $ join $ e ^? _exprMetaLens % _type % _Just % _chkedAt % to lAMVarKind)
+    freeVar <$> genNames (Right $ join $ e ^? _exprMetaLens % _type % _Just % _chkedAt % to lAMVarKind)
   RenamePattern -> do
     CaseBindNode b <- findNode
-    free <$> genNames (Left $ b ^? _bindMeta % _type % _Just % _chkedAt)
+    freeVar <$> genNames (Left $ b ^? _bindMeta % _type % _Just % _chkedAt)
   RenameLet -> do
     ExprNode e <- findNode
-    free <$> genNames (Left $ e ^? _exprMetaLens % _type % _Just % _synthed)
+    freeVar <$> genNames (Left $ e ^? _exprMetaLens % _type % _Just % _synthed)
   RenameLam -> do
     ExprNode e <- findNode
-    free <$> genNames (Left $ join $ e ^? _exprMetaLens % _type % _Just % _chkedAt % to lamVarTy)
+    freeVar <$> genNames (Left $ join $ e ^? _exprMetaLens % _type % _Just % _chkedAt % to lamVarTy)
   RenameLAM -> do
     ExprNode e <- findNode
-    free <$> genNames (Right $ join $ e ^? _exprMetaLens % _type % _Just % _chkedAt % to lAMVarKind)
+    freeVar <$> genNames (Right $ join $ e ^? _exprMetaLens % _type % _Just % _chkedAt % to lAMVarKind)
   MakeTCon ->
     pure $ noFree $ globalOpt . fst <$> Map.toList typeDefs
   MakeTVar ->
     noFree . map (localOpt . unLocalName . fst) . fst3 <$> varsInScope
   MakeForall ->
-    free <$> genNames (Right Nothing)
+    freeVar <$> genNames (Right Nothing)
   RenameForall -> do
     TypeNode t <- findNode
-    free <$> genNames (Right $ t ^. _typeMetaLens % _type)
+    freeVar <$> genNames (Right $ t ^. _typeMetaLens % _type)
   RenameDef ->
-    pure $ free []
+    pure $ freeVar []
   where
-    free opts = Options{opts, free = True}
-    noFree opts = Options{opts, free = False}
+    freeVar opts = Options{opts, free = FreeVarName}
+    noFree opts = Options{opts, free = FreeNone}
     localOpt = flip Option Nothing . unName
     globalOpt n =
       Option
