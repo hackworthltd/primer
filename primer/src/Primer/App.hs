@@ -273,12 +273,14 @@ progAllDefs p =
 -- counter when using 'newEmptyProg' as the app's program.
 newEmptyProgImporting :: [S Module] -> (Prog, ID, NameCounter)
 newEmptyProgImporting imported =
-  let ((imported', defs), nextID) = create $ do
+  let defName = "main"
+      moduleName = mkSimpleModuleName "Main"
+      ((imported', defs), nextID) = create $ do
         mainExpr <- emptyHole
         mainType <- tEmptyHole
         let astDefs =
               Map.singleton
-                "main"
+                defName
                 ( ASTDef
                     { astDefExpr = mainExpr
                     , astDefType = mainType
@@ -288,12 +290,18 @@ newEmptyProgImporting imported =
    in ( defaultProg
           { progModules =
               [ Module
-                  { moduleName = mkSimpleModuleName "Main"
+                  { moduleName
                   , moduleTypes = mempty
                   , moduleDefs = defs
                   }
               ]
           , progImports = imported'
+          , progSelection =
+              Just
+                Selection
+                  { selectedDef = qualifyName moduleName defName
+                  , selectedNode = Nothing
+                  }
           }
       , nextID
       , toEnum 0
