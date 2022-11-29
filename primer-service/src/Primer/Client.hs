@@ -10,6 +10,7 @@ module Primer.Client (
   createSession,
   listSessions,
   addSession,
+  deleteSession,
   getProgram,
   getApp,
   getSessionName,
@@ -52,6 +53,7 @@ import Primer.Pagination (
   Pagination,
  )
 import Primer.Servant.API qualified as API
+import Servant (NoContent)
 import Servant.Client (
   AsClientT,
   ClientM,
@@ -74,6 +76,10 @@ apiClient = genericClient
 -- | As 'Primer.API.copySession'.
 copySession :: SessionId -> ClientM SessionId
 copySession = apiClient // API.copySession
+
+-- | As 'Primer.API.deleteSession'.
+deleteSession :: SessionId -> ClientM NoContent
+deleteSession = apiClient // API.deleteSession
 
 -- | As 'Primer.API.getVersion'.
 getVersion :: ClientM Text

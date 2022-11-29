@@ -2,6 +2,7 @@
 module Primer.Servant.Types (
   CopySession,
   CreateSession,
+  DeleteSession,
   GetSessionList,
   GetSessionName,
   GetVersion,
@@ -19,9 +20,11 @@ import Primer.Pagination (
   PaginationParams,
  )
 import Servant (
+  Delete,
   Description,
   Get,
   JSON,
+  NoContent,
   Post,
   Put,
   QueryFlag,
@@ -63,6 +66,14 @@ type CreateSession mode =
     :- Summary "Create a new session and return its ID"
       :> OperationId "createSession"
       :> Post '[JSON] SessionId
+
+type DeleteSession mode =
+  mode
+    :- "delete-session"
+      :> Summary "Delete the specified session"
+      :> ReqBody '[JSON] SessionId
+      :> OperationId "deleteSession"
+      :> Delete '[JSON] NoContent
 
 type GetSessionList mode =
   mode

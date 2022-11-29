@@ -202,6 +202,16 @@ data OpStatus
 
 -- | A database operation.
 --
+-- The semantics of (and invariants assumed by) these operations
+-- cannot be encoded in the type, so we assume that the functions
+-- which act on the 'Op' type have implemented those semantics and
+-- invariants faithfully. The 'serve' function provided by this module
+-- implements the proper in-order/FIFO semantics of the database
+-- operation queue, but relies on implementations of the 'MonadDb'
+-- type class to implement the persistent database semantics.
+-- 'Primer.API.withSession'' implements the in-memory database and
+-- database operation queue invariants, unless otherwise specified.
+--
 -- Note that operations which modify or create sessions must provide a
 -- modification/creation timestamp. For typical operations, generating
 -- the timestamp could be deferred to the database engine, but this
@@ -223,6 +233,39 @@ data Op
     -- caller via the supplied 'TMVar' whether the lookup was
     -- successful or not
     LoadSession !SessionId !Sessions !(TMVar OpStatus)
+  | -- | Query the database for a session with the given ID. If found,
+    -- delete it from the database, then signal the caller via the
+    -- supplied 'TMVar' whether the lookup was successful or not.
+    --
+    -- N.B. for implementers: this operation does *not* delete the
+    -- session from the in-memory session database; that is the
+    -- responsibility of the caller. So long as the caller atomically
+    -- deletes the session from the in-memory database and inserts the
+    -- corresponding 'DeleteSession' operation into the database
+    -- operation queue, then we can be certain that any subsequent
+    -- operations which try to act on the deleted session will fail,
+    -- rather than being mistakenly executed, because of the following
+    -- invariants:
+    --
+    -- 1. Any subsequent operation on the deleted session will look up
+    -- the session in the in-memory database, fail to find it there,
+    -- insert a 'LoadSession' operation into the database operation
+    -- queue, and wait for the 'LoadSession' operation to complete.
+    --
+    -- 2. The 'LoadSession' operation will not be processed until
+    -- after the earlier 'DeleteSession' operation, because the
+    -- database operation queue is a FIFO.
+    --
+    -- 3. Therefore, the 'LoadSession' will fail because the session
+    -- will have been deleted from the database before the
+    -- 'LoadSession' operation is tried.
+    --
+    -- 4. Furthermore, the operation which is waiting on the
+    -- 'LoadSession' will observe that the 'LoadSession' operation
+    -- failed, and handle the failure accordingly. In any case,
+    -- there's no possibility that the session will have been
+    -- mistakenly re-loaded into the in-memory database.
+    DeleteSession !SessionId !(TMVar OpStatus)
   | -- | Get the list of all sessions (and their names) in the
     -- database.
     ListSessions !OffsetLimit !(TMVar (Page Session))
@@ -280,6 +323,16 @@ class (Monad m) => MonadDb m where
   --
   -- Corresponds to the 'ListSessions' operation.
   listSessions :: OffsetLimit -> m (Page Session)
+
+  -- | Delete the session whose ID is given.
+  --
+  -- Corresponds to the 'DeleteSession' operation.
+  --
+  -- Note: this operation returns 'Right ()' for a successful result,
+  -- but a subsequent version will return a more informative success
+  -- status, once this operation is more flexible (e.g., whether the
+  -- deletion was immediate, or will be performed in the future).
+  deleteSession :: SessionId -> m (Either DbError ())
 
   -- | Query a session ID from the database.
   --
@@ -377,6 +430,15 @@ instance (MonadThrow m, MonadIO m) => MonadDb (NullDbT m) where
     --
     -- https://github.com/hackworthltd/primer/issues/533
     pure $ pageList ol $ sortOn name $ (\(i, SessionData _ n t) -> Session i n t) <$> kvs
+  deleteSession id_ = do
+    ss <- ask
+    liftIO $ atomically $ do
+      lookup <- StmMap.lookup id_ ss
+      case lookup of
+        Nothing -> pure $ Left $ SessionIdNotFound id_
+        Just _ -> do
+          StmMap.delete id_ ss
+          pure $ Right ()
   querySessionId sid = do
     ss <- ask
     lookup <- liftIO $ atomically $ StmMap.lookup sid ss
@@ -454,3 +516,13 @@ serve (ServiceCfg q v) =
             Right sd -> do
               liftIO $ atomically $ StmMap.insert sd sid memdb
               return Success
+    perform (DeleteSession sid status) = do
+      result <- delete
+      liftIO $ atomically $ putTMVar status result
+      where
+        delete = do
+          deletionResult <- deleteSession sid
+          case deletionResult of
+            Left (SessionIdNotFound s) ->
+              pure $ Failure $ "Couldn't delete the requested session: no such session ID " <> UUID.toText s
+            Right _ -> pure Success

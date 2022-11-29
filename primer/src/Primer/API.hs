@@ -26,6 +26,7 @@ module Primer.API (
   newSession,
   addSession,
   copySession,
+  deleteSession,
   listSessions,
   getVersion,
   Tree,
@@ -165,6 +166,7 @@ import Primer.Database (
  )
 import Primer.Database qualified as Database (
   Op (
+    DeleteSession,
     Insert,
     ListSessions,
     LoadSession,
@@ -342,6 +344,7 @@ data APILog
   = NewSession (ReqResp () SessionId)
   | AddSession (ReqResp (Text, App) SessionId)
   | CopySession (ReqResp SessionId SessionId)
+  | DeleteSession (ReqResp SessionId ())
   | ListSessions (ReqResp (Bool, OffsetLimit) (Page Session))
   | GetVersion (ReqResp () Version)
   | GetSessionName (ReqResp SessionId Text)
@@ -435,6 +438,30 @@ copySession = logAPI (noError CopySession) $ \srcId -> do
     StmMap.insert copy nextSID ss
     writeTBQueue q $ Database.Insert nextSID (sessionApp copy) (sessionName copy) (lastModified copy)
     pure nextSID
+
+deleteSession :: (MonadIO m, MonadThrow m, MonadAPILog l m) => SessionId -> PrimerM m ()
+deleteSession = logAPI (noError DeleteSession) $ \sid -> do
+  hndl <- sessionsTransaction $ \ss q -> do
+    callback <- newEmptyTMVar
+    -- Recall that the in-memory database is just a cache, so we can
+    -- safely delete it here without waiting to find out whether the
+    -- persistent database deletion succeeds. In fact, to enforce the
+    -- invariants expected by the database implementation, we *must*
+    -- delete the session from the in-memory database. See the comment
+    -- in 'Primer.Database.Op' for more details.
+    --
+    -- Note that if the session isn't in the in-memory database, then
+    -- the 'StmMap.delete' action is a no-op.
+    StmMap.delete sid ss
+    writeTBQueue q $ Database.DeleteSession sid callback
+    pure callback
+  -- We need to wait for the result from the database so that we can
+  -- inform the client whether the session was actually deleted.
+  dbResult <- liftIO $ atomically $ takeTMVar hndl
+  case dbResult of
+    Database.Failure msg ->
+      throwM $ DatabaseErr msg
+    Database.Success -> pure ()
 
 -- If the input is 'False', return all sessions in the database;
 -- otherwise, only the in-memory sessions.

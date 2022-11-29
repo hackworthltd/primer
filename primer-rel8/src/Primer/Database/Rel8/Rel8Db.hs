@@ -78,6 +78,7 @@ import Primer.Log (
   logError,
  )
 import Rel8 (
+  Delete (..),
   Expr,
   Insert (Insert, into, onConflict, returning, rows),
   OnConflict (Abort),
@@ -86,6 +87,7 @@ import Rel8 (
   Update (Update, from, returning, set, target, updateWhere),
   asc,
   countRows,
+  delete,
   desc,
   each,
   filter,
@@ -260,6 +262,26 @@ instance MonadRel8Db m l => MonadDb (Rel8DbT m) where
             IllegalSessionName sid dbSessionName
         pure $ Right (SessionData (Schema.app s) sessionName lastModified)
 
+  deleteSession sid = do
+    nr <-
+      runStatement (DeleteSessionError sid) $
+        delete
+          Delete
+            { from = Schema.sessionRowSchema
+            , using = pure ()
+            , deleteWhere = \_ row -> Schema.uuid row ==. litExpr sid
+            , returning = NumberOfRowsAffected
+            }
+
+    -- This operation should affect at most one row. Note that not
+    -- matching any rows is not necessarily indicative of a critcal
+    -- error: it could easily occur in a multiplayer situation where
+    -- there's a race to delete the session, for example.
+    case nr of
+      0 -> pure $ Left $ SessionIdNotFound sid
+      1 -> pure $ Right ()
+      _ -> throwM $ DeleteSessionConsistencyError sid
+
 -- | Exceptions that can be thrown by 'Rel8DbT' computations.
 --
 -- These exceptions are thrown only for truly exceptional errors.
@@ -275,6 +297,12 @@ data Rel8DbException
   | -- | An error occurred during an 'Insert' operation on the given
     -- 'SessionId'.
     InsertError SessionId QueryError
+  | -- | An error occurred during a 'DeleteSession' operation on the
+    -- given 'SessionId'.
+    DeleteSessionError SessionId QueryError
+  | -- | A database consistency error was deletected during a
+    -- | 'DeleteSession' operation on the given 'SessionId'.
+    DeleteSessionConsistencyError SessionId
   | -- | An error occurred during an 'UpdateApp' operation on the
     -- given 'SessionId'.
     UpdateAppError SessionId QueryError

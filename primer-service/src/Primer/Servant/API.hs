@@ -35,6 +35,7 @@ import Primer.Name (Name)
 import Primer.Servant.Types (
   CopySession,
   CreateSession,
+  DeleteSession,
   GetSessionList,
   GetSessionName,
   GetVersion,
@@ -62,6 +63,7 @@ type API = "api" :> NamedRoutes RootAPI
 
 data RootAPI mode = RootAPI
   { copySession :: CopySession mode
+  , deleteSession :: DeleteSession mode
   , getVersion :: GetVersion mode
   , adminAPI ::
       mode
