@@ -100,6 +100,7 @@ openAPIServer :: ConvertServerLogs l => OpenAPI.RootAPI (AsServerT (Primer l))
 openAPIServer =
   OpenAPI.RootAPI
     { OpenAPI.copySession = API.copySession
+    , OpenAPI.deleteSession = \sid -> API.deleteSession sid >> pure NoContent
     , OpenAPI.getVersion = API.getVersion
     , OpenAPI.sessionsAPI = openAPISessionsServer
     }
@@ -137,6 +138,7 @@ apiServer :: ConvertServerLogs l => S.RootAPI (AsServerT (Primer l))
 apiServer =
   S.RootAPI
     { S.copySession = API.copySession
+    , S.deleteSession = \sid -> API.deleteSession sid >> pure NoContent
     , S.getVersion = API.getVersion
     , S.adminAPI = adminAPIServer
     , S.sessionsAPI = sessionsAPIServer

@@ -11,6 +11,7 @@ import Primer.API (
   addSession,
   copySession,
   defaultExprTreeOpts,
+  deleteSession,
   flushSessions,
   getApp,
   getSessionName,
@@ -260,6 +261,36 @@ test_copySession_failure =
       step "copy a nonexistent session"
       id_ <- liftIO nextRandom
       assertException "copySession" (const True :: ExceptionPredicate PrimerErr) $ copySession id_
+
+test_deleteSession :: TestTree
+test_deleteSession =
+  testCaseSteps "deleteSession" $ \step' -> do
+    runAPI $ do
+      let step = liftIO . step'
+      step "Add a session"
+      sid <- addSession "foo" even3App
+      step "Add a second session with the same name as the first"
+      sid' <- addSession "foo" even3App
+      step "Delete the first session"
+      deleteSession sid
+      step "Ensure the first session is deleted"
+      assertException "deleteSession" (const True :: ExceptionPredicate PrimerErr) $ copySession sid
+      step "Ensure the second session hasn't been deleted"
+      name' <- getSessionName sid'
+      name' @?= "foo"
+      step "Delete the second session"
+      deleteSession sid'
+      step "Ensure the second session is deleted"
+      assertException "deleteSession" (const True :: ExceptionPredicate PrimerErr) $ copySession sid'
+
+test_deleteSession_failure :: TestTree
+test_deleteSession_failure =
+  testCaseSteps "deleteSession failure" $ \step' -> do
+    runAPI $ do
+      let step = liftIO . step'
+      step "delete a nonexistent session"
+      id_ <- liftIO nextRandom
+      assertException "deleteSession" (const True :: ExceptionPredicate PrimerErr) $ deleteSession id_
 
 test_getSessionName_failure :: TestTree
 test_getSessionName_failure =

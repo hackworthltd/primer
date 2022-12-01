@@ -168,6 +168,11 @@ listSessionsTest = do
   void $ addSession "even3App" even3App
   void $ API.listSessions True $ OL 0 $ Just 100
 
+deleteSessionTest :: (MonadIO m, MonadThrow m, MonadAPILog l m) => PrimerM m ()
+deleteSessionTest = do
+  sid <- addSession "even3App" even3App
+  void $ API.deleteSession sid
+
 test_insert_empty_q :: TestTree
 test_insert_empty_q = empty_q_harness "database Insert leaves an empty op queue" $ do
   insertTest
@@ -188,6 +193,10 @@ test_listsessions_empty_q :: TestTree
 test_listsessions_empty_q = empty_q_harness "database ListSessions leaves an empty op queue" $ do
   listSessionsTest
 
+test_deletesession_empty_q :: TestTree
+test_deletesession_empty_q = empty_q_harness "database DeleteSession leaves an empty op queue" $ do
+  deleteSessionTest
+
 test_insert_faildb :: TestTree
 test_insert_faildb = faildb_harness "database Insert leaves behind an op" $ do
   insertTest
@@ -207,6 +216,10 @@ test_loadsession_faildb = faildb_harness "database LoadSession leaves behind an 
 test_listsessions_faildb :: TestTree
 test_listsessions_faildb = faildb_harness "database ListSessions leaves behind an op" $ do
   listSessionsTest
+
+test_deletesession_faildb :: TestTree
+test_deletesession_faildb = faildb_harness "database DeleteSession leaves behind an op" $ do
+  deleteSessionTest
 
 testSessionName :: TestName -> Text -> Text -> TestTree
 testSessionName testName t expected =
@@ -271,6 +284,7 @@ instance (MonadThrow m) => MonadDb (FailDbT m) where
   updateSessionName _ _ _ _ = throwM $ FailDbException "updateSessionName"
   listSessions _ = throwM $ FailDbException "listSessions"
   querySessionId _ = throwM $ FailDbException "querySessionId"
+  deleteSession _ = throwM $ FailDbException "deleteSession"
 
 -- | Run a 'FailDbT' action in a transformer stack.
 runFailDbT :: FailDbT m a -> m a
