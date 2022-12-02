@@ -119,6 +119,7 @@ import Primer.App (
   progCxt,
   progImports,
   progModules,
+  progSelection,
   runEditAppM,
   runQueryAppM,
  )
@@ -554,9 +555,9 @@ data NodeBody
   deriving (ToJSON) via PrimerJSON NodeBody
 
 -- | This type is the API's view of a 'App.Prog'
--- (this is expected to evolve as we flesh out the API)
-newtype Prog = Prog
+data Prog = Prog
   { modules :: [Module]
+  , selection :: Maybe Selection
   }
   deriving (Generic, Show)
   deriving (ToJSON) via PrimerJSON Prog
@@ -589,7 +590,10 @@ data Def = Def
 
 viewProg :: ExprTreeOpts -> App.Prog -> Prog
 viewProg exprTreeOpts p =
-  Prog{modules = map (viewModule True) (progModules p) <> map (viewModule False) (progImports p)}
+  Prog
+    { modules = map (viewModule True) (progModules p) <> map (viewModule False) (progImports p)
+    , selection = viewSelection <$> progSelection p
+    }
   where
     viewModule e m =
       Module

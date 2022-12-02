@@ -402,6 +402,9 @@
                             "$ref": "#/components/schemas/Module"
                         },
                         "type": "array"
+                    },
+                    "selection": {
+                        "$ref": "#/components/schemas/Selection"
                     }
                 },
                 "required": [
