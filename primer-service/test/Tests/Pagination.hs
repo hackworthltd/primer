@@ -18,6 +18,7 @@ import Primer.Database.Rel8.Test.Util (
   mkSessionRow,
   runTmpDb,
  )
+import Primer.Finite (packFinite)
 import Primer.Pagination (
   Pagination (Pagination, page, size),
   firstPage,
@@ -29,7 +30,7 @@ import Primer.Pagination (
   mkPositive,
   nextPage,
   pageSize,
-  pagedDefaultClamp,
+  pagedDefault,
   prevPage,
   thisPage,
   totalItems,
@@ -53,21 +54,21 @@ test_pagination = testCaseSteps "pagination" $ \step' ->
     let expectedRows = map (\r -> Session (uuid r) (safeMkSessionName $ name r) (LastModified $ lastmodified r)) rows
     step "Get all, paged"
     onePos <- maybe (assertFailure "1 is positive") pure $ mkPositive 1
-    pAllPaged <- pagedDefaultClamp (m + 2) (Pagination{page = onePos, size = Nothing}) listSessions
+    pAllPaged <- pagedDefault (m + 2) (Pagination{page = onePos, size = Nothing}) listSessions
     getMeta pAllPaged @?= (m, m + 2, 1, Nothing, 1, Nothing, 1)
     items pAllPaged @?= expectedRows
     step "Get 25, paged"
-    p25Paged <- pagedDefaultClamp (m + 2) (Pagination{page = onePos, size = mkPositive 25}) listSessions
+    p25Paged <- pagedDefault (m + 2) (Pagination{page = onePos, size = packFinite 25}) listSessions
     getMeta p25Paged @?= (m, 25, 1, Nothing, 1, Just 2, 14)
     items p25Paged @?= take 25 expectedRows
     step "Get 76-100, paged"
     fourPos <- maybe (assertFailure "4 is positive") pure $ mkPositive 4
-    p75Paged <- pagedDefaultClamp (m + 2) (Pagination{page = fourPos, size = mkPositive 25}) listSessions
+    p75Paged <- pagedDefault (m + 2) (Pagination{page = fourPos, size = packFinite 25}) listSessions
     getMeta p75Paged @?= (m, 25, 1, Just 3, 4, Just 5, 14)
     items p75Paged @?= take 25 (drop 75 expectedRows)
     step "Get crossing end, paged"
     fourteenPos <- maybe (assertFailure "14 is positive") pure $ mkPositive 14
-    pLastPaged <- pagedDefaultClamp (m + 2) (Pagination{page = fourteenPos, size = mkPositive 25}) listSessions
+    pLastPaged <- pagedDefault (m + 2) (Pagination{page = fourteenPos, size = packFinite 25}) listSessions
     getMeta pLastPaged @?= (m, 25, 1, Just 13, 14, Nothing, 14)
     items pLastPaged @?= drop 325 expectedRows
   where

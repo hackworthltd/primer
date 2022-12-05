@@ -575,9 +575,10 @@
                         "name": "pageSize",
                         "required": false,
                         "schema": {
-                            "exclusiveMinimum": true,
-                            "maximum": 9223372036854775807,
-                            "minimum": 0,
+                            "exclusiveMaximum": false,
+                            "exclusiveMinimum": false,
+                            "maximum": 100,
+                            "minimum": 1,
                             "type": "integer"
                         }
                     }

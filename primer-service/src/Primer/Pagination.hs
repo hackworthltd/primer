@@ -11,7 +11,7 @@ module Primer.Pagination (
   -- 'Positive' is abstract. Do not export its constructor.
   Positive (getPositive),
   mkPositive,
-  pagedDefaultClamp,
+  pagedDefault,
   -- the following are exposed for testing
   PaginatedMeta (PM),
   totalItems,
@@ -31,12 +31,14 @@ import Foreword
 import Data.Aeson (FromJSON, ToJSON)
 import Data.OpenApi (ToParamSchema, ToSchema, declareNamedSchema, toParamSchema)
 import Data.OpenApi.Internal.Schema (plain)
+import GHC.TypeLits (type (+))
 import Optics ((?~))
 import Primer.Database (
   OffsetLimit (OL, limit, offset),
   Page (Page, pageContents, total),
   Session,
  )
+import Primer.Finite (Finite, getFinite)
 import Primer.OpenAPI ()
 import Servant (
   DefaultErrorFormatters,
@@ -69,6 +71,9 @@ newtype Positive = Pos {getPositive :: Int}
 mkPositive :: Int -> Maybe Positive
 mkPositive a = if a > 0 then Just (Pos a) else Nothing
 
+finToPos :: Finite (1 + l) u -> Positive
+finToPos = Pos . fromIntegral . getFinite
+
 instance FromHttpApiData Positive where
   parseUrlPiece x = parseUrlPiece x >>= maybeToEither ("Non-positive value: " <> x) . mkPositive
 
@@ -86,16 +91,19 @@ instance ToSchema Positive where
 
 data PaginationParams
 
+-- | Invariant: this is assumed to be less than @maxBound :: Int@
+type PageSizeMax = 100
+
 -- How PaginationParams are implemented under the hood
 type PP api =
   QueryParam "page" Positive
-    :> QueryParam "pageSize" Positive
+    :> QueryParam "pageSize" (Finite 1 PageSizeMax)
     :> api
 
 data Pagination = Pagination
   { page :: Positive
   -- ^ Defaults to @1@ if not given in the query parameters
-  , size :: Maybe Positive
+  , size :: Maybe (Finite 1 PageSizeMax)
   -- ^ Does not default, since there is no default that would work for all cases
   }
 
@@ -179,17 +187,16 @@ instance ToJSON PaginatedMeta
 instance ToSchema PaginatedMeta
 
 -- | Run a paginated query, where we default an unspecified pageSize to the
--- given 'Int' (or @1@ if non-positive), similarly we clamp a given pageSize to
--- be at most the given 'Int'.
-pagedDefaultClamp ::
+-- given 'Int' (or @1@ if non-positive).
+pagedDefault ::
   Functor m =>
   Int ->
   Pagination ->
   (OffsetLimit -> m (Page a)) ->
   m (Paginated a)
-pagedDefaultClamp def' pg f =
+pagedDefault def' pg f =
   let def = fromMaybe (Pos 1) $ mkPositive def'
-      sz = fromMaybe def $ guarded (<= def) =<< size pg
+      sz = maybe def finToPos $ size pg
       sz' = getPositive sz
       pageIdx = getPositive (page pg)
       off = sz' * (pageIdx - 1)
