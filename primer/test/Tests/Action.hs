@@ -24,6 +24,7 @@ import Primer.Core (
   HasID,
   ID (..),
   Kind (KType),
+  PrimCon (PrimChar),
   TmVarRef (LocalVarRef),
   getID,
  )
@@ -32,7 +33,8 @@ import Primer.Gen.Core.Raw (
   evalExprGen,
   genExpr,
  )
-import Primer.Module (builtinModule)
+import Primer.Module (builtinModule, primitiveModule)
+import Primer.Primitives (tChar, tInt)
 import Primer.Test.TestM (evalTestM)
 import Primer.Test.Util (clearMeta, constructCon, constructRefinedCon, constructTCon)
 import Primer.Typecheck (SmartHoles (NoSmartHoles, SmartHoles))
@@ -1037,6 +1039,25 @@ unit_refine_5 =
     [Move Child2, Move Child1, InsertRefinedVar $ LocalVarRef "nil"]
     (let_ "nil" (con cNil) $ (lvar "nil" `aPP` tEmptyHole) `ann` (tcon tList `tapp` tEmptyHole))
 
+unit_primitive_1 :: Assertion
+unit_primitive_1 =
+  actionTest
+    NoSmartHoles
+    emptyHole
+    [ ConstructAnn
+    , EnterType
+    , constructTCon tInt
+    , ConstructArrowL
+    , Move Child2
+    , constructTCon tChar
+    , Move Parent
+    , ExitType
+    , Move Child1
+    , ConstructLam (Just "x")
+    , ConstructPrim (PrimChar 'c')
+    ]
+    (lam "x" (char 'c') `ann` (tcon tInt `tfun` tcon tChar))
+
 -- * Helpers
 
 -- | Apply the actions to the input expression and test that the result matches
@@ -1067,4 +1088,4 @@ actionTestExpectFail f sh expr actions =
 runTestActions :: SmartHoles -> ID -> Expr -> [Action] -> Either ActionError Expr
 runTestActions sh i expr actions =
   either unfocusExpr (unfocusExpr . unfocusType)
-    <$> evalTestM (i + 1) (applyActionsToExpr sh [builtinModule] expr actions)
+    <$> evalTestM (i + 1) (applyActionsToExpr sh [builtinModule, primitiveModule] expr actions)

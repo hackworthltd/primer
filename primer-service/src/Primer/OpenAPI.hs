@@ -118,6 +118,7 @@ deriving via PrimerJSON ExprTreeOpts instance ToSchema ExprTreeOpts
 deriving via PrimerJSON Available.NoInputAction instance ToSchema Available.NoInputAction
 deriving via PrimerJSON Available.InputAction instance ToSchema Available.InputAction
 deriving via PrimerJSON Available.Option instance ToSchema Available.Option
+deriving via PrimerJSON Available.FreeInput instance ToSchema Available.FreeInput
 deriving via PrimerJSON Available.Options instance ToSchema Available.Options
 deriving via PrimerJSON Available.Action instance ToSchema Available.Action
 deriving via PrimerJSON ApplyActionBody instance ToSchema ApplyActionBody

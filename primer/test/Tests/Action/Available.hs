@@ -22,6 +22,7 @@ import Hedgehog (
  )
 import Hedgehog.Gen qualified as Gen
 import Hedgehog.Internal.Property (forAllWithT)
+import Hedgehog.Range qualified as Range
 import Optics (toListOf, (%), (^..))
 import Primer.Action (ActionError (CaseBindsClash, NameCapture), toProgActionInput, toProgActionNoInput)
 import Primer.Action.Available qualified as Available
@@ -250,10 +251,17 @@ tasty_available_actions_accepted = withTests 500 $
                     def'
                     loc
                     act'
-              case opts of
+              let opts' = [Gen.element opts | not (null opts)]
+              let opts'' =
+                    opts' <> case free of
+                      Available.FreeNone -> []
+                      Available.FreeVarName -> [flip Available.Option Nothing <$> (unName <$> genName)]
+                      Available.FreeInt -> [flip Available.Option Nothing <$> (show <$> Gen.integral (Range.linear @Integer 0 1_000_000_000))]
+                      Available.FreeChar -> [flip Available.Option Nothing . T.singleton <$> Gen.unicode]
+              case opts'' of
                 [] -> annotate "no options" >> success
                 options -> do
-                  opt <- forAllT $ Gen.choice $ [Gen.element options] <> mwhen free [flip Available.Option Nothing <$> (unName <$> genName)]
+                  opt <- forAllT $ Gen.choice options
                   progActs <- either (\e -> annotateShow e >> failure) pure $ toProgActionInput def' defName loc opt act'
                   actionSucceedsOrCapture (handleEditRequest progActs) a
   where

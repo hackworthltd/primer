@@ -3,7 +3,7 @@ Output
         [ Input RenameDef
             ( Options
                 { opts = []
-                , free = True
+                , free = FreeVarName
                 }
             )
         , NoInput DuplicateDef
@@ -33,7 +33,7 @@ Output
                                 , context = Nothing
                                 }
                             ]
-                        , free = True
+                        , free = FreeVarName
                         }
                     )
                 , NoInput LetToRec
@@ -53,7 +53,7 @@ Output
                                 , context = Nothing
                                 }
                             ]
-                        , free = True
+                        , free = FreeVarName
                         }
                     )
                 , NoInput DeleteExpr
@@ -78,7 +78,7 @@ Output
                                 , context = Nothing
                                 }
                             ]
-                        , free = True
+                        , free = FreeVarName
                         }
                     )
                 , NoInput MakeCase
@@ -109,7 +109,7 @@ Output
                                 , context = Nothing
                                 }
                             ]
-                        , free = True
+                        , free = FreeVarName
                         }
                     )
                 , Input RenameLet
@@ -128,7 +128,7 @@ Output
                                 , context = Nothing
                                 }
                             ]
-                        , free = True
+                        , free = FreeVarName
                         }
                     )
                 , NoInput Raise
@@ -154,7 +154,7 @@ Output
                                 , context = Nothing
                                 }
                             ]
-                        , free = True
+                        , free = FreeVarName
                         }
                     )
                 , NoInput MakeCase
@@ -181,7 +181,7 @@ Output
                                 , context = Nothing
                                 }
                             ]
-                        , free = True
+                        , free = FreeVarName
                         }
                     )
                 , NoInput MakeCase
@@ -209,7 +209,7 @@ Output
                                 , context = Nothing
                                 }
                             ]
-                        , free = True
+                        , free = FreeVarName
                         }
                     )
                 , NoInput DeleteExpr
@@ -234,7 +234,7 @@ Output
                                 , context = Nothing
                                 }
                             ]
-                        , free = True
+                        , free = FreeVarName
                         }
                     )
                 , Input MakeVar
@@ -249,7 +249,7 @@ Output
                                 , context = Nothing
                                 }
                             ]
-                        , free = False
+                        , free = FreeNone
                         }
                     )
                 , Input MakeCon
@@ -271,10 +271,22 @@ Output
                                     ( "Builtins" :| [] )
                                 }
                             ]
-                        , free = False
+                        , free = FreeNone
                         }
                     )
                 , NoInput MakeCase
+                , Input MakeInt
+                    ( Options
+                        { opts = []
+                        , free = FreeInt
+                        }
+                    )
+                , Input MakeChar
+                    ( Options
+                        { opts = []
+                        , free = FreeChar
+                        }
+                    )
                 , NoInput Raise
                 ]
             )
@@ -301,7 +313,7 @@ Output
                                 , context = Nothing
                                 }
                             ]
-                        , free = True
+                        , free = FreeVarName
                         }
                     )
                 , NoInput Raise
@@ -331,7 +343,7 @@ Output
                                 , context = Nothing
                                 }
                             ]
-                        , free = True
+                        , free = FreeVarName
                         }
                     )
                 , Input RenameLam
@@ -354,7 +366,7 @@ Output
                                 , context = Nothing
                                 }
                             ]
-                        , free = True
+                        , free = FreeVarName
                         }
                     )
                 , NoInput Raise
@@ -380,7 +392,7 @@ Output
                                 , context = Nothing
                                 }
                             ]
-                        , free = True
+                        , free = FreeVarName
                         }
                     )
                 , NoInput Raise
@@ -406,7 +418,7 @@ Output
                                 , context = Nothing
                                 }
                             ]
-                        , free = True
+                        , free = FreeVarName
                         }
                     )
                 , NoInput MakeCase
@@ -433,7 +445,7 @@ Output
                                 , context = Nothing
                                 }
                             ]
-                        , free = True
+                        , free = FreeVarName
                         }
                     )
                 , NoInput Raise
@@ -459,7 +471,7 @@ Output
                                 , context = Nothing
                                 }
                             ]
-                        , free = True
+                        , free = FreeVarName
                         }
                     )
                 , NoInput Raise
@@ -485,7 +497,7 @@ Output
                                 , context = Nothing
                                 }
                             ]
-                        , free = True
+                        , free = FreeVarName
                         }
                     )
                 , NoInput Raise
@@ -511,7 +523,7 @@ Output
                                 , context = Nothing
                                 }
                             ]
-                        , free = True
+                        , free = FreeVarName
                         }
                     )
                 , NoInput Raise
@@ -537,7 +549,7 @@ Output
                                 , context = Nothing
                                 }
                             ]
-                        , free = True
+                        , free = FreeVarName
                         }
                     )
                 , NoInput MakeCase
@@ -564,7 +576,7 @@ Output
                                 , context = Nothing
                                 }
                             ]
-                        , free = True
+                        , free = FreeVarName
                         }
                     )
                 , NoInput MakeCase
@@ -595,7 +607,7 @@ Output
                                 , context = Nothing
                                 }
                             ]
-                        , free = True
+                        , free = FreeVarName
                         }
                     )
                 ]
@@ -619,7 +631,7 @@ Output
                                 , context = Nothing
                                 }
                             ]
-                        , free = True
+                        , free = FreeVarName
                         }
                     )
                 , NoInput MakeCase
@@ -646,7 +658,7 @@ Output
                                 , context = Nothing
                                 }
                             ]
-                        , free = True
+                        , free = FreeVarName
                         }
                     )
                 , NoInput MakeCase
@@ -673,7 +685,7 @@ Output
                                 , context = Nothing
                                 }
                             ]
-                        , free = True
+                        , free = FreeVarName
                         }
                     )
                 , Input MakeVar
@@ -696,7 +708,7 @@ Output
                                 , context = Nothing
                                 }
                             ]
-                        , free = False
+                        , free = FreeNone
                         }
                     )
                 , Input MakeCon
@@ -718,10 +730,22 @@ Output
                                     ( "Builtins" :| [] )
                                 }
                             ]
-                        , free = False
+                        , free = FreeNone
                         }
                     )
                 , NoInput MakeCase
+                , Input MakeInt
+                    ( Options
+                        { opts = []
+                        , free = FreeInt
+                        }
+                    )
+                , Input MakeChar
+                    ( Options
+                        { opts = []
+                        , free = FreeChar
+                        }
+                    )
                 , NoInput Raise
                 ]
             )
@@ -744,7 +768,7 @@ Output
                                 , context = Nothing
                                 }
                             ]
-                        , free = True
+                        , free = FreeVarName
                         }
                     )
                 , NoInput MakeCase
@@ -771,7 +795,7 @@ Output
                                 , context = Nothing
                                 }
                             ]
-                        , free = True
+                        , free = FreeVarName
                         }
                     )
                 , NoInput MakeCase
@@ -978,7 +1002,7 @@ Output
                                     ( "Primitives" :| [] )
                                 }
                             ]
-                        , free = False
+                        , free = FreeNone
                         }
                     )
                 , NoInput RaiseType

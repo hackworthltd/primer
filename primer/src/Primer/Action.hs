@@ -24,6 +24,7 @@ import Data.List (findIndex)
 import Data.List.NonEmpty qualified as NE
 import Data.Map.Strict qualified as Map
 import Data.Set qualified as Set
+import Data.Text qualified as T
 import Optics (set, (%), (?~), (^.), (^?), _Just)
 import Primer.Action.Actions (Action (..), Movement (..), QualifiedText)
 import Primer.Action.Available qualified as Available
@@ -38,6 +39,7 @@ import Primer.Core (
   ID,
   LVarName,
   LocalName (LocalName, unLocalName),
+  PrimCon (PrimChar, PrimInt),
   TmVarRef (..),
   TyVarName,
   Type,
@@ -69,6 +71,7 @@ import Primer.Core.DSL (
   lam,
   let_,
   letrec,
+  prim,
   tEmptyHole,
   tapp,
   tcon,
@@ -342,6 +345,7 @@ applyAction' a = case a of
   ConstructLam x -> termAction (constructLam x) "cannot construct function in type"
   ConstructLAM x -> termAction (constructLAM x) "cannot construct function in type"
   ConstructCon c -> termAction (constructCon c) "cannot construct con in type"
+  ConstructPrim p -> termAction (constructPrim p) "cannot construct primitive literal in type"
   ConstructSaturatedCon c -> termAction (constructSatCon c) "cannot construct con in type"
   ConstructRefinedCon c -> termAction (constructRefinedCon c) "cannot construct con in type"
   ConstructLet x -> termAction (constructLet x) "cannot construct let in type"
@@ -582,6 +586,11 @@ constructCon :: ActionM m => QualifiedText -> ExprZ -> m ExprZ
 constructCon c ze = case target ze of
   EmptyHole{} -> flip replace ze <$> con (unsafeMkGlobalName c)
   e -> throwError $ NeedEmptyHole (ConstructCon c) e
+
+constructPrim :: ActionM m => PrimCon -> ExprZ -> m ExprZ
+constructPrim p ze = case target ze of
+  EmptyHole{} -> flip replace ze <$> prim p
+  e -> throwError $ NeedEmptyHole (ConstructPrim p) e
 
 constructSatCon :: ActionM m => QualifiedText -> ExprZ -> m ExprZ
 constructSatCon c ze = case target ze of
@@ -911,56 +920,68 @@ toProgActionInput def defName mNodeSel opt0 = \case
     ref <- offerRefined
     opt <- optGlobal
     toProg [if ref then ConstructRefinedCon opt else ConstructSaturatedCon opt]
+  Available.MakeInt -> do
+    opt <- optNoCxt
+    n <- maybeToEither (NeedInt opt0) $ readMaybe opt
+    toProg [ConstructPrim $ PrimInt n]
+  Available.MakeChar -> do
+    opt <- optNoCxt
+    case T.uncons opt of
+      Just (c, r) | T.null r -> toProg [ConstructPrim $ PrimChar c]
+      _ -> Left $ NeedChar opt0
   Available.MakeVar ->
     toProg [ConstructVar optVar]
   Available.MakeVarSat -> do
     ref <- offerRefined
     toProg [if ref then InsertRefinedVar optVar else InsertSaturatedVar optVar]
   Available.MakeLet -> do
-    opt <- optLocal
+    opt <- optNoCxt
     toProg [ConstructLet $ Just opt]
   Available.MakeLetRec -> do
-    opt <- optLocal
+    opt <- optNoCxt
     toProg [ConstructLetrec $ Just opt]
   Available.MakeLam -> do
-    opt <- optLocal
+    opt <- optNoCxt
     toProg [ConstructLam $ Just opt]
   Available.MakeLAM -> do
-    opt <- optLocal
+    opt <- optNoCxt
     toProg [ConstructLAM $ Just opt]
   Available.RenamePattern -> do
-    opt <- optLocal
+    opt <- optNoCxt
     toProg [RenameCaseBinding opt]
   Available.RenameLet -> do
-    opt <- optLocal
+    opt <- optNoCxt
     toProg [RenameLet opt]
   Available.RenameLam -> do
-    opt <- optLocal
+    opt <- optNoCxt
     toProg [RenameLam opt]
   Available.RenameLAM -> do
-    opt <- optLocal
+    opt <- optNoCxt
     toProg [RenameLAM opt]
   Available.MakeTCon -> do
     opt <- optGlobal
     toProg [ConstructTCon opt]
   Available.MakeTVar -> do
-    opt <- optLocal
+    opt <- optNoCxt
     toProg [ConstructTVar opt]
   Available.MakeForall -> do
-    opt <- optLocal
+    opt <- optNoCxt
     toProg [ConstructTForall $ Just opt, Move Child1]
   Available.RenameForall -> do
-    opt <- optLocal
+    opt <- optNoCxt
     toProg [RenameForall opt]
   Available.RenameDef -> do
-    opt <- optLocal
+    opt <- optNoCxt
     pure [RenameDef defName opt]
   where
     mid = maybeToEither NoNodeSelection $ snd <$> mNodeSel
     optVar = case opt0.context of
       Just q -> GlobalVarRef $ unsafeMkGlobalName (q, opt0.option)
       Nothing -> LocalVarRef $ unsafeMkLocalName opt0.option
-    optLocal = case opt0.context of
+    -- Note that we use an option with @context = Nothing@ for inputs of
+    -- (some offered actions as well as) any @FreeInput@ (including for
+    -- insertion of a primitive integer)
+    optNoCxt = case opt0.context of
       Just _ -> Left $ NeedGlobal opt0
       Nothing -> pure opt0.option
     optGlobal = case opt0.context of

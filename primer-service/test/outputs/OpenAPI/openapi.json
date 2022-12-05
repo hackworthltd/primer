@@ -75,6 +75,15 @@
                 ],
                 "type": "object"
             },
+            "FreeInput": {
+                "enum": [
+                    "FreeNone",
+                    "FreeVarName",
+                    "FreeInt",
+                    "FreeChar"
+                ],
+                "type": "string"
+            },
             "GlobalName": {
                 "properties": {
                     "baseName": {
@@ -98,6 +107,8 @@
                 "enum": [
                     "MakeCon",
                     "MakeConSat",
+                    "MakeInt",
+                    "MakeChar",
                     "MakeVar",
                     "MakeVarSat",
                     "MakeLet",
@@ -309,7 +320,7 @@
             "Options": {
                 "properties": {
                     "free": {
-                        "type": "boolean"
+                        "$ref": "#/components/schemas/FreeInput"
                     },
                     "opts": {
                         "items": {
@@ -647,6 +658,8 @@
                             "enum": [
                                 "MakeCon",
                                 "MakeConSat",
+                                "MakeInt",
+                                "MakeChar",
                                 "MakeVar",
                                 "MakeVarSat",
                                 "MakeLet",
@@ -874,6 +887,8 @@
                             "enum": [
                                 "MakeCon",
                                 "MakeConSat",
+                                "MakeInt",
+                                "MakeChar",
                                 "MakeVar",
                                 "MakeVarSat",
                                 "MakeLet",
