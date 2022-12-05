@@ -854,6 +854,14 @@ tasty_type_preservation = withTests 1000 $
           (_, s') <- failWhenSevereLogs $ evalFullStepCount @EvalLog tds globs midSteps dir t
           test "mid " s'
 
+-- Unsaturated primitives are stuck terms
+unit_prim_stuck :: Assertion
+unit_prim_stuck =
+  let (f, maxID) = create $ pfun ToUpper
+   in do
+        s <- evalFullTest maxID mempty primDefs 1 Syn f
+        s <~==> Right f
+
 unit_prim_toUpper :: Assertion
 unit_prim_toUpper =
   unaryPrimTest
