@@ -46,6 +46,7 @@ module Primer.API (
   evalStep,
   evalFull,
   flushSessions,
+  createDefinition,
   availableActions,
   actionOptions,
   applyActionNoInput,
@@ -240,6 +241,7 @@ data PrimerErr
   = DatabaseErr Text
   | UnknownDef GVarName
   | UnexpectedPrimDef GVarName
+  | AddDefError ModuleName (Maybe Text) ProgError
   | ActionOptionsNoID (Maybe (NodeType, ID))
   | ToProgActionError Available.Action ActionError
   | ApplyActionError [ProgAction] ProgError
@@ -358,6 +360,7 @@ data APILog
   | EvalStep (ReqResp (SessionId, EvalReq) (Either ProgError EvalResp))
   | EvalFull (ReqResp (SessionId, EvalFullReq) (Either ProgError EvalFullResp))
   | FlushSessions (ReqResp () ())
+  | CreateDef (ReqResp (SessionId, ExprTreeOpts, ModuleName, Maybe Text) (Either PrimerErr Prog))
   | AvailableActions (ReqResp (SessionId, Level, Selection) [Available.Action])
   | ActionOptions (ReqResp (SessionId, Level, Selection, Available.InputAction) Available.Options)
   | ApplyActionNoInput (ReqResp (ExprTreeOpts, SessionId, Selection, Available.NoInputAction) Prog)
@@ -953,6 +956,19 @@ flushSessions = logAPI' FlushSessions $ do
   sessionsTransaction $ \ss _ -> do
     StmMap.reset ss
   pure ()
+
+createDefinition ::
+  (MonadIO m, MonadThrow m, MonadAPILog l m) =>
+  SessionId ->
+  ExprTreeOpts ->
+  ModuleName ->
+  Maybe Text ->
+  PrimerM m Prog
+createDefinition =
+  curry4 $
+    either throwM pure <=< logAPI (leftResultError CreateDef) \(sid, opts, moduleName, mDefName) ->
+      bimap (AddDefError moduleName mDefName) (viewProg opts)
+        <$> edit sid (App.Edit [App.CreateDef moduleName mDefName])
 
 availableActions ::
   (MonadIO m, MonadThrow m, MonadAPILog l m) =>

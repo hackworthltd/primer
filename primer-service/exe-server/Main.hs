@@ -260,6 +260,7 @@ instance ConvertLogMessage PrimerErr LogMsg where
   convert (DatabaseErr e) = LogMsg e
   convert (UnknownDef e) = LogMsg $ show e
   convert (UnexpectedPrimDef e) = LogMsg $ show e
+  convert (AddDefError m n e) = LogMsg $ show (m, n, e)
   convert (ActionOptionsNoID e) = LogMsg $ show e
   convert (ToProgActionError a e) = LogMsg $ show (a, e)
   convert (ApplyActionError as e) = LogMsg $ show (as, e)

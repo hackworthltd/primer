@@ -49,6 +49,7 @@ import Primer.API (
   applyActionInput,
   applyActionNoInput,
   availableActions,
+  createDefinition,
   edit,
   listSessions,
   newSession,
@@ -56,7 +57,7 @@ import Primer.API (
   runPrimerM,
  )
 import Primer.API qualified as API
-import Primer.Core (globalNamePretty)
+import Primer.Core (globalNamePretty, moduleNamePretty, qualifyName)
 import Primer.Database (
   SessionId,
   Sessions,
@@ -67,6 +68,7 @@ import Primer.Database qualified as Database (
  )
 import Primer.Eval (EvalLog)
 import Primer.Log (ConvertLogMessage, logWarning)
+import Primer.Name (unsafeMkName)
 import Primer.Pagination (pagedDefault)
 import Primer.Servant.API qualified as S
 import Primer.Servant.OpenAPI qualified as OpenAPI
@@ -119,6 +121,7 @@ openAPISessionServer sid =
     { OpenAPI.getProgram = \patternsUnder -> API.getProgram' (ExprTreeOpts{patternsUnder}) sid
     , OpenAPI.getSessionName = API.getSessionName sid
     , OpenAPI.setSessionName = renameSession sid
+    , OpenAPI.createDefinition = \patternsUnder -> createDefinition sid ExprTreeOpts{patternsUnder}
     , OpenAPI.actions = openAPIActionServer sid
     }
 
@@ -265,6 +268,11 @@ serve ss q v port logger = do
         DatabaseErr msg -> err500{errBody = encode msg}
         UnknownDef d -> err404{errBody = "Unknown definition: " <> encode (globalNamePretty d)}
         UnexpectedPrimDef d -> err400{errBody = "Unexpected primitive definition: " <> encode (globalNamePretty d)}
+        AddDefError m md pe -> err400{errBody = "Error while adding definition (" <> s <> "): " <> show pe}
+          where
+            s = encode $ case md of
+              Just d -> globalNamePretty (qualifyName m $ unsafeMkName d)
+              Nothing -> moduleNamePretty m
         ActionOptionsNoID id -> err404{errBody = "ID not found for action input options: " <> show id}
         ApplyActionError as pe -> err400{errBody = "Error while applying actions (" <> show as <> "): " <> show pe}
         ToProgActionError a ae -> err400{errBody = "Error while converting action (" <> show a <> "): " <> show ae}

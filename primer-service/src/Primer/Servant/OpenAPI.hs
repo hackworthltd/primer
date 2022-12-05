@@ -17,6 +17,7 @@ import Data.OpenApi (OpenApi)
 import Primer.API (ApplyActionBody, Prog, Selection)
 import Primer.Action.Available qualified as Available
 import Primer.App (Level)
+import Primer.Core (ModuleName)
 import Primer.Database (
   SessionId,
  )
@@ -37,7 +38,9 @@ import Servant (
   JSON,
   NamedRoutes,
   Post,
+  Put,
   QueryFlag,
+  QueryParam,
   QueryParam',
   ReqBody,
   Required,
@@ -91,6 +94,15 @@ data SessionAPI mode = SessionAPI
           :> Get '[JSON] Prog
   , getSessionName :: GetSessionName mode
   , setSessionName :: SetSessionName mode
+  , createDefinition ::
+      mode
+        :- "def"
+          :> Summary "Create a new definition"
+          :> QueryFlag "patternsUnder"
+          :> ReqBody '[JSON] ModuleName
+          :> QueryParam "name" Text
+          :> OperationId "createDefinition"
+          :> Put '[JSON] Prog
   , actions ::
       mode
         :- "action"
