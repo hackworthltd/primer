@@ -62,7 +62,7 @@ import Foreword hiding (mod)
 
 import Control.Monad.Fresh (MonadFresh (..))
 import Control.Monad.Log (MonadLog, WithSeverity)
-import Control.Monad.NestedError (MonadNestedError)
+import Control.Monad.NestedError (MonadNestedError, throwError')
 import Data.Data (Data)
 import Data.Generics.Uniplate.Operations (descendM, transform, transformM)
 import Data.Generics.Uniplate.Zipper (
@@ -344,7 +344,7 @@ newProg' = let (p, _, _) = newProg in p
 
 -- | Imports some explicitly-given modules, ensuring that they are well-typed
 -- (and all their dependencies are already imported)
-importModules :: MonadEditApp l m => [Module] -> m ()
+importModules :: MonadEditApp l ProgError m => [Module] -> m ()
 importModules ms = do
   p <- gets appProg
   -- Module names must be unique
@@ -498,13 +498,13 @@ handleGetProgramRequest :: MonadReader App m => m Prog
 handleGetProgramRequest = asks appProg
 
 -- | Handle a request to mutate the app state
-handleMutationRequest :: MonadEditApp l m => MutationRequest -> m Prog
+handleMutationRequest :: MonadEditApp l ProgError m => MutationRequest -> m Prog
 handleMutationRequest = \case
   Edit as -> handleEditRequest as
   Undo -> handleUndoRequest
 
 -- | Handle an edit request
-handleEditRequest :: forall m l. MonadEditApp l m => [ProgAction] -> m Prog
+handleEditRequest :: forall m l. MonadEditApp l ProgError m => [ProgAction] -> m Prog
 handleEditRequest actions = do
   (prog, _) <- gets appProg >>= \p -> foldM go (p, Nothing) actions
   let Log l = progLog prog
@@ -518,12 +518,18 @@ handleEditRequest actions = do
         (prog', selectedDef <$> progSelection prog')
 
 -- | Handle an eval request (we assume that all such requests are implicitly in a synthesisable context)
-handleEvalRequest :: (MonadEditApp l m, ConvertLogMessage EvalLog l) => EvalReq -> m EvalResp
+handleEvalRequest ::
+  ( MonadEditApp l e m
+  , MonadNestedError Eval.EvalError e m
+  , ConvertLogMessage EvalLog l
+  ) =>
+  EvalReq ->
+  m EvalResp
 handleEvalRequest req = do
   prog <- gets appProg
   result <- Eval.step (allTypes prog) (allDefs prog) (evalReqExpr req) Syn (evalReqRedex req)
   case result of
-    Left err -> throwError $ EvalError err
+    Left err -> throwError' err
     Right (expr, detail) -> do
       redexes <- Eval.redexes (allTypes prog) (allDefs prog) Syn expr
       pure
@@ -534,7 +540,7 @@ handleEvalRequest req = do
           }
 
 -- | Handle an eval-to-normal-form request
-handleEvalFullRequest :: (MonadEditApp l m, ConvertLogMessage EvalLog l) => EvalFullReq -> m EvalFullResp
+handleEvalFullRequest :: (MonadEditApp l e m, ConvertLogMessage EvalLog l) => EvalFullReq -> m EvalFullResp
 handleEvalFullRequest (EvalFullReq{evalFullReqExpr, evalFullCxtDir, evalFullMaxSteps}) = do
   prog <- gets appProg
   result <- evalFull (allTypes prog) (allDefs prog) evalFullMaxSteps evalFullCxtDir evalFullReqExpr
@@ -545,7 +551,7 @@ handleEvalFullRequest (EvalFullReq{evalFullReqExpr, evalFullCxtDir, evalFullMaxS
 -- | Handle a 'ProgAction'
 -- The 'GVarName' argument is the currently-selected definition, which is
 -- provided for convenience: it is the same as the one in the progSelection.
-applyProgAction :: MonadEdit m => Prog -> Maybe GVarName -> ProgAction -> m Prog
+applyProgAction :: MonadEdit m ProgError => Prog -> Maybe GVarName -> ProgAction -> m Prog
 applyProgAction prog mdefName = \case
   MoveToDef d -> do
     m <- lookupEditableModule (qualifiedModule d) prog
@@ -970,7 +976,7 @@ editModuleOfCross mdefName prog f = case mdefName of
 -- Because actions often refer to the IDs of nodes created by previous actions
 -- we must reset the ID and name counter to their original state before we
 -- replay. We do this by resetting the entire app state.
-handleUndoRequest :: MonadEditApp l m => m Prog
+handleUndoRequest :: MonadEditApp l ProgError m => m Prog
 handleUndoRequest = do
   prog <- gets appProg
   start <- gets appInit
@@ -984,7 +990,7 @@ handleUndoRequest = do
         (Left err, _) -> throwError err
 
 -- Replay a series of actions, updating the app state with the new program
-replay :: MonadEditApp l m => [[ProgAction]] -> m ()
+replay :: MonadEditApp l ProgError m => [[ProgAction]] -> m ()
 replay = mapM_ handleEditRequest
 
 -- | A shorthand for the constraints we need when performing mutation
@@ -992,13 +998,13 @@ replay = mapM_ handleEditRequest
 --
 -- Note we do not want @MonadFresh Name m@, as @fresh :: m Name@ has
 -- no way of avoiding user-specified names. Instead, use 'freshName'.
-type MonadEditApp l m = (MonadLog (WithSeverity l) m, MonadEdit m, MonadState App m)
+type MonadEditApp l e m = (MonadLog (WithSeverity l) m, MonadEdit m e, MonadState App m)
 
 -- | A shorthand for constraints needed when doing low-level mutation
 -- operations which do not themselves update the 'App' contained in a
 -- 'State' monad. (Typically interaction with the @State@ monad would
 -- be handled by a caller.
-type MonadEdit m = (MonadFresh ID m, MonadFresh NameCounter m, MonadError ProgError m)
+type MonadEdit m e = (MonadFresh ID m, MonadFresh NameCounter m, MonadError e m)
 
 -- | A shorthand for the constraints we need when performing read-only
 -- operations on the application.
@@ -1221,7 +1227,7 @@ instance Monad m => MonadFresh NameCounter (EditAppM m e) where
     modify (\s -> s & #currentState % #nameCounter .~ succ nc)
     pure nc
 
-copyPasteSig :: MonadEdit m => Prog -> (GVarName, ID) -> GVarName -> [Action] -> m Prog
+copyPasteSig :: MonadEdit m ProgError => Prog -> (GVarName, ID) -> GVarName -> [Action] -> m Prog
 copyPasteSig p (fromDefName, fromTyId) toDefName setup = do
   c' <- focusNodeImports p fromDefName fromTyId
   c <- case c' of
@@ -1356,7 +1362,7 @@ tcWholeProgWithImports p = do
   imports <- checkEverything (progSmartHoles p) CheckEverything{trusted = mempty, toCheck = progImports p}
   tcWholeProg $ p & #progImports .~ imports
 
-copyPasteBody :: MonadEdit m => Prog -> (GVarName, ID) -> GVarName -> [Action] -> m Prog
+copyPasteBody :: MonadEdit m ProgError => Prog -> (GVarName, ID) -> GVarName -> [Action] -> m Prog
 copyPasteBody p (fromDefName, fromId) toDefName setup = do
   src' <- focusNodeImports p fromDefName fromId
   -- reassociate so get Expr+(Type+Type), rather than (Expr+Type)+Type
@@ -1482,7 +1488,7 @@ alterTypeDef f type_ m = do
 
 -- | Apply a bottom-up transformation to all branches of case expressions on the given type.
 transformCaseBranches ::
-  MonadEdit m =>
+  MonadEdit m ProgError =>
   Prog ->
   TyConName ->
   ([CaseBranch] -> m [CaseBranch]) ->
