@@ -1010,12 +1010,12 @@ type MonadQueryApp m = (Monad m, MonadReader App m, MonadError ProgError m)
 -- state so that an action that throws an error does not modify the
 -- state. This is important to ensure that we can reliably replay the
 -- log without having ID mismatches.
-newtype EditAppM m a = EditAppM (StateT App (ExceptT ProgError m) a)
-  deriving newtype (Functor, Applicative, Monad, MonadState App, MonadError ProgError, MonadLog l)
+newtype EditAppM m e a = EditAppM (StateT App (ExceptT e m) a)
+  deriving newtype (Functor, Applicative, Monad, MonadState App, MonadError e, MonadLog l)
 
 -- | Run an 'EditAppM' action, returning a result and an updated
 -- 'App'.
-runEditAppM :: Functor m => EditAppM m a -> App -> m (Either ProgError a, App)
+runEditAppM :: Functor m => EditAppM m e a -> App -> m (Either e a, App)
 runEditAppM (EditAppM m) appState =
   runExceptT (runStateT m appState) <&> \case
     Left err -> (Left err, appState)
@@ -1207,7 +1207,7 @@ newType = do
   pure $ TEmptyHole (Meta id_ Nothing Nothing)
 
 -- | Support for generating fresh IDs
-instance Monad m => MonadFresh ID (EditAppM m) where
+instance Monad m => MonadFresh ID (EditAppM m e) where
   fresh = do
     id_ <- gets appIdCounter
     modify (\s -> s & #currentState % #idCounter .~ id_ + 1)
@@ -1215,7 +1215,7 @@ instance Monad m => MonadFresh ID (EditAppM m) where
 
 -- | Support for generating names. Basically just a counter so we don't
 -- generate the same automatic name twice.
-instance Monad m => MonadFresh NameCounter (EditAppM m) where
+instance Monad m => MonadFresh NameCounter (EditAppM m e) where
   fresh = do
     nc <- gets appNameCounter
     modify (\s -> s & #currentState % #nameCounter .~ succ nc)
