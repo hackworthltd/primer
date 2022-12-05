@@ -67,7 +67,7 @@ import Primer.Database qualified as Database (
  )
 import Primer.Eval (EvalLog)
 import Primer.Log (ConvertLogMessage, logWarning)
-import Primer.Pagination (pagedDefaultClamp)
+import Primer.Pagination (pagedDefault)
 import Primer.Servant.API qualified as S
 import Primer.Servant.OpenAPI qualified as OpenAPI
 import Servant (
@@ -109,7 +109,7 @@ openAPISessionsServer :: ConvertServerLogs l => OpenAPI.SessionsAPI (AsServerT (
 openAPISessionsServer =
   OpenAPI.SessionsAPI
     { OpenAPI.createSession = newSession
-    , OpenAPI.getSessionList = \b p -> pagedDefaultClamp 100 p $ listSessions b
+    , OpenAPI.getSessionList = \b p -> pagedDefault 100 p $ listSessions b
     , OpenAPI.sessionAPI = openAPISessionServer
     }
 
@@ -148,7 +148,7 @@ sessionsAPIServer :: ConvertServerLogs l => S.SessionsAPI (AsServerT (Primer l))
 sessionsAPIServer =
   S.SessionsAPI
     { S.createSession = newSession
-    , S.getSessionList = \b p -> pagedDefaultClamp 100 p $ listSessions b
+    , S.getSessionList = \b p -> pagedDefault 100 p $ listSessions b
     , S.addSession = API.addSession
     , S.sessionAPI = sessionAPIServer
     }
