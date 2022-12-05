@@ -26,6 +26,7 @@ import Hedgehog.Range qualified as R
 import Primer.API (
   ApplyActionBody (..),
   Def (Def),
+  EvalFullResp (EvalFullRespNormal, EvalFullRespTimedOut),
   Module (Module),
   NodeBody (BoxBody, NoBody, TextBody),
   NodeFlavor,
@@ -67,7 +68,7 @@ import Primer.Server (openAPIInfo)
 import Servant.OpenApi.Test (validateEveryToJSON)
 import Tasty (Property, property)
 import Test.Hspec (Spec)
-import Test.QuickCheck (Arbitrary (arbitrary), arbitraryBoundedEnum)
+import Test.QuickCheck (Arbitrary (arbitrary), arbitraryBoundedEnum, elements)
 import Test.QuickCheck.Hedgehog (hedgehog)
 import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.Golden (goldenVsString)
@@ -295,3 +296,5 @@ instance Arbitrary ModuleName where
   arbitrary = hedgehog genModuleName
 instance Arbitrary GVarName where
   arbitrary = hedgehog genGVarName
+instance Arbitrary EvalFullResp where
+  arbitrary = elements [EvalFullRespNormal, EvalFullRespTimedOut] <*> hedgehog (evalExprGen 0 genExprTree)

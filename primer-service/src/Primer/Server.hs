@@ -51,6 +51,7 @@ import Primer.API (
   availableActions,
   createDefinition,
   edit,
+  evalFull',
   listSessions,
   newSession,
   renameSession,
@@ -67,6 +68,7 @@ import Primer.Database qualified as Database (
   Op,
  )
 import Primer.Eval (EvalLog)
+import Primer.Finite (getFinite)
 import Primer.Log (ConvertLogMessage, logWarning)
 import Primer.Name (unsafeMkName)
 import Primer.Pagination (pagedDefault)
@@ -123,6 +125,7 @@ openAPISessionServer sid =
     , OpenAPI.setSessionName = renameSession sid
     , OpenAPI.createDefinition = \patternsUnder -> createDefinition sid ExprTreeOpts{patternsUnder}
     , OpenAPI.actions = openAPIActionServer sid
+    , OpenAPI.evalFull = \patternsUnder -> evalFull' (ExprTreeOpts{patternsUnder}) sid . fmap getFinite
     }
 
 openAPIActionServer :: ConvertServerLogs l => SessionId -> OpenAPI.ActionAPI (AsServerT (Primer l))
