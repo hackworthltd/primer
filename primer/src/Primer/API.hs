@@ -360,7 +360,7 @@ data APILog
   | EvalStep (ReqResp (SessionId, EvalReq) (Either ProgError EvalResp))
   | EvalFull (ReqResp (SessionId, EvalFullReq) (Either ProgError EvalFullResp))
   | FlushSessions (ReqResp () ())
-  | CreateDef (ReqResp (SessionId, ExprTreeOpts, ModuleName, Maybe Text) (Either PrimerErr Prog))
+  | CreateDef (ReqResp (SessionId, ExprTreeOpts, ModuleName, Maybe Text) Prog)
   | AvailableActions (ReqResp (SessionId, Level, Selection) [Available.Action])
   | ActionOptions (ReqResp (SessionId, Level, Selection, Available.InputAction) Available.Options)
   | ApplyActionNoInput (ReqResp (ExprTreeOpts, SessionId, Selection, Available.NoInputAction) Prog)
@@ -966,9 +966,9 @@ createDefinition ::
   PrimerM m Prog
 createDefinition =
   curry4 $
-    either throwM pure <=< logAPI (leftResultError CreateDef) \(sid, opts, moduleName, mDefName) ->
-      bimap (AddDefError moduleName mDefName) (viewProg opts)
-        <$> edit sid (App.Edit [App.CreateDef moduleName mDefName])
+    logAPI (noError CreateDef) \(sid, opts, moduleName, mDefName) ->
+      edit sid (App.Edit [App.CreateDef moduleName mDefName])
+        >>= either (throwM . AddDefError moduleName mDefName) (pure . viewProg opts)
 
 availableActions ::
   (MonadIO m, MonadThrow m, MonadAPILog l m) =>
