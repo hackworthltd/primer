@@ -51,6 +51,7 @@ import Primer.Gen.Core.Raw (
   evalExprGen,
   genExpr,
   genGVarName,
+  genID,
   genLVarName,
   genModuleName,
   genName,
@@ -193,8 +194,17 @@ genModule =
 tasty_Module :: Property
 tasty_Module = testToJSON $ evalExprGen 0 genModule
 
+genNodeType :: ExprGen NodeType
+genNodeType = G.enumBounded
+
+genNodeSelection :: ExprGen NodeSelection
+genNodeSelection = NodeSelection <$> genNodeType <*> genID
+
+genSelection :: ExprGen Selection
+genSelection = Selection <$> genGVarName <*> G.maybe genNodeSelection
+
 genProg :: Gen Prog
-genProg = evalExprGen 0 $ Prog <$> G.list (R.linear 0 3) genModule
+genProg = evalExprGen 0 $ Prog <$> G.list (R.linear 0 3) genModule <*> G.maybe genSelection
 
 tasty_Prog :: Property
 tasty_Prog = testToJSON genProg
@@ -269,9 +279,9 @@ instance Arbitrary Available.Options where
 instance Arbitrary ApplyActionBody where
   arbitrary = ApplyActionBody <$> arbitrary <*> arbitrary
 instance Arbitrary Selection where
-  arbitrary = Selection <$> arbitrary <*> arbitrary
+  arbitrary = hedgehog $ evalExprGen 0 genSelection
 instance Arbitrary NodeSelection where
-  arbitrary = NodeSelection <$> arbitrary <*> arbitrary
+  arbitrary = hedgehog $ evalExprGen 0 genNodeSelection
 instance Arbitrary a => Arbitrary (NonEmpty a) where
   arbitrary = (:|) <$> arbitrary <*> arbitrary
 instance Arbitrary Level where

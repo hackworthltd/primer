@@ -1,4 +1,4 @@
-let tmpRoots = [ "^Primer.API.convertSelection" ] : List Text
+let tmpRoots = [] : List Text
 
 let
     -- Anything specific we want Weeder to ignore goes here. This
