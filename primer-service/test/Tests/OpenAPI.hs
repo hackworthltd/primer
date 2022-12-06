@@ -38,7 +38,7 @@ import Primer.API (
  )
 import Primer.Action.Available qualified as Available
 import Primer.App (Level, NodeType)
-import Primer.Core (GVarName, ID (ID))
+import Primer.Core (GVarName, ID (ID), ModuleName)
 import Primer.Database (
   LastModified (..),
   Session (Session),
@@ -291,5 +291,7 @@ instance Arbitrary Name where
   arbitrary = hedgehog genName
 instance Arbitrary NodeType where
   arbitrary = arbitraryBoundedEnum
+instance Arbitrary ModuleName where
+  arbitrary = hedgehog genModuleName
 instance Arbitrary GVarName where
   arbitrary = hedgehog genGVarName
