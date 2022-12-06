@@ -38,7 +38,6 @@ import Servant (
   JSON,
   NamedRoutes,
   Post,
-  Put,
   QueryFlag,
   QueryParam,
   QueryParam',
@@ -102,7 +101,7 @@ data SessionAPI mode = SessionAPI
           :> ReqBody '[JSON] ModuleName
           :> QueryParam "name" Text
           :> OperationId "createDefinition"
-          :> Put '[JSON] Prog
+          :> Post '[JSON] Prog
   , actions ::
       mode
         :- "action"

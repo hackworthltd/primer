@@ -941,7 +941,7 @@
             }
         },
         "/openapi/sessions/{sessionId}/def": {
-            "put": {
+            "post": {
                 "operationId": "createDefinition",
                 "parameters": [
                     {
