@@ -75,6 +75,47 @@
                 ],
                 "type": "object"
             },
+            "EvalFullResp": {
+                "oneOf": [
+                    {
+                        "properties": {
+                            "contents": {
+                                "$ref": "#/components/schemas/Tree"
+                            },
+                            "tag": {
+                                "enum": [
+                                    "EvalFullRespTimedOut"
+                                ],
+                                "type": "string"
+                            }
+                        },
+                        "required": [
+                            "tag",
+                            "contents"
+                        ],
+                        "type": "object"
+                    },
+                    {
+                        "properties": {
+                            "contents": {
+                                "$ref": "#/components/schemas/Tree"
+                            },
+                            "tag": {
+                                "enum": [
+                                    "EvalFullRespNormal"
+                                ],
+                                "type": "string"
+                            }
+                        },
+                        "required": [
+                            "tag",
+                            "contents"
+                        ],
+                        "type": "object"
+                    }
+                ],
+                "type": "object"
+            },
             "FreeInput": {
                 "enum": [
                     "FreeNone",
@@ -1007,6 +1048,72 @@
                     }
                 },
                 "summary": "Create a new definition"
+            }
+        },
+        "/openapi/sessions/{sessionId}/eval": {
+            "post": {
+                "operationId": "eval-full",
+                "parameters": [
+                    {
+                        "description": "The session ID",
+                        "in": "path",
+                        "name": "sessionId",
+                        "required": true,
+                        "schema": {
+                            "format": "uuid",
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "allowEmptyValue": true,
+                        "in": "query",
+                        "name": "patternsUnder",
+                        "schema": {
+                            "default": false,
+                            "type": "boolean"
+                        }
+                    },
+                    {
+                        "in": "query",
+                        "name": "stepLimit",
+                        "required": false,
+                        "schema": {
+                            "exclusiveMaximum": false,
+                            "exclusiveMinimum": false,
+                            "maximum": 100,
+                            "minimum": 0,
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json;charset=utf-8": {
+                            "schema": {
+                                "$ref": "#/components/schemas/GlobalName"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json;charset=utf-8": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/EvalFullResp"
+                                }
+                            }
+                        },
+                        "description": ""
+                    },
+                    "400": {
+                        "description": "Invalid `body` or `stepLimit` or `patternsUnder`"
+                    },
+                    "404": {
+                        "description": "`sessionId` not found"
+                    }
+                },
+                "summary": "Evaluate the named definition to normal form (or time out)"
             }
         },
         "/openapi/sessions/{sessionId}/name": {

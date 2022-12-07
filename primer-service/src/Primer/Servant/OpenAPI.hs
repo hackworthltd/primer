@@ -14,13 +14,14 @@ module Primer.Servant.OpenAPI (
 import Foreword
 
 import Data.OpenApi (OpenApi)
-import Primer.API (ApplyActionBody, Prog, Selection)
+import Primer.API (ApplyActionBody, EvalFullResp, Prog, Selection)
 import Primer.Action.Available qualified as Available
 import Primer.App (Level)
-import Primer.Core (ModuleName)
+import Primer.Core (GVarName, ModuleName)
 import Primer.Database (
   SessionId,
  )
+import Primer.Finite (Finite)
 import Primer.OpenAPI ()
 import Primer.Servant.Types (
   CopySession,
@@ -82,6 +83,9 @@ data SessionsAPI mode = SessionsAPI
   }
   deriving (Generic)
 
+-- | A static bound on the maximum requested timeout for evaluation endpoint
+type EvalFullStepLimit = 100
+
 -- | The session-specific bits of the API.
 data SessionAPI mode = SessionAPI
   { getProgram ::
@@ -106,6 +110,15 @@ data SessionAPI mode = SessionAPI
       mode
         :- "action"
           :> NamedRoutes ActionAPI
+  , evalFull ::
+      mode
+        :- "eval"
+          :> Summary "Evaluate the named definition to normal form (or time out)"
+          :> OperationId "eval-full"
+          :> QueryFlag "patternsUnder"
+          :> QueryParam "stepLimit" (Finite 0 EvalFullStepLimit)
+          :> ReqBody '[JSON] GVarName
+          :> Post '[JSON] EvalFullResp
   }
   deriving (Generic)
 

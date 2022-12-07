@@ -267,19 +267,19 @@ tasty_available_actions_accepted = withTests 500 $
   where
     runEditAppMLogs ::
       HasCallStack =>
-      EditAppM (PureLog (WithSeverity ())) a ->
+      EditAppM (PureLog (WithSeverity ())) ProgError a ->
       App ->
       PropertyT WT (Either ProgError a, App)
     runEditAppMLogs m a = case runPureLog $ runEditAppM m a of
       (r, logs) -> testNoSevereLogs logs >> pure r
-    actionSucceeds :: HasCallStack => EditAppM (PureLog (WithSeverity ())) a -> App -> PropertyT WT ()
+    actionSucceeds :: HasCallStack => EditAppM (PureLog (WithSeverity ())) ProgError a -> App -> PropertyT WT ()
     actionSucceeds m a =
       runEditAppMLogs m a >>= \case
         (Left err, _) -> annotateShow err >> failure
         (Right _, a') -> ensureSHNormal a'
     -- If we submit our own name rather than an offered one, then
     -- we should expect that name capture/clashing may happen
-    actionSucceedsOrCapture :: HasCallStack => EditAppM (PureLog (WithSeverity ())) a -> App -> PropertyT WT ()
+    actionSucceedsOrCapture :: HasCallStack => EditAppM (PureLog (WithSeverity ())) ProgError a -> App -> PropertyT WT ()
     actionSucceedsOrCapture m a =
       runEditAppMLogs m a >>= \case
         (Left (ActionError NameCapture), _) -> do

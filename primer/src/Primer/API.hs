@@ -45,6 +45,8 @@ module Primer.API (
   generateNames,
   evalStep,
   evalFull,
+  EvalFullResp (..),
+  evalFull',
   flushSessions,
   createDefinition,
   availableActions,
@@ -99,7 +101,6 @@ import Primer.App (
   EditAppM,
   Editable,
   EvalFullReq (..),
-  EvalFullResp (..),
   EvalReq (..),
   EvalResp (..),
   Level,
@@ -149,6 +150,7 @@ import Primer.Core (
   _typeMeta,
   _typeMetaLens,
  )
+import Primer.Core.DSL qualified as DSL
 import Primer.Database (
   OffsetLimit,
   OpStatus,
@@ -185,7 +187,8 @@ import Primer.Def (
   defAST,
  )
 import Primer.Def qualified as Def
-import Primer.Eval.Redex (EvalLog)
+import Primer.Eval.Redex (Dir (Chk), EvalLog)
+import Primer.EvalFull (TerminationBound)
 import Primer.JSON (
   CustomJSON (..),
   FromJSON,
@@ -359,7 +362,8 @@ data APILog
   | VariablesInScope (ReqResp (SessionId, (GVarName, ID)) (Either ProgError (([(TyVarName, Kind)], [(LVarName, Type' ())]), [(GVarName, Type' ())])))
   | GenerateNames (ReqResp (SessionId, ((GVarName, ID), Either (Maybe (Type' ())) (Maybe Kind))) (Either ProgError [Name]))
   | EvalStep (ReqResp (SessionId, EvalReq) (Either ProgError EvalResp))
-  | EvalFull (ReqResp (SessionId, EvalFullReq) (Either ProgError EvalFullResp))
+  | EvalFull (ReqResp (SessionId, EvalFullReq) (Either ProgError App.EvalFullResp))
+  | EvalFull' (ReqResp (ExprTreeOpts, SessionId, Maybe TerminationBound, GVarName) EvalFullResp)
   | FlushSessions (ReqResp () ())
   | CreateDef (ReqResp (SessionId, ExprTreeOpts, ModuleName, Maybe Text) Prog)
   | AvailableActions (ReqResp (SessionId, Level, Selection) [Available.Action])
@@ -500,11 +504,11 @@ renameSession = curry $ logAPI (noError RenameSession) $ \(sid, n) -> withSessio
 -- Run an 'EditAppM' action, using the given session ID to look up and
 -- pass in the app state for that session.
 liftEditAppM ::
-  forall m l a.
+  forall m l e a.
   (MonadIO m, MonadThrow m, MonadLog (WithSeverity l) m) =>
-  EditAppM (PureLog (WithSeverity l)) a ->
+  EditAppM (PureLog (WithSeverity l)) e a ->
   SessionId ->
-  PrimerM m (Either ProgError a)
+  PrimerM m (Either e a)
 liftEditAppM h sid = withSession' sid (EditApp $ runEditAppM h)
 
 -- Run a 'QueryAppM' action, using the given session ID to look up and
@@ -951,9 +955,54 @@ evalFull ::
   (MonadIO m, MonadThrow m, MonadAPILog l m, ConvertLogMessage EvalLog l) =>
   SessionId ->
   EvalFullReq ->
-  PrimerM m (Either ProgError EvalFullResp)
+  PrimerM m (Either ProgError App.EvalFullResp)
 evalFull = curry $ logAPI (leftResultError EvalFull) $ \(sid, req) ->
   liftEditAppM (handleEvalFullRequest req) sid
+
+-- | This type is the API's view of a 'App.EvalFullResp
+-- (this is expected to evolve as we flesh out the API)
+data EvalFullResp
+  = EvalFullRespTimedOut Tree
+  | EvalFullRespNormal Tree
+  deriving stock (Show, Generic)
+  deriving (ToJSON) via PrimerJSON EvalFullResp
+
+-- | Evaluate some top level definition in a program.
+--
+-- Note that this is a simplified version of 'evalFull',
+-- intended for non-Haskell clients
+evalFull' ::
+  forall m l.
+  (MonadIO m, MonadThrow m, MonadAPILog l m, ConvertLogMessage EvalLog l) =>
+  ExprTreeOpts ->
+  SessionId ->
+  Maybe TerminationBound ->
+  GVarName ->
+  PrimerM m EvalFullResp
+evalFull' = curry4 $ logAPI (noError EvalFull') $ \(opts, sid, lim, d) ->
+  noErr <$> liftEditAppM (q opts lim d) sid
+  where
+    q ::
+      ExprTreeOpts ->
+      Maybe TerminationBound ->
+      GVarName ->
+      EditAppM (PureLog (WithSeverity l)) Void EvalFullResp
+    q opts lim d = do
+      e <- DSL.gvar d
+      x <-
+        handleEvalFullRequest $
+          EvalFullReq
+            { evalFullReqExpr = e
+            , evalFullCxtDir = Chk
+            , evalFullMaxSteps = fromMaybe 10 lim
+            }
+      pure $ case x of
+        App.EvalFullRespTimedOut e' -> EvalFullRespTimedOut $ viewTreeExpr opts e'
+        App.EvalFullRespNormal e' -> EvalFullRespNormal $ viewTreeExpr opts e'
+    noErr :: Either Void a -> a
+    noErr = \case
+      Right a -> a
+      Left v -> absurd v
 
 flushSessions :: (MonadIO m, MonadAPILog l m) => PrimerM m ()
 flushSessions = logAPI' FlushSessions $ do

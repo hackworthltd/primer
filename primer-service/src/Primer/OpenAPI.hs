@@ -36,7 +36,19 @@ import Deriving.Aeson (AesonOptions (aesonOptions))
 import Optics (
   (?~),
  )
-import Primer.API (ApplyActionBody, Def, ExprTreeOpts, Module, NodeBody, NodeFlavor, NodeSelection (..), Prog, Selection (..), Tree)
+import Primer.API (
+  ApplyActionBody,
+  Def,
+  EvalFullResp,
+  ExprTreeOpts,
+  Module,
+  NodeBody,
+  NodeFlavor,
+  NodeSelection (..),
+  Prog,
+  Selection (..),
+  Tree,
+ )
 import Primer.Action.Available qualified as Available
 import Primer.App (NodeType)
 import Primer.App.Base (Level)
@@ -137,3 +149,5 @@ instance FromHttpApiData Level where
   parseQueryParam = parseQueryParamRead "level"
 parseQueryParamRead :: Read a => Text -> Text -> Either Text a
 parseQueryParamRead m t = maybeToEither ("unknown " <> m <> ": " <> t) $ readMaybe t
+
+deriving via PrimerJSON EvalFullResp instance ToSchema EvalFullResp
