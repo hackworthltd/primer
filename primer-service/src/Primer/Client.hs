@@ -77,10 +77,6 @@ apiClient = genericClient
 copySession :: SessionId -> ClientM SessionId
 copySession = apiClient // API.copySession
 
--- | As 'Primer.API.deleteSession'.
-deleteSession :: SessionId -> ClientM NoContent
-deleteSession = apiClient // API.deleteSession
-
 -- | As 'Primer.API.getVersion'.
 getVersion :: ClientM Text
 getVersion = apiClient // API.getVersion
@@ -100,6 +96,10 @@ listSessions inMemory pp = apiClient // API.sessionsAPI // API.getSessionList /:
 -- | As 'Primer.API.addSession'.
 addSession :: Text -> App -> ClientM SessionId
 addSession name app = apiClient // API.sessionsAPI // API.addSession /: name /: app
+
+-- | As 'Primer.API.deleteSession'.
+deleteSession :: SessionId -> ClientM NoContent
+deleteSession sid = apiClient // API.sessionsAPI // API.sessionAPI /: sid // API.deleteSession
 
 -- | As 'Primer.API.getProgram'.
 getProgram :: SessionId -> ClientM Prog

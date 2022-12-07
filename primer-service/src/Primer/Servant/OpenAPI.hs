@@ -61,7 +61,6 @@ type API = "openapi" :> NamedRoutes RootAPI
 
 data RootAPI mode = RootAPI
   { copySession :: CopySession mode
-  , deleteSession :: DeleteSession mode
   , getVersion :: GetVersion mode
   , sessionsAPI ::
       mode
@@ -88,7 +87,8 @@ type EvalFullStepLimit = 100
 
 -- | The session-specific bits of the API.
 data SessionAPI mode = SessionAPI
-  { getProgram ::
+  { deleteSession :: DeleteSession mode
+  , getProgram ::
       mode
         :- "program"
           :> Summary "Get the current program state"

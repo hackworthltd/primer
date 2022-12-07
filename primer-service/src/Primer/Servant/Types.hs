@@ -20,11 +20,10 @@ import Primer.Pagination (
   PaginationParams,
  )
 import Servant (
-  Delete,
+  DeleteNoContent,
   Description,
   Get,
   JSON,
-  NoContent,
   Post,
   Put,
   QueryFlag,
@@ -69,11 +68,9 @@ type CreateSession mode =
 
 type DeleteSession mode =
   mode
-    :- "delete-session"
-      :> Summary "Delete the specified session"
-      :> ReqBody '[JSON] SessionId
+    :- Summary "Delete the specified session"
       :> OperationId "deleteSession"
-      :> Delete '[JSON] NoContent
+      :> DeleteNoContent
 
 type GetSessionList mode =
   mode
