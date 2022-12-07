@@ -104,7 +104,6 @@ openAPIServer :: ConvertServerLogs l => OpenAPI.RootAPI (AsServerT (Primer l))
 openAPIServer =
   OpenAPI.RootAPI
     { OpenAPI.copySession = API.copySession
-    , OpenAPI.deleteSession = \sid -> API.deleteSession sid >> pure NoContent
     , OpenAPI.getVersion = API.getVersion
     , OpenAPI.sessionsAPI = openAPISessionsServer
     }
@@ -120,7 +119,8 @@ openAPISessionsServer =
 openAPISessionServer :: ConvertServerLogs l => SessionId -> OpenAPI.SessionAPI (AsServerT (Primer l))
 openAPISessionServer sid =
   OpenAPI.SessionAPI
-    { OpenAPI.getProgram = \patternsUnder -> API.getProgram' (ExprTreeOpts{patternsUnder}) sid
+    { OpenAPI.deleteSession = API.deleteSession sid >> pure NoContent
+    , OpenAPI.getProgram = \patternsUnder -> API.getProgram' (ExprTreeOpts{patternsUnder}) sid
     , OpenAPI.getSessionName = API.getSessionName sid
     , OpenAPI.setSessionName = renameSession sid
     , OpenAPI.createDefinition = \patternsUnder -> createDefinition sid ExprTreeOpts{patternsUnder}
@@ -144,7 +144,6 @@ apiServer :: ConvertServerLogs l => S.RootAPI (AsServerT (Primer l))
 apiServer =
   S.RootAPI
     { S.copySession = API.copySession
-    , S.deleteSession = \sid -> API.deleteSession sid >> pure NoContent
     , S.getVersion = API.getVersion
     , S.adminAPI = adminAPIServer
     , S.sessionsAPI = sessionsAPIServer
@@ -162,7 +161,8 @@ sessionsAPIServer =
 sessionAPIServer :: ConvertServerLogs l => SessionId -> S.SessionAPI (AsServerT (Primer l))
 sessionAPIServer sid =
   S.SessionAPI
-    { S.getProgram = API.getProgram sid
+    { S.deleteSession = API.deleteSession sid >> pure NoContent
+    , S.getProgram = API.getProgram sid
     , S.getApp = API.getApp sid
     , S.getSessionName = API.getSessionName sid
     , S.setSessionName = renameSession sid

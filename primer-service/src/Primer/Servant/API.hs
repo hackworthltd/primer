@@ -63,7 +63,6 @@ type API = "api" :> NamedRoutes RootAPI
 
 data RootAPI mode = RootAPI
   { copySession :: CopySession mode
-  , deleteSession :: DeleteSession mode
   , getVersion :: GetVersion mode
   , adminAPI ::
       mode
@@ -117,7 +116,8 @@ data SessionsAPI mode = SessionsAPI
 
 -- | The per-session bits of the API.
 data SessionAPI mode = SessionAPI
-  { getProgram ::
+  { deleteSession :: DeleteSession mode
+  , getProgram ::
       mode
         :- "program"
           :> Summary "Get the current program program state"

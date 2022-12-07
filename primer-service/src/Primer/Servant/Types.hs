@@ -69,9 +69,7 @@ type CreateSession mode =
 
 type DeleteSession mode =
   mode
-    :- "delete-session"
-      :> Summary "Delete the specified session"
-      :> ReqBody '[JSON] SessionId
+    :- Summary "Delete the specified session"
       :> OperationId "deleteSession"
       :> Delete '[JSON] NoContent
 
