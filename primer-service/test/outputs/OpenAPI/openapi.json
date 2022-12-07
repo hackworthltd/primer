@@ -662,10 +662,7 @@
                     }
                 ],
                 "responses": {
-                    "200": {
-                        "content": {
-                            "application/json;charset=utf-8": {}
-                        },
+                    "204": {
                         "description": ""
                     },
                     "404": {
