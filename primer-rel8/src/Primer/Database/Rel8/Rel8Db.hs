@@ -3,14 +3,14 @@
 {-# LANGUAGE UndecidableInstances #-}
 
 -- |
---Module      : Primer.Database.Rel8.Rel8Db
---Description : A database adapter for Primer using "Rel8".
---Copyright   : (c) 2022, Hackworth Ltd
---License     : AGPL 3.0 or later
---Stability   : experimental
---Portability : portable
+-- Module      : Primer.Database.Rel8.Rel8Db
+-- Description : A database adapter for Primer using "Rel8".
+-- Copyright   : (c) 2022, Hackworth Ltd
+-- License     : AGPL 3.0 or later
+-- Stability   : experimental
+-- Portability : portable
 --
---A "Rel8"- and @Hasql@-based implementation of 'MonadDb'.
+-- A "Rel8"- and @Hasql@-based implementation of 'MonadDb'.
 module Primer.Database.Rel8.Rel8Db (
   -- * The "Rel8" database adapter
   MonadRel8Db,

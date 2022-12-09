@@ -55,7 +55,7 @@
 
       # Fourmolu updates often alter formatting arbitrarily, and we want to
       # have more control over this.
-      fourmoluVersion = "0.8.2.0";
+      fourmoluVersion = "0.10.1.0";
 
       forAllSupportedSystems = flake-utils.lib.eachSystem [
         "x86_64-linux"
@@ -183,6 +183,7 @@
                 tools = {
                   ghcid = "latest";
                   haskell-language-server = "latest";
+                  implicit-hie = "latest";
 
                   cabal = "latest";
                   hlint = "latest";
@@ -227,8 +228,6 @@
                   restore-local-db
                   connect-local-db
                   delete-all-local-sessions
-
-                  haskellPackages.implicit-hie
                 ]);
 
                 shellHook = ''

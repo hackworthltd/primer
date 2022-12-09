@@ -779,49 +779,51 @@ viewTreeExpr opts@ExprTreeOpts{patternsUnder} e0 = case e0 of
                 bs
             )
       viewCaseBranch i (CaseBranch con binds rhs) =
-        let -- these IDs will not clash with any others in the tree,
-            -- since node IDs in the input expression are unique,
-            -- and don't contain non-numerical characters
-            boxId = nodeId <> "P" <> show i
-            patternRootId = boxId <> "B"
-            patternBindAppID id = show id <> "A"
-         in Tree
-              { nodeId = boxId
-              , flavor = FlavorPattern
-              , body =
-                  BoxBody $
-                    foldl
-                      ( \t (Bind m v) ->
-                          let id = m ^. _id
-                           in Tree
-                                { nodeId = patternBindAppID id
-                                , flavor = FlavorPatternApp
-                                , body = NoBody
-                                , childTrees =
-                                    [ t
-                                    , Tree
-                                        { nodeId = show id
-                                        , flavor = FlavorPatternBind
-                                        , body = TextBody $ unName $ unLocalName v
-                                        , childTrees = []
-                                        , rightChild = Nothing
-                                        }
-                                    ]
-                                , rightChild = Nothing
-                                }
-                      )
-                      ( Tree
-                          { nodeId = patternRootId
-                          , flavor = FlavorPatternCon
-                          , body = TextBody $ showGlobal con
-                          , childTrees = []
-                          , rightChild = Nothing
-                          }
-                      )
-                      binds
-              , childTrees = [viewTreeExpr opts rhs]
-              , rightChild = Nothing
-              }
+        let
+          -- these IDs will not clash with any others in the tree,
+          -- since node IDs in the input expression are unique,
+          -- and don't contain non-numerical characters
+          boxId = nodeId <> "P" <> show i
+          patternRootId = boxId <> "B"
+          patternBindAppID id = show id <> "A"
+         in
+          Tree
+            { nodeId = boxId
+            , flavor = FlavorPattern
+            , body =
+                BoxBody $
+                  foldl
+                    ( \t (Bind m v) ->
+                        let id = m ^. _id
+                         in Tree
+                              { nodeId = patternBindAppID id
+                              , flavor = FlavorPatternApp
+                              , body = NoBody
+                              , childTrees =
+                                  [ t
+                                  , Tree
+                                      { nodeId = show id
+                                      , flavor = FlavorPatternBind
+                                      , body = TextBody $ unName $ unLocalName v
+                                      , childTrees = []
+                                      , rightChild = Nothing
+                                      }
+                                  ]
+                              , rightChild = Nothing
+                              }
+                    )
+                    ( Tree
+                        { nodeId = patternRootId
+                        , flavor = FlavorPatternCon
+                        , body = TextBody $ showGlobal con
+                        , childTrees = []
+                        , rightChild = Nothing
+                        }
+                    )
+                    binds
+            , childTrees = [viewTreeExpr opts rhs]
+            , rightChild = Nothing
+            }
   PrimCon _ pc ->
     Tree
       { nodeId
