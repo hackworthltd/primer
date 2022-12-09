@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1670607171408,
+  "lastUpdate": 1670612145467,
   "repoUrl": "https://github.com/hackworthltd/primer",
   "entries": {
     "Primer benchmarks": [
@@ -2234,6 +2234,146 @@ window.BENCHMARK_DATA = {
             "value": 646780461.7142856,
             "unit": "allocated/iter",
             "extra": "R²: 0.9999999999983502"
+          },
+          {
+            "name": "evalTestM/discard logs/mapEven 10: numGcs",
+            "value": 155.22857142857146,
+            "unit": "numGcs/iter",
+            "extra": "R²: 0.9999990062398538"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "src@drewhess.com",
+            "name": "Drew Hess",
+            "username": "dhess"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "dc3a5f72eb8154e5b80dc615b9217d2558e72c21",
+          "message": "Merge pull request #810 from hackworthltd/dhess/bump-hackage\n\nchore(hackage): Bump index-state.",
+          "timestamp": "2022-12-09T18:02:52Z",
+          "tree_id": "b81a45d7da5e0ca63f6f7bb8ac058faefbbbfe0f",
+          "url": "https://github.com/hackworthltd/primer/commit/dc3a5f72eb8154e5b80dc615b9217d2558e72c21"
+        },
+        "date": 1670612144385,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "evalTestM/pure logs/mapEven 1: mean time",
+            "value": 0.008587808396821715,
+            "unit": "mean time",
+            "range": 0.00007206591977934296
+          },
+          {
+            "name": "evalTestM/pure logs/mapEven 1: outlier variance",
+            "value": 0.0302734375,
+            "unit": "outlier variance"
+          },
+          {
+            "name": "evalTestM/pure logs/mapEven 1: time",
+            "value": 0.008683133492572048,
+            "unit": "time/iter",
+            "extra": "R²: 0.999758358766013"
+          },
+          {
+            "name": "evalTestM/pure logs/mapEven 1: allocated",
+            "value": 21688998.656066906,
+            "unit": "allocated/iter",
+            "extra": "R²: 0.9999999999535633"
+          },
+          {
+            "name": "evalTestM/pure logs/mapEven 1: numGcs",
+            "value": 5.205544740551791,
+            "unit": "numGcs/iter",
+            "extra": "R²: 0.9999751028894165"
+          },
+          {
+            "name": "evalTestM/pure logs/mapEven 10: mean time",
+            "value": 0.261589559370024,
+            "unit": "mean time",
+            "range": 0.00043646310647006025
+          },
+          {
+            "name": "evalTestM/pure logs/mapEven 10: outlier variance",
+            "value": 0.15999999999999998,
+            "unit": "outlier variance"
+          },
+          {
+            "name": "evalTestM/pure logs/mapEven 10: time",
+            "value": 0.26082645480000793,
+            "unit": "time/iter",
+            "extra": "R²: 0.9999947162234146"
+          },
+          {
+            "name": "evalTestM/pure logs/mapEven 10: allocated",
+            "value": 744134392,
+            "unit": "allocated/iter",
+            "extra": "R²: 0.9999999999977068"
+          },
+          {
+            "name": "evalTestM/pure logs/mapEven 10: numGcs",
+            "value": 178.7,
+            "unit": "numGcs/iter",
+            "extra": "R²: 0.9999990605541729"
+          },
+          {
+            "name": "evalTestM/discard logs/mapEven 1: mean time",
+            "value": 0.007552068976101863,
+            "unit": "mean time",
+            "range": 0.0000637068136609312
+          },
+          {
+            "name": "evalTestM/discard logs/mapEven 1: outlier variance",
+            "value": 0.02854671280276817,
+            "unit": "outlier variance"
+          },
+          {
+            "name": "evalTestM/discard logs/mapEven 1: time",
+            "value": 0.0075854921010917176,
+            "unit": "time/iter",
+            "extra": "R²: 0.9997488581520372"
+          },
+          {
+            "name": "evalTestM/discard logs/mapEven 1: allocated",
+            "value": 19325748.339687943,
+            "unit": "allocated/iter",
+            "extra": "R²: 0.9999999999532008"
+          },
+          {
+            "name": "evalTestM/discard logs/mapEven 1: numGcs",
+            "value": 4.638790198972997,
+            "unit": "numGcs/iter",
+            "extra": "R²: 0.9999668181842626"
+          },
+          {
+            "name": "evalTestM/discard logs/mapEven 10: mean time",
+            "value": 0.22356858432225912,
+            "unit": "mean time",
+            "range": 0.00023668929848935115
+          },
+          {
+            "name": "evalTestM/discard logs/mapEven 10: outlier variance",
+            "value": 0.1388888888888888,
+            "unit": "outlier variance"
+          },
+          {
+            "name": "evalTestM/discard logs/mapEven 10: time",
+            "value": 0.2235962883427809,
+            "unit": "time/iter",
+            "extra": "R²: 0.9999958358486553"
+          },
+          {
+            "name": "evalTestM/discard logs/mapEven 10: allocated",
+            "value": 646780352,
+            "unit": "allocated/iter",
+            "extra": "R²: 0.9999999999973144"
           },
           {
             "name": "evalTestM/discard logs/mapEven 10: numGcs",
