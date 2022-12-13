@@ -21,6 +21,11 @@ import Data.OpenApi (OpenApi)
 import Data.Streaming.Network.Internal (HostPreference (HostIPv4Only))
 import Data.Text.Lazy qualified as LT (fromStrict)
 import Data.Text.Lazy.Encoding qualified as LT (encodeUtf8)
+import Network.HTTP.Types.Header (hAuthorization)
+import Network.HTTP.Types.Method (
+  StdMethod (DELETE, OPTIONS, PUT),
+  renderStdMethod,
+ )
 import Network.Wai qualified as WAI
 import Network.Wai.Handler.Warp (
   defaultSettings,
@@ -221,8 +226,8 @@ server =
 apiCors :: CorsResourcePolicy
 apiCors =
   simpleCorsResourcePolicy
-    { corsMethods = simpleMethods <> ["PUT", "OPTIONS"]
-    , corsRequestHeaders = simpleHeaders <> ["Content-Type", "Authorization"]
+    { corsMethods = simpleMethods <> (renderStdMethod <$> [PUT, OPTIONS, DELETE])
+    , corsRequestHeaders = simpleHeaders <> [hAuthorization]
     }
 
 serve ::
