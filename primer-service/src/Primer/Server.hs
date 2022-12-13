@@ -226,7 +226,7 @@ apiCors :: CorsResourcePolicy
 apiCors =
   simpleCorsResourcePolicy
     { corsMethods = simpleMethods <> (renderStdMethod <$> [PUT, OPTIONS])
-    , corsRequestHeaders = simpleHeaders <> ["Content-Type", "Authorization"]
+    , corsRequestHeaders = simpleHeaders <> ["Authorization"]
     }
 
 serve ::
