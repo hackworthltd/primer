@@ -23,7 +23,7 @@ import Data.Text.Lazy qualified as LT (fromStrict)
 import Data.Text.Lazy.Encoding qualified as LT (encodeUtf8)
 import Network.HTTP.Types.Header (hAuthorization)
 import Network.HTTP.Types.Method (
-  StdMethod (OPTIONS, PUT),
+  StdMethod (DELETE, OPTIONS, PUT),
   renderStdMethod,
  )
 import Network.Wai qualified as WAI
@@ -226,7 +226,7 @@ server =
 apiCors :: CorsResourcePolicy
 apiCors =
   simpleCorsResourcePolicy
-    { corsMethods = simpleMethods <> (renderStdMethod <$> [PUT, OPTIONS])
+    { corsMethods = simpleMethods <> (renderStdMethod <$> [PUT, OPTIONS, DELETE])
     , corsRequestHeaders = simpleHeaders <> [hAuthorization]
     }
 
