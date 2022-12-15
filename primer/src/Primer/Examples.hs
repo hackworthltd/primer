@@ -1,16 +1,16 @@
 -- |
---Module      : Primer.Examples
---Description : Example Primer types, terms, and programs.
---Copyright   : (c) 2022, Hackworth Ltd
---License     : AGPL 3.0 or later
---Stability   : experimental
---Portability : portable
+-- Module      : Primer.Examples
+-- Description : Example Primer types, terms, and programs.
+-- Copyright   : (c) 2022, Hackworth Ltd
+-- License     : AGPL 3.0 or later
+-- Stability   : experimental
+-- Portability : portable
 --
---Examples of Primer types, terms, and programs, written in Primer's
---Haskell DSL.
+-- Examples of Primer types, terms, and programs, written in Primer's
+-- Haskell DSL.
 --
---Because it contains many names that conflict with common Haskell
---names, this module is intended to be imported qualified.
+-- Because it contains many names that conflict with common Haskell
+-- names, this module is intended to be imported qualified.
 module Primer.Examples (
   -- * Functions as top-level definitions.
 

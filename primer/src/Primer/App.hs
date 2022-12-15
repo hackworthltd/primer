@@ -1190,15 +1190,17 @@ checkProgWellFormed ::
   Prog ->
   m Prog
 checkProgWellFormed p =
-  let -- We are careful to turn smartholes off for this check, as
-      -- we want to return an error if there is a problem, rather
-      -- than try to correct it.
-      p' = p{progSmartHoles = NoSmartHoles}
-   in do
-        checkedProg <- tcWholeProgWithImports p'
-        -- Ideally, we would do an additional check here to
-        -- ensure that the 'ID' is unique across all modules.
-        pure $ checkedProg{progSmartHoles = progSmartHoles p}
+  let
+    -- We are careful to turn smartholes off for this check, as
+    -- we want to return an error if there is a problem, rather
+    -- than try to correct it.
+    p' = p{progSmartHoles = NoSmartHoles}
+   in
+    do
+      checkedProg <- tcWholeProgWithImports p'
+      -- Ideally, we would do an additional check here to
+      -- ensure that the 'ID' is unique across all modules.
+      pure $ checkedProg{progSmartHoles = progSmartHoles p}
 
 -- | Construct a new, empty expression
 newExpr :: MonadFresh ID m => m Expr
