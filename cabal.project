@@ -18,4 +18,5 @@ package primer
 package primer-service
   test-options: "--size-cutoff=32768"
 
-allow-newer: logging-effect:text
+allow-newer:
+  logging-effect:text, logging-effect:base, protolude:base, protolude:ghc-prim, rel8:base, hedgehog-classes:base, servant-openapi3:Cabal
