@@ -49,6 +49,7 @@ module Primer.API (
   evalFull',
   flushSessions,
   createDefinition,
+  createTypeDef,
   availableActions,
   actionOptions,
   applyActionNoInput,
@@ -144,6 +145,7 @@ import Primer.Core (
   TyVarName,
   Type,
   Type' (..),
+  ValConName,
   getID,
   moduleNamePretty,
   unLocalName,
@@ -203,6 +205,7 @@ import Primer.Log (
 import Primer.Module (moduleDefsQualified, moduleName, moduleTypesQualified)
 import Primer.Name (Name, unName)
 import Primer.Primitives (primDefType)
+import Primer.TypeDef (ASTTypeDef (ASTTypeDef), ValCon (ValCon))
 import StmContainers.Map qualified as StmMap
 
 -- | The API environment.
@@ -246,6 +249,7 @@ data PrimerErr
   | UnknownDef GVarName
   | UnexpectedPrimDef GVarName
   | AddDefError ModuleName (Maybe Text) ProgError
+  | AddTypeDefError TyConName [ValConName] ProgError
   | ActionOptionsNoID (Maybe (NodeType, ID))
   | ToProgActionError Available.Action ActionError
   | ApplyActionError [ProgAction] ProgError
@@ -366,6 +370,7 @@ data APILog
   | EvalFull' (ReqResp (ExprTreeOpts, SessionId, Maybe TerminationBound, GVarName) EvalFullResp)
   | FlushSessions (ReqResp () ())
   | CreateDef (ReqResp (SessionId, ExprTreeOpts, ModuleName, Maybe Text) Prog)
+  | CreateTypeDef (ReqResp (SessionId, ExprTreeOpts, TyConName, [ValConName]) Prog)
   | AvailableActions (ReqResp (SessionId, Level, Selection) [Available.Action])
   | ActionOptions (ReqResp (SessionId, Level, Selection, Available.InputAction) Available.Options)
   | ApplyActionNoInput (ReqResp (ExprTreeOpts, SessionId, Selection, Available.NoInputAction) Prog)
@@ -1024,6 +1029,20 @@ createDefinition =
     logAPI (noError CreateDef) \(sid, opts, moduleName, mDefName) ->
       edit sid (App.Edit [App.CreateDef moduleName mDefName])
         >>= either (throwM . AddDefError moduleName mDefName) (pure . viewProg opts)
+
+-- For now, only enumeration types
+createTypeDef ::
+  (MonadIO m, MonadThrow m, MonadAPILog l m) =>
+  SessionId ->
+  ExprTreeOpts ->
+  TyConName ->
+  [ValConName] ->
+  PrimerM m Prog
+createTypeDef =
+  curry4 $
+    logAPI (noError CreateTypeDef) \(sid, opts, tyconName, valcons) ->
+      edit sid (App.Edit [App.AddTypeDef tyconName $ ASTTypeDef [] (map (`ValCon` []) valcons) []])
+        >>= either (throwM . AddTypeDefError tyconName valcons) (pure . viewProg opts)
 
 availableActions ::
   (MonadIO m, MonadThrow m, MonadAPILog l m) =>

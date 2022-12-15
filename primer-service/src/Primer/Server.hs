@@ -19,6 +19,7 @@ import Control.Monad.Log (LoggingT, WithSeverity, runLoggingT)
 import Control.Monad.Log qualified as Log
 import Data.OpenApi (OpenApi)
 import Data.Streaming.Network.Internal (HostPreference (HostIPv4Only))
+import Data.Text qualified as T
 import Data.Text.Lazy qualified as LT (fromStrict)
 import Data.Text.Lazy.Encoding qualified as LT (encodeUtf8)
 import Network.HTTP.Types.Header (hAuthorization)
@@ -55,6 +56,7 @@ import Primer.API (
   applyActionNoInput,
   availableActions,
   createDefinition,
+  createTypeDef,
   edit,
   evalFull',
   listSessions,
@@ -78,6 +80,7 @@ import Primer.Log (ConvertLogMessage, logWarning)
 import Primer.Name (unsafeMkName)
 import Primer.Pagination (pagedDefault)
 import Primer.Servant.API qualified as S
+import Primer.Servant.OpenAPI (CreateTypeDefBody (CreateTypeDefBody))
 import Primer.Servant.OpenAPI qualified as OpenAPI
 import Servant (
   Handler (Handler),
@@ -129,8 +132,20 @@ openAPISessionServer sid =
     , OpenAPI.getSessionName = API.getSessionName sid
     , OpenAPI.setSessionName = renameSession sid
     , OpenAPI.createDefinition = \patternsUnder -> createDefinition sid ExprTreeOpts{patternsUnder}
+    , OpenAPI.typeDef = openAPITypeDefServer sid
     , OpenAPI.actions = openAPIActionServer sid
     , OpenAPI.evalFull = \patternsUnder -> evalFull' (ExprTreeOpts{patternsUnder}) sid . fmap getFinite
+    }
+
+openAPITypeDefServer :: ConvertServerLogs l => SessionId -> OpenAPI.TypeDefAPI (AsServerT (Primer l))
+openAPITypeDefServer sid =
+  OpenAPI.TypeDefAPI
+    { create = \patternsUnder CreateTypeDefBody{moduleName, typeName, ctors} ->
+        createTypeDef
+          sid
+          (ExprTreeOpts{patternsUnder})
+          (qualifyName moduleName $ unsafeMkName typeName)
+          (map (qualifyName moduleName . unsafeMkName) ctors)
     }
 
 openAPIActionServer :: ConvertServerLogs l => SessionId -> OpenAPI.ActionAPI (AsServerT (Primer l))
@@ -281,6 +296,16 @@ serve ss q v port logger = do
             s = encode $ case md of
               Just d -> globalNamePretty (qualifyName m $ unsafeMkName d)
               Nothing -> moduleNamePretty m
+        AddTypeDefError tc vcs pe ->
+          err400
+            { errBody =
+                "Error while adding type definition ("
+                  <> encode (globalNamePretty tc)
+                  <> " with constructors "
+                  <> encode (T.intercalate ", " $ globalNamePretty <$> vcs)
+                  <> "): "
+                  <> show pe
+            }
         ActionOptionsNoID id -> err404{errBody = "ID not found for action input options: " <> show id}
         ApplyActionError as pe -> err400{errBody = "Error while applying actions (" <> show as <> "): " <> show pe}
         ToProgActionError a ae -> err400{errBody = "Error while converting action (" <> show a <> "): " <> show ae}

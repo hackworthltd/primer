@@ -6,6 +6,8 @@ module Primer.Servant.OpenAPI (
   RootAPI (..),
   SessionsAPI (..),
   SessionAPI (..),
+  TypeDefAPI (..),
+  CreateTypeDefBody (..),
   ActionAPI (..),
   ApplyActionAPI (..),
   Spec,
@@ -13,7 +15,7 @@ module Primer.Servant.OpenAPI (
 
 import Foreword
 
-import Data.OpenApi (OpenApi)
+import Data.OpenApi (OpenApi, ToSchema)
 import Primer.API (ApplyActionBody, EvalFullResp, Prog, Selection)
 import Primer.Action.Available qualified as Available
 import Primer.App (Level)
@@ -22,6 +24,7 @@ import Primer.Database (
   SessionId,
  )
 import Primer.Finite (Finite)
+import Primer.JSON (CustomJSON (CustomJSON), FromJSON, PrimerJSON, ToJSON)
 import Primer.OpenAPI ()
 import Primer.Servant.Types (
   CopySession,
@@ -106,6 +109,7 @@ data SessionAPI mode = SessionAPI
           :> QueryParam "name" Text
           :> OperationId "createDefinition"
           :> Post '[JSON] Prog
+  , typeDef :: mode :- "typedef" :> NamedRoutes TypeDefAPI
   , actions ::
       mode
         :- "action"
@@ -121,6 +125,26 @@ data SessionAPI mode = SessionAPI
           :> Post '[JSON] EvalFullResp
   }
   deriving (Generic)
+
+newtype TypeDefAPI mode = TypeDefAPI
+  { create ::
+      mode
+        :- Summary "Create a new type definition"
+          :> OperationId "createTypeDef"
+          :> QueryFlag "patternsUnder"
+          :> ReqBody '[JSON] CreateTypeDefBody
+          :> Post '[JSON] Prog
+  }
+  deriving (Generic)
+
+data CreateTypeDefBody = CreateTypeDefBody
+  { moduleName :: ModuleName
+  , typeName :: Text
+  , ctors :: [Text]
+  }
+  deriving stock (Generic, Show)
+  deriving (FromJSON, ToJSON) via PrimerJSON CreateTypeDefBody
+  deriving (ToSchema) via PrimerJSON CreateTypeDefBody
 
 data ActionAPI mode = ActionAPI
   { available ::
