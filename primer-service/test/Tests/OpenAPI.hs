@@ -63,7 +63,7 @@ import Primer.Gen.Core.Raw (
 import Primer.Name (Name)
 import Primer.OpenAPI ()
 import Primer.Pagination (NonNeg, Paginated (Paginated), PaginatedMeta (..), Positive, mkNonNeg, mkPositive)
-import Primer.Servant.OpenAPI (API)
+import Primer.Servant.OpenAPI (API, CreateTypeDefBody (CreateTypeDefBody))
 import Primer.Server (openAPIInfo)
 import Servant.OpenApi.Test (validateEveryToJSON)
 import Tasty (Property, property)
@@ -298,3 +298,5 @@ instance Arbitrary GVarName where
   arbitrary = hedgehog genGVarName
 instance Arbitrary EvalFullResp where
   arbitrary = elements [EvalFullRespNormal, EvalFullRespTimedOut] <*> hedgehog (evalExprGen 0 genExprTree)
+instance Arbitrary CreateTypeDefBody where
+  arbitrary = CreateTypeDefBody <$> arbitrary <*> arbitrary <*> arbitrary

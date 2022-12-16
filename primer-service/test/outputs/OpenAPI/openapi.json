@@ -57,6 +57,32 @@
                 ],
                 "type": "object"
             },
+            "CreateTypeDefBody": {
+                "properties": {
+                    "ctors": {
+                        "items": {
+                            "type": "string"
+                        },
+                        "type": "array"
+                    },
+                    "moduleName": {
+                        "items": {
+                            "type": "string"
+                        },
+                        "minItems": 1,
+                        "type": "array"
+                    },
+                    "typeName": {
+                        "type": "string"
+                    }
+                },
+                "required": [
+                    "moduleName",
+                    "typeName",
+                    "ctors"
+                ],
+                "type": "object"
+            },
             "Def": {
                 "properties": {
                     "name": {
@@ -1236,6 +1262,60 @@
                     }
                 },
                 "summary": "Get the current program state"
+            }
+        },
+        "/openapi/sessions/{sessionId}/typedef": {
+            "post": {
+                "operationId": "createTypeDef",
+                "parameters": [
+                    {
+                        "description": "The session ID",
+                        "in": "path",
+                        "name": "sessionId",
+                        "required": true,
+                        "schema": {
+                            "format": "uuid",
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "allowEmptyValue": true,
+                        "in": "query",
+                        "name": "patternsUnder",
+                        "schema": {
+                            "default": false,
+                            "type": "boolean"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json;charset=utf-8": {
+                            "schema": {
+                                "$ref": "#/components/schemas/CreateTypeDefBody"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json;charset=utf-8": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Prog"
+                                }
+                            }
+                        },
+                        "description": ""
+                    },
+                    "400": {
+                        "description": "Invalid `body` or `patternsUnder`"
+                    },
+                    "404": {
+                        "description": "`sessionId` not found"
+                    }
+                },
+                "summary": "Create a new type definition"
             }
         },
         "/openapi/version": {
