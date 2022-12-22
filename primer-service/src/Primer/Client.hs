@@ -86,8 +86,8 @@ flushSessions :: ClientM ()
 flushSessions = void $ apiClient // API.adminAPI // API.flushSessions
 
 -- | As 'Primer.API.createSession'.
-createSession :: ClientM SessionId
-createSession = apiClient // API.sessionsAPI // API.createSession
+createSession :: Text -> ClientM SessionId
+createSession name = apiClient // API.sessionsAPI // API.createSession /: name
 
 -- | As 'Primer.API.listSessions'.
 listSessions :: Bool -> Pagination -> ClientM (Paginated Session)

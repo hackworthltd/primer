@@ -656,7 +656,17 @@
                 "summary": "Get the list of sessions"
             },
             "post": {
+                "description": "Create a new session with the name provided in the request body, and return the new session's ID. Note that the new session's actual name may differ from the name provided in the body, if the requested name is invalid.",
                 "operationId": "createSession",
+                "requestBody": {
+                    "content": {
+                        "application/json;charset=utf-8": {
+                            "schema": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                },
                 "responses": {
                     "200": {
                         "content": {
@@ -667,6 +677,9 @@
                             }
                         },
                         "description": ""
+                    },
+                    "400": {
+                        "description": "Invalid `body`"
                     }
                 },
                 "summary": "Create a new session and return its ID"
