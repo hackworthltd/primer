@@ -63,6 +63,12 @@ type GetVersion mode =
 type CreateSession mode =
   mode
     :- Summary "Create a new session and return its ID"
+      :> Description
+          "Create a new session with the name provided in the request body, \
+          \and return the new session's ID. Note that the new session's actual \
+          \name may differ from the name provided in the body, if the requested \
+          \name is invalid."
+      :> ReqBody '[JSON] Text
       :> OperationId "createSession"
       :> Post '[JSON] SessionId
 
