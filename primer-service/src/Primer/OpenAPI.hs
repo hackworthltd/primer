@@ -42,6 +42,7 @@ import Primer.API (
   EvalFullResp,
   ExprTreeOpts,
   Module,
+  NewSessionReq,
   NodeBody,
   NodeFlavor,
   NodeSelection (..),
@@ -138,6 +139,8 @@ deriving via PrimerJSON Selection instance ToSchema Selection
 deriving via PrimerJSON NodeSelection instance ToSchema NodeSelection
 deriving via PrimerJSON NodeType instance ToSchema NodeType
 deriving via PrimerJSON Level instance ToSchema Level
+deriving via PrimerJSON NewSessionReq instance ToSchema NewSessionReq
+
 deriving instance ToParamSchema Available.NoInputAction
 instance FromHttpApiData Available.NoInputAction where
   parseQueryParam = parseQueryParamRead "action"

@@ -11,6 +11,9 @@ module Primer.Servant.Types (
 
 import Foreword
 
+import Primer.API (
+  NewSessionReq,
+ )
 import Primer.Database (
   Session,
   SessionId,
@@ -68,7 +71,7 @@ type CreateSession mode =
           \and return the new session's ID. Note that the new session's actual \
           \name may differ from the name provided in the body, if the requested \
           \name is invalid."
-      :> ReqBody '[JSON] Text
+      :> ReqBody '[JSON] NewSessionReq
       :> OperationId "createSession"
       :> Post '[JSON] SessionId
 

@@ -25,6 +25,9 @@ module Primer.Client (
 import Foreword
 
 import Data.String (String)
+import Primer.API (
+  NewSessionReq,
+ )
 import Primer.App (
   App,
   EvalFullReq,
@@ -86,8 +89,8 @@ flushSessions :: ClientM ()
 flushSessions = void $ apiClient // API.adminAPI // API.flushSessions
 
 -- | As 'Primer.API.createSession'.
-createSession :: Text -> ClientM SessionId
-createSession name = apiClient // API.sessionsAPI // API.createSession /: name
+createSession :: NewSessionReq -> ClientM SessionId
+createSession req = apiClient // API.sessionsAPI // API.createSession /: req
 
 -- | As 'Primer.API.listSessions'.
 listSessions :: Bool -> Pagination -> ClientM (Paginated Session)

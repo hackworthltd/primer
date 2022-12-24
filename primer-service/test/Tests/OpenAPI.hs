@@ -28,6 +28,7 @@ import Primer.API (
   Def (Def),
   EvalFullResp (EvalFullRespNormal, EvalFullRespTimedOut),
   Module (Module),
+  NewSessionReq (..),
   NodeBody (BoxBody, NoBody, TextBody),
   NodeFlavor,
   NodeSelection (..),
@@ -300,3 +301,5 @@ instance Arbitrary EvalFullResp where
   arbitrary = elements [EvalFullRespNormal, EvalFullRespTimedOut] <*> hedgehog (evalExprGen 0 genExprTree)
 instance Arbitrary CreateTypeDefBody where
   arbitrary = CreateTypeDefBody <$> arbitrary <*> arbitrary <*> arbitrary
+instance Arbitrary NewSessionReq where
+  arbitrary = NewSessionReq <$> arbitrary
