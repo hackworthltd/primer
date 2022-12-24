@@ -8,6 +8,7 @@ import Data.Text.Lazy qualified as TL
 import Data.UUID.V4 (nextRandom)
 import Hedgehog hiding (Property, property)
 import Primer.API (
+  NewSessionReq (..),
   PrimerErr,
   addSession,
   copySession,
@@ -172,7 +173,7 @@ test_newSession_roundtrip =
     runAPI $ do
       let step = liftIO . step'
       step "Create a new session"
-      sid <- newSession "new session"
+      sid <- newSession $ NewSessionReq "new session"
       step "Get its name"
       name <- getSessionName sid
       name @?= "new session"
@@ -191,13 +192,14 @@ test_newSession_duplicate_names =
     runAPI $ do
       let step = liftIO . step'
       let sessionName = "my new session"
+      let newSessionReq = NewSessionReq sessionName
       step "Create a new session"
-      sid <- newSession sessionName
+      sid <- newSession newSessionReq
       step "Get its name"
       name <- getSessionName sid
       name @?= sessionName
       step "Create a new session with the same name as the first"
-      sid2 <- newSession sessionName
+      sid2 <- newSession newSessionReq
       step "Get its name"
       name2 <- getSessionName sid2
       name2 @?= sessionName
@@ -208,12 +210,12 @@ test_newSession_invalid_names =
     runAPI $ do
       let step = liftIO . step'
       step "Create a new session with an empty name"
-      sid <- newSession ""
+      sid <- newSession $ NewSessionReq ""
       step "Get its actual name"
       name <- getSessionName sid
       name @?= fromSessionName defaultSessionName
       step "Create a new session with a name full of whitespace"
-      sid2 <- newSession "      \t  \n"
+      sid2 <- newSession $ NewSessionReq "      \t  \n"
       step "Get its actual name"
       name2 <- getSessionName sid2
       name2 @?= fromSessionName defaultSessionName
@@ -224,18 +226,18 @@ test_newSession_modified_names =
     runAPI $ do
       let step = liftIO . step'
       step "Create a new session with a name with leading whitespace"
-      sid <- newSession "    this is a session name"
+      sid <- newSession $ NewSessionReq "    this is a session name"
       step "Get its actual name"
       name <- getSessionName sid
       name @?= "this is a session name"
       step "Create a new session with a name with an embedded newline"
-      sid2 <- newSession "this is\na session name"
+      sid2 <- newSession $ NewSessionReq "this is\na session name"
       step "Get its actual name"
       name2 <- getSessionName sid2
       name2 @?= "this is"
       let tooLong = toS . concat $ replicate 7 ['0' .. '9']
       step "Create a new session with a name that is too long"
-      sid3 <- newSession tooLong
+      sid3 <- newSession $ NewSessionReq tooLong
       step "Get its actual name"
       name3 <- getSessionName sid3
       name3 @?= Text.take 64 tooLong
@@ -267,7 +269,7 @@ test_listSessions =
       total s0 @?= 0
       let m :: Int = 107
       step $ "Create " <> show m <> " sessions"
-      ss <- forM ([1 .. m] :: [Int]) $ const $ newSession "new session"
+      ss <- forM ([1 .. m] :: [Int]) $ const $ newSession $ NewSessionReq "new session"
       step "List all the sessions"
       ss' <- listSessions False $ OL{offset = 0, limit = Nothing}
       total ss' @?= m
@@ -372,7 +374,7 @@ test_renameSession =
     runAPI $ do
       let step = liftIO . step'
       step "Create a session"
-      sid <- newSession "testing"
+      sid <- newSession $ NewSessionReq "testing"
       step "Change its name"
       name <- renameSession sid "new name"
       step "Get the session's name"
@@ -394,7 +396,7 @@ test_renameSession_invalid_name =
     runAPI $ do
       let step = liftIO . step'
       step "rename a session"
-      sid <- newSession "xyz"
+      sid <- newSession $ NewSessionReq "xyz"
       void $ renameSession sid "abcd"
       step "rename it again with an invalid name"
       name <- renameSession sid ""
@@ -406,7 +408,7 @@ test_renameSession_too_long =
   testCaseSteps "renameSession with a too long name" $ \step' -> do
     runAPI $ do
       let step = liftIO . step'
-      sid <- newSession "a new session"
+      sid <- newSession $ NewSessionReq "a new session"
       -- Note: we cut off session names rather arbitrarily at 64 characters.
       step "rename a session with a name longer than 64 characters"
       name <- renameSession sid $ toS $ replicate 65 'a'

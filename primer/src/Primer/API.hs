@@ -23,6 +23,7 @@ module Primer.API (
   APILog (..),
   MonadAPILog,
   PrimerErr (..),
+  NewSessionReq (..),
   newSession,
   addSession,
   copySession,
@@ -399,8 +400,19 @@ leftResultError :: (ReqResp a (Either e b) -> APILog) -> ReqResp a (Either e b) 
 leftResultError c r@(Resp (Left _)) = (Warning, c r)
 leftResultError c r = (Informational, c r)
 
--- | Create a new session with the proposed session name as 'Text',
--- and return the session ID.
+-- | A new session request.
+
+{- HLINT ignore NewSessionReq "Use newtype instead of data" -}
+data NewSessionReq = NewSessionReq
+  { name :: Text
+  -- ^ The name of the new session. Note that this field is just a
+  -- hint: the API may choose a different name if the given name is
+  -- invalid.
+  }
+  deriving (Show, Eq, Generic)
+  deriving (FromJSON, ToJSON) via PrimerJSON NewSessionReq
+
+-- | Create a new session and return its ID.
 --
 -- The session's initial program is 'newApp'.
 --
@@ -408,8 +420,8 @@ leftResultError c r = (Informational, c r)
 -- default session name. However, no indication is given to teh caller
 -- when this occurs. Query the returned session ID to determine the
 -- actual session name that was assigned.
-newSession :: (MonadIO m, MonadAPILog l m) => Text -> PrimerM m SessionId
-newSession n = logAPI' NewSession $ addSession n newApp
+newSession :: (MonadIO m, MonadAPILog l m) => NewSessionReq -> PrimerM m SessionId
+newSession (NewSessionReq n) = logAPI' NewSession $ addSession n newApp
 
 -- | Given an 'App' and a proposed session name as 'Text', create a
 -- new session with the given app and name, and return the session ID.

@@ -232,6 +232,17 @@
                 ],
                 "type": "object"
             },
+            "NewSessionReq": {
+                "properties": {
+                    "name": {
+                        "type": "string"
+                    }
+                },
+                "required": [
+                    "name"
+                ],
+                "type": "object"
+            },
             "NoInputAction": {
                 "enum": [
                     "MakeCase",
@@ -662,7 +673,7 @@
                     "content": {
                         "application/json;charset=utf-8": {
                             "schema": {
-                                "type": "string"
+                                "$ref": "#/components/schemas/NewSessionReq"
                             }
                         }
                     }
