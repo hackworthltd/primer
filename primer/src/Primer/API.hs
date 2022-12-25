@@ -351,7 +351,7 @@ data ReqResp a b = Req a | Resp b
   deriving (Show)
 
 data APILog
-  = NewSession (ReqResp () SessionId)
+  = NewSession (ReqResp NewSessionReq SessionId)
   | AddSession (ReqResp (Text, App) SessionId)
   | CopySession (ReqResp SessionId SessionId)
   | DeleteSession (ReqResp SessionId ())
@@ -421,7 +421,7 @@ data NewSessionReq = NewSessionReq
 -- when this occurs. Query the returned session ID to determine the
 -- actual session name that was assigned.
 newSession :: (MonadIO m, MonadAPILog l m) => NewSessionReq -> PrimerM m SessionId
-newSession (NewSessionReq n) = logAPI' NewSession $ addSession n newApp
+newSession = logAPI (noError NewSession) $ \(NewSessionReq n) -> addSession n newApp
 
 -- | Given an 'App' and a proposed session name as 'Text', create a
 -- new session with the given app and name, and return the session ID.
