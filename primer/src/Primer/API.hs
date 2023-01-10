@@ -66,6 +66,7 @@ module Primer.API (
   viewSelection,
   NodeSelection (..),
   viewNodeSelection,
+  Name (..),
 ) where
 
 import Foreword
@@ -91,7 +92,6 @@ import Control.Monad.Trans (MonadTrans)
 import Control.Monad.Writer (MonadWriter)
 import Control.Monad.Zip (MonadZip)
 import Data.Map qualified as Map
-import Data.Text qualified as T
 import Data.Tuple.Extra (curry3)
 import ListT qualified (toList)
 import Optics (ifoldr, over, traverseOf, view, (^.))
@@ -148,12 +148,14 @@ import Primer.Core (
   Type' (..),
   ValConName,
   getID,
-  moduleNamePretty,
   unLocalName,
+  unsafeMkLocalName,
   _typeMeta,
   _typeMetaLens,
  )
 import Primer.Core.DSL qualified as DSL
+import Primer.Core.Meta (LocalName)
+import Primer.Core.Meta qualified as Core
 import Primer.Database (
   OffsetLimit,
   OpStatus,
@@ -203,7 +205,7 @@ import Primer.Log (
   runPureLog,
  )
 import Primer.Module (moduleDefsQualified, moduleName, moduleTypesQualified)
-import Primer.Name (Name, unName)
+import Primer.Name qualified as Name
 import Primer.Primitives (primDefType)
 import Primer.TypeDef (ASTTypeDef (ASTTypeDef), ValCon (ValCon))
 import StmContainers.Map qualified as StmMap
@@ -364,7 +366,7 @@ data APILog
   | GetProgram (ReqResp SessionId App.Prog)
   | Edit (ReqResp (SessionId, MutationRequest) (Either ProgError App.Prog))
   | VariablesInScope (ReqResp (SessionId, (GVarName, ID)) (Either ProgError (([(TyVarName, Kind)], [(LVarName, Type' ())]), [(GVarName, Type' ())])))
-  | GenerateNames (ReqResp (SessionId, ((GVarName, ID), Either (Maybe (Type' ())) (Maybe Kind))) (Either ProgError [Name]))
+  | GenerateNames (ReqResp (SessionId, ((GVarName, ID), Either (Maybe (Type' ())) (Maybe Kind))) (Either ProgError [Name.Name]))
   | EvalStep (ReqResp (SessionId, EvalReq) (Either ProgError EvalResp))
   | EvalFull (ReqResp (SessionId, EvalFullReq) (Either ProgError App.EvalFullResp))
   | EvalFull' (ReqResp (ExprTreeOpts, SessionId, Maybe TerminationBound, GVarName) EvalFullResp)
@@ -572,10 +574,22 @@ data Tree = Tree
   deriving (Show, Eq, Generic)
   deriving (ToJSON) via PrimerJSON Tree
 
+-- | A local or global name.
+-- Field names are intentionally the same as `GlobalName`, so that, unless `qualifiedModule` is `Nothing`,
+-- JSON representations are the same, and clients can easily coerce between the two.
+data Name = Name
+  { qualifiedModule :: Maybe ModuleName
+  , baseName :: Name.Name
+  }
+  deriving (Show, Eq, Generic)
+  deriving (ToJSON) via PrimerJSON Name
+
 -- | The contents of a node.
 data NodeBody
   = -- | A "normal" node, usually with user-generated text, such as a variable or constructor name.
-    TextBody Text
+    TextBody Name
+  | -- | A node containing a value constructor inhabiting a primitive type.
+    PrimBody PrimCon
   | -- | A node which contains another tree. Used for rendering pattern matching.
     BoxBody Tree
   | -- | Some simple nodes, like function application, have no body.
@@ -710,7 +724,7 @@ viewTreeExpr opts@ExprTreeOpts{patternsUnder} e0 = case e0 of
     Tree
       { nodeId
       , flavor = FlavorCon
-      , body = TextBody $ showGlobal s
+      , body = TextBody $ globalName s
       , childTrees = []
       , rightChild = Nothing
       }
@@ -718,7 +732,7 @@ viewTreeExpr opts@ExprTreeOpts{patternsUnder} e0 = case e0 of
     Tree
       { nodeId
       , flavor = FlavorLam
-      , body = TextBody $ unName $ unLocalName s
+      , body = TextBody $ localName s
       , childTrees = [viewTreeExpr opts e]
       , rightChild = Nothing
       }
@@ -726,7 +740,7 @@ viewTreeExpr opts@ExprTreeOpts{patternsUnder} e0 = case e0 of
     Tree
       { nodeId
       , flavor = FlavorLAM
-      , body = TextBody $ unName $ unLocalName s
+      , body = TextBody $ localName s
       , childTrees = [viewTreeExpr opts e]
       , rightChild = Nothing
       }
@@ -740,13 +754,13 @@ viewTreeExpr opts@ExprTreeOpts{patternsUnder} e0 = case e0 of
       }
     where
       (flavor, body) = case ref of
-        GlobalVarRef n -> (FlavorGlobalVar, TextBody $ showGlobal n)
-        LocalVarRef n -> (FlavorLocalVar, TextBody $ unName $ unLocalName n)
+        GlobalVarRef n -> (FlavorGlobalVar, TextBody $ globalName n)
+        LocalVarRef n -> (FlavorLocalVar, TextBody $ localName n)
   Let _ s e1 e2 ->
     Tree
       { nodeId
       , flavor = FlavorLet
-      , body = TextBody $ unName $ unLocalName s
+      , body = TextBody $ localName s
       , childTrees = [viewTreeExpr opts e1, viewTreeExpr opts e2]
       , rightChild = Nothing
       }
@@ -754,7 +768,7 @@ viewTreeExpr opts@ExprTreeOpts{patternsUnder} e0 = case e0 of
     Tree
       { nodeId
       , flavor = FlavorLetType
-      , body = TextBody $ unName $ unLocalName s
+      , body = TextBody $ localName s
       , childTrees = [viewTreeExpr opts e, viewTreeType t]
       , rightChild = Nothing
       }
@@ -762,7 +776,7 @@ viewTreeExpr opts@ExprTreeOpts{patternsUnder} e0 = case e0 of
     Tree
       { nodeId
       , flavor = FlavorLetrec
-      , body = TextBody $ unName $ unLocalName s
+      , body = TextBody $ localName s
       , childTrees = [viewTreeExpr opts e1, viewTreeType t, viewTreeExpr opts e2]
       , rightChild = Nothing
       }
@@ -826,7 +840,7 @@ viewTreeExpr opts@ExprTreeOpts{patternsUnder} e0 = case e0 of
                                   , Tree
                                       { nodeId = show id
                                       , flavor = FlavorPatternBind
-                                      , body = TextBody $ unName $ unLocalName v
+                                      , body = TextBody $ localName v
                                       , childTrees = []
                                       , rightChild = Nothing
                                       }
@@ -837,7 +851,7 @@ viewTreeExpr opts@ExprTreeOpts{patternsUnder} e0 = case e0 of
                     ( Tree
                         { nodeId = patternRootId
                         , flavor = FlavorPatternCon
-                        , body = TextBody $ showGlobal con
+                        , body = TextBody $ globalName con
                         , childTrees = []
                         , rightChild = Nothing
                         }
@@ -850,9 +864,7 @@ viewTreeExpr opts@ExprTreeOpts{patternsUnder} e0 = case e0 of
     Tree
       { nodeId
       , flavor = FlavorPrimCon
-      , body = TextBody $ case pc of
-          PrimChar c -> T.singleton c
-          PrimInt c -> show c
+      , body = PrimBody pc
       , childTrees = []
       , rightChild = Nothing
       }
@@ -887,7 +899,7 @@ viewTreeType' t0 = case t0 of
     Tree
       { nodeId
       , flavor = FlavorTCon
-      , body = TextBody $ showGlobal n
+      , body = TextBody $ globalName n
       , childTrees = []
       , rightChild = Nothing
       }
@@ -903,7 +915,7 @@ viewTreeType' t0 = case t0 of
     Tree
       { nodeId
       , flavor = FlavorTVar
-      , body = TextBody $ unName $ unLocalName n
+      , body = TextBody $ localName n
       , childTrees = []
       , rightChild = Nothing
       }
@@ -919,7 +931,7 @@ viewTreeType' t0 = case t0 of
     Tree
       { nodeId
       , flavor = FlavorTForall
-      , body = TextBody $ withKindAnn $ unName $ unLocalName n
+      , body = TextBody $ localName $ unsafeMkLocalName $ withKindAnn $ Name.unName $ unLocalName n
       , childTrees = [viewTreeType' t]
       , rightChild = Nothing
       }
@@ -934,15 +946,18 @@ viewTreeType' t0 = case t0 of
     Tree
       { nodeId
       , flavor = FlavorTLet
-      , body = TextBody $ unName $ unLocalName n
+      , body = TextBody $ localName n
       , childTrees = [viewTreeType' t, viewTreeType' b]
       , rightChild = Nothing
       }
   where
     nodeId = t0 ^. _typeMetaLens
 
-showGlobal :: GlobalName k -> Text
-showGlobal n = moduleNamePretty (qualifiedModule n) <> "." <> unName (baseName n)
+globalName :: GlobalName k -> Name
+globalName n = Name{qualifiedModule = Just $ Core.qualifiedModule n, baseName = Core.baseName n}
+
+localName :: LocalName k -> Name
+localName n = Name{qualifiedModule = Nothing, baseName = unLocalName n}
 
 edit ::
   (MonadIO m, MonadThrow m, MonadAPILog l m) =>
@@ -963,7 +978,7 @@ generateNames ::
   (MonadIO m, MonadThrow m, MonadAPILog l m) =>
   SessionId ->
   ((GVarName, ID), Either (Maybe (Type' ())) (Maybe Kind)) ->
-  PrimerM m (Either ProgError [Name])
+  PrimerM m (Either ProgError [Name.Name])
 generateNames = curry $ logAPI (leftResultError GenerateNames) $ \(sid, ((defname, exprid), tk)) ->
   liftQueryAppM (handleQuestion $ GenerateName defname exprid tk) sid
 

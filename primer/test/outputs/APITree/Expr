@@ -1,19 +1,37 @@
 Tree
     { nodeId = "9"
     , flavor = FlavorLet
-    , body = TextBody "x"
+    , body = TextBody
+        ( Name
+            { qualifiedModule = Nothing
+            , baseName = "x"
+            }
+        )
     , childTrees =
         [ Tree
             { nodeId = "10"
             , flavor = FlavorCon
-            , body = TextBody "Builtins.True"
+            , body = TextBody
+                ( Name
+                    { qualifiedModule = Just
+                        ( ModuleName
+                            { unModuleName = "Builtins" :| [] }
+                        )
+                    , baseName = "True"
+                    }
+                )
             , childTrees = []
             , rightChild = Nothing
             }
         , Tree
             { nodeId = "11"
             , flavor = FlavorLetrec
-            , body = TextBody "y"
+            , body = TextBody
+                ( Name
+                    { qualifiedModule = Nothing
+                    , baseName = "y"
+                    }
+                )
             , childTrees =
                 [ Tree
                     { nodeId = "12"
@@ -28,7 +46,15 @@ Tree
                                 [ Tree
                                     { nodeId = "14"
                                     , flavor = FlavorCon
-                                    , body = TextBody "Builtins.Just"
+                                    , body = TextBody
+                                        ( Name
+                                            { qualifiedModule = Just
+                                                ( ModuleName
+                                                    { unModuleName = "Builtins" :| [] }
+                                                )
+                                            , baseName = "Just"
+                                            }
+                                        )
                                     , childTrees = []
                                     , rightChild = Nothing
                                     }
@@ -43,7 +69,15 @@ Tree
                                 [ Tree
                                     { nodeId = "16"
                                     , flavor = FlavorGlobalVar
-                                    , body = TextBody "M.unboundName"
+                                    , body = TextBody
+                                        ( Name
+                                            { qualifiedModule = Just
+                                                ( ModuleName
+                                                    { unModuleName = "M" :| [] }
+                                                )
+                                            , baseName = "unboundName"
+                                            }
+                                        )
                                     , childTrees = []
                                     , rightChild = Nothing
                                     }
@@ -61,7 +95,15 @@ Tree
                         [ Tree
                             { nodeId = "18"
                             , flavor = FlavorTCon
-                            , body = TextBody "Builtins.Maybe"
+                            , body = TextBody
+                                ( Name
+                                    { qualifiedModule = Just
+                                        ( ModuleName
+                                            { unModuleName = "Builtins" :| [] }
+                                        )
+                                    , baseName = "Maybe"
+                                    }
+                                )
                             , childTrees = []
                             , rightChild = Nothing
                             }
@@ -76,12 +118,22 @@ Tree
                         [ Tree
                             { nodeId = "20"
                             , flavor = FlavorLam
-                            , body = TextBody "i"
+                            , body = TextBody
+                                ( Name
+                                    { qualifiedModule = Nothing
+                                    , baseName = "i"
+                                    }
+                                )
                             , childTrees =
                                 [ Tree
                                     { nodeId = "21"
                                     , flavor = FlavorLAM
-                                    , body = TextBody "β"
+                                    , body = TextBody
+                                        ( Name
+                                            { qualifiedModule = Nothing
+                                            , baseName = "β"
+                                            }
+                                        )
                                     , childTrees =
                                         [ Tree
                                             { nodeId = "22"
@@ -96,7 +148,12 @@ Tree
                                                         [ Tree
                                                             { nodeId = "24"
                                                             , flavor = FlavorLetType
-                                                            , body = TextBody "b"
+                                                            , body = TextBody
+                                                                ( Name
+                                                                    { qualifiedModule = Nothing
+                                                                    , baseName = "b"
+                                                                    }
+                                                                )
                                                             , childTrees =
                                                                 [ Tree
                                                                     { nodeId = "26"
@@ -106,26 +163,49 @@ Tree
                                                                         [ Tree
                                                                             { nodeId = "27"
                                                                             , flavor = FlavorCon
-                                                                            , body = TextBody "Builtins.Left"
+                                                                            , body = TextBody
+                                                                                ( Name
+                                                                                    { qualifiedModule = Just
+                                                                                        ( ModuleName
+                                                                                            { unModuleName = "Builtins" :| [] }
+                                                                                        )
+                                                                                    , baseName = "Left"
+                                                                                    }
+                                                                                )
                                                                             , childTrees = []
                                                                             , rightChild = Nothing
                                                                             }
                                                                         , Tree
                                                                             { nodeId = "28"
                                                                             , flavor = FlavorTLet
-                                                                            , body = TextBody "c"
+                                                                            , body = TextBody
+                                                                                ( Name
+                                                                                    { qualifiedModule = Nothing
+                                                                                    , baseName = "c"
+                                                                                    }
+                                                                                )
                                                                             , childTrees =
                                                                                 [ Tree
                                                                                     { nodeId = "29"
                                                                                     , flavor = FlavorTVar
-                                                                                    , body = TextBody "b"
+                                                                                    , body = TextBody
+                                                                                        ( Name
+                                                                                            { qualifiedModule = Nothing
+                                                                                            , baseName = "b"
+                                                                                            }
+                                                                                        )
                                                                                     , childTrees = []
                                                                                     , rightChild = Nothing
                                                                                     }
                                                                                 , Tree
                                                                                     { nodeId = "30"
                                                                                     , flavor = FlavorTVar
-                                                                                    , body = TextBody "c"
+                                                                                    , body = TextBody
+                                                                                        ( Name
+                                                                                            { qualifiedModule = Nothing
+                                                                                            , baseName = "c"
+                                                                                            }
+                                                                                        )
                                                                                     , childTrees = []
                                                                                     , rightChild = Nothing
                                                                                     }
@@ -138,7 +218,15 @@ Tree
                                                                 , Tree
                                                                     { nodeId = "25"
                                                                     , flavor = FlavorTCon
-                                                                    , body = TextBody "Builtins.Bool"
+                                                                    , body = TextBody
+                                                                        ( Name
+                                                                            { qualifiedModule = Just
+                                                                                ( ModuleName
+                                                                                    { unModuleName = "Builtins" :| [] }
+                                                                                )
+                                                                            , baseName = "Bool"
+                                                                            }
+                                                                        )
                                                                     , childTrees = []
                                                                     , rightChild = Nothing
                                                                     }
@@ -148,7 +236,12 @@ Tree
                                                         , Tree
                                                             { nodeId = "31"
                                                             , flavor = FlavorTVar
-                                                            , body = TextBody "β"
+                                                            , body = TextBody
+                                                                ( Name
+                                                                    { qualifiedModule = Nothing
+                                                                    , baseName = "β"
+                                                                    }
+                                                                )
                                                             , childTrees = []
                                                             , rightChild = Nothing
                                                             }
@@ -163,7 +256,12 @@ Tree
                                                         [ Tree
                                                             { nodeId = "33"
                                                             , flavor = FlavorLocalVar
-                                                            , body = TextBody "i"
+                                                            , body = TextBody
+                                                                ( Name
+                                                                    { qualifiedModule = Nothing
+                                                                    , baseName = "i"
+                                                                    }
+                                                                )
                                                             , childTrees = []
                                                             , rightChild = Nothing
                                                             }
@@ -176,7 +274,15 @@ Tree
                                                                 ( Tree
                                                                     { nodeId = "32P0B"
                                                                     , flavor = FlavorPatternCon
-                                                                    , body = TextBody "Builtins.Zero"
+                                                                    , body = TextBody
+                                                                        ( Name
+                                                                            { qualifiedModule = Just
+                                                                                ( ModuleName
+                                                                                    { unModuleName = "Builtins" :| [] }
+                                                                                )
+                                                                            , baseName = "Zero"
+                                                                            }
+                                                                        )
                                                                     , childTrees = []
                                                                     , rightChild = Nothing
                                                                     }
@@ -185,7 +291,15 @@ Tree
                                                                 [ Tree
                                                                     { nodeId = "34"
                                                                     , flavor = FlavorCon
-                                                                    , body = TextBody "Builtins.False"
+                                                                    , body = TextBody
+                                                                        ( Name
+                                                                            { qualifiedModule = Just
+                                                                                ( ModuleName
+                                                                                    { unModuleName = "Builtins" :| [] }
+                                                                                )
+                                                                            , baseName = "False"
+                                                                            }
+                                                                        )
                                                                     , childTrees = []
                                                                     , rightChild = Nothing
                                                                     }
@@ -203,14 +317,27 @@ Tree
                                                                                 [ Tree
                                                                                     { nodeId = "32P1B"
                                                                                     , flavor = FlavorPatternCon
-                                                                                    , body = TextBody "Builtins.Succ"
+                                                                                    , body = TextBody
+                                                                                        ( Name
+                                                                                            { qualifiedModule = Just
+                                                                                                ( ModuleName
+                                                                                                    { unModuleName = "Builtins" :| [] }
+                                                                                                )
+                                                                                            , baseName = "Succ"
+                                                                                            }
+                                                                                        )
                                                                                     , childTrees = []
                                                                                     , rightChild = Nothing
                                                                                     }
                                                                                 , Tree
                                                                                     { nodeId = "35"
                                                                                     , flavor = FlavorPatternBind
-                                                                                    , body = TextBody "n"
+                                                                                    , body = TextBody
+                                                                                        ( Name
+                                                                                            { qualifiedModule = Nothing
+                                                                                            , baseName = "n"
+                                                                                            }
+                                                                                        )
                                                                                     , childTrees = []
                                                                                     , rightChild = Nothing
                                                                                     }
@@ -239,7 +366,12 @@ Tree
                                                                                         , Tree
                                                                                             { nodeId = "39"
                                                                                             , flavor = FlavorLocalVar
-                                                                                            , body = TextBody "x"
+                                                                                            , body = TextBody
+                                                                                                ( Name
+                                                                                                    { qualifiedModule = Nothing
+                                                                                                    , baseName = "x"
+                                                                                                    }
+                                                                                                )
                                                                                             , childTrees = []
                                                                                             , rightChild = Nothing
                                                                                             }
@@ -249,7 +381,12 @@ Tree
                                                                                 , Tree
                                                                                     { nodeId = "40"
                                                                                     , flavor = FlavorLocalVar
-                                                                                    , body = TextBody "y"
+                                                                                    , body = TextBody
+                                                                                        ( Name
+                                                                                            { qualifiedModule = Nothing
+                                                                                            , baseName = "y"
+                                                                                            }
+                                                                                        )
                                                                                     , childTrees = []
                                                                                     , rightChild = Nothing
                                                                                     }
@@ -280,14 +417,27 @@ Tree
                                 [ Tree
                                     { nodeId = "42"
                                     , flavor = FlavorTCon
-                                    , body = TextBody "Builtins.Nat"
+                                    , body = TextBody
+                                        ( Name
+                                            { qualifiedModule = Just
+                                                ( ModuleName
+                                                    { unModuleName = "Builtins" :| [] }
+                                                )
+                                            , baseName = "Nat"
+                                            }
+                                        )
                                     , childTrees = []
                                     , rightChild = Nothing
                                     }
                                 , Tree
                                     { nodeId = "43"
                                     , flavor = FlavorTForall
-                                    , body = TextBody "α"
+                                    , body = TextBody
+                                        ( Name
+                                            { qualifiedModule = Nothing
+                                            , baseName = "α"
+                                            }
+                                        )
                                     , childTrees =
                                         [ Tree
                                             { nodeId = "44"
@@ -302,14 +452,30 @@ Tree
                                                         [ Tree
                                                             { nodeId = "46"
                                                             , flavor = FlavorTCon
-                                                            , body = TextBody "Builtins.Either"
+                                                            , body = TextBody
+                                                                ( Name
+                                                                    { qualifiedModule = Just
+                                                                        ( ModuleName
+                                                                            { unModuleName = "Builtins" :| [] }
+                                                                        )
+                                                                    , baseName = "Either"
+                                                                    }
+                                                                )
                                                             , childTrees = []
                                                             , rightChild = Nothing
                                                             }
                                                         , Tree
                                                             { nodeId = "47"
                                                             , flavor = FlavorTCon
-                                                            , body = TextBody "Builtins.Bool"
+                                                            , body = TextBody
+                                                                ( Name
+                                                                    { qualifiedModule = Just
+                                                                        ( ModuleName
+                                                                            { unModuleName = "Builtins" :| [] }
+                                                                        )
+                                                                    , baseName = "Bool"
+                                                                    }
+                                                                )
                                                             , childTrees = []
                                                             , rightChild = Nothing
                                                             }
@@ -319,7 +485,12 @@ Tree
                                                 , Tree
                                                     { nodeId = "48"
                                                     , flavor = FlavorTVar
-                                                    , body = TextBody "α"
+                                                    , body = TextBody
+                                                        ( Name
+                                                            { qualifiedModule = Nothing
+                                                            , baseName = "α"
+                                                            }
+                                                        )
                                                     , childTrees = []
                                                     , rightChild = Nothing
                                                     }

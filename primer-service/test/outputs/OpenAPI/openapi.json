@@ -232,6 +232,24 @@
                 ],
                 "type": "object"
             },
+            "Name": {
+                "properties": {
+                    "baseName": {
+                        "type": "string"
+                    },
+                    "qualifiedModule": {
+                        "items": {
+                            "type": "string"
+                        },
+                        "minItems": 1,
+                        "type": "array"
+                    }
+                },
+                "required": [
+                    "baseName"
+                ],
+                "type": "object"
+            },
             "NewSessionReq": {
                 "properties": {
                     "name": {
@@ -270,11 +288,29 @@
                     {
                         "properties": {
                             "contents": {
-                                "type": "string"
+                                "$ref": "#/components/schemas/Name"
                             },
                             "tag": {
                                 "enum": [
                                     "TextBody"
+                                ],
+                                "type": "string"
+                            }
+                        },
+                        "required": [
+                            "tag",
+                            "contents"
+                        ],
+                        "type": "object"
+                    },
+                    {
+                        "properties": {
+                            "contents": {
+                                "$ref": "#/components/schemas/PrimCon"
+                            },
+                            "tag": {
+                                "enum": [
+                                    "PrimBody"
                                 ],
                                 "type": "string"
                             }
@@ -481,6 +517,50 @@
                 "required": [
                     "meta",
                     "items"
+                ],
+                "type": "object"
+            },
+            "PrimCon": {
+                "oneOf": [
+                    {
+                        "properties": {
+                            "contents": {
+                                "example": "?",
+                                "maxLength": 1,
+                                "minLength": 1,
+                                "type": "string"
+                            },
+                            "tag": {
+                                "enum": [
+                                    "PrimChar"
+                                ],
+                                "type": "string"
+                            }
+                        },
+                        "required": [
+                            "tag",
+                            "contents"
+                        ],
+                        "type": "object"
+                    },
+                    {
+                        "properties": {
+                            "contents": {
+                                "type": "integer"
+                            },
+                            "tag": {
+                                "enum": [
+                                    "PrimInt"
+                                ],
+                                "type": "string"
+                            }
+                        },
+                        "required": [
+                            "tag",
+                            "contents"
+                        ],
+                        "type": "object"
+                    }
                 ],
                 "type": "object"
             },
