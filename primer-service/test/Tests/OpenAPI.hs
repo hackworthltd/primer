@@ -48,6 +48,7 @@ import Primer.Database (
   safeMkSessionName,
  )
 import Primer.Gen.API (genExprTreeOpts)
+import Primer.Gen.API qualified as API
 import Primer.Gen.Core.Raw (
   ExprGen,
   evalExprGen,
@@ -171,7 +172,7 @@ tasty_NodeBody :: Property
 tasty_NodeBody =
   testToJSON $
     G.choice
-      [ TextBody <$> G.text (R.linear 1 20) G.unicode
+      [ TextBody <$> API.genName
       , BoxBody <$> genTree
       , pure NoBody
       ]

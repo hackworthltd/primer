@@ -50,6 +50,7 @@ import Primer.API (
   Selection (..),
   Tree,
  )
+import Primer.API qualified as API
 import Primer.Action.Available qualified as Available
 import Primer.App (NodeType)
 import Primer.App.Base (Level)
@@ -59,6 +60,7 @@ import Primer.Core (
   ID (..),
   LVarName,
   ModuleName,
+  PrimCon,
  )
 import Primer.Database (
   LastModified,
@@ -121,6 +123,8 @@ deriving via GlobalName 'ADefName instance ToSchema (GlobalName 'AValCon)
 
 deriving via Name instance (ToSchema LVarName)
 deriving via PrimerJSON Tree instance ToSchema Tree
+deriving via PrimerJSON API.Name instance ToSchema API.Name
+deriving via PrimerJSON PrimCon instance ToSchema PrimCon
 deriving via PrimerJSON NodeBody instance ToSchema NodeBody
 deriving via PrimerJSON NodeFlavor instance ToSchema NodeFlavor
 deriving via PrimerJSON Def instance ToSchema Def
