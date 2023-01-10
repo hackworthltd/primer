@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1673352886383,
+  "lastUpdate": 1673375610644,
   "repoUrl": "https://github.com/hackworthltd/primer",
   "entries": {
     "Primer benchmarks": [
@@ -4334,6 +4334,146 @@ window.BENCHMARK_DATA = {
             "value": 646780461.7142856,
             "unit": "allocated/iter",
             "extra": "R²: 0.9999999999983502"
+          },
+          {
+            "name": "evalTestM/discard logs/mapEven 10: numGcs",
+            "value": 155.22857142857146,
+            "unit": "numGcs/iter",
+            "extra": "R²: 0.9999990062398538"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "georgefsthomas@gmail.com",
+            "name": "George Thomas",
+            "username": "georgefst"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "de511cb87d261be97bbebf02416dabc80c4f00ee",
+          "message": "Merge pull request #829 from hackworthltd/georgefst/structured-textbody\n\nfeat!: Use structured text for names in trees, instead of hardcoding dot",
+          "timestamp": "2023-01-10T18:16:31Z",
+          "tree_id": "91e46a5125855da463f10d959f727b69a8f07b40",
+          "url": "https://github.com/hackworthltd/primer/commit/de511cb87d261be97bbebf02416dabc80c4f00ee"
+        },
+        "date": 1673375609856,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "evalTestM/pure logs/mapEven 1: mean time",
+            "value": 0.007415792338979097,
+            "unit": "mean time",
+            "range": 0.0002580084230847871
+          },
+          {
+            "name": "evalTestM/pure logs/mapEven 1: outlier variance",
+            "value": 0.13533046631430573,
+            "unit": "outlier variance"
+          },
+          {
+            "name": "evalTestM/pure logs/mapEven 1: time",
+            "value": 0.007428089795400526,
+            "unit": "time/iter",
+            "extra": "R²: 0.9964223069490604"
+          },
+          {
+            "name": "evalTestM/pure logs/mapEven 1: allocated",
+            "value": 21688981.635641675,
+            "unit": "allocated/iter",
+            "extra": "R²: 0.9999999999623936"
+          },
+          {
+            "name": "evalTestM/pure logs/mapEven 1: numGcs",
+            "value": 5.204230568406734,
+            "unit": "numGcs/iter",
+            "extra": "R²: 0.9999811494190667"
+          },
+          {
+            "name": "evalTestM/pure logs/mapEven 10: mean time",
+            "value": 0.23032349269940622,
+            "unit": "mean time",
+            "range": 0.0071924792553746085
+          },
+          {
+            "name": "evalTestM/pure logs/mapEven 10: outlier variance",
+            "value": 0.1388888888888889,
+            "unit": "outlier variance"
+          },
+          {
+            "name": "evalTestM/pure logs/mapEven 10: time",
+            "value": 0.2441300936575447,
+            "unit": "time/iter",
+            "extra": "R²: 0.9974811209838034"
+          },
+          {
+            "name": "evalTestM/pure logs/mapEven 10: allocated",
+            "value": 744134501.7142857,
+            "unit": "allocated/iter",
+            "extra": "R²: 0.9999999999987537"
+          },
+          {
+            "name": "evalTestM/pure logs/mapEven 10: numGcs",
+            "value": 178.62857142857146,
+            "unit": "numGcs/iter",
+            "extra": "R²: 0.9999992495475966"
+          },
+          {
+            "name": "evalTestM/discard logs/mapEven 1: mean time",
+            "value": 0.006322693065772463,
+            "unit": "mean time",
+            "range": 0.00016692897194363785
+          },
+          {
+            "name": "evalTestM/discard logs/mapEven 1: outlier variance",
+            "value": 0.10102741782753749,
+            "unit": "outlier variance"
+          },
+          {
+            "name": "evalTestM/discard logs/mapEven 1: time",
+            "value": 0.006431986761257249,
+            "unit": "time/iter",
+            "extra": "R²: 0.9966803363740498"
+          },
+          {
+            "name": "evalTestM/discard logs/mapEven 1: allocated",
+            "value": 19325748.197285306,
+            "unit": "allocated/iter",
+            "extra": "R²: 0.9999999999629059"
+          },
+          {
+            "name": "evalTestM/discard logs/mapEven 1: numGcs",
+            "value": 4.636934999776014,
+            "unit": "numGcs/iter",
+            "extra": "R²: 0.9999731926298188"
+          },
+          {
+            "name": "evalTestM/discard logs/mapEven 10: mean time",
+            "value": 0.18948817666257833,
+            "unit": "mean time",
+            "range": 0.00543666139821892
+          },
+          {
+            "name": "evalTestM/discard logs/mapEven 10: outlier variance",
+            "value": 0.1388888888888887,
+            "unit": "outlier variance"
+          },
+          {
+            "name": "evalTestM/discard logs/mapEven 10: time",
+            "value": 0.1938263127048101,
+            "unit": "time/iter",
+            "extra": "R²: 0.9958090815008657"
+          },
+          {
+            "name": "evalTestM/discard logs/mapEven 10: allocated",
+            "value": 646780469.0285715,
+            "unit": "allocated/iter",
+            "extra": "R²: 0.999999999998123"
           },
           {
             "name": "evalTestM/discard logs/mapEven 10: numGcs",
