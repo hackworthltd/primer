@@ -98,7 +98,7 @@ unit_mkAppSafe_even3Prog :: Assertion
 unit_mkAppSafe_even3Prog = expectMkAppSafeSuccess Examples.even3Prog "even3Prog"
 
 unit_mkAppSafe_mapOddProg :: Assertion
-unit_mkAppSafe_mapOddProg = expectMkAppSafeSuccess Examples.mapOddProg "mapOddProg"
+unit_mkAppSafe_mapOddProg = expectMkAppSafeSuccess (Examples.mapOddProg 4) "mapOddProg"
 
 unit_mkAppSafe_badEven3Prog :: Assertion
 unit_mkAppSafe_badEven3Prog = expectMkAppSafeFailure Examples.badEven3Prog "badEven3Prog"
