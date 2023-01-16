@@ -111,7 +111,7 @@ data Env = Env
 type Subst = M.Map TyVarName Type
 
 newtype U m a = U {unU :: ReaderT Env (StateT Subst (ExceptT UnifError m)) a}
-  deriving
+  deriving newtype
     ( Functor
     , Applicative
     , Monad
@@ -120,7 +120,7 @@ newtype U m a = U {unU :: ReaderT Env (StateT Subst (ExceptT UnifError m)) a}
     , MonadError UnifError
     )
 
-deriving instance MonadFresh NameCounter m => MonadFresh NameCounter (U m)
+deriving newtype instance MonadFresh NameCounter m => MonadFresh NameCounter (U m)
 
 -- | @v@ is a unification variable if it both
 -- - was declared to be, and

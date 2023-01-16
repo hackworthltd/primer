@@ -87,7 +87,7 @@ instance ConvertLogMessage a () where
 
 -- | Purely collect log messages in a 'Seq'
 newtype PureLogT l m a = PureLogs (LoggingT l (PureLoggingT (Seq l) m) a)
-  deriving
+  deriving newtype
     ( Functor
     , Applicative
     , Monad
@@ -117,7 +117,7 @@ runPureLog = runIdentity . runPureLogT
 
 -- | Discard log messages.
 newtype DiscardLogT l m a = DiscardLogs (DiscardLoggingT l m a)
-  deriving
+  deriving newtype
     ( Functor
     , Applicative
     , Monad

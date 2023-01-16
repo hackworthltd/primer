@@ -14,7 +14,7 @@ import Control.Monad.Log (
 class Monad m => MonadFresh i m where
   fresh :: m i
 
-deriving instance MonadFresh i m => MonadFresh i (Ap m)
+deriving newtype instance MonadFresh i m => MonadFresh i (Ap m)
 
 instance MonadFresh i m => MonadFresh i (ExceptT e m) where
   fresh = lift fresh

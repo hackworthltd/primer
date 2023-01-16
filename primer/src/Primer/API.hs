@@ -219,7 +219,7 @@ data Env = Env
 
 -- | The Primer API monad transformer.
 newtype PrimerM m a = PrimerM {unPrimerM :: ReaderT Env m a}
-  deriving
+  deriving newtype
     ( Functor
     , Applicative
     , Alternative
