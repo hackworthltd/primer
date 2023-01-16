@@ -231,6 +231,7 @@ data Prog = Prog
   }
   deriving stock (Eq, Show, Generic)
   deriving (FromJSON, ToJSON) via PrimerJSON Prog
+  deriving anyclass (NFData)
 
 -- | The default 'Prog'. It has no imports, no definitions, no current
 -- 'Selection', and an empty 'Log'. Smart holes are enabled.
@@ -380,6 +381,7 @@ allDefs = fmap snd . progAllDefs
 newtype Log = Log {unlog :: [[ProgAction]]}
   deriving stock (Eq, Show, Generic)
   deriving (FromJSON, ToJSON) via PrimerJSON Log
+  deriving anyclass (NFData)
 
 -- | The default (empty) 'Log'.
 defaultLog :: Log
@@ -394,6 +396,7 @@ data Selection = Selection
   }
   deriving stock (Eq, Show, Generic, Data)
   deriving (FromJSON, ToJSON) via PrimerJSON Selection
+  deriving anyclass (NFData)
 
 -- | A selected node, in the body or type signature of some definition.
 -- We have the following invariant: @nodeType = SigNode ==> isRight meta@
@@ -403,6 +406,7 @@ data NodeSelection = NodeSelection
   }
   deriving stock (Eq, Show, Generic, Data)
   deriving (FromJSON, ToJSON) via PrimerJSON NodeSelection
+  deriving anyclass (NFData)
 
 instance HasID NodeSelection where
   _id =

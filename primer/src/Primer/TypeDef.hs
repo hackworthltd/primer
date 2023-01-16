@@ -36,6 +36,7 @@ data TypeDef
   | TypeDefAST ASTTypeDef
   deriving stock (Eq, Show, Data, Generic)
   deriving (FromJSON, ToJSON) via PrimerJSON TypeDef
+  deriving anyclass (NFData)
 
 -- | A mapping of global names to 'TypeDef's.
 type TypeDefMap = Map TyConName TypeDef
@@ -47,6 +48,7 @@ data PrimTypeDef = PrimTypeDef
   }
   deriving stock (Eq, Show, Data, Generic)
   deriving (FromJSON, ToJSON) via PrimerJSON PrimTypeDef
+  deriving anyclass (NFData)
 
 -- | Definition of an algebraic data type
 --
@@ -60,6 +62,7 @@ data ASTTypeDef = ASTTypeDef
   }
   deriving stock (Eq, Show, Data, Generic)
   deriving (FromJSON, ToJSON) via PrimerJSON ASTTypeDef
+  deriving anyclass (NFData)
 
 data ValCon = ValCon
   { valConName :: ValConName
@@ -67,6 +70,7 @@ data ValCon = ValCon
   }
   deriving stock (Eq, Show, Data, Generic)
   deriving (FromJSON, ToJSON) via PrimerJSON ValCon
+  deriving anyclass (NFData)
 
 valConType :: TyConName -> ASTTypeDef -> ValCon -> Type' ()
 valConType tc td vc =
