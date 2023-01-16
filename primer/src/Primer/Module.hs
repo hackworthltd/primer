@@ -66,6 +66,7 @@ data Module = Module
   }
   deriving (Eq, Show, Data, Generic)
   deriving (FromJSON, ToJSON) via PrimerJSON Module
+  deriving anyclass (NFData)
 
 qualifyTyConName :: Module -> Name -> TyConName
 qualifyTyConName m = qualifyName (moduleName m)

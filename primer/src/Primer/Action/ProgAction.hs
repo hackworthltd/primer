@@ -65,3 +65,4 @@ data ProgAction
     RenameModule ModuleName (NonEmpty Text)
   deriving (Eq, Show, Generic)
   deriving (FromJSON, ToJSON) via PrimerJSON ProgAction
+  deriving anyclass (NFData)

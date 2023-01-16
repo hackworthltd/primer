@@ -104,3 +104,4 @@ data Action
     RenameCaseBinding Text
   deriving (Eq, Show, Generic)
   deriving (FromJSON, ToJSON) via PrimerJSON Action
+  deriving anyclass (NFData)

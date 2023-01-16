@@ -9,3 +9,4 @@ import Primer.JSON (CustomJSON (..), FromJSON, PrimerJSON, ToJSON)
 data Movement = Child1 | Child2 | Parent | Branch ValConName
   deriving (Eq, Show, Generic)
   deriving (FromJSON, ToJSON) via PrimerJSON Movement
+  deriving anyclass (NFData)
