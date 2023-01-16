@@ -83,7 +83,9 @@ benchmarks =
       ]
   , Group
       "typecheck"
-      [ benchTC mapOddProgEnv "mapOdd"
+      [ benchTC (mapOddProgEnv 1) "mapOdd 1"
+      , benchTC (mapOddProgEnv 10) "mapOdd 10"
+      , benchTC (mapOddProgEnv 100) "mapOdd 100"
       ]
   ]
   where
@@ -110,7 +112,7 @@ benchmarks =
     benchTC e n = EnvBench e n $ \(prog, maxId, _) -> NF (tcTest maxId) prog $ pure $ assertBool "Failed to typecheck" . isRight
 
     mapEvenEnv n = pure $ mapEven n
-    mapOddProgEnv = pure mapOddProg
+    mapOddProgEnv = pure . mapOddProg
 
 runBenchmarks :: [Benchmark] -> [C.Benchmark]
 runBenchmarks = map go

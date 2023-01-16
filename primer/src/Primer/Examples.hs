@@ -375,8 +375,8 @@ even3Prog =
       )
 
 -- | A program whose @main@ 'map's 'odd' over a list of 'B.tNat'.
-mapOddProg :: (Prog, ID, NameCounter)
-mapOddProg =
+mapOddProg :: Int -> (Prog, ID, NameCounter)
+mapOddProg len =
   let modName = mkSimpleModuleName "MapOdd"
       (defs, nextID) = create $ do
         (_, evenDef) <- even modName
@@ -384,7 +384,7 @@ mapOddProg =
         (mapName, mapDef) <- map modName
         mapOddDef <- do
           type_ <- tcon B.tList `tapp` tcon B.tBool
-          let lst = list_ B.tNat $ take 4 $ nat <$> [0 ..]
+          let lst = list_ B.tNat $ take len $ nat <$> [0 ..]
           term <- gvar mapName `aPP` tcon B.tNat `aPP` tcon B.tBool `app` gvar oddName `app` lst
           pure $ DefAST $ ASTDef term type_
         let globs = [("even", evenDef), ("odd", oddDef), ("map", mapDef), ("mapOdd", mapOddDef)]
@@ -485,5 +485,5 @@ even3App =
 -- | An 'App' containing 'mapOddProg'.
 mapOddApp :: App
 mapOddApp =
-  let (p, id_, nc) = mapOddProg
+  let (p, id_, nc) = mapOddProg 4
    in mkApp id_ nc p
