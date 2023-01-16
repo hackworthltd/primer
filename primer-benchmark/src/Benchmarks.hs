@@ -16,11 +16,13 @@ import Criterion (
   nf,
  )
 import Criterion qualified as C
+import Primer.App (tcWholeProgWithImports)
 import Primer.EvalFull (
   Dir (Syn),
   EvalLog,
   evalFull,
  )
+import Primer.Examples (mapOddProg)
 import Primer.Log (
   runDiscardLogT,
   runPureLogT,
@@ -36,8 +38,9 @@ import Primer.Test.TestM (
   evalTestM,
  )
 import Primer.Test.Util (zeroIDs)
+import Primer.Typecheck (TypeError)
 import Test.Tasty (TestTree, testGroup, withResource)
-import Test.Tasty.HUnit (Assertion, testCase, (@?=))
+import Test.Tasty.HUnit (Assertion, assertBool, testCase, (@?=))
 
 -- Orphans for 'NFData' instances.
 deriving stock instance Generic (WithSeverity a)
@@ -78,6 +81,10 @@ benchmarks =
           -- , benchExpectedDiscardLogs (mapEvenEnv 100) "mapEven 100" 10000
           ]
       ]
+  , Group
+      "typecheck"
+      [ benchTC mapOddProgEnv "mapOdd"
+      ]
   ]
   where
     evalTestMPureLogs e maxEvals =
@@ -88,14 +95,22 @@ benchmarks =
       evalTestM (maxID e) $
         runDiscardLogT $
           evalFull @EvalLog builtinTypes (defMap e) maxEvals Syn (expr e)
+
     benchExpected f g e n b = EnvBench e n $ \e' ->
       NF
         (f e')
         b
         (pure $ (@?= Right (zeroIDs $ expectedResult e')) . fmap zeroIDs . g)
+
     benchExpectedPureLogs = benchExpected evalTestMPureLogs fst
     benchExpectedDiscardLogs = benchExpected evalTestMDiscardLogs identity
+
+    tcTest id = evalTestM id . runExceptT @TypeError . tcWholeProgWithImports
+
+    benchTC e n = EnvBench e n $ \(prog, maxId, _) -> NF (tcTest maxId) prog $ pure $ assertBool "Failed to typecheck" . isRight
+
     mapEvenEnv n = pure $ mapEven n
+    mapOddProgEnv = pure mapOddProg
 
 runBenchmarks :: [Benchmark] -> [C.Benchmark]
 runBenchmarks = map go
