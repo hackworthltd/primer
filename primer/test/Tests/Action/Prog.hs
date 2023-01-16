@@ -122,7 +122,7 @@ import Primer.TypeDef (ASTTypeDef (..), TypeDef (..), ValCon (..), typeDefAST)
 import Primer.Typecheck (
   KindError (UnknownTypeConstructor),
   SmartHoles (NoSmartHoles, SmartHoles),
-  TypeError (KindError),
+  TypeError (EmptyTypeName, KindError),
  )
 import Test.Tasty.HUnit (Assertion, assertBool, assertFailure, (@=?), (@?=))
 import Tests.Typecheck (checkProgWellFormed)
@@ -289,6 +289,11 @@ unit_create_def = progActionTest defaultEmptyProg [CreateDef mainModuleName $ Ju
       Just def -> do
         astDefExpr def @?= EmptyHole (Meta 4 Nothing Nothing)
 
+unit_create_def_empty_baseName :: Assertion
+unit_create_def_empty_baseName =
+  progActionTest defaultFullProg [CreateDef mainModuleName $ Just ""] $
+    expectError (@?= EmptyDefName)
+
 unit_create_def_clash_prim :: Assertion
 unit_create_def_clash_prim =
   progActionTest defaultFullProg [CreateDef mainModuleName $ Just "toUpper"] $
@@ -436,6 +441,42 @@ unit_create_typedef_bad_7 =
           }
    in progActionTest defaultEmptyProg [AddTypeDef (tcn "T") td] $
         expectError (@?= TypeDefError "InternalError \"Duplicate names in one tydef: between parameter-names and constructor-names\"")
+
+-- Forbid empty type name.
+unit_create_typedef_bad_8 :: Assertion
+unit_create_typedef_bad_8 =
+  let td =
+        ASTTypeDef
+          { astTypeDefParameters = []
+          , astTypeDefConstructors = []
+          , astTypeDefNameHints = []
+          }
+   in progActionTest defaultEmptyProg [AddTypeDef (tcn "") td] $
+        expectError (@?= (TypeDefError $ show EmptyTypeName))
+
+-- Forbid empty type name with non-empty constructor list.
+unit_create_typedef_bad_9 :: Assertion
+unit_create_typedef_bad_9 =
+  let td =
+        ASTTypeDef
+          { astTypeDefParameters = []
+          , astTypeDefConstructors = [ValCon (vcn "a") []]
+          , astTypeDefNameHints = []
+          }
+   in progActionTest defaultEmptyProg [AddTypeDef (tcn "") td] $
+        expectError (@?= (TypeDefError $ show EmptyTypeName))
+
+-- Forbid empty type name with non-empty parameter list.
+unit_create_typedef_bad_10 :: Assertion
+unit_create_typedef_bad_10 =
+  let td =
+        ASTTypeDef
+          { astTypeDefParameters = [("a", KType)]
+          , astTypeDefConstructors = []
+          , astTypeDefNameHints = []
+          }
+   in progActionTest defaultEmptyProg [AddTypeDef (tcn "") td] $
+        expectError (@?= (TypeDefError $ show EmptyTypeName))
 
 -- Forbid clash between type name and name of a primitive type
 unit_create_typedef_bad_prim :: Assertion

@@ -14,6 +14,7 @@ data ProgError
   | DefNotFound GVarName
   | DefAlreadyExists GVarName
   | DefInUse GVarName
+  | EmptyDefName
   | TypeDefIsPrim TyConName
   | TypeDefNotFound TyConName
   | TypeDefAlreadyExists TyConName

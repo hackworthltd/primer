@@ -11,6 +11,7 @@ import Primer.Typecheck.KindError (KindError)
 
 data TypeError
   = InternalError Text
+  | EmptyTypeName
   | UnknownVariable TmVarRef
   | TmVarWrongSort Name -- type var instead of term var
   | UnknownConstructor ValConName
