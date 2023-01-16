@@ -1,5 +1,3 @@
-{-# LANGUAGE DeriveAnyClass #-}
-
 module Primer.Core.Type (
   Type,
   Type' (..),

@@ -1,5 +1,3 @@
-{-# LANGUAGE DeriveAnyClass #-}
-
 module Primer.Primitives.PrimDef (PrimDef (..)) where
 
 -- We split this module to increase parallelism in our build.
