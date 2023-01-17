@@ -19,7 +19,7 @@ module Primer.Primitives (
 import Foreword
 
 import Control.Monad.Fresh (MonadFresh)
-import Data.Aeson (FromJSON (..), ToJSON (..))
+import Data.Aeson (ToJSON (..))
 import Data.Data (Data)
 import Data.Map qualified as M
 import Numeric.Natural (Natural)
@@ -66,7 +66,7 @@ data PrimFunError
       [Expr' () ()]
       -- ^ Arguments
   deriving (Eq, Show, Data, Generic)
-  deriving (FromJSON, ToJSON) via PrimerJSON PrimFunError
+  deriving (ToJSON) via PrimerJSON PrimFunError
 
 primitiveModuleName :: ModuleName
 primitiveModuleName = mkSimpleModuleName "Primitives"

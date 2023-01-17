@@ -24,7 +24,7 @@ import Primer.Database (
   SessionId,
  )
 import Primer.Finite (Finite)
-import Primer.JSON (CustomJSON (CustomJSON), FromJSON, PrimerJSON, ToJSON)
+import Primer.JSON (CustomJSON (CustomJSON), PrimerJSON, ToJSON)
 import Primer.OpenAPI ()
 import Primer.Servant.Types (
   CopySession,
@@ -143,7 +143,7 @@ data CreateTypeDefBody = CreateTypeDefBody
   , ctors :: [Text]
   }
   deriving stock (Generic, Show)
-  deriving (FromJSON, ToJSON) via PrimerJSON CreateTypeDefBody
+  deriving (ToJSON) via PrimerJSON CreateTypeDefBody
   deriving (ToSchema) via PrimerJSON CreateTypeDefBody
 
 data ActionAPI mode = ActionAPI

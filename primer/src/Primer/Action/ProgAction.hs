@@ -10,7 +10,7 @@ module Primer.Action.ProgAction (ProgAction (..)) where
 
 import Foreword
 
-import Data.Aeson (FromJSON (..), ToJSON (..))
+import Data.Aeson (ToJSON (..))
 import Primer.Action.Actions (Action)
 import Primer.Core.Meta (GVarName, ID, ModuleName, TyConName, TyVarName, ValConName)
 import Primer.Core.Type (Type')
@@ -64,4 +64,4 @@ data ProgAction
   | -- | Renames an editable module (will return an error if asked to rename an imported module)
     RenameModule ModuleName (NonEmpty Text)
   deriving (Eq, Show, Generic)
-  deriving (FromJSON, ToJSON) via PrimerJSON ProgAction
+  deriving (ToJSON) via PrimerJSON ProgAction

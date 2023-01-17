@@ -111,7 +111,7 @@ import Primer.Core (
   getID,
   typesInExpr,
  )
-import Primer.JSON (CustomJSON (CustomJSON), FromJSON, PrimerJSON, ToJSON)
+import Primer.JSON (CustomJSON (CustomJSON), PrimerJSON, ToJSON)
 import Primer.Name (Name)
 import Primer.Zipper.Type (
   FoldAbove,
@@ -457,4 +457,4 @@ data SomeNode
   | -- | If/when we model all bindings with 'Bind'', we will want to generalise this.
     CaseBindNode Bind
   deriving (Eq, Show, Generic)
-  deriving (FromJSON, ToJSON) via PrimerJSON SomeNode
+  deriving (ToJSON) via PrimerJSON SomeNode

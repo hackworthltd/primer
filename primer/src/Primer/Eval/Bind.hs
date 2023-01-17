@@ -7,7 +7,7 @@ import Foreword
 import Primer.Core (
   ID,
  )
-import Primer.JSON (CustomJSON (CustomJSON), FromJSON, PrimerJSON, ToJSON)
+import Primer.JSON (CustomJSON (CustomJSON), PrimerJSON, ToJSON)
 import Primer.Name (Name)
 
 -- | Detailed information about a renaming of a binding.
@@ -39,4 +39,4 @@ data BindRenameDetail t = BindRenameDetail
   -- ^ the right hand side of the binders
   }
   deriving (Eq, Show, Generic)
-  deriving (FromJSON, ToJSON) via PrimerJSON (BindRenameDetail t)
+  deriving (ToJSON) via PrimerJSON (BindRenameDetail t)

@@ -59,7 +59,7 @@ data Type' a
       (Type' a)
       -- ^ body of the let; binding scopes over this
   deriving (Eq, Show, Data, Generic)
-  deriving (FromJSON, ToJSON) via PrimerJSON (Type' a)
+  deriving (ToJSON) via PrimerJSON (Type' a)
   deriving anyclass (NFData)
 
 -- | A traversal over the metadata of a type

@@ -230,7 +230,7 @@ data Prog = Prog
   , progLog :: Log -- The log of all actions
   }
   deriving (Eq, Show, Generic)
-  deriving (FromJSON, ToJSON) via PrimerJSON Prog
+  deriving (ToJSON) via PrimerJSON Prog
 
 -- | The default 'Prog'. It has no imports, no definitions, no current
 -- 'Selection', and an empty 'Log'. Smart holes are enabled.
@@ -379,7 +379,7 @@ allDefs = fmap snd . progAllDefs
 --  Items are stored in reverse order so it's quick to add new ones.
 newtype Log = Log {unlog :: [[ProgAction]]}
   deriving (Eq, Show, Generic)
-  deriving (FromJSON, ToJSON) via PrimerJSON Log
+  deriving (ToJSON) via PrimerJSON Log
 
 -- | The default (empty) 'Log'.
 defaultLog :: Log
@@ -393,7 +393,7 @@ data Selection = Selection
   , selectedNode :: Maybe NodeSelection
   }
   deriving (Eq, Show, Generic, Data)
-  deriving (FromJSON, ToJSON) via PrimerJSON Selection
+  deriving (ToJSON) via PrimerJSON Selection
 
 -- | A selected node, in the body or type signature of some definition.
 -- We have the following invariant: @nodeType = SigNode ==> isRight meta@
@@ -402,7 +402,7 @@ data NodeSelection = NodeSelection
   , meta :: Either ExprMeta TypeMeta
   }
   deriving (Eq, Show, Generic, Data)
-  deriving (FromJSON, ToJSON) via PrimerJSON NodeSelection
+  deriving (ToJSON) via PrimerJSON NodeSelection
 
 instance HasID NodeSelection where
   _id =
@@ -415,14 +415,14 @@ data MutationRequest
   = Undo
   | Edit [ProgAction]
   deriving (Eq, Show, Generic)
-  deriving (FromJSON, ToJSON) via PrimerJSON MutationRequest
+  deriving (ToJSON) via PrimerJSON MutationRequest
 
 data EvalReq = EvalReq
   { evalReqExpr :: Expr
   , evalReqRedex :: ID
   }
   deriving (Eq, Show, Generic)
-  deriving (FromJSON, ToJSON) via PrimerJSON EvalReq
+  deriving (ToJSON) via PrimerJSON EvalReq
 
 data EvalResp = EvalResp
   { evalRespExpr :: Expr
@@ -430,7 +430,7 @@ data EvalResp = EvalResp
   , evalRespDetail :: EvalDetail
   }
   deriving (Eq, Show, Generic)
-  deriving (FromJSON, ToJSON) via PrimerJSON EvalResp
+  deriving (ToJSON) via PrimerJSON EvalResp
 
 data EvalFullReq = EvalFullReq
   { evalFullReqExpr :: Expr
@@ -438,14 +438,14 @@ data EvalFullReq = EvalFullReq
   , evalFullMaxSteps :: TerminationBound
   }
   deriving (Eq, Show, Generic)
-  deriving (FromJSON, ToJSON) via PrimerJSON EvalFullReq
+  deriving (ToJSON) via PrimerJSON EvalFullReq
 
 -- If we time out, we still return however far we got
 data EvalFullResp
   = EvalFullRespTimedOut Expr
   | EvalFullRespNormal Expr
   deriving (Eq, Show, Generic)
-  deriving (FromJSON, ToJSON) via PrimerJSON EvalFullResp
+  deriving (ToJSON) via PrimerJSON EvalFullResp
 
 -- * Request handlers
 
@@ -1049,7 +1049,7 @@ data App = App
   , initialState :: AppState
   }
   deriving (Eq, Show, Generic)
-  deriving (FromJSON, ToJSON) via PrimerJSON App
+  deriving (ToJSON) via PrimerJSON App
 
 -- Internal app state. Note that this type is not exported, as we want
 -- to guarantee that the counters are kept in sync with the 'Prog',
@@ -1061,7 +1061,7 @@ data AppState = AppState
   , prog :: Prog
   }
   deriving (Eq, Show, Generic)
-  deriving (FromJSON, ToJSON) via PrimerJSON AppState
+  deriving (ToJSON) via PrimerJSON AppState
 
 -- | Construct an 'App' from an 'ID' and a 'Prog'.
 --

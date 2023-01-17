@@ -9,7 +9,7 @@ import Primer.Core (
   ID,
   ValConName,
  )
-import Primer.JSON (CustomJSON (CustomJSON), FromJSON, PrimerJSON, ToJSON)
+import Primer.JSON (CustomJSON (CustomJSON), PrimerJSON, ToJSON)
 
 data CaseReductionDetail = CaseReductionDetail
   { before :: Expr
@@ -32,4 +32,4 @@ data CaseReductionDetail = CaseReductionDetail
   -- ^ the let expressions binding each argument in the result
   }
   deriving (Eq, Show, Generic)
-  deriving (FromJSON, ToJSON) via PrimerJSON CaseReductionDetail
+  deriving (ToJSON) via PrimerJSON CaseReductionDetail

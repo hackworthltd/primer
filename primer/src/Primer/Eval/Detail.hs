@@ -23,7 +23,7 @@ import Primer.Eval.Case as Case
 import Primer.Eval.Inline as Inline
 import Primer.Eval.Let as Let
 import Primer.Eval.Prim as Prim
-import Primer.JSON (CustomJSON (CustomJSON), FromJSON, PrimerJSON, ToJSON)
+import Primer.JSON (CustomJSON (CustomJSON), PrimerJSON, ToJSON)
 
 -- | Detailed information about a reduction step
 data EvalDetail
@@ -52,4 +52,4 @@ data EvalDetail
   | -- | Apply a primitive function
     ApplyPrimFun ApplyPrimFunDetail
   deriving (Eq, Show, Generic)
-  deriving (FromJSON, ToJSON) via PrimerJSON EvalDetail
+  deriving (ToJSON) via PrimerJSON EvalDetail

@@ -25,7 +25,7 @@ import Primer.JSON
 newtype Name = Name {unName :: Text}
   deriving (Eq, Ord, Generic, Data)
   deriving newtype (Show, IsString)
-  deriving newtype (FromJSON, ToJSON, FromJSONKey, ToJSONKey)
+  deriving newtype (ToJSON, ToJSONKey)
   deriving anyclass (NFData)
 
 -- | Construct a name from a Text. This is called unsafe because there are no

@@ -95,7 +95,7 @@ data TypeCache
   | TCChkedAt (Type' ())
   | TCEmb TypeCacheBoth
   deriving (Eq, Show, Generic, Data)
-  deriving (FromJSON, ToJSON) via PrimerJSON TypeCache
+  deriving (ToJSON) via PrimerJSON TypeCache
   deriving anyclass (NFData)
 
 -- We were checking at the first, but term was synthesisable and synth'd the
@@ -104,7 +104,7 @@ data TypeCache
 -- though, to make it clear what each one is!
 data TypeCacheBoth = TCBoth {tcChkedAt :: Type' (), tcSynthed :: Type' ()}
   deriving (Eq, Show, Generic, Data)
-  deriving (FromJSON, ToJSON) via PrimerJSON TypeCacheBoth
+  deriving (ToJSON) via PrimerJSON TypeCacheBoth
   deriving anyclass (NFData)
 
 -- TODO `_chkedAt` and `_synthed` should be `AffineTraversal`s,
@@ -182,7 +182,7 @@ data Expr' a b
   | Case a (Expr' a b) [CaseBranch' a b] -- See Note [Case]
   | PrimCon a PrimCon
   deriving (Eq, Show, Data, Generic)
-  deriving (FromJSON, ToJSON) via PrimerJSON (Expr' a b)
+  deriving (ToJSON) via PrimerJSON (Expr' a b)
   deriving anyclass (NFData)
 
 -- Note [Synthesisable constructors]
@@ -257,7 +257,7 @@ data CaseBranch' a b
       (Expr' a b)
       -- ^ right hand side
   deriving (Eq, Show, Data, Generic)
-  deriving (FromJSON, ToJSON) via PrimerJSON (CaseBranch' a b)
+  deriving (ToJSON) via PrimerJSON (CaseBranch' a b)
   deriving anyclass (NFData)
 
 -- | Variable bindings
@@ -267,7 +267,7 @@ type Bind = Bind' ExprMeta
 
 data Bind' a = Bind a LVarName
   deriving (Eq, Show, Data, Generic)
-  deriving (FromJSON, ToJSON) via PrimerJSON (Bind' a)
+  deriving (ToJSON) via PrimerJSON (Bind' a)
   deriving anyclass (NFData)
 
 bindName :: Bind' a -> LVarName

@@ -16,7 +16,7 @@ import Primer.Core (
  )
 import Primer.Core.Transform (unfoldApp)
 import Primer.Core.Utils (concreteTy, forgetMetadata)
-import Primer.JSON (CustomJSON (CustomJSON), FromJSON, PrimerJSON, ToJSON)
+import Primer.JSON (CustomJSON (CustomJSON), PrimerJSON, ToJSON)
 import Primer.Primitives (PrimDef, primFunDef)
 
 data ApplyPrimFunDetail = ApplyPrimFunDetail
@@ -30,7 +30,7 @@ data ApplyPrimFunDetail = ApplyPrimFunDetail
   -- ^ the IDs of the arguments to the application
   }
   deriving (Eq, Show, Generic)
-  deriving (FromJSON, ToJSON) via PrimerJSON ApplyPrimFunDetail
+  deriving (ToJSON) via PrimerJSON ApplyPrimFunDetail
 
 -- | If this node is a reducible application of a primitive, return the name of the primitive, the arguments, and
 -- (a computation for building) the result.
