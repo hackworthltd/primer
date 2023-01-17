@@ -1,6 +1,9 @@
 {-# LANGUAGE DisambiguateRecordFields #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE OverloadedLabels #-}
+{-# OPTIONS_GHC -Wno-deprecations #-}
+{-# OPTIONS_GHC -Wno-redundant-constraints #-}
+{-# OPTIONS_GHC -Wno-unused-imports #-}
 
 -- | An HTTP service for the Primer API.
 module Primer.Server (
@@ -259,7 +262,7 @@ serve ss q v port logger = do
     noCache $
       cors (const $ Just apiCors) $
         metrics $
-          genericServeT nt server
+          undefined nt (server @l)
   where
     -- By default Warp will try to bind on either IPv4 or IPv6, whichever is
     -- available.

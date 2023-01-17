@@ -1,3 +1,5 @@
+{-# OPTIONS_GHC -Wno-missing-methods #-}
+{-# OPTIONS_GHC -Wno-unused-imports #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
 -- This module exists so that we don't need a dependency on "Rel8" in
@@ -11,4 +13,5 @@ import Rel8 (
   JSONBEncoded (..),
  )
 
-deriving via JSONBEncoded App instance DBType App
+-- deriving via JSONBEncoded App instance DBType App
+instance DBType App
