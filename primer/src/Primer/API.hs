@@ -572,6 +572,7 @@ data Tree = Tree
   }
   deriving stock (Show, Eq, Generic)
   deriving (ToJSON) via PrimerJSON Tree
+  deriving anyclass (NFData)
 
 -- | A local or global name.
 -- Field names are intentionally the same as `GlobalName`, so that, unless `qualifiedModule` is `Nothing`,
@@ -582,6 +583,7 @@ data Name = Name
   }
   deriving stock (Show, Eq, Generic)
   deriving (ToJSON) via PrimerJSON Name
+  deriving anyclass (NFData)
 
 -- | The contents of a node.
 data NodeBody
@@ -595,6 +597,7 @@ data NodeBody
     NoBody Flavor.NodeFlavorNoBody
   deriving stock (Show, Eq, Generic)
   deriving (ToJSON) via PrimerJSON NodeBody
+  deriving anyclass (NFData)
 
 -- | This type is the API's view of a 'App.Prog'
 data Prog = Prog
@@ -603,6 +606,7 @@ data Prog = Prog
   }
   deriving stock (Generic, Show)
   deriving (ToJSON) via PrimerJSON Prog
+  deriving anyclass (NFData)
 
 -- | This type is the API's view of a 'Module.Module'
 -- (this is expected to evolve as we flesh out the API)
@@ -618,6 +622,7 @@ data Module = Module
   }
   deriving stock (Generic, Show)
   deriving (ToJSON) via PrimerJSON Module
+  deriving anyclass (NFData)
 
 -- | This type is the api's view of a 'Primer.Core.Def'
 -- (this is expected to evolve as we flesh out the API)
@@ -629,6 +634,7 @@ data Def = Def
   }
   deriving stock (Generic, Show)
   deriving (ToJSON) via PrimerJSON Def
+  deriving anyclass (NFData)
 
 viewProg :: ExprTreeOpts -> App.Prog -> Prog
 viewProg exprTreeOpts p =
@@ -1156,6 +1162,7 @@ data Selection = Selection
   }
   deriving stock (Eq, Show, Generic)
   deriving (FromJSON, ToJSON) via PrimerJSON Selection
+  deriving anyclass (NFData)
 
 viewSelection :: App.Selection -> Selection
 viewSelection App.Selection{..} = Selection{def = selectedDef, node = viewNodeSelection <$> selectedNode}
@@ -1167,6 +1174,7 @@ data NodeSelection = NodeSelection
   }
   deriving stock (Eq, Show, Generic)
   deriving (FromJSON, ToJSON) via PrimerJSON NodeSelection
+  deriving anyclass (NFData)
 
 viewNodeSelection :: App.NodeSelection -> NodeSelection
 viewNodeSelection sel@App.NodeSelection{nodeType} = NodeSelection{nodeType, id = getID sel}

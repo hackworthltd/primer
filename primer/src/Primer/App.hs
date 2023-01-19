@@ -420,6 +420,7 @@ data MutationRequest
   | Edit [ProgAction]
   deriving stock (Eq, Show, Generic)
   deriving (FromJSON, ToJSON) via PrimerJSON MutationRequest
+  deriving anyclass (NFData)
 
 data EvalReq = EvalReq
   { evalReqExpr :: Expr
@@ -1054,6 +1055,7 @@ data App = App
   }
   deriving stock (Eq, Show, Generic)
   deriving (FromJSON, ToJSON) via PrimerJSON App
+  deriving anyclass (NFData)
 
 -- Internal app state. Note that this type is not exported, as we want
 -- to guarantee that the counters are kept in sync with the 'Prog',
@@ -1066,6 +1068,7 @@ data AppState = AppState
   }
   deriving stock (Eq, Show, Generic)
   deriving (FromJSON, ToJSON) via PrimerJSON AppState
+  deriving anyclass (NFData)
 
 -- | Construct an 'App' from an 'ID' and a 'Prog'.
 --

@@ -17,3 +17,4 @@ import Primer.JSON (CustomJSON (CustomJSON), PrimerJSON, ToJSON)
 data RecordPair a b = RecordPair {fst :: a, snd :: b}
   deriving stock (Show, Eq, Generic)
   deriving (ToJSON) via PrimerJSON (RecordPair a b)
+  deriving anyclass (NFData)
