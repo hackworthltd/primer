@@ -7,6 +7,6 @@ import Primer.JSON (CustomJSON (..), FromJSON, PrimerJSON, ToJSON)
 
 -- | Core movements
 data Movement = Child1 | Child2 | Parent | Branch ValConName
-  deriving stock (Eq, Show, Generic)
+  deriving stock (Eq, Show, Read, Generic)
   deriving (FromJSON, ToJSON) via PrimerJSON Movement
   deriving anyclass (NFData)
