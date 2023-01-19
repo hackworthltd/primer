@@ -1,15 +1,18 @@
-cabal-version: 3.0
-name:          primer-benchmark
-version:       0.7.2.0
-license:       AGPL-3.0-or-later
-license-file:  COPYING
-copyright:     (c) 2023 Hackworth Ltd
-maintainer:    src@hackworthltd.com
-author:        Hackworth Ltd <src@hackworthltd.com>
-stability:     experimental
-synopsis:      Benchmarks for Primer
-homepage:      https://github.com/hackworthltd/primer
-bug-reports:   https://github.com/hackworthltd/primer/issues
+cabal-version:      3.0
+name:               primer-benchmark
+version:            0.7.2.0
+license:            AGPL-3.0-or-later
+license-file:       COPYING
+copyright:          (c) 2023 Hackworth Ltd
+maintainer:         src@hackworthltd.com
+author:             Hackworth Ltd <src@hackworthltd.com>
+stability:          experimental
+synopsis:           Benchmarks for Primer
+homepage:           https://github.com/hackworthltd/primer
+bug-reports:        https://github.com/hackworthltd/primer/issues
+extra-source-files:
+  fixtures/**/*.edits
+  fixtures/**/*.out
 
 source-repository head
   type:     git
@@ -40,13 +43,27 @@ library
   hs-source-dirs:  src
   exposed-modules: Benchmarks
   build-depends:
+    , aeson                            >=2.0      && <2.2
     , base                             >=4.12     && <4.17.0
     , containers                       >=0.6.0.1  && <0.7.0
     , criterion                        ^>=1.6.0.0
+    , deepseq                          ^>=1.4.6.1
     , logging-effect                   ^>=1.3.13
     , primer:{primer, primer-testlib}
     , tasty                            ^>=1.4.2.1
     , tasty-hunit                      ^>=0.10.0
+    , text                             ^>=2.0
+
+executable primer-benchmark-mkfixture
+  import:         options
+  main-is:        Main.hs
+  hs-source-dirs: mkfixture
+  build-depends:
+    , base
+    , primer
+    , primer-benchmark
+    , text
+    , uuid              ^>=1.3.15
 
 benchmark primer-benchmark
   import:         options
