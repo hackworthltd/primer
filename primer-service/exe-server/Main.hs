@@ -64,7 +64,7 @@ import Primer.Log (
   logNotice,
   textWithSeverity,
  )
-import Primer.Server (ConvertServerLogs)
+import Primer.Server (ConvertServerLogs, ServantLog)
 import Primer.Server qualified as Server
 import Prometheus qualified as P
 import Prometheus.Metric.GHC qualified as P
@@ -174,6 +174,7 @@ serve ::
   , ConvertLogMessage Text l
   , ConvertLogMessage PrimerErr l
   , ConvertServerLogs l
+  , ConvertLogMessage ServantLog l
   ) =>
   Database ->
   Version ->
@@ -270,4 +271,7 @@ instance ConvertLogMessage APILog LogMsg where
   convert = LogMsg . show
 
 instance ConvertLogMessage EvalLog LogMsg where
+  convert = LogMsg . show
+
+instance ConvertLogMessage ServantLog LogMsg where
   convert = LogMsg . show
