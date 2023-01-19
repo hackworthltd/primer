@@ -67,7 +67,7 @@ import Primer.Log (
   logNotice,
   textWithSeverity,
  )
-import Primer.Server (ConvertServerLogs)
+import Primer.Server (ConvertServerLogs, ServantLog)
 import Primer.Server qualified as Server
 import Prometheus qualified as P
 import Prometheus.Metric.GHC qualified as P
@@ -179,6 +179,7 @@ serve ::
   , ConvertLogMessage Text l
   , ConvertLogMessage PrimerErr l
   , ConvertServerLogs l
+  , ConvertLogMessage ServantLog l
   ) =>
   Database ->
   Version ->
@@ -279,12 +280,17 @@ instance ConvertLogMessage APILog LogMsg where
 instance ConvertLogMessage EvalLog LogMsg where
   convert = LogMsg . show
 
+instance ConvertLogMessage ServantLog LogMsg where
+  convert = LogMsg . show
+
 data LogReplay
   = API APILog
+  | Servant ServantLog
   | Other LogMsg
 
 instance ConvertLogMessage LogReplay LogMsg where
   convert (API m) = convert m
+  convert (Servant m) = convert m
   convert (Other m) = m
 
 instance ConvertLogMessage Text LogReplay where
@@ -305,10 +311,14 @@ instance ConvertLogMessage APILog LogReplay where
 instance ConvertLogMessage EvalLog LogReplay where
   convert = Other . convert
 
+instance ConvertLogMessage ServantLog LogReplay where
+  convert = Servant
+
 -- | Logger whose output is designed to be able to be "replayed".
 -- It is assumed that all "replay-relevant" messages are at the 'Informational' level.
 logReplay :: WithSeverity LogReplay -> Text
 -- NB: primer-benchmark/mkfixture depends on this format, so should be updated
 -- in sync with format changes here.
 logReplay (WithSeverity Informational (API l)) = "[REPLAY] " <> show l
+logReplay (WithSeverity Informational (Servant l)) = "[REPLAY] " <> show l
 logReplay (WithSeverity s m) = logMsgWithSeverity (WithSeverity s $ convert m)
