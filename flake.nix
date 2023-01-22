@@ -171,7 +171,8 @@
                 cabal-fmt = "latest";
               };
             in
-            {
+            # aarch64-linux check is currently broken.
+            (pkgs.lib.optionalAttrs (system == "x86_64-linux" || system == "aarch64-darwin") {
               check.enable = true;
               settings = {
                 src = ./.;
@@ -206,7 +207,7 @@
                   ".buildkite/"
                 ];
               };
-            };
+            });
 
           packages = {
             inherit (pkgs) primer-service primer-openapi-spec run-primer;
