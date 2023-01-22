@@ -1,6 +1,8 @@
 { primer-benchmark
 , pkgs
 , lastEnvChange
+, importFromDirectory
+, nixosModules
 }:
 let
   lastEnvChangeFile = pkgs.writeText "lastEnvChange" lastEnvChange;
@@ -45,7 +47,7 @@ let
   #
   # - each OLS regression measured by the benchmark run, and
   # - its R² value as a tooltip.
-  primer-benchmark-results-github-action-benchmark =
+  primer-criterion-results-github-action-benchmark =
     let
       jqscript = pkgs.writeText "extract-criterion.jq" ''
         [.[]
@@ -58,14 +60,37 @@ let
         ]
       '';
     in
-    (pkgs.runCommand "primer-benchmark-results-github-action-benchmark" { }
+    (pkgs.runCommand "primer-criterion-results-github-action-benchmark" { }
       ''
         ${pkgs.coreutils}/bin/mkdir -p $out
         cp ${lastEnvChangeFile} $out/lastEnvChange
         ${pkgs.jq}/bin/jq -f ${jqscript} ${primer-benchmark-results-json}/results.json > $out/results.json
       ''
     );
+  nixos-bench =
+    importFromDirectory ../../../nixos-bench/fixtures
+      {
+        hostPkgs = pkgs;
+        defaults.imports = [ nixosModules.default ];
+      }
+  ;
+  primer-benchmark-results-github-action-benchmark =
+    pkgs.runCommand "primer-benchmark-results-github-action-benchmark" { } ''
+      ${pkgs.coreutils}/bin/mkdir -p $out
+      ${pkgs.coreutils}/bin/mkdir results
+      # Prefix names of each sample with the fixture it came from
+      ${pkgs.lib.concatStringsSep "\n"
+        (pkgs.lib.mapAttrsToList (name: value: "${pkgs.jq}/bin/jq 'map(.name=\"${name}/\"+.name)' <${value}/results.json > results/${name}")
+          nixos-bench)}
+      # Concatenate json lists
+      ${pkgs.jq}/bin/jq -n '[inputs[]]' \
+          ${pkgs.primer-criterion-results-github-action-benchmark}/results.json \
+          results/* \
+          > $out/results.json
+    '';
 in
 {
-  inherit primer-benchmark-results-html primer-benchmark-results-json primer-benchmark-results-github-action-benchmark;
+  inherit primer-benchmark-results-html
+    primer-benchmark-results-json primer-criterion-results-github-action-benchmark
+    nixos-bench primer-benchmark-results-github-action-benchmark;
 }
