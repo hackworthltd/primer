@@ -169,7 +169,7 @@ data Session = Session
   -- ^ The last time the session was modified. See
   -- 'SessionData.lastModified' for details.
   }
-  deriving stock (Show, Eq, Generic)
+  deriving stock (Show, Read, Eq, Generic)
   deriving (FromJSON, ToJSON) via PrimerJSON Session
 
 -- | Per-session information.
@@ -287,12 +287,12 @@ discardOp q = liftIO $ atomically $ void $ readTBQueue q
 -- | A 'Page' is a portion of the results of some DB query, along with the
 -- total number of results.
 data Page a = Page {total :: Int, pageContents :: [a]}
-  deriving stock (Show)
+  deriving stock (Show, Read)
 
 -- | Enable extracting a subset of the results of a query, for later
 -- pagination.
 data OffsetLimit = OL {offset :: !Int, limit :: Maybe Int}
-  deriving stock (Show)
+  deriving stock (Show, Read)
 
 -- | If one has all the results at hand, it is trivial to extract a page.
 pageList :: OffsetLimit -> [a] -> Page a

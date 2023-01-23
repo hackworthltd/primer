@@ -32,7 +32,7 @@ unsafeMkName :: Text -> Name
 unsafeMkName = Name
 
 newtype NameCounter = NC Natural
-  deriving stock (Eq, Show, Generic, Data)
+  deriving stock (Eq, Show, Read, Generic, Data)
   deriving newtype (Enum, FromJSON, ToJSON)
   deriving anyclass (NFData)
 

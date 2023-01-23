@@ -51,5 +51,5 @@ data EvalDetail
     RemoveAnn RemoveAnnDetail
   | -- | Apply a primitive function
     ApplyPrimFun ApplyPrimFunDetail
-  deriving stock (Eq, Show, Generic)
+  deriving stock (Eq, Show, Read, Generic)
   deriving (FromJSON, ToJSON) via PrimerJSON EvalDetail

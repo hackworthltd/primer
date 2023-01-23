@@ -95,7 +95,7 @@ import Primer.Zipper (
 data Action
   = NoInput NoInputAction
   | Input InputAction
-  deriving stock (Eq, Ord, Show, Generic)
+  deriving stock (Eq, Ord, Show, Read, Generic)
   deriving (ToJSON, FromJSON) via PrimerJSON Action
 
 -- | An action which can be applied without requiring further input.
@@ -292,7 +292,7 @@ data Option = Option
   { option :: Text
   , context :: Maybe (NonEmpty Text)
   }
-  deriving stock (Eq, Show, Generic)
+  deriving stock (Eq, Show, Read, Generic)
   deriving (FromJSON, ToJSON) via PrimerJSON Option
 
 -- | The available sorts of free-form input for an 'InputAction'.
@@ -305,7 +305,7 @@ data FreeInput
     FreeInt
   | -- | A free-form string input is allowed, and represents a primitive character
     FreeChar
-  deriving stock (Show, Generic, Bounded, Enum)
+  deriving stock (Show, Read, Generic, Bounded, Enum)
   deriving (ToJSON, FromJSON) via PrimerJSON FreeInput
 
 -- | The available inputs for an 'InputAction'.
@@ -313,7 +313,7 @@ data Options = Options
   { opts :: [Option]
   , free :: FreeInput
   }
-  deriving stock (Show, Generic)
+  deriving stock (Show, Read, Generic)
   deriving (ToJSON, FromJSON) via PrimerJSON Options
 
 options ::

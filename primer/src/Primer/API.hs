@@ -350,7 +350,7 @@ withSession' sid op = do
       pure result
 
 data ReqResp a b = Req a | Resp b
-  deriving stock (Show)
+  deriving stock (Show, Read)
 
 data APILog
   = NewSession (ReqResp NewSessionReq SessionId)
@@ -377,7 +377,7 @@ data APILog
   | ActionOptions (ReqResp (SessionId, Level, Selection, Available.InputAction) Available.Options)
   | ApplyActionNoInput (ReqResp (ExprTreeOpts, SessionId, Selection, Available.NoInputAction) Prog)
   | ApplyActionInput (ReqResp (ExprTreeOpts, SessionId, ApplyActionBody, Available.InputAction) Prog)
-  deriving stock (Show)
+  deriving stock (Show, Read)
 
 type MonadAPILog l m = (MonadLog (WithSeverity l) m, ConvertLogMessage APILog l)
 
@@ -411,7 +411,7 @@ data NewSessionReq = NewSessionReq
   -- hint: the API may choose a different name if the given name is
   -- invalid.
   }
-  deriving stock (Show, Eq, Generic)
+  deriving stock (Show, Read, Eq, Generic)
   deriving (FromJSON, ToJSON) via PrimerJSON NewSessionReq
 
 -- | Create a new session and return its ID.
@@ -570,7 +570,7 @@ data Tree = Tree
   , rightChild :: Maybe Tree
   -- ^ a special subtree to be rendered to the right, rather than below - useful for `case` branches
   }
-  deriving stock (Show, Eq, Generic)
+  deriving stock (Show, Read, Eq, Generic)
   deriving (ToJSON, FromJSON) via PrimerJSON Tree
   deriving anyclass (NFData)
 
@@ -581,7 +581,7 @@ data Name = Name
   { qualifiedModule :: Maybe ModuleName
   , baseName :: Name.Name
   }
-  deriving stock (Show, Eq, Generic)
+  deriving stock (Show, Read, Eq, Generic)
   deriving (ToJSON, FromJSON) via PrimerJSON Name
   deriving anyclass (NFData)
 
@@ -595,7 +595,7 @@ data NodeBody
     BoxBody (RecordPair Flavor.NodeFlavorBoxBody Tree)
   | -- | Some simple nodes, like function application, have no body.
     NoBody Flavor.NodeFlavorNoBody
-  deriving stock (Show, Eq, Generic)
+  deriving stock (Show, Read, Eq, Generic)
   deriving (ToJSON, FromJSON) via PrimerJSON NodeBody
   deriving anyclass (NFData)
 
@@ -604,7 +604,7 @@ data Prog = Prog
   { modules :: [Module]
   , selection :: Maybe Selection
   }
-  deriving stock (Generic, Show)
+  deriving stock (Generic, Show, Read)
   deriving (ToJSON, FromJSON) via PrimerJSON Prog
   deriving anyclass (NFData)
 
@@ -620,7 +620,7 @@ data Module = Module
     -- corresponding value".
     defs :: [Def]
   }
-  deriving stock (Generic, Show)
+  deriving stock (Generic, Show, Read)
   deriving (ToJSON, FromJSON) via PrimerJSON Module
   deriving anyclass (NFData)
 
@@ -632,7 +632,7 @@ data Def = Def
   , term :: Maybe Tree
   -- ^ definitions with no associated tree are primitives
   }
-  deriving stock (Generic, Show)
+  deriving stock (Generic, Show, Read)
   deriving (ToJSON, FromJSON) via PrimerJSON Def
   deriving anyclass (NFData)
 
@@ -674,7 +674,7 @@ data ExprTreeOpts = ExprTreeOpts
   -- ^ Some renderers may struggle with aligning subtrees to the right.
   -- This option outputs trees where patterns are direct children of the `match` node instead.
   }
-  deriving stock (Eq, Ord, Show, Generic)
+  deriving stock (Eq, Ord, Show, Read, Generic)
   deriving (FromJSON, ToJSON) via PrimerJSON ExprTreeOpts
 defaultExprTreeOpts :: ExprTreeOpts
 defaultExprTreeOpts =
@@ -979,7 +979,7 @@ evalFull = curry $ logAPI (leftResultError EvalFull) $ \(sid, req) ->
 data EvalFullResp
   = EvalFullRespTimedOut Tree
   | EvalFullRespNormal Tree
-  deriving stock (Show, Generic)
+  deriving stock (Show, Read, Generic)
   deriving (ToJSON, FromJSON) via PrimerJSON EvalFullResp
 
 -- | Evaluate some top level definition in a program.
@@ -1145,7 +1145,7 @@ data ApplyActionBody = ApplyActionBody
   { selection :: Selection
   , option :: Available.Option
   }
-  deriving stock (Generic, Show)
+  deriving stock (Generic, Show, Read)
   deriving (FromJSON, ToJSON) via PrimerJSON ApplyActionBody
 
 applyActions :: (MonadIO m, MonadThrow m, MonadAPILog l m) => ExprTreeOpts -> SessionId -> [ProgAction] -> PrimerM m Prog
@@ -1160,7 +1160,7 @@ data Selection = Selection
   { def :: GVarName
   , node :: Maybe NodeSelection
   }
-  deriving stock (Eq, Show, Generic)
+  deriving stock (Eq, Show, Read, Generic)
   deriving (FromJSON, ToJSON) via PrimerJSON Selection
   deriving anyclass (NFData)
 
@@ -1172,7 +1172,7 @@ data NodeSelection = NodeSelection
   { nodeType :: NodeType
   , id :: ID
   }
-  deriving stock (Eq, Show, Generic)
+  deriving stock (Eq, Show, Read, Generic)
   deriving (FromJSON, ToJSON) via PrimerJSON NodeSelection
   deriving anyclass (NFData)
 

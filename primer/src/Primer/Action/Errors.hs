@@ -64,5 +64,5 @@ data ActionError
   | NeedInt Available.Option
   | NeedChar Available.Option
   | NoNodeSelection
-  deriving stock (Eq, Show, Generic)
+  deriving stock (Eq, Show, Read, Generic)
   deriving (FromJSON, ToJSON) via PrimerJSON ActionError

@@ -31,5 +31,5 @@ data CaseReductionDetail = CaseReductionDetail
   , letIDs :: [ID]
   -- ^ the let expressions binding each argument in the result
   }
-  deriving stock (Eq, Show, Generic)
+  deriving stock (Eq, Show, Read, Generic)
   deriving (FromJSON, ToJSON) via PrimerJSON CaseReductionDetail

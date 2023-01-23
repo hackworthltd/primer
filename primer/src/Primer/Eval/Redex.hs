@@ -492,7 +492,7 @@ _freeVarsLetBinding =
     `summing` (_LetTyBind % _LetTypeBind % _2 % _freeVarsTy')
 
 data Dir = Syn | Chk
-  deriving stock (Eq, Show, Generic)
+  deriving stock (Eq, Show, Read, Generic)
   deriving (FromJSON, ToJSON) via PrimerJSON Dir
 
 viewCaseRedex ::

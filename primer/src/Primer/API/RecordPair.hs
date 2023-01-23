@@ -15,6 +15,6 @@ import Primer.JSON (CustomJSON (CustomJSON), FromJSON, PrimerJSON, ToJSON)
 -- `(a, b)`. In the case of constructors with a single field `C (RecordPair a b)`, we'd want the
 -- simpler change to `C a b` rather than `C (a, b)`.
 data RecordPair a b = RecordPair {fst :: a, snd :: b}
-  deriving stock (Show, Eq, Generic)
+  deriving stock (Show, Read, Eq, Generic)
   deriving (ToJSON, FromJSON) via PrimerJSON (RecordPair a b)
   deriving anyclass (NFData)
