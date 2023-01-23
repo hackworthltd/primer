@@ -96,7 +96,7 @@ data Action
   = NoInput NoInputAction
   | Input InputAction
   deriving stock (Eq, Ord, Show, Generic)
-  deriving (ToJSON) via PrimerJSON Action
+  deriving (ToJSON, FromJSON) via PrimerJSON Action
 
 -- | An action which can be applied without requiring further input.
 data NoInputAction
@@ -306,7 +306,7 @@ data FreeInput
   | -- | A free-form string input is allowed, and represents a primitive character
     FreeChar
   deriving stock (Show, Generic, Bounded, Enum)
-  deriving (ToJSON) via PrimerJSON FreeInput
+  deriving (ToJSON, FromJSON) via PrimerJSON FreeInput
 
 -- | The available inputs for an 'InputAction'.
 data Options = Options
@@ -314,7 +314,7 @@ data Options = Options
   , free :: FreeInput
   }
   deriving stock (Show, Generic)
-  deriving (ToJSON) via PrimerJSON Options
+  deriving (ToJSON, FromJSON) via PrimerJSON Options
 
 options ::
   TypeDefMap ->

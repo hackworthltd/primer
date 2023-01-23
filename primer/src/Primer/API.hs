@@ -571,7 +571,7 @@ data Tree = Tree
   -- ^ a special subtree to be rendered to the right, rather than below - useful for `case` branches
   }
   deriving stock (Show, Eq, Generic)
-  deriving (ToJSON) via PrimerJSON Tree
+  deriving (ToJSON, FromJSON) via PrimerJSON Tree
   deriving anyclass (NFData)
 
 -- | A local or global name.
@@ -582,7 +582,7 @@ data Name = Name
   , baseName :: Name.Name
   }
   deriving stock (Show, Eq, Generic)
-  deriving (ToJSON) via PrimerJSON Name
+  deriving (ToJSON, FromJSON) via PrimerJSON Name
   deriving anyclass (NFData)
 
 -- | The contents of a node.
@@ -596,7 +596,7 @@ data NodeBody
   | -- | Some simple nodes, like function application, have no body.
     NoBody Flavor.NodeFlavorNoBody
   deriving stock (Show, Eq, Generic)
-  deriving (ToJSON) via PrimerJSON NodeBody
+  deriving (ToJSON, FromJSON) via PrimerJSON NodeBody
   deriving anyclass (NFData)
 
 -- | This type is the API's view of a 'App.Prog'
@@ -605,7 +605,7 @@ data Prog = Prog
   , selection :: Maybe Selection
   }
   deriving stock (Generic, Show)
-  deriving (ToJSON) via PrimerJSON Prog
+  deriving (ToJSON, FromJSON) via PrimerJSON Prog
   deriving anyclass (NFData)
 
 -- | This type is the API's view of a 'Module.Module'
@@ -621,7 +621,7 @@ data Module = Module
     defs :: [Def]
   }
   deriving stock (Generic, Show)
-  deriving (ToJSON) via PrimerJSON Module
+  deriving (ToJSON, FromJSON) via PrimerJSON Module
   deriving anyclass (NFData)
 
 -- | This type is the api's view of a 'Primer.Core.Def'
@@ -633,7 +633,7 @@ data Def = Def
   -- ^ definitions with no associated tree are primitives
   }
   deriving stock (Generic, Show)
-  deriving (ToJSON) via PrimerJSON Def
+  deriving (ToJSON, FromJSON) via PrimerJSON Def
   deriving anyclass (NFData)
 
 viewProg :: ExprTreeOpts -> App.Prog -> Prog
@@ -980,7 +980,7 @@ data EvalFullResp
   = EvalFullRespTimedOut Tree
   | EvalFullRespNormal Tree
   deriving stock (Show, Generic)
-  deriving (ToJSON) via PrimerJSON EvalFullResp
+  deriving (ToJSON, FromJSON) via PrimerJSON EvalFullResp
 
 -- | Evaluate some top level definition in a program.
 --

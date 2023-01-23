@@ -4,7 +4,7 @@ module Primer.API.RecordPair (
 
 import Foreword
 
-import Primer.JSON (CustomJSON (CustomJSON), PrimerJSON, ToJSON)
+import Primer.JSON (CustomJSON (CustomJSON), FromJSON, PrimerJSON, ToJSON)
 
 -- | Isomorphic to `(a, b)`, but serialized as an object.
 --
@@ -16,5 +16,5 @@ import Primer.JSON (CustomJSON (CustomJSON), PrimerJSON, ToJSON)
 -- simpler change to `C a b` rather than `C (a, b)`.
 data RecordPair a b = RecordPair {fst :: a, snd :: b}
   deriving stock (Show, Eq, Generic)
-  deriving (ToJSON) via PrimerJSON (RecordPair a b)
+  deriving (ToJSON, FromJSON) via PrimerJSON (RecordPair a b)
   deriving anyclass (NFData)
