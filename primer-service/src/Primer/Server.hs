@@ -7,7 +7,7 @@
 module Primer.Server (
   API (..),
   serve,
-  ServantLog,
+  ServantLog (..),
   ConvertServerLogs,
   openAPIInfo,
 ) where

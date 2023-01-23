@@ -659,6 +659,7 @@
 
               primer-service = primerFlake.packages."primer-service:exe:primer-service";
               primer-openapi = primerFlake.packages."primer-service:exe:primer-openapi";
+              primer-replay = primerFlake.packages."primer-service:exe:primer-replay";
               primer-benchmark = primerFlake.packages."primer-benchmark:bench:primer-benchmark";
 
               inherit run-primer;

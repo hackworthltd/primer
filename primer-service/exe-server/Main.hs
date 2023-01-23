@@ -317,8 +317,9 @@ instance ConvertLogMessage ServantLog LogReplay where
 -- | Logger whose output is designed to be able to be "replayed".
 -- It is assumed that all "replay-relevant" messages are at the 'Informational' level.
 logReplay :: WithSeverity LogReplay -> Text
--- NB: primer-benchmark/mkfixture depends on this format, so should be updated
--- in sync with format changes here.
+-- NB: primer-benchmark/mkfixture and primer-service/exe-replay
+-- depend on this format, so should be updated in sync with format
+-- changes here.
 logReplay (WithSeverity Informational (API l)) = "[REPLAY] " <> show l
 logReplay (WithSeverity Informational (Servant l)) = "[REPLAY] " <> show l
 logReplay (WithSeverity s m) = logMsgWithSeverity (WithSeverity s $ convert m)

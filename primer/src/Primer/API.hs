@@ -20,6 +20,7 @@ module Primer.API (
   Env (..),
   PrimerM (..),
   runPrimerM,
+  ReqResp (..),
   APILog (..),
   MonadAPILog,
   PrimerErr (..),
