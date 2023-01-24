@@ -49,11 +49,11 @@ import Primer.Zipper (
 import Tasty (Property, property)
 import Test.Tasty.HUnit (Assertion, assertFailure, (@?=))
 
--- Note: 'maximum' is partial, but we believe that 'maxID' itself is
+-- Note: 'unsafeMaximum' is partial, but we believe that 'maxID' itself is
 -- safe due to the fact that 'universe x' always contains at least
 -- `x`.
 maxID :: (HasID a, Data a) => a -> ID
-maxID = maximum . map getID . universe
+maxID = unsafeMaximum . map getID . universe
 
 tasty_ConstructVar_succeeds_on_hole_when_in_scope :: Property
 tasty_ConstructVar_succeeds_on_hole_when_in_scope = property $ do
