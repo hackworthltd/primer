@@ -183,7 +183,10 @@ runAPI action = do
   let version = "git123"
   dbOpQueue <- newTBQueueIO 1
   initialSessions <- StmMap.newIO
-  _ <- forkIO $ void $ runNullDb' $ serve (ServiceCfg dbOpQueue version)
-  (r, logs) <- runPureLogT . runPrimerM action $ Env initialSessions dbOpQueue version
+  (r, logs) <-
+    withAsync (runNullDb' $ serve (ServiceCfg dbOpQueue version)) $
+      const $
+        runPureLogT . runPrimerM action $
+          Env initialSessions dbOpQueue version
   assertNoSevereLogs logs
   pure r
