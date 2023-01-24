@@ -47,6 +47,10 @@ import Protolude hiding (
   check,
   eqT,
   finally,
+  -- hide foldMap as it is lazy in the accumulator
+  foldMap,
+  -- hide foldl as it is lazy in the accumulator
+  foldl,
   from,
   gcast,
   handle,
