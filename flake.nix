@@ -6,7 +6,7 @@
 
     # Let haskell.nix dictate the nixpkgs we use, as that will ensure
     # better haskell.nix cache hits.
-    nixpkgs.follows = "haskell-nix/nixpkgs-unstable";
+    nixpkgs.follows = "haskell-nix/nixpkgs-2211";
 
     hacknix.url = github:hackworthltd/hacknix;
 
@@ -686,7 +686,7 @@
           );
 
           nixosModules.default = {
-            nixpkgs.overlays = [ inputs.self.overlays.default ];
+            nixpkgs.overlays = allOverlays;
           };
 
           hydraJobs = {
