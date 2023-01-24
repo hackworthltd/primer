@@ -1195,7 +1195,7 @@ tasty_type_preservation =
    in withTests 200 $
         withDiscards 2000 $
           propertyWT testModules $ do
-            let globs = foldMap moduleDefsQualified testModules
+            let globs = foldMap' moduleDefsQualified testModules
             tds <- asks typeDefs
             (dir, t, ty) <- genDirTm
             rs <- failWhenSevereLogs $ redexes @EvalLog tds globs dir t
@@ -1221,7 +1221,7 @@ tasty_redex_independent =
    in withTests 200 $
         withDiscards 2000 $
           propertyWT testModules $ do
-            let globs = foldMap moduleDefsQualified testModules
+            let globs = foldMap' moduleDefsQualified testModules
             tds <- asks typeDefs
             (dir, t, _) <- genDirTm
             annotateShow dir

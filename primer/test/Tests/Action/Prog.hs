@@ -266,8 +266,8 @@ unit_delete_def_recursive =
     expectSuccess $ \prog prog' ->
       Map.delete
         (qualifyName mainModuleName "main")
-        (foldMap moduleDefsQualified $ progModules prog)
-        @?= foldMap moduleDefsQualified (progModules prog')
+        (foldMap' moduleDefsQualified $ progModules prog)
+        @?= foldMap' moduleDefsQualified (progModules prog')
 
 unit_move_to_unknown_def :: Assertion
 unit_move_to_unknown_def =
@@ -332,7 +332,7 @@ unit_create_typedef =
    in progActionTest defaultEmptyProg [AddTypeDef (tcn "List") lst, AddTypeDef (tcn "Tree") tree] $
         expectSuccess $
           \_ prog' -> do
-            case Map.elems $ foldMap moduleTypes $ progModules prog' of
+            case Map.elems $ foldMap' moduleTypes $ progModules prog' of
               [lst', tree'] -> do
                 TypeDefAST lst @=? lst'
                 TypeDefAST tree @=? tree'
@@ -460,7 +460,7 @@ unit_create_typedef_8 =
           }
    in progActionTest defaultEmptyProg [AddTypeDef (tcn "T") td] $
         expectSuccess $
-          \_ prog' -> Map.elems (foldMap moduleTypes (progModules prog')) @?= [TypeDefAST td]
+          \_ prog' -> Map.elems (foldMap' moduleTypes (progModules prog')) @?= [TypeDefAST td]
 
 -- Allow clash between type name and constructor name across types
 unit_create_typedef_9 :: Assertion
@@ -479,7 +479,7 @@ unit_create_typedef_9 =
           }
    in progActionTest defaultEmptyProg [AddTypeDef (tcn "T") td1, AddTypeDef (tcn "C") td2] $
         expectSuccess $
-          \_ prog' -> Map.elems (foldMap moduleTypes (progModules prog')) @?= [TypeDefAST td2, TypeDefAST td1]
+          \_ prog' -> Map.elems (foldMap' moduleTypes (progModules prog')) @?= [TypeDefAST td2, TypeDefAST td1]
 
 unit_construct_arrow_in_sig :: Assertion
 unit_construct_arrow_in_sig =
@@ -550,10 +550,10 @@ unit_copy_paste_duplicate = do
       Right (tcp, r) ->
         -- use the typechecked input p, as the result will have had a typecheck run, so
         -- we need the cached kinds to match up
-        let src = lookupASTDef fromDef (foldMap moduleDefsQualified $ progModules tcp)
+        let src = lookupASTDef fromDef (foldMap' moduleDefsQualified $ progModules tcp)
             clearIDs = fmap clearASTDefIDs
          in do
-              src @?= lookupASTDef fromDef (foldMap moduleDefsQualified $ progModules r)
+              src @?= lookupASTDef fromDef (foldMap' moduleDefsQualified $ progModules r)
               assertBool "equal to toDef" $ src /= lookupASTDef' "blank" r
               clearIDs src @?= clearIDs (lookupASTDef' "blank" r)
 
@@ -600,7 +600,7 @@ unit_copy_paste_type_scoping = do
       Right (tcpExpected, r) ->
         -- use the typechecked input p, as the result will have had a typecheck run, so
         -- we need the cached kinds to match up
-        clearDefMapIDs (foldMap moduleDefsQualified $ progModules r) @?= clearDefMapIDs (foldMap moduleDefsQualified $ progModules tcpExpected)
+        clearDefMapIDs (foldMap' moduleDefsQualified $ progModules r) @?= clearDefMapIDs (foldMap' moduleDefsQualified $ progModules tcpExpected)
 
 -- ∀a b.a ~> ∀a.a
 unit_raise :: Assertion
@@ -625,7 +625,7 @@ unit_raise = do
       Right (tcpExpected, r) ->
         -- use the typechecked input p, as the result will have had a typecheck run, so
         -- we need the cached kinds to match up
-        clearDefMapIDs (foldMap moduleDefsQualified $ progModules r) @?= clearDefMapIDs (foldMap moduleDefsQualified $ progModules tcpExpected)
+        clearDefMapIDs (foldMap' moduleDefsQualified $ progModules r) @?= clearDefMapIDs (foldMap' moduleDefsQualified $ progModules tcpExpected)
 
 -- ∀a. List a -> ∀b. b -> Pair a b
 -- /\a . λ x . case x of Nil -> ? ; Cons y ys -> /\@b z -> Pair @a @b y z
@@ -667,7 +667,7 @@ unit_copy_paste_expr_1 = do
       Right (tcpExpected, r) ->
         -- use the typechecked input p, as the result will have had a typecheck run, so
         -- we need the cached kinds to match up
-        clearDefMapIDs (foldMap moduleDefsQualified $ progModules r) @?= clearDefMapIDs (foldMap moduleDefsQualified $ progModules tcpExpected)
+        clearDefMapIDs (foldMap' moduleDefsQualified $ progModules r) @?= clearDefMapIDs (foldMap' moduleDefsQualified $ progModules tcpExpected)
 
 unit_copy_paste_ann :: Assertion
 unit_copy_paste_ann = do
@@ -719,7 +719,7 @@ unit_copy_paste_ann2sig = do
       Right (tcpExpected, r) ->
         -- use the typechecked input p, as the result will have had a typecheck run, so
         -- we need the cached kinds to match up
-        clearDefMapIDs (foldMap moduleDefsQualified $ progModules r) @?= clearDefMapIDs (foldMap moduleDefsQualified $ progModules tcpExpected)
+        clearDefMapIDs (foldMap' moduleDefsQualified $ progModules r) @?= clearDefMapIDs (foldMap' moduleDefsQualified $ progModules tcpExpected)
 
 unit_copy_paste_sig2ann :: Assertion
 unit_copy_paste_sig2ann = do
@@ -741,7 +741,7 @@ unit_copy_paste_sig2ann = do
       Right (tcpExpected, r) ->
         -- use the typechecked input p, as the result will have had a typecheck run, so
         -- we need the cached kinds to match up
-        clearDefMapIDs (foldMap moduleDefsQualified $ progModules r) @?= clearDefMapIDs (foldMap moduleDefsQualified $ progModules tcpExpected)
+        clearDefMapIDs (foldMap' moduleDefsQualified $ progModules r) @?= clearDefMapIDs (foldMap' moduleDefsQualified $ progModules tcpExpected)
 
 -- VariablesInScope sees imported terms
 unit_import_vars :: Assertion
@@ -861,7 +861,7 @@ unit_RenameType =
       assertBool "Expected the old name to be out of scope" $
         not $
           Map.member (tcn "T") $
-            foldMap moduleTypesQualified (progAllModules prog')
+            foldMap' moduleTypesQualified (progAllModules prog')
       def <- findDef (gvn "def") prog'
       forgetMetadata (astDefExpr def)
         @?= forgetMetadata
@@ -1592,7 +1592,7 @@ defaultFullProg = do
       & #progModules % _head % #moduleDefs %~ (renamedDefs <>)
 
 findTypeDef :: TyConName -> Prog -> IO ASTTypeDef
-findTypeDef d p = maybe (assertFailure "couldn't find typedef") pure $ (typeDefAST <=< Map.lookup d) $ foldMap moduleTypesQualified $ progModules p
+findTypeDef d p = maybe (assertFailure "couldn't find typedef") pure $ (typeDefAST <=< Map.lookup d) $ foldMap' moduleTypesQualified $ progModules p
 
 findDef :: GVarName -> Prog -> IO ASTDef
 findDef d p = maybe (assertFailure "couldn't find def") pure $ defAST =<< findGlobalByName p d

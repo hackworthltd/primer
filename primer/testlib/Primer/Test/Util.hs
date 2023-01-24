@@ -156,7 +156,7 @@ assertNoSevereLogs logs =
   let severe = Seq.filter isSevereLog logs
    in if null severe
         then pure ()
-        else assertFailure $ toS $ unlines $ "Test logged severe errors:" : foldMap ((: []) . show) severe
+        else assertFailure $ toS $ unlines $ "Test logged severe errors:" : foldMap' ((: []) . show) severe
 
 testNoSevereLogs :: (HasCallStack, MonadTest m, Eq l, Show l) => Seq (WithSeverity l) -> m ()
 testNoSevereLogs logs = Seq.filter isSevereLog logs === mempty

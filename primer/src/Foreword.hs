@@ -2,6 +2,7 @@ module Foreword (
   module Protolude,
   module Unsafe,
   module Catch,
+  module Foldable,
   insertAt,
   adjustAt,
   findAndAdjust,
@@ -77,6 +78,8 @@ import Protolude hiding (
 
 import Protolude qualified as P
 import Protolude.Unsafe as Unsafe (unsafeHead)
+
+import Data.Foldable as Foldable (foldMap')
 
 -- We want @exceptions@ rather than @base@'s equivalents.
 import Control.Monad.Catch as Catch

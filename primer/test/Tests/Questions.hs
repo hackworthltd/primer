@@ -79,7 +79,7 @@ test_laws =
 tasty_shadow_monoid_types :: Property
 tasty_shadow_monoid_types = property $ do
   nks <- forAll genSTV'
-  let N nonShadowed = foldMap (\nk -> N [nk]) nks
+  let N nonShadowed = foldMap' (\nk -> N [nk]) nks
   annotateShow nonShadowed
   label $ if length nonShadowed == length nks then "no shadowing" else "shadowing"
   -- We end up with fewer elements than we started with
@@ -106,7 +106,7 @@ tasty_shadow_monoid_expr = property $ do
         TyVar v -> M [v] [] []
         TmVar v -> M [] [v] []
         Global v -> M [] [] [v]
-  let M tyV tmV glV = foldMap split ns
+  let M tyV tmV glV = foldMap' split ns
   annotateShow tyV
   annotateShow tmV
   annotateShow glV

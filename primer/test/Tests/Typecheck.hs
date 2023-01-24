@@ -752,7 +752,7 @@ unit_tcWholeProg_notice_type_updates =
       a0 = mkProg d0
       a1 = mkProg d1
       a1' = evalTestM 0 $ runExceptT @TypeError $ tcWholeProg a0
-      defsNoIDs a = foldMap (fmap (\d -> (forgetTypeMetadata $ defType d, forgetMetadata . astDefExpr <$> defAST d)) . Map.elems . moduleDefs) $ progModules a
+      defsNoIDs a = foldMap' (fmap (\d -> (forgetTypeMetadata $ defType d, forgetMetadata . astDefExpr <$> defAST d)) . Map.elems . moduleDefs) $ progModules a
    in do
         fmap defsNoIDs a1' @?= Right (defsNoIDs a1)
 

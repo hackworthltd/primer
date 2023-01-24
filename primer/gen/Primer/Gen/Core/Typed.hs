@@ -191,13 +191,13 @@ freshTyConNameForCxt = qualifyName <$> genModuleName <*> freshNameForCxt
 -- the original type variable "foo" by our new term variable "foo".
 genLVarNameAvoiding :: [TypeG] -> GenT WT LVarName
 genLVarNameAvoiding ty =
-  (\vs -> freshen (foldMap freeVarsTy ty <> foldMap freeVarsTy vs) 0)
+  (\vs -> freshen (foldMap' freeVarsTy ty <> foldMap' freeVarsTy vs) 0)
     <$> asks localTmVars
     <*> genLVarName
 
 genTyVarNameAvoiding :: TypeG -> GenT WT TyVarName
 genTyVarNameAvoiding ty =
-  (\vs -> freshen (freeVarsTy ty <> foldMap freeVarsTy vs) 0)
+  (\vs -> freshen (freeVarsTy ty <> foldMap' freeVarsTy vs) 0)
     <$> asks localTmVars
     <*> genTyVarName
 

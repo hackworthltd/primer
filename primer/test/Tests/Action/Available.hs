@@ -126,7 +126,7 @@ mkTests deps (defName, DefAST def') =
       testName = T.unpack $ moduleNamePretty (qualifiedModule defName) <> "." <> unName (baseName defName)
       enumeratePairs = (,) <$> enumerate <*> enumerate
       defs = Map.singleton defName $ DefAST def
-      typeDefs = foldMap @[] moduleTypesQualified [builtinModule, primitiveModule]
+      typeDefs = foldMap' @[] moduleTypesQualified [builtinModule, primitiveModule]
       offered level id = \case
         Available.NoInput a -> NoInput a
         Available.Input a ->

@@ -155,7 +155,7 @@ uniquifyDefName m name' defs = unName $ uniquify avoid $ unsafeMkName name'
       | qualifiedModule qn == m = Set.singleton $ baseName qn
       | otherwise = mempty
     avoid :: Set Name
-    avoid = foldMap f $ Map.keys defs
+    avoid = foldMap' f $ Map.keys defs
 
 -- | A shorthand for the constraints needed when applying actions
 type ActionM m =

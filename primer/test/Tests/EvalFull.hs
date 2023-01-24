@@ -441,7 +441,7 @@ tasty_resume = withDiscards 2000 $
 -- A helper for tasty_resume, and tasty_resume_regression
 resumeTest :: [Module] -> Dir -> Expr -> PropertyT WT ()
 resumeTest mods dir t = do
-  let globs = foldMap moduleDefsQualified mods
+  let globs = foldMap' moduleDefsQualified mods
   tds <- asks typeDefs
   n <- forAllT $ Gen.integral $ Range.linear 2 1000 -- Arbitrary limit here
   -- NB: We need to run this first reduction in an isolated context
@@ -576,8 +576,8 @@ unit_type_preservation_case_hole_regression = evalTestM 0 $ do
       [ branch cNothing [] emptyHole
       , branch cJust [("x", Nothing)] $ con cSucc `app` lvar "x"
       ]
-  let tds = foldMap moduleTypesQualified testModules
-  let globs = foldMap moduleDefsQualified testModules
+  let tds = foldMap' moduleTypesQualified testModules
+  let globs = foldMap' moduleDefsQualified testModules
   ((_steps, s), logs) <- runPureLogT $ evalFullStepCount tds globs 1 Syn t
   let s' = case s of
         Left (TimedOut e) -> e
@@ -825,7 +825,7 @@ tasty_type_preservation :: Property
 tasty_type_preservation = withTests 1000 $
   withDiscards 2000 $
     propertyWT testModules $ do
-      let globs = foldMap moduleDefsQualified testModules
+      let globs = foldMap' moduleDefsQualified testModules
       tds <- asks typeDefs
       (dir, t, ty) <- genDirTm
       let test msg e = do
@@ -1342,7 +1342,7 @@ tasty_unique_ids :: Property
 tasty_unique_ids = withTests 1000 $
   withDiscards 2000 $
     propertyWT testModules $ do
-      let globs = foldMap moduleDefsQualified testModules
+      let globs = foldMap' moduleDefsQualified testModules
       tds <- asks typeDefs
       (dir, t1, _) <- genDirTm
       let go n t
