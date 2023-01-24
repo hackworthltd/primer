@@ -5,7 +5,18 @@ import Data.Map qualified as Map
 import Foreword
 import Primer.Core (ID)
 import Primer.Module (Module (Module, moduleDefs, moduleName, moduleTypes))
-import Primer.Prelude.Integer (absDef, evenDef, gcdDef, gcdHelperDef, lcmDef, maxDef, minDef, negateDef, oddDef)
+import Primer.Prelude.Integer (
+  absDef,
+  evenDef,
+  gcdDef,
+  gcdHelperDef,
+  lcmDef,
+  maxDef,
+  minDef,
+  negateDef,
+  oddDef,
+  sumDef,
+ )
 import Primer.Prelude.Logic (andDef, impliesDef, notDef, orDef, xorDef)
 import Primer.Prelude.Polymorphism (
   constDef,
@@ -37,6 +48,7 @@ prelude = do
               , ("lcm", lcmDef)
               , ("even", evenDef)
               , ("odd", oddDef)
+              , ("sum", sumDef)
               ]
             polymorphism =
               [ ("id", idDef)

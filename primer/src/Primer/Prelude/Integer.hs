@@ -17,16 +17,41 @@ module Primer.Prelude.Integer (
   evenDef,
   odd,
   oddDef,
+  sum,
+  sumDef,
 ) where
 
 import Control.Monad.Fresh (MonadFresh)
-import Foreword (Applicative (pure), map, ($), (.))
+import Foreword (
+  Applicative (pure),
+  Either (Left, Right),
+  map,
+  ($),
+  (.),
+ )
 import Primer.Builtins (tBool)
 import Primer.Builtins qualified as B
+import Primer.Builtins.DSL (
+  listOf,
+ )
 import Primer.Core (GVarName, ID, qualifyName)
-import Primer.Core.DSL (app, apps, branch, case_, gvar, int, lam, let_, lvar, tcon, tfun)
+import Primer.Core.DSL (
+  app,
+  apps,
+  apps',
+  branch,
+  case_,
+  gvar,
+  int,
+  lam,
+  let_,
+  lvar,
+  tcon,
+  tfun,
+ )
 import Primer.Def (ASTDef (..), Def (..))
 import Primer.Prelude.Logic (not)
+import Primer.Prelude.Polymorphism (foldr)
 import Primer.Prelude.Utils (modName)
 import Primer.Primitives (PrimDef (..), tInt)
 import Primer.Primitives.DSL (pfun)
@@ -206,4 +231,13 @@ oddDef = do
     lam
       "x"
       (app (gvar not) (app (gvar even) (lvar "x")))
+  pure $ DefAST $ ASTDef term type_
+
+sum :: GVarName
+sum = qualifyName modName "sum"
+
+sumDef :: MonadFresh ID m => m Def
+sumDef = do
+  type_ <- listOf (tcon tInt) `tfun` tcon tInt
+  term <- lam "ns" $ apps' (gvar foldr) [Right $ tcon tInt, Right $ tcon tInt, Left $ pfun IntAdd, Left $ int 0, Left $ lvar "ns"]
   pure $ DefAST $ ASTDef term type_
