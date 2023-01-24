@@ -11,9 +11,26 @@ import Foreword hiding (const, map)
 
 import Control.Monad.Fresh (MonadFresh)
 import Primer.Builtins (cCons, cNil)
-import Primer.Builtins qualified as B
+import Primer.Builtins.DSL (
+  listOf,
+ )
 import Primer.Core (GVarName, ID, Kind (KType), qualifyName)
-import Primer.Core.DSL (aPP, app, apps, apps', branch, case_, con, gvar, lAM, lam, lvar, tapp, tcon, tforall, tfun, tvar)
+import Primer.Core.DSL (
+  aPP,
+  app,
+  apps,
+  apps',
+  branch,
+  case_,
+  con,
+  gvar,
+  lAM,
+  lam,
+  lvar,
+  tforall,
+  tfun,
+  tvar,
+ )
 import Primer.Def (ASTDef (..), Def (..))
 import Primer.Prelude.Utils (modName)
 
@@ -44,7 +61,7 @@ mapDef = do
     tforall "a" KType $
       tforall "b" KType $
         (tvar "a" `tfun` tvar "b")
-          `tfun` (tapp (tcon B.tList) (tvar "a") `tfun` tapp (tcon B.tList) (tvar "b"))
+          `tfun` (listOf (tvar "a") `tfun` listOf (tvar "b"))
   term <-
     lAM "a" $
       lAM "b" $

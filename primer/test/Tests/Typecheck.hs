@@ -40,6 +40,9 @@ import Primer.Builtins (
   tMaybe,
   tNat,
  )
+import Primer.Builtins.DSL (
+  listOf,
+ )
 import Primer.Core (
   Expr,
   Expr' (..),
@@ -462,8 +465,8 @@ unit_smart_type_forall =
 
 unit_smart_type_not_type :: Assertion
 unit_smart_type_not_type =
-  tapp (tcon tList) (tcon tList)
-    `smartSynthKindGives` tapp (tcon tList) (thole $ tcon tList)
+  listOf (tcon tList)
+    `smartSynthKindGives` listOf (thole $ tcon tList)
 
 unit_smart_type_fun :: Assertion
 unit_smart_type_fun =
@@ -488,7 +491,7 @@ unit_smart_type_inside_hole_3 =
 unit_smart_type_remove_1 :: Assertion
 unit_smart_type_remove_1 =
   tapp (thole $ tcon tList) (tcon tBool)
-    `smartSynthKindGives` tapp (tcon tList) (tcon tBool)
+    `smartSynthKindGives` listOf (tcon tBool)
 
 unit_smart_type_remove_2 :: Assertion
 unit_smart_type_remove_2 =
@@ -497,8 +500,8 @@ unit_smart_type_remove_2 =
 
 unit_smart_type_remove_3 :: Assertion
 unit_smart_type_remove_3 =
-  tapp (tcon tList) (thole $ tcon tBool)
-    `smartSynthKindGives` tapp (tcon tList) (tcon tBool)
+  listOf (thole $ tcon tBool)
+    `smartSynthKindGives` listOf (tcon tBool)
 
 unit_smart_type_remove_4 :: Assertion
 unit_smart_type_remove_4 =
@@ -507,8 +510,8 @@ unit_smart_type_remove_4 =
 
 unit_smart_type_remove_5 :: Assertion
 unit_smart_type_remove_5 =
-  thole (tapp (tcon tList) tEmptyHole)
-    `smartSynthKindGives` tapp (tcon tList) tEmptyHole
+  thole (listOf tEmptyHole)
+    `smartSynthKindGives` listOf tEmptyHole
 
 unit_prim_char :: Assertion
 unit_prim_char =

@@ -18,6 +18,7 @@ import Primer.Action (
   applyActionsToExpr,
  )
 import Primer.Builtins
+import Primer.Builtins.DSL (listOf)
 import Primer.Core (
   Expr,
   Expr' (..),
@@ -340,9 +341,9 @@ unit_rename_LAM :: Assertion
 unit_rename_LAM =
   actionTest
     NoSmartHoles
-    (ann (lAM "a" (aPP (con cNil) (tvar "a"))) (tforall "b" KType $ tapp (tcon tList) (tvar "b")))
+    (ann (lAM "a" (aPP (con cNil) (tvar "a"))) (tforall "b" KType $ listOf (tvar "b")))
     [Move Child1, RenameLAM "b"]
-    (ann (lAM "b" (aPP (con cNil) (tvar "b"))) (tforall "b" KType $ tapp (tcon tList) (tvar "b")))
+    (ann (lAM "b" (aPP (con cNil) (tvar "b"))) (tforall "b" KType $ listOf (tvar "b")))
 
 unit_rename_LAM_2 :: Assertion
 unit_rename_LAM_2 =
@@ -888,16 +889,16 @@ unit_rename_TForall :: Assertion
 unit_rename_TForall =
   actionTest
     NoSmartHoles
-    (emptyHole `ann` tforall "a" KType (tapp (tcon tList) (tvar "a")))
+    (emptyHole `ann` tforall "a" KType (listOf (tvar "a")))
     [EnterType, RenameForall "b"]
-    (emptyHole `ann` tforall "b" KType (tapp (tcon tList) (tvar "b")))
+    (emptyHole `ann` tforall "b" KType (listOf (tvar "b")))
 
 unit_rename_TForall_2 :: Assertion
 unit_rename_TForall_2 =
   actionTestExpectFail
     (const True)
     NoSmartHoles
-    (emptyHole `ann` tforall "b" KType (tforall "a" KType $ tapp (tcon tList) (tvar "b")))
+    (emptyHole `ann` tforall "b" KType (tforall "a" KType $ listOf (tvar "b")))
     [EnterType, Move Child1, RenameLAM "b"]
 
 unit_construct_TForall_TVar :: Assertion
