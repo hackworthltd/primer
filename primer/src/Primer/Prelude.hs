@@ -15,6 +15,7 @@ import Primer.Prelude.Integer (
   minDef,
   negateDef,
   oddDef,
+  productDef,
   sumDef,
  )
 import Primer.Prelude.Logic (andDef, impliesDef, notDef, orDef, xorDef)
@@ -49,6 +50,7 @@ prelude = do
               , ("even", evenDef)
               , ("odd", oddDef)
               , ("sum", sumDef)
+              , ("product", productDef)
               ]
             polymorphism =
               [ ("id", idDef)

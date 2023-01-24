@@ -19,6 +19,8 @@ module Primer.Prelude.Integer (
   oddDef,
   sum,
   sumDef,
+  product,
+  productDef,
 ) where
 
 import Control.Monad.Fresh (MonadFresh)
@@ -240,4 +242,13 @@ sumDef :: MonadFresh ID m => m Def
 sumDef = do
   type_ <- listOf (tcon tInt) `tfun` tcon tInt
   term <- lam "ns" $ apps' (gvar foldr) [Right $ tcon tInt, Right $ tcon tInt, Left $ pfun IntAdd, Left $ int 0, Left $ lvar "ns"]
+  pure $ DefAST $ ASTDef term type_
+
+product :: GVarName
+product = qualifyName modName "product"
+
+productDef :: MonadFresh ID m => m Def
+productDef = do
+  type_ <- listOf (tcon tInt) `tfun` tcon tInt
+  term <- lam "ns" $ apps' (gvar foldr) [Right $ tcon tInt, Right $ tcon tInt, Left $ pfun IntMul, Left $ int 1, Left $ lvar "ns"]
   pure $ DefAST $ ASTDef term type_
