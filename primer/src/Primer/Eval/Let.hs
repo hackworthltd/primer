@@ -19,7 +19,7 @@ import Primer.Core (
   getID,
  )
 import Primer.Core.Utils (_freeVars, _freeVarsTy)
-import Primer.JSON (CustomJSON (CustomJSON), FromJSON, PrimerJSON, ToJSON)
+import Primer.JSON (CustomJSON (CustomJSON), PrimerJSON, ToJSON)
 import Primer.Name (Name)
 
 -- | Detailed information about a removal of a let binding.
@@ -40,7 +40,7 @@ data LetRemovalDetail t = LetRemovalDetail
   -- ^ the right hand side of the let
   }
   deriving (Eq, Show, Generic)
-  deriving (FromJSON, ToJSON) via PrimerJSON (LetRemovalDetail t)
+  deriving (ToJSON) via PrimerJSON (LetRemovalDetail t)
 
 findFreeOccurrencesExpr :: LocalName k -> Expr -> [ID]
 findFreeOccurrencesExpr x e = e ^.. _freeVars % to idName % filtered ((== unLocalName x) . snd) % _1

@@ -51,7 +51,6 @@ import Primer.Def (
 import Primer.Def.Utils (nextID)
 import Primer.JSON (
   CustomJSON (CustomJSON),
-  FromJSON,
   PrimerJSON,
   ToJSON,
  )
@@ -65,7 +64,7 @@ data Module = Module
   , moduleDefs :: Map Name Def -- The current program: a set of definitions indexed by Name
   }
   deriving (Eq, Show, Data, Generic)
-  deriving (FromJSON, ToJSON) via PrimerJSON Module
+  deriving (ToJSON) via PrimerJSON Module
 
 qualifyTyConName :: Module -> Name -> TyConName
 qualifyTyConName m = qualifyName (moduleName m)

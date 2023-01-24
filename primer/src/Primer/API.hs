@@ -1170,7 +1170,7 @@ data ApplyActionBody = ApplyActionBody
   , option :: Available.Option
   }
   deriving (Generic, Show)
-  deriving (FromJSON, ToJSON) via PrimerJSON ApplyActionBody
+  deriving (ToJSON) via PrimerJSON ApplyActionBody
 
 applyActions :: (MonadIO m, MonadThrow m, MonadAPILog l m) => ExprTreeOpts -> SessionId -> [ProgAction] -> PrimerM m Prog
 applyActions opts sid actions =
@@ -1185,7 +1185,7 @@ data Selection = Selection
   , node :: Maybe NodeSelection
   }
   deriving (Eq, Show, Generic)
-  deriving (FromJSON, ToJSON) via PrimerJSON Selection
+  deriving (ToJSON) via PrimerJSON Selection
 
 viewSelection :: App.Selection -> Selection
 viewSelection App.Selection{..} = Selection{def = selectedDef, node = viewNodeSelection <$> selectedNode}

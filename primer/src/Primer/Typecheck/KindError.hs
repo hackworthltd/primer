@@ -4,7 +4,7 @@ import Foreword
 
 import Primer.Core.Meta (TyConName, TyVarName)
 import Primer.Core.Type (Kind)
-import Primer.JSON (CustomJSON (..), FromJSON, PrimerJSON, ToJSON)
+import Primer.JSON (CustomJSON (..), PrimerJSON, ToJSON)
 import Primer.Name (Name)
 
 data KindError
@@ -17,4 +17,4 @@ data KindError
     -- they should only transiently appear in evaluation, as explicit substitutions.
     TLetUnsupported
   deriving (Eq, Show, Generic)
-  deriving (FromJSON, ToJSON) via PrimerJSON KindError
+  deriving (ToJSON) via PrimerJSON KindError

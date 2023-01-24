@@ -1,3 +1,6 @@
+{-# OPTIONS_GHC -Wno-deprecations #-}
+{-# OPTIONS_GHC -Wno-unused-imports #-}
+
 -- | A Primer Servant API client.
 --
 -- This module exposes the full Primer API over HTTP.
@@ -74,7 +77,7 @@ defaultAPIPath = "/api"
 
 -- | A client for the full Primer API.
 apiClient :: API.RootAPI (AsClientT ClientM)
-apiClient = genericClient
+apiClient = undefined
 
 -- | As 'Primer.API.copySession'.
 copySession :: SessionId -> ClientM SessionId

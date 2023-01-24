@@ -68,7 +68,6 @@ import Primer.Typecheck (SmartHoles (SmartHoles))
 import System.FilePath (takeBaseName)
 import Test.Tasty hiding (after)
 import Test.Tasty.Golden
-import Test.Tasty.HUnit
 
 -- | Check that encoding the value produces the file.
 test_encode :: TestTree
@@ -82,18 +81,11 @@ test_encode =
     encodePretty :: ToJSON a => a -> BL.ByteString
     encodePretty = encodePretty' $ defConfig{confCompare = compare}
 
--- | Check that decoding the file produces the value.
-test_decode :: TestTree
-test_decode =
-  testGroup "decode" $
-    fixtures <&> \(Fixture x path) ->
-      testCase (takeBaseName path) $ either assertFailure (x @=?) =<< eitherDecodeFileStrict path
-
 -- | A fixture holds some value which is JSON serializable and path to a
 -- fixture file which should contain a JSON representation of that value.
-data Fixture = forall a. (Eq a, Show a, FromJSON a, ToJSON a) => Fixture a FilePath
+data Fixture = forall a. (Eq a, Show a, ToJSON a) => Fixture a FilePath
 
-mkFixture :: (Eq a, Show a, ToJSON a, FromJSON a) => String -> a -> Fixture
+mkFixture :: (Eq a, Show a, ToJSON a) => String -> a -> Fixture
 mkFixture name x = Fixture x ("test/outputs/serialization/" <> name <> ".json")
 
 -- | A list of fixtures we will test.
@@ -164,7 +156,7 @@ fixtures =
             , bodyID = id0
             , types = (TEmptyHole typeMeta, TEmptyHole typeMeta)
             }
-   in [ mkFixture "id" id0
+   in [ mkFixture "id" id0 -- TODO this does still have a FromJSON instance
       , mkFixture "name" (unsafeMkName "x")
       , mkFixture "movement" Child1
       , mkFixture "action" (SetCursor id0)
@@ -173,7 +165,7 @@ fixtures =
       , mkFixture "typecache" (TCSynthed $ TEmptyHole ())
       , mkFixture "typecacheboth" (TCBoth (TEmptyHole ()) (TEmptyHole ()))
       , mkFixture "expr" expr
-      , mkFixture "kind" KType
+      , mkFixture "kind" KType -- TODO this does still have a FromJSON instance
       , mkFixture "log" log
       , mkFixture "def" def
       , mkFixture "typeDef" typeDef

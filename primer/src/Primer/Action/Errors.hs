@@ -9,7 +9,7 @@ module Primer.Action.Errors (ActionError (..)) where
 
 import Foreword
 
-import Data.Aeson (FromJSON (..), ToJSON (..))
+import Data.Aeson (ToJSON (..))
 import Primer.Action.Actions (Action)
 import Primer.Action.Available qualified as Available
 import Primer.Core (Expr, GVarName, ID, LVarName, ModuleName, Type)
@@ -63,4 +63,4 @@ data ActionError
   | NeedChar Available.Option
   | NoNodeSelection
   deriving (Eq, Show, Generic)
-  deriving (FromJSON, ToJSON) via PrimerJSON ActionError
+  deriving (ToJSON) via PrimerJSON ActionError

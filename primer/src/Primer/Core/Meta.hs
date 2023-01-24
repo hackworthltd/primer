@@ -77,7 +77,7 @@ trivialMeta id = Meta id Nothing Nothing
 
 newtype ModuleName = ModuleName {unModuleName :: NonEmpty Name}
   deriving (Eq, Ord, Show, Data, Generic)
-  deriving (FromJSON, ToJSON) via NonEmpty Name
+  deriving (ToJSON) via NonEmpty Name
   deriving anyclass (NFData)
 
 -- | Helper function for simple (non-hierarchical) module names.
@@ -103,7 +103,7 @@ data GlobalName (k :: GlobalNameKind) = GlobalName
   , baseName :: Name
   }
   deriving (Eq, Ord, Generic, Data, Show)
-  deriving (FromJSON, ToJSON) via PrimerJSON (GlobalName k)
+  deriving (ToJSON) via PrimerJSON (GlobalName k)
   deriving anyclass (NFData)
 
 -- | Construct a name from a Text. This is called unsafe because there are no
@@ -129,7 +129,7 @@ data LocalNameKind
 newtype LocalName (k :: LocalNameKind) = LocalName {unLocalName :: Name}
   deriving (Eq, Ord, Show, Data, Generic)
   deriving (IsString) via Name
-  deriving (FromJSON, ToJSON) via Name
+  deriving (ToJSON) via Name
   deriving anyclass (NFData)
 
 unsafeMkLocalName :: Text -> LocalName k
@@ -143,7 +143,7 @@ data TmVarRef
   = GlobalVarRef GVarName
   | LocalVarRef LVarName
   deriving (Eq, Show, Data, Generic)
-  deriving (FromJSON, ToJSON) via PrimerJSON TmVarRef
+  deriving (ToJSON) via PrimerJSON TmVarRef
   deriving anyclass (NFData)
 
 -- | A class for types which have an ID.
