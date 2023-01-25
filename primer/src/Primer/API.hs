@@ -303,7 +303,7 @@ withSession' sid op = do
         -- for the callback.
         callback <- newEmptyTMVar
         writeTBQueue q $ Database.LoadSession sid ss callback
-        return $ Left callback
+        pure $ Left callback
       Just s@(SessionData appl n _) ->
         -- The session is in memory, let's do this.
         case op of
@@ -509,7 +509,7 @@ listSessions = curry $ logAPI (noError ListSessions) $ \case
       atomically $ do
         cb <- newEmptyTMVar
         writeTBQueue q $ Database.ListSessions ol cb
-        return cb
+        pure cb
     liftIO $ atomically $ takeTMVar callback
   (_, ol) -> sessionsTransaction $ \ss _ -> do
     kvs' <- ListT.toList $ StmMap.listT ss
