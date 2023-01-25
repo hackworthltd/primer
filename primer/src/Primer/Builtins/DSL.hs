@@ -4,20 +4,37 @@ module Primer.Builtins.DSL (
   nat,
   maybe_,
   list_,
+  listOf,
 ) where
 
 import Foreword
 
 import Control.Monad.Fresh (MonadFresh)
 import Numeric.Natural (Natural)
-import Primer.Builtins (cCons, cFalse, cJust, cNil, cNothing, cSucc, cTrue, cZero)
+import Primer.Builtins (
+  cCons,
+  cFalse,
+  cJust,
+  cNil,
+  cNothing,
+  cSucc,
+  cTrue,
+  cZero,
+  tList,
+ )
 import Primer.Core (
   Expr,
   ID,
   TyConName,
   Type,
  )
-import Primer.Core.DSL (aPP, app, con, tcon)
+import Primer.Core.DSL (
+  aPP,
+  app,
+  con,
+  tapp,
+  tcon,
+ )
 
 -- These functions rely on particular types being in scope.
 bool_ :: MonadFresh ID m => Bool -> m Expr
@@ -43,3 +60,6 @@ list_ t =
           `app` b
     )
     (con cNil `aPP` tcon t)
+
+listOf :: MonadFresh ID m => m Type -> m Type
+listOf = tapp (tcon tList)
