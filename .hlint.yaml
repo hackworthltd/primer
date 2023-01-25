@@ -1,12 +1,3 @@
-# Ignore warnings stemming from tasty_... test naming
-# This can be removed when hlint makes a new release and then hls makes a new
-# release (it needs to update its bundled hlint)
-# (This will ignore camelCase hints for any function, but it is unlikely we
-# will write any such thing other than tasty tests.)
-- ignore:
-   name: "Use camelCase"
-   within: Tests.**
-
 - warn:
     name: "Use explicit module export list"
 - warn:

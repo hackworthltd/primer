@@ -174,51 +174,51 @@ deleteSessionTest = do
   void $ API.deleteSession sid
 
 test_insert_empty_q :: TestTree
-test_insert_empty_q = empty_q_harness "database Insert leaves an empty op queue" $ do
+test_insert_empty_q = emptyQHarness "database Insert leaves an empty op queue" $ do
   insertTest
 
 test_updateapp_empty_q :: TestTree
-test_updateapp_empty_q = empty_q_harness "database UpdateApp leaves an empty op queue" $ do
+test_updateapp_empty_q = emptyQHarness "database UpdateApp leaves an empty op queue" $ do
   updateAppTest
 
 test_updatename_empty_q :: TestTree
-test_updatename_empty_q = empty_q_harness "database UpdateName leaves an empty op queue" $ do
+test_updatename_empty_q = emptyQHarness "database UpdateName leaves an empty op queue" $ do
   updateNameTest
 
 test_loadsession_empty_q :: TestTree
-test_loadsession_empty_q = empty_q_harness "database LoadSession leaves an empty op queue" $ do
+test_loadsession_empty_q = emptyQHarness "database LoadSession leaves an empty op queue" $ do
   loadSessionTest
 
 test_listsessions_empty_q :: TestTree
-test_listsessions_empty_q = empty_q_harness "database ListSessions leaves an empty op queue" $ do
+test_listsessions_empty_q = emptyQHarness "database ListSessions leaves an empty op queue" $ do
   listSessionsTest
 
 test_deletesession_empty_q :: TestTree
-test_deletesession_empty_q = empty_q_harness "database DeleteSession leaves an empty op queue" $ do
+test_deletesession_empty_q = emptyQHarness "database DeleteSession leaves an empty op queue" $ do
   deleteSessionTest
 
 test_insert_faildb :: TestTree
-test_insert_faildb = faildb_harness "database Insert leaves behind an op" $ do
+test_insert_faildb = faildbHarness "database Insert leaves behind an op" $ do
   insertTest
 
 test_updateapp_faildb :: TestTree
-test_updateapp_faildb = faildb_harness "database UpdateApp leaves behind an op" $ do
+test_updateapp_faildb = faildbHarness "database UpdateApp leaves behind an op" $ do
   updateAppTest
 
 test_updatename_faildb :: TestTree
-test_updatename_faildb = faildb_harness "database UpdateName leaves behind an op" $ do
+test_updatename_faildb = faildbHarness "database UpdateName leaves behind an op" $ do
   updateNameTest
 
 test_loadsession_faildb :: TestTree
-test_loadsession_faildb = faildb_harness "database LoadSession leaves behind an op" $ do
+test_loadsession_faildb = faildbHarness "database LoadSession leaves behind an op" $ do
   loadSessionTest
 
 test_listsessions_faildb :: TestTree
-test_listsessions_faildb = faildb_harness "database ListSessions leaves behind an op" $ do
+test_listsessions_faildb = faildbHarness "database ListSessions leaves behind an op" $ do
   listSessionsTest
 
 test_deletesession_faildb :: TestTree
-test_deletesession_faildb = faildb_harness "database DeleteSession leaves behind an op" $ do
+test_deletesession_faildb = faildbHarness "database DeleteSession leaves behind an op" $ do
   deleteSessionTest
 
 testSessionName :: TestName -> Text -> Text -> TestTree
@@ -231,8 +231,8 @@ testSessionName testName t expected =
     , testCase "safe" $
         fromSessionName (safeMkSessionName t) @?= expected
     ]
-empty_q_harness :: Text -> PrimerM (PureLogT (WithSeverity LogMsg) IO) () -> TestTree
-empty_q_harness desc test = testCaseSteps (toS desc) $ \step' -> do
+emptyQHarness :: Text -> PrimerM (PureLogT (WithSeverity LogMsg) IO) () -> TestTree
+emptyQHarness desc test = testCaseSteps (toS desc) $ \step' -> do
   dbOpQueue <- newTBQueueIO 4
   inMemorySessions <- StmMap.newIO
   dbSessions <- StmMap.newIO
@@ -294,8 +294,8 @@ runFailDbT m = runIdentityT $ unFailDbT m
 runFailDb :: FailDb a -> IO a
 runFailDb = runFailDbT
 
-faildb_harness :: Text -> PrimerM (PureLogT (WithSeverity LogMsg) IO) () -> TestTree
-faildb_harness desc test = testCaseSteps (toS desc) $ \step' -> do
+faildbHarness :: Text -> PrimerM (PureLogT (WithSeverity LogMsg) IO) () -> TestTree
+faildbHarness desc test = testCaseSteps (toS desc) $ \step' -> do
   dbOpQueue <- newTBQueueIO 4
   inMemorySessions <- StmMap.newIO
   let version = "git123"
