@@ -2,8 +2,12 @@
 , ...
 }:
 let
-  database_url = hostPkgs.lib.primer.databaseUrl;
-  port = toString hostPkgs.lib.primer.defaultPort;
+  dbPassword = "foopass";
+  dbUser = "primer";
+  dbName = "primer";
+  dbUrl = "postgres://${dbUser}:${dbPassword}@postgres:5432/${dbName}";
+
+  port = toString hostPkgs.lib.primer.defaultServicePort;
   version = hostPkgs.lib.primer.version;
 in
 {
@@ -14,12 +18,12 @@ in
         package = pkgs.postgresql;
         enableTCPIP = true;
         authentication = ''
-          hostnossl primer primer 192.168.0.0/16 md5
+          hostnossl ${dbName} ${dbUser} 192.168.0.0/16 md5
         '';
         initialScript = pkgs.writeText "postgresql-init.sql" ''
-          CREATE DATABASE primer TEMPLATE template0 ENCODING UTF8;
-          CREATE USER primer WITH PASSWORD 'foopass';
-          GRANT ALL PRIVILEGES ON DATABASE primer TO primer;
+          CREATE DATABASE ${dbName} TEMPLATE template0 ENCODING UTF8;
+          CREATE USER ${dbUser} WITH PASSWORD '${dbPassword}';
+          GRANT ALL PRIVILEGES ON DATABASE ${dbName} TO ${dbUser};
         '';
       };
 
@@ -58,12 +62,19 @@ in
 
         virtualisation.oci-containers = {
           containers.primer-service = {
-            image = "primer-service:${pkgs.primer-service-docker-image.imageTag}";
-            imageFile = pkgs.primer-service-docker-image;
+
+            # Note: we need to use `hostPkgs` here rather than `pkgs`,
+            # for some reason I don't understand. It seems to have
+            # something to do with the haskell.nix overlay, because
+            # other packages that are in our overlay, but don't rely
+            # on haskell.nix, work fine from `pkgs`.
+            image = "primer-service:${hostPkgs.primer-service-docker-image.imageTag}";
+            imageFile = hostPkgs.primer-service-docker-image;
+
             ports = [ "${port}:${port}" ];
             extraOptions = [ "--network=host" ];
             environment = {
-              DATABASE_URL = database_url;
+              DATABASE_URL = dbUrl;
             };
           };
         };
@@ -102,7 +113,7 @@ in
           primer.systemctl("stop podman-primer-service.service")
 
       postgres.succeed(
-          "primer-sqitch deploy --verify db:${database_url}"
+          "primer-sqitch deploy --verify db:${dbUrl}"
       )
 
       primer.systemctl("start podman-primer-service.service")
@@ -112,4 +123,7 @@ in
       with subtest("version check"):
           primer.succeed("primer-version-check")
     '';
+
+  # Don't wait forever in the event of a problem.
+  meta.timeout = 600;
 }

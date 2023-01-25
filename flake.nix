@@ -642,6 +642,7 @@
               lib = (prev.lib or { }) // {
                 primer = (prev.lib.primer or { }) // {
                   defaultServicePort = 8081;
+                  inherit version;
                   inherit postgres-dev-password;
                   inherit postgres-dev-base-url;
                   inherit postgres-dev-primer-url;
@@ -686,7 +687,7 @@
           );
 
           nixosModules.default = {
-            nixpkgs.overlays = [ inputs.self.overlays.default ];
+            nixpkgs.overlays = allOverlays;
           };
 
           hydraJobs = {
