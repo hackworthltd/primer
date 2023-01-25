@@ -35,6 +35,7 @@ import Primer.Core (
   Expr,
   Expr' (..),
   GVarName,
+  HasID,
   HasMetadata (_metadata),
   ID,
   LVarName,
@@ -407,18 +408,18 @@ moveType m z = move m z
 
 -- | Apply a movement to a generic zipper - does not support movement to a case
 -- branch
-move :: forall m za a. (ActionM m, IsZipper za a) => Movement -> za -> m za
+move :: forall m za a. (ActionM m, IsZipper za a, HasID za) => Movement -> za -> m za
 move m z = do
   mz' <- move' m z
   case mz' of
     Just z' -> pure z'
-    Nothing -> throwError $ CustomFailure (Move m) "movement failed"
+    Nothing -> throwError $ MovementFailed (getID z, m)
   where
     move' :: Movement -> za -> m (Maybe za)
     move' Parent = pure . up
     move' Child1 = pure . down
     move' Child2 = pure . (down >=> right)
-    move' (Branch _) = const $ throwError $ CustomFailure (Move m) "internal error: move does not support Branch moves"
+    move' (Branch _) = const $ throwError $ InternalFailure "move does not support Branch moves"
 
 setMetadata :: (IsZipper za a, HasMetadata a) => Value -> za -> za
 setMetadata d z = z & _target % _metadata ?~ d

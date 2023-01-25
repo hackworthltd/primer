@@ -12,6 +12,7 @@ import Foreword
 import Data.Aeson (FromJSON (..), ToJSON (..))
 import Primer.Action.Actions (Action)
 import Primer.Action.Available qualified as Available
+import Primer.Action.Movement (Movement)
 import Primer.Core (Expr, GVarName, ID, LVarName, ModuleName, Type)
 import Primer.JSON (CustomJSON (..), PrimerJSON)
 import Primer.Typecheck.TypeError (TypeError)
@@ -28,6 +29,7 @@ data ActionError
       -- ^ the error message
   | InternalFailure Text
   | IDNotFound ID
+  | MovementFailed (ID, Movement)
   | UnknownDef GVarName
   | NeedEmptyHole Action Expr
   | NeedNonEmptyHole Action Expr
