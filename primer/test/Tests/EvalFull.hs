@@ -888,9 +888,9 @@ tasty_prim_hex_nat = withTests 20 . property $ do
   n <- forAllT $ Gen.integral $ Range.constant 0 50
   let ne = nat n
       ((e, r), maxID) =
-        if n <= 15
-          then
-            create $
+        create $
+          if n <= 15
+            then
               (,)
                 <$> case_
                   ( pfun NatToHex
@@ -909,8 +909,7 @@ tasty_prim_hex_nat = withTests 20 . property $ do
                   ]
                 <*> (con cJust `aPP` tcon tNat)
                 `app` ne
-          else
-            create $
+            else
               (,)
                 <$> pfun NatToHex
                 `app` ne
