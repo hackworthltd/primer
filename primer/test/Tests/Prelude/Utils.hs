@@ -55,7 +55,7 @@ functionOutput' f args depth =
       severe = Seq.filter isSevereLog logs
    in if null severe
         then r
-        else error $ unlines $ "There were severe logs:" : foldMap ((: []) . show) severe
+        else error $ unlines $ "There were severe logs:" : foldMap' ((: []) . show) severe
   where
     mods = [builtinModule, primitiveModule, prelude']
     (ty, def) = mconcat $ map (\m -> (moduleTypesQualified m, moduleDefsQualified m)) mods

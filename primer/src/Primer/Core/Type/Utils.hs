@@ -97,7 +97,7 @@ traverseFreeVarsTy = go
       TLet m a t b -> TLet m a <$> go bound f t <*> go (S.insert a bound) f b
 
 boundVarsTy :: (Data a, Eq a) => Type' a -> Set TyVarName
-boundVarsTy = foldMap getBoundHereDnTy . universe
+boundVarsTy = foldMap' getBoundHereDnTy . universe
 
 -- Check two types for alpha equality
 --

@@ -2,6 +2,7 @@ module Foreword (
   module Protolude,
   module Unsafe,
   module Catch,
+  module Foldable,
   insertAt,
   adjustAt,
   findAndAdjust,
@@ -13,6 +14,7 @@ module Foreword (
   hoistMaybe,
   (?:),
   curry4,
+  unsafeMaximum,
 ) where
 
 -- In general, we should defer to "Protolude"'s exports and avoid name
@@ -45,6 +47,10 @@ import Protolude hiding (
   check,
   eqT,
   finally,
+  -- hide foldMap as it is lazy in the accumulator
+  foldMap,
+  -- hide foldl as it is lazy in the accumulator
+  foldl,
   from,
   gcast,
   handle,
@@ -53,6 +59,7 @@ import Protolude hiding (
   lenientDecode,
   mask,
   mask_,
+  maximum,
   moduleName,
   onException,
   orElse,
@@ -72,7 +79,11 @@ import Protolude hiding (
 
 -- We should remove all uses of `unsafeHead`. See:
 -- https://github.com/hackworthltd/primer/issues/147
+
+import Protolude qualified as P
 import Protolude.Unsafe as Unsafe (unsafeHead)
+
+import Data.Foldable as Foldable (foldMap')
 
 -- We want @exceptions@ rather than @base@'s equivalents.
 import Control.Monad.Catch as Catch
@@ -143,3 +154,10 @@ infixr 5 ?:
 
 curry4 :: ((a, b, c, d) -> r) -> a -> b -> c -> d -> r
 curry4 f a b c d = f (a, b, c, d)
+
+{- HLINT ignore unsafeMaximum "Avoid restricted function" -}
+
+-- | This will throw a runtime error when called with an empty list
+-- (@unsafeMaximum = maximum@, renamed to make its partiality obvious)
+unsafeMaximum :: Ord a => [a] -> a
+unsafeMaximum = P.maximum

@@ -566,7 +566,7 @@ tasty_non_cyclic = propertyWTInExtendedUVCxt [builtinModule, primitiveModule] $ 
     Nothing -> discard
     Just u' ->
       let solved = M.keysSet u'
-          inRHS = foldMap freeVarsTy u'
+          inRHS = foldMap' freeVarsTy u'
        in assert $ S.disjoint solved inRHS
 
 -- unifying a unif var gives simple success

@@ -3,7 +3,7 @@ module Tests.Questions where
 
 import Foreword hiding (diff)
 
-import Data.List (nub, nubBy)
+import Data.List.Extra (nubOrdOn, nubSort)
 import Hedgehog hiding (Property, check, property)
 import Hedgehog.Classes
 import Hedgehog.Gen qualified as Gen
@@ -79,17 +79,17 @@ test_laws =
 tasty_shadow_monoid_types :: Property
 tasty_shadow_monoid_types = property $ do
   nks <- forAll genSTV'
-  let N nonShadowed = foldMap (\nk -> N [nk]) nks
+  let N nonShadowed = foldMap' (\nk -> N [nk]) nks
   annotateShow nonShadowed
   label $ if length nonShadowed == length nks then "no shadowing" else "shadowing"
   -- We end up with fewer elements than we started with
   diff nks ((>=) `on` length) nonShadowed
   let nonShNames = map fst nonShadowed
   -- There are no duplicate names in the output
-  assert $ nub nonShNames == nonShNames
+  assert $ ordNub nonShNames == nonShNames
   -- We keep exactly one of each input name,
-  -- and the ordering is the same (as nub preserves order)
-  assert $ nonShNames == nub (map fst nks)
+  -- and the ordering is the same (as ordNub preserves order)
+  assert $ nonShNames == ordNub (map fst nks)
 
 -- Generates data that could be contained in a ShadowedVarsTy, except
 -- it may have duplicated names
@@ -97,7 +97,7 @@ genSTV' :: Gen [(TyVarName, Kind)]
 genSTV' = evalExprGen 0 $ Gen.list (Range.linear 0 20) $ (,) <$> genTyVarName <*> genKind
 
 genSTV :: Gen ShadowedVarsTy
-genSTV = N . nubBy ((==) `on` fst) <$> genSTV'
+genSTV = N . nubOrdOn fst <$> genSTV'
 
 tasty_shadow_monoid_expr :: Property
 tasty_shadow_monoid_expr = property $ do
@@ -106,7 +106,7 @@ tasty_shadow_monoid_expr = property $ do
         TyVar v -> M [v] [] []
         TmVar v -> M [] [v] []
         Global v -> M [] [] [v]
-  let M tyV tmV glV = foldMap split ns
+  let M tyV tmV glV = foldMap' split ns
   annotateShow tyV
   annotateShow tmV
   annotateShow glV
@@ -118,13 +118,13 @@ tasty_shadow_monoid_expr = property $ do
   let nonShNames = map (unLocalName . fst) tyV ++ map (unLocalName . fst) tmV ++ map (baseName . fst) glV
   annotateShow nonShNames
   -- there are no duplicate names in the output
-  assert $ nub nonShNames == nonShNames
+  assert $ ordNub nonShNames == nonShNames
   -- We keep exactly one of each input name.
   -- Contrary to tasty_shadow_monoid_types, we don't check the ordering
   -- is the same, but only because it is more awkward to test (need that the
   -- three lists tyV, tmV, glV can be interleaved and then "stretches into" ns)
   -- than the benefit would be worth
-  assert $ sort nonShNames == sort (nub $ map nameSTE' ns)
+  assert $ sort nonShNames == nubSort (map nameSTE' ns)
 
 data STE'
   = TyVar (TyVarName, Kind)
@@ -153,7 +153,7 @@ genSTE' =
     genModuleName = ModuleName <$> Gen.element [["M"], ["M1"]]
 
 genSTE :: Gen ShadowedVarsExpr
-genSTE = deal . nubBy ((==) `on` nameSTE') <$> genSTE'
+genSTE = deal . nubOrdOn nameSTE' <$> genSTE'
   where
     deal = \case
       [] -> M [] [] []

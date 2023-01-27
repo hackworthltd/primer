@@ -256,8 +256,8 @@ buildTypingContext tydefs defs sh =
 buildTypingContextFromModules :: [Module] -> SmartHoles -> Cxt
 buildTypingContextFromModules modules =
   buildTypingContext
-    (foldMap moduleTypesQualified modules)
-    (foldMap moduleDefsQualified modules)
+    (foldMap' moduleTypesQualified modules)
+    (foldMap' moduleDefsQualified modules)
 
 -- | A shorthand for the constraints needed when kindchecking
 type TypeM e m =
@@ -390,7 +390,7 @@ checkEverything ::
 checkEverything sh CheckEverything{trusted, toCheck} =
   let cxt = buildTypingContextFromModules trusted sh
    in flip runReaderT cxt $ do
-        let newTypes = foldMap moduleTypesQualified toCheck
+        let newTypes = foldMap' moduleTypesQualified toCheck
         checkTypeDefs newTypes
         local (extendTypeDefCxt newTypes) $ do
           -- Kind check and update (for smartholes) all the types.

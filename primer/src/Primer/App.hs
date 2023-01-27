@@ -242,13 +242,13 @@ progAllModules p = progModules p <> progImports p
 
 progAllTypeDefs :: Prog -> Map TyConName (Editable, TypeDef)
 progAllTypeDefs p =
-  foldMap (fmap (Editable,) . moduleTypesQualified) (progModules p)
-    <> foldMap (fmap (NonEditable,) . moduleTypesQualified) (progImports p)
+  foldMap' (fmap (Editable,) . moduleTypesQualified) (progModules p)
+    <> foldMap' (fmap (NonEditable,) . moduleTypesQualified) (progImports p)
 
 progAllDefs :: Prog -> Map GVarName (Editable, Def)
 progAllDefs p =
-  foldMap (fmap (Editable,) . moduleDefsQualified) (progModules p)
-    <> foldMap (fmap (NonEditable,) . moduleDefsQualified) (progImports p)
+  foldMap' (fmap (Editable,) . moduleDefsQualified) (progModules p)
+    <> foldMap' (fmap (NonEditable,) . moduleDefsQualified) (progImports p)
 
 -- Note [Modules]
 -- The invariant is that the @progImports@ modules are never edited, but
@@ -476,7 +476,7 @@ handleQuestion = \case
 
 -- This only looks in the editable modules, not in any imports
 focusNode :: MonadError ProgError m => Prog -> GVarName -> ID -> m (Either (Either ExprZ TypeZ) TypeZip)
-focusNode prog = focusNodeDefs $ foldMap moduleDefsQualified $ progModules prog
+focusNode prog = focusNodeDefs $ foldMap' moduleDefsQualified $ progModules prog
 
 -- This looks in the editable modules and also in any imports
 focusNodeImports :: MonadError ProgError m => Prog -> GVarName -> ID -> m (Either (Either ExprZ TypeZ) TypeZip)
@@ -562,7 +562,7 @@ applyProgAction prog mdefName = \case
     case deleteDef m d of
       Nothing -> throwError $ DefNotFound d
       Just mod' -> do
-        when (globalInUse d $ foldMap moduleDefs $ mod' : ms) $
+        when (globalInUse d $ foldMap' moduleDefs $ mod' : ms) $
           throwError $
             DefInUse d
         pure (mod' : ms, Nothing)

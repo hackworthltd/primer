@@ -80,8 +80,8 @@ genProg sh initialImports = local (extendCxtByModules initialImports) $ do
     extendCxtByModule = extendCxtByModules . pure
     extendCxtByModules :: [Module] -> Cxt -> Cxt
     extendCxtByModules ms =
-      extendTypeDefCxt (foldMap moduleTypesQualified ms)
-        . extendGlobalCxt (M.toList . fmap (forgetTypeMetadata . defType) $ foldMap moduleDefsQualified ms)
+      extendTypeDefCxt (foldMap' moduleTypesQualified ms)
+        . extendGlobalCxt (M.toList . fmap (forgetTypeMetadata . defType) $ foldMap' moduleDefsQualified ms)
     genModule :: Name -> Int -> GenT WT Module
     genModule prefix index = do
       let mn = ModuleName $ prefix :| [unsafeMkName $ show index]

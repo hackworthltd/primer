@@ -35,3 +35,141 @@
 - group:
     name: monomorphic
     enabled: true
+
+
+# Haskell's Dangerous Functions
+# For a how-to-use and the latest version of this file go to:
+# https://github.com/NorfairKing/haskell-dangerous-functions/
+# This copy was from commit f8f3e511dc08b69d5164beea8ded7292e3cc0c1d,
+# with a few removals where we disagree
+
+- functions:
+  - {name: unsafeDupablePerformIO, within: []} # Unsafe
+  - {name: unsafeInterleaveIO, within: []} # Unsafe
+  - {name: unsafeFixIO, within: []} # Unsafe
+  - {name: unsafePerformIO, within: []} # Unsafe
+
+  # _VERY_ hard to get right, use the async library instead.
+  # See also https://github.com/informatikr/hedis/issues/165
+  - {name: forkIO, within: []}
+  # Mostly impossible to get right, rethink what you're doing entirely.
+  # See also https://www.reddit.com/r/haskell/comments/jsap9r/how_dangerous_is_forkprocess/
+  - {name: forkProcess, within: []}
+
+  - {name: undefined, within: []} # Purposely fails. Deal with errors appropriately instead.
+  - {name: throw, within: []} # Don't throw from pure code, use throwIO instead.
+  # TODO See https://github.com/hackworthltd/primer/issues/148
+  # - {name: Prelude.error, within: [Primer.Gen.**, Primer.**.Test.** , Tests.**]}
+
+  - {name: Data.List.head, within: []} # Partial, use `listToMaybe` instead.
+  - {name: Data.List.tail, within: []} # Partial
+  - {name: Data.List.init, within: []} # Partial
+  - {name: Data.List.last, within: []} # Partial
+  - {name: 'Data.List.!!', within: []} # Partial
+  - {name: Data.List.genericIndex, within: []} # Partial
+  - {name: Data.List.genericLength, within: []}
+
+  # Same, but for Data.Text
+  - {name: Data.Text.head, within: []}
+  - {name: Data.Text.tail, within: []}
+  - {name: Data.Text.init, within: []}
+  - {name: Data.Text.last, within: []}
+
+  - {name: minimum, within: []} # Partial
+  - {name: minimumBy, within: []} # Partial
+  - {name: maximum, within: []} # Partial
+  - {name: maximumBy, within: []} # Partial
+
+  # Same, but for Data.Text
+  - {name: Data.Text.maximum, within: []}
+  - {name: Data.Text.minimum, within: []}
+
+  - {name: GHC.Enum.pred, within: []} # Partial
+  - {name: GHC.Enum.succ, within: []} # Partial
+  - {name: GHC.Enum.toEnum, within: []} # Partial
+  - {name: GHC.Enum.fromEnum, within: []} # Does not do what you think it does.
+  - {name: GHC.Enum.enumFrom, within: []} # Does not do what you think it does, depending on the type.
+  - {name: GHC.Enum.enumFromThen, within: []} # Does not do what you think it does, depending on the type.
+  - {name: GHC.Enum.enumFromTo, within: []} # Does not do what you think it does, depending on the type.
+  - {name: GHC.Enum.enumFromThenTo, within: []} # Does not do what you think it does, depending on the type.
+
+  - {name: nub, within: []} # O(n^2)
+
+  - {name: Data.Foldable.foldl, within: []} # Lazy accumulator. Use foldl' instead.
+  - {name: Data.Foldable.foldMap, within: []} # Lazy accumulator. Use foldMap' instead.
+  - {name: Data.Foldable.sum, within: []} # Lazy accumulator
+  - {name: Data.Foldable.product, within: []} # Lazy accumulator
+
+  # Functions involving division
+  # TODO These are commented out as we would like more safety here in the future,
+  # but are unsure how to do so ergonomically.
+  # We have some instances of 'div', 'mod' and 'quotRem'
+  # where the denominator is obviously non-zero
+  # (and thus fine, but hlint cannot tell).
+  # We also have many instances of using 'mod' as a local variable
+  # (standing for "module"), which hlint gets confused by.
+  # - {name: Prelude.quot, within: []} # Partial, see https://github.com/NorfairKing/haskell-WAT#num-int
+  # - {name: Prelude.div, within: []}
+  # - {name: Prelude.rem, within: []}
+  # - {name: Prelude.mod, within: []}
+  # - {name: Prelude.quotRem, within: []}
+  # - {name: Prelude.divMod, within: []}
+
+  # Does unexpected things, see
+  # https://github.com/NorfairKing/haskell-WAT#real-double
+  - {name: realToFrac, within: []}
+
+  # Constructs rationals, which is either wrong or a bad idea.
+  - {name: 'Data.Ratio.%', within: []}
+
+  # Don't use string for command-line output.
+  - {name: System.IO.putChar, within: []}
+  - {name: System.IO.putStr, within: []}
+  - {name: System.IO.putStrLn, within: []}
+  - {name: System.IO.print, within: []}
+
+  # Don't use string for command-line input either.
+  - {name: System.IO.getChar, within: []}
+  - {name: System.IO.getLine, within: []}
+  - {name: System.IO.getContents, within: []} # Does lazy IO.
+  - {name: System.IO.interact, within: []}
+  - {name: System.IO.readIO, within: []}
+  - {name: System.IO.readLn, within: []}
+
+  # Don't use strings to interact with files
+  - {name: System.IO.readFile, within: []}
+  - {name: System.IO.writeFile, within: []}
+  - {name: System.IO.appendFile, within: []}
+
+  # Can succeed in dev, but fail in prod, because of encoding guessing
+  # It's also Lazy IO.
+  # See https://www.snoyman.com/blog/2016/12/beware-of-readfile/ for more info.
+  - {name: Data.Text.IO.readFile, within: []}
+  - {name: Data.Text.IO.Lazy.readFile, within: []}
+
+  - {name: Data.Text.Encoding.decodeUtf8, within: []} # Throws on invalid UTF8
+
+  - {name: fromJust, within: [Tests.**], message: 'Partial'} # Partial
+
+  # Does silent truncation:
+  # > fromIntegral (300 :: Word) :: Word8
+  # 44
+  # TODO: review occurrences of this in the codebase,
+  # see https://github.com/hackworthltd/primer/issues/848
+  # - {name: fromIntegral, within: []}
+  # - {name: fromInteger, within: []}
+
+
+  - {name: 'read', within: []} # Partial, use `Text.Read.readMaybe` instead.
+
+  # Deprecated, use `pure` instead.
+  # See https://gitlab.haskell.org/ghc/ghc/-/wikis/proposal/monad-of-no-return
+  - {name: 'return', within: []}
+
+- modules:
+  # We prefer to use Optics, rather than Lens
+  - { name: Control.Lens, within: [] }
+
+- extensions:
+  - { name: NamedFieldPuns, within: [] }
+  - { name: TupleSections, within: [] }

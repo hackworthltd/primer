@@ -134,8 +134,11 @@ prettyExpr opts = \case
 
       casesAligned :: [Doc AnsiStyle]
       casesAligned = map (\(f, s) -> fill caseWidth f <> s) caseParts
-      caseWidth :: Int
-      caseWidth = maximum $ map (T.length . show . fst) caseParts
+        where
+          caseWidth :: Int
+          -- 'unsafeMaximum' is safe here, as 'caseWidth' is only evaluated
+          -- if 'caseParts' is non-empty
+          caseWidth = unsafeMaximum $ map (T.length . show . fst) caseParts
   Ann _ e t -> typeann e t
   App _ e e' -> brac Round White (pE e) <> line <> brac Round White (pE e')
   APP _ e t -> brac Round Yellow (pE e) <+> col Yellow "@" <> pT t

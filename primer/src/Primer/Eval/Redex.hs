@@ -595,7 +595,7 @@ viewCaseRedex tydefs = \case
        the last doesn't need any renaming.)
     -}
     renameBindings meta scrutinee branches tyargs args patterns orig =
-      let avoid = foldMap (S.map unLocalName . freeVarsTy) tyargs <> foldMap freeVars args
+      let avoid = foldMap' (S.map unLocalName . freeVarsTy) tyargs <> foldMap' freeVars args
           binders = S.fromList $ map (unLocalName . bindName) patterns
        in hoistMaybe $
             if S.disjoint avoid binders
@@ -803,12 +803,12 @@ getNonCapturedLocal v = do
 fvCxt :: MonadReader Cxt m => S.Set Name -> m (S.Set Name)
 fvCxt vs = do
   cxt <- ask
-  pure $ foldMap (setOf (_Just % _1 % _Just % _freeVarsLetBinding) . flip lookup cxt) vs
+  pure $ foldMap' (setOf (_Just % _1 % _Just % _freeVarsLetBinding) . flip lookup cxt) vs
 
 fvCxtTy :: S.Set TyVarName -> Reader Cxt (S.Set TyVarName)
 fvCxtTy vs = do
   cxt <- ask
-  pure $ foldMap (setOf (_Just % _1 % _Just % _LetTypeBind % _2 % getting _freeVarsTy % _2) . flip lookupTy cxt) vs
+  pure $ foldMap' (setOf (_Just % _1 % _Just % _LetTypeBind % _2 % getting _freeVarsTy % _2) . flip lookupTy cxt) vs
 
 -- TODO: deal with metadata. https://github.com/hackworthltd/primer/issues/6
 runRedex :: MonadEval l m => Redex -> m (Expr, EvalDetail)
