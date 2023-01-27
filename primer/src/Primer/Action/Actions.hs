@@ -7,8 +7,9 @@ module Primer.Action.Actions (
 import Foreword
 
 import Data.Aeson (FromJSON (..), ToJSON (..), Value)
+import Primer.Action.Movement (Movement (..))
 import Primer.Core (PrimCon)
-import Primer.Core.Meta (ID, TmVarRef, ValConName)
+import Primer.Core.Meta (ID, TmVarRef)
 import Primer.JSON (CustomJSON (..), PrimerJSON)
 
 -- We split this module to increase parallelism in our build.
@@ -103,8 +104,3 @@ data Action
     RenameCaseBinding Text
   deriving (Eq, Show, Generic)
   deriving (FromJSON, ToJSON) via PrimerJSON Action
-
--- | Core movements
-data Movement = Child1 | Child2 | Parent | Branch ValConName
-  deriving (Eq, Show, Generic)
-  deriving (FromJSON, ToJSON) via PrimerJSON Movement
