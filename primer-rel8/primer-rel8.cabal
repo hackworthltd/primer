@@ -3,7 +3,7 @@ name:          primer-rel8
 version:       0.7.2.0
 license:       AGPL-3.0-or-later
 license-file:  COPYING
-copyright:     (c) 2021 Hackworth Ltd
+copyright:     (c) 2023 Hackworth Ltd
 maintainer:    src@hackworthltd.com
 author:        Hackworth Ltd <src@hackworthltd.com>
 stability:     experimental
