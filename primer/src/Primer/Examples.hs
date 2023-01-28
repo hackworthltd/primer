@@ -1,7 +1,7 @@
 -- |
 -- Module      : Primer.Examples
 -- Description : Example Primer types, terms, and programs.
--- Copyright   : (c) 2022, Hackworth Ltd
+-- Copyright   : (c) 2023, Hackworth Ltd
 -- License     : AGPL 3.0 or later
 -- Stability   : experimental
 -- Portability : portable
