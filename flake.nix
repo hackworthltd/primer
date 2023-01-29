@@ -329,6 +329,18 @@
               };
               overlays = allOverlays;
             };
+
+          benchmarkJobs = {
+            inherit (inputs.self.benchmarks) x86_64-linux;
+
+            required-benchmarks = pkgs.releaseTools.aggregate {
+              name = "required-benchmarks";
+              constituents = builtins.map builtins.attrValues (with inputs.self; [
+                benchmarks.x86_64-linux
+              ]);
+              meta.description = "Required CI benchmarks";
+            };
+          };
         in
         {
           overlays.default = (final: prev:
@@ -654,8 +666,8 @@
             inherit (inputs.self) checks;
             inherit (inputs.self) devShells;
 
-            required = pkgs.releaseTools.aggregate {
-              name = "required";
+            required-ci = pkgs.releaseTools.aggregate {
+              name = "required-ci";
               constituents = builtins.map builtins.attrValues (with inputs.self.hydraJobs; [
                 packages.x86_64-linux
                 packages.aarch64-linux
@@ -669,6 +681,7 @@
           };
 
           ciJobs = inputs.hacknix.lib.flakes.recurseIntoHydraJobs inputs.self.hydraJobs;
+          ciBenchmarks = inputs.hacknix.lib.flakes.recurseIntoHydraJobs benchmarkJobs;
         };
     };
 }
