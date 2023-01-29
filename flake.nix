@@ -59,6 +59,7 @@
 
       imports = [
         inputs.pre-commit-hooks-nix.flakeModule
+        ./nix/flake-parts/benchmarks.nix
       ];
       systems = [ "x86_64-linux" "aarch64-linux" "aarch64-darwin" ];
 
@@ -236,13 +237,6 @@
           // (pkgs.lib.optionalAttrs (system == "x86_64-linux" || system == "aarch64-linux") {
             inherit (pkgs) primer-service-docker-image;
           })
-          // (pkgs.lib.optionalAttrs (system == "x86_64-linux") {
-
-            # For now, we only generate these on x86_64-linux, as we
-            # need a dedicated machine to run them reliably.
-            inherit (pkgs) primer-benchmark-results-html primer-benchmark-results-json;
-            inherit (pkgs) primer-benchmark-results-github-action-benchmark;
-          })
           // primerFlake.packages;
 
           checks = {
@@ -309,6 +303,18 @@
             // primerFlake.apps;
 
           devShells.default = primerFlake.devShell;
+
+          # This is a non-standard flake output, but we don't want to
+          # include benchmark runs in `packages`, because we don't
+          # want them to be part of the `hydraJobs` or `ciJobs`
+          # attrsets. The benchmarks need to be run in a more
+          # controlled environment, and this gives us that
+          # flexibility.
+          benchmarks = {
+            inherit (pkgs) primer-benchmark-results-html;
+            inherit (pkgs) primer-benchmark-results-json;
+            inherit (pkgs) primer-benchmark-results-github-action-benchmark;
+          };
         };
 
       flake =
@@ -624,11 +630,18 @@
 
               inherit primer-openapi-spec;
 
+              inherit colima;
+
+              # Note to the reader: these derivations run benchmarks
+              # and collect the results in various formats. They're
+              # part of the flake's overlay, so they appear in any
+              # `pkgs` that uses this overlay. Hoewver, we do *not*
+              # include these in the flake's `packages` output,
+              # because we don't want them to be built/run when CI
+              # evaluates the `hydraJobs` or `ciJobs` outputs.
               inherit (benchmarks) primer-benchmark-results-html;
               inherit (benchmarks) primer-benchmark-results-json;
               inherit (benchmarks) primer-benchmark-results-github-action-benchmark;
-
-              inherit colima;
             }
           );
 
