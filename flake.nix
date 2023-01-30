@@ -59,6 +59,7 @@
 
       imports = [
         inputs.pre-commit-hooks-nix.flakeModule
+        ./nix/flake-parts/benchmarks.nix
       ];
       systems = [ "x86_64-linux" "aarch64-linux" "aarch64-darwin" ];
 
@@ -236,13 +237,6 @@
           // (pkgs.lib.optionalAttrs (system == "x86_64-linux" || system == "aarch64-linux") {
             inherit (pkgs) primer-service-docker-image;
           })
-          // (pkgs.lib.optionalAttrs (system == "x86_64-linux") {
-
-            # For now, we only generate these on x86_64-linux, as we
-            # need a dedicated machine to run them reliably.
-            inherit (pkgs) primer-benchmark-results-html primer-benchmark-results-json;
-            inherit (pkgs) primer-benchmark-results-github-action-benchmark;
-          })
           // primerFlake.packages;
 
           checks = {
@@ -309,6 +303,18 @@
             // primerFlake.apps;
 
           devShells.default = primerFlake.devShell;
+
+          # This is a non-standard flake output, but we don't want to
+          # include benchmark runs in `packages`, because we don't
+          # want them to be part of the `hydraJobs` or `ciJobs`
+          # attrsets. The benchmarks need to be run in a more
+          # controlled environment, and this gives us that
+          # flexibility.
+          benchmarks = {
+            inherit (pkgs) primer-benchmark-results-html;
+            inherit (pkgs) primer-benchmark-results-json;
+            inherit (pkgs) primer-benchmark-results-github-action-benchmark;
+          };
         };
 
       flake =
@@ -323,6 +329,18 @@
               };
               overlays = allOverlays;
             };
+
+          benchmarkJobs = {
+            inherit (inputs.self.benchmarks) x86_64-linux;
+
+            required-benchmarks = pkgs.releaseTools.aggregate {
+              name = "required-benchmarks";
+              constituents = builtins.map builtins.attrValues (with inputs.self; [
+                benchmarks.x86_64-linux
+              ]);
+              meta.description = "Required CI benchmarks";
+            };
+          };
         in
         {
           overlays.default = (final: prev:
@@ -581,62 +599,29 @@
               # Note: these benchmarks should only be run (in CI) on a
               # "benchmark" machine. This is enforced for our CI system
               # via Nix's `requiredSystemFeatures`.
-
-              # Generate Primer benchmark results as HTML.
-              primer-benchmark-results-html = (final.runCommand "primer-benchmark-results-html" { }
-                ''
-                  ${final.coreutils}/bin/mkdir -p $out
-                  ${final.primer-benchmark}/bin/primer-benchmark --output $out/results.html --regress allocated:iters --regress numGcs:iters +RTS -T
-                ''
-              ).overrideAttrs
-                (drv: {
-                  requiredSystemFeatures = (drv.requiredSystemFeatures or [ ]) ++ [ "benchmark" ];
-                });
-
-              # Generate Primer benchmark results as JSON.
-              primer-benchmark-results-json = (final.runCommand "primer-benchmark-results-json" { }
-                ''
-                  ${final.coreutils}/bin/mkdir -p $out
-                  ${final.primer-benchmark}/bin/primer-benchmark --template json --output $out/results.json --regress allocated:iters --regress numGcs:iters +RTS -T
-                ''
-              ).overrideAttrs
-                (drv: {
-                  requiredSystemFeatures = (drv.requiredSystemFeatures or [ ]) ++ [ "benchmark" ];
-                });
-
-
-              # Convert Primer benchmark results to the format expected
-              # by
-              # https://github.com/benchmark-action/github-action-benchmark
               #
-              # For each benchmark, we report:
-              # - the mean execution time, including the standard deviation.
+              # The `lastEnvChange` value is an impurity that we can
+              # modify when we want to force a new benchmark run
+              # despite the benchmarking code not having changed, as
+              # otherwise Nix will cache the results. It's intended to
+              # be used to track changes to the benchmarking
+              # environment, such as changes to hardware, that Nix
+              # doesn't know about.
               #
-              # - the outlier variance (the degree to which the standard
-              #   deviation is inflated by outlying measurements).
-              #
-              # - each OLS regression measured by the benchmark run, and
-              # - its R² value as a tooltip.
-
-              primer-benchmark-results-github-action-benchmark =
+              # The value should be formatted as an ISO date, followed
+              # by a "." and a 2-digit monotonic counter, to allow for
+              # multiple changes on the same date. We store this value
+              # in a `lastEnvChange` file in the derivation output, so
+              # that we can examine results in the Nix store and know
+              # which benchmarking environment was used to generate
+              # them.
+              benchmarks =
                 let
-                  jqscript = final.writeText "extract-criterion.jq" ''
-                    [.[]
-                    | .reportName as $basename
-                    | .reportAnalysis as $report
-                    | { name: "\($basename): mean time", unit: "mean time", value: $report.anMean.estPoint, range: $report.anStdDev.estPoint }
-                    , { name: "\($basename): outlier variance", unit: "outlier variance", value: $report.anOutlierVar.ovFraction }
-                    , $report.anRegress[] as $regress
-                    | { name: "\($basename): \($regress.regResponder)", unit: "\($regress.regResponder)/iter", value: $regress.regCoeffs.iters.estPoint, extra: "R²: \($regress.regRSquare.estPoint)" }
-                    ]
-                  '';
+                  lastEnvChange = "20230130.01";
                 in
-                (final.runCommand "primer-benchmark-results-github-action-benchmark" { }
-                  ''
-                    ${final.coreutils}/bin/mkdir -p $out
-                    ${final.jq}/bin/jq -f ${jqscript} ${final.primer-benchmark-results-json}/results.json > $out/results.json
-                  ''
-                );
+                final.callPackage ./nix/pkgs/benchmarks {
+                  inherit lastEnvChange;
+                };
             in
             {
               lib = (prev.lib or { }) // {
@@ -679,10 +664,19 @@
               inherit primer-service-docker-image;
 
               inherit primer-openapi-spec;
-              inherit primer-benchmark-results-html primer-benchmark-results-json;
-              inherit primer-benchmark-results-github-action-benchmark;
 
               inherit colima;
+
+              # Note to the reader: these derivations run benchmarks
+              # and collect the results in various formats. They're
+              # part of the flake's overlay, so they appear in any
+              # `pkgs` that uses this overlay. Hoewver, we do *not*
+              # include these in the flake's `packages` output,
+              # because we don't want them to be built/run when CI
+              # evaluates the `hydraJobs` or `ciJobs` outputs.
+              inherit (benchmarks) primer-benchmark-results-html;
+              inherit (benchmarks) primer-benchmark-results-json;
+              inherit (benchmarks) primer-benchmark-results-github-action-benchmark;
             }
           );
 
@@ -695,8 +689,8 @@
             inherit (inputs.self) checks;
             inherit (inputs.self) devShells;
 
-            required = pkgs.releaseTools.aggregate {
-              name = "required";
+            required-ci = pkgs.releaseTools.aggregate {
+              name = "required-ci";
               constituents = builtins.map builtins.attrValues (with inputs.self.hydraJobs; [
                 packages.x86_64-linux
                 packages.aarch64-linux
@@ -710,6 +704,7 @@
           };
 
           ciJobs = inputs.hacknix.lib.flakes.recurseIntoHydraJobs inputs.self.hydraJobs;
+          ciBenchmarks = inputs.hacknix.lib.flakes.recurseIntoHydraJobs benchmarkJobs;
         };
     };
 }
