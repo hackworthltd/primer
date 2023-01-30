@@ -61,7 +61,7 @@
         inputs.pre-commit-hooks-nix.flakeModule
         ./nix/flake-parts/benchmarks.nix
       ];
-      systems = [ "x86_64-linux" "aarch64-linux" "aarch64-darwin" ];
+      systems = [ "x86_64-linux" "aarch64-darwin" ];
 
       perSystem = { config, pkgs, system, ... }:
         let
@@ -172,8 +172,7 @@
                 cabal-fmt = "latest";
               };
             in
-            # aarch64-linux check is currently broken.
-            (pkgs.lib.optionalAttrs (system == "x86_64-linux" || system == "aarch64-darwin") {
+            {
               check.enable = true;
               settings = {
                 src = ./.;
@@ -208,7 +207,7 @@
                   ".buildkite/"
                 ];
               };
-            });
+            };
 
           packages = {
             inherit (pkgs) primer-service primer-openapi-spec run-primer;
@@ -234,7 +233,7 @@
               start-postgresql-container
               stop-postgresql-container;
           }
-          // (pkgs.lib.optionalAttrs (system == "x86_64-linux" || system == "aarch64-linux") {
+          // (pkgs.lib.optionalAttrs (system == "x86_64-linux") {
             inherit (pkgs) primer-service-docker-image;
           })
           // primerFlake.packages;
@@ -242,7 +241,7 @@
           checks = {
             inherit weeder openapi-validate;
           }
-          // (pkgs.lib.optionalAttrs (system == "x86_64-linux" || system == "aarch64-linux")
+          // (pkgs.lib.optionalAttrs (system == "x86_64-linux")
             (inputs.hacknix.lib.testing.nixos.importFromDirectory ./nixos-tests
               {
                 hostPkgs = pkgs;
@@ -693,10 +692,8 @@
               name = "required-ci";
               constituents = builtins.map builtins.attrValues (with inputs.self.hydraJobs; [
                 packages.x86_64-linux
-                packages.aarch64-linux
                 packages.aarch64-darwin
                 checks.x86_64-linux
-                checks.aarch64-linux
                 checks.aarch64-darwin
               ]);
               meta.description = "Required CI builds";
