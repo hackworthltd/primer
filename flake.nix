@@ -595,10 +595,33 @@
               # override it until that's fixed.
               colima = final.callPackage ./nix/pkgs/colima { };
 
+
               # Note: these benchmarks should only be run (in CI) on a
               # "benchmark" machine. This is enforced for our CI system
               # via Nix's `requiredSystemFeatures`.
-              benchmarks = final.callPackage ./nix/pkgs/benchmarks { };
+              #
+              # The `lastEnvChange` value is an impurity that we can
+              # modify when we want to force a new benchmark run
+              # despite the benchmarking code not having changed, as
+              # otherwise Nix will cache the results. It's intended to
+              # be used to track changes to the benchmarking
+              # environment, such as changes to hardware, that Nix
+              # doesn't know about.
+              #
+              # The value should be formatted as an ISO date, followed
+              # by a "." and a 2-digit monotonic counter, to allow for
+              # multiple changes on the same date. We store this value
+              # in a `lastEnvChange` file in the derivation output, so
+              # that we can examine results in the Nix store and know
+              # which benchmarking environment was used to generate
+              # them.
+              benchmarks =
+                let
+                  lastEnvChange = "20230130.01";
+                in
+                final.callPackage ./nix/pkgs/benchmarks {
+                  inherit lastEnvChange;
+                };
             in
             {
               lib = (prev.lib or { }) // {
