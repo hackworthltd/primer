@@ -199,6 +199,14 @@
                 "format": "date-time",
                 "type": "string"
             },
+            "Level": {
+                "enum": [
+                    "Beginner",
+                    "Intermediate",
+                    "Expert"
+                ],
+                "type": "string"
+            },
             "Module": {
                 "properties": {
                     "defs": {
@@ -830,28 +838,7 @@
                         "name": "action",
                         "required": true,
                         "schema": {
-                            "enum": [
-                                "MakeCon",
-                                "MakeConSat",
-                                "MakeInt",
-                                "MakeChar",
-                                "MakeVar",
-                                "MakeVarSat",
-                                "MakeLet",
-                                "MakeLetRec",
-                                "MakeLam",
-                                "MakeLAM",
-                                "RenamePattern",
-                                "RenameLet",
-                                "RenameLam",
-                                "RenameLAM",
-                                "MakeTCon",
-                                "MakeTVar",
-                                "MakeForall",
-                                "RenameForall",
-                                "RenameDef"
-                            ],
-                            "type": "string"
+                            "$ref": "#/components/schemas/InputAction"
                         }
                     }
                 ],
@@ -913,26 +900,7 @@
                         "name": "action",
                         "required": true,
                         "schema": {
-                            "enum": [
-                                "MakeCase",
-                                "MakeApp",
-                                "MakeAPP",
-                                "MakeAnn",
-                                "RemoveAnn",
-                                "LetToRec",
-                                "Raise",
-                                "EnterHole",
-                                "RemoveHole",
-                                "DeleteExpr",
-                                "MakeFun",
-                                "AddInput",
-                                "MakeTApp",
-                                "RaiseType",
-                                "DeleteType",
-                                "DuplicateDef",
-                                "DeleteDef"
-                            ],
-                            "type": "string"
+                            "$ref": "#/components/schemas/NoInputAction"
                         }
                     }
                 ],
@@ -985,12 +953,7 @@
                         "name": "level",
                         "required": true,
                         "schema": {
-                            "enum": [
-                                "Beginner",
-                                "Intermediate",
-                                "Expert"
-                            ],
-                            "type": "string"
+                            "$ref": "#/components/schemas/Level"
                         }
                     }
                 ],
@@ -1046,12 +1009,7 @@
                         "name": "level",
                         "required": true,
                         "schema": {
-                            "enum": [
-                                "Beginner",
-                                "Intermediate",
-                                "Expert"
-                            ],
-                            "type": "string"
+                            "$ref": "#/components/schemas/Level"
                         }
                     },
                     {
