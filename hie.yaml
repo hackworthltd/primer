@@ -12,8 +12,14 @@ cradle:
     - path: "primer/test"
       component: "primer:test:primer-test"
 
-    - path: "primer-benchmark/src/Main.hs"
+    - path: "primer-benchmark/src"
+      component: "lib:primer-benchmark"
+
+    - path: "primer-benchmark/bench/Main.hs"
       component: "primer-benchmark:bench:primer-benchmark"
+
+    - path: "primer-benchmark/test"
+      component: "primer-benchmark:test:primer-benchmark-test"
 
     - path: "primer-rel8/src"
       component: "lib:primer-rel8"
