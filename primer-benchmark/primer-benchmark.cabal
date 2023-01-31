@@ -20,6 +20,7 @@ common options-lib
   default-extensions:
     NoImplicitPrelude
     DataKinds
+    DeriveAnyClass
     DerivingStrategies
     DerivingVia
     LambdaCase
