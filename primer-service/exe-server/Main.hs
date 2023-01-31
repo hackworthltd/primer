@@ -14,6 +14,7 @@ import Control.Concurrent.STM (
 import Control.Monad.Fail (fail)
 import Control.Monad.Log (
   Handler,
+  Severity (Informational),
   WithSeverity (..),
   defaultBatchingOptions,
   runLoggingT,
@@ -34,8 +35,10 @@ import Options.Applicative (
   auto,
   command,
   execParser,
+  flag,
   fullDesc,
   header,
+  help,
   helper,
   hsubparser,
   info,
@@ -83,8 +86,9 @@ newtype Database = PostgreSQL BS.ByteString
 parseDatabase :: Parser Database
 parseDatabase = PostgreSQL <$> option auto (long "pgsql-url")
 
+data Logger = Standard | Replay
 data Command
-  = Serve Version (Maybe Database) Int Natural
+  = Serve Version (Maybe Database) Int Natural Logger
 
 serveCmd :: Parser Command
 serveCmd =
@@ -93,6 +97,7 @@ serveCmd =
     <*> optional parseDatabase
     <*> option auto (long "port" <> value 8081)
     <*> option auto (long "db-op-queue-size" <> value 128)
+    <*> flag Standard Replay (long "record-replay" <> help "Change the log format to capture enough information so one can replay sessions")
 
 cmds :: Parser GlobalOptions
 cmds =
@@ -222,9 +227,11 @@ main = do
     handleAll (bye (logToStdout . logMsgWithSeverity)) $ do
       args <- execParser opts
       case args of
-        GlobalOptions (Serve ver dbFlag port qsz) -> do
+        GlobalOptions (Serve ver dbFlag port qsz logger) -> do
           db <- maybe defaultDb pure dbFlag
-          serve db ver port qsz (logToStdout . logMsgWithSeverity)
+          case logger of
+            Standard -> serve db ver port qsz (logToStdout . logMsgWithSeverity)
+            Replay -> serve db ver port qsz (logToStdout . logReplay)
   where
     opts =
       info
@@ -271,3 +278,37 @@ instance ConvertLogMessage APILog LogMsg where
 
 instance ConvertLogMessage EvalLog LogMsg where
   convert = LogMsg . show
+
+data LogReplay
+  = API APILog
+  | Other LogMsg
+
+instance ConvertLogMessage LogReplay LogMsg where
+  convert (API m) = convert m
+  convert (Other m) = m
+
+instance ConvertLogMessage Text LogReplay where
+  convert = Other . LogMsg
+
+instance ConvertLogMessage Rel8DbLogMessage LogReplay where
+  convert = Other . convert
+
+instance ConvertLogMessage SomeException LogReplay where
+  convert = Other . convert
+
+instance ConvertLogMessage PrimerErr LogReplay where
+  convert = Other . convert
+
+instance ConvertLogMessage APILog LogReplay where
+  convert = API
+
+instance ConvertLogMessage EvalLog LogReplay where
+  convert = Other . convert
+
+-- | Logger whose output is designed to be able to be "replayed".
+-- It is assumed that all "replay-relevant" messages are at the 'Informational' level.
+logReplay :: WithSeverity LogReplay -> Text
+-- NB: primer-benchmark/mkfixture depends on this format, so should be updated
+-- in sync with format changes here.
+logReplay (WithSeverity Informational (API l)) = "[REPLAY] " <> show l
+logReplay (WithSeverity s m) = logMsgWithSeverity (WithSeverity s $ convert m)

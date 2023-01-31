@@ -11,8 +11,8 @@ import Primer.App (MutationRequest, Prog)
 main :: IO ()
 main = do
   ls <- lines <$> getContents
-  let getEdit = fmap (Left . T.dropEnd 1) . T.stripPrefix "[INFO]      Edit (Req "
-  let getProg = fmap (Right . T.dropEnd 1) . T.stripPrefix "[INFO]      GetProgram (Resp "
+  let getEdit = fmap (Left . T.dropEnd 1) . T.stripPrefix "[REPLAY] Edit (Req "
+  let getProg = fmap (Right . T.dropEnd 1) . T.stripPrefix "[REPLAY] GetProgram (Resp "
   let getInteresting = getEdit <> getProg
   let ls' = mapMaybe getInteresting ls
   case traverse (bitraverse (readEither @(UUID, MutationRequest)) (readEither @Prog)) ls' of
