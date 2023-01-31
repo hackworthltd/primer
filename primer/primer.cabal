@@ -180,6 +180,7 @@ library primer-testlib
   default-extensions:
     NoImplicitPrelude
     DataKinds
+    DeriveAnyClass
     DerivingStrategies
     DerivingVia
     LambdaCase
