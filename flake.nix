@@ -445,6 +445,7 @@
                       packages.primer.components.tests.primer-test.testFlags = hide-successes ++ size-cutoff;
                       packages.primer-service.components.tests.service-test.testFlags = hide-successes ++ size-cutoff;
                       packages.primer-rel8.components.tests.primer-rel8-test.testFlags = hide-successes;
+                      packages.primer-benchmark.components.tests.primer-benchmark-test.testFlags = hide-successes;
                     }
                   )
                 ];
