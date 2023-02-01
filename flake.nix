@@ -310,8 +310,8 @@
           # controlled environment, and this gives us that
           # flexibility.
           benchmarks = {
-            inherit (pkgs) primer-benchmark-results-html;
-            inherit (pkgs) primer-benchmark-results-json;
+            inherit (pkgs) primer-benchmark-results-svg;
+            inherit (pkgs) primer-benchmark-results-csv;
             inherit (pkgs) primer-benchmark-results-github-action-benchmark;
           };
         };
@@ -616,7 +616,7 @@
               # them.
               benchmarks =
                 let
-                  lastEnvChange = "20230130.01";
+                  lastEnvChange = "20230201.01";
                 in
                 final.callPackage ./nix/pkgs/benchmarks {
                   inherit lastEnvChange;
@@ -673,8 +673,8 @@
               # include these in the flake's `packages` output,
               # because we don't want them to be built/run when CI
               # evaluates the `hydraJobs` or `ciJobs` outputs.
-              inherit (benchmarks) primer-benchmark-results-html;
-              inherit (benchmarks) primer-benchmark-results-json;
+              inherit (benchmarks) primer-benchmark-results-svg;
+              inherit (benchmarks) primer-benchmark-results-csv;
               inherit (benchmarks) primer-benchmark-results-github-action-benchmark;
             }
           );

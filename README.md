@@ -261,3 +261,4 @@ discontinuities may appear.
 | 031587e3a054ff77ef42ee3e97a3a3b34b1365d0 | Retired previous benchmark machine, a dedicated AMD Ryzen 5 3600 6-Core Processor host running only benchmark jobs, and moved subsequent benchmark jobs to a VM running other CI jobs, with an 8-core AMD Ryzen 9 5900HX with Radeon Graphics.
 | d38b973874bc2491904811567b5da55e70116f54 | Back to previous benchmark machine, as the mixed-use CI machine was not a reliable benchmarking host.
 
+TODO: add a line here (maybe bump date in lastenvchange as doubt this will get merged today!)| Change to tasty-bench, same hardware as above
