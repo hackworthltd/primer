@@ -28,7 +28,7 @@ common options
   ghc-options:
     -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
     -Wcompat -Widentities -Wredundant-constraints -fhide-source-paths
-    -threaded -rtsopts "-with-rtsopts=-T"
+    -threaded -rtsopts "-with-rtsopts=-T -A32m"
 
 benchmark primer-benchmark
   import:         options
