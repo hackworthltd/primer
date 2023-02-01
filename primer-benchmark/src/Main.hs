@@ -10,13 +10,6 @@ import Control.Monad.Log (
   Severity (..),
   WithSeverity (..),
  )
-import Criterion.Main (
-  bench,
-  bgroup,
-  defaultMain,
-  env,
-  nf,
- )
 import Primer.EvalFull (
   Dir (Syn),
   EvalLog,
@@ -35,6 +28,13 @@ import Primer.Test.Expected (
  )
 import Primer.Test.TestM (
   evalTestM,
+ )
+import Test.Tasty.Bench (
+  bench,
+  bgroup,
+  defaultMain,
+  env,
+  nf,
  )
 
 -- Orphans for 'NFData' instances.

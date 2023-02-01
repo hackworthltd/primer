@@ -28,7 +28,7 @@ common options
   ghc-options:
     -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
     -Wcompat -Widentities -Wredundant-constraints -fhide-source-paths
-    -threaded -rtsopts "-with-rtsopts=-N -T"
+    -threaded -rtsopts "-with-rtsopts=-T"
 
 benchmark primer-benchmark
   import:         options
@@ -38,6 +38,6 @@ benchmark primer-benchmark
   build-depends:
     , base                             >=4.12     && <4.17.0
     , containers                       >=0.6.0.1  && <0.7.0
-    , criterion                        ^>=1.6.0.0
     , logging-effect                   ^>=1.3.13
     , primer:{primer, primer-testlib}
+    , tasty-bench                      ^>=0.3.2
