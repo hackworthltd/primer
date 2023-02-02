@@ -1,3 +1,4 @@
+{-# LANGUAGE AllowAmbiguousTypes #-}
 {-# LANGUAGE DisambiguateRecordFields #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE OverloadedLabels #-}
@@ -17,7 +18,8 @@ import Control.Concurrent.STM (
 
 import Control.Monad.Log (LoggingT, WithSeverity, runLoggingT)
 import Control.Monad.Log qualified as Log
-import Data.OpenApi (OpenApi)
+import Data.HashMap.Strict.InsOrd qualified as IOHM
+import Data.OpenApi (OpenApi, Reference (Reference), Referenced (Inline, Ref), ToSchema, toSchema)
 import Data.Streaming.Network.Internal (HostPreference (HostIPv4Only))
 import Data.Text qualified as T
 import Data.Text.Lazy qualified as LT (fromStrict)
@@ -44,7 +46,7 @@ import Network.Wai.Middleware.Cors (
   simpleMethods,
  )
 import Network.Wai.Middleware.Prometheus qualified as P
-import Optics ((%), (.~), (?~))
+import Optics (mapped, (%), (%~), (.~), (?~), (^.))
 import Primer.API (
   APILog,
   Env (..),
@@ -65,6 +67,8 @@ import Primer.API (
   runPrimerM,
  )
 import Primer.API qualified as API
+import Primer.Action.Available (InputAction, NoInputAction)
+import Primer.App (Level)
 import Primer.Core (globalNamePretty, moduleNamePretty, qualifyName)
 import Primer.Database (
   SessionId,
@@ -93,6 +97,7 @@ import Servant (
 import Servant.API.Generic (GenericMode ((:-)))
 import Servant.OpenApi (toOpenApi)
 import Servant.Server.Generic (AsServerT, genericServeT)
+import Type.Reflection (typeRep)
 
 type Primer l = (PrimerM (LoggingT (WithSeverity l) IO))
 
@@ -107,6 +112,39 @@ openAPIInfo =
     & #info % #title .~ "Primer backend API"
     & #info % #description ?~ "A backend service implementing a pedagogic functional programming language."
     & #info % #version .~ "0.7"
+    & refParamSchemas @Level
+      [ ("/openapi/sessions/{sessionId}/action/available", "level")
+      , ("/openapi/sessions/{sessionId}/action/options", "level")
+      ]
+    & refParamSchemas @InputAction
+      [ ("/openapi/sessions/{sessionId}/action/apply/input", "action")
+      ]
+    & refParamSchemas @NoInputAction
+      [ ("/openapi/sessions/{sessionId}/action/apply/simple", "action")
+      ]
+  where
+    {- This is a workaround for an upstream issue: https://github.com/biocad/servant-openapi3/issues/37.
+    Given a type, and some query parameters of that type,
+    this ensures that the specification of each parameter references a common schema,
+    instead of inlining it.
+    This could be made more general, (visit non-POST endpoints,
+    modify `show . typeRep` output when it contains ` ` to match `openapi3`,
+    search by schema shape so that we don't have to manually enumerate use sites),
+    but _hopefully_ this will just be fixed upstream before we have to worry about any of that.
+    -}
+    refParamSchemas :: forall a. ToSchema a => [(FilePath, Text)] -> OpenApi -> OpenApi
+    refParamSchemas params api =
+      api
+        & #components % #schemas %~ IOHM.insert name (toSchema $ Proxy @a)
+        & #paths %~ composeList (map (uncurry $ flip adjustParam) params)
+      where
+        composeList = appEndo . foldMap' Endo
+        adjustParam paramName =
+          IOHM.adjust $
+            #post % mapped % #parameters % mapped %~ \case
+              Inline x | x ^. #name == paramName -> Inline $ x & #schema ?~ Ref (Reference name)
+              p -> p
+        name = show $ typeRep @a
 
 openAPIServer :: ConvertServerLogs l => OpenAPI.RootAPI (AsServerT (Primer l))
 openAPIServer =
