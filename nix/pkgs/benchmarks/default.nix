@@ -13,7 +13,7 @@ let
     ''
       ${coreutils}/bin/mkdir -p $out
       cp ${lastEnvChangeFile} $out/lastEnvChange
-      ${primer-benchmark}/bin/primer-benchmark --output $out/results.html --regress allocated:iters --regress numGcs:iters +RTS -T
+      ${primer-benchmark}/bin/primer-benchmark --output $out/results.html --regress cpuTime:iters --regress allocated:iters --regress numGcs:iters +RTS -T
     ''
   ).overrideAttrs
     (drv: {
@@ -25,7 +25,7 @@ let
     ''
       ${coreutils}/bin/mkdir -p $out
       cp ${lastEnvChangeFile} $out/lastEnvChange
-      ${primer-benchmark}/bin/primer-benchmark --template json --output $out/results.json --regress allocated:iters --regress numGcs:iters +RTS -T
+      ${primer-benchmark}/bin/primer-benchmark --template json --output $out/results.json --regress cpuTime:iters --regress allocated:iters --regress numGcs:iters +RTS -T
     ''
   ).overrideAttrs
     (drv: {
