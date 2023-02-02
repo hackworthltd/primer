@@ -127,6 +127,10 @@ openAPIInfo =
     Given a type, and some query parameters of that type,
     this ensures that the specification of each parameter references a common schema,
     instead of inlining it.
+    This could be made more general, (visit non-POST endpoints,
+    modify `show . typeRep` output when it contains ` ` to match `openapi3`,
+    search by schema shape so that we don't have to manually enumerate use sites),
+    but _hopefully_ this will just be fixed upstream before we have to worry about any of that.
     -}
     refParamSchemas :: forall a. ToSchema a => [(FilePath, Text)] -> OpenApi -> OpenApi
     refParamSchemas params api =
