@@ -132,8 +132,9 @@ openAPIInfo =
     refParamSchemas params api =
       api
         & #components % #schemas %~ IOHM.insert name (toSchema $ Proxy @a)
-        & #paths %~ foldr ((.) . uncurry (flip adjustParam)) identity params
+        & #paths %~ composeList (map (uncurry $ flip adjustParam) params)
       where
+        composeList = appEndo . foldMap' Endo
         adjustParam paramName =
           IOHM.adjust $
             #post % mapped % #parameters % mapped %~ \case
