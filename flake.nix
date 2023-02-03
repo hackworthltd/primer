@@ -8,13 +8,14 @@
     # better haskell.nix cache hits.
     nixpkgs.follows = "haskell-nix/nixpkgs-unstable";
 
-    hacknix.url = github:hackworthltd/hacknix;
+    # Pin hacknix, as versions after this one have a compatibility
+    # issue with the `nixpkgs-unstable` pin that haskell.nix uses.
+    hacknix.url = github:hackworthltd/hacknix/a7f4ac0d42c185d753ed4ad193876da08e0e2a03;
 
     flake-compat.url = github:edolstra/flake-compat;
     flake-compat.flake = false;
 
-    # Upstream main branch is broken.
-    pre-commit-hooks-nix.url = github:cachix/pre-commit-hooks.nix/3e42a77571cc0463efa470dbcffa063977a521ab;
+    pre-commit-hooks-nix.url = github:cachix/pre-commit-hooks.nix;
     pre-commit-hooks-nix.inputs.nixpkgs.follows = "nixpkgs";
 
     flake-parts.url = "github:hercules-ci/flake-parts";
