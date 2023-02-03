@@ -39,8 +39,7 @@
                         ],
                         "type": "object"
                     }
-                ],
-                "type": "object"
+                ]
             },
             "ApplyActionBody": {
                 "properties": {
@@ -139,8 +138,7 @@
                         ],
                         "type": "object"
                     }
-                ],
-                "type": "object"
+                ]
             },
             "FreeInput": {
                 "enum": [
@@ -361,8 +359,7 @@
                         ],
                         "type": "object"
                     }
-                ],
-                "type": "object"
+                ]
             },
             "NodeFlavor": {
                 "enum": [
@@ -569,8 +566,7 @@
                         ],
                         "type": "object"
                     }
-                ],
-                "type": "object"
+                ]
             },
             "Prog": {
                 "properties": {
