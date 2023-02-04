@@ -5,6 +5,7 @@
 
 -- | An HTTP service for the Primer API.
 module Primer.Server (
+  API (..),
   serve,
   ConvertServerLogs,
   openAPIInfo,

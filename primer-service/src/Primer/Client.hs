@@ -20,20 +20,29 @@ module Primer.Client (
   generateNames,
   evalStep,
   evalFull,
+  getProgramOpenApi,
+  availableActionsOpenAPI,
+  actionOptionsOpenAPI,
+  applyActionNoInputOpenAPI,
+  applyActionInputOpenAPI,
 ) where
 
 import Foreword
 
 import Data.String (String)
 import Primer.API (
+  ExprTreeOpts (ExprTreeOpts),
   NewSessionReq,
  )
+import Primer.API qualified
+import Primer.Action.Available (Action, InputAction, NoInputAction, Options)
 import Primer.App (
   App,
   EvalFullReq,
   EvalFullResp,
   EvalReq,
   EvalResp,
+  Level,
   MutationRequest,
   Prog,
   ProgError,
@@ -56,6 +65,8 @@ import Primer.Pagination (
   Pagination,
  )
 import Primer.Servant.API qualified as API
+import Primer.Servant.OpenAPI qualified as OpenAPI
+import Primer.Server (API (openAPI, servantAPI))
 import Servant (NoContent)
 import Servant.Client (
   AsClientT,
@@ -65,16 +76,22 @@ import Servant.Client (
  )
 import Servant.Client.Generic (genericClient)
 
--- | The base path for the full Primer API.
+-- | The base path for the Primer API.
 --
 -- Use this in any 'Servant.Client.Core.BaseUrl's that you construct
--- for use with the full Primer API.
+-- for use with the Primer API.  (Note that both the "full" api and
+-- the "OpenAPI" apis are hosted below this path -- the functions in
+-- this module will add the appropriate prefixes)
 defaultAPIPath :: String
-defaultAPIPath = "/api"
+defaultAPIPath = ""
 
 -- | A client for the full Primer API.
 apiClient :: API.RootAPI (AsClientT ClientM)
-apiClient = genericClient
+apiClient = genericClient // servantAPI
+
+-- | A client for the full Primer API.
+openAPIClient :: OpenAPI.RootAPI (AsClientT ClientM)
+openAPIClient = genericClient // openAPI
 
 -- | As 'Primer.API.copySession'.
 copySession :: SessionId -> ClientM SessionId
@@ -107,6 +124,10 @@ deleteSession sid = apiClient // API.sessionsAPI // API.sessionAPI /: sid // API
 -- | As 'Primer.API.getProgram'.
 getProgram :: SessionId -> ClientM Prog
 getProgram sid = apiClient // API.sessionsAPI // API.sessionAPI /: sid // API.getProgram
+
+-- | As 'Primer.API.getProgram'.
+getProgramOpenApi :: SessionId -> Primer.API.ExprTreeOpts -> ClientM Primer.API.Prog
+getProgramOpenApi sid (ExprTreeOpts patternsUnder) = openAPIClient // OpenAPI.sessionsAPI // OpenAPI.sessionAPI /: sid // OpenAPI.getProgram $ patternsUnder
 
 -- | As 'Primer.API.getApp'.
 getApp :: SessionId -> ClientM App
@@ -145,3 +166,41 @@ evalStep sid req = apiClient // API.sessionsAPI // API.sessionAPI /: sid // API.
 -- | As 'Primer.API.evalFull'.
 evalFull :: SessionId -> EvalFullReq -> ClientM (Either ProgError EvalFullResp)
 evalFull sid req = apiClient // API.sessionsAPI // API.sessionAPI /: sid // API.evalFull /: req
+
+availableActionsOpenAPI :: SessionId -> Level -> Primer.API.Selection -> ClientM [Action]
+availableActionsOpenAPI sid = openAPIClient // OpenAPI.sessionsAPI // OpenAPI.sessionAPI /: sid // OpenAPI.actions // OpenAPI.available
+
+actionOptionsOpenAPI :: SessionId -> Level -> Primer.API.Selection -> InputAction -> ClientM Options
+actionOptionsOpenAPI sid = openAPIClient // OpenAPI.sessionsAPI // OpenAPI.sessionAPI /: sid // OpenAPI.actions // OpenAPI.options
+
+applyActionNoInputOpenAPI ::
+  SessionId ->
+  Primer.API.ExprTreeOpts ->
+  Primer.API.Selection ->
+  NoInputAction ->
+  ClientM Primer.API.Prog
+applyActionNoInputOpenAPI sid (ExprTreeOpts patternsUnder) =
+  openAPIClient
+    // OpenAPI.sessionsAPI
+    // OpenAPI.sessionAPI
+    /: sid
+    // OpenAPI.actions
+    // OpenAPI.apply
+    // OpenAPI.simple
+    $ patternsUnder
+
+applyActionInputOpenAPI ::
+  SessionId ->
+  Primer.API.ExprTreeOpts ->
+  Primer.API.ApplyActionBody ->
+  InputAction ->
+  ClientM Primer.API.Prog
+applyActionInputOpenAPI sid (ExprTreeOpts patternsUnder) =
+  openAPIClient
+    // OpenAPI.sessionsAPI
+    // OpenAPI.sessionAPI
+    /: sid
+    // OpenAPI.actions
+    // OpenAPI.apply
+    // OpenAPI.input
+    $ patternsUnder
