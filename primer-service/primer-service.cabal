@@ -35,7 +35,8 @@ library
 
   ghc-options:
     -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
-    -Wcompat -Widentities -Wredundant-constraints -fhide-source-paths
+    -Wcompat -Widentities -Wredundant-constraints
+    -Wmissing-deriving-strategies -fhide-source-paths
 
   build-depends:
     , aeson                      >=2.0      && <2.2
@@ -86,8 +87,9 @@ executable primer-service
 
   ghc-options:
     -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
-    -Wcompat -Widentities -Wredundant-constraints -fhide-source-paths
-    -threaded -rtsopts -with-rtsopts=-N
+    -Wcompat -Widentities -Wredundant-constraints
+    -Wmissing-deriving-strategies -fhide-source-paths -threaded
+    -rtsopts -with-rtsopts=-N
 
   build-depends:
     , async                   ^>=2.2.4
@@ -122,8 +124,9 @@ executable primer-client
 
   ghc-options:
     -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
-    -Wcompat -Widentities -Wredundant-constraints -fhide-source-paths
-    -threaded -rtsopts -with-rtsopts=-N
+    -Wcompat -Widentities -Wredundant-constraints
+    -Wmissing-deriving-strategies -fhide-source-paths -threaded
+    -rtsopts -with-rtsopts=-N
 
   build-depends:
     , base
@@ -151,8 +154,9 @@ executable primer-openapi
 
   ghc-options:
     -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
-    -Wcompat -Widentities -Wredundant-constraints -fhide-source-paths
-    -threaded -rtsopts -with-rtsopts=-N
+    -Wcompat -Widentities -Wredundant-constraints
+    -Wmissing-deriving-strategies -fhide-source-paths -threaded
+    -rtsopts -with-rtsopts=-N
 
   build-depends:
     , aeson-pretty    ^>=0.8
@@ -179,8 +183,9 @@ test-suite service-test
 
   ghc-options:
     -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
-    -Wcompat -Widentities -Wredundant-constraints -fhide-source-paths
-    -threaded -rtsopts -with-rtsopts=-N
+    -Wcompat -Widentities -Wredundant-constraints
+    -Wmissing-deriving-strategies -fhide-source-paths -threaded
+    -rtsopts -with-rtsopts=-N
 
   build-depends:
     , aeson

@@ -73,7 +73,7 @@ data RootAPI mode = RootAPI
         :- "sessions"
           :> NamedRoutes SessionsAPI
   }
-  deriving (Generic)
+  deriving stock (Generic)
 
 newtype AdminAPI mode = AdminAPI
   { flushSessions ::
@@ -87,7 +87,7 @@ newtype AdminAPI mode = AdminAPI
               \this is a non-destructive operation."
           :> Put '[JSON] NoContent
   }
-  deriving (Generic)
+  deriving stock (Generic)
 
 -- | The sessions API.
 data SessionsAPI mode = SessionsAPI
@@ -112,7 +112,7 @@ data SessionsAPI mode = SessionsAPI
         :- Capture' '[Description "The session ID"] "sessionId" SessionId
           :> NamedRoutes SessionAPI
   }
-  deriving (Generic)
+  deriving stock (Generic)
 
 -- | The per-session bits of the API.
 data SessionAPI mode = SessionAPI
@@ -153,7 +153,7 @@ data SessionAPI mode = SessionAPI
           :> ReqBody '[JSON] EvalFullReq
           :> Post '[JSON] (Either ProgError EvalFullResp)
   }
-  deriving (Generic)
+  deriving stock (Generic)
 
 data QuestionAPI mode = QuestionAPI
   { variablesInScope ::
@@ -175,4 +175,4 @@ data QuestionAPI mode = QuestionAPI
           :> ReqBody '[JSON] ((GVarName, ID), Either (Maybe (Type' ())) (Maybe Kind))
           :> Post '[JSON] (Either ProgError [Name])
   }
-  deriving (Generic)
+  deriving stock (Generic)

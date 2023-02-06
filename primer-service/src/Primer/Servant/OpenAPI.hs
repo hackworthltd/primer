@@ -70,7 +70,7 @@ data RootAPI mode = RootAPI
         :- "sessions"
           :> NamedRoutes SessionsAPI
   }
-  deriving (Generic)
+  deriving stock (Generic)
 
 -- | The Primer OpenAPI sessions API.
 --
@@ -83,7 +83,7 @@ data SessionsAPI mode = SessionsAPI
         :- Capture' '[Description "The session ID"] "sessionId" SessionId
           :> NamedRoutes SessionAPI
   }
-  deriving (Generic)
+  deriving stock (Generic)
 
 -- | A static bound on the maximum requested timeout for evaluation endpoint
 type EvalFullStepLimit = 100
@@ -124,7 +124,7 @@ data SessionAPI mode = SessionAPI
           :> ReqBody '[JSON] GVarName
           :> Post '[JSON] EvalFullResp
   }
-  deriving (Generic)
+  deriving stock (Generic)
 
 newtype TypeDefAPI mode = TypeDefAPI
   { create ::
@@ -135,7 +135,7 @@ newtype TypeDefAPI mode = TypeDefAPI
           :> ReqBody '[JSON] CreateTypeDefBody
           :> Post '[JSON] Prog
   }
-  deriving (Generic)
+  deriving stock (Generic)
 
 data CreateTypeDefBody = CreateTypeDefBody
   { moduleName :: ModuleName
@@ -169,7 +169,7 @@ data ActionAPI mode = ActionAPI
         :- "apply"
           :> NamedRoutes ApplyActionAPI
   }
-  deriving (Generic)
+  deriving stock (Generic)
 
 data ApplyActionAPI mode = ApplyActionAPI
   { simple ::
@@ -191,6 +191,6 @@ data ApplyActionAPI mode = ApplyActionAPI
           :> OperationId "applyActionWithInput"
           :> Post '[JSON] Prog
   }
-  deriving (Generic)
+  deriving stock (Generic)
 
 type LevelParam = QueryParam' '[Required, Strict] "level" Level
