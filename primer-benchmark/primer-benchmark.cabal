@@ -28,7 +28,8 @@ common options-lib
 
   ghc-options:
     -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
-    -Wcompat -Widentities -Wredundant-constraints -fhide-source-paths
+    -Wcompat -Widentities -Wredundant-constraints
+    -Wmissing-deriving-strategies -fhide-source-paths
 
 common options
   import:      options-lib

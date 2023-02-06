@@ -40,10 +40,10 @@ import Test.Tasty (TestTree, testGroup, withResource)
 import Test.Tasty.HUnit (Assertion, testCase, (@?=))
 
 -- Orphans for 'NFData' instances.
-deriving instance Generic (WithSeverity a)
-deriving instance Generic Severity
-deriving instance NFData Severity
-instance (NFData a) => NFData (WithSeverity a)
+deriving stock instance Generic (WithSeverity a)
+deriving stock instance Generic Severity
+deriving anyclass instance NFData Severity
+deriving anyclass instance (NFData a) => NFData (WithSeverity a)
 
 -- | An abstraction over @criterion@ and @tasty@: a tree whose nodes are
 -- both a benchmark, and a test on the return value of the benchmarked action.
