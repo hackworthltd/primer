@@ -107,7 +107,7 @@ create_ = Alpha . forgetTypeMetadata . create'
 
 -- | Like @Type' ()@, but 'Eq' only compares up to alpha-equality.
 newtype Alpha = Alpha (Type' ())
-  deriving (Show)
+  deriving stock (Show)
 
 instance Eq Alpha where
   (Alpha x) == (Alpha y) = x `alphaEqTy` y

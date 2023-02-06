@@ -56,7 +56,7 @@ data Type' a
       -- ^ type the variable is bound to; the variable itself is not in scope, this is a non-recursive let
       (Type' a)
       -- ^ body of the let; binding scopes over this
-  deriving (Eq, Show, Data, Generic)
+  deriving stock (Eq, Show, Data, Generic)
   deriving (FromJSON, ToJSON) via PrimerJSON (Type' a)
   deriving anyclass (NFData)
 
@@ -72,7 +72,7 @@ _typeMetaLens = position @1
 
 -- | Core kinds.
 data Kind = KHole | KType | KFun Kind Kind
-  deriving (Eq, Show, Data, Generic)
+  deriving stock (Eq, Show, Data, Generic)
   deriving (FromJSON, ToJSON) via PrimerJSON Kind
   deriving anyclass (NFData)
 

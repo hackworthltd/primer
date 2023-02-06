@@ -101,7 +101,8 @@ library
 
   ghc-options:
     -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
-    -Wcompat -Widentities -Wredundant-constraints -fhide-source-paths
+    -Wcompat -Widentities -Wredundant-constraints
+    -Wmissing-deriving-strategies -fhide-source-paths
 
   build-depends:
     , aeson                        >=2.0      && <2.2
@@ -153,7 +154,8 @@ library primer-hedgehog
 
   ghc-options:
     -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
-    -Wcompat -Widentities -Wredundant-constraints -fhide-source-paths
+    -Wcompat -Widentities -Wredundant-constraints
+    -Wmissing-deriving-strategies -fhide-source-paths
 
   build-depends:
     , base
@@ -188,7 +190,8 @@ library primer-testlib
 
   ghc-options:
     -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
-    -Wcompat -Widentities -Wredundant-constraints -fhide-source-paths
+    -Wcompat -Widentities -Wredundant-constraints
+    -Wmissing-deriving-strategies -fhide-source-paths
 
   build-depends:
     , base
@@ -255,8 +258,9 @@ test-suite primer-test
 
   ghc-options:
     -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
-    -Wcompat -Widentities -Wredundant-constraints -fhide-source-paths
-    -threaded -rtsopts -with-rtsopts=-N
+    -Wcompat -Widentities -Wredundant-constraints
+    -Wmissing-deriving-strategies -fhide-source-paths -threaded
+    -rtsopts -with-rtsopts=-N
 
   if impl(ghcjs)
     buildable: False

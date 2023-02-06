@@ -22,5 +22,5 @@ data EvalError
     NodeNotFound ID
   | -- | We did a reduction, but our assumptions were flawed when working out details
     InternalDetailError
-  deriving (Eq, Show, Generic)
+  deriving stock (Eq, Show, Generic)
   deriving (FromJSON, ToJSON) via PrimerJSON EvalError

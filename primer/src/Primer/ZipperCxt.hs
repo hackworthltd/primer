@@ -57,7 +57,7 @@ data ShadowedVarsExpr
       -- ^ Local term variables
       [(GVarName, Type' ())]
       -- ^ Global variables
-  deriving (Eq, Show)
+  deriving stock (Eq, Show)
 
 instance Semigroup ShadowedVarsExpr where
   M ty1 tm1 gl1 <> M ty2 tm2 gl2 = M (ty1 <> ty2') (tm1 <> tm2') (gl1 <> gl2')
@@ -142,7 +142,7 @@ kindOrHoleOf t = fromMaybe KHole $ t ^. _typeMetaLens % _type
 -- Helper for variablesInScopeTy: collect variables, most local first, eliding
 -- shadowed vars, as with 'ShadowedVarsExpr'
 newtype ShadowedVarsTy = N [(TyVarName, Kind)]
-  deriving (Eq, Show)
+  deriving stock (Eq, Show)
 
 instance Semigroup ShadowedVarsTy where
   N ty1 <> N ty2 = N (ty1 <> ty2')

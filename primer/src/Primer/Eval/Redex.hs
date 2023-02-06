@@ -194,7 +194,7 @@ data EvalLog
     -- is in practice.
     CaseRedexDoubleAnn ValConName [Expr] [Type' ()] (Maybe [Type' ()]) [LVarName]
   | InvariantFailure Text
-  deriving (Show, Eq, Data, Generic)
+  deriving stock (Show, Eq, Data, Generic)
   deriving anyclass (NFData)
 
 instance ConvertLogMessage EvalLog EvalLog where
@@ -492,7 +492,7 @@ _freeVarsLetBinding =
     `summing` (_LetTyBind % _LetTypeBind % _2 % _freeVarsTy')
 
 data Dir = Syn | Chk
-  deriving (Eq, Show, Generic)
+  deriving stock (Eq, Show, Generic)
   deriving (FromJSON, ToJSON) via PrimerJSON Dir
 
 viewCaseRedex ::

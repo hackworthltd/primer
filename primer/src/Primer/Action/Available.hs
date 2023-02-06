@@ -95,7 +95,7 @@ import Primer.Zipper (
 data Action
   = NoInput NoInputAction
   | Input InputAction
-  deriving (Eq, Ord, Show, Generic)
+  deriving stock (Eq, Ord, Show, Generic)
   deriving (ToJSON) via PrimerJSON Action
 
 -- | An action which can be applied without requiring further input.
@@ -117,7 +117,7 @@ data NoInputAction
   | DeleteType
   | DuplicateDef
   | DeleteDef
-  deriving (Eq, Ord, Show, Read, Enum, Bounded, Generic)
+  deriving stock (Eq, Ord, Show, Read, Enum, Bounded, Generic)
   deriving (ToJSON, FromJSON) via PrimerJSON NoInputAction
 
 -- | An action which requires extra data (often a name) before it can be applied.
@@ -141,7 +141,7 @@ data InputAction
   | MakeForall
   | RenameForall
   | RenameDef
-  deriving (Eq, Ord, Show, Read, Enum, Bounded, Generic)
+  deriving stock (Eq, Ord, Show, Read, Enum, Bounded, Generic)
   deriving (ToJSON, FromJSON) via PrimerJSON InputAction
 
 forDef ::
@@ -292,7 +292,7 @@ data Option = Option
   { option :: Text
   , context :: Maybe (NonEmpty Text)
   }
-  deriving (Eq, Show, Generic)
+  deriving stock (Eq, Show, Generic)
   deriving (FromJSON, ToJSON) via PrimerJSON Option
 
 -- | The available sorts of free-form input for an 'InputAction'.
@@ -305,7 +305,7 @@ data FreeInput
     FreeInt
   | -- | A free-form string input is allowed, and represents a primitive character
     FreeChar
-  deriving (Show, Generic, Bounded, Enum)
+  deriving stock (Show, Generic, Bounded, Enum)
   deriving (ToJSON) via PrimerJSON FreeInput
 
 -- | The available inputs for an 'InputAction'.
@@ -313,7 +313,7 @@ data Options = Options
   { opts :: [Option]
   , free :: FreeInput
   }
-  deriving (Show, Generic)
+  deriving stock (Show, Generic)
   deriving (ToJSON) via PrimerJSON Options
 
 options ::

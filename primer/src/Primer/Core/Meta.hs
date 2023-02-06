@@ -55,14 +55,14 @@ import Primer.Name (Name, unName, unsafeMkName)
 -- change in the future and is more or less not visible to external
 -- consumers of this type.)
 newtype ID = ID {unID :: Int}
-  deriving (Eq, Generic, Data)
+  deriving stock (Eq, Generic, Data)
   deriving newtype (Show, Num, Ord, Enum, Bounded)
   deriving newtype (FromJSON, ToJSON)
   deriving newtype (ToJSONKey, FromJSONKey)
   deriving anyclass (NFData)
 
 data Meta a = Meta ID a (Maybe Value)
-  deriving (Generic, Eq, Show, Data, Functor)
+  deriving stock (Generic, Eq, Show, Data, Functor)
   deriving (FromJSON, ToJSON) via PrimerJSON (Meta a)
   deriving anyclass (NFData)
 
@@ -75,7 +75,7 @@ trivialMeta :: ID -> Meta (Maybe a)
 trivialMeta id = Meta id Nothing Nothing
 
 newtype ModuleName = ModuleName {unModuleName :: NonEmpty Name}
-  deriving (Eq, Ord, Show, Data, Generic)
+  deriving stock (Eq, Ord, Show, Data, Generic)
   deriving (FromJSON, ToJSON) via NonEmpty Name
   deriving anyclass (NFData)
 
@@ -101,7 +101,7 @@ data GlobalName (k :: GlobalNameKind) = GlobalName
   { qualifiedModule :: ModuleName
   , baseName :: Name
   }
-  deriving (Eq, Ord, Generic, Data, Show)
+  deriving stock (Eq, Ord, Generic, Data, Show)
   deriving (FromJSON, ToJSON) via PrimerJSON (GlobalName k)
   deriving anyclass (NFData)
 
@@ -126,7 +126,7 @@ data LocalNameKind
 -- to a local variable. The tag says which sort of variable (term or
 -- type) this is.
 newtype LocalName (k :: LocalNameKind) = LocalName {unLocalName :: Name}
-  deriving (Eq, Ord, Show, Data, Generic)
+  deriving stock (Eq, Ord, Show, Data, Generic)
   deriving (IsString) via Name
   deriving (FromJSON, ToJSON) via Name
   deriving anyclass (NFData)
@@ -141,7 +141,7 @@ type TyVarName = LocalName 'ATyVar
 data TmVarRef
   = GlobalVarRef GVarName
   | LocalVarRef LVarName
-  deriving (Eq, Show, Data, Generic)
+  deriving stock (Eq, Show, Data, Generic)
   deriving (FromJSON, ToJSON) via PrimerJSON TmVarRef
   deriving anyclass (NFData)
 

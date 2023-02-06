@@ -255,7 +255,7 @@ data PrimerErr
   | ActionOptionsNoID (Maybe (NodeType, ID))
   | ToProgActionError Available.Action ActionError
   | ApplyActionError [ProgAction] ProgError
-  deriving (Show)
+  deriving stock (Show)
 
 instance Exception PrimerErr
 
@@ -350,7 +350,7 @@ withSession' sid op = do
       pure result
 
 data ReqResp a b = Req a | Resp b
-  deriving (Show)
+  deriving stock (Show)
 
 data APILog
   = NewSession (ReqResp NewSessionReq SessionId)
@@ -377,7 +377,7 @@ data APILog
   | ActionOptions (ReqResp (SessionId, Level, Selection, Available.InputAction) Available.Options)
   | ApplyActionNoInput (ReqResp (ExprTreeOpts, SessionId, Selection, Available.NoInputAction) Prog)
   | ApplyActionInput (ReqResp (ExprTreeOpts, SessionId, ApplyActionBody, Available.InputAction) Prog)
-  deriving (Show)
+  deriving stock (Show)
 
 type MonadAPILog l m = (MonadLog (WithSeverity l) m, ConvertLogMessage APILog l)
 
@@ -411,7 +411,7 @@ data NewSessionReq = NewSessionReq
   -- hint: the API may choose a different name if the given name is
   -- invalid.
   }
-  deriving (Show, Eq, Generic)
+  deriving stock (Show, Eq, Generic)
   deriving (FromJSON, ToJSON) via PrimerJSON NewSessionReq
 
 -- | Create a new session and return its ID.
@@ -571,7 +571,7 @@ data Tree = Tree
   , rightChild :: Maybe Tree
   -- ^ a special subtree to be rendered to the right, rather than below - useful for `case` branches
   }
-  deriving (Show, Eq, Generic)
+  deriving stock (Show, Eq, Generic)
   deriving (ToJSON) via PrimerJSON Tree
 
 -- | A local or global name.
@@ -581,7 +581,7 @@ data Name = Name
   { qualifiedModule :: Maybe ModuleName
   , baseName :: Name.Name
   }
-  deriving (Show, Eq, Generic)
+  deriving stock (Show, Eq, Generic)
   deriving (ToJSON) via PrimerJSON Name
 
 -- | The contents of a node.
@@ -594,7 +594,7 @@ data NodeBody
     BoxBody Tree
   | -- | Some simple nodes, like function application, have no body.
     NoBody
-  deriving (Show, Eq, Generic)
+  deriving stock (Show, Eq, Generic)
   deriving (ToJSON) via PrimerJSON NodeBody
 
 -- | This type is the API's view of a 'App.Prog'
@@ -602,7 +602,7 @@ data Prog = Prog
   { modules :: [Module]
   , selection :: Maybe Selection
   }
-  deriving (Generic, Show)
+  deriving stock (Generic, Show)
   deriving (ToJSON) via PrimerJSON Prog
 
 -- | This type is the API's view of a 'Module.Module'
@@ -617,7 +617,7 @@ data Module = Module
     -- corresponding value".
     defs :: [Def]
   }
-  deriving (Generic, Show)
+  deriving stock (Generic, Show)
   deriving (ToJSON) via PrimerJSON Module
 
 -- | This type is the api's view of a 'Primer.Core.Def'
@@ -628,7 +628,7 @@ data Def = Def
   , term :: Maybe Tree
   -- ^ definitions with no associated tree are primitives
   }
-  deriving (Generic, Show)
+  deriving stock (Generic, Show)
   deriving (ToJSON) via PrimerJSON Def
 
 viewProg :: ExprTreeOpts -> App.Prog -> Prog
@@ -669,7 +669,7 @@ data ExprTreeOpts = ExprTreeOpts
   -- ^ Some renderers may struggle with aligning subtrees to the right.
   -- This option outputs trees where patterns are direct children of the `match` node instead.
   }
-  deriving (Eq, Ord, Show, Generic)
+  deriving stock (Eq, Ord, Show, Generic)
   deriving (FromJSON, ToJSON) via PrimerJSON ExprTreeOpts
 defaultExprTreeOpts :: ExprTreeOpts
 defaultExprTreeOpts =
@@ -1169,7 +1169,7 @@ data ApplyActionBody = ApplyActionBody
   { selection :: Selection
   , option :: Available.Option
   }
-  deriving (Generic, Show)
+  deriving stock (Generic, Show)
   deriving (FromJSON, ToJSON) via PrimerJSON ApplyActionBody
 
 applyActions :: (MonadIO m, MonadThrow m, MonadAPILog l m) => ExprTreeOpts -> SessionId -> [ProgAction] -> PrimerM m Prog
@@ -1184,7 +1184,7 @@ data Selection = Selection
   { def :: GVarName
   , node :: Maybe NodeSelection
   }
-  deriving (Eq, Show, Generic)
+  deriving stock (Eq, Show, Generic)
   deriving (FromJSON, ToJSON) via PrimerJSON Selection
 
 viewSelection :: App.Selection -> Selection
@@ -1195,7 +1195,7 @@ data NodeSelection = NodeSelection
   { nodeType :: NodeType
   , id :: ID
   }
-  deriving (Eq, Show, Generic)
+  deriving stock (Eq, Show, Generic)
   deriving (FromJSON, ToJSON) via PrimerJSON NodeSelection
 
 viewNodeSelection :: App.NodeSelection -> NodeSelection

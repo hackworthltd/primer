@@ -102,11 +102,11 @@ data Output = Output
   , bodyActions :: [(ID, [OfferedAction])]
   , sigActions :: [(ID, [OfferedAction])]
   }
-  deriving (Show)
+  deriving stock (Show)
 data OfferedAction
   = NoInput Available.NoInputAction
   | Input Available.InputAction Available.Options
-  deriving (Show)
+  deriving stock (Show)
 
 -- | Golden tests for the available actions at each node of the definition, for each level.
 mkTests :: [Module] -> (GVarName, Def) -> TestTree

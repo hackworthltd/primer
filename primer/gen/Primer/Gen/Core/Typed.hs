@@ -124,7 +124,7 @@ type TypeG = Type' ()
 type ExprG = Expr' () ()
 
 newtype WT a = WT {unWT :: ReaderT Cxt TestM a}
-  deriving
+  deriving newtype
     ( Functor
     , Applicative
     , Monad

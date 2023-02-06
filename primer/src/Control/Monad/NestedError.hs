@@ -22,8 +22,8 @@
 -- by wrapping them in the GE2 constructor.
 --
 -- > import GHC.Generics
--- > data SpecificError = SpecificError deriving (Generic, Show)
--- > data GeneralError = GE1 | GE2 SpecificError deriving (Generic, Show)
+-- > data SpecificError = SpecificError deriving stock (Generic, Show)
+-- > data GeneralError = GE1 | GE2 SpecificError deriving stock (Generic, Show)
 --
 -- > :t throwError' SpecificError
 -- throwError' SpecificError

@@ -29,7 +29,7 @@ data ApplyPrimFunDetail = ApplyPrimFunDetail
   , argIDs :: [ID]
   -- ^ the IDs of the arguments to the application
   }
-  deriving (Eq, Show, Generic)
+  deriving stock (Eq, Show, Generic)
   deriving (FromJSON, ToJSON) via PrimerJSON ApplyPrimFunDetail
 
 -- | If this node is a reducible application of a primitive, return the name of the primitive, the arguments, and

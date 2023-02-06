@@ -229,7 +229,7 @@ data Prog = Prog
   , progSmartHoles :: SmartHoles
   , progLog :: Log -- The log of all actions
   }
-  deriving (Eq, Show, Generic)
+  deriving stock (Eq, Show, Generic)
   deriving (FromJSON, ToJSON) via PrimerJSON Prog
 
 -- | The default 'Prog'. It has no imports, no definitions, no current
@@ -378,7 +378,7 @@ allDefs = fmap snd . progAllDefs
 --  Each item is a sequence of Core actions which should be applied atomically.
 --  Items are stored in reverse order so it's quick to add new ones.
 newtype Log = Log {unlog :: [[ProgAction]]}
-  deriving (Eq, Show, Generic)
+  deriving stock (Eq, Show, Generic)
   deriving (FromJSON, ToJSON) via PrimerJSON Log
 
 -- | The default (empty) 'Log'.
@@ -392,7 +392,7 @@ data Selection = Selection
   -- ^ the ID of some ASTDef
   , selectedNode :: Maybe NodeSelection
   }
-  deriving (Eq, Show, Generic, Data)
+  deriving stock (Eq, Show, Generic, Data)
   deriving (FromJSON, ToJSON) via PrimerJSON Selection
 
 -- | A selected node, in the body or type signature of some definition.
@@ -401,7 +401,7 @@ data NodeSelection = NodeSelection
   { nodeType :: NodeType
   , meta :: Either ExprMeta TypeMeta
   }
-  deriving (Eq, Show, Generic, Data)
+  deriving stock (Eq, Show, Generic, Data)
   deriving (FromJSON, ToJSON) via PrimerJSON NodeSelection
 
 instance HasID NodeSelection where
@@ -414,14 +414,14 @@ instance HasID NodeSelection where
 data MutationRequest
   = Undo
   | Edit [ProgAction]
-  deriving (Eq, Show, Generic)
+  deriving stock (Eq, Show, Generic)
   deriving (FromJSON, ToJSON) via PrimerJSON MutationRequest
 
 data EvalReq = EvalReq
   { evalReqExpr :: Expr
   , evalReqRedex :: ID
   }
-  deriving (Eq, Show, Generic)
+  deriving stock (Eq, Show, Generic)
   deriving (FromJSON, ToJSON) via PrimerJSON EvalReq
 
 data EvalResp = EvalResp
@@ -429,7 +429,7 @@ data EvalResp = EvalResp
   , evalRespRedexes :: [ID]
   , evalRespDetail :: EvalDetail
   }
-  deriving (Eq, Show, Generic)
+  deriving stock (Eq, Show, Generic)
   deriving (FromJSON, ToJSON) via PrimerJSON EvalResp
 
 data EvalFullReq = EvalFullReq
@@ -437,14 +437,14 @@ data EvalFullReq = EvalFullReq
   , evalFullCxtDir :: Dir -- is this expression in a syn/chk context, so we can tell if is an embedding.
   , evalFullMaxSteps :: TerminationBound
   }
-  deriving (Eq, Show, Generic)
+  deriving stock (Eq, Show, Generic)
   deriving (FromJSON, ToJSON) via PrimerJSON EvalFullReq
 
 -- If we time out, we still return however far we got
 data EvalFullResp
   = EvalFullRespTimedOut Expr
   | EvalFullRespNormal Expr
-  deriving (Eq, Show, Generic)
+  deriving stock (Eq, Show, Generic)
   deriving (FromJSON, ToJSON) via PrimerJSON EvalFullResp
 
 -- * Request handlers
@@ -876,7 +876,7 @@ applyProgAction prog mdefName = \case
 
 -- Helper for RenameModule action
 data RenameMods a = RM {imported :: [a], editable :: [a]}
-  deriving (Functor, Foldable, Traversable)
+  deriving stock (Functor, Foldable, Traversable)
 
 lookupEditableModule :: MonadError ProgError m => ModuleName -> Prog -> m Module
 lookupEditableModule n p =
@@ -1048,7 +1048,7 @@ data App = App
   { currentState :: AppState
   , initialState :: AppState
   }
-  deriving (Eq, Show, Generic)
+  deriving stock (Eq, Show, Generic)
   deriving (FromJSON, ToJSON) via PrimerJSON App
 
 -- Internal app state. Note that this type is not exported, as we want
@@ -1060,7 +1060,7 @@ data AppState = AppState
   , nameCounter :: NameCounter
   , prog :: Prog
   }
-  deriving (Eq, Show, Generic)
+  deriving stock (Eq, Show, Generic)
   deriving (FromJSON, ToJSON) via PrimerJSON AppState
 
 -- | Construct an 'App' from an 'ID' and a 'Prog'.
