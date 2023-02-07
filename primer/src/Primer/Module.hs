@@ -64,7 +64,7 @@ data Module = Module
   , moduleTypes :: Map Name TypeDef
   , moduleDefs :: Map Name Def -- The current program: a set of definitions indexed by Name
   }
-  deriving (Eq, Show, Data, Generic)
+  deriving stock (Eq, Show, Data, Generic)
   deriving (FromJSON, ToJSON) via PrimerJSON Module
 
 qualifyTyConName :: Module -> Name -> TyConName

@@ -35,7 +35,7 @@ import Primer.Typecheck.SmartHoles (
 -- | This should never be thrown - it indicates a bug in either this module, or in how it is called
 data InternalUnifyError
   = InternalUnifyVarNotInCxt Cxt TyVarName
-  deriving (Show)
+  deriving stock (Show)
 
 -- | Attempts to find a substitution for the given variables that makes the types consistent (i.e. equal-up-to-holes).
 -- We represent unification variables as TVars which happen to have names in the given set.

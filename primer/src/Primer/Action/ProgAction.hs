@@ -63,5 +63,5 @@ data ProgAction
   | CopyPasteBody (GVarName, ID) [Action]
   | -- | Renames an editable module (will return an error if asked to rename an imported module)
     RenameModule ModuleName (NonEmpty Text)
-  deriving (Eq, Show, Generic)
+  deriving stock (Eq, Show, Generic)
   deriving (FromJSON, ToJSON) via PrimerJSON ProgAction

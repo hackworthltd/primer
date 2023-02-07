@@ -65,7 +65,7 @@ import Servant.OpenApi (HasOpenApi (toOpenApi))
 -- @getPositive x > 0@ is always true (because the only way to create one is
 -- via the 'mkPositive' smart constructor.
 newtype Positive = Pos {getPositive :: Int}
-  deriving (Eq, Ord, Show)
+  deriving stock (Eq, Ord, Show)
   deriving newtype (FromJSON, ToJSON)
 
 mkPositive :: Int -> Maybe Positive
@@ -141,7 +141,7 @@ data Paginated a = Paginated
   { meta :: PaginatedMeta
   , items :: [a]
   }
-  deriving (Generic, Show)
+  deriving stock (Generic, Show)
 
 -- We may well need more instances than just Paginated Session in the future.
 -- However, giving polymorphic `instance To... (Paginated a)` can generate
@@ -181,7 +181,7 @@ data PaginatedMeta = PM
   , nextPage :: Maybe Positive
   , lastPage :: Positive
   }
-  deriving (Generic, Show)
+  deriving stock (Generic, Show)
 instance FromJSON PaginatedMeta
 instance ToJSON PaginatedMeta
 instance ToSchema PaginatedMeta

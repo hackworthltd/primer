@@ -274,7 +274,7 @@ type FailDb a = FailDbT IO a
 
 -- | A simple 'Exception' type for 'FailDb' computations.
 newtype FailDbException = FailDbException Text
-  deriving (Eq, Show)
+  deriving stock (Eq, Show)
 
 instance Exception FailDbException
 

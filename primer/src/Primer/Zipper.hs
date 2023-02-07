@@ -153,7 +153,7 @@ type TypeZip' b = Zipper (Type' b) (Type' b)
 -- This type contains a Zipper for a 'Type' and a function that will place the
 -- unzippered type back into the wider expression zipper, keeping its place.
 data TypeZ' a b = TypeZ (TypeZip' b) (Type' b -> ExprZ' a b)
-  deriving (Generic)
+  deriving stock (Generic)
 
 type TypeZ = TypeZ' ExprMeta TypeMeta
 
@@ -180,7 +180,7 @@ data CaseBindZ' a b = CaseBindZ
   , caseBindZUpdate :: Bind' a -> Expr' a b -> ExprZ' a b -> ExprZ' a b
   -- ^ a function to update the focused binding and rhs simultaneously
   }
-  deriving (Generic)
+  deriving stock (Generic)
 
 type CaseBindZ = CaseBindZ' ExprMeta TypeMeta
 
@@ -215,7 +215,7 @@ data Loc' a b
     InType (TypeZ' a b)
   | -- | A binding (currently just case bindings)
     InBind (BindLoc' a b)
-  deriving (Generic)
+  deriving stock (Generic)
 
 type Loc = Loc' ExprMeta TypeMeta
 
@@ -237,7 +237,7 @@ instance (HasID a, HasID b) => HasID (Loc' a b) where
 {- HLINT ignore BindLoc' "Use newtype instead of data" -}
 data BindLoc' a b
   = BindCase (CaseBindZ' a b)
-  deriving (Generic)
+  deriving stock (Generic)
 
 type BindLoc = BindLoc' ExprMeta TypeMeta
 
@@ -398,7 +398,7 @@ data LetBinding' a b
   = LetBind LVarName (Expr' a b)
   | LetrecBind LVarName (Expr' a b) (Type' b)
   | LetTyBind (LetTypeBinding' b)
-  deriving (Eq, Show)
+  deriving stock (Eq, Show)
 type LetBinding = LetBinding' ExprMeta TypeMeta
 
 letBindingName :: LetBinding' a b -> Name
@@ -456,5 +456,5 @@ data SomeNode
   | TypeNode Type
   | -- | If/when we model all bindings with 'Bind'', we will want to generalise this.
     CaseBindNode Bind
-  deriving (Eq, Show, Generic)
+  deriving stock (Eq, Show, Generic)
   deriving (FromJSON, ToJSON) via PrimerJSON SomeNode

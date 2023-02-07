@@ -28,5 +28,5 @@ data TypeError
     WrongCaseBranches TyConName [ValConName]
   | CaseBranchWrongNumberPatterns
   | KindError KindError
-  deriving (Eq, Show, Generic)
+  deriving stock (Eq, Show, Generic)
   deriving (FromJSON, ToJSON) via PrimerJSON TypeError

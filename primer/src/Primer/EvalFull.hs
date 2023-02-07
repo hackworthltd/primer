@@ -42,7 +42,7 @@ import Primer.Zipper (
 newtype EvalFullError
   = TimedOut Expr
   -- We assume the input is type-correct, and don't even detect the most egregious flouting of that assumption
-  deriving (Eq, Show, Data, Generic)
+  deriving stock (Eq, Show, Data, Generic)
   deriving anyclass (NFData)
 
 -- Currently just a step limit

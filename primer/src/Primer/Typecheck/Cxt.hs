@@ -15,7 +15,7 @@ import Primer.Typecheck.SmartHoles (SmartHoles)
 type Type = Type' ()
 
 data KindOrType = K Kind | T Type
-  deriving (Show, Eq)
+  deriving stock (Show, Eq)
 
 data Cxt = Cxt
   { smartHoles :: SmartHoles
@@ -28,4 +28,4 @@ data Cxt = Cxt
   , globalCxt :: Map GVarName Type
   -- ^ global variables (i.e. IDs of top-level definitions)
   }
-  deriving (Show)
+  deriving stock (Show)

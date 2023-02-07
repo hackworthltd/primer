@@ -640,7 +640,7 @@ unit_smartholes_idempotent_alpha_typecache =
 -- A helper type for smartholes idempotent tests
 -- Equality is as normal, except in the typecache, where it is up-to-alpha
 newtype TypeCacheAlpha a = TypeCacheAlpha {unTypeCacheAlpha :: a}
-  deriving (Show)
+  deriving stock (Show)
 instance Eq (TypeCacheAlpha TypeCache) where
   TypeCacheAlpha (TCSynthed s) == TypeCacheAlpha (TCSynthed t) =
     s `alphaEqTy` t

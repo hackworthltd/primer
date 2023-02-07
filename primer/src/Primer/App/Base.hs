@@ -28,12 +28,12 @@ data Level
     Intermediate
   | -- | All features.
     Expert
-  deriving (Eq, Read, Show, Enum, Bounded, Generic)
+  deriving stock (Eq, Read, Show, Enum, Bounded, Generic)
   deriving (FromJSON, ToJSON) via PrimerJSON Level
 
 data Editable = Editable | NonEditable
-  deriving (Bounded, Enum, Show)
+  deriving stock (Bounded, Enum, Show)
 
 data NodeType = BodyNode | SigNode
-  deriving (Eq, Show, Bounded, Enum, Generic, Data)
+  deriving stock (Eq, Show, Bounded, Enum, Generic, Data)
   deriving (FromJSON, ToJSON) via PrimerJSON NodeType

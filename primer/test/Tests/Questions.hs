@@ -130,7 +130,7 @@ data STE'
   = TyVar (TyVarName, Kind)
   | TmVar (LVarName, Type' ())
   | Global (GVarName, Type' ())
-  deriving (Show)
+  deriving stock (Show)
 
 nameSTE' :: STE' -> Name
 nameSTE' = \case

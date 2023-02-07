@@ -43,5 +43,5 @@ data ProgError
   | ModuleNotFound ModuleName
   | -- | Cannot edit an imported module
     ModuleReadonly ModuleName
-  deriving (Eq, Show, Generic)
+  deriving stock (Eq, Show, Generic)
   deriving (FromJSON, ToJSON) via PrimerJSON ProgError

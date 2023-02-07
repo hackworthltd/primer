@@ -19,7 +19,7 @@ data Inst
   = InstApp TC.Type
   | InstAPP TC.Type
   | InstUnconstrainedAPP TyVarName Kind
-  deriving (Show, Eq)
+  deriving stock (Show, Eq)
 
 -- | Given a target type @T@ and a source type @S@, find an instantiation @I@
 -- so that if @e ∈ S@, then @e I ∈ T' ~ T@

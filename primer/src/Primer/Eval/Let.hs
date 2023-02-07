@@ -39,7 +39,7 @@ data LetRemovalDetail t = LetRemovalDetail
   , bodyID :: ID
   -- ^ the right hand side of the let
   }
-  deriving (Eq, Show, Generic)
+  deriving stock (Eq, Show, Generic)
   deriving (FromJSON, ToJSON) via PrimerJSON (LetRemovalDetail t)
 
 findFreeOccurrencesExpr :: LocalName k -> Expr -> [ID]

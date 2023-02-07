@@ -18,5 +18,5 @@ data RemoveAnnDetail = RemoveAnnDetail
   , typeID :: ID
   -- ^ the ID of the type annotation
   }
-  deriving (Eq, Show, Generic)
+  deriving stock (Eq, Show, Generic)
   deriving (FromJSON, ToJSON) via PrimerJSON RemoveAnnDetail

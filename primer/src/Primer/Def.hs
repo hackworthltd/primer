@@ -28,7 +28,7 @@ import Primer.Primitives (PrimDef, primDefType)
 data Def
   = DefPrim PrimDef
   | DefAST ASTDef
-  deriving (Eq, Show, Data, Generic)
+  deriving stock (Eq, Show, Data, Generic)
   deriving (FromJSON, ToJSON) via PrimerJSON Def
   deriving anyclass (NFData)
 
@@ -45,7 +45,7 @@ data ASTDef = ASTDef
   { astDefExpr :: Expr
   , astDefType :: Type
   }
-  deriving (Eq, Show, Data, Generic)
+  deriving stock (Eq, Show, Data, Generic)
   deriving (FromJSON, ToJSON) via PrimerJSON ASTDef
   deriving anyclass (NFData)
 

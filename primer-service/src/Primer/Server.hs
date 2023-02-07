@@ -262,7 +262,7 @@ data API mode = API
   , openAPI :: mode :- OpenAPI.API
   , servantAPI :: mode :- S.API
   }
-  deriving (Generic)
+  deriving stock (Generic)
 
 server :: ConvertServerLogs l => API (AsServerT (Primer l))
 server =

@@ -189,7 +189,7 @@ getBoundHereTy :: Eq a => Type' a -> Maybe (Type' a) -> S.Set TyVarName
 getBoundHereTy t prev = S.fromList $ either identity (\(LetTypeBind n _) -> n) <$> getBoundHereTy' t prev
 
 data LetTypeBinding' a = LetTypeBind TyVarName (Type' a)
-  deriving (Eq, Show)
+  deriving stock (Eq, Show)
 type LetTypeBinding = LetTypeBinding' TypeMeta
 
 getBoundHereTy' :: Eq a => Type' a -> Maybe (Type' a) -> [Either TyVarName (LetTypeBinding' a)]

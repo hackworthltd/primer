@@ -34,7 +34,7 @@ import Primer.Name (Name)
 data TypeDef
   = TypeDefPrim PrimTypeDef
   | TypeDefAST ASTTypeDef
-  deriving (Eq, Show, Data, Generic)
+  deriving stock (Eq, Show, Data, Generic)
   deriving (FromJSON, ToJSON) via PrimerJSON TypeDef
 
 -- | A mapping of global names to 'TypeDef's.
@@ -45,7 +45,7 @@ data PrimTypeDef = PrimTypeDef
   { primTypeDefParameters :: [Kind]
   , primTypeDefNameHints :: [Name]
   }
-  deriving (Eq, Show, Data, Generic)
+  deriving stock (Eq, Show, Data, Generic)
   deriving (FromJSON, ToJSON) via PrimerJSON PrimTypeDef
 
 -- | Definition of an algebraic data type
@@ -58,14 +58,14 @@ data ASTTypeDef = ASTTypeDef
   , astTypeDefConstructors :: [ValCon]
   , astTypeDefNameHints :: [Name]
   }
-  deriving (Eq, Show, Data, Generic)
+  deriving stock (Eq, Show, Data, Generic)
   deriving (FromJSON, ToJSON) via PrimerJSON ASTTypeDef
 
 data ValCon = ValCon
   { valConName :: ValConName
   , valConArgs :: [Type' ()]
   }
-  deriving (Eq, Show, Data, Generic)
+  deriving stock (Eq, Show, Data, Generic)
   deriving (FromJSON, ToJSON) via PrimerJSON ValCon
 
 valConType :: TyConName -> ASTTypeDef -> ValCon -> Type' ()

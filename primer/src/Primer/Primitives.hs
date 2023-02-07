@@ -65,7 +65,7 @@ data PrimFunError
       PrimDef
       [Expr' () ()]
       -- ^ Arguments
-  deriving (Eq, Show, Data, Generic)
+  deriving stock (Eq, Show, Data, Generic)
   deriving (FromJSON, ToJSON) via PrimerJSON PrimFunError
 
 primitiveModuleName :: ModuleName

@@ -144,13 +144,13 @@ deriving via PrimerJSON NodeType instance ToSchema NodeType
 deriving via PrimerJSON Level instance ToSchema Level
 deriving via PrimerJSON NewSessionReq instance ToSchema NewSessionReq
 
-deriving instance ToParamSchema Available.NoInputAction
+deriving anyclass instance ToParamSchema Available.NoInputAction
 instance FromHttpApiData Available.NoInputAction where
   parseQueryParam = parseQueryParamRead "action"
-deriving instance ToParamSchema Available.InputAction
+deriving anyclass instance ToParamSchema Available.InputAction
 instance FromHttpApiData Available.InputAction where
   parseQueryParam = parseQueryParamRead "action"
-deriving instance ToParamSchema Level
+deriving anyclass instance ToParamSchema Level
 instance FromHttpApiData Level where
   parseQueryParam = parseQueryParamRead "level"
 parseQueryParamRead :: Read a => Text -> Text -> Either Text a

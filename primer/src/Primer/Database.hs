@@ -94,7 +94,7 @@ type SessionId = UUID
 -- abstract and cannot be constructed directly from 'Text'. See
 -- 'mkSessionName'.
 newtype SessionName = SessionName Text
-  deriving (Generic, Eq, Ord, Show, Read)
+  deriving stock (Generic, Eq, Ord, Show, Read)
   deriving newtype (FromJSON, ToJSON)
 
 -- | Given some 'Text', try to convert it to a 'SessionName'.
@@ -152,7 +152,7 @@ defaultSessionName = SessionName "Untitled Program"
 -- https://github.com/hackworthltd/primer/issues/735
 -- https://github.com/biocad/openapi3/issues/16
 newtype LastModified = LastModified {utcTime :: UTCTime}
-  deriving (Generic, Eq, Ord, Show, Read)
+  deriving stock (Generic, Eq, Ord, Show, Read)
   deriving newtype (FromJSON, ToJSON)
 
 -- | Convenience wrapper around 'UTC.getCurrentTime'.
@@ -169,7 +169,7 @@ data Session = Session
   -- ^ The last time the session was modified. See
   -- 'SessionData.lastModified' for details.
   }
-  deriving (Show, Eq, Generic)
+  deriving stock (Show, Eq, Generic)
   deriving (FromJSON, ToJSON) via PrimerJSON Session
 
 -- | Per-session information.
@@ -183,7 +183,7 @@ data SessionData = SessionData
   -- if it hasn't yet been modified). This accounts for modifications
   -- either to the session's name, or to its corresponding 'App'.
   }
-  deriving (Show, Eq, Generic)
+  deriving stock (Show, Eq, Generic)
 
 -- | An in-memory cache of sessions. This type maps 'SessionId's to 'App's.
 type Sessions = StmMap.Map SessionId SessionData
@@ -287,12 +287,12 @@ discardOp q = liftIO $ atomically $ void $ readTBQueue q
 -- | A 'Page' is a portion of the results of some DB query, along with the
 -- total number of results.
 data Page a = Page {total :: Int, pageContents :: [a]}
-  deriving (Show)
+  deriving stock (Show)
 
 -- | Enable extracting a subset of the results of a query, for later
 -- pagination.
 data OffsetLimit = OL {offset :: !Int, limit :: Maybe Int}
-  deriving (Show)
+  deriving stock (Show)
 
 -- | If one has all the results at hand, it is trivial to extract a page.
 pageList :: OffsetLimit -> [a] -> Page a
@@ -367,7 +367,7 @@ data DbError
   = -- | A database operation failed because the given 'SessionId'
     -- wasn't found in the database.
     SessionIdNotFound SessionId
-  deriving (Eq, Show, Generic)
+  deriving stock (Eq, Show, Generic)
 
 -- | A "null" database type with no persistent backing store.
 --
@@ -400,7 +400,7 @@ type NullDb a = NullDbT IO a
 
 -- | A simple 'Exception' type for 'NullDb' computations.
 newtype NullDbException = NullDbException Text
-  deriving (Eq, Show)
+  deriving stock (Eq, Show)
 
 instance Exception NullDbException
 

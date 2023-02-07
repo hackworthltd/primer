@@ -42,5 +42,5 @@ data NodeFlavor
   | FlavorPatternCon
   | FlavorPatternBind
   | FlavorPatternApp
-  deriving (Show, Eq, Generic, Enum, Bounded)
+  deriving stock (Show, Eq, Generic, Enum, Bounded)
   deriving (ToJSON) via PrimerJSON NodeFlavor
