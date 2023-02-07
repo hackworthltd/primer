@@ -374,7 +374,7 @@ data DbError
 -- This type is only useful for mocking/testing or "toy" environments.
 -- Do not use this type in production!
 newtype NullDbT m a = NullDbT {unNullDbT :: ReaderT Sessions m a}
-  deriving
+  deriving newtype
     ( Functor
     , Applicative
     , Alternative

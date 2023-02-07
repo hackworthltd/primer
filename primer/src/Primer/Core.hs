@@ -1,4 +1,3 @@
-{-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE ImpredicativeTypes #-}
 {-# LANGUAGE OverloadedLabels #-}
 

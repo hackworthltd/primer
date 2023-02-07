@@ -1,5 +1,3 @@
-{-# LANGUAGE DeriveAnyClass #-}
-
 module Primer.EvalFull (
   Dir (..),
   EvalFullError (..),
