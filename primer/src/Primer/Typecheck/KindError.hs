@@ -18,3 +18,4 @@ data KindError
     TLetUnsupported
   deriving stock (Eq, Show, Generic)
   deriving (FromJSON, ToJSON) via PrimerJSON KindError
+  deriving anyclass (NFData)

@@ -30,3 +30,4 @@ data TypeError
   | KindError KindError
   deriving stock (Eq, Show, Generic)
   deriving (FromJSON, ToJSON) via PrimerJSON TypeError
+  deriving anyclass (NFData)
