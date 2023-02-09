@@ -112,7 +112,7 @@ benchmarks =
 
     benchTC e n = EnvBench e n $ \(prog, maxId, _) -> NF (tcTest maxId) prog $
       pure $ \case
-        Left _ -> assertFailure "Failed to typecheck"
+        Left err -> assertFailure $ "Failed to typecheck: " <> show err
         Right p -> assertBool "Unexpected smarthole changes" $ forgetProgTypecache p == forgetProgTypecache prog
 
     mapEvenEnv n = pure $ mapEven n
