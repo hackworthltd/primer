@@ -1,3 +1,5 @@
+{-# LANGUAGE ApplicativeDo #-}
+{-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE OverloadedStrings #-}
 
 module Main (main) where
@@ -5,37 +7,35 @@ module Main (main) where
 import Foreword
 
 import Control.Arrow (left)
+import Data.Map qualified as Map
 import Data.String (String)
 import Network.HTTP.Client.TLS (newTlsManager)
-import Options.Applicative (
-  Parser,
-  argument,
-  command,
-  eitherReader,
-  execParser,
-  fullDesc,
-  header,
-  helper,
-  hsubparser,
-  info,
-  long,
-  metavar,
-  option,
-  progDesc,
-  str,
- )
+import Options.Applicative
 import Primer.App (
   App,
+  Prog (..),
+  defaultProg,
+  mkApp,
  )
 import Primer.Client (
   addSession,
   defaultAPIPath,
   getVersion,
  )
+import Primer.Core (mkSimpleModuleName, unsafeMkLocalName)
+import Primer.Core.DSL hiding (app)
+import Primer.Def (
+  ASTDef (ASTDef, astDefExpr, astDefType),
+  Def (DefAST),
+ )
 import Primer.Examples (
   even3App,
   mapOddApp,
  )
+import Primer.Module (
+  Module (..),
+ )
+import Primer.Name (unsafeMkName)
 import Servant.Client (
   BaseUrl (..),
   Scheme (Http),
@@ -60,22 +60,36 @@ data GlobalOptions = GlobalOptions (Maybe BaseUrl) Command
 data AppName
   = Even3
   | MapOdd
-  deriving stock (Eq, Show, Read, Enum, Bounded)
+  | Large {defs :: Word, height :: Word}
+  deriving stock (Eq, Show)
 
 appNameToApp :: AppName -> App
 appNameToApp Even3 = even3App
 appNameToApp MapOdd = mapOddApp
-
-showAppChoices :: String
-showAppChoices = toS $ unwords (map show allApps)
+appNameToApp (Large{defs, height}) = mkApp nextId (toEnum 0) prog
   where
-    allApps :: [AppName]
-    allApps = [minBound .. maxBound]
-
-parseAppName :: String -> Either String AppName
-parseAppName arg = case reads arg of
-  [(appName, "")] -> Right appName
-  _ -> Left $ "Unknown app: " <> arg <> "\nRun with --help for a list of available apps."
+    (prog, nextId) =
+      create do
+        moduleDefs <-
+          Map.fromList <$> for [1 .. defs] \i -> do
+            b <- lvar "x1"
+            astDefExpr <-
+              foldrM
+                (\f e -> f (pure e))
+                b
+                $ map (lam . unsafeMkLocalName . ("x" <>) . show) [1 .. height]
+            astDefType <- tEmptyHole
+            pure (unsafeMkName $ show i, DefAST ASTDef{astDefExpr, astDefType})
+        pure
+          defaultProg
+            { progModules =
+                [ Module
+                    { moduleName = mkSimpleModuleName "Large"
+                    , moduleTypes = mempty
+                    , moduleDefs
+                    }
+                ]
+            }
 
 data Command
   = GetVersion
@@ -88,7 +102,26 @@ addSessionCommand :: Parser Command
 addSessionCommand =
   AddSession
     <$> argument str (metavar "NAME")
-    <*> argument (eitherReader parseAppName) (metavar "APP")
+    <*> parseApp
+
+parseApp :: Parser AppName
+parseApp =
+  hsubparser $
+    mconcat
+      [ command "Even3" $ info (pure Even3) mempty
+      , command "MapOdd" $ info (pure MapOdd) mempty
+      , command "Large" $ flip info mempty do
+          defs <- option auto $ long "defs" <> metavar "INT"
+          height <- option auto $ long "height" <> metavar "INT"
+          pure Large{defs, height}
+      ]
+      <> metavar "APP"
+  where
+    -- Ensures the compiler warns us to update this parser to add a case for any new apps.
+    _ = \case
+      Even3{} -> ()
+      MapOdd{} -> ()
+      Large{} -> ()
 
 getOptions :: Parser GlobalOptions
 getOptions =
@@ -100,7 +133,7 @@ getOptions =
           (info getVersionCommand (progDesc "Get the server version"))
           <> command
             "add-session"
-            (info addSessionCommand (progDesc $ "Add app APP to the database with the name NAME. The following apps are available: " <> showAppChoices))
+            (info addSessionCommand (progDesc "Add app APP to the database with the name NAME."))
       )
 
 baseUrlEnvVar :: String
