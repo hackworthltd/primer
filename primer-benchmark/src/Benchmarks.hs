@@ -17,12 +17,16 @@ import Criterion (
  )
 import Criterion qualified as C
 import Primer.App (tcWholeProgWithImports)
+import Primer.App.Utils (forgetProgTypecache)
 import Primer.EvalFull (
   Dir (Syn),
   EvalLog,
   evalFull,
  )
-import Primer.Examples (mapOddProg)
+import Primer.Examples (
+  mapOddPrimProg,
+  mapOddProg,
+ )
 import Primer.Log (
   runDiscardLogT,
   runPureLogT,
@@ -40,7 +44,7 @@ import Primer.Test.TestM (
 import Primer.Test.Util (zeroIDs)
 import Primer.Typecheck (TypeError)
 import Test.Tasty (TestTree, testGroup, withResource)
-import Test.Tasty.HUnit (Assertion, assertBool, testCase, (@?=))
+import Test.Tasty.HUnit (Assertion, assertBool, assertFailure, testCase, (@?=))
 
 -- Orphans for 'NFData' instances.
 deriving stock instance Generic (WithSeverity a)
@@ -86,6 +90,9 @@ benchmarks =
       [ benchTC (mapOddProgEnv 1) "mapOdd 1"
       , benchTC (mapOddProgEnv 10) "mapOdd 10"
       , benchTC (mapOddProgEnv 100) "mapOdd 100"
+      , benchTC (mapOddPrimProgEnv 1) "mapOddPrim 1"
+      , benchTC (mapOddPrimProgEnv 10) "mapOddPrim 10"
+      , benchTC (mapOddPrimProgEnv 100) "mapOddPrim 100"
       ]
   ]
   where
@@ -109,10 +116,14 @@ benchmarks =
 
     tcTest id = evalTestM id . runExceptT @TypeError . tcWholeProgWithImports
 
-    benchTC e n = EnvBench e n $ \(prog, maxId, _) -> NF (tcTest maxId) prog $ pure $ assertBool "Failed to typecheck" . isRight
+    benchTC e n = EnvBench e n $ \(prog, maxId, _) -> NF (tcTest maxId) prog $
+      pure $ \case
+        Left err -> assertFailure $ "Failed to typecheck: " <> show err
+        Right p -> assertBool "Unexpected smarthole changes" $ forgetProgTypecache p == forgetProgTypecache prog
 
     mapEvenEnv n = pure $ mapEven n
     mapOddProgEnv = pure . mapOddProg
+    mapOddPrimProgEnv = pure . mapOddPrimProg
 
 runBenchmarks :: [Benchmark] -> [C.Benchmark]
 runBenchmarks = map go

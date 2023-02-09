@@ -32,6 +32,7 @@ module Primer.Examples (
   -- * Toy example programs, plus their next 'ID' and 'NameCounter'.
   even3Prog,
   mapOddProg,
+  mapOddPrimProg,
   badEven3Prog,
   badEvenProg,
   badMapProg,
@@ -81,6 +82,7 @@ import Primer.Core.DSL (
   gvar,
   gvar',
   hole,
+  int,
   lAM,
   lam,
   letType,
@@ -103,10 +105,13 @@ import Primer.Def (
 import Primer.Module (
   Module (..),
   builtinModule,
+  primitiveModule,
  )
 import Primer.Name (
   NameCounter,
  )
+import Primer.Primitives qualified as P
+import Primer.Primitives.DSL (pfun)
 
 -- | The function `not :: Bool -> Bool`.
 not :: MonadFresh ID m => ModuleName -> m (GVarName, Def)
@@ -391,6 +396,46 @@ mapOddProg len =
         pure globs
    in ( defaultProg
           { progImports = [builtinModule]
+          , progModules =
+              [ Module
+                  { moduleName = modName
+                  , moduleTypes = mempty
+                  , moduleDefs = Map.fromList defs
+                  }
+              ]
+          }
+      , nextID
+      , toEnum 0
+      )
+
+-- | A program whose @main@ 'map's 'odd' over a list of 'P.tInt'.
+-- This is the same as 'mapOddProg', except it works over primitive
+-- integers, rather than inductively-defined naturals.
+mapOddPrimProg :: Int -> (Prog, ID, NameCounter)
+mapOddPrimProg len =
+  let modName = mkSimpleModuleName "MapOdd"
+      (defs, nextID) = create $ do
+        let oddName = qualifyName modName "odd"
+        oddDef <- do
+          type_ <- tcon P.tInt `tfun` tcon B.tBool
+          term <-
+            lam "x" $
+              case_
+                (pfun P.IntRemainder `app` lvar "x" `app` int 2)
+                [ branch B.cNothing [] $ con B.cTrue -- this should be impossible (since denominator is obviously non-zero)
+                , branch B.cJust [("r", Nothing)] $ pfun P.IntEq `app` lvar "r" `app` int 1
+                ]
+          pure $ DefAST $ ASTDef term type_
+        (mapName, mapDef) <- map modName
+        mapOddDef <- do
+          type_ <- tcon B.tList `tapp` tcon B.tBool
+          let lst = list_ P.tInt $ take len $ int <$> [0 ..]
+          term <- gvar mapName `aPP` tcon P.tInt `aPP` tcon B.tBool `app` gvar oddName `app` lst
+          pure $ DefAST $ ASTDef term type_
+        let globs = [("odd", oddDef), ("map", mapDef), ("mapOdd", mapOddDef)]
+        pure globs
+   in ( defaultProg
+          { progImports = [builtinModule, primitiveModule]
           , progModules =
               [ Module
                   { moduleName = modName

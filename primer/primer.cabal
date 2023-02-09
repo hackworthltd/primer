@@ -20,6 +20,7 @@ library
     Primer.API
     Primer.App
     Primer.App.Base
+    Primer.App.Utils
     Primer.Builtins
     Primer.Builtins.DSL
     Primer.Core
