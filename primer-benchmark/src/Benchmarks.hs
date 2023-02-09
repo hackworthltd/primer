@@ -23,7 +23,10 @@ import Primer.EvalFull (
   EvalLog,
   evalFull,
  )
-import Primer.Examples (mapOddProg)
+import Primer.Examples (
+  mapOddPrimProg,
+  mapOddProg,
+ )
 import Primer.Log (
   runDiscardLogT,
   runPureLogT,
@@ -87,6 +90,9 @@ benchmarks =
       [ benchTC (mapOddProgEnv 1) "mapOdd 1"
       , benchTC (mapOddProgEnv 10) "mapOdd 10"
       , benchTC (mapOddProgEnv 100) "mapOdd 100"
+      , benchTC (mapOddPrimProgEnv 1) "mapOddPrim 1"
+      , benchTC (mapOddPrimProgEnv 10) "mapOddPrim 10"
+      , benchTC (mapOddPrimProgEnv 100) "mapOddPrim 100"
       ]
   ]
   where
@@ -117,6 +123,7 @@ benchmarks =
 
     mapEvenEnv n = pure $ mapEven n
     mapOddProgEnv = pure . mapOddProg
+    mapOddPrimProgEnv = pure . mapOddPrimProg
 
 runBenchmarks :: [Benchmark] -> [C.Benchmark]
 runBenchmarks = map go
