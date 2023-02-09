@@ -17,6 +17,7 @@ import Criterion (
  )
 import Criterion qualified as C
 import Primer.App (tcWholeProgWithImports)
+import Primer.App.Utils (forgetProgTypecache)
 import Primer.EvalFull (
   Dir (Syn),
   EvalLog,
@@ -40,7 +41,7 @@ import Primer.Test.TestM (
 import Primer.Test.Util (zeroIDs)
 import Primer.Typecheck (TypeError)
 import Test.Tasty (TestTree, testGroup, withResource)
-import Test.Tasty.HUnit (Assertion, assertBool, testCase, (@?=))
+import Test.Tasty.HUnit (Assertion, assertBool, assertFailure, testCase, (@?=))
 
 -- Orphans for 'NFData' instances.
 deriving stock instance Generic (WithSeverity a)
@@ -109,7 +110,10 @@ benchmarks =
 
     tcTest id = evalTestM id . runExceptT @TypeError . tcWholeProgWithImports
 
-    benchTC e n = EnvBench e n $ \(prog, maxId, _) -> NF (tcTest maxId) prog $ pure $ assertBool "Failed to typecheck" . isRight
+    benchTC e n = EnvBench e n $ \(prog, maxId, _) -> NF (tcTest maxId) prog $
+      pure $ \case
+        Left _ -> assertFailure "Failed to typecheck"
+        Right p -> assertBool "Unexpected smarthole changes" $ forgetProgTypecache p == forgetProgTypecache prog
 
     mapEvenEnv n = pure $ mapEven n
     mapOddProgEnv = pure . mapOddProg
