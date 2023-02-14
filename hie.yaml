@@ -33,6 +33,9 @@ cradle:
     - path: "primer-rel8/test"
       component: "primer-rel8:test:primer-rel8-test"
 
+    - path: "primer-selda/src"
+      component: "lib:primer-selda"
+
     - path: "primer-service/src"
       component: "lib:primer-service"
 

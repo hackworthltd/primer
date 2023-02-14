@@ -1,0 +1,40 @@
+cabal-version: 3.0
+name:          primer-selda
+version:       0.7.2.0
+license:       AGPL-3.0-or-later
+license-file:  COPYING
+copyright:     (c) 2023 Hackworth Ltd
+maintainer:    src@hackworthltd.com
+author:        Hackworth Ltd <src@hackworthltd.com>
+stability:     experimental
+synopsis:      Selda bindings for the Primer database
+category:      Database
+
+library
+  exposed-modules:    Primer.Database.Selda
+  hs-source-dirs:     src
+  default-language:   GHC2021
+  default-extensions:
+    NoImplicitPrelude
+    DataKinds
+    DeriveAnyClass
+    DerivingStrategies
+    DerivingVia
+    LambdaCase
+    OverloadedStrings
+
+  ghc-options:
+    -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
+    -Wcompat -Widentities -Wredundant-constraints
+    -Wmissing-deriving-strategies -fhide-source-paths
+
+  build-depends:
+    , aeson       >=2.0      && <2.2
+    , base        >=4.12     && <4.17.0
+    , bytestring  >=0.10.8.2 && <0.12.0
+    , containers  >=0.6.0.1  && <0.7.0
+    , primer      ^>=0.7.2
+    , selda       ^>=0.5.2.1
+    , text        ^>=2.0
+    , time        ^>=1.11
+    , uuid        ^>=1.3.15

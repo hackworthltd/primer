@@ -211,7 +211,7 @@
             };
 
           packages = {
-            inherit (pkgs) primer-service primer-openapi-spec run-primer;
+            inherit (pkgs) primer-service primer-openapi-spec run-primer primer-selda;
             inherit (pkgs) primer-benchmark;
             inherit (pkgs)
               create-local-db
@@ -388,6 +388,10 @@
                           preCheck = preCheckTasty;
                         };
                         primer-rel8 = {
+                          ghcOptions = [ "-Werror" ];
+                          preCheck = preCheckTasty;
+                        };
+                        primer-selda = {
                           ghcOptions = [ "-Werror" ];
                           preCheck = preCheckTasty;
                         };
@@ -670,6 +674,8 @@
               primer-openapi = primerFlake.packages."primer-service:exe:primer-openapi";
               primer-replay = primerFlake.packages."primer-service:exe:primer-replay";
               primer-benchmark = primerFlake.packages."primer-benchmark:bench:primer-benchmark";
+
+              primer-selda = primerFlake.packages."primer-selda:lib:primer-selda";
 
               inherit run-primer;
               inherit primer-service-docker-image;

@@ -367,6 +367,9 @@ data DbError
   = -- | A database operation failed because the given 'SessionId'
     -- wasn't found in the database.
     SessionIdNotFound SessionId
+  | -- | A database operation failed because the stored 'App' couldn't
+    -- be decoded.
+    AppDecodingError SessionId
   deriving stock (Eq, Show, Generic)
 
 -- | A "null" database type with no persistent backing store.
@@ -513,6 +516,8 @@ serve (ServiceCfg q v) =
           case queryResult of
             Left (SessionIdNotFound s) ->
               pure $ Failure $ "Couldn't load the requested session: no such session ID " <> UUID.toText s
+            Left (AppDecodingError s) ->
+              pure $ Failure $ "Couldn't load the requested session: couldn't decode the app for session ID " <> UUID.toText s
             Right sd -> do
               liftIO $ atomically $ StmMap.insert sd sid memdb
               pure Success
@@ -525,4 +530,9 @@ serve (ServiceCfg q v) =
           case deletionResult of
             Left (SessionIdNotFound s) ->
               pure $ Failure $ "Couldn't delete the requested session: no such session ID " <> UUID.toText s
+            Left (AppDecodingError s) ->
+              -- This seems very unlikely to happen, as it's hard to
+              -- imagine not being able to delete a session because
+              -- its app couldn't be decoded.
+              pure $ Failure $ "Couldn't delete the requested session: couldn't decode the app for session ID " <> UUID.toText s
             Right _ -> pure Success
