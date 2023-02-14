@@ -356,6 +356,7 @@
 
               sqitch = final.callPackage ./nix/pkgs/sqitch {
                 postgresqlSupport = true;
+                sqliteSupport = true;
               };
 
               scripts = final.lib.recurseIntoAttrs (final.callPackage ./nix/pkgs/scripts {
@@ -479,6 +480,7 @@
                   buildInputs = (with final; [
                     nixpkgs-fmt
                     postgresql
+                    sqlite
                     openapi-generator-cli
 
                     # For Docker support.
