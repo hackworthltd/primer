@@ -29,7 +29,7 @@ import Primer.API (
   EvalFullResp (EvalFullRespNormal, EvalFullRespTimedOut),
   Module (Module),
   NewSessionReq (..),
-  NodeBody (BoxBody, NoBody, TextBody),
+  NodeBody (BoxBody, NoBody, PrimBody, TextBody),
   NodeFlavor,
   NodeSelection (..),
   Prog (Prog),
@@ -40,7 +40,7 @@ import Primer.API (
  )
 import Primer.Action.Available qualified as Available
 import Primer.App (Level, NodeType)
-import Primer.Core (GVarName, ID (ID), ModuleName)
+import Primer.Core (GVarName, ID (ID), ModuleName, PrimCon (PrimChar, PrimInt))
 import Primer.Database (
   LastModified (..),
   Session (Session),
@@ -173,9 +173,19 @@ tasty_NodeBody =
   testToJSON $
     G.choice
       [ TextBody <$> API.genName
+      , PrimBody <$> genPrimCon
       , BoxBody <$> genTree
       , pure NoBody
       ]
+
+genPrimCon :: Gen PrimCon
+genPrimCon =
+  G.choice
+    [ PrimChar <$> G.unicode
+    , PrimInt <$> G.integral (R.exponentialFrom 0 (-intBound) intBound)
+    ]
+  where
+    intBound = fromIntegral $ maxBound @Int64 * 2
 
 tasty_NodeFlavor :: Property
 tasty_NodeFlavor = testToJSON $ G.enumBounded @_ @NodeFlavor
