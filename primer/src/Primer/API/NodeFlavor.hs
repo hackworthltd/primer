@@ -20,45 +20,45 @@ import Deriving.Aeson (TagSingleConstructors)
 import Primer.JSON (CustomJSON (..), PrimerJSON, ToJSON)
 
 data NodeFlavorTextBody
-  = FlavorCon
-  | FlavorLam
-  | FlavorLAM
-  | FlavorLet
-  | FlavorLetType
-  | FlavorLetrec
-  | FlavorPatternBind
-  | FlavorPatternCon
-  | FlavorTCon
-  | FlavorTVar
-  | FlavorTForall
-  | FlavorTLet
-  | FlavorGlobalVar
-  | FlavorLocalVar
+  = Con
+  | Lam
+  | LAM
+  | Let
+  | LetType
+  | Letrec
+  | PatternBind
+  | PatternCon
+  | TCon
+  | TVar
+  | TForall
+  | TLet
+  | GlobalVar
+  | LocalVar
   deriving stock (Show, Eq, Generic, Enum, Bounded)
   deriving (ToJSON) via PrimerJSON NodeFlavorTextBody
 
 data NodeFlavorPrimBody
-  = FlavorPrimCon
+  = PrimCon
   deriving stock (Show, Eq, Generic, Enum, Bounded)
   deriving (ToJSON) via CustomJSON '[TagSingleConstructors] NodeFlavorPrimBody
 
 data NodeFlavorBoxBody
-  = FlavorPattern
+  = Pattern
   deriving stock (Show, Eq, Generic, Enum, Bounded)
   deriving (ToJSON) via CustomJSON '[TagSingleConstructors] NodeFlavorBoxBody
 
 data NodeFlavorNoBody
-  = FlavorHole
-  | FlavorEmptyHole
-  | FlavorAnn
-  | FlavorApp
-  | FlavorAPP
-  | FlavorCase
-  | FlavorCaseWith
-  | FlavorPatternApp
-  | FlavorTEmptyHole
-  | FlavorTHole
-  | FlavorTFun
-  | FlavorTApp
+  = Hole
+  | EmptyHole
+  | Ann
+  | App
+  | APP
+  | Case
+  | CaseWith
+  | PatternApp
+  | TEmptyHole
+  | THole
+  | TFun
+  | TApp
   deriving stock (Show, Eq, Generic, Enum, Bounded)
   deriving (ToJSON) via PrimerJSON NodeFlavorNoBody

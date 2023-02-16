@@ -18,6 +18,7 @@ library
     Primer.Action.Available
     Primer.Action.Priorities
     Primer.API
+    Primer.API.NodeFlavor
     Primer.App
     Primer.App.Base
     Primer.App.Utils
@@ -63,7 +64,6 @@ library
     Primer.Action.Movement
     Primer.Action.ProgAction
     Primer.Action.ProgError
-    Primer.API.NodeFlavor
     Primer.Core.DSL.Meta
     Primer.Core.DSL.Type
     Primer.Core.Fresh

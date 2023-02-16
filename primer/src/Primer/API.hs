@@ -32,10 +32,6 @@ module Primer.API (
   getVersion,
   Tree,
   NodeBody (..),
-  NodeFlavorTextBody,
-  NodeFlavorPrimBody,
-  NodeFlavorBoxBody,
-  NodeFlavorNoBody,
   viewProg,
   Prog (Prog),
   Module (Module),
@@ -98,12 +94,7 @@ import Data.Map qualified as Map
 import Data.Tuple.Extra (curry3)
 import ListT qualified (toList)
 import Optics (ifoldr, over, traverseOf, view, (^.))
-import Primer.API.NodeFlavor (
-  NodeFlavorBoxBody (..),
-  NodeFlavorNoBody (..),
-  NodeFlavorPrimBody (..),
-  NodeFlavorTextBody (..),
- )
+import Primer.API.NodeFlavor qualified as Flavor
 import Primer.Action (ActionError, ProgAction, toProgActionInput, toProgActionNoInput)
 import Primer.Action.Available qualified as Available
 import Primer.App (
@@ -594,13 +585,13 @@ data Name = Name
 -- | The contents of a node.
 data NodeBody
   = -- | A "normal" node, usually with user-generated text, such as a variable or constructor name.
-    TextBody NodeFlavorTextBody Name
+    TextBody Flavor.NodeFlavorTextBody Name
   | -- | A node containing a value constructor inhabiting a primitive type.
-    PrimBody NodeFlavorPrimBody PrimCon
+    PrimBody Flavor.NodeFlavorPrimBody PrimCon
   | -- | A node which contains another tree. Used for rendering pattern matching.
-    BoxBody NodeFlavorBoxBody Tree
+    BoxBody Flavor.NodeFlavorBoxBody Tree
   | -- | Some simple nodes, like function application, have no body.
-    NoBody NodeFlavorNoBody
+    NoBody Flavor.NodeFlavorNoBody
   deriving stock (Show, Eq, Generic)
   deriving (ToJSON) via PrimerJSON NodeBody
 
@@ -690,56 +681,56 @@ viewTreeExpr opts@ExprTreeOpts{patternsUnder} e0 = case e0 of
   Hole _ e ->
     Tree
       { nodeId
-      , body = NoBody FlavorHole
+      , body = NoBody Flavor.Hole
       , childTrees = [viewTreeExpr opts e]
       , rightChild = Nothing
       }
   EmptyHole _ ->
     Tree
       { nodeId
-      , body = NoBody FlavorEmptyHole
+      , body = NoBody Flavor.EmptyHole
       , childTrees = []
       , rightChild = Nothing
       }
   Ann _ e t ->
     Tree
       { nodeId
-      , body = NoBody FlavorAnn
+      , body = NoBody Flavor.Ann
       , childTrees = [viewTreeExpr opts e, viewTreeType t]
       , rightChild = Nothing
       }
   App _ e1 e2 ->
     Tree
       { nodeId
-      , body = NoBody FlavorApp
+      , body = NoBody Flavor.App
       , childTrees = [viewTreeExpr opts e1, viewTreeExpr opts e2]
       , rightChild = Nothing
       }
   APP _ e t ->
     Tree
       { nodeId
-      , body = NoBody FlavorAPP
+      , body = NoBody Flavor.APP
       , childTrees = [viewTreeExpr opts e, viewTreeType t]
       , rightChild = Nothing
       }
   Con _ s ->
     Tree
       { nodeId
-      , body = TextBody FlavorCon $ globalName s
+      , body = TextBody Flavor.Con $ globalName s
       , childTrees = []
       , rightChild = Nothing
       }
   Lam _ s e ->
     Tree
       { nodeId
-      , body = TextBody FlavorLam $ localName s
+      , body = TextBody Flavor.Lam $ localName s
       , childTrees = [viewTreeExpr opts e]
       , rightChild = Nothing
       }
   LAM _ s e ->
     Tree
       { nodeId
-      , body = TextBody FlavorLAM $ localName s
+      , body = TextBody Flavor.LAM $ localName s
       , childTrees = [viewTreeExpr opts e]
       , rightChild = Nothing
       }
@@ -747,36 +738,36 @@ viewTreeExpr opts@ExprTreeOpts{patternsUnder} e0 = case e0 of
     Tree
       { nodeId
       , body = case ref of
-          GlobalVarRef n -> TextBody FlavorGlobalVar $ globalName n
-          LocalVarRef n -> TextBody FlavorLocalVar $ localName n
+          GlobalVarRef n -> TextBody Flavor.GlobalVar $ globalName n
+          LocalVarRef n -> TextBody Flavor.LocalVar $ localName n
       , childTrees = []
       , rightChild = Nothing
       }
   Let _ s e1 e2 ->
     Tree
       { nodeId
-      , body = TextBody FlavorLet $ localName s
+      , body = TextBody Flavor.Let $ localName s
       , childTrees = [viewTreeExpr opts e1, viewTreeExpr opts e2]
       , rightChild = Nothing
       }
   LetType _ s t e ->
     Tree
       { nodeId
-      , body = TextBody FlavorLetType $ localName s
+      , body = TextBody Flavor.LetType $ localName s
       , childTrees = [viewTreeExpr opts e, viewTreeType t]
       , rightChild = Nothing
       }
   Letrec _ s e1 t e2 ->
     Tree
       { nodeId
-      , body = TextBody FlavorLetrec $ localName s
+      , body = TextBody Flavor.Letrec $ localName s
       , childTrees = [viewTreeExpr opts e1, viewTreeType t, viewTreeExpr opts e2]
       , rightChild = Nothing
       }
   Case _ e bs ->
     Tree
       { nodeId
-      , body = NoBody FlavorCase
+      , body = NoBody Flavor.Case
       , childTrees
       , rightChild
       }
@@ -788,7 +779,7 @@ viewTreeExpr opts@ExprTreeOpts{patternsUnder} e0 = case e0 of
               [ viewTreeExpr opts e
               , Tree
                   { nodeId = nodeId <> "W" -- this will not clash with anything (see `boxId` etc.)
-                  , body = NoBody FlavorCaseWith
+                  , body = NoBody Flavor.CaseWith
                   , childTrees = zipWith viewCaseBranch [0 :: Int ..] bs
                   , rightChild = Nothing
                   }
@@ -817,18 +808,18 @@ viewTreeExpr opts@ExprTreeOpts{patternsUnder} e0 = case e0 of
           Tree
             { nodeId = boxId
             , body =
-                BoxBody FlavorPattern $
+                BoxBody Flavor.Pattern $
                   foldl'
                     ( \t (Bind m v) ->
                         let id = m ^. _id
                          in Tree
                               { nodeId = patternBindAppID id
-                              , body = NoBody FlavorPatternApp
+                              , body = NoBody Flavor.PatternApp
                               , childTrees =
                                   [ t
                                   , Tree
                                       { nodeId = show id
-                                      , body = TextBody FlavorPatternBind $ localName v
+                                      , body = TextBody Flavor.PatternBind $ localName v
                                       , childTrees = []
                                       , rightChild = Nothing
                                       }
@@ -838,7 +829,7 @@ viewTreeExpr opts@ExprTreeOpts{patternsUnder} e0 = case e0 of
                     )
                     ( Tree
                         { nodeId = patternRootId
-                        , body = TextBody FlavorPatternCon $ globalName con
+                        , body = TextBody Flavor.PatternCon $ globalName con
                         , childTrees = []
                         , rightChild = Nothing
                         }
@@ -850,7 +841,7 @@ viewTreeExpr opts@ExprTreeOpts{patternsUnder} e0 = case e0 of
   PrimCon _ pc ->
     Tree
       { nodeId
-      , body = PrimBody FlavorPrimCon pc
+      , body = PrimBody Flavor.PrimCon pc
       , childTrees = []
       , rightChild = Nothing
       }
@@ -868,49 +859,49 @@ viewTreeType' t0 = case t0 of
   TEmptyHole _ ->
     Tree
       { nodeId
-      , body = NoBody FlavorTEmptyHole
+      , body = NoBody Flavor.TEmptyHole
       , childTrees = []
       , rightChild = Nothing
       }
   THole _ t ->
     Tree
       { nodeId
-      , body = NoBody FlavorTHole
+      , body = NoBody Flavor.THole
       , childTrees = [viewTreeType' t]
       , rightChild = Nothing
       }
   TCon _ n ->
     Tree
       { nodeId
-      , body = TextBody FlavorTCon $ globalName n
+      , body = TextBody Flavor.TCon $ globalName n
       , childTrees = []
       , rightChild = Nothing
       }
   TFun _ t1 t2 ->
     Tree
       { nodeId
-      , body = NoBody FlavorTFun
+      , body = NoBody Flavor.TFun
       , childTrees = [viewTreeType' t1, viewTreeType' t2]
       , rightChild = Nothing
       }
   TVar _ n ->
     Tree
       { nodeId
-      , body = TextBody FlavorTVar $ localName n
+      , body = TextBody Flavor.TVar $ localName n
       , childTrees = []
       , rightChild = Nothing
       }
   TApp _ t1 t2 ->
     Tree
       { nodeId
-      , body = NoBody FlavorTApp
+      , body = NoBody Flavor.TApp
       , childTrees = [viewTreeType' t1, viewTreeType' t2]
       , rightChild = Nothing
       }
   TForall _ n k t ->
     Tree
       { nodeId
-      , body = TextBody FlavorTForall $ localName $ unsafeMkLocalName $ withKindAnn $ Name.unName $ unLocalName n
+      , body = TextBody Flavor.TForall $ localName $ unsafeMkLocalName $ withKindAnn $ Name.unName $ unLocalName n
       , childTrees = [viewTreeType' t]
       , rightChild = Nothing
       }
@@ -924,7 +915,7 @@ viewTreeType' t0 = case t0 of
   TLet _ n t b ->
     Tree
       { nodeId
-      , body = TextBody FlavorTLet $ localName n
+      , body = TextBody Flavor.TLet $ localName n
       , childTrees = [viewTreeType' t, viewTreeType' b]
       , rightChild = Nothing
       }

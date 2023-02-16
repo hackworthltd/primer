@@ -30,16 +30,18 @@ import Primer.API (
   Module (Module),
   NewSessionReq (..),
   NodeBody (BoxBody, NoBody, PrimBody, TextBody),
-  NodeFlavorBoxBody,
-  NodeFlavorNoBody,
-  NodeFlavorPrimBody,
-  NodeFlavorTextBody,
   NodeSelection (..),
   Prog (Prog),
   Selection (..),
   Tree,
   viewTreeExpr,
   viewTreeType,
+ )
+import Primer.API.NodeFlavor (
+  NodeFlavorBoxBody,
+  NodeFlavorNoBody,
+  NodeFlavorPrimBody,
+  NodeFlavorTextBody,
  )
 import Primer.Action.Available qualified as Available
 import Primer.App (Level, NodeType)
