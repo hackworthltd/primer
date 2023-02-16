@@ -1,12 +1,10 @@
 Tree
     { nodeId = "0"
-    , flavor = FlavorTFun
-    , body = NoBody
+    , body = NoBody FlavorTFun
     , childTrees =
         [ Tree
             { nodeId = "1"
-            , flavor = FlavorTCon
-            , body = TextBody
+            , body = TextBody FlavorTCon
                 ( Name
                     { qualifiedModule = Just
                         ( ModuleName
@@ -20,8 +18,7 @@ Tree
             }
         , Tree
             { nodeId = "2"
-            , flavor = FlavorTForall
-            , body = TextBody
+            , body = TextBody FlavorTForall
                 ( Name
                     { qualifiedModule = Nothing
                     , baseName = "a"
@@ -30,23 +27,19 @@ Tree
             , childTrees =
                 [ Tree
                     { nodeId = "3"
-                    , flavor = FlavorTApp
-                    , body = NoBody
+                    , body = NoBody FlavorTApp
                     , childTrees =
                         [ Tree
                             { nodeId = "4"
-                            , flavor = FlavorTHole
-                            , body = NoBody
+                            , body = NoBody FlavorTHole
                             , childTrees =
                                 [ Tree
                                     { nodeId = "5"
-                                    , flavor = FlavorTApp
-                                    , body = NoBody
+                                    , body = NoBody FlavorTApp
                                     , childTrees =
                                         [ Tree
                                             { nodeId = "6"
-                                            , flavor = FlavorTCon
-                                            , body = TextBody
+                                            , body = TextBody FlavorTCon
                                                 ( Name
                                                     { qualifiedModule = Just
                                                         ( ModuleName
@@ -60,8 +53,7 @@ Tree
                                             }
                                         , Tree
                                             { nodeId = "7"
-                                            , flavor = FlavorTEmptyHole
-                                            , body = NoBody
+                                            , body = NoBody FlavorTEmptyHole
                                             , childTrees = []
                                             , rightChild = Nothing
                                             }
@@ -73,8 +65,7 @@ Tree
                             }
                         , Tree
                             { nodeId = "8"
-                            , flavor = FlavorTVar
-                            , body = TextBody
+                            , body = TextBody FlavorTVar
                                 ( Name
                                     { qualifiedModule = Nothing
                                     , baseName = "a"

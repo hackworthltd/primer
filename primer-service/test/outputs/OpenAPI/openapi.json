@@ -294,7 +294,17 @@
                     {
                         "properties": {
                             "contents": {
-                                "$ref": "#/components/schemas/Name"
+                                "items": [
+                                    {
+                                        "$ref": "#/components/schemas/NodeFlavorTextBody"
+                                    },
+                                    {
+                                        "$ref": "#/components/schemas/Name"
+                                    }
+                                ],
+                                "maxItems": 2,
+                                "minItems": 2,
+                                "type": "array"
                             },
                             "tag": {
                                 "enum": [
@@ -312,7 +322,17 @@
                     {
                         "properties": {
                             "contents": {
-                                "$ref": "#/components/schemas/PrimCon"
+                                "items": [
+                                    {
+                                        "$ref": "#/components/schemas/NodeFlavorPrimBody"
+                                    },
+                                    {
+                                        "$ref": "#/components/schemas/PrimCon"
+                                    }
+                                ],
+                                "maxItems": 2,
+                                "minItems": 2,
+                                "type": "array"
                             },
                             "tag": {
                                 "enum": [
@@ -330,7 +350,17 @@
                     {
                         "properties": {
                             "contents": {
-                                "$ref": "#/components/schemas/Tree"
+                                "items": [
+                                    {
+                                        "$ref": "#/components/schemas/NodeFlavorBoxBody"
+                                    },
+                                    {
+                                        "$ref": "#/components/schemas/Tree"
+                                    }
+                                ],
+                                "maxItems": 2,
+                                "minItems": 2,
+                                "type": "array"
                             },
                             "tag": {
                                 "enum": [
@@ -347,6 +377,9 @@
                     },
                     {
                         "properties": {
+                            "contents": {
+                                "$ref": "#/components/schemas/NodeFlavorNoBody"
+                            },
                             "tag": {
                                 "enum": [
                                     "NoBody"
@@ -355,42 +388,58 @@
                             }
                         },
                         "required": [
-                            "tag"
+                            "tag",
+                            "contents"
                         ],
                         "type": "object"
                     }
                 ]
             },
-            "NodeFlavor": {
+            "NodeFlavorBoxBody": {
+                "enum": [
+                    "FlavorPattern"
+                ],
+                "type": "string"
+            },
+            "NodeFlavorNoBody": {
                 "enum": [
                     "FlavorHole",
                     "FlavorEmptyHole",
                     "FlavorAnn",
                     "FlavorApp",
                     "FlavorAPP",
+                    "FlavorCase",
+                    "FlavorCaseWith",
+                    "FlavorPatternApp",
+                    "FlavorTEmptyHole",
+                    "FlavorTHole",
+                    "FlavorTFun",
+                    "FlavorTApp"
+                ],
+                "type": "string"
+            },
+            "NodeFlavorPrimBody": {
+                "enum": [
+                    "FlavorPrimCon"
+                ],
+                "type": "string"
+            },
+            "NodeFlavorTextBody": {
+                "enum": [
                     "FlavorCon",
                     "FlavorLam",
                     "FlavorLAM",
-                    "FlavorGlobalVar",
-                    "FlavorLocalVar",
                     "FlavorLet",
                     "FlavorLetType",
                     "FlavorLetrec",
-                    "FlavorCase",
-                    "FlavorCaseWith",
-                    "FlavorPrimCon",
-                    "FlavorTEmptyHole",
-                    "FlavorTHole",
+                    "FlavorPatternBind",
+                    "FlavorPatternCon",
                     "FlavorTCon",
-                    "FlavorTFun",
                     "FlavorTVar",
-                    "FlavorTApp",
                     "FlavorTForall",
                     "FlavorTLet",
-                    "FlavorPattern",
-                    "FlavorPatternCon",
-                    "FlavorPatternBind",
-                    "FlavorPatternApp"
+                    "FlavorGlobalVar",
+                    "FlavorLocalVar"
                 ],
                 "type": "string"
             },
@@ -632,9 +681,6 @@
                         },
                         "type": "array"
                     },
-                    "flavor": {
-                        "$ref": "#/components/schemas/NodeFlavor"
-                    },
                     "nodeId": {
                         "type": "string"
                     },
@@ -644,7 +690,6 @@
                 },
                 "required": [
                     "nodeId",
-                    "flavor",
                     "body",
                     "childTrees"
                 ],

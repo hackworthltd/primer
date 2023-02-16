@@ -1,4 +1,11 @@
-module Primer.API.NodeFlavor (NodeFlavor (..)) where
+-- | An indication of the meaning of a node, which frontend may use for labelling, colour etc.
+-- These mostly correspond to constructors of `Expr'` or `Type'`.
+module Primer.API.NodeFlavor (
+  NodeFlavorTextBody (..),
+  NodeFlavorPrimBody (..),
+  NodeFlavorBoxBody (..),
+  NodeFlavorNoBody (..),
+) where
 
 -- We split this module to increase parallelism in our build.
 -- This module does not depend on much, but takes a long time
@@ -9,38 +16,49 @@ module Primer.API.NodeFlavor (NodeFlavor (..)) where
 
 import Foreword
 
+import Deriving.Aeson (TagSingleConstructors)
 import Primer.JSON (CustomJSON (..), PrimerJSON, ToJSON)
 
--- | An indication of the meaning of a node, which frontend may use for labelling, colour etc.
--- These mostly correspond to constructors of `Expr'` or `Type'`.
-data NodeFlavor
+data NodeFlavorTextBody
+  = FlavorCon
+  | FlavorLam
+  | FlavorLAM
+  | FlavorLet
+  | FlavorLetType
+  | FlavorLetrec
+  | FlavorPatternBind
+  | FlavorPatternCon
+  | FlavorTCon
+  | FlavorTVar
+  | FlavorTForall
+  | FlavorTLet
+  | FlavorGlobalVar
+  | FlavorLocalVar
+  deriving stock (Show, Eq, Generic, Enum, Bounded)
+  deriving (ToJSON) via PrimerJSON NodeFlavorTextBody
+
+data NodeFlavorPrimBody
+  = FlavorPrimCon
+  deriving stock (Show, Eq, Generic, Enum, Bounded)
+  deriving (ToJSON) via CustomJSON '[TagSingleConstructors] NodeFlavorPrimBody
+
+data NodeFlavorBoxBody
+  = FlavorPattern
+  deriving stock (Show, Eq, Generic, Enum, Bounded)
+  deriving (ToJSON) via CustomJSON '[TagSingleConstructors] NodeFlavorBoxBody
+
+data NodeFlavorNoBody
   = FlavorHole
   | FlavorEmptyHole
   | FlavorAnn
   | FlavorApp
   | FlavorAPP
-  | FlavorCon
-  | FlavorLam
-  | FlavorLAM
-  | FlavorGlobalVar
-  | FlavorLocalVar
-  | FlavorLet
-  | FlavorLetType
-  | FlavorLetrec
   | FlavorCase
   | FlavorCaseWith
-  | FlavorPrimCon
+  | FlavorPatternApp
   | FlavorTEmptyHole
   | FlavorTHole
-  | FlavorTCon
   | FlavorTFun
-  | FlavorTVar
   | FlavorTApp
-  | FlavorTForall
-  | FlavorTLet
-  | FlavorPattern
-  | FlavorPatternCon
-  | FlavorPatternBind
-  | FlavorPatternApp
   deriving stock (Show, Eq, Generic, Enum, Bounded)
-  deriving (ToJSON) via PrimerJSON NodeFlavor
+  deriving (ToJSON) via PrimerJSON NodeFlavorNoBody

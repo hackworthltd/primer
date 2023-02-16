@@ -30,7 +30,10 @@ import Primer.API (
   Module (Module),
   NewSessionReq (..),
   NodeBody (BoxBody, NoBody, PrimBody, TextBody),
-  NodeFlavor,
+  NodeFlavorBoxBody,
+  NodeFlavorNoBody,
+  NodeFlavorPrimBody,
+  NodeFlavorTextBody,
   NodeSelection (..),
   Prog (Prog),
   Selection (..),
@@ -172,10 +175,10 @@ tasty_NodeBody :: Property
 tasty_NodeBody =
   testToJSON $
     G.choice
-      [ TextBody <$> API.genName
-      , PrimBody <$> genPrimCon
-      , BoxBody <$> genTree
-      , pure NoBody
+      [ TextBody <$> G.enumBounded <*> API.genName
+      , PrimBody <$> G.enumBounded <*> genPrimCon
+      , BoxBody <$> G.enumBounded <*> genTree
+      , NoBody <$> G.enumBounded
       ]
 
 genPrimCon :: Gen PrimCon
@@ -187,8 +190,17 @@ genPrimCon =
   where
     intBound = fromIntegral $ maxBound @Int64 * 2
 
-tasty_NodeFlavor :: Property
-tasty_NodeFlavor = testToJSON $ G.enumBounded @_ @NodeFlavor
+tasty_NodeFlavorTextBody :: Property
+tasty_NodeFlavorTextBody = testToJSON $ G.enumBounded @_ @NodeFlavorTextBody
+
+tasty_NodeFlavorPrimBody :: Property
+tasty_NodeFlavorPrimBody = testToJSON $ G.enumBounded @_ @NodeFlavorPrimBody
+
+tasty_NodeFlavorBoxBody :: Property
+tasty_NodeFlavorBoxBody = testToJSON $ G.enumBounded @_ @NodeFlavorBoxBody
+
+tasty_NodeFlavorNoBody :: Property
+tasty_NodeFlavorNoBody = testToJSON $ G.enumBounded @_ @NodeFlavorNoBody
 
 genDef :: ExprGen Def
 genDef = Def <$> genGVarName <*> genExprTree <*> G.maybe genTypeTree
