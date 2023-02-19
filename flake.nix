@@ -451,7 +451,9 @@
                 ];
 
                 shell = {
-                  exactDeps = true;
+                  # We can't use this when we have source-repository-package. See:
+                  # https://github.com/input-output-hk/haskell.nix/issues/1637
+                  #exactDeps = true;
                   withHoogle = true;
 
                   tools = {
