@@ -2,7 +2,9 @@
   description = "Primer is a pedagogical functional programming language.";
 
   inputs = {
-    haskell-nix.url = github:input-output-hk/haskell.nix/0d3dea73be92c98dc099739da8914c40e0fb9deb;
+    # Working.
+    #haskell-nix.url = github:input-output-hk/haskell.nix/0d3dea73be92c98dc099739da8914c40e0fb9deb;
+    haskell-nix.url = github:input-output-hk/haskell.nix/7075077d46e684d50e1b00759bb4590426c99c70;
 
     # Let haskell.nix dictate the nixpkgs we use, as that will ensure
     # better haskell.nix cache hits.
