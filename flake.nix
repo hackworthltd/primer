@@ -2,7 +2,7 @@
   description = "Primer is a pedagogical functional programming language.";
 
   inputs = {
-    haskell-nix.url = github:input-output-hk/haskell.nix;
+    haskell-nix.url = github:input-output-hk/haskell.nix/0d3dea73be92c98dc099739da8914c40e0fb9deb;
 
     # Let haskell.nix dictate the nixpkgs we use, as that will ensure
     # better haskell.nix cache hits.
@@ -40,7 +40,7 @@
         in
         builtins.trace "Nix Primer version is ${v}" "git-${v}";
 
-      ghcVersion = "ghc926";
+      ghcVersion = "ghc925";
 
       # We must keep the weeder version in sync with the version of
       # GHC we're using.
