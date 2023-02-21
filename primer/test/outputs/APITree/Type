@@ -4,13 +4,16 @@ Tree
     , childTrees =
         [ Tree
             { nodeId = "1"
-            , body = TextBody TCon
-                ( Name
-                    { qualifiedModule = Just
-                        ( ModuleName
-                            { unModuleName = "Builtins" :| [] }
-                        )
-                    , baseName = "Nat"
+            , body = TextBody
+                ( RecordPair
+                    { fst = TCon
+                    , snd = Name
+                        { qualifiedModule = Just
+                            ( ModuleName
+                                { unModuleName = "Builtins" :| [] }
+                            )
+                        , baseName = "Nat"
+                        }
                     }
                 )
             , childTrees = []
@@ -18,10 +21,13 @@ Tree
             }
         , Tree
             { nodeId = "2"
-            , body = TextBody TForall
-                ( Name
-                    { qualifiedModule = Nothing
-                    , baseName = "a"
+            , body = TextBody
+                ( RecordPair
+                    { fst = TForall
+                    , snd = Name
+                        { qualifiedModule = Nothing
+                        , baseName = "a"
+                        }
                     }
                 )
             , childTrees =
@@ -39,13 +45,16 @@ Tree
                                     , childTrees =
                                         [ Tree
                                             { nodeId = "6"
-                                            , body = TextBody TCon
-                                                ( Name
-                                                    { qualifiedModule = Just
-                                                        ( ModuleName
-                                                            { unModuleName = "Builtins" :| [] }
-                                                        )
-                                                    , baseName = "List"
+                                            , body = TextBody
+                                                ( RecordPair
+                                                    { fst = TCon
+                                                    , snd = Name
+                                                        { qualifiedModule = Just
+                                                            ( ModuleName
+                                                                { unModuleName = "Builtins" :| [] }
+                                                            )
+                                                        , baseName = "List"
+                                                        }
                                                     }
                                                 )
                                             , childTrees = []
@@ -65,10 +74,13 @@ Tree
                             }
                         , Tree
                             { nodeId = "8"
-                            , body = TextBody TVar
-                                ( Name
-                                    { qualifiedModule = Nothing
-                                    , baseName = "a"
+                            , body = TextBody
+                                ( RecordPair
+                                    { fst = TVar
+                                    , snd = Name
+                                        { qualifiedModule = Nothing
+                                        , baseName = "a"
+                                        }
                                     }
                                 )
                             , childTrees = []

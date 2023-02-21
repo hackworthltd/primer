@@ -1,21 +1,27 @@
 Tree
     { nodeId = "9"
-    , body = TextBody Let
-        ( Name
-            { qualifiedModule = Nothing
-            , baseName = "x"
+    , body = TextBody
+        ( RecordPair
+            { fst = Let
+            , snd = Name
+                { qualifiedModule = Nothing
+                , baseName = "x"
+                }
             }
         )
     , childTrees =
         [ Tree
             { nodeId = "10"
-            , body = TextBody Con
-                ( Name
-                    { qualifiedModule = Just
-                        ( ModuleName
-                            { unModuleName = "Builtins" :| [] }
-                        )
-                    , baseName = "True"
+            , body = TextBody
+                ( RecordPair
+                    { fst = Con
+                    , snd = Name
+                        { qualifiedModule = Just
+                            ( ModuleName
+                                { unModuleName = "Builtins" :| [] }
+                            )
+                        , baseName = "True"
+                        }
                     }
                 )
             , childTrees = []
@@ -23,10 +29,13 @@ Tree
             }
         , Tree
             { nodeId = "11"
-            , body = TextBody Letrec
-                ( Name
-                    { qualifiedModule = Nothing
-                    , baseName = "y"
+            , body = TextBody
+                ( RecordPair
+                    { fst = Letrec
+                    , snd = Name
+                        { qualifiedModule = Nothing
+                        , baseName = "y"
+                        }
                     }
                 )
             , childTrees =
@@ -40,13 +49,16 @@ Tree
                             , childTrees =
                                 [ Tree
                                     { nodeId = "14"
-                                    , body = TextBody Con
-                                        ( Name
-                                            { qualifiedModule = Just
-                                                ( ModuleName
-                                                    { unModuleName = "Builtins" :| [] }
-                                                )
-                                            , baseName = "Just"
+                                    , body = TextBody
+                                        ( RecordPair
+                                            { fst = Con
+                                            , snd = Name
+                                                { qualifiedModule = Just
+                                                    ( ModuleName
+                                                        { unModuleName = "Builtins" :| [] }
+                                                    )
+                                                , baseName = "Just"
+                                                }
                                             }
                                         )
                                     , childTrees = []
@@ -61,13 +73,16 @@ Tree
                             , childTrees =
                                 [ Tree
                                     { nodeId = "16"
-                                    , body = TextBody GlobalVar
-                                        ( Name
-                                            { qualifiedModule = Just
-                                                ( ModuleName
-                                                    { unModuleName = "M" :| [] }
-                                                )
-                                            , baseName = "unboundName"
+                                    , body = TextBody
+                                        ( RecordPair
+                                            { fst = GlobalVar
+                                            , snd = Name
+                                                { qualifiedModule = Just
+                                                    ( ModuleName
+                                                        { unModuleName = "M" :| [] }
+                                                    )
+                                                , baseName = "unboundName"
+                                                }
                                             }
                                         )
                                     , childTrees = []
@@ -85,13 +100,16 @@ Tree
                     , childTrees =
                         [ Tree
                             { nodeId = "18"
-                            , body = TextBody TCon
-                                ( Name
-                                    { qualifiedModule = Just
-                                        ( ModuleName
-                                            { unModuleName = "Builtins" :| [] }
-                                        )
-                                    , baseName = "Maybe"
+                            , body = TextBody
+                                ( RecordPair
+                                    { fst = TCon
+                                    , snd = Name
+                                        { qualifiedModule = Just
+                                            ( ModuleName
+                                                { unModuleName = "Builtins" :| [] }
+                                            )
+                                        , baseName = "Maybe"
+                                        }
                                     }
                                 )
                             , childTrees = []
@@ -106,19 +124,25 @@ Tree
                     , childTrees =
                         [ Tree
                             { nodeId = "20"
-                            , body = TextBody Lam
-                                ( Name
-                                    { qualifiedModule = Nothing
-                                    , baseName = "i"
+                            , body = TextBody
+                                ( RecordPair
+                                    { fst = Lam
+                                    , snd = Name
+                                        { qualifiedModule = Nothing
+                                        , baseName = "i"
+                                        }
                                     }
                                 )
                             , childTrees =
                                 [ Tree
                                     { nodeId = "21"
-                                    , body = TextBody LAM
-                                        ( Name
-                                            { qualifiedModule = Nothing
-                                            , baseName = "β"
+                                    , body = TextBody
+                                        ( RecordPair
+                                            { fst = LAM
+                                            , snd = Name
+                                                { qualifiedModule = Nothing
+                                                , baseName = "β"
+                                                }
                                             }
                                         )
                                     , childTrees =
@@ -132,10 +156,13 @@ Tree
                                                     , childTrees =
                                                         [ Tree
                                                             { nodeId = "24"
-                                                            , body = TextBody LetType
-                                                                ( Name
-                                                                    { qualifiedModule = Nothing
-                                                                    , baseName = "b"
+                                                            , body = TextBody
+                                                                ( RecordPair
+                                                                    { fst = LetType
+                                                                    , snd = Name
+                                                                        { qualifiedModule = Nothing
+                                                                        , baseName = "b"
+                                                                        }
                                                                     }
                                                                 )
                                                             , childTrees =
@@ -145,13 +172,16 @@ Tree
                                                                     , childTrees =
                                                                         [ Tree
                                                                             { nodeId = "27"
-                                                                            , body = TextBody Con
-                                                                                ( Name
-                                                                                    { qualifiedModule = Just
-                                                                                        ( ModuleName
-                                                                                            { unModuleName = "Builtins" :| [] }
-                                                                                        )
-                                                                                    , baseName = "Left"
+                                                                            , body = TextBody
+                                                                                ( RecordPair
+                                                                                    { fst = Con
+                                                                                    , snd = Name
+                                                                                        { qualifiedModule = Just
+                                                                                            ( ModuleName
+                                                                                                { unModuleName = "Builtins" :| [] }
+                                                                                            )
+                                                                                        , baseName = "Left"
+                                                                                        }
                                                                                     }
                                                                                 )
                                                                             , childTrees = []
@@ -159,19 +189,25 @@ Tree
                                                                             }
                                                                         , Tree
                                                                             { nodeId = "28"
-                                                                            , body = TextBody TLet
-                                                                                ( Name
-                                                                                    { qualifiedModule = Nothing
-                                                                                    , baseName = "c"
+                                                                            , body = TextBody
+                                                                                ( RecordPair
+                                                                                    { fst = TLet
+                                                                                    , snd = Name
+                                                                                        { qualifiedModule = Nothing
+                                                                                        , baseName = "c"
+                                                                                        }
                                                                                     }
                                                                                 )
                                                                             , childTrees =
                                                                                 [ Tree
                                                                                     { nodeId = "29"
-                                                                                    , body = TextBody TVar
-                                                                                        ( Name
-                                                                                            { qualifiedModule = Nothing
-                                                                                            , baseName = "b"
+                                                                                    , body = TextBody
+                                                                                        ( RecordPair
+                                                                                            { fst = TVar
+                                                                                            , snd = Name
+                                                                                                { qualifiedModule = Nothing
+                                                                                                , baseName = "b"
+                                                                                                }
                                                                                             }
                                                                                         )
                                                                                     , childTrees = []
@@ -179,10 +215,13 @@ Tree
                                                                                     }
                                                                                 , Tree
                                                                                     { nodeId = "30"
-                                                                                    , body = TextBody TVar
-                                                                                        ( Name
-                                                                                            { qualifiedModule = Nothing
-                                                                                            , baseName = "c"
+                                                                                    , body = TextBody
+                                                                                        ( RecordPair
+                                                                                            { fst = TVar
+                                                                                            , snd = Name
+                                                                                                { qualifiedModule = Nothing
+                                                                                                , baseName = "c"
+                                                                                                }
                                                                                             }
                                                                                         )
                                                                                     , childTrees = []
@@ -196,13 +235,16 @@ Tree
                                                                     }
                                                                 , Tree
                                                                     { nodeId = "25"
-                                                                    , body = TextBody TCon
-                                                                        ( Name
-                                                                            { qualifiedModule = Just
-                                                                                ( ModuleName
-                                                                                    { unModuleName = "Builtins" :| [] }
-                                                                                )
-                                                                            , baseName = "Bool"
+                                                                    , body = TextBody
+                                                                        ( RecordPair
+                                                                            { fst = TCon
+                                                                            , snd = Name
+                                                                                { qualifiedModule = Just
+                                                                                    ( ModuleName
+                                                                                        { unModuleName = "Builtins" :| [] }
+                                                                                    )
+                                                                                , baseName = "Bool"
+                                                                                }
                                                                             }
                                                                         )
                                                                     , childTrees = []
@@ -213,10 +255,13 @@ Tree
                                                             }
                                                         , Tree
                                                             { nodeId = "31"
-                                                            , body = TextBody TVar
-                                                                ( Name
-                                                                    { qualifiedModule = Nothing
-                                                                    , baseName = "β"
+                                                            , body = TextBody
+                                                                ( RecordPair
+                                                                    { fst = TVar
+                                                                    , snd = Name
+                                                                        { qualifiedModule = Nothing
+                                                                        , baseName = "β"
+                                                                        }
                                                                     }
                                                                 )
                                                             , childTrees = []
@@ -231,10 +276,13 @@ Tree
                                                     , childTrees =
                                                         [ Tree
                                                             { nodeId = "33"
-                                                            , body = TextBody LocalVar
-                                                                ( Name
-                                                                    { qualifiedModule = Nothing
-                                                                    , baseName = "i"
+                                                            , body = TextBody
+                                                                ( RecordPair
+                                                                    { fst = LocalVar
+                                                                    , snd = Name
+                                                                        { qualifiedModule = Nothing
+                                                                        , baseName = "i"
+                                                                        }
                                                                     }
                                                                 )
                                                             , childTrees = []
@@ -244,32 +292,41 @@ Tree
                                                     , rightChild = Just
                                                         ( Tree
                                                             { nodeId = "32P0"
-                                                            , body = BoxBody Pattern
-                                                                ( Tree
-                                                                    { nodeId = "32P0B"
-                                                                    , body = TextBody PatternCon
-                                                                        ( Name
-                                                                            { qualifiedModule = Just
-                                                                                ( ModuleName
-                                                                                    { unModuleName = "Builtins" :| [] }
-                                                                                )
-                                                                            , baseName = "Zero"
-                                                                            }
-                                                                        )
-                                                                    , childTrees = []
-                                                                    , rightChild = Nothing
+                                                            , body = BoxBody
+                                                                ( RecordPair
+                                                                    { fst = Pattern
+                                                                    , snd = Tree
+                                                                        { nodeId = "32P0B"
+                                                                        , body = TextBody
+                                                                            ( RecordPair
+                                                                                { fst = PatternCon
+                                                                                , snd = Name
+                                                                                    { qualifiedModule = Just
+                                                                                        ( ModuleName
+                                                                                            { unModuleName = "Builtins" :| [] }
+                                                                                        )
+                                                                                    , baseName = "Zero"
+                                                                                    }
+                                                                                }
+                                                                            )
+                                                                        , childTrees = []
+                                                                        , rightChild = Nothing
+                                                                        }
                                                                     }
                                                                 )
                                                             , childTrees =
                                                                 [ Tree
                                                                     { nodeId = "34"
-                                                                    , body = TextBody Con
-                                                                        ( Name
-                                                                            { qualifiedModule = Just
-                                                                                ( ModuleName
-                                                                                    { unModuleName = "Builtins" :| [] }
-                                                                                )
-                                                                            , baseName = "False"
+                                                                    , body = TextBody
+                                                                        ( RecordPair
+                                                                            { fst = Con
+                                                                            , snd = Name
+                                                                                { qualifiedModule = Just
+                                                                                    ( ModuleName
+                                                                                        { unModuleName = "Builtins" :| [] }
+                                                                                    )
+                                                                                , baseName = "False"
+                                                                                }
                                                                             }
                                                                         )
                                                                     , childTrees = []
@@ -279,38 +336,47 @@ Tree
                                                             , rightChild = Just
                                                                 ( Tree
                                                                     { nodeId = "32P1"
-                                                                    , body = BoxBody Pattern
-                                                                        ( Tree
-                                                                            { nodeId = "35A"
-                                                                            , body = NoBody PatternApp
-                                                                            , childTrees =
-                                                                                [ Tree
-                                                                                    { nodeId = "32P1B"
-                                                                                    , body = TextBody PatternCon
-                                                                                        ( Name
-                                                                                            { qualifiedModule = Just
-                                                                                                ( ModuleName
-                                                                                                    { unModuleName = "Builtins" :| [] }
-                                                                                                )
-                                                                                            , baseName = "Succ"
-                                                                                            }
-                                                                                        )
-                                                                                    , childTrees = []
-                                                                                    , rightChild = Nothing
-                                                                                    }
-                                                                                , Tree
-                                                                                    { nodeId = "35"
-                                                                                    , body = TextBody PatternBind
-                                                                                        ( Name
-                                                                                            { qualifiedModule = Nothing
-                                                                                            , baseName = "n"
-                                                                                            }
-                                                                                        )
-                                                                                    , childTrees = []
-                                                                                    , rightChild = Nothing
-                                                                                    }
-                                                                                ]
-                                                                            , rightChild = Nothing
+                                                                    , body = BoxBody
+                                                                        ( RecordPair
+                                                                            { fst = Pattern
+                                                                            , snd = Tree
+                                                                                { nodeId = "35A"
+                                                                                , body = NoBody PatternApp
+                                                                                , childTrees =
+                                                                                    [ Tree
+                                                                                        { nodeId = "32P1B"
+                                                                                        , body = TextBody
+                                                                                            ( RecordPair
+                                                                                                { fst = PatternCon
+                                                                                                , snd = Name
+                                                                                                    { qualifiedModule = Just
+                                                                                                        ( ModuleName
+                                                                                                            { unModuleName = "Builtins" :| [] }
+                                                                                                        )
+                                                                                                    , baseName = "Succ"
+                                                                                                    }
+                                                                                                }
+                                                                                            )
+                                                                                        , childTrees = []
+                                                                                        , rightChild = Nothing
+                                                                                        }
+                                                                                    , Tree
+                                                                                        { nodeId = "35"
+                                                                                        , body = TextBody
+                                                                                            ( RecordPair
+                                                                                                { fst = PatternBind
+                                                                                                , snd = Name
+                                                                                                    { qualifiedModule = Nothing
+                                                                                                    , baseName = "n"
+                                                                                                    }
+                                                                                                }
+                                                                                            )
+                                                                                        , childTrees = []
+                                                                                        , rightChild = Nothing
+                                                                                        }
+                                                                                    ]
+                                                                                , rightChild = Nothing
+                                                                                }
                                                                             }
                                                                         )
                                                                     , childTrees =
@@ -330,10 +396,13 @@ Tree
                                                                                             }
                                                                                         , Tree
                                                                                             { nodeId = "39"
-                                                                                            , body = TextBody LocalVar
-                                                                                                ( Name
-                                                                                                    { qualifiedModule = Nothing
-                                                                                                    , baseName = "x"
+                                                                                            , body = TextBody
+                                                                                                ( RecordPair
+                                                                                                    { fst = LocalVar
+                                                                                                    , snd = Name
+                                                                                                        { qualifiedModule = Nothing
+                                                                                                        , baseName = "x"
+                                                                                                        }
                                                                                                     }
                                                                                                 )
                                                                                             , childTrees = []
@@ -344,10 +413,13 @@ Tree
                                                                                     }
                                                                                 , Tree
                                                                                     { nodeId = "40"
-                                                                                    , body = TextBody LocalVar
-                                                                                        ( Name
-                                                                                            { qualifiedModule = Nothing
-                                                                                            , baseName = "y"
+                                                                                    , body = TextBody
+                                                                                        ( RecordPair
+                                                                                            { fst = LocalVar
+                                                                                            , snd = Name
+                                                                                                { qualifiedModule = Nothing
+                                                                                                , baseName = "y"
+                                                                                                }
                                                                                             }
                                                                                         )
                                                                                     , childTrees = []
@@ -378,13 +450,16 @@ Tree
                             , childTrees =
                                 [ Tree
                                     { nodeId = "42"
-                                    , body = TextBody TCon
-                                        ( Name
-                                            { qualifiedModule = Just
-                                                ( ModuleName
-                                                    { unModuleName = "Builtins" :| [] }
-                                                )
-                                            , baseName = "Nat"
+                                    , body = TextBody
+                                        ( RecordPair
+                                            { fst = TCon
+                                            , snd = Name
+                                                { qualifiedModule = Just
+                                                    ( ModuleName
+                                                        { unModuleName = "Builtins" :| [] }
+                                                    )
+                                                , baseName = "Nat"
+                                                }
                                             }
                                         )
                                     , childTrees = []
@@ -392,10 +467,13 @@ Tree
                                     }
                                 , Tree
                                     { nodeId = "43"
-                                    , body = TextBody TForall
-                                        ( Name
-                                            { qualifiedModule = Nothing
-                                            , baseName = "α"
+                                    , body = TextBody
+                                        ( RecordPair
+                                            { fst = TForall
+                                            , snd = Name
+                                                { qualifiedModule = Nothing
+                                                , baseName = "α"
+                                                }
                                             }
                                         )
                                     , childTrees =
@@ -409,13 +487,16 @@ Tree
                                                     , childTrees =
                                                         [ Tree
                                                             { nodeId = "46"
-                                                            , body = TextBody TCon
-                                                                ( Name
-                                                                    { qualifiedModule = Just
-                                                                        ( ModuleName
-                                                                            { unModuleName = "Builtins" :| [] }
-                                                                        )
-                                                                    , baseName = "Either"
+                                                            , body = TextBody
+                                                                ( RecordPair
+                                                                    { fst = TCon
+                                                                    , snd = Name
+                                                                        { qualifiedModule = Just
+                                                                            ( ModuleName
+                                                                                { unModuleName = "Builtins" :| [] }
+                                                                            )
+                                                                        , baseName = "Either"
+                                                                        }
                                                                     }
                                                                 )
                                                             , childTrees = []
@@ -423,13 +504,16 @@ Tree
                                                             }
                                                         , Tree
                                                             { nodeId = "47"
-                                                            , body = TextBody TCon
-                                                                ( Name
-                                                                    { qualifiedModule = Just
-                                                                        ( ModuleName
-                                                                            { unModuleName = "Builtins" :| [] }
-                                                                        )
-                                                                    , baseName = "Bool"
+                                                            , body = TextBody
+                                                                ( RecordPair
+                                                                    { fst = TCon
+                                                                    , snd = Name
+                                                                        { qualifiedModule = Just
+                                                                            ( ModuleName
+                                                                                { unModuleName = "Builtins" :| [] }
+                                                                            )
+                                                                        , baseName = "Bool"
+                                                                        }
                                                                     }
                                                                 )
                                                             , childTrees = []
@@ -440,10 +524,13 @@ Tree
                                                     }
                                                 , Tree
                                                     { nodeId = "48"
-                                                    , body = TextBody TVar
-                                                        ( Name
-                                                            { qualifiedModule = Nothing
-                                                            , baseName = "α"
+                                                    , body = TextBody
+                                                        ( RecordPair
+                                                            { fst = TVar
+                                                            , snd = Name
+                                                                { qualifiedModule = Nothing
+                                                                , baseName = "α"
+                                                                }
                                                             }
                                                         )
                                                     , childTrees = []

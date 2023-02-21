@@ -43,6 +43,7 @@ import Primer.API.NodeFlavor (
   NodeFlavorPrimBody,
   NodeFlavorTextBody,
  )
+import Primer.API.RecordPair (RecordPair (RecordPair))
 import Primer.Action.Available qualified as Available
 import Primer.App (Level, NodeType)
 import Primer.Core (GVarName, ID (ID), ModuleName, PrimCon (PrimChar, PrimInt))
@@ -177,9 +178,9 @@ tasty_NodeBody :: Property
 tasty_NodeBody =
   testToJSON $
     G.choice
-      [ TextBody <$> G.enumBounded <*> API.genName
-      , PrimBody <$> G.enumBounded <*> genPrimCon
-      , BoxBody <$> G.enumBounded <*> genTree
+      [ TextBody <$> (RecordPair <$> G.enumBounded <*> API.genName)
+      , PrimBody <$> (RecordPair <$> G.enumBounded <*> genPrimCon)
+      , BoxBody <$> (RecordPair <$> G.enumBounded <*> genTree)
       , NoBody <$> G.enumBounded
       ]
 

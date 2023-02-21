@@ -19,6 +19,7 @@ library
     Primer.Action.Priorities
     Primer.API
     Primer.API.NodeFlavor
+    Primer.API.RecordPair
     Primer.App
     Primer.App.Base
     Primer.App.Utils

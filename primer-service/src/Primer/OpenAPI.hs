@@ -55,6 +55,7 @@ import Primer.API.NodeFlavor (
   NodeFlavorPrimBody,
   NodeFlavorTextBody,
  )
+import Primer.API.RecordPair (RecordPair)
 import Primer.Action.Available qualified as Available
 import Primer.App (NodeType)
 import Primer.App.Base (Level)
@@ -126,6 +127,7 @@ deriving via GlobalName 'ADefName instance ToSchema (GlobalName 'ATyCon)
 deriving via GlobalName 'ADefName instance ToSchema (GlobalName 'AValCon)
 
 deriving via Name instance (ToSchema LVarName)
+deriving via PrimerJSON (RecordPair a b) instance (ToSchema a, ToSchema b) => ToSchema (RecordPair a b)
 deriving via PrimerJSON Tree instance ToSchema Tree
 deriving via PrimerJSON API.Name instance ToSchema API.Name
 deriving via PrimerJSON PrimCon instance ToSchema PrimCon

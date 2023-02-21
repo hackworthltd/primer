@@ -294,17 +294,7 @@
                     {
                         "properties": {
                             "contents": {
-                                "items": [
-                                    {
-                                        "$ref": "#/components/schemas/NodeFlavorTextBody"
-                                    },
-                                    {
-                                        "$ref": "#/components/schemas/Name"
-                                    }
-                                ],
-                                "maxItems": 2,
-                                "minItems": 2,
-                                "type": "array"
+                                "$ref": "#/components/schemas/RecordPair_NodeFlavorTextBody_Name"
                             },
                             "tag": {
                                 "enum": [
@@ -322,17 +312,7 @@
                     {
                         "properties": {
                             "contents": {
-                                "items": [
-                                    {
-                                        "$ref": "#/components/schemas/NodeFlavorPrimBody"
-                                    },
-                                    {
-                                        "$ref": "#/components/schemas/PrimCon"
-                                    }
-                                ],
-                                "maxItems": 2,
-                                "minItems": 2,
-                                "type": "array"
+                                "$ref": "#/components/schemas/RecordPair_NodeFlavorPrimBody_PrimCon"
                             },
                             "tag": {
                                 "enum": [
@@ -350,17 +330,7 @@
                     {
                         "properties": {
                             "contents": {
-                                "items": [
-                                    {
-                                        "$ref": "#/components/schemas/NodeFlavorBoxBody"
-                                    },
-                                    {
-                                        "$ref": "#/components/schemas/Tree"
-                                    }
-                                ],
-                                "maxItems": 2,
-                                "minItems": 2,
-                                "type": "array"
+                                "$ref": "#/components/schemas/RecordPair_NodeFlavorBoxBody_Tree"
                             },
                             "tag": {
                                 "enum": [
@@ -631,6 +601,51 @@
                 },
                 "required": [
                     "modules"
+                ],
+                "type": "object"
+            },
+            "RecordPair_NodeFlavorBoxBody_Tree": {
+                "properties": {
+                    "fst": {
+                        "$ref": "#/components/schemas/NodeFlavorBoxBody"
+                    },
+                    "snd": {
+                        "$ref": "#/components/schemas/Tree"
+                    }
+                },
+                "required": [
+                    "fst",
+                    "snd"
+                ],
+                "type": "object"
+            },
+            "RecordPair_NodeFlavorPrimBody_PrimCon": {
+                "properties": {
+                    "fst": {
+                        "$ref": "#/components/schemas/NodeFlavorPrimBody"
+                    },
+                    "snd": {
+                        "$ref": "#/components/schemas/PrimCon"
+                    }
+                },
+                "required": [
+                    "fst",
+                    "snd"
+                ],
+                "type": "object"
+            },
+            "RecordPair_NodeFlavorTextBody_Name": {
+                "properties": {
+                    "fst": {
+                        "$ref": "#/components/schemas/NodeFlavorTextBody"
+                    },
+                    "snd": {
+                        "$ref": "#/components/schemas/Name"
+                    }
+                },
+                "required": [
+                    "fst",
+                    "snd"
                 ],
                 "type": "object"
             },
