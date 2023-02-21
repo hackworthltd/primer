@@ -29,8 +29,7 @@ import Primer.API (
   EvalFullResp (EvalFullRespNormal, EvalFullRespTimedOut),
   Module (Module),
   NewSessionReq (..),
-  NodeBody (BoxBody, NoBody, TextBody),
-  NodeFlavor,
+  NodeBody (BoxBody, NoBody, PrimBody, TextBody),
   NodeSelection (..),
   Prog (Prog),
   Selection (..),
@@ -38,9 +37,16 @@ import Primer.API (
   viewTreeExpr,
   viewTreeType,
  )
+import Primer.API.NodeFlavor (
+  NodeFlavorBoxBody,
+  NodeFlavorNoBody,
+  NodeFlavorPrimBody,
+  NodeFlavorTextBody,
+ )
+import Primer.API.RecordPair (RecordPair (RecordPair))
 import Primer.Action.Available qualified as Available
 import Primer.App (Level, NodeType)
-import Primer.Core (GVarName, ID (ID), ModuleName)
+import Primer.Core (GVarName, ID (ID), ModuleName, PrimCon (PrimChar, PrimInt))
 import Primer.Database (
   LastModified (..),
   Session (Session),
@@ -172,13 +178,32 @@ tasty_NodeBody :: Property
 tasty_NodeBody =
   testToJSON $
     G.choice
-      [ TextBody <$> API.genName
-      , BoxBody <$> genTree
-      , pure NoBody
+      [ TextBody <$> (RecordPair <$> G.enumBounded <*> API.genName)
+      , PrimBody <$> (RecordPair <$> G.enumBounded <*> genPrimCon)
+      , BoxBody <$> (RecordPair <$> G.enumBounded <*> genTree)
+      , NoBody <$> G.enumBounded
       ]
 
-tasty_NodeFlavor :: Property
-tasty_NodeFlavor = testToJSON $ G.enumBounded @_ @NodeFlavor
+genPrimCon :: Gen PrimCon
+genPrimCon =
+  G.choice
+    [ PrimChar <$> G.unicode
+    , PrimInt <$> G.integral (R.exponentialFrom 0 (-intBound) intBound)
+    ]
+  where
+    intBound = fromIntegral $ maxBound @Int64 * 2
+
+tasty_NodeFlavorTextBody :: Property
+tasty_NodeFlavorTextBody = testToJSON $ G.enumBounded @_ @NodeFlavorTextBody
+
+tasty_NodeFlavorPrimBody :: Property
+tasty_NodeFlavorPrimBody = testToJSON $ G.enumBounded @_ @NodeFlavorPrimBody
+
+tasty_NodeFlavorBoxBody :: Property
+tasty_NodeFlavorBoxBody = testToJSON $ G.enumBounded @_ @NodeFlavorBoxBody
+
+tasty_NodeFlavorNoBody :: Property
+tasty_NodeFlavorNoBody = testToJSON $ G.enumBounded @_ @NodeFlavorNoBody
 
 genDef :: ExprGen Def
 genDef = Def <$> genGVarName <*> genExprTree <*> G.maybe genTypeTree

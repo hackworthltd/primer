@@ -43,13 +43,19 @@ import Primer.API (
   Module,
   NewSessionReq,
   NodeBody,
-  NodeFlavor,
   NodeSelection (..),
   Prog,
   Selection (..),
   Tree,
  )
 import Primer.API qualified as API
+import Primer.API.NodeFlavor (
+  NodeFlavorBoxBody,
+  NodeFlavorNoBody,
+  NodeFlavorPrimBody,
+  NodeFlavorTextBody,
+ )
+import Primer.API.RecordPair (RecordPair)
 import Primer.Action.Available qualified as Available
 import Primer.App (NodeType)
 import Primer.App.Base (Level)
@@ -121,11 +127,15 @@ deriving via GlobalName 'ADefName instance ToSchema (GlobalName 'ATyCon)
 deriving via GlobalName 'ADefName instance ToSchema (GlobalName 'AValCon)
 
 deriving via Name instance (ToSchema LVarName)
+deriving via PrimerJSON (RecordPair a b) instance (ToSchema a, ToSchema b) => ToSchema (RecordPair a b)
 deriving via PrimerJSON Tree instance ToSchema Tree
 deriving via PrimerJSON API.Name instance ToSchema API.Name
 deriving via PrimerJSON PrimCon instance ToSchema PrimCon
 deriving via PrimerJSON NodeBody instance ToSchema NodeBody
-deriving via PrimerJSON NodeFlavor instance ToSchema NodeFlavor
+deriving via PrimerJSON NodeFlavorTextBody instance ToSchema NodeFlavorTextBody
+deriving via PrimerJSON NodeFlavorPrimBody instance ToSchema NodeFlavorPrimBody
+deriving via PrimerJSON NodeFlavorBoxBody instance ToSchema NodeFlavorBoxBody
+deriving via PrimerJSON NodeFlavorNoBody instance ToSchema NodeFlavorNoBody
 deriving via PrimerJSON Def instance ToSchema Def
 deriving via NonEmpty Name instance ToSchema ModuleName
 deriving via PrimerJSON Module instance ToSchema Module

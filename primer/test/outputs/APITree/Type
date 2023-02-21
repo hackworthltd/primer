@@ -1,18 +1,19 @@
 Tree
     { nodeId = "0"
-    , flavor = FlavorTFun
-    , body = NoBody
+    , body = NoBody TFun
     , childTrees =
         [ Tree
             { nodeId = "1"
-            , flavor = FlavorTCon
             , body = TextBody
-                ( Name
-                    { qualifiedModule = Just
-                        ( ModuleName
-                            { unModuleName = "Builtins" :| [] }
-                        )
-                    , baseName = "Nat"
+                ( RecordPair
+                    { fst = TCon
+                    , snd = Name
+                        { qualifiedModule = Just
+                            ( ModuleName
+                                { unModuleName = "Builtins" :| [] }
+                            )
+                        , baseName = "Nat"
+                        }
                     }
                 )
             , childTrees = []
@@ -20,39 +21,40 @@ Tree
             }
         , Tree
             { nodeId = "2"
-            , flavor = FlavorTForall
             , body = TextBody
-                ( Name
-                    { qualifiedModule = Nothing
-                    , baseName = "a"
+                ( RecordPair
+                    { fst = TForall
+                    , snd = Name
+                        { qualifiedModule = Nothing
+                        , baseName = "a"
+                        }
                     }
                 )
             , childTrees =
                 [ Tree
                     { nodeId = "3"
-                    , flavor = FlavorTApp
-                    , body = NoBody
+                    , body = NoBody TApp
                     , childTrees =
                         [ Tree
                             { nodeId = "4"
-                            , flavor = FlavorTHole
-                            , body = NoBody
+                            , body = NoBody THole
                             , childTrees =
                                 [ Tree
                                     { nodeId = "5"
-                                    , flavor = FlavorTApp
-                                    , body = NoBody
+                                    , body = NoBody TApp
                                     , childTrees =
                                         [ Tree
                                             { nodeId = "6"
-                                            , flavor = FlavorTCon
                                             , body = TextBody
-                                                ( Name
-                                                    { qualifiedModule = Just
-                                                        ( ModuleName
-                                                            { unModuleName = "Builtins" :| [] }
-                                                        )
-                                                    , baseName = "List"
+                                                ( RecordPair
+                                                    { fst = TCon
+                                                    , snd = Name
+                                                        { qualifiedModule = Just
+                                                            ( ModuleName
+                                                                { unModuleName = "Builtins" :| [] }
+                                                            )
+                                                        , baseName = "List"
+                                                        }
                                                     }
                                                 )
                                             , childTrees = []
@@ -60,8 +62,7 @@ Tree
                                             }
                                         , Tree
                                             { nodeId = "7"
-                                            , flavor = FlavorTEmptyHole
-                                            , body = NoBody
+                                            , body = NoBody TEmptyHole
                                             , childTrees = []
                                             , rightChild = Nothing
                                             }
@@ -73,11 +74,13 @@ Tree
                             }
                         , Tree
                             { nodeId = "8"
-                            , flavor = FlavorTVar
                             , body = TextBody
-                                ( Name
-                                    { qualifiedModule = Nothing
-                                    , baseName = "a"
+                                ( RecordPair
+                                    { fst = TVar
+                                    , snd = Name
+                                        { qualifiedModule = Nothing
+                                        , baseName = "a"
+                                        }
                                     }
                                 )
                             , childTrees = []
