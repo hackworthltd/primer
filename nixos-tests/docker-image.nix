@@ -56,20 +56,14 @@ in
 
         # Default VM size is too small for our container.
         virtualisation = {
-          diskSize = 2048;
+          diskSize = 3072;
           memorySize = 1024;
         };
 
         virtualisation.oci-containers = {
           containers.primer-service = {
-
-            # Note: we need to use `hostPkgs` here rather than `pkgs`,
-            # for some reason I don't understand. It seems to have
-            # something to do with the haskell.nix overlay, because
-            # other packages that are in our overlay, but don't rely
-            # on haskell.nix, work fine from `pkgs`.
-            image = "primer-service:${hostPkgs.primer-service-docker-image.imageTag}";
-            imageFile = hostPkgs.primer-service-docker-image;
+            image = "primer-service:${pkgs.primer-service-docker-image.imageTag}";
+            imageFile = pkgs.primer-service-docker-image;
 
             ports = [ "${port}:${port}" ];
             extraOptions = [ "--network=host" ];
