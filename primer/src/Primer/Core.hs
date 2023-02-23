@@ -93,7 +93,7 @@ data TypeCache
   = TCSynthed (Type' ())
   | TCChkedAt (Type' ())
   | TCEmb TypeCacheBoth
-  deriving stock (Eq, Show, Generic, Data)
+  deriving stock (Eq, Show, Read, Generic, Data)
   deriving (FromJSON, ToJSON) via PrimerJSON TypeCache
   deriving anyclass (NFData)
 
@@ -102,7 +102,7 @@ data TypeCache
 -- functions from tcChkedAt and tcSynthed. We really want to name these fields
 -- though, to make it clear what each one is!
 data TypeCacheBoth = TCBoth {tcChkedAt :: Type' (), tcSynthed :: Type' ()}
-  deriving stock (Eq, Show, Generic, Data)
+  deriving stock (Eq, Show, Read, Generic, Data)
   deriving (FromJSON, ToJSON) via PrimerJSON TypeCacheBoth
   deriving anyclass (NFData)
 
@@ -180,7 +180,7 @@ data Expr' a b
       -- ^ body of the let; binding scopes over this
   | Case a (Expr' a b) [CaseBranch' a b] -- See Note [Case]
   | PrimCon a PrimCon
-  deriving stock (Eq, Show, Data, Generic)
+  deriving stock (Eq, Show, Read, Data, Generic)
   deriving (FromJSON, ToJSON) via PrimerJSON (Expr' a b)
   deriving anyclass (NFData)
 
@@ -255,7 +255,7 @@ data CaseBranch' a b
       -- bindings. Unfortunately that breaks generic traversals like '_exprMeta'.
       (Expr' a b)
       -- ^ right hand side
-  deriving stock (Eq, Show, Data, Generic)
+  deriving stock (Eq, Show, Read, Data, Generic)
   deriving (FromJSON, ToJSON) via PrimerJSON (CaseBranch' a b)
   deriving anyclass (NFData)
 
@@ -265,7 +265,7 @@ data CaseBranch' a b
 type Bind = Bind' ExprMeta
 
 data Bind' a = Bind a LVarName
-  deriving stock (Eq, Show, Data, Generic)
+  deriving stock (Eq, Show, Read, Data, Generic)
   deriving (FromJSON, ToJSON) via PrimerJSON (Bind' a)
   deriving anyclass (NFData)
 
@@ -300,6 +300,6 @@ instance HasMetadata (Bind' ExprMeta) where
 data PrimCon
   = PrimChar Char
   | PrimInt Integer
-  deriving stock (Eq, Show, Data, Generic)
+  deriving stock (Eq, Show, Read, Data, Generic)
   deriving (FromJSON, ToJSON) via PrimerJSON PrimCon
   deriving anyclass (NFData)

@@ -36,16 +36,19 @@ data NodeFlavorTextBody
   | LocalVar
   deriving stock (Show, Eq, Generic, Enum, Bounded)
   deriving (ToJSON) via PrimerJSON NodeFlavorTextBody
+  deriving anyclass (NFData)
 
 data NodeFlavorPrimBody
   = PrimCon
   deriving stock (Show, Eq, Generic, Enum, Bounded)
   deriving (ToJSON) via CustomJSON '[TagSingleConstructors] NodeFlavorPrimBody
+  deriving anyclass (NFData)
 
 data NodeFlavorBoxBody
   = Pattern
   deriving stock (Show, Eq, Generic, Enum, Bounded)
   deriving (ToJSON) via CustomJSON '[TagSingleConstructors] NodeFlavorBoxBody
+  deriving anyclass (NFData)
 
 data NodeFlavorNoBody
   = Hole
@@ -62,3 +65,4 @@ data NodeFlavorNoBody
   | TApp
   deriving stock (Show, Eq, Generic, Enum, Bounded)
   deriving (ToJSON) via PrimerJSON NodeFlavorNoBody
+  deriving anyclass (NFData)

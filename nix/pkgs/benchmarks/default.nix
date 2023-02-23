@@ -7,10 +7,12 @@
 }:
 let
   lastEnvChangeFile = writeText "lastEnvChange" lastEnvChange;
+  primer-benchmark-fixtures = ../../../primer-benchmark/fixtures;
 
   # Generate Primer benchmark results as HTML.
   primer-benchmark-results-html = (runCommand "primer-benchmark-results-html" { }
     ''
+      cp -r ${primer-benchmark-fixtures} fixtures
       ${coreutils}/bin/mkdir -p $out
       cp ${lastEnvChangeFile} $out/lastEnvChange
       ${primer-benchmark}/bin/primer-benchmark --output $out/results.html --regress cpuTime:iters --regress allocated:iters --regress numGcs:iters +RTS -T
@@ -23,6 +25,7 @@ let
   # Generate Primer benchmark results as JSON.
   primer-benchmark-results-json = (runCommand "primer-benchmark-results-json" { }
     ''
+      cp -r ${primer-benchmark-fixtures} fixtures
       ${coreutils}/bin/mkdir -p $out
       cp ${lastEnvChangeFile} $out/lastEnvChange
       ${primer-benchmark}/bin/primer-benchmark --template json --output $out/results.json --regress cpuTime:iters --regress allocated:iters --regress numGcs:iters +RTS -T

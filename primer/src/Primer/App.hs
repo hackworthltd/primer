@@ -229,7 +229,7 @@ data Prog = Prog
   , progSmartHoles :: SmartHoles
   , progLog :: Log -- The log of all actions
   }
-  deriving stock (Eq, Show, Generic)
+  deriving stock (Eq, Show, Read, Generic)
   deriving (FromJSON, ToJSON) via PrimerJSON Prog
   deriving anyclass (NFData)
 
@@ -379,7 +379,7 @@ allDefs = fmap snd . progAllDefs
 --  Each item is a sequence of Core actions which should be applied atomically.
 --  Items are stored in reverse order so it's quick to add new ones.
 newtype Log = Log {unlog :: [[ProgAction]]}
-  deriving stock (Eq, Show, Generic)
+  deriving stock (Eq, Show, Read, Generic)
   deriving (FromJSON, ToJSON) via PrimerJSON Log
   deriving anyclass (NFData)
 
@@ -394,7 +394,7 @@ data Selection = Selection
   -- ^ the ID of some ASTDef
   , selectedNode :: Maybe NodeSelection
   }
-  deriving stock (Eq, Show, Generic, Data)
+  deriving stock (Eq, Show, Read, Generic, Data)
   deriving (FromJSON, ToJSON) via PrimerJSON Selection
   deriving anyclass (NFData)
 
@@ -404,7 +404,7 @@ data NodeSelection = NodeSelection
   { nodeType :: NodeType
   , meta :: Either ExprMeta TypeMeta
   }
-  deriving stock (Eq, Show, Generic, Data)
+  deriving stock (Eq, Show, Read, Generic, Data)
   deriving (FromJSON, ToJSON) via PrimerJSON NodeSelection
   deriving anyclass (NFData)
 
@@ -418,8 +418,9 @@ instance HasID NodeSelection where
 data MutationRequest
   = Undo
   | Edit [ProgAction]
-  deriving stock (Eq, Show, Generic)
+  deriving stock (Eq, Show, Read, Generic)
   deriving (FromJSON, ToJSON) via PrimerJSON MutationRequest
+  deriving anyclass (NFData)
 
 data EvalReq = EvalReq
   { evalReqExpr :: Expr
@@ -1054,6 +1055,7 @@ data App = App
   }
   deriving stock (Eq, Show, Generic)
   deriving (FromJSON, ToJSON) via PrimerJSON App
+  deriving anyclass (NFData)
 
 -- Internal app state. Note that this type is not exported, as we want
 -- to guarantee that the counters are kept in sync with the 'Prog',
@@ -1066,6 +1068,7 @@ data AppState = AppState
   }
   deriving stock (Eq, Show, Generic)
   deriving (FromJSON, ToJSON) via PrimerJSON AppState
+  deriving anyclass (NFData)
 
 -- | Construct an 'App' from an 'ID' and a 'Prog'.
 --

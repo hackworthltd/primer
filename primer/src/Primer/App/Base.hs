@@ -35,6 +35,6 @@ data Editable = Editable | NonEditable
   deriving stock (Bounded, Enum, Show)
 
 data NodeType = BodyNode | SigNode
-  deriving stock (Eq, Show, Bounded, Enum, Generic, Data)
+  deriving stock (Eq, Show, Read, Bounded, Enum, Generic, Data)
   deriving (FromJSON, ToJSON) via PrimerJSON NodeType
   deriving anyclass (NFData)

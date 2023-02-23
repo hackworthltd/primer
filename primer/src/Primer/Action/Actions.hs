@@ -102,6 +102,6 @@ data Action
     RenameForall Text
   | -- | Rename a case binding
     RenameCaseBinding Text
-  deriving stock (Eq, Show, Generic)
+  deriving stock (Eq, Show, Read, Generic)
   deriving (FromJSON, ToJSON) via PrimerJSON Action
   deriving anyclass (NFData)

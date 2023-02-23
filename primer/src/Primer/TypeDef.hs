@@ -34,7 +34,7 @@ import Primer.Name (Name)
 data TypeDef
   = TypeDefPrim PrimTypeDef
   | TypeDefAST ASTTypeDef
-  deriving stock (Eq, Show, Data, Generic)
+  deriving stock (Eq, Show, Read, Data, Generic)
   deriving (FromJSON, ToJSON) via PrimerJSON TypeDef
   deriving anyclass (NFData)
 
@@ -46,7 +46,7 @@ data PrimTypeDef = PrimTypeDef
   { primTypeDefParameters :: [Kind]
   , primTypeDefNameHints :: [Name]
   }
-  deriving stock (Eq, Show, Data, Generic)
+  deriving stock (Eq, Show, Read, Data, Generic)
   deriving (FromJSON, ToJSON) via PrimerJSON PrimTypeDef
   deriving anyclass (NFData)
 
@@ -60,7 +60,7 @@ data ASTTypeDef = ASTTypeDef
   , astTypeDefConstructors :: [ValCon]
   , astTypeDefNameHints :: [Name]
   }
-  deriving stock (Eq, Show, Data, Generic)
+  deriving stock (Eq, Show, Read, Data, Generic)
   deriving (FromJSON, ToJSON) via PrimerJSON ASTTypeDef
   deriving anyclass (NFData)
 
@@ -68,7 +68,7 @@ data ValCon = ValCon
   { valConName :: ValConName
   , valConArgs :: [Type' ()]
   }
-  deriving stock (Eq, Show, Data, Generic)
+  deriving stock (Eq, Show, Read, Data, Generic)
   deriving (FromJSON, ToJSON) via PrimerJSON ValCon
   deriving anyclass (NFData)
 

@@ -22,7 +22,7 @@ import Primer.JSON
 -- fancier things to provide better scoping guarantees etc.
 newtype Name = Name {unName :: Text}
   deriving stock (Eq, Ord, Generic, Data)
-  deriving newtype (Show, IsString)
+  deriving newtype (Show, Read, IsString)
   deriving newtype (FromJSON, ToJSON, FromJSONKey, ToJSONKey)
   deriving anyclass (NFData)
 
