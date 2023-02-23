@@ -532,15 +532,16 @@
         "tullia": "tullia"
       },
       "locked": {
-        "lastModified": 1677137079,
-        "narHash": "sha256-aOGiKYnwOuR2FAoX4SfyW9RcHRUhtVhQCCzuwzj4pFY=",
-        "owner": "input-output-hk",
+        "lastModified": 1677152116,
+        "narHash": "sha256-Urm/3WZykTTHL1bK56g1bh+Q0G1IO0kwJRWhqtU5iYI=",
+        "owner": "hackworthltd",
         "repo": "haskell.nix",
-        "rev": "9bc8625f18ed1aa633f5f3a52ee03d1718eaeebe",
+        "rev": "eaed1a3e204ee01d82148e06cd3c464207dd45ba",
         "type": "github"
       },
       "original": {
-        "owner": "input-output-hk",
+        "owner": "hackworthltd",
+        "ref": "dhess/fix-buildplatform",
         "repo": "haskell.nix",
         "type": "github"
       }

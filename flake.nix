@@ -2,7 +2,8 @@
   description = "Primer is a pedagogical functional programming language.";
 
   inputs = {
-    haskell-nix.url = github:input-output-hk/haskell.nix;
+    # Use our fork for now.
+    haskell-nix.url = "github:hackworthltd/haskell.nix/dhess/fix-buildplatform";
 
     # Let haskell.nix dictate the nixpkgs we use, as that will ensure
     # better haskell.nix cache hits.
@@ -241,14 +242,14 @@
           checks = {
             inherit weeder openapi-validate;
           }
-          # // (pkgs.lib.optionalAttrs (system == "x86_64-linux")
-          #   (inputs.hacknix.lib.testing.nixos.importFromDirectory ./nixos-tests
-          #     {
-          #       hostPkgs = pkgs;
-          #       defaults.imports = [ inputs.self.nixosModules.default ];
-          #     }
-          #   )
-          # )
+          // (pkgs.lib.optionalAttrs (system == "x86_64-linux")
+            (inputs.hacknix.lib.testing.nixos.importFromDirectory ./nixos-tests
+              {
+                hostPkgs = pkgs;
+                defaults.imports = [ inputs.self.nixosModules.default ];
+              }
+            )
+          )
 
           # Broken on NixOS. See:
           # https://github.com/hackworthltd/primer/issues/632
