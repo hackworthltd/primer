@@ -2,23 +2,26 @@
   description = "Primer is a pedagogical functional programming language.";
 
   inputs = {
-    haskell-nix.url = github:input-output-hk/haskell.nix;
+    # Temporarily use our fork. See:
+    #
+    # https://github.com/input-output-hk/haskell.nix/pull/1859
+    haskell-nix.url = "github:hackworthltd/haskell.nix/dhess/fix-buildplatform";
+
+    # We use this for some convenience functions only.
+    hacknix.url = "github:hackworthltd/hacknix";
+
+    flake-compat.url = "github:edolstra/flake-compat";
+    flake-compat.flake = false;
+
+    pre-commit-hooks-nix.url = "github:cachix/pre-commit-hooks.nix";
+
+    flake-parts.url = "github:hercules-ci/flake-parts";
 
     # Let haskell.nix dictate the nixpkgs we use, as that will ensure
     # better haskell.nix cache hits.
     nixpkgs.follows = "haskell-nix/nixpkgs-unstable";
-
-    # Pin hacknix, as versions after this one have a compatibility
-    # issue with the `nixpkgs-unstable` pin that haskell.nix uses.
-    hacknix.url = github:hackworthltd/hacknix/a7f4ac0d42c185d753ed4ad193876da08e0e2a03;
-
-    flake-compat.url = github:edolstra/flake-compat;
-    flake-compat.flake = false;
-
-    pre-commit-hooks-nix.url = github:cachix/pre-commit-hooks.nix;
+    hacknix.inputs.nixpkgs.follows = "nixpkgs";
     pre-commit-hooks-nix.inputs.nixpkgs.follows = "nixpkgs";
-
-    flake-parts.url = "github:hercules-ci/flake-parts";
   };
 
   outputs = inputs@ { flake-parts, ... }:
@@ -421,14 +424,14 @@
                   }
                   {
                     #TODO This shouldn't be necessary - see the commented-out `build-tool-depends` in primer.cabal.
-                    packages.primer.components.tests.primer-test.build-tools = [ final.haskell-nix.snapshots."lts-19.9".tasty-discover ];
+                    packages.primer.components.tests.primer-test.build-tools = [ (final.haskell-nix.tool ghcVersion "tasty-discover" { }) ];
                     packages.primer-rel8.components.tests.primer-rel8-test.build-tools = [
-                      final.haskell-nix.snapshots."lts-19.9".tasty-discover
+                      (final.haskell-nix.tool ghcVersion "tasty-discover" { })
                       final.postgresql
                       final.primer-sqitch
                     ];
                     packages.primer-service.components.tests.service-test.build-tools = [
-                      final.haskell-nix.snapshots."lts-19.9".tasty-discover
+                      (final.haskell-nix.tool ghcVersion "tasty-discover" { })
                       final.postgresql
                       final.primer-sqitch
                     ];
