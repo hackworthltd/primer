@@ -91,6 +91,8 @@ import Control.Monad.Trans.Maybe (MaybeT (MaybeT))
 
 import Control.Monad.Trans.Accum (AccumT (AccumT))
 
+import Control.Monad.Except (modifyError)
+
 -- | Insert an element at some index, returning `Nothing` if it is out of bounds.
 insertAt :: Int -> a -> [a] -> Maybe [a]
 insertAt n y xs =
@@ -118,10 +120,6 @@ findAndAdjustA :: Applicative m => (a -> Bool) -> (a -> m a) -> [a] -> m (Maybe 
 findAndAdjustA p f = \case
   [] -> pure Nothing
   x : xs -> if p x then Just . (: xs) <$> f x else (x :) <<$>> findAndAdjustA p f xs
-
--- | Change the type of an error.
-modifyError :: MonadError e' m => (e -> e') -> ExceptT e m a -> m a
-modifyError f = runExceptT >=> either (throwError . f) pure
 
 -- | @munless b x@ is `x` if `b` is 'False', otherwise it is 'mempty'.
 -- It's like 'Control.Monad.unless' but for Monoids rather than Applicatives.
