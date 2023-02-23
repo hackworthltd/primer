@@ -56,7 +56,7 @@ in
 
         # Default VM size is too small for our container.
         virtualisation = {
-          diskSize = 2048;
+          diskSize = 3072;
           memorySize = 1024;
         };
 
