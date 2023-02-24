@@ -531,16 +531,15 @@
         "tullia": "tullia"
       },
       "locked": {
-        "lastModified": 1677152116,
+        "lastModified": 1677194285,
         "narHash": "sha256-Urm/3WZykTTHL1bK56g1bh+Q0G1IO0kwJRWhqtU5iYI=",
-        "owner": "hackworthltd",
+        "owner": "input-output-hk",
         "repo": "haskell.nix",
-        "rev": "eaed1a3e204ee01d82148e06cd3c464207dd45ba",
+        "rev": "1ff7093a2eac9419e20abbdfe4368ba0b55dd432",
         "type": "github"
       },
       "original": {
-        "owner": "hackworthltd",
-        "ref": "dhess/fix-buildplatform",
+        "owner": "input-output-hk",
         "repo": "haskell.nix",
         "type": "github"
       }
@@ -1175,11 +1174,11 @@
         "nixpkgs-stable": "nixpkgs-stable_3"
       },
       "locked": {
-        "lastModified": 1676879534,
-        "narHash": "sha256-HU4RXcwsAX1u7AUbGOBDxkYQkeODcn+HZjXqKa1y/hk=",
+        "lastModified": 1677160285,
+        "narHash": "sha256-tBzpCjMP+P3Y3nKLYvdBkXBg3KvTMo3gvi8tLQaqXVY=",
         "owner": "cachix",
         "repo": "pre-commit-hooks.nix",
-        "rev": "c9495f017f67a11e9c9909b032dc7762dfc853cf",
+        "rev": "2bd861ab81469428d9c823ef72c4bb08372dd2c4",
         "type": "github"
       },
       "original": {

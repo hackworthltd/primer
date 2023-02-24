@@ -2,10 +2,7 @@
   description = "Primer is a pedagogical functional programming language.";
 
   inputs = {
-    # Temporarily use our fork. See:
-    #
-    # https://github.com/input-output-hk/haskell.nix/pull/1859
-    haskell-nix.url = "github:hackworthltd/haskell.nix/dhess/fix-buildplatform";
+    haskell-nix.url = "github:input-output-hk/haskell.nix";
 
     # We use this for some convenience functions only.
     hacknix.url = "github:hackworthltd/hacknix";
