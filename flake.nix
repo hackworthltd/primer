@@ -313,8 +313,13 @@
           benchmarks = {
             inherit (pkgs) primer-benchmark-results-html;
             inherit (pkgs) primer-benchmark-results-json;
-            inherit (pkgs) primer-benchmark-results-github-action-benchmark;
-          };
+            inherit (pkgs) primer-criterion-results-github-action-benchmark;
+          }
+          // (pkgs.lib.optionalAttrs (system == "x86_64-linux")
+            (
+              pkgs.nixos-bench // { inherit (pkgs) primer-benchmark-results-github-action-benchmark; }
+
+            ));
         };
 
       flake =
@@ -622,6 +627,8 @@
                 in
                 final.callPackage ./nix/pkgs/benchmarks {
                   inherit lastEnvChange;
+                  inherit (inputs.hacknix.lib.testing.nixos) importFromDirectory;
+                  inherit (inputs.self) nixosModules;
                 };
             in
             {
@@ -659,6 +666,7 @@
 
               primer-service = primerFlake.packages."primer-service:exe:primer-service";
               primer-openapi = primerFlake.packages."primer-service:exe:primer-openapi";
+              primer-replay = primerFlake.packages."primer-service:exe:primer-replay";
               primer-benchmark = primerFlake.packages."primer-benchmark:bench:primer-benchmark";
 
               inherit run-primer;
@@ -677,6 +685,8 @@
               # evaluates the `hydraJobs` or `ciJobs` outputs.
               inherit (benchmarks) primer-benchmark-results-html;
               inherit (benchmarks) primer-benchmark-results-json;
+              inherit (benchmarks) primer-criterion-results-github-action-benchmark;
+              inherit (benchmarks) nixos-bench;
               inherit (benchmarks) primer-benchmark-results-github-action-benchmark;
             }
           );

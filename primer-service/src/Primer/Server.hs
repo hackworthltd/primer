@@ -5,7 +5,9 @@
 
 -- | An HTTP service for the Primer API.
 module Primer.Server (
+  API (..),
   serve,
+  ServantLog (..),
   ConvertServerLogs,
   openAPIInfo,
 ) where
@@ -80,7 +82,7 @@ import Primer.Database qualified as Database (
  )
 import Primer.Eval (EvalLog)
 import Primer.Finite (getFinite)
-import Primer.Log (ConvertLogMessage, logWarning)
+import Primer.Log (ConvertLogMessage, logInfo, logWarning)
 import Primer.Name (unsafeMkName)
 import Primer.Pagination (pagedDefault)
 import Primer.Servant.API qualified as S
@@ -283,9 +285,16 @@ apiCors =
     , corsRequestHeaders = simpleHeaders <> [hAuthorization]
     }
 
+data ServantLog
+  = RequestStart
+  deriving stock (Show, Read)
+
 serve ::
   forall l.
-  (ConvertLogMessage PrimerErr l, ConvertServerLogs l) =>
+  ( ConvertLogMessage PrimerErr l
+  , ConvertServerLogs l
+  , ConvertLogMessage ServantLog l
+  ) =>
   Sessions ->
   TBQueue Database.Op ->
   Version ->
@@ -317,7 +326,10 @@ serve ss q v port logger = do
     nt m =
       Handler $
         ExceptT $
-          flip runLoggingT logger $
+          flip runLoggingT logger $ do
+            -- This is not guaranteed to be consecutive with the logs from the action in the case of concurrent actions
+            -- (unlikely in a dev environment, except perhaps a getProgram&getActions request)
+            logInfo RequestStart
             catch (Right <$> runPrimerM m (Env ss q v)) handler
 
     -- Catch exceptions from the API and convert them to Servant

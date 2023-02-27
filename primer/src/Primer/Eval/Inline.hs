@@ -30,7 +30,7 @@ data LocalVarInlineDetail k = LocalVarInlineDetail
   -- ^ If 'True', the variable being inlined is a type variable.
   -- Otherwise it is a term variable.
   }
-  deriving stock (Eq, Show, Generic)
+  deriving stock (Eq, Show, Read, Generic)
   deriving (FromJSON, ToJSON) via PrimerJSON (LocalVarInlineDetail k)
 
 data GlobalVarInlineDetail = GlobalVarInlineDetail
@@ -41,5 +41,5 @@ data GlobalVarInlineDetail = GlobalVarInlineDetail
   , after :: Expr
   -- ^ The result of the reduction
   }
-  deriving stock (Eq, Show, Generic)
+  deriving stock (Eq, Show, Read, Generic)
   deriving (FromJSON, ToJSON) via PrimerJSON GlobalVarInlineDetail

@@ -426,7 +426,7 @@ data EvalReq = EvalReq
   { evalReqExpr :: Expr
   , evalReqRedex :: ID
   }
-  deriving stock (Eq, Show, Generic)
+  deriving stock (Eq, Show, Read, Generic)
   deriving (FromJSON, ToJSON) via PrimerJSON EvalReq
 
 data EvalResp = EvalResp
@@ -434,7 +434,7 @@ data EvalResp = EvalResp
   , evalRespRedexes :: [ID]
   , evalRespDetail :: EvalDetail
   }
-  deriving stock (Eq, Show, Generic)
+  deriving stock (Eq, Show, Read, Generic)
   deriving (FromJSON, ToJSON) via PrimerJSON EvalResp
 
 data EvalFullReq = EvalFullReq
@@ -442,14 +442,14 @@ data EvalFullReq = EvalFullReq
   , evalFullCxtDir :: Dir -- is this expression in a syn/chk context, so we can tell if is an embedding.
   , evalFullMaxSteps :: TerminationBound
   }
-  deriving stock (Eq, Show, Generic)
+  deriving stock (Eq, Show, Read, Generic)
   deriving (FromJSON, ToJSON) via PrimerJSON EvalFullReq
 
 -- If we time out, we still return however far we got
 data EvalFullResp
   = EvalFullRespTimedOut Expr
   | EvalFullRespNormal Expr
-  deriving stock (Eq, Show, Generic)
+  deriving stock (Eq, Show, Read, Generic)
   deriving (FromJSON, ToJSON) via PrimerJSON EvalFullResp
 
 -- * Request handlers
@@ -1053,7 +1053,7 @@ data App = App
   { currentState :: AppState
   , initialState :: AppState
   }
-  deriving stock (Eq, Show, Generic)
+  deriving stock (Eq, Show, Read, Generic)
   deriving (FromJSON, ToJSON) via PrimerJSON App
   deriving anyclass (NFData)
 
@@ -1066,7 +1066,7 @@ data AppState = AppState
   , nameCounter :: NameCounter
   , prog :: Prog
   }
-  deriving stock (Eq, Show, Generic)
+  deriving stock (Eq, Show, Read, Generic)
   deriving (FromJSON, ToJSON) via PrimerJSON AppState
   deriving anyclass (NFData)
 

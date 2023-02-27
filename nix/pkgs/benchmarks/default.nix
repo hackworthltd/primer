@@ -1,19 +1,18 @@
 { primer-benchmark
-, runCommand
-, writeText
-, coreutils
-, jq
+, pkgs
 , lastEnvChange
+, importFromDirectory
+, nixosModules
 }:
 let
-  lastEnvChangeFile = writeText "lastEnvChange" lastEnvChange;
+  lastEnvChangeFile = pkgs.writeText "lastEnvChange" lastEnvChange;
   primer-benchmark-fixtures = ../../../primer-benchmark/fixtures;
 
   # Generate Primer benchmark results as HTML.
-  primer-benchmark-results-html = (runCommand "primer-benchmark-results-html" { }
+  primer-benchmark-results-html = (pkgs.runCommand "primer-benchmark-results-html" { }
     ''
       cp -r ${primer-benchmark-fixtures} fixtures
-      ${coreutils}/bin/mkdir -p $out
+      ${pkgs.coreutils}/bin/mkdir -p $out
       cp ${lastEnvChangeFile} $out/lastEnvChange
       ${primer-benchmark}/bin/primer-benchmark --output $out/results.html --regress cpuTime:iters --regress allocated:iters --regress numGcs:iters +RTS -T
     ''
@@ -23,10 +22,10 @@ let
     });
 
   # Generate Primer benchmark results as JSON.
-  primer-benchmark-results-json = (runCommand "primer-benchmark-results-json" { }
+  primer-benchmark-results-json = (pkgs.runCommand "primer-benchmark-results-json" { }
     ''
       cp -r ${primer-benchmark-fixtures} fixtures
-      ${coreutils}/bin/mkdir -p $out
+      ${pkgs.coreutils}/bin/mkdir -p $out
       cp ${lastEnvChangeFile} $out/lastEnvChange
       ${primer-benchmark}/bin/primer-benchmark --template json --output $out/results.json --regress cpuTime:iters --regress allocated:iters --regress numGcs:iters +RTS -T
     ''
@@ -48,9 +47,9 @@ let
   #
   # - each OLS regression measured by the benchmark run, and
   # - its R² value as a tooltip.
-  primer-benchmark-results-github-action-benchmark =
+  primer-criterion-results-github-action-benchmark =
     let
-      jqscript = writeText "extract-criterion.jq" ''
+      jqscript = pkgs.writeText "extract-criterion.jq" ''
         [.[]
         | .reportName as $basename
         | .reportAnalysis as $report
@@ -61,14 +60,37 @@ let
         ]
       '';
     in
-    (runCommand "primer-benchmark-results-github-action-benchmark" { }
+    (pkgs.runCommand "primer-criterion-results-github-action-benchmark" { }
       ''
-        ${coreutils}/bin/mkdir -p $out
+        ${pkgs.coreutils}/bin/mkdir -p $out
         cp ${lastEnvChangeFile} $out/lastEnvChange
-        ${jq}/bin/jq -f ${jqscript} ${primer-benchmark-results-json}/results.json > $out/results.json
+        ${pkgs.jq}/bin/jq -f ${jqscript} ${primer-benchmark-results-json}/results.json > $out/results.json
       ''
     );
+  nixos-bench =
+    importFromDirectory ../../../nixos-bench/fixtures
+      {
+        hostPkgs = pkgs;
+        defaults.imports = [ nixosModules.default ];
+      }
+  ;
+  primer-benchmark-results-github-action-benchmark =
+    pkgs.runCommand "primer-benchmark-results-github-action-benchmark" { } ''
+      ${pkgs.coreutils}/bin/mkdir -p $out
+      ${pkgs.coreutils}/bin/mkdir results
+      # Prefix names of each sample with the fixture it came from
+      ${pkgs.lib.concatStringsSep "\n"
+        (pkgs.lib.mapAttrsToList (name: value: "${pkgs.jq}/bin/jq 'map(.name=\"${name}/\"+.name)' <${value}/results.json > results/${name}")
+          nixos-bench)}
+      # Concatenate json lists
+      ${pkgs.jq}/bin/jq -n '[inputs[]]' \
+          ${pkgs.primer-criterion-results-github-action-benchmark}/results.json \
+          results/* \
+          > $out/results.json
+    '';
 in
 {
-  inherit primer-benchmark-results-html primer-benchmark-results-json primer-benchmark-results-github-action-benchmark;
+  inherit primer-benchmark-results-html
+    primer-benchmark-results-json primer-criterion-results-github-action-benchmark
+    nixos-bench primer-benchmark-results-github-action-benchmark;
 }

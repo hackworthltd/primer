@@ -456,5 +456,5 @@ data SomeNode
   | TypeNode Type
   | -- | If/when we model all bindings with 'Bind'', we will want to generalise this.
     CaseBindNode Bind
-  deriving stock (Eq, Show, Generic)
+  deriving stock (Eq, Show, Read, Generic)
   deriving (FromJSON, ToJSON) via PrimerJSON SomeNode

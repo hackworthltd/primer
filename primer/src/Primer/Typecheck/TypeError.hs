@@ -28,6 +28,6 @@ data TypeError
     WrongCaseBranches TyConName [ValConName]
   | CaseBranchWrongNumberPatterns
   | KindError KindError
-  deriving stock (Eq, Show, Generic)
+  deriving stock (Eq, Show, Read, Generic)
   deriving (FromJSON, ToJSON) via PrimerJSON TypeError
   deriving anyclass (NFData)

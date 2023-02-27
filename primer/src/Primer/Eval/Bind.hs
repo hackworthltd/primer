@@ -38,5 +38,5 @@ data BindRenameDetail t = BindRenameDetail
   , bodyID :: ID
   -- ^ the right hand side of the binders
   }
-  deriving stock (Eq, Show, Generic)
+  deriving stock (Eq, Show, Read, Generic)
   deriving (FromJSON, ToJSON) via PrimerJSON (BindRenameDetail t)

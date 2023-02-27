@@ -74,7 +74,7 @@ import Primer.Database (
  )
 import Primer.JSON (CustomJSON, PrimerJSON)
 import Primer.Name (Name)
-import Servant.API (FromHttpApiData (parseQueryParam))
+import Servant.API (FromHttpApiData (parseQueryParam), ToHttpApiData (toQueryParam))
 
 -- $orphanInstances
 --
@@ -157,12 +157,18 @@ deriving via PrimerJSON NewSessionReq instance ToSchema NewSessionReq
 deriving anyclass instance ToParamSchema Available.NoInputAction
 instance FromHttpApiData Available.NoInputAction where
   parseQueryParam = parseQueryParamRead "action"
+instance ToHttpApiData Available.NoInputAction where
+  toQueryParam = show
 deriving anyclass instance ToParamSchema Available.InputAction
 instance FromHttpApiData Available.InputAction where
   parseQueryParam = parseQueryParamRead "action"
+instance ToHttpApiData Available.InputAction where
+  toQueryParam = show
 deriving anyclass instance ToParamSchema Level
 instance FromHttpApiData Level where
   parseQueryParam = parseQueryParamRead "level"
+instance ToHttpApiData Level where
+  toQueryParam = show
 parseQueryParamRead :: Read a => Text -> Text -> Either Text a
 parseQueryParamRead m t = maybeToEither ("unknown " <> m <> ": " <> t) $ readMaybe t
 
