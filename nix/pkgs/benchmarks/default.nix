@@ -1,19 +1,16 @@
 { primer-benchmark
-, runCommand
-, writeText
-, coreutils
-, jq
+, pkgs
 , lastEnvChange
 }:
 let
-  lastEnvChangeFile = writeText "lastEnvChange" lastEnvChange;
+  lastEnvChangeFile = pkgs.writeText "lastEnvChange" lastEnvChange;
   primer-benchmark-fixtures = ../../../primer-benchmark/fixtures;
 
   # Generate Primer benchmark results as HTML.
-  primer-benchmark-results-html = (runCommand "primer-benchmark-results-html" { }
+  primer-benchmark-results-html = (pkgs.runCommand "primer-benchmark-results-html" { }
     ''
       cp -r ${primer-benchmark-fixtures} fixtures
-      ${coreutils}/bin/mkdir -p $out
+      ${pkgs.coreutils}/bin/mkdir -p $out
       cp ${lastEnvChangeFile} $out/lastEnvChange
       ${primer-benchmark}/bin/primer-benchmark --output $out/results.html --regress cpuTime:iters --regress allocated:iters --regress numGcs:iters +RTS -T
     ''
@@ -23,10 +20,10 @@ let
     });
 
   # Generate Primer benchmark results as JSON.
-  primer-benchmark-results-json = (runCommand "primer-benchmark-results-json" { }
+  primer-benchmark-results-json = (pkgs.runCommand "primer-benchmark-results-json" { }
     ''
       cp -r ${primer-benchmark-fixtures} fixtures
-      ${coreutils}/bin/mkdir -p $out
+      ${pkgs.coreutils}/bin/mkdir -p $out
       cp ${lastEnvChangeFile} $out/lastEnvChange
       ${primer-benchmark}/bin/primer-benchmark --template json --output $out/results.json --regress cpuTime:iters --regress allocated:iters --regress numGcs:iters +RTS -T
     ''
@@ -50,7 +47,7 @@ let
   # - its R² value as a tooltip.
   primer-benchmark-results-github-action-benchmark =
     let
-      jqscript = writeText "extract-criterion.jq" ''
+      jqscript = pkgs.writeText "extract-criterion.jq" ''
         [.[]
         | .reportName as $basename
         | .reportAnalysis as $report
@@ -61,11 +58,11 @@ let
         ]
       '';
     in
-    (runCommand "primer-benchmark-results-github-action-benchmark" { }
+    (pkgs.runCommand "primer-benchmark-results-github-action-benchmark" { }
       ''
-        ${coreutils}/bin/mkdir -p $out
+        ${pkgs.coreutils}/bin/mkdir -p $out
         cp ${lastEnvChangeFile} $out/lastEnvChange
-        ${jq}/bin/jq -f ${jqscript} ${primer-benchmark-results-json}/results.json > $out/results.json
+        ${pkgs.jq}/bin/jq -f ${jqscript} ${primer-benchmark-results-json}/results.json > $out/results.json
       ''
     );
 in
