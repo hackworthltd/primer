@@ -6,6 +6,9 @@ module Primer.Core.Transform (
   unfoldApp,
   foldApp,
   unfoldAPP,
+  foldAPP,
+  decomposeAppCon,
+  mkAppCon,
   unfoldTApp,
   decomposeTAppCon,
   foldTApp,
@@ -31,6 +34,7 @@ import Primer.Core (
   TyVarName,
   Type,
   Type' (..),
+  ValConName,
   bindName,
   typesInExpr,
  )
@@ -227,6 +231,26 @@ unfoldAPP = second reverse . go
   where
     go (APP _ f x) = let (g, args) = go f in (g, x : args)
     go e = (e, [])
+
+-- | Fold an application head and a list of type arguments into a single expression.
+foldAPP :: (Foldable t, MonadFresh ID m) => Expr -> t Type -> m Expr
+foldAPP = foldlM $ \a b -> do
+  m <- meta
+  pure $ APP m a b
+
+-- | Decompose @C @A @B x y z@ to @(C,[A,B],[x,y,z])@
+decomposeAppCon :: Expr' a b -> Maybe (ValConName, a, [Type' b], [Expr' a b])
+decomposeAppCon =
+  unfoldApp <&> first unfoldAPP <&> \case
+    ((Con m c, tys), tms) -> Just (c, m, tys, tms)
+    _ -> Nothing
+
+-- | Apply a constructor to a spine of types and a spine of terms
+mkAppCon :: (Foldable t1, Foldable t2, MonadFresh ID m) => ValConName -> t1 Type -> t2 Expr -> m Expr
+mkAppCon c tys tms = do
+  c' <- (`Con` c) <$> meta
+  aPPs <- c' `foldAPP` tys
+  aPPs `foldApp` tms
 
 -- | Unfold a nested type-level application into the application head and a list of arguments.
 unfoldTApp :: Type' a -> (Type' a, [Type' a])
