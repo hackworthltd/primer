@@ -90,7 +90,7 @@ import Primer.Core (
   getID,
  )
 import Primer.Core.DSL (ann, letType, let_, letrec, lvar, tlet, tvar)
-import Primer.Core.Transform (unfoldAPP, unfoldApp)
+import Primer.Core.Transform (decomposeTAppCon, unfoldAPP, unfoldApp)
 import Primer.Core.Utils (
   alphaEqTy,
   concreteTy,
@@ -147,7 +147,6 @@ import Primer.TypeDef (
   astTypeDefParameters,
  )
 import Primer.Typecheck.Utils (
-  decomposeTAppCon,
   lookupConstructor,
  )
 import Primer.Zipper (

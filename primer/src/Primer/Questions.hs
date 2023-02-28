@@ -25,6 +25,7 @@ import Primer.Core (
   TyVarName,
   Type' (..),
  )
+import Primer.Core.Transform (decomposeTAppCon)
 import Primer.Def (
   DefMap,
   defType,
@@ -33,7 +34,6 @@ import Primer.Name (Name, unName, unsafeMkName)
 import Primer.Name.Fresh (mkAvoidForFreshName, mkAvoidForFreshNameTy, mkAvoidForFreshNameTypeZ)
 import Primer.TypeDef (typeDefNameHints)
 import Primer.Typecheck.Cxt (Cxt, typeDefs)
-import Primer.Typecheck.Utils (decomposeTAppCon)
 import Primer.Zipper (
   ExprZ,
   TypeZ,

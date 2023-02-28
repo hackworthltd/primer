@@ -7,6 +7,9 @@ module Primer.Core.Transform (
   foldApp,
   unfoldAPP,
   unfoldTApp,
+  decomposeTAppCon,
+  foldTApp,
+  mkTAppCon,
   unfoldFun,
 ) where
 
@@ -31,6 +34,7 @@ import Primer.Core (
   typesInExpr,
  )
 import Primer.Core.DSL (meta)
+import Primer.Core.Meta (TyConName)
 import Primer.Core.Utils (_freeVars, _freeVarsTy)
 
 -- AST transformations.
@@ -215,7 +219,7 @@ unfoldApp = second reverse . go
     go (App _ f x) = let (g, args) = go f in (g, x : args)
     go e = (e, [])
 
--- | Fold an application head and a list of arguments in to a single expression.
+-- | Fold an application head and a list of arguments into a single expression.
 foldApp :: (Foldable t, MonadFresh ID m) => Expr -> t Expr -> m Expr
 foldApp = foldlM $ \a b -> do
   m <- meta
@@ -234,6 +238,21 @@ unfoldTApp = second reverse . go
   where
     go (TApp _ f x) = let (g, args) = go f in (g, x : args)
     go e = (e, [])
+
+-- | Fold an type-level application head and a list of arguments into a single expression.
+foldTApp :: (Monad m, Foldable t) => m a -> Type' a -> t (Type' a) -> m (Type' a)
+foldTApp m = foldlM $ \a b -> (\m' -> TApp m' a b) <$> m
+
+-- | @mkTAppCon C [X,Y,Z] = C X Y Z@
+mkTAppCon :: TyConName -> [Type' ()] -> Type' ()
+mkTAppCon c = runIdentity . foldTApp (pure ()) (TCon () c)
+
+-- | Decompose @C X Y Z@ to @(C,[X,Y,Z])@
+decomposeTAppCon :: Type' a -> Maybe (TyConName, [Type' a])
+decomposeTAppCon =
+  unfoldTApp <&> \case
+    (TCon _ con, args) -> Just (con, args)
+    _ -> Nothing
 
 -- | Split a function type into an array of argument types and the result type.
 -- Takes two arguments: the lhs and rhs of the topmost function node.

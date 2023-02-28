@@ -118,6 +118,7 @@ import Primer.Core (
   _typeMeta,
  )
 import Primer.Core.DSL (S, branch, create', emptyHole, meta, meta')
+import Primer.Core.Transform (decomposeTAppCon, mkTAppCon)
 import Primer.Core.Utils (
   alphaEqTy,
   forgetTypeMetadata,
@@ -170,7 +171,6 @@ import Primer.Typecheck.TypeError (TypeError (..))
 import Primer.Typecheck.Utils (
   TypeDefError (TDIHoleType, TDINotADT, TDINotSaturated, TDIUnknown),
   TypeDefInfo (TypeDefInfo),
-  decomposeTAppCon,
   getGlobalBaseNames,
   getGlobalNames,
   getTypeDefInfo,
@@ -179,7 +179,6 @@ import Primer.Typecheck.Utils (
   instantiateValCons',
   lookupConstructor,
   maybeTypeOf,
-  mkTAppCon,
   typeOf,
   _typecache,
  )
