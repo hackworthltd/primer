@@ -8,8 +8,6 @@ module Primer.Typecheck.Utils (
   instantiateValCons,
   instantiateValCons',
   lookupConstructor,
-  mkTAppCon,
-  decomposeTAppCon,
   maybeTypeOf,
   typeOf,
   _typecache,
@@ -29,7 +27,8 @@ import Data.Tuple.Extra (fst3)
 import Optics (Lens', view, (%))
 import Primer.Core (Expr, Expr', GlobalName (baseName, qualifiedModule), ModuleName, TypeCache, _exprMetaLens)
 import Primer.Core.Meta (Meta, TyConName, ValConName, _type)
-import Primer.Core.Type (Kind, Type' (TApp, TCon, TEmptyHole, THole))
+import Primer.Core.Transform (decomposeTAppCon)
+import Primer.Core.Type (Kind, Type' (TEmptyHole, THole))
 import Primer.Name (Name, NameCounter)
 import Primer.Subst (substTySimul)
 import Primer.TypeDef (
@@ -50,10 +49,6 @@ lookupConstructor tyDefs c =
         vc <- astTypeDefConstructors td
         pure (vc, tc, td)
    in find ((== c) . valConName . fst3) allCons
-
--- | @mkTAppCon C [X,Y,Z] = C X Y Z@
-mkTAppCon :: TyConName -> [Type' ()] -> Type' ()
-mkTAppCon c = foldl' (TApp ()) (TCon () c)
 
 data TypeDefError
   = TDIHoleType -- a type hole
@@ -125,17 +120,6 @@ instantiateValCons' tyDefs t =
             f c = (valConName c, map (\a -> substTySimul (M.fromList $ zip defparams params) a) $ valConArgs c)
         pure (tc, tda, map f $ astTypeDefConstructors tda)
 
--- | Decompose @C X Y Z@ to @(C,[X,Y,Z])@
-decomposeTAppCon :: Type' a -> Maybe (TyConName, [Type' a])
-decomposeTAppCon ty = do
-  (con, args) <- go ty
-  pure (con, reverse args)
-  where
-    go (TCon _ con) = Just (con, [])
-    go (TApp _ t s) = do
-      (con, args) <- go t
-      pure (con, s : args)
-    go _ = Nothing
 
 -- | Get the (potentially absent) type of an 'Expr'
 maybeTypeOf :: Expr -> Maybe TypeCache
