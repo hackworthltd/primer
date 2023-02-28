@@ -60,7 +60,6 @@ import Primer.Core (
     Ann,
     App,
     Case,
-    Con,
     LAM,
     Lam,
     Let,
@@ -90,7 +89,7 @@ import Primer.Core (
   getID,
  )
 import Primer.Core.DSL (ann, letType, let_, letrec, lvar, tlet, tvar)
-import Primer.Core.Transform (decomposeTAppCon, unfoldAPP, unfoldApp)
+import Primer.Core.Transform (decomposeAppCon, decomposeTAppCon)
 import Primer.Core.Utils (
   alphaEqTy,
   concreteTy,
@@ -550,14 +549,9 @@ viewCaseRedex tydefs = \case
           <|> pure (formCaseRedex c abstractArgTys tyargs args patterns br (orig, expr, cID))
   _ -> mzero
   where
-    extractCon expr =
-      -- NB: constructors never have mixed App and APPs: they are always of the
-      -- form C @a @b ... x y ...
-      let (h, as) = unfoldApp expr
-          (h', params) = unfoldAPP h
-       in case h' of
-            Con m c -> pure (c, getID m, params, as)
-            _ -> mzero
+    extractCon expr = case decomposeAppCon expr of
+      Just (c, m, params, as) -> pure (c, getID m, params, as)
+      _ -> mzero
     extractBranch c brs =
       case find (\(CaseBranch n _ _) -> n == c) brs of
         Nothing -> do
