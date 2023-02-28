@@ -157,6 +157,7 @@ import Primer.Core (
 import Primer.Core.DSL qualified as DSL
 import Primer.Core.Meta (LocalName)
 import Primer.Core.Meta qualified as Core
+import Primer.Core.Transform (decomposeAppCon)
 import Primer.Database (
   OffsetLimit,
   OpStatus,
@@ -707,6 +708,14 @@ viewTreeExpr opts@ExprTreeOpts{patternsUnder} e0 = case e0 of
       , childTrees = [viewTreeExpr opts e, viewTreeType t]
       , rightChild = Nothing
       }
+  e
+    | Just (c, m, tyApps, tmApps) <- decomposeAppCon e ->
+        Tree
+          { nodeId = show $ m ^. _id
+          , body = TextBody $ RecordPair Flavor.Con $ globalName c
+          , childTrees = map viewTreeType tyApps ++ map (viewTreeExpr opts) tmApps
+          , rightChild = Nothing
+          }
   App _ e1 e2 ->
     Tree
       { nodeId

@@ -167,27 +167,21 @@ Tree
                                                                 )
                                                             , childTrees =
                                                                 [ Tree
-                                                                    { nodeId = "26"
-                                                                    , body = NoBody APP
+                                                                    { nodeId = "27"
+                                                                    , body = TextBody
+                                                                        ( RecordPair
+                                                                            { fst = Con
+                                                                            , snd = Name
+                                                                                { qualifiedModule = Just
+                                                                                    ( ModuleName
+                                                                                        { unModuleName = "Builtins" :| [] }
+                                                                                    )
+                                                                                , baseName = "Left"
+                                                                                }
+                                                                            }
+                                                                        )
                                                                     , childTrees =
                                                                         [ Tree
-                                                                            { nodeId = "27"
-                                                                            , body = TextBody
-                                                                                ( RecordPair
-                                                                                    { fst = Con
-                                                                                    , snd = Name
-                                                                                        { qualifiedModule = Just
-                                                                                            ( ModuleName
-                                                                                                { unModuleName = "Builtins" :| [] }
-                                                                                            )
-                                                                                        , baseName = "Left"
-                                                                                        }
-                                                                                    }
-                                                                                )
-                                                                            , childTrees = []
-                                                                            , rightChild = Nothing
-                                                                            }
-                                                                        , Tree
                                                                             { nodeId = "28"
                                                                             , body = TextBody
                                                                                 ( RecordPair
