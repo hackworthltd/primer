@@ -6,6 +6,7 @@ module Primer.Core.Transform (
   unfoldApp,
   foldApp,
   unfoldAPP,
+  decomposeAppCon,
   unfoldTApp,
   decomposeTAppCon,
   foldTApp,
@@ -30,6 +31,7 @@ import Primer.Core (
   TmVarRef (..),
   TyVarName,
   Type' (..),
+  ValConName,
   bindName,
   typesInExpr,
  )
@@ -231,6 +233,13 @@ unfoldAPP = second reverse . go
   where
     go (APP _ f x) = let (g, args) = go f in (g, x : args)
     go e = (e, [])
+
+-- | Decompose @C @A @B x y z@ to @(C,[A,B],[x,y,z])@
+decomposeAppCon :: Expr' a b -> Maybe (ValConName, a, [Type' b], [Expr' a b])
+decomposeAppCon =
+  unfoldApp <&> first unfoldAPP <&> \case
+    ((Con m c, tys), tms) -> Just (c, m, tys, tms)
+    _ -> Nothing
 
 -- | Unfold a nested type-level application into the application head and a list of arguments.
 unfoldTApp :: Type' a -> (Type' a, [Type' a])
