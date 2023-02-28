@@ -709,9 +709,9 @@ viewTreeExpr opts@ExprTreeOpts{patternsUnder} e0 = case e0 of
       , rightChild = Nothing
       }
   e
-    | Just (c, m, tyApps, tmApps) <- decomposeAppCon e ->
+    | Just (c, _, tyApps, tmApps) <- decomposeAppCon e ->
         Tree
-          { nodeId = show $ m ^. _id
+          { nodeId
           , body = TextBody $ RecordPair Flavor.Con $ globalName c
           , childTrees = map viewTreeType tyApps ++ map (viewTreeExpr opts) tmApps
           , rightChild = Nothing
