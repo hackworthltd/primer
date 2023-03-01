@@ -587,6 +587,7 @@ constructLAM mx ze = do
   result <- flip replace ze <$> lAM x (pure (target ze))
   moveExpr Child1 result
 
+-- TODO (saturated constructors) this action will make no sense once full-saturation is enforced
 constructCon :: ActionM m => QualifiedText -> ExprZ -> m ExprZ
 constructCon c ze = case target ze of
   EmptyHole{} -> flip replace ze <$> con (unsafeMkGlobalName c)
@@ -605,6 +606,7 @@ constructSatCon c ze = case target ze of
       getConstructorType n >>= \case
         Left err -> throwError $ SaturatedApplicationError $ Left err
         Right t -> pure t
+    -- TODO (saturated constructors) this use of application nodes will be rejected once full-saturation is enforced
     flip replace ze <$> mkSaturatedApplication (con n) ctorType
   e -> throwError $ NeedEmptyHole (ConstructSaturatedCon c) e
   where
@@ -633,6 +635,7 @@ constructRefinedCon c ze = do
   let (tycxt, _) = localVariablesInScopeExpr (Left ze)
   cxt <- asks $ TC.extendLocalCxtTys tycxt
   case target ze of
+    -- TODO (saturated constructors) this use of application nodes will be rejected once full-saturation is enforced
     EmptyHole{} -> flip replace ze <$> mkRefinedApplication cxt (con n) cTy tgtTyCache
     e -> throwError $ NeedEmptyHole (ConstructRefinedCon c) e
 

@@ -735,9 +735,16 @@ applyProgAction prog mdefName = \case
           )
           type_
       updateDefs = traverseOf (traversed % #_DefAST % #astDefExpr) (updateDecons <=< updateCons)
-      updateCons e = case unfoldApp e of
-        (h, args) -> case unfoldAPP h of
-          (Con _ con', _tyArgs) | con' == con -> do
+      updateCons e = case (e, unfoldApp e) of
+        (Con m con' tys tms, _) | con' == con -> do
+          m' <- DSL.meta
+          case adjustAt index (Hole m') tms of
+            Just args' -> Con m con' tys <$> traverse (descendM updateCons) args'
+            Nothing -> throwError $ ConNotSaturated con
+        -- TODO (saturated constructors) this deconstruction of application nodes can be removed once full-saturation is enforced
+        -- (it currently assumes that constructors will either be fully saturated or have no syntactic arguments)
+        (_, (h, args)) -> case unfoldAPP h of
+          (Con _ con' [] [], _tyArgs) | con' == con -> do
             m' <- DSL.meta
             case adjustAt index (Hole m') args of
               Just args' -> foldApp h =<< traverse (descendM updateCons) args'
@@ -788,9 +795,16 @@ applyProgAction prog mdefName = \case
       -- synthesis of the scrutinee's type, using the old typedef. Thus we must
       -- not update the scrutinee before this happens.
       updateDefs = traverseOf (traversed % #_DefAST % #astDefExpr) (updateCons <=< updateDecons)
-      updateCons e = case unfoldApp e of
-        (h, args) -> case unfoldAPP h of
-          (Con _ con', _tyArgs) | con' == con -> do
+      updateCons e = case (e, unfoldApp e) of
+        (Con m con' tys tms, _) | con' == con -> do
+          m' <- DSL.meta
+          case insertAt index (EmptyHole m') tms of
+            Just args' -> Con m con' tys <$> traverse (descendM updateCons) args'
+            Nothing -> throwError $ ConNotSaturated con
+        -- TODO (saturated constructors) this deconstruction of application nodes can be removed once full-saturation is enforced
+        -- (it currently assumes that constructors will either be fully saturated or have no syntactic arguments)
+        (_, (h, args)) -> case unfoldAPP h of
+          (Con _ con' [] [], _tyArgs) | con' == con -> do
             m' <- DSL.meta
             case insertAt index (EmptyHole m') args of
               Just args' -> foldApp h =<< traverse (descendM updateCons) args'
