@@ -33,7 +33,7 @@ in
 
       # This is essential, or else Sqitch will fail.
       time.timeZone = "UTC";
-      environment.systemPackages = with pkgs; [ primer-sqitch ];
+      environment.systemPackages = with pkgs; [ primer-sqitch-postgresql ];
       systemd.services.sqitch = {
         wants = [ "postgresql.service" ];
         wantedBy = [ "multi-user.target" ];
@@ -43,7 +43,7 @@ in
           RemainAfterExit = true;
           User = "primer";
         };
-        script = "${pkgs.primer-sqitch}/bin/primer-sqitch deploy --verify db:postgres:primer";
+        script = "${pkgs.primer-sqitch-postgresql}/bin/primer-sqitch-postgresql deploy --verify db:postgres:primer";
       };
       users.users.primer =
         {

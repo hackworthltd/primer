@@ -227,7 +227,7 @@
               delete-all-local-sessions
 
               sqitch
-              primer-sqitch
+              primer-sqitch-postgresql
               primer-pg-prove
 
               deploy-postgresql-container
@@ -298,7 +298,7 @@
                 connect-local-db
                 delete-all-local-sessions
 
-                primer-sqitch
+                primer-sqitch-postgresql
 
                 deploy-postgresql-container
                 start-postgresql-container
@@ -439,12 +439,12 @@
                     packages.primer-rel8.components.tests.primer-rel8-test.build-tools = [
                       (final.haskell-nix.tool ghcVersion "tasty-discover" { })
                       final.postgresql
-                      final.primer-sqitch
+                      final.primer-sqitch-postgresql
                     ];
                     packages.primer-service.components.tests.service-test.build-tools = [
                       (final.haskell-nix.tool ghcVersion "tasty-discover" { })
                       final.postgresql
-                      final.primer-sqitch
+                      final.primer-sqitch-postgresql
                     ];
                   }
                   (
@@ -505,7 +505,7 @@
                     # sqitch & related
                     nix-generate-from-cpan
                     sqitch
-                    primer-sqitch
+                    primer-sqitch-postgresql
                     primer-pg-prove
 
                     # Local scripts.
@@ -543,12 +543,12 @@
                 name = "run-primer";
                 runtimeInputs = [
                   final.primer-service
-                  final.primer-sqitch
+                  final.primer-sqitch-postgresql
                 ];
                 text = ''
                   DATABASE_URL="${final.lib.primer.postgres-dev-primer-url}"
                   export DATABASE_URL
-                  primer-sqitch deploy --verify db:$DATABASE_URL
+                  primer-sqitch-postgresql deploy --verify db:$DATABASE_URL
                   primer-service serve ${version} "$@" +RTS -T
                 '';
               };
@@ -670,7 +670,7 @@
                 delete-local-db
                 dump-local-db
                 restore-local-db
-                primer-sqitch
+                primer-sqitch-postgresql
                 primer-pg-prove
                 connect-local-db
                 delete-all-local-sessions;

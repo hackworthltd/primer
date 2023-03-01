@@ -37,7 +37,7 @@
         };
 
       environment.systemPackages = with pkgs; [
-        primer-sqitch
+        primer-sqitch-postgresql
         primer-pg-prove
       ];
     };
@@ -51,7 +51,7 @@
       start_all()
       server.wait_for_unit("postgresql")
       server.succeed(
-        "sudo -u primer primer-sqitch deploy --verify db:pg:primer"
+        "sudo -u primer primer-sqitch-postgresql deploy --verify db:pg:primer"
       )
       server.succeed(
         "sudo -u primer primer-pg-prove"

@@ -33,7 +33,7 @@ in
       networking.firewall.allowedTCPPorts = [ 5432 ];
 
       environment.systemPackages = with pkgs; [
-        primer-sqitch
+        primer-sqitch-postgresql
       ];
     };
 
@@ -107,7 +107,7 @@ in
           primer.systemctl("stop podman-primer-service.service")
 
       postgres.succeed(
-          "primer-sqitch deploy --verify db:${dbUrl}"
+          "primer-sqitch-postgresql deploy --verify db:${dbUrl}"
       )
 
       primer.systemctl("start podman-primer-service.service")

@@ -88,22 +88,22 @@ user = "postgres"
 password :: String
 password = "primer"
 
--- | This action requires that the Sqitch script @primer-sqitch@ is in
+-- | This action requires that the Sqitch script @primer-sqitch-postgresql@ is in
 -- the process's path. If you run this test via Nix, Nix will
 -- guarantee that precondition.
 deployDb :: Int -> DB -> IO ()
 deployDb port _ =
   let url = "db:postgres://" <> user <> ":" <> password <> "@" <> host <> ":" <> show port
-   in runProcess_ $ proc "primer-sqitch" ["deploy", "--verify", url]
+   in runProcess_ $ proc "primer-sqitch-postgresql" ["deploy", "--verify", url]
 
--- | This action requires that the Sqitch script @primer-sqitch@ is in
+-- | This action requires that the Sqitch script @primer-sqitch-postgresql@ is in
 -- the process's path. If you run this test via Nix, Nix will
 -- guarantee that precondition.
 sqitchEventChangeId :: IO String
 sqitchEventChangeId = do
-  (status, output) <- readProcessStdout $ proc "primer-sqitch" ["plan", "--max-count=1", "--format=format:%h", "--no-headers"]
+  (status, output) <- readProcessStdout $ proc "primer-sqitch-postgresql" ["plan", "--max-count=1", "--format=format:%h", "--no-headers"]
   case status of
-    ExitFailure n -> error $ "`primer-sqitch plan` failed with exit code " <> show n
+    ExitFailure n -> error $ "`primer-sqitch-postgresql plan` failed with exit code " <> show n
     _ -> pure $ takeWhile (/= '\n') $ BL.toString output
 
 withDbSetup :: (Pool -> IO ()) -> IO ()

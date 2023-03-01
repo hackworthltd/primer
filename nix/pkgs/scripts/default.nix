@@ -21,8 +21,8 @@ let
   postgresContainer = "postgres-primer";
 
   # Run any sqitch command using the Primer schema.
-  primer-sqitch = stdenv.mkDerivation {
-    pname = "primer-sqitch";
+  primer-sqitch-postgresql = stdenv.mkDerivation {
+    pname = "primer-sqitch-postgresql";
     version = "1.0";
     nativeBuildInputs = [ sqitch makeWrapper ];
     src = postgresql-sqitch-dir;
@@ -36,7 +36,7 @@ let
       mv bundle $out/libexec/sqitch
 
       mkdir -p $out/bin
-      makeWrapper "${sqitch}/bin/sqitch" "$out/bin/primer-sqitch" \
+      makeWrapper "${sqitch}/bin/sqitch" "$out/bin/primer-sqitch-postgresql" \
         --prefix PATH : "${lib.makeBinPath [postgresql]}" \
         --run "cd $out/libexec/sqitch"
     '';
@@ -68,7 +68,7 @@ let
   };
 in
 {
-  inherit primer-sqitch;
+  inherit primer-sqitch-postgresql;
   inherit primer-pg-prove;
 
   deploy-postgresql-container = writeShellApplication {
@@ -118,50 +118,50 @@ in
   deploy-local-db = writeShellApplication {
     name = "deploy-local-db";
     runtimeInputs = [
-      primer-sqitch
+      primer-sqitch-postgresql
     ];
     text = ''
-      primer-sqitch deploy --verify db:${lib.primer.postgres-dev-primer-url}
+      primer-sqitch-postgresql deploy --verify db:${lib.primer.postgres-dev-primer-url}
     '';
   };
 
   verify-local-db = writeShellApplication {
     name = "verify-local-db";
     runtimeInputs = [
-      primer-sqitch
+      primer-sqitch-postgresql
     ];
     text = ''
-      primer-sqitch verify db:${lib.primer.postgres-dev-primer-url}
+      primer-sqitch-postgresql verify db:${lib.primer.postgres-dev-primer-url}
     '';
   };
 
   revert-local-db = writeShellApplication {
     name = "revert-local-db";
     runtimeInputs = [
-      primer-sqitch
+      primer-sqitch-postgresql
     ];
     text = ''
-      primer-sqitch revert db:${lib.primer.postgres-dev-primer-url} "$@"
+      primer-sqitch-postgresql revert db:${lib.primer.postgres-dev-primer-url} "$@"
     '';
   };
 
   status-local-db = writeShellApplication {
     name = "status-local-db";
     runtimeInputs = [
-      primer-sqitch
+      primer-sqitch-postgresql
     ];
     text = ''
-      primer-sqitch status db:${lib.primer.postgres-dev-primer-url}
+      primer-sqitch-postgresql status db:${lib.primer.postgres-dev-primer-url}
     '';
   };
 
   log-local-db = writeShellApplication {
     name = "log-local-db";
     runtimeInputs = [
-      primer-sqitch
+      primer-sqitch-postgresql
     ];
     text = ''
-      primer-sqitch log db:${lib.primer.postgres-dev-primer-url}
+      primer-sqitch-postgresql log db:${lib.primer.postgres-dev-primer-url}
     '';
   };
 
@@ -229,14 +229,14 @@ in
     name = "primer-service-entrypoint";
     runtimeInputs = [
       primer-service
-      primer-sqitch
+      primer-sqitch-postgresql
     ];
     text = ''
       if [ -z ''${DATABASE_URL+x} ]; then
         echo "DATABASE_URL is not set, exiting." >&2
         exit 1
       fi
-      primer-sqitch verify db:"$DATABASE_URL"
+      primer-sqitch-postgresql verify db:"$DATABASE_URL"
       exec primer-service serve "${version}" --port ${toString lib.primer.defaultServicePort} +RTS -T
     '';
   };
