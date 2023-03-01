@@ -12,6 +12,7 @@
 , shortenPerlShebang
 , mysqlSupport ? false
 , postgresqlSupport ? false
+, sqliteSupport ? false
 }:
 
 let
@@ -22,6 +23,7 @@ let
   # nix-generate-from-cpan Test::Exit
   # nix-generate-from-cpan Return::MultiLevel
   # nix-generate-from-cpan URI::db
+  # nix-generate-from-cpan DBD::SQLite
   # nix-generate-from-cpan App::Sqitch
 
   AlgorithmBackoff = perlPackages.buildPerlPackage {
@@ -79,6 +81,20 @@ let
     meta = {
       homepage = "https://search.cpan.org/dist/URI-db/";
       description = "Database URIs";
+      license = with lib.licenses; [ artistic1 gpl1Plus ];
+    };
+  };
+
+  DBDSQLite = perlPackages.buildPerlPackage {
+    pname = "DBD-SQLite";
+    version = "1.72";
+    src = fetchurl {
+      url = "mirror://cpan/authors/id/I/IS/ISHIGAKI/DBD-SQLite-1.72.tar.gz";
+      sha256 = "5ca41e61eb52b52bd862a3088b912a75fe70910ac789b9a9983e0a449e94f551";
+    };
+    propagatedBuildInputs = with perlPackages; [ DBI ];
+    meta = {
+      description = "Self Contained SQLite RDBMS in a DBI Driver";
       license = with lib.licenses; [ artistic1 gpl1Plus ];
     };
   };
@@ -151,7 +167,8 @@ let
 
   modules = with perlPackages; [ ]
     ++ lib.optional mysqlSupport DBDmysql
-    ++ lib.optional postgresqlSupport DBDPg;
+    ++ lib.optional postgresqlSupport DBDPg
+    ++ lib.optional sqliteSupport DBDSQLite;
 in
 
 stdenv.mkDerivation {
