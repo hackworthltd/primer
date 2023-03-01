@@ -238,7 +238,11 @@ unfoldAPP = second reverse . go
 decomposeAppCon :: Expr' a b -> Maybe (ValConName, a, [Type' b], [Expr' a b])
 decomposeAppCon =
   unfoldApp <&> first unfoldAPP <&> \case
-    ((Con m c, tys), tms) -> Just (c, m, tys, tms)
+    -- TODO (saturated constructors): This is suspicious (we reorder types and terms), but
+    -- (a) for well-typed terms, either tms0 or tys will be empty (since constructors only have top-level foralls)
+    -- (b) the situation that constructors can be on the left of an app or aPP node is temporary
+    --     and shortly decomposeAppCon will become a trivial match on the 'Con' constructor.
+    ((Con m c tys0 tms0, tys), tms) -> Just (c, m, tys0 ++ tys, tms0 ++ tms)
     _ -> Nothing
 
 -- | Unfold a nested type-level application into the application head and a list of arguments.

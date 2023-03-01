@@ -110,7 +110,7 @@ ann :: MonadFresh ID m => m Expr -> m Type -> m Expr
 ann e t = Ann <$> meta <*> e <*> t
 
 con :: MonadFresh ID m => ValConName -> m Expr
-con c = Con <$> meta <*> pure c
+con c = Con <$> meta <*> pure c <*> pure [] <*> pure []
 
 lvar :: MonadFresh ID m => LVarName -> m Expr
 lvar v = Var <$> meta <*> pure (LocalVarRef v)

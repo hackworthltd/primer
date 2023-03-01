@@ -87,6 +87,7 @@ import Primer.Typecheck (
   TypeDefError (TDIHoleType),
   buildTypingContextFromModules',
   consistentKinds,
+  decomposeTAppCon,
   extendLocalCxt,
   extendLocalCxtTy,
   extendLocalCxtTys,
@@ -211,10 +212,11 @@ freshen fvs i n =
         else m
 
 -- genSyns T with cxt Γ should generate (e,S) st Γ |- e ∈ S and S ~ T (i.e. same up to holes and alpha)
-genSyns :: TypeG -> GenT WT (ExprG, TypeG)
+genSyns :: HasCallStack => TypeG -> GenT WT (ExprG, TypeG)
 genSyns ty = do
   genSpine' <- lift genSpine
-  Gen.recursive Gen.choice [genEmptyHole, genAnn] $ [genHole, genApp, genAPP, genLet] ++ catMaybes [genSpine']
+  genCon' <- lift genCon
+  Gen.recursive Gen.choice [genEmptyHole, genAnn] $ [genHole, genApp, genAPP, genLet] ++ catMaybes [genCon', genSpine']
   where
     genEmptyHole = pure (EmptyHole (), TEmptyHole ())
     genAnn = do
@@ -232,8 +234,9 @@ genSyns ty = do
       let locals' = map (first (Var () . LocalVarRef)) $ M.toList localTms
       globals <- asks globalCxt
       let globals' = map (first (Var () . GlobalVarRef)) $ M.toList globals
+      -- TODO (saturated constructors) constructors should not be on the left of an app node
       cons <- asks allCons
-      let cons' = map (first (Con ())) $ M.toList cons
+      let cons' = map (first (\c -> Con () c [] [])) $ M.toList cons
       let hsPure = locals' ++ globals' ++ cons'
       primCons <- fmap (bimap (PrimCon ()) (TCon ())) <<$>> genPrimCon
       let hs = map pure hsPure ++ primCons
@@ -269,6 +272,49 @@ genSyns ty = do
           aTy <- genWTType ak
           Just . (APP () s aTy,) <$> substTy a aTy instTy
         _ -> pure Nothing
+    genCon =
+      instantiateValCons ty >>= \case
+        Left TDIHoleType ->
+          asks allCons' <&> \case
+            -- We have no constraints, generate any ctor
+            m | null m -> Nothing
+            cons -> Just $ do
+              let cons' =
+                    M.toList cons <&> \(c, (params, fldsTys0, tycon)) -> do
+                      indicesMap <- for params $ \(p, k) -> (p,) <$> genWTType k
+                      let indices = snd <$> indicesMap
+                      -- NB: it is vital to use simultaneous substitution here.
+                      -- Consider the case where we have a local type variable @a@
+                      -- in scope, say because we have already generated a
+                      -- @Λa. ...@, and we are considering the case of the @MkPair@
+                      -- constructor for the type @data Pair a b = MkPair a b@.
+                      -- The two "a"s (locally Λ-bound and from the typedef) refer
+                      -- to completely different things. We may well generate the
+                      -- substitution [a :-> Bool, b :-> a]. We must then say that
+                      -- the fields of the @MkPair@ constructor are @Bool@ and (the
+                      -- locally-bound) @a@. We must do a simultaneous substitution
+                      -- to avoid substituting @b@ into @a@ and then further into
+                      -- @Bool@.
+                      fldsTys <- traverse (substTySimul $ M.fromList indicesMap) fldsTys0
+                      flds <- traverse (Gen.small . genChk) fldsTys
+                      let tyActual = mkTAppCon tycon indices
+                      pure (Con () c indices flds, tyActual)
+              primCons <- fmap (bimap (PrimCon ()) (TCon ())) <<$>> genPrimCon
+              Gen.choice $ cons' ++ primCons
+        Left _ -> pure Nothing -- not an ADT
+        Right (_, _, []) -> pure Nothing -- is an empty ADT
+        -- TODO (saturated constructors) when saturation is enforced, we will not need
+        -- to record @params@ in the @Con@, and thus the guard (and the panic) will
+        -- be removed.
+        Right (tc, _, vcs)
+          | Just (tc', params) <- decomposeTAppCon ty
+          , tc == tc' ->
+              pure $
+                Just $
+                  Gen.choice $
+                    vcs <&> \(vc, tmArgTypes) ->
+                      (,ty) . Con () vc params <$> traverse (Gen.small . genChk) tmArgTypes
+          | otherwise -> panic "genCon invariants failed"
     genLet =
       Gen.choice
         [ -- let
@@ -348,6 +394,34 @@ allCons cxt = M.fromList $ concatMap (uncurry consForTyDef) $ M.assocs $ typeDef
   where
     consForTyDef tc = \case
       TypeDefAST td -> map (\vc -> (valConName vc, valConType tc td vc)) (astTypeDefConstructors td)
+      TypeDefPrim _ -> []
+
+-- TODO (saturated constructors) when saturation is enforced, allCons should be
+-- no longer needed, and we can rename allCons'
+
+-- TODO (saturated constructors) note that this allCons' function only works for
+-- synthesisable constructors which store their indices
+
+-- | Returns each ADT constructor's name along with its "telescope" of arguments:
+--  - the parameters of the datatype (which are type arguments to the constructor)
+--  - the types of its fields (and the names of the parameters scope over this)
+--  - the ADT it belongs to (if @(c,([(p1,k1),(p2,k2)],_,T))@ is returned, then @c [A,B] _ ∈ T A B@)
+allCons' :: Cxt -> M.Map ValConName ([(TyVarName, Kind)], [Type' ()], TyConName)
+allCons' cxt = M.fromList $ concatMap (uncurry consForTyDef) $ M.assocs $ typeDefs cxt
+  where
+    consForTyDef tc = \case
+      TypeDefAST td ->
+        map
+          ( \vc ->
+              ( valConName vc
+              ,
+                ( astTypeDefParameters td
+                , valConArgs vc
+                , tc
+                )
+              )
+          )
+          (astTypeDefConstructors td)
       TypeDefPrim _ -> []
 
 genChk :: TypeG -> GenT WT ExprG
