@@ -110,6 +110,19 @@
               touch $out
             '';
 
+          # This should go in `primer-sqitch.passthru.tests`, but
+          # those don't work well with flakes.
+          #
+          # Note that the equivalent PostgreSQL tests need some tear
+          # up/tear down, so we test that backend using NixOS tests.
+          primer-sqitch-test-sqlite = pkgs.runCommand "primer-sqitch-sqlite-test" { } ''
+            ${pkgs.primer-sqitch}/bin/primer-sqitch deploy --verify db:sqlite:primer.db
+            ${pkgs.primer-sqitch}/bin/primer-sqitch revert db:sqlite:primer.db
+            ${pkgs.primer-sqitch}/bin/primer-sqitch verify db:sqlite:primer.db | grep "No changes deployed"
+            ${pkgs.primer-sqitch}/bin/primer-sqitch deploy --verify db:sqlite:primer.db
+            touch $out
+          '';
+
           # Filter out any file in this repo that doesn't affect a Cabal
           # build or Haskell-related check. (Note: this doesn't need to be
           # 100% accurate, it's just an optimization to cut down on
@@ -241,6 +254,8 @@
 
           checks = {
             inherit weeder openapi-validate;
+
+            inherit primer-sqitch-test-sqlite;
           }
           // (pkgs.lib.optionalAttrs (system == "x86_64-linux")
             (inputs.hacknix.lib.testing.nixos.importFromDirectory ./nixos-tests

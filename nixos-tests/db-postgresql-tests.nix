@@ -56,5 +56,14 @@
       server.succeed(
         "sudo -u primer primer-pg-prove"
       )
+      server.succeed(
+        "sudo -u primer primer-sqitch revert db:pg:primer"
+      )
+      server.succeed(
+        "sudo -u primer primer-sqitch verify db:pg:primer | grep 'No changes deployed'"
+      )
+      server.succeed(
+        "sudo -u primer primer-sqitch deploy --verify db:pg:primer"
+      )
     '';
 }

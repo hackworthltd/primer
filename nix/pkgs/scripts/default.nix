@@ -10,6 +10,7 @@
 , docker
 , gnugrep
 , sqitchDir
+, sqlite
 , primer-service
 , perlPackages
 }:
@@ -28,18 +29,25 @@ let
     src = sqitchDir;
 
     buildPhase = ''
-      sqitch bundle
     '';
 
-    installPhase = ''
-      mkdir -p $out/libexec
-      mv bundle $out/libexec/sqitch
+    installPhase =
+      let
+        sqitchConfDir = "$out/libexec/sqitch";
+      in
+      ''
+        mkdir -p $out/libexec/sqitch
+        sqitch bundle --all --dir $out/libexec/sqitch
 
-      mkdir -p $out/bin
-      makeWrapper "${sqitch}/bin/sqitch" "$out/bin/primer-sqitch" \
-        --prefix PATH : "${lib.makeBinPath [postgresql]}" \
-        --run "cd $out/libexec/sqitch"
-    '';
+        # Rewrite top_dir's so they're absolute paths.
+        substituteInPlace $out/libexec/sqitch/sqitch.conf \
+          --replace "top_dir = " "top_dir = $out/libexec/sqitch/"
+
+        mkdir -p $out/bin
+        makeWrapper "${sqitch}/bin/sqitch" "$out/bin/primer-sqitch" \
+          --prefix PATH : "${lib.makeBinPath [postgresql sqlite]}" \
+          --set SQITCH_CONFIG "$out/libexec/sqitch/sqitch.conf"
+      '';
   };
 
   # Bundle our PostgreSQL unit tests, to be used via `pgtap`/`pg_prove`.
