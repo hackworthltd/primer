@@ -77,6 +77,7 @@ import Primer.Core.DSL (
   branch,
   case_,
   con,
+  conSat,
   create,
   emptyHole,
   gvar,

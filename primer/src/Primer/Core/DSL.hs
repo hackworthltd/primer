@@ -6,6 +6,7 @@ module Primer.Core.DSL (
   ann,
   app,
   aPP,
+  conSat,
   con,
   lvar,
   gvar,
@@ -35,6 +36,7 @@ module Primer.Core.DSL (
   setMeta,
   S,
   tcon',
+  conSat',
   con',
   gvar',
   branch',
@@ -110,7 +112,13 @@ ann :: MonadFresh ID m => m Expr -> m Type -> m Expr
 ann e t = Ann <$> meta <*> e <*> t
 
 con :: MonadFresh ID m => ValConName -> m Expr
-con c = Con <$> meta <*> pure c
+con c = Con <$> meta <*> pure c <*> pure [] <*> pure []
+
+-- TODO (saturated constructors) once saturation is enforced, this will be
+-- renamed to con, and the current con will be removed (since it creates
+-- unsaturated constructors)
+conSat :: MonadFresh ID m => ValConName -> [m Type] -> [m Expr] -> m Expr
+conSat c tys tms = Con <$> meta <*> pure c <*> sequence tys <*> sequence tms
 
 lvar :: MonadFresh ID m => LVarName -> m Expr
 lvar v = Var <$> meta <*> pure (LocalVarRef v)
@@ -155,6 +163,12 @@ int = prim . PrimInt
 
 con' :: MonadFresh ID m => NonEmpty Name -> Name -> m Expr
 con' m n = con $ qualifyName (ModuleName m) n
+
+-- TODO (saturated constructors) once saturation is enforced, this will be
+-- renamed to con', and the current con' will be removed (since it creates
+-- unsaturated constructors)
+conSat' :: MonadFresh ID m => NonEmpty Name -> Name -> [m Type] -> [m Expr] -> m Expr
+conSat' m n = conSat $ qualifyName (ModuleName m) n
 
 gvar' :: MonadFresh ID m => NonEmpty Name -> Name -> m Expr
 gvar' m n = gvar $ qualifyName (ModuleName m) n
