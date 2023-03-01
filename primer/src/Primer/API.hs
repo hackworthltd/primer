@@ -784,38 +784,28 @@ viewTreeExpr e0 = case e0 of
           -- and don't contain non-numerical characters
           boxId = nodeId <> "P" <> show i
           patternRootId = boxId <> "B"
-          patternBindAppID id = show id <> "A"
          in
           Tree
             { nodeId = boxId
             , body =
                 BoxBody . RecordPair Flavor.Pattern $
-                  foldl'
-                    ( \t (Bind m v) ->
-                        let id = m ^. _id
-                         in Tree
-                              { nodeId = patternBindAppID id
-                              , body = NoBody Flavor.PatternApp
-                              , childTrees =
-                                  [ t
-                                  , Tree
-                                      { nodeId = show id
-                                      , body = TextBody $ RecordPair Flavor.PatternBind $ localName v
-                                      , childTrees = []
-                                      , rightChild = Nothing
-                                      }
-                                  ]
-                              , rightChild = Nothing
-                              }
-                    )
-                    ( Tree
-                        { nodeId = patternRootId
-                        , body = TextBody $ RecordPair Flavor.PatternCon $ globalName con
-                        , childTrees = []
-                        , rightChild = Nothing
-                        }
-                    )
-                    binds
+                  ( Tree
+                      { nodeId = patternRootId
+                      , body = TextBody $ RecordPair Flavor.PatternCon $ globalName con
+                      , childTrees =
+                          map
+                            ( \(Bind m v) ->
+                                Tree
+                                  { nodeId = show $ getID m
+                                  , body = TextBody $ RecordPair Flavor.PatternBind $ localName v
+                                  , childTrees = []
+                                  , rightChild = Nothing
+                                  }
+                            )
+                            binds
+                      , rightChild = Nothing
+                      }
+                  )
             , childTrees = [viewTreeExpr rhs]
             , rightChild = Nothing
             }
