@@ -9,7 +9,7 @@
 , colima
 , docker
 , gnugrep
-, sqitchDir
+, postgresql-sqitch-dir
 , primer-service
 , perlPackages
 }:
@@ -25,7 +25,7 @@ let
     pname = "primer-sqitch";
     version = "1.0";
     nativeBuildInputs = [ sqitch makeWrapper ];
-    src = sqitchDir;
+    src = postgresql-sqitch-dir;
 
     buildPhase = ''
       sqitch bundle
@@ -46,7 +46,7 @@ let
   primer-pgtap-tests = stdenv.mkDerivation {
     pname = "primer-pgtap-tests";
     version = "1.0";
-    src = "${sqitchDir}/test";
+    src = "${postgresql-sqitch-dir}/test";
 
     buildPhase = "";
 

@@ -364,7 +364,7 @@
               };
 
               scripts = final.lib.recurseIntoAttrs (final.callPackage ./nix/pkgs/scripts {
-                sqitchDir = ./sqitch;
+                postgresql-sqitch-dir = ./sqitch-postgresql;
                 inherit version;
               });
 
