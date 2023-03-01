@@ -46,7 +46,7 @@ let
   primer-pgtap-tests = stdenv.mkDerivation {
     pname = "primer-pgtap-tests";
     version = "1.0";
-    src = "${sqitchDir}/test";
+    src = "${sqitchDir}/pg/test";
 
     buildPhase = "";
 
