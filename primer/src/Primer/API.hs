@@ -720,11 +720,11 @@ viewTreeExpr e0 = case e0 of
       , childTrees = [viewTreeExpr e, viewTreeType t]
       , rightChild = Nothing
       }
-  Con _ s ->
+  Con _ c tyApps tmApps ->
     Tree
       { nodeId
-      , body = TextBody $ RecordPair Flavor.Con $ globalName s
-      , childTrees = []
+      , body = TextBody $ RecordPair Flavor.Con $ globalName c
+      , childTrees = map viewTreeType tyApps ++ map viewTreeExpr tmApps
       , rightChild = Nothing
       }
   Lam _ s e ->

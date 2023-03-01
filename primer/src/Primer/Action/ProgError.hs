@@ -19,6 +19,9 @@ data ProgError
   | TypeDefAlreadyExists TyConName
   | ConNotFound ValConName
   | ConAlreadyExists ValConName
+  | -- | We expected to see more arguments to a constructor than actually existed
+    -- (this should never happen in a well-typed program)
+    ConNotSaturated ValConName
   | ParamNotFound TyVarName
   | ParamAlreadyExists TyVarName
   | TyConParamClash Name

@@ -108,6 +108,7 @@ import Primer.Zipper (
   TypeZ,
   down,
   focus,
+  focusConTypes,
   focusType,
   getBoundHere,
   getBoundHere',
@@ -164,7 +165,8 @@ foldMapExpr extract topDir = flip evalAccumT mempty . go . (topDir,) . focus
           _ ->
             msum $
               (goType =<< focusType' ez)
-                : map (go <=< hoistAccum) (exprChildren dez)
+                : ((goType =<<) <$> focusConTypes' ez)
+                  <> map (go <=< hoistAccum) (exprChildren dez)
     goType :: TypeZ -> AccumT Cxt f a
     goType tz =
       readerToAccumT (ReaderT $ extract.ty tz)
@@ -184,6 +186,11 @@ focusType' :: MonadPlus m => ExprZ -> AccumT Cxt m TypeZ
 -- Note that nothing in Expr binds a variable which scopes over a type child
 -- so we don't need to 'add' anything
 focusType' = maybe empty pure . focusType
+
+focusConTypes' :: Monad m => ExprZ -> [AccumT Cxt m TypeZ]
+-- Note that nothing in Expr binds a variable which scopes over a type child
+-- so we don't need to 'add' anything
+focusConTypes' = maybe empty (fmap pure) . focusConTypes
 
 hoistAccum :: Monad m => Accum Cxt b -> AccumT Cxt m b
 hoistAccum = Foreword.hoistAccum generalize
@@ -255,7 +262,8 @@ findRedex tydefs globals =
                   _ -> mzero
              in msum @[] $
                   Foreword.hoistAccum hoistMaybe (substTyChild =<< focusType' ez)
-                    : map (substChild <=< hoistAccum) (exprChildren (d, ez))
+                    : (Foreword.hoistAccum hoistMaybe . (substTyChild =<<) <$> focusConTypes' ez)
+                      <> map (substChild <=< hoistAccum) (exprChildren (d, ez))
        in here <|> innerLet <|> dive
     goSubstTy :: TyVarName -> Type -> TypeZ -> AccumT Cxt Maybe RedexWithContext
     goSubstTy v t tz =

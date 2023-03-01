@@ -102,7 +102,13 @@ genValConName :: MonadGen m => m ValConName
 genValConName = qualifyName <$> genModuleName <*> genName
 
 genCon :: ExprGen Expr
-genCon = Con <$> genMeta <*> genValConName
+genCon =
+  Gen.recursive
+    Gen.choice
+    [genCon' (pure []) (pure [])]
+    [genCon' (Gen.list (Range.linear 0 3) genType) (Gen.list (Range.linear 0 5) genExpr)]
+  where
+    genCon' tys tms = Con <$> genMeta <*> genValConName <*> tys <*> tms
 
 genLam :: ExprGen Expr
 genLam = Lam <$> genMeta <*> genLVarName <*> genExpr

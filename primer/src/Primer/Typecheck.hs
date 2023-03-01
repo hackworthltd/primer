@@ -117,8 +117,8 @@ import Primer.Core (
   _exprTypeMeta,
   _typeMeta,
  )
-import Primer.Core.DSL (S, branch, create', emptyHole, meta, meta')
-import Primer.Core.Transform (decomposeTAppCon, mkTAppCon)
+import Primer.Core.DSL (S, apps', branch, create', emptyHole, meta, meta')
+import Primer.Core.Transform (decomposeAppCon, decomposeTAppCon, mkTAppCon)
 import Primer.Core.Utils (
   alphaEqTy,
   forgetTypeMetadata,
@@ -499,10 +499,20 @@ synth = \case
   EmptyHole i -> pure $ annSynth0 (TEmptyHole ()) i EmptyHole
   -- We assume that constructor names are unique
   -- See Note [Synthesisable constructors] in Core.hs
-  Con i c -> do
+  Con i c [] [] -> do
     asks (flip lookupConstructor c . typeDefs) >>= \case
-      Just (vc, tc, td) -> let t = valConType tc td vc in pure $ annSynth1 t i Con c
+      Just (vc, tc, td) -> let t = valConType tc td vc in pure $ annSynth3 t i Con c [] []
       Nothing -> throwError' $ UnknownConstructor c
+  Con i c tys tms -> do
+    -- TODO (saturated constructors) for now we synth exactly the same as the application tree,
+    -- but take care not to actually change the shape of the program.
+    -- This will change when full-saturation is enforced
+    elab <- apps' (pure $ Con i c [] []) $ (Right . pure <$> tys) ++ (Left . pure <$> tms)
+    (ty, e) <- synth elab
+    (tys', tms') <- case decomposeAppCon e of
+      Just (_, _, tys', tms') -> pure (tys', tms')
+      Nothing -> throwError' $ InternalError "saturated constructor: elaborated term is not ctor-headed"
+    pure $ annSynth3 ty i Con c tys' tms'
   -- When synthesising a hole, we first check that the expression inside it
   -- synthesises a type successfully (see Note [Holes and bidirectionality]).
   -- TODO: we would like to remove this hole (leaving e) if possible, but I
