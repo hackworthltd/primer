@@ -11,7 +11,6 @@ import Control.Concurrent.Async (
 import Control.Concurrent.STM (
   newTBQueueIO,
  )
-import Control.Monad.Fail (fail)
 import Control.Monad.Log (
   Handler,
   Severity (Informational),
@@ -58,6 +57,12 @@ import Primer.Database.Rel8 (
   Rel8DbLogMessage (..),
   runRel8DbT,
  )
+import Primer.Database.Selda (
+  MonadSeldaSQLite,
+  SeldaException (..),
+  SeldaLogMessage (..),
+  runSeldaSQLiteT,
+ )
 import Primer.Eval (EvalLog)
 import Primer.Log (
   ConvertLogMessage (..),
@@ -72,6 +77,7 @@ import Primer.Server qualified as Server
 import Prometheus qualified as P
 import Prometheus.Metric.GHC qualified as P
 import StmContainers.Map qualified as StmMap
+import System.Directory (canonicalizePath)
 import System.Environment (lookupEnv)
 import System.IO (
   BufferMode (LineBuffering),
@@ -81,10 +87,14 @@ import System.IO (
 {- HLINT ignore GlobalOptions "Use newtype instead of data" -}
 data GlobalOptions = GlobalOptions !Command
 
-newtype Database = PostgreSQL BS.ByteString
+data Database
+  = SQLite FilePath
+  | PostgreSQL BS.ByteString
 
 parseDatabase :: Parser Database
-parseDatabase = PostgreSQL <$> option auto (long "pgsql-url")
+parseDatabase =
+  (SQLite <$> option str (long "sqlite-db"))
+    <|> (PostgreSQL <$> option auto (long "pgsql-url"))
 
 data Logger = Standard | Replay
 data Command
@@ -108,21 +118,25 @@ cmds =
           (info serveCmd (progDesc "Run the server"))
       )
 
+defaultSQLiteDB :: FilePath
+defaultSQLiteDB = "primer.sqlite"
+
 pgUrlEnvVar :: String
 pgUrlEnvVar = "DATABASE_URL"
 
 -- | When no database flag is provided on the command line, we try
 -- first to lookup and parse the magic @DATABASE_URL@ environment
--- variable. If that's not present, we fail.
+-- variable. If that's not present, we fall back on a local SQLite
+-- database.
 defaultDb :: IO Database
 defaultDb = do
   envVar <- lookupEnv pgUrlEnvVar
   case envVar of
-    Nothing -> fail "You must provide a PostgreSQL connection URL either via the command line, or by setting the DATABASE_URL environment variable."
+    Nothing -> pure $ SQLite defaultSQLiteDB
     Just uri -> pure $ PostgreSQL $ fromString uri
 
-runDb :: MonadRel8Db m l => Db.ServiceCfg -> Pool -> m Void
-runDb cfg = start
+runRel8Db :: MonadRel8Db m l => Db.ServiceCfg -> Pool -> m Void
+runRel8Db cfg = start
   where
     justRel8DbException :: Rel8DbException -> Maybe Rel8DbException
     justRel8DbException = Just
@@ -159,6 +173,35 @@ runDb cfg = start
               Db.discardOp (Db.opQueue cfg)
               start pool
 
+runSqliteDb :: MonadSeldaSQLite m l => Db.ServiceCfg -> FilePath -> m Void
+runSqliteDb cfg = start
+  where
+    justSeldaException :: SeldaException -> Maybe SeldaException
+    justSeldaException = Just
+
+    logSeldaException = logError . LogSeldaException
+
+    -- The database computation exception handler.
+    start dbPath =
+      catchJust
+        justSeldaException
+        (runSeldaSQLiteT dbPath $ Db.serve cfg)
+        $ \e -> do
+          logSeldaException e
+          -- The operation will probably fail if we try it again,
+          -- but other operations might be fine, so discard the
+          -- failed op from the queue and continue serving
+          -- subsequent ops.
+          --
+          -- Note that we should be more selective than this: some
+          -- exceptions may indicate a serious problem with the
+          -- database, in which case we may not want to restart.
+          -- See:
+          --
+          -- https://github.com/hackworthltd/primer/issues/381
+          Db.discardOp (Db.opQueue cfg)
+          start dbPath
+
 banner :: [Text]
 banner =
   [ "                      ███                                    "
@@ -176,7 +219,10 @@ banner =
 
 serve ::
   ( ConvertLogMessage Rel8DbLogMessage l
+  , ConvertLogMessage SeldaLogMessage l
   , ConvertLogMessage Text l
+  , ConvertLogMessage BS.ByteString l
+  , ConvertLogMessage FilePath l
   , ConvertLogMessage PrimerErr l
   , ConvertServerLogs l
   , ConvertLogMessage ServantLog l
@@ -200,9 +246,10 @@ serve (PostgreSQL uri) ver port qsz logger =
       forM_ banner logInfo
       logNotice $ "primer-server version " <> ver
       logNotice ("Listening on port " <> show port :: Text)
+      logNotice $ "PostgreSQL database: " <> uri
     concurrently_
       (Server.serve initialSessions dbOpQueue ver port logger)
-      (flip runLoggingT logger $ runDb (Db.ServiceCfg dbOpQueue ver) pool)
+      (flip runLoggingT logger $ runRel8Db (Db.ServiceCfg dbOpQueue ver) pool)
   where
     -- Note: pool size must be 1 in order to guarantee
     -- read-after-write and write-after-write semantics for individual
@@ -210,9 +257,20 @@ serve (PostgreSQL uri) ver port qsz logger =
     --
     -- https://github.com/hackworthltd/primer/issues/640#issuecomment-1217290598
     poolSize = 1
-
     -- 1 second, which is pretty arbitrary.
     timeout = Just $ 1 * 1000000
+serve (SQLite path) ver port qsz logger = do
+  dbPath <- canonicalizePath path
+  dbOpQueue <- newTBQueueIO qsz
+  initialSessions <- StmMap.newIO
+  flip runLoggingT logger $ do
+    forM_ banner logInfo
+    logNotice $ "primer-server version " <> ver
+    logNotice ("Listening on port " <> show port :: Text)
+    logNotice $ "SQLite database: " <> dbPath
+  concurrently_
+    (Server.serve initialSessions dbOpQueue ver port logger)
+    (flip runLoggingT logger $ runSqliteDb (Db.ServiceCfg dbOpQueue ver) dbPath)
 
 main :: IO ()
 main = do
@@ -258,7 +316,16 @@ logMsgWithSeverity (WithSeverity s m) = textWithSeverity $ WithSeverity s (unLog
 instance ConvertLogMessage Text LogMsg where
   convert = LogMsg
 
+instance ConvertLogMessage BS.ByteString LogMsg where
+  convert = LogMsg . show
+
+instance ConvertLogMessage FilePath LogMsg where
+  convert = LogMsg . show
+
 instance ConvertLogMessage Rel8DbLogMessage LogMsg where
+  convert = LogMsg . show
+
+instance ConvertLogMessage SeldaLogMessage LogMsg where
   convert = LogMsg . show
 
 instance ConvertLogMessage SomeException LogMsg where
@@ -296,7 +363,16 @@ instance ConvertLogMessage LogReplay LogMsg where
 instance ConvertLogMessage Text LogReplay where
   convert = Other . LogMsg
 
+instance ConvertLogMessage BS.ByteString LogReplay where
+  convert = Other . convert
+
+instance ConvertLogMessage FilePath LogReplay where
+  convert = Other . convert
+
 instance ConvertLogMessage Rel8DbLogMessage LogReplay where
+  convert = Other . convert
+
+instance ConvertLogMessage SeldaLogMessage LogReplay where
   convert = Other . convert
 
 instance ConvertLogMessage SomeException LogReplay where
