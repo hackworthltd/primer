@@ -340,27 +340,21 @@ Tree
                                                                         ( RecordPair
                                                                             { fst = Pattern
                                                                             , snd = Tree
-                                                                                { nodeId = "35A"
-                                                                                , body = NoBody PatternApp
+                                                                                { nodeId = "32P1B"
+                                                                                , body = TextBody
+                                                                                    ( RecordPair
+                                                                                        { fst = PatternCon
+                                                                                        , snd = Name
+                                                                                            { qualifiedModule = Just
+                                                                                                ( ModuleName
+                                                                                                    { unModuleName = "Builtins" :| [] }
+                                                                                                )
+                                                                                            , baseName = "Succ"
+                                                                                            }
+                                                                                        }
+                                                                                    )
                                                                                 , childTrees =
                                                                                     [ Tree
-                                                                                        { nodeId = "32P1B"
-                                                                                        , body = TextBody
-                                                                                            ( RecordPair
-                                                                                                { fst = PatternCon
-                                                                                                , snd = Name
-                                                                                                    { qualifiedModule = Just
-                                                                                                        ( ModuleName
-                                                                                                            { unModuleName = "Builtins" :| [] }
-                                                                                                        )
-                                                                                                    , baseName = "Succ"
-                                                                                                    }
-                                                                                                }
-                                                                                            )
-                                                                                        , childTrees = []
-                                                                                        , rightChild = Nothing
-                                                                                        }
-                                                                                    , Tree
                                                                                         { nodeId = "35"
                                                                                         , body = TextBody
                                                                                             ( RecordPair
