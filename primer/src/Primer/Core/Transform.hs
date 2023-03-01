@@ -242,15 +242,18 @@ foldAPP = foldlM $ \a b -> do
 decomposeAppCon :: Expr' a b -> Maybe (ValConName, a, [Type' b], [Expr' a b])
 decomposeAppCon =
   unfoldApp <&> first unfoldAPP <&> \case
-    ((Con m c, tys), tms) -> Just (c, m, tys, tms)
+    -- This is suspicious (we reorder types and terms), but
+    -- (a) for well-typed terms, either tms0 or tys will be empty (since constructors only have top-level foralls)
+    -- (b) the situation that constructors can be on the left of an app or aPP node is temporary
+    --     and shortly decomposeAppCon will become a trivial match on the 'Con' constructor.
+    ((Con m c tys0 tms0, tys), tms) -> Just (c, m, tys0 ++ tys, tms0 ++ tms)
     _ -> Nothing
 
 -- | Apply a constructor to a spine of types and a spine of terms
 mkAppCon :: (Foldable t1, Foldable t2, MonadFresh ID m) => ValConName -> t1 Type -> t2 Expr -> m Expr
 mkAppCon c tys tms = do
   c' <- (`Con` c) <$> meta
-  aPPs <- c' `foldAPP` tys
-  aPPs `foldApp` tms
+  pure $ c' (toList tys) (toList tms)
 
 -- | Unfold a nested type-level application into the application head and a list of arguments.
 unfoldTApp :: Type' a -> (Type' a, [Type' a])

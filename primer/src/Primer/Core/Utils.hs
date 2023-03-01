@@ -119,7 +119,7 @@ _freeTmVars = traversalVL $ go mempty
       Ann m e ty -> Ann m <$> go bound f e <*> pure ty
       App m e s -> App m <$> go bound f e <*> go bound f s
       APP m e ty -> APP m <$> go bound f e <*> pure ty
-      t@Con{} -> pure t
+      Con m c tys tms -> Con m c tys <$> traverse (go bound f) tms
       Lam m v e -> Lam m v <$> go (S.insert v bound) f e
       LAM m tv e ->
         -- A well scoped term will not refer to tv as a term
@@ -151,7 +151,7 @@ _freeTyVars = traversalVL $ go mempty
       Ann m e ty -> Ann m <$> go bound f e <*> traverseFreeVarsTy bound f ty
       App m e s -> App m <$> go bound f e <*> go bound f s
       APP m e ty -> APP m <$> go bound f e <*> traverseFreeVarsTy bound f ty
-      t@Con{} -> pure t
+      Con m c tys tms -> Con m c <$> traverse (traverseFreeVarsTy bound f) tys <*> traverse (go bound f) tms
       Lam m v e ->
         -- A well scoped term will not refer to v as a type
         -- variable, so we do not need to add it to the bound set
