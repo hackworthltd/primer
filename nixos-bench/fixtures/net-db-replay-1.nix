@@ -60,7 +60,7 @@ in
         environment = {
           DATABASE_URL = "postgres://postgres@db:${toString nodes.db.services.postgresql.port}/primer";
         };
-        script = "${pkgs.primer-service}/bin/primer-service serve vUNKNOWN --port ${toString primerPort}";
+        script = "${pkgs.primer-service}/bin/primer-service serve vUNKNOWN --port ${toString primerPort} +RTS -T";
       };
     };
     client = { pkgs, lib, config, ... }:
@@ -76,8 +76,10 @@ in
 
   testScript = { nodes, ... }:
     ''
+      import ast
       import csv
       import json
+      import re
       import time
 
       results = []
@@ -127,6 +129,47 @@ in
       # it cannot connect to the DB
       time.sleep(30) # wait for logs to be written etc
       primer.fail("journalctl -b -u primer | grep -q ERROR")
+
+      ghcstats = primer.succeed("curl -v localhost:${toString primerPort}/metrics")
+      helpPat = re.compile("# HELP (\w+) (.+)$")
+      typePat = re.compile("# TYPE (\w+) (\w+)$")
+      statPat = re.compile("(\w+) ([0-9.]+)$")
+      for l in ghcstats.splitlines():
+        helpMatch = helpPat.match(l)
+        typeMatch = typePat.match(l)
+        statMatch = statPat.match(l)
+        if helpMatch:
+          helpStat = helpMatch.group(1)
+          helpText = helpMatch.group(2)
+        elif typeMatch:
+          typeStat = typeMatch.group(1)
+          typeText = typeMatch.group(2)
+        elif statMatch:
+          statStat = statMatch.group(1)
+          statValue = statMatch.group(2)
+          if statStat in ["ghc_gcs_total",
+                          "ghc_major_gcs_total",
+                          "ghc_allocated_bytes_total",
+                          "ghc_max_live_bytes",
+                          "ghc_max_slop_bytes",
+                          "ghc_max_mem_in_use_bytes",
+                          "ghc_cumulative_live_bytes_total",
+                          "ghc_copied_bytes_total",
+                          "ghc_mutator_cpu_seconds_total",
+                          "ghc_mutator_elapsed_seconds_total",
+                          "ghc_gc_cpu_seconds_total",
+                          "ghc_gc_elapsed_seconds_total",
+                          "ghc_cpu_seconds_total",
+                          "ghc_elapsed_seconds_total"
+                         ]:
+            if helpStat==typeStat==statStat:
+              results += [{"name": f"ghcstat/{statStat}",
+                           "value": ast.literal_eval(statValue),
+                           "unit": f"{helpText} ({typeText})"}]
+            else:
+              raise Exception("failed to parse metrics: inconsistent lines: {helpStat=}, {typeStat=}, {statStat=}")
+        elif statMatch:
+          raise Exception("failed to parse metrics")
 
       # Defence against broken benchmark -- should have the correct number
       # of session uuids
