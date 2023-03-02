@@ -161,7 +161,7 @@ mkTests deps (defName, DefAST def') =
                     )
                     . toListOf (_typeMeta % _id)
                     $ astDefType def
-             in goldenVsString (show level) ("test/outputs/available-actions" </> testName </> show level <> "-" <> show mut <> ".fragment") $
+             in goldenVsString (show level <> ":" <> show mut) ("test/outputs/available-actions" </> testName </> show level <> "-" <> show mut <> ".fragment") $
                   pure . BS.fromStrict . encodeUtf8 . TL.toStrict . pShowNoColor $
                     Output
                       { defActions
