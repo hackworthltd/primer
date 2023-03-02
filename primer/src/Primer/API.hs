@@ -825,17 +825,23 @@ viewTreeExpr opts@ExprTreeOpts{patternsUnder} e0 = case e0 of
             { nodeId = boxId
             , body =
                 BoxBody . RecordPair Flavor.Pattern $
-                    ( Tree
-                        { nodeId = patternRootId
-                        , body = TextBody $ RecordPair Flavor.PatternCon $ globalName con
-                        , childTrees = map (\(Bind m v) -> Tree { nodeId = show $ getID m
-                                                                , body = TextBody $ RecordPair Flavor.PatternBind $ localName v
-                                                                , childTrees = []
-                                                                , rightChild = Nothing
-                                                                }) binds
-                        , rightChild = Nothing
-                        }
-                    )
+                  ( Tree
+                      { nodeId = patternRootId
+                      , body = TextBody $ RecordPair Flavor.PatternCon $ globalName con
+                      , childTrees =
+                          map
+                            ( \(Bind m v) ->
+                                Tree
+                                  { nodeId = show $ getID m
+                                  , body = TextBody $ RecordPair Flavor.PatternBind $ localName v
+                                  , childTrees = []
+                                  , rightChild = Nothing
+                                  }
+                            )
+                            binds
+                      , rightChild = Nothing
+                      }
+                  )
             , childTrees = [viewTreeExpr opts rhs]
             , rightChild = Nothing
             }
