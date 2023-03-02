@@ -302,4 +302,4 @@ unit_unfoldApp_2 :: Assertion
 unit_unfoldApp_2 =
   let expr :: Expr' () ()
       expr = Con () $ vcn ["M"] "C"
-   in unfoldApp expr @?= (Con () $ vcn ["M"] "C", [])
+   in unfoldApp expr @?= (expr, [])
