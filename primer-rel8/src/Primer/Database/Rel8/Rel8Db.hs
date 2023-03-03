@@ -150,25 +150,31 @@ type MonadRel8Db m l = (ConvertLogMessage Rel8DbLogMessage l, MonadCatch m, Mona
 -- types of the 'MonadDb' methods and are handled by Primer
 -- internally.
 instance MonadRel8Db m l => MonadDb (Rel8DbT m) where
-  insertSession v s a n t =
-    runStatement_ (InsertError s) $
-      insert
-        Insert
-          { into = Schema.sessionRowSchema
-          , rows =
-              values
-                [ lit
-                    Schema.SessionRow
-                      { Schema.uuid = s
-                      , Schema.gitversion = v
-                      , Schema.app = a
-                      , Schema.name = fromSessionName n
-                      , Schema.lastmodified = utcTime t
-                      }
-                ]
-          , onConflict = Abort
-          , returning = NumberOfRowsAffected
-          }
+  insertSession v s a n t = do
+    nr <-
+      runStatement (InsertError s) $
+        insert
+          Insert
+            { into = Schema.sessionRowSchema
+            , rows =
+                values
+                  [ lit
+                      Schema.SessionRow
+                        { Schema.uuid = s
+                        , Schema.gitversion = v
+                        , Schema.app = a
+                        , Schema.name = fromSessionName n
+                        , Schema.lastmodified = utcTime t
+                        }
+                  ]
+            , onConflict = Abort
+            , returning = NumberOfRowsAffected
+            }
+    -- This operation should affect exactly one row.
+    case nr of
+      0 -> throwM $ InsertZeroRowsAffected s
+      1 -> pure ()
+      _ -> throwM $ InsertConsistencyError s
 
   updateSessionApp v s a t = do
     nr <-
@@ -297,6 +303,12 @@ data Rel8DbException
   | -- | An error occurred during an 'Insert' operation on the given
     -- 'SessionId'.
     InsertError SessionId QueryError
+  | -- | An 'Insert' operation succeeded on the given 'SessionId', but
+    --  the database claimed that zero rows were actually inserted.
+    InsertZeroRowsAffected SessionId
+  | -- | A database consistency error was detected during an 'Insert'
+    -- operation on the given 'SessionId'.
+    InsertConsistencyError SessionId
   | -- | An error occurred during a 'DeleteSession' operation on the
     -- given 'SessionId'.
     DeleteSessionError SessionId QueryError
@@ -369,9 +381,6 @@ runStatement exc s = do
     err (ConnectionUsageError e) = ConnectionFailed e
     err AcquisitionTimeoutUsageError = TimeoutError
     err (SessionUsageError e) = exc e
-
-runStatement_ :: (MonadIO m, MonadThrow m, MonadReader Pool m) => (QueryError -> Rel8DbException) -> Statement () a -> m ()
-runStatement_ exc = void . runStatement exc
 
 -- "Rel8" queries and other operations.
 

@@ -28,6 +28,12 @@ data SeldaDbException
   | -- | An error occurred during an 'Insert' operation on the given
     -- 'SessionId'.
     InsertError SessionId SeldaError
+  | -- | An 'Insert' operation succeeded on the given 'SessionId', but
+    --  the database claimed that zero rows were actually inserted.
+    InsertZeroRowsAffected SessionId
+  | -- | A database consistency error was detected during an 'Insert'
+    -- operation on the given 'SessionId'.
+    InsertConsistencyError SessionId
   | -- | An error occurred during a 'DeleteSession' operation on the
     -- given 'SessionId'.
     DeleteSessionError SessionId SeldaError

@@ -37,7 +37,7 @@ import Database.Selda (
   ascending,
   deleteFrom,
   descending,
-  insert_,
+  insert,
   literal,
   order,
   primary,
@@ -161,9 +161,15 @@ type MonadSeldaSQLiteDb m l = (ConvertLogMessage SeldaDbLogMessage l, MonadCatch
 -- types of the 'MonadDb' methods and are handled by Primer
 -- internally.
 instance MonadSeldaSQLiteDb m l => MonadDb (SeldaSQLiteDbT m) where
-  insertSession v s a n t =
-    convertSeldaDbException (InsertError s) $
-      insert_ sessions [SessionRow s v (Aeson.encode a) (fromSessionName n) (utcTime t)]
+  insertSession v s a n t = do
+    nr <-
+      convertSeldaDbException (InsertError s) $
+        insert sessions [SessionRow s v (Aeson.encode a) (fromSessionName n) (utcTime t)]
+    -- This operation should affect exactly one row.
+    case nr of
+      0 -> throwM $ InsertZeroRowsAffected s
+      1 -> pure ()
+      _ -> throwM $ InsertConsistencyError s
 
   updateSessionApp v s a t = do
     nr <-
