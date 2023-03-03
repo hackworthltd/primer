@@ -39,7 +39,7 @@ By default, this command will:
    working directory. It will create a new empty database if one
    doesn't already exist.
 2. Run `primer-service` on your host machine and configure it to
-   listen on TCP port 8081 on all network interfaces.
+   listen on TCP port `8081` on all network interfaces.
 
 This command uses the same script to launch the service as our Docker
 container uses, and therefore it takes no command-line arguments.
@@ -49,7 +49,7 @@ environment variables (shown along with their default values):
 | Environment variable   |      Purpose                                          |  Default         |
 |------------------------|-------------------------------------------------------|------------------|
 | SQLITE_DB              | Filesystem path to the SQLite database                | `primer.sqlite3` |
-| SERVICE_PORT           | TCP port on which the service listens for connections | 8081             |
+| SERVICE_PORT           | TCP port on which the service listens for connections | `8081`           |
 
 Note that the script will actually create *two* database files: one
 named `primer.sqlite3`, and the other named `sqitch.sqlite3`. The
@@ -117,7 +117,7 @@ By default, this command will:
 1. Deploy the Primer database schema to the default local PostgreSQL
    instance.
 2. Run `primer-service` on your host machine and configure it to
-   listen on TCP port 8081 on all network interfaces.
+   listen on TCP port `8081` on all network interfaces.
 
 This command uses the same script to launch the service as our Docker
 container uses, and therefore it takes no command-line arguments.
@@ -126,8 +126,8 @@ environment variables (shown along with their default values):
 
 | Environment variable   |      Purpose                                          |  Default         |
 |------------------------|-------------------------------------------------------|------------------|
-| DATABASE_URL           | The PostgreSQL-style URI of the database              | postgres://postgres:primer-dev@localhost:5432/primer |
-| SERVICE_PORT           | TCP port on which the service listens for connections | 8081                                                 |
+| DATABASE_URL           | The PostgreSQL-style URI of the database              | `postgres://postgres:primer-dev@localhost:5432/primer`` |
+| SERVICE_PORT           | TCP port on which the service listens for connections | `8081`                                                  |
 
 Note that you'll also need to run the `start-postgresql-container`
 command if the `primer-postgres` container is not already running.
