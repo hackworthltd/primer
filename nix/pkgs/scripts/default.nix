@@ -80,6 +80,7 @@ let
   primer-service-entrypoint = writeShellApplication {
     name = "primer-service-entrypoint";
     runtimeInputs = [
+      coreutils
       primer-service
       primer-sqitch
     ];
