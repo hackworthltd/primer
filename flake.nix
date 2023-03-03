@@ -224,9 +224,13 @@
             };
 
           packages = {
-            inherit (pkgs) primer-service primer-openapi-spec run-primer;
+            inherit (pkgs) primer-service primer-openapi-spec;
             inherit (pkgs) primer-benchmark;
             inherit (pkgs)
+              run-primer-postgresql
+              run-primer-sqlite
+              primer-service-entrypoint
+
               create-local-db
               deploy-local-db
               verify-local-db
@@ -297,10 +301,14 @@
               };
             in
             (pkgs.lib.mapAttrs (name: pkg: mkApp pkg name) {
-              inherit (pkgs) run-primer primer-openapi-spec;
+              inherit (pkgs) primer-openapi-spec;
               inherit (pkgs) primer-benchmark;
 
               inherit (pkgs)
+                run-primer-postgresql
+                run-primer-sqlite
+                primer-service-entrypoint
+
                 create-local-db
                 deploy-local-db
                 verify-local-db
@@ -554,26 +562,11 @@
                   meta.platforms = final.lib.platforms.all;
                 });
 
-
-              run-primer = final.writeShellApplication {
-                name = "run-primer";
-                runtimeInputs = [
-                  final.primer-service
-                  final.primer-sqitch
-                ];
-                text = ''
-                  DATABASE_URL="${final.lib.primer.postgres-dev-primer-url}"
-                  export DATABASE_URL
-                  primer-sqitch deploy --verify db:$DATABASE_URL
-                  primer-service serve ${version} "$@" +RTS -T
-                '';
-              };
-
               primer-service-docker-image = final.dockerTools.buildLayeredImage {
                 name = "primer-service";
                 tag = version;
                 contents = [
-                  scripts.primer-service-entrypoint
+                  final.primer-service-entrypoint
                 ]
                 ++ (with final; [
                   # These are helpful for debugging broken images.
@@ -615,6 +608,15 @@
                     ExposedPorts = { "${toString port}/tcp" = { }; };
 
                     Env = [
+                      # Environment variables required by the
+                      # entrypoint with reasonable default values.
+                      #
+                      # Note that we do not provide default values or
+                      # otherwise set either DATABASE_URL or
+                      # SQLITE_DB.
+                      "SERVICE_PORT=${toString port}"
+                      "PRIMER_VERSION=${version}"
+
                       # Needed for the `primer-service` banner.
                       "LANG=C.UTF-8"
 
@@ -689,7 +691,10 @@
                 primer-sqitch
                 primer-pg-prove
                 connect-local-db
-                delete-all-local-sessions;
+                delete-all-local-sessions
+                run-primer-postgresql
+                run-primer-sqlite
+                primer-service-entrypoint;
 
               inherit primer;
 
@@ -698,7 +703,6 @@
               primer-replay = primerFlake.packages."primer-service:exe:primer-replay";
               primer-benchmark = primerFlake.packages."primer-benchmark:bench:primer-benchmark";
 
-              inherit run-primer;
               inherit primer-service-docker-image;
 
               inherit primer-openapi-spec;
