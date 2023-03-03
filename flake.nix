@@ -110,6 +110,19 @@
               touch $out
             '';
 
+          # This should go in `primer-sqitch.passthru.tests`, but
+          # those don't work well with flakes.
+          #
+          # Note that the equivalent PostgreSQL tests need some tear
+          # up/tear down, so we test that backend using NixOS tests.
+          primer-sqitch-test-sqlite = pkgs.runCommand "primer-sqitch-sqlite-test" { } ''
+            ${pkgs.primer-sqitch}/bin/primer-sqitch deploy --verify db:sqlite:primer.db
+            ${pkgs.primer-sqitch}/bin/primer-sqitch revert db:sqlite:primer.db
+            ${pkgs.primer-sqitch}/bin/primer-sqitch verify db:sqlite:primer.db | grep "No changes deployed"
+            ${pkgs.primer-sqitch}/bin/primer-sqitch deploy --verify db:sqlite:primer.db
+            touch $out
+          '';
+
           # Filter out any file in this repo that doesn't affect a Cabal
           # build or Haskell-related check. (Note: this doesn't need to be
           # 100% accurate, it's just an optimization to cut down on
@@ -211,9 +224,13 @@
             };
 
           packages = {
-            inherit (pkgs) primer-service primer-openapi-spec run-primer;
+            inherit (pkgs) primer-service primer-openapi-spec;
             inherit (pkgs) primer-benchmark;
             inherit (pkgs)
+              run-primer-postgresql
+              run-primer-sqlite
+              primer-service-entrypoint
+
               create-local-db
               deploy-local-db
               verify-local-db
@@ -241,6 +258,8 @@
 
           checks = {
             inherit weeder openapi-validate;
+
+            inherit primer-sqitch-test-sqlite;
           }
           // (pkgs.lib.optionalAttrs (system == "x86_64-linux")
             (inputs.hacknix.lib.testing.nixos.importFromDirectory ./nixos-tests
@@ -255,18 +274,22 @@
           # https://github.com/hackworthltd/primer/issues/632
           // (pkgs.lib.optionalAttrs (system == "aarch64-darwin") {
 
+            # We're using `source-repository-package`, so we must
+            # disable this. See:
+            # https://github.com/hackworthltd/primer/issues/876
+
             # Make sure HLS can typecheck our project.
-            check-hls = pkgs.callPackage ./nix/pkgs/check-hls {
-              src = onlyHaskellSrc;
+            # check-hls = pkgs.callPackage ./nix/pkgs/check-hls {
+            #   src = onlyHaskellSrc;
 
-              # Don't use the flake's version here; we only want to run
-              # this HLS check when the Haskell source files have
-              # changed, not on every commit to this repo.
-              version = "1.0";
+            #   # Don't use the flake's version here; we only want to run
+            #   # this HLS check when the Haskell source files have
+            #   # changed, not on every commit to this repo.
+            #   version = "1.0";
 
-              # This is a bit of a hack, but we don't know a better way.
-              inherit (primerFlake) devShell;
-            };
+            #   # This is a bit of a hack, but we don't know a better way.
+            #   inherit (primerFlake) devShell;
+            # };
           })
           // primerFlake.checks;
 
@@ -278,10 +301,14 @@
               };
             in
             (pkgs.lib.mapAttrs (name: pkg: mkApp pkg name) {
-              inherit (pkgs) run-primer primer-openapi-spec;
+              inherit (pkgs) primer-openapi-spec;
               inherit (pkgs) primer-benchmark;
 
               inherit (pkgs)
+                run-primer-postgresql
+                run-primer-sqlite
+                primer-service-entrypoint
+
                 create-local-db
                 deploy-local-db
                 verify-local-db
@@ -356,6 +383,7 @@
 
               sqitch = final.callPackage ./nix/pkgs/sqitch {
                 postgresqlSupport = true;
+                sqliteSupport = true;
               };
 
               scripts = final.lib.recurseIntoAttrs (final.callPackage ./nix/pkgs/scripts {
@@ -432,6 +460,10 @@
                       final.postgresql
                       final.primer-sqitch
                     ];
+                    packages.primer-selda.components.tests.primer-selda-test.build-tools = [
+                      (final.haskell-nix.tool ghcVersion "tasty-discover" { })
+                      final.primer-sqitch
+                    ];
                     packages.primer-service.components.tests.service-test.build-tools = [
                       (final.haskell-nix.tool ghcVersion "tasty-discover" { })
                       final.postgresql
@@ -450,13 +482,17 @@
                       packages.primer.components.tests.primer-test.testFlags = hide-successes ++ size-cutoff;
                       packages.primer-service.components.tests.service-test.testFlags = hide-successes ++ size-cutoff;
                       packages.primer-rel8.components.tests.primer-rel8-test.testFlags = hide-successes;
+                      packages.primer-selda.components.tests.primer-selda-test.testFlags = hide-successes;
                       packages.primer-benchmark.components.tests.primer-benchmark-test.testFlags = hide-successes;
                     }
                   )
                 ];
 
                 shell = {
-                  exactDeps = true;
+                  # We're using a `source-repository-package`, so we must disable this.
+                  # See:
+                  # https://github.com/hackworthltd/primer/issues/876
+                  #exactDeps = true;
                   withHoogle = true;
 
                   tools = {
@@ -479,6 +515,7 @@
                   buildInputs = (with final; [
                     nixpkgs-fmt
                     postgresql
+                    sqlite
                     openapi-generator-cli
 
                     # For Docker support.
@@ -525,26 +562,11 @@
                   meta.platforms = final.lib.platforms.all;
                 });
 
-
-              run-primer = final.writeShellApplication {
-                name = "run-primer";
-                runtimeInputs = [
-                  final.primer-service
-                  final.primer-sqitch
-                ];
-                text = ''
-                  DATABASE_URL="${final.lib.primer.postgres-dev-primer-url}"
-                  export DATABASE_URL
-                  primer-sqitch deploy --verify db:$DATABASE_URL
-                  primer-service serve ${version} "$@" +RTS -T
-                '';
-              };
-
               primer-service-docker-image = final.dockerTools.buildLayeredImage {
                 name = "primer-service";
                 tag = version;
                 contents = [
-                  scripts.primer-service-entrypoint
+                  final.primer-service-entrypoint
                 ]
                 ++ (with final; [
                   # These are helpful for debugging broken images.
@@ -586,6 +608,15 @@
                     ExposedPorts = { "${toString port}/tcp" = { }; };
 
                     Env = [
+                      # Environment variables required by the
+                      # entrypoint with reasonable default values.
+                      #
+                      # Note that we do not provide default values or
+                      # otherwise set either DATABASE_URL or
+                      # SQLITE_DB.
+                      "SERVICE_PORT=${toString port}"
+                      "PRIMER_VERSION=${version}"
+
                       # Needed for the `primer-service` banner.
                       "LANG=C.UTF-8"
 
@@ -660,7 +691,10 @@
                 primer-sqitch
                 primer-pg-prove
                 connect-local-db
-                delete-all-local-sessions;
+                delete-all-local-sessions
+                run-primer-postgresql
+                run-primer-sqlite
+                primer-service-entrypoint;
 
               inherit primer;
 
@@ -669,7 +703,6 @@
               primer-replay = primerFlake.packages."primer-service:exe:primer-replay";
               primer-benchmark = primerFlake.packages."primer-benchmark:bench:primer-benchmark";
 
-              inherit run-primer;
               inherit primer-service-docker-image;
 
               inherit primer-openapi-spec;

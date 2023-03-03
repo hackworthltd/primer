@@ -1,0 +1,5 @@
+%syntax-version=1.0.0
+%project=primer
+%uri=https://github.com/hackworthltd/primer
+
+sessions 2023-03-01T21:10:10Z Drew Hess <dhess@hackworthltd.com> # Create the sessions table.

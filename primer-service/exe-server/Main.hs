@@ -54,9 +54,16 @@ import Primer.Database (Version)
 import Primer.Database qualified as Db
 import Primer.Database.Rel8 (
   MonadRel8Db,
-  Rel8DbException (..),
+  Rel8DbException,
   Rel8DbLogMessage (..),
   runRel8DbT,
+ )
+import Primer.Database.Rel8 qualified as Rel8Db
+import Primer.Database.Selda ()
+import Primer.Database.Selda as SeldaDb
+import Primer.Database.Selda.SQLite (
+  MonadSeldaSQLiteDb,
+  runSeldaSQLiteDbT,
  )
 import Primer.Eval (EvalLog)
 import Primer.Log (
@@ -72,6 +79,7 @@ import Primer.Server qualified as Server
 import Prometheus qualified as P
 import Prometheus.Metric.GHC qualified as P
 import StmContainers.Map qualified as StmMap
+import System.Directory (canonicalizePath)
 import System.Environment (lookupEnv)
 import System.IO (
   BufferMode (LineBuffering),
@@ -81,10 +89,14 @@ import System.IO (
 {- HLINT ignore GlobalOptions "Use newtype instead of data" -}
 data GlobalOptions = GlobalOptions !Command
 
-newtype Database = PostgreSQL BS.ByteString
+data Database
+  = SQLite FilePath
+  | PostgreSQL BS.ByteString
 
 parseDatabase :: Parser Database
-parseDatabase = PostgreSQL <$> option auto (long "pgsql-url")
+parseDatabase =
+  (SQLite <$> option str (long "sqlite-db"))
+    <|> (PostgreSQL <$> option auto (long "pgsql-url"))
 
 data Logger = Standard | Replay
 data Command
@@ -118,11 +130,11 @@ defaultDb :: IO Database
 defaultDb = do
   envVar <- lookupEnv pgUrlEnvVar
   case envVar of
-    Nothing -> fail "You must provide a PostgreSQL connection URL either via the command line, or by setting the DATABASE_URL environment variable."
+    Nothing -> fail "No database argument was given, and the DATABASE_URL environment variable is not set. Exiting."
     Just uri -> pure $ PostgreSQL $ fromString uri
 
-runDb :: MonadRel8Db m l => Db.ServiceCfg -> Pool -> m Void
-runDb cfg = start
+runRel8Db :: MonadRel8Db m l => Db.ServiceCfg -> Pool -> m Void
+runRel8Db cfg = start
   where
     justRel8DbException :: Rel8DbException -> Maybe Rel8DbException
     justRel8DbException = Just
@@ -141,9 +153,9 @@ runDb cfg = start
             -- Note: we need some backoff here. See:
             --
             -- https://github.com/hackworthltd/primer/issues/678
-            ConnectionFailed _ -> start pool
+            Rel8Db.ConnectionFailed _ -> start pool
             -- Retry the same operation until it succeeds.
-            TimeoutError -> start pool
+            Rel8Db.TimeoutError -> start pool
             -- The operation will probably fail if we try it again,
             -- but other operations might be fine, so discard the
             -- failed op from the queue and continue serving
@@ -158,6 +170,42 @@ runDb cfg = start
             _ -> do
               Db.discardOp (Db.opQueue cfg)
               start pool
+
+runSqliteDb :: MonadSeldaSQLiteDb m l => Db.ServiceCfg -> FilePath -> m Void
+runSqliteDb cfg = start
+  where
+    justSeldaDbException :: SeldaDbException -> Maybe SeldaDbException
+    justSeldaDbException = Just
+
+    logSeldaDbException = logError . LogSeldaDbException
+
+    -- The database computation exception handler.
+    start dbPath =
+      catchJust
+        justSeldaDbException
+        (runSeldaSQLiteDbT dbPath $ Db.serve cfg)
+        $ \e -> do
+          logSeldaDbException e
+          case e of
+            SeldaDb.ConnectionFailed _ -> do
+              -- This means the file doesn't exist, it's corrupt, we
+              -- don't have the proper permissions, there's an IO
+              -- error, etc. This is fatal, so we rethrow.
+              throwM e
+            _ -> do
+              -- The operation will probably fail if we try it again,
+              -- but other operations might be fine, so discard the
+              -- failed op from the queue and continue serving
+              -- subsequent ops.
+              --
+              -- Note that we should be more selective than this: some
+              -- exceptions may indicate a serious problem with the
+              -- database, in which case we may not want to restart.
+              -- See:
+              --
+              -- https://github.com/hackworthltd/primer/issues/381
+              Db.discardOp (Db.opQueue cfg)
+              start dbPath
 
 banner :: [Text]
 banner =
@@ -176,7 +224,10 @@ banner =
 
 serve ::
   ( ConvertLogMessage Rel8DbLogMessage l
+  , ConvertLogMessage SeldaDbLogMessage l
   , ConvertLogMessage Text l
+  , ConvertLogMessage BS.ByteString l
+  , ConvertLogMessage FilePath l
   , ConvertLogMessage PrimerErr l
   , ConvertServerLogs l
   , ConvertLogMessage ServantLog l
@@ -200,9 +251,10 @@ serve (PostgreSQL uri) ver port qsz logger =
       forM_ banner logInfo
       logNotice $ "primer-server version " <> ver
       logNotice ("Listening on port " <> show port :: Text)
+      logNotice $ "PostgreSQL database: " <> uri
     concurrently_
       (Server.serve initialSessions dbOpQueue ver port logger)
-      (flip runLoggingT logger $ runDb (Db.ServiceCfg dbOpQueue ver) pool)
+      (flip runLoggingT logger $ runRel8Db (Db.ServiceCfg dbOpQueue ver) pool)
   where
     -- Note: pool size must be 1 in order to guarantee
     -- read-after-write and write-after-write semantics for individual
@@ -210,9 +262,20 @@ serve (PostgreSQL uri) ver port qsz logger =
     --
     -- https://github.com/hackworthltd/primer/issues/640#issuecomment-1217290598
     poolSize = 1
-
     -- 1 second, which is pretty arbitrary.
     timeout = Just $ 1 * 1000000
+serve (SQLite path) ver port qsz logger = do
+  dbPath <- canonicalizePath path
+  dbOpQueue <- newTBQueueIO qsz
+  initialSessions <- StmMap.newIO
+  flip runLoggingT logger $ do
+    forM_ banner logInfo
+    logNotice $ "primer-server version " <> ver
+    logNotice ("Listening on port " <> show port :: Text)
+    logNotice $ "SQLite database: " <> dbPath
+  concurrently_
+    (Server.serve initialSessions dbOpQueue ver port logger)
+    (flip runLoggingT logger $ runSqliteDb (Db.ServiceCfg dbOpQueue ver) dbPath)
 
 main :: IO ()
 main = do
@@ -258,7 +321,16 @@ logMsgWithSeverity (WithSeverity s m) = textWithSeverity $ WithSeverity s (unLog
 instance ConvertLogMessage Text LogMsg where
   convert = LogMsg
 
+instance ConvertLogMessage BS.ByteString LogMsg where
+  convert = LogMsg . show
+
+instance ConvertLogMessage FilePath LogMsg where
+  convert = LogMsg . show
+
 instance ConvertLogMessage Rel8DbLogMessage LogMsg where
+  convert = LogMsg . show
+
+instance ConvertLogMessage SeldaDbLogMessage LogMsg where
   convert = LogMsg . show
 
 instance ConvertLogMessage SomeException LogMsg where
@@ -296,7 +368,16 @@ instance ConvertLogMessage LogReplay LogMsg where
 instance ConvertLogMessage Text LogReplay where
   convert = Other . LogMsg
 
+instance ConvertLogMessage BS.ByteString LogReplay where
+  convert = Other . convert
+
+instance ConvertLogMessage FilePath LogReplay where
+  convert = Other . convert
+
 instance ConvertLogMessage Rel8DbLogMessage LogReplay where
+  convert = Other . convert
+
+instance ConvertLogMessage SeldaDbLogMessage LogReplay where
   convert = Other . convert
 
 instance ConvertLogMessage SomeException LogReplay where

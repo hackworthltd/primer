@@ -12,15 +12,70 @@ repository contains Haskell implementations of:
 
 Note that Primer must be built with GHC 9.2.1 or later.
 
-# Running Primer
+# Developing Primer
 
-## Local development
+We use [Nix flakes](https://nixos.wiki/wiki/Flakes) to develop Primer,
+so all of the documentation that follows assumes you've got a working
+Nix installation with flakes support enabled. Our flake supports both
+`x86_64-linux` and `aarch64-darwin` systems.
 
-To run Primer for local development, you'll need a PostgreSQL instance
-to develop against. The most straightforward way to do this is via
-some scripts that are included in this repo. Each script can be run
-via the `nix run .#script-name` command, where `script-name` should be
-replaced by one of the scripts described below.
+Our implementation of Primer stores programs in a SQL database. We
+currently support two SQL backend implementations: SQLite and
+PostgreSQL.
+
+## Local development with SQLite
+
+Developing Primer with a local SQLite database is straightforward, so
+long as you have a working Nix flakes setup. Just run the following
+command:
+
+```sh
+nix run .#run-primer-sqlite
+```
+
+By default, this command will:
+
+1. Deploy a SQLite database named `primer.sqlite3` in the current
+   working directory. It will create a new empty database if one
+   doesn't already exist.
+2. Run `primer-service` on your host machine and configure it to
+   listen on TCP port 8081 on all network interfaces.
+
+This command uses the same script to launch the service as our Docker
+container uses, and therefore it takes no command-line arguments.
+Instead, you can override the defaults by setting any of the following
+environment variables (shown along with their default values):
+
+| Environment variable   |      Purpose                                          |  Default         |
+|------------------------|-------------------------------------------------------|------------------|
+| SQLITE_DB              | Filesystem path to the SQLite database                | `primer.sqlite3` |
+| SERVICE_PORT           | TCP port on which the service listens for connections | 8081             |
+
+Note that the script will actually create *two* database files: one
+named `primer.sqlite3`, and the other named `sqitch.sqlite3`. The
+latter contains metadata required by
+[Sqitch](https://sqitch.org/docs/manual/sqitchtutorial-sqlite/), which
+we use to manage database schemas.
+
+If you want to start over with a new database, either set `SQLITE_DB`
+to a new path, or remove both the `primer.sqlite3` and
+`sqitch.sqlite3` database files.
+
+If you don't want to use the `run-primer-sqlite` command for some
+reason, you can also run `primer-service` directly via a Nix flake
+app. For usage, run:
+
+```sh
+nix run .#primer-service serve -- --help
+```
+
+## Local development with PostgreSQL
+
+Developing Primer with a PostgreSQL database backend is much more
+involved than with SQLite, but we do provide some Nix tooling to make
+it a bit easier.
+
+### Initial setup
 
 The first time you want to do local Primer development on a particular
 system, you'll need to run the following commands from the top-level
@@ -29,20 +84,50 @@ directory in this repo:
 ```sh
 nix run .#deploy-postgresql-container
 nix run .#create-local-db
-nix run .#deploy-local-db
 ```
+
+This sequence of commands will use
+[Colima](https://github.com/abiosoft/colima) to do the following:
+
+1. Create a new Colima profile named `primer`.
+2. Run a PostgreSQL container in the `primer` profile, using Colima's
+   Docker-compatible runtime. The PostgreSQL service running on the
+   container listens on the default PostgreSQL TCP port, `5432`.
+3. Create a PostgreSQL database named `primer`.
 
 In general, you should only need to run that sequence the first time
 you do any Primer development on a new development machine, or if you
 want to start over with a completely new PostgreSQL container for some
 reason. The container & database those commands create will persist
 across reboots, and will remain on your system until you delete them.
+However, it's safe to run these commands multiple times, and only a
+single PostgreSQL instance and `primer` database will exist at any
+given time.
+
+### Development workflow
 
 Your usual Primer development workflow will look something like this:
 
 ```sh
-nix run .#run-primer
+nix run .#run-primer-postgresql
 ```
+
+By default, this command will:
+
+1. Deploy the Primer database schema to the default local PostgreSQL
+   instance.
+2. Run `primer-service` on your host machine and configure it to
+   listen on TCP port 8081 on all network interfaces.
+
+This command uses the same script to launch the service as our Docker
+container uses, and therefore it takes no command-line arguments.
+Instead, you can override the defaults by setting any of the following
+environment variables (shown along with their default values):
+
+| Environment variable   |      Purpose                                          |  Default         |
+|------------------------|-------------------------------------------------------|------------------|
+| DATABASE_URL           | The PostgreSQL-style URI of the database              | postgres://postgres:primer-dev@localhost:5432/primer |
+| SERVICE_PORT           | TCP port on which the service listens for connections | 8081                                                 |
 
 Note that you'll also need to run the `start-postgresql-container`
 command if the `primer-postgres` container is not already running.
@@ -68,7 +153,7 @@ colima start --runtime docker --profile primer
 nix run .#start-postgresql-container
 ```
 
-The details of each script in this repo follow:
+The details of each PostgreSQL helper script in this repo follow:
 
 ### `deploy-postgresql-container`
 
@@ -121,13 +206,7 @@ best to broadcast when this is necessary.
 Note that this script is safe to run at any time, even if the database
 is already using the latest schema.
 
-### `run-primer`
-
-This script runs the Primer service and connects to the local
-PostgreSQL database. This is the script you'll run most often while
-hacking on Primer.
-
-### Helper scripts
+### Other helper scripts
 
 * `delete-local-db` drops the Primer database from the local
   PostgreSQL instance. **Warning**: this script will delete all of the
@@ -158,9 +237,10 @@ hacking on Primer.
 nix run .#revert-local-db -- --to @HEAD
 ```
 
-### `make` targets
+## `make` targets
 
-We use `Makefile`s for convenient local development commands:
+We use `Makefile`s for convenient local development commands. These
+`make` targets assume you're in the `nix develop` shell:
 
 * `make` runs `cabal build` across all projects.
 
@@ -168,40 +248,31 @@ We use `Makefile`s for convenient local development commands:
 
 * `make bench` runs `cabal bench` across all projects.
 
-However, due to the complexity of setup, you should use `nix run
-.#run-primer` rather than `make` to run the service locally.
-
-## A note about the Sqitch scripts
-
-Each Sqitch script bundles a copy of the Sqitch config. This means you
-can run these scripts from anywhere, Sqitch configs contribute to the
-Nix store hash for their corresponding scripts, etc.
-
-One drawback of this approach is that if you're making local changes
-to the schema, you'll need to make sure that the scripts in your Nix
-shell incorporate your changes. This won't happen automatically in
-most cases, so either you'll need to exit and re-enter the Nix shell
-via `nix develop`, or, if you're running `direnv`, you can usually run
-`touch flake.nix`.
+We do not provide `make` targets for running the service locally, and
+instead recommend that you use either `nix run .#run-primer-sqlite` or
+`nix run .#run-primer-postgresql` as described elsewhere in this
+documentation.
 
 # Database ops
 
 We use [Sqitch](https://sqitch.org/about/) to manage our database
-schema.
+schemas, both for PostgreSQL and SQLite. Because these database
+engines are quite different, we require separate schemas for each.
 
 Most of what you need to know to use `sqitch` with Primer is included
 in this section, but for general help on how to use `sqitch` and a bit
-about how it works, see [the
+about how it works, see [the `sqitch` PostgreSQL
 tutorial](https://sqitch.org/docs/manual/sqitchtutorial/).
 
-Note: we do not use Sqitch for any user or group permissions, nor any
-database-wide security settings in general. The reason for this is
-because we assume that for some PostgreSQL-compatible cloud database
-offerings, user provisioning and security settings may be managed out
-of band using the cloud provider's own APIs. Therefore, our Sqitch
-scripts assume that the PostgreSQL user who's running the scripts has
-all the permissions required to perform any operations included in
-those scripts, and that a [secure schema usage
+Note: we do not use Sqitch for any PostgreSQL user or group
+permissions, nor any database-wide security settings in general. The
+reason for this is because we assume that for some
+PostgreSQL-compatible cloud database offerings, user provisioning and
+security settings may be managed out of band using the cloud
+provider's own APIs. Therefore, our Sqitch scripts assume that the
+PostgreSQL user who's running the scripts has all the permissions
+required to perform any operations included in those scripts, and that
+a [secure schema usage
 pattern](https://www.postgresql.org/docs/current/ddl-schemas.html#DDL-SCHEMAS-PATTERNS)
 has been configured out-of-band.
 
@@ -217,23 +288,30 @@ sqitch config --user user.name "Your Name"
 sqitch config --user user.email your-email-address@hackworthltd.com
 ```
 
-## Add a table
+## Schema changes
 
-To add a new table to the database:
+Making schema changes to the Primer Sqitch configuration is out of
+scope for this document. See the [Sqitch documentation for multiple
+engines](https://sqitch.org/docs/manual/sqitch-configuration/#separate-plans)
+and note that we use the "separate plans" approach described therein.
+Any Sqitch commands that modify the schema should be run in the
+`sqitch` subdirectory of this repo.
 
-1. Tell `sqitch` about the new table:
+## A note about the Sqitch scripts
 
-```sh
-cd sqitch
-sqitch add table_name --requires appschema -n "Description of new table."
-```
+We provide a few Sqitch scripts for common Sqitch operations, in
+addition to a `primer-sqitch` wrapper script that bundles a copy of
+the project's Sqitch config. We recommend that you at least use the
+`primer-sqitch` command rather than running raw `sqitch`. These
+commands are available in the `nix develop` shell, and can be run as
+Flake apps, as well; e.g., `nix run .#primer-sqitch ...`
 
-2. Edit the `sqitch` scripts for the new table. See [the
-tutorial](https://sqitch.org/docs/manual/sqitchtutorial/) for details.
-
-Note: we follow the [same convention as the maintainer of
-Sqitch](https://github.com/sqitchers/sqitch/issues/239#issuecomment-118943207)
-when setting PostgreSQL search paths/schema prefixes in our scripts.
+However, one drawback of this approach is that if you're making local
+changes to the Sqitch schema, you'll need to make sure that the
+scripts in your Nix shell incorporate your changes. This won't happen
+automatically in most cases, so either you'll need to exit and
+re-enter the Nix shell via `nix develop`, or, if you're using `direnv`
+with Nix flake support, you can just `touch flake.nix`.
 
 # Generating an OpenAPI spec
 
@@ -260,4 +338,3 @@ discontinuities may appear.
 |------------------------------------------|------------------
 | 031587e3a054ff77ef42ee3e97a3a3b34b1365d0 | Retired previous benchmark machine, a dedicated AMD Ryzen 5 3600 6-Core Processor host running only benchmark jobs, and moved subsequent benchmark jobs to a VM running other CI jobs, with an 8-core AMD Ryzen 9 5900HX with Radeon Graphics.
 | d38b973874bc2491904811567b5da55e70116f54 | Back to previous benchmark machine, as the mixed-use CI machine was not a reliable benchmarking host.
-

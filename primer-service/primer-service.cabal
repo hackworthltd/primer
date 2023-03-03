@@ -102,6 +102,7 @@ executable primer-service
     , optparse-applicative    ^>=0.17
     , primer
     , primer-rel8             ^>=0.7.2
+    , primer-selda            ^>=0.7.2
     , primer-service
     , prometheus-client       ^>=1.1.0
     , prometheus-metrics-ghc  ^>=1.0.1.2
