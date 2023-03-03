@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1677870909173,
+  "lastUpdate": 1677873974993,
   "repoUrl": "https://github.com/hackworthltd/primer",
   "entries": {
     "Primer benchmarks": [
@@ -13874,6 +13874,860 @@ window.BENCHMARK_DATA = {
           "url": "https://github.com/hackworthltd/primer/commit/d61444dd7ee3064701b25a76a0be5f64cd32708f"
         },
         "date": 1677870908547,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "evalTestM/pure logs/mapEven 1: mean time",
+            "value": 0.007663037845901138,
+            "unit": "mean time",
+            "range": 0.00030886651933207206
+          },
+          {
+            "name": "evalTestM/pure logs/mapEven 1: outlier variance",
+            "value": 0.16766119394451257,
+            "unit": "outlier variance"
+          },
+          {
+            "name": "evalTestM/pure logs/mapEven 1: time",
+            "value": 0.007523015097452615,
+            "unit": "time/iter",
+            "extra": "R²: 0.9967430578508919"
+          },
+          {
+            "name": "evalTestM/pure logs/mapEven 1: cpuTime",
+            "value": 0.008617314605719855,
+            "unit": "cpuTime/iter",
+            "extra": "R²: 0.9974463300420694"
+          },
+          {
+            "name": "evalTestM/pure logs/mapEven 1: allocated",
+            "value": 21725046.469073366,
+            "unit": "allocated/iter",
+            "extra": "R²: 0.9999999999587305"
+          },
+          {
+            "name": "evalTestM/pure logs/mapEven 1: numGcs",
+            "value": 5.205040366726234,
+            "unit": "numGcs/iter",
+            "extra": "R²: 0.9999789133190439"
+          },
+          {
+            "name": "evalTestM/pure logs/mapEven 10: mean time",
+            "value": 0.23235720654225187,
+            "unit": "mean time",
+            "range": 0.0023421691344115434
+          },
+          {
+            "name": "evalTestM/pure logs/mapEven 10: outlier variance",
+            "value": 0.13888888888888876,
+            "unit": "outlier variance"
+          },
+          {
+            "name": "evalTestM/pure logs/mapEven 10: time",
+            "value": 0.23386207733835496,
+            "unit": "time/iter",
+            "extra": "R²: 0.999404656226053"
+          },
+          {
+            "name": "evalTestM/pure logs/mapEven 10: cpuTime",
+            "value": 0.27280183171428574,
+            "unit": "cpuTime/iter",
+            "extra": "R²: 0.9996257424028805"
+          },
+          {
+            "name": "evalTestM/pure logs/mapEven 10: allocated",
+            "value": 744034837.0285715,
+            "unit": "allocated/iter",
+            "extra": "R²: 0.9999999999985816"
+          },
+          {
+            "name": "evalTestM/pure logs/mapEven 10: numGcs",
+            "value": 178.45714285714288,
+            "unit": "numGcs/iter",
+            "extra": "R²: 0.9999993848131908"
+          },
+          {
+            "name": "evalTestM/discard logs/mapEven 1: mean time",
+            "value": 0.006572173332758112,
+            "unit": "mean time",
+            "range": 0.00028428169477808966
+          },
+          {
+            "name": "evalTestM/discard logs/mapEven 1: outlier variance",
+            "value": 0.20566469555176098,
+            "unit": "outlier variance"
+          },
+          {
+            "name": "evalTestM/discard logs/mapEven 1: time",
+            "value": 0.00643991118332276,
+            "unit": "time/iter",
+            "extra": "R²: 0.9955498486705231"
+          },
+          {
+            "name": "evalTestM/discard logs/mapEven 1: cpuTime",
+            "value": 0.007423317472615676,
+            "unit": "cpuTime/iter",
+            "extra": "R²: 0.9963841815753303"
+          },
+          {
+            "name": "evalTestM/discard logs/mapEven 1: allocated",
+            "value": 19361820.197285306,
+            "unit": "allocated/iter",
+            "extra": "R²: 0.999999999963044"
+          },
+          {
+            "name": "evalTestM/discard logs/mapEven 1: numGcs",
+            "value": 4.648385073690811,
+            "unit": "numGcs/iter",
+            "extra": "R²: 0.9999777357116392"
+          },
+          {
+            "name": "evalTestM/discard logs/mapEven 10: mean time",
+            "value": 0.20202984876102872,
+            "unit": "mean time",
+            "range": 0.007243521710036147
+          },
+          {
+            "name": "evalTestM/discard logs/mapEven 10: outlier variance",
+            "value": 0.1388888888888889,
+            "unit": "outlier variance"
+          },
+          {
+            "name": "evalTestM/discard logs/mapEven 10: time",
+            "value": 0.19900695548525882,
+            "unit": "time/iter",
+            "extra": "R²: 0.995427657097253"
+          },
+          {
+            "name": "evalTestM/discard logs/mapEven 10: cpuTime",
+            "value": 0.23374411757142854,
+            "unit": "cpuTime/iter",
+            "extra": "R²: 0.9968857837269327"
+          },
+          {
+            "name": "evalTestM/discard logs/mapEven 10: allocated",
+            "value": 646680789.7142857,
+            "unit": "allocated/iter",
+            "extra": "R²: 0.9999999999983498"
+          },
+          {
+            "name": "evalTestM/discard logs/mapEven 10: numGcs",
+            "value": 155.00000000000003,
+            "unit": "numGcs/iter",
+            "extra": "R²: 1"
+          },
+          {
+            "name": "typecheck/mapOdd 1: mean time",
+            "value": 0.000820850458788978,
+            "unit": "mean time",
+            "range": 0.00003096015436930958
+          },
+          {
+            "name": "typecheck/mapOdd 1: outlier variance",
+            "value": 0.2841785585287334,
+            "unit": "outlier variance"
+          },
+          {
+            "name": "typecheck/mapOdd 1: time",
+            "value": 0.0008609409932097081,
+            "unit": "time/iter",
+            "extra": "R²: 0.9987531132160351"
+          },
+          {
+            "name": "typecheck/mapOdd 1: cpuTime",
+            "value": 0.0009792838523519285,
+            "unit": "cpuTime/iter",
+            "extra": "R²: 0.9989161208761896"
+          },
+          {
+            "name": "typecheck/mapOdd 1: allocated",
+            "value": 2415737.47321628,
+            "unit": "allocated/iter",
+            "extra": "R²: 0.9999999999298433"
+          },
+          {
+            "name": "typecheck/mapOdd 1: numGcs",
+            "value": 0.5798503726868399,
+            "unit": "numGcs/iter",
+            "extra": "R²: 0.9999578741747899"
+          },
+          {
+            "name": "typecheck/mapOdd 10: mean time",
+            "value": 0.0018275630532399736,
+            "unit": "mean time",
+            "range": 0.000011321216313045911
+          },
+          {
+            "name": "typecheck/mapOdd 10: outlier variance",
+            "value": 0.01666187877046817,
+            "unit": "outlier variance"
+          },
+          {
+            "name": "typecheck/mapOdd 10: time",
+            "value": 0.001824834750726248,
+            "unit": "time/iter",
+            "extra": "R²: 0.9998592524665866"
+          },
+          {
+            "name": "typecheck/mapOdd 10: cpuTime",
+            "value": 0.0021040945990820816,
+            "unit": "cpuTime/iter",
+            "extra": "R²: 0.9997787530080186"
+          },
+          {
+            "name": "typecheck/mapOdd 10: allocated",
+            "value": 5878790.984707674,
+            "unit": "allocated/iter",
+            "extra": "R²: 0.9999999999532032"
+          },
+          {
+            "name": "typecheck/mapOdd 10: numGcs",
+            "value": 1.4113367325516375,
+            "unit": "numGcs/iter",
+            "extra": "R²: 0.9999751543567542"
+          },
+          {
+            "name": "typecheck/mapOdd 100: mean time",
+            "value": 0.1865687179016984,
+            "unit": "mean time",
+            "range": 0.0031030674700536047
+          },
+          {
+            "name": "typecheck/mapOdd 100: outlier variance",
+            "value": 0.13888888888888884,
+            "unit": "outlier variance"
+          },
+          {
+            "name": "typecheck/mapOdd 100: time",
+            "value": 0.18306165241769382,
+            "unit": "time/iter",
+            "extra": "R²: 0.9992730527327"
+          },
+          {
+            "name": "typecheck/mapOdd 100: cpuTime",
+            "value": 0.3235222620000004,
+            "unit": "cpuTime/iter",
+            "extra": "R²: 0.9996121974189068"
+          },
+          {
+            "name": "typecheck/mapOdd 100: allocated",
+            "value": 245892908.5714286,
+            "unit": "allocated/iter",
+            "extra": "R²: 0.9999999999933639"
+          },
+          {
+            "name": "typecheck/mapOdd 100: numGcs",
+            "value": 59.00000000000001,
+            "unit": "numGcs/iter",
+            "extra": "R²: 1"
+          },
+          {
+            "name": "typecheck/mapOddPrim 1: mean time",
+            "value": 0.0007827390577406415,
+            "unit": "mean time",
+            "range": 0.000029416420775609845
+          },
+          {
+            "name": "typecheck/mapOddPrim 1: outlier variance",
+            "value": 0.280641161313582,
+            "unit": "outlier variance"
+          },
+          {
+            "name": "typecheck/mapOddPrim 1: time",
+            "value": 0.0008226558557117999,
+            "unit": "time/iter",
+            "extra": "R²: 0.9961726715895168"
+          },
+          {
+            "name": "typecheck/mapOddPrim 1: cpuTime",
+            "value": 0.0009328456099434367,
+            "unit": "cpuTime/iter",
+            "extra": "R²: 0.9966822678108909"
+          },
+          {
+            "name": "typecheck/mapOddPrim 1: allocated",
+            "value": 2341624.9634631597,
+            "unit": "allocated/iter",
+            "extra": "R²: 0.9999999999325834"
+          },
+          {
+            "name": "typecheck/mapOddPrim 1: numGcs",
+            "value": 0.5613854239671848,
+            "unit": "numGcs/iter",
+            "extra": "R²: 0.999958600065969"
+          },
+          {
+            "name": "typecheck/mapOddPrim 10: mean time",
+            "value": 0.001368209917159721,
+            "unit": "mean time",
+            "range": 0.00004202362960323758
+          },
+          {
+            "name": "typecheck/mapOddPrim 10: outlier variance",
+            "value": 0.1898073993481262,
+            "unit": "outlier variance"
+          },
+          {
+            "name": "typecheck/mapOddPrim 10: time",
+            "value": 0.0013556568462492486,
+            "unit": "time/iter",
+            "extra": "R²: 0.9958288343920931"
+          },
+          {
+            "name": "typecheck/mapOddPrim 10: cpuTime",
+            "value": 0.0015357053874925511,
+            "unit": "cpuTime/iter",
+            "extra": "R²: 0.9968569425425551"
+          },
+          {
+            "name": "typecheck/mapOddPrim 10: allocated",
+            "value": 3735831.850775631,
+            "unit": "allocated/iter",
+            "extra": "R²: 0.9999999999311303"
+          },
+          {
+            "name": "typecheck/mapOddPrim 10: numGcs",
+            "value": 0.8963258397149437,
+            "unit": "numGcs/iter",
+            "extra": "R²: 0.9999609640053939"
+          },
+          {
+            "name": "typecheck/mapOddPrim 100: mean time",
+            "value": 0.00757781143531531,
+            "unit": "mean time",
+            "range": 0.0008073035920221526
+          },
+          {
+            "name": "typecheck/mapOddPrim 100: outlier variance",
+            "value": 0.6022003598510338,
+            "unit": "outlier variance"
+          },
+          {
+            "name": "typecheck/mapOddPrim 100: time",
+            "value": 0.0075793952191646535,
+            "unit": "time/iter",
+            "extra": "R²: 0.9933350819263012"
+          },
+          {
+            "name": "typecheck/mapOddPrim 100: cpuTime",
+            "value": 0.010423255317516252,
+            "unit": "cpuTime/iter",
+            "extra": "R²: 0.9953632984538334"
+          },
+          {
+            "name": "typecheck/mapOddPrim 100: allocated",
+            "value": 17677915.634488653,
+            "unit": "allocated/iter",
+            "extra": "R²: 0.9999999999307203"
+          },
+          {
+            "name": "typecheck/mapOddPrim 100: numGcs",
+            "value": 4.2462476249673315,
+            "unit": "numGcs/iter",
+            "extra": "R²: 0.9999670679700314"
+          },
+          {
+            "name": "edits/sayHello/sayHello (no forcing): mean time",
+            "value": 0.08890581501936097,
+            "unit": "mean time",
+            "range": 0.002665876814237917
+          },
+          {
+            "name": "edits/sayHello/sayHello (no forcing): outlier variance",
+            "value": 0.09000000000000001,
+            "unit": "outlier variance"
+          },
+          {
+            "name": "edits/sayHello/sayHello (no forcing): time",
+            "value": 0.0884714147696893,
+            "unit": "time/iter",
+            "extra": "R²: 0.9970381139784199"
+          },
+          {
+            "name": "edits/sayHello/sayHello (no forcing): cpuTime",
+            "value": 0.11203933647878726,
+            "unit": "cpuTime/iter",
+            "extra": "R²: 0.9979988265743439"
+          },
+          {
+            "name": "edits/sayHello/sayHello (no forcing): allocated",
+            "value": 278119636.5090911,
+            "unit": "allocated/iter",
+            "extra": "R²: 0.9999999999976898"
+          },
+          {
+            "name": "edits/sayHello/sayHello (no forcing): numGcs",
+            "value": 66.6545454545455,
+            "unit": "numGcs/iter",
+            "extra": "R²: 0.999998214229909"
+          },
+          {
+            "name": "edits/sayHello/sayHello (force app): mean time",
+            "value": 0.08913867980973529,
+            "unit": "mean time",
+            "range": 0.00430404493486057
+          },
+          {
+            "name": "edits/sayHello/sayHello (force app): outlier variance",
+            "value": 0.09329808635190863,
+            "unit": "outlier variance"
+          },
+          {
+            "name": "edits/sayHello/sayHello (force app): time",
+            "value": 0.09439763675133393,
+            "unit": "time/iter",
+            "extra": "R²: 0.9938471614335681"
+          },
+          {
+            "name": "edits/sayHello/sayHello (force app): cpuTime",
+            "value": 0.11628903918787795,
+            "unit": "cpuTime/iter",
+            "extra": "R²: 0.9945310993927674"
+          },
+          {
+            "name": "edits/sayHello/sayHello (force app): allocated",
+            "value": 285777172.9454548,
+            "unit": "allocated/iter",
+            "extra": "R²: 0.9999999999973084"
+          },
+          {
+            "name": "edits/sayHello/sayHello (force app): numGcs",
+            "value": 68.51515151515156,
+            "unit": "numGcs/iter",
+            "extra": "R²: 0.9999984350942631"
+          },
+          {
+            "name": "edits/sayHello/sayHello (force prog): mean time",
+            "value": 0.13947534757178454,
+            "unit": "mean time",
+            "range": 0.0028433616309650822
+          },
+          {
+            "name": "edits/sayHello/sayHello (force prog): outlier variance",
+            "value": 0.12244897959183672,
+            "unit": "outlier variance"
+          },
+          {
+            "name": "edits/sayHello/sayHello (force prog): time",
+            "value": 0.1387922326768083,
+            "unit": "time/iter",
+            "extra": "R²: 0.9991226566420703"
+          },
+          {
+            "name": "edits/sayHello/sayHello (force prog): cpuTime",
+            "value": 0.16929627832142957,
+            "unit": "cpuTime/iter",
+            "extra": "R²: 0.9990291423329881"
+          },
+          {
+            "name": "edits/sayHello/sayHello (force prog): allocated",
+            "value": 469403365.14285696,
+            "unit": "allocated/iter",
+            "extra": "R²: 0.9999999999966048"
+          },
+          {
+            "name": "edits/sayHello/sayHello (force prog): numGcs",
+            "value": 112.49999999999997,
+            "unit": "numGcs/iter",
+            "extra": "R²: 0.9999987906288247"
+          },
+          {
+            "name": "edits/sayHello/sayHello (force progjson): mean time",
+            "value": 0.23078133781544038,
+            "unit": "mean time",
+            "range": 0.0017892728973899147
+          },
+          {
+            "name": "edits/sayHello/sayHello (force progjson): outlier variance",
+            "value": 0.13888888888888878,
+            "unit": "outlier variance"
+          },
+          {
+            "name": "edits/sayHello/sayHello (force progjson): time",
+            "value": 0.23290424006325855,
+            "unit": "time/iter",
+            "extra": "R²: 0.9997572398868643"
+          },
+          {
+            "name": "edits/sayHello/sayHello (force progjson): cpuTime",
+            "value": 0.2764884662857132,
+            "unit": "cpuTime/iter",
+            "extra": "R²: 0.9998233865593215"
+          },
+          {
+            "name": "edits/sayHello/sayHello (force progjson): allocated",
+            "value": 720590251.2000002,
+            "unit": "allocated/iter",
+            "extra": "R²: 0.9999999999990459"
+          },
+          {
+            "name": "edits/sayHello/sayHello (force progjson): numGcs",
+            "value": 171,
+            "unit": "numGcs/iter",
+            "extra": "R²: 1"
+          },
+          {
+            "name": "net-db-replay-1/netstat/client/eth0/tx/iter:start",
+            "value": 1928,
+            "unit": "bytes"
+          },
+          {
+            "name": "net-db-replay-1/netstat/client/eth0/rx/iter:start",
+            "value": 1290,
+            "unit": "bytes"
+          },
+          {
+            "name": "net-db-replay-1/netstat/client/eth1/tx/iter:start",
+            "value": 586,
+            "unit": "bytes"
+          },
+          {
+            "name": "net-db-replay-1/netstat/client/eth1/rx/iter:start",
+            "value": 90,
+            "unit": "bytes"
+          },
+          {
+            "name": "net-db-replay-1/netstat/primer/eth0/tx/iter:start",
+            "value": 1842,
+            "unit": "bytes"
+          },
+          {
+            "name": "net-db-replay-1/netstat/primer/eth0/rx/iter:start",
+            "value": 1290,
+            "unit": "bytes"
+          },
+          {
+            "name": "net-db-replay-1/netstat/primer/eth1/tx/iter:start",
+            "value": 586,
+            "unit": "bytes"
+          },
+          {
+            "name": "net-db-replay-1/netstat/primer/eth1/rx/iter:start",
+            "value": 0,
+            "unit": "bytes"
+          },
+          {
+            "name": "net-db-replay-1/netstat/db/eth0/tx/iter:start",
+            "value": 1920,
+            "unit": "bytes"
+          },
+          {
+            "name": "net-db-replay-1/netstat/db/eth0/rx/iter:start",
+            "value": 1290,
+            "unit": "bytes"
+          },
+          {
+            "name": "net-db-replay-1/netstat/db/eth1/tx/iter:start",
+            "value": 586,
+            "unit": "bytes"
+          },
+          {
+            "name": "net-db-replay-1/netstat/db/eth1/rx/iter:start",
+            "value": 0,
+            "unit": "bytes"
+          },
+          {
+            "name": "net-db-replay-1/database/du/iter:start",
+            "value": 52659979,
+            "unit": "bytes"
+          },
+          {
+            "name": "net-db-replay-1/database/postgres/pg_database_size/iter:start",
+            "value": 8766243,
+            "unit": "bytes"
+          },
+          {
+            "name": "net-db-replay-1/database/template1/pg_database_size/iter:start",
+            "value": 8610307,
+            "unit": "bytes"
+          },
+          {
+            "name": "net-db-replay-1/database/template0/pg_database_size/iter:start",
+            "value": 8610307,
+            "unit": "bytes"
+          },
+          {
+            "name": "net-db-replay-1/database/primer/pg_database_size/iter:start",
+            "value": 9159459,
+            "unit": "bytes"
+          },
+          {
+            "name": "net-db-replay-1/database/total-pg_database_size/iter:start",
+            "value": 35146316,
+            "unit": "bytes"
+          },
+          {
+            "name": "net-db-replay-1/netstat/client/eth0/tx/iter:1",
+            "value": 1928,
+            "unit": "bytes"
+          },
+          {
+            "name": "net-db-replay-1/netstat/client/eth0/rx/iter:1",
+            "value": 1290,
+            "unit": "bytes"
+          },
+          {
+            "name": "net-db-replay-1/netstat/client/eth1/tx/iter:1",
+            "value": 29310,
+            "unit": "bytes"
+          },
+          {
+            "name": "net-db-replay-1/netstat/client/eth1/rx/iter:1",
+            "value": 1112976,
+            "unit": "bytes"
+          },
+          {
+            "name": "net-db-replay-1/netstat/primer/eth0/tx/iter:1",
+            "value": 1928,
+            "unit": "bytes"
+          },
+          {
+            "name": "net-db-replay-1/netstat/primer/eth0/rx/iter:1",
+            "value": 1290,
+            "unit": "bytes"
+          },
+          {
+            "name": "net-db-replay-1/netstat/primer/eth1/tx/iter:1",
+            "value": 1972137,
+            "unit": "bytes"
+          },
+          {
+            "name": "net-db-replay-1/netstat/primer/eth1/rx/iter:1",
+            "value": 34698,
+            "unit": "bytes"
+          },
+          {
+            "name": "net-db-replay-1/netstat/db/eth0/tx/iter:1",
+            "value": 1920,
+            "unit": "bytes"
+          },
+          {
+            "name": "net-db-replay-1/netstat/db/eth0/rx/iter:1",
+            "value": 1290,
+            "unit": "bytes"
+          },
+          {
+            "name": "net-db-replay-1/netstat/db/eth1/tx/iter:1",
+            "value": 6524,
+            "unit": "bytes"
+          },
+          {
+            "name": "net-db-replay-1/netstat/db/eth1/rx/iter:1",
+            "value": 858821,
+            "unit": "bytes"
+          },
+          {
+            "name": "net-db-replay-1/database/du/iter:1",
+            "value": 52889355,
+            "unit": "bytes"
+          },
+          {
+            "name": "net-db-replay-1/database/postgres/pg_database_size/iter:1",
+            "value": 8766243,
+            "unit": "bytes"
+          },
+          {
+            "name": "net-db-replay-1/database/template1/pg_database_size/iter:1",
+            "value": 8610307,
+            "unit": "bytes"
+          },
+          {
+            "name": "net-db-replay-1/database/template0/pg_database_size/iter:1",
+            "value": 8610307,
+            "unit": "bytes"
+          },
+          {
+            "name": "net-db-replay-1/database/primer/pg_database_size/iter:1",
+            "value": 9388835,
+            "unit": "bytes"
+          },
+          {
+            "name": "net-db-replay-1/database/total-pg_database_size/iter:1",
+            "value": 35375692,
+            "unit": "bytes"
+          },
+          {
+            "name": "net-db-replay-1/netstat/client/eth0/tx/iter:21",
+            "value": 1928,
+            "unit": "bytes"
+          },
+          {
+            "name": "net-db-replay-1/netstat/client/eth0/rx/iter:21",
+            "value": 1290,
+            "unit": "bytes"
+          },
+          {
+            "name": "net-db-replay-1/netstat/client/eth1/tx/iter:21",
+            "value": 617316,
+            "unit": "bytes"
+          },
+          {
+            "name": "net-db-replay-1/netstat/client/eth1/rx/iter:21",
+            "value": 23409708,
+            "unit": "bytes"
+          },
+          {
+            "name": "net-db-replay-1/netstat/primer/eth0/tx/iter:21",
+            "value": 2406,
+            "unit": "bytes"
+          },
+          {
+            "name": "net-db-replay-1/netstat/primer/eth0/rx/iter:21",
+            "value": 1400,
+            "unit": "bytes"
+          },
+          {
+            "name": "net-db-replay-1/netstat/primer/eth1/tx/iter:21",
+            "value": 41409101,
+            "unit": "bytes"
+          },
+          {
+            "name": "net-db-replay-1/netstat/primer/eth1/rx/iter:21",
+            "value": 711134,
+            "unit": "bytes"
+          },
+          {
+            "name": "net-db-replay-1/netstat/db/eth0/tx/iter:21",
+            "value": 1920,
+            "unit": "bytes"
+          },
+          {
+            "name": "net-db-replay-1/netstat/db/eth0/rx/iter:21",
+            "value": 1290,
+            "unit": "bytes"
+          },
+          {
+            "name": "net-db-replay-1/netstat/db/eth1/tx/iter:21",
+            "value": 95654,
+            "unit": "bytes"
+          },
+          {
+            "name": "net-db-replay-1/netstat/db/eth1/rx/iter:21",
+            "value": 17998703,
+            "unit": "bytes"
+          },
+          {
+            "name": "net-db-replay-1/database/du/iter:21",
+            "value": 54080045,
+            "unit": "bytes"
+          },
+          {
+            "name": "net-db-replay-1/database/postgres/pg_database_size/iter:21",
+            "value": 8766243,
+            "unit": "bytes"
+          },
+          {
+            "name": "net-db-replay-1/database/template1/pg_database_size/iter:21",
+            "value": 8610307,
+            "unit": "bytes"
+          },
+          {
+            "name": "net-db-replay-1/database/template0/pg_database_size/iter:21",
+            "value": 8610307,
+            "unit": "bytes"
+          },
+          {
+            "name": "net-db-replay-1/database/primer/pg_database_size/iter:21",
+            "value": 10552099,
+            "unit": "bytes"
+          },
+          {
+            "name": "net-db-replay-1/database/total-pg_database_size/iter:21",
+            "value": 36538956,
+            "unit": "bytes"
+          },
+          {
+            "name": "net-db-replay-1/ghcstat/ghc_gcs_total",
+            "value": 3220,
+            "unit": "Total number of GCs (counter)"
+          },
+          {
+            "name": "net-db-replay-1/ghcstat/ghc_major_gcs_total",
+            "value": 484,
+            "unit": "Total number of major (oldest generation) GCs (counter)"
+          },
+          {
+            "name": "net-db-replay-1/ghcstat/ghc_allocated_bytes_total",
+            "value": 13855496344,
+            "unit": "Total bytes allocated (counter)"
+          },
+          {
+            "name": "net-db-replay-1/ghcstat/ghc_max_live_bytes",
+            "value": 3550928,
+            "unit": "Maximum live data (including large objects + compact regions) (gauge)"
+          },
+          {
+            "name": "net-db-replay-1/ghcstat/ghc_max_slop_bytes",
+            "value": 54552,
+            "unit": "Maximum slop (gauge)"
+          },
+          {
+            "name": "net-db-replay-1/ghcstat/ghc_max_mem_in_use_bytes",
+            "value": 15728640,
+            "unit": "Maximum memory in use by the RTS (gauge)"
+          },
+          {
+            "name": "net-db-replay-1/ghcstat/ghc_cumulative_live_bytes_total",
+            "value": 977286376,
+            "unit": "Sum of live bytes across all major GCs. Divided by major_gcs gives the average live data over the lifetime of the program. (counter)"
+          },
+          {
+            "name": "net-db-replay-1/ghcstat/ghc_copied_bytes_total",
+            "value": 1776663560,
+            "unit": "Sum of copied_bytes across all GCs (counter)"
+          },
+          {
+            "name": "net-db-replay-1/ghcstat/ghc_mutator_cpu_seconds_total",
+            "value": 4.649900062,
+            "unit": "Total CPU time used by the mutator (counter)"
+          },
+          {
+            "name": "net-db-replay-1/ghcstat/ghc_mutator_elapsed_seconds_total",
+            "value": 341.82204937,
+            "unit": "Total elapsed time used by the mutator (counter)"
+          },
+          {
+            "name": "net-db-replay-1/ghcstat/ghc_gc_cpu_seconds_total",
+            "value": 2.147815394,
+            "unit": "Total CPU time used by the GC (counter)"
+          },
+          {
+            "name": "net-db-replay-1/ghcstat/ghc_gc_elapsed_seconds_total",
+            "value": 4.351175399,
+            "unit": "Total elapsed time used by the GC (counter)"
+          },
+          {
+            "name": "net-db-replay-1/ghcstat/ghc_cpu_seconds_total",
+            "value": 6.797715456,
+            "unit": "Total CPU time (at the previous GC) (counter)"
+          },
+          {
+            "name": "net-db-replay-1/ghcstat/ghc_elapsed_seconds_total",
+            "value": 346.173224769,
+            "unit": "Total elapsed time (at the previous GC) (counter)"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "src@drewhess.com",
+            "name": "Drew Hess",
+            "username": "dhess"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "6087bf3d097343dca25ffd5dc12845fab5599419",
+          "message": "Merge pull request #896 from hackworthltd/dhess/fix-docker-entrypoint\n\nfix: Add `coreutils` to Docker entrypoint's `runtimeInputs`.",
+          "timestamp": "2023-03-03T19:54:43Z",
+          "tree_id": "632e8bdd4aff700b71e3c7f7921c6897039d417d",
+          "url": "https://github.com/hackworthltd/primer/commit/6087bf3d097343dca25ffd5dc12845fab5599419"
+        },
+        "date": 1677873974030,
         "tool": "customSmallerIsBetter",
         "benches": [
           {
