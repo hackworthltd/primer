@@ -46,7 +46,6 @@ if [ -z "${PRIMER_VERSION+x}" ]; then
     exit 3
 fi
 
-SQITCH_TARGET=""
 EXTRA_PRIMER_SERVICE_ARGS=""
 
 if [ -z "${DATABASE_URL+x}" ]; then
@@ -57,8 +56,14 @@ if [ -z "${DATABASE_URL+x}" ]; then
         echo "Neither DATABASE_URL nor SQLITE_DB is set, exiting." >&2
         exit 4
     else
-        SQITCH_TARGET="db:sqlite:$SQLITE_DB"
         EXTRA_PRIMER_SERVICE_ARGS="--sqlite-db $SQLITE_DB"
+
+        # Ensure any required database migrations are performed before
+        # starting the service. This is safe in the case of a SQLite
+        # target, because we rely on the container orchestrator to
+        # guarantee that we are the only instance that has mounted
+        # the volume containing the database.
+        SQITCH_TARGET="db:sqlite:$SQLITE_DB" primer-sqitch deploy --verify
     fi
 
 else
@@ -66,19 +71,26 @@ else
     # DATABASE_URL is set.
     #
     # Note that DATABASE_URL probably contains a secret, so don't
-    # convert it to a command-line argument. We use SQITCH_TARGET for
-    # sqitch, and primer-service will look for DATABASE_URL of its
-    # own accord.
+    # convert it to a command-line argument. We use the SQITCH_TARGET
+    # env var for sqitch, and primer-service will look for
+    # DATABASE_URL of its own accord.
 
     if [ -z "${SQLITE_DB+x}" ]; then
-        SQITCH_TARGET="db:$DATABASE_URL"
+        # Note: we do not deploy when the target is PostgreSQL, only
+        # verify. This is because concurrent migrations are not safe,
+        # and we cannot guarantee that we are the only container that
+        # is starting.
+        #
+        # See:
+        # https://github.com/sqitchers/sqitch/discussions/646
+        SQITCH_TARGET="db:$DATABASE_URL" primer-sqitch verify
     else
         echo "Both DATABASE_URL and SQLITE_DB are set, but you must provide only one. Exiting." >&2
         exit 5
     fi
 fi
 
-SQITCH_TARGET="$SQITCH_TARGET" primer-sqitch verify
+
 
 # shellcheck disable=SC2086
 exec primer-service serve "$PRIMER_VERSION" --port "$SERVICE_PORT" $EXTRA_PRIMER_SERVICE_ARGS +RTS -T
