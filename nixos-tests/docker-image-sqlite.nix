@@ -95,32 +95,28 @@ in
       };
   };
 
+  # Note: one major difference between this test and the equivalent
+  # PostgreSQL test is that when the container is running against a
+  # PostgreSQL database, it does not perform the database deployment
+  # automatically, deployments/migrations are not atomic, and we don't
+  # want to depend on container rollout synchronization to guarantee
+  # that.
+  #
+  # However, when running against a SQLite database, the container
+  # *can* safely do a deployment/migration, because no other container
+  # will be (or should be, anyway) mounting the same database volume.
   testScript = { nodes, ... }:
     ''
       primer.start();
       primer.systemctl("start podman-primer-service.service")
       primer.wait_for_unit("podman-primer-service.service")
-
-      with subtest("fails if the database hasn't been deployed"):
-          primer.sleep(5)
-          primer.fail("podman healthcheck run primer-service")
-          primer.systemctl("stop podman-primer-service.service")
-
-      primer.succeed(
-          "primer-sqitch deploy --verify db:sqlite:${hostDbPath}"
-      )
-
-      primer.systemctl("start podman-primer-service.service")
-      primer.wait_for_unit("podman-primer-service.service")
       primer.wait_for_open_port(${port})
-
       with subtest("version check"):
           primer.succeed("primer-version-check ${port} ${version}")
 
       primer.systemctl("start podman-primer-service-alt.service")
       primer.wait_for_unit("podman-primer-service-alt.service")
       primer.wait_for_open_port(${altPort})
-
       with subtest("alt version check"):
           primer.succeed("primer-version-check ${altPort} ${altVersion}")
     '';

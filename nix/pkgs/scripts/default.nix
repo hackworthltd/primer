@@ -110,6 +110,11 @@ let
   # Run `primer-service` locally against a SQLite database. This
   # script sets the expected environment variables, deploys the
   # database, and execs `primer-service-entrypoint`.
+  #
+  # Note that, unlike the PostgreSQL equivalent script, this script
+  # does not need to perform a database deployment before running the
+  # entrypoint, because the entrypoint does that for us when running
+  # against a SQLite database.
   run-primer-sqlite = writeShellApplication {
     name = "run-primer-sqlite";
     runtimeInputs = [
@@ -123,7 +128,6 @@ let
         export SQLITE_DB="primer.sqlite3"
       fi
 
-      primer-sqitch deploy --verify "db:sqlite:$SQLITE_DB"
       primer-service-entrypoint
     '';
   };
