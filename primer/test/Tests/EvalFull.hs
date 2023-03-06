@@ -1375,7 +1375,7 @@ evalFullTasty id_ tydefs globals n d e = do
   ids === ordNub ids
   pure r
 
-unaryPrimTest :: PrimDef -> S Expr -> S Expr -> Assertion
+unaryPrimTest :: HasCallStack => PrimDef -> S Expr -> S Expr -> Assertion
 unaryPrimTest f x y =
   let ((e, r), maxID) =
         create $
@@ -1386,7 +1386,7 @@ unaryPrimTest f x y =
    in do
         s <- evalFullTest maxID mempty primDefs 2 Syn e
         s <~==> Right r
-binaryPrimTest :: PrimDef -> S Expr -> S Expr -> S Expr -> Assertion
+binaryPrimTest :: HasCallStack => PrimDef -> S Expr -> S Expr -> S Expr -> Assertion
 binaryPrimTest f x y z =
   let ((e, r), maxID) =
         create $
