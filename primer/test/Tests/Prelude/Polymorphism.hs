@@ -8,7 +8,7 @@ import Hedgehog.Range qualified as Range
 import Primer.Builtins (
   cCons,
   tBool,
-  tList,
+  tList, tNat, cSucc, cNil,
  )
 import Primer.Builtins.DSL (
   bool_,
@@ -26,7 +26,7 @@ import Primer.Core.DSL (
   lam,
   lvar,
   tapp,
-  tcon,
+  tcon, apps',
  )
 import Primer.Prelude.Logic qualified as L
 import Primer.Prelude.Polymorphism qualified as P
@@ -42,6 +42,14 @@ import Test.Tasty.HUnit (
  )
 import Tests.EvalFull ((<~==>))
 import Tests.Prelude.Utils (functionOutput', (<===>))
+import Primer.Log (runPureLogT)
+import Primer.Eval (EvalLog, Dir (Chk))
+import Primer.Module
+import Primer.EvalFull (evalFull)
+import Primer.Test.TestM (evalTestM)
+import qualified Data.Sequence as Seq
+import Primer.Test.Util (isSevereLog)
+import Primer.Prelude (prelude)
 
 tasty_id_prop :: Property
 tasty_id_prop = property $ do
