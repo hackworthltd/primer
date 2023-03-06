@@ -116,11 +116,12 @@ import Tasty (
   withDiscards,
   withTests,
  )
-import Test.Tasty.HUnit (Assertion, assertBool, assertFailure, (@?=))
+import Test.Tasty.HUnit (Assertion, assertBool, assertFailure)
 import Tests.Action.Prog (runAppTestM)
 import Tests.Eval.Utils (genDirTm, testModules, (~=))
 import Tests.Gen.Core.Typed (checkTest)
 import Tests.Typecheck (expectTypedWithPrims, runTypecheckTestM, runTypecheckTestMWithPrims)
+import Tests.Utils ((@?=))
 
 unit_1 :: Assertion
 unit_1 =
