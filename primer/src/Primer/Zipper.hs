@@ -16,6 +16,7 @@ module Primer.Zipper (
   BindLoc,
   BindLoc' (..),
   focusType,
+  focusConTypes,
   focusLoc,
   unfocusType,
   focusOnlyType,
@@ -66,7 +67,7 @@ import Foreword
 
 import Data.Data (Data)
 import Data.Generics.Product (position)
-import Data.Generics.Uniplate.Data ()
+import Data.Generics.Uniplate.Data (holesBi)
 import Data.Generics.Uniplate.Zipper (
   Zipper,
   fromZipper,
@@ -98,7 +99,7 @@ import Primer.Core (
   Bind' (..),
   CaseBranch' (CaseBranch),
   Expr,
-  Expr' (Case, LAM, Lam, Let, LetType, Letrec),
+  Expr' (Case, LAM, Lam, Let, LetType, Letrec, Con),
   ExprMeta,
   HasID (..),
   ID,
@@ -262,6 +263,14 @@ focusType z = do
   where
     l = _target % typesInExpr
 
+-- TODO (saturated constructors): This is part of the temporary workaround for
+-- @focusType@ (see comments there for details)
+-- The outer 'Maybe' says whether the 'ExprZ'' was a 'Con' or not.
+focusConTypes :: (Data a, Data b) => ExprZ' a b -> Maybe [TypeZ' a b]
+focusConTypes ez = case target ez of
+                Con m c tys tms -> Just $ holesBi tys <&> \(t,cxt) -> TypeZ (zipper t) $ \t' -> replace (Con m c (cxt t') tms) ez
+                _ -> Nothing
+
 -- | If the currently focused expression is a case expression, search the bindings of its branches
 -- to find one matching the given ID, and return the 'Loc' for that binding.
 -- If no match is found, return @Nothing@.
@@ -348,9 +357,10 @@ focusOn' i = fmap snd . search matchesID
       -- If the target has an embedded type, search the type for a match.
       -- If the target is a case expression with bindings, search each binding for a match.
       | otherwise =
-          let inType = focusType z >>= search (guarded (== i) . getID . target) <&> fst <&> InType
+          let inCtorIndices = focusConTypes z >>= getFirst . foldMap' (First . fmap fst . search (guarded (== i) . getID . target)) <&> InType
+              inType = focusType z >>= search (guarded (== i) . getID . target) <&> fst <&> InType
               inCaseBinds = findInCaseBinds i z
-           in inType <|> inCaseBinds
+           in inCtorIndices <|> inType <|> inCaseBinds
 
 -- Gets all binders that scope over the focussed subtree
 bindersAbove :: ExprZ -> S.Set Name
