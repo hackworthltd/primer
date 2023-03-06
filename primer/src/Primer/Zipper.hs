@@ -249,6 +249,12 @@ instance HasID a => HasID (BindLoc' a b) where
 -- @Letrec@ or @LetType@ node (as those are the only ones that contain a
 -- @Type@).
 focusType :: (Data a, Data b) => ExprZ' a b -> Maybe (TypeZ' a b)
+-- TODO (saturated constructors): This is incomplete, since currently Con
+-- have type arguments. However, this is only a temporary situation, and
+-- handling them is difficult, since they have multiple type children we
+-- cannot focus on just one! We will put up with this (will need a small
+-- workaround in Eval and in focusOn: we can focus on these by ID, just
+-- not via focusType!) until constructors no longer store their indices.
 focusType z = do
   t <- z ^? l
   pure $ TypeZ (zipper t) $ \t' -> z & l .~ t'

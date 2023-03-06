@@ -283,6 +283,7 @@ _bindMeta = position @1
 
 -- | Note that this does not recurse in to sub-expressions or sub-types.
 typesInExpr :: AffineTraversal' (Expr' a b) (Type' b)
+-- TODO (saturated constructors): this misses Con's indices!
 typesInExpr = atraversalVL $ \point f -> \case
   Ann m e ty -> Ann m e <$> f ty
   APP m e ty -> APP m e <$> f ty
