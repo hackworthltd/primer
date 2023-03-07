@@ -317,11 +317,23 @@ genSyns ty = do
 justT :: MonadGen m => m (Maybe a) -> m a
 justT g = Gen.sized $ \s -> Gen.justT $ Gen.resize s g
 
+-- | Given an output of 'refine', e.g. @refine cxt tgtTy srcTy = Just (insts, resTy)@,
+-- generate some concrete types and terms corresponding to the instantiation.
+-- If @genInstApp insts = (sub, apps)@, then:
+-- - @apps@ is the same length as @insts@, and the entries correspond in the way
+--   documented by 'refine'.
+-- - the length of @sub@ is the number of 'InstUnconstrainedApp' in @inst@, and
+--   these entries correspond.
+-- - thus if @insts !! n = InstUnconstrainedAPP a k@ and this is the @m@th
+--   @InstUnconstrainedAPP@, then (for some type @t@ of kind @k@)
+--   @sub !! m = (a, t)@ and @apps !! n = Left t@.
+-- - @sub@ is idempotent, and @apps@ do not refer to these names. I.e. the names
+--   in @InstUnconstrainedAPP@ do not appear free in @apps@ or the rhs of @sub@.
 genInstApp :: [Inst] -> GenT WT ([(TyVarName, Type' ())], [Either TypeG ExprG])
 genInstApp = reify []
   where
     reify sb = \case
-      [] -> pure (sb, [])
+      [] -> pure (reverse sb, [])
       InstApp t : is -> (\a -> second (Right a :)) <$> (substTys sb t >>= genChk) <*> reify sb is
       InstAPP t : is -> (\t' -> second (Left t' :)) <$> substTys sb t <*> reify sb is
       InstUnconstrainedAPP v k : is -> genWTType k >>= \t' -> second (Left t' :) <$> reify ((v, t') : sb) is
