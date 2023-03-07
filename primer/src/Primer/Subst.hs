@@ -31,11 +31,15 @@ substTy n a = go
       TApp _ s t -> TApp () <$> go s <*> go t
       t@(TForall _ m k s)
         | m == n -> pure t
+        -- We must avoid this @∀m@ capturing a free variable in @a@
+        -- (e.g. @substTy a (T b) (∀b.b a)@ should give @∀c.c (T b)@, and not @∀b.b (T b)@)
         -- these names will not enter the user's program, so we don't need to worry about shadowing, only variable capture
         | m `elem` avoid -> freshLocalName (avoid <> freeVarsTy s) >>= \m' -> substTy m (TVar () m') s >>= fmap (TForall () m' k) . go
         | otherwise -> TForall () m k <$> go s
       TLet _ m s b
         | m == n -> TLet () m <$> go s <*> pure b
+        -- We must avoid this let-bound @m@ capturing a free variable in @a@,
+        -- similarly to the TForall case
         | m `elem` avoid -> freshLocalName (avoid <> freeVarsTy b) >>= \m' -> substTy m (TVar () m') b >>= ap (TLet () m' <$> go s) . go
         | otherwise -> TLet () m <$> go s <*> go b
 
