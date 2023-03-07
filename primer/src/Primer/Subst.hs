@@ -14,7 +14,7 @@ import Primer.Core.Type.Utils (freeVarsTy)
 import Primer.Name (NameCounter)
 
 -- | Simple and inefficient capture-avoiding substitution.
--- @substTy n a t@  is t[a/n]
+-- @substTy n a t@  is @t[a/n]@
 -- We restrict to '()', i.e. no metadata as we don't want to duplicate IDs etc
 substTy :: MonadFresh NameCounter m => TyVarName -> Type' () -> Type' () -> m (Type' ())
 substTy n a = go
