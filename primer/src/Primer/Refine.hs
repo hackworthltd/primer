@@ -29,7 +29,8 @@ data Inst
 --  * @e (InstAPP ty)@ represents "apply to the type @ty@: @e \@ty@"
 --  * @e (InstUnconstrainedAPP _ k)@ represents "apply to some type of kind @k@, but we don't care what"
 --
--- The names in @InstUnconstrainedAPP@s scope over all the @Inst@s to the right, as well as the returned @Type@.
+-- The names in @InstUnconstrainedAPP@s are all unique, and they scope over all
+-- the @Inst@s to the right, as well as the returned @Type@.
 refine ::
   forall m.
   (MonadFresh ID m, MonadFresh NameCounter m, MonadError InternalUnifyError m) =>
