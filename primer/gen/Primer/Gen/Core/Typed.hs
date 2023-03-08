@@ -66,7 +66,7 @@ import Primer.Gen.Core.Raw (genLVarName, genModuleName, genName, genTyVarName)
 import Primer.Module (Module (..))
 import Primer.Name (Name, NameCounter, freshName, unName, unsafeMkName)
 import Primer.Refine (Inst (InstAPP, InstApp, InstUnconstrainedAPP), refine)
-import Primer.Subst (substTy, substTyTele)
+import Primer.Subst (substTy, substTySimul)
 import Primer.Test.TestM (
   TestM,
   evalTestM,
@@ -249,7 +249,7 @@ genSyns ty = do
               Right (Just (inst, instTy)) -> do
                 (sb, is) <- genInstApp inst
                 let f e = \case Right tm -> App () e tm; Left ty' -> APP () e ty'
-                Just . (foldl' f he is,) <$> substTyTele (M.toList sb) instTy
+                Just . (foldl' f he is,) <$> substTySimul sb instTy
     genApp = do
       s <- genWTType KType
       (f, fTy) <- genSyns (TFun () s ty)
@@ -333,8 +333,8 @@ genInstApp = reify mempty
   where
     reify sb = \case
       [] -> pure (sb, [])
-      InstApp t : is -> (\a -> second (Right a :)) <$> (substTyTele (M.toList sb) t >>= genChk) <*> reify sb is
-      InstAPP t : is -> (\t' -> second (Left t' :)) <$> substTyTele (M.toList sb) t <*> reify sb is
+      InstApp t : is -> (\a -> second (Right a :)) <$> (substTySimul sb t >>= genChk) <*> reify sb is
+      InstAPP t : is -> (\t' -> second (Left t' :)) <$> substTySimul sb t <*> reify sb is
       InstUnconstrainedAPP v k : is -> genWTType k >>= \t' -> second (Left t' :) <$> reify (M.insert v t' sb) is
 
 genSyn :: GenT WT (ExprG, TypeG)
