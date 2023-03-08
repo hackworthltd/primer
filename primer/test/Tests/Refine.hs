@@ -301,6 +301,7 @@ tasty_refinement_synths = propertyWTInExtendedLocalGlobalCxt [builtinModule, pri
 
 -- | (Because unif vars are only in one side) the names from
 -- 'InstUnconstrainedAPP' do not appear in 'InstAPP's (but can in 'InstApp's)
+-- Also, these names are distinct
 tasty_scoping :: Property
 tasty_scoping = propertyWTInExtendedLocalGlobalCxt [builtinModule, primitiveModule] $ do
   tgt <- forAllT $ genWTType KType
@@ -310,9 +311,13 @@ tasty_scoping = propertyWTInExtendedLocalGlobalCxt [builtinModule, primitiveModu
   annotateShow r
   case r of
     Just (is, _) -> do
-      let ns = S.fromList $ mapMaybe unconstrName is
+      let ns' = mapMaybe unconstrName is
+          ns = S.fromList ns'
           ts = mapMaybe aPPTy is
           fvs = mconcat $ map freeVarsTy ts
+      -- names are distinct
+      length ns' === S.size ns
+      -- names do not occur in 'InstAPP's
       ns `S.intersection` fvs === mempty
     _ -> discard
   where
