@@ -4,6 +4,7 @@ module Primer.Builtins.DSL (
   nat,
   maybe_,
   list_,
+  listSat_,
   listOf,
 ) where
 
@@ -32,6 +33,7 @@ import Primer.Core.DSL (
   aPP,
   app,
   con,
+  conSat,
   tapp,
   tcon,
  )
@@ -60,6 +62,14 @@ list_ t =
           `app` b
     )
     (con cNil `aPP` tcon t)
+
+listSat_ :: MonadFresh ID m => TyConName -> [m Expr] -> m Expr
+listSat_ t =
+  foldr
+    ( \a b ->
+        conSat cCons [tcon t] [a, b]
+    )
+    (conSat cNil [tcon t] [])
 
 listOf :: MonadFresh ID m => m Type -> m Type
 listOf = tapp (tcon tList)
