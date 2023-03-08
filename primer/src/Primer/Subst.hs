@@ -1,6 +1,6 @@
 module Primer.Subst (
   substTy,
-  substTys,
+  substTyTele,
 ) where
 
 import Foreword
@@ -43,8 +43,8 @@ substTy n a = go
         | m `elem` avoid -> freshLocalName (avoid <> freeVarsTy b) >>= \m' -> substTy m (TVar () m') b >>= ap (TLet () m' <$> go s) . go
         | otherwise -> TLet () m <$> go s <*> go b
 
--- | Substitute a telescope: @substTys [(a,A),(b,B)] ty@ gives the iterated
+-- | Substitute a telescope: @substTyTele [(a,A),(b,B)] ty@ gives the iterated
 -- substitution @(ty[B/b])[A/a]@. Thus if @B@ refers to a variable @a@, this
 -- reference will also be substituted.
-substTys :: MonadFresh NameCounter m => [(TyVarName, Type' ())] -> Type' () -> m (Type' ())
-substTys sb t = foldrM (uncurry substTy) t sb
+substTyTele :: MonadFresh NameCounter m => [(TyVarName, Type' ())] -> Type' () -> m (Type' ())
+substTyTele sb t = foldrM (uncurry substTy) t sb
