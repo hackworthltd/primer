@@ -255,6 +255,7 @@ focusType :: (Data a, Data b) => ExprZ' a b -> Maybe (TypeZ' a b)
 -- cannot focus on just one! We will put up with this (will need a small
 -- workaround in Eval and in focusOn: we can focus on these by ID, just
 -- not via focusType!) until constructors no longer store their indices.
+-- TODO/REVIEW: can we still offer/run actions inside these types?
 focusType z = do
   t <- z ^? l
   pure $ TypeZ (zipper t) $ \t' -> z & l .~ t'
