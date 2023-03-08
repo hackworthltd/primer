@@ -9,7 +9,7 @@ import Primer.Core.Fresh (freshLocalName)
 import Primer.Core.Meta (ID, TyVarName)
 import Primer.Core.Type (Kind, Type' (TForall, TFun, TVar))
 import Primer.Name (NameCounter)
-import Primer.Subst (substTy, substTys)
+import Primer.Subst (substTy, substTySimul)
 import Primer.Typecheck.Cxt (Cxt)
 import Primer.Typecheck.Kindcheck qualified as TC
 import Primer.Unification (InternalUnifyError, unify)
@@ -29,7 +29,8 @@ data Inst
 --  * @e (InstAPP ty)@ represents "apply to the type @ty@: @e \@ty@"
 --  * @e (InstUnconstrainedAPP _ k)@ represents "apply to some type of kind @k@, but we don't care what"
 --
--- The names in @InstUnconstrainedAPP@s scope over all the @Inst@s to the right, as well as the returned @Type@.
+-- The names in @InstUnconstrainedAPP@s are all unique, and they scope over all
+-- the @Inst@s to the right, as well as the returned @Type@.
 refine ::
   forall m.
   (MonadFresh ID m, MonadFresh NameCounter m, MonadError InternalUnifyError m) =>
@@ -49,14 +50,14 @@ refine cxt tgtTy srcTy = go [] srcTy
        in unify cxt' uvs tgtTy tmTy >>= \case
             Just sub ->
               let f = \case
-                    Left t -> InstApp <$> substTys (Map.toList sub) t -- need to instantiate unif vars
+                    Left t -> InstApp <$> substTySimul sub t -- need to instantiate unif vars
                     Right (v, k) -> pure $ case Map.lookup v sub of
                       Nothing -> InstUnconstrainedAPP v k
                       Just t -> InstAPP t
                in -- 'instantiation' is built up so the head corresponds to the
                   -- outermost application. Reverse it so the head of the result
                   -- corresponds to the innermost (first) application.
-                  curry Just <$> traverse f (reverse instantiation) <*> substTys (Map.toList sub) tmTy
+                  curry Just <$> traverse f (reverse instantiation) <*> substTySimul sub tmTy
             Nothing -> case tmTy of
               TFun _ s t -> go (Left s : instantiation) t
               TForall _ a k t -> do
