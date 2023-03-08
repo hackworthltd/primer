@@ -20,6 +20,16 @@ substTy :: MonadFresh NameCounter m => TyVarName -> Type' () -> Type' () -> m (T
 substTy n a = go
   where
     avoid = Set.singleton n <> freeVarsTy a
+    -- We must avoid this binder @m@ capturing a free variable in @a@
+    -- (e.g. @substTy a (T b) (∀b.b a)@ should give @∀c.c (T b)@, and not @∀b.b (T b)@)
+    -- The generated names will not enter the user's program, so we don't need to worry about shadowing, only variable capture
+    subUnderBinder m t
+      | m == n = pure (m, t)
+      | m `elem` avoid = do
+          m' <- freshLocalName (avoid <> freeVarsTy b)
+          t' <- substTy m (TVar () m') t
+          (m',) <$> go t'
+      | otherwise = (m,) <$> go t
     go = \case
       t@TEmptyHole{} -> pure t
       THole m t -> THole m <$> go t
@@ -29,19 +39,13 @@ substTy n a = go
         | n == m -> pure a
         | otherwise -> pure t
       TApp _ s t -> TApp () <$> go s <*> go t
-      t@(TForall _ m k s)
-        | m == n -> pure t
-        -- We must avoid this @∀m@ capturing a free variable in @a@
-        -- (e.g. @substTy a (T b) (∀b.b a)@ should give @∀c.c (T b)@, and not @∀b.b (T b)@)
-        -- these names will not enter the user's program, so we don't need to worry about shadowing, only variable capture
-        | m `elem` avoid -> freshLocalName (avoid <> freeVarsTy s) >>= \m' -> substTy m (TVar () m') s >>= fmap (TForall () m' k) . go
-        | otherwise -> TForall () m k <$> go s
-      TLet _ m s b
-        | m == n -> TLet () m <$> go s <*> pure b
-        -- We must avoid this let-bound @m@ capturing a free variable in @a@,
-        -- similarly to the TForall case
-        | m `elem` avoid -> freshLocalName (avoid <> freeVarsTy b) >>= \m' -> substTy m (TVar () m') b >>= ap (TLet () m' <$> go s) . go
-        | otherwise -> TLet () m <$> go s <*> go b
+      TForall _ m k s -> do
+        (m',s') <- subUnderBinder m s
+        pure $ TForall () m' k s'
+      TLet _ m s b -> do
+        s' <- go s
+        (m',b') <- subUnderBinder m b
+        pure $ TLet () m' s' b'
 
 -- | Substitute a telescope: @substTyTele [(a,A),(b,B)] ty@ gives the iterated
 -- substitution @(ty[B/b])[A/a]@. Thus if @B@ refers to a variable @a@, this
