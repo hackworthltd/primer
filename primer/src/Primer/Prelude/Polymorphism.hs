@@ -22,13 +22,12 @@ import Primer.Builtins.DSL (
  )
 import Primer.Core (GVarName, ID, Kind (KType), qualifyName)
 import Primer.Core.DSL (
-  aPP,
   app,
   apps,
   apps',
   branch,
   case_,
-  con,
+  conSat,
   gvar,
   lAM,
   lam,
@@ -75,11 +74,11 @@ mapDef = do
           lam "xs" $
             case_
               (lvar "xs")
-              [ branch cNil [] (con cNil `aPP` tvar "b")
+              [ branch cNil [] (conSat cNil [tvar "b"] [])
               , branch cCons [("y", Nothing), ("ys", Nothing)] $
                   let fy = app (lvar "f") (lvar "y")
                       fys = apps' (gvar map) [Right $ tvar "a", Right $ tvar "b", Left $ lvar "f", Left $ lvar "ys"]
-                   in apps (con cCons `aPP` tvar "b") [fy, fys]
+                   in conSat cCons [tvar "b"] [fy, fys]
               ]
   pure $ DefAST $ ASTDef term type_
 
