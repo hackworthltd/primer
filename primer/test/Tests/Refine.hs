@@ -290,11 +290,11 @@ tasty_refinement_synths = propertyWTInExtendedLocalGlobalCxt [builtinModule, pri
       annotateShow e
       (ty, e') <- synthTest =<< generateIDs e
       e === forgetMetadata e' -- check no smart holes stuff happened
-      let g i a = case (i, a) of (InstUnconstrainedAPP n _, Left t) -> Just (n, t); _ -> Nothing
-          sb' = catMaybes $ zipWith g is apps
+      let g i a = case (i, a) of (InstUnconstrainedAPP n _, Left t) -> Just $ M.singleton n t; _ -> Nothing
+          sb' = mconcat $ catMaybes $ zipWith g is apps
       -- Check some invariants from @genInstApp@
       sb === sb'
-      instTy' <- substTys sb instTy
+      instTy' <- substTys (M.toList sb) instTy
       ty === instTy'
       diff ty consistentTypes tgt
     _ -> discard
