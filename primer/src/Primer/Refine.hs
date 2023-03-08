@@ -9,7 +9,7 @@ import Primer.Core.Fresh (freshLocalName)
 import Primer.Core.Meta (ID, TyVarName)
 import Primer.Core.Type (Kind, Type' (TForall, TFun, TVar))
 import Primer.Name (NameCounter)
-import Primer.Subst (substTy, substTys)
+import Primer.Subst (substTy, substTyIter)
 import Primer.Typecheck.Cxt (Cxt)
 import Primer.Typecheck.Kindcheck qualified as TC
 import Primer.Unification (InternalUnifyError, unify)
@@ -50,14 +50,14 @@ refine cxt tgtTy srcTy = go [] srcTy
        in unify cxt' uvs tgtTy tmTy >>= \case
             Just sub ->
               let f = \case
-                    Left t -> InstApp <$> substTys (Map.toList sub) t -- need to instantiate unif vars
+                    Left t -> InstApp <$> substTyIter (Map.toList sub) t -- need to instantiate unif vars
                     Right (v, k) -> pure $ case Map.lookup v sub of
                       Nothing -> InstUnconstrainedAPP v k
                       Just t -> InstAPP t
                in -- 'instantiation' is built up so the head corresponds to the
                   -- outermost application. Reverse it so the head of the result
                   -- corresponds to the innermost (first) application.
-                  curry Just <$> traverse f (reverse instantiation) <*> substTys (Map.toList sub) tmTy
+                  curry Just <$> traverse f (reverse instantiation) <*> substTyIter (Map.toList sub) tmTy
             Nothing -> case tmTy of
               TFun _ s t -> go (Left s : instantiation) t
               TForall _ a k t -> do

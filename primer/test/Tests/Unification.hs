@@ -38,7 +38,7 @@ import Primer.Gen.Core.Typed (
 import Primer.Module (Module, builtinModule, primitiveModule)
 import Primer.Name (NameCounter)
 import Primer.Primitives (tInt)
-import Primer.Subst (substTys)
+import Primer.Subst (substTyIter)
 import Primer.Test.TestM (evalTestM)
 import Primer.Test.Util (tcn)
 import Primer.TypeDef (ASTTypeDef (ASTTypeDef, astTypeDefConstructors, astTypeDefNameHints, astTypeDefParameters), TypeDef (TypeDefAST))
@@ -486,8 +486,8 @@ tasty_sub_unifies = propertyWTInExtendedUVCxt [builtinModule, primitiveModule] $
   case u of
     Nothing -> discard
     Just sub -> do
-      s' <- substTys (M.toList sub) s
-      t' <- substTys (M.toList sub) t
+      s' <- substTyIter (M.toList sub) s
+      t' <- substTyIter (M.toList sub) t
       diff s' consistentTypes t'
 
 -- unify ga uvs S T = Maybe sub => for t/a in sub, have checkKind uvs(a) t
@@ -516,8 +516,8 @@ tasty_unified_checks = propertyWTInExtendedUVCxt [builtinModule, primitiveModule
   case u of
     Nothing -> discard
     Just sub -> do
-      s' <- substTys (M.toList sub) s
-      t' <- substTys (M.toList sub) t
+      s' <- substTyIter (M.toList sub) s
+      t' <- substTyIter (M.toList sub) t
       s'' <- checkKindTest k =<< generateTypeIDs s'
       s' === forgetTypeMetadata s'' -- check no smartholes happened
       t'' <- checkKindTest k =<< generateTypeIDs t'
