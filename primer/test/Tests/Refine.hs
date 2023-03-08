@@ -33,7 +33,7 @@ import Primer.Gen.Core.Typed (
 import Primer.Module (builtinModule, primitiveModule)
 import Primer.Name (NameCounter)
 import Primer.Refine (Inst (InstAPP, InstApp, InstUnconstrainedAPP), refine)
-import Primer.Subst (substTy, substTyIter)
+import Primer.Subst (substTy, substTySimul)
 import Primer.Test.TestM (evalTestM)
 import Primer.TypeDef (astTypeDefConstructors, astTypeDefParameters, typeDefAST, valConType)
 import Primer.Typecheck (
@@ -294,7 +294,7 @@ tasty_refinement_synths = propertyWTInExtendedLocalGlobalCxt [builtinModule, pri
           sb' = mconcat $ catMaybes $ zipWith g is apps
       -- Check some invariants from @genInstApp@
       sb === sb'
-      instTy' <- substTyIter (M.toList sb) instTy
+      instTy' <- substTySimul sb instTy
       ty === instTy'
       diff ty consistentTypes tgt
     _ -> discard
