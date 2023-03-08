@@ -249,7 +249,7 @@ genSyns ty = do
               Right (Just (inst, instTy)) -> do
                 (sb, is) <- genInstApp inst
                 let f e = \case Right tm -> App () e tm; Left ty' -> APP () e ty'
-                Just . (foldl' f he is,) <$> substTys sb instTy
+                Just . (foldl' f he is,) <$> substTys (M.toList sb) instTy
     genApp = do
       s <- genWTType KType
       (f, fTy) <- genSyns (TFun () s ty)
@@ -322,21 +322,20 @@ justT g = Gen.sized $ \s -> Gen.justT $ Gen.resize s g
 -- If @genInstApp insts = (sub, apps)@, then:
 -- - @apps@ is the same length as @insts@, and the entries correspond in the way
 --   documented by 'refine'.
--- - the length of @sub@ is the number of 'InstUnconstrainedApp' in @inst@, and
---   these entries correspond.
--- - thus if @insts !! n = InstUnconstrainedAPP a k@ and this is the @m@th
---   @InstUnconstrainedAPP@, then (for some type @t@ of kind @k@)
---   @sub !! m = (a, t)@ and @apps !! n = Left t@.
+-- - the size of @sub@ is the number of 'InstUnconstrainedApp' in @inst@, and
+--   these entries correspond (by name).
+-- - thus if @insts !! n = InstUnconstrainedAPP a k@, then (for some type @t@ of kind @k@)
+--   @sub ! a = t@ and @apps !! n = Left t@.
 -- - @sub@ is idempotent, and @apps@ do not refer to these names. I.e. the names
 --   in @InstUnconstrainedAPP@ do not appear free in @apps@ or the rhs of @sub@.
-genInstApp :: [Inst] -> GenT WT ([(TyVarName, Type' ())], [Either TypeG ExprG])
-genInstApp = reify []
+genInstApp :: [Inst] -> GenT WT (Map TyVarName (Type' ()), [Either TypeG ExprG])
+genInstApp = reify mempty
   where
     reify sb = \case
-      [] -> pure (reverse sb, [])
-      InstApp t : is -> (\a -> second (Right a :)) <$> (substTys sb t >>= genChk) <*> reify sb is
-      InstAPP t : is -> (\t' -> second (Left t' :)) <$> substTys sb t <*> reify sb is
-      InstUnconstrainedAPP v k : is -> genWTType k >>= \t' -> second (Left t' :) <$> reify ((v, t') : sb) is
+      [] -> pure (sb, [])
+      InstApp t : is -> (\a -> second (Right a :)) <$> (substTys (M.toList sb) t >>= genChk) <*> reify sb is
+      InstAPP t : is -> (\t' -> second (Left t' :)) <$> substTys (M.toList sb) t <*> reify sb is
+      InstUnconstrainedAPP v k : is -> genWTType k >>= \t' -> second (Left t' :) <$> reify (M.insert v t' sb) is
 
 genSyn :: GenT WT (ExprG, TypeG)
 -- Note that genSyns will generate things consistent with the given type, i.e.
