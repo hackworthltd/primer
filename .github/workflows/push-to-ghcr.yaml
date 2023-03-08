@@ -74,8 +74,9 @@ jobs:
         run: |
           docker load < result
           IMAGE=$(docker image list -f reference=primer-service --format "{{.Repository}}:{{.Tag}}")
+          TAG=$(docker image list -f reference=primer-service --format "{{.Tag}}")
           echo "Loaded image: ${IMAGE}"
-          NAME=ghcr.io/hackworthltd/primer-service:git-${{ github.event.inputs.rev }}
+          NAME="ghcr.io/hackworthltd/primer-service:$TAG"
           docker tag "$IMAGE" "$NAME"
           echo "Pushing image to ghcr.io: ${NAME}"
           docker push "$NAME"
