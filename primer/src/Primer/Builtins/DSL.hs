@@ -56,12 +56,9 @@ list_ :: MonadFresh ID m => TyConName -> [m Expr] -> m Expr
 list_ t =
   foldr
     ( \a b ->
-        con cCons
-          `aPP` tcon t
-          `app` a
-          `app` b
+        conSat cCons [tcon t] [a, b]
     )
-    (con cNil `aPP` tcon t)
+    (conSat cNil [tcon t] [])
 
 listSat_ :: MonadFresh ID m => TyConName -> [m Expr] -> m Expr
 listSat_ t =
