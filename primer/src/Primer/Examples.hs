@@ -361,7 +361,7 @@ even3Prog =
         (_, oddDef) <- odd modName
         even3Def <- do
           type_ <- tcon B.tBool
-          term <- gvar (qualifyName modName "even") `app` (con B.cSucc `app` (con B.cSucc `app` (con B.cSucc `app` con B.cZero)))
+          term <- gvar (qualifyName modName "even") `app` conSat B.cSucc [] [conSat B.cSucc [] [conSat B.cSucc [] [con B.cZero]]]
           pure $ DefAST $ ASTDef term type_
         let globs = [("even", evenDef), ("odd", oddDef), ("even 3?", even3Def)]
         pure globs
