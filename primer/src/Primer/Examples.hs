@@ -77,6 +77,7 @@ import Primer.Core.DSL (
   branch,
   case_,
   con,
+  conSat,
   create,
   emptyHole,
   gvar,
@@ -145,9 +146,9 @@ map modName =
                   case_
                     (lvar "xs")
                     [ branch B.cNil [] $
-                        con B.cNil `aPP` tvar "b"
+                        conSat B.cNil [tvar "b"] []
                     , branch B.cCons [("y", Nothing), ("ys", Nothing)] $
-                        con B.cCons `aPP` tvar "b" `app` (lvar "f" `app` lvar "y") `app` (gvar this `aPP` tvar "a" `aPP` tvar "b" `app` lvar "f" `app` lvar "ys")
+                        conSat B.cCons [tvar "b"] [lvar "f" `app` lvar "y", gvar this `aPP` tvar "a" `aPP` tvar "b" `app` lvar "f" `app` lvar "ys"]
                     ]
         pure (this, DefAST $ ASTDef term type_)
 
@@ -160,9 +161,9 @@ map' modName = do
         lam "xs" $
           case_
             (lvar "xs")
-            [ branch B.cNil [] $ con B.cNil `aPP` tvar "b"
+            [ branch B.cNil [] $ conSat B.cNil [tvar "b"] []
             , branch B.cCons [("y", Nothing), ("ys", Nothing)] $
-                con B.cCons `aPP` tvar "b" `app` (lvar "f" `app` lvar "y") `app` (lvar "go" `app` lvar "ys")
+                conSat B.cCons [tvar "b"] [lvar "f" `app` lvar "y", lvar "go" `app` lvar "ys"]
             ]
   term <-
     lAM "a" $
