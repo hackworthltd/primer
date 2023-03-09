@@ -78,6 +78,7 @@ import Primer.Core.DSL (
   case_,
   con,
   con0,
+  con1,
   conSat,
   create,
   emptyHole,
@@ -366,7 +367,7 @@ even3Prog =
         (_, oddDef) <- odd modName
         even3Def <- do
           type_ <- tcon B.tBool
-          term <- gvar (qualifyName modName "even") `app` (con B.cSucc `app` (con B.cSucc `app` (con B.cSucc `app` con B.cZero)))
+          term <- gvar (qualifyName modName "even") `app` con1 B.cSucc (con1 B.cSucc $ con1 B.cSucc $ con0 B.cZero)
           pure $ DefAST $ ASTDef term type_
         let globs = [("even", evenDef), ("odd", oddDef), ("even 3?", even3Def)]
         pure (builtinModule', globs)
