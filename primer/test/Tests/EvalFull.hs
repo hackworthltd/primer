@@ -990,7 +990,7 @@ unit_prim_int_quotient =
     IntQuotient
     (int 7)
     (int 3)
-    (con cJust `aPP` tcon tInt `app` int 2)
+    (conSat cJust [tcon tInt] [int 2])
 
 unit_prim_int_quotient_negative :: Assertion
 unit_prim_int_quotient_negative =
@@ -998,7 +998,7 @@ unit_prim_int_quotient_negative =
     IntQuotient
     (int (-7))
     (int 3)
-    (con cJust `aPP` tcon tInt `app` int (-3))
+    (conSat cJust [tcon tInt] [int (-3)])
 
 unit_prim_int_quotient_zero :: Assertion
 unit_prim_int_quotient_zero =
@@ -1006,7 +1006,7 @@ unit_prim_int_quotient_zero =
     IntQuotient
     (int (-7))
     (int 0)
-    (con cNothing `aPP` tcon tInt)
+    (conSat cNothing [tcon tInt] [])
 
 unit_prim_int_remainder :: Assertion
 unit_prim_int_remainder =
