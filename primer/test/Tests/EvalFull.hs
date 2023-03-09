@@ -1002,7 +1002,7 @@ unit_prim_int_quotient =
     IntQuotient
     (int 7)
     (int 3)
-    (con cJust `aPP` tcon tInt `app` int 2)
+    (conSat cJust [tcon tInt] [int 2])
 
 unit_prim_int_quotient_negative :: Assertion
 unit_prim_int_quotient_negative =
@@ -1010,7 +1010,7 @@ unit_prim_int_quotient_negative =
     IntQuotient
     (int (-7))
     (int 3)
-    (con cJust `aPP` tcon tInt `app` int (-3))
+    (conSat cJust [tcon tInt] [int (-3)])
 
 unit_prim_int_quotient_zero :: Assertion
 unit_prim_int_quotient_zero =
@@ -1018,7 +1018,7 @@ unit_prim_int_quotient_zero =
     IntQuotient
     (int (-7))
     (int 0)
-    (con cNothing `aPP` tcon tInt)
+    (conSat cNothing [tcon tInt] [])
 
 unit_prim_int_remainder :: Assertion
 unit_prim_int_remainder =
@@ -1026,7 +1026,7 @@ unit_prim_int_remainder =
     IntRemainder
     (int 7)
     (int 3)
-    (con cJust `aPP` tcon tInt `app` int 1)
+    (conSat cJust [tcon tInt] [int 1])
 
 unit_prim_int_remainder_negative_1 :: Assertion
 unit_prim_int_remainder_negative_1 =
@@ -1034,7 +1034,7 @@ unit_prim_int_remainder_negative_1 =
     IntRemainder
     (int (-7))
     (int (-3))
-    (con cJust `aPP` tcon tInt `app` int (-1))
+    (conSat cJust [tcon tInt] [int (-1)])
 
 unit_prim_int_remainder_negative_2 :: Assertion
 unit_prim_int_remainder_negative_2 =
@@ -1042,7 +1042,7 @@ unit_prim_int_remainder_negative_2 =
     IntRemainder
     (int (-7))
     (int 3)
-    (con cJust `aPP` tcon tInt `app` int 2)
+    (conSat cJust [tcon tInt] [int 2])
 
 unit_prim_int_remainder_negative_3 :: Assertion
 unit_prim_int_remainder_negative_3 =
@@ -1050,7 +1050,7 @@ unit_prim_int_remainder_negative_3 =
     IntRemainder
     (int 7)
     (int (-3))
-    (con cJust `aPP` tcon tInt `app` int (-2))
+    (conSat cJust [tcon tInt] [int (-2)])
 
 unit_prim_int_remainder_zero :: Assertion
 unit_prim_int_remainder_zero =
@@ -1058,7 +1058,7 @@ unit_prim_int_remainder_zero =
     IntRemainder
     (int 7)
     (int 0)
-    (con cNothing `aPP` tcon tInt)
+    (conSat cNothing [tcon tInt] [])
 
 unit_prim_int_quot :: Assertion
 unit_prim_int_quot =
@@ -1241,14 +1241,14 @@ unit_prim_int_toNat =
   unaryPrimTest
     IntToNat
     (int 0)
-    (con cJust `aPP` tcon tNat `app` nat 0)
+    (conSat cJust [tcon tNat] [nat 0])
 
 unit_prim_int_toNat_negative :: Assertion
 unit_prim_int_toNat_negative =
   unaryPrimTest
     IntToNat
     (int (-1))
-    (con cNothing `aPP` tcon tNat)
+    (conSat cNothing [tcon tNat] [])
 
 unit_prim_int_fromNat :: Assertion
 unit_prim_int_fromNat =
