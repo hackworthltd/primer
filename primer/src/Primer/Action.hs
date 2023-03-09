@@ -67,6 +67,7 @@ import Primer.Core.DSL (
   branch,
   case_,
   con,
+  conSat,
   emptyHole,
   hole,
   lAM,
@@ -602,30 +603,33 @@ constructSatCon :: ActionM m => QualifiedText -> ExprZ -> m ExprZ
 constructSatCon c ze = case target ze of
   -- Similar comments re smartholes apply as to insertSatVar
   EmptyHole{} -> do
-    ctorType <-
-      getConstructorType n >>= \case
+    (_, nTyArgs, nTmArgs) <-
+      conInfo n >>= \case
         Left err -> throwError $ SaturatedApplicationError $ Left err
         Right t -> pure t
-    -- TODO (saturated constructors) this use of application nodes will be rejected once full-saturation is enforced
-    flip replace ze <$> mkSaturatedApplication (con n) ctorType
+    flip replace ze <$> conSat n (replicate nTyArgs tEmptyHole) (replicate nTmArgs emptyHole)
   e -> throwError $ NeedEmptyHole (ConstructSaturatedCon c) e
   where
     n = unsafeMkGlobalName c
 
-getConstructorType ::
+-- returns
+-- - "type" of ctor: the type an eta-expanded version of this constructor would check against
+--   e.g. @Cons@'s "type" is @∀a. a -> List a -> List a@.
+-- - its arity (number of type args and number of term args required for full saturation)
+conInfo ::
   MonadReader TC.Cxt m =>
   ValConName ->
-  m (Either Text TC.Type)
-getConstructorType c =
+  m (Either Text (TC.Type, Int, Int))
+conInfo c =
   asks (flip lookupConstructor c . TC.typeDefs) <&> \case
-    Just (vc, tc, td) -> Right $ valConType tc td vc
+    Just (vc, tc, td) -> Right (valConType tc td vc, length $ td.astTypeDefParameters, length $ vc.valConArgs)
     Nothing -> Left $ "Could not find constructor " <> show c
 
 constructRefinedCon :: ActionM m => QualifiedText -> ExprZ -> m ExprZ
 constructRefinedCon c ze = do
   let n = unsafeMkGlobalName c
-  cTy <-
-    getConstructorType n >>= \case
+  (cTy, _, _) <-
+    conInfo n >>= \case
       Left err -> throwError $ RefineError $ Left err
       Right t -> pure t
   let tgtTyCache = maybeTypeOf $ target ze
