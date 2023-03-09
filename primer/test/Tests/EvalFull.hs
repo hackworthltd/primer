@@ -907,14 +907,12 @@ tasty_prim_hex_nat = withTests 20 . property $ do
                           `app` lvar "x"
                       )
                   ]
-                <*> (con cJust `aPP` tcon tNat)
-                `app` ne
+                <*> conSat cJust [tcon tNat] [ne]
             else
               (,)
                 <$> pfun NatToHex
                 `app` ne
-                <*> con cNothing
-                `aPP` tcon tChar
+                <*> conSat cNothing [tcon tChar] []
   s <- evalFullTasty maxID builtinTypes primDefs 7 Syn e
   over evalResultExpr zeroIDs s === Right (zeroIDs r)
 

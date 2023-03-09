@@ -49,8 +49,8 @@ nat = \case
 
 maybe_ :: MonadFresh ID m => m Type -> (a -> m Expr) -> Maybe a -> m Expr
 maybe_ t f = \case
-  Nothing -> con cNothing `aPP` t
-  Just x -> con cJust `aPP` t `app` f x
+  Nothing -> conSat cNothing [t] []
+  Just x -> conSat cJust [t] [f x]
 
 list_ :: MonadFresh ID m => TyConName -> [m Expr] -> m Expr
 list_ t =
