@@ -47,11 +47,8 @@ import Primer.Core (
   qualifyName,
  )
 import Primer.Core.DSL (
-  aPP,
-  app,
   char,
   conSat,
-  con,
   int,
   tcon,
  )
