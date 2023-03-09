@@ -1026,7 +1026,7 @@ unit_prim_int_remainder =
     IntRemainder
     (int 7)
     (int 3)
-    (con cJust `aPP` tcon tInt `app` int 1)
+    (conSat cJust [tcon tInt] [int 1])
 
 unit_prim_int_remainder_negative_1 :: Assertion
 unit_prim_int_remainder_negative_1 =
@@ -1034,7 +1034,7 @@ unit_prim_int_remainder_negative_1 =
     IntRemainder
     (int (-7))
     (int (-3))
-    (con cJust `aPP` tcon tInt `app` int (-1))
+    (conSat cJust [tcon tInt] [int (-1)])
 
 unit_prim_int_remainder_negative_2 :: Assertion
 unit_prim_int_remainder_negative_2 =
@@ -1042,7 +1042,7 @@ unit_prim_int_remainder_negative_2 =
     IntRemainder
     (int (-7))
     (int 3)
-    (con cJust `aPP` tcon tInt `app` int 2)
+    (conSat cJust [tcon tInt] [int 2])
 
 unit_prim_int_remainder_negative_3 :: Assertion
 unit_prim_int_remainder_negative_3 =
@@ -1050,7 +1050,7 @@ unit_prim_int_remainder_negative_3 =
     IntRemainder
     (int 7)
     (int (-3))
-    (con cJust `aPP` tcon tInt `app` int (-2))
+    (conSat cJust [tcon tInt] [int (-2)])
 
 unit_prim_int_remainder_zero :: Assertion
 unit_prim_int_remainder_zero =
@@ -1058,7 +1058,7 @@ unit_prim_int_remainder_zero =
     IntRemainder
     (int 7)
     (int 0)
-    (con cNothing `aPP` tcon tInt)
+    (conSat cNothing [tcon tInt] [])
 
 unit_prim_int_quot :: Assertion
 unit_prim_int_quot =
