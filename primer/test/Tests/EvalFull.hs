@@ -1229,14 +1229,14 @@ unit_prim_int_toNat =
   unaryPrimTest
     IntToNat
     (int 0)
-    (con cJust `aPP` tcon tNat `app` nat 0)
+    (conSat cJust [tcon tNat] [nat 0])
 
 unit_prim_int_toNat_negative :: Assertion
 unit_prim_int_toNat_negative =
   unaryPrimTest
     IntToNat
     (int (-1))
-    (con cNothing `aPP` tcon tNat)
+    (conSat cNothing [tcon tNat] [])
 
 unit_prim_int_fromNat :: Assertion
 unit_prim_int_fromNat =

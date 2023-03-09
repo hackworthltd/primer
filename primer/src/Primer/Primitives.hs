@@ -266,11 +266,8 @@ primFunDef def args = case def of
     [PrimCon _ (PrimInt x)] ->
       Right $
         if x < 0
-          then con cNothing `aPP` tcon tNat
-          else
-            con cJust
-              `aPP` tcon tNat
-              `app` nat (fromInteger x)
+          then conSat cNothing [tcon tNat] []
+          else conSat cJust [tcon tNat] [nat (fromInteger x)]
     _ -> err
   IntFromNat -> case args of
     [exprToNat -> Just n] ->
