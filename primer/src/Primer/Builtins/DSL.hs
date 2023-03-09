@@ -29,9 +29,6 @@ import Primer.Core (
   Type,
  )
 import Primer.Core.DSL (
-  aPP,
-  app,
-  con,
   con0,
   con1,
   conSat,
@@ -57,12 +54,9 @@ list_ :: MonadFresh ID m => TyConName -> [m Expr] -> m Expr
 list_ t =
   foldr
     ( \a b ->
-        con cCons
-          `aPP` tcon t
-          `app` a
-          `app` b
+        conSat cCons [tcon t] [a, b]
     )
-    (con cNil `aPP` tcon t)
+    (conSat cNil [tcon t] [])
 
 listOf :: MonadFresh ID m => m Type -> m Type
 listOf = tapp (tcon tList)
