@@ -29,8 +29,6 @@ import Primer.Core (
   Type,
  )
 import Primer.Core.DSL (
-  aPP,
-  app,
   con,
   conSat,
   tapp,
