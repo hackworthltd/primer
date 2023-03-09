@@ -221,11 +221,8 @@ primFunDef def args = case def of
     [PrimCon _ (PrimInt x), PrimCon _ (PrimInt y)] ->
       Right $
         if y == 0
-          then con cNothing `aPP` tcon tInt
-          else
-            con cJust
-              `aPP` tcon tInt
-              `app` int (x `mod` y)
+          then conSat cNothing [tcon tInt] []
+          else conSat cJust [tcon tInt] [int (x `mod` y)]
     _ -> err
   IntQuot -> case args of
     [PrimCon _ (PrimInt x), PrimCon _ (PrimInt y)] ->
