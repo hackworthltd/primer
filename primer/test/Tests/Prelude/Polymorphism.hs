@@ -13,7 +13,7 @@ import Primer.Builtins (
 import Primer.Builtins.DSL (
   bool_,
   listOf,
-  list_, listSat_,
+  list_,
  )
 import Primer.Core.DSL (
   aPP,
@@ -102,12 +102,12 @@ tasty_map_prop = property $ do
         P.map
         [Right $ tcon tInt, Right $ tcon tInt, Left addOne, Left $ list_ tInt $ map int ns]
         1000
-        <===> Right (create' $ listSat_ tInt $ map (int . (+ 1)) ns)
+        <===> Right (create' $ list_ tInt $ map (int . (+ 1)) ns)
   functionOutput' -- Mapping over bools (not)
     P.map
     [Right $ tcon tBool, Right $ tcon tBool, Left (gvar L.not), Left $ list_ tBool $ map bool_ bs]
     1000
-    <===> Right (create' $ listSat_ tBool $ map (bool_ . not) bs)
+    <===> Right (create' $ list_ tBool $ map (bool_ . not) bs)
 
 -- Right fold over a list of characters with @cons@.
 tasty_foldr_list_char :: Property
