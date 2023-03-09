@@ -636,15 +636,25 @@ constructSatCon :: ActionM m => QualifiedText -> ExprZ -> m ExprZ
 constructSatCon c ze = case target ze of
   -- Similar comments re smartholes apply as to insertSatVar
   EmptyHole{} -> do
-    ctorType <-
-      getConstructorType n >>= \case
+    (nTyArgs, nTmArgs) <-
+      conInfo n >>= \case
         Left err -> throwError $ SaturatedApplicationError $ Left err
         Right t -> pure t
-    -- TODO (saturated constructors) this use of application nodes will be rejected once full-saturation is enforced
-    flip replace ze <$> mkSaturatedApplication (con n) ctorType
+    flip replace ze <$> conSat n (replicate nTyArgs tEmptyHole) (replicate nTmArgs emptyHole)
   e -> throwError $ NeedEmptyHole (ConstructSaturatedCon c) e
   where
     n = unsafeMkGlobalName c
+
+-- TODO: rename, dry (cf allCons'). Probably want to return more info so can use for refine also
+conInfo ::
+  MonadReader TC.Cxt m =>
+  ValConName ->
+  m (Either Text (Int,Int))
+conInfo c =
+  asks (flip lookupConstructor c . TC.typeDefs) <&> \case
+    Just (vc, tc, td) -> Right $ (length $ td.astTypeDefParameters, length $ vc.valConArgs)
+    Nothing -> Left $ "Could not find constructor " <> show c
+
 
 getConstructorType ::
   MonadReader TC.Cxt m =>
