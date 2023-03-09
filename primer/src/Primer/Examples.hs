@@ -76,7 +76,8 @@ import Primer.Core.DSL (
   app,
   branch,
   case_,
-  con,
+  con0,
+  con1,
   conSat,
   create,
   emptyHole,
@@ -125,8 +126,8 @@ not modName =
             "x"
             ( case_
                 (lvar "x")
-                [ branch B.cTrue [] (con B.cFalse)
-                , branch B.cFalse [] (con B.cTrue)
+                [ branch B.cTrue [] (con0 B.cFalse)
+                , branch B.cFalse [] (con0 B.cTrue)
                 ]
             )
         pure (this, DefAST $ ASTDef term type_)
@@ -184,7 +185,7 @@ odd modName = do
     lam "x" $
       case_
         (lvar "x")
-        [ branch B.cZero [] $ con B.cFalse
+        [ branch B.cZero [] $ con0 B.cFalse
         , branch B.cSucc [("n", Nothing)] $ gvar (qualifyName modName "even") `app` lvar "n"
         ]
   pure (qualifyName modName "odd", DefAST $ ASTDef term type_)
@@ -200,7 +201,7 @@ even modName = do
     lam "x" $
       case_
         (lvar "x")
-        [ branch B.cZero [] $ con B.cTrue
+        [ branch B.cZero [] $ con0 B.cTrue
         , branch B.cSucc [("n", Nothing)] $ gvar (qualifyName modName "odd") `app` lvar "n"
         ]
   pure (qualifyName modName "even", DefAST $ ASTDef term type_)
@@ -248,12 +249,12 @@ comprehensive' typeable modName = do
   term <-
     let_
       "x"
-      (con B.cTrue)
+      (con0 B.cTrue)
       ( letrec
           "y"
           ( app
               ( hole
-                  (con B.cJust)
+                  (conSat B.cJust [tEmptyHole] [emptyHole])
               )
               ( if typeable then emptyHole else hole $ gvar' (unModuleName modName) "unboundName"
               )
@@ -269,17 +270,17 @@ comprehensive' typeable modName = do
                       ( app
                           ( aPP
                               ( if typeable
-                                  then
-                                    aPP
-                                      (con B.cLeft)
-                                      (tcon B.tBool)
+                                  then -- TODO (saturated constructors) this line is
+                                  -- only acceptible (i.e. makes a well typed
+                                  -- example) because constructors currently
+                                  -- need not be fully-saturated, and are
+                                  -- synthesisable.
+                                    conSat B.cLeft [tcon B.tBool] []
                                   else
                                     letType
                                       "b"
                                       (tcon B.tBool)
-                                      ( aPP
-                                          (con B.cLeft)
-                                          (tlet "c" (tvar "b") $ tvar "c")
+                                      ( conSat B.cLeft [tlet "c" (tvar "b") $ tvar "c"] []
                                       )
                               )
                               (tvar "β")
@@ -289,7 +290,7 @@ comprehensive' typeable modName = do
                               [ branch
                                   B.cZero
                                   []
-                                  (con B.cFalse)
+                                  (con0 B.cFalse)
                               , branch
                                   B.cSucc
                                   [
@@ -363,7 +364,7 @@ even3Prog =
         (_, oddDef) <- odd modName
         even3Def <- do
           type_ <- tcon B.tBool
-          term <- gvar (qualifyName modName "even") `app` (con B.cSucc `app` (con B.cSucc `app` (con B.cSucc `app` con B.cZero)))
+          term <- gvar (qualifyName modName "even") `app` con1 B.cSucc (con1 B.cSucc $ con1 B.cSucc $ con0 B.cZero)
           pure $ DefAST $ ASTDef term type_
         let globs = [("even", evenDef), ("odd", oddDef), ("even 3?", even3Def)]
         pure (builtinModule', globs)
@@ -426,7 +427,7 @@ mapOddPrimProg len =
             lam "x" $
               case_
                 (pfun P.IntRemainder `app` lvar "x" `app` int 2)
-                [ branch B.cNothing [] $ con B.cTrue -- this should be impossible (since denominator is obviously non-zero)
+                [ branch B.cNothing [] $ con0 B.cTrue -- this should be impossible (since denominator is obviously non-zero)
                 , branch B.cJust [("r", Nothing)] $ pfun P.IntEq `app` lvar "r" `app` int 1
                 ]
           pure $ DefAST $ ASTDef term type_
@@ -463,7 +464,7 @@ badEven3Prog =
         (_, oddDef) <- odd modName
         even3Def <- do
           type_ <- tcon B.tNat
-          term <- gvar (qualifyName modName "even") `app` (con B.cSucc `app` (con B.cSucc `app` (con B.cSucc `app` con B.cZero)))
+          term <- gvar (qualifyName modName "even") `app` con1 B.cSucc (con1 B.cSucc $ con1 B.cSucc $ con0 B.cZero)
           pure $ DefAST $ ASTDef term type_
         let globs = [("even", evenDef), ("odd", oddDef), ("even 3?", even3Def)]
         pure (builtinModule', globs)
