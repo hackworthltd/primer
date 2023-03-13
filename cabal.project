@@ -1,4 +1,4 @@
-index-state: 2023-02-23T00:00:00Z
+index-state: 2023-03-18T00:00:00Z
 
 packages:
   primer
@@ -19,7 +19,8 @@ package primer
 package primer-service
   test-options: "--size-cutoff=32768"
 
-allow-newer: logging-effect:text
+-- Temporary during GHC 9.6.1 bring-up.
+allow-newer: *:*
 
 -- We need a newer version of Selda than what's been released to Hackage.
 source-repository-package

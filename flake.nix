@@ -40,7 +40,7 @@
         in
         builtins.trace "Nix Primer version is ${v}" "git-${v}";
 
-      ghcVersion = "ghc926";
+      ghcVersion = "ghc961";
 
       # We must keep the weeder version in sync with the version of
       # GHC we're using.
