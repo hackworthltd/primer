@@ -8,6 +8,7 @@ module Primer.Core.DSL (
   aPP,
   conSat,
   con,
+  con0,
   lvar,
   gvar,
   var,
@@ -111,8 +112,6 @@ emptyHole = EmptyHole <$> meta
 ann :: MonadFresh ID m => m Expr -> m Type -> m Expr
 ann e t = Ann <$> meta <*> e <*> t
 
---con :: MonadFresh ID m => ValConName -> m Expr
---con c = Con <$> meta <*> pure c <*> pure [] <*> pure []
 con :: MonadFresh ID m => ValConName -> [m Type] -> [m Expr] -> m Expr
 con = conSat
 
@@ -121,6 +120,13 @@ con = conSat
 -- unsaturated constructors)
 conSat :: MonadFresh ID m => ValConName -> [m Type] -> [m Expr] -> m Expr
 conSat c tys tms = Con <$> meta <*> pure c <*> sequence tys <*> sequence tms
+
+-- | Create a constructor of arity zero.
+-- (This condition is not checked here.
+--  If used with a constructor which has fields,
+--  then the typechecker will complain, when run.)
+con0 :: MonadFresh ID m => ValConName -> m Expr
+con0 c = conSat c [] []
 
 lvar :: MonadFresh ID m => LVarName -> m Expr
 lvar v = Var <$> meta <*> pure (LocalVarRef v)

@@ -29,6 +29,7 @@ import Primer.Core (
   Type,
  )
 import Primer.Core.DSL (
+  con0,
   conSat,
   tapp,
   tcon,
@@ -36,7 +37,7 @@ import Primer.Core.DSL (
 
 -- These functions rely on particular types being in scope.
 bool_ :: MonadFresh ID m => Bool -> m Expr
-bool_ b = conSat (if b then cTrue else cFalse) [] []
+bool_ b = con0 $ if b then cTrue else cFalse
 
 nat :: MonadFresh ID m => Natural -> m Expr
 nat = \case
