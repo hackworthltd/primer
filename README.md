@@ -11,7 +11,6 @@ We currently only support building the core primer library `lib:primer` and noth
 This is because of failures in building some dependencies
 
 ## Unbuildable dependencies for `lib:primer-testlib`
-- happy
 - terminal-size
 
 ## Modified dependencies
@@ -24,6 +23,10 @@ We remove some instances for deprecated types which have been removed in transfo
 #### uuid
 We remove its 'network-info' and all related functionality (which we do not use).
 We remove its 'entropy' dependency, and replace it with 'random' -- this may be less secure but we don't care (we do not rely on its security guarentees).
+### For lib:primer-testlib
+#### pretty-show
+We bake out the `happy` grammar into a haskell source file, rather than running happy at build-time.
+This is because `happy` fails to build with the wasm backend.
 
 ## Running
 Enter a nix devshell: `nix develop`.
