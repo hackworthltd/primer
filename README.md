@@ -38,6 +38,7 @@ Use an unmerged draft PR to avoid a custom setup that breaks building with ghc's
 #### splitmix
 No changes needed for the compilation to work, but we do need changes for linking to work
 Removed the 'comparison' benchmark, which causes cabal to find bad plans; this somehow fixes the linking problem, but I do not know how.
+We also override the `splitmix.cabal` file so that it does not use init.c (this was my original fix for the linking problem, but now seems unnecessary).
 
 ## Modified primer packages
 ### test:primer-test

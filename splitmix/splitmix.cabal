@@ -94,7 +94,7 @@ library
     cpp-options: -DSPLITMIX_INIT_GHCJS=1
 
   else
-    if impl(ghc)
+    if False && impl(ghc)
       cpp-options: -DSPLITMIX_INIT_C=1
 
       if os(windows)
