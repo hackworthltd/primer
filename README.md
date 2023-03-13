@@ -10,8 +10,7 @@ The flake also only provides a shell, not any packages -- you are expected to us
 We currently only support building the core primer library `lib:primer`, `lib:primer-testlib`, and `lib:primer-hedgehog` and nothing else.
 This is because of failures in building some dependencies
 
-## Unbuildable dependencies for `test:primer-test`
-- pretty-simple
+## Unbuildable dependencies
 
 ## Modified dependencies
 ### for `lib:primer`
@@ -32,6 +31,8 @@ Since wasi does not support termios.h functionality (https://github.com/WebAssem
 ### For test:primer-test
 #### semirings
 force `HOST_OS_WINDOWS` to avoid importing unsupported posix types
+#### pretty-simple
+Use an unmerged draft PR to avoid a custom setup that breaks building with ghc's wasm backend
 
 ## Running
 Enter a nix devshell: `nix develop`.

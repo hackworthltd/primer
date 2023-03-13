@@ -41,3 +41,8 @@ source-repository-package
   tag: ab9619db13b93867d1a244441bb4de03d3e1dadb
   subdir: selda-sqlite
   --sha256: 0rdpazkhx6wfxlf6izg9xzxjr9wqywzqmk0c2a23qyfvih0ylj9z
+
+source-repository-package
+  type: git
+  location: https://github.com/cdepillabout/pretty-simple.git
+  tag: 15a67c3d22aa1bb97063058667c0121566e53131
