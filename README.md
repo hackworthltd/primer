@@ -12,11 +12,6 @@ We do not support actually running the testsuite!
 This is because of failures in building some dependencies
 This is mostly due to other packages not being particularly interesting (currently, for us) to run in a browser, and for time constraints (and the fact that to get this far has needed some hacks!).
 
-## Runtime problems with `test:primer-test`
-Currently it is known that golden tests will fail (because they cannot access the filesystem).
-It is at present unknown whether this is a fundamental restriction.
-TODO: look at https://ghc.gitlab.haskell.org/ghc/doc/users_guide/wasm.html#running-the-ghc-wasm-backends-output, especially "You can also mount some host directory into it".
-
 ## Modified dependencies
 ### for `lib:primer`
 #### extra
@@ -61,3 +56,7 @@ If you have built the testsuite executable, you can run via `wasmtime`, if you g
 Arguments are supported, so
 `wasmtime $(wasm32-wasi-cabal list-bin test:primer-test) -- -l`
 works.
+To allow the executable to access the filesystem, you must explicitly map directories via arguments to `wasmtime`.
+For the primer testsuite, if one is in the `git rev-parse --show-toplevel`, the correct incantation for the testsuite is
+`wasm32-wasi-cabal build test:primer-test && wasmtime $(wasm32-wasi-cabal list-bin test:primer-test) --mapdir test::primer/test`
+This should find the testsuite passes in its entirety.
