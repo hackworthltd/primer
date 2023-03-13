@@ -41,7 +41,7 @@ bool_ b = con $ if b then cTrue else cFalse
 
 nat :: MonadFresh ID m => Natural -> m Expr
 nat = \case
-  0 -> con cZero
+  0 -> conSat cZero [] []
   n -> conSat cSucc [] [nat (n - 1)]
 
 maybe_ :: MonadFresh ID m => m Type -> (a -> m Expr) -> Maybe a -> m Expr
