@@ -69,6 +69,7 @@ import Primer.Core.DSL (
   branch,
   case_,
   con,
+  con0,
   conSat,
   emptyHole,
   hole,
@@ -676,7 +677,7 @@ constructRefinedCon c ze = do
     EmptyHole{} ->
       breakLR <<$>> getRefinedApplications cxt cTy tgtTy >>= \case
         -- See Note [No valid refinement]
-        Nothing -> flip replace ze <$> hole (conSat n [] [])
+        Nothing -> flip replace ze <$> hole (con0 n)
         -- TODO: in enforced-saturation-world, neither the above nor the Just Just case are valid:
         -- the above obviously may not be saturated and the inside of the hole is not synthesisable (but maybe we don't care, and rely on smartholes to fix it?), and the below may not be if the target type is not an applied-ADT
         -- (todo: add reference to innards-of-hole-must-be-syn note from todo list "Note [Holes and bidirectionality]")
