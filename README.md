@@ -11,7 +11,6 @@ We currently only support building the core primer library `lib:primer` and noth
 This is because of failures in building some dependencies
 
 ## Unbuildable dependencies for `lib:primer-testlib`
-- terminal-size
 
 ## Modified dependencies
 ### for `lib:primer`
@@ -27,6 +26,8 @@ We remove its 'entropy' dependency, and replace it with 'random' -- this may be 
 #### pretty-show
 We bake out the `happy` grammar into a haskell source file, rather than running happy at build-time.
 This is because `happy` fails to build with the wasm backend.
+#### terminal-show
+Since wasi does not support termios.h functionality (https://github.com/WebAssembly/WASI/issues/161), we lobotomize this package to just return 80x25
 
 ## Running
 Enter a nix devshell: `nix develop`.
