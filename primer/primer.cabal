@@ -261,7 +261,7 @@ test-suite primer-test
   ghc-options:
     -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
     -Wcompat -Widentities -Wredundant-constraints
-    -Wmissing-deriving-strategies -fhide-source-paths -threaded
+    -Wmissing-deriving-strategies -fhide-source-paths
     -rtsopts -with-rtsopts=-N
 
   if impl(ghcjs)

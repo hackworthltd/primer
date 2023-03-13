@@ -14,7 +14,8 @@ This is because of failures in building some dependencies
 Linking problems:
 ```
 [37 of 37] Linking /home/hackworth/primer/wasm/dist-newstyle/build/wasm32-wasi/ghc-9.7.20230306/primer-0.7.2.0/t/primer-test/noopt/build/primer-test/primer-test.wasm
-wasm-ld: error: unable to find library -lHSrts-1.0.2_thr
+wasm-ld: error: /home/hackworth/.ghc-wasm/.cabal/store/ghc-9.7.20230306/splitmix-0.1.0.4-7f01a3d099baa7ad77ecaa93997102c6a6a2b19eec6e1be0ff3ffc604622e3e5/lib/libHSsplitmix-0.1.0.4-7f01a3d099baa7ad77ecaa93997102c6a6a2b19eec6e1be0ff3ffc604622e3e5.a(init.o): undefined symbol: clock
+wasm-ld: error: /home/hackworth/.ghc-wasm/.cabal/store/ghc-9.7.20230306/splitmix-0.1.0.4-7f01a3d099baa7ad77ecaa93997102c6a6a2b19eec6e1be0ff3ffc604622e3e5/lib/libHSsplitmix-0.1.0.4-7f01a3d099baa7ad77ecaa93997102c6a6a2b19eec6e1be0ff3ffc604622e3e5.a(init.o): undefined symbol: getpid
 ```
 
 ## Modified dependencies
@@ -42,6 +43,7 @@ Use an unmerged draft PR to avoid a custom setup that breaks building with ghc's
 ## Modified primer packages
 ### test:primer-test
 Bake out the tasty-discover output (which failed to work as a preprocessor in the build)
+Remove the `-threaded` ghc option
 
 ## Running
 Enter a nix devshell: `nix develop`.
