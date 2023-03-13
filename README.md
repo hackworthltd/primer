@@ -12,7 +12,7 @@ We do not support actually running the testsuite!
 This is because of failures in building some dependencies
 
 ## Runtime problems with `test:primer-test`
-`unknown RTS option: -N`
+`primer-test.wasm: installHandler: unsupported operation (Operation is not supported)`
 
 ## Modified dependencies
 ### for `lib:primer`
@@ -43,7 +43,7 @@ We also override the `splitmix.cabal` file so that it does not use init.c (this 
 ## Modified primer packages
 ### test:primer-test
 Bake out the tasty-discover output (which failed to work as a preprocessor in the build)
-Remove the `-threaded` ghc option
+Remove the `-threaded` ghc option, and the `-N` rts option
 
 ## Running
 Enter a nix devshell: `nix develop`.
