@@ -114,8 +114,10 @@ emptyHole = EmptyHole <$> meta
 ann :: MonadFresh ID m => m Expr -> m Type -> m Expr
 ann e t = Ann <$> meta <*> e <*> t
 
-con :: MonadFresh ID m => ValConName -> m Expr
-con c = Con <$> meta <*> pure c <*> pure [] <*> pure []
+--con :: MonadFresh ID m => ValConName -> m Expr
+--con c = Con <$> meta <*> pure c <*> pure [] <*> pure []
+con :: MonadFresh ID m => ValConName -> [m Type] -> [m Expr] -> m Expr
+con = conSat
 
 -- TODO (saturated constructors) once saturation is enforced, this will be
 -- renamed to con, and the current con will be removed (since it creates
@@ -179,8 +181,10 @@ char = prim . PrimChar
 int :: MonadFresh ID m => Integer -> m Expr
 int = prim . PrimInt
 
-con' :: MonadFresh ID m => NonEmpty Name -> Name -> m Expr
-con' m n = con $ qualifyName (ModuleName m) n
+--con' :: MonadFresh ID m => NonEmpty Name -> Name -> m Expr
+--con' m n = con $ qualifyName (ModuleName m) n
+con' :: MonadFresh ID m => NonEmpty Name -> Name -> [m Type] -> [m Expr] -> m Expr
+con' = conSat'
 
 con0' :: MonadFresh ID m => NonEmpty Name -> Name -> m Expr
 con0' m n = con0 $ qualifyName (ModuleName m) n
