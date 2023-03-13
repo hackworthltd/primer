@@ -26,6 +26,9 @@ package primer
 package primer-service
   test-options: "--size-cutoff=32768"
 
+package tasty
+  flags: -unix
+
 allow-newer: *:*
 
 -- We need a newer version of Selda than what's been released to Hackage.

@@ -10,9 +10,12 @@ The flake also only provides a shell, not any packages -- you are expected to us
 We currently only support building the core primer library `lib:primer`, `lib:primer-testlib`, `lib:primer-hedgehog` and the testsuite `test:primer-test` (i.e. all of the `primer` package).
 We do not support actually running the testsuite!
 This is because of failures in building some dependencies
+This is mostly due to other packages not being particularly interesting (currently, for us) to run in a browser, and for time constraints (and the fact that to get this far has needed some hacks!).
 
 ## Runtime problems with `test:primer-test`
-`primer-test.wasm: installHandler: unsupported operation (Operation is not supported)`
+Currently it is known that golden tests will fail (because they cannot access the filesystem).
+It is at present unknown whether this is a fundamental restriction.
+TODO: look at https://ghc.gitlab.haskell.org/ghc/doc/users_guide/wasm.html#running-the-ghc-wasm-backends-output, especially "You can also mount some host directory into it".
 
 ## Modified dependencies
 ### for `lib:primer`
@@ -39,6 +42,9 @@ Use an unmerged draft PR to avoid a custom setup that breaks building with ghc's
 No changes needed for the compilation to work, but we do need changes for linking to work
 Removed the 'comparison' benchmark, which causes cabal to find bad plans; this somehow fixes the linking problem, but I do not know how.
 We also override the `splitmix.cabal` file so that it does not use init.c (this was my original fix for the linking problem, but now seems unnecessary).
+### Other changes
+#### tasty
+Unset the `unix` flag, to avoid trying to install signal handlers, which is not supported.
 
 ## Modified primer packages
 ### test:primer-test
@@ -50,5 +56,8 @@ Enter a nix devshell: `nix develop`.
 You can use cabal as normal (more or less -- some subcommands are not supported), but it has a prefixed name:
 `wasm32-wasi-cabal update`
 `wasm32-wasi-cabal build lib:primer`
-If you had built an executable, you could run via `wasmtime`, if you give it a path to the binary (NB: running with cabal run does not work):
+If you have built the testsuite executable, you can run via `wasmtime`, if you give it a path to the binary (NB: running with cabal run does not work):
 `wasmtime $(wasm32-wasi-cabal list-bin test:primer-test)`
+Arguments are supported, so
+`wasmtime $(wasm32-wasi-cabal list-bin test:primer-test) -- -l`
+works.
