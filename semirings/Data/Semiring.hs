@@ -142,6 +142,9 @@ import qualified Prelude as P
 #define HOST_OS_WINDOWS 0
 #endif
 
+-- hack for wasi
+#define HOST_OS_WINDOWS 1
+
 #if !HOST_OS_WINDOWS
 import           System.Posix.Types
   (CCc, CDev, CGid, CIno, CMode, CNlink,
