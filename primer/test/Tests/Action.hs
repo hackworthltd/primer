@@ -1025,7 +1025,7 @@ unit_refine_2 =
     NoSmartHoles
     (emptyHole `ann` (tcon tList `tapp` tcon tNat))
     [Move Child1, constructRefinedCon cNil]
-    ((con cNil `aPP` tcon tNat) `ann` (tcon tList `tapp` tcon tNat))
+    (conSat cNil [tcon tNat] [] `ann` (tcon tList `tapp` tcon tNat))
 
 unit_refine_3 :: Assertion
 unit_refine_3 =
@@ -1033,7 +1033,7 @@ unit_refine_3 =
     NoSmartHoles
     (emptyHole `ann` (tcon tList `tapp` tEmptyHole))
     [Move Child1, constructRefinedCon cNil]
-    ((con cNil `aPP` tEmptyHole) `ann` (tcon tList `tapp` tEmptyHole))
+    (conSat cNil [tEmptyHole] [] `ann` (tcon tList `tapp` tEmptyHole))
 
 unit_refine_4 :: Assertion
 unit_refine_4 =
@@ -1068,7 +1068,7 @@ unit_refine_arr_1 =
     NoSmartHoles
     (emptyHole `ann` (tEmptyHole `tfun` tEmptyHole))
     [Move Child1, constructRefinedCon cCons]
-    ((con cCons `aPP` tEmptyHole) `ann` (tEmptyHole `tfun` tEmptyHole))
+    (conSat cCons [tEmptyHole] [] `ann` (tEmptyHole `tfun` tEmptyHole))
 
 unit_refine_arr_2 :: Assertion
 unit_refine_arr_2 =
@@ -1076,7 +1076,7 @@ unit_refine_arr_2 =
     NoSmartHoles
     (emptyHole `ann` ((tcon tList `tapp` tcon tNat) `tfun` (tcon tList `tapp` tcon tNat)))
     [Move Child1, constructRefinedCon cCons]
-    ((con cCons `aPP` tcon tNat `app` emptyHole) `ann` ((tcon tList `tapp` tcon tNat) `tfun` (tcon tList `tapp` tcon tNat)))
+    (conSat cCons [tcon tNat] [emptyHole] `ann` ((tcon tList `tapp` tcon tNat) `tfun` (tcon tList `tapp` tcon tNat)))
 
 unit_primitive_1 :: Assertion
 unit_primitive_1 =

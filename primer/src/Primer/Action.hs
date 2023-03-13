@@ -19,6 +19,7 @@ import Foreword hiding (mod)
 
 import Control.Monad.Fresh (MonadFresh)
 import Data.Aeson (Value)
+import Data.Bifunctor.Swap qualified as Swap
 import Data.Generics.Product (typed)
 import Data.List (findIndex)
 import Data.List.NonEmpty qualified as NE
@@ -501,14 +502,19 @@ insertRefinedVar x ast = do
     getVarType ast x >>= \case
       Left err -> throwError $ RefineError $ Right err
       Right t -> pure (var x, t)
-  let tgtTyCache = maybeTypeOf $ target ast
   -- our Cxt in the monad does not care about the local context, we have to extract it from the zipper.
   -- See https://github.com/hackworthltd/primer/issues/11
   -- We only care about the type context for refine
   let (tycxt, _) = localVariablesInScopeExpr (Left ast)
   cxt <- asks $ TC.extendLocalCxtTys tycxt
+  tgtTy <- getTypeCache $ target ast
   case target ast of
-    EmptyHole{} -> flip replace ast <$> mkRefinedApplication cxt v vTy tgtTyCache
+    EmptyHole{} ->
+      getRefinedApplications cxt vTy tgtTy >>= \case
+        -- See Note [No valid refinement]
+        Nothing -> flip replace ast <$> hole v
+        Just as -> flip replace ast <$> apps' v (Swap.swap . bimap pure pure <$> as)
+    -- flip replace ast <$> mkRefinedApplication cxt v vTy tgtTyCache
     e -> throwError $ NeedEmptyHole (InsertRefinedVar x) e
 
 {-
@@ -522,22 +528,27 @@ put the requested function inside a hole when we cannot find a suitable
 application spine.
 -}
 
-mkRefinedApplication :: ActionM m => TC.Cxt -> m Expr -> TC.Type -> Maybe TypeCache -> m Expr
-mkRefinedApplication cxt e eTy tgtTy' = do
+getRefinedApplications ::
+  ( MonadError ActionError m
+  , MonadFresh NameCounter m
+  , MonadFresh ID m
+  ) =>
+  TC.Cxt ->
+  TC.Type ->
+  TypeCache ->
+  m (Maybe [Either Type Expr])
+getRefinedApplications cxt eTy tgtTy' = do
   tgtTy <- case tgtTy' of
-    Just (TCChkedAt t) -> pure t
-    Just (TCEmb b) -> pure $ tcChkedAt b
-    _ -> throwError $ RefineError $ Left "Don't have a type we were checked at"
+    TCChkedAt t -> pure t
+    TCEmb b -> pure $ tcChkedAt b
+    TCSynthed{} -> throwError $ RefineError $ Left "Don't have a type we were checked at"
   mInst <-
     runExceptT (refine cxt tgtTy eTy) >>= \case
       -- Errors are only internal failures. Refinement failing is signaled with
       -- a Maybe
       Left err -> throwError $ InternalFailure $ show err
       Right x -> pure $ fst <$> x
-  case mInst of
-    -- See Note [No valid refinement]
-    Nothing -> hole e
-    Just inst -> foldl' f e inst
+  traverse (mapM f) mInst
   where
     -- Note that whilst the names in 'InstUnconstrainedAPP' scope over the
     -- following 'Insts', and should be substituted with whatever the
@@ -546,10 +557,10 @@ mkRefinedApplication cxt e eTy tgtTy' = do
     -- 'Tests.Refine.tasty_scoping'). Since we ignore the type of an 'InstApp'
     -- and unconditionally put a hole, we do not have to worry about doing this
     -- substitution.
-    f x = \case
-      InstApp _ -> x `app` emptyHole
-      InstAPP a -> x `aPP` generateTypeIDs a
-      InstUnconstrainedAPP _ _ -> x `aPP` tEmptyHole
+    f = \case
+      InstApp _ -> Right <$> emptyHole
+      InstAPP a -> Left <$> generateTypeIDs a
+      InstUnconstrainedAPP _ _ -> Left <$> tEmptyHole
 
 constructApp :: ActionM m => ExprZ -> m ExprZ
 constructApp ze = flip replace ze <$> app (pure (target ze)) emptyHole
@@ -638,16 +649,47 @@ constructRefinedCon c ze = do
     getConstructorType n >>= \case
       Left err -> throwError $ RefineError $ Left err
       Right t -> pure t
-  let tgtTyCache = maybeTypeOf $ target ze
   -- our Cxt in the monad does not care about the local context, we have to extract it from the zipper.
   -- See https://github.com/hackworthltd/primer/issues/11
   -- We only care about the type context for refine
   let (tycxt, _) = localVariablesInScopeExpr (Left ze)
   cxt <- asks $ TC.extendLocalCxtTys tycxt
+  tgtTy <- getTypeCache $ target ze
   case target ze of
     -- TODO (saturated constructors) this use of application nodes will be rejected once full-saturation is enforced
-    EmptyHole{} -> flip replace ze <$> mkRefinedApplication cxt (con n) cTy tgtTyCache
+    EmptyHole{} ->
+      breakLR <<$>> getRefinedApplications cxt cTy tgtTy >>= \case
+        -- See Note [No valid refinement]
+        Nothing -> flip replace ze <$> hole (conSat n [] [])
+        -- TODO: in enforced-saturation-world, neither the above nor the Just Just case are valid:
+        -- the above obviously may not be saturated and the inside of the hole is not synthesisable (but maybe we don't care, and rely on smartholes to fix it?), and the below may not be if the target type is not an applied-ADT
+        -- (todo: add reference to innards-of-hole-must-be-syn note from todo list "Note [Holes and bidirectionality]")
+        Just Nothing -> throwError $ InternalFailure "Types of constructors always have type abstractions before term abstractions"
+        Just (Just (tys, tms)) -> flip replace ze <$> conSat n (pure <$> tys) (pure <$> tms)
     e -> throwError $ NeedEmptyHole (ConstructRefinedCon c) e
+
+getTypeCache :: MonadError ActionError m => Expr -> m TypeCache
+getTypeCache =
+  maybeTypeOf <&> \case
+    Nothing -> throwError $ RefineError $ Left "Don't have a cached type"
+    Just ty -> pure ty
+
+-- | A view for lists where all 'Left' come before all 'Right'
+breakLR :: [Either a b] -> Maybe ([a], [b])
+breakLR =
+  spanMaybe leftToMaybe <&> \case
+    (ls, rest) -> (ls,) <$> traverse rightToMaybe rest
+
+-- TODO/REVIEW: DRY this with primer-service/exe-replay/Main.hs
+
+-- | Similar to 'Data.List.span', but takes a 'Maybe' predicate.
+spanMaybe :: (a -> Maybe b) -> [a] -> ([b], [a])
+spanMaybe f = go
+  where
+    go [] = ([], [])
+    go xxs@(x : xs) = case f x of
+      Just b -> first (b :) $ go xs
+      Nothing -> ([], xxs)
 
 constructLet :: ActionM m => Maybe Text -> ExprZ -> m ExprZ
 constructLet mx ze = case target ze of
