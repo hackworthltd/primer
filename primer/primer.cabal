@@ -108,6 +108,7 @@ library
 
   build-depends:
     , aeson                        >=2.0      && <2.2
+    , assoc                        ^>=1.0.2
     , base                         >=4.12     && <4.17.0
     , bytestring                   >=0.10.8.2 && <0.12.0
     , containers                   >=0.6.0.1  && <0.7.0
