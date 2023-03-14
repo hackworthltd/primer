@@ -4,6 +4,7 @@ packages:
   extra
   logging-effect
   uuid
+  pretty-show
   primer
   primer-rel8
   primer-selda
