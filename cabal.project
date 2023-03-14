@@ -7,6 +7,7 @@ packages:
   pretty-show
   terminal-size
   semirings
+  splitmix
   primer
   primer-rel8
   primer-selda
@@ -26,6 +27,7 @@ package primer-service
   test-options: "--size-cutoff=32768"
 
 allow-newer: *:*
+constraints: aeson==2.1.1.0
 
 -- We need a newer version of Selda than what's been released to Hackage.
 source-repository-package
