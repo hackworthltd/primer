@@ -10,7 +10,9 @@ The flake also only provides a shell, not any packages -- you are expected to us
 We currently only support building the core primer library `lib:primer` and nothing else.
 This is because of failures in building some dependencies
 
-## Unbuildable dependencies
+## Unbuildable dependencies for `lib:primer-testlib`
+- happy
+- terminal-size
 
 ## Modified dependencies
 ### for `lib:primer`
