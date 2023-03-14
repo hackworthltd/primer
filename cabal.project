@@ -5,6 +5,7 @@ packages:
   logging-effect
   uuid
   pretty-show
+  terminal-size
   primer
   primer-rel8
   primer-selda
