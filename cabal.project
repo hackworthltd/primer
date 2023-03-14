@@ -19,7 +19,7 @@ package primer
 package primer-service
   test-options: "--size-cutoff=32768"
 
-allow-newer: logging-effect:text
+allow-newer: *:*
 
 -- We need a newer version of Selda than what's been released to Hackage.
 source-repository-package

@@ -8,6 +8,13 @@ The flake also only provides a shell, not any packages -- you are expected to us
 
 ## Supported packages
 We currently do not support building any primer packages.
+This is because of failures in building some dependencies
+
+## Unbuildable dependencies
+- clock
+- entropy
+- logging-effect
+- network-info
 
 ## Running
 Enter a nix devshell: `nix develop`.
