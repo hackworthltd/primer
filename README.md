@@ -10,7 +10,9 @@ The flake also only provides a shell, not any packages -- you are expected to us
 We currently only support building the core primer library `lib:primer`, `lib:primer-testlib`, and `lib:primer-hedgehog` and nothing else.
 This is because of failures in building some dependencies
 
-## Unbuildable dependencies for `lib:primer-testlib`
+## Unbuildable dependencies for `test:primer-test`
+- pretty-simple
+- semirings
 
 ## Modified dependencies
 ### for `lib:primer`
@@ -28,6 +30,7 @@ We bake out the `happy` grammar into a haskell source file, rather than running 
 This is because `happy` fails to build with the wasm backend.
 #### terminal-show
 Since wasi does not support termios.h functionality (https://github.com/WebAssembly/WASI/issues/161), we lobotomize this package to just return 80x25
+### For test:primer-test
 
 ## Running
 Enter a nix devshell: `nix develop`.
