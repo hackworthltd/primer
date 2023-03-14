@@ -10,7 +10,8 @@ The flake also only provides a shell, not any packages -- you are expected to us
 We currently only support building the core primer library `lib:primer`, `lib:primer-testlib`, and `lib:primer-hedgehog` and nothing else.
 This is because of failures in building some dependencies
 
-## Unbuildable dependencies
+## Build problems with `test:primer-test`
+`could not execute: tasty-discover`
 
 ## Modified dependencies
 ### for `lib:primer`
