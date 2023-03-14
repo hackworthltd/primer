@@ -11,12 +11,13 @@ We currently do not support building any primer packages.
 This is because of failures in building some dependencies
 
 ## Unbuildable dependencies
-- logging-effect
 
 ## Modified dependencies
 ### extra
 We remove its 'clock' dependency and all related functonality (which we do not use).
 This is due to 'clock' not building with ghc's wasm backend.
+### logging-effect
+We remove some instances for deprecated types which have been removed in transformers-0.7
 ### uuid
 We remove its 'network-info' and all related functionality (which we do not use).
 We remove its 'entropy' dependency, and replace it with 'random' -- this may be less secure but we don't care (we do not rely on its security guarentees).
