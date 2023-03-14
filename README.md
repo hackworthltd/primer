@@ -7,7 +7,7 @@ The flake only provides cabal, ghc and wasmtime, not any libraries.
 The flake also only provides a shell, not any packages -- you are expected to use cabal in a devshell to build (this will imperatively manage haskell dependencies).
 
 ## Supported packages
-We currently only support building the core primer library `lib:primer` and nothing else.
+We currently only support building the core primer library `lib:primer`, `lib:primer-testlib`, and `lib:primer-hedgehog` and nothing else.
 This is because of failures in building some dependencies
 
 ## Unbuildable dependencies for `lib:primer-testlib`
