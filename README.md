@@ -11,10 +11,14 @@ We currently do not support building any primer packages.
 This is because of failures in building some dependencies
 
 ## Unbuildable dependencies
-- clock
 - entropy
 - logging-effect
 - network-info
+
+## Modified dependencies
+### extra
+We remove its 'clock' dependency and all related functonality (which we do not use).
+This is due to 'clock' not building with ghc's wasm backend.
 
 ## Running
 Enter a nix devshell: `nix develop`.

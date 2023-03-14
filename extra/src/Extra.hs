@@ -50,7 +50,6 @@ module Extra {-# DEPRECATED "This module is provided as documentation of all new
     system_, systemOutput, systemOutput_,
     -- * System.Time.Extra
     -- | Extra functions available in @"System.Time.Extra"@.
-    Seconds, sleep, timeout, showDuration, offsetTime, offsetTimeIncrease, duration,
     ) where
 
 import Control.Concurrent.Extra
