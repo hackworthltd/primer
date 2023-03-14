@@ -11,7 +11,11 @@ We currently only support building the core primer library `lib:primer`, `lib:pr
 This is because of failures in building some dependencies
 
 ## Build problems with `test:primer-test`
-`could not execute: tasty-discover`
+Linking problems:
+```
+[37 of 37] Linking /home/hackworth/primer/wasm/dist-newstyle/build/wasm32-wasi/ghc-9.7.20230306/primer-0.7.2.0/t/primer-test/noopt/build/primer-test/primer-test.wasm
+wasm-ld: error: unable to find library -lHSrts-1.0.2_thr
+```
 
 ## Modified dependencies
 ### for `lib:primer`
@@ -34,6 +38,10 @@ Since wasi does not support termios.h functionality (https://github.com/WebAssem
 force `HOST_OS_WINDOWS` to avoid importing unsupported posix types
 #### pretty-simple
 Use an unmerged draft PR to avoid a custom setup that breaks building with ghc's wasm backend
+
+## Modified primer packages
+### test:primer-test
+Bake out the tasty-discover output (which failed to work as a preprocessor in the build)
 
 ## Running
 Enter a nix devshell: `nix develop`.
