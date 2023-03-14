@@ -6,6 +6,7 @@ packages:
   uuid
   pretty-show
   terminal-size
+  semirings
   primer
   primer-rel8
   primer-selda
