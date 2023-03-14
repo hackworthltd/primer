@@ -3,7 +3,6 @@ module Data.UUID.Util (
     UnpackedUUID(..)
   , unpack, pack
   , version
-  , extractMac
   , extractTime
   , setTime
   ) where
@@ -13,7 +12,6 @@ import Data.Word
 import Data.Word.Util
 import Data.Bits
 import Data.UUID.Types.Internal
-import Network.Info
 import Data.Int (Int64)
 
 version :: UUID -> Int
@@ -42,12 +40,3 @@ extractTime uuid =
 
 timeAndVersionToTime :: Word16 -> Word16
 timeAndVersionToTime tv = tv .&. 0x0FFF
-
-extractMac :: UUID -> Maybe MAC
-extractMac uuid =
-  if version uuid == 1
-  then Just $
-       MAC (node_0 unpacked) (node_1 unpacked) (node_2 unpacked) (node_3 unpacked) (node_4 unpacked) (node_5 unpacked)
-  else Nothing
-  where
-    unpacked = unpack uuid
