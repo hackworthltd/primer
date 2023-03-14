@@ -2,6 +2,7 @@ index-state: 2023-02-23T00:00:00Z
 
 packages:
   extra
+  uuid
   primer
   primer-rel8
   primer-selda
