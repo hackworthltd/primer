@@ -7,18 +7,19 @@ The flake only provides cabal, ghc and wasmtime, not any libraries.
 The flake also only provides a shell, not any packages -- you are expected to use cabal in a devshell to build (this will imperatively manage haskell dependencies).
 
 ## Supported packages
-We currently do not support building any primer packages.
+We currently only support building the core primer library `lib:primer` and nothing else.
 This is because of failures in building some dependencies
 
 ## Unbuildable dependencies
 
 ## Modified dependencies
-### extra
+### for `lib:primer`
+#### extra
 We remove its 'clock' dependency and all related functonality (which we do not use).
 This is due to 'clock' not building with ghc's wasm backend.
-### logging-effect
+#### logging-effect
 We remove some instances for deprecated types which have been removed in transformers-0.7
-### uuid
+#### uuid
 We remove its 'network-info' and all related functionality (which we do not use).
 We remove its 'entropy' dependency, and replace it with 'random' -- this may be less secure but we don't care (we do not rely on its security guarentees).
 
