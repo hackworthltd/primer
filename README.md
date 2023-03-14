@@ -7,16 +7,12 @@ The flake only provides cabal, ghc and wasmtime, not any libraries.
 The flake also only provides a shell, not any packages -- you are expected to use cabal in a devshell to build (this will imperatively manage haskell dependencies).
 
 ## Supported packages
-We currently only support building the core primer library `lib:primer`, `lib:primer-testlib`, and `lib:primer-hedgehog` and nothing else.
+We currently only support building the core primer library `lib:primer`, `lib:primer-testlib`, `lib:primer-hedgehog` and the testsuite `test:primer-test` (i.e. all of the `primer` package).
+We do not support actually running the testsuite!
 This is because of failures in building some dependencies
 
-## Build problems with `test:primer-test`
-Linking problems:
-```
-[37 of 37] Linking /home/hackworth/primer/wasm/dist-newstyle/build/wasm32-wasi/ghc-9.7.20230306/primer-0.7.2.0/t/primer-test/noopt/build/primer-test/primer-test.wasm
-wasm-ld: error: /home/hackworth/.ghc-wasm/.cabal/store/ghc-9.7.20230306/splitmix-0.1.0.4-7f01a3d099baa7ad77ecaa93997102c6a6a2b19eec6e1be0ff3ffc604622e3e5/lib/libHSsplitmix-0.1.0.4-7f01a3d099baa7ad77ecaa93997102c6a6a2b19eec6e1be0ff3ffc604622e3e5.a(init.o): undefined symbol: clock
-wasm-ld: error: /home/hackworth/.ghc-wasm/.cabal/store/ghc-9.7.20230306/splitmix-0.1.0.4-7f01a3d099baa7ad77ecaa93997102c6a6a2b19eec6e1be0ff3ffc604622e3e5/lib/libHSsplitmix-0.1.0.4-7f01a3d099baa7ad77ecaa93997102c6a6a2b19eec6e1be0ff3ffc604622e3e5.a(init.o): undefined symbol: getpid
-```
+## Runtime problems with `test:primer-test`
+`unknown RTS option: -N`
 
 ## Modified dependencies
 ### for `lib:primer`
@@ -39,6 +35,9 @@ Since wasi does not support termios.h functionality (https://github.com/WebAssem
 force `HOST_OS_WINDOWS` to avoid importing unsupported posix types
 #### pretty-simple
 Use an unmerged draft PR to avoid a custom setup that breaks building with ghc's wasm backend
+#### splitmix
+No changes needed for the compilation to work, but we do need changes for linking to work
+Removed the 'comparison' benchmark, which causes cabal to find bad plans; this somehow fixes the linking problem, but I do not know how.
 
 ## Modified primer packages
 ### test:primer-test
