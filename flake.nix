@@ -19,6 +19,11 @@
     nixpkgs.follows = "haskell-nix/nixpkgs-unstable";
     hacknix.inputs.nixpkgs.follows = "nixpkgs";
     pre-commit-hooks-nix.inputs.nixpkgs.follows = "nixpkgs";
+
+    # HLS is broken again in haskell.nix. Also, we need to build it
+    # from git to get the fourmolu 0.12.0.0 support.
+    haskell-language-server.url = "github:haskell/haskell-language-server/cda1325241365896f24d1a09899b8e8e787f9c7b";
+    haskell-language-server.flake = false;
   };
 
   outputs = inputs@ { flake-parts, ... }:
@@ -40,15 +45,15 @@
         in
         builtins.trace "Nix Primer version is ${v}" "git-${v}";
 
-      ghcVersion = "ghc927";
+      ghcVersion = "ghc945";
 
       # We must keep the weeder version in sync with the version of
       # GHC we're using.
-      weederVersion = "2.4.0";
+      weederVersion = "2.5.0";
 
       # Fourmolu updates often alter formatting arbitrarily, and we want to
       # have more control over this.
-      fourmoluVersion = "0.10.1.0";
+      fourmoluVersion = "0.12.0.0";
 
       allOverlays = [
         inputs.haskell-nix.overlay
@@ -257,8 +262,7 @@
           // primerFlake.packages;
 
           checks = {
-            inherit weeder openapi-validate;
-
+            inherit openapi-validate;
             inherit primer-sqitch-test-sqlite;
           }
           // (pkgs.lib.optionalAttrs (system == "x86_64-linux")
@@ -389,6 +393,24 @@
                 inherit version;
               });
 
+              # HLS is broken in haskell.nix.
+              hls = final.haskell-nix.cabalProject'
+                {
+                  compiler-nix-name = ghcVersion;
+                  src = inputs.haskell-language-server;
+                  sha256map."https://github.com/pepeiborra/ekg-json"."7a0af7a8fd38045fd15fb13445bdcc7085325460" = "fVwKxGgM0S4Kv/4egVAAiAjV7QB5PBqMVMCfsv7otIQ=";
+
+                  modules = [
+                    {
+                      packages.haskell-language-server.flags = {
+                        floskell = false;
+                        stylishHaskell = false;
+                        ormolu = false;
+                      };
+                    }
+                  ];
+                };
+
               primer = final.haskell-nix.cabalProject {
                 compiler-nix-name = ghcVersion;
                 src = ./.;
@@ -495,12 +517,17 @@
 
                   tools = {
                     ghcid = "latest";
-                    haskell-language-server = "latest";
+
+                    # Broken again, sigh.
+                    #haskell-language-server = "latest";
+
                     implicit-hie = "latest";
 
                     cabal = "latest";
                     hlint = "latest";
-                    weeder = weederVersion;
+
+                    # Broken.
+                    #weeder = weederVersion;
 
                     fourmolu = fourmoluVersion;
 
@@ -542,10 +569,12 @@
                     restore-local-db
                     connect-local-db
                     delete-all-local-sessions
+
+                    # Until working again in haskell.nix.
+                    hls.hsPkgs.haskell-language-server.components.exes.haskell-language-server
                   ]);
 
                   shellHook = ''
-                    gen-hie > hie.yaml
                     export HIE_HOOGLE_DATABASE="$(cat $(${final.which}/bin/which hoogle) | sed -n -e 's|.*--database \(.*\.hoo\).*|\1|p')"
                   '';
                 };

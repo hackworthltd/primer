@@ -23,10 +23,10 @@ import Primer.Zipper (SomeNode)
 -- https://github.com/hackworthltd/primer/issues/8
 data ActionError
   = CustomFailure
+      -- | action that caused the error
       Action
-      -- ^ action that caused the error
+      -- | the error message
       Text
-      -- ^ the error message
   | InternalFailure Text
   | IDNotFound ID
   | MovementFailed (ID, Movement)

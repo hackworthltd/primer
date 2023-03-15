@@ -883,7 +883,7 @@ tasty_prim_hex_nat = withTests 20 . property $ do
                       )
                   ]
                 <*> con cJust [ne]
-                `ann` (tcon tMaybe `tapp` tcon tNat)
+                  `ann` (tcon tMaybe `tapp` tcon tNat)
             else
               (,)
                 <$> pfun NatToHex
