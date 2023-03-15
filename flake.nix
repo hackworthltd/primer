@@ -180,16 +180,13 @@
             let
               # Override the default nix-pre-commit-hooks tools with the version
               # we're using.
-              haskellNixTools = pkgs.haskell-nix.tools ghcVersion {
-                hlint = "latest";
-              };
+              haskellNixTools = pkgs.haskell-nix.tools ghcVersion { };
             in
             {
               check.enable = true;
               settings = {
                 src = ./.;
                 hooks = {
-                  hlint.enable = true;
                   nixpkgs-fmt.enable = true;
 
                   actionlint = {
@@ -206,7 +203,6 @@
                 # https://github.com/cachix/pre-commit-hooks.nix/issues/204
                 tools = {
                   nixpkgs-fmt = pkgs.lib.mkForce pkgs.nixpkgs-fmt;
-                  hlint = pkgs.lib.mkForce haskellNixTools.hlint;
                 };
 
                 excludes = [
@@ -495,7 +491,6 @@
                     implicit-hie = "latest";
 
                     cabal = "latest";
-                    hlint = "latest";
                     weeder = weederVersion;
 
                     #TODO Explicitly requiring tasty-discover shouldn't be necessary - see the commented-out `build-tool-depends` in primer.cabal.
