@@ -486,10 +486,6 @@
                   withHoogle = true;
 
                   tools = {
-                    ghcid = "latest";
-                    haskell-language-server = "latest";
-                    implicit-hie = "latest";
-
                     cabal = "latest";
 
                     #TODO Explicitly requiring tasty-discover shouldn't be necessary - see the commented-out `build-tool-depends` in primer.cabal.
