@@ -1,0 +1,108 @@
+# Note: make sure that GitHub deployments (the trigger for this GitHub
+# workflow) are only created *after* the
+# `packages.x86_64-linux.primer-service-docker-image` Nix derivation
+# has successfully been built, or else a very long (and probably
+# fruitless) Nix build will ensue on a GitHub runner.
+
+name: Push Docker image to ghcr.io
+
+on:
+  deployment:
+
+jobs:
+  push-image-to-ghcr:
+    permissions:
+      contents: read
+      packages: write
+      deployments: write
+      id-token: write
+
+    runs-on: ubuntu-latest
+
+    env:
+      SHA: ${{ github.event.deployment.sha }}
+      ENVIRONMENT: ${{ github.event.deployment.environment }}
+      DEPLOY_ID: ${{ github.event.deployment.id}}
+
+    steps:
+      - name: Deployment in progress
+        uses: chrnorm/deployment-status@v2.0.1
+        with:
+          token: '${{ github.token }}'
+          state: 'in_progress'
+          deployment-id: ${{env.DEPLOY_ID}}
+
+      - name: Checkout repo
+        uses: actions/checkout@v3.3.0
+        with:
+          # Required by flakes
+          fetch-depth: 0
+
+      - name: Import secrets from Vault
+        uses: hashicorp/vault-action@v2.5.0
+        id: secrets
+        with:
+          url: https://secrets.hackworth-corp.com
+          path: "github-actions"
+          caCertificate: ${{ secrets.VAULT_CA_CERT }}
+          role: primer-workflow-push-docker-image
+          method: jwt
+          secrets: |
+            secret/data/cachix/hackworthltd-private/github-workflows token | CACHIX_AUTH_TOKEN ;
+
+      - name: Install & configure Nix
+        uses: cachix/install-nix-action@v20
+        with:
+          extra_nix_config: |
+            trusted-public-keys = cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY= hackworthltd.cachix.org-1:0JTCI0qDo2J+tonOalrSQP3yRNleN6bQucJ05yDltRI= hydra.iohk.io:f/Ea+s+dFdN+3Y/G+FDgSq+a5NEWhJGzdjvKNGv0/EQ= loony-tools:pr9m4BkM/5/eSTZlkQyRt57Jz7OMBxNSUiMC4FkcNfk=
+            substituters = https://cache.nixos.org?priority=10 https://hackworthltd.cachix.org?priority=30 https://cache.iog.io?priority=40 https://cache.zw3rk.com?priority=50
+
+      - name: Configure Cachix for private Hackworth Ltd cache
+        uses: cachix/cachix-action@v12
+        with:
+          name: hackworthltd-private
+          authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
+          skipPush: true
+
+        # Note: if this Nix derivation hasn't been built yet, it will
+        # kick off a Primer Nix build on a GitHub runner, which isn't
+        # ideal. See note at the top of this workflow.
+      - name: Fetch Primer service Docker image
+        run: |
+          nix build -L .#packages.x86_64-linux.primer-service-docker-image
+
+      - name: Authenticate to ghcr.io
+        uses: docker/login-action@ec9cdf07d570632daeb912f5b2099cb9ec1d01e6
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Push image to ghcr.io
+        shell: bash
+        run: |
+          docker load < result
+          IMAGE=$(docker image list -f reference=primer-service --format "{{.Repository}}:{{.Tag}}")
+          TAG=$(docker image list -f reference=primer-service --format "{{.Tag}}")
+          echo "Loaded image: ${IMAGE}"
+          NAME="ghcr.io/hackworthltd/primer-service:$TAG"
+          docker tag "$IMAGE" "$NAME"
+          echo "Pushing image to ghcr.io: ${NAME}"
+          docker push "$NAME"
+          echo "Image pushed."
+
+      - name: Deployment success
+        if: success()
+        uses: chrnorm/deployment-status@v2.0.1
+        with:
+          token: '${{ github.token }}'
+          state: 'success'
+          deployment-id: ${{env.DEPLOY_ID}}
+
+      - name: Deployment failure
+        if: failure()
+        uses: chrnorm/deployment-status@v2.0.1
+        with:
+          token: '${{ github.token }}'
+          state: 'failure'
+          deployment-id: ${{env.DEPLOY_ID}}

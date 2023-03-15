@@ -1,0 +1,7 @@
+deployments:
+- name: development
+  # Note: this will only create a deployment after required checks
+  # pass.
+  #
+  # ref: https://docs.deploybot.app/platforms/github-actions/#automated-deploys
+  on_push: true
