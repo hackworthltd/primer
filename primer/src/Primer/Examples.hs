@@ -97,7 +97,7 @@ import Primer.Core.DSL (
   tfun,
   thole,
   tlet,
-  tvar,
+  tvar, con0,
  )
 import Primer.Def (
   ASTDef (ASTDef),
@@ -361,7 +361,7 @@ even3Prog =
         (_, oddDef) <- odd modName
         even3Def <- do
           type_ <- tcon B.tBool
-          term <- gvar (qualifyName modName "even") `app` conSat B.cSucc [] [conSat B.cSucc [] [conSat B.cSucc [] [con B.cZero]]]
+          term <- gvar (qualifyName modName "even") `app` conSat B.cSucc [] [conSat B.cSucc [] [conSat B.cSucc [] [con0 B.cZero]]]
           pure $ DefAST $ ASTDef term type_
         let globs = [("even", evenDef), ("odd", oddDef), ("even 3?", even3Def)]
         pure globs
@@ -422,7 +422,7 @@ mapOddPrimProg len =
             lam "x" $
               case_
                 (pfun P.IntRemainder `app` lvar "x" `app` int 2)
-                [ branch B.cNothing [] $ con B.cTrue -- this should be impossible (since denominator is obviously non-zero)
+                [ branch B.cNothing [] $ con0 B.cTrue -- this should be impossible (since denominator is obviously non-zero)
                 , branch B.cJust [("r", Nothing)] $ pfun P.IntEq `app` lvar "r" `app` int 1
                 ]
           pure $ DefAST $ ASTDef term type_
@@ -458,7 +458,7 @@ badEven3Prog =
         (_, oddDef) <- odd modName
         even3Def <- do
           type_ <- tcon B.tNat
-          term <- gvar (qualifyName modName "even") `app` conSat B.cSucc [] [conSat B.cSucc [] [conSat B.cSucc [] [con B.cZero]]]
+          term <- gvar (qualifyName modName "even") `app` conSat B.cSucc [] [conSat B.cSucc [] [conSat B.cSucc [] [con0 B.cZero]]]
           pure $ DefAST $ ASTDef term type_
         let globs = [("even", evenDef), ("odd", oddDef), ("even 3?", even3Def)]
         pure globs

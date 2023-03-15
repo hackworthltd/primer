@@ -68,7 +68,7 @@ import Primer.Core.DSL (
   apps',
   branch,
   case_,
-  con,
+  con0,
   conSat,
   emptyHole,
   hole,
@@ -640,7 +640,7 @@ constructLAM mx ze = do
 -- TODO (saturated constructors) this action will make no sense once full-saturation is enforced
 constructCon :: ActionM m => QualifiedText -> ExprZ -> m ExprZ
 constructCon c ze = case target ze of
-  EmptyHole{} -> flip replace ze <$> con (unsafeMkGlobalName c)
+  EmptyHole{} -> flip replace ze <$> con0 (unsafeMkGlobalName c)
   e -> throwError $ NeedEmptyHole (ConstructCon c) e
 
 constructPrim :: ActionM m => PrimCon -> ExprZ -> m ExprZ
