@@ -50,12 +50,12 @@ data Type' a
     -- the student can't directly make it.
     TLet
       a
+      -- | bound variable
       TyVarName
-      -- ^ bound variable
+      -- | type the variable is bound to; the variable itself is not in scope, this is a non-recursive let
       (Type' a)
-      -- ^ type the variable is bound to; the variable itself is not in scope, this is a non-recursive let
+      -- | body of the let; binding scopes over this
       (Type' a)
-      -- ^ body of the let; binding scopes over this
   deriving stock (Eq, Show, Read, Data, Generic)
   deriving (FromJSON, ToJSON) via PrimerJSON (Type' a)
   deriving anyclass (NFData)

@@ -144,24 +144,24 @@ tasty_genCxtExtending_is_extension =
         tds1
           `M.isSubmapOf` tds2
           && lc1
-          == lc2 -- we don't extend the locals
+            == lc2 -- we don't extend the locals
           && lc1
-          == mempty -- and it doesn't make too much sense to do a global extension if already have locals in scope
+            == mempty -- and it doesn't make too much sense to do a global extension if already have locals in scope
           && gc1
-          `M.isSubmapOf` gc2
+            `M.isSubmapOf` gc2
           && sh1
-          == sh2
+            == sh2
     extendsLocal
       (Cxt{typeDefs = tds1, localCxt = lc1, globalCxt = gc1, smartHoles = sh1})
       (Cxt{typeDefs = tds2, localCxt = lc2, globalCxt = gc2, smartHoles = sh2}) =
         tds1
           == tds2
           && lc1
-          `M.isSubmapOf` lc2 -- we only extend the locals
+            `M.isSubmapOf` lc2 -- we only extend the locals
           && gc1
-          == gc2
+            == gc2
           && sh1
-          == sh2
+            == sh2
 
 tasty_genSyns :: Property
 tasty_genSyns = withTests 1000 $
