@@ -152,23 +152,23 @@ unit_const =
       (tfun (tcon tBool) (tfun (tcon tBool) (tcon tBool)))
 
 unit_true :: Assertion
-unit_true = expectTyped $ con cTrue
+unit_true = expectTyped $ con0 cTrue
 
 -- An empty hole accepts under-saturated constructors
 unit_unsat_con_hole_1 :: Assertion
-unit_unsat_con_hole_1 = expectTyped $ con cSucc `ann` tEmptyHole
+unit_unsat_con_hole_1 = expectTyped $ conSat cSucc [] [] `ann` tEmptyHole
 
 -- An empty hole rejects over-saturated constructors
 unit_unsat_con_hole_2 :: Assertion
 unit_unsat_con_hole_2 =
-  (con cSucc `app` emptyHole `app` emptyHole `ann` tEmptyHole)
+  (conSat cSucc [] [emptyHole, emptyHole] `ann` tEmptyHole)
     `expectFailsWith` const (TypeDoesNotMatchArrow $ TCon () tNat)
 
 -- A hole-headed TApp accepts saturated constructors
 unit_con_hole_app_type_1 :: Assertion
 unit_con_hole_app_type_1 =
   expectTyped $
-    (con cMakePair `aPP` tcon tBool `aPP` tcon tNat `app` emptyHole `app` emptyHole)
+    conSat cMakePair [tcon tBool, tcon tNat] [emptyHole, emptyHole]
       `ann` (tEmptyHole `tapp` tEmptyHole)
 
 -- A hole-headed TApp accepts saturated constructors, if given type arguments match
@@ -176,7 +176,7 @@ unit_con_hole_app_type_1 =
 unit_con_hole_app_type_2 :: Assertion
 unit_con_hole_app_type_2 =
   expectTyped $
-    (con cMakePair `aPP` tcon tBool `aPP` tcon tNat `app` emptyHole `app` emptyHole)
+    conSat cMakePair [tcon tBool, tcon tNat] [emptyHole, emptyHole]
       `ann` (tEmptyHole `tapp` tcon tNat)
 
 -- A hole-headed TApp accepts saturated constructors, if given type arguments match
@@ -184,13 +184,13 @@ unit_con_hole_app_type_2 =
 unit_con_hole_app_type_3 :: Assertion
 unit_con_hole_app_type_3 =
   expectTyped $
-    (con cMakePair `aPP` tcon tBool `aPP` tcon tNat `app` emptyHole `app` emptyHole)
+    conSat cMakePair [tcon tBool, tcon tNat] [emptyHole, emptyHole]
       `ann` (tEmptyHole `tapp` tcon tBool `tapp` tcon tNat)
 
 -- A hole-headed TApp rejects saturated constructors, if  application spine is too long for the constructor
 unit_con_hole_app_type_4 :: Assertion
 unit_con_hole_app_type_4 =
-  ( (con cMakePair `aPP` tcon tBool `aPP` tcon tNat `app` emptyHole `app` emptyHole)
+  ( conSat cMakePair [tcon tBool, tcon tNat] [emptyHole, emptyHole]
       `ann` (tEmptyHole `tapp` tcon tBool `tapp` tcon tNat `tapp` tEmptyHole)
   )
     `expectFailsWith` const
@@ -202,7 +202,7 @@ unit_con_hole_app_type_4 =
 -- A hole-headed TApp rejects saturated constructors, if given type arguments do not match
 unit_con_hole_app_type_5 :: Assertion
 unit_con_hole_app_type_5 =
-  ( (con cMakePair `aPP` tcon tBool `aPP` tcon tNat `app` emptyHole `app` emptyHole)
+  ( conSat cMakePair [tcon tBool, tcon tNat] [emptyHole, emptyHole]
       `ann` (tEmptyHole `tapp` tcon tBool)
   )
     `expectFailsWith` const
@@ -213,7 +213,7 @@ unit_con_hole_app_type_5 =
 
 unit_constructor_doesn't_exist :: Assertion
 unit_constructor_doesn't_exist =
-  con nope `expectFailsWith` const (UnknownConstructor nope)
+  con0 nope `expectFailsWith` const (UnknownConstructor nope)
   where
     nope = vcn ["M"] "Nope"
 
@@ -221,7 +221,7 @@ unit_inc :: Assertion
 unit_inc =
   expectTyped $
     ann
-      (lam "n" (app (con cSucc) (lvar "n")))
+      (lam "n" (app (con0 cSucc) (lvar "n")))
       (tfun (tcon tNat) (tcon tNat))
 
 unit_compose_nat :: Assertion
@@ -240,7 +240,7 @@ unit_compose_nat =
 -- let x = True in x
 unit_let :: Assertion
 unit_let =
-  expectTyped $ let_ "x" (con cTrue) (lvar "x")
+  expectTyped $ let_ "x" (con0 cTrue) (lvar "x")
 
 -- Normal lets do not permit recursion
 unit_recursive_let :: Assertion
@@ -268,26 +268,23 @@ unit_letrec_2 =
           "x"
           ( case_
               (lvar "x")
-              [ branch cZero [] (con cZero)
+              [ branch cZero [] (con0 cZero)
               , branch
                   cSucc
                   [("n", Nothing)]
-                  ( app
-                      (con cSucc)
-                      (app (con cSucc) (app (lvar "double") (lvar "n")))
-                  )
+                  (con1 cSucc $ con1 cSucc $ app (lvar "double") (lvar "n"))
               ]
           )
       )
       (tfun (tcon tNat) (tcon tNat))
-      (app (lvar "double") (app (con cSucc) (con cZero)))
+      (app (lvar "double") (con1 cSucc $ con0 cZero))
 
 -- let x = True
 --  in let y = False
 --      in x
 unit_nested_let :: Assertion
 unit_nested_let =
-  expectTyped $ let_ "x" (con cTrue) (let_ "y" (con cFalse) (lvar "x"))
+  expectTyped $ let_ "x" (con0 cTrue) (let_ "y" (con0 cFalse) (lvar "x"))
 
 -- let yes = \x -> True : Bool -> Bool
 --  in let y = False
@@ -297,8 +294,8 @@ unit_let_function =
   expectTyped $
     let_
       "yes"
-      (ann (lam "x" (con cTrue)) (tfun (tcon tBool) (tcon tBool)))
-      (let_ "y" (con cFalse) (app (lvar "yes") (lvar "y")))
+      (ann (lam "x" (con0 cTrue)) (tfun (tcon tBool) (tcon tBool)))
+      (let_ "y" (con0 cFalse) (app (lvar "yes") (lvar "y")))
 
 -- (\f -> f : (Bool -> Bool) -> (Bool -> Bool)) (let y = True in \x -> y)
 unit_let_in_arg :: Assertion
@@ -309,7 +306,7 @@ unit_let_in_arg =
           (lam "f" (lvar "f"))
           (tfun (tfun (tcon tBool) (tcon tBool)) (tfun (tcon tBool) (tcon tBool)))
       )
-      (let_ "y" (con cTrue) (lam "x" (lvar "y")))
+      (let_ "y" (con0 cTrue) (lam "x" (lvar "y")))
 
 unit_mkTAppCon :: Assertion
 unit_mkTAppCon = do
@@ -378,7 +375,7 @@ unit_valConType = do
 unit_case_isZero :: Assertion
 unit_case_isZero =
   expectTyped $
-    ann (lam "x" $ case_ (lvar "x") [branch cZero [] (con cTrue), branch cSucc [("n", Nothing)] (con cFalse)]) (tfun (tcon tNat) (tcon tBool))
+    ann (lam "x" $ case_ (lvar "x") [branch cZero [] (con0 cTrue), branch cSucc [("n", Nothing)] (con0 cFalse)]) (tfun (tcon tNat) (tcon tBool))
 
 -- Nat -> Bool rejects \x . case x of {}
 unit_case_badEmpty :: Assertion
@@ -429,13 +426,13 @@ unit_ann_bad =
 
 unit_ann_insert :: Assertion
 unit_ann_insert =
-  app (lam "x" $ lvar "x") (con cZero)
-    `smartSynthGives` app (ann (lam "x" $ lvar "x") tEmptyHole) (con cZero)
+  app (lam "x" $ lvar "x") (con0 cZero)
+    `smartSynthGives` app (ann (lam "x" $ lvar "x") tEmptyHole) (con0 cZero)
 
 unit_app_not_arrow :: Assertion
 unit_app_not_arrow =
-  app (con cZero) (con cZero)
-    `smartSynthGives` app (hole (con cZero)) (con cZero)
+  app (con0 cZero) (con0 cZero)
+    `smartSynthGives` app (hole (con0 cZero)) (con0 cZero)
 
 -- Note: there is something odd with this test, related to
 -- annotations-changing-types/chk-annotations I think the correct thing to give
@@ -444,29 +441,29 @@ unit_app_not_arrow =
 -- The smartTC currently gives an annotation inside a hole.
 unit_chk_lam_not_arrow :: Assertion
 unit_chk_lam_not_arrow =
-  app (con cSucc) (lam "x" $ lvar "x")
-    `smartSynthGives` app (con cSucc) (hole $ ann (lam "x" $ lvar "x") tEmptyHole)
+  con1 cSucc (lam "x" $ lvar "x")
+    `smartSynthGives` con1 cSucc (hole $ ann (lam "x" $ lvar "x") tEmptyHole)
 
 unit_check_emb :: Assertion
 unit_check_emb =
-  app (con cSucc) (con cTrue)
-    `smartSynthGives` app (con cSucc) (hole $ con cTrue)
+  con1 cSucc (con0 cTrue)
+    `smartSynthGives` con1 cSucc (hole $ con0 cTrue)
 
 -- Constructors are synthesisable
 unit_con_direction :: Assertion
 unit_con_direction =
-  con cTrue
-    `smartSynthGives` con cTrue
+  con0 cTrue
+    `smartSynthGives` con0 cTrue
 
 unit_case_scrutinee :: Assertion
 unit_case_scrutinee =
-  ann (case_ (con cSucc) [branch' (["M"], "C") [] $ lvar "x"]) (tcon tBool)
-    `smartSynthGives` ann (case_ (hole $ con cSucc) []) (tcon tBool)
+  ann (case_ (lam "n" (con1 cSucc $ lvar "n") `ann` (tcon tNat `tfun` tcon tNat)) [branch' (["M"], "C") [] $ lvar "x"]) (tcon tBool)
+    `smartSynthGives` ann (case_ (hole (lam "n" (con1 cSucc $ lvar "n") `ann` (tcon tNat `tfun` tcon tNat))) []) (tcon tBool)
 
 unit_case_branches :: Assertion
 unit_case_branches =
-  ann (case_ (con cZero) [branch' (["M"], "C") [] $ lvar "x"]) (tcon tBool)
-    `smartSynthGives` ann (case_ (con cZero) [branch cZero [] emptyHole, branch cSucc [("a7", Nothing)] emptyHole]) (tcon tBool) -- Fragile name here "a7"
+  ann (case_ (con0 cZero) [branch' (["M"], "C") [] $ lvar "x"]) (tcon tBool)
+    `smartSynthGives` ann (case_ (con0 cZero) [branch cZero [] emptyHole, branch cSucc [("a7", Nothing)] emptyHole]) (tcon tBool) -- Fragile name here "a7"
 
 unit_remove_hole :: Assertion
 unit_remove_hole =
@@ -481,9 +478,9 @@ unit_remove_hole =
 -- This is tracked as https://github.com/hackworthltd/primer/issues/7
 unit_remove_hole_not_perfect :: Assertion
 unit_remove_hole_not_perfect =
-  app (hole (con cSucc)) (con cZero)
-    `smartSynthGives` app (hole (con cSucc)) (con cZero) -- We currently give this as output
-    -- app (con cSucc) (con cZero) -- We would prefer to see the hole removed
+  app (hole (lam "n" (con1 cSucc $ lvar "n") `ann` (tcon tNat `tfun` tcon tNat))) (con0 cZero)
+    `smartSynthGives` app (hole (lam "n" (con1 cSucc $ lvar "n") `ann` (tcon tNat `tfun` tcon tNat))) (con0 cZero) -- We currently give this as output
+    -- app (lam "n" ( con1 cSucc $ lvar "n") `ann` (tcon tNat `tfun` tcon tNat)) (con0 cZero) -- We would prefer to see the hole removed
 
 -- When not using "smart" TC which automatically inserts holes etc,
 -- one would have to do a bit of dance to build a case expression, and
@@ -497,7 +494,7 @@ unit_smart_remove_clean_case =
           ann
             ( case_
                 (lvar "x")
-                [branch cTrue [] (con cZero), branch cFalse [] emptyHole]
+                [branch cTrue [] (con0 cZero), branch cFalse [] emptyHole]
             )
             tEmptyHole
     )
@@ -506,7 +503,7 @@ unit_smart_remove_clean_case =
       ( lam "x" $
           case_
             (lvar "x")
-            [branch cTrue [] (con cZero), branch cFalse [] emptyHole]
+            [branch cTrue [] (con0 cZero), branch cFalse [] emptyHole]
       )
       (tfun (tcon tBool) (tcon tNat))
 
@@ -524,8 +521,8 @@ unit_poly_head_Nat =
       ( lam "x" $
           case_
             (lvar "x")
-            [ branch cNil [] (con cZero)
-            , branch cCons [("y", Nothing), ("ys", Nothing)] $ con cSucc `app` lvar "y"
+            [ branch cNil [] (con0 cZero)
+            , branch cCons [("y", Nothing), ("ys", Nothing)] $ con1 cSucc $ lvar "y"
             ]
       )
       ((tcon tList `tapp` tcon tNat) `tfun` tcon tNat)
