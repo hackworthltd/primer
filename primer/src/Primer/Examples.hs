@@ -76,7 +76,6 @@ import Primer.Core.DSL (
   app,
   branch,
   case_,
-  con,
   con0,
   con1,
   conSat,
@@ -430,7 +429,7 @@ mapOddPrimProg len =
             lam "x" $
               case_
                 (pfun P.IntRemainder `app` lvar "x" `app` int 2)
-                [ branch B.cNothing [] $ con B.cTrue -- this should be impossible (since denominator is obviously non-zero)
+                [ branch B.cNothing [] $ con0 B.cTrue -- this should be impossible (since denominator is obviously non-zero)
                 , branch B.cJust [("r", Nothing)] $ pfun P.IntEq `app` lvar "r" `app` int 1
                 ]
           pure $ DefAST $ ASTDef term type_
