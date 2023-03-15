@@ -247,7 +247,7 @@
           // primerFlake.packages;
 
           checks = {
-            inherit weeder openapi-validate;
+            inherit openapi-validate;
 
             inherit primer-sqitch-test-sqlite;
           }
@@ -491,7 +491,6 @@
                     implicit-hie = "latest";
 
                     cabal = "latest";
-                    weeder = weederVersion;
 
                     #TODO Explicitly requiring tasty-discover shouldn't be necessary - see the commented-out `build-tool-depends` in primer.cabal.
                     tasty-discover = "latest";
