@@ -7,7 +7,6 @@ module Primer.Core.DSL (
   app,
   aPP,
   conSat,
-  con,
   con0,
   con1,
   lvar,
@@ -39,7 +38,6 @@ module Primer.Core.DSL (
   S,
   tcon',
   conSat',
-  con',
   con0',
   con1',
   gvar',
@@ -115,9 +113,6 @@ emptyHole = EmptyHole <$> meta
 ann :: MonadFresh ID m => m Expr -> m Type -> m Expr
 ann e t = Ann <$> meta <*> e <*> t
 
-con :: MonadFresh ID m => ValConName -> m Expr
-con c = Con <$> meta <*> pure c <*> pure [] <*> pure []
-
 -- TODO (saturated constructors) once saturation is enforced, this will be
 -- renamed to con, and the current con will be removed (since it creates
 -- unsaturated constructors)
@@ -178,9 +173,6 @@ char = prim . PrimChar
 
 int :: MonadFresh ID m => Integer -> m Expr
 int = prim . PrimInt
-
-con' :: MonadFresh ID m => NonEmpty Name -> Name -> m Expr
-con' m n = con $ qualifyName (ModuleName m) n
 
 con0' :: MonadFresh ID m => NonEmpty Name -> Name -> m Expr
 con0' m n = con0 $ qualifyName (ModuleName m) n
