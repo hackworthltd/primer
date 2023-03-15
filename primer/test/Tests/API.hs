@@ -87,7 +87,7 @@ test_golden =
 
 unit_viewTreeExpr_injective_con :: Assertion
 unit_viewTreeExpr_injective_con =
-  distinctTreeExpr (con' ["M"] "C") (con' ["M"] "D")
+  distinctTreeExpr (con0' ["M"] "C") (con0' ["M"] "D")
 
 unit_viewTreeExpr_injective_lam :: Assertion
 unit_viewTreeExpr_injective_lam =
