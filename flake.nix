@@ -182,7 +182,6 @@
               # we're using.
               haskellNixTools = pkgs.haskell-nix.tools ghcVersion {
                 hlint = "latest";
-                fourmolu = fourmoluVersion;
               };
             in
             {
@@ -191,7 +190,6 @@
                 src = ./.;
                 hooks = {
                   hlint.enable = true;
-                  fourmolu.enable = true;
                   nixpkgs-fmt.enable = true;
 
                   actionlint = {
@@ -209,7 +207,6 @@
                 tools = {
                   nixpkgs-fmt = pkgs.lib.mkForce pkgs.nixpkgs-fmt;
                   hlint = pkgs.lib.mkForce haskellNixTools.hlint;
-                  fourmolu = pkgs.lib.mkForce haskellNixTools.fourmolu;
                 };
 
                 excludes = [
@@ -500,8 +497,6 @@
                     cabal = "latest";
                     hlint = "latest";
                     weeder = weederVersion;
-
-                    fourmolu = fourmoluVersion;
 
                     #TODO Explicitly requiring tasty-discover shouldn't be necessary - see the commented-out `build-tool-depends` in primer.cabal.
                     tasty-discover = "latest";
