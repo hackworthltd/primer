@@ -40,6 +40,7 @@ module Primer.Core.DSL (
   tcon',
   conSat',
   con',
+  con0',
   gvar',
   branch',
   apps,
@@ -180,6 +181,9 @@ int = prim . PrimInt
 
 con' :: MonadFresh ID m => NonEmpty Name -> Name -> m Expr
 con' m n = con $ qualifyName (ModuleName m) n
+
+con0' :: MonadFresh ID m => NonEmpty Name -> Name -> m Expr
+con0' = con0'
 
 -- TODO (saturated constructors) once saturation is enforced, this will be
 -- renamed to con', and the current con' will be removed (since it creates
