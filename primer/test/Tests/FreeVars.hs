@@ -23,7 +23,7 @@ unit_2 =
             ( lam "x" $
                 case_
                   (lvar "x")
-                  [ branch cZero [] $ con cTrue
+                  [ branch cZero [] $ con0 cTrue
                   , branch cSucc [("n", Nothing)] (app (lvar "f") (lvar "n"))
                   ]
             )
