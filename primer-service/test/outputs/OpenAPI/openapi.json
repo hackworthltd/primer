@@ -881,15 +881,6 @@
                         }
                     },
                     {
-                        "allowEmptyValue": true,
-                        "in": "query",
-                        "name": "patternsUnder",
-                        "schema": {
-                            "default": false,
-                            "type": "boolean"
-                        }
-                    },
-                    {
                         "in": "query",
                         "name": "action",
                         "required": true,
@@ -919,7 +910,7 @@
                         "description": ""
                     },
                     "400": {
-                        "description": "Invalid `action` or `body` or `patternsUnder`"
+                        "description": "Invalid `action` or `body`"
                     },
                     "404": {
                         "description": "`sessionId` not found"
@@ -940,15 +931,6 @@
                         "schema": {
                             "format": "uuid",
                             "type": "string"
-                        }
-                    },
-                    {
-                        "allowEmptyValue": true,
-                        "in": "query",
-                        "name": "patternsUnder",
-                        "schema": {
-                            "default": false,
-                            "type": "boolean"
                         }
                     },
                     {
@@ -981,7 +963,7 @@
                         "description": ""
                     },
                     "400": {
-                        "description": "Invalid `action` or `body` or `patternsUnder`"
+                        "description": "Invalid `action` or `body`"
                     },
                     "404": {
                         "description": "`sessionId` not found"
@@ -1143,15 +1125,6 @@
                         }
                     },
                     {
-                        "allowEmptyValue": true,
-                        "in": "query",
-                        "name": "patternsUnder",
-                        "schema": {
-                            "default": false,
-                            "type": "boolean"
-                        }
-                    },
-                    {
                         "in": "query",
                         "name": "name",
                         "required": false,
@@ -1185,7 +1158,7 @@
                         "description": ""
                     },
                     "400": {
-                        "description": "Invalid `name` or `body` or `patternsUnder`"
+                        "description": "Invalid `name` or `body`"
                     },
                     "404": {
                         "description": "`sessionId` not found"
@@ -1206,15 +1179,6 @@
                         "schema": {
                             "format": "uuid",
                             "type": "string"
-                        }
-                    },
-                    {
-                        "allowEmptyValue": true,
-                        "in": "query",
-                        "name": "patternsUnder",
-                        "schema": {
-                            "default": false,
-                            "type": "boolean"
                         }
                     },
                     {
@@ -1251,7 +1215,7 @@
                         "description": ""
                     },
                     "400": {
-                        "description": "Invalid `body` or `stepLimit` or `patternsUnder`"
+                        "description": "Invalid `body` or `stepLimit`"
                     },
                     "404": {
                         "description": "`sessionId` not found"
@@ -1350,15 +1314,6 @@
                             "format": "uuid",
                             "type": "string"
                         }
-                    },
-                    {
-                        "allowEmptyValue": true,
-                        "in": "query",
-                        "name": "patternsUnder",
-                        "schema": {
-                            "default": false,
-                            "type": "boolean"
-                        }
                     }
                 ],
                 "responses": {
@@ -1371,9 +1326,6 @@
                             }
                         },
                         "description": ""
-                    },
-                    "400": {
-                        "description": "Invalid `patternsUnder`"
                     },
                     "404": {
                         "description": "`sessionId` not found"
@@ -1394,15 +1346,6 @@
                         "schema": {
                             "format": "uuid",
                             "type": "string"
-                        }
-                    },
-                    {
-                        "allowEmptyValue": true,
-                        "in": "query",
-                        "name": "patternsUnder",
-                        "schema": {
-                            "default": false,
-                            "type": "boolean"
                         }
                     }
                 ],
@@ -1427,7 +1370,7 @@
                         "description": ""
                     },
                     "400": {
-                        "description": "Invalid `body` or `patternsUnder`"
+                        "description": "Invalid `body`"
                     },
                     "404": {
                         "description": "`sessionId` not found"
