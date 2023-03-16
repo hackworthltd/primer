@@ -448,12 +448,12 @@ unit_tryReduce_case_2 = do
       detail.before ~= expr
       detail.after ~= expectedResult
       detail.targetID @?= 1
-      detail.targetCtorID @?= 4
+      detail.targetCtorID @?= 1
       detail.ctorName @?= vcn ["M"] "C"
-      detail.targetArgIDs @?= [5, 7, 8]
-      detail.branchBindingIDs @?= [11, 12, 13]
-      detail.branchRhsID @?= 14
-      detail.letIDs @?= [21, 18, 15]
+      detail.targetArgIDs @?= [2, 4, 5]
+      detail.branchBindingIDs @?= [8, 9, 10]
+      detail.branchRhsID @?= 11
+      detail.letIDs @?= [18, 15, 12]
     _ -> assertFailure $ show result
 
 unit_tryReduce_case_3 :: Assertion
@@ -485,12 +485,12 @@ unit_tryReduce_case_3 = do
       detail.before ~= expr
       detail.after ~= expectedResult
       detail.targetID @?= 1
-      detail.targetCtorID @?= 3
+      detail.targetCtorID @?= 1
       detail.ctorName @?= vcn ["M"] "C"
-      detail.targetArgIDs @?= [5]
-      detail.branchBindingIDs @?= [8]
-      detail.branchRhsID @?= 9
-      detail.letIDs @?= [10]
+      detail.targetArgIDs @?= [3]
+      detail.branchBindingIDs @?= [6]
+      detail.branchRhsID @?= 7
+      detail.letIDs @?= [8]
     _ -> assertFailure $ show result
 
 unit_tryReduce_case_name_clash :: Assertion
@@ -512,7 +512,7 @@ unit_tryReduce_case_name_clash = do
         create' $
           case_
             (con' ["M"] "C" [] [emptyHole, lvar "x"])
-            [branch' (["M"], "C") [("a9", Nothing), ("y", Nothing)] $ let_ "x" (lvar "a9") emptyHole]
+            [branch' (["M"], "C") [("a7", Nothing), ("y", Nothing)] $ let_ "x" (lvar "a7") emptyHole]
   result <- runTryReduce tydef mempty mempty (expr, i)
   case result of
     Right (expr', BindRename detail) -> do
@@ -521,12 +521,12 @@ unit_tryReduce_case_name_clash = do
       detail.before ~= expr
       detail.after ~= expectedResult
       detail.bindingNamesOld @?= ["x", "y"]
-      detail.bindingNamesNew @?= ["a9", "y"]
-      detail.bindersOld @?= [6, 7]
-      detail.bindersNew @?= [6, 7]
+      detail.bindingNamesNew @?= ["a7", "y"]
+      detail.bindersOld @?= [4, 5]
+      detail.bindersNew @?= [4, 5]
       detail.bindingOccurrences @?= []
-      detail.renamingLets @?= [10]
-      detail.bodyID @?= 8
+      detail.renamingLets @?= [8]
+      detail.bodyID @?= 6
     _ -> assertFailure $ show result
 
 unit_tryReduce_case_scrutinee_not_redex :: Assertion
@@ -992,12 +992,12 @@ unit_redexes_lettype_capture =
 unit_redexes_letrec_1 :: Assertion
 unit_redexes_letrec_1 =
   redexesOf (letrec "x" (con' ["M"] "C" [] [lvar "x"]) (tcon' ["M"] "T") (app (lvar "x") (lvar "y")))
-    <@?=> Set.fromList [3, 6]
+    <@?=> Set.fromList [2, 5]
 
 unit_redexes_letrec_2 :: Assertion
 unit_redexes_letrec_2 =
   redexesOf (letrec "x" (con' ["M"] "C" [] [lvar "x"]) (tcon' ["M"] "T") (lvar "y"))
-    <@?=> Set.fromList [0, 3]
+    <@?=> Set.fromList [0, 2]
 
 -- Test that our self-capture logic does not apply to letrec.
 unit_redexes_letrec_3 :: Assertion
@@ -1047,7 +1047,7 @@ unit_redexes_lettype_1 =
 
 unit_redexes_lettype_2 :: Assertion
 unit_redexes_lettype_2 =
-  redexesOf (letType "x" (tcon' ["M"] "T") (con' ["M"] "C" [tvar "x"] [])) <@?=> Set.fromList [4]
+  redexesOf (letType "x" (tcon' ["M"] "T") (con' ["M"] "C" [tvar "x"] [])) <@?=> Set.fromList [3]
 
 unit_redexes_lettype_3 :: Assertion
 unit_redexes_lettype_3 =
