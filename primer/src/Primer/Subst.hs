@@ -1,6 +1,5 @@
 module Primer.Subst (
   substTy,
-  substTyIter,
   substTySimul,
 ) where
 
@@ -64,9 +63,3 @@ substTySimul sub
 -- We restrict to '()', i.e. no metadata as we don't want to duplicate IDs etc
 substTy :: MonadFresh NameCounter m => TyVarName -> Type' () -> Type' () -> m (Type' ())
 substTy n a = substTySimul $ M.singleton n a
-
--- | Iterated substitution: @substTyIter [(a,A),(b,B)] ty@ gives @(ty[B/b])[A/a]@.
--- Thus if @B@ refers to a variable @a@, this reference will also be
--- substituted.
-substTyIter :: MonadFresh NameCounter m => [(TyVarName, Type' ())] -> Type' () -> m (Type' ())
-substTyIter sb t = foldrM (uncurry substTy) t sb
