@@ -1029,17 +1029,21 @@ unit_refine_4 :: Assertion
 unit_refine_4 =
   actionTest
     NoSmartHoles
-    (let_ "nil" (lAM "a" $ conSat cNil [tvar "a"] []) $ emptyHole `ann` (tcon tList `tapp` tcon tNat))
+    -- REVIEW (saturated constructors): for enforced-saturation, eta expansion is necessary here
+    -- Even though constructors are (may be changed later) synthesisable, their eta expansions are not
+    -- Thus an annotation is required!
+    (let_ "nil" (lAM "a" (conSat cNil [tvar "a"] []) `ann` tforall "a" KType (tcon tList `tapp` tvar "a")) $ emptyHole `ann` (tcon tList `tapp` tcon tNat))
     [Move Child2, Move Child1, InsertRefinedVar $ LocalVarRef "nil"]
-    (let_ "nil" (lAM "a" $ conSat cNil [tvar "a"] []) $ (lvar "nil" `aPP` tcon tNat) `ann` (tcon tList `tapp` tcon tNat))
+    (let_ "nil" (lAM "a" (conSat cNil [tvar "a"] []) `ann` tforall "a" KType (tcon tList `tapp` tvar "a")) $ (lvar "nil" `aPP` tcon tNat) `ann` (tcon tList `tapp` tcon tNat))
 
 unit_refine_5 :: Assertion
 unit_refine_5 =
   actionTest
     NoSmartHoles
-    (let_ "nil" (lAM "a" $ conSat cNil [tvar "a"] []) $ emptyHole `ann` (tcon tList `tapp` tEmptyHole))
+    -- REVIEW (saturated constructors): see comments on unit_refine_4 r.e. eta only checkable
+    (let_ "nil" (lAM "a" (conSat cNil [tvar "a"] []) `ann` tforall "a" KType (tcon tList `tapp` tvar "a")) $ emptyHole `ann` (tcon tList `tapp` tEmptyHole))
     [Move Child2, Move Child1, InsertRefinedVar $ LocalVarRef "nil"]
-    (let_ "nil" (lAM "a" $ conSat cNil [tvar "a"] []) $ (lvar "nil" `aPP` tEmptyHole) `ann` (tcon tList `tapp` tEmptyHole))
+    (let_ "nil" (lAM "a" (conSat cNil [tvar "a"] []) `ann` tforall "a" KType (tcon tList `tapp` tvar "a")) $ (lvar "nil" `aPP` tEmptyHole) `ann` (tcon tList `tapp` tEmptyHole))
 
 unit_refine_mismatch :: Assertion
 unit_refine_mismatch =
