@@ -62,7 +62,7 @@
         inputs.pre-commit-hooks-nix.flakeModule
         ./nix/flake-parts/benchmarks.nix
       ];
-      systems = [ "x86_64-linux" "aarch64-darwin" ];
+      systems = [ "x86_64-linux" ];
 
       perSystem = { config, pkgs, system, ... }:
         let
@@ -717,9 +717,7 @@
               name = "required-ci";
               constituents = builtins.map builtins.attrValues (with inputs.self.hydraJobs; [
                 packages.x86_64-linux
-                packages.aarch64-darwin
                 checks.x86_64-linux
-                checks.aarch64-darwin
               ]);
               meta.description = "Required CI builds";
             };
