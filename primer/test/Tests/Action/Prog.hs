@@ -1047,15 +1047,8 @@ unit_SetConFieldType_partial_app =
           ]
     )
     [SetConFieldType tT cA 1 $ TCon () (tcn "Int")]
-    $ expectSuccess
-    $ \_ prog' -> do
-      def <- findDef (gvn "def") prog'
-      forgetMetadata (astDefExpr def)
-        @?= forgetMetadata
-          ( create' $
-              hole $
-                con cA [] [lvar "x"]
-          )
+    $ expectError
+    $ (@?= ConNotSaturated cA)
 
 unit_SetConFieldType_case :: Assertion
 unit_SetConFieldType_case =
@@ -1182,15 +1175,8 @@ unit_AddConField_partial_app =
           ]
     )
     [AddConField tT cA 2 $ TCon () (tcn "Int")]
-    $ expectSuccess
-    $ \_ prog' -> do
-      def <- findDef (gvn "def") prog'
-      forgetMetadata (astDefExpr def)
-        @?= forgetMetadata
-          ( create' $
-              hole $
-                con cA [] [con0 (vcn "True")]
-          )
+    $ expectError
+    $ (@?= ConNotSaturated cA)
 
 unit_AddConField_partial_app_end :: Assertion
 unit_AddConField_partial_app_end =
