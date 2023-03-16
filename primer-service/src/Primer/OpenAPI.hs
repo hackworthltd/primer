@@ -39,7 +39,6 @@ import Primer.API (
   ApplyActionBody,
   Def,
   EvalFullResp,
-  ExprTreeOpts,
   Module,
   NewSessionReq,
   NodeBody,
@@ -140,7 +139,6 @@ deriving via PrimerJSON Def instance ToSchema Def
 deriving via NonEmpty Name instance ToSchema ModuleName
 deriving via PrimerJSON Module instance ToSchema Module
 deriving via PrimerJSON Prog instance ToSchema Prog
-deriving via PrimerJSON ExprTreeOpts instance ToSchema ExprTreeOpts
 deriving via PrimerJSON Available.NoInputAction instance ToSchema Available.NoInputAction
 deriving via PrimerJSON Available.InputAction instance ToSchema Available.InputAction
 deriving via PrimerJSON Available.Option instance ToSchema Available.Option

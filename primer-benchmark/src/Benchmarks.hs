@@ -18,7 +18,7 @@ import Criterion (
 import Criterion qualified as C
 import Data.Aeson (encode)
 import Data.Text qualified as T
-import Primer.API (ExprTreeOpts (ExprTreeOpts), viewProg)
+import Primer.API (viewProg)
 import Primer.App (
   App,
   MutationRequest,
@@ -201,8 +201,8 @@ data Force = None | App | Prog | ProgJSON
 force' :: Force -> App -> App
 force' None a = a
 force' App a = force a
-force' Prog a = viewProg (ExprTreeOpts True) (appProg a) `deepseq` a
-force' ProgJSON a = encode (viewProg (ExprTreeOpts True) $ appProg a) `deepseq` a
+force' Prog a = viewProg (appProg a) `deepseq` a
+force' ProgJSON a = encode (viewProg $ appProg a) `deepseq` a
 
 -- run actions, forcing intermediate results as dictated by Force argument
 benchEdits :: Force -> [MutationRequest] -> App

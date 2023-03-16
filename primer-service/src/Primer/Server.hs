@@ -52,7 +52,6 @@ import Optics (mapped, (%), (%~), (.~), (?~), (^.))
 import Primer.API (
   APILog,
   Env (..),
-  ExprTreeOpts (..),
   PrimerErr (..),
   PrimerM,
   actionOptions,
@@ -169,22 +168,21 @@ openAPISessionServer :: ConvertServerLogs l => SessionId -> OpenAPI.SessionAPI (
 openAPISessionServer sid =
   OpenAPI.SessionAPI
     { OpenAPI.deleteSession = API.deleteSession sid >> pure NoContent
-    , OpenAPI.getProgram = \patternsUnder -> API.getProgram' (ExprTreeOpts{patternsUnder}) sid
+    , OpenAPI.getProgram = API.getProgram' sid
     , OpenAPI.getSessionName = API.getSessionName sid
     , OpenAPI.setSessionName = renameSession sid
-    , OpenAPI.createDefinition = \patternsUnder -> createDefinition sid ExprTreeOpts{patternsUnder}
+    , OpenAPI.createDefinition = createDefinition sid
     , OpenAPI.typeDef = openAPITypeDefServer sid
     , OpenAPI.actions = openAPIActionServer sid
-    , OpenAPI.evalFull = \patternsUnder -> evalFull' (ExprTreeOpts{patternsUnder}) sid . fmap getFinite
+    , OpenAPI.evalFull = evalFull' sid . fmap getFinite
     }
 
 openAPITypeDefServer :: ConvertServerLogs l => SessionId -> OpenAPI.TypeDefAPI (AsServerT (Primer l))
 openAPITypeDefServer sid =
   OpenAPI.TypeDefAPI
-    { create = \patternsUnder CreateTypeDefBody{moduleName, typeName, ctors} ->
+    { create = \CreateTypeDefBody{moduleName, typeName, ctors} ->
         createTypeDef
           sid
-          (ExprTreeOpts{patternsUnder})
           (qualifyName moduleName $ unsafeMkName typeName)
           (map (qualifyName moduleName . unsafeMkName) ctors)
     }
@@ -196,8 +194,8 @@ openAPIActionServer sid =
     , options = actionOptions sid
     , apply =
         OpenAPI.ApplyActionAPI
-          { simple = \patternsUnder -> applyActionNoInput ExprTreeOpts{patternsUnder} sid
-          , input = \patternsUnder -> applyActionInput ExprTreeOpts{patternsUnder} sid
+          { simple = applyActionNoInput sid
+          , input = applyActionInput sid
           }
     }
 
