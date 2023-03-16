@@ -16,6 +16,7 @@ module Primer.Client (
   getSessionName,
   renameSession,
   edit,
+  undo,
   variablesInScope,
   generateNames,
   evalStep,
@@ -144,6 +145,10 @@ renameSession sid name = apiClient // API.sessionsAPI // API.sessionAPI /: sid /
 -- | As 'Primer.API.edit'.
 edit :: SessionId -> MutationRequest -> ClientM (Either ProgError Prog)
 edit sid req = apiClient // API.sessionsAPI // API.sessionAPI /: sid // API.editSession /: req
+
+-- | As 'Primer.API.undo'.
+undo :: SessionId -> MutationRequest -> ClientM (Either ProgError Prog)
+undo sid req = apiClient // API.sessionsAPI // API.sessionAPI /: sid // API.undoSession /: req
 
 -- | As 'Primer.API.variablesInScope'.
 variablesInScope ::
