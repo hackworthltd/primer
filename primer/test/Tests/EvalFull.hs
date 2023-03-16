@@ -153,7 +153,7 @@ unit_4 :: Assertion
 unit_4 =
   let ((expr, expected), maxID) = create $ do
         e <- let_ "a" (lvar "b") $ con' ["M"] "C" [] [lvar "a", lam "a" (lvar "a") , lam "b" (con' ["M"] "D" [] [lvar "a" , lvar "b"])]
-        let b' = "a29" -- NB: fragile name a29
+        let b' = "a19" -- NB: fragile name
         expect <- con' ["M"] "C" [] [lvar "b", lam "a" (lvar "a"), lam b' (con' ["M"] "D" [] [lvar "b", lvar b'])]
         pure (e, expect)
    in do
@@ -346,7 +346,7 @@ unit_15 =
         let l = let_ "x" (lvar "y")
         let c a b = con' ["M"] "C" [] [lvar a , lvar b]
         e0 <- l $ lam "y" $ c "x" "y"
-        let y' = "a50" -- NB: fragile name "a50"
+        let y' = "a38"
         e1 <- l $ lam y' $ let_ "y" (lvar y') $ c "x" "y"
         e2 <- l $ lam y' $ let_ "y" (lvar y') $ c "x" y'
         e3 <- l $ lam y' $ c "x" y'
@@ -508,13 +508,13 @@ unit_type_preservation_case_regression_tm =
           lam "x" $
             case_
               (con cMakePair [tcon tNat , tcon tBool] [emptyHole , lvar "x"])
-              -- NB: fragile name a42
-              [branch cMakePair [("a42", Nothing), ("y", Nothing)] $ let_ "x" (lvar "a42") emptyHole]
+              -- NB: fragile name a34
+              [branch cMakePair [("a34", Nothing), ("y", Nothing)] $ let_ "x" (lvar "a34") emptyHole]
         expect2 <-
           lam "x" $
-            let_ "a42" (emptyHole `ann` tcon tNat) $
+            let_ "a34" (emptyHole `ann` tcon tNat) $
               let_ "y" (lvar "x" `ann` tcon tBool) $
-                let_ "x" (lvar "a42") emptyHole
+                let_ "x" (lvar "a34") emptyHole
         pure (e, expect1, expect2)
    in do
         s1 <- evalFullTest maxID builtinTypes mempty 1 Chk expr
@@ -546,13 +546,13 @@ unit_type_preservation_case_regression_ty =
               ( (con cMakePair [tEmptyHole , tvar "x"] [emptyHole , emptyHole])
                   `ann` (tcon tPair `tapp` tEmptyHole `tapp` tvar "x")
               )
-              -- NB fragile name a54
-              [branch cMakePair [("a54", Nothing), ("y", Nothing)] $ let_ "x" (lvar "a54") emptyHole]
+              -- NB fragile name a46
+              [branch cMakePair [("a46", Nothing), ("y", Nothing)] $ let_ "x" (lvar "a46") emptyHole]
         expect2 <-
           lAM "x" $
-            let_ "a54" (emptyHole `ann` tEmptyHole) $
+            let_ "a46" (emptyHole `ann` tEmptyHole) $
               let_ "y" (emptyHole `ann` tvar "x") $
-                let_ "x" (lvar "a54") emptyHole
+                let_ "x" (lvar "a46") emptyHole
         pure (e, expect1, expect2)
    in do
         s1 <- evalFullTest maxID builtinTypes mempty 1 Chk expr
