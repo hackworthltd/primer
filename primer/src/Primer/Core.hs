@@ -34,12 +34,12 @@ import Data.Generics.Product
 import Data.Generics.Uniplate.Data ()
 import Optics (
   AffineFold,
-  AffineTraversal',
   Lens,
   Lens',
   Traversal,
+  Traversal',
   afailing,
-  atraversalVL,
+  traversalVL,
   (%),
  )
 import Primer.Core.Meta (
@@ -282,14 +282,16 @@ _bindMeta :: forall a b. Lens (Bind' a) (Bind' b) a b
 _bindMeta = position @1
 
 -- | Note that this does not recurse in to sub-expressions or sub-types.
-typesInExpr :: AffineTraversal' (Expr' a b) (Type' b)
--- TODO (saturated constructors): this misses Con's indices!
-typesInExpr = atraversalVL $ \point f -> \case
+typesInExpr :: Traversal' (Expr' a b) (Type' b)
+-- TODO (saturated constructors): if constructors did not store their indices,
+-- then this could be an affine traversal
+typesInExpr = traversalVL $ \f -> \case
   Ann m e ty -> Ann m e <$> f ty
   APP m e ty -> APP m e <$> f ty
+  Con m c tys tms -> Con m c <$> traverse f tys <*> pure tms
   LetType m x ty e -> (\ty' -> LetType m x ty' e) <$> f ty
   Letrec m x b ty e -> (\ty' -> Letrec m x b ty' e) <$> f ty
-  e -> point e
+  e -> pure e
 
 instance HasID a => HasID (Expr' a b) where
   _id = position @1 % _id

@@ -91,7 +91,7 @@ import Optics (
   (.~),
   (<%),
   (<%>),
-  (^?),
+  (^?), singular,
  )
 import Optics.Lens (Lens', lens)
 import Primer.Core (
@@ -256,9 +256,14 @@ focusType :: (Data a, Data b) => ExprZ' a b -> Maybe (TypeZ' a b)
 -- cannot focus on just one! We will put up with this (will need a small
 -- workaround in Eval and in focusOn: we can focus on these by ID, just
 -- not via focusType!) until constructors no longer store their indices.
-focusType z = do
-  t <- z ^? l
-  pure $ TypeZ (zipper t) $ \t' -> z & l .~ t'
+-- Whilst we could use 'singular' to focus on the first index of a constructor,
+-- we prefer to focus on *no* type children of constructors, rather than
+-- arbitrarily choosing the first one.
+focusType z = case target z of
+  Con {} -> Nothing
+  _ -> do
+   t <- z ^? singular l
+   pure $ TypeZ (zipper t) $ \t' -> z & l .~ t'
   where
     l = _target % typesInExpr
 
