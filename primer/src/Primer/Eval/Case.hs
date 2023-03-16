@@ -20,6 +20,7 @@ data CaseReductionDetail = CaseReductionDetail
   -- ^ the ID of the target (scrutinee)
   , targetCtorID :: ID
   -- ^ the ID of the constructor node in the target
+  -- TODO (saturated constructors) these may or may not be the same, depending on annotations. This needs clarity and documenting
   , ctorName :: ValConName
   -- ^ the name of the matching constructor
   , targetArgIDs :: [ID]
