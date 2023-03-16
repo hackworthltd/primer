@@ -67,6 +67,7 @@ import Primer.API (
   newSession,
   renameSession,
   runPrimerM,
+  undo,
  )
 import Primer.API qualified as API
 import Primer.Action.Available (InputAction, NoInputAction)
@@ -227,6 +228,7 @@ sessionAPIServer sid =
     , S.getSessionName = API.getSessionName sid
     , S.setSessionName = renameSession sid
     , S.editSession = edit sid
+    , S.undoSession = undo sid
     , S.questionAPI = questionAPIServer sid
     , S.evalStep = API.evalStep sid
     , S.evalFull = API.evalFull sid
