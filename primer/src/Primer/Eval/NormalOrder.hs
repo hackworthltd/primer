@@ -183,7 +183,7 @@ data FMExpr m = FMExpr
 focusType' :: MonadPlus m => ExprZ -> AccumT Cxt m TypeZ
 -- Note that nothing in Expr binds a variable which scopes over a type child
 -- so we don't need to 'add' anything
-focusType' = lift . maybe empty pure . focusType
+focusType' = maybe empty pure . focusType
 
 hoistAccum :: Monad m => Accum Cxt b -> AccumT Cxt m b
 hoistAccum = Foreword.hoistAccum generalize

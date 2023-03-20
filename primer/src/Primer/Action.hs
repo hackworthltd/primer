@@ -63,6 +63,7 @@ import Primer.Core.DSL (
   aPP,
   ann,
   app,
+  apps',
   branch,
   case_,
   con,
@@ -483,12 +484,15 @@ getVarType ast x =
                       <> map (bimap unLocalName TC.K) tycxt
               }
 
-mkSaturatedApplication :: MonadFresh ID m => m Expr -> TC.Type -> m Expr
-mkSaturatedApplication e = \case
-  TFun _ _ t -> mkSaturatedApplication (e `app` emptyHole) t
+mkSaturatedApplicationArgs :: MonadFresh ID m => TC.Type -> [Either (m Expr) (m Type)]
+mkSaturatedApplicationArgs = \case
+  TFun _ _ t -> Left emptyHole : mkSaturatedApplicationArgs t
   -- possibly we should substitute a type hole for the newly free var in t, but it doesn't matter for this algorithm
-  TForall _ _ _ t -> mkSaturatedApplication (e `aPP` tEmptyHole) t
-  _ -> e
+  TForall _ _ _ t -> Right tEmptyHole : mkSaturatedApplicationArgs t
+  _ -> []
+
+mkSaturatedApplication :: MonadFresh ID m => m Expr -> TC.Type -> m Expr
+mkSaturatedApplication e = apps' e . mkSaturatedApplicationArgs
 
 insertRefinedVar :: ActionM m => TmVarRef -> ExprZ -> m ExprZ
 insertRefinedVar x ast = do
