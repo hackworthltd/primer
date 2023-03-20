@@ -36,3 +36,10 @@ source-repository-package
   tag: ab9619db13b93867d1a244441bb4de03d3e1dadb
   subdir: selda-sqlite
   --sha256: 0rdpazkhx6wfxlf6izg9xzxjr9wqywzqmk0c2a23qyfvih0ylj9z
+
+-- https://github.com/ocharles/logging-effect/issues/37
+source-repository-package
+  type: git
+  location: https://github.com/brprice/logging-effect
+  tag: de60d39a0cbc7b450f4efdf32bb6dd886b2a87db
+  --sha256: 12d1yq4493mg9128zbyl62vsqwjxcsrr9vhlphriq9a18lamgsa6
