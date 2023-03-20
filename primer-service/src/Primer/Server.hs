@@ -66,6 +66,7 @@ import Primer.API (
   newSession,
   renameSession,
   runPrimerM,
+  undo,
  )
 import Primer.API qualified as API
 import Primer.Action.Available (InputAction, NoInputAction)
@@ -174,6 +175,7 @@ openAPISessionServer sid =
     , OpenAPI.typeDef = openAPITypeDefServer sid
     , OpenAPI.actions = openAPIActionServer sid
     , OpenAPI.evalFull = evalFull' sid . fmap getFinite
+    , OpenAPI.undo = undo sid
     }
 
 openAPITypeDefServer :: ConvertServerLogs l => SessionId -> OpenAPI.TypeDefAPI (AsServerT (Primer l))
@@ -357,5 +359,6 @@ serve ss q v port logger = do
         ActionOptionsNoID id -> err404{errBody = "ID not found for action input options: " <> show id}
         ApplyActionError as pe -> err400{errBody = "Error while applying actions (" <> show as <> "): " <> show pe}
         ToProgActionError a ae -> err400{errBody = "Error while converting action (" <> show a <> "): " <> show ae}
+        UndoError pe -> err500{errBody = "Undo failed " <> show pe}
       where
         encode = LT.encodeUtf8 . LT.fromStrict

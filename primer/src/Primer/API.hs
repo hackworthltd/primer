@@ -56,6 +56,7 @@ module Primer.API (
   applyActionNoInput,
   applyActionInput,
   ApplyActionBody (..),
+  undo,
   -- The following are exported only for testing.
   viewTreeType,
   viewTreeExpr,
@@ -254,6 +255,7 @@ data PrimerErr
   | ActionOptionsNoID (Maybe (NodeType, ID))
   | ToProgActionError Available.Action ActionError
   | ApplyActionError [ProgAction] ProgError
+  | UndoError ProgError
   deriving stock (Show)
 
 instance Exception PrimerErr
@@ -376,6 +378,7 @@ data APILog
   | ActionOptions (ReqResp (SessionId, Level, Selection, Available.InputAction) Available.Options)
   | ApplyActionNoInput (ReqResp (SessionId, Selection, Available.NoInputAction) Prog)
   | ApplyActionInput (ReqResp (SessionId, ApplyActionBody, Available.InputAction) Prog)
+  | Undo (ReqResp SessionId Prog)
   deriving stock (Show, Read)
 
 type MonadAPILog l m = (MonadLog (WithSeverity l) m, ConvertLogMessage APILog l)
@@ -1119,6 +1122,15 @@ applyActions sid actions =
     >>= either
       (throwM . ApplyActionError actions)
       (pure . viewProg)
+
+undo ::
+  (MonadIO m, MonadThrow m, MonadAPILog l m) =>
+  SessionId ->
+  PrimerM m Prog
+undo =
+  logAPI (noError Undo) \sid ->
+    edit sid App.Undo
+      >>= either (throwM . UndoError) (pure . viewProg)
 
 -- | 'App.Selection' without any node metadata.
 data Selection = Selection

@@ -1379,6 +1379,39 @@
                 "summary": "Create a new type definition"
             }
         },
+        "/openapi/sessions/{sessionId}/undo": {
+            "post": {
+                "operationId": "undo",
+                "parameters": [
+                    {
+                        "description": "The session ID",
+                        "in": "path",
+                        "name": "sessionId",
+                        "required": true,
+                        "schema": {
+                            "format": "uuid",
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json;charset=utf-8": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Prog"
+                                }
+                            }
+                        },
+                        "description": ""
+                    },
+                    "404": {
+                        "description": "`sessionId` not found"
+                    }
+                },
+                "summary": "Undo the last action"
+            }
+        },
         "/openapi/version": {
             "get": {
                 "operationId": "getVersion",
