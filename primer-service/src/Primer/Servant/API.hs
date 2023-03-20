@@ -133,24 +133,7 @@ data SessionAPI mode = SessionAPI
       mode
         :- "edit"
           :> Summary "Edit the program"
-          :> Description
-              "Edit the program. If successful, append the edit \
-              \to the action log, so that it can potentially be undone \
-              \later, and return the new program state. If not, \
-              \return an error, in which case the program state and \
-              \the action log are unchanged."
-          :> ReqBody '[JSON] MutationRequest
-          :> Post '[JSON] (Either ProgError Prog)
-  , undoSession ::
-      mode
-        :- "undo"
-          :> Summary "Undo the previous edit"
-          :> Description
-              "Undo the last edit. If successful, this effectively \
-              \pops the tail of the action log, restores the program \
-              \state to that of the new tail, and returns that \
-              \program state. If not, it returns an error, in which \
-              \case the program state and the action log are unchanged."
+          :> Description "Submit an action, returning the updated program state."
           :> ReqBody '[JSON] MutationRequest
           :> Post '[JSON] (Either ProgError Prog)
   , questionAPI ::

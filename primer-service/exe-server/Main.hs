@@ -345,6 +345,7 @@ instance ConvertLogMessage PrimerErr LogMsg where
   convert (ActionOptionsNoID e) = LogMsg $ show e
   convert (ToProgActionError a e) = LogMsg $ show (a, e)
   convert (ApplyActionError as e) = LogMsg $ show (as, e)
+  convert (UndoError e) = LogMsg $ show e
 
 instance ConvertLogMessage APILog LogMsg where
   convert = LogMsg . show

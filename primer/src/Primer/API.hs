@@ -42,7 +42,6 @@ module Primer.API (
   getSessionName,
   renameSession,
   edit,
-  undo,
   variablesInScope,
   generateNames,
   evalStep,
@@ -57,6 +56,7 @@ module Primer.API (
   applyActionNoInput,
   applyActionInput,
   ApplyActionBody (..),
+  undo,
   -- The following are exported only for testing.
   viewTreeType,
   viewTreeExpr,
@@ -255,6 +255,7 @@ data PrimerErr
   | ActionOptionsNoID (Maybe (NodeType, ID))
   | ToProgActionError Available.Action ActionError
   | ApplyActionError [ProgAction] ProgError
+  | UndoError ProgError
   deriving stock (Show)
 
 instance Exception PrimerErr
@@ -365,7 +366,6 @@ data APILog
   | GetProgram' (ReqResp SessionId Prog)
   | GetProgram (ReqResp SessionId App.Prog)
   | Edit (ReqResp (SessionId, MutationRequest) (Either ProgError App.Prog))
-  | Undo (ReqResp (SessionId, MutationRequest) (Either ProgError App.Prog))
   | VariablesInScope (ReqResp (SessionId, (GVarName, ID)) (Either ProgError (([(TyVarName, Kind)], [(LVarName, Type' ())]), [(GVarName, Type' ())])))
   | GenerateNames (ReqResp (SessionId, ((GVarName, ID), Either (Maybe (Type' ())) (Maybe Kind))) (Either ProgError [Name.Name]))
   | EvalStep (ReqResp (SessionId, EvalReq) (Either ProgError EvalResp))
@@ -378,6 +378,7 @@ data APILog
   | ActionOptions (ReqResp (SessionId, Level, Selection, Available.InputAction) Available.Options)
   | ApplyActionNoInput (ReqResp (SessionId, Selection, Available.NoInputAction) Prog)
   | ApplyActionInput (ReqResp (SessionId, ApplyActionBody, Available.InputAction) Prog)
+  | Undo (ReqResp SessionId Prog)
   deriving stock (Show, Read)
 
 type MonadAPILog l m = (MonadLog (WithSeverity l) m, ConvertLogMessage APILog l)
@@ -908,34 +909,12 @@ globalName n = Name{qualifiedModule = Just $ Core.qualifiedModule n, baseName = 
 localName :: LocalName k -> Name
 localName n = Name{qualifiedModule = Nothing, baseName = unLocalName n}
 
--- | Edit the program.
---
--- If successful, append the edit to the action log, so that it can
--- potentially be undone later, and return the new program state.
---
--- If not, return a 'ProgError', in which case the program state and
--- the action log are unchanged.
 edit ::
   (MonadIO m, MonadThrow m, MonadAPILog l m) =>
   SessionId ->
   MutationRequest ->
   PrimerM m (Either ProgError App.Prog)
 edit = curry $ logAPI (leftResultError Edit) $ \(sid, req) -> liftEditAppM (handleMutationRequest req) sid
-
--- | Undo the last edit.
---
--- If sucessful, this effectively pops the tail of the action log,
--- restores the program state to that the new tail, and returns that
--- new program state.
---
--- If not, return a 'ProgError', in which case the program state and
--- the action log are unchanged.
-undo ::
-  (MonadIO m, MonadThrow m, MonadAPILog l m) =>
-  SessionId ->
-  MutationRequest ->
-  PrimerM m (Either ProgError App.Prog)
-undo = curry $ logAPI (leftResultError Undo) $ \(sid, req) -> liftEditAppM (handleMutationRequest req) sid
 
 variablesInScope ::
   (MonadIO m, MonadThrow m, MonadAPILog l m) =>
@@ -1143,6 +1122,15 @@ applyActions sid actions =
     >>= either
       (throwM . ApplyActionError actions)
       (pure . viewProg)
+
+undo ::
+  (MonadIO m, MonadThrow m, MonadAPILog l m) =>
+  SessionId ->
+  PrimerM m Prog
+undo =
+  logAPI (noError Undo) \sid ->
+    edit sid App.Undo
+      >>= either (throwM . UndoError) (pure . viewProg)
 
 -- | 'App.Selection' without any node metadata.
 data Selection = Selection

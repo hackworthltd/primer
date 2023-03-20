@@ -119,6 +119,12 @@ data SessionAPI mode = SessionAPI
           :> QueryParam "stepLimit" (Finite 0 EvalFullStepLimit)
           :> ReqBody '[JSON] GVarName
           :> Post '[JSON] EvalFullResp
+  , undo ::
+      mode
+        :- "undo"
+          :> Summary "Undo the last action"
+          :> OperationId "undo"
+          :> Post '[JSON] Prog
   }
   deriving stock (Generic)
 
