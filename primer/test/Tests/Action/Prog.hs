@@ -22,6 +22,7 @@ import Primer.Action (
     ConstructVar,
     Delete,
     EnterType,
+    ExitType,
     Move,
     RemoveAnn
   ),
@@ -116,7 +117,7 @@ import Primer.Module (Module (Module, moduleDefs, moduleName, moduleTypes), buil
 import Primer.Name
 import Primer.Primitives (PrimDef (IntAdd, ToUpper), primitiveGVar, tChar)
 import Primer.Test.TestM (TestM, evalTestM)
-import Primer.Test.Util (LogMsg, assertNoSevereLogs, constructCon, constructTCon, zeroIDs, zeroTypeIDs)
+import Primer.Test.Util (LogMsg, assertNoSevereLogs, constructCon, constructSaturatedCon, constructTCon, zeroIDs, zeroTypeIDs)
 import Primer.Test.Util qualified as Util
 import Primer.TypeDef (ASTTypeDef (..), TypeDef (..), ValCon (..), typeDefAST)
 import Primer.Typecheck (
@@ -1320,16 +1321,16 @@ unit_cross_module_actions =
         handleAndTC
           [ MoveToDef $ gvn "main"
           , SigAction [constructTCon (qualifyM "T")]
-          , BodyAction
+          , BodyAction $
               [ ConstructApp
               , Move Child1
               , ConstructVar (GlobalVarRef $ qualifyM "foo")
               , Move Parent
               , Move Child2
               , ConstructApp
-              , Move Child1
-              , constructCon (qualifyM "C")
-              , Move Parent
+              , Move Child1]
+              <> constructEtaAnnCon (qualifyM "C") [("n",tNat)] (qualifyM "T")
+              <> [ Move Parent
               , Move Child2
               , constructCon cZero
               , Move Parent
@@ -1337,16 +1338,16 @@ unit_cross_module_actions =
               , ConstructCase
               , Move (Branch (qualifyM "C"))
               , ConstructApp
-              , Move Child1
-              , constructCon (qualifyM "C")
-              , Move Parent
+              , Move Child1]
+            <> constructEtaAnnCon (qualifyM "C") [("n",tNat)] (qualifyM "T")
+            <> [Move Parent
               , Move Child2
               , ConstructApp
-              , Move Child1
-              , constructCon cSucc
-              , Move Parent
+              , Move Child1]
+              <> constructEtaAnnCon cSucc [("n",tNat)] tNat
+              <> [ Move Parent
               , Move Child2
-              , ConstructVar (LocalVarRef "a27")
+              , ConstructVar (LocalVarRef "a35")
               ]
           ]
         handleAndTC [RenameDef (qualifyM "foo") "bar"]
@@ -1438,6 +1439,36 @@ unit_cross_module_actions =
         runAppTestM (appIdCounter a) a test <&> fst >>= \case
           Left err -> assertFailure $ show err
           Right _ -> pure ()
+
+unit_constructEtaAnnCon :: Assertion
+unit_constructEtaAnnCon =
+  let a = mkEmptyTestApp newEmptyProg'
+      handleAndTC acts = void $ tcWholeProg =<< handleEditRequest acts
+      test = do
+        importModules [builtinModule]
+        handleAndTC [MoveToDef $ gvn "main"
+                    , BodyAction $ constructEtaAnnCon cSucc [("n",tNat)] tNat]
+        gets appProg
+      in runAppTestM (appIdCounter a) a test <&> fst >>= \case
+    Left err -> assertFailure $ show err
+    Right prog' -> case findGlobalByName prog' (gvn "main") of
+      Nothing -> assertFailure "definition not found"
+      Just def -> case astDefExpr <$> defAST def of
+        Nothing -> assertFailure "not ast?"
+        Just e -> e @?= EmptyHole (Meta 1 Nothing Nothing) -- TODO: make this an actual test once can move inside ctor's args!
+
+-- @constructEtaAnnCon@ c [(a,A),...,(z,Z)] R makes @Lam a. ... Lam z. Con c [] [a...z] :: A -> ... -> Z -> R@
+-- but (for ease of implementation) only works for type constructors A...Z, R
+-- (we assume that the correct number of args are given for the constructor's definition)
+-- It leaves the cursor on the Ann node (i.e. the root of the thing it constructed)
+constructEtaAnnCon :: ValConName -> [(Text, TyConName)] -> TyConName -> [Action]
+constructEtaAnnCon c tmargs resultTy = [ConstructAnn , EnterType] -- ? :: ?
+        <> concatMap (\(_,t) -> [ConstructArrowL, Move Child1, constructTCon t, Move Parent, Move Child2]) tmargs -- ? :: A -> ... -> Z -> ?
+        <> [constructTCon resultTy, Move Parent, ExitType, Move Child1] -- ? :: A -> ... -> Z -> R
+        <> map (\(n,_) -> ConstructLam $ Just n) tmargs -- \a....\z.? :: A -> ... -> Z -> R
+        <> [constructSaturatedCon c] -- \a....\z. Con c [] [?,...,?] :: A -> ... -> Z -> R
+        -- TODO (saturated constructors) this is incomplete: I need actions to go into any arg of a con!
+        <> map (\_ -> Move Parent) tmargs <> [Move Parent]
 
 -- Consider
 --   foo :: ? ?

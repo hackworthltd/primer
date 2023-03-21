@@ -6,6 +6,7 @@ module Primer.Test.Util (
   primDefs,
   constructTCon,
   constructCon,
+  constructSaturatedCon,
   constructRefinedCon,
   tcn,
   vcn,
@@ -40,7 +41,7 @@ import Primer.API (
   runPrimerM,
  )
 import Primer.Action (
-  Action (ConstructCon, ConstructRefinedCon, ConstructTCon),
+  Action (ConstructCon, ConstructRefinedCon, ConstructTCon, ConstructSaturatedCon),
  )
 import Primer.Core (
   Expr',
@@ -89,6 +90,9 @@ constructTCon = ConstructTCon . toQualText
 
 constructCon :: ValConName -> Action
 constructCon = ConstructCon . toQualText
+
+constructSaturatedCon :: ValConName -> Action
+constructSaturatedCon = ConstructSaturatedCon . toQualText
 
 constructRefinedCon :: ValConName -> Action
 constructRefinedCon = ConstructRefinedCon . toQualText
