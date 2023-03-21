@@ -39,7 +39,6 @@ import Primer.Primitives (tChar, tInt)
 import Primer.Test.TestM (evalTestM)
 import Primer.Test.Util (
   clearMeta,
-  constructCon,
   constructRefinedCon,
   constructSaturatedCon,
   constructTCon,
@@ -242,7 +241,7 @@ unit_8 =
     , Move Parent
     , ConstructApp
     , Move Child2
-    , constructCon cTrue
+    , constructSaturatedCon cTrue
     ]
     (app (ann (lam "x" (lvar "x")) (tfun (tcon tBool) (tcon tBool))) (con0 cTrue))
 
@@ -253,7 +252,7 @@ unit_9 =
     emptyHole
     [ ConstructLet (Just "x")
     , Move Child1
-    , constructCon cTrue
+    , constructSaturatedCon cTrue
     , Move Parent
     , Move Child2
     , ConstructVar $ LocalVarRef "x"
@@ -401,7 +400,7 @@ unit_bad_constructor =
     (const True)
     NoSmartHoles
     emptyHole
-    [ConstructCon (["M"], "NotARealConstructor")]
+    [ConstructSaturatedCon (["M"], "NotARealConstructor")]
 
 unit_bad_type_constructor :: Assertion
 unit_bad_type_constructor =
@@ -425,7 +424,7 @@ unit_insert_expr_in_type =
     (const True)
     NoSmartHoles
     (ann emptyHole tEmptyHole)
-    [EnterType, constructCon cTrue]
+    [EnterType, constructSaturatedCon cTrue]
 
 unit_bad_lambda :: Assertion
 unit_bad_lambda =
@@ -440,7 +439,7 @@ unit_enter_emptyHole =
   actionTest
     NoSmartHoles
     emptyHole
-    [EnterHole, constructCon cTrue]
+    [EnterHole, constructSaturatedCon cTrue]
     (hole $ con0 cTrue)
 
 unit_enter_nonEmptyHole :: Assertion
@@ -448,7 +447,7 @@ unit_enter_nonEmptyHole =
   actionTest
     NoSmartHoles
     (hole emptyHole)
-    [Move Child1, constructCon cTrue]
+    [Move Child1, constructSaturatedCon cTrue]
     (hole $ con0 cTrue)
 
 unit_bad_enter_hole :: Assertion
@@ -476,7 +475,7 @@ unit_case_create =
     , Move Child1
     , ConstructCase
     , Move (Branch cTrue)
-    , constructCon cZero
+    , constructSaturatedCon cZero
     ]
     ( ann
         ( lam "x" $
@@ -540,7 +539,7 @@ unit_case_move_branch_1 =
     , Move Child1
     , Move Child1
     , Move (Branch cZero)
-    , constructCon cZero
+    , constructSaturatedCon cZero
     , Move Parent
     , Move (Branch cSucc)
     , ConstructVar $ LocalVarRef "n"
@@ -574,7 +573,7 @@ unit_case_move_branch_2 =
     [ Move Child1
     , Move Child1
     , Move (Branch cZero)
-    , constructCon cZero
+    , constructSaturatedCon cZero
     , Move Parent
     , Move (Branch cSucc)
     , ConstructVar $ LocalVarRef "n"
@@ -759,7 +758,7 @@ unit_case_create_smart_on_term =
     , ConstructVar $ LocalVarRef "x"
     , ConstructCase
     , Move (Branch cTrue)
-    , constructCon cZero
+    , constructSaturatedCon cZero
     ]
     ( ann
         ( lam
@@ -787,7 +786,7 @@ unit_case_create_smart_on_hole =
     , ConstructVar $ LocalVarRef "x"
     , Move Parent
     , Move (Branch cTrue)
-    , constructCon cZero
+    , constructSaturatedCon cZero
     ]
     ( ann
         ( lam
@@ -814,7 +813,7 @@ unit_case_change_smart_scrutinee_type =
     [ Move Child1
     , Move Child1
     , Delete
-    , constructCon cZero
+    , constructSaturatedCon cZero
     ]
     ( ann
         ( case_
@@ -891,7 +890,7 @@ unit_constructLAM =
   actionTest
     NoSmartHoles
     (emptyHole `ann` tEmptyHole)
-    [Move Child1, ConstructLAM (Just "a"), constructCon cTrue]
+    [Move Child1, ConstructLAM (Just "a"), constructSaturatedCon cTrue]
     (lAM "a" (con0 cTrue) `ann` tEmptyHole)
 
 unit_construct_TForall :: Assertion
