@@ -14,6 +14,13 @@ data TypeError
   | UnknownVariable TmVarRef
   | TmVarWrongSort Name -- type var instead of term var
   | UnknownConstructor ValConName
+  | -- TODO (saturated constructors) currently this catches both "wrong number
+    -- of type/term arguments", but when constructors become checkable, then
+    -- they will only have term arguments
+
+    -- | Constructors (term-level) must be saturated.
+    -- This error catches both under- and over-saturation.
+    UnsaturatedConstructor ValConName
   | -- | Cannot use a PrimCon when either no type of the appropriate name is
     -- in scope, or it is a user-defined type
     PrimitiveTypeNotInScope TyConName

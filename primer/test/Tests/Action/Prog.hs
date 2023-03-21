@@ -1157,19 +1157,6 @@ unit_SetConFieldType_nehole_2 =
     (tcon $ tcn "Bool")
     (hole $ con0 $ vcn "True")
 
-unit_SetConFieldType_partial_app :: Assertion
-unit_SetConFieldType_partial_app =
-  progActionTest
-    ( defaultProgEditableTypeDefs $ do
-        x <- lam "x" $ con cA [tEmptyHole, tEmptyHole] [lvar "x"]
-        sequence
-          [ astDef "def" x <$> tcon (tcn "Bool") `tfun` (tcon (tcn "Bool") `tfun` (tcon (tcn "Bool") `tfun` ((tcon tT `tapp` tEmptyHole) `tapp` tEmptyHole)))
-          ]
-    )
-    [SetConFieldType tT cA 1 $ TCon () (tcn "Int")]
-    $ expectError
-      (@?= ConNotSaturated cA)
-
 unit_SetConFieldType_case :: Assertion
 unit_SetConFieldType_case =
   progActionTest
@@ -1286,48 +1273,9 @@ unit_AddConField =
                     , con0 (vcn "True")
                     ]
                 )
-                [ branch cA [("p", Nothing), ("a45", Nothing), ("q", Nothing), ("p1", Nothing)] emptyHole
+                [ branch cA [("p", Nothing), ("a40", Nothing), ("q", Nothing), ("p1", Nothing)] emptyHole
                 , branch cB [("r", Nothing), ("x", Nothing)] emptyHole
                 ]
-          )
-
-unit_AddConField_partial_app :: Assertion
-unit_AddConField_partial_app =
-  progActionTest
-    ( defaultProgEditableTypeDefs $ do
-        x <-
-          con cA [tEmptyHole, tEmptyHole] [con0 (vcn "True")]
-        sequence
-          [ astDef "def" x <$> tEmptyHole
-          ]
-    )
-    [AddConField tT cA 2 $ TCon () (tcn "Int")]
-    $ expectError
-      (@?= ConNotSaturated cA)
-
-unit_AddConField_partial_app_end :: Assertion
-unit_AddConField_partial_app_end =
-  progActionTest
-    ( defaultProgEditableTypeDefs $ do
-        x <-
-          con cA [tEmptyHole, tEmptyHole] [con0 (vcn "True")]
-        sequence
-          [ astDef "def" x <$> tEmptyHole
-          ]
-    )
-    [AddConField tT cA 1 $ TCon () (tcn "Int")]
-    $ expectSuccess
-    $ \_ prog' -> do
-      td <- findTypeDef tT prog'
-      astTypeDefConstructors td
-        @?= [ ValCon cA [TCon () (tcn "Bool"), TCon () (tcn "Int"), TCon () (tcn "Bool"), TCon () (tcn "Bool")]
-            , ValCon cB [TApp () (TApp () (TCon () tT) (TVar () "b")) (TVar () "a"), TVar () "b"]
-            ]
-      def <- findDef (gvn "def") prog'
-      forgetMetadata (astDefExpr def)
-        @?= forgetMetadata
-          ( create' $
-              con cA [tEmptyHole, tEmptyHole] [con0 (vcn "True"), emptyHole]
           )
 
 unit_AddConField_case_ann :: Assertion
@@ -1471,7 +1419,7 @@ unit_cross_module_actions =
               , Move $ ConChild 0
               , constructSaturatedCon cSucc
               , Move $ ConChild 0
-              , ConstructVar (LocalVarRef "a38")
+              , ConstructVar (LocalVarRef "a33")
               ]
           ]
         handleAndTC [RenameDef (qualifyM "foo") "bar"]
