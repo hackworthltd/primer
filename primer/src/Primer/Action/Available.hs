@@ -339,9 +339,8 @@ options typeDefs defs cxt level def mNodeSel = \case
   MakeConSat ->
     pure
       . noFree
-      . map (globalOpt . valConName . snd)
-      . filter (uncurry hasArgsCon)
-      . concatMap (\td -> (td,) <$> astTypeDefConstructors td)
+      . map (globalOpt . valConName)
+      . concatMap astTypeDefConstructors
       . mapMaybe (typeDefAST . snd)
       $ Map.toList typeDefs
   MakeInt -> pure Options{opts = [], free = FreeInt}
