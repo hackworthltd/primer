@@ -9,6 +9,7 @@ module Primer.Core.DSL (
   conSat,
   con,
   con0,
+  con1,
   lvar,
   gvar,
   var,
@@ -127,6 +128,14 @@ conSat c tys tms = Con <$> meta <*> pure c <*> sequence tys <*> sequence tms
 --  then the typechecker will complain, when run.)
 con0 :: MonadFresh ID m => ValConName -> m Expr
 con0 c = conSat c [] []
+
+
+-- | Create a constructor of arity one.
+-- (This condition is not checked here.
+--  If used with a constructor which has fields,
+--  then the typechecker will complain, when run.)
+con1 :: MonadFresh ID m => ValConName -> m Expr -> m Expr
+con1 c t = conSat c [] [t]
 
 lvar :: MonadFresh ID m => LVarName -> m Expr
 lvar v = Var <$> meta <*> pure (LocalVarRef v)
