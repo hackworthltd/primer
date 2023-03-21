@@ -331,6 +331,16 @@ Output
                     ( Options
                         { opts =
                             [ Option
+                                { option = "True"
+                                , context = Just
+                                    ( "Builtins" :| [] )
+                                }
+                            , Option
+                                { option = "False"
+                                , context = Just
+                                    ( "Builtins" :| [] )
+                                }
+                            , Option
                                 { option = "Left"
                                 , context = Just
                                     ( "Builtins" :| [] )
@@ -357,6 +367,11 @@ Output
                                 }
                             , Option
                                 { option = "Just"
+                                , context = Just
+                                    ( "Builtins" :| [] )
+                                }
+                            , Option
+                                { option = "Zero"
                                 , context = Just
                                     ( "Builtins" :| [] )
                                 }
@@ -550,6 +565,16 @@ Output
                     ( Options
                         { opts =
                             [ Option
+                                { option = "True"
+                                , context = Just
+                                    ( "Builtins" :| [] )
+                                }
+                            , Option
+                                { option = "False"
+                                , context = Just
+                                    ( "Builtins" :| [] )
+                                }
+                            , Option
                                 { option = "Left"
                                 , context = Just
                                     ( "Builtins" :| [] )
@@ -576,6 +601,11 @@ Output
                                 }
                             , Option
                                 { option = "Just"
+                                , context = Just
+                                    ( "Builtins" :| [] )
+                                }
+                            , Option
+                                { option = "Zero"
                                 , context = Just
                                     ( "Builtins" :| [] )
                                 }
@@ -1259,6 +1289,16 @@ Output
                     ( Options
                         { opts =
                             [ Option
+                                { option = "True"
+                                , context = Just
+                                    ( "Builtins" :| [] )
+                                }
+                            , Option
+                                { option = "False"
+                                , context = Just
+                                    ( "Builtins" :| [] )
+                                }
+                            , Option
                                 { option = "Left"
                                 , context = Just
                                     ( "Builtins" :| [] )
@@ -1285,6 +1325,11 @@ Output
                                 }
                             , Option
                                 { option = "Just"
+                                , context = Just
+                                    ( "Builtins" :| [] )
+                                }
+                            , Option
+                                { option = "Zero"
                                 , context = Just
                                     ( "Builtins" :| [] )
                                 }
