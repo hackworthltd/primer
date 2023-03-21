@@ -31,7 +31,6 @@
 module Primer.Action.Priorities (
   makeLambda,
   useVar,
-  useValueCon,
   makeInt,
   makeChar,
   makeCase,
@@ -72,9 +71,6 @@ makeLambda _ = 5
 
 useVar :: Level -> Int
 useVar _ = 10
-
-useValueCon :: Level -> Int
-useValueCon _ = 11
 
 makeCase :: Level -> Int
 makeCase _ = 12
