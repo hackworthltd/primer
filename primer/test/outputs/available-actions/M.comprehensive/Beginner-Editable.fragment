@@ -253,7 +253,8 @@ Output
                         , free = FreeNone
                         }
                     )
-                , Input MakeCon
+                , NoInput MakeCase
+                , Input MakeConSat
                     ( Options
                         { opts =
                             [ Option
@@ -275,7 +276,6 @@ Output
                         , free = FreeNone
                         }
                     )
-                , NoInput MakeCase
                 , Input MakeInt
                     ( Options
                         { opts = []
@@ -328,7 +328,8 @@ Output
                         , free = FreeNone
                         }
                     )
-                , Input MakeCon
+                , NoInput MakeCase
+                , Input MakeConSat
                     ( Options
                         { opts =
                             [ Option
@@ -350,7 +351,6 @@ Output
                         , free = FreeNone
                         }
                     )
-                , NoInput MakeCase
                 , Input MakeInt
                     ( Options
                         { opts = []
@@ -878,7 +878,8 @@ Output
                         , free = FreeNone
                         }
                     )
-                , Input MakeCon
+                , NoInput MakeCase
+                , Input MakeConSat
                     ( Options
                         { opts =
                             [ Option
@@ -900,7 +901,6 @@ Output
                         , free = FreeNone
                         }
                     )
-                , NoInput MakeCase
                 , Input MakeInt
                     ( Options
                         { opts = []

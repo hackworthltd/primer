@@ -170,7 +170,6 @@
             },
             "InputAction": {
                 "enum": [
-                    "MakeCon",
                     "MakeConSat",
                     "MakeInt",
                     "MakeChar",
@@ -1063,7 +1062,6 @@
                         "required": true,
                         "schema": {
                             "enum": [
-                                "MakeCon",
                                 "MakeConSat",
                                 "MakeInt",
                                 "MakeChar",
