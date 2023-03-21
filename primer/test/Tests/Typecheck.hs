@@ -264,15 +264,12 @@ unit_letrec_2 =
               , branch
                   cSucc
                   [("n", Nothing)]
-                  ( app
-                      (con0 cSucc)
-                      (app (con0 cSucc) (app (lvar "double") (lvar "n")))
-                  )
+                  (con1 cSucc $ con1 cSucc $ app (lvar "double") (lvar "n"))
               ]
           )
       )
       (tfun (tcon tNat) (tcon tNat))
-      (app (lvar "double") (app (con0 cSucc) (con0 cZero)))
+      (app (lvar "double") (con1 cSucc $ con0 cZero))
 
 -- let x = True
 --  in let y = False
@@ -436,13 +433,13 @@ unit_app_not_arrow =
 -- The smartTC currently gives an annotation inside a hole.
 unit_chk_lam_not_arrow :: Assertion
 unit_chk_lam_not_arrow =
-  app (con0 cSucc) (lam "x" $ lvar "x")
-    `smartSynthGives` app (con0 cSucc) (hole $ ann (lam "x" $ lvar "x") tEmptyHole)
+  con1 cSucc (lam "x" $ lvar "x")
+    `smartSynthGives` con1 cSucc (hole $ ann (lam "x" $ lvar "x") tEmptyHole)
 
 unit_check_emb :: Assertion
 unit_check_emb =
-  app (con0 cSucc) (con0 cTrue)
-    `smartSynthGives` app (con0 cSucc) (hole $ con0 cTrue)
+  con1 cSucc (con0 cTrue)
+    `smartSynthGives` con1 cSucc (hole $ con0 cTrue)
 
 -- Constructors are synthesisable
 unit_con_direction :: Assertion
@@ -452,8 +449,8 @@ unit_con_direction =
 
 unit_case_scrutinee :: Assertion
 unit_case_scrutinee =
-  ann (case_ (con0 cSucc) [branch' (["M"], "C") [] $ lvar "x"]) (tcon tBool)
-    `smartSynthGives` ann (case_ (hole $ con0 cSucc) []) (tcon tBool)
+  ann (case_ (lam "n" ( con1 cSucc $ lvar "n") `ann` (tcon tNat `tfun` tcon tNat)) [branch' (["M"], "C") [] $ lvar "x"]) (tcon tBool)
+    `smartSynthGives` ann (case_ (hole $ (lam "n" ( con1 cSucc $ lvar "n") `ann` (tcon tNat `tfun` tcon tNat))) []) (tcon tBool)
 
 unit_case_branches :: Assertion
 unit_case_branches =
@@ -473,9 +470,9 @@ unit_remove_hole =
 -- This is tracked as https://github.com/hackworthltd/primer/issues/7
 unit_remove_hole_not_perfect :: Assertion
 unit_remove_hole_not_perfect =
-  app (hole (con0 cSucc)) (con0 cZero)
-    `smartSynthGives` app (hole (con0 cSucc)) (con0 cZero) -- We currently give this as output
-    -- app (con0 cSucc) (con0 cZero) -- We would prefer to see the hole removed
+  app (hole $ (lam "n" ( con1 cSucc $ lvar "n") `ann` (tcon tNat `tfun` tcon tNat))) (con0 cZero)
+    `smartSynthGives` app (hole $ (lam "n" ( con1 cSucc $ lvar "n") `ann` (tcon tNat `tfun` tcon tNat))) (con0 cZero) -- We currently give this as output
+    -- app (lam "n" ( con1 cSucc $ lvar "n") `ann` (tcon tNat `tfun` tcon tNat)) (con0 cZero) -- We would prefer to see the hole removed
 
 -- When not using "smart" TC which automatically inserts holes etc,
 -- one would have to do a bit of dance to build a case expression, and
@@ -517,7 +514,7 @@ unit_poly_head_Nat =
           case_
             (lvar "x")
             [ branch cNil [] (con0 cZero)
-            , branch cCons [("y", Nothing), ("ys", Nothing)] $ con0 cSucc `app` lvar "y"
+            , branch cCons [("y", Nothing), ("ys", Nothing)] $ con1 cSucc $ lvar "y"
             ]
       )
       ((tcon tList `tapp` tcon tNat) `tfun` tcon tNat)
