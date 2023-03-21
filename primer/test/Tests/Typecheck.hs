@@ -221,7 +221,7 @@ unit_inc :: Assertion
 unit_inc =
   expectTyped $
     ann
-      (lam "n" (app (con0 cSucc) (lvar "n")))
+      (lam "n" (con cSucc [] [lvar "n"]))
       (tfun (tcon tNat) (tcon tNat))
 
 unit_compose_nat :: Assertion
