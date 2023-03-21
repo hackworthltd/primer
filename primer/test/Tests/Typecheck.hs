@@ -153,8 +153,16 @@ unit_inc :: Assertion
 unit_inc =
   expectTyped $
     ann
+      (lam "n" (con cSucc [] [lvar "n"]))
+      (tfun (tcon tNat) (tcon tNat))
+
+unit_inc_unsat :: Assertion
+unit_inc_unsat =
+    ann
       (lam "n" (app (con0 cSucc) (lvar "n")))
       (tfun (tcon tNat) (tcon tNat))
+      `expectFailsWith`
+      (const $ UnsaturatedConstructor cSucc "BBB")
 
 unit_compose_nat :: Assertion
 unit_compose_nat =
