@@ -500,13 +500,14 @@ synth = \case
       Just (vc, tc, td) -> pure (tc, astTypeDefParameters td, valConArgs vc)
       Nothing -> throwError' $ UnknownConstructor c
     -- And |ps| = |As| and k ∋ A for each matching element
-    tys'Sub <- ensureJust (UnsaturatedConstructor c) $ zipWithExactM (\(p,k) ty -> (p,) <$> checkKind' k ty) params tys
+    tys'Sub <- ensureJust (UnsaturatedConstructor c $ "AAA: |ps|,|As|:" <> show (length params ,length tys))
+      $ zipWithExactM (\(p,k) ty -> (p,) <$> checkKind' k ty) params tys
     let tys' = snd <$> tys'Sub
     let tys'SubNoMeta = second forgetTypeMetadata <$> tys'Sub
     let tys'NoMeta = snd <$> tys'SubNoMeta
     -- And |rs| = |Rs| and R[As] ∋ r for each matching element
     argTys <- traverse (substTySimul (M.fromList tys'SubNoMeta)) argTys0
-    tms' <- ensureJust (UnsaturatedConstructor c) $ zipWithExactM check argTys tms
+    tms' <- ensureJust (UnsaturatedConstructor c "BBB") $ zipWithExactM check argTys tms
     -- Then C @As rs  ∈  T As
     let synthedType = foldl' (TApp ()) (TCon () adtName) tys'NoMeta
     pure $ annSynth3 synthedType i Con c tys' tms'
