@@ -88,7 +88,6 @@ import Primer.Core (
  )
 import Primer.Core.DSL (
   S,
-  aPP,
   ann,
   app,
   branch,
@@ -531,7 +530,7 @@ unit_copy_paste_duplicate = do
       toDef = gvn "blank"
       ((p, fromType, fromExpr, _toType, _toExpr), maxID) = create $ do
         mainType <- tforall "a" KType (tvar "a" `tfun` (tcon tMaybe `tapp` tEmptyHole))
-        mainExpr <- lAM "b" $ lam "x" $ con0 cJust `aPP` tvar "b" `app` lvar "x"
+        mainExpr <- lAM "b" $ lam "x" $ con cJust [tvar "b"] [lvar "x"]
         let mainDef = ASTDef mainExpr mainType
         blankDef <- ASTDef <$> emptyHole <*> tEmptyHole
         pure
