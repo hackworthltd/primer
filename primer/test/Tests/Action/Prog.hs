@@ -1159,7 +1159,7 @@ unit_AddConField =
                     , con0 (vcn "True")
                     , con0 (vcn "True")]
                 )
-                [ branch cA [("p", Nothing), ("a25", Nothing), ("q", Nothing), ("p1", Nothing)] emptyHole
+                [ branch cA [("p", Nothing), ("a20", Nothing), ("q", Nothing), ("p1", Nothing)] emptyHole
                 , branch cB [("r", Nothing), ("x", Nothing)] emptyHole
                 ]
           )
@@ -1337,7 +1337,7 @@ unit_cross_module_actions =
               , Move $ ConChild 0
               , constructSaturatedCon cSucc
               , Move $ ConChild 0
-              , ConstructVar (LocalVarRef "a31")
+              , ConstructVar (LocalVarRef "a26")
               ]
           ]
         handleAndTC [RenameDef (qualifyM "foo") "bar"]
