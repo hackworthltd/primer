@@ -23,6 +23,7 @@ import Data.Generics.Product (typed)
 import Data.Bifunctor.Swap qualified as Swap
 import Data.List (findIndex)
 import Data.List.NonEmpty qualified as NE
+import Data.List.Extra ((!?))
 import Data.Map.Strict qualified as Map
 import Data.Set qualified as Set
 import Data.Text qualified as T
@@ -144,7 +145,7 @@ import Primer.Zipper (
   unfocusType,
   up,
   updateCaseBind,
-  _target,
+  _target, focusConTypes,
  )
 import Primer.ZipperCxt (localVariablesInScopeExpr)
 
@@ -365,6 +366,12 @@ applyAction' a = case a of
   ExitType -> \case
     InType zt -> pure $ InExpr $ unfocusType zt
     _ -> throwError $ CustomFailure ExitType "cannot exit type - not in type"
+  EnterConTypeArgument n -> \case
+    InExpr ze ->  case (!? n) <$> focusConTypes ze of
+      Nothing -> throwError $ CustomFailure (EnterConTypeArgument n) "Move-to-constructor-argument failed: this is not a constructor"
+      Just Nothing -> throwError $ CustomFailure (EnterConTypeArgument n) "Move-to-constructor-argument failed: no such argument"
+      Just (Just z') -> pure $ InType z'
+    _ -> throwError $ CustomFailure (EnterConTypeArgument n) "cannot enter value constructors argument - not in expr"
   ConstructArrowL -> typeAction constructArrowL "cannot construct arrow - not in type"
   ConstructArrowR -> typeAction constructArrowR "cannot construct arrow - not in type"
   ConstructTCon c -> typeAction (constructTCon c) "cannot construct tcon in expr"
@@ -399,6 +406,12 @@ moveExpr m@(Branch c) z | Case _ _ brs <- target z =
       Just z' -> pure z'
       Nothing -> throwError $ CustomFailure (Move m) "internal error: movement failed, even though branch exists"
 moveExpr m@(Branch _) _ = throwError $ CustomFailure (Move m) "Move-to-branch failed: this is not a case expression"
+moveExpr m@(ConChild n) z | Con{} <- target z =
+    -- 'down' moves into the first argument, 'right' steps through the various arguments
+  case foldr (\_ z' -> right =<< z') (down z) [1..n] of
+      Just z' -> pure z'
+      Nothing -> throwError $ CustomFailure (Move m) "Move-to-constructor-argument failed: no such argument"
+moveExpr m@(ConChild _) _ = throwError $ CustomFailure (Move m) "Move-to-constructor-argument failed: this is not a constructor"
 moveExpr Child2 z
   | Case{} <- target z =
       throwError $ CustomFailure (Move Child2) "cannot move to 'Child2' of a case: use Branch instead"
@@ -407,10 +420,11 @@ moveExpr m z = move m z
 -- | Apply a movement to a zipper
 moveType :: ActionM m => Movement -> TypeZ -> m TypeZ
 moveType m@(Branch _) _ = throwError $ CustomFailure (Move m) "Move-to-branch unsupported in types (there are no cases in types!)"
+moveType m@(ConChild _) _ = throwError $ CustomFailure (Move m) "Move-to-constructor-argument unsupported in types (type constructors do not directly store their arguments)"
 moveType m z = move m z
 
 -- | Apply a movement to a generic zipper - does not support movement to a case
--- branch
+-- branch, or into an argument of a constructor
 move :: forall m za a. (ActionM m, IsZipper za a, HasID za) => Movement -> za -> m za
 move m z = do
   mz' <- move' m z
@@ -423,6 +437,7 @@ move m z = do
     move' Child1 = pure . down
     move' Child2 = pure . (down >=> right)
     move' (Branch _) = const $ throwError $ InternalFailure "move does not support Branch moves"
+    move' (ConChild _) = const $ throwError $ InternalFailure "move does not support Constructor argument moves"
 
 setMetadata :: (IsZipper za a, HasMetadata a) => Value -> za -> za
 setMetadata d z = z & _target % _metadata ?~ d
