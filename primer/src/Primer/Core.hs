@@ -185,6 +185,8 @@ data Expr' a b
   deriving anyclass (NFData)
 
 -- Note [Synthesisable constructors]
+-- TODO: this note needs updating for enforced-full-saturation!
+--
 -- Whilst our calculus is heavily inspired by bidirectional type systems
 -- (especially McBride's principled rendition), we do not treat constructors
 -- in this fashion. However, we are in the middle of changing the treatment
