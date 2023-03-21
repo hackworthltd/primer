@@ -116,8 +116,8 @@ import Primer.Core (
   _exprTypeMeta,
   _typeMeta,
  )
-import Primer.Core.DSL (apps', branch, emptyHole, meta, meta')
-import Primer.Core.Transform (decomposeAppCon, decomposeTAppCon, mkTAppCon)
+import Primer.Core.DSL (branch, emptyHole, meta, meta')
+import Primer.Core.Transform (decomposeTAppCon, mkTAppCon)
 import Primer.Core.Utils (
   alphaEqTy,
   forgetTypeMetadata,
@@ -142,14 +142,13 @@ import Primer.Module (
  )
 import Primer.Name (Name, NameCounter)
 import Primer.Primitives (primConName)
-import Primer.Subst (substTy)
+import Primer.Subst (substTy, substTySimul)
 import Primer.TypeDef (
   ASTTypeDef (astTypeDefConstructors, astTypeDefParameters),
   TypeDef (..),
   TypeDefMap,
   ValCon (valConArgs, valConName),
   typeDefAST,
-  valConType,
  )
 import Primer.Typecheck.Cxt (Cxt (Cxt, globalCxt, localCxt, smartHoles, typeDefs))
 import Primer.Typecheck.Kindcheck (
@@ -493,20 +492,22 @@ synth = \case
   EmptyHole i -> pure $ annSynth0 (TEmptyHole ()) i EmptyHole
   -- We assume that constructor names are unique
   -- See Note [Synthesisable constructors] in Core.hs
-  Con i c [] [] -> do
-    asks (flip lookupConstructor c . typeDefs) >>= \case
-      Just (vc, tc, td) -> let t = valConType tc td vc in pure $ annSynth3 t i Con c [] []
-      Nothing -> throwError' $ UnknownConstructor c
   Con i c tys tms -> do
-    -- TODO (saturated constructors) for now we synth exactly the same as the application tree,
-    -- but take care not to actually change the shape of the program.
-    -- This will change when full-saturation is enforced
-    elab <- apps' (pure $ Con i c [] []) $ (Right . pure <$> tys) ++ (Left . pure <$> tms)
-    (ty, e) <- synth elab
-    (tys', tms') <- case decomposeAppCon e of
-      Just (_, _, tys', tms') -> pure (tys', tms')
-      Nothing -> throwError' $ InternalError "saturated constructor: elaborated term is not ctor-headed"
-    pure $ annSynth3 ty i Con c tys' tms'
+    -- When C is a constructor of some ADT T with parameters ps with kinds ks, where C has args of types Rs[ps]
+    (adtName,params,argTys0) <- asks (flip lookupConstructor c . typeDefs) >>= \case
+      Just (vc, tc, td) -> pure (tc, astTypeDefParameters td, valConArgs vc)
+      Nothing -> throwError' $ UnknownConstructor c
+    -- And |ps| = |As| and k ∋ A for each matching element
+    tys'Sub <- ensureJust (UnsaturatedConstructor c) $ zipWithExactM (\(p,k) ty -> (p,) <$> checkKind' k ty) params tys
+    let tys' = snd <$> tys'Sub
+    let tys'SubNoMeta = second forgetTypeMetadata <$> tys'Sub
+    let tys'NoMeta = snd <$> tys'SubNoMeta
+    -- And |rs| = |Rs| and R[As] ∋ r for each matching element
+    argTys <- traverse (substTySimul (M.fromList tys'SubNoMeta)) argTys0
+    tms' <- ensureJust (UnsaturatedConstructor c) $ zipWithExactM check argTys tms
+    -- Then C @As rs  ∈  T As
+    let synthedType = foldl' (TApp ()) (TCon () adtName) tys'NoMeta
+    pure $ annSynth3 synthedType i Con c tys' tms'
   -- When synthesising a hole, we first check that the expression inside it
   -- synthesises a type successfully.
   -- TODO: we would like to remove this hole (leaving e) if possible, but I
@@ -560,6 +561,16 @@ synth = \case
     annSynth2 t i c = annSynth1 t i . flip c
     annSynth3 t i c = annSynth2 t i . flip c
     annSynth4 t i c = annSynth3 t i . flip c
+
+zipWithExactM :: Applicative f => (a -> b -> f c) -> [a] -> [b] -> Maybe (f [c])
+zipWithExactM _ [] [] = Just $ pure []
+zipWithExactM _ [] _ = Nothing
+zipWithExactM _ _ [] = Nothing
+zipWithExactM f (x:xs) (y:ys) = ((:) <$> f x y <*>) <$> zipWithExactM f xs ys
+
+ensureJust :: MonadNestedError e e' m => e -> Maybe (m a) -> m a
+ensureJust e Nothing = throwError' e
+ensureJust _ (Just x) = x
 
 -- There is a hard-wired map 'primConName' which associates each PrimCon to
 -- its PrimTypeDef (by name -- PrimTypeDefs have hardwired names).
