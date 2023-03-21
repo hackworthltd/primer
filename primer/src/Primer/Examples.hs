@@ -269,12 +269,11 @@ comprehensive' typeable modName = do
                       ( app
                           ( aPP
                               ( if typeable
-                                  then -- TODO (saturated constructors) this line is
-                                  -- only acceptible (i.e. makes a well typed
-                                  -- example) because constructors currently
-                                  -- need not be fully-saturated, and are
-                                  -- synthesisable.
-                                    conSat B.cLeft [tcon B.tBool] []
+                                  then
+                                    (lAM "b" $ lam "x" $ conSat B.cLeft [tcon B.tBool, tvar"b"] [lvar"x"])
+                                    `ann`
+                                    (tforall "b" KType $ tcon B.tBool
+                                                  `tfun` (tcon B.tEither `tapp` tcon B.tBool `tapp` tvar "b"))
                                   else
                                     letType
                                       "b"
