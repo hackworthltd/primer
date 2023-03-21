@@ -340,7 +340,7 @@ options typeDefs defs cxt level def mNodeSel = \case
     pure
       . noFree
       . map (globalOpt . valConName . snd)
-      . filter (uncurry hasArgsCon)
+      . filter (not . (&& level == Beginner) . uncurry hasArgsCon)
       . concatMap (\td -> (td,) <$> astTypeDefConstructors td)
       . mapMaybe (typeDefAST . snd)
       $ Map.toList typeDefs
