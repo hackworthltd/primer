@@ -224,6 +224,7 @@ data Expr' a b
 -- become synthesisable.
 
 -- Note [Synthesisable constructors]
+--
 -- Whilst our calculus is heavily inspired by bidirectional type systems
 -- (especially McBride's principled rendition), we do not treat constructors
 -- in this fashion. However, we are in the middle of changing the treatment
@@ -236,30 +237,36 @@ data Expr' a b
 -- changed, due to asymmetries between construction and matching.)
 --
 -- We represent a constructor-applied-to-a-spine as a thing (and one can infer
--- its type), but do not insist that it is fully saturated.
--- Thus one has `Cons` is a term, and we can derive the synthesis
--- judgement `Cons ∈ ∀a. a -> List a -> List a`, but also that `Cons @a`,
--- `Cons @a x` and `Cons @a x y` are terms (for type `a` and terms `x, y`), with
--- the obvious synthesised types. This is a temporary situation, and we aim to
--- enforce full saturation (and no type applications) in due course.
+-- its type), where we insist that it is fully saturated.
+-- Thus whilst `Cons` is a term, it is ill-typed. The only well-formed
+-- `Cons` usages are `Cons @A x xs`, which synthesises `List A`
+-- when `A ∋ x` and `List A ∋ xs`.
 --
--- For comparison, the bidirectional view would be that constructors must
--- always be fully applied, and one can only subject them to a typechecking
--- judgement where the type is an input.
--- Thus `List Int ∋ Cons 2 Nil`, but `Cons` and `Cons 2` are ill-typed.
--- Under this view, one needs to be aware of the difference between, say,
+-- Whilst this may be a bit inconsistent with the treatment of
+-- functions, it has the advantage of symmetry with construction and
+-- matching. (I.e. every time one sees a particular constructor, it
+-- has the same form: a head of that constructor, and the same number
+-- of (term) fields.)
+-- TODO (saturated constructors): technically, a construction will
+-- have type arguments/indices and a match will not, but this is
+-- temporary, as we will soon remove indices (which will require
+-- constructors to be only checkable, rather than synthesisable).
+--
+-- Thus one needs to be aware of the difference between, say,
 -- a globally-defined function, and a constructor "of the same type".
 -- For example, one can partially apply an addition function and map it
 -- across a list: `map (1 +) [2,3]` is well-typed, but one cannot map
 -- the `Succ` constructor in the same way.
--- (Notice, however, that since one will always know what type one is
--- considering, the constructor does not need any type applications
--- corresponding to the parameters of its datatype.)
 -- Clearly one could eta-expand, (and if necessary add an annotation) to
 -- use as constructor non-saturatedly: e.g. write `map (λn . Succ n) [2,3]`.
 --
--- In effect, we just bake (various stages of) this translation into the core.
--- To do this, we require constructor names to be unique across different types.
+-- For comparison, the bidirectional view would be that constructors
+-- must always be fully applied (which is the same as our treatment),
+-- and one can only subject them to a typechecking judgement where the
+-- type is an input (which is different to our treatment), and they do
+-- not need to store their indices/type applications (different to our
+-- treatment).
+-- Thus `List Int ∋ Cons 2 Nil`, but `Cons 2 Nil` does not synthesise a type.
 
 -- Note [Case]
 -- We use a list for compatibility and ease of JSON
