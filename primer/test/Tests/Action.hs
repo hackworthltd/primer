@@ -37,7 +37,13 @@ import Primer.Gen.Core.Raw (
 import Primer.Module (builtinModule, primitiveModule)
 import Primer.Primitives (tChar, tInt)
 import Primer.Test.TestM (evalTestM)
-import Primer.Test.Util (clearMeta, constructCon, constructRefinedCon, constructTCon)
+import Primer.Test.Util (
+  clearMeta,
+  constructCon,
+  constructRefinedCon,
+  constructSaturatedCon,
+  constructTCon,
+ )
 import Primer.Typecheck (SmartHoles (NoSmartHoles, SmartHoles))
 import Primer.Zipper (
   down,
@@ -1096,6 +1102,27 @@ unit_primitive_1 =
     , ConstructPrim (PrimChar 'c')
     ]
     (lam "x" (char 'c') `ann` (tcon tInt `tfun` tcon tChar))
+
+unit_move_ctor :: Assertion
+unit_move_ctor =
+  actionTest
+    NoSmartHoles
+    emptyHole
+    [ constructSaturatedCon cMakePair
+    , EnterConTypeArgument 0
+    , constructTCon tNat
+    , ExitType
+    , EnterConTypeArgument 1
+    , constructTCon tBool
+    , ExitType
+    , Move $ ConChild 0
+    , constructSaturatedCon cZero
+    , Move Parent
+    , Move $ ConChild 1
+    , constructSaturatedCon cFalse
+    , Move Parent
+    ]
+    (conSat cMakePair [tcon tNat, tcon tBool] [con cZero, con cFalse])
 
 -- * Helpers
 
