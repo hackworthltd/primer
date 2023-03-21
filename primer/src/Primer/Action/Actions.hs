@@ -58,8 +58,6 @@ data Action
     ConstructLam (Maybe Text)
   | -- | Construct a type abstraction "big-lambda"
     ConstructLAM (Maybe Text)
-  | -- | Put a constructor in an empty hole
-    ConstructCon QualifiedText
   | -- | Put a literal in an empty hole
     ConstructPrim PrimCon
   | -- | Put a constructor applied to a saturated spine in an empty hole

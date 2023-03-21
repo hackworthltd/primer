@@ -390,68 +390,6 @@ Output
                         , free = FreeNone
                         }
                     )
-                , Input MakeCon
-                    ( Options
-                        { opts =
-                            [ Option
-                                { option = "True"
-                                , context = Just
-                                    ( "Builtins" :| [] )
-                                }
-                            , Option
-                                { option = "False"
-                                , context = Just
-                                    ( "Builtins" :| [] )
-                                }
-                            , Option
-                                { option = "Left"
-                                , context = Just
-                                    ( "Builtins" :| [] )
-                                }
-                            , Option
-                                { option = "Right"
-                                , context = Just
-                                    ( "Builtins" :| [] )
-                                }
-                            , Option
-                                { option = "Nil"
-                                , context = Just
-                                    ( "Builtins" :| [] )
-                                }
-                            , Option
-                                { option = "Cons"
-                                , context = Just
-                                    ( "Builtins" :| [] )
-                                }
-                            , Option
-                                { option = "Nothing"
-                                , context = Just
-                                    ( "Builtins" :| [] )
-                                }
-                            , Option
-                                { option = "Just"
-                                , context = Just
-                                    ( "Builtins" :| [] )
-                                }
-                            , Option
-                                { option = "Zero"
-                                , context = Just
-                                    ( "Builtins" :| [] )
-                                }
-                            , Option
-                                { option = "Succ"
-                                , context = Just
-                                    ( "Builtins" :| [] )
-                                }
-                            , Option
-                                { option = "MakePair"
-                                , context = Just
-                                    ( "Builtins" :| [] )
-                                }
-                            ]
-                        , free = FreeNone
-                        }
-                    )
                 , NoInput MakeCase
                 , Input MakeConSat
                     ( Options
@@ -640,68 +578,6 @@ Output
                                 { option = "comprehensive"
                                 , context = Just
                                     ( "M" :| [] )
-                                }
-                            ]
-                        , free = FreeNone
-                        }
-                    )
-                , Input MakeCon
-                    ( Options
-                        { opts =
-                            [ Option
-                                { option = "True"
-                                , context = Just
-                                    ( "Builtins" :| [] )
-                                }
-                            , Option
-                                { option = "False"
-                                , context = Just
-                                    ( "Builtins" :| [] )
-                                }
-                            , Option
-                                { option = "Left"
-                                , context = Just
-                                    ( "Builtins" :| [] )
-                                }
-                            , Option
-                                { option = "Right"
-                                , context = Just
-                                    ( "Builtins" :| [] )
-                                }
-                            , Option
-                                { option = "Nil"
-                                , context = Just
-                                    ( "Builtins" :| [] )
-                                }
-                            , Option
-                                { option = "Cons"
-                                , context = Just
-                                    ( "Builtins" :| [] )
-                                }
-                            , Option
-                                { option = "Nothing"
-                                , context = Just
-                                    ( "Builtins" :| [] )
-                                }
-                            , Option
-                                { option = "Just"
-                                , context = Just
-                                    ( "Builtins" :| [] )
-                                }
-                            , Option
-                                { option = "Zero"
-                                , context = Just
-                                    ( "Builtins" :| [] )
-                                }
-                            , Option
-                                { option = "Succ"
-                                , context = Just
-                                    ( "Builtins" :| [] )
-                                }
-                            , Option
-                                { option = "MakePair"
-                                , context = Just
-                                    ( "Builtins" :| [] )
                                 }
                             ]
                         , free = FreeNone
@@ -1738,68 +1614,6 @@ Output
                                 { option = "comprehensive"
                                 , context = Just
                                     ( "M" :| [] )
-                                }
-                            ]
-                        , free = FreeNone
-                        }
-                    )
-                , Input MakeCon
-                    ( Options
-                        { opts =
-                            [ Option
-                                { option = "True"
-                                , context = Just
-                                    ( "Builtins" :| [] )
-                                }
-                            , Option
-                                { option = "False"
-                                , context = Just
-                                    ( "Builtins" :| [] )
-                                }
-                            , Option
-                                { option = "Left"
-                                , context = Just
-                                    ( "Builtins" :| [] )
-                                }
-                            , Option
-                                { option = "Right"
-                                , context = Just
-                                    ( "Builtins" :| [] )
-                                }
-                            , Option
-                                { option = "Nil"
-                                , context = Just
-                                    ( "Builtins" :| [] )
-                                }
-                            , Option
-                                { option = "Cons"
-                                , context = Just
-                                    ( "Builtins" :| [] )
-                                }
-                            , Option
-                                { option = "Nothing"
-                                , context = Just
-                                    ( "Builtins" :| [] )
-                                }
-                            , Option
-                                { option = "Just"
-                                , context = Just
-                                    ( "Builtins" :| [] )
-                                }
-                            , Option
-                                { option = "Zero"
-                                , context = Just
-                                    ( "Builtins" :| [] )
-                                }
-                            , Option
-                                { option = "Succ"
-                                , context = Just
-                                    ( "Builtins" :| [] )
-                                }
-                            , Option
-                                { option = "MakePair"
-                                , context = Just
-                                    ( "Builtins" :| [] )
                                 }
                             ]
                         , free = FreeNone

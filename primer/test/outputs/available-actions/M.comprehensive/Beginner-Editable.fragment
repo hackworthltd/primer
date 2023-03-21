@@ -253,7 +253,8 @@ Output
                         , free = FreeNone
                         }
                     )
-                , Input MakeCon
+                , NoInput MakeCase
+                , Input MakeConSat
                     ( Options
                         { opts =
                             [ Option
@@ -267,7 +268,47 @@ Output
                                     ( "Builtins" :| [] )
                                 }
                             , Option
+                                { option = "Left"
+                                , context = Just
+                                    ( "Builtins" :| [] )
+                                }
+                            , Option
+                                { option = "Right"
+                                , context = Just
+                                    ( "Builtins" :| [] )
+                                }
+                            , Option
+                                { option = "Nil"
+                                , context = Just
+                                    ( "Builtins" :| [] )
+                                }
+                            , Option
+                                { option = "Cons"
+                                , context = Just
+                                    ( "Builtins" :| [] )
+                                }
+                            , Option
+                                { option = "Nothing"
+                                , context = Just
+                                    ( "Builtins" :| [] )
+                                }
+                            , Option
+                                { option = "Just"
+                                , context = Just
+                                    ( "Builtins" :| [] )
+                                }
+                            , Option
                                 { option = "Zero"
+                                , context = Just
+                                    ( "Builtins" :| [] )
+                                }
+                            , Option
+                                { option = "Succ"
+                                , context = Just
+                                    ( "Builtins" :| [] )
+                                }
+                            , Option
+                                { option = "MakePair"
                                 , context = Just
                                     ( "Builtins" :| [] )
                                 }
@@ -275,7 +316,6 @@ Output
                         , free = FreeNone
                         }
                     )
-                , NoInput MakeCase
                 , Input MakeInt
                     ( Options
                         { opts = []
@@ -328,7 +368,8 @@ Output
                         , free = FreeNone
                         }
                     )
-                , Input MakeCon
+                , NoInput MakeCase
+                , Input MakeConSat
                     ( Options
                         { opts =
                             [ Option
@@ -342,7 +383,47 @@ Output
                                     ( "Builtins" :| [] )
                                 }
                             , Option
+                                { option = "Left"
+                                , context = Just
+                                    ( "Builtins" :| [] )
+                                }
+                            , Option
+                                { option = "Right"
+                                , context = Just
+                                    ( "Builtins" :| [] )
+                                }
+                            , Option
+                                { option = "Nil"
+                                , context = Just
+                                    ( "Builtins" :| [] )
+                                }
+                            , Option
+                                { option = "Cons"
+                                , context = Just
+                                    ( "Builtins" :| [] )
+                                }
+                            , Option
+                                { option = "Nothing"
+                                , context = Just
+                                    ( "Builtins" :| [] )
+                                }
+                            , Option
+                                { option = "Just"
+                                , context = Just
+                                    ( "Builtins" :| [] )
+                                }
+                            , Option
                                 { option = "Zero"
+                                , context = Just
+                                    ( "Builtins" :| [] )
+                                }
+                            , Option
+                                { option = "Succ"
+                                , context = Just
+                                    ( "Builtins" :| [] )
+                                }
+                            , Option
+                                { option = "MakePair"
                                 , context = Just
                                     ( "Builtins" :| [] )
                                 }
@@ -350,7 +431,6 @@ Output
                         , free = FreeNone
                         }
                     )
-                , NoInput MakeCase
                 , Input MakeInt
                     ( Options
                         { opts = []
@@ -878,7 +958,8 @@ Output
                         , free = FreeNone
                         }
                     )
-                , Input MakeCon
+                , NoInput MakeCase
+                , Input MakeConSat
                     ( Options
                         { opts =
                             [ Option
@@ -892,7 +973,47 @@ Output
                                     ( "Builtins" :| [] )
                                 }
                             , Option
+                                { option = "Left"
+                                , context = Just
+                                    ( "Builtins" :| [] )
+                                }
+                            , Option
+                                { option = "Right"
+                                , context = Just
+                                    ( "Builtins" :| [] )
+                                }
+                            , Option
+                                { option = "Nil"
+                                , context = Just
+                                    ( "Builtins" :| [] )
+                                }
+                            , Option
+                                { option = "Cons"
+                                , context = Just
+                                    ( "Builtins" :| [] )
+                                }
+                            , Option
+                                { option = "Nothing"
+                                , context = Just
+                                    ( "Builtins" :| [] )
+                                }
+                            , Option
+                                { option = "Just"
+                                , context = Just
+                                    ( "Builtins" :| [] )
+                                }
+                            , Option
                                 { option = "Zero"
+                                , context = Just
+                                    ( "Builtins" :| [] )
+                                }
+                            , Option
+                                { option = "Succ"
+                                , context = Just
+                                    ( "Builtins" :| [] )
+                                }
+                            , Option
+                                { option = "MakePair"
                                 , context = Just
                                     ( "Builtins" :| [] )
                                 }
@@ -900,7 +1021,6 @@ Output
                         , free = FreeNone
                         }
                     )
-                , NoInput MakeCase
                 , Input MakeInt
                     ( Options
                         { opts = []

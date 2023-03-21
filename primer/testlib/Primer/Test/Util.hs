@@ -5,7 +5,6 @@ module Primer.Test.Util (
   assertException,
   primDefs,
   constructTCon,
-  constructCon,
   constructSaturatedCon,
   constructRefinedCon,
   tcn,
@@ -41,7 +40,7 @@ import Primer.API (
   runPrimerM,
  )
 import Primer.Action (
-  Action (ConstructCon, ConstructRefinedCon, ConstructTCon, ConstructSaturatedCon),
+  Action (ConstructRefinedCon, ConstructTCon, ConstructSaturatedCon),
  )
 import Primer.Core (
   Expr',
@@ -87,9 +86,6 @@ primDefs = Map.mapKeys primitive $ moduleDefs primitiveModule
 -- impedence mismatch: ConstructTCon takes text, but tChar etc are TyConNames
 constructTCon :: TyConName -> Action
 constructTCon = ConstructTCon . toQualText
-
-constructCon :: ValConName -> Action
-constructCon = ConstructCon . toQualText
 
 constructSaturatedCon :: ValConName -> Action
 constructSaturatedCon = ConstructSaturatedCon . toQualText
