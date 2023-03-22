@@ -16,7 +16,7 @@ data TypeError
   | UnknownConstructor ValConName
   | -- | Constructors (term-level) must be saturated.
     -- This error catches both under- and over-saturation.
-    UnsaturatedConstructor ValConName Text -- TODO: tmp Text for debugging...
+    UnsaturatedConstructor ValConName
     -- TODO (saturated constructors) currently this catches both "wrong number
     -- of type/term arguments", but when constructors become checkable, then
     -- they will only have term arguments
