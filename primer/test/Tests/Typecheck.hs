@@ -151,8 +151,11 @@ unit_const =
       (lam "x" (lam "y" (lvar "x")))
       (tfun (tcon tBool) (tfun (tcon tBool) (tcon tBool)))
 
-unit_true :: Assertion
-unit_true = expectTyped $ con0 cTrue
+unit_true_bool :: Assertion
+unit_true_bool = expectTyped $ con0 cTrue `ann` tcon tBool
+
+unit_true_hole :: Assertion
+unit_true_hole = expectTyped $ con0 cTrue `ann` tEmptyHole
 
 -- An empty hole rejects under-saturated constructors
 unit_unsat_con_hole_1 :: Assertion
@@ -215,7 +218,7 @@ unit_con_hole_app_type_5 =
 
 unit_constructor_doesn't_exist :: Assertion
 unit_constructor_doesn't_exist =
-  con0 nope `expectFailsWith` const (UnknownConstructor nope)
+  (con0 nope `ann` tEmptyHole) `expectFailsWith` const (UnknownConstructor nope)
   where
     nope = vcn ["M"] "Nope"
 
@@ -226,10 +229,21 @@ unit_inc =
       (lam "n" (con cSucc [] [lvar "n"]))
       (tfun (tcon tNat) (tcon tNat))
 
-unit_inc_unsat :: Assertion
-unit_inc_unsat =
+-- NB: @Succ :: ?@ is wrong: unsaturated!
+-- cf unit_inc_unsat2
+unit_inc_unsat1 :: Assertion
+unit_inc_unsat1 =
   ann
-    (lam "n" (app (con0 cSucc) (lvar "n")))
+    (lam "n" (app (con0 cSucc `ann` tEmptyHole) (lvar "n")))
+    (tfun (tcon tNat) (tcon tNat))
+    `expectFailsWith` const (UnsaturatedConstructor cSucc)
+
+-- NB: @Succ :: Nat -> Nat@ is wrong: constructors don't inhabit function types!
+-- cf unit_inc_unsat1
+unit_inc_unsat2 :: Assertion
+unit_inc_unsat2 =
+  ann
+    (lam "n" (app (con0 cSucc `ann` (tcon tNat `tfun` tcon tNat)) (lvar "n")))
     (tfun (tcon tNat) (tcon tNat))
     `expectFailsWith` const (UnsaturatedConstructor cSucc)
 
@@ -246,10 +260,10 @@ unit_compose_nat =
           )
       )
 
--- let x = True in x
+-- let x = True :: Bool in x
 unit_let :: Assertion
 unit_let =
-  expectTyped $ let_ "x" (con0 cTrue) (lvar "x")
+  expectTyped $ let_ "x" (con0 cTrue `ann` tcon tBool) (lvar "x")
 
 -- Normal lets do not permit recursion
 unit_recursive_let :: Assertion
@@ -288,15 +302,15 @@ unit_letrec_2 =
       (tfun (tcon tNat) (tcon tNat))
       (app (lvar "double") (con1 cSucc $ con0 cZero))
 
--- let x = True
---  in let y = False
+-- let x = True :: Bool
+--  in let y = False :: Bool
 --      in x
 unit_nested_let :: Assertion
 unit_nested_let =
-  expectTyped $ let_ "x" (con0 cTrue) (let_ "y" (con0 cFalse) (lvar "x"))
+  expectTyped $ let_ "x" (con0 cTrue `ann` tcon tBool) (let_ "y" (con0 cFalse `ann` tcon tBool) (lvar "x"))
 
 -- let yes = \x -> True : Bool -> Bool
---  in let y = False
+--  in let y = False :: Bool
 --      in yes y
 unit_let_function :: Assertion
 unit_let_function =
@@ -304,9 +318,9 @@ unit_let_function =
     let_
       "yes"
       (ann (lam "x" (con0 cTrue)) (tfun (tcon tBool) (tcon tBool)))
-      (let_ "y" (con0 cFalse) (app (lvar "yes") (lvar "y")))
+      (let_ "y" (con0 cFalse `ann` tcon tBool) (app (lvar "yes") (lvar "y")))
 
--- (\f -> f : (Bool -> Bool) -> (Bool -> Bool)) (let y = True in \x -> y)
+-- (\f -> f : (Bool -> Bool) -> (Bool -> Bool)) (let y = True :: Bool in \x -> y)
 unit_let_in_arg :: Assertion
 unit_let_in_arg =
   expectTyped $
@@ -315,7 +329,7 @@ unit_let_in_arg =
           (lam "f" (lvar "f"))
           (tfun (tfun (tcon tBool) (tcon tBool)) (tfun (tcon tBool) (tcon tBool)))
       )
-      (let_ "y" (con0 cTrue) (lam "x" (lvar "y")))
+      (let_ "y" (con0 cTrue `ann` tcon tBool) (lam "x" (lvar "y")))
 
 unit_mkTAppCon :: Assertion
 unit_mkTAppCon = do
@@ -440,8 +454,8 @@ unit_ann_insert =
 
 unit_app_not_arrow :: Assertion
 unit_app_not_arrow =
-  app (con0 cZero) (con0 cZero)
-    `smartSynthGives` app (hole (con0 cZero)) (con0 cZero)
+  app (con0 cZero `ann` tcon tNat) (con0 cZero)
+    `smartSynthGives` app (hole (con0 cZero `ann` tcon tNat)) (con0 cZero)
 
 -- Note: there is something odd with this test, related to
 -- annotations-changing-types/chk-annotations I think the correct thing to give
@@ -450,13 +464,13 @@ unit_app_not_arrow =
 -- The smartTC currently gives an annotation inside a hole.
 unit_chk_lam_not_arrow :: Assertion
 unit_chk_lam_not_arrow =
-  con1 cSucc (lam "x" $ lvar "x")
-    `smartSynthGives` con1 cSucc (hole $ ann (lam "x" $ lvar "x") tEmptyHole)
+  (con1 cSucc (lam "x" $ lvar "x") `ann` tcon tNat)
+    `smartSynthGives` (con1 cSucc (hole $ ann (lam "x" $ lvar "x") tEmptyHole) `ann` tcon tNat)
 
 unit_check_emb :: Assertion
 unit_check_emb =
-  con1 cSucc (con0 cTrue)
-    `smartSynthGives` con1 cSucc (hole $ con0 cTrue)
+  (con1 cSucc (con0 cTrue) `ann` tcon tNat)
+    `smartSynthGives` (con1 cSucc (hole $ con0 cTrue) `ann` tcon tNat)
 
 -- Constructors are synthesisable
 unit_con_direction :: Assertion
@@ -471,8 +485,8 @@ unit_case_scrutinee =
 
 unit_case_branches :: Assertion
 unit_case_branches =
-  ann (case_ (con0 cZero) [branch' (["M"], "C") [] $ lvar "x"]) (tcon tBool)
-    `smartSynthGives` ann (case_ (con0 cZero) [branch cZero [] emptyHole, branch cSucc [("a7", Nothing)] emptyHole]) (tcon tBool) -- Fragile name here "a7"
+  ann (case_ (con0 cZero `ann` tcon tNat) [branch' (["M"], "C") [] $ lvar "x"]) (tcon tBool)
+    `smartSynthGives` ann (case_ (con0 cZero `ann` tcon tNat) [branch cZero [] emptyHole, branch cSucc [("a9", Nothing)] emptyHole]) (tcon tBool) -- Fragile name here "a9"
 
 unit_remove_hole :: Assertion
 unit_remove_hole =
