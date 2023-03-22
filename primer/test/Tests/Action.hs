@@ -1074,7 +1074,7 @@ unit_refine_mismatch =
     NoSmartHoles
     (emptyHole `ann` tcon tNat)
     [Move Child1, constructRefinedCon cCons]
-    (hole (con cCons [tEmptyHole] [emptyHole, emptyHole]) `ann` tcon tNat)
+    (hole (con cCons [tEmptyHole] [emptyHole, emptyHole] `ann` tEmptyHole) `ann` tcon tNat)
 
 -- REVIEW: perhaps we should be clever and eta expand? As a different action?
 --
@@ -1086,20 +1086,21 @@ unit_refine_arr_1 =
     NoSmartHoles
     (emptyHole `ann` (tEmptyHole `tfun` tEmptyHole))
     [Move Child1, constructRefinedCon cCons]
-    (hole (con cCons [tEmptyHole] [emptyHole, emptyHole]) `ann` (tEmptyHole `tfun` tEmptyHole))
+    (hole (con cCons [tEmptyHole] [emptyHole, emptyHole] `ann` tEmptyHole) `ann` (tEmptyHole `tfun` tEmptyHole))
 
 -- TODO (saturated constructors) update this comment for ctors-dont-store-indices ('Cons Nat') and ctors-are-chk
 --
--- Constructors are fully saturated, so even if the hole has type
+-- Constructors are checkable and fully saturated, so even if the hole has type
 -- @List Nat -> List Nat@, when we insert a @Cons@ constructor, we end up with
--- @{? Cons @? ? ? ?}@
+-- @{? Cons @? ? ? :: ? ?}@
+-- (the inside of a hole is synthesisable position: see Note [Holes and bidirectionality])
 unit_refine_arr_2 :: Assertion
 unit_refine_arr_2 =
   actionTest
     NoSmartHoles
     (emptyHole `ann` ((tcon tList `tapp` tcon tNat) `tfun` (tcon tList `tapp` tcon tNat)))
     [Move Child1, constructRefinedCon cCons]
-    (hole (con cCons [tEmptyHole] [emptyHole, emptyHole]) `ann` ((tcon tList `tapp` tcon tNat) `tfun` (tcon tList `tapp` tcon tNat)))
+    (hole (con cCons [tEmptyHole] [emptyHole, emptyHole] `ann` tEmptyHole) `ann` ((tcon tList `tapp` tcon tNat) `tfun` (tcon tList `tapp` tcon tNat)))
 
 unit_primitive_1 :: Assertion
 unit_primitive_1 =

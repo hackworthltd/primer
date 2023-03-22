@@ -675,8 +675,7 @@ constructRefinedCon c ze = do
       -- TODO (saturated constructors) perhaps we should eta-expand here? Should be discussed in FR
       case isTAppCon *> refined of
         -- See Note [No valid refinement]
-        Nothing -> flip replace ze <$> hole (con n (replicate numTyArgs tEmptyHole) (replicate numTmArgs emptyHole))
-        -- TODO (saturated constructors) when ctors are chk only, the Nothing case needs changing, as innards of holes must be syn
+        Nothing -> flip replace ze <$> hole (con n (replicate numTyArgs tEmptyHole) (replicate numTmArgs emptyHole) `ann` tEmptyHole)
         -- (todo: add reference to innards-of-hole-must-be-syn note from todo list "Note [Holes and bidirectionality]")
         Just Nothing -> throwError $ InternalFailure "Types of constructors always have type abstractions before term abstractions"
         Just (Just (tys, tms)) -> flip replace ze <$> con n (pure <$> tys) (pure <$> tms)

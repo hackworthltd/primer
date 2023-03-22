@@ -1035,8 +1035,7 @@ unit_AddCon =
                 ]
           )
 
--- change the type of a field which currently wraps a constructor (which is synthesisable)
--- TODO (saturated constructors) it will soon be checkable, at which point this test needs updating!
+-- change the type of a field which currently wraps a constructor (which is checkable)
 unit_SetConFieldType_con :: Assertion
 unit_SetConFieldType_con =
   progActionTest
@@ -1071,7 +1070,7 @@ unit_SetConFieldType_con =
                 , tEmptyHole
                 ]
                 [ con0 (vcn "True")
-                , hole (con0 (vcn "True"))
+                , hole (con0 (vcn "True") `ann` tcon (tcn "Bool"))
                 , con0 (vcn "True")
                 ]
           )

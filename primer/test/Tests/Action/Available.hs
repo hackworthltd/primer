@@ -369,7 +369,7 @@ unit_sat_con_1 =
     (emptyHole `ann` (tEmptyHole `tfun` tEmptyHole))
     [Child1]
     (Right (MakeConSat, Option "Cons" $ Just $ unName <$> unModuleName builtinModuleName))
-    (hole (con cCons [tEmptyHole] [emptyHole, emptyHole]) `ann` (tEmptyHole `tfun` tEmptyHole))
+    (hole (con cCons [tEmptyHole] [emptyHole, emptyHole] `ann` tEmptyHole) `ann` (tEmptyHole `tfun` tEmptyHole))
 
 -- TODO: this test fails, but for different reason than bug in bugs list
 unit_sat_con_2 :: Assertion
@@ -380,7 +380,7 @@ unit_sat_con_2 =
     (emptyHole `ann` ((tcon tList `tapp` tcon tNat) `tfun` (tcon tList `tapp` tcon tNat)))
     [Child1]
     (Right (MakeConSat, Option "Cons" $ Just $ unName <$> unModuleName builtinModuleName))
-    (hole (con cCons [tEmptyHole] [emptyHole, emptyHole]) `ann` ((tcon tList `tapp` tcon tNat) `tfun` (tcon tList `tapp` tcon tNat)))
+    (hole (con cCons [tEmptyHole] [emptyHole, emptyHole] `ann` tEmptyHole) `ann` ((tcon tList `tapp` tcon tNat) `tfun` (tcon tList `tapp` tcon tNat)))
 
 -- | Apply the action to the node in the input expression pointed to by the
 -- 'Movement' (starting from the root), checking that it would actually be offered

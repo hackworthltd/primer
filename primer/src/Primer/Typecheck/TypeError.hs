@@ -13,6 +13,29 @@ data TypeError
   = InternalError Text
   | UnknownVariable TmVarRef
   | TmVarWrongSort Name -- type var instead of term var
+  | -- | Constructors (term-level) only inhabit fully-applied ADTs
+    -- i.e. @Maybe a@, but not @Maybe@, @Maybe a b@, @Nat -> Bool@ or holes
+    ConstructorNotFullAppADT (Type' ()) ValConName
+  | -- | This ADT does not have a constructor of that name
+    ConstructorWrongADT TyConName ValConName
+  | -- TODO (saturated constructors) this is a temporary situation, and this
+    -- error will be removed once constructors do not store their indices
+
+    -- | A constructor has inconsistently-kinded type arguments
+    -- (wrt the ADT containing the constructor)
+    ConstructorTypeArgsKinding
+  | -- TODO (saturated constructors) this is a temporary situation, and this
+    -- error will be removed once constructors do not store their indices
+
+    -- | A constructor has the wrong number of type arguments
+    -- (wrt the type we are checking it at)
+    ConstructorTypeArgsInconsistentNumber
+  | -- TODO (saturated constructors) this is a temporary situation, and this
+    -- error will be removed once constructors do not store their indices
+
+    -- | A constructor has the inconsistent type arguments
+    -- (wrt the type we are checking it at)
+    ConstructorTypeArgsInconsistentTypes
   | UnknownConstructor ValConName
   | -- TODO (saturated constructors) currently this catches both "wrong number
     -- of type/term arguments", but when constructors become checkable, then
