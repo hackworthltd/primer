@@ -34,6 +34,7 @@ import Primer.Builtins (
   boolDef,
   cCons,
   cFalse,
+  cJust,
   cMakePair,
   cNil,
   cSucc,
@@ -47,7 +48,6 @@ import Primer.Builtins (
   tList,
   tMaybe,
   tNat,
-  tPair,
  )
 import Primer.Builtins.DSL (
   listOf,
@@ -199,9 +199,9 @@ unit_con_hole_app_type_4 =
       `ann` (tEmptyHole `tapp` tcon tBool `tapp` tcon tNat `tapp` tEmptyHole)
   )
     `expectFailsWith` const
-      ( InconsistentTypes
+      ( ConstructorNotFullAppADT
           (TApp () (TApp () (TApp () (TEmptyHole ()) (TCon () tBool)) (TCon () tNat)) (TEmptyHole ()))
-          (TApp () (TApp () (TCon () tPair) (TCon () tBool)) (TCon () tNat))
+          cMakePair
       )
 
 -- A hole-headed TApp rejects saturated constructors, if given type arguments do not match
@@ -210,11 +210,21 @@ unit_con_hole_app_type_5 =
   ( con cMakePair [tcon tBool, tcon tNat] [emptyHole, emptyHole]
       `ann` (tEmptyHole `tapp` tcon tBool)
   )
-    `expectFailsWith` const
-      ( InconsistentTypes
-          (TApp () (TEmptyHole ()) (TCon () tBool))
-          (TApp () (TApp () (TCon () tPair) (TCon () tBool)) (TCon () tNat))
-      )
+    `expectFailsWith` const ConstructorTypeArgsInconsistentTypes
+
+-- Constructors' type arguments need only be consistent with the type we check against.
+-- This is a regression test: during development we messed up what type
+-- smartholes would check the term argument against (it elided the hole on the
+-- type, but only for the purposes of checking the term). Thus @smartSynthGives@
+-- actually gave
+--    ann (con cJust [thole (tEmptyHole `tfun` tEmptyHole)] [hole $ con0 cTrue `ann` tEmptyHole])
+unit_con_tyargs_consistent_sh :: Assertion
+unit_con_tyargs_consistent_sh =
+  let tm = con cJust [thole (tEmptyHole `tfun` tEmptyHole)] [con0 cTrue]
+      ty = tcon tMaybe `tapp` tcon tBool
+   in do
+        expectTyped $ ann tm ty
+        ann tm ty `smartSynthGives` ann tm ty
 
 unit_constructor_doesn't_exist :: Assertion
 unit_constructor_doesn't_exist =
@@ -245,7 +255,7 @@ unit_inc_unsat2 =
   ann
     (lam "n" (app (con0 cSucc `ann` (tcon tNat `tfun` tcon tNat)) (lvar "n")))
     (tfun (tcon tNat) (tcon tNat))
-    `expectFailsWith` const (UnsaturatedConstructor cSucc)
+    `expectFailsWith` const (ConstructorNotFullAppADT (TFun () (TCon () tNat) (TCon () tNat)) cSucc)
 
 unit_compose_nat :: Assertion
 unit_compose_nat =
@@ -470,24 +480,24 @@ unit_chk_lam_not_arrow =
 unit_check_emb :: Assertion
 unit_check_emb =
   (con1 cSucc (con0 cTrue) `ann` tcon tNat)
-    `smartSynthGives` (con1 cSucc (hole $ con0 cTrue) `ann` tcon tNat)
+    `smartSynthGives` (con1 cSucc (hole $ con0 cTrue `ann` tEmptyHole) `ann` tcon tNat)
 
--- Constructors are synthesisable
+-- Constructors are checkable
 unit_con_direction :: Assertion
 unit_con_direction =
   con0 cTrue
-    `smartSynthGives` con0 cTrue
+    `smartSynthGives` (con0 cTrue `ann` tEmptyHole)
 
 unit_con_wrong_adt_sh :: Assertion
 unit_con_wrong_adt_sh =
   (con0 cTrue `ann` tcon tNat)
-    `smartSynthGives` (hole (con0 cTrue) `ann` tcon tNat)
+    `smartSynthGives` (hole (con0 cTrue `ann` tEmptyHole) `ann` tcon tNat)
 
 unit_con_not_adt_sh :: Assertion
 unit_con_not_adt_sh =
   con0 cTrue
     `ann` (tcon tNat `tfun` tcon tBool)
-    `smartSynthGives` (hole (con0 cTrue) `ann` (tcon tNat `tfun` tcon tBool))
+    `smartSynthGives` (hole (con0 cTrue `ann` tEmptyHole) `ann` (tcon tNat `tfun` tcon tBool))
 
 unit_case_scrutinee :: Assertion
 unit_case_scrutinee =

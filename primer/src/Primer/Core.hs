@@ -145,7 +145,7 @@ data Expr' a b
   | Ann a (Expr' a b) (Type' b)
   | App a (Expr' a b) (Expr' a b)
   | APP a (Expr' a b) (Type' b)
-  | Con a ValConName [Type' b] [Expr' a b] -- See Note [Synthesisable constructors]
+  | Con a ValConName [Type' b] [Expr' a b] -- See Note [Checkable constructors]
   | Lam a LVarName (Expr' a b)
   | LAM a TyVarName (Expr' a b)
   | Var a TmVarRef
@@ -223,24 +223,23 @@ data Expr' a b
 -- checks against a hole type can be annotated with a hole type to
 -- become synthesisable.
 
--- Note [Synthesisable constructors]
+-- Note [Checkable constructors]
 --
--- Whilst our calculus is heavily inspired by bidirectional type systems
--- (especially McBride's principled rendition), we do not treat constructors
--- in this fashion. However, we are in the middle of changing the treatment
--- here. Currently we view constructors as synthesisable terms
--- ("eliminations"), rather than checkable terms ("constructions").
--- This is for user-experience purposes: we are attempting a pedagogic
--- system where the user-facing code is close to the core language, and
--- we believe that the bidirectional style would be confusing and/or
--- annoyingly restrictive in this particular instance. (Our view here has
--- changed, due to asymmetries between construction and matching.)
+-- Our calculus is heavily inspired by bidirectional type systems
+-- (especially McBride's principled rendition). In particular we treat
+-- constructors very differently to functions.
 --
--- We represent a constructor-applied-to-a-spine as a thing (and one can infer
--- its type), where we insist that it is fully saturated.
+-- We represent a constructor-applied-to-a-spine as a thing (and can
+-- only check its type), where we insist that it is fully saturated.
 -- Thus whilst `Cons` is a term, it is ill-typed. The only well-formed
--- `Cons` usages are `Cons @A x xs`, which synthesises `List A`
+-- `Cons` usages are `Cons @A x xs`, which checks against `List A`
 -- when `A ∋ x` and `List A ∋ xs`.
+--
+-- TODO (saturated constructors): the occurence of `@A` above is a temporary
+-- wart here, and will be removed in due course. (It was needed when
+-- constructors were still synthesisable, but is now a needless
+-- complication. It also leads to some inaccuracies in this
+-- description of the typing rule.)
 --
 -- Whilst this may be a bit inconsistent with the treatment of
 -- functions, it has the advantage of symmetry with construction and
@@ -249,24 +248,23 @@ data Expr' a b
 -- of (term) fields.)
 -- TODO (saturated constructors): technically, a construction will
 -- have type arguments/indices and a match will not, but this is
--- temporary, as we will soon remove indices (which will require
--- constructors to be only checkable, rather than synthesisable).
+-- temporary, as we will soon remove indices.
 --
+-- As an example, `List Int ∋ Cons 2 Nil`, but `Cons` and `Cons 2` are ill-typed.
 -- Thus one needs to be aware of the difference between, say,
 -- a globally-defined function, and a constructor "of the same type".
 -- For example, one can partially apply an addition function and map it
 -- across a list: `map (1 +) [2,3]` is well-typed, but one cannot map
--- the `Succ` constructor in the same way.
+-- the `Succ` constructor in the same way, or partially-apply the `Cons` constructor.
+-- (Notice, however, that since one will always know what type one is
+-- considering, the constructor does not need any type applications
+-- corresponding to the parameters of its datatype.)
 -- Clearly one could eta-expand, (and if necessary add an annotation) to
 -- use as constructor non-saturatedly: e.g. write `map (λn . Succ n) [2,3]`.
 --
--- For comparison, the bidirectional view would be that constructors
--- must always be fully applied (which is the same as our treatment),
--- and one can only subject them to a typechecking judgement where the
--- type is an input (which is different to our treatment), and they do
--- not need to store their indices/type applications (different to our
--- treatment).
--- Thus `List Int ∋ Cons 2 Nil`, but `Cons 2 Nil` does not synthesise a type.
+-- TODO (saturated constructors): the above parenthetical about not
+-- needing type applications is not currently true, but will be
+-- shortly.
 
 -- Note [Case]
 -- We use a list for compatibility and ease of JSON

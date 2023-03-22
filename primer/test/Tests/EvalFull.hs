@@ -238,6 +238,9 @@ unit_9 =
         s <~==> Right expected
 
 -- Check that we handle constructors-are-synthesisable well
+-- TODO (saturated constructors): constructors are now checkable, but the
+--      evaluator does not take advantage of this yet. When it does,
+--      this test will need updating
 -- NB: annotated scrutinees are common, e.g. (λx.case x of ... : S -> T) s
 --     but plain constructors should be supported also, as we let users write
 --     construtors in synthesisable position

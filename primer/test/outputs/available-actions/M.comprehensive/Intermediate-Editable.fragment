@@ -110,7 +110,6 @@ Output
                         , free = FreeVarName
                         }
                     )
-                , NoInput MakeCase
                 , NoInput MakeApp
                 , NoInput Raise
                 , NoInput DeleteExpr
@@ -272,7 +271,6 @@ Output
                         , free = FreeVarName
                         }
                     )
-                , NoInput MakeCase
                 , NoInput MakeApp
                 , NoInput Raise
                 , NoInput DeleteExpr
@@ -903,7 +901,6 @@ Output
                         , free = FreeVarName
                         }
                     )
-                , NoInput MakeCase
                 , NoInput MakeApp
                 , NoInput Raise
                 , NoInput DeleteExpr
@@ -1014,7 +1011,6 @@ Output
                         , free = FreeVarName
                         }
                     )
-                , NoInput MakeCase
                 , NoInput MakeApp
                 , NoInput Raise
                 , NoInput DeleteExpr

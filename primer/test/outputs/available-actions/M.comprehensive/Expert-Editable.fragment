@@ -152,7 +152,6 @@ Output
                         , free = FreeVarName
                         }
                     )
-                , NoInput MakeCase
                 , NoInput MakeApp
                 , NoInput MakeAPP
                 , Input MakeLAM
@@ -419,7 +418,6 @@ Output
                         , free = FreeVarName
                         }
                     )
-                , NoInput MakeCase
                 , NoInput MakeApp
                 , NoInput MakeAPP
                 , Input MakeLAM
@@ -1319,7 +1317,6 @@ Output
                         , free = FreeVarName
                         }
                     )
-                , NoInput MakeCase
                 , NoInput MakeApp
                 , NoInput MakeAPP
                 , Input MakeLAM
@@ -1514,7 +1511,6 @@ Output
                         , free = FreeVarName
                         }
                     )
-                , NoInput MakeCase
                 , NoInput MakeApp
                 , NoInput MakeAPP
                 , Input MakeLAM

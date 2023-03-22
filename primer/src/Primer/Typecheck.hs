@@ -63,6 +63,7 @@ import Foreword
 
 import Control.Monad.Fresh (MonadFresh (..))
 import Control.Monad.NestedError (MonadNestedError (..), modifyError')
+import Data.List (lookup)
 import Data.Map qualified as M
 import Data.Map.Strict qualified as Map
 import Data.Set qualified as S
@@ -118,7 +119,7 @@ import Primer.Core (
   _typeMeta,
  )
 import Primer.Core.DSL (S, branch, create', emptyHole, meta, meta')
-import Primer.Core.Transform (decomposeTAppCon, mkTAppCon)
+import Primer.Core.Transform (decomposeTAppCon, mkTAppCon, unfoldTApp)
 import Primer.Core.Utils (
   alphaEqTy,
   forgetTypeMetadata,
@@ -143,7 +144,7 @@ import Primer.Module (
  )
 import Primer.Name (Name, NameCounter)
 import Primer.Primitives (primConName)
-import Primer.Subst (substTy, substTySimul)
+import Primer.Subst (substTy)
 import Primer.TypeDef (
   ASTTypeDef (astTypeDefConstructors, astTypeDefParameters),
   TypeDef (..),
@@ -304,8 +305,9 @@ checkTypeDefs tds = do
   -- (This is not quite true, see
   -- https://github.com/hackworthltd/primer/issues/3)
   assert (Map.disjoint existingTypes tds) "Duplicate-ly-named TypeDefs"
-  -- Note that constructors are synthesisable, so their names must be globally
-  -- unique. We need to be able to work out the type of @TCon "C"@ without any
+  -- Note that constructors names must be globally unique. This is
+  -- required when checking @? ∋ Con ...@, as we need to be able to
+  -- work out what typedef the constructor belongs to without any
   -- extra information.
   let atds = Map.mapMaybe typeDefAST tds
   let allAtds = Map.mapMaybe typeDefAST existingTypes <> atds
@@ -496,29 +498,6 @@ synth = \case
     -- Annotate the Ann with the same type as e
     pure $ annSynth2 t'' i Ann e' t'
   EmptyHole i -> pure $ annSynth0 (TEmptyHole ()) i EmptyHole
-  -- We assume that constructor names are unique
-  -- See Note [Synthesisable constructors] in Core.hs
-  Con i c tys tms -> do
-    -- When C is a constructor of some ADT T with parameters ps with kinds ks, where C has args of types Rs[ps]
-    (adtName, params, argTys0) <-
-      asks (flip lookupConstructor c . typeDefs) >>= \case
-        Just (vc, tc, td) -> pure (tc, astTypeDefParameters td, valConArgs vc)
-        Nothing -> throwError' $ UnknownConstructor c
-    -- And |ps| = |As| and k ∋ A for each matching element
-    tys'Sub <- ensureJust (UnsaturatedConstructor c) $ zipWithExactM (\(p, k) ty -> (p,) <$> checkKind' k ty) params tys
-    -- Note that being unsaturated is a fatal error and SmartHoles will not try to recover
-    -- (this is a design decision -- we put the burden onto code that builds ASTs,
-    -- e.g. the action code is responsible for only creating saturated constructors)
-    let tys' = snd <$> tys'Sub
-    let tys'SubNoMeta = second forgetTypeMetadata <$> tys'Sub
-    let tys'NoMeta = snd <$> tys'SubNoMeta
-    -- And |rs| = |Rs| and R[As] ∋ r for each matching element
-    argTys <- traverse (substTySimul (M.fromList tys'SubNoMeta)) argTys0
-    -- Fatal error, see comments on UnsaturatedConstructor error above
-    tms' <- ensureJust (UnsaturatedConstructor c) $ zipWithExactM check argTys tms
-    -- Then C @As rs  ∈  T As
-    let synthedType = foldl' (TApp ()) (TCon () adtName) tys'NoMeta
-    pure $ annSynth3 synthedType i Con c tys' tms'
   -- When synthesising a hole, we first check that the expression inside it
   -- synthesises a type successfully (see Note [Holes and bidirectionality]).
   -- TODO: we would like to remove this hole (leaving e) if possible, but I
@@ -609,6 +588,101 @@ primConInScope pc cxt =
 -- | Similar to synth, but for checking rather than synthesis.
 check :: TypeM e m => Type -> Expr -> m ExprT
 check t = \case
+  -- We assume that constructor names are unique
+  -- See Note [Checkable constructors] in Core.hs
+  con@(Con i c tys tms) -> do
+    -- If the input type @t@ is a hole-applied-to-some-arguments,
+    -- then refine it to the parent type of @c@ applied to some holes plus those original arguments
+    (cParent, parentParams) <-
+      asks (flip lookupConstructor c . typeDefs) >>= \case
+        Just (_, tn, td) -> pure (tn, length $ astTypeDefParameters td)
+        Nothing -> throwError' $ UnknownConstructor c -- unrecoverable error, smartholes can do nothing here
+    let t' = case unfoldTApp t of
+          (TEmptyHole{}, args)
+            | missing <- parentParams - length args
+            , missing >= 0 ->
+                mkTAppCon cParent $ replicate missing (TEmptyHole ()) <> args
+          (THole{}, args)
+            | missing <- parentParams - length args
+            , missing >= 0 ->
+                mkTAppCon cParent $ replicate missing (TEmptyHole ()) <> args
+          _ -> t
+    -- If typechecking fails because the type @t'@ is not an ADT with a
+    -- constructor @c@, and smartholes is on, we attempt to change the term to
+    -- '{? c : ? ?}' to recover.
+    let recoverSH err =
+          asks smartHoles >>= \case
+            NoSmartHoles -> throwError' err
+            SmartHoles -> do
+              -- 'synth' will take care of adding an annotation - no need to do it
+              -- explicitly here
+              (_, con') <- synth con
+              Hole <$> meta' (TCEmb TCBoth{tcChkedAt = t', tcSynthed = TEmptyHole ()}) <*> pure con'
+    instantiateValCons t' >>= \case
+      Left TDIHoleType -> throwError' $ InternalError "t' is not a hole, as we refined to parent type of c"
+      Left TDIUnknown{} -> throwError' $ InternalError "input type to check is not in scope"
+      Left TDINotADT -> recoverSH $ ConstructorNotFullAppADT t' c
+      Left TDINotSaturated -> recoverSH $ ConstructorNotFullAppADT t' c
+      -- If the input type @t@ is a fully-applied ADT constructor 'T As'
+      -- And 'C' is a constructor of 'T' (writing 'T's parameters as 'ps' with kinds 'ks')
+      -- with arguments 'Rs[ps]',
+      -- then this particular instantiation should have arguments 'Rs[As]'
+      Right (tc, td, instVCs) -> case lookup c instVCs of
+        Nothing -> recoverSH $ ConstructorWrongADT tc c
+        Just _argTys -> do
+          -- TODO (saturated constructors) unfortunately, due to constructors
+          -- currently having type arguments, this is not quite true. We instead
+          -- - check the kinding of @tys@ to ensure the third point is sane
+          -- - check consistency of @tys@ and 'As' (we do this before the next
+          --   point as SmartHoles may kick in in *both* the previous point and
+          --   this point, for example eliding a hole above and then re-inserting
+          --   it here. We need to check the arguments at the consistent type!)
+          -- - instantiate 'T' at @tys@ to find the required types of the term arguments
+          tys' <- ensureJust ConstructorTypeArgsKinding $ zipWithExactM checkKind' (snd <$> astTypeDefParameters td) tys
+          tAs <-
+            ensureJust (InternalError "instantiateValCons succeeded, but decomposeTAppCon did not") $
+              pure . snd <$> decomposeTAppCon t'
+          -- See comments on UnsaturatedConstructor error below about the fatal 'ensureJust' error
+          --
+          -- If a type argument is inconsistent between the type and the
+          -- constructor, then wrap that of the constructor in a hole.
+          -- Arguably we should be finer-grained here, say changing
+          -- @Maybe (List Bool) ∋ Just (List Int) t@ into @Just (List {?
+          -- Int ?}) t@, but we do not have the infrastructure to do that,
+          -- and it is only temporary that constructors have type
+          -- arguments, so it does not seem worthwhile. (Note that
+          -- normally when we do a consistency check, neither side is
+          -- verbatim from the AST, and thus it normally does not make
+          -- sense to do smartholes on that problem.)
+          tys'' <-
+            ensureJust ConstructorTypeArgsInconsistentNumber $
+              zipWithExactM
+                ( \(tFromConOrig, tFromCon) tFromType ->
+                    if consistentTypes (forgetTypeMetadata tFromCon) tFromType
+                      then pure tFromCon
+                      else
+                        asks smartHoles >>= \case
+                          NoSmartHoles -> throwError' ConstructorTypeArgsInconsistentTypes
+                          -- We are careful to not remove an outer hole when kind checking, only
+                          -- to re-add it here with a different ID.
+                          SmartHoles -> case tFromConOrig of
+                            THole (Meta id _ m) _ -> pure $ THole (Meta id KHole m) tFromCon
+                            _ -> THole <$> meta' KHole <*> pure tFromCon
+                )
+                (zip tys tys')
+                tAs
+          let tys''NoMeta = forgetTypeMetadata <$> tys''
+          instantiateValCons (foldl' (TApp ()) (TCon () tc) tys''NoMeta) >>= \case
+            Left _ -> throwError' $ InternalError "instantiateValCons succeeded, but changing type args to others of same kind made it fail"
+            Right (_, _, instVCs') -> case lookup c instVCs' of
+              Nothing -> throwError' $ InternalError "same ADT now does not contain the constructor"
+              Just argTys -> do
+                -- Check that the arguments have the correct type
+                -- Note that being unsaturated is a fatal error and SmartHoles will not try to recover
+                -- (this is a design decision -- we put the burden onto code that builds ASTs,
+                -- e.g. the action code is responsible for only creating saturated constructors)
+                tms' <- ensureJust (UnsaturatedConstructor c) $ zipWithExactM check argTys tms
+                pure $ Con (annotate (TCChkedAt t') i) c tys'' tms'
   lam@(Lam i x e) -> do
     case matchArrowType t of
       Just (t1, t2) -> do
