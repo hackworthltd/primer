@@ -146,6 +146,7 @@ data Expr' a b
   | App a (Expr' a b) (Expr' a b)
   | APP a (Expr' a b) (Type' b)
   | Con a ValConName [Type' b] [Expr' a b] -- See Note [Synthesisable constructors]
+  -- TODO (saturated constructors) the docs need updating here. constructors are now checkable only
   | Lam a LVarName (Expr' a b)
   | LAM a TyVarName (Expr' a b)
   | Var a TmVarRef

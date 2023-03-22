@@ -180,6 +180,7 @@ import Primer.Typecheck.Utils (
   typeOf,
   _typecache,
  )
+import Data.List (lookup)
 
 -- | Typechecking takes as input an Expr with 'Maybe Type' annotations and
 -- produces an Expr with 'Type' annotations - i.e. every node in the output is
@@ -492,26 +493,6 @@ synth = \case
   EmptyHole i -> pure $ annSynth0 (TEmptyHole ()) i EmptyHole
   -- We assume that constructor names are unique
   -- See Note [Synthesisable constructors] in Core.hs
-  Con i c tys tms -> do
-    -- When C is a constructor of some ADT T with parameters ps with kinds ks, where C has args of types Rs[ps]
-    (adtName,params,argTys0) <- asks (flip lookupConstructor c . typeDefs) >>= \case
-      Just (vc, tc, td) -> pure (tc, astTypeDefParameters td, valConArgs vc)
-      Nothing -> throwError' $ UnknownConstructor c
-    -- And |ps| = |As| and k ∋ A for each matching element
-    tys'Sub <- ensureJust (UnsaturatedConstructor c) $ zipWithExactM (\(p,k) ty -> (p,) <$> checkKind' k ty) params tys
-    -- Note that being unsaturated is a fatal error and SmartHoles will not try to recover
-    -- (this is a design decision -- we put the burden onto code that builds ASTs,
-    -- e.g. the action code is responsible for only creating saturated constructors)
-    let tys' = snd <$> tys'Sub
-    let tys'SubNoMeta = second forgetTypeMetadata <$> tys'Sub
-    let tys'NoMeta = snd <$> tys'SubNoMeta
-    -- And |rs| = |Rs| and R[As] ∋ r for each matching element
-    argTys <- traverse (substTySimul (M.fromList tys'SubNoMeta)) argTys0
-    -- Fatal error, see comments on UnsaturatedConstructor error above
-    tms' <- ensureJust (UnsaturatedConstructor c) $ zipWithExactM check argTys tms
-    -- Then C @As rs  ∈  T As
-    let synthedType = foldl' (TApp ()) (TCon () adtName) tys'NoMeta
-    pure $ annSynth3 synthedType i Con c tys' tms'
   -- When synthesising a hole, we first check that the expression inside it
   -- synthesises a type successfully.
   -- TODO: we would like to remove this hole (leaving e) if possible, but I
@@ -572,6 +553,9 @@ zipWithExactM _ [] _ = Nothing
 zipWithExactM _ _ [] = Nothing
 zipWithExactM f (x:xs) (y:ys) = ((:) <$> f x y <*>) <$> zipWithExactM f xs ys
 
+zipWithExact :: (a -> b -> c) -> [a] -> [b] -> Maybe [c]
+zipWithExact f  = (runIdentity <<$>>) . zipWithExactM (Identity <<$>> f)
+
 ensureJust :: MonadNestedError e e' m => e -> Maybe (m a) -> m a
 ensureJust e Nothing = throwError' e
 ensureJust _ (Just x) = x
@@ -602,6 +586,36 @@ primConInScope pc cxt =
 -- | Similar to synth, but for checking rather than synthesis.
 check :: TypeM e m => Type -> Expr -> m ExprT
 check t = \case
+  Con i c tys tms -> do
+    -- If the input type @t@ is a fully-applied ADT constructor 'T As'
+    -- And 'C' is a constructor of 'T' (writing 'T's parameters as 'ps' with kinds 'ks')
+    -- with arguments 'Rs[ps]',
+    -- then this particular instantiation should have arguments 'Rs[As]'
+    instantiateValCons t >>= \case
+      Left _ -> throwError' $ ConstructorNotFullAppADT t c
+      Right (tc, td, instVCs) -> case lookup c instVCs of
+        Nothing -> throwError' $ ConstructorWrongADT tc c
+        Just _argTys -> do
+        -- TODO (saturated constructors) unfortunately, due to constructors
+        -- currently having type arguments, this is not quite true. We instead
+        -- - check the kinding of @tys@ to ensure the next point is sane
+        -- - instantiate 'T' at @tys@ to find the required types of the term arguments
+        -- - check consistency of @tys@ and 'As' (we do this before type checking @tms@)
+          tys' <- ensureJust ConstructorTypeArgsKinding $ zipWithExactM checkKind' (snd <$> astTypeDefParameters td) tys
+          let tys'NoMeta = forgetTypeMetadata <$> tys'
+          instantiateValCons (foldl' (TApp ()) (TCon () tc) tys'NoMeta) >>= \case
+            Left _ -> throwError' $ InternalError "instantiateValCons succeeded, but changing type args to others of same kind made it fail"
+            Right (_,_, instVCs') -> case lookup c instVCs' of
+              Nothing -> throwError' $ InternalError "same ADT now does not contain the constructor"
+              Just argTys -> do
+                case decomposeTAppCon t of
+                  Nothing -> throwError' $ InternalError "instantiateValCons succeeded, but decomposeTAppCon did not"
+                  Just (_,tAs) -> case mconcat <$> zipWithExact (\t1 t2 -> All $ consistentTypes t1 t2) tys'NoMeta tAs of
+                    Nothing -> throwError' ConstructorTypeArgsInconsistentNumber
+                    Just (All consistent) -> unless consistent $ throwError' ConstructorTypeArgsInconsistentTypes
+                -- Check that the arguments have the correct type
+                tms' <- ensureJust (UnsaturatedConstructor c) $ zipWithExactM check argTys tms
+                pure $ Con (annotate (TCChkedAt t) i) c tys' tms'
   lam@(Lam i x e) -> do
     case matchArrowType t of
       Just (t1, t2) -> do
