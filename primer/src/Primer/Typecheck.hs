@@ -589,12 +589,21 @@ primConInScope pc cxt =
 check :: TypeM e m => Type -> Expr -> m ExprT
 check t = \case
   Con i c tys tms -> do
+    -- If the input type @t@ is a hole, then refine it to the parent type of @c@ applied to some holes
+    let cParent = asks (flip lookupConstructor c . typeDefs) >>= \case
+          Just (_,tn,td) -> pure $ foldl' (\x _ -> TApp () x $ TEmptyHole ()) (TCon () tn) (astTypeDefParameters td)
+          Nothing -> throwError' $ UnknownConstructor c
+    t' <- case t of
+      TEmptyHole{} -> cParent
+      THole{} -> cParent
+      _ -> pure t
     -- If the input type @t@ is a fully-applied ADT constructor 'T As'
     -- And 'C' is a constructor of 'T' (writing 'T's parameters as 'ps' with kinds 'ks')
     -- with arguments 'Rs[ps]',
     -- then this particular instantiation should have arguments 'Rs[As]'
-    instantiateValCons t >>= \case
-      Left _ -> throwError' $ ConstructorNotFullAppADT t c
+    instantiateValCons t' >>= \case
+      Left TDIHoleType -> throwError' $ InternalError "t' is not a hole, as we refined to parent type of c"
+      Left _ -> throwError' $ ConstructorNotFullAppADT t' c
       Right (tc, td, instVCs) -> case lookup c instVCs of
         Nothing -> throwError' $ ConstructorWrongADT tc c
         Just _argTys -> do
@@ -610,14 +619,14 @@ check t = \case
             Right (_,_, instVCs') -> case lookup c instVCs' of
               Nothing -> throwError' $ InternalError "same ADT now does not contain the constructor"
               Just argTys -> do
-                case decomposeTAppCon t of
+                case decomposeTAppCon t' of
                   Nothing -> throwError' $ InternalError "instantiateValCons succeeded, but decomposeTAppCon did not"
                   Just (_,tAs) -> case mconcat <$> zipWithExact (\t1 t2 -> All $ consistentTypes t1 t2) tys'NoMeta tAs of
                     Nothing -> throwError' ConstructorTypeArgsInconsistentNumber
                     Just (All consistent) -> unless consistent $ throwError' ConstructorTypeArgsInconsistentTypes
                 -- Check that the arguments have the correct type
                 tms' <- ensureJust (UnsaturatedConstructor c) $ zipWithExactM check argTys tms
-                pure $ Con (annotate (TCChkedAt t) i) c tys' tms'
+                pure $ Con (annotate (TCChkedAt t') i) c tys' tms'
   lam@(Lam i x e) -> do
     case matchArrowType t of
       Just (t1, t2) -> do
