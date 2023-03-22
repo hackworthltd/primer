@@ -162,7 +162,7 @@ unit_inc_unsat =
       (lam "n" (app (con0 cSucc) (lvar "n")))
       (tfun (tcon tNat) (tcon tNat))
       `expectFailsWith`
-      (const $ UnsaturatedConstructor cSucc "BBB")
+      (const $ UnsaturatedConstructor cSucc)
 
 unit_compose_nat :: Assertion
 unit_compose_nat =
