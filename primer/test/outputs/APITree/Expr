@@ -12,23 +12,47 @@ Tree
     , childTrees =
         [ Tree
             { nodeId = "10"
-            , body = TextBody
-                ( RecordPair
-                    { fst = Con
-                    , snd = Name
-                        { qualifiedModule = Just
-                            ( ModuleName
-                                { unModuleName = "Builtins" :| [] }
-                            )
-                        , baseName = "True"
-                        }
+            , body = NoBody Ann
+            , childTrees =
+                [ Tree
+                    { nodeId = "11"
+                    , body = TextBody
+                        ( RecordPair
+                            { fst = Con
+                            , snd = Name
+                                { qualifiedModule = Just
+                                    ( ModuleName
+                                        { unModuleName = "Builtins" :| [] }
+                                    )
+                                , baseName = "True"
+                                }
+                            }
+                        )
+                    , childTrees = []
+                    , rightChild = Nothing
                     }
-                )
-            , childTrees = []
+                , Tree
+                    { nodeId = "12"
+                    , body = TextBody
+                        ( RecordPair
+                            { fst = TCon
+                            , snd = Name
+                                { qualifiedModule = Just
+                                    ( ModuleName
+                                        { unModuleName = "Builtins" :| [] }
+                                    )
+                                , baseName = "Bool"
+                                }
+                            }
+                        )
+                    , childTrees = []
+                    , rightChild = Nothing
+                    }
+                ]
             , rightChild = Nothing
             }
         , Tree
-            { nodeId = "11"
+            { nodeId = "13"
             , body = TextBody
                 ( RecordPair
                     { fst = Letrec
@@ -40,38 +64,75 @@ Tree
                 )
             , childTrees =
                 [ Tree
-                    { nodeId = "12"
+                    { nodeId = "14"
                     , body = NoBody App
                     , childTrees =
                         [ Tree
-                            { nodeId = "13"
+                            { nodeId = "15"
                             , body = NoBody Hole
                             , childTrees =
                                 [ Tree
-                                    { nodeId = "14"
-                                    , body = TextBody
-                                        ( RecordPair
-                                            { fst = Con
-                                            , snd = Name
-                                                { qualifiedModule = Just
-                                                    ( ModuleName
-                                                        { unModuleName = "Builtins" :| [] }
-                                                    )
-                                                , baseName = "Just"
-                                                }
-                                            }
-                                        )
+                                    { nodeId = "16"
+                                    , body = NoBody Ann
                                     , childTrees =
                                         [ Tree
-                                            { nodeId = "15"
-                                            , body = NoBody TEmptyHole
-                                            , childTrees = []
+                                            { nodeId = "17"
+                                            , body = TextBody
+                                                ( RecordPair
+                                                    { fst = Con
+                                                    , snd = Name
+                                                        { qualifiedModule = Just
+                                                            ( ModuleName
+                                                                { unModuleName = "Builtins" :| [] }
+                                                            )
+                                                        , baseName = "Just"
+                                                        }
+                                                    }
+                                                )
+                                            , childTrees =
+                                                [ Tree
+                                                    { nodeId = "18"
+                                                    , body = NoBody TEmptyHole
+                                                    , childTrees = []
+                                                    , rightChild = Nothing
+                                                    }
+                                                , Tree
+                                                    { nodeId = "19"
+                                                    , body = NoBody EmptyHole
+                                                    , childTrees = []
+                                                    , rightChild = Nothing
+                                                    }
+                                                ]
                                             , rightChild = Nothing
                                             }
                                         , Tree
-                                            { nodeId = "16"
-                                            , body = NoBody EmptyHole
-                                            , childTrees = []
+                                            { nodeId = "20"
+                                            , body = NoBody TApp
+                                            , childTrees =
+                                                [ Tree
+                                                    { nodeId = "21"
+                                                    , body = TextBody
+                                                        ( RecordPair
+                                                            { fst = TCon
+                                                            , snd = Name
+                                                                { qualifiedModule = Just
+                                                                    ( ModuleName
+                                                                        { unModuleName = "Builtins" :| [] }
+                                                                    )
+                                                                , baseName = "Maybe"
+                                                                }
+                                                            }
+                                                        )
+                                                    , childTrees = []
+                                                    , rightChild = Nothing
+                                                    }
+                                                , Tree
+                                                    { nodeId = "22"
+                                                    , body = NoBody TEmptyHole
+                                                    , childTrees = []
+                                                    , rightChild = Nothing
+                                                    }
+                                                ]
                                             , rightChild = Nothing
                                             }
                                         ]
@@ -81,11 +142,11 @@ Tree
                             , rightChild = Nothing
                             }
                         , Tree
-                            { nodeId = "17"
+                            { nodeId = "23"
                             , body = NoBody Hole
                             , childTrees =
                                 [ Tree
-                                    { nodeId = "18"
+                                    { nodeId = "24"
                                     , body = TextBody
                                         ( RecordPair
                                             { fst = GlobalVar
@@ -108,11 +169,11 @@ Tree
                     , rightChild = Nothing
                     }
                 , Tree
-                    { nodeId = "19"
+                    { nodeId = "25"
                     , body = NoBody THole
                     , childTrees =
                         [ Tree
-                            { nodeId = "20"
+                            { nodeId = "26"
                             , body = TextBody
                                 ( RecordPair
                                     { fst = TCon
@@ -132,11 +193,11 @@ Tree
                     , rightChild = Nothing
                     }
                 , Tree
-                    { nodeId = "21"
+                    { nodeId = "27"
                     , body = NoBody Ann
                     , childTrees =
                         [ Tree
-                            { nodeId = "22"
+                            { nodeId = "28"
                             , body = TextBody
                                 ( RecordPair
                                     { fst = Lam
@@ -148,7 +209,7 @@ Tree
                                 )
                             , childTrees =
                                 [ Tree
-                                    { nodeId = "23"
+                                    { nodeId = "29"
                                     , body = TextBody
                                         ( RecordPair
                                             { fst = LAM
@@ -160,15 +221,15 @@ Tree
                                         )
                                     , childTrees =
                                         [ Tree
-                                            { nodeId = "24"
+                                            { nodeId = "30"
                                             , body = NoBody App
                                             , childTrees =
                                                 [ Tree
-                                                    { nodeId = "25"
+                                                    { nodeId = "31"
                                                     , body = NoBody APP
                                                     , childTrees =
                                                         [ Tree
-                                                            { nodeId = "26"
+                                                            { nodeId = "32"
                                                             , body = TextBody
                                                                 ( RecordPair
                                                                     { fst = LetType
@@ -180,7 +241,7 @@ Tree
                                                                 )
                                                             , childTrees =
                                                                 [ Tree
-                                                                    { nodeId = "28"
+                                                                    { nodeId = "34"
                                                                     , body = TextBody
                                                                         ( RecordPair
                                                                             { fst = Con
@@ -195,7 +256,7 @@ Tree
                                                                         )
                                                                     , childTrees =
                                                                         [ Tree
-                                                                            { nodeId = "29"
+                                                                            { nodeId = "35"
                                                                             , body = TextBody
                                                                                 ( RecordPair
                                                                                     { fst = TLet
@@ -207,7 +268,7 @@ Tree
                                                                                 )
                                                                             , childTrees =
                                                                                 [ Tree
-                                                                                    { nodeId = "30"
+                                                                                    { nodeId = "36"
                                                                                     , body = TextBody
                                                                                         ( RecordPair
                                                                                             { fst = TVar
@@ -221,7 +282,7 @@ Tree
                                                                                     , rightChild = Nothing
                                                                                     }
                                                                                 , Tree
-                                                                                    { nodeId = "31"
+                                                                                    { nodeId = "37"
                                                                                     , body = TextBody
                                                                                         ( RecordPair
                                                                                             { fst = TVar
@@ -241,7 +302,7 @@ Tree
                                                                     , rightChild = Nothing
                                                                     }
                                                                 , Tree
-                                                                    { nodeId = "27"
+                                                                    { nodeId = "33"
                                                                     , body = TextBody
                                                                         ( RecordPair
                                                                             { fst = TCon
@@ -261,7 +322,7 @@ Tree
                                                             , rightChild = Nothing
                                                             }
                                                         , Tree
-                                                            { nodeId = "32"
+                                                            { nodeId = "38"
                                                             , body = TextBody
                                                                 ( RecordPair
                                                                     { fst = TVar
@@ -278,11 +339,11 @@ Tree
                                                     , rightChild = Nothing
                                                     }
                                                 , Tree
-                                                    { nodeId = "33"
+                                                    { nodeId = "39"
                                                     , body = NoBody Case
                                                     , childTrees =
                                                         [ Tree
-                                                            { nodeId = "34"
+                                                            { nodeId = "40"
                                                             , body = TextBody
                                                                 ( RecordPair
                                                                     { fst = LocalVar
@@ -298,12 +359,12 @@ Tree
                                                         ]
                                                     , rightChild = Just
                                                         ( Tree
-                                                            { nodeId = "33P0"
+                                                            { nodeId = "39P0"
                                                             , body = BoxBody
                                                                 ( RecordPair
                                                                     { fst = Pattern
                                                                     , snd = Tree
-                                                                        { nodeId = "33P0B"
+                                                                        { nodeId = "39P0B"
                                                                         , body = TextBody
                                                                             ( RecordPair
                                                                                 { fst = PatternCon
@@ -323,7 +384,7 @@ Tree
                                                                 )
                                                             , childTrees =
                                                                 [ Tree
-                                                                    { nodeId = "35"
+                                                                    { nodeId = "41"
                                                                     , body = TextBody
                                                                         ( RecordPair
                                                                             { fst = Con
@@ -342,12 +403,12 @@ Tree
                                                                 ]
                                                             , rightChild = Just
                                                                 ( Tree
-                                                                    { nodeId = "33P1"
+                                                                    { nodeId = "39P1"
                                                                     , body = BoxBody
                                                                         ( RecordPair
                                                                             { fst = Pattern
                                                                             , snd = Tree
-                                                                                { nodeId = "33P1B"
+                                                                                { nodeId = "39P1B"
                                                                                 , body = TextBody
                                                                                     ( RecordPair
                                                                                         { fst = PatternCon
@@ -362,7 +423,7 @@ Tree
                                                                                     )
                                                                                 , childTrees =
                                                                                     [ Tree
-                                                                                        { nodeId = "36"
+                                                                                        { nodeId = "42"
                                                                                         , body = TextBody
                                                                                             ( RecordPair
                                                                                                 { fst = PatternBind
@@ -382,21 +443,21 @@ Tree
                                                                         )
                                                                     , childTrees =
                                                                         [ Tree
-                                                                            { nodeId = "37"
+                                                                            { nodeId = "43"
                                                                             , body = NoBody App
                                                                             , childTrees =
                                                                                 [ Tree
-                                                                                    { nodeId = "38"
+                                                                                    { nodeId = "44"
                                                                                     , body = NoBody App
                                                                                     , childTrees =
                                                                                         [ Tree
-                                                                                            { nodeId = "39"
+                                                                                            { nodeId = "45"
                                                                                             , body = NoBody EmptyHole
                                                                                             , childTrees = []
                                                                                             , rightChild = Nothing
                                                                                             }
                                                                                         , Tree
-                                                                                            { nodeId = "40"
+                                                                                            { nodeId = "46"
                                                                                             , body = TextBody
                                                                                                 ( RecordPair
                                                                                                     { fst = LocalVar
@@ -413,7 +474,7 @@ Tree
                                                                                     , rightChild = Nothing
                                                                                     }
                                                                                 , Tree
-                                                                                    { nodeId = "41"
+                                                                                    { nodeId = "47"
                                                                                     , body = TextBody
                                                                                         ( RecordPair
                                                                                             { fst = LocalVar
@@ -446,11 +507,11 @@ Tree
                             , rightChild = Nothing
                             }
                         , Tree
-                            { nodeId = "42"
+                            { nodeId = "48"
                             , body = NoBody TFun
                             , childTrees =
                                 [ Tree
-                                    { nodeId = "43"
+                                    { nodeId = "49"
                                     , body = TextBody
                                         ( RecordPair
                                             { fst = TCon
@@ -467,7 +528,7 @@ Tree
                                     , rightChild = Nothing
                                     }
                                 , Tree
-                                    { nodeId = "44"
+                                    { nodeId = "50"
                                     , body = TextBody
                                         ( RecordPair
                                             { fst = TForall
@@ -479,15 +540,15 @@ Tree
                                         )
                                     , childTrees =
                                         [ Tree
-                                            { nodeId = "45"
+                                            { nodeId = "51"
                                             , body = NoBody TApp
                                             , childTrees =
                                                 [ Tree
-                                                    { nodeId = "46"
+                                                    { nodeId = "52"
                                                     , body = NoBody TApp
                                                     , childTrees =
                                                         [ Tree
-                                                            { nodeId = "47"
+                                                            { nodeId = "53"
                                                             , body = TextBody
                                                                 ( RecordPair
                                                                     { fst = TCon
@@ -504,7 +565,7 @@ Tree
                                                             , rightChild = Nothing
                                                             }
                                                         , Tree
-                                                            { nodeId = "48"
+                                                            { nodeId = "54"
                                                             , body = TextBody
                                                                 ( RecordPair
                                                                     { fst = TCon
@@ -524,7 +585,7 @@ Tree
                                                     , rightChild = Nothing
                                                     }
                                                 , Tree
-                                                    { nodeId = "49"
+                                                    { nodeId = "55"
                                                     , body = TextBody
                                                         ( RecordPair
                                                             { fst = TVar

@@ -41,4 +41,4 @@ unit_nextID_exampleOdd = nextID (genAST $ Examples.odd modName) @?= ID 11
 
 -- See note for 'unit_nextID_exampleMap'.
 unit_nextID_exampleComprehensive :: Assertion
-unit_nextID_exampleComprehensive = nextID (genAST $ Examples.comprehensive modName) @?= ID 50
+unit_nextID_exampleComprehensive = nextID (genAST $ Examples.comprehensive modName) @?= ID 56

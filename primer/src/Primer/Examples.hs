@@ -249,12 +249,12 @@ comprehensive' typeable modName = do
   term <-
     let_
       "x"
-      (con0 B.cTrue)
+      (con0 B.cTrue `ann` tcon B.tBool)
       ( letrec
           "y"
           ( app
               ( hole
-                  (con B.cJust [tEmptyHole] [emptyHole])
+                  (con B.cJust [tEmptyHole] [emptyHole] `ann` (tcon B.tMaybe `tapp` tEmptyHole))
               )
               ( if typeable then emptyHole else hole $ gvar' (unModuleName modName) "unboundName"
               )
