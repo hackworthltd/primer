@@ -1,3 +1,5 @@
+{-# LANGUAGE OverloadedLabels #-}
+
 module Tests.Action.Available where
 
 import Foreword
@@ -23,14 +25,15 @@ import Hedgehog (
 import Hedgehog.Gen qualified as Gen
 import Hedgehog.Internal.Property (forAllWithT)
 import Hedgehog.Range qualified as Range
-import Optics (toListOf, (%), (^..))
-import Primer.Action (ActionError (CaseBindsClash, NameCapture), toProgActionInput, toProgActionNoInput)
+import Optics (toListOf, (%), (^..), _head, (.~), ix)
+import Primer.Action (ActionError (CaseBindsClash, NameCapture), toProgActionInput, toProgActionNoInput, Movement (Child1, Child2), moveExpr, applyActionsToExpr, Action (Move))
 import Primer.Action.Available qualified as Available
 import Primer.App (
   App,
   EditAppM,
   Editable (..),
   NodeType (..),
+  Prog(..),
   ProgError (ActionError, DefAlreadyExists),
   appProg,
   checkAppWellFormed,
@@ -38,7 +41,7 @@ import Primer.App (
   progAllDefs,
   progAllTypeDefs,
   progCxt,
-  runEditAppM,
+  runEditAppM, Level (Beginner),
  )
 import Primer.Core (
   GVarName,
@@ -49,13 +52,13 @@ import Primer.Core (
   mkSimpleModuleName,
   moduleNamePretty,
   qualifyName,
-  _typeMeta,
+  _typeMeta, Expr, getID,
  )
 import Primer.Core.DSL (
   create',
   emptyHole,
   gvar,
-  tEmptyHole,
+  tEmptyHole, lam, app, lvar, S, con0, create, ann,
  )
 import Primer.Core.Utils (
   exprIDs,
@@ -75,10 +78,10 @@ import Primer.Module (
   Module (Module, moduleDefs),
   builtinModule,
   moduleTypesQualified,
-  primitiveModule,
+  primitiveModule, moduleDefsQualified,
  )
 import Primer.Name (Name (unName))
-import Primer.Test.Util (testNoSevereLogs)
+import Primer.Test.Util (testNoSevereLogs, clearMeta)
 import Primer.Typecheck (
   CheckEverythingRequest (CheckEverything, toCheck, trusted),
   SmartHoles (NoSmartHoles, SmartHoles),
@@ -89,9 +92,15 @@ import System.FilePath ((</>))
 import Tasty (Property, withDiscards, withTests)
 import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.Golden (goldenVsString)
-import Test.Tasty.HUnit (Assertion, (@?=))
+import Test.Tasty.HUnit (Assertion, (@?=), assertBool, assertFailure)
 import Tests.Typecheck (TypeCacheAlpha (TypeCacheAlpha), runTypecheckTestMIn)
 import Text.Pretty.Simple (pShowNoColor)
+import Primer.Action.Available (NoInputAction(Raise))
+import Primer.Zipper (focus, ExprZ, unfocusExpr, unfocusType)
+import Primer.Builtins (cTrue)
+import Primer.Test.TestM (evalTestM)
+import Data.Either.Extra (fromEither)
+import Tests.Action.Prog (defaultEmptyProg,gvn,progActionTest,expectSuccess, findGlobalByName)
 
 -- | Comprehensive DSL test.
 test_1 :: TestTree
@@ -296,3 +305,61 @@ tasty_available_actions_accepted = withTests 500 $
     ensureSHNormal a = case checkAppWellFormed a of
       Left err -> annotateShow err >> failure
       Right a' -> TypeCacheAlpha a === TypeCacheAlpha a'
+
+-- 'Raise' works when moving checkable terms into synthesisable position
+unit_raise_sh :: Assertion
+unit_raise_sh =
+  let test :: HasCallStack => S Expr -> S Expr -> Assertion
+      test t1 t2 = offeredActionTest
+         SmartHoles
+         Beginner
+         (emptyHole `app` t1 `app` emptyHole)
+         [ Child1, Child2 ]
+         Raise
+         (t2 `app` emptyHole)
+      testSyn :: HasCallStack => S Expr -> Assertion
+      testSyn e = test e e
+      testChk :: HasCallStack => S Expr -> Assertion
+      testChk t = test t (t `ann` tEmptyHole)
+  in do
+    testSyn emptyHole
+    testChk $ lam "x" (lvar "x")
+    testChk $ con0 cTrue
+
+-- | Apply the action to the node in the input expression pointed to by the
+-- 'Movement' (starting from the root), checking that it would actually be offered
+-- there, and then checking the result matches the expected output, up to renaming
+-- of IDs and changing cached types.
+offeredActionTest :: HasCallStack =>
+  SmartHoles -> Level -> S Expr -> [Movement] -> NoInputAction -> S Expr -> Assertion
+offeredActionTest sh l inputExpr position action expectedOutput = do
+  let modules = [builtinModule]
+  let ((expr,exprDef,exprDefName,prog),i) = create $ do
+        prog0 <- defaultEmptyProg
+        e <- inputExpr
+        d <- ASTDef e <$> tEmptyHole
+        let p = prog0 &
+                (#progModules % _head % #moduleDefs % ix "main" .~ DefAST d)
+                & (#progImports .~ modules)
+        pure (e,d,gvn "main",p)
+  let id' = evalTestM (i+1)
+       $ runExceptT
+       $ flip runReaderT (buildTypingContextFromModules modules sh)
+       $ do
+         ez <- foldlM (flip moveExpr) (focus expr) position
+         pure $ getID ez
+  id <- case id' of
+    Left err -> assertFailure $ show err
+    Right i' -> pure i'
+  let offered = Available.forBody (foldMap' moduleTypesQualified modules) l Editable expr id
+  assertBool "Requested action was not offered" (Available.NoInput action `elem` offered)
+  action' <- case toProgActionNoInput (foldMap' moduleDefsQualified $ progModules prog) exprDef exprDefName (Just (BodyNode,id)) action of
+    Left err -> assertFailure $ show err
+    Right a -> pure a
+  let expected = create' expectedOutput
+  progActionTest (pure prog) action' $ expectSuccess $ \_ prog' ->
+    let result = pure . astDefExpr <=< defAST <=< findGlobalByName prog' $ exprDefName in
+    -- Compare result to input, ignoring any difference in metadata
+    -- NB: we don't compare up-to-alpha, as names should be determined by the
+    -- actions on-the-nose
+    fmap clearMeta result @?= Just (clearMeta expected)
