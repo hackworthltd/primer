@@ -33,7 +33,6 @@ data TypeError
     ConstructorTypeArgsInconsistentTypes
     -- TODO (saturated constructors) this is a temporary situation, and this
     -- error will be removed once constructors do not store their indices
-  | UnknownConstructor ValConName
   | -- | Constructors (term-level) must be saturated.
     -- This error catches both under- and over-saturation.
     UnsaturatedConstructor ValConName
