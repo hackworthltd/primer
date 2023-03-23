@@ -597,10 +597,14 @@
                     },
                     "selection": {
                         "$ref": "#/components/schemas/Selection"
+                    },
+                    "undoAvailable": {
+                        "type": "boolean"
                     }
                 },
                 "required": [
-                    "modules"
+                    "modules",
+                    "undoAvailable"
                 ],
                 "type": "object"
             },

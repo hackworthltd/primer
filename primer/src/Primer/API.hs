@@ -65,6 +65,7 @@ module Primer.API (
   viewSelection,
   NodeSelection (..),
   viewNodeSelection,
+  undoAvailable,
   Name (..),
 ) where
 
@@ -122,10 +123,12 @@ import Primer.App (
   progAllTypeDefs,
   progCxt,
   progImports,
+  progLog,
   progModules,
   progSelection,
   runEditAppM,
   runQueryAppM,
+  unlog,
  )
 import Primer.App qualified as App
 import Primer.Core (
@@ -605,6 +608,7 @@ data NodeBody
 data Prog = Prog
   { modules :: [Module]
   , selection :: Maybe Selection
+  , undoAvailable :: Bool
   }
   deriving stock (Generic, Show, Read)
   deriving (ToJSON, FromJSON) via PrimerJSON Prog
@@ -643,6 +647,7 @@ viewProg p =
   Prog
     { modules = map (viewModule True) (progModules p) <> map (viewModule False) (progImports p)
     , selection = viewSelection <$> progSelection p
+    , undoAvailable = not $ null $ unlog $ progLog p
     }
   where
     viewModule e m =
