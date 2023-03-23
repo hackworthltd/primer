@@ -1,0 +1,10 @@
+Available actions has not yet been updated for checkable ctors, thus fails:
+cabal run primer-test -- -p 'available actions accepted' --hedgehog-replay "Size 6 Seed 14112428139497775316 3105976411441365301"
+
+Some idempotency tests fail, and I think I have broken them recently (certainly somewhere in checkable ctors, maybe late in that process)
+cabal run primer-test -- -p '/smartholes idempotent syn/' --hedgehog-replay "Size 63 Seed 11597471465837507320 4480855014676736811"
+cabal run primer-test -- -p '/smartholes idempotent chk/' --hedgehog-replay "Size 58 Seed 388332864107892094 7638724321118266215"
+cabal run primer-test -- -p '/tcWholeProg idempotent/' --hedgehog-replay "Size 20 Seed 393828664454704548 14781207514886163003"
+
+'comprehensive' has changed, thus its available actions has. BUT I don't want to just accept because (a) I am not certain it gives the wanted output and (b) it may well change when fix 'available actions accepted'
+cabal run primer-test -- -p Available.M.comprehensive
