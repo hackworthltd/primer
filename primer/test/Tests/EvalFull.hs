@@ -37,7 +37,7 @@ import Primer.Builtins (
   tNat,
   tPair,
  )
-import Primer.Builtins.DSL (bool_, list_, nat)
+import Primer.Builtins.DSL (bool_, boolAnn, list_, nat)
 import Primer.Core
 import Primer.Core.DSL
 import Primer.Core.Utils (
@@ -874,14 +874,14 @@ unit_prim_isSpace_1 =
   unaryPrimTest
     IsSpace
     (char '\n')
-    (bool_ True)
+    (boolAnn True)
 
 unit_prim_isSpace_2 :: Assertion
 unit_prim_isSpace_2 =
   unaryPrimTest
     IsSpace
     (char 'a')
-    (bool_ False)
+    (boolAnn False)
 
 tasty_prim_hex_nat :: Property
 tasty_prim_hex_nat = withTests 20 . property $ do
@@ -907,12 +907,12 @@ tasty_prim_hex_nat = withTests 20 . property $ do
                           `app` lvar "x"
                       )
                   ]
-                <*> conSat cJust [tcon tNat] [ne]
+                <*> conSat cJust [tcon tNat] [ne] `ann` (tcon tMaybe `tapp` tcon tNat)
             else
               (,)
                 <$> pfun NatToHex
                 `app` ne
-                <*> conSat cNothing [tcon tChar] []
+                <*> conSat cNothing [tcon tChar] [] `ann` (tcon tMaybe `tapp` tcon tChar)
   s <- evalFullTasty maxID builtinTypes primDefs 7 Syn e
   over evalResultExpr zeroIDs s === Right (zeroIDs r)
 
@@ -922,7 +922,7 @@ unit_prim_char_eq_1 =
     EqChar
     (char 'a')
     (char 'a')
-    (con0 cTrue)
+    (con0 cTrue `ann` tcon tBool)
 
 unit_prim_char_eq_2 :: Assertion
 unit_prim_char_eq_2 =
@@ -930,7 +930,7 @@ unit_prim_char_eq_2 =
     EqChar
     (char 'a')
     (char 'A')
-    (con0 cFalse)
+    (con0 cFalse `ann` tcon tBool)
 
 unit_prim_char_partial :: Assertion
 unit_prim_char_partial =
@@ -990,7 +990,7 @@ unit_prim_int_quotient =
     IntQuotient
     (int 7)
     (int 3)
-    (conSat cJust [tcon tInt] [int 2])
+    (conSat cJust [tcon tInt] [int 2] `ann` (tcon tMaybe `tapp` tcon tInt))
 
 unit_prim_int_quotient_negative :: Assertion
 unit_prim_int_quotient_negative =
@@ -998,7 +998,7 @@ unit_prim_int_quotient_negative =
     IntQuotient
     (int (-7))
     (int 3)
-    (conSat cJust [tcon tInt] [int (-3)])
+    (conSat cJust [tcon tInt] [int (-3)] `ann` (tcon tMaybe `tapp` tcon tInt))
 
 unit_prim_int_quotient_zero :: Assertion
 unit_prim_int_quotient_zero =
@@ -1006,7 +1006,7 @@ unit_prim_int_quotient_zero =
     IntQuotient
     (int (-7))
     (int 0)
-    (conSat cNothing [tcon tInt] [])
+    (conSat cNothing [tcon tInt] [] `ann` (tcon tMaybe `tapp` tcon tInt))
 
 unit_prim_int_remainder :: Assertion
 unit_prim_int_remainder =
@@ -1014,7 +1014,7 @@ unit_prim_int_remainder =
     IntRemainder
     (int 7)
     (int 3)
-    (conSat cJust [tcon tInt] [int 1])
+    (conSat cJust [tcon tInt] [int 1] `ann` (tcon tMaybe `tapp` tcon tInt))
 
 unit_prim_int_remainder_negative_1 :: Assertion
 unit_prim_int_remainder_negative_1 =
@@ -1022,7 +1022,7 @@ unit_prim_int_remainder_negative_1 =
     IntRemainder
     (int (-7))
     (int (-3))
-    (conSat cJust [tcon tInt] [int (-1)])
+    (conSat cJust [tcon tInt] [int (-1)] `ann` (tcon tMaybe `tapp` tcon tInt))
 
 unit_prim_int_remainder_negative_2 :: Assertion
 unit_prim_int_remainder_negative_2 =
@@ -1030,7 +1030,7 @@ unit_prim_int_remainder_negative_2 =
     IntRemainder
     (int (-7))
     (int 3)
-    (conSat cJust [tcon tInt] [int 2])
+    (conSat cJust [tcon tInt] [int 2] `ann` (tcon tMaybe `tapp` tcon tInt))
 
 unit_prim_int_remainder_negative_3 :: Assertion
 unit_prim_int_remainder_negative_3 =
@@ -1038,7 +1038,7 @@ unit_prim_int_remainder_negative_3 =
     IntRemainder
     (int 7)
     (int (-3))
-    (conSat cJust [tcon tInt] [int (-2)])
+    (conSat cJust [tcon tInt] [int (-2)] `ann` (tcon tMaybe `tapp` tcon tInt))
 
 unit_prim_int_remainder_zero :: Assertion
 unit_prim_int_remainder_zero =
@@ -1046,7 +1046,7 @@ unit_prim_int_remainder_zero =
     IntRemainder
     (int 7)
     (int 0)
-    (conSat cNothing [tcon tInt] [])
+    (conSat cNothing [tcon tInt] [] `ann` (tcon tMaybe `tapp` tcon tInt))
 
 unit_prim_int_quot :: Assertion
 unit_prim_int_quot =
@@ -1118,7 +1118,7 @@ unit_prim_int_eq_1 =
     IntEq
     (int 2)
     (int 2)
-    (bool_ True)
+    (boolAnn True)
 
 unit_prim_int_eq_2 :: Assertion
 unit_prim_int_eq_2 =
@@ -1126,7 +1126,7 @@ unit_prim_int_eq_2 =
     IntEq
     (int 2)
     (int 1)
-    (bool_ False)
+    (boolAnn False)
 
 unit_prim_int_neq_1 :: Assertion
 unit_prim_int_neq_1 =
@@ -1134,7 +1134,7 @@ unit_prim_int_neq_1 =
     IntNeq
     (int 2)
     (int 2)
-    (bool_ False)
+    (boolAnn False)
 
 unit_prim_int_neq_2 :: Assertion
 unit_prim_int_neq_2 =
@@ -1142,7 +1142,7 @@ unit_prim_int_neq_2 =
     IntNeq
     (int 2)
     (int 1)
-    (bool_ True)
+    (boolAnn True)
 
 unit_prim_int_less_than_1 :: Assertion
 unit_prim_int_less_than_1 =
@@ -1150,7 +1150,7 @@ unit_prim_int_less_than_1 =
     IntLT
     (int 1)
     (int 2)
-    (bool_ True)
+    (boolAnn True)
 
 unit_prim_int_less_than_2 :: Assertion
 unit_prim_int_less_than_2 =
@@ -1158,7 +1158,7 @@ unit_prim_int_less_than_2 =
     IntLT
     (int 1)
     (int 1)
-    (bool_ False)
+    (boolAnn False)
 
 unit_prim_int_less_than_or_equal_1 :: Assertion
 unit_prim_int_less_than_or_equal_1 =
@@ -1166,7 +1166,7 @@ unit_prim_int_less_than_or_equal_1 =
     IntLTE
     (int 1)
     (int 2)
-    (bool_ True)
+    (boolAnn True)
 
 unit_prim_int_less_than_or_equal_2 :: Assertion
 unit_prim_int_less_than_or_equal_2 =
@@ -1174,7 +1174,7 @@ unit_prim_int_less_than_or_equal_2 =
     IntLTE
     (int 1)
     (int 1)
-    (bool_ True)
+    (boolAnn True)
 
 unit_prim_int_less_than_or_equal_3 :: Assertion
 unit_prim_int_less_than_or_equal_3 =
@@ -1182,7 +1182,7 @@ unit_prim_int_less_than_or_equal_3 =
     IntLTE
     (int 2)
     (int 1)
-    (bool_ False)
+    (boolAnn False)
 
 unit_prim_int_greater_than_1 :: Assertion
 unit_prim_int_greater_than_1 =
@@ -1190,7 +1190,7 @@ unit_prim_int_greater_than_1 =
     IntGT
     (int 2)
     (int 1)
-    (bool_ True)
+    (boolAnn True)
 
 unit_prim_int_greater_than_2 :: Assertion
 unit_prim_int_greater_than_2 =
@@ -1198,7 +1198,7 @@ unit_prim_int_greater_than_2 =
     IntGT
     (int 1)
     (int 1)
-    (bool_ False)
+    (boolAnn False)
 
 unit_prim_int_greater_than_or_equal_1 :: Assertion
 unit_prim_int_greater_than_or_equal_1 =
@@ -1206,7 +1206,7 @@ unit_prim_int_greater_than_or_equal_1 =
     IntGTE
     (int 1)
     (int 2)
-    (bool_ False)
+    (boolAnn False)
 
 unit_prim_int_greater_than_or_equal_2 :: Assertion
 unit_prim_int_greater_than_or_equal_2 =
@@ -1214,7 +1214,7 @@ unit_prim_int_greater_than_or_equal_2 =
     IntGTE
     (int 1)
     (int 1)
-    (bool_ True)
+    (boolAnn True)
 
 unit_prim_int_greater_than_or_equal_3 :: Assertion
 unit_prim_int_greater_than_or_equal_3 =
@@ -1222,21 +1222,21 @@ unit_prim_int_greater_than_or_equal_3 =
     IntGTE
     (int 2)
     (int 1)
-    (bool_ True)
+    (boolAnn True)
 
 unit_prim_int_toNat :: Assertion
 unit_prim_int_toNat =
   unaryPrimTest
     IntToNat
     (int 0)
-    (conSat cJust [tcon tNat] [nat 0])
+    (conSat cJust [tcon tNat] [nat 0] `ann` (tcon tMaybe `tapp` tcon tNat))
 
 unit_prim_int_toNat_negative :: Assertion
 unit_prim_int_toNat_negative =
   unaryPrimTest
     IntToNat
     (int (-1))
-    (conSat cNothing [tcon tNat] [])
+    (conSat cNothing [tcon tNat] [] `ann` (tcon tMaybe `tapp` tcon tNat))
 
 unit_prim_int_fromNat :: Assertion
 unit_prim_int_fromNat =
