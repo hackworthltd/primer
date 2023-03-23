@@ -543,6 +543,7 @@ unit_tryReduce_prim = do
             `app` char 'a'
             `app` char 'a'
             <*> con0 cTrue
+            `ann` tcon tBool
   result <- runTryReduce tydefs primDefs mempty (expr, i)
   case result of
     Right (expr', ApplyPrimFun detail) -> do
