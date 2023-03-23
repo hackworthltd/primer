@@ -908,6 +908,7 @@ unit_RenameCon =
                             , con0 (vcn "True")
                             , con0 (vcn "True")
                             ]
+                            `ann` (tcon tT `tapp` tEmptyHole `tapp` tEmptyHole)
                         )
                         [ branch cA [("p", Nothing), ("q", Nothing), ("p1", Nothing)] emptyHole
                         , branch cB [("r", Nothing), ("x", Nothing)] emptyHole
@@ -941,6 +942,7 @@ unit_RenameCon =
                           , con0 (vcn "True")
                           , con0 (vcn "True")
                           ]
+                          `ann` (tcon tT `tapp` tEmptyHole `tapp` tEmptyHole)
                       )
                       [ branch (vcn "A'") [("p", Nothing), ("q", Nothing), ("p1", Nothing)] emptyHole
                       , branch cB [("r", Nothing), ("x", Nothing)] emptyHole
@@ -967,6 +969,7 @@ unit_RenameCon_clash =
                           , emptyHole
                           , emptyHole
                           ]
+                          `ann` (tcon tT `tapp` tEmptyHole `tapp` tEmptyHole)
                       )
                   )
               astDef "def" x <$> tEmptyHole
@@ -1139,12 +1142,12 @@ unit_SetConFieldType_emptyHole =
 
 -- change the type of a field which currently wraps a non-empty hole argument
 unit_SetConFieldType_nehole :: Assertion
-unit_SetConFieldType_nehole =
+unit_SetConFieldType_nehole = do
   setConFieldTypeHelper
     (tcon $ tcn "Bool")
-    (hole $ con0 $ vcn "True")
+    (hole $ (lam "x" (lvar "x") `ann` (tcon (tcn "Bool") `tfun` tcon (tcn "Bool"))) `app` con0 (vcn "True"))
     (tcon (tcn "tBool") `tfun` tcon (tcn "Bool"))
-    (hole $ con0 $ vcn "True")
+    (hole $ (lam "x" (lvar "x") `ann` (tcon (tcn "Bool") `tfun` tcon (tcn "Bool"))) `app` con0 (vcn "True"))
 
 -- change the type of a field which currently wraps a non-empty hole argument,
 -- where the result could have a hole elided, but we don't run smartholes
@@ -1153,9 +1156,9 @@ unit_SetConFieldType_nehole_2 :: Assertion
 unit_SetConFieldType_nehole_2 =
   setConFieldTypeHelper
     (tcon $ tcn "Int")
-    (hole $ con0 $ vcn "True")
+    (hole $ (lam "x" (lvar "x") `ann` (tcon (tcn "Bool") `tfun` tcon (tcn "Bool"))) `app` con0 (vcn "True"))
     (tcon $ tcn "Bool")
-    (hole $ con0 $ vcn "True")
+    (hole $ (lam "x" (lvar "x") `ann` (tcon (tcn "Bool") `tfun` tcon (tcn "Bool"))) `app` con0 (vcn "True"))
 
 unit_SetConFieldType_case :: Assertion
 unit_SetConFieldType_case =
@@ -1241,6 +1244,7 @@ unit_AddConField =
                 , con0 (vcn "True")
                 , con0 (vcn "True")
                 ]
+                `ann` (tcon tT `tapp` tEmptyHole `tapp` tEmptyHole)
             )
             [ branch cA [("p", Nothing), ("q", Nothing), ("p1", Nothing)] emptyHole
             , branch cB [("r", Nothing), ("x", Nothing)] emptyHole
@@ -1272,8 +1276,9 @@ unit_AddConField =
                     , con0 (vcn "True")
                     , con0 (vcn "True")
                     ]
+                    `ann` (tcon tT `tapp` tEmptyHole `tapp` tEmptyHole)
                 )
-                [ branch cA [("p", Nothing), ("a40", Nothing), ("q", Nothing), ("p1", Nothing)] emptyHole
+                [ branch cA [("p", Nothing), ("a46", Nothing), ("q", Nothing), ("p1", Nothing)] emptyHole
                 , branch cB [("r", Nothing), ("x", Nothing)] emptyHole
                 ]
           )
