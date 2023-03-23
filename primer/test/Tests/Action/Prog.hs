@@ -1131,7 +1131,7 @@ unit_AddConField =
                 , tEmptyHole ][
                  con0 (vcn "True")
                 , con0 (vcn "True")
-                , con0 (vcn "True")]
+                , con0 (vcn "True")] `ann` (tcon tT `tapp` tEmptyHole `tapp` tEmptyHole)
             )
             [ branch cA [("p", Nothing), ("q", Nothing), ("p1", Nothing)] emptyHole
             , branch cB [("r", Nothing), ("x", Nothing)] emptyHole
@@ -1159,9 +1159,9 @@ unit_AddConField =
                     con0 (vcn "True")
                     , emptyHole
                     , con0 (vcn "True")
-                    , con0 (vcn "True")]
+                    , con0 (vcn "True")] `ann` (tcon tT `tapp` tEmptyHole `tapp` tEmptyHole)
                 )
-                [ branch cA [("p", Nothing), ("a20", Nothing), ("q", Nothing), ("p1", Nothing)] emptyHole
+                [ branch cA [("p", Nothing), ("a26", Nothing), ("q", Nothing), ("p1", Nothing)] emptyHole
                 , branch cB [("r", Nothing), ("x", Nothing)] emptyHole
                 ]
           )
@@ -1348,7 +1348,7 @@ unit_cross_module_actions =
               <> constructEtaAnnCon cSucc []  [("n",tNat)] tNat
               <> [ Move Parent
               , Move Child2
-              , ConstructVar (LocalVarRef "a35")
+              , ConstructVar (LocalVarRef "a36")
               ]
           ]
         handleAndTC [RenameDef (qualifyM "foo") "bar"]
