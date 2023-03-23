@@ -211,10 +211,9 @@ freshen fvs i n =
 -- genSyns T with cxt Γ should generate (e,S) st Γ |- e ∈ S and S ~ T (i.e. same up to holes and alpha)
 genSyns :: HasCallStack => TypeG -> GenT WT (ExprG, TypeG)
 genSyns ty = do
-  genSpine' <- lift genSpine
-  genCon' <- lift genCon
   genPrimCon'' <- lift genPrimCon'
-  Gen.recursive Gen.choice [genEmptyHole, genAnn] $ [genHole, genApp, genAPP, genLet] ++ catMaybes [genCon', genPrimCon'', genSpine']
+  genSpine' <- lift genSpine
+  Gen.recursive Gen.choice [genEmptyHole, genAnn] $ [genHole, genApp, genAPP, genLet] ++ catMaybes [genPrimCon'', genSpine']
   where
     genEmptyHole = pure (EmptyHole (), TEmptyHole ())
     genAnn = do
@@ -265,39 +264,6 @@ genSyns ty = do
           aTy <- genWTType ak
           Just . (APP () s aTy,) <$> substTy a aTy instTy
         _ -> pure Nothing
-    genCon = instantiateValCons ty >>= \case
-      Left TDIHoleType -> asks allCons <&> \case -- We have no constraints, generate any ctor
-          m | null m -> Nothing
-          cons -> Just $ do
-           let cons' = M.toList cons <&> \(c, (params, fldsTys0, tycon)) -> do
-                  indicesMap <- for params $ \(p, k) -> (p,) <$> genWTType k
-                  let indices = snd <$> indicesMap
-                  -- NB: it is vital to use simultaneous substitution here.
-                  -- Consider the case where we have a local type variable @a@
-                  -- in scope, say because we have already generated a
-                  -- @Λa. ...@, and we are considering the case of the @MkPair@
-                  -- constructor for the type @data Pair a b = MkPair a b@.
-                  -- The two "a"s (locally Λ-bound and from the typedef) refer
-                  -- to completely different things. We may well generate the
-                  -- substitution [a :-> Bool, b :-> a]. We must then say that
-                  -- the fields of the @MkPair@ constructor are @Bool@ and (the
-                  -- locally-bound) @a@. We must do a simultaneous substitution
-                  -- to avoid substituting @b@ into @a@ and then further into
-                  -- @Bool@.
-                  fldsTys <- traverse (substTySimul $ M.fromList indicesMap) fldsTys0
-                  flds <- traverse (Gen.small . genChk) fldsTys
-                  let tyActual = mkTAppCon tycon indices
-                  pure (Con () c indices flds, tyActual)
-           Gen.choice cons'
-      Left _ -> pure Nothing -- not an ADT
-      Right (_,_,[]) -> pure Nothing -- is an empty ADT
-      -- TODO (saturated constructors) when saturation is enforced, we will not need
-      -- to record @params@ in the @Con@, and thus the guard (and the panic) will
-      -- be removed.
-      Right (tc,_,vcs) | Just (tc', params) <- decomposeTAppCon ty, tc == tc' ->
-                           pure $ Just $ Gen.choice $ vcs <&> \(vc,tmArgTypes) ->
-        (,ty) . Con () vc params <$> traverse (Gen.small . genChk) tmArgTypes
-        | otherwise -> panic "genCon invariants failed"
     genPrimCon' = do
       genPrimCon <&> map (bimap (fmap $ PrimCon ()) (TCon ())) <&> filter (consistentTypes ty . snd) <&> \case
         [] -> Nothing
@@ -405,10 +371,43 @@ genChk :: TypeG -> GenT WT ExprG
 genChk ty = do
   cse <- lift case_
   abst' <- lift abst
-  let rec = genLet : catMaybes [lambda, abst', cse]
+  genCon' <- lift genCon
+  let rec = genLet : catMaybes [genCon', lambda, abst', cse]
   Gen.recursive Gen.choice [emb] rec
   where
     emb = fst <$> genSyns ty
+    genCon = instantiateValCons ty >>= \case
+      Left TDIHoleType -> asks allCons <&> \case -- We have no constraints, generate any ctor
+          m | null m -> Nothing
+          cons -> Just $ do
+           let cons' = M.toList cons <&> \(c, (params, fldsTys0, tycon)) -> do
+                  indicesMap <- for params $ \(p, k) -> (p,) <$> genWTType k
+                  let indices = snd <$> indicesMap
+                  -- NB: it is vital to use simultaneous substitution here.
+                  -- Consider the case where we have a local type variable @a@
+                  -- in scope, say because we have already generated a
+                  -- @Λa. ...@, and we are considering the case of the @MkPair@
+                  -- constructor for the type @data Pair a b = MkPair a b@.
+                  -- The two "a"s (locally Λ-bound and from the typedef) refer
+                  -- to completely different things. We may well generate the
+                  -- substitution [a :-> Bool, b :-> a]. We must then say that
+                  -- the fields of the @MkPair@ constructor are @Bool@ and (the
+                  -- locally-bound) @a@. We must do a simultaneous substitution
+                  -- to avoid substituting @b@ into @a@ and then further into
+                  -- @Bool@.
+                  fldsTys <- traverse (substTySimul $ M.fromList indicesMap) fldsTys0
+                  flds <- traverse (Gen.small . genChk) fldsTys
+                  pure $ Con () c indices flds
+           Gen.choice cons'
+      Left _ -> pure Nothing -- not an ADT
+      Right (_,_,[]) -> pure Nothing -- is an empty ADT
+      -- TODO (saturated constructors) when saturation is enforced, we will not need
+      -- to record @params@ in the @Con@, and thus the guard (and the panic) will
+      -- be removed.
+      Right (tc,_,vcs) | Just (tc', params) <- decomposeTAppCon ty, tc == tc' ->
+                           pure $ Just $ Gen.choice $ vcs <&> \(vc,tmArgTypes) ->
+         Con () vc params <$> traverse genChk tmArgTypes
+        | otherwise -> panic "genCon invariants failed"
     lambda =
       matchArrowType ty <&> \(sTy, tTy) -> do
         n <- genLVarNameAvoiding [tTy, sTy]
