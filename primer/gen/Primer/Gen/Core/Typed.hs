@@ -100,7 +100,7 @@ import Primer.Typecheck (
   matchForallType,
   mkTAppCon,
   primConInScope,
-  typeDefs, decomposeTAppCon,
+  typeDefs, decomposeTAppCon, consistentTypes,
  )
 import Tasty (Property, property)
 
@@ -213,7 +213,8 @@ genSyns :: HasCallStack => TypeG -> GenT WT (ExprG, TypeG)
 genSyns ty = do
   genSpine' <- lift genSpine
   genCon' <- lift genCon
-  Gen.recursive Gen.choice [genEmptyHole, genAnn] $ [genHole, genApp, genAPP, genLet] ++ catMaybes [genCon', genSpine']
+  genPrimCon'' <- lift genPrimCon'
+  Gen.recursive Gen.choice [genEmptyHole, genAnn] $ [genHole, genApp, genAPP, genLet] ++ catMaybes [genCon', genPrimCon'', genSpine']
   where
     genEmptyHole = pure (EmptyHole (), TEmptyHole ())
     genAnn = do
@@ -287,8 +288,7 @@ genSyns ty = do
                   flds <- traverse (Gen.small . genChk) fldsTys
                   let tyActual = mkTAppCon tycon indices
                   pure (Con () c indices flds, tyActual)
-           primCons <- fmap (bimap (PrimCon ()) (TCon ())) <<$>> genPrimCon
-           Gen.choice $ cons' ++ primCons
+           Gen.choice cons'
       Left _ -> pure Nothing -- not an ADT
       Right (_,_,[]) -> pure Nothing -- is an empty ADT
       -- TODO (saturated constructors) when saturation is enforced, we will not need
@@ -298,6 +298,10 @@ genSyns ty = do
                            pure $ Just $ Gen.choice $ vcs <&> \(vc,tmArgTypes) ->
         (,ty) . Con () vc params <$> traverse (Gen.small . genChk) tmArgTypes
         | otherwise -> panic "genCon invariants failed"
+    genPrimCon' = do
+      genPrimCon <&> map (bimap (fmap $ PrimCon ()) (TCon ())) <&> filter (consistentTypes ty . snd) <&> \case
+        [] -> Nothing
+        gens -> Just $ Gen.choice $ (\(g,t) -> (,t) <$> g) <$> gens
     genLet =
       Gen.choice
         [ -- let
@@ -619,7 +623,7 @@ genCxtExtendingLocal = do
 
 -- We have to be careful to only generate primitive constructors which are
 -- in scope (i.e. their type is in scope)
-genPrimCon :: forall mc mg. (MonadReader Cxt mc, MonadGen mg) => mc [mg (PrimCon, TyConName)]
+genPrimCon :: forall mc mg. (MonadReader Cxt mc, MonadGen mg) => mc [(mg PrimCon, TyConName)]
 genPrimCon = catMaybes <$> sequence [genChar, genInt]
   where
     genChar = whenInScope PrimChar 'a' Gen.unicode
@@ -627,12 +631,12 @@ genPrimCon = catMaybes <$> sequence [genChar, genInt]
     genInt = whenInScope PrimInt 0 $ Gen.integral $ Range.linear (-intBound) intBound
     -- The 'tst' is arbitrary, only used for checking if the primcon is in scope
     -- and does not affect the generator.
-    whenInScope :: (a -> PrimCon) -> a -> mg a -> mc (Maybe (mg (PrimCon, TyConName)))
+    whenInScope :: (a -> PrimCon) -> a -> mg a -> mc (Maybe (mg PrimCon, TyConName))
     whenInScope f tst g = do
       s <- asks $ primConInScope (f tst)
       pure $ case s of
         (False, _) -> Nothing
-        (True, tc) -> Just $ (\x -> (f x, tc)) <$> g
+        (True, tc) -> Just $ (,tc) $ f <$> g
     -- This ensures that when we modify the constructors of `PrimCon` (i.e. we add/remove primitive types),
     -- we are alerted that we need to update this generator.
     _ = \case
