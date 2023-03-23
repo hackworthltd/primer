@@ -1063,7 +1063,7 @@ unit_primitive_1 =
 
 -- | Apply the actions to the input expression and test that the result matches
 -- the expected output, up to renaming of IDs and changing cached types.
-actionTest :: SmartHoles -> S Expr -> [Action] -> S Expr -> Assertion
+actionTest :: HasCallStack => SmartHoles -> S Expr -> [Action] -> S Expr -> Assertion
 actionTest sh inputExpr actions expectedOutput = do
   let (expr, i) = create inputExpr
   result <- either (assertFailure . show) pure $ runTestActions sh i expr actions
@@ -1075,7 +1075,7 @@ actionTest sh inputExpr actions expectedOutput = do
 
 -- | Attempt to apply the actions to the input expression and test that they
 -- in fact cause an error to be raised.
-actionTestExpectFail :: (ActionError -> Bool) -> SmartHoles -> S Expr -> [Action] -> Assertion
+actionTestExpectFail :: HasCallStack => (ActionError -> Bool) -> SmartHoles -> S Expr -> [Action] -> Assertion
 actionTestExpectFail f sh expr actions =
   case runTestActions sh i e actions of
     Right _ -> assertFailure "action succeeded"
