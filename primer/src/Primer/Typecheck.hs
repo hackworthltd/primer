@@ -588,24 +588,35 @@ primConInScope pc cxt =
 -- | Similar to synth, but for checking rather than synthesis.
 check :: TypeM e m => Type -> Expr -> m ExprT
 check t = \case
-  Con i c tys tms -> do
+  con@(Con i c tys tms) -> do
     -- If the input type @t@ is a hole, then refine it to the parent type of @c@ applied to some holes
     let cParent = asks (flip lookupConstructor c . typeDefs) >>= \case
           Just (_,tn,td) -> pure $ foldl' (\x _ -> TApp () x $ TEmptyHole ()) (TCon () tn) (astTypeDefParameters td)
-          Nothing -> throwError' $ UnknownConstructor c
+          Nothing -> throwError' $ UnknownConstructor c -- unrecoverable error, smartholes can do nothing here
     t' <- case t of
       TEmptyHole{} -> cParent
       THole{} -> cParent
       _ -> pure t
+    -- If typechecking fails, and smartholes is on, we attempt to change the term to
+    -- '{? c : ? ?}' to recover
+    let recoverSH err = asks smartHoles >>= \case
+          NoSmartHoles -> throwError' err
+          SmartHoles -> do
+            -- 'synth' will take care of adding an annotation - no need to do it
+            -- explicitly here
+            (_, con') <- synth con
+            Hole <$> meta' (TCEmb TCBoth{tcChkedAt = t', tcSynthed = TEmptyHole ()}) <*> pure con'
     -- If the input type @t@ is a fully-applied ADT constructor 'T As'
     -- And 'C' is a constructor of 'T' (writing 'T's parameters as 'ps' with kinds 'ks')
     -- with arguments 'Rs[ps]',
     -- then this particular instantiation should have arguments 'Rs[As]'
     instantiateValCons t' >>= \case
       Left TDIHoleType -> throwError' $ InternalError "t' is not a hole, as we refined to parent type of c"
-      Left _ -> throwError' $ ConstructorNotFullAppADT t' c
+      Left TDIUnknown{} -> throwError' $ InternalError "input type to check is not in scope"
+      Left TDINotADT -> recoverSH $ ConstructorNotFullAppADT t' c
+      Left TDINotSaturated -> recoverSH $ ConstructorNotFullAppADT t' c
       Right (tc, td, instVCs) -> case lookup c instVCs of
-        Nothing -> throwError' $ ConstructorWrongADT tc c
+        Nothing -> recoverSH $ ConstructorWrongADT tc c
         Just _argTys -> do
         -- TODO (saturated constructors) unfortunately, due to constructors
         -- currently having type arguments, this is not quite true. We instead
@@ -622,9 +633,14 @@ check t = \case
                 case decomposeTAppCon t' of
                   Nothing -> throwError' $ InternalError "instantiateValCons succeeded, but decomposeTAppCon did not"
                   Just (_,tAs) -> case mconcat <$> zipWithExact (\t1 t2 -> All $ consistentTypes t1 t2) tys'NoMeta tAs of
+                    -- Fatal error, see comments on UnsaturatedConstructor error below
                     Nothing -> throwError' ConstructorTypeArgsInconsistentNumber
+                    -- Fatal error, see comments on UnsaturatedConstructor error below
                     Just (All consistent) -> unless consistent $ throwError' ConstructorTypeArgsInconsistentTypes
                 -- Check that the arguments have the correct type
+                -- Note that being unsaturated is a fatal error and SmartHoles will not try to recover
+                -- (this is a design decision -- we put the burden onto code that builds ASTs,
+                -- e.g. the action code is responsible for only creating saturated constructors)
                 tms' <- ensureJust (UnsaturatedConstructor c) $ zipWithExactM check argTys tms
                 pure $ Con (annotate (TCChkedAt t') i) c tys' tms'
   lam@(Lam i x e) -> do

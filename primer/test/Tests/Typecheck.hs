@@ -376,10 +376,25 @@ unit_check_emb =
   (con1 cSucc (con0 cTrue) `ann` tcon tNat) -- TODO: this test does not pass..., and is bug in TC code
     `smartSynthGives` (con1 cSucc (hole $ con0 cTrue `ann` tEmptyHole) `ann` tcon tNat)
 
+unit_bad_con_sh :: Assertion
+unit_bad_con_sh =
+  (con0 cTrue `ann` tcon tNat)
+    `smartSynthGives` (hole (con0 cTrue `ann` tEmptyHole) `ann` tcon tNat)
+
 unit_con_syn_sh :: Assertion
 unit_con_syn_sh =
   con0 cTrue
     `smartSynthGives` (con0 cTrue `ann` tEmptyHole)
+
+unit_con_not_adt_sh :: Assertion
+unit_con_not_adt_sh =
+  con0 cTrue `ann` (tcon tNat `tfun` tcon tBool)
+    `smartSynthGives` (hole (con0 cTrue `ann` tEmptyHole) `ann` (tcon tNat `tfun` tcon tBool))
+
+unit_con_wrong_adt_sh :: Assertion
+unit_con_wrong_adt_sh =
+  con0 cTrue `ann` tcon tNat
+    `smartSynthGives` (hole (con0 cTrue `ann` tEmptyHole) `ann` tcon tNat)
 
 unit_case_scrutinee :: Assertion
 unit_case_scrutinee =
