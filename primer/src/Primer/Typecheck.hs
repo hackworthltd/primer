@@ -118,7 +118,7 @@ import Primer.Core (
   _typeMeta,
  )
 import Primer.Core.DSL (branch, emptyHole, meta, meta')
-import Primer.Core.Transform (decomposeTAppCon, mkTAppCon)
+import Primer.Core.Transform (decomposeTAppCon, mkTAppCon, unfoldTApp)
 import Primer.Core.Utils (
   alphaEqTy,
   forgetTypeMetadata,
@@ -589,14 +589,17 @@ primConInScope pc cxt =
 check :: TypeM e m => Type -> Expr -> m ExprT
 check t = \case
   con@(Con i c tys tms) -> do
-    -- If the input type @t@ is a hole, then refine it to the parent type of @c@ applied to some holes
-    let cParent = asks (flip lookupConstructor c . typeDefs) >>= \case
-          Just (_,tn,td) -> pure $ foldl' (\x _ -> TApp () x $ TEmptyHole ()) (TCon () tn) (astTypeDefParameters td)
+    -- If the input type @t@ is a hole-applied-to-some-arguments,
+    -- then refine it to the parent type of @c@ applied to some holes plus those original arguments
+    (cParent, parentParams) <- asks (flip lookupConstructor c . typeDefs) >>= \case
+          Just (_,tn,td) -> pure (tn, length $ astTypeDefParameters td)
           Nothing -> throwError' $ UnknownConstructor c -- unrecoverable error, smartholes can do nothing here
-    t' <- case t of
-      TEmptyHole{} -> cParent
-      THole{} -> cParent
-      _ -> pure t
+    let t' = case unfoldTApp t of
+            (TEmptyHole{}, args) | missing <- parentParams - length args , missing >= 0
+                   -> mkTAppCon cParent $ replicate missing (TEmptyHole ()) <> args
+            (THole{}, args) | missing <- parentParams - length args , missing >= 0
+                   -> mkTAppCon cParent $ replicate missing (TEmptyHole ()) <> args
+            _ -> t
     -- If typechecking fails, and smartholes is on, we attempt to change the term to
     -- '{? c : ? ?}' to recover
     let recoverSH err = asks smartHoles >>= \case

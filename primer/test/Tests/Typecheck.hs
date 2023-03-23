@@ -27,6 +27,7 @@ import Primer.Builtins (
   boolDef,
   cCons,
   cFalse,
+  cMakePair,
   cNil,
   cSucc,
   cTrue,
@@ -143,8 +144,50 @@ unit_const =
 unit_true_bool :: Assertion
 unit_true_bool = expectTyped $ con0 cTrue `ann` tcon tBool
 
+-- An empty hole accepts saturated constructors
 unit_true_hole :: Assertion
 unit_true_hole = expectTyped $ con0 cTrue `ann` tEmptyHole
+
+-- An empty hole rejects under-saturated constructors
+unit_unsat_con_hole_1 :: Assertion
+unit_unsat_con_hole_1 = (con0 cSucc `ann` tEmptyHole)
+  `expectFailsWith` \_ -> UnsaturatedConstructor cSucc
+
+-- An empty hole rejects over-saturated constructors
+unit_unsat_con_hole_2 :: Assertion
+unit_unsat_con_hole_2 = con cSucc [] [emptyHole, emptyHole] `ann` tEmptyHole
+  `expectFailsWith` \_ -> UnsaturatedConstructor cSucc
+
+-- A hole-headed TApp accepts saturated constructors
+unit_con_hole_app_type_1 :: Assertion
+unit_con_hole_app_type_1 = expectTyped $ con cMakePair [tcon tBool,tcon tNat] [emptyHole, emptyHole]
+  `ann` (tEmptyHole `tapp` tEmptyHole)
+
+-- A hole-headed TApp accepts saturated constructors, if given type arguments match
+-- The application spine can be shorter than that required for the constructor
+unit_con_hole_app_type_2 :: Assertion
+unit_con_hole_app_type_2 = expectTyped $ con cMakePair [tcon tBool,tcon tNat] [emptyHole, emptyHole]
+  `ann` (tEmptyHole `tapp` tcon tNat)
+
+-- A hole-headed TApp accepts saturated constructors, if given type arguments match
+-- The application spine can match than that required for the constructor
+unit_con_hole_app_type_3 :: Assertion
+unit_con_hole_app_type_3 = expectTyped $ con cMakePair [tcon tBool,tcon tNat] [emptyHole, emptyHole]
+  `ann` (tEmptyHole `tapp` tcon tBool `tapp` tcon tNat)
+
+-- A hole-headed TApp rejects saturated constructors, if  application spine is too long for the constructor
+unit_con_hole_app_type_4 :: Assertion
+unit_con_hole_app_type_4 = (con cMakePair [tcon tBool,tcon tNat] [emptyHole, emptyHole]
+  `ann` (tEmptyHole `tapp` tcon tBool `tapp` tcon tNat `tapp` tEmptyHole)) `expectFailsWith`
+  \_ -> ConstructorNotFullAppADT
+              (TApp () (TApp () (TApp () (TEmptyHole ()) (TCon () tBool)) (TCon () tNat)) (TEmptyHole ()))
+            cMakePair
+
+-- A hole-headed TApp rejects saturated constructors, if given type arguments do not match
+unit_con_hole_app_type_5 :: Assertion
+unit_con_hole_app_type_5 = (con cMakePair [tcon tBool,tcon tNat] [emptyHole, emptyHole]
+  `ann` (tEmptyHole `tapp` tcon tBool)) `expectFailsWith`
+  const ConstructorTypeArgsInconsistentTypes
 
 unit_constructor_doesn't_exist :: Assertion
 unit_constructor_doesn't_exist =
