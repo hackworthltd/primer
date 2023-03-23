@@ -248,12 +248,18 @@ unit_9 =
     emptyHole
     [ ConstructLet (Just "x")
     , Move Child1
+    , ConstructAnn
+    , Move Child1
     , constructSaturatedCon cTrue
+    , Move Parent
+    , EnterType
+    , constructTCon tBool
+    , ExitType
     , Move Parent
     , Move Child2
     , ConstructVar $ LocalVarRef "x"
     ]
-    (let_ "x" (con0 cTrue) (lvar "x"))
+    (let_ "x" (con0 cTrue `ann` tcon tBool) (lvar "x"))
 
 unit_construct_arrow_left :: Assertion
 unit_construct_arrow_left =
@@ -292,9 +298,9 @@ unit_rename_let :: Assertion
 unit_rename_let =
   actionTest
     NoSmartHoles
-    (let_ "x" (con0 cTrue) (lvar "x"))
+    (let_ "x" (con0 cTrue `ann` tEmptyHole) (lvar "x"))
     [RenameLet "y"]
-    (let_ "y" (con0 cTrue) (lvar "y"))
+    (let_ "y" (con0 cTrue `ann` tEmptyHole) (lvar "y"))
 
 unit_rename_letrec :: Assertion
 unit_rename_letrec =
@@ -424,16 +430,16 @@ unit_enter_emptyHole =
   actionTest
     NoSmartHoles
     emptyHole
-    [EnterHole, constructSaturatedCon cTrue]
-    (hole $ con0 cTrue)
+    [EnterHole, ConstructAnn, Move Child1, constructSaturatedCon cTrue]
+    (hole $ con0 cTrue `ann` tEmptyHole)
 
 unit_enter_nonEmptyHole :: Assertion
 unit_enter_nonEmptyHole =
   actionTest
     NoSmartHoles
     (hole emptyHole)
-    [Move Child1, constructSaturatedCon cTrue]
-    (hole $ con0 cTrue)
+    [Move Child1, ConstructAnn, Move Child1, constructSaturatedCon cTrue]
+    (hole $ con0 cTrue `ann` tEmptyHole)
 
 unit_bad_enter_hole :: Assertion
 unit_bad_enter_hole =
@@ -790,7 +796,7 @@ unit_case_change_smart_scrutinee_type =
     SmartHoles
     ( ann
         ( case_
-            (con0 cTrue)
+            (con0 cTrue `ann` tcon tBool)
             [branch cTrue [] (con0 cZero), branch cFalse [] emptyHole]
         )
         (tcon tNat)
@@ -798,12 +804,14 @@ unit_case_change_smart_scrutinee_type =
     [ Move Child1
     , Move Child1
     , Delete
-    , constructSaturatedCon cZero
+    , ConstructAnn
+    , EnterType
+    , constructTCon tNat
     ]
     ( ann
         ( case_
-            (con0 cZero)
-            [branch cZero [] emptyHole, branch cSucc [("a11", Nothing)] emptyHole] -- fragile names here
+            (emptyHole `ann` tcon tNat)
+            [branch cZero [] emptyHole, branch cSucc [("a15", Nothing)] emptyHole] -- fragile names here
         )
         (tcon tNat)
     )
