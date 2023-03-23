@@ -32,7 +32,7 @@ import Primer.Builtins (
   tMaybe,
   tNat,
  )
-import Primer.Builtins.DSL (bool_, maybe_, nat)
+import Primer.Builtins.DSL (boolAnn, maybeAnn, nat)
 import Primer.Core (
   Expr,
   Expr' (App, Con, PrimCon),
@@ -50,7 +50,7 @@ import Primer.Core.DSL (
   char,
   conSat,
   int,
-  tcon,
+  tcon, ann,
  )
 import Primer.JSON (CustomJSON (..), PrimerJSON)
 import Primer.Name (Name)
@@ -176,24 +176,24 @@ primFunDef def args = case def of
     _ -> err
   IsSpace -> case args of
     [PrimCon _ (PrimChar c)] ->
-      Right $ bool_ $ isSpace c
+      Right $ boolAnn (isSpace c)
     _ -> err
   HexToNat -> case args of
-    [PrimCon _ (PrimChar c)] -> Right $ maybe_ (tcon tNat) nat $ digitToIntSafe c
+    [PrimCon _ (PrimChar c)] -> Right $ maybeAnn (tcon tNat) nat (digitToIntSafe c)
       where
         digitToIntSafe :: Char -> Maybe Natural
         digitToIntSafe c' = fromIntegral <$> (guard (isHexDigit c') $> digitToInt c')
     _ -> err
   NatToHex -> case args of
     [exprToNat -> Just n] ->
-      Right $ maybe_ (tcon tChar) char $ intToDigitSafe n
+      Right $ maybeAnn (tcon tChar) char $ intToDigitSafe n
       where
         intToDigitSafe :: Natural -> Maybe Char
         intToDigitSafe n' = guard (0 <= n && n <= 15) $> intToDigit (fromIntegral n')
     _ -> err
   EqChar -> case args of
     [PrimCon _ (PrimChar c1), PrimCon _ (PrimChar c2)] ->
-      Right $ bool_ $ c1 == c2
+      Right $ boolAnn $ c1 == c2
     _ -> err
   IntAdd -> case args of
     [PrimCon _ (PrimInt x), PrimCon _ (PrimInt y)] ->
@@ -210,16 +210,16 @@ primFunDef def args = case def of
   IntQuotient -> case args of
     [PrimCon _ (PrimInt x), PrimCon _ (PrimInt y)] ->
       Right $
-        if y == 0
-          then conSat cNothing [tcon tInt] []
-          else conSat cJust [tcon tInt] [int (x `div` y)]
+        maybeAnn (tcon tInt) int $ if y == 0
+          then Nothing
+          else Just $ x `div` y
     _ -> err
   IntRemainder -> case args of
     [PrimCon _ (PrimInt x), PrimCon _ (PrimInt y)] ->
       Right $
-        if y == 0
-          then conSat cNothing [tcon tInt] []
-          else conSat cJust [tcon tInt] [int (x `mod` y)]
+        maybeAnn (tcon tInt) int $ if y == 0
+          then Nothing
+          else Just $ x `mod` y
     _ -> err
   IntQuot -> case args of
     [PrimCon _ (PrimInt x), PrimCon _ (PrimInt y)] ->
@@ -237,34 +237,34 @@ primFunDef def args = case def of
     _ -> err
   IntLT -> case args of
     [PrimCon _ (PrimInt x), PrimCon _ (PrimInt y)] ->
-      Right $ bool_ $ x < y
+      Right $ boolAnn $ x < y
     _ -> err
   IntLTE -> case args of
     [PrimCon _ (PrimInt x), PrimCon _ (PrimInt y)] ->
-      Right $ bool_ $ x <= y
+      Right $ boolAnn $ x <= y
     _ -> err
   IntGT -> case args of
     [PrimCon _ (PrimInt x), PrimCon _ (PrimInt y)] ->
-      Right $ bool_ $ x > y
+      Right $ boolAnn $ x > y
     _ -> err
   IntGTE -> case args of
     [PrimCon _ (PrimInt x), PrimCon _ (PrimInt y)] ->
-      Right $ bool_ $ x >= y
+      Right $ boolAnn $ x >= y
     _ -> err
   IntEq -> case args of
     [PrimCon _ (PrimInt x), PrimCon _ (PrimInt y)] ->
-      Right $ bool_ $ x == y
+      Right $ boolAnn $ x == y
     _ -> err
   IntNeq -> case args of
     [PrimCon _ (PrimInt x), PrimCon _ (PrimInt y)] ->
-      Right $ bool_ $ x /= y
+      Right $ boolAnn $ x /= y
     _ -> err
   IntToNat -> case args of
     [PrimCon _ (PrimInt x)] ->
       Right $
-        if x < 0
-          then conSat cNothing [tcon tNat] []
-          else conSat cJust [tcon tNat] [nat (fromInteger x)]
+        maybeAnn (tcon tNat) nat $ if x < 0
+          then Nothing
+          else Just $ fromInteger x
     _ -> err
   IntFromNat -> case args of
     [exprToNat -> Just n] ->
