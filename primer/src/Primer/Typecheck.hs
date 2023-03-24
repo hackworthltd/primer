@@ -649,12 +649,17 @@ check t = \case
                   -- verbatim from the AST, and thus it normally does not make
                   -- sense to do smartholes on that problem.)
                   Just (_,tAs) -> ensureJust ConstructorTypeArgsInconsistentNumber $
-                                      zipWithExactM (\tFromCon tFromType -> if consistentTypes (forgetTypeMetadata tFromCon) tFromType
+                                      zipWithExactM (\(tFromConOrig,tFromCon) tFromType -> if consistentTypes (forgetTypeMetadata tFromCon) tFromType
                                                      then pure tFromCon
                                                      else asks smartHoles >>= \case
                                                         NoSmartHoles -> throwError' ConstructorTypeArgsInconsistentTypes
-                                                        SmartHoles -> THole <$> meta' KHole <*> pure tFromCon)
-                                       tys' tAs
+                                                        -- We are careful to not remove an outer hole when kind checking, only
+                                                        -- to re-add it here with a different ID.
+                                                        SmartHoles -> case tFromConOrig of
+                                                          THole (Meta id _ m) _ -> pure $ THole (Meta id KHole m) tFromCon
+                                                          _ -> THole <$> meta' KHole <*> pure tFromCon
+                                                    )
+                                       (zip tys tys') tAs
                 -- Check that the arguments have the correct type
                 -- Note that being unsaturated is a fatal error and SmartHoles will not try to recover
                 -- (this is a design decision -- we put the burden onto code that builds ASTs,
