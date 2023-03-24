@@ -600,8 +600,9 @@ check t = \case
             (THole{}, args) | missing <- parentParams - length args , missing >= 0
                    -> mkTAppCon cParent $ replicate missing (TEmptyHole ()) <> args
             _ -> t
-    -- If typechecking fails, and smartholes is on, we attempt to change the term to
-    -- '{? c : ? ?}' to recover
+    -- If typechecking fails because the type @t'@ is not an ADT with a
+    -- constructor @c@, and smartholes is on, we attempt to change the term to
+    -- '{? c : ? ?}' to recover.
     let recoverSH err = asks smartHoles >>= \case
           NoSmartHoles -> throwError' err
           SmartHoles -> do
@@ -633,19 +634,33 @@ check t = \case
             Right (_,_, instVCs') -> case lookup c instVCs' of
               Nothing -> throwError' $ InternalError "same ADT now does not contain the constructor"
               Just argTys -> do
-                case decomposeTAppCon t' of
+                tys'' <- case decomposeTAppCon t' of
                   Nothing -> throwError' $ InternalError "instantiateValCons succeeded, but decomposeTAppCon did not"
-                  Just (_,tAs) -> case mconcat <$> zipWithExact (\t1 t2 -> All $ consistentTypes t1 t2) tys'NoMeta tAs of
-                    -- Fatal error, see comments on UnsaturatedConstructor error below
-                    Nothing -> throwError' ConstructorTypeArgsInconsistentNumber
-                    -- Fatal error, see comments on UnsaturatedConstructor error below
-                    Just (All consistent) -> unless consistent $ throwError' ConstructorTypeArgsInconsistentTypes
+                  -- See comments on UnsaturatedConstructor error below about the fatal 'ensureJust' error
+                  --
+                  -- If a type argument is inconsistent between the type and the
+                  -- constructor, then wrap that of the constructor in a hole.
+                  -- Arguably we should be finer-grained here, say changing
+                  -- @Maybe (List Bool) ∋ Just (List Int) t@ into @Just (List {?
+                  -- Int ?})@, but we do not have the infrastructure to do that,
+                  -- and it is only temporary that constructors have type
+                  -- arguments, so it does not seem worthwhile. (Note that
+                  -- normally when we do a consistency check, neither side is
+                  -- verbatim from the AST, and thus it normally does not make
+                  -- sense to do smartholes on that problem.)
+                  Just (_,tAs) -> ensureJust ConstructorTypeArgsInconsistentNumber $
+                                      zipWithExactM (\tFromCon tFromType -> if consistentTypes (forgetTypeMetadata tFromCon) tFromType
+                                                     then pure tFromCon
+                                                     else asks smartHoles >>= \case
+                                                        NoSmartHoles -> throwError' ConstructorTypeArgsInconsistentTypes
+                                                        SmartHoles -> THole <$> meta' KHole <*> pure tFromCon)
+                                       tys' tAs
                 -- Check that the arguments have the correct type
                 -- Note that being unsaturated is a fatal error and SmartHoles will not try to recover
                 -- (this is a design decision -- we put the burden onto code that builds ASTs,
                 -- e.g. the action code is responsible for only creating saturated constructors)
                 tms' <- ensureJust (UnsaturatedConstructor c) $ zipWithExactM check argTys tms
-                pure $ Con (annotate (TCChkedAt t') i) c tys' tms'
+                pure $ Con (annotate (TCChkedAt t') i) c tys'' tms'
   lam@(Lam i x e) -> do
     case matchArrowType t of
       Just (t1, t2) -> do
