@@ -187,6 +187,7 @@ data Expr' a b
 
 -- Note [Synthesisable constructors]
 -- TODO: this note needs updating for enforced-full-saturation!
+-- TODO (saturated constructors): the name of this note needs to change for check-ctors: make sure to update all references!
 --
 -- Whilst our calculus is heavily inspired by bidirectional type systems
 -- (especially McBride's principled rendition), we do not treat constructors
