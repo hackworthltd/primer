@@ -491,6 +491,7 @@ synth = \case
     -- Annotate the Ann with the same type as e
     pure $ annSynth2 t'' i Ann e' t'
   EmptyHole i -> pure $ annSynth0 (TEmptyHole ()) i EmptyHole
+  -- TODO (saturated constructors): I think this comment has become detached from its code...
   -- We assume that constructor names are unique
   -- See Note [Synthesisable constructors] in Core.hs
   -- When synthesising a hole, we first check that the expression inside it
