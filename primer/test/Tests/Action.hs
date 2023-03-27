@@ -1089,10 +1089,10 @@ unit_refine_8 =
 unit_refine_mismatch :: Assertion
 unit_refine_mismatch =
   actionTest
-    NoSmartHoles
+    SmartHoles
     (emptyHole `ann` tcon tNat)
     [Move Child1, constructRefinedCon cCons]
-    (hole (con cCons) `ann` tcon tNat)
+    (hole (con cCons [tEmptyHole] [emptyHole, emptyHole] `ann` tEmptyHole) `ann` tcon tNat)
 
 unit_primitive_1 :: Assertion
 unit_primitive_1 =
