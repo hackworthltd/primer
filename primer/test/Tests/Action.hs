@@ -1094,6 +1094,14 @@ unit_refine_mismatch =
     [Move Child1, constructRefinedCon cCons]
     (hole (con cCons [tEmptyHole] [emptyHole, emptyHole] `ann` tEmptyHole) `ann` tcon tNat)
 
+unit_refine_arr :: Assertion
+unit_refine_arr =
+  actionTest
+    SmartHoles
+    (emptyHole `ann` ((tcon tList `tapp` tcon tNat) `tfun`(tcon tList `tapp` tcon tNat)))
+    [Move Child1, constructRefinedCon cCons]
+    (hole (con cCons [tEmptyHole] [emptyHole, emptyHole] `ann` tEmptyHole) `ann` ((tcon tList `tapp` tcon tNat) `tfun`(tcon tList `tapp` tcon tNat)))
+
 unit_primitive_1 :: Assertion
 unit_primitive_1 =
   actionTest
