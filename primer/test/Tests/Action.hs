@@ -1052,6 +1052,32 @@ unit_refine_5 =
     [Move Child2, Move Child1, InsertRefinedVar $ LocalVarRef "nil"]
     (let_ "nil" (lAM "a" (con cNil [tvar "a"] []) `ann` tforall "a" KType (tcon tList `tapp` tvar "a")) $ (lvar "nil" `aPP` tEmptyHole) `ann` (tcon tList `tapp` tEmptyHole))
 
+-- REVIEW: perhaps we should be clever and eta expand? As a different action?
+-- Constructors are saturated, so if the hole has an arrow type, when we insert
+-- a constructor it cannot match the arrow, so it is inserted into a hole
+unit_refine_6 :: Assertion
+unit_refine_6 =
+  actionTest
+    NoSmartHoles
+    (emptyHole `ann` (tEmptyHole `tfun` tEmptyHole))
+    [Move Child1, constructRefinedCon cCons]
+    (hole (con cCons [tcon tNat] [emptyHole, emptyHole]) `ann` ((tcon tList `tapp` tcon tNat) `tfun` (tcon tList `tapp` tcon tNat)))
+
+-- TODO (saturated constructors) update this comment for ctors-dont-store-indices ('Cons Nat')
+-- Constructors are checkable and fully saturated, so even if the hole has type
+-- @List Nat -> List Nat@, when we insert a @Cons@ constructor, we end up with
+-- @{? Cons Nat ? ? :: List Nat ?}@
+-- (the inside of a hole is synthesisable position: see Note [Holes and bidirectionality])
+unit_refine_7 :: Assertion
+unit_refine_7 =
+  actionTest
+    NoSmartHoles
+    -- TODO: want both of these tests...; but neither tickle the bug in my bugs list...
+    --(emptyHole `ann` ((tcon tList `tapp` tcon tNat) `tfun` (tcon tList `tapp` tcon tNat)))
+    (emptyHole `ann` (tEmptyHole `tfun` tEmptyHole))
+    [Move Child1, constructRefinedCon cCons]
+    (hole (con cCons [tcon tNat] [emptyHole, emptyHole]) `ann` ((tcon tList `tapp` tcon tNat) `tfun` (tcon tList `tapp` tcon tNat)))
+
 unit_primitive_1 :: Assertion
 unit_primitive_1 =
   actionTest
