@@ -1086,6 +1086,16 @@ unit_refine_8 =
     [Move Child1, constructRefinedCon cCons]
     (hole (con cCons [tcon tNat] [emptyHole, emptyHole]) `ann` ((tcon tList `tapp` tcon tNat) `tfun` (tcon tList `tapp` tcon tNat)))
 
+-- TODO/REVIEW: on the deployed version, this seems to give (hole (con cCons) `ann` tcon tNat)
+-- but on satcon, gives (emptyHole `ann` tcon tNat)
+unit_refine_mismatch :: Assertion
+unit_refine_mismatch =
+  actionTest
+    NoSmartHoles
+    (emptyHole `ann` tcon tNat)
+    [Move Child1, constructRefinedCon cCons]
+    (hole (con cCons) `ann` tcon tNat)
+
 unit_primitive_1 :: Assertion
 unit_primitive_1 =
   actionTest
