@@ -658,26 +658,24 @@ conInfo ::
   MonadReader TC.Cxt m =>
   ValConName ->
   m (Either Text (Int,Int))
-conInfo c =
-  asks (flip lookupConstructor c . TC.typeDefs) <&> \case
-    Just (vc, tc, td) -> Right $ (length $ td.astTypeDefParameters, length $ vc.valConArgs)
-    Nothing -> Left $ "Could not find constructor " <> show c
+conInfo c = (\(_,tys,tms) -> (tys,tms)) <<$>> getConstructorTypeAndArity c
 
-
-getConstructorType ::
+-- TODO: rename, improve docs
+-- returns "type" of ctor, and its arity
+getConstructorTypeAndArity ::
   MonadReader TC.Cxt m =>
   ValConName ->
-  m (Either Text TC.Type)
-getConstructorType c =
+  m (Either Text (TC.Type,Int,Int))
+getConstructorTypeAndArity c =
   asks (flip lookupConstructor c . TC.typeDefs) <&> \case
-    Just (vc, tc, td) -> Right $ valConType tc td vc
+    Just (vc, tc, td) -> Right $ (valConType tc td vc ,length $ td.astTypeDefParameters, length $ vc.valConArgs)
     Nothing -> Left $ "Could not find constructor " <> show c
 
 constructRefinedCon :: ActionM m => QualifiedText -> ExprZ -> m ExprZ
 constructRefinedCon c ze = do
   let n = unsafeMkGlobalName c
-  cTy <-
-    getConstructorType n >>= \case
+  (cTy, numTyArgs, numTmArgs) <-
+    getConstructorTypeAndArity n >>= \case
       Left err -> throwError $ RefineError $ Left err
       Right t -> pure t
   -- our Cxt in the monad does not care about the local context, we have to extract it from the zipper.
@@ -690,10 +688,8 @@ constructRefinedCon c ze = do
     -- TODO (saturated constructors) this use of application nodes will be rejected once full-saturation is enforced
     EmptyHole{} -> breakLR <<$>> getRefinedApplications cxt cTy tgtTy >>= \case
       -- See Note [No valid refinement]
-      Nothing -> flip replace ze <$> hole (conSat n [] [])
-      -- TODO: in enforced-saturation-world, neither the above nor the Just Just case are valid:
-      -- the above obviously may not be saturated and the inside of the hole is not synthesisable (but maybe we don't care, and rely on smartholes to fix it?), and the below may not be if the target type is not an applied-ADT
-      -- (todo: add reference to innards-of-hole-must-be-syn note from todo list "Note [Holes and bidirectionality]")
+      Nothing -> flip replace ze <$> hole (conSat n (replicate numTyArgs tEmptyHole) (replicate numTmArgs emptyHole))
+      -- TODO: in enforced-saturation-world, the Just Just case is not valid: if the target type is not an applied-ADT
       Just Nothing -> throwError $ InternalFailure "Types of constructors always have type abstractions before term abstractions"
       Just (Just (tys,tms)) -> flip replace ze <$> conSat n (pure <$> tys) (pure <$> tms)
     e -> throwError $ NeedEmptyHole (ConstructRefinedCon c) e
