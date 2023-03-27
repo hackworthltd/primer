@@ -198,6 +198,12 @@ forSig l Editable ty id = sortByPriority l $ case findType id ty of
 forExpr :: TypeDefMap -> Level -> Expr -> [Action]
 forExpr tydefs l expr =
   universalActions <> synOnly <> case expr of
+  -- TODO (saturated constructors)/REVIEW: in line with our permissive stance,
+  -- we allow putting a constructor in a hole of non-adt type, eg '? -> ?',
+  -- but that constructor will always be itself placed in a hole. For example,
+  -- in a hole of type 'Nat -> Nat', trying to insert the constructor 'Succ'
+  -- will leave 'Nat -> Nat ∋ {? Succ ? :: Nat ?}'. This could perhaps be
+  -- improved in the future to offer an "insert a eta-expanded ctor" action
     EmptyHole{} ->
       annotate
         <> [ Input MakeVar
