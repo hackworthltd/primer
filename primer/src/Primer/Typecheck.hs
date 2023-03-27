@@ -510,6 +510,7 @@ synth = \case
   -- See https://github.com/hackworthltd/primer/issues/7
   Hole i e -> do
     (_, e') <- synth e
+    -- TODO: document that innards of holes are synth, not chk positions! (Add "Note [Holes and bidirectionality]"?) Also clarify that holes themselves can be in chk or syn position, and thus replaceable with different terms depending on where they are.
     pure $ annSynth1 (TEmptyHole ()) i Hole e'
   Let i x a b -> do
     -- Synthesise a type for the bound expression
