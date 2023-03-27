@@ -10,7 +10,6 @@ module Primer.Typecheck.Utils (
   lookupConstructor,
   mkTAppCon,
   decomposeTAppCon,
-  substituteTypeVars,
   maybeTypeOf,
   typeOf,
   _typecache,
@@ -29,10 +28,10 @@ import Data.Set qualified as S
 import Data.Tuple.Extra (fst3)
 import Optics (Lens', view, (%))
 import Primer.Core (Expr, Expr', GlobalName (baseName, qualifiedModule), ModuleName, TypeCache, _exprMetaLens)
-import Primer.Core.Meta (Meta, TyConName, TyVarName, ValConName, _type)
+import Primer.Core.Meta (Meta, TyConName, ValConName, _type)
 import Primer.Core.Type (Kind, Type' (TApp, TCon, TEmptyHole, THole))
 import Primer.Name (Name, NameCounter)
-import Primer.Subst (substTy)
+import Primer.Subst (substTySimul)
 import Primer.TypeDef (
   ASTTypeDef (astTypeDefConstructors, astTypeDefParameters),
   TypeDef (TypeDefAST, TypeDefPrim),
@@ -123,11 +122,8 @@ instantiateValCons' tyDefs t =
             f :: ValCon -> (ValConName, forall m. MonadFresh NameCounter m => [m (Type' ())])
             -- eta expand to deal with shallow subsumption
             {- HLINT ignore instantiateValCons' "Avoid lambda" -}
-            f c = (valConName c, map (\a -> substituteTypeVars (zip defparams params) a) $ valConArgs c)
+            f c = (valConName c, map (\a -> substTySimul (M.fromList $ zip defparams params) a) $ valConArgs c)
         pure (tc, tda, map f $ astTypeDefConstructors tda)
-
-substituteTypeVars :: MonadFresh NameCounter m => [(TyVarName, Type' ())] -> Type' () -> m (Type' ())
-substituteTypeVars = flip $ foldrM (uncurry substTy)
 
 -- | Decompose @C X Y Z@ to @(C,[X,Y,Z])@
 decomposeTAppCon :: Type' a -> Maybe (TyConName, [Type' a])

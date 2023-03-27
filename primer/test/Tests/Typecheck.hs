@@ -58,6 +58,7 @@ import Primer.Core (
   Type' (..),
   TypeCache (..),
   TypeCacheBoth (..),
+  ValConName,
   _exprMeta,
   _exprTypeMeta,
   _type,
@@ -323,6 +324,34 @@ unit_case_badType :: Assertion
 unit_case_badType =
   ann (lam "x" $ case_ (lvar "x") []) (tfun (tfun (tcon tNat) (tcon tNat)) (tcon tBool))
     `expectFailsWith` const (CannotCaseNonADT $ TFun () (TCon () tNat) (TCon () tNat))
+
+-- Regression test for confusion over type variable names in case branches:
+-- given the data type @data T a b = C b a@ and the program (for some @X@)
+-- @foo : ∀a.∀b.(X -> b -> Nat) -> Nat ; foo @a @b f = case (? : T b a) of C x y -> f x y@
+-- then inside the case branch, we should have types @x ∈ a, y ∈ b@, and thus
+-- - for @X = a@, this should typecheck
+-- - for @X = b@, this should fail to typecheck
+-- However, previously we would mess up the computation of what types @x@ and
+-- @y@ have, due to doing an iterated substitution of @[a->b, b->a]@, rather
+-- than a simultaneous one, resulting in believing @x:b@ and @y:b@!
+unit_case_subst :: Assertion
+unit_case_subst = do
+  let ty x = tforall "a" KType $ tforall "b" KType $ (tvar x `tfun` (tvar "b" `tfun` tcon tNat)) `tfun` tcon tNat
+  let expr a b =
+        lAM a $
+          lAM b $
+            lam "f" $
+              case_
+                (emptyHole `ann` (tcon tSwap `tapp` tvar b `tapp` tvar a))
+                [branch cMakeSwap [("x", Nothing), ("y", Nothing)] $ lvar "f" `app` lvar "x" `app` lvar "y"]
+  -- Firstly, with distinct names between type definition and type usage
+  -- (this version should always work)
+  expectTyped $ expr "u" "v" `ann` ty "a"
+  (expr "u" "v" `ann` ty "b") `expectFailsWith` const (InconsistentTypes (TVar () "v") (TVar () "u"))
+  -- Secondly, with same names
+  -- (this version may fail if we confuse scopes when substituting)
+  expectTyped $ expr "a" "b" `ann` ty "a"
+  (expr "a" "b" `ann` ty "b") `expectFailsWith` const (InconsistentTypes (TVar () "b") (TVar () "a"))
 
 -- Cannot annotate something with a non-existent type constructor
 unit_ann_bad :: Assertion
@@ -886,7 +915,11 @@ testModule :: Module
 testModule =
   Module
     { moduleName = ModuleName ["TestModule"]
-    , moduleTypes = Map.singleton (baseName tMaybeT) (TypeDefAST maybeTDef)
+    , moduleTypes =
+        Map.fromList
+          [ (baseName tMaybeT, TypeDefAST maybeTDef)
+          , (baseName tSwap, TypeDefAST swapDef)
+          ]
     , moduleDefs = mempty
     }
 
@@ -898,5 +931,19 @@ maybeTDef =
   ASTTypeDef
     { astTypeDefParameters = [("m", KFun KType KType), ("a", KType)]
     , astTypeDefConstructors = [ValCon (vcn ["TestModule"] "MakeMaybeT") [TApp () (TVar () "m") (TApp () (TCon () tMaybe) (TVar () "a"))]]
+    , astTypeDefNameHints = []
+    }
+
+tSwap :: TyConName
+tSwap = tcn ["TestModule"] "Swap"
+
+cMakeSwap :: ValConName
+cMakeSwap = vcn ["TestModule"] "MakeSwap"
+
+swapDef :: ASTTypeDef
+swapDef =
+  ASTTypeDef
+    { astTypeDefParameters = [("a", KType), ("b", KType)]
+    , astTypeDefConstructors = [ValCon cMakeSwap [TVar () "b", TVar () "a"]]
     , astTypeDefNameHints = []
     }

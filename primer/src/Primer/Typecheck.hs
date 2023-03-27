@@ -41,7 +41,6 @@ module Primer.Typecheck (
   instantiateValCons',
   exprTtoExpr,
   typeTtoType,
-  substituteTypeVars,
   getGlobalNames,
   getGlobalBaseNames,
   lookupGlobal,
@@ -180,7 +179,6 @@ import Primer.Typecheck.Utils (
   lookupConstructor,
   maybeTypeOf,
   mkTAppCon,
-  substituteTypeVars,
   typeOf,
   _typecache,
  )
