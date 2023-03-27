@@ -151,10 +151,10 @@ import Primer.Def (
 import Primer.Def.Utils (globalInUse)
 import Primer.Eval qualified as Eval
 import Primer.Eval.Detail (EvalDetail)
-import Primer.Eval.Redex (EvalLog)
+import Primer.Eval.Redex (EvalLog (InvariantFailure))
 import Primer.EvalFull (Dir (Syn), EvalFullError (TimedOut), TerminationBound, evalFull)
 import Primer.JSON
-import Primer.Log (ConvertLogMessage)
+import Primer.Log (ConvertLogMessage, logInfo)
 import Primer.Module (
   Module (Module, moduleDefs, moduleName, moduleTypes),
   builtinModule,
@@ -503,14 +503,16 @@ handleGetProgramRequest :: MonadReader App m => m Prog
 handleGetProgramRequest = asks appProg
 
 -- | Handle a request to mutate the app state
-handleMutationRequest :: MonadEditApp l ProgError m => MutationRequest -> m Prog
+handleMutationRequest :: (MonadEditApp l ProgError m, ConvertLogMessage EvalLog l) => MutationRequest -> m Prog
 handleMutationRequest = \case
   Edit as -> handleEditRequest as
   Undo -> handleUndoRequest
 
 -- | Handle an edit request
-handleEditRequest :: forall m l. MonadEditApp l ProgError m => [ProgAction] -> m Prog
+handleEditRequest :: forall m l. (ConvertLogMessage EvalLog l,MonadEditApp l ProgError m) => [ProgAction] -> m Prog
 handleEditRequest actions = do
+  logInfo $ InvariantFailure "(not inv fail, just smuggling strings...)"
+  logInfo $ InvariantFailure $ "handleEditRequest: " <> show actions
   (prog, _) <- gets appProg >>= \p -> foldlM go (p, Nothing) actions
   let Log l = progLog prog
   let prog' = prog{progLog = Log (actions : l)}
@@ -995,7 +997,7 @@ editModuleOfCross mdefName prog f = case mdefName of
 -- Because actions often refer to the IDs of nodes created by previous actions
 -- we must reset the ID and name counter to their original state before we
 -- replay. We do this by resetting the entire app state.
-handleUndoRequest :: MonadEditApp l ProgError m => m Prog
+handleUndoRequest :: (ConvertLogMessage EvalLog l, MonadEditApp l ProgError m) => m Prog
 handleUndoRequest = do
   prog <- gets appProg
   start <- gets appInit
@@ -1009,7 +1011,7 @@ handleUndoRequest = do
         (Left err, _) -> throwError err
 
 -- Replay a series of actions, updating the app state with the new program
-replay :: MonadEditApp l ProgError m => [[ProgAction]] -> m ()
+replay :: (MonadEditApp l ProgError m, ConvertLogMessage EvalLog l) => [[ProgAction]] -> m ()
 replay = mapM_ handleEditRequest
 
 -- | A shorthand for the constraints we need when performing mutation

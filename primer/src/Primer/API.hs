@@ -380,7 +380,7 @@ data APILog
   | ApplyActionInput (ReqResp (ExprTreeOpts, SessionId, ApplyActionBody, Available.InputAction) Prog)
   deriving stock (Show, Read)
 
-type MonadAPILog l m = (MonadLog (WithSeverity l) m, ConvertLogMessage APILog l)
+type MonadAPILog l m = (MonadLog (WithSeverity l) m, ConvertLogMessage APILog l, ConvertLogMessage EvalLog l)
 
 -- | A wrapper to log an API call
 logAPI :: MonadAPILog l m => (ReqResp a b -> (Severity, APILog)) -> (a -> PrimerM m b) -> a -> PrimerM m b
