@@ -1068,24 +1068,30 @@ unit_refine_mismatch =
     [Move Child1, constructRefinedCon cCons]
     (hole (con cCons [tEmptyHole] [emptyHole, emptyHole]) `ann` tcon tNat)
 
--- Note @cons @? ∈ ? -> List ? -> List ?  ~  ? -> ?@,
--- thus inserting a refined @cons@ in a hole of type @? -> ?@ may not refine as
--- much as you may expect!
+-- REVIEW: perhaps we should be clever and eta expand? As a different action?
+--
+-- Constructors are saturated, so if the hole has an arrow type, when we insert
+-- a constructor it cannot match the arrow, so it is inserted into a hole
 unit_refine_arr_1 :: Assertion
 unit_refine_arr_1 =
   actionTest
     NoSmartHoles
     (emptyHole `ann` (tEmptyHole `tfun` tEmptyHole))
     [Move Child1, constructRefinedCon cCons]
-    (con cCons [tEmptyHole] [] `ann` (tEmptyHole `tfun` tEmptyHole))
+    (hole (con cCons [tEmptyHole] [emptyHole, emptyHole]) `ann` (tEmptyHole `tfun` tEmptyHole))
 
+-- TODO (saturated constructors) update this comment for ctors-dont-store-indices ('Cons Nat') and ctors-are-chk
+--
+-- Constructors are fully saturated, so even if the hole has type
+-- @List Nat -> List Nat@, when we insert a @Cons@ constructor, we end up with
+-- @{? Cons @? ? ? ?}@
 unit_refine_arr_2 :: Assertion
 unit_refine_arr_2 =
   actionTest
     NoSmartHoles
     (emptyHole `ann` ((tcon tList `tapp` tcon tNat) `tfun` (tcon tList `tapp` tcon tNat)))
     [Move Child1, constructRefinedCon cCons]
-    (con cCons [tcon tNat] [emptyHole] `ann` ((tcon tList `tapp` tcon tNat) `tfun` (tcon tList `tapp` tcon tNat)))
+    (hole (con cCons [tEmptyHole] [emptyHole, emptyHole]) `ann` ((tcon tList `tapp` tcon tNat) `tfun` (tcon tList `tapp` tcon tNat)))
 
 unit_primitive_1 :: Assertion
 unit_primitive_1 =

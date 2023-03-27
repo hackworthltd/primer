@@ -27,7 +27,7 @@ import Data.List.NonEmpty qualified as NE
 import Data.Map.Strict qualified as Map
 import Data.Set qualified as Set
 import Data.Text qualified as T
-import Optics (set, (%), (?~), (^.), (^?), _Just)
+import Optics (set, to, (%), (?~), (^.), (^?), _Just)
 import Primer.Action.Actions (Action (..), Movement (..), QualifiedText)
 import Primer.Action.Available qualified as Available
 import Primer.Action.Errors (ActionError (..))
@@ -664,11 +664,18 @@ constructRefinedCon c ze = do
   tgtTy <- getTypeCache $ target ze
   case target ze of
     -- TODO (saturated constructors) this use of application nodes will be rejected once full-saturation is enforced
-    EmptyHole{} ->
-      breakLR <<$>> getRefinedApplications cxt cTy tgtTy >>= \case
+    EmptyHole{} -> do
+      -- TODO (saturated constructors) rather a code smell to grab the chkedAt type both here and in getRefinedApplications
+      let isTAppCon = tgtTy ^? _chkedAt % to TC.decomposeTAppCon % _Just
+      refined <- breakLR <<$>> getRefinedApplications cxt cTy tgtTy
+      -- If the type is not of the form 'type constructor applied to types'
+      -- then we give back a plain saturated constuctor. This avoids constucting
+      -- an unsaturated constructor in the case of inserting a @Cons@ into a hole
+      -- of type @List A -> List A@
+      -- TODO (saturated constructors) perhaps we should eta-expand here? Should be discussed in FR
+      case isTAppCon *> refined of
         -- See Note [No valid refinement]
         Nothing -> flip replace ze <$> hole (con n (replicate numTyArgs tEmptyHole) (replicate numTmArgs emptyHole))
-        -- TODO: in enforced-saturation-world, the Just Just case is not valid: if the target type is not an applied-ADT
         -- TODO (saturated constructors) when ctors are chk only, the Nothing case needs changing, as innards of holes must be syn
         -- (todo: add reference to innards-of-hole-must-be-syn note from todo list "Note [Holes and bidirectionality]")
         Just Nothing -> throwError $ InternalFailure "Types of constructors always have type abstractions before term abstractions"
