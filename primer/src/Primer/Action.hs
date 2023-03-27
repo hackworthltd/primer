@@ -659,14 +659,19 @@ constructRefinedCon c ze = do
   case target ze of
     EmptyHole{} ->
       breakLR <<$>> getRefinedApplications cxt cTy tgtTy >>= \case
+        Just (Just (tys, tms))
+          | length tys == numTyArgs && length tms == numTmArgs ->
+              flip replace ze <$> con n (pure <$> tys) (pure <$> tms)
+          -- If the refinement is not saturated, just give a saturated constructor
+          -- This could happen when refining @Cons@ to fit in a hole of type @List Nat -> List Nat@
+          -- as we get the "type" of @Cons@ being @∀a. a -> List a -> List a@
+          -- and thus a refinement of @Nat, _@.
+          | otherwise -> flip replace ze <$> hole (con n (replicate numTyArgs tEmptyHole) (replicate numTmArgs emptyHole))
         -- See Note [No valid refinement]
         Nothing -> flip replace ze <$> hole (con n (replicate numTyArgs tEmptyHole) (replicate numTmArgs emptyHole))
         -- TODO (saturated constructors): when constructors are checkable the above will not be valid
         -- since the inside of a hole must be synthesisable (see Note [Holes and bidirectionality])
-        -- TODO (saturated constructors): when saturation is enforced, the Just Just case may not be valid
-        -- if the target type is not an applied-ADT
         Just Nothing -> throwError $ InternalFailure "Types of constructors always have type abstractions before term abstractions"
-        Just (Just (tys, tms)) -> flip replace ze <$> con n (pure <$> tys) (pure <$> tms)
     e -> throwError $ NeedEmptyHole (ConstructRefinedCon c) e
 
 getTypeCache :: MonadError ActionError m => Expr -> m TypeCache
