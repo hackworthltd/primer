@@ -1066,7 +1066,7 @@ unit_refine_mismatch =
     NoSmartHoles
     (emptyHole `ann` tcon tNat)
     [Move Child1, constructRefinedCon cCons]
-    (hole (con cCons [] []) `ann` tcon tNat)
+    (hole (con cCons [tEmptyHole] [emptyHole, emptyHole]) `ann` tcon tNat)
 
 -- Note @cons @? ∈ ? -> List ? -> List ?  ~  ? -> ?@,
 -- thus inserting a refined @cons@ in a hole of type @? -> ?@ may not refine as
