@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedLabels #-}
+{-# LANGUAGE OverloadedRecordDot #-}
 
 module Tests.Action.Available where
 
@@ -33,13 +34,13 @@ import Primer.Action (
   toProgActionInput,
   toProgActionNoInput,
  )
-import Primer.Action.Available (NoInputAction (Raise))
+import Primer.Action.Available (InputAction (MakeConSat), NoInputAction (Raise), Option (Option))
 import Primer.Action.Available qualified as Available
 import Primer.App (
   App,
   EditAppM,
   Editable (..),
-  Level (Beginner),
+  Level (Beginner, Intermediate),
   NodeType (..),
   ProgError (ActionError, DefAlreadyExists),
   appProg,
@@ -53,13 +54,14 @@ import Primer.App (
   progSmartHoles,
   runEditAppM,
  )
+import Primer.Builtins (builtinModuleName, cCons, tList, tNat)
 import Primer.Core (
   Expr,
   GVarName,
   GlobalName (baseName, qualifiedModule),
   HasID (_id),
   ID,
-  ModuleName (ModuleName),
+  ModuleName (ModuleName, unModuleName),
   getID,
   mkSimpleModuleName,
   moduleNamePretty,
@@ -70,13 +72,18 @@ import Primer.Core.DSL (
   S,
   ann,
   app,
+  con,
   create,
   create',
   emptyHole,
   gvar,
+  hole,
   lam,
   lvar,
   tEmptyHole,
+  tapp,
+  tcon,
+  tfun,
  )
 import Primer.Core.Utils (
   exprIDs,
@@ -107,6 +114,7 @@ import Primer.Typecheck (
   SmartHoles (NoSmartHoles, SmartHoles),
   buildTypingContextFromModules,
   checkEverything,
+  typeDefs,
  )
 import Primer.Zipper (focus)
 import System.FilePath ((</>))
@@ -343,7 +351,7 @@ unit_raise_sh =
           Beginner
           (emptyHole `app` t1 `app` emptyHole)
           [Child1, Child2]
-          Raise
+          (Left Raise)
           (t2 `app` emptyHole)
       testSyn :: HasCallStack => S Expr -> Assertion
       testSyn e = test e e
@@ -352,6 +360,26 @@ unit_raise_sh =
    in do
         testSyn emptyHole
         testChk $ lam "x" (lvar "x")
+
+unit_sat_con_1 :: Assertion
+unit_sat_con_1 =
+  offeredActionTest
+    SmartHoles
+    Intermediate
+    (emptyHole `ann` (tEmptyHole `tfun` tEmptyHole))
+    [Child1]
+    (Right (MakeConSat, Option "Cons" $ Just $ unName <$> unModuleName builtinModuleName))
+    (hole (con cCons [tEmptyHole] [emptyHole, emptyHole]) `ann` (tEmptyHole `tfun` tEmptyHole))
+
+unit_sat_con_2 :: Assertion
+unit_sat_con_2 =
+  offeredActionTest
+    SmartHoles
+    Intermediate
+    (emptyHole `ann` ((tcon tList `tapp` tcon tNat) `tfun` (tcon tList `tapp` tcon tNat)))
+    [Child1]
+    (Right (MakeConSat, Option "Cons" $ Just $ unName <$> unModuleName builtinModuleName))
+    (hole (con cCons [tEmptyHole] [emptyHole, emptyHole]) `ann` ((tcon tList `tapp` tcon tNat) `tfun` (tcon tList `tapp` tcon tNat)))
 
 -- | Apply the action to the node in the input expression pointed to by the
 -- 'Movement' (starting from the root), checking that it would actually be offered
@@ -363,7 +391,7 @@ offeredActionTest ::
   Level ->
   S Expr ->
   [Movement] ->
-  NoInputAction ->
+  Either NoInputAction (InputAction, Option) ->
   S Expr ->
   Assertion
 offeredActionTest sh l inputExpr position action expectedOutput = do
@@ -387,13 +415,35 @@ offeredActionTest sh l inputExpr position action expectedOutput = do
   id <- case id' of
     Left err -> assertFailure $ show err
     Right i' -> pure i'
-  let offered = Available.forBody (foldMap' moduleTypesQualified modules) l Editable expr id
-  assertBool "Requested action was not offered" (Available.NoInput action `elem` offered)
-  action' <- case toProgActionNoInput (foldMap' moduleDefsQualified $ progModules prog) exprDef exprDefName (Just (BodyNode, id)) action of
+  let cxt = buildTypingContextFromModules modules sh
+  let defs = foldMap' moduleDefsQualified modules
+  let offered = Available.forBody cxt.typeDefs l Editable expr id
+  let options = Available.options cxt.typeDefs defs cxt l exprDef (Just (BodyNode, id))
+  let assertElem msg x xs =
+        assertBool
+          ( msg
+              <> show x
+              <> " is not an element of "
+              <> show xs
+          )
+          (x `elem` xs)
+  let assertOffered a = assertElem "Requested action not offered: " a offered
+  action' <- case action of
+    Left a -> do
+      assertOffered $ Available.NoInput a
+      pure $ toProgActionNoInput (foldMap' moduleDefsQualified $ progModules prog) exprDef exprDefName (Just (BodyNode, id)) a
+    Right (a, o) -> do
+      assertOffered $ Available.Input a
+      case options a of
+        Nothing -> assertFailure "Available.options returned Nothing"
+        Just os -> do
+          assertElem "Requested option not offered: " o os.opts
+          pure $ toProgActionInput exprDef exprDefName (Just (BodyNode, id)) o a
+  action'' <- case action' of
     Left err -> assertFailure $ show err
     Right a -> pure a
   let expected = create' expectedOutput
-  progActionTest (pure prog) action' $ expectSuccess $ \_ prog' ->
+  progActionTest (pure prog) action'' $ expectSuccess $ \_ prog' ->
     let result = pure . astDefExpr <=< defAST <=< findGlobalByName prog' $ exprDefName
      in -- Compare result to input, ignoring any difference in metadata
         -- NB: we don't compare up-to-alpha, as names should be determined by the
