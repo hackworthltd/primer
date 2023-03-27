@@ -1,4 +1,4 @@
-Some new unit tests fail (trying to boil down the 'available actions accepted' failure, but missed...):
+Some new unit tests fail (trying to boil down the 'available actions accepted' failure, but missed... as NoSmartHoles, but then hit with SmartHoles):
 cabal run primer-test -- -p '/sat con/||/refine/'
 
 Available actions has not yet been updated for checkable ctors, thus fails:

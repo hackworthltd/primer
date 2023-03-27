@@ -1078,6 +1078,14 @@ unit_refine_7 =
     [Move Child1, constructRefinedCon cCons]
     (hole (con cCons [tcon tNat] [emptyHole, emptyHole]) `ann` ((tcon tList `tapp` tcon tNat) `tfun` (tcon tList `tapp` tcon tNat)))
 
+unit_refine_8 :: Assertion
+unit_refine_8 =
+  actionTest
+    SmartHoles
+    (emptyHole `ann` (tEmptyHole `tfun` tEmptyHole))
+    [Move Child1, constructRefinedCon cCons]
+    (hole (con cCons [tcon tNat] [emptyHole, emptyHole]) `ann` ((tcon tList `tapp` tcon tNat) `tfun` (tcon tList `tapp` tcon tNat)))
+
 unit_primitive_1 :: Assertion
 unit_primitive_1 =
   actionTest
