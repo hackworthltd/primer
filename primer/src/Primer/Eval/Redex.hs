@@ -891,6 +891,7 @@ runRedex = \case
     , conID
     } -> do
       let binderNames = map bindName binders
+      -- TODO (saturated constructors) since constructors are checkable, we can remove the "non-annotated-constructor case"
       aTysC <- sequence argTysFromCon
       aTysA <- traverse sequence argTysFromAnn
       unless (length args == length aTysC && maybe True ((length args ==) . length) aTysA && length args == length binders) $
