@@ -100,14 +100,14 @@ import Tests.Gen.Core.Typed (checkTest)
 -- * 'tryReduce' tests
 
 -- | A helper for these tests
-runTryReduce :: TypeDefMap -> DefMap -> Cxt -> (Expr, ID) -> IO (Either EvalError (Expr, EvalDetail))
+runTryReduce :: HasCallStack => TypeDefMap -> DefMap -> Cxt -> (Expr, ID) -> IO (Either EvalError (Expr, EvalDetail))
 runTryReduce tys globals locals (expr, i) = do
   let (r, logs) = evalTestM i $ runPureLogT $ runExceptT $ tryReduceExpr @EvalLog tys globals locals Syn expr
   assertNoSevereLogs logs
   pure r
 
 -- For use in assertions
-runTryReduceType :: DefMap -> Cxt -> (Type, ID) -> IO (Either EvalError (Type, EvalDetail))
+runTryReduceType :: HasCallStack => DefMap -> Cxt -> (Type, ID) -> IO (Either EvalError (Type, EvalDetail))
 runTryReduceType globals locals (ty, i) = do
   let (r, logs) = evalTestM i $ runPureLogT $ runExceptT $ tryReduceType @EvalLog globals locals ty
   assertNoSevereLogs logs
