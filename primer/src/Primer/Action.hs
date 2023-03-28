@@ -639,11 +639,11 @@ constructSatCon :: ActionM m => QualifiedText -> ExprZ -> m ExprZ
 constructSatCon c ze = case target ze of
   -- Similar comments re smartholes apply as to insertSatVar
   EmptyHole{} -> do
-    (nTyArgs, nTmArgs) <-
+    nTmArgs <-
       conInfo n >>= \case
         Left err -> throwError $ SaturatedApplicationError $ Left err
         Right t -> pure t
-    flip replace ze <$> conSat n (replicate nTyArgs tEmptyHole) (replicate nTmArgs emptyHole)
+    flip replace ze <$> conSat n (replicate nTmArgs emptyHole)
   e -> throwError $ NeedEmptyHole (ConstructSaturatedCon c) e
   where
     n = unsafeMkGlobalName c
@@ -652,24 +652,24 @@ constructSatCon c ze = case target ze of
 conInfo ::
   MonadReader TC.Cxt m =>
   ValConName ->
-  m (Either Text (Int,Int))
-conInfo c = (\(_,tys,tms) -> (tys,tms)) <<$>> getConstructorTypeAndArity c
+  m (Either Text Int)
+conInfo c = snd <<$>> getConstructorTypeAndArity c
 
 -- TODO: rename, improve docs
 -- returns "type" of ctor, and its arity
 getConstructorTypeAndArity ::
   MonadReader TC.Cxt m =>
   ValConName ->
-  m (Either Text (TC.Type,Int,Int))
+  m (Either Text (TC.Type,Int))
 getConstructorTypeAndArity c =
   asks (flip lookupConstructor c . TC.typeDefs) <&> \case
-    Just (vc, tc, td) -> Right $ (valConType tc td vc ,length $ td.astTypeDefParameters, length $ vc.valConArgs)
+    Just (vc, tc, td) -> Right $ (valConType tc td vc ,length $ vc.valConArgs)
     Nothing -> Left $ "Could not find constructor " <> show c
 
 constructRefinedCon :: ActionM m => QualifiedText -> ExprZ -> m ExprZ
 constructRefinedCon c ze = do
   let n = unsafeMkGlobalName c
-  (cTy, numTyArgs, numTmArgs) <-
+  (cTy, numTmArgs) <-
     getConstructorTypeAndArity n >>= \case
       Left err -> throwError $ RefineError $ Left err
       Right t -> pure t
@@ -694,9 +694,9 @@ constructRefinedCon c ze = do
       -- TODO in the Nothing case, the inside of the hole is not synthesisable (but maybe we don't care, and rely on smartholes to fix it?),
       -- (todo?: add reference to innards-of-hole-must-be-syn note from todo list "Note [Holes and bidirectionality]")
       -- See Note [No valid refinement]
-      Nothing -> flip replace ze <$> hole (con n (replicate numTyArgs tEmptyHole) (replicate numTmArgs emptyHole))
+      Nothing -> flip replace ze <$> hole (con n (replicate numTmArgs emptyHole))
       Just Nothing -> throwError $ InternalFailure "Types of constructors always have type abstractions before term abstractions"
-      Just (Just (tys,tms)) -> flip replace ze <$> con n (pure <$> tys) (pure <$> tms)
+      Just (Just (_tys,tms)) -> flip replace ze <$> con n (pure <$> tms)
     e -> throwError $ NeedEmptyHole (ConstructRefinedCon c) e
 
 getTypeCache :: MonadError ActionError m => Expr -> m TypeCache
