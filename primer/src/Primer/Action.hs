@@ -702,17 +702,6 @@ constructRefinedCon c ze = do
       -- See Note [No valid refinement]
       Nothing -> flip replace ze <$> hole (con n (replicate numTyArgs tEmptyHole) (replicate numTmArgs emptyHole))
       Just Nothing -> throwError $ InternalFailure "Types of constructors always have type abstractions before term abstractions"
-      Just (Just (tys,tms)) -> do
-        traceM $ "constructRefinedCon, inputs are"
-        traceM $ "  c: " <> show c
-        traceM $ "  tgtTy: " <> show tgtTy
-        traceM $ "constructRefinedCon, refine gives"
-        traceM $ "  tys: " <> show tys
-        traceM $ "  tms: " <> show tms
-        res <- con n (pure <$> tys) (pure <$> tms)
-        traceM $ "constructRefinedCon, result was"
-        traceM $ "  res: " <> show res
-        pure $ replace res ze
       Just (Just (tys,tms)) -> flip replace ze <$> con n (pure <$> tys) (pure <$> tms)
     e -> throwError $ NeedEmptyHole (ConstructRefinedCon c) e
 
