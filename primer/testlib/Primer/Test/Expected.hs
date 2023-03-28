@@ -59,9 +59,9 @@ mapEven n =
         (mapName, mapDef) <- Examples.map modName
         (evenName, evenDef) <- Examples.even modName
         (oddName, oddDef) <- Examples.odd modName
-        let lst = list_ tNat $ take n $ iterate (conSat cSucc [] . (: [])) (con0 cZero)
+        let lst = list_ $ take n $ iterate (conSat cSucc . (: [])) (con0 cZero)
         expr <- gvar mapName `aPP` tcon tNat `aPP` tcon tBool `app` gvar evenName `app` lst
         let globs = M.fromList [(mapName, mapDef), (evenName, evenDef), (oddName, oddDef)]
-        expect <- list_ tBool (take n $ cycle [con0 cTrue, con0 cFalse]) `ann` (tcon tList `tapp` tcon tBool)
+        expect <- list_ (take n $ cycle [con0 cTrue, con0 cFalse]) `ann` (tcon tList `tapp` tcon tBool)
         pure (globs, expr, expect)
    in Expected globals e id expected
