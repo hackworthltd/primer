@@ -500,6 +500,10 @@ viewCaseRedex ::
   Expr ->
   MaybeT m Redex
 viewCaseRedex tydefs = \case
+  -- Note that constructors are checkable, but scrutinees are synthesisable,
+  -- thus we only have terms such as @case (C x y : T a) of ...@. Thus we
+  -- know the type of the scrutinee syntactically.
+{-
   -- The patterns in the case branch have a Maybe TypeCache attached, but we
   -- should not assume that this has been filled in correctly, so we record
   -- the type of the scrutinee, and reconstruct the types of the pattern
@@ -603,6 +607,7 @@ viewCaseRedex tydefs = \case
       Redex
     formCaseRedex con argTys args binders rhs (orig, scrut, conID) =
       CaseRedex{con, args, argTys, binders, rhs, orig, scrutID = getID scrut, conID}
+-}
 
 -- We record each binder, along with its let-bound RHS (if any)
 -- and its original binding location and  context (to be able to detect capture)
@@ -890,6 +895,7 @@ runRedex = \case
     , scrutID
     , conID
     } -> do
+{-
       let binderNames = map bindName binders
       -- TODO (saturated constructors) since constructors are checkable, we can remove the "non-annotated-constructor case"
       aTysC <- sequence argTysFromCon
@@ -929,6 +935,7 @@ runRedex = \case
               , letIDs
               }
       pure (expr', CaseReduction details)
+-}
   -- [ t : T ]  ~>  t  writing [_] for the embedding of syn into chk
   Upsilon{expr, ann = ty, orig} -> do
     let details =
