@@ -151,7 +151,7 @@ instance Show l => ConvertLogMessage l LogMsg where
 isSevereLog :: WithSeverity l -> Bool
 isSevereLog l = msgSeverity l < Informational
 
-assertNoSevereLogs :: Show l => Seq (WithSeverity l) -> Assertion
+assertNoSevereLogs :: (HasCallStack, Show l) => Seq (WithSeverity l) -> Assertion
 assertNoSevereLogs logs =
   let severe = Seq.filter isSevereLog logs
    in if null severe
@@ -161,7 +161,7 @@ assertNoSevereLogs logs =
 testNoSevereLogs :: (HasCallStack, MonadTest m, Eq l, Show l) => Seq (WithSeverity l) -> m ()
 testNoSevereLogs logs = Seq.filter isSevereLog logs === mempty
 
-failWhenSevereLogs :: (MonadTest m, Eq l, Show l) => PureLogT (WithSeverity l) m a -> m a
+failWhenSevereLogs :: (HasCallStack, MonadTest m, Eq l, Show l) => PureLogT (WithSeverity l) m a -> m a
 failWhenSevereLogs m = do
   (r, logs) <- runPureLogT m
   testNoSevereLogs logs
