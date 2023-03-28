@@ -1,2 +1,0 @@
-'comprehensive' has changed, thus its available actions has. BUT I don't want to just accept because (a) I am not certain it gives the wanted output and (b) it may well change when fix 'available actions accepted'
-cabal run primer-test -- -p Available.M.comprehensive
