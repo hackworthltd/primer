@@ -382,24 +382,14 @@ unit_tryReduce_letrec = do
       detail.bodyID @?= 3
     _ -> assertFailure $ show result
 
+-- case-of-constructor does not reduce if the constructor is not annotated
+-- (indeed, it is not even well-typed)
 unit_tryReduce_case_1 :: Assertion
 unit_tryReduce_case_1 = do
   let (expr, i) = create $ case_ (con0' ["M"] "C") [branch' (["M"], "B") [("b", Nothing)] (con0' ["M"] "D"), branch' (["M"], "C") [] (con0' ["M"] "E")]
-      expectedResult = create' $ con0' ["M"] "E"
   result <- runTryReduce tydefs mempty mempty (expr, i)
   case result of
-    Right (expr', CaseReduction detail) -> do
-      expr' ~= expectedResult
-
-      detail.before ~= expr
-      detail.after ~= expectedResult
-      detail.targetID @?= 1
-      detail.targetCtorID @?= 1
-      detail.ctorName @?= vcn ["M"] "C"
-      detail.targetArgIDs @?= []
-      detail.branchBindingIDs @?= []
-      detail.branchRhsID @?= 4
-      detail.letIDs @?= []
+    Left NotRedex -> pure ()
     _ -> assertFailure $ show result
 
 unit_tryReduce_case_2 :: Assertion
@@ -407,7 +397,7 @@ unit_tryReduce_case_2 = do
   let (expr, i) =
         create $
           case_
-            (con' ["M"] "C" [] [lam "x" (lvar "x"), lvar "y", lvar "z"])
+            (con' ["M"] "C" [] [lam "x" (lvar "x"), lvar "y", lvar "z"] `ann` tcon' ["M"] "T")
             [ branch' (["M"], "B") [("b", Nothing)] (con0' ["M"] "D")
             , branch' (["M"], "C") [("c", Nothing), ("d", Nothing), ("e", Nothing)] (con0' ["M"] "E")
             ]
@@ -447,12 +437,12 @@ unit_tryReduce_case_2 = do
       detail.before ~= expr
       detail.after ~= expectedResult
       detail.targetID @?= 1
-      detail.targetCtorID @?= 1
+      detail.targetCtorID @?= 2
       detail.ctorName @?= vcn ["M"] "C"
-      detail.targetArgIDs @?= [2, 4, 5]
-      detail.branchBindingIDs @?= [8, 9, 10]
-      detail.branchRhsID @?= 11
-      detail.letIDs @?= [19, 16, 13]
+      detail.targetArgIDs @?= [3, 5, 6]
+      detail.branchBindingIDs @?= [10, 11, 12]
+      detail.branchRhsID @?= 13
+      detail.letIDs @?= [21, 18, 15]
     _ -> assertFailure $ show result
 
 unit_tryReduce_case_3 :: Assertion
@@ -460,7 +450,9 @@ unit_tryReduce_case_3 = do
   let (expr, i) =
         create $
           case_
-            (con' ["M"] "C" [tcon' ["M"] "D"] [con0' ["M"] "E"])
+            ( con' ["M"] "C" [tcon' ["M"] "D"] [con0' ["M"] "E"]
+                `ann` (tcon' ["M"] "T" `tapp` tcon' ["M"] "D")
+            )
             [ branch' (["M"], "B") [("b", Nothing)] (con0' ["M"] "D")
             , branch' (["M"], "C") [("c", Nothing)] (con0' ["M"] "F")
             ]
@@ -484,12 +476,12 @@ unit_tryReduce_case_3 = do
       detail.before ~= expr
       detail.after ~= expectedResult
       detail.targetID @?= 1
-      detail.targetCtorID @?= 1
+      detail.targetCtorID @?= 2
       detail.ctorName @?= vcn ["M"] "C"
-      detail.targetArgIDs @?= [3]
-      detail.branchBindingIDs @?= [6]
-      detail.branchRhsID @?= 7
-      detail.letIDs @?= [13]
+      detail.targetArgIDs @?= [4]
+      detail.branchBindingIDs @?= [10]
+      detail.branchRhsID @?= 11
+      detail.letIDs @?= [17]
     _ -> assertFailure $ show result
 
 unit_tryReduce_case_name_clash :: Assertion
@@ -497,7 +489,7 @@ unit_tryReduce_case_name_clash = do
   let (expr, i) =
         create $
           case_
-            (con' ["M"] "C" [] [emptyHole, lvar "x"])
+            (con' ["M"] "C" [] [emptyHole, lvar "x"] `ann` tcon' ["M"] "T")
             [branch' (["M"], "C") [("x", Nothing), ("y", Nothing)] emptyHole]
       tydef =
         Map.singleton (unsafeMkGlobalName (["M"], "T")) $
@@ -510,8 +502,8 @@ unit_tryReduce_case_name_clash = do
       expectedResult =
         create' $
           case_
-            (con' ["M"] "C" [] [emptyHole, lvar "x"])
-            [branch' (["M"], "C") [("a7", Nothing), ("y", Nothing)] $ let_ "x" (lvar "a7") emptyHole]
+            (con' ["M"] "C" [] [emptyHole, lvar "x"] `ann` tcon' ["M"] "T")
+            [branch' (["M"], "C") [("a9", Nothing), ("y", Nothing)] $ let_ "x" (lvar "a9") emptyHole]
   result <- runTryReduce tydef mempty mempty (expr, i)
   case result of
     Right (expr', BindRename detail) -> do
@@ -520,12 +512,12 @@ unit_tryReduce_case_name_clash = do
       detail.before ~= expr
       detail.after ~= expectedResult
       detail.bindingNamesOld @?= ["x", "y"]
-      detail.bindingNamesNew @?= ["a7", "y"]
-      detail.bindersOld @?= [4, 5]
-      detail.bindersNew @?= [4, 5]
+      detail.bindingNamesNew @?= ["a9", "y"]
+      detail.bindersOld @?= [6, 7]
+      detail.bindersNew @?= [6, 7]
       detail.bindingOccurrences @?= []
-      detail.renamingLets @?= [8]
-      detail.bodyID @?= 6
+      detail.renamingLets @?= [10]
+      detail.bodyID @?= 8
     _ -> assertFailure $ show result
 
 unit_tryReduce_case_scrutinee_not_redex :: Assertion
@@ -1081,10 +1073,12 @@ unit_redexes_tlet_4 = do
   -- NB we must not say node 5 (the occurrence of the variable) is a redex
   redexesOf (lAM "x" $ emptyHole `ann` tlet "x" (tvar "x") (tvar "x")) <@?=> Set.fromList [3]
 
+-- case-of-constructor does not reduce if the constructor is not annotated
+-- (indeed, it is not even well-typed)
 unit_redexes_case_1 :: Assertion
 unit_redexes_case_1 =
   redexesOf (case_ (con0' ["M"] "C") [branch' (["M"], "C") [] (con0' ["M"] "D")])
-    <@?=> Set.singleton 0
+    <@?=> mempty
 
 -- Same as above, but the scrutinee has an annotation
 unit_redexes_case_1_annotated :: Assertion
@@ -1094,20 +1088,40 @@ unit_redexes_case_1_annotated =
 
 unit_redexes_case_2 :: Assertion
 unit_redexes_case_2 =
-  redexesOf (case_ (lam "x" (lvar "x")) [branch' (["M"], "C") [] (con0' ["M"] "D")])
+  redexesOf
+    ( case_
+        (lam "x" (lvar "x") `ann` (tEmptyHole `tfun` tEmptyHole))
+        [branch' (["M"], "C") [] (con0' ["M"] "D")]
+    )
     <@?=> mempty
 
 -- The case expression can be reduced, as can the variable x in the branch rhs.
 unit_redexes_case_3 :: Assertion
 unit_redexes_case_3 =
-  redexesOf (let_ "x" (con0' ["M"] "C") (case_ (con0' ["M"] "C") [branch' (["M"], "C") [] (lvar "x")]))
-    <@?=> Set.fromList [2, 4]
+  redexesOf
+    ( let_
+        "x"
+        (con0' ["M"] "C")
+        ( case_
+            (con0' ["M"] "C" `ann` tcon' ["M"] "C")
+            [branch' (["M"], "C") [] (lvar "x")]
+        )
+    )
+    <@?=> Set.fromList [2, 6]
 
 -- The variable x in the rhs is bound to the branch pattern, so is no longer reducible.
 -- However this means the let is redundant, and can be reduced.
 unit_redexes_case_4 :: Assertion
 unit_redexes_case_4 =
-  redexesOf (let_ "x" (con0' ["M"] "C") (case_ (con0' ["M"] "C") [branch' (["M"], "C") [("x", Nothing)] (lvar "x")]))
+  redexesOf
+    ( let_
+        "x"
+        (con0' ["M"] "C")
+        ( case_
+            (con0' ["M"] "C" `ann` tcon' ["M"] "C")
+            [branch' (["M"], "C") [("x", Nothing)] (lvar "x")]
+        )
+    )
     <@?=> Set.fromList [0, 2]
 
 -- If scrutinee of a case is a redex itself, we recognise that
@@ -1170,7 +1184,10 @@ unit_eval_modules_scrutinize_imported_type =
   let test = do
         m' <- m
         importModules [m']
-        foo <- case_ (con0 cTrue) [branch cTrue [] $ con0 cFalse, branch cFalse [] $ con0 cTrue]
+        foo <-
+          case_
+            (con0 cTrue `ann` tcon tBool)
+            [branch cTrue [] $ con0 cFalse, branch cFalse [] $ con0 cTrue]
         EvalResp{evalRespExpr = e} <-
           handleEvalRequest
             EvalReq{evalReqExpr = foo, evalReqRedex = getID foo}
