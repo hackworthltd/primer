@@ -36,7 +36,7 @@ import Primer.Core (
   Kind (KFun, KType),
   LocalName,
   Type,
-  Type' (TCon, TEmptyHole),
+  Type' (TCon, TEmptyHole, TVar),
   getID,
   unLocalName,
   unsafeMkGlobalName,
@@ -472,11 +472,11 @@ unit_tryReduce_case_3 = do
               { astTypeDefParameters = [("a", KType)]
               , astTypeDefConstructors =
                   [ ValCon (unsafeMkGlobalName (["M"], "B")) [TEmptyHole ()]
-                  , ValCon (unsafeMkGlobalName (["M"], "C")) [TEmptyHole ()]
+                  , ValCon (unsafeMkGlobalName (["M"], "C")) [TVar () "a"]
                   ]
               , astTypeDefNameHints = []
               }
-      expectedResult = create' $ let_ "c" (con0' ["M"] "E" `ann` tEmptyHole) (con0' ["M"] "F")
+      expectedResult = create' $ let_ "c" (con0' ["M"] "E" `ann` tcon' ["M"] "D") (con0' ["M"] "F")
   result <- runTryReduce tydef mempty mempty (expr, i)
   case result of
     Right (expr', CaseReduction detail) -> do
