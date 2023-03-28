@@ -225,7 +225,7 @@ unit_9 =
         (mapName, mapDef) <- Examples.map' modName
         (evenName, evenDef) <- Examples.even modName
         (oddName, oddDef) <- Examples.odd modName
-        let lst = list_ tNat $ take n $ iterate (con cSucc [] . (:[])) (con0 cZero)
+        let lst = list_ tNat $ take n $ iterate (con1 cSucc) (con0 cZero)
         expr <- gvar mapName `aPP` tcon tNat `aPP` tcon tBool `app` gvar evenName `app` lst
         let globs = [(mapName, mapDef), (evenName, evenDef), (oddName, oddDef)]
         expect <- list_ tBool (take n $ cycle [con0 cTrue, con0 cFalse]) `ann` (tcon tList `tapp` tcon tBool)
