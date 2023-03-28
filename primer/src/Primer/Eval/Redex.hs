@@ -296,6 +296,7 @@ data Redex
     -- reduction steps. E.g.
     --     cons ==  (Λa λx λxs. Cons @a x xs) : ∀a. a -> List a -> List a
     -- )
+    -- TODO (saturated constructors) update the above comment!
     CaseRedex
       { con :: ValConName
       -- ^ The head of the scrutinee
