@@ -8,7 +8,6 @@ import Primer.Action (
   ActionError (NameCapture, NeedEmptyHole),
   Movement (..),
  )
-import Primer.Builtins
 import Primer.Core (
   Kind (KType),
  )
@@ -160,7 +159,7 @@ unit_ty_tm_same_namespace =
   actionTestExpectFail
     isNameCapture
     NoSmartHoles
-    (ann (lAM "a" $ con cNil [tvar "a"] []) tEmptyHole)
+    (ann (lAM "a" $ emptyHole `ann` tvar "a") tEmptyHole)
     [Move Child1, Move Child1, ConstructLam (Just "a")]
 
 -- * Helpers

@@ -91,12 +91,6 @@ Tree
                                                 )
                                             , childTrees =
                                                 [ Tree
-                                                    { nodeId = "18"
-                                                    , body = NoBody TEmptyHole
-                                                    , childTrees = []
-                                                    , rightChild = Nothing
-                                                    }
-                                                , Tree
                                                     { nodeId = "19"
                                                     , body = NoBody EmptyHole
                                                     , childTrees = []
@@ -254,51 +248,7 @@ Tree
                                                                                 }
                                                                             }
                                                                         )
-                                                                    , childTrees =
-                                                                        [ Tree
-                                                                            { nodeId = "35"
-                                                                            , body = TextBody
-                                                                                ( RecordPair
-                                                                                    { fst = TLet
-                                                                                    , snd = Name
-                                                                                        { qualifiedModule = Nothing
-                                                                                        , baseName = "c"
-                                                                                        }
-                                                                                    }
-                                                                                )
-                                                                            , childTrees =
-                                                                                [ Tree
-                                                                                    { nodeId = "36"
-                                                                                    , body = TextBody
-                                                                                        ( RecordPair
-                                                                                            { fst = TVar
-                                                                                            , snd = Name
-                                                                                                { qualifiedModule = Nothing
-                                                                                                , baseName = "b"
-                                                                                                }
-                                                                                            }
-                                                                                        )
-                                                                                    , childTrees = []
-                                                                                    , rightChild = Nothing
-                                                                                    }
-                                                                                , Tree
-                                                                                    { nodeId = "37"
-                                                                                    , body = TextBody
-                                                                                        ( RecordPair
-                                                                                            { fst = TVar
-                                                                                            , snd = Name
-                                                                                                { qualifiedModule = Nothing
-                                                                                                , baseName = "c"
-                                                                                                }
-                                                                                            }
-                                                                                        )
-                                                                                    , childTrees = []
-                                                                                    , rightChild = Nothing
-                                                                                    }
-                                                                                ]
-                                                                            , rightChild = Nothing
-                                                                            }
-                                                                        ]
+                                                                    , childTrees = []
                                                                     , rightChild = Nothing
                                                                     }
                                                                 , Tree

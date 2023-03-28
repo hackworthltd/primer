@@ -352,16 +352,16 @@ unit_rename_LAM :: Assertion
 unit_rename_LAM =
   actionTest
     NoSmartHoles
-    (ann (lAM "a" (con cNil [tvar "a"] [])) (tforall "b" KType $ listOf (tvar "b")))
+    (ann (lAM "a" (emptyHole `aPP` tvar "a")) (tforall "b" KType $ listOf (tvar "b")))
     [Move Child1, RenameLAM "b"]
-    (ann (lAM "b" (con cNil [tvar "b"] [])) (tforall "b" KType $ listOf (tvar "b")))
+    (ann (lAM "b" (emptyHole `aPP` tvar "b")) (tforall "b" KType $ listOf (tvar "b")))
 
 unit_rename_LAM_2 :: Assertion
 unit_rename_LAM_2 =
   actionTestExpectFail
     (const True)
     NoSmartHoles
-    (ann (lAM "b" (lAM "a" (con cNil [tvar "b"] []))) tEmptyHole)
+    (ann (lAM "b" (lAM "a" (emptyHole `aPP` tvar "b"))) tEmptyHole)
     [Move Child1, Move Child1, RenameLAM "b"]
 
 unit_rename_LAM_3 :: Assertion
@@ -1118,11 +1118,9 @@ unit_refine_arr_1 =
     [Move Child1, constructRefinedCon cCons]
     (hole (con cCons [tEmptyHole] [emptyHole, emptyHole] `ann` tEmptyHole) `ann` (tEmptyHole `tfun` tEmptyHole))
 
--- TODO (saturated constructors) update this comment for ctors-dont-store-indices ('Cons Nat')
---
 -- Constructors are checkable and fully saturated, so even if the hole has type
 -- @List Nat -> List Nat@, when we insert a @Cons@ constructor, we end up with
--- @{? Cons @? ? ? :: ? ?}@
+-- @{? Cons ? ? :: ? ?}@a
 -- (the inside of a hole is synthesisable position: see Note [Holes and bidirectionality])
 unit_refine_arr_2 :: Assertion
 unit_refine_arr_2 =
@@ -1158,12 +1156,6 @@ unit_move_ctor =
     (emptyHole `ann` tEmptyHole)
     [ Move Child1
     , constructSaturatedCon cMakePair
-    , EnterConTypeArgument 0
-    , constructTCon tNat
-    , ExitType
-    , EnterConTypeArgument 1
-    , constructTCon tBool
-    , ExitType
     , Move $ ConChild 0
     , constructSaturatedCon cZero
     , Move Parent

@@ -34,7 +34,6 @@ import Primer.Builtins (
   boolDef,
   cCons,
   cFalse,
-  cJust,
   cMakePair,
   cNil,
   cSucc,
@@ -176,7 +175,7 @@ unit_con_hole_app_type_1 =
     con cMakePair [tcon tBool, tcon tNat] [emptyHole, emptyHole]
       `ann` (tEmptyHole `tapp` tEmptyHole)
 
--- A hole-headed TApp accepts saturated constructors, if given type arguments match
+-- A hole-headed TApp accepts saturated constructors
 -- The application spine can be shorter than that required for the constructor
 unit_con_hole_app_type_2 :: Assertion
 unit_con_hole_app_type_2 =
@@ -184,7 +183,7 @@ unit_con_hole_app_type_2 =
     con cMakePair [tcon tBool, tcon tNat] [emptyHole, emptyHole]
       `ann` (tEmptyHole `tapp` tcon tNat)
 
--- A hole-headed TApp accepts saturated constructors, if given type arguments match
+-- A hole-headed TApp accepts saturated constructors
 -- The application spine can match than that required for the constructor
 unit_con_hole_app_type_3 :: Assertion
 unit_con_hole_app_type_3 =
@@ -203,28 +202,6 @@ unit_con_hole_app_type_4 =
           (TApp () (TApp () (TApp () (TEmptyHole ()) (TCon () tBool)) (TCon () tNat)) (TEmptyHole ()))
           cMakePair
       )
-
--- A hole-headed TApp rejects saturated constructors, if given type arguments do not match
-unit_con_hole_app_type_5 :: Assertion
-unit_con_hole_app_type_5 =
-  ( con cMakePair [tcon tBool, tcon tNat] [emptyHole, emptyHole]
-      `ann` (tEmptyHole `tapp` tcon tBool)
-  )
-    `expectFailsWith` const ConstructorTypeArgsInconsistentTypes
-
--- Constructors' type arguments need only be consistent with the type we check against.
--- This is a regression test: during development we messed up what type
--- smartholes would check the term argument against (it elided the hole on the
--- type, but only for the purposes of checking the term). Thus @smartSynthGives@
--- actually gave
---    ann (con cJust [thole (tEmptyHole `tfun` tEmptyHole)] [hole $ con0 cTrue `ann` tEmptyHole])
-unit_con_tyargs_consistent_sh :: Assertion
-unit_con_tyargs_consistent_sh =
-  let tm = con cJust [thole (tEmptyHole `tfun` tEmptyHole)] [con0 cTrue]
-      ty = tcon tMaybe `tapp` tcon tBool
-   in do
-        expectTyped $ ann tm ty
-        ann tm ty `smartSynthGives` ann tm ty
 
 unit_constructor_doesn't_exist :: Assertion
 unit_constructor_doesn't_exist =

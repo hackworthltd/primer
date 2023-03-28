@@ -80,17 +80,8 @@ data Action
     RenameLet Text
   | -- | Move from an annotation to its type
     EnterType
-  | -- TODO (saturated constructors) this includes moving from one of a
-    -- constructor's type arguments back to the constructor itself. This
-    -- will be removed when constructors no longer store their indices
-
-    -- | Move from a type up into the surrounding annotation
+  | -- | Move from a type up into the surrounding annotation
     ExitType
-  | -- TODO (saturated constructors) this is a temporary situation, and will be
-    -- removed once constructors no longer store their indices
-
-    -- | Move from a constructor into one if its type arguments (zero-indexed)
-    EnterConTypeArgument Int
   | -- | Construct a function type around the type under the cursor.
     -- The type under the cursor is placed in the domain (left) position.
     ConstructArrowL

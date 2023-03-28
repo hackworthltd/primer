@@ -57,7 +57,6 @@ import Primer.Module (
   builtinModule,
   builtinTypes,
   moduleDefsQualified,
-  moduleTypesQualified,
   primitiveModule,
  )
 import Primer.Primitives (
@@ -119,8 +118,7 @@ import Test.Tasty.HUnit (Assertion, assertBool, assertFailure, (@?=))
 import Tests.Action.Prog (runAppTestM)
 import Tests.Eval.Utils (genDirTm, hasTypeLets, testModules, (~=))
 import Tests.Gen.Core.Typed (checkTest)
-import Tests.Typecheck (expectTypedWithPrims, runTypecheckTestM, runTypecheckTestMWithPrims)
-import Prelude (error)
+import Tests.Typecheck (runTypecheckTestM, runTypecheckTestMWithPrims)
 
 unit_1 :: Assertion
 unit_1 =
@@ -563,43 +561,6 @@ unit_type_preservation_case_regression_ty =
         s1 <~==> Left (TimedOut expected1)
         s2 <- evalFullTest maxID builtinTypes mempty 2 Chk expr
         s2 <~==> Left (TimedOut expected2)
-
--- Consider
---   case Just @? False : Maybe Nat of Just x -> Succ x ; Nothing -> ?
--- In the past we would reduce this to
---   let x = False : Nat in Succ x
--- which is ill-typed (we ignored the hole in the type-application,
--- which acts as a type-changing cast).
--- We simply test that the first "nice" reduction of this expression is well-typed,
--- without mandating what the result should be.
--- Here, "nice" means "without LetType or TLet", since these are
--- currently unsupported in the typechecker.
-unit_type_preservation_case_hole_regression :: Assertion
-unit_type_preservation_case_hole_regression = evalTestM 0 $ do
-  t <-
-    case_
-      (con cJust [tEmptyHole] [con0 cFalse] `ann` (tcon tMaybe `tapp` tcon tNat))
-      [ branch cNothing [] emptyHole
-      , branch cJust [("x", Nothing)] $ con1 cSucc $ lvar "x"
-      ]
-  let tds = foldMap' moduleTypesQualified $ create' $ sequence testModules
-  let globs = foldMap' moduleDefsQualified $ create' $ sequence testModules
-  let reducts = (\n -> runPureLogT $ evalFullStepCount tds globs n Syn t) <$> [1 ..]
-  let go = \case
-        [] -> error "impossible, reducts is an infinite list"
-        (x : xs) -> do
-          x'@((_, s), _) <- x
-          if any hasTypeLets $ s ^.. evalResultExpr
-            then go xs
-            else pure x'
-  ((_steps, s), logs) <- go reducts
-  let s' = case s of
-        Left (TimedOut e) -> e
-        Right e -> e
-  pure $ do
-    expectTypedWithPrims $ pure t `ann` tEmptyHole
-    assertNoSevereLogs @EvalLog logs
-    expectTypedWithPrims $ pure s' `ann` tEmptyHole
 
 -- Previously EvalFull reducing a BETA expression could result in variable
 -- capture. We would reduce (Λa.t : ∀b.T) S to

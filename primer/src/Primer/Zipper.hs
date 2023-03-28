@@ -16,7 +16,6 @@ module Primer.Zipper (
   BindLoc,
   BindLoc' (..),
   focusType,
-  focusConTypes,
   focusLoc,
   unfocusType,
   focusOnlyType,
@@ -67,7 +66,6 @@ import Foreword
 
 import Data.Data (Data)
 import Data.Generics.Product (position)
-import Data.Generics.Uniplate.Data (holesBi)
 import Data.Generics.Uniplate.Zipper (
   Zipper,
   fromZipper,
@@ -251,15 +249,6 @@ instance HasID a => HasID (BindLoc' a b) where
 -- @Letrec@ or @LetType@ node (as those are the only ones that contain a
 -- @Type@).
 focusType :: (Data a, Data b) => ExprZ' a b -> Maybe (TypeZ' a b)
--- TODO (saturated constructors): This is incomplete, since currently Con
--- have type arguments. However, this is only a temporary situation, and
--- handling them is difficult, since they have multiple type children we
--- cannot focus on just one! We will put up with this (will need a small
--- workaround in Eval and in focusOn: we can focus on these by ID, just
--- not via focusType!) until constructors no longer store their indices.
--- Whilst we could use 'singular' to focus on the first index of a constructor,
--- we prefer to focus on *no* type children of constructors, rather than
--- arbitrarily choosing the first one.
 focusType z = case target z of
   Con{} -> Nothing
   _ -> do
@@ -267,14 +256,6 @@ focusType z = case target z of
     pure $ TypeZ (zipper t) $ \t' -> z & l .~ t'
   where
     l = _target % typesInExpr
-
--- TODO (saturated constructors): This is part of the temporary workaround for
--- @focusType@ (see comments there for details)
--- The outer 'Maybe' says whether the 'ExprZ'' was a 'Con' or not.
-focusConTypes :: (Data a, Data b) => ExprZ' a b -> Maybe [TypeZ' a b]
-focusConTypes ez = case target ez of
-  Con m c tys tms -> Just $ holesBi tys <&> \(t, cxt) -> TypeZ (zipper t) $ \t' -> replace (Con m c (cxt t') tms) ez
-  _ -> Nothing
 
 -- | If the currently focused expression is a case expression, search the bindings of its branches
 -- to find one matching the given ID, and return the 'Loc' for that binding.
@@ -362,10 +343,9 @@ focusOn' i = fmap snd . search matchesID
       -- If the target has an embedded type, search the type for a match.
       -- If the target is a case expression with bindings, search each binding for a match.
       | otherwise =
-          let inCtorIndices = focusConTypes z >>= getFirst . foldMap' (First . fmap fst . search (guarded (== i) . getID . target)) <&> InType
-              inType = focusType z >>= search (guarded (== i) . getID . target) <&> fst <&> InType
+          let inType = focusType z >>= search (guarded (== i) . getID . target) <&> fst <&> InType
               inCaseBinds = findInCaseBinds i z
-           in inCtorIndices <|> inType <|> inCaseBinds
+           in inType <|> inCaseBinds
 
 -- Gets all binders that scope over the focussed subtree
 bindersAbove :: ExprZ -> S.Set Name

@@ -34,12 +34,12 @@ import Data.Generics.Product
 import Data.Generics.Uniplate.Data ()
 import Optics (
   AffineFold,
+  AffineTraversal',
   Lens,
   Lens',
   Traversal,
-  Traversal',
   afailing,
-  traversalVL,
+  atraversalVL,
   (%),
  )
 import Primer.Core.Meta (
@@ -145,7 +145,7 @@ data Expr' a b
   | Ann a (Expr' a b) (Type' b)
   | App a (Expr' a b) (Expr' a b)
   | APP a (Expr' a b) (Type' b)
-  | Con a ValConName [Type' b] [Expr' a b] -- See Note [Checkable constructors]
+  | Con a ValConName [Expr' a b] -- See Note [Checkable constructors]
   | Lam a LVarName (Expr' a b)
   | LAM a TyVarName (Expr' a b)
   | Var a TmVarRef
@@ -232,23 +232,15 @@ data Expr' a b
 -- We represent a constructor-applied-to-a-spine as a thing (and can
 -- only check its type), where we insist that it is fully saturated.
 -- Thus whilst `Cons` is a term, it is ill-typed. The only well-formed
--- `Cons` usages are `Cons @A x xs`, which checks against `List A`
+-- `Cons` usages are `Cons x xs`, which checks against `List A`
 -- when `A ∋ x` and `List A ∋ xs`.
---
--- TODO (saturated constructors): the occurence of `@A` above is a temporary
--- wart here, and will be removed in due course. (It was needed when
--- constructors were still synthesisable, but is now a needless
--- complication. It also leads to some inaccuracies in this
--- description of the typing rule.)
+-- (Note that there are no type arguments here!)
 --
 -- Whilst this may be a bit inconsistent with the treatment of
 -- functions, it has the advantage of symmetry with construction and
 -- matching. (I.e. every time one sees a particular constructor, it
 -- has the same form: a head of that constructor, and the same number
 -- of (term) fields.)
--- TODO (saturated constructors): technically, a construction will
--- have type arguments/indices and a match will not, but this is
--- temporary, as we will soon remove indices.
 --
 -- As an example, `List Int ∋ Cons 2 Nil`, but `Cons` and `Cons 2` are ill-typed.
 -- Thus one needs to be aware of the difference between, say,
@@ -261,10 +253,6 @@ data Expr' a b
 -- corresponding to the parameters of its datatype.)
 -- Clearly one could eta-expand, (and if necessary add an annotation) to
 -- use as constructor non-saturatedly: e.g. write `map (λn . Succ n) [2,3]`.
---
--- TODO (saturated constructors): the above parenthetical about not
--- needing type applications is not currently true, but will be
--- shortly.
 
 -- Note [Case]
 -- We use a list for compatibility and ease of JSON
@@ -326,16 +314,13 @@ _bindMeta :: forall a b. Lens (Bind' a) (Bind' b) a b
 _bindMeta = position @1
 
 -- | Note that this does not recurse in to sub-expressions or sub-types.
-typesInExpr :: Traversal' (Expr' a b) (Type' b)
--- TODO (saturated constructors): if constructors did not store their indices,
--- then this could be an affine traversal
-typesInExpr = traversalVL $ \f -> \case
+typesInExpr :: AffineTraversal' (Expr' a b) (Type' b)
+typesInExpr = atraversalVL $ \point f -> \case
   Ann m e ty -> Ann m e <$> f ty
   APP m e ty -> APP m e <$> f ty
-  Con m c tys tms -> Con m c <$> traverse f tys <*> pure tms
   LetType m x ty e -> (\ty' -> LetType m x ty' e) <$> f ty
   Letrec m x b ty e -> (\ty' -> Letrec m x b ty' e) <$> f ty
-  e -> pure e
+  e -> point e
 
 instance HasID a => HasID (Expr' a b) where
   _id = position @1 % _id

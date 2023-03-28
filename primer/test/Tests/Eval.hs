@@ -1039,7 +1039,7 @@ unit_redexes_lettype_1 =
 
 unit_redexes_lettype_2 :: Assertion
 unit_redexes_lettype_2 =
-  redexesOf (letType "x" (tcon' ["M"] "T") (con' ["M"] "C" [tvar "x"] [])) <@?=> Set.fromList [3]
+  redexesOf (letType "x" (tcon' ["M"] "T") (con0' ["M"] "C" `ann` tvar "x")) <@?=> Set.fromList [4]
 
 unit_redexes_lettype_3 :: Assertion
 unit_redexes_lettype_3 =

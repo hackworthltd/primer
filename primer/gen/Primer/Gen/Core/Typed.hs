@@ -87,7 +87,6 @@ import Primer.Typecheck (
   buildTypingContextFromModules',
   consistentKinds,
   consistentTypes,
-  decomposeTAppCon,
   extendLocalCxt,
   extendLocalCxtTy,
   extendLocalCxtTys,
@@ -387,7 +386,6 @@ genChk ty = do
               let cons' =
                     M.toList cons <&> \(c, (params, fldsTys0)) -> do
                       indicesMap <- for params $ \(p, k) -> (p,) <$> genWTType k
-                      let indices = snd <$> indicesMap
                       -- NB: it is vital to use simultaneous substitution here.
                       -- Consider the case where we have a local type variable @a@
                       -- in scope, say because we have already generated a
@@ -402,23 +400,16 @@ genChk ty = do
                       -- @Bool@.
                       fldsTys <- traverse (substTySimul $ M.fromList indicesMap) fldsTys0
                       flds <- traverse (Gen.small . genChk) fldsTys
-                      pure $ Con () c indices flds
+                      pure $ Con () c flds
               Gen.choice cons'
         Left _ -> pure Nothing -- not an ADT
         Right (_, _, []) -> pure Nothing -- is an empty ADT
-        -- TODO (saturated constructors) eventually (constructors are
-        -- saturated & checkable, and thus don't store their indices),
-        -- we will not need to record @params@ in the @Con@, and thus
-        -- the guard (and the panic) will be removed.
-        Right (tc, _, vcs)
-          | Just (tc', params) <- decomposeTAppCon ty
-          , tc == tc' ->
-              pure $
-                Just $
-                  Gen.choice $
-                    vcs <&> \(vc, tmArgTypes) ->
-                      Con () vc params <$> traverse genChk tmArgTypes
-          | otherwise -> panic "genCon invariants failed"
+        Right (_, _, vcs) ->
+          pure $
+            Just $
+              Gen.choice $
+                vcs <&> \(vc, tmArgTypes) ->
+                  Con () vc <$> traverse genChk tmArgTypes
     lambda =
       matchArrowType ty <&> \(sTy, tTy) -> do
         n <- genLVarNameAvoiding [tTy, sTy]

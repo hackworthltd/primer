@@ -22,7 +22,6 @@ import Data.Aeson (Value)
 import Data.Bifunctor.Swap qualified as Swap
 import Data.Generics.Product (typed)
 import Data.List (findIndex)
-import Data.List.Extra ((!?))
 import Data.List.NonEmpty qualified as NE
 import Data.Map.Strict qualified as Map
 import Data.Set qualified as Set
@@ -130,7 +129,6 @@ import Primer.Zipper (
   findNodeWithParent,
   findType,
   focus,
-  focusConTypes,
   focusLoc,
   focusOn,
   focusType,
@@ -365,12 +363,6 @@ applyAction' a = case a of
   ExitType -> \case
     InType zt -> pure $ InExpr $ unfocusType zt
     _ -> throwError $ CustomFailure ExitType "cannot exit type - not in type"
-  EnterConTypeArgument n -> \case
-    InExpr ze -> case (!? n) <$> focusConTypes ze of
-      Nothing -> throwError $ CustomFailure (EnterConTypeArgument n) "Move-to-constructor-argument failed: this is not a constructor"
-      Just Nothing -> throwError $ CustomFailure (EnterConTypeArgument n) "Move-to-constructor-argument failed: no such argument"
-      Just (Just z') -> pure $ InType z'
-    _ -> throwError $ CustomFailure (EnterConTypeArgument n) "cannot enter value constructors argument - not in expr"
   ConstructArrowL -> typeAction constructArrowL "cannot construct arrow - not in type"
   ConstructArrowR -> typeAction constructArrowR "cannot construct arrow - not in type"
   ConstructTCon c -> typeAction (constructTCon c) "cannot construct tcon in expr"
