@@ -339,7 +339,7 @@ unit_sat_con_1 =
    (emptyHole `ann` (tEmptyHole `tfun` tEmptyHole))
    [ Child1 ]
    (Right (MakeConSat, Option "Cons" $ Just $ fmap unName $ unModuleName builtinModuleName))
-   (hole (con cCons [tEmptyHole] [emptyHole, emptyHole] `ann` tEmptyHole) `ann` (tEmptyHole `tfun` tEmptyHole))
+   (hole (con cCons [emptyHole, emptyHole] `ann` tEmptyHole) `ann` (tEmptyHole `tfun` tEmptyHole))
 
 unit_sat_con_2 :: Assertion
 unit_sat_con_2 =
@@ -349,10 +349,7 @@ unit_sat_con_2 =
     (emptyHole `ann` ((tcon tList `tapp` tcon tNat) `tfun` (tcon tList `tapp` tcon tNat)))
    [ Child1 ]
    (Right (MakeConSat, Option "Cons" $ Just $ fmap unName $ unModuleName builtinModuleName))
-   -- REVIEW: what do we want to return here in the type argument of the cons?
-   -- possibly it does not matter, since these arguments are about to be removed anyway!
-   -- If we go for tEmptyHole, then this test is essentially the same as unit_sat_con_1
-   (hole (con cCons [{-tcon tNat-} tEmptyHole] [emptyHole, emptyHole] `ann` tEmptyHole) `ann` ((tcon tList `tapp` tcon tNat) `tfun` (tcon tList `tapp` tcon tNat)))
+   (hole (con cCons [emptyHole, emptyHole] `ann` tEmptyHole) `ann` ((tcon tList `tapp` tcon tNat) `tfun` (tcon tList `tapp` tcon tNat)))
 
 -- | Apply the action to the node in the input expression pointed to by the
 -- 'Movement' (starting from the root), checking that it would actually be offered
