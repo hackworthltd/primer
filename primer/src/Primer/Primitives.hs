@@ -272,7 +272,7 @@ primFunDef def args = case def of
     _ -> err
   where
     exprToNat = \case
-      Con _ c [] [] | c == cZero -> Just 0
-      Con _ c [] [x] | c == cSucc -> succ <$> exprToNat x
+      Con _ c [] | c == cZero -> Just 0
+      Con _ c [x] | c == cSucc -> succ <$> exprToNat x
       _ -> Nothing
     err = Left $ PrimFunError def args

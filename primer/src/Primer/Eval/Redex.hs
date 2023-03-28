@@ -24,7 +24,6 @@ import Control.Monad.Fresh (MonadFresh)
 import Control.Monad.Log (MonadLog, WithSeverity)
 import Control.Monad.Trans.Maybe (MaybeT (runMaybeT))
 import Data.Data (Data)
-import Data.Functor.Classes (liftEq)
 import Data.List (zip3)
 import Data.Map qualified as M
 import Data.Set qualified as S
@@ -92,7 +91,6 @@ import Primer.Core (
 import Primer.Core.DSL (ann, letType, let_, letrec, lvar, tlet, tvar)
 import Primer.Core.Transform (decomposeTAppCon)
 import Primer.Core.Utils (
-  alphaEqTy,
   concreteTy,
   forgetTypeMetadata,
   freeVars,
@@ -139,7 +137,7 @@ import Primer.Eval.Detail (
 import Primer.Eval.Detail qualified
 import Primer.Eval.Prim (tryPrimFun)
 import Primer.JSON (CustomJSON (CustomJSON), FromJSON, PrimerJSON, ToJSON)
-import Primer.Log (ConvertLogMessage (convert), logInfo, logWarning)
+import Primer.Log (ConvertLogMessage (convert), logWarning)
 import Primer.Name (Name, NameCounter)
 import Primer.TypeDef (
   TypeDefMap,
@@ -188,16 +186,6 @@ data EvalLog
     -- (Or the number of arguments expected from the scrutinee's type differs from either of these.)
     -- This should not happen if the expression is type correct.
     CaseRedexWrongArgNum ValConName [Expr] [Type' ()] [LVarName]
-  | -- | Found something that may have been a case redex,
-    -- but the number of type arguments in the scrutinee differs from the number in its annotation,
-    -- or the number of type arguments expected from the scrutinee's type differs from either of these.
-    -- This should not happen if the expression is type correct.
-    CaseRedexWrongTyArgNum ValConName [Type' ()] [Expr] [Type' ()] [TyVarName]
-  | -- | A case redex required a double annotation on (some of) its resultant let binding(s)
-    -- This is expected to happen for e.g. @case Just \@? True : Maybe Int of ...@, and
-    -- does not represent any problem. We log it to obtain insight about how common this
-    -- is in practice.
-    CaseRedexDoubleAnn ValConName [Expr] [Type' ()] [(TyVarName, Type' (), Type' ())] [LVarName]
   | InvariantFailure Text
   deriving stock (Show, Eq, Data, Generic)
   deriving anyclass (NFData)
@@ -300,6 +288,7 @@ data Redex
     -- Since constructors are checkable and scrutinees must be synthesisable,
     -- there must be an annotation if the term is well-typed
     -- (i.e. we do not need to consider @case C as of ...@).
+    -- TODO (saturated constructors) update the above comment! NB: no indices!
     CaseRedex
       { con :: ValConName
       -- ^ The head of the scrutinee
@@ -308,10 +297,9 @@ data Redex
       , argTys :: [Type' ()]
       -- ^ The type of each scrutinee's argument, directly from the constructor's definition
       -- (thus is not well formed in the current scope)
-      , params :: [(TyVarName, Type' (), Type' ())]
+      , params :: [(TyVarName, Type' ())]
       -- ^ The parameters of the constructor's datatype, and their
-      -- instantiations from inspecting the constructor's type applications and
-      -- the type annotation on the scrutinee.
+      -- instantiations from inspecting the type annotation on the scrutinee.
       , binders :: [Bind]
       -- ^ The binders of the matching branch
       , rhs :: Expr
@@ -518,8 +506,7 @@ viewCaseRedex tydefs = \case
   -- variables. This is especially important, as we do not (yet?) take care of
   -- metadata correctly in this evaluator (for instance, substituting when we
   -- do a BETA reduction)!
-  orig@(Case mCase scrut@(Ann _ (Con mCon c tyargsFromCon' args) annotation) brs) -> do
-    let tyargsFromCon = forgetTypeMetadata <$> tyargsFromCon'
+  orig@(Case mCase scrut@(Ann _ (Con mCon c args) annotation) brs) -> do
     (abstractArgTys, params) <- case lookupConstructor tydefs c of
       Nothing -> do
         logWarning $ CaseRedexUnknownCtor c
@@ -535,12 +522,13 @@ viewCaseRedex tydefs = \case
       Nothing -> mzero
       Just tyargsFromAnn -> do
         tyargs <- do
-          unless (length params == length tyargsFromCon && length params == length tyargsFromAnn) $
+          unless (length params == length tyargsFromAnn) $
             logWarning $
-              CaseRedexWrongTyArgNum c tyargsFromCon args tyargsFromAnn params
-          pure $ zip3 params tyargsFromCon tyargsFromAnn
+              CaseRedexNotSaturated $
+                forgetTypeMetadata annotation
+          pure $ zip params tyargsFromAnn
         (patterns, br) <- extractBranch c brs
-        renameBindings mCase scrut brs (tyargsFromCon <> tyargsFromAnn) args patterns orig
+        renameBindings mCase scrut brs annotation args patterns orig
           <|> pure (formCaseRedex c abstractArgTys tyargs args patterns br (orig, scrut, getID mCon))
   _ -> mzero
   where
@@ -554,24 +542,19 @@ viewCaseRedex tydefs = \case
     {- Note [Case reduction and variable capture]
        There is a subtlety here around variable capture.
        Consider
-         case C @A' @B' s t : R A B of C a b -> e
+         case C s t : R A B of C a b -> e
        We would like to reduce this to
-         let a = s : (lettype p1=A',p2=B' in S) : (lettype p1=A,p2=B in S); let b = t : (lettype p1=A',p2=B' in T) : (lettype p1=A,p2=B in T) in e
-       where we have annotated `s` and `t` with their two types
-       (one from the arguments `A'` `B'` to the constructor,
-        one from the arguments `A` `B` to the annotation), which will be
-       built from `A` and `B` according to the definition of the type `data R p1 p2 = ... | C S T`
-       (for reasons of bidirectionality).
+         let a = s : (lettype p1=A,p2=B in S); let b = t : (lettype p1=A,p2=B in T) in e
+       where we have annotated `s` and `t` with their types, which will be
+       built from `A` and `B` according to the definition of the type `data R p1 p2 = ... | C S T`.
        Note that the binding of `a` may capture a reference in `t`
-       or (assuming type and term variables can shadow) in `A'`,`B'`, `A` or `B`.
+       or (assuming type and term variables can shadow) in `A` or `B`.
        (NB: the free variables in `S` and `T` are a subset of `p1,p2`.)
        We must catch this case and rename the case binders as a first step.
        Note that the free vars in
-       `t : (lettype p1=A',p2=B' in T) : (lettype p1=A,p2=B in T)`
-       are a subset of the free vars in the
+       `t : (lettype p1=A,p2=B in T)` are a subset of the free vars in the
        arguments of the scrutinee (s, t) plus the arguments to its type
-       annotations (A', B', A, B). (In the non-annotated case, we only have
-       `A', B'` and not `A, B`).
+       annotations (A, B).
        We shall be conservative and rename all binders in every branch apart
        from these free vars.
        (We could get away with only renaming within the matching branch, only
@@ -580,8 +563,8 @@ viewCaseRedex tydefs = \case
        argument, the second needs to avoid all but the first two args, ...,
        the last doesn't need any renaming.)
     -}
-    renameBindings meta scrutinee branches tyargs args patterns orig =
-      let avoid = foldMap' (S.map unLocalName . freeVarsTy) tyargs <> foldMap' freeVars args
+    renameBindings meta scrutinee branches annTy args patterns orig =
+      let avoid = S.map unLocalName (freeVarsTy annTy) <> foldMap' freeVars args
           binders = S.fromList $ map (unLocalName . bindName) patterns
        in hoistMaybe $
             if S.disjoint avoid binders
@@ -590,7 +573,7 @@ viewCaseRedex tydefs = \case
     formCaseRedex ::
       ValConName ->
       [Type' ()] ->
-      [(TyVarName, Type' (), Type' ())] ->
+      [(TyVarName, Type' ())] ->
       [Expr] ->
       [Bind] ->
       Expr ->
@@ -912,30 +895,19 @@ runRedex = \case
                     ps
             foldr (\(_, a', tA) -> tlet a' $ pure tA) renamed ps
       let subAnns ps' ty = do
-            let ps'' = (\(a, b, c) -> (a, (b, c))) <$> ps'
             let fvs = freeVarsTy ty
-            let ps = filter (flip elem fvs . fst) ps''
-            let psC = second fst <$> ps
-            aC <- subAnn psC ty
-            let psA = second snd <$> ps
-            -- If all relevant parameters are the same in both instantiations, then we only need one annotation
-            aA <- if liftEq (liftEq alphaEqTy) psA psC then pure Nothing else Just <$> subAnn psA ty
-            pure (aC, aA)
+            let ps = filter (flip elem fvs . fst) ps'
+            subAnn ps ty
       let ann' x t = x `ann` pure t
-      let mkAnn (tyC, tyA') = case tyA' of
-            Nothing -> (False, (`ann'` tyC))
-            Just tyA -> (True, \x -> x `ann'` tyC `ann'` tyA)
-      (diffAnn, letIDs, expr') <-
+      (letIDs, expr') <-
         foldrM
-          ( \(x, arg, argTy) (diffAnn, is, tm) -> do
-              (aC, aA) <- subAnns params argTy
-              let (d, putAnn) = mkAnn (aC, aA)
-              tm' <- let_ x (putAnn $ pure arg) (pure tm)
-              pure (diffAnn || d, getID tm' : is, tm')
+          ( \(x, arg, argTy) (is, tm) -> do
+              aA <- subAnns params argTy
+              tm' <- let_ x (pure arg `ann'` aA) (pure tm)
+              pure (getID tm' : is, tm')
           )
-          (False, [], rhs)
+          ([], rhs)
           $ zip3 binderNames args argTys
-      when diffAnn $ logInfo $ CaseRedexDoubleAnn con args argTys params binderNames
       let details =
             CaseReductionDetail
               { before = orig

@@ -1028,59 +1028,6 @@ Output
                 ]
             )
         ,
-            ( 18
-            ,
-                [ NoInput MakeFun
-                , Input MakeTCon
-                    ( Options
-                        { opts =
-                            [ Option
-                                { option = "Bool"
-                                , context = Just
-                                    ( "Builtins" :| [] )
-                                }
-                            , Option
-                                { option = "Either"
-                                , context = Just
-                                    ( "Builtins" :| [] )
-                                }
-                            , Option
-                                { option = "List"
-                                , context = Just
-                                    ( "Builtins" :| [] )
-                                }
-                            , Option
-                                { option = "Maybe"
-                                , context = Just
-                                    ( "Builtins" :| [] )
-                                }
-                            , Option
-                                { option = "Nat"
-                                , context = Just
-                                    ( "Builtins" :| [] )
-                                }
-                            , Option
-                                { option = "Pair"
-                                , context = Just
-                                    ( "Builtins" :| [] )
-                                }
-                            , Option
-                                { option = "Char"
-                                , context = Just
-                                    ( "Primitives" :| [] )
-                                }
-                            , Option
-                                { option = "Int"
-                                , context = Just
-                                    ( "Primitives" :| [] )
-                                }
-                            ]
-                        , free = FreeNone
-                        }
-                    )
-                ]
-            )
-        ,
             ( 20
             ,
                 [ NoInput MakeFun
@@ -1161,20 +1108,6 @@ Output
             ,
                 [ NoInput MakeFun
                 , NoInput Raise
-                , NoInput DeleteType
-                ]
-            )
-        ,
-            ( 35
-            ,
-                [ NoInput MakeFun
-                , NoInput DeleteType
-                ]
-            )
-        ,
-            ( 36
-            ,
-                [ NoInput MakeFun
                 , NoInput DeleteType
                 ]
             )

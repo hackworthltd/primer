@@ -800,9 +800,9 @@ applyProgAction prog mdefName = \case
               -- This last case means that the input program had no (useful) metadata
               (_, Nothing, Nothing) -> hole $ pure x `ann` tEmptyHole
          in transformM $ \case
-              Con m con' tys tms | con' == con -> do
+              Con m con' tms | con' == con -> do
                 adjustAtA index enhole tms >>= \case
-                  Just args' -> pure $ Con m con' tys args'
+                  Just args' -> pure $ Con m con' args'
                   Nothing -> throwError $ ConNotSaturated con
               e -> pure e
       updateDecons = transformCaseBranches prog type_ $
@@ -847,10 +847,10 @@ applyProgAction prog mdefName = \case
       -- not update the scrutinee before this happens.
       updateDefs = traverseOf (traversed % #_DefAST % #astDefExpr) (updateCons <=< updateDecons)
       updateCons = transformM $ \case
-        Con m con' tys tms | con' == con -> do
+        Con m con' tms | con' == con -> do
           m' <- DSL.meta
           case insertAt index (EmptyHole m') tms of
-            Just args' -> pure $ Con m con' tys args'
+            Just args' -> pure $ Con m con' args'
             Nothing -> throwError $ ConNotSaturated con
         e -> pure e
       updateDecons = transformCaseBranches prog type_ $

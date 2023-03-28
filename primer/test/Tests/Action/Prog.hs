@@ -636,16 +636,16 @@ unit_raise = do
         clearDefMapIDs (foldMap' moduleDefsQualified $ progModules r) @?= clearDefMapIDs (foldMap' moduleDefsQualified $ progModules tcpExpected)
 
 -- ∀a. List a -> ∀b. b -> Pair a b
--- /\a . λ x . case x of Nil -> ? ; Cons y ys -> /\b . λz . MakePair @a @b y z
+-- /\a . λ x . case x of Nil -> ? ; Cons y ys -> /\b . λz . MakePair (y : a) (z : b)
 -- copy the MakePair @a @b y z into the hole to get
--- /\a . λ x . case x of Nil -> MakePair @a @? ? ? ; Cons y ys -> /\b . λz . MakePair @a @b y z
+-- /\a . λ x . case x of Nil -> MakePair (? : a) (? : ?) ; Cons y ys -> /\b . λz . MakePair (y : a) (z : b)
 unit_copy_paste_expr_1 :: Assertion
 unit_copy_paste_expr_1 = do
   let mainName' = "main"
       mainName = gvn mainName'
       ((pInitial, srcID, pExpected), maxID) = create $ do
         ty <- tforall "a" KType $ (tcon tList `tapp` tvar "a") `tfun` tforall "b" KType (tvar "b" `tfun` (tcon tPair `tapp` tvar "a" `tapp` tvar "b"))
-        let toCopy' = con cMakePair [tvar "a", tvar "b"] [lvar "y", lvar "z"] -- want different IDs for the two occurences in expected
+        let toCopy' = con cMakePair [tvar "a", tvar "b"] [lvar "y" `ann` tvar "a", lvar "z" `ann` tvar "b"] -- want different IDs for the two occurences in expected
         toCopy <- toCopy'
         let skel r =
               lAM "a" $
@@ -655,7 +655,7 @@ unit_copy_paste_expr_1 = do
                     [ branch cNil [] r
                     , branch cCons [("y", Nothing), ("ys", Nothing)] $ lAM "b" $ lam "z" $ pure toCopy
                     ]
-        expectPasted <- con cMakePair [tvar "a", tEmptyHole] [emptyHole, emptyHole]
+        expectPasted <- con cMakePair [tvar "a", tEmptyHole] [emptyHole `ann` tvar "a", emptyHole `ann` tEmptyHole]
         -- TODO: in the future we may want to insert let bindings for variables
         -- which are out of scope in the target, and produce something like
         -- expectPasted <- letType "b" tEmptyHole $ let_ "y" (emptyHole `ann` tvar "a") $ let_ "z" (emptyHole `ann` tvar "b") toCopy'
@@ -1084,7 +1084,7 @@ setConFieldTypeHelper ty1 tmInput ty2' tmExpected =
         ( defaultProgEditableTypeDefs . sequence . pure $ do
             x <-
               con cB [tEmptyHole, ty1] [emptyHole, tmInput]
-            astDef "def" x <$> tEmptyHole
+            astDef "def" x <$> ((tcon tT `tapp` tEmptyHole) `tapp` ty1)
         )
         [SetConFieldType tT cB 1 ty2]
         $ expectSuccess
