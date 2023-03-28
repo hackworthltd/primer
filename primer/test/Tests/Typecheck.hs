@@ -824,7 +824,7 @@ expectFailsWith m err = do
     Left constructionErr -> assertFailure $ show constructionErr
     Right expr' -> pure expr'
   case runTypecheckTestM NoSmartHoles (m >>= synth) of
-    Left e -> err expr @?= e
+    Left e -> e @?= err expr
     Right _ -> assertFailure "Expected failure but succeeded"
 
 smartSynthGives :: HasCallStack => TypecheckTestM Expr -> TypecheckTestM Expr -> Assertion
