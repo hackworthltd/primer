@@ -5,5 +5,9 @@ Available actions has not yet been updated for checkable ctors, thus fails:
 TODO: looks like this got fixed. Probably when fixed the additional tests I recently added, especially the "insert sat con in a hole whose type is an arrow" one
 cabal run primer-test -- -p 'available actions accepted' --hedgehog-replay "Size 6 Seed 14112428139497775316 3105976411441365301"
 
+But the following seed now fails:
+cabal run primer-test -- -p 'available actions accepted' --hedgehog-replay "Size 8 Seed 18352451881470941140 1448198740880136439"
+
+
 'comprehensive' has changed, thus its available actions has. BUT I don't want to just accept because (a) I am not certain it gives the wanted output and (b) it may well change when fix 'available actions accepted'
 cabal run primer-test -- -p Available.M.comprehensive
