@@ -570,13 +570,13 @@ viewCaseRedex tydefs = \case
     {- Note [Case reduction and variable capture]
        There is a subtlety here around variable capture.
        Consider
-         case C @A' @B' s t : T A B of C a b -> e
+         case C @A' @B' s t : R A B of C a b -> e
        We would like to reduce this to
          let a = s : S' : S; let b = t : T' : T in e
        where we have annotated `s` and `t` with their two types
        (one from the arguments `A'` `B'` to the constructor,
         one from the arguments `A` `B` to the annotation), which will be
-       built from `A` and `B` according to the definition of the type `T`
+       built from `A` and `B` according to the definition of the type `R`
        (for reasons of bidirectionality).
        Note that the binding of `a` may capture a reference in `t`
        or (assuming type and term variables can shadow) in `T'` or `T`.
