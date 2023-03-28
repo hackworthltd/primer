@@ -74,11 +74,11 @@ mapDef = do
           lam "xs" $
             case_
               (lvar "xs")
-              [ branch cNil [] (conSat cNil [tvar "b"] [])
+              [ branch cNil [] (conSat cNil [])
               , branch cCons [("y", Nothing), ("ys", Nothing)] $
                   let fy = app (lvar "f") (lvar "y")
                       fys = apps' (gvar map) [Right $ tvar "a", Right $ tvar "b", Left $ lvar "f", Left $ lvar "ys"]
-                   in conSat cCons [tvar "b"] [fy, fys]
+                   in conSat cCons [fy, fys]
               ]
   pure $ DefAST $ ASTDef term type_
 
