@@ -252,11 +252,11 @@ decomposeAppCon =
     -- Possibly this function should be entirely deleted now
     _ -> Nothing
 
--- | Apply a constructor to a spine of types and a spine of terms
-mkAppCon :: (Foldable t1, Foldable t2, MonadFresh ID m) => ValConName -> t1 Type -> t2 Expr -> m Expr
-mkAppCon c tys tms = do
+-- | Apply a constructor to a spine of terms
+mkAppCon :: (Foldable t, MonadFresh ID m) => ValConName -> t Expr -> m Expr
+mkAppCon c tms = do
   c' <- (`Con` c) <$> meta
-  pure $ c' (toList tys) (toList tms)
+  pure $ c' (toList tms)
 
 -- | Unfold a nested type-level application into the application head and a list of arguments.
 unfoldTApp :: Type' a -> (Type' a, [Type' a])

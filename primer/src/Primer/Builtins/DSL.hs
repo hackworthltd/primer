@@ -46,24 +46,24 @@ boolAnn b = bool_ b `ann` tcon tBool
 
 nat :: MonadFresh ID m => Natural -> m Expr
 nat = \case
-  0 -> conSat cZero [] []
-  n -> conSat cSucc [] [nat (n - 1)]
+  0 -> conSat cZero []
+  n -> conSat cSucc [nat (n - 1)]
 
-maybe_ :: MonadFresh ID m => m Type -> (a -> m Expr) -> Maybe a -> m Expr
-maybe_ t f = \case
-  Nothing -> conSat cNothing [t] []
-  Just x -> conSat cJust [t] [f x]
+maybe_ :: MonadFresh ID m => (a -> m Expr) -> Maybe a -> m Expr
+maybe_ f = \case
+  Nothing -> conSat cNothing []
+  Just x -> conSat cJust [f x]
 
 maybeAnn :: MonadFresh ID m => m Type -> (a -> m Expr) -> Maybe a -> m Expr
-maybeAnn t f x = maybe_ t f x `ann` (tcon tMaybe `tapp` t)
+maybeAnn t f x = maybe_ f x `ann` (tcon tMaybe `tapp` t)
 
-list_ :: MonadFresh ID m => TyConName -> [m Expr] -> m Expr
-list_ t =
+list_ :: MonadFresh ID m => [m Expr] -> m Expr
+list_ =
   foldr
     ( \a b ->
-        conSat cCons [tcon t] [a, b]
+        conSat cCons [a, b]
     )
-    (conSat cNil [tcon t] [])
+    (conSat cNil [])
 
 listOf :: MonadFresh ID m => m Type -> m Type
 listOf = tapp (tcon tList)

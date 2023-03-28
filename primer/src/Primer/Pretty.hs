@@ -88,10 +88,9 @@ prettyExpr :: PrettyOptions -> Expr' a b -> Doc AnsiStyle
 prettyExpr opts = \case
   Hole _ e -> (if inlineHoles opts then group else identity) (brac Curly Red (pE e))
   EmptyHole _ -> col Red "?"
-  Con _ n tys tms ->
-    let prettyTys = (col Yellow "@" <>) . pT <$> tys
-        prettyTms = brac Round White . pE <$> tms
-     in vsep $ hsep (col Green (gname opts n) : prettyTys) : prettyTms
+  Con _ n tms ->
+    let prettyTms = brac Round White . pE <$> tms
+     in vsep $ col Green (gname opts n) : prettyTms
   Var _ v -> case v of
     GlobalVarRef n -> col Blue (gname opts n)
     LocalVarRef n -> lname n
