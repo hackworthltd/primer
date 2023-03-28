@@ -1,50 +1,65 @@
 module Primer.Subst (
   substTy,
-  substTys,
+  substTySimul,
 ) where
 
 import Foreword
 
 import Control.Monad.Fresh (MonadFresh)
-import Data.Set qualified as Set
+import Data.Map qualified as M
 import Primer.Core.Fresh (freshLocalName)
 import Primer.Core.Meta (TyVarName)
 import Primer.Core.Type (Type' (..))
 import Primer.Core.Type.Utils (freeVarsTy)
 import Primer.Name (NameCounter)
 
--- | Simple and inefficient capture-avoiding substitution.
--- @substTy n a t@  is @t[a/n]@
+-- | Simple and inefficient capture-avoiding simultaneous substitution.
+-- @substTySimul [(a,A),(b,B)] t@ is @t[A,B/a,b]@, where any references to @a,b@
+-- in their replacements @A,B@ are not substituted.
 -- We restrict to '()', i.e. no metadata as we don't want to duplicate IDs etc
-substTy :: MonadFresh NameCounter m => TyVarName -> Type' () -> Type' () -> m (Type' ())
-substTy n a = go
+substTySimul :: MonadFresh NameCounter m => Map TyVarName (Type' ()) -> Type' () -> m (Type' ())
+substTySimul sub
+  | M.null sub = pure
+  | otherwise = go
   where
-    avoid = Set.singleton n <> freeVarsTy a
+    -- When going under a binder, we must rename it if it may capture a variable
+    -- from @sub@'s rhs
+    avoid = foldMap' freeVarsTy sub
+    -- We must avoid this binder @m@ capturing a free variable in (some rhs of) @sub@
+    -- (e.g. @substTy [a :-> T b] (∀b.b a)@ should give @∀c.c (T b)@, and not @∀b.b (T b)@)
+    -- The generated names will not enter the user's program, so we don't need to worry about shadowing, only variable capture
+    subUnderBinder m t = do
+      let sub' = M.delete m sub
+      (m', sub'') <-
+        if m `elem` avoid
+          then do
+            -- If we are renaming, we
+            -- - must also avoid capturing any existing free variable
+            -- - choose to also avoid the names of any variables we are
+            --   substituting away (for clarity and ease of implementation)
+            m' <- freshLocalName (avoid <> freeVarsTy t <> M.keysSet sub)
+            pure (m', M.insert m (TVar () m') sub')
+          else pure (m, sub')
+      (m',) <$> substTySimul sub'' t
     go = \case
       t@TEmptyHole{} -> pure t
       THole m t -> THole m <$> go t
       t@TCon{} -> pure t
       TFun _ s t -> TFun () <$> go s <*> go t
       t@(TVar _ m)
-        | n == m -> pure a
+        | Just a <- M.lookup m sub -> pure a
         | otherwise -> pure t
       TApp _ s t -> TApp () <$> go s <*> go t
-      t@(TForall _ m k s)
-        | m == n -> pure t
-        -- We must avoid this @∀m@ capturing a free variable in @a@
-        -- (e.g. @substTy a (T b) (∀b.b a)@ should give @∀c.c (T b)@, and not @∀b.b (T b)@)
-        -- these names will not enter the user's program, so we don't need to worry about shadowing, only variable capture
-        | m `elem` avoid -> freshLocalName (avoid <> freeVarsTy s) >>= \m' -> substTy m (TVar () m') s >>= fmap (TForall () m' k) . go
-        | otherwise -> TForall () m k <$> go s
-      TLet _ m s b
-        | m == n -> TLet () m <$> go s <*> pure b
-        -- We must avoid this let-bound @m@ capturing a free variable in @a@,
-        -- similarly to the TForall case
-        | m `elem` avoid -> freshLocalName (avoid <> freeVarsTy b) >>= \m' -> substTy m (TVar () m') b >>= ap (TLet () m' <$> go s) . go
-        | otherwise -> TLet () m <$> go s <*> go b
+      TForall _ m k s -> do
+        (m', s') <- subUnderBinder m s
+        pure $ TForall () m' k s'
+      TLet _ m s b -> do
+        s' <- go s
+        (m', b') <- subUnderBinder m b
+        pure $ TLet () m' s' b'
 
--- | Iterated substitution: @substTys [(a,A),(b,B)] ty@ gives @(ty[B/b])[A/a]@.
--- Thus if @B@ refers to a variable @a@, this reference will also be
--- substituted.
-substTys :: MonadFresh NameCounter m => [(TyVarName, Type' ())] -> Type' () -> m (Type' ())
-substTys sb t = foldrM (uncurry substTy) t sb
+-- | Simple and inefficient capture-avoiding substitution.
+-- @substTy n a t@  is @t[a/n]@
+-- We restrict to '()', i.e. no metadata as we don't want to duplicate IDs etc
+substTy :: MonadFresh NameCounter m => TyVarName -> Type' () -> Type' () -> m (Type' ())
+substTy n a = substTySimul $ M.singleton n a

@@ -33,7 +33,7 @@ import Primer.Gen.Core.Typed (
 import Primer.Module (builtinModule, primitiveModule)
 import Primer.Name (NameCounter)
 import Primer.Refine (Inst (InstAPP, InstApp, InstUnconstrainedAPP), refine)
-import Primer.Subst (substTy, substTys)
+import Primer.Subst (substTy, substTySimul)
 import Primer.Test.TestM (evalTestM)
 import Primer.TypeDef (astTypeDefConstructors, astTypeDefParameters, typeDefAST, valConType)
 import Primer.Typecheck (
@@ -290,17 +290,18 @@ tasty_refinement_synths = propertyWTInExtendedLocalGlobalCxt [builtinModule, pri
       annotateShow e
       (ty, e') <- synthTest =<< generateIDs e
       e === forgetMetadata e' -- check no smart holes stuff happened
-      let g i a = case (i, a) of (InstUnconstrainedAPP n _, Left t) -> Just (n, t); _ -> Nothing
-          sb' = catMaybes $ zipWith g is apps
+      let g i a = case (i, a) of (InstUnconstrainedAPP n _, Left t) -> Just $ M.singleton n t; _ -> Nothing
+          sb' = mconcat $ catMaybes $ zipWith g is apps
       -- Check some invariants from @genInstApp@
       sb === sb'
-      instTy' <- substTys sb instTy
+      instTy' <- substTySimul sb instTy
       ty === instTy'
       diff ty consistentTypes tgt
     _ -> discard
 
 -- | (Because unif vars are only in one side) the names from
 -- 'InstUnconstrainedAPP' do not appear in 'InstAPP's (but can in 'InstApp's)
+-- Also, these names are distinct
 tasty_scoping :: Property
 tasty_scoping = propertyWTInExtendedLocalGlobalCxt [builtinModule, primitiveModule] $ do
   tgt <- forAllT $ genWTType KType
@@ -310,9 +311,13 @@ tasty_scoping = propertyWTInExtendedLocalGlobalCxt [builtinModule, primitiveModu
   annotateShow r
   case r of
     Just (is, _) -> do
-      let ns = S.fromList $ mapMaybe unconstrName is
+      let ns' = mapMaybe unconstrName is
+          ns = S.fromList ns'
           ts = mapMaybe aPPTy is
           fvs = mconcat $ map freeVarsTy ts
+      -- names are distinct
+      length ns' === S.size ns
+      -- names do not occur in 'InstAPP's
       ns `S.intersection` fvs === mempty
     _ -> discard
   where
