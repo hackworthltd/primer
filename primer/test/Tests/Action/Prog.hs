@@ -1179,6 +1179,9 @@ unit_AddConField_partial_app =
     $ expectError
     $ (@?= ConNotSaturated cA)
 
+-- TODO (saturated constructors) when saturation is enforced, this test is a bit odd!
+-- one may think that it should outright fail, since the program is not well-typed
+-- why does it not????
 unit_AddConField_partial_app_end :: Assertion
 unit_AddConField_partial_app_end =
   progActionTest
