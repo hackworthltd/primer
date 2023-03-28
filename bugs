@@ -1,4 +1,4 @@
-Failing non-property tests (20):
+Failing non-property tests (19):
   Tests
     API
       golden
@@ -12,8 +12,6 @@ Failing non-property tests (20):
           Intermediate:NonEditable:                       FAIL
           Expert:Editable:                                FAIL (0.21s)
           Expert:NonEditable:                             FAIL
-      Prog
-        AddConField:                                      FAIL
     Eval
       tryReduce case 3:                                   FAIL
     EvalFull
