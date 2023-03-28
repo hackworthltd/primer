@@ -39,7 +39,7 @@ import Primer.Builtins (
   tEither,
   tList,
   tMaybe,
-  tNat,
+  tNat, cJust,
  )
 import Primer.Builtins.DSL (
   listOf,
@@ -188,6 +188,22 @@ unit_con_hole_app_type_5 :: Assertion
 unit_con_hole_app_type_5 = (con cMakePair [tcon tBool,tcon tNat] [emptyHole, emptyHole]
   `ann` (tEmptyHole `tapp` tcon tBool)) `expectFailsWith`
   const ConstructorTypeArgsInconsistentTypes
+
+-- Constructors' type arguments need only be consistent with the type we check against.
+-- This is a regression test: during development we messed up what type
+-- smartholes would check the term argument against (it elided the hole on the
+-- type, but only for the purposes of checking the term). Thus @smartSynthGives@
+-- actually gave
+--    ann (con cJust [thole (tEmptyHole `tfun` tEmptyHole)] [hole $ con0 cTrue `ann` tEmptyHole])
+unit_con_tyargs_consistent_sh :: Assertion
+unit_con_tyargs_consistent_sh =
+  let tm = con cJust [thole (tEmptyHole `tfun` tEmptyHole)] [con0 cTrue]
+      ty = tcon tMaybe `tapp` tcon tBool
+  in do
+  expectTyped $ ann tm ty
+  ann tm ty  `smartSynthGives`
+      ann (con cJust [thole (tEmptyHole `tfun` tEmptyHole)] [con0 cTrue])
+      (tcon tMaybe `tapp` tcon tBool)
 
 unit_constructor_doesn't_exist :: Assertion
 unit_constructor_doesn't_exist =

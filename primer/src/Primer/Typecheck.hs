@@ -626,18 +626,15 @@ check t = \case
         Just _argTys -> do
         -- TODO (saturated constructors) unfortunately, due to constructors
         -- currently having type arguments, this is not quite true. We instead
-        -- - check the kinding of @tys@ to ensure the next point is sane
+        -- - check the kinding of @tys@ to ensure the third point is sane
+        -- - check consistency of @tys@ and 'As' (we do this before the next
+        --   point as SmartHoles may kick in in *both* the previous point and
+        --   this point, for example eliding a hole above and then re-inserting
+        --   it here. We need to check the arguments at the consistent type!)
         -- - instantiate 'T' at @tys@ to find the required types of the term arguments
-        -- - check consistency of @tys@ and 'As' (we do this before type checking @tms@)
           tys' <- ensureJust ConstructorTypeArgsKinding $ zipWithExactM checkKind' (snd <$> astTypeDefParameters td) tys
-          let tys'NoMeta = forgetTypeMetadata <$> tys'
-          instantiateValCons (foldl' (TApp ()) (TCon () tc) tys'NoMeta) >>= \case
-            Left _ -> throwError' $ InternalError "instantiateValCons succeeded, but changing type args to others of same kind made it fail"
-            Right (_,_, instVCs') -> case lookup c instVCs' of
-              Nothing -> throwError' $ InternalError "same ADT now does not contain the constructor"
-              Just argTys -> do
-                tys'' <- case decomposeTAppCon t' of
-                  Nothing -> throwError' $ InternalError "instantiateValCons succeeded, but decomposeTAppCon did not"
+          tAs <- ensureJust (InternalError "instantiateValCons succeeded, but decomposeTAppCon did not")
+                  $ pure . snd <$> decomposeTAppCon t'
                   -- See comments on UnsaturatedConstructor error below about the fatal 'ensureJust' error
                   --
                   -- If a type argument is inconsistent between the type and the
@@ -650,7 +647,7 @@ check t = \case
                   -- normally when we do a consistency check, neither side is
                   -- verbatim from the AST, and thus it normally does not make
                   -- sense to do smartholes on that problem.)
-                  Just (_,tAs) -> ensureJust ConstructorTypeArgsInconsistentNumber $
+          tys'' <- ensureJust ConstructorTypeArgsInconsistentNumber $
                                       zipWithExactM (\(tFromConOrig,tFromCon) tFromType -> if consistentTypes (forgetTypeMetadata tFromCon) tFromType
                                                      then pure tFromCon
                                                      else asks smartHoles >>= \case
@@ -662,6 +659,12 @@ check t = \case
                                                           _ -> THole <$> meta' KHole <*> pure tFromCon
                                                     )
                                        (zip tys tys') tAs
+          let tys''NoMeta = forgetTypeMetadata <$> tys''
+          instantiateValCons (foldl' (TApp ()) (TCon () tc) tys''NoMeta) >>= \case
+            Left _ -> throwError' $ InternalError "instantiateValCons succeeded, but changing type args to others of same kind made it fail"
+            Right (_,_, instVCs') -> case lookup c instVCs' of
+              Nothing -> throwError' $ InternalError "same ADT now does not contain the constructor"
+              Just argTys -> do
                 -- Check that the arguments have the correct type
                 -- Note that being unsaturated is a fatal error and SmartHoles will not try to recover
                 -- (this is a design decision -- we put the burden onto code that builds ASTs,
