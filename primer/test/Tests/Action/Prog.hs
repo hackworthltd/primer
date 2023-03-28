@@ -628,9 +628,9 @@ unit_raise = do
         clearDefMapIDs (foldMap' moduleDefsQualified $ progModules r) @?= clearDefMapIDs (foldMap' moduleDefsQualified $ progModules tcpExpected)
 
 -- ∀a. List a -> ∀b. b -> Pair a b
--- /\a . λ x . case x of Nil -> ? ; Cons y ys -> /\@b z -> Pair @a @b y z
--- copy the Just @a y into the hole to get
--- /\a . λ x . case x of Nil -> lettype b = ? in let y = ? : a in Pair @a @b y z ; Cons y ys -> /\@b z -> Pair @a @b y z
+-- /\a . λ x . case x of Nil -> ? ; Cons y ys -> /\b . λz . MakePair @a @b y z
+-- copy the MakePair @a @b y z into the hole to get
+-- /\a . λ x . case x of Nil -> MakePair @a @? ? ? ; Cons y ys -> /\b . λz . MakePair @a @b y z
 unit_copy_paste_expr_1 :: Assertion
 unit_copy_paste_expr_1 = do
   let mainName' = "main"
