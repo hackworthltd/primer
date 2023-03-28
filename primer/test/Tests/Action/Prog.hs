@@ -1182,11 +1182,13 @@ unit_AddConField_partial_app =
 -- TODO (saturated constructors) when saturation is enforced, this test is a bit odd!
 -- one may think that it should outright fail, since the program is not well-typed
 -- why does it not????
+--
+-- TODO (saturated constructors) When developing ctors not store indices, I have simply removed indices in this test, but I suspect that there is something odd with the test since saturation was enforced
 unit_AddConField_partial_app_end :: Assertion
 unit_AddConField_partial_app_end =
   progActionTest
     ( defaultProgEditableTypeDefs $ do
-        x <- con cA [][con0 (vcn "True")]
+        x <- con cA [con0 (vcn "True")]
         sequence
           [ astDef "def" x <$> tEmptyHole
           ]
@@ -1203,7 +1205,7 @@ unit_AddConField_partial_app_end =
       forgetMetadata (astDefExpr def)
         @?= forgetMetadata
           ( create' $
-              con cA [] [con0 (vcn "True"), emptyHole]
+              con cA [con0 (vcn "True"), emptyHole]
           )
 
 unit_AddConField_case_ann :: Assertion
