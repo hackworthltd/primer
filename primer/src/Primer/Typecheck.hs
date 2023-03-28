@@ -590,7 +590,7 @@ primConInScope pc cxt =
 -- | Similar to synth, but for checking rather than synthesis.
 check :: TypeM e m => Type -> Expr -> m ExprT
 check t = \case
-  con@(Con i c tys tms) -> do
+  con@(Con i c tms) -> do
     -- If the input type @t@ is a hole-applied-to-some-arguments,
     -- then refine it to the parent type of @c@ applied to some holes plus those original arguments
     (cParent, parentParams) <- asks (flip lookupConstructor c . typeDefs) >>= \case
@@ -623,54 +623,13 @@ check t = \case
       -- then this particular instantiation should have arguments 'Rs[As]'
       Right (tc, td, instVCs) -> case lookup c instVCs of
         Nothing -> recoverSH $ ConstructorWrongADT tc c
-        Just _argTys -> do
-        -- TODO (saturated constructors) unfortunately, due to constructors
-        -- currently having type arguments, this is not quite true. We instead
-        -- - check the kinding of @tys@ to ensure the third point is sane
-        -- - check consistency of @tys@ and 'As' (we do this before the next
-        --   point as SmartHoles may kick in in *both* the previous point and
-        --   this point, for example eliding a hole above and then re-inserting
-        --   it here. We need to check the arguments at the consistent type!)
-        -- - instantiate 'T' at @tys@ to find the required types of the term arguments
-          tys' <- ensureJust ConstructorTypeArgsKinding $ zipWithExactM checkKind' (snd <$> astTypeDefParameters td) tys
-          tAs <- ensureJust (InternalError "instantiateValCons succeeded, but decomposeTAppCon did not")
-                  $ pure . snd <$> decomposeTAppCon t'
-                  -- See comments on UnsaturatedConstructor error below about the fatal 'ensureJust' error
-                  --
-                  -- If a type argument is inconsistent between the type and the
-                  -- constructor, then wrap that of the constructor in a hole.
-                  -- Arguably we should be finer-grained here, say changing
-                  -- @Maybe (List Bool) ∋ Just (List Int) t@ into @Just (List {?
-                  -- Int ?})@, but we do not have the infrastructure to do that,
-                  -- and it is only temporary that constructors have type
-                  -- arguments, so it does not seem worthwhile. (Note that
-                  -- normally when we do a consistency check, neither side is
-                  -- verbatim from the AST, and thus it normally does not make
-                  -- sense to do smartholes on that problem.)
-          tys'' <- ensureJust ConstructorTypeArgsInconsistentNumber $
-                                      zipWithExactM (\(tFromConOrig,tFromCon) tFromType -> if consistentTypes (forgetTypeMetadata tFromCon) tFromType
-                                                     then pure tFromCon
-                                                     else asks smartHoles >>= \case
-                                                        NoSmartHoles -> throwError' ConstructorTypeArgsInconsistentTypes
-                                                        -- We are careful to not remove an outer hole when kind checking, only
-                                                        -- to re-add it here with a different ID.
-                                                        SmartHoles -> case tFromConOrig of
-                                                          THole (Meta id _ m) _ -> pure $ THole (Meta id KHole m) tFromCon
-                                                          _ -> THole <$> meta' KHole <*> pure tFromCon
-                                                    )
-                                       (zip tys tys') tAs
-          let tys''NoMeta = forgetTypeMetadata <$> tys''
-          instantiateValCons (foldl' (TApp ()) (TCon () tc) tys''NoMeta) >>= \case
-            Left _ -> throwError' $ InternalError "instantiateValCons succeeded, but changing type args to others of same kind made it fail"
-            Right (_,_, instVCs') -> case lookup c instVCs' of
-              Nothing -> throwError' $ InternalError "same ADT now does not contain the constructor"
-              Just argTys -> do
+        Just argTys -> do
                 -- Check that the arguments have the correct type
                 -- Note that being unsaturated is a fatal error and SmartHoles will not try to recover
                 -- (this is a design decision -- we put the burden onto code that builds ASTs,
                 -- e.g. the action code is responsible for only creating saturated constructors)
                 tms' <- ensureJust (UnsaturatedConstructor c) $ zipWithExactM check argTys tms
-                pure $ Con (annotate (TCChkedAt t') i) c tys'' tms'
+                pure $ Con (annotate (TCChkedAt t') i) c tms'
   lam@(Lam i x e) -> do
     case matchArrowType t of
       Just (t1, t2) -> do
