@@ -532,7 +532,7 @@ unit_copy_paste_duplicate = do
       toDef = gvn "blank"
       ((p, fromType, fromExpr, _toType, _toExpr), maxID) = create $ do
         mainType <- tforall "a" KType (tvar "a" `tfun` (tcon tMaybe `tapp` tEmptyHole))
-        mainExpr <- lAM "b" $ lam "x" $ con cJust [tvar "b"] [lvar "x"]
+        mainExpr <- lAM "b" $ lam "x" $ con cJust [lvar "x"]
         let mainDef = ASTDef mainExpr mainType
         blankDef <- ASTDef <$> emptyHole <*> tEmptyHole
         pure
