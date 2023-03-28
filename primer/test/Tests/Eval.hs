@@ -451,7 +451,7 @@ unit_tryReduce_case_2 = do
       detail.targetArgIDs @?= [5, 7, 8]
       detail.branchBindingIDs @?= [11, 12, 13]
       detail.branchRhsID @?= 14
-      detail.letIDs @?= [21, 18, 15]
+      detail.letIDs @?= [22, 19, 16]
     _ -> assertFailure $ show result
 
 unit_tryReduce_case_3 :: Assertion
@@ -474,7 +474,7 @@ unit_tryReduce_case_3 = do
                   ]
               , astTypeDefNameHints = []
               }
-      expectedResult = create' $ let_ "c" (con' ["M"] "E" `ann` (tcon' ["M"] "D" `tfun` tcon' ["M"] "D")) (con' ["M"] "F")
+      expectedResult = create' $ let_ "c" (con' ["M"] "E" `ann` tlet "a" (tcon' ["M"] "D") (tvar "a" `tfun` tvar "a")) (con' ["M"] "F")
   result <- runTryReduce tydef mempty mempty (expr, i)
   case result of
     Right (expr', CaseReduction detail) -> do
@@ -488,7 +488,7 @@ unit_tryReduce_case_3 = do
       detail.targetArgIDs @?= [5]
       detail.branchBindingIDs @?= [8]
       detail.branchRhsID @?= 9
-      detail.letIDs @?= [10]
+      detail.letIDs @?= [15]
     _ -> assertFailure $ show result
 
 unit_tryReduce_case_name_clash :: Assertion
