@@ -29,7 +29,7 @@ import Data.List (zip3)
 import Data.Map qualified as M
 import Data.Set qualified as S
 import Data.Set.Optics (setOf)
-import Data.Tuple.Extra (secondM, snd3)
+import Data.Tuple.Extra (snd3)
 import GHC.Err (error)
 import Optics (
   AffineFold,
@@ -60,6 +60,7 @@ import Primer.Core (
     Ann,
     App,
     Case,
+    Con,
     LAM,
     Lam,
     Let,
@@ -89,7 +90,7 @@ import Primer.Core (
   getID,
  )
 import Primer.Core.DSL (ann, letType, let_, letrec, lvar, tlet, tvar)
-import Primer.Core.Transform (decomposeAppCon, decomposeTAppCon)
+import Primer.Core.Transform (decomposeTAppCon)
 import Primer.Core.Utils (
   alphaEqTy,
   concreteTy,
@@ -191,12 +192,12 @@ data EvalLog
     -- but the number of type arguments in the scrutinee differs from the number in its annotation,
     -- or the number of type arguments expected from the scrutinee's type differs from either of these.
     -- This should not happen if the expression is type correct.
-    CaseRedexWrongTyArgNum ValConName [Type' ()] [Expr] (Maybe [Type' ()]) [TyVarName]
+    CaseRedexWrongTyArgNum ValConName [Type' ()] [Expr] [Type' ()] [TyVarName]
   | -- | A case redex required a double annotation on (some of) its resultant let binding(s)
     -- This is expected to happen for e.g. @case Just \@? True : Maybe Int of ...@, and
     -- does not represent any problem. We log it to obtain insight about how common this
     -- is in practice.
-    CaseRedexDoubleAnn ValConName [Expr] [Type' ()] [(TyVarName, Type' (), Maybe (Type' ()))] [LVarName]
+    CaseRedexDoubleAnn ValConName [Expr] [Type' ()] [(TyVarName, Type' (), Type' ())] [LVarName]
   | InvariantFailure Text
   deriving stock (Show, Eq, Data, Generic)
   deriving anyclass (NFData)
@@ -296,14 +297,9 @@ data Redex
     --  data T p = C S[p].
     -- If the two annotations happen to be the same, then we only need one copy.
     -- ]
-    -- also the non-annotated case, as we consider constructors to be synthesisable
-    -- case C @A as of ... ; C xs -> e ; ...   ~>  let xs=as:(lettype p=A in S) in e
-    -- (This is the natural rule if we consider non-annotated constructors to
-    -- be shorthand for a annotated-lambda wrapping, and combine a few
-    -- reduction steps. E.g.
-    --     cons ==  (Λa λx λxs. Cons @a x xs) : ∀a. a -> List a -> List a
-    -- )
-    -- TODO (saturated constructors) update the above comment! NB: only annotated ctors are well-typed
+    -- Since constructors are checkable and scrutinees must be synthesisable,
+    -- there must be an annotation if the term is well-typed
+    -- (i.e. we do not need to consider @case C as of ...@).
     CaseRedex
       { con :: ValConName
       -- ^ The head of the scrutinee
@@ -312,11 +308,10 @@ data Redex
       , argTys :: [Type' ()]
       -- ^ The type of each scrutinee's argument, directly from the constructor's definition
       -- (thus is not well formed in the current scope)
-      , params :: [(TyVarName, Type' (), Maybe (Type' ()))]
+      , params :: [(TyVarName, Type' (), Type' ())]
       -- ^ The parameters of the constructor's datatype, and their
       -- instantiations from inspecting the constructor's type applications and
-      -- (maybe) the type annotation on the scrutinee.
-      -- Invariant: either all the 'Maybe's are 'Nothing', or they are all 'Just'
+      -- the type annotation on the scrutinee.
       , binders :: [Bind]
       -- ^ The binders of the matching branch
       , rhs :: Expr
@@ -513,17 +508,17 @@ viewCaseRedex ::
   Expr ->
   MaybeT m Redex
 viewCaseRedex tydefs = \case
+  -- Note that constructors are checkable, but scrutinees are synthesisable,
+  -- thus we only have terms such as @case (C x y : T a) of ...@. Thus we
+  -- know the type of the scrutinee syntactically.
+  --
   -- The patterns in the case branch have a Maybe TypeCache attached, but we
   -- should not assume that this has been filled in correctly, so we record
   -- the type of the scrutinee, and reconstruct the types of the pattern
   -- variables. This is especially important, as we do not (yet?) take care of
   -- metadata correctly in this evaluator (for instance, substituting when we
   -- do a BETA reduction)!
-  orig@(Case m expr brs) -> do
-    let (expr', annotation) = case expr of
-          Ann _ e a -> (e, Just a)
-          _ -> (expr, Nothing)
-    (c, cID, tyargsFromCon', args) <- extractCon expr'
+  orig@(Case mCase scrut@(Ann _ (Con mCon c tyargsFromCon' args) annotation) brs) -> do
     let tyargsFromCon = forgetTypeMetadata <$> tyargsFromCon'
     (abstractArgTys, params) <- case lookupConstructor tydefs c of
       Nothing -> do
@@ -531,28 +526,24 @@ viewCaseRedex tydefs = \case
         mzero
       Just (vc, _, td) -> do
         pure (valConArgs vc, fst <$> astTypeDefParameters td)
-    case fmap (fmap forgetTypeMetadata . snd) . decomposeTAppCon <$> annotation of
+    case fmap forgetTypeMetadata . snd <$> decomposeTAppCon annotation of
       -- If there is an annotation which is not an applied type
       -- constructor, then we do not consider it a redex. For example,
       -- 'case Cons : ? of {}' is a valid expression (scrutinising a
       -- hole-typed expression expects no branches), but we must not
       -- treat it as a redex, since there is no 'Cons' branch.
-      Just Nothing -> mzero
-      tyargsFromAnn' -> do
-        let tyargsFromAnn = join tyargsFromAnn'
+      Nothing -> mzero
+      Just tyargsFromAnn -> do
         tyargs <- do
-          unless (length params == length tyargsFromCon && maybe True ((length params ==) . length) tyargsFromAnn) $
+          unless (length params == length tyargsFromCon && length params == length tyargsFromAnn) $
             logWarning $
               CaseRedexWrongTyArgNum c tyargsFromCon args tyargsFromAnn params
-          pure $ zip3 params tyargsFromCon $ maybe (repeat Nothing) (map Just) tyargsFromAnn
+          pure $ zip3 params tyargsFromCon tyargsFromAnn
         (patterns, br) <- extractBranch c brs
-        renameBindings m expr brs (tyargsFromCon <> fromMaybe [] tyargsFromAnn) args patterns orig
-          <|> pure (formCaseRedex c abstractArgTys tyargs args patterns br (orig, expr, cID))
+        renameBindings mCase scrut brs (tyargsFromCon <> tyargsFromAnn) args patterns orig
+          <|> pure (formCaseRedex c abstractArgTys tyargs args patterns br (orig, scrut, getID mCon))
   _ -> mzero
   where
-    extractCon expr = case decomposeAppCon expr of
-      Just (c, m, params, as) -> pure (c, getID m, params, as)
-      _ -> mzero
     extractBranch c brs =
       case find (\(CaseBranch n _ _) -> n == c) brs of
         Nothing -> do
@@ -599,7 +590,7 @@ viewCaseRedex tydefs = \case
     formCaseRedex ::
       ValConName ->
       [Type' ()] ->
-      [(TyVarName, Type' (), Maybe (Type' ()))] ->
+      [(TyVarName, Type' (), Type' ())] ->
       [Expr] ->
       [Bind] ->
       Expr ->
@@ -881,7 +872,6 @@ runRedex = \case
             }
     pure (expr', BETAReduction details)
   -- case C as : T A of ... ; C xs -> e ; ...   ~>  let xs=as:(lettype p=A in S) in e for data T p = C S
-  -- (and also the non-annotated-constructor case)
   -- Note that when forming the CaseRedex we checked that the variables @xs@ were fresh for @as@ and @As@,
   -- so this will not capture any variables.
   CaseRedex
@@ -927,10 +917,10 @@ runRedex = \case
             let ps = filter (flip elem fvs . fst) ps''
             let psC = second fst <$> ps
             aC <- subAnn psC ty
-            let psA = traverse (secondM snd) ps
+            let psA = second snd <$> ps
             -- If all relevant parameters are the same in both instantiations, then we only need one annotation
-            let aA = psA >>= \psA' -> if liftEq (liftEq alphaEqTy) psA' psC then Nothing else Just $ subAnn psA' ty
-            (aC,) <$> sequence aA
+            aA <- if liftEq (liftEq alphaEqTy) psA psC then pure Nothing else Just <$> subAnn psA ty
+            pure (aC, aA)
       let ann' x t = x `ann` pure t
       let mkAnn (tyC, tyA') = case tyA' of
             Nothing -> (False, (`ann'` tyC))

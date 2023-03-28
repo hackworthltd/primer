@@ -237,10 +237,9 @@ unit_9 =
         s <- evalFullTest maxID builtinTypes (M.fromList globals) 1000 Syn e
         s <~==> Right expected
 
--- Check that we handle constructors-are-synthesisable well
--- NB: annotated scrutinees are common, e.g. (λx.case x of ... : S -> T) s
---     but plain constructors should be supported also, as we let users write
---     construtors in synthesisable position
+-- A case redex must have an scrutinee which is an annotated constructor.
+-- Plain constructors are not well-typed here, for bidirectionality reasons,
+-- although they just fail to reduce rather than the evaluator throwing a type error.
 unit_10 :: Assertion
 unit_10 =
   let ((s, t, expected), maxID) = create $ do
@@ -261,8 +260,8 @@ unit_10 =
    in do
         s' <- evalFullTest maxID builtinTypes mempty 2 Syn s
         s' <~==> Right expected
-        t' <- evalFullTest maxID builtinTypes mempty 2 Syn t
-        t' <~==> Right expected
+        t' <- evalFullTest maxID builtinTypes mempty 1 Syn t
+        t' <~==> Right t
 
 -- This example shows that when we are under even a 'let' all we can do is
 -- substitute, otherwise we may go down a rabbit hole!
@@ -503,13 +502,17 @@ unit_type_preservation_case_regression_tm =
         e <-
           lam "x" $
             case_
-              (con cMakePair [tcon tNat, tcon tBool] [emptyHole, lvar "x"])
+              ( con cMakePair [tcon tNat, tcon tBool] [emptyHole, lvar "x"]
+                  `ann` ((tcon tPair `tapp` tcon tNat) `tapp` tcon tBool)
+              )
               [branch cMakePair [("x", Nothing), ("y", Nothing)] emptyHole]
-        let x' = "a38" -- NB fragile name
+        let x' = "a50" -- NB fragile name
         expect1 <-
           lam "x" $
             case_
-              (con cMakePair [tcon tNat, tcon tBool] [emptyHole, lvar "x"])
+              ( con cMakePair [tcon tNat, tcon tBool] [emptyHole, lvar "x"]
+                  `ann` ((tcon tPair `tapp` tcon tNat) `tapp` tcon tBool)
+              )
               [branch cMakePair [(x', Nothing), ("y", Nothing)] $ let_ "x" (lvar x') emptyHole]
         expect2 <-
           lam "x" $
@@ -1330,7 +1333,10 @@ unit_eval_full_modules_scrutinize_imported_type =
   let test = do
         m' <- m
         importModules [m']
-        foo <- case_ (con0 cTrue) [branch cTrue [] $ con0 cFalse, branch cFalse [] $ con0 cTrue]
+        foo <-
+          case_
+            (con0 cTrue `ann` tcon tBool)
+            [branch cTrue [] $ con0 cFalse, branch cFalse [] $ con0 cTrue]
         resp <-
           handleEvalFullRequest
             EvalFullReq{evalFullReqExpr = foo, evalFullCxtDir = Chk, evalFullMaxSteps = 2}
