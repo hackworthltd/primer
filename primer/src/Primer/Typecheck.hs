@@ -612,15 +612,15 @@ check t = \case
             -- explicitly here
             (_, con') <- synth con
             Hole <$> meta' (TCEmb TCBoth{tcChkedAt = t', tcSynthed = TEmptyHole ()}) <*> pure con'
-    -- If the input type @t@ is a fully-applied ADT constructor 'T As'
-    -- And 'C' is a constructor of 'T' (writing 'T's parameters as 'ps' with kinds 'ks')
-    -- with arguments 'Rs[ps]',
-    -- then this particular instantiation should have arguments 'Rs[As]'
     instantiateValCons t' >>= \case
       Left TDIHoleType -> throwError' $ InternalError "t' is not a hole, as we refined to parent type of c"
       Left TDIUnknown{} -> throwError' $ InternalError "input type to check is not in scope"
       Left TDINotADT -> recoverSH $ ConstructorNotFullAppADT t' c
       Left TDINotSaturated -> recoverSH $ ConstructorNotFullAppADT t' c
+      -- If the input type @t@ is a fully-applied ADT constructor 'T As'
+      -- And 'C' is a constructor of 'T' (writing 'T's parameters as 'ps' with kinds 'ks')
+      -- with arguments 'Rs[ps]',
+      -- then this particular instantiation should have arguments 'Rs[As]'
       Right (tc, td, instVCs) -> case lookup c instVCs of
         Nothing -> recoverSH $ ConstructorWrongADT tc c
         Just _argTys -> do
