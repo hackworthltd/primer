@@ -125,8 +125,8 @@ not modName =
             "x"
             ( case_
                 (lvar "x")
-                [ branch B.cTrue [] (conSat B.cFalse [] [])
-                , branch B.cFalse [] (conSat B.cTrue [] [])
+                [ branch B.cTrue [] (conSat B.cFalse [])
+                , branch B.cFalse [] (conSat B.cTrue [])
                 ]
             )
         pure (this, DefAST $ ASTDef term type_)
@@ -146,9 +146,9 @@ map modName =
                   case_
                     (lvar "xs")
                     [ branch B.cNil [] $
-                        conSat B.cNil [tvar "b"] []
+                        conSat B.cNil []
                     , branch B.cCons [("y", Nothing), ("ys", Nothing)] $
-                        conSat B.cCons [tvar "b"] [lvar "f" `app` lvar "y", gvar this `aPP` tvar "a" `aPP` tvar "b" `app` lvar "f" `app` lvar "ys"]
+                        conSat B.cCons [lvar "f" `app` lvar "y", gvar this `aPP` tvar "a" `aPP` tvar "b" `app` lvar "f" `app` lvar "ys"]
                     ]
         pure (this, DefAST $ ASTDef term type_)
 
@@ -161,9 +161,9 @@ map' modName = do
         lam "xs" $
           case_
             (lvar "xs")
-            [ branch B.cNil [] $ conSat B.cNil [tvar "b"] []
+            [ branch B.cNil [] $ conSat B.cNil []
             , branch B.cCons [("y", Nothing), ("ys", Nothing)] $
-                conSat B.cCons [tvar "b"] [lvar "f" `app` lvar "y", lvar "go" `app` lvar "ys"]
+                conSat B.cCons [lvar "f" `app` lvar "y", lvar "go" `app` lvar "ys"]
             ]
   term <-
     lAM "a" $
@@ -184,7 +184,7 @@ odd modName = do
     lam "x" $
       case_
         (lvar "x")
-        [ branch B.cZero [] $ conSat B.cFalse [] []
+        [ branch B.cZero [] $ conSat B.cFalse []
         , branch B.cSucc [("n", Nothing)] $ gvar (qualifyName modName "even") `app` lvar "n"
         ]
   pure (qualifyName modName "odd", DefAST $ ASTDef term type_)
@@ -200,7 +200,7 @@ even modName = do
     lam "x" $
       case_
         (lvar "x")
-        [ branch B.cZero [] $ conSat B.cTrue [] []
+        [ branch B.cZero [] $ conSat B.cTrue []
         , branch B.cSucc [("n", Nothing)] $ gvar (qualifyName modName "odd") `app` lvar "n"
         ]
   pure (qualifyName modName "even", DefAST $ ASTDef term type_)
@@ -248,12 +248,12 @@ comprehensive' typeable modName = do
   term <-
     let_
       "x"
-      (conSat B.cTrue [] [] `ann` tcon B.tBool)
+      (conSat B.cTrue [] `ann` tcon B.tBool)
       ( letrec
           "y"
           ( app
               ( hole
-                  (conSat B.cJust [tEmptyHole] [emptyHole] `ann` (tcon B.tMaybe `tapp` tEmptyHole))
+                  (conSat B.cJust [emptyHole] `ann` (tcon B.tMaybe `tapp` tEmptyHole))
               )
               ( if typeable then emptyHole else hole $ gvar' (unModuleName modName) "unboundName"
               )
@@ -270,7 +270,7 @@ comprehensive' typeable modName = do
                           ( aPP
                               ( if typeable
                                   then
-                                    (lAM "b" $ lam "x" $ conSat B.cLeft [tcon B.tBool, tvar"b"] [lvar"x"])
+                                    (lAM "b" $ lam "x" $ conSat B.cLeft [lvar"x"])
                                     `ann`
                                     (tforall "b" KType $ tcon B.tBool
                                                   `tfun` (tcon B.tEither `tapp` tcon B.tBool `tapp` tvar "b"))
@@ -278,8 +278,7 @@ comprehensive' typeable modName = do
                                     letType
                                       "b"
                                       (tcon B.tBool)
-                                      ( conSat B.cLeft [tlet "c" (tvar "b") $ tvar "c"] []
-                                      )
+                                      (conSat B.cLeft [])
                               )
                               (tvar "β")
                           )
@@ -288,7 +287,7 @@ comprehensive' typeable modName = do
                               [ branch
                                   B.cZero
                                   []
-                                  (conSat B.cFalse [] [])
+                                  (conSat B.cFalse [])
                               , branch
                                   B.cSucc
                                   [
@@ -361,7 +360,7 @@ even3Prog =
         (_, oddDef) <- odd modName
         even3Def <- do
           type_ <- tcon B.tBool
-          term <- gvar (qualifyName modName "even") `app` conSat B.cSucc [] [conSat B.cSucc [] [conSat B.cSucc [] [con0 B.cZero]]]
+          term <- gvar (qualifyName modName "even") `app` conSat B.cSucc [conSat B.cSucc [conSat B.cSucc [con0 B.cZero]]]
           pure $ DefAST $ ASTDef term type_
         let globs = [("even", evenDef), ("odd", oddDef), ("even 3?", even3Def)]
         pure globs
@@ -389,7 +388,7 @@ mapOddProg len =
         (mapName, mapDef) <- map modName
         mapOddDef <- do
           type_ <- tcon B.tList `tapp` tcon B.tBool
-          let lst = list_ B.tNat $ take len $ nat <$> [0 ..]
+          let lst = list_ $ take len $ nat <$> [0 ..]
           term <- gvar mapName `aPP` tcon B.tNat `aPP` tcon B.tBool `app` gvar oddName `app` lst
           pure $ DefAST $ ASTDef term type_
         let globs = [("even", evenDef), ("odd", oddDef), ("map", mapDef), ("mapOdd", mapOddDef)]
@@ -429,7 +428,7 @@ mapOddPrimProg len =
         (mapName, mapDef) <- map modName
         mapOddDef <- do
           type_ <- tcon B.tList `tapp` tcon B.tBool
-          let lst = list_ P.tInt $ take len $ int <$> [0 ..]
+          let lst = list_ $ take len $ int <$> [0 ..]
           term <- gvar mapName `aPP` tcon P.tInt `aPP` tcon B.tBool `app` gvar oddName `app` lst
           pure $ DefAST $ ASTDef term type_
         let globs = [("odd", oddDef), ("map", mapDef), ("mapOdd", mapOddDef)]
@@ -458,7 +457,7 @@ badEven3Prog =
         (_, oddDef) <- odd modName
         even3Def <- do
           type_ <- tcon B.tNat
-          term <- gvar (qualifyName modName "even") `app` conSat B.cSucc [] [conSat B.cSucc [] [conSat B.cSucc [] [con0 B.cZero]]]
+          term <- gvar (qualifyName modName "even") `app` conSat B.cSucc [conSat B.cSucc [conSat B.cSucc [con0 B.cZero]]]
           pure $ DefAST $ ASTDef term type_
         let globs = [("even", evenDef), ("odd", oddDef), ("even 3?", even3Def)]
         pure globs
