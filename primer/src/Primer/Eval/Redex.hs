@@ -913,6 +913,7 @@ runRedex = \case
               pure (diffAnn || d, getID t' : is, t')
           )
           (False, [], rhs)
+          -- TODO (saturated constructors)/REVIEW should we use a lettype, rather than doing the substitution in the type/annotation? This is not really related to satcon, but I happened to notice it!
           (zip4 binderNames args aTysC $ maybe (repeat Nothing) (fmap Just) aTysA)
       when diffAnn $ logInfo $ CaseRedexDoubleAnn con args aTysC aTysA binderNames
       let details =
