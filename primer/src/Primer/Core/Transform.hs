@@ -246,7 +246,10 @@ decomposeAppCon =
     -- (a) for well-typed terms, either tms0 or tys will be empty (since constructors only have top-level foralls)
     -- (b) the situation that constructors can be on the left of an app or aPP node is temporary
     --     and shortly decomposeAppCon will become a trivial match on the 'Con' constructor.
-    ((Con m c tys0 tms0, tys), tms) -> Just (c, m, tys0 ++ tys, tms0 ++ tms)
+    ((Con m c tms0, tys), tms) -> Just (c, m, tys, tms0 ++ tms)
+    -- TODO (saturated constructors) I have hacked this to build when ctors do not store indices, but earlier in history it should have changed, when saturation was enforced.
+    -- Probably the above comment should have a "TODO (saturated construtors)" marker
+    -- Possibly this function should be entirely deleted now
     _ -> Nothing
 
 -- | Apply a constructor to a spine of types and a spine of terms
