@@ -144,7 +144,7 @@ import Primer.Module (
  )
 import Primer.Name (Name, NameCounter)
 import Primer.Primitives (primConName)
-import Primer.Subst (substTy, substTySimul)
+import Primer.Subst (substTy)
 import Primer.TypeDef (
   ASTTypeDef (astTypeDefConstructors, astTypeDefParameters),
   TypeDef (..),

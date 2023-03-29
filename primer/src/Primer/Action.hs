@@ -22,7 +22,6 @@ import Data.Aeson (Value)
 import Data.Bifunctor.Swap qualified as Swap
 import Data.Generics.Product (typed)
 import Data.List (findIndex)
-import Data.List.Extra ((!?))
 import Data.List.NonEmpty qualified as NE
 import Data.Map.Strict qualified as Map
 import Data.Set qualified as Set
@@ -65,12 +64,10 @@ import Primer.Core.DSL (
   aPP,
   ann,
   app,
-  apps,
   apps',
   branch,
   case_,
   con,
-  con0,
   conSat,
   emptyHole,
   hole,

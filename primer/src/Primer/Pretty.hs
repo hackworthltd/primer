@@ -19,7 +19,6 @@ import Prettyprinter (
   flatAlt,
   group,
   hardline,
-  hsep,
   indent,
   line,
   line',

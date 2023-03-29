@@ -28,7 +28,6 @@ import Primer.Core.DSL (
   aPP,
   ann,
   app,
-  con,
   con0,
   conSat,
   create,

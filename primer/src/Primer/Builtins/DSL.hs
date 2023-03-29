@@ -29,7 +29,6 @@ import Primer.Builtins (
 import Primer.Core (
   Expr,
   ID,
-  TyConName,
   Type,
  )
 import Primer.Core.DSL (

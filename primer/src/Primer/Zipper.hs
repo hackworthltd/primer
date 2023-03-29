@@ -66,7 +66,6 @@ import Foreword
 
 import Data.Data (Data)
 import Data.Generics.Product (position)
-import Data.Generics.Uniplate.Data (holesBi)
 import Data.Generics.Uniplate.Zipper (
   Zipper,
   fromZipper,

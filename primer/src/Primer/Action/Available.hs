@@ -72,7 +72,6 @@ import Primer.TypeDef (
   ASTTypeDef (..),
   TypeDef (TypeDefAST),
   TypeDefMap,
-  ValCon (valConArgs),
   typeDefAST,
   valConName,
  )

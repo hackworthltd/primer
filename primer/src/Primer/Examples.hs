@@ -76,9 +76,7 @@ import Primer.Core.DSL (
   app,
   branch,
   case_,
-  con,
   con0,
-  con1,
   conSat,
   create,
   emptyHole,
@@ -98,7 +96,6 @@ import Primer.Core.DSL (
   tforall,
   tfun,
   thole,
-  tlet,
   tvar,
  )
 import Primer.Def (

@@ -89,9 +89,7 @@ import Primer.Core (
   getID,
  )
 import Primer.Core.DSL (ann, letType, let_, letrec, lvar, tlet, tvar)
-import Primer.Core.Transform (decomposeAppCon, mkTAppCon)
 import Primer.Core.Utils (
-  alphaEqTy,
   concreteTy,
   forgetTypeMetadata,
   freeVars,
@@ -138,7 +136,7 @@ import Primer.Eval.Detail (
 import Primer.Eval.Detail qualified
 import Primer.Eval.Prim (tryPrimFun)
 import Primer.JSON (CustomJSON (CustomJSON), FromJSON, PrimerJSON, ToJSON)
-import Primer.Log (ConvertLogMessage (convert), logInfo, logWarning)
+import Primer.Log (ConvertLogMessage (convert), logWarning)
 import Primer.Name (Name, NameCounter)
 import Primer.TypeDef (
   TypeDefMap,
@@ -146,7 +144,6 @@ import Primer.TypeDef (
 import Primer.Typecheck.Utils (
   TypeDefError (TDIHoleType, TDINotADT, TDINotSaturated, TDIUnknown),
   instantiateValCons',
-  lookupConstructor,
  )
 import Primer.Zipper (
   LetBinding,

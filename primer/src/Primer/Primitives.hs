@@ -24,8 +24,6 @@ import Data.Data (Data)
 import Data.Map qualified as M
 import Numeric.Natural (Natural)
 import Primer.Builtins (
-  cJust,
-  cNothing,
   cSucc,
   cZero,
   tBool,
@@ -47,9 +45,7 @@ import Primer.Core (
   qualifyName,
  )
 import Primer.Core.DSL (
-  ann,
   char,
-  conSat,
   int,
   tcon,
  )
