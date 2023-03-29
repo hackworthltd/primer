@@ -6,12 +6,8 @@ module Primer.Core.Transform (
   unfoldApp,
   foldApp,
   unfoldAPP,
-  foldAPP,
-  decomposeAppCon,
-  mkAppCon,
   unfoldTApp,
   decomposeTAppCon,
-  foldTApp,
   mkTAppCon,
   unfoldFun,
 ) where
@@ -32,9 +28,7 @@ import Primer.Core (
   LocalName (unLocalName),
   TmVarRef (..),
   TyVarName,
-  Type,
   Type' (..),
-  ValConName,
   bindName,
   typesInExpr,
  )
@@ -232,32 +226,6 @@ unfoldAPP = second reverse . go
     go (APP _ f x) = let (g, args) = go f in (g, x : args)
     go e = (e, [])
 
--- | Fold an application head and a list of type arguments into a single expression.
-foldAPP :: (Foldable t, MonadFresh ID m) => Expr -> t Type -> m Expr
-foldAPP = foldlM $ \a b -> do
-  m <- meta
-  pure $ APP m a b
-
--- | Decompose @C @A @B x y z@ to @(C,[A,B],[x,y,z])@
-decomposeAppCon :: Expr' a b -> Maybe (ValConName, a, [Type' b], [Expr' a b])
-decomposeAppCon =
-  unfoldApp <&> first unfoldAPP <&> \case
-    -- This is suspicious (we reorder types and terms), but
-    -- (a) for well-typed terms, either tms0 or tys will be empty (since constructors only have top-level foralls)
-    -- (b) the situation that constructors can be on the left of an app or aPP node is temporary
-    --     and shortly decomposeAppCon will become a trivial match on the 'Con' constructor.
-    ((Con m c tms0, tys), tms) -> Just (c, m, tys, tms0 ++ tms)
-    -- TODO (saturated constructors) I have hacked this to build when ctors do not store indices, but earlier in history it should have changed, when saturation was enforced.
-    -- Probably the above comment should have a "TODO (saturated construtors)" marker
-    -- Possibly this function should be entirely deleted now
-    _ -> Nothing
-
--- | Apply a constructor to a spine of terms
-mkAppCon :: (Foldable t, MonadFresh ID m) => ValConName -> t Expr -> m Expr
-mkAppCon c tms = do
-  c' <- (`Con` c) <$> meta
-  pure $ c' (toList tms)
-
 -- | Unfold a nested type-level application into the application head and a list of arguments.
 unfoldTApp :: Type' a -> (Type' a, [Type' a])
 unfoldTApp = second reverse . go
@@ -268,10 +236,6 @@ unfoldTApp = second reverse . go
 -- | Fold an type-level application head and a list of arguments into a single expression.
 foldTApp' :: (Monad m, Foldable t) => m a -> Type' a -> t (Type' a) -> m (Type' a)
 foldTApp' m = foldlM $ \a b -> (\m' -> TApp m' a b) <$> m
-
--- | Fold an type-level application head and a list of arguments into a single expression.
-foldTApp :: (MonadFresh ID m, Foldable t) => Type -> t Type -> m Type
-foldTApp = foldTApp' meta
 
 -- | @mkTAppCon C [X,Y,Z] = C X Y Z@
 mkTAppCon :: TyConName -> [Type' ()] -> Type' ()
