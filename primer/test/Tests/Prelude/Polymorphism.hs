@@ -2,17 +2,13 @@ module Tests.Prelude.Polymorphism where
 
 import Foreword
 
-import Data.Sequence qualified as Seq
 import Hedgehog (forAll)
 import Hedgehog.Gen qualified as G
 import Hedgehog.Range qualified as Range
 import Primer.Builtins (
   cCons,
-  cNil,
-  cSucc,
   tBool,
   tList,
-  tNat,
  )
 import Primer.Builtins.DSL (
   bool_,
@@ -20,11 +16,8 @@ import Primer.Builtins.DSL (
   list_,
  )
 import Primer.Core.DSL (
-  aPP,
   apps,
-  apps',
   char,
-  con,
   conSat,
   create',
   gvar,
@@ -34,11 +27,6 @@ import Primer.Core.DSL (
   tapp,
   tcon,
  )
-import Primer.Eval (Dir (Chk), EvalLog)
-import Primer.EvalFull (evalFull)
-import Primer.Log (runPureLogT)
-import Primer.Module
-import Primer.Prelude (prelude)
 import Primer.Prelude.Logic qualified as L
 import Primer.Prelude.Polymorphism qualified as P
 import Primer.Primitives (
@@ -47,8 +35,6 @@ import Primer.Primitives (
   tInt,
  )
 import Primer.Primitives.DSL (pfun)
-import Primer.Test.TestM (evalTestM)
-import Primer.Test.Util (isSevereLog)
 import Tasty (Property, property)
 import Test.Tasty.HUnit (
   Assertion,

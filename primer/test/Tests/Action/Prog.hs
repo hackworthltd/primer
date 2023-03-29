@@ -22,7 +22,6 @@ import Primer.Action (
     ConstructVar,
     Delete,
     EnterType,
-    ExitType,
     Move,
     RemoveAnn
   ),

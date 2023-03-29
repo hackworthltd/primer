@@ -86,7 +86,6 @@ import Primer.Typecheck (
   buildTypingContextFromModules,
   consistentKinds,
   consistentTypes,
-  decomposeTAppCon,
   extendLocalCxt,
   extendLocalCxtTy,
   extendLocalCxtTys,

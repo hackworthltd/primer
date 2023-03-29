@@ -27,7 +27,6 @@ import Primer.Builtins (
   boolDef,
   cCons,
   cFalse,
-  cJust,
   cMakePair,
   cNil,
   cSucc,

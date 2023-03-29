@@ -37,7 +37,7 @@ import Primer.Builtins (
   tNat,
   tPair,
  )
-import Primer.Builtins.DSL (boolAnn, bool_, list_, nat)
+import Primer.Builtins.DSL (boolAnn, list_, nat)
 import Primer.Core
 import Primer.Core.DSL
 import Primer.Core.Utils (
@@ -58,7 +58,6 @@ import Primer.Module (
   builtinModule,
   builtinTypes,
   moduleDefsQualified,
-  moduleTypesQualified,
   primitiveModule,
  )
 import Primer.Primitives (
@@ -120,7 +119,7 @@ import Test.Tasty.HUnit (Assertion, assertBool, assertFailure, (@?=))
 import Tests.Action.Prog (runAppTestM)
 import Tests.Eval.Utils (genDirTm, testModules, (~=))
 import Tests.Gen.Core.Typed (checkTest)
-import Tests.Typecheck (expectTypedWithPrims, runTypecheckTestM, runTypecheckTestMWithPrims)
+import Tests.Typecheck (runTypecheckTestM, runTypecheckTestMWithPrims)
 
 unit_1 :: Assertion
 unit_1 =

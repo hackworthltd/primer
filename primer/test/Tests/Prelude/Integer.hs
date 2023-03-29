@@ -14,9 +14,6 @@ import Primer.Core.DSL (
   int,
  )
 import Primer.Prelude.Integer qualified as P
-import Primer.Primitives (
-  tInt,
- )
 import Tasty (Property, property, withTests)
 import Tests.Prelude.Utils (functionOutput, (<===>))
 

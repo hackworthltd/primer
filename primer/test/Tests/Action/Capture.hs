@@ -8,7 +8,6 @@ import Primer.Action (
   ActionError (NameCapture, NeedEmptyHole),
   Movement (..),
  )
-import Primer.Builtins
 import Primer.Core (
   Kind (KType),
  )

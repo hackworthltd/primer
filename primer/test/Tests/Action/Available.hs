@@ -7,7 +7,6 @@ import Foreword
 
 import Control.Monad.Log (WithSeverity)
 import Data.ByteString.Lazy.Char8 qualified as BS
-import Data.Either.Extra (fromEither)
 import Data.List.Extra (enumerate, partition)
 import Data.Map qualified as Map
 import Data.Text qualified as T
@@ -28,7 +27,7 @@ import Hedgehog.Gen qualified as Gen
 import Hedgehog.Internal.Property (forAllWithT)
 import Hedgehog.Range qualified as Range
 import Optics (ix, toListOf, (%), (.~), (^..), _head)
-import Primer.Action (Action (Move), ActionError (CaseBindsClash, NameCapture), Movement (Child1, Child2), applyActionsToExpr, moveExpr, toProgActionInput, toProgActionNoInput)
+import Primer.Action (ActionError (CaseBindsClash, NameCapture), Movement (Child1, Child2), moveExpr, toProgActionInput, toProgActionNoInput)
 import Primer.Action.Available (InputAction (MakeConSat), NoInputAction (Raise), Option (Option))
 import Primer.Action.Available qualified as Available
 import Primer.App (
@@ -102,7 +101,7 @@ import Primer.Module (
  )
 import Primer.Name (Name (unName))
 import Primer.Test.TestM (evalTestM)
-import Primer.Test.Util (LogMsg, clearMeta, testNoSevereLogs)
+import Primer.Test.Util (clearMeta, testNoSevereLogs)
 import Primer.Typecheck (
   CheckEverythingRequest (CheckEverything, toCheck, trusted),
   SmartHoles (NoSmartHoles, SmartHoles),
@@ -110,7 +109,7 @@ import Primer.Typecheck (
   checkEverything,
   typeDefs,
  )
-import Primer.Zipper (ExprZ, focus, unfocusExpr, unfocusType)
+import Primer.Zipper (focus)
 import System.FilePath ((</>))
 import Tasty (Property, withDiscards, withTests)
 import Test.Tasty (TestTree, testGroup)
