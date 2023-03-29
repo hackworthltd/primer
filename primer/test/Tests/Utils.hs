@@ -32,7 +32,7 @@ genAST example = fst $ create $ example <&> snd
 -- particular next 'ID', only that 'nextID' returns whatever
 -- 'Examples.map''s next 'ID' happens to be.
 unit_nextID_exampleMap :: Assertion
-unit_nextID_exampleMap = nextID (genAST $ Examples.map modName) @?= ID 37
+unit_nextID_exampleMap = nextID (genAST $ Examples.map modName) @?= ID 35
 
 -- See note for 'unit_nextID_exampleMap'.
 unit_nextID_exampleEven :: Assertion
@@ -44,7 +44,7 @@ unit_nextID_exampleOdd = nextID (genAST $ Examples.odd modName) @?= ID 11
 
 -- See note for 'unit_nextID_exampleMap'.
 unit_nextID_exampleComprehensive :: Assertion
-unit_nextID_exampleComprehensive = nextID (genAST $ Examples.comprehensive modName) @?= ID 56
+unit_nextID_exampleComprehensive = nextID (genAST $ Examples.comprehensive modName) @?= ID 52
 
 -- Nice diffs when tasty-hunit tests fail (I should extract this to a library? NB: removed an arg from assertEqual! NB: no color support)
 -- cf https://github.com/UnkindPartition/tasty/issues/226
