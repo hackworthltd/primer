@@ -237,10 +237,9 @@ unit_9 =
         s <- evalFullTest maxID builtinTypes (M.fromList globals) 1000 Syn e
         s <~==> Right expected
 
--- Check that we handle constructors-are-synthesisable well
--- NB: annotated scrutinees are common, e.g. (λx.case x of ... : S -> T) s
---     but plain constructors should be supported also, as we let users write
---     construtors in synthesisable position
+-- A case redex must have an scrutinee which is an annotated constructor.
+-- Plain constructors are not well-typed here, for bidirectionality reasons,
+-- although they just fail to reduce rather than the evaluator throwing a type error.
 unit_10 :: Assertion
 unit_10 =
   let ((s, t, expected), maxID) = create $ do
@@ -261,8 +260,8 @@ unit_10 =
    in do
         s' <- evalFullTest maxID builtinTypes mempty 2 Syn s
         s' <~==> Right expected
-        t' <- evalFullTest maxID builtinTypes mempty 2 Syn t
-        t' <~==> Right expected
+        t' <- evalFullTest maxID builtinTypes mempty 1 Syn t
+        t' <~==> Right t
 
 -- This example shows that when we are under even a 'let' all we can do is
 -- substitute, otherwise we may go down a rabbit hole!
