@@ -712,7 +712,7 @@ viewTreeExpr e0 = case e0 of
     Tree
       { nodeId
       , body = TextBody $ RecordPair Flavor.Con $ globalName c
-      , childTrees = map (viewTreeExpr opts) tmApps
+      , childTrees = map viewTreeExpr tmApps
       , rightChild = Nothing
       }
   Lam _ s e ->
