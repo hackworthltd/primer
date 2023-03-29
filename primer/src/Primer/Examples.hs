@@ -77,6 +77,8 @@ import Primer.Core.DSL (
   branch,
   case_,
   con,
+  con0,
+  con1,
   conSat,
   create,
   emptyHole,
@@ -97,7 +99,7 @@ import Primer.Core.DSL (
   tfun,
   thole,
   tlet,
-  tvar, con0, con1,
+  tvar,
  )
 import Primer.Def (
   ASTDef (ASTDef),
@@ -270,10 +272,11 @@ comprehensive' typeable modName = do
                           ( aPP
                               ( if typeable
                                   then
-                                    (lAM "b" $ lam "x" $ conSat B.cLeft [lvar"x"])
-                                    `ann`
-                                    (tforall "b" KType $ tcon B.tBool
-                                                  `tfun` (tcon B.tEither `tapp` tcon B.tBool `tapp` tvar "b"))
+                                    (lAM "b" $ lam "x" $ conSat B.cLeft [lvar "x"])
+                                      `ann` ( tforall "b" KType $
+                                                tcon B.tBool
+                                                  `tfun` (tcon B.tEither `tapp` tcon B.tBool `tapp` tvar "b")
+                                            )
                                   else
                                     letType
                                       "b"

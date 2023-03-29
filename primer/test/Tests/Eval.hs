@@ -486,7 +486,7 @@ unit_tryReduce_case_name_clash = do
   let (expr, i) =
         create $
           case_
-            (con' ["M"] "C" [emptyHole , lvar "x"] `ann` tcon' ["M"] "T")
+            (con' ["M"] "C" [emptyHole, lvar "x"] `ann` tcon' ["M"] "T")
             [branch' (["M"], "C") [("x", Nothing), ("y", Nothing)] emptyHole]
       tydef =
         Map.singleton (unsafeMkGlobalName (["M"], "T")) $
@@ -531,7 +531,8 @@ unit_tryReduce_prim = do
             <$> pfun EqChar
             `app` char 'a'
             `app` char 'a'
-            <*> con0 cTrue `ann` tcon tBool
+            <*> con0 cTrue
+            `ann` tcon tBool
   result <- runTryReduce tydefs primDefs mempty (expr, i)
   case result of
     Right (expr', ApplyPrimFun detail) -> do

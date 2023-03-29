@@ -7,7 +7,7 @@ module Primer.Subst (
 import Foreword
 
 import Control.Monad.Fresh (MonadFresh)
-import qualified Data.Map as M
+import Data.Map qualified as M
 import Primer.Core.Fresh (freshLocalName)
 import Primer.Core.Meta (TyVarName)
 import Primer.Core.Type (Type' (..))
@@ -19,8 +19,9 @@ import Primer.Name (NameCounter)
 -- in their replacements @A,B@ are not substituted.
 -- We restrict to '()', i.e. no metadata as we don't want to duplicate IDs etc
 substTySimul :: MonadFresh NameCounter m => Map TyVarName (Type' ()) -> Type' () -> m (Type' ())
-substTySimul sub | M.null sub = pure
-                 | otherwise = go
+substTySimul sub
+  | M.null sub = pure
+  | otherwise = go
   where
     -- When going under a binder, we must rename it if it may capture a variable
     -- from @sub@'s rhs
@@ -30,15 +31,16 @@ substTySimul sub | M.null sub = pure
     -- The generated names will not enter the user's program, so we don't need to worry about shadowing, only variable capture
     subUnderBinder m t = do
       let sub' = M.delete m sub
-      (m', sub'') <- if m `elem` avoid
-        then do
-          -- If we are renaming, we
-          -- - must also avoid capturing any existing free variable
-          -- - choose to also avoid the names of any variables we are
-          --   substituting away (for clarity and ease of implementation)
-          m' <- freshLocalName (avoid <> freeVarsTy t <> M.keysSet sub)
-          pure (m',M.insert m (TVar () m') sub')
-        else pure (m,sub')
+      (m', sub'') <-
+        if m `elem` avoid
+          then do
+            -- If we are renaming, we
+            -- - must also avoid capturing any existing free variable
+            -- - choose to also avoid the names of any variables we are
+            --   substituting away (for clarity and ease of implementation)
+            m' <- freshLocalName (avoid <> freeVarsTy t <> M.keysSet sub)
+            pure (m', M.insert m (TVar () m') sub')
+          else pure (m, sub')
       (m',) <$> substTySimul sub'' t
     go = \case
       t@TEmptyHole{} -> pure t
@@ -50,11 +52,11 @@ substTySimul sub | M.null sub = pure
         | otherwise -> pure t
       TApp _ s t -> TApp () <$> go s <*> go t
       TForall _ m k s -> do
-        (m',s') <- subUnderBinder m s
+        (m', s') <- subUnderBinder m s
         pure $ TForall () m' k s'
       TLet _ m s b -> do
         s' <- go s
-        (m',b') <- subUnderBinder m b
+        (m', b') <- subUnderBinder m b
         pure $ TLet () m' s' b'
 
 -- | Simple and inefficient capture-avoiding substitution.

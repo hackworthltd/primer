@@ -37,7 +37,7 @@ import Primer.Builtins (
   tNat,
   tPair,
  )
-import Primer.Builtins.DSL (bool_, boolAnn, list_, nat)
+import Primer.Builtins.DSL (boolAnn, bool_, list_, nat)
 import Primer.Core
 import Primer.Core.DSL
 import Primer.Core.Utils (
@@ -152,7 +152,7 @@ unit_3 =
 unit_4 :: Assertion
 unit_4 =
   let ((expr, expected), maxID) = create $ do
-        e <- let_ "a" (lvar "b") $ con' ["M"] "C" [lvar "a", lam "a" (lvar "a") , lam "b" (con' ["M"] "D" [lvar "a" , lvar "b"])]
+        e <- let_ "a" (lvar "b") $ con' ["M"] "C" [lvar "a", lam "a" (lvar "a"), lam "b" (con' ["M"] "D" [lvar "a", lvar "b"])]
         let b' = "a19" -- NB: fragile name
         expect <- con' ["M"] "C" [lvar "b", lam "a" (lvar "a"), lam b' (con' ["M"] "D" [lvar "b", lvar b'])]
         pure (e, expect)
@@ -274,12 +274,12 @@ unit_11 =
         let ty = tcon tNat `tfun` (tcon tPair `tapp` tcon tBool `tapp` tcon tNat)
         let expr1 =
               let_ "x" (con0 cZero) $
-                lam "n" (con cMakePair [(gvar evenName `app` lvar "n") , lvar "x"])
+                lam "n" (con cMakePair [(gvar evenName `app` lvar "n"), lvar "x"])
                   `ann` ty
         expr <- expr1 `app` con0 cZero
         let globs = [(evenName, evenDef), (oddName, oddDef)]
         expect <-
-          (con cMakePair [con0 cTrue , con0 cZero])
+          (con cMakePair [con0 cTrue, con0 cZero])
             `ann` (tcon tPair `tapp` tcon tBool `tapp` tcon tNat)
         pure (globs, expr, expect)
    in do
@@ -313,8 +313,8 @@ unit_12 =
 unit_13 :: Assertion
 unit_13 =
   let ((e, expected), maxID) = create $ do
-        expr <- (lam "x" (con' ["M"] "C" [lvar "x", let_ "x" (con0 cTrue) (lvar "x") , lvar "x"]) `ann` (tcon tNat `tfun` tcon tBool)) `app` con0 cZero
-        expect <- (con' ["M"] "C" [con0 cZero , con0 cTrue , con0 cZero]) `ann` tcon tBool
+        expr <- (lam "x" (con' ["M"] "C" [lvar "x", let_ "x" (con0 cTrue) (lvar "x"), lvar "x"]) `ann` (tcon tNat `tfun` tcon tBool)) `app` con0 cZero
+        expect <- (con' ["M"] "C" [con0 cZero, con0 cTrue, con0 cZero]) `ann` tcon tBool
         pure (expr, expect)
    in do
         s <- evalFullTest maxID builtinTypes mempty 15 Syn e
@@ -343,7 +343,7 @@ unit_15 :: Assertion
 unit_15 =
   let ((expr, steps, expected), maxID) = create $ do
         let l = let_ "x" (lvar "y")
-        let c a b = con' ["M"] "C" [lvar a , lvar b]
+        let c a b = con' ["M"] "C" [lvar a, lvar b]
         e0 <- l $ lam "y" $ c "x" "y"
         let y' = "a38"
         e1 <- l $ lam y' $ let_ "y" (lvar y') $ c "x" "y"
@@ -501,13 +501,13 @@ unit_type_preservation_case_regression_tm =
         e <-
           lam "x" $
             case_
-              (con cMakePair [emptyHole , lvar "x"] `ann` ((tcon tPair `tapp` tcon tNat) `tapp` tcon tBool))
+              (con cMakePair [emptyHole, lvar "x"] `ann` ((tcon tPair `tapp` tcon tNat) `tapp` tcon tBool))
               [branch cMakePair [("x", Nothing), ("y", Nothing)] emptyHole]
         let x' = "a42" -- NB: fragile name
         expect1 <-
           lam "x" $
             case_
-              (con cMakePair [emptyHole , lvar "x"] `ann` ((tcon tPair `tapp` tcon tNat) `tapp` tcon tBool))
+              (con cMakePair [emptyHole, lvar "x"] `ann` ((tcon tPair `tapp` tcon tNat) `tapp` tcon tBool))
               [branch cMakePair [(x', Nothing), ("y", Nothing)] $ let_ "x" (lvar x') emptyHole]
         expect2 <-
           lam "x" $
@@ -535,7 +535,7 @@ unit_type_preservation_case_regression_ty =
         e <-
           lAM "x" $
             case_
-              ( (con cMakePair [emptyHole , emptyHole])
+              ( (con cMakePair [emptyHole, emptyHole])
                   `ann` (tcon tPair `tapp` tEmptyHole `tapp` tvar "x")
               )
               [branch cMakePair [("x", Nothing), ("y", Nothing)] emptyHole]
@@ -543,7 +543,7 @@ unit_type_preservation_case_regression_ty =
         expect1 <-
           lAM "x" $
             case_
-              ( (con cMakePair [emptyHole , emptyHole])
+              ( (con cMakePair [emptyHole, emptyHole])
                   `ann` (tcon tPair `tapp` tEmptyHole `tapp` tvar "x")
               )
               [branch cMakePair [(x', Nothing), ("y", Nothing)] $ let_ "x" (lvar x') emptyHole]
@@ -879,12 +879,14 @@ tasty_prim_hex_nat = withTests 20 . property $ do
                           `app` lvar "x"
                       )
                   ]
-                <*> con1 cJust ne `ann` (tcon tMaybe `tapp` tcon tNat)
+                <*> con1 cJust ne
+                `ann` (tcon tMaybe `tapp` tcon tNat)
             else
               (,)
                 <$> pfun NatToHex
                 `app` ne
-                <*> con0 cNothing `ann` (tcon tMaybe `tapp` tcon tChar)
+                <*> con0 cNothing
+                `ann` (tcon tMaybe `tapp` tcon tChar)
   s <- evalFullTasty maxID builtinTypes primDefs 7 Syn e
   over evalResultExpr zeroIDs s === Right (zeroIDs r)
 

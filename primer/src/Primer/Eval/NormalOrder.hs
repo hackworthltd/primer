@@ -164,7 +164,7 @@ foldMapExpr extract topDir = flip evalAccumT mempty . go . (topDir,) . focus
           _ ->
             msum $
               (goType =<< focusType' ez)
-                 : map (go <=< hoistAccum) (exprChildren dez)
+                : map (go <=< hoistAccum) (exprChildren dez)
     goType :: TypeZ -> AccumT Cxt f a
     goType tz =
       readerToAccumT (ReaderT $ extract.ty tz)

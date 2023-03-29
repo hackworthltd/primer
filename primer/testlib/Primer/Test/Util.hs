@@ -40,7 +40,7 @@ import Primer.API (
   runPrimerM,
  )
 import Primer.Action (
-  Action (ConstructRefinedCon, ConstructTCon, ConstructSaturatedCon),
+  Action (ConstructRefinedCon, ConstructSaturatedCon, ConstructTCon),
  )
 import Primer.Core (
   Expr',

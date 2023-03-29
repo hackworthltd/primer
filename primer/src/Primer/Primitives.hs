@@ -47,10 +47,11 @@ import Primer.Core (
   qualifyName,
  )
 import Primer.Core.DSL (
+  ann,
   char,
   conSat,
   int,
-  tcon, ann,
+  tcon,
  )
 import Primer.JSON (CustomJSON (..), PrimerJSON)
 import Primer.Name (Name)
@@ -210,16 +211,18 @@ primFunDef def args = case def of
   IntQuotient -> case args of
     [PrimCon _ (PrimInt x), PrimCon _ (PrimInt y)] ->
       Right $
-        maybeAnn (tcon tInt) int $ if y == 0
-          then Nothing
-          else Just $ x `div` y
+        maybeAnn (tcon tInt) int $
+          if y == 0
+            then Nothing
+            else Just $ x `div` y
     _ -> err
   IntRemainder -> case args of
     [PrimCon _ (PrimInt x), PrimCon _ (PrimInt y)] ->
       Right $
-        maybeAnn (tcon tInt) int $ if y == 0
-          then Nothing
-          else Just $ x `mod` y
+        maybeAnn (tcon tInt) int $
+          if y == 0
+            then Nothing
+            else Just $ x `mod` y
     _ -> err
   IntQuot -> case args of
     [PrimCon _ (PrimInt x), PrimCon _ (PrimInt y)] ->
@@ -262,9 +265,10 @@ primFunDef def args = case def of
   IntToNat -> case args of
     [PrimCon _ (PrimInt x)] ->
       Right $
-        maybeAnn (tcon tNat) nat $ if x < 0
-          then Nothing
-          else Just $ fromInteger x
+        maybeAnn (tcon tNat) nat $
+          if x < 0
+            then Nothing
+            else Just $ fromInteger x
     _ -> err
   IntFromNat -> case args of
     [exprToNat -> Just n] ->

@@ -85,6 +85,8 @@ import Primer.Typecheck (
   TypeDefError (TDIHoleType),
   buildTypingContextFromModules,
   consistentKinds,
+  consistentTypes,
+  decomposeTAppCon,
   extendLocalCxt,
   extendLocalCxtTy,
   extendLocalCxtTys,
@@ -100,7 +102,7 @@ import Primer.Typecheck (
   matchForallType,
   mkTAppCon,
   primConInScope,
-  typeDefs, decomposeTAppCon, consistentTypes,
+  typeDefs,
  )
 import Tasty (Property, property)
 
@@ -267,7 +269,7 @@ genSyns ty = do
     genPrimCon' = do
       genPrimCon <&> map (bimap (fmap $ PrimCon ()) (TCon ())) <&> filter (consistentTypes ty . snd) <&> \case
         [] -> Nothing
-        gens -> Just $ Gen.choice $ (\(g,t) -> (,t) <$> g) <$> gens
+        gens -> Just $ Gen.choice $ (\(g, t) -> (,t) <$> g) <$> gens
     genLet =
       Gen.choice
         [ -- let
@@ -376,32 +378,40 @@ genChk ty = do
   Gen.recursive Gen.choice [emb] rec
   where
     emb = fst <$> genSyns ty
-    genCon = instantiateValCons ty >>= \case
-      Left TDIHoleType -> asks allCons <&> \case -- We have no constraints, generate any ctor
-          m | null m -> Nothing
-          cons -> Just $ do
-           let cons' = M.toList cons <&> \(c, (params, fldsTys0, tycon)) -> do
-                  indicesMap <- for params $ \(p, k) -> (p,) <$> genWTType k
-                  -- NB: it is vital to use simultaneous substitution here.
-                  -- Consider the case where we have a local type variable @a@
-                  -- in scope, say because we have already generated a
-                  -- @Λa. ...@, and we are considering the case of the @MkPair@
-                  -- constructor for the type @data Pair a b = MkPair a b@.
-                  -- The two "a"s (locally Λ-bound and from the typedef) refer
-                  -- to completely different things. We may well generate the
-                  -- substitution [a :-> Bool, b :-> a]. We must then say that
-                  -- the fields of the @MkPair@ constructor are @Bool@ and (the
-                  -- locally-bound) @a@. We must do a simultaneous substitution
-                  -- to avoid substituting @b@ into @a@ and then further into
-                  -- @Bool@.
-                  fldsTys <- traverse (substTySimul $ M.fromList indicesMap) fldsTys0
-                  flds <- traverse (Gen.small . genChk) fldsTys
-                  pure $ Con () c flds
-           Gen.choice cons'
-      Left _ -> pure Nothing -- not an ADT
-      Right (_,_,[]) -> pure Nothing -- is an empty ADT
-      Right (_,_,vcs)  -> pure $ Just $ Gen.choice $ vcs <&> \(vc,tmArgTypes) ->
-         Con () vc <$> traverse genChk tmArgTypes
+    genCon =
+      instantiateValCons ty >>= \case
+        Left TDIHoleType ->
+          asks allCons <&> \case
+            -- We have no constraints, generate any ctor
+            m | null m -> Nothing
+            cons -> Just $ do
+              let cons' =
+                    M.toList cons <&> \(c, (params, fldsTys0, tycon)) -> do
+                      indicesMap <- for params $ \(p, k) -> (p,) <$> genWTType k
+                      -- NB: it is vital to use simultaneous substitution here.
+                      -- Consider the case where we have a local type variable @a@
+                      -- in scope, say because we have already generated a
+                      -- @Λa. ...@, and we are considering the case of the @MkPair@
+                      -- constructor for the type @data Pair a b = MkPair a b@.
+                      -- The two "a"s (locally Λ-bound and from the typedef) refer
+                      -- to completely different things. We may well generate the
+                      -- substitution [a :-> Bool, b :-> a]. We must then say that
+                      -- the fields of the @MkPair@ constructor are @Bool@ and (the
+                      -- locally-bound) @a@. We must do a simultaneous substitution
+                      -- to avoid substituting @b@ into @a@ and then further into
+                      -- @Bool@.
+                      fldsTys <- traverse (substTySimul $ M.fromList indicesMap) fldsTys0
+                      flds <- traverse (Gen.small . genChk) fldsTys
+                      pure $ Con () c flds
+              Gen.choice cons'
+        Left _ -> pure Nothing -- not an ADT
+        Right (_, _, []) -> pure Nothing -- is an empty ADT
+        Right (_, _, vcs) ->
+          pure $
+            Just $
+              Gen.choice $
+                vcs <&> \(vc, tmArgTypes) ->
+                  Con () vc <$> traverse genChk tmArgTypes
     lambda =
       matchArrowType ty <&> \(sTy, tTy) -> do
         n <- genLVarNameAvoiding [tTy, sTy]

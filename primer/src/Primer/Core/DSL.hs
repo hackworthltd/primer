@@ -130,7 +130,6 @@ conSat c tms = Con <$> meta <*> pure c <*> sequence tms
 con0 :: MonadFresh ID m => ValConName -> m Expr
 con0 c = conSat c []
 
-
 -- | Create a constructor of arity one.
 -- (This condition is not checked here.
 --  If used with a constructor which has fields,
@@ -179,8 +178,8 @@ char = prim . PrimChar
 int :: MonadFresh ID m => Integer -> m Expr
 int = prim . PrimInt
 
---con' :: MonadFresh ID m => NonEmpty Name -> Name -> m Expr
---con' m n = con $ qualifyName (ModuleName m) n
+-- con' :: MonadFresh ID m => NonEmpty Name -> Name -> m Expr
+-- con' m n = con $ qualifyName (ModuleName m) n
 con' :: MonadFresh ID m => NonEmpty Name -> Name -> [m Expr] -> m Expr
 con' = conSat'
 

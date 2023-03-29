@@ -178,7 +178,7 @@ unit_app :: Assertion
 unit_app = afterRename "x" "y" (app (lvar "x") (lvar "x")) (Just (app (lvar "y") (lvar "y")))
 
 unit_con :: Assertion
-unit_con = afterRename "x" "y" (conSat cJust [lvar "x"]) (Just (conSat cJust [lvar "y"]) )
+unit_con = afterRename "x" "y" (conSat cJust [lvar "x"]) (Just (conSat cJust [lvar "y"]))
 
 unit_case :: Assertion
 unit_case =

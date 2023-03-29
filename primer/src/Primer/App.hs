@@ -509,7 +509,7 @@ handleMutationRequest = \case
   Undo -> handleUndoRequest
 
 -- | Handle an edit request
-handleEditRequest :: forall m l. (ConvertLogMessage EvalLog l,MonadEditApp l ProgError m) => [ProgAction] -> m Prog
+handleEditRequest :: forall m l. (ConvertLogMessage EvalLog l, MonadEditApp l ProgError m) => [ProgAction] -> m Prog
 handleEditRequest actions = do
   logInfo $ InvariantFailure "(not inv fail, just smuggling strings...)"
   logInfo $ InvariantFailure $ "handleEditRequest: " <> show actions

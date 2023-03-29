@@ -27,6 +27,7 @@ import Primer.Builtins (
   boolDef,
   cCons,
   cFalse,
+  cJust,
   cMakePair,
   cNil,
   cSucc,
@@ -39,7 +40,7 @@ import Primer.Builtins (
   tEither,
   tList,
   tMaybe,
-  tNat, cJust,
+  tNat,
  )
 import Primer.Builtins.DSL (
   listOf,
@@ -150,38 +151,50 @@ unit_true_hole = expectTyped $ con0 cTrue `ann` tEmptyHole
 
 -- An empty hole rejects under-saturated constructors
 unit_unsat_con_hole_1 :: Assertion
-unit_unsat_con_hole_1 = (con0 cSucc `ann` tEmptyHole)
-  `expectFailsWith` \_ -> UnsaturatedConstructor cSucc
+unit_unsat_con_hole_1 =
+  (con0 cSucc `ann` tEmptyHole)
+    `expectFailsWith` \_ -> UnsaturatedConstructor cSucc
 
 -- An empty hole rejects over-saturated constructors
 unit_unsat_con_hole_2 :: Assertion
-unit_unsat_con_hole_2 = con cSucc [emptyHole, emptyHole] `ann` tEmptyHole
-  `expectFailsWith` \_ -> UnsaturatedConstructor cSucc
+unit_unsat_con_hole_2 =
+  con cSucc [emptyHole, emptyHole]
+    `ann` tEmptyHole
+    `expectFailsWith` \_ -> UnsaturatedConstructor cSucc
 
 -- A hole-headed TApp accepts saturated constructors
 unit_con_hole_app_type_1 :: Assertion
-unit_con_hole_app_type_1 = expectTyped $ con cMakePair [emptyHole, emptyHole]
-  `ann` (tEmptyHole `tapp` tEmptyHole)
+unit_con_hole_app_type_1 =
+  expectTyped $
+    con cMakePair [emptyHole, emptyHole]
+      `ann` (tEmptyHole `tapp` tEmptyHole)
 
 -- A hole-headed TApp accepts saturated constructors
 -- The application spine can be shorter than that required for the constructor
 unit_con_hole_app_type_2 :: Assertion
-unit_con_hole_app_type_2 = expectTyped $ con cMakePair [emptyHole, emptyHole]
-  `ann` (tEmptyHole `tapp` tcon tNat)
+unit_con_hole_app_type_2 =
+  expectTyped $
+    con cMakePair [emptyHole, emptyHole]
+      `ann` (tEmptyHole `tapp` tcon tNat)
 
 -- A hole-headed TApp accepts saturated constructors
 -- The application spine can match than that required for the constructor
 unit_con_hole_app_type_3 :: Assertion
-unit_con_hole_app_type_3 = expectTyped $ con cMakePair [emptyHole, emptyHole]
-  `ann` (tEmptyHole `tapp` tcon tBool `tapp` tcon tNat)
+unit_con_hole_app_type_3 =
+  expectTyped $
+    con cMakePair [emptyHole, emptyHole]
+      `ann` (tEmptyHole `tapp` tcon tBool `tapp` tcon tNat)
 
 -- A hole-headed TApp rejects saturated constructors, if  application spine is too long for the constructor
 unit_con_hole_app_type_4 :: Assertion
-unit_con_hole_app_type_4 = (con cMakePair [emptyHole, emptyHole]
-  `ann` (tEmptyHole `tapp` tcon tBool `tapp` tcon tNat `tapp` tEmptyHole)) `expectFailsWith`
-  \_ -> ConstructorNotFullAppADT
-              (TApp () (TApp () (TApp () (TEmptyHole ()) (TCon () tBool)) (TCon () tNat)) (TEmptyHole ()))
-            cMakePair
+unit_con_hole_app_type_4 =
+  ( con cMakePair [emptyHole, emptyHole]
+      `ann` (tEmptyHole `tapp` tcon tBool `tapp` tcon tNat `tapp` tEmptyHole)
+  )
+    `expectFailsWith` \_ ->
+      ConstructorNotFullAppADT
+        (TApp () (TApp () (TApp () (TEmptyHole ()) (TCon () tBool)) (TCon () tNat)) (TEmptyHole ()))
+        cMakePair
 
 unit_constructor_doesn't_exist :: Assertion
 unit_constructor_doesn't_exist =
@@ -200,21 +213,19 @@ unit_inc =
 -- cf unit_inc_unsat2
 unit_inc_unsat1 :: Assertion
 unit_inc_unsat1 =
-    ann
-      (lam "n" (app (con0 cSucc `ann` tEmptyHole) (lvar "n")))
-      (tfun (tcon tNat) (tcon tNat))
-      `expectFailsWith`
-      (const $ UnsaturatedConstructor cSucc)
+  ann
+    (lam "n" (app (con0 cSucc `ann` tEmptyHole) (lvar "n")))
+    (tfun (tcon tNat) (tcon tNat))
+    `expectFailsWith` (const $ UnsaturatedConstructor cSucc)
 
 -- NB: @Succ :: Nat -> Nat@ is wrong: constructors don't inhabit function types!
 -- cf unit_inc_unsat1
 unit_inc_unsat2 :: Assertion
 unit_inc_unsat2 =
-    ann
-      (lam "n" (app (con0 cSucc `ann` (tcon tNat `tfun` tcon tNat)) (lvar "n")))
-      (tfun (tcon tNat) (tcon tNat))
-      `expectFailsWith`
-      (const $ ConstructorNotFullAppADT (TFun () (TCon () tNat) (TCon () tNat)) cSucc)
+  ann
+    (lam "n" (app (con0 cSucc `ann` (tcon tNat `tfun` tcon tNat)) (lvar "n")))
+    (tfun (tcon tNat) (tcon tNat))
+    `expectFailsWith` (const $ ConstructorNotFullAppADT (TFun () (TCon () tNat) (TCon () tNat)) cSucc)
 
 unit_compose_nat :: Assertion
 unit_compose_nat =
@@ -425,18 +436,20 @@ unit_con_syn_sh =
 
 unit_con_not_adt_sh :: Assertion
 unit_con_not_adt_sh =
-  con0 cTrue `ann` (tcon tNat `tfun` tcon tBool)
+  con0 cTrue
+    `ann` (tcon tNat `tfun` tcon tBool)
     `smartSynthGives` (hole (con0 cTrue `ann` tEmptyHole) `ann` (tcon tNat `tfun` tcon tBool))
 
 unit_con_wrong_adt_sh :: Assertion
 unit_con_wrong_adt_sh =
-  con0 cTrue `ann` tcon tNat
+  con0 cTrue
+    `ann` tcon tNat
     `smartSynthGives` (hole (con0 cTrue `ann` tEmptyHole) `ann` tcon tNat)
 
 unit_case_scrutinee :: Assertion
 unit_case_scrutinee =
-  ann (case_ (lam "n" ( con1 cSucc $ lvar "n") `ann` (tcon tNat `tfun` tcon tNat)) [branch' (["M"], "C") [] $ lvar "x"]) (tcon tBool)
-    `smartSynthGives` ann (case_ (hole $ (lam "n" ( con1 cSucc $ lvar "n") `ann` (tcon tNat `tfun` tcon tNat))) []) (tcon tBool)
+  ann (case_ (lam "n" (con1 cSucc $ lvar "n") `ann` (tcon tNat `tfun` tcon tNat)) [branch' (["M"], "C") [] $ lvar "x"]) (tcon tBool)
+    `smartSynthGives` ann (case_ (hole $ (lam "n" (con1 cSucc $ lvar "n") `ann` (tcon tNat `tfun` tcon tNat))) []) (tcon tBool)
 
 unit_case_branches :: Assertion
 unit_case_branches =
@@ -456,8 +469,8 @@ unit_remove_hole =
 -- This is tracked as https://github.com/hackworthltd/primer/issues/7
 unit_remove_hole_not_perfect :: Assertion
 unit_remove_hole_not_perfect =
-  app (hole $ (lam "n" ( con1 cSucc $ lvar "n") `ann` (tcon tNat `tfun` tcon tNat))) (con0 cZero)
-    `smartSynthGives` app (hole $ (lam "n" ( con1 cSucc $ lvar "n") `ann` (tcon tNat `tfun` tcon tNat))) (con0 cZero) -- We currently give this as output
+  app (hole $ (lam "n" (con1 cSucc $ lvar "n") `ann` (tcon tNat `tfun` tcon tNat))) (con0 cZero)
+    `smartSynthGives` app (hole $ (lam "n" (con1 cSucc $ lvar "n") `ann` (tcon tNat `tfun` tcon tNat))) (con0 cZero) -- We currently give this as output
     -- app (lam "n" ( con1 cSucc $ lvar "n") `ann` (tcon tNat `tfun` tcon tNat)) (con0 cZero) -- We would prefer to see the hole removed
 
 -- When not using "smart" TC which automatically inserts holes etc,

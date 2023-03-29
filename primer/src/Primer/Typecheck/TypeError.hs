@@ -22,10 +22,11 @@ data TypeError
   | -- | Constructors (term-level) must be saturated.
     -- This error catches both under- and over-saturation.
     UnsaturatedConstructor ValConName
-    -- TODO (saturated constructors) currently this catches both "wrong number
+  | -- TODO (saturated constructors) currently this catches both "wrong number
     -- of type/term arguments", but when constructors become checkable, then
     -- they will only have term arguments
-  | -- | Cannot use a PrimCon when either no type of the appropriate name is
+
+    -- | Cannot use a PrimCon when either no type of the appropriate name is
     -- in scope, or it is a user-defined type
     PrimitiveTypeNotInScope TyConName
   | CannotSynthesiseType Expr

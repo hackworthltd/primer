@@ -59,12 +59,13 @@ import Primer.Core (
     Ann,
     App,
     Case,
+    Con,
     LAM,
     Lam,
     Let,
     LetType,
     Letrec,
-    Var, Con
+    Var
   ),
   ExprMeta,
   GVarName,
@@ -517,7 +518,7 @@ viewCaseRedex tydefs = \case
     instantiateCon (forgetTypeMetadata ty) c >>= \argTys -> do
       (patterns, br) <- extractBranch c brs
       renameBindings mCase scrut brs patterns orig
-            <|> pure (formCaseRedex c argTys args patterns br (orig, scrut, getID mCon))
+        <|> pure (formCaseRedex c argTys args patterns br (orig, scrut, getID mCon))
   _ -> mzero
   where
     pushMaybe :: Maybe (forall m'. c m' => [m' a]) -> forall m'. c m' => Maybe [m' a]
@@ -585,7 +586,6 @@ viewCaseRedex tydefs = \case
       Redex
     formCaseRedex con argTys args binders rhs (orig, scrut, conID) =
       CaseRedex{con, args, argTys, binders, rhs, orig, scrutID = getID scrut, conID}
-
 
 -- We record each binder, along with its let-bound RHS (if any)
 -- and its original binding location and  context (to be able to detect capture)

@@ -7,6 +7,7 @@ import Foreword
 
 import Control.Monad.Log (WithSeverity)
 import Data.ByteString.Lazy.Char8 qualified as BS
+import Data.Either.Extra (fromEither)
 import Data.List.Extra (enumerate, partition)
 import Data.Map qualified as Map
 import Data.Text qualified as T
@@ -26,15 +27,17 @@ import Hedgehog (
 import Hedgehog.Gen qualified as Gen
 import Hedgehog.Internal.Property (forAllWithT)
 import Hedgehog.Range qualified as Range
-import Optics (toListOf, (%), (^..), _head, (.~), ix)
-import Primer.Action (ActionError (CaseBindsClash, NameCapture), toProgActionInput, toProgActionNoInput, Movement (Child1, Child2), moveExpr, applyActionsToExpr, Action (Move))
+import Optics (ix, toListOf, (%), (.~), (^..), _head)
+import Primer.Action (Action (Move), ActionError (CaseBindsClash, NameCapture), Movement (Child1, Child2), applyActionsToExpr, moveExpr, toProgActionInput, toProgActionNoInput)
+import Primer.Action.Available (InputAction (MakeConSat), NoInputAction (Raise), Option (Option))
 import Primer.Action.Available qualified as Available
 import Primer.App (
   App,
   EditAppM,
   Editable (..),
+  Level (Beginner),
   NodeType (..),
-  Prog(..),
+  Prog (..),
   ProgError (ActionError, DefAlreadyExists),
   appProg,
   checkAppWellFormed,
@@ -42,25 +45,39 @@ import Primer.App (
   progAllDefs,
   progAllTypeDefs,
   progCxt,
-  runEditAppM, Level (Beginner),
+  runEditAppM,
  )
+import Primer.Builtins (builtinModuleName, cCons, cTrue, tList, tNat)
 import Primer.Core (
+  Expr,
   GVarName,
   GlobalName (baseName, qualifiedModule),
   HasID (_id),
   ID,
   ModuleName (ModuleName, unModuleName),
+  getID,
   mkSimpleModuleName,
   moduleNamePretty,
   qualifyName,
-  _typeMeta, Expr, getID,
+  _typeMeta,
  )
 import Primer.Core.DSL (
+  S,
+  ann,
+  app,
+  con,
+  con0,
+  create,
   create',
   emptyHole,
   gvar,
-  tEmptyHole, lam, app, lvar, S, con0, create, ann, tfun, con, hole,
-  tcon, tapp,
+  hole,
+  lam,
+  lvar,
+  tEmptyHole,
+  tapp,
+  tcon,
+  tfun,
  )
 import Primer.Core.Utils (
   exprIDs,
@@ -79,30 +96,29 @@ import Primer.Log (PureLog, runPureLog)
 import Primer.Module (
   Module (Module, moduleDefs),
   builtinModule,
+  moduleDefsQualified,
   moduleTypesQualified,
-  primitiveModule, moduleDefsQualified,
+  primitiveModule,
  )
 import Primer.Name (Name (unName))
-import Primer.Test.Util (testNoSevereLogs, clearMeta, LogMsg)
+import Primer.Test.TestM (evalTestM)
+import Primer.Test.Util (LogMsg, clearMeta, testNoSevereLogs)
 import Primer.Typecheck (
   CheckEverythingRequest (CheckEverything, toCheck, trusted),
   SmartHoles (NoSmartHoles, SmartHoles),
   buildTypingContextFromModules,
-  checkEverything, typeDefs,
+  checkEverything,
+  typeDefs,
  )
+import Primer.Zipper (ExprZ, focus, unfocusExpr, unfocusType)
 import System.FilePath ((</>))
 import Tasty (Property, withDiscards, withTests)
 import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.Golden (goldenVsString)
-import Test.Tasty.HUnit (Assertion, (@?=), assertBool, assertFailure)
+import Test.Tasty.HUnit (Assertion, assertBool, assertFailure, (@?=))
+import Tests.Action.Prog (defaultEmptyProg, expectSuccess, findGlobalByName, gvn, progActionTest)
 import Tests.Typecheck (TypeCacheAlpha (TypeCacheAlpha), runTypecheckTestMIn)
 import Text.Pretty.Simple (pShowNoColor)
-import Primer.Action.Available (NoInputAction(Raise), Option(Option), InputAction (MakeConSat))
-import Primer.Zipper (focus, ExprZ, unfocusExpr, unfocusType)
-import Primer.Builtins (cTrue, cCons, tList, tNat, builtinModuleName)
-import Primer.Test.TestM (evalTestM)
-import Data.Either.Extra (fromEither)
-import Tests.Action.Prog (defaultEmptyProg,gvn,progActionTest,expectSuccess, findGlobalByName)
 
 -- | Comprehensive DSL test.
 test_1 :: TestTree
@@ -290,23 +306,23 @@ tasty_available_actions_accepted = withTests 500 $
         (Right _, a') -> ensureSHNormal a'
     -- If we submit our own name rather than an offered one, then
     -- we should expect that name capture/clashing may happen
-    --actionSucceedsOrCapture :: HasCallStack => EditAppM (PureLog (WithSeverity ())) ProgError a -> App -> PropertyT WT ()
+    -- actionSucceedsOrCapture :: HasCallStack => EditAppM (PureLog (WithSeverity ())) ProgError a -> App -> PropertyT WT ()
     actionSucceedsOrCapture :: HasCallStack => EditAppM (PureLog (WithSeverity LogMsg)) ProgError a -> App -> PropertyT WT ()
     actionSucceedsOrCapture m a =
-      --runEditAppMLogs m a >>= \case
+      -- runEditAppMLogs m a >>= \case
       runPureLog (runEditAppM m a) & \case
-        --(Left (ActionError NameCapture), _) -> do
+        -- (Left (ActionError NameCapture), _) -> do
         ((Left (ActionError NameCapture), _), _) -> do
           label "name-capture with entered name"
           annotate "ignoring name capture error as was generated name, not offered one"
-        ((Left (ActionError (CaseBindsClash{})), _),_) -> do
+        ((Left (ActionError (CaseBindsClash{})), _), _) -> do
           label "name-clash with entered name"
           annotate "ignoring name clash error as was generated name, not offered one"
-        ((Left DefAlreadyExists{}, _),_) -> do
+        ((Left DefAlreadyExists{}, _), _) -> do
           label "rename def name clash with entered name"
           annotate "ignoring def already exists error as was generated name, not offered one"
-        ((Left err, _),l) -> annotateShow l >> annotateShow err >> failure
-        ((Right _, a'),_) -> ensureSHNormal a'
+        ((Left err, _), l) -> annotateShow l >> annotateShow err >> failure
+        ((Right _, a'), _) -> ensureSHNormal a'
     ensureSHNormal a = case checkAppWellFormed a of
       Left err -> annotateShow err >> failure
       Right a' -> TypeCacheAlpha a === TypeCacheAlpha a'
@@ -315,64 +331,73 @@ tasty_available_actions_accepted = withTests 500 $
 unit_raise_sh :: Assertion
 unit_raise_sh =
   let test :: HasCallStack => S Expr -> S Expr -> Assertion
-      test t1 t2 = offeredActionTest
-         SmartHoles
-         Beginner
-         (emptyHole `app` t1 `app` emptyHole)
-         [ Child1, Child2 ]
-         (Left Raise)
-         (t2 `app` emptyHole)
+      test t1 t2 =
+        offeredActionTest
+          SmartHoles
+          Beginner
+          (emptyHole `app` t1 `app` emptyHole)
+          [Child1, Child2]
+          (Left Raise)
+          (t2 `app` emptyHole)
       testSyn :: HasCallStack => S Expr -> Assertion
       testSyn e = test e e
       testChk :: HasCallStack => S Expr -> Assertion
       testChk t = test t (t `ann` tEmptyHole)
-  in do
-    testSyn emptyHole
-    testChk $ lam "x" (lvar "x")
-    testChk $ con0 cTrue
+   in do
+        testSyn emptyHole
+        testChk $ lam "x" (lvar "x")
+        testChk $ con0 cTrue
 
 unit_sat_con_1 :: Assertion
 unit_sat_con_1 =
   offeredActionTest
-   SmartHoles
-   Beginner
-   (emptyHole `ann` (tEmptyHole `tfun` tEmptyHole))
-   [ Child1 ]
-   (Right (MakeConSat, Option "Cons" $ Just $ fmap unName $ unModuleName builtinModuleName))
-   (hole (con cCons [emptyHole, emptyHole] `ann` tEmptyHole) `ann` (tEmptyHole `tfun` tEmptyHole))
+    SmartHoles
+    Beginner
+    (emptyHole `ann` (tEmptyHole `tfun` tEmptyHole))
+    [Child1]
+    (Right (MakeConSat, Option "Cons" $ Just $ fmap unName $ unModuleName builtinModuleName))
+    (hole (con cCons [emptyHole, emptyHole] `ann` tEmptyHole) `ann` (tEmptyHole `tfun` tEmptyHole))
 
 unit_sat_con_2 :: Assertion
 unit_sat_con_2 =
   offeredActionTest
-   SmartHoles
-   Beginner
+    SmartHoles
+    Beginner
     (emptyHole `ann` ((tcon tList `tapp` tcon tNat) `tfun` (tcon tList `tapp` tcon tNat)))
-   [ Child1 ]
-   (Right (MakeConSat, Option "Cons" $ Just $ fmap unName $ unModuleName builtinModuleName))
-   (hole (con cCons [emptyHole, emptyHole] `ann` tEmptyHole) `ann` ((tcon tList `tapp` tcon tNat) `tfun` (tcon tList `tapp` tcon tNat)))
+    [Child1]
+    (Right (MakeConSat, Option "Cons" $ Just $ fmap unName $ unModuleName builtinModuleName))
+    (hole (con cCons [emptyHole, emptyHole] `ann` tEmptyHole) `ann` ((tcon tList `tapp` tcon tNat) `tfun` (tcon tList `tapp` tcon tNat)))
 
 -- | Apply the action to the node in the input expression pointed to by the
 -- 'Movement' (starting from the root), checking that it would actually be offered
 -- there, and then checking the result matches the expected output, up to renaming
 -- of IDs and changing cached types.
-offeredActionTest :: HasCallStack =>
-  SmartHoles -> Level -> S Expr -> [Movement] -> Either NoInputAction (InputAction, Option)-> S Expr -> Assertion
+offeredActionTest ::
+  HasCallStack =>
+  SmartHoles ->
+  Level ->
+  S Expr ->
+  [Movement] ->
+  Either NoInputAction (InputAction, Option) ->
+  S Expr ->
+  Assertion
 offeredActionTest sh l inputExpr position action expectedOutput = do
   let modules = [builtinModule]
-  let ((expr,exprDef,exprDefName,prog),i) = create $ do
+  let ((expr, exprDef, exprDefName, prog), i) = create $ do
         prog0 <- defaultEmptyProg
         e <- inputExpr
         d <- ASTDef e <$> tEmptyHole
-        let p = prog0 &
-                (#progModules % _head % #moduleDefs % ix "main" .~ DefAST d)
+        let p =
+              prog0
+                & (#progModules % _head % #moduleDefs % ix "main" .~ DefAST d)
                 & (#progImports .~ modules)
-        pure (e,d,gvn "main",p)
-  let id' = evalTestM (i+1)
-       $ runExceptT
-       $ flip runReaderT (buildTypingContextFromModules modules sh)
-       $ do
-         ez <- foldlM (flip moveExpr) (focus expr) position
-         pure $ getID ez
+        pure (e, d, gvn "main", p)
+  let id' = evalTestM (i + 1) $
+        runExceptT $
+          flip runReaderT (buildTypingContextFromModules modules sh) $
+            do
+              ez <- foldlM (flip moveExpr) (focus expr) position
+              pure $ getID ez
   id <- case id' of
     Left err -> assertFailure $ show err
     Right i' -> pure i'
@@ -380,28 +405,33 @@ offeredActionTest sh l inputExpr position action expectedOutput = do
   let defs = foldMap' moduleDefsQualified modules
   let offered = Available.forBody cxt.typeDefs l Editable expr id
   let options = Available.options cxt.typeDefs defs cxt l exprDef (Just (BodyNode, id))
-  let assertElem msg x xs = assertBool
-                          (msg <> show x
-                           <> " is not an element of " <> show xs) (x `elem` xs)
-  let assertOffered a = assertElem "Requested action not offered: " a  offered
+  let assertElem msg x xs =
+        assertBool
+          ( msg
+              <> show x
+              <> " is not an element of "
+              <> show xs
+          )
+          (x `elem` xs)
+  let assertOffered a = assertElem "Requested action not offered: " a offered
   action' <- case action of
     Left a -> do
       assertOffered $ Available.NoInput a
-      pure $ toProgActionNoInput (foldMap' moduleDefsQualified $ progModules prog) exprDef exprDefName (Just (BodyNode,id)) a
-    Right (a,o) -> do
+      pure $ toProgActionNoInput (foldMap' moduleDefsQualified $ progModules prog) exprDef exprDefName (Just (BodyNode, id)) a
+    Right (a, o) -> do
       assertOffered $ Available.Input a
       case options a of
         Nothing -> assertFailure "Available.options returned Nothing"
         Just os -> do
           assertElem "Requested option not offered: " o os.opts
-          pure $ toProgActionInput exprDef exprDefName (Just (BodyNode,id)) o a
+          pure $ toProgActionInput exprDef exprDefName (Just (BodyNode, id)) o a
   action'' <- case action' of
     Left err -> assertFailure $ show err
     Right a -> pure a
   let expected = create' expectedOutput
   progActionTest (pure prog) action'' $ expectSuccess $ \_ prog' ->
-    let result = pure . astDefExpr <=< defAST <=< findGlobalByName prog' $ exprDefName in
-    -- Compare result to input, ignoring any difference in metadata
-    -- NB: we don't compare up-to-alpha, as names should be determined by the
-    -- actions on-the-nose
-    fmap clearMeta result @?= Just (clearMeta expected)
+    let result = pure . astDefExpr <=< defAST <=< findGlobalByName prog' $ exprDefName
+     in -- Compare result to input, ignoring any difference in metadata
+        -- NB: we don't compare up-to-alpha, as names should be determined by the
+        -- actions on-the-nose
+        fmap clearMeta result @?= Just (clearMeta expected)

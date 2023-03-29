@@ -34,10 +34,10 @@ import Data.Generics.Product
 import Data.Generics.Uniplate.Data ()
 import Optics (
   AffineFold,
+  AffineTraversal',
   Lens,
   Lens',
   Traversal,
-  AffineTraversal',
   afailing,
   atraversalVL,
   (%),

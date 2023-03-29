@@ -2,13 +2,17 @@ module Tests.Prelude.Polymorphism where
 
 import Foreword
 
+import Data.Sequence qualified as Seq
 import Hedgehog (forAll)
 import Hedgehog.Gen qualified as G
 import Hedgehog.Range qualified as Range
 import Primer.Builtins (
   cCons,
+  cNil,
+  cSucc,
   tBool,
-  tList, tNat, cSucc, cNil,
+  tList,
+  tNat,
  )
 import Primer.Builtins.DSL (
   bool_,
@@ -18,16 +22,23 @@ import Primer.Builtins.DSL (
 import Primer.Core.DSL (
   aPP,
   apps,
+  apps',
   char,
   con,
+  conSat,
   create',
   gvar,
   int,
   lam,
   lvar,
   tapp,
-  tcon, apps', conSat,
+  tcon,
  )
+import Primer.Eval (Dir (Chk), EvalLog)
+import Primer.EvalFull (evalFull)
+import Primer.Log (runPureLogT)
+import Primer.Module
+import Primer.Prelude (prelude)
 import Primer.Prelude.Logic qualified as L
 import Primer.Prelude.Polymorphism qualified as P
 import Primer.Primitives (
@@ -36,20 +47,14 @@ import Primer.Primitives (
   tInt,
  )
 import Primer.Primitives.DSL (pfun)
+import Primer.Test.TestM (evalTestM)
+import Primer.Test.Util (isSevereLog)
 import Tasty (Property, property)
 import Test.Tasty.HUnit (
   Assertion,
  )
 import Tests.EvalFull ((<~==>))
 import Tests.Prelude.Utils (functionOutput', (<===>))
-import Primer.Log (runPureLogT)
-import Primer.Eval (EvalLog, Dir (Chk))
-import Primer.Module
-import Primer.EvalFull (evalFull)
-import Primer.Test.TestM (evalTestM)
-import qualified Data.Sequence as Seq
-import Primer.Test.Util (isSevereLog)
-import Primer.Prelude (prelude)
 
 tasty_id_prop :: Property
 tasty_id_prop = property $ do

@@ -27,7 +27,10 @@ import Primer.Core (
   Kind (KType),
   PrimCon (PrimChar),
   TmVarRef (LocalVarRef),
-  getID, TyConName, ValConName, unsafeMkLocalName,
+  TyConName,
+  ValConName,
+  getID,
+  unsafeMkLocalName,
  )
 import Primer.Core.DSL
 import Primer.Gen.Core.Raw (
@@ -37,7 +40,7 @@ import Primer.Gen.Core.Raw (
 import Primer.Module (builtinModule, primitiveModule)
 import Primer.Primitives (tChar, tInt)
 import Primer.Test.TestM (evalTestM)
-import Primer.Test.Util (clearMeta, constructSaturatedCon, constructRefinedCon, constructTCon)
+import Primer.Test.Util (clearMeta, constructRefinedCon, constructSaturatedCon, constructTCon)
 import Primer.Typecheck (SmartHoles (NoSmartHoles, SmartHoles))
 import Primer.Zipper (
   down,
@@ -1069,9 +1072,9 @@ unit_refine_arr_1 =
   actionTest
     -- REVIEW: do we care about NoSmartHoles? Currently we rely on SH to insert the inner annotation here
     SmartHoles
-    (emptyHole `ann` (tEmptyHole `tfun`tEmptyHole))
+    (emptyHole `ann` (tEmptyHole `tfun` tEmptyHole))
     [Move Child1, constructRefinedCon cCons]
-    (hole (con cCons [emptyHole, emptyHole] `ann` tEmptyHole) `ann` (tEmptyHole `tfun`tEmptyHole))
+    (hole (con cCons [emptyHole, emptyHole] `ann` tEmptyHole) `ann` (tEmptyHole `tfun` tEmptyHole))
 
 -- TODO (saturated constructors) update this comment for ctors-dont-store-indices ('Cons Nat')
 --
@@ -1085,9 +1088,9 @@ unit_refine_arr_2 =
     SmartHoles
     -- TODO (saturated constructors) REVIEW: if want to eta-expand, then maybe want to get
     -- @{? Cons Nat ? ? :: List Nat ?}@ in the hole?
-    (emptyHole `ann` ((tcon tList `tapp` tcon tNat) `tfun`(tcon tList `tapp` tcon tNat)))
+    (emptyHole `ann` ((tcon tList `tapp` tcon tNat) `tfun` (tcon tList `tapp` tcon tNat)))
     [Move Child1, constructRefinedCon cCons]
-    (hole (con cCons [emptyHole, emptyHole] `ann` tEmptyHole) `ann` ((tcon tList `tapp` tcon tNat) `tfun`(tcon tList `tapp` tcon tNat)))
+    (hole (con cCons [emptyHole, emptyHole] `ann` tEmptyHole) `ann` ((tcon tList `tapp` tcon tNat) `tfun` (tcon tList `tapp` tcon tNat)))
 
 unit_primitive_1 :: Assertion
 unit_primitive_1 =
@@ -1108,17 +1111,18 @@ unit_primitive_1 =
     ]
     (lam "x" (char 'c') `ann` (tcon tInt `tfun` tcon tChar))
 
-
 -- This tests both that
 -- - actions to move into/out of constructor arguments work correctly
 -- - and constructEtaAnnCon is implemented correctly
 unit_constructEtaAnnCon :: Assertion
-unit_constructEtaAnnCon = actionTest NoSmartHoles
-  emptyHole
-  (constructEtaAnnCon cMakePair [tNat,tBool] [("n",tNat),("m",tBool)] tPair)
-  ((lam "n" $ lam "m" $ con cMakePair [lvar "n", lvar "m"])
-   `ann`
-   (tcon tNat `tfun` (tcon tBool `tfun` (tcon tPair `tapp` tcon tNat `tapp` tcon tBool))))
+unit_constructEtaAnnCon =
+  actionTest
+    NoSmartHoles
+    emptyHole
+    (constructEtaAnnCon cMakePair [tNat, tBool] [("n", tNat), ("m", tBool)] tPair)
+    ( (lam "n" $ lam "m" $ con cMakePair [lvar "n", lvar "m"])
+        `ann` (tcon tNat `tfun` (tcon tBool `tfun` (tcon tPair `tapp` tcon tNat `tapp` tcon tBool)))
+    )
 
 -- * Helpers
 
@@ -1129,20 +1133,19 @@ unit_constructEtaAnnCon = actionTest NoSmartHoles
 -- (we assume that the correct number of args are given for the constructor's definition)
 -- It leaves the cursor on the Ann node (i.e. the root of the thing it constructed)
 constructEtaAnnCon :: ValConName -> [TyConName] -> [(Text, TyConName)] -> TyConName -> [Action]
-constructEtaAnnCon c tyargs tmargs resultTy = [ConstructAnn , EnterType] -- ? :: ?
-         <> concatMap (\(_,t) -> [ConstructArrowL, Move Child1, constructTCon t, Move Parent, Move Child2]) tmargs -- ? :: A -> ... -> Z -> ?
-         <> concatMap (\a -> [ConstructTApp, Move Child2,constructTCon a,Move Parent, Move Child1]) (reverse tyargs) -- ? :: A -> ... -> Z -> ? Ts
-         <> [constructTCon resultTy] -- ? :: A -> ... -> Z -> R Ts
-         <> replicate (length tyargs) (Move Parent)
-         <> replicate (length tmargs) (Move Parent)
-         <> [ExitType, Move Child1] -- ? :: A -> ... -> Z -> R Ts
-         <> map (\(n,_) -> ConstructLam $ Just n) tmargs -- \a....\z.? :: A -> ... -> Z -> R Ts
-         <> [constructSaturatedCon c] -- \a....\z. Con c [?,...,?] :: A -> ... -> Z -> R Ts
-         <> concatMap (\(i,(n,_)) -> [Move (ConChild i), ConstructVar $ LocalVarRef $ unsafeMkLocalName n, Move Parent]) (zip [0..] tmargs) -- \a....\z. Con c Ts [a,...,z] :: A -> ... -> Z -> R Ts
-         <> replicate (length tmargs) (Move Parent)
-         <> [Move Parent]
-
-
+constructEtaAnnCon c tyargs tmargs resultTy =
+  [ConstructAnn, EnterType] -- ? :: ?
+    <> concatMap (\(_, t) -> [ConstructArrowL, Move Child1, constructTCon t, Move Parent, Move Child2]) tmargs -- ? :: A -> ... -> Z -> ?
+    <> concatMap (\a -> [ConstructTApp, Move Child2, constructTCon a, Move Parent, Move Child1]) (reverse tyargs) -- ? :: A -> ... -> Z -> ? Ts
+    <> [constructTCon resultTy] -- ? :: A -> ... -> Z -> R Ts
+    <> replicate (length tyargs) (Move Parent)
+    <> replicate (length tmargs) (Move Parent)
+    <> [ExitType, Move Child1] -- ? :: A -> ... -> Z -> R Ts
+    <> map (\(n, _) -> ConstructLam $ Just n) tmargs -- \a....\z.? :: A -> ... -> Z -> R Ts
+    <> [constructSaturatedCon c] -- \a....\z. Con c [?,...,?] :: A -> ... -> Z -> R Ts
+    <> concatMap (\(i, (n, _)) -> [Move (ConChild i), ConstructVar $ LocalVarRef $ unsafeMkLocalName n, Move Parent]) (zip [0 ..] tmargs) -- \a....\z. Con c Ts [a,...,z] :: A -> ... -> Z -> R Ts
+    <> replicate (length tmargs) (Move Parent)
+    <> [Move Parent]
 
 -- | Apply the actions to the input expression and test that the result matches
 -- the expected output, up to renaming of IDs and changing cached types.

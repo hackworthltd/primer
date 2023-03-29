@@ -22,7 +22,9 @@ import Primer.Builtins (
   cSucc,
   cTrue,
   cZero,
-  tList, tMaybe, tBool,
+  tBool,
+  tList,
+  tMaybe,
  )
 import Primer.Core (
   Expr,
@@ -31,10 +33,11 @@ import Primer.Core (
   Type,
  )
 import Primer.Core.DSL (
+  ann,
   con0,
   conSat,
   tapp,
-  tcon, ann,
+  tcon,
  )
 
 -- These functions rely on particular types being in scope.

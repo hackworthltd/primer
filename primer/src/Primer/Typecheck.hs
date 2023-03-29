@@ -63,6 +63,7 @@ import Foreword
 
 import Control.Monad.Fresh (MonadFresh (..))
 import Control.Monad.NestedError (MonadNestedError (..), modifyError')
+import Data.List (lookup)
 import Data.Map qualified as M
 import Data.Map.Strict qualified as Map
 import Data.Set qualified as S
@@ -182,7 +183,6 @@ import Primer.Typecheck.Utils (
   typeOf,
   _typecache,
  )
-import Data.List (lookup)
 
 -- | Typechecking takes as input an Expr with 'Maybe Type' annotations and
 -- produces an Expr with 'Type' annotations - i.e. every node in the output is
@@ -555,10 +555,10 @@ zipWithExactM :: Applicative f => (a -> b -> f c) -> [a] -> [b] -> Maybe (f [c])
 zipWithExactM _ [] [] = Just $ pure []
 zipWithExactM _ [] _ = Nothing
 zipWithExactM _ _ [] = Nothing
-zipWithExactM f (x:xs) (y:ys) = ((:) <$> f x y <*>) <$> zipWithExactM f xs ys
+zipWithExactM f (x : xs) (y : ys) = ((:) <$> f x y <*>) <$> zipWithExactM f xs ys
 
 zipWithExact :: (a -> b -> c) -> [a] -> [b] -> Maybe [c]
-zipWithExact f  = (runIdentity <<$>>) . zipWithExactM (Identity <<$>> f)
+zipWithExact f = (runIdentity <<$>>) . zipWithExactM (Identity <<$>> f)
 
 ensureJust :: MonadNestedError e e' m => e -> Maybe (m a) -> m a
 ensureJust e Nothing = throwError' e
@@ -593,25 +593,31 @@ check t = \case
   con@(Con i c tms) -> do
     -- If the input type @t@ is a hole-applied-to-some-arguments,
     -- then refine it to the parent type of @c@ applied to some holes plus those original arguments
-    (cParent, parentParams) <- asks (flip lookupConstructor c . typeDefs) >>= \case
-          Just (_,tn,td) -> pure (tn, length $ astTypeDefParameters td)
-          Nothing -> throwError' $ UnknownConstructor c -- unrecoverable error, smartholes can do nothing here
+    (cParent, parentParams) <-
+      asks (flip lookupConstructor c . typeDefs) >>= \case
+        Just (_, tn, td) -> pure (tn, length $ astTypeDefParameters td)
+        Nothing -> throwError' $ UnknownConstructor c -- unrecoverable error, smartholes can do nothing here
     let t' = case unfoldTApp t of
-            (TEmptyHole{}, args) | missing <- parentParams - length args , missing >= 0
-                   -> mkTAppCon cParent $ replicate missing (TEmptyHole ()) <> args
-            (THole{}, args) | missing <- parentParams - length args , missing >= 0
-                   -> mkTAppCon cParent $ replicate missing (TEmptyHole ()) <> args
-            _ -> t
+          (TEmptyHole{}, args)
+            | missing <- parentParams - length args
+            , missing >= 0 ->
+                mkTAppCon cParent $ replicate missing (TEmptyHole ()) <> args
+          (THole{}, args)
+            | missing <- parentParams - length args
+            , missing >= 0 ->
+                mkTAppCon cParent $ replicate missing (TEmptyHole ()) <> args
+          _ -> t
     -- If typechecking fails because the type @t'@ is not an ADT with a
     -- constructor @c@, and smartholes is on, we attempt to change the term to
     -- '{? c : ? ?}' to recover.
-    let recoverSH err = asks smartHoles >>= \case
-          NoSmartHoles -> throwError' err
-          SmartHoles -> do
-            -- 'synth' will take care of adding an annotation - no need to do it
-            -- explicitly here
-            (_, con') <- synth con
-            Hole <$> meta' (TCEmb TCBoth{tcChkedAt = t', tcSynthed = TEmptyHole ()}) <*> pure con'
+    let recoverSH err =
+          asks smartHoles >>= \case
+            NoSmartHoles -> throwError' err
+            SmartHoles -> do
+              -- 'synth' will take care of adding an annotation - no need to do it
+              -- explicitly here
+              (_, con') <- synth con
+              Hole <$> meta' (TCEmb TCBoth{tcChkedAt = t', tcSynthed = TEmptyHole ()}) <*> pure con'
     instantiateValCons t' >>= \case
       Left TDIHoleType -> throwError' $ InternalError "t' is not a hole, as we refined to parent type of c"
       Left TDIUnknown{} -> throwError' $ InternalError "input type to check is not in scope"
@@ -624,12 +630,12 @@ check t = \case
       Right (tc, td, instVCs) -> case lookup c instVCs of
         Nothing -> recoverSH $ ConstructorWrongADT tc c
         Just argTys -> do
-                -- Check that the arguments have the correct type
-                -- Note that being unsaturated is a fatal error and SmartHoles will not try to recover
-                -- (this is a design decision -- we put the burden onto code that builds ASTs,
-                -- e.g. the action code is responsible for only creating saturated constructors)
-                tms' <- ensureJust (UnsaturatedConstructor c) $ zipWithExactM check argTys tms
-                pure $ Con (annotate (TCChkedAt t') i) c tms'
+          -- Check that the arguments have the correct type
+          -- Note that being unsaturated is a fatal error and SmartHoles will not try to recover
+          -- (this is a design decision -- we put the burden onto code that builds ASTs,
+          -- e.g. the action code is responsible for only creating saturated constructors)
+          tms' <- ensureJust (UnsaturatedConstructor c) $ zipWithExactM check argTys tms
+          pure $ Con (annotate (TCChkedAt t') i) c tms'
   lam@(Lam i x e) -> do
     case matchArrowType t of
       Just (t1, t2) -> do

@@ -19,15 +19,15 @@ import Foreword hiding (mod)
 
 import Control.Monad.Fresh (MonadFresh)
 import Data.Aeson (Value)
-import Data.Generics.Product (typed)
 import Data.Bifunctor.Swap qualified as Swap
+import Data.Generics.Product (typed)
 import Data.List (findIndex)
-import Data.List.NonEmpty qualified as NE
 import Data.List.Extra ((!?))
+import Data.List.NonEmpty qualified as NE
 import Data.Map.Strict qualified as Map
 import Data.Set qualified as Set
 import Data.Text qualified as T
-import Optics (set, (%), (?~), (^.), (^?), _Just, to)
+import Optics (set, to, (%), (?~), (^.), (^?), _Just)
 import Primer.Action.Actions (Action (..), Movement (..), QualifiedText)
 import Primer.Action.Available qualified as Available
 import Primer.Action.Errors (ActionError (..))
@@ -65,10 +65,12 @@ import Primer.Core.DSL (
   aPP,
   ann,
   app,
+  apps,
   apps',
   branch,
   case_,
   con,
+  con0,
   conSat,
   emptyHole,
   hole,
@@ -83,7 +85,7 @@ import Primer.Core.DSL (
   tforall,
   tfun,
   tvar,
-  var, con0, apps,
+  var,
  )
 import Primer.Core.Transform (renameLocalVar, renameTyVar, renameTyVarExpr, unfoldFun)
 import Primer.Core.Utils (forgetTypeMetadata, generateTypeIDs)
@@ -400,10 +402,10 @@ moveExpr m@(Branch c) z | Case _ _ brs <- target z =
       Nothing -> throwError $ CustomFailure (Move m) "internal error: movement failed, even though branch exists"
 moveExpr m@(Branch _) _ = throwError $ CustomFailure (Move m) "Move-to-branch failed: this is not a case expression"
 moveExpr m@(ConChild n) z | Con{} <- target z =
-    -- 'down' moves into the first argument, 'right' steps through the various arguments
-  case foldr (\_ z' -> right =<< z') (down z) [1..n] of
-      Just z' -> pure z'
-      Nothing -> throwError $ CustomFailure (Move m) "Move-to-constructor-argument failed: no such argument"
+  -- 'down' moves into the first argument, 'right' steps through the various arguments
+  case foldr (\_ z' -> right =<< z') (down z) [1 .. n] of
+    Just z' -> pure z'
+    Nothing -> throwError $ CustomFailure (Move m) "Move-to-constructor-argument failed: no such argument"
 moveExpr m@(ConChild _) _ = throwError $ CustomFailure (Move m) "Move-to-constructor-argument failed: this is not a constructor"
 moveExpr Child2 z
   | Case{} <- target z =
@@ -517,11 +519,12 @@ insertRefinedVar x ast = do
   cxt <- asks $ TC.extendLocalCxtTys tycxt
   tgtTy <- getTypeCache $ target ast
   case target ast of
-    EmptyHole{} -> getRefinedApplications cxt vTy tgtTy >>= \case
-      -- See Note [No valid refinement]
-      Nothing -> flip replace ast <$> hole v
-      Just as -> flip replace ast <$> apps' v (Swap.swap . bimap pure pure <$> as)
-      --flip replace ast <$> mkRefinedApplication cxt v vTy tgtTyCache
+    EmptyHole{} ->
+      getRefinedApplications cxt vTy tgtTy >>= \case
+        -- See Note [No valid refinement]
+        Nothing -> flip replace ast <$> hole v
+        Just as -> flip replace ast <$> apps' v (Swap.swap . bimap pure pure <$> as)
+    -- flip replace ast <$> mkRefinedApplication cxt v vTy tgtTyCache
     e -> throwError $ NeedEmptyHole (InsertRefinedVar x) e
 
 {-
@@ -535,8 +538,15 @@ put the requested function inside a hole when we cannot find a suitable
 application spine.
 -}
 
-getRefinedApplications :: (MonadError ActionError m,
-                           MonadFresh NameCounter m, MonadFresh ID m) => TC.Cxt -> TC.Type -> TypeCache -> m (Maybe [Either Type Expr])
+getRefinedApplications ::
+  ( MonadError ActionError m
+  , MonadFresh NameCounter m
+  , MonadFresh ID m
+  ) =>
+  TC.Cxt ->
+  TC.Type ->
+  TypeCache ->
+  m (Maybe [Either Type Expr])
 getRefinedApplications cxt eTy tgtTy' = do
   tgtTy <- case tgtTy' of
     TCChkedAt t -> pure t
@@ -562,7 +572,7 @@ getRefinedApplications cxt eTy tgtTy' = do
       InstAPP a -> Left <$> generateTypeIDs a
       InstUnconstrainedAPP _ _ -> Left <$> tEmptyHole
 
-{-  
+{-
 mkRefinedApplication :: ActionM m => TC.Cxt -> m Expr -> TC.Type -> Maybe TypeCache -> m Expr
 mkRefinedApplication cxt e eTy tgtTy' = do
   tgtTy <- case tgtTy' of
@@ -660,10 +670,10 @@ conInfo c = snd <<$>> getConstructorTypeAndArity c
 getConstructorTypeAndArity ::
   MonadReader TC.Cxt m =>
   ValConName ->
-  m (Either Text (TC.Type,Int))
+  m (Either Text (TC.Type, Int))
 getConstructorTypeAndArity c =
   asks (flip lookupConstructor c . TC.typeDefs) <&> \case
-    Just (vc, tc, td) -> Right $ (valConType tc td vc ,length $ vc.valConArgs)
+    Just (vc, tc, td) -> Right $ (valConType tc td vc, length $ vc.valConArgs)
     Nothing -> Left $ "Could not find constructor " <> show c
 
 constructRefinedCon :: ActionM m => QualifiedText -> ExprZ -> m ExprZ
@@ -682,34 +692,37 @@ constructRefinedCon c ze = do
   case target ze of
     -- TODO (saturated constructors) this use of application nodes will be rejected once full-saturation is enforced
     EmptyHole{} -> do
-     -- TODO (saturated constructors) rather a code smell to grab the chkedAt type both here and in getRefinedApplications
-     let isTAppCon = tgtTy ^? _chkedAt % to TC.decomposeTAppCon % _Just
-     refined <- breakLR <<$>> getRefinedApplications cxt cTy tgtTy
-     -- If the type is not of the form 'type constructor applied to types'
-     -- then we give back a plain saturated constuctor. This avoids constucting
-     -- an unsaturated constructor in the case of inserting a @Cons@ into a hole
-     -- of type @List A -> List A@
-     -- TODO (saturated constructors) perhaps we should eta-expand here? Should be discussed in FR
-     case isTAppCon *> refined of
-      -- TODO in the Nothing case, the inside of the hole is not synthesisable (but maybe we don't care, and rely on smartholes to fix it?),
-      -- (todo?: add reference to innards-of-hole-must-be-syn note from todo list "Note [Holes and bidirectionality]")
-      -- See Note [No valid refinement]
-      Nothing -> flip replace ze <$> hole (con n (replicate numTmArgs emptyHole))
-      Just Nothing -> throwError $ InternalFailure "Types of constructors always have type abstractions before term abstractions"
-      Just (Just (_tys,tms)) -> flip replace ze <$> con n (pure <$> tms)
+      -- TODO (saturated constructors) rather a code smell to grab the chkedAt type both here and in getRefinedApplications
+      let isTAppCon = tgtTy ^? _chkedAt % to TC.decomposeTAppCon % _Just
+      refined <- breakLR <<$>> getRefinedApplications cxt cTy tgtTy
+      -- If the type is not of the form 'type constructor applied to types'
+      -- then we give back a plain saturated constuctor. This avoids constucting
+      -- an unsaturated constructor in the case of inserting a @Cons@ into a hole
+      -- of type @List A -> List A@
+      -- TODO (saturated constructors) perhaps we should eta-expand here? Should be discussed in FR
+      case isTAppCon *> refined of
+        -- TODO in the Nothing case, the inside of the hole is not synthesisable (but maybe we don't care, and rely on smartholes to fix it?),
+        -- (todo?: add reference to innards-of-hole-must-be-syn note from todo list "Note [Holes and bidirectionality]")
+        -- See Note [No valid refinement]
+        Nothing -> flip replace ze <$> hole (con n (replicate numTmArgs emptyHole))
+        Just Nothing -> throwError $ InternalFailure "Types of constructors always have type abstractions before term abstractions"
+        Just (Just (_tys, tms)) -> flip replace ze <$> con n (pure <$> tms)
     e -> throwError $ NeedEmptyHole (ConstructRefinedCon c) e
 
 getTypeCache :: MonadError ActionError m => Expr -> m TypeCache
-getTypeCache = maybeTypeOf <&> \case
-  Nothing -> throwError $ RefineError $ Left "Don't have a cached type"
-  Just ty -> pure ty
+getTypeCache =
+  maybeTypeOf <&> \case
+    Nothing -> throwError $ RefineError $ Left "Don't have a cached type"
+    Just ty -> pure ty
 
 -- | A view for lists where all 'Left' come before all 'Right'
-breakLR :: [Either a b] -> Maybe ([a],[b])
-breakLR = spanMaybe leftToMaybe <&> \case
-  (ls,rest) -> (ls,) <$> traverse rightToMaybe rest
+breakLR :: [Either a b] -> Maybe ([a], [b])
+breakLR =
+  spanMaybe leftToMaybe <&> \case
+    (ls, rest) -> (ls,) <$> traverse rightToMaybe rest
 
 -- TODO/REVIEW: DRY this with primer-service/exe-replay/Main.hs
+
 -- | Similar to 'Data.List.span', but takes a 'Maybe' predicate.
 spanMaybe :: (a -> Maybe b) -> [a] -> ([b], [a])
 spanMaybe f = go
@@ -719,7 +732,6 @@ spanMaybe f = go
       Just b -> first (b :) $ go xs
       Nothing -> ([], xxs)
 
-  
 constructLet :: ActionM m => Maybe Text -> ExprZ -> m ExprZ
 constructLet mx ze = case target ze of
   EmptyHole{} -> do

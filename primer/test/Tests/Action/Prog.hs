@@ -126,8 +126,8 @@ import Primer.Typecheck (
   TypeError (KindError),
  )
 import Test.Tasty.HUnit (Assertion, assertBool, assertFailure, (@=?), (@?=))
-import Tests.Typecheck (checkProgWellFormed)
 import Tests.Action (constructEtaAnnCon)
+import Tests.Typecheck (checkProgWellFormed)
 import Prelude (error)
 
 -- Note: the use of 'appNameCounter' in this helper functions is a
@@ -888,8 +888,9 @@ unit_RenameCon =
                 hole
                   ( hole $
                       case_
-                        ( con cA  [
-                             con0 (vcn "True")
+                        ( con
+                            cA
+                            [ con0 (vcn "True")
                             , con0 (vcn "True")
                             , con0 (vcn "True")
                             ]
@@ -916,10 +917,12 @@ unit_RenameCon =
               hole
                 ( hole $
                     case_
-                      ( con (vcn "A'")    [
-                           con0 (vcn "True")
+                      ( con
+                          (vcn "A'")
+                          [ con0 (vcn "True")
                           , con0 (vcn "True")
-                          , con0 (vcn "True")]
+                          , con0 (vcn "True")
+                          ]
                       )
                       [ branch (vcn "A'") [("p", Nothing), ("q", Nothing), ("p1", Nothing)] emptyHole
                       , branch cB [("r", Nothing), ("x", Nothing)] emptyHole
@@ -1006,10 +1009,12 @@ unit_SetConFieldType =
   progActionTest
     ( defaultProgEditableTypeDefs . sequence . pure $ do
         x <-
-          con cA [
-             con0 (vcn "True")
-             , con0 (vcn "True")
-            , con0 (vcn "True")]
+          con
+            cA
+            [ con0 (vcn "True")
+            , con0 (vcn "True")
+            , con0 (vcn "True")
+            ]
         astDef "def" x <$> tEmptyHole
     )
     [SetConFieldType tT cA 1 $ TCon () (tcn "Int")]
@@ -1024,10 +1029,12 @@ unit_SetConFieldType =
       forgetMetadata (astDefExpr def)
         @?= forgetMetadata
           ( create' $
-              con cA [
-                con0 (vcn "True")
+              con
+                cA
+                [ con0 (vcn "True")
                 , hole (con0 (vcn "True"))
-                ,con0 (vcn "True")]
+                , con0 (vcn "True")
+                ]
           )
 
 unit_SetConFieldType_partial_app :: Assertion
@@ -1118,10 +1125,13 @@ unit_AddConField =
     ( defaultProgEditableTypeDefs $ do
         x <-
           case_
-            ( con cA [
-                 con0 (vcn "True")
+            ( con
+                cA
+                [ con0 (vcn "True")
                 , con0 (vcn "True")
-                , con0 (vcn "True")] `ann` (tcon tT `tapp` tEmptyHole `tapp` tEmptyHole)
+                , con0 (vcn "True")
+                ]
+                `ann` (tcon tT `tapp` tEmptyHole `tapp` tEmptyHole)
             )
             [ branch cA [("p", Nothing), ("q", Nothing), ("p1", Nothing)] emptyHole
             , branch cB [("r", Nothing), ("x", Nothing)] emptyHole
@@ -1143,11 +1153,14 @@ unit_AddConField =
         @?= forgetMetadata
           ( create' $
               case_
-                ( con cA [
-                    con0 (vcn "True")
+                ( con
+                    cA
+                    [ con0 (vcn "True")
                     , emptyHole
                     , con0 (vcn "True")
-                    , con0 (vcn "True")] `ann` (tcon tT `tapp` tEmptyHole `tapp` tEmptyHole)
+                    , con0 (vcn "True")
+                    ]
+                    `ann` (tcon tT `tapp` tEmptyHole `tapp` tEmptyHole)
                 )
                 [ branch cA [("p", Nothing), ("a24", Nothing), ("q", Nothing), ("p1", Nothing)] emptyHole
                 , branch cB [("r", Nothing), ("x", Nothing)] emptyHole
@@ -1158,7 +1171,7 @@ unit_AddConField_partial_app :: Assertion
 unit_AddConField_partial_app =
   progActionTest
     ( defaultProgEditableTypeDefs $ do
-        x <- con cA  [con0 (vcn "True")]
+        x <- con cA [con0 (vcn "True")]
         sequence
           [ astDef "def" x <$> tEmptyHole
           ]
@@ -1322,27 +1335,30 @@ unit_cross_module_actions =
               , Move Parent
               , Move Child2
               , ConstructApp
-              , Move Child1]
-              <> constructEtaAnnCon (qualifyM "C") [] [("n",tNat)] (qualifyM "T")
-              <> [ Move Parent
-              , Move Child2
-              , constructSaturatedCon cZero
-              , Move Parent
-              , Move Parent
-              , ConstructCase
-              , Move (Branch (qualifyM "C"))
-              , ConstructApp
-              , Move Child1]
-            <> constructEtaAnnCon (qualifyM "C") [] [("n",tNat)] (qualifyM "T")
-            <> [Move Parent
-              , Move Child2
-              , ConstructApp
-              , Move Child1]
-              <> constructEtaAnnCon cSucc []  [("n",tNat)] tNat
-              <> [ Move Parent
-              , Move Child2
-              , ConstructVar (LocalVarRef "a36")
+              , Move Child1
               ]
+                <> constructEtaAnnCon (qualifyM "C") [] [("n", tNat)] (qualifyM "T")
+                <> [ Move Parent
+                   , Move Child2
+                   , constructSaturatedCon cZero
+                   , Move Parent
+                   , Move Parent
+                   , ConstructCase
+                   , Move (Branch (qualifyM "C"))
+                   , ConstructApp
+                   , Move Child1
+                   ]
+                <> constructEtaAnnCon (qualifyM "C") [] [("n", tNat)] (qualifyM "T")
+                <> [ Move Parent
+                   , Move Child2
+                   , ConstructApp
+                   , Move Child1
+                   ]
+                <> constructEtaAnnCon cSucc [] [("n", tNat)] tNat
+                <> [ Move Parent
+                   , Move Child2
+                   , ConstructVar (LocalVarRef "a36")
+                   ]
           ]
         handleAndTC [RenameDef (qualifyM "foo") "bar"]
         handleAndTC [RenameType (qualifyM "T") "R"]
@@ -1433,6 +1449,7 @@ unit_cross_module_actions =
         runAppTestM (appIdCounter a) a test <&> fst >>= \case
           Left err -> assertFailure $ show err
           Right _ -> pure ()
+
 -- Consider
 --   foo :: ? ?
 --   foo = {? {? foo ?} : ? -> ? ?}

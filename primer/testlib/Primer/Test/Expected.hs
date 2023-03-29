@@ -29,11 +29,12 @@ import Primer.Core.DSL (
   ann,
   app,
   con,
+  con0,
   conSat,
   create,
   gvar,
   tapp,
-  tcon, con0,
+  tcon,
  )
 import Primer.Def (
   DefMap,

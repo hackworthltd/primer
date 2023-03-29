@@ -85,12 +85,13 @@ import Optics (
   only,
   preview,
   set,
+  singular,
   view,
   (%),
   (.~),
   (<%),
   (<%>),
-  (^?), singular,
+  (^?),
  )
 import Optics.Lens (Lens', lens)
 import Primer.Core (
@@ -98,7 +99,7 @@ import Primer.Core (
   Bind' (..),
   CaseBranch' (CaseBranch),
   Expr,
-  Expr' (Case, LAM, Lam, Let, LetType, Letrec, Con),
+  Expr' (Case, Con, LAM, Lam, Let, LetType, Letrec),
   ExprMeta,
   HasID (..),
   ID,
@@ -259,10 +260,10 @@ focusType :: (Data a, Data b) => ExprZ' a b -> Maybe (TypeZ' a b)
 -- we prefer to focus on *no* type children of constructors, rather than
 -- arbitrarily choosing the first one.
 focusType z = case target z of
-  Con {} -> Nothing
+  Con{} -> Nothing
   _ -> do
-   t <- z ^? singular l
-   pure $ TypeZ (zipper t) $ \t' -> z & l .~ t'
+    t <- z ^? singular l
+    pure $ TypeZ (zipper t) $ \t' -> z & l .~ t'
   where
     l = _target % typesInExpr
 
