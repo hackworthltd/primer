@@ -270,10 +270,12 @@ comprehensive' typeable modName = do
                               ( if typeable
                                   then
                                     lAM "b" (lam "x" $ conSat B.cLeft [lvar "x"])
-                                      `ann` tforall "b" KType (
-                                                tcon B.tBool
-                                                  `tfun` (tcon B.tEither `tapp` tcon B.tBool `tapp` tvar "b")
-                                            )
+                                      `ann` tforall
+                                        "b"
+                                        KType
+                                        ( tcon B.tBool
+                                            `tfun` (tcon B.tEither `tapp` tcon B.tBool `tapp` tvar "b")
+                                        )
                                   else
                                     letType
                                       "b"
