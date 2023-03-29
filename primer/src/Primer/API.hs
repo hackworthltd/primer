@@ -56,8 +56,7 @@ module Primer.API (
   applyActionNoInput,
   applyActionInput,
   ApplyActionBody (..),
-  ExprTreeOpts (..),
-  defaultExprTreeOpts,
+  undo,
   -- The following are exported only for testing.
   viewTreeType,
   viewTreeExpr,
@@ -256,6 +255,7 @@ data PrimerErr
   | ActionOptionsNoID (Maybe (NodeType, ID))
   | ToProgActionError Available.Action ActionError
   | ApplyActionError [ProgAction] ProgError
+  | UndoError ProgError
   deriving stock (Show)
 
 instance Exception PrimerErr
@@ -363,21 +363,22 @@ data APILog
   | GetSessionName (ReqResp SessionId Text)
   | RenameSession (ReqResp (SessionId, Text) Text)
   | GetApp (ReqResp SessionId App)
-  | GetProgram' (ReqResp (ExprTreeOpts, SessionId) Prog)
+  | GetProgram' (ReqResp SessionId Prog)
   | GetProgram (ReqResp SessionId App.Prog)
   | Edit (ReqResp (SessionId, MutationRequest) (Either ProgError App.Prog))
   | VariablesInScope (ReqResp (SessionId, (GVarName, ID)) (Either ProgError (([(TyVarName, Kind)], [(LVarName, Type' ())]), [(GVarName, Type' ())])))
   | GenerateNames (ReqResp (SessionId, ((GVarName, ID), Either (Maybe (Type' ())) (Maybe Kind))) (Either ProgError [Name.Name]))
   | EvalStep (ReqResp (SessionId, EvalReq) (Either ProgError EvalResp))
   | EvalFull (ReqResp (SessionId, EvalFullReq) (Either ProgError App.EvalFullResp))
-  | EvalFull' (ReqResp (ExprTreeOpts, SessionId, Maybe TerminationBound, GVarName) EvalFullResp)
+  | EvalFull' (ReqResp (SessionId, Maybe TerminationBound, GVarName) EvalFullResp)
   | FlushSessions (ReqResp () ())
-  | CreateDef (ReqResp (SessionId, ExprTreeOpts, ModuleName, Maybe Text) Prog)
-  | CreateTypeDef (ReqResp (SessionId, ExprTreeOpts, TyConName, [ValConName]) Prog)
+  | CreateDef (ReqResp (SessionId, ModuleName, Maybe Text) Prog)
+  | CreateTypeDef (ReqResp (SessionId, TyConName, [ValConName]) Prog)
   | AvailableActions (ReqResp (SessionId, Level, Selection) [Available.Action])
   | ActionOptions (ReqResp (SessionId, Level, Selection, Available.InputAction) Available.Options)
-  | ApplyActionNoInput (ReqResp (ExprTreeOpts, SessionId, Selection, Available.NoInputAction) Prog)
-  | ApplyActionInput (ReqResp (ExprTreeOpts, SessionId, ApplyActionBody, Available.InputAction) Prog)
+  | ApplyActionNoInput (ReqResp (SessionId, Selection, Available.NoInputAction) Prog)
+  | ApplyActionInput (ReqResp (SessionId, ApplyActionBody, Available.InputAction) Prog)
+  | Undo (ReqResp SessionId Prog)
   deriving stock (Show, Read)
 
 type MonadAPILog l m = (MonadLog (WithSeverity l) m, ConvertLogMessage APILog l)
@@ -553,8 +554,8 @@ getApp = logAPI (noError GetApp) $ \sid -> withSession' sid $ QueryApp identity
 --
 -- Note that this returns a simplified version of 'App.Prog' intended
 -- for use with non-Haskell clients.
-getProgram' :: (MonadIO m, MonadThrow m, MonadAPILog l m) => ExprTreeOpts -> SessionId -> PrimerM m Prog
-getProgram' = curry $ logAPI (noError GetProgram') $ \(opts, sid) -> viewProg opts <$> getProgram sid
+getProgram' :: (MonadIO m, MonadThrow m, MonadAPILog l m) => SessionId -> PrimerM m Prog
+getProgram' = logAPI (noError GetProgram') (fmap viewProg . getProgram)
 
 -- | Given a 'SessionId', return the session's 'App.Prog'.
 getProgram :: (MonadIO m, MonadThrow m, MonadAPILog l m) => SessionId -> PrimerM m App.Prog
@@ -637,8 +638,8 @@ data Def = Def
   deriving (ToJSON, FromJSON) via PrimerJSON Def
   deriving anyclass (NFData)
 
-viewProg :: ExprTreeOpts -> App.Prog -> Prog
-viewProg exprTreeOpts p =
+viewProg :: App.Prog -> Prog
+viewProg p =
   Prog
     { modules = map (viewModule True) (progModules p) <> map (viewModule False) (progImports p)
     , selection = viewSelection <$> progSelection p
@@ -653,7 +654,7 @@ viewProg exprTreeOpts p =
             ( \(name, d) ->
                 Def
                   { name
-                  , term = viewTreeExpr exprTreeOpts . astDefExpr <$> defAST d
+                  , term = viewTreeExpr . astDefExpr <$> defAST d
                   , type_ =
                       case d of
                         Def.DefAST d' -> viewTreeType $ astDefType d'
@@ -669,28 +670,14 @@ viewProg exprTreeOpts p =
               <$> Map.assocs (moduleDefsQualified m)
         }
 
-{- HLINT ignore ExprTreeOpts "Use newtype instead of data" -}
-data ExprTreeOpts = ExprTreeOpts
-  { patternsUnder :: Bool
-  -- ^ Some renderers may struggle with aligning subtrees to the right.
-  -- This option outputs trees where patterns are direct children of the `match` node instead.
-  }
-  deriving stock (Eq, Ord, Show, Read, Generic)
-  deriving (FromJSON, ToJSON) via PrimerJSON ExprTreeOpts
-defaultExprTreeOpts :: ExprTreeOpts
-defaultExprTreeOpts =
-  ExprTreeOpts
-    { patternsUnder = False
-    }
-
 -- | A simple method to extract 'Tree's from 'Expr's. This is injective.
-viewTreeExpr :: ExprTreeOpts -> Expr -> Tree
-viewTreeExpr opts@ExprTreeOpts{patternsUnder} e0 = case e0 of
+viewTreeExpr :: Expr -> Tree
+viewTreeExpr e0 = case e0 of
   Hole _ e ->
     Tree
       { nodeId
       , body = NoBody Flavor.Hole
-      , childTrees = [viewTreeExpr opts e]
+      , childTrees = [viewTreeExpr e]
       , rightChild = Nothing
       }
   EmptyHole _ ->
@@ -704,21 +691,21 @@ viewTreeExpr opts@ExprTreeOpts{patternsUnder} e0 = case e0 of
     Tree
       { nodeId
       , body = NoBody Flavor.Ann
-      , childTrees = [viewTreeExpr opts e, viewTreeType t]
+      , childTrees = [viewTreeExpr e, viewTreeType t]
       , rightChild = Nothing
       }
   App _ e1 e2 ->
     Tree
       { nodeId
       , body = NoBody Flavor.App
-      , childTrees = [viewTreeExpr opts e1, viewTreeExpr opts e2]
+      , childTrees = [viewTreeExpr e1, viewTreeExpr e2]
       , rightChild = Nothing
       }
   APP _ e t ->
     Tree
       { nodeId
       , body = NoBody Flavor.APP
-      , childTrees = [viewTreeExpr opts e, viewTreeType t]
+      , childTrees = [viewTreeExpr e, viewTreeType t]
       , rightChild = Nothing
       }
   Con _ c tmApps ->
@@ -732,14 +719,14 @@ viewTreeExpr opts@ExprTreeOpts{patternsUnder} e0 = case e0 of
     Tree
       { nodeId
       , body = TextBody $ RecordPair Flavor.Lam $ localName s
-      , childTrees = [viewTreeExpr opts e]
+      , childTrees = [viewTreeExpr e]
       , rightChild = Nothing
       }
   LAM _ s e ->
     Tree
       { nodeId
       , body = TextBody $ RecordPair Flavor.LAM $ localName s
-      , childTrees = [viewTreeExpr opts e]
+      , childTrees = [viewTreeExpr e]
       , rightChild = Nothing
       }
   Var _ ref ->
@@ -755,21 +742,21 @@ viewTreeExpr opts@ExprTreeOpts{patternsUnder} e0 = case e0 of
     Tree
       { nodeId
       , body = TextBody $ RecordPair Flavor.Let $ localName s
-      , childTrees = [viewTreeExpr opts e1, viewTreeExpr opts e2]
+      , childTrees = [viewTreeExpr e1, viewTreeExpr e2]
       , rightChild = Nothing
       }
   LetType _ s t e ->
     Tree
       { nodeId
       , body = TextBody $ RecordPair Flavor.LetType $ localName s
-      , childTrees = [viewTreeExpr opts e, viewTreeType t]
+      , childTrees = [viewTreeExpr e, viewTreeType t]
       , rightChild = Nothing
       }
   Letrec _ s e1 t e2 ->
     Tree
       { nodeId
       , body = TextBody $ RecordPair Flavor.Letrec $ localName s
-      , childTrees = [viewTreeExpr opts e1, viewTreeType t, viewTreeExpr opts e2]
+      , childTrees = [viewTreeExpr e1, viewTreeType t, viewTreeExpr e2]
       , rightChild = Nothing
       }
   Case _ e bs ->
@@ -781,29 +768,15 @@ viewTreeExpr opts@ExprTreeOpts{patternsUnder} e0 = case e0 of
       }
     where
       (childTrees, rightChild) =
-        if patternsUnder
-          then
-            (
-              [ viewTreeExpr opts e
-              , Tree
-                  { nodeId = nodeId <> "W" -- this will not clash with anything (see `boxId` etc.)
-                  , body = NoBody Flavor.CaseWith
-                  , childTrees = zipWith viewCaseBranch [0 :: Int ..] bs
-                  , rightChild = Nothing
-                  }
-              ]
-            , Nothing
-            )
-          else
-            ( [viewTreeExpr opts e]
-            , -- seeing as the inner function always returns a `Just`,
-              -- this would only be `Nothing` if the list of branches were empty,
-              --  which should only happen when matching on `Void`
-              ifoldr
-                (\i b next -> Just $ (viewCaseBranch i b){rightChild = next})
-                Nothing
-                bs
-            )
+        ( [viewTreeExpr e]
+        , -- seeing as the inner function always returns a `Just`,
+          -- this would only be `Nothing` if the list of branches were empty,
+          --  which should only happen when matching on `Void`
+          ifoldr
+            (\i b next -> Just $ (viewCaseBranch i b){rightChild = next})
+            Nothing
+            bs
+        )
       viewCaseBranch i (CaseBranch con binds rhs) =
         let
           -- these IDs will not clash with any others in the tree,
@@ -843,7 +816,7 @@ viewTreeExpr opts@ExprTreeOpts{patternsUnder} e0 = case e0 of
                         }
                     )
                     binds
-            , childTrees = [viewTreeExpr opts rhs]
+            , childTrees = [viewTreeExpr rhs]
             , rightChild = Nothing
             }
   PrimCon _ pc ->
@@ -990,20 +963,18 @@ data EvalFullResp
 evalFull' ::
   forall m l.
   (MonadIO m, MonadThrow m, MonadAPILog l m, ConvertLogMessage EvalLog l) =>
-  ExprTreeOpts ->
   SessionId ->
   Maybe TerminationBound ->
   GVarName ->
   PrimerM m EvalFullResp
-evalFull' = curry4 $ logAPI (noError EvalFull') $ \(opts, sid, lim, d) ->
-  noErr <$> liftEditAppM (q opts lim d) sid
+evalFull' = curry3 $ logAPI (noError EvalFull') $ \(sid, lim, d) ->
+  noErr <$> liftEditAppM (q lim d) sid
   where
     q ::
-      ExprTreeOpts ->
       Maybe TerminationBound ->
       GVarName ->
       EditAppM (PureLog (WithSeverity l)) Void EvalFullResp
-    q opts lim d = do
+    q lim d = do
       e <- DSL.gvar d
       x <-
         handleEvalFullRequest $
@@ -1013,8 +984,8 @@ evalFull' = curry4 $ logAPI (noError EvalFull') $ \(opts, sid, lim, d) ->
             , evalFullMaxSteps = fromMaybe 10 lim
             }
       pure $ case x of
-        App.EvalFullRespTimedOut e' -> EvalFullRespTimedOut $ viewTreeExpr opts e'
-        App.EvalFullRespNormal e' -> EvalFullRespNormal $ viewTreeExpr opts e'
+        App.EvalFullRespTimedOut e' -> EvalFullRespTimedOut $ viewTreeExpr e'
+        App.EvalFullRespNormal e' -> EvalFullRespNormal $ viewTreeExpr e'
     noErr :: Either Void a -> a
     noErr = \case
       Right a -> a
@@ -1029,29 +1000,27 @@ flushSessions = logAPI' FlushSessions $ do
 createDefinition ::
   (MonadIO m, MonadThrow m, MonadAPILog l m) =>
   SessionId ->
-  ExprTreeOpts ->
   ModuleName ->
   Maybe Text ->
   PrimerM m Prog
 createDefinition =
-  curry4 $
-    logAPI (noError CreateDef) \(sid, opts, moduleName, mDefName) ->
+  curry3 $
+    logAPI (noError CreateDef) \(sid, moduleName, mDefName) ->
       edit sid (App.Edit [App.CreateDef moduleName mDefName])
-        >>= either (throwM . AddDefError moduleName mDefName) (pure . viewProg opts)
+        >>= either (throwM . AddDefError moduleName mDefName) (pure . viewProg)
 
 -- For now, only enumeration types
 createTypeDef ::
   (MonadIO m, MonadThrow m, MonadAPILog l m) =>
   SessionId ->
-  ExprTreeOpts ->
   TyConName ->
   [ValConName] ->
   PrimerM m Prog
 createTypeDef =
-  curry4 $
-    logAPI (noError CreateTypeDef) \(sid, opts, tyconName, valcons) ->
+  curry3 $
+    logAPI (noError CreateTypeDef) \(sid, tyconName, valcons) ->
       edit sid (App.Edit [App.AddTypeDef tyconName $ ASTTypeDef [] (map (`ValCon` []) valcons) []])
-        >>= either (throwM . AddTypeDefError tyconName valcons) (pure . viewProg opts)
+        >>= either (throwM . AddTypeDefError tyconName valcons) (pure . viewProg)
 
 availableActions ::
   (MonadIO m, MonadThrow m, MonadAPILog l m) =>
@@ -1104,12 +1073,11 @@ findASTDef allDefs def = case allDefs Map.!? def of
 
 applyActionNoInput ::
   (MonadIO m, MonadThrow m, MonadAPILog l m) =>
-  ExprTreeOpts ->
   SessionId ->
   Selection ->
   Available.NoInputAction ->
   PrimerM m Prog
-applyActionNoInput = curry4 $ logAPI (noError ApplyActionNoInput) $ \(opts, sid, selection, action) -> do
+applyActionNoInput = curry3 $ logAPI (noError ApplyActionNoInput) $ \(sid, selection, action) -> do
   prog <- getProgram sid
   def <- snd <$> findASTDef (progAllDefs prog) selection.def
   actions <-
@@ -1120,16 +1088,15 @@ applyActionNoInput = curry4 $ logAPI (noError ApplyActionNoInput) $ \(opts, sid,
         selection.def
         (selection.node <&> \s -> (s.nodeType, s.id))
         action
-  applyActions opts sid actions
+  applyActions sid actions
 
 applyActionInput ::
   (MonadIO m, MonadThrow m, MonadAPILog l m) =>
-  ExprTreeOpts ->
   SessionId ->
   ApplyActionBody ->
   Available.InputAction ->
   PrimerM m Prog
-applyActionInput = curry4 $ logAPI (noError ApplyActionInput) $ \(opts, sid, body, action) -> do
+applyActionInput = curry3 $ logAPI (noError ApplyActionInput) $ \(sid, body, action) -> do
   prog <- getProgram sid
   def <- snd <$> findASTDef (progAllDefs prog) body.selection.def
   actions <-
@@ -1140,7 +1107,7 @@ applyActionInput = curry4 $ logAPI (noError ApplyActionInput) $ \(opts, sid, bod
         (body.selection.node <&> \s -> (s.nodeType, s.id))
         body.option
         action
-  applyActions opts sid actions
+  applyActions sid actions
 
 data ApplyActionBody = ApplyActionBody
   { selection :: Selection
@@ -1149,12 +1116,21 @@ data ApplyActionBody = ApplyActionBody
   deriving stock (Generic, Show, Read)
   deriving (FromJSON, ToJSON) via PrimerJSON ApplyActionBody
 
-applyActions :: (MonadIO m, MonadThrow m, MonadAPILog l m) => ExprTreeOpts -> SessionId -> [ProgAction] -> PrimerM m Prog
-applyActions opts sid actions =
+applyActions :: (MonadIO m, MonadThrow m, MonadAPILog l m) => SessionId -> [ProgAction] -> PrimerM m Prog
+applyActions sid actions =
   edit sid (App.Edit actions)
     >>= either
       (throwM . ApplyActionError actions)
-      (pure . viewProg opts)
+      (pure . viewProg)
+
+undo ::
+  (MonadIO m, MonadThrow m, MonadAPILog l m) =>
+  SessionId ->
+  PrimerM m Prog
+undo =
+  logAPI (noError Undo) \sid ->
+    edit sid App.Undo
+      >>= either (throwM . UndoError) (pure . viewProg)
 
 -- | 'App.Selection' without any node metadata.
 data Selection = Selection

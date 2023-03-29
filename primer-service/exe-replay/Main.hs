@@ -256,11 +256,11 @@ replay l = do
         actualSId <- lift $ createSession req
         addEntry recordedId actualSId
       APILog l' -> case l' of
-        GetProgram' (Req (opts, id)) -> rename_ id $ \id' -> getProgramOpenApi id' opts
+        GetProgram' (Req id) -> rename_ id $ \id' -> getProgramOpenApi id'
         AvailableActions (Req (id, lvl, sel)) -> rename_ id $ \id' -> availableActionsOpenAPI id' lvl sel
         ActionOptions (Req (id, lvl, sel, act)) -> rename_ id $ \id' -> actionOptionsOpenAPI id' lvl sel act
-        ApplyActionNoInput (Req (opts, id, sel, act)) -> rename_ id $ \id' -> applyActionNoInputOpenAPI id' opts sel act
-        ApplyActionInput (Req (opts, id, bdy, act)) -> rename_ id $ \id' -> applyActionInputOpenAPI id' opts bdy act
+        ApplyActionNoInput (Req (id, sel, act)) -> rename_ id $ \id' -> applyActionNoInputOpenAPI id' sel act
+        ApplyActionInput (Req (id, bdy, act)) -> rename_ id $ \id' -> applyActionInputOpenAPI id' bdy act
         r -> error $ "Unsupported action to replay: " ++ show r
     rename :: Monad m => SessionId -> (SessionId -> m a) -> AccumT (M.Map SessionId SessionId) m a
     rename recordedId f = do

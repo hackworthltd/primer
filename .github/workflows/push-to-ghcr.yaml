@@ -20,7 +20,7 @@ jobs:
 
     steps:
       - name: Checkout repo
-        uses: actions/checkout@v3.3.0
+        uses: actions/checkout@v3.5.0
         with:
           # Required by flakes
           fetch-depth: 0
@@ -63,7 +63,7 @@ jobs:
           nix build -L .#packages.x86_64-linux.primer-service-docker-image
 
       - name: Authenticate to ghcr.io
-        uses: docker/login-action@ec9cdf07d570632daeb912f5b2099cb9ec1d01e6
+        uses: docker/login-action@219c305e1ce92a755f3aa4ba17387c95df31e987
         with:
           registry: ghcr.io
           username: ${{ github.actor }}

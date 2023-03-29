@@ -31,7 +31,6 @@ import Foreword
 
 import Data.String (String)
 import Primer.API (
-  ExprTreeOpts (ExprTreeOpts),
   NewSessionReq,
  )
 import Primer.API qualified
@@ -126,8 +125,8 @@ getProgram :: SessionId -> ClientM Prog
 getProgram sid = apiClient // API.sessionsAPI // API.sessionAPI /: sid // API.getProgram
 
 -- | As 'Primer.API.getProgram'.
-getProgramOpenApi :: SessionId -> Primer.API.ExprTreeOpts -> ClientM Primer.API.Prog
-getProgramOpenApi sid (ExprTreeOpts patternsUnder) = openAPIClient // OpenAPI.sessionsAPI // OpenAPI.sessionAPI /: sid // OpenAPI.getProgram $ patternsUnder
+getProgramOpenApi :: SessionId -> ClientM Primer.API.Prog
+getProgramOpenApi sid = openAPIClient // OpenAPI.sessionsAPI // OpenAPI.sessionAPI /: sid // OpenAPI.getProgram
 
 -- | As 'Primer.API.getApp'.
 getApp :: SessionId -> ClientM App
@@ -175,11 +174,10 @@ actionOptionsOpenAPI sid = openAPIClient // OpenAPI.sessionsAPI // OpenAPI.sessi
 
 applyActionNoInputOpenAPI ::
   SessionId ->
-  Primer.API.ExprTreeOpts ->
   Primer.API.Selection ->
   NoInputAction ->
   ClientM Primer.API.Prog
-applyActionNoInputOpenAPI sid (ExprTreeOpts patternsUnder) =
+applyActionNoInputOpenAPI sid =
   openAPIClient
     // OpenAPI.sessionsAPI
     // OpenAPI.sessionAPI
@@ -187,15 +185,13 @@ applyActionNoInputOpenAPI sid (ExprTreeOpts patternsUnder) =
     // OpenAPI.actions
     // OpenAPI.apply
     // OpenAPI.simple
-    $ patternsUnder
 
 applyActionInputOpenAPI ::
   SessionId ->
-  Primer.API.ExprTreeOpts ->
   Primer.API.ApplyActionBody ->
   InputAction ->
   ClientM Primer.API.Prog
-applyActionInputOpenAPI sid (ExprTreeOpts patternsUnder) =
+applyActionInputOpenAPI sid =
   openAPIClient
     // OpenAPI.sessionsAPI
     // OpenAPI.sessionAPI
@@ -203,4 +199,3 @@ applyActionInputOpenAPI sid (ExprTreeOpts patternsUnder) =
     // OpenAPI.actions
     // OpenAPI.apply
     // OpenAPI.input
-    $ patternsUnder

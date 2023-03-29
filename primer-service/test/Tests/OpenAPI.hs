@@ -53,7 +53,6 @@ import Primer.Database (
   SessionName,
   safeMkSessionName,
  )
-import Primer.Gen.API (genExprTreeOpts)
 import Primer.Gen.API qualified as API
 import Primer.Gen.Core.Raw (
   ExprGen,
@@ -169,7 +168,7 @@ genTree :: Gen Tree
 genTree = evalExprGen 0 $ G.choice [genExprTree, genTypeTree]
 
 genExprTree :: ExprGen Tree
-genExprTree = viewTreeExpr <$> genExprTreeOpts <*> genExpr
+genExprTree = viewTreeExpr <$> genExpr
 
 genTypeTree :: ExprGen Tree
 genTypeTree = viewTreeType <$> genType

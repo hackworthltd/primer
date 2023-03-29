@@ -42,7 +42,6 @@ import Servant (
   JSON,
   NamedRoutes,
   Post,
-  QueryFlag,
   QueryParam,
   QueryParam',
   ReqBody,
@@ -95,7 +94,6 @@ data SessionAPI mode = SessionAPI
       mode
         :- "program"
           :> Summary "Get the current program state"
-          :> QueryFlag "patternsUnder"
           :> OperationId "getProgram"
           :> Get '[JSON] Prog
   , getSessionName :: GetSessionName mode
@@ -104,7 +102,6 @@ data SessionAPI mode = SessionAPI
       mode
         :- "def"
           :> Summary "Create a new definition"
-          :> QueryFlag "patternsUnder"
           :> ReqBody '[JSON] ModuleName
           :> QueryParam "name" Text
           :> OperationId "createDefinition"
@@ -119,10 +116,15 @@ data SessionAPI mode = SessionAPI
         :- "eval"
           :> Summary "Evaluate the named definition to normal form (or time out)"
           :> OperationId "eval-full"
-          :> QueryFlag "patternsUnder"
           :> QueryParam "stepLimit" (Finite 0 EvalFullStepLimit)
           :> ReqBody '[JSON] GVarName
           :> Post '[JSON] EvalFullResp
+  , undo ::
+      mode
+        :- "undo"
+          :> Summary "Undo the last action"
+          :> OperationId "undo"
+          :> Post '[JSON] Prog
   }
   deriving stock (Generic)
 
@@ -131,7 +133,6 @@ newtype TypeDefAPI mode = TypeDefAPI
       mode
         :- Summary "Create a new type definition"
           :> OperationId "createTypeDef"
-          :> QueryFlag "patternsUnder"
           :> ReqBody '[JSON] CreateTypeDefBody
           :> Post '[JSON] Prog
   }
@@ -176,7 +177,6 @@ data ApplyActionAPI mode = ApplyActionAPI
       mode
         :- "simple"
           :> Summary "Apply a simple action i.e. one which requires no further input"
-          :> QueryFlag "patternsUnder"
           :> ReqBody '[JSON] Selection
           :> QueryParam' '[Required, Strict] "action" Available.NoInputAction
           :> OperationId "applyAction"
@@ -185,7 +185,6 @@ data ApplyActionAPI mode = ApplyActionAPI
       mode
         :- "input"
           :> Summary "Apply an action with some additional input"
-          :> QueryFlag "patternsUnder"
           :> ReqBody '[JSON] ApplyActionBody
           :> QueryParam' '[Required, Strict] "action" Available.InputAction
           :> OperationId "applyActionWithInput"
