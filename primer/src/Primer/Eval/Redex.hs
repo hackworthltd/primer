@@ -506,7 +506,7 @@ viewCaseRedex tydefs = \case
   -- variables. This is especially important, as we do not (yet?) take care of
   -- metadata correctly in this evaluator (for instance, substituting when we
   -- do a BETA reduction)!
-  orig@(Case _ (Ann _ scrut@(Con m c args) ty) brs) -> do
+  orig@(Case _ scrut@(Ann _ (Con m c args) ty) brs) -> do
     -- Style note: unfortunately do notation does not work well with polytyped binds on ghc 9.2.4
     -- Thus we write this with an explicit bind instead.
     -- See https://gitlab.haskell.org/ghc/ghc/-/issues/18324
@@ -516,7 +516,7 @@ viewCaseRedex tydefs = \case
     -- because hole type", rather than logging that the Cons is not saturated.
     instantiateCon (forgetTypeMetadata ty) c >>= \argTys -> do
       (patterns, br) <- extractBranch c brs
-      renameBindings m scrut brs ty args patterns orig
+      renameBindings m scrut brs patterns orig
             <|> pure (formCaseRedex c argTys args patterns br (orig, scrut, getID m))
   _ -> mzero
   where
@@ -557,18 +557,19 @@ viewCaseRedex tydefs = \case
        or (assuming type and term variables can shadow) in `T`.
        We must catch this case and rename the case binders as a first step.
        Note that the free vars in `t : T` are a subset of the free vars in the
-       arguments of the scrutinee (s, t) plus the arguments to its type
+       arguments of the constructor (s, t) plus the arguments to its type
        annotations (A, B).
        We shall be conservative and rename all binders in every branch apart
-       from these free vars.
+       from these free vars, i.e. from any free var in the scrutinee
+       `C s t : T A B`.
        (We could get away with only renaming within the matching branch, only
        avoiding those FVs that actually occur, and in a "telescope" fashion:
        the first binder needs to avoid the FVs of all except the first
        argument, the second needs to avoid all but the first two args, ...,
        the last doesn't need any renaming.)
     -}
-    renameBindings meta scrutinee branches annTy args patterns orig =
-      let avoid = S.map unLocalName (freeVarsTy annTy) <> foldMap' freeVars args
+    renameBindings meta scrutinee branches patterns orig =
+      let avoid = freeVars scrutinee
           binders = S.fromList $ map (unLocalName . bindName) patterns
        in hoistMaybe $
             if S.disjoint avoid binders
