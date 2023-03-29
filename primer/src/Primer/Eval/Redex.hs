@@ -506,7 +506,7 @@ viewCaseRedex tydefs = \case
   -- variables. This is especially important, as we do not (yet?) take care of
   -- metadata correctly in this evaluator (for instance, substituting when we
   -- do a BETA reduction)!
-  orig@(Case _ scrut@(Ann _ (Con m c args) ty) brs) -> do
+  orig@(Case mCase scrut@(Ann _ (Con mCon c args) ty) brs) -> do
     -- Style note: unfortunately do notation does not work well with polytyped binds on ghc 9.2.4
     -- Thus we write this with an explicit bind instead.
     -- See https://gitlab.haskell.org/ghc/ghc/-/issues/18324
@@ -516,8 +516,8 @@ viewCaseRedex tydefs = \case
     -- because hole type", rather than logging that the Cons is not saturated.
     instantiateCon (forgetTypeMetadata ty) c >>= \argTys -> do
       (patterns, br) <- extractBranch c brs
-      renameBindings m scrut brs patterns orig
-            <|> pure (formCaseRedex c argTys args patterns br (orig, scrut, getID m))
+      renameBindings mCase scrut brs patterns orig
+            <|> pure (formCaseRedex c argTys args patterns br (orig, scrut, getID mCon))
   _ -> mzero
   where
     pushMaybe :: Maybe (forall m'. c m' => [m' a]) -> forall m'. c m' => Maybe [m' a]
