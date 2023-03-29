@@ -1069,10 +1069,11 @@ unit_redexes_tlet_4 = do
   -- NB we must not say node 5 (the occurrence of the variable) is a redex
   redexesOf (lAM "x" $ emptyHole `ann` tlet "x" (tvar "x") (tvar "x")) <@?=> Set.fromList [3]
 
+-- Cannot reduce a case if there is no annotation (thus ill-typed)
 unit_redexes_case_1 :: Assertion
 unit_redexes_case_1 =
   redexesOf (case_ (con0' ["M"] "C") [branch' (["M"], "C") [] (con0' ["M"] "D")])
-    <@?=> Set.singleton 0
+    <@?=> mempty
 
 -- Same as above, but the scrutinee has an annotation
 unit_redexes_case_1_annotated :: Assertion
@@ -1082,20 +1083,20 @@ unit_redexes_case_1_annotated =
 
 unit_redexes_case_2 :: Assertion
 unit_redexes_case_2 =
-  redexesOf (case_ (lam "x" (lvar "x")) [branch' (["M"], "C") [] (con0' ["M"] "D")])
+  redexesOf (case_ (lam "x" (lvar "x") `ann` (tEmptyHole `tfun` tEmptyHole)) [branch' (["M"], "C") [] (con0' ["M"] "D")])
     <@?=> mempty
 
 -- The case expression can be reduced, as can the variable x in the branch rhs.
 unit_redexes_case_3 :: Assertion
 unit_redexes_case_3 =
-  redexesOf (let_ "x" (con0' ["M"] "C") (case_ (con0' ["M"] "C") [branch' (["M"], "C") [] (lvar "x")]))
-    <@?=> Set.fromList [2, 4]
+  redexesOf (let_ "x" (con0' ["M"] "C") (case_ (con0' ["M"] "C" `ann` tcon' ["M"] "C") [branch' (["M"], "C") [] (lvar "x")]))
+    <@?=> Set.fromList [2, 6]
 
 -- The variable x in the rhs is bound to the branch pattern, so is no longer reducible.
 -- However this means the let is redundant, and can be reduced.
 unit_redexes_case_4 :: Assertion
 unit_redexes_case_4 =
-  redexesOf (let_ "x" (con0' ["M"] "C") (case_ (con0' ["M"] "C") [branch' (["M"], "C") [("x", Nothing)] (lvar "x")]))
+  redexesOf (let_ "x" (con0' ["M"] "C") (case_ (con0' ["M"] "C" `ann` tcon' ["M"] "C") [branch' (["M"], "C") [("x", Nothing)] (lvar "x")]))
     <@?=> Set.fromList [0, 2]
 
 -- If scrutinee of a case is a redex itself, we recognise that
