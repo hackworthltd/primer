@@ -1,4 +1,4 @@
-name: Benchmark regression checks
+name: Push Docker image to ghcr.io
 
 on:
   push:
@@ -10,14 +10,13 @@ on:
       - main
 
 jobs:
-  benchmark:
-    name: Performance regression check
-    runs-on: ubuntu-latest
-
+  push-image-to-ghcr:
     permissions:
-      contents: write
+      contents: read
+      packages: write
       id-token: write
-      deployments: write
+
+    runs-on: ubuntu-latest
 
     steps:
       - name: Checkout repo
@@ -33,7 +32,7 @@ jobs:
           url: https://secrets.hackworth-corp.com
           path: "github-actions"
           caCertificate: ${{ secrets.VAULT_CA_CERT }}
-          role: primer-workflow-benchmark-regressions
+          role: primer-workflow-push-docker-image
           method: jwt
           secrets: |
             secret/data/cachix/hackworthltd-private/github-workflows token | CACHIX_AUTH_TOKEN ;
@@ -59,24 +58,26 @@ jobs:
         # configured to run on pushes to `main`, we can be confident
         # that it will already have been built and can be pulled from
         # our Cachix cache without kicking off any builds.
-      - name: Fetch Primer benchmark results
+      - name: Fetch Primer service Docker image
         run: |
-          nix build -L .#benchmarks.x86_64-linux.primer-benchmark-results-github-action-benchmark
+          nix build -L .#packages.x86_64-linux.primer-service-docker-image
 
-      - name: Publish results
-        uses: benchmark-action/github-action-benchmark@v1.16.2
+      - name: Authenticate to ghcr.io
+        uses: docker/login-action@ec9cdf07d570632daeb912f5b2099cb9ec1d01e6
         with:
-          name: Primer benchmarks
-          tool: "customSmallerIsBetter"
-          output-file-path: result/results.json
-          github-token: ${{ secrets.GITHUB_TOKEN }}
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
-          auto-push: true
-          gh-pages-branch: "gh-pages"
-          benchmark-data-dir-path: "dev/bench"
-
-          # Alert dhess if there's a regression.
-          alert-comment-cc-users: "@dhess"
-          alert-threshold: "200%"
-          comment-on-alert: true
-          fail-on-alert: false
+      - name: Push image to ghcr.io
+        shell: bash
+        run: |
+          docker load < result
+          IMAGE=$(docker image list -f reference=primer-service --format "{{.Repository}}:{{.Tag}}")
+          TAG=$(docker image list -f reference=primer-service --format "{{.Tag}}")
+          echo "Loaded image: ${IMAGE}"
+          NAME="ghcr.io/hackworthltd/primer-service:$TAG"
+          docker tag "$IMAGE" "$NAME"
+          echo "Pushing image to ghcr.io: ${NAME}"
+          docker push "$NAME"
+          echo "Image pushed."
