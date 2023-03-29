@@ -24,7 +24,7 @@ import Control.Monad.Fresh (MonadFresh)
 import Control.Monad.Log (MonadLog, WithSeverity)
 import Control.Monad.Trans.Maybe (MaybeT (runMaybeT))
 import Data.Data (Data)
-import Data.List.Extra (zip4)
+import Data.List.Extra (zip3)
 import Data.Map qualified as M
 import Data.Set qualified as S
 import Data.Set.Optics (setOf)
@@ -64,7 +64,7 @@ import Primer.Core (
     Let,
     LetType,
     Letrec,
-    Var
+    Var, Con
   ),
   ExprMeta,
   GVarName,
@@ -185,12 +185,7 @@ data EvalLog
     -- but the number of arguments in the scrutinee differs from the number of bindings in the corresponding branch.
     -- (Or the number of arguments expected from the scrutinee's type differs from either of these.)
     -- This should not happen if the expression is type correct.
-    CaseRedexWrongArgNum ValConName [Expr] [Type' ()] (Maybe [Type' ()]) [LVarName]
-  | -- | A case redex required a double annotation on (some of) its resultant let binding(s)
-    -- This is expected to happen for e.g. @case Just \@? True : Maybe Int of ...@, and
-    -- does not represent any problem. We log it to obtain insight about how common this
-    -- is in practice.
-    CaseRedexDoubleAnn ValConName [Expr] [Type' ()] (Maybe [Type' ()]) [LVarName]
+    CaseRedexWrongArgNum ValConName [Expr] [Type' ()] [LVarName]
   | InvariantFailure Text
   deriving stock (Show, Eq, Data, Generic)
   deriving anyclass (NFData)
@@ -296,15 +291,15 @@ data Redex
     -- reduction steps. E.g.
     --     cons ==  (Λa λx λxs. Cons @a x xs) : ∀a. a -> List a -> List a
     -- )
-    -- TODO (saturated constructors) update the above comment!
+    -- TODO (saturated constructors) update the above comment! NB: only annotated scrutinees are welltyped
     CaseRedex
       { con :: ValConName
       -- ^ The head of the scrutinee
       , args :: [Expr]
       -- ^ The arguments of the scrutinee
-      , argTys :: forall m. MonadFresh NameCounter m => ([m (Type' ())], Maybe [m (Type' ())])
+      , argTys :: forall m. MonadFresh NameCounter m => [m (Type' ())]
       -- ^ The type of each scrutinee's argument
-      -- (from inspecting the constructor's type applications and (maybe) the type annotation on the scrutinee)
+      -- (from inspecting the type annotation on the scrutinee)
       , binders :: [Bind]
       -- ^ The binders of the matching branch
       , rhs :: Expr
@@ -504,28 +499,14 @@ viewCaseRedex tydefs = \case
   -- Note that constructors are checkable, but scrutinees are synthesisable,
   -- thus we only have terms such as @case (C x y : T a) of ...@. Thus we
   -- know the type of the scrutinee syntactically.
-{-
+  --
   -- The patterns in the case branch have a Maybe TypeCache attached, but we
   -- should not assume that this has been filled in correctly, so we record
   -- the type of the scrutinee, and reconstruct the types of the pattern
   -- variables. This is especially important, as we do not (yet?) take care of
   -- metadata correctly in this evaluator (for instance, substituting when we
   -- do a BETA reduction)!
-  orig@(Case m expr brs) -> do
-    let expr' = case expr of
-          Ann _ e _ -> e
-          _ -> expr
-    (c, cID, tyargs, args) <- extractCon expr'
-    tyFromCon <- case lookupConstructor tydefs c of
-      Nothing -> do
-        logWarning $ CaseRedexUnknownCtor c
-        mzero
-      Just (_, tc, _) -> do
-        pure $ mkTAppCon tc (forgetTypeMetadata <$> tyargs)
-    -- If the constructor had an annotation we must preserve it in the output
-    let tyFromAnn = case expr of
-          Ann _ _ ty' -> Just $ forgetTypeMetadata ty'
-          _ -> Nothing
+  orig@(Case _ (Ann _ scrut@(Con m c args) ty) brs) -> do
     -- Style note: unfortunately do notation does not work well with polytyped binds on ghc 9.2.4
     -- Thus we write this with an explicit bind instead.
     -- See https://gitlab.haskell.org/ghc/ghc/-/issues/18324
@@ -533,11 +514,10 @@ viewCaseRedex tydefs = \case
     -- Implementation note: it is important to instantiate with the type-from-the-annotation first,
     -- since we could have 'case Cons : ? of {}' and we would like to silently say "not a redex,
     -- because hole type", rather than logging that the Cons is not saturated.
-    traverse (`instantiateCon` c) tyFromAnn <&> pushMaybe >>= \argTysFromAnn ->
-      instantiateCon tyFromCon c >>= \argTysFromCon -> do
-        (patterns, br) <- extractBranch c brs
-        renameBindings m expr brs (tyFromCon : toList tyFromAnn) args patterns orig
-          <|> pure (formCaseRedex c (argTysFromCon, argTysFromAnn) args patterns br (orig, expr, cID))
+    instantiateCon (forgetTypeMetadata ty) c >>= \argTys -> do
+      (patterns, br) <- extractBranch c brs
+      renameBindings m scrut brs ty args patterns orig
+            <|> pure (formCaseRedex c argTys args patterns br (orig, scrut, getID m))
   _ -> mzero
   where
     pushMaybe :: Maybe (forall m'. c m' => [m' a]) -> forall m'. c m' => Maybe [m' a]
@@ -568,21 +548,17 @@ viewCaseRedex tydefs = \case
     {- Note [Case reduction and variable capture]
        There is a subtlety here around variable capture.
        Consider
-         case C @A' @B' s t : T A B of C a b -> e
+         case C s t : T A B of C a b -> e
        We would like to reduce this to
-         let a = s : S' : S; let b = t : T' : T in e
-       where we have annotated `s` and `t` with their two types
-       (one from the arguments `A'` `B'` to the constructor,
-        one from the arguments `A` `B` to the annotation), which will be
-       built from `A` and `B` according to the definition of the type `T`
-       (for reasons of bidirectionality).
+         let a = s : S; let b = t : T in e
+       where we have annotated `s` and `t` with their types, which will be
+       built from `A` and `B` according to the definition of the type `T`.
        Note that the binding of `a` may capture a reference in `t`
-       or (assuming type and term variables can shadow) in `T'` or `T`.
+       or (assuming type and term variables can shadow) in `T`.
        We must catch this case and rename the case binders as a first step.
-       Note that the free vars in `t : T' : T` are a subset of the free vars in the
+       Note that the free vars in `t : T` are a subset of the free vars in the
        arguments of the scrutinee (s, t) plus the arguments to its type
-       annotations (A', B', A, B). (In the non-annotated case, we only have
-       `A', B'` and not `A, B`).
+       annotations (A, B).
        We shall be conservative and rename all binders in every branch apart
        from these free vars.
        (We could get away with only renaming within the matching branch, only
@@ -591,8 +567,8 @@ viewCaseRedex tydefs = \case
        argument, the second needs to avoid all but the first two args, ...,
        the last doesn't need any renaming.)
     -}
-    renameBindings meta scrutinee branches tyargs args patterns orig =
-      let avoid = foldMap' (S.map unLocalName . freeVarsTy) tyargs <> foldMap' freeVars args
+    renameBindings meta scrutinee branches annTy args patterns orig =
+      let avoid = S.map unLocalName (freeVarsTy annTy) <> foldMap' freeVars args
           binders = S.fromList $ map (unLocalName . bindName) patterns
        in hoistMaybe $
             if S.disjoint avoid binders
@@ -600,7 +576,7 @@ viewCaseRedex tydefs = \case
               else Just $ RenameBindingsCase{meta, scrutinee, branches, avoid, orig}
     formCaseRedex ::
       ValConName ->
-      (forall m'. MonadFresh NameCounter m' => ([m' (Type' ())], Maybe [m' (Type' ())])) ->
+      (forall m'. MonadFresh NameCounter m' => [m' (Type' ())]) ->
       [Expr] ->
       [Bind] ->
       Expr ->
@@ -608,7 +584,7 @@ viewCaseRedex tydefs = \case
       Redex
     formCaseRedex con argTys args binders rhs (orig, scrut, conID) =
       CaseRedex{con, args, argTys, binders, rhs, orig, scrutID = getID scrut, conID}
--}
+
 
 -- We record each binder, along with its let-bound RHS (if any)
 -- and its original binding location and  context (to be able to detect capture)
@@ -883,27 +859,23 @@ runRedex = \case
             }
     pure (expr', BETAReduction details)
   -- case C as : T of ... ; C xs -> e ; ...   ~>  let xs=as:As in e for constructor C of type T, where args have types As
-  -- (and also the non-annotated-constructor case)
   -- Note that when forming the CaseRedex we checked that the variables @xs@ were fresh for @as@ and @As@,
   -- so this will not capture any variables.
   CaseRedex
     { con
     , args
-    , argTys = (argTysFromCon, argTysFromAnn)
+    , argTys
     , binders
     , rhs
     , orig
     , scrutID
     , conID
     } -> do
-{-
       let binderNames = map bindName binders
-      -- TODO (saturated constructors) since constructors are checkable, we can remove the "non-annotated-constructor case"
-      aTysC <- sequence argTysFromCon
-      aTysA <- traverse sequence argTysFromAnn
-      unless (length args == length aTysC && maybe True ((length args ==) . length) aTysA && length args == length binders) $
+      argTys' <- sequence argTys
+      unless (length args == length argTys' && length args == length binders) $
         logWarning $
-          CaseRedexWrongArgNum con args aTysC aTysA binderNames
+          CaseRedexWrongArgNum con args argTys' binderNames
       -- TODO: we are putting trivial metadata in here...
       -- See https://github.com/hackworthltd/primer/issues/6
       let ann' x t = x `ann` generateTypeIDs t
@@ -912,17 +884,15 @@ runRedex = \case
             Just tyA
               | alphaEqTy tyC tyA -> (False, (`ann'` tyC))
               | otherwise -> (True, \x -> x `ann'` tyC `ann'` tyA)
-      (diffAnn, letIDs, expr') <-
+      (letIDs, expr') <-
         foldrM
-          ( \(x, a, tyC, tyA) (diffAnn, is, t) -> do
-              let (d, putAnn) = mkAnn (tyC, tyA)
-              t' <- let_ x (putAnn $ pure a) (pure t)
-              pure (diffAnn || d, getID t' : is, t')
+          ( \(x, a, ty) (is, t) -> do
+              t' <- let_ x (pure a `ann'` ty) (pure t)
+              pure (getID t' : is, t')
           )
-          (False, [], rhs)
+          ([], rhs)
           -- TODO (saturated constructors)/REVIEW should we use a lettype, rather than doing the substitution in the type/annotation? This is not really related to satcon, but I happened to notice it!
-          (zip4 binderNames args aTysC $ maybe (repeat Nothing) (fmap Just) aTysA)
-      when diffAnn $ logInfo $ CaseRedexDoubleAnn con args aTysC aTysA binderNames
+          (zip3 binderNames args argTys')
       let details =
             CaseReductionDetail
               { before = orig
@@ -936,7 +906,6 @@ runRedex = \case
               , letIDs
               }
       pure (expr', CaseReduction details)
--}
   -- [ t : T ]  ~>  t  writing [_] for the embedding of syn into chk
   Upsilon{expr, ann = ty, orig} -> do
     let details =
