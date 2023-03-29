@@ -13,10 +13,6 @@ test/Test.hs
           Intermediate:NonEditable:                       FAIL
           Expert:Editable:                                FAIL (0.22s)
           Expert:NonEditable:                             FAIL (0.02s)
-    EvalFull
-      10:                                                 FAIL
-      type preservation case regression tm:               FAIL
-      type preservation case regression ty:               FAIL
     Pretty
       Examples
         comprehensive
@@ -28,7 +24,7 @@ test/Test.hs
       nextID exampleMap:                                  FAIL
       nextID exampleComprehensive:                        FAIL
 
-15 out of 746 tests failed (0.94s)
+12 out of 746 tests failed (0.94s)
 
 ---
 
@@ -407,24 +403,6 @@ test/Test.hs
                         ( <truncated>
             Use --accept or increase --size-cutoff to see full output.
             Use -p '/Expert:NonEditable/' to rerun this test only.
-    EvalFull
-      10:                                                 FAIL
-        test/Tests/EvalFull.hs:265:
-        expected: Right (Con (Meta 0 Nothing Nothing) (GlobalName {qualifiedModule = ModuleName {unModuleName = "Builtins" :| []}, baseName = "True"}) [])
-         but got: Right (Case (Meta 0 Nothing Nothing) (Con (Meta 0 Nothing Nothing) (GlobalName {qualifiedModule = ModuleName {unModuleName = "Builtins" :| []}, baseName = "Zero"}) []) [CaseBranch (GlobalName {qualifiedModule = ModuleName {unModuleName = "Builtins" :| []}, baseName = "Zero"}) [] (Con (Meta 0 Nothing Nothing) (GlobalName {qualifiedModule = ModuleName {unModuleName = "Builtins" :| []}, baseName = "True"}) []),CaseBranch (GlobalName {qualifiedModule = ModuleName {unModuleName = "Builtins" :| []}, baseName = "Succ"}) [Bind (Meta 0 Nothing Nothing) (LocalName {unLocalName = "n"})] (Con (Meta 0 Nothing Nothing) (GlobalName {qualifiedModule = ModuleName {unModuleName = "Builtins" :| []}, baseName = "False"}) [])])
-        Use -p '/EvalFull.10/' to rerun this test only.
-      type preservation case regression tm:               FAIL
-        test/Tests/EvalFull.hs:521:
-        expected: Left (TimedOut (Lam (Meta 0 Nothing Nothing) (LocalName {unLocalName = "x"}) (Case (Meta 0 Nothing Nothing) (Con (Meta 0 Nothing Nothing) (GlobalName {qualifiedModule = ModuleName {unModuleName = "Builtins" :| []}, baseName = "MakePair"}) [EmptyHole (Meta 0 Nothing Nothing),Var (Meta 0 Nothing Nothing) (LocalVarRef (LocalName {unLocalName = "x"}))]) [CaseBranch (GlobalName {qualifiedModule = ModuleName {unModuleName = "Builtins" :| []}, baseName = "MakePair"}) [Bind (Meta 0 Nothing Nothing) (LocalName {unLocalName = "a34"}),Bind (Meta 0 Nothing Nothing) (LocalName {unLocalName = "y"})] (Let (Meta 0 Nothing Nothing) (LocalName {unLocalName = "x"}) (Var (Meta 0 Nothing Nothing) (LocalVarRef (LocalName {unLocalName = "a34"}))) (EmptyHole (Meta 0 Nothing Nothing)))])))
-         but got: Right (Lam (Meta 0 Nothing Nothing) (LocalName {unLocalName = "x"}) (Case (Meta 0 Nothing Nothing) (Con (Meta 0 Nothing Nothing) (GlobalName {qualifiedModule = ModuleName {unModuleName = "Builtins" :| []}, baseName = "MakePair"}) [EmptyHole (Meta 0 Nothing Nothing),Var (Meta 0 Nothing Nothing) (LocalVarRef (LocalName {unLocalName = "x"}))]) [CaseBranch (GlobalName {qualifiedModule = ModuleName {unModuleName = "Builtins" :| []}, baseName = "MakePair"}) [Bind (Meta 0 Nothing Nothing) (LocalName {unLocalName = "x"}),Bind (Meta 0 Nothing Nothing) (LocalName {unLocalName = "y"})] (EmptyHole (Meta 0 Nothing Nothing))]))
-        Use -p '/type preservation case regression tm/' to rerun this test only.
-      type preservation case regression ty:               FAIL
-        test/Tests/EvalFull.hs:1385:
-        Failure: non-distinct ids; had 16 ids, but only 15 unique ones
-        The duplicates were
-        [3]
-        
-        Use -p '/type preservation case regression ty/' to rerun this test only.
     Pretty
       Examples
         comprehensive
@@ -523,4 +501,4 @@ test/Test.hs
         
         Use -p '/nextID exampleComprehensive/' to rerun this test only.
 
-15 out of 746 tests failed (117.07s)
+12 out of 746 tests failed (117.07s)
