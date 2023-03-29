@@ -1,4 +1,5 @@
-Failing non-property tests:
+Non-property-test failures:
+
 test/Test.hs
   Tests
     API
@@ -8,23 +9,21 @@ test/Test.hs
       Available
         M.comprehensive
           Beginner:Editable:                              FAIL (0.11s)
-          Beginner:NonEditable:                           FAIL (0.01s)
-          Intermediate:Editable:                          FAIL (0.13s)
+          Beginner:NonEditable:                           FAIL
+          Intermediate:Editable:                          FAIL (0.14s)
           Intermediate:NonEditable:                       FAIL
-          Expert:Editable:                                FAIL (0.22s)
-          Expert:NonEditable:                             FAIL (0.02s)
+          Expert:Editable:                                FAIL (0.21s)
+          Expert:NonEditable:                             FAIL
     Pretty
       Examples
         comprehensive
           Expr (Sparse):                                  FAIL
           Expr (Compact):                                 FAIL
-    Questions
-      variablesInScope shadowed:                          FAIL
     Utils
       nextID exampleMap:                                  FAIL
       nextID exampleComprehensive:                        FAIL
 
-12 out of 746 tests failed (0.94s)
+11 out of 746 tests failed (0.94s)
 
 ---
 
@@ -34,7 +33,7 @@ test/Test.hs
   Tests
     API
       golden
-        expr:                                             FAIL (0.01s)
+        expr:                                             FAIL (0.02s)
           Test output was different from 'test/outputs/APITree/Expr'. It was:
           Tree
               { nodeId = "9"
@@ -73,7 +72,7 @@ test/Test.hs
     Action
       Available
         M.comprehensive
-          Beginner:Editable:                              FAIL (0.17s)
+          Beginner:Editable:                              FAIL (0.14s)
             Test output was different from 'test/outputs/available-actions/M.comprehensive/Beginner-Editable.fragment'. It was:
             Output
                 { defActions =
@@ -110,7 +109,7 @@ test/Test.hs
                      <truncated>
             Use --accept or increase --size-cutoff to see full output.
             Use -p '/Beginner:Editable/' to rerun this test only.
-          Beginner:NonEditable:                           FAIL (0.01s)
+          Beginner:NonEditable:                           FAIL
             Test output was different from 'test/outputs/available-actions/M.comprehensive/Beginner-NonEditable.fragment'. It was:
             Output
                 { defActions = []
@@ -183,7 +182,7 @@ test/Test.hs
                         ( <truncated>
             Use --accept or increase --size-cutoff to see full output.
             Use -p '/Beginner:NonEditable/' to rerun this test only.
-          Intermediate:Editable:                          FAIL (0.18s)
+          Intermediate:Editable:                          FAIL (0.17s)
             Test output was different from 'test/outputs/available-actions/M.comprehensive/Intermediate-Editable.fragment'. It was:
             Output
                 { defActions =
@@ -293,7 +292,7 @@ test/Test.hs
                         ( <truncated>
             Use --accept or increase --size-cutoff to see full output.
             Use -p '/Intermediate:NonEditable/' to rerun this test only.
-          Expert:Editable:                                FAIL (0.27s)
+          Expert:Editable:                                FAIL (0.25s)
             Test output was different from 'test/outputs/available-actions/M.comprehensive/Expert-Editable.fragment'. It was:
             Output
                 { defActions =
@@ -478,11 +477,6 @@ test/Test.hs
                         [0;93m<truncated>
             Use --accept or increase --size-cutoff to see full output.
             Use -p '/comprehensive.Expr (Compact)/' to rerun this test only.
-    Questions
-      variablesInScope shadowed:                          FAIL
-        test/Tests/Questions.hs:262:
-        InconsistentTypes (TApp () (TCon () (GlobalName {qualifiedModule = ModuleName {unModuleName = "Builtins" :| []}, baseName = "List"})) (TVar () (LocalName {unLocalName = "d"}))) (TVar () (LocalName {unLocalName = "d"}))
-        Use -p '/variablesInScope shadowed/' to rerun this test only.
     Utils
       nextID exampleMap:                                  FAIL
         test/Tests/Utils.hs:35:
@@ -501,4 +495,4 @@ test/Test.hs
         
         Use -p '/nextID exampleComprehensive/' to rerun this test only.
 
-12 out of 746 tests failed (117.07s)
+11 out of 746 tests failed (114.59s)
