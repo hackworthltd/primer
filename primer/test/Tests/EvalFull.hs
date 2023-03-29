@@ -1286,7 +1286,7 @@ unit_eval_full_modules_scrutinize_imported_type :: Assertion
 unit_eval_full_modules_scrutinize_imported_type =
   let test = do
         importModules [m]
-        foo <- case_ (con0 cTrue) [branch cTrue [] $ con0 cFalse, branch cFalse [] $ con0 cTrue]
+        foo <- case_ (con0 cTrue `ann` tcon tBool) [branch cTrue [] $ con0 cFalse, branch cFalse [] $ con0 cTrue]
         resp <-
           handleEvalFullRequest
             EvalFullReq{evalFullReqExpr = foo, evalFullCxtDir = Chk, evalFullMaxSteps = 2}
