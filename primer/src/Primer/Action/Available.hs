@@ -420,9 +420,6 @@ options typeDefs defs cxt level def mNodeSel = \case
     lAMVarKind = \case
       TForall _ _ k _ -> Just k
       _ -> Nothing
-    -- Constructor has either type or value arguments
-    hasArgsCon td vc =
-      not (null (astTypeDefParameters td)) || not (null (valConArgs vc))
     -- Variable can be applied to something i.e. is a function or a polymorphic value
     hasArgsVar = \case
       TFun{} -> True

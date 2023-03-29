@@ -557,9 +557,6 @@ zipWithExactM _ [] _ = Nothing
 zipWithExactM _ _ [] = Nothing
 zipWithExactM f (x : xs) (y : ys) = ((:) <$> f x y <*>) <$> zipWithExactM f xs ys
 
-zipWithExact :: (a -> b -> c) -> [a] -> [b] -> Maybe [c]
-zipWithExact f = (runIdentity <<$>>) . zipWithExactM (Identity <<$>> f)
-
 ensureJust :: MonadNestedError e e' m => e -> Maybe (m a) -> m a
 ensureJust e Nothing = throwError' e
 ensureJust _ (Just x) = x
@@ -627,7 +624,7 @@ check t = \case
       -- And 'C' is a constructor of 'T' (writing 'T's parameters as 'ps' with kinds 'ks')
       -- with arguments 'Rs[ps]',
       -- then this particular instantiation should have arguments 'Rs[As]'
-      Right (tc, td, instVCs) -> case lookup c instVCs of
+      Right (tc, _, instVCs) -> case lookup c instVCs of
         Nothing -> recoverSH $ ConstructorWrongADT tc c
         Just argTys -> do
           -- Check that the arguments have the correct type

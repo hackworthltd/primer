@@ -518,13 +518,6 @@ viewCaseRedex tydefs = \case
         <|> pure (formCaseRedex c argTys args patterns br (orig, scrut, getID mCon))
   _ -> mzero
   where
-    pushMaybe :: Maybe (forall m'. c m' => [m' a]) -> forall m'. c m' => Maybe [m' a]
-    pushMaybe Nothing = Nothing
-    pushMaybe (Just xs) = Just xs
-
-    extractCon expr = case decomposeAppCon expr of
-      Just (c, m, params, as) -> pure (c, getID m, params, as)
-      _ -> mzero
     extractBranch c brs =
       case find (\(CaseBranch n _ _) -> n == c) brs of
         Nothing -> do
@@ -877,11 +870,6 @@ runRedex = \case
       -- TODO: we are putting trivial metadata in here...
       -- See https://github.com/hackworthltd/primer/issues/6
       let ann' x t = x `ann` generateTypeIDs t
-      let mkAnn (tyC, tyA') = case tyA' of
-            Nothing -> (False, (`ann'` tyC))
-            Just tyA
-              | alphaEqTy tyC tyA -> (False, (`ann'` tyC))
-              | otherwise -> (True, \x -> x `ann'` tyC `ann'` tyA)
       (letIDs, expr') <-
         foldrM
           ( \(x, a, ty) (is, t) -> do
