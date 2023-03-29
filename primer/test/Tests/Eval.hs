@@ -396,7 +396,7 @@ unit_tryReduce_case_2 = do
   let (expr, i) =
         create $
           case_
-            (con' ["M"] "C" [lam "x" (lvar "x"), (lvar "y"), (lvar "z")] `ann` tcon' ["M"] "T")
+            (con' ["M"] "C" [lam "x" (lvar "x"), lvar "y", lvar "z"] `ann` tcon' ["M"] "T")
             [ branch' (["M"], "B") [("b", Nothing)] (con0' ["M"] "D")
             , branch' (["M"], "C") [("c", Nothing), ("d", Nothing), ("e", Nothing)] (con0' ["M"] "E")
             ]

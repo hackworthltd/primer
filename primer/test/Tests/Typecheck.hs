@@ -215,7 +215,7 @@ unit_inc_unsat1 =
   ann
     (lam "n" (app (con0 cSucc `ann` tEmptyHole) (lvar "n")))
     (tfun (tcon tNat) (tcon tNat))
-    `expectFailsWith` (const $ UnsaturatedConstructor cSucc)
+    `expectFailsWith` const (UnsaturatedConstructor cSucc)
 
 -- NB: @Succ :: Nat -> Nat@ is wrong: constructors don't inhabit function types!
 -- cf unit_inc_unsat1
@@ -224,7 +224,7 @@ unit_inc_unsat2 =
   ann
     (lam "n" (app (con0 cSucc `ann` (tcon tNat `tfun` tcon tNat)) (lvar "n")))
     (tfun (tcon tNat) (tcon tNat))
-    `expectFailsWith` (const $ ConstructorNotFullAppADT (TFun () (TCon () tNat) (TCon () tNat)) cSucc)
+    `expectFailsWith` const (ConstructorNotFullAppADT (TFun () (TCon () tNat) (TCon () tNat)) cSucc)
 
 unit_compose_nat :: Assertion
 unit_compose_nat =
@@ -448,7 +448,7 @@ unit_con_wrong_adt_sh =
 unit_case_scrutinee :: Assertion
 unit_case_scrutinee =
   ann (case_ (lam "n" (con1 cSucc $ lvar "n") `ann` (tcon tNat `tfun` tcon tNat)) [branch' (["M"], "C") [] $ lvar "x"]) (tcon tBool)
-    `smartSynthGives` ann (case_ (hole $ (lam "n" (con1 cSucc $ lvar "n") `ann` (tcon tNat `tfun` tcon tNat))) []) (tcon tBool)
+    `smartSynthGives` ann (case_ (hole $ lam "n" (con1 cSucc $ lvar "n") `ann` (tcon tNat `tfun` tcon tNat)) []) (tcon tBool)
 
 unit_case_branches :: Assertion
 unit_case_branches =
@@ -468,8 +468,8 @@ unit_remove_hole =
 -- This is tracked as https://github.com/hackworthltd/primer/issues/7
 unit_remove_hole_not_perfect :: Assertion
 unit_remove_hole_not_perfect =
-  app (hole $ (lam "n" (con1 cSucc $ lvar "n") `ann` (tcon tNat `tfun` tcon tNat))) (con0 cZero)
-    `smartSynthGives` app (hole $ (lam "n" (con1 cSucc $ lvar "n") `ann` (tcon tNat `tfun` tcon tNat))) (con0 cZero) -- We currently give this as output
+  app (hole $ lam "n" (con1 cSucc $ lvar "n") `ann` (tcon tNat `tfun` tcon tNat)) (con0 cZero)
+    `smartSynthGives` app (hole $ lam "n" (con1 cSucc $ lvar "n") `ann` (tcon tNat `tfun` tcon tNat)) (con0 cZero) -- We currently give this as output
     -- app (lam "n" ( con1 cSucc $ lvar "n") `ann` (tcon tNat `tfun` tcon tNat)) (con0 cZero) -- We would prefer to see the hole removed
 
 -- When not using "smart" TC which automatically inserts holes etc,

@@ -876,7 +876,7 @@ unit_constructAPP :: Assertion
 unit_constructAPP =
   actionTest
     NoSmartHoles
-    (emptyHole)
+    emptyHole
     [ConstructAPP, EnterType, constructTCon tBool]
     (emptyHole `aPP` tcon tBool)
 
@@ -1025,7 +1025,7 @@ unit_refine_2 =
     NoSmartHoles
     (emptyHole `ann` (tcon tList `tapp` tcon tNat))
     [Move Child1, constructRefinedCon cNil]
-    ((con cNil []) `ann` (tcon tList `tapp` tcon tNat))
+    (con cNil [] `ann` (tcon tList `tapp` tcon tNat))
 
 unit_refine_3 :: Assertion
 unit_refine_3 =
@@ -1033,7 +1033,7 @@ unit_refine_3 =
     NoSmartHoles
     (emptyHole `ann` (tcon tList `tapp` tEmptyHole))
     [Move Child1, constructRefinedCon cNil]
-    ((con cNil []) `ann` (tcon tList `tapp` tEmptyHole))
+    (con cNil [] `ann` (tcon tList `tapp` tEmptyHole))
 
 unit_refine_4 :: Assertion
 unit_refine_4 =
@@ -1120,7 +1120,7 @@ unit_constructEtaAnnCon =
     NoSmartHoles
     emptyHole
     (constructEtaAnnCon cMakePair [tNat, tBool] [("n", tNat), ("m", tBool)] tPair)
-    ( (lam "n" $ lam "m" $ con cMakePair [lvar "n", lvar "m"])
+    ( lam "n" (lam "m" $ con cMakePair [lvar "n", lvar "m"])
         `ann` (tcon tNat `tfun` (tcon tBool `tfun` (tcon tPair `tapp` tcon tNat `tapp` tcon tBool)))
     )
 

@@ -1046,8 +1046,7 @@ unit_SetConFieldType_partial_app =
           ]
     )
     [SetConFieldType tT cA 1 $ TCon () (tcn "Int")]
-    $ expectError
-    $ (@?= ConNotSaturated cA)
+    $ expectError (@?= ConNotSaturated cA)
 
 unit_SetConFieldType_case :: Assertion
 unit_SetConFieldType_case =
@@ -1176,8 +1175,7 @@ unit_AddConField_partial_app =
           ]
     )
     [AddConField tT cA 2 $ TCon () (tcn "Int")]
-    $ expectError
-    $ (@?= ConNotSaturated cA)
+    $ expectError (@?= ConNotSaturated cA)
 
 -- TODO (saturated constructors) when saturation is enforced, this test is a bit odd!
 -- one may think that it should outright fail, since the program is not well-typed

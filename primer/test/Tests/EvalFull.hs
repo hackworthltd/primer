@@ -273,12 +273,12 @@ unit_11 =
         let ty = tcon tNat `tfun` (tcon tPair `tapp` tcon tBool `tapp` tcon tNat)
         let expr1 =
               let_ "x" (con0 cZero) $
-                lam "n" (con cMakePair [(gvar evenName `app` lvar "n"), lvar "x"])
+                lam "n" (con cMakePair [gvar evenName `app` lvar "n", lvar "x"])
                   `ann` ty
         expr <- expr1 `app` con0 cZero
         let globs = [(evenName, evenDef), (oddName, oddDef)]
         expect <-
-          (con cMakePair [con0 cTrue, con0 cZero])
+          con cMakePair [con0 cTrue, con0 cZero]
             `ann` (tcon tPair `tapp` tcon tBool `tapp` tcon tNat)
         pure (globs, expr, expect)
    in do
@@ -313,7 +313,7 @@ unit_13 :: Assertion
 unit_13 =
   let ((e, expected), maxID) = create $ do
         expr <- (lam "x" (con' ["M"] "C" [lvar "x", let_ "x" (con0 cTrue) (lvar "x"), lvar "x"]) `ann` (tcon tNat `tfun` tcon tBool)) `app` con0 cZero
-        expect <- (con' ["M"] "C" [con0 cZero, con0 cTrue, con0 cZero]) `ann` tcon tBool
+        expect <- con' ["M"] "C" [con0 cZero, con0 cTrue, con0 cZero] `ann` tcon tBool
         pure (expr, expect)
    in do
         s <- evalFullTest maxID builtinTypes mempty 15 Syn e
@@ -534,7 +534,7 @@ unit_type_preservation_case_regression_ty =
         e <-
           lAM "x" $
             case_
-              ( (con cMakePair [emptyHole, emptyHole])
+              ( con cMakePair [emptyHole, emptyHole]
                   `ann` (tcon tPair `tapp` tEmptyHole `tapp` tvar "x")
               )
               [branch cMakePair [("x", Nothing), ("y", Nothing)] emptyHole]
@@ -542,7 +542,7 @@ unit_type_preservation_case_regression_ty =
         expect1 <-
           lAM "x" $
             case_
-              ( (con cMakePair [emptyHole, emptyHole])
+              ( con cMakePair [emptyHole, emptyHole]
                   `ann` (tcon tPair `tapp` tEmptyHole `tapp` tvar "x")
               )
               [branch cMakePair [(x', Nothing), ("y", Nothing)] $ let_ "x" (lvar x') emptyHole]

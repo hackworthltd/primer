@@ -670,7 +670,7 @@ getConstructorTypeAndArity ::
   m (Either Text (TC.Type, Int))
 getConstructorTypeAndArity c =
   asks (flip lookupConstructor c . TC.typeDefs) <&> \case
-    Just (vc, tc, td) -> Right $ (valConType tc td vc, length $ vc.valConArgs)
+    Just (vc, tc, td) -> Right (valConType tc td vc, length $ vc.valConArgs)
     Nothing -> Left $ "Could not find constructor " <> show c
 
 constructRefinedCon :: ActionM m => QualifiedText -> ExprZ -> m ExprZ
