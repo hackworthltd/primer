@@ -13,13 +13,10 @@ test/Test.hs
           Intermediate:NonEditable:                       FAIL
           Expert:Editable:                                FAIL (0.22s)
           Expert:NonEditable:                             FAIL (0.02s)
-    Eval
-      eval modules scrutinize imported type:              FAIL
     EvalFull
       10:                                                 FAIL
       type preservation case regression tm:               FAIL
       type preservation case regression ty:               FAIL
-      eval full modules scrutinize imported type:         FAIL
     Pretty
       Examples
         comprehensive
@@ -31,7 +28,7 @@ test/Test.hs
       nextID exampleMap:                                  FAIL
       nextID exampleComprehensive:                        FAIL
 
-17 out of 746 tests failed (0.94s)
+15 out of 746 tests failed (0.94s)
 
 ---
 
@@ -410,11 +407,6 @@ test/Test.hs
                         ( <truncated>
             Use --accept or increase --size-cutoff to see full output.
             Use -p '/Expert:NonEditable/' to rerun this test only.
-    Eval
-      eval modules scrutinize imported type:              FAIL
-        test/Tests/Eval.hs:1168:
-        EvalError NotRedex
-        Use -p '/eval modules scrutinize imported type/' to rerun this test only.
     EvalFull
       10:                                                 FAIL
         test/Tests/EvalFull.hs:265:
@@ -433,11 +425,6 @@ test/Test.hs
         [3]
         
         Use -p '/type preservation case regression ty/' to rerun this test only.
-      eval full modules scrutinize imported type:         FAIL
-        test/Tests/EvalFull.hs:1296:
-        expected: Con () (GlobalName {qualifiedModule = ModuleName {unModuleName = "Builtins" :| []}, baseName = "False"}) []
-         but got: Case () (Con () (GlobalName {qualifiedModule = ModuleName {unModuleName = "Builtins" :| []}, baseName = "True"}) []) [CaseBranch (GlobalName {qualifiedModule = ModuleName {unModuleName = "Builtins" :| []}, baseName = "True"}) [] (Con () (GlobalName {qualifiedModule = ModuleName {unModuleName = "Builtins" :| []}, baseName = "False"}) []),CaseBranch (GlobalName {qualifiedModule = ModuleName {unModuleName = "Builtins" :| []}, baseName = "False"}) [] (Con () (GlobalName {qualifiedModule = ModuleName {unModuleName = "Builtins" :| []}, baseName = "True"}) [])]
-        Use -p '/eval full modules scrutinize imported type/' to rerun this test only.
     Pretty
       Examples
         comprehensive
@@ -536,4 +523,4 @@ test/Test.hs
         
         Use -p '/nextID exampleComprehensive/' to rerun this test only.
 
-17 out of 746 tests failed (117.07s)
+15 out of 746 tests failed (117.07s)
