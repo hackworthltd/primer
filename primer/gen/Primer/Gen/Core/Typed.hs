@@ -385,7 +385,7 @@ genChk ty = do
             m | null m -> Nothing
             cons -> Just $ do
               let cons' =
-                    M.toList cons <&> \(c, (params, fldsTys0, tycon)) -> do
+                    M.toList cons <&> \(c, (params, fldsTys0, _)) -> do
                       indicesMap <- for params $ \(p, k) -> (p,) <$> genWTType k
                       -- NB: it is vital to use simultaneous substitution here.
                       -- Consider the case where we have a local type variable @a@
