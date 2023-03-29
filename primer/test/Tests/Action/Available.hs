@@ -244,14 +244,14 @@ tasty_available_actions_accepted = withTests 500 $
                   let ty = astDefType d'
                       ids = ty ^.. typeIDs
                   i <- Gen.element ids
-                  let ann = "actionsForDefSig id " <> show i
-                  pure (ann, (Just (SigNode, i), Available.forSig l defMut ty i))
+                  let ann' = "actionsForDefSig id " <> show i
+                  pure (ann', (Just (SigNode, i), Available.forSig l defMut ty i))
               , defAST def <&> \d' -> (7,) $ do
                   let expr = astDefExpr d'
                       ids = expr ^.. exprIDs
                   i <- Gen.element ids
-                  let ann = "actionsForDefBody id " <> show i
-                  pure (ann, (Just (BodyNode, i), Available.forBody (snd <$> progAllTypeDefs (appProg a)) l defMut expr i))
+                  let ann' = "actionsForDefBody id " <> show i
+                  pure (ann', (Just (BodyNode, i), Available.forBody (snd <$> progAllTypeDefs (appProg a)) l defMut expr i))
               ]
       case acts of
         [] -> label "no offered actions" >> success
