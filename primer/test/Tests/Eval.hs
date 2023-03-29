@@ -386,21 +386,9 @@ unit_tryReduce_letrec = do
 unit_tryReduce_case_1 :: Assertion
 unit_tryReduce_case_1 = do
   let (expr, i) = create $ case_ (con0' ["M"] "C") [branch' (["M"], "B") [("b", Nothing)] (con0' ["M"] "D"), branch' (["M"], "C") [] (con0' ["M"] "E")]
-      expectedResult = create' $ con0' ["M"] "E"
   result <- runTryReduce tydefs mempty mempty (expr, i)
   case result of
-    Right (expr', CaseReduction detail) -> do
-      expr' ~= expectedResult
-
-      detail.before ~= expr
-      detail.after ~= expectedResult
-      detail.targetID @?= 1
-      detail.targetCtorID @?= 1
-      detail.ctorName @?= vcn ["M"] "C"
-      detail.targetArgIDs @?= []
-      detail.branchBindingIDs @?= []
-      detail.branchRhsID @?= 4
-      detail.letIDs @?= []
+    Left NotRedex -> pure ()
     _ -> assertFailure $ show result
 
 unit_tryReduce_case_2 :: Assertion
@@ -408,7 +396,7 @@ unit_tryReduce_case_2 = do
   let (expr, i) =
         create $
           case_
-            (con' ["M"] "C" [lam "x" (lvar "x"), (lvar "y"), (lvar "z")])
+            (con' ["M"] "C" [lam "x" (lvar "x"), (lvar "y"), (lvar "z")] `ann` tcon' ["M"] "T")
             [ branch' (["M"], "B") [("b", Nothing)] (con0' ["M"] "D")
             , branch' (["M"], "C") [("c", Nothing), ("d", Nothing), ("e", Nothing)] (con0' ["M"] "E")
             ]
@@ -448,12 +436,12 @@ unit_tryReduce_case_2 = do
       detail.before ~= expr
       detail.after ~= expectedResult
       detail.targetID @?= 1
-      detail.targetCtorID @?= 1
+      detail.targetCtorID @?= 2
       detail.ctorName @?= vcn ["M"] "C"
-      detail.targetArgIDs @?= [2, 4, 5]
-      detail.branchBindingIDs @?= [8, 9, 10]
-      detail.branchRhsID @?= 11
-      detail.letIDs @?= [18, 15, 12]
+      detail.targetArgIDs @?= [3, 5, 6]
+      detail.branchBindingIDs @?= [10, 11, 12]
+      detail.branchRhsID @?= 13
+      detail.letIDs @?= [20, 17, 14]
     _ -> assertFailure $ show result
 
 unit_tryReduce_case_3 :: Assertion
@@ -461,7 +449,7 @@ unit_tryReduce_case_3 = do
   let (expr, i) =
         create $
           case_
-            (con' ["M"] "C" [con0' ["M"] "E"])
+            (con' ["M"] "C" [con0' ["M"] "E"] `ann` (tcon' ["M"] "T" `tapp` tcon' ["M"] "D"))
             [ branch' (["M"], "B") [("b", Nothing)] (con0' ["M"] "D")
             , branch' (["M"], "C") [("c", Nothing)] (con0' ["M"] "F")
             ]
@@ -485,12 +473,12 @@ unit_tryReduce_case_3 = do
       detail.before ~= expr
       detail.after ~= expectedResult
       detail.targetID @?= 1
-      detail.targetCtorID @?= 1
+      detail.targetCtorID @?= 2
       detail.ctorName @?= vcn ["M"] "C"
       detail.targetArgIDs @?= [3]
-      detail.branchBindingIDs @?= [6]
-      detail.branchRhsID @?= 7
-      detail.letIDs @?= [8]
+      detail.branchBindingIDs @?= [9]
+      detail.branchRhsID @?= 10
+      detail.letIDs @?= [11]
     _ -> assertFailure $ show result
 
 unit_tryReduce_case_name_clash :: Assertion
@@ -498,7 +486,7 @@ unit_tryReduce_case_name_clash = do
   let (expr, i) =
         create $
           case_
-            (con' ["M"] "C" [emptyHole , lvar "x"])
+            (con' ["M"] "C" [emptyHole , lvar "x"] `ann` tcon' ["M"] "T")
             [branch' (["M"], "C") [("x", Nothing), ("y", Nothing)] emptyHole]
       tydef =
         Map.singleton (unsafeMkGlobalName (["M"], "T")) $
@@ -511,8 +499,8 @@ unit_tryReduce_case_name_clash = do
       expectedResult =
         create' $
           case_
-            (con' ["M"] "C" [emptyHole, lvar "x"])
-            [branch' (["M"], "C") [("a7", Nothing), ("y", Nothing)] $ let_ "x" (lvar "a7") emptyHole]
+            (con' ["M"] "C" [emptyHole, lvar "x"] `ann` tcon' ["M"] "T")
+            [branch' (["M"], "C") [("a9", Nothing), ("y", Nothing)] $ let_ "x" (lvar "a9") emptyHole]
   result <- runTryReduce tydef mempty mempty (expr, i)
   case result of
     Right (expr', BindRename detail) -> do
@@ -521,12 +509,12 @@ unit_tryReduce_case_name_clash = do
       detail.before ~= expr
       detail.after ~= expectedResult
       detail.bindingNamesOld @?= ["x", "y"]
-      detail.bindingNamesNew @?= ["a7", "y"]
-      detail.bindersOld @?= [4, 5]
-      detail.bindersNew @?= [4, 5]
+      detail.bindingNamesNew @?= ["a9", "y"]
+      detail.bindersOld @?= [6, 7]
+      detail.bindersNew @?= [6, 7]
       detail.bindingOccurrences @?= []
-      detail.renamingLets @?= [8]
-      detail.bodyID @?= 6
+      detail.renamingLets @?= [10]
+      detail.bodyID @?= 8
     _ -> assertFailure $ show result
 
 unit_tryReduce_case_scrutinee_not_redex :: Assertion
