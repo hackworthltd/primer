@@ -501,19 +501,19 @@ unit_type_preservation_case_regression_tm =
         e <-
           lam "x" $
             case_
-              (con cMakePair [emptyHole , lvar "x"])
+              (con cMakePair [emptyHole , lvar "x"] `ann` ((tcon tPair `tapp` tcon tNat) `tapp` tcon tBool))
               [branch cMakePair [("x", Nothing), ("y", Nothing)] emptyHole]
+        let x' = "a42" -- NB: fragile name
         expect1 <-
           lam "x" $
             case_
-              (con cMakePair [emptyHole , lvar "x"])
-              -- NB: fragile name a34
-              [branch cMakePair [("a34", Nothing), ("y", Nothing)] $ let_ "x" (lvar "a34") emptyHole]
+              (con cMakePair [emptyHole , lvar "x"] `ann` ((tcon tPair `tapp` tcon tNat) `tapp` tcon tBool))
+              [branch cMakePair [(x', Nothing), ("y", Nothing)] $ let_ "x" (lvar x') emptyHole]
         expect2 <-
           lam "x" $
-            let_ "a34" (emptyHole `ann` tcon tNat) $
+            let_ x' (emptyHole `ann` tcon tNat) $
               let_ "y" (lvar "x" `ann` tcon tBool) $
-                let_ "x" (lvar "a34") emptyHole
+                let_ "x" (lvar x') emptyHole
         pure (e, expect1, expect2)
    in do
         s1 <- evalFullTest maxID builtinTypes mempty 1 Chk expr
