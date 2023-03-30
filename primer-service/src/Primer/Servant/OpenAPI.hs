@@ -125,6 +125,12 @@ data SessionAPI mode = SessionAPI
           :> Summary "Undo the last action"
           :> OperationId "undo"
           :> Post '[JSON] Prog
+  , redo ::
+      mode
+        :- "redo"
+          :> Summary "Redo the last undo"
+          :> OperationId "redo"
+          :> Post '[JSON] Prog
   }
   deriving stock (Generic)
 

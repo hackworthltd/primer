@@ -13,7 +13,15 @@ module Primer.Gen.App (
 import Control.Monad.Fresh (MonadFresh (fresh))
 import Primer.App (
   App,
-  Prog (Prog, progImports, progLog, progModules, progSelection, progSmartHoles),
+  Prog (
+    Prog,
+    progImports,
+    progLog,
+    progModules,
+    progSelection,
+    progSmartHoles,
+    redoLog
+  ),
   defaultLog,
   mkApp,
   tcWholeProgWithImports,
@@ -65,6 +73,7 @@ genProg sh initialImports = local (extendCxtByModules initialImports) $ do
       , progSelection = Nothing
       , progSmartHoles = sh
       , progLog = defaultLog
+      , redoLog = defaultLog
       }
   where
     telescope :: MonadGen m => Range.Range Int -> (a -> m [a] -> m [a]) -> (Int -> m a) -> m [a]

@@ -154,6 +154,9 @@
                 "nodeType": "BodyNode"
             }
         },
-        "progSmartHoles": "SmartHoles"
+        "progSmartHoles": "SmartHoles",
+        "redoLog": {
+            "unlog": []
+        }
     }
 }

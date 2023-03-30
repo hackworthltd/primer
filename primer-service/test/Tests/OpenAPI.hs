@@ -231,7 +231,7 @@ genSelection :: ExprGen Selection
 genSelection = Selection <$> genGVarName <*> G.maybe genNodeSelection
 
 genProg :: Gen Prog
-genProg = evalExprGen 0 $ Prog <$> G.list (R.linear 0 3) genModule <*> G.maybe genSelection <*> G.bool
+genProg = evalExprGen 0 $ Prog <$> G.list (R.linear 0 3) genModule <*> G.maybe genSelection <*> G.bool <*> G.bool
 
 tasty_Prog :: Property
 tasty_Prog = testToJSON genProg
