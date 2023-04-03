@@ -98,7 +98,7 @@ import Primer.Core (
   Bind' (..),
   CaseBranch' (CaseBranch),
   Expr,
-  Expr' (Case, LAM, Lam, Let, LetType, Letrec),
+  Expr' (Case, LAM, Lam, Let, LetType, Letrec, Con),
   ExprMeta,
   HasID (..),
   ID,
