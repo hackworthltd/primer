@@ -152,9 +152,9 @@ unit_3 =
 unit_4 :: Assertion
 unit_4 =
   let ((expr, expected), maxID) = create $ do
-        e <- let_ "a" (lvar "b") $ con' ["M"] "C" [] [lvar "a", lam "a" (lvar "a") , lam "b" (con' ["M"] "D" [] [lvar "a" , lvar "b"])]
+        e <- let_ "a" (lvar "b") $ conSat' ["M"] "C" [] [lvar "a", lam "a" (lvar "a") , lam "b" (conSat' ["M"] "D" [] [lvar "a" , lvar "b"])]
         let b' = "a29" -- NB: fragile name a29
-        expect <- con' ["M"] "C" [] [lvar "b", lam "a" (lvar "a"), lam b' (con' ["M"] "D" [] [lvar "b", lvar b'])]
+        expect <- conSat' ["M"] "C" [] [lvar "b", lam "a" (lvar "a"), lam b' (conSat' ["M"] "D" [] [lvar "b", lvar b'])]
         pure (e, expect)
    in do
         s <- evalFullTest maxID mempty mempty 7 Syn expr
@@ -225,7 +225,7 @@ unit_9 =
         (mapName, mapDef) <- Examples.map' modName
         (evenName, evenDef) <- Examples.even modName
         (oddName, oddDef) <- Examples.odd modName
-        let lst = list_ tNat $ take n $ iterate (con cSucc [] . (:[])) (con0 cZero)
+        let lst = list_ tNat $ take n $ iterate (conSat cSucc [] . (:[])) (con0 cZero)
         expr <- gvar mapName `aPP` tcon tNat `aPP` tcon tBool `app` gvar evenName `app` lst
         let globs = [(mapName, mapDef), (evenName, evenDef), (oddName, oddDef)]
         expect <- list_ tBool (take n $ cycle [con0 cTrue, con0 cFalse]) `ann` (tcon tList `tapp` tcon tBool)
@@ -275,12 +275,12 @@ unit_11 =
         let ty = tcon tNat `tfun` (tcon tPair `tapp` tcon tBool `tapp` tcon tNat)
         let expr1 =
               let_ "x" (con0 cZero) $
-                lam "n" (con cMakePair [tcon tBool ,tcon tNat] [(gvar evenName `app` lvar "n") , lvar "x"])
+                lam "n" (conSat cMakePair [tcon tBool ,tcon tNat] [(gvar evenName `app` lvar "n") , lvar "x"])
                   `ann` ty
         expr <- expr1 `app` con0 cZero
         let globs = [(evenName, evenDef), (oddName, oddDef)]
         expect <-
-          (con cMakePair [tcon tBool , tcon tNat] [con0 cTrue , con0 cZero])
+          (conSat cMakePair [tcon tBool , tcon tNat] [con0 cTrue , con0 cZero])
             `ann` (tcon tPair `tapp` tcon tBool `tapp` tcon tNat)
         pure (globs, expr, expect)
    in do
@@ -314,8 +314,8 @@ unit_12 =
 unit_13 :: Assertion
 unit_13 =
   let ((e, expected), maxID) = create $ do
-        expr <- (lam "x" (con' ["M"] "C" [] [lvar "x", let_ "x" (con0 cTrue) (lvar "x") , lvar "x"]) `ann` (tcon tNat `tfun` tcon tBool)) `app` con0 cZero
-        expect <- (con' ["M"] "C" [] [con0 cZero , con0 cTrue , con0 cZero]) `ann` tcon tBool
+        expr <- (lam "x" (conSat' ["M"] "C" [] [lvar "x", let_ "x" (con0 cTrue) (lvar "x") , lvar "x"]) `ann` (tcon tNat `tfun` tcon tBool)) `app` con0 cZero
+        expect <- (conSat' ["M"] "C" [] [con0 cZero , con0 cTrue , con0 cZero]) `ann` tcon tBool
         pure (expr, expect)
    in do
         s <- evalFullTest maxID builtinTypes mempty 15 Syn e
@@ -344,7 +344,7 @@ unit_15 :: Assertion
 unit_15 =
   let ((expr, steps, expected), maxID) = create $ do
         let l = let_ "x" (lvar "y")
-        let c a b = con' ["M"] "C" [] [lvar a , lvar b]
+        let c a b = conSat' ["M"] "C" [] [lvar a , lvar b]
         e0 <- l $ lam "y" $ c "x" "y"
         let y' = "a50" -- NB: fragile name "a50"
         e1 <- l $ lam y' $ let_ "y" (lvar y') $ c "x" "y"
@@ -502,12 +502,12 @@ unit_type_preservation_case_regression_tm =
         e <-
           lam "x" $
             case_
-              (con cMakePair [tcon tNat, tcon tBool] [emptyHole , lvar "x"])
+              (conSat cMakePair [tcon tNat, tcon tBool] [emptyHole , lvar "x"])
               [branch cMakePair [("x", Nothing), ("y", Nothing)] emptyHole]
         expect1 <-
           lam "x" $
             case_
-              (con cMakePair [tcon tNat , tcon tBool] [emptyHole , lvar "x"])
+              (conSat cMakePair [tcon tNat , tcon tBool] [emptyHole , lvar "x"])
               -- NB: fragile name a42
               [branch cMakePair [("a42", Nothing), ("y", Nothing)] $ let_ "x" (lvar "a42") emptyHole]
         expect2 <-
@@ -536,14 +536,14 @@ unit_type_preservation_case_regression_ty =
         e <-
           lAM "x" $
             case_
-              ( (con cMakePair [tEmptyHole ,tvar "x"] [emptyHole , emptyHole])
+              ( (conSat cMakePair [tEmptyHole ,tvar "x"] [emptyHole , emptyHole])
                   `ann` (tcon tPair `tapp` tEmptyHole `tapp` tvar "x")
               )
               [branch cMakePair [("x", Nothing), ("y", Nothing)] emptyHole]
         expect1 <-
           lAM "x" $
             case_
-              ( (con cMakePair [tEmptyHole , tvar "x"] [emptyHole , emptyHole])
+              ( (conSat cMakePair [tEmptyHole , tvar "x"] [emptyHole , emptyHole])
                   `ann` (tcon tPair `tapp` tEmptyHole `tapp` tvar "x")
               )
               -- NB fragile name a54
@@ -572,9 +572,9 @@ unit_type_preservation_case_hole_regression :: Assertion
 unit_type_preservation_case_hole_regression = evalTestM 0 $ do
   t <-
     case_
-      ((con cJust [tEmptyHole][con0 cFalse]) `ann` (tcon tMaybe `tapp` tcon tNat))
+      ((conSat cJust [tEmptyHole][con0 cFalse]) `ann` (tcon tMaybe `tapp` tcon tNat))
       [ branch cNothing [] emptyHole
-      , branch cJust [("x", Nothing)] $ con cSucc [][ lvar "x"]
+      , branch cJust [("x", Nothing)] $ conSat cSucc [][ lvar "x"]
       ]
   let tds = foldMap' moduleTypesQualified testModules
   let globs = foldMap' moduleDefsQualified testModules
@@ -899,7 +899,7 @@ tasty_prim_hex_nat = withTests 20 . property $ do
                   [ branch
                       cNothing
                       []
-                      (con cNothing [tcon tChar] [])
+                      (conSat cNothing [tcon tChar] [])
                   , branch
                       cJust
                       [("x", Nothing)]
