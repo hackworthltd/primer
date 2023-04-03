@@ -160,7 +160,7 @@ unit_ty_tm_same_namespace =
   actionTestExpectFail
     isNameCapture
     NoSmartHoles
-    (ann (lAM "a" $ conSat cNil [tvar "a"][]) tEmptyHole)
+    (ann (lAM "a" $ con cNil [tvar "a"][]) tEmptyHole)
     [Move Child1, Move Child1, ConstructLam (Just "a")]
 
 -- * Helpers
