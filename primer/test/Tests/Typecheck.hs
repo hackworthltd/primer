@@ -205,7 +205,7 @@ unit_con_hole_app_type_5 =
 
 unit_constructor_doesn't_exist :: Assertion
 unit_constructor_doesn't_exist =
-  con nope [] [] `expectFailsWith` const (UnknownConstructor nope)
+  con0 nope `expectFailsWith` const (UnknownConstructor nope)
   where
     nope = vcn ["M"] "Nope"
 
