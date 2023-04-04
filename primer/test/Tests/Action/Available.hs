@@ -52,6 +52,7 @@ import Primer.App (
   progModules,
   runEditAppM,
  )
+import Primer.Builtins (cTrue)
 import Primer.Core (
   Expr,
   GVarName,
@@ -69,6 +70,7 @@ import Primer.Core.DSL (
   S,
   ann,
   app,
+  con0,
   create,
   create',
   emptyHole,
@@ -340,6 +342,7 @@ unit_raise_sh =
    in do
         testSyn emptyHole
         testChk $ lam "x" (lvar "x")
+        testChk $ con0 cTrue
 
 -- | Apply the action to the node in the input expression pointed to by the
 -- 'Movement' (starting from the root), checking that it would actually be offered
