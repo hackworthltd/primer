@@ -1040,6 +1040,14 @@ unit_refine_5 =
     [Move Child2, Move Child1, InsertRefinedVar $ LocalVarRef "nil"]
     (let_ "nil" (con cNil) $ (lvar "nil" `aPP` tEmptyHole) `ann` (tcon tList `tapp` tEmptyHole))
 
+unit_refine_mismatch :: Assertion
+unit_refine_mismatch =
+  actionTest
+    NoSmartHoles
+    (emptyHole `ann` tcon tNat)
+    [Move Child1, constructRefinedCon cCons]
+    (hole (con cCons) `ann` tcon tNat)
+
 unit_primitive_1 :: Assertion
 unit_primitive_1 =
   actionTest
