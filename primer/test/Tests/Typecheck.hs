@@ -447,8 +447,8 @@ unit_check_emb =
 -- Constructors are synthesisable
 unit_con_direction :: Assertion
 unit_con_direction =
-  con cTrue
-    `smartSynthGives` con cTrue
+  con0 cTrue
+    `smartSynthGives` con0 cTrue
 
 unit_case_scrutinee :: Assertion
 unit_case_scrutinee =
