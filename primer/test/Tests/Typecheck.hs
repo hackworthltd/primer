@@ -152,6 +152,16 @@ unit_const =
 unit_true :: Assertion
 unit_true = expectTyped $ con cTrue
 
+-- An empty hole accepts under-saturated constructors
+unit_unsat_con_hole_1 :: Assertion
+unit_unsat_con_hole_1 = expectTyped $ con cSucc `ann` tEmptyHole
+
+-- An empty hole rejects over-saturated constructors
+unit_unsat_con_hole_2 :: Assertion
+unit_unsat_con_hole_2 =
+  (con cSucc `app` emptyHole `app` emptyHole `ann` tEmptyHole)
+    `expectFailsWith` const (TypeDoesNotMatchArrow $ TCon () tNat)
+
 unit_constructor_doesn't_exist :: Assertion
 unit_constructor_doesn't_exist =
   con nope `expectFailsWith` const (UnknownConstructor nope)
