@@ -465,11 +465,11 @@ unit_check_emb =
   (con1 cSucc (con0 cTrue) `ann` tcon tNat) -- TODO: this test does not pass..., and is bug in TC code
     `smartSynthGives` (con1 cSucc (hole $ con0 cTrue `ann` tEmptyHole) `ann` tcon tNat)
 
--- Constructors are synthesisable
+-- Constructors are checkable
 unit_con_direction :: Assertion
 unit_con_direction =
   con0 cTrue
-    `smartSynthGives` con0 cTrue
+    `smartSynthGives` (con0 cTrue `ann` tEmptyHole)
 
 unit_case_scrutinee :: Assertion
 unit_case_scrutinee =
