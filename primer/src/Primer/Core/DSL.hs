@@ -6,6 +6,7 @@ module Primer.Core.DSL (
   ann,
   app,
   aPP,
+  conSat,
   con,
   con0,
   con1,
@@ -37,6 +38,7 @@ module Primer.Core.DSL (
   setMeta,
   S,
   tcon',
+  conSat',
   con',
   con0',
   gvar',
@@ -112,15 +114,23 @@ emptyHole = EmptyHole <$> meta
 ann :: MonadFresh ID m => m Expr -> m Type -> m Expr
 ann e t = Ann <$> meta <*> e <*> t
 
+--con :: MonadFresh ID m => ValConName -> m Expr
+--con c = Con <$> meta <*> pure c <*> pure [] <*> pure []
 con :: MonadFresh ID m => ValConName -> [m Type] -> [m Expr] -> m Expr
-con c tys tms = Con <$> meta <*> pure c <*> sequence tys <*> sequence tms
+con = conSat
+
+-- TODO (saturated constructors) once saturation is enforced, this will be
+-- renamed to con, and the current con will be removed (since it creates
+-- unsaturated constructors)
+conSat :: MonadFresh ID m => ValConName -> [m Type] -> [m Expr] -> m Expr
+conSat c tys tms = Con <$> meta <*> pure c <*> sequence tys <*> sequence tms
 
 -- | Create a constructor of arity zero.
 -- (This condition is not checked here.
 --  If used with a constructor which has fields,
 --  then the typechecker will complain, when run.)
 con0 :: MonadFresh ID m => ValConName -> m Expr
-con0 c = con c [] []
+con0 c = conSat c [] []
 
 
 -- | Create a constructor of arity one.
@@ -128,7 +138,7 @@ con0 c = con c [] []
 --  If used with a constructor which has fields,
 --  then the typechecker will complain, when run.)
 con1 :: MonadFresh ID m => ValConName -> m Expr -> m Expr
-con1 c t = con c [] [t]
+con1 c t = conSat c [] [t]
 
 lvar :: MonadFresh ID m => LVarName -> m Expr
 lvar v = Var <$> meta <*> pure (LocalVarRef v)
@@ -171,11 +181,19 @@ char = prim . PrimChar
 int :: MonadFresh ID m => Integer -> m Expr
 int = prim . PrimInt
 
+--con' :: MonadFresh ID m => NonEmpty Name -> Name -> m Expr
+--con' m n = con $ qualifyName (ModuleName m) n
 con' :: MonadFresh ID m => NonEmpty Name -> Name -> [m Type] -> [m Expr] -> m Expr
-con' m n = con $ qualifyName (ModuleName m) n
+con' = conSat'
 
 con0' :: MonadFresh ID m => NonEmpty Name -> Name -> m Expr
 con0' m n = con0 $ qualifyName (ModuleName m) n
+
+-- TODO (saturated constructors) once saturation is enforced, this will be
+-- renamed to con', and the current con' will be removed (since it creates
+-- unsaturated constructors)
+conSat' :: MonadFresh ID m => NonEmpty Name -> Name -> [m Type] -> [m Expr] -> m Expr
+conSat' m n = conSat $ qualifyName (ModuleName m) n
 
 gvar' :: MonadFresh ID m => NonEmpty Name -> Name -> m Expr
 gvar' m n = gvar $ qualifyName (ModuleName m) n

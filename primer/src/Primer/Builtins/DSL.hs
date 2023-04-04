@@ -30,7 +30,7 @@ import Primer.Core (
  )
 import Primer.Core.DSL (
   con0,
-  con,
+  conSat,
   tapp,
   tcon,
  )
@@ -41,21 +41,21 @@ bool_ b = con0 $ if b then cTrue else cFalse
 
 nat :: MonadFresh ID m => Natural -> m Expr
 nat = \case
-  0 -> con cZero [] []
-  n -> con cSucc [] [nat (n - 1)]
+  0 -> conSat cZero [] []
+  n -> conSat cSucc [] [nat (n - 1)]
 
 maybe_ :: MonadFresh ID m => m Type -> (a -> m Expr) -> Maybe a -> m Expr
 maybe_ t f = \case
-  Nothing -> con cNothing [t] []
-  Just x -> con cJust [t] [f x]
+  Nothing -> conSat cNothing [t] []
+  Just x -> conSat cJust [t] [f x]
 
 list_ :: MonadFresh ID m => TyConName -> [m Expr] -> m Expr
 list_ t =
   foldr
     ( \a b ->
-        con cCons [tcon t] [a, b]
+        conSat cCons [tcon t] [a, b]
     )
-    (con cNil [tcon t] [])
+    (conSat cNil [tcon t] [])
 
 listOf :: MonadFresh ID m => m Type -> m Type
 listOf = tapp (tcon tList)
