@@ -146,15 +146,16 @@ unit_const =
 unit_true :: Assertion
 unit_true = expectTyped $ con0 cTrue
 
--- An empty hole accepts under-saturated constructors
+-- An empty hole rejects under-saturated constructors
 unit_unsat_con_hole_1 :: Assertion
-unit_unsat_con_hole_1 = expectTyped $ conSat cSucc [] [] `ann` tEmptyHole
+unit_unsat_con_hole_1 = (conSat cSucc [] [] `ann` tEmptyHole)
+  `expectFailsWith` \_ -> UnsaturatedConstructor cSucc
 
 -- An empty hole rejects over-saturated constructors
 unit_unsat_con_hole_2 :: Assertion
 unit_unsat_con_hole_2 =
   (conSat cSucc [] [emptyHole, emptyHole] `ann` tEmptyHole)
-    `expectFailsWith` const (TypeDoesNotMatchArrow $ TCon () tNat)
+  `expectFailsWith` \_ -> UnsaturatedConstructor cSucc
 
 -- A hole-headed TApp accepts saturated constructors
 unit_con_hole_app_type_1 :: Assertion
