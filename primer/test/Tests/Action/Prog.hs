@@ -29,6 +29,7 @@ import Primer.Action (
     Branch,
     Child1,
     Child2,
+    ConChild,
     Parent
   ),
  )
@@ -121,7 +122,7 @@ import Primer.Module (Module (Module, moduleDefs, moduleName, moduleTypes), buil
 import Primer.Name
 import Primer.Primitives (PrimDef (IntAdd, ToUpper), primitiveGVar, tChar)
 import Primer.Test.TestM (TestM, evalTestM)
-import Primer.Test.Util (LogMsg, assertNoSevereLogs, constructCon, constructTCon, zeroIDs, zeroTypeIDs)
+import Primer.Test.Util (LogMsg, assertNoSevereLogs, constructSaturatedCon, constructTCon, zeroIDs, zeroTypeIDs)
 import Primer.Test.Util qualified as Util
 import Primer.TypeDef (ASTTypeDef (..), TypeDef (..), ValCon (..), forgetTypeDefMetadata, typeDefAST)
 import Primer.Typecheck (
@@ -1448,27 +1449,18 @@ unit_cross_module_actions =
               , ConstructVar (GlobalVarRef $ qualifyM "foo")
               , Move Parent
               , Move Child2
-              , ConstructApp
-              , Move Child1
-              , constructCon (qualifyM "C")
-              , Move Parent
-              , Move Child2
-              , constructCon cZero
+              , constructSaturatedCon (qualifyM "C")
+              , Move $ ConChild 0
+              , constructSaturatedCon cZero
               , Move Parent
               , Move Parent
               , ConstructCase
               , Move (Branch (qualifyM "C"))
-              , ConstructApp
-              , Move Child1
-              , constructCon (qualifyM "C")
-              , Move Parent
-              , Move Child2
-              , ConstructApp
-              , Move Child1
-              , constructCon cSucc
-              , Move Parent
-              , Move Child2
-              , ConstructVar (LocalVarRef "a38")
+              , constructSaturatedCon (qualifyM "C")
+              , Move $ ConChild 0
+              , constructSaturatedCon cSucc
+              , Move $ ConChild 0
+              , ConstructVar (LocalVarRef "a42")
               ]
           ]
         handleAndTC [RenameDef (qualifyM "foo") "bar"]
@@ -1504,7 +1496,7 @@ unit_cross_module_actions =
               , ConstructVar $ GlobalVarRef $ qualifyName (ModuleName ["AnotherModule"]) "bar"
               , Move Parent
               , Move Child2
-              , constructCon cTrue
+              , constructSaturatedCon cTrue
               ]
           ]
         -- Copy-paste within the sig of bar to make bar :: Bool -> Bool
