@@ -499,11 +499,15 @@ synth = \case
       Nothing -> throwError' $ UnknownConstructor c
     -- And |ps| = |As| and k ∋ A for each matching element
     tys'Sub <- ensureJust (UnsaturatedConstructor c) $ zipWithExactM (\(p,k) ty -> (p,) <$> checkKind' k ty) params tys
+    -- Note that being unsaturated is a fatal error and SmartHoles will not try to recover
+    -- (this is a design decision -- we put the burden onto code that builds ASTs,
+    -- e.g. the action code is responsible for only creating saturated constructors)
     let tys' = snd <$> tys'Sub
     let tys'SubNoMeta = second forgetTypeMetadata <$> tys'Sub
     let tys'NoMeta = snd <$> tys'SubNoMeta
     -- And |rs| = |Rs| and R[As] ∋ r for each matching element
     argTys <- traverse (substTySimul (M.fromList tys'SubNoMeta)) argTys0
+    -- Fatal error, see comments on UnsaturatedConstructor error above
     tms' <- ensureJust (UnsaturatedConstructor c) $ zipWithExactM check argTys tms
     -- Then C @As rs  ∈  T As
     let synthedType = foldl' (TApp ()) (TCon () adtName) tys'NoMeta
