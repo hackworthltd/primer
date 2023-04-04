@@ -393,6 +393,12 @@ unit_check_emb =
   app (con cSucc) (con cTrue)
     `smartSynthGives` app (con cSucc) (hole $ con cTrue)
 
+-- Constructors are synthesisable
+unit_con_direction :: Assertion
+unit_con_direction =
+  con cTrue
+    `smartSynthGives` con cTrue
+
 unit_case_scrutinee :: Assertion
 unit_case_scrutinee =
   ann (case_ (con cSucc) [branch' (["M"], "C") [] $ lvar "x"]) (tcon tBool)
