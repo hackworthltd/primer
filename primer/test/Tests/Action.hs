@@ -1048,6 +1048,25 @@ unit_refine_mismatch =
     [Move Child1, constructRefinedCon cCons]
     (hole (con cCons) `ann` tcon tNat)
 
+-- Note @cons @? ∈ ? -> List ? -> List ?  ~  ? -> ?@,
+-- thus inserting a refined @cons@ in a hole of type @? -> ?@ may not refine as
+-- much as you may expect!
+unit_refine_arr_1 :: Assertion
+unit_refine_arr_1 =
+  actionTest
+    NoSmartHoles
+    (emptyHole `ann` (tEmptyHole `tfun` tEmptyHole))
+    [Move Child1, constructRefinedCon cCons]
+    ((con cCons `aPP` tEmptyHole) `ann` (tEmptyHole `tfun` tEmptyHole))
+
+unit_refine_arr_2 :: Assertion
+unit_refine_arr_2 =
+  actionTest
+    NoSmartHoles
+    (emptyHole `ann` ((tcon tList `tapp` tcon tNat) `tfun` (tcon tList `tapp` tcon tNat)))
+    [Move Child1, constructRefinedCon cCons]
+    ((con cCons `aPP` tcon tNat `app` emptyHole) `ann` ((tcon tList `tapp` tcon tNat) `tfun` (tcon tList `tapp` tcon tNat)))
+
 unit_primitive_1 :: Assertion
 unit_primitive_1 =
   actionTest
