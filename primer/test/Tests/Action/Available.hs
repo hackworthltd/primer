@@ -54,7 +54,7 @@ import Primer.App (
   progSmartHoles,
   runEditAppM,
  )
-import Primer.Builtins (builtinModuleName, cCons, tList, tNat)
+import Primer.Builtins (builtinModuleName, cCons, cTrue, tList, tNat)
 import Primer.Core (
   Expr,
   GVarName,
@@ -73,6 +73,7 @@ import Primer.Core.DSL (
   ann,
   app,
   con,
+  con0,
   create,
   create',
   emptyHole,
@@ -360,6 +361,7 @@ unit_raise_sh =
    in do
         testSyn emptyHole
         testChk $ lam "x" (lvar "x")
+        testChk $ con0 cTrue
 
 unit_sat_con_1 :: Assertion
 unit_sat_con_1 =
