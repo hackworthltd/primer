@@ -21,6 +21,7 @@ import Primer.App (
   ProgAction (BodyAction, MoveToDef),
   ProgError (NoDefSelected),
   Selection (..),
+  defaultLog,
  )
 import Primer.Builtins (tNat)
 import Primer.Core (
@@ -142,6 +143,7 @@ fixtures =
           , progSelection = Just selection
           , progSmartHoles = SmartHoles
           , progLog = log
+          , redoLog = defaultLog
           }
       selection :: Selection
       selection =

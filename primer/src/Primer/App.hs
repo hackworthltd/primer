@@ -216,10 +216,7 @@ import Primer.Zipper (
   _target,
  )
 
--- | The program state, shared between the frontend and backend
---  This is much more info than we need to send - for example we probably don't
---  need to send the log back and forth.
---  But for now, to keep things simple, that's how it works.
+-- | The full program state.
 data Prog = Prog
   { progImports :: [Module]
   -- ^ Some immutable imported modules
@@ -227,16 +224,42 @@ data Prog = Prog
   -- ^ The editable "home" modules
   , progSelection :: Maybe Selection
   , progSmartHoles :: SmartHoles
-  , progLog :: Log -- The log of all actions
+  , progLog :: Log
+  -- ^ The sequence of all successful edits performed on the program
+  -- since its creation, in order of first edit to last. A successful
+  -- undo operation pops the last edit from this log, and pushes it
+  -- onto the 'redoLog'.
+  , redoLog :: Log
+  -- ^ A log of successive undo operations, in order of most recent to
+  -- least (i.e., a LIFO-order stack). A successful redo operation
+  -- pops the most recent undo from this log. Note that this log is
+  -- reset whenever an action is performed; i.e., redos are not
+  -- preserved across edits.
   }
   deriving stock (Eq, Show, Read, Generic)
   deriving (FromJSON, ToJSON) via PrimerJSON Prog
   deriving anyclass (NFData)
 
+-- | Push a compound action onto the given 'Log', returning the new
+-- 'Log'.
+push :: [ProgAction] -> Log -> Log
+push as l = Log $ as : unlog l
+
+-- | Pop the head of the given 'Log'.
+--
+-- If the log is not empty, returns 'Just (as, l)' where 'as' is the
+-- head of the log and 'l' is the rest of the log.
+--
+-- If the log is empty, returns 'Nothing'.
+pop :: Log -> Maybe ([ProgAction], Log)
+pop l = case unlog l of
+  [] -> Nothing
+  (as : l') -> Just (as, Log l')
+
 -- | The default 'Prog'. It has no imports, no definitions, no current
 -- 'Selection', and an empty 'Log'. Smart holes are enabled.
 defaultProg :: Prog
-defaultProg = Prog mempty mempty Nothing SmartHoles defaultLog
+defaultProg = Prog mempty mempty Nothing SmartHoles defaultLog defaultLog
 
 progAllModules :: Prog -> [Module]
 progAllModules p = progModules p <> progImports p
@@ -382,6 +405,7 @@ newtype Log = Log {unlog :: [[ProgAction]]}
   deriving stock (Eq, Show, Read, Generic)
   deriving (FromJSON, ToJSON) via PrimerJSON Log
   deriving anyclass (NFData)
+  deriving newtype (Semigroup, Monoid)
 
 -- | The default (empty) 'Log'.
 defaultLog :: Log
@@ -417,6 +441,7 @@ instance HasID NodeSelection where
 -- | The type of requests which can mutate the application state.
 data MutationRequest
   = Undo
+  | Redo
   | Edit [ProgAction]
   deriving stock (Eq, Show, Read, Generic)
   deriving (FromJSON, ToJSON) via PrimerJSON MutationRequest
@@ -507,13 +532,16 @@ handleMutationRequest :: MonadEditApp l ProgError m => MutationRequest -> m Prog
 handleMutationRequest = \case
   Edit as -> handleEditRequest as
   Undo -> handleUndoRequest
+  Redo -> handleRedoRequest
 
 -- | Handle an edit request
+--
+-- Note that a successful edit resets the redo log.
 handleEditRequest :: forall m l. MonadEditApp l ProgError m => [ProgAction] -> m Prog
 handleEditRequest actions = do
   (prog, _) <- gets appProg >>= \p -> foldlM go (p, Nothing) actions
-  let Log l = progLog prog
-  let prog' = prog{progLog = Log (actions : l)}
+  let l = progLog prog
+  let prog' = prog{progLog = push actions l, redoLog = defaultLog}
   modify (\s -> s & #currentState % #prog .~ prog')
   pure prog'
   where
@@ -976,21 +1004,53 @@ editModuleOfCross mdefName prog f = case mdefName of
       _ -> throwError $ DefNotFound defname
 
 -- | Undo the last block of actions.
+--
 -- If there are no actions in the log we return the program unchanged.
--- We undo by replaying the whole log from the start.
--- Because actions often refer to the IDs of nodes created by previous actions
--- we must reset the ID and name counter to their original state before we
--- replay. We do this by resetting the entire app state.
+--
+-- Otherwise, we undo by replaying the whole log from the start.
+-- Because actions often refer to the IDs of nodes created by previous
+-- actions we must reset the ID and name counter to their original
+-- state before we replay. We do this by resetting the entire app
+-- state.
+--
+-- If the replay is successful, then we return the new program and
+-- push the block of actions that were undone onto the redo log.
+--
+-- If the replay is unsuccessful, then we throw a 'ProgError' and
+-- leave it to the caller to decide how to handle it.
 handleUndoRequest :: MonadEditApp l ProgError m => m Prog
 handleUndoRequest = do
   prog <- gets appProg
   start <- gets appInit
   case unlog (progLog prog) of
     [] -> pure prog
-    (_ : as) -> do
+    (a : as) -> do
       runEditAppM (replay (reverse as)) start >>= \case
         (Right _, app') -> do
-          put app'
+          put $ app' & #currentState % #prog % #redoLog .~ push a (redoLog prog)
+          gets appProg
+        (Left err, _) -> throwError err
+
+-- | Redo the last undo by replaying it from the current program
+-- state.
+--
+-- If the replay is successful, then we return the new program and
+-- pop the last undo off the redo log.
+--
+-- If the replay is unsuccessful, then we throw a 'ProgError' and
+-- leave it to the caller to decide how to handle it.
+--
+-- If the redo log is empty, return the program unchanged.
+handleRedoRequest :: (MonadEditApp l ProgError m) => m Prog
+handleRedoRequest = do
+  prog <- gets appProg
+  app <- get
+  case pop (redoLog prog) of
+    Nothing -> pure prog
+    Just (a, redoLog') -> do
+      runEditAppM (handleEditRequest a) app >>= \case
+        (Right _, app') -> do
+          put $ app' & #currentState % #prog % #redoLog .~ redoLog'
           gets appProg
         (Left err, _) -> throwError err
 

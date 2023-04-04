@@ -10,7 +10,14 @@ import Hedgehog.Gen qualified as Gen
 import Hedgehog.Range qualified as Range
 import Optics (over, set, (%), (%~))
 import Primer.App (
-  Prog (Prog, progImports, progLog, progSelection, progSmartHoles),
+  Prog (
+    Prog,
+    progImports,
+    progLog,
+    progSelection,
+    progSmartHoles,
+    redoLog
+  ),
   appIdCounter,
   appInit,
   appNameCounter,
@@ -706,12 +713,13 @@ instance Eq (TypeCacheAlpha App.Selection) where
   TypeCacheAlpha (App.Selection d1 n1) == TypeCacheAlpha (App.Selection d2 n2) =
     d1 == d2 && TypeCacheAlpha n1 == TypeCacheAlpha n2
 instance Eq (TypeCacheAlpha Prog) where
-  TypeCacheAlpha (Prog i1 m1 s1 sh1 l1) == TypeCacheAlpha (Prog i2 m2 s2 sh2 l2) =
+  TypeCacheAlpha (Prog i1 m1 s1 sh1 l1 r1) == TypeCacheAlpha (Prog i2 m2 s2 sh2 l2 r2) =
     TypeCacheAlpha i1 == TypeCacheAlpha i2
       && TypeCacheAlpha m1 == TypeCacheAlpha m2
       && TypeCacheAlpha s1 == TypeCacheAlpha s2
       && sh1 == sh2
       && l1 == l2
+      && r1 == r2
 instance Eq (TypeCacheAlpha App.App) where
   TypeCacheAlpha a1 == TypeCacheAlpha a2 =
     appInit a1 == appInit a2
@@ -780,6 +788,7 @@ unit_tcWholeProg_notice_type_updates =
           , progSmartHoles = SmartHoles
           , progSelection = Nothing
           , progLog = defaultLog
+          , redoLog = defaultLog
           }
       a0 = mkProg d0
       a1 = mkProg d1

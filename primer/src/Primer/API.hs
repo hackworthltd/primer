@@ -57,6 +57,7 @@ module Primer.API (
   applyActionInput,
   ApplyActionBody (..),
   undo,
+  redo,
   -- The following are exported only for testing.
   viewTreeType,
   viewTreeExpr,
@@ -65,6 +66,8 @@ module Primer.API (
   viewSelection,
   NodeSelection (..),
   viewNodeSelection,
+  undoAvailable,
+  redoAvailable,
   Name (..),
 ) where
 
@@ -122,10 +125,13 @@ import Primer.App (
   progAllTypeDefs,
   progCxt,
   progImports,
+  progLog,
   progModules,
   progSelection,
+  redoLog,
   runEditAppM,
   runQueryAppM,
+  unlog,
  )
 import Primer.App qualified as App
 import Primer.Core (
@@ -256,6 +262,7 @@ data PrimerErr
   | ToProgActionError Available.Action ActionError
   | ApplyActionError [ProgAction] ProgError
   | UndoError ProgError
+  | RedoError ProgError
   deriving stock (Show)
 
 instance Exception PrimerErr
@@ -379,6 +386,7 @@ data APILog
   | ApplyActionNoInput (ReqResp (SessionId, Selection, Available.NoInputAction) Prog)
   | ApplyActionInput (ReqResp (SessionId, ApplyActionBody, Available.InputAction) Prog)
   | Undo (ReqResp SessionId Prog)
+  | Redo (ReqResp SessionId Prog)
   deriving stock (Show, Read)
 
 type MonadAPILog l m = (MonadLog (WithSeverity l) m, ConvertLogMessage APILog l)
@@ -605,6 +613,8 @@ data NodeBody
 data Prog = Prog
   { modules :: [Module]
   , selection :: Maybe Selection
+  , undoAvailable :: Bool
+  , redoAvailable :: Bool
   }
   deriving stock (Generic, Show, Read)
   deriving (ToJSON, FromJSON) via PrimerJSON Prog
@@ -643,6 +653,8 @@ viewProg p =
   Prog
     { modules = map (viewModule True) (progModules p) <> map (viewModule False) (progImports p)
     , selection = viewSelection <$> progSelection p
+    , undoAvailable = not $ null $ unlog $ progLog p
+    , redoAvailable = not $ null $ unlog $ redoLog p
     }
   where
     viewModule e m =
@@ -1131,6 +1143,15 @@ undo =
   logAPI (noError Undo) \sid ->
     edit sid App.Undo
       >>= either (throwM . UndoError) (pure . viewProg)
+
+redo ::
+  (MonadIO m, MonadThrow m, MonadAPILog l m) =>
+  SessionId ->
+  PrimerM m Prog
+redo =
+  logAPI (noError Redo) \sid ->
+    edit sid App.Redo
+      >>= either (throwM . RedoError) (pure . viewProg)
 
 -- | 'App.Selection' without any node metadata.
 data Selection = Selection

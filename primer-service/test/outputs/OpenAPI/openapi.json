@@ -595,12 +595,20 @@
                         },
                         "type": "array"
                     },
+                    "redoAvailable": {
+                        "type": "boolean"
+                    },
                     "selection": {
                         "$ref": "#/components/schemas/Selection"
+                    },
+                    "undoAvailable": {
+                        "type": "boolean"
                     }
                 },
                 "required": [
-                    "modules"
+                    "modules",
+                    "undoAvailable",
+                    "redoAvailable"
                 ],
                 "type": "object"
             },
@@ -1332,6 +1340,39 @@
                     }
                 },
                 "summary": "Get the current program state"
+            }
+        },
+        "/openapi/sessions/{sessionId}/redo": {
+            "post": {
+                "operationId": "redo",
+                "parameters": [
+                    {
+                        "description": "The session ID",
+                        "in": "path",
+                        "name": "sessionId",
+                        "required": true,
+                        "schema": {
+                            "format": "uuid",
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json;charset=utf-8": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Prog"
+                                }
+                            }
+                        },
+                        "description": ""
+                    },
+                    "404": {
+                        "description": "`sessionId` not found"
+                    }
+                },
+                "summary": "Redo the last undo"
             }
         },
         "/openapi/sessions/{sessionId}/typedef": {
