@@ -211,8 +211,8 @@ freshen fvs i n =
 -- genSyns T with cxt Γ should generate (e,S) st Γ |- e ∈ S and S ~ T (i.e. same up to holes and alpha)
 genSyns :: HasCallStack => TypeG -> GenT WT (ExprG, TypeG)
 genSyns ty = do
-  genPrimCon'' <- lift genPrimCon'
   genSpine' <- lift genSpine
+  genPrimCon'' <- lift genPrimCon'
   Gen.recursive Gen.choice [genEmptyHole, genAnn] $ [genHole, genApp, genAPP, genLet] ++ catMaybes [genPrimCon'', genSpine']
   where
     genEmptyHole = pure (EmptyHole (), TEmptyHole ())
