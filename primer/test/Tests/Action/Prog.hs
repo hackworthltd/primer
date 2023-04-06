@@ -41,6 +41,7 @@ import Primer.App (
   appIdCounter,
   appNameCounter,
   appProg,
+  checkAppWellFormed,
   handleEditRequest,
   handleQuestion,
   importModules,
@@ -1687,8 +1688,11 @@ progActionTest :: S Prog -> [ProgAction] -> (Prog -> Either ProgError Prog -> As
 progActionTest inputProg actions testOutput = do
   let (prog, maxID) = create inputProg
   let a = mkEmptyTestApp prog
-  (r, _) <- runAppTestM maxID a (handleEditRequest actions)
-  testOutput prog r
+  a' <- case checkAppWellFormed a of
+    Left err -> assertFailure $ "checkAppWellFormed failed: " <> show err
+    Right a' -> pure a'
+  (r, _) <- runAppTestM maxID a' (handleEditRequest actions)
+  testOutput (appProg a') r
 
 newtype AppTestM a = AppTestM
   { unAppTestM ::
