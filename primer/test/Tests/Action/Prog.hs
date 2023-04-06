@@ -26,7 +26,12 @@ import Primer.Action (
     RemoveAnn
   ),
   ActionError (ImportNameClash),
-  Movement (Branch, Child1, Child2, Parent),
+  Movement (
+    Branch,
+    Child1,
+    Child2,
+    Parent
+  ),
  )
 import Primer.App (
   App,
@@ -110,7 +115,7 @@ import Primer.Core.DSL (
   tfun,
   tvar,
  )
-import Primer.Core.Utils (forgetMetadata)
+import Primer.Core.Utils (forgetMetadata, forgetTypeMetadata)
 import Primer.Def (ASTDef (..), Def (..), DefMap, defAST)
 import Primer.Log (PureLogT, runPureLogT)
 import Primer.Module (Module (Module, moduleDefs, moduleName, moduleTypes), builtinModule, moduleDefsQualified, moduleTypesQualified, primitiveModule)
@@ -1005,8 +1010,9 @@ unit_AddCon =
                 ]
           )
 
-unit_SetConFieldType :: Assertion
-unit_SetConFieldType =
+-- change the type of a field which currently wraps a constructor
+unit_SetConFieldType_con :: Assertion
+unit_SetConFieldType_con =
   progActionTest
     ( defaultProgEditableTypeDefs . sequence . pure $ do
         x <-
@@ -1037,6 +1043,98 @@ unit_SetConFieldType =
                 `app` hole (con (vcn "True"))
                 `app` con (vcn "True")
           )
+
+-- Change the type of one field from ty1 to ty2, and test what happens to that subterm
+-- We use that @T u v ∋ B emptyHole t@ iff @v ∋ t@.
+setConFieldTypeHelper :: S Type -> S Expr -> S Type -> S Expr -> Assertion
+setConFieldTypeHelper ty1 tmInput ty2' tmExpected =
+  let ty2 = forgetTypeMetadata $ create' ty2'
+   in progActionTest
+        ( defaultProgEditableTypeDefs . sequence . pure $ do
+            x <-
+              con cB
+                `aPP` tEmptyHole
+                `aPP` ty1
+                `app` emptyHole
+                `app` tmInput
+            astDef "def" x <$> tEmptyHole
+        )
+        [SetConFieldType tT cB 1 ty2]
+        $ expectSuccess
+        $ \_ prog' -> do
+          td <- findTypeDef tT prog'
+          astTypeDefConstructors td
+            @?= [ ValCon cA [TCon () (tcn "Bool"), TCon () (tcn "Bool"), TCon () (tcn "Bool")]
+                , ValCon cB [TApp () (TApp () (TCon () tT) (TVar () "b")) (TVar () "a"), ty2]
+                ]
+          def <- findDef (gvn "def") prog'
+          forgetMetadata (astDefExpr def)
+            @?= forgetMetadata
+              ( create' $
+                  con cB
+                    `aPP` tEmptyHole
+                    `aPP` ty1
+                    `app` emptyHole
+                    `app` tmExpected
+              )
+
+-- change the type of a field which currently wraps a checkable term
+unit_SetConFieldType_chk :: Assertion
+unit_SetConFieldType_chk =
+  setConFieldTypeHelper
+    (tcon (tcn "Nat") `tfun` tcon (tcn "Bool"))
+    (lam "x" emptyHole)
+    (tcon (tcn "Int"))
+    (hole (lam "x" emptyHole `ann` (tcon (tcn "Nat") `tfun` tcon (tcn "Bool"))))
+
+-- change the type of a field which currently wraps a checkable term
+-- this result could have the hole elided, but we don't run smartholes
+-- so we can't tell
+unit_SetConFieldType_match :: Assertion
+unit_SetConFieldType_match =
+  setConFieldTypeHelper
+    (tEmptyHole `tfun` tcon (tcn "Bool"))
+    (lam "x" emptyHole)
+    (tcon (tcn "Int") `tfun` tEmptyHole)
+    (hole (lam "x" emptyHole `ann` (tEmptyHole `tfun` tcon (tcn "Bool"))))
+
+-- change the type of a field which currently wraps a synthesisable argument
+unit_SetConFieldType_syn :: Assertion
+unit_SetConFieldType_syn =
+  setConFieldTypeHelper
+    (tcon $ tcn "Int")
+    (emptyHole `app` emptyHole)
+    (tcon tBool)
+    (hole $ emptyHole `app` emptyHole)
+
+-- change the type of a field which currently wraps an emptyHole argument
+unit_SetConFieldType_emptyHole :: Assertion
+unit_SetConFieldType_emptyHole =
+  setConFieldTypeHelper
+    (tcon $ tcn "Int")
+    emptyHole
+    (tcon $ tcn "Bool")
+    emptyHole
+
+-- change the type of a field which currently wraps a non-empty hole argument
+unit_SetConFieldType_nehole :: Assertion
+unit_SetConFieldType_nehole =
+  setConFieldTypeHelper
+    (tcon $ tcn "Bool")
+    (hole $ con $ vcn "True")
+    (tcon (tcn "tBool") `tfun` tcon (tcn "Bool"))
+    (hole $ con $ vcn "True")
+
+-- change the type of a field which currently wraps a non-empty hole argument,
+-- where the result could have a hole elided, but we don't run smartholes
+-- so we can't tell
+unit_SetConFieldType_nehole_2 :: Assertion
+unit_SetConFieldType_nehole_2 =
+  setConFieldTypeHelper
+    (tcon $ tcn "Int")
+    (hole $ con $ vcn "True")
+    (tcon $ tcn "Bool")
+    (hole $ con $ vcn "True")
 
 unit_SetConFieldType_partial_app :: Assertion
 unit_SetConFieldType_partial_app =
