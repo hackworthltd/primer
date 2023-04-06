@@ -138,7 +138,7 @@ import Primer.Core (
   _exprMetaLens,
   _typeMetaLens,
  )
-import Primer.Core.DSL (S, create, emptyHole, tEmptyHole)
+import Primer.Core.DSL (S, create, emptyHole, hole, tEmptyHole)
 import Primer.Core.DSL qualified as DSL
 import Primer.Core.Transform (foldApp, renameVar, unfoldAPP, unfoldApp, unfoldTApp)
 import Primer.Core.Utils (freeVars, regenerateExprIDs, regenerateTypeIDs, _freeTmVars, _freeTyVars, _freeVarsTy)
@@ -766,8 +766,7 @@ applyProgAction prog mdefName = \case
       updateCons e = case unfoldApp e of
         (h, args) -> case unfoldAPP h of
           (Con _ con', _tyArgs) | con' == con -> do
-            m' <- DSL.meta
-            case adjustAt index (Hole m') args of
+            adjustAtA index (hole . pure) args >>= \case
               Just args' -> foldApp h =<< traverse (descendM updateCons) args'
               Nothing -> do
                 -- The constructor is not applied as far as the changed field,

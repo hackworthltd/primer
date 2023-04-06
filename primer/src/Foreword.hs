@@ -5,6 +5,7 @@ module Foreword (
   module Foldable,
   insertAt,
   adjustAt,
+  adjustAtA,
   findAndAdjust,
   findAndAdjustA,
   modifyError,
@@ -102,9 +103,13 @@ insertAt n y xs =
 
 -- | Apply a function to the element at some index, returning `Nothing` if it is out of bounds.
 adjustAt :: Int -> (a -> a) -> [a] -> Maybe [a]
-adjustAt n f xs = case splitAt n xs of
-  (a, b : bs) -> Just $ a ++ [f b] ++ bs
-  _ -> Nothing
+adjustAt n f = runIdentity . adjustAtA n (pure . f)
+
+-- | Like `adjustAtA`, but in an `Applicative`.
+adjustAtA :: Applicative f => Int -> (a -> f a) -> [a] -> f (Maybe [a])
+adjustAtA n f xs = case splitAt n xs of
+  (a, b : bs) -> f b <&> \b' -> Just $ a ++ [b'] ++ bs
+  _ -> pure Nothing
 
 -- | Adjust the first element of the list which satisfies the predicate.
 -- Returns `Nothing` if there is no such element.
