@@ -1043,7 +1043,7 @@ unit_SetConFieldType_partial_app =
     ( defaultProgEditableTypeDefs $ do
         x <- lam "x" $ con cA `aPP` tEmptyHole `aPP` tEmptyHole `app` lvar "x"
         sequence
-          [ astDef "def" x <$> (tcon tT `tapp` tEmptyHole) `tapp` tEmptyHole
+          [ astDef "def" x <$> tcon (tcn "Bool") `tfun` (tcon (tcn "Bool") `tfun` (tcon (tcn "Bool") `tfun` ((tcon tT `tapp` tEmptyHole) `tapp` tEmptyHole)))
           ]
     )
     [SetConFieldType tT cA 1 $ TCon () (tcn "Int")]
