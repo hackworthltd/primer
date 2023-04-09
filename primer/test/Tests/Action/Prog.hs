@@ -1041,7 +1041,7 @@ unit_SetConFieldType_partial_app :: Assertion
 unit_SetConFieldType_partial_app =
   progActionTest
     ( defaultProgEditableTypeDefs $ do
-        x <- con cA `aPP` tEmptyHole `aPP` tEmptyHole `app` lvar "x"
+        x <- lam "x" $ con cA `aPP` tEmptyHole `aPP` tEmptyHole `app` lvar "x"
         sequence
           [ astDef "def" x <$> (tcon tT `tapp` tEmptyHole) `tapp` tEmptyHole
           ]
@@ -1053,8 +1053,9 @@ unit_SetConFieldType_partial_app =
       forgetMetadata (astDefExpr def)
         @?= forgetMetadata
           ( create' $
-              hole $
-                con cA `aPP` tEmptyHole `aPP` tEmptyHole `app` lvar "x"
+              lam "x" $
+                hole $
+                  con cA `aPP` tEmptyHole `aPP` tEmptyHole `app` lvar "x"
           )
 
 unit_SetConFieldType_case :: Assertion
