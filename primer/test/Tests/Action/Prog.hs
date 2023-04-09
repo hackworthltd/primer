@@ -843,7 +843,7 @@ unit_RenameType =
     ( defaultProgEditableTypeDefs $
         sequence
           [ do
-              x <- emptyHole `ann` (tcon tT `tapp` tcon (tcn "Bool"))
+              x <- emptyHole `ann` (tcon tT `tapp` tcon (tcn "Bool") `tapp` tEmptyHole)
               astDef "def" x <$> tEmptyHole
           ]
     )
@@ -855,7 +855,7 @@ unit_RenameType =
       -- The recursive reference to T is renamed also
       astTypeDefConstructors td
         @?= [ ValCon (vcn "A") [TCon () (tcn "Bool"), TCon () (tcn "Bool"), TCon () (tcn "Bool")]
-            , ValCon cB [TCon () (tcn "T'"), TVar () "b"]
+            , ValCon cB [TApp () (TApp () (TCon () (tcn "T'")) (TVar () "b")) (TVar () "a"), TVar () "b"]
             ]
       -- The old name does not refer to anything
       assertBool "Expected the old name to be out of scope" $
@@ -866,7 +866,7 @@ unit_RenameType =
       forgetMetadata (astDefExpr def)
         @?= forgetMetadata
           ( create' $
-              emptyHole `ann` (tcon (tcn "T'") `tapp` tcon (tcn "Bool"))
+              emptyHole `ann` (tcon (tcn "T'") `tapp` tcon (tcn "Bool") `tapp` tEmptyHole)
           )
 
 unit_RenameType_clash :: Assertion
@@ -906,7 +906,7 @@ unit_RenameCon =
       td <- findTypeDef tT prog'
       astTypeDefConstructors td
         @?= [ ValCon (vcn "A'") [TCon () (tcn "Bool"), TCon () (tcn "Bool"), TCon () (tcn "Bool")]
-            , ValCon cB [TCon () tT, TVar () "b"]
+            , ValCon cB [TApp () (TApp () (TCon () tT) (TVar () "b")) (TVar () "a"), TVar () "b"]
             ]
       def <- findDef (gvn "def") prog'
       forgetMetadata (astDefExpr def)
@@ -956,7 +956,7 @@ unit_RenameTypeParam =
       astTypeDefParameters td @?= [("a", KType), ("b'", KType)]
       astTypeDefConstructors td
         @?= [ ValCon cA [TCon () (tcn "Bool"), TCon () (tcn "Bool"), TCon () (tcn "Bool")]
-            , ValCon cB [TCon () tT, TVar () "b'"]
+            , ValCon cB [TApp () (TApp () (TCon () tT) (TVar () "b'")) (TVar () "a"), TVar () "b'"]
             ]
 
 unit_RenameTypeParam_clash :: Assertion
@@ -988,7 +988,7 @@ unit_AddCon =
       astTypeDefConstructors td
         @?= [ ValCon cA [TCon () (tcn "Bool"), TCon () (tcn "Bool"), TCon () (tcn "Bool")]
             , ValCon (vcn "C") []
-            , ValCon cB [TCon () tT, TVar () "b"]
+            , ValCon cB [TApp () (TApp () (TCon () tT) (TVar () "b")) (TVar () "a"), TVar () "b"]
             ]
       def <- findDef (gvn "def") prog'
       forgetMetadata (astDefExpr def)
@@ -1021,7 +1021,7 @@ unit_SetConFieldType =
       td <- findTypeDef tT prog'
       astTypeDefConstructors td
         @?= [ ValCon cA [TCon () (tcn "Bool"), TCon () (tcn "Int"), TCon () (tcn "Bool")]
-            , ValCon cB [TCon () tT, TVar () "b"]
+            , ValCon cB [TApp () (TApp () (TCon () tT) (TVar () "b")) (TVar () "a"), TVar () "b"]
             ]
       def <- findDef (gvn "def") prog'
       forgetMetadata (astDefExpr def)
@@ -1039,9 +1039,9 @@ unit_SetConFieldType_partial_app :: Assertion
 unit_SetConFieldType_partial_app =
   progActionTest
     ( defaultProgEditableTypeDefs $ do
-        x <- con cA `app` lvar "x"
+        x <- con cA `aPP` tEmptyHole `aPP` tEmptyHole `app` lvar "x"
         sequence
-          [ astDef "def" x <$> tcon tT
+          [ astDef "def" x <$> (tcon tT `tapp` tEmptyHole) `tapp` tEmptyHole
           ]
     )
     [SetConFieldType tT cA 1 $ TCon () (tcn "Int")]
@@ -1052,7 +1052,7 @@ unit_SetConFieldType_partial_app =
         @?= forgetMetadata
           ( create' $
               hole $
-                con cA `app` lvar "x"
+                con cA `aPP` tEmptyHole `aPP` tEmptyHole `app` lvar "x"
           )
 
 unit_SetConFieldType_case :: Assertion
@@ -1150,7 +1150,7 @@ unit_AddConField =
       td <- findTypeDef tT prog'
       astTypeDefConstructors td
         @?= [ ValCon cA [TCon () (tcn "Bool"), TCon () (tcn "Int"), TCon () (tcn "Bool"), TCon () (tcn "Bool")]
-            , ValCon cB [TCon () tT, TVar () "b"]
+            , ValCon cB [TApp () (TApp () (TCon () tT) (TVar () "b")) (TVar () "a"), TVar () "b"]
             ]
       def <- findDef (gvn "def") prog'
       forgetMetadata (astDefExpr def)
@@ -1174,7 +1174,11 @@ unit_AddConField_partial_app :: Assertion
 unit_AddConField_partial_app =
   progActionTest
     ( defaultProgEditableTypeDefs $ do
-        x <- con cA `app` con (vcn "True")
+        x <-
+          con cA
+            `aPP` tEmptyHole
+            `aPP` tEmptyHole
+            `app` con (vcn "True")
         sequence
           [ astDef "def" x <$> tEmptyHole
           ]
@@ -1187,14 +1191,21 @@ unit_AddConField_partial_app =
         @?= forgetMetadata
           ( create' $
               hole $
-                con cA `app` con (vcn "True")
+                con cA
+                  `aPP` tEmptyHole
+                  `aPP` tEmptyHole
+                  `app` con (vcn "True")
           )
 
 unit_AddConField_partial_app_end :: Assertion
 unit_AddConField_partial_app_end =
   progActionTest
     ( defaultProgEditableTypeDefs $ do
-        x <- con cA `app` con (vcn "True")
+        x <-
+          con cA
+            `aPP` tEmptyHole
+            `aPP` tEmptyHole
+            `app` con (vcn "True")
         sequence
           [ astDef "def" x <$> tEmptyHole
           ]
@@ -1205,13 +1216,17 @@ unit_AddConField_partial_app_end =
       td <- findTypeDef tT prog'
       astTypeDefConstructors td
         @?= [ ValCon cA [TCon () (tcn "Bool"), TCon () (tcn "Int"), TCon () (tcn "Bool"), TCon () (tcn "Bool")]
-            , ValCon cB [TCon () tT, TVar () "b"]
+            , ValCon cB [TApp () (TApp () (TCon () tT) (TVar () "b")) (TVar () "a"), TVar () "b"]
             ]
       def <- findDef (gvn "def") prog'
       forgetMetadata (astDefExpr def)
         @?= forgetMetadata
           ( create' $
-              con cA `app` con (vcn "True") `app` emptyHole
+              con cA
+                `aPP` tEmptyHole
+                `aPP` tEmptyHole
+                `app` con (vcn "True")
+                `app` emptyHole
           )
 
 unit_AddConField_case_ann :: Assertion
@@ -1608,7 +1623,10 @@ defaultProgEditableTypeDefs ds = do
         TypeDefAST
           ASTTypeDef
             { astTypeDefParameters = [("a", KType), ("b", KType)]
-            , astTypeDefConstructors = [ValCon cA (replicate 3 $ TCon () (tcn "Bool")), ValCon cB [TCon () tT, TVar () "b"]]
+            , astTypeDefConstructors =
+                [ ValCon cA (replicate 3 $ TCon () (tcn "Bool"))
+                , ValCon cB [TApp () (TApp () (TCon () tT) (TVar () "b")) (TVar () "a"), TVar () "b"]
+                ]
             , astTypeDefNameHints = []
             }
 
