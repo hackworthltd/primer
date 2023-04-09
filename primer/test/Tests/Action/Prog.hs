@@ -896,6 +896,7 @@ unit_RenameCon =
                         [ branch cA [("p", Nothing), ("q", Nothing), ("p1", Nothing)] emptyHole
                         , branch cB [("r", Nothing), ("x", Nothing)] emptyHole
                         ]
+                        `ann` tEmptyHole
                   )
               astDef "def" x <$> tEmptyHole
           ]
@@ -925,6 +926,7 @@ unit_RenameCon =
                       [ branch (vcn "A'") [("p", Nothing), ("q", Nothing), ("p1", Nothing)] emptyHole
                       , branch cB [("r", Nothing), ("x", Nothing)] emptyHole
                       ]
+                      `ann` tEmptyHole
                 )
           )
 
@@ -1099,7 +1101,7 @@ unit_SetConFieldType_shadow =
             [ branch
                 cA
                 [("x", Nothing), ("y", Nothing), ("z", Nothing)]
-                (lam "y" (lvar "y") `app` lvar "y")
+                ((lam "y" (lvar "y") `ann` (tcon (tcn "Bool") `tfun` tcon (tcn "Bool"))) `app` lvar "y")
             , branch cB [("s", Nothing), ("t", Nothing)] emptyHole
             ]
         sequence
@@ -1119,7 +1121,7 @@ unit_SetConFieldType_shadow =
                     cA
                     [("x", Nothing), ("y", Nothing), ("z", Nothing)]
                     -- only the free `y` should be put in to a hole
-                    (lam "y" (lvar "y") `app` hole (lvar "y"))
+                    ((lam "y" (lvar "y") `ann` (tcon (tcn "Bool") `tfun` tcon (tcn "Bool"))) `app` hole (lvar "y"))
                 , branch cB [("s", Nothing), ("t", Nothing)] emptyHole
                 ]
           )
