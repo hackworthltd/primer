@@ -1647,6 +1647,9 @@ cB = vcn "B"
 unit_good_defaultFullProg :: Assertion
 unit_good_defaultFullProg = checkProgWellFormed defaultFullProg
 
+unit_good_defaultProgEditableTypeDefs :: Assertion
+unit_good_defaultProgEditableTypeDefs = checkProgWellFormed $ defaultProgEditableTypeDefs $ pure []
+
 -- All primitives,builtins and defaultEmptyProg things have distinct base names (defaultFullProg expects this)
 unit_defaultFullProg_no_clash :: Assertion
 unit_defaultFullProg_no_clash =
