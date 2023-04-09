@@ -975,8 +975,8 @@ unit_AddCon =
               x <-
                 case_
                   (emptyHole `ann` (tcon tT `tapp` tcon (tcn "Bool") `tapp` tcon (tcn "Int")))
-                  [ branch cA [] emptyHole
-                  , branch cB [] emptyHole
+                  [ branch cA [("x", Nothing), ("y", Nothing), ("z", Nothing)] emptyHole
+                  , branch cB [("s", Nothing), ("t", Nothing)] emptyHole
                   ]
               astDef "def" x <$> tEmptyHole
           ]
@@ -996,9 +996,9 @@ unit_AddCon =
           ( create' $
               case_
                 (emptyHole `ann` (tcon tT `tapp` tcon (tcn "Bool") `tapp` tcon (tcn "Int")))
-                [ branch cA [] emptyHole
+                [ branch cA [("x", Nothing), ("y", Nothing), ("z", Nothing)] emptyHole
                 , branch (vcn "C") [] emptyHole
-                , branch cB [] emptyHole
+                , branch cB [("s", Nothing), ("t", Nothing)] emptyHole
                 ]
           )
 
@@ -1066,7 +1066,7 @@ unit_SetConFieldType_case =
                 cA
                 [("x", Nothing), ("y", Nothing), ("z", Nothing)]
                 (lvar "y")
-            , branch cB [] emptyHole
+            , branch cB [("s", Nothing), ("t", Nothing)] emptyHole
             ]
         sequence
           [ astDef "def" x <$> tcon (tcn "Bool")
@@ -1085,7 +1085,7 @@ unit_SetConFieldType_case =
                     cA
                     [("x", Nothing), ("y", Nothing), ("z", Nothing)]
                     (hole $ lvar "y")
-                , branch cB [] emptyHole
+                , branch cB [("s", Nothing), ("t", Nothing)] emptyHole
                 ]
           )
 
@@ -1100,7 +1100,7 @@ unit_SetConFieldType_shadow =
                 cA
                 [("x", Nothing), ("y", Nothing), ("z", Nothing)]
                 (lam "y" (lvar "y") `app` lvar "y")
-            , branch cB [] emptyHole
+            , branch cB [("s", Nothing), ("t", Nothing)] emptyHole
             ]
         sequence
           [ astDef "def" x <$> tcon (tcn "Bool")
@@ -1120,7 +1120,7 @@ unit_SetConFieldType_shadow =
                     [("x", Nothing), ("y", Nothing), ("z", Nothing)]
                     -- only the free `y` should be put in to a hole
                     (lam "y" (lvar "y") `app` hole (lvar "y"))
-                , branch cB [] emptyHole
+                , branch cB [("s", Nothing), ("t", Nothing)] emptyHole
                 ]
           )
 
@@ -1240,7 +1240,7 @@ unit_AddConField_case_ann =
                 cA
                 [("x", Nothing), ("y", Nothing), ("z", Nothing)]
                 (lvar "y")
-            , branch cB [] emptyHole
+            , branch cB [("s", Nothing), ("t", Nothing)] emptyHole
             ]
         sequence
           [ astDef "def" x <$> tEmptyHole
@@ -1257,9 +1257,9 @@ unit_AddConField_case_ann =
                 (emptyHole `ann` (tcon tT `tapp` tEmptyHole `tapp` tEmptyHole))
                 [ branch
                     cA
-                    [("x", Nothing), ("y", Nothing), ("a19", Nothing), ("z", Nothing)]
+                    [("x", Nothing), ("y", Nothing), ("a21", Nothing), ("z", Nothing)]
                     (lvar "y")
-                , branch cB [] emptyHole
+                , branch cB [("s", Nothing), ("t", Nothing)] emptyHole
                 ]
           )
 
