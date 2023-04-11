@@ -492,7 +492,7 @@ genList n g = Gen.frequency [(1, pure []), (9, Gen.list (Range.linear 1 n) g)]
 -- Generates a group of potentially-mutually-recursive typedefs
 -- If given a module name, they will all live in that module,
 -- otherwise they may live in disparate modules
-genTypeDefGroup :: Maybe ModuleName -> GenT WT [(TyConName, TypeDef)]
+genTypeDefGroup :: Maybe ModuleName -> GenT WT [(TyConName, TypeDef ())]
 genTypeDefGroup mod = local forgetLocals $ do
   let genParams = Gen.list (Range.linear 0 5) $ (,) <$> freshTyVarNameForCxt <*> genWTKind
   let tyconName = case mod of
@@ -530,7 +530,7 @@ genTypeDefGroup mod = local forgetLocals $ do
           <$> genCons n ps
   mapM genTD nps
 
-addTypeDefs :: [(TyConName, TypeDef)] -> Cxt -> Cxt
+addTypeDefs :: [(TyConName, TypeDef ())] -> Cxt -> Cxt
 addTypeDefs = extendTypeDefCxt . M.fromList
 
 extendGlobals :: [(GVarName, TypeG)] -> Cxt -> Cxt

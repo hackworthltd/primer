@@ -1708,7 +1708,7 @@ defaultFullProg = do
       & #progModules % _head % #moduleTypes %~ (renamedTypes <>)
       & #progModules % _head % #moduleDefs %~ (renamedDefs <>)
 
-findTypeDef :: TyConName -> Prog -> IO ASTTypeDef
+findTypeDef :: TyConName -> Prog -> IO (ASTTypeDef ())
 findTypeDef d p = maybe (assertFailure "couldn't find typedef") pure $ (typeDefAST <=< Map.lookup d) $ foldMap' moduleTypesQualified $ progModules p
 
 findDef :: GVarName -> Prog -> IO ASTDef

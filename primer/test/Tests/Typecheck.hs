@@ -935,7 +935,7 @@ testModule =
 tMaybeT :: TyConName
 tMaybeT = tcn ["TestModule"] "MaybeT"
 
-maybeTDef :: ASTTypeDef
+maybeTDef :: ASTTypeDef ()
 maybeTDef =
   ASTTypeDef
     { astTypeDefParameters = [("m", KFun KType KType), ("a", KType)]
@@ -949,7 +949,7 @@ tSwap = tcn ["TestModule"] "Swap"
 cMakeSwap :: ValConName
 cMakeSwap = vcn ["TestModule"] "MakeSwap"
 
-swapDef :: ASTTypeDef
+swapDef :: ASTTypeDef ()
 swapDef =
   ASTTypeDef
     { astTypeDefParameters = [("a", KType), ("b", KType)]

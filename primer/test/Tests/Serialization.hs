@@ -117,7 +117,7 @@ fixtures =
       defName = "main"
       def :: ASTDef
       def = ASTDef{astDefExpr = expr, astDefType = TEmptyHole typeMeta}
-      typeDef :: TypeDef
+      typeDef :: TypeDef ()
       typeDef =
         TypeDefAST
           ASTTypeDef

@@ -269,7 +269,7 @@ defaultProg = Prog mempty mempty Nothing SmartHoles defaultLog defaultLog
 progAllModules :: Prog -> [Module]
 progAllModules p = progModules p <> progImports p
 
-progAllTypeDefs :: Prog -> Map TyConName (Editable, TypeDef)
+progAllTypeDefs :: Prog -> Map TyConName (Editable, TypeDef ())
 progAllTypeDefs p =
   foldMap' (fmap (Editable,) . moduleTypesQualified) (progModules p)
     <> foldMap' (fmap (NonEditable,) . moduleTypesQualified) (progImports p)
@@ -1563,7 +1563,7 @@ lookupASTDef name = defAST <=< Map.lookup name
 
 alterTypeDef ::
   MonadError ProgError m =>
-  (ASTTypeDef -> m ASTTypeDef) ->
+  (ASTTypeDef () -> m (ASTTypeDef ())) ->
   TyConName ->
   Module ->
   m Module

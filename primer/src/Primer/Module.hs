@@ -57,11 +57,11 @@ import Primer.JSON (
  )
 import Primer.Name (Name)
 import Primer.Primitives (allPrimTypeDefs, primDefName, primitiveModuleName)
-import Primer.TypeDef (TypeDef (..), TypeDefMap)
+import Primer.TypeDef (TypeDef (..), TypeDefMap, forgetTypeDefMetadata)
 
 data Module = Module
   { moduleName :: ModuleName
-  , moduleTypes :: Map Name TypeDef
+  , moduleTypes :: Map Name (TypeDef ())
   , moduleDefs :: Map Name Def -- The current program: a set of definitions indexed by Name
   }
   deriving stock (Eq, Show, Read, Data, Generic)
@@ -72,7 +72,7 @@ qualifyTyConName :: Module -> Name -> TyConName
 qualifyTyConName m = qualifyName (moduleName m)
 
 moduleTypesQualified :: Module -> TypeDefMap
-moduleTypesQualified m = mapKeys (qualifyTyConName m) $ moduleTypes m
+moduleTypesQualified m = mapKeys (qualifyTyConName m) $ forgetTypeDefMetadata <$> moduleTypes m
 
 qualifyDefName :: Module -> Name -> GVarName
 qualifyDefName m = qualifyName (moduleName m)

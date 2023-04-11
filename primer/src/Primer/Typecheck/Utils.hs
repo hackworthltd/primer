@@ -43,7 +43,7 @@ import Primer.TypeDef (
 import Primer.Typecheck.Cxt (Cxt, globalCxt, typeDefs)
 
 -- We assume that constructor names are unique, returning the first one we find
-lookupConstructor :: TypeDefMap -> ValConName -> Maybe (ValCon, TyConName, ASTTypeDef)
+lookupConstructor :: TypeDefMap -> ValConName -> Maybe (ValCon (), TyConName, ASTTypeDef ())
 lookupConstructor tyDefs c =
   let allCons = do
         (tc, TypeDefAST td) <- M.assocs tyDefs
@@ -61,7 +61,7 @@ data TypeDefError
   | TDIUnknown TyConName -- not in scope
   | TDINotSaturated -- e.g. @List@ or @List a b@ rather than @List a@
 
-data TypeDefInfo a = TypeDefInfo [Type' a] TyConName TypeDef -- instantiated parameters, and the typedef (with its name), i.e. [Int] are the parameters for @List Int@
+data TypeDefInfo a = TypeDefInfo [Type' a] TyConName (TypeDef ()) -- instantiated parameters, and the typedef (with its name), i.e. [Int] are the parameters for @List Int@
 
 getTypeDefInfo :: MonadReader Cxt m => Type' a -> m (Either TypeDefError (TypeDefInfo a))
 getTypeDefInfo t = reader $ flip getTypeDefInfo' t . typeDefs
@@ -88,7 +88,7 @@ getTypeDefInfo' tydefs ty =
 instantiateValCons ::
   (MonadFresh NameCounter m, MonadReader Cxt m) =>
   Type' () ->
-  m (Either TypeDefError (TyConName, ASTTypeDef, [(ValConName, [Type' ()])]))
+  m (Either TypeDefError (TyConName, ASTTypeDef (), [(ValConName, [Type' ()])]))
 instantiateValCons t = do
   tds <- asks typeDefs
   let instCons = instantiateValCons' tds t
@@ -112,14 +112,14 @@ instantiateValCons t = do
 instantiateValCons' ::
   TypeDefMap ->
   Type' () ->
-  Either TypeDefError (TyConName, ASTTypeDef, [(ValConName, forall m. MonadFresh NameCounter m => [m (Type' ())])])
+  Either TypeDefError (TyConName, ASTTypeDef (), [(ValConName, forall m. MonadFresh NameCounter m => [m (Type' ())])])
 instantiateValCons' tyDefs t =
   getTypeDefInfo' tyDefs t
     >>= \(TypeDefInfo params tc def) -> case def of
       TypeDefPrim _ -> Left TDINotADT
       TypeDefAST tda -> do
         let defparams = map fst $ astTypeDefParameters tda
-            f :: ValCon -> (ValConName, forall m. MonadFresh NameCounter m => [m (Type' ())])
+            f :: ValCon () -> (ValConName, forall m. MonadFresh NameCounter m => [m (Type' ())])
             -- eta expand to deal with shallow subsumption
             {- HLINT ignore instantiateValCons' "Avoid lambda" -}
             f c = (valConName c, map (\a -> substTySimul (M.fromList $ zip defparams params) a) $ valConArgs c)
