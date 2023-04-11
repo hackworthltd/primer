@@ -49,7 +49,7 @@ library
     , http-media                 >=0.8      && <0.9.0
     , http-types                 ^>=0.12.3
     , insert-ordered-containers  ^>=0.2.5.1
-    , logging-effect             ^>=1.3.13
+    , logging-effect             ^>=1.4
     , mtl                        >=2.2.2    && <2.4.0
     , openapi3                   >=3.2      && <3.3.0
     , optics                     >=0.4      && <0.5.0
@@ -98,7 +98,7 @@ executable primer-service
     , directory               ^>=1.3
     , exceptions
     , hasql-pool              ^>=0.8.0.3
-    , logging-effect          ^>=1.3.13
+    , logging-effect          ^>=1.4
     , optparse-applicative    ^>=0.17
     , primer
     , primer-rel8             ^>=0.7.2
