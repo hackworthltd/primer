@@ -356,7 +356,8 @@ evenOddModule modName =
 even3Prog :: (Prog, ID, NameCounter)
 even3Prog =
   let modName = mkSimpleModuleName "Even3"
-      (defs, nextID) = create $ do
+      ((builtinMod, defs), nextID) = create $ do
+        builtinModule' <- builtinModule
         (_, evenDef) <- even modName
         (_, oddDef) <- odd modName
         even3Def <- do
@@ -364,9 +365,9 @@ even3Prog =
           term <- gvar (qualifyName modName "even") `app` (con B.cSucc `app` (con B.cSucc `app` (con B.cSucc `app` con B.cZero)))
           pure $ DefAST $ ASTDef term type_
         let globs = [("even", evenDef), ("odd", oddDef), ("even 3?", even3Def)]
-        pure globs
+        pure (builtinModule', globs)
    in ( defaultProg
-          { progImports = [builtinModule]
+          { progImports = [builtinMod]
           , progModules =
               [ Module
                   { moduleName = modName
@@ -383,7 +384,8 @@ even3Prog =
 mapOddProg :: Int -> (Prog, ID, NameCounter)
 mapOddProg len =
   let modName = mkSimpleModuleName "MapOdd"
-      (defs, nextID) = create $ do
+      ((builtinMod, defs), nextID) = create $ do
+        builtinModule' <- builtinModule
         (_, evenDef) <- even modName
         (oddName, oddDef) <- odd modName
         (mapName, mapDef) <- map modName
@@ -393,9 +395,9 @@ mapOddProg len =
           term <- gvar mapName `aPP` tcon B.tNat `aPP` tcon B.tBool `app` gvar oddName `app` lst
           pure $ DefAST $ ASTDef term type_
         let globs = [("even", evenDef), ("odd", oddDef), ("map", mapDef), ("mapOdd", mapOddDef)]
-        pure globs
+        pure (builtinModule', globs)
    in ( defaultProg
-          { progImports = [builtinModule]
+          { progImports = [builtinMod]
           , progModules =
               [ Module
                   { moduleName = modName
@@ -414,7 +416,8 @@ mapOddProg len =
 mapOddPrimProg :: Int -> (Prog, ID, NameCounter)
 mapOddPrimProg len =
   let modName = mkSimpleModuleName "MapOdd"
-      (defs, nextID) = create $ do
+      ((builtinMod, defs), nextID) = create $ do
+        builtinModule' <- builtinModule
         let oddName = qualifyName modName "odd"
         oddDef <- do
           type_ <- tcon P.tInt `tfun` tcon B.tBool
@@ -433,9 +436,9 @@ mapOddPrimProg len =
           term <- gvar mapName `aPP` tcon P.tInt `aPP` tcon B.tBool `app` gvar oddName `app` lst
           pure $ DefAST $ ASTDef term type_
         let globs = [("odd", oddDef), ("map", mapDef), ("mapOdd", mapOddDef)]
-        pure globs
+        pure (builtinModule', globs)
    in ( defaultProg
-          { progImports = [builtinModule, primitiveModule]
+          { progImports = [builtinMod, primitiveModule]
           , progModules =
               [ Module
                   { moduleName = modName
@@ -453,7 +456,8 @@ mapOddPrimProg len =
 badEven3Prog :: (Prog, ID, NameCounter)
 badEven3Prog =
   let modName = mkSimpleModuleName "Even3"
-      (defs, nextID) = create $ do
+      ((builtinMod, defs), nextID) = create $ do
+        builtinModule' <- builtinModule
         (_, evenDef) <- even modName
         (_, oddDef) <- odd modName
         even3Def <- do
@@ -461,9 +465,9 @@ badEven3Prog =
           term <- gvar (qualifyName modName "even") `app` (con B.cSucc `app` (con B.cSucc `app` (con B.cSucc `app` con B.cZero)))
           pure $ DefAST $ ASTDef term type_
         let globs = [("even", evenDef), ("odd", oddDef), ("even 3?", even3Def)]
-        pure globs
+        pure (builtinModule', globs)
    in ( defaultProg
-          { progImports = [builtinModule]
+          { progImports = [builtinMod]
           , progModules =
               [ Module
                   { moduleName = modName

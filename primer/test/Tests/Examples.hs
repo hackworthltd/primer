@@ -25,7 +25,7 @@ import Tests.Typecheck (runTypecheckTestM)
 checkExamplesRequest :: CheckEverythingRequest
 checkExamplesRequest =
   CheckEverything
-    { trusted = [builtinModule]
+    { trusted = [create' builtinModule]
     , toCheck =
         [ fst $ mapModule $ ModuleName $ pure "MapModule"
         , fst $ evenOddModule $ ModuleName $ pure "EvenOddModule"
@@ -53,7 +53,7 @@ unit_comprehensive_ill_typed = case runTypecheckTestM
   NoSmartHoles
   ( checkEverything NoSmartHoles $
       CheckEverything
-        { trusted = [builtinModule]
+        { trusted = [create' builtinModule]
         , toCheck = [Module modName mempty $ Map.fromList [first baseName $ create' $ comprehensive modName]]
         }
   ) of

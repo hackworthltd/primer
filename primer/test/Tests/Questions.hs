@@ -38,7 +38,7 @@ import Primer.Questions (
 import Primer.Typecheck (
   Cxt,
   SmartHoles (NoSmartHoles),
-  buildTypingContextFromModules,
+  buildTypingContextFromModules',
   exprTtoExpr,
   synth,
  )
@@ -308,7 +308,7 @@ unit_hasGeneratedNames_3 = do
   hasGeneratedNamesExpr expr Nothing (down >=> down >=> right) ["z", "x1", "y1"]
 
 defCxt :: Cxt
-defCxt = buildTypingContextFromModules [builtinModule] NoSmartHoles
+defCxt = buildTypingContextFromModules' [builtinModule] NoSmartHoles
 
 hasGeneratedNamesExpr :: S Expr -> Maybe (S Type) -> (ExprZ -> Maybe ExprZ) -> [Name] -> Assertion
 hasGeneratedNamesExpr expr ty path expected = do

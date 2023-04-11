@@ -24,6 +24,7 @@ module Primer.Typecheck (
   initialCxt,
   buildTypingContext,
   buildTypingContextFromModules,
+  buildTypingContextFromModules',
   TypeError (..),
   KindError (..),
   typeOf,
@@ -116,7 +117,7 @@ import Primer.Core (
   _exprTypeMeta,
   _typeMeta,
  )
-import Primer.Core.DSL (branch, emptyHole, meta, meta')
+import Primer.Core.DSL (S, branch, create', emptyHole, meta, meta')
 import Primer.Core.Utils (
   alphaEqTy,
   forgetTypeMetadata,
@@ -256,6 +257,11 @@ buildTypingContextFromModules modules =
   buildTypingContext
     (foldMap' moduleTypesQualified modules)
     (foldMap' moduleDefsQualified modules)
+
+buildTypingContextFromModules' :: [S Module] -> SmartHoles -> Cxt
+-- NB: we don't care about IDs/TypeMeta here, since we remove them in
+-- buildTypingContextFromModules, thus @create'@ is ok.
+buildTypingContextFromModules' = buildTypingContextFromModules . create' . sequence
 
 -- | A shorthand for the constraints needed when kindchecking
 type TypeM e m =

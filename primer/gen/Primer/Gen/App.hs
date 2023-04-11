@@ -57,6 +57,7 @@ import Data.Map qualified as M
 import GHC.Base (error)
 
 import Foreword hiding (mod)
+import Primer.TypeDef (generateTypeDefIDs)
 
 -- | Generate a whole 'Prog', with empty log
 -- Note that the result will be well-typed, but not necessarily
@@ -94,8 +95,9 @@ genProg sh initialImports = local (extendCxtByModules initialImports) $ do
     genModule :: Name -> Int -> GenT WT Module
     genModule prefix index = do
       let mn = ModuleName $ prefix :| [unsafeMkName $ show index]
-      tds <- genTypeDefGroup $ Just mn
-      defs <- local (extendTypeDefCxt $ M.fromList tds) (genASTDefGroup mn)
+      tds' <- genTypeDefGroup $ Just mn
+      tds <- traverse (\(n, d) -> (n,) <$> generateTypeDefIDs d) tds'
+      defs <- local (extendTypeDefCxt $ M.fromList tds') (genASTDefGroup mn)
       pure $
         Module
           { moduleName = mn

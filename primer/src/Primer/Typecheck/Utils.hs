@@ -30,6 +30,7 @@ import Optics (Lens', view, (%))
 import Primer.Core (Expr, Expr', GlobalName (baseName, qualifiedModule), ModuleName, TypeCache, _exprMetaLens)
 import Primer.Core.Meta (Meta, TyConName, ValConName, _type)
 import Primer.Core.Type (Kind, Type' (TApp, TCon, TEmptyHole, THole))
+import Primer.Core.Type.Utils (forgetTypeMetadata)
 import Primer.Name (Name, NameCounter)
 import Primer.Subst (substTySimul)
 import Primer.TypeDef (
@@ -122,7 +123,7 @@ instantiateValCons' tyDefs t =
             f :: ValCon () -> (ValConName, forall m. MonadFresh NameCounter m => [m (Type' ())])
             -- eta expand to deal with shallow subsumption
             {- HLINT ignore instantiateValCons' "Avoid lambda" -}
-            f c = (valConName c, map (\a -> substTySimul (M.fromList $ zip defparams params) a) $ valConArgs c)
+            f c = (valConName c, map (\a -> substTySimul (M.fromList $ zip defparams params) (forgetTypeMetadata a)) $ valConArgs c)
         pure (tc, tda, map f $ astTypeDefConstructors tda)
 
 -- | Decompose @C X Y Z@ to @(C,[X,Y,Z])@

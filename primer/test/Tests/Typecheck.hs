@@ -65,6 +65,7 @@ import Primer.Core (
   Type' (..),
   TypeCache (..),
   TypeCacheBoth (..),
+  TypeMeta,
   ValConName,
   _exprMeta,
   _exprTypeMeta,
@@ -118,7 +119,7 @@ import Primer.Typecheck (
   KindError (..),
   SmartHoles (NoSmartHoles, SmartHoles),
   TypeError (..),
-  buildTypingContextFromModules,
+  buildTypingContextFromModules',
   check,
   checkEverything,
   checkKind,
@@ -565,7 +566,7 @@ unit_prim_fun_applied =
 tasty_synth_well_typed_extcxt :: Property
 tasty_synth_well_typed_extcxt = withTests 1000 $
   withDiscards 2000 $
-    propertyWTInExtendedLocalGlobalCxt [builtinModule, primitiveModule] $ do
+    propertyWTInExtendedLocalGlobalCxt [builtinModule, pure primitiveModule] $ do
       (e, _ty) <- forAllT genSyn
       ty' <- generateTypeIDs . fst =<< synthTest =<< generateIDs e
       void $ checkKindTest KType ty'
@@ -731,7 +732,7 @@ instance Eq (TypeCacheAlpha App.App) where
 tasty_smartholes_idempotent_syn :: Property
 tasty_smartholes_idempotent_syn = withTests 1000 $
   withDiscards 2000 $
-    propertyWTInExtendedLocalGlobalCxt [builtinModule, primitiveModule] $ do
+    propertyWTInExtendedLocalGlobalCxt [builtinModule, pure primitiveModule] $ do
       local (\c -> c{smartHoles = SmartHoles}) $ do
         (e, _ty) <- forAllT genSyn
         (ty', e') <- synthTest =<< generateIDs e
@@ -744,7 +745,7 @@ tasty_smartholes_idempotent_syn = withTests 1000 $
 tasty_smartholes_idempotent_chk :: Property
 tasty_smartholes_idempotent_chk = withTests 1000 $
   withDiscards 2000 $
-    propertyWTInExtendedLocalGlobalCxt [builtinModule, primitiveModule] $
+    propertyWTInExtendedLocalGlobalCxt [builtinModule, pure primitiveModule] $
       local (\c -> c{smartHoles = SmartHoles}) $ do
         ty <- forAllT $ genWTType KType
         e <- forAllT $ genChk ty
@@ -779,19 +780,22 @@ unit_tcWholeProg_notice_type_updates =
           <*> t'
           <*> e'
           <*> tcon tBool
-      d0 = create' $ mkDefs (gvar' ["M"] "foo") (thole $ tforall "a" KType $ tvar "a")
-      d1 = create' $ mkDefs (hole $ gvar' ["M"] "foo") (tforall "a" KType $ tvar "a")
-      mkProg ds =
-        Prog
-          { progImports = [builtinModule]
-          , progModules = [Module (ModuleName ["M"]) mempty ds]
-          , progSmartHoles = SmartHoles
-          , progSelection = Nothing
-          , progLog = defaultLog
-          , redoLog = defaultLog
-          }
-      a0 = mkProg d0
-      a1 = mkProg d1
+      d0 = mkDefs (gvar' ["M"] "foo") (thole $ tforall "a" KType $ tvar "a")
+      d1 = mkDefs (hole $ gvar' ["M"] "foo") (tforall "a" KType $ tvar "a")
+      mkProg ds = do
+        builtinModule' <- builtinModule
+        ds' <- ds
+        pure $
+          Prog
+            { progImports = [builtinModule']
+            , progModules = [Module (ModuleName ["M"]) mempty ds']
+            , progSmartHoles = SmartHoles
+            , progSelection = Nothing
+            , progLog = defaultLog
+            , redoLog = defaultLog
+            }
+      a0 = create' $ mkProg d0
+      a1 = create' $ mkProg d1
       a1' = evalTestM 0 $ runExceptT @TypeError $ tcWholeProg a0
       defsNoIDs a = foldMap' (fmap (\d -> (forgetTypeMetadata $ defType d, forgetMetadata . astDefExpr <$> defAST d)) . Map.elems . moduleDefs) $ progModules a
    in do
@@ -803,7 +807,7 @@ tasty_tcWholeProg_idempotent :: Property
 tasty_tcWholeProg_idempotent = withTests 500 $
   withDiscards 2000 $
     propertyWT [] $ do
-      base <- forAllT $ Gen.element [[], [builtinModule], [builtinModule, primitiveModule]]
+      base <- forAllT $ Gen.choice $ map sequence [[], [builtinModule], [builtinModule, pure primitiveModule]]
       p <- forAllT $ genProg SmartHoles base
       case runTypecheckTestM SmartHoles $ do
         p' <- tcWholeProgWithImports p
@@ -832,11 +836,13 @@ unit_good_maybeT = case runTypecheckTestM NoSmartHoles $
   checkEverything
     NoSmartHoles
     CheckEverything
-      { trusted = [builtinModule]
-      , toCheck = [Module (ModuleName ["TestModule"]) (Map.singleton (baseName tMaybeT) (TypeDefAST maybeTDef)) mempty]
+      { trusted = [builtinMod]
+      , toCheck = [Module (ModuleName ["TestModule"]) (Map.singleton (baseName tMaybeT) maybeTDef') mempty]
       } of
   Left err -> assertFailure $ show err
   Right _ -> pure ()
+  where
+    (builtinMod, maybeTDef') = create' $ (,) <$> builtinModule <*> (TypeDefAST <$> maybeTDef)
 
 -- * Helpers
 expectTyped :: HasCallStack => TypecheckTestM Expr -> Assertion
@@ -915,33 +921,38 @@ runTypecheckTestMIn cxt =
     . runExceptT
     . unTypecheckTestM
 runTypecheckTestM :: SmartHoles -> TypecheckTestM a -> Either TypeError a
-runTypecheckTestM sh = runTypecheckTestMIn (buildTypingContextFromModules [testModule, builtinModule] sh)
+runTypecheckTestM sh = runTypecheckTestMIn (buildTypingContextFromModules' [testModule, builtinModule] sh)
 runTypecheckTestMWithPrims :: SmartHoles -> TypecheckTestM a -> Either TypeError a
 runTypecheckTestMWithPrims sh =
-  runTypecheckTestMIn (buildTypingContextFromModules [testModule, builtinModule, primitiveModule] sh)
+  runTypecheckTestMIn (buildTypingContextFromModules' [testModule, builtinModule, pure primitiveModule] sh)
 
-testModule :: Module
-testModule =
-  Module
-    { moduleName = ModuleName ["TestModule"]
-    , moduleTypes =
-        Map.fromList
-          [ (baseName tMaybeT, TypeDefAST maybeTDef)
-          , (baseName tSwap, TypeDefAST swapDef)
-          ]
-    , moduleDefs = mempty
-    }
+testModule :: MonadFresh ID m => m Module
+testModule = do
+  maybeTDef' <- maybeTDef
+  swapDef' <- swapDef
+  pure $
+    Module
+      { moduleName = ModuleName ["TestModule"]
+      , moduleTypes =
+          Map.fromList
+            [ (baseName tMaybeT, TypeDefAST maybeTDef')
+            , (baseName tSwap, TypeDefAST swapDef')
+            ]
+      , moduleDefs = mempty
+      }
 
 tMaybeT :: TyConName
 tMaybeT = tcn ["TestModule"] "MaybeT"
 
-maybeTDef :: ASTTypeDef ()
-maybeTDef =
-  ASTTypeDef
-    { astTypeDefParameters = [("m", KFun KType KType), ("a", KType)]
-    , astTypeDefConstructors = [ValCon (vcn ["TestModule"] "MakeMaybeT") [TApp () (TVar () "m") (TApp () (TCon () tMaybe) (TVar () "a"))]]
-    , astTypeDefNameHints = []
-    }
+maybeTDef :: MonadFresh ID m => m (ASTTypeDef TypeMeta)
+maybeTDef = do
+  field <- tvar "m" `tapp` (tcon tMaybe `tapp` tvar "a")
+  pure $
+    ASTTypeDef
+      { astTypeDefParameters = [("m", KFun KType KType), ("a", KType)]
+      , astTypeDefConstructors = [ValCon (vcn ["TestModule"] "MakeMaybeT") [field]]
+      , astTypeDefNameHints = []
+      }
 
 tSwap :: TyConName
 tSwap = tcn ["TestModule"] "Swap"
@@ -949,10 +960,13 @@ tSwap = tcn ["TestModule"] "Swap"
 cMakeSwap :: ValConName
 cMakeSwap = vcn ["TestModule"] "MakeSwap"
 
-swapDef :: ASTTypeDef ()
-swapDef =
-  ASTTypeDef
-    { astTypeDefParameters = [("a", KType), ("b", KType)]
-    , astTypeDefConstructors = [ValCon cMakeSwap [TVar () "b", TVar () "a"]]
-    , astTypeDefNameHints = []
-    }
+swapDef :: MonadFresh ID m => m (ASTTypeDef TypeMeta)
+swapDef = do
+  f1 <- tvar "b"
+  f2 <- tvar "a"
+  pure $
+    ASTTypeDef
+      { astTypeDefParameters = [("a", KType), ("b", KType)]
+      , astTypeDefConstructors = [ValCon cMakeSwap [f1, f2]]
+      , astTypeDefNameHints = []
+      }

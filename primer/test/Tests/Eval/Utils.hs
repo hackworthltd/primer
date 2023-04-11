@@ -8,6 +8,7 @@ module Tests.Eval.Utils (
 
 import Foreword
 
+import Control.Monad.Fresh (MonadFresh)
 import Data.Generics.Uniplate.Data (universe, universeBi)
 import Data.Map qualified as Map
 import Hedgehog (PropertyT)
@@ -15,6 +16,7 @@ import Hedgehog.Gen qualified as Gen
 import Primer.Core (
   Expr,
   Expr' (LetType),
+  ID,
   Kind (KType),
   ModuleName (ModuleName),
   Type,
@@ -59,8 +61,8 @@ genDirTm = do
 -- | Some generally-useful globals to have around when testing.
 -- Currently: an AST identity function on Char and all builtins and
 -- primitives
-testModules :: [Module]
-testModules = [builtinModule, primitiveModule, testModule]
+testModules :: MonadFresh ID m => [m Module]
+testModules = [builtinModule, pure primitiveModule, pure testModule]
 
 testModule :: Module
 testModule =

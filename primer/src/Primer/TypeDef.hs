@@ -13,13 +13,16 @@ module Primer.TypeDef (
   valConType,
   _typedefFields,
   forgetTypeDefMetadata,
+  generateTypeDefIDs,
 ) where
 
 import Foreword
 
+import Control.Monad.Fresh (MonadFresh)
 import Data.Data (Data)
-import Optics (Traversal, over, traversed, (%))
+import Optics (Traversal, over, traverseOf, traversed, (%))
 import Primer.Core.Meta (
+  ID,
   TyConName,
   TyVarName,
   ValConName,
@@ -27,8 +30,9 @@ import Primer.Core.Meta (
 import Primer.Core.Type (
   Kind (KFun, KType),
   Type' (TApp, TCon, TForall, TFun, TVar),
+  TypeMeta,
  )
-import Primer.Core.Utils (forgetTypeMetadata)
+import Primer.Core.Utils (forgetTypeMetadata, generateTypeIDs)
 import Primer.JSON (
   CustomJSON (CustomJSON),
   FromJSON,
@@ -81,7 +85,7 @@ data ValCon b = ValCon
 valConType :: TyConName -> ASTTypeDef () -> ValCon () -> Type' ()
 valConType tc td vc =
   let ret = foldl' (\t (n, _) -> TApp () t (TVar () n)) (TCon () tc) (astTypeDefParameters td)
-      args = foldr (TFun ()) ret (valConArgs vc)
+      args = foldr (TFun ()) ret (forgetTypeMetadata <$> valConArgs vc)
       foralls = foldr (\(n, k) t -> TForall () n k t) args (astTypeDefParameters td)
    in foralls
 
@@ -106,3 +110,6 @@ _typedefFields = #_TypeDefAST % #astTypeDefConstructors % traversed % #valConArg
 
 forgetTypeDefMetadata :: TypeDef b -> TypeDef ()
 forgetTypeDefMetadata = over _typedefFields forgetTypeMetadata
+
+generateTypeDefIDs :: MonadFresh ID m => TypeDef () -> m (TypeDef TypeMeta)
+generateTypeDefIDs = traverseOf _typedefFields generateTypeIDs

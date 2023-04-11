@@ -33,12 +33,13 @@ import Primer.Core (
   Meta (..),
   ModuleName (ModuleName),
   PrimCon (..),
-  Type' (TApp, TCon, TEmptyHole, TVar),
+  Type' (TEmptyHole),
   TypeCache (TCSynthed),
   TypeCacheBoth (TCBoth),
   TypeMeta,
   qualifyName,
  )
+import Primer.Core.DSL (create', tapp, tcon, tvar)
 import Primer.Def (
   ASTDef (..),
   Def (..),
@@ -117,14 +118,17 @@ fixtures =
       defName = "main"
       def :: ASTDef
       def = ASTDef{astDefExpr = expr, astDefType = TEmptyHole typeMeta}
-      typeDef :: TypeDef ()
-      typeDef =
-        TypeDefAST
-          ASTTypeDef
-            { astTypeDefParameters = [("a", KType), ("b", KFun KType KType)]
-            , astTypeDefConstructors = [ValCon (vcn ["M"] "C") [TApp () (TVar () "b") (TVar () "a"), TCon () tNat]]
-            , astTypeDefNameHints = []
-            }
+      typeDef :: TypeDef TypeMeta
+      typeDef = create' $ do
+        f1 <- tvar "b" `tapp` tvar "a"
+        f2 <- tcon tNat
+        pure $
+          TypeDefAST
+            ASTTypeDef
+              { astTypeDefParameters = [("a", KType), ("b", KFun KType KType)]
+              , astTypeDefConstructors = [ValCon (vcn ["M"] "C") [f1, f2]]
+              , astTypeDefNameHints = []
+              }
       progerror :: ProgError
       progerror = NoDefSelected
       progaction :: ProgAction
