@@ -1,4 +1,4 @@
-index-state: 2023-02-23T00:00:00Z
+index-state: 2023-04-11T00:00:00Z
 
 packages:
   primer
@@ -18,8 +18,6 @@ package primer
 
 package primer-service
   test-options: "--size-cutoff=32768"
-
-allow-newer: logging-effect:text
 
 -- We need a newer version of Selda than what's been released to Hackage.
 source-repository-package

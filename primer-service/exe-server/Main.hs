@@ -23,6 +23,9 @@ import Control.Monad.Log (
 import Data.ByteString as BS
 import Data.ByteString.UTF8 (fromString)
 import Data.String (String)
+import Data.Time.Clock (
+  secondsToDiffTime,
+ )
 import Hasql.Pool (
   Pool,
   acquire,
@@ -244,7 +247,7 @@ serve ::
   Handler IO (WithSeverity l) ->
   IO ()
 serve (PostgreSQL uri) ver port qsz logger =
-  bracket (acquire poolSize timeout uri) release $ \pool -> do
+  bracket (acquire poolSize timeout maxLifetime uri) release $ \pool -> do
     dbOpQueue <- newTBQueueIO qsz
     initialSessions <- StmMap.newIO
     flip runLoggingT logger $ do
@@ -262,8 +265,10 @@ serve (PostgreSQL uri) ver port qsz logger =
     --
     -- https://github.com/hackworthltd/primer/issues/640#issuecomment-1217290598
     poolSize = 1
-    -- 1 second, which is pretty arbitrary.
-    timeout = Just $ 1 * 1000000
+    -- 10 second connection timeout (arbitrary)
+    timeout = secondsToDiffTime 10
+    -- 30 min max connection lifetime (arbitrary)
+    maxLifetime = secondsToDiffTime $ 60 * 30
 serve (SQLite path) ver port qsz logger = do
   dbPath <- canonicalizePath path
   dbOpQueue <- newTBQueueIO qsz

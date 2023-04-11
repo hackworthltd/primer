@@ -23,6 +23,7 @@ import Data.Time (
   UTCTime (..),
   diffTimeToPicoseconds,
   picosecondsToDiffTime,
+  secondsToDiffTime,
  )
 import Data.UUID.V4 (nextRandom)
 import Database.PostgreSQL.Simple.Options qualified as Options
@@ -134,7 +135,7 @@ withDbSetup f = do
                   hash_ <- sqitchEventChangeId
                   migratedConfig <- throwEither $ cacheAction (tmpdir <> "/" <> hash_) (deployDb port) combinedConfig
                   withConfig migratedConfig $ \db ->
-                    bracket (acquire 1 (Just 1000000) $ toConnectionString db) release f
+                    bracket (acquire 1 (secondsToDiffTime 1) (secondsToDiffTime $ 60 * 30) $ toConnectionString db) release f
 
 runTmpDb :: Rel8DbT (DiscardLoggingT (WithSeverity ()) IO) () -> IO ()
 runTmpDb tests =
