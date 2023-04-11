@@ -40,7 +40,7 @@ library
     , containers      >=0.6.0.1  && <0.7.0
     , exceptions      >=0.10.4   && <0.11.0
     , hasql           ^>=1.6
-    , hasql-pool      ^>=0.8.0.3
+    , hasql-pool      ^>=0.9
     , logging-effect  ^>=1.4
     , mtl             >=2.2.2    && <2.4.0
     , optics          >=0.4      && <0.5.0
