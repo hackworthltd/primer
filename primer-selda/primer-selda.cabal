@@ -36,13 +36,13 @@ library
     , base            >=4.12     && <4.17.0
     , bytestring      >=0.10.8.2 && <0.12.0
     , containers      >=0.6.0.1  && <0.7.0
-    , logging-effect  ^>=1.3.13
+    , logging-effect  ^>=1.4
     , mtl             >=2.2.2    && <2.4.0
     , primer          ^>=0.7.2
     , selda           ^>=0.5.2.1
     , selda-sqlite    ^>=0.1.7.2
     , text            ^>=2.0
-    , time            ^>=1.11
+    , time            >=1.11     && <1.13
     , uuid            ^>=1.3.15
 
 library primer-selda-testlib
@@ -74,7 +74,7 @@ library primer-selda-testlib
     , selda-sqlite
     , temporary       ^>=1.3
     , time
-    , typed-process   >=0.2.8 && <0.2.11
+    , typed-process   ^>=0.2.11
     , uuid
 
 test-suite primer-selda-test
@@ -120,7 +120,7 @@ test-suite primer-selda-test
       , selda
       , selda-sqlite
       , tasty                                              ^>=1.4.2.1
-      , tasty-discover                                     ^>=4.2.4
+      , tasty-discover                                     ^>=5.0
       , tasty-hunit                                        ^>=0.10.0
       , text
       , time
@@ -128,4 +128,4 @@ test-suite primer-selda-test
 
 --TODO This currently breaks with haskell.nix, so we manually add it to `flake.nix` instead.
 -- See: https://github.com/input-output-hk/haskell.nix/issues/839
--- build-tool-depends: tasty-discover:tasty-discover ^>=4.2.4
+-- build-tool-depends: tasty-discover:tasty-discover ^>=5.0

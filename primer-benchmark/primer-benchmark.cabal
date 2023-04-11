@@ -48,7 +48,7 @@ library
     , containers                       >=0.6.0.1  && <0.7.0
     , criterion                        ^>=1.6.0.0
     , deepseq                          ^>=1.4.6.1
-    , logging-effect                   ^>=1.3.13
+    , logging-effect                   ^>=1.4
     , primer:{primer, primer-testlib}
     , tasty                            ^>=1.4.2.1
     , tasty-hunit                      ^>=0.10.0
