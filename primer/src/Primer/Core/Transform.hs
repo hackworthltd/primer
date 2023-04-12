@@ -188,7 +188,12 @@ renameTyVarExpr x y expr = case expr of
         | any (sameVar y) $ bindingNames b = Nothing
         | otherwise = CaseBranch con termargs <$> renameTyVarExpr x y rhs
       bindingNames (CaseBranch _ bs _) = map bindName bs
-  Var{} -> substAllChildren
+  -- Since term and type variables are in the same namespace, we need
+  -- to worry about references to the term var y since we do not want
+  -- to capture such a y.
+  Var _ v
+    | sameVarRef y v -> Nothing
+    | otherwise -> pure expr
   Hole{} -> substAllChildren
   EmptyHole{} -> substAllChildren
   Ann{} -> substAllChildren

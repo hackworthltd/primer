@@ -13,7 +13,7 @@ import Hedgehog hiding (
  )
 import Primer.Action (
   Action (..),
-  ActionError (CaseBindsClash, RefineError),
+  ActionError (CaseBindsClash, NameCapture, RefineError),
   Movement (..),
   applyActionsToExpr,
  )
@@ -352,6 +352,17 @@ unit_rename_LAM_2 =
     NoSmartHoles
     (ann (lAM "b" (lAM "a" (aPP (con cNil) (tvar "b")))) tEmptyHole)
     [Move Child1, Move Child1, RenameLAM "b"]
+
+unit_rename_LAM_3 :: Assertion
+unit_rename_LAM_3 =
+  actionTestExpectFail
+    ( \case
+        NameCapture -> True
+        _ -> False
+    )
+    NoSmartHoles
+    (lam "x" (lAM "y" $ lvar "x") `ann` tEmptyHole)
+    [Move Child1, Move Child1, RenameLAM "x"]
 
 unit_convert_let_to_letrec :: Assertion
 unit_convert_let_to_letrec =
