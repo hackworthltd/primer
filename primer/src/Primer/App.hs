@@ -773,6 +773,7 @@ applyProgAction prog mdefName = \case
           type_
       updateDefs = traverseOf (traversed % #_DefAST % #astDefExpr) (updateDecons <=< updateCons)
       updateCons =
+        -- TODO (saturated constructors): take advantage of fact they are only in chk position!
         let typecache = _typecache % _Just
             -- Previously the @index@th argument @t@ to this
             -- constructor would have been typechecked against the old
