@@ -958,7 +958,16 @@ unit_RenameCon_clash =
               x <-
                 hole
                   ( hole
-                      (con0 cA)
+                      ( con
+                          cA
+                          [ tEmptyHole
+                          , tEmptyHole
+                          ]
+                          [ emptyHole
+                          , emptyHole
+                          , emptyHole
+                          ]
+                      )
                   )
               astDef "def" x <$> tEmptyHole
           ]
