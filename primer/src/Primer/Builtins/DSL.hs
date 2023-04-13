@@ -4,7 +4,6 @@ module Primer.Builtins.DSL (
   nat,
   maybe_,
   list_,
-  listSat_,
   listOf,
 ) where
 
@@ -54,14 +53,6 @@ maybe_ t f = \case
 
 list_ :: MonadFresh ID m => TyConName -> [m Expr] -> m Expr
 list_ t =
-  foldr
-    ( \a b ->
-        conSat cCons [tcon t] [a, b]
-    )
-    (conSat cNil [tcon t] [])
-
-listSat_ :: MonadFresh ID m => TyConName -> [m Expr] -> m Expr
-listSat_ t =
   foldr
     ( \a b ->
         conSat cCons [tcon t] [a, b]
