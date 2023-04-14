@@ -589,8 +589,8 @@ unit_step_non_redex :: Assertion
 unit_step_non_redex =
   let ((idX, e1, e2), maxID) = create $ do
         x <- lvar "x"
-        e1' <- let_ "x" (lam "eta" $ con' ["M"] "C" [] [lvar "eta"]) $ lam "x" $ pure x
-        e2' <- let_ "x" (con' ["M"] "C" [] [lvar "x"]) $ pure x
+        e1' <- let_ "x" (lam "eta" $ con1' ["M"] "C" $ lvar "eta") $ lam "x" $ pure x
+        e2' <- let_ "x" (con1' ["M"] "C" $ lvar "x") $ pure x
         pure (getID x, e1', e2')
    in do
         assertBool "Should not be in 'redexes', as shadowed by a lambda"
@@ -990,12 +990,12 @@ unit_redexes_lettype_capture =
 
 unit_redexes_letrec_1 :: Assertion
 unit_redexes_letrec_1 =
-  redexesOf (letrec "x" (con' ["M"] "C" [] [lvar "x"]) (tcon' ["M"] "T") (app (lvar "x") (lvar "y")))
+  redexesOf (letrec "x" (con1' ["M"] "C" $ lvar "x") (tcon' ["M"] "T") (app (lvar "x") (lvar "y")))
     <@?=> Set.fromList [2, 5]
 
 unit_redexes_letrec_2 :: Assertion
 unit_redexes_letrec_2 =
-  redexesOf (letrec "x" (con' ["M"] "C" [] [lvar "x"]) (tcon' ["M"] "T") (lvar "y"))
+  redexesOf (letrec "x" (con1' ["M"] "C" $ lvar "x") (tcon' ["M"] "T") (lvar "y"))
     <@?=> Set.fromList [0, 2]
 
 -- Test that our self-capture logic does not apply to letrec.

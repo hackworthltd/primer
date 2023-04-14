@@ -39,6 +39,7 @@ module Primer.Core.DSL (
   tcon',
   con',
   con0',
+  con1',
   gvar',
   branch',
   apps,
@@ -172,6 +173,9 @@ int = prim . PrimInt
 
 con0' :: MonadFresh ID m => NonEmpty Name -> Name -> m Expr
 con0' m n = con0 $ qualifyName (ModuleName m) n
+
+con1' :: MonadFresh ID m => NonEmpty Name -> Name -> m Expr -> m Expr
+con1' m n = con1 $ qualifyName (ModuleName m) n
 
 con' :: MonadFresh ID m => NonEmpty Name -> Name -> [m Type] -> [m Expr] -> m Expr
 con' m n = con $ qualifyName (ModuleName m) n
