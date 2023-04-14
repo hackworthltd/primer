@@ -577,7 +577,7 @@ unit_type_preservation_case_hole_regression = evalTestM 0 $ do
     case_
       (con cJust [tEmptyHole] [con0 cFalse] `ann` (tcon tMaybe `tapp` tcon tNat))
       [ branch cNothing [] emptyHole
-      , branch cJust [("x", Nothing)] $ con cSucc [] [lvar "x"]
+      , branch cJust [("x", Nothing)] $ con1 cSucc $ lvar "x"
       ]
   let tds = foldMap' moduleTypesQualified $ create' $ sequence testModules
   let globs = foldMap' moduleDefsQualified $ create' $ sequence testModules
