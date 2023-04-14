@@ -5,7 +5,6 @@ module Tests.Eval where
 import Foreword
 
 import Control.Monad.Trans.Maybe (runMaybeT)
-import Data.Generics.Uniplate.Data (universe)
 import Data.List (delete)
 import Data.Map.Strict qualified as Map
 import Data.Set qualified as Set
@@ -30,7 +29,6 @@ import Primer.Builtins (
  )
 import Primer.Core (
   Expr,
-  Expr' (LetType),
   GlobalName (baseName, qualifiedModule),
   ID,
   Kind (KFun, KType),
@@ -94,7 +92,7 @@ import Primer.Zipper (
 import Tasty (Property, withDiscards, withTests)
 import Test.Tasty.HUnit (Assertion, assertBool, assertFailure, (@?=))
 import Tests.Action.Prog (runAppTestM)
-import Tests.Eval.Utils (genDirTm, (~=), (~~=))
+import Tests.Eval.Utils (genDirTm, hasTypeLets, (~=), (~~=))
 import Tests.Gen.Core.Typed (checkTest)
 
 -- * 'tryReduce' tests
@@ -1205,11 +1203,11 @@ tasty_type_preservation =
             case s of
               Left err -> annotateShow err >> failure
               Right (s', _) ->
-                if null [() | LetType{} <- universe s']
-                  then do
+                if hasTypeLets s'
+                  then label "skipped due to LetType" >> success
+                  else do
                     s'' <- checkTest ty s'
                     forgetMetadata s' === forgetMetadata s'' -- check no smart holes happened
-                  else label "skipped due to LetType" >> success
 
 -- | Reductions do not interfere with each other
 -- if @i,j ∈ redexes e@  (and @i /= j@), and @e@ reduces to @e'@ via redex @i@

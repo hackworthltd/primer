@@ -2,7 +2,6 @@ module Tests.EvalFull where
 
 import Foreword hiding (unlines)
 
-import Data.Generics.Uniplate.Data (universe)
 import Data.List ((\\))
 import Data.List.NonEmpty qualified as NE
 import Data.Map qualified as M
@@ -118,7 +117,7 @@ import Tasty (
  )
 import Test.Tasty.HUnit (Assertion, assertBool, assertFailure, (@?=))
 import Tests.Action.Prog (runAppTestM)
-import Tests.Eval.Utils (genDirTm, testModules, (~=))
+import Tests.Eval.Utils (genDirTm, hasTypeLets, testModules, (~=))
 import Tests.Gen.Core.Typed (checkTest)
 import Tests.Typecheck (expectTypedWithPrims, runTypecheckTestM, runTypecheckTestMWithPrims)
 
@@ -834,12 +833,12 @@ tasty_type_preservation = withTests 1000 $
             s <- case e of
               Left (TimedOut s') -> label (msg <> "TimedOut") >> pure s'
               Right s' -> label (msg <> "NF") >> pure s'
-            if null [() | LetType{} <- universe s]
-              then do
+            if hasTypeLets s
+              then label (msg <> "skipped due to LetType") >> success
+              else do
                 annotateShow s
                 s' <- checkTest ty s
                 forgetMetadata s === forgetMetadata s' -- check no smart holes happened
-              else label (msg <> "skipped due to LetType") >> success
       maxSteps <- forAllT $ Gen.integral $ Range.linear 1 1000 -- Arbitrary limit here
       (steps, s) <- failWhenSevereLogs $ evalFullStepCount @EvalLog tds globs maxSteps dir t
       annotateShow steps
