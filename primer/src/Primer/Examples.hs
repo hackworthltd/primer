@@ -76,9 +76,9 @@ import Primer.Core.DSL (
   app,
   branch,
   case_,
+  con,
   con0,
   con1,
-  conSat,
   create,
   emptyHole,
   gvar,
@@ -147,9 +147,9 @@ map modName =
                   case_
                     (lvar "xs")
                     [ branch B.cNil [] $
-                        conSat B.cNil [tvar "b"] []
+                        con B.cNil [tvar "b"] []
                     , branch B.cCons [("y", Nothing), ("ys", Nothing)] $
-                        conSat B.cCons [tvar "b"] [lvar "f" `app` lvar "y", gvar this `aPP` tvar "a" `aPP` tvar "b" `app` lvar "f" `app` lvar "ys"]
+                        con B.cCons [tvar "b"] [lvar "f" `app` lvar "y", gvar this `aPP` tvar "a" `aPP` tvar "b" `app` lvar "f" `app` lvar "ys"]
                     ]
         pure (this, DefAST $ ASTDef term type_)
 
@@ -162,9 +162,9 @@ map' modName = do
         lam "xs" $
           case_
             (lvar "xs")
-            [ branch B.cNil [] $ conSat B.cNil [tvar "b"] []
+            [ branch B.cNil [] $ con B.cNil [tvar "b"] []
             , branch B.cCons [("y", Nothing), ("ys", Nothing)] $
-                conSat B.cCons [tvar "b"] [lvar "f" `app` lvar "y", lvar "go" `app` lvar "ys"]
+                con B.cCons [tvar "b"] [lvar "f" `app` lvar "y", lvar "go" `app` lvar "ys"]
             ]
   term <-
     lAM "a" $
@@ -254,7 +254,7 @@ comprehensive' typeable modName = do
           "y"
           ( app
               ( hole
-                  (conSat B.cJust [tEmptyHole] [emptyHole])
+                  (con B.cJust [tEmptyHole] [emptyHole])
               )
               ( if typeable then emptyHole else hole $ gvar' (unModuleName modName) "unboundName"
               )
@@ -271,7 +271,7 @@ comprehensive' typeable modName = do
                           ( aPP
                               ( if typeable
                                   then
-                                    lAM "b" (lam "x" $ conSat B.cLeft [tcon B.tBool, tvar "b"] [lvar "x"])
+                                    lAM "b" (lam "x" $ con B.cLeft [tcon B.tBool, tvar "b"] [lvar "x"])
                                       `ann` tforall
                                         "b"
                                         KType
@@ -282,7 +282,7 @@ comprehensive' typeable modName = do
                                     letType
                                       "b"
                                       (tcon B.tBool)
-                                      ( conSat B.cLeft [tlet "c" (tvar "b") $ tvar "c"] []
+                                      ( con B.cLeft [tlet "c" (tvar "b") $ tvar "c"] []
                                       )
                               )
                               (tvar "β")

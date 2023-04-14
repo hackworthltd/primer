@@ -68,8 +68,8 @@ import Primer.Core.DSL (
   apps',
   branch,
   case_,
+  con,
   con0,
-  conSat,
   emptyHole,
   hole,
   lAM,
@@ -634,7 +634,7 @@ constructSatCon c ze = case target ze of
       conInfo n >>= \case
         Left err -> throwError $ SaturatedApplicationError $ Left err
         Right t -> pure t
-    flip replace ze <$> conSat n (replicate nTyArgs tEmptyHole) (replicate nTmArgs emptyHole)
+    flip replace ze <$> con n (replicate nTyArgs tEmptyHole) (replicate nTmArgs emptyHole)
   e -> throwError $ NeedEmptyHole (ConstructSaturatedCon c) e
   where
     n = unsafeMkGlobalName c
@@ -681,7 +681,7 @@ constructRefinedCon c ze = do
         -- the above obviously may not be saturated and the inside of the hole is not synthesisable (but maybe we don't care, and rely on smartholes to fix it?), and the below may not be if the target type is not an applied-ADT
         -- (todo: add reference to innards-of-hole-must-be-syn note from todo list "Note [Holes and bidirectionality]")
         Just Nothing -> throwError $ InternalFailure "Types of constructors always have type abstractions before term abstractions"
-        Just (Just (tys, tms)) -> flip replace ze <$> conSat n (pure <$> tys) (pure <$> tms)
+        Just (Just (tys, tms)) -> flip replace ze <$> con n (pure <$> tys) (pure <$> tms)
     e -> throwError $ NeedEmptyHole (ConstructRefinedCon c) e
 
 getTypeCache :: MonadError ActionError m => Expr -> m TypeCache

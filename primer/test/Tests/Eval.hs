@@ -175,7 +175,7 @@ unit_tryReduce_BETA :: Assertion
 unit_tryReduce_BETA = do
   let ((body, lambda, arg, input, expectedResult, k, ty), maxid) =
         create $ do
-          b <- conSat cNil [tvar "x"] []
+          b <- con cNil [tvar "x"] []
           l <- lAM "x" (pure b)
           a <- tcon tBool
           let k_ = KFun KType KType
@@ -407,7 +407,7 @@ unit_tryReduce_case_2 = do
   let (expr, i) =
         create $
           case_
-            (conSat' ["M"] "C" [] [lam "x" (lvar "x"), lvar "y", lvar "z"])
+            (con' ["M"] "C" [] [lam "x" (lvar "x"), lvar "y", lvar "z"])
             [ branch' (["M"], "B") [("b", Nothing)] (con0' ["M"] "D")
             , branch' (["M"], "C") [("c", Nothing), ("d", Nothing), ("e", Nothing)] (con0' ["M"] "E")
             ]
@@ -460,7 +460,7 @@ unit_tryReduce_case_3 = do
   let (expr, i) =
         create $
           case_
-            (conSat' ["M"] "C" [tcon' ["M"] "D"] [con0' ["M"] "E"])
+            (con' ["M"] "C" [tcon' ["M"] "D"] [con0' ["M"] "E"])
             [ branch' (["M"], "B") [("b", Nothing)] (con0' ["M"] "D")
             , branch' (["M"], "C") [("c", Nothing)] (con0' ["M"] "F")
             ]
@@ -497,7 +497,7 @@ unit_tryReduce_case_name_clash = do
   let (expr, i) =
         create $
           case_
-            (conSat' ["M"] "C" [] [emptyHole, lvar "x"])
+            (con' ["M"] "C" [] [emptyHole, lvar "x"])
             [branch' (["M"], "C") [("x", Nothing), ("y", Nothing)] emptyHole]
       tydef =
         Map.singleton (unsafeMkGlobalName (["M"], "T")) $
@@ -510,7 +510,7 @@ unit_tryReduce_case_name_clash = do
       expectedResult =
         create' $
           case_
-            (conSat' ["M"] "C" [] [emptyHole, lvar "x"])
+            (con' ["M"] "C" [] [emptyHole, lvar "x"])
             [branch' (["M"], "C") [("a7", Nothing), ("y", Nothing)] $ let_ "x" (lvar "a7") emptyHole]
   result <- runTryReduce tydef mempty mempty (expr, i)
   case result of
@@ -589,8 +589,8 @@ unit_step_non_redex :: Assertion
 unit_step_non_redex =
   let ((idX, e1, e2), maxID) = create $ do
         x <- lvar "x"
-        e1' <- let_ "x" (lam "eta" $ conSat' ["M"] "C" [] [lvar "eta"]) $ lam "x" $ pure x
-        e2' <- let_ "x" (conSat' ["M"] "C" [] [lvar "x"]) $ pure x
+        e1' <- let_ "x" (lam "eta" $ con' ["M"] "C" [] [lvar "eta"]) $ lam "x" $ pure x
+        e2' <- let_ "x" (con' ["M"] "C" [] [lvar "x"]) $ pure x
         pure (getID x, e1', e2')
    in do
         assertBool "Should not be in 'redexes', as shadowed by a lambda"
@@ -990,12 +990,12 @@ unit_redexes_lettype_capture =
 
 unit_redexes_letrec_1 :: Assertion
 unit_redexes_letrec_1 =
-  redexesOf (letrec "x" (conSat' ["M"] "C" [] [lvar "x"]) (tcon' ["M"] "T") (app (lvar "x") (lvar "y")))
+  redexesOf (letrec "x" (con' ["M"] "C" [] [lvar "x"]) (tcon' ["M"] "T") (app (lvar "x") (lvar "y")))
     <@?=> Set.fromList [2, 5]
 
 unit_redexes_letrec_2 :: Assertion
 unit_redexes_letrec_2 =
-  redexesOf (letrec "x" (conSat' ["M"] "C" [] [lvar "x"]) (tcon' ["M"] "T") (lvar "y"))
+  redexesOf (letrec "x" (con' ["M"] "C" [] [lvar "x"]) (tcon' ["M"] "T") (lvar "y"))
     <@?=> Set.fromList [0, 2]
 
 -- Test that our self-capture logic does not apply to letrec.
@@ -1046,7 +1046,7 @@ unit_redexes_lettype_1 =
 
 unit_redexes_lettype_2 :: Assertion
 unit_redexes_lettype_2 =
-  redexesOf (letType "x" (tcon' ["M"] "T") (conSat' ["M"] "C" [tvar "x"] [])) <@?=> Set.fromList [3]
+  redexesOf (letType "x" (tcon' ["M"] "T") (con' ["M"] "C" [tvar "x"] [])) <@?=> Set.fromList [3]
 
 unit_redexes_lettype_3 :: Assertion
 unit_redexes_lettype_3 =

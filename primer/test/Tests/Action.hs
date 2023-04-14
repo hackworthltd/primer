@@ -347,16 +347,16 @@ unit_rename_LAM :: Assertion
 unit_rename_LAM =
   actionTest
     NoSmartHoles
-    (ann (lAM "a" (conSat cNil [tvar "a"] [])) (tforall "b" KType $ listOf (tvar "b")))
+    (ann (lAM "a" (con cNil [tvar "a"] [])) (tforall "b" KType $ listOf (tvar "b")))
     [Move Child1, RenameLAM "b"]
-    (ann (lAM "b" (conSat cNil [tvar "b"] [])) (tforall "b" KType $ listOf (tvar "b")))
+    (ann (lAM "b" (con cNil [tvar "b"] [])) (tforall "b" KType $ listOf (tvar "b")))
 
 unit_rename_LAM_2 :: Assertion
 unit_rename_LAM_2 =
   actionTestExpectFail
     (const True)
     NoSmartHoles
-    (ann (lAM "b" (lAM "a" (conSat cNil [tvar "b"] []))) tEmptyHole)
+    (ann (lAM "b" (lAM "a" (con cNil [tvar "b"] []))) tEmptyHole)
     [Move Child1, Move Child1, RenameLAM "b"]
 
 unit_rename_LAM_3 :: Assertion
@@ -1031,7 +1031,7 @@ unit_refine_2 =
     NoSmartHoles
     (emptyHole `ann` (tcon tList `tapp` tcon tNat))
     [Move Child1, constructRefinedCon cNil]
-    (conSat cNil [tcon tNat] [] `ann` (tcon tList `tapp` tcon tNat))
+    (con cNil [tcon tNat] [] `ann` (tcon tList `tapp` tcon tNat))
 
 unit_refine_3 :: Assertion
 unit_refine_3 =
@@ -1039,7 +1039,7 @@ unit_refine_3 =
     NoSmartHoles
     (emptyHole `ann` (tcon tList `tapp` tEmptyHole))
     [Move Child1, constructRefinedCon cNil]
-    (conSat cNil [tEmptyHole] [] `ann` (tcon tList `tapp` tEmptyHole))
+    (con cNil [tEmptyHole] [] `ann` (tcon tList `tapp` tEmptyHole))
 
 unit_refine_4 :: Assertion
 unit_refine_4 =
@@ -1048,18 +1048,18 @@ unit_refine_4 =
     -- REVIEW (saturated constructors): for enforced-saturation, eta expansion is necessary here
     -- Even though constructors are (may be changed later) synthesisable, their eta expansions are not
     -- Thus an annotation is required!
-    (let_ "nil" (lAM "a" (conSat cNil [tvar "a"] []) `ann` tforall "a" KType (tcon tList `tapp` tvar "a")) $ emptyHole `ann` (tcon tList `tapp` tcon tNat))
+    (let_ "nil" (lAM "a" (con cNil [tvar "a"] []) `ann` tforall "a" KType (tcon tList `tapp` tvar "a")) $ emptyHole `ann` (tcon tList `tapp` tcon tNat))
     [Move Child2, Move Child1, InsertRefinedVar $ LocalVarRef "nil"]
-    (let_ "nil" (lAM "a" (conSat cNil [tvar "a"] []) `ann` tforall "a" KType (tcon tList `tapp` tvar "a")) $ (lvar "nil" `aPP` tcon tNat) `ann` (tcon tList `tapp` tcon tNat))
+    (let_ "nil" (lAM "a" (con cNil [tvar "a"] []) `ann` tforall "a" KType (tcon tList `tapp` tvar "a")) $ (lvar "nil" `aPP` tcon tNat) `ann` (tcon tList `tapp` tcon tNat))
 
 unit_refine_5 :: Assertion
 unit_refine_5 =
   actionTest
     NoSmartHoles
     -- REVIEW (saturated constructors): see comments on unit_refine_4 r.e. eta only checkable
-    (let_ "nil" (lAM "a" (conSat cNil [tvar "a"] []) `ann` tforall "a" KType (tcon tList `tapp` tvar "a")) $ emptyHole `ann` (tcon tList `tapp` tEmptyHole))
+    (let_ "nil" (lAM "a" (con cNil [tvar "a"] []) `ann` tforall "a" KType (tcon tList `tapp` tvar "a")) $ emptyHole `ann` (tcon tList `tapp` tEmptyHole))
     [Move Child2, Move Child1, InsertRefinedVar $ LocalVarRef "nil"]
-    (let_ "nil" (lAM "a" (conSat cNil [tvar "a"] []) `ann` tforall "a" KType (tcon tList `tapp` tvar "a")) $ (lvar "nil" `aPP` tEmptyHole) `ann` (tcon tList `tapp` tEmptyHole))
+    (let_ "nil" (lAM "a" (con cNil [tvar "a"] []) `ann` tforall "a" KType (tcon tList `tapp` tvar "a")) $ (lvar "nil" `aPP` tEmptyHole) `ann` (tcon tList `tapp` tEmptyHole))
 
 unit_refine_mismatch :: Assertion
 unit_refine_mismatch =
@@ -1067,7 +1067,7 @@ unit_refine_mismatch =
     NoSmartHoles
     (emptyHole `ann` tcon tNat)
     [Move Child1, constructRefinedCon cCons]
-    (hole (conSat cCons [] []) `ann` tcon tNat)
+    (hole (con cCons [] []) `ann` tcon tNat)
 
 -- Note @cons @? ∈ ? -> List ? -> List ?  ~  ? -> ?@,
 -- thus inserting a refined @cons@ in a hole of type @? -> ?@ may not refine as
@@ -1078,7 +1078,7 @@ unit_refine_arr_1 =
     NoSmartHoles
     (emptyHole `ann` (tEmptyHole `tfun` tEmptyHole))
     [Move Child1, constructRefinedCon cCons]
-    (conSat cCons [tEmptyHole] [] `ann` (tEmptyHole `tfun` tEmptyHole))
+    (con cCons [tEmptyHole] [] `ann` (tEmptyHole `tfun` tEmptyHole))
 
 unit_refine_arr_2 :: Assertion
 unit_refine_arr_2 =
@@ -1086,7 +1086,7 @@ unit_refine_arr_2 =
     NoSmartHoles
     (emptyHole `ann` ((tcon tList `tapp` tcon tNat) `tfun` (tcon tList `tapp` tcon tNat)))
     [Move Child1, constructRefinedCon cCons]
-    (conSat cCons [tcon tNat] [emptyHole] `ann` ((tcon tList `tapp` tcon tNat) `tfun` (tcon tList `tapp` tcon tNat)))
+    (con cCons [tcon tNat] [emptyHole] `ann` ((tcon tList `tapp` tcon tNat) `tfun` (tcon tList `tapp` tcon tNat)))
 
 unit_primitive_1 :: Assertion
 unit_primitive_1 =
@@ -1126,7 +1126,7 @@ unit_move_ctor =
     , constructSaturatedCon cFalse
     , Move Parent
     ]
-    (conSat cMakePair [tcon tNat, tcon tBool] [con0 cZero, con0 cFalse])
+    (con cMakePair [tcon tNat, tcon tBool] [con0 cZero, con0 cFalse])
 
 -- * Helpers
 
