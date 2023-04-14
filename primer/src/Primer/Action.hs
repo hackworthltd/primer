@@ -68,8 +68,8 @@ import Primer.Core.DSL (
   apps',
   branch,
   case_,
+  con,
   con0,
-  conSat,
   emptyHole,
   hole,
   lAM,
@@ -633,7 +633,7 @@ constructSatCon c ze = case target ze of
       conInfo n >>= \case
         Left err -> throwError $ SaturatedApplicationError $ Left err
         Right t -> pure t
-    flip replace ze <$> conSat n (replicate nTyArgs tEmptyHole) (replicate nTmArgs emptyHole)
+    flip replace ze <$> con n (replicate nTyArgs tEmptyHole) (replicate nTmArgs emptyHole)
   e -> throwError $ NeedEmptyHole (ConstructSaturatedCon c) e
   where
     n = unsafeMkGlobalName c
@@ -668,13 +668,13 @@ constructRefinedCon c ze = do
     EmptyHole{} ->
       breakLR <<$>> getRefinedApplications cxt cTy tgtTy >>= \case
         -- See Note [No valid refinement]
-        Nothing -> flip replace ze <$> hole (conSat n (replicate numTyArgs tEmptyHole) (replicate numTmArgs emptyHole))
+        Nothing -> flip replace ze <$> hole (con n (replicate numTyArgs tEmptyHole) (replicate numTmArgs emptyHole))
         -- TODO (saturated constructors): when constructors are checkable the above will not be valid
         -- since the inside of a hole must be synthesisable (see Note [Holes and bidirectionality])
         -- TODO (saturated constructors): when saturation is enforced, the Just Just case may not be valid
         -- if the target type is not an applied-ADT
         Just Nothing -> throwError $ InternalFailure "Types of constructors always have type abstractions before term abstractions"
-        Just (Just (tys, tms)) -> flip replace ze <$> conSat n (pure <$> tys) (pure <$> tms)
+        Just (Just (tys, tms)) -> flip replace ze <$> con n (pure <$> tys) (pure <$> tms)
     e -> throwError $ NeedEmptyHole (ConstructRefinedCon c) e
 
 getTypeCache :: MonadError ActionError m => Expr -> m TypeCache

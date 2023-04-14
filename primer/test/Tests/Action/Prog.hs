@@ -97,8 +97,8 @@ import Primer.Core.DSL (
   app,
   branch,
   case_,
+  con,
   con0,
-  conSat,
   create,
   create',
   emptyHole,
@@ -536,7 +536,7 @@ unit_copy_paste_duplicate = do
       toDef = gvn "blank"
       ((p, fromType, fromExpr, _toType, _toExpr), maxID) = create $ do
         mainType <- tforall "a" KType (tvar "a" `tfun` (tcon tMaybe `tapp` tEmptyHole))
-        mainExpr <- lAM "b" $ lam "x" $ conSat cJust [tvar "b"] [lvar "x"]
+        mainExpr <- lAM "b" $ lam "x" $ con cJust [tvar "b"] [lvar "x"]
         let mainDef = ASTDef mainExpr mainType
         blankDef <- ASTDef <$> emptyHole <*> tEmptyHole
         pure
@@ -643,7 +643,7 @@ unit_copy_paste_expr_1 = do
       mainName = gvn mainName'
       ((pInitial, srcID, pExpected), maxID) = create $ do
         ty <- tforall "a" KType $ (tcon tList `tapp` tvar "a") `tfun` tforall "b" KType (tvar "b" `tfun` (tcon tPair `tapp` tvar "a" `tapp` tvar "b"))
-        let toCopy' = conSat cMakePair [tvar "a", tvar "b"] [lvar "y", lvar "z"] -- want different IDs for the two occurences in expected
+        let toCopy' = con cMakePair [tvar "a", tvar "b"] [lvar "y", lvar "z"] -- want different IDs for the two occurences in expected
         toCopy <- toCopy'
         let skel r =
               lAM "a" $
@@ -653,7 +653,7 @@ unit_copy_paste_expr_1 = do
                     [ branch cNil [] r
                     , branch cCons [("y", Nothing), ("ys", Nothing)] $ lAM "b" $ lam "z" $ pure toCopy
                     ]
-        expectPasted <- conSat cMakePair [tvar "a", tEmptyHole] [emptyHole, emptyHole]
+        expectPasted <- con cMakePair [tvar "a", tEmptyHole] [emptyHole, emptyHole]
         -- TODO: in the future we may want to insert let bindings for variables
         -- which are out of scope in the target, and produce something like
         -- expectPasted <- letType "b" tEmptyHole $ let_ "y" (emptyHole `ann` tvar "a") $ let_ "z" (emptyHole `ann` tvar "b") toCopy'
@@ -897,7 +897,7 @@ unit_RenameCon =
                 hole
                   ( hole $
                       case_
-                        ( conSat
+                        ( con
                             cA
                             [ tEmptyHole
                             , tEmptyHole
@@ -930,7 +930,7 @@ unit_RenameCon =
               hole
                 ( hole $
                     case_
-                      ( conSat
+                      ( con
                           (vcn "A'")
                           [ tEmptyHole
                           , tEmptyHole
@@ -1027,7 +1027,7 @@ unit_SetConFieldType_con =
   progActionTest
     ( defaultProgEditableTypeDefs . sequence . pure $ do
         x <-
-          conSat
+          con
             cA
             [ tEmptyHole
             , tEmptyHole
@@ -1050,7 +1050,7 @@ unit_SetConFieldType_con =
       forgetMetadata (astDefExpr def)
         @?= forgetMetadata
           ( create' $
-              conSat
+              con
                 cA
                 [ tEmptyHole
                 , tEmptyHole
@@ -1069,7 +1069,7 @@ setConFieldTypeHelper ty1 tmInput ty2' tmExpected =
    in progActionTest
         ( defaultProgEditableTypeDefs . sequence . pure $ do
             x <-
-              conSat cB [tEmptyHole, ty1] [emptyHole, tmInput]
+              con cB [tEmptyHole, ty1] [emptyHole, tmInput]
             astDef "def" x <$> tEmptyHole
         )
         [SetConFieldType tT cB 1 ty2]
@@ -1084,7 +1084,7 @@ setConFieldTypeHelper ty1 tmInput ty2' tmExpected =
           forgetMetadata (astDefExpr def)
             @?= forgetMetadata
               ( create' $
-                  conSat cB [tEmptyHole, ty1] [emptyHole, tmExpected]
+                  con cB [tEmptyHole, ty1] [emptyHole, tmExpected]
               )
 
 -- change the type of a field which currently wraps a checkable term
@@ -1149,7 +1149,7 @@ unit_SetConFieldType_partial_app :: Assertion
 unit_SetConFieldType_partial_app =
   progActionTest
     ( defaultProgEditableTypeDefs $ do
-        x <- lam "x" $ conSat cA [tEmptyHole, tEmptyHole] [lvar "x"]
+        x <- lam "x" $ con cA [tEmptyHole, tEmptyHole] [lvar "x"]
         sequence
           [ astDef "def" x <$> tcon (tcn "Bool") `tfun` (tcon (tcn "Bool") `tfun` (tcon (tcn "Bool") `tfun` ((tcon tT `tapp` tEmptyHole) `tapp` tEmptyHole)))
           ]
@@ -1233,7 +1233,7 @@ unit_AddConField =
     ( defaultProgEditableTypeDefs $ do
         x <-
           case_
-            ( conSat
+            ( con
                 cA
                 [ tEmptyHole
                 , tEmptyHole
@@ -1263,7 +1263,7 @@ unit_AddConField =
         @?= forgetMetadata
           ( create' $
               case_
-                ( conSat
+                ( con
                     cA
                     [ tEmptyHole
                     , tEmptyHole
@@ -1284,7 +1284,7 @@ unit_AddConField_partial_app =
   progActionTest
     ( defaultProgEditableTypeDefs $ do
         x <-
-          conSat cA [tEmptyHole, tEmptyHole] [con0 (vcn "True")]
+          con cA [tEmptyHole, tEmptyHole] [con0 (vcn "True")]
         sequence
           [ astDef "def" x <$> tEmptyHole
           ]
@@ -1298,7 +1298,7 @@ unit_AddConField_partial_app_end =
   progActionTest
     ( defaultProgEditableTypeDefs $ do
         x <-
-          conSat cA [tEmptyHole, tEmptyHole] [con0 (vcn "True")]
+          con cA [tEmptyHole, tEmptyHole] [con0 (vcn "True")]
         sequence
           [ astDef "def" x <$> tEmptyHole
           ]
@@ -1315,7 +1315,7 @@ unit_AddConField_partial_app_end =
       forgetMetadata (astDefExpr def)
         @?= forgetMetadata
           ( create' $
-              conSat cA [tEmptyHole, tEmptyHole] [con0 (vcn "True"), emptyHole]
+              con cA [tEmptyHole, tEmptyHole] [con0 (vcn "True"), emptyHole]
           )
 
 unit_AddConField_case_ann :: Assertion

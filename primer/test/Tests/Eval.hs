@@ -175,7 +175,7 @@ unit_tryReduce_BETA :: Assertion
 unit_tryReduce_BETA = do
   let ((body, lambda, arg, input, expectedResult, k, ty), maxid) =
         create $ do
-          b <- conSat cNil [tvar "x"] []
+          b <- con cNil [tvar "x"] []
           l <- lAM "x" (pure b)
           a <- tcon tBool
           let k_ = KFun KType KType
@@ -407,7 +407,7 @@ unit_tryReduce_case_2 = do
   let (expr, i) =
         create $
           case_
-            (conSat' ["M"] "C" [] [lam "x" (lvar "x"), lvar "y", lvar "z"])
+            (con' ["M"] "C" [] [lam "x" (lvar "x"), lvar "y", lvar "z"])
             [ branch' (["M"], "B") [("b", Nothing)] (con0' ["M"] "D")
             , branch' (["M"], "C") [("c", Nothing), ("d", Nothing), ("e", Nothing)] (con0' ["M"] "E")
             ]
@@ -460,7 +460,7 @@ unit_tryReduce_case_3 = do
   let (expr, i) =
         create $
           case_
-            (conSat' ["M"] "C" [tcon' ["M"] "D"] [con0' ["M"] "E"])
+            (con' ["M"] "C" [tcon' ["M"] "D"] [con0' ["M"] "E"])
             [ branch' (["M"], "B") [("b", Nothing)] (con0' ["M"] "D")
             , branch' (["M"], "C") [("c", Nothing)] (con0' ["M"] "F")
             ]
@@ -497,7 +497,7 @@ unit_tryReduce_case_name_clash = do
   let (expr, i) =
         create $
           case_
-            (conSat' ["M"] "C" [] [emptyHole, lvar "x"])
+            (con' ["M"] "C" [] [emptyHole, lvar "x"])
             [branch' (["M"], "C") [("x", Nothing), ("y", Nothing)] emptyHole]
       tydef =
         Map.singleton (unsafeMkGlobalName (["M"], "T")) $
@@ -510,7 +510,7 @@ unit_tryReduce_case_name_clash = do
       expectedResult =
         create' $
           case_
-            (conSat' ["M"] "C" [] [emptyHole, lvar "x"])
+            (con' ["M"] "C" [] [emptyHole, lvar "x"])
             [branch' (["M"], "C") [("a7", Nothing), ("y", Nothing)] $ let_ "x" (lvar "a7") emptyHole]
   result <- runTryReduce tydef mempty mempty (expr, i)
   case result of
@@ -1046,7 +1046,7 @@ unit_redexes_lettype_1 =
 
 unit_redexes_lettype_2 :: Assertion
 unit_redexes_lettype_2 =
-  redexesOf (letType "x" (tcon' ["M"] "T") (conSat' ["M"] "C" [tvar "x"] [])) <@?=> Set.fromList [3]
+  redexesOf (letType "x" (tcon' ["M"] "T") (con' ["M"] "C" [tvar "x"] [])) <@?=> Set.fromList [3]
 
 unit_redexes_lettype_3 :: Assertion
 unit_redexes_lettype_3 =

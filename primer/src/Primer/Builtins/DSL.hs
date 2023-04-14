@@ -29,9 +29,9 @@ import Primer.Core (
   Type,
  )
 import Primer.Core.DSL (
+  con,
   con0,
   con1,
-  conSat,
   tapp,
   tcon,
  )
@@ -47,16 +47,16 @@ nat = \case
 
 maybe_ :: MonadFresh ID m => m Type -> (a -> m Expr) -> Maybe a -> m Expr
 maybe_ t f = \case
-  Nothing -> conSat cNothing [t] []
-  Just x -> conSat cJust [t] [f x]
+  Nothing -> con cNothing [t] []
+  Just x -> con cJust [t] [f x]
 
 list_ :: MonadFresh ID m => TyConName -> [m Expr] -> m Expr
 list_ t =
   foldr
     ( \a b ->
-        conSat cCons [tcon t] [a, b]
+        con cCons [tcon t] [a, b]
     )
-    (conSat cNil [tcon t] [])
+    (con cNil [tcon t] [])
 
 listOf :: MonadFresh ID m => m Type -> m Type
 listOf = tapp (tcon tList)

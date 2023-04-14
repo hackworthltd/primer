@@ -48,7 +48,7 @@ import Primer.Core (
  )
 import Primer.Core.DSL (
   char,
-  conSat,
+  con,
   int,
   tcon,
  )
@@ -211,15 +211,15 @@ primFunDef def args = case def of
     [PrimCon _ (PrimInt x), PrimCon _ (PrimInt y)] ->
       Right $
         if y == 0
-          then conSat cNothing [tcon tInt] []
-          else conSat cJust [tcon tInt] [int (x `div` y)]
+          then con cNothing [tcon tInt] []
+          else con cJust [tcon tInt] [int (x `div` y)]
     _ -> err
   IntRemainder -> case args of
     [PrimCon _ (PrimInt x), PrimCon _ (PrimInt y)] ->
       Right $
         if y == 0
-          then conSat cNothing [tcon tInt] []
-          else conSat cJust [tcon tInt] [int (x `mod` y)]
+          then con cNothing [tcon tInt] []
+          else con cJust [tcon tInt] [int (x `mod` y)]
     _ -> err
   IntQuot -> case args of
     [PrimCon _ (PrimInt x), PrimCon _ (PrimInt y)] ->
@@ -263,8 +263,8 @@ primFunDef def args = case def of
     [PrimCon _ (PrimInt x)] ->
       Right $
         if x < 0
-          then conSat cNothing [tcon tNat] []
-          else conSat cJust [tcon tNat] [nat (fromInteger x)]
+          then con cNothing [tcon tNat] []
+          else con cJust [tcon tNat] [nat (fromInteger x)]
     _ -> err
   IntFromNat -> case args of
     [exprToNat -> Just n] ->

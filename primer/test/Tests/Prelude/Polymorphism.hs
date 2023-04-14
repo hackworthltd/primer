@@ -18,7 +18,7 @@ import Primer.Builtins.DSL (
 import Primer.Core.DSL (
   apps,
   char,
-  conSat,
+  con,
   create',
   gvar,
   int,
@@ -105,7 +105,7 @@ tasty_foldr_list_char :: Property
 tasty_foldr_list_char = property $ do
   as <- forAll $ G.list (Range.linear 0 10) G.unicode
   as' <- forAll $ G.list (Range.linear 0 10) G.unicode
-  let cons = lam "x" $ lam "xs" $ conSat cCons [tcon tChar] [lvar "x", lvar "xs"]
+  let cons = lam "x" $ lam "xs" $ con cCons [tcon tChar] [lvar "x", lvar "xs"]
    in functionOutput'
         P.foldr
         [Right $ listOf (tcon tChar), Right $ listOf (tcon tChar), Left cons, Left $ list_ tChar $ map char as, Left $ list_ tChar $ map char as']
