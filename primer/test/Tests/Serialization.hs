@@ -20,7 +20,8 @@ import Primer.App (
   Prog (..),
   ProgAction (BodyAction, MoveToDef),
   ProgError (NoDefSelected),
-  Selection (..),
+  Selection,
+  Selection' (..),
   defaultLog,
  )
 import Primer.Builtins (tNat)

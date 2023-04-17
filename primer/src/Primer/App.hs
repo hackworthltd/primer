@@ -104,7 +104,8 @@ import Primer.App.Base (
   Level (..),
   NodeSelection (..),
   NodeType (..),
-  Selection (..),
+  Selection,
+  Selection' (..),
  )
 import Primer.Core (
   Bind' (Bind),

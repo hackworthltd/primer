@@ -139,6 +139,7 @@ import Primer.Core (
   CaseBranch' (..),
   Expr,
   Expr' (..),
+  ExprMeta,
   GVarName,
   GlobalName (..),
   HasID (..),
@@ -152,6 +153,7 @@ import Primer.Core (
   TyVarName,
   Type,
   Type' (..),
+  TypeMeta,
   ValConName,
   getID,
   unLocalName,
@@ -1169,5 +1171,5 @@ data NodeSelection = NodeSelection
   deriving (FromJSON, ToJSON) via PrimerJSON NodeSelection
   deriving anyclass (NFData)
 
-viewNodeSelection :: App.NodeSelection -> NodeSelection
+viewNodeSelection :: App.NodeSelection (Either ExprMeta TypeMeta) -> NodeSelection
 viewNodeSelection sel@App.NodeSelection{nodeType} = NodeSelection{nodeType, id = getID sel}
