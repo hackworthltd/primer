@@ -676,7 +676,7 @@ viewProg p =
                               flip evalState (0 :: Int) . traverseOf _typeMeta \() -> do
                                 n <- get
                                 put $ n + 1
-                                pure $ "primtype_" <> show d' <> "_" <> show n
+                                pure $ "primtype_" <> Name.unName (Core.baseName name) <> "_" <> show n
                   }
             )
               <$> Map.assocs (moduleDefsQualified m)
