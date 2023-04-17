@@ -1,4 +1,6 @@
 {-# LANGUAGE OverloadedLabels #-}
+{-# LANGUAGE OverloadedRecordDot #-}
+{-# LANGUAGE NoFieldSelectors #-}
 
 -- | Definitions needed to build the app.
 -- These are not part of the core language, but we may want to use them in dependencies of 'Primer.App'.
@@ -57,9 +59,9 @@ data NodeType = BodyNode | SigNode
 type Selection = Selection' (Either ExprMeta TypeMeta)
 
 data Selection' a = Selection
-  { selectedDef :: GVarName
+  { def :: GVarName
   -- ^ the ID of some ASTDef
-  , selectedNode :: Maybe (NodeSelection a)
+  , node :: Maybe (NodeSelection a)
   }
   deriving stock (Eq, Show, Read, Functor, Generic, Data)
   deriving (FromJSON, ToJSON) via PrimerJSON (Selection' a)
@@ -76,4 +78,4 @@ data NodeSelection a = NodeSelection
   deriving anyclass (NFData)
 
 instance HasID a => HasID (NodeSelection a) where
-  _id = lens (getID . meta) (flip $ over #meta . set _id)
+  _id = lens (getID . (.meta)) (flip $ over #meta . set _id)

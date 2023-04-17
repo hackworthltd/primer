@@ -1,5 +1,6 @@
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE OverloadedLabels #-}
+{-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE ViewPatterns #-}
 
 -- This module defines the high level application functions.
@@ -323,8 +324,8 @@ newEmptyProgImporting imported =
           , progSelection =
               Just
                 Selection
-                  { selectedDef = qualifyName moduleName defName
-                  , selectedNode = Nothing
+                  { def = qualifyName moduleName defName
+                  , node = Nothing
                   }
           }
       , nextID
@@ -881,7 +882,7 @@ applyProgAction prog = \case
                     ActionError $
                       InternalFailure "RenameModule: imported modules were edited by renaming"
   where
-    mdefName = selectedDef <$> progSelection prog
+    mdefName = (.def) <$> progSelection prog
 
 -- Helper for RenameModule action
 data RenameMods a = RM {imported :: [a], editable :: [a]}
@@ -1378,8 +1379,8 @@ tcWholeProg p = do
   newSel <- case oldSel of
     Nothing -> pure Nothing
     Just s -> do
-      let defName_ = s ^. #selectedDef
-      updatedNode <- case s ^. #selectedNode of
+      let defName_ = s.def
+      updatedNode <- case s.node of
         Nothing -> pure Nothing
         Just sel@NodeSelection{nodeType} -> do
           n <- runExceptT $ focusNode p' defName_ $ getID sel
@@ -1390,8 +1391,8 @@ tcWholeProg p = do
       pure $
         Just $
           Selection
-            { selectedDef = defName_
-            , selectedNode = updatedNode
+            { def = defName_
+            , node = updatedNode
             }
   pure $ p'{progSelection = newSel}
 

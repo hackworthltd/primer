@@ -146,13 +146,13 @@
         }
     ],
     "progSelection": {
-        "selectedDef": {
+        "def": {
             "baseName": "main",
             "qualifiedModule": [
                 "M"
             ]
         },
-        "selectedNode": {
+        "node": {
             "meta": {
                 "Left": [
                     0,
