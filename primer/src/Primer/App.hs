@@ -48,8 +48,6 @@ module Primer.App (
   handleEvalFullRequest,
   importModules,
   MutationRequest (..),
-  Selection (..),
-  NodeSelection (..),
   EvalReq (..),
   EvalResp (..),
   EvalFullReq (..),
@@ -63,7 +61,6 @@ import Foreword hiding (mod)
 import Control.Monad.Fresh (MonadFresh (..))
 import Control.Monad.Log (MonadLog, WithSeverity)
 import Control.Monad.NestedError (MonadNestedError, throwError')
-import Data.Data (Data)
 import Data.Generics.Uniplate.Operations (transform, transformM)
 import Data.Generics.Uniplate.Zipper (
   fromZipper,
@@ -78,10 +75,8 @@ import Optics (
   Field3 (_3),
   ReversibleOptic (re),
   ifoldMap,
-  lens,
   mapped,
   over,
-  set,
   traverseOf,
   traversed,
   view,
@@ -107,7 +102,9 @@ import Primer.Action.ProgError (ProgError (..))
 import Primer.App.Base (
   Editable (..),
   Level (..),
+  NodeSelection (..),
   NodeType (..),
+  Selection (..),
  )
 import Primer.Core (
   Bind' (Bind),
@@ -115,10 +112,8 @@ import Primer.Core (
   CaseBranch' (CaseBranch),
   Expr,
   Expr' (Case, Con, EmptyHole, Hole, Var),
-  ExprMeta,
   GVarName,
   GlobalName (baseName, qualifiedModule),
-  HasID (_id),
   ID (..),
   LocalName (LocalName, unLocalName),
   Meta (..),
@@ -414,33 +409,6 @@ newtype Log = Log {unlog :: [[ProgAction]]}
 -- | The default (empty) 'Log'.
 defaultLog :: Log
 defaultLog = Log mempty
-
--- | Describes what interface element the user has selected.
--- A definition in the left hand nav bar, and possibly a node in that definition.
-data Selection = Selection
-  { selectedDef :: GVarName
-  -- ^ the ID of some ASTDef
-  , selectedNode :: Maybe NodeSelection
-  }
-  deriving stock (Eq, Show, Read, Generic, Data)
-  deriving (FromJSON, ToJSON) via PrimerJSON Selection
-  deriving anyclass (NFData)
-
--- | A selected node, in the body or type signature of some definition.
--- We have the following invariant: @nodeType = SigNode ==> isRight meta@
-data NodeSelection = NodeSelection
-  { nodeType :: NodeType
-  , meta :: Either ExprMeta TypeMeta
-  }
-  deriving stock (Eq, Show, Read, Generic, Data)
-  deriving (FromJSON, ToJSON) via PrimerJSON NodeSelection
-  deriving anyclass (NFData)
-
-instance HasID NodeSelection where
-  _id =
-    lens
-      (either getID getID . meta)
-      (flip $ \id -> over #meta $ bimap (set _id id) (set _id id))
 
 -- | The type of requests which can mutate the application state.
 data MutationRequest
