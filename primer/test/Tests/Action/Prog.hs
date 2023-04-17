@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedLabels #-}
+{-# LANGUAGE OverloadedRecordDot #-}
 
 module Tests.Action.Prog where
 
@@ -1323,7 +1324,7 @@ unit_rename_module =
         Left err -> assertFailure $ show err
         Right p -> do
           fmap (unModuleName . moduleName) (progModules p) @?= [["Module2"]]
-          selectedDef <$> progSelection p @?= Just (qualifyName (ModuleName ["Module2"]) "main")
+          (.def) <$> progSelection p @?= Just (qualifyName (ModuleName ["Module2"]) "main")
           case fmap (Map.assocs . moduleDefsQualified) (progModules p) of
             [[(n, DefAST d)]] -> do
               let expectedName = qualifyName (ModuleName ["Module2"]) "main"
@@ -1506,7 +1507,7 @@ unit_sh_lost_id =
         Just def ->
           case astDefExpr <$> defAST def of
             Just (Var m (GlobalVarRef f)) | f == foo -> case progSelection prog' of
-              Just Selection{selectedDef, selectedNode = Just sel} ->
+              Just Selection{def = selectedDef, node = Just sel} ->
                 unless (selectedDef == foo && getID sel == getID m) $
                   assertFailure "expected selection to point at the recursive reference"
               _ -> assertFailure "expected the selection to point at some node"

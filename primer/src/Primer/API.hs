@@ -1155,7 +1155,7 @@ data Selection = Selection
   deriving anyclass (NFData)
 
 viewSelection :: App.Selection -> Selection
-viewSelection App.Selection{..} = Selection{def = selectedDef, node = viewNodeSelection <$> selectedNode}
+viewSelection App.Selection{..} = Selection{def = def, node = viewNodeSelection <$> node}
 
 -- | 'App.NodeSelection' without any node metadata.
 data NodeSelection = NodeSelection
