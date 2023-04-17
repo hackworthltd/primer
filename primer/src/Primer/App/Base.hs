@@ -6,7 +6,8 @@ module Primer.App.Base (
   Level (..),
   Editable (..),
   NodeType (..),
-  Selection (..),
+  Selection,
+  Selection' (..),
   NodeSelection (..),
 ) where
 
@@ -53,27 +54,26 @@ data NodeType = BodyNode | SigNode
 
 -- | Describes what interface element the user has selected.
 -- A definition in the left hand nav bar, and possibly a node in that definition.
-data Selection = Selection
+type Selection = Selection' (Either ExprMeta TypeMeta)
+
+data Selection' a = Selection
   { selectedDef :: GVarName
   -- ^ the ID of some ASTDef
-  , selectedNode :: Maybe NodeSelection
+  , selectedNode :: Maybe (NodeSelection a)
   }
-  deriving stock (Eq, Show, Read, Generic, Data)
-  deriving (FromJSON, ToJSON) via PrimerJSON Selection
+  deriving stock (Eq, Show, Read, Functor, Generic, Data)
+  deriving (FromJSON, ToJSON) via PrimerJSON (Selection' a)
   deriving anyclass (NFData)
 
 -- | A selected node, in the body or type signature of some definition.
 -- We have the following invariant: @nodeType = SigNode ==> isRight meta@
-data NodeSelection = NodeSelection
+data NodeSelection a = NodeSelection
   { nodeType :: NodeType
-  , meta :: Either ExprMeta TypeMeta
+  , meta :: a
   }
-  deriving stock (Eq, Show, Read, Generic, Data)
-  deriving (FromJSON, ToJSON) via PrimerJSON NodeSelection
+  deriving stock (Eq, Show, Read, Functor, Generic, Data)
+  deriving (FromJSON, ToJSON) via PrimerJSON (NodeSelection a)
   deriving anyclass (NFData)
 
-instance HasID NodeSelection where
-  _id =
-    lens
-      (either getID getID . meta)
-      (flip $ \id -> over #meta $ bimap (set _id id) (set _id id))
+instance HasID a => HasID (NodeSelection a) where
+  _id = lens (getID . meta) (flip $ over #meta . set _id)

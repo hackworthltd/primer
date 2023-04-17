@@ -42,7 +42,7 @@ import Primer.App (
   ProgAction (..),
   ProgError (..),
   Question (GenerateName, VariablesInScope),
-  Selection (..),
+  Selection' (..),
   appIdCounter,
   appNameCounter,
   appProg,

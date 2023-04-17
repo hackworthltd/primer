@@ -799,7 +799,7 @@ instance Eq (TypeCacheAlpha [Module]) where
   (==) = tcaFunctorial
 instance Eq (TypeCacheAlpha ExprMeta) where
   (==) = tcaFunctorial
-instance Eq (TypeCacheAlpha App.NodeSelection) where
+instance Eq (TypeCacheAlpha (App.NodeSelection (Either ExprMeta TypeMeta))) where
   TypeCacheAlpha (App.NodeSelection t1 m1) == TypeCacheAlpha (App.NodeSelection t2 m2) =
     t1 == t2 && ((==) `on` first TypeCacheAlpha) m1 m2
 instance Eq (TypeCacheAlpha App.Selection) where
