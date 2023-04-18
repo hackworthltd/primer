@@ -105,7 +105,7 @@ insertAt n y xs =
 adjustAt :: Int -> (a -> a) -> [a] -> Maybe [a]
 adjustAt n f = runIdentity . adjustAtA n (pure . f)
 
--- | Like `adjustAtA`, but in an `Applicative`.
+-- | Like `adjustAt`, but in an `Applicative`.
 adjustAtA :: Applicative f => Int -> (a -> f a) -> [a] -> f (Maybe [a])
 adjustAtA n f xs = case splitAt n xs of
   (a, b : bs) -> f b <&> \b' -> Just $ a ++ [b'] ++ bs
