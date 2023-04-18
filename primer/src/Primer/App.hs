@@ -90,6 +90,7 @@ import Optics (
   (.~),
   (?~),
   (^.),
+  (^?),
   _Just,
   _Left,
   _Right,
@@ -126,6 +127,7 @@ import Primer.Core (
   TyConName,
   Type,
   Type' (..),
+  TypeCache (TCSynthed),
   TypeMeta,
   ValConName,
   getID,
@@ -135,13 +137,15 @@ import Primer.Core (
   unModuleName,
   unsafeMkGlobalName,
   unsafeMkLocalName,
+  _chkedAt,
   _exprMetaLens,
+  _synthed,
   _typeMetaLens,
  )
-import Primer.Core.DSL (S, create, emptyHole, tEmptyHole)
+import Primer.Core.DSL (S, ann, create, emptyHole, hole, tEmptyHole)
 import Primer.Core.DSL qualified as DSL
 import Primer.Core.Transform (foldApp, renameVar, unfoldAPP, unfoldApp, unfoldTApp)
-import Primer.Core.Utils (freeVars, regenerateExprIDs, regenerateTypeIDs, _freeTmVars, _freeTyVars, _freeVarsTy)
+import Primer.Core.Utils (freeVars, generateTypeIDs, regenerateExprIDs, regenerateTypeIDs, _freeTmVars, _freeTyVars, _freeVarsTy)
 import Primer.Def (
   ASTDef (..),
   Def (..),
@@ -194,6 +198,7 @@ import Primer.Typecheck (
   checkTypeDefs,
   synth,
  )
+import Primer.Typecheck.Utils (_typecache)
 import Primer.Zipper (
   ExprZ,
   Loc' (InBind, InExpr, InType),
@@ -766,8 +771,32 @@ applyProgAction prog mdefName = \case
       updateCons e = case unfoldApp e of
         (h, args) -> case unfoldAPP h of
           (Con _ con', _tyArgs) | con' == con -> do
-            m' <- DSL.meta
-            case adjustAt index (Hole m') args of
+            let typecache = _typecache % _Just
+            -- Previously the @index@th argument @t@ to this
+            -- constructor would have been typechecked against the old
+            -- field type @S@, @S ∋ t@.
+            -- With the new field type @T@, we need to change @t@ to
+            -- @t'@ such that @T ∋ t'@, which we do by:
+            -- - if @t@ is a hole, set @t'=t@
+            -- - if @t@ were synthesisable, set @t' = {? t ?}@
+            -- - if @t@ were only checkable, set @t' = {? t : S ?}@
+            -- Note that we make these choices because the contents
+            -- of a non-empty hole must be synthesisable (but we
+            -- don't care what particular type it synthesises).
+            -- Note also that we assume the metadata (typecache) is up
+            -- to date or blank, and we ensure this is the case in our
+            -- output.
+            -- We must work here to ensure that the result is
+            -- well-typed, since we wish to avoid rechecking the whole
+            -- program just to fix it up using smartholes.
+            let enhole x = case (x, x ^? typecache % _synthed, x ^? typecache % _chkedAt) of
+                  (EmptyHole{}, _, _) -> pure x
+                  (Hole{}, _, _) -> pure x
+                  (_, Just s, _) -> hole $ pure $ x & typecache .~ TCSynthed s
+                  (_, Nothing, Just c) -> hole $ pure x `ann` generateTypeIDs c
+                  -- This last case means that the input program had no (useful) metadata
+                  (_, Nothing, Nothing) -> hole $ pure x `ann` tEmptyHole
+            adjustAtA index enhole args >>= \case
               Just args' -> foldApp h =<< traverse (descendM updateCons) args'
               Nothing -> do
                 -- The constructor is not applied as far as the changed field,

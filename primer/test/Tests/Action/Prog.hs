@@ -26,7 +26,12 @@ import Primer.Action (
     RemoveAnn
   ),
   ActionError (ImportNameClash),
-  Movement (Branch, Child1, Child2, Parent),
+  Movement (
+    Branch,
+    Child1,
+    Child2,
+    Parent
+  ),
  )
 import Primer.App (
   App,
@@ -41,6 +46,7 @@ import Primer.App (
   appIdCounter,
   appNameCounter,
   appProg,
+  checkAppWellFormed,
   handleEditRequest,
   handleQuestion,
   importModules,
@@ -109,7 +115,7 @@ import Primer.Core.DSL (
   tfun,
   tvar,
  )
-import Primer.Core.Utils (forgetMetadata)
+import Primer.Core.Utils (forgetMetadata, forgetTypeMetadata)
 import Primer.Def (ASTDef (..), Def (..), DefMap, defAST)
 import Primer.Log (PureLogT, runPureLogT)
 import Primer.Module (Module (Module, moduleDefs, moduleName, moduleTypes), builtinModule, moduleDefsQualified, moduleTypesQualified, primitiveModule)
@@ -843,7 +849,7 @@ unit_RenameType =
     ( defaultProgEditableTypeDefs $
         sequence
           [ do
-              x <- emptyHole `ann` (tcon tT `tapp` tcon (tcn "Bool"))
+              x <- emptyHole `ann` (tcon tT `tapp` tcon (tcn "Bool") `tapp` tEmptyHole)
               astDef "def" x <$> tEmptyHole
           ]
     )
@@ -855,7 +861,7 @@ unit_RenameType =
       -- The recursive reference to T is renamed also
       astTypeDefConstructors td
         @?= [ ValCon (vcn "A") [TCon () (tcn "Bool"), TCon () (tcn "Bool"), TCon () (tcn "Bool")]
-            , ValCon cB [TCon () (tcn "T'"), TVar () "b"]
+            , ValCon cB [TApp () (TApp () (TCon () (tcn "T'")) (TVar () "b")) (TVar () "a"), TVar () "b"]
             ]
       -- The old name does not refer to anything
       assertBool "Expected the old name to be out of scope" $
@@ -866,7 +872,7 @@ unit_RenameType =
       forgetMetadata (astDefExpr def)
         @?= forgetMetadata
           ( create' $
-              emptyHole `ann` (tcon (tcn "T'") `tapp` tcon (tcn "Bool"))
+              emptyHole `ann` (tcon (tcn "T'") `tapp` tcon (tcn "Bool") `tapp` tEmptyHole)
           )
 
 unit_RenameType_clash :: Assertion
@@ -896,6 +902,7 @@ unit_RenameCon =
                         [ branch cA [("p", Nothing), ("q", Nothing), ("p1", Nothing)] emptyHole
                         , branch cB [("r", Nothing), ("x", Nothing)] emptyHole
                         ]
+                        `ann` tEmptyHole
                   )
               astDef "def" x <$> tEmptyHole
           ]
@@ -906,7 +913,7 @@ unit_RenameCon =
       td <- findTypeDef tT prog'
       astTypeDefConstructors td
         @?= [ ValCon (vcn "A'") [TCon () (tcn "Bool"), TCon () (tcn "Bool"), TCon () (tcn "Bool")]
-            , ValCon cB [TCon () tT, TVar () "b"]
+            , ValCon cB [TApp () (TApp () (TCon () tT) (TVar () "b")) (TVar () "a"), TVar () "b"]
             ]
       def <- findDef (gvn "def") prog'
       forgetMetadata (astDefExpr def)
@@ -925,6 +932,7 @@ unit_RenameCon =
                       [ branch (vcn "A'") [("p", Nothing), ("q", Nothing), ("p1", Nothing)] emptyHole
                       , branch cB [("r", Nothing), ("x", Nothing)] emptyHole
                       ]
+                      `ann` tEmptyHole
                 )
           )
 
@@ -956,7 +964,7 @@ unit_RenameTypeParam =
       astTypeDefParameters td @?= [("a", KType), ("b'", KType)]
       astTypeDefConstructors td
         @?= [ ValCon cA [TCon () (tcn "Bool"), TCon () (tcn "Bool"), TCon () (tcn "Bool")]
-            , ValCon cB [TCon () tT, TVar () "b'"]
+            , ValCon cB [TApp () (TApp () (TCon () tT) (TVar () "b'")) (TVar () "a"), TVar () "b'"]
             ]
 
 unit_RenameTypeParam_clash :: Assertion
@@ -975,8 +983,8 @@ unit_AddCon =
               x <-
                 case_
                   (emptyHole `ann` (tcon tT `tapp` tcon (tcn "Bool") `tapp` tcon (tcn "Int")))
-                  [ branch cA [] emptyHole
-                  , branch cB [] emptyHole
+                  [ branch cA [("x", Nothing), ("y", Nothing), ("z", Nothing)] emptyHole
+                  , branch cB [("s", Nothing), ("t", Nothing)] emptyHole
                   ]
               astDef "def" x <$> tEmptyHole
           ]
@@ -988,7 +996,7 @@ unit_AddCon =
       astTypeDefConstructors td
         @?= [ ValCon cA [TCon () (tcn "Bool"), TCon () (tcn "Bool"), TCon () (tcn "Bool")]
             , ValCon (vcn "C") []
-            , ValCon cB [TCon () tT, TVar () "b"]
+            , ValCon cB [TApp () (TApp () (TCon () tT) (TVar () "b")) (TVar () "a"), TVar () "b"]
             ]
       def <- findDef (gvn "def") prog'
       forgetMetadata (astDefExpr def)
@@ -996,14 +1004,15 @@ unit_AddCon =
           ( create' $
               case_
                 (emptyHole `ann` (tcon tT `tapp` tcon (tcn "Bool") `tapp` tcon (tcn "Int")))
-                [ branch cA [] emptyHole
+                [ branch cA [("x", Nothing), ("y", Nothing), ("z", Nothing)] emptyHole
                 , branch (vcn "C") [] emptyHole
-                , branch cB [] emptyHole
+                , branch cB [("s", Nothing), ("t", Nothing)] emptyHole
                 ]
           )
 
-unit_SetConFieldType :: Assertion
-unit_SetConFieldType =
+-- change the type of a field which currently wraps a constructor
+unit_SetConFieldType_con :: Assertion
+unit_SetConFieldType_con =
   progActionTest
     ( defaultProgEditableTypeDefs . sequence . pure $ do
         x <-
@@ -1021,7 +1030,7 @@ unit_SetConFieldType =
       td <- findTypeDef tT prog'
       astTypeDefConstructors td
         @?= [ ValCon cA [TCon () (tcn "Bool"), TCon () (tcn "Int"), TCon () (tcn "Bool")]
-            , ValCon cB [TCon () tT, TVar () "b"]
+            , ValCon cB [TApp () (TApp () (TCon () tT) (TVar () "b")) (TVar () "a"), TVar () "b"]
             ]
       def <- findDef (gvn "def") prog'
       forgetMetadata (astDefExpr def)
@@ -1035,13 +1044,105 @@ unit_SetConFieldType =
                 `app` con (vcn "True")
           )
 
+-- Change the type of one field from ty1 to ty2, and test what happens to that subterm
+-- We use that @T u v ∋ B emptyHole t@ iff @v ∋ t@.
+setConFieldTypeHelper :: S Type -> S Expr -> S Type -> S Expr -> Assertion
+setConFieldTypeHelper ty1 tmInput ty2' tmExpected =
+  let ty2 = forgetTypeMetadata $ create' ty2'
+   in progActionTest
+        ( defaultProgEditableTypeDefs . sequence . pure $ do
+            x <-
+              con cB
+                `aPP` tEmptyHole
+                `aPP` ty1
+                `app` emptyHole
+                `app` tmInput
+            astDef "def" x <$> tEmptyHole
+        )
+        [SetConFieldType tT cB 1 ty2]
+        $ expectSuccess
+        $ \_ prog' -> do
+          td <- findTypeDef tT prog'
+          astTypeDefConstructors td
+            @?= [ ValCon cA [TCon () (tcn "Bool"), TCon () (tcn "Bool"), TCon () (tcn "Bool")]
+                , ValCon cB [TApp () (TApp () (TCon () tT) (TVar () "b")) (TVar () "a"), ty2]
+                ]
+          def <- findDef (gvn "def") prog'
+          forgetMetadata (astDefExpr def)
+            @?= forgetMetadata
+              ( create' $
+                  con cB
+                    `aPP` tEmptyHole
+                    `aPP` ty1
+                    `app` emptyHole
+                    `app` tmExpected
+              )
+
+-- change the type of a field which currently wraps a checkable term
+unit_SetConFieldType_chk :: Assertion
+unit_SetConFieldType_chk =
+  setConFieldTypeHelper
+    (tcon (tcn "Nat") `tfun` tcon (tcn "Bool"))
+    (lam "x" emptyHole)
+    (tcon (tcn "Int"))
+    (hole (lam "x" emptyHole `ann` (tcon (tcn "Nat") `tfun` tcon (tcn "Bool"))))
+
+-- change the type of a field which currently wraps a checkable term
+-- this result could have the hole elided, but we don't run smartholes
+-- so we can't tell
+unit_SetConFieldType_match :: Assertion
+unit_SetConFieldType_match =
+  setConFieldTypeHelper
+    (tEmptyHole `tfun` tcon (tcn "Bool"))
+    (lam "x" emptyHole)
+    (tcon (tcn "Int") `tfun` tEmptyHole)
+    (hole (lam "x" emptyHole `ann` (tEmptyHole `tfun` tcon (tcn "Bool"))))
+
+-- change the type of a field which currently wraps a synthesisable argument
+unit_SetConFieldType_syn :: Assertion
+unit_SetConFieldType_syn =
+  setConFieldTypeHelper
+    (tcon $ tcn "Int")
+    (emptyHole `app` emptyHole)
+    (tcon tBool)
+    (hole $ emptyHole `app` emptyHole)
+
+-- change the type of a field which currently wraps an emptyHole argument
+unit_SetConFieldType_emptyHole :: Assertion
+unit_SetConFieldType_emptyHole =
+  setConFieldTypeHelper
+    (tcon $ tcn "Int")
+    emptyHole
+    (tcon $ tcn "Bool")
+    emptyHole
+
+-- change the type of a field which currently wraps a non-empty hole argument
+unit_SetConFieldType_nehole :: Assertion
+unit_SetConFieldType_nehole =
+  setConFieldTypeHelper
+    (tcon $ tcn "Bool")
+    (hole $ con $ vcn "True")
+    (tcon (tcn "tBool") `tfun` tcon (tcn "Bool"))
+    (hole $ con $ vcn "True")
+
+-- change the type of a field which currently wraps a non-empty hole argument,
+-- where the result could have a hole elided, but we don't run smartholes
+-- so we can't tell
+unit_SetConFieldType_nehole_2 :: Assertion
+unit_SetConFieldType_nehole_2 =
+  setConFieldTypeHelper
+    (tcon $ tcn "Int")
+    (hole $ con $ vcn "True")
+    (tcon $ tcn "Bool")
+    (hole $ con $ vcn "True")
+
 unit_SetConFieldType_partial_app :: Assertion
 unit_SetConFieldType_partial_app =
   progActionTest
     ( defaultProgEditableTypeDefs $ do
-        x <- con cA `app` lvar "x"
+        x <- lam "x" $ con cA `aPP` tEmptyHole `aPP` tEmptyHole `app` lvar "x"
         sequence
-          [ astDef "def" x <$> tcon tT
+          [ astDef "def" x <$> tcon (tcn "Bool") `tfun` (tcon (tcn "Bool") `tfun` (tcon (tcn "Bool") `tfun` ((tcon tT `tapp` tEmptyHole) `tapp` tEmptyHole)))
           ]
     )
     [SetConFieldType tT cA 1 $ TCon () (tcn "Int")]
@@ -1051,8 +1152,9 @@ unit_SetConFieldType_partial_app =
       forgetMetadata (astDefExpr def)
         @?= forgetMetadata
           ( create' $
-              hole $
-                con cA `app` lvar "x"
+              lam "x" $
+                hole $
+                  con cA `aPP` tEmptyHole `aPP` tEmptyHole `app` lvar "x"
           )
 
 unit_SetConFieldType_case :: Assertion
@@ -1066,7 +1168,7 @@ unit_SetConFieldType_case =
                 cA
                 [("x", Nothing), ("y", Nothing), ("z", Nothing)]
                 (lvar "y")
-            , branch cB [] emptyHole
+            , branch cB [("s", Nothing), ("t", Nothing)] emptyHole
             ]
         sequence
           [ astDef "def" x <$> tcon (tcn "Bool")
@@ -1085,7 +1187,7 @@ unit_SetConFieldType_case =
                     cA
                     [("x", Nothing), ("y", Nothing), ("z", Nothing)]
                     (hole $ lvar "y")
-                , branch cB [] emptyHole
+                , branch cB [("s", Nothing), ("t", Nothing)] emptyHole
                 ]
           )
 
@@ -1099,8 +1201,8 @@ unit_SetConFieldType_shadow =
             [ branch
                 cA
                 [("x", Nothing), ("y", Nothing), ("z", Nothing)]
-                (lam "y" (lvar "y") `app` lvar "y")
-            , branch cB [] emptyHole
+                ((lam "y" (lvar "y") `ann` (tcon (tcn "Bool") `tfun` tcon (tcn "Bool"))) `app` lvar "y")
+            , branch cB [("s", Nothing), ("t", Nothing)] emptyHole
             ]
         sequence
           [ astDef "def" x <$> tcon (tcn "Bool")
@@ -1119,8 +1221,8 @@ unit_SetConFieldType_shadow =
                     cA
                     [("x", Nothing), ("y", Nothing), ("z", Nothing)]
                     -- only the free `y` should be put in to a hole
-                    (lam "y" (lvar "y") `app` hole (lvar "y"))
-                , branch cB [] emptyHole
+                    ((lam "y" (lvar "y") `ann` (tcon (tcn "Bool") `tfun` tcon (tcn "Bool"))) `app` hole (lvar "y"))
+                , branch cB [("s", Nothing), ("t", Nothing)] emptyHole
                 ]
           )
 
@@ -1150,7 +1252,7 @@ unit_AddConField =
       td <- findTypeDef tT prog'
       astTypeDefConstructors td
         @?= [ ValCon cA [TCon () (tcn "Bool"), TCon () (tcn "Int"), TCon () (tcn "Bool"), TCon () (tcn "Bool")]
-            , ValCon cB [TCon () tT, TVar () "b"]
+            , ValCon cB [TApp () (TApp () (TCon () tT) (TVar () "b")) (TVar () "a"), TVar () "b"]
             ]
       def <- findDef (gvn "def") prog'
       forgetMetadata (astDefExpr def)
@@ -1174,7 +1276,11 @@ unit_AddConField_partial_app :: Assertion
 unit_AddConField_partial_app =
   progActionTest
     ( defaultProgEditableTypeDefs $ do
-        x <- con cA `app` con (vcn "True")
+        x <-
+          con cA
+            `aPP` tEmptyHole
+            `aPP` tEmptyHole
+            `app` con (vcn "True")
         sequence
           [ astDef "def" x <$> tEmptyHole
           ]
@@ -1187,14 +1293,21 @@ unit_AddConField_partial_app =
         @?= forgetMetadata
           ( create' $
               hole $
-                con cA `app` con (vcn "True")
+                con cA
+                  `aPP` tEmptyHole
+                  `aPP` tEmptyHole
+                  `app` con (vcn "True")
           )
 
 unit_AddConField_partial_app_end :: Assertion
 unit_AddConField_partial_app_end =
   progActionTest
     ( defaultProgEditableTypeDefs $ do
-        x <- con cA `app` con (vcn "True")
+        x <-
+          con cA
+            `aPP` tEmptyHole
+            `aPP` tEmptyHole
+            `app` con (vcn "True")
         sequence
           [ astDef "def" x <$> tEmptyHole
           ]
@@ -1205,13 +1318,17 @@ unit_AddConField_partial_app_end =
       td <- findTypeDef tT prog'
       astTypeDefConstructors td
         @?= [ ValCon cA [TCon () (tcn "Bool"), TCon () (tcn "Int"), TCon () (tcn "Bool"), TCon () (tcn "Bool")]
-            , ValCon cB [TCon () tT, TVar () "b"]
+            , ValCon cB [TApp () (TApp () (TCon () tT) (TVar () "b")) (TVar () "a"), TVar () "b"]
             ]
       def <- findDef (gvn "def") prog'
       forgetMetadata (astDefExpr def)
         @?= forgetMetadata
           ( create' $
-              con cA `app` con (vcn "True") `app` emptyHole
+              con cA
+                `aPP` tEmptyHole
+                `aPP` tEmptyHole
+                `app` con (vcn "True")
+                `app` emptyHole
           )
 
 unit_AddConField_case_ann :: Assertion
@@ -1225,7 +1342,7 @@ unit_AddConField_case_ann =
                 cA
                 [("x", Nothing), ("y", Nothing), ("z", Nothing)]
                 (lvar "y")
-            , branch cB [] emptyHole
+            , branch cB [("s", Nothing), ("t", Nothing)] emptyHole
             ]
         sequence
           [ astDef "def" x <$> tEmptyHole
@@ -1242,9 +1359,9 @@ unit_AddConField_case_ann =
                 (emptyHole `ann` (tcon tT `tapp` tEmptyHole `tapp` tEmptyHole))
                 [ branch
                     cA
-                    [("x", Nothing), ("y", Nothing), ("a19", Nothing), ("z", Nothing)]
+                    [("x", Nothing), ("y", Nothing), ("a21", Nothing), ("z", Nothing)]
                     (lvar "y")
-                , branch cB [] emptyHole
+                , branch cB [("s", Nothing), ("t", Nothing)] emptyHole
                 ]
           )
 
@@ -1608,7 +1725,10 @@ defaultProgEditableTypeDefs ds = do
         TypeDefAST
           ASTTypeDef
             { astTypeDefParameters = [("a", KType), ("b", KType)]
-            , astTypeDefConstructors = [ValCon cA (replicate 3 $ TCon () (tcn "Bool")), ValCon cB [TCon () tT, TVar () "b"]]
+            , astTypeDefConstructors =
+                [ ValCon cA (replicate 3 $ TCon () (tcn "Bool"))
+                , ValCon cB [TApp () (TApp () (TCon () tT) (TVar () "b")) (TVar () "a"), TVar () "b"]
+                ]
             , astTypeDefNameHints = []
             }
 
@@ -1628,6 +1748,9 @@ cB = vcn "B"
 
 unit_good_defaultFullProg :: Assertion
 unit_good_defaultFullProg = checkProgWellFormed defaultFullProg
+
+unit_good_defaultProgEditableTypeDefs :: Assertion
+unit_good_defaultProgEditableTypeDefs = checkProgWellFormed $ defaultProgEditableTypeDefs $ pure []
 
 -- All primitives,builtins and defaultEmptyProg things have distinct base names (defaultFullProg expects this)
 unit_defaultFullProg_no_clash :: Assertion
@@ -1663,8 +1786,11 @@ progActionTest :: S Prog -> [ProgAction] -> (Prog -> Either ProgError Prog -> As
 progActionTest inputProg actions testOutput = do
   let (prog, maxID) = create inputProg
   let a = mkEmptyTestApp prog
-  (r, _) <- runAppTestM maxID a (handleEditRequest actions)
-  testOutput prog r
+  a' <- case checkAppWellFormed a of
+    Left err -> assertFailure $ "checkAppWellFormed failed: " <> show err
+    Right a' -> pure a'
+  (r, _) <- runAppTestM maxID a' (handleEditRequest actions)
+  testOutput (appProg a') r
 
 newtype AppTestM a = AppTestM
   { unAppTestM ::
