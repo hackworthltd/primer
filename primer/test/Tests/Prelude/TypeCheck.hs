@@ -15,7 +15,7 @@ import Test.Tasty.HUnit (Assertion, assertFailure)
 import Tests.Typecheck (TypecheckTestM, runTypecheckTestM)
 
 checkPreludeRequest :: CheckEverythingRequest
-checkPreludeRequest = CheckEverything{trusted = [], toCheck = [create' prelude, builtinModule, primitiveModule]}
+checkPreludeRequest = CheckEverything{trusted = [], toCheck = [create' prelude, create' builtinModule, primitiveModule]}
 
 checkPrelude :: TypecheckTestM [Module]
 checkPrelude = checkEverything NoSmartHoles checkPreludeRequest

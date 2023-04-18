@@ -124,7 +124,7 @@ import Primer.Primitives (PrimDef (IntAdd, ToUpper), primitiveGVar, tChar)
 import Primer.Test.TestM (TestM, evalTestM)
 import Primer.Test.Util (LogMsg, assertNoSevereLogs, constructCon, constructTCon, zeroIDs, zeroTypeIDs)
 import Primer.Test.Util qualified as Util
-import Primer.TypeDef (ASTTypeDef (..), TypeDef (..), ValCon (..), typeDefAST)
+import Primer.TypeDef (ASTTypeDef (..), TypeDef (..), ValCon (..), forgetTypeDefMetadata, typeDefAST)
 import Primer.Typecheck (
   KindError (UnknownTypeConstructor),
   SmartHoles (NoSmartHoles, SmartHoles),
@@ -310,7 +310,8 @@ unit_create_def_imported_module :: Assertion
 unit_create_def_imported_module =
   let builtins = ModuleName ["Builtins"]
       test = do
-        importModules [builtinModule]
+        builtinModule' <- builtinModule
+        importModules [builtinModule']
         handleEditRequest [CreateDef builtins $ Just "newDef"]
       a = newEmptyApp
    in do
@@ -338,7 +339,7 @@ unit_create_typedef =
    in progActionTest defaultEmptyProg [AddTypeDef (tcn "List") lst, AddTypeDef (tcn "Tree") tree] $
         expectSuccess $
           \_ prog' -> do
-            case Map.elems $ foldMap' moduleTypes $ progModules prog' of
+            case Map.elems $ foldMap' (fmap forgetTypeDefMetadata . moduleTypes) $ progModules prog' of
               [lst', tree'] -> do
                 TypeDefAST lst @=? lst'
                 TypeDefAST tree @=? tree'
@@ -753,7 +754,8 @@ unit_copy_paste_sig2ann = do
 unit_import_vars :: Assertion
 unit_import_vars =
   let test = do
-        importModules [builtinModule, primitiveModule]
+        builtinModule' <- builtinModule
+        importModules [builtinModule', primitiveModule]
         gets (fmap (Map.assocs . moduleDefsQualified) . progModules . appProg) >>= \case
           [[(i, DefAST d)]] -> do
             a' <- get
@@ -771,7 +773,8 @@ unit_import_vars =
 unit_import_reference :: Assertion
 unit_import_reference =
   let test = do
-        importModules [builtinModule, primitiveModule]
+        builtinModule' <- builtinModule
+        importModules [builtinModule', primitiveModule]
         prog <- gets appProg
         case (findGlobalByName prog $ primitiveGVar ToUpper, Map.assocs . moduleDefsQualified <$> progModules prog) of
           (Just _, [[(i, _)]]) -> do
@@ -792,27 +795,30 @@ unit_import_reference =
 unit_import_twice_1 :: Assertion
 unit_import_twice_1 =
   let test = do
-        importModules [builtinModule]
-        importModules [builtinModule]
+        builtinModule' <- builtinModule
+        importModules [builtinModule']
+        importModules [builtinModule']
       a = newEmptyApp
    in runAppTestM (appIdCounter a) a test <&> fst >>= \case
-        Left err -> err @?= ActionError (ImportNameClash [moduleName builtinModule])
+        Left err -> err @?= ActionError (ImportNameClash [moduleName $ create' builtinModule])
         Right _ -> assertFailure "Expected importModules to error, since module names clash with prior import"
 
 unit_import_twice_2 :: Assertion
 unit_import_twice_2 =
   let test = do
-        importModules [builtinModule, builtinModule]
+        builtinModule' <- builtinModule
+        importModules [builtinModule', builtinModule']
       a = newEmptyApp
    in runAppTestM (appIdCounter a) a test <&> fst >>= \case
-        Left err -> err @?= ActionError (ImportNameClash [moduleName builtinModule])
+        Left err -> err @?= ActionError (ImportNameClash [moduleName $ create' builtinModule])
         Right _ -> assertFailure "Expected importModules to error, since module names clash within one import"
 
 -- Can copy and paste from an imported module
 unit_copy_paste_import :: Assertion
 unit_copy_paste_import =
   let test = do
-        importModules [builtinModule]
+        builtinModule' <- builtinModule
+        importModules [builtinModule']
         ty <- tcon tBool `tfun` tcon tBool
         e <- lam "x" $ lvar "x"
         let def = ASTDef e ty
@@ -1267,7 +1273,7 @@ unit_AddConField =
                     `app` con (vcn "True")
                     `app` con (vcn "True")
                 )
-                [ branch cA [("p", Nothing), ("a25", Nothing), ("q", Nothing), ("p1", Nothing)] emptyHole
+                [ branch cA [("p", Nothing), ("a45", Nothing), ("q", Nothing), ("p1", Nothing)] emptyHole
                 , branch cB [("r", Nothing), ("x", Nothing)] emptyHole
                 ]
           )
@@ -1359,7 +1365,7 @@ unit_AddConField_case_ann =
                 (emptyHole `ann` (tcon tT `tapp` tEmptyHole `tapp` tEmptyHole))
                 [ branch
                     cA
-                    [("x", Nothing), ("y", Nothing), ("a21", Nothing), ("z", Nothing)]
+                    [("x", Nothing), ("y", Nothing), ("a41", Nothing), ("z", Nothing)]
                     (lvar "y")
                 , branch cB [("s", Nothing), ("t", Nothing)] emptyHole
                 ]
@@ -1371,7 +1377,8 @@ unit_AddConField_case_ann =
 unit_generate_names_import :: Assertion
 unit_generate_names_import =
   let test = do
-        importModules [builtinModule]
+        builtinModule' <- builtinModule
+        importModules [builtinModule']
         gets (fmap (Map.assocs . moduleDefsQualified) . progModules . appProg) >>= \case
           [[(i, DefAST d)]] -> do
             a' <- get
@@ -1390,7 +1397,8 @@ unit_generate_names_import =
 unit_rename_module :: Assertion
 unit_rename_module =
   let test = do
-        importModules [builtinModule]
+        builtinModule' <- builtinModule
+        importModules [builtinModule']
         handleEditRequest
           [ moveToDef "main"
           , BodyAction [ConstructVar $ globalVarRef "main"]
@@ -1414,11 +1422,12 @@ unit_rename_module =
 unit_rename_module_clash :: Assertion
 unit_rename_module_clash =
   let test = do
-        importModules [builtinModule]
+        builtinModule' <- builtinModule
+        importModules [builtinModule']
         handleEditRequest [RenameModule mainModuleName ["Builtins"]]
       a = newEmptyApp
    in do
-        unModuleName (moduleName builtinModule) @?= ["Builtins"]
+        unModuleName (moduleName $ create' builtinModule) @?= ["Builtins"]
         runAppTestM (appIdCounter a) a test <&> fst >>= \case
           Left err -> err @?= RenameModuleNameClash
           Right _ -> assertFailure "Expected RenameModule to error, since module names clash with prior import"
@@ -1433,7 +1442,8 @@ unit_rename_module_imported :: Assertion
 unit_rename_module_imported =
   let builtins = ModuleName ["Builtins"]
       test = do
-        importModules [builtinModule]
+        builtinModule' <- builtinModule
+        importModules [builtinModule']
         handleEditRequest [RenameModule builtins ["NewModule"]]
       a = newEmptyApp
    in do
@@ -1445,7 +1455,8 @@ unit_rename_module_imported =
 unit_cross_module_actions :: Assertion
 unit_cross_module_actions =
   let test = do
-        importModules [builtinModule]
+        builtinModule' <- builtinModule
+        importModules [builtinModule']
         -- Setup: define Main.main :: T = case foo (C Zero) of {C p -> C (Succ p)}
         handleAndTC
           [ MoveToDef $ gvn "main"
@@ -1476,7 +1487,7 @@ unit_cross_module_actions =
               , constructCon cSucc
               , Move Parent
               , Move Child2
-              , ConstructVar (LocalVarRef "a27")
+              , ConstructVar (LocalVarRef "a38")
               ]
           ]
         handleAndTC [RenameDef (qualifyM "foo") "bar"]
@@ -1541,11 +1552,12 @@ unit_cross_module_actions =
       qualifyM :: Name -> GlobalName k
       qualifyM = qualifyName $ moduleName m
       m = create' $ do
+        field <- tcon tNat
         let tc = qualifyM "T"
             ty =
               ASTTypeDef
                 { astTypeDefParameters = []
-                , astTypeDefConstructors = [ValCon (qualifyM "C") [TCon () tNat]]
+                , astTypeDefConstructors = [ValCon (qualifyM "C") [field]]
                 , astTypeDefNameHints = []
                 }
         defTy <- tcon tc `tfun` tcon tc
@@ -1696,11 +1708,12 @@ unit_good_defaultEmptyProg = checkProgWellFormed defaultEmptyProg
 defaultFullProg :: MonadFresh ID m => m Prog
 defaultFullProg = do
   p <- defaultEmptyProg
+  builtinModule' <- builtinModule
   let m = moduleName $ unsafeHead $ progModules p
       -- We need to move the primitives, which requires renaming
       -- unit_defaultFullModule_no_clash ensures that there will be no clashes
       renamed :: [Module]
-      renamed = transformBi (const m) [builtinModule, primitiveModule]
+      renamed = transformBi (const m) [builtinModule', primitiveModule]
       renamedTypes = foldOf (folded % #moduleTypes) renamed
       renamedDefs = foldOf (folded % #moduleDefs) renamed
   pure $
@@ -1708,7 +1721,7 @@ defaultFullProg = do
       & #progModules % _head % #moduleTypes %~ (renamedTypes <>)
       & #progModules % _head % #moduleDefs %~ (renamedDefs <>)
 
-findTypeDef :: TyConName -> Prog -> IO ASTTypeDef
+findTypeDef :: TyConName -> Prog -> IO (ASTTypeDef ())
 findTypeDef d p = maybe (assertFailure "couldn't find typedef") pure $ (typeDefAST <=< Map.lookup d) $ foldMap' moduleTypesQualified $ progModules p
 
 findDef :: GVarName -> Prog -> IO ASTDef
@@ -1721,16 +1734,16 @@ defaultProgEditableTypeDefs :: MonadFresh ID f => f [(Name, ASTDef)] -> f Prog
 defaultProgEditableTypeDefs ds = do
   p <- defaultFullProg
   ds' <- ds
-  let td =
-        TypeDefAST
-          ASTTypeDef
-            { astTypeDefParameters = [("a", KType), ("b", KType)]
-            , astTypeDefConstructors =
-                [ ValCon cA (replicate 3 $ TCon () (tcn "Bool"))
-                , ValCon cB [TApp () (TApp () (TCon () tT) (TVar () "b")) (TVar () "a"), TVar () "b"]
-                ]
-            , astTypeDefNameHints = []
-            }
+  td <- do
+    fieldsA <- replicateM 3 $ tcon $ tcn "Bool"
+    fieldsB <- sequence [(tcon tT `tapp` tvar "b") `tapp` tvar "a", tvar "b"]
+    pure $
+      TypeDefAST
+        ASTTypeDef
+          { astTypeDefParameters = [("a", KType), ("b", KType)]
+          , astTypeDefConstructors = [ValCon cA fieldsA, ValCon cB fieldsB]
+          , astTypeDefNameHints = []
+          }
 
   pure $
     p
@@ -1756,7 +1769,7 @@ unit_good_defaultProgEditableTypeDefs = checkProgWellFormed $ defaultProgEditabl
 unit_defaultFullProg_no_clash :: Assertion
 unit_defaultFullProg_no_clash =
   let p = create' defaultEmptyProg
-      ms = progModules p <> [builtinModule, primitiveModule]
+      ms = progModules p <> [create' builtinModule, primitiveModule]
       typeNames = ms ^.. folded % #moduleTypes % to Map.keys % folded
       termNames = ms ^.. folded % #moduleDefs % to Map.keys % folded
    in do

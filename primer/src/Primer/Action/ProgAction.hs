@@ -30,7 +30,7 @@ data ProgAction
   | -- | Delete a new definition
     DeleteDef GVarName
   | -- | Add a new type definition
-    AddTypeDef TyConName ASTTypeDef
+    AddTypeDef TyConName (ASTTypeDef ())
   | -- | Rename the type definition with the given name, and its type constructor
     RenameType TyConName Text
   | -- | Rename the value constructor with the given name, in the given type

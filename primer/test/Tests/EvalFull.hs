@@ -101,7 +101,7 @@ import Primer.Test.Util (
   testNoSevereLogs,
   zeroIDs,
  )
-import Primer.TypeDef (TypeDef (..), TypeDefMap)
+import Primer.TypeDef (TypeDef (..), TypeDefMap, generateTypeDefIDs)
 import Primer.Typecheck (
   SmartHoles (NoSmartHoles),
   check,
@@ -436,7 +436,8 @@ tasty_resume :: Property
 tasty_resume = withDiscards 2000 $
   propertyWT testModules $ do
     (dir, t, _) <- genDirTm
-    resumeTest testModules dir t
+    testModules' <- sequence testModules
+    resumeTest testModules' dir t
 
 -- A helper for tasty_resume, and tasty_resume_regression
 resumeTest :: [Module] -> Dir -> Expr -> PropertyT WT ()
@@ -579,8 +580,8 @@ unit_type_preservation_case_hole_regression = evalTestM 0 $ do
       [ branch cNothing [] emptyHole
       , branch cJust [("x", Nothing)] $ con cSucc `app` lvar "x"
       ]
-  let tds = foldMap' moduleTypesQualified testModules
-  let globs = foldMap' moduleDefsQualified testModules
+  let tds = foldMap' moduleTypesQualified $ create' $ sequence testModules
+  let globs = foldMap' moduleDefsQualified $ create' $ sequence testModules
   let reducts = (\n -> runPureLogT $ evalFullStepCount tds globs n Syn t) <$> [1 ..]
   let go = \case
         [] -> error "impossible, reducts is an infinite list"
@@ -836,7 +837,7 @@ tasty_type_preservation :: Property
 tasty_type_preservation = withTests 1000 $
   withDiscards 2000 $
     propertyWT testModules $ do
-      let globs = foldMap' moduleDefsQualified testModules
+      let globs = foldMap' moduleDefsQualified $ create' $ sequence testModules
       tds <- asks typeDefs
       (dir, t, ty) <- genDirTm
       let test msg e = do
@@ -1305,7 +1306,8 @@ unit_prim_partial_map =
 unit_eval_full_modules :: Assertion
 unit_eval_full_modules =
   let test = do
-        importModules [primitiveModule, builtinModule]
+        builtinModule' <- builtinModule
+        importModules [primitiveModule, builtinModule']
         foo <- pfun ToUpper `app` char 'a'
         resp <-
           handleEvalFullRequest
@@ -1327,7 +1329,8 @@ unit_eval_full_modules =
 unit_eval_full_modules_scrutinize_imported_type :: Assertion
 unit_eval_full_modules_scrutinize_imported_type =
   let test = do
-        importModules [m]
+        m' <- m
+        importModules [m']
         foo <- case_ (con cTrue) [branch cTrue [] $ con cFalse, branch cFalse [] $ con cTrue]
         resp <-
           handleEvalFullRequest
@@ -1341,19 +1344,21 @@ unit_eval_full_modules_scrutinize_imported_type =
         Left err -> assertFailure $ show err
         Right assertion -> assertion
   where
-    m =
-      Module
-        { moduleName = qualifiedModule tBool
-        , moduleTypes = Map.singleton (baseName tBool) (TypeDefAST boolDef)
-        , moduleDefs = mempty
-        }
+    m = do
+      boolDef' <- generateTypeDefIDs $ TypeDefAST boolDef
+      pure $
+        Module
+          { moduleName = qualifiedModule tBool
+          , moduleTypes = Map.singleton (baseName tBool) boolDef'
+          , moduleDefs = mempty
+          }
 
 -- Test that evaluation does not duplicate node IDs
 tasty_unique_ids :: Property
 tasty_unique_ids = withTests 1000 $
   withDiscards 2000 $
     propertyWT testModules $ do
-      let globs = foldMap' moduleDefsQualified testModules
+      let globs = foldMap' moduleDefsQualified $ create' $ sequence testModules
       tds <- asks typeDefs
       (dir, t1, _) <- genDirTm
       let go n t

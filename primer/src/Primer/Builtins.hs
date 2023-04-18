@@ -87,7 +87,7 @@ cLeft = builtin "Left"
 cRight = builtin "Right"
 
 -- | A definition of the Bool type
-boolDef :: ASTTypeDef
+boolDef :: ASTTypeDef ()
 boolDef =
   ASTTypeDef
     { astTypeDefParameters = []
@@ -99,7 +99,7 @@ boolDef =
     }
 
 -- | A definition of the Nat type
-natDef :: ASTTypeDef
+natDef :: ASTTypeDef ()
 natDef =
   ASTTypeDef
     { astTypeDefParameters = []
@@ -111,7 +111,7 @@ natDef =
     }
 
 -- | A definition of the List type
-listDef :: ASTTypeDef
+listDef :: ASTTypeDef ()
 listDef =
   ASTTypeDef
     { astTypeDefParameters = [("a", KType)]
@@ -123,7 +123,7 @@ listDef =
     }
 
 -- | A definition of the Maybe type
-maybeDef :: ASTTypeDef
+maybeDef :: ASTTypeDef ()
 maybeDef =
   ASTTypeDef
     { astTypeDefParameters = [("a", KType)]
@@ -135,7 +135,7 @@ maybeDef =
     }
 
 -- | A definition of the Pair type
-pairDef :: ASTTypeDef
+pairDef :: ASTTypeDef ()
 pairDef =
   ASTTypeDef
     { astTypeDefParameters = [("a", KType), ("b", KType)]
@@ -144,7 +144,7 @@ pairDef =
     }
 
 -- | A definition of the Either type
-eitherDef :: ASTTypeDef
+eitherDef :: ASTTypeDef ()
 eitherDef =
   ASTTypeDef
     { astTypeDefParameters = [("a", KType), ("b", KType)]

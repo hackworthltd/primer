@@ -5,17 +5,29 @@
                 "valConArgs": [
                     {
                         "contents": [
-                            [],
+                            [
+                                0,
+                                null,
+                                null
+                            ],
                             {
                                 "contents": [
-                                    [],
+                                    [
+                                        1,
+                                        null,
+                                        null
+                                    ],
                                     "b"
                                 ],
                                 "tag": "TVar"
                             },
                             {
                                 "contents": [
-                                    [],
+                                    [
+                                        2,
+                                        null,
+                                        null
+                                    ],
                                     "a"
                                 ],
                                 "tag": "TVar"
@@ -25,7 +37,11 @@
                     },
                     {
                         "contents": [
-                            [],
+                            [
+                                3,
+                                null,
+                                null
+                            ],
                             {
                                 "baseName": "Nat",
                                 "qualifiedModule": [

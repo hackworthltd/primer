@@ -185,7 +185,7 @@ unit_6 =
     )
     [Move Child1, Move Child1, Move Child2, ConstructLam Nothing]
     ( ann
-        (lam "f" (app (lvar "f") (lam "a11" emptyHole)))
+        (lam "f" (app (lvar "f") (lam "a21" emptyHole)))
         (tfun (tfun tEmptyHole tEmptyHole) tEmptyHole)
     )
 
@@ -704,7 +704,7 @@ unit_case_on_hole =
         ( lam "x" $
             case_
               (ann emptyHole $ tcon tNat)
-              [branch cZero [] emptyHole, branch cSucc [("a13", Nothing)] emptyHole] -- NB: fragile names here
+              [branch cZero [] emptyHole, branch cSucc [("a23", Nothing)] emptyHole] -- NB: fragile names here
         )
         (tfun (tcon tNat) (tcon tNat))
     )
@@ -813,7 +813,7 @@ unit_case_change_smart_scrutinee_type =
     ( ann
         ( case_
             (con cZero)
-            [branch cZero [] emptyHole, branch cSucc [("a11", Nothing)] emptyHole] -- fragile names here
+            [branch cZero [] emptyHole, branch cSucc [("a21", Nothing)] emptyHole] -- fragile names here
         )
         (tcon tNat)
     )
@@ -1100,4 +1100,9 @@ actionTestExpectFail f sh expr actions =
 runTestActions :: SmartHoles -> ID -> Expr -> [Action] -> Either ActionError Expr
 runTestActions sh i expr actions =
   either unfocusExpr (unfocusExpr . unfocusType)
-    <$> evalTestM (i + 1) (applyActionsToExpr sh [builtinModule, primitiveModule] expr actions)
+    <$> evalTestM
+      (i + 1)
+      ( do
+          builtinModule' <- builtinModule
+          applyActionsToExpr sh [builtinModule', primitiveModule] expr actions
+      )

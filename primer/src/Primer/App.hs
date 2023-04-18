@@ -142,7 +142,7 @@ import Primer.Core (
   _synthed,
   _typeMetaLens,
  )
-import Primer.Core.DSL (S, ann, create, emptyHole, hole, tEmptyHole)
+import Primer.Core.DSL (S, ann, create, emptyHole, hole, tEmptyHole, tvar)
 import Primer.Core.DSL qualified as DSL
 import Primer.Core.Transform (foldApp, renameVar, unfoldAPP, unfoldApp, unfoldTApp)
 import Primer.Core.Utils (freeVars, generateTypeIDs, regenerateExprIDs, regenerateTypeIDs, _freeTmVars, _freeTyVars, _freeVarsTy)
@@ -186,6 +186,7 @@ import Primer.TypeDef (
   TypeDef (..),
   TypeDefMap,
   ValCon (..),
+  generateTypeDefIDs,
   typeDefAST,
  )
 import Primer.Typecheck (
@@ -269,7 +270,7 @@ defaultProg = Prog mempty mempty Nothing SmartHoles defaultLog defaultLog
 progAllModules :: Prog -> [Module]
 progAllModules p = progModules p <> progImports p
 
-progAllTypeDefs :: Prog -> Map TyConName (Editable, TypeDef)
+progAllTypeDefs :: Prog -> Map TyConName (Editable, TypeDef ())
 progAllTypeDefs p =
   foldMap' (fmap (Editable,) . moduleTypesQualified) (progModules p)
     <> foldMap' (fmap (NonEditable,) . moduleTypesQualified) (progImports p)
@@ -357,7 +358,7 @@ newProg =
   let (p, nextID, nc) =
         newEmptyProgImporting
           [ prelude
-          , pure builtinModule
+          , builtinModule
           , pure primitiveModule
           ]
    in ( p
@@ -634,7 +635,8 @@ applyProgAction prog mdefName = \case
     let def = ASTDef expr ty
     pure (insertDef mod name $ DefAST def, Just $ Selection (qualifyName modName name) Nothing)
   AddTypeDef tc td -> editModuleSameSelection (qualifiedModule tc) prog $ \m -> do
-    let tydefs' = moduleTypes m <> Map.singleton (baseName tc) (TypeDefAST td)
+    td' <- generateTypeDefIDs $ TypeDefAST td
+    let tydefs' = moduleTypes m <> Map.singleton (baseName tc) td'
     m{moduleTypes = tydefs'}
       <$ liftError
         -- The frontend should never let this error case happen,
@@ -708,7 +710,7 @@ applyProgAction prog mdefName = \case
     where
       updateType =
         alterTypeDef
-          (pure . updateConstructors <=< updateParam)
+          (updateConstructors <=< updateParam)
           type_
       updateParam def = do
         when (new `elem` map fst (astTypeDefParameters def)) $ throwError $ ParamAlreadyExists new
@@ -722,14 +724,14 @@ applyProgAction prog mdefName = \case
                 . findAndAdjust ((== old) . fst) (_1 .~ new)
             )
       updateConstructors =
-        over
+        traverseOf
           ( #astTypeDefConstructors
               % traversed
               % #valConArgs
               % traversed
           )
-          $ over _freeVarsTy
-          $ \(_, v) -> TVar () $ updateName v
+          $ traverseOf _freeVarsTy
+          $ \(_, v) -> tvar $ updateName v
       updateName n = if n == old then new else n
   AddCon type_ index (unsafeMkGlobalName . (fmap unName (unModuleName (qualifiedModule type_)),) -> con) ->
     editModuleSameSelectionCross (qualifiedModule type_) prog $ \(m, ms) -> do
@@ -763,7 +765,9 @@ applyProgAction prog mdefName = \case
                   ((== con) . valConName)
                   ( traverseOf
                       #valConArgs
-                      (maybe (throwError $ IndexOutOfRange index) pure . adjustAt index (const new))
+                      ( maybe (throwError $ IndexOutOfRange index) pure
+                          <=< adjustAtA index (const $ generateTypeIDs new)
+                      )
                   )
           )
           type_
@@ -837,7 +841,9 @@ applyProgAction prog mdefName = \case
                   ((== con) . valConName)
                   ( traverseOf
                       #valConArgs
-                      (maybe (throwError $ IndexOutOfRange index) pure . insertAt index new)
+                      ( maybe (throwError $ IndexOutOfRange index) pure
+                          <=< liftA2 (insertAt index) (generateTypeIDs new) . pure
+                      )
                   )
           )
           type_
@@ -1563,7 +1569,7 @@ lookupASTDef name = defAST <=< Map.lookup name
 
 alterTypeDef ::
   MonadError ProgError m =>
-  (ASTTypeDef -> m ASTTypeDef) ->
+  (ASTTypeDef TypeMeta -> m (ASTTypeDef TypeMeta)) ->
   TyConName ->
   Module ->
   m Module

@@ -20,6 +20,7 @@ import Primer.Core (
   Type,
   Type',
  )
+import Primer.Core.DSL (S)
 import Primer.Core.Utils (
   forgetMetadata,
   forgetTypeMetadata,
@@ -69,15 +70,15 @@ inExtendedLocalCxt p = do
   annotateShow $ M.differenceWith (\l r -> if l == r then Nothing else Just l) (localCxt cxtE) (localCxt cxt)
   local (const cxtE) p
 
-propertyWTInExtendedGlobalCxt :: [Module] -> PropertyT WT () -> Property
+propertyWTInExtendedGlobalCxt :: [S Module] -> PropertyT WT () -> Property
 propertyWTInExtendedGlobalCxt mods = propertyWT mods . inExtendedGlobalCxt
 
-propertyWTInExtendedLocalGlobalCxt :: [Module] -> PropertyT WT () -> Property
+propertyWTInExtendedLocalGlobalCxt :: [S Module] -> PropertyT WT () -> Property
 propertyWTInExtendedLocalGlobalCxt mods = propertyWT mods . inExtendedGlobalCxt . inExtendedLocalCxt
 
 tasty_genTy :: Property
 tasty_genTy = withTests 1000 $
-  propertyWTInExtendedGlobalCxt [builtinModule, primitiveModule] $ do
+  propertyWTInExtendedGlobalCxt [builtinModule, pure primitiveModule] $ do
     k <- forAllT genWTKind
     ty <- forAllT $ genWTType k
     ty' <- checkKindTest k =<< generateTypeIDs ty
@@ -110,7 +111,7 @@ checkValidContextTest t = do
 -- This indirectly also tests genCxtExtendingLocal, genCxtExtendingGlobal and genTypeDefGroup
 tasty_genCxtExtending_typechecks :: Property
 tasty_genCxtExtending_typechecks = withTests 1000 $
-  propertyWT [builtinModule, primitiveModule] $ do
+  propertyWT [builtinModule, pure primitiveModule] $ do
     cxt <- forAllT genCxtExtendingGlobal
     checkValidContextTest cxt
     cxt' <- forAllT $ local (const cxt) genCxtExtendingLocal
@@ -119,7 +120,7 @@ tasty_genCxtExtending_typechecks = withTests 1000 $
 tasty_inExtendedLocalGlobalCxt_valid :: Property
 tasty_inExtendedLocalGlobalCxt_valid = withTests 1000 $
   withDiscards 2000 $
-    propertyWTInExtendedLocalGlobalCxt [builtinModule, primitiveModule] $ do
+    propertyWTInExtendedLocalGlobalCxt [builtinModule, pure primitiveModule] $ do
       cxt <- ask
       checkValidContextTest cxt
 
@@ -165,7 +166,7 @@ tasty_genCxtExtending_is_extension =
 tasty_genSyns :: Property
 tasty_genSyns = withTests 1000 $
   withDiscards 2000 $
-    propertyWTInExtendedLocalGlobalCxt [builtinModule, primitiveModule] $ do
+    propertyWTInExtendedLocalGlobalCxt [builtinModule, pure primitiveModule] $ do
       tgtTy <- forAllT $ genWTType KType
       _ :: Type' (Meta Kind) <- checkKindTest KType =<< generateTypeIDs tgtTy
       (e, ty) <- forAllT $ genSyns tgtTy
@@ -179,7 +180,7 @@ tasty_genSyns = withTests 1000 $
 tasty_genChk :: Property
 tasty_genChk = withTests 1000 $
   withDiscards 2000 $
-    propertyWTInExtendedLocalGlobalCxt [builtinModule, primitiveModule] $ do
+    propertyWTInExtendedLocalGlobalCxt [builtinModule, pure primitiveModule] $ do
       ty <- forAllT $ genWTType KType
       _ :: Type' (Meta Kind) <- checkKindTest KType =<< generateTypeIDs ty
       t <- forAllT $ genChk ty

@@ -35,10 +35,10 @@ import Primer.Module (
 comprehensive :: App
 comprehensive =
   let modName = mkSimpleModuleName "TestModule"
-      ((defName, def), id_) = create $ Examples.comprehensive modName
+      ((builtinMod, (defName, def)), id_) = create $ (,) <$> builtinModule <*> Examples.comprehensive modName
       testProg =
         defaultProg
-          { progImports = [builtinModule, primitiveModule]
+          { progImports = [builtinMod, primitiveModule]
           , progModules =
               [ Module
                   { moduleName = mkSimpleModuleName "TestModule"

@@ -81,6 +81,7 @@ import Primer.TypeDef (
   TypeDef (..),
   TypeDefMap,
   ValCon (ValCon),
+  generateTypeDefIDs,
  )
 import Primer.Typecheck (typeDefs)
 import Primer.Zipper (
@@ -1149,7 +1150,8 @@ unit_redexes_prim_ann =
 unit_eval_modules :: Assertion
 unit_eval_modules =
   let test = do
-        importModules [primitiveModule, builtinModule]
+        builtinModule' <- builtinModule
+        importModules [primitiveModule, builtinModule']
         foo <- pfun ToUpper `app` char 'a'
         EvalResp{evalRespExpr = e} <-
           handleEvalRequest
@@ -1165,7 +1167,8 @@ unit_eval_modules =
 unit_eval_modules_scrutinize_imported_type :: Assertion
 unit_eval_modules_scrutinize_imported_type =
   let test = do
-        importModules [m]
+        m' <- m
+        importModules [m']
         foo <- case_ (con cTrue) [branch cTrue [] $ con cFalse, branch cFalse [] $ con cTrue]
         EvalResp{evalRespExpr = e} <-
           handleEvalRequest
@@ -1177,23 +1180,25 @@ unit_eval_modules_scrutinize_imported_type =
         Left err -> assertFailure $ show err
         Right assertion -> assertion
   where
-    m =
-      Module
-        { moduleName = qualifiedModule tBool
-        , moduleTypes = Map.singleton (baseName tBool) (TypeDefAST boolDef)
-        , moduleDefs = mempty
-        }
+    m = do
+      boolDef' <- generateTypeDefIDs $ TypeDefAST boolDef
+      pure $
+        Module
+          { moduleName = qualifiedModule tBool
+          , moduleTypes = Map.singleton (baseName tBool) boolDef'
+          , moduleDefs = mempty
+          }
 
 -- | Evaluation preserves types
 -- (assuming we don't end with a 'LetType' in the term, as the typechecker
 -- cannot currently deal with those)
 tasty_type_preservation :: Property
 tasty_type_preservation =
-  let testModules = [builtinModule, primitiveModule]
+  let testModules = [builtinModule, pure primitiveModule]
    in withTests 200 $
         withDiscards 2000 $
           propertyWT testModules $ do
-            let globs = foldMap' moduleDefsQualified testModules
+            let globs = foldMap' moduleDefsQualified $ create' $ sequence testModules
             tds <- asks typeDefs
             (dir, t, ty) <- genDirTm
             rs <- failWhenSevereLogs $ redexes @EvalLog tds globs dir t
@@ -1215,11 +1220,11 @@ tasty_type_preservation =
 -- unless @j@ no longer exists in @e'@ or @j@ was a rename-binding which is no longer required
 tasty_redex_independent :: Property
 tasty_redex_independent =
-  let testModules = [builtinModule, primitiveModule]
+  let testModules = [builtinModule, pure primitiveModule]
    in withTests 200 $
         withDiscards 2000 $
           propertyWT testModules $ do
-            let globs = foldMap' moduleDefsQualified testModules
+            let globs = foldMap' moduleDefsQualified $ create' $ sequence testModules
             tds <- asks typeDefs
             (dir, t, _) <- genDirTm
             annotateShow dir

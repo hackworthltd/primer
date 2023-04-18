@@ -95,7 +95,7 @@ import Text.Pretty.Simple (pShowNoColor)
 
 -- | Comprehensive DSL test.
 test_1 :: TestTree
-test_1 = mkTests [builtinModule] $ create' $ comprehensiveWellTyped $ mkSimpleModuleName "M"
+test_1 = mkTests [create' builtinModule] $ create' $ comprehensiveWellTyped $ mkSimpleModuleName "M"
 
 data Output = Output
   { defActions :: [OfferedAction]
@@ -126,7 +126,7 @@ mkTests deps (defName, DefAST def') =
       testName = T.unpack $ moduleNamePretty (qualifiedModule defName) <> "." <> unName (baseName defName)
       enumeratePairs = (,) <$> enumerate <*> enumerate
       defs = Map.singleton defName $ DefAST def
-      typeDefs = foldMap' @[] moduleTypesQualified [builtinModule, primitiveModule]
+      typeDefs = foldMap' @[] moduleTypesQualified [create' builtinModule, primitiveModule]
       offered level id = \case
         Available.NoInput a -> NoInput a
         Available.Input a ->
@@ -192,7 +192,7 @@ tasty_available_actions_accepted = withTests 500 $
   withDiscards 2000 $
     propertyWT [] $ do
       l <- forAllT $ Gen.element enumerate
-      cxt <- forAllT $ Gen.element [[], [builtinModule], [builtinModule, primitiveModule]]
+      cxt <- forAllT $ Gen.choice $ map sequence [[], [builtinModule], [builtinModule, pure primitiveModule]]
       -- We only test SmartHoles mode (which is the only supported user-facing
       -- mode - NoSmartHoles is only used for internal sanity testing etc)
       a <- forAllT $ genApp SmartHoles cxt

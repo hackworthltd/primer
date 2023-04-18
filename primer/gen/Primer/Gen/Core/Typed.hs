@@ -61,6 +61,7 @@ import Primer.Core (
   ValConName,
   qualifyName,
  )
+import Primer.Core.DSL (S)
 import Primer.Core.Utils (freeVarsTy)
 import Primer.Gen.Core.Raw (genLVarName, genModuleName, genName, genTyVarName)
 import Primer.Module (Module (..))
@@ -84,7 +85,7 @@ import Primer.Typecheck (
   Cxt (),
   SmartHoles (NoSmartHoles),
   TypeDefError (TDIHoleType),
-  buildTypingContextFromModules,
+  buildTypingContextFromModules',
   consistentKinds,
   extendLocalCxt,
   extendLocalCxtTy,
@@ -492,7 +493,7 @@ genList n g = Gen.frequency [(1, pure []), (9, Gen.list (Range.linear 1 n) g)]
 -- Generates a group of potentially-mutually-recursive typedefs
 -- If given a module name, they will all live in that module,
 -- otherwise they may live in disparate modules
-genTypeDefGroup :: Maybe ModuleName -> GenT WT [(TyConName, TypeDef)]
+genTypeDefGroup :: Maybe ModuleName -> GenT WT [(TyConName, TypeDef ())]
 genTypeDefGroup mod = local forgetLocals $ do
   let genParams = Gen.list (Range.linear 0 5) $ (,) <$> freshTyVarNameForCxt <*> genWTKind
   let tyconName = case mod of
@@ -530,7 +531,7 @@ genTypeDefGroup mod = local forgetLocals $ do
           <$> genCons n ps
   mapM genTD nps
 
-addTypeDefs :: [(TyConName, TypeDef)] -> Cxt -> Cxt
+addTypeDefs :: [(TyConName, TypeDef ())] -> Cxt -> Cxt
 addTypeDefs = extendTypeDefCxt . M.fromList
 
 extendGlobals :: [(GVarName, TypeG)] -> Cxt -> Cxt
@@ -600,5 +601,5 @@ hoist' cxt = pure . evalTestM 0 . flip runReaderT cxt . unWT
 -- to increase the number of tests run to get decent coverage.
 -- The modules form the 'Cxt' in the environment of the 'WT' monad
 -- (thus the definitions of terms is ignored)
-propertyWT :: [Module] -> PropertyT WT () -> Property
-propertyWT mods = property . hoist (hoist' $ buildTypingContextFromModules mods NoSmartHoles)
+propertyWT :: [S Module] -> PropertyT WT () -> Property
+propertyWT mods = property . hoist (hoist' $ buildTypingContextFromModules' mods NoSmartHoles)

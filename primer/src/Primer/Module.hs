@@ -16,11 +16,13 @@ module Primer.Module (
 
 import Foreword
 
+import Control.Monad.Fresh (MonadFresh)
 import Data.Data (Data)
 import Data.Generics.Uniplate.Data (transformBi)
 import Data.List.Extra (enumerate)
 import Data.Map (delete, insert, mapKeys, member)
 import Data.Map qualified as M
+import Optics (traverseOf)
 import Primer.Builtins (
   boolDef,
   builtinModuleName,
@@ -42,8 +44,11 @@ import Primer.Core (
   ID,
   ModuleName,
   TyConName,
+  TypeMeta,
   qualifyName,
  )
+import Primer.Core.DSL
+import Primer.Core.Utils (generateTypeIDs)
 import Primer.Def (
   Def (..),
   DefMap,
@@ -57,11 +62,11 @@ import Primer.JSON (
  )
 import Primer.Name (Name)
 import Primer.Primitives (allPrimTypeDefs, primDefName, primitiveModuleName)
-import Primer.TypeDef (TypeDef (..), TypeDefMap)
+import Primer.TypeDef (TypeDef (..), TypeDefMap, forgetTypeDefMetadata, _typedefFields)
 
 data Module = Module
   { moduleName :: ModuleName
-  , moduleTypes :: Map Name TypeDef
+  , moduleTypes :: Map Name (TypeDef TypeMeta)
   , moduleDefs :: Map Name Def -- The current program: a set of definitions indexed by Name
   }
   deriving stock (Eq, Show, Read, Data, Generic)
@@ -72,7 +77,7 @@ qualifyTyConName :: Module -> Name -> TyConName
 qualifyTyConName m = qualifyName (moduleName m)
 
 moduleTypesQualified :: Module -> TypeDefMap
-moduleTypesQualified m = mapKeys (qualifyTyConName m) $ moduleTypes m
+moduleTypesQualified m = mapKeys (qualifyTyConName m) $ forgetTypeDefMetadata <$> moduleTypes m
 
 qualifyDefName :: Module -> Name -> GVarName
 qualifyDefName m = qualifyName (moduleName m)
@@ -126,21 +131,30 @@ primitiveModule =
     , moduleDefs = M.fromList $ [(primDefName def, DefPrim def) | def <- enumerate]
     }
 
-builtinModule :: Module
-builtinModule =
-  Module
-    { moduleName = builtinModuleName
-    , moduleTypes =
-        M.fromList
-          [ (baseName tBool, TypeDefAST boolDef)
-          , (baseName tNat, TypeDefAST natDef)
-          , (baseName tList, TypeDefAST listDef)
-          , (baseName tMaybe, TypeDefAST maybeDef)
-          , (baseName tPair, TypeDefAST pairDef)
-          , (baseName tEither, TypeDefAST eitherDef)
-          ]
-    , moduleDefs = mempty
-    }
+builtinModule :: MonadFresh ID m => m Module
+builtinModule = do
+  boolDef' <- traverseOf _typedefFields generateTypeIDs $ TypeDefAST boolDef
+  natDef' <- traverseOf _typedefFields generateTypeIDs $ TypeDefAST natDef
+  listDef' <- traverseOf _typedefFields generateTypeIDs $ TypeDefAST listDef
+  maybeDef' <- traverseOf _typedefFields generateTypeIDs $ TypeDefAST maybeDef
+  pairDef' <- traverseOf _typedefFields generateTypeIDs $ TypeDefAST pairDef
+  eitherDef' <- traverseOf _typedefFields generateTypeIDs $ TypeDefAST eitherDef
+  pure $
+    Module
+      { moduleName = builtinModuleName
+      , moduleTypes =
+          M.fromList
+            [ (baseName tBool, boolDef')
+            , (baseName tNat, natDef')
+            , (baseName tList, listDef')
+            , (baseName tMaybe, maybeDef')
+            , (baseName tPair, pairDef')
+            , (baseName tEither, eitherDef')
+            ]
+      , moduleDefs = mempty
+      }
 
 builtinTypes :: TypeDefMap
-builtinTypes = moduleTypesQualified builtinModule
+-- NB: we don't care about IDs/TypeMeta here, since we remove them in
+-- moduleTypesQualified, thus @create'@ is ok.
+builtinTypes = moduleTypesQualified $ create' builtinModule
