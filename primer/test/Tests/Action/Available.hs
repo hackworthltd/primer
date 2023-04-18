@@ -187,6 +187,16 @@ unit_def_in_use =
               @?= [Available.Input Available.RenameDef, Available.NoInput Available.DuplicateDef]
         )
 
+-- | A helper type for 'tasty_available_actions_actions',
+-- describing where a particular option came from.
+data Provenance
+  = -- | This option was offered by the 'Available.options' API
+    Offered
+  | -- | This option is free-form entry. For example, this simulates
+    -- renaming a definition to a hand-entered name.
+    StudentProvided
+  deriving stock (Show)
+
 tasty_available_actions_accepted :: Property
 tasty_available_actions_accepted = withTests 500 $
   withDiscards 2000 $
@@ -251,19 +261,19 @@ tasty_available_actions_accepted = withTests 500 $
                     def'
                     loc
                     act'
-              let opts' = [Gen.element opts | not (null opts)]
+              let opts' = [Gen.element $ (Offered,) <$> opts | not (null opts)]
               let opts'' =
                     opts' <> case free of
                       Available.FreeNone -> []
-                      Available.FreeVarName -> [flip Available.Option Nothing <$> (unName <$> genName)]
-                      Available.FreeInt -> [flip Available.Option Nothing <$> (show <$> Gen.integral (Range.linear @Integer 0 1_000_000_000))]
-                      Available.FreeChar -> [flip Available.Option Nothing . T.singleton <$> Gen.unicode]
+                      Available.FreeVarName -> [(StudentProvided,) . flip Available.Option Nothing <$> (unName <$> genName)]
+                      Available.FreeInt -> [(StudentProvided,) . flip Available.Option Nothing <$> (show <$> Gen.integral (Range.linear @Integer 0 1_000_000_000))]
+                      Available.FreeChar -> [(StudentProvided,) . flip Available.Option Nothing . T.singleton <$> Gen.unicode]
               case opts'' of
                 [] -> annotate "no options" >> success
                 options -> do
                   opt <- forAllT $ Gen.choice options
-                  progActs <- either (\e -> annotateShow e >> failure) pure $ toProgActionInput def' defName loc opt act'
-                  actionSucceedsOrCapture (handleEditRequest progActs) a
+                  progActs <- either (\e -> annotateShow e >> failure) pure $ toProgActionInput def' defName loc (snd opt) act'
+                  actionSucceedsOrCapture (fst opt) (handleEditRequest progActs) a
   where
     runEditAppMLogs ::
       HasCallStack =>
@@ -279,20 +289,21 @@ tasty_available_actions_accepted = withTests 500 $
         (Right _, a') -> ensureSHNormal a'
     -- If we submit our own name rather than an offered one, then
     -- we should expect that name capture/clashing may happen
-    actionSucceedsOrCapture :: HasCallStack => EditAppM (PureLog (WithSeverity ())) ProgError a -> App -> PropertyT WT ()
-    actionSucceedsOrCapture m a =
-      runEditAppMLogs m a >>= \case
-        (Left (ActionError NameCapture), _) -> do
+    actionSucceedsOrCapture :: HasCallStack => Provenance -> EditAppM (PureLog (WithSeverity ())) ProgError a -> App -> PropertyT WT ()
+    actionSucceedsOrCapture p m a = do
+      a' <- runEditAppMLogs m a
+      case (p, a') of
+        (StudentProvided, (Left (ActionError NameCapture), _)) -> do
           label "name-capture with entered name"
           annotate "ignoring name capture error as was generated name, not offered one"
-        (Left (ActionError (CaseBindsClash{})), _) -> do
+        (StudentProvided, (Left (ActionError (CaseBindsClash{})), _)) -> do
           label "name-clash with entered name"
           annotate "ignoring name clash error as was generated name, not offered one"
-        (Left DefAlreadyExists{}, _) -> do
+        (StudentProvided, (Left DefAlreadyExists{}, _)) -> do
           label "rename def name clash with entered name"
           annotate "ignoring def already exists error as was generated name, not offered one"
-        (Left err, _) -> annotateShow err >> failure
-        (Right _, a') -> ensureSHNormal a'
+        (_, (Left err, _)) -> annotateShow err >> failure
+        (_, (Right _, a'')) -> ensureSHNormal a''
     ensureSHNormal a = case checkAppWellFormed a of
       Left err -> annotateShow err >> failure
       Right a' -> TypeCacheAlpha a === TypeCacheAlpha a'
