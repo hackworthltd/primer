@@ -5,7 +5,6 @@ module Tests.Eval where
 import Foreword
 
 import Control.Monad.Trans.Maybe (runMaybeT)
-import Data.Generics.Uniplate.Data (universe)
 import Data.List (delete)
 import Data.Map.Strict qualified as Map
 import Data.Set qualified as Set
@@ -30,13 +29,12 @@ import Primer.Builtins (
  )
 import Primer.Core (
   Expr,
-  Expr' (LetType),
   GlobalName (baseName, qualifiedModule),
   ID,
   Kind (KFun, KType),
   LocalName,
   Type,
-  Type' (TCon, TEmptyHole),
+  Type' (TCon, TEmptyHole, TFun, TVar),
   getID,
   unLocalName,
   unsafeMkGlobalName,
@@ -94,20 +92,20 @@ import Primer.Zipper (
 import Tasty (Property, withDiscards, withTests)
 import Test.Tasty.HUnit (Assertion, assertBool, assertFailure, (@?=))
 import Tests.Action.Prog (runAppTestM)
-import Tests.Eval.Utils (genDirTm, (~=), (~~=))
+import Tests.Eval.Utils (genDirTm, hasTypeLets, (~=), (~~=))
 import Tests.Gen.Core.Typed (checkTest)
 
 -- * 'tryReduce' tests
 
 -- | A helper for these tests
-runTryReduce :: TypeDefMap -> DefMap -> Cxt -> (Expr, ID) -> IO (Either EvalError (Expr, EvalDetail))
+runTryReduce :: HasCallStack => TypeDefMap -> DefMap -> Cxt -> (Expr, ID) -> IO (Either EvalError (Expr, EvalDetail))
 runTryReduce tys globals locals (expr, i) = do
   let (r, logs) = evalTestM i $ runPureLogT $ runExceptT $ tryReduceExpr @EvalLog tys globals locals Syn expr
   assertNoSevereLogs logs
   pure r
 
 -- For use in assertions
-runTryReduceType :: DefMap -> Cxt -> (Type, ID) -> IO (Either EvalError (Type, EvalDetail))
+runTryReduceType :: HasCallStack => DefMap -> Cxt -> (Type, ID) -> IO (Either EvalError (Type, EvalDetail))
 runTryReduceType globals locals (ty, i) = do
   let (r, logs) = evalTestM i $ runPureLogT $ runExceptT $ tryReduceType @EvalLog globals locals ty
   assertNoSevereLogs logs
@@ -453,7 +451,7 @@ unit_tryReduce_case_2 = do
       detail.targetArgIDs @?= [5, 7, 8]
       detail.branchBindingIDs @?= [11, 12, 13]
       detail.branchRhsID @?= 14
-      detail.letIDs @?= [21, 18, 15]
+      detail.letIDs @?= [22, 19, 16]
     _ -> assertFailure $ show result
 
 unit_tryReduce_case_3 :: Assertion
@@ -472,11 +470,11 @@ unit_tryReduce_case_3 = do
               { astTypeDefParameters = [("a", KType)]
               , astTypeDefConstructors =
                   [ ValCon (unsafeMkGlobalName (["M"], "B")) [TEmptyHole ()]
-                  , ValCon (unsafeMkGlobalName (["M"], "C")) [TEmptyHole ()]
+                  , ValCon (unsafeMkGlobalName (["M"], "C")) [TFun () (TVar () "a") (TVar () "a")]
                   ]
               , astTypeDefNameHints = []
               }
-      expectedResult = create' $ let_ "c" (con' ["M"] "E" `ann` tEmptyHole) (con' ["M"] "F")
+      expectedResult = create' $ let_ "c" (con' ["M"] "E" `ann` tlet "a" (tcon' ["M"] "D") (tvar "a" `tfun` tvar "a")) (con' ["M"] "F")
   result <- runTryReduce tydef mempty mempty (expr, i)
   case result of
     Right (expr', CaseReduction detail) -> do
@@ -490,7 +488,7 @@ unit_tryReduce_case_3 = do
       detail.targetArgIDs @?= [5]
       detail.branchBindingIDs @?= [8]
       detail.branchRhsID @?= 9
-      detail.letIDs @?= [10]
+      detail.letIDs @?= [15]
     _ -> assertFailure $ show result
 
 unit_tryReduce_case_name_clash :: Assertion
@@ -1205,11 +1203,11 @@ tasty_type_preservation =
             case s of
               Left err -> annotateShow err >> failure
               Right (s', _) ->
-                if null [() | LetType{} <- universe s']
-                  then do
+                if hasTypeLets s'
+                  then label "skipped due to LetType" >> success
+                  else do
                     s'' <- checkTest ty s'
                     forgetMetadata s' === forgetMetadata s'' -- check no smart holes happened
-                  else label "skipped due to LetType" >> success
 
 -- | Reductions do not interfere with each other
 -- if @i,j ∈ redexes e@  (and @i /= j@), and @e@ reduces to @e'@ via redex @i@

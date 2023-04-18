@@ -3,14 +3,23 @@ module Tests.Eval.Utils (
   (~~=),
   genDirTm,
   testModules,
+  hasTypeLets,
 ) where
 
 import Foreword
 
+import Data.Generics.Uniplate.Data (universe, universeBi)
 import Data.Map qualified as Map
 import Hedgehog (PropertyT)
 import Hedgehog.Gen qualified as Gen
-import Primer.Core (Expr, Kind (KType), ModuleName (ModuleName), Type, Type')
+import Primer.Core (
+  Expr,
+  Expr' (LetType),
+  Kind (KType),
+  ModuleName (ModuleName),
+  Type,
+  Type' (TLet),
+ )
 import Primer.Core.DSL (create', lam, lvar, tcon, tfun)
 import Primer.Core.Utils (forgetMetadata, forgetTypeMetadata, generateIDs)
 import Primer.Def (ASTDef (ASTDef, astDefExpr, astDefType), Def (DefAST))
@@ -78,3 +87,12 @@ x ~= y = forgetMetadata x @?= forgetMetadata y
 -- | Like '~=' but for types.
 (~~=) :: HasCallStack => Type -> Type -> Assertion
 x ~~= y = forgetTypeMetadata x @?= forgetTypeMetadata y
+
+-- | Does this expression have any unsupported-by-the-typechecker subterms?
+-- These are @let@s binding type variables, either a 'LetType' in a term,
+-- or a 'TLet' in an embedded type.
+hasTypeLets :: Expr -> Bool
+hasTypeLets e =
+  not $
+    null [() | LetType{} <- universe e]
+      && null [() | TLet{} <- universeBi @_ @Type e]

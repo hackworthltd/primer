@@ -2,7 +2,6 @@ module Tests.EvalFull where
 
 import Foreword hiding (unlines)
 
-import Data.Generics.Uniplate.Data (universe)
 import Data.List ((\\))
 import Data.List.NonEmpty qualified as NE
 import Data.Map qualified as M
@@ -118,9 +117,10 @@ import Tasty (
  )
 import Test.Tasty.HUnit (Assertion, assertBool, assertFailure, (@?=))
 import Tests.Action.Prog (runAppTestM)
-import Tests.Eval.Utils (genDirTm, testModules, (~=))
+import Tests.Eval.Utils (genDirTm, hasTypeLets, testModules, (~=))
 import Tests.Gen.Core.Typed (checkTest)
 import Tests.Typecheck (expectTypedWithPrims, runTypecheckTestM, runTypecheckTestMWithPrims)
+import Prelude (error)
 
 unit_1 :: Assertion
 unit_1 =
@@ -504,17 +504,18 @@ unit_type_preservation_case_regression_tm =
             case_
               (con cMakePair `aPP` tcon tNat `aPP` tcon tBool `app` emptyHole `app` lvar "x")
               [branch cMakePair [("x", Nothing), ("y", Nothing)] emptyHole]
+        let x' = "a46" -- NB fragile name
         expect1 <-
           lam "x" $
             case_
               (con cMakePair `aPP` tcon tNat `aPP` tcon tBool `app` emptyHole `app` lvar "x")
-              -- NB: fragile name a42
-              [branch cMakePair [("a42", Nothing), ("y", Nothing)] $ let_ "x" (lvar "a42") emptyHole]
+              -- NB: fragile name a46
+              [branch cMakePair [(x', Nothing), ("y", Nothing)] $ let_ "x" (lvar x') emptyHole]
         expect2 <-
           lam "x" $
-            let_ "a42" (emptyHole `ann` tcon tNat) $
-              let_ "y" (lvar "x" `ann` tcon tBool) $
-                let_ "x" (lvar "a42") emptyHole
+            let_ x' (emptyHole `ann` tlet "a" (tcon tNat) (tvar "a")) $
+              let_ "y" (lvar "x" `ann` tlet "b" (tcon tBool) (tvar "b")) $
+                let_ "x" (lvar x') emptyHole
         pure (e, expect1, expect2)
    in do
         s1 <- evalFullTest maxID builtinTypes mempty 1 Chk expr
@@ -540,19 +541,19 @@ unit_type_preservation_case_regression_ty =
                   `ann` (tcon tPair `tapp` tEmptyHole `tapp` tvar "x")
               )
               [branch cMakePair [("x", Nothing), ("y", Nothing)] emptyHole]
+        let x' = "a58" -- NB fragile name
         expect1 <-
           lAM "x" $
             case_
               ( (con cMakePair `aPP` tEmptyHole `aPP` tvar "x" `app` emptyHole `app` emptyHole)
                   `ann` (tcon tPair `tapp` tEmptyHole `tapp` tvar "x")
               )
-              -- NB fragile name a54
-              [branch cMakePair [("a54", Nothing), ("y", Nothing)] $ let_ "x" (lvar "a54") emptyHole]
+              [branch cMakePair [(x', Nothing), ("y", Nothing)] $ let_ "x" (lvar x') emptyHole]
         expect2 <-
           lAM "x" $
-            let_ "a54" (emptyHole `ann` tEmptyHole) $
-              let_ "y" (emptyHole `ann` tvar "x") $
-                let_ "x" (lvar "a54") emptyHole
+            let_ x' (emptyHole `ann` tlet "a" tEmptyHole (tvar "a")) $
+              let_ "y" (emptyHole `ann` tlet "b" (tvar "x") (tvar "b")) $
+                let_ "x" (lvar x') emptyHole
         pure (e, expect1, expect2)
    in do
         s1 <- evalFullTest maxID builtinTypes mempty 1 Chk expr
@@ -566,8 +567,10 @@ unit_type_preservation_case_regression_ty =
 --   let x = False : Nat in Succ x
 -- which is ill-typed (we ignored the hole in the type-application,
 -- which acts as a type-changing cast).
--- We simply test that the one-step reduction of this expression is well-typed,
+-- We simply test that the first "nice" reduction of this expression is well-typed,
 -- without mandating what the result should be.
+-- Here, "nice" means "without LetType or TLet", since these are
+-- currently unsupported in the typechecker.
 unit_type_preservation_case_hole_regression :: Assertion
 unit_type_preservation_case_hole_regression = evalTestM 0 $ do
   t <-
@@ -578,7 +581,15 @@ unit_type_preservation_case_hole_regression = evalTestM 0 $ do
       ]
   let tds = foldMap' moduleTypesQualified testModules
   let globs = foldMap' moduleDefsQualified testModules
-  ((_steps, s), logs) <- runPureLogT $ evalFullStepCount tds globs 1 Syn t
+  let reducts = (\n -> runPureLogT $ evalFullStepCount tds globs n Syn t) <$> [1 ..]
+  let go = \case
+        [] -> error "impossible, reducts is an infinite list"
+        (x : xs) -> do
+          x'@((_, s), _) <- x
+          if any hasTypeLets $ s ^.. evalResultExpr
+            then go xs
+            else pure x'
+  ((_steps, s), logs) <- go reducts
   let s' = case s of
         Left (TimedOut e) -> e
         Right e -> e
@@ -834,12 +845,12 @@ tasty_type_preservation = withTests 1000 $
             s <- case e of
               Left (TimedOut s') -> label (msg <> "TimedOut") >> pure s'
               Right s' -> label (msg <> "NF") >> pure s'
-            if null [() | LetType{} <- universe s]
-              then do
+            if hasTypeLets s
+              then label (msg <> "skipped due to LetType") >> success
+              else do
                 annotateShow s
                 s' <- checkTest ty s
                 forgetMetadata s === forgetMetadata s' -- check no smart holes happened
-              else label (msg <> "skipped due to LetType") >> success
       maxSteps <- forAllT $ Gen.integral $ Range.linear 1 1000 -- Arbitrary limit here
       (steps, s) <- failWhenSevereLogs $ evalFullStepCount @EvalLog tds globs maxSteps dir t
       annotateShow steps
