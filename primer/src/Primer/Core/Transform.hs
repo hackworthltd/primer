@@ -4,7 +4,6 @@ module Primer.Core.Transform (
   renameTyVar,
   renameTyVarExpr,
   unfoldApp,
-  foldApp,
   unfoldAPP,
   decomposeAppCon,
   unfoldTApp,
@@ -16,16 +15,13 @@ module Primer.Core.Transform (
 
 import Foreword
 
-import Control.Monad.Fresh (MonadFresh)
 import Data.Data (Data)
 import Data.Generics.Uniplate.Data (descendM)
 import Data.List.NonEmpty qualified as NE
 import Optics (Field2 (_2), getting, noneOf, notElemOf, to, traverseOf, (%))
 import Primer.Core (
   CaseBranch' (..),
-  Expr,
   Expr' (..),
-  ID,
   LVarName,
   LocalName (unLocalName),
   TmVarRef (..),
@@ -35,7 +31,6 @@ import Primer.Core (
   bindName,
   typesInExpr,
  )
-import Primer.Core.DSL (meta)
 import Primer.Core.Meta (TyConName)
 import Primer.Core.Utils (_freeVars, _freeVarsTy)
 
@@ -220,12 +215,6 @@ unfoldApp = second reverse . go
   where
     go (App _ f x) = let (g, args) = go f in (g, x : args)
     go e = (e, [])
-
--- | Fold an application head and a list of arguments into a single expression.
-foldApp :: (Foldable t, MonadFresh ID m) => Expr -> t Expr -> m Expr
-foldApp = foldlM $ \a b -> do
-  m <- meta
-  pure $ App m a b
 
 -- | Unfold a nested term-level type application into the application head and a list of arguments.
 unfoldAPP :: Expr' a b -> (Expr' a b, [Type' b])
