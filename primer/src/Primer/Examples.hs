@@ -394,9 +394,9 @@ mapOddProg len =
         (oddName, oddDef) <- odd modName
         (mapName, mapDef) <- map modName
         mapOddDef <- do
-          type_ <- tcon B.tList `tapp` tcon B.tBool
           let lst = list_ B.tNat $ take len $ nat <$> [0 ..]
           term <- gvar mapName `aPP` tcon B.tNat `aPP` tcon B.tBool `app` gvar oddName `app` lst
+          type_ <- tcon B.tList `tapp` tcon B.tBool
           pure $ DefAST $ ASTDef term type_
         let globs = [("even", evenDef), ("odd", oddDef), ("map", mapDef), ("mapOdd", mapOddDef)]
         pure (builtinModule', globs)
