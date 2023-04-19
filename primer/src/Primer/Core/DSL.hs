@@ -114,7 +114,7 @@ ann :: MonadFresh ID m => m Expr -> m Type -> m Expr
 ann e t = Ann <$> meta <*> e <*> t
 
 con :: MonadFresh ID m => ValConName -> [m Type] -> [m Expr] -> m Expr
-con c tys tms = Con <$> meta <*> pure c <* sequence tys <*> sequence tms
+con c _tys tms = Con <$> meta <*> pure c <*> sequence tms
 
 -- | Create a constructor of arity zero.
 -- (This condition is not checked here.

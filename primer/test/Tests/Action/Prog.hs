@@ -1277,7 +1277,7 @@ unit_AddConField =
                     ]
                     `ann` (tcon tT `tapp` tEmptyHole `tapp` tEmptyHole)
                 )
-                [ branch cA [("p", Nothing), ("a46", Nothing), ("q", Nothing), ("p1", Nothing)] emptyHole
+                [ branch cA [("p", Nothing), ("a44", Nothing), ("q", Nothing), ("p1", Nothing)] emptyHole
                 , branch cB [("r", Nothing), ("x", Nothing)] emptyHole
                 ]
           )
