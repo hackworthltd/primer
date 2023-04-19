@@ -538,7 +538,7 @@ unit_copy_paste_duplicate = do
       toDef = gvn "blank"
       ((p, fromType, fromExpr, _toType, _toExpr), maxID) = create $ do
         mainType <- tforall "a" KType (tvar "a" `tfun` (tcon tMaybe `tapp` tEmptyHole))
-        mainExpr <- lAM "b" $ lam "x" $ con cJust [tvar "b"] [lvar "x"]
+        mainExpr <- lAM "b" $ lam "x" $ con cJust [lvar "x"]
         let mainDef = ASTDef mainExpr mainType
         blankDef <- ASTDef <$> emptyHole <*> tEmptyHole
         pure
@@ -645,7 +645,7 @@ unit_copy_paste_expr_1 = do
       mainName = gvn mainName'
       ((pInitial, srcID, pExpected), maxID) = create $ do
         ty <- tforall "a" KType $ (tcon tList `tapp` tvar "a") `tfun` tforall "b" KType (tvar "b" `tfun` (tcon tPair `tapp` tvar "a" `tapp` tvar "b"))
-        let toCopy' = con cMakePair [tvar "a", tvar "b"] [lvar "y" `ann` tvar "a", lvar "z" `ann` tvar "b"] -- want different IDs for the two occurences in expected
+        let toCopy' = con cMakePair [lvar "y" `ann` tvar "a", lvar "z" `ann` tvar "b"] -- want different IDs for the two occurences in expected
         toCopy <- toCopy'
         let skel r =
               lAM "a" $
@@ -655,7 +655,7 @@ unit_copy_paste_expr_1 = do
                     [ branch cNil [] r
                     , branch cCons [("y", Nothing), ("ys", Nothing)] $ lAM "b" $ lam "z" $ pure toCopy
                     ]
-        expectPasted <- con cMakePair [tvar "a", tEmptyHole] [emptyHole `ann` tvar "a", emptyHole `ann` tEmptyHole]
+        expectPasted <- con cMakePair [emptyHole `ann` tvar "a", emptyHole `ann` tEmptyHole]
         -- TODO: in the future we may want to insert let bindings for variables
         -- which are out of scope in the target, and produce something like
         -- expectPasted <- letType "b" tEmptyHole $ let_ "y" (emptyHole `ann` tvar "a") $ let_ "z" (emptyHole `ann` tvar "b") toCopy'
@@ -901,9 +901,6 @@ unit_RenameCon =
                       case_
                         ( con
                             cA
-                            [ tEmptyHole
-                            , tEmptyHole
-                            ]
                             [ con0 (vcn "True")
                             , con0 (vcn "True")
                             , con0 (vcn "True")
@@ -935,9 +932,6 @@ unit_RenameCon =
                     case_
                       ( con
                           (vcn "A'")
-                          [ tEmptyHole
-                          , tEmptyHole
-                          ]
                           [ con0 (vcn "True")
                           , con0 (vcn "True")
                           , con0 (vcn "True")
@@ -962,9 +956,6 @@ unit_RenameCon_clash =
                   ( hole
                       ( con
                           cA
-                          [ tEmptyHole
-                          , tEmptyHole
-                          ]
                           [ emptyHole
                           , emptyHole
                           , emptyHole
@@ -1043,9 +1034,6 @@ unit_SetConFieldType_con =
         x <-
           con
             cA
-            [ tEmptyHole
-            , tEmptyHole
-            ]
             [ con0 (vcn "True")
             , con0 (vcn "True")
             , con0 (vcn "True")
@@ -1066,9 +1054,6 @@ unit_SetConFieldType_con =
           ( create' $
               con
                 cA
-                [ tEmptyHole
-                , tEmptyHole
-                ]
                 [ con0 (vcn "True")
                 , hole (con0 (vcn "True") `ann` tcon (tcn "Bool"))
                 , con0 (vcn "True")
@@ -1083,7 +1068,7 @@ setConFieldTypeHelper ty1 tmInput ty2' tmExpected =
    in progActionTest
         ( defaultProgEditableTypeDefs . sequence . pure $ do
             x <-
-              con cB [tEmptyHole, ty1] [emptyHole, tmInput]
+              con cB [emptyHole, tmInput]
             astDef "def" x <$> ((tcon tT `tapp` tEmptyHole) `tapp` ty1)
         )
         [SetConFieldType tT cB 1 ty2]
@@ -1098,7 +1083,7 @@ setConFieldTypeHelper ty1 tmInput ty2' tmExpected =
           forgetMetadata (astDefExpr def)
             @?= forgetMetadata
               ( create' $
-                  con cB [tEmptyHole, ty1] [emptyHole, tmExpected]
+                  con cB [emptyHole, tmExpected]
               )
 
 -- change the type of a field which currently wraps a checkable term
@@ -1236,9 +1221,6 @@ unit_AddConField =
           case_
             ( con
                 cA
-                [ tEmptyHole
-                , tEmptyHole
-                ]
                 [ con0 (vcn "True")
                 , con0 (vcn "True")
                 , con0 (vcn "True")
@@ -1267,9 +1249,6 @@ unit_AddConField =
               case_
                 ( con
                     cA
-                    [ tEmptyHole
-                    , tEmptyHole
-                    ]
                     [ con0 (vcn "True")
                     , emptyHole
                     , con0 (vcn "True")

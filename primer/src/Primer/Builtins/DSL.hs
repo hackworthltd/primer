@@ -29,7 +29,6 @@ import Primer.Builtins (
 import Primer.Core (
   Expr,
   ID,
-  TyConName,
   Type,
  )
 import Primer.Core.DSL (
@@ -53,21 +52,21 @@ nat = \case
   0 -> con0 cZero
   n -> con1 cSucc $ nat (n - 1)
 
-maybe_ :: MonadFresh ID m => m Type -> (a -> m Expr) -> Maybe a -> m Expr
-maybe_ t f = \case
-  Nothing -> con cNothing [t] []
-  Just x -> con cJust [t] [f x]
+maybe_ :: MonadFresh ID m => (a -> m Expr) -> Maybe a -> m Expr
+maybe_ f = \case
+  Nothing -> con cNothing []
+  Just x -> con cJust [f x]
 
 maybeAnn :: MonadFresh ID m => m Type -> (a -> m Expr) -> Maybe a -> m Expr
-maybeAnn t f x = maybe_ t f x `ann` (tcon tMaybe `tapp` t)
+maybeAnn t f x = maybe_ f x `ann` (tcon tMaybe `tapp` t)
 
-list_ :: MonadFresh ID m => TyConName -> [m Expr] -> m Expr
-list_ t =
+list_ :: MonadFresh ID m => [m Expr] -> m Expr
+list_ =
   foldr
     ( \a b ->
-        con cCons [tcon t] [a, b]
+        con cCons [a, b]
     )
-    (con cNil [tcon t] [])
+    (con cNil [])
 
 listOf :: MonadFresh ID m => m Type -> m Type
 listOf = tapp (tcon tList)

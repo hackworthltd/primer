@@ -1038,7 +1038,7 @@ unit_refine_2 =
     NoSmartHoles
     (emptyHole `ann` (tcon tList `tapp` tcon tNat))
     [Move Child1, constructRefinedCon cNil]
-    (con cNil [tcon tNat] [] `ann` (tcon tList `tapp` tcon tNat))
+    (con cNil [] `ann` (tcon tList `tapp` tcon tNat))
 
 unit_refine_3 :: Assertion
 unit_refine_3 =
@@ -1046,7 +1046,7 @@ unit_refine_3 =
     NoSmartHoles
     (emptyHole `ann` (tcon tList `tapp` tEmptyHole))
     [Move Child1, constructRefinedCon cNil]
-    (con cNil [tEmptyHole] [] `ann` (tcon tList `tapp` tEmptyHole))
+    (con cNil [] `ann` (tcon tList `tapp` tEmptyHole))
 
 unit_refine_4 :: Assertion
 unit_refine_4 =
@@ -1055,18 +1055,18 @@ unit_refine_4 =
     -- REVIEW (saturated constructors): for enforced-saturation, eta expansion is necessary here
     -- Even though constructors are (may be changed later) synthesisable, their eta expansions are not
     -- Thus an annotation is required!
-    (let_ "nil" (lAM "a" (con cNil [tvar "a"] []) `ann` tforall "a" KType (tcon tList `tapp` tvar "a")) $ emptyHole `ann` (tcon tList `tapp` tcon tNat))
+    (let_ "nil" (lAM "a" (con cNil []) `ann` tforall "a" KType (tcon tList `tapp` tvar "a")) $ emptyHole `ann` (tcon tList `tapp` tcon tNat))
     [Move Child2, Move Child1, InsertRefinedVar $ LocalVarRef "nil"]
-    (let_ "nil" (lAM "a" (con cNil [tvar "a"] []) `ann` tforall "a" KType (tcon tList `tapp` tvar "a")) $ (lvar "nil" `aPP` tcon tNat) `ann` (tcon tList `tapp` tcon tNat))
+    (let_ "nil" (lAM "a" (con cNil []) `ann` tforall "a" KType (tcon tList `tapp` tvar "a")) $ (lvar "nil" `aPP` tcon tNat) `ann` (tcon tList `tapp` tcon tNat))
 
 unit_refine_5 :: Assertion
 unit_refine_5 =
   actionTest
     NoSmartHoles
     -- REVIEW (saturated constructors): see comments on unit_refine_4 r.e. eta only checkable
-    (let_ "nil" (lAM "a" (con cNil [tvar "a"] []) `ann` tforall "a" KType (tcon tList `tapp` tvar "a")) $ emptyHole `ann` (tcon tList `tapp` tEmptyHole))
+    (let_ "nil" (lAM "a" (con cNil []) `ann` tforall "a" KType (tcon tList `tapp` tvar "a")) $ emptyHole `ann` (tcon tList `tapp` tEmptyHole))
     [Move Child2, Move Child1, InsertRefinedVar $ LocalVarRef "nil"]
-    (let_ "nil" (lAM "a" (con cNil [tvar "a"] []) `ann` tforall "a" KType (tcon tList `tapp` tvar "a")) $ (lvar "nil" `aPP` tEmptyHole) `ann` (tcon tList `tapp` tEmptyHole))
+    (let_ "nil" (lAM "a" (con cNil []) `ann` tforall "a" KType (tcon tList `tapp` tvar "a")) $ (lvar "nil" `aPP` tEmptyHole) `ann` (tcon tList `tapp` tEmptyHole))
 
 unit_refine_mismatch :: Assertion
 unit_refine_mismatch =
@@ -1074,7 +1074,7 @@ unit_refine_mismatch =
     NoSmartHoles
     (emptyHole `ann` tcon tNat)
     [Move Child1, constructRefinedCon cCons]
-    (hole (con cCons [tEmptyHole] [emptyHole, emptyHole] `ann` tEmptyHole) `ann` tcon tNat)
+    (hole (con cCons [emptyHole, emptyHole] `ann` tEmptyHole) `ann` tcon tNat)
 
 -- REVIEW: perhaps we should be clever and eta expand? As a different action?
 --
@@ -1086,7 +1086,7 @@ unit_refine_arr_1 =
     NoSmartHoles
     (emptyHole `ann` (tEmptyHole `tfun` tEmptyHole))
     [Move Child1, constructRefinedCon cCons]
-    (hole (con cCons [tEmptyHole] [emptyHole, emptyHole] `ann` tEmptyHole) `ann` (tEmptyHole `tfun` tEmptyHole))
+    (hole (con cCons [emptyHole, emptyHole] `ann` tEmptyHole) `ann` (tEmptyHole `tfun` tEmptyHole))
 
 -- TODO (saturated constructors) update this comment for ctors-dont-store-indices ('Cons Nat') and ctors-are-chk
 --
@@ -1100,7 +1100,7 @@ unit_refine_arr_2 =
     NoSmartHoles
     (emptyHole `ann` ((tcon tList `tapp` tcon tNat) `tfun` (tcon tList `tapp` tcon tNat)))
     [Move Child1, constructRefinedCon cCons]
-    (hole (con cCons [tEmptyHole] [emptyHole, emptyHole] `ann` tEmptyHole) `ann` ((tcon tList `tapp` tcon tNat) `tfun` (tcon tList `tapp` tcon tNat)))
+    (hole (con cCons [emptyHole, emptyHole] `ann` tEmptyHole) `ann` ((tcon tList `tapp` tcon tNat) `tfun` (tcon tList `tapp` tcon tNat)))
 
 unit_primitive_1 :: Assertion
 unit_primitive_1 =
@@ -1135,7 +1135,7 @@ unit_move_ctor =
     , constructSaturatedCon cFalse
     , Move Parent
     ]
-    (con cMakePair [tcon tNat, tcon tBool] [con0 cZero, con0 cFalse] `ann` tEmptyHole)
+    (con cMakePair [con0 cZero, con0 cFalse] `ann` tEmptyHole)
 
 -- * Helpers
 

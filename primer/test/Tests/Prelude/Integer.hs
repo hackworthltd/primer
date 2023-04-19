@@ -14,9 +14,6 @@ import Primer.Core.DSL (
   int,
  )
 import Primer.Prelude.Integer qualified as P
-import Primer.Primitives (
-  tInt,
- )
 import Tasty (Property, property, withTests)
 import Tests.Prelude.Utils (functionOutput, (<===>))
 
@@ -69,9 +66,9 @@ tasty_odd_prop = property $ do
 tasty_sum_prop :: Property
 tasty_sum_prop = property $ do
   ns <- forAll $ G.list (Range.linear 0 10) (G.integral_ (Range.constant (-10) 10))
-  functionOutput P.sum [list_ tInt $ map int ns] 2000 <===> Right (create' $ int $ sum ns)
+  functionOutput P.sum [list_ $ map int ns] 2000 <===> Right (create' $ int $ sum ns)
 
 tasty_product_prop :: Property
 tasty_product_prop = property $ do
   ns <- forAll $ G.list (Range.linear 0 10) (G.integral_ (Range.constant 1 10))
-  functionOutput P.product [list_ tInt $ map int ns] 2000 <===> Right (create' $ int $ product ns)
+  functionOutput P.product [list_ $ map int ns] 2000 <===> Right (create' $ int $ product ns)

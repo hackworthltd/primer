@@ -113,22 +113,22 @@ emptyHole = EmptyHole <$> meta
 ann :: MonadFresh ID m => m Expr -> m Type -> m Expr
 ann e t = Ann <$> meta <*> e <*> t
 
-con :: MonadFresh ID m => ValConName -> [m Type] -> [m Expr] -> m Expr
-con c _tys tms = Con <$> meta <*> pure c <*> sequence tms
+con :: MonadFresh ID m => ValConName -> [m Expr] -> m Expr
+con c tms = Con <$> meta <*> pure c <*> sequence tms
 
 -- | Create a constructor of arity zero.
 -- (This condition is not checked here.
 --  If used with a constructor which has fields,
 --  then the typechecker will complain, when run.)
 con0 :: MonadFresh ID m => ValConName -> m Expr
-con0 c = con c [] []
+con0 c = con c []
 
 -- | Create a constructor of arity one.
 -- (This condition is not checked here.
 --  If used with a constructor which has fields,
 --  then the typechecker will complain, when run.)
 con1 :: MonadFresh ID m => ValConName -> m Expr -> m Expr
-con1 c t = con c [] [t]
+con1 c t = con c [t]
 
 lvar :: MonadFresh ID m => LVarName -> m Expr
 lvar v = Var <$> meta <*> pure (LocalVarRef v)
@@ -177,7 +177,7 @@ con0' m n = con0 $ qualifyName (ModuleName m) n
 con1' :: MonadFresh ID m => NonEmpty Name -> Name -> m Expr -> m Expr
 con1' m n = con1 $ qualifyName (ModuleName m) n
 
-con' :: MonadFresh ID m => NonEmpty Name -> Name -> [m Type] -> [m Expr] -> m Expr
+con' :: MonadFresh ID m => NonEmpty Name -> Name -> [m Expr] -> m Expr
 con' m n = con $ qualifyName (ModuleName m) n
 
 gvar' :: MonadFresh ID m => NonEmpty Name -> Name -> m Expr
