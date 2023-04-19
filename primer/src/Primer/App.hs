@@ -64,7 +64,7 @@ import Control.Monad.Fresh (MonadFresh (..))
 import Control.Monad.Log (MonadLog, WithSeverity)
 import Control.Monad.NestedError (MonadNestedError, throwError')
 import Data.Data (Data)
-import Data.Generics.Uniplate.Operations (descendM, transform, transformM)
+import Data.Generics.Uniplate.Operations (transform, transformM)
 import Data.Generics.Uniplate.Zipper (
   fromZipper,
  )
@@ -772,7 +772,7 @@ applyProgAction prog mdefName = \case
           )
           type_
       updateDefs = traverseOf (traversed % #_DefAST % #astDefExpr) (updateDecons <=< updateCons)
-      updateCons e =
+      updateCons =
         let typecache = _typecache % _Just
             -- Previously the @index@th argument @t@ to this
             -- constructor would have been typechecked against the old
@@ -798,12 +798,12 @@ applyProgAction prog mdefName = \case
               (_, Nothing, Just c) -> hole $ pure x `ann` generateTypeIDs c
               -- This last case means that the input program had no (useful) metadata
               (_, Nothing, Nothing) -> hole $ pure x `ann` tEmptyHole
-         in case e of
+         in transformM $ \case
               Con m con' tys tms | con' == con -> do
                 adjustAtA index enhole tms >>= \case
-                  Just args' -> Con m con' tys <$> traverse (descendM updateCons) args'
+                  Just args' -> pure $ Con m con' tys args'
                   Nothing -> throwError $ ConNotSaturated con
-              _ -> descendM updateCons e
+              e -> pure e
       updateDecons = transformCaseBranches prog type_ $
         traverse $ \cb@(CaseBranch vc binds e) ->
           if vc == con
@@ -845,13 +845,13 @@ applyProgAction prog mdefName = \case
       -- synthesis of the scrutinee's type, using the old typedef. Thus we must
       -- not update the scrutinee before this happens.
       updateDefs = traverseOf (traversed % #_DefAST % #astDefExpr) (updateCons <=< updateDecons)
-      updateCons e = case e of
+      updateCons = transformM $ \case
         Con m con' tys tms | con' == con -> do
           m' <- DSL.meta
           case insertAt index (EmptyHole m') tms of
-            Just args' -> Con m con' tys <$> traverse (descendM updateCons) args'
+            Just args' -> pure $ Con m con' tys args'
             Nothing -> throwError $ ConNotSaturated con
-        _ -> descendM updateCons e
+        e -> pure e
       updateDecons = transformCaseBranches prog type_ $
         traverse $ \cb@(CaseBranch vc binds e) ->
           if vc == con
