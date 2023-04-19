@@ -175,7 +175,7 @@ unit_con_hole_app_type_1 =
     con cMakePair [emptyHole, emptyHole]
       `ann` (tEmptyHole `tapp` tEmptyHole)
 
--- A hole-headed TApp accepts saturated constructors, if given type arguments match
+-- A hole-headed TApp accepts saturated constructors
 -- The application spine can be shorter than that required for the constructor
 unit_con_hole_app_type_2 :: Assertion
 unit_con_hole_app_type_2 =
@@ -183,7 +183,7 @@ unit_con_hole_app_type_2 =
     con cMakePair [emptyHole, emptyHole]
       `ann` (tEmptyHole `tapp` tcon tNat)
 
--- A hole-headed TApp accepts saturated constructors, if given type arguments match
+-- A hole-headed TApp accepts saturated constructors
 -- The application spine can match than that required for the constructor
 unit_con_hole_app_type_3 :: Assertion
 unit_con_hole_app_type_3 =
