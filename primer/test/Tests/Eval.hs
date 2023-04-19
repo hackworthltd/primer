@@ -478,10 +478,10 @@ unit_tryReduce_case_3 = do
       detail.targetID @?= 1
       detail.targetCtorID @?= 2
       detail.ctorName @?= vcn ["M"] "C"
-      detail.targetArgIDs @?= [4]
-      detail.branchBindingIDs @?= [10]
-      detail.branchRhsID @?= 11
-      detail.letIDs @?= [17]
+      detail.targetArgIDs @?= [3]
+      detail.branchBindingIDs @?= [9]
+      detail.branchRhsID @?= 10
+      detail.letIDs @?= [16]
     _ -> assertFailure $ show result
 
 unit_tryReduce_case_name_clash :: Assertion

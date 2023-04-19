@@ -504,7 +504,7 @@ unit_type_preservation_case_regression_tm =
                   `ann` ((tcon tPair `tapp` tcon tNat) `tapp` tcon tBool)
               )
               [branch cMakePair [("x", Nothing), ("y", Nothing)] emptyHole]
-        let x' = "a50" -- NB fragile name
+        let x' = "a46" -- NB fragile name
         expect1 <-
           lam "x" $
             case_
@@ -542,7 +542,7 @@ unit_type_preservation_case_regression_ty =
                   `ann` (tcon tPair `tapp` tEmptyHole `tapp` tvar "x")
               )
               [branch cMakePair [("x", Nothing), ("y", Nothing)] emptyHole]
-        let x' = "a50" -- NB fragile name
+        let x' = "a46" -- NB fragile name
         expect1 <-
           lAM "x" $
             case_
