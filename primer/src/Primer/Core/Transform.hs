@@ -5,7 +5,6 @@ module Primer.Core.Transform (
   renameTyVarExpr,
   unfoldApp,
   unfoldAPP,
-  decomposeAppCon,
   unfoldTApp,
   decomposeTAppCon,
   foldTApp,
@@ -27,7 +26,6 @@ import Primer.Core (
   TmVarRef (..),
   TyVarName,
   Type' (..),
-  ValConName,
   bindName,
   typesInExpr,
  )
@@ -222,17 +220,6 @@ unfoldAPP = second reverse . go
   where
     go (APP _ f x) = let (g, args) = go f in (g, x : args)
     go e = (e, [])
-
--- | Decompose @C @A @B x y z@ to @(C,[A,B],[x,y,z])@
-decomposeAppCon :: Expr' a b -> Maybe (ValConName, a, [Type' b], [Expr' a b])
-decomposeAppCon =
-  unfoldApp <&> first unfoldAPP <&> \case
-    -- TODO (saturated constructors): This is suspicious (we reorder types and terms), but
-    -- (a) for well-typed terms, either tms0 or tys will be empty (since constructors only have top-level foralls)
-    -- (b) the situation that constructors can be on the left of an app or aPP node is temporary
-    --     and shortly decomposeAppCon will become a trivial match on the 'Con' constructor.
-    ((Con m c tys0 tms0, tys), tms) -> Just (c, m, tys0 ++ tys, tms0 ++ tms)
-    _ -> Nothing
 
 -- | Unfold a nested type-level application into the application head and a list of arguments.
 unfoldTApp :: Type' a -> (Type' a, [Type' a])
