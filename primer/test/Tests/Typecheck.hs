@@ -159,20 +159,20 @@ unit_true_hole = expectTyped $ con0 cTrue `ann` tEmptyHole
 -- An empty hole rejects under-saturated constructors
 unit_unsat_con_hole_1 :: Assertion
 unit_unsat_con_hole_1 =
-  (con cSucc [] [] `ann` tEmptyHole)
+  (con cSucc [] `ann` tEmptyHole)
     `expectFailsWith` \_ -> UnsaturatedConstructor cSucc
 
 -- An empty hole rejects over-saturated constructors
 unit_unsat_con_hole_2 :: Assertion
 unit_unsat_con_hole_2 =
-  (con cSucc [] [emptyHole, emptyHole] `ann` tEmptyHole)
+  (con cSucc [emptyHole, emptyHole] `ann` tEmptyHole)
     `expectFailsWith` \_ -> UnsaturatedConstructor cSucc
 
 -- A hole-headed TApp accepts saturated constructors
 unit_con_hole_app_type_1 :: Assertion
 unit_con_hole_app_type_1 =
   expectTyped $
-    con cMakePair [tcon tBool, tcon tNat] [emptyHole, emptyHole]
+    con cMakePair [emptyHole, emptyHole]
       `ann` (tEmptyHole `tapp` tEmptyHole)
 
 -- A hole-headed TApp accepts saturated constructors
@@ -180,7 +180,7 @@ unit_con_hole_app_type_1 =
 unit_con_hole_app_type_2 :: Assertion
 unit_con_hole_app_type_2 =
   expectTyped $
-    con cMakePair [tcon tBool, tcon tNat] [emptyHole, emptyHole]
+    con cMakePair [emptyHole, emptyHole]
       `ann` (tEmptyHole `tapp` tcon tNat)
 
 -- A hole-headed TApp accepts saturated constructors
@@ -188,13 +188,13 @@ unit_con_hole_app_type_2 =
 unit_con_hole_app_type_3 :: Assertion
 unit_con_hole_app_type_3 =
   expectTyped $
-    con cMakePair [tcon tBool, tcon tNat] [emptyHole, emptyHole]
+    con cMakePair [emptyHole, emptyHole]
       `ann` (tEmptyHole `tapp` tcon tBool `tapp` tcon tNat)
 
 -- A hole-headed TApp rejects saturated constructors, if  application spine is too long for the constructor
 unit_con_hole_app_type_4 :: Assertion
 unit_con_hole_app_type_4 =
-  ( con cMakePair [tcon tBool, tcon tNat] [emptyHole, emptyHole]
+  ( con cMakePair [emptyHole, emptyHole]
       `ann` (tEmptyHole `tapp` tcon tBool `tapp` tcon tNat `tapp` tEmptyHole)
   )
     `expectFailsWith` const
@@ -213,7 +213,7 @@ unit_inc :: Assertion
 unit_inc =
   expectTyped $
     ann
-      (lam "n" (con cSucc [] [lvar "n"]))
+      (lam "n" (con cSucc [lvar "n"]))
       (tfun (tcon tNat) (tcon tNat))
 
 -- NB: @Succ :: ?@ is wrong: unsaturated!

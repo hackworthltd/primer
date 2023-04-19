@@ -49,7 +49,7 @@ tasty_id_prop = property $ do
   ns <- forAll $ G.list (Range.constant 0 10) (G.integral_ (Range.constant (-10) 10))
   functionOutput' P.id [Right $ tcon tInt, Left $ int n] 20 <===> Right (create' $ int n) -- Integer Test
   functionOutput' P.id [Right $ tcon tBool, Left $ bool_ b] 20 <===> Right (create' $ bool_ b) -- Bool Test
-  functionOutput' P.id [Right $ tcon tList `tapp` tcon tInt, Left $ list_ tInt $ map int ns] 20 <===> Right (create' $ list_ tInt $ map int ns) -- List of Int Test
+  functionOutput' P.id [Right $ tcon tList `tapp` tcon tInt, Left $ list_ $ map int ns] 20 <===> Right (create' $ list_ $ map int ns) -- List of Int Test
 
 tasty_const_prop :: Property
 tasty_const_prop = property $ do
@@ -77,12 +77,12 @@ tasty_const_prop = property $ do
   functionOutput' -- List of Int Test
     P.const
     [ Right $ tcon tList `tapp` tcon tInt
-    , Left $ list_ tInt $ map int ns
+    , Left $ list_ $ map int ns
     , Right $ tcon tInt
     , Left $ int n
     ]
     20
-    <===> Right (create' $ list_ tInt $ map int ns)
+    <===> Right (create' $ list_ $ map int ns)
 
 tasty_map_prop :: Property
 tasty_map_prop = property $ do
@@ -91,26 +91,26 @@ tasty_map_prop = property $ do
   let addOne = lam "x" $ apps (pfun IntAdd) [lvar "x", int 1]
    in functionOutput' -- Mapping over integers (+1)
         P.map
-        [Right $ tcon tInt, Right $ tcon tInt, Left addOne, Left $ list_ tInt $ map int ns]
+        [Right $ tcon tInt, Right $ tcon tInt, Left addOne, Left $ list_ $ map int ns]
         1000
-        <===> Right (create' $ list_ tInt $ map (int . (+ 1)) ns)
+        <===> Right (create' $ list_ $ map (int . (+ 1)) ns)
   functionOutput' -- Mapping over bools (not)
     P.map
-    [Right $ tcon tBool, Right $ tcon tBool, Left (gvar L.not), Left $ list_ tBool $ map bool_ bs]
+    [Right $ tcon tBool, Right $ tcon tBool, Left (gvar L.not), Left $ list_ $ map bool_ bs]
     1000
-    <===> Right (create' $ list_ tBool $ map (bool_ . not) bs)
+    <===> Right (create' $ list_ $ map (bool_ . not) bs)
 
 -- Right fold over a list of characters with @cons@.
 tasty_foldr_list_char :: Property
 tasty_foldr_list_char = property $ do
   as <- forAll $ G.list (Range.linear 0 10) G.unicode
   as' <- forAll $ G.list (Range.linear 0 10) G.unicode
-  let cons = lam "x" $ lam "xs" $ con cCons [tcon tChar] [lvar "x", lvar "xs"]
+  let cons = lam "x" $ lam "xs" $ con cCons [lvar "x", lvar "xs"]
    in functionOutput'
         P.foldr
-        [Right $ listOf (tcon tChar), Right $ listOf (tcon tChar), Left cons, Left $ list_ tChar $ map char as, Left $ list_ tChar $ map char as']
+        [Right $ listOf (tcon tChar), Right $ listOf (tcon tChar), Left cons, Left $ list_ $ map char as, Left $ list_ $ map char as']
         1000
-        <===> Right (create' $ list_ tChar $ map char (foldr (:) as as'))
+        <===> Right (create' $ list_ $ map char (foldr (:) as as'))
 
 {- HLINT ignore tasty_foldr_bool "Use and" -}
 -- Right fold over a list of bools with logical @and@.
@@ -119,7 +119,7 @@ tasty_foldr_bool = property $ do
   bs <- forAll $ G.list (Range.linear 0 10) G.bool_
   functionOutput'
     P.foldr
-    [Right $ tcon tBool, Right $ tcon tBool, Left (gvar L.and), Left $ bool_ True, Left $ list_ tBool $ map bool_ bs]
+    [Right $ tcon tBool, Right $ tcon tBool, Left (gvar L.and), Left $ bool_ True, Left $ list_ $ map bool_ bs]
     1000
     <===> Right (create' $ bool_ (foldr (&&) True bs))
 
@@ -130,7 +130,7 @@ tasty_foldr_right_assoc = property $ do
   let subtract' = lam "x" $ lam "y" $ apps (pfun IntMinus) [lvar "x", lvar "y"]
   functionOutput'
     P.foldr
-    [Right $ tcon tInt, Right $ tcon tInt, Left subtract', Left $ int 0, Left $ list_ tInt $ map int ns]
+    [Right $ tcon tInt, Right $ tcon tInt, Left subtract', Left $ int 0, Left $ list_ $ map int ns]
     1000
     <===> Right (create' $ int (foldr (-) 0 ns))
 
@@ -142,6 +142,6 @@ unit_foldr_short_circuit =
    in do
         functionOutput'
           P.foldr
-          [Right $ tcon tBool, Right $ tcon tBool, Left (gvar L.and), Left $ bool_ True, Left $ list_ tBool $ map bool_ bs]
+          [Right $ tcon tBool, Right $ tcon tBool, Left (gvar L.and), Left $ bool_ True, Left $ list_ $ map bool_ bs]
           100
           <~==> Right (create' $ bool_ False)
