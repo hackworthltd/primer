@@ -478,6 +478,23 @@ unit_con_direction =
   con0 cTrue
     `smartSynthGives` con0 cTrue
 
+unit_bad_con_sh :: Assertion
+unit_bad_con_sh =
+  (con0 cTrue `ann` tcon tNat)
+    `smartSynthGives` (hole (con0 cTrue) `ann` tcon tNat)
+
+unit_con_not_adt_sh :: Assertion
+unit_con_not_adt_sh =
+  con0 cTrue
+    `ann` (tcon tNat `tfun` tcon tBool)
+    `smartSynthGives` (hole (con0 cTrue) `ann` (tcon tNat `tfun` tcon tBool))
+
+unit_con_wrong_adt_sh :: Assertion
+unit_con_wrong_adt_sh =
+  con0 cTrue
+    `ann` tcon tNat
+    `smartSynthGives` (hole (con0 cTrue) `ann` tcon tNat)
+
 unit_case_scrutinee :: Assertion
 unit_case_scrutinee =
   ann (case_ (lam "n" (con1 cSucc $ lvar "n") `ann` (tcon tNat `tfun` tcon tNat)) [branch' (["M"], "C") [] $ lvar "x"]) (tcon tBool)
