@@ -84,7 +84,7 @@ getTypeDefInfo' tydefs ty =
 instantiateValCons ::
   (MonadFresh NameCounter m, MonadReader Cxt m) =>
   Type' () ->
-  m (Either TypeDefError (TyConName, ASTTypeDef (), [(ValConName, [Type' ()])]))
+  m (Either TypeDefError (TyConName, ASTTypeDef (), [(ValConName, [Type' ()])]))  -- TODO: second arg is always unused, should I remove it? (actually, is it after rebasing?)
 instantiateValCons t = do
   tds <- asks typeDefs
   let instCons = instantiateValCons' tds t
