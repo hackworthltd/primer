@@ -35,7 +35,7 @@ import Primer.Builtins (
 import Primer.Builtins.DSL (bool_, maybe_, nat)
 import Primer.Core (
   Expr,
-  Expr' (App, Con, PrimCon),
+  Expr' (Con, PrimCon),
   GVarName,
   GlobalName,
   ID,
@@ -274,7 +274,5 @@ primFunDef def args = case def of
     exprToNat = \case
       Con _ c [] [] | c == cZero -> Just 0
       Con _ c [] [x] | c == cSucc -> succ <$> exprToNat x
-      -- TODO (saturated constructors) this line will be unneeded when saturation is enforced
-      App _ (Con _ c [] []) x | c == cSucc -> succ <$> exprToNat x
       _ -> Nothing
     err = Left $ PrimFunError def args
