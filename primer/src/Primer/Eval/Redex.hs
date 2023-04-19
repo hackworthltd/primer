@@ -528,7 +528,7 @@ viewCaseRedex tydefs = \case
                 forgetTypeMetadata annotation
           pure $ zip params tyargsFromAnn
         (patterns, br) <- extractBranch c brs
-        renameBindings mCase scrut brs annotation args patterns orig
+        renameBindings mCase scrut brs patterns orig
           <|> pure (formCaseRedex c abstractArgTys tyargs args patterns br (orig, scrut, getID mCon))
   _ -> mzero
   where
@@ -553,18 +553,19 @@ viewCaseRedex tydefs = \case
        We must catch this case and rename the case binders as a first step.
        Note that the free vars in
        `t : (lettype p1=A,p2=B in T)` are a subset of the free vars in the
-       arguments of the scrutinee (s, t) plus the arguments to its type
+       arguments of the constructor (s, t) plus the arguments to its type
        annotations (A, B).
        We shall be conservative and rename all binders in every branch apart
-       from these free vars.
+       from these free vars, i.e. from any free var in the scrutinee
+       `C s t : T A B`.
        (We could get away with only renaming within the matching branch, only
        avoiding those FVs that actually occur, and in a "telescope" fashion:
        the first binder needs to avoid the FVs of all except the first
        argument, the second needs to avoid all but the first two args, ...,
        the last doesn't need any renaming.)
     -}
-    renameBindings meta scrutinee branches annTy args patterns orig =
-      let avoid = S.map unLocalName (freeVarsTy annTy) <> foldMap' freeVars args
+    renameBindings meta scrutinee branches patterns orig =
+      let avoid = freeVars scrutinee
           binders = S.fromList $ map (unLocalName . bindName) patterns
        in hoistMaybe $
             if S.disjoint avoid binders
