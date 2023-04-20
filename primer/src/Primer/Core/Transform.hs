@@ -4,7 +4,6 @@ module Primer.Core.Transform (
   renameTyVar,
   renameTyVarExpr,
   unfoldApp,
-  unfoldAPP,
   unfoldTApp,
   decomposeTAppCon,
   foldTApp,
@@ -212,13 +211,6 @@ unfoldApp :: Expr' a b -> (Expr' a b, [Expr' a b])
 unfoldApp = second reverse . go
   where
     go (App _ f x) = let (g, args) = go f in (g, x : args)
-    go e = (e, [])
-
--- | Unfold a nested term-level type application into the application head and a list of arguments.
-unfoldAPP :: Expr' a b -> (Expr' a b, [Type' b])
-unfoldAPP = second reverse . go
-  where
-    go (APP _ f x) = let (g, args) = go f in (g, x : args)
     go e = (e, [])
 
 -- | Unfold a nested type-level application into the application head and a list of arguments.
