@@ -1051,13 +1051,23 @@ unit_refine_5 =
     [Move Child2, Move Child1, InsertRefinedVar $ LocalVarRef "nil"]
     (let_ "nil" (con cNil) $ (lvar "nil" `aPP` tEmptyHole) `ann` (tcon tList `tapp` tEmptyHole))
 
-unit_refine_mismatch :: Assertion
-unit_refine_mismatch =
+-- If there is no valid refinement, insert plain constructor into a non-empty hole
+unit_refine_mismatch_con :: Assertion
+unit_refine_mismatch_con =
   actionTest
     NoSmartHoles
     (emptyHole `ann` tcon tNat)
     [Move Child1, constructRefinedCon cCons]
     (hole (con cCons) `ann` tcon tNat)
+
+-- If there is no valid refinement, insert plain variable into a non-empty hole
+unit_refine_mismatch_var :: Assertion
+unit_refine_mismatch_var =
+  actionTest
+    NoSmartHoles
+    (let_ "cons" (con cCons) $ emptyHole `ann` tcon tBool)
+    [Move Child2, Move Child1, InsertRefinedVar $ LocalVarRef "cons"]
+    (let_ "cons" (con cCons) $ hole (lvar "cons") `ann` tcon tBool)
 
 -- Note @cons @? ∈ ? -> List ? -> List ?  ~  ? -> ?@,
 -- thus inserting a refined @cons@ in a hole of type @? -> ?@ may not refine as
