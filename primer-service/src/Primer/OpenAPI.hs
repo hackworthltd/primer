@@ -136,8 +136,7 @@ deriving via Text instance (ToSchema Name)
 -- at the openapi level, so api consumers do not have to deal with
 -- three identical types. Note that our openapi interface is a
 -- simplified view, so this collapse is in the correct spirit.
-instance ToSchema (GlobalName 'ADefName) where
-  declareNamedSchema _ = rename (Just "GlobalName") <$> declareNamedSchema (Proxy @(PrimerJSON (GlobalName 'ADefName)))
+deriving via PrimerJSONNamed "GlobalName" (GlobalName 'ADefName) instance ToSchema (GlobalName 'ADefName)
 deriving via GlobalName 'ADefName instance ToSchema (GlobalName 'ATyCon)
 deriving via GlobalName 'ADefName instance ToSchema (GlobalName 'AValCon)
 
