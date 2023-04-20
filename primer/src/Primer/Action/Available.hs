@@ -1,4 +1,5 @@
 {-# LANGUAGE BlockArguments #-}
+{-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE NoFieldSelectors #-}
 
 -- | Compute all the possible actions which can be performed on a definition.
@@ -33,7 +34,9 @@ import Primer.Action.Priorities qualified as P
 import Primer.App.Base (
   Editable (..),
   Level (..),
+  NodeSelection (..),
   NodeType (..),
+  Selection' (..),
  )
 import Primer.Core (
   Expr,
@@ -320,12 +323,12 @@ options ::
   Cxt ->
   Level ->
   ASTDef ->
-  Maybe (NodeType, ID) ->
+  Selection' ID ->
   InputAction ->
   -- | Returns 'Nothing' if an ID was required but not passed, passed but not found in the tree,
   -- or found but didn't correspond to the expected sort of entity (type/expr/pattern).
   Maybe Options
-options typeDefs defs cxt level def mNodeSel = \case
+options typeDefs defs cxt level def sel = \case
   MakeCon ->
     pure
       . noFree
@@ -395,23 +398,23 @@ options typeDefs defs cxt level def mNodeSel = \case
         (first (localOpt . unLocalName) <$> locals)
           <> (first globalOpt <$> globals)
     findNode = do
-      (nt, id) <- mNodeSel
-      case nt of
-        BodyNode -> fst <$> findNodeWithParent id (astDefExpr def)
-        SigNode -> TypeNode <$> findType id (astDefType def)
+      s <- sel.node
+      case s.nodeType of
+        BodyNode -> fst <$> findNodeWithParent s.meta (astDefExpr def)
+        SigNode -> TypeNode <$> findType s.meta (astDefType def)
     genNames typeOrKind = do
-      z <- focusNode =<< mNodeSel
+      z <- focusNode =<< sel.node
       pure $ map localOpt $ flip runReader cxt $ case z of
         Left zE -> generateNameExpr typeOrKind zE
         Right zT -> generateNameTy typeOrKind zT
     varsInScope = do
-      nodeSel <- mNodeSel
+      nodeSel <- sel.node
       focusNode nodeSel <&> \case
         Left zE -> variablesInScopeExpr defs zE
         Right zT -> (variablesInScopeTy zT, [], [])
-    focusNode (nt, id) = case nt of
-      BodyNode -> Left . locToEither <$> focusOn id (astDefExpr def)
-      SigNode -> fmap Right $ focusOnTy id $ astDefType def
+    focusNode nodeSel = case nodeSel.nodeType of
+      BodyNode -> Left . locToEither <$> focusOn nodeSel.meta (astDefExpr def)
+      SigNode -> fmap Right $ focusOnTy nodeSel.meta $ astDefType def
     -- Extract the source of the function type we were checked at
     -- i.e. the type that a lambda-bound variable would have here
     lamVarTy = \case

@@ -35,7 +35,7 @@ import Primer.Action.Actions (Action (..), Movement (..), QualifiedText)
 import Primer.Action.Available qualified as Available
 import Primer.Action.Errors (ActionError (..))
 import Primer.Action.ProgAction (ProgAction (..))
-import Primer.App.Base (NodeType (..))
+import Primer.App.Base (NodeSelection (..), NodeType (..), Selection' (..))
 import Primer.Core (
   Expr,
   Expr' (..),
@@ -859,11 +859,10 @@ renameForall b zt = case target zt of
 toProgActionNoInput ::
   DefMap ->
   ASTDef ->
-  GVarName ->
-  Maybe (NodeType, ID) ->
+  Selection' ID ->
   Available.NoInputAction ->
   Either ActionError [ProgAction]
-toProgActionNoInput defs def defName mNodeSel = \case
+toProgActionNoInput defs def sel = \case
   Available.MakeCase ->
     toProgAction [ConstructCase]
   Available.MakeApp ->
@@ -878,7 +877,7 @@ toProgActionNoInput defs def defName mNodeSel = \case
     toProgAction [ConvertLetToLetrec]
   Available.Raise -> do
     id <- mid
-    pure [MoveToDef defName, CopyPasteBody (defName, id) [SetCursor id, Move Parent, Delete]]
+    pure [MoveToDef sel.def, CopyPasteBody (sel.def, id) [SetCursor id, Move Parent, Delete]]
   Available.EnterHole ->
     toProgAction [EnterHole]
   Available.RemoveHole ->
@@ -911,34 +910,33 @@ toProgActionNoInput defs def defName mNodeSel = \case
     toProgAction [ConstructTApp, Move Child1]
   Available.RaiseType -> do
     id <- mid
-    pure [MoveToDef defName, CopyPasteSig (defName, id) [SetCursor id, Move Parent, Delete]]
+    pure [MoveToDef sel.def, CopyPasteSig (sel.def, id) [SetCursor id, Move Parent, Delete]]
   Available.DeleteType ->
     toProgAction [Delete]
   Available.DuplicateDef ->
     let sigID = getID $ astDefType def
         bodyID = getID $ astDefExpr def
-        copyName = uniquifyDefName (qualifiedModule defName) (unName (baseName defName) <> "Copy") defs
+        copyName = uniquifyDefName (qualifiedModule sel.def) (unName (baseName sel.def) <> "Copy") defs
      in pure
-          [ CreateDef (qualifiedModule defName) (Just copyName)
-          , CopyPasteSig (defName, sigID) []
-          , CopyPasteBody (defName, bodyID) []
+          [ CreateDef (qualifiedModule sel.def) (Just copyName)
+          , CopyPasteSig (sel.def, sigID) []
+          , CopyPasteBody (sel.def, bodyID) []
           ]
   Available.DeleteDef ->
-    pure [DeleteDef defName]
+    pure [DeleteDef sel.def]
   where
-    toProgAction actions = toProg' actions defName <$> maybeToEither NoNodeSelection mNodeSel
-    mid = maybeToEither NoNodeSelection $ snd <$> mNodeSel
+    toProgAction actions = toProg' actions sel.def <$> maybeToEither NoNodeSelection sel.node
+    mid = maybeToEither NoNodeSelection $ (.meta) <$> sel.node
 
 -- | Convert a high-level 'Available.InputAction', and associated 'Available.Option',
 -- to a concrete sequence of 'ProgAction's.
 toProgActionInput ::
   ASTDef ->
-  GVarName ->
-  Maybe (NodeType, ID) ->
+  Selection' ID ->
   Available.Option ->
   Available.InputAction ->
   Either ActionError [ProgAction]
-toProgActionInput def defName mNodeSel opt0 = \case
+toProgActionInput def sel opt0 = \case
   Available.MakeCon -> do
     opt <- optGlobal
     toProg [ConstructSaturatedCon opt]
@@ -994,9 +992,9 @@ toProgActionInput def defName mNodeSel opt0 = \case
     toProg [RenameForall opt]
   Available.RenameDef -> do
     opt <- optNoCxt
-    pure [RenameDef defName opt]
+    pure [RenameDef sel.def opt]
   where
-    mid = maybeToEither NoNodeSelection $ snd <$> mNodeSel
+    mid = maybeToEither NoNodeSelection $ (.meta) <$> sel.node
     optVar = case opt0.context of
       Just q -> GlobalVarRef $ unsafeMkGlobalName (q, opt0.option)
       Nothing -> LocalVarRef $ unsafeMkLocalName opt0.option
@@ -1009,7 +1007,7 @@ toProgActionInput def defName mNodeSel opt0 = \case
     optGlobal = case opt0.context of
       Nothing -> Left $ NeedLocal opt0
       Just q -> pure (q, opt0.option)
-    toProg actions = toProg' actions defName <$> maybeToEither NoNodeSelection mNodeSel
+    toProg actions = toProg' actions sel.def <$> maybeToEither NoNodeSelection sel.node
     offerRefined = do
       id <- mid
       -- If we have a useful type, offer the refine action, otherwise offer the saturate action.
@@ -1022,10 +1020,10 @@ toProgActionInput def defName mNodeSel opt0 = \case
         Just (sm, _) -> Left $ NeedType sm
         Nothing -> Left $ IDNotFound id
 
-toProg' :: [Action] -> GVarName -> (NodeType, ID) -> [ProgAction]
-toProg' actions defName (nt, id) =
+toProg' :: [Action] -> GVarName -> NodeSelection ID -> [ProgAction]
+toProg' actions defName sel =
   [ MoveToDef defName
-  , (SetCursor id : actions) & case nt of
+  , (SetCursor sel.meta : actions) & case sel.nodeType of
       SigNode -> SigAction
       BodyNode -> BodyAction
   ]

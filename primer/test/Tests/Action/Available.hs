@@ -49,8 +49,10 @@ import Primer.App (
   EditAppM,
   Editable (..),
   Level (Beginner, Expert, Intermediate),
+  NodeSelection (..),
   NodeType (..),
   ProgError (ActionError, DefAlreadyExists),
+  Selection' (..),
   appProg,
   checkAppWellFormed,
   checkProgWellFormed,
@@ -191,12 +193,12 @@ mkTests deps (defName, DefAST def') =
    in testGroup testName $
         enumeratePairs
           <&> \(level, mut) ->
-            let defActions = map (offered level Nothing) $ Available.forDef defs level mut d
+            let defActions = map (offered level $ Selection defName Nothing) $ Available.forDef defs level mut d
                 bodyActions =
                   map
                     ( \id ->
                         ( id
-                        , map (offered level (Just (BodyNode, id))) $
+                        , map (offered level $ Selection defName $ Just $ NodeSelection BodyNode id) $
                             Available.forBody
                               typeDefs
                               level
@@ -211,7 +213,7 @@ mkTests deps (defName, DefAST def') =
                   map
                     ( \id ->
                         ( id
-                        , map (offered level (Just (SigNode, id))) $ Available.forSig level mut (astDefType def) id
+                        , map (offered level (Selection defName $ Just $ NodeSelection SigNode id)) $ Available.forSig level mut (astDefType def) id
                         )
                     )
                     . toListOf (_typeMeta % _id)
@@ -275,7 +277,7 @@ tasty_available_actions_accepted = withTests 500 $
         DefAST{} -> label "AST"
         DefPrim{} -> label "Prim"
       (loc, acts) <-
-        fmap snd . forAllWithT fst $
+        fmap (first (Selection defName) . snd) . forAllWithT fst $
           Gen.frequency $
             catMaybes
               [ Just (1, pure ("actionsForDef", (Nothing, Available.forDef (snd <$> allDefs) l defMut defName)))
@@ -284,13 +286,13 @@ tasty_available_actions_accepted = withTests 500 $
                       ids = ty ^.. typeIDs
                   i <- Gen.element ids
                   let hedgehogMsg = "actionsForDefSig id " <> show i
-                  pure (hedgehogMsg, (Just (SigNode, i), Available.forSig l defMut ty i))
+                  pure (hedgehogMsg, (Just $ NodeSelection SigNode i, Available.forSig l defMut ty i))
               , defAST def <&> \d' -> (7,) $ do
                   let expr = astDefExpr d'
                       ids = expr ^.. exprIDs
                   i <- Gen.element ids
                   let hedgehogMsg = "actionsForDefBody id " <> show i
-                  pure (hedgehogMsg, (Just (BodyNode, i), Available.forBody (snd <$> progAllTypeDefs (appProg a)) l defMut expr i))
+                  pure (hedgehogMsg, (Just $ NodeSelection BodyNode i, Available.forBody (snd <$> progAllTypeDefs (appProg a)) l defMut expr i))
               ]
       case acts of
         [] -> label "no offered actions" >> success
@@ -302,7 +304,7 @@ tasty_available_actions_accepted = withTests 500 $
               def' <- maybe (annotate "primitive def" >> failure) pure $ defAST def
               progActs <-
                 either (\e -> annotateShow e >> failure) pure $
-                  toProgActionNoInput (map snd $ progAllDefs $ appProg a) def' defName loc act'
+                  toProgActionNoInput (map snd $ progAllDefs $ appProg a) def' loc act'
               actionSucceeds (handleEditRequest progActs) a
             Available.Input act' -> do
               def' <- maybe (annotate "primitive def" >> failure) pure $ defAST def
@@ -327,7 +329,7 @@ tasty_available_actions_accepted = withTests 500 $
                 [] -> annotate "no options" >> success
                 options -> do
                   opt <- forAllT $ Gen.choice options
-                  progActs <- either (\e -> annotateShow e >> failure) pure $ toProgActionInput def' defName loc (snd opt) act'
+                  progActs <- either (\e -> annotateShow e >> failure) pure $ toProgActionInput def' loc (snd opt) act'
                   actionSucceedsOrCapture (fst opt) (handleEditRequest progActs) a
   where
     runEditAppMLogs ::
@@ -600,7 +602,7 @@ offeredActionTest' sh l inputDef position action = do
     Left a ->
       pure $
         if Available.NoInput a `elem` offered
-          then Right $ toProgActionNoInput (foldMap' moduleDefsQualified $ progModules prog) exprDef exprDefName (Just (BodyNode, id)) a
+          then Right $ toProgActionNoInput (foldMap' moduleDefsQualified $ progModules prog) exprDef (Selection exprDefName $ Just $ NodeSelection BodyNode id) a
           else Left $ ActionNotOffered (Available.NoInput a) offered
     Right (a, o) -> do
       if Available.Input a `elem` offered
@@ -609,7 +611,7 @@ offeredActionTest' sh l inputDef position action = do
           Just os ->
             pure $
               if o `elem` os.opts
-                then Right $ toProgActionInput exprDef exprDefName (Just (BodyNode, id)) o a
+                then Right $ toProgActionInput exprDef (Selection exprDefName $ Just $ NodeSelection BodyNode id) o a
                 else Left $ OptionNotOffered o os.opts
         else pure $ Left $ ActionNotOffered (Available.Input a) offered
   action'' <- for action' $ \case

@@ -255,7 +255,7 @@ data PrimerErr
   | UnexpectedPrimDef GVarName
   | AddDefError ModuleName (Maybe Text) ProgError
   | AddTypeDefError TyConName [ValConName] ProgError
-  | ActionOptionsNoID (Maybe (NodeType, ID))
+  | ActionOptionsNoID Selection
   | ToProgActionError Available.Action ActionError
   | ApplyActionError [ProgAction] ProgError
   | UndoError ProgError
@@ -1052,17 +1052,9 @@ actionOptions = curry4 $ logAPI (noError ActionOptions) $ \(sid, level, selectio
   let prog = appProg app
       allDefs = progAllDefs prog
       allTypeDefs = progAllTypeDefs prog
-      nodeSel = selection.node <&> \s -> (s.nodeType, s.meta)
-  def' <- snd <$> findASTDef allDefs selection.def
-  maybe (throwM $ ActionOptionsNoID nodeSel) pure $
-    Available.options
-      (snd <$> allTypeDefs)
-      (snd <$> allDefs)
-      (progCxt prog)
-      level
-      def'
-      nodeSel
-      action
+  def <- snd <$> findASTDef allDefs selection.def
+  maybe (throwM $ ActionOptionsNoID selection) pure $
+    Available.options (snd <$> allTypeDefs) (snd <$> allDefs) (progCxt prog) level def selection action
 
 findASTDef :: MonadThrow m => Map GVarName (Editable, Def.Def) -> GVarName -> m (Editable, ASTDef)
 findASTDef allDefs def = case allDefs Map.!? def of
@@ -1081,12 +1073,7 @@ applyActionNoInput = curry3 $ logAPI (noError ApplyActionNoInput) $ \(sid, selec
   def <- snd <$> findASTDef (progAllDefs prog) selection.def
   actions <-
     either (throwM . ToProgActionError (Available.NoInput action)) pure $
-      toProgActionNoInput
-        (snd <$> progAllDefs prog)
-        def
-        selection.def
-        (selection.node <&> \s -> (s.nodeType, s.meta))
-        action
+      toProgActionNoInput (snd <$> progAllDefs prog) def selection action
   applyActions sid actions
 
 applyActionInput ::
@@ -1100,12 +1087,7 @@ applyActionInput = curry3 $ logAPI (noError ApplyActionInput) $ \(sid, body, act
   def <- snd <$> findASTDef (progAllDefs prog) body.selection.def
   actions <-
     either (throwM . ToProgActionError (Available.Input action)) pure $
-      toProgActionInput
-        def
-        body.selection.def
-        (body.selection.node <&> \s -> (s.nodeType, s.meta))
-        body.option
-        action
+      toProgActionInput def body.selection body.option action
   applyActions sid actions
 
 data ApplyActionBody = ApplyActionBody
