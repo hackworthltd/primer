@@ -60,6 +60,7 @@ import Primer.Core (
     Ann,
     App,
     Case,
+    Con,
     LAM,
     Lam,
     Let,
@@ -89,7 +90,7 @@ import Primer.Core (
   getID,
  )
 import Primer.Core.DSL (ann, letType, let_, letrec, lvar, tlet, tvar)
-import Primer.Core.Transform (decomposeAppCon, decomposeTAppCon)
+import Primer.Core.Transform (decomposeTAppCon)
 import Primer.Core.Utils (
   alphaEqTy,
   concreteTy,
@@ -549,8 +550,8 @@ viewCaseRedex tydefs = \case
           <|> pure (formCaseRedex c abstractArgTys tyargs args patterns br (orig, expr, cID))
   _ -> mzero
   where
-    extractCon expr = case decomposeAppCon expr of
-      Just (c, m, params, as) -> pure (c, getID m, params, as)
+    extractCon = \case
+      Con m c params as -> pure (c, getID m, params, as)
       _ -> mzero
     extractBranch c brs =
       case find (\(CaseBranch n _ _) -> n == c) brs of
