@@ -140,7 +140,7 @@ type Expr = Expr' ExprMeta TypeMeta
 -- Most of the backend fixes a ~ b ~ ID.
 -- The typechecker produces a ~ (ID, Type' ()), b ~ ID.
 data Expr' a b
-  = Hole a (Expr' a b)
+  = Hole a (Expr' a b) -- See Note [Holes and bidirectionality]
   | EmptyHole a
   | Ann a (Expr' a b) (Type' b)
   | App a (Expr' a b) (Expr' a b)
@@ -183,6 +183,45 @@ data Expr' a b
   deriving stock (Eq, Show, Read, Data, Generic)
   deriving (FromJSON, ToJSON) via PrimerJSON (Expr' a b)
   deriving anyclass (NFData)
+
+-- Note [Holes and bidirectionality]
+--
+-- A @EmptyHole@ (often denoted @?@) is similar to the notion of a
+-- typed hole from Haskell or goal from Agda: these are parts of the
+-- program that have not yet been filled in. They are allowed to have
+-- any type (technically they have type @TEmptyHole@, which is
+-- analogous to the "dynamic" type from gradual typing).
+--
+-- @Hole@s (often denoted @{? e ?}@, where the @e@ is the inner
+-- expression), aka "non-empty holes" are similar, but they wrap
+-- another @Expr@: this is a "typing mismatch". They allow (similarly
+-- to Agda's goals) step-by-step building up a complex term that will
+-- eventually get inserted into that position in the program, without
+-- forcing it to be well-typed at every intermediate step. This is
+-- also similar to the idea of "blame" from the blame calculus.
+--
+-- From the "outside", both sorts of holes behave the same:
+-- intuitively, they behave as if they had any type whatsoever.
+-- (Indeed, they can seem to have multiple types simultaneously:
+-- @let x = ? in x && (x > 2)@ is well-typed, although there is no
+-- concrete term that can fill in the hole). This is achieved by them
+-- being synthesisable (and thus can appear in any context: it is not
+-- required for the context to say what type is expected), and they
+-- synthesise the type @TEmptyHole@ which is consistent with (roughly,
+-- silently coercible with) any type.
+--
+-- From the "inside" of a non-empty hole, there is a choice to be made
+-- about typing. How does one typecheck @{? e ?}@ since we have no
+-- information about what type @e@ should have. The choice our system
+-- makes (following Hazel) is to require @e@ to be synthesisable. Thus
+-- one cannot put a lambda directly inside a hole: @{? λx. x ?}@ is
+-- ill-typed. One would have to annotate this lambda (but could
+-- annotate with a hole): @{? λx.x : ? ?}@. The other possible choice
+-- is to require the wrapped expression to be checkable against the
+-- hole type: this is mildly more permissive since a bare lambda is
+-- now allowed inside a hole, but not much more so since anything that
+-- checks against a hole type can be annotated with a hole type to
+-- become synthesisable.
 
 -- Note [Synthesisable constructors]
 -- Whilst our calculus is heavily inspired by bidirectional type systems
