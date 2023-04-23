@@ -516,9 +516,9 @@ Consider having @foo : List Nat -> Bool@ in scope, and being asked to "refine"
 @foo@ to fit in a hole of type @Maybe Unit@ (i.e. find some type/term
 applications @is@ such that @Maybe Unit ∋ foo is@). This is obviously
 impossible. In keeping with our strategy of being permissive and avoiding
-showing error messages to students, we will instead return @{? foo ?}@, i.e.
-put the requested function inside a hole when we cannot find a suitable
-application spine.
+showing error messages to students, we will instead return @{? foo ? ?}@, i.e.
+saturate the requested function and put it inside a hole when we cannot find a
+suitable application spine.
 -}
 
 mkRefinedApplication :: ActionM m => TC.Cxt -> m Expr -> TC.Type -> Maybe TypeCache -> m Expr
@@ -535,7 +535,7 @@ mkRefinedApplication cxt e eTy tgtTy' = do
       Right x -> pure $ fst <$> x
   case mInst of
     -- See Note [No valid refinement]
-    Nothing -> hole e
+    Nothing -> hole $ mkSaturatedApplication e eTy
     Just inst -> foldl' f e inst
   where
     -- Note that whilst the names in 'InstUnconstrainedAPP' scope over the
