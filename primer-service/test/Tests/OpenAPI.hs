@@ -33,6 +33,8 @@ import Primer.API (
   Prog (Prog),
   Selection,
   Tree,
+  TypeDef (..),
+  ValCon (..),
   viewTreeExpr,
   viewTreeType,
  )
@@ -63,6 +65,7 @@ import Primer.Gen.Core.Raw (
   genModuleName,
   genName,
   genTyConName,
+  genTyVarName,
   genType,
   genValConName,
  )
@@ -206,6 +209,18 @@ tasty_NodeFlavorNoBody = testToJSON $ G.enumBounded @_ @NodeFlavorNoBody
 genDef :: ExprGen Def
 genDef = Def <$> genGVarName <*> genExprTree <*> G.maybe genTypeTree
 
+genTypeDef :: ExprGen TypeDef
+genTypeDef =
+  TypeDef
+    <$> genTyConName
+    <*> G.list (R.linear 0 3) genTyVarName
+    <*> G.list (R.linear 0 3) genName
+    <*> G.maybe
+      ( G.list
+          (R.linear 0 3)
+          (ValCon <$> genValConName <*> G.list (R.linear 0 3) genTypeTree)
+      )
+
 tasty_Def :: Property
 tasty_Def = testToJSON $ evalExprGen 0 genDef
 
@@ -214,7 +229,7 @@ genModule =
   Module
     <$> genModuleName
     <*> G.bool
-    <*> G.list (R.linear 0 3) genTyConName
+    <*> G.list (R.linear 0 3) genTypeDef
     <*> G.list (R.linear 0 3) genDef
 
 tasty_Module :: Property

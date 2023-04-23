@@ -37,6 +37,8 @@ module Primer.API (
   viewProg,
   Prog (Prog),
   Module (Module),
+  TypeDef (TypeDef),
+  ValCon (ValCon),
   Def (Def),
   getProgram,
   getProgram',
@@ -207,10 +209,11 @@ import Primer.Log (
   PureLog,
   runPureLog,
  )
-import Primer.Module (moduleDefsQualified, moduleName, moduleTypesQualified)
+import Primer.Module (moduleDefsQualified, moduleName, moduleTypesQualifiedMeta)
 import Primer.Name qualified as Name
 import Primer.Primitives (primDefType)
-import Primer.TypeDef (ASTTypeDef (ASTTypeDef), ValCon (ValCon))
+import Primer.TypeDef (ASTTypeDef (ASTTypeDef), astTypeDefConstructors, typeDefNameHints, typeDefParameters)
+import Primer.TypeDef qualified as TypeDef
 import StmContainers.Map qualified as StmMap
 
 -- | The API environment.
@@ -627,7 +630,7 @@ data Prog = Prog
 data Module = Module
   { modname :: ModuleName
   , editable :: Bool
-  , types :: [TyConName]
+  , types :: [TypeDef]
   , -- We don't use Map Name Def as it is rather redundant since each
     -- Def carries a name field, and it is difficult to enforce that
     -- "the keys of this object match the name field of the
@@ -636,6 +639,25 @@ data Module = Module
   }
   deriving stock (Generic, Show, Read)
   deriving (ToJSON, FromJSON) via PrimerJSON Module
+  deriving anyclass (NFData)
+
+data TypeDef = TypeDef
+  { name :: TyConName
+  , params :: [TyVarName]
+  , nameHints :: [Name.Name]
+  , constructors :: Maybe [ValCon]
+  -- ^ a `Nothing` here indicates a primitive type (whereas `Just []` is `Void`)
+  }
+  deriving stock (Generic, Show, Read)
+  deriving (ToJSON, FromJSON) via PrimerJSON TypeDef
+  deriving anyclass (NFData)
+
+data ValCon = ValCon
+  { name :: ValConName
+  , fields :: [Tree]
+  }
+  deriving stock (Generic, Show, Read)
+  deriving (ToJSON, FromJSON) via PrimerJSON ValCon
   deriving anyclass (NFData)
 
 -- | This type is the api's view of a 'Primer.Core.Def'
@@ -663,7 +685,24 @@ viewProg p =
       Module
         { modname = moduleName m
         , editable = e
-        , types = fst <$> Map.assocs (moduleTypesQualified m)
+        , types =
+            ( \(name, d) ->
+                TypeDef
+                  { name
+                  , params = fst <$> typeDefParameters d
+                  , nameHints = typeDefNameHints d
+                  , constructors = case d of
+                      TypeDef.TypeDefPrim _ -> Nothing
+                      TypeDef.TypeDefAST t ->
+                        Just $
+                          astTypeDefConstructors t <&> \(TypeDef.ValCon nameCon argsCon) ->
+                            ValCon
+                              { name = nameCon
+                              , fields = viewTreeType' . over _typeMeta (show . view _id) <$> argsCon
+                              }
+                  }
+            )
+              <$> Map.assocs (moduleTypesQualifiedMeta m)
         , defs =
             ( \(name, d) ->
                 Def
@@ -1023,7 +1062,7 @@ createTypeDef ::
 createTypeDef =
   curry3 $
     logAPI (noError CreateTypeDef) \(sid, tyconName, valcons) ->
-      edit sid (App.Edit [App.AddTypeDef tyconName $ ASTTypeDef [] (map (`ValCon` []) valcons) []])
+      edit sid (App.Edit [App.AddTypeDef tyconName $ ASTTypeDef [] (map (`TypeDef.ValCon` []) valcons) []])
         >>= either (throwM . AddTypeDefError tyconName valcons) (pure . viewProg)
 
 availableActions ::

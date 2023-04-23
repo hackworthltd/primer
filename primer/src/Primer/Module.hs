@@ -2,6 +2,7 @@ module Primer.Module (
   Module (..),
   qualifyTyConName,
   moduleTypesQualified,
+  moduleTypesQualifiedMeta,
   qualifyDefName,
   moduleDefsQualified,
   insertDef,
@@ -77,7 +78,10 @@ qualifyTyConName :: Module -> Name -> TyConName
 qualifyTyConName m = qualifyName (moduleName m)
 
 moduleTypesQualified :: Module -> TypeDefMap
-moduleTypesQualified m = mapKeys (qualifyTyConName m) $ forgetTypeDefMetadata <$> moduleTypes m
+moduleTypesQualified = map forgetTypeDefMetadata . moduleTypesQualifiedMeta
+
+moduleTypesQualifiedMeta :: Module -> Map TyConName (TypeDef TypeMeta)
+moduleTypesQualifiedMeta m = mapKeys (qualifyTyConName m) $ moduleTypes m
 
 qualifyDefName :: Module -> Name -> GVarName
 qualifyDefName m = qualifyName (moduleName m)

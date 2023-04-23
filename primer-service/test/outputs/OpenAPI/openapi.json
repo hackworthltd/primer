@@ -224,7 +224,7 @@
                     },
                     "types": {
                         "items": {
-                            "$ref": "#/components/schemas/GlobalName"
+                            "$ref": "#/components/schemas/TypeDef"
                         },
                         "type": "array"
                     }
@@ -716,10 +716,59 @@
                 ],
                 "type": "object"
             },
+            "TypeDef": {
+                "properties": {
+                    "constructors": {
+                        "items": {
+                            "$ref": "#/components/schemas/ValCon"
+                        },
+                        "type": "array"
+                    },
+                    "name": {
+                        "$ref": "#/components/schemas/GlobalName"
+                    },
+                    "nameHints": {
+                        "items": {
+                            "type": "string"
+                        },
+                        "type": "array"
+                    },
+                    "params": {
+                        "items": {
+                            "type": "string"
+                        },
+                        "type": "array"
+                    }
+                },
+                "required": [
+                    "name",
+                    "params",
+                    "nameHints"
+                ],
+                "type": "object"
+            },
             "UUID": {
                 "example": "00000000-0000-0000-0000-000000000000",
                 "format": "uuid",
                 "type": "string"
+            },
+            "ValCon": {
+                "properties": {
+                    "fields": {
+                        "items": {
+                            "$ref": "#/components/schemas/Tree"
+                        },
+                        "type": "array"
+                    },
+                    "name": {
+                        "$ref": "#/components/schemas/GlobalName"
+                    }
+                },
+                "required": [
+                    "name",
+                    "fields"
+                ],
+                "type": "object"
             }
         }
     },

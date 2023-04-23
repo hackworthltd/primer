@@ -52,6 +52,8 @@ import Primer.API (
   Prog,
   Selection,
   Tree,
+  TypeDef,
+  ValCon,
  )
 import Primer.API qualified as API
 import Primer.API.NodeFlavor (
@@ -71,6 +73,7 @@ import Primer.Core (
   LVarName,
   ModuleName,
   PrimCon,
+  TyVarName,
  )
 import Primer.Database (
   LastModified,
@@ -141,6 +144,7 @@ deriving via GlobalName 'ADefName instance ToSchema (GlobalName 'ATyCon)
 deriving via GlobalName 'ADefName instance ToSchema (GlobalName 'AValCon)
 
 deriving via Name instance (ToSchema LVarName)
+deriving via Name instance (ToSchema TyVarName)
 deriving via PrimerJSON (RecordPair a b) instance (ToSchema a, ToSchema b) => ToSchema (RecordPair a b)
 deriving via PrimerJSON Tree instance ToSchema Tree
 deriving via PrimerJSON API.Name instance ToSchema API.Name
@@ -150,6 +154,8 @@ deriving via PrimerJSON NodeFlavorTextBody instance ToSchema NodeFlavorTextBody
 deriving via PrimerJSON NodeFlavorPrimBody instance ToSchema NodeFlavorPrimBody
 deriving via PrimerJSON NodeFlavorBoxBody instance ToSchema NodeFlavorBoxBody
 deriving via PrimerJSON NodeFlavorNoBody instance ToSchema NodeFlavorNoBody
+deriving via PrimerJSON TypeDef instance ToSchema TypeDef
+deriving via PrimerJSON ValCon instance ToSchema ValCon
 deriving via PrimerJSON Def instance ToSchema Def
 deriving via NonEmpty Name instance ToSchema ModuleName
 deriving via PrimerJSON Module instance ToSchema Module
