@@ -27,9 +27,10 @@ import Primer.Core.Meta (
   TyVarName,
   ValConName,
  )
+import Primer.Core.Transform (mkTAppCon)
 import Primer.Core.Type (
   Kind (KFun, KType),
-  Type' (TApp, TCon, TForall, TFun, TVar),
+  Type' (TForall, TFun, TVar),
   TypeMeta,
  )
 import Primer.Core.Utils (forgetTypeMetadata, generateTypeIDs)
@@ -84,7 +85,7 @@ data ValCon b = ValCon
 
 valConType :: TyConName -> ASTTypeDef () -> ValCon () -> Type' ()
 valConType tc td vc =
-  let ret = foldl' (\t (n, _) -> TApp () t (TVar () n)) (TCon () tc) (astTypeDefParameters td)
+  let ret = mkTAppCon tc (TVar () . fst <$> astTypeDefParameters td)
       args = foldr (TFun ()) ret (forgetTypeMetadata <$> valConArgs vc)
       foralls = foldr (\(n, k) t -> TForall () n k t) args (astTypeDefParameters td)
    in foralls
