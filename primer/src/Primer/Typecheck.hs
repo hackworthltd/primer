@@ -504,7 +504,7 @@ synth = \case
       Just (vc, tc, td) -> let t = valConType tc td vc in pure $ annSynth1 t i Con c
       Nothing -> throwError' $ UnknownConstructor c
   -- When synthesising a hole, we first check that the expression inside it
-  -- synthesises a type successfully.
+  -- synthesises a type successfully (see Note [Holes and bidirectionality]).
   -- TODO: we would like to remove this hole (leaving e) if possible, but I
   -- don't see how to do this nicely as we don't know what constraints the
   -- synthesised type needs. Consider {? 1 ?} True: we can't remove the hole,
