@@ -17,9 +17,13 @@ data CaseReductionDetail = CaseReductionDetail
   , after :: Expr
   -- ^ the resulting expression after reduction
   , targetID :: ID
-  -- ^ the ID of the target (scrutinee)
+  -- ^ the ID of the target (the whole scrutinee)
   , targetCtorID :: ID
   -- ^ the ID of the constructor node in the target
+  -- (nb: this is likely to be different from 'targetID'. if the
+  -- scrutinee was @Succ n : Nat@, then the @targetID@ is the root of
+  -- this subtree (the annotation node), but the @targetCtorID@ is the
+  -- @Succ@ node)
   , ctorName :: ValConName
   -- ^ the name of the matching constructor
   , targetArgIDs :: [ID]

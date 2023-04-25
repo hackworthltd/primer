@@ -326,7 +326,7 @@ data Redex
       , scrutID :: ID
       -- ^ The ID of the whole scrutinee (used for details)
       , conID :: ID
-      -- ^ The ID of the whole constructor (head of the scrutinee) (used for details)
+      -- ^ The ID of the constructor node (head of the scrutinee) (used for details)
       }
   | -- [ t : T ]  ~>  t  writing [_] for the embedding of syn into chk
     -- This only fires for concrete (non-holey, no free vars) T, as otherwise the
