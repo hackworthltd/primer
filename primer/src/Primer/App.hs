@@ -127,7 +127,8 @@ import Primer.Core (
   TyConName,
   Type,
   Type' (..),
-  TypeCache (TCSynthed),
+  TypeCache (TCChkedAt, TCEmb),
+  TypeCacheBoth (TCBoth, tcChkedAt, tcSynthed),
   TypeMeta,
   ValConName,
   getID,
@@ -137,12 +138,11 @@ import Primer.Core (
   unModuleName,
   unsafeMkGlobalName,
   unsafeMkLocalName,
-  _chkedAt,
   _exprMetaLens,
   _synthed,
   _typeMetaLens,
  )
-import Primer.Core.DSL (S, ann, create, emptyHole, hole, tEmptyHole, tvar)
+import Primer.Core.DSL (S, create, emptyHole, hole, tEmptyHole, tvar)
 import Primer.Core.DSL qualified as DSL
 import Primer.Core.Transform (renameVar, unfoldTApp)
 import Primer.Core.Utils (freeVars, generateTypeIDs, regenerateExprIDs, regenerateTypeIDs, _freeTmVars, _freeTyVars, _freeVarsTy)
@@ -780,24 +780,18 @@ applyProgAction prog mdefName = \case
             -- With the new field type @T@, we need to change @t@ to
             -- @t'@ such that @T ∋ t'@, which we do by:
             -- - if @t@ is a hole, set @t'=t@
-            -- - if @t@ were synthesisable, set @t' = {? t ?}@
-            -- - if @t@ were only checkable, set @t' = {? t : S ?}@
-            -- Note that we make these choices because the contents
-            -- of a non-empty hole must be synthesisable (but we
-            -- don't care what particular type it synthesises).
+            -- - otherwise (whether @t@ were synthesisable or checkable), set @t' = {? t ?}@
             -- Note also that we assume the metadata (typecache) is up
             -- to date or blank, and we ensure this is the case in our
             -- output.
             -- We must work here to ensure that the result is
             -- well-typed, since we wish to avoid rechecking the whole
             -- program just to fix it up using smartholes.
-            enhole x = case (x, x ^? typecache % _synthed, x ^? typecache % _chkedAt) of
-              (EmptyHole{}, _, _) -> pure x
-              (Hole{}, _, _) -> pure x
-              (_, Just s, _) -> hole $ pure $ x & typecache .~ TCSynthed s
-              (_, Nothing, Just c) -> hole $ pure x `ann` generateTypeIDs c
-              -- This last case means that the input program had no (useful) metadata
-              (_, Nothing, Nothing) -> hole $ pure x `ann` tEmptyHole
+            enhole x = case (x, x ^? typecache % _synthed) of
+              (EmptyHole{}, _) -> pure x
+              (Hole{}, _) -> pure x
+              (_, Just s) -> hole $ pure $ x & typecache .~ TCEmb TCBoth{tcSynthed = s, tcChkedAt = TEmptyHole ()}
+              (_, Nothing) -> hole $ pure $ x & typecache .~ TCChkedAt (TEmptyHole ())
          in transformM $ \case
               Con m con' tms | con' == con -> do
                 adjustAtA index enhole tms >>= \case

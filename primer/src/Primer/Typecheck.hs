@@ -82,10 +82,10 @@ import Optics (
   over,
   reindexed,
   selfIndex,
-  set,
   to,
   traverseOf,
   (%),
+  (^?),
  )
 import Optics.Traversal (traversed)
 import Primer.Core (
@@ -116,6 +116,7 @@ import Primer.Core (
   _bindMeta,
   _exprMeta,
   _exprTypeMeta,
+  _synthed,
   _typeMeta,
  )
 import Primer.Core.DSL (S, branch, create', emptyHole, meta, meta')
@@ -499,10 +500,12 @@ synth = \case
     pure $ annSynth2 t'' i Ann e' t'
   EmptyHole i -> pure $ annSynth0 (TEmptyHole ()) i EmptyHole
   -- When synthesising a hole, we first check that the expression inside it
-  -- synthesises a type successfully (see Note [Holes and bidirectionality]).
-  -- TODO: we would like to remove this hole (leaving e) if possible, but I
-  -- don't see how to do this nicely as we don't know what constraints the
-  -- synthesised type needs. Consider {? 1 ?} True: we can't remove the hole,
+  -- checks against a type hole (see Note [Holes and bidirectionality]).
+  -- TODO: we would like to remove this hole (leaving e) if possible (which will
+  -- need either a synthesisable e, or a cleverer analysis to note when the hole
+  -- is in a checkable position), but I don't see how to do this nicely as we
+  -- don't know what constraints we need.
+  -- Consider {? 1 ?} True: we can't remove the hole,
   -- but we don't know that when we come to synthesise its type. Potentially we
   -- could remove it here and let the App rule re-add it if necessary, but then
   -- consider {? ? : Nat -> Nat ?} True: then we could remove the hole, and App
@@ -511,7 +514,13 @@ synth = \case
   -- which is bad UX.
   -- See https://github.com/hackworthltd/primer/issues/7
   Hole i e -> do
-    (_, e') <- synth e
+    e' <- check (TEmptyHole ()) e
+    -- Note that since the inside of holes check against a type hole, we could
+    -- elide any annotation directly inside a hole. However, since one may want
+    -- to create a term such as {? λx.? : Int -> Bool ?} (where the type
+    -- annotation is helpful when writing the body of the lambda), and the only
+    -- way to do so is to go via {? ... : ? ?}, we should not forbid or
+    -- elide-with-smartholes such annotations, even trivial ones.
     pure $ annSynth1 (TEmptyHole ()) i Hole e'
   Let i x a b -> do
     -- Synthesise a type for the bound expression
@@ -609,14 +618,12 @@ check t = \case
           _ -> t
     -- If typechecking fails because the type @t'@ is not an ADT with a
     -- constructor @c@, and smartholes is on, we attempt to change the term to
-    -- '{? c : ? ?}' to recover.
+    -- '{? c ?}' to recover.
     let recoverSH err =
           asks smartHoles >>= \case
             NoSmartHoles -> throwError' err
             SmartHoles -> do
-              -- 'synth' will take care of adding an annotation - no need to do it
-              -- explicitly here
-              (_, con') <- synth con
+              con' <- check (TEmptyHole ()) con
               Hole <$> meta' (TCEmb TCBoth{tcChkedAt = t', tcSynthed = TEmptyHole ()}) <*> pure con'
     instantiateValCons t' >>= \case
       Left TDIHoleType -> throwError' $ InternalError "t' is not a hole, as we refined to parent type of c"
@@ -645,9 +652,7 @@ check t = \case
         asks smartHoles >>= \case
           NoSmartHoles -> throwError' $ TypeDoesNotMatchArrow t
           SmartHoles -> do
-            -- 'synth' will take care of adding an annotation - no need to do it
-            -- explicitly here
-            (_, lam') <- synth lam
+            lam' <- check (TEmptyHole ()) lam
             Hole <$> meta' (TCEmb TCBoth{tcChkedAt = t, tcSynthed = TEmptyHole ()}) <*> pure lam'
   lAM@(LAM i n e) -> do
     matchForallType t >>= \case
@@ -659,9 +664,7 @@ check t = \case
         asks smartHoles >>= \case
           NoSmartHoles -> throwError' $ TypeDoesNotMatchForall t
           SmartHoles -> do
-            -- 'synth' will take care of adding an annotation - no need to do it
-            -- explicitly here
-            (_, lAM') <- synth lAM
+            lAM' <- check (TEmptyHole ()) lAM
             Hole <$> meta' (TCEmb TCBoth{tcChkedAt = t, tcSynthed = TEmptyHole ()}) <*> pure lAM'
   Let i x a b -> do
     -- Synthesise a type for the bound expression
@@ -700,7 +703,7 @@ check t = \case
           NoSmartHoles -> throwError' $ CannotCaseNonADT eT
           SmartHoles -> do
             -- NB: we wrap the scrutinee in a hole and DELETE the branches
-            scrutWrap <- Hole <$> meta' (TCSynthed (TEmptyHole ())) <*> pure e'
+            scrutWrap <- Hole <$> meta' (TCSynthed (TEmptyHole ())) <*> pure (addChkMeta (TEmptyHole ()) e')
             pure $ Case caseMeta scrutWrap []
       Left (TDIUnknown ty) -> throwError' $ InternalError $ "We somehow synthesised the unknown type " <> show ty <> " for the scrutinee of a case"
       Left TDINotSaturated ->
@@ -708,7 +711,7 @@ check t = \case
           NoSmartHoles -> throwError' $ CannotCaseNonSaturatedADT eT
           SmartHoles -> do
             -- NB: we wrap the scrutinee in a hole and DELETE the branches
-            scrutWrap <- Hole <$> meta' (TCSynthed (TEmptyHole ())) <*> pure e'
+            scrutWrap <- Hole <$> meta' (TCSynthed (TEmptyHole ())) <*> pure (addChkMeta (TEmptyHole ()) e')
             pure $ Case caseMeta scrutWrap []
       Right (tc, _, expected) -> do
         let branchNames = map (\(CaseBranch n _ _) -> n) brs
@@ -727,10 +730,13 @@ check t = \case
     let default_ = do
           (t', e') <- synth e
           if consistentTypes t t'
-            then pure (set _typecache (TCEmb TCBoth{tcChkedAt = t, tcSynthed = t'}) e')
+            then pure $ addChkMeta t e'
             else case sh of
               NoSmartHoles -> throwError' (InconsistentTypes t t')
-              SmartHoles -> Hole <$> meta' (TCEmb TCBoth{tcChkedAt = t, tcSynthed = TEmptyHole ()}) <*> pure e'
+              SmartHoles ->
+                Hole
+                  <$> meta' (TCEmb TCBoth{tcChkedAt = t, tcSynthed = TEmptyHole ()})
+                  <*> pure (addChkMeta (TEmptyHole ()) e')
     case (e, sh) of
       -- If the hole can be dropped leaving a type-correct term, do so
       -- We don't want the recursive call to create a fresh hole though -
@@ -762,6 +768,25 @@ check t = \case
             Hole{} -> default_ -- Don't let the recursive call mint a hole.
             e'' -> pure e''
       _ -> default_
+
+addChkMeta' :: Type' () -> TypeCache -> TypeCache
+addChkMeta' t c = case c ^? _synthed of
+  Just s -> TCEmb TCBoth{tcChkedAt = t, tcSynthed = s}
+  Nothing -> TCChkedAt t
+
+-- NB: recurse over Let{,rec,Type}, as these have different typing
+-- rules depending on direction context (actually, LetType does not
+-- currently have a typing rule, but only because it is awkward to
+-- nicely handle the type equality it introduces -- it will be roughly
+-- the same as Let when it is implemented)
+addChkMeta :: Type' () -> ExprT -> ExprT
+addChkMeta t e =
+  let e' = case e of
+        Let m v s b -> Let m v s $ addChkMeta t b
+        Letrec m v s sTy b -> Letrec m v s sTy $ addChkMeta t b
+        LetType m v ty b -> LetType m v ty $ addChkMeta t b
+        _ -> e
+   in over _typecache (addChkMeta' t) e'
 
 -- | Similar to check, but for the RHS of case branches
 -- We assume that the branch is for this constructor

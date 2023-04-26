@@ -222,8 +222,8 @@ genSyns ty = do
       t <- genChk ty
       pure (Ann () t ty, ty)
     genHole = do
-      (e, _) <- genSyn
-      pure (Hole () e, TEmptyHole ())
+      t <- genChk $ TEmptyHole ()
+      pure (Hole () t, TEmptyHole ())
     genSpine :: WT (Maybe (GenT WT (ExprG, TypeG)))
     genSpine = fmap (fmap Gen.justT) genSpineHeadFirst
     genSpineHeadFirst :: WT (Maybe (GenT WT (Maybe (ExprG, TypeG))))
