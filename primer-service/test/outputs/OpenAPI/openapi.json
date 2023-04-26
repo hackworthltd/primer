@@ -100,6 +100,20 @@
                 ],
                 "type": "object"
             },
+            "DefSelection": {
+                "properties": {
+                    "def": {
+                        "$ref": "#/components/schemas/GlobalName"
+                    },
+                    "node": {
+                        "$ref": "#/components/schemas/NodeSelection"
+                    }
+                },
+                "required": [
+                    "def"
+                ],
+                "type": "object"
+            },
             "EvalFullResp": {
                 "oneOf": [
                     {
@@ -187,7 +201,11 @@
                     "MakeTVar",
                     "MakeForall",
                     "RenameForall",
-                    "RenameDef"
+                    "RenameDef",
+                    "RenameType",
+                    "RenameCon",
+                    "RenameTypeParam",
+                    "AddCon"
                 ],
                 "type": "string"
             },
@@ -284,7 +302,8 @@
                     "RaiseType",
                     "DeleteType",
                     "DuplicateDef",
-                    "DeleteDef"
+                    "DeleteDef",
+                    "AddConField"
                 ],
                 "type": "string"
             },
@@ -656,18 +675,44 @@
                 "type": "object"
             },
             "Selection": {
-                "properties": {
-                    "def": {
-                        "$ref": "#/components/schemas/GlobalName"
+                "oneOf": [
+                    {
+                        "properties": {
+                            "contents": {
+                                "$ref": "#/components/schemas/DefSelection"
+                            },
+                            "tag": {
+                                "enum": [
+                                    "SelectionDef"
+                                ],
+                                "type": "string"
+                            }
+                        },
+                        "required": [
+                            "tag",
+                            "contents"
+                        ],
+                        "type": "object"
                     },
-                    "node": {
-                        "$ref": "#/components/schemas/NodeSelection"
+                    {
+                        "properties": {
+                            "contents": {
+                                "$ref": "#/components/schemas/TypeDefSelection"
+                            },
+                            "tag": {
+                                "enum": [
+                                    "SelectionTypeDef"
+                                ],
+                                "type": "string"
+                            }
+                        },
+                        "required": [
+                            "tag",
+                            "contents"
+                        ],
+                        "type": "object"
                     }
-                },
-                "required": [
-                    "def"
-                ],
-                "type": "object"
+                ]
             },
             "Session": {
                 "properties": {
@@ -744,6 +789,93 @@
                     "name",
                     "params",
                     "nameHints"
+                ],
+                "type": "object"
+            },
+            "TypeDefConsFieldSelection": {
+                "properties": {
+                    "index": {
+                        "maximum": 9223372036854775807,
+                        "minimum": -9223372036854775808,
+                        "type": "integer"
+                    },
+                    "meta": {
+                        "maximum": 9223372036854775807,
+                        "minimum": -9223372036854775808,
+                        "type": "integer"
+                    }
+                },
+                "required": [
+                    "index",
+                    "meta"
+                ],
+                "type": "object"
+            },
+            "TypeDefConsSelection": {
+                "properties": {
+                    "con": {
+                        "$ref": "#/components/schemas/GlobalName"
+                    },
+                    "field": {
+                        "$ref": "#/components/schemas/TypeDefConsFieldSelection"
+                    }
+                },
+                "required": [
+                    "con"
+                ],
+                "type": "object"
+            },
+            "TypeDefNodeSelection": {
+                "oneOf": [
+                    {
+                        "properties": {
+                            "contents": {
+                                "type": "string"
+                            },
+                            "tag": {
+                                "enum": [
+                                    "TypeDefParamNodeSelection"
+                                ],
+                                "type": "string"
+                            }
+                        },
+                        "required": [
+                            "tag",
+                            "contents"
+                        ],
+                        "type": "object"
+                    },
+                    {
+                        "properties": {
+                            "contents": {
+                                "$ref": "#/components/schemas/TypeDefConsSelection"
+                            },
+                            "tag": {
+                                "enum": [
+                                    "TypeDefConsNodeSelection"
+                                ],
+                                "type": "string"
+                            }
+                        },
+                        "required": [
+                            "tag",
+                            "contents"
+                        ],
+                        "type": "object"
+                    }
+                ]
+            },
+            "TypeDefSelection": {
+                "properties": {
+                    "def": {
+                        "$ref": "#/components/schemas/GlobalName"
+                    },
+                    "node": {
+                        "$ref": "#/components/schemas/TypeDefNodeSelection"
+                    }
+                },
+                "required": [
+                    "def"
                 ],
                 "type": "object"
             },
@@ -1128,7 +1260,11 @@
                                 "MakeTVar",
                                 "MakeForall",
                                 "RenameForall",
-                                "RenameDef"
+                                "RenameDef",
+                                "RenameType",
+                                "RenameCon",
+                                "RenameTypeParam",
+                                "AddCon"
                             ],
                             "type": "string"
                         }

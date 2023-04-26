@@ -13,6 +13,7 @@ import Data.Map.Strict qualified as Map
 import Data.String (String)
 import Primer.Action (Action (Move, SetCursor), ActionError (IDNotFound), Movement (Child1))
 import Primer.App (
+  DefSelection (..),
   EvalResp (EvalResp, evalRespDetail, evalRespExpr, evalRespRedexes),
   Log (..),
   NodeSelection (..),
@@ -152,12 +153,13 @@ fixtures =
           }
       selection :: Selection
       selection =
-        Selection (qualifyName modName defName) $
-          Just
-            NodeSelection
-              { nodeType = BodyNode
-              , meta = Left exprMeta
-              }
+        SelectionDef $
+          DefSelection (qualifyName modName defName) $
+            Just
+              NodeSelection
+                { nodeType = BodyNode
+                , meta = Left exprMeta
+                }
       reductionDetail :: EvalDetail
       reductionDetail =
         BetaReduction $

@@ -36,6 +36,7 @@ import Primer.Action (
  )
 import Primer.App (
   App,
+  DefSelection (..),
   Log (..),
   NodeSelection (..),
   NodeType (..),
@@ -161,7 +162,7 @@ unit_move_to_def_main = progActionTest defaultEmptyProg [moveToDef "main"] $
     prog'
       @?= prog
         { progLog = Log [[moveToDef "main"]]
-        , progSelection = Just $ Selection (gvn "main") Nothing
+        , progSelection = Just $ SelectionDef $ DefSelection (gvn "main") Nothing
         }
 
 -- Expression actions are tested in ActionTest - here we just check that we can modify the correct
@@ -500,7 +501,7 @@ unit_construct_arrow_in_sig =
             TFun _ lhs _ ->
               -- Check that the selection is focused on the lhs, as we instructed
               case progSelection prog' of
-                Just (Selection d (Just sel@NodeSelection{nodeType = SigNode})) -> do
+                Just (SelectionDef (DefSelection d (Just sel@NodeSelection{nodeType = SigNode}))) -> do
                   d @?= qualifyName mainModuleName "other"
                   getID sel @?= getID lhs
                 _ -> assertFailure "no selection"
@@ -1324,7 +1325,11 @@ unit_rename_module =
         Left err -> assertFailure $ show err
         Right p -> do
           fmap (unModuleName . moduleName) (progModules p) @?= [["Module2"]]
-          (.def) <$> progSelection p @?= Just (qualifyName (ModuleName ["Module2"]) "main")
+          sel <- case progSelection p of
+            Just (SelectionDef s) -> pure s
+            Just (SelectionTypeDef _) -> assertFailure "typedef selected"
+            Nothing -> assertFailure "no selection"
+          sel.def @?= qualifyName (ModuleName ["Module2"]) "main"
           case fmap (Map.assocs . moduleDefsQualified) (progModules p) of
             [[(n, DefAST d)]] -> do
               let expectedName = qualifyName (ModuleName ["Module2"]) "main"
@@ -1507,7 +1512,7 @@ unit_sh_lost_id =
         Just def ->
           case astDefExpr <$> defAST def of
             Just (Var m (GlobalVarRef f)) | f == foo -> case progSelection prog' of
-              Just Selection{def = selectedDef, node = Just sel} ->
+              Just (SelectionDef DefSelection{def = selectedDef, node = Just sel}) ->
                 unless (selectedDef == foo && getID sel == getID m) $
                   assertFailure "expected selection to point at the recursive reference"
               _ -> assertFailure "expected the selection to point at some node"
@@ -1545,8 +1550,8 @@ defaultEmptyProg = do
    in pure $
         newEmptyProg'
           { progSelection =
-              Just $
-                Selection (gvn "main") $
+              Just . SelectionDef $
+                DefSelection (gvn "main") $
                   Just
                     NodeSelection
                       { nodeType = BodyNode
