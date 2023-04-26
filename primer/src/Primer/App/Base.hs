@@ -1,3 +1,4 @@
+{-# LANGUAGE DuplicateRecordFields #-}
 {-# LANGUAGE OverloadedLabels #-}
 {-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE NoFieldSelectors #-}
@@ -10,6 +11,11 @@ module Primer.App.Base (
   NodeType (..),
   Selection,
   Selection' (..),
+  TypeDefSelection (..),
+  TypeDefNodeSelection (..),
+  TypeDefConsSelection (..),
+  TypeDefConsFieldSelection (..),
+  DefSelection (..),
   NodeSelection (..),
 ) where
 
@@ -21,7 +27,10 @@ import Primer.Core (
   ExprMeta,
   GVarName,
   HasID (..),
+  TyConName,
+  TyVarName,
   TypeMeta,
+  ValConName,
   getID,
  )
 import Primer.JSON (
@@ -54,21 +63,63 @@ data NodeType = BodyNode | SigNode
   deriving (FromJSON, ToJSON) via PrimerJSON NodeType
   deriving anyclass (NFData)
 
--- | Describes what interface element the student has selected.
--- A definition in the left hand nav bar, and possibly a node in that definition.
+-- | Describes which element of a (type or term) definition the student has selected.
+-- We have the following invariant: when this contains a `NodeSelection` with @nodeType = SigNode@,
+-- or any `TypeDefConsFieldSelection`, then they will always have @meta = Right _@.
 type Selection = Selection' (Either ExprMeta TypeMeta)
 
-data Selection' a = Selection
-  { def :: GVarName
-  -- ^ the ID of some ASTDef
-  , node :: Maybe (NodeSelection a)
-  }
+data Selection' a
+  = SelectionDef (DefSelection a)
+  | SelectionTypeDef (TypeDefSelection a)
   deriving stock (Eq, Show, Read, Functor, Generic, Data)
   deriving (FromJSON, ToJSON) via PrimerJSON (Selection' a)
   deriving anyclass (NFData)
 
--- | A selected node, in the body or type signature of some definition.
--- We have the following invariant: @nodeType = SigNode ==> isRight meta@
+-- | Some element of a type definition.
+data TypeDefSelection a = TypeDefSelection
+  { def :: TyConName
+  , node :: Maybe (TypeDefNodeSelection a)
+  }
+  deriving stock (Eq, Show, Read, Functor, Generic, Data)
+  deriving (FromJSON, ToJSON) via PrimerJSON (TypeDefSelection a)
+  deriving anyclass (NFData)
+
+-- | Some element in a type definition, other than simply the definition itself.
+data TypeDefNodeSelection a
+  = TypeDefParamNodeSelection TyVarName
+  | TypeDefConsNodeSelection (TypeDefConsSelection a)
+  deriving stock (Eq, Show, Read, Functor, Generic, Data)
+  deriving (FromJSON, ToJSON) via PrimerJSON (TypeDefNodeSelection a)
+  deriving anyclass (NFData)
+
+-- | Some element of a definition of a constructor.
+data TypeDefConsSelection a = TypeDefConsSelection
+  { con :: ValConName
+  , field :: Maybe (TypeDefConsFieldSelection a)
+  }
+  deriving stock (Eq, Show, Read, Functor, Generic, Data)
+  deriving (FromJSON, ToJSON) via PrimerJSON (TypeDefConsSelection a)
+  deriving anyclass (NFData)
+
+-- | Some element of a field in the definition of a constructor.
+data TypeDefConsFieldSelection a = TypeDefConsFieldSelection
+  { index :: Int
+  , meta :: a
+  }
+  deriving stock (Eq, Show, Read, Functor, Generic, Data)
+  deriving (FromJSON, ToJSON) via PrimerJSON (TypeDefConsFieldSelection a)
+  deriving anyclass (NFData)
+
+-- | Some element of a term definition.
+data DefSelection a = DefSelection
+  { def :: GVarName
+  , node :: Maybe (NodeSelection a)
+  }
+  deriving stock (Eq, Show, Read, Functor, Generic, Data)
+  deriving (FromJSON, ToJSON) via PrimerJSON (DefSelection a)
+  deriving anyclass (NFData)
+
+-- | Some element of a node, in the body or type signature of a term definition.
 data NodeSelection a = NodeSelection
   { nodeType :: NodeType
   , meta :: a

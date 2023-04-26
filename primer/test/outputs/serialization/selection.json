@@ -1,24 +1,27 @@
 {
-    "def": {
-        "baseName": "main",
-        "qualifiedModule": [
-            "M"
-        ]
-    },
-    "node": {
-        "meta": {
-            "Left": [
-                0,
-                {
-                    "contents": {
-                        "contents": [],
-                        "tag": "TEmptyHole"
-                    },
-                    "tag": "TCSynthed"
-                },
-                null
+    "contents": {
+        "def": {
+            "baseName": "main",
+            "qualifiedModule": [
+                "M"
             ]
         },
-        "nodeType": "BodyNode"
-    }
+        "node": {
+            "meta": {
+                "Left": [
+                    0,
+                    {
+                        "contents": {
+                            "contents": [],
+                            "tag": "TEmptyHole"
+                        },
+                        "tag": "TCSynthed"
+                    },
+                    null
+                ]
+            },
+            "nodeType": "BodyNode"
+        }
+    },
+    "tag": "SelectionDef"
 }

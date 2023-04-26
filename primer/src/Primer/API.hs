@@ -102,6 +102,7 @@ import Primer.Action (ActionError, ProgAction, toProgActionInput, toProgActionNo
 import Primer.Action.Available qualified as Available
 import Primer.App (
   App,
+  DefSelection (..),
   EditAppM,
   Editable,
   EvalFullReq (..),
@@ -109,10 +110,14 @@ import Primer.App (
   EvalResp (..),
   Level,
   MutationRequest,
+  NodeSelection (..),
   NodeType (..),
   ProgError,
   QueryAppM,
   Question (GenerateName),
+  Selection' (..),
+  TypeDefConsSelection (..),
+  TypeDefSelection (..),
   appProg,
   handleEvalFullRequest,
   handleEvalRequest,
@@ -133,6 +138,7 @@ import Primer.App (
   unlog,
  )
 import Primer.App qualified as App
+import Primer.App.Base (TypeDefNodeSelection (..))
 import Primer.Core (
   Bind' (..),
   CaseBranch' (..),
@@ -212,7 +218,7 @@ import Primer.Log (
 import Primer.Module (moduleDefsQualified, moduleName, moduleTypesQualifiedMeta)
 import Primer.Name qualified as Name
 import Primer.Primitives (primDefType)
-import Primer.TypeDef (ASTTypeDef (ASTTypeDef), astTypeDefConstructors, typeDefNameHints, typeDefParameters)
+import Primer.TypeDef (ASTTypeDef (..), typeDefNameHints, typeDefParameters)
 import Primer.TypeDef qualified as TypeDef
 import StmContainers.Map qualified as StmMap
 
@@ -255,7 +261,9 @@ runPrimerM = runReaderT . unPrimerM
 data PrimerErr
   = DatabaseErr Text
   | UnknownDef GVarName
+  | UnknownTypeDef TyConName
   | UnexpectedPrimDef GVarName
+  | UnexpectedPrimTypeDef TyConName
   | AddDefError ModuleName (Maybe Text) ProgError
   | AddTypeDefError TyConName [ValConName] ProgError
   | ActionOptionsNoID Selection
@@ -1075,14 +1083,22 @@ availableActions = curry3 $ logAPI (noError AvailableActions) $ \(sid, level, se
   prog <- getProgram sid
   let allDefs = progAllDefs prog
       allTypeDefs = progAllTypeDefs prog
-  (editable, ASTDef{astDefType = type_, astDefExpr = expr}) <- findASTDef allDefs selection.def
-  case selection.node of
-    Nothing ->
-      pure $ Available.forDef (snd <$> allDefs) level editable selection.def
-    Just App.NodeSelection{..} -> do
-      pure $ case nodeType of
-        SigNode -> Available.forSig level editable type_ meta
-        BodyNode -> Available.forBody (snd <$> allTypeDefs) level editable expr meta
+  case selection of
+    SelectionDef sel -> do
+      (editable, ASTDef{astDefType = type_, astDefExpr = expr}) <- findASTDef allDefs sel.def
+      pure $ case sel.node of
+        Nothing -> Available.forDef (snd <$> allDefs) level editable sel.def
+        Just NodeSelection{..} -> case nodeType of
+          SigNode -> Available.forSig level editable type_ meta
+          BodyNode -> Available.forBody (snd <$> allTypeDefs) level editable expr meta
+    SelectionTypeDef sel -> do
+      (editable, _def) <- findASTTypeDef allTypeDefs sel.def
+      pure $ case sel.node of
+        Nothing -> Available.forTypeDef level editable
+        Just (TypeDefParamNodeSelection _) -> Available.forTypeDefParamNode level editable
+        Just (TypeDefConsNodeSelection s) -> case s.field of
+          Nothing -> Available.forTypeDefConsNode level editable
+          Just _ -> Available.forTypeDefConsFieldNode level editable
 
 actionOptions ::
   (MonadIO m, MonadThrow m, MonadAPILog l m) =>
@@ -1096,7 +1112,7 @@ actionOptions = curry4 $ logAPI (noError ActionOptions) $ \(sid, level, selectio
   let prog = appProg app
       allDefs = progAllDefs prog
       allTypeDefs = progAllTypeDefs prog
-  def <- snd <$> findASTDef allDefs selection.def
+  def <- snd <$> findASTTypeOrTermDef prog selection
   maybe (throwM $ ActionOptionsNoID selection) pure $
     Available.options (snd <$> allTypeDefs) (snd <$> allDefs) (progCxt prog) level def selection action
 
@@ -1106,6 +1122,19 @@ findASTDef allDefs def = case allDefs Map.!? def of
   Just (_, Def.DefPrim _) -> throwM $ UnexpectedPrimDef def
   Just (editable, Def.DefAST d) -> pure (editable, d)
 
+findASTTypeDef :: MonadThrow m => Map TyConName (Editable, TypeDef.TypeDef ()) -> TyConName -> m (Editable, ASTTypeDef ())
+findASTTypeDef allTypeDefs def = case allTypeDefs Map.!? def of
+  Nothing -> throwM $ UnknownTypeDef def
+  Just (_, TypeDef.TypeDefPrim _) -> throwM $ UnexpectedPrimTypeDef def
+  Just (editable, TypeDef.TypeDefAST d) -> pure (editable, d)
+
+findASTTypeOrTermDef :: MonadThrow f => App.Prog -> Selection' a -> f (Editable, Either (ASTTypeDef ()) ASTDef)
+findASTTypeOrTermDef prog = \case
+  App.SelectionTypeDef sel ->
+    Left <<$>> findASTTypeDef (progAllTypeDefs prog) sel.def
+  App.SelectionDef sel ->
+    Right <<$>> findASTDef (progAllDefs prog) sel.def
+
 applyActionNoInput ::
   (MonadIO m, MonadThrow m, MonadAPILog l m) =>
   SessionId ->
@@ -1114,7 +1143,7 @@ applyActionNoInput ::
   PrimerM m Prog
 applyActionNoInput = curry3 $ logAPI (noError ApplyActionNoInput) $ \(sid, selection, action) -> do
   prog <- getProgram sid
-  def <- snd <$> findASTDef (progAllDefs prog) selection.def
+  def <- snd <$> findASTTypeOrTermDef prog selection
   actions <-
     either (throwM . ToProgActionError (Available.NoInput action)) pure $
       toProgActionNoInput (snd <$> progAllDefs prog) def selection action
@@ -1128,7 +1157,7 @@ applyActionInput ::
   PrimerM m Prog
 applyActionInput = curry3 $ logAPI (noError ApplyActionInput) $ \(sid, body, action) -> do
   prog <- getProgram sid
-  def <- snd <$> findASTDef (progAllDefs prog) body.selection.def
+  def <- snd <$> findASTTypeOrTermDef prog body.selection
   actions <-
     either (throwM . ToProgActionError (Available.Input action)) pure $
       toProgActionInput def body.selection body.option action
