@@ -621,28 +621,34 @@ applyProgAction prog mdefName = \case
     ty <- newType
     let def = ASTDef expr ty
     pure (insertDef mod name $ DefAST def, Just $ SelectionDef $ DefSelection (qualifyName modName name) Nothing)
-  AddTypeDef tc td -> editModuleSameSelection (qualifiedModule tc) prog $ \m -> do
+  AddTypeDef tc td -> editModule (qualifiedModule tc) prog $ \m -> do
     td' <- generateTypeDefIDs $ TypeDefAST td
     let tydefs' = moduleTypes m <> Map.singleton (baseName tc) td'
-    m{moduleTypes = tydefs'}
-      <$ liftError
-        -- The frontend should never let this error case happen,
-        -- so we just dump out a raw string for debugging/logging purposes
-        -- (This is not currently true! We should synchronise the frontend with
-        -- the typechecker rules. For instance, the form allows to create
-        --   data T (T : *) = T
-        -- but the TC rejects it.
-        -- see https://github.com/hackworthltd/primer/issues/3)
-        (TypeDefError . show @TypeError)
-        ( runReaderT
-            (checkTypeDefs $ Map.singleton tc (TypeDefAST td))
-            (buildTypingContextFromModules (progAllModules prog) NoSmartHoles)
-        )
-  RenameType old (unsafeMkName -> nameRaw) -> editModuleSameSelectionCross (qualifiedModule old) prog $ \(m, ms) -> do
+    liftError
+      -- The frontend should never let this error case happen,
+      -- so we just dump out a raw string for debugging/logging purposes
+      -- (This is not currently true! We should synchronise the frontend with
+      -- the typechecker rules. For instance, the form allows to create
+      --   data T (T : *) = T
+      -- but the TC rejects it.
+      -- see https://github.com/hackworthltd/primer/issues/3)
+      (TypeDefError . show @TypeError)
+      ( runReaderT
+          (checkTypeDefs $ Map.singleton tc (TypeDefAST td))
+          (buildTypingContextFromModules (progAllModules prog) NoSmartHoles)
+      )
+    pure
+      ( m{moduleTypes = tydefs'}
+      , Just $ SelectionTypeDef $ TypeDefSelection tc Nothing
+      )
+  RenameType old (unsafeMkName -> nameRaw) -> editModuleCross (qualifiedModule old) prog $ \(m, ms) -> do
     when (new `elem` allTyConNames prog) $ throwError $ TypeDefAlreadyExists new
     m' <- traverseOf #moduleTypes updateType m
     let renamedInTypes = over (traversed % #moduleTypes) updateRefsInTypes $ m' : ms
-    pure $ over (traversed % #moduleDefs % traversed % #_DefAST) (updateDefBody . updateDefType) renamedInTypes
+    pure
+      ( over (traversed % #moduleDefs % traversed % #_DefAST) (updateDefBody . updateDefType) renamedInTypes
+      , Just $ SelectionTypeDef $ TypeDefSelection new Nothing
+      )
     where
       new = qualifyName (qualifiedModule old) nameRaw
       updateType m = do
@@ -672,10 +678,13 @@ applyProgAction prog mdefName = \case
           $ over (#_TCon % _2) updateName
       updateName n = if n == old then new else n
   RenameCon type_ old (unsafeMkGlobalName . (fmap unName (unModuleName (qualifiedModule type_)),) -> new) ->
-    editModuleSameSelectionCross (qualifiedModule type_) prog $ \(m, ms) -> do
+    editModuleCross (qualifiedModule type_) prog $ \(m, ms) -> do
       when (new `elem` allValConNames prog) $ throwError $ ConAlreadyExists new
       m' <- updateType m
-      pure $ over (mapped % #moduleDefs) updateDefs (m' : ms)
+      pure
+        ( over (mapped % #moduleDefs) updateDefs (m' : ms)
+        , Just $ SelectionTypeDef $ TypeDefSelection type_ $ Just $ TypeDefConsNodeSelection $ TypeDefConsSelection new Nothing
+        )
     where
       updateType =
         alterTypeDef
@@ -693,7 +702,12 @@ applyProgAction prog mdefName = \case
               . over (#_Case % _3 % traversed % #_CaseBranch % _1) updateName
       updateName n = if n == old then new else n
   RenameTypeParam type_ old (unsafeMkLocalName -> new) ->
-    editModuleSameSelection (qualifiedModule type_) prog updateType
+    editModule (qualifiedModule type_) prog $ \m -> do
+      m' <- updateType m
+      pure
+        ( m'
+        , Just $ SelectionTypeDef $ TypeDefSelection type_ $ Just $ TypeDefParamNodeSelection new
+        )
     where
       updateType =
         alterTypeDef
@@ -721,13 +735,18 @@ applyProgAction prog mdefName = \case
           $ \(_, v) -> tvar $ updateName v
       updateName n = if n == old then new else n
   AddCon type_ index (unsafeMkGlobalName . (fmap unName (unModuleName (qualifiedModule type_)),) -> con) ->
-    editModuleSameSelectionCross (qualifiedModule type_) prog $ \(m, ms) -> do
+    editModuleCross (qualifiedModule type_) prog $ \(m, ms) -> do
       when (con `elem` allValConNames prog) $ throwError $ ConAlreadyExists con
       m' <- updateType m
-      traverseOf
-        (traversed % #moduleDefs % traversed % #_DefAST % #astDefExpr)
-        updateDefs
-        $ m' : ms
+      ms' <-
+        traverseOf
+          (traversed % #moduleDefs % traversed % #_DefAST % #astDefExpr)
+          updateDefs
+          $ m' : ms
+      pure
+        ( ms'
+        , Just $ SelectionTypeDef $ TypeDefSelection type_ $ Just $ TypeDefConsNodeSelection $ TypeDefConsSelection con Nothing
+        )
     where
       updateDefs = transformCaseBranches prog type_ $ \bs -> do
         m' <- DSL.meta
@@ -802,9 +821,19 @@ applyProgAction prog mdefName = \case
                   e
             else pure cb
   AddConField type_ con index new ->
-    editModuleSameSelectionCross (qualifiedModule type_) prog $ \(m, ms) -> do
+    editModuleCross (qualifiedModule type_) prog $ \(m, ms) -> do
       m' <- updateType m
-      traverseOf (traversed % #moduleDefs) updateDefs (m' : ms)
+      ms' <- traverseOf (traversed % #moduleDefs) updateDefs (m' : ms)
+      pure
+        ( ms'
+        , Just
+            . SelectionTypeDef
+            . TypeDefSelection type_
+            . Just
+            . TypeDefConsNodeSelection
+            . TypeDefConsSelection con
+            $ Nothing
+        )
     where
       updateType =
         alterTypeDef
