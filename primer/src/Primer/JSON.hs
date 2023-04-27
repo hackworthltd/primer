@@ -13,8 +13,7 @@ import Data.Aeson (
   ToJSON,
   ToJSONKey,
  )
-import Deriving.Aeson (CustomJSON (..))
-import Deriving.Aeson.Stock (Vanilla)
+import Deriving.Aeson (CustomJSON (..), OmitNothingFields)
 
 -- | A type for Primer API JSON encodings.
 --
@@ -43,4 +42,10 @@ import Deriving.Aeson.Stock (Vanilla)
 --
 -- * @SumTwoElemArray@ is unsupported by openapi3 as it is unrepresentable in
 --   a schema.
-type PrimerJSON a = Vanilla a
+type PrimerJSON a =
+  CustomJSON
+    '[ -- This protects some clients (e.g. TypeScript) from spurious equality failures
+       -- due to null-vs-omitted inconsistency.
+       OmitNothingFields
+     ]
+    a
