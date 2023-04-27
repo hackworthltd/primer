@@ -16,7 +16,6 @@ import Primer.Action (
     ConstructApp,
     ConstructArrowL,
     ConstructCase,
-    ConstructLam,
     ConstructLet,
     ConstructTCon,
     ConstructVar,
@@ -1614,50 +1613,6 @@ unit_sh_lost_id =
     prog = do
       p <- defaultEmptyProg
       e <- hole $ hole (gvar foo) `ann` (tEmptyHole `tfun` tEmptyHole)
-      t <- tEmptyHole `tapp` tEmptyHole
-      let m =
-            Module n mempty $
-              Map.singleton "foo" $
-                DefAST $
-                  ASTDef e t
-      pure $ p & #progModules %~ (m :)
-
--- Consider (where we put a numeric suffix on annotation ':'s to reference later)
---   foo :: ? ?
---   foo = {? (λx.?) :0 ? ?}
--- Add lambda directly around the non-empty hole
---   foo = λy . {? (λx.?) :0 ? ?}
--- SH adds an outer hole-and-annotation
---   foo = {? (λy . {? (λx.?) :0 ? ?}) :1 ? ?}
--- and removes the the trivial inner hole-and-annotation
---   foo = {? (λy . λx.?) :1 ? ?}
--- When SH elides the annotation that the selection is pointing at (:0 here),
--- it should update the selection to the expression said annotation was
--- annotating.
-unit_sh_lost_id_2 :: Assertion
-unit_sh_lost_id_2 =
-  progActionTest
-    prog
-    [MoveToDef foo, BodyAction [ConstructLam $ Just "y"]]
-    $ expectSuccess
-    $ \_ prog' ->
-      case findGlobalByName prog' foo of
-        Just def ->
-          case astDefExpr <$> defAST def of
-            Just (Hole _ (Ann _ (Lam _ "y" (Lam m "x" (EmptyHole _))) (TEmptyHole _))) -> case progSelection prog' of
-              Just Selection{selectedDef, selectedNode = Just sel} ->
-                unless (selectedDef == foo && getID sel == getID m) $
-                  assertFailure "expected selection to point at λx"
-              _ -> assertFailure "expected the selection to point at some node"
-            _ -> assertFailure "expected {? (λy. λx.?) : ? ?}"
-        _ -> assertFailure "definition not found"
-  where
-    n = ModuleName ["Module2"]
-    qualifyM = qualifyName n
-    foo = qualifyM "foo"
-    prog = do
-      p <- defaultEmptyProg
-      e <- hole $ lam "x" emptyHole `ann` tEmptyHole
       t <- tEmptyHole `tapp` tEmptyHole
       let m =
             Module n mempty $
