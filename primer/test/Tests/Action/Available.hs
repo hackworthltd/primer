@@ -31,7 +31,9 @@ import Optics (ix, toListOf, (%), (.~), (^..), _head)
 import Primer.Action (
   ActionError (CaseBindsClash, NameCapture),
   Movement (Child1, Child2),
+  enterType,
   moveExpr,
+  moveType,
   toProgActionInput,
   toProgActionNoInput,
  )
@@ -366,7 +368,7 @@ unit_raise_sh =
           SmartHoles
           Beginner
           (emptyHole `app` t1 `app` emptyHole)
-          [Child1, Child2]
+          (InExpr [Child1, Child2])
           (Left Raise)
           (t2 `app` emptyHole)
       testSyn :: HasCallStack => S Expr -> Assertion
@@ -383,7 +385,7 @@ unit_sat_con_1 =
     SmartHoles
     Intermediate
     (emptyHole `ann` (tEmptyHole `tfun` tEmptyHole))
-    [Child1]
+    (InExpr [Child1])
     (Right (MakeCon, Option "Cons" $ Just $ unName <$> unModuleName builtinModuleName))
     (hole (con cCons [emptyHole, emptyHole] `ann` tEmptyHole) `ann` (tEmptyHole `tfun` tEmptyHole))
 
@@ -393,9 +395,23 @@ unit_sat_con_2 =
     SmartHoles
     Intermediate
     (emptyHole `ann` ((tcon tList `tapp` tcon tNat) `tfun` (tcon tList `tapp` tcon tNat)))
-    [Child1]
+    (InExpr [Child1])
     (Right (MakeCon, Option "Cons" $ Just $ unName <$> unModuleName builtinModuleName))
     (hole (con cCons [emptyHole, emptyHole] `ann` tEmptyHole) `ann` ((tcon tList `tapp` tcon tNat) `tfun` (tcon tList `tapp` tcon tNat)))
+
+data MovementList
+  = InExpr [Movement]
+  | InType [Movement] [Movement]
+
+exprMoves :: MovementList -> [Movement]
+exprMoves = \case
+  InExpr ms -> ms
+  InType ms _ -> ms
+
+typeMoves :: MovementList -> Maybe [Movement]
+typeMoves = \case
+  InExpr _ -> Nothing
+  InType _ ms -> Just ms
 
 -- | Apply the action to the node in the input expression pointed to by the
 -- 'Movement' (starting from the root), checking that it would actually be offered
@@ -406,7 +422,7 @@ offeredActionTest ::
   SmartHoles ->
   Level ->
   S Expr ->
-  [Movement] ->
+  MovementList ->
   Either NoInputAction (InputAction, Option) ->
   S Expr ->
   Assertion
@@ -436,8 +452,13 @@ offeredActionTest sh l inputExpr position action expectedOutput = do
         runExceptT $
           flip runReaderT (buildTypingContextFromModules modules sh) $
             do
-              ez <- foldlM (flip moveExpr) (focus expr) position
-              pure $ getID ez
+              ez <- foldlM (flip moveExpr) (focus expr) $ exprMoves position
+              case typeMoves position of
+                Nothing -> pure $ getID ez
+                Just ms -> do
+                  tz' <- enterType ez
+                  tz <- foldlM (flip moveType) tz' ms
+                  pure $ getID tz
   id <- case id' of
     Left err -> assertFailure $ show err
     Right i' -> pure i'
@@ -478,7 +499,7 @@ offeredActionTest sh l inputExpr position action expectedOutput = do
 
 -- Correct names offered when running actions
 -- NB: Bools are offered names "p", "q"; functions get "f","g"; nats get "i","j","n","m"
-offeredNamesTest :: HasCallStack => S Expr -> [Movement] -> InputAction -> Text -> S Expr -> Assertion
+offeredNamesTest :: HasCallStack => S Expr -> MovementList -> InputAction -> Text -> S Expr -> Assertion
 offeredNamesTest initial moves act name =
   offeredActionTest
     NoSmartHoles
@@ -493,7 +514,7 @@ unit_make_lam_names :: Assertion
 unit_make_lam_names =
   offeredNamesTest
     (emptyHole `ann` (tcon tNat `tfun` tcon tBool))
-    [Child1]
+    (InExpr [Child1])
     MakeLam
     "i"
     (lam "i" emptyHole `ann` (tcon tNat `tfun` tcon tBool))
@@ -502,7 +523,7 @@ unit_rename_lam_names :: Assertion
 unit_rename_lam_names =
   offeredNamesTest
     (lam "x" emptyHole `ann` (tcon tNat `tfun` tcon tBool))
-    [Child1]
+    (InExpr [Child1])
     RenameLam
     "i"
     (lam "i" emptyHole `ann` (tcon tNat `tfun` tcon tBool))
@@ -511,13 +532,13 @@ unit_make_LAM_names :: Assertion
 unit_make_LAM_names = do
   offeredNamesTest
     (emptyHole `ann` tforall "a" KType (tcon tBool))
-    [Child1]
+    (InExpr [Child1])
     MakeLAM
     "α"
     (lAM "α" emptyHole `ann` tforall "a" KType (tcon tBool))
   offeredNamesTest
     (emptyHole `ann` tforall "a" (KFun KType KType) (tcon tBool))
-    [Child1]
+    (InExpr [Child1])
     MakeLAM
     "f"
     (lAM "f" emptyHole `ann` tforall "a" (KFun KType KType) (tcon tBool))
@@ -526,13 +547,13 @@ unit_rename_LAM_names :: Assertion
 unit_rename_LAM_names = do
   offeredNamesTest
     (lAM "x" emptyHole `ann` tforall "a" KType (tcon tBool))
-    [Child1]
+    (InExpr [Child1])
     RenameLAM
     "α"
     (lAM "α" emptyHole `ann` tforall "a" KType (tcon tBool))
   offeredNamesTest
     (lAM "x" emptyHole `ann` tforall "a" (KFun KType KType) (tcon tBool))
-    [Child1]
+    (InExpr [Child1])
     RenameLAM
     "f"
     (lAM "f" emptyHole `ann` tforall "a" (KFun KType KType) (tcon tBool))
@@ -542,7 +563,7 @@ unit_rename_let_names :: Assertion
 unit_rename_let_names =
   offeredNamesTest
     (let_ "x" (emptyHole `ann` tcon tBool) emptyHole)
-    []
+    (InExpr [])
     RenameLet
     "p"
     (let_ "p" (emptyHole `ann` tcon tBool) emptyHole)
@@ -554,13 +575,13 @@ unit_rename_let_names =
 --unit_rename_lettype_names = do
   offeredNamesTest
     (letType "x" (tcon tBool) emptyHole)
-    []
+    (InExpr [])
     RenameLet
     "p"
     (letType "p" (tcon tBool) emptyHole)
   offeredNamesTest
     (letType "x" (tcon tBool `tfun` tcon tBool) $ emptyHole)
-    []
+    (InExpr [])
     RenameLet
     "p"
     (letType "x" (tcon tBool `tfun` tcon tBool) $ emptyHole)
@@ -570,7 +591,7 @@ unit_rename_letrec_names :: Assertion
 unit_rename_letrec_names =
   offeredNamesTest
     (letrec "x" emptyHole (tcon tBool) emptyHole)
-    []
+    (InExpr [])
     RenameLet
     "p"
     (letrec "p" emptyHole (tcon tBool) emptyHole)
