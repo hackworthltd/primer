@@ -545,3 +545,22 @@ unit_rename_let_names =
     RenameLet
     "p"
     (let_ "p" (emptyHole `ann` tcon tBool) emptyHole)
+
+{-
+-- TODO: reinstate once the TC handles let type!
+-- See https://github.com/hackworthltd/primer/issues/5
+--unit_rename_lettype_names :: Assertion
+--unit_rename_lettype_names = do
+  offeredNamesTest
+    (letType "x" (tcon tBool) emptyHole)
+    []
+    RenameLet
+    "p"
+    (letType "p" (tcon tBool) emptyHole)
+  offeredNamesTest
+    (letType "x" (tcon tBool `tfun` tcon tBool) $ emptyHole)
+    []
+    RenameLet
+    "p"
+    (letType "x" (tcon tBool `tfun` tcon tBool) $ emptyHole)
+-}
