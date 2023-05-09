@@ -612,3 +612,22 @@ unit_rename_forall_names = do
     RenameForall
     "f"
     (emptyHole `ann` tforall "f" (KFun KType KType) (tcon tBool))
+
+{-
+-- TODO: reinstate once the TC handles let type!
+-- See https://github.com/hackworthltd/primer/issues/5
+--unit_rename_tlet_names :: Assertion
+--unit_rename_tlet_names = do
+  offeredNamesTest
+    (emptyHole `ann` tlet "a" (tcon tNat) tEmptyHole)
+    ([] `InType` [])
+    RenameLet
+    "α"
+    (emptyHole `ann` tlet "α" (tcon tNat) tEmptyHole)
+  offeredNamesTest
+    (emptyHole `ann` tlet "a" (tcon tList) tEmptyHole)
+    ([] `InType` [])
+    RenameLet
+    "f"
+    (emptyHole `ann` tlet "f" (tcon tList) tEmptyHole)
+-}
