@@ -63,15 +63,11 @@ Output
                     ( Options
                         { opts =
                             [ Option
-                                { option = "z"
+                                { option = "p"
                                 , context = Nothing
                                 }
                             , Option
-                                { option = "x1"
-                                , context = Nothing
-                                }
-                            , Option
-                                { option = "y1"
+                                { option = "q"
                                 , context = Nothing
                                 }
                             ]

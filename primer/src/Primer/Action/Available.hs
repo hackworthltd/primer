@@ -53,7 +53,7 @@ import Primer.Core (
   _type,
   _typeMetaLens,
  )
-import Primer.Core.Utils (freeVars)
+import Primer.Core.Utils (forgetTypeMetadata, freeVars)
 import Primer.Def (
   ASTDef (..),
   DefMap,
@@ -355,9 +355,14 @@ options typeDefs defs cxt level def mNodeSel = \case
   RenamePattern -> do
     CaseBindNode b <- findNode
     freeVar <$> genNames (Left $ b ^? _bindMeta % _type % _Just % _chkedAt)
-  RenameLet -> do
-    ExprNode e <- findNode
-    freeVar <$> genNames (Left $ e ^? _exprMetaLens % _type % _Just % _synthed)
+  RenameLet ->
+    findNode >>= \case
+      ExprNode (Let _ _ e _) ->
+        freeVar <$> genNames (Left $ e ^? _exprMetaLens % _type % _Just % _synthed)
+      ExprNode (Letrec _ _ _ t _) -> freeVar <$> genNames (Left $ Just $ forgetTypeMetadata t)
+      ExprNode (LetType _ _ t _) -> freeVar <$> genNames (Right $ t ^. _typeMetaLens % _type)
+      TypeNode (TLet _ _ t _) -> freeVar <$> genNames (Right $ t ^. _typeMetaLens % _type)
+      _ -> Nothing
   RenameLam -> do
     ExprNode e <- findNode
     freeVar <$> genNames (Left $ join $ e ^? _exprMetaLens % _type % _Just % _chkedAt % to lamVarTy)

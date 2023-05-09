@@ -8,6 +8,7 @@ import Foreword
 import Control.Monad.Log (WithSeverity)
 import Data.ByteString.Lazy.Char8 qualified as BS
 import Data.List.Extra (enumerate, partition)
+import Data.Map qualified as M
 import Data.Map qualified as Map
 import Data.Text qualified as T
 import Data.Text.Lazy qualified as TL
@@ -34,18 +35,24 @@ import Primer.Action (
   toProgActionInput,
   toProgActionNoInput,
  )
-import Primer.Action.Available (InputAction (MakeCon), NoInputAction (Raise), Option (Option))
+import Primer.Action.Available (
+  InputAction (MakeCon, RenameLet),
+  NoInputAction (Raise),
+  Option (Option),
+ )
 import Primer.Action.Available qualified as Available
 import Primer.App (
   App,
   EditAppM,
   Editable (..),
-  Level (Beginner, Intermediate),
+  Level (Beginner, Expert, Intermediate),
   NodeType (..),
   ProgError (ActionError, DefAlreadyExists),
   appProg,
   checkAppWellFormed,
+  checkProgWellFormed,
   handleEditRequest,
+  nextProgID,
   progAllDefs,
   progAllTypeDefs,
   progCxt,
@@ -54,7 +61,7 @@ import Primer.App (
   progSmartHoles,
   runEditAppM,
  )
-import Primer.Builtins (builtinModuleName, cCons, tList, tNat)
+import Primer.Builtins (builtinModuleName, cCons, tBool, tList, tNat)
 import Primer.Core (
   Expr,
   GVarName,
@@ -73,12 +80,12 @@ import Primer.Core.DSL (
   ann,
   app,
   con,
-  create,
   create',
   emptyHole,
   gvar,
   hole,
   lam,
+  let_,
   lvar,
   tEmptyHole,
   tapp,
@@ -103,6 +110,7 @@ import Primer.Module (
   Module (Module, moduleDefs),
   builtinModule,
   moduleDefsQualified,
+  moduleName,
   moduleTypesQualified,
   primitiveModule,
  )
@@ -122,8 +130,12 @@ import Tasty (Property, withDiscards, withTests)
 import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.Golden (goldenVsString)
 import Test.Tasty.HUnit (Assertion, assertBool, assertFailure, (@?=))
-import Tests.Action.Prog (defaultEmptyProg, expectSuccess, findGlobalByName, gvn, progActionTest)
-import Tests.Typecheck (TypeCacheAlpha (TypeCacheAlpha), runTypecheckTestMIn)
+import Tests.Action.Prog (defaultEmptyProg, expectSuccess, findGlobalByName, progActionTest)
+import Tests.Typecheck (
+  TypeCacheAlpha (TypeCacheAlpha),
+  runTypecheckTestM,
+  runTypecheckTestMIn,
+ )
 import Text.Pretty.Simple (pShowNoColor)
 
 -- | Comprehensive DSL test.
@@ -395,18 +407,28 @@ offeredActionTest ::
   S Expr ->
   Assertion
 offeredActionTest sh l inputExpr position action expectedOutput = do
-  let ((modules, expr, exprDef, exprDefName, prog), i) = create $ do
+  let progRaw = create' $ do
         ms <- sequence [builtinModule]
         prog0 <- defaultEmptyProg
         e <- inputExpr
         d <- ASTDef e <$> tEmptyHole
-        let p =
-              prog0
-                & (#progModules % _head % #moduleDefs % ix "main" .~ DefAST d)
-                & (#progImports .~ ms)
-                & (#progSmartHoles .~ sh)
-        pure (ms, e, d, gvn "main", p)
-  let id' = evalTestM (i + 1) $
+        pure $
+          prog0
+            & (#progModules % _head % #moduleDefs % ix "main" .~ DefAST d)
+            & (#progImports .~ ms)
+            -- Temporarily disable smart holes, so what is written in unit tests is what is in the prog
+            & (#progSmartHoles .~ NoSmartHoles)
+  -- Typecheck everything to fill in typecaches.
+  -- This lets us test offered names for renaming variable binders.
+  let progChecked = runTypecheckTestM NoSmartHoles $ checkProgWellFormed progRaw
+  let (modules, expr, exprDef, exprDefName, prog) = case progChecked of
+        Left err -> error $ "offeredActionTest: no typecheck: " <> show err
+        Right p -> case progModules p of
+          [m] -> case moduleDefs m M.!? "main" of
+            Just (DefAST def@(ASTDef e _)) -> (progImports p, e, def, qualifyName (moduleName m) "main", p & #progSmartHoles .~ sh)
+            _ -> error "offeredActionTest: didn't find 'main'"
+          _ -> error "offeredActionTest: expected exactly one progModule"
+  let id' = evalTestM (nextProgID prog) $
         runExceptT $
           flip runReaderT (buildTypingContextFromModules modules sh) $
             do
@@ -449,3 +471,24 @@ offeredActionTest sh l inputExpr position action expectedOutput = do
         -- NB: we don't compare up-to-alpha, as names should be determined by the
         -- actions on-the-nose
         fmap clearMeta result @?= Just (clearMeta expected)
+
+-- Correct names offered when running actions
+-- NB: Bools are offered names "p", "q"; functions get "f","g"; nats get "i","j","n","m"
+offeredNamesTest :: HasCallStack => S Expr -> [Movement] -> InputAction -> Text -> S Expr -> Assertion
+offeredNamesTest initial moves act name =
+  offeredActionTest
+    NoSmartHoles
+    Expert
+    initial
+    moves
+    (Right (act, Option name Nothing))
+
+-- nb: renaming let cares about the type of the bound var, not of the let
+unit_rename_let_names :: Assertion
+unit_rename_let_names =
+  offeredNamesTest
+    (let_ "x" (emptyHole `ann` tcon tBool) emptyHole)
+    []
+    RenameLet
+    "p"
+    (let_ "p" (emptyHole `ann` tcon tBool) emptyHole)
