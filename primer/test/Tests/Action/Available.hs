@@ -36,7 +36,7 @@ import Primer.Action (
   toProgActionNoInput,
  )
 import Primer.Action.Available (
-  InputAction (MakeCon, RenameLet),
+  InputAction (MakeCon, MakeLam, RenameLet),
   NoInputAction (Raise),
   Option (Option),
  )
@@ -482,6 +482,15 @@ offeredNamesTest initial moves act name =
     initial
     moves
     (Right (act, Option name Nothing))
+
+unit_make_lam_names :: Assertion
+unit_make_lam_names =
+  offeredNamesTest
+    (emptyHole `ann` (tcon tNat `tfun` tcon tBool))
+    [Child1]
+    MakeLam
+    "i"
+    (lam "i" emptyHole `ann` (tcon tNat `tfun` tcon tBool))
 
 -- nb: renaming let cares about the type of the bound var, not of the let
 unit_rename_let_names :: Assertion
