@@ -36,7 +36,7 @@ import Primer.Action (
   toProgActionNoInput,
  )
 import Primer.Action.Available (
-  InputAction (MakeCon, MakeLAM, MakeLam, RenameLam, RenameLet),
+  InputAction (MakeCon, MakeLAM, MakeLam, RenameLAM, RenameLam, RenameLet),
   NoInputAction (Raise),
   Option (Option),
  )
@@ -516,6 +516,21 @@ unit_make_LAM_names = do
     (emptyHole `ann` tforall "a" (KFun KType KType) (tcon tBool))
     [Child1]
     MakeLAM
+    "f"
+    (lAM "f" emptyHole `ann` tforall "a" (KFun KType KType) (tcon tBool))
+
+unit_rename_LAM_names :: Assertion
+unit_rename_LAM_names = do
+  offeredNamesTest
+    (lAM "x" emptyHole `ann` tforall "a" KType (tcon tBool))
+    [Child1]
+    RenameLAM
+    "α"
+    (lAM "α" emptyHole `ann` tforall "a" KType (tcon tBool))
+  offeredNamesTest
+    (lAM "x" emptyHole `ann` tforall "a" (KFun KType KType) (tcon tBool))
+    [Child1]
+    RenameLAM
     "f"
     (lAM "f" emptyHole `ann` tforall "a" (KFun KType KType) (tcon tBool))
 
