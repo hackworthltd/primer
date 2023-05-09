@@ -88,6 +88,7 @@ import Primer.Core.DSL (
   lAM,
   lam,
   let_,
+  letrec,
   lvar,
   tEmptyHole,
   tapp,
@@ -564,3 +565,12 @@ unit_rename_let_names =
     "p"
     (letType "x" (tcon tBool `tfun` tcon tBool) $ emptyHole)
 -}
+
+unit_rename_letrec_names :: Assertion
+unit_rename_letrec_names =
+  offeredNamesTest
+    (letrec "x" emptyHole (tcon tBool) emptyHole)
+    []
+    RenameLet
+    "p"
+    (letrec "p" emptyHole (tcon tBool) emptyHole)
