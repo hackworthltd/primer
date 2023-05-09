@@ -486,6 +486,8 @@ offeredNamesTest initial moves act name =
     moves
     (Right (act, Option name Nothing))
 
+-- Note that lambdas are the only form which we have interesting name info when
+-- we initially create them.
 unit_make_lam_names :: Assertion
 unit_make_lam_names =
   offeredNamesTest
