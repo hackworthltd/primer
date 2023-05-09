@@ -8,6 +8,7 @@
 module Primer.Gen.App (
   genProg,
   genApp,
+  extendCxtByModules,
 ) where
 
 import Control.Monad.Fresh (MonadFresh (fresh))
@@ -88,10 +89,6 @@ genProg sh initialImports = local (extendCxtByModules initialImports) $ do
           pure $ x : rest
     extendCxtByModule :: Module -> Cxt -> Cxt
     extendCxtByModule = extendCxtByModules . pure
-    extendCxtByModules :: [Module] -> Cxt -> Cxt
-    extendCxtByModules ms =
-      extendTypeDefCxt (foldMap' moduleTypesQualified ms)
-        . extendGlobalCxt (M.toList . fmap (forgetTypeMetadata . defType) $ foldMap' moduleDefsQualified ms)
     genModule :: Name -> Int -> GenT WT Module
     genModule prefix index = do
       let mn = ModuleName $ prefix :| [unsafeMkName $ show index]
@@ -104,6 +101,11 @@ genProg sh initialImports = local (extendCxtByModules initialImports) $ do
           , moduleTypes = M.fromList $ first baseName <$> tds
           , moduleDefs = defs
           }
+
+extendCxtByModules :: [Module] -> Cxt -> Cxt
+extendCxtByModules ms =
+      extendTypeDefCxt (foldMap' moduleTypesQualified ms)
+        . extendGlobalCxt (M.toList . fmap (forgetTypeMetadata . defType) $ foldMap' moduleDefsQualified ms)
 
 -- Generate a mutually-recursive group of term definitions
 genASTDefGroup :: ModuleName -> GenT WT (Map Name Def)
