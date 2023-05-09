@@ -376,8 +376,8 @@ options typeDefs defs cxt level def mNodeSel = \case
   MakeForall ->
     freeVar <$> genNames (Right Nothing)
   RenameForall -> do
-    TypeNode t <- findNode
-    freeVar <$> genNames (Right $ t ^. _typeMetaLens % _type)
+    TypeNode (TForall _ _ k _) <- findNode
+    freeVar <$> genNames (Right $ Just k)
   RenameDef ->
     pure $ freeVar []
   where

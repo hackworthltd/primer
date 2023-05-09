@@ -38,7 +38,7 @@ import Primer.Action (
   toProgActionNoInput,
  )
 import Primer.Action.Available (
-  InputAction (MakeCon, MakeLAM, MakeLam, RenameLAM, RenameLam, RenameLet),
+  InputAction (MakeCon, MakeLAM, MakeLam, RenameForall, RenameLAM, RenameLam, RenameLet),
   NoInputAction (Raise),
   Option (Option),
  )
@@ -597,3 +597,18 @@ unit_rename_letrec_names =
     (letrec "p" emptyHole (tcon tBool) emptyHole)
 
 -- There is no unit_rename_pattern_names as can only move to a pattern by ID, which is awkward here
+
+unit_rename_forall_names :: Assertion
+unit_rename_forall_names = do
+  offeredNamesTest
+    (emptyHole `ann` tforall "a" KType (tcon tBool))
+    ([] `InType` [])
+    RenameForall
+    "α"
+    (emptyHole `ann` tforall "α" KType (tcon tBool))
+  offeredNamesTest
+    (emptyHole `ann` tforall "a" (KFun KType KType) (tcon tBool))
+    ([] `InType` [])
+    RenameForall
+    "f"
+    (emptyHole `ann` tforall "f" (KFun KType KType) (tcon tBool))
