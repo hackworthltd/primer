@@ -574,3 +574,5 @@ unit_rename_letrec_names =
     RenameLet
     "p"
     (letrec "p" emptyHole (tcon tBool) emptyHole)
+
+-- There is no unit_rename_pattern_names as can only move to a pattern by ID, which is awkward here
