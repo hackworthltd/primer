@@ -36,7 +36,7 @@ import Primer.Action (
   toProgActionNoInput,
  )
 import Primer.Action.Available (
-  InputAction (MakeCon, MakeLam, RenameLam, RenameLet),
+  InputAction (MakeCon, MakeLAM, MakeLam, RenameLam, RenameLet),
   NoInputAction (Raise),
   Option (Option),
  )
@@ -68,6 +68,7 @@ import Primer.Core (
   GlobalName (baseName, qualifiedModule),
   HasID (_id),
   ID,
+  Kind (KFun, KType),
   ModuleName (ModuleName, unModuleName),
   getID,
   mkSimpleModuleName,
@@ -84,12 +85,14 @@ import Primer.Core.DSL (
   emptyHole,
   gvar,
   hole,
+  lAM,
   lam,
   let_,
   lvar,
   tEmptyHole,
   tapp,
   tcon,
+  tforall,
   tfun,
  )
 import Primer.Core.Utils (
@@ -500,6 +503,21 @@ unit_rename_lam_names =
     RenameLam
     "i"
     (lam "i" emptyHole `ann` (tcon tNat `tfun` tcon tBool))
+
+unit_make_LAM_names :: Assertion
+unit_make_LAM_names = do
+  offeredNamesTest
+    (emptyHole `ann` tforall "a" KType (tcon tBool))
+    [Child1]
+    MakeLAM
+    "α"
+    (lAM "α" emptyHole `ann` tforall "a" KType (tcon tBool))
+  offeredNamesTest
+    (emptyHole `ann` tforall "a" (KFun KType KType) (tcon tBool))
+    [Child1]
+    MakeLAM
+    "f"
+    (lAM "f" emptyHole `ann` tforall "a" (KFun KType KType) (tcon tBool))
 
 -- nb: renaming let cares about the type of the bound var, not of the let
 unit_rename_let_names :: Assertion
