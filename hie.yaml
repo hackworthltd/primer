@@ -15,9 +15,6 @@ cradle:
     - path: "primer-benchmark/src"
       component: "lib:primer-benchmark"
 
-    - path: "primer-benchmark/mkfixture/Main.hs"
-      component: "primer-benchmark:exe:primer-benchmark-mkfixture"
-
     - path: "primer-benchmark/bench/Main.hs"
       component: "primer-benchmark:bench:primer-benchmark"
 
