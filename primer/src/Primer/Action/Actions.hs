@@ -62,8 +62,6 @@ data Action
     ConstructPrim PrimCon
   | -- | Put a constructor applied to a saturated spine in an empty hole
     ConstructSaturatedCon QualifiedText
-  | -- | Put a constructor in an empty hole, and infer what it should be applied to
-    ConstructRefinedCon QualifiedText
   | -- | Put a let expression in an empty hole
     ConstructLet (Maybe Text)
   | -- | Put a letrec expression in an empty hole

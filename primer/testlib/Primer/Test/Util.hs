@@ -5,7 +5,6 @@ module Primer.Test.Util (
   assertException,
   primDefs,
   constructTCon,
-  constructRefinedCon,
   constructSaturatedCon,
   tcn,
   vcn,
@@ -40,7 +39,7 @@ import Primer.API (
   runPrimerM,
  )
 import Primer.Action (
-  Action (ConstructRefinedCon, ConstructSaturatedCon, ConstructTCon),
+  Action (ConstructSaturatedCon, ConstructTCon),
  )
 import Primer.Core (
   Expr',
@@ -89,9 +88,6 @@ constructTCon = ConstructTCon . toQualText
 
 constructSaturatedCon :: ValConName -> Action
 constructSaturatedCon = ConstructSaturatedCon . toQualText
-
-constructRefinedCon :: ValConName -> Action
-constructRefinedCon = ConstructRefinedCon . toQualText
 
 toQualText :: GlobalName k -> (NonEmpty Text, Text)
 toQualText n = (map unName $ unModuleName $ qualifiedModule n, unName $ baseName n)

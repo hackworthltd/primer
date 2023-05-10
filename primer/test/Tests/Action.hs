@@ -13,7 +13,7 @@ import Hedgehog hiding (
  )
 import Primer.Action (
   Action (..),
-  ActionError (CaseBindsClash, NameCapture, RefineError),
+  ActionError (CaseBindsClash, NameCapture),
   Movement (..),
   applyActionsToExpr,
  )
@@ -39,7 +39,6 @@ import Primer.Primitives (tChar, tInt)
 import Primer.Test.TestM (evalTestM)
 import Primer.Test.Util (
   clearMeta,
-  constructRefinedCon,
   constructSaturatedCon,
   constructTCon,
  )
@@ -1024,30 +1023,6 @@ unit_smart_type_2 =
     [EnterType, ConstructTApp]
     (emptyHole `ann` (tcon tList `tapp` tEmptyHole))
 
-unit_refine_1 :: Assertion
-unit_refine_1 =
-  actionTestExpectFail
-    (\case RefineError _ -> True; _ -> False)
-    NoSmartHoles
-    emptyHole
-    [constructRefinedCon cNil]
-
-unit_refine_2 :: Assertion
-unit_refine_2 =
-  actionTest
-    NoSmartHoles
-    (emptyHole `ann` (tcon tList `tapp` tcon tNat))
-    [Move Child1, constructRefinedCon cNil]
-    (con cNil [] `ann` (tcon tList `tapp` tcon tNat))
-
-unit_refine_3 :: Assertion
-unit_refine_3 =
-  actionTest
-    NoSmartHoles
-    (emptyHole `ann` (tcon tList `tapp` tEmptyHole))
-    [Move Child1, constructRefinedCon cNil]
-    (con cNil [] `ann` (tcon tList `tapp` tEmptyHole))
-
 unit_refine_4 :: Assertion
 unit_refine_4 =
   actionTest
@@ -1063,15 +1038,6 @@ unit_refine_5 =
     (let_ "nil" (lAM "a" (con cNil []) `ann` tforall "a" KType (tcon tList `tapp` tvar "a")) $ emptyHole `ann` (tcon tList `tapp` tEmptyHole))
     [Move Child2, Move Child1, InsertRefinedVar $ LocalVarRef "nil"]
     (let_ "nil" (lAM "a" (con cNil []) `ann` tforall "a" KType (tcon tList `tapp` tvar "a")) $ (lvar "nil" `aPP` tEmptyHole) `ann` (tcon tList `tapp` tEmptyHole))
-
--- If there is no valid refinement, insert saturated constructor into a non-empty hole
-unit_refine_mismatch_con :: Assertion
-unit_refine_mismatch_con =
-  actionTest
-    NoSmartHoles
-    (emptyHole `ann` tcon tNat)
-    [Move Child1, constructRefinedCon cCons]
-    (hole (con cCons [emptyHole, emptyHole] `ann` tEmptyHole) `ann` tcon tNat)
 
 -- If there is no valid refinement, insert saturated variable into a non-empty hole
 unit_refine_mismatch_var :: Assertion
@@ -1107,28 +1073,6 @@ unit_refine_mismatch_var =
         )
         $ hole (lvar "cons" `aPP` tEmptyHole `app` emptyHole `app` emptyHole) `ann` tcon tBool
     )
-
--- Constructors are saturated, so if the hole has an arrow type, when we insert
--- a constructor it cannot match the arrow, so it is inserted into a hole
-unit_refine_arr_1 :: Assertion
-unit_refine_arr_1 =
-  actionTest
-    NoSmartHoles
-    (emptyHole `ann` (tEmptyHole `tfun` tEmptyHole))
-    [Move Child1, constructRefinedCon cCons]
-    (hole (con cCons [emptyHole, emptyHole] `ann` tEmptyHole) `ann` (tEmptyHole `tfun` tEmptyHole))
-
--- Constructors are checkable and fully saturated, so even if the hole has type
--- @List Nat -> List Nat@, when we insert a @Cons@ constructor, we end up with
--- @{? Cons ? ? :: ? ?}@a
--- (the inside of a hole is synthesisable position: see Note [Holes and bidirectionality])
-unit_refine_arr_2 :: Assertion
-unit_refine_arr_2 =
-  actionTest
-    NoSmartHoles
-    (emptyHole `ann` ((tcon tList `tapp` tcon tNat) `tfun` (tcon tList `tapp` tcon tNat)))
-    [Move Child1, constructRefinedCon cCons]
-    (hole (con cCons [emptyHole, emptyHole] `ann` tEmptyHole) `ann` ((tcon tList `tapp` tcon tNat) `tfun` (tcon tList `tapp` tcon tNat)))
 
 unit_primitive_1 :: Assertion
 unit_primitive_1 =
