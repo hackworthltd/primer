@@ -57,6 +57,7 @@ module Primer.Typecheck (
   extendTypeDefCxt,
   localTmVars,
   localTyVars,
+  enhole,
 ) where
 
 import Foreword
@@ -68,24 +69,31 @@ import Data.Map qualified as M
 import Data.Map.Strict qualified as Map
 import Data.Set qualified as S
 import Optics (
+  A_Prism,
+  A_Setter,
   A_Traversal,
   AppendIndices,
+  Is,
   IxFold,
   IxTraversal',
   JoinKinds,
+  NoIx,
   Optic',
   WithIx,
+  castOptic,
   equality,
   icompose,
   itoListOf,
   itraversed,
   over,
   reindexed,
+  review,
   selfIndex,
   to,
   traverseOf,
   (%),
   (^?),
+  _Just,
  )
 import Optics.Traversal (traversed)
 import Primer.Core (
@@ -703,7 +711,7 @@ check t = \case
           NoSmartHoles -> throwError' $ CannotCaseNonADT eT
           SmartHoles -> do
             -- NB: we wrap the scrutinee in a hole and DELETE the branches
-            scrutWrap <- Hole <$> meta' (TCSynthed (TEmptyHole ())) <*> pure (addChkMeta (TEmptyHole ()) e')
+            scrutWrap <- Hole <$> meta' (TCSynthed (TEmptyHole ())) <*> pure (addChkMetaT (TEmptyHole ()) e')
             pure $ Case caseMeta scrutWrap []
       Left (TDIUnknown ty) -> throwError' $ InternalError $ "We somehow synthesised the unknown type " <> show ty <> " for the scrutinee of a case"
       Left TDINotSaturated ->
@@ -711,7 +719,7 @@ check t = \case
           NoSmartHoles -> throwError' $ CannotCaseNonSaturatedADT eT
           SmartHoles -> do
             -- NB: we wrap the scrutinee in a hole and DELETE the branches
-            scrutWrap <- Hole <$> meta' (TCSynthed (TEmptyHole ())) <*> pure (addChkMeta (TEmptyHole ()) e')
+            scrutWrap <- Hole <$> meta' (TCSynthed (TEmptyHole ())) <*> pure (addChkMetaT (TEmptyHole ()) e')
             pure $ Case caseMeta scrutWrap []
       Right (tc, _, expected) -> do
         let branchNames = map (\(CaseBranch n _ _) -> n) brs
@@ -730,13 +738,10 @@ check t = \case
     let default_ = do
           (t', e') <- synth e
           if consistentTypes t t'
-            then pure $ addChkMeta t e'
+            then pure $ addChkMetaT t e'
             else case sh of
               NoSmartHoles -> throwError' (InconsistentTypes t t')
-              SmartHoles ->
-                Hole
-                  <$> meta' (TCEmb TCBoth{tcChkedAt = t, tcSynthed = TEmptyHole ()})
-                  <*> pure (addChkMeta (TEmptyHole ()) e')
+              SmartHoles -> enholeT t e'
     case (e, sh) of
       -- If the hole can be dropped leaving a type-correct term, do so
       -- We don't want the recursive call to create a fresh hole though -
@@ -769,24 +774,52 @@ check t = \case
             e'' -> pure e''
       _ -> default_
 
-addChkMeta' :: Type' () -> TypeCache -> TypeCache
-addChkMeta' t c = case c ^? _synthed of
-  Just s -> TCEmb TCBoth{tcChkedAt = t, tcSynthed = s}
-  Nothing -> TCChkedAt t
+addChkMetaT :: Type' () -> ExprT -> ExprT
+addChkMetaT = addChkMeta' equality
 
 -- NB: recurse over Let{,rec,Type}, as these have different typing
 -- rules depending on direction context (actually, LetType does not
 -- currently have a typing rule, but only because it is awkward to
 -- nicely handle the type equality it introduces -- it will be roughly
 -- the same as Let when it is implemented)
-addChkMeta :: Type' () -> ExprT -> ExprT
-addChkMeta t e =
+addChkMeta' :: Is k A_Setter => Optic' k NoIx a TypeCache -> Type' () -> Expr' (Meta a) b -> Expr' (Meta a) b
+addChkMeta' set t e =
   let e' = case e of
-        Let m v s b -> Let m v s $ addChkMeta t b
-        Letrec m v s sTy b -> Letrec m v s sTy $ addChkMeta t b
-        LetType m v ty b -> LetType m v ty $ addChkMeta t b
+        Let m v s b -> Let m v s $ addChkMeta' set t b
+        Letrec m v s sTy b -> Letrec m v s sTy $ addChkMeta' set t b
+        LetType m v ty b -> LetType m v ty $ addChkMeta' set t b
         _ -> e
-   in over _typecache (addChkMeta' t) e'
+   in over (_typecache % castOptic @A_Setter set) addChkMeta'' e'
+  where
+    addChkMeta'' :: TypeCache -> TypeCache
+    addChkMeta'' c = case c ^? _synthed of
+      Just s -> TCEmb TCBoth{tcChkedAt = t, tcSynthed = s}
+      Nothing -> TCChkedAt t
+
+-- | Given a type @s@ and an unrelated synthesisable term @e@
+-- (nb: we do *not* require @e ∈ s@),
+-- return that term in a hole: @{? e ?}@, with typecaches set appropriately for
+-- checking against @s@ : @s ∋ {? e ?}@.
+--
+-- Note that synthesisability is needed for consistent typecaches, since we
+-- don't recurse into e (other than lets). For example, if @e = λx.e'@ and
+-- initially had typecaches @TCChkedAt (Bool -> Int)@ on @e@ and @TCChkedAt Int@
+-- on @e'@, then we would return @{? λx.e' ?}@ where the @e'@ still has its
+-- typecache, but that is wrong for its anticipated new context.
+enholeT :: MonadFresh ID m => Type' () -> ExprT -> m ExprT
+enholeT = enhole' equality
+
+-- | As 'enholeT', but works on 'Expr'
+enhole :: MonadFresh ID m => Type' () -> Expr -> m Expr
+enhole = enhole' _Just
+
+-- | A generic helper for 'enholeT' and 'enhole'
+enhole' :: (Is k A_Prism, MonadFresh ID m) => Optic' k NoIx a TypeCache -> Type' () -> Expr' (Meta a) b -> m (Expr' (Meta a) b)
+enhole' p' t e =
+  let p = castOptic @A_Prism p'
+   in Hole
+        <$> meta' (review p $ TCEmb TCBoth{tcChkedAt = t, tcSynthed = TEmptyHole ()})
+        <*> pure (addChkMeta' p (TEmptyHole ()) e)
 
 -- | Similar to check, but for the RHS of case branches
 -- We assume that the branch is for this constructor

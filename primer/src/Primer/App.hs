@@ -90,7 +90,6 @@ import Optics (
   (.~),
   (?~),
   (^.),
-  (^?),
   _Just,
   _Left,
   _Right,
@@ -127,8 +126,6 @@ import Primer.Core (
   TyConName,
   Type,
   Type' (..),
-  TypeCache (TCChkedAt, TCEmb),
-  TypeCacheBoth (TCBoth, tcChkedAt, tcSynthed),
   TypeMeta,
   ValConName,
   getID,
@@ -139,10 +136,9 @@ import Primer.Core (
   unsafeMkGlobalName,
   unsafeMkLocalName,
   _exprMetaLens,
-  _synthed,
   _typeMetaLens,
  )
-import Primer.Core.DSL (S, create, emptyHole, hole, tEmptyHole, tvar)
+import Primer.Core.DSL (S, create, emptyHole, tEmptyHole, tvar)
 import Primer.Core.DSL qualified as DSL
 import Primer.Core.Transform (renameVar, unfoldTApp)
 import Primer.Core.Utils (freeVars, generateTypeIDs, regenerateExprIDs, regenerateTypeIDs, _freeTmVars, _freeTyVars, _freeVarsTy)
@@ -199,7 +195,7 @@ import Primer.Typecheck (
   checkTypeDefs,
   synth,
  )
-import Primer.Typecheck.Utils (_typecache)
+import Primer.Typecheck qualified as TC
 import Primer.Zipper (
   ExprZ,
   Loc' (InBind, InExpr, InType),
@@ -773,25 +769,23 @@ applyProgAction prog mdefName = \case
           type_
       updateDefs = traverseOf (traversed % #_DefAST % #astDefExpr) (updateDecons <=< updateCons)
       updateCons =
-        let typecache = _typecache % _Just
-            -- Previously the @index@th argument @t@ to this
-            -- constructor would have been typechecked against the old
-            -- field type @S@, @S ∋ t@.
-            -- With the new field type @T@, we need to change @t@ to
-            -- @t'@ such that @T ∋ t'@, which we do by:
-            -- - if @t@ is a hole, set @t'=t@
-            -- - otherwise (whether @t@ were synthesisable or checkable), set @t' = {? t ?}@
-            -- Note also that we assume the metadata (typecache) is up
-            -- to date or blank, and we ensure this is the case in our
-            -- output.
-            -- We must work here to ensure that the result is
-            -- well-typed, since we wish to avoid rechecking the whole
-            -- program just to fix it up using smartholes.
-            enhole x = case (x, x ^? typecache % _synthed) of
-              (EmptyHole{}, _) -> pure x
-              (Hole{}, _) -> pure x
-              (_, Just s) -> hole $ pure $ x & typecache .~ TCEmb TCBoth{tcSynthed = s, tcChkedAt = TEmptyHole ()}
-              (_, Nothing) -> hole $ pure $ x & typecache .~ TCChkedAt (TEmptyHole ())
+        let enhole x = case x of
+              -- Previously the @index@th argument @t@ to this
+              -- constructor would have been typechecked against the old
+              -- field type @S@, @S ∋ t@.
+              -- With the new field type @T@, we need to change @t@ to
+              -- @t'@ such that @T ∋ t'@, which we do by:
+              -- - if @t@ is a hole, set @t'=t@
+              -- - otherwise (whether @t@ were synthesisable or checkable), set @t' = {? t ?}@
+              -- Note also that we assume the metadata (typecache) is up
+              -- to date or blank, and we ensure this is the case in our
+              -- output.
+              -- We must work here to ensure that the result is
+              -- well-typed, since we wish to avoid rechecking the whole
+              -- program just to fix it up using smartholes.
+              EmptyHole{} -> pure x
+              Hole{} -> pure x
+              _ -> TC.enhole new x
          in transformM $ \case
               Con m con' tms | con' == con -> do
                 adjustAtA index enhole tms >>= \case
