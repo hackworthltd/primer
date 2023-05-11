@@ -58,8 +58,8 @@ data PrimFunError
   = -- | We have attempted to apply a primitive function to invalid args.
     PrimFunError
       PrimDef
+      -- | Arguments
       [Expr' () ()]
-      -- ^ Arguments
   deriving stock (Eq, Show, Data, Generic)
   deriving (FromJSON, ToJSON) via PrimerJSON PrimFunError
 

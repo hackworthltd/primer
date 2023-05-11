@@ -151,33 +151,33 @@ data Expr' a b
   | Var a TmVarRef
   | Let
       a
+      -- | bound variable
       LVarName
-      -- ^ bound variable
+      -- | value the variable is bound to
       (Expr' a b)
-      -- ^ value the variable is bound to
+      -- | expression the binding scopes over
       (Expr' a b)
-      -- ^ expression the binding scopes over
   | -- | LetType binds a type to a name in some expression.
     -- It is currently only constructed automatically during evaluation -
     -- the student can't directly make it.
     LetType
       a
+      -- | bound variable
       TyVarName
-      -- ^ bound variable
+      -- | value the variable is bound to
       (Type' b)
-      -- ^ value the variable is bound to
+      -- | expression the binding scopes over
       (Expr' a b)
-      -- ^ expression the binding scopes over
   | Letrec
       a
+      -- | bound variable
       LVarName
-      -- ^ bound variable
+      -- | value the variable is bound to; the variable itself is in scope, as this is a recursive let
       (Expr' a b)
-      -- ^ value the variable is bound to; the variable itself is in scope, as this is a recursive let
+      -- | type of the bound variable (variable is not in scope in this type)
       (Type' b)
-      -- ^ type of the bound variable (variable is not in scope in this type)
+      -- | body of the let; binding scopes over this
       (Expr' a b)
-      -- ^ body of the let; binding scopes over this
   | Case a (Expr' a b) [CaseBranch' a b] -- See Note [Case]
   | PrimCon a PrimCon
   deriving stock (Eq, Show, Read, Data, Generic)
@@ -284,14 +284,14 @@ type CaseBranch = CaseBranch' ExprMeta TypeMeta
 
 data CaseBranch' a b
   = CaseBranch
+      -- | constructor
       ValConName
-      -- ^ constructor
-      [Bind' a]
-      -- ^ constructor parameters.
+      -- | constructor parameters.
       -- Ideally this would be '[Bind' (Meta TypeCache)]' since we always know the types of branch
       -- bindings. Unfortunately that breaks generic traversals like '_exprMeta'.
+      [Bind' a]
+      -- | right hand side
       (Expr' a b)
-      -- ^ right hand side
   deriving stock (Eq, Show, Read, Data, Generic)
   deriving (FromJSON, ToJSON) via PrimerJSON (CaseBranch' a b)
   deriving anyclass (NFData)

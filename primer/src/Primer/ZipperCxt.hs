@@ -51,12 +51,12 @@ import Primer.Zipper (
 -- globally-defined "main"]
 data ShadowedVarsExpr
   = M
+      -- | Local type variables
       [(TyVarName, Kind)]
-      -- ^ Local type variables
+      -- | Local term variables
       [(LVarName, Type' ())]
-      -- ^ Local term variables
+      -- | Global variables
       [(GVarName, Type' ())]
-      -- ^ Global variables
   deriving stock (Eq, Show)
 
 instance Semigroup ShadowedVarsExpr where

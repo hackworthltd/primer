@@ -503,6 +503,23 @@
         "type": "github"
       }
     },
+    "haskell-language-server": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1682523907,
+        "narHash": "sha256-2iLUGL4l9gIFmdRZpmnnUmGe14N8eDf7Ytq8zuwk2X0=",
+        "owner": "haskell",
+        "repo": "haskell-language-server",
+        "rev": "cda1325241365896f24d1a09899b8e8e787f9c7b",
+        "type": "github"
+      },
+      "original": {
+        "owner": "haskell",
+        "repo": "haskell-language-server",
+        "rev": "cda1325241365896f24d1a09899b8e8e787f9c7b",
+        "type": "github"
+      }
+    },
     "haskell-nix": {
       "inputs": {
         "HTTP": "HTTP",
@@ -1211,6 +1228,7 @@
         "flake-compat": "flake-compat",
         "flake-parts": "flake-parts",
         "hacknix": "hacknix",
+        "haskell-language-server": "haskell-language-server",
         "haskell-nix": "haskell-nix",
         "nixpkgs": [
           "haskell-nix",
