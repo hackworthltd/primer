@@ -175,7 +175,7 @@ unit_tryReduce_BETA :: Assertion
 unit_tryReduce_BETA = do
   let ((body, lambda, arg, input, expectedResult, k, ty), maxid) =
         create $ do
-          b <- con cNil [tvar "x"] []
+          b <- con cNil []
           l <- lAM "x" (pure b)
           a <- tcon tBool
           let k_ = KFun KType KType
@@ -397,7 +397,7 @@ unit_tryReduce_case_2 = do
   let (expr, i) =
         create $
           case_
-            (con' ["M"] "C" [] [lam "x" (lvar "x"), lvar "y", lvar "z"] `ann` tcon' ["M"] "T")
+            (con' ["M"] "C" [lam "x" (lvar "x"), lvar "y", lvar "z"] `ann` tcon' ["M"] "T")
             [ branch' (["M"], "B") [("b", Nothing)] (con0' ["M"] "D")
             , branch' (["M"], "C") [("c", Nothing), ("d", Nothing), ("e", Nothing)] (con0' ["M"] "E")
             ]
@@ -450,7 +450,7 @@ unit_tryReduce_case_3 = do
   let (expr, i) =
         create $
           case_
-            ( con' ["M"] "C" [tcon' ["M"] "D"] [con0' ["M"] "E"]
+            ( con' ["M"] "C" [con0' ["M"] "E"]
                 `ann` (tcon' ["M"] "T" `tapp` tcon' ["M"] "D")
             )
             [ branch' (["M"], "B") [("b", Nothing)] (con0' ["M"] "D")
@@ -478,10 +478,10 @@ unit_tryReduce_case_3 = do
       detail.targetID @?= 1
       detail.targetCtorID @?= 2
       detail.ctorName @?= vcn ["M"] "C"
-      detail.targetArgIDs @?= [4]
-      detail.branchBindingIDs @?= [10]
-      detail.branchRhsID @?= 11
-      detail.letIDs @?= [17]
+      detail.targetArgIDs @?= [3]
+      detail.branchBindingIDs @?= [9]
+      detail.branchRhsID @?= 10
+      detail.letIDs @?= [16]
     _ -> assertFailure $ show result
 
 unit_tryReduce_case_name_clash :: Assertion
@@ -489,7 +489,7 @@ unit_tryReduce_case_name_clash = do
   let (expr, i) =
         create $
           case_
-            (con' ["M"] "C" [] [emptyHole, lvar "x"] `ann` tcon' ["M"] "T")
+            (con' ["M"] "C" [emptyHole, lvar "x"] `ann` tcon' ["M"] "T")
             [branch' (["M"], "C") [("x", Nothing), ("y", Nothing)] emptyHole]
       tydef =
         Map.singleton (unsafeMkGlobalName (["M"], "T")) $
@@ -502,7 +502,7 @@ unit_tryReduce_case_name_clash = do
       expectedResult =
         create' $
           case_
-            (con' ["M"] "C" [] [emptyHole, lvar "x"] `ann` tcon' ["M"] "T")
+            (con' ["M"] "C" [emptyHole, lvar "x"] `ann` tcon' ["M"] "T")
             [branch' (["M"], "C") [("a9", Nothing), ("y", Nothing)] $ let_ "x" (lvar "a9") emptyHole]
   result <- runTryReduce tydef mempty mempty (expr, i)
   case result of
@@ -1039,7 +1039,7 @@ unit_redexes_lettype_1 =
 
 unit_redexes_lettype_2 :: Assertion
 unit_redexes_lettype_2 =
-  redexesOf (letType "x" (tcon' ["M"] "T") (con' ["M"] "C" [tvar "x"] [])) <@?=> Set.fromList [3]
+  redexesOf (letType "x" (tcon' ["M"] "T") (con0' ["M"] "C" `ann` tvar "x")) <@?=> Set.fromList [4]
 
 unit_redexes_lettype_3 :: Assertion
 unit_redexes_lettype_3 =

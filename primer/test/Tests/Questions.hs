@@ -228,7 +228,7 @@ unit_variablesInScope_type = do
 unit_variablesInScope_shadowed :: Assertion
 unit_variablesInScope_shadowed = do
   let ty = tforall "a" (KFun KType KType) $ tforall "b" KType $ tcon tNat `tfun` tforall "a" KType (tcon tBool `tfun` (tcon tList `tapp` tvar "b"))
-      expr' = lAM "c" $ lAM "d" $ lam "c" $ lAM "c" $ lam "c" $ con cNil [tvar "d"] []
+      expr' = lAM "c" $ lAM "d" $ lam "c" $ lAM "c" $ lam "c" $ emptyHole `ann` (tcon tList `tapp` tvar "d")
       expr = ann expr' ty
   hasVariablesType ty pure []
   hasVariablesType ty down [("a", KFun KType KType)]

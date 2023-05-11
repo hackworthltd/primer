@@ -22,7 +22,6 @@ import Data.Aeson (Value)
 import Data.Bifunctor.Swap qualified as Swap
 import Data.Generics.Product (typed)
 import Data.List (findIndex)
-import Data.List.Extra ((!?))
 import Data.List.NonEmpty qualified as NE
 import Data.Map.Strict qualified as Map
 import Data.Set qualified as Set
@@ -130,7 +129,6 @@ import Primer.Zipper (
   findNodeWithParent,
   findType,
   focus,
-  focusConTypes,
   focusLoc,
   focusOn,
   focusType,
@@ -351,7 +349,6 @@ applyAction' a = case a of
   ConstructLAM x -> termAction (constructLAM x) "cannot construct function in type"
   ConstructPrim p -> termAction (constructPrim p) "cannot construct primitive literal in type"
   ConstructSaturatedCon c -> termAction (constructSatCon c) "cannot construct con in type"
-  ConstructRefinedCon c -> termAction (constructRefinedCon c) "cannot construct con in type"
   ConstructLet x -> termAction (constructLet x) "cannot construct let in type"
   ConstructLetrec x -> termAction (constructLetrec x) "cannot construct letrec in type"
   ConvertLetToLetrec -> termAction convertLetToLetrec "cannot convert type to letrec"
@@ -365,12 +362,6 @@ applyAction' a = case a of
   ExitType -> \case
     InType zt -> pure $ InExpr $ unfocusType zt
     _ -> throwError $ CustomFailure ExitType "cannot exit type - not in type"
-  EnterConTypeArgument n -> \case
-    InExpr ze -> case (!? n) <$> focusConTypes ze of
-      Nothing -> throwError $ CustomFailure (EnterConTypeArgument n) "Move-to-constructor-argument failed: this is not a constructor"
-      Just Nothing -> throwError $ CustomFailure (EnterConTypeArgument n) "Move-to-constructor-argument failed: no such argument"
-      Just (Just z') -> pure $ InType z'
-    _ -> throwError $ CustomFailure (EnterConTypeArgument n) "cannot enter value constructors argument - not in expr"
   ConstructArrowL -> typeAction constructArrowL "cannot construct arrow - not in type"
   ConstructArrowR -> typeAction constructArrowR "cannot construct arrow - not in type"
   ConstructTCon c -> typeAction (constructTCon c) "cannot construct tcon in expr"
@@ -621,11 +612,11 @@ constructSatCon :: ActionM m => QualifiedText -> ExprZ -> m ExprZ
 constructSatCon c ze = case target ze of
   -- Similar comments re smartholes apply as to insertSatVar
   EmptyHole{} -> do
-    (_, nTyArgs, nTmArgs) <-
+    (_, nTmArgs) <-
       conInfo n >>= \case
         Left err -> throwError $ SaturatedApplicationError $ Left err
         Right t -> pure t
-    flip replace ze <$> con n (replicate nTyArgs tEmptyHole) (replicate nTmArgs emptyHole)
+    flip replace ze <$> con n (replicate nTmArgs emptyHole)
   e -> throwError $ NeedEmptyHole (ConstructSaturatedCon c) e
   where
     n = unsafeMkGlobalName c
@@ -633,57 +624,21 @@ constructSatCon c ze = case target ze of
 -- returns
 -- - "type" of ctor: the type an eta-expanded version of this constructor would check against
 --   e.g. @Cons@'s "type" is @∀a. a -> List a -> List a@.
--- - its arity (number of type args and number of term args required for full saturation)
+-- - its arity (number of args required for full saturation)
 conInfo ::
   MonadReader TC.Cxt m =>
   ValConName ->
-  m (Either Text (TC.Type, Int, Int))
+  m (Either Text (TC.Type, Int))
 conInfo c =
   asks (flip lookupConstructor c . TC.typeDefs) <&> \case
-    Just (vc, tc, td) -> Right (valConType tc td vc, length $ td.astTypeDefParameters, length $ vc.valConArgs)
+    Just (vc, tc, td) -> Right (valConType tc td vc, length $ vc.valConArgs)
     Nothing -> Left $ "Could not find constructor " <> show c
-
-constructRefinedCon :: ActionM m => QualifiedText -> ExprZ -> m ExprZ
-constructRefinedCon c ze = do
-  let n = unsafeMkGlobalName c
-  (cTy, numTyArgs, numTmArgs) <-
-    conInfo n >>= \case
-      Left err -> throwError $ RefineError $ Left err
-      Right t -> pure t
-  -- our Cxt in the monad does not care about the local context, we have to extract it from the zipper.
-  -- See https://github.com/hackworthltd/primer/issues/11
-  -- We only care about the type context for refine
-  let (tycxt, _) = localVariablesInScopeExpr (Left ze)
-  cxt <- asks $ TC.extendLocalCxtTys tycxt
-  tgtTy <- getTypeCache $ target ze
-  case target ze of
-    EmptyHole{} ->
-      breakLR <<$>> getRefinedApplications cxt cTy tgtTy >>= \case
-        Just (Just (tys, tms))
-          | length tys == numTyArgs && length tms == numTmArgs ->
-              flip replace ze <$> con n (pure <$> tys) (pure <$> tms)
-          -- If the refinement is not saturated, just give a saturated constructor
-          -- This could happen when refining @Cons@ to fit in a hole of type @List Nat -> List Nat@
-          -- as we get the "type" of @Cons@ being @∀a. a -> List a -> List a@
-          -- and thus a refinement of @Nat, _@.
-          | otherwise -> flip replace ze <$> hole (con n (replicate numTyArgs tEmptyHole) (replicate numTmArgs emptyHole) `ann` tEmptyHole)
-        -- See Note [No valid refinement]
-        -- NB: the inside of a hole must be synthesisable (see Note [Holes and bidirectionality])
-        Nothing -> flip replace ze <$> hole (con n (replicate numTyArgs tEmptyHole) (replicate numTmArgs emptyHole) `ann` tEmptyHole)
-        Just Nothing -> throwError $ InternalFailure "Types of constructors always have type abstractions before term abstractions"
-    e -> throwError $ NeedEmptyHole (ConstructRefinedCon c) e
 
 getTypeCache :: MonadError ActionError m => Expr -> m TypeCache
 getTypeCache =
   maybeTypeOf <&> \case
     Nothing -> throwError $ RefineError $ Left "Don't have a cached type"
     Just ty -> pure ty
-
--- | A view for lists where all 'Left' come before all 'Right'
-breakLR :: [Either a b] -> Maybe ([a], [b])
-breakLR =
-  spanMaybe leftToMaybe <&> \case
-    (ls, rest) -> (ls,) <$> traverse rightToMaybe rest
 
 constructLet :: ActionM m => Maybe Text -> ExprZ -> m ExprZ
 constructLet mx ze = case target ze of
@@ -968,9 +923,8 @@ toProgActionInput ::
   Either ActionError [ProgAction]
 toProgActionInput def defName mNodeSel opt0 = \case
   Available.MakeConSat -> do
-    ref <- offerRefined
     opt <- optGlobal
-    toProg [if ref then ConstructRefinedCon opt else ConstructSaturatedCon opt]
+    toProg [ConstructSaturatedCon opt]
   Available.MakeInt -> do
     opt <- optNoCxt
     n <- maybeToEither (NeedInt opt0) $ readMaybe opt

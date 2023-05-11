@@ -57,7 +57,6 @@ import Primer.Module (
   builtinModule,
   builtinTypes,
   moduleDefsQualified,
-  moduleTypesQualified,
   primitiveModule,
  )
 import Primer.Primitives (
@@ -119,8 +118,7 @@ import Test.Tasty.HUnit (Assertion, assertBool, assertFailure, (@?=))
 import Tests.Action.Prog (runAppTestM)
 import Tests.Eval.Utils (genDirTm, hasTypeLets, testModules, (~=))
 import Tests.Gen.Core.Typed (checkTest)
-import Tests.Typecheck (expectTypedWithPrims, runTypecheckTestM, runTypecheckTestMWithPrims)
-import Prelude (error)
+import Tests.Typecheck (runTypecheckTestM, runTypecheckTestMWithPrims)
 
 unit_1 :: Assertion
 unit_1 =
@@ -152,9 +150,9 @@ unit_3 =
 unit_4 :: Assertion
 unit_4 =
   let ((expr, expected), maxID) = create $ do
-        e <- let_ "a" (lvar "b") $ con' ["M"] "C" [] [lvar "a", lam "a" (lvar "a"), lam "b" (con' ["M"] "D" [] [lvar "a", lvar "b"])]
+        e <- let_ "a" (lvar "b") $ con' ["M"] "C" [lvar "a", lam "a" (lvar "a"), lam "b" (con' ["M"] "D" [lvar "a", lvar "b"])]
         let b' = "a19" -- NB: fragile name
-        expect <- con' ["M"] "C" [] [lvar "b", lam "a" (lvar "a"), lam b' (con' ["M"] "D" [] [lvar "b", lvar b'])]
+        expect <- con' ["M"] "C" [lvar "b", lam "a" (lvar "a"), lam b' (con' ["M"] "D" [lvar "b", lvar b'])]
         pure (e, expect)
    in do
         s <- evalFullTest maxID mempty mempty 7 Syn expr
@@ -225,10 +223,10 @@ unit_9 =
         (mapName, mapDef) <- Examples.map' modName
         (evenName, evenDef) <- Examples.even modName
         (oddName, oddDef) <- Examples.odd modName
-        let lst = list_ tNat $ take n $ iterate (con1 cSucc) (con0 cZero)
+        let lst = list_ $ take n $ iterate (con1 cSucc) (con0 cZero)
         expr <- gvar mapName `aPP` tcon tNat `aPP` tcon tBool `app` gvar evenName `app` lst
         let globs = [(mapName, mapDef), (evenName, evenDef), (oddName, oddDef)]
-        expect <- list_ tBool (take n $ cycle [con0 cTrue, con0 cFalse]) `ann` (tcon tList `tapp` tcon tBool)
+        expect <- list_ (take n $ cycle [con0 cTrue, con0 cFalse]) `ann` (tcon tList `tapp` tcon tBool)
         pure (globs, expr, expect)
    in do
         evalFullTest maxID builtinTypes (M.fromList globals) 500 Syn e >>= \case
@@ -274,12 +272,12 @@ unit_11 =
         let ty = tcon tNat `tfun` (tcon tPair `tapp` tcon tBool `tapp` tcon tNat)
         let expr1 =
               let_ "x" (con0 cZero) $
-                lam "n" (con cMakePair [tcon tBool, tcon tNat] [gvar evenName `app` lvar "n", lvar "x"])
+                lam "n" (con cMakePair [gvar evenName `app` lvar "n", lvar "x"])
                   `ann` ty
         expr <- expr1 `app` con0 cZero
         let globs = [(evenName, evenDef), (oddName, oddDef)]
         expect <-
-          con cMakePair [tcon tBool, tcon tNat] [con0 cTrue, con0 cZero]
+          con cMakePair [con0 cTrue, con0 cZero]
             `ann` (tcon tPair `tapp` tcon tBool `tapp` tcon tNat)
         pure (globs, expr, expect)
    in do
@@ -313,8 +311,8 @@ unit_12 =
 unit_13 :: Assertion
 unit_13 =
   let ((e, expected), maxID) = create $ do
-        expr <- (lam "x" (con' ["M"] "C" [] [lvar "x", let_ "x" (con0 cTrue) (lvar "x"), lvar "x"]) `ann` (tcon tNat `tfun` tcon tBool)) `app` con0 cZero
-        expect <- con' ["M"] "C" [] [con0 cZero, con0 cTrue, con0 cZero] `ann` tcon tBool
+        expr <- (lam "x" (con' ["M"] "C" [lvar "x", let_ "x" (con0 cTrue) (lvar "x"), lvar "x"]) `ann` (tcon tNat `tfun` tcon tBool)) `app` con0 cZero
+        expect <- con' ["M"] "C" [con0 cZero, con0 cTrue, con0 cZero] `ann` tcon tBool
         pure (expr, expect)
    in do
         s <- evalFullTest maxID builtinTypes mempty 15 Syn e
@@ -343,7 +341,7 @@ unit_15 :: Assertion
 unit_15 =
   let ((expr, steps, expected), maxID) = create $ do
         let l = let_ "x" (lvar "y")
-        let c a b = con' ["M"] "C" [] [lvar a, lvar b]
+        let c a b = con' ["M"] "C" [lvar a, lvar b]
         e0 <- l $ lam "y" $ c "x" "y"
         let y' = "a38"
         e1 <- l $ lam y' $ let_ "y" (lvar y') $ c "x" "y"
@@ -502,15 +500,15 @@ unit_type_preservation_case_regression_tm =
         e <-
           lam "x" $
             case_
-              ( con cMakePair [tcon tNat, tcon tBool] [emptyHole, lvar "x"]
+              ( con cMakePair [emptyHole, lvar "x"]
                   `ann` ((tcon tPair `tapp` tcon tNat) `tapp` tcon tBool)
               )
               [branch cMakePair [("x", Nothing), ("y", Nothing)] emptyHole]
-        let x' = "a50" -- NB fragile name
+        let x' = "a46" -- NB fragile name
         expect1 <-
           lam "x" $
             case_
-              ( con cMakePair [tcon tNat, tcon tBool] [emptyHole, lvar "x"]
+              ( con cMakePair [emptyHole, lvar "x"]
                   `ann` ((tcon tPair `tapp` tcon tNat) `tapp` tcon tBool)
               )
               [branch cMakePair [(x', Nothing), ("y", Nothing)] $ let_ "x" (lvar x') emptyHole]
@@ -540,15 +538,15 @@ unit_type_preservation_case_regression_ty =
         e <-
           lAM "x" $
             case_
-              ( con cMakePair [tEmptyHole, tvar "x"] [emptyHole, emptyHole]
+              ( con cMakePair [emptyHole, emptyHole]
                   `ann` (tcon tPair `tapp` tEmptyHole `tapp` tvar "x")
               )
               [branch cMakePair [("x", Nothing), ("y", Nothing)] emptyHole]
-        let x' = "a50" -- NB fragile name
+        let x' = "a46" -- NB fragile name
         expect1 <-
           lAM "x" $
             case_
-              ( con cMakePair [tEmptyHole, tvar "x"] [emptyHole, emptyHole]
+              ( con cMakePair [emptyHole, emptyHole]
                   `ann` (tcon tPair `tapp` tEmptyHole `tapp` tvar "x")
               )
               [branch cMakePair [(x', Nothing), ("y", Nothing)] $ let_ "x" (lvar x') emptyHole]
@@ -563,43 +561,6 @@ unit_type_preservation_case_regression_ty =
         s1 <~==> Left (TimedOut expected1)
         s2 <- evalFullTest maxID builtinTypes mempty 2 Chk expr
         s2 <~==> Left (TimedOut expected2)
-
--- Consider
---   case Just @? False : Maybe Nat of Just x -> Succ x ; Nothing -> ?
--- In the past we would reduce this to
---   let x = False : Nat in Succ x
--- which is ill-typed (we ignored the hole in the type-application,
--- which acts as a type-changing cast).
--- We simply test that the first "nice" reduction of this expression is well-typed,
--- without mandating what the result should be.
--- Here, "nice" means "without LetType or TLet", since these are
--- currently unsupported in the typechecker.
-unit_type_preservation_case_hole_regression :: Assertion
-unit_type_preservation_case_hole_regression = evalTestM 0 $ do
-  t <-
-    case_
-      (con cJust [tEmptyHole] [con0 cFalse] `ann` (tcon tMaybe `tapp` tcon tNat))
-      [ branch cNothing [] emptyHole
-      , branch cJust [("x", Nothing)] $ con1 cSucc $ lvar "x"
-      ]
-  let tds = foldMap' moduleTypesQualified $ create' $ sequence testModules
-  let globs = foldMap' moduleDefsQualified $ create' $ sequence testModules
-  let reducts = (\n -> runPureLogT $ evalFullStepCount tds globs n Syn t) <$> [1 ..]
-  let go = \case
-        [] -> error "impossible, reducts is an infinite list"
-        (x : xs) -> do
-          x'@((_, s), _) <- x
-          if any hasTypeLets $ s ^.. evalResultExpr
-            then go xs
-            else pure x'
-  ((_steps, s), logs) <- go reducts
-  let s' = case s of
-        Left (TimedOut e) -> e
-        Right e -> e
-  pure $ do
-    expectTypedWithPrims $ pure t `ann` tEmptyHole
-    assertNoSevereLogs @EvalLog logs
-    expectTypedWithPrims $ pure s' `ann` tEmptyHole
 
 -- Previously EvalFull reducing a BETA expression could result in variable
 -- capture. We would reduce (Λa.t : ∀b.T) S to
@@ -913,7 +874,7 @@ tasty_prim_hex_nat = withTests 20 . property $ do
                   [ branch
                       cNothing
                       []
-                      (con cNothing [tcon tChar] [])
+                      (con cNothing [])
                   , branch
                       cJust
                       [("x", Nothing)]
@@ -921,13 +882,13 @@ tasty_prim_hex_nat = withTests 20 . property $ do
                           `app` lvar "x"
                       )
                   ]
-                <*> con cJust [tcon tNat] [ne]
+                <*> con cJust [ne]
                 `ann` (tcon tMaybe `tapp` tcon tNat)
             else
               (,)
                 <$> pfun NatToHex
                 `app` ne
-                <*> con cNothing [tcon tChar] []
+                <*> con cNothing []
                 `ann` (tcon tMaybe `tapp` tcon tChar)
   s <- evalFullTasty maxID builtinTypes primDefs 7 Syn e
   over evalResultExpr zeroIDs s === Right (zeroIDs r)
@@ -1006,7 +967,7 @@ unit_prim_int_quotient =
     IntQuotient
     (int 7)
     (int 3)
-    (con cJust [tcon tInt] [int 2] `ann` (tcon tMaybe `tapp` tcon tInt))
+    (con cJust [int 2] `ann` (tcon tMaybe `tapp` tcon tInt))
 
 unit_prim_int_quotient_negative :: Assertion
 unit_prim_int_quotient_negative =
@@ -1014,7 +975,7 @@ unit_prim_int_quotient_negative =
     IntQuotient
     (int (-7))
     (int 3)
-    (con cJust [tcon tInt] [int (-3)] `ann` (tcon tMaybe `tapp` tcon tInt))
+    (con cJust [int (-3)] `ann` (tcon tMaybe `tapp` tcon tInt))
 
 unit_prim_int_quotient_zero :: Assertion
 unit_prim_int_quotient_zero =
@@ -1022,7 +983,7 @@ unit_prim_int_quotient_zero =
     IntQuotient
     (int (-7))
     (int 0)
-    (con cNothing [tcon tInt] [] `ann` (tcon tMaybe `tapp` tcon tInt))
+    (con cNothing [] `ann` (tcon tMaybe `tapp` tcon tInt))
 
 unit_prim_int_remainder :: Assertion
 unit_prim_int_remainder =
@@ -1030,7 +991,7 @@ unit_prim_int_remainder =
     IntRemainder
     (int 7)
     (int 3)
-    (con cJust [tcon tInt] [int 1] `ann` (tcon tMaybe `tapp` tcon tInt))
+    (con cJust [int 1] `ann` (tcon tMaybe `tapp` tcon tInt))
 
 unit_prim_int_remainder_negative_1 :: Assertion
 unit_prim_int_remainder_negative_1 =
@@ -1038,7 +999,7 @@ unit_prim_int_remainder_negative_1 =
     IntRemainder
     (int (-7))
     (int (-3))
-    (con cJust [tcon tInt] [int (-1)] `ann` (tcon tMaybe `tapp` tcon tInt))
+    (con cJust [int (-1)] `ann` (tcon tMaybe `tapp` tcon tInt))
 
 unit_prim_int_remainder_negative_2 :: Assertion
 unit_prim_int_remainder_negative_2 =
@@ -1046,7 +1007,7 @@ unit_prim_int_remainder_negative_2 =
     IntRemainder
     (int (-7))
     (int 3)
-    (con cJust [tcon tInt] [int 2] `ann` (tcon tMaybe `tapp` tcon tInt))
+    (con cJust [int 2] `ann` (tcon tMaybe `tapp` tcon tInt))
 
 unit_prim_int_remainder_negative_3 :: Assertion
 unit_prim_int_remainder_negative_3 =
@@ -1054,7 +1015,7 @@ unit_prim_int_remainder_negative_3 =
     IntRemainder
     (int 7)
     (int (-3))
-    (con cJust [tcon tInt] [int (-2)] `ann` (tcon tMaybe `tapp` tcon tInt))
+    (con cJust [int (-2)] `ann` (tcon tMaybe `tapp` tcon tInt))
 
 unit_prim_int_remainder_zero :: Assertion
 unit_prim_int_remainder_zero =
@@ -1062,7 +1023,7 @@ unit_prim_int_remainder_zero =
     IntRemainder
     (int 7)
     (int 0)
-    (con cNothing [tcon tInt] [] `ann` (tcon tMaybe `tapp` tcon tInt))
+    (con cNothing [] `ann` (tcon tMaybe `tapp` tcon tInt))
 
 unit_prim_int_quot :: Assertion
 unit_prim_int_quot =
@@ -1245,14 +1206,14 @@ unit_prim_int_toNat =
   unaryPrimTest
     IntToNat
     (int 0)
-    (con cJust [tcon tNat] [nat 0] `ann` (tcon tMaybe `tapp` tcon tNat))
+    (con cJust [nat 0] `ann` (tcon tMaybe `tapp` tcon tNat))
 
 unit_prim_int_toNat_negative :: Assertion
 unit_prim_int_toNat_negative =
   unaryPrimTest
     IntToNat
     (int (-1))
-    (con cNothing [tcon tNat] [] `ann` (tcon tMaybe `tapp` tcon tNat))
+    (con cNothing [] `ann` (tcon tMaybe `tapp` tcon tNat))
 
 unit_prim_int_fromNat :: Assertion
 unit_prim_int_fromNat =
@@ -1287,13 +1248,11 @@ unit_prim_partial_map =
             `aPP` tcon tChar
             `app` pfun ToUpper
             `app` list_
-              tChar
               [ char 'a'
               , char 'b'
               , char 'c'
               ]
             <*> list_
-              tChar
               [ char 'A'
               , char 'B'
               , char 'C'

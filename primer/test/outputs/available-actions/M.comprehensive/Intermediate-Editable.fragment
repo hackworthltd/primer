@@ -277,7 +277,7 @@ Output
                 ]
             )
         ,
-            ( 19
+            ( 18
             ,
                 [ Input MakeLam
                     ( Options
@@ -449,7 +449,7 @@ Output
                 ]
             )
         ,
-            ( 23
+            ( 22
             ,
                 [ Input MakeLam
                     ( Options
@@ -621,7 +621,7 @@ Output
                 ]
             )
         ,
-            ( 26
+            ( 25
             ,
                 [ Input MakeLam
                     ( Options
@@ -652,7 +652,7 @@ Output
                 ]
             )
         ,
-            ( 27
+            ( 26
             ,
                 [ Input MakeLam
                     ( Options
@@ -706,6 +706,33 @@ Output
                 ]
             )
         ,
+            ( 27
+            ,
+                [ Input MakeLam
+                    ( Options
+                        { opts =
+                            [ Option
+                                { option = "z"
+                                , context = Nothing
+                                }
+                            , Option
+                                { option = "x1"
+                                , context = Nothing
+                                }
+                            , Option
+                                { option = "y1"
+                                , context = Nothing
+                                }
+                            ]
+                        , free = FreeVarName
+                        }
+                    )
+                , NoInput MakeApp
+                , NoInput Raise
+                , NoInput DeleteExpr
+                ]
+            )
+        ,
             ( 28
             ,
                 [ Input MakeLam
@@ -727,6 +754,7 @@ Output
                         , free = FreeVarName
                         }
                     )
+                , NoInput MakeCase
                 , NoInput MakeApp
                 , NoInput Raise
                 , NoInput DeleteExpr
@@ -754,7 +782,6 @@ Output
                         , free = FreeVarName
                         }
                     )
-                , NoInput MakeCase
                 , NoInput MakeApp
                 , NoInput Raise
                 , NoInput DeleteExpr
@@ -821,33 +848,6 @@ Output
                     ( Options
                         { opts =
                             [ Option
-                                { option = "z"
-                                , context = Nothing
-                                }
-                            , Option
-                                { option = "x1"
-                                , context = Nothing
-                                }
-                            , Option
-                                { option = "y1"
-                                , context = Nothing
-                                }
-                            ]
-                        , free = FreeVarName
-                        }
-                    )
-                , NoInput MakeApp
-                , NoInput Raise
-                , NoInput DeleteExpr
-                ]
-            )
-        ,
-            ( 33
-            ,
-                [ Input MakeLam
-                    ( Options
-                        { opts =
-                            [ Option
                                 { option = "p"
                                 , context = Nothing
                                 }
@@ -880,7 +880,7 @@ Output
                 ]
             )
         ,
-            ( 34
+            ( 33
             ,
                 [ Input MakeLam
                     ( Options
@@ -907,7 +907,7 @@ Output
                 ]
             )
         ,
-            ( 37
+            ( 34
             ,
                 [ Input MakeLam
                     ( Options
@@ -935,7 +935,7 @@ Output
                 ]
             )
         ,
-            ( 47
+            ( 44
             ,
                 [ Input MakeLam
                     ( Options
@@ -959,6 +959,89 @@ Output
                 , NoInput MakeApp
                 , NoInput Raise
                 , NoInput DeleteExpr
+                ]
+            )
+        ,
+            ( 45
+            ,
+                [ Input MakeLam
+                    ( Options
+                        { opts =
+                            [ Option
+                                { option = "z"
+                                , context = Nothing
+                                }
+                            , Option
+                                { option = "x1"
+                                , context = Nothing
+                                }
+                            , Option
+                                { option = "y1"
+                                , context = Nothing
+                                }
+                            ]
+                        , free = FreeVarName
+                        }
+                    )
+                , NoInput MakeCase
+                , NoInput MakeApp
+                , NoInput Raise
+                , NoInput DeleteExpr
+                ]
+            )
+        ,
+            ( 46
+            ,
+                [ Input MakeLam
+                    ( Options
+                        { opts =
+                            [ Option
+                                { option = "z"
+                                , context = Nothing
+                                }
+                            , Option
+                                { option = "x1"
+                                , context = Nothing
+                                }
+                            , Option
+                                { option = "y1"
+                                , context = Nothing
+                                }
+                            ]
+                        , free = FreeVarName
+                        }
+                    )
+                , NoInput MakeApp
+                , NoInput Raise
+                , NoInput DeleteExpr
+                ]
+            )
+        ,
+            ( 47
+            ,
+                [ Input RenamePattern
+                    ( Options
+                        { opts =
+                            [ Option
+                                { option = "j"
+                                , context = Nothing
+                                }
+                            , Option
+                                { option = "m"
+                                , context = Nothing
+                                }
+                            , Option
+                                { option = "i1"
+                                , context = Nothing
+                                }
+                            , Option
+                                { option = "n1"
+                                , context = Nothing
+                                }
+                            ]
+                        , free = FreeVarName
+                        }
+                    )
                 ]
             )
         ,
@@ -1011,6 +1094,7 @@ Output
                         , free = FreeVarName
                         }
                     )
+                , NoInput MakeCase
                 , NoInput MakeApp
                 , NoInput Raise
                 , NoInput DeleteExpr
@@ -1018,90 +1102,6 @@ Output
             )
         ,
             ( 50
-            ,
-                [ Input RenamePattern
-                    ( Options
-                        { opts =
-                            [ Option
-                                { option = "j"
-                                , context = Nothing
-                                }
-                            , Option
-                                { option = "m"
-                                , context = Nothing
-                                }
-                            , Option
-                                { option = "i1"
-                                , context = Nothing
-                                }
-                            , Option
-                                { option = "n1"
-                                , context = Nothing
-                                }
-                            ]
-                        , free = FreeVarName
-                        }
-                    )
-                ]
-            )
-        ,
-            ( 51
-            ,
-                [ Input MakeLam
-                    ( Options
-                        { opts =
-                            [ Option
-                                { option = "z"
-                                , context = Nothing
-                                }
-                            , Option
-                                { option = "x1"
-                                , context = Nothing
-                                }
-                            , Option
-                                { option = "y1"
-                                , context = Nothing
-                                }
-                            ]
-                        , free = FreeVarName
-                        }
-                    )
-                , NoInput MakeCase
-                , NoInput MakeApp
-                , NoInput Raise
-                , NoInput DeleteExpr
-                ]
-            )
-        ,
-            ( 52
-            ,
-                [ Input MakeLam
-                    ( Options
-                        { opts =
-                            [ Option
-                                { option = "z"
-                                , context = Nothing
-                                }
-                            , Option
-                                { option = "x1"
-                                , context = Nothing
-                                }
-                            , Option
-                                { option = "y1"
-                                , context = Nothing
-                                }
-                            ]
-                        , free = FreeVarName
-                        }
-                    )
-                , NoInput MakeCase
-                , NoInput MakeApp
-                , NoInput Raise
-                , NoInput DeleteExpr
-                ]
-            )
-        ,
-            ( 53
             ,
                 [ Input MakeLam
                     ( Options
@@ -1281,7 +1281,7 @@ Output
                 ]
             )
         ,
-            ( 54
+            ( 51
             ,
                 [ Input MakeLam
                     ( Options
@@ -1309,7 +1309,7 @@ Output
                 ]
             )
         ,
-            ( 55
+            ( 52
             ,
                 [ Input MakeLam
                     ( Options
@@ -1344,62 +1344,17 @@ Output
                 ]
             )
         ,
-            ( 18
+            ( 19
             ,
                 [ NoInput MakeFun
-                , Input MakeTCon
-                    ( Options
-                        { opts =
-                            [ Option
-                                { option = "Bool"
-                                , context = Just
-                                    ( "Builtins" :| [] )
-                                }
-                            , Option
-                                { option = "Either"
-                                , context = Just
-                                    ( "Builtins" :| [] )
-                                }
-                            , Option
-                                { option = "List"
-                                , context = Just
-                                    ( "Builtins" :| [] )
-                                }
-                            , Option
-                                { option = "Maybe"
-                                , context = Just
-                                    ( "Builtins" :| [] )
-                                }
-                            , Option
-                                { option = "Nat"
-                                , context = Just
-                                    ( "Builtins" :| [] )
-                                }
-                            , Option
-                                { option = "Pair"
-                                , context = Just
-                                    ( "Builtins" :| [] )
-                                }
-                            , Option
-                                { option = "Char"
-                                , context = Just
-                                    ( "Primitives" :| [] )
-                                }
-                            , Option
-                                { option = "Int"
-                                , context = Just
-                                    ( "Primitives" :| [] )
-                                }
-                            ]
-                        , free = FreeNone
-                        }
-                    )
+                , NoInput DeleteType
                 ]
             )
         ,
             ( 20
             ,
                 [ NoInput MakeFun
+                , NoInput Raise
                 , NoInput DeleteType
                 ]
             )
@@ -1407,14 +1362,6 @@ Output
             ( 21
             ,
                 [ NoInput MakeFun
-                , NoInput Raise
-                , NoInput DeleteType
-                ]
-            )
-        ,
-            ( 22
-            ,
-                [ NoInput MakeFun
                 , Input MakeTCon
                     ( Options
                         { opts =
@@ -1466,14 +1413,14 @@ Output
                 ]
             )
         ,
-            ( 24
+            ( 23
             ,
                 [ NoInput MakeFun
                 , NoInput DeleteType
                 ]
             )
         ,
-            ( 25
+            ( 24
             ,
                 [ NoInput MakeFun
                 , NoInput Raise
@@ -1491,6 +1438,16 @@ Output
             ( 36
             ,
                 [ NoInput MakeFun
+                , NoInput AddInput
+                , NoInput Raise
+                , NoInput DeleteType
+                ]
+            )
+        ,
+            ( 37
+            ,
+                [ NoInput MakeFun
+                , NoInput Raise
                 , NoInput DeleteType
                 ]
             )
@@ -1498,6 +1455,7 @@ Output
             ( 38
             ,
                 [ NoInput MakeFun
+                , NoInput Raise
                 , NoInput DeleteType
                 ]
             )
@@ -1505,7 +1463,6 @@ Output
             ( 39
             ,
                 [ NoInput MakeFun
-                , NoInput AddInput
                 , NoInput Raise
                 , NoInput DeleteType
                 ]
@@ -1538,12 +1495,19 @@ Output
             ( 43
             ,
                 [ NoInput MakeFun
-                , NoInput Raise
                 , NoInput DeleteType
                 ]
             )
         ,
-            ( 44
+            ( 53
+            ,
+                [ NoInput MakeFun
+                , NoInput AddInput
+                , NoInput DeleteType
+                ]
+            )
+        ,
+            ( 54
             ,
                 [ NoInput MakeFun
                 , NoInput Raise
@@ -1551,17 +1515,10 @@ Output
                 ]
             )
         ,
-            ( 45
+            ( 55
             ,
                 [ NoInput MakeFun
                 , NoInput Raise
-                , NoInput DeleteType
-                ]
-            )
-        ,
-            ( 46
-            ,
-                [ NoInput MakeFun
                 , NoInput DeleteType
                 ]
             )
@@ -1569,7 +1526,7 @@ Output
             ( 56
             ,
                 [ NoInput MakeFun
-                , NoInput AddInput
+                , NoInput Raise
                 , NoInput DeleteType
                 ]
             )
@@ -1599,30 +1556,6 @@ Output
             )
         ,
             ( 60
-            ,
-                [ NoInput MakeFun
-                , NoInput Raise
-                , NoInput DeleteType
-                ]
-            )
-        ,
-            ( 61
-            ,
-                [ NoInput MakeFun
-                , NoInput Raise
-                , NoInput DeleteType
-                ]
-            )
-        ,
-            ( 62
-            ,
-                [ NoInput MakeFun
-                , NoInput Raise
-                , NoInput DeleteType
-                ]
-            )
-        ,
-            ( 63
             ,
                 [ NoInput MakeFun
                 , NoInput Raise

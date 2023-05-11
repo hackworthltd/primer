@@ -97,7 +97,6 @@ import Primer.Core.DSL (
   tforall,
   tfun,
   thole,
-  tlet,
   tvar,
  )
 import Primer.Def (
@@ -147,9 +146,9 @@ map modName =
                   case_
                     (lvar "xs")
                     [ branch B.cNil [] $
-                        con B.cNil [tvar "b"] []
+                        con B.cNil []
                     , branch B.cCons [("y", Nothing), ("ys", Nothing)] $
-                        con B.cCons [tvar "b"] [lvar "f" `app` lvar "y", gvar this `aPP` tvar "a" `aPP` tvar "b" `app` lvar "f" `app` lvar "ys"]
+                        con B.cCons [lvar "f" `app` lvar "y", gvar this `aPP` tvar "a" `aPP` tvar "b" `app` lvar "f" `app` lvar "ys"]
                     ]
         pure (this, DefAST $ ASTDef term type_)
 
@@ -162,9 +161,9 @@ map' modName = do
         lam "xs" $
           case_
             (lvar "xs")
-            [ branch B.cNil [] $ con B.cNil [tvar "b"] []
+            [ branch B.cNil [] $ con B.cNil []
             , branch B.cCons [("y", Nothing), ("ys", Nothing)] $
-                con B.cCons [tvar "b"] [lvar "f" `app` lvar "y", lvar "go" `app` lvar "ys"]
+                con B.cCons [lvar "f" `app` lvar "y", lvar "go" `app` lvar "ys"]
             ]
   term <-
     lAM "a" $
@@ -254,7 +253,7 @@ comprehensive' typeable modName = do
           "y"
           ( app
               ( hole
-                  (con B.cJust [tEmptyHole] [emptyHole] `ann` (tcon B.tMaybe `tapp` tEmptyHole))
+                  (con B.cJust [emptyHole] `ann` (tcon B.tMaybe `tapp` tEmptyHole))
               )
               ( if typeable then emptyHole else hole $ gvar' (unModuleName modName) "unboundName"
               )
@@ -271,7 +270,7 @@ comprehensive' typeable modName = do
                           ( aPP
                               ( if typeable
                                   then
-                                    lAM "b" (lam "x" $ con B.cLeft [tcon B.tBool, tvar "b"] [lvar "x"])
+                                    lAM "b" (lam "x" $ con B.cLeft [lvar "x"])
                                       `ann` tforall
                                         "b"
                                         KType
@@ -282,8 +281,7 @@ comprehensive' typeable modName = do
                                     letType
                                       "b"
                                       (tcon B.tBool)
-                                      ( con B.cLeft [tlet "c" (tvar "b") $ tvar "c"] []
-                                      )
+                                      (con B.cLeft [])
                               )
                               (tvar "β")
                           )
@@ -394,9 +392,9 @@ mapOddProg len =
         (oddName, oddDef) <- odd modName
         (mapName, mapDef) <- map modName
         mapOddDef <- do
-          type_ <- tcon B.tList `tapp` tcon B.tBool
-          let lst = list_ B.tNat $ take len $ nat <$> [0 ..]
+          let lst = list_ $ take len $ nat <$> [0 ..]
           term <- gvar mapName `aPP` tcon B.tNat `aPP` tcon B.tBool `app` gvar oddName `app` lst
+          type_ <- tcon B.tList `tapp` tcon B.tBool
           pure $ DefAST $ ASTDef term type_
         let globs = [("even", evenDef), ("odd", oddDef), ("map", mapDef), ("mapOdd", mapOddDef)]
         pure (builtinModule', globs)
@@ -436,7 +434,7 @@ mapOddPrimProg len =
         (mapName, mapDef) <- map modName
         mapOddDef <- do
           type_ <- tcon B.tList `tapp` tcon B.tBool
-          let lst = list_ P.tInt $ take len $ int <$> [0 ..]
+          let lst = list_ $ take len $ int <$> [0 ..]
           term <- gvar mapName `aPP` tcon P.tInt `aPP` tcon B.tBool `app` gvar oddName `app` lst
           pure $ DefAST $ ASTDef term type_
         let globs = [("odd", oddDef), ("map", mapDef), ("mapOdd", mapOddDef)]
