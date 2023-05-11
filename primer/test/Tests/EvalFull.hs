@@ -36,7 +36,7 @@ import Primer.Builtins (
   tNat,
   tPair,
  )
-import Primer.Builtins.DSL (bool_, list_, nat)
+import Primer.Builtins.DSL (boolAnn, list_, nat)
 import Primer.Core
 import Primer.Core.DSL
 import Primer.Core.Utils (
@@ -237,10 +237,9 @@ unit_9 =
         s <- evalFullTest maxID builtinTypes (M.fromList globals) 1000 Syn e
         s <~==> Right expected
 
--- Check that we handle constructors-are-synthesisable well
--- NB: annotated scrutinees are common, e.g. (λx.case x of ... : S -> T) s
---     but plain constructors should be supported also, as we let users write
---     construtors in synthesisable position
+-- A case redex must have an scrutinee which is an annotated constructor.
+-- Plain constructors are not well-typed here, for bidirectionality reasons,
+-- although they just fail to reduce rather than the evaluator throwing a type error.
 unit_10 :: Assertion
 unit_10 =
   let ((s, t, expected), maxID) = create $ do
@@ -261,8 +260,8 @@ unit_10 =
    in do
         s' <- evalFullTest maxID builtinTypes mempty 2 Syn s
         s' <~==> Right expected
-        t' <- evalFullTest maxID builtinTypes mempty 2 Syn t
-        t' <~==> Right expected
+        t' <- evalFullTest maxID builtinTypes mempty 1 Syn t
+        t' <~==> Right t
 
 -- This example shows that when we are under even a 'let' all we can do is
 -- substitute, otherwise we may go down a rabbit hole!
@@ -503,13 +502,17 @@ unit_type_preservation_case_regression_tm =
         e <-
           lam "x" $
             case_
-              (con cMakePair [tcon tNat, tcon tBool] [emptyHole, lvar "x"])
+              ( con cMakePair [tcon tNat, tcon tBool] [emptyHole, lvar "x"]
+                  `ann` ((tcon tPair `tapp` tcon tNat) `tapp` tcon tBool)
+              )
               [branch cMakePair [("x", Nothing), ("y", Nothing)] emptyHole]
-        let x' = "a38" -- NB fragile name
+        let x' = "a50" -- NB fragile name
         expect1 <-
           lam "x" $
             case_
-              (con cMakePair [tcon tNat, tcon tBool] [emptyHole, lvar "x"])
+              ( con cMakePair [tcon tNat, tcon tBool] [emptyHole, lvar "x"]
+                  `ann` ((tcon tPair `tapp` tcon tNat) `tapp` tcon tBool)
+              )
               [branch cMakePair [(x', Nothing), ("y", Nothing)] $ let_ "x" (lvar x') emptyHole]
         expect2 <-
           lam "x" $
@@ -885,14 +888,14 @@ unit_prim_isSpace_1 =
   unaryPrimTest
     IsSpace
     (char '\n')
-    (bool_ True)
+    (boolAnn True)
 
 unit_prim_isSpace_2 :: Assertion
 unit_prim_isSpace_2 =
   unaryPrimTest
     IsSpace
     (char 'a')
-    (bool_ False)
+    (boolAnn False)
 
 tasty_prim_hex_nat :: Property
 tasty_prim_hex_nat = withTests 20 . property $ do
@@ -919,11 +922,13 @@ tasty_prim_hex_nat = withTests 20 . property $ do
                       )
                   ]
                 <*> con cJust [tcon tNat] [ne]
+                `ann` (tcon tMaybe `tapp` tcon tNat)
             else
               (,)
                 <$> pfun NatToHex
                 `app` ne
                 <*> con cNothing [tcon tChar] []
+                `ann` (tcon tMaybe `tapp` tcon tChar)
   s <- evalFullTasty maxID builtinTypes primDefs 7 Syn e
   over evalResultExpr zeroIDs s === Right (zeroIDs r)
 
@@ -933,7 +938,7 @@ unit_prim_char_eq_1 =
     EqChar
     (char 'a')
     (char 'a')
-    (con0 cTrue)
+    (con0 cTrue `ann` tcon tBool)
 
 unit_prim_char_eq_2 :: Assertion
 unit_prim_char_eq_2 =
@@ -941,7 +946,7 @@ unit_prim_char_eq_2 =
     EqChar
     (char 'a')
     (char 'A')
-    (con0 cFalse)
+    (con0 cFalse `ann` tcon tBool)
 
 unit_prim_char_partial :: Assertion
 unit_prim_char_partial =
@@ -1001,7 +1006,7 @@ unit_prim_int_quotient =
     IntQuotient
     (int 7)
     (int 3)
-    (con cJust [tcon tInt] [int 2])
+    (con cJust [tcon tInt] [int 2] `ann` (tcon tMaybe `tapp` tcon tInt))
 
 unit_prim_int_quotient_negative :: Assertion
 unit_prim_int_quotient_negative =
@@ -1009,7 +1014,7 @@ unit_prim_int_quotient_negative =
     IntQuotient
     (int (-7))
     (int 3)
-    (con cJust [tcon tInt] [int (-3)])
+    (con cJust [tcon tInt] [int (-3)] `ann` (tcon tMaybe `tapp` tcon tInt))
 
 unit_prim_int_quotient_zero :: Assertion
 unit_prim_int_quotient_zero =
@@ -1017,7 +1022,7 @@ unit_prim_int_quotient_zero =
     IntQuotient
     (int (-7))
     (int 0)
-    (con cNothing [tcon tInt] [])
+    (con cNothing [tcon tInt] [] `ann` (tcon tMaybe `tapp` tcon tInt))
 
 unit_prim_int_remainder :: Assertion
 unit_prim_int_remainder =
@@ -1025,7 +1030,7 @@ unit_prim_int_remainder =
     IntRemainder
     (int 7)
     (int 3)
-    (con cJust [tcon tInt] [int 1])
+    (con cJust [tcon tInt] [int 1] `ann` (tcon tMaybe `tapp` tcon tInt))
 
 unit_prim_int_remainder_negative_1 :: Assertion
 unit_prim_int_remainder_negative_1 =
@@ -1033,7 +1038,7 @@ unit_prim_int_remainder_negative_1 =
     IntRemainder
     (int (-7))
     (int (-3))
-    (con cJust [tcon tInt] [int (-1)])
+    (con cJust [tcon tInt] [int (-1)] `ann` (tcon tMaybe `tapp` tcon tInt))
 
 unit_prim_int_remainder_negative_2 :: Assertion
 unit_prim_int_remainder_negative_2 =
@@ -1041,7 +1046,7 @@ unit_prim_int_remainder_negative_2 =
     IntRemainder
     (int (-7))
     (int 3)
-    (con cJust [tcon tInt] [int 2])
+    (con cJust [tcon tInt] [int 2] `ann` (tcon tMaybe `tapp` tcon tInt))
 
 unit_prim_int_remainder_negative_3 :: Assertion
 unit_prim_int_remainder_negative_3 =
@@ -1049,7 +1054,7 @@ unit_prim_int_remainder_negative_3 =
     IntRemainder
     (int 7)
     (int (-3))
-    (con cJust [tcon tInt] [int (-2)])
+    (con cJust [tcon tInt] [int (-2)] `ann` (tcon tMaybe `tapp` tcon tInt))
 
 unit_prim_int_remainder_zero :: Assertion
 unit_prim_int_remainder_zero =
@@ -1057,7 +1062,7 @@ unit_prim_int_remainder_zero =
     IntRemainder
     (int 7)
     (int 0)
-    (con cNothing [tcon tInt] [])
+    (con cNothing [tcon tInt] [] `ann` (tcon tMaybe `tapp` tcon tInt))
 
 unit_prim_int_quot :: Assertion
 unit_prim_int_quot =
@@ -1129,7 +1134,7 @@ unit_prim_int_eq_1 =
     IntEq
     (int 2)
     (int 2)
-    (bool_ True)
+    (boolAnn True)
 
 unit_prim_int_eq_2 :: Assertion
 unit_prim_int_eq_2 =
@@ -1137,7 +1142,7 @@ unit_prim_int_eq_2 =
     IntEq
     (int 2)
     (int 1)
-    (bool_ False)
+    (boolAnn False)
 
 unit_prim_int_neq_1 :: Assertion
 unit_prim_int_neq_1 =
@@ -1145,7 +1150,7 @@ unit_prim_int_neq_1 =
     IntNeq
     (int 2)
     (int 2)
-    (bool_ False)
+    (boolAnn False)
 
 unit_prim_int_neq_2 :: Assertion
 unit_prim_int_neq_2 =
@@ -1153,7 +1158,7 @@ unit_prim_int_neq_2 =
     IntNeq
     (int 2)
     (int 1)
-    (bool_ True)
+    (boolAnn True)
 
 unit_prim_int_less_than_1 :: Assertion
 unit_prim_int_less_than_1 =
@@ -1161,7 +1166,7 @@ unit_prim_int_less_than_1 =
     IntLT
     (int 1)
     (int 2)
-    (bool_ True)
+    (boolAnn True)
 
 unit_prim_int_less_than_2 :: Assertion
 unit_prim_int_less_than_2 =
@@ -1169,7 +1174,7 @@ unit_prim_int_less_than_2 =
     IntLT
     (int 1)
     (int 1)
-    (bool_ False)
+    (boolAnn False)
 
 unit_prim_int_less_than_or_equal_1 :: Assertion
 unit_prim_int_less_than_or_equal_1 =
@@ -1177,7 +1182,7 @@ unit_prim_int_less_than_or_equal_1 =
     IntLTE
     (int 1)
     (int 2)
-    (bool_ True)
+    (boolAnn True)
 
 unit_prim_int_less_than_or_equal_2 :: Assertion
 unit_prim_int_less_than_or_equal_2 =
@@ -1185,7 +1190,7 @@ unit_prim_int_less_than_or_equal_2 =
     IntLTE
     (int 1)
     (int 1)
-    (bool_ True)
+    (boolAnn True)
 
 unit_prim_int_less_than_or_equal_3 :: Assertion
 unit_prim_int_less_than_or_equal_3 =
@@ -1193,7 +1198,7 @@ unit_prim_int_less_than_or_equal_3 =
     IntLTE
     (int 2)
     (int 1)
-    (bool_ False)
+    (boolAnn False)
 
 unit_prim_int_greater_than_1 :: Assertion
 unit_prim_int_greater_than_1 =
@@ -1201,7 +1206,7 @@ unit_prim_int_greater_than_1 =
     IntGT
     (int 2)
     (int 1)
-    (bool_ True)
+    (boolAnn True)
 
 unit_prim_int_greater_than_2 :: Assertion
 unit_prim_int_greater_than_2 =
@@ -1209,7 +1214,7 @@ unit_prim_int_greater_than_2 =
     IntGT
     (int 1)
     (int 1)
-    (bool_ False)
+    (boolAnn False)
 
 unit_prim_int_greater_than_or_equal_1 :: Assertion
 unit_prim_int_greater_than_or_equal_1 =
@@ -1217,7 +1222,7 @@ unit_prim_int_greater_than_or_equal_1 =
     IntGTE
     (int 1)
     (int 2)
-    (bool_ False)
+    (boolAnn False)
 
 unit_prim_int_greater_than_or_equal_2 :: Assertion
 unit_prim_int_greater_than_or_equal_2 =
@@ -1225,7 +1230,7 @@ unit_prim_int_greater_than_or_equal_2 =
     IntGTE
     (int 1)
     (int 1)
-    (bool_ True)
+    (boolAnn True)
 
 unit_prim_int_greater_than_or_equal_3 :: Assertion
 unit_prim_int_greater_than_or_equal_3 =
@@ -1233,21 +1238,21 @@ unit_prim_int_greater_than_or_equal_3 =
     IntGTE
     (int 2)
     (int 1)
-    (bool_ True)
+    (boolAnn True)
 
 unit_prim_int_toNat :: Assertion
 unit_prim_int_toNat =
   unaryPrimTest
     IntToNat
     (int 0)
-    (con cJust [tcon tNat] [nat 0])
+    (con cJust [tcon tNat] [nat 0] `ann` (tcon tMaybe `tapp` tcon tNat))
 
 unit_prim_int_toNat_negative :: Assertion
 unit_prim_int_toNat_negative =
   unaryPrimTest
     IntToNat
     (int (-1))
-    (con cNothing [tcon tNat] [])
+    (con cNothing [tcon tNat] [] `ann` (tcon tMaybe `tapp` tcon tNat))
 
 unit_prim_int_fromNat :: Assertion
 unit_prim_int_fromNat =
@@ -1328,7 +1333,10 @@ unit_eval_full_modules_scrutinize_imported_type =
   let test = do
         m' <- m
         importModules [m']
-        foo <- case_ (con0 cTrue) [branch cTrue [] $ con0 cFalse, branch cFalse [] $ con0 cTrue]
+        foo <-
+          case_
+            (con0 cTrue `ann` tcon tBool)
+            [branch cTrue [] $ con0 cFalse, branch cFalse [] $ con0 cTrue]
         resp <-
           handleEvalFullRequest
             EvalFullReq{evalFullReqExpr = foo, evalFullCxtDir = Chk, evalFullMaxSteps = 2}

@@ -179,8 +179,8 @@ unit_variablesInScope_lambda = do
 -- Given a let, its bound variable is in scope in the body but not the bound expression
 unit_variablesInScope_let :: Assertion
 unit_variablesInScope_let = do
-  let oneLet = let_ "x" (con0 cTrue) emptyHole
-      twoLet = let_ "x" (con0 cTrue) (let_ "y" (con0 cZero) emptyHole)
+  let oneLet = let_ "x" (con0 cTrue `ann` tcon tBool) emptyHole
+      twoLet = let_ "x" (con0 cTrue `ann` tcon tBool) (let_ "y" (con0 cZero `ann` tcon tNat) emptyHole)
   hasVariables oneLet pure mempty
   hasVariables oneLet down mempty
   hasVariables oneLet (down >=> right) [("x", TCon () tBool)]
@@ -209,7 +209,7 @@ unit_variablesInScope_letrec = do
 -- LHS.
 unit_variablesInScope_case :: Assertion
 unit_variablesInScope_case = do
-  let expr = ann (case_ (con0 cZero) [branch cZero [] emptyHole, branch cSucc [("n", Nothing)] emptyHole]) (tcon tNat)
+  let expr = ann (case_ (con0 cZero `ann` tcon tNat) [branch cZero [] emptyHole, branch cSucc [("n", Nothing)] emptyHole]) (tcon tNat)
   hasVariables expr pure []
   hasVariables expr down []
   hasVariables expr (down >=> down) []

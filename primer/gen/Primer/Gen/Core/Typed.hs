@@ -86,6 +86,7 @@ import Primer.Typecheck (
   TypeDefError (TDIHoleType),
   buildTypingContextFromModules',
   consistentKinds,
+  consistentTypes,
   decomposeTAppCon,
   extendLocalCxt,
   extendLocalCxtTy,
@@ -214,8 +215,8 @@ freshen fvs i n =
 genSyns :: HasCallStack => TypeG -> GenT WT (ExprG, TypeG)
 genSyns ty = do
   genSpine' <- lift genSpine
-  genCon' <- lift genCon
-  Gen.recursive Gen.choice [genEmptyHole, genAnn] $ [genHole, genApp, genAPP, genLet] ++ catMaybes [genCon', genSpine']
+  genPrimCon'' <- lift genPrimCon'
+  Gen.recursive Gen.choice [genEmptyHole, genAnn] $ [genHole, genApp, genAPP, genLet] ++ catMaybes [genPrimCon'', genSpine']
   where
     genEmptyHole = pure (EmptyHole (), TEmptyHole ())
     genAnn = do
@@ -266,50 +267,10 @@ genSyns ty = do
           aTy <- genWTType ak
           Just . (APP () s aTy,) <$> substTy a aTy instTy
         _ -> pure Nothing
-    genCon =
-      instantiateValCons ty >>= \case
-        Left TDIHoleType ->
-          asks allCons <&> \case
-            -- We have no constraints, generate any ctor
-            m | null m -> Nothing
-            cons -> Just $ do
-              let cons' =
-                    M.toList cons <&> \(c, (params, fldsTys0, tycon)) -> do
-                      indicesMap <- for params $ \(p, k) -> (p,) <$> genWTType k
-                      let indices = snd <$> indicesMap
-                      -- NB: it is vital to use simultaneous substitution here.
-                      -- Consider the case where we have a local type variable @a@
-                      -- in scope, say because we have already generated a
-                      -- @Λa. ...@, and we are considering the case of the @MkPair@
-                      -- constructor for the type @data Pair a b = MkPair a b@.
-                      -- The two "a"s (locally Λ-bound and from the typedef) refer
-                      -- to completely different things. We may well generate the
-                      -- substitution [a :-> Bool, b :-> a]. We must then say that
-                      -- the fields of the @MkPair@ constructor are @Bool@ and (the
-                      -- locally-bound) @a@. We must do a simultaneous substitution
-                      -- to avoid substituting @b@ into @a@ and then further into
-                      -- @Bool@.
-                      fldsTys <- traverse (substTySimul $ M.fromList indicesMap) fldsTys0
-                      flds <- traverse (Gen.small . genChk) fldsTys
-                      let tyActual = mkTAppCon tycon indices
-                      pure (Con () c indices flds, tyActual)
-              primCons <- fmap (bimap (PrimCon ()) (TCon ())) <<$>> genPrimCon
-              Gen.choice $ cons' ++ primCons
-        Left _ -> pure Nothing -- not an ADT
-        Right (_, _, []) -> pure Nothing -- is an empty ADT
-        -- TODO (saturated constructors) eventually (constructors are
-        -- saturated & checkable, and thus don't store their indices),
-        -- we will not need to record @params@ in the @Con@, and thus
-        -- the guard (and the panic) will be removed.
-        Right (tc, _, vcs)
-          | Just (tc', params) <- decomposeTAppCon ty
-          , tc == tc' ->
-              pure $
-                Just $
-                  Gen.choice $
-                    vcs <&> \(vc, tmArgTypes) ->
-                      (,ty) . Con () vc params <$> traverse (Gen.small . genChk) tmArgTypes
-          | otherwise -> panic "genCon invariants failed"
+    genPrimCon' = do
+      genPrimCon <&> map (bimap (fmap $ PrimCon ()) (TCon ())) <&> filter (consistentTypes ty . snd) <&> \case
+        [] -> Nothing
+        gens -> Just $ Gen.choice $ (\(g, t) -> (,t) <$> g) <$> gens
     genLet =
       Gen.choice
         [ -- let
@@ -390,10 +351,10 @@ genSyn = genSyns (TEmptyHole ())
 --  - the ADT it belongs to (if @c@ maps to @([(p1,k1),(p2,k2)],_,T)@ in the
 --    returned map, then @c [A,B] _ ∈ T A B@ for any @A@ of kind @k1@ and @B@
 --    of kind @k2@)
-allCons :: Cxt -> M.Map ValConName ([(TyVarName, Kind)], [Type' ()], TyConName)
-allCons cxt = M.fromList $ concatMap (uncurry consForTyDef) $ M.assocs $ typeDefs cxt
+allCons :: Cxt -> M.Map ValConName ([(TyVarName, Kind)], [Type' ()])
+allCons cxt = M.fromList $ concatMap consForTyDef $ typeDefs cxt
   where
-    consForTyDef tc = \case
+    consForTyDef = \case
       TypeDefAST td ->
         map
           ( \vc ->
@@ -401,7 +362,6 @@ allCons cxt = M.fromList $ concatMap (uncurry consForTyDef) $ M.assocs $ typeDef
               ,
                 ( astTypeDefParameters td
                 , valConArgs vc
-                , tc
                 )
               )
           )
@@ -412,10 +372,53 @@ genChk :: TypeG -> GenT WT ExprG
 genChk ty = do
   cse <- lift case_
   abst' <- lift abst
-  let rec = genLet : catMaybes [lambda, abst', cse]
+  genCon' <- lift genCon
+  let rec = genLet : catMaybes [genCon', lambda, abst', cse]
   Gen.recursive Gen.choice [emb] rec
   where
     emb = fst <$> genSyns ty
+    genCon =
+      instantiateValCons ty >>= \case
+        Left TDIHoleType ->
+          asks allCons <&> \case
+            -- We have no constraints, generate any ctor
+            m | null m -> Nothing
+            cons -> Just $ do
+              let cons' =
+                    M.toList cons <&> \(c, (params, fldsTys0)) -> do
+                      indicesMap <- for params $ \(p, k) -> (p,) <$> genWTType k
+                      let indices = snd <$> indicesMap
+                      -- NB: it is vital to use simultaneous substitution here.
+                      -- Consider the case where we have a local type variable @a@
+                      -- in scope, say because we have already generated a
+                      -- @Λa. ...@, and we are considering the case of the @MkPair@
+                      -- constructor for the type @data Pair a b = MkPair a b@.
+                      -- The two "a"s (locally Λ-bound and from the typedef) refer
+                      -- to completely different things. We may well generate the
+                      -- substitution [a :-> Bool, b :-> a]. We must then say that
+                      -- the fields of the @MkPair@ constructor are @Bool@ and (the
+                      -- locally-bound) @a@. We must do a simultaneous substitution
+                      -- to avoid substituting @b@ into @a@ and then further into
+                      -- @Bool@.
+                      fldsTys <- traverse (substTySimul $ M.fromList indicesMap) fldsTys0
+                      flds <- traverse (Gen.small . genChk) fldsTys
+                      pure $ Con () c indices flds
+              Gen.choice cons'
+        Left _ -> pure Nothing -- not an ADT
+        Right (_, _, []) -> pure Nothing -- is an empty ADT
+        -- TODO (saturated constructors) eventually (constructors are
+        -- saturated & checkable, and thus don't store their indices),
+        -- we will not need to record @params@ in the @Con@, and thus
+        -- the guard (and the panic) will be removed.
+        Right (tc, _, vcs)
+          | Just (tc', params) <- decomposeTAppCon ty
+          , tc == tc' ->
+              pure $
+                Just $
+                  Gen.choice $
+                    vcs <&> \(vc, tmArgTypes) ->
+                      Con () vc params <$> traverse genChk tmArgTypes
+          | otherwise -> panic "genCon invariants failed"
     lambda =
       matchArrowType ty <&> \(sTy, tTy) -> do
         n <- genLVarNameAvoiding [tTy, sTy]
@@ -630,7 +633,7 @@ genCxtExtendingLocal = do
 
 -- We have to be careful to only generate primitive constructors which are
 -- in scope (i.e. their type is in scope)
-genPrimCon :: forall mc mg. (MonadReader Cxt mc, MonadGen mg) => mc [mg (PrimCon, TyConName)]
+genPrimCon :: forall mc mg. (MonadReader Cxt mc, MonadGen mg) => mc [(mg PrimCon, TyConName)]
 genPrimCon = catMaybes <$> sequence [genChar, genInt]
   where
     genChar = whenInScope PrimChar 'a' Gen.unicode
@@ -638,12 +641,12 @@ genPrimCon = catMaybes <$> sequence [genChar, genInt]
     genInt = whenInScope PrimInt 0 $ Gen.integral $ Range.linear (-intBound) intBound
     -- The 'tst' is arbitrary, only used for checking if the primcon is in scope
     -- and does not affect the generator.
-    whenInScope :: (a -> PrimCon) -> a -> mg a -> mc (Maybe (mg (PrimCon, TyConName)))
+    whenInScope :: (a -> PrimCon) -> a -> mg a -> mc (Maybe (mg PrimCon, TyConName))
     whenInScope f tst g = do
       s <- asks $ primConInScope (f tst)
       pure $ case s of
         (False, _) -> Nothing
-        (True, tc) -> Just $ (\x -> (f x, tc)) <$> g
+        (True, tc) -> Just $ (,tc) $ f <$> g
     -- This ensures that when we modify the constructors of `PrimCon` (i.e. we add/remove primitive types),
     -- we are alerted that we need to update this generator.
     _ = \case
