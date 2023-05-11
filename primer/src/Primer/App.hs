@@ -64,7 +64,7 @@ import Control.Monad.Fresh (MonadFresh (..))
 import Control.Monad.Log (MonadLog, WithSeverity)
 import Control.Monad.NestedError (MonadNestedError, throwError')
 import Data.Data (Data)
-import Data.Generics.Uniplate.Operations (descendM, transform, transformM)
+import Data.Generics.Uniplate.Operations (transform, transformM)
 import Data.Generics.Uniplate.Zipper (
   fromZipper,
  )
@@ -144,7 +144,7 @@ import Primer.Core (
  )
 import Primer.Core.DSL (S, ann, create, emptyHole, hole, tEmptyHole, tvar)
 import Primer.Core.DSL qualified as DSL
-import Primer.Core.Transform (foldApp, renameVar, unfoldAPP, unfoldApp, unfoldTApp)
+import Primer.Core.Transform (renameVar, unfoldTApp)
 import Primer.Core.Utils (freeVars, generateTypeIDs, regenerateExprIDs, regenerateTypeIDs, _freeTmVars, _freeTyVars, _freeVarsTy)
 import Primer.Def (
   ASTDef (..),
@@ -772,7 +772,7 @@ applyProgAction prog mdefName = \case
           )
           type_
       updateDefs = traverseOf (traversed % #_DefAST % #astDefExpr) (updateDecons <=< updateCons)
-      updateCons e =
+      updateCons =
         let typecache = _typecache % _Just
             -- Previously the @index@th argument @t@ to this
             -- constructor would have been typechecked against the old
@@ -798,25 +798,12 @@ applyProgAction prog mdefName = \case
               (_, Nothing, Just c) -> hole $ pure x `ann` generateTypeIDs c
               -- This last case means that the input program had no (useful) metadata
               (_, Nothing, Nothing) -> hole $ pure x `ann` tEmptyHole
-         in case (e, unfoldApp e) of
-              (Con m con' tys tms, _) | con' == con -> do
+         in transformM $ \case
+              Con m con' tys tms | con' == con -> do
                 adjustAtA index enhole tms >>= \case
-                  Just args' -> Con m con' tys <$> traverse (descendM updateCons) args'
+                  Just args' -> pure $ Con m con' tys args'
                   Nothing -> throwError $ ConNotSaturated con
-              -- TODO (saturated constructors) this deconstruction of application nodes can be removed once full-saturation is enforced
-              -- (it currently assumes that constructors will either be fully saturated or have no syntactic arguments)
-              (_, (h, args)) -> case unfoldAPP h of
-                (Con _ con' [] [], _tyArgs) | con' == con -> do
-                  adjustAtA index enhole args >>= \case
-                    Just args' -> foldApp h =<< traverse (descendM updateCons) args'
-                    Nothing -> do
-                      -- The constructor is not applied as far as the changed field,
-                      -- so the full application still typechecks, but its type has changed.
-                      -- Thus, we put the whole thing in to a hole.
-                      Hole <$> DSL.meta <*> (foldApp h =<< traverse (descendM updateCons) args)
-                _ ->
-                  -- NB we can't use `transformM` here because we'd end up seeing incomplete applications before full ones
-                  descendM updateCons e
+              e -> pure e
       updateDecons = transformCaseBranches prog type_ $
         traverse $ \cb@(CaseBranch vc binds e) ->
           if vc == con
@@ -858,27 +845,13 @@ applyProgAction prog mdefName = \case
       -- synthesis of the scrutinee's type, using the old typedef. Thus we must
       -- not update the scrutinee before this happens.
       updateDefs = traverseOf (traversed % #_DefAST % #astDefExpr) (updateCons <=< updateDecons)
-      updateCons e = case (e, unfoldApp e) of
-        (Con m con' tys tms, _) | con' == con -> do
+      updateCons = transformM $ \case
+        Con m con' tys tms | con' == con -> do
           m' <- DSL.meta
           case insertAt index (EmptyHole m') tms of
-            Just args' -> Con m con' tys <$> traverse (descendM updateCons) args'
+            Just args' -> pure $ Con m con' tys args'
             Nothing -> throwError $ ConNotSaturated con
-        -- TODO (saturated constructors) this deconstruction of application nodes can be removed once full-saturation is enforced
-        -- (it currently assumes that constructors will either be fully saturated or have no syntactic arguments)
-        (_, (h, args)) -> case unfoldAPP h of
-          (Con _ con' [] [], _tyArgs) | con' == con -> do
-            m' <- DSL.meta
-            case insertAt index (EmptyHole m') args of
-              Just args' -> foldApp h =<< traverse (descendM updateCons) args'
-              Nothing ->
-                -- The constructor is not applied as far as the field immediately prior to the new one,
-                -- so the full application still typechecks, but its type has changed.
-                -- Thus, we put the whole thing in to a hole.
-                Hole <$> DSL.meta <*> (foldApp h =<< traverse (descendM updateCons) args)
-          _ ->
-            -- NB we can't use `transformM` here because we'd end up seeing incomplete applications before full ones
-            descendM updateCons e
+        e -> pure e
       updateDecons = transformCaseBranches prog type_ $
         traverse $ \cb@(CaseBranch vc binds e) ->
           if vc == con

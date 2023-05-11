@@ -4,9 +4,6 @@ module Primer.Core.Transform (
   renameTyVar,
   renameTyVarExpr,
   unfoldApp,
-  foldApp,
-  unfoldAPP,
-  decomposeAppCon,
   unfoldTApp,
   decomposeTAppCon,
   foldTApp,
@@ -16,26 +13,21 @@ module Primer.Core.Transform (
 
 import Foreword
 
-import Control.Monad.Fresh (MonadFresh)
 import Data.Data (Data)
 import Data.Generics.Uniplate.Data (descendM)
 import Data.List.NonEmpty qualified as NE
 import Optics (Field2 (_2), getting, noneOf, notElemOf, to, traverseOf, (%))
 import Primer.Core (
   CaseBranch' (..),
-  Expr,
   Expr' (..),
-  ID,
   LVarName,
   LocalName (unLocalName),
   TmVarRef (..),
   TyVarName,
   Type' (..),
-  ValConName,
   bindName,
   typesInExpr,
  )
-import Primer.Core.DSL (meta)
 import Primer.Core.Meta (TyConName)
 import Primer.Core.Utils (_freeVars, _freeVarsTy)
 
@@ -220,30 +212,6 @@ unfoldApp = second reverse . go
   where
     go (App _ f x) = let (g, args) = go f in (g, x : args)
     go e = (e, [])
-
--- | Fold an application head and a list of arguments into a single expression.
-foldApp :: (Foldable t, MonadFresh ID m) => Expr -> t Expr -> m Expr
-foldApp = foldlM $ \a b -> do
-  m <- meta
-  pure $ App m a b
-
--- | Unfold a nested term-level type application into the application head and a list of arguments.
-unfoldAPP :: Expr' a b -> (Expr' a b, [Type' b])
-unfoldAPP = second reverse . go
-  where
-    go (APP _ f x) = let (g, args) = go f in (g, x : args)
-    go e = (e, [])
-
--- | Decompose @C @A @B x y z@ to @(C,[A,B],[x,y,z])@
-decomposeAppCon :: Expr' a b -> Maybe (ValConName, a, [Type' b], [Expr' a b])
-decomposeAppCon =
-  unfoldApp <&> first unfoldAPP <&> \case
-    -- TODO (saturated constructors): This is suspicious (we reorder types and terms), but
-    -- (a) for well-typed terms, either tms0 or tys will be empty (since constructors only have top-level foralls)
-    -- (b) the situation that constructors can be on the left of an app or aPP node is temporary
-    --     and shortly decomposeAppCon will become a trivial match on the 'Con' constructor.
-    ((Con m c tys0 tms0, tys), tms) -> Just (c, m, tys0 ++ tys, tms0 ++ tms)
-    _ -> Nothing
 
 -- | Unfold a nested type-level application into the application head and a list of arguments.
 unfoldTApp :: Type' a -> (Type' a, [Type' a])

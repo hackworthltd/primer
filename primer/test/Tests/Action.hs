@@ -39,7 +39,6 @@ import Primer.Primitives (tChar, tInt)
 import Primer.Test.TestM (evalTestM)
 import Primer.Test.Util (
   clearMeta,
-  constructCon,
   constructRefinedCon,
   constructSaturatedCon,
   constructTCon,
@@ -242,7 +241,7 @@ unit_8 =
     , Move Parent
     , ConstructApp
     , Move Child2
-    , constructCon cTrue
+    , constructSaturatedCon cTrue
     ]
     (app (ann (lam "x" (lvar "x")) (tfun (tcon tBool) (tcon tBool))) (con0 cTrue))
 
@@ -253,7 +252,7 @@ unit_9 =
     emptyHole
     [ ConstructLet (Just "x")
     , Move Child1
-    , constructCon cTrue
+    , constructSaturatedCon cTrue
     , Move Parent
     , Move Child2
     , ConstructVar $ LocalVarRef "x"
@@ -401,7 +400,7 @@ unit_bad_constructor =
     (const True)
     NoSmartHoles
     emptyHole
-    [ConstructCon (["M"], "NotARealConstructor")]
+    [ConstructSaturatedCon (["M"], "NotARealConstructor")]
 
 unit_bad_type_constructor :: Assertion
 unit_bad_type_constructor =
@@ -425,7 +424,7 @@ unit_insert_expr_in_type =
     (const True)
     NoSmartHoles
     (ann emptyHole tEmptyHole)
-    [EnterType, constructCon cTrue]
+    [EnterType, constructSaturatedCon cTrue]
 
 unit_bad_lambda :: Assertion
 unit_bad_lambda =
@@ -440,7 +439,7 @@ unit_enter_emptyHole =
   actionTest
     NoSmartHoles
     emptyHole
-    [EnterHole, constructCon cTrue]
+    [EnterHole, constructSaturatedCon cTrue]
     (hole $ con0 cTrue)
 
 unit_enter_nonEmptyHole :: Assertion
@@ -448,7 +447,7 @@ unit_enter_nonEmptyHole =
   actionTest
     NoSmartHoles
     (hole emptyHole)
-    [Move Child1, constructCon cTrue]
+    [Move Child1, constructSaturatedCon cTrue]
     (hole $ con0 cTrue)
 
 unit_bad_enter_hole :: Assertion
@@ -476,7 +475,7 @@ unit_case_create =
     , Move Child1
     , ConstructCase
     , Move (Branch cTrue)
-    , constructCon cZero
+    , constructSaturatedCon cZero
     ]
     ( ann
         ( lam "x" $
@@ -540,7 +539,7 @@ unit_case_move_branch_1 =
     , Move Child1
     , Move Child1
     , Move (Branch cZero)
-    , constructCon cZero
+    , constructSaturatedCon cZero
     , Move Parent
     , Move (Branch cSucc)
     , ConstructVar $ LocalVarRef "n"
@@ -574,7 +573,7 @@ unit_case_move_branch_2 =
     [ Move Child1
     , Move Child1
     , Move (Branch cZero)
-    , constructCon cZero
+    , constructSaturatedCon cZero
     , Move Parent
     , Move (Branch cSucc)
     , ConstructVar $ LocalVarRef "n"
@@ -759,7 +758,7 @@ unit_case_create_smart_on_term =
     , ConstructVar $ LocalVarRef "x"
     , ConstructCase
     , Move (Branch cTrue)
-    , constructCon cZero
+    , constructSaturatedCon cZero
     ]
     ( ann
         ( lam
@@ -787,7 +786,7 @@ unit_case_create_smart_on_hole =
     , ConstructVar $ LocalVarRef "x"
     , Move Parent
     , Move (Branch cTrue)
-    , constructCon cZero
+    , constructSaturatedCon cZero
     ]
     ( ann
         ( lam
@@ -814,7 +813,7 @@ unit_case_change_smart_scrutinee_type =
     [ Move Child1
     , Move Child1
     , Delete
-    , constructCon cZero
+    , constructSaturatedCon cZero
     ]
     ( ann
         ( case_
@@ -891,7 +890,7 @@ unit_constructLAM =
   actionTest
     NoSmartHoles
     (emptyHole `ann` tEmptyHole)
-    [Move Child1, ConstructLAM (Just "a"), constructCon cTrue]
+    [Move Child1, ConstructLAM (Just "a"), constructSaturatedCon cTrue]
     (lAM "a" (con0 cTrue) `ann` tEmptyHole)
 
 unit_construct_TForall :: Assertion
@@ -1101,24 +1100,28 @@ unit_refine_mismatch_var =
         $ hole (lvar "cons" `aPP` tEmptyHole `app` emptyHole `app` emptyHole) `ann` tcon tBool
     )
 
--- Note @cons @? ∈ ? -> List ? -> List ?  ~  ? -> ?@,
--- thus inserting a refined @cons@ in a hole of type @? -> ?@ may not refine as
--- much as you may expect!
+-- Constructors are saturated, so if the hole has an arrow type, when we insert
+-- a constructor it cannot match the arrow, so it is inserted into a hole
 unit_refine_arr_1 :: Assertion
 unit_refine_arr_1 =
   actionTest
     NoSmartHoles
     (emptyHole `ann` (tEmptyHole `tfun` tEmptyHole))
     [Move Child1, constructRefinedCon cCons]
-    (con cCons [tEmptyHole] [] `ann` (tEmptyHole `tfun` tEmptyHole))
+    (hole (con cCons [tEmptyHole] [emptyHole, emptyHole]) `ann` (tEmptyHole `tfun` tEmptyHole))
 
+-- TODO (saturated constructors) update this comment for ctors-dont-store-indices ('Cons Nat') and ctors-are-chk
+--
+-- Constructors are fully saturated, so even if the hole has type
+-- @List Nat -> List Nat@, when we insert a @Cons@ constructor, we end up with
+-- @{? Cons @? ? ? ?}@
 unit_refine_arr_2 :: Assertion
 unit_refine_arr_2 =
   actionTest
     NoSmartHoles
     (emptyHole `ann` ((tcon tList `tapp` tcon tNat) `tfun` (tcon tList `tapp` tcon tNat)))
     [Move Child1, constructRefinedCon cCons]
-    (con cCons [tcon tNat] [emptyHole] `ann` ((tcon tList `tapp` tcon tNat) `tfun` (tcon tList `tapp` tcon tNat)))
+    (hole (con cCons [tEmptyHole] [emptyHole, emptyHole]) `ann` ((tcon tList `tapp` tcon tNat) `tfun` (tcon tList `tapp` tcon tNat)))
 
 unit_primitive_1 :: Assertion
 unit_primitive_1 =

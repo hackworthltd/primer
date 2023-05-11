@@ -29,6 +29,7 @@ import Primer.Action (
     Branch,
     Child1,
     Child2,
+    ConChild,
     Parent
   ),
  )
@@ -121,7 +122,7 @@ import Primer.Module (Module (Module, moduleDefs, moduleName, moduleTypes), buil
 import Primer.Name
 import Primer.Primitives (PrimDef (IntAdd, ToUpper), primitiveGVar, tChar)
 import Primer.Test.TestM (TestM, evalTestM)
-import Primer.Test.Util (LogMsg, assertNoSevereLogs, constructCon, constructTCon, zeroIDs, zeroTypeIDs)
+import Primer.Test.Util (LogMsg, assertNoSevereLogs, constructSaturatedCon, constructTCon, zeroIDs, zeroTypeIDs)
 import Primer.Test.Util qualified as Util
 import Primer.TypeDef (ASTTypeDef (..), TypeDef (..), ValCon (..), forgetTypeDefMetadata, typeDefAST)
 import Primer.Typecheck (
@@ -956,7 +957,16 @@ unit_RenameCon_clash =
               x <-
                 hole
                   ( hole
-                      (con0 cA)
+                      ( con
+                          cA
+                          [ tEmptyHole
+                          , tEmptyHole
+                          ]
+                          [ emptyHole
+                          , emptyHole
+                          , emptyHole
+                          ]
+                      )
                   )
               astDef "def" x <$> tEmptyHole
           ]
@@ -1145,19 +1155,6 @@ unit_SetConFieldType_nehole_2 =
     (tcon $ tcn "Bool")
     (hole $ con0 $ vcn "True")
 
-unit_SetConFieldType_partial_app :: Assertion
-unit_SetConFieldType_partial_app =
-  progActionTest
-    ( defaultProgEditableTypeDefs $ do
-        x <- lam "x" $ con cA [tEmptyHole, tEmptyHole] [lvar "x"]
-        sequence
-          [ astDef "def" x <$> tcon (tcn "Bool") `tfun` (tcon (tcn "Bool") `tfun` (tcon (tcn "Bool") `tfun` ((tcon tT `tapp` tEmptyHole) `tapp` tEmptyHole)))
-          ]
-    )
-    [SetConFieldType tT cA 1 $ TCon () (tcn "Int")]
-    $ expectError
-      (@?= ConNotSaturated cA)
-
 unit_SetConFieldType_case :: Assertion
 unit_SetConFieldType_case =
   progActionTest
@@ -1274,48 +1271,9 @@ unit_AddConField =
                     , con0 (vcn "True")
                     ]
                 )
-                [ branch cA [("p", Nothing), ("a45", Nothing), ("q", Nothing), ("p1", Nothing)] emptyHole
+                [ branch cA [("p", Nothing), ("a40", Nothing), ("q", Nothing), ("p1", Nothing)] emptyHole
                 , branch cB [("r", Nothing), ("x", Nothing)] emptyHole
                 ]
-          )
-
-unit_AddConField_partial_app :: Assertion
-unit_AddConField_partial_app =
-  progActionTest
-    ( defaultProgEditableTypeDefs $ do
-        x <-
-          con cA [tEmptyHole, tEmptyHole] [con0 (vcn "True")]
-        sequence
-          [ astDef "def" x <$> tEmptyHole
-          ]
-    )
-    [AddConField tT cA 2 $ TCon () (tcn "Int")]
-    $ expectError
-      (@?= ConNotSaturated cA)
-
-unit_AddConField_partial_app_end :: Assertion
-unit_AddConField_partial_app_end =
-  progActionTest
-    ( defaultProgEditableTypeDefs $ do
-        x <-
-          con cA [tEmptyHole, tEmptyHole] [con0 (vcn "True")]
-        sequence
-          [ astDef "def" x <$> tEmptyHole
-          ]
-    )
-    [AddConField tT cA 1 $ TCon () (tcn "Int")]
-    $ expectSuccess
-    $ \_ prog' -> do
-      td <- findTypeDef tT prog'
-      astTypeDefConstructors td
-        @?= [ ValCon cA [TCon () (tcn "Bool"), TCon () (tcn "Int"), TCon () (tcn "Bool"), TCon () (tcn "Bool")]
-            , ValCon cB [TApp () (TApp () (TCon () tT) (TVar () "b")) (TVar () "a"), TVar () "b"]
-            ]
-      def <- findDef (gvn "def") prog'
-      forgetMetadata (astDefExpr def)
-        @?= forgetMetadata
-          ( create' $
-              con cA [tEmptyHole, tEmptyHole] [con0 (vcn "True"), emptyHole]
           )
 
 unit_AddConField_case_ann :: Assertion
@@ -1448,27 +1406,18 @@ unit_cross_module_actions =
               , ConstructVar (GlobalVarRef $ qualifyM "foo")
               , Move Parent
               , Move Child2
-              , ConstructApp
-              , Move Child1
-              , constructCon (qualifyM "C")
-              , Move Parent
-              , Move Child2
-              , constructCon cZero
+              , constructSaturatedCon (qualifyM "C")
+              , Move $ ConChild 0
+              , constructSaturatedCon cZero
               , Move Parent
               , Move Parent
               , ConstructCase
               , Move (Branch (qualifyM "C"))
-              , ConstructApp
-              , Move Child1
-              , constructCon (qualifyM "C")
-              , Move Parent
-              , Move Child2
-              , ConstructApp
-              , Move Child1
-              , constructCon cSucc
-              , Move Parent
-              , Move Child2
-              , ConstructVar (LocalVarRef "a38")
+              , constructSaturatedCon (qualifyM "C")
+              , Move $ ConChild 0
+              , constructSaturatedCon cSucc
+              , Move $ ConChild 0
+              , ConstructVar (LocalVarRef "a37")
               ]
           ]
         handleAndTC [RenameDef (qualifyM "foo") "bar"]
@@ -1504,7 +1453,7 @@ unit_cross_module_actions =
               , ConstructVar $ GlobalVarRef $ qualifyName (ModuleName ["AnotherModule"]) "bar"
               , Move Parent
               , Move Child2
-              , constructCon cTrue
+              , constructSaturatedCon cTrue
               ]
           ]
         -- Copy-paste within the sig of bar to make bar :: Bool -> Bool

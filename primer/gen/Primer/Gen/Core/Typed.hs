@@ -79,7 +79,6 @@ import Primer.TypeDef (
   ValCon (..),
   typeDefKind,
   typeDefParameters,
-  valConType,
  )
 import Primer.Typecheck (
   Cxt (),
@@ -234,17 +233,12 @@ genSyns ty = do
       let locals' = map (first (Var () . LocalVarRef)) $ M.toList localTms
       globals <- asks globalCxt
       let globals' = map (first (Var () . GlobalVarRef)) $ M.toList globals
-      -- TODO (saturated constructors) when saturation is enforced, constructors should not appear on the left of an app node
-      cons <- asks allCons
-      let cons' = map (first (\c -> Con () c [] [])) $ M.toList cons
-      let hsPure = locals' ++ globals' ++ cons'
-      primCons <- fmap (bimap (PrimCon ()) (TCon ())) <<$>> genPrimCon
-      let hs = map pure hsPure ++ primCons
+      let hs = locals' ++ globals'
       pure $
         if null hs
           then Nothing
           else Just $ do
-            (he, hT) <- Gen.choice hs
+            (he, hT) <- Gen.element hs
             cxt <- ask
             runExceptT (refine cxt ty hT) >>= \case
               -- This error case indicates a bug. Crash and fail loudly!
@@ -275,7 +269,7 @@ genSyns ty = do
     genCon =
       instantiateValCons ty >>= \case
         Left TDIHoleType ->
-          asks allCons' <&> \case
+          asks allCons <&> \case
             -- We have no constraints, generate any ctor
             m | null m -> Nothing
             cons -> Just $ do
@@ -390,24 +384,14 @@ genSyn :: GenT WT (ExprG, TypeG)
 -- of any type
 genSyn = genSyns (TEmptyHole ())
 
-allCons :: Cxt -> M.Map ValConName (Type' ())
-allCons cxt = M.fromList $ concatMap (uncurry consForTyDef) $ M.assocs $ typeDefs cxt
-  where
-    consForTyDef tc = \case
-      TypeDefAST td -> map (\vc -> (valConName vc, valConType tc td vc)) (astTypeDefConstructors td)
-      TypeDefPrim _ -> []
-
--- TODO (saturated constructors) when saturation is enforced, allCons should be
--- no longer needed, and we can rename allCons'
-
 -- | Returns each ADT constructor's name along with its "telescope" of arguments:
 --  - the parameters of the datatype (which are type arguments to the constructor)
 --  - the types of its fields (and the names of the parameters scope over this)
 --  - the ADT it belongs to (if @c@ maps to @([(p1,k1),(p2,k2)],_,T)@ in the
 --    returned map, then @c [A,B] _ ∈ T A B@ for any @A@ of kind @k1@ and @B@
 --    of kind @k2@)
-allCons' :: Cxt -> M.Map ValConName ([(TyVarName, Kind)], [Type' ()], TyConName)
-allCons' cxt = M.fromList $ concatMap (uncurry consForTyDef) $ M.assocs $ typeDefs cxt
+allCons :: Cxt -> M.Map ValConName ([(TyVarName, Kind)], [Type' ()], TyConName)
+allCons cxt = M.fromList $ concatMap (uncurry consForTyDef) $ M.assocs $ typeDefs cxt
   where
     consForTyDef tc = \case
       TypeDefAST td ->
