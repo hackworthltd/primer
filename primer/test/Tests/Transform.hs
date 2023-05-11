@@ -6,7 +6,7 @@ import Primer.Builtins
 import Primer.Core
 import Primer.Core.DSL
 import Primer.Core.Transform
-import Primer.Test.Util (clearMeta, clearTypeMeta, vcn)
+import Primer.Test.Util (clearMeta, clearTypeMeta, tcn, vcn)
 import Test.Tasty.HUnit (Assertion, assertFailure, (@?=))
 
 -- When renaming we have to be careful of binding sites. If we're renaming x to
@@ -178,7 +178,7 @@ unit_app :: Assertion
 unit_app = afterRename "x" "y" (app (lvar "x") (lvar "x")) (Just (app (lvar "y") (lvar "y")))
 
 unit_con :: Assertion
-unit_con = afterRename "x" "y" (con cTrue) (Just (con cTrue))
+unit_con = afterRename "x" "y" (conSat cJust [tcon tBool] [lvar "x"]) (Just (conSat cJust [tcon tBool] [lvar "y"]))
 
 unit_case :: Assertion
 unit_case =
@@ -294,12 +294,13 @@ afterRename' rename normalise fromVar toVar input output = do
 unit_unfoldApp_1 :: Assertion
 unit_unfoldApp_1 =
   let expr :: Expr' () ()
-      expr = App () (App () (App () (Con () $ vcn ["M"] "C") (Lam () "x" (v "x"))) (App () (v "w") (v "y"))) (v "z")
+      expr = App () (App () (App () (EmptyHole ()) (Lam () "x" (v "x"))) (App () (v "w") (v "y"))) (v "z")
       v = Var () . LocalVarRef
-   in unfoldApp expr @?= (Con () $ vcn ["M"] "C", [Lam () "x" (v "x"), App () (v "w") (v "y"), v "z"])
+   in unfoldApp expr @?= (EmptyHole (), [Lam () "x" (v "x"), App () (v "w") (v "y"), v "z"])
 
 unit_unfoldApp_2 :: Assertion
 unit_unfoldApp_2 =
   let expr :: Expr' () ()
-      expr = Con () $ vcn ["M"] "C"
+      expr = Con () (vcn ["M"] "C") [TCon () $ tcn ["M"] "T"] [v "x", v "y"]
+      v = Var () . LocalVarRef
    in unfoldApp expr @?= (expr, [])

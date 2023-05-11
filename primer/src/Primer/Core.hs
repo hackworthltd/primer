@@ -34,12 +34,12 @@ import Data.Generics.Product
 import Data.Generics.Uniplate.Data ()
 import Optics (
   AffineFold,
-  AffineTraversal',
   Lens,
   Lens',
   Traversal,
+  Traversal',
   afailing,
-  atraversalVL,
+  traversalVL,
   (%),
  )
 import Primer.Core.Meta (
@@ -145,7 +145,7 @@ data Expr' a b
   | Ann a (Expr' a b) (Type' b)
   | App a (Expr' a b) (Expr' a b)
   | APP a (Expr' a b) (Type' b)
-  | Con a ValConName -- See Note [Synthesisable constructors]
+  | Con a ValConName [Type' b] [Expr' a b] -- See Note [Synthesisable constructors]
   | Lam a LVarName (Expr' a b)
   | LAM a TyVarName (Expr' a b)
   | Var a TmVarRef
@@ -226,17 +226,22 @@ data Expr' a b
 -- Note [Synthesisable constructors]
 -- Whilst our calculus is heavily inspired by bidirectional type systems
 -- (especially McBride's principled rendition), we do not treat constructors
--- in this fashion. We view constructors as synthesisable terms
+-- in this fashion. However, we are in the middle of changing the treatment
+-- here. Currently we view constructors as synthesisable terms
 -- ("eliminations"), rather than checkable terms ("constructions").
 -- This is for user-experience purposes: we are attempting a pedagogic
 -- system where the user-facing code is close to the core language, and
 -- we believe that the bidirectional style would be confusing and/or
--- annoyingly restrictive in this particular instance.
+-- annoyingly restrictive in this particular instance. (Our view here has
+-- changed, due to asymmetries between construction and matching.)
 --
--- We follow the traditional non-bidirectional view of constructors here:
--- a constructor is a term in-and-of itself (and one can infer its type).
+-- We represent a constructor-applied-to-a-spine as a thing (and one can infer
+-- its type), but do not insist that it is fully saturated.
 -- Thus one has `Cons` is a term, and we can derive the synthesis
--- judgement `Cons ∈ ∀a. a -> List a -> List a`.
+-- judgement `Cons ∈ ∀a. a -> List a -> List a`, but also that `Cons @a`,
+-- `Cons @a x` and `Cons @a x y` are terms (for type `a` and terms `x, y`), with
+-- the obvious synthesised types. This is a temporary situation, and we aim to
+-- enforce full saturation (and no type applications) in due course.
 --
 -- For comparison, the bidirectional view would be that constructors must
 -- always be fully applied, and one can only subject them to a typechecking
@@ -253,8 +258,8 @@ data Expr' a b
 -- Clearly one could eta-expand, (and if necessary add an annotation) to
 -- use as constructor non-saturatedly: e.g. write `map (λn . Succ n) [2,3]`.
 --
--- In effect, we just bake this translation into the core. To do this, we
--- require constructor names to be unique across different types.
+-- In effect, we just bake (various stages of) this translation into the core.
+-- To do this, we require constructor names to be unique across different types.
 
 -- Note [Case]
 -- We use a list for compatibility and ease of JSON
@@ -316,13 +321,16 @@ _bindMeta :: forall a b. Lens (Bind' a) (Bind' b) a b
 _bindMeta = position @1
 
 -- | Note that this does not recurse in to sub-expressions or sub-types.
-typesInExpr :: AffineTraversal' (Expr' a b) (Type' b)
-typesInExpr = atraversalVL $ \point f -> \case
+typesInExpr :: Traversal' (Expr' a b) (Type' b)
+-- TODO (saturated constructors): if constructors did not store their indices,
+-- then this could be an affine traversal
+typesInExpr = traversalVL $ \f -> \case
   Ann m e ty -> Ann m e <$> f ty
   APP m e ty -> APP m e <$> f ty
+  Con m c tys tms -> Con m c <$> traverse f tys <*> pure tms
   LetType m x ty e -> (\ty' -> LetType m x ty' e) <$> f ty
   Letrec m x b ty e -> (\ty' -> Letrec m x b ty' e) <$> f ty
-  e -> point e
+  e -> pure e
 
 instance HasID a => HasID (Expr' a b) where
   _id = position @1 % _id

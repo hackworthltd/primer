@@ -1,4 +1,4 @@
-expected result hash: -7807833428005221563
+expected result hash: 6623360773250012739
 Edit [RenameDef (GlobalName {qualifiedModule = ModuleName {unModuleName = "Main" :| []}, baseName = "main"}) "sayHello"]
 Edit [MoveToDef (GlobalName {qualifiedModule = ModuleName {unModuleName = "Main" :| []}, baseName = "sayHello"}),SigAction [SetCursor 1,ConstructArrowL,Move Child1]]
 Edit [MoveToDef (GlobalName {qualifiedModule = ModuleName {unModuleName = "Main" :| []}, baseName = "sayHello"}),SigAction [SetCursor 1,ConstructTCon ("Builtins" :| [],"List")]]

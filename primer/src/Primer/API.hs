@@ -720,11 +720,11 @@ viewTreeExpr e0 = case e0 of
       , childTrees = [viewTreeExpr e, viewTreeType t]
       , rightChild = Nothing
       }
-  Con _ s ->
+  Con _ c tyApps tmApps ->
     Tree
       { nodeId
-      , body = TextBody $ RecordPair Flavor.Con $ globalName s
-      , childTrees = []
+      , body = TextBody $ RecordPair Flavor.Con $ globalName c
+      , childTrees = map viewTreeType tyApps ++ map viewTreeExpr tmApps
       , rightChild = Nothing
       }
   Lam _ s e ->
@@ -796,38 +796,28 @@ viewTreeExpr e0 = case e0 of
           -- and don't contain non-numerical characters
           boxId = nodeId <> "P" <> show i
           patternRootId = boxId <> "B"
-          patternBindAppID id = show id <> "A"
          in
           Tree
             { nodeId = boxId
             , body =
                 BoxBody . RecordPair Flavor.Pattern $
-                  foldl'
-                    ( \t (Bind m v) ->
-                        let id = m ^. _id
-                         in Tree
-                              { nodeId = patternBindAppID id
-                              , body = NoBody Flavor.PatternApp
-                              , childTrees =
-                                  [ t
-                                  , Tree
-                                      { nodeId = show id
-                                      , body = TextBody $ RecordPair Flavor.PatternBind $ localName v
-                                      , childTrees = []
-                                      , rightChild = Nothing
-                                      }
-                                  ]
-                              , rightChild = Nothing
-                              }
-                    )
-                    ( Tree
-                        { nodeId = patternRootId
-                        , body = TextBody $ RecordPair Flavor.PatternCon $ globalName con
-                        , childTrees = []
-                        , rightChild = Nothing
-                        }
-                    )
-                    binds
+                  ( Tree
+                      { nodeId = patternRootId
+                      , body = TextBody $ RecordPair Flavor.PatternCon $ globalName con
+                      , childTrees =
+                          map
+                            ( \(Bind m v) ->
+                                Tree
+                                  { nodeId = show $ getID m
+                                  , body = TextBody $ RecordPair Flavor.PatternBind $ localName v
+                                  , childTrees = []
+                                  , rightChild = Nothing
+                                  }
+                            )
+                            binds
+                      , rightChild = Nothing
+                      }
+                  )
             , childTrees = [viewTreeExpr rhs]
             , rightChild = Nothing
             }

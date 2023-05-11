@@ -1,5 +1,5 @@
-expected result hash: (9ace36b2-401f-4239-898a-3bedaed095ce,-8363715264391095659)
-expected result hash: (f2e15fb3-ddcf-44ac-9dfd-9824e6b303db,2232450640073635743)
+expected result hash: (9ace36b2-401f-4239-898a-3bedaed095ce,828358532834171879)
+expected result hash: (f2e15fb3-ddcf-44ac-9dfd-9824e6b303db,1796599704075159271)
 NewSession (NewSessionReq {name = "session1"}) 9ace36b2-401f-4239-898a-3bedaed095ce
 APILog (GetProgram' (Req 9ace36b2-401f-4239-898a-3bedaed095ce))
 APILog (AvailableActions (Req (9ace36b2-401f-4239-898a-3bedaed095ce,Expert,Selection {def = GlobalName {qualifiedModule = ModuleName {unModuleName = "Main" :| []}, baseName = "main"}, node = Nothing})))

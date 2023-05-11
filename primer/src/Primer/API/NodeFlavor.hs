@@ -58,7 +58,6 @@ data NodeFlavorNoBody
   | APP
   | Case
   | CaseWith
-  | PatternApp
   | TEmptyHole
   | THole
   | TFun
