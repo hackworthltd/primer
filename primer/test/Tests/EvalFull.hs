@@ -152,9 +152,9 @@ unit_3 =
 unit_4 :: Assertion
 unit_4 =
   let ((expr, expected), maxID) = create $ do
-        e <- let_ "a" (lvar "b") $ con' ["M"] "C" `app` lvar "a" `app` lam "a" (lvar "a") `app` lam "b" (con' ["M"] "D" `app` lvar "a" `app` lvar "b")
-        let b' = "a29" -- NB: fragile name a29
-        expect <- con' ["M"] "C" `app` lvar "b" `app` lam "a" (lvar "a") `app` lam b' (con' ["M"] "D" `app` lvar "b" `app` lvar b')
+        e <- let_ "a" (lvar "b") $ con' ["M"] "C" [] [lvar "a", lam "a" (lvar "a"), lam "b" (con' ["M"] "D" [] [lvar "a", lvar "b"])]
+        let b' = "a19" -- NB: fragile name
+        expect <- con' ["M"] "C" [] [lvar "b", lam "a" (lvar "a"), lam b' (con' ["M"] "D" [] [lvar "b", lvar b'])]
         pure (e, expect)
    in do
         s <- evalFullTest maxID mempty mempty 7 Syn expr
@@ -179,7 +179,7 @@ unit_5 =
 unit_6 :: Assertion
 unit_6 =
   let ((e, expt), maxID) = create $ do
-        tr <- con cTrue
+        tr <- con0 cTrue
         an <- ann (pure tr) (tcon tBool)
         pure (an, tr)
    in do
@@ -225,10 +225,10 @@ unit_9 =
         (mapName, mapDef) <- Examples.map' modName
         (evenName, evenDef) <- Examples.even modName
         (oddName, oddDef) <- Examples.odd modName
-        let lst = list_ tNat $ take n $ iterate (con cSucc `app`) (con cZero)
+        let lst = list_ tNat $ take n $ iterate (con1 cSucc) (con0 cZero)
         expr <- gvar mapName `aPP` tcon tNat `aPP` tcon tBool `app` gvar evenName `app` lst
         let globs = [(mapName, mapDef), (evenName, evenDef), (oddName, oddDef)]
-        expect <- list_ tBool (take n $ cycle [con cTrue, con cFalse]) `ann` (tcon tList `tapp` tcon tBool)
+        expect <- list_ tBool (take n $ cycle [con0 cTrue, con0 cFalse]) `ann` (tcon tList `tapp` tcon tBool)
         pure (globs, expr, expect)
    in do
         evalFullTest maxID builtinTypes (M.fromList globals) 500 Syn e >>= \case
@@ -246,17 +246,17 @@ unit_10 =
   let ((s, t, expected), maxID) = create $ do
         annCase <-
           case_
-            (con cZero `ann` tcon tNat)
-            [ branch cZero [] $ con cTrue
-            , branch cSucc [("n", Nothing)] $ con cFalse
+            (con0 cZero `ann` tcon tNat)
+            [ branch cZero [] $ con0 cTrue
+            , branch cSucc [("n", Nothing)] $ con0 cFalse
             ]
         noannCase <-
           case_
-            (con cZero)
-            [ branch cZero [] $ con cTrue
-            , branch cSucc [("n", Nothing)] $ con cFalse
+            (con0 cZero)
+            [ branch cZero [] $ con0 cTrue
+            , branch cSucc [("n", Nothing)] $ con0 cFalse
             ]
-        expect <- con cTrue
+        expect <- con0 cTrue
         pure (annCase, noannCase, expect)
    in do
         s' <- evalFullTest maxID builtinTypes mempty 2 Syn s
@@ -274,13 +274,13 @@ unit_11 =
         (oddName, oddDef) <- Examples.odd modName
         let ty = tcon tNat `tfun` (tcon tPair `tapp` tcon tBool `tapp` tcon tNat)
         let expr1 =
-              let_ "x" (con cZero) $
-                lam "n" (con cMakePair `aPP` tcon tBool `aPP` tcon tNat `app` (gvar evenName `app` lvar "n") `app` lvar "x")
+              let_ "x" (con0 cZero) $
+                lam "n" (con cMakePair [tcon tBool, tcon tNat] [gvar evenName `app` lvar "n", lvar "x"])
                   `ann` ty
-        expr <- expr1 `app` con cZero
+        expr <- expr1 `app` con0 cZero
         let globs = [(evenName, evenDef), (oddName, oddDef)]
         expect <-
-          (con cMakePair `aPP` tcon tBool `aPP` tcon tNat `app` con cTrue `app` con cZero)
+          con cMakePair [tcon tBool, tcon tNat] [con0 cTrue, con0 cZero]
             `ann` (tcon tPair `tapp` tcon tBool `tapp` tcon tNat)
         pure (globs, expr, expect)
    in do
@@ -301,11 +301,11 @@ unit_12 =
               lam "x" $
                 case_
                   (lvar "x")
-                  [ branch cZero [] $ con cTrue
+                  [ branch cZero [] $ con0 cTrue
                   , branch cSucc [("i", Nothing)] $ lvar "f" `app` lvar "i"
                   ]
-        expr <- let_ "n" (con cZero) $ letrec "f" f (tcon tNat `tfun` tcon tBool) $ lvar "f" `app` lvar "n"
-        expect <- con cTrue `ann` tcon tBool
+        expr <- let_ "n" (con0 cZero) $ letrec "f" f (tcon tNat `tfun` tcon tBool) $ lvar "f" `app` lvar "n"
+        expect <- con0 cTrue `ann` tcon tBool
         pure (expr, expect)
    in do
         s <- evalFullTest maxID builtinTypes mempty 15 Syn e
@@ -314,8 +314,8 @@ unit_12 =
 unit_13 :: Assertion
 unit_13 =
   let ((e, expected), maxID) = create $ do
-        expr <- (lam "x" (con' ["M"] "C" `app` lvar "x" `app` let_ "x" (con cTrue) (lvar "x") `app` lvar "x") `ann` (tcon tNat `tfun` tcon tBool)) `app` con cZero
-        expect <- (con' ["M"] "C" `app` con cZero `app` con cTrue `app` con cZero) `ann` tcon tBool
+        expr <- (lam "x" (con' ["M"] "C" [] [lvar "x", let_ "x" (con0 cTrue) (lvar "x"), lvar "x"]) `ann` (tcon tNat `tfun` tcon tBool)) `app` con0 cZero
+        expect <- con' ["M"] "C" [] [con0 cZero, con0 cTrue, con0 cZero] `ann` tcon tBool
         pure (expr, expect)
    in do
         s <- evalFullTest maxID builtinTypes mempty 15 Syn e
@@ -324,8 +324,8 @@ unit_13 =
 unit_14 :: Assertion
 unit_14 =
   let ((e, expected), maxID) = create $ do
-        expr <- (lam "x" (lam "x" $ lvar "x") `ann` (tcon tBool `tfun` (tcon tNat `tfun` tcon tNat))) `app` con cTrue `app` con cZero
-        expect <- con cZero `ann` tcon tNat
+        expr <- (lam "x" (lam "x" $ lvar "x") `ann` (tcon tBool `tfun` (tcon tNat `tfun` tcon tNat))) `app` con0 cTrue `app` con0 cZero
+        expect <- con0 cZero `ann` tcon tNat
         pure (expr, expect)
    in do
         s <- evalFullTest maxID builtinTypes mempty 15 Syn e
@@ -344,9 +344,9 @@ unit_15 :: Assertion
 unit_15 =
   let ((expr, steps, expected), maxID) = create $ do
         let l = let_ "x" (lvar "y")
-        let c a b = con' ["M"] "C" `app` lvar a `app` lvar b
+        let c a b = con' ["M"] "C" [] [lvar a, lvar b]
         e0 <- l $ lam "y" $ c "x" "y"
-        let y' = "a50" -- NB: fragile name "a50"
+        let y' = "a38"
         e1 <- l $ lam y' $ let_ "y" (lvar y') $ c "x" "y"
         e2 <- l $ lam y' $ let_ "y" (lvar y') $ c "x" y'
         e3 <- l $ lam y' $ c "x" y'
@@ -503,14 +503,13 @@ unit_type_preservation_case_regression_tm =
         e <-
           lam "x" $
             case_
-              (con cMakePair `aPP` tcon tNat `aPP` tcon tBool `app` emptyHole `app` lvar "x")
+              (con cMakePair [tcon tNat, tcon tBool] [emptyHole, lvar "x"])
               [branch cMakePair [("x", Nothing), ("y", Nothing)] emptyHole]
-        let x' = "a46" -- NB fragile name
+        let x' = "a38" -- NB fragile name
         expect1 <-
           lam "x" $
             case_
-              (con cMakePair `aPP` tcon tNat `aPP` tcon tBool `app` emptyHole `app` lvar "x")
-              -- NB: fragile name a46
+              (con cMakePair [tcon tNat, tcon tBool] [emptyHole, lvar "x"])
               [branch cMakePair [(x', Nothing), ("y", Nothing)] $ let_ "x" (lvar x') emptyHole]
         expect2 <-
           lam "x" $
@@ -538,15 +537,15 @@ unit_type_preservation_case_regression_ty =
         e <-
           lAM "x" $
             case_
-              ( (con cMakePair `aPP` tEmptyHole `aPP` tvar "x" `app` emptyHole `app` emptyHole)
+              ( con cMakePair [tEmptyHole, tvar "x"] [emptyHole, emptyHole]
                   `ann` (tcon tPair `tapp` tEmptyHole `tapp` tvar "x")
               )
               [branch cMakePair [("x", Nothing), ("y", Nothing)] emptyHole]
-        let x' = "a58" -- NB fragile name
+        let x' = "a50" -- NB fragile name
         expect1 <-
           lAM "x" $
             case_
-              ( (con cMakePair `aPP` tEmptyHole `aPP` tvar "x" `app` emptyHole `app` emptyHole)
+              ( con cMakePair [tEmptyHole, tvar "x"] [emptyHole, emptyHole]
                   `ann` (tcon tPair `tapp` tEmptyHole `tapp` tvar "x")
               )
               [branch cMakePair [(x', Nothing), ("y", Nothing)] $ let_ "x" (lvar x') emptyHole]
@@ -576,9 +575,9 @@ unit_type_preservation_case_hole_regression :: Assertion
 unit_type_preservation_case_hole_regression = evalTestM 0 $ do
   t <-
     case_
-      ((con cJust `aPP` tEmptyHole `app` con cFalse) `ann` (tcon tMaybe `tapp` tcon tNat))
+      (con cJust [tEmptyHole] [con0 cFalse] `ann` (tcon tMaybe `tapp` tcon tNat))
       [ branch cNothing [] emptyHole
-      , branch cJust [("x", Nothing)] $ con cSucc `app` lvar "x"
+      , branch cJust [("x", Nothing)] $ con1 cSucc $ lvar "x"
       ]
   let tds = foldMap' moduleTypesQualified $ create' $ sequence testModules
   let globs = foldMap' moduleDefsQualified $ create' $ sequence testModules
@@ -911,7 +910,7 @@ tasty_prim_hex_nat = withTests 20 . property $ do
                   [ branch
                       cNothing
                       []
-                      (con cNothing)
+                      (con cNothing [tcon tChar] [])
                   , branch
                       cJust
                       [("x", Nothing)]
@@ -919,14 +918,12 @@ tasty_prim_hex_nat = withTests 20 . property $ do
                           `app` lvar "x"
                       )
                   ]
-                <*> (con cJust `aPP` tcon tNat)
-                `app` ne
+                <*> con cJust [tcon tNat] [ne]
             else
               (,)
                 <$> pfun NatToHex
                 `app` ne
-                <*> con cNothing
-                `aPP` tcon tChar
+                <*> con cNothing [tcon tChar] []
   s <- evalFullTasty maxID builtinTypes primDefs 7 Syn e
   over evalResultExpr zeroIDs s === Right (zeroIDs r)
 
@@ -936,7 +933,7 @@ unit_prim_char_eq_1 =
     EqChar
     (char 'a')
     (char 'a')
-    (con cTrue)
+    (con0 cTrue)
 
 unit_prim_char_eq_2 :: Assertion
 unit_prim_char_eq_2 =
@@ -944,7 +941,7 @@ unit_prim_char_eq_2 =
     EqChar
     (char 'a')
     (char 'A')
-    (con cFalse)
+    (con0 cFalse)
 
 unit_prim_char_partial :: Assertion
 unit_prim_char_partial =
@@ -1004,7 +1001,7 @@ unit_prim_int_quotient =
     IntQuotient
     (int 7)
     (int 3)
-    (con cJust `aPP` tcon tInt `app` int 2)
+    (con cJust [tcon tInt] [int 2])
 
 unit_prim_int_quotient_negative :: Assertion
 unit_prim_int_quotient_negative =
@@ -1012,7 +1009,7 @@ unit_prim_int_quotient_negative =
     IntQuotient
     (int (-7))
     (int 3)
-    (con cJust `aPP` tcon tInt `app` int (-3))
+    (con cJust [tcon tInt] [int (-3)])
 
 unit_prim_int_quotient_zero :: Assertion
 unit_prim_int_quotient_zero =
@@ -1020,7 +1017,7 @@ unit_prim_int_quotient_zero =
     IntQuotient
     (int (-7))
     (int 0)
-    (con cNothing `aPP` tcon tInt)
+    (con cNothing [tcon tInt] [])
 
 unit_prim_int_remainder :: Assertion
 unit_prim_int_remainder =
@@ -1028,7 +1025,7 @@ unit_prim_int_remainder =
     IntRemainder
     (int 7)
     (int 3)
-    (con cJust `aPP` tcon tInt `app` int 1)
+    (con cJust [tcon tInt] [int 1])
 
 unit_prim_int_remainder_negative_1 :: Assertion
 unit_prim_int_remainder_negative_1 =
@@ -1036,7 +1033,7 @@ unit_prim_int_remainder_negative_1 =
     IntRemainder
     (int (-7))
     (int (-3))
-    (con cJust `aPP` tcon tInt `app` int (-1))
+    (con cJust [tcon tInt] [int (-1)])
 
 unit_prim_int_remainder_negative_2 :: Assertion
 unit_prim_int_remainder_negative_2 =
@@ -1044,7 +1041,7 @@ unit_prim_int_remainder_negative_2 =
     IntRemainder
     (int (-7))
     (int 3)
-    (con cJust `aPP` tcon tInt `app` int 2)
+    (con cJust [tcon tInt] [int 2])
 
 unit_prim_int_remainder_negative_3 :: Assertion
 unit_prim_int_remainder_negative_3 =
@@ -1052,7 +1049,7 @@ unit_prim_int_remainder_negative_3 =
     IntRemainder
     (int 7)
     (int (-3))
-    (con cJust `aPP` tcon tInt `app` int (-2))
+    (con cJust [tcon tInt] [int (-2)])
 
 unit_prim_int_remainder_zero :: Assertion
 unit_prim_int_remainder_zero =
@@ -1060,7 +1057,7 @@ unit_prim_int_remainder_zero =
     IntRemainder
     (int 7)
     (int 0)
-    (con cNothing `aPP` tcon tInt)
+    (con cNothing [tcon tInt] [])
 
 unit_prim_int_quot :: Assertion
 unit_prim_int_quot =
@@ -1243,14 +1240,14 @@ unit_prim_int_toNat =
   unaryPrimTest
     IntToNat
     (int 0)
-    (con cJust `aPP` tcon tNat `app` nat 0)
+    (con cJust [tcon tNat] [nat 0])
 
 unit_prim_int_toNat_negative :: Assertion
 unit_prim_int_toNat_negative =
   unaryPrimTest
     IntToNat
     (int (-1))
-    (con cNothing `aPP` tcon tNat)
+    (con cNothing [tcon tNat] [])
 
 unit_prim_int_fromNat :: Assertion
 unit_prim_int_fromNat =
@@ -1331,11 +1328,11 @@ unit_eval_full_modules_scrutinize_imported_type =
   let test = do
         m' <- m
         importModules [m']
-        foo <- case_ (con cTrue) [branch cTrue [] $ con cFalse, branch cFalse [] $ con cTrue]
+        foo <- case_ (con0 cTrue) [branch cTrue [] $ con0 cFalse, branch cFalse [] $ con0 cTrue]
         resp <-
           handleEvalFullRequest
             EvalFullReq{evalFullReqExpr = foo, evalFullCxtDir = Chk, evalFullMaxSteps = 2}
-        expect <- con cFalse
+        expect <- con0 cFalse
         pure $ case resp of
           EvalFullRespTimedOut _ -> assertFailure "EvalFull timed out"
           EvalFullRespNormal e -> e ~= expect

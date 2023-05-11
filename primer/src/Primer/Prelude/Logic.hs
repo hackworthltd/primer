@@ -14,7 +14,7 @@ import Primer.Core.DSL (
   apps,
   branch,
   case_,
-  con,
+  con0,
   gvar,
   lam,
   lvar,
@@ -39,8 +39,8 @@ notDef = do
       "x"
       ( case_
           (lvar "x")
-          [ branch B.cTrue [] (con B.cFalse)
-          , branch B.cFalse [] (con B.cTrue)
+          [ branch B.cTrue [] (con0 B.cFalse)
+          , branch B.cFalse [] (con0 B.cTrue)
           ]
       )
   pure $ DefAST $ ASTDef term type_
@@ -63,12 +63,12 @@ andDef = do
                   "y"
                   ( case_
                       (lvar "y")
-                      [ branch B.cTrue [] (con B.cTrue)
-                      , branch B.cFalse [] (con B.cFalse)
+                      [ branch B.cTrue [] (con0 B.cTrue)
+                      , branch B.cFalse [] (con0 B.cFalse)
                       ]
                   )
               )
-          , branch B.cFalse [] (lam "y" $ con B.cFalse)
+          , branch B.cFalse [] (lam "y" $ con0 B.cFalse)
           ]
       )
   pure $ DefAST $ ASTDef term type_
@@ -84,7 +84,7 @@ orDef = do
       "x"
       ( case_
           (lvar "x")
-          [ branch B.cTrue [] (lam "y" $ con B.cTrue)
+          [ branch B.cTrue [] (lam "y" $ con0 B.cTrue)
           , branch
               B.cFalse
               []
@@ -92,8 +92,8 @@ orDef = do
                   "y"
                   ( case_
                       (lvar "y")
-                      [ branch B.cTrue [] $ con B.cTrue
-                      , branch B.cFalse [] $ con B.cFalse
+                      [ branch B.cTrue [] $ con0 B.cTrue
+                      , branch B.cFalse [] $ con0 B.cFalse
                       ]
                   )
               )
@@ -139,8 +139,8 @@ impliesDef = do
           "y"
           ( case_
               (lvar "x")
-              [ branch B.cTrue [] (case_ (lvar "y") [branch B.cTrue [] $ con B.cTrue, branch B.cFalse [] $ con B.cFalse])
-              , branch B.cFalse [] (case_ (lvar "y") [branch B.cTrue [] $ con B.cTrue, branch B.cFalse [] $ con B.cTrue])
+              [ branch B.cTrue [] (case_ (lvar "y") [branch B.cTrue [] $ con0 B.cTrue, branch B.cFalse [] $ con0 B.cFalse])
+              , branch B.cFalse [] (case_ (lvar "y") [branch B.cTrue [] $ con0 B.cTrue, branch B.cFalse [] $ con0 B.cTrue])
               ]
           )
       )

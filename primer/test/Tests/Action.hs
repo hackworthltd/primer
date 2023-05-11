@@ -37,7 +37,13 @@ import Primer.Gen.Core.Raw (
 import Primer.Module (builtinModule, primitiveModule)
 import Primer.Primitives (tChar, tInt)
 import Primer.Test.TestM (evalTestM)
-import Primer.Test.Util (clearMeta, constructCon, constructRefinedCon, constructTCon)
+import Primer.Test.Util (
+  clearMeta,
+  constructCon,
+  constructRefinedCon,
+  constructSaturatedCon,
+  constructTCon,
+ )
 import Primer.Typecheck (SmartHoles (NoSmartHoles, SmartHoles))
 import Primer.Zipper (
   down,
@@ -238,7 +244,7 @@ unit_8 =
     , Move Child2
     , constructCon cTrue
     ]
-    (app (ann (lam "x" (lvar "x")) (tfun (tcon tBool) (tcon tBool))) (con cTrue))
+    (app (ann (lam "x" (lvar "x")) (tfun (tcon tBool) (tcon tBool))) (con0 cTrue))
 
 unit_9 :: Assertion
 unit_9 =
@@ -252,7 +258,7 @@ unit_9 =
     , Move Child2
     , ConstructVar $ LocalVarRef "x"
     ]
-    (let_ "x" (con cTrue) (lvar "x"))
+    (let_ "x" (con0 cTrue) (lvar "x"))
 
 unit_construct_arrow_left :: Assertion
 unit_construct_arrow_left =
@@ -291,9 +297,9 @@ unit_rename_let :: Assertion
 unit_rename_let =
   actionTest
     NoSmartHoles
-    (let_ "x" (con cTrue) (lvar "x"))
+    (let_ "x" (con0 cTrue) (lvar "x"))
     [RenameLet "y"]
-    (let_ "y" (con cTrue) (lvar "y"))
+    (let_ "y" (con0 cTrue) (lvar "y"))
 
 unit_rename_letrec :: Assertion
 unit_rename_letrec =
@@ -325,9 +331,9 @@ unit_rename_lam :: Assertion
 unit_rename_lam =
   actionTest
     NoSmartHoles
-    (ann (lam "x" (app (lvar "x") (con cFalse))) tEmptyHole)
+    (ann (lam "x" (app (lvar "x") (con0 cFalse))) tEmptyHole)
     [Move Child1, RenameLam "y"]
-    (ann (lam "y" (app (lvar "y") (con cFalse))) tEmptyHole)
+    (ann (lam "y" (app (lvar "y") (con0 cFalse))) tEmptyHole)
 
 unit_rename_lam_2 :: Assertion
 unit_rename_lam_2 =
@@ -341,16 +347,16 @@ unit_rename_LAM :: Assertion
 unit_rename_LAM =
   actionTest
     NoSmartHoles
-    (ann (lAM "a" (aPP (con cNil) (tvar "a"))) (tforall "b" KType $ listOf (tvar "b")))
+    (ann (lAM "a" (con cNil [tvar "a"] [])) (tforall "b" KType $ listOf (tvar "b")))
     [Move Child1, RenameLAM "b"]
-    (ann (lAM "b" (aPP (con cNil) (tvar "b"))) (tforall "b" KType $ listOf (tvar "b")))
+    (ann (lAM "b" (con cNil [tvar "b"] [])) (tforall "b" KType $ listOf (tvar "b")))
 
 unit_rename_LAM_2 :: Assertion
 unit_rename_LAM_2 =
   actionTestExpectFail
     (const True)
     NoSmartHoles
-    (ann (lAM "b" (lAM "a" (aPP (con cNil) (tvar "b")))) tEmptyHole)
+    (ann (lAM "b" (lAM "a" (con cNil [tvar "b"] []))) tEmptyHole)
     [Move Child1, Move Child1, RenameLAM "b"]
 
 unit_rename_LAM_3 :: Assertion
@@ -368,9 +374,9 @@ unit_convert_let_to_letrec :: Assertion
 unit_convert_let_to_letrec =
   actionTest
     NoSmartHoles
-    (let_ "x" (con cTrue) (lvar "x"))
+    (let_ "x" (con0 cTrue) (lvar "x"))
     [ConvertLetToLetrec]
-    (letrec "x" (con cTrue) tEmptyHole (lvar "x"))
+    (letrec "x" (con0 cTrue) tEmptyHole (lvar "x"))
 
 unit_delete_type :: Assertion
 unit_delete_type =
@@ -410,7 +416,7 @@ unit_bad_app =
   actionTestExpectFail
     (const True)
     NoSmartHoles
-    (con cTrue)
+    (con0 cTrue)
     [ConstructApp]
 
 unit_insert_expr_in_type :: Assertion
@@ -435,7 +441,7 @@ unit_enter_emptyHole =
     NoSmartHoles
     emptyHole
     [EnterHole, constructCon cTrue]
-    (hole $ con cTrue)
+    (hole $ con0 cTrue)
 
 unit_enter_nonEmptyHole :: Assertion
 unit_enter_nonEmptyHole =
@@ -443,7 +449,7 @@ unit_enter_nonEmptyHole =
     NoSmartHoles
     (hole emptyHole)
     [Move Child1, constructCon cTrue]
-    (hole $ con cTrue)
+    (hole $ con0 cTrue)
 
 unit_bad_enter_hole :: Assertion
 unit_bad_enter_hole =
@@ -478,7 +484,7 @@ unit_case_create =
               ann
                 ( case_
                     (lvar "x")
-                    [branch cTrue [] (con cZero), branch cFalse [] emptyHole]
+                    [branch cTrue [] (con0 cZero), branch cFalse [] emptyHole]
                 )
                 tEmptyHole
         )
@@ -496,7 +502,7 @@ unit_case_tidy =
               ann
                 ( case_
                     (lvar "x")
-                    [branch cTrue [] (con cZero), branch cFalse [] emptyHole]
+                    [branch cTrue [] (con0 cZero), branch cFalse [] emptyHole]
                 )
                 tEmptyHole
         )
@@ -507,7 +513,7 @@ unit_case_tidy =
         ( lam "x" $
             case_
               (lvar "x")
-              [branch cTrue [] (con cZero), branch cFalse [] emptyHole]
+              [branch cTrue [] (con0 cZero), branch cFalse [] emptyHole]
         )
         (tfun (tcon tBool) (tcon tNat))
     )
@@ -545,7 +551,7 @@ unit_case_move_branch_1 =
               ann
                 ( case_
                     (lvar "x")
-                    [branch cZero [] (con cZero), branch cSucc [("n", Nothing)] (lvar "n")]
+                    [branch cZero [] (con0 cZero), branch cSucc [("n", Nothing)] (lvar "n")]
                 )
                 tEmptyHole
         )
@@ -577,7 +583,7 @@ unit_case_move_branch_2 =
         ( lam "x" $
             case_
               (lvar "x")
-              [branch cZero [] (con cZero), branch cSucc [("n", Nothing)] (lvar "n")]
+              [branch cZero [] (con0 cZero), branch cSucc [("n", Nothing)] (lvar "n")]
         )
         (tfun (tcon tNat) (tcon tNat))
     )
@@ -760,7 +766,7 @@ unit_case_create_smart_on_term =
             "x"
             ( case_
                 (lvar "x")
-                [branch cTrue [] (con cZero), branch cFalse [] emptyHole]
+                [branch cTrue [] (con0 cZero), branch cFalse [] emptyHole]
             )
         )
         (tfun (tcon tBool) (tcon tNat))
@@ -788,7 +794,7 @@ unit_case_create_smart_on_hole =
             "x"
             ( case_
                 (lvar "x")
-                [branch cTrue [] (con cZero), branch cFalse [] emptyHole]
+                [branch cTrue [] (con0 cZero), branch cFalse [] emptyHole]
             )
         )
         (tfun (tcon tBool) (tcon tNat))
@@ -800,8 +806,8 @@ unit_case_change_smart_scrutinee_type =
     SmartHoles
     ( ann
         ( case_
-            (con cTrue)
-            [branch cTrue [] (con cZero), branch cFalse [] emptyHole]
+            (con0 cTrue)
+            [branch cTrue [] (con0 cZero), branch cFalse [] emptyHole]
         )
         (tcon tNat)
     )
@@ -812,7 +818,7 @@ unit_case_change_smart_scrutinee_type =
     ]
     ( ann
         ( case_
-            (con cZero)
+            (con0 cZero)
             [branch cZero [] emptyHole, branch cSucc [("a21", Nothing)] emptyHole] -- fragile names here
         )
         (tcon tNat)
@@ -876,9 +882,9 @@ unit_constructAPP :: Assertion
 unit_constructAPP =
   actionTest
     NoSmartHoles
-    (con cNil)
+    emptyHole
     [ConstructAPP, EnterType, constructTCon tBool]
-    (con cNil `aPP` tcon tBool)
+    (emptyHole `aPP` tcon tBool)
 
 unit_constructLAM :: Assertion
 unit_constructLAM =
@@ -886,7 +892,7 @@ unit_constructLAM =
     NoSmartHoles
     (emptyHole `ann` tEmptyHole)
     [Move Child1, ConstructLAM (Just "a"), constructCon cTrue]
-    (lAM "a" (con cTrue) `ann` tEmptyHole)
+    (lAM "a" (con0 cTrue) `ann` tEmptyHole)
 
 unit_construct_TForall :: Assertion
 unit_construct_TForall =
@@ -983,17 +989,17 @@ unit_construct_lam :: Assertion
 unit_construct_lam =
   actionTest
     SmartHoles
-    (con cTrue)
+    (con0 cTrue)
     [ConstructLam (Just "x")]
-    (ann (lam "x" (con cTrue)) tEmptyHole)
+    (ann (lam "x" (con0 cTrue)) tEmptyHole)
 
 unit_construct_LAM :: Assertion
 unit_construct_LAM =
   actionTest
     SmartHoles
-    (con cTrue)
+    (con0 cTrue)
     [ConstructLAM (Just "a")]
-    (ann (lAM "a" (con cTrue)) tEmptyHole)
+    (ann (lAM "a" (con0 cTrue)) tEmptyHole)
 
 unit_smart_type_1 :: Assertion
 unit_smart_type_1 =
@@ -1025,7 +1031,7 @@ unit_refine_2 =
     NoSmartHoles
     (emptyHole `ann` (tcon tList `tapp` tcon tNat))
     [Move Child1, constructRefinedCon cNil]
-    ((con cNil `aPP` tcon tNat) `ann` (tcon tList `tapp` tcon tNat))
+    (con cNil [tcon tNat] [] `ann` (tcon tList `tapp` tcon tNat))
 
 unit_refine_3 :: Assertion
 unit_refine_3 =
@@ -1033,23 +1039,23 @@ unit_refine_3 =
     NoSmartHoles
     (emptyHole `ann` (tcon tList `tapp` tEmptyHole))
     [Move Child1, constructRefinedCon cNil]
-    ((con cNil `aPP` tEmptyHole) `ann` (tcon tList `tapp` tEmptyHole))
+    (con cNil [tEmptyHole] [] `ann` (tcon tList `tapp` tEmptyHole))
 
 unit_refine_4 :: Assertion
 unit_refine_4 =
   actionTest
     NoSmartHoles
-    (let_ "nil" (con cNil) $ emptyHole `ann` (tcon tList `tapp` tcon tNat))
+    (let_ "nil" (lAM "a" (con cNil [tvar "a"] []) `ann` tforall "a" KType (tcon tList `tapp` tvar "a")) $ emptyHole `ann` (tcon tList `tapp` tcon tNat))
     [Move Child2, Move Child1, InsertRefinedVar $ LocalVarRef "nil"]
-    (let_ "nil" (con cNil) $ (lvar "nil" `aPP` tcon tNat) `ann` (tcon tList `tapp` tcon tNat))
+    (let_ "nil" (lAM "a" (con cNil [tvar "a"] []) `ann` tforall "a" KType (tcon tList `tapp` tvar "a")) $ (lvar "nil" `aPP` tcon tNat) `ann` (tcon tList `tapp` tcon tNat))
 
 unit_refine_5 :: Assertion
 unit_refine_5 =
   actionTest
     NoSmartHoles
-    (let_ "nil" (con cNil) $ emptyHole `ann` (tcon tList `tapp` tEmptyHole))
+    (let_ "nil" (lAM "a" (con cNil [tvar "a"] []) `ann` tforall "a" KType (tcon tList `tapp` tvar "a")) $ emptyHole `ann` (tcon tList `tapp` tEmptyHole))
     [Move Child2, Move Child1, InsertRefinedVar $ LocalVarRef "nil"]
-    (let_ "nil" (con cNil) $ (lvar "nil" `aPP` tEmptyHole) `ann` (tcon tList `tapp` tEmptyHole))
+    (let_ "nil" (lAM "a" (con cNil [tvar "a"] []) `ann` tforall "a" KType (tcon tList `tapp` tvar "a")) $ (lvar "nil" `aPP` tEmptyHole) `ann` (tcon tList `tapp` tEmptyHole))
 
 -- If there is no valid refinement, insert saturated constructor into a non-empty hole
 unit_refine_mismatch_con :: Assertion
@@ -1058,16 +1064,42 @@ unit_refine_mismatch_con =
     NoSmartHoles
     (emptyHole `ann` tcon tNat)
     [Move Child1, constructRefinedCon cCons]
-    (hole (con cCons `aPP` tEmptyHole `app` emptyHole `app` emptyHole) `ann` tcon tNat)
+    (hole (con cCons [tEmptyHole] [emptyHole, emptyHole]) `ann` tcon tNat)
 
 -- If there is no valid refinement, insert saturated variable into a non-empty hole
 unit_refine_mismatch_var :: Assertion
 unit_refine_mismatch_var =
   actionTest
     NoSmartHoles
-    (let_ "cons" (con cCons) $ emptyHole `ann` tcon tBool)
+    ( let_
+        "cons"
+        ( emptyHole
+            `ann` tforall
+              "a"
+              KType
+              ( tvar "a"
+                  `tfun` ( (tcon tList `tapp` tvar "a")
+                            `tfun` (tcon tList `tapp` tvar "a")
+                         )
+              )
+        )
+        $ emptyHole `ann` tcon tBool
+    )
     [Move Child2, Move Child1, InsertRefinedVar $ LocalVarRef "cons"]
-    (let_ "cons" (con cCons) $ hole (lvar "cons" `aPP` tEmptyHole `app` emptyHole `app` emptyHole) `ann` tcon tBool)
+    ( let_
+        "cons"
+        ( emptyHole
+            `ann` tforall
+              "a"
+              KType
+              ( tvar "a"
+                  `tfun` ( (tcon tList `tapp` tvar "a")
+                            `tfun` (tcon tList `tapp` tvar "a")
+                         )
+              )
+        )
+        $ hole (lvar "cons" `aPP` tEmptyHole `app` emptyHole `app` emptyHole) `ann` tcon tBool
+    )
 
 -- Note @cons @? ∈ ? -> List ? -> List ?  ~  ? -> ?@,
 -- thus inserting a refined @cons@ in a hole of type @? -> ?@ may not refine as
@@ -1078,7 +1110,7 @@ unit_refine_arr_1 =
     NoSmartHoles
     (emptyHole `ann` (tEmptyHole `tfun` tEmptyHole))
     [Move Child1, constructRefinedCon cCons]
-    ((con cCons `aPP` tEmptyHole) `ann` (tEmptyHole `tfun` tEmptyHole))
+    (con cCons [tEmptyHole] [] `ann` (tEmptyHole `tfun` tEmptyHole))
 
 unit_refine_arr_2 :: Assertion
 unit_refine_arr_2 =
@@ -1086,7 +1118,7 @@ unit_refine_arr_2 =
     NoSmartHoles
     (emptyHole `ann` ((tcon tList `tapp` tcon tNat) `tfun` (tcon tList `tapp` tcon tNat)))
     [Move Child1, constructRefinedCon cCons]
-    ((con cCons `aPP` tcon tNat `app` emptyHole) `ann` ((tcon tList `tapp` tcon tNat) `tfun` (tcon tList `tapp` tcon tNat)))
+    (con cCons [tcon tNat] [emptyHole] `ann` ((tcon tList `tapp` tcon tNat) `tfun` (tcon tList `tapp` tcon tNat)))
 
 unit_primitive_1 :: Assertion
 unit_primitive_1 =
@@ -1106,6 +1138,27 @@ unit_primitive_1 =
     , ConstructPrim (PrimChar 'c')
     ]
     (lam "x" (char 'c') `ann` (tcon tInt `tfun` tcon tChar))
+
+unit_move_ctor :: Assertion
+unit_move_ctor =
+  actionTest
+    NoSmartHoles
+    emptyHole
+    [ constructSaturatedCon cMakePair
+    , EnterConTypeArgument 0
+    , constructTCon tNat
+    , ExitType
+    , EnterConTypeArgument 1
+    , constructTCon tBool
+    , ExitType
+    , Move $ ConChild 0
+    , constructSaturatedCon cZero
+    , Move Parent
+    , Move $ ConChild 1
+    , constructSaturatedCon cFalse
+    , Move Parent
+    ]
+    (con cMakePair [tcon tNat, tcon tBool] [con0 cZero, con0 cFalse])
 
 -- * Helpers
 

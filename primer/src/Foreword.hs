@@ -16,6 +16,7 @@ module Foreword (
   (?:),
   curry4,
   unsafeMaximum,
+  spanMaybe,
 ) where
 
 -- In general, we should defer to "Protolude"'s exports and avoid name
@@ -166,3 +167,12 @@ curry4 f a b c d = f (a, b, c, d)
 -- (@unsafeMaximum = maximum@, renamed to make its partiality obvious)
 unsafeMaximum :: Ord a => [a] -> a
 unsafeMaximum = P.maximum
+
+-- | Similar to 'Data.List.span', but takes a 'Maybe' predicate.
+spanMaybe :: (a -> Maybe b) -> [a] -> ([b], [a])
+spanMaybe f = go
+  where
+    go [] = ([], [])
+    go xxs@(x : xs) = case f x of
+      Just b -> first (b :) $ go xs
+      Nothing -> ([], xxs)

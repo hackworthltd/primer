@@ -179,8 +179,8 @@ unit_variablesInScope_lambda = do
 -- Given a let, its bound variable is in scope in the body but not the bound expression
 unit_variablesInScope_let :: Assertion
 unit_variablesInScope_let = do
-  let oneLet = let_ "x" (con cTrue) emptyHole
-      twoLet = let_ "x" (con cTrue) (let_ "y" (con cZero) emptyHole)
+  let oneLet = let_ "x" (con0 cTrue) emptyHole
+      twoLet = let_ "x" (con0 cTrue) (let_ "y" (con0 cZero) emptyHole)
   hasVariables oneLet pure mempty
   hasVariables oneLet down mempty
   hasVariables oneLet (down >=> right) [("x", TCon () tBool)]
@@ -196,7 +196,7 @@ unit_variablesInScope_let = do
 -- Given a letrec, its bound variable is in scope in both the body and the bound expression
 unit_variablesInScope_letrec :: Assertion
 unit_variablesInScope_letrec = do
-  let expr = letrec "x" (con cTrue) (tcon tBool) emptyHole
+  let expr = letrec "x" (con0 cTrue) (tcon tBool) emptyHole
   hasVariables expr pure []
   hasVariables expr down [("x", TCon () tBool)]
   hasVariables expr (down >=> right) [("x", TCon () tBool)]
@@ -209,7 +209,7 @@ unit_variablesInScope_letrec = do
 -- LHS.
 unit_variablesInScope_case :: Assertion
 unit_variablesInScope_case = do
-  let expr = ann (case_ (con cZero) [branch cZero [] emptyHole, branch cSucc [("n", Nothing)] emptyHole]) (tcon tNat)
+  let expr = ann (case_ (con0 cZero) [branch cZero [] emptyHole, branch cSucc [("n", Nothing)] emptyHole]) (tcon tNat)
   hasVariables expr pure []
   hasVariables expr down []
   hasVariables expr (down >=> down) []
@@ -228,7 +228,7 @@ unit_variablesInScope_type = do
 unit_variablesInScope_shadowed :: Assertion
 unit_variablesInScope_shadowed = do
   let ty = tforall "a" (KFun KType KType) $ tforall "b" KType $ tcon tNat `tfun` tforall "a" KType (tcon tBool `tfun` (tcon tList `tapp` tvar "b"))
-      expr' = lAM "c" $ lAM "d" $ lam "c" $ lAM "c" $ lam "c" $ con cNil `aPP` tvar "d"
+      expr' = lAM "c" $ lAM "d" $ lam "c" $ lAM "c" $ lam "c" $ con cNil [tvar "d"] []
       expr = ann expr' ty
   hasVariablesType ty pure []
   hasVariablesType ty down [("a", KFun KType KType)]

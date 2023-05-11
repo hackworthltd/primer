@@ -15,9 +15,6 @@ cradle:
     - path: "primer-benchmark/src"
       component: "lib:primer-benchmark"
 
-    - path: "primer-benchmark/mkfixture/Main.hs"
-      component: "primer-benchmark:exe:primer-benchmark-mkfixture"
-
     - path: "primer-benchmark/bench/Main.hs"
       component: "primer-benchmark:bench:primer-benchmark"
 
@@ -50,9 +47,6 @@ cradle:
 
     - path: "primer-service/exe-client/Main.hs"
       component: "primer-service:exe:primer-client"
-
-    - path: "primer-service/exe-replay/Main.hs"
-      component: "primer-service:exe:primer-replay"
 
     - path: "primer-service/exe-openapi/Main.hs"
       component: "primer-service:exe:primer-openapi"

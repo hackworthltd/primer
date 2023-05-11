@@ -1,7 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
-module Benchmarks (hashProg, benchmarks, runBenchmarks, runTests) where
+module Benchmarks (benchmarks, runBenchmarks, runTests) where
 
 import Foreword
 
@@ -16,18 +16,7 @@ import Criterion (
   nf,
  )
 import Criterion qualified as C
-import Data.Aeson (encode)
-import Data.Text qualified as T
-import Primer.API (viewProg)
 import Primer.App (
-  App,
-  MutationRequest,
-  Prog,
-  ProgError,
-  appProg,
-  handleMutationRequest,
-  newApp,
-  runEditAppM,
   tcWholeProgWithImports,
  )
 import Primer.App.Utils (forgetProgTypecache)
@@ -41,7 +30,6 @@ import Primer.Examples (
   mapOddProg,
  )
 import Primer.Log (
-  runDiscardLog,
   runDiscardLogT,
   runPureLogT,
  )
@@ -59,7 +47,6 @@ import Primer.Test.Util (zeroIDs)
 import Primer.Typecheck (TypeError)
 import Test.Tasty (TestTree, testGroup, withResource)
 import Test.Tasty.HUnit (Assertion, assertBool, assertFailure, testCase, (@?=))
-import Prelude (error)
 
 -- Orphans for 'NFData' instances.
 deriving stock instance Generic (WithSeverity a)
@@ -109,9 +96,6 @@ benchmarks =
       , benchTC (mapOddPrimProgEnv 10) "mapOddPrim 10"
       , benchTC (mapOddPrimProgEnv 100) "mapOddPrim 100"
       ]
-  , Group
-      "edits"
-      [runFixture "sayHello"]
   ]
   where
     evalTestMPureLogs e maxEvals =
@@ -142,77 +126,6 @@ benchmarks =
     mapEvenEnv n = pure $ mapEven n
     mapOddProgEnv = pure . mapOddProg
     mapOddPrimProgEnv = pure . mapOddPrimProg
-
-runFixture :: Text -> Benchmark
-runFixture fixture =
-  Group
-    fixture
-    [ benchFixture None
-    , benchFixture App
-    , benchFixture Prog
-    , benchFixture ProgJSON
-    ]
-  where
-    parseEdits :: IO ([MutationRequest], Maybe Int)
-    parseEdits = do
-      cts <- fmap lines . readFile . toS $ "fixtures/" <> fixture <> ".edits"
-      case cts of
-        (l : ls)
-          | Just h <- T.stripPrefix "expected result hash: " l ->
-              pure (fmap unsafeRead ls, Just $ unsafeRead h)
-        _ -> pure (fmap unsafeRead cts, Nothing)
-
-    info = \case
-      None -> "(no forcing)"
-      App -> "(force app)"
-      Prog -> "(force prog)"
-      ProgJSON -> "(force progjson)"
-
-    benchFixture f = EnvBench parseEdits (fixture <> " " <> info f) $
-      \(edits, expected) ->
-        NF
-          (benchEdits f)
-          edits
-          ( pure $ \p ->
-              let ph = hashProg (appProg p)
-               in case expected of
-                    Nothing -> assertFailure $ "No expected result hash given. Actual result hash was " <> show ph
-                    Just h -> ph @?= h
-          )
-
-    -- This may throw an exception, but that will show as a failing test
-    unsafeRead :: Read a => Text -> a
-    unsafeRead = fromMaybe (error "failed to parse fixture file") . readMaybe
-
--- | We sanity check our benchmarks result by comparing the hash of
--- the actual result with an expected hash. This is because the actual
--- result may be somewhat large, so we wish to avoid storing the whole
--- thing in the repository).  The only properties we care about are
--- that the hash is small, and checking hash-equality gives a good
--- change of catching any changes.  NB: this hash should capture
--- every detail of the 'Prog', including metadata and IDs.
-hashProg :: Prog -> Int
--- To avoid having to define a 'Hashable' instance just for this we
--- use this hack.
-hashProg = hash @Text . show
-
--- Various forcings
-data Force = None | App | Prog | ProgJSON
-force' :: Force -> App -> App
-force' None a = a
-force' App a = force a
-force' Prog a = viewProg (appProg a) `deepseq` a
-force' ProgJSON a = encode (viewProg $ appProg a) `deepseq` a
-
--- run actions, forcing intermediate results as dictated by Force argument
-benchEdits :: Force -> [MutationRequest] -> App
-benchEdits forceIntermediates actions =
-  case foldlM runAction newApp actions of
-    Left err -> error $ "Running actions failed with: " <> show err
-    Right a -> a
-  where
-    runAction :: App -> MutationRequest -> Either ProgError App
-    runAction a m = (\(e, a') -> e $> force' forceIntermediates a') $ runDiscardLog (runEditAppM (handleMutationRequest m) a)
 
 runBenchmarks :: [Benchmark] -> [C.Benchmark]
 runBenchmarks = map go

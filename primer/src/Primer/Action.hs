@@ -19,8 +19,10 @@ import Foreword hiding (mod)
 
 import Control.Monad.Fresh (MonadFresh)
 import Data.Aeson (Value)
+import Data.Bifunctor.Swap qualified as Swap
 import Data.Generics.Product (typed)
 import Data.List (findIndex)
+import Data.List.Extra ((!?))
 import Data.List.NonEmpty qualified as NE
 import Data.Map.Strict qualified as Map
 import Data.Set qualified as Set
@@ -67,6 +69,7 @@ import Primer.Core.DSL (
   branch,
   case_,
   con,
+  con0,
   emptyHole,
   hole,
   lAM,
@@ -128,6 +131,7 @@ import Primer.Zipper (
   findNodeWithParent,
   findType,
   focus,
+  focusConTypes,
   focusLoc,
   focusOn,
   focusType,
@@ -363,6 +367,12 @@ applyAction' a = case a of
   ExitType -> \case
     InType zt -> pure $ InExpr $ unfocusType zt
     _ -> throwError $ CustomFailure ExitType "cannot exit type - not in type"
+  EnterConTypeArgument n -> \case
+    InExpr ze -> case (!? n) <$> focusConTypes ze of
+      Nothing -> throwError $ CustomFailure (EnterConTypeArgument n) "Move-to-constructor-argument failed: this is not a constructor"
+      Just Nothing -> throwError $ CustomFailure (EnterConTypeArgument n) "Move-to-constructor-argument failed: no such argument"
+      Just (Just z') -> pure $ InType z'
+    _ -> throwError $ CustomFailure (EnterConTypeArgument n) "cannot enter value constructors argument - not in expr"
   ConstructArrowL -> typeAction constructArrowL "cannot construct arrow - not in type"
   ConstructArrowR -> typeAction constructArrowR "cannot construct arrow - not in type"
   ConstructTCon c -> typeAction (constructTCon c) "cannot construct tcon in expr"
@@ -397,6 +407,12 @@ moveExpr m@(Branch c) z | Case _ _ brs <- target z =
       Just z' -> pure z'
       Nothing -> throwError $ CustomFailure (Move m) "internal error: movement failed, even though branch exists"
 moveExpr m@(Branch _) _ = throwError $ CustomFailure (Move m) "Move-to-branch failed: this is not a case expression"
+moveExpr m@(ConChild n) z | Con{} <- target z =
+  -- 'down' moves into the first argument, 'right' steps through the various arguments
+  case foldr (\_ z' -> right =<< z') (down z) [1 .. n] of
+    Just z' -> pure z'
+    Nothing -> throwError $ CustomFailure (Move m) "Move-to-constructor-argument failed: no such argument"
+moveExpr m@(ConChild _) _ = throwError $ CustomFailure (Move m) "Move-to-constructor-argument failed: this is not a constructor"
 moveExpr Child2 z
   | Case{} <- target z =
       throwError $ CustomFailure (Move Child2) "cannot move to 'Child2' of a case: use Branch instead"
@@ -405,10 +421,11 @@ moveExpr m z = move m z
 -- | Apply a movement to a zipper
 moveType :: ActionM m => Movement -> TypeZ -> m TypeZ
 moveType m@(Branch _) _ = throwError $ CustomFailure (Move m) "Move-to-branch unsupported in types (there are no cases in types!)"
+moveType m@(ConChild _) _ = throwError $ CustomFailure (Move m) "Move-to-constructor-argument unsupported in types (type constructors do not directly store their arguments)"
 moveType m z = move m z
 
 -- | Apply a movement to a generic zipper - does not support movement to a case
--- branch
+-- branch, or into an argument of a constructor
 move :: forall m za a. (ActionM m, IsZipper za a, HasID za) => Movement -> za -> m za
 move m z = do
   mz' <- move' m z
@@ -421,6 +438,7 @@ move m z = do
     move' Child1 = pure . down
     move' Child2 = pure . (down >=> right)
     move' (Branch _) = const $ throwError $ InternalFailure "move does not support Branch moves"
+    move' (ConChild _) = const $ throwError $ InternalFailure "move does not support Constructor argument moves"
 
 setMetadata :: (IsZipper za a, HasMetadata a) => Value -> za -> za
 setMetadata d z = z & _target % _metadata ?~ d
@@ -500,14 +518,18 @@ insertRefinedVar x ast = do
     getVarType ast x >>= \case
       Left err -> throwError $ RefineError $ Right err
       Right t -> pure (var x, t)
-  let tgtTyCache = maybeTypeOf $ target ast
   -- our Cxt in the monad does not care about the local context, we have to extract it from the zipper.
   -- See https://github.com/hackworthltd/primer/issues/11
   -- We only care about the type context for refine
   let (tycxt, _) = localVariablesInScopeExpr (Left ast)
   cxt <- asks $ TC.extendLocalCxtTys tycxt
+  tgtTy <- getTypeCache $ target ast
   case target ast of
-    EmptyHole{} -> flip replace ast <$> mkRefinedApplication cxt v vTy tgtTyCache
+    EmptyHole{} ->
+      getRefinedApplications cxt vTy tgtTy >>= \case
+        -- See Note [No valid refinement]
+        Nothing -> flip replace ast <$> hole (mkSaturatedApplication v vTy)
+        Just as -> flip replace ast <$> apps' v (Swap.swap . bimap pure pure <$> as)
     e -> throwError $ NeedEmptyHole (InsertRefinedVar x) e
 
 {-
@@ -521,22 +543,27 @@ saturate the requested function and put it inside a hole when we cannot find a
 suitable application spine.
 -}
 
-mkRefinedApplication :: ActionM m => TC.Cxt -> m Expr -> TC.Type -> Maybe TypeCache -> m Expr
-mkRefinedApplication cxt e eTy tgtTy' = do
+getRefinedApplications ::
+  ( MonadError ActionError m
+  , MonadFresh NameCounter m
+  , MonadFresh ID m
+  ) =>
+  TC.Cxt ->
+  TC.Type ->
+  TypeCache ->
+  m (Maybe [Either Type Expr])
+getRefinedApplications cxt eTy tgtTy' = do
   tgtTy <- case tgtTy' of
-    Just (TCChkedAt t) -> pure t
-    Just (TCEmb b) -> pure $ tcChkedAt b
-    _ -> throwError $ RefineError $ Left "Don't have a type we were checked at"
+    TCChkedAt t -> pure t
+    TCEmb b -> pure $ tcChkedAt b
+    TCSynthed{} -> throwError $ RefineError $ Left "Don't have a type we were checked at"
   mInst <-
     runExceptT (refine cxt tgtTy eTy) >>= \case
       -- Errors are only internal failures. Refinement failing is signaled with
       -- a Maybe
       Left err -> throwError $ InternalFailure $ show err
       Right x -> pure $ fst <$> x
-  case mInst of
-    -- See Note [No valid refinement]
-    Nothing -> hole $ mkSaturatedApplication e eTy
-    Just inst -> foldl' f e inst
+  traverse (mapM f) mInst
   where
     -- Note that whilst the names in 'InstUnconstrainedAPP' scope over the
     -- following 'Insts', and should be substituted with whatever the
@@ -545,10 +572,10 @@ mkRefinedApplication cxt e eTy tgtTy' = do
     -- 'Tests.Refine.tasty_scoping'). Since we ignore the type of an 'InstApp'
     -- and unconditionally put a hole, we do not have to worry about doing this
     -- substitution.
-    f x = \case
-      InstApp _ -> x `app` emptyHole
-      InstAPP a -> x `aPP` generateTypeIDs a
-      InstUnconstrainedAPP _ _ -> x `aPP` tEmptyHole
+    f = \case
+      InstApp _ -> Right <$> emptyHole
+      InstAPP a -> Left <$> generateTypeIDs a
+      InstUnconstrainedAPP _ _ -> Left <$> tEmptyHole
 
 constructApp :: ActionM m => ExprZ -> m ExprZ
 constructApp ze = flip replace ze <$> app (pure (target ze)) emptyHole
@@ -590,7 +617,7 @@ constructLAM mx ze = do
 -- TODO (saturated constructors) this action will make no sense once full-saturation is enforced
 constructCon :: ActionM m => QualifiedText -> ExprZ -> m ExprZ
 constructCon c ze = case target ze of
-  EmptyHole{} -> flip replace ze <$> con (unsafeMkGlobalName c)
+  EmptyHole{} -> flip replace ze <$> con0 (unsafeMkGlobalName c)
   e -> throwError $ NeedEmptyHole (ConstructCon c) e
 
 constructPrim :: ActionM m => PrimCon -> ExprZ -> m ExprZ
@@ -602,42 +629,65 @@ constructSatCon :: ActionM m => QualifiedText -> ExprZ -> m ExprZ
 constructSatCon c ze = case target ze of
   -- Similar comments re smartholes apply as to insertSatVar
   EmptyHole{} -> do
-    ctorType <-
-      getConstructorType n >>= \case
+    (_, nTyArgs, nTmArgs) <-
+      conInfo n >>= \case
         Left err -> throwError $ SaturatedApplicationError $ Left err
         Right t -> pure t
-    -- TODO (saturated constructors) this use of application nodes will be rejected once full-saturation is enforced
-    flip replace ze <$> mkSaturatedApplication (con n) ctorType
+    flip replace ze <$> con n (replicate nTyArgs tEmptyHole) (replicate nTmArgs emptyHole)
   e -> throwError $ NeedEmptyHole (ConstructSaturatedCon c) e
   where
     n = unsafeMkGlobalName c
 
-getConstructorType ::
+-- returns
+-- - "type" of ctor: the type an eta-expanded version of this constructor would check against
+--   e.g. @Cons@'s "type" is @∀a. a -> List a -> List a@.
+-- - its arity (number of type args and number of term args required for full saturation)
+conInfo ::
   MonadReader TC.Cxt m =>
   ValConName ->
-  m (Either Text TC.Type)
-getConstructorType c =
+  m (Either Text (TC.Type, Int, Int))
+conInfo c =
   asks (flip lookupConstructor c . TC.typeDefs) <&> \case
-    Just (vc, tc, td) -> Right $ valConType tc td vc
+    Just (vc, tc, td) -> Right (valConType tc td vc, length $ td.astTypeDefParameters, length $ vc.valConArgs)
     Nothing -> Left $ "Could not find constructor " <> show c
 
 constructRefinedCon :: ActionM m => QualifiedText -> ExprZ -> m ExprZ
 constructRefinedCon c ze = do
   let n = unsafeMkGlobalName c
-  cTy <-
-    getConstructorType n >>= \case
+  (cTy, numTyArgs, numTmArgs) <-
+    conInfo n >>= \case
       Left err -> throwError $ RefineError $ Left err
       Right t -> pure t
-  let tgtTyCache = maybeTypeOf $ target ze
   -- our Cxt in the monad does not care about the local context, we have to extract it from the zipper.
   -- See https://github.com/hackworthltd/primer/issues/11
   -- We only care about the type context for refine
   let (tycxt, _) = localVariablesInScopeExpr (Left ze)
   cxt <- asks $ TC.extendLocalCxtTys tycxt
+  tgtTy <- getTypeCache $ target ze
   case target ze of
-    -- TODO (saturated constructors) this use of application nodes will be rejected once full-saturation is enforced
-    EmptyHole{} -> flip replace ze <$> mkRefinedApplication cxt (con n) cTy tgtTyCache
+    EmptyHole{} ->
+      breakLR <<$>> getRefinedApplications cxt cTy tgtTy >>= \case
+        -- See Note [No valid refinement]
+        Nothing -> flip replace ze <$> hole (con n (replicate numTyArgs tEmptyHole) (replicate numTmArgs emptyHole))
+        -- TODO (saturated constructors): when constructors are checkable the above will not be valid
+        -- since the inside of a hole must be synthesisable (see Note [Holes and bidirectionality])
+        -- TODO (saturated constructors): when saturation is enforced, the Just Just case may not be valid
+        -- if the target type is not an applied-ADT
+        Just Nothing -> throwError $ InternalFailure "Types of constructors always have type abstractions before term abstractions"
+        Just (Just (tys, tms)) -> flip replace ze <$> con n (pure <$> tys) (pure <$> tms)
     e -> throwError $ NeedEmptyHole (ConstructRefinedCon c) e
+
+getTypeCache :: MonadError ActionError m => Expr -> m TypeCache
+getTypeCache =
+  maybeTypeOf <&> \case
+    Nothing -> throwError $ RefineError $ Left "Don't have a cached type"
+    Just ty -> pure ty
+
+-- | A view for lists where all 'Left' come before all 'Right'
+breakLR :: [Either a b] -> Maybe ([a], [b])
+breakLR =
+  spanMaybe leftToMaybe <&> \case
+    (ls, rest) -> (ls,) <$> traverse rightToMaybe rest
 
 constructLet :: ActionM m => Maybe Text -> ExprZ -> m ExprZ
 constructLet mx ze = case target ze of
