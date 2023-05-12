@@ -22,7 +22,7 @@
 
     # HLS is broken again in haskell.nix. Also, we need to build it
     # from git to get the fourmolu 0.12.0.0 support.
-    haskell-language-server.url = "github:haskell/haskell-language-server/cda1325241365896f24d1a09899b8e8e787f9c7b";
+    haskell-language-server.url = "github:haskell/haskell-language-server/437830ae9a5f6832fa391d8365457ad883e898a3";
     haskell-language-server.flake = false;
   };
 
@@ -45,7 +45,7 @@
         in
         builtins.trace "Nix Primer version is ${v}" "git-${v}";
 
-      ghcVersion = "ghc945";
+      ghcVersion = "ghc961";
 
       # We must keep the weeder version in sync with the version of
       # GHC we're using.
