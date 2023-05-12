@@ -225,7 +225,7 @@ genSyns ty = do
       (e, _) <- genSyn
       pure (Hole () e, TEmptyHole ())
     genSpine :: WT (Maybe (GenT WT (ExprG, TypeG)))
-    genSpine = fmap (fmap Gen.justT) genSpineHeadFirst
+    genSpine = fmap (fmap justT) genSpineHeadFirst
     genSpineHeadFirst :: WT (Maybe (GenT WT (Maybe (ExprG, TypeG))))
     -- todo: maybe add some lets in as post-processing? I could even add them to the locals for generation in the head
     genSpineHeadFirst = do
@@ -453,7 +453,7 @@ genChk ty = do
           else Just $ do
             (tc, td) <- Gen.element adts
             let t = mkTAppCon tc (TEmptyHole () <$ typeDefParameters td)
-            (e, brs) <- Gen.justT $ do
+            (e, brs) <- justT $ do
               (e, eTy) <- genSyns t -- NB: this could return something only consistent with t, e.g. if t=List ?, could get eT=? Nat
               vcs' <- instantiateValCons eTy
               fmap (e,) <$> case vcs' of
