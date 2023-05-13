@@ -4,6 +4,7 @@
 --  operating on them.
 module Primer.Zipper.Type (
   TypeZip,
+  TypeZip',
   IsZipper (asZipper),
   focus,
   target,
