@@ -14,10 +14,10 @@ module Primer.Core.DSL.Type (
 
 import Foreword
 
-import Control.Monad.Fresh (MonadFresh, fresh)
+import Control.Monad.Fresh (MonadFresh)
+import Primer.Core.DSL.Meta (meta)
 import Primer.Core.Meta (
   ID,
-  Meta (..),
   ModuleName (ModuleName),
   TyConName,
   TyVarName,
@@ -53,12 +53,6 @@ tapp a b = TApp <$> meta <*> a <*> b
 
 tvar :: MonadFresh ID m => TyVarName -> m Type
 tvar v = TVar <$> meta <*> pure v
-
-meta :: MonadFresh ID m => m (Meta (Maybe a))
-meta = meta' Nothing
-
-meta' :: MonadFresh ID m => a -> m (Meta a)
-meta' a = Meta <$> fresh <*> pure a <*> pure Nothing
 
 -- | A helper for use in testsuite. With OverloadedStrings one can use literals
 -- for both arguments
