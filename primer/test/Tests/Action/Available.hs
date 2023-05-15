@@ -268,11 +268,15 @@ tasty_available_actions_accepted = withTests 500 $
       let isMutable = \case
             Editable -> True
             NonEditable -> False
-      (defName, (defMut, def)) <- case partition (isMutable . fst . snd) $ Map.toList allDefs of
-        ([], []) -> discard
-        (mut, []) -> label "all mut" >> forAllT (Gen.element mut)
-        ([], immut) -> label "all immut" >> forAllT (Gen.element immut)
-        (mut, immut) -> label "mixed mut/immut" >> forAllT (Gen.frequency [(9, Gen.element mut), (1, Gen.element immut)])
+      (defName, (defMut, def)) <-
+        maybe discard (\(t, x) -> label t >> pure x)
+          =<< forAllT
+            ( case partition (isMutable . fst . snd) $ Map.toList allDefs of
+                ([], []) -> pure Nothing
+                (mut, []) -> Just . ("all mut",) <$> Gen.element mut
+                ([], immut) -> Just . ("all immut",) <$> Gen.element immut
+                (mut, immut) -> Just . ("mixed mut/immut",) <$> Gen.frequency [(9, Gen.element mut), (1, Gen.element immut)]
+            )
       collect defMut
       case def of
         DefAST{} -> label "AST"
