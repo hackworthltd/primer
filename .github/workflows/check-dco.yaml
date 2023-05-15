@@ -1,0 +1,21 @@
+name: Check DCO
+
+on:
+  pull_request:
+  merge_group:
+
+jobs:
+  check-dco:
+    permissions:
+      checks: write
+      contents: read
+      pull-requests: read
+      statuses: write
+
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check DCO
+        uses: hackworthltd/dcoapp@v1.1.0
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
