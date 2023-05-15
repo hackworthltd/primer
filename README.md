@@ -15,35 +15,6 @@ Note that Primer must be built with GHC 9.2.1 or later.
 We currently support two SQL backend implementations: SQLite and
 PostgreSQL.
 
-# License & contributing
-
-This implementation of the Primer programming language is licensed
-under [version 3 of the GNU Affero Public License](COPYING). We
-welcome contributions from the open source community, so long as you
-agree to abide by our [code of conduct](CODE_OF_CONDUCT.md), and
-certify that your contribution is made according to the terms of
-version 1.1 of The Linux Foundation's [Developer Certificate of
-Origin](DCO.md).
-
-As is customary for open source projects that adhere to the DCO, we
-ask that you use the `--signoff` flag of `git commit` when submitting
-contributions, in order to signify your agreement. Should you forget
-to use this flag when submitting a contribution, in most cases,
-retroactively applying it is relatively easy; for any given series of
-commits in a branch, you can usually run:
-
-```sh
-git rebase HEAD~N --signoff
-```
-
-where `N` is the number of individual commits in your branch.
-
-For background on why we request that contributions are made under the
-DCO, please see the following links:
-
-* https://wiki.openstack.org/wiki/OpenStackAndItsCLA
-* https://lwn.net/Articles/592503/
-
 # Developing Primer
 
 ## Nix
