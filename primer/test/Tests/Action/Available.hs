@@ -285,18 +285,18 @@ tasty_available_actions_accepted = withTests 500 $
         fmap (first (SelectionDef . DefSelection defName) . snd) . forAllWithT fst $
           Gen.frequency $
             catMaybes
-              [ Just (1, pure ("actionsForDef", (Nothing, Available.forDef (snd <$> allDefs) l defMut defName)))
+              [ Just (1, pure ("forDef", (Nothing, Available.forDef (snd <$> allDefs) l defMut defName)))
               , defAST def <&> \d' -> (2,) $ do
                   let ty = astDefType d'
                       ids = ty ^.. typeIDs
                   i <- Gen.element ids
-                  let hedgehogMsg = "actionsForDefSig id " <> show i
+                  let hedgehogMsg = "forSig id " <> show i
                   pure (hedgehogMsg, (Just $ NodeSelection SigNode i, Available.forSig l defMut ty i))
               , defAST def <&> \d' -> (7,) $ do
                   let expr = astDefExpr d'
                       ids = expr ^.. exprIDs
                   i <- Gen.element ids
-                  let hedgehogMsg = "actionsForDefBody id " <> show i
+                  let hedgehogMsg = "forBody id " <> show i
                   pure (hedgehogMsg, (Just $ NodeSelection BodyNode i, Available.forBody (snd <$> progAllTypeDefs (appProg a)) l defMut expr i))
               ]
       case acts of
