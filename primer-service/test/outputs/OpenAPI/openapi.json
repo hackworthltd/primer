@@ -413,7 +413,7 @@
             },
             "NodeSelection": {
                 "properties": {
-                    "id": {
+                    "meta": {
                         "maximum": 9223372036854775807,
                         "minimum": -9223372036854775808,
                         "type": "integer"
@@ -424,7 +424,7 @@
                 },
                 "required": [
                     "nodeType",
-                    "id"
+                    "meta"
                 ],
                 "type": "object"
             },

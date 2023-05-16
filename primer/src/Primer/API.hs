@@ -62,10 +62,7 @@ module Primer.API (
   viewTreeType,
   viewTreeExpr,
   getApp,
-  Selection (..),
-  viewSelection,
-  NodeSelection (..),
-  viewNodeSelection,
+  Selection,
   undoAvailable,
   redoAvailable,
   Name (..),
@@ -139,7 +136,6 @@ import Primer.Core (
   CaseBranch' (..),
   Expr,
   Expr' (..),
-  ExprMeta,
   GVarName,
   GlobalName (..),
   HasID (..),
@@ -153,7 +149,6 @@ import Primer.Core (
   TyVarName,
   Type,
   Type' (..),
-  TypeMeta,
   ValConName,
   getID,
   unLocalName,
@@ -654,7 +649,7 @@ viewProg :: App.Prog -> Prog
 viewProg p =
   Prog
     { modules = map (viewModule True) (progModules p) <> map (viewModule False) (progImports p)
-    , selection = viewSelection <$> progSelection p
+    , selection = getID <<$>> progSelection p
     , undoAvailable = not $ null $ unlog $ progLog p
     , redoAvailable = not $ null $ unlog $ redoLog p
     }
@@ -1040,10 +1035,10 @@ availableActions = curry3 $ logAPI (noError AvailableActions) $ \(sid, level, se
   case selection.node of
     Nothing ->
       pure $ Available.forDef (snd <$> allDefs) level editable selection.def
-    Just NodeSelection{..} -> do
+    Just App.NodeSelection{..} -> do
       pure $ case nodeType of
-        SigNode -> Available.forSig level editable type_ id
-        BodyNode -> Available.forBody (snd <$> allTypeDefs) level editable expr id
+        SigNode -> Available.forSig level editable type_ meta
+        BodyNode -> Available.forBody (snd <$> allTypeDefs) level editable expr meta
 
 actionOptions ::
   (MonadIO m, MonadThrow m, MonadAPILog l m) =>
@@ -1057,7 +1052,7 @@ actionOptions = curry4 $ logAPI (noError ActionOptions) $ \(sid, level, selectio
   let prog = appProg app
       allDefs = progAllDefs prog
       allTypeDefs = progAllTypeDefs prog
-      nodeSel = selection.node <&> \s -> (s.nodeType, s.id)
+      nodeSel = selection.node <&> \s -> (s.nodeType, s.meta)
   def' <- snd <$> findASTDef allDefs selection.def
   maybe (throwM $ ActionOptionsNoID nodeSel) pure $
     Available.options
@@ -1090,7 +1085,7 @@ applyActionNoInput = curry3 $ logAPI (noError ApplyActionNoInput) $ \(sid, selec
         (snd <$> progAllDefs prog)
         def
         selection.def
-        (selection.node <&> \s -> (s.nodeType, s.id))
+        (selection.node <&> \s -> (s.nodeType, s.meta))
         action
   applyActions sid actions
 
@@ -1108,7 +1103,7 @@ applyActionInput = curry3 $ logAPI (noError ApplyActionInput) $ \(sid, body, act
       toProgActionInput
         def
         body.selection.def
-        (body.selection.node <&> \s -> (s.nodeType, s.id))
+        (body.selection.node <&> \s -> (s.nodeType, s.meta))
         body.option
         action
   applyActions sid actions
@@ -1146,25 +1141,4 @@ redo =
       >>= either (throwM . RedoError) (pure . viewProg)
 
 -- | 'App.Selection' without any node metadata.
-data Selection = Selection
-  { def :: GVarName
-  , node :: Maybe NodeSelection
-  }
-  deriving stock (Eq, Show, Read, Generic)
-  deriving (FromJSON, ToJSON) via PrimerJSON Selection
-  deriving anyclass (NFData)
-
-viewSelection :: App.Selection -> Selection
-viewSelection App.Selection{..} = Selection{def = def, node = viewNodeSelection <$> node}
-
--- | 'App.NodeSelection' without any node metadata.
-data NodeSelection = NodeSelection
-  { nodeType :: NodeType
-  , id :: ID
-  }
-  deriving stock (Eq, Show, Read, Generic)
-  deriving (FromJSON, ToJSON) via PrimerJSON NodeSelection
-  deriving anyclass (NFData)
-
-viewNodeSelection :: App.NodeSelection (Either ExprMeta TypeMeta) -> NodeSelection
-viewNodeSelection sel@App.NodeSelection{nodeType} = NodeSelection{nodeType, id = getID sel}
+type Selection = App.Selection' ID
