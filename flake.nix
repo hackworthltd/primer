@@ -22,7 +22,7 @@
 
     # HLS is broken again in haskell.nix. Also, we need to build it
     # from git to get the fourmolu 0.12.0.0 support.
-    haskell-language-server.url = "github:haskell/haskell-language-server/cda1325241365896f24d1a09899b8e8e787f9c7b";
+    haskell-language-server.url = "github:haskell/haskell-language-server/d34d774557150d111c3522026e1ff758d17c5e6f";
     haskell-language-server.flake = false;
   };
 
@@ -399,6 +399,13 @@
                   compiler-nix-name = ghcVersion;
                   src = inputs.haskell-language-server;
                   sha256map."https://github.com/pepeiborra/ekg-json"."7a0af7a8fd38045fd15fb13445bdcc7085325460" = "fVwKxGgM0S4Kv/4egVAAiAjV7QB5PBqMVMCfsv7otIQ=";
+
+                  # Ensure HLS uses the same version of `fourmolu` as
+                  # the rest of the project.
+
+                  # Not yet working. See:
+                  # https://github.com/hackworthltd/primer/issues/978#issuecomment-1550457399
+                  #configureArgs = "--constraint='fourmolu>=${fourmoluVersion}' --minimize-conflict-set";
 
                   modules = [
                     {
