@@ -30,9 +30,8 @@ import Primer.API (
   Module (Module),
   NewSessionReq (..),
   NodeBody (BoxBody, NoBody, PrimBody, TextBody),
-  NodeSelection (..),
   Prog (Prog),
-  Selection (..),
+  Selection,
   Tree,
   viewTreeExpr,
   viewTreeType,
@@ -45,7 +44,7 @@ import Primer.API.NodeFlavor (
  )
 import Primer.API.RecordPair (RecordPair (RecordPair))
 import Primer.Action.Available qualified as Available
-import Primer.App (Level, NodeType)
+import Primer.App (Level, NodeSelection (NodeSelection), NodeType, Selection' (Selection))
 import Primer.Core (GVarName, ID (ID), ModuleName, PrimCon (PrimChar, PrimInt))
 import Primer.Database (
   LastModified (..),
@@ -224,7 +223,7 @@ tasty_Module = testToJSON $ evalExprGen 0 genModule
 genNodeType :: ExprGen NodeType
 genNodeType = G.enumBounded
 
-genNodeSelection :: ExprGen NodeSelection
+genNodeSelection :: ExprGen (NodeSelection ID)
 genNodeSelection = NodeSelection <$> genNodeType <*> genID
 
 genSelection :: ExprGen Selection
@@ -307,7 +306,7 @@ instance Arbitrary ApplyActionBody where
   arbitrary = ApplyActionBody <$> arbitrary <*> arbitrary
 instance Arbitrary Selection where
   arbitrary = hedgehog $ evalExprGen 0 genSelection
-instance Arbitrary NodeSelection where
+instance Arbitrary (NodeSelection ID) where
   arbitrary = hedgehog $ evalExprGen 0 genNodeSelection
 instance Arbitrary a => Arbitrary (NonEmpty a) where
   arbitrary = (:|) <$> arbitrary <*> arbitrary

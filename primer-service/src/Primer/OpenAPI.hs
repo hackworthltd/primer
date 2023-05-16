@@ -10,6 +10,12 @@ module Primer.OpenAPI (
 import Foreword
 
 import Data.Aeson (
+  FromJSON,
+  GFromJSON,
+  GToEncoding,
+  GToJSON,
+  ToJSON,
+  Zero,
   toJSON,
  )
 import Data.OpenApi (
@@ -27,6 +33,7 @@ import Data.OpenApi.Internal.Schema (
   rename,
   timeSchema,
  )
+import Data.Text qualified as T
 import Data.Time (
   UTCTime (..),
   fromGregorian,
@@ -42,9 +49,8 @@ import Primer.API (
   Module,
   NewSessionReq,
   NodeBody,
-  NodeSelection (..),
   Prog,
-  Selection (..),
+  Selection,
   Tree,
  )
 import Primer.API qualified as API
@@ -56,7 +62,7 @@ import Primer.API.NodeFlavor (
  )
 import Primer.API.RecordPair (RecordPair)
 import Primer.Action.Available qualified as Available
-import Primer.App (NodeType)
+import Primer.App (NodeSelection, NodeType)
 import Primer.App.Base (Level)
 import Primer.Core (
   GlobalName,
@@ -71,9 +77,13 @@ import Primer.Database (
   Session,
   SessionName,
  )
-import Primer.JSON (CustomJSON, PrimerJSON)
+import Primer.JSON (CustomJSON (CustomJSON), PrimerJSON)
 import Primer.Name (Name)
 import Servant.API (FromHttpApiData (parseQueryParam), ToHttpApiData (toQueryParam))
+
+newtype PrimerJSONNamed (s :: Symbol) a = PrimerJSONNamed a
+deriving via PrimerJSON a instance (Generic a, GFromJSON Zero (Rep a)) => FromJSON (PrimerJSONNamed s a)
+deriving via PrimerJSON a instance (Generic a, GToJSON Zero (Rep a), GToEncoding Zero (Rep a)) => ToJSON (PrimerJSONNamed s a)
 
 -- $orphanInstances
 --
@@ -88,6 +98,12 @@ instance
   ToSchema (CustomJSON (os :: ks) a)
   where
   declareNamedSchema _ = genericDeclareNamedSchema (fromAesonOptions (aesonOptions @os)) (Proxy @a)
+
+instance
+  (Typeable a, Generic a, GToSchema (Rep a), KnownSymbol s) =>
+  ToSchema (PrimerJSONNamed s a)
+  where
+  declareNamedSchema _ = rename (Just $ T.pack $ symbolVal $ Proxy @s) <$> declareNamedSchema (Proxy @(PrimerJSON a))
 
 instance ToSchema SessionName
 deriving via PrimerJSON Session instance ToSchema Session
@@ -146,8 +162,8 @@ deriving via PrimerJSON Available.FreeInput instance ToSchema Available.FreeInpu
 deriving via PrimerJSON Available.Options instance ToSchema Available.Options
 deriving via PrimerJSON Available.Action instance ToSchema Available.Action
 deriving via PrimerJSON ApplyActionBody instance ToSchema ApplyActionBody
-deriving via PrimerJSON Selection instance ToSchema Selection
-deriving via PrimerJSON NodeSelection instance ToSchema NodeSelection
+deriving via PrimerJSONNamed "Selection" Selection instance ToSchema Selection
+deriving via PrimerJSONNamed "NodeSelection" (NodeSelection ID) instance ToSchema (NodeSelection ID)
 deriving via PrimerJSON NodeType instance ToSchema NodeType
 deriving via PrimerJSON Level instance ToSchema Level
 deriving via PrimerJSON NewSessionReq instance ToSchema NewSessionReq
