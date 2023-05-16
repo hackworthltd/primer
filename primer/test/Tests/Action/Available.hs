@@ -1,3 +1,4 @@
+{-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE OverloadedLabels #-}
 {-# LANGUAGE OverloadedRecordDot #-}
 
@@ -6,6 +7,7 @@ module Tests.Action.Available where
 import Foreword
 
 import Control.Monad.Log (WithSeverity)
+import Data.Bitraversable (bitraverse)
 import Data.ByteString.Lazy.Char8 qualified as BS
 import Data.List.Extra (enumerate, partition)
 import Data.Map qualified as M
@@ -14,6 +16,8 @@ import Data.Text qualified as T
 import Data.Text.Lazy qualified as TL
 import GHC.Err (error)
 import Hedgehog (
+  GenT,
+  LabelName,
   PropertyT,
   annotate,
   annotateShow,
@@ -54,6 +58,9 @@ import Primer.App (
   NodeType (..),
   ProgError (ActionError, DefAlreadyExists),
   Selection' (..),
+  TypeDefConsSelection (TypeDefConsSelection),
+  TypeDefNodeSelection (TypeDefConsNodeSelection, TypeDefParamNodeSelection),
+  TypeDefSelection (TypeDefSelection),
   appProg,
   checkAppWellFormed,
   checkProgWellFormed,
@@ -61,12 +68,14 @@ import Primer.App (
   nextProgID,
   progAllDefs,
   progAllTypeDefs,
+  progAllTypeDefsMeta,
   progCxt,
   progImports,
   progModules,
   progSmartHoles,
   runEditAppM,
  )
+import Primer.App.Base (TypeDefConsFieldSelection (..))
 import Primer.Builtins (builtinModuleName, cCons, cFalse, cTrue, tBool, tList, tNat)
 import Primer.Core (
   Expr,
@@ -130,6 +139,7 @@ import Primer.Module (
 import Primer.Name (Name (unName))
 import Primer.Test.TestM (evalTestM)
 import Primer.Test.Util (clearMeta, clearTypeMeta, testNoSevereLogs)
+import Primer.TypeDef (ASTTypeDef (astTypeDefConstructors), TypeDef (TypeDefAST, TypeDefPrim), ValCon (..), astTypeDefParameters, typeDefAST)
 import Primer.Typecheck (
   CheckEverythingRequest (CheckEverything, toCheck, trusted),
   SmartHoles (NoSmartHoles, SmartHoles),
@@ -264,26 +274,91 @@ tasty_available_actions_accepted = withTests 500 $
       -- We only test SmartHoles mode (which is the only supported user-facing
       -- mode - NoSmartHoles is only used for internal sanity testing etc)
       a <- forAllT $ genApp SmartHoles cxt
+      let allTypes = progAllTypeDefsMeta $ appProg a
       let allDefs = progAllDefs $ appProg a
       let isMutable = \case
             Editable -> True
             NonEditable -> False
-      (defName, (defMut, def)) <-
-        maybe discard (\(t, x) -> label t >> pure x)
-          =<< forAllT
-            ( case partition (isMutable . fst . snd) $ Map.toList allDefs of
+      let genDef :: Map name (Editable, def) -> GenT WT (Maybe (LabelName, (Editable, (name, def))))
+          genDef m =
+            second (\(n, (e, t)) -> (e, (n, t)))
+              <<$>> case partition (isMutable . fst . snd) $ Map.toList m of
                 ([], []) -> pure Nothing
                 (mut, []) -> Just . ("all mut",) <$> Gen.element mut
                 ([], immut) -> Just . ("all immut",) <$> Gen.element immut
                 (mut, immut) -> Just . ("mixed mut/immut",) <$> Gen.frequency [(9, Gen.element mut), (1, Gen.element immut)]
+      (defMut, typeOrTermDef) <-
+        maybe discard (\(t, x) -> label t >> pure x)
+          =<< forAllT
+            ( Gen.choice
+                [ second (second Left) <<$>> genDef allTypes
+                , second (second Right) <<$>> genDef allDefs
+                ]
             )
       collect defMut
-      case def of
-        DefAST{} -> label "AST"
-        DefPrim{} -> label "Prim"
-      (loc, acts) <-
-        fmap (first (SelectionDef . DefSelection defName) . snd) . forAllWithT fst $
-          Gen.frequency $
+      case typeOrTermDef of
+        Left (_, t) ->
+          label "type" >> case t of
+            TypeDefPrim{} -> label "Prim"
+            TypeDefAST{} -> label "AST"
+        Right (_, t) ->
+          label "term" >> case t of
+            DefPrim{} -> label "Prim"
+            DefAST{} -> label "AST"
+      (loc, acts) <- case typeOrTermDef of
+        Left (defName, def) ->
+          (fmap snd . forAllWithT fst) case typeDefAST def of
+            Nothing -> Gen.discard
+            Just def' ->
+              let typeDefSel = SelectionTypeDef . TypeDefSelection defName
+                  forTypeDef = ("forTypeDef", (typeDefSel Nothing, Available.forTypeDef l defMut))
+               in Gen.frequency
+                    [ (1, pure forTypeDef)
+                    ,
+                      ( 2
+                      , case astTypeDefParameters def' of
+                          [] -> pure forTypeDef
+                          ps -> do
+                            (p, _) <- Gen.element ps
+                            pure
+                              ( "forTypeDefParamNode"
+                              ,
+                                ( typeDefSel $ Just $ TypeDefParamNodeSelection p
+                                , Available.forTypeDefParamNode l defMut
+                                )
+                              )
+                      )
+                    ,
+                      ( 5
+                      , case astTypeDefConstructors def' of
+                          [] -> pure forTypeDef
+                          cs -> do
+                            ValCon{valConName, valConArgs} <- Gen.element cs
+                            let typeDefConsNodeSel = typeDefSel . Just . TypeDefConsNodeSelection . TypeDefConsSelection valConName
+                                forTypeDefConsNode = ("forTypeDefConsNode", (typeDefConsNodeSel Nothing, Available.forTypeDefConsNode l defMut))
+                            case valConArgs of
+                              [] -> pure forTypeDefConsNode
+                              as ->
+                                Gen.frequency
+                                  [ (1, pure forTypeDefConsNode)
+                                  ,
+                                    ( 5
+                                    , do
+                                        (n, t) <- Gen.element $ zip [0 ..] as
+                                        i <- Gen.element $ t ^.. typeIDs
+                                        pure
+                                          ( "forTypeDefConsFieldNode"
+                                          ,
+                                            ( typeDefConsNodeSel . Just $ TypeDefConsFieldSelection n i
+                                            , Available.forTypeDefConsFieldNode l defMut def' valConName n i
+                                            )
+                                          )
+                                    )
+                                  ]
+                      )
+                    ]
+        Right (defName, def) ->
+          fmap (first (SelectionDef . DefSelection defName) . snd) . forAllWithT fst . Gen.frequency $
             catMaybes
               [ Just (1, pure ("forDef", (Nothing, Available.forDef (snd <$> allDefs) l defMut defName)))
               , defAST def <&> \d' -> (2,) $ do
@@ -299,20 +374,24 @@ tasty_available_actions_accepted = withTests 500 $
                   let hedgehogMsg = "forBody id " <> show i
                   pure (hedgehogMsg, (Just $ NodeSelection BodyNode i, Available.forBody (snd <$> progAllTypeDefs (appProg a)) l defMut expr i))
               ]
+      annotateShow loc
       case acts of
         [] -> label "no offered actions" >> success
         acts' -> do
+          def <-
+            bitraverse
+              (maybe (annotate "primitive type def" >> failure) pure . typeDefAST . snd)
+              (maybe (annotate "primitive def" >> failure) pure . defAST . snd)
+              typeOrTermDef
           action <- forAllT $ Gen.element acts'
           collect action
           case action of
             Available.NoInput act' -> do
-              def' <- maybe (annotate "primitive def" >> failure) pure $ defAST def
               progActs <-
                 either (\e -> annotateShow e >> failure) pure $
-                  toProgActionNoInput (map snd $ progAllDefs $ appProg a) (Right def') loc act'
+                  toProgActionNoInput (map snd $ progAllDefs $ appProg a) def loc act'
               actionSucceeds (handleEditRequest progActs) a
             Available.Input act' -> do
-              def' <- maybe (annotate "primitive def" >> failure) pure $ defAST def
               Available.Options{Available.opts, Available.free} <-
                 maybe (annotate "id not found" >> failure) pure $
                   Available.options
@@ -320,7 +399,7 @@ tasty_available_actions_accepted = withTests 500 $
                     (map snd $ progAllDefs $ appProg a)
                     (progCxt $ appProg a)
                     l
-                    (Right def')
+                    def
                     loc
                     act'
               let opts' = [Gen.element $ (Offered,) <$> opts | not (null opts)]
@@ -334,7 +413,7 @@ tasty_available_actions_accepted = withTests 500 $
                 [] -> annotate "no options" >> success
                 options -> do
                   opt <- forAllT $ Gen.choice options
-                  progActs <- either (\e -> annotateShow e >> failure) pure $ toProgActionInput (Right def') loc (snd opt) act'
+                  progActs <- either (\e -> annotateShow e >> failure) pure $ toProgActionInput def loc (snd opt) act'
                   actionSucceedsOrCapture (fst opt) (handleEditRequest progActs) a
   where
     runEditAppMLogs ::
