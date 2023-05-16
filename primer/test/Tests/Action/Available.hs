@@ -34,7 +34,7 @@ import Primer.Action (
   toProgActionInput,
   toProgActionNoInput,
  )
-import Primer.Action.Available (InputAction (MakeConSat), NoInputAction (Raise), Option (Option))
+import Primer.Action.Available (InputAction (MakeCon), NoInputAction (Raise), Option (Option))
 import Primer.Action.Available qualified as Available
 import Primer.App (
   App,
@@ -368,7 +368,7 @@ unit_sat_con_1 =
     Intermediate
     (emptyHole `ann` (tEmptyHole `tfun` tEmptyHole))
     [Child1]
-    (Right (MakeConSat, Option "Cons" $ Just $ unName <$> unModuleName builtinModuleName))
+    (Right (MakeCon, Option "Cons" $ Just $ unName <$> unModuleName builtinModuleName))
     (hole (con cCons [emptyHole, emptyHole] `ann` tEmptyHole) `ann` (tEmptyHole `tfun` tEmptyHole))
 
 unit_sat_con_2 :: Assertion
@@ -378,7 +378,7 @@ unit_sat_con_2 =
     Intermediate
     (emptyHole `ann` ((tcon tList `tapp` tcon tNat) `tfun` (tcon tList `tapp` tcon tNat)))
     [Child1]
-    (Right (MakeConSat, Option "Cons" $ Just $ unName <$> unModuleName builtinModuleName))
+    (Right (MakeCon, Option "Cons" $ Just $ unName <$> unModuleName builtinModuleName))
     (hole (con cCons [emptyHole, emptyHole] `ann` tEmptyHole) `ann` ((tcon tList `tapp` tcon tNat) `tfun` (tcon tList `tapp` tcon tNat)))
 
 -- | Apply the action to the node in the input expression pointed to by the

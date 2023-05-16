@@ -122,7 +122,7 @@ data NoInputAction
 
 -- | An action which requires extra data (often a name) before it can be applied.
 data InputAction
-  = MakeConSat
+  = MakeCon
   | MakeInt
   | MakeChar
   | MakeVar
@@ -201,7 +201,7 @@ forExpr tydefs l expr =
     EmptyHole{} ->
       annotate
         <> [ Input MakeVar
-           , Input MakeConSat
+           , Input MakeCon
            ]
         <> mwhen (Map.member tInt tydefs) [Input MakeInt]
         <> mwhen (Map.member tChar tydefs) [Input MakeChar]
@@ -326,7 +326,7 @@ options ::
   -- or found but didn't correspond to the expected sort of entity (type/expr/pattern).
   Maybe Options
 options typeDefs defs cxt level def mNodeSel = \case
-  MakeConSat ->
+  MakeCon ->
     pure
       . noFree
       . map (globalOpt . valConName . snd)
@@ -451,7 +451,7 @@ sortByPriority l =
         DuplicateDef -> P.duplicate
         DeleteDef -> P.delete
       Input a -> case a of
-        MakeConSat -> P.useSaturatedValueCon
+        MakeCon -> P.useSaturatedValueCon
         MakeInt -> P.makeInt
         MakeChar -> P.makeChar
         MakeVar -> P.useVar

@@ -487,7 +487,7 @@ Output
                         }
                     )
                 , NoInput MakeCase
-                , Input MakeConSat
+                , Input MakeCon
                     ( Options
                         { opts =
                             [ Option
@@ -680,7 +680,7 @@ Output
                         }
                     )
                 , NoInput MakeCase
-                , Input MakeConSat
+                , Input MakeCon
                     ( Options
                         { opts =
                             [ Option
@@ -1714,7 +1714,7 @@ Output
                         }
                     )
                 , NoInput MakeCase
-                , Input MakeConSat
+                , Input MakeCon
                     ( Options
                         { opts =
                             [ Option

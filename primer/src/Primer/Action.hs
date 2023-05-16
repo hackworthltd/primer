@@ -922,7 +922,7 @@ toProgActionInput ::
   Available.InputAction ->
   Either ActionError [ProgAction]
 toProgActionInput def defName mNodeSel opt0 = \case
-  Available.MakeConSat -> do
+  Available.MakeCon -> do
     opt <- optGlobal
     toProg [ConstructSaturatedCon opt]
   Available.MakeInt -> do
