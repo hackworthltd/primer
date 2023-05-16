@@ -138,6 +138,8 @@ import Primer.Core (
   TyConName,
   Type,
   Type' (..),
+  TypeCache (..),
+  TypeCacheBoth (..),
   TypeMeta,
   ValConName,
   caseBranchName,
@@ -819,14 +821,14 @@ applyProgAction prog = \case
       updateDefs = traverseOf (traversed % #_DefAST % #astDefExpr) (updateCons <=< updateDecons)
       updateCons = transformM $ \case
         Con m con' tms | con' == con -> do
-          m' <- DSL.meta
+          m' <- DSL.meta' $ Just (TCEmb $ TCBoth (TEmptyHole ()) (TEmptyHole ()))
           case insertAt index (EmptyHole m') tms of
             Just args' -> pure $ Con m con' args'
             Nothing -> throwError $ ConNotSaturated con
         e -> pure e
       updateDecons = transformNamedCaseBranch prog type_ con $
         \(CaseBranch vc binds e) -> do
-          m' <- DSL.meta
+          m' <- DSL.meta' $ Just (TCChkedAt (TEmptyHole ()))
           newName <- LocalName <$> freshName (freeVars e)
           binds' <- maybe (throwError $ IndexOutOfRange index) pure $ insertAt index (Bind m' newName) binds
           pure $ CaseBranch vc binds' e
