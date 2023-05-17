@@ -30,6 +30,7 @@ import Control.Monad.Fresh (MonadFresh)
 import Data.Aeson (Value)
 import Data.Bifunctor.Swap qualified as Swap
 import Data.Bitraversable (bisequence)
+import Data.Data (Data)
 import Data.Functor.Compose (Compose (..))
 import Data.Generics.Product (typed)
 import Data.List (delete, findIndex, insertBy)
@@ -1051,6 +1052,7 @@ renameForall b zt = case target zt of
 
 -- | Convert a high-level 'Available.NoInputAction' to a concrete sequence of 'ProgAction's.
 toProgActionNoInput ::
+  (HasID a, Data a) =>
   DefMap ->
   Either (ASTTypeDef a) ASTDef ->
   Selection' ID ->
@@ -1084,18 +1086,27 @@ toProgActionNoInput defs def0 sel0 = \case
     -- on the domain (left) side of the arrow.
     toProgAction [ConstructArrowL, Move Child1]
   Available.AddInput -> do
-    -- This action traverses the function type and adds a function arrow to the end of it,
-    -- resulting in a new argument type. The result type is unchanged.
-    -- The cursor location is also unchanged.
-    -- e.g. A -> B -> C ==> A -> B -> ? -> C
-    id <- nodeID
-    def <- termDef
-    type_ <- case findType id $ astDefType def of
-      Just t -> pure t
-      Nothing -> case map fst $ findNodeWithParent id $ astDefExpr def of
-        Just (TypeNode t) -> pure t
-        Just sm -> Left $ NeedType sm
-        Nothing -> Left $ IDNotFound id
+    type_ <- case def0 of
+      Left def -> do
+        (tName, vcName, field) <- conFieldSel
+        let id = field.meta
+        vc <- maybeToEither (ValConNotFound tName vcName) $ find ((== vcName) . valConName) $ astTypeDefConstructors def
+        t <- maybeToEither (FieldIndexOutOfBounds vcName field.index) $ flip atMay field.index $ valConArgs vc
+        case findType id t of
+          Just t' -> pure $ forgetTypeMetadata t'
+          Nothing -> Left $ IDNotFound id
+      Right def -> do
+        -- This action traverses the function type and adds a function arrow to the end of it,
+        -- resulting in a new argument type. The result type is unchanged.
+        -- The cursor location is also unchanged.
+        -- e.g. A -> B -> C ==> A -> B -> ? -> C
+        id <- nodeID
+        forgetTypeMetadata <$> case findType id $ astDefType def of
+          Just t -> pure t
+          Nothing -> case map fst $ findNodeWithParent id $ astDefExpr def of
+            Just (TypeNode t) -> pure t
+            Just sm -> Left $ NeedType sm
+            Nothing -> Left $ IDNotFound id
     l <- case type_ of
       TFun _ a b -> pure $ NE.length $ fst $ unfoldFun a b
       t -> Left $ NeedTFun t
