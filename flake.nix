@@ -146,6 +146,7 @@
                   baseName == "flake.lock" ||
                   baseName == "flake.nix" ||
                   baseName == "README.md" ||
+                  baseName == "CONTRIBUTING.md" ||
                   baseName == "docs" ||
                   baseName == "nix" ||
                   baseName == "nixos-tests" ||
