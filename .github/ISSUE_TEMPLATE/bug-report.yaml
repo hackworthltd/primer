@@ -17,7 +17,7 @@ body:
     id: code-of-conduct
     attributes:
       label: Code of conduct
-      description: To participate in this project, you must agree to abide by the project's [code of conduct](../../CODE_OF_CONDUCT.md).
+      description: To participate in this project, you must agree to abide by the project's [code of conduct](https://github.com/hackworthltd/primer/blob/main/CODE_OF_CONDUCT.md).
       options:
         - label: I've read the project's code of conduct, and agree to follow it.
           required: true
@@ -35,7 +35,7 @@ body:
     id: new-issue
     attributes:
       label: Is there an existing issue?
-      description: Please search the project's GitHub Issues for an existing, similar issue
+      description: Please search the project's GitHub Issues for an existing, similar issue.
       options:
         - label: I've searched GitHub Issues, and I believe this is a new issue
           required: true
@@ -57,9 +57,9 @@ body:
       required: true
 
   - type: dropdown
-    id: affected-packages
+    id: problem-source
     attributes:
-      label: Which Haskell package(s), or other aspect(s) of this repo, do you believe to be the source of the problem?
+      label: Which package(s) or aspect(s) of the project are the source of the issue?
       options:
         - primer
         - primer-service
