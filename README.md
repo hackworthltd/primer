@@ -270,21 +270,3 @@ others, but they're available if you need them:
   migrations. You can specify which git commit to revert to by passing
   the following flags: `-- --to <rev>`. For example, to revert any
   changes made since `HEAD`, run `nix run .#revert-local-db -- --to @HEAD`.
-
-# Generating an OpenAPI spec
-
-We automatically generate an OpenAPI spec for `primer-service`, and
-provide a convenient `make` target for this:
-
-```sh
-make openapi.json
-```
-
-This will place the generated spec in a file named `openapi.json`.
-(Note: do not check this generated file into this repository.)
-
-It's also available via Nix:
-
-```sh
-nix build .#primer-openapi-spec
-```
