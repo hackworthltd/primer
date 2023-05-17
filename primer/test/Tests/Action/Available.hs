@@ -86,6 +86,7 @@ import Primer.Core (
   Kind (KFun, KType),
   ModuleName (ModuleName, unModuleName),
   Type,
+  TypeMeta,
   getID,
   mkSimpleModuleName,
   moduleNamePretty,
@@ -686,7 +687,7 @@ offeredActionTest' sh l inputDef position action = do
     Left a ->
       pure $
         if Available.NoInput a `elem` offered
-          then Right $ toProgActionNoInput (foldMap' moduleDefsQualified $ progModules prog) (Right exprDef) (SelectionDef $ DefSelection exprDefName $ Just $ NodeSelection BodyNode id) a
+          then Right $ toProgActionNoInput @TypeMeta (foldMap' moduleDefsQualified $ progModules prog) (Right exprDef) (SelectionDef $ DefSelection exprDefName $ Just $ NodeSelection BodyNode id) a
           else Left $ ActionNotOffered (Available.NoInput a) offered
     Right (a, o) -> do
       if Available.Input a `elem` offered
