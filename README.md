@@ -348,18 +348,3 @@ It's also available via Nix:
 ```sh
 nix build .#primer-openapi-spec
 ```
-
-# Benchmarking
-
-We run various benchmarks to track performance regressions, measure
-simulated network traffic, etc. We try to ensure that the benchmarks
-are run in a repeatable, quiescent environment, but we may from time
-to time need to change the hardware on which the benchmarks are run,
-which will inevitably cause discontinuities in benchmark results. In
-the table below, we make a best-effort attempt to track the commits to
-`main` after which discontinuities may appear.
-
-| Last commit                              | Subsequent change
-|------------------------------------------|------------------
-| https://github.com/hackworthltd/primer/commit/031587e3a054ff77ef42ee3e97a3a3b34b1365d0 | Retired previous benchmark machine, a dedicated AMD Ryzen 5 3600 6-Core Processor host running only benchmark jobs, and moved subsequent benchmark jobs to a VM running other CI jobs, with an 8-core AMD Ryzen 9 5900HX with Radeon Graphics.
-| https://github.com/hackworthltd/primer/commit/d38b973874bc2491904811567b5da55e70116f54 | Back to previous benchmark machine, as the mixed-use CI machine was not a reliable benchmarking host.
