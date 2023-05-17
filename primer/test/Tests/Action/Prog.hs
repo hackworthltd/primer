@@ -895,22 +895,20 @@ unit_RenameCon =
         sequence
           [ do
               x <-
-                hole
-                  ( hole $
-                      case_
-                        ( con
-                            cA
-                            [ con0 (vcn "True")
-                            , con0 (vcn "True")
-                            , con0 (vcn "True")
-                            ]
-                            `ann` (tcon tT `tapp` tEmptyHole `tapp` tEmptyHole)
-                        )
-                        [ branch cA [("p", Nothing), ("q", Nothing), ("p1", Nothing)] emptyHole
-                        , branch cB [("r", Nothing), ("x", Nothing)] emptyHole
+                hole $
+                  case_
+                    ( con
+                        cA
+                        [ con0 (vcn "True")
+                        , con0 (vcn "True")
+                        , con0 (vcn "True")
                         ]
-                        `ann` tEmptyHole
-                  )
+                        `ann` (tcon tT `tapp` tEmptyHole `tapp` tEmptyHole)
+                    )
+                    [ branch cA [("p", Nothing), ("q", Nothing), ("p1", Nothing)] emptyHole
+                    , branch cB [("r", Nothing), ("x", Nothing)] emptyHole
+                    ]
+                    `ann` tEmptyHole
               astDef "def" x <$> tEmptyHole
           ]
     )
@@ -926,22 +924,20 @@ unit_RenameCon =
       forgetMetadata (astDefExpr def)
         @?= forgetMetadata
           ( create' $
-              hole
-                ( hole $
-                    case_
-                      ( con
-                          (vcn "A'")
-                          [ con0 (vcn "True")
-                          , con0 (vcn "True")
-                          , con0 (vcn "True")
-                          ]
-                          `ann` (tcon tT `tapp` tEmptyHole `tapp` tEmptyHole)
-                      )
-                      [ branch (vcn "A'") [("p", Nothing), ("q", Nothing), ("p1", Nothing)] emptyHole
-                      , branch cB [("r", Nothing), ("x", Nothing)] emptyHole
+              hole $
+                case_
+                  ( con
+                      (vcn "A'")
+                      [ con0 (vcn "True")
+                      , con0 (vcn "True")
+                      , con0 (vcn "True")
                       ]
-                      `ann` tEmptyHole
-                )
+                      `ann` (tcon tT `tapp` tEmptyHole `tapp` tEmptyHole)
+                  )
+                  [ branch (vcn "A'") [("p", Nothing), ("q", Nothing), ("p1", Nothing)] emptyHole
+                  , branch cB [("r", Nothing), ("x", Nothing)] emptyHole
+                  ]
+                  `ann` tEmptyHole
           )
 
 unit_RenameCon_clash :: Assertion
@@ -952,15 +948,13 @@ unit_RenameCon_clash =
           [ do
               x <-
                 hole
-                  ( hole
-                      ( con
-                          cA
-                          [ emptyHole
-                          , emptyHole
-                          , emptyHole
-                          ]
-                          `ann` (tcon tT `tapp` tEmptyHole `tapp` tEmptyHole)
-                      )
+                  ( con
+                      cA
+                      [ emptyHole
+                      , emptyHole
+                      , emptyHole
+                      ]
+                      `ann` (tcon tT `tapp` tEmptyHole `tapp` tEmptyHole)
                   )
               astDef "def" x <$> tEmptyHole
           ]
