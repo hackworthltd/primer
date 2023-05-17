@@ -650,7 +650,7 @@ applyProgAction prog = \case
         let m' = m{moduleTypes = Map.delete (baseName d) (moduleTypes m)}
         pure (m' : ms, Nothing)
   RenameType old (unsafeMkName -> nameRaw) -> editModuleCross (qualifiedModule old) prog $ \(m, ms) -> do
-    when (new `elem` allTyConNames prog) $ throwError $ TypeDefAlreadyExists new
+    when (new /= old && new `elem` allTyConNames prog) $ throwError $ TypeDefAlreadyExists new
     m' <- traverseOf #moduleTypes updateType m
     let renamedInTypes = over (traversed % #moduleTypes) updateRefsInTypes $ m' : ms
     pure
