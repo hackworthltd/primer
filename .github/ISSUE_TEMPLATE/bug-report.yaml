@@ -1,0 +1,101 @@
+name: Bug report
+description: Report a bug or defect
+labels: ["triage"]
+assignees:
+  - dhess
+
+body:
+  - type: markdown
+    id: preamble
+    attributes:
+      value: |
+        Thanks for helping us improve Primer!
+
+        This bug reporting form includes a number of fields. Some are required, and some are optional, but the more detail you can provide, the easier it'll be for us to determine the source of the issue, and potentially fix it.
+
+  - type: checkboxes
+    id: code-of-conduct
+    attributes:
+      label: Code of conduct
+      description: To participate in this project, you must agree to abide by the project's [code of conduct](../../CODE_OF_CONDUCT.md).
+      options:
+        - label: I've read the project's code of conduct, and agree to follow it.
+          required: true
+
+  - type: checkboxes
+    id: not-a-security-issue
+    attributes:
+      label: Don't report security issues here
+      description: If this bug is a security issue, please do not report the bug using GitHub Issues.
+      options:
+        - label: I've read the project's [security policy](https://github.com/hackworthltd/primer/security/policy), and I do not believe this bug is a security issue.
+          required: true
+
+  - type: checkboxes
+    id: new-issue
+    attributes:
+      label: Is there an existing issue?
+      description: Please search the project's GitHub Issues for an existing, similar issue
+      options:
+        - label: I've searched GitHub Issues, and I believe this is a new issue
+          required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: What happened?
+      description: Please provide a clear and concise description of the defective behavior.
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected-behavior
+    attributes:
+      label: What should have happened?
+      description: Please provide a clear and concise description of the behavior you expected.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: affected-packages
+    attributes:
+      label: Which Haskell package(s), or other aspect(s) of this repo, do you believe to be the source of the problem?
+      options:
+        - primer
+        - primer-service
+        - primer-rel8
+        - primer-selda
+        - primer-benchmark
+        - Primer language prelude
+        - Primer language specification
+        - documentation
+        - other
+        - not sure
+      multiple: true
+    validations:
+      required: true
+
+  - type: textarea
+    id: environment
+    attributes:
+      label: Please provide some details on the environment in which the problem occurs.
+      render: true
+      placeholder: |
+        For example, please run as many of the following as you can:
+
+          uname -a
+          nix --version
+          git rev-parse HEAD
+          ghc --version
+
+  - type: textarea
+    id: reproducer
+    attributes:
+      label: Do you have a reproducer?
+      description: If you have an example project, test case, or simple program that demonstrates the issue, please link to it or paste it here.
+
+  - type: textarea
+    id: additional-info
+    attributes:
+      label: Any additional information?
+      description: Please add any additional relevant information about the problem here.
