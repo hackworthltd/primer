@@ -86,7 +86,7 @@ import Foreword
 
 ## Cabal
 
-* Start all new Cabal projects with `default-language: Haskell2010`.
+* Start all new Cabal projects with `default-language: GHC2021`.
 * Frequently-enabled GHC extensions should be considered for use in Cabal's `default-extensions` stanza.
 
 ## Tests
