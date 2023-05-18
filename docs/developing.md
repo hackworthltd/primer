@@ -1,35 +1,54 @@
 # Developing Primer
 
-## Nix
+## With Nix
 
 We use [Nix flakes](https://nixos.wiki/wiki/Flakes) to develop Primer,
 so most of our developer documentation assumes you've got a working
-Nix installation with flakes support enabled.
+Nix installation with flakes support enabled, and that you're running
+any given commands in the project's `nix develop` shell.
 
 Our flake supports both `x86_64-linux` and `aarch64-darwin` systems.
 Adding support for other common architectures should be
 straightforward, but we don't currently have the CI resources to
-support them.
+support them. Both `x86_64-darwin` and `aarch64-linux` have been known
+to work in the past. Please let us know if you'd like to contribute,
+but your development platform of choice is not included in our flake.
 
-## Cabal
+## Without Nix
 
-Primer itself is a standard Haskell Cabal project. We recommend that
-you work in the provided `nix develop` shell, because then Nix will
-provide supported versions of GHC, Cabal, and any other tooling
-required to build, test, and run the project.
+You *can* choose to forego Nix and build the provided Cabal projects
+without it, assuming you have supported versions of GHC and Cabal in
+your `PATH`. However, in order to run some of Primer's tests, you'll
+need additional bespoke tools that are provided automatically by the
+`nix develop` shell. These tests will likely fail if they're run
+locally but not from within the Nix shell.
 
-You *can* choose to forego Nix and build Primer's libraries and
-executables without it, assuming you have supported versions of GHC
-and Cabal in your `PATH`. However, in order to run some of Primer's
-tests, you'll need additional bespoke tools that are provided
-automatically by the `nix develop` shell (e.g., `primer-sqitch`).
-Please note that we don't have the maintainer resources to support
-these tools in non-Nix environments.
+Additionally, the scripts we use for out-of-band [database
+operations](database.md), such as database creation and migration, may
+require specific versions of third-party tools like
+[Sqitch](https://sqitch.org), and must be configured with
+project-specific settings and schemas in any case, all of which is
+handled automatically by Nix.
+
+We'll make a best-effort attempt to ensure that the most common
+development workflows are supported without Nix, or at least
+documented, but please note that we don't have the maintainer
+resources to provide much support if you run into problems in non-Nix
+environments.
+
+## On Windows
+
+We've never attempted to build or run this implementation of Primer on
+any version of Windows, and we don't have any plans to support it. You
+may have some success with [NixOS on
+WSL](https://github.com/nix-community/NixOS-WSL), but we don't have
+the resources to provide any support for this environment.
 
 ## `Makefile` targets
 
-For interactive development workflows, we provide some convenient
-`Makefile` targets from the repository's top level directory:
+For interactive development workflows, both with and without Nix, we
+provide some convenient `Makefile` targets from the repository's top
+level directory:
 
 * `make` runs `cabal configure` followed by `cabal build` across all
   projects.
@@ -90,6 +109,13 @@ app. For usage, run:
 ```sh
 nix run .#primer-service serve -- --help
 ```
+
+However, in this scenario, you'll need to have first created and/or
+migrated the local SQLite database by running `primer-sqitch`
+yourself. `primer-service` doesn't know how to deploy or migrate the
+database on its own. See the
+[`primer-service-entrypoint.sh`](../nix/pkgs/scripts/primer-service-entrypoint.sh)
+shell script for the commands that the Docker entrypoint runs.
 
 ## Local development with PostgreSQL
 
