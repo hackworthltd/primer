@@ -1,5 +1,5 @@
 agents:
-  private: "true"
+  public: "true"
   os: "linux"
 
 steps:
@@ -27,8 +27,8 @@ steps:
   - label: ":nixos: :buildkite: :stopwatch: Run benchmarks"
     command: nix-buildkite
     agents:
-      private: "benchmarking"
+      public: "benchmarking"
     plugins:
       - hackworthltd/nix-buildkite#hackworthltd-v10:
           file: ci-benchmarks.nix
-          agent-tags: "private=benchmarking"
+          agent-tags: "public=benchmarking"
