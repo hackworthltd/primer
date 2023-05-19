@@ -7,359 +7,96 @@ Primer is a pedagogical functional programming language. This
 repository contains Haskell implementations of:
 
 * the core language;
-* a database adapter for storing Primer programs; and
-* a web service.
 
-Note that Primer must be built with GHC 9.2.1 or later.
-
-We currently support two SQL backend implementations: SQLite and
-PostgreSQL.
-
-# Developing Primer
-
-## Nix
-
-We use [Nix flakes](https://nixos.wiki/wiki/Flakes) to develop Primer,
-so most of the documentation that follows assumes you've got a working
-Nix installation with flakes support enabled. Our flake supports both
-`x86_64-linux` and `aarch64-darwin` systems.
-
-## Cabal
-
-Primer itself is a standard Haskell Cabal project. We recommend that
-you develop in the `nix develop` shell, in which case Nix will provide
-supported versions of GHC, Cabal, and any other tooling required to
-build the project.
-
-You *can* choose to ignore Nix and build Primer's libraries and
-executables without it, assuming you have supported versions of GHC
-and Cabal in your `PATH`. However, in order to run some of Primer's
-tests, you'll need additional bespoke tools that are provided
-automatically by the `nix develop` shell (e.g., `primer-sqitch`).
-
-### `make` targets
-
-For interactive development workflows, we provide some convenient
-`make` targets from the repository's top level directory:
-
-* `make` runs `cabal configure` followed by `cabal build` across all
-  projects.
-
-* `make test` runs `cabal test` across all projects.
-
-* `make bench` runs `cabal bench` across all projects.
-
-Because running the API server typically involves a few different
-moving parts, we do not provide `make` targets for running the service
-locally, and instead recommend that you use either `nix run
-.#run-primer-sqlite` or `nix run .#run-primer-postgresql` as described
-below.
-
-## Local development with SQLite
-
-Developing Primer with a local SQLite database is straightforward, so
-long as you have a working Nix flakes setup. Just run the following
-command:
-
-```sh
-nix run .#run-primer-sqlite
-```
-
-By default, this command will:
-
-1. Deploy a SQLite database named `primer.sqlite3` in the current
-   working directory. It will create a new empty database if one
-   doesn't already exist.
-2. Run `primer-service` on your host machine and configure it to
-   listen on TCP port `8081` on all network interfaces.
-
-This command uses the same script to launch the service as our Docker
-container uses, and therefore it takes no command-line arguments.
-Instead, you can override the defaults by setting any of the following
-environment variables (shown along with their default values):
-
-| Environment variable |      Purpose                                          |  Default         |
-|----------------------|-------------------------------------------------------|------------------|
-| `SQLITE_DB`          | Filesystem path to the SQLite database                | `primer.sqlite3` |
-| `SERVICE_PORT`       | TCP port on which the service listens for connections | `8081`           |
-
-Note that the script will actually create *two* database files: one
-named `primer.sqlite3`, and the other named `sqitch.sqlite3`. The
-latter contains metadata required by
-[Sqitch](https://sqitch.org/docs/manual/sqitchtutorial-sqlite/), which
-we use to manage database schemas.
-
-If you want to start over with a new database, either set `SQLITE_DB`
-to a new path, or remove both the `primer.sqlite3` and
-`sqitch.sqlite3` database files.
-
-If you don't want to use the `run-primer-sqlite` command for some
-reason, you can also run `primer-service` directly via a Nix flake
-app. For usage, run:
-
-```sh
-nix run .#primer-service serve -- --help
-```
-
-## Local development with PostgreSQL
-
-Developing Primer with a PostgreSQL database backend is much more
-involved than with SQLite, but we do provide some Nix tooling to make
-it a bit easier.
-
-### Initial setup
-
-The first time you want to do local Primer development on a particular
-host, you'll need to run the following commands from the top-level
-directory in this repo:
-
-```sh
-nix run .#deploy-postgresql-container
-nix run .#create-local-db
-```
-
-This sequence of commands will do the following:
-
-1. Create a new [Colima](https://github.com/abiosoft/colima) profile named `primer`.
-2. Run a PostgreSQL container in the `primer` profile, using Colima's
-   Docker-compatible runtime. The PostgreSQL service running on the
-   container listens on the default PostgreSQL TCP port, `5432`.
-3. Create a PostgreSQL database named `primer`.
-
-In general, you should only need to run this sequence of commands the
-first time you do any Primer development on a new development machine,
-or if you want to start over with a completely new PostgreSQL
-container for some reason. The container & database those commands
-create will persist across reboots, and will remain on your system
-until you delete them. However, it's safe to run these commands
-multiple times, as they will create only a single container and
-`primer` database.
-
-### Development workflow
-
-Your usual Primer development workflow will look something like this:
-
-```sh
-nix run .#run-primer-postgresql
-```
-
-By default, this command will:
-
-1. Deploy the Primer database schema to the default local PostgreSQL
-   instance.
-2. Run `primer-service` on your host machine and configure it to
-   listen on TCP port `8081` on all network interfaces.
-
-This command uses the same script to launch the service as our Docker
-container uses, and therefore it takes no command-line arguments.
-Instead, you can override the defaults by setting any of the following
-environment variables (shown along with their default values):
-
-| Environment variable |      Purpose                                          |  Default                                               |
-|----------------------|-------------------------------------------------------|--------------------------------------------------------|
-| `DATABASE_URL`       | The PostgreSQL-style URI of the database              | `postgres://postgres:primer-dev@localhost:5432/primer` |
-| `SERVICE_PORT`       | TCP port on which the service listens for connections | `8081`                                                 |
-
-Note that you'll also need to run the `start-postgresql-container`
-command if the `primer-postgres` container is not already running.
-Typically, this will only happen after a reboot, or if you've manually
-stopped the container. To determine whether the container is running,
-use this command from the project's Nix shell:
-
-```sh
-docker --context colima-primer ps
-```
-
-If it's running, you should see something like this:
-
-```
-CONTAINER ID   IMAGE                      COMMAND                  CREATED        STATUS         PORTS                                       NAMES
-a818e6d5f3ef   postgres:13.4-alpine3.14   "docker-entrypoint.s…"   29 hours ago   Up 2 minutes   0.0.0.0:5432->5432/tcp, :::5432->5432/tcp   postgres-primer
-```
-
-If it's not, then perform the following steps:
-
-```sh
-colima start --runtime docker --profile primer
-nix run .#start-postgresql-container
-```
-
-### PostgreSQL helper scripts
-
-The following helper scripts are also available for the PostgreSQL
-development workflow. These can be run in the `nix develop` shell, or
-as Nix flake apps via `nix run`.
-
-#### `deploy-postgresql-container`
-
-This script does the following:
-
-* Uses Colima to configure a Docker-compatible Linux container runtime
-  on your system.
-* Downloads the official PostgreSQL Docker image for the version of
-  PostgreSQL that we support.
-* Creates a persistent Docker volume named `postgres-primer` to ensure
-  the database is preserved across container restarts and upgrades.
-* Creates a Docker container that runs PostgreSQL and listens on
-  `localhost:5432`.
-
-Note that you do *not* need to install or run Docker in order to use
-this or any other script in this repo, as Colima provides the required
-container functionality. The scripts do use the `docker` command-line
-utility, but only to manage the container, images, and persistent
-volumes.
-
-If you're already running Docker, Colima works alongside it without
-conflict. The scripts in this repo will run all containers in a
-separate `colima-primer` Docker context, in order to keep the Primer
-development environment from affecting any other Docker contexts you
-may be using.
-
-#### `start-postgresql-container`
-
-This script starts the `primer-postgres` container, assuming that it's
-previously been deployed by the `deploy-postgresql-container` command.
-The container will keep running until you reboot your host machine, or
-you stop the container yourself.
-
-#### `stop-postgresql-container`
-
-This script stops the `primer-postgres` container.
-
-#### `create-local-db`
-
-This script creates the `primer` database in the local PostgreSQL
-instance. This database must have been created before Primer can
-connect to it.
-
-#### `deploy-local-db`
-
-This script ensures your local database is using the latest schema.
-You'll need to run it anytime there's a schema change. We'll do our
-best to broadcast when this is necessary.
-
-Note that this script is safe to run at any time, even if the database
-is already using the latest schema.
-
-#### Other helper scripts
-
-You'll probably use these additional scripts less often than the
-others, but they're available if you need them:
-
-* `delete-local-db` drops the Primer database from the local
-  PostgreSQL instance. **Warning**: this script will delete all of the
-  Primer programs in your local database.
-
-* `dump-local-db` dumps the Primer database from the local PostgreSQL
-  instance. It's mainly useful in combination with the
-  `restore-local-db` script.
-
-* `restore-local-db` restores a Primer database dump by dropping the
-  existing Primer database (**warning**: the existing database
-  contents will not be saved!), creating a fresh, empty Primer
-  database, and then loading the dump into the new database. This
-  script is most useful in combination with the `dump-local-db`
-  script.
-
-* `verify-local-db` reports the differences between the latest schema
-  and the schema your local database is using.
-
-* `revert-local-db` reverts the local database to a previous schema.
-  Note that this may not always be successful. You should generally
-  only need to run this command if you're testing database schema
-  migrations. You can specify which git commit to revert to by passing
-  the following flags: `-- --to <rev>`. For example, to revert any
-  changes made since `HEAD`, run `nix run .#revert-local-db -- --to @HEAD`.
-
-# Database ops
-
-We use [Sqitch](https://sqitch.org/about/) to manage our database
-schemas, both for PostgreSQL and SQLite. Because these database
-engines are quite different, we require separate schemas for each. For
-general help on how to use Sqitch and a bit about how it works, see
-[the `sqitch` PostgreSQL
-tutorial](https://sqitch.org/docs/manual/sqitchtutorial/).
-
-Note: we do not use Sqitch for any PostgreSQL user or group
-permissions, nor any database-wide security settings in general. The
-reason for this is because we assume that for some
-PostgreSQL-compatible cloud database offerings, user provisioning and
-security settings may be managed out of band using the cloud
-provider's own APIs. Therefore, our Sqitch scripts assume that the
-PostgreSQL user who's running the scripts has all the permissions
-required to perform any operations included in those scripts, and that
-a [secure schema usage
-pattern](https://www.postgresql.org/docs/current/ddl-schemas.html#DDL-SCHEMAS-PATTERNS)
-has been configured out-of-band.
-
-The following guide assumes you're running `sqitch` and the
-`primer-sqitch` helper script from the `nix develop` shell.
-
-## Sqitch setup
-
-Before running any Sqitch commands locally, you need to configure it
-with your name and email address. Note that you need only do this once
-per machine where you run Sqitch:
-
-```sh
-sqitch config --user user.name "Your Name"
-sqitch config --user user.email your-email-address@hackworthltd.com
-```
-
-## Schema changes
-
-Making schema changes to the Primer Sqitch configuration is out of
-scope for this document. See the [Sqitch documentation for multiple
-engines](https://sqitch.org/docs/manual/sqitch-configuration/#separate-plans)
-for guidance, and note that we use the "separate plans" approach
-described therein. Any Sqitch commands that modify the schema should
-be run in the `sqitch` subdirectory of this repo.
-
-## A note about the provided Sqitch scripts
-
-We provide a few Sqitch scripts for common Sqitch operations, in
-addition to a `primer-sqitch` wrapper script that bundles a copy of
-the project's Sqitch config. We recommend that you at least use the
-`primer-sqitch` command rather than running raw `sqitch` when working
-with the Primer database. These commands are available in the `nix develop` 
-shell, and can be run as Flake apps, as well; e.g., `nix run .#primer-sqitch ...`
-
-However, one drawback of this Nix-based approach is that if you're
-making local changes to the Sqitch schema, you'll need to make sure
-that the scripts in your Nix shell incorporate your changes. This
-won't happen automatically in most cases, so either you'll need to
-exit and re-enter the Nix shell again; or, if you're using `direnv`
-with Nix flake support, run `touch flake.nix`.
-
-# Generating an OpenAPI spec
-
-We automatically generate an OpenAPI spec for `primer-service`, and
-provide a convenient `make` target for this:
-
-```sh
-make openapi.json
-```
-
-This will place the generated spec in a file named `openapi.json`.
-(Note: do not check this generated file into this repository.)
-
-It's also available via Nix:
-
-```sh
-nix build .#primer-openapi-spec
-```
-
-# Benchmarking
-
-We run various benchmarks to track performance regressions, measure
-simulated network traffic, etc. We try to ensure that the benchmarks
-are run in a repeatable, quiescent environment, but we may from time
-to time need to change the hardware on which the benchmarks are run,
-which will inevitably cause discontinuities in benchmark results. In
-the table below, we make a best-effort attempt to track the commits to
-`main` after which discontinuities may appear.
-
-| Last commit                              | Subsequent change
-|------------------------------------------|------------------
-| https://github.com/hackworthltd/primer/commit/031587e3a054ff77ef42ee3e97a3a3b34b1365d0 | Retired previous benchmark machine, a dedicated AMD Ryzen 5 3600 6-Core Processor host running only benchmark jobs, and moved subsequent benchmark jobs to a VM running other CI jobs, with an 8-core AMD Ryzen 9 5900HX with Radeon Graphics.
-| https://github.com/hackworthltd/primer/commit/d38b973874bc2491904811567b5da55e70116f54 | Back to previous benchmark machine, as the mixed-use CI machine was not a reliable benchmarking host.
+* database adapters for storing Primer programs in a relational
+  database; and
+
+* a web service, or *backend*, which exposes a comprehensive
+  programming language API to a client application, or *frontend*.
+
+A companion repository,
+[`primer-app`](https://github.com/hackworthltd/primer-app), contains a
+web-based frontend application for reading, writing, running, and
+debugging Primer programs.
+
+Both projects are licensed under the terms of [version 3 of the GNU
+Affero General Public License](COPYING), and can be freely copied,
+modified, and distributed, so long as the license is preserved.
+
+# Important caveats
+
+Both this implementation of the Primer programming language and the
+language specification itself are still under heavy development. If
+you use this implementation, you should expect lots of breaking
+changes until we reach a [1.0
+release](https://github.com/hackworthltd/primer/milestone/4).
+
+For a very rough roadmap, see our [project
+milestones](https://github.com/hackworthltd/primer/milestones). Please
+note that we don't currently have any accurate time estimates for when
+we expect these milestones to be reached, and the milestones are
+subject to change.
+
+**Please also read the following important caveats about the current state of the project**:
+
+* There is no authentication (authn) system yet, nor an authorization
+  (authz) system, so we strongly recommend that you not host a public
+  Primer service until one or both of those systems are in place. It's
+  safe to experiment with on a local system, or behind a robust
+  identity-aware authentication proxy with a trusted audience, but if
+  you host it publicly, be aware that anyone can read, modify, and
+  delete any existing program; create new programs; and potentially
+  [DoS](https://en.wikipedia.org/wiki/Denial-of-service_attack) the
+  server on which it runs.
+
+* The current implementation of the evaluator is very slow. Running
+  very large programs, or even small programs that generate many
+  reduction steps, is not practical at this time. We're well aware of
+  this limitation, and we plan to focus on evaluation performance once
+  version 1.0 of the language specification is complete.
+
+* Even the most minor frontend requests result in the entire program
+  AST being sent over the network, rather than only what's changed.
+  This is an obvious area for improvement, and we're certain that we
+  can drastically reduce the amount of data being sent to the client
+  application &mdash; we just haven't had a chance to prioritize this
+  work yet. For now, however, please keep a very close eye on your
+  network traffic if you're communicating with the Primer language
+  server over a metered network connection, as the traffic can quickly
+  add up.
+
+* The Haskell API, HTTP APIs, and database schema are all very
+  unstable, and guaranteed to change in compatibility-breaking ways
+  before we reach a 1.0 project milestone.
+
+* The language's semantics are still not fully baked, and there may be
+  defects in its design and/or implementation, so existing Primer
+  programs will probably break from time to time, with no guaranteed
+  forward/backward compatibility path. In other words, you may lose
+  work due to incompatibilities between old Primer programs and new
+  releases of the language. Once we reach version 1.0, we'll only make
+  breaking changes when absolutely necessary, and do our best to
+  provide backward compatibility with existing programs, and/or ways
+  to migrate old programs to the new semantics.
+
+* At the moment, Primer is a pure functional programming language,
+  with no effects system. This means, for example, it's not currently
+  possible to [draw animated cats](https://scratch.mit.edu) using
+  Primer. We plan to implement an effects system in version 2.0 of the
+  language specification, but that will work will not begin for some
+  time.
+  
+* We've yet to do any rigorous testing of Primer with students, and
+  none at all in classrooms. Primer may turn out not be an effective
+  way to teach functional programming to novices! That said, if you're
+  an educator and you'd like to know more about the limited testing we
+  *have* done to date, please reach out to us.
+
+# Contributing
+
+We welcome contributions from the community! Please read our
+[contributing guide](CONTRIBUTING.md) if you think you'd like to help.
+
+We also provide a comprehensive [development
+guide](docs/development-guide-toc.md) for anyone who'd like to build
+and run the project locally.
