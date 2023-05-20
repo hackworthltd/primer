@@ -1,6 +1,15 @@
 {
   description = "Primer is a pedagogical functional programming language.";
 
+  nixConfig = {
+    extra-substituters = [
+      "https://hackworthltd.cachix.org"
+    ];
+    extra-trusted-public-keys = [
+      "hackworthltd.cachix.org-1:0JTCI0qDo2J+tonOalrSQP3yRNleN6bQucJ05yDltRI="
+    ];
+  };
+
   inputs = {
     haskell-nix.url = "github:input-output-hk/haskell.nix";
 
