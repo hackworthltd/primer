@@ -142,14 +142,23 @@
                 in ! (
                   baseName == ".buildkite" ||
                   baseName == ".github" ||
+                  baseName == "CODE_OF_CONDUCT.md" ||
+                  baseName == "CONTRIBUTING.md" ||
+                  baseName == "DCO.md" ||
+                  baseName == "Makefile" ||
+                  baseName == "README.md" ||
+                  baseName == "SECURITY.md" ||
                   pkgs.lib.hasPrefix "cabal.project.local" baseName ||
+                  baseName == "ci-benchmarks.nix" ||
+                  baseName == "ci.nix" ||
+                  baseName == "default.nix" ||
+                  baseName == "docs" ||
+                  baseName == "flake-compat.nix" ||
                   baseName == "flake.lock" ||
                   baseName == "flake.nix" ||
-                  baseName == "README.md" ||
-                  baseName == "CONTRIBUTING.md" ||
-                  baseName == "docs" ||
                   baseName == "nix" ||
                   baseName == "nixos-tests" ||
+                  baseName == "shell.nix" ||
                   baseName == "sqitch"
                 );
             in
