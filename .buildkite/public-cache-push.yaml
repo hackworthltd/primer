@@ -1,0 +1,28 @@
+agents:
+  public: "true"
+  os: "linux"
+
+env:
+  CACHIX_CACHE_NAME: hackworthltd
+  CACHIX_CONFIG_PATH: /var/lib/cachix/hackworthltd/cachix.dhall
+
+steps:
+  - label: ":nixos: Archive Nix flake inputs to public cache"
+    command: |
+      cachix --config "$CACHIX_CONFIG_PATH" watch-exec "$CACHE_NAME" -- nix flake archive .#
+
+  - label: ":nixos: Push build to public cache"
+    command: |
+      cachix --config "$CACHIX_CONFIG_PATH" watch-exec "$CACHE_NAME" -- nix-build -A ciJobs
+
+  - wait
+
+  - label: ":nixos: :linux: Cache Nix shell to public cache"
+    command: |
+      cachix --config "$CACHIX_CONFIG_PATH" watch-exec "$CACHE_NAME" -- nix develop --print-build-logs --profile /tmp/primer --command echo "done"
+
+  - label: ":nixos: :macos: Cache Nix shell to public cache"
+    command: |
+      cachix --config "$CACHIX_CONFIG_PATH" watch-exec "$CACHE_NAME" -- nix develop --print-build-logs --profile /tmp/primer --command echo "done"
+    agents:
+      os: "darwin"
