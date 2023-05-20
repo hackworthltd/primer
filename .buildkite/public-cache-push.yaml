@@ -8,21 +8,21 @@ env:
 
 steps:
   - label: ":nixos: Archive Nix flake inputs to public cache"
-    command: |
-      cachix --config "$CACHIX_CONFIG_PATH" watch-exec "$CACHIX_CACHE_NAME" -- nix flake archive .#
+    command: nix run github:hackworthltd/hacknix#cachix-archive-flake-inputs .# $CACHIX_CONFIG_PATH $CACHIX_CACHE_NAME
 
-  - label: ":nixos: Push build to public cache"
-    command: |
-      cachix --config "$CACHIX_CONFIG_PATH" watch-exec "$CACHIX_CACHE_NAME" -- nix-build -A ciJobs
+  - label: ":nixos: Push project to public cache"
+    command: nix run github:hackworthltd/hacknix#cachix-push-attr ciJobs $CACHIX_CONFIG_PATH $CACHIX_CACHE_NAME
+    # Limit to 1 such job at a time because this could be very
+    # bandwidth-intensive, and sustained.
+    concurrency: 1
+    concurrency_group: "primer-cachix-push"
 
   - wait
 
   - label: ":nixos: :linux: Cache Nix shell to public cache"
-    command: |
-      cachix --config "$CACHIX_CONFIG_PATH" watch-exec "$CACHIX_CACHE_NAME" -- nix develop --print-build-logs --profile /tmp/primer --command echo "done"
+    command: nix run github:hackworthltd/hacknix#cachix-push-flake-dev-shell primer-dev-shell $CACHIX_CONFIG_PATH $CACHIX_CACHE_NAME
 
   - label: ":nixos: :macos: Cache Nix shell to public cache"
-    command: |
-      cachix --config "$CACHIX_CONFIG_PATH" watch-exec "$CACHIX_CACHE_NAME" -- nix develop --print-build-logs --profile /tmp/primer --command echo "done"
+    command: nix run github:hackworthltd/hacknix#cachix-push-flake-dev-shell primer-dev-shell $CACHIX_CONFIG_PATH $CACHIX_CACHE_NAME
     agents:
       os: "darwin"
