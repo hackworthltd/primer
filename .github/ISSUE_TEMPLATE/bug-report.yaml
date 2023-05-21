@@ -76,17 +76,11 @@ body:
       required: true
 
   - type: textarea
-    id: environment
+    id: bugreport-output
     attributes:
-      label: Please provide some details on the environment in which the problem occurs.
+      label: Developers, please provide the output of the bug report script
+      description: If you're a developer, please [run the project's bug report script](https://github.com/hackworthltd/primer/blob/main/CONTRIBUTING.md#-reporting-bugs) and include the output here.
       render: true
-      placeholder: |
-        For example, please run as many of the following as you can:
-
-          uname -a
-          nix --version
-          git rev-parse HEAD
-          ghc --version
 
   - type: textarea
     id: reproducer
