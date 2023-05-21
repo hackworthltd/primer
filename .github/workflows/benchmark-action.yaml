@@ -1,6 +1,7 @@
 name: Benchmark regression checks
 
 on:
+  workflow_dispatch:
   push:
 
     # NOTE: if you want to add a branch here other than `main`, please
@@ -71,7 +72,7 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
           auto-push: true
-          gh-pages-branch: "gh-pages"
+          gh-pages-branch: "cloudflare-pages"
           benchmark-data-dir-path: "dev/bench"
 
           # Alert dhess if there's a regression.
