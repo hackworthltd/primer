@@ -5,18 +5,6 @@
 let
   lastEnvChangeFile = pkgs.writeText "lastEnvChange" lastEnvChange;
 
-  # Generate Primer benchmark results as HTML.
-  primer-benchmark-results-html = (pkgs.runCommand "primer-benchmark-results-html" { }
-    ''
-      ${pkgs.coreutils}/bin/mkdir -p $out
-      cp ${lastEnvChangeFile} $out/lastEnvChange
-      ${primer-benchmark}/bin/primer-benchmark --output $out/results.html --regress cpuTime:iters --regress allocated:iters --regress numGcs:iters +RTS -T
-    ''
-  ).overrideAttrs
-    (drv: {
-      requiredSystemFeatures = (drv.requiredSystemFeatures or [ ]) ++ [ "benchmark" ];
-    });
-
   # Generate Primer benchmark results as JSON.
   primer-benchmark-results-json = (pkgs.runCommand "primer-benchmark-results-json" { }
     ''
@@ -69,7 +57,8 @@ let
     '';
 in
 {
-  inherit primer-benchmark-results-html
-    primer-benchmark-results-json primer-criterion-results-github-action-benchmark
+  inherit
+    primer-benchmark-results-json
+    primer-criterion-results-github-action-benchmark
     primer-benchmark-results-github-action-benchmark;
 }

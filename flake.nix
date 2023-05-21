@@ -350,7 +350,6 @@
           # controlled environment, and this gives us that
           # flexibility.
           benchmarks = {
-            inherit (pkgs) primer-benchmark-results-html;
             inherit (pkgs) primer-benchmark-results-json;
             inherit (pkgs) primer-criterion-results-github-action-benchmark;
           }
@@ -749,7 +748,6 @@
               # include these in the flake's `packages` output,
               # because we don't want them to be built/run when CI
               # evaluates the `hydraJobs` or `ciJobs` outputs.
-              inherit (benchmarks) primer-benchmark-results-html;
               inherit (benchmarks) primer-benchmark-results-json;
               inherit (benchmarks) primer-criterion-results-github-action-benchmark;
               inherit (benchmarks) primer-benchmark-results-github-action-benchmark;
