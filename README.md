@@ -1,5 +1,5 @@
 [![Build status](https://badge.buildkite.com/7a9fd1213265a375385deec0a418bc4a6f26b17b7f4efe3cad.svg?branch=main)](https://buildkite.com/hackworthltd/primer)
-[![Benchmarks](https://github.com/hackworthltd/primer/actions/workflows/benchmark-action.yaml/badge.svg?branch=main)](https://hackworthltd.github.io/primer/dev/bench/)
+[![Benchmarks](https://github.com/hackworthltd/primer/actions/workflows/benchmark-action.yaml/badge.svg?branch=main)](https://benchmarks.primer.dev)
 
 # Primer
 
