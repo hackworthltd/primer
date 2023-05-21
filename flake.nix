@@ -214,14 +214,7 @@
                   # Note: doesn't appear to pick up `bugreport.sh`.
                   # https://github.com/hackworthltd/primer/issues/1018
                   shellcheck.enable = true;
-
-                  actionlint = {
-                    enable = true;
-                    name = "actionlint";
-                    entry = "${pkgs.actionlint}/bin/actionlint";
-                    language = "system";
-                    files = "^.github/workflows/";
-                  };
+                  actionlint.enable = true;
                 };
 
                 # We need to force these due to
