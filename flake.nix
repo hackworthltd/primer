@@ -243,7 +243,7 @@
             };
 
           packages = {
-            inherit (pkgs) primer-service primer-openapi-spec;
+            inherit (pkgs) primer-service primer-client primer-openapi-spec;
             inherit (pkgs) primer-benchmark;
             inherit (pkgs)
               run-primer-postgresql
@@ -319,6 +319,7 @@
               };
             in
             (pkgs.lib.mapAttrs (name: pkg: mkApp pkg name) {
+              inherit (pkgs) primer-client;
               inherit (pkgs) primer-openapi-spec;
               inherit (pkgs) primer-benchmark;
 
@@ -738,6 +739,7 @@
               inherit primer;
 
               primer-service = primerFlake.packages."primer-service:exe:primer-service";
+              primer-client = primerFlake.packages."primer-service:exe:primer-client";
               primer-openapi = primerFlake.packages."primer-service:exe:primer-openapi";
               primer-benchmark = primerFlake.packages."primer-benchmark:bench:primer-benchmark";
 
