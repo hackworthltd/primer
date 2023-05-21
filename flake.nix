@@ -148,6 +148,7 @@
                   baseName == "Makefile" ||
                   baseName == "README.md" ||
                   baseName == "SECURITY.md" ||
+                  baseName == "bugreport.sh" ||
                   pkgs.lib.hasPrefix "cabal.project.local" baseName ||
                   baseName == "ci-benchmarks.nix" ||
                   baseName == "ci.nix" ||
@@ -210,6 +211,9 @@
                   fourmolu.enable = true;
                   cabal-fmt.enable = true;
                   nixpkgs-fmt.enable = true;
+                  # Note: doesn't appear to pick up `bugreport.sh`.
+                  # https://github.com/hackworthltd/primer/issues/1018
+                  shellcheck.enable = true;
 
                   actionlint = {
                     enable = true;

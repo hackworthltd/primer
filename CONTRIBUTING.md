@@ -40,7 +40,19 @@ Before you open a GitHub Issue on this project, please first search the project'
 
 If you've found a non-security-related bug in the project's source code, and no existing issue plausibly covers the bug you've found, please [open a new issue](https://github.com/hackworthltd/primer/issues/new/choose) using the "Bug report" button, and fill out the form in as much detail as you can. We appreciate that it may take some time & effort to provide the requested details, but the more information we have about the bug, the easier it'll be for us to find it and fix it.
 
-The bug report form includes a section where you can provide an optional *bug reproducer*. Normally, a reproducer takes the form of a link to a small project, example, or test case which triggers the issue. Reproducers are not required for bug reports, and are sometimes not applicable, but when provided, they're extremely helpful, and it's likely that bugs with reproducers will be fixed more quickly than those without.
+If you're a developer and you've checked out this repository, please run the included bug-reporting script, and provide the output of the script in your GitHub Issues bug report. If you're using Nix to develop Primer, you can run the script as follows:
+
+```sh
+nix develop --command ./bugreport.sh
+```
+
+Otherwise, run:
+
+```sh
+sh ./bugreport.sh --no-nix
+```
+
+The bug report form also includes a section where you can provide an optional *bug reproducer*. Normally, a reproducer takes the form of a link to a small project, example, or test case which triggers the issue. Reproducers are not required for bug reports, and are sometimes not applicable, but when provided, they're extremely helpful, and it's likely that bugs with reproducers will be fixed more quickly than those without.
 
 #### <a name="requesting-features"/> Feature requests
 
