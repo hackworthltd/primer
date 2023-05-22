@@ -25,9 +25,8 @@ import Hedgehog (
   (===), Gen, forAll,
  )
 import Hedgehog.Gen qualified as Gen
-import Hedgehog.Internal.Property (forAllWithT)
 import Hedgehog.Range qualified as Range
-import Optics (ix, toListOf, (%), (.~), (^..), _head)
+import Optics (ix, toListOf, (%), (.~), _head)
 import Primer.Action (
   ActionError (CaseBindsClash, NameCapture),
   Movement (Child1, Child2),
@@ -422,19 +421,19 @@ runRandomAvailableAction l a = do
       EditAppM (PureLog (WithSeverity ())) ProgError a ->
       App ->
       PropertyT WT (Either ProgError a, App)
-    runEditAppMLogs m a = case runPureLog $ runEditAppM m a of
+    runEditAppMLogs m a' = case runPureLog $ runEditAppM m a' of
       (r, logs) -> testNoSevereLogs logs >> pure r
     actionSucceeds :: HasCallStack => EditAppM (PureLog (WithSeverity ())) ProgError a -> App -> PropertyT WT App
-    actionSucceeds m a =
-      runEditAppMLogs m a >>= \case
+    actionSucceeds m a' =
+      runEditAppMLogs m a' >>= \case
         (Left err, _) -> annotateShow err >> failure
-        (Right _, a') -> pure a'
+        (Right _, a'') -> pure a''
     -- If we submit our own name rather than an offered one, then
     -- we should expect that name capture/clashing may happen
     actionSucceedsOrCapture :: HasCallStack => Provenance -> EditAppM (PureLog (WithSeverity ())) ProgError a -> App -> PropertyT WT (Maybe App)
-    actionSucceedsOrCapture p m a = do
-      a' <- runEditAppMLogs m a
-      case (p, a') of
+    actionSucceedsOrCapture p m a' = do
+      a'' <- runEditAppMLogs m a'
+      case (p, a'') of
         (StudentProvided, (Left (ActionError NameCapture), _)) -> do
           label "name-capture with entered name"
           annotate "ignoring name capture error as was generated name, not offered one"
@@ -448,7 +447,7 @@ runRandomAvailableAction l a = do
           annotate "ignoring def already exists error as was generated name, not offered one"
           pure Nothing
         (_, (Left err, _)) -> annotateShow err >> failure
-        (_, (Right _, a'')) -> pure $ Just a''
+        (_, (Right _, a''')) -> pure $ Just a'''
 
 -- helper type for tasty_undo_redo
 data Act = AddTm | AddTy
