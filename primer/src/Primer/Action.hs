@@ -242,7 +242,7 @@ refocus Refocus{pre, post} = do
         TC.NoSmartHoles -> [getID pre]
         TC.SmartHoles -> case pre of
           InExpr e -> candidateIDsExpr $ target e
-          InType t -> candidateIDsType $ target t
+          InType t -> candidateIDsType t
           InBind (BindCase ze) -> [getID ze]
   pure . getFirst . mconcat $ fmap (\i -> First $ focusOn i post) candidateIDs
   where
@@ -251,10 +251,17 @@ refocus Refocus{pre, post} = do
         Hole _ e' -> candidateIDsExpr e'
         Ann _ e' _ -> candidateIDsExpr e'
         _ -> []
-    candidateIDsType t =
-      getID t : case t of
-        THole _ t' -> candidateIDsType t'
-        _ -> []
+    candidateIDsTypeDown t = case t of
+      THole _ t' -> candidateIDsTypeDown t'
+      _ -> []
+    candidateIDsType tz =
+      getID tz
+        : candidateIDsTypeDown (target tz)
+          -- if we are focused inside a type annotation which gets elided, we
+          -- refocus on the expression it was annotating
+          <> case (up tz, target $ unfocusType tz) of
+            (Nothing, Ann _ e _) -> candidateIDsExpr e
+            _ -> []
 
 -- | Apply a sequence of actions to the body of a definition, producing a new Expr or an error if
 -- any of the actions failed to apply.

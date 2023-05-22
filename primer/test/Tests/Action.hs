@@ -1101,6 +1101,30 @@ unit_move_ctor =
     ]
     (con cMakePair [con0 cZero, con0 cFalse] `ann` tEmptyHole)
 
+-- Regression test
+-- We have @Bool ∋ {? ? : Nat ?}@ and delete the @Nat@, leaving
+-- @Bool ∋ {? ? : ? ?}@, with the focus on the empty type hole;
+-- now smartholes notices and changes @{? e : ? ?}@ into @e@
+-- (which is @?@ in the present situation). However, the action
+-- code was not smart enough to cope with its focus being deleted
+-- in this manner (in 71c86a469527fced60e363405ddbbd1ac0cacdec it
+-- gained the ability to cope in many situations, but not when
+-- focused inside an annotation which is elided).
+unit_elide_ann_lost_id :: Assertion
+unit_elide_ann_lost_id =
+  actionTest
+    SmartHoles
+    (hole (emptyHole `ann` tcon tNat) `ann` tcon tBool)
+    [ Move Child1
+    , Move Child1
+    , EnterType
+    , -- this @Delete@ is the point where we used to error out because of a lost ID
+      Delete
+    , -- insert a constructor to show that the focus was left at the correct place
+      constructSaturatedCon cTrue
+    ]
+    (con0 cTrue `ann` tcon tBool)
+
 -- * Helpers
 
 -- | Apply the actions to the input expression and test that the result matches
