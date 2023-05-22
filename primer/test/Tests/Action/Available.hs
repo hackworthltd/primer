@@ -8,6 +8,7 @@ import Foreword
 import Control.Monad.Log (WithSeverity)
 import Data.ByteString.Lazy.Char8 qualified as BS
 import Data.List.Extra (enumerate, partition)
+import Data.Map qualified as M
 import Data.Map qualified as Map
 import Data.Text qualified as T
 import Data.Text.Lazy qualified as TL
@@ -30,22 +31,30 @@ import Optics (ix, toListOf, (%), (.~), (^..), _head)
 import Primer.Action (
   ActionError (CaseBindsClash, NameCapture),
   Movement (Child1, Child2),
+  enterType,
   moveExpr,
+  moveType,
   toProgActionInput,
   toProgActionNoInput,
  )
-import Primer.Action.Available (InputAction (MakeCon), NoInputAction (Raise), Option (Option))
+import Primer.Action.Available (
+  InputAction (MakeCon, MakeLAM, MakeLam, RenameForall, RenameLAM, RenameLam, RenameLet),
+  NoInputAction (Raise),
+  Option (Option),
+ )
 import Primer.Action.Available qualified as Available
 import Primer.App (
   App,
   EditAppM,
   Editable (..),
-  Level (Beginner, Intermediate),
+  Level (Beginner, Expert, Intermediate),
   NodeType (..),
   ProgError (ActionError, DefAlreadyExists),
   appProg,
   checkAppWellFormed,
+  checkProgWellFormed,
   handleEditRequest,
+  nextProgID,
   progAllDefs,
   progAllTypeDefs,
   progCxt,
@@ -54,13 +63,14 @@ import Primer.App (
   progSmartHoles,
   runEditAppM,
  )
-import Primer.Builtins (builtinModuleName, cCons, tList, tNat)
+import Primer.Builtins (builtinModuleName, cCons, tBool, tList, tNat)
 import Primer.Core (
   Expr,
   GVarName,
   GlobalName (baseName, qualifiedModule),
   HasID (_id),
   ID,
+  Kind (KFun, KType),
   ModuleName (ModuleName, unModuleName),
   getID,
   mkSimpleModuleName,
@@ -73,16 +83,19 @@ import Primer.Core.DSL (
   ann,
   app,
   con,
-  create,
   create',
   emptyHole,
   gvar,
   hole,
+  lAM,
   lam,
+  let_,
+  letrec,
   lvar,
   tEmptyHole,
   tapp,
   tcon,
+  tforall,
   tfun,
  )
 import Primer.Core.Utils (
@@ -103,6 +116,7 @@ import Primer.Module (
   Module (Module, moduleDefs),
   builtinModule,
   moduleDefsQualified,
+  moduleName,
   moduleTypesQualified,
   primitiveModule,
  )
@@ -122,8 +136,12 @@ import Tasty (Property, withDiscards, withTests)
 import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.Golden (goldenVsString)
 import Test.Tasty.HUnit (Assertion, assertBool, assertFailure, (@?=))
-import Tests.Action.Prog (defaultEmptyProg, expectSuccess, findGlobalByName, gvn, progActionTest)
-import Tests.Typecheck (TypeCacheAlpha (TypeCacheAlpha), runTypecheckTestMIn)
+import Tests.Action.Prog (defaultEmptyProg, expectSuccess, findGlobalByName, progActionTest)
+import Tests.Typecheck (
+  TypeCacheAlpha (TypeCacheAlpha),
+  runTypecheckTestM,
+  runTypecheckTestMIn,
+ )
 import Text.Pretty.Simple (pShowNoColor)
 
 -- | Comprehensive DSL test.
@@ -350,7 +368,7 @@ unit_raise_sh =
           SmartHoles
           Beginner
           (emptyHole `app` t1 `app` emptyHole)
-          [Child1, Child2]
+          (InExpr [Child1, Child2])
           (Left Raise)
           (t2 `app` emptyHole)
       testSyn :: HasCallStack => S Expr -> Assertion
@@ -367,7 +385,7 @@ unit_sat_con_1 =
     SmartHoles
     Intermediate
     (emptyHole `ann` (tEmptyHole `tfun` tEmptyHole))
-    [Child1]
+    (InExpr [Child1])
     (Right (MakeCon, Option "Cons" $ Just $ unName <$> unModuleName builtinModuleName))
     (hole (con cCons [emptyHole, emptyHole] `ann` tEmptyHole) `ann` (tEmptyHole `tfun` tEmptyHole))
 
@@ -377,9 +395,23 @@ unit_sat_con_2 =
     SmartHoles
     Intermediate
     (emptyHole `ann` ((tcon tList `tapp` tcon tNat) `tfun` (tcon tList `tapp` tcon tNat)))
-    [Child1]
+    (InExpr [Child1])
     (Right (MakeCon, Option "Cons" $ Just $ unName <$> unModuleName builtinModuleName))
     (hole (con cCons [emptyHole, emptyHole] `ann` tEmptyHole) `ann` ((tcon tList `tapp` tcon tNat) `tfun` (tcon tList `tapp` tcon tNat)))
+
+data MovementList
+  = InExpr [Movement]
+  | InType [Movement] [Movement]
+
+exprMoves :: MovementList -> [Movement]
+exprMoves = \case
+  InExpr ms -> ms
+  InType ms _ -> ms
+
+typeMoves :: MovementList -> Maybe [Movement]
+typeMoves = \case
+  InExpr _ -> Nothing
+  InType _ ms -> Just ms
 
 -- | Apply the action to the node in the input expression pointed to by the
 -- 'Movement' (starting from the root), checking that it would actually be offered
@@ -390,28 +422,43 @@ offeredActionTest ::
   SmartHoles ->
   Level ->
   S Expr ->
-  [Movement] ->
+  MovementList ->
   Either NoInputAction (InputAction, Option) ->
   S Expr ->
   Assertion
 offeredActionTest sh l inputExpr position action expectedOutput = do
-  let ((modules, expr, exprDef, exprDefName, prog), i) = create $ do
+  let progRaw = create' $ do
         ms <- sequence [builtinModule]
         prog0 <- defaultEmptyProg
         e <- inputExpr
         d <- ASTDef e <$> tEmptyHole
-        let p =
-              prog0
-                & (#progModules % _head % #moduleDefs % ix "main" .~ DefAST d)
-                & (#progImports .~ ms)
-                & (#progSmartHoles .~ sh)
-        pure (ms, e, d, gvn "main", p)
-  let id' = evalTestM (i + 1) $
+        pure $
+          prog0
+            & (#progModules % _head % #moduleDefs % ix "main" .~ DefAST d)
+            & (#progImports .~ ms)
+            -- Temporarily disable smart holes, so what is written in unit tests is what is in the prog
+            & (#progSmartHoles .~ NoSmartHoles)
+  -- Typecheck everything to fill in typecaches.
+  -- This lets us test offered names for renaming variable binders.
+  let progChecked = runTypecheckTestM NoSmartHoles $ checkProgWellFormed progRaw
+  let (modules, expr, exprDef, exprDefName, prog) = case progChecked of
+        Left err -> error $ "offeredActionTest: no typecheck: " <> show err
+        Right p -> case progModules p of
+          [m] -> case moduleDefs m M.!? "main" of
+            Just (DefAST def@(ASTDef e _)) -> (progImports p, e, def, qualifyName (moduleName m) "main", p & #progSmartHoles .~ sh)
+            _ -> error "offeredActionTest: didn't find 'main'"
+          _ -> error "offeredActionTest: expected exactly one progModule"
+  let id' = evalTestM (nextProgID prog) $
         runExceptT $
           flip runReaderT (buildTypingContextFromModules modules sh) $
             do
-              ez <- foldlM (flip moveExpr) (focus expr) position
-              pure $ getID ez
+              ez <- foldlM (flip moveExpr) (focus expr) $ exprMoves position
+              case typeMoves position of
+                Nothing -> pure $ getID ez
+                Just ms -> do
+                  tz' <- enterType ez
+                  tz <- foldlM (flip moveType) tz' ms
+                  pure $ getID tz
   id <- case id' of
     Left err -> assertFailure $ show err
     Right i' -> pure i'
@@ -449,3 +496,138 @@ offeredActionTest sh l inputExpr position action expectedOutput = do
         -- NB: we don't compare up-to-alpha, as names should be determined by the
         -- actions on-the-nose
         fmap clearMeta result @?= Just (clearMeta expected)
+
+-- Correct names offered when running actions
+-- NB: Bools are offered names "p", "q"; functions get "f","g"; nats get "i","j","n","m"
+offeredNamesTest :: HasCallStack => S Expr -> MovementList -> InputAction -> Text -> S Expr -> Assertion
+offeredNamesTest initial moves act name =
+  offeredActionTest
+    NoSmartHoles
+    Expert
+    initial
+    moves
+    (Right (act, Option name Nothing))
+
+-- Note that lambdas are the only form which we have interesting name info when
+-- we initially create them.
+unit_make_lam_names :: Assertion
+unit_make_lam_names =
+  offeredNamesTest
+    (emptyHole `ann` (tcon tNat `tfun` tcon tBool))
+    (InExpr [Child1])
+    MakeLam
+    "i"
+    (lam "i" emptyHole `ann` (tcon tNat `tfun` tcon tBool))
+
+unit_rename_lam_names :: Assertion
+unit_rename_lam_names =
+  offeredNamesTest
+    (lam "x" emptyHole `ann` (tcon tNat `tfun` tcon tBool))
+    (InExpr [Child1])
+    RenameLam
+    "i"
+    (lam "i" emptyHole `ann` (tcon tNat `tfun` tcon tBool))
+
+unit_make_LAM_names :: Assertion
+unit_make_LAM_names = do
+  offeredNamesTest
+    (emptyHole `ann` tforall "a" KType (tcon tBool))
+    (InExpr [Child1])
+    MakeLAM
+    "α"
+    (lAM "α" emptyHole `ann` tforall "a" KType (tcon tBool))
+  offeredNamesTest
+    (emptyHole `ann` tforall "a" (KFun KType KType) (tcon tBool))
+    (InExpr [Child1])
+    MakeLAM
+    "f"
+    (lAM "f" emptyHole `ann` tforall "a" (KFun KType KType) (tcon tBool))
+
+unit_rename_LAM_names :: Assertion
+unit_rename_LAM_names = do
+  offeredNamesTest
+    (lAM "x" emptyHole `ann` tforall "a" KType (tcon tBool))
+    (InExpr [Child1])
+    RenameLAM
+    "α"
+    (lAM "α" emptyHole `ann` tforall "a" KType (tcon tBool))
+  offeredNamesTest
+    (lAM "x" emptyHole `ann` tforall "a" (KFun KType KType) (tcon tBool))
+    (InExpr [Child1])
+    RenameLAM
+    "f"
+    (lAM "f" emptyHole `ann` tforall "a" (KFun KType KType) (tcon tBool))
+
+-- nb: renaming let cares about the type of the bound var, not of the let
+unit_rename_let_names :: Assertion
+unit_rename_let_names =
+  offeredNamesTest
+    (let_ "x" (emptyHole `ann` tcon tBool) emptyHole)
+    (InExpr [])
+    RenameLet
+    "p"
+    (let_ "p" (emptyHole `ann` tcon tBool) emptyHole)
+
+{-
+-- TODO: reinstate once the TC handles let type!
+-- See https://github.com/hackworthltd/primer/issues/5
+--unit_rename_lettype_names :: Assertion
+--unit_rename_lettype_names = do
+  offeredNamesTest
+    (letType "x" (tcon tBool) emptyHole)
+    (InExpr [])
+    RenameLet
+    "p"
+    (letType "p" (tcon tBool) emptyHole)
+  offeredNamesTest
+    (letType "x" (tcon tBool `tfun` tcon tBool) $ emptyHole)
+    (InExpr [])
+    RenameLet
+    "p"
+    (letType "x" (tcon tBool `tfun` tcon tBool) $ emptyHole)
+-}
+
+unit_rename_letrec_names :: Assertion
+unit_rename_letrec_names =
+  offeredNamesTest
+    (letrec "x" emptyHole (tcon tBool) emptyHole)
+    (InExpr [])
+    RenameLet
+    "p"
+    (letrec "p" emptyHole (tcon tBool) emptyHole)
+
+-- There is no unit_rename_pattern_names as can only move to a pattern by ID, which is awkward here
+
+unit_rename_forall_names :: Assertion
+unit_rename_forall_names = do
+  offeredNamesTest
+    (emptyHole `ann` tforall "a" KType (tcon tBool))
+    ([] `InType` [])
+    RenameForall
+    "α"
+    (emptyHole `ann` tforall "α" KType (tcon tBool))
+  offeredNamesTest
+    (emptyHole `ann` tforall "a" (KFun KType KType) (tcon tBool))
+    ([] `InType` [])
+    RenameForall
+    "f"
+    (emptyHole `ann` tforall "f" (KFun KType KType) (tcon tBool))
+
+{-
+-- TODO: reinstate once the TC handles let type!
+-- See https://github.com/hackworthltd/primer/issues/5
+--unit_rename_tlet_names :: Assertion
+--unit_rename_tlet_names = do
+  offeredNamesTest
+    (emptyHole `ann` tlet "a" (tcon tNat) tEmptyHole)
+    ([] `InType` [])
+    RenameLet
+    "α"
+    (emptyHole `ann` tlet "α" (tcon tNat) tEmptyHole)
+  offeredNamesTest
+    (emptyHole `ann` tlet "a" (tcon tList) tEmptyHole)
+    ([] `InType` [])
+    RenameLet
+    "f"
+    (emptyHole `ann` tlet "f" (tcon tList) tEmptyHole)
+-}

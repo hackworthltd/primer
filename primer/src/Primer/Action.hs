@@ -10,6 +10,8 @@ module Primer.Action (
   applyActionsToTypeSig,
   applyActionsToExpr,
   moveExpr,
+  enterType,
+  moveType,
   uniquifyDefName,
   toProgActionInput,
   toProgActionNoInput,
