@@ -104,8 +104,8 @@ genProg sh initialImports = local (extendCxtByModules initialImports) $ do
 
 extendCxtByModules :: [Module] -> Cxt -> Cxt
 extendCxtByModules ms =
-      extendTypeDefCxt (foldMap' moduleTypesQualified ms)
-        . extendGlobalCxt (M.toList . fmap (forgetTypeMetadata . defType) $ foldMap' moduleDefsQualified ms)
+  extendTypeDefCxt (foldMap' moduleTypesQualified ms)
+    . extendGlobalCxt (M.toList . fmap (forgetTypeMetadata . defType) $ foldMap' moduleDefsQualified ms)
 
 -- Generate a mutually-recursive group of term definitions
 genASTDefGroup :: ModuleName -> GenT WT (Map Name Def)

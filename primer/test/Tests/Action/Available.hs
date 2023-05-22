@@ -14,15 +14,17 @@ import Data.Text qualified as T
 import Data.Text.Lazy qualified as TL
 import GHC.Err (error)
 import Hedgehog (
+  Gen,
   PropertyT,
   annotate,
   annotateShow,
   collect,
   discard,
   failure,
+  forAll,
   label,
   success,
-  (===), Gen, forAll,
+  (===),
  )
 import Hedgehog.Gen qualified as Gen
 import Hedgehog.Range qualified as Range
@@ -30,11 +32,14 @@ import Optics (ix, toListOf, (%), (.~), _head)
 import Primer.Action (
   ActionError (CaseBindsClash, NameCapture),
   Movement (Child1, Child2),
+  ProgAction (AddTypeDef, CreateDef),
+  applyActionsToBody,
+  applyActionsToExpr,
   enterType,
   moveExpr,
   moveType,
   toProgActionInput,
-  toProgActionNoInput, ProgAction (AddTypeDef,CreateDef), applyActionsToBody, applyActionsToExpr,
+  toProgActionNoInput,
  )
 import Primer.Action qualified as Action
 import Primer.Action.Available (
@@ -48,14 +53,18 @@ import Primer.App (
   EditAppM,
   Editable (..),
   Level (Beginner, Expert, Intermediate),
+  Log (unlog),
+  MutationRequest (Edit, Redo, Undo),
   NodeType (..),
   Prog (..),
   ProgError (ActionError, DefAlreadyExists),
-  MutationRequest(Edit),
+  appIdCounter,
   appProg,
   checkAppWellFormed,
   checkProgWellFormed,
   handleEditRequest,
+  handleMutationRequest,
+  mkApp,
   nextProgID,
   progAllDefs,
   progAllTypeDefs,
@@ -63,7 +72,7 @@ import Primer.App (
   progImports,
   progModules,
   progSmartHoles,
-  runEditAppM, handleMutationRequest, MutationRequest (Undo, Redo), Log (unlog), mkApp, appIdCounter,
+  runEditAppM,
  )
 import Primer.Builtins (builtinModuleName, cCons, tBool, tList, tNat)
 import Primer.Core (
@@ -86,6 +95,7 @@ import Primer.Core.DSL (
   app,
   case_,
   con,
+  create,
   create',
   emptyHole,
   gvar,
@@ -99,7 +109,8 @@ import Primer.Core.DSL (
   tapp,
   tcon,
   tforall,
-  tfun, tvar, create,
+  tfun,
+  tvar,
  )
 import Primer.Core.Utils (
   exprIDs,
@@ -111,10 +122,9 @@ import Primer.Def (
   defAST,
  )
 import Primer.Examples (comprehensiveWellTyped)
-import Primer.Gen.App (genApp)
+import Primer.Gen.App (extendCxtByModules, genApp)
 import Primer.Gen.Core.Raw (genName)
-import Primer.Gen.Core.Typed (WT, forAllT, propertyWT, freshNameForCxt)
-import Primer.Gen.App (extendCxtByModules)
+import Primer.Gen.Core.Typed (WT, forAllT, freshNameForCxt, propertyWT)
 import Primer.Log (PureLog, runPureLog)
 import Primer.Module (
   Module (..),
@@ -127,6 +137,7 @@ import Primer.Module (
 import Primer.Name (Name (unName))
 import Primer.Test.TestM (evalTestM)
 import Primer.Test.Util (clearMeta, testNoSevereLogs)
+import Primer.TypeDef (ASTTypeDef (..), TypeDef (..))
 import Primer.Typecheck (
   CheckEverythingRequest (CheckEverything, toCheck, trusted),
   SmartHoles (NoSmartHoles, SmartHoles),
@@ -147,7 +158,6 @@ import Tests.Typecheck (
   runTypecheckTestMIn,
  )
 import Text.Pretty.Simple (pShowNoColor)
-import Primer.TypeDef (ASTTypeDef(..), TypeDef (..))
 
 -- | Comprehensive DSL test.
 test_1 :: TestTree
@@ -262,13 +272,13 @@ tasty_available_actions_accepted = withTests 500 $
       -- We only test SmartHoles mode (which is the only supported user-facing
       -- mode - NoSmartHoles is only used for internal sanity testing etc)
       a <- forAllT $ genApp SmartHoles cxt
-      (defName,defMut,defLoc) <- maybe discard forAll (pickPos $ appProg a)
+      (defName, defMut, defLoc) <- maybe discard forAll (pickPos $ appProg a)
       -- TODO: use runRandomAction
       let defMap = fmap snd $ progAllDefs $ appProg a
-      let (def, loc,acts) = case defLoc of
-            Left d -> (d, Nothing,Available.forDef defMap l defMut defName)
-            Right (d,SigNode, i) -> (DefAST d, Just (SigNode, i), Available.forSig l defMut (astDefType d) i)
-            Right (d,BodyNode, i) -> (DefAST d, Just (BodyNode, i), Available.forBody (snd <$> progAllTypeDefs (appProg a)) l defMut (astDefExpr d) i)
+      let (def, loc, acts) = case defLoc of
+            Left d -> (d, Nothing, Available.forDef defMap l defMut defName)
+            Right (d, SigNode, i) -> (DefAST d, Just (SigNode, i), Available.forSig l defMut (astDefType d) i)
+            Right (d, BodyNode, i) -> (DefAST d, Just (BodyNode, i), Available.forBody (snd <$> progAllTypeDefs (appProg a)) l defMut (astDefExpr d) i)
       case acts of
         [] -> label "no offered actions" >> success
         acts' -> do
@@ -339,32 +349,34 @@ tasty_available_actions_accepted = withTests 500 $
     ensureSHNormal a = case checkAppWellFormed a of
       Left err -> annotateShow err >> failure
       Right a' -> TypeCacheAlpha a === TypeCacheAlpha a' >> checkUndo a
-    checkUndo a = runEditAppMLogs (handleMutationRequest Undo) a >>= \case
+    checkUndo a =
+      runEditAppMLogs (handleMutationRequest Undo) a >>= \case
         (Left err, _) -> annotateShow err >> failure
-        (Right _, a') -> runEditAppMLogs (handleMutationRequest Redo) a' >>= \case
-          (Left err, _) -> annotateShow err >> failure
-          (Right _, a'') -> TypeCacheAlpha a === TypeCacheAlpha a''
+        (Right _, a') ->
+          runEditAppMLogs (handleMutationRequest Redo) a' >>= \case
+            (Left err, _) -> annotateShow err >> failure
+            (Right _, a'') -> TypeCacheAlpha a === TypeCacheAlpha a''
 
---gives def name and perhaps a node inside it (if Nothing, then has selected the definition itself)
+-- gives def name and perhaps a node inside it (if Nothing, then has selected the definition itself)
 -- If the outer Maybe is Nothing, then there were no definitions at all!
 pickPos :: Prog -> Maybe (Gen (GVarName, Editable, Either Def (ASTDef, NodeType, ID)))
-pickPos p = ((\(defName, (editable, def)) -> (defName, editable,) <$> pickLoc def) =<<) <$> pickDef
+pickPos p = ((\(defName, (editable, def)) -> (defName,editable,) <$> pickLoc def) =<<) <$> pickDef
   where
     isMutable = \case
-            Editable -> True
-            NonEditable -> False
+      Editable -> True
+      NonEditable -> False
     pickDef = case partition (isMutable . fst . snd) $ Map.toList $ progAllDefs p of
-        ([], []) -> Nothing
-        (mut, []) -> Just $ Gen.element mut
-        ([], immut) -> Just $ Gen.element immut
-        (mut, immut) -> Just $ Gen.frequency [(9, Gen.element mut), (1, Gen.element immut)]
+      ([], []) -> Nothing
+      (mut, []) -> Just $ Gen.element mut
+      ([], immut) -> Just $ Gen.element immut
+      (mut, immut) -> Just $ Gen.frequency [(9, Gen.element mut), (1, Gen.element immut)]
     pickLoc d =
-          Gen.frequency $
-            catMaybes
-              [ Just (1, pure $ Left d)
-              , defAST d <&> \d' -> (2,) . Gen.element $ fmap (Right . (d',SigNode,)) $ toListOf typeIDs $ astDefType d'
-              , defAST d <&> \d' -> (7,) . Gen.element $ fmap (Right . (d',BodyNode,)) $ toListOf exprIDs $ astDefExpr d'
-              ]
+      Gen.frequency $
+        catMaybes
+          [ Just (1, pure $ Left d)
+          , defAST d <&> \d' -> (2,) . Gen.element $ fmap (Right . (d',SigNode,)) $ toListOf typeIDs $ astDefType d'
+          , defAST d <&> \d' -> (7,) . Gen.element $ fmap (Right . (d',BodyNode,)) $ toListOf exprIDs $ astDefExpr d'
+          ]
 
 -- TODO: if I work in PropertyT, should I revive the labels I dropped?
 -- 'Nothing' means that a somewhat-expected problem occured:
@@ -373,49 +385,49 @@ pickPos p = ((\(defName, (editable, def)) -> (defName, editable,) <$> pickLoc de
 -- - entered a free-choice option and had name-clashing issues
 runRandomAvailableAction :: Level -> App -> PropertyT WT (Maybe App)
 runRandomAvailableAction l a = do
-      (defName,defMut,defLoc) <- maybe discard forAll (pickPos $ appProg a)
-      let defMap = fmap snd $ progAllDefs $ appProg a
-      let (def, loc,acts) = case defLoc of
-            Left d -> (d, Nothing,Available.forDef defMap l defMut defName)
-            Right (d,SigNode, i) -> (DefAST d, Just (SigNode, i), Available.forSig l defMut (astDefType d) i)
-            Right (d,BodyNode, i) -> (DefAST d, Just (BodyNode, i), Available.forBody (snd <$> progAllTypeDefs (appProg a)) l defMut (astDefExpr d) i)
-      case acts of
-        [] -> label "no offered actions" >> pure Nothing
-        acts' -> do
-          action <- forAllT $ Gen.element acts'
-          collect action
-          case action of
-            Available.NoInput act' -> do
-              def' <- maybe (annotate "primitive def" >> failure) pure $ defAST def
-              progActs <-
-                either (\e -> annotateShow e >> failure) pure $
-                  toProgActionNoInput (map snd $ progAllDefs $ appProg a) def' defName loc act'
-              Just <$> actionSucceeds (handleEditRequest progActs) a
-            Available.Input act' -> do
-              def' <- maybe (annotate "primitive def" >> failure) pure $ defAST def
-              Available.Options{Available.opts, Available.free} <-
-                maybe (annotate "id not found" >> failure) pure $
-                  Available.options
-                    (map snd $ progAllTypeDefs $ appProg a)
-                    (map snd $ progAllDefs $ appProg a)
-                    (progCxt $ appProg a)
-                    l
-                    def'
-                    loc
-                    act'
-              let opts' = [Gen.element $ (Offered,) <$> opts | not (null opts)]
-              let opts'' =
-                    opts' <> case free of
-                      Available.FreeNone -> []
-                      Available.FreeVarName -> [(StudentProvided,) . flip Available.Option Nothing <$> (unName <$> genName)]
-                      Available.FreeInt -> [(StudentProvided,) . flip Available.Option Nothing <$> (show <$> Gen.integral (Range.linear @Integer 0 1_000_000_000))]
-                      Available.FreeChar -> [(StudentProvided,) . flip Available.Option Nothing . T.singleton <$> Gen.unicode]
-              case opts'' of
-                [] -> annotate "no options" >> pure Nothing
-                options -> do
-                  opt <- forAllT $ Gen.choice options
-                  progActs <- either (\e -> annotateShow e >> failure) pure $ toProgActionInput def' defName loc (snd opt) act'
-                  actionSucceedsOrCapture (fst opt) (handleEditRequest progActs) a
+  (defName, defMut, defLoc) <- maybe discard forAll (pickPos $ appProg a)
+  let defMap = fmap snd $ progAllDefs $ appProg a
+  let (def, loc, acts) = case defLoc of
+        Left d -> (d, Nothing, Available.forDef defMap l defMut defName)
+        Right (d, SigNode, i) -> (DefAST d, Just (SigNode, i), Available.forSig l defMut (astDefType d) i)
+        Right (d, BodyNode, i) -> (DefAST d, Just (BodyNode, i), Available.forBody (snd <$> progAllTypeDefs (appProg a)) l defMut (astDefExpr d) i)
+  case acts of
+    [] -> label "no offered actions" >> pure Nothing
+    acts' -> do
+      action <- forAllT $ Gen.element acts'
+      collect action
+      case action of
+        Available.NoInput act' -> do
+          def' <- maybe (annotate "primitive def" >> failure) pure $ defAST def
+          progActs <-
+            either (\e -> annotateShow e >> failure) pure $
+              toProgActionNoInput (map snd $ progAllDefs $ appProg a) def' defName loc act'
+          Just <$> actionSucceeds (handleEditRequest progActs) a
+        Available.Input act' -> do
+          def' <- maybe (annotate "primitive def" >> failure) pure $ defAST def
+          Available.Options{Available.opts, Available.free} <-
+            maybe (annotate "id not found" >> failure) pure $
+              Available.options
+                (map snd $ progAllTypeDefs $ appProg a)
+                (map snd $ progAllDefs $ appProg a)
+                (progCxt $ appProg a)
+                l
+                def'
+                loc
+                act'
+          let opts' = [Gen.element $ (Offered,) <$> opts | not (null opts)]
+          let opts'' =
+                opts' <> case free of
+                  Available.FreeNone -> []
+                  Available.FreeVarName -> [(StudentProvided,) . flip Available.Option Nothing <$> (unName <$> genName)]
+                  Available.FreeInt -> [(StudentProvided,) . flip Available.Option Nothing <$> (show <$> Gen.integral (Range.linear @Integer 0 1_000_000_000))]
+                  Available.FreeChar -> [(StudentProvided,) . flip Available.Option Nothing . T.singleton <$> Gen.unicode]
+          case opts'' of
+            [] -> annotate "no options" >> pure Nothing
+            options -> do
+              opt <- forAllT $ Gen.choice options
+              progActs <- either (\e -> annotateShow e >> failure) pure $ toProgActionInput def' defName loc (snd opt) act'
+              actionSucceedsOrCapture (fst opt) (handleEditRequest progActs) a
   where
     runEditAppMLogs ::
       HasCallStack =>
@@ -451,9 +463,13 @@ runRandomAvailableAction l a = do
         (_, (Right _, a''')) -> pure $ Just a'''
 
 -- helper type for tasty_undo_redo
-data Act = AddTm | AddTy
-  | Un | Re | Avail
-  deriving stock Show
+data Act
+  = AddTm
+  | AddTy
+  | Un
+  | Re
+  | Avail
+  deriving stock (Show)
 
 tasty_undo_redo :: Property
 tasty_undo_redo = withTests 500 $
@@ -471,7 +487,7 @@ tasty_undo_redo = withTests 500 $
       a' <- iterateNM n a $ \a' -> runRandomAction l a'
       annotateShow' a'
       if null $ unlog $ progLog $ appProg a' -- TODO: expose a "log-is-null" helper from App?
-        -- It is possible for the random actions to undo everything!
+      -- It is possible for the random actions to undo everything!
         then success
         else do
           a'' <- runEditAppMLogs (handleMutationRequest Undo) a'
@@ -487,17 +503,21 @@ tasty_undo_redo = withTests 500 $
       App ->
       PropertyT WT App
     runEditAppMLogs m a = case runPureLog $ runEditAppM m a of
-      (r, logs) -> testNoSevereLogs logs >> case r of
-        (Left err, _) -> annotateShow err >> failure
-        (Right _, a') -> pure a'
+      (r, logs) ->
+        testNoSevereLogs logs >> case r of
+          (Left err, _) -> annotateShow err >> failure
+          (Right _, a') -> pure a'
     runRandomAction l a = do
-      act <- forAll $ Gen.frequency $ second pure <$> [
-        (2,AddTm)
-        ,(1,AddTy)
-        ,(if null $ unlog $ progLog $ appProg a then 0 else 1,Un) -- TODO: expose a "log-is-null" helper from App?
-        ,(if null $ unlog $ redoLog $ appProg a then 0 else 1,Re) -- TODO: expose a "log-is-null" helper from App?
-        ,(5,Avail)
-                                    ]
+      act <-
+        forAll $
+          Gen.frequency $
+            second pure
+              <$> [ (2, AddTm)
+                  , (1, AddTy)
+                  , (if null $ unlog $ progLog $ appProg a then 0 else 1, Un) -- TODO: expose a "log-is-null" helper from App?
+                  , (if null $ unlog $ redoLog $ appProg a then 0 else 1, Re) -- TODO: expose a "log-is-null" helper from App?
+                  , (5, Avail)
+                  ]
       case act of
         AddTm -> do
           let n' = local (extendCxtByModules $ progModules $ appProg a) freshNameForCxt
@@ -525,24 +545,35 @@ unit_tmp_1 = do
               v <- tvar "x"
               fa <- tforall "x" KType (pure v)
               pure (getID v, getID fa, fa)
-        (_,p2,a) <- ty
+        (_, p2, a) <- ty
         astDefExpr <- emptyHole `ann` (pure a)
-        (p1,_,astDefType) <- ty
-        pure (p1,p2,ASTDef
-               { astDefExpr
-               , astDefType
-               })
-  let mod = Module
-              { moduleName = modName
-              , moduleTypes = M.singleton t $ TypeDefAST
-                                                   ASTTypeDef
-                                                     { astTypeDefParameters = []
-                                                     , astTypeDefConstructors = []
-                                                     , astTypeDefNameHints = []
-                                                     }
-              , moduleDefs = M.singleton d $ DefAST def
+        (p1, _, astDefType) <- ty
+        pure
+          ( p1
+          , p2
+          , ASTDef
+              { astDefExpr
+              , astDefType
               }
-  let a = mkApp 8 (toEnum 208) Prog
+          )
+  let mod =
+        Module
+          { moduleName = modName
+          , moduleTypes =
+              M.singleton t $
+                TypeDefAST
+                  ASTTypeDef
+                    { astTypeDefParameters = []
+                    , astTypeDefConstructors = []
+                    , astTypeDefNameHints = []
+                    }
+          , moduleDefs = M.singleton d $ DefAST def
+          }
+  let a =
+        mkApp
+          8
+          (toEnum 208)
+          Prog
             { progImports = []
             , progModules = [mod]
             , progSelection = Nothing
@@ -550,13 +581,13 @@ unit_tmp_1 = do
             , progLog = mempty
             , redoLog = mempty
             }
-            -- a1 sig 7 is  the tvar x  MakeFun
-            -- a1 body 4 is  the forall DeleteType
+  -- a1 sig 7 is  the tvar x  MakeFun
+  -- a1 body 4 is  the forall DeleteType
   let toAct p act = case toProgActionNoInput (map snd $ progAllDefs $ appProg a) def (qualifyName modName d) (Just p) act of
-          Left err -> assertFailure $ show err
-          Right act' -> pure act'
-  act1 <- toAct (SigNode , pos1) Available.MakeFun
-  act2 <- toAct (BodyNode , pos2) Available.DeleteType
+        Left err -> assertFailure $ show err
+        Right act' -> pure act'
+  act1 <- toAct (SigNode, pos1) Available.MakeFun
+  act2 <- toAct (BodyNode, pos2) Available.DeleteType
   case checkAppWellFormed a of
     Left err -> assertFailure $ show err
     Right aChecked -> do
@@ -566,6 +597,7 @@ unit_tmp_1 = do
       case res of
         (Left err, _) -> assertFailure $ show err
         (Right _, _) -> pure ()
+
 -- this test came from the following hedgehog failure
 {-
 test/Test.hs
@@ -1130,21 +1162,31 @@ unit_tmp_2 = do
         ty <- tforall "x" KType $ tvar "x"
         astDefExpr <- hole $ emptyHole `ann` pure ty
         astDefType <- tforall "x" KType $ tvar "x" `tfun` tEmptyHole
-        pure (getID ty,ASTDef
-               { astDefExpr
-               , astDefType
-               })
-  let mod = Module
-              { moduleName = modName
-              , moduleTypes = M.singleton t $ TypeDefAST
-                                                   ASTTypeDef
-                                                     { astTypeDefParameters = []
-                                                     , astTypeDefConstructors = []
-                                                     , astTypeDefNameHints = []
-                                                     }
-              , moduleDefs = M.singleton d $ DefAST def
+        pure
+          ( getID ty
+          , ASTDef
+              { astDefExpr
+              , astDefType
               }
-  let a = mkApp 8 (toEnum 208) Prog
+          )
+  let mod =
+        Module
+          { moduleName = modName
+          , moduleTypes =
+              M.singleton t $
+                TypeDefAST
+                  ASTTypeDef
+                    { astTypeDefParameters = []
+                    , astTypeDefConstructors = []
+                    , astTypeDefNameHints = []
+                    }
+          , moduleDefs = M.singleton d $ DefAST def
+          }
+  let a =
+        mkApp
+          8
+          (toEnum 208)
+          Prog
             { progImports = []
             , progModules = [mod]
             , progSelection = Nothing
@@ -1152,12 +1194,12 @@ unit_tmp_2 = do
             , progLog = mempty
             , redoLog = mempty
             }
-            -- a1 sig 7 is  the tvar x  MakeFun
-            -- a1 body 4 is  the forall DeleteType
+  -- a1 sig 7 is  the tvar x  MakeFun
+  -- a1 body 4 is  the forall DeleteType
   let toAct p act = case toProgActionNoInput (map snd $ progAllDefs $ appProg a) def (qualifyName modName d) (Just p) act of
-          Left err -> assertFailure $ show err
-          Right act' -> pure act'
-  act <- toAct (BodyNode , pos) Available.DeleteType
+        Left err -> assertFailure $ show err
+        Right act' -> pure act'
+  act <- toAct (BodyNode, pos) Available.DeleteType
   case checkAppWellFormed a of
     Left err -> assertFailure $ show err
     Right aChecked -> do
@@ -1173,21 +1215,22 @@ unit_tmp_3 =
   let (d, i) = create $ do
         astDefExpr <- hole $ emptyHole `ann` tforall "x" KType (tvar "x")
         astDefType <- tforall "x" KType $ tvar "x" `tfun` tEmptyHole
-        pure ASTDef
-               { astDefExpr
-               , astDefType
-               }
-  in case evalTestM i $ applyActionsToBody SmartHoles [] d [Action.Move Child1, Action.EnterType, Action.Delete] of
-    Left err -> assertFailure $ show err
-    Right _ -> pure ()
+        pure
+          ASTDef
+            { astDefExpr
+            , astDefType
+            }
+   in case evalTestM i $ applyActionsToBody SmartHoles [] d [Action.Move Child1, Action.EnterType, Action.Delete] of
+        Left err -> assertFailure $ show err
+        Right _ -> pure ()
 
 -- As unit_tmp_3, but using applyActionsToExpr
 unit_tmp_4 :: Assertion
 unit_tmp_4 =
   let (e, i) = create $ hole (emptyHole `ann` tforall "x" KType (tvar "x")) `ann` tforall "x" KType (tvar "x" `tfun` tEmptyHole)
-  in case evalTestM i $ applyActionsToExpr SmartHoles [] e [Action.Move Child1, Action.Move Child1, Action.EnterType, Action.Delete] of
-    Left err -> assertFailure $ show err
-    Right _ -> pure ()
+   in case evalTestM i $ applyActionsToExpr SmartHoles [] e [Action.Move Child1, Action.Move Child1, Action.EnterType, Action.Delete] of
+        Left err -> assertFailure $ show err
+        Right _ -> pure ()
 
 -- We can simplify the expression that fails
 unit_tmp_5 :: Assertion

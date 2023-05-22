@@ -294,12 +294,17 @@ applyActionAndCheck ty action z = do
   -- Refocus on where we were previously
   refocus Refocus{pre = z', post = exprTtoExpr typedAST} >>= \case
     Just z'' -> pure z''
-    Nothing -> throwError $ CustomFailure action $
-      "internal error: lost ID after typechecking; initial was \n "
-      <> show (unfocus z)
-      <> "\n   focused on " <> show (getID z)
-      <> "\n   action was " <> show action
-      <> "\n   result was \n" <> show typedAST
+    Nothing ->
+      throwError $
+        CustomFailure action $
+          "internal error: lost ID after typechecking; initial was \n "
+            <> show (unfocus z)
+            <> "\n   focused on "
+            <> show (getID z)
+            <> "\n   action was "
+            <> show action
+            <> "\n   result was \n"
+            <> show typedAST
 
 -- This is currently only used for tests.
 -- We may need it in the future for a REPL, where we want to build standalone expressions.
