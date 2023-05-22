@@ -19,11 +19,6 @@
     nixpkgs.follows = "haskell-nix/nixpkgs-unstable";
     hacknix.inputs.nixpkgs.follows = "nixpkgs";
     pre-commit-hooks-nix.inputs.nixpkgs.follows = "nixpkgs";
-
-    # HLS is broken again in haskell.nix. Also, we need to build it
-    # from git to get the fourmolu 0.12.0.0 support.
-    haskell-language-server.url = "github:haskell/haskell-language-server/cda1325241365896f24d1a09899b8e8e787f9c7b";
-    haskell-language-server.flake = false;
   };
 
   outputs = inputs@ { flake-parts, ... }:
@@ -400,24 +395,6 @@
                 inherit version;
               });
 
-              # HLS is broken in haskell.nix.
-              hls = final.haskell-nix.cabalProject'
-                {
-                  compiler-nix-name = ghcVersion;
-                  src = inputs.haskell-language-server;
-                  sha256map."https://github.com/pepeiborra/ekg-json"."7a0af7a8fd38045fd15fb13445bdcc7085325460" = "fVwKxGgM0S4Kv/4egVAAiAjV7QB5PBqMVMCfsv7otIQ=";
-
-                  modules = [
-                    {
-                      packages.haskell-language-server.flags = {
-                        floskell = false;
-                        stylishHaskell = false;
-                        ormolu = false;
-                      };
-                    }
-                  ];
-                };
-
               primer = final.haskell-nix.cabalProject {
                 compiler-nix-name = ghcVersion;
                 src = ./.;
@@ -524,9 +501,10 @@
 
                   tools = {
                     ghcid = "latest";
-
-                    # Broken again, sigh.
-                    #haskell-language-server = "latest";
+                    haskell-language-server = {
+                      version = "latest";
+                      configureArgs = "--flags=-stylishhaskell";
+                    };
 
                     implicit-hie = "latest";
 
@@ -576,9 +554,6 @@
                     restore-local-db
                     connect-local-db
                     delete-all-local-sessions
-
-                    # Until working again in haskell.nix.
-                    hls.hsPkgs.haskell-language-server.components.exes.haskell-language-server
                   ]);
 
                   shellHook = ''
@@ -780,3 +755,4 @@
         };
     };
 }
+
