@@ -19,9 +19,10 @@ A companion repository,
 web-based frontend application for reading, writing, running, and
 debugging Primer programs.
 
-Both projects are licensed under the terms of [version 3 of the GNU
-Affero General Public License](COPYING), and can be freely copied,
-modified, and distributed, so long as the license is preserved.
+Both projects are licensed under the terms of [version 3 (or later) of
+the GNU Affero General Public License](COPYING), and can be freely
+copied, modified, and distributed, so long as the license is
+preserved.
 
 # Important caveats
 
