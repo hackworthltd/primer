@@ -2,7 +2,9 @@
   description = "Primer is a pedagogical functional programming language.";
 
   inputs = {
-    haskell-nix.url = "github:input-output-hk/haskell.nix";
+    # Pin haskell.nix due to:
+    # https://github.com/input-output-hk/haskell.nix/issues/1961
+    haskell-nix.url = "github:input-output-hk/haskell.nix/c9786c7a05a53db0fcfd25a63e8011659c9d552f";
 
     # We use this for some convenience functions only.
     hacknix.url = "github:hackworthltd/hacknix";
@@ -19,6 +21,10 @@
     nixpkgs.follows = "haskell-nix/nixpkgs-unstable";
     hacknix.inputs.nixpkgs.follows = "nixpkgs";
     pre-commit-hooks-nix.inputs.nixpkgs.follows = "nixpkgs";
+
+    # The haskell.nix pin above doesn't include HLS 2.0.0.0.
+    haskell-language-server.url = "github:haskell/haskell-language-server/2.0.0.0";
+    haskell-language-server.flake = false;
   };
 
   outputs = inputs@ { flake-parts, ... }:
@@ -395,6 +401,24 @@
                 inherit version;
               });
 
+              # HLS is broken in haskell.nix.
+              hls = final.haskell-nix.cabalProject'
+                {
+                  compiler-nix-name = ghcVersion;
+                  src = inputs.haskell-language-server;
+                  sha256map."https://github.com/pepeiborra/ekg-json"."7a0af7a8fd38045fd15fb13445bdcc7085325460" = "fVwKxGgM0S4Kv/4egVAAiAjV7QB5PBqMVMCfsv7otIQ=";
+
+                  modules = [
+                    {
+                      packages.haskell-language-server.flags = {
+                        floskell = false;
+                        stylishHaskell = false;
+                        ormolu = false;
+                      };
+                    }
+                  ];
+                };
+
               primer = final.haskell-nix.cabalProject {
                 compiler-nix-name = ghcVersion;
                 src = ./.;
@@ -501,10 +525,9 @@
 
                   tools = {
                     ghcid = "latest";
-                    haskell-language-server = {
-                      version = "latest";
-                      configureArgs = "--flags=-stylishhaskell";
-                    };
+
+                    # Broken again, sigh.
+                    #haskell-language-server = "latest";
 
                     implicit-hie = "latest";
 
@@ -554,6 +577,9 @@
                     restore-local-db
                     connect-local-db
                     delete-all-local-sessions
+
+                    # Until working again in haskell.nix.
+                    hls.hsPkgs.haskell-language-server.components.exes.haskell-language-server
                   ]);
 
                   shellHook = ''
@@ -755,4 +781,3 @@
         };
     };
 }
-
