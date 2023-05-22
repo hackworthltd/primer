@@ -34,7 +34,7 @@ import Primer.Action (
   moveExpr,
   moveType,
   toProgActionInput,
-  toProgActionNoInput, ProgAction (AddTypeDef,CreateDef), applyActionsToBody,
+  toProgActionNoInput, ProgAction (AddTypeDef,CreateDef), applyActionsToBody, applyActionsToExpr,
  )
 import Primer.Action qualified as Action
 import Primer.Action.Available (
@@ -1178,6 +1178,14 @@ unit_tmp_3 =
                , astDefType
                }
   in case evalTestM i $ applyActionsToBody SmartHoles [] d [Action.Move Child1, Action.EnterType, Action.Delete] of
+    Left err -> assertFailure $ show err
+    Right _ -> pure ()
+
+-- As unit_tmp_3, but using applyActionsToExpr
+unit_tmp_4 :: Assertion
+unit_tmp_4 =
+  let (e, i) = create $ hole (emptyHole `ann` tforall "x" KType (tvar "x")) `ann` tforall "x" KType (tvar "x" `tfun` tEmptyHole)
+  in case evalTestM i $ applyActionsToExpr SmartHoles [] e [Action.Move Child1, Action.Move Child1, Action.EnterType, Action.Delete] of
     Left err -> assertFailure $ show err
     Right _ -> pure ()
 --------------------------------------
