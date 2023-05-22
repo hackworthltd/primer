@@ -74,7 +74,7 @@ Before you submit a PR to our project, please review the following checklist:
 
 2. Consider [opening a GitHub Issue](#open-an-issue) that describes the problem your PR solves, and see this document's guidance on [developing new features](#requesting-features), if applicable. Though it's not a prerequisite, in general we prefer PR's that refer to existing issues, as these PR's solve a known problem or implement a requested feature.
 
-3. Review the project's license, which is [version 3 of the GNU Affero General Public License (AGPLv3)](COPYING). Contributions that you make to the project must be submitted under this license.
+3. Review the project's license, which is [version 3 (or later) of the GNU Affero General Public License (AGPLv3)](COPYING). Contributions that you make to the project must be submitted under this license.
 
 4. Review the terms of version 1.1 of The Linux Foundation's [Developer Certificate of Origin (DCO)](DCO.md). We require that all submissions to the project are made according to the terms of the DCO, which effectively means that you have the legal right to make your contribution. For background on why we require this step, please see the following links:
 
