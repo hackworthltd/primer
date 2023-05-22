@@ -444,16 +444,16 @@ unit_enter_emptyHole =
   actionTest
     NoSmartHoles
     emptyHole
-    [EnterHole, ConstructAnn, Move Child1, constructSaturatedCon cTrue]
-    (hole $ con0 cTrue `ann` tEmptyHole)
+    [EnterHole, constructSaturatedCon cTrue]
+    (hole $ con0 cTrue)
 
 unit_enter_nonEmptyHole :: Assertion
 unit_enter_nonEmptyHole =
   actionTest
     NoSmartHoles
     (hole emptyHole)
-    [Move Child1, ConstructAnn, Move Child1, constructSaturatedCon cTrue]
-    (hole $ con0 cTrue `ann` tEmptyHole)
+    [Move Child1, constructSaturatedCon cTrue]
+    (hole $ con0 cTrue)
 
 unit_bad_enter_hole :: Assertion
 unit_bad_enter_hole =
@@ -476,8 +476,6 @@ unit_case_create =
     , Move Child1
     , EnterHole
     , ConstructVar $ LocalVarRef "x"
-    , ConstructAnn
-    , Move Child1
     , ConstructCase
     , Move (Branch cTrue)
     , constructSaturatedCon cZero
@@ -485,12 +483,9 @@ unit_case_create =
     ( ann
         ( lam "x" $
             hole $
-              ann
-                ( case_
-                    (lvar "x")
-                    [branch cTrue [] (con0 cZero), branch cFalse [] emptyHole]
-                )
-                tEmptyHole
+              case_
+                (lvar "x")
+                [branch cTrue [] (con0 cZero), branch cFalse [] emptyHole]
         )
         (tfun (tcon tBool) (tcon tNat))
     )
@@ -503,16 +498,13 @@ unit_case_tidy =
     ( ann
         ( lam "x" $
             hole $
-              ann
-                ( case_
-                    (lvar "x")
-                    [branch cTrue [] (con0 cZero), branch cFalse [] emptyHole]
-                )
-                tEmptyHole
+              case_
+                (lvar "x")
+                [branch cTrue [] (con0 cZero), branch cFalse [] emptyHole]
         )
         (tfun (tcon tBool) (tcon tNat))
     )
-    [Move Child1, Move Child1, FinishHole, RemoveAnn]
+    [Move Child1, Move Child1, FinishHole]
     ( ann
         ( lam "x" $
             case_

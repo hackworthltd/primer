@@ -212,16 +212,33 @@ data Expr' a b
 --
 -- From the "inside" of a non-empty hole, there is a choice to be made
 -- about typing. How does one typecheck @{? e ?}@ since we have no
--- information about what type @e@ should have. The choice our system
--- makes (following Hazel) is to require @e@ to be synthesisable. Thus
--- one cannot put a lambda directly inside a hole: @{? λx. x ?}@ is
--- ill-typed. One would have to annotate this lambda (but could
--- annotate with a hole): @{? λx.x : ? ?}@. The other possible choice
--- is to require the wrapped expression to be checkable against the
--- hole type: this is mildly more permissive since a bare lambda is
--- now allowed inside a hole, but not much more so since anything that
--- checks against a hole type can be annotated with a hole type to
--- become synthesisable.
+-- information about what type @e@ should have?
+-- The choice our system makes is to require @e@ to check against a type
+-- hole. Note that since we do not require @e@ to synthesise a type, it
+-- is possible to put a lambda directly inside a hole: @{? λx. x ?}@ is
+-- well-typed.
+-- The other possible choice is to require the wrapped expression to be
+-- synthesisable (and ignore which particular type it synthesises).
+-- This second choice was taken by Hazel. This has the drawback of being
+-- slightly more restrictive, since one cannot put a lambda directly
+-- inside a hole, but would have to annotate it (with a hole):
+-- @{? λx.x : ? ?}@. (Note that this is generally applicable, so the
+-- restriction is mild.) However, it has the advantage of it being easier to
+-- tell whether a hole can be elided, i.e. in a checkable context with a
+-- synthesisable term in the hole, e.g. @Succ {? not True ?}@ or
+-- @Succ {? plus 2 2 ?}@ one only needs to check type equality between the
+-- context and the expression-inside-the-hole, whereas if there is a checkable
+-- term in the hole one would need to actually do the typechecking. Since our
+-- system just attempts to remove the hole and sees what happens (perhaps
+-- wrapping some subterm in a hole, like in @{? Just True ?} : Maybe Int@
+-- producing @Just {? True ?} : Maybe Int@), this is not actually a drawback
+-- in practice.
+-- The reason we made this choice is because the restriction, whilst being mild
+-- in theory is pretty annoying in practice, for a human using this system. It
+-- also slightly simplifies some cases in the implementation, since we sometimes
+-- (some actions, smartholes etc) need to do an edit and then wrap some
+-- previously (but no longer) well-typed subexpression in a hole, and with this
+-- choice we do not need to worry about directionality.
 
 -- Note [Checkable constructors]
 --

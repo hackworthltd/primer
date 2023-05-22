@@ -452,12 +452,12 @@ unit_app_not_arrow =
 unit_chk_lam_not_arrow :: Assertion
 unit_chk_lam_not_arrow =
   (con1 cSucc (lam "x" $ lvar "x") `ann` tcon tNat)
-    `smartSynthGives` (con1 cSucc (hole $ ann (lam "x" $ lvar "x") tEmptyHole) `ann` tcon tNat)
+    `smartSynthGives` (con1 cSucc (hole $ lam "x" $ lvar "x") `ann` tcon tNat)
 
 unit_check_emb :: Assertion
 unit_check_emb =
   (con1 cSucc (con0 cTrue) `ann` tcon tNat)
-    `smartSynthGives` (con1 cSucc (hole $ con0 cTrue `ann` tEmptyHole) `ann` tcon tNat)
+    `smartSynthGives` (con1 cSucc (hole $ con0 cTrue) `ann` tcon tNat)
 
 -- Constructors are checkable
 unit_con_direction :: Assertion
@@ -468,13 +468,13 @@ unit_con_direction =
 unit_con_wrong_adt_sh :: Assertion
 unit_con_wrong_adt_sh =
   (con0 cTrue `ann` tcon tNat)
-    `smartSynthGives` (hole (con0 cTrue `ann` tEmptyHole) `ann` tcon tNat)
+    `smartSynthGives` (hole (con0 cTrue) `ann` tcon tNat)
 
 unit_con_not_adt_sh :: Assertion
 unit_con_not_adt_sh =
   con0 cTrue
     `ann` (tcon tNat `tfun` tcon tBool)
-    `smartSynthGives` (hole (con0 cTrue `ann` tEmptyHole) `ann` (tcon tNat `tfun` tcon tBool))
+    `smartSynthGives` (hole (con0 cTrue) `ann` (tcon tNat `tfun` tcon tBool))
 
 unit_case_scrutinee :: Assertion
 unit_case_scrutinee =
@@ -499,9 +499,9 @@ unit_remove_hole =
 -- This is tracked as https://github.com/hackworthltd/primer/issues/7
 unit_remove_hole_not_perfect :: Assertion
 unit_remove_hole_not_perfect =
-  app (hole (lam "n" (con1 cSucc $ lvar "n") `ann` (tcon tNat `tfun` tcon tNat))) (con0 cZero)
-    `smartSynthGives` app (hole (lam "n" (con1 cSucc $ lvar "n") `ann` (tcon tNat `tfun` tcon tNat))) (con0 cZero) -- We currently give this as output
-    -- app (lam "n" ( con1 cSucc $ lvar "n") `ann` (tcon tNat `tfun` tcon tNat)) (con0 cZero) -- We would prefer to see the hole removed
+  app (hole $ lam "n" $ con1 cSucc $ lvar "n") (con0 cZero)
+    `smartSynthGives` app (hole $ lam "n" $ con1 cSucc $ lvar "n") (con0 cZero) -- We currently give this as output
+    -- app (lam "n" $ con1 cSucc $ lvar "n") (con0 cZero) -- We would prefer to see the hole removed
 
 -- When not using "smart" TC which automatically inserts holes etc,
 -- one would have to do a bit of dance to build a case expression, and
@@ -699,8 +699,9 @@ forgetKindCache = set (_typeMeta % _type) Nothing
 forgetTypeCache :: Expr' (Meta a) (Meta b) -> Expr
 forgetTypeCache = set (_exprMeta % _type) Nothing . set (_exprTypeMeta % _type) Nothing
 
--- Regression test: for constructions which do not fit the required type,
--- we wrap in a hole and annotation of TEmptyHole (as needed to get
+-- Regression test: in the past, the inside of non-empty holes needed to be synthesisable.
+-- When making a construction which do not fit the required type,
+-- we would wrap in a hole and annotation of TEmptyHole (as needed to get
 -- directions to work). However, we would previously then remove the
 -- hole if it gets checked again.
 -- (e.g. Bool ∋ λx.x  fails and gives Bool ∋ {? λx.x : ? ?},
@@ -708,11 +709,19 @@ forgetTypeCache = set (_exprMeta % _type) Nothing . set (_exprTypeMeta % _type) 
 --       and would return Bool ∋ λx.x : ?)
 -- This is because holey annotations act similar to non-empty holes
 -- cf https://github.com/hackworthltd/primer/issues/85.
+--
+-- Now that inside holes only check against TEmptyHole, this is
+-- slightly less prevalent. However, since one may want to create a
+-- term such as {? λx.? : Int -> Bool ?} (where the type annotation is
+-- helpful when writing the body of the lambda), and the only way to
+-- do so is to go via {? ... : ? ?}, we should
+-- - still not remove holes wrapping holey-annotations
+-- - not elide "redundant" annotations inside hole
 unit_smartholes_idempotent_holey_ann :: Assertion
 unit_smartholes_idempotent_holey_ann =
   let x = runTypecheckTestM SmartHoles $ do
         ty <- tcon tBool
-        e <- lam "x" $ lvar "x"
+        e <- hole $ lam "x" (lvar "x") `ann` tEmptyHole
         ty' <- checkKind KType ty
         e' <- check (forgetTypeMetadata ty') e
         ty'' <- checkKind KType ty'
@@ -720,9 +729,9 @@ unit_smartholes_idempotent_holey_ann =
         pure (ty, ty', ty'', e, e', e'')
    in case x of
         Left err -> assertFailure $ show err
-        Right (ty, ty', ty'', _e, e', e'') -> do
+        Right (ty, ty', ty'', e, e', e'') -> do
           forgetKindCache ty' @?= ty
-          forgetMetadata e' @?= forgetMetadata (create' $ hole $ lam "x" (lvar "x") `ann` tEmptyHole)
+          forgetMetadata e' @?= forgetMetadata e
           ty'' @?= ty'
           e'' @?= e'
 

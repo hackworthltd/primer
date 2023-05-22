@@ -908,7 +908,6 @@ unit_RenameCon =
                     [ branch cA [("p", Nothing), ("q", Nothing), ("p1", Nothing)] emptyHole
                     , branch cB [("r", Nothing), ("x", Nothing)] emptyHole
                     ]
-                    `ann` tEmptyHole
               astDef "def" x <$> tEmptyHole
           ]
     )
@@ -937,7 +936,6 @@ unit_RenameCon =
                   [ branch (vcn "A'") [("p", Nothing), ("q", Nothing), ("p1", Nothing)] emptyHole
                   , branch cB [("r", Nothing), ("x", Nothing)] emptyHole
                   ]
-                  `ann` tEmptyHole
           )
 
 unit_RenameCon_clash :: Assertion
@@ -954,7 +952,6 @@ unit_RenameCon_clash =
                       , emptyHole
                       , emptyHole
                       ]
-                      `ann` (tcon tT `tapp` tEmptyHole `tapp` tEmptyHole)
                   )
               astDef "def" x <$> tEmptyHole
           ]
@@ -1048,7 +1045,7 @@ unit_SetConFieldType_con =
               con
                 cA
                 [ con0 (vcn "True")
-                , hole (con0 (vcn "True") `ann` tcon (tcn "Bool"))
+                , hole (con0 (vcn "True"))
                 , con0 (vcn "True")
                 ]
           )
@@ -1086,7 +1083,7 @@ unit_SetConFieldType_chk =
     (tcon (tcn "Nat") `tfun` tcon (tcn "Bool"))
     (lam "x" emptyHole)
     (tcon (tcn "Int"))
-    (hole (lam "x" emptyHole `ann` (tcon (tcn "Nat") `tfun` tcon (tcn "Bool"))))
+    (hole $ lam "x" emptyHole)
 
 -- change the type of a field which currently wraps a checkable term
 -- this result could have the hole elided, but we don't run smartholes
@@ -1097,7 +1094,7 @@ unit_SetConFieldType_match =
     (tEmptyHole `tfun` tcon (tcn "Bool"))
     (lam "x" emptyHole)
     (tcon (tcn "Int") `tfun` tEmptyHole)
-    (hole (lam "x" emptyHole `ann` (tEmptyHole `tfun` tcon (tcn "Bool"))))
+    (hole $ lam "x" emptyHole)
 
 -- change the type of a field which currently wraps a synthesisable argument
 unit_SetConFieldType_syn :: Assertion

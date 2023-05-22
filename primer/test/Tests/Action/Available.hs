@@ -388,7 +388,7 @@ unit_sat_con_1 =
     (emptyHole `ann` (tEmptyHole `tfun` tEmptyHole))
     (InExpr [Child1])
     (Right (MakeCon, Option "Cons" $ Just $ unName <$> unModuleName builtinModuleName))
-    (hole (con cCons [emptyHole, emptyHole] `ann` tEmptyHole) `ann` (tEmptyHole `tfun` tEmptyHole))
+    (hole (con cCons [emptyHole, emptyHole]) `ann` (tEmptyHole `tfun` tEmptyHole))
 
 unit_sat_con_2 :: Assertion
 unit_sat_con_2 =
@@ -398,7 +398,7 @@ unit_sat_con_2 =
     (emptyHole `ann` ((tcon tList `tapp` tcon tNat) `tfun` (tcon tList `tapp` tcon tNat)))
     (InExpr [Child1])
     (Right (MakeCon, Option "Cons" $ Just $ unName <$> unModuleName builtinModuleName))
-    (hole (con cCons [emptyHole, emptyHole] `ann` tEmptyHole) `ann` ((tcon tList `tapp` tcon tNat) `tfun` (tcon tList `tapp` tcon tNat)))
+    (hole (con cCons [emptyHole, emptyHole]) `ann` ((tcon tList `tapp` tcon tNat) `tfun` (tcon tList `tapp` tcon tNat)))
 
 -- The various @let@ constructs inherit the directionality of their body.
 -- This is a regression test, as in the past this was the case for @let@ but not @letrec@.
