@@ -1188,6 +1188,25 @@ unit_tmp_4 =
   in case evalTestM i $ applyActionsToExpr SmartHoles [] e [Action.Move Child1, Action.Move Child1, Action.EnterType, Action.Delete] of
     Left err -> assertFailure $ show err
     Right _ -> pure ()
+
+-- We can simplify the expression that fails
+unit_tmp_5 :: Assertion
+unit_tmp_5 =
+  let ((builtins, d), i) = create $ do
+        m <- builtinModule
+        astDefExpr <- hole $ emptyHole `ann` tcon tBool
+        astDefType <- tcon tNat
+        pure
+          ( m
+          , ASTDef
+              { astDefExpr
+              , astDefType
+              }
+          )
+   in case evalTestM i $ applyActionsToBody SmartHoles [builtins] d [Action.Move Child1, Action.EnterType, Action.Delete] of
+        Left err -> assertFailure $ show err
+        Right _ -> pure ()
+
 --------------------------------------
 
 iterateNM :: Monad m => Int -> a -> (a -> m a) -> m a
