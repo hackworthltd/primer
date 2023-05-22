@@ -34,8 +34,9 @@ import Primer.Action (
   moveExpr,
   moveType,
   toProgActionInput,
-  toProgActionNoInput, ProgAction (AddTypeDef,CreateDef),
+  toProgActionNoInput, ProgAction (AddTypeDef,CreateDef), applyActionsToBody,
  )
+import Primer.Action qualified as Action
 import Primer.Action.Available (
   InputAction (MakeCon, MakeLAM, MakeLam, RenameForall, RenameLAM, RenameLam, RenameLet),
   NoInputAction (MakeCase, Raise),
@@ -98,7 +99,7 @@ import Primer.Core.DSL (
   tapp,
   tcon,
   tforall,
-  tfun, tvar,
+  tfun, tvar, create,
  )
 import Primer.Core.Utils (
   exprIDs,
@@ -1117,6 +1118,68 @@ test/Test.hs
 
 1 out of 1 tests failed (0.49s)
 -}
+
+-- as unit_tmp_1, but starts after the first action, only running the second
+-- NB: having the astDefType being complex seems important: replacing with tEmptyHole makes the test pass
+unit_tmp_2 :: Assertion
+unit_tmp_2 = do
+  let modName = ModuleName ["M", "0"]
+  let t = "a"
+  let d = "a1"
+  let (pos, def) = create' $ do
+        ty <- tforall "x" KType $ tvar "x"
+        astDefExpr <- hole $ emptyHole `ann` pure ty
+        astDefType <- tforall "x" KType $ tvar "x" `tfun` tEmptyHole
+        pure (getID ty,ASTDef
+               { astDefExpr
+               , astDefType
+               })
+  let mod = Module
+              { moduleName = modName
+              , moduleTypes = M.singleton t $ TypeDefAST
+                                                   ASTTypeDef
+                                                     { astTypeDefParameters = []
+                                                     , astTypeDefConstructors = []
+                                                     , astTypeDefNameHints = []
+                                                     }
+              , moduleDefs = M.singleton d $ DefAST def
+              }
+  let a = mkApp 8 (toEnum 208) Prog
+            { progImports = []
+            , progModules = [mod]
+            , progSelection = Nothing
+            , progSmartHoles = SmartHoles
+            , progLog = mempty
+            , redoLog = mempty
+            }
+            -- a1 sig 7 is  the tvar x  MakeFun
+            -- a1 body 4 is  the forall DeleteType
+  let toAct p act = case toProgActionNoInput (map snd $ progAllDefs $ appProg a) def (qualifyName modName d) (Just p) act of
+          Left err -> assertFailure $ show err
+          Right act' -> pure act'
+  act <- toAct (BodyNode , pos) Available.DeleteType
+  case checkAppWellFormed a of
+    Left err -> assertFailure $ show err
+    Right aChecked -> do
+      res <- runAppTestM (appIdCounter aChecked) aChecked $ do
+        void $ handleEditRequest act
+      case res of
+        (Left err, _) -> assertFailure $ show err
+        (Right _, _) -> pure ()
+
+-- As unit_tmp_2, but simpler
+unit_tmp_3 :: Assertion
+unit_tmp_3 =
+  let (d, i) = create $ do
+        astDefExpr <- hole $ emptyHole `ann` tforall "x" KType (tvar "x")
+        astDefType <- tforall "x" KType $ tvar "x" `tfun` tEmptyHole
+        pure ASTDef
+               { astDefExpr
+               , astDefType
+               }
+  in case evalTestM i $ applyActionsToBody SmartHoles [] d [Action.Move Child1, Action.EnterType, Action.Delete] of
+    Left err -> assertFailure $ show err
+    Right _ -> pure ()
 --------------------------------------
 
 iterateNM :: Monad m => Int -> a -> (a -> m a) -> m a
