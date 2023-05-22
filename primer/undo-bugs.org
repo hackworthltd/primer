@@ -997,6 +997,7 @@ test/Test.hs
 1 out of 1 tests failed (1.28s)
 #+end_src
 
+** Unit test is hard (so not done), as second action acts on a node created by the first
 * cabal run -O primer-test -- -p "undo redo" --hedgehog-replay "Size 57 Seed 5594787156260972540 7447132206390486147"
 ** Actions: MakeFun ; MakeCase ; MakeFun ; DeleteType
 ** Output
@@ -2256,6 +2257,7 @@ test/Test.hs
 1 out of 1 tests failed (1.65s)
 #+end_src
 
+** Unit test is hard (so not done), as second action acts on a node created by the first
 * cabal run -O primer-test -- -p "undo redo" --hedgehog-replay "Size 98 Seed 10665341429893025564 10182452733544053075"
 ** Actions: Raise ; DeleteType
 ** Output
@@ -3652,6 +3654,7 @@ test/Test.hs
 1 out of 1 tests failed (2.38s)
 #+end_src
 
+** Unit test is hard (so not done), as second action acts on a node created by the first
 * cabal run -O primer-test -- -p "undo redo" --hedgehog-replay "Size 33 Seed 4268413180681694343 17092859468972210393"
 ** Actions: MakeFun ; DeleteType
 ** Output
@@ -4206,3 +4209,5 @@ test/Test.hs
 
 1 out of 1 tests failed (0.49s)
 #+end_src
+
+** Unit test: unit_tmp_1

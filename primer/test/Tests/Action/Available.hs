@@ -3,7 +3,7 @@
 
 module Tests.Action.Available where
 
-import Foreword
+import Foreword hiding (mod)
 
 import Control.Monad.Log (WithSeverity)
 import Data.ByteString.Lazy.Char8 qualified as BS
@@ -48,7 +48,7 @@ import Primer.App (
   Editable (..),
   Level (Beginner, Expert, Intermediate),
   NodeType (..),
-  Prog (progLog, redoLog),
+  Prog (..),
   ProgError (ActionError, DefAlreadyExists),
   MutationRequest(Edit),
   appProg,
@@ -62,7 +62,7 @@ import Primer.App (
   progImports,
   progModules,
   progSmartHoles,
-  runEditAppM, handleMutationRequest, MutationRequest (Undo, Redo), Log (unlog),
+  runEditAppM, handleMutationRequest, MutationRequest (Undo, Redo), Log (unlog), mkApp, appIdCounter,
  )
 import Primer.Builtins (builtinModuleName, cCons, tBool, tList, tNat)
 import Primer.Core (
@@ -98,7 +98,7 @@ import Primer.Core.DSL (
   tapp,
   tcon,
   tforall,
-  tfun,
+  tfun, tvar,
  )
 import Primer.Core.Utils (
   exprIDs,
@@ -116,7 +116,7 @@ import Primer.Gen.Core.Typed (WT, forAllT, propertyWT, freshNameForCxt)
 import Primer.Gen.App (extendCxtByModules)
 import Primer.Log (PureLog, runPureLog)
 import Primer.Module (
-  Module (Module, moduleDefs, moduleName),
+  Module (..),
   builtinModule,
   moduleDefsQualified,
   moduleName,
@@ -146,7 +146,7 @@ import Tests.Typecheck (
   runTypecheckTestMIn,
  )
 import Text.Pretty.Simple (pShowNoColor)
-import Primer.TypeDef (ASTTypeDef(ASTTypeDef))
+import Primer.TypeDef (ASTTypeDef(..), TypeDef (..))
 
 -- | Comprehensive DSL test.
 test_1 :: TestTree
@@ -512,6 +512,612 @@ tasty_undo_redo = withTests 500 $
         Re -> runEditAppMLogs (handleMutationRequest Redo) a
         Avail -> fromMaybe a <$> runRandomAvailableAction l a
 
+--------------------------------------
+-- debugging/regression
+unit_tmp_1 :: Assertion
+unit_tmp_1 = do
+  let modName = ModuleName ["M", "0"]
+  let t = "a"
+  let d = "a1"
+  let (pos1, pos2, def) = create' $ do
+        let ty = do
+              v <- tvar "x"
+              fa <- tforall "x" KType (pure v)
+              pure (getID v, getID fa, fa)
+        (_,p2,a) <- ty
+        astDefExpr <- emptyHole `ann` (pure a)
+        (p1,_,astDefType) <- ty
+        pure (p1,p2,ASTDef
+               { astDefExpr
+               , astDefType
+               })
+  let mod = Module
+              { moduleName = modName
+              , moduleTypes = M.singleton t $ TypeDefAST
+                                                   ASTTypeDef
+                                                     { astTypeDefParameters = []
+                                                     , astTypeDefConstructors = []
+                                                     , astTypeDefNameHints = []
+                                                     }
+              , moduleDefs = M.singleton d $ DefAST def
+              }
+  let a = mkApp 8 (toEnum 208) Prog
+            { progImports = []
+            , progModules = [mod]
+            , progSelection = Nothing
+            , progSmartHoles = SmartHoles
+            , progLog = mempty
+            , redoLog = mempty
+            }
+            -- a1 sig 7 is  the tvar x  MakeFun
+            -- a1 body 4 is  the forall DeleteType
+  let toAct p act = case toProgActionNoInput (map snd $ progAllDefs $ appProg a) def (qualifyName modName d) (Just p) act of
+          Left err -> assertFailure $ show err
+          Right act' -> pure act'
+  act1 <- toAct (SigNode , pos1) Available.MakeFun
+  act2 <- toAct (BodyNode , pos2) Available.DeleteType
+  case checkAppWellFormed a of
+    Left err -> assertFailure $ show err
+    Right aChecked -> do
+      res <- runAppTestM (appIdCounter aChecked) aChecked $ do
+        void $ handleEditRequest act1
+        void $ handleEditRequest act2
+      case res of
+        (Left err, _) -> assertFailure $ show err
+        (Right _, _) -> pure ()
+-- this test came from the following hedgehog failure
+{-
+test/Test.hs
+  Tests
+    Action
+      Available
+        undo redo: FAIL (0.22s)
+            ✗ undo redo failed at test/Tests/Action/Available.hs:430:46
+              after 1 test and 7 shrinks.
+
+                  ┏━━ test/Tests/Action/Available.hs ━━━
+              374 ┃ runRandomAvailableAction :: Level -> App -> PropertyT WT (Maybe App)
+              375 ┃ runRandomAvailableAction l a = do
+              376 ┃       (defName,defMut,defLoc) <- maybe discard forAll (pickPos $ appProg a)
+                  ┃       │ ( GlobalName
+                  ┃       │     { qualifiedModule = ModuleName { unModuleName = "M" :| [ "0" ] }
+                  ┃       │     , baseName = "a1"
+                  ┃       │     }
+                  ┃       │ , Editable
+                  ┃       │ , Right
+                  ┃       │     ( ASTDef
+                  ┃       │         { astDefExpr =
+                  ┃       │             Ann
+                  ┃       │               (Meta
+                  ┃       │                  2
+                  ┃       │                  (Just
+                  ┃       │                     (TCEmb
+                  ┃       │                        TCBoth
+                  ┃       │                          { tcChkedAt =
+                  ┃       │                              TForall
+                  ┃       │                                ()
+                  ┃       │                                LocalName { unLocalName = "x" }
+                  ┃       │                                KType
+                  ┃       │                                (TVar () LocalName { unLocalName = "x" })
+                  ┃       │                          , tcSynthed =
+                  ┃       │                              TForall
+                  ┃       │                                ()
+                  ┃       │                                LocalName { unLocalName = "x" }
+                  ┃       │                                KType
+                  ┃       │                                (TVar () LocalName { unLocalName = "x" })
+                  ┃       │                          }))
+                  ┃       │                  Nothing)
+                  ┃       │               (EmptyHole
+                  ┃       │                  (Meta
+                  ┃       │                     3
+                  ┃       │                     (Just
+                  ┃       │                        (TCEmb
+                  ┃       │                           TCBoth
+                  ┃       │                             { tcChkedAt =
+                  ┃       │                                 TForall
+                  ┃       │                                   ()
+                  ┃       │                                   LocalName { unLocalName = "x" }
+                  ┃       │                                   KType
+                  ┃       │                                   (TVar () LocalName { unLocalName = "x" })
+                  ┃       │                             , tcSynthed = TEmptyHole ()
+                  ┃       │                             }))
+                  ┃       │                     Nothing))
+                  ┃       │               (TForall
+                  ┃       │                  (Meta 4 (Just KType) Nothing)
+                  ┃       │                  LocalName { unLocalName = "x" }
+                  ┃       │                  KType
+                  ┃       │                  (TVar
+                  ┃       │                     (Meta 5 (Just KType) Nothing) LocalName { unLocalName = "x" }))
+                  ┃       │         , astDefType =
+                  ┃       │             TForall
+                  ┃       │               (Meta 6 (Just KType) Nothing)
+                  ┃       │               LocalName { unLocalName = "x" }
+                  ┃       │               KType
+                  ┃       │               (TVar
+                  ┃       │                  (Meta 7 (Just KType) Nothing) LocalName { unLocalName = "x" })
+                  ┃       │         }
+                  ┃       │     , SigNode
+                  ┃       │     , 7
+                  ┃       │     )
+                  ┃       │ )
+                  ┃       │ ( GlobalName
+                  ┃       │     { qualifiedModule = ModuleName { unModuleName = "M" :| [ "0" ] }
+                  ┃       │     , baseName = "a1"
+                  ┃       │     }
+                  ┃       │ , Editable
+                  ┃       │ , Right
+                  ┃       │     ( ASTDef
+                  ┃       │         { astDefExpr =
+                  ┃       │             Hole
+                  ┃       │               (Meta
+                  ┃       │                  12
+                  ┃       │                  (Just
+                  ┃       │                     (TCEmb
+                  ┃       │                        TCBoth
+                  ┃       │                          { tcChkedAt =
+                  ┃       │                              TForall
+                  ┃       │                                ()
+                  ┃       │                                LocalName { unLocalName = "x" }
+                  ┃       │                                KType
+                  ┃       │                                (TFun () (TVar () LocalName { unLocalName = "x" }) (TEmptyHole ()))
+                  ┃       │                          , tcSynthed = TEmptyHole ()
+                  ┃       │                          }))
+                  ┃       │                  Nothing)
+                  ┃       │               (Ann
+                  ┃       │                  (Meta
+                  ┃       │                     2
+                  ┃       │                     (Just
+                  ┃       │                        (TCSynthed
+                  ┃       │                           (TForall
+                  ┃       │                              ()
+                  ┃       │                              LocalName { unLocalName = "x" }
+                  ┃       │                              KType
+                  ┃       │                              (TVar () LocalName { unLocalName = "x" }))))
+                  ┃       │                     Nothing)
+                  ┃       │                  (EmptyHole
+                  ┃       │                     (Meta
+                  ┃       │                        3
+                  ┃       │                        (Just
+                  ┃       │                           (TCEmb
+                  ┃       │                              TCBoth
+                  ┃       │                                { tcChkedAt =
+                  ┃       │                                    TForall
+                  ┃       │                                      ()
+                  ┃       │                                      LocalName { unLocalName = "x" }
+                  ┃       │                                      KType
+                  ┃       │                                      (TVar () LocalName { unLocalName = "x" })
+                  ┃       │                                , tcSynthed = TEmptyHole ()
+                  ┃       │                                }))
+                  ┃       │                        Nothing))
+                  ┃       │                  (TForall
+                  ┃       │                     (Meta 4 (Just KType) Nothing)
+                  ┃       │                     LocalName { unLocalName = "x" }
+                  ┃       │                     KType
+                  ┃       │                     (TVar
+                  ┃       │                        (Meta 5 (Just KType) Nothing) LocalName { unLocalName = "x" })))
+                  ┃       │         , astDefType =
+                  ┃       │             TForall
+                  ┃       │               (Meta 6 (Just KType) Nothing)
+                  ┃       │               LocalName { unLocalName = "x" }
+                  ┃       │               KType
+                  ┃       │               (TFun
+                  ┃       │                  (Meta 10 (Just KType) Nothing)
+                  ┃       │                  (TVar
+                  ┃       │                     (Meta 7 (Just KType) Nothing) LocalName { unLocalName = "x" })
+                  ┃       │                  (TEmptyHole (Meta 11 (Just KHole) Nothing)))
+                  ┃       │         }
+                  ┃       │     , BodyNode
+                  ┃       │     , 4
+                  ┃       │     )
+                  ┃       │ )
+              377 ┃       let defMap = fmap snd $ progAllDefs $ appProg a
+              378 ┃       let (def, loc,acts) = case defLoc of
+              379 ┃             Left d -> (d, Nothing,Available.forDef defMap l defMut defName)
+              380 ┃             Right (d,SigNode, i) -> (DefAST d, Just (SigNode, i), Available.forSig l defMut (astDefType d) i)
+              381 ┃             Right (d,BodyNode, i) -> (DefAST d, Just (BodyNode, i), Available.forBody (snd <$> progAllTypeDefs (appProg a)) l defMut (astDefExpr d) i)
+              382 ┃       case acts of
+              383 ┃         [] -> label "no offered actions" >> pure Nothing
+              384 ┃         acts' -> do
+              385 ┃           action <- forAllT $ Gen.element acts'
+                  ┃           │ NoInput MakeFun
+                  ┃           │ NoInput DeleteType
+              386 ┃           collect action
+              387 ┃           case action of
+              388 ┃             Available.NoInput act' -> do
+              389 ┃               def' <- maybe (annotate "primitive def" >> failure) pure $ defAST def
+              390 ┃               progActs <-
+              391 ┃                 either (\e -> annotateShow e >> failure) pure $
+              392 ┃                   toProgActionNoInput (map snd $ progAllDefs $ appProg a) def' defName loc act'
+              393 ┃               Just <$> actionSucceeds (handleEditRequest progActs) a
+              394 ┃             Available.Input act' -> do
+              395 ┃               def' <- maybe (annotate "primitive def" >> failure) pure $ defAST def
+              396 ┃               Available.Options{Available.opts, Available.free} <-
+              397 ┃                 maybe (annotate "id not found" >> failure) pure $
+              398 ┃                   Available.options
+              399 ┃                     (map snd $ progAllTypeDefs $ appProg a)
+              400 ┃                     (map snd $ progAllDefs $ appProg a)
+              401 ┃                     (progCxt $ appProg a)
+              402 ┃                     l
+              403 ┃                     def'
+              404 ┃                     loc
+              405 ┃                     act'
+              406 ┃               let opts' = [Gen.element $ (Offered,) <$> opts | not (null opts)]
+              407 ┃               let opts'' =
+              408 ┃                     opts' <> case free of
+              409 ┃                       Available.FreeNone -> []
+              410 ┃                       Available.FreeVarName -> [(StudentProvided,) . flip Available.Option Nothing <$> (unName <$> genName)]
+              411 ┃                       Available.FreeInt -> [(StudentProvided,) . flip Available.Option Nothing <$> (show <$> Gen.integral (Range.linear @Integer 0 1_000_000_000))]
+              412 ┃                       Available.FreeChar -> [(StudentProvided,) . flip Available.Option Nothing . T.singleton <$> Gen.unicode]
+              413 ┃               case opts'' of
+              414 ┃                 [] -> annotate "no options" >> pure Nothing
+              415 ┃                 options -> do
+              416 ┃                   opt <- forAllT $ Gen.choice options
+              417 ┃                   progActs <- either (\e -> annotateShow e >> failure) pure $ toProgActionInput def' defName loc (snd opt) act'
+              418 ┃                   actionSucceedsOrCapture (fst opt) (handleEditRequest progActs) a
+              419 ┃   where
+              420 ┃     runEditAppMLogs ::
+              421 ┃       HasCallStack =>
+              422 ┃       EditAppM (PureLog (WithSeverity ())) ProgError a ->
+              423 ┃       App ->
+              424 ┃       PropertyT WT (Either ProgError a, App)
+              425 ┃     runEditAppMLogs m a = case runPureLog $ runEditAppM m a of
+              426 ┃       (r, logs) -> testNoSevereLogs logs >> pure r
+              427 ┃     actionSucceeds :: HasCallStack => EditAppM (PureLog (WithSeverity ())) ProgError a -> App -> PropertyT WT App
+              428 ┃     actionSucceeds m a =
+              429 ┃       runEditAppMLogs m a >>= \case
+              430 ┃         (Left err, _) -> annotateShow err >> failure
+                  ┃         │ ActionError
+                  ┃         │   (CustomFailure Delete "internal error: lost ID after typechecking")
+                  ┃         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+              431 ┃         (Right _, a') -> pure a'
+              432 ┃     -- If we submit our own name rather than an offered one, then
+              433 ┃     -- we should expect that name capture/clashing may happen
+              434 ┃     actionSucceedsOrCapture :: HasCallStack => Provenance -> EditAppM (PureLog (WithSeverity ())) ProgError a -> App -> PropertyT WT (Maybe App)
+              435 ┃     actionSucceedsOrCapture p m a = do
+              436 ┃       a' <- runEditAppMLogs m a
+              437 ┃       case (p, a') of
+              438 ┃         (StudentProvided, (Left (ActionError NameCapture), _)) -> do
+              439 ┃           label "name-capture with entered name"
+              440 ┃           annotate "ignoring name capture error as was generated name, not offered one"
+              441 ┃           pure Nothing
+              442 ┃         (StudentProvided, (Left (ActionError (CaseBindsClash{})), _)) -> do
+              443 ┃           label "name-clash with entered name"
+              444 ┃           annotate "ignoring name clash error as was generated name, not offered one"
+              445 ┃           pure Nothing
+              446 ┃         (StudentProvided, (Left DefAlreadyExists{}, _)) -> do
+              447 ┃           label "rename def name clash with entered name"
+              448 ┃           annotate "ignoring def already exists error as was generated name, not offered one"
+              449 ┃           pure Nothing
+              450 ┃         (_, (Left err, _)) -> annotateShow err >> failure
+              451 ┃         (_, (Right _, a'')) -> pure $ Just a''
+
+                  ┏━━ test/Tests/Action/Available.hs ━━━
+              458 ┃ tasty_undo_redo :: Property
+              459 ┃ tasty_undo_redo = withTests 500 $
+              460 ┃   withDiscards 2000 $
+              461 ┃     propertyWT [] $ do
+              462 ┃       l <- forAllT $ Gen.element enumerate
+                  ┃       │ Beginner
+              463 ┃       cxt <- forAllT $ Gen.choice $ map sequence [[], [builtinModule], [builtinModule, pure primitiveModule]]
+                  ┃       │ []
+              464 ┃       -- We only test SmartHoles mode (which is the only supported user-facing
+              465 ┃       -- mode - NoSmartHoles is only used for internal sanity testing etc)
+              466 ┃       let annotateShow' :: HasCallStack => App -> PropertyT WT ()
+              467 ┃           annotateShow' = withFrozenCallStack $ annotateShow . (\p -> (progModules p, progLog p, redoLog p)) . appProg
+              468 ┃       a <- forAllT $ genApp SmartHoles cxt
+                  ┃       │ App
+                  ┃       │   { currentState =
+                  ┃       │       AppState
+                  ┃       │         { idCounter = 8
+                  ┃       │         , nameCounter = NC 208
+                  ┃       │         , prog =
+                  ┃       │             Prog
+                  ┃       │               { progImports = []
+                  ┃       │               , progModules =
+                  ┃       │                   [ Module
+                  ┃       │                       { moduleName = ModuleName { unModuleName = "M" :| [ "0" ] }
+                  ┃       │                       , moduleTypes =
+                  ┃       │                           fromList
+                  ┃       │                             [ ( "a"
+                  ┃       │                               , TypeDefAST
+                  ┃       │                                   ASTTypeDef
+                  ┃       │                                     { astTypeDefParameters = []
+                  ┃       │                                     , astTypeDefConstructors = []
+                  ┃       │                                     , astTypeDefNameHints = []
+                  ┃       │                                     }
+                  ┃       │                               )
+                  ┃       │                             ]
+                  ┃       │                       , moduleDefs =
+                  ┃       │                           fromList
+                  ┃       │                             [ ( "a1"
+                  ┃       │                               , DefAST
+                  ┃       │                                   ASTDef
+                  ┃       │                                     { astDefExpr =
+                  ┃       │                                         Ann
+                  ┃       │                                           (Meta
+                  ┃       │                                              2
+                  ┃       │                                              (Just
+                  ┃       │                                                 (TCEmb
+                  ┃       │                                                    TCBoth
+                  ┃       │                                                      { tcChkedAt =
+                  ┃       │                                                          TForall
+                  ┃       │                                                            ()
+                  ┃       │                                                            LocalName { unLocalName = "x" }
+                  ┃       │                                                            KType
+                  ┃       │                                                            (TVar () LocalName { unLocalName = "x" })
+                  ┃       │                                                      , tcSynthed =
+                  ┃       │                                                          TForall
+                  ┃       │                                                            ()
+                  ┃       │                                                            LocalName { unLocalName = "x" }
+                  ┃       │                                                            KType
+                  ┃       │                                                            (TVar () LocalName { unLocalName = "x" })
+                  ┃       │                                                      }))
+                  ┃       │                                              Nothing)
+                  ┃       │                                           (EmptyHole
+                  ┃       │                                              (Meta
+                  ┃       │                                                 3
+                  ┃       │                                                 (Just
+                  ┃       │                                                    (TCEmb
+                  ┃       │                                                       TCBoth
+                  ┃       │                                                         { tcChkedAt =
+                  ┃       │                                                             TForall
+                  ┃       │                                                               ()
+                  ┃       │                                                               LocalName { unLocalName = "x" }
+                  ┃       │                                                               KType
+                  ┃       │                                                               (TVar
+                  ┃       │                                                                  () LocalName { unLocalName = "x" })
+                  ┃       │                                                         , tcSynthed = TEmptyHole ()
+                  ┃       │                                                         }))
+                  ┃       │                                                 Nothing))
+                  ┃       │                                           (TForall
+                  ┃       │                                              (Meta 4 (Just KType) Nothing)
+                  ┃       │                                              LocalName { unLocalName = "x" }
+                  ┃       │                                              KType
+                  ┃       │                                              (TVar
+                  ┃       │                                                 (Meta 5 (Just KType) Nothing)
+                  ┃       │                                                 LocalName { unLocalName = "x" }))
+                  ┃       │                                     , astDefType =
+                  ┃       │                                         TForall
+                  ┃       │                                           (Meta 6 (Just KType) Nothing)
+                  ┃       │                                           LocalName { unLocalName = "x" }
+                  ┃       │                                           KType
+                  ┃       │                                           (TVar
+                  ┃       │                                              (Meta 7 (Just KType) Nothing)
+                  ┃       │                                              LocalName { unLocalName = "x" })
+                  ┃       │                                     }
+                  ┃       │                               )
+                  ┃       │                             ]
+                  ┃       │                       }
+                  ┃       │                   ]
+                  ┃       │               , progSelection = Nothing
+                  ┃       │               , progSmartHoles = SmartHoles
+                  ┃       │               , progLog = Log { unlog = [] }
+                  ┃       │               , redoLog = Log { unlog = [] }
+                  ┃       │               }
+                  ┃       │         }
+                  ┃       │   , initialState =
+                  ┃       │       AppState
+                  ┃       │         { idCounter = 8
+                  ┃       │         , nameCounter = NC 208
+                  ┃       │         , prog =
+                  ┃       │             Prog
+                  ┃       │               { progImports = []
+                  ┃       │               , progModules =
+                  ┃       │                   [ Module
+                  ┃       │                       { moduleName = ModuleName { unModuleName = "M" :| [ "0" ] }
+                  ┃       │                       , moduleTypes =
+                  ┃       │                           fromList
+                  ┃       │                             [ ( "a"
+                  ┃       │                               , TypeDefAST
+                  ┃       │                                   ASTTypeDef
+                  ┃       │                                     { astTypeDefParameters = []
+                  ┃       │                                     , astTypeDefConstructors = []
+                  ┃       │                                     , astTypeDefNameHints = []
+                  ┃       │                                     }
+                  ┃       │                               )
+                  ┃       │                             ]
+                  ┃       │                       , moduleDefs =
+                  ┃       │                           fromList
+                  ┃       │                             [ ( "a1"
+                  ┃       │                               , DefAST
+                  ┃       │                                   ASTDef
+                  ┃       │                                     { astDefExpr =
+                  ┃       │                                         Ann
+                  ┃       │                                           (Meta
+                  ┃       │                                              2
+                  ┃       │                                              (Just
+                  ┃       │                                                 (TCEmb
+                  ┃       │                                                    TCBoth
+                  ┃       │                                                      { tcChkedAt =
+                  ┃       │                                                          TForall
+                  ┃       │                                                            ()
+                  ┃       │                                                            LocalName { unLocalName = "x" }
+                  ┃       │                                                            KType
+                  ┃       │                                                            (TVar () LocalName { unLocalName = "x" })
+                  ┃       │                                                      , tcSynthed =
+                  ┃       │                                                          TForall
+                  ┃       │                                                            ()
+                  ┃       │                                                            LocalName { unLocalName = "x" }
+                  ┃       │                                                            KType
+                  ┃       │                                                            (TVar () LocalName { unLocalName = "x" })
+                  ┃       │                                                      }))
+                  ┃       │                                              Nothing)
+                  ┃       │                                           (EmptyHole
+                  ┃       │                                              (Meta
+                  ┃       │                                                 3
+                  ┃       │                                                 (Just
+                  ┃       │                                                    (TCEmb
+                  ┃       │                                                       TCBoth
+                  ┃       │                                                         { tcChkedAt =
+                  ┃       │                                                             TForall
+                  ┃       │                                                               ()
+                  ┃       │                                                               LocalName { unLocalName = "x" }
+                  ┃       │                                                               KType
+                  ┃       │                                                               (TVar
+                  ┃       │                                                                  () LocalName { unLocalName = "x" })
+                  ┃       │                                                         , tcSynthed = TEmptyHole ()
+                  ┃       │                                                         }))
+                  ┃       │                                                 Nothing))
+                  ┃       │                                           (TForall
+                  ┃       │                                              (Meta 4 (Just KType) Nothing)
+                  ┃       │                                              LocalName { unLocalName = "x" }
+                  ┃       │                                              KType
+                  ┃       │                                              (TVar
+                  ┃       │                                                 (Meta 5 (Just KType) Nothing)
+                  ┃       │                                                 LocalName { unLocalName = "x" }))
+                  ┃       │                                     , astDefType =
+                  ┃       │                                         TForall
+                  ┃       │                                           (Meta 6 (Just KType) Nothing)
+                  ┃       │                                           LocalName { unLocalName = "x" }
+                  ┃       │                                           KType
+                  ┃       │                                           (TVar
+                  ┃       │                                              (Meta 7 (Just KType) Nothing)
+                  ┃       │                                              LocalName { unLocalName = "x" })
+                  ┃       │                                     }
+                  ┃       │                               )
+                  ┃       │                             ]
+                  ┃       │                       }
+                  ┃       │                   ]
+                  ┃       │               , progSelection = Nothing
+                  ┃       │               , progSmartHoles = SmartHoles
+                  ┃       │               , progLog = Log { unlog = [] }
+                  ┃       │               , redoLog = Log { unlog = [] }
+                  ┃       │               }
+                  ┃       │         }
+                  ┃       │   }
+              469 ┃       annotateShow' a
+                  ┃       │ ( [ Module
+                  ┃       │       { moduleName = ModuleName { unModuleName = "M" :| [ "0" ] }
+                  ┃       │       , moduleTypes =
+                  ┃       │           fromList
+                  ┃       │             [ ( "a"
+                  ┃       │               , TypeDefAST
+                  ┃       │                   ASTTypeDef
+                  ┃       │                     { astTypeDefParameters = []
+                  ┃       │                     , astTypeDefConstructors = []
+                  ┃       │                     , astTypeDefNameHints = []
+                  ┃       │                     }
+                  ┃       │               )
+                  ┃       │             ]
+                  ┃       │       , moduleDefs =
+                  ┃       │           fromList
+                  ┃       │             [ ( "a1"
+                  ┃       │               , DefAST
+                  ┃       │                   ASTDef
+                  ┃       │                     { astDefExpr =
+                  ┃       │                         Ann
+                  ┃       │                           (Meta
+                  ┃       │                              2
+                  ┃       │                              (Just
+                  ┃       │                                 (TCEmb
+                  ┃       │                                    TCBoth
+                  ┃       │                                      { tcChkedAt =
+                  ┃       │                                          TForall
+                  ┃       │                                            ()
+                  ┃       │                                            LocalName { unLocalName = "x" }
+                  ┃       │                                            KType
+                  ┃       │                                            (TVar () LocalName { unLocalName = "x" })
+                  ┃       │                                      , tcSynthed =
+                  ┃       │                                          TForall
+                  ┃       │                                            ()
+                  ┃       │                                            LocalName { unLocalName = "x" }
+                  ┃       │                                            KType
+                  ┃       │                                            (TVar () LocalName { unLocalName = "x" })
+                  ┃       │                                      }))
+                  ┃       │                              Nothing)
+                  ┃       │                           (EmptyHole
+                  ┃       │                              (Meta
+                  ┃       │                                 3
+                  ┃       │                                 (Just
+                  ┃       │                                    (TCEmb
+                  ┃       │                                       TCBoth
+                  ┃       │                                         { tcChkedAt =
+                  ┃       │                                             TForall
+                  ┃       │                                               ()
+                  ┃       │                                               LocalName { unLocalName = "x" }
+                  ┃       │                                               KType
+                  ┃       │                                               (TVar () LocalName { unLocalName = "x" })
+                  ┃       │                                         , tcSynthed = TEmptyHole ()
+                  ┃       │                                         }))
+                  ┃       │                                 Nothing))
+                  ┃       │                           (TForall
+                  ┃       │                              (Meta 4 (Just KType) Nothing)
+                  ┃       │                              LocalName { unLocalName = "x" }
+                  ┃       │                              KType
+                  ┃       │                              (TVar
+                  ┃       │                                 (Meta 5 (Just KType) Nothing) LocalName { unLocalName = "x" }))
+                  ┃       │                     , astDefType =
+                  ┃       │                         TForall
+                  ┃       │                           (Meta 6 (Just KType) Nothing)
+                  ┃       │                           LocalName { unLocalName = "x" }
+                  ┃       │                           KType
+                  ┃       │                           (TVar
+                  ┃       │                              (Meta 7 (Just KType) Nothing) LocalName { unLocalName = "x" })
+                  ┃       │                     }
+                  ┃       │               )
+                  ┃       │             ]
+                  ┃       │       }
+                  ┃       │   ]
+                  ┃       │ , Log { unlog = [] }
+                  ┃       │ , Log { unlog = [] }
+                  ┃       │ )
+              470 ┃       n <- forAll $ Gen.int $ Range.linear 1 20
+                  ┃       │ 2
+              471 ┃       a' <- iterateNM n a $ \a' -> runRandomAction l a'
+              472 ┃       annotateShow' a'
+              473 ┃       if null $ unlog $ progLog $ appProg a' -- TODO: expose a "log-is-null" helper from App?
+              474 ┃         -- It is possible for the random actions to undo everything!
+              475 ┃         then success
+              476 ┃         else do
+              477 ┃           a'' <- runEditAppMLogs (handleMutationRequest Undo) a'
+              478 ┃           annotateShow' a''
+              479 ┃           a''' <- runEditAppMLogs (handleMutationRequest Redo) a''
+              480 ┃           annotateShow' a'''
+              481 ┃           TypeCacheAlpha a' === TypeCacheAlpha a'''
+              482 ┃   where
+              483 ┃     -- TODO: dry
+              484 ┃     runEditAppMLogs ::
+              485 ┃       HasCallStack =>
+              486 ┃       EditAppM (PureLog (WithSeverity ())) ProgError a ->
+              487 ┃       App ->
+              488 ┃       PropertyT WT App
+              489 ┃     runEditAppMLogs m a = case runPureLog $ runEditAppM m a of
+              490 ┃       (r, logs) -> testNoSevereLogs logs >> case r of
+              491 ┃         (Left err, _) -> annotateShow err >> failure
+              492 ┃         (Right _, a') -> pure a'
+              493 ┃     runRandomAction l a = do
+              494 ┃       act <- forAll $ Gen.frequency $ second pure <$> [
+                  ┃       │ Avail
+                  ┃       │ Avail
+              495 ┃         (2,AddTm)
+              496 ┃         ,(1,AddTy)
+              497 ┃         ,(if null $ unlog $ progLog $ appProg a then 0 else 1,Un) -- TODO: expose a "log-is-null" helper from App?
+              498 ┃         ,(if null $ unlog $ redoLog $ appProg a then 0 else 1,Re) -- TODO: expose a "log-is-null" helper from App?
+              499 ┃         ,(5,Avail)
+              500 ┃                                     ]
+              501 ┃       case act of
+              502 ┃         AddTm -> do
+              503 ┃           let n' = local (extendCxtByModules $ progModules $ appProg a) freshNameForCxt
+              504 ┃           n <- forAllT $ Gen.choice [Just . unName <$> n', pure Nothing]
+              505 ┃           m <- forAllT $ Gen.element $ fmap moduleName $ progModules $ appProg a
+              506 ┃           runEditAppMLogs (handleMutationRequest $ Edit [CreateDef m n]) a
+              507 ┃         AddTy -> do
+              508 ┃           m <- forAllT $ Gen.element $ fmap moduleName $ progModules $ appProg a
+              509 ┃           let n' = local (extendCxtByModules $ progModules $ appProg a) freshNameForCxt
+              510 ┃           n <- qualifyName m <$> forAllT n'
+              511 ┃           runEditAppMLogs (handleMutationRequest $ Edit [AddTypeDef n $ ASTTypeDef [] [] []]) a
+              512 ┃         Un -> runEditAppMLogs (handleMutationRequest Undo) a
+              513 ┃         Re -> runEditAppMLogs (handleMutationRequest Redo) a
+              514 ┃         Avail -> fromMaybe a <$> runRandomAvailableAction l a
+
+              This failure can be reproduced by running:
+              > recheck (Size 33) (Seed 4268413180681694343 17092859468972210393) undo redo
+
+          Use '--pattern "$NF ~ /undo redo/" --hedgehog-replay "Size 33 Seed 4268413180681694343 17092859468972210393"' to reproduce from the command-line.
+
+1 out of 1 tests failed (0.49s)
+-}
+--------------------------------------
 
 iterateNM :: Monad m => Int -> a -> (a -> m a) -> m a
 iterateNM n a f
