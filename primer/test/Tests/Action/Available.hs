@@ -39,7 +39,7 @@ import Primer.Action (
  )
 import Primer.Action.Available (
   InputAction (MakeCon, MakeLAM, MakeLam, RenameForall, RenameLAM, RenameLam, RenameLet),
-  NoInputAction (Raise),
+  NoInputAction (MakeCase, Raise),
   Option (Option),
  )
 import Primer.Action.Available qualified as Available
@@ -82,6 +82,7 @@ import Primer.Core.DSL (
   S,
   ann,
   app,
+  case_,
   con,
   create',
   emptyHole,
@@ -135,8 +136,8 @@ import System.FilePath ((</>))
 import Tasty (Property, withDiscards, withTests)
 import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.Golden (goldenVsString)
-import Test.Tasty.HUnit (Assertion, assertBool, assertFailure, (@?=))
-import Tests.Action.Prog (defaultEmptyProg, expectSuccess, findGlobalByName, progActionTest)
+import Test.Tasty.HUnit (Assertion, assertFailure, (@?=))
+import Tests.Action.Prog (defaultEmptyProg, findGlobalByName, mkEmptyTestApp, runAppTestM)
 import Tests.Typecheck (
   TypeCacheAlpha (TypeCacheAlpha),
   runTypecheckTestM,
@@ -399,6 +400,35 @@ unit_sat_con_2 =
     (Right (MakeCon, Option "Cons" $ Just $ unName <$> unModuleName builtinModuleName))
     (hole (con cCons [emptyHole, emptyHole] `ann` tEmptyHole) `ann` ((tcon tList `tapp` tcon tNat) `tfun` (tcon tList `tapp` tcon tNat)))
 
+-- The various @let@ constructs inherit the directionality of their body.
+-- This is a regression test, as in the past this was the case for @let@ but not @letrec@.
+-- Note that @MakeCase@ is only offered for synthesisable terms.
+unit_case_let :: Assertion
+unit_case_let = do
+  let testOffered :: HasCallStack => S Expr -> Assertion
+      testOffered e =
+        offeredActionTest
+          SmartHoles
+          Intermediate
+          e
+          (InExpr [])
+          (Left MakeCase)
+          (case_ e [])
+  testOffered (let_ "x" emptyHole emptyHole)
+  -- testOffered (letType "a" tEmptyHole emptyHole) -- TODO: add this test when the typechecker supports letType
+  testOffered (letrec "x" emptyHole tEmptyHole emptyHole)
+  let testNotOffered :: HasCallStack => S Expr -> Assertion
+      testNotOffered e =
+        offeredActionTestNotOffered
+          SmartHoles
+          Intermediate
+          e
+          (InExpr [])
+          MakeCase
+  testNotOffered (let_ "x" emptyHole $ lam "y" $ lvar "y")
+  -- testNotOffered (letType "a" tEmptyHole $ lam "y" $ lvar "y") -- TODO: add this test when the typechecker supports letType
+  testNotOffered (letrec "x" emptyHole tEmptyHole $ lam "y" $ lvar "y")
+
 data MovementList
   = InExpr [Movement]
   | InType [Movement] [Movement]
@@ -427,6 +457,44 @@ offeredActionTest ::
   S Expr ->
   Assertion
 offeredActionTest sh l inputExpr position action expectedOutput = do
+  offeredActionTest' sh l inputExpr position action >>= \case
+    Left err -> assertFailure $ show err
+    Right result -> clearMeta result @?= clearMeta (create' expectedOutput)
+
+offeredActionTestNotOffered ::
+  HasCallStack =>
+  SmartHoles ->
+  Level ->
+  S Expr ->
+  MovementList ->
+  NoInputAction ->
+  Assertion
+offeredActionTestNotOffered sh l inputExpr position action = do
+  offeredActionTest' sh l inputExpr position (Left action) >>= \case
+    Left ActionNotOffered{} -> pure ()
+    Left err -> assertFailure $ show err
+    Right _ -> assertFailure "action was unexpectedly offered"
+
+-- Helper for offeredActionTest'
+data OAT
+  = ActionNotOffered Available.Action [Available.Action]
+  | OptionNotOffered Option [Option]
+  | ErrorRunningAction ProgError
+  deriving stock (Show)
+
+-- Looks at actions offered for the given position and distinguishes the following cases
+-- - the requested action is not offered
+-- - the requested action is offered, but the requested option is not offered
+-- - the action (and possible option) were offered, but running them resulted in an error
+-- - the action (and possible option) were offered, and running succeeds
+offeredActionTest' ::
+  SmartHoles ->
+  Level ->
+  S Expr ->
+  MovementList ->
+  Either NoInputAction (InputAction, Option) ->
+  IO (Either OAT Expr)
+offeredActionTest' sh l inputExpr position action = do
   let progRaw = create' $ do
         ms <- sequence [builtinModule]
         prog0 <- defaultEmptyProg
@@ -466,36 +534,32 @@ offeredActionTest sh l inputExpr position action expectedOutput = do
   let defs = foldMap' moduleDefsQualified modules
   let offered = Available.forBody cxt.typeDefs l Editable expr id
   let options = Available.options cxt.typeDefs defs cxt l exprDef (Just (BodyNode, id))
-  let assertElem msg x xs =
-        assertBool
-          ( msg
-              <> show x
-              <> " is not an element of "
-              <> show xs
-          )
-          (x `elem` xs)
-  let assertOffered a = assertElem "Requested action not offered: " a offered
   action' <- case action of
-    Left a -> do
-      assertOffered $ Available.NoInput a
-      pure $ toProgActionNoInput (foldMap' moduleDefsQualified $ progModules prog) exprDef exprDefName (Just (BodyNode, id)) a
+    Left a ->
+      pure $
+        if Available.NoInput a `elem` offered
+          then Right $ toProgActionNoInput (foldMap' moduleDefsQualified $ progModules prog) exprDef exprDefName (Just (BodyNode, id)) a
+          else Left $ ActionNotOffered (Available.NoInput a) offered
     Right (a, o) -> do
-      assertOffered $ Available.Input a
-      case options a of
-        Nothing -> assertFailure "Available.options returned Nothing"
-        Just os -> do
-          assertElem "Requested option not offered: " o os.opts
-          pure $ toProgActionInput exprDef exprDefName (Just (BodyNode, id)) o a
-  action'' <- case action' of
+      if Available.Input a `elem` offered
+        then case options a of
+          Nothing -> assertFailure "Available.options returned Nothing"
+          Just os ->
+            pure $
+              if o `elem` os.opts
+                then Right $ toProgActionInput exprDef exprDefName (Just (BodyNode, id)) o a
+                else Left $ OptionNotOffered o os.opts
+        else pure $ Left $ ActionNotOffered (Available.Input a) offered
+  action'' <- for action' $ \case
     Left err -> assertFailure $ show err
     Right a -> pure a
-  let expected = create' expectedOutput
-  progActionTest (pure prog) action'' $ expectSuccess $ \_ prog' ->
-    let result = pure . astDefExpr <=< defAST <=< findGlobalByName prog' $ exprDefName
-     in -- Compare result to input, ignoring any difference in metadata
-        -- NB: we don't compare up-to-alpha, as names should be determined by the
-        -- actions on-the-nose
-        fmap clearMeta result @?= Just (clearMeta expected)
+  x <- for action'' $ \action''' -> do
+    let result = fmap astDefExpr . defAST <=< flip findGlobalByName exprDefName
+    let assertJust = maybe (assertFailure "Lost 'main' after action") pure
+    (res, _) <- runAppTestM (nextProgID prog) (mkEmptyTestApp prog) (handleEditRequest action''')
+    rr <- traverse (assertJust . result) res
+    pure $ first ErrorRunningAction rr
+  pure $ join x
 
 -- Correct names offered when running actions
 -- NB: Bools are offered names "p", "q"; functions get "f","g"; nats get "i","j","n","m"
