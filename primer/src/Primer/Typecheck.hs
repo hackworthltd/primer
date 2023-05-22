@@ -680,9 +680,7 @@ check t = \case
     a' <- local ctx' $ check (forgetTypeMetadata tA') a
     -- Extend the context with the binding, and synthesise the body
     b' <- local ctx' $ check t b
-    -- NB here: if b were synthesisable, we bubble that information up to the
-    -- let, saying @typeOf b'@ rather than @TCChkedAt t@ (consistently with Let)
-    pure $ Letrec (annotate (typeOf b') i) x a' tA' b'
+    pure $ Letrec (annotate (TCChkedAt t) i) x a' tA' b'
   Case i e brs -> do
     (eT, e') <- synth e
     let caseMeta = annotate (TCChkedAt t) i

@@ -39,7 +39,7 @@ import Primer.Action (
  )
 import Primer.Action.Available (
   InputAction (MakeCon, MakeLAM, MakeLam, RenameForall, RenameLAM, RenameLam, RenameLet),
-  NoInputAction (MakeCase, Raise),
+  NoInputAction (Raise),
   Option (Option),
  )
 import Primer.Action.Available qualified as Available
@@ -82,7 +82,6 @@ import Primer.Core.DSL (
   S,
   ann,
   app,
-  case_,
   con,
   create',
   emptyHole,
@@ -400,35 +399,6 @@ unit_sat_con_2 =
     (Right (MakeCon, Option "Cons" $ Just $ unName <$> unModuleName builtinModuleName))
     (hole (con cCons [emptyHole, emptyHole] `ann` tEmptyHole) `ann` ((tcon tList `tapp` tcon tNat) `tfun` (tcon tList `tapp` tcon tNat)))
 
--- The various @let@ constructs inherit the directionality of their body.
--- This is a regression test, as in the past this was the case for @let@ but not @letrec@.
--- Note that @MakeCase@ is only offered for synthesisable terms.
-unit_case_let :: Assertion
-unit_case_let = do
-  let testOffered :: HasCallStack => S Expr -> Assertion
-      testOffered e =
-        offeredActionTest
-          SmartHoles
-          Intermediate
-          e
-          (InExpr [])
-          (Left MakeCase)
-          (case_ e [])
-  testOffered (let_ "x" emptyHole emptyHole)
-  -- testOffered (letType "a" tEmptyHole emptyHole) -- TODO: add this test when the typechecker supports letType
-  testOffered (letrec "x" emptyHole tEmptyHole emptyHole)
-  let testNotOffered :: HasCallStack => S Expr -> Assertion
-      testNotOffered e =
-        offeredActionTestNotOffered
-          SmartHoles
-          Intermediate
-          e
-          (InExpr [])
-          MakeCase
-  testNotOffered (let_ "x" emptyHole $ lam "y" $ lvar "y")
-  -- testNotOffered (letType "a" tEmptyHole $ lam "y" $ lvar "y") -- TODO: add this test when the typechecker supports letType
-  testNotOffered (letrec "x" emptyHole tEmptyHole $ lam "y" $ lvar "y")
-
 data MovementList
   = InExpr [Movement]
   | InType [Movement] [Movement]
@@ -460,20 +430,6 @@ offeredActionTest sh l inputExpr position action expectedOutput = do
   offeredActionTest' sh l inputExpr position action >>= \case
     Left err -> assertFailure $ show err
     Right result -> clearMeta result @?= clearMeta (create' expectedOutput)
-
-offeredActionTestNotOffered ::
-  HasCallStack =>
-  SmartHoles ->
-  Level ->
-  S Expr ->
-  MovementList ->
-  NoInputAction ->
-  Assertion
-offeredActionTestNotOffered sh l inputExpr position action = do
-  offeredActionTest' sh l inputExpr position (Left action) >>= \case
-    Left ActionNotOffered{} -> pure ()
-    Left err -> assertFailure $ show err
-    Right _ -> assertFailure "action was unexpectedly offered"
 
 -- Helper for offeredActionTest'
 data OAT
