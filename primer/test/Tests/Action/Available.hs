@@ -546,7 +546,7 @@ unit_tmp_1 = do
               fa <- tforall "x" KType (pure v)
               pure (getID v, getID fa, fa)
         (_, p2, a) <- ty
-        astDefExpr <- emptyHole `ann` (pure a)
+        astDefExpr <- emptyHole `ann` pure a
         (p1, _, astDefType) <- ty
         pure
           ( p1
