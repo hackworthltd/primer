@@ -119,6 +119,7 @@ import Primer.Zipper.Type (
   IsZipper (..),
   LetTypeBinding' (LetTypeBind),
   TypeZip,
+  TypeZip',
   bindersAboveTy,
   bindersBelowTy,
   down,
@@ -144,8 +145,6 @@ type ExprZ' a b = Zipper (Expr' a b) (Expr' a b)
 
 -- | An ordinary zipper for 'Expr's
 type ExprZ = ExprZ' ExprMeta TypeMeta
-
-type TypeZip' b = Zipper (Type' b) (Type' b)
 
 -- | A zipper for 'Type's embedded in expressions.
 -- For such types, we need a way
