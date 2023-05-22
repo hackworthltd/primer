@@ -495,7 +495,10 @@
 
                   tools = {
                     ghcid = "latest";
-                    haskell-language-server = "latest";
+                    haskell-language-server = {
+                      version = "latest";
+                      configureArgs = "--flags=-stylishhaskell";
+                    };
 
                     implicit-hie = "latest";
 
