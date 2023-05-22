@@ -163,13 +163,13 @@ library primer-hedgehog
   build-depends:
     , base
     , containers
-    , hedgehog        ^>=1.2
+    , hedgehog        ^>=1.1
     , mmorph          ^>=1.2.0
     , mtl
     , primer
     , primer-testlib
     , tasty-discover  ^>=5.0
-    , tasty-hedgehog  ^>=1.4
+    , tasty-hedgehog  ^>=1.3
 
 library primer-testlib
   visibility:         public
