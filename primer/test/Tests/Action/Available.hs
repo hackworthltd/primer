@@ -63,7 +63,7 @@ import Primer.App (
   progSmartHoles,
   runEditAppM,
  )
-import Primer.Builtins (builtinModuleName, cCons, tBool, tList, tNat)
+import Primer.Builtins (builtinModuleName, cCons, cFalse, cTrue, tBool, tList, tNat)
 import Primer.Core (
   Expr,
   GVarName,
@@ -82,6 +82,7 @@ import Primer.Core.DSL (
   S,
   ann,
   app,
+  branch,
   case_,
   con,
   create',
@@ -379,6 +380,28 @@ unit_raise_sh =
    in do
         testSyn emptyHole
         testChk $ lam "x" (lvar "x")
+
+-- 'Raise' does not unnecessarily recreate case branches. It used to do so due
+-- to implementation reasons, losing work (by deleting what was on their RHSs).
+unit_raise_case_branch :: Assertion
+unit_raise_case_branch =
+  offeredActionTest
+    SmartHoles
+    Beginner
+    (lam "x" (case_ (lvar "x") [branch cTrue [] $ lam "y" emptyHole, branch cFalse [] emptyHole]) `ann` (tcon tBool `tfun` (tcon tBool `tfun` tcon tNat)))
+    ([] `InType` [Child2])
+    (Left Raise)
+    (lam "x" (case_ (lvar "x") [branch cTrue [] $ hole $ lam "y" emptyHole, branch cFalse [] emptyHole]) `ann` (tcon tBool `tfun` tcon tNat))
+
+unit_raise_type_term :: Assertion
+unit_raise_type_term =
+  offeredActionTest
+    SmartHoles
+    Beginner
+    (hole (emptyHole `ann` (tcon tBool `tfun` tcon tNat)) `ann` tcon tNat)
+    ([Child1, Child1] `InType` [Child1])
+    (Left Raise)
+    (hole (emptyHole `ann` tcon tBool) `ann` tcon tNat)
 
 unit_sat_con_1 :: Assertion
 unit_sat_con_1 =

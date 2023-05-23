@@ -9,6 +9,7 @@ module Primer.Action (
   applyActionsToBody,
   applyActionsToTypeSig,
   applyActionsToExpr,
+  applyAction',
   moveExpr,
   enterType,
   moveType,
@@ -325,6 +326,12 @@ synthZ z = do
   -- Refocus on where we were previously
   refocus Refocus{pre = z, post = exprTtoExpr typedAST}
 
+-- | The basic building block to apply an action. This does no typechecking, so
+-- some actions may result in ill-typed programs, and some others may be
+-- well-typed but a pass of smartholes later may still edit it.
+--
+-- You probably want to use the higher-level 'applyActionsToBody' or
+-- 'applyActionsToTypeSig' if possible.
 applyAction' :: ActionM m => Action -> Loc -> m Loc
 applyAction' a = case a of
   NoOp -> pure

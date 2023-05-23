@@ -99,6 +99,7 @@ import Primer.Action (
   Action,
   ActionError (..),
   ProgAction (..),
+  applyAction',
   applyActionsToBody,
   applyActionsToTypeSig,
  )
@@ -202,6 +203,7 @@ import Primer.Zipper (
   TypeZ,
   TypeZip,
   current,
+  focusLoc,
   focusOn,
   focusOnTy,
   focusOnlyType,
@@ -1449,14 +1451,33 @@ copyPasteBody p (fromDefName, fromId) toDefName setup = do
         Left (Left e) -> Left e
         Left (Right t) -> Right (Left t)
         Right t -> Right (Right t)
-  let smartHoles = progSmartHoles p
   finalProg <- editModuleOf (Just toDefName) p $ \mod toDefBaseName oldDef -> do
-    -- The Loc zipper captures all the changes, they are only reflected in the
-    -- returned Def, which we thus ignore
-    doneSetup <- applyActionsToBody smartHoles (progAllModules p) oldDef setup
-    tgt <- case doneSetup of
-      Left err -> throwError $ ActionError err
-      Right (_, tgt) -> pure tgt
+    -- We manually use the low-level applyAction', as we do not want to
+    -- typecheck intermediate states. There are two reasons for this, both
+    -- exemplified by "raising" the type @Bool -> ?@ in
+    -- @(λx. case x of {True -> t; False -> ?}) : Bool -> (Bool -> ?)@.
+    -- This is implemented via a copy-paste of that subterm (@Bool -> ?@) with a
+    -- @setup@ that deletes its parent @Bool -> (Bool -> ?)@.
+    -- Note that this expression after @setup@ is
+    -- @(λx. case x of {True -> t; False -> ?}) : ?@.
+    --
+    -- Firstly, if we check without smartholes, then this intermediate
+    -- expression is ill-typed: since @x : ?@, we require the case to have
+    -- exactly zero branches, which it does not.
+    --
+    -- Secondly, if we check with smartholes, then we will fix up the
+    -- intermediate expression by deleting the branches. Then when we paste we
+    -- shall get
+    -- @(λx. case x of {}) : Bool -> ?@, which is ill-typed for similar reasons.
+    -- Smartholes will again fix it, giving
+    -- @(λx. case x of {True -> ?; False -> ?}) : Bool -> ?@.
+    -- Note that we have destroyed @t@, the contents of the branch, where it
+    -- would be preferable to use smartholes to modify @t@ to ensure
+    -- well-typed-ness.
+    tgt <-
+      foldlM (\l a -> liftError ActionError $ applyAction' a l) (focusLoc (astDefExpr oldDef)) setup
+        -- SH not important here, cxt only used to lookup global vars and ctors
+        & flip runReaderT (buildTypingContextFromModules (progAllModules p) NoSmartHoles)
     case (src, tgt) of
       (_, InBind _) -> throwError $ CopyPasteError "tried to paste an expression into a binder"
       (Left _, InType _) -> throwError $ CopyPasteError "tried to paste an expression into a type"
