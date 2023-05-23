@@ -83,6 +83,7 @@ test-suite primer-selda-test
   hs-source-dirs:     test
   other-modules:
     Tests.DeleteSession
+    Tests.FindSessions
     Tests.InsertSession
     Tests.ListSessions
     Tests.QuerySessionId

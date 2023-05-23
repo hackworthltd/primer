@@ -4,6 +4,7 @@ module Primer.Database.Rel8.Test.Util (
   deployDb,
   insertSessionRow,
   mkSessionRow,
+  mkSessionRow',
   withDbSetup,
   lowPrecisionCurrentTime,
   runTmpDb,
@@ -191,5 +192,19 @@ mkSessionRow n = do
       , gitversion = "test-version"
       , app = newApp
       , name = "name-" <> show n
+      , lastmodified = utcTime now
+      }
+
+-- | Like 'mkSessionRow', but with a callback to generate names.
+mkSessionRow' :: (Int -> Text) -> Int -> IO (SessionRow Result)
+mkSessionRow' mkName n = do
+  u <- nextRandom
+  now <- lowPrecisionCurrentTime
+  pure $
+    SessionRow
+      { uuid = u
+      , gitversion = "test-version"
+      , app = newApp
+      , name = mkName n
       , lastmodified = utcTime now
       }

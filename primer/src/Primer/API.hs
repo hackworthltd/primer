@@ -30,6 +30,7 @@ module Primer.API (
   copySession,
   deleteSession,
   listSessions,
+  findSessions,
   getVersion,
   Tree,
   NodeBody (..),
@@ -181,6 +182,7 @@ import Primer.Database (
 import Primer.Database qualified as Database (
   Op (
     DeleteSession,
+    FindSessions,
     Insert,
     ListSessions,
     LoadSession,
@@ -366,6 +368,7 @@ data APILog
   | CopySession (ReqResp SessionId SessionId)
   | DeleteSession (ReqResp SessionId ())
   | ListSessions (ReqResp (Bool, OffsetLimit) (Page Session))
+  | FindSessions (ReqResp (Text, OffsetLimit) (Page Session))
   | GetVersion (ReqResp () Version)
   | GetSessionName (ReqResp SessionId Text)
   | RenameSession (ReqResp (SessionId, Text) Text)
@@ -525,6 +528,22 @@ listSessions = curry $ logAPI (noError ListSessions) $ \case
     kvs' <- ListT.toList $ StmMap.listT ss
     let kvs = (\(i, SessionData _ n t) -> Session i n t) <$> kvs'
     pure $ pageList ol kvs
+
+-- | Find sessions whose names contain the given substring.
+--
+-- Note that this implementation is case-sensitive, though some
+-- underlying implementations may disagree in certain ranges of the
+-- Unicode character set.
+findSessions :: (MonadIO m, MonadAPILog l m) => Text -> OffsetLimit -> PrimerM m (Page Session)
+findSessions = curry $ logAPI (noError FindSessions) $ \case
+  (substr, ol) -> do
+    q <- asks dbOpQueue
+    callback <- liftIO $
+      atomically $ do
+        cb <- newEmptyTMVar
+        writeTBQueue q $ Database.FindSessions substr ol cb
+        pure cb
+    liftIO $ atomically $ takeTMVar callback
 
 getVersion :: (MonadAPILog l m) => PrimerM m Version
 getVersion = logAPI' GetVersion $ asks version

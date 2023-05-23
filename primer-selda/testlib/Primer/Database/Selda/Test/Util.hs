@@ -7,6 +7,7 @@ module Primer.Database.Selda.Test.Util (
   runTmpDb,
   insertSessionRow,
   mkSessionRow,
+  mkSessionRow',
 ) where
 
 import Foreword
@@ -95,5 +96,19 @@ mkSessionRow n = do
       , gitversion = "test-version"
       , app = Aeson.encode newApp
       , name = "name-" <> show n
+      , lastmodified = utcTime now
+      }
+
+-- | Like 'mkSessionRow', but with a callback to generate names.
+mkSessionRow' :: (Int -> Text) -> Int -> IO SessionRow
+mkSessionRow' mkName n = do
+  u <- nextRandom
+  now <- lowPrecisionCurrentTime
+  pure $
+    SessionRow
+      { uuid = u
+      , gitversion = "test-version"
+      , app = Aeson.encode newApp
+      , name = mkName n
       , lastmodified = utcTime now
       }

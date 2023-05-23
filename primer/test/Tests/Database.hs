@@ -168,6 +168,11 @@ listSessionsTest = do
   void $ addSession "even3App" even3App
   void $ API.listSessions True $ OL 0 $ Just 100
 
+findSessionsTest :: (MonadIO m, MonadAPILog l m) => PrimerM m ()
+findSessionsTest = do
+  void $ addSession "even3App" even3App
+  void $ API.findSessions "3" $ OL 0 $ Just 100
+
 deleteSessionTest :: (MonadIO m, MonadThrow m, MonadAPILog l m) => PrimerM m ()
 deleteSessionTest = do
   sid <- addSession "even3App" even3App
@@ -193,6 +198,10 @@ test_listsessions_empty_q :: TestTree
 test_listsessions_empty_q = emptyQHarness "database ListSessions leaves an empty op queue" $ do
   listSessionsTest
 
+test_findsessions_empty_q :: TestTree
+test_findsessions_empty_q = emptyQHarness "database FindSessions leaves an empty op queue" $ do
+  findSessionsTest
+
 test_deletesession_empty_q :: TestTree
 test_deletesession_empty_q = emptyQHarness "database DeleteSession leaves an empty op queue" $ do
   deleteSessionTest
@@ -216,6 +225,10 @@ test_loadsession_faildb = faildbHarness "database LoadSession leaves behind an o
 test_listsessions_faildb :: TestTree
 test_listsessions_faildb = faildbHarness "database ListSessions leaves behind an op" $ do
   listSessionsTest
+
+test_findsessions_faildb :: TestTree
+test_findsessions_faildb = faildbHarness "database FindSessions leaves behind an op" $ do
+  findSessionsTest
 
 test_deletesession_faildb :: TestTree
 test_deletesession_faildb = faildbHarness "database DeleteSession leaves behind an op" $ do
@@ -283,6 +296,7 @@ instance (MonadThrow m) => MonadDb (FailDbT m) where
   updateSessionApp _ _ _ _ = throwM $ FailDbException "updateSessionApp"
   updateSessionName _ _ _ _ = throwM $ FailDbException "updateSessionName"
   listSessions _ = throwM $ FailDbException "listSessions"
+  findSessions _ _ = throwM $ FailDbException "findSessions"
   querySessionId _ = throwM $ FailDbException "querySessionId"
   deleteSession _ = throwM $ FailDbException "deleteSession"
 
