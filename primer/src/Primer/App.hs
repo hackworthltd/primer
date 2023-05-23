@@ -65,6 +65,7 @@ import Foreword hiding (mod)
 import Control.Monad.Fresh (MonadFresh (..))
 import Control.Monad.Log (MonadLog, WithSeverity)
 import Control.Monad.NestedError (MonadNestedError, throwError')
+import Data.Data (Data)
 import Data.Generics.Uniplate.Operations (transform, transformM)
 import Data.Generics.Uniplate.Zipper (
   fromZipper,
@@ -670,21 +671,16 @@ applyProgAction prog = \case
       updateRefsInTypes =
         over
           (traversed % #_TypeDefAST % #astTypeDefConstructors % traversed % #valConArgs % traversed)
-          $ transform
-          $ over (#_TCon % _2) updateName
-      updateDefType =
-        over
-          #astDefType
-          $ transform
-          $ over (#_TCon % _2) updateName
+          updateType
+      updateDefType = over #astDefType updateType
       updateDefBody =
         over
           #astDefExpr
           $ transform
-          $ over typesInExpr
-          $ transform
-          $ over (#_TCon % _2) updateName
+          $ over typesInExpr updateType
       updateName n = if n == old then new else n
+      updateType :: Data a => Type' a -> Type' a
+      updateType = transform $ over (#_TCon % _2) updateName
   RenameCon type_ old (unsafeMkGlobalName . (fmap unName (unModuleName (qualifiedModule type_)),) -> new) ->
     editModuleCross (qualifiedModule type_) prog $ \(m, ms) -> do
       when (new `elem` allValConNames prog) $ throwError $ ConAlreadyExists new
