@@ -156,9 +156,9 @@ import Primer.Core (
   _type,
   _typeMetaLens,
  )
-import Primer.Core.DSL (S, create, emptyHole, tEmptyHole, tvar)
+import Primer.Core.DSL (S, create, emptyHole, tEmptyHole)
 import Primer.Core.DSL qualified as DSL
-import Primer.Core.Transform (renameVar, unfoldTApp)
+import Primer.Core.Transform (renameTyVar, renameVar, unfoldTApp)
 import Primer.Core.Utils (freeVars, freeVarsTy, generateTypeIDs, regenerateExprIDs, regenerateTypeIDs, _freeTmVars, _freeTyVars, _freeVarsTy)
 import Primer.Def (
   ASTDef (..),
@@ -738,9 +738,7 @@ applyProgAction prog = \case
               % #valConArgs
               % traversed
           )
-          $ traverseOf _freeVarsTy
-          $ \(_, v) -> tvar $ updateName v
-      updateName n = if n == old then new else n
+          $ maybe (throwError $ ActionError NameCapture) pure . renameTyVar old new
   AddCon type_ index (unsafeMkGlobalName . (fmap unName (unModuleName (qualifiedModule type_)),) -> con) ->
     editModuleCross (qualifiedModule type_) prog $ \(m, ms) -> do
       when (con `elem` allValConNames prog) $ throwError $ ConAlreadyExists con
