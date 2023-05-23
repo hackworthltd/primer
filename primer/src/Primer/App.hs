@@ -151,7 +151,9 @@ import Primer.Core (
   unModuleName,
   unsafeMkGlobalName,
   unsafeMkLocalName,
+  _exprMeta,
   _exprMetaLens,
+  _type,
   _typeMetaLens,
  )
 import Primer.Core.DSL (S, create, emptyHole, tEmptyHole, tvar)
@@ -676,7 +678,12 @@ applyProgAction prog = \case
         over
           #astDefExpr
           $ transform
-          $ over typesInExpr updateType
+            ( over typesInExpr updateType
+                . over (_exprMeta % _type % _Just) \case
+                  TCSynthed t -> TCSynthed $ updateType t
+                  TCChkedAt t -> TCChkedAt $ updateType t
+                  TCEmb (TCBoth t1 t2) -> TCEmb (TCBoth (updateType t1) (updateType t2))
+            )
       updateName n = if n == old then new else n
       updateType :: Data a => Type' a -> Type' a
       updateType = transform $ over (#_TCon % _2) updateName
