@@ -7,7 +7,6 @@ import Primer.Action.Errors (ActionError)
 import Primer.Core.Meta (GVarName, ID, ModuleName, TyConName, TyVarName, ValConName)
 import Primer.Eval.EvalError (EvalError)
 import Primer.JSON (CustomJSON (..), PrimerJSON)
-import Primer.Name (Name)
 
 data ProgError
   = NoDefSelected
@@ -28,8 +27,6 @@ data ProgError
   | ParamNotFound TyVarName
   | ParamAlreadyExists TyVarName
   | NodeIDNotFound ID
-  | TyConParamClash Name
-  | ValConParamClash Name
   | ActionError ActionError
   | EvalError EvalError
   | -- | Currently copy/paste is only exposed in the frontend via select

@@ -425,31 +425,7 @@ unit_create_typedef_bad_5 =
           , astTypeDefNameHints = []
           }
    in progActionTest defaultEmptyProg [AddTypeDef (tcn "T") td] $
-        expectError (@?= TypeDefError "InternalError \"Duplicate names in one tydef: between parameter-names and constructor-names\"")
-
--- Forbid clash between type name and parameter name
-unit_create_typedef_bad_6 :: Assertion
-unit_create_typedef_bad_6 =
-  let td =
-        ASTTypeDef
-          { astTypeDefParameters = [("T", KType)]
-          , astTypeDefConstructors = []
-          , astTypeDefNameHints = []
-          }
-   in progActionTest defaultEmptyProg [AddTypeDef (tcn "T") td] $
-        expectError (@?= TypeDefError "InternalError \"Duplicate names in one tydef: between type-def-name and parameter-names\"")
-
--- Forbid clash between parameter name and constructor name
-unit_create_typedef_bad_7 :: Assertion
-unit_create_typedef_bad_7 =
-  let td =
-        ASTTypeDef
-          { astTypeDefParameters = [("a", KType)]
-          , astTypeDefConstructors = [ValCon (vcn "a") []]
-          , astTypeDefNameHints = []
-          }
-   in progActionTest defaultEmptyProg [AddTypeDef (tcn "T") td] $
-        expectError (@?= TypeDefError "InternalError \"Duplicate names in one tydef: between parameter-names and constructor-names\"")
+        expectError (@?= TypeDefError "InternalError \"Duplicate parameter names in one tydef\"")
 
 -- Forbid clash between type name and name of a primitive type
 unit_create_typedef_bad_prim :: Assertion
