@@ -662,7 +662,6 @@ applyProgAction prog mdefName = \case
           -- To relax this, we'd have to be careful about how it interacts with type-checking of primitive literals.
           maybe (throwError $ TypeDefIsPrim old) pure . typeDefAST
             =<< maybe (throwError $ TypeDefNotFound old) pure (Map.lookup (baseName old) m)
-        when (nameRaw `elem` map (unLocalName . fst) (astTypeDefParameters d0)) $ throwError $ TyConParamClash nameRaw
         pure $ Map.insert nameRaw (TypeDefAST d0) $ Map.delete (baseName old) m
       updateRefsInTypes =
         over
@@ -720,9 +719,6 @@ applyProgAction prog mdefName = \case
           type_
       updateParam def = do
         when (new `elem` map fst (astTypeDefParameters def)) $ throwError $ ParamAlreadyExists new
-        let nameRaw = unLocalName new
-        when (nameRaw == baseName type_) $ throwError $ TyConParamClash nameRaw
-        when (nameRaw `elem` map (baseName . valConName) (astTypeDefConstructors def)) $ throwError $ ValConParamClash nameRaw
         def
           & traverseOf
             #astTypeDefParameters
