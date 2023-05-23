@@ -13,6 +13,7 @@ module Primer.Action (
   moveExpr,
   enterType,
   moveType,
+  move,
   uniquifyDefName,
   toProgActionInput,
   toProgActionNoInput,

@@ -32,6 +32,7 @@ import Primer.Action (
   ActionError (CaseBindsClash, NameCapture),
   Movement (Child1, Child2),
   enterType,
+  move,
   moveExpr,
   moveType,
   toProgActionInput,
@@ -39,7 +40,7 @@ import Primer.Action (
  )
 import Primer.Action.Available (
   InputAction (MakeCon, MakeLAM, MakeLam, RenameForall, RenameLAM, RenameLam, RenameLet),
-  NoInputAction (MakeCase, Raise),
+  NoInputAction (MakeCase, Raise, RaiseType),
   Option (Option),
  )
 import Primer.Action.Available qualified as Available
@@ -72,6 +73,7 @@ import Primer.Core (
   ID,
   Kind (KFun, KType),
   ModuleName (ModuleName, unModuleName),
+  Type,
   getID,
   mkSimpleModuleName,
   moduleNamePretty,
@@ -124,7 +126,7 @@ import Primer.Module (
  )
 import Primer.Name (Name (unName))
 import Primer.Test.TestM (evalTestM)
-import Primer.Test.Util (clearMeta, testNoSevereLogs)
+import Primer.Test.Util (clearMeta, clearTypeMeta, testNoSevereLogs)
 import Primer.Typecheck (
   CheckEverythingRequest (CheckEverything, toCheck, trusted),
   SmartHoles (NoSmartHoles, SmartHoles),
@@ -383,8 +385,8 @@ unit_raise_sh =
 
 -- 'Raise' does not unnecessarily recreate case branches. It used to do so due
 -- to implementation reasons, losing work (by deleting what was on their RHSs).
-unit_raise_case_branch :: Assertion
-unit_raise_case_branch =
+unit_raise_case_branch_ann :: Assertion
+unit_raise_case_branch_ann =
   offeredActionTest
     SmartHoles
     Beginner
@@ -392,6 +394,19 @@ unit_raise_case_branch =
     ([] `InType` [Child2])
     (Left Raise)
     (lam "x" (case_ (lvar "x") [branch cTrue [] $ hole $ lam "y" emptyHole, branch cFalse [] emptyHole]) `ann` (tcon tBool `tfun` tcon tNat))
+
+unit_raise_case_branch_def :: Assertion
+unit_raise_case_branch_def =
+  offeredActionTestSig
+    SmartHoles
+    Beginner
+    (lam "x" $ case_ (lvar "x") [branch cTrue [] $ lam "y" emptyHole, branch cFalse [] emptyHole])
+    (tcon tBool `tfun` (tcon tBool `tfun` tcon tNat))
+    [Child2]
+    (Left RaiseType)
+    ( lam "x" $ case_ (lvar "x") [branch cTrue [] $ hole $ lam "y" emptyHole, branch cFalse [] emptyHole]
+    , tcon tBool `tfun` tcon tNat
+    )
 
 unit_raise_type_term :: Assertion
 unit_raise_type_term =
@@ -452,16 +467,20 @@ unit_case_let = do
   -- testNotOffered (letType "a" tEmptyHole $ lam "y" $ lvar "y") -- TODO: add this test when the typechecker supports letType
   testNotOffered (letrec "x" emptyHole tEmptyHole $ lam "y" $ lvar "y")
 
-data MovementList
+data MovementListBody
   = InExpr [Movement]
   | InType [Movement] [Movement]
 
-exprMoves :: MovementList -> [Movement]
+data MovementList
+  = InBody MovementListBody
+  | InSig [Movement]
+
+exprMoves :: MovementListBody -> [Movement]
 exprMoves = \case
   InExpr ms -> ms
   InType ms _ -> ms
 
-typeMoves :: MovementList -> Maybe [Movement]
+typeMoves :: MovementListBody -> Maybe [Movement]
 typeMoves = \case
   InExpr _ -> Nothing
   InType _ ms -> Just ms
@@ -475,25 +494,42 @@ offeredActionTest ::
   SmartHoles ->
   Level ->
   S Expr ->
-  MovementList ->
+  MovementListBody ->
   Either NoInputAction (InputAction, Option) ->
   S Expr ->
   Assertion
 offeredActionTest sh l inputExpr position action expectedOutput = do
-  offeredActionTest' sh l inputExpr position action >>= \case
+  offeredActionTest' sh l (ASTDef <$> inputExpr <*> tEmptyHole) (InBody position) action >>= \case
     Left err -> assertFailure $ show err
-    Right result -> clearMeta result @?= clearMeta (create' expectedOutput)
+    Right result -> clearMeta (astDefExpr result) @?= clearMeta (create' expectedOutput)
+
+offeredActionTestSig ::
+  HasCallStack =>
+  SmartHoles ->
+  Level ->
+  S Expr ->
+  S Type ->
+  [Movement] ->
+  Either NoInputAction (InputAction, Option) ->
+  (S Expr, S Type) ->
+  Assertion
+offeredActionTestSig sh l inputExpr inputType position action expectedOutput = do
+  offeredActionTest' sh l (ASTDef <$> inputExpr <*> inputType) (InSig position) action >>= \case
+    Left err -> assertFailure $ show err
+    Right (ASTDef resExpr resTy) -> do
+      clearTypeMeta resTy @?= clearTypeMeta (create' $ snd expectedOutput)
+      clearMeta resExpr @?= clearMeta (create' $ fst expectedOutput)
 
 offeredActionTestNotOffered ::
   HasCallStack =>
   SmartHoles ->
   Level ->
   S Expr ->
-  MovementList ->
+  MovementListBody ->
   NoInputAction ->
   Assertion
 offeredActionTestNotOffered sh l inputExpr position action = do
-  offeredActionTest' sh l inputExpr position (Left action) >>= \case
+  offeredActionTest' sh l (ASTDef <$> inputExpr <*> tEmptyHole) (InBody position) (Left action) >>= \case
     Left ActionNotOffered{} -> pure ()
     Left err -> assertFailure $ show err
     Right _ -> assertFailure "action was unexpectedly offered"
@@ -513,16 +549,15 @@ data OAT
 offeredActionTest' ::
   SmartHoles ->
   Level ->
-  S Expr ->
+  S ASTDef ->
   MovementList ->
   Either NoInputAction (InputAction, Option) ->
-  IO (Either OAT Expr)
-offeredActionTest' sh l inputExpr position action = do
+  IO (Either OAT ASTDef)
+offeredActionTest' sh l inputDef position action = do
   let progRaw = create' $ do
         ms <- sequence [builtinModule]
         prog0 <- defaultEmptyProg
-        e <- inputExpr
-        d <- ASTDef e <$> tEmptyHole
+        d <- inputDef
         pure $
           prog0
             & (#progModules % _head % #moduleDefs % ix "main" .~ DefAST d)
@@ -532,30 +567,34 @@ offeredActionTest' sh l inputExpr position action = do
   -- Typecheck everything to fill in typecaches.
   -- This lets us test offered names for renaming variable binders.
   let progChecked = runTypecheckTestM NoSmartHoles $ checkProgWellFormed progRaw
-  let (modules, expr, exprDef, exprDefName, prog) = case progChecked of
+  let (modules, expr, sig, exprDef, exprDefName, prog) = case progChecked of
         Left err -> error $ "offeredActionTest: no typecheck: " <> show err
         Right p -> case progModules p of
           [m] -> case moduleDefs m M.!? "main" of
-            Just (DefAST def@(ASTDef e _)) -> (progImports p, e, def, qualifyName (moduleName m) "main", p & #progSmartHoles .~ sh)
+            Just (DefAST def@(ASTDef e t)) -> (progImports p, e, t, def, qualifyName (moduleName m) "main", p & #progSmartHoles .~ sh)
             _ -> error "offeredActionTest: didn't find 'main'"
           _ -> error "offeredActionTest: expected exactly one progModule"
   let id' = evalTestM (nextProgID prog) $
         runExceptT $
           flip runReaderT (buildTypingContextFromModules modules sh) $
-            do
-              ez <- foldlM (flip moveExpr) (focus expr) $ exprMoves position
-              case typeMoves position of
-                Nothing -> pure $ getID ez
-                Just ms -> do
-                  tz' <- enterType ez
-                  tz <- foldlM (flip moveType) tz' ms
-                  pure $ getID tz
+            case position of
+              InBody pos' -> do
+                ez <- foldlM (flip moveExpr) (focus expr) $ exprMoves pos'
+                case typeMoves pos' of
+                  Nothing -> pure $ getID ez
+                  Just ms -> do
+                    tz' <- enterType ez
+                    tz <- foldlM (flip moveType) tz' ms
+                    pure $ getID tz
+              InSig moves -> getID <$> foldlM (flip move) (focus sig) moves
   id <- case id' of
     Left err -> assertFailure $ show err
     Right i' -> pure i'
   let cxt = buildTypingContextFromModules modules sh
   let defs = foldMap' moduleDefsQualified modules
-  let offered = Available.forBody cxt.typeDefs l Editable expr id
+  let offered = case position of
+        InBody _ -> Available.forBody cxt.typeDefs l Editable expr id
+        InSig _ -> Available.forSig l Editable sig id
   let options = Available.options cxt.typeDefs defs cxt l exprDef (Just (BodyNode, id))
   action' <- case action of
     Left a ->
@@ -577,7 +616,7 @@ offeredActionTest' sh l inputExpr position action = do
     Left err -> assertFailure $ show err
     Right a -> pure a
   x <- for action'' $ \action''' -> do
-    let result = fmap astDefExpr . defAST <=< flip findGlobalByName exprDefName
+    let result = defAST <=< flip findGlobalByName exprDefName
     let assertJust = maybe (assertFailure "Lost 'main' after action") pure
     (res, _) <- runAppTestM (nextProgID prog) (mkEmptyTestApp prog) (handleEditRequest action''')
     rr <- traverse (assertJust . result) res
@@ -586,7 +625,7 @@ offeredActionTest' sh l inputExpr position action = do
 
 -- Correct names offered when running actions
 -- NB: Bools are offered names "p", "q"; functions get "f","g"; nats get "i","j","n","m"
-offeredNamesTest :: HasCallStack => S Expr -> MovementList -> InputAction -> Text -> S Expr -> Assertion
+offeredNamesTest :: HasCallStack => S Expr -> MovementListBody -> InputAction -> Text -> S Expr -> Assertion
 offeredNamesTest initial moves act name =
   offeredActionTest
     NoSmartHoles
