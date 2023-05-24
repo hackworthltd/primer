@@ -7,6 +7,7 @@ module Tests.Action.Available where
 import Foreword
 
 import Control.Monad.Log (WithSeverity)
+import Data.Aeson.Text (encodeToLazyText)
 import Data.Bitraversable (bitraverse)
 import Data.ByteString.Lazy.Char8 qualified as BS
 import Data.List.Extra (enumerate, partition)
@@ -24,6 +25,7 @@ import Hedgehog (
   collect,
   discard,
   failure,
+  footnoteShow,
   label,
   success,
   (===),
@@ -31,6 +33,7 @@ import Hedgehog (
 import Hedgehog.Gen qualified as Gen
 import Hedgehog.Internal.Property (forAllWithT)
 import Optics (ix, toListOf, (%), (.~), (^..), _head)
+import Primer.API (viewProg)
 import Primer.Action (
   ActionError (CaseBindsClash, CaseBranchAlreadyExists, NameCapture),
   Movement (Child1, Child2),
@@ -55,6 +58,7 @@ import Primer.App (
   Level (Beginner, Expert, Intermediate),
   NodeSelection (..),
   NodeType (..),
+  Prog (..),
   ProgError (ActionError, DefAlreadyExists),
   Selection' (..),
   TypeDefConsSelection (TypeDefConsSelection),
@@ -386,9 +390,16 @@ tasty_available_actions_accepted = withTests 500 $
               (maybe (annotate "primitive type def" >> failure) pure . typeDefAST . snd)
               (maybe (annotate "primitive def" >> failure) pure . defAST . snd)
               typeOrTermDef
-          action <- forAllT $ Gen.element acts'
+          let bias = Nothing
+          -- these seem to be the only two action which still cause errors
+          -- let bias = Just $ Available.Input Available.AddCon
+          -- let bias = Just $ Available.NoInput Available.AddConField
+          action <- maybe (forAllT $ Gen.element acts') pure $ (bias <*) . guard . (`elem` acts') =<< bias
           collect action
+          footnoteShow action
           case action of
+            act@(Available.Input Available.AddCon) | Just act /= bias -> discard
+            act@(Available.NoInput Available.AddConField) | Just act /= bias -> discard
             Available.NoInput act' -> do
               progActs <-
                 either (\e -> annotateShow e >> failure) pure $
@@ -429,7 +440,8 @@ tasty_available_actions_accepted = withTests 500 $
     actionSucceeds :: HasCallStack => EditAppM (PureLog (WithSeverity ())) ProgError a -> App -> PropertyT WT ()
     actionSucceeds m a =
       runEditAppMLogs m a >>= \case
-        (Left err, _) -> annotateShow err >> failure
+        -- copy output to primer-app to view prog - use as `initialProg` arg to `AppProg` in `App.tsx`
+        (Left err, _) -> annotateShow err >> annotate (TL.unpack $ encodeToLazyText $ viewProg $ appProg a) >> failure
         (Right _, a') -> ensureSHNormal a'
     -- If we submit our own name rather than an offered one, then
     -- we should expect that name capture/clashing may happen

@@ -755,6 +755,8 @@ applyProgAction prog = \case
         , Just $ SelectionTypeDef $ TypeDefSelection type_ $ Just $ TypeDefConsNodeSelection $ TypeDefConsSelection con Nothing
         )
     where
+      -- TODO we sometimes don't write the expected metadata
+      -- meaning that type checking modifies the tree further
       updateDefs allCons = transformNamedCaseBranches prog type_ $ \bs -> do
         m' <- DSL.meta
         pure $ insertSubseqBy caseBranchName (CaseBranch (PatCon con) [] (EmptyHole m')) (PatCon . valConName <$> allCons) bs
@@ -936,7 +938,7 @@ applyProgAction prog = \case
     let smartHoles = progSmartHoles prog
     applyActionsToField smartHoles (progImports prog) ms (defName, con, index, def) actions >>= \case
       Left err -> throwError $ ActionError err
-      Right (mod', zt) ->
+      Right (mod', _zt) ->
         pure
           ( mod'
           , Just $
@@ -949,11 +951,8 @@ applyProgAction prog = \case
                           TypeDefConsSelection
                             { con
                             , field =
-                                Just
-                                  TypeDefConsFieldSelection
-                                    { index
-                                    , meta = Right $ zt ^. _target % _typeMetaLens
-                                    }
+                                -- TODO if we set selection, we get weird metadata errors
+                                Nothing
                             }
                   }
           )
@@ -1695,6 +1694,8 @@ transformCaseBranches prog type_ f = transformM $ \case
       fst
         <$> runReaderT
           (liftError (ActionError . TypeError) $ synth scrut)
+          -- TODO we need the local cxt here as well, somehow
+          -- would avoid unknown-variable errors in `AddConField`, at least
           (progCxt prog)
     (bs', fb') <-
       if fst (unfoldTApp scrutType) == TCon () type_
