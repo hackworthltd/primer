@@ -2,6 +2,7 @@
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE OverloadedLabels #-}
 {-# LANGUAGE OverloadedRecordDot #-}
+{-# LANGUAGE RecordWildCards #-}
 
 module Primer.Action (
   Action (..),
@@ -46,13 +47,11 @@ import Primer.App.Base (
   Selection' (..),
   TypeDefConsFieldSelection (..),
   TypeDefConsSelection (..),
-  TypeDefNodeSelection (..),
   TypeDefSelection (..),
  )
 import Primer.Core (
   Expr,
   Expr' (..),
-  GVarName,
   HasID,
   HasMetadata (_metadata),
   ID,
@@ -921,31 +920,31 @@ toProgActionNoInput ::
   Either ActionError [ProgAction]
 toProgActionNoInput defs def0 sel0 = \case
   Available.MakeCase ->
-    toProgAction [ConstructCase]
+    toProg [ConstructCase]
   Available.MakeApp ->
-    toProgAction [ConstructApp, Move Child2]
+    toProg [ConstructApp, Move Child2]
   Available.MakeAPP ->
-    toProgAction [ConstructAPP, EnterType]
+    toProg [ConstructAPP, EnterType]
   Available.MakeAnn ->
-    toProgAction [ConstructAnn]
+    toProg [ConstructAnn]
   Available.RemoveAnn ->
-    toProgAction [RemoveAnn]
+    toProg [RemoveAnn]
   Available.LetToRec ->
-    toProgAction [ConvertLetToLetrec]
+    toProg [ConvertLetToLetrec]
   Available.Raise -> do
     id <- nodeID
     sel <- termSel
     pure [MoveToDef sel.def, CopyPasteBody (sel.def, id) [SetCursor id, Move Parent, Delete]]
   Available.EnterHole ->
-    toProgAction [EnterHole]
+    toProg [EnterHole]
   Available.RemoveHole ->
-    toProgAction [FinishHole]
+    toProg [FinishHole]
   Available.DeleteExpr ->
-    toProgAction [Delete]
+    toProg [Delete]
   Available.MakeFun ->
     -- We arbitrarily choose that the "construct a function type" action places the focused expression
     -- on the domain (left) side of the arrow.
-    toProgAction [ConstructArrowL, Move Child1]
+    toProg [ConstructArrowL, Move Child1]
   Available.AddInput -> do
     -- This action traverses the function type and adds a function arrow to the end of it,
     -- resulting in a new argument type. The result type is unchanged.
@@ -964,15 +963,15 @@ toProgActionNoInput defs def0 sel0 = \case
       t -> Left $ NeedTFun t
     let moveToLastArg = replicate l (Move Child2)
         moveBack = replicate l (Move Parent)
-     in toProgAction $ moveToLastArg <> [ConstructArrowR] <> moveBack
+     in toProg $ moveToLastArg <> [ConstructArrowR] <> moveBack
   Available.MakeTApp ->
-    toProgAction [ConstructTApp, Move Child1]
+    toProg [ConstructTApp, Move Child1]
   Available.RaiseType -> do
     id <- nodeID
     sel <- termSel
     pure [MoveToDef sel.def, CopyPasteSig (sel.def, id) [SetCursor id, Move Parent, Delete]]
   Available.DeleteType ->
-    toProgAction [Delete]
+    toProg [Delete]
   Available.DuplicateDef -> do
     sel <- termSel
     def <- termDef
@@ -997,33 +996,7 @@ toProgActionNoInput defs def0 sel0 = \case
     let index = length $ valConArgs vc -- for now, we always add on to the end
     pure [AddConField defName sel.con index $ TEmptyHole ()]
   where
-    termSel = case sel0 of
-      SelectionDef s -> pure s
-      SelectionTypeDef _ -> Left NeedTermDefSelection
-    nodeID = do
-      sel <- termSel
-      maybeToEither NoNodeSelection $ (.meta) <$> sel.node
-    typeSel = case sel0 of
-      SelectionDef _ -> Left NeedTypeDefSelection
-      SelectionTypeDef s -> pure s
-    typeNodeSel = do
-      sel <- typeSel
-      maybe (Left NeedTypeDefNodeSelection) (pure . (sel.def,)) sel.node
-    conSel =
-      typeNodeSel >>= \case
-        (s0, TypeDefConsNodeSelection s) -> pure (s0, s)
-        _ -> Left NeedTypeDefConsSelection
-    conFieldSel = do
-      (ty, s) <- conSel
-      maybe (Left NeedTypeDefConsFieldSelection) (pure . (ty,s.con,)) s.field
-    toProgAction actions = do
-      case sel0 of
-        SelectionDef sel -> toProg' actions sel.def <$> maybeToEither NoNodeSelection sel.node
-        SelectionTypeDef _ -> do
-          (t, c, f) <- conFieldSel
-          pure [ConFieldAction t c f.index $ SetCursor f.meta : actions]
-    termDef = first (const NeedTermDef) def0
-    typeDef = either Right (Left . const NeedTypeDef) def0
+    (Available.GetInfo{..}, toProg) = getInfo' sel0 def0
 
 -- | Convert a high-level 'Available.InputAction', and associated 'Available.Option',
 -- to a concrete sequence of 'ProgAction's.
@@ -1110,28 +1083,6 @@ toProgActionInput def0 sel0 opt0 = \case
     let index = length $ astTypeDefConstructors d -- for now, we always add on the end
     pure [AddCon sel.def index opt]
   where
-    termSel = case sel0 of
-      SelectionDef s -> pure s
-      SelectionTypeDef _ -> Left NeedTermDefSelection
-    nodeID = do
-      sel <- termSel
-      maybeToEither NoNodeSelection $ (.meta) <$> sel.node
-    typeSel = case sel0 of
-      SelectionDef _ -> Left NeedTypeDefSelection
-      SelectionTypeDef s -> pure s
-    typeNodeSel = do
-      sel <- typeSel
-      maybe (Left NeedTypeDefNodeSelection) (pure . (sel.def,)) sel.node
-    typeParamSel =
-      typeNodeSel >>= \case
-        (s0, TypeDefParamNodeSelection s) -> pure (s0, s)
-        _ -> Left NeedTypeDefParamSelection
-    conSel =
-      typeNodeSel >>= \case
-        (s0, TypeDefConsNodeSelection s) -> pure (s0, s)
-        _ -> Left NeedTypeDefConsSelection
-    termDef = first (const NeedTermDef) def0
-    typeDef = either Right (Left . const NeedTypeDef) def0
     optVar = case opt0.context of
       Just q -> GlobalVarRef $ unsafeMkGlobalName (q, opt0.option)
       Nothing -> LocalVarRef $ unsafeMkLocalName opt0.option
@@ -1144,15 +1095,6 @@ toProgActionInput def0 sel0 opt0 = \case
     optGlobal = case opt0.context of
       Nothing -> Left $ NeedLocal opt0
       Just q -> pure (q, opt0.option)
-    conFieldSel = do
-      (ty, s) <- conSel
-      maybe (Left NeedTypeDefConsFieldSelection) (pure . (ty,s.con,)) s.field
-    toProg actions = do
-      case sel0 of
-        SelectionDef sel -> toProg' actions sel.def <$> maybeToEither NoNodeSelection sel.node
-        SelectionTypeDef _ -> do
-          (t, c, f) <- conFieldSel
-          pure [ConFieldAction t c f.index $ SetCursor f.meta : actions]
     offerRefined = do
       id <- nodeID
       def <- termDef
@@ -1165,11 +1107,24 @@ toProgActionInput def0 sel0 opt0 = \case
           _ -> False
         Just (sm, _) -> Left $ NeedType sm
         Nothing -> Left $ IDNotFound id
+    (Available.GetInfo{..}, toProg) = getInfo' sel0 def0
 
-toProg' :: [Action] -> GVarName -> NodeSelection ID -> [ProgAction]
-toProg' actions defName sel =
-  [ MoveToDef defName
-  , (SetCursor sel.meta : actions) & case sel.nodeType of
-      SigNode -> SigAction
-      BodyNode -> BodyAction
-  ]
+getInfo' ::
+  Selection' ID ->
+  Either (ASTTypeDef a) ASTDef ->
+  (Available.GetInfo a (Either ActionError), [Action] -> Either ActionError [ProgAction])
+getInfo' sel0 def0 = (gi, toProg)
+  where
+    gi@Available.GetInfo{..} = Available.getInfo sel0 def0 $ Left . GetInfoError
+    toProg actions = case sel0 of
+      SelectionDef _ -> do
+        (def, nodeSel) <- termNodeSel
+        pure
+          [ MoveToDef def
+          , (SetCursor nodeSel.meta : actions) & case nodeSel.nodeType of
+              SigNode -> SigAction
+              BodyNode -> BodyAction
+          ]
+      SelectionTypeDef _ -> do
+        (t, c, f) <- conFieldSel
+        pure [ConFieldAction t c f.index $ SetCursor f.meta : actions]
