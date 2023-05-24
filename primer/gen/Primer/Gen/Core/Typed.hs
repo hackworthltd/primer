@@ -385,19 +385,7 @@ genChk ty = do
             cons -> Just $ do
               let cons' =
                     M.toList cons <&> \(c, (params, fldsTys0)) -> do
-                      indicesMap <- for params $ \(p, k) -> (p,) <$> genWTType k
-                      -- NB: it is vital to use simultaneous substitution here.
-                      -- Consider the case where we have a local type variable @a@
-                      -- in scope, say because we have already generated a
-                      -- @Λa. ...@, and we are considering the case of the @MkPair@
-                      -- constructor for the type @data Pair a b = MkPair a b@.
-                      -- The two "a"s (locally Λ-bound and from the typedef) refer
-                      -- to completely different things. We may well generate the
-                      -- substitution [a :-> Bool, b :-> a]. We must then say that
-                      -- the fields of the @MkPair@ constructor are @Bool@ and (the
-                      -- locally-bound) @a@. We must do a simultaneous substitution
-                      -- to avoid substituting @b@ into @a@ and then further into
-                      -- @Bool@.
+                      let indicesMap = (,TEmptyHole ()) . fst <$> params
                       fldsTys <- traverse (substTySimul $ M.fromList indicesMap) fldsTys0
                       flds <- traverse (Gen.small . genChk) fldsTys
                       pure $ Con () c flds
