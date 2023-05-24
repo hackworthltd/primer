@@ -166,7 +166,7 @@ loadSessionTest = do
 listSessionsTest :: (MonadIO m, MonadAPILog l m) => PrimerM m ()
 listSessionsTest = do
   void $ addSession "even3App" even3App
-  void $ API.listSessions True $ OL 0 $ Just 100
+  void $ API.listSessions $ OL 0 $ Just 100
 
 findSessionsTest :: (MonadIO m, MonadAPILog l m) => PrimerM m ()
 findSessionsTest = do

@@ -263,13 +263,13 @@ test_listSessions =
     runAPI $ do
       let step = liftIO . step'
       step "List session on an empty database"
-      s0 <- listSessions False $ OL{offset = 0, limit = Nothing}
+      s0 <- listSessions $ OL{offset = 0, limit = Nothing}
       total s0 @?= 0
       let m :: Int = 107
       step $ "Create " <> show m <> " sessions"
       ss <- forM ([1 .. m] :: [Int]) $ const $ newSession $ NewSessionReq "new session"
       step "List all the sessions"
-      ss' <- listSessions False $ OL{offset = 0, limit = Nothing}
+      ss' <- listSessions $ OL{offset = 0, limit = Nothing}
       total ss' @?= m
       -- Sort by session ID, because 'listSessions' sorts by name but
       -- all the new session names are the same by default.

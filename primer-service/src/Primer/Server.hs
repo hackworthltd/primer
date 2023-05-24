@@ -161,7 +161,7 @@ openAPISessionsServer :: ConvertServerLogs l => OpenAPI.SessionsAPI (AsServerT (
 openAPISessionsServer =
   OpenAPI.SessionsAPI
     { OpenAPI.createSession = newSession
-    , OpenAPI.getSessionList = \b p -> pagedDefault 100 p $ listSessions b
+    , OpenAPI.getSessionList = \p -> pagedDefault 100 p listSessions
     , OpenAPI.sessionAPI = openAPISessionServer
     }
 
@@ -215,7 +215,7 @@ sessionsAPIServer :: ConvertServerLogs l => S.SessionsAPI (AsServerT (Primer l))
 sessionsAPIServer =
   S.SessionsAPI
     { S.createSession = newSession
-    , S.getSessionList = \b p -> pagedDefault 100 p $ listSessions b
+    , S.getSessionList = \p -> pagedDefault 100 p listSessions
     , S.addSession = API.addSession
     , S.sessionAPI = sessionAPIServer
     }

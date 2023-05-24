@@ -109,8 +109,8 @@ createSession :: NewSessionReq -> ClientM SessionId
 createSession req = apiClient // API.sessionsAPI // API.createSession /: req
 
 -- | As 'Primer.API.listSessions'.
-listSessions :: Bool -> Pagination -> ClientM (Paginated Session)
-listSessions inMemory pp = apiClient // API.sessionsAPI // API.getSessionList /: inMemory /: pp
+listSessions :: Pagination -> ClientM (Paginated Session)
+listSessions pp = apiClient // API.sessionsAPI // API.getSessionList /: pp
 
 -- | As 'Primer.API.addSession'.
 addSession :: Text -> App -> ClientM SessionId

@@ -29,7 +29,6 @@ import Servant (
   JSON,
   Post,
   Put,
-  QueryFlag,
   ReqBody,
   Summary,
   (:>),
@@ -83,17 +82,13 @@ type DeleteSession mode =
 
 type GetSessionList mode =
   mode
-    :- QueryFlag "inMemory"
-      :> PaginationParams
+    :- PaginationParams
       :> Summary "Get the list of sessions"
       :> Description
-          "Get a list of all sessions and their human-readable names. By \
-          \default, this method returns the list of all sessions in the \
-          \persistent database, but optionally it can return just the list \
-          \of all sessions in memory, which is mainly useful for \
-          \testing. Note that in a production system, this endpoint should \
-          \obviously be authentication-scoped and only return the list of \
-          \sessions that the caller is authorized to see."
+          "Get a list of all sessions and their human-readable names. Note \
+          \that in a production system, this endpoint should obviously be \
+          \authentication-scoped and only return the list of sessions that \
+          \the caller is authorized to see."
       :> OperationId "getSessionList"
       :> Get '[JSON] (Paginated Session)
 
