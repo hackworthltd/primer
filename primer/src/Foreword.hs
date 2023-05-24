@@ -32,6 +32,8 @@ module Foreword (
   curry4,
   unsafeMaximum,
   spanMaybe,
+  adjustAtA',
+  findAndAdjustA',
 ) where
 
 -- In general, we should defer to "Protolude"'s exports and avoid name
@@ -130,6 +132,11 @@ adjustAtA n f xs = case splitAt n xs of
   (a, b : bs) -> f b <&> \b' -> Just $ a ++ [b'] ++ bs
   _ -> pure Nothing
 
+adjustAtA' :: Applicative f => Int -> (a -> f (a, z)) -> [a] -> f (Maybe ([a], z))
+adjustAtA' n f xs = case splitAt n xs of
+  (a, b : bs) -> f b <&> \(b', z) -> Just (a ++ [b'] ++ bs, z)
+  _ -> pure Nothing
+
 -- | Adjust the first element of the list which satisfies the
 -- predicate. Returns 'Nothing' if there is no such element.
 findAndAdjust :: (a -> Bool) -> (a -> a) -> [a] -> Maybe [a]
@@ -142,6 +149,11 @@ findAndAdjustA :: Applicative m => (a -> Bool) -> (a -> m a) -> [a] -> m (Maybe 
 findAndAdjustA p f = \case
   [] -> pure Nothing
   x : xs -> if p x then Just . (: xs) <$> f x else (x :) <<$>> findAndAdjustA p f xs
+
+findAndAdjustA' :: Applicative m => (a -> Bool) -> (a -> m (a, z)) -> [a] -> m (Maybe ([a], z))
+findAndAdjustA' p f = \case
+  [] -> pure Nothing
+  x : xs -> if p x then (\(x', z) -> Just . (,z) . (: xs) $ x') <$> f x else first (x :) <<$>> findAndAdjustA' p f xs
 
 -- | Change the type of an error.
 modifyError :: MonadError e' m => (e -> e') -> ExceptT e m a -> m a

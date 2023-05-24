@@ -43,6 +43,11 @@ import Primer.App.Base (
   NodeSelection (..),
   NodeType (..),
   Selection' (..),
+  TypeDefConsFieldSelection (..),
+  TypeDefConsSelection (..),
+  TypeDefNodeSelection (..),
+  TypeDefSelection (..),
+  getTypeDefConFieldType,
  )
 import Primer.Core (
   Expr,
@@ -53,6 +58,8 @@ import Primer.Core (
   ModuleName (unModuleName),
   Type,
   Type' (..),
+  TypeMeta,
+  ValConName,
   getID,
   unLocalName,
   _bindMeta,
@@ -98,6 +105,7 @@ import Primer.Zipper (
   focusOn,
   focusOnTy,
   locToEither,
+  target,
  )
 
 -- | An offered action.
@@ -337,9 +345,15 @@ forTypeDefConsNode l Editable =
 forTypeDefConsFieldNode ::
   Level ->
   Editable ->
+  ASTTypeDef TypeMeta ->
+  ValConName ->
+  Int ->
+  ID ->
   [Action]
-forTypeDefConsFieldNode _ NonEditable = mempty
-forTypeDefConsFieldNode l Editable = sortByPriority l []
+forTypeDefConsFieldNode _ NonEditable _ _ _ _ = mempty
+forTypeDefConsFieldNode l Editable def con index id =
+  maybe mempty (sortByPriority l . forType l) $
+    findType id =<< getTypeDefConFieldType def con index
 
 -- | An input for an 'InputAction'.
 data Option = Option
@@ -375,7 +389,7 @@ options ::
   DefMap ->
   Cxt ->
   Level ->
-  Either (ASTTypeDef ()) ASTDef ->
+  Either (ASTTypeDef TypeMeta) ASTDef ->
   Selection' ID ->
   InputAction ->
   -- | Returns 'Nothing' if an ID was required but not passed, passed but not found in the tree,
@@ -445,9 +459,6 @@ options typeDefs defs cxt level def0 sel0 = \case
   AddCon ->
     pure $ freeVar []
   where
-    defSel = case sel0 of
-      SelectionDef s -> pure s
-      SelectionTypeDef _ -> Nothing
     freeVar opts = Options{opts, free = FreeVarName}
     noFree opts = Options{opts, free = FreeNone}
     localOpt = flip Option Nothing . unName
@@ -461,30 +472,47 @@ options typeDefs defs cxt level def0 sel0 = \case
       pure $
         (first (localOpt . unLocalName) <$> locals)
           <> (first globalOpt <$> globals)
-    findNode = do
-      sel <- defSel
-      s <- sel.node
-      def <- eitherToMaybe def0
-      case s.nodeType of
-        BodyNode -> fst <$> findNodeWithParent s.meta (astDefExpr def)
-        SigNode -> TypeNode <$> findType s.meta (astDefType def)
-    genNames typeOrKind = do
-      sel <- defSel
-      z <- focusNode =<< sel.node
-      pure $ map localOpt $ flip runReader cxt $ case z of
-        Left zE -> generateNameExpr typeOrKind zE
-        Right zT -> generateNameTy typeOrKind zT
-    varsInScope = do
-      sel <- defSel
-      nodeSel <- sel.node
-      focusNode nodeSel <&> \case
-        Left zE -> variablesInScopeExpr defs zE
-        Right zT -> (variablesInScopeTy zT, [], [])
+    findNode = case sel0 of
+      SelectionDef sel -> do
+        nodeSel <- sel.node
+        def <- eitherToMaybe def0
+        case nodeSel.nodeType of
+          BodyNode -> fst <$> findNodeWithParent nodeSel.meta (astDefExpr def)
+          SigNode -> TypeNode <$> findType nodeSel.meta (astDefType def)
+      SelectionTypeDef sel -> do
+        (_, zT) <- conField sel
+        pure $ TypeNode $ target zT
+    genNames typeOrKind =
+      map localOpt . flip runReader cxt <$> case sel0 of
+        SelectionDef sel -> do
+          z <- focusNode =<< sel.node
+          pure $ case z of
+            Left zE -> generateNameExpr typeOrKind zE
+            Right zT -> generateNameTy typeOrKind zT
+        SelectionTypeDef sel -> do
+          (_, zT) <- conField sel
+          pure $ generateNameTy typeOrKind zT
+    varsInScope = case sel0 of
+      SelectionDef sel -> do
+        nodeSel <- sel.node
+        focusNode nodeSel <&> \case
+          Left zE -> variablesInScopeExpr defs zE
+          Right zT -> (variablesInScopeTy zT, [], [])
+      SelectionTypeDef sel -> do
+        (def, zT) <- conField sel
+        pure (astTypeDefParameters def <> variablesInScopeTy zT, [], [])
     focusNode nodeSel = do
       def <- eitherToMaybe def0
       case nodeSel.nodeType of
         BodyNode -> Left . locToEither <$> focusOn nodeSel.meta (astDefExpr def)
         SigNode -> fmap Right $ focusOnTy nodeSel.meta $ astDefType def
+    conField sel = do
+      (con, field) <- case sel of
+        TypeDefSelection _ (Just (TypeDefConsNodeSelection (TypeDefConsSelection con (Just field)))) ->
+          Just (con, field)
+        _ -> Nothing
+      def <- either Just (const Nothing) def0
+      map (def,) $ focusOnTy field.meta =<< getTypeDefConFieldType def con field.index
     -- Extract the source of the function type we were checked at
     -- i.e. the type that a lambda-bound variable would have here
     lamVarTy = \case

@@ -11,6 +11,7 @@ import Primer.Name (Name)
 
 data ProgError
   = NoDefSelected
+  | NoTypeDefSelected
   | DefNotFound GVarName
   | DefAlreadyExists GVarName
   | DefInUse GVarName

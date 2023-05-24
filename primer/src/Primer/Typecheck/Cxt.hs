@@ -28,4 +28,4 @@ data Cxt = Cxt
   , globalCxt :: Map GVarName Type
   -- ^ global variables (i.e. IDs of top-level definitions)
   }
-  deriving stock (Show)
+  deriving stock (Show, Generic)

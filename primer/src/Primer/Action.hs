@@ -1,4 +1,6 @@
+{-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE GADTs #-}
+{-# LANGUAGE OverloadedLabels #-}
 {-# LANGUAGE OverloadedRecordDot #-}
 
 module Primer.Action (
@@ -17,6 +19,7 @@ module Primer.Action (
   uniquifyDefName,
   toProgActionInput,
   toProgActionNoInput,
+  applyActionsToField,
 ) where
 
 import Foreword hiding (mod)
@@ -27,10 +30,11 @@ import Data.Bifunctor.Swap qualified as Swap
 import Data.Generics.Product (typed)
 import Data.List (findIndex)
 import Data.List.NonEmpty qualified as NE
+import Data.Map (insert)
 import Data.Map.Strict qualified as Map
 import Data.Set qualified as Set
 import Data.Text qualified as T
-import Optics (set, (%), (?~), (^.), (^?), _Just)
+import Optics (over, set, (%), (?~), (^.), (^?), _Just)
 import Primer.Action.Actions (Action (..), Movement (..), QualifiedText)
 import Primer.Action.Available qualified as Available
 import Primer.Action.Errors (ActionError (..))
@@ -40,6 +44,7 @@ import Primer.App.Base (
   NodeSelection (..),
   NodeType (..),
   Selection' (..),
+  TypeDefConsFieldSelection (..),
   TypeDefConsSelection (..),
   TypeDefNodeSelection (..),
   TypeDefSelection (..),
@@ -60,6 +65,7 @@ import Primer.Core (
   Type' (..),
   TypeCache (..),
   TypeCacheBoth (..),
+  TypeMeta,
   ValConName,
   baseName,
   bindName,
@@ -102,7 +108,7 @@ import Primer.Def (
   Def (..),
   DefMap,
  )
-import Primer.Module (Module, insertDef)
+import Primer.Module (Module (moduleTypes), insertDef)
 import Primer.Name (Name, NameCounter, unName, unsafeMkName)
 import Primer.Name.Fresh (
   isFresh,
@@ -236,6 +242,49 @@ applyActionsToTypeSig smartHoles imports (mod, mods) (defName, def) actions =
             -- This probably shouldn't happen, but it may be the case that an action accidentally
             -- exits the type and ends up in the outer expression that we have created as a wrapper.
             -- In this case we just refocus on the top of the type.
+            z -> maybe unwrapError pure (focusType (unfocusLoc z))
+
+applyActionsToField ::
+  (MonadFresh ID m, MonadFresh NameCounter m) =>
+  SmartHoles ->
+  [Module] ->
+  (Module, [Module]) ->
+  (Name, ValConName, Int, ASTTypeDef TypeMeta) ->
+  [Action] ->
+  m (Either ActionError ([Module], TypeZ))
+applyActionsToField smartHoles imports (mod, mods) (tyName, conName', index, tyDef) actions =
+  runReaderT
+    go
+    (buildTypingContextFromModules (mod : mods <> imports) smartHoles)
+    & runExceptT
+  where
+    go :: ActionM m => m ([Module], TypeZ)
+    go = do
+      (valCons, zt) <-
+        (maybe (throwError $ InternalFailure "applyActionsToField: con name not found") pure =<<) $
+          flip (findAndAdjustA' ((== conName') . valConName)) (astTypeDefConstructors tyDef) \(ValCon _ ts) -> do
+            (t, zt) <-
+              maybe (throwError $ InternalFailure "applyActionsToField: con field index out of bounds") pure
+                =<< flip (adjustAtA' index) ts \fieldType -> do
+                  zt <- withWrappedType fieldType \zt ->
+                    foldlM (\l -> local addParamsToCxt . flip applyActionAndSynth l) (InType zt) actions
+                  pure (target (top zt), zt)
+            pure (ValCon conName' t, zt)
+      let mod' = mod{moduleTypes = insert tyName (TypeDefAST tyDef{astTypeDefConstructors = valCons}) $ moduleTypes mod}
+      (,zt) <$> checkEverything smartHoles (CheckEverything{trusted = imports, toCheck = mod' : mods})
+    addParamsToCxt :: TC.Cxt -> TC.Cxt
+    addParamsToCxt = over #localCxt (<> Map.fromList (map (bimap unLocalName TC.K) $ astTypeDefParameters tyDef))
+    withWrappedType :: ActionM m => Type -> (TypeZ -> m Loc) -> m TypeZ
+    withWrappedType ty f = do
+      wrappedType <- ann emptyHole (pure ty)
+      let unwrapError = throwError $ InternalFailure "applyActionsToField: failed to unwrap type"
+          wrapError = throwError $ InternalFailure "applyActionsToField: failed to wrap type"
+          focusedType = focusType $ focus wrappedType
+      case focusedType of
+        Nothing -> wrapError
+        Just wrappedTy ->
+          f wrappedTy >>= \case
+            InType zt -> pure zt
             z -> maybe unwrapError pure (focusType (unfocusLoc z))
 
 data Refocus = Refocus
@@ -866,7 +915,7 @@ renameForall b zt = case target zt of
 -- | Convert a high-level 'Available.NoInputAction' to a concrete sequence of 'ProgAction's.
 toProgActionNoInput ::
   DefMap ->
-  Either (ASTTypeDef ()) ASTDef ->
+  Either (ASTTypeDef a) ASTDef ->
   Selection' ID ->
   Available.NoInputAction ->
   Either ActionError [ProgAction]
@@ -964,16 +1013,22 @@ toProgActionNoInput defs def0 sel0 = \case
       typeNodeSel >>= \case
         (s0, TypeDefConsNodeSelection s) -> pure (s0, s)
         _ -> Left NeedTypeDefConsSelection
+    conFieldSel = do
+      (ty, s) <- conSel
+      maybe (Left NeedTypeDefConsFieldSelection) (pure . (ty,s.con,)) s.field
     toProgAction actions = do
-      sel <- termSel
-      toProg' actions sel.def <$> maybeToEither NoNodeSelection sel.node
+      case sel0 of
+        SelectionDef sel -> toProg' actions sel.def <$> maybeToEither NoNodeSelection sel.node
+        SelectionTypeDef _ -> do
+          (t, c, f) <- conFieldSel
+          pure [ConFieldAction t c f.index $ SetCursor f.meta : actions]
     termDef = first (const NeedTermDef) def0
     typeDef = either Right (Left . const NeedTypeDef) def0
 
 -- | Convert a high-level 'Available.InputAction', and associated 'Available.Option',
 -- to a concrete sequence of 'ProgAction's.
 toProgActionInput ::
-  Either (ASTTypeDef ()) ASTDef ->
+  Either (ASTTypeDef a) ASTDef ->
   Selection' ID ->
   Available.Option ->
   Available.InputAction ->
@@ -1089,9 +1144,15 @@ toProgActionInput def0 sel0 opt0 = \case
     optGlobal = case opt0.context of
       Nothing -> Left $ NeedLocal opt0
       Just q -> pure (q, opt0.option)
+    conFieldSel = do
+      (ty, s) <- conSel
+      maybe (Left NeedTypeDefConsFieldSelection) (pure . (ty,s.con,)) s.field
     toProg actions = do
-      sel <- termSel
-      toProg' actions sel.def <$> maybeToEither NoNodeSelection sel.node
+      case sel0 of
+        SelectionDef sel -> toProg' actions sel.def <$> maybeToEither NoNodeSelection sel.node
+        SelectionTypeDef _ -> do
+          (t, c, f) <- conFieldSel
+          pure [ConFieldAction t c f.index $ SetCursor f.meta : actions]
     offerRefined = do
       id <- nodeID
       def <- termDef

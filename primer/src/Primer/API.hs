@@ -127,6 +127,7 @@ import Primer.App (
   newApp,
   progAllDefs,
   progAllTypeDefs,
+  progAllTypeDefsMeta,
   progCxt,
   progImports,
   progLog,
@@ -157,6 +158,7 @@ import Primer.Core (
   TyVarName,
   Type,
   Type' (..),
+  TypeMeta,
   ValConName,
   getID,
   unLocalName,
@@ -218,7 +220,7 @@ import Primer.Log (
 import Primer.Module (moduleDefsQualified, moduleName, moduleTypesQualifiedMeta)
 import Primer.Name qualified as Name
 import Primer.Primitives (primDefType)
-import Primer.TypeDef (ASTTypeDef (..), typeDefNameHints, typeDefParameters)
+import Primer.TypeDef (ASTTypeDef (..), forgetTypeDefMetadata, typeDefNameHints, typeDefParameters)
 import Primer.TypeDef qualified as TypeDef
 import StmContainers.Map qualified as StmMap
 
@@ -1082,7 +1084,7 @@ availableActions ::
 availableActions = curry3 $ logAPI (noError AvailableActions) $ \(sid, level, selection) -> do
   prog <- getProgram sid
   let allDefs = progAllDefs prog
-      allTypeDefs = progAllTypeDefs prog
+      allTypeDefs = progAllTypeDefsMeta prog
   case selection of
     SelectionDef sel -> do
       (editable, ASTDef{astDefType = type_, astDefExpr = expr}) <- findASTDef allDefs sel.def
@@ -1090,15 +1092,15 @@ availableActions = curry3 $ logAPI (noError AvailableActions) $ \(sid, level, se
         Nothing -> Available.forDef (snd <$> allDefs) level editable sel.def
         Just NodeSelection{..} -> case nodeType of
           SigNode -> Available.forSig level editable type_ meta
-          BodyNode -> Available.forBody (snd <$> allTypeDefs) level editable expr meta
+          BodyNode -> Available.forBody (forgetTypeDefMetadata . snd <$> allTypeDefs) level editable expr meta
     SelectionTypeDef sel -> do
-      (editable, _def) <- findASTTypeDef allTypeDefs sel.def
+      (editable, def) <- findASTTypeDef allTypeDefs sel.def
       pure $ case sel.node of
         Nothing -> Available.forTypeDef level editable
         Just (TypeDefParamNodeSelection _) -> Available.forTypeDefParamNode level editable
         Just (TypeDefConsNodeSelection s) -> case s.field of
           Nothing -> Available.forTypeDefConsNode level editable
-          Just _ -> Available.forTypeDefConsFieldNode level editable
+          Just field -> Available.forTypeDefConsFieldNode level editable def s.con field.index field.meta
 
 actionOptions ::
   (MonadIO m, MonadThrow m, MonadAPILog l m) =>
@@ -1122,16 +1124,16 @@ findASTDef allDefs def = case allDefs Map.!? def of
   Just (_, Def.DefPrim _) -> throwM $ UnexpectedPrimDef def
   Just (editable, Def.DefAST d) -> pure (editable, d)
 
-findASTTypeDef :: MonadThrow m => Map TyConName (Editable, TypeDef.TypeDef ()) -> TyConName -> m (Editable, ASTTypeDef ())
+findASTTypeDef :: MonadThrow m => Map TyConName (Editable, TypeDef.TypeDef a) -> TyConName -> m (Editable, ASTTypeDef a)
 findASTTypeDef allTypeDefs def = case allTypeDefs Map.!? def of
   Nothing -> throwM $ UnknownTypeDef def
   Just (_, TypeDef.TypeDefPrim _) -> throwM $ UnexpectedPrimTypeDef def
   Just (editable, TypeDef.TypeDefAST d) -> pure (editable, d)
 
-findASTTypeOrTermDef :: MonadThrow f => App.Prog -> Selection' a -> f (Editable, Either (ASTTypeDef ()) ASTDef)
+findASTTypeOrTermDef :: MonadThrow f => App.Prog -> Selection -> f (Editable, Either (ASTTypeDef TypeMeta) ASTDef)
 findASTTypeOrTermDef prog = \case
   App.SelectionTypeDef sel ->
-    Left <<$>> findASTTypeDef (progAllTypeDefs prog) sel.def
+    Left <<$>> findASTTypeDef (progAllTypeDefsMeta prog) sel.def
   App.SelectionDef sel ->
     Right <<$>> findASTDef (progAllDefs prog) sel.def
 
