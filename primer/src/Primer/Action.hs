@@ -9,9 +9,11 @@ module Primer.Action (
   applyActionsToBody,
   applyActionsToTypeSig,
   applyActionsToExpr,
+  applyAction',
   moveExpr,
   enterType,
   moveType,
+  move,
   uniquifyDefName,
   toProgActionInput,
   toProgActionNoInput,
@@ -242,7 +244,7 @@ refocus Refocus{pre, post} = do
         TC.NoSmartHoles -> [getID pre]
         TC.SmartHoles -> case pre of
           InExpr e -> candidateIDsExpr $ target e
-          InType t -> candidateIDsType $ target t
+          InType t -> candidateIDsType t
           InBind (BindCase ze) -> [getID ze]
   pure . getFirst . mconcat $ fmap (\i -> First $ focusOn i post) candidateIDs
   where
@@ -251,10 +253,17 @@ refocus Refocus{pre, post} = do
         Hole _ e' -> candidateIDsExpr e'
         Ann _ e' _ -> candidateIDsExpr e'
         _ -> []
-    candidateIDsType t =
-      getID t : case t of
-        THole _ t' -> candidateIDsType t'
-        _ -> []
+    candidateIDsTypeDown t = case t of
+      THole _ t' -> candidateIDsTypeDown t'
+      _ -> []
+    candidateIDsType tz =
+      getID tz
+        : candidateIDsTypeDown (target tz)
+          -- if we are focused inside a type annotation which gets elided, we
+          -- refocus on the expression it was annotating
+          <> case (up tz, target $ unfocusType tz) of
+            (Nothing, Ann _ e _) -> candidateIDsExpr e
+            _ -> []
 
 -- | Apply a sequence of actions to the body of a definition, producing a new Expr or an error if
 -- any of the actions failed to apply.
@@ -318,6 +327,12 @@ synthZ z = do
   -- Refocus on where we were previously
   refocus Refocus{pre = z, post = exprTtoExpr typedAST}
 
+-- | The basic building block to apply an action. This does no typechecking, so
+-- some actions may result in ill-typed programs, and some others may be
+-- well-typed but a pass of smartholes later may still edit it.
+--
+-- You probably want to use the higher-level 'applyActionsToBody' or
+-- 'applyActionsToTypeSig' if possible.
 applyAction' :: ActionM m => Action -> Loc -> m Loc
 applyAction' a = case a of
   NoOp -> pure
@@ -382,13 +397,13 @@ applyAction' a = case a of
       InType zt -> InType <$> f zt
       _ -> throwError $ CustomFailure a s
 
-setCursor :: ActionM m => ID -> ExprZ -> m Loc
+setCursor :: MonadError ActionError m => ID -> ExprZ -> m Loc
 setCursor i e = case focusOn i (unfocusExpr e) of
   Just e' -> pure e'
   Nothing -> throwError $ IDNotFound i
 
 -- | Apply a movement to a zipper
-moveExpr :: ActionM m => Movement -> ExprZ -> m ExprZ
+moveExpr :: MonadError ActionError m => Movement -> ExprZ -> m ExprZ
 moveExpr m@(Branch c) z | Case _ _ brs <- target z =
   case findIndex (\(C.CaseBranch n _ _) -> c == n) brs of
     Nothing -> throwError $ CustomFailure (Move m) "Move-to-branch failed: no such branch"
@@ -410,14 +425,14 @@ moveExpr Child2 z
 moveExpr m z = move m z
 
 -- | Apply a movement to a zipper
-moveType :: ActionM m => Movement -> TypeZ -> m TypeZ
+moveType :: MonadError ActionError m => Movement -> TypeZ -> m TypeZ
 moveType m@(Branch _) _ = throwError $ CustomFailure (Move m) "Move-to-branch unsupported in types (there are no cases in types!)"
 moveType m@(ConChild _) _ = throwError $ CustomFailure (Move m) "Move-to-constructor-argument unsupported in types (type constructors do not directly store their arguments)"
 moveType m z = move m z
 
 -- | Apply a movement to a generic zipper - does not support movement to a case
 -- branch, or into an argument of a constructor
-move :: forall m za a. (ActionM m, IsZipper za a, HasID za) => Movement -> za -> m za
+move :: forall m za a. (MonadError ActionError m, IsZipper za a, HasID za) => Movement -> za -> m za
 move m z = do
   mz' <- move' m z
   case mz' of
@@ -434,19 +449,19 @@ move m z = do
 setMetadata :: (IsZipper za a, HasMetadata a) => Value -> za -> za
 setMetadata d z = z & _target % _metadata ?~ d
 
-enterHole :: ActionM m => ExprZ -> m ExprZ
+enterHole :: (MonadError ActionError m, MonadFresh ID m) => ExprZ -> m ExprZ
 enterHole ze = case target ze of
   EmptyHole{} -> do
     result <- flip replace ze <$> hole emptyHole
     move Child1 result
   e -> throwError $ NeedEmptyHole EnterHole e
 
-finishHole :: ActionM m => ExprZ -> m ExprZ
+finishHole :: MonadError ActionError m => ExprZ -> m ExprZ
 finishHole ze = case target ze of
   Hole _ e -> pure $ replace e ze
   e -> throwError $ NeedNonEmptyHole FinishHole e
 
-constructVar :: ActionM m => TmVarRef -> ExprZ -> m ExprZ
+constructVar :: (MonadError ActionError m, MonadFresh ID m) => TmVarRef -> ExprZ -> m ExprZ
 constructVar x ast = case target ast of
   EmptyHole{} -> flip replace ast <$> var x
   e -> throwError $ NeedEmptyHole (ConstructVar x) e
@@ -568,16 +583,16 @@ getRefinedApplications cxt eTy tgtTy' = do
       InstAPP a -> Left <$> generateTypeIDs a
       InstUnconstrainedAPP _ _ -> Left <$> tEmptyHole
 
-constructApp :: ActionM m => ExprZ -> m ExprZ
+constructApp :: MonadFresh ID m => ExprZ -> m ExprZ
 constructApp ze = flip replace ze <$> app (pure (target ze)) emptyHole
 
-constructAPP :: ActionM m => ExprZ -> m ExprZ
+constructAPP :: MonadFresh ID m => ExprZ -> m ExprZ
 constructAPP ze = flip replace ze <$> aPP (pure (target ze)) tEmptyHole
 
-constructAnn :: ActionM m => ExprZ -> m ExprZ
+constructAnn :: MonadFresh ID m => ExprZ -> m ExprZ
 constructAnn ze = flip replace ze <$> ann (pure (target ze)) tEmptyHole
 
-removeAnn :: ActionM m => ExprZ -> m ExprZ
+removeAnn :: MonadError ActionError m => ExprZ -> m ExprZ
 removeAnn ze = case target ze of
   Ann _ e _ -> pure $ replace e ze
   e -> throwError $ NeedAnn RemoveAnn e
@@ -605,7 +620,7 @@ constructLAM mx ze = do
   result <- flip replace ze <$> lAM x (pure (target ze))
   moveExpr Child1 result
 
-constructPrim :: ActionM m => PrimCon -> ExprZ -> m ExprZ
+constructPrim :: (MonadFresh ID m, MonadError ActionError m) => PrimCon -> ExprZ -> m ExprZ
 constructPrim p ze = case target ze of
   EmptyHole{} -> flip replace ze <$> prim p
   e -> throwError $ NeedEmptyHole (ConstructPrim p) e
@@ -718,7 +733,7 @@ constructCase ze = do
     _ -> throwError $ CustomFailure ConstructCase ("can only construct case on expression with type a exactly saturated ADT, not " <> show ty)
 
 -- | Replace @x@ with @y@ in @λx. e@
-renameLam :: ActionM m => Text -> ExprZ -> m ExprZ
+renameLam :: MonadError ActionError m => Text -> ExprZ -> m ExprZ
 renameLam y ze = case target ze of
   Lam m x e
     | unName (unLocalName x) == y -> pure ze
@@ -732,7 +747,7 @@ renameLam y ze = case target ze of
     throwError $ CustomFailure (RenameLam y) "the focused expression is not a lambda"
 
 -- | Replace @a@ with @b@ in @Λa. e@
-renameLAM :: ActionM m => Text -> ExprZ -> m ExprZ
+renameLAM :: MonadError ActionError m => Text -> ExprZ -> m ExprZ
 renameLAM b ze = case target ze of
   LAM m a e
     | unName (unLocalName a) == b -> pure ze
@@ -746,7 +761,7 @@ renameLAM b ze = case target ze of
     throwError $ CustomFailure (RenameLAM b) "the focused expression is not a type abstraction"
 
 -- | Replace @x@ with @y@ in @let x = e1 in e2@ or @letrec x : t = e1 in e2@
-renameLet :: ActionM m => Text -> ExprZ -> m ExprZ
+renameLet :: MonadError ActionError m => Text -> ExprZ -> m ExprZ
 renameLet y ze = case target ze of
   Let m x e1 e2
     | unName (unLocalName x) == y -> pure ze
@@ -770,12 +785,12 @@ renameLet y ze = case target ze of
   _ ->
     throwError $ CustomFailure (RenameLet y) "the focused expression is not a let"
   where
-    rename :: ActionM m => LVarName -> LVarName -> Expr -> m Expr
+    rename :: MonadError ActionError m => LVarName -> LVarName -> Expr -> m Expr
     rename fromName toName e = maybe (throwError NameCapture) pure $ renameLocalVar fromName toName e
-    rename' :: ActionM m => TyVarName -> TyVarName -> Expr -> m Expr
+    rename' :: MonadError ActionError m => TyVarName -> TyVarName -> Expr -> m Expr
     rename' fromName toName e = maybe (throwError NameCapture) pure $ renameTyVarExpr fromName toName e
 
-renameCaseBinding :: forall m. ActionM m => Text -> CaseBindZ -> m CaseBindZ
+renameCaseBinding :: forall m. MonadError ActionError m => Text -> CaseBindZ -> m CaseBindZ
 renameCaseBinding y caseBind = updateCaseBind caseBind $ \bind otherBindings rhs -> do
   let y' = unsafeMkLocalName y
 
@@ -794,23 +809,23 @@ renameCaseBinding y caseBind = updateCaseBind caseBind $ \bind otherBindings rhs
   -- Update the outer expression with these changes
   pure (bind', rhs')
 
-enterType :: ActionM m => ExprZ -> m TypeZ
+enterType :: MonadError ActionError m => ExprZ -> m TypeZ
 enterType z = case focusType z of
   Nothing -> throwError $ CustomFailure EnterType "cannot enter type - no type in expression"
   Just zt -> pure zt
 
-constructArrowL :: ActionM m => TypeZ -> m TypeZ
+constructArrowL :: MonadFresh ID m => TypeZ -> m TypeZ
 constructArrowL zt = flip replace zt <$> tfun (pure (target zt)) tEmptyHole
 
-constructArrowR :: ActionM m => TypeZ -> m TypeZ
+constructArrowR :: MonadFresh ID m => TypeZ -> m TypeZ
 constructArrowR zt = flip replace zt <$> tfun tEmptyHole (pure (target zt))
 
-constructTCon :: ActionM m => QualifiedText -> TypeZ -> m TypeZ
+constructTCon :: (MonadFresh ID m, MonadError ActionError m) => QualifiedText -> TypeZ -> m TypeZ
 constructTCon c zt = case target zt of
   TEmptyHole{} -> flip replace zt <$> tcon (unsafeMkGlobalName c)
   _ -> throwError $ CustomFailure (ConstructTCon c) "can only construct tcon in hole"
 
-constructTVar :: ActionM m => Text -> TypeZ -> m TypeZ
+constructTVar :: (MonadFresh ID m, MonadError ActionError m) => Text -> TypeZ -> m TypeZ
 constructTVar x ast = case target ast of
   TEmptyHole{} -> flip replace ast <$> tvar (unsafeMkLocalName x)
   _ -> throwError $ CustomFailure (ConstructTVar x) "can only construct tvar in hole"
@@ -823,11 +838,11 @@ constructTForall mx zt = do
   unless (isFreshTy x $ target zt) $ throwError NameCapture
   flip replace zt <$> tforall x C.KType (pure (target zt))
 
-constructTApp :: ActionM m => TypeZ -> m TypeZ
+constructTApp :: MonadFresh ID m => TypeZ -> m TypeZ
 constructTApp zt = flip replace zt <$> tapp (pure (target zt)) tEmptyHole
 
 -- | Replace @a@ with @b@ in @∀a. e@
-renameForall :: ActionM m => Text -> TypeZ -> m TypeZ
+renameForall :: MonadError ActionError m => Text -> TypeZ -> m TypeZ
 renameForall b zt = case target zt of
   TForall m a k t
     | unName (unLocalName a) == b -> pure zt
