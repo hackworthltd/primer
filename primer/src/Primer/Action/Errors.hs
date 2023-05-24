@@ -63,15 +63,7 @@ data ActionError
   | NeedLocal Available.Option
   | NeedInt Available.Option
   | NeedChar Available.Option
-  | NeedTermDef
-  | NeedTypeDef
-  | NeedTermDefSelection
-  | NeedTypeDefSelection
-  | NeedTypeDefNodeSelection
-  | NeedTypeDefConsSelection
-  | NeedTypeDefConsFieldSelection
-  | NeedTypeDefParamSelection
-  | NoNodeSelection
   | ValConNotFound TyConName ValConName
+  | GetInfoError Available.GetInfoError
   deriving stock (Eq, Show, Read, Generic)
   deriving (FromJSON, ToJSON) via PrimerJSON ActionError

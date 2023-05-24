@@ -1,5 +1,7 @@
 {-# LANGUAGE BlockArguments #-}
+{-# LANGUAGE ImpredicativeTypes #-}
 {-# LANGUAGE OverloadedRecordDot #-}
+{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE NoFieldSelectors #-}
 
 -- | Compute all the possible actions which can be performed on a definition.
@@ -19,6 +21,9 @@ module Primer.Action.Available (
   forTypeDefParamNode,
   forTypeDefConsNode,
   forTypeDefConsFieldNode,
+  GetInfoError (..),
+  getInfo,
+  GetInfo (..),
 ) where
 
 import Foreword
@@ -56,6 +61,8 @@ import Primer.Core (
   GlobalName (baseName, qualifiedModule),
   ID,
   ModuleName (unModuleName),
+  TyConName,
+  TyVarName,
   Type,
   Type' (..),
   TypeMeta,
@@ -473,45 +480,43 @@ options typeDefs defs cxt level def0 sel0 = \case
         (first (localOpt . unLocalName) <$> locals)
           <> (first globalOpt <$> globals)
     findNode = case sel0 of
-      SelectionDef sel -> do
-        nodeSel <- sel.node
-        def <- eitherToMaybe def0
+      SelectionDef _ -> do
+        (_, nodeSel) <- termNodeSel
+        def <- termDef
         case nodeSel.nodeType of
           BodyNode -> fst <$> findNodeWithParent nodeSel.meta (astDefExpr def)
           SigNode -> TypeNode <$> findType nodeSel.meta (astDefType def)
-      SelectionTypeDef sel -> do
-        (_, zT) <- conField sel
+      SelectionTypeDef _ -> do
+        (_, zT) <- conField
         pure $ TypeNode $ target zT
     genNames typeOrKind =
       map localOpt . flip runReader cxt <$> case sel0 of
-        SelectionDef sel -> do
-          z <- focusNode =<< sel.node
+        SelectionDef _ -> do
+          (_, nodeSel) <- termNodeSel
+          z <- focusNode nodeSel
           pure $ case z of
             Left zE -> generateNameExpr typeOrKind zE
             Right zT -> generateNameTy typeOrKind zT
-        SelectionTypeDef sel -> do
-          (_, zT) <- conField sel
+        SelectionTypeDef _ -> do
+          (_, zT) <- conField
           pure $ generateNameTy typeOrKind zT
     varsInScope = case sel0 of
-      SelectionDef sel -> do
-        nodeSel <- sel.node
+      SelectionDef _ -> do
+        (_, nodeSel) <- termNodeSel
         focusNode nodeSel <&> \case
           Left zE -> variablesInScopeExpr defs zE
           Right zT -> (variablesInScopeTy zT, [], [])
-      SelectionTypeDef sel -> do
-        (def, zT) <- conField sel
+      SelectionTypeDef _ -> do
+        (def, zT) <- conField
         pure (astTypeDefParameters def <> variablesInScopeTy zT, [], [])
     focusNode nodeSel = do
       def <- eitherToMaybe def0
       case nodeSel.nodeType of
         BodyNode -> Left . locToEither <$> focusOn nodeSel.meta (astDefExpr def)
         SigNode -> fmap Right $ focusOnTy nodeSel.meta $ astDefType def
-    conField sel = do
-      (con, field) <- case sel of
-        TypeDefSelection _ (Just (TypeDefConsNodeSelection (TypeDefConsSelection con (Just field)))) ->
-          Just (con, field)
-        _ -> Nothing
-      def <- either Just (const Nothing) def0
+    conField = do
+      def <- typeDef
+      (_, con, field) <- conFieldSel
       map (def,) $ focusOnTy field.meta =<< getTypeDefConFieldType def con field.index
     -- Extract the source of the function type we were checked at
     -- i.e. the type that a lambda-bound variable would have here
@@ -530,6 +535,7 @@ options typeDefs defs cxt level def0 sel0 = \case
       TFun{} -> True
       TForall{} -> True
       _ -> False
+    GetInfo{..} :: GetInfo TypeMeta Maybe = getInfo sel0 def0 (const Nothing)
 
 sortByPriority ::
   Level ->
@@ -580,3 +586,76 @@ sortByPriority l =
         AddCon -> P.addCon
         RenameCon -> P.rename
         RenameTypeParam -> P.rename
+
+data GetInfoError
+  = NeedTermDef
+  | NeedTypeDef
+  | NeedTermDefSelection
+  | NeedTypeDefSelection
+  | NeedTypeDefNodeSelection
+  | NeedTypeDefConsSelection
+  | NeedTypeDefConsFieldSelection
+  | NeedTypeDefParamSelection
+  | NoNodeSelection
+  deriving stock (Eq, Show, Read, Generic)
+  deriving (FromJSON, ToJSON) via PrimerJSON GetInfoError
+
+data GetInfo m f = GetInfo
+  { termSel :: f (DefSelection ID)
+  , termNodeSel :: f (GVarName, NodeSelection ID)
+  , nodeID :: f ID
+  , typeSel :: f (TypeDefSelection ID)
+  , typeNodeSel :: f (TyConName, TypeDefNodeSelection ID)
+  , conSel :: f (TyConName, TypeDefConsSelection ID)
+  , conFieldSel :: f (TyConName, ValConName, TypeDefConsFieldSelection ID)
+  , typeParamSel :: f (TyConName, TyVarName)
+  , termDef :: f ASTDef
+  , typeDef :: f (ASTTypeDef m)
+  }
+
+getInfo :: Applicative f => Selection' ID -> Either (ASTTypeDef a) ASTDef -> (forall x. GetInfoError -> f x) -> GetInfo a f
+getInfo sel0 def0 = flip convertError GetInfo{..}
+  where
+    termSel = case sel0 of
+      SelectionDef s -> pure s
+      SelectionTypeDef _ -> Left NeedTermDefSelection
+    termNodeSel = do
+      sel <- termSel
+      maybe (Left NeedTermDefSelection) (pure . (sel.def,)) sel.node
+    nodeID = do
+      sel <- termSel
+      maybeToEither NoNodeSelection $ (.meta) <$> sel.node
+    typeSel = case sel0 of
+      SelectionDef _ -> Left NeedTypeDefSelection
+      SelectionTypeDef s -> pure s
+    typeNodeSel = do
+      sel <- typeSel
+      maybe (Left NeedTypeDefNodeSelection) (pure . (sel.def,)) sel.node
+    conSel =
+      typeNodeSel >>= \case
+        (s0, TypeDefConsNodeSelection s) -> pure (s0, s)
+        _ -> Left NeedTypeDefConsSelection
+    conFieldSel = do
+      (ty, s) <- conSel
+      maybe (Left NeedTypeDefConsFieldSelection) (pure . (ty,s.con,)) s.field
+    typeParamSel =
+      typeNodeSel >>= \case
+        (s0, TypeDefParamNodeSelection s) -> pure (s0, s)
+        _ -> Left NeedTypeDefParamSelection
+    termDef = first (const NeedTermDef) def0
+    typeDef = either Right (Left . const NeedTypeDef) def0
+
+convertError :: Applicative f => (forall x. e -> f x) -> GetInfo m (Either e) -> GetInfo m f
+convertError f GetInfo{..} =
+  GetInfo
+    { termSel = either f pure termSel
+    , termNodeSel = either f pure termNodeSel
+    , nodeID = either f pure nodeID
+    , typeSel = either f pure typeSel
+    , typeNodeSel = either f pure typeNodeSel
+    , conSel = either f pure conSel
+    , conFieldSel = either f pure conFieldSel
+    , typeParamSel = either f pure typeParamSel
+    , termDef = either f pure termDef
+    , typeDef = either f pure typeDef
+    }
