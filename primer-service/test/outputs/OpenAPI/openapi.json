@@ -763,9 +763,17 @@
         },
         "/openapi/sessions": {
             "get": {
-                "description": "Get a list of all sessions and their human-readable names. Note that in a production system, this endpoint should obviously be authentication-scoped and only return the list of sessions that the caller is authorized to see.",
+                "description": "Get a list of all sessions and their human-readable names, with an optional filter for matching on session names. Note that in a production system, this endpoint should obviously be authentication-scoped and only return the list of sessions that the caller is authorized to see.",
                 "operationId": "getSessionList",
                 "parameters": [
+                    {
+                        "in": "query",
+                        "name": "nameLike",
+                        "required": false,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
                     {
                         "in": "query",
                         "name": "page",
@@ -802,7 +810,7 @@
                         "description": ""
                     },
                     "400": {
-                        "description": "Invalid `pageSize` or `page`"
+                        "description": "Invalid `pageSize` or `page` or `nameLike`"
                     }
                 },
                 "summary": "Get the list of sessions"

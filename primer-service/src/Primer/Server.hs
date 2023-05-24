@@ -62,6 +62,7 @@ import Primer.API (
   createTypeDef,
   edit,
   evalFull',
+  findSessions,
   listSessions,
   newSession,
   redo,
@@ -161,7 +162,7 @@ openAPISessionsServer :: ConvertServerLogs l => OpenAPI.SessionsAPI (AsServerT (
 openAPISessionsServer =
   OpenAPI.SessionsAPI
     { OpenAPI.createSession = newSession
-    , OpenAPI.getSessionList = \p -> pagedDefault 100 p listSessions
+    , OpenAPI.getSessionList = \s p -> pagedDefault 100 p $ maybe listSessions findSessions s
     , OpenAPI.sessionAPI = openAPISessionServer
     }
 
@@ -215,7 +216,7 @@ sessionsAPIServer :: ConvertServerLogs l => S.SessionsAPI (AsServerT (Primer l))
 sessionsAPIServer =
   S.SessionsAPI
     { S.createSession = newSession
-    , S.getSessionList = \p -> pagedDefault 100 p listSessions
+    , S.getSessionList = \s p -> pagedDefault 100 p $ maybe listSessions findSessions s
     , S.addSession = API.addSession
     , S.sessionAPI = sessionAPIServer
     }

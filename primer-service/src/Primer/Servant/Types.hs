@@ -29,6 +29,7 @@ import Servant (
   JSON,
   Post,
   Put,
+  QueryParam,
   ReqBody,
   Summary,
   (:>),
@@ -82,11 +83,13 @@ type DeleteSession mode =
 
 type GetSessionList mode =
   mode
-    :- PaginationParams
+    :- QueryParam "nameLike" Text
+      :> PaginationParams
       :> Summary "Get the list of sessions"
       :> Description
-          "Get a list of all sessions and their human-readable names. Note \
-          \that in a production system, this endpoint should obviously be \
+          "Get a list of all sessions and their human-readable names, with an \
+          \optional filter for matching on session names. Note that in a \
+          \production system, this endpoint should obviously be \
           \authentication-scoped and only return the list of sessions that \
           \the caller is authorized to see."
       :> OperationId "getSessionList"
