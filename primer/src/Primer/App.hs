@@ -34,6 +34,7 @@ module Primer.App (
   progAllModules,
   progAllDefs,
   progAllTypeDefs,
+  progAllTypeDefsMeta,
   allValConNames,
   allTyConNames,
   progCxt,
@@ -100,6 +101,7 @@ import Primer.Action (
   ProgAction (..),
   applyAction',
   applyActionsToBody,
+  applyActionsToField,
   applyActionsToTypeSig,
  )
 import Primer.Action.ProgError (ProgError (..))
@@ -115,6 +117,7 @@ import Primer.App.Base (
   TypeDefConsSelection (..),
   TypeDefNodeSelection (..),
   TypeDefSelection (..),
+  getTypeDefConFieldType,
  )
 import Primer.Core (
   Bind' (Bind),
@@ -904,6 +907,31 @@ applyProgAction prog mdefName = \case
                         , meta = Right meta
                         }
               )
+  ConFieldAction tyName con index actions -> editModuleOfCrossType (Just tyName) prog $ \ms defName def -> do
+    let smartHoles = progSmartHoles prog
+    applyActionsToField smartHoles (progImports prog) ms (defName, con, index, def) actions >>= \case
+      Left err -> throwError $ ActionError err
+      Right (mod', zt) ->
+        pure
+          ( mod'
+          , Just $
+              SelectionTypeDef
+                TypeDefSelection
+                  { def = tyName
+                  , node =
+                      Just $
+                        TypeDefConsNodeSelection
+                          TypeDefConsSelection
+                            { con
+                            , field =
+                                Just
+                                  TypeDefConsFieldSelection
+                                    { index
+                                    , meta = Right $ zt ^. _target % _typeMetaLens
+                                    }
+                            }
+                  }
+          )
   SetSmartHoles smartHoles ->
     pure $ prog & #progSmartHoles .~ smartHoles
   CopyPasteSig fromIds setup -> case mdefName of
@@ -1032,6 +1060,19 @@ editModuleOfCross mdefName prog f = case mdefName of
     case Map.lookup (baseName defname) (moduleDefs m) of
       Just (DefAST def) -> f ms (baseName defname) def
       _ -> throwError $ DefNotFound defname
+
+editModuleOfCrossType ::
+  MonadError ProgError m =>
+  Maybe TyConName ->
+  Prog ->
+  ((Module, [Module]) -> Name -> ASTTypeDef TypeMeta -> m ([Module], Maybe Selection)) ->
+  m Prog
+editModuleOfCrossType mdefName prog f = case mdefName of
+  Nothing -> throwError NoTypeDefSelected
+  Just defname -> editModuleCross (qualifiedModule defname) prog $ \ms@(m, _) ->
+    case Map.lookup (baseName defname) (moduleTypes m) of
+      Just (TypeDefAST def) -> f ms (baseName defname) def
+      _ -> throwError $ TypeDefNotFound defname
 
 -- | Undo the last block of actions.
 --
@@ -1458,8 +1499,7 @@ tcWholeProg p = do
                 -- This is similar to what we do when selection is in a term, above.
                 td <- Map.lookup s.def $ allTypesMeta p
                 tda <- typeDefAST td
-                vc <- find ((== conSel.con) . valConName) $ astTypeDefConstructors tda
-                atMay (valConArgs vc) fieldSel.index
+                getTypeDefConFieldType tda conSel.con fieldSel.index
   pure $ p'{progSelection = newSel}
 
 -- | Do a full check of a 'Prog', both the imports and the local modules

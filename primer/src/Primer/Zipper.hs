@@ -448,7 +448,7 @@ findNodeWithParent id x = do
     InBind (BindCase bz) -> (CaseBindNode $ caseBindZFocus bz, Just . ExprNode . target . unfocusCaseBind $ bz)
 
 -- | Find a sub-type in a larger type by its ID.
-findType :: ID -> Type -> Maybe Type
+findType :: (Data a, HasID a) => ID -> Type' a -> Maybe (Type' a)
 findType id ty = target <$> focusOnTy id ty
 
 -- | An AST node tagged with its "sort" - i.e. if it's a type or expression or binding etc.

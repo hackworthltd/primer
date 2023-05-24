@@ -69,6 +69,7 @@ data ActionError
   | NeedTypeDefSelection
   | NeedTypeDefNodeSelection
   | NeedTypeDefConsSelection
+  | NeedTypeDefConsFieldSelection
   | NeedTypeDefParamSelection
   | NoNodeSelection
   | ValConNotFound TyConName ValConName

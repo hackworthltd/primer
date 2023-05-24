@@ -1,6 +1,7 @@
 {-# LANGUAGE DuplicateRecordFields #-}
 {-# LANGUAGE OverloadedLabels #-}
 {-# LANGUAGE OverloadedRecordDot #-}
+{-# LANGUAGE PartialTypeSignatures #-}
 {-# LANGUAGE NoFieldSelectors #-}
 
 -- | Definitions needed to build the app.
@@ -17,6 +18,7 @@ module Primer.App.Base (
   TypeDefConsFieldSelection (..),
   DefSelection (..),
   NodeSelection (..),
+  getTypeDefConFieldType,
 ) where
 
 import Protolude
@@ -29,6 +31,7 @@ import Primer.Core (
   HasID (..),
   TyConName,
   TyVarName,
+  Type',
   TypeMeta,
   ValConName,
   getID,
@@ -39,6 +42,7 @@ import Primer.JSON (
   PrimerJSON,
   ToJSON,
  )
+import Primer.TypeDef (ASTTypeDef, ValCon (..), astTypeDefConstructors)
 
 -- | The current programming "level". This setting determines which
 -- actions are displayed to the student, the labels on UI elements,
@@ -130,3 +134,8 @@ data NodeSelection a = NodeSelection
 
 instance HasID a => HasID (NodeSelection a) where
   _id = lens (getID . (.meta)) (flip $ over #meta . set _id)
+
+getTypeDefConFieldType :: ASTTypeDef a -> ValConName -> Int -> Maybe (Type' a)
+getTypeDefConFieldType def con index =
+  flip atMay index . valConArgs
+    =<< find ((== con) . valConName) (astTypeDefConstructors def)

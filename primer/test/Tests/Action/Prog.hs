@@ -1287,6 +1287,40 @@ unit_AddConField_case_ann =
                 ]
           )
 
+unit_ConFieldAction :: Assertion
+unit_ConFieldAction =
+  progActionTest
+    ( defaultProgEditableTypeDefs $ do
+        e <- con cA $ replicate 3 $ con0 $ vcn "True"
+        t <- tEmptyHole
+        pure [astDef "def" e t]
+    )
+    [ConFieldAction tT cA 1 [ConstructArrowL]]
+    $ expectSuccess
+    $ \_ prog' -> do
+      td <- findTypeDef tT prog'
+      def <- findDef (gvn "def") prog'
+      astTypeDefConstructors td
+        @?= [ ValCon
+                cA
+                [ TCon () (tcn "Bool")
+                , TFun () (TCon () (tcn "Bool")) (TEmptyHole ())
+                , TCon () (tcn "Bool")
+                ]
+            , ValCon cB [TApp () (TApp () (TCon () tT) (TVar () "b")) (TVar () "a"), TVar () "b"]
+            ]
+      forgetMetadata (astDefExpr def)
+        @?= forgetMetadata
+          ( create' $
+              do
+                con
+                  cA
+                  [ con0 $ vcn "True"
+                  , hole $ con0 $ vcn "True"
+                  , con0 $ vcn "True"
+                  ]
+          )
+
 -- Check that we see name hints from imported modules
 -- (This differs from the tests in Tests.Question by testing the actual action,
 -- rather than the underlying functionality)
