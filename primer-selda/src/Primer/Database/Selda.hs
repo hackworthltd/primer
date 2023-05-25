@@ -69,6 +69,12 @@ data SeldaDbException
     -- operation. This should never occur unless there's a bug in
     -- Selda.
     ListSessionsSeldaError
+  | -- | An error occurred during a 'FindSessions' operation.
+    FindSessionsError SeldaError
+  | -- | Selda returned an unexpected result during a 'FindSessions'
+    -- operation. This should never occur unless there's a bug in
+    -- Selda.
+    FindSessionsSeldaError
   deriving stock (Eq, Show, Generic)
 
 instance Exception SeldaDbException

@@ -24,12 +24,18 @@ import Data.Aeson qualified as Aeson (
   encode,
  )
 import Data.ByteString.Lazy as BL hiding (take)
+import Data.Text qualified as Text
 import Data.Time.Clock (UTCTime)
 import Data.UUID (UUID)
 import Database.Selda (
   Assignment ((:=)),
   Attr ((:-)),
+  Col,
+  Inner,
   MonadSelda,
+  OuterCols,
+  Query,
+  Row,
   SeldaError,
   SeldaT,
   SqlRow,
@@ -38,6 +44,7 @@ import Database.Selda (
   deleteFrom,
   descending,
   insert,
+  like,
   literal,
   order,
   primary,
@@ -56,14 +63,16 @@ import Database.Selda.SQLite (
   SQLite,
   withSQLite,
  )
+import Database.Selda.Unsafe (rawStm)
 import Primer.Database (
   DbError (AppDecodingError, SessionIdNotFound),
   LastModified (..),
   MonadDb (..),
-  OffsetLimit (limit, offset),
+  OffsetLimit (OL),
   Page (Page, pageContents, total),
   Session (Session),
   SessionData (..),
+  SessionId,
   Version,
   fromSessionName,
   safeMkSessionName,
@@ -105,7 +114,22 @@ runSeldaSQLiteDbT db m =
   -- occurred in 'withSQLite' itself (e.g., SQLite file not found);
   -- hence, we use 'ConnectionFailed' here.
   convertSeldaDbException ConnectionFailed $
-    withSQLite db (unSeldaSQLiteDbT m)
+    withSQLite db $ do
+      -- By default, SQLite has a case-insensitive @LIKE@
+      -- implementation. See:
+      -- https://www.sqlite.org/pragma.html#pragma_case_sensitive_like
+      --
+      -- However, we use a pragma upon opening the database connection
+      -- just to be sure. (Eventually we'll need to support both
+      -- case-sensitive and insensitive, anyway.)
+      --
+      -- The documentation for the pragma isn't clear on this point,
+      -- but the documentation for
+      -- https://www.sqlite.org/c3ref/create_function.html, upon which
+      -- this pragma is based, is, implies that this pragma needs to
+      -- be performed on every connection.
+      rawStm "PRAGMA case_sensitive_like = false;"
+      unSeldaSQLiteDbT m
 
 -- | A database session table row.
 --
@@ -144,6 +168,26 @@ instance SqlRow SessionRow
 -- | The database's sessions table.
 sessions :: Table SessionRow
 sessions = table "sessions" [#uuid :- primary]
+
+-- A helper function for creating a 'Session' from a database query.
+--
+-- Note that we have 2 choices here if the session name that was
+-- fetched from the database isn't a valid 'SessionName': either we
+-- can return a failure, or we can convert it to a valid
+-- 'SessionName'. This situation can only ever happen if we've made a
+-- mistake (e.g., we've changed the rules on what's a valid
+-- 'SessionName' and didn't run a migration), or if someone has edited
+-- the database directly, without going through the API. In either
+-- case, it would be bad if a student can't load their session just
+-- because a session name was invalid, so we opt for "convert it to a
+-- valid 'SessionName'".
+--
+-- It might be helpful if this function returned an indication of
+-- whether the original name was safe, but for now, we convert
+-- silently.
+safeMkSession :: (SessionId :*: (Text :*: UTCTime)) -> Session
+safeMkSession (s :*: n :*: t) =
+  Session s (safeMkSessionName n) (LastModified t)
 
 -- | A convenient type alias.
 --
@@ -200,34 +244,37 @@ instance MonadSeldaSQLiteDb m l => MonadDb (SeldaSQLiteDbT m) where
   listSessions ol = convertSeldaDbException ListSessionsError $ do
     n' <- query $
       Selda.aggregate $ do
-        session <- select sessions
+        session <- allSessions
         pure $ Selda.count $ session ! #uuid
     n <- case n' of
       [n''] -> pure n''
       -- something has gone terribly wrong: selda should never return
       -- the empty list for a 'count' query.
       _ -> throwM ListSessionsSeldaError
-    ss <- query $
-      Selda.limit (offset ol) (fromMaybe n $ limit ol) $ do
-        session <- select sessions
-        -- Order by session name (primary) and last-modified
-        -- (secondary, newest to oldest). Note that Selda wants these
-        -- constraints to be ordered in least-to-most precedence;
-        -- i.e., secondary then primary. See:
-        -- https://hackage.haskell.org/package/selda-0.5.2.0/docs/Database-Selda.html#v:order
-        order (session ! #lastmodified) descending
-        order (session ! #name) ascending
-        pure (session ! #uuid :*: session ! #name :*: session ! #lastmodified)
+    ss <- query $ paginatedSessionMeta ol allSessions
     pure $ Page{total = n, pageContents = safeMkSession <$> ss}
-    where
-      -- See comment in 'querySessionId' re: dealing with invalid
-      -- session names loaded from the database.
-      safeMkSession (s :*: n :*: t) = Session s (safeMkSessionName n) (LastModified t)
+
+  findSessions substr ol = convertSeldaDbException FindSessionsError $ do
+    -- We shouldn't do this, it's very wasteful. However, it'll
+    -- require some refactoring. See:
+    --
+    -- https://github.com/hackworthltd/primer/issues/1037
+    n' <- query $
+      Selda.aggregate $ do
+        session <- sessionByNameSubstr substr
+        pure $ Selda.count $ session ! #uuid
+    n <- case n' of
+      [n''] -> pure n''
+      -- something has gone terribly wrong: selda should never return
+      -- the empty list for a 'count' query.
+      _ -> throwM FindSessionsSeldaError
+    ss <- query $ paginatedSessionMeta ol $ sessionByNameSubstr substr
+    pure $ Page{total = n, pageContents = safeMkSession <$> ss}
 
   -- Note: we ignore the stored Primer version for now.
   querySessionId sid = convertSeldaDbException (LoadSessionError sid) $ do
     result <- query $ do
-      session <- select sessions
+      session <- allSessions
       restrict (session ! #uuid .== literal sid)
       pure (session ! #gitversion :*: session ! #app :*: session ! #name :*: session ! #lastmodified)
     case result of
@@ -236,18 +283,8 @@ instance MonadSeldaSQLiteDb m l => MonadDb (SeldaSQLiteDbT m) where
         case Aeson.decode bs of
           Nothing -> pure $ Left $ AppDecodingError sid
           Just decodedApp -> do
-            -- Note that we have 2 choices here if @n@ is not a valid
-            -- 'SessionName': either we can return a failure, or we
-            -- can convert it to a valid 'SessionName', possibly
-            -- including a helpful message. This situation can only
-            -- ever happen if we've made a mistake (e.g., we've
-            -- changed the rules on what's a valid 'SessionName' and
-            -- didn't run a migration), or if someone has edited the
-            -- database directly, without going through the API. In
-            -- either case, it would be bad if a student can't load
-            -- their session just because a session name was invalid,
-            -- so we opt for "convert it to a valid 'SessionName'".
-            -- For now, we elide the helpful message.
+            -- See comment on 'safeMkSession' regarding how we use
+            -- 'safeMkSessionName' here.
             let sessionName = safeMkSessionName n
                 lastModified = LastModified t
             when (fromSessionName sessionName /= n) $
@@ -277,3 +314,59 @@ convertSeldaDbException exc op =
   where
     justSeldaError :: SeldaError -> Maybe SeldaError
     justSeldaError = Just
+
+-- "Database.Selda" queries and other operations.
+
+-- All sessions in the database.
+allSessions :: Query s (Row s SessionRow)
+allSessions = select sessions
+
+-- Select all sessions whose name contains the given substring.
+--
+-- Note that Selda doesn't support @ESCAPE@ clauses in @LIKE@, so we
+-- can't search for strings that contain @%@ or @_@. See:
+--
+-- https://github.com/hackworthltd/primer/issues/1035
+--
+-- Because we can't escape them, any occurrences of these characters
+-- will be treated as wildcards by SQLite, which seems a bit
+-- dangerous. In order to protect against potential SQL injection
+-- attacks, we replace any occurrence of @%@ in the search string with
+-- @_@. In cases where the student actually wants to search for
+-- sessions whose names contain literal @%@, we'll still find those
+-- sessions, we'll just potentially return extraneous results, as
+-- well.
+sessionByNameSubstr :: Text -> Query s (Row s SessionRow)
+sessionByNameSubstr substr = do
+  session <- allSessions
+  restrict (session ! #name `like` literal ("%" <> paranoid substr <> "%"))
+  pure session
+  where
+    paranoid = Text.replace "%" "_"
+
+-- Paginate a query.
+paginate :: OffsetLimit -> Query (Inner t) a -> Query t (OuterCols a)
+paginate (OL o (Just l)) = Selda.limit o l
+paginate (OL o _) = Selda.limit o maxBound
+
+type SessionMeta s = (Col s UUID :*: Col s Text :*: Col s UTCTime)
+
+-- Order by session name (primary) and last-modified (secondary,
+-- newest to oldest), and return session metadata.
+orderSessionMeta :: Row s SessionRow -> Query s (SessionMeta s)
+orderSessionMeta s = do
+  -- Note that Selda wants these constraints to be ordered in
+  -- least-to-most precedence; i.e., secondary then primary. See:
+  -- https://hackage.haskell.org/package/selda-0.5.2.0/docs/Database-Selda.html#v:order
+  order (s ! #lastmodified) descending
+  order (s ! #name) ascending
+  pure (s ! #uuid :*: s ! #name :*: s ! #lastmodified)
+
+-- Paginated session metadata, sorted by session name (primary) and
+-- last-modified (secondary, newest to oldest).
+paginatedSessionMeta ::
+  OffsetLimit ->
+  Query (Inner t) (Row (Inner t) SessionRow) ->
+  Query t (SessionMeta t)
+paginatedSessionMeta ol s =
+  paginate ol $ s >>= orderSessionMeta

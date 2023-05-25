@@ -49,11 +49,7 @@ import Control.Monad.STM (atomically)
 import Control.Monad.Trans (MonadTrans)
 import Control.Monad.Writer (MonadWriter)
 import Control.Monad.Zip (MonadZip)
-import Data.Text qualified as Text (
-  strip,
-  take,
-  takeWhile,
- )
+import Data.Text qualified as Text
 import Data.Time.Clock (
   UTCTime,
  )
@@ -269,6 +265,10 @@ data Op
   | -- | Get the list of all sessions (and their names) in the
     -- database.
     ListSessions !OffsetLimit !(TMVar (Page Session))
+  | -- | Find any session whose name contains the given substring.
+    --
+    -- Note that this implementation is case-insensitive.
+    FindSessions !Text !OffsetLimit !(TMVar (Page Session))
 
 -- | A config for the 'serve' computation.
 data ServiceCfg = ServiceCfg
@@ -339,6 +339,11 @@ class (Monad m) => MonadDb m where
   -- Returns 'Left' with a 'DbError' if the query failed (session
   -- doesn't exist), 'Right' with the 'SessionData' if successful.
   querySessionId :: SessionId -> m (Either DbError SessionData)
+
+  -- | Find any session whose name contains the given substring.
+  --
+  -- Corresponds to the 'FindSessions' operation.
+  findSessions :: Text -> OffsetLimit -> m (Page Session)
 
 -- | Routine errors that can occur during 'MonadDb' computations.
 --
@@ -448,6 +453,14 @@ instance (MonadThrow m, MonadIO m) => MonadDb (NullDbT m) where
     case lookup of
       Nothing -> pure $ Left $ SessionIdNotFound sid
       Just s -> pure $ Right s
+  findSessions substr ol = do
+    ss <- ask
+    kvs <- liftIO $ atomically $ ListT.toList $ StmMap.listT ss
+    -- Find any session whose downcased name contains the given
+    -- downcased substring.
+    let substr' = Text.toLower substr
+    let matches = filter (\(_, SessionData _ n _) -> substr' `Text.isInfixOf` Text.toLower (fromSessionName n)) kvs
+    pure $ pageList ol $ sortOn name $ (\(i, SessionData _ n t) -> Session i n t) <$> matches
 
 updateOrFail :: (MonadThrow m, MonadIO m) => SessionId -> (SessionData -> SessionData) -> Sessions -> m ()
 updateOrFail id_ f ss = do
@@ -500,6 +513,9 @@ serve (ServiceCfg q v) =
     perform (UpdateName s n t) = updateSessionName v s n t
     perform (ListSessions ol result) = do
       ss <- listSessions ol
+      liftIO $ atomically $ putTMVar result ss
+    perform (FindSessions str ol result) = do
+      ss <- findSessions str ol
       liftIO $ atomically $ putTMVar result ss
     perform (LoadSession sid memdb status) = do
       -- Note that we split the in-memory session insertion (i.e.,

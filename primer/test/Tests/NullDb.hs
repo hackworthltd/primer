@@ -2,6 +2,7 @@ module Tests.NullDb where
 
 import Foreword
 
+import Data.Text qualified as Text
 import Data.UUID.V4 (nextRandom)
 import Primer.App (
   newApp,
@@ -16,6 +17,7 @@ import Primer.Database (
   Session (..),
   SessionData (..),
   SessionId,
+  fromSessionName,
   getCurrentTime,
   newSessionId,
   runNullDb',
@@ -122,6 +124,12 @@ mkSession n = do
   now <- getCurrentTime
   pure (u, SessionData newApp (safeMkSessionName $ "name-" <> show n) now)
 
+mkSession' :: (Int -> Text) -> Int -> IO (SessionId, SessionData)
+mkSession' mkName n = do
+  u <- nextRandom
+  now <- getCurrentTime
+  pure (u, SessionData newApp (safeMkSessionName $ mkName n) now)
+
 test_listSessions :: TestTree
 test_listSessions = testCaseSteps "listSessions" $ \step' ->
   runNullDb' $ do
@@ -148,6 +156,140 @@ test_listSessions = testCaseSteps "listSessions" $ \step' ->
     pLast <- listSessions $ OL{offset = m - 10, limit = Just 25}
     total pLast @?= m
     pageContents pLast @?= drop (m - 10) expectedRows
+
+test_findSessions_several :: TestTree
+test_findSessions_several = testCaseSteps "findSessions several hits" $ \step' ->
+  runNullDb' $ do
+    let step = liftIO . step'
+    let version = "git123"
+    let substr = "-30"
+    step "Insert all sessions"
+    rows <- liftIO $ sortOn (sessionName . snd) <$> traverse mkSession [1 .. 400]
+    forM_ rows (\(id_, SessionData app name now) -> insertSession version id_ app name now)
+    let filteredResults = filter (\(_, SessionData _ n _) -> substr `Text.isInfixOf` fromSessionName n) rows
+    let expectedRows = map (\(i, SessionData _ n t) -> Session i n t) filteredResults
+    step "Get all, offset+limit"
+    pAllMatches <- findSessions substr $ OL{offset = 0, limit = Nothing}
+    total pAllMatches @?= 11
+    pageContents pAllMatches @?= expectedRows
+    step "Get 5"
+    p5 <- findSessions substr $ OL{offset = 0, limit = Just 5}
+    total p5 @?= 11
+    pageContents p5 @?= take 5 expectedRows
+    step "Get 6-10"
+    p10 <- findSessions substr $ OL{offset = 5, limit = Just 5}
+    total p10 @?= 11
+    pageContents p10 @?= take 5 (drop 5 expectedRows)
+    step "Get crossing end"
+    pLast <- findSessions substr $ OL{offset = 10, limit = Just 5}
+    total pLast @?= 11
+    pageContents pLast @?= drop 10 expectedRows
+
+test_findSessions_exactly_1 :: TestTree
+test_findSessions_exactly_1 = testCaseSteps "findSessions exactly 1 hit" $ \step' ->
+  runNullDb' $ do
+    let step = liftIO . step'
+    let version = "git123"
+    let substr = "-300"
+    step "Insert all sessions"
+    rows <- liftIO $ sortOn (sessionName . snd) <$> traverse mkSession [1 .. 400]
+    forM_ rows (\(id_, SessionData app name now) -> insertSession version id_ app name now)
+    let filteredResults = filter (\(_, SessionData _ n _) -> substr `Text.isInfixOf` fromSessionName n) rows
+    let expectedRows = map (\(i, SessionData _ n t) -> Session i n t) filteredResults
+    step "Get all, offset+limit"
+    pAllMatches <- findSessions substr $ OL{offset = 0, limit = Nothing}
+    total pAllMatches @?= 1
+    pageContents pAllMatches @?= expectedRows
+    step "Get 50"
+    p50 <- findSessions substr $ OL{offset = 0, limit = Just 50}
+    total p50 @?= 1
+    pageContents p50 @?= expectedRows
+
+test_findSessions_none :: TestTree
+test_findSessions_none = testCaseSteps "findSessions no hits" $ \step' ->
+  runNullDb' $ do
+    let step = liftIO . step'
+    let version = "git123"
+    let substr = "-401"
+    step "Insert all sessions"
+    rows <- liftIO $ sortOn (sessionName . snd) <$> traverse mkSession [1 .. 400]
+    forM_ rows (\(id_, SessionData app name now) -> insertSession version id_ app name now)
+    let expectedRows = []
+    step "Get all, offset+limit"
+    pAllMatches <- findSessions substr $ OL{offset = 0, limit = Nothing}
+    total pAllMatches @?= 0
+    pageContents pAllMatches @?= expectedRows
+    step "Get 50"
+    p50 <- findSessions substr $ OL{offset = 0, limit = Just 50}
+    total p50 @?= 0
+    pageContents p50 @?= expectedRows
+
+test_findSessions_case_insensitive :: TestTree
+test_findSessions_case_insensitive = testCaseSteps "findSessions is case-insensitive" $ \step' ->
+  runNullDb' $ do
+    let step = liftIO . step'
+    let version = "git123"
+    let substr = "name"
+    step "Insert all sessions"
+    rows <- liftIO $ sortOn (sessionName . snd) <$> traverse (mkSession' evenOddName) [1 .. 6]
+    forM_ rows (\(id_, SessionData app name now) -> insertSession version id_ app name now)
+    let substr' = Text.toLower substr
+    let filteredResults = filter (\(_, SessionData _ n _) -> substr' `Text.isInfixOf` Text.toLower (fromSessionName n)) rows
+    let expectedRows = map (\(i, SessionData _ n t) -> Session i n t) filteredResults
+    step $ "Find all occurrences of " <> show substr <> " in session names (no limit)"
+    pAllMatches <- findSessions substr $ OL{offset = 0, limit = Nothing}
+    total pAllMatches @?= 6
+    pageContents pAllMatches @?= expectedRows
+  where
+    evenOddName n = if even n then "name-" <> show n else "NaMe-" <> show n
+
+test_findSessions_unicode :: TestTree
+test_findSessions_unicode = testCaseSteps "findSessions supports Unicode" $ \step' ->
+  runNullDb' $ do
+    let step = liftIO . step'
+    let version = "git123"
+    let substr = "ありがとう"
+    step "Insert all sessions"
+    rows <- liftIO $ sortOn (sessionName . snd) <$> traverse (mkSession' mkName) [1 .. 5]
+    forM_ rows (\(id_, SessionData app name now) -> insertSession version id_ app name now)
+    let filteredResults = filter (\(_, SessionData _ n _) -> substr `Text.isInfixOf` fromSessionName n) rows
+    let expectedRows = map (\(i, SessionData _ n t) -> Session i n t) filteredResults
+    step $ "Find all occurrences of " <> show substr <> " in session names (no limit)"
+    pAll <- findSessions substr $ OL{offset = 0, limit = Nothing}
+    total pAll @?= 2
+    pageContents pAll @?= expectedRows
+  where
+    mkName 0 = "Thank you"
+    mkName 1 = "ありがとう"
+    mkName 3 = "Merci"
+    mkName 4 = "ありがとうございます"
+    mkName 5 = "Danke"
+    mkName _ = "Gracias"
+
+test_findSessions_emoji :: TestTree
+test_findSessions_emoji = testCaseSteps "findSessions supports emoji" $ \step' ->
+  runNullDb' $ do
+    let step = liftIO . step'
+    let version = "git123"
+    let substr = "🤗😂"
+    step "Insert all sessions"
+    rows <- liftIO $ sortOn (sessionName . snd) <$> traverse (mkSession' mkName) [1 .. 7]
+    forM_ rows (\(id_, SessionData app name now) -> insertSession version id_ app name now)
+    let filteredResults = filter (\(_, SessionData _ n _) -> substr `Text.isInfixOf` fromSessionName n) rows
+    let expectedRows = map (\(i, SessionData _ n t) -> Session i n t) filteredResults
+    step $ "Find all occurrences of " <> show substr <> " in session names (no limit)"
+    pAll <- findSessions substr $ OL{offset = 0, limit = Nothing}
+    total pAll @?= 3
+    pageContents pAll @?= expectedRows
+  where
+    mkName 1 = "🤗"
+    mkName 2 = "😂"
+    mkName 3 = "🤗😂"
+    mkName 4 = "😄😂🤣🤗 🦊 🦈"
+    mkName 5 = "🤗😂😂"
+    mkName 6 = "🤗🤗😂"
+    mkName 7 = "🤗🤗😄"
+    mkName _ = "👍🏽"
 
 test_updateSessionApp_roundtrip :: TestTree
 test_updateSessionApp_roundtrip = testCaseSteps "updateSessionApp database round-tripping" $ \step' ->

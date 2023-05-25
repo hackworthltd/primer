@@ -108,9 +108,10 @@ flushSessions = void $ apiClient // API.adminAPI // API.flushSessions
 createSession :: NewSessionReq -> ClientM SessionId
 createSession req = apiClient // API.sessionsAPI // API.createSession /: req
 
--- | As 'Primer.API.listSessions'.
-listSessions :: Bool -> Pagination -> ClientM (Paginated Session)
-listSessions inMemory pp = apiClient // API.sessionsAPI // API.getSessionList /: inMemory /: pp
+-- | As 'Primer.API.listSessions' and 'Primer.API.findSessions',
+-- depending on whether the optional 'nameLike' parameter is provided.
+listSessions :: Maybe Text -> Pagination -> ClientM (Paginated Session)
+listSessions nameLike pp = apiClient // API.sessionsAPI // API.getSessionList /: nameLike /: pp
 
 -- | As 'Primer.API.addSession'.
 addSession :: Text -> App -> ClientM SessionId

@@ -13,6 +13,7 @@ import Primer.API (
   addSession,
   copySession,
   deleteSession,
+  findSessions,
   flushSessions,
   getApp,
   getSessionName,
@@ -262,13 +263,13 @@ test_listSessions =
     runAPI $ do
       let step = liftIO . step'
       step "List session on an empty database"
-      s0 <- listSessions False $ OL{offset = 0, limit = Nothing}
+      s0 <- listSessions $ OL{offset = 0, limit = Nothing}
       total s0 @?= 0
       let m :: Int = 107
       step $ "Create " <> show m <> " sessions"
       ss <- forM ([1 .. m] :: [Int]) $ const $ newSession $ NewSessionReq "new session"
       step "List all the sessions"
-      ss' <- listSessions False $ OL{offset = 0, limit = Nothing}
+      ss' <- listSessions $ OL{offset = 0, limit = Nothing}
       total ss' @?= m
       -- Sort by session ID, because 'listSessions' sorts by name but
       -- all the new session names are the same by default.
@@ -281,6 +282,30 @@ test_listSessions =
       -- https://github.com/hackworthltd/primer/issues/545
       {- HLINT ignore test_listSessions "Functor law" -}
       sort (id <$> pageContents ss') @?= sort ss
+
+-- Note: we don't bother testing paging here, because it's not very
+-- interesting to test. 'findSessions' doesn't do any of the paging,
+-- that's all handled by the database implementation.
+test_findSessions :: TestTree
+test_findSessions =
+  testCaseSteps "findSessions" $ \step' -> do
+    runAPI $ do
+      let step = liftIO . step'
+      step "Find session on an empty database"
+      s0 <- findSessions "nope" $ OL{offset = 0, limit = Nothing}
+      total s0 @?= 0
+      let m :: Int = 100
+      step $ "Create " <> show m <> " sessions"
+      forM_ ([1 .. m] :: [Int]) $ \n -> newSession $ NewSessionReq $ "new session " <> show n
+      step "Find all the sessions whose names contain '1'"
+      ss' <- findSessions "1" $ OL{offset = 0, limit = Nothing}
+      total ss' @?= 20
+      step "Find all the sessions whose names contain '99'"
+      ss'' <- findSessions "99" $ OL{offset = 0, limit = Nothing}
+      total ss'' @?= 1
+      step "Find all the sessions whose names contain '101'"
+      ss''' <- findSessions "101" $ OL{offset = 0, limit = Nothing}
+      total ss''' @?= 0
 
 test_copySession :: TestTree
 test_copySession =

@@ -37,6 +37,7 @@ import Control.Monad.Trans (MonadTrans)
 import Control.Monad.Writer (MonadWriter)
 import Control.Monad.Zip (MonadZip)
 import Data.Functor.Contravariant ((>$<))
+import Data.Text qualified as T
 import Data.Time.Clock (UTCTime)
 import Data.UUID (UUID)
 import Hasql.Connection (
@@ -91,6 +92,7 @@ import Rel8 (
   desc,
   each,
   filter,
+  ilike,
   insert,
   limit,
   lit,
@@ -138,6 +140,25 @@ runRel8DbT m = runReaderT (unRel8DbT m)
 --
 -- Note that 'MonadLog' has a functional dependency from 'm' to 'l'.
 type MonadRel8Db m l = (ConvertLogMessage Rel8DbLogMessage l, MonadCatch m, MonadThrow m, MonadIO m, MonadLog (WithSeverity l) m)
+
+-- A helper function for creating a 'Session' from a database query.
+--
+-- Note that we have 2 choices here if the session name that was
+-- fetched from the database isn't a valid 'SessionName': either we
+-- can return a failure, or we can convert it to a valid
+-- 'SessionName'. This situation can only ever happen if we've made a
+-- mistake (e.g., we've changed the rules on what's a valid
+-- 'SessionName' and didn't run a migration), or if someone has edited
+-- the database directly, without going through the API. In either
+-- case, it would be bad if a student can't load their session just
+-- because a session name was invalid, so we opt for "convert it to a
+-- valid 'SessionName'".
+--
+-- It might be helpful if this function returned an indication of
+-- whether the original name was safe, but for now, we convert
+-- silently.
+safeMkSession :: (SessionId, Text, UTCTime) -> Session
+safeMkSession (s, n, t) = Session s (safeMkSessionName n) (LastModified t)
 
 -- | A 'MonadDb' instance for 'Rel8DbT'.
 --
@@ -235,31 +256,38 @@ instance MonadRel8Db m l => MonadDb (Rel8DbT m) where
       -- 'numSessions' above) should never return the empty list:
       -- https://hackage.haskell.org/package/rel8-1.3.1.0/docs/Rel8.html#v:countRows
       _ -> throwM ListSessionsRel8Error
-    ss :: [(UUID, Text, UTCTime)] <- runStatement ListSessionsError $ select $ paginatedSessionMeta ol
+    ss :: [(UUID, Text, UTCTime)] <-
+      runStatement ListSessionsError $
+        select $
+          paginatedSessionMeta ol (sessionMeta <$> allSessions)
     pure $ Page{total = n, pageContents = safeMkSession <$> ss}
-    where
-      -- See comment in 'querySessionId' re: dealing with invalid
-      -- session names loaded from the database.
-      safeMkSession (s, n, t) = Session s (safeMkSessionName n) (LastModified t)
+
+  findSessions substr ol = do
+    -- This is very inefficient, as we run the same query later to
+    -- paginated it, but fixing it will take some refactoring work,
+    -- and this is not currently a priority.
+    --
+    -- https://github.com/hackworthltd/primer/issues/1037
+    n' <- runStatement FindSessionsError $ select $ countRows $ sessionByNameSubstr substr
+    n <- case n' of
+      -- See:
+      -- https://github.com/hackworthltd/primer/issues/238
+      [n''] -> pure $ fromIntegral n''
+      -- This case should never occur, see note in 'listSessions'.
+      _ -> throwM FindSessionsRel8Error
+    ss :: [(UUID, Text, UTCTime)] <-
+      runStatement FindSessionsError $
+        select $
+          paginatedSessionMeta ol (sessionMeta <$> sessionByNameSubstr substr)
+    pure $ Page{total = n, pageContents = safeMkSession <$> ss}
 
   querySessionId sid = do
     result <- runStatement (LoadSessionError sid) $ select $ sessionById sid
     case result of
       [] -> pure $ Left $ SessionIdNotFound sid
       (s : _) -> do
-        -- Note that we have 2 choices here if the session name
-        -- returned by the database is not a valid 'SessionName':
-        -- either we can return a failure, or we can convert it to a
-        -- valid 'SessionName', possibly including a helpful message.
-        -- This situation can only ever happen if we've made a mistake
-        -- (e.g., we've changed the rules on what's a valid
-        -- 'SessionName' and didn't run a migration), or if someone
-        -- has edited the database directly, without going through the
-        -- API. In either case, it would be bad if a student can't
-        -- load their session just because a session name was invalid,
-        -- so we opt for the "convert it to a valid 'SessionName'"
-        -- strategy and log an error. For now, we elide the helpful
-        -- message.
+        -- See comment on 'safeMkSessionName' regarding how we use
+        -- 'safeMkSessionName' here.
         let dbSessionName = Schema.name s
             sessionName = safeMkSessionName dbSessionName
             lastModified = LastModified $ Schema.lastmodified s
@@ -344,6 +372,12 @@ data Rel8DbException
     -- operation. This should never occur unless there's a bug in
     -- 'Rel8'.
     ListSessionsRel8Error
+  | -- | An error occurred during a 'FindSessions' operation.
+    FindSessionsError QueryError
+  | -- | 'Rel8' returned an unexpected result during a 'FindSessions'
+    -- operation. This should never occur unless there's a bug in
+    -- 'Rel8'.
+    FindSessionsRel8Error
   deriving stock (Eq, Show, Generic)
 
 instance Exception Rel8DbException
@@ -395,6 +429,20 @@ sessionById :: UUID -> Query (Schema.SessionRow Expr)
 sessionById sid =
   allSessions >>= filter \p -> Schema.uuid p ==. litExpr sid
 
+-- Select all sessions whose name contains the given substring.
+sessionByNameSubstr :: Text -> Query (Schema.SessionRow Expr)
+sessionByNameSubstr substr =
+  -- N.B. the arguments to 'ilike' are reversed from what you might expect.
+  filter (ilike (litExpr ("%" <> escape substr <> "%")) . Schema.name) =<< allSessions
+  where
+    -- Escape @%@ and @_@ characters in the given string, as these are
+    -- wildcards in SQL. Note that the backslash is the default escape
+    -- character, and therefore must also be escaped. Make sure we do
+    -- backslash first, as otherwise we'll double-escape the other two
+    -- replacements!
+    escape :: Text -> Text
+    escape = T.replace "%" "\\%" . T.replace "_" "\\_" . T.replace "\\" "\\\\"
+
 -- Return the number of sessions in the database.
 numSessions :: Query (Expr Int64)
 numSessions = countRows allSessions
@@ -409,16 +457,14 @@ paginate :: OffsetLimit -> Query a -> Query a
 paginate (OL o (Just l)) = limit (fromIntegral l) . offset (fromIntegral o)
 paginate (OL o _) = offset (fromIntegral o)
 
--- Return the metadata (represented as a tuple) for all sessions in
--- the database.
-sessionMeta :: Query (Expr UUID, Expr Text, Expr UTCTime)
-sessionMeta = do
-  s <- allSessions
-  pure (Schema.uuid s, Schema.name s, Schema.lastmodified s)
+type SessionMeta = (Expr UUID, Expr Text, Expr UTCTime)
+
+sessionMeta :: Schema.SessionRow Expr -> SessionMeta
+sessionMeta s = (Schema.uuid s, Schema.name s, Schema.lastmodified s)
 
 -- Paginated session metadata, sorted by session name (primary) and
 -- last-modified (secondary, newest to oldest).
-paginatedSessionMeta :: OffsetLimit -> Query (Expr UUID, Expr Text, Expr UTCTime)
-paginatedSessionMeta ol =
+paginatedSessionMeta :: OffsetLimit -> Query SessionMeta -> Query SessionMeta
+paginatedSessionMeta ol sm =
   paginate ol $
-    orderBy (mconcat [view _2 >$< asc, view _3 >$< desc]) sessionMeta
+    orderBy (mconcat [view _2 >$< asc, view _3 >$< desc]) sm

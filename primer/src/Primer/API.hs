@@ -30,6 +30,7 @@ module Primer.API (
   copySession,
   deleteSession,
   listSessions,
+  findSessions,
   getVersion,
   Tree,
   NodeBody (..),
@@ -95,7 +96,6 @@ import Control.Monad.Writer (MonadWriter)
 import Control.Monad.Zip (MonadZip)
 import Data.Map qualified as Map
 import Data.Tuple.Extra (curry3)
-import ListT qualified (toList)
 import Optics (ifoldr, over, traverseOf, view, (^.))
 import Primer.API.NodeFlavor qualified as Flavor
 import Primer.API.RecordPair (RecordPair (RecordPair))
@@ -166,7 +166,7 @@ import Primer.Database (
   OffsetLimit,
   OpStatus,
   Page,
-  Session (Session),
+  Session,
   SessionData (..),
   SessionId,
   SessionName,
@@ -175,12 +175,12 @@ import Primer.Database (
   fromSessionName,
   getCurrentTime,
   newSessionId,
-  pageList,
   safeMkSessionName,
  )
 import Primer.Database qualified as Database (
   Op (
     DeleteSession,
+    FindSessions,
     Insert,
     ListSessions,
     LoadSession,
@@ -365,7 +365,8 @@ data APILog
   | AddSession (ReqResp (Text, App) SessionId)
   | CopySession (ReqResp SessionId SessionId)
   | DeleteSession (ReqResp SessionId ())
-  | ListSessions (ReqResp (Bool, OffsetLimit) (Page Session))
+  | ListSessions (ReqResp OffsetLimit (Page Session))
+  | FindSessions (ReqResp (Text, OffsetLimit) (Page Session))
   | GetVersion (ReqResp () Version)
   | GetSessionName (ReqResp SessionId Text)
   | RenameSession (ReqResp (SessionId, Text) Text)
@@ -505,26 +506,30 @@ deleteSession = logAPI (noError DeleteSession) $ \sid -> do
       throwM $ DatabaseErr msg
     Database.Success -> pure ()
 
--- If the input is 'False', return all sessions in the database;
--- otherwise, only the in-memory sessions.
+-- | Returns a list of all 'Session's in the database.
+listSessions :: (MonadIO m, MonadAPILog l m) => OffsetLimit -> PrimerM m (Page Session)
+listSessions = logAPI (noError ListSessions) $ \ol -> do
+  q <- asks dbOpQueue
+  callback <- liftIO $
+    atomically $ do
+      cb <- newEmptyTMVar
+      writeTBQueue q $ Database.ListSessions ol cb
+      pure cb
+  liftIO $ atomically $ takeTMVar callback
+
+-- | Find sessions whose names contain the given substring.
 --
--- Currently the pagination support is "extract the whole list from the DB,
--- then select a portion". This should be improved to only extract the
--- appropriate section from the DB in the first place.
-listSessions :: (MonadIO m, MonadAPILog l m) => Bool -> OffsetLimit -> PrimerM m (Page Session)
-listSessions = curry $ logAPI (noError ListSessions) $ \case
-  (False, ol) -> do
+-- Note that this implementation is case-in-sensitive.
+findSessions :: (MonadIO m, MonadAPILog l m) => Text -> OffsetLimit -> PrimerM m (Page Session)
+findSessions = curry $ logAPI (noError FindSessions) $ \case
+  (substr, ol) -> do
     q <- asks dbOpQueue
     callback <- liftIO $
       atomically $ do
         cb <- newEmptyTMVar
-        writeTBQueue q $ Database.ListSessions ol cb
+        writeTBQueue q $ Database.FindSessions substr ol cb
         pure cb
     liftIO $ atomically $ takeTMVar callback
-  (_, ol) -> sessionsTransaction $ \ss _ -> do
-    kvs' <- ListT.toList $ StmMap.listT ss
-    let kvs = (\(i, SessionData _ n t) -> Session i n t) <$> kvs'
-    pure $ pageList ol kvs
 
 getVersion :: (MonadAPILog l m) => PrimerM m Version
 getVersion = logAPI' GetVersion $ asks version
