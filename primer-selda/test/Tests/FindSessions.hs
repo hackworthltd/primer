@@ -151,5 +151,30 @@ test_findSessions_emoji = testCaseSteps "findSessions supports emoji" $ \step' -
     mkName 7 = "🤗🤗😄"
     mkName _ = "👍🏽"
 
+test_findSessions_paranoid :: TestTree
+test_findSessions_paranoid = testCaseSteps "findSessions is paranoid" $ \step' ->
+  runTmpDb $ do
+    let step = liftIO . step'
+    let substr = "%xy_z"
+    step "Insert all sessions"
+    rows <- liftIO $ sortOn name <$> traverse (mkSessionRow' mkName) [1 .. 5]
+    forM_ rows (\SessionRow{..} -> insertSession gitversion uuid newApp (safeMkSessionName name) (LastModified lastmodified))
+    step $ "Find all (paranoid) occurrences of " <> show substr <> " in session names (no limit)"
+    pAll <- findSessions substr $ OL{offset = 0, limit = Nothing}
+    total pAll @?= 3
+  where
+    -- A total of 3 of these should match the paranoid substring.
+    -- match
+    mkName 1 = "%xy_z"
+    -- no match
+    mkName 2 = "xyz"
+    -- no match
+    mkName 3 = "%xyz"
+    -- match
+    mkName 4 = "%xyzz"
+    -- match
+    mkName 5 = "axybz" -- match
+    mkName _ = "foo"
+
 -- Note: no escape checks, as Selda doesn't currently support escaping
 -- in LIKE queries.

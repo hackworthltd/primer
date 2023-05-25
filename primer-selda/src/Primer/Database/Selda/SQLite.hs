@@ -24,6 +24,7 @@ import Data.Aeson qualified as Aeson (
   encode,
  )
 import Data.ByteString.Lazy as BL hiding (take)
+import Data.Text qualified as Text
 import Data.Time.Clock (UTCTime)
 import Data.UUID (UUID)
 import Database.Selda (
@@ -326,11 +327,22 @@ allSessions = select sessions
 -- can't search for strings that contain @%@ or @_@. See:
 --
 -- https://github.com/hackworthltd/primer/issues/1035
+--
+-- Because we can't escape them, any occurrences of these characters
+-- will be treated as wildcards by SQLite, which seems a bit
+-- dangerous. In order to protect against potential SQL injection
+-- attacks, we replace any occurrence of @%@ in the search string with
+-- @_@. In cases where the student actually wants to search for
+-- sessions whose names contain literal @%@, we'll still find those
+-- sessions, we'll just potentially return extraneous results, as
+-- well.
 sessionByNameSubstr :: Text -> Query s (Row s SessionRow)
 sessionByNameSubstr substr = do
   session <- allSessions
-  restrict (session ! #name `like` literal ("%" <> substr <> "%"))
+  restrict (session ! #name `like` literal ("%" <> paranoid substr <> "%"))
   pure session
+  where
+    paranoid = Text.replace "%" "_"
 
 -- Paginate a query.
 paginate :: OffsetLimit -> Query (Inner t) a -> Query t (OuterCols a)
