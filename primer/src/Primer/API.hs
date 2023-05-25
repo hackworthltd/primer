@@ -519,9 +519,7 @@ listSessions = logAPI (noError ListSessions) $ \ol -> do
 
 -- | Find sessions whose names contain the given substring.
 --
--- Note that this implementation is case-sensitive, though some
--- underlying implementations may disagree in certain ranges of the
--- Unicode character set.
+-- Note that this implementation is case-in-sensitive.
 findSessions :: (MonadIO m, MonadAPILog l m) => Text -> OffsetLimit -> PrimerM m (Page Session)
 findSessions = curry $ logAPI (noError FindSessions) $ \case
   (substr, ol) -> do

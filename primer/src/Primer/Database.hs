@@ -267,9 +267,7 @@ data Op
     ListSessions !OffsetLimit !(TMVar (Page Session))
   | -- | Find any session whose name contains the given substring.
     --
-    -- Note that this implementation is case-sensitive, though some
-    -- database implementations may disagree in certain ranges of the
-    -- Unicode character set.
+    -- Note that this implementation is case-insensitive.
     FindSessions !Text !OffsetLimit !(TMVar (Page Session))
 
 -- | A config for the 'serve' computation.
@@ -458,8 +456,10 @@ instance (MonadThrow m, MonadIO m) => MonadDb (NullDbT m) where
   findSessions substr ol = do
     ss <- ask
     kvs <- liftIO $ atomically $ ListT.toList $ StmMap.listT ss
-    -- Find any session whose name contains the given substring.
-    let matches = filter (\(_, SessionData _ n _) -> substr `Text.isInfixOf` fromSessionName n) kvs
+    -- Find any session whose downcased name contains the given
+    -- downcased substring.
+    let substr' = Text.toLower substr
+    let matches = filter (\(_, SessionData _ n _) -> substr' `Text.isInfixOf` Text.toLower (fromSessionName n)) kvs
     pure $ pageList ol $ sortOn name $ (\(i, SessionData _ n t) -> Session i n t) <$> matches
 
 updateOrFail :: (MonadThrow m, MonadIO m) => SessionId -> (SessionData -> SessionData) -> Sessions -> m ()

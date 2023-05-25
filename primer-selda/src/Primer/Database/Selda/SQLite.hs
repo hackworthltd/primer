@@ -114,17 +114,20 @@ runSeldaSQLiteDbT db m =
   -- hence, we use 'ConnectionFailed' here.
   convertSeldaDbException ConnectionFailed $
     withSQLite db $ do
-      -- This is required to make SQLite LIKE operations case
-      -- sensitive, which we want in order to match the standard (and
-      -- other implementations). See:
+      -- By default, SQLite has a case-insensitive @LIKE@
+      -- implementation. See:
       -- https://www.sqlite.org/pragma.html#pragma_case_sensitive_like
+      --
+      -- However, we use a pragma upon opening the database connection
+      -- just to be sure. (Eventually we'll need to support both
+      -- case-sensitive and insensitive, anyway.)
       --
       -- The documentation for the pragma isn't clear on this point,
       -- but the documentation for
       -- https://www.sqlite.org/c3ref/create_function.html, upon which
       -- this pragma is based, is, implies that this pragma needs to
       -- be performed on every connection.
-      rawStm "PRAGMA case_sensitive_like = true;"
+      rawStm "PRAGMA case_sensitive_like = false;"
       unSeldaSQLiteDbT m
 
 -- | A database session table row.
@@ -250,9 +253,6 @@ instance MonadSeldaSQLiteDb m l => MonadDb (SeldaSQLiteDbT m) where
     ss <- query $ paginatedSessionMeta ol allSessions
     pure $ Page{total = n, pageContents = safeMkSession <$> ss}
 
-  -- NB: this method is intended to be case-sensitive, but in SQLite,
-  -- this requires that a pragma is used. Primer's implementation sets
-  -- the necessary pragma when the database connection is opened.
   findSessions substr ol = convertSeldaDbException FindSessionsError $ do
     -- We shouldn't do this, it's very wasteful. However, it'll
     -- require some refactoring. See:

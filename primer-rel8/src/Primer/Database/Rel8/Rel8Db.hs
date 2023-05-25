@@ -92,8 +92,8 @@ import Rel8 (
   desc,
   each,
   filter,
+  ilike,
   insert,
-  like,
   limit,
   lit,
   litExpr,
@@ -262,8 +262,6 @@ instance MonadRel8Db m l => MonadDb (Rel8DbT m) where
           paginatedSessionMeta ol (sessionMeta <$> allSessions)
     pure $ Page{total = n, pageContents = safeMkSession <$> ss}
 
-  -- NB: this method is intended to be case-sensitive, which
-  -- PostgreSQL handles by default.
   findSessions substr ol = do
     -- This is very inefficient, as we run the same query later to
     -- paginated it, but fixing it will take some refactoring work,
@@ -434,8 +432,8 @@ sessionById sid =
 -- Select all sessions whose name contains the given substring.
 sessionByNameSubstr :: Text -> Query (Schema.SessionRow Expr)
 sessionByNameSubstr substr =
-  -- N.B. the arguments to 'like' are reversed from what you might expect.
-  filter (like (litExpr ("%" <> escape substr <> "%")) . Schema.name) =<< allSessions
+  -- N.B. the arguments to 'ilike' are reversed from what you might expect.
+  filter (ilike (litExpr ("%" <> escape substr <> "%")) . Schema.name) =<< allSessions
   where
     -- Escape @%@ and @_@ characters in the given string, as these are
     -- wildcards in SQL. Note that the backslash is the default escape

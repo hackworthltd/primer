@@ -91,18 +91,18 @@ test_findSessions_none = testCaseSteps "findSessions no hits" $ \step' ->
     total p50 @?= 0
     pageContents p50 @?= expectedRows
 
-test_findSessions_case_sensitive :: TestTree
-test_findSessions_case_sensitive = testCaseSteps "findSessions is case sensitive" $ \step' ->
+test_findSessions_case_insensitive :: TestTree
+test_findSessions_case_insensitive = testCaseSteps "findSessions is case-insensitive" $ \step' ->
   runTmpDb $ do
     let step = liftIO . step'
     let substr = "name"
     step "Insert all sessions"
     rows <- liftIO $ sortOn name <$> traverse (mkSessionRow' mkName) [1 .. 6]
     forM_ rows (\SessionRow{..} -> insertSession gitversion uuid newApp (safeMkSessionName name) (LastModified lastmodified))
-    let expectedRows = filter (\(Session _ n _) -> substr `Text.isInfixOf` fromSessionName n) $ map (\r -> Session (uuid r) (safeMkSessionName $ name r) (LastModified $ lastmodified r)) rows
-    step $ "Find all occurrences of " <> show substr <> " in session names (no limit)"
+    let expectedRows = map (\r -> Session (uuid r) (safeMkSessionName $ name r) (LastModified $ lastmodified r)) rows
+    step $ "Find all occurrences of (case-insensitive) " <> show substr <> " in session names (no limit)"
     pAll <- findSessions substr $ OL{offset = 0, limit = Nothing}
-    total pAll @?= 3
+    total pAll @?= 6
     pageContents pAll @?= expectedRows
   where
     mkName n = if even n then "name-" <> show n else "NaMe-" <> show n
