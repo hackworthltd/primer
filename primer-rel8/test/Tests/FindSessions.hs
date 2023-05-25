@@ -99,11 +99,16 @@ test_findSessions_case_insensitive = testCaseSteps "findSessions is case-insensi
     step "Insert all sessions"
     rows <- liftIO $ sortOn name <$> traverse (mkSessionRow' mkName) [1 .. 6]
     forM_ rows (\SessionRow{..} -> insertSession gitversion uuid newApp (safeMkSessionName name) (LastModified lastmodified))
-    let expectedRows = map (\r -> Session (uuid r) (safeMkSessionName $ name r) (LastModified $ lastmodified r)) rows
+    -- See comment below.
+    -- let expectedRows = map (\r -> Session (uuid r) (safeMkSessionName $ name r) (LastModified $ lastmodified r)) rows
     step $ "Find all occurrences of " <> show substr <> " in session names (no limit)"
     pAll <- findSessions substr $ OL{offset = 0, limit = Nothing}
+    -- This is disabled due to a difference in the sort order that
+    -- PostgreSQL returns depending on which platorm it's running on. See:
+    --
+    -- https://github.com/hackworthltd/primer/issues/1044
+    -- pageContents pAll @?= expectedRows
     total pAll @?= 6
-    pageContents pAll @?= expectedRows
   where
     mkName n = if even n then "name-" <> show n else "NaMe-" <> show n
 
