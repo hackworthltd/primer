@@ -23,6 +23,7 @@ import Control.Monad.Log (
 import Data.ByteString as BS
 import Data.ByteString.UTF8 (fromString)
 import Data.String (String)
+import Data.Text qualified as Text
 import Data.Time.Clock (
   secondsToDiffTime,
  )
@@ -37,6 +38,7 @@ import Options.Applicative (
   argument,
   auto,
   command,
+  eitherReader,
   execParser,
   flag,
   fullDesc,
@@ -77,7 +79,13 @@ import Primer.Log (
   logNotice,
   textWithSeverity,
  )
-import Primer.Server (ConvertServerLogs, ServantLog)
+import Primer.Server (
+  ConvertServerLogs,
+  CorsAllowedOrigins (..),
+  ServantLog,
+  parseCorsAllowedOrigins,
+  prettyPrintCorsAllowedOrigins,
+ )
 import Primer.Server qualified as Server
 import Prometheus qualified as P
 import Prometheus.Metric.GHC qualified as P
@@ -102,8 +110,28 @@ parseDatabase =
     <|> (PostgreSQL <$> option auto (long "pgsql-url"))
 
 data Logger = Standard | Replay
+
 data Command
-  = Serve Version (Maybe Database) Int Natural Logger
+  = Serve Version (Maybe Database) Int Natural Logger CorsAllowedOrigins
+
+parseOrigins :: Parser CorsAllowedOrigins
+parseOrigins =
+  option
+    parser
+    ( long
+        "cors-allow-origin"
+        <> value AllowAnyOrigin
+        <> metavar "ORIGIN,ORIGIN,..."
+        <> help "Comma-separated list of RFC 6454-formatted allowed CORS origins"
+    )
+  where
+    parser = eitherReader $ \arg ->
+      case Text.strip <$> Text.splitOn "," (toS arg) of
+        [] -> Left "Expected a list of origins, separated by commas"
+        ts ->
+          case parseCorsAllowedOrigins ts of
+            Left err -> Left (toS err)
+            Right corsAllowedOrigins -> Right corsAllowedOrigins
 
 serveCmd :: Parser Command
 serveCmd =
@@ -113,6 +141,7 @@ serveCmd =
     <*> option auto (long "port" <> value 8081)
     <*> option auto (long "db-op-queue-size" <> value 128)
     <*> flag Standard Replay (long "record-replay" <> help "Change the log format to capture enough information so one can replay sessions")
+    <*> parseOrigins
 
 cmds :: Parser GlobalOptions
 cmds =
@@ -239,6 +268,7 @@ serve ::
   Version ->
   Int ->
   Natural ->
+  CorsAllowedOrigins ->
   -- | NB: this logging handler will be called concurrently in multiple threads.
   -- It is expected that we use and pass around one global 'withBatchedHandler',
   -- which is thread-safe (in the sense that messages will be logged atomically:
@@ -246,7 +276,7 @@ serve ::
   -- @concurrently_ (putStrLn s1) (putStrLn s2)@ can.)
   Handler IO (WithSeverity l) ->
   IO ()
-serve (PostgreSQL uri) ver port qsz logger =
+serve (PostgreSQL uri) ver port qsz origins logger =
   bracket (acquire poolSize timeout maxLifetime uri) release $ \pool -> do
     dbOpQueue <- newTBQueueIO qsz
     initialSessions <- StmMap.newIO
@@ -254,9 +284,10 @@ serve (PostgreSQL uri) ver port qsz logger =
       forM_ banner logInfo
       logNotice $ "primer-server version " <> ver
       logNotice ("Listening on port " <> show port :: Text)
+      logNotice $ "CORS allowed origins: " <> prettyPrintCorsAllowedOrigins origins
       logNotice $ "PostgreSQL database: " <> uri
     concurrently_
-      (Server.serve initialSessions dbOpQueue ver port logger)
+      (Server.serve initialSessions dbOpQueue ver port origins logger)
       (flip runLoggingT logger $ runRel8Db (Db.ServiceCfg dbOpQueue ver) pool)
   where
     -- Note: pool size must be 1 in order to guarantee
@@ -269,7 +300,7 @@ serve (PostgreSQL uri) ver port qsz logger =
     timeout = secondsToDiffTime 10
     -- 30 min max connection lifetime (arbitrary)
     maxLifetime = secondsToDiffTime $ 60 * 30
-serve (SQLite path) ver port qsz logger = do
+serve (SQLite path) ver port qsz origins logger = do
   dbPath <- canonicalizePath path
   dbOpQueue <- newTBQueueIO qsz
   initialSessions <- StmMap.newIO
@@ -277,9 +308,10 @@ serve (SQLite path) ver port qsz logger = do
     forM_ banner logInfo
     logNotice $ "primer-server version " <> ver
     logNotice ("Listening on port " <> show port :: Text)
+    logNotice $ "CORS allowed origins: " <> prettyPrintCorsAllowedOrigins origins
     logNotice $ "SQLite database: " <> dbPath
   concurrently_
-    (Server.serve initialSessions dbOpQueue ver port logger)
+    (Server.serve initialSessions dbOpQueue ver port origins logger)
     (flip runLoggingT logger $ runSqliteDb (Db.ServiceCfg dbOpQueue ver) dbPath)
 
 main :: IO ()
@@ -296,11 +328,11 @@ main = do
     handleAll (bye (logToStdout . logMsgWithSeverity)) $ do
       args <- execParser opts
       case args of
-        GlobalOptions (Serve ver dbFlag port qsz logger) -> do
+        GlobalOptions (Serve ver dbFlag port qsz logger origins) -> do
           db <- maybe defaultDb pure dbFlag
           case logger of
-            Standard -> serve db ver port qsz (logToStdout . logMsgWithSeverity)
-            Replay -> serve db ver port qsz (logToStdout . logReplay)
+            Standard -> serve db ver port qsz origins (logToStdout . logMsgWithSeverity)
+            Replay -> serve db ver port qsz origins (logToStdout . logReplay)
   where
     opts =
       info

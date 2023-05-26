@@ -12,6 +12,17 @@ environment variables:
 
 - SQLITE_DB: A path to a SQLite database file.
 
+- CORS_ALLOW_ORIGIN: A comma-separated list of one or more CORS
+  origins to allow; e.g.,
+  "https://app.example.com,https://dev.example.com". Each origin in
+  the list must be formatted per RFC 6454. (Note that the service does
+  not use a validating parser, and may exhibit unexpected behavior if
+  one or more origins aren't correctly formatted.) The origins "*" and
+  "null" are not permitted. If this variable isn't set, then the
+  service will respond to CORS preflight requests with the wildcard
+  ("*") origin, which effectively precludes any possibility of using
+  the service behind an authenticating proxy.
+
 - SERVICE_PORT: A TCP port number on which the Primer service
   listens for HTTP connections. This variable is required.
 
@@ -90,7 +101,9 @@ else
     fi
 fi
 
-
+if [ -n "${CORS_ALLOW_ORIGIN+x}" ]; then
+    EXTRA_PRIMER_SERVICE_ARGS="$EXTRA_PRIMER_SERVICE_ARGS --cors-allow-origin $CORS_ALLOW_ORIGIN"
+fi
 
 # shellcheck disable=SC2086
 exec primer-service serve "$PRIMER_VERSION" --port "$SERVICE_PORT" $EXTRA_PRIMER_SERVICE_ARGS +RTS -T

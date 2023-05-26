@@ -10,6 +10,12 @@ module Primer.Server (
   ServantLog (..),
   ConvertServerLogs,
   openAPIInfo,
+  CorsAllowedOrigins (..),
+  parseCorsAllowedOrigins,
+  prettyPrintCorsAllowedOrigins,
+
+  -- * Re-exported from "Network.Wai.Middleware.Cors"
+  Origin,
 ) where
 
 import Foreword hiding (Handler)
@@ -40,6 +46,7 @@ import Network.Wai.Handler.Warp (
 import Network.Wai.Handler.Warp qualified as Warp (runSettings)
 import Network.Wai.Middleware.Cors (
   CorsResourcePolicy (..),
+  Origin,
   cors,
   corsMethods,
   corsRequestHeaders,
@@ -277,16 +284,66 @@ server =
     , servantAPI = apiServer
     }
 
--- | CORS settings for the Primer API. Note that this policy will not
--- work with credentialed requests because the origin is implicitly
--- "*". See:
--- https://developer.mozilla.org/en-US/docs/Web/HTTP/CORS#credentialed_requests_and_wildcards
-apiCors :: CorsResourcePolicy
-apiCors =
+-- | CORS allowed origins.
+data CorsAllowedOrigins
+  = -- | Allow any origin. Equivalent to @Access-Control-Allow-Origin: *@.
+    AllowAnyOrigin
+  | -- | Allow one or more specific origins.
+    Allow [Origin]
+  deriving stock (Show, Eq, Generic)
+
+-- | Pretty-print a 'CorsAllowedOrigins' value as a 'Text'.
+prettyPrintCorsAllowedOrigins :: CorsAllowedOrigins -> Text
+prettyPrintCorsAllowedOrigins = \case
+  AllowAnyOrigin -> "*"
+  Allow origins -> T.intercalate ", " $ map decodeUtf8 origins
+
+-- | Parse a 'CorsAllowedOrigins' value from a list of 'Text'.
+--
+-- Each element of the list should be formatted as an [RFC
+-- 6454](https://www.ietf.org/rfc/rfc6454.html) web origin, though for
+-- practical reasons, the parser doesn't validate this.
+--
+-- Note that the literal string @*@ is not a valid origin. If you want
+-- to specify that any origin is allowed, pass the empty list.
+--
+-- Also note that we do not allow the literal string @null@, per [the
+-- W3C's
+-- advice](https://w3c.github.io/webappsec-cors-for-developers/#avoid-returning-access-control-allow-origin-null).
+--
+-- If parsing is successful, the function returns a value of type
+-- 'CorsAllowedOrigins' in a 'Right'. If parsing fails, the function
+-- returns a 'Text' error message in a 'Left'.
+parseCorsAllowedOrigins :: [Text] -> Either Text CorsAllowedOrigins
+parseCorsAllowedOrigins [] = Right AllowAnyOrigin
+parseCorsAllowedOrigins xs = case traverse parse xs of
+  Left err -> Left err
+  Right [] -> Right AllowAnyOrigin
+  Right origins -> Right $ Allow $ encodeUtf8 <$> origins
+  where
+    parse "" = Left "The empty string is not a valid origin"
+    parse "*" = Left "'*' is not a valid origin"
+    parse "null" = Left "'null' is not permitted as an origin"
+    parse x = Right x
+
+-- | CORS settings for the Primer API.
+apiCors :: CorsAllowedOrigins -> CorsResourcePolicy
+apiCors origins =
   simpleCorsResourcePolicy
-    { corsMethods = simpleMethods <> (renderStdMethod <$> [PUT, OPTIONS, DELETE])
+    { corsOrigins = toCorsOrigins origins
+    , corsMethods = simpleMethods <> (renderStdMethod <$> [PUT, OPTIONS, DELETE])
     , corsRequestHeaders = simpleHeaders <> [hAuthorization]
+    , -- Per:
+      -- https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Access-Control-Allow-Origin#cors_and_caching
+      corsVaryOrigin = origins /= AllowAnyOrigin
+    , -- If we're running with any origin, then there's no point in
+      -- requiring that the client send one.
+      corsRequireOrigin = origins /= AllowAnyOrigin
     }
+  where
+    toCorsOrigins = \case
+      AllowAnyOrigin -> Nothing
+      Allow os -> Just (os, True)
 
 data ServantLog
   = RequestStart
@@ -302,12 +359,16 @@ serve ::
   TBQueue Database.Op ->
   Version ->
   Int ->
+  CorsAllowedOrigins ->
   Log.Handler IO (Log.WithSeverity l) ->
   IO ()
-serve ss q v port logger = do
+serve ss q v port origins logger = do
   Warp.runSettings warpSettings $
     noCache $
-      cors (const $ Just apiCors) $
+      -- It may make sense to allow access to some resources
+      -- regardless of origin, but for now, we use a blanket CORS
+      -- policy for every resource, hence the 'const' function here.
+      cors (const $ Just $ apiCors origins) $
         metrics $
           genericServeT nt server
   where
