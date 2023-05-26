@@ -29,6 +29,7 @@ import Hedgehog.Range qualified as Range
 import Primer.Core (
   Bind' (Bind),
   CaseBranch' (CaseBranch),
+  CaseFallback' (CaseExhaustive),
   Expr,
   Expr' (..),
   GVarName,
@@ -135,7 +136,7 @@ genLetrec :: ExprGen Expr
 genLetrec = Letrec <$> genMeta <*> genLVarName <*> genExpr <*> genType <*> genExpr
 
 genCase :: ExprGen Expr
-genCase = Case <$> genMeta <*> genExpr <*> Gen.list (Range.linear 0 5) genBranch
+genCase = Case <$> genMeta <*> genExpr <*> Gen.list (Range.linear 0 5) genBranch <*> Gen.choice [pure CaseExhaustive]
   where
     genBranch = CaseBranch <$> genValConName <*> Gen.list (Range.linear 0 5) genBind <*> genExpr
     genBind = Bind <$> genMeta <*> genLVarName

@@ -99,6 +99,7 @@ import Optics.Traversal (traversed)
 import Primer.Core (
   Bind' (..),
   CaseBranch' (..),
+  CaseFallback' (CaseExhaustive),
   Expr,
   Expr' (..),
   ExprMeta,
@@ -694,25 +695,25 @@ check t = \case
     -- NB here: if b were synthesisable, we bubble that information up to the
     -- let, saying @typeOf b'@ rather than @TCChkedAt t@ (consistently with Let)
     pure $ Letrec (annotate (typeOf b') i) x a' tA' b'
-  Case i e brs -> do
+  Case i e brs fb -> do
     (eT, e') <- synth e
     let caseMeta = annotate (TCChkedAt t) i
     instantiateValCons eT >>= \case
       -- we allow 'case' on a thing of type TEmptyHole iff we have zero branches
       Left TDIHoleType ->
-        if null brs
-          then pure $ Case caseMeta e' []
+        if null brs && fb == CaseExhaustive
+          then pure $ Case caseMeta e' [] CaseExhaustive
           else
             asks smartHoles >>= \case
               NoSmartHoles -> throwError' CaseOfHoleNeedsEmptyBranches
-              SmartHoles -> pure $ Case caseMeta e' []
+              SmartHoles -> pure $ Case caseMeta e' [] CaseExhaustive
       Left TDINotADT ->
         asks smartHoles >>= \case
           NoSmartHoles -> throwError' $ CannotCaseNonADT eT
           SmartHoles -> do
             -- NB: we wrap the scrutinee in a hole and DELETE the branches
             scrutWrap <- Hole <$> meta' (TCSynthed (TEmptyHole ())) <*> pure (addChkMetaT (TEmptyHole ()) e')
-            pure $ Case caseMeta scrutWrap []
+            pure $ Case caseMeta scrutWrap [] CaseExhaustive
       Left (TDIUnknown ty) -> throwError' $ InternalError $ "We somehow synthesised the unknown type " <> show ty <> " for the scrutinee of a case"
       Left TDINotSaturated ->
         asks smartHoles >>= \case
@@ -720,7 +721,7 @@ check t = \case
           SmartHoles -> do
             -- NB: we wrap the scrutinee in a hole and DELETE the branches
             scrutWrap <- Hole <$> meta' (TCSynthed (TEmptyHole ())) <*> pure (addChkMetaT (TEmptyHole ()) e')
-            pure $ Case caseMeta scrutWrap []
+            pure $ Case caseMeta scrutWrap [] CaseExhaustive
       Right (tc, _, expected) -> do
         let branchNames = map (\(CaseBranch n _ _) -> n) brs
         let conNames = map fst expected
@@ -732,7 +733,9 @@ check t = \case
           (False, SmartHoles) -> traverse (\c -> branch c [] emptyHole) conNames
           (True, _) -> pure brs
         brs'' <- zipWithM (checkBranch t) expected brs'
-        pure $ Case caseMeta e' brs''
+        fb' <- case fb of
+          CaseExhaustive -> pure CaseExhaustive
+        pure $ Case caseMeta e' brs'' fb'
   e -> do
     sh <- asks smartHoles
     let default_ = do

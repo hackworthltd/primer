@@ -116,7 +116,7 @@ extractLocalsExprZ = foldAbove getBoundHere
         | otherwise -> M [] [(x, typeOrHole' $ maybeTypeOf e1)] []
       Letrec _ x _ ty _ -> M [] [(x, forgetTypeMetadata ty)] []
       LetType _ x ty _ -> M [(x, kindOrHoleOf ty)] [] []
-      Case _ _ branches ->
+      Case _ _ branches _ ->
         let fromBinding (Bind m n) = (n, typeOrHole m)
             binderss = map (\(CaseBranch _ ns rhs) -> (rhs, map fromBinding ns)) branches
          in mconcat $ map (\(b, binders) -> if b == prior e then M [] binders [] else mempty) binderss

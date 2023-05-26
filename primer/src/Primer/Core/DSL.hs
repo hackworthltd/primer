@@ -54,6 +54,7 @@ import Primer.Core (
   Bind' (..),
   CaseBranch,
   CaseBranch' (..),
+  CaseFallback' (CaseExhaustive),
   Expr,
   Expr' (..),
   GVarName,
@@ -154,8 +155,9 @@ letrec v a tA b = Letrec <$> meta <*> pure v <*> a <*> tA <*> b
 letType :: MonadFresh ID m => TyVarName -> m Type -> m Expr -> m Expr
 letType v t e = LetType <$> meta <*> pure v <*> t <*> e
 
+-- | An exhaustive case
 case_ :: MonadFresh ID m => m Expr -> [m CaseBranch] -> m Expr
-case_ e brs = Case <$> meta <*> e <*> sequence brs
+case_ e brs = Case <$> meta <*> e <*> sequence brs <*> pure CaseExhaustive
 
 branch :: MonadFresh ID m => ValConName -> [(LVarName, Maybe TypeCache)] -> m Expr -> m CaseBranch
 branch c vs e = CaseBranch c <$> mapM binding vs <*> e

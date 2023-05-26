@@ -10,6 +10,9 @@ module Primer.Core (
   Bind' (..),
   CaseBranch,
   CaseBranch' (..),
+  CaseFallback,
+  CaseFallback' (..),
+  traverseFallback,
   module Primer.Core.Meta,
   module Primer.Core.Type,
   TypeCache (..),
@@ -178,7 +181,7 @@ data Expr' a b
       (Type' b)
       -- | body of the let; binding scopes over this
       (Expr' a b)
-  | Case a (Expr' a b) [CaseBranch' a b] -- See Note [Case]
+  | Case a (Expr' a b) [CaseBranch' a b] (CaseFallback' a b) -- See Note [Case]
   | PrimCon a PrimCon
   deriving stock (Eq, Show, Read, Data, Generic)
   deriving (FromJSON, ToJSON) via PrimerJSON (Expr' a b)
@@ -312,6 +315,24 @@ data CaseBranch' a b
   deriving stock (Eq, Show, Read, Data, Generic)
   deriving (FromJSON, ToJSON) via PrimerJSON (CaseBranch' a b)
   deriving anyclass (NFData)
+
+type CaseFallback = CaseFallback' ExprMeta TypeMeta
+
+data CaseFallback' a b
+  = CaseExhaustive
+  | CaseFallbackUseParams !Void a b
+  -- This is a temporary (uninhabited) constructor since generic-optics does not
+  -- support `param` when some subtype ignores its parameters (Here,
+  -- CaseFallback' is a subtype of Expr', breaking _exprMeta and _exprTypeMeta).
+  -- This will be removed in a subsequent commit when we add a fully-featured
+  -- fallback/wildcard branch.
+  deriving stock (Eq, Show, Read, Data, Generic)
+  deriving (FromJSON, ToJSON) via PrimerJSON (CaseFallback' a b)
+  deriving anyclass (NFData)
+
+traverseFallback :: Applicative f => (Expr' a b -> f (Expr' a' b')) -> CaseFallback' a b -> f (CaseFallback' a' b')
+traverseFallback _ = \case
+  CaseExhaustive -> pure CaseExhaustive
 
 -- | Variable bindings
 -- These are used in case branches to represent the binding of a variable.

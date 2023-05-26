@@ -123,6 +123,7 @@ import Primer.Core (
   Bind' (Bind),
   CaseBranch,
   CaseBranch' (CaseBranch),
+  CaseFallback' (CaseExhaustive),
   Expr,
   Expr' (Case, Con, EmptyHole, Var),
   GVarName,
@@ -1590,16 +1591,18 @@ transformCaseBranches ::
   Expr ->
   m Expr
 transformCaseBranches prog type_ f = transformM $ \case
-  Case m scrut bs -> do
+  Case m scrut bs CaseExhaustive -> do
     scrutType <-
       fst
         <$> runReaderT
           (liftError (ActionError . TypeError) $ synth scrut)
           (progCxt prog)
     Case m scrut
-      <$> if fst (unfoldTApp scrutType) == TCon () type_
-        then f bs
-        else pure bs
+      <$> ( if fst (unfoldTApp scrutType) == TCon () type_
+              then f bs
+              else pure bs
+          )
+      <*> pure CaseExhaustive
   e -> pure e
 
 progCxt :: Prog -> Cxt

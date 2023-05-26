@@ -143,6 +143,7 @@ import Primer.App.Base (TypeDefNodeSelection (..))
 import Primer.Core (
   Bind' (..),
   CaseBranch' (..),
+  CaseFallback' (CaseExhaustive),
   Expr,
   Expr' (..),
   GVarName,
@@ -822,7 +823,7 @@ viewTreeExpr e0 = case e0 of
       , childTrees = [viewTreeExpr e1, viewTreeType t, viewTreeExpr e2]
       , rightChild = Nothing
       }
-  Case _ e bs ->
+  Case _ e bs fb ->
     Tree
       { nodeId
       , body = NoBody Flavor.Case
@@ -837,7 +838,7 @@ viewTreeExpr e0 = case e0 of
           --  which should only happen when matching on `Void`
           ifoldr
             (\i b next -> Just $ (viewCaseBranch i b){rightChild = next})
-            Nothing
+            viewFallback
             bs
         )
       viewCaseBranch i (CaseBranch con binds rhs) =
@@ -872,6 +873,8 @@ viewTreeExpr e0 = case e0 of
             , childTrees = [viewTreeExpr rhs]
             , rightChild = Nothing
             }
+      viewFallback = case fb of
+        CaseExhaustive -> Nothing
   PrimCon _ pc ->
     Tree
       { nodeId

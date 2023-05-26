@@ -298,7 +298,7 @@ exprChildren (d, ez) =
     let d' = case target ez of
           App _ f _ | f == target c -> Syn
           APP _ f _ | f == target c -> Syn
-          Case _ scrut _ | scrut == target c -> Syn
+          Case _ scrut _ _ | scrut == target c -> Syn
           Hole _ _ -> Syn
           -- bodies of lets are the same direction as
           -- the let themselves

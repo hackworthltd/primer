@@ -471,7 +471,7 @@ setCursor i e = case focusOn i (unfocusExpr e) of
 
 -- | Apply a movement to a zipper
 moveExpr :: MonadError ActionError m => Movement -> ExprZ -> m ExprZ
-moveExpr m@(Branch c) z | Case _ _ brs <- target z =
+moveExpr m@(Branch c) z | Case _ _ brs _ <- target z =
   case findIndex (\(C.CaseBranch n _ _) -> c == n) brs of
     Nothing -> throwError $ CustomFailure (Move m) "Move-to-branch failed: no such branch"
     -- 'down' moves into the scrutinee, 'right' then steps through branch

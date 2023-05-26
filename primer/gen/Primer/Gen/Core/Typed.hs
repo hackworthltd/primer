@@ -47,6 +47,7 @@ import Hedgehog.Range qualified as Range
 import Primer.Core (
   Bind' (Bind),
   CaseBranch' (CaseBranch),
+  CaseFallback' (CaseExhaustive),
   Expr' (..),
   GVarName,
   GlobalName (qualifiedModule),
@@ -453,7 +454,7 @@ genChk ty = do
                   ns <- for params $ \nt -> (,nt) <$> genLVarNameAvoiding [ty, nt]
                   let binds = map (Bind () . fst) ns
                   CaseBranch c binds <$> local (extendLocalCxts ns) (genChk ty)
-            pure $ Case () e brs
+            pure $ Case () e brs CaseExhaustive
 
 -- | Generates types which infer kinds consistent with the argument
 -- I.e. @genWTType k@ will generate types @ty@ such that @synthKind ty = k'@

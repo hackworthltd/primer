@@ -53,6 +53,7 @@ import Primer.Core (
   Bind' (Bind),
   CaseBranch,
   CaseBranch' (CaseBranch),
+  CaseFallback' (CaseExhaustive),
   Expr,
   Expr' (
     APP,
@@ -493,7 +494,7 @@ viewCaseRedex tydefs = \case
   -- variables. This is especially important, as we do not (yet?) take care of
   -- metadata correctly in this evaluator (for instance, substituting when we
   -- do a BETA reduction)!
-  orig@(Case mCase scrut@(Ann _ (Con mCon c args) annotation) brs) -> do
+  orig@(Case mCase scrut@(Ann _ (Con mCon c args) annotation) brs CaseExhaustive) -> do
     (abstractArgTys, params) <- case lookupConstructor tydefs c of
       Nothing -> do
         logWarning $ CaseRedexUnknownCtor c
@@ -687,7 +688,7 @@ viewRedex tydefs globals dir = \case
         , lamID = getID m
         }
   APP{} -> mzero
-  e@(Case meta scrutinee branches) -> do
+  e@(Case meta scrutinee branches CaseExhaustive) -> do
     fvcxt <- fvCxt $ freeVars e
     -- TODO: we arbitrarily decide that renaming takes priority over reducing the case
     -- This is good for evalfull, but bad for interactive use.
@@ -968,7 +969,7 @@ runRedex = \case
                   )
                   ([], rhs)
                   $ rights rn
-              let expr' = Case meta scrutinee $ brs0 ++ CaseBranch ctor binds' rhs' : brs1
+              let expr' = Case meta scrutinee (brs0 ++ CaseBranch ctor binds' rhs' : brs1) CaseExhaustive
               let details =
                     BindRenameDetail
                       { before = orig
