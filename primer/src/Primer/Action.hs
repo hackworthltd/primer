@@ -31,14 +31,14 @@ import Data.Bifunctor.Swap qualified as Swap
 import Data.Bitraversable (bisequence)
 import Data.Functor.Compose (Compose (..))
 import Data.Generics.Product (typed)
-import Data.List (findIndex)
+import Data.List (delete, findIndex)
 import Data.List.NonEmpty qualified as NE
 import Data.Map (insert)
 import Data.Map.Strict qualified as Map
 import Data.Set qualified as Set
 import Data.Text qualified as T
 import Data.Tuple.Extra ((&&&))
-import Optics (over, set, (%), (?~), (^.), (^?), _Just)
+import Optics (over, set, traverseOf, (%), (?~), (^.), (^?), _Just)
 import Primer.Action.Actions (Action (..), Movement (..), QualifiedText)
 import Primer.Action.Available qualified as Available
 import Primer.Action.Errors (ActionError (..))
@@ -109,7 +109,7 @@ import Primer.Core.DSL (
   var,
  )
 import Primer.Core.Transform (renameLocalVar, renameTyVar, renameTyVarExpr, unfoldFun)
-import Primer.Core.Utils (forgetTypeMetadata, generateTypeIDs, regenerateExprIDs)
+import Primer.Core.Utils (forgetTypeMetadata, generateTypeIDs, regenerateExprIDs, _freeTmVars)
 import Primer.Def (
   ASTDef (..),
   Def (..),
@@ -442,6 +442,7 @@ applyAction' a = case a of
   ConvertLetToLetrec -> termAction convertLetToLetrec "cannot convert type to letrec"
   ConstructCase -> termAction constructCase "cannot construct case in type"
   AddCaseBranch c -> termAction (addCaseBranch c) "cannot add a case branch in type"
+  DeleteCaseBranch c -> termAction (deleteCaseBranch c) "cannot delete a case branch in type"
   RenameLam x -> termAction (renameLam x) "cannot rename lam in type"
   RenameLAM x -> termAction (renameLAM x) "cannot rename LAM in type"
   RenameLet x -> termAction (renameLet x) "cannot rename let in type"
@@ -843,6 +844,31 @@ addCaseBranch rawCon ze = case target ze of
     pure $ replace (Case m scrut branches' fb) ze
   _ ->
     throwError $ CustomFailure (AddCaseBranch rawCon) "the focused expression is not a case"
+
+deleteCaseBranch :: (MonadFresh ID m, MonadError ActionError m) => QualifiedText -> ExprZ -> m ExprZ
+deleteCaseBranch c ze = case target ze of
+  -- We put the action on the `Case` node, as we cannot currently select the pattern
+  -- (we cannot put the action on binders, since nullary constructors have no binders)
+  Case m scrut branches fallbackBranch ->
+    case find ((unsafeMkGlobalName c ==) . caseBranchName) branches of
+      Nothing -> throwError $ CaseBranchNotExist $ unsafeMkGlobalName c
+      Just br@(CaseBranch _ binds rhs) ->
+        let newBranches = delete br branches
+            -- If there was no fallback branch, we create a new one whose RHS is
+            -- the RHS of the deleted branch, with the now unbound variables
+            -- replaced with holes
+            bound = bindName <$> binds
+            removeBound (m', n) =
+              if n `elem` bound
+                then emptyHole
+                else pure $ Var m' $ LocalVarRef n
+         in do
+              newFallback <- case fallbackBranch of
+                CaseExhaustive -> CaseFallback <$> traverseOf _freeTmVars removeBound rhs
+                CaseFallback _ -> pure fallbackBranch
+              pure $ replace (Case m scrut newBranches newFallback) ze
+  _ ->
+    throwError $ CustomFailure (DeleteCaseBranch c) "the focused expression is not a case"
 
 -- | Given a sequence @ks@ and @vs@ such that @map f vs@ is a subsequence of
 -- @ks@ (this precondition is not checked), @insertSubseqBy f x ks vs@ inserts

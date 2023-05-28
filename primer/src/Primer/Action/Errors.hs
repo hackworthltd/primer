@@ -43,6 +43,7 @@ data ActionError
   | CaseBindsClash LVarName [LVarName]
   | CaseAlreadyExhaustive
   | CaseBranchAlreadyExists ValConName
+  | CaseBranchNotExist ValConName
   | -- | Attempted to add a branch for an unexpected ctor
     CaseBranchNotCon ValConName (Type' ())
   | -- TODO: semantic errors.

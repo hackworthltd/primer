@@ -880,6 +880,95 @@ unit_rename_case_bind_clash =
     )
     [SetCursor 8, RenameCaseBinding "b"]
 
+unit_case_branches :: Assertion
+unit_case_branches =
+  let e cse = ann cse (tcon tBool)
+      n = "a18"
+      e0 =
+        e $
+          caseFB_
+            (emptyHole `ann` tcon tNat)
+            []
+            (con0 cTrue)
+      e1 =
+        e $
+          caseFB_
+            (emptyHole `ann` tcon tNat)
+            [branch cSucc [(n, Nothing)] $ con0 cTrue]
+            (con0 cTrue)
+      e2 =
+        e $
+          case_
+            (emptyHole `ann` tcon tNat)
+            [ branch cZero [] $ con0 cFalse
+            , branch cSucc [(n, Nothing)] $ con0 cTrue
+            ]
+      e3 =
+        e $
+          caseFB_
+            (emptyHole `ann` tcon tNat)
+            [branch cSucc [(n, Nothing)] $ con0 cTrue]
+            (con0 cFalse)
+      e4 =
+        e $
+          caseFB_
+            (emptyHole `ann` tcon tNat)
+            []
+            (con0 cFalse)
+      e' cse = ann cse (tcon tMaybe `tapp` tcon tNat)
+      e5 =
+        e' $
+          case_
+            (emptyHole `ann` tcon tNat)
+            [ branch cZero [] $ con0 cNothing
+            , branch cSucc [("n", Nothing)] $ con1 cJust $ lvar "n"
+            ]
+      e6 =
+        e' $
+          caseFB_
+            (emptyHole `ann` tcon tNat)
+            [branch cZero [] $ con0 cNothing]
+            (con1 cJust emptyHole)
+   in do
+        actionTest
+          SmartHoles
+          e0
+          [ Move Child1
+          , AddCaseBranch $ toQualText cSucc
+          ]
+          e1
+        actionTest
+          SmartHoles
+          e1
+          [ Move Child1
+          , AddCaseBranch $ toQualText cZero
+          , Move (Branch cZero)
+          , Delete
+          , constructSaturatedCon cFalse
+          ]
+          e2
+        actionTest
+          SmartHoles
+          e2
+          [ Move Child1
+          , DeleteCaseBranch $ toQualText cZero
+          ]
+          e3
+        actionTest
+          SmartHoles
+          e3
+          [ Move Child1
+          , DeleteCaseBranch $ toQualText cSucc
+          ]
+          e4
+        actionTest
+          SmartHoles
+          e5
+          [ Move Child1
+          , DeleteCaseBranch $ toQualText cSucc
+          ]
+          e6
+
 unit_constructAPP :: Assertion
 unit_constructAPP =
   actionTest
