@@ -34,6 +34,8 @@ module Primer.Action.Priorities (
   makeInt,
   makeChar,
   makeCase,
+  addBranch,
+  deleteBranch,
   useSaturatedValueCon,
   useFunction,
   makeLet,
@@ -75,6 +77,12 @@ makeLambda _ = 5
 
 useVar :: Level -> Int
 useVar _ = 10
+
+addBranch :: Level -> Int
+addBranch _ = 13
+
+deleteBranch :: Level -> Int
+deleteBranch _ = 14
 
 makeCase :: Level -> Int
 makeCase _ = 12

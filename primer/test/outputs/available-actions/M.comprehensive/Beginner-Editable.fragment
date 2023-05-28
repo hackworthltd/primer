@@ -740,6 +740,23 @@ Output
                         , free = FreeVarName
                         }
                     )
+                , Input DeleteBranch
+                    ( Options
+                        { opts =
+                            [ Option
+                                { option = "Zero"
+                                , context = Just
+                                    ( "Builtins" :| [] )
+                                }
+                            , Option
+                                { option = "Succ"
+                                , context = Just
+                                    ( "Builtins" :| [] )
+                                }
+                            ]
+                        , free = FreeNone
+                        }
+                    )
                 , NoInput Raise
                 , NoInput DeleteExpr
                 ]
@@ -845,6 +862,30 @@ Output
                                 }
                             ]
                         , free = FreeVarName
+                        }
+                    )
+                , Input AddBranch
+                    ( Options
+                        { opts =
+                            [ Option
+                                { option = "Succ"
+                                , context = Just
+                                    ( "Builtins" :| [] )
+                                }
+                            ]
+                        , free = FreeNone
+                        }
+                    )
+                , Input DeleteBranch
+                    ( Options
+                        { opts =
+                            [ Option
+                                { option = "Zero"
+                                , context = Just
+                                    ( "Builtins" :| [] )
+                                }
+                            ]
+                        , free = FreeNone
                         }
                     )
                 , NoInput Raise

@@ -1160,6 +1160,12 @@ toProgActionInput def0 sel0 opt0 = \case
   Available.MakeLAM -> do
     opt <- optNoCxt
     toProg [ConstructLAM $ Just opt]
+  Available.AddBranch -> do
+    opt <- optGlobal
+    toProg [AddCaseBranch opt]
+  Available.DeleteBranch -> do
+    opt <- optGlobal
+    toProg [DeleteCaseBranch opt]
   Available.RenamePattern -> do
     opt <- optNoCxt
     toProg [RenameCaseBinding opt]
