@@ -602,7 +602,7 @@ data Name = Name
 
 -- | The contents of a node.
 data NodeBody
-  = -- | A "normal" node, usually with user-generated text, such as a variable or constructor name.
+  = -- | A "normal" node, usually with student-generated text, such as a variable or constructor name.
     TextBody (RecordPair Flavor.NodeFlavorTextBody Name)
   | -- | A node containing a value constructor inhabiting a primitive type.
     PrimBody (RecordPair Flavor.NodeFlavorPrimBody PrimCon)

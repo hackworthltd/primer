@@ -27,7 +27,7 @@ substTySimul sub
     avoid = foldMap' freeVarsTy sub
     -- We must avoid this binder @m@ capturing a free variable in (some rhs of) @sub@
     -- (e.g. @substTy [a :-> T b] (∀b.b a)@ should give @∀c.c (T b)@, and not @∀b.b (T b)@)
-    -- The generated names will not enter the user's program, so we don't need to worry about shadowing, only variable capture
+    -- The generated names will not enter the student's program, so we don't need to worry about shadowing, only variable capture
     subUnderBinder m t = do
       let sub' = M.delete m sub
       (m', sub'') <-

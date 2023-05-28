@@ -415,7 +415,7 @@ newtype Log = Log {unlog :: [[ProgAction]]}
 defaultLog :: Log
 defaultLog = Log mempty
 
--- | Describes what interface element the user has selected.
+-- | Describes what interface element the student has selected.
 -- A definition in the left hand nav bar, and possibly a node in that definition.
 data Selection = Selection
   { selectedDef :: GVarName
@@ -1074,7 +1074,7 @@ replay = mapM_ handleEditRequest
 -- operations on the application.
 --
 -- Note we do not want @MonadFresh Name m@, as @fresh :: m Name@ has
--- no way of avoiding user-specified names. Instead, use 'freshName'.
+-- no way of avoiding student-specified names. Instead, use 'freshName'.
 type MonadEditApp l e m = (MonadLog (WithSeverity l) m, MonadEdit m e, MonadState App m)
 
 -- | A shorthand for constraints needed when doing low-level mutation

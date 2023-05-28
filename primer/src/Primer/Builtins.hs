@@ -1,5 +1,5 @@
 -- | This module defines some builtin types that are used to seed initial programs.
---   The definitions here are no different than ones than a user can create, except
+--   The definitions here are no different than ones than a student can create, except
 --   for the fact that some of the primitive functions (see "Primer.Primitives")
 --   refer to these types.
 module Primer.Builtins (
