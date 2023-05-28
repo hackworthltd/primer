@@ -258,7 +258,7 @@ tasty_available_actions_accepted = withTests 500 $
     propertyWT [] $ do
       l <- forAllT $ Gen.element enumerate
       cxt <- forAllT $ Gen.choice $ map sequence [[], [builtinModule], [builtinModule, pure primitiveModule]]
-      -- We only test SmartHoles mode (which is the only supported user-facing
+      -- We only test SmartHoles mode (which is the only supported student-facing
       -- mode - NoSmartHoles is only used for internal sanity testing etc)
       a <- forAllT $ genApp SmartHoles cxt
       let allDefs = progAllDefs $ appProg a

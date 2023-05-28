@@ -582,7 +582,7 @@ ensureJust _ (Just x) = x
 -- There is a hard-wired map 'primConName' which associates each PrimCon to
 -- its PrimTypeDef (by name -- PrimTypeDefs have hardwired names).
 -- However, these PrimTypeDefs may or may not be in the Cxt.
--- If they are not (and in that case, also if a user has defined some
+-- If they are not (and in that case, also if a student has defined some
 -- other type with the same name), we should reject the use of the
 -- primitive constructor.
 -- Essentially, PrimCons are always-in-scope terms whose type is one of

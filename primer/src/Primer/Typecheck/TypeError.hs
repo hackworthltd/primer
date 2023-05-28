@@ -23,7 +23,7 @@ data TypeError
     -- This error catches both under- and over-saturation.
     UnsaturatedConstructor ValConName
   | -- | Cannot use a PrimCon when either no type of the appropriate name is
-    -- in scope, or it is a user-defined type
+    -- in scope, or it is a student-defined type
     PrimitiveTypeNotInScope TyConName
   | CannotSynthesiseType Expr
   | InconsistentTypes (Type' ()) (Type' ())
