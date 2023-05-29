@@ -285,7 +285,8 @@ data Expr' a b
 -- This is enforced in the typechecker. The purpose of this invariant is
 -- twofold: having a canonical/normalised AST and making the typechecker a bit
 -- simpler as we don't have to worry about looking up constructors and whether
--- we have got exactly one branch per constructor.
+-- we have got exactly one branch per (mentioned) constructor (and a fallback
+-- branch if we don't mention all constructors).
 
 -- | A traversal over the metadata of an expression.
 _exprMeta :: forall a b c. Traversal (Expr' a b) (Expr' c b) a c
@@ -324,19 +325,15 @@ type CaseFallback = CaseFallback' ExprMeta TypeMeta
 
 data CaseFallback' a b
   = CaseExhaustive
-  | CaseFallbackUseParams !Void a b
-  -- This is a temporary (uninhabited) constructor since generic-optics does not
-  -- support `param` when some subtype ignores its parameters (Here,
-  -- CaseFallback' is a subtype of Expr', breaking _exprMeta and _exprTypeMeta).
-  -- This will be removed in a subsequent commit when we add a fully-featured
-  -- fallback/wildcard branch.
+  | CaseFallback (Expr' a b)
   deriving stock (Eq, Show, Read, Data, Generic)
   deriving (FromJSON, ToJSON) via PrimerJSON (CaseFallback' a b)
   deriving anyclass (NFData)
 
 traverseFallback :: Applicative f => (Expr' a b -> f (Expr' a' b')) -> CaseFallback' a b -> f (CaseFallback' a' b')
-traverseFallback _ = \case
+traverseFallback f = \case
   CaseExhaustive -> pure CaseExhaustive
+  CaseFallback e -> CaseFallback <$> f e
 
 -- | Variable bindings
 -- These are used in case branches to represent the binding of a variable.

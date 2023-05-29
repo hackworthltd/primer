@@ -32,8 +32,8 @@ data TypeError
   | CaseOfHoleNeedsEmptyBranches
   | CannotCaseNonADT (Type' ())
   | CannotCaseNonSaturatedADT (Type' ())
-  | -- | Either wrong number, wrong constructors or wrong order. The fields are @name of the ADT@, @branches given@
-    WrongCaseBranches TyConName [ValConName]
+  | -- | Either wrong number, wrong constructors or wrong order. The fields are @name of the ADT@, @branches given@, @wildcard/fallback branch given@
+    WrongCaseBranches TyConName [ValConName] Bool
   | CaseBranchWrongNumberPatterns
   | KindError KindError
   deriving stock (Eq, Show, Read, Generic)

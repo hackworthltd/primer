@@ -35,7 +35,7 @@ import Prettyprinter.Render.Terminal (
 import Primer.Core (
   Bind' (Bind),
   CaseBranch' (CaseBranch),
-  CaseFallback' (CaseExhaustive),
+  CaseFallback' (CaseExhaustive, CaseFallback),
   Expr,
   Expr' (..),
   GlobalName (baseName, qualifiedModule),
@@ -134,6 +134,7 @@ prettyExpr opts = \case
           bs
           <> case fallback of
             CaseExhaustive -> []
+            CaseFallback e' -> [("_", col Yellow "→" <+> pE e')]
       intersperse' x = foldr (\y z -> x : y : z) [x]
 
       printCases = mconcat . intersperse hardline $ casesAligned

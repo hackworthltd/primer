@@ -395,7 +395,7 @@ unit_case_isZero =
 unit_case_badEmpty :: Assertion
 unit_case_badEmpty =
   ann (lam "x" $ case_ (lvar "x") []) (tfun (tcon tNat) (tcon tBool))
-    `expectFailsWith` const (WrongCaseBranches tNat [])
+    `expectFailsWith` const (WrongCaseBranches tNat [] False)
 
 -- Cannot case on a Nat -> Nat
 unit_case_badType :: Assertion
@@ -430,6 +430,24 @@ unit_case_subst = do
   -- (this version may fail if we confuse scopes when substituting)
   expectTyped $ expr "a" "b" `ann` ty "a"
   (expr "a" "b" `ann` ty "b") `expectFailsWith` const (InconsistentTypes (TVar () "b") (TVar () "a"))
+
+-- Nat -> Bool accepts \x . case x of Z -> True ; _ -> False
+unit_case_fallback :: Assertion
+unit_case_fallback =
+  expectTyped $
+    ann (lam "x" $ caseFB_ (lvar "x") [branch cZero [] (con0 cTrue)] (con0 cFalse)) (tfun (tcon tNat) (tcon tBool))
+
+-- Nat -> Bool rejects \x . case x of S _ -> False
+unit_case_fallback_inexhaustive :: Assertion
+unit_case_fallback_inexhaustive =
+  ann (lam "x" $ case_ (lvar "x") [branch cSucc [("n", Nothing)] (con0 cFalse)]) (tfun (tcon tNat) (tcon tBool))
+    `expectFailsWith` const (WrongCaseBranches tNat [cSucc] False)
+
+-- Nat -> Bool rejects \x . case x of Z -> True ; S _ -> False ; _ -> False
+unit_case_fallback_redundant :: Assertion
+unit_case_fallback_redundant =
+  ann (lam "x" $ caseFB_ (lvar "x") [branch cZero [] (con0 cTrue), branch cSucc [("n", Nothing)] (con0 cFalse)] (con0 cFalse)) (tfun (tcon tNat) (tcon tBool))
+    `expectFailsWith` const (WrongCaseBranches tNat [cZero, cSucc] True)
 
 -- Cannot annotate something with a non-existent type constructor
 unit_ann_bad :: Assertion

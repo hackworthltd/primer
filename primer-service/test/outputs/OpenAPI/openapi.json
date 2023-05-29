@@ -421,6 +421,7 @@
                     "Letrec",
                     "PatternBind",
                     "PatternCon",
+                    "PatternWildcard",
                     "TCon",
                     "TVar",
                     "TForall",

@@ -143,7 +143,7 @@ import Primer.App.Base (TypeDefNodeSelection (..))
 import Primer.Core (
   Bind' (..),
   CaseBranch' (..),
-  CaseFallback' (CaseExhaustive),
+  CaseFallback' (CaseExhaustive, CaseFallback),
   Expr,
   Expr' (..),
   GVarName,
@@ -875,6 +875,29 @@ viewTreeExpr e0 = case e0 of
             }
       viewFallback = case fb of
         CaseExhaustive -> Nothing
+        CaseFallback rhs ->
+          let
+            -- these IDs will not clash with any others in the tree,
+            -- since node IDs in the input expression are unique,
+            -- and don't contain non-numerical characters
+            boxId = nodeId <> "Pwild"
+            patternRootId = boxId <> "B"
+           in
+            Just $
+              Tree
+                { nodeId = boxId
+                , body =
+                    BoxBody . RecordPair Flavor.Pattern $
+                      ( Tree
+                          { nodeId = patternRootId
+                          , body = TextBody $ RecordPair Flavor.PatternWildcard (Name Nothing "_")
+                          , childTrees = []
+                          , rightChild = Nothing
+                          }
+                      )
+                , childTrees = [viewTreeExpr rhs]
+                , rightChild = Nothing
+                }
   PrimCon _ pc ->
     Tree
       { nodeId

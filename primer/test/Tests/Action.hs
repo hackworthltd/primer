@@ -782,15 +782,16 @@ unit_case_create_smart_on_hole =
     , Move Child1
     , ConstructVar $ LocalVarRef "x"
     , Move Parent
-    , Move (Branch cTrue)
-    , constructSaturatedCon cZero
+    -- , Move (Branch cTrue)
+    -- , constructSaturatedCon cZero
     ]
     ( ann
         ( lam
             "x"
-            ( case_
+            ( caseFB_
                 (lvar "x")
-                [branch cTrue [] (con0 cZero), branch cFalse [] emptyHole]
+                [] -- [branch cTrue [] (con0 cZero), branch cFalse [] emptyHole]
+                emptyHole
             )
         )
         (tfun (tcon tBool) (tcon tNat))
@@ -815,9 +816,10 @@ unit_case_change_smart_scrutinee_type =
     , constructTCon tNat
     ]
     ( ann
-        ( case_
+        ( caseFB_
             (emptyHole `ann` tcon tNat)
-            [branch cZero [] emptyHole, branch cSucc [("a25", Nothing)] emptyHole] -- fragile names here
+            [] -- since an intermediate stage is scrutinee type is hole, we remove all branches
+            emptyHole -- then when we set type is Nat, we only create a fallback branch
         )
         (tcon tNat)
     )

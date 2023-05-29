@@ -734,19 +734,21 @@ applyProgAction prog = \case
     editModuleCross (qualifiedModule type_) prog $ \(m, ms) -> do
       when (con `elem` allValConNames prog) $ throwError $ ConAlreadyExists con
       m' <- updateType m
+      newTy <- maybe (throwError $ TypeDefNotFound type_) pure $ moduleTypesQualified m' Map.!? type_
+      allCons <- maybe (throwError $ TypeDefIsPrim type_) (pure . astTypeDefConstructors) $ typeDefAST newTy
       ms' <-
         traverseOf
           (traversed % #moduleDefs % traversed % #_DefAST % #astDefExpr)
-          updateDefs
+          (updateDefs allCons)
           $ m' : ms
       pure
         ( ms'
         , Just $ SelectionTypeDef $ TypeDefSelection type_ $ Just $ TypeDefConsNodeSelection $ TypeDefConsSelection con Nothing
         )
     where
-      updateDefs = transformNamedCaseBranches prog type_ $ \bs -> do
+      updateDefs allCons = transformNamedCaseBranches prog type_ $ \bs -> do
         m' <- DSL.meta
-        maybe (throwError $ IndexOutOfRange index) pure $ insertAt index (CaseBranch con [] (EmptyHole m')) bs
+        pure $ insertSubseqBy caseBranchName (CaseBranch con [] (EmptyHole m')) (valConName <$> allCons) bs
       updateType =
         alterTypeDef
           ( traverseOf
@@ -1626,6 +1628,22 @@ transformNamedCaseBranch ::
 transformNamedCaseBranch prog type_ con f = transformNamedCaseBranches prog type_ $
   traverse $
     \cb -> if caseBranchName cb == con then f cb else pure cb
+
+-- | Given a sequence @ks@ and @vs@ such that @map f vs@ is a subsequence of
+-- @ks@ (this precondition is not checked), @insertSubseqBy f x ks vs@ inserts
+-- @x@ at the appropriate position in @vs@.
+-- Thus we have
+-- - @insertSubseqBy f x ks vs \\ x == vs@
+-- - @map f (insertSubseqBy f x ks vs) `isSubsequenceOf` ks@
+insertSubseqBy :: Eq k => (v -> k) -> v -> [k] -> [v] -> [v]
+insertSubseqBy f x = go
+  where
+    tgt = f x
+    go (k : ks) vvs@(v : vs)
+      | k == tgt = x : vvs
+      | k == f v = v : go ks vs
+      | otherwise = go ks vvs
+    go _ _ = [x]
 
 progCxt :: Prog -> Cxt
 progCxt p = buildTypingContextFromModules (progAllModules p) (progSmartHoles p)

@@ -28,6 +28,7 @@ data NodeFlavorTextBody
   | Letrec
   | PatternBind
   | PatternCon
+  | PatternWildcard
   | TCon
   | TVar
   | TForall

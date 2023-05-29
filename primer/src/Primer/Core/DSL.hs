@@ -18,6 +18,7 @@ module Primer.Core.DSL (
   letrec,
   letType,
   case_,
+  caseFB_,
   branch,
   prim,
   char,
@@ -54,7 +55,7 @@ import Primer.Core (
   Bind' (..),
   CaseBranch,
   CaseBranch' (..),
-  CaseFallback' (CaseExhaustive),
+  CaseFallback' (CaseExhaustive, CaseFallback),
   Expr,
   Expr' (..),
   GVarName,
@@ -158,6 +159,10 @@ letType v t e = LetType <$> meta <*> pure v <*> t <*> e
 -- | An exhaustive case
 case_ :: MonadFresh ID m => m Expr -> [m CaseBranch] -> m Expr
 case_ e brs = Case <$> meta <*> e <*> sequence brs <*> pure CaseExhaustive
+
+-- | A non-exhaustive case
+caseFB_ :: MonadFresh ID m => m Expr -> [m CaseBranch] -> m Expr -> m Expr
+caseFB_ e brs fb = Case <$> meta <*> e <*> sequence brs <*> (CaseFallback <$> fb)
 
 branch :: MonadFresh ID m => ValConName -> [(LVarName, Maybe TypeCache)] -> m Expr -> m CaseBranch
 branch c vs e = CaseBranch c <$> mapM binding vs <*> e

@@ -99,7 +99,7 @@ import Optics.Traversal (traversed)
 import Primer.Core (
   Bind' (..),
   CaseBranch' (..),
-  CaseFallback' (CaseExhaustive),
+  CaseFallback' (CaseExhaustive, CaseFallback),
   Expr,
   Expr' (..),
   ExprMeta,
@@ -727,15 +727,21 @@ check t = \case
         let branchNames = map caseBranchName brs
         let conNames = map fst expected
         sh <- asks smartHoles
-        brs' <- case (branchNames == conNames, sh) of
-          (False, NoSmartHoles) -> throwError' $ WrongCaseBranches tc branchNames
+        brs' <- case (extractSubsequenceBy (\n (m, _) -> n == m) branchNames expected, sh) of
+          (Nothing, NoSmartHoles) -> throwError' $ WrongCaseBranches tc branchNames (fb /= CaseExhaustive)
           -- create branches with the correct name but wrong parameters,
           -- they will be fixed up in checkBranch later
-          (False, SmartHoles) -> traverse (\c -> branch c [] emptyHole) conNames
-          (True, _) -> pure brs
-        brs'' <- zipWithM (checkBranch t) expected brs'
-        fb' <- case fb of
-          CaseExhaustive -> pure CaseExhaustive
+          (Nothing, SmartHoles) -> traverse (\(c, ct) -> ((c, ct),) <$> branch c [] emptyHole) expected
+          (Just ctys, _) -> pure $ zip ctys brs
+        brs'' <- mapM (uncurry $ checkBranch t) brs'
+        let branchNames' = map caseBranchName brs''
+        fb' <- case (branchNames' == conNames, fb, sh) of
+          (True, CaseExhaustive, _) -> pure CaseExhaustive
+          (True, CaseFallback _, NoSmartHoles) -> throwError' $ WrongCaseBranches tc branchNames True
+          (True, CaseFallback _, SmartHoles) -> pure CaseExhaustive
+          (False, CaseExhaustive, NoSmartHoles) -> throwError' $ WrongCaseBranches tc branchNames False
+          (False, CaseExhaustive, SmartHoles) -> fmap CaseFallback . check t =<< emptyHole
+          (False, CaseFallback r, _) -> CaseFallback <$> check t r
         pure $ Case caseMeta e' brs'' fb'
   e -> do
     sh <- asks smartHoles
@@ -777,6 +783,19 @@ check t = \case
             Hole{} -> default_ -- Don't let the recursive call mint a hole.
             e'' -> pure e''
       _ -> default_
+
+-- | As 'isSubsequenceOf', except:
+-- - uses a user-specified predicate instead of '(==)'
+-- - returns the matching subsequence instead of just a 'Bool'
+-- We have that @'isSubsequenceOf' xs ys@ is equivalent to
+-- @'isJust' 'extractSubsequenceBy' '(==)' xs ys@.
+extractSubsequenceBy :: (a -> b -> Bool) -> [a] -> [b] -> Maybe [b]
+extractSubsequenceBy _ [] _ = Just []
+extractSubsequenceBy _ _ [] = Nothing
+extractSubsequenceBy f xxs@(x : xs) (y : ys) =
+  if f x y
+    then (y :) <$> extractSubsequenceBy f xs ys
+    else extractSubsequenceBy f xxs ys
 
 addChkMetaT :: Type' () -> ExprT -> ExprT
 addChkMetaT = addChkMeta' equality

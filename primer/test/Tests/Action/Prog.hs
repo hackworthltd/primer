@@ -98,6 +98,7 @@ import Primer.Core.DSL (
   S,
   ann,
   branch,
+  caseFB_,
   case_,
   con,
   con0,
@@ -1018,6 +1019,41 @@ unit_AddCon =
                 , branch (vcn "C") [] emptyHole
                 , branch cB [("s", Nothing), ("t", Nothing)] emptyHole
                 ]
+          )
+
+unit_AddCon_sparse :: Assertion
+unit_AddCon_sparse =
+  progActionTest
+    ( defaultProgEditableTypeDefs $
+        sequence
+          [ do
+              x <-
+                caseFB_
+                  (emptyHole `ann` (tcon tT `tapp` tcon (tcn "Bool") `tapp` tcon (tcn "Int")))
+                  [branch cB [("s", Nothing), ("t", Nothing)] emptyHole]
+                  emptyHole
+              astDef "def" x <$> tEmptyHole
+          ]
+    )
+    [AddCon tT 2 "C"]
+    $ expectSuccess
+    $ \_ prog' -> do
+      td <- findTypeDef tT prog'
+      astTypeDefConstructors td
+        @?= [ ValCon cA [TCon () (tcn "Bool"), TCon () (tcn "Bool"), TCon () (tcn "Bool")]
+            , ValCon cB [TApp () (TApp () (TCon () tT) (TVar () "b")) (TVar () "a"), TVar () "b"]
+            , ValCon (vcn "C") []
+            ]
+      def <- findDef (gvn "def") prog'
+      forgetMetadata (astDefExpr def)
+        @?= forgetMetadata
+          ( create' $
+              caseFB_
+                (emptyHole `ann` (tcon tT `tapp` tcon (tcn "Bool") `tapp` tcon (tcn "Int")))
+                [ branch cB [("s", Nothing), ("t", Nothing)] emptyHole
+                , branch (vcn "C") [] emptyHole
+                ]
+                emptyHole
           )
 
 unit_AddConField :: Assertion

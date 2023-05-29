@@ -484,6 +484,82 @@ unit_tryReduce_case_3 = do
       detail.letIDs @?= [16]
     _ -> assertFailure $ show result
 
+unit_tryReduce_case_fallback_1 :: Assertion
+unit_tryReduce_case_fallback_1 = do
+  let (expr, i) =
+        create $
+          caseFB_
+            ( con' ["M"] "C" [con0' ["M"] "E"]
+                `ann` (tcon' ["M"] "T" `tapp` tcon' ["M"] "D")
+            )
+            [branch' (["M"], "B") [("b", Nothing)] (con0' ["M"] "D")]
+            (con0' ["M"] "F")
+      tydef =
+        Map.singleton (unsafeMkGlobalName (["M"], "T")) $
+          TypeDefAST $
+            ASTTypeDef
+              { astTypeDefParameters = [("a", KType)]
+              , astTypeDefConstructors =
+                  [ ValCon (unsafeMkGlobalName (["M"], "B")) [TEmptyHole ()]
+                  , ValCon (unsafeMkGlobalName (["M"], "C")) [TFun () (TVar () "a") (TVar () "a")]
+                  ]
+              , astTypeDefNameHints = []
+              }
+      expectedResult = create' (con0' ["M"] "F")
+  result <- runTryReduce tydef mempty mempty (expr, i)
+  case result of
+    Right (expr', CaseReduction detail) -> do
+      expr' ~= expectedResult
+
+      detail.before ~= expr
+      detail.after ~= expectedResult
+      detail.targetID @?= 1
+      detail.targetCtorID @?= 2
+      detail.ctorName @?= vcn ["M"] "C"
+      detail.targetArgIDs @?= [3]
+      detail.branchBindingIDs @?= []
+      detail.branchRhsID @?= 9
+      detail.letIDs @?= []
+    _ -> assertFailure $ show result
+
+unit_tryReduce_case_fallback_2 :: Assertion
+unit_tryReduce_case_fallback_2 = do
+  let (expr, i) =
+        create $
+          caseFB_
+            ( con' ["M"] "C" [con0' ["M"] "E"]
+                `ann` (tcon' ["M"] "T" `tapp` tcon' ["M"] "D")
+            )
+            [branch' (["M"], "C") [("c", Nothing)] (con0' ["M"] "F")]
+            (con0' ["M"] "D")
+      tydef =
+        Map.singleton (unsafeMkGlobalName (["M"], "T")) $
+          TypeDefAST $
+            ASTTypeDef
+              { astTypeDefParameters = [("a", KType)]
+              , astTypeDefConstructors =
+                  [ ValCon (unsafeMkGlobalName (["M"], "B")) [TEmptyHole ()]
+                  , ValCon (unsafeMkGlobalName (["M"], "C")) [TFun () (TVar () "a") (TVar () "a")]
+                  ]
+              , astTypeDefNameHints = []
+              }
+      expectedResult = create' $ let_ "c" (con0' ["M"] "E" `ann` tlet "a" (tcon' ["M"] "D") (tvar "a" `tfun` tvar "a")) (con0' ["M"] "F")
+  result <- runTryReduce tydef mempty mempty (expr, i)
+  case result of
+    Right (expr', CaseReduction detail) -> do
+      expr' ~= expectedResult
+
+      detail.before ~= expr
+      detail.after ~= expectedResult
+      detail.targetID @?= 1
+      detail.targetCtorID @?= 2
+      detail.ctorName @?= vcn ["M"] "C"
+      detail.targetArgIDs @?= [3]
+      detail.branchBindingIDs @?= [7]
+      detail.branchRhsID @?= 8
+      detail.letIDs @?= [15]
+    _ -> assertFailure $ show result
+
 unit_tryReduce_case_name_clash :: Assertion
 unit_tryReduce_case_name_clash = do
   let (expr, i) =
@@ -1128,6 +1204,21 @@ unit_redexes_case_4 =
 unit_redexes_case_5 :: Assertion
 unit_redexes_case_5 =
   redexesOf (let_ "x" (con0' ["M"] "C") (case_ (lvar "x") [])) <@?=> Set.fromList [3]
+
+unit_redexes_case_fallback_1 :: Assertion
+unit_redexes_case_fallback_1 =
+  redexesOf (caseFB_ (ann (con0' ["M"] "C") (tcon' ["M"] "C")) [branch' (["M"], "C") [] (con0' ["M"] "D")] emptyHole)
+    <@?=> Set.singleton 0
+
+unit_redexes_case_fallback_2 :: Assertion
+unit_redexes_case_fallback_2 =
+  redexesOf (caseFB_ (ann (con0' ["M"] "C") (tcon' ["M"] "C")) [] emptyHole)
+    <@?=> Set.singleton 0
+
+unit_redexes_case_fallback_3 :: Assertion
+unit_redexes_case_fallback_3 =
+  redexesOf (caseFB_ (ann (con0' ["M"] "C") (tcon' ["M"] "C")) [] (let_ "x" emptyHole emptyHole))
+    <@?=> Set.fromList [0, 4]
 
 -- The body of a let has the same directionality as the let itself
 unit_redexes_let_upsilon :: Assertion

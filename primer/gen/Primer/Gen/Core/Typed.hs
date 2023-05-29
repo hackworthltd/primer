@@ -47,7 +47,7 @@ import Hedgehog.Range qualified as Range
 import Primer.Core (
   Bind' (Bind),
   CaseBranch' (CaseBranch),
-  CaseFallback' (CaseExhaustive),
+  CaseFallback' (..),
   Expr' (..),
   GVarName,
   GlobalName (qualifiedModule),
@@ -444,17 +444,33 @@ genChk ty = do
           else Just $ do
             (tc, td) <- Gen.element adts
             let t = mkTAppCon tc (TEmptyHole () <$ typeDefParameters td)
-            (e, brs) <- Gen.justT $ do
+            (e, (brs, fb)) <- Gen.justT $ do
               (e, eTy) <- genSyns t -- NB: this could return something only consistent with t, e.g. if t=List ?, could get eT=? Nat
               vcs' <- instantiateValCons eTy
               fmap (e,) <$> case vcs' of
-                Left TDIHoleType -> pure $ Just []
+                Left TDIHoleType -> pure $ Just ([], CaseExhaustive)
                 Left _err -> pure Nothing -- if we didn't get an instance of t, try again; TODO: this is rather inefficient, and discards a lot...
-                Right (_, _, vcs) -> fmap Just . for vcs $ \(c, params) -> do
-                  ns <- for params $ \nt -> (,nt) <$> genLVarNameAvoiding [ty, nt]
-                  let binds = map (Bind () . fst) ns
-                  CaseBranch c binds <$> local (extendLocalCxts ns) (genChk ty)
-            pure $ Case () e brs CaseExhaustive
+                Right (_, _, allVcs) -> case nonEmpty allVcs of
+                  Nothing -> pure $ Just ([], CaseExhaustive)
+                  Just allVcs' -> do
+                    (vcs, fb) <-
+                      Gen.frequency
+                        [ (3, pure (allVcs, CaseExhaustive))
+                        , (1, (,) <$> genStrictSubsequence allVcs' <*> fmap CaseFallback (genChk ty))
+                        ]
+                    fmap (Just . (,fb)) . for vcs $ \(c, params) -> do
+                      ns <- for params $ \nt -> (,nt) <$> genLVarNameAvoiding [ty, nt]
+                      let binds = map (Bind () . fst) ns
+                      CaseBranch c binds <$> local (extendLocalCxts ns) (genChk ty)
+            pure $ Case () e brs fb
+
+genStrictSubsequence :: MonadGen m => NonEmpty a -> m [a]
+genStrictSubsequence xs = Gen.justT $ do
+  s <- Gen.subsequence $ toList xs
+  pure $
+    if length s == length xs
+      then Nothing
+      else Just s
 
 -- | Generates types which infer kinds consistent with the argument
 -- I.e. @genWTType k@ will generate types @ty@ such that @synthKind ty = k'@

@@ -53,7 +53,8 @@ import Primer.Core (
   Bind' (Bind),
   CaseBranch,
   CaseBranch' (CaseBranch),
-  CaseFallback' (CaseExhaustive),
+  CaseFallback,
+  CaseFallback' (CaseExhaustive, CaseFallback),
   Expr,
   Expr' (
     APP,
@@ -289,8 +290,8 @@ data Redex
       , params :: [(TyVarName, Type' ())]
       -- ^ The parameters of the constructor's datatype, and their
       -- instantiations from inspecting the type annotation on the scrutinee.
-      , binders :: [Bind]
-      -- ^ The binders of the matching branch
+      , binders :: Maybe [Bind]
+      -- ^ The binders of the matching branch. 'Nothing' denotes the matching branch was the fallback branch.
       , rhs :: Expr
       -- ^ The rhs of the matching branch
       , orig :: Expr
@@ -348,6 +349,7 @@ data Redex
       -- ^ The scrutinised expression
       , branches :: [CaseBranch]
       -- ^ The branches of the @case@
+      , fallbackBranch :: CaseFallback
       , avoid :: S.Set Name
       -- ^ What names to avoid when renaming
       , orig :: Expr
@@ -495,7 +497,7 @@ viewCaseRedex tydefs = \case
   -- variables. This is especially important, as we do not (yet?) take care of
   -- metadata correctly in this evaluator (for instance, substituting when we
   -- do a BETA reduction)!
-  orig@(Case mCase scrut@(Ann _ (Con mCon c args) annotation) brs CaseExhaustive) -> do
+  orig@(Case mCase scrut@(Ann _ (Con mCon c args) annotation) brs fb) -> do
     (abstractArgTys, params) <- case lookupConstructor tydefs c of
       Nothing -> do
         logWarning $ CaseRedexUnknownCtor c
@@ -516,17 +518,18 @@ viewCaseRedex tydefs = \case
               CaseRedexNotSaturated $
                 forgetTypeMetadata annotation
           pure $ zip params tyargsFromAnn
-        (patterns, br) <- extractBranch c brs
-        renameBindings mCase scrut brs patterns orig
+        (patterns, br) <- extractBranch c brs fb
+        renameBindings mCase scrut brs fb patterns orig
           <|> pure (formCaseRedex c abstractArgTys tyargs args patterns br (orig, scrut, getID mCon))
   _ -> mzero
   where
-    extractBranch c brs =
-      case find ((c ==) . caseBranchName) brs of
-        Nothing -> do
+    extractBranch c brs fb =
+      case (find ((c ==) . caseBranchName) brs, fb) of
+        (Nothing, CaseExhaustive) -> do
           logWarning $ CaseRedexMissingBranch c
           mzero
-        Just (CaseBranch _ xs e) -> pure (xs, e)
+        (Nothing, CaseFallback e) -> pure (Nothing, e)
+        (Just (CaseBranch _ xs e), _) -> pure (Just xs, e)
 
     {- Note [Case reduction and variable capture]
        There is a subtlety here around variable capture.
@@ -553,19 +556,19 @@ viewCaseRedex tydefs = \case
        argument, the second needs to avoid all but the first two args, ...,
        the last doesn't need any renaming.)
     -}
-    renameBindings meta scrutinee branches patterns orig =
+    renameBindings meta scrutinee branches fallbackBranch patterns orig =
       let avoid = freeVars scrutinee
-          binders = S.fromList $ map (unLocalName . bindName) patterns
+          binders = maybe mempty (S.fromList . map (unLocalName . bindName)) patterns
        in hoistMaybe $
             if S.disjoint avoid binders
               then Nothing
-              else Just $ RenameBindingsCase{meta, scrutinee, branches, avoid, orig}
+              else Just $ RenameBindingsCase{meta, scrutinee, branches, fallbackBranch, avoid, orig}
     formCaseRedex ::
       ValConName ->
       [Type' ()] ->
       [(TyVarName, Type' ())] ->
       [Expr] ->
-      [Bind] ->
+      Maybe [Bind] ->
       Expr ->
       (Expr, Expr, ID) ->
       Redex
@@ -689,7 +692,7 @@ viewRedex tydefs globals dir = \case
         , lamID = getID m
         }
   APP{} -> mzero
-  e@(Case meta scrutinee branches CaseExhaustive) -> do
+  e@(Case meta scrutinee branches fallbackBranch) -> do
     fvcxt <- fvCxt $ freeVars e
     -- TODO: we arbitrarily decide that renaming takes priority over reducing the case
     -- This is good for evalfull, but bad for interactive use.
@@ -697,7 +700,7 @@ viewRedex tydefs globals dir = \case
     -- https://github.com/hackworthltd/primer/issues/734
     if getBoundHereDn e `S.disjoint` fvcxt
       then lift $ viewCaseRedex tydefs e
-      else pure $ RenameBindingsCase{meta, scrutinee, branches, avoid = fvcxt, orig = e}
+      else pure $ RenameBindingsCase{meta, scrutinee, branches, fallbackBranch, avoid = fvcxt, orig = e}
   orig@(Ann _ expr ty) | Chk <- dir, concreteTy ty -> pure $ Upsilon{expr, ann = ty, orig}
   _ -> mzero
 
@@ -858,8 +861,8 @@ runRedex = \case
     , scrutID
     , conID
     } -> do
-      let binderNames = map bindName binders
-      unless (length args == length argTys && length args == length binderNames) $
+      let binderNames = maybe mempty (map bindName) binders
+      unless (isNothing binders || (length args == length argTys && length args == length binderNames)) $
         logWarning $
           CaseRedexWrongArgNum con args argTys binderNames
       let freshLocalNameLike n avoid =
@@ -905,7 +908,7 @@ runRedex = \case
               , targetCtorID = conID
               , ctorName = con
               , targetArgIDs = getID <$> args
-              , branchBindingIDs = getID <$> binders
+              , branchBindingIDs = maybe mempty (fmap getID) binders
               , branchRhsID = getID rhs
               , letIDs
               }
@@ -954,7 +957,7 @@ runRedex = \case
             , bodyID = getID body
             }
     pure (expr', BindRename details)
-  RenameBindingsCase{meta, scrutinee, branches, avoid, orig}
+  RenameBindingsCase{meta, scrutinee, branches, fallbackBranch, avoid, orig}
     | (brs0, CaseBranch ctor binds rhs : brs1) <- break (\(CaseBranch _ bs _) -> any ((`S.member` avoid) . unLocalName . bindName) bs) branches ->
         let bns = map bindName binds
             avoid' = avoid <> freeVars rhs <> S.fromList (map unLocalName bns)
@@ -970,7 +973,7 @@ runRedex = \case
                   )
                   ([], rhs)
                   $ rights rn
-              let expr' = Case meta scrutinee (brs0 ++ CaseBranch ctor binds' rhs' : brs1) CaseExhaustive
+              let expr' = Case meta scrutinee (brs0 ++ CaseBranch ctor binds' rhs' : brs1) fallbackBranch
               let details =
                     BindRenameDetail
                       { before = orig
