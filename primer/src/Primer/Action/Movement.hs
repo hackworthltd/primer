@@ -5,9 +5,9 @@ import Foreword
 import Primer.Core.Meta (ValConName)
 import Primer.JSON (CustomJSON (..), FromJSON, PrimerJSON, ToJSON)
 
-{- HLINT ignore BranchMove "Use newtype instead of data" -}
 data BranchMove
   = Pattern ValConName
+  | Fallback
   deriving stock (Eq, Show, Read, Generic)
   deriving (FromJSON, ToJSON) via PrimerJSON BranchMove
   deriving anyclass (NFData)

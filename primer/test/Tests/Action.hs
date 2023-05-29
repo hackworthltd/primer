@@ -930,6 +930,12 @@ unit_case_branches =
             (emptyHole `ann` tcon tNat)
             [branch cZero [] $ con0 cNothing]
             (con1 cJust emptyHole)
+      e7 =
+        e' $
+          caseFB_
+            (emptyHole `ann` tcon tNat)
+            [branch cZero [] $ con0 cNothing]
+            (con1 cJust $ con0 cZero)
    in do
         actionTest
           SmartHoles
@@ -969,6 +975,15 @@ unit_case_branches =
           , DeleteCaseBranch $ toQualText cSucc
           ]
           e6
+        actionTest
+          SmartHoles
+          e6
+          [ Move Child1
+          , Move (Branch Fallback)
+          , Move (ConChild 0)
+          , constructSaturatedCon cZero
+          ]
+          e7
 
 unit_constructAPP :: Assertion
 unit_constructAPP =
