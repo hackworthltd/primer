@@ -26,6 +26,7 @@ import Primer.Action (
     RemoveAnn
   ),
   ActionError (ImportNameClash),
+  BranchMove (Pattern),
   Movement (
     Branch,
     Child1,
@@ -671,7 +672,7 @@ unit_copy_paste_expr_1 = do
           , newProg' & #progModules % _head % #moduleDefs .~ Map.fromList [(mainName', DefAST expected)]
           )
   let a = mkTestApp pInitial
-      actions = [MoveToDef mainName, CopyPasteBody (mainName, srcID) [Move Child1, Move Child1, Move (Branch cNil)]]
+      actions = [MoveToDef mainName, CopyPasteBody (mainName, srcID) [Move Child1, Move Child1, Move (Branch $ Pattern cNil)]]
   do
     (result, _) <- runAppTestM maxID a $ (,) <$> tcWholeProg pExpected <*> handleEditRequest actions
     case result of
@@ -1278,7 +1279,7 @@ unit_cross_module_actions =
               , Move Parent
               , Move Parent
               , ConstructCase
-              , Move (Branch (qualifyM "C"))
+              , Move (Branch $ Pattern (qualifyM "C"))
               , constructSaturatedCon (qualifyM "C")
               , Move $ ConChild 0
               , constructSaturatedCon cSucc

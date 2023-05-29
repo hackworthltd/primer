@@ -7,6 +7,7 @@ module Primer.Action (
   Action (..),
   ActionError (..),
   Movement (..),
+  BranchMove (..),
   ProgAction (..),
   applyActionsToBody,
   applyActionsToTypeSig,
@@ -39,7 +40,7 @@ import Data.Set qualified as Set
 import Data.Text qualified as T
 import Data.Tuple.Extra ((&&&))
 import Optics (over, set, traverseOf, (%), (?~), (^.), (^?), _Just)
-import Primer.Action.Actions (Action (..), Movement (..), QualifiedText)
+import Primer.Action.Actions (Action (..), BranchMove (Pattern), Movement (..), QualifiedText)
 import Primer.Action.Available qualified as Available
 import Primer.Action.Errors (ActionError (..))
 import Primer.Action.ProgAction (ProgAction (..))
@@ -477,14 +478,16 @@ setCursor i e = case focusOn i (unfocusExpr e) of
 
 -- | Apply a movement to a zipper
 moveExpr :: MonadError ActionError m => Movement -> ExprZ -> m ExprZ
-moveExpr m@(Branch c) z | Case _ _ brs _ <- target z =
-  case findIndex ((c ==) . caseBranchName) brs of
-    Nothing -> throwError $ CustomFailure (Move m) "Move-to-branch failed: no such branch"
-    -- 'down' moves into the scrutinee, 'right' then steps through branch
-    -- rhss
-    Just i -> case foldr (\_ z' -> right =<< z') (down z) [0 .. i] of
-      Just z' -> pure z'
-      Nothing -> throwError $ CustomFailure (Move m) "internal error: movement failed, even though branch exists"
+moveExpr m@(Branch b) z | Case _ _ brs _ <- target z =
+  case b of
+    Pattern c ->
+      case findIndex ((c ==) . caseBranchName) brs of
+        Nothing -> throwError $ CustomFailure (Move m) "Move-to-branch failed: no such branch"
+        -- 'down' moves into the scrutinee, 'right' then steps through branch
+        -- rhss
+        Just i -> case foldr (\_ z' -> right =<< z') (down z) [0 .. i] of
+          Just z' -> pure z'
+          Nothing -> throwError $ CustomFailure (Move m) "internal error: movement failed, even though branch exists"
 moveExpr m@(Branch _) _ = throwError $ CustomFailure (Move m) "Move-to-branch failed: this is not a case expression"
 moveExpr m@(ConChild n) z | Con{} <- target z =
   -- 'down' moves into the first argument, 'right' steps through the various arguments
@@ -833,7 +836,7 @@ addCaseBranch rawCon ze = case target ze of
         -- calculate some names for the new binders
         tmpBranch <- branch newCon [] $ pure fallbackBranch
         let tmpCase = Case m scrut (tmpBranch : branches) (CaseFallback fallbackBranch)
-        binders <- replicateM (length $ valConArgs vc) . mkFreshName =<< moveExpr (Branch newCon) (replace tmpCase ze)
+        binders <- replicateM (length $ valConArgs vc) . mkFreshName =<< moveExpr (Branch $ Pattern newCon) (replace tmpCase ze)
         branch newCon ((,Nothing) <$> binders) $ regenerateExprIDs fallbackBranch
     -- If we are adding the last constructor, we delete the fallback branch
     let fb =

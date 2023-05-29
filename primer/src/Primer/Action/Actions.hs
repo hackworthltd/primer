@@ -1,13 +1,14 @@
 module Primer.Action.Actions (
   Action (..),
   Movement (..),
+  BranchMove (..),
   QualifiedText,
 ) where
 
 import Foreword
 
 import Data.Aeson (FromJSON (..), ToJSON (..), Value)
-import Primer.Action.Movement (Movement (..))
+import Primer.Action.Movement (BranchMove (..), Movement (..))
 import Primer.Core (PrimCon)
 import Primer.Core.Meta (ID, TmVarRef)
 import Primer.JSON (CustomJSON (..), PrimerJSON)

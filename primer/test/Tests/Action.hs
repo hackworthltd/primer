@@ -14,6 +14,7 @@ import Hedgehog hiding (
 import Primer.Action (
   Action (..),
   ActionError (CaseBindsClash, NameCapture),
+  BranchMove (..),
   Movement (..),
   applyActionsToExpr,
  )
@@ -478,7 +479,7 @@ unit_case_create =
     , EnterHole
     , ConstructVar $ LocalVarRef "x"
     , ConstructCase
-    , Move (Branch cTrue)
+    , Move (Branch $ Pattern cTrue)
     , constructSaturatedCon cZero
     ]
     ( ann
@@ -536,10 +537,10 @@ unit_case_move_branch_1 =
     , Move Child1
     , Move Child1
     , Move Child1
-    , Move (Branch cZero)
+    , Move (Branch $ Pattern cZero)
     , constructSaturatedCon cZero
     , Move Parent
-    , Move (Branch cSucc)
+    , Move (Branch $ Pattern cSucc)
     , ConstructVar $ LocalVarRef "n"
     ]
     ( ann
@@ -570,10 +571,10 @@ unit_case_move_branch_2 =
     )
     [ Move Child1
     , Move Child1
-    , Move (Branch cZero)
+    , Move (Branch $ Pattern cZero)
     , constructSaturatedCon cZero
     , Move Parent
-    , Move (Branch cSucc)
+    , Move (Branch $ Pattern cSucc)
     , ConstructVar $ LocalVarRef "n"
     ]
     ( ann
@@ -755,7 +756,7 @@ unit_case_create_smart_on_term =
     , Move Child1
     , ConstructVar $ LocalVarRef "x"
     , ConstructCase
-    , Move (Branch cTrue)
+    , Move (Branch $ Pattern cTrue)
     , constructSaturatedCon cZero
     ]
     ( ann
@@ -784,7 +785,7 @@ unit_case_create_smart_on_hole =
     , ConstructVar $ LocalVarRef "x"
     , Move Parent
     , AddCaseBranch $ toQualText cTrue
-    , Move (Branch cTrue)
+    , Move (Branch $ Pattern cTrue)
     , constructSaturatedCon cZero
     ]
     ( ann
@@ -942,7 +943,7 @@ unit_case_branches =
           e1
           [ Move Child1
           , AddCaseBranch $ toQualText cZero
-          , Move (Branch cZero)
+          , Move (Branch $ Pattern cZero)
           , Delete
           , constructSaturatedCon cFalse
           ]

@@ -5,6 +5,7 @@ import Foreword
 
 import Data.Set qualified as S
 import Primer.Action (
+  BranchMove (..),
   Movement (..),
   moveExpr,
  )
@@ -72,14 +73,14 @@ unit_9 :: Assertion
 unit_9 =
   bindersAboveTest
     (case_ (lvar "x") [branch cZero [] emptyHole, branch cSucc [("n", Nothing)] emptyHole])
-    [Branch cZero]
+    [Branch $ Pattern cZero]
     (S.fromList [])
 
 unit_10 :: Assertion
 unit_10 =
   bindersAboveTest
     (case_ (lvar "x") [branch cZero [] emptyHole, branch cSucc [("n", Nothing)] emptyHole])
-    [Branch cSucc]
+    [Branch $ Pattern cSucc]
     (S.fromList ["n"])
 
 -- * Helpers
