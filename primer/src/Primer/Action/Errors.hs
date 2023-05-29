@@ -13,7 +13,7 @@ import Data.Aeson (FromJSON (..), ToJSON (..))
 import Primer.Action.Actions (Action)
 import Primer.Action.Available qualified as Available
 import Primer.Action.Movement (Movement)
-import Primer.Core (Expr, GVarName, ID, LVarName, ModuleName, TyConName, Type, ValConName)
+import Primer.Core (Expr, GVarName, ID, LVarName, ModuleName, TyConName, Type, Type', ValConName)
 import Primer.JSON (CustomJSON (..), PrimerJSON)
 import Primer.Typecheck.TypeError (TypeError)
 import Primer.Zipper (SomeNode)
@@ -41,6 +41,10 @@ data ActionError
     -- λx.λy.y  this would be ok, but we are paranoid and bail out
     NameCapture
   | CaseBindsClash LVarName [LVarName]
+  | CaseAlreadyExhaustive
+  | CaseBranchAlreadyExists ValConName
+  | -- | Attempted to add a branch for an unexpected ctor
+    CaseBranchNotCon ValConName (Type' ())
   | -- TODO: semantic errors.
     -- https://github.com/hackworthltd/primer/issues/8
     SaturatedApplicationError (Either Text TypeError)

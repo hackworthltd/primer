@@ -70,6 +70,8 @@ data Action
     ConvertLetToLetrec
   | -- | Scrutinise the expression under the cursor with a @case@
     ConstructCase
+  | -- | Add a branch to a case expression
+    AddCaseBranch QualifiedText
   | -- | Rename a lambda binding
     RenameLam Text
   | -- | Rename a big lambda binding

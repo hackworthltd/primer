@@ -20,6 +20,7 @@ module Primer.Action (
   toProgActionInput,
   toProgActionNoInput,
   applyActionsToField,
+  insertSubseqBy,
 ) where
 
 import Foreword hiding (mod)
@@ -53,6 +54,8 @@ import Primer.App.Base (
   TypeDefSelection (..),
  )
 import Primer.Core (
+  CaseBranch' (CaseBranch),
+  CaseFallback' (CaseExhaustive, CaseFallback),
   Expr,
   Expr' (..),
   GVarName,
@@ -106,7 +109,7 @@ import Primer.Core.DSL (
   var,
  )
 import Primer.Core.Transform (renameLocalVar, renameTyVar, renameTyVarExpr, unfoldFun)
-import Primer.Core.Utils (forgetTypeMetadata, generateTypeIDs)
+import Primer.Core.Utils (forgetTypeMetadata, generateTypeIDs, regenerateExprIDs)
 import Primer.Def (
   ASTDef (..),
   Def (..),
@@ -438,6 +441,7 @@ applyAction' a = case a of
   ConstructLetrec x -> termAction (constructLetrec x) "cannot construct letrec in type"
   ConvertLetToLetrec -> termAction convertLetToLetrec "cannot convert type to letrec"
   ConstructCase -> termAction constructCase "cannot construct case in type"
+  AddCaseBranch c -> termAction (addCaseBranch c) "cannot add a case branch in type"
   RenameLam x -> termAction (renameLam x) "cannot rename lam in type"
   RenameLAM x -> termAction (renameLAM x) "cannot rename LAM in type"
   RenameLet x -> termAction (renameLet x) "cannot rename let in type"
@@ -753,28 +757,32 @@ convertLetToLetrec ze = case target ze of
     pure $ replace (Letrec m x e1 t1 e2) ze
   _ -> throwError $ CustomFailure ConvertLetToLetrec "can only convert let to letrec"
 
+-- NB: the errors given by getFocusType assume it is being used on the scrutinee of a case
+getFocusType :: ActionM m => ExprZ -> m TypeCache
+getFocusType ze = case maybeTypeOf $ target ze of
+  Just t -> pure t
+  -- If there is no cached type, we would like to synthesise one
+  -- but unfortunately it is awkward to do the context-wrangling
+  -- needed via the zipper, so we simply call 'synthZ', which
+  -- unfocuses to top-level before synthesising, and then searches
+  -- for the correct focus afterwards.
+  Nothing ->
+    let handler _ = throwError $ CustomFailure ConstructCase "failed to synthesise the type of the scrutinee"
+     in synthZ (InExpr ze) `catchError` handler >>= \case
+          Nothing -> throwError $ CustomFailure ConstructCase "internal error when synthesising the type of the scruntinee: focused expression went missing after typechecking"
+          Just (InType _) -> throwError $ CustomFailure ConstructCase "internal error when synthesising the type of the scruntinee: focused expression changed into a type after typechecking"
+          Just (InBind _) -> throwError $ CustomFailure ConstructCase "internal error: scrutinee became a binding after synthesis"
+          Just (InExpr ze') -> case maybeTypeOf $ target ze' of
+            Nothing -> throwError $ CustomFailure ConstructCase "internal error: synthZ always returns 'Just', never 'Nothing'"
+            Just t -> pure t
+
 constructCase :: ActionM m => ExprZ -> m ExprZ
 constructCase ze = do
-  ty' <- case maybeTypeOf $ target ze of
-    Just t -> pure t
-    -- If there is no cached type, we would like to synthesise one
-    -- but unfortunately it is awkward to do the context-wrangling
-    -- needed via the zipper, so we simply call 'synthZ', which
-    -- unfocuses to top-level before synthesising, and then searches
-    -- for the correct focus afterwards.
-    Nothing ->
-      let handler _ = throwError $ CustomFailure ConstructCase "failed to synthesise the type of the scrutinee"
-       in synthZ (InExpr ze) `catchError` handler >>= \case
-            Nothing -> throwError $ CustomFailure ConstructCase "internal error when synthesising the type of the scruntinee: focused expression went missing after typechecking"
-            Just (InType _) -> throwError $ CustomFailure ConstructCase "internal error when synthesising the type of the scruntinee: focused expression changed into a type after typechecking"
-            Just (InBind _) -> throwError $ CustomFailure ConstructCase "internal error: scrutinee became a binding after synthesis"
-            Just (InExpr ze') -> case maybeTypeOf $ target ze' of
-              Nothing -> throwError $ CustomFailure ConstructCase "internal error: synthZ always returns 'Just', never 'Nothing'"
-              Just t -> pure t
-  ty <- case ty' of
-    TCSynthed t -> pure t
-    TCChkedAt _ -> throwError $ CustomFailure ConstructCase "can't take a case on a checkable-only term"
-    TCEmb TCBoth{tcSynthed = t} -> pure t
+  ty <-
+    getFocusType ze >>= \case
+      TCSynthed t -> pure t
+      TCChkedAt _ -> throwError $ CustomFailure ConstructCase "can't take a case on a checkable-only term"
+      TCEmb TCBoth{tcSynthed = t} -> pure t
   -- Construct the branches of the case using the type information of the scrutinee
   getTypeDefInfo ty >>= \case
     -- If it's a fully-saturated ADT type, create a branch for each of its constructors.
@@ -799,6 +807,58 @@ constructCase ze = do
         TC.NoSmartHoles -> throwError $ CustomFailure ConstructCase "can only construct case on a term with hole type when using the \"smart\" TC"
         TC.SmartHoles -> flip replace ze <$> case_ (pure $ target ze) []
     _ -> throwError $ CustomFailure ConstructCase ("can only construct case on expression with type a exactly saturated ADT, not " <> show ty)
+
+addCaseBranch :: ActionM m => QualifiedText -> ExprZ -> m ExprZ
+addCaseBranch rawCon ze = case target ze of
+  Case _ _ _ CaseExhaustive -> throwError CaseAlreadyExhaustive
+  Case m scrut branches (CaseFallback fallbackBranch) -> do
+    let newCon = unsafeMkGlobalName rawCon
+        branchName (CaseBranch n _ _) = n
+        branchNames = branchName <$> branches
+    when (newCon `elem` branchNames) $ throwError $ CaseBranchAlreadyExists newCon
+    ty <-
+      move Child1 ze >>= getFocusType >>= \case
+        TCSynthed t -> pure t
+        TCChkedAt _ -> throwError $ InternalFailure "scrutinees are synthesisable but only had TCChkedAt"
+        TCEmb TCBoth{tcSynthed = t} -> pure t
+    allowedBranches <-
+      getTypeDefInfo ty <&> \case
+        Right (TC.TypeDefInfo _ _ (TypeDefAST tydef)) -> astTypeDefConstructors tydef
+        _ -> []
+    newBranch <- case find ((== newCon) . valConName) allowedBranches of
+      Nothing -> throwError $ CaseBranchNotCon newCon ty
+      Just vc -> do
+        -- make a temporary approximation to the final result, from which we
+        -- calculate some names for the new binders
+        tmpBranch <- branch newCon [] $ pure fallbackBranch
+        let tmpCase = Case m scrut (tmpBranch : branches) (CaseFallback fallbackBranch)
+        binders <- replicateM (length $ valConArgs vc) . mkFreshName =<< moveExpr (Branch newCon) (replace tmpCase ze)
+        branch newCon ((,Nothing) <$> binders) $ regenerateExprIDs fallbackBranch
+    -- If we are adding the last constructor, we delete the fallback branch
+    let fb =
+          if length allowedBranches == length branchNames + 1
+            then CaseExhaustive
+            else CaseFallback fallbackBranch
+    let branches' = insertSubseqBy branchName newBranch (valConName <$> allowedBranches) branches
+    pure $ replace (Case m scrut branches' fb) ze
+  _ ->
+    throwError $ CustomFailure (AddCaseBranch rawCon) "the focused expression is not a case"
+
+-- | Given a sequence @ks@ and @vs@ such that @map f vs@ is a subsequence of
+-- @ks@ (this precondition is not checked), @insertSubseqBy f x ks vs@ inserts
+-- @x@ at the appropriate position in @vs@.
+-- Thus we have
+-- - @insertSubseqBy f x ks vs \\ x == vs@
+-- - @map f (insertSubseqBy f x ks vs) `isSubsequenceOf` ks@
+insertSubseqBy :: Eq k => (v -> k) -> v -> [k] -> [v] -> [v]
+insertSubseqBy f x = go
+  where
+    tgt = f x
+    go (k : ks) vvs@(v : vs)
+      | k == tgt = x : vvs
+      | k == f v = v : go ks vs
+      | otherwise = go ks vvs
+    go _ _ = [x]
 
 -- | Replace @x@ with @y@ in @λx. e@
 renameLam :: MonadError ActionError m => Text -> ExprZ -> m ExprZ

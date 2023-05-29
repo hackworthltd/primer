@@ -41,6 +41,7 @@ import Primer.Test.Util (
   clearMeta,
   constructSaturatedCon,
   constructTCon,
+  toQualText,
  )
 import Primer.Typecheck (SmartHoles (NoSmartHoles, SmartHoles))
 import Primer.Zipper (
@@ -782,15 +783,16 @@ unit_case_create_smart_on_hole =
     , Move Child1
     , ConstructVar $ LocalVarRef "x"
     , Move Parent
-    -- , Move (Branch cTrue)
-    -- , constructSaturatedCon cZero
+    , AddCaseBranch $ toQualText cTrue
+    , Move (Branch cTrue)
+    , constructSaturatedCon cZero
     ]
     ( ann
         ( lam
             "x"
             ( caseFB_
                 (lvar "x")
-                [] -- [branch cTrue [] (con0 cZero), branch cFalse [] emptyHole]
+                [branch cTrue [] (con0 cZero)]
                 emptyHole
             )
         )
