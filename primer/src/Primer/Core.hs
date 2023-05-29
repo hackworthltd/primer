@@ -58,6 +58,7 @@ import Primer.Core.Meta (
   LocalNameKind (..),
   Meta (Meta),
   ModuleName (ModuleName, unModuleName),
+  Pattern (..),
   TmVarRef (..),
   TyConName,
   TyVarName,
@@ -307,7 +308,7 @@ type CaseBranch = CaseBranch' ExprMeta TypeMeta
 data CaseBranch' a b
   = CaseBranch
       -- | constructor
-      ValConName
+      Pattern
       -- | constructor parameters.
       -- Ideally this would be '[Bind' (Meta TypeCache)]' since we always know the types of branch
       -- bindings. Unfortunately that breaks generic traversals like '_exprMeta'.
@@ -318,7 +319,7 @@ data CaseBranch' a b
   deriving (FromJSON, ToJSON) via PrimerJSON (CaseBranch' a b)
   deriving anyclass (NFData)
 
-caseBranchName :: CaseBranch' a b -> ValConName
+caseBranchName :: CaseBranch' a b -> Pattern
 caseBranchName (CaseBranch n _ _) = n
 
 type CaseFallback = CaseFallback' ExprMeta TypeMeta

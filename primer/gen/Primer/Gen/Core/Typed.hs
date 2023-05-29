@@ -56,6 +56,7 @@ import Primer.Core (
   LVarName,
   LocalName (LocalName, unLocalName),
   ModuleName (),
+  Pattern (PatCon),
   PrimCon (..),
   TmVarRef (..),
   TyConName,
@@ -461,7 +462,7 @@ genChk ty = do
                     fmap (Just . (,fb)) . for vcs $ \(c, params) -> do
                       ns <- for params $ \nt -> (,nt) <$> genLVarNameAvoiding [ty, nt]
                       let binds = map (Bind () . fst) ns
-                      CaseBranch c binds <$> local (extendLocalCxts ns) (genChk ty)
+                      CaseBranch (PatCon c) binds <$> local (extendLocalCxts ns) (genChk ty)
             pure $ Case () e brs fb
 
 genStrictSubsequence :: MonadGen m => NonEmpty a -> m [a]

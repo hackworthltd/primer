@@ -59,6 +59,7 @@ import Primer.Core (
   GlobalName (baseName, qualifiedModule),
   ID,
   ModuleName (unModuleName),
+  Pattern (PatCon),
   Type,
   Type' (..),
   TypeMeta,
@@ -441,13 +442,13 @@ options typeDefs defs cxt level def0 sel0 = \case
         scrut ^? _exprMetaLens % _type % _Just % _synthed >>= \ty ->
           eitherToMaybe (instantiateValCons' typeDefs ty) >>= \(_, _, vcs) ->
             let allBr = map fst vcs
-                exist = caseBranchName <$> brs
+                exist = (\(PatCon c) -> c) . caseBranchName <$> brs
                 others = allBr \\ exist
              in pure $ noFree $ globalOpt <$> others
       _ -> Nothing
   DeleteBranch ->
     findNode >>= \case
-      ExprNode (Case _ _ brs _) -> pure $ noFree $ brs <&> (globalOpt . caseBranchName)
+      ExprNode (Case _ _ brs _) -> pure $ noFree $ brs <&> (globalOpt . (\(PatCon c) -> c) . caseBranchName)
       _ -> Nothing
   RenamePattern -> do
     CaseBindNode b <- findNode

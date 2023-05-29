@@ -87,6 +87,7 @@ import Primer.Core (
   Kind (KType),
   Meta (..),
   ModuleName (ModuleName, unModuleName),
+  Pattern (PatCon),
   TmVarRef (..),
   TyConName,
   Type,
@@ -672,7 +673,7 @@ unit_copy_paste_expr_1 = do
           , newProg' & #progModules % _head % #moduleDefs .~ Map.fromList [(mainName', DefAST expected)]
           )
   let a = mkTestApp pInitial
-      actions = [MoveToDef mainName, CopyPasteBody (mainName, srcID) [Move Child1, Move Child1, Move (Branch $ Pattern cNil)]]
+      actions = [MoveToDef mainName, CopyPasteBody (mainName, srcID) [Move Child1, Move Child1, Move (Branch $ Pattern $ PatCon cNil)]]
   do
     (result, _) <- runAppTestM maxID a $ (,) <$> tcWholeProg pExpected <*> handleEditRequest actions
     case result of
@@ -1279,7 +1280,7 @@ unit_cross_module_actions =
               , Move Parent
               , Move Parent
               , ConstructCase
-              , Move (Branch $ Pattern (qualifyM "C"))
+              , Move (Branch $ Pattern $ PatCon (qualifyM "C"))
               , constructSaturatedCon (qualifyM "C")
               , Move $ ConChild 0
               , constructSaturatedCon cSucc

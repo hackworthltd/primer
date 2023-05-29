@@ -26,6 +26,7 @@ import Primer.Core (
   HasID,
   ID (..),
   Kind (KType),
+  Pattern (PatCon),
   PrimCon (PrimChar),
   TmVarRef (LocalVarRef),
   getID,
@@ -479,7 +480,7 @@ unit_case_create =
     , EnterHole
     , ConstructVar $ LocalVarRef "x"
     , ConstructCase
-    , Move (Branch $ Pattern cTrue)
+    , Move (Branch $ Pattern $ PatCon cTrue)
     , constructSaturatedCon cZero
     ]
     ( ann
@@ -537,10 +538,10 @@ unit_case_move_branch_1 =
     , Move Child1
     , Move Child1
     , Move Child1
-    , Move (Branch $ Pattern cZero)
+    , Move (Branch $ Pattern $ PatCon cZero)
     , constructSaturatedCon cZero
     , Move Parent
-    , Move (Branch $ Pattern cSucc)
+    , Move (Branch $ Pattern $ PatCon cSucc)
     , ConstructVar $ LocalVarRef "n"
     ]
     ( ann
@@ -571,10 +572,10 @@ unit_case_move_branch_2 =
     )
     [ Move Child1
     , Move Child1
-    , Move (Branch $ Pattern cZero)
+    , Move (Branch $ Pattern $ PatCon cZero)
     , constructSaturatedCon cZero
     , Move Parent
-    , Move (Branch $ Pattern cSucc)
+    , Move (Branch $ Pattern $ PatCon cSucc)
     , ConstructVar $ LocalVarRef "n"
     ]
     ( ann
@@ -756,7 +757,7 @@ unit_case_create_smart_on_term =
     , Move Child1
     , ConstructVar $ LocalVarRef "x"
     , ConstructCase
-    , Move (Branch $ Pattern cTrue)
+    , Move (Branch $ Pattern $ PatCon cTrue)
     , constructSaturatedCon cZero
     ]
     ( ann
@@ -785,7 +786,7 @@ unit_case_create_smart_on_hole =
     , ConstructVar $ LocalVarRef "x"
     , Move Parent
     , AddCaseBranch $ toQualText cTrue
-    , Move (Branch $ Pattern cTrue)
+    , Move (Branch $ Pattern $ PatCon cTrue)
     , constructSaturatedCon cZero
     ]
     ( ann
@@ -949,7 +950,7 @@ unit_case_branches =
           e1
           [ Move Child1
           , AddCaseBranch $ toQualText cZero
-          , Move (Branch $ Pattern cZero)
+          , Move (Branch $ Pattern $ PatCon cZero)
           , Delete
           , constructSaturatedCon cFalse
           ]

@@ -110,6 +110,7 @@ import Primer.Core (
   LVarName,
   LocalName (LocalName),
   Meta (..),
+  Pattern (PatCon),
   PrimCon,
   TmVarRef (..),
   TyConName,
@@ -727,7 +728,7 @@ check t = \case
         let branchNames = map caseBranchName brs
         let conNames = map fst expected
         sh <- asks smartHoles
-        brs' <- case (extractSubsequenceBy (\n (m, _) -> n == m) branchNames expected, sh) of
+        brs' <- case (extractSubsequenceBy (\n (m, _) -> n == PatCon m) branchNames expected, sh) of
           (Nothing, NoSmartHoles) -> throwError' $ WrongCaseBranches tc branchNames (fb /= CaseExhaustive)
           -- create branches with the correct name but wrong parameters,
           -- they will be fixed up in checkBranch later
@@ -735,7 +736,7 @@ check t = \case
           (Just ctys, _) -> pure $ zip ctys brs
         brs'' <- mapM (uncurry $ checkBranch t) brs'
         let branchNames' = map caseBranchName brs''
-        fb' <- case (branchNames' == conNames, fb, sh) of
+        fb' <- case (branchNames' == map PatCon conNames, fb, sh) of
           (True, CaseExhaustive, _) -> pure CaseExhaustive
           (True, CaseFallback _, NoSmartHoles) -> throwError' $ WrongCaseBranches tc branchNames True
           (True, CaseFallback _, SmartHoles) -> pure CaseExhaustive
@@ -882,7 +883,7 @@ checkBranch t (vc, args) (CaseBranch nb patterns rhs) =
       bind <- Bind <$> meta' (TCChkedAt ty) <*> pure name
       pure (bind, ty)
     assertCorrectCon =
-      assert (vc == nb) $
+      assert (PatCon vc == nb) $
         "checkBranch: expected a branch on "
           <> show vc
           <> " but found branch on "

@@ -65,6 +65,7 @@ import Primer.Core (
   ID,
   LVarName,
   LocalName (LocalName, unLocalName),
+  Pattern (PatCon),
   PrimCon (PrimChar, PrimInt),
   TmVarRef (..),
   TyVarName,
@@ -826,7 +827,7 @@ addCaseBranch rawCon ze = case target ze of
     let newCon = unsafeMkGlobalName rawCon
         branchName (CaseBranch n _ _) = n
         branchNames = branchName <$> branches
-    when (newCon `elem` branchNames) $ throwError $ CaseBranchAlreadyExists newCon
+    when (PatCon newCon `elem` branchNames) $ throwError $ CaseBranchAlreadyExists newCon
     ty <-
       move Child1 ze >>= getFocusType >>= \case
         TCSynthed t -> pure t
@@ -843,14 +844,14 @@ addCaseBranch rawCon ze = case target ze of
         -- calculate some names for the new binders
         tmpBranch <- branch newCon [] $ pure fallbackBranch
         let tmpCase = Case m scrut (tmpBranch : branches) (CaseFallback fallbackBranch)
-        binders <- replicateM (length $ valConArgs vc) . mkFreshName =<< moveExpr (Branch $ Pattern newCon) (replace tmpCase ze)
+        binders <- replicateM (length $ valConArgs vc) . mkFreshName =<< moveExpr (Branch $ Pattern $ PatCon newCon) (replace tmpCase ze)
         branch newCon ((,Nothing) <$> binders) $ regenerateExprIDs fallbackBranch
     -- If we are adding the last constructor, we delete the fallback branch
     let fb =
           if length allowedBranches == length branchNames + 1
             then CaseExhaustive
             else CaseFallback fallbackBranch
-    let branches' = insertSubseqBy branchName newBranch (valConName <$> allowedBranches) branches
+    let branches' = insertSubseqBy branchName newBranch (PatCon . valConName <$> allowedBranches) branches
     pure $ replace (Case m scrut branches' fb) ze
   _ ->
     throwError $ CustomFailure (AddCaseBranch rawCon) "the focused expression is not a case"
@@ -860,7 +861,7 @@ deleteCaseBranch c ze = case target ze of
   -- We put the action on the `Case` node, as we cannot currently select the pattern
   -- (we cannot put the action on binders, since nullary constructors have no binders)
   Case m scrut branches fallbackBranch ->
-    case find ((unsafeMkGlobalName c ==) . caseBranchName) branches of
+    case find ((PatCon (unsafeMkGlobalName c) ==) . caseBranchName) branches of
       Nothing -> throwError $ CaseBranchNotExist $ unsafeMkGlobalName c
       Just br@(CaseBranch _ binds rhs) ->
         let newBranches = delete br branches

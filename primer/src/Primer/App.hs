@@ -133,6 +133,7 @@ import Primer.Core (
   LocalName (LocalName, unLocalName),
   Meta (..),
   ModuleName (ModuleName),
+  Pattern (PatCon),
   TmVarRef (GlobalVarRef, LocalVarRef),
   TyConName,
   Type,
@@ -696,7 +697,7 @@ applyProgAction prog = \case
         over (traversed % #_DefAST % #astDefExpr) $
           transform $
             over (#_Con % _2) updateName
-              . over (#_Case % _3 % traversed % #_CaseBranch % _1) updateName
+              . over (#_Case % _3 % traversed % #_CaseBranch % _1 % #_PatCon) updateName
       updateName n = if n == old then new else n
   RenameTypeParam type_ old (unsafeMkLocalName -> new) ->
     editModule (qualifiedModule type_) prog $ \m -> do
@@ -749,7 +750,7 @@ applyProgAction prog = \case
     where
       updateDefs allCons = transformNamedCaseBranches prog type_ $ \bs -> do
         m' <- DSL.meta
-        pure $ insertSubseqBy caseBranchName (CaseBranch con [] (EmptyHole m')) (valConName <$> allCons) bs
+        pure $ insertSubseqBy caseBranchName (CaseBranch (PatCon con) [] (EmptyHole m')) (PatCon . valConName <$> allCons) bs
       updateType =
         alterTypeDef
           ( traverseOf
@@ -1623,12 +1624,13 @@ transformNamedCaseBranch ::
   Prog ->
   TyConName ->
   ValConName ->
+  -- This only supports ADT case branches, since we cannot edit primitives
   (CaseBranch -> m CaseBranch) ->
   Expr ->
   m Expr
 transformNamedCaseBranch prog type_ con f = transformNamedCaseBranches prog type_ $
   traverse $
-    \cb -> if caseBranchName cb == con then f cb else pure cb
+    \cb -> if caseBranchName cb == PatCon con then f cb else pure cb
 
 progCxt :: Prog -> Cxt
 progCxt p = buildTypingContextFromModules (progAllModules p) (progSmartHoles p)

@@ -2,11 +2,11 @@ module Primer.Action.Movement (BranchMove (..), Movement (..)) where
 
 import Foreword
 
-import Primer.Core.Meta (ValConName)
+import Primer.Core.Meta (Pattern)
 import Primer.JSON (CustomJSON (..), FromJSON, PrimerJSON, ToJSON)
 
 data BranchMove
-  = Pattern ValConName
+  = Pattern Pattern
   | Fallback
   deriving stock (Eq, Show, Read, Generic)
   deriving (FromJSON, ToJSON) via PrimerJSON BranchMove

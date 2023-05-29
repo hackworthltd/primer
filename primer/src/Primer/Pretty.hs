@@ -41,6 +41,7 @@ import Primer.Core (
   GlobalName (baseName, qualifiedModule),
   LocalName (unLocalName),
   ModuleName (unModuleName),
+  Pattern (PatCon),
   PrimCon (..),
   TmVarRef (GlobalVarRef, LocalVarRef),
   Type,
@@ -118,7 +119,7 @@ prettyExpr opts = \case
       caseParts =
         map
           ( \(CaseBranch n bs' e') ->
-              ( col Green (gname opts n)
+              ( col Green (pat n)
                   <> mconcat
                     ( intersperse'
                         space
@@ -138,6 +139,9 @@ prettyExpr opts = \case
       intersperse' x = foldr (\y z -> x : y : z) [x]
 
       printCases = mconcat . intersperse hardline $ casesAligned
+
+      pat = \case
+        PatCon n -> gname opts n
 
       casesAligned :: [Doc AnsiStyle]
       casesAligned = map (\(f, s) -> fill caseWidth f <> s) caseParts

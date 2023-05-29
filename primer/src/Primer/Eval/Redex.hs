@@ -75,6 +75,7 @@ import Primer.Core (
   Kind,
   LVarName,
   LocalName (unLocalName),
+  Pattern (PatCon),
   TmVarRef (..),
   TyConName,
   TyVarName,
@@ -539,7 +540,7 @@ viewCaseRedex tydefs = \case
   _ -> mzero
   where
     extractBranch c brs fb =
-      case (find ((c ==) . caseBranchName) brs, fb) of
+      case (find ((PatCon c ==) . caseBranchName) brs, fb) of
         (Nothing, CaseExhaustive) -> do
           logWarning $ CaseRedexMissingBranch c
           mzero

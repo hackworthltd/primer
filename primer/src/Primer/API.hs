@@ -168,7 +168,7 @@ import Primer.Core (
   _typeMetaLens,
  )
 import Primer.Core.DSL qualified as DSL
-import Primer.Core.Meta (LocalName)
+import Primer.Core.Meta (LocalName, Pattern (PatCon))
 import Primer.Core.Meta qualified as Core
 import Primer.Database (
   OffsetLimit,
@@ -841,7 +841,7 @@ viewTreeExpr e0 = case e0 of
             viewFallback
             bs
         )
-      viewCaseBranch i (CaseBranch con binds rhs) =
+      viewCaseBranch i (CaseBranch p binds rhs) =
         let
           -- these IDs will not clash with any others in the tree,
           -- since node IDs in the input expression are unique,
@@ -855,7 +855,7 @@ viewTreeExpr e0 = case e0 of
                 BoxBody . RecordPair Flavor.Pattern $
                   ( Tree
                       { nodeId = patternRootId
-                      , body = TextBody $ RecordPair Flavor.PatternCon $ globalName con
+                      , body = pat p
                       , childTrees =
                           map
                             ( \(Bind m v) ->
@@ -898,6 +898,8 @@ viewTreeExpr e0 = case e0 of
                 , childTrees = [viewTreeExpr rhs]
                 , rightChild = Nothing
                 }
+      pat = \case
+        PatCon n -> TextBody $ RecordPair Flavor.PatternCon $ globalName n
   PrimCon _ pc ->
     Tree
       { nodeId

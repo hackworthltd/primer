@@ -12,6 +12,7 @@ import Primer.Action (
 import Primer.Builtins (cSucc, cZero, tNat)
 import Primer.Core (
   Expr,
+  Pattern (PatCon),
  )
 import Primer.Core.DSL
 import Primer.Name (Name)
@@ -73,14 +74,14 @@ unit_9 :: Assertion
 unit_9 =
   bindersAboveTest
     (case_ (lvar "x") [branch cZero [] emptyHole, branch cSucc [("n", Nothing)] emptyHole])
-    [Branch $ Pattern cZero]
+    [Branch $ Pattern $ PatCon cZero]
     (S.fromList [])
 
 unit_10 :: Assertion
 unit_10 =
   bindersAboveTest
     (case_ (lvar "x") [branch cZero [] emptyHole, branch cSucc [("n", Nothing)] emptyHole])
-    [Branch $ Pattern cSucc]
+    [Branch $ Pattern $ PatCon cSucc]
     (S.fromList ["n"])
 
 -- * Helpers

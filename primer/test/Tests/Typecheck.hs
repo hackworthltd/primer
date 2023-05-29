@@ -64,6 +64,7 @@ import Primer.Core (
   Kind (KFun, KHole, KType),
   Meta (..),
   ModuleName (ModuleName),
+  Pattern (PatCon),
   TmVarRef (LocalVarRef),
   TyConName,
   Type,
@@ -441,13 +442,13 @@ unit_case_fallback =
 unit_case_fallback_inexhaustive :: Assertion
 unit_case_fallback_inexhaustive =
   ann (lam "x" $ case_ (lvar "x") [branch cSucc [("n", Nothing)] (con0 cFalse)]) (tfun (tcon tNat) (tcon tBool))
-    `expectFailsWith` const (WrongCaseBranches tNat [cSucc] False)
+    `expectFailsWith` const (WrongCaseBranches tNat [PatCon cSucc] False)
 
 -- Nat -> Bool rejects \x . case x of Z -> True ; S _ -> False ; _ -> False
 unit_case_fallback_redundant :: Assertion
 unit_case_fallback_redundant =
   ann (lam "x" $ caseFB_ (lvar "x") [branch cZero [] (con0 cTrue), branch cSucc [("n", Nothing)] (con0 cFalse)] (con0 cFalse)) (tfun (tcon tNat) (tcon tBool))
-    `expectFailsWith` const (WrongCaseBranches tNat [cZero, cSucc] True)
+    `expectFailsWith` const (WrongCaseBranches tNat [PatCon cZero, PatCon cSucc] True)
 
 -- Cannot annotate something with a non-existent type constructor
 unit_ann_bad :: Assertion

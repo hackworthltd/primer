@@ -39,6 +39,7 @@ import Primer.Core (
   LocalName (LocalName),
   Meta (..),
   ModuleName (ModuleName),
+  Pattern (PatCon),
   PrimCon (..),
   TmVarRef (..),
   TyConName,
@@ -138,7 +139,7 @@ genLetrec = Letrec <$> genMeta <*> genLVarName <*> genExpr <*> genType <*> genEx
 genCase :: ExprGen Expr
 genCase = Case <$> genMeta <*> genExpr <*> Gen.list (Range.linear 0 5) genBranch <*> Gen.choice [pure CaseExhaustive, CaseFallback <$> genExpr]
   where
-    genBranch = CaseBranch <$> genValConName <*> Gen.list (Range.linear 0 5) genBind <*> genExpr
+    genBranch = CaseBranch . PatCon <$> genValConName <*> Gen.list (Range.linear 0 5) genBind <*> genExpr
     genBind = Bind <$> genMeta <*> genLVarName
 
 genPrim :: ExprGen Expr

@@ -27,6 +27,7 @@ module Primer.Core.Meta (
   Meta (Meta),
   trivialMeta,
   _type,
+  Pattern (..),
 ) where
 
 import Foreword
@@ -190,3 +191,15 @@ class HasMetadata a where
 
 instance HasMetadata (Meta a) where
   _metadata = position @3
+
+-- | @Pattern@s are what case branches match on. We only support shallow
+-- matches, so these record the constructor name (arguments are bound by the
+-- @Case@ node, rather than the pattern).
+data Pattern
+  = -- Pattern is not really "Meta", but is placed here to keep the module graph shallower
+    PatCon ValConName
+  deriving stock (Eq, Show, Read, Data, Generic)
+  deriving (FromJSON, ToJSON) via PrimerJSON Pattern
+  deriving anyclass (NFData)
+
+{- HLINT ignore Pattern "Use newtype instead of data" -}

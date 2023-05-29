@@ -62,6 +62,7 @@ import Primer.Core (
   ID,
   LVarName,
   ModuleName (ModuleName),
+  Pattern (..),
   PrimCon (..),
   TmVarRef (..),
   TyVarName,
@@ -164,10 +165,13 @@ case_ e brs = Case <$> meta <*> e <*> sequence brs <*> pure CaseExhaustive
 caseFB_ :: MonadFresh ID m => m Expr -> [m CaseBranch] -> m Expr -> m Expr
 caseFB_ e brs fb = Case <$> meta <*> e <*> sequence brs <*> (CaseFallback <$> fb)
 
-branch :: MonadFresh ID m => ValConName -> [(LVarName, Maybe TypeCache)] -> m Expr -> m CaseBranch
-branch c vs e = CaseBranch c <$> mapM binding vs <*> e
+branchPat :: MonadFresh ID m => Pattern -> [(LVarName, Maybe TypeCache)] -> m Expr -> m CaseBranch
+branchPat c vs e = CaseBranch c <$> mapM binding vs <*> e
   where
     binding (name, ty) = Bind <$> meta' ty <*> pure name
+
+branch :: MonadFresh ID m => ValConName -> [(LVarName, Maybe TypeCache)] -> m Expr -> m CaseBranch
+branch = branchPat . PatCon
 
 prim :: MonadFresh ID m => PrimCon -> m Expr
 prim p = PrimCon <$> meta <*> pure p

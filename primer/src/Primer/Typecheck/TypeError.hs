@@ -2,7 +2,7 @@ module Primer.Typecheck.TypeError (TypeError (..)) where
 
 import Foreword
 
-import Primer.Core (Expr)
+import Primer.Core (Expr, Pattern)
 import Primer.Core.Meta (TmVarRef, TyConName, ValConName)
 import Primer.Core.Type (Type')
 import Primer.JSON (CustomJSON (..), FromJSON, PrimerJSON, ToJSON)
@@ -33,7 +33,7 @@ data TypeError
   | CannotCaseNonADT (Type' ())
   | CannotCaseNonSaturatedADT (Type' ())
   | -- | Either wrong number, wrong constructors or wrong order. The fields are @name of the ADT@, @branches given@, @wildcard/fallback branch given@
-    WrongCaseBranches TyConName [ValConName] Bool
+    WrongCaseBranches TyConName [Pattern] Bool
   | CaseBranchWrongNumberPatterns
   | KindError KindError
   deriving stock (Eq, Show, Read, Generic)
