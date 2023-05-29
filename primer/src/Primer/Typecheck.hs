@@ -120,6 +120,7 @@ import Primer.Core (
   TypeMeta,
   ValConName,
   bindName,
+  caseBranchName,
   qualifyName,
   unLocalName,
   _bindMeta,
@@ -723,7 +724,7 @@ check t = \case
             scrutWrap <- Hole <$> meta' (TCSynthed (TEmptyHole ())) <*> pure (addChkMetaT (TEmptyHole ()) e')
             pure $ Case caseMeta scrutWrap [] CaseExhaustive
       Right (tc, _, expected) -> do
-        let branchNames = map (\(CaseBranch n _ _) -> n) brs
+        let branchNames = map caseBranchName brs
         let conNames = map fst expected
         sh <- asks smartHoles
         brs' <- case (branchNames == conNames, sh) of

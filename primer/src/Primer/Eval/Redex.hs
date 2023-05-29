@@ -87,6 +87,7 @@ import Primer.Core (
   TypeMeta,
   ValConName,
   bindName,
+  caseBranchName,
   getID,
  )
 import Primer.Core.DSL (ann, letType, let_, letrec, lvar, tlet, tvar)
@@ -521,7 +522,7 @@ viewCaseRedex tydefs = \case
   _ -> mzero
   where
     extractBranch c brs =
-      case find (\(CaseBranch n _ _) -> n == c) brs of
+      case find ((c ==) . caseBranchName) brs of
         Nothing -> do
           logWarning $ CaseRedexMissingBranch c
           mzero

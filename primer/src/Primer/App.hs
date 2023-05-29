@@ -138,6 +138,7 @@ import Primer.Core (
   Type' (..),
   TypeMeta,
   ValConName,
+  caseBranchName,
   getID,
   mkSimpleModuleName,
   qualifyName,
@@ -1624,7 +1625,7 @@ transformNamedCaseBranch ::
   m Expr
 transformNamedCaseBranch prog type_ con f = transformNamedCaseBranches prog type_ $
   traverse $
-    \cb@(CaseBranch vc _ _) -> if vc == con then f cb else pure cb
+    \cb -> if caseBranchName cb == con then f cb else pure cb
 
 progCxt :: Prog -> Cxt
 progCxt p = buildTypingContextFromModules (progAllModules p) (progSmartHoles p)

@@ -12,6 +12,7 @@ module Primer.Core (
   CaseBranch' (..),
   CaseFallback,
   CaseFallback' (..),
+  caseBranchName,
   traverseFallback,
   module Primer.Core.Meta,
   module Primer.Core.Type,
@@ -315,6 +316,9 @@ data CaseBranch' a b
   deriving stock (Eq, Show, Read, Data, Generic)
   deriving (FromJSON, ToJSON) via PrimerJSON (CaseBranch' a b)
   deriving anyclass (NFData)
+
+caseBranchName :: CaseBranch' a b -> ValConName
+caseBranchName (CaseBranch n _ _) = n
 
 type CaseFallback = CaseFallback' ExprMeta TypeMeta
 
