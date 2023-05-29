@@ -10,8 +10,8 @@ import Foreword
 import Primer.Core (
   Expr,
   ID,
-  ValConName,
  )
+import Primer.Core.Meta (Pattern)
 import Primer.JSON (CustomJSON (CustomJSON), FromJSON, PrimerJSON, ToJSON)
 
 data CaseReductionTrivialDetail = CaseReductionTrivialDetail
@@ -40,7 +40,7 @@ data CaseReductionDetail = CaseReductionDetail
   -- scrutinee was @Succ n : Nat@, then the @targetID@ is the root of
   -- this subtree (the annotation node), but the @targetCtorID@ is the
   -- @Succ@ node)
-  , ctorName :: ValConName
+  , ctorName :: Pattern
   -- ^ the name of the matching constructor
   , targetArgIDs :: [ID]
   -- ^ the arguments to the constructor in the target

@@ -33,6 +33,8 @@ import Primer.Core (
   ID,
   Kind (KFun, KType),
   LocalName,
+  Pattern (PatCon, PatPrim),
+  PrimCon (PrimChar),
   Type,
   Type' (TCon, TEmptyHole, TFun, TVar),
   getID,
@@ -439,7 +441,7 @@ unit_tryReduce_case_2 = do
       detail.after ~= expectedResult
       detail.targetID @?= 1
       detail.targetCtorID @?= 2
-      detail.ctorName @?= vcn ["M"] "C"
+      detail.ctorName @?= PatCon (vcn ["M"] "C")
       detail.targetArgIDs @?= [3, 5, 6]
       detail.branchBindingIDs @?= [10, 11, 12]
       detail.branchRhsID @?= 13
@@ -478,7 +480,7 @@ unit_tryReduce_case_3 = do
       detail.after ~= expectedResult
       detail.targetID @?= 1
       detail.targetCtorID @?= 2
-      detail.ctorName @?= vcn ["M"] "C"
+      detail.ctorName @?= PatCon (vcn ["M"] "C")
       detail.targetArgIDs @?= [3]
       detail.branchBindingIDs @?= [9]
       detail.branchRhsID @?= 10
@@ -516,7 +518,7 @@ unit_tryReduce_case_fallback_1 = do
       detail.after ~= expectedResult
       detail.targetID @?= 1
       detail.targetCtorID @?= 2
-      detail.ctorName @?= vcn ["M"] "C"
+      detail.ctorName @?= PatCon (vcn ["M"] "C")
       detail.targetArgIDs @?= [3]
       detail.branchBindingIDs @?= []
       detail.branchRhsID @?= 9
@@ -554,7 +556,7 @@ unit_tryReduce_case_fallback_2 = do
       detail.after ~= expectedResult
       detail.targetID @?= 1
       detail.targetCtorID @?= 2
-      detail.ctorName @?= vcn ["M"] "C"
+      detail.ctorName @?= PatCon (vcn ["M"] "C")
       detail.targetArgIDs @?= [3]
       detail.branchBindingIDs @?= [7]
       detail.branchRhsID @?= 8
@@ -635,6 +637,78 @@ unit_tryReduce_case_scrutinee_not_redex = do
   let (expr, i) = create $ case_ (lvar "x") [branch' (["M"], "B") [] (con0' ["M"] "D")]
   result <- runTryReduce tydefs mempty mempty (expr, i)
   result @?= Left NotRedex
+
+unit_tryReduce_case_prim_1 :: Assertion
+unit_tryReduce_case_prim_1 = do
+  let (expr, i) =
+        create $
+          caseFB_
+            (char 'b')
+            [branchPrim (PrimChar 'b') (con0' ["M"] "F")]
+            (con0' ["M"] "D")
+      tydef =
+        Map.singleton (unsafeMkGlobalName (["M"], "T")) $
+          TypeDefAST $
+            ASTTypeDef
+              { astTypeDefParameters = [("a", KType)]
+              , astTypeDefConstructors =
+                  [ ValCon (unsafeMkGlobalName (["M"], "B")) [TEmptyHole ()]
+                  , ValCon (unsafeMkGlobalName (["M"], "C")) [TFun () (TVar () "a") (TVar () "a")]
+                  ]
+              , astTypeDefNameHints = []
+              }
+      expectedResult = create' $ con0' ["M"] "F"
+  result <- runTryReduce tydef mempty mempty (expr, i)
+  case result of
+    Right (expr', CaseReduction detail) -> do
+      expr' ~= expectedResult
+
+      detail.before ~= expr
+      detail.after ~= expectedResult
+      detail.targetID @?= 1
+      detail.targetCtorID @?= 1
+      detail.ctorName @?= PatPrim (PrimChar 'b')
+      detail.targetArgIDs @?= []
+      detail.branchBindingIDs @?= []
+      detail.branchRhsID @?= 2
+      detail.letIDs @?= []
+    _ -> assertFailure $ show result
+
+unit_tryReduce_case_prim_2 :: Assertion
+unit_tryReduce_case_prim_2 = do
+  let (expr, i) =
+        create $
+          caseFB_
+            (char 'b')
+            [branchPrim (PrimChar 'c') (con0' ["M"] "F")] -- not b
+            (con0' ["M"] "D")
+      tydef =
+        Map.singleton (unsafeMkGlobalName (["M"], "T")) $
+          TypeDefAST $
+            ASTTypeDef
+              { astTypeDefParameters = [("a", KType)]
+              , astTypeDefConstructors =
+                  [ ValCon (unsafeMkGlobalName (["M"], "B")) [TEmptyHole ()]
+                  , ValCon (unsafeMkGlobalName (["M"], "C")) [TFun () (TVar () "a") (TVar () "a")]
+                  ]
+              , astTypeDefNameHints = []
+              }
+      expectedResult = create' $ con0' ["M"] "D"
+  result <- runTryReduce tydef mempty mempty (expr, i)
+  case result of
+    Right (expr', CaseReduction detail) -> do
+      expr' ~= expectedResult
+
+      detail.before ~= expr
+      detail.after ~= expectedResult
+      detail.targetID @?= 1
+      detail.targetCtorID @?= 1
+      detail.ctorName @?= PatPrim (PrimChar 'b')
+      detail.targetArgIDs @?= []
+      detail.branchBindingIDs @?= []
+      detail.branchRhsID @?= 3
+      detail.letIDs @?= []
+    _ -> assertFailure $ show result
 
 unit_tryReduce_prim :: Assertion
 unit_tryReduce_prim = do
@@ -1253,6 +1327,13 @@ unit_redexes_case_fallback_3 :: Assertion
 unit_redexes_case_fallback_3 =
   redexesOf (caseFB_ (ann (con0' ["M"] "C") (tcon' ["M"] "C")) [] (let_ "x" emptyHole emptyHole))
     <@?=> Set.fromList [0, 4]
+
+unit_redexes_case_prim :: Assertion
+unit_redexes_case_prim = do
+  redexesOf (caseFB_ (char 'b') [branchPrim (PrimChar 'b') emptyHole] (let_ "x" emptyHole emptyHole))
+    <@?=> Set.fromList [0, 3]
+  redexesOf (caseFB_ (char 'b') [] (let_ "x" emptyHole emptyHole))
+    <@?=> Set.fromList [0, 2]
 
 -- The body of a let has the same directionality as the let itself
 unit_redexes_let_upsilon :: Assertion

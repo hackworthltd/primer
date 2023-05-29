@@ -87,7 +87,9 @@ import Primer.Core.DSL (
   ann,
   app,
   branch,
+  caseFB_,
   case_,
+  char,
   con,
   create',
   emptyHole,
@@ -469,6 +471,16 @@ unit_case_let = do
   -- testNotOffered (letType "a" tEmptyHole $ lam "y" $ lvar "y") -- TODO: add this test when the typechecker supports letType
   testNotOffered (letrec "x" emptyHole tEmptyHole $ lam "y" $ lvar "y")
 
+unit_case_prim :: Assertion
+unit_case_prim =
+  offeredActionTest
+    SmartHoles
+    Intermediate
+    (char 'a')
+    (InExpr [])
+    (Left MakeCase)
+    (caseFB_ (char 'a') [] emptyHole)
+
 data MovementListBody
   = InExpr [Movement]
   | InType [Movement] [Movement]
@@ -557,7 +569,7 @@ offeredActionTest' ::
   IO (Either OAT ASTDef)
 offeredActionTest' sh l inputDef position action = do
   let progRaw = create' $ do
-        ms <- sequence [builtinModule]
+        ms <- sequence [builtinModule, pure primitiveModule]
         prog0 <- defaultEmptyProg
         d <- inputDef
         pure $

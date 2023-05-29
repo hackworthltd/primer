@@ -20,6 +20,7 @@ module Primer.Core.DSL (
   case_,
   caseFB_,
   branch,
+  branchPrim,
   prim,
   char,
   int,
@@ -172,6 +173,9 @@ branchPat c vs e = CaseBranch c <$> mapM binding vs <*> e
 
 branch :: MonadFresh ID m => ValConName -> [(LVarName, Maybe TypeCache)] -> m Expr -> m CaseBranch
 branch = branchPat . PatCon
+
+branchPrim :: MonadFresh ID m => PrimCon -> m Expr -> m CaseBranch
+branchPrim c = branchPat (PatPrim c) []
 
 prim :: MonadFresh ID m => PrimCon -> m Expr
 prim p = PrimCon <$> meta <*> pure p

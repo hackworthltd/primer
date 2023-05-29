@@ -67,6 +67,7 @@ import Primer.Core (
     Let,
     LetType,
     Letrec,
+    PrimCon,
     Var
   ),
   ExprMeta,
@@ -75,12 +76,14 @@ import Primer.Core (
   Kind,
   LVarName,
   LocalName (unLocalName),
-  Pattern (PatCon),
+  Pattern (PatCon, PatPrim),
+  PrimCon,
   TmVarRef (..),
   TyConName,
   TyVarName,
   Type,
   Type' (
+    TCon,
     TForall,
     TFun,
     TLet,
@@ -145,6 +148,7 @@ import Primer.Eval.Prim (tryPrimFun)
 import Primer.JSON (CustomJSON (CustomJSON), FromJSON, PrimerJSON, ToJSON)
 import Primer.Log (ConvertLogMessage (convert), logWarning)
 import Primer.Name (Name, NameCounter)
+import Primer.Primitives (primConName)
 import Primer.TypeDef (
   TypeDefMap,
   ValCon (valConArgs),
@@ -174,7 +178,7 @@ data EvalLog
   | -- | Found something that may have been a case redex,
     -- but there is no branch matching the constructor at the head of the scrutinee.
     -- This should not happen if the expression is type correct.
-    CaseRedexMissingBranch ValConName
+    CaseRedexMissingBranch Pattern
   | -- | Found something that may have been a case redex,
     -- but the scrutinee's type is not in scope
     -- This should not happen if the expression is type correct.
@@ -186,12 +190,12 @@ data EvalLog
   | -- | Found something that may have been a case redex,
     -- but the scrutinee's head (value) constructor does not construct a member of the scrutinee's type.
     -- This should not happen if the expression is type correct.
-    CaseRedexCtorMismatch TyConName ValConName
+    CaseRedexCtorMismatch TyConName (Either ValConName PrimCon)
   | -- | Found something that may have been a case redex,
     -- but the number of arguments in the scrutinee differs from the number of bindings in the corresponding branch.
     -- (Or the number of arguments expected from the scrutinee's type differs from either of these.)
     -- This should not happen if the expression is type correct.
-    CaseRedexWrongArgNum ValConName [Expr] [Type' ()] [LVarName]
+    CaseRedexWrongArgNum Pattern [Expr] [Type' ()] [LVarName]
   | InvariantFailure Text
   deriving stock (Show, Eq, Data, Generic)
   deriving anyclass (NFData)
@@ -292,7 +296,7 @@ data Redex
     -- there must be an annotation if the term is well-typed
     -- (i.e. we do not need to consider @case C as of ...@).
     CaseRedex
-      { con :: ValConName
+      { con :: Pattern
       -- ^ The head of the scrutinee
       , args :: [Expr]
       -- ^ The arguments of the scrutinee
@@ -534,13 +538,26 @@ viewCaseRedex tydefs = \case
               CaseRedexNotSaturated $
                 forgetTypeMetadata annotation
           pure $ zip params tyargsFromAnn
-        (patterns, br) <- extractBranch c brs fb
+        (patterns, br) <- extractBranch (PatCon c) brs fb
         renameBindings mCase scrut brs fb patterns orig
-          <|> pure (formCaseRedex c abstractArgTys tyargs args patterns br (orig, scrut, getID mCon))
+          <|> pure (formCaseRedex (PatCon c) abstractArgTys tyargs args patterns br (orig, scrut, getID mCon))
+  orig@(Case _ scrut@(Ann _ (PrimCon mCon c) (TCon _ ty)) brs fb) ->
+    if primConName c == ty
+      then do
+        (bindings, br) <- extractBranch (PatPrim c) brs fb
+        pure $ formCaseRedex (PatPrim c) [] [] [] bindings br (orig, scrut, getID mCon)
+      else do
+        logWarning $ CaseRedexCtorMismatch ty $ Right c
+        mzero
+  -- literals (primitive constructors) are actually synthesisable, so may come
+  -- without annotations
+  orig@(Case _ scrut@(PrimCon mCon c) brs fb) -> do
+    (bindings, br) <- extractBranch (PatPrim c) brs fb
+    pure $ formCaseRedex (PatPrim c) [] [] [] bindings br (orig, scrut, getID mCon)
   _ -> mzero
   where
     extractBranch c brs fb =
-      case (find ((PatCon c ==) . caseBranchName) brs, fb) of
+      case (find ((c ==) . caseBranchName) brs, fb) of
         (Nothing, CaseExhaustive) -> do
           logWarning $ CaseRedexMissingBranch c
           mzero
@@ -580,7 +597,7 @@ viewCaseRedex tydefs = \case
               then Nothing
               else Just $ RenameBindingsCase{meta, scrutinee, branches, fallbackBranch, avoid, orig}
     formCaseRedex ::
-      ValConName ->
+      Pattern ->
       [Type' ()] ->
       [(TyVarName, Type' ())] ->
       [Expr] ->

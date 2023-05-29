@@ -93,6 +93,7 @@ import Primer.Core.DSL (
   app,
   apps',
   branch,
+  caseFB_,
   case_,
   con,
   emptyHole,
@@ -812,6 +813,9 @@ constructCase ze = do
             branch (valConName c) ns (pure freshHole)
           brs = map f $ astTypeDefConstructors tydef
        in flip replace ze <$> case_ (pure $ target ze) brs
+    -- If it's a primitive type, only create a wildcard branch
+    Right (TC.TypeDefInfo _ _ TypeDefPrim{}) ->
+      flip replace ze <$> caseFB_ (pure $ target ze) [] emptyHole
     Left TC.TDIHoleType ->
       asks TC.smartHoles >>= \case
         -- There is a potential mismatch: one can have different SmartHoles

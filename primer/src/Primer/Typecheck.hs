@@ -110,8 +110,8 @@ import Primer.Core (
   LVarName,
   LocalName (LocalName),
   Meta (..),
-  Pattern (PatCon),
-  PrimCon,
+  Pattern (PatCon, PatPrim),
+  PrimCon (PrimChar, PrimInt),
   TmVarRef (..),
   TyConName,
   TyVarName,
@@ -155,7 +155,7 @@ import Primer.Module (
   moduleTypesQualified,
  )
 import Primer.Name (Name, NameCounter)
-import Primer.Primitives (primConName)
+import Primer.Primitives (primConName, tChar, tInt)
 import Primer.Subst (substTy)
 import Primer.TypeDef (
   ASTTypeDef (astTypeDefConstructors, astTypeDefParameters),
@@ -181,7 +181,7 @@ import Primer.Typecheck.Kindcheck (
 import Primer.Typecheck.SmartHoles (SmartHoles (..))
 import Primer.Typecheck.TypeError (TypeError (..))
 import Primer.Typecheck.Utils (
-  TypeDefError (TDIHoleType, TDINotADT, TDINotSaturated, TDIUnknown),
+  TypeDefError (TDIHoleType, TDINotADT, TDINotSaturated, TDIPrim, TDIUnknown),
   TypeDefInfo (TypeDefInfo),
   getGlobalBaseNames,
   getGlobalNames,
@@ -640,6 +640,7 @@ check t = \case
       Left TDIHoleType -> throwError' $ InternalError "t' is not a hole, as we refined to parent type of c"
       Left TDIUnknown{} -> throwError' $ InternalError "input type to check is not in scope"
       Left TDINotADT -> recoverSH $ ConstructorNotFullAppADT t' c
+      Left TDIPrim{} -> recoverSH $ ConstructorNotFullAppADT t' c
       Left TDINotSaturated -> recoverSH $ ConstructorNotFullAppADT t' c
       -- If the input type @t@ is a fully-applied ADT constructor 'T As'
       -- And 'C' is a constructor of 'T' (writing 'T's parameters as 'ps' with kinds 'ks')
@@ -724,6 +725,34 @@ check t = \case
             -- NB: we wrap the scrutinee in a hole and DELETE the branches
             scrutWrap <- Hole <$> meta' (TCSynthed (TEmptyHole ())) <*> pure (addChkMetaT (TEmptyHole ()) e')
             pure $ Case caseMeta scrutWrap [] CaseExhaustive
+      Left (TDIPrim tc) -> do
+        unless (tc == tInt || tc == tChar) $ throwError' $ InternalError $ "Unknown primitive type: " <> show tc
+        let f b = case caseBranchName b of
+              PatCon _ -> Nothing
+              PatPrim pc -> case pc of
+                PrimInt p | tc == tInt -> Just $ Left (p, b)
+                PrimChar p | tc == tChar -> Just $ Right (p, b)
+                _ -> Nothing
+        -- all branches right sort & order
+        sh <- asks smartHoles
+        brs' <- case partitionEithers <$> traverse f brs of
+          Just ([], chs) | isSorted (fst <$> chs) -> pure $ snd <$> chs
+          Just (is, []) | isSorted (fst <$> is) -> pure $ snd <$> is
+          _ | NoSmartHoles <- sh -> throwError' $ WrongCaseBranches tc (caseBranchName <$> brs) (fb /= CaseExhaustive)
+          _ | SmartHoles <- sh -> pure []
+        -- no params, check the rhs
+        brs'' <- for brs' $ \(CaseBranch c ps rhs) -> do
+          case (ps, sh) of
+            ([], _) -> CaseBranch c [] <$> check t rhs
+            (_ : _, NoSmartHoles) -> throwError' CaseBranchWrongNumberPatterns
+            -- if the branch is nonsense, replace it with a sensible pattern and an empty hole
+            (_ : _, SmartHoles) -> fmap (CaseBranch c []) . check t =<< emptyHole
+        -- has fb
+        fb' <- case (fb, sh) of
+          (CaseExhaustive, NoSmartHoles) -> throwError' $ WrongCaseBranches tc (caseBranchName <$> brs) (fb /= CaseExhaustive)
+          (CaseExhaustive, SmartHoles) -> fmap CaseFallback . check t =<< emptyHole
+          (CaseFallback rhs, _) -> CaseFallback <$> check t rhs
+        pure $ Case caseMeta e' brs'' fb'
       Right (tc, _, expected) -> do
         let branchNames = map caseBranchName brs
         let conNames = map fst expected
@@ -797,6 +826,12 @@ extractSubsequenceBy f xxs@(x : xs) (y : ys) =
   if f x y
     then (y :) <$> extractSubsequenceBy f xs ys
     else extractSubsequenceBy f xxs ys
+
+-- | Test if a list is sorted. Equivalent to @xs == sort xs@, assuming the @Ord@
+-- instance is a total order.
+isSorted :: Ord a => [a] -> Bool
+isSorted [] = True
+isSorted xxs@(_ : xs) = and $ zipWith (<=) xxs xs
 
 addChkMetaT :: Type' () -> ExprT -> ExprT
 addChkMetaT = addChkMeta' equality

@@ -92,7 +92,6 @@ import Primer.Questions (
  )
 import Primer.TypeDef (
   ASTTypeDef (..),
-  TypeDef (TypeDefAST),
   TypeDefMap,
   ValCon (valConArgs),
   typeDefAST,
@@ -267,11 +266,14 @@ forExpr tydefs l expr =
       delete
         <> annotate
         <> [Input RenameLet]
-    Case _ _ brs fb ->
+    Case _ scrut brs fb ->
       delete
         <> annotate
-        <> munless (fb == CaseExhaustive) [Input AddBranch]
-        <> munless (null brs) [Input DeleteBranch]
+        <> case scrut ^? _exprMetaLens % _type % _Just % _synthed of
+          Just (TCon () t) | t == tInt -> []
+          Just (TCon () t) | t == tChar -> []
+          -- AddBranch and DeleteBranch only work for ADTs
+          _ -> munless (fb == CaseExhaustive) [Input AddBranch] <> munless (null brs) [Input DeleteBranch]
     _ ->
       delete
         <> annotate
@@ -295,7 +297,7 @@ forExpr tydefs l expr =
     synOnly =
       expr ^.. _exprMetaLens % _type % _Just % _synthed % to (getTypeDefInfo' tydefs) >>= \case
         Left TDIHoleType{} -> [NoInput MakeCase]
-        Right (TypeDefInfo _ _ TypeDefAST{}) -> [NoInput MakeCase]
+        Right TypeDefInfo{} -> [NoInput MakeCase]
         _ -> []
     annotate = mwhen (l == Expert) [NoInput MakeAnn]
     delete = [NoInput DeleteExpr]
@@ -442,13 +444,15 @@ options typeDefs defs cxt level def0 sel0 = \case
         scrut ^? _exprMetaLens % _type % _Just % _synthed >>= \ty ->
           eitherToMaybe (instantiateValCons' typeDefs ty) >>= \(_, _, vcs) ->
             let allBr = map fst vcs
-                exist = (\(PatCon c) -> c) . caseBranchName <$> brs
+                exist = mapMaybe ((\case (PatCon c) -> Just c; _ -> Nothing) . caseBranchName) brs
                 others = allBr \\ exist
              in pure $ noFree $ globalOpt <$> others
       _ -> Nothing
   DeleteBranch ->
     findNode >>= \case
-      ExprNode (Case _ _ brs _) -> pure $ noFree $ brs <&> (globalOpt . (\(PatCon c) -> c) . caseBranchName)
+      ExprNode (Case _ _ brs _) ->
+        let exist = mapMaybe ((\case (PatCon c) -> Just c; _ -> Nothing) . caseBranchName) brs
+         in pure $ noFree $ globalOpt <$> exist
       _ -> Nothing
   RenamePattern -> do
     CaseBindNode b <- findNode

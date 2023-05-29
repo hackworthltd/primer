@@ -168,7 +168,7 @@ import Primer.Core (
   _typeMetaLens,
  )
 import Primer.Core.DSL qualified as DSL
-import Primer.Core.Meta (LocalName, Pattern (PatCon))
+import Primer.Core.Meta (LocalName, Pattern (PatCon, PatPrim))
 import Primer.Core.Meta qualified as Core
 import Primer.Database (
   OffsetLimit,
@@ -900,6 +900,7 @@ viewTreeExpr e0 = case e0 of
                 }
       pat = \case
         PatCon n -> TextBody $ RecordPair Flavor.PatternCon $ globalName n
+        PatPrim pc -> PrimBody $ RecordPair Flavor.PrimPattern pc
   PrimCon _ pc ->
     Tree
       { nodeId

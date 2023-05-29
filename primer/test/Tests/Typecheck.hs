@@ -65,6 +65,7 @@ import Primer.Core (
   Meta (..),
   ModuleName (ModuleName),
   Pattern (PatCon),
+  PrimCon (PrimChar),
   TmVarRef (LocalVarRef),
   TyConName,
   Type,
@@ -449,6 +450,12 @@ unit_case_fallback_redundant :: Assertion
 unit_case_fallback_redundant =
   ann (lam "x" $ caseFB_ (lvar "x") [branch cZero [] (con0 cTrue), branch cSucc [("n", Nothing)] (con0 cFalse)] (con0 cFalse)) (tfun (tcon tNat) (tcon tBool))
     `expectFailsWith` const (WrongCaseBranches tNat [PatCon cZero, PatCon cSucc] True)
+
+-- Char -> Bool accepts \x . case x of 'b' -> True ; _ -> False
+unit_case_primitive :: Assertion
+unit_case_primitive =
+  expectTypedWithPrims $
+    ann (lam "x" $ caseFB_ (lvar "x") [branchPrim (PrimChar 'b') (con0 cTrue)] (con0 cFalse)) (tfun (tcon tChar) (tcon tBool))
 
 -- Cannot annotate something with a non-existent type constructor
 unit_ann_bad :: Assertion

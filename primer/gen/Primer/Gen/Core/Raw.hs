@@ -39,7 +39,7 @@ import Primer.Core (
   LocalName (LocalName),
   Meta (..),
   ModuleName (ModuleName),
-  Pattern (PatCon),
+  Pattern (PatCon, PatPrim),
   PrimCon (..),
   TmVarRef (..),
   TyConName,
@@ -139,19 +139,25 @@ genLetrec = Letrec <$> genMeta <*> genLVarName <*> genExpr <*> genType <*> genEx
 genCase :: ExprGen Expr
 genCase = Case <$> genMeta <*> genExpr <*> Gen.list (Range.linear 0 5) genBranch <*> Gen.choice [pure CaseExhaustive, CaseFallback <$> genExpr]
   where
-    genBranch = CaseBranch . PatCon <$> genValConName <*> Gen.list (Range.linear 0 5) genBind <*> genExpr
+    genBranch = CaseBranch <$> genScrut <*> Gen.list (Range.linear 0 5) genBind <*> genExpr
+    genScrut =
+      Gen.choice
+        [ PatCon <$> genValConName
+        , PatPrim <$> genPrimCon
+        ]
     genBind = Bind <$> genMeta <*> genLVarName
 
 genPrim :: ExprGen Expr
 genPrim = PrimCon <$> genMeta <*> genPrimCon
+
+genPrimCon :: MonadGen m => m PrimCon
+genPrimCon =
+  Gen.choice
+    [ PrimChar <$> Gen.unicodeAll
+    , PrimInt <$> Gen.integral (Range.linear (-intBound) intBound)
+    ]
   where
     intBound = fromIntegral (maxBound :: Word64) -- arbitrary
-    genPrimCon :: (StateT ID Gen PrimCon)
-    genPrimCon =
-      Gen.choice
-        [ PrimChar <$> Gen.unicodeAll
-        , PrimInt <$> Gen.integral (Range.linear (-intBound) intBound)
-        ]
     -- This ensures that when we modify the constructors of `PrimCon` (i.e. we add/remove primitive types),
     -- we are alerted that we need to update this generator.
     _ = \case

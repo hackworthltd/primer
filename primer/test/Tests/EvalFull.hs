@@ -1361,6 +1361,40 @@ unit_wildcard =
         t <- evalFullTest maxIDDiverge mempty mempty 22 Syn eDiverge
         t <~==> Left (TimedOut expectDiverge)
 
+unit_case_prim :: Assertion
+unit_case_prim =
+  let (e1, maxID1) = create $ caseFB_ (char 'a') [] (con0 cTrue)
+      expect1 = create' $ con0 cTrue
+      (e2, maxID2) = create $ caseFB_ (char 'a') [branchPrim (PrimChar 'a') $ con0 cFalse] (con0 cTrue)
+      expect2 = create' $ con0 cFalse
+      (e3, maxID3) =
+        create $
+          caseFB_
+            (char 'b')
+            [ branchPrim (PrimChar 'a') $ con0 cTrue
+            , branchPrim (PrimChar 'b') $ con0 cFalse
+            ]
+            (con0 cTrue)
+      expect3 = create' $ con0 cFalse
+      (e4, maxID4) =
+        create $
+          caseFB_
+            ( (lam "x" (lvar "x") `ann` (tcon tChar `tfun` tcon tChar))
+                `app` char 'a'
+            )
+            [branchPrim (PrimChar 'a') $ con0 cFalse]
+            (con0 cTrue)
+      expect4 = create' $ con0 cFalse
+   in do
+        s1 <- evalFullTest maxID1 mempty mempty 2 Syn e1
+        s1 <~==> Right expect1
+        s2 <- evalFullTest maxID2 mempty mempty 2 Syn e2
+        s2 <~==> Right expect2
+        s3 <- evalFullTest maxID3 mempty mempty 2 Syn e3
+        s3 <~==> Right expect3
+        s4 <- evalFullTest maxID4 mempty mempty 6 Syn e4
+        s4 <~==> Right expect4
+
 -- * Utilities
 
 evalFullTest :: ID -> TypeDefMap -> DefMap -> TerminationBound -> Dir -> Expr -> IO (Either EvalFullError Expr)

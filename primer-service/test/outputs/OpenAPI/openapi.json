@@ -409,7 +409,8 @@
             },
             "NodeFlavorPrimBody": {
                 "enum": [
-                    "PrimCon"
+                    "PrimCon",
+                    "PrimPattern"
                 ],
                 "type": "string"
             },

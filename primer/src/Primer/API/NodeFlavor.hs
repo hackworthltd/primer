@@ -41,6 +41,7 @@ data NodeFlavorTextBody
 
 data NodeFlavorPrimBody
   = PrimCon
+  | PrimPattern
   deriving stock (Show, Read, Eq, Generic, Enum, Bounded)
   deriving (ToJSON, FromJSON) via CustomJSON '[TagSingleConstructors] NodeFlavorPrimBody
   deriving anyclass (NFData)

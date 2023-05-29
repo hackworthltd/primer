@@ -59,6 +59,7 @@ import Primer.Core.Meta (
   Meta (Meta),
   ModuleName (ModuleName, unModuleName),
   Pattern (..),
+  PrimCon (..),
   TmVarRef (..),
   TyConName,
   TyVarName,
@@ -373,10 +374,3 @@ instance HasMetadata (Expr' ExprMeta b) where
 
 instance HasMetadata (Bind' ExprMeta) where
   _metadata = position @1 % typed @(Maybe Value)
-
-data PrimCon
-  = PrimChar Char
-  | PrimInt Integer
-  deriving stock (Eq, Show, Read, Data, Generic)
-  deriving (FromJSON, ToJSON) via PrimerJSON PrimCon
-  deriving anyclass (NFData)
