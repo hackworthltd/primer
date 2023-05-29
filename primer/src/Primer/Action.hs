@@ -1175,14 +1175,11 @@ toProgActionInput def0 sel0 opt0 = \case
     opt <- optGlobal
     toProg [ConstructSaturatedCon opt]
   Available.MakeInt -> do
-    opt <- optNoCxt
-    n <- maybeToEither (NeedInt opt0) $ readMaybe opt
+    n <- optInt
     toProg [ConstructPrim $ PrimInt n]
   Available.MakeChar -> do
-    opt <- optNoCxt
-    case T.uncons opt of
-      Just (c, r) | T.null r -> toProg [ConstructPrim $ PrimChar c]
-      _ -> Left $ NeedChar opt0
+    c <- optChar
+    toProg [ConstructPrim $ PrimChar c]
   Available.MakeVar ->
     toProg [ConstructVar optVar]
   Available.MakeVarSat -> do
@@ -1203,9 +1200,21 @@ toProgActionInput def0 sel0 opt0 = \case
   Available.AddBranch -> do
     opt <- optGlobal
     toProg [AddCaseBranch opt]
+  Available.AddBranchInt -> do
+    n <- optInt
+    toProg [AddCaseBranchPrim $ PrimInt n]
+  Available.AddBranchChar -> do
+    c <- optChar
+    toProg [AddCaseBranchPrim $ PrimChar c]
   Available.DeleteBranch -> do
     opt <- optGlobal
     toProg [DeleteCaseBranch opt]
+  Available.DeleteBranchInt -> do
+    n <- optInt
+    toProg [DeleteCaseBranchPrim $ PrimInt n]
+  Available.DeleteBranchChar -> do
+    c <- optChar
+    toProg [DeleteCaseBranchPrim $ PrimChar c]
   Available.RenamePattern -> do
     opt <- optNoCxt
     toProg [RenameCaseBinding opt]
@@ -1290,6 +1299,14 @@ toProgActionInput def0 sel0 opt0 = \case
     conFieldSel = do
       (ty, s) <- conSel
       maybe (Left NeedTypeDefConsFieldSelection) (pure . (ty,s.con,)) s.field
+    optInt = do
+      opt <- optNoCxt
+      maybeToEither (NeedInt opt0) $ readMaybe opt
+    optChar = do
+      opt <- optNoCxt
+      case T.uncons opt of
+        Just (c, r) | T.null r -> pure c
+        _ -> Left $ NeedChar opt0
     toProg actions = do
       case sel0 of
         SelectionDef sel -> toProg' actions sel.def <$> maybeToEither NoNodeSelection sel.node

@@ -28,6 +28,7 @@ import Data.Either.Extra (eitherToMaybe)
 import Data.List ((\\))
 import Data.Map qualified as Map
 import Data.Set qualified as Set
+import Data.Text qualified as T
 import Data.Tuple.Extra (fst3)
 import Optics (
   to,
@@ -59,7 +60,8 @@ import Primer.Core (
   GlobalName (baseName, qualifiedModule),
   ID,
   ModuleName (unModuleName),
-  Pattern (PatCon),
+  Pattern (PatCon, PatPrim),
+  PrimCon (PrimChar, PrimInt),
   Type,
   Type' (..),
   TypeMeta,
@@ -156,7 +158,11 @@ data InputAction
   | MakeLam
   | MakeLAM
   | AddBranch
+  | AddBranchInt
+  | AddBranchChar
   | DeleteBranch
+  | DeleteBranchInt
+  | DeleteBranchChar
   | RenamePattern
   | RenameLet
   | RenameLam
@@ -267,13 +273,14 @@ forExpr tydefs l expr =
         <> annotate
         <> [Input RenameLet]
     Case _ scrut brs fb ->
-      delete
-        <> annotate
-        <> case scrut ^? _exprMetaLens % _type % _Just % _synthed of
-          Just (TCon () t) | t == tInt -> []
-          Just (TCon () t) | t == tChar -> []
-          -- AddBranch and DeleteBranch only work for ADTs
-          _ -> munless (fb == CaseExhaustive) [Input AddBranch] <> munless (null brs) [Input DeleteBranch]
+      let (addBranch, deleteBranch) = case scrut ^? _exprMetaLens % _type % _Just % _synthed of
+            Just (TCon () t) | t == tInt -> (AddBranchInt, DeleteBranchInt)
+            Just (TCon () t) | t == tChar -> (AddBranchChar, DeleteBranchChar)
+            _ -> (AddBranch, DeleteBranch)
+       in delete
+            <> annotate
+            <> munless (fb == CaseExhaustive) [Input addBranch]
+            <> munless (null brs) [Input deleteBranch]
     _ ->
       delete
         <> annotate
@@ -448,11 +455,25 @@ options typeDefs defs cxt level def0 sel0 = \case
                 others = allBr \\ exist
              in pure $ noFree $ globalOpt <$> others
       _ -> Nothing
+  AddBranchInt -> pure Options{opts = [], free = FreeInt}
+  AddBranchChar -> pure Options{opts = [], free = FreeChar}
   DeleteBranch ->
     findNode >>= \case
       ExprNode (Case _ _ brs _) ->
         let exist = mapMaybe ((\case (PatCon c) -> Just c; _ -> Nothing) . caseBranchName) brs
          in pure $ noFree $ globalOpt <$> exist
+      _ -> Nothing
+  DeleteBranchInt ->
+    findNode >>= \case
+      ExprNode (Case _ _ brs _) ->
+        let exist = mapMaybe ((\case (PatPrim (PrimInt i)) -> Just i; _ -> Nothing) . caseBranchName) brs
+         in pure $ noFree $ (\i -> Option (show i) Nothing) <$> exist
+      _ -> Nothing
+  DeleteBranchChar ->
+    findNode >>= \case
+      ExprNode (Case _ _ brs _) ->
+        let exist = mapMaybe ((\case (PatPrim (PrimChar c)) -> Just c; _ -> Nothing) . caseBranchName) brs
+         in pure $ noFree $ (\c -> Option (T.singleton c) Nothing) <$> exist
       _ -> Nothing
   RenamePattern -> do
     CaseBindNode b <- findNode
@@ -600,7 +621,11 @@ sortByPriority l =
         MakeLam -> P.makeLambda
         MakeLAM -> P.makeTypeAbstraction
         AddBranch -> P.addBranch
+        AddBranchInt -> P.addBranch
+        AddBranchChar -> P.addBranch
         DeleteBranch -> P.deleteBranch
+        DeleteBranchInt -> P.deleteBranch
+        DeleteBranchChar -> P.deleteBranch
         RenamePattern -> P.rename
         RenameLet -> P.rename
         RenameLam -> P.rename

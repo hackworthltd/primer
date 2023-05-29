@@ -28,7 +28,7 @@ import Hedgehog.Gen qualified as Gen
 import Hedgehog.Internal.Property (forAllWithT)
 import Optics (ix, toListOf, (%), (.~), (^..), _head)
 import Primer.Action (
-  ActionError (CaseBindsClash, NameCapture),
+  ActionError (CaseBindsClash, CaseBranchAlreadyExists, NameCapture),
   Movement (Child1, Child2),
   enterType,
   move,
@@ -75,6 +75,7 @@ import Primer.Core (
   ID,
   Kind (KFun, KType),
   ModuleName (ModuleName, unModuleName),
+  Pattern (PatPrim),
   Type,
   getID,
   mkSimpleModuleName,
@@ -361,6 +362,9 @@ tasty_available_actions_accepted = withTests 500 $
         (StudentProvided, (Left DefAlreadyExists{}, _)) -> do
           label "rename def name clash with entered name"
           annotate "ignoring def already exists error as was generated name, not offered one"
+        (StudentProvided, (Left (ActionError (CaseBranchAlreadyExists (PatPrim _))), _)) -> do
+          label "add duplicate primitive case branch"
+          annotate "ignoring CaseBranchAlreadyExistsPrim error as was generated constructor"
         (_, (Left err, _)) -> annotateShow err >> failure
         (_, (Right _, a'')) -> ensureSHNormal a''
     ensureSHNormal a = case checkAppWellFormed a of
