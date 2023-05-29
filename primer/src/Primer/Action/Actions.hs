@@ -73,8 +73,12 @@ data Action
     ConstructCase
   | -- | Add a branch to a case expression
     AddCaseBranch QualifiedText
+  | -- | Add a primitive branch to a case expression
+    AddCaseBranchPrim PrimCon
   | -- | Remove a branch from a case expression
     DeleteCaseBranch QualifiedText
+  | -- | Remove a primitive branch from a case expression
+    DeleteCaseBranchPrim PrimCon
   | -- | Rename a lambda binding
     RenameLam Text
   | -- | Rename a big lambda binding

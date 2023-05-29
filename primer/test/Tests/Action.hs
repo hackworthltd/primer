@@ -26,7 +26,7 @@ import Primer.Core (
   HasID,
   ID (..),
   Kind (KType),
-  Pattern (PatCon),
+  Pattern (PatCon, PatPrim),
   PrimCon (PrimChar),
   TmVarRef (LocalVarRef),
   getID,
@@ -985,6 +985,58 @@ unit_case_branches =
           , constructSaturatedCon cZero
           ]
           e7
+
+unit_case_prim :: Assertion
+unit_case_prim =
+  let e cse = ann cse (tcon tBool)
+      e0 =
+        e $
+          caseFB_
+            (emptyHole `ann` tcon tChar)
+            []
+            (con0 cTrue)
+      e1 =
+        e $
+          caseFB_
+            (emptyHole `ann` tcon tChar)
+            [branchPrim (PrimChar 'x') $ con0 cTrue]
+            (con0 cTrue)
+      e2 =
+        e $
+          caseFB_
+            (emptyHole `ann` tcon tChar)
+            [branchPrim (PrimChar 'x') $ con0 cFalse]
+            (con0 cTrue)
+      e3 =
+        e $
+          caseFB_
+            (emptyHole `ann` tcon tChar)
+            []
+            (con0 cTrue)
+   in do
+        actionTest
+          SmartHoles
+          e0
+          [ Move Child1
+          , AddCaseBranchPrim $ PrimChar 'x'
+          ]
+          e1
+        actionTest
+          SmartHoles
+          e1
+          [ Move Child1
+          , Move $ Branch $ Pattern $ PatPrim $ PrimChar 'x'
+          , Delete
+          , constructSaturatedCon cFalse
+          ]
+          e2
+        actionTest
+          SmartHoles
+          e2
+          [ Move Child1
+          , DeleteCaseBranchPrim $ PrimChar 'x'
+          ]
+          e3
 
 unit_constructAPP :: Assertion
 unit_constructAPP =

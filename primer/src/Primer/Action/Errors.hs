@@ -13,7 +13,7 @@ import Data.Aeson (FromJSON (..), ToJSON (..))
 import Primer.Action.Actions (Action)
 import Primer.Action.Available qualified as Available
 import Primer.Action.Movement (Movement)
-import Primer.Core (Expr, GVarName, ID, LVarName, ModuleName, TyConName, Type, Type', ValConName)
+import Primer.Core (Expr, GVarName, ID, LVarName, ModuleName, Pattern, TyConName, Type, Type', ValConName)
 import Primer.JSON (CustomJSON (..), PrimerJSON)
 import Primer.Typecheck.TypeError (TypeError)
 import Primer.Zipper (SomeNode)
@@ -42,10 +42,10 @@ data ActionError
     NameCapture
   | CaseBindsClash LVarName [LVarName]
   | CaseAlreadyExhaustive
-  | CaseBranchAlreadyExists ValConName
-  | CaseBranchNotExist ValConName
+  | CaseBranchAlreadyExists Pattern
+  | CaseBranchNotExist Pattern
   | -- | Attempted to add a branch for an unexpected ctor
-    CaseBranchNotCon ValConName (Type' ())
+    CaseBranchNotCon Pattern (Type' ())
   | -- TODO: semantic errors.
     -- https://github.com/hackworthltd/primer/issues/8
     SaturatedApplicationError (Either Text TypeError)

@@ -32,7 +32,7 @@ import Data.Bifunctor.Swap qualified as Swap
 import Data.Bitraversable (bisequence)
 import Data.Functor.Compose (Compose (..))
 import Data.Generics.Product (typed)
-import Data.List (delete, findIndex)
+import Data.List (delete, findIndex, insertBy)
 import Data.List.NonEmpty qualified as NE
 import Data.Map (insert)
 import Data.Map.Strict qualified as Map
@@ -65,7 +65,7 @@ import Primer.Core (
   ID,
   LVarName,
   LocalName (LocalName, unLocalName),
-  Pattern (PatCon),
+  Pattern (PatCon, PatPrim),
   PrimCon (PrimChar, PrimInt),
   TmVarRef (..),
   TyVarName,
@@ -93,6 +93,7 @@ import Primer.Core.DSL (
   app,
   apps',
   branch,
+  branchPrim,
   caseFB_,
   case_,
   con,
@@ -126,6 +127,7 @@ import Primer.Name.Fresh (
   mkFreshName,
   mkFreshNameTy,
  )
+import Primer.Primitives (primConName)
 import Primer.Questions (uniquify)
 import Primer.Refine (Inst (InstAPP, InstApp, InstUnconstrainedAPP), refine)
 import Primer.TypeDef (ASTTypeDef (..), TypeDef (..), ValCon (..), valConType)
@@ -444,8 +446,10 @@ applyAction' a = case a of
   ConstructLetrec x -> termAction (constructLetrec x) "cannot construct letrec in type"
   ConvertLetToLetrec -> termAction convertLetToLetrec "cannot convert type to letrec"
   ConstructCase -> termAction constructCase "cannot construct case in type"
-  AddCaseBranch c -> termAction (addCaseBranch c) "cannot add a case branch in type"
-  DeleteCaseBranch c -> termAction (deleteCaseBranch c) "cannot delete a case branch in type"
+  AddCaseBranch c -> termAction (addCaseBranch $ Left c) "cannot add a case branch in type"
+  AddCaseBranchPrim c -> termAction (addCaseBranch $ Right c) "cannot add a case branch in type"
+  DeleteCaseBranch c -> termAction (deleteCaseBranch $ Left c) "cannot delete a case branch in type"
+  DeleteCaseBranchPrim c -> termAction (deleteCaseBranch $ Right c) "cannot delete a case branch in type"
   RenameLam x -> termAction (renameLam x) "cannot rename lam in type"
   RenameLAM x -> termAction (renameLAM x) "cannot rename LAM in type"
   RenameLet x -> termAction (renameLet x) "cannot rename let in type"
@@ -824,49 +828,67 @@ constructCase ze = do
         TC.SmartHoles -> flip replace ze <$> case_ (pure $ target ze) []
     _ -> throwError $ CustomFailure ConstructCase ("can only construct case on expression with type a exactly saturated ADT, not " <> show ty)
 
-addCaseBranch :: ActionM m => QualifiedText -> ExprZ -> m ExprZ
+addCaseBranch :: ActionM m => Either QualifiedText PrimCon -> ExprZ -> m ExprZ
 addCaseBranch rawCon ze = case target ze of
   Case _ _ _ CaseExhaustive -> throwError CaseAlreadyExhaustive
   Case m scrut branches (CaseFallback fallbackBranch) -> do
-    let newCon = unsafeMkGlobalName rawCon
+    let newCon = either (PatCon . unsafeMkGlobalName) PatPrim rawCon
         branchName (CaseBranch n _ _) = n
         branchNames = branchName <$> branches
-    when (PatCon newCon `elem` branchNames) $ throwError $ CaseBranchAlreadyExists newCon
+    when (newCon `elem` branchNames) $ throwError $ CaseBranchAlreadyExists newCon
     ty <-
       move Child1 ze >>= getFocusType >>= \case
         TCSynthed t -> pure t
         TCChkedAt _ -> throwError $ InternalFailure "scrutinees are synthesisable but only had TCChkedAt"
         TCEmb TCBoth{tcSynthed = t} -> pure t
-    allowedBranches <-
-      getTypeDefInfo ty <&> \case
-        Right (TC.TypeDefInfo _ _ (TypeDefAST tydef)) -> astTypeDefConstructors tydef
-        _ -> []
-    newBranch <- case find ((== newCon) . valConName) allowedBranches of
-      Nothing -> throwError $ CaseBranchNotCon newCon ty
-      Just vc -> do
-        -- make a temporary approximation to the final result, from which we
-        -- calculate some names for the new binders
-        tmpBranch <- branch newCon [] $ pure fallbackBranch
-        let tmpCase = Case m scrut (tmpBranch : branches) (CaseFallback fallbackBranch)
-        binders <- replicateM (length $ valConArgs vc) . mkFreshName =<< moveExpr (Branch $ Pattern $ PatCon newCon) (replace tmpCase ze)
-        branch newCon ((,Nothing) <$> binders) $ regenerateExprIDs fallbackBranch
-    -- If we are adding the last constructor, we delete the fallback branch
-    let fb =
-          if length allowedBranches == length branchNames + 1
-            then CaseExhaustive
-            else CaseFallback fallbackBranch
-    let branches' = insertSubseqBy branchName newBranch (PatCon . valConName <$> allowedBranches) branches
-    pure $ replace (Case m scrut branches' fb) ze
+    case newCon of
+      PatCon c -> do
+        allowedBranches <-
+          getTypeDefInfo ty <&> \case
+            Right (TC.TypeDefInfo _ _ (TypeDefAST tydef)) -> astTypeDefConstructors tydef
+            _ -> []
+        newBranch <- case find ((== c) . valConName) allowedBranches of
+          Nothing -> throwError $ CaseBranchNotCon newCon ty
+          Just vc -> do
+            -- make a temporary approximation to the final result, from which we
+            -- calculate some names for the new binders
+            tmpBranch <- branch c [] $ pure fallbackBranch
+            let tmpCase = Case m scrut (tmpBranch : branches) (CaseFallback fallbackBranch)
+            binders <- replicateM (length $ valConArgs vc) . mkFreshName =<< moveExpr (Branch $ Pattern newCon) (replace tmpCase ze)
+            branch c ((,Nothing) <$> binders) $ regenerateExprIDs fallbackBranch
+        -- If we are adding the last constructor, we delete the fallback branch
+        let fb =
+              if length allowedBranches == length branchNames + 1
+                then CaseExhaustive
+                else CaseFallback fallbackBranch
+        let branches' = insertSubseqBy branchName newBranch (PatCon . valConName <$> allowedBranches) branches
+        pure $ replace (Case m scrut branches' fb) ze
+      PatPrim c -> do
+        unless (TCon () (primConName c) == ty) $ throwError $ CaseBranchNotCon newCon ty
+        newBranch <- branchPrim c $ regenerateExprIDs fallbackBranch
+        let cmp (PatPrim (PrimInt x)) (PatPrim (PrimInt y)) = compare x y
+            cmp (PatPrim (PrimChar x)) (PatPrim (PrimChar y)) = compare x y
+            -- We assume the input is well-typed, so all branches are of same
+            -- form, and this last case cannot happen
+            cmp _ _ = EQ
+            branches' = insertBy (cmp `on` caseBranchName) newBranch branches
+        pure $ replace (Case m scrut branches' $ CaseFallback fallbackBranch) ze
   _ ->
-    throwError $ CustomFailure (AddCaseBranch rawCon) "the focused expression is not a case"
+    throwError $ CustomFailure act "the focused expression is not a case"
+  where
+    act = either AddCaseBranch AddCaseBranchPrim rawCon
 
-deleteCaseBranch :: (MonadFresh ID m, MonadError ActionError m) => QualifiedText -> ExprZ -> m ExprZ
+deleteCaseBranch ::
+  (MonadFresh ID m, MonadError ActionError m) =>
+  Either QualifiedText PrimCon ->
+  ExprZ ->
+  m ExprZ
 deleteCaseBranch c ze = case target ze of
   -- We put the action on the `Case` node, as we cannot currently select the pattern
   -- (we cannot put the action on binders, since nullary constructors have no binders)
   Case m scrut branches fallbackBranch ->
-    case find ((PatCon (unsafeMkGlobalName c) ==) . caseBranchName) branches of
-      Nothing -> throwError $ CaseBranchNotExist $ unsafeMkGlobalName c
+    case find ((c' ==) . caseBranchName) branches of
+      Nothing -> throwError $ CaseBranchNotExist c'
       Just br@(CaseBranch _ binds rhs) ->
         let newBranches = delete br branches
             -- If there was no fallback branch, we create a new one whose RHS is
@@ -883,7 +905,10 @@ deleteCaseBranch c ze = case target ze of
                 CaseFallback _ -> pure fallbackBranch
               pure $ replace (Case m scrut newBranches newFallback) ze
   _ ->
-    throwError $ CustomFailure (DeleteCaseBranch c) "the focused expression is not a case"
+    throwError $ CustomFailure act "the focused expression is not a case"
+  where
+    c' = either (PatCon . unsafeMkGlobalName) PatPrim c
+    act = either DeleteCaseBranch DeleteCaseBranchPrim c
 
 -- | Given a sequence @ks@ and @vs@ such that @map f vs@ is a subsequence of
 -- @ks@ (this precondition is not checked), @insertSubseqBy f x ks vs@ inserts
