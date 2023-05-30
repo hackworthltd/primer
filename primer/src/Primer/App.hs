@@ -543,16 +543,11 @@ handleMutationRequest = \case
 -- Note that a successful edit resets the redo log.
 handleEditRequest :: forall m l. MonadEditApp l ProgError m => [ProgAction] -> m Prog
 handleEditRequest actions = do
-  (prog, _) <- gets appProg >>= \p -> foldlM go (p, Nothing) actions
+  prog <- gets appProg >>= \p -> foldlM applyProgAction p actions
   let l = progLog prog
   let prog' = prog{progLog = push actions l, redoLog = defaultLog}
   modify (\s -> s & #currentState % #prog .~ prog')
   pure prog'
-  where
-    go :: (Prog, Maybe GVarName) -> ProgAction -> m (Prog, Maybe GVarName)
-    go (prog, mdef) a =
-      applyProgAction prog mdef a <&> \prog' ->
-        (prog', selectedDef <$> progSelection prog')
 
 -- | Handle an eval request (we assume that all such requests are implicitly in a synthesisable context)
 handleEvalRequest ::
@@ -586,10 +581,8 @@ handleEvalFullRequest (EvalFullReq{evalFullReqExpr, evalFullCxtDir, evalFullMaxS
     Right nf -> EvalFullRespNormal nf
 
 -- | Handle a 'ProgAction'
--- The 'GVarName' argument is the currently-selected definition, which is
--- provided for convenience: it is the same as the one in the progSelection.
-applyProgAction :: MonadEdit m ProgError => Prog -> Maybe GVarName -> ProgAction -> m Prog
-applyProgAction prog mdefName = \case
+applyProgAction :: MonadEdit m ProgError => Prog -> ProgAction -> m Prog
+applyProgAction prog = \case
   MoveToDef d -> do
     m <- lookupEditableModule (qualifiedModule d) prog
     case Map.lookup d $ moduleDefsQualified m of
@@ -918,6 +911,8 @@ applyProgAction prog mdefName = \case
                     -- from the name of any import
                     ActionError $
                       InternalFailure "RenameModule: imported modules were edited by renaming"
+  where
+    mdefName = selectedDef <$> progSelection prog
 
 -- Helper for RenameModule action
 data RenameMods a = RM {imported :: [a], editable :: [a]}

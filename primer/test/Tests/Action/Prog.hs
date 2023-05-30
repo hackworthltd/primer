@@ -285,7 +285,10 @@ unit_rename_unknown_def =
 
 unit_construct_let_without_moving_to_def_first :: Assertion
 unit_construct_let_without_moving_to_def_first =
-  progActionTest defaultEmptyProg [BodyAction [ConstructLet (Just "x")]] $ expectError (@?= NoDefSelected)
+  progActionTest
+    (defaultEmptyProg <&> \p -> p{progSelection = Nothing})
+    [BodyAction [ConstructLet (Just "x")]]
+    $ expectError (@?= NoDefSelected)
 
 unit_create_def :: Assertion
 unit_create_def = progActionTest defaultEmptyProg [CreateDef mainModuleName $ Just "newDef"] $
