@@ -70,7 +70,7 @@ import Data.Generics.Uniplate.Zipper (
   fromZipper,
  )
 import Data.List (intersect, (\\))
-import Data.List.Extra (anySame, disjoint, (!?))
+import Data.List.Extra (anySame, disjoint)
 import Data.Map.Strict qualified as Map
 import Data.Set qualified as Set
 import Optics (
@@ -124,7 +124,7 @@ import Primer.Core (
   CaseBranch,
   CaseBranch' (CaseBranch),
   Expr,
-  Expr' (Case, Con, EmptyHole, Hole, Var),
+  Expr' (Case, Con, EmptyHole, Var),
   GVarName,
   GlobalName (baseName, qualifiedModule),
   ID (..),
@@ -205,7 +205,6 @@ import Primer.Typecheck (
   checkTypeDefs,
   synth,
  )
-import Primer.Typecheck qualified as TC
 import Primer.Zipper (
   ExprZ,
   Loc' (InBind, InExpr, InType),
@@ -753,68 +752,6 @@ applyProgAction prog = \case
               (maybe (throwError $ IndexOutOfRange index) pure . insertAt index (ValCon con []))
           )
           type_
-  SetConFieldType type_ con index new ->
-    editModuleSameSelectionCross (qualifiedModule type_) prog $ \(m, ms) -> do
-      m' <- updateType m
-      traverseOf (traversed % #moduleDefs) updateDefs (m' : ms)
-    where
-      updateType =
-        alterTypeDef
-          ( traverseOf #astTypeDefConstructors $
-              maybe (throwError $ ConNotFound con) pure
-                <=< findAndAdjustA
-                  ((== con) . valConName)
-                  ( traverseOf
-                      #valConArgs
-                      ( maybe (throwError $ IndexOutOfRange index) pure
-                          <=< adjustAtA index (const $ generateTypeIDs new)
-                      )
-                  )
-          )
-          type_
-      updateDefs = traverseOf (traversed % #_DefAST % #astDefExpr) (updateDecons <=< updateCons)
-      updateCons =
-        let enhole x = case x of
-              -- Previously the @index@th argument @t@ to this
-              -- constructor would have been typechecked against the old
-              -- field type @S@, @S ∋ t@.
-              -- With the new field type @T@, we need to change @t@ to
-              -- @t'@ such that @T ∋ t'@, which we do by:
-              -- - if @t@ is a hole, set @t'=t@
-              -- - otherwise (whether @t@ were synthesisable or checkable), set @t' = {? t ?}@
-              -- Note also that we assume the metadata (typecache) is up
-              -- to date or blank, and we ensure this is the case in our
-              -- output.
-              -- We must work here to ensure that the result is
-              -- well-typed, since we wish to avoid rechecking the whole
-              -- program just to fix it up using smartholes.
-              EmptyHole{} -> pure x
-              Hole{} -> pure x
-              _ -> TC.enhole new x
-         in transformM $ \case
-              Con m con' tms | con' == con -> do
-                adjustAtA index enhole tms >>= \case
-                  Just args' -> pure $ Con m con' args'
-                  Nothing -> throwError $ ConNotSaturated con
-              e -> pure e
-      updateDecons = transformCaseBranches prog type_ $
-        traverse $ \cb@(CaseBranch vc binds e) ->
-          if vc == con
-            then do
-              Bind _ v <- maybe (throwError $ IndexOutOfRange index) pure $ binds !? index
-              CaseBranch vc binds
-                <$>
-                -- TODO a custom traversal could be more efficient - reusing `_freeTmVars` means that we continue in
-                -- to parts of the tree where `v` is shadowed, and thus where the traversal will never have any effect
-                traverseOf
-                  _freeTmVars
-                  ( \(m, v') ->
-                      if v' == v
-                        then Hole <$> DSL.meta <*> pure (Var m $ LocalVarRef v')
-                        else pure (Var m $ LocalVarRef v')
-                  )
-                  e
-            else pure cb
   AddConField type_ con index new ->
     editModuleCross (qualifiedModule type_) prog $ \(m, ms) -> do
       m' <- updateType m
@@ -1020,15 +957,6 @@ editModuleSameSelection ::
   (Module -> m Module) ->
   m Prog
 editModuleSameSelection n p f = editModule n p (fmap (,progSelection p) . f)
-
--- A variant of 'editModuleSameSelection' for actions which can affect multiple modules
-editModuleSameSelectionCross ::
-  MonadError ProgError m =>
-  ModuleName ->
-  Prog ->
-  ((Module, [Module]) -> m [Module]) ->
-  m Prog
-editModuleSameSelectionCross n p f = editModuleCross n p (fmap (,progSelection p) . f)
 
 editModuleOf ::
   MonadError ProgError m =>

@@ -39,8 +39,6 @@ data ProgAction
     RenameTypeParam TyConName TyVarName Text
   | -- | Add a value constructor at the given position, in the given type
     AddCon TyConName Int Text
-  | -- | Change the type of the field at the given index of the given constructor
-    SetConFieldType TyConName ValConName Int (Type' ())
   | -- | Add a new field, at the given index, to the given constructor
     AddConField TyConName ValConName Int (Type' ())
   | -- | Execute a sequence of actions on the body of the definition
