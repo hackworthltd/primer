@@ -708,7 +708,7 @@ viewTreeExpr e0 = case e0 of
     Tree
       { nodeId
       , body = NoBody Flavor.Ann
-      , childTrees = [viewTreeType t, viewTreeExpr e]
+      , childTrees = [viewTreeExpr e, viewTreeType t]
       , rightChild = Nothing
       }
   App _ e1 e2 ->
@@ -773,7 +773,7 @@ viewTreeExpr e0 = case e0 of
     Tree
       { nodeId
       , body = TextBody $ RecordPair Flavor.Letrec $ localName s
-      , childTrees = [viewTreeExpr e1, viewTreeType t, viewTreeExpr e2]
+      , childTrees = [viewTreeType t, viewTreeExpr e1, viewTreeExpr e2]
       , rightChild = Nothing
       }
   Case _ e bs ->
