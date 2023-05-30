@@ -93,7 +93,7 @@ import Optics (
   (^.),
   _Just,
   _Left,
-  _Right,
+  _Right, (^?),
  )
 import Optics.State.Operators ((<<%=))
 import Primer.Action (
@@ -121,6 +121,7 @@ import Primer.App.Base (
   getTypeDefConFieldType,
  )
 import Primer.Core (
+  _chkedAt,
   Bind' (Bind),
   CaseBranch,
   CaseBranch' (CaseBranch),
@@ -750,10 +751,8 @@ applyProgAction prog mdefName = \case
         , Just $ SelectionTypeDef $ TypeDefSelection type_ $ Just $ TypeDefConsNodeSelection $ TypeDefConsSelection con Nothing
         )
     where
-      -- TODO we sometimes don't write the expected metadata
-      -- meaning that type checking modifies the tree further
-      updateDefs = transformCaseBranches prog type_ $ \bs -> do
-        m' <- DSL.meta
+      updateDefs = transformCaseBranches prog type_ $ \t' bs -> do
+        m' <- DSL.meta' $ (\t'' -> TCEmb $ TCBoth {tcChkedAt=t'', tcSynthed=TEmptyHole ()}) <$> t'
         maybe (throwError $ IndexOutOfRange index) pure $ insertAt index (CaseBranch con [] (EmptyHole m')) bs
       updateType =
         alterTypeDef
@@ -806,7 +805,7 @@ applyProgAction prog mdefName = \case
                   Just args' -> pure $ Con m con' args'
                   Nothing -> throwError $ ConNotSaturated con
               e -> pure e
-      updateDecons = transformCaseBranches prog type_ $
+      updateDecons = transformCaseBranches prog type_ $ const $
         traverse $ \cb@(CaseBranch vc binds e) ->
           if vc == con
             then do
@@ -865,7 +864,7 @@ applyProgAction prog mdefName = \case
             Just args' -> pure $ Con m con' args'
             Nothing -> throwError $ ConNotSaturated con
         e -> pure e
-      updateDecons = transformCaseBranches prog type_ $
+      updateDecons = transformCaseBranches prog type_ $ const $
         traverse $ \cb@(CaseBranch vc binds e) ->
           if vc == con
             then do
@@ -1658,11 +1657,12 @@ alterTypeDef f type_ m = do
     m
 
 -- | Apply a bottom-up transformation to all branches of case expressions on the given type.
+-- The transformation function gets the type the case was checked at as well as all the branches.
 transformCaseBranches ::
   MonadEdit m ProgError =>
   Prog ->
   TyConName ->
-  ([CaseBranch] -> m [CaseBranch]) ->
+  (Maybe (Type'()) -> [CaseBranch] -> m [CaseBranch]) ->
   Expr ->
   m Expr
 transformCaseBranches prog type_ f = transformM $ \case
@@ -1676,7 +1676,7 @@ transformCaseBranches prog type_ f = transformM $ \case
           (progCxt prog)
     Case m scrut
       <$> if fst (unfoldTApp scrutType) == TCon () type_
-        then f bs
+        then f (m ^? _type % _Just % _chkedAt) bs
         else pure bs
   e -> pure e
 
