@@ -34,6 +34,7 @@ import Primer.API (
   Prog (Prog),
   Selection (..),
   Tree,
+  TypeOrKind (..),
   viewTreeExpr,
   viewTreeType,
  )
@@ -328,3 +329,5 @@ instance Arbitrary CreateTypeDefBody where
   arbitrary = CreateTypeDefBody <$> arbitrary <*> arbitrary <*> arbitrary
 instance Arbitrary NewSessionReq where
   arbitrary = NewSessionReq <$> arbitrary
+instance Arbitrary TypeOrKind where
+  arbitrary = hedgehog $ G.choice [Type <$> genTree, Kind <$> genTree]

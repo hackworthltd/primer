@@ -382,7 +382,10 @@
                     "TEmptyHole",
                     "THole",
                     "TFun",
-                    "TApp"
+                    "TApp",
+                    "KType",
+                    "KHole",
+                    "KFun"
                 ],
                 "type": "string"
             },
@@ -715,6 +718,46 @@
                     "childTrees"
                 ],
                 "type": "object"
+            },
+            "TypeOrKind": {
+                "oneOf": [
+                    {
+                        "properties": {
+                            "contents": {
+                                "$ref": "#/components/schemas/Tree"
+                            },
+                            "tag": {
+                                "enum": [
+                                    "Type"
+                                ],
+                                "type": "string"
+                            }
+                        },
+                        "required": [
+                            "tag",
+                            "contents"
+                        ],
+                        "type": "object"
+                    },
+                    {
+                        "properties": {
+                            "contents": {
+                                "$ref": "#/components/schemas/Tree"
+                            },
+                            "tag": {
+                                "enum": [
+                                    "Kind"
+                                ],
+                                "type": "string"
+                            }
+                        },
+                        "required": [
+                            "tag",
+                            "contents"
+                        ],
+                        "type": "object"
+                    }
+                ]
             },
             "UUID": {
                 "example": "00000000-0000-0000-0000-000000000000",
@@ -1369,6 +1412,51 @@
                     }
                 },
                 "summary": "Redo the last undo"
+            }
+        },
+        "/openapi/sessions/{sessionId}/selection": {
+            "post": {
+                "operationId": "setSelection",
+                "parameters": [
+                    {
+                        "description": "The session ID",
+                        "in": "path",
+                        "name": "sessionId",
+                        "required": true,
+                        "schema": {
+                            "format": "uuid",
+                            "type": "string"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json;charset=utf-8": {
+                            "schema": {
+                                "$ref": "#/components/schemas/Selection"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json;charset=utf-8": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/TypeOrKind"
+                                }
+                            }
+                        },
+                        "description": ""
+                    },
+                    "400": {
+                        "description": "Invalid `body`"
+                    },
+                    "404": {
+                        "description": "`sessionId` not found"
+                    }
+                },
+                "summary": "Set the current selection, and obtain the type of the selected node"
             }
         },
         "/openapi/sessions/{sessionId}/typedef": {

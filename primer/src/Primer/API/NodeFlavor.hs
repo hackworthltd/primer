@@ -62,6 +62,9 @@ data NodeFlavorNoBody
   | THole
   | TFun
   | TApp
+  | KType
+  | KHole
+  | KFun
   deriving stock (Show, Read, Eq, Generic, Enum, Bounded)
   deriving (ToJSON, FromJSON) via PrimerJSON NodeFlavorNoBody
   deriving anyclass (NFData)

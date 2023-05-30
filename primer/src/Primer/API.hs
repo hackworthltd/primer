@@ -70,6 +70,8 @@ module Primer.API (
   undoAvailable,
   redoAvailable,
   Name (..),
+  TypeOrKind (..),
+  setSelection,
 ) where
 
 import Foreword
@@ -96,10 +98,10 @@ import Control.Monad.Writer (MonadWriter)
 import Control.Monad.Zip (MonadZip)
 import Data.Map qualified as Map
 import Data.Tuple.Extra (curry3)
-import Optics (ifoldr, over, traverseOf, view, (^.))
+import Optics (ifoldr, over, preview, to, traverseOf, view, (%), (^.), _Just)
 import Primer.API.NodeFlavor qualified as Flavor
 import Primer.API.RecordPair (RecordPair (RecordPair))
-import Primer.Action (ActionError, ProgAction, toProgActionInput, toProgActionNoInput)
+import Primer.Action (Action (SetCursor), ActionError, ProgAction (BodyAction, MoveToDef, SigAction), toProgActionInput, toProgActionNoInput)
 import Primer.Action.Available qualified as Available
 import Primer.App (
   App,
@@ -139,6 +141,7 @@ import Primer.Core (
   CaseBranch' (..),
   Expr,
   Expr' (..),
+  ExprMeta,
   GVarName,
   GlobalName (..),
   HasID (..),
@@ -152,16 +155,21 @@ import Primer.Core (
   TyVarName,
   Type,
   Type' (..),
+  TypeMeta,
   ValConName,
   getID,
   unLocalName,
   unsafeMkLocalName,
+  _synthed,
+  _type,
   _typeMeta,
   _typeMetaLens,
  )
+import Primer.Core.DSL (create')
 import Primer.Core.DSL qualified as DSL
 import Primer.Core.Meta (LocalName)
 import Primer.Core.Meta qualified as Core
+import Primer.Core.Utils (generateTypeIDs)
 import Primer.Database (
   OffsetLimit,
   OpStatus,
@@ -263,6 +271,7 @@ data PrimerErr
   | ApplyActionError [ProgAction] ProgError
   | UndoError ProgError
   | RedoError ProgError
+  | SetSelectionError Selection ProgError
   deriving stock (Show)
 
 instance Exception PrimerErr
@@ -388,6 +397,7 @@ data APILog
   | ApplyActionInput (ReqResp (SessionId, ApplyActionBody, Available.InputAction) Prog)
   | Undo (ReqResp SessionId Prog)
   | Redo (ReqResp SessionId Prog)
+  | SetSelection (ReqResp (SessionId, Selection) (Maybe TypeOrKind))
   deriving stock (Show, Read)
 
 type MonadAPILog l m = (MonadLog (WithSeverity l) m, ConvertLogMessage APILog l)
@@ -910,6 +920,42 @@ viewTreeType' t0 = case t0 of
   where
     nodeId = t0 ^. _typeMetaLens
 
+-- | Like 'viewTreeType', but for kinds. This generates ids
+viewTreeKind :: Kind -> Tree
+viewTreeKind = flip evalState (0 :: Integer) . go
+  where
+    go k = do
+      id' <- get
+      let nodeId = "kind" <> show id'
+      modify succ
+      case k of
+        KType ->
+          pure $
+            Tree
+              { nodeId
+              , body = NoBody Flavor.KType
+              , childTrees = []
+              , rightChild = Nothing
+              }
+        KHole ->
+          pure $
+            Tree
+              { nodeId
+              , body = NoBody Flavor.KHole
+              , childTrees = []
+              , rightChild = Nothing
+              }
+        KFun k1 k2 -> do
+          k1tree <- go k1
+          k2tree <- go k2
+          pure $
+            Tree
+              { nodeId
+              , body = NoBody Flavor.KFun
+              , childTrees = [k1tree, k2tree]
+              , rightChild = Nothing
+              }
+
 globalName :: GlobalName k -> Name
 globalName n = Name{qualifiedModule = Just $ Core.qualifiedModule n, baseName = Core.baseName n}
 
@@ -1171,3 +1217,32 @@ data NodeSelection = NodeSelection
 
 viewNodeSelection :: App.NodeSelection -> NodeSelection
 viewNodeSelection sel@App.NodeSelection{nodeType} = NodeSelection{nodeType, id = getID sel}
+
+data TypeOrKind = Type Tree | Kind Tree
+  deriving stock (Eq, Show, Read, Generic)
+  deriving (FromJSON, ToJSON) via PrimerJSON TypeOrKind
+  deriving anyclass (NFData)
+
+setSelection :: (MonadIO m, MonadThrow m, MonadAPILog l m) => SessionId -> Selection -> PrimerM m (Maybe TypeOrKind)
+setSelection = curry $ logAPI (noError SetSelection) $ \(sid, sel) ->
+  edit sid (App.Edit $ MoveToDef sel.def : selNode sel)
+    >>= either (throwM . SetSelectionError sel) (pure . (viewTypeOrKind <=< progSelection))
+  where
+    selNode sel = case sel.node of
+      Nothing -> []
+      Just NodeSelection{id, nodeType = BodyNode} -> [BodyAction [SetCursor id]]
+      Just NodeSelection{id, nodeType = SigNode} -> [SigAction [SetCursor id]]
+    viewTypeOrKind :: App.Selection -> Maybe TypeOrKind
+    viewTypeOrKind sel = either viewExprType viewTypeKind . (.meta) <$> sel.selectedNode
+    trivialTree = Tree{nodeId = "seltype-0", childTrees = [], rightChild = Nothing, body = NoBody Flavor.EmptyHole}
+    viewExprType :: ExprMeta -> TypeOrKind
+    viewExprType = Type . fromMaybe trivialTree . viewExprType'
+    viewExprType' :: ExprMeta -> Maybe Tree
+    viewExprType' = preview $ _type % _Just % _synthed % to (viewTreeType' . mkIds)
+    -- We prefix ids to keep them unique from other ids in the emitted program
+    mkIds :: Type' () -> Type' Text
+    mkIds = over _typeMeta (("seltype-" <>) . show . getID) . create' . generateTypeIDs
+    viewTypeKind :: TypeMeta -> TypeOrKind
+    viewTypeKind = Kind . fromMaybe trivialTree . viewTypeKind'
+    viewTypeKind' :: TypeMeta -> Maybe Tree
+    viewTypeKind' = preview $ _type % _Just % to viewTreeKind

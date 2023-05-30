@@ -46,6 +46,7 @@ import Primer.API (
   Prog,
   Selection (..),
   Tree,
+  TypeOrKind,
  )
 import Primer.API qualified as API
 import Primer.API.NodeFlavor (
@@ -149,6 +150,7 @@ deriving via PrimerJSON ApplyActionBody instance ToSchema ApplyActionBody
 deriving via PrimerJSON Selection instance ToSchema Selection
 deriving via PrimerJSON NodeSelection instance ToSchema NodeSelection
 deriving via PrimerJSON NodeType instance ToSchema NodeType
+deriving via PrimerJSON TypeOrKind instance ToSchema TypeOrKind
 deriving via PrimerJSON Level instance ToSchema Level
 deriving via PrimerJSON NewSessionReq instance ToSchema NewSessionReq
 

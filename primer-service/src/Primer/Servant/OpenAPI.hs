@@ -16,7 +16,7 @@ module Primer.Servant.OpenAPI (
 import Foreword
 
 import Data.OpenApi (OpenApi, ToSchema)
-import Primer.API (ApplyActionBody, EvalFullResp, Prog, Selection)
+import Primer.API (ApplyActionBody, EvalFullResp, Prog, Selection, TypeOrKind)
 import Primer.Action.Available qualified as Available
 import Primer.App (Level)
 import Primer.Core (GVarName, ModuleName)
@@ -98,6 +98,13 @@ data SessionAPI mode = SessionAPI
           :> Get '[JSON] Prog
   , getSessionName :: GetSessionName mode
   , setSessionName :: SetSessionName mode
+  , setSelection ::
+      mode
+        :- "selection"
+          :> Summary "Set the current selection, and obtain the type of the selected node"
+          :> OperationId "setSelection"
+          :> ReqBody '[JSON] Selection
+          :> Post '[JSON] (Maybe TypeOrKind)
   , createDefinition ::
       mode
         :- "def"

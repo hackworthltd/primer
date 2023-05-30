@@ -180,6 +180,7 @@ openAPISessionServer sid =
     , OpenAPI.getProgram = API.getProgram' sid
     , OpenAPI.getSessionName = API.getSessionName sid
     , OpenAPI.setSessionName = renameSession sid
+    , OpenAPI.setSelection = API.setSelection sid
     , OpenAPI.createDefinition = createDefinition sid
     , OpenAPI.typeDef = openAPITypeDefServer sid
     , OpenAPI.actions = openAPIActionServer sid
@@ -425,5 +426,6 @@ serve ss q v port origins logger = do
         ToProgActionError a ae -> err400{errBody = "Error while converting action (" <> show a <> "): " <> show ae}
         UndoError pe -> err500{errBody = "Undo failed: " <> show pe}
         RedoError pe -> err500{errBody = "Redo failed: " <> show pe}
+        SetSelectionError sel pe -> err400{errBody = "Error while setting selection (" <> show sel <> "): " <> show pe}
       where
         encode = LT.encodeUtf8 . LT.fromStrict
