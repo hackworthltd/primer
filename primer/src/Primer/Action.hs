@@ -27,6 +27,8 @@ import Foreword hiding (mod)
 import Control.Monad.Fresh (MonadFresh)
 import Data.Aeson (Value)
 import Data.Bifunctor.Swap qualified as Swap
+import Data.Bitraversable (bisequence)
+import Data.Functor.Compose (Compose (..))
 import Data.Generics.Product (typed)
 import Data.List (findIndex)
 import Data.List.NonEmpty qualified as NE
@@ -34,6 +36,7 @@ import Data.Map (insert)
 import Data.Map.Strict qualified as Map
 import Data.Set qualified as Set
 import Data.Text qualified as T
+import Data.Tuple.Extra ((&&&))
 import Optics (over, set, (%), (?~), (^.), (^?), _Just)
 import Primer.Action.Actions (Action (..), Movement (..), QualifiedText)
 import Primer.Action.Available qualified as Available
@@ -260,16 +263,23 @@ applyActionsToField smartHoles imports (mod, mods) (tyName, conName', index, tyD
   where
     go :: ActionM m => m ([Module], TypeZ)
     go = do
+      (tz, cs) <-
+        getCompose
+          . flip (findAndAdjustA ((== conName') . valConName)) (astTypeDefConstructors tyDef)
+          $ Compose . \(ValCon _ ts) -> do
+            (tz', cs') <-
+              getCompose . flip (adjustAtA index) ts $
+                Compose
+                  . fmap (First . Just &&& target . top)
+                  . flip withWrappedType \tz'' ->
+                    foldlM (\l a -> local addParamsToCxt $ applyActionAndSynth a l) (InType tz'') actions
+            maybe
+              (throwError $ InternalFailure "applyActionsToField: con field index out of bounds")
+              (pure . first (First . Just))
+              $ bisequence (getFirst tz', ValCon conName' <$> cs')
       (valCons, zt) <-
-        (maybe (throwError $ InternalFailure "applyActionsToField: con name not found") pure =<<) $
-          flip (findAndAdjustA' ((== conName') . valConName)) (astTypeDefConstructors tyDef) \(ValCon _ ts) -> do
-            (t, zt) <-
-              maybe (throwError $ InternalFailure "applyActionsToField: con field index out of bounds") pure
-                =<< flip (adjustAtA' index) ts \fieldType -> do
-                  zt <- withWrappedType fieldType \zt ->
-                    foldlM (\l -> local addParamsToCxt . flip applyActionAndSynth l) (InType zt) actions
-                  pure (target (top zt), zt)
-            pure (ValCon conName' t, zt)
+        maybe (throwError $ InternalFailure "applyActionsToField: con name not found") pure $
+          bisequence (cs, getFirst tz)
       let mod' = mod{moduleTypes = insert tyName (TypeDefAST tyDef{astTypeDefConstructors = valCons}) $ moduleTypes mod}
       (,zt) <$> checkEverything smartHoles (CheckEverything{trusted = imports, toCheck = mod' : mods})
     addParamsToCxt :: TC.Cxt -> TC.Cxt
