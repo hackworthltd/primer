@@ -10,6 +10,7 @@ module Primer.Questions (
   ShadowedVarsTy (..), -- only exported for testing
   generateNameExpr,
   generateNameTy,
+  generateNameTyAvoiding,
   uniquify,
 ) where
 
@@ -100,9 +101,18 @@ generateNameTy ::
   Either (Maybe (Type' ())) (Maybe Kind) ->
   TypeZip ->
   m [Name]
+generateNameTy = generateNameTyAvoiding []
+
+generateNameTyAvoiding ::
+  MonadReader Cxt m =>
+  [Name] ->
+  Either (Maybe (Type' ())) (Maybe Kind) ->
+  TypeZip ->
+  m [Name]
 -- It doesn't really make sense to ask for a term variable (Left) here, but
 -- it doesn't harm to support it
-generateNameTy tk z = uniquifyMany <$> mkAvoidForFreshNameTy z <*> baseNames tk
+generateNameTyAvoiding avoiding tk z =
+  uniquifyMany <$> ((Set.fromList avoiding <>) <$> mkAvoidForFreshNameTy z) <*> baseNames tk
 
 baseNames ::
   MonadReader Cxt m =>

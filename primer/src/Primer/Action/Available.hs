@@ -81,6 +81,7 @@ import Primer.Primitives (tChar, tInt)
 import Primer.Questions (
   generateNameExpr,
   generateNameTy,
+  generateNameTyAvoiding,
   variablesInScopeExpr,
   variablesInScopeTy,
  )
@@ -490,8 +491,8 @@ options typeDefs defs cxt level def0 sel0 = \case
             Left zE -> generateNameExpr typeOrKind zE
             Right zT -> generateNameTy typeOrKind zT
         SelectionTypeDef sel -> do
-          (_, zT) <- conField sel
-          pure $ generateNameTy typeOrKind zT
+          (def, zT) <- conField sel
+          pure $ generateNameTyAvoiding (unLocalName . fst <$> astTypeDefParameters def) typeOrKind zT
     varsInScope = case sel0 of
       SelectionDef sel -> do
         nodeSel <- sel.node
