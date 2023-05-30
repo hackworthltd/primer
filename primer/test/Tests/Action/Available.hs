@@ -388,10 +388,10 @@ tasty_available_actions_accepted = withTests 500 $
               (maybe (annotate "primitive type def" >> failure) pure . typeDefAST . snd)
               (maybe (annotate "primitive def" >> failure) pure . defAST . snd)
               typeOrTermDef
-          let bias = Nothing
+          --let bias = Nothing
           -- these seem to be the only two action which still cause errors
-          -- let bias = Just $ Available.Input Available.AddCon
-          -- let bias = Just $ Available.NoInput Available.AddConField
+          --let bias = Just $ Available.Input Available.AddCon
+          let bias = Just $ Available.NoInput Available.AddConField
           action <- maybe (forAllT $ Gen.element acts') pure $ (bias <*) . guard . (`elem` acts') =<< bias
           collect action
           footnoteShow action
@@ -425,6 +425,7 @@ tasty_available_actions_accepted = withTests 500 $
                 [] -> annotate "no options" >> success
                 options -> do
                   opt <- forAllT $ Gen.choice options
+                  footnoteShow opt
                   progActs <- either (\e -> annotateShow e >> failure) pure $ toProgActionInput def loc (snd opt) act'
                   actionSucceedsOrCapture (fst opt) (handleEditRequest progActs) a
   where

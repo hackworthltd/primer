@@ -870,6 +870,7 @@ applyProgAction prog mdefName = \case
             then do
               id <- fresh
               let m' = Meta id (Just (TCChkedAt (TEmptyHole ()))) Nothing
+              -- shadow?
               newName <- LocalName <$> freshName (freeVars e)
               binds' <- maybe (throwError $ IndexOutOfRange index) pure $ insertAt index (Bind m' newName) binds
               pure $ CaseBranch vc binds' e
