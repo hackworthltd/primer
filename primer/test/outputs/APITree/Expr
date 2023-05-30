@@ -494,15 +494,7 @@ Tree
                                                                                                     { fst = Pattern
                                                                                                     , snd = Tree
                                                                                                         { nodeId = "39PwildB"
-                                                                                                        , body = TextBody
-                                                                                                            ( RecordPair
-                                                                                                                { fst = PatternWildcard
-                                                                                                                , snd = Name
-                                                                                                                    { qualifiedModule = Nothing
-                                                                                                                    , baseName = "_"
-                                                                                                                    }
-                                                                                                                }
-                                                                                                            )
+                                                                                                        , body = NoBody PatternWildcard
                                                                                                         , childTrees = []
                                                                                                         , rightChild = Nothing
                                                                                                         }

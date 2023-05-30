@@ -28,7 +28,6 @@ data NodeFlavorTextBody
   | Letrec
   | PatternBind
   | PatternCon
-  | PatternWildcard
   | TCon
   | TVar
   | TForall
@@ -64,6 +63,7 @@ data NodeFlavorNoBody
   | THole
   | TFun
   | TApp
+  | PatternWildcard
   deriving stock (Show, Read, Eq, Generic, Enum, Bounded)
   deriving (ToJSON, FromJSON) via PrimerJSON NodeFlavorNoBody
   deriving anyclass (NFData)

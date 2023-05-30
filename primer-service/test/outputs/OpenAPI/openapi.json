@@ -407,7 +407,8 @@
                     "TEmptyHole",
                     "THole",
                     "TFun",
-                    "TApp"
+                    "TApp",
+                    "PatternWildcard"
                 ],
                 "type": "string"
             },
@@ -428,7 +429,6 @@
                     "Letrec",
                     "PatternBind",
                     "PatternCon",
-                    "PatternWildcard",
                     "TCon",
                     "TVar",
                     "TForall",

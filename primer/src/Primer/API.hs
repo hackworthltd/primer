@@ -890,7 +890,7 @@ viewTreeExpr e0 = case e0 of
                     BoxBody . RecordPair Flavor.Pattern $
                       ( Tree
                           { nodeId = patternRootId
-                          , body = TextBody $ RecordPair Flavor.PatternWildcard (Name Nothing "_")
+                          , body = NoBody Flavor.PatternWildcard
                           , childTrees = []
                           , rightChild = Nothing
                           }
