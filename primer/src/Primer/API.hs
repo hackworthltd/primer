@@ -708,7 +708,7 @@ viewTreeExpr e0 = case e0 of
     Tree
       { nodeId
       , body = NoBody Flavor.Ann
-      , childTrees = [viewTreeExpr e, viewTreeType t]
+      , childTrees = [viewTreeType t, viewTreeExpr e]
       , rightChild = Nothing
       }
   App _ e1 e2 ->
