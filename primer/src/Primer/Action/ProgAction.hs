@@ -39,14 +39,14 @@ data ProgAction
     RenameTypeParam TyConName TyVarName Text
   | -- | Add a value constructor at the given position, in the given type
     AddCon TyConName Int Text
-  | -- | Change the type of the field at the given index of the given constructor
-    SetConFieldType TyConName ValConName Int (Type' ())
   | -- | Add a new field, at the given index, to the given constructor
     AddConField TyConName ValConName Int (Type' ())
   | -- | Execute a sequence of actions on the body of the definition
     BodyAction [Action]
   | -- | Execute a sequence of actions on the type annotation of the definition
     SigAction [Action]
+  | -- | Execute a sequence of actions on the type of a field of a constructor in a typedef
+    ConFieldAction TyConName ValConName Int [Action]
   | SetSmartHoles SmartHoles
   | -- | CopyPaste (d,i) as
     --   remembers the tree in def d, node i

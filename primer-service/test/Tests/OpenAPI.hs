@@ -30,10 +30,11 @@ import Primer.API (
   Module (Module),
   NewSessionReq (..),
   NodeBody (BoxBody, NoBody, PrimBody, TextBody),
-  NodeSelection (..),
   Prog (Prog),
-  Selection (..),
+  Selection,
   Tree,
+  TypeDef (..),
+  ValCon (..),
   viewTreeExpr,
   viewTreeType,
  )
@@ -45,7 +46,17 @@ import Primer.API.NodeFlavor (
  )
 import Primer.API.RecordPair (RecordPair (RecordPair))
 import Primer.Action.Available qualified as Available
-import Primer.App (Level, NodeType)
+import Primer.App (
+  DefSelection (..),
+  Level,
+  NodeSelection (..),
+  NodeType,
+  Selection' (..),
+  TypeDefConsFieldSelection (TypeDefConsFieldSelection),
+  TypeDefConsSelection (..),
+  TypeDefSelection (..),
+ )
+import Primer.App.Base (TypeDefNodeSelection (..))
 import Primer.Core (GVarName, ID (ID), ModuleName, PrimCon (PrimChar, PrimInt))
 import Primer.Database (
   LastModified (..),
@@ -64,6 +75,7 @@ import Primer.Gen.Core.Raw (
   genModuleName,
   genName,
   genTyConName,
+  genTyVarName,
   genType,
   genValConName,
  )
@@ -207,6 +219,18 @@ tasty_NodeFlavorNoBody = testToJSON $ G.enumBounded @_ @NodeFlavorNoBody
 genDef :: ExprGen Def
 genDef = Def <$> genGVarName <*> genExprTree <*> G.maybe genTypeTree
 
+genTypeDef :: ExprGen TypeDef
+genTypeDef =
+  TypeDef
+    <$> genTyConName
+    <*> G.list (R.linear 0 3) genTyVarName
+    <*> G.list (R.linear 0 3) genName
+    <*> G.maybe
+      ( G.list
+          (R.linear 0 3)
+          (ValCon <$> genValConName <*> G.list (R.linear 0 3) genTypeTree)
+      )
+
 tasty_Def :: Property
 tasty_Def = testToJSON $ evalExprGen 0 genDef
 
@@ -215,7 +239,7 @@ genModule =
   Module
     <$> genModuleName
     <*> G.bool
-    <*> G.list (R.linear 0 3) genTyConName
+    <*> G.list (R.linear 0 3) genTypeDef
     <*> G.list (R.linear 0 3) genDef
 
 tasty_Module :: Property
@@ -224,11 +248,33 @@ tasty_Module = testToJSON $ evalExprGen 0 genModule
 genNodeType :: ExprGen NodeType
 genNodeType = G.enumBounded
 
-genNodeSelection :: ExprGen NodeSelection
+genNodeSelection :: ExprGen (NodeSelection ID)
 genNodeSelection = NodeSelection <$> genNodeType <*> genID
 
+genDefSelection :: ExprGen (DefSelection ID)
+genDefSelection = DefSelection <$> genGVarName <*> G.maybe genNodeSelection
+
+genTypeDefSelection :: ExprGen (TypeDefSelection ID)
+genTypeDefSelection =
+  TypeDefSelection
+    <$> genTyConName
+    <*> G.maybe
+      ( G.choice
+          [ TypeDefParamNodeSelection <$> genTyVarName
+          , TypeDefConsNodeSelection
+              <$> ( TypeDefConsSelection
+                      <$> genValConName
+                      <*> G.maybe (TypeDefConsFieldSelection <$> G.integral (R.linear 0 3) <*> genID)
+                  )
+          ]
+      )
+
 genSelection :: ExprGen Selection
-genSelection = Selection <$> genGVarName <*> G.maybe genNodeSelection
+genSelection =
+  G.choice
+    [ SelectionDef <$> genDefSelection
+    , SelectionTypeDef <$> genTypeDefSelection
+    ]
 
 genProg :: Gen Prog
 genProg = evalExprGen 0 $ Prog <$> G.list (R.linear 0 3) genModule <*> G.maybe genSelection <*> G.bool <*> G.bool
@@ -307,7 +353,7 @@ instance Arbitrary ApplyActionBody where
   arbitrary = ApplyActionBody <$> arbitrary <*> arbitrary
 instance Arbitrary Selection where
   arbitrary = hedgehog $ evalExprGen 0 genSelection
-instance Arbitrary NodeSelection where
+instance Arbitrary (NodeSelection ID) where
   arbitrary = hedgehog $ evalExprGen 0 genNodeSelection
 instance Arbitrary a => Arbitrary (NonEmpty a) where
   arbitrary = (:|) <$> arbitrary <*> arbitrary

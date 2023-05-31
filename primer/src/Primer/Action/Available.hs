@@ -1,4 +1,5 @@
 {-# LANGUAGE BlockArguments #-}
+{-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE NoFieldSelectors #-}
 
 -- | Compute all the possible actions which can be performed on a definition.
@@ -14,10 +15,15 @@ module Primer.Action.Available (
   FreeInput (..),
   Options (..),
   options,
+  forTypeDef,
+  forTypeDefParamNode,
+  forTypeDefConsNode,
+  forTypeDefConsFieldNode,
 ) where
 
 import Foreword
 
+import Data.Either.Extra (eitherToMaybe)
 import Data.Map qualified as Map
 import Data.Set qualified as Set
 import Data.Tuple.Extra (fst3)
@@ -31,9 +37,17 @@ import Optics (
  )
 import Primer.Action.Priorities qualified as P
 import Primer.App.Base (
+  DefSelection (..),
   Editable (..),
   Level (..),
+  NodeSelection (..),
   NodeType (..),
+  Selection' (..),
+  TypeDefConsFieldSelection (..),
+  TypeDefConsSelection (..),
+  TypeDefNodeSelection (..),
+  TypeDefSelection (..),
+  getTypeDefConFieldType,
  )
 import Primer.Core (
   Expr,
@@ -44,6 +58,8 @@ import Primer.Core (
   ModuleName (unModuleName),
   Type,
   Type' (..),
+  TypeMeta,
+  ValConName,
   getID,
   unLocalName,
   _bindMeta,
@@ -65,6 +81,7 @@ import Primer.Primitives (tChar, tInt)
 import Primer.Questions (
   generateNameExpr,
   generateNameTy,
+  generateNameTyAvoiding,
   variablesInScopeExpr,
   variablesInScopeTy,
  )
@@ -89,6 +106,7 @@ import Primer.Zipper (
   focusOn,
   focusOnTy,
   locToEither,
+  target,
  )
 
 -- | An offered action.
@@ -117,6 +135,7 @@ data NoInputAction
   | DeleteType
   | DuplicateDef
   | DeleteDef
+  | AddConField
   deriving stock (Eq, Ord, Show, Read, Enum, Bounded, Generic)
   deriving (ToJSON, FromJSON) via PrimerJSON NoInputAction
 
@@ -140,6 +159,10 @@ data InputAction
   | MakeForall
   | RenameForall
   | RenameDef
+  | RenameType
+  | RenameCon
+  | RenameTypeParam
+  | AddCon
   deriving stock (Eq, Ord, Show, Read, Enum, Bounded, Generic)
   deriving (ToJSON, FromJSON) via PrimerJSON InputAction
 
@@ -285,6 +308,54 @@ forType l type_ =
           ]
     delete = [NoInput DeleteType]
 
+forTypeDef ::
+  Level ->
+  Editable ->
+  [Action]
+forTypeDef _ NonEditable = mempty
+forTypeDef l Editable =
+  sortByPriority
+    l
+    [ Input RenameType
+    , Input AddCon
+    ]
+
+forTypeDefParamNode ::
+  Level ->
+  Editable ->
+  [Action]
+forTypeDefParamNode _ NonEditable = mempty
+forTypeDefParamNode l Editable =
+  sortByPriority
+    l
+    [ Input RenameTypeParam
+    ]
+
+forTypeDefConsNode ::
+  Level ->
+  Editable ->
+  [Action]
+forTypeDefConsNode _ NonEditable = mempty
+forTypeDefConsNode l Editable =
+  sortByPriority
+    l
+    [ NoInput AddConField
+    , Input RenameCon
+    ]
+
+forTypeDefConsFieldNode ::
+  Level ->
+  Editable ->
+  ASTTypeDef TypeMeta ->
+  ValConName ->
+  Int ->
+  ID ->
+  [Action]
+forTypeDefConsFieldNode _ NonEditable _ _ _ _ = mempty
+forTypeDefConsFieldNode l Editable def con index id =
+  maybe mempty (sortByPriority l . forType l) $
+    findType id =<< getTypeDefConFieldType def con index
+
 -- | An input for an 'InputAction'.
 data Option = Option
   { option :: Text
@@ -319,13 +390,13 @@ options ::
   DefMap ->
   Cxt ->
   Level ->
-  ASTDef ->
-  Maybe (NodeType, ID) ->
+  Either (ASTTypeDef TypeMeta) ASTDef ->
+  Selection' ID ->
   InputAction ->
   -- | Returns 'Nothing' if an ID was required but not passed, passed but not found in the tree,
   -- or found but didn't correspond to the expected sort of entity (type/expr/pattern).
   Maybe Options
-options typeDefs defs cxt level def mNodeSel = \case
+options typeDefs defs cxt level def0 sel0 = \case
   MakeCon ->
     pure
       . noFree
@@ -380,6 +451,14 @@ options typeDefs defs cxt level def mNodeSel = \case
     freeVar <$> genNames (Right $ Just k)
   RenameDef ->
     pure $ freeVar []
+  RenameType ->
+    pure $ freeVar []
+  RenameCon ->
+    pure $ freeVar []
+  RenameTypeParam ->
+    pure $ freeVar []
+  AddCon ->
+    pure $ freeVar []
   where
     freeVar opts = Options{opts, free = FreeVarName}
     noFree opts = Options{opts, free = FreeNone}
@@ -394,24 +473,47 @@ options typeDefs defs cxt level def mNodeSel = \case
       pure $
         (first (localOpt . unLocalName) <$> locals)
           <> (first globalOpt <$> globals)
-    findNode = do
-      (nt, id) <- mNodeSel
-      case nt of
-        BodyNode -> fst <$> findNodeWithParent id (astDefExpr def)
-        SigNode -> TypeNode <$> findType id (astDefType def)
-    genNames typeOrKind = do
-      z <- focusNode =<< mNodeSel
-      pure $ map localOpt $ flip runReader cxt $ case z of
-        Left zE -> generateNameExpr typeOrKind zE
-        Right zT -> generateNameTy typeOrKind zT
-    varsInScope = do
-      nodeSel <- mNodeSel
-      focusNode nodeSel <&> \case
-        Left zE -> variablesInScopeExpr defs zE
-        Right zT -> (variablesInScopeTy zT, [], [])
-    focusNode (nt, id) = case nt of
-      BodyNode -> Left . locToEither <$> focusOn id (astDefExpr def)
-      SigNode -> fmap Right $ focusOnTy id $ astDefType def
+    findNode = case sel0 of
+      SelectionDef sel -> do
+        nodeSel <- sel.node
+        def <- eitherToMaybe def0
+        case nodeSel.nodeType of
+          BodyNode -> fst <$> findNodeWithParent nodeSel.meta (astDefExpr def)
+          SigNode -> TypeNode <$> findType nodeSel.meta (astDefType def)
+      SelectionTypeDef sel -> do
+        (_, zT) <- conField sel
+        pure $ TypeNode $ target zT
+    genNames typeOrKind =
+      map localOpt . flip runReader cxt <$> case sel0 of
+        SelectionDef sel -> do
+          z <- focusNode =<< sel.node
+          pure $ case z of
+            Left zE -> generateNameExpr typeOrKind zE
+            Right zT -> generateNameTy typeOrKind zT
+        SelectionTypeDef sel -> do
+          (def, zT) <- conField sel
+          pure $ generateNameTyAvoiding (unLocalName . fst <$> astTypeDefParameters def) typeOrKind zT
+    varsInScope = case sel0 of
+      SelectionDef sel -> do
+        nodeSel <- sel.node
+        focusNode nodeSel <&> \case
+          Left zE -> variablesInScopeExpr defs zE
+          Right zT -> (variablesInScopeTy zT, [], [])
+      SelectionTypeDef sel -> do
+        (def, zT) <- conField sel
+        pure (astTypeDefParameters def <> variablesInScopeTy zT, [], [])
+    focusNode nodeSel = do
+      def <- eitherToMaybe def0
+      case nodeSel.nodeType of
+        BodyNode -> Left . locToEither <$> focusOn nodeSel.meta (astDefExpr def)
+        SigNode -> fmap Right $ focusOnTy nodeSel.meta $ astDefType def
+    conField sel = do
+      (con, field) <- case sel of
+        TypeDefSelection _ (Just (TypeDefConsNodeSelection (TypeDefConsSelection con (Just field)))) ->
+          Just (con, field)
+        _ -> Nothing
+      def <- either Just (const Nothing) def0
+      map (def,) $ focusOnTy field.meta =<< getTypeDefConFieldType def con field.index
     -- Extract the source of the function type we were checked at
     -- i.e. the type that a lambda-bound variable would have here
     lamVarTy = \case
@@ -455,6 +557,7 @@ sortByPriority l =
         DeleteType -> P.delete
         DuplicateDef -> P.duplicate
         DeleteDef -> P.delete
+        AddConField -> P.addConField
       Input a -> case a of
         MakeCon -> P.useSaturatedValueCon
         MakeInt -> P.makeInt
@@ -474,3 +577,7 @@ sortByPriority l =
         MakeForall -> P.constructForall
         RenameForall -> P.rename
         RenameDef -> P.rename
+        RenameType -> P.rename
+        AddCon -> P.addCon
+        RenameCon -> P.rename
+        RenameTypeParam -> P.rename

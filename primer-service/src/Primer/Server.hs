@@ -405,6 +405,8 @@ serve ss q v port origins logger = do
         DatabaseErr msg -> err500{errBody = encode msg}
         UnknownDef d -> err404{errBody = "Unknown definition: " <> encode (globalNamePretty d)}
         UnexpectedPrimDef d -> err400{errBody = "Unexpected primitive definition: " <> encode (globalNamePretty d)}
+        UnknownTypeDef d -> err404{errBody = "Unknown type definition: " <> encode (globalNamePretty d)}
+        UnexpectedPrimTypeDef d -> err400{errBody = "Unexpected primitive type definition: " <> encode (globalNamePretty d)}
         AddDefError m md pe -> err400{errBody = "Error while adding definition (" <> s <> "): " <> show pe}
           where
             s = encode $ case md of

@@ -13,7 +13,7 @@ import Data.Aeson (FromJSON (..), ToJSON (..))
 import Primer.Action.Actions (Action)
 import Primer.Action.Available qualified as Available
 import Primer.Action.Movement (Movement)
-import Primer.Core (Expr, GVarName, ID, LVarName, ModuleName, Type)
+import Primer.Core (Expr, GVarName, ID, LVarName, ModuleName, TyConName, Type, ValConName)
 import Primer.JSON (CustomJSON (..), PrimerJSON)
 import Primer.Typecheck.TypeError (TypeError)
 import Primer.Zipper (SomeNode)
@@ -63,6 +63,15 @@ data ActionError
   | NeedLocal Available.Option
   | NeedInt Available.Option
   | NeedChar Available.Option
+  | NeedTermDef
+  | NeedTypeDef
+  | NeedTermDefSelection
+  | NeedTypeDefSelection
+  | NeedTypeDefNodeSelection
+  | NeedTypeDefConsSelection
+  | NeedTypeDefConsFieldSelection
+  | NeedTypeDefParamSelection
   | NoNodeSelection
+  | ValConNotFound TyConName ValConName
   deriving stock (Eq, Show, Read, Generic)
   deriving (FromJSON, ToJSON) via PrimerJSON ActionError

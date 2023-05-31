@@ -18,6 +18,9 @@ import Primer.App (
     progSmartHoles,
     redoLog
   ),
+  TypeDefConsFieldSelection (..),
+  TypeDefConsSelection (..),
+  TypeDefSelection (..),
   appIdCounter,
   appInit,
   appNameCounter,
@@ -30,6 +33,7 @@ import Primer.App (
   tcWholeProgWithImports,
  )
 import Primer.App qualified as App
+import Primer.App.Base (TypeDefNodeSelection (..))
 import Primer.Builtins (
   boolDef,
   cCons,
@@ -782,6 +786,10 @@ tcaFunctorial :: (Functor f, Eq (f (TypeCacheAlpha a))) => TypeCacheAlpha (f a) 
 tcaFunctorial = (==) `on` (fmap TypeCacheAlpha . unTypeCacheAlpha)
 instance Eq (TypeCacheAlpha a) => Eq (TypeCacheAlpha (Maybe a)) where
   (==) = tcaFunctorial
+instance (Eq (TypeCacheAlpha a), Eq (TypeCacheAlpha b)) => Eq (TypeCacheAlpha (Either a b)) where
+  TypeCacheAlpha (Left a1) == TypeCacheAlpha (Left a2) = TypeCacheAlpha a1 == TypeCacheAlpha a2
+  TypeCacheAlpha (Right b1) == TypeCacheAlpha (Right b2) = TypeCacheAlpha b1 == TypeCacheAlpha b2
+  _ == _ = False
 instance (Eq (TypeCacheAlpha a), Eq b) => Eq (TypeCacheAlpha (Expr' (Meta a) b)) where
   (==) = (==) `on` (((_exprMeta % _type) %~ TypeCacheAlpha) . unTypeCacheAlpha)
 instance Eq (TypeCacheAlpha Def) where
@@ -799,12 +807,22 @@ instance Eq (TypeCacheAlpha [Module]) where
   (==) = tcaFunctorial
 instance Eq (TypeCacheAlpha ExprMeta) where
   (==) = tcaFunctorial
-instance Eq (TypeCacheAlpha App.NodeSelection) where
+instance Eq (TypeCacheAlpha TypeMeta) where
+  (==) = tcaFunctorial
+instance Eq (TypeCacheAlpha Kind) where
+  TypeCacheAlpha k1 == TypeCacheAlpha k2 = k1 == k2
+instance Eq (TypeCacheAlpha (App.NodeSelection (Either ExprMeta TypeMeta))) where
   TypeCacheAlpha (App.NodeSelection t1 m1) == TypeCacheAlpha (App.NodeSelection t2 m2) =
     t1 == t2 && ((==) `on` first TypeCacheAlpha) m1 m2
 instance Eq (TypeCacheAlpha App.Selection) where
-  TypeCacheAlpha (App.Selection d1 n1) == TypeCacheAlpha (App.Selection d2 n2) =
+  TypeCacheAlpha (App.SelectionDef (App.DefSelection d1 n1)) == TypeCacheAlpha (App.SelectionDef (App.DefSelection d2 n2)) =
     d1 == d2 && TypeCacheAlpha n1 == TypeCacheAlpha n2
+  TypeCacheAlpha (App.SelectionTypeDef (TypeDefSelection a1 (Just (TypeDefConsNodeSelection (TypeDefConsSelection n1 (Just (TypeDefConsFieldSelection b1 m1)))))))
+    == TypeCacheAlpha (App.SelectionTypeDef (TypeDefSelection a2 (Just (TypeDefConsNodeSelection (TypeDefConsSelection n2 (Just (TypeDefConsFieldSelection b2 m2))))))) =
+      a1 == a2 && b1 == b2 && n1 == n2 && TypeCacheAlpha m1 == TypeCacheAlpha m2
+  TypeCacheAlpha (App.SelectionTypeDef (TypeDefSelection n1 s1)) == TypeCacheAlpha (App.SelectionTypeDef (TypeDefSelection n2 s2)) =
+    n1 == n2 && s1 == s2
+  _ == _ = False
 instance Eq (TypeCacheAlpha Prog) where
   TypeCacheAlpha (Prog i1 m1 s1 sh1 l1 r1) == TypeCacheAlpha (Prog i2 m2 s2 sh2 l2 r2) =
     TypeCacheAlpha i1 == TypeCacheAlpha i2

@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedLabels #-}
+{-# LANGUAGE OverloadedRecordDot #-}
 
 module Tests.Action.Prog where
 
@@ -35,6 +36,7 @@ import Primer.Action (
  )
 import Primer.App (
   App,
+  DefSelection (..),
   Log (..),
   NodeSelection (..),
   NodeType (..),
@@ -42,7 +44,7 @@ import Primer.App (
   ProgAction (..),
   ProgError (..),
   Question (GenerateName, VariablesInScope),
-  Selection (..),
+  Selection' (..),
   appIdCounter,
   appNameCounter,
   appProg,
@@ -95,7 +97,6 @@ import Primer.Core (
 import Primer.Core.DSL (
   S,
   ann,
-  app,
   branch,
   case_,
   con,
@@ -115,7 +116,7 @@ import Primer.Core.DSL (
   tfun,
   tvar,
  )
-import Primer.Core.Utils (forgetMetadata, forgetTypeMetadata)
+import Primer.Core.Utils (forgetMetadata)
 import Primer.Def (ASTDef (..), Def (..), DefMap, defAST)
 import Primer.Log (PureLogT, runPureLogT)
 import Primer.Module (Module (Module, moduleDefs, moduleName, moduleTypes), builtinModule, moduleDefsQualified, moduleTypesQualified, primitiveModule)
@@ -160,7 +161,7 @@ unit_move_to_def_main = progActionTest defaultEmptyProg [moveToDef "main"] $
     prog'
       @?= prog
         { progLog = Log [[moveToDef "main"]]
-        , progSelection = Just $ Selection (gvn "main") Nothing
+        , progSelection = Just $ SelectionDef $ DefSelection (gvn "main") Nothing
         }
 
 -- Expression actions are tested in ActionTest - here we just check that we can modify the correct
@@ -502,7 +503,7 @@ unit_construct_arrow_in_sig =
             TFun _ lhs _ ->
               -- Check that the selection is focused on the lhs, as we instructed
               case progSelection prog' of
-                Just (Selection d (Just sel@NodeSelection{nodeType = SigNode})) -> do
+                Just (SelectionDef (DefSelection d (Just sel@NodeSelection{nodeType = SigNode}))) -> do
                   d @?= qualifyName mainModuleName "other"
                   getID sel @?= getID lhs
                 _ -> assertFailure "no selection"
@@ -1019,193 +1020,6 @@ unit_AddCon =
                 ]
           )
 
--- change the type of a field which currently wraps a constructor (which is checkable)
-unit_SetConFieldType_con :: Assertion
-unit_SetConFieldType_con =
-  progActionTest
-    ( defaultProgEditableTypeDefs . sequence . pure $ do
-        x <-
-          con
-            cA
-            [ con0 (vcn "True")
-            , con0 (vcn "True")
-            , con0 (vcn "True")
-            ]
-        astDef "def" x <$> tEmptyHole
-    )
-    [SetConFieldType tT cA 1 $ TCon () (tcn "Int")]
-    $ expectSuccess
-    $ \_ prog' -> do
-      td <- findTypeDef tT prog'
-      astTypeDefConstructors td
-        @?= [ ValCon cA [TCon () (tcn "Bool"), TCon () (tcn "Int"), TCon () (tcn "Bool")]
-            , ValCon cB [TApp () (TApp () (TCon () tT) (TVar () "b")) (TVar () "a"), TVar () "b"]
-            ]
-      def <- findDef (gvn "def") prog'
-      forgetMetadata (astDefExpr def)
-        @?= forgetMetadata
-          ( create' $
-              con
-                cA
-                [ con0 (vcn "True")
-                , hole (con0 (vcn "True"))
-                , con0 (vcn "True")
-                ]
-          )
-
--- Change the type of one field from ty1 to ty2, and test what happens to that subterm
--- We use that @T u v ∋ B emptyHole t@ iff @v ∋ t@.
-setConFieldTypeHelper :: S Type -> S Expr -> S Type -> S Expr -> Assertion
-setConFieldTypeHelper ty1 tmInput ty2' tmExpected =
-  let ty2 = forgetTypeMetadata $ create' ty2'
-   in progActionTest
-        ( defaultProgEditableTypeDefs . sequence . pure $ do
-            x <-
-              con cB [emptyHole, tmInput]
-            astDef "def" x <$> ((tcon tT `tapp` tEmptyHole) `tapp` ty1)
-        )
-        [SetConFieldType tT cB 1 ty2]
-        $ expectSuccess
-        $ \_ prog' -> do
-          td <- findTypeDef tT prog'
-          astTypeDefConstructors td
-            @?= [ ValCon cA [TCon () (tcn "Bool"), TCon () (tcn "Bool"), TCon () (tcn "Bool")]
-                , ValCon cB [TApp () (TApp () (TCon () tT) (TVar () "b")) (TVar () "a"), ty2]
-                ]
-          def <- findDef (gvn "def") prog'
-          forgetMetadata (astDefExpr def)
-            @?= forgetMetadata
-              ( create' $
-                  con cB [emptyHole, tmExpected]
-              )
-
--- change the type of a field which currently wraps a checkable term
-unit_SetConFieldType_chk :: Assertion
-unit_SetConFieldType_chk =
-  setConFieldTypeHelper
-    (tcon (tcn "Nat") `tfun` tcon (tcn "Bool"))
-    (lam "x" emptyHole)
-    (tcon (tcn "Int"))
-    (hole $ lam "x" emptyHole)
-
--- change the type of a field which currently wraps a checkable term
--- this result could have the hole elided, but we don't run smartholes
--- so we can't tell
-unit_SetConFieldType_match :: Assertion
-unit_SetConFieldType_match =
-  setConFieldTypeHelper
-    (tEmptyHole `tfun` tcon (tcn "Bool"))
-    (lam "x" emptyHole)
-    (tcon (tcn "Int") `tfun` tEmptyHole)
-    (hole $ lam "x" emptyHole)
-
--- change the type of a field which currently wraps a synthesisable argument
-unit_SetConFieldType_syn :: Assertion
-unit_SetConFieldType_syn =
-  setConFieldTypeHelper
-    (tcon $ tcn "Int")
-    (emptyHole `app` emptyHole)
-    (tcon tBool)
-    (hole $ emptyHole `app` emptyHole)
-
--- change the type of a field which currently wraps an emptyHole argument
-unit_SetConFieldType_emptyHole :: Assertion
-unit_SetConFieldType_emptyHole =
-  setConFieldTypeHelper
-    (tcon $ tcn "Int")
-    emptyHole
-    (tcon $ tcn "Bool")
-    emptyHole
-
--- change the type of a field which currently wraps a non-empty hole argument
-unit_SetConFieldType_nehole :: Assertion
-unit_SetConFieldType_nehole = do
-  setConFieldTypeHelper
-    (tcon $ tcn "Bool")
-    (hole $ (lam "x" (lvar "x") `ann` (tcon (tcn "Bool") `tfun` tcon (tcn "Bool"))) `app` con0 (vcn "True"))
-    (tcon (tcn "tBool") `tfun` tcon (tcn "Bool"))
-    (hole $ (lam "x" (lvar "x") `ann` (tcon (tcn "Bool") `tfun` tcon (tcn "Bool"))) `app` con0 (vcn "True"))
-
--- change the type of a field which currently wraps a non-empty hole argument,
--- where the result could have a hole elided, but we don't run smartholes
--- so we can't tell
-unit_SetConFieldType_nehole_2 :: Assertion
-unit_SetConFieldType_nehole_2 =
-  setConFieldTypeHelper
-    (tcon $ tcn "Int")
-    (hole $ (lam "x" (lvar "x") `ann` (tcon (tcn "Bool") `tfun` tcon (tcn "Bool"))) `app` con0 (vcn "True"))
-    (tcon $ tcn "Bool")
-    (hole $ (lam "x" (lvar "x") `ann` (tcon (tcn "Bool") `tfun` tcon (tcn "Bool"))) `app` con0 (vcn "True"))
-
-unit_SetConFieldType_case :: Assertion
-unit_SetConFieldType_case =
-  progActionTest
-    ( defaultProgEditableTypeDefs $ do
-        x <-
-          case_
-            (emptyHole `ann` (tcon tT `tapp` tEmptyHole `tapp` tEmptyHole))
-            [ branch
-                cA
-                [("x", Nothing), ("y", Nothing), ("z", Nothing)]
-                (lvar "y")
-            , branch cB [("s", Nothing), ("t", Nothing)] emptyHole
-            ]
-        sequence
-          [ astDef "def" x <$> tcon (tcn "Bool")
-          ]
-    )
-    [SetConFieldType tT cA 1 $ TCon () (tcn "Int")]
-    $ expectSuccess
-    $ \_ prog' -> do
-      def <- findDef (gvn "def") prog'
-      forgetMetadata (astDefExpr def)
-        @?= forgetMetadata
-          ( create' $
-              case_
-                (emptyHole `ann` (tcon tT `tapp` tEmptyHole `tapp` tEmptyHole))
-                [ branch
-                    cA
-                    [("x", Nothing), ("y", Nothing), ("z", Nothing)]
-                    (hole $ lvar "y")
-                , branch cB [("s", Nothing), ("t", Nothing)] emptyHole
-                ]
-          )
-
-unit_SetConFieldType_shadow :: Assertion
-unit_SetConFieldType_shadow =
-  progActionTest
-    ( defaultProgEditableTypeDefs $ do
-        x <-
-          case_
-            (emptyHole `ann` (tcon tT `tapp` tEmptyHole `tapp` tEmptyHole))
-            [ branch
-                cA
-                [("x", Nothing), ("y", Nothing), ("z", Nothing)]
-                ((lam "y" (lvar "y") `ann` (tcon (tcn "Bool") `tfun` tcon (tcn "Bool"))) `app` lvar "y")
-            , branch cB [("s", Nothing), ("t", Nothing)] emptyHole
-            ]
-        sequence
-          [ astDef "def" x <$> tcon (tcn "Bool")
-          ]
-    )
-    [SetConFieldType tT cA 1 $ TCon () (tcn "Int")]
-    $ expectSuccess
-    $ \_ prog' -> do
-      def <- findDef (gvn "def") prog'
-      forgetMetadata (astDefExpr def)
-        @?= forgetMetadata
-          ( create' $
-              case_
-                (emptyHole `ann` (tcon tT `tapp` tEmptyHole `tapp` tEmptyHole))
-                [ branch
-                    cA
-                    [("x", Nothing), ("y", Nothing), ("z", Nothing)]
-                    -- only the free `y` should be put in to a hole
-                    ((lam "y" (lvar "y") `ann` (tcon (tcn "Bool") `tfun` tcon (tcn "Bool"))) `app` hole (lvar "y"))
-                , branch cB [("s", Nothing), ("t", Nothing)] emptyHole
-                ]
-          )
-
 unit_AddConField :: Assertion
 unit_AddConField =
   progActionTest
@@ -1288,6 +1102,40 @@ unit_AddConField_case_ann =
                 ]
           )
 
+unit_ConFieldAction :: Assertion
+unit_ConFieldAction =
+  progActionTest
+    ( defaultProgEditableTypeDefs $ do
+        e <- con cA $ replicate 3 $ con0 $ vcn "True"
+        t <- tEmptyHole
+        pure [astDef "def" e t]
+    )
+    [ConFieldAction tT cA 1 [ConstructArrowL]]
+    $ expectSuccess
+    $ \_ prog' -> do
+      td <- findTypeDef tT prog'
+      def <- findDef (gvn "def") prog'
+      astTypeDefConstructors td
+        @?= [ ValCon
+                cA
+                [ TCon () (tcn "Bool")
+                , TFun () (TCon () (tcn "Bool")) (TEmptyHole ())
+                , TCon () (tcn "Bool")
+                ]
+            , ValCon cB [TApp () (TApp () (TCon () tT) (TVar () "b")) (TVar () "a"), TVar () "b"]
+            ]
+      forgetMetadata (astDefExpr def)
+        @?= forgetMetadata
+          ( create' $
+              do
+                con
+                  cA
+                  [ con0 $ vcn "True"
+                  , hole $ con0 $ vcn "True"
+                  , con0 $ vcn "True"
+                  ]
+          )
+
 -- Check that we see name hints from imported modules
 -- (This differs from the tests in Tests.Question by testing the actual action,
 -- rather than the underlying functionality)
@@ -1326,7 +1174,11 @@ unit_rename_module =
         Left err -> assertFailure $ show err
         Right p -> do
           fmap (unModuleName . moduleName) (progModules p) @?= [["Module2"]]
-          selectedDef <$> progSelection p @?= Just (qualifyName (ModuleName ["Module2"]) "main")
+          sel <- case progSelection p of
+            Just (SelectionDef s) -> pure s
+            Just (SelectionTypeDef _) -> assertFailure "typedef selected"
+            Nothing -> assertFailure "no selection"
+          sel.def @?= qualifyName (ModuleName ["Module2"]) "main"
           case fmap (Map.assocs . moduleDefsQualified) (progModules p) of
             [[(n, DefAST d)]] -> do
               let expectedName = qualifyName (ModuleName ["Module2"]) "main"
@@ -1402,7 +1254,6 @@ unit_cross_module_actions =
         handleAndTC [RenameType (qualifyM "T") "R"]
         handleAndTC [RenameCon (qualifyM "R") (qualifyM "C") "D"]
         handleAndTC [AddCon (qualifyM "R") 1 "X"]
-        handleAndTC [SetConFieldType (qualifyM "R") (qualifyM "D") 0 (TCon () tBool)]
         handleAndTC [AddConField (qualifyM "R") (qualifyM "D") 0 (TCon () tNat)]
         handleAndTC [RenameModule (moduleName m) ["AnotherModule"]]
         -- NB: SigAction relies on SmartHoles to fix any introduced inconsistencies
@@ -1509,7 +1360,7 @@ unit_sh_lost_id =
         Just def ->
           case astDefExpr <$> defAST def of
             Just (Var m (GlobalVarRef f)) | f == foo -> case progSelection prog' of
-              Just Selection{selectedDef, selectedNode = Just sel} ->
+              Just (SelectionDef DefSelection{def = selectedDef, node = Just sel}) ->
                 unless (selectedDef == foo && getID sel == getID m) $
                   assertFailure "expected selection to point at the recursive reference"
               _ -> assertFailure "expected the selection to point at some node"
@@ -1547,8 +1398,8 @@ defaultEmptyProg = do
    in pure $
         newEmptyProg'
           { progSelection =
-              Just $
-                Selection (gvn "main") $
+              Just . SelectionDef $
+                DefSelection (gvn "main") $
                   Just
                     NodeSelection
                       { nodeType = BodyNode

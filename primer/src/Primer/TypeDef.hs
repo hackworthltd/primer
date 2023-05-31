@@ -54,7 +54,7 @@ type TypeDefMap = Map TyConName (TypeDef ())
 
 -- | Definition of a primitive data type
 data PrimTypeDef = PrimTypeDef
-  { primTypeDefParameters :: [Kind]
+  { primTypeDefParameters :: [(TyVarName, Kind)]
   , primTypeDefNameHints :: [Name]
   }
   deriving stock (Eq, Show, Read, Data, Generic)
@@ -94,16 +94,16 @@ typeDefNameHints :: TypeDef b -> [Name]
 typeDefNameHints = \case
   TypeDefPrim t -> primTypeDefNameHints t
   TypeDefAST t -> astTypeDefNameHints t
-typeDefParameters :: TypeDef b -> [Kind]
+typeDefParameters :: TypeDef b -> [(TyVarName, Kind)]
 typeDefParameters = \case
   TypeDefPrim t -> primTypeDefParameters t
-  TypeDefAST t -> snd <$> astTypeDefParameters t
+  TypeDefAST t -> astTypeDefParameters t
 typeDefAST :: TypeDef b -> Maybe (ASTTypeDef b)
 typeDefAST = \case
   TypeDefPrim _ -> Nothing
   TypeDefAST t -> Just t
 typeDefKind :: TypeDef b -> Kind
-typeDefKind = foldr KFun KType . typeDefParameters
+typeDefKind = foldr (KFun . snd) KType . typeDefParameters
 
 -- | A traversal over the contstructor fields in an typedef.
 _typedefFields :: Traversal (TypeDef b) (TypeDef c) (Type' b) (Type' c)

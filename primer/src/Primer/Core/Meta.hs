@@ -159,6 +159,12 @@ instance HasID ID where
 instance HasID (Meta a) where
   _id = position @1
 
+instance (HasID a, HasID b) => HasID (Either a b) where
+  _id =
+    lens
+      (either getID getID)
+      (flip $ \id -> bimap (set _id id) (set _id id))
+
 -- This instance is used in 'Primer.Zipper', but it would be an orphan if we defined it there.
 instance HasID a => HasID (Zipper a a) where
   _id = lens getter setter

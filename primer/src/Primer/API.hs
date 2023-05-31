@@ -37,6 +37,8 @@ module Primer.API (
   viewProg,
   Prog (Prog),
   Module (Module),
+  TypeDef (TypeDef),
+  ValCon (ValCon),
   Def (Def),
   getProgram,
   getProgram',
@@ -63,10 +65,7 @@ module Primer.API (
   viewTreeType,
   viewTreeExpr,
   getApp,
-  Selection (..),
-  viewSelection,
-  NodeSelection (..),
-  viewNodeSelection,
+  Selection,
   undoAvailable,
   redoAvailable,
   Name (..),
@@ -103,6 +102,7 @@ import Primer.Action (ActionError, ProgAction, toProgActionInput, toProgActionNo
 import Primer.Action.Available qualified as Available
 import Primer.App (
   App,
+  DefSelection (..),
   EditAppM,
   Editable,
   EvalFullReq (..),
@@ -110,10 +110,14 @@ import Primer.App (
   EvalResp (..),
   Level,
   MutationRequest,
+  NodeSelection (..),
   NodeType (..),
   ProgError,
   QueryAppM,
   Question (GenerateName),
+  Selection' (..),
+  TypeDefConsSelection (..),
+  TypeDefSelection (..),
   appProg,
   handleEvalFullRequest,
   handleEvalRequest,
@@ -123,6 +127,7 @@ import Primer.App (
   newApp,
   progAllDefs,
   progAllTypeDefs,
+  progAllTypeDefsMeta,
   progCxt,
   progImports,
   progLog,
@@ -134,6 +139,7 @@ import Primer.App (
   unlog,
  )
 import Primer.App qualified as App
+import Primer.App.Base (TypeDefNodeSelection (..))
 import Primer.Core (
   Bind' (..),
   CaseBranch' (..),
@@ -152,6 +158,7 @@ import Primer.Core (
   TyVarName,
   Type,
   Type' (..),
+  TypeMeta,
   ValConName,
   getID,
   unLocalName,
@@ -210,10 +217,11 @@ import Primer.Log (
   PureLog,
   runPureLog,
  )
-import Primer.Module (moduleDefsQualified, moduleName, moduleTypesQualified)
+import Primer.Module (moduleDefsQualified, moduleName, moduleTypesQualifiedMeta)
 import Primer.Name qualified as Name
 import Primer.Primitives (primDefType)
-import Primer.TypeDef (ASTTypeDef (ASTTypeDef), ValCon (ValCon))
+import Primer.TypeDef (ASTTypeDef (..), forgetTypeDefMetadata, typeDefNameHints, typeDefParameters)
+import Primer.TypeDef qualified as TypeDef
 import StmContainers.Map qualified as StmMap
 
 -- | The API environment.
@@ -255,10 +263,12 @@ runPrimerM = runReaderT . unPrimerM
 data PrimerErr
   = DatabaseErr Text
   | UnknownDef GVarName
+  | UnknownTypeDef TyConName
   | UnexpectedPrimDef GVarName
+  | UnexpectedPrimTypeDef TyConName
   | AddDefError ModuleName (Maybe Text) ProgError
   | AddTypeDefError TyConName [ValConName] ProgError
-  | ActionOptionsNoID (Maybe (NodeType, ID))
+  | ActionOptionsNoID Selection
   | ToProgActionError Available.Action ActionError
   | ApplyActionError [ProgAction] ProgError
   | UndoError ProgError
@@ -630,7 +640,7 @@ data Prog = Prog
 data Module = Module
   { modname :: ModuleName
   , editable :: Bool
-  , types :: [TyConName]
+  , types :: [TypeDef]
   , -- We don't use Map Name Def as it is rather redundant since each
     -- Def carries a name field, and it is difficult to enforce that
     -- "the keys of this object match the name field of the
@@ -639,6 +649,25 @@ data Module = Module
   }
   deriving stock (Generic, Show, Read)
   deriving (ToJSON, FromJSON) via PrimerJSON Module
+  deriving anyclass (NFData)
+
+data TypeDef = TypeDef
+  { name :: TyConName
+  , params :: [TyVarName]
+  , nameHints :: [Name.Name]
+  , constructors :: Maybe [ValCon]
+  -- ^ a `Nothing` here indicates a primitive type (whereas `Just []` is `Void`)
+  }
+  deriving stock (Generic, Show, Read)
+  deriving (ToJSON, FromJSON) via PrimerJSON TypeDef
+  deriving anyclass (NFData)
+
+data ValCon = ValCon
+  { name :: ValConName
+  , fields :: [Tree]
+  }
+  deriving stock (Generic, Show, Read)
+  deriving (ToJSON, FromJSON) via PrimerJSON ValCon
   deriving anyclass (NFData)
 
 -- | This type is the api's view of a 'Primer.Core.Def'
@@ -657,7 +686,7 @@ viewProg :: App.Prog -> Prog
 viewProg p =
   Prog
     { modules = map (viewModule True) (progModules p) <> map (viewModule False) (progImports p)
-    , selection = viewSelection <$> progSelection p
+    , selection = getID <<$>> progSelection p
     , undoAvailable = not $ null $ unlog $ progLog p
     , redoAvailable = not $ null $ unlog $ redoLog p
     }
@@ -666,7 +695,24 @@ viewProg p =
       Module
         { modname = moduleName m
         , editable = e
-        , types = fst <$> Map.assocs (moduleTypesQualified m)
+        , types =
+            ( \(name, d) ->
+                TypeDef
+                  { name
+                  , params = fst <$> typeDefParameters d
+                  , nameHints = typeDefNameHints d
+                  , constructors = case d of
+                      TypeDef.TypeDefPrim _ -> Nothing
+                      TypeDef.TypeDefAST t ->
+                        Just $
+                          astTypeDefConstructors t <&> \(TypeDef.ValCon nameCon argsCon) ->
+                            ValCon
+                              { name = nameCon
+                              , fields = viewTreeType' . over _typeMeta (show . view _id) <$> argsCon
+                              }
+                  }
+            )
+              <$> Map.assocs (moduleTypesQualifiedMeta m)
         , defs =
             ( \(name, d) ->
                 Def
@@ -681,7 +727,7 @@ viewProg p =
                               flip evalState (0 :: Int) . traverseOf _typeMeta \() -> do
                                 n <- get
                                 put $ n + 1
-                                pure $ "primtype_" <> show d' <> "_" <> show n
+                                pure $ "primtype_" <> Name.unName (Core.baseName name) <> "_" <> show n
                   }
             )
               <$> Map.assocs (moduleDefsQualified m)
@@ -1026,7 +1072,7 @@ createTypeDef ::
 createTypeDef =
   curry3 $
     logAPI (noError CreateTypeDef) \(sid, tyconName, valcons) ->
-      edit sid (App.Edit [App.AddTypeDef tyconName $ ASTTypeDef [] (map (`ValCon` []) valcons) []])
+      edit sid (App.Edit [App.AddTypeDef tyconName $ ASTTypeDef [] (map (`TypeDef.ValCon` []) valcons) []])
         >>= either (throwM . AddTypeDefError tyconName valcons) (pure . viewProg)
 
 availableActions ::
@@ -1038,15 +1084,23 @@ availableActions ::
 availableActions = curry3 $ logAPI (noError AvailableActions) $ \(sid, level, selection) -> do
   prog <- getProgram sid
   let allDefs = progAllDefs prog
-      allTypeDefs = progAllTypeDefs prog
-  (editable, ASTDef{astDefType = type_, astDefExpr = expr}) <- findASTDef allDefs selection.def
-  case selection.node of
-    Nothing ->
-      pure $ Available.forDef (snd <$> allDefs) level editable selection.def
-    Just NodeSelection{..} -> do
-      pure $ case nodeType of
-        SigNode -> Available.forSig level editable type_ id
-        BodyNode -> Available.forBody (snd <$> allTypeDefs) level editable expr id
+      allTypeDefs = progAllTypeDefsMeta prog
+  case selection of
+    SelectionDef sel -> do
+      (editable, ASTDef{astDefType = type_, astDefExpr = expr}) <- findASTDef allDefs sel.def
+      pure $ case sel.node of
+        Nothing -> Available.forDef (snd <$> allDefs) level editable sel.def
+        Just NodeSelection{..} -> case nodeType of
+          SigNode -> Available.forSig level editable type_ meta
+          BodyNode -> Available.forBody (forgetTypeDefMetadata . snd <$> allTypeDefs) level editable expr meta
+    SelectionTypeDef sel -> do
+      (editable, def) <- findASTTypeDef allTypeDefs sel.def
+      pure $ case sel.node of
+        Nothing -> Available.forTypeDef level editable
+        Just (TypeDefParamNodeSelection _) -> Available.forTypeDefParamNode level editable
+        Just (TypeDefConsNodeSelection s) -> case s.field of
+          Nothing -> Available.forTypeDefConsNode level editable
+          Just field -> Available.forTypeDefConsFieldNode level editable def s.con field.index field.meta
 
 actionOptions ::
   (MonadIO m, MonadThrow m, MonadAPILog l m) =>
@@ -1060,23 +1114,28 @@ actionOptions = curry4 $ logAPI (noError ActionOptions) $ \(sid, level, selectio
   let prog = appProg app
       allDefs = progAllDefs prog
       allTypeDefs = progAllTypeDefs prog
-      nodeSel = selection.node <&> \s -> (s.nodeType, s.id)
-  def' <- snd <$> findASTDef allDefs selection.def
-  maybe (throwM $ ActionOptionsNoID nodeSel) pure $
-    Available.options
-      (snd <$> allTypeDefs)
-      (snd <$> allDefs)
-      (progCxt prog)
-      level
-      def'
-      nodeSel
-      action
+  def <- snd <$> findASTTypeOrTermDef prog selection
+  maybe (throwM $ ActionOptionsNoID selection) pure $
+    Available.options (snd <$> allTypeDefs) (snd <$> allDefs) (progCxt prog) level def selection action
 
 findASTDef :: MonadThrow m => Map GVarName (Editable, Def.Def) -> GVarName -> m (Editable, ASTDef)
 findASTDef allDefs def = case allDefs Map.!? def of
   Nothing -> throwM $ UnknownDef def
   Just (_, Def.DefPrim _) -> throwM $ UnexpectedPrimDef def
   Just (editable, Def.DefAST d) -> pure (editable, d)
+
+findASTTypeDef :: MonadThrow m => Map TyConName (Editable, TypeDef.TypeDef a) -> TyConName -> m (Editable, ASTTypeDef a)
+findASTTypeDef allTypeDefs def = case allTypeDefs Map.!? def of
+  Nothing -> throwM $ UnknownTypeDef def
+  Just (_, TypeDef.TypeDefPrim _) -> throwM $ UnexpectedPrimTypeDef def
+  Just (editable, TypeDef.TypeDefAST d) -> pure (editable, d)
+
+findASTTypeOrTermDef :: MonadThrow f => App.Prog -> Selection -> f (Editable, Either (ASTTypeDef TypeMeta) ASTDef)
+findASTTypeOrTermDef prog = \case
+  App.SelectionTypeDef sel ->
+    Left <<$>> findASTTypeDef (progAllTypeDefsMeta prog) sel.def
+  App.SelectionDef sel ->
+    Right <<$>> findASTDef (progAllDefs prog) sel.def
 
 applyActionNoInput ::
   (MonadIO m, MonadThrow m, MonadAPILog l m) =>
@@ -1086,15 +1145,10 @@ applyActionNoInput ::
   PrimerM m Prog
 applyActionNoInput = curry3 $ logAPI (noError ApplyActionNoInput) $ \(sid, selection, action) -> do
   prog <- getProgram sid
-  def <- snd <$> findASTDef (progAllDefs prog) selection.def
+  def <- snd <$> findASTTypeOrTermDef prog selection
   actions <-
     either (throwM . ToProgActionError (Available.NoInput action)) pure $
-      toProgActionNoInput
-        (snd <$> progAllDefs prog)
-        def
-        selection.def
-        (selection.node <&> \s -> (s.nodeType, s.id))
-        action
+      toProgActionNoInput (snd <$> progAllDefs prog) def selection action
   applyActions sid actions
 
 applyActionInput ::
@@ -1105,15 +1159,10 @@ applyActionInput ::
   PrimerM m Prog
 applyActionInput = curry3 $ logAPI (noError ApplyActionInput) $ \(sid, body, action) -> do
   prog <- getProgram sid
-  def <- snd <$> findASTDef (progAllDefs prog) body.selection.def
+  def <- snd <$> findASTTypeOrTermDef prog body.selection
   actions <-
     either (throwM . ToProgActionError (Available.Input action)) pure $
-      toProgActionInput
-        def
-        body.selection.def
-        (body.selection.node <&> \s -> (s.nodeType, s.id))
-        body.option
-        action
+      toProgActionInput def body.selection body.option action
   applyActions sid actions
 
 data ApplyActionBody = ApplyActionBody
@@ -1149,25 +1198,4 @@ redo =
       >>= either (throwM . RedoError) (pure . viewProg)
 
 -- | 'App.Selection' without any node metadata.
-data Selection = Selection
-  { def :: GVarName
-  , node :: Maybe NodeSelection
-  }
-  deriving stock (Eq, Show, Read, Generic)
-  deriving (FromJSON, ToJSON) via PrimerJSON Selection
-  deriving anyclass (NFData)
-
-viewSelection :: App.Selection -> Selection
-viewSelection App.Selection{..} = Selection{def = selectedDef, node = viewNodeSelection <$> selectedNode}
-
--- | 'App.NodeSelection' without any node metadata.
-data NodeSelection = NodeSelection
-  { nodeType :: NodeType
-  , id :: ID
-  }
-  deriving stock (Eq, Show, Read, Generic)
-  deriving (FromJSON, ToJSON) via PrimerJSON NodeSelection
-  deriving anyclass (NFData)
-
-viewNodeSelection :: App.NodeSelection -> NodeSelection
-viewNodeSelection sel@App.NodeSelection{nodeType} = NodeSelection{nodeType, id = getID sel}
+type Selection = App.Selection' ID
