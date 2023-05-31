@@ -266,6 +266,7 @@ forExpr tydefs l expr =
     universalActions = case l of
       Beginner ->
         [ Input MakeLam
+        , NoInput MakeApp
         ]
       Intermediate ->
         [ Input MakeLam
