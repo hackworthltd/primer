@@ -117,11 +117,13 @@ import Primer.Eval.Detail (
   BetaReductionDetail (BetaReductionDetail),
   BindRenameDetail (BindRenameDetail),
   CaseReductionDetail (CaseReductionDetail),
+  CaseReductionTrivialDetail (CaseReductionTrivialDetail),
   EvalDetail (
     BETAReduction,
     BetaReduction,
     BindRename,
     CaseReduction,
+    CaseReductionTrivial,
     GlobalVarInline,
     LetRemoval,
     LocalTypeVarInline,
@@ -274,6 +276,15 @@ data Redex
       -- ^ The original BETA redex (used for details)
       , lamID :: ID
       -- ^ Where was @var@ bound (used for details)
+      }
+  | -- case e of _ -> t  ~>  t
+    CaseRedexTrivial
+      { rhs :: Expr
+      -- ^ The rhs of the wildcard branch
+      , orig :: Expr
+      -- ^ The original redex (used for details)
+      , scrutID :: ID
+      -- ^ The ID of the whole scrutinee (used for details)
       }
   | -- case C as : T A of ... ; C xs -> e ; ...   ~>  let xs=as:(lettype p=A in S) in e for data T p = C S
     -- Since constructors are checkable and scrutinees must be synthesisable,
@@ -487,6 +498,10 @@ viewCaseRedex ::
   Expr ->
   MaybeT m Redex
 viewCaseRedex tydefs = \case
+  orig@(Case _ scrut [] (CaseFallback rhs)) -> do
+    -- If we have @case e of _ -> t@, then this reduces to @t@ without inspecting @e@
+    -- i.e. a @case@ which does not actually discriminate is lazy
+    pure $ CaseRedexTrivial rhs orig (getID scrut)
   -- Note that constructors are checkable, but scrutinees are synthesisable,
   -- thus we only have terms such as @case (C @a' x y : T a) of ...@. Thus we
   -- know the type of the scrutinee syntactically.
@@ -847,6 +862,20 @@ runRedex = \case
             , types = (forallKind, tgtTy)
             }
     pure (expr', BETAReduction details)
+  -- case e of _ -> t   ~>  t
+  CaseRedexTrivial
+    { rhs
+    , orig
+    , scrutID
+    } ->
+      let details =
+            CaseReductionTrivialDetail
+              { before = orig
+              , after = rhs
+              , targetID = scrutID
+              , branchRhsID = getID rhs
+              }
+       in pure (rhs, CaseReductionTrivial details)
   -- case C as : T A of ... ; C xs -> e ; ...   ~>  let xs=as:(lettype p=A in S) in e for data T p = C S
   -- Note that when forming the CaseRedex we checked that the variables @xs@ were fresh for @as@ and @As@,
   -- so this will not capture any variables.

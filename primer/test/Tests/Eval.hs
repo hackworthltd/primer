@@ -48,6 +48,7 @@ import Primer.Eval (
   BetaReductionDetail (..),
   BindRenameDetail (..),
   CaseReductionDetail (..),
+  CaseReductionTrivialDetail (..),
   Cxt (Cxt),
   Dir (Syn),
   EvalDetail (..),
@@ -558,6 +559,39 @@ unit_tryReduce_case_fallback_2 = do
       detail.branchBindingIDs @?= [7]
       detail.branchRhsID @?= 8
       detail.letIDs @?= [15]
+    _ -> assertFailure $ show result
+
+unit_tryReduce_case_fallback_3 :: Assertion
+unit_tryReduce_case_fallback_3 = do
+  let (expr, i) =
+        create $
+          caseFB_
+            ( con' ["M"] "C" [con0' ["M"] "E"]
+                `ann` (tcon' ["M"] "T" `tapp` tcon' ["M"] "D")
+            )
+            []
+            (con0' ["M"] "D")
+      tydef =
+        Map.singleton (unsafeMkGlobalName (["M"], "T")) $
+          TypeDefAST $
+            ASTTypeDef
+              { astTypeDefParameters = [("a", KType)]
+              , astTypeDefConstructors =
+                  [ ValCon (unsafeMkGlobalName (["M"], "B")) [TEmptyHole ()]
+                  , ValCon (unsafeMkGlobalName (["M"], "C")) [TFun () (TVar () "a") (TVar () "a")]
+                  ]
+              , astTypeDefNameHints = []
+              }
+      expectedResult = create' $ con0' ["M"] "D"
+  result <- runTryReduce tydef mempty mempty (expr, i)
+  case result of
+    Right (expr', CaseReductionTrivial detail) -> do
+      expr' ~= expectedResult
+
+      detail.before ~= expr
+      detail.after ~= expectedResult
+      detail.targetID @?= 1
+      detail.branchRhsID @?= 7
     _ -> assertFailure $ show result
 
 unit_tryReduce_case_name_clash :: Assertion

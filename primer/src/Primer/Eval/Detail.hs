@@ -45,6 +45,8 @@ data EvalDetail
     BindRename (BindRenameDetail Expr)
   | -- | Renaming of binding in a type
     TBindRename (BindRenameDetail Type)
+  | -- | Reduction of case-with-only-a-wildcard-branch
+    CaseReductionTrivial CaseReductionTrivialDetail
   | -- | Reduction of case-of-known-constructor
     CaseReduction CaseReductionDetail
   | -- | Elide annotation

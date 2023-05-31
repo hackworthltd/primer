@@ -160,7 +160,9 @@ unit_4 =
 
 -- This test is slightly unfortunate for two reasons
 -- First, maybe we should do upsilon redexes more aggressively, to avoid the
--- inner annotation in the output
+-- inner annotation in the output; alternatively tweak the reduction rule for
+-- letrec so that when inlining, the newly-created letrec does not scope over
+-- the newly-created annotation
 -- Second, writing [_] for embeddings we don't reduce [ e ] : T (and I'm not
 -- sure if we should). This leads to the outer annotation in the output.
 -- See https://github.com/hackworthltd/primer/issues/12
@@ -1337,6 +1339,27 @@ tasty_unique_ids = withTests 1000 $
     uniqueIDs e =
       let ids = e ^.. exprIDs
        in ids === ordNub ids
+
+unit_wildcard :: Assertion
+unit_wildcard =
+  let loop = letrec "x" (lvar "x") (tcon tNat) (lvar "x")
+      (eTerm, maxIDTerm) = create $ caseFB_ loop [] (con0 cTrue)
+      expectTerm = create' $ con0 cTrue
+      (eDiverge, maxIDDiverge) = create $ caseFB_ loop [branch cZero [] $ con0 cFalse] (con0 cTrue)
+      -- This has an annotation within the body of the letrec for the same reason as unit_5
+      expectDiverge =
+        create' $
+          caseFB_
+            ( letrec "x" (lvar "x") (tcon tNat) (lvar "x" `ann` tcon tNat)
+                `ann` tcon tNat
+            )
+            [branch cZero [] $ con0 cFalse]
+            (con0 cTrue)
+   in do
+        s <- evalFullTest maxIDTerm mempty mempty 2 Syn eTerm
+        s <~==> Right expectTerm
+        t <- evalFullTest maxIDDiverge mempty mempty 22 Syn eDiverge
+        t <~==> Left (TimedOut expectDiverge)
 
 -- * Utilities
 

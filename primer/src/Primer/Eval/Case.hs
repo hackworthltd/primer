@@ -1,6 +1,9 @@
 {-# LANGUAGE DuplicateRecordFields #-}
 
-module Primer.Eval.Case (CaseReductionDetail (..)) where
+module Primer.Eval.Case (
+  CaseReductionTrivialDetail (..),
+  CaseReductionDetail (..),
+) where
 
 import Foreword
 
@@ -10,6 +13,19 @@ import Primer.Core (
   ValConName,
  )
 import Primer.JSON (CustomJSON (CustomJSON), FromJSON, PrimerJSON, ToJSON)
+
+data CaseReductionTrivialDetail = CaseReductionTrivialDetail
+  { before :: Expr
+  -- ^ the case expression before reduction
+  , after :: Expr
+  -- ^ the resulting expression after reduction
+  , targetID :: ID
+  -- ^ the ID of the target (the whole scrutinee)
+  , branchRhsID :: ID
+  -- ^ the right hand side of the fallback case branch
+  }
+  deriving stock (Eq, Show, Read, Generic)
+  deriving (FromJSON, ToJSON) via PrimerJSON CaseReductionTrivialDetail
 
 data CaseReductionDetail = CaseReductionDetail
   { before :: Expr
