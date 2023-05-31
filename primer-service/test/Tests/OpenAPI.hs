@@ -344,7 +344,7 @@ instance Arbitrary Available.InputAction where
 instance Arbitrary Available.Action where
   arbitrary = either Available.NoInput Available.Input <$> arbitrary
 instance Arbitrary Available.Option where
-  arbitrary = Available.Option <$> arbitrary <*> arbitrary
+  arbitrary = Available.Option <$> arbitrary <*> arbitrary <*> arbitrary
 instance Arbitrary Available.FreeInput where
   arbitrary = arbitraryBoundedEnum
 instance Arbitrary Available.Options where

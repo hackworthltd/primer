@@ -325,9 +325,9 @@ tasty_available_actions_accepted = withTests 500 $
               let opts'' =
                     opts' <> case free of
                       Available.FreeNone -> []
-                      Available.FreeVarName -> [(StudentProvided,) . flip Available.Option Nothing <$> (unName <$> genName)]
-                      Available.FreeInt -> [(StudentProvided,) . flip Available.Option Nothing <$> (show <$> genInt)]
-                      Available.FreeChar -> [(StudentProvided,) . flip Available.Option Nothing . T.singleton <$> genChar]
+                      Available.FreeVarName -> [(StudentProvided,) . (\t -> Available.Option t Nothing False) <$> (unName <$> genName)]
+                      Available.FreeInt -> [(StudentProvided,) . (\t -> Available.Option t Nothing False) <$> (show <$> genInt)]
+                      Available.FreeChar -> [(StudentProvided,) . (\t -> Available.Option t Nothing False) . T.singleton <$> genChar]
               case opts'' of
                 [] -> annotate "no options" >> success
                 options -> do
@@ -433,7 +433,7 @@ unit_sat_con_1 =
     Intermediate
     (emptyHole `ann` (tEmptyHole `tfun` tEmptyHole))
     (InExpr [Child1])
-    (Right (MakeCon, Option "Cons" $ Just $ unName <$> unModuleName builtinModuleName))
+    (Right (MakeCon, Option "Cons" (Just $ unName <$> unModuleName builtinModuleName) False))
     (hole (con cCons [emptyHole, emptyHole]) `ann` (tEmptyHole `tfun` tEmptyHole))
 
 unit_sat_con_2 :: Assertion
@@ -443,7 +443,7 @@ unit_sat_con_2 =
     Intermediate
     (emptyHole `ann` ((tcon tList `tapp` tcon tNat) `tfun` (tcon tList `tapp` tcon tNat)))
     (InExpr [Child1])
-    (Right (MakeCon, Option "Cons" $ Just $ unName <$> unModuleName builtinModuleName))
+    (Right (MakeCon, Option "Cons" (Just $ unName <$> unModuleName builtinModuleName) False))
     (hole (con cCons [emptyHole, emptyHole]) `ann` ((tcon tList `tapp` tcon tNat) `tfun` (tcon tList `tapp` tcon tNat)))
 
 -- The various @let@ constructs inherit the directionality of their body.
@@ -650,7 +650,7 @@ offeredNamesTest initial moves act name =
     Expert
     initial
     moves
-    (Right (act, Option name Nothing))
+    (Right (act, Option name Nothing False))
 
 -- Note that lambdas are the only form which we have interesting name info when
 -- we initially create them.
