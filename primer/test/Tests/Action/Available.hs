@@ -26,7 +26,6 @@ import Hedgehog (
  )
 import Hedgehog.Gen qualified as Gen
 import Hedgehog.Internal.Property (forAllWithT)
-import Hedgehog.Range qualified as Range
 import Optics (ix, toListOf, (%), (.~), (^..), _head)
 import Primer.Action (
   ActionError (CaseBindsClash, NameCapture),
@@ -117,7 +116,7 @@ import Primer.Def (
 import Primer.Examples (comprehensiveWellTyped)
 import Primer.Gen.App (genApp)
 import Primer.Gen.Core.Raw (genName)
-import Primer.Gen.Core.Typed (WT, forAllT, propertyWT)
+import Primer.Gen.Core.Typed (WT, forAllT, genChar, genInt, propertyWT)
 import Primer.Log (PureLog, runPureLog)
 import Primer.Module (
   Module (Module, moduleDefs),
@@ -324,8 +323,8 @@ tasty_available_actions_accepted = withTests 500 $
                     opts' <> case free of
                       Available.FreeNone -> []
                       Available.FreeVarName -> [(StudentProvided,) . flip Available.Option Nothing <$> (unName <$> genName)]
-                      Available.FreeInt -> [(StudentProvided,) . flip Available.Option Nothing <$> (show <$> Gen.integral (Range.linear @Integer 0 1_000_000_000))]
-                      Available.FreeChar -> [(StudentProvided,) . flip Available.Option Nothing . T.singleton <$> Gen.unicode]
+                      Available.FreeInt -> [(StudentProvided,) . flip Available.Option Nothing <$> (show <$> genInt)]
+                      Available.FreeChar -> [(StudentProvided,) . flip Available.Option Nothing . T.singleton <$> genChar]
               case opts'' of
                 [] -> annotate "no options" >> success
                 options -> do

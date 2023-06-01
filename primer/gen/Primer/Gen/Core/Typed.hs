@@ -19,6 +19,8 @@ module Primer.Gen.Core.Typed (
   genInstApp,
   genCxtExtendingGlobal,
   genCxtExtendingLocal,
+  genChar,
+  genInt,
   genPrimCon,
   genTypeDefGroup,
   forAllT,
@@ -613,11 +615,8 @@ genCxtExtendingLocal = do
 -- We have to be careful to only generate primitive constructors which are
 -- in scope (i.e. their type is in scope)
 genPrimCon :: forall mc mg. (MonadReader Cxt mc, MonadGen mg) => mc [(mg PrimCon, TyConName)]
-genPrimCon = catMaybes <$> sequence [genChar, genInt]
+genPrimCon = catMaybes <$> sequence [whenInScope PrimChar 'a' genChar, whenInScope PrimInt 0 genInt]
   where
-    genChar = whenInScope PrimChar 'a' Gen.unicode
-    intBound = fromIntegral (maxBound :: Word64) -- arbitrary
-    genInt = whenInScope PrimInt 0 $ Gen.integral $ Range.linear (-intBound) intBound
     -- The 'tst' is arbitrary, only used for checking if the primcon is in scope
     -- and does not affect the generator.
     whenInScope :: (a -> PrimCon) -> a -> mg a -> mc (Maybe (mg PrimCon, TyConName))
@@ -631,6 +630,26 @@ genPrimCon = catMaybes <$> sequence [genChar, genInt]
     _ = \case
       PrimChar _ -> ()
       PrimInt _ -> ()
+
+-- We bias the distribution towards a small set, to make it more likely we
+-- generate name clashes on occasion
+genChar :: MonadGen mg => mg Char
+genChar =
+  Gen.choice
+    [ Gen.enum 'a' 'c'
+    , Gen.enum 'a' 'f'
+    , Gen.unicode
+    ]
+
+genInt :: MonadGen mg => mg Integer
+genInt =
+  Gen.choice
+    [ Gen.integral $ Range.linear 0 3
+    , Gen.integral $ Range.linear (-3) 3
+    , Gen.integral $ Range.linear (-intBound) intBound
+    ]
+  where
+    intBound = fromIntegral (maxBound :: Word64) -- arbitrary
 
 hoist' :: Applicative f => Cxt -> WT a -> f a
 hoist' cxt = pure . evalTestM 0 . flip runReaderT cxt . unWT
