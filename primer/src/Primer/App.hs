@@ -157,7 +157,7 @@ import Primer.Core (
   _exprMetaLens,
   _synthed,
   _type,
-  _typeMetaLens,
+  _typeMetaLens, Kind (KType),
  )
 import Primer.Core.DSL (S, create, emptyHole, tEmptyHole)
 import Primer.Core.DSL qualified as DSL
@@ -800,8 +800,10 @@ applyProgAction prog = \case
             $ Nothing
         )
     where
-      updateType =
-        alterTypeDef
+      updateType  =
+        let new' = runReaderT (liftError (ActionError . TypeError) $ fmap TC.typeTtoType $ TC.checkKind KType =<< generateTypeIDs new)
+                         (progCxt prog)
+        in alterTypeDef
           ( traverseOf #astTypeDefConstructors $
               maybe (throwError $ ConNotFound con) pure
                 <=< findAndAdjustA
@@ -809,7 +811,7 @@ applyProgAction prog = \case
                   ( traverseOf
                       #valConArgs
                       ( maybe (throwError $ IndexOutOfRange index) pure
-                          <=< liftA2 (insertAt index) (generateTypeIDs new) . pure
+                          <=< liftA2 (insertAt index) new' . pure
                       )
                   )
           )
