@@ -122,6 +122,7 @@ import Primer.App.Base (
  )
 import Primer.Core (
   _chkedAt,
+  _synthed,
   Bind' (Bind),
   CaseBranch,
   CaseBranch' (CaseBranch),
@@ -1667,13 +1668,10 @@ transformCaseBranches ::
   m Expr
 transformCaseBranches prog type_ f = transformM $ \case
   Case m scrut bs -> do
-    scrutType <-
-      fst
-        <$> runReaderT
-          (liftError (ActionError . TypeError) $ synth scrut)
-          -- TODO we need the local cxt here as well, somehow
-          -- would avoid unknown-variable errors in `AddConField`, at least
-          (progCxt prog)
+    let scrutType' = scrut ^? _exprMetaLens % _type % _Just % _synthed
+    scrutType <- case scrutType' of
+      Nothing -> throwError' $ InternalFailure "transformCaseBranches: scrutinees did not have a cached synthesised type"
+      Just t -> pure t
     Case m scrut
       <$> if fst (unfoldTApp scrutType) == TCon () type_
         then f (m ^? _type % _Just % _chkedAt) bs
