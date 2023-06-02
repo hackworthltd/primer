@@ -35,6 +35,8 @@ import Primer.Action (
     Parent
   ),
   applyActionAndSynth,
+  applyAction',
+  synthZ,
  )
 import Primer.Zipper
 import Primer.App (
@@ -1234,8 +1236,8 @@ unit_AddConField =
                 ]
           )
 
-unit_tmp :: Assertion
-unit_tmp =
+unit_tmp1 :: Assertion
+unit_tmp1 =
   let mn = ModuleName { unModuleName = "M" :| [ "0" ] }
       tn = "T"
       vn = "C"
@@ -1290,18 +1292,52 @@ unit_tmp2 = do
   print ("tmp2: zt.target", target zt)
   print ("tmp2: zt.top.target", target $ top zt)
   print ("tmp2: zt.unfocusType.top.target", target $ unfocusType $ top zt)
-  let res = evalTestM i $ runExceptT $ flip runReaderT (initialCxt SmartHoles) $ applyActionAndSynth (SetCursor 0) (InType zt)
+  let res = evalTestM i $ runExceptT $ flip runReaderT (initialCxt SmartHoles) $ do
+        a <- applyAction' (SetCursor 0) (InType zt)
+        s <- synthZ a
+        pure (a,s)
   case res of
     Left err -> assertFailure $ show err
-    Right (InExpr ez) -> do
+    Right (InExpr ez,_) -> do
       print ("tmp2: ez.target", target ez)
       print ("tmp2: ez.top.target", target $ top ez)
       assertFailure "InExpr"
-    Right (InBind _) -> assertFailure "InBind"
-    Right (InType tz) -> do
+    Right (InBind _,_) -> assertFailure "InBind"
+    Right (InType tz,s) -> do
       print ("tmp2: tz.target", target tz)
       print ("tmp2: tz.top.target", target $ top tz)
-      pure ()
+      print ("tmp2: tz.unfocusType.top.target", target $ unfocusType $ top tz)
+      case s of
+        Nothing -> assertFailure "s=Nothing"
+        Just (InExpr sz) -> do
+          print ("tmp2: sz.target", target sz)
+          print ("tmp2: sz.top.target", target $ top sz)
+          assertFailure "sz"
+
+unit_tmp3 :: Assertion
+unit_tmp3 = do
+  let ((t,e),i) = create $ do
+        t <- thole tEmptyHole
+        e <- ann emptyHole (pure t)
+        pure (t,e)
+  let (Just zt) = focusType $ focus e
+  print ("tmp2: zt.target", target zt)
+  print ("tmp2: zt.top.target", target $ top zt)
+  print ("tmp2: zt.unfocusType.top.target", target $ unfocusType $ top zt)
+  let res = evalTestM i $ runExceptT $ flip runReaderT (initialCxt SmartHoles) $ do synthZ (InType zt)
+  case res of
+    Left err -> assertFailure $ show err
+    Right Nothing -> assertFailure "Nothing"
+    Right (Just res') -> case res' of
+      (InExpr ez) -> do
+        print ("tmp2: ez.target", target ez)
+        print ("tmp2: ez.top.target", target $ top ez)
+        assertFailure "InExpr"
+      (InBind _) -> assertFailure "InBind"
+      (InType tz) -> do
+        print ("tmp2: tz.target", target tz)
+        print ("tmp2: tz.top.target", target $ top tz)
+        print ("tmp2: tz.unfocusType.top.target", target $ unfocusType $ top tz)
 
 
 

@@ -13,6 +13,7 @@ module Primer.Action (
   applyActionsToExpr,
   applyActionAndSynth,
   applyAction',
+  synthZ,
   moveExpr,
   enterType,
   moveType,
