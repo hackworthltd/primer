@@ -69,6 +69,8 @@ import Data.Map qualified as M
 import Data.Map.Strict qualified as Map
 import Data.Set qualified as S
 import Optics (
+  (.~),
+  (%~),
   A_Prism,
   A_Setter,
   A_Traversal,
@@ -93,9 +95,8 @@ import Optics (
   traverseOf,
   (%),
   (^?),
-  _Just,
- )
-import Optics.Traversal (traversed)
+  _Just, Traversal,
+ traversed)
 import Primer.Core (
   Bind' (..),
   CaseBranch' (..),
@@ -125,7 +126,7 @@ import Primer.Core (
   _exprMeta,
   _exprTypeMeta,
   _synthed,
-  _typeMeta,
+  _typeMeta, baseName,
  )
 import Primer.Core.DSL (S, branch, create', emptyHole, meta, meta')
 import Primer.Core.Transform (decomposeTAppCon, mkTAppCon, unfoldTApp)
@@ -146,10 +147,10 @@ import Primer.Def (
 import Primer.Module (
   Module (
     moduleDefs,
-    moduleName
+    moduleName, moduleTypes
   ),
   moduleDefsQualified,
-  moduleTypesQualified,
+  moduleTypesQualified, moduleTypesQualifiedMeta,
  )
 import Primer.Name (Name, NameCounter)
 import Primer.Primitives (primConName)
@@ -159,7 +160,7 @@ import Primer.TypeDef (
   TypeDef (..),
   TypeDefMap,
   ValCon (valConArgs, valConName),
-  typeDefAST,
+  typeDefAST, forgetTypeDefMetadata, typeDefParameters, generateTypeDefIDs,
  )
 import Primer.Typecheck.Cxt (Cxt (Cxt, globalCxt, localCxt, smartHoles, typeDefs))
 import Primer.Typecheck.Kindcheck (
@@ -288,7 +289,7 @@ checkValidContext ::
   m ()
 checkValidContext cxt = do
   let tds = typeDefs cxt
-  runReaderT (checkTypeDefs tds) $ initialCxt NoSmartHoles
+  void $ runReaderT (checkTypeDefs =<< traverse generateTypeDefIDs tds) $ initialCxt NoSmartHoles
   runReaderT (checkGlobalCxt $ globalCxt cxt) $ (initialCxt NoSmartHoles){typeDefs = tds}
   checkLocalCxtTys $ localTyVars cxt
   runReaderT (checkLocalCxtTms $ localTmVars cxt) $ extendLocalCxtTys (M.toList $ localTyVars cxt) (initialCxt NoSmartHoles){typeDefs = tds}
@@ -305,8 +306,8 @@ checkValidContext cxt = do
 -- | Check all type definitions, as one recursive group, in some monadic environment
 checkTypeDefs ::
   TypeM e m =>
-  TypeDefMap ->
-  m ()
+  Map TyConName (TypeDef TypeMeta) ->
+  m (Map TyConName (TypeDef (Meta Kind)))
 checkTypeDefs tds = do
   existingTypes <- asks typeDefs
   -- NB: we expect the frontend to only submit acceptable typedefs, so all
@@ -318,17 +319,16 @@ checkTypeDefs tds = do
   -- required when checking @? ∋ Con ...@, as we need to be able to
   -- work out what typedef the constructor belongs to without any
   -- extra information.
-  let atds = Map.mapMaybe typeDefAST tds
-  let allAtds = Map.mapMaybe typeDefAST existingTypes <> atds
+  let tds' = forgetTypeDefMetadata <$> tds
+  let atds' = Map.mapMaybe typeDefAST tds'
+  let allAtds = Map.mapMaybe typeDefAST existingTypes <> atds'
   assert
     (distinct $ concatMap (map valConName . astTypeDefConstructors) allAtds)
     "Duplicate-ly-named constructor (perhaps in different typedefs)"
   -- Note that these checks only apply to non-primitives:
   -- duplicate type names are checked elsewhere, kinds are correct by construction, and there are no constructors.
-  local (extendTypeDefCxt tds) $ traverseWithKey_ checkTypeDef atds
+  local (extendTypeDefCxt tds') $ Map.traverseWithKey checkTypeDef tds
   where
-    traverseWithKey_ :: Applicative f => (k -> v -> f ()) -> Map k v -> f ()
-    traverseWithKey_ f = void . Map.traverseWithKey f
     -- In the core, we have many different namespaces, so the only name-clash
     -- checking we must do is
     -- - between two constructors (possibly of different types)
@@ -345,8 +345,13 @@ checkTypeDefs tds = do
     -- But note that we allow
     -- - type names clashing with constructor names (possibly in different
     --   types)
-
     checkTypeDef tc td = do
+      let params = typeDefParameters td
+      assert
+        (distinct $ map (unLocalName . fst) params)
+        "Duplicate parameter names in one tydef"
+      traverseOf #_TypeDefAST (checkADTTypeDef tc) td
+    checkADTTypeDef tc td = do
       let params = astTypeDefParameters td
       let cons = astTypeDefConstructors td
       assert
@@ -355,16 +360,11 @@ checkTypeDefs tds = do
               qualifiedModule tc : fmap (qualifiedModule . valConName) cons
         )
         "Module name of type and all constructors must be the same"
-      assert
-        (distinct $ map (unLocalName . fst) params)
-        "Duplicate parameter names in one tydef"
-      local (noSmartHoles . extendLocalCxtTys params) $
-        mapM_ (checkKind' KType <=< fakeMeta) $
-          concatMap valConArgs cons
-    -- We need metadata to use checkKind, but we don't care about the output,
-    -- just a yes/no answer. In this case it is fine to put nonsense in the
-    -- metadata as it won't be inspected.
-    fakeMeta = generateTypeIDs
+      local (extendLocalCxtTys params) $
+        traverseOf astTypeDefConArgs (checkKind' KType) td
+
+astTypeDefConArgs :: Traversal (ASTTypeDef a) (ASTTypeDef b) (Type' a) (Type' b)
+astTypeDefConArgs = #astTypeDefConstructors % traversed % #valConArgs % traversed
 
 distinct :: Ord a => [a] -> Bool
 distinct = go mempty
@@ -400,13 +400,16 @@ checkEverything ::
 checkEverything sh CheckEverything{trusted, toCheck} =
   let cxt = buildTypingContextFromModules trusted sh
    in flip runReaderT cxt $ do
-        let newTypes = foldMap' moduleTypesQualified toCheck
-        checkTypeDefs newTypes
-        local (extendTypeDefCxt newTypes) $ do
+        let newTypes = foldMap' moduleTypesQualifiedMeta toCheck
+        -- Kind check all the type definitions, and update (with smartholes)
+        updatedTypes <- checkTypeDefs newTypes
+        let typeDefTtoTypeDef = (#_TypeDefAST % astTypeDefConArgs) %~ typeTtoType
+        let toCheck' = toCheck <&> \m -> m & #moduleTypes .~ M.fromList [(baseName n,typeDefTtoTypeDef d) | (n,d) <-M.toList updatedTypes, qualifiedModule n == moduleName m]
+        local (extendTypeDefCxt $ forgetTypeDefMetadata <$> updatedTypes) $ do
           -- Kind check and update (for smartholes) all the type signatures.
           -- Note that this may give ill-typed definitions if the type changes
           -- since we have not checked the expressions against the new types.
-          updatedSigs <- traverseOf (traverseDefs % #_DefAST % #astDefType) (fmap typeTtoType . checkKind' KType) toCheck
+          updatedSigs <- traverseOf (traverseDefs % #_DefAST % #astDefType) (fmap typeTtoType . checkKind' KType) toCheck'
           -- Now extend the context with the new types
           let defsUpdatedSigs = itoListOf foldDefTypesWithName updatedSigs
           local (extendGlobalCxt defsUpdatedSigs) $
