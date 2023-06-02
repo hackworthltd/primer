@@ -95,7 +95,7 @@ import Primer.Core (
   qualifyName,
  )
 import Primer.Core.DSL (
-  S,
+  S,aPP,let_,
   ann,
   app,
   branch,
@@ -1228,6 +1228,41 @@ unit_AddConField =
                 , branch cB [("r", Nothing), ("x", Nothing)] emptyHole
                 ]
           )
+
+unit_tmp :: Assertion
+unit_tmp =
+  let mn = ModuleName { unModuleName = "M" :| [ "0" ] }
+      tn = "a10"
+      vn = "a"
+      td = TypeDefAST
+                                                     ASTTypeDef
+                                                       { astTypeDefParameters = []
+                                                       , astTypeDefConstructors =
+                                                           [ ValCon
+                                                               { valConName = qualifyName mn vn
+                                                               , valConArgs = []
+                                                               }
+                                                           ]
+                                                       , astTypeDefNameHints = []
+                                                       }
+      en = "a1"
+      et = tEmptyHole
+      ee = lAM "x" $ (case_ (((let_ "x" emptyHole emptyHole) `ann` (tforall "x" KType tEmptyHole)) `aPP` tvar "x") [] `ann` tEmptyHole) `ann` tEmptyHole
+      ed = DefAST <$> (ASTDef <$> ee <*> et)
+      m = (\ed' -> Module mn (Map.singleton tn td) (Map.singleton en ed')) <$> ed
+      p = do
+        bm <- builtinModule
+        m' <- m
+        pure Prog {
+          progImports = [bm]
+          , progModules = [m']
+          ,progSelection = Nothing
+          ,progSmartHoles = SmartHoles
+          ,progLog = mempty
+          ,redoLog = mempty
+                  }
+    in progActionTest p [AddConField (qualifyName mn tn) (qualifyName mn vn) 0 $ TEmptyHole ()] $
+       expectSuccess $ \_ _ -> pure ()
 
 unit_AddConField_case_ann :: Assertion
 unit_AddConField_case_ann =
