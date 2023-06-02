@@ -1324,7 +1324,7 @@ unit_tmp3 = do
   print ("tmp2: zt.target", target zt)
   print ("tmp2: zt.top.target", target $ top zt)
   print ("tmp2: zt.unfocusType.top.target", target $ unfocusType $ top zt)
-  let res = evalTestM i $ runExceptT $ flip runReaderT (initialCxt SmartHoles) $ do synthZ (InType zt)
+  let res = evalTestM i $ runExceptT $ flip runReaderT (initialCxt NoSmartHoles) $ do synthZ (InType zt)
   case res of
     Left err -> assertFailure $ show err
     Right Nothing -> assertFailure "Nothing"
