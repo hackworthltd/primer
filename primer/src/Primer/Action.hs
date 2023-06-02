@@ -270,7 +270,7 @@ applyActionsToField smartHoles imports (mod, mods) (tyName, conName', index, tyD
             (t, zt) <-
               maybe (throwError $ InternalFailure "applyActionsToField: con field index out of bounds") pure
                 =<< flip (adjustAtA' index) ts \fieldType -> do
-                  traceM $ "fieldType = " <> show fieldType
+                  --traceM $ "fieldType = " <> show fieldType
                   zt <- withWrappedType fieldType (\zt ->
                     foldlM (\l -> local addParamsToCxt . flip applyActionAndSynth l) (InType zt) actions)
                   pure (target (top zt), zt)
@@ -282,20 +282,20 @@ applyActionsToField smartHoles imports (mod, mods) (tyName, conName', index, tyD
     withWrappedType :: ActionM m => Type -> (TypeZ -> m Loc) -> m TypeZ
     withWrappedType ty f = do
       wrappedType <- ann emptyHole (pure ty)
-      traceM $ "wrappedType = " <> show wrappedType
+      --traceM $ "wrappedType = " <> show wrappedType
       let --unwrapError = throwError $ InternalFailure "applyActionsToField: failed to unwrap type"
           wrapError = throwError $ InternalFailure "applyActionsToField: failed to wrap type"
           focusedType = focusType $ focus wrappedType
       case focusedType of
         Nothing -> wrapError
         Just wrappedTy -> do
-          traceM $ "wrappedTy .target = " <> show (target wrappedTy)
-          traceM $ "wrappedTy .top = " <> show (target $ top wrappedTy)
+          --traceM $ "wrappedTy .target = " <> show (target wrappedTy)
+          --traceM $ "wrappedTy .top = " <> show (target $ top wrappedTy)
           f wrappedTy >>= \case
             InType zt -> pure zt
             InExpr ez -> do
-              traceM $ "ez .target = " <> show (target ez)
-              traceM $ "ez .top = " <> show (target $ top ez)
+              --traceM $ "ez .target = " <> show (target ez)
+              --traceM $ "ez .top = " <> show (target $ top ez)
               throwError $ InternalFailure $ "applyActionsToField: InExpr, " <> show (target ez)
             InBind _ -> error "applyActionsToField: InBind"
 

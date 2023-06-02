@@ -1272,7 +1272,7 @@ unit_tmp1 =
           ,redoLog = mempty
                   })
       (i,p) = create' ip
-    in progActionTest (snd <$> ip) [ConFieldAction (qualifyName mn tn) (qualifyName mn vn) 0 [SetCursor i]]--, ConstructArrowL]]
+    in progActionTest (snd <$> ip) [ConFieldAction (qualifyName mn tn) (qualifyName mn vn) 0 [SetCursor i, ConstructArrowL]]
        $ \p0 ep1 -> do
            p0 @?= p
            print $ ("progSel:", progSelection p)
