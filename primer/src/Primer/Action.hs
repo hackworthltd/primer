@@ -11,6 +11,7 @@ module Primer.Action (
   applyActionsToBody,
   applyActionsToTypeSig,
   applyActionsToExpr,
+  applyActionAndSynth,
   applyAction',
   moveExpr,
   enterType,
@@ -268,8 +269,9 @@ applyActionsToField smartHoles imports (mod, mods) (tyName, conName', index, tyD
             (t, zt) <-
               maybe (throwError $ InternalFailure "applyActionsToField: con field index out of bounds") pure
                 =<< flip (adjustAtA' index) ts \fieldType -> do
-                  zt <- withWrappedType fieldType \zt ->
-                    foldlM (\l -> local addParamsToCxt . flip applyActionAndSynth l) (InType zt) actions
+                  traceM $ "fieldType = " <> show fieldType
+                  zt <- withWrappedType fieldType (\zt ->
+                    foldlM (\l -> local addParamsToCxt . flip applyActionAndSynth l) (InType zt) actions)
                   pure (target (top zt), zt)
             pure (ValCon conName' t, zt)
       let mod' = mod{moduleTypes = insert tyName (TypeDefAST tyDef{astTypeDefConstructors = valCons}) $ moduleTypes mod}
@@ -279,15 +281,22 @@ applyActionsToField smartHoles imports (mod, mods) (tyName, conName', index, tyD
     withWrappedType :: ActionM m => Type -> (TypeZ -> m Loc) -> m TypeZ
     withWrappedType ty f = do
       wrappedType <- ann emptyHole (pure ty)
-      let unwrapError = throwError $ InternalFailure "applyActionsToField: failed to unwrap type"
+      traceM $ "wrappedType = " <> show wrappedType
+      let --unwrapError = throwError $ InternalFailure "applyActionsToField: failed to unwrap type"
           wrapError = throwError $ InternalFailure "applyActionsToField: failed to wrap type"
           focusedType = focusType $ focus wrappedType
       case focusedType of
         Nothing -> wrapError
-        Just wrappedTy ->
+        Just wrappedTy -> do
+          traceM $ "wrappedTy .target = " <> show (target wrappedTy)
+          traceM $ "wrappedTy .top = " <> show (target $ top wrappedTy)
           f wrappedTy >>= \case
             InType zt -> pure zt
-            z -> maybe unwrapError pure (focusType (unfocusLoc z))
+            InExpr ez -> do
+              traceM $ "ez .target = " <> show (target ez)
+              traceM $ "ez .top = " <> show (target $ top ez)
+              throwError $ InternalFailure $ "applyActionsToField: InExpr, " <> show (target ez)
+            InBind _ -> error "applyActionsToField: InBind"
 
 data Refocus = Refocus
   { pre :: Loc

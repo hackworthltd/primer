@@ -34,7 +34,9 @@ import Primer.Action (
     ConChild,
     Parent
   ),
+  applyActionAndSynth,
  )
+import Primer.Zipper
 import Primer.App (
   App,
   DefSelection (..),
@@ -130,6 +132,7 @@ import Primer.Test.Util (LogMsg, assertNoSevereLogs, constructSaturatedCon, cons
 import Primer.Test.Util qualified as Util
 import Primer.TypeDef (ASTTypeDef (..), TypeDef (..), ValCon (..), forgetTypeDefMetadata, typeDefAST)
 import Primer.Typecheck (
+  initialCxt,
   KindError (UnknownTypeConstructor),
   SmartHoles (NoSmartHoles, SmartHoles),
   TypeError (KindError),
@@ -1256,7 +1259,7 @@ unit_tmp =
       ed = DefAST <$> (ASTDef <$> ee <*> et)
       --im = (\(i,td') ed' -> (i,Module mn (Map.singleton tn td') (Map.singleton en ed'))) <$> itd <*> ed
       im = (\(i,td') ed' -> (i,Module mn (Map.singleton tn td') mempty)) <$> itd <*> ed
-      (i,p) = create' $ do
+      ip = do
         (i,m') <- im
         pure (i,Prog {
           progImports = []
@@ -1266,13 +1269,40 @@ unit_tmp =
           ,progLog = mempty
           ,redoLog = mempty
                   })
-    in progActionTest (pure p) [ConFieldAction (qualifyName mn tn) (qualifyName mn vn) 0 [SetCursor i]] --, ConstructArrowL]]
-       $ expectSuccess $ \p0 p1 -> do
+      (i,p) = create' ip
+    in progActionTest (snd <$> ip) [ConFieldAction (qualifyName mn tn) (qualifyName mn vn) 0 [SetCursor i]]--, ConstructArrowL]]
+       $ \p0 ep1 -> do
            p0 @?= p
-           print $ progSelection p
-           print $ progModules p
-           print i
-           (moduleTypes <$> progModules p1) @?= (moduleTypes <$> progModules p0)
+           print $ ("progSel:", progSelection p)
+           print $ ("progModules: ",progModules p)
+           print ("i",i)
+           case ep1 of
+             Left err -> assertFailure $ show err
+             Right p1 -> (moduleTypes <$> progModules p1) @?= (moduleTypes <$> progModules p0)
+
+unit_tmp2 :: Assertion
+unit_tmp2 = do
+  let ((t,e),i) = create $ do
+        t <- thole tEmptyHole
+        e <- ann emptyHole (pure t)
+        pure (t,e)
+  let (Just zt) = focusType $ focus e
+  print ("tmp2: zt.target", target zt)
+  print ("tmp2: zt.top.target", target $ top zt)
+  print ("tmp2: zt.unfocusType.top.target", target $ unfocusType $ top zt)
+  let res = evalTestM i $ runExceptT $ flip runReaderT (initialCxt SmartHoles) $ applyActionAndSynth (SetCursor 0) (InType zt)
+  case res of
+    Left err -> assertFailure $ show err
+    Right (InExpr ez) -> do
+      print ("tmp2: ez.target", target ez)
+      print ("tmp2: ez.top.target", target $ top ez)
+      assertFailure "InExpr"
+    Right (InBind _) -> assertFailure "InBind"
+    Right (InType tz) -> do
+      print ("tmp2: tz.target", target tz)
+      print ("tmp2: tz.top.target", target $ top tz)
+      pure ()
+
 
 
 unit_AddConField_case_ann :: Assertion
