@@ -639,7 +639,7 @@ applyProgAction prog = \case
       -- see https://github.com/hackworthltd/primer/issues/3)
       (TypeDefError . show @TypeError)
       ( runReaderT
-          (checkTypeDefs $ Map.singleton tc (TypeDefAST td))
+          (void $ checkTypeDefs $ Map.singleton tc td')
           (buildTypingContextFromModules (progAllModules prog) NoSmartHoles)
       )
     pure
