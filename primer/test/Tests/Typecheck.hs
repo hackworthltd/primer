@@ -56,6 +56,7 @@ import Primer.Builtins.DSL (
   listOf,
  )
 import Primer.Core (
+  qualifyName,
   Expr,
   Expr' (..),
   ExprMeta,
@@ -115,9 +116,10 @@ import Primer.TypeDef (
   ValCon (..),
   astTypeDefConstructors,
   typeDefKind,
-  valConType,
+  valConType, forgetTypeDefMetadata,
  )
 import Primer.Typecheck (
+  checkADTTypeDef,
   CheckEverythingRequest (CheckEverything, toCheck, trusted),
   Cxt (smartHoles),
   ExprT,
@@ -133,7 +135,7 @@ import Primer.Typecheck (
   mkTAppCon,
   synth,
   synthKind,
-  typeTtoType,
+  typeTtoType, checkTypeDefs,
  )
 import Tasty (Property, property, withDiscards, withTests)
 import Test.Tasty.HUnit (Assertion, assertBool, assertFailure, (@?=))
@@ -926,6 +928,52 @@ tasty_tcWholeProg_idempotent = withTests 500 $
         Left err -> annotateShow err >> failure
         Right (p', p'') -> TypeCacheAlpha p' === TypeCacheAlpha p''
 
+unit_tmpA :: Assertion
+unit_tmpA =
+  let mn = (ModuleName ["M"])
+      mkATd t = do
+        t' <- t
+        pure $ ASTTypeDef [] [ValCon (qualifyName mn "C") [t']] []
+      mkTd = fmap TypeDefAST . mkATd
+      mkMod t = do
+        td <- mkTd t
+        pure $ Module mn (Map.singleton "T" td) mempty
+      mkProg t = do
+        m <- mkMod t
+        pure $
+          Prog
+            { progImports = []
+            , progModules = [m]
+            , progSmartHoles = SmartHoles
+            , progSelection = Nothing
+            , progLog = defaultLog
+            , redoLog = defaultLog
+            }
+      t0 = thole $ thole tEmptyHole
+      ad0 = create' $ mkATd $ thole $ thole tEmptyHole
+      d0 = create' $ mkTd $ thole $ thole tEmptyHole
+      m0 = create' $ mkMod $ thole $ thole tEmptyHole
+      a0 = create' $ mkProg $ thole $ thole tEmptyHole
+      t1 = tEmptyHole
+      ad1 = create' $ mkATd tEmptyHole
+      ad1' = runTypecheckTestM SmartHoles $ checkADTTypeDef (qualifyName mn "T") ad0
+      d1 = create' $ mkTd tEmptyHole
+      d1' = runTypecheckTestM SmartHoles $ checkTypeDefs $ Map.singleton (qualifyName mn "T") d0
+      m1 = create' $ mkMod tEmptyHole
+      m1' = runTypecheckTestM SmartHoles $ checkEverything SmartHoles $ CheckEverything {trusted = [], toCheck = [m0]}
+      a1 = create' $ mkProg tEmptyHole
+      a1' = evalTestM 0 $ runExceptT @TypeError $ tcWholeProg a0
+      fm = Map.toList . fmap forgetTypeDefMetadata . moduleTypes
+      fp = fm <=< progModules
+   in do
+        -- I don't understand why:
+        smartSynthKindGives t0 t1 -- passes
+        smartCheckKindGives KType t0 t1 -- passes
+        fmap (forgetTypeDefMetadata . TypeDefAST) ad1' @?= Right (forgetTypeDefMetadata $ TypeDefAST ad1) -- fails
+        fmap (fmap forgetTypeDefMetadata) d1' @?= Right (Map.singleton (qualifyName mn "T") $ forgetTypeDefMetadata d1) -- fails
+        fmap (fmap fm) m1' @?= Right [fm m1] -- fails
+        fmap fp a1' @?= Right (fp a1) -- fails
+
 -- Check that all our builtins are well formed
 -- (these are used to seed initial programs)
 checkProgWellFormed :: HasCallStack => (forall m. MonadFresh ID m => m Prog) -> Assertion
@@ -1002,6 +1050,16 @@ smartSynthGives eIn eExpect =
           TCChkedAt t -> t
           -- if there are both, we arbitrarily choose the synthed type
           TCEmb TCBoth{tcSynthed = t} -> t
+
+smartCheckKindGives :: HasCallStack => Kind -> TypecheckTestM Type -> TypecheckTestM Type -> Assertion
+smartCheckKindGives k tIn tExpect =
+  case ( runTypecheckTestM SmartHoles (tIn >>= checkKind k)
+       , runTypecheckTestM NoSmartHoles (tExpect >>= checkKind k)
+       ) of
+    (_, Left err) -> assertFailure $ "Error in expected: " <> show err
+    (Left err, _) -> assertFailure $ "Error in input: " <> show err
+    -- Compare result to input, ignoring any difference in IDs
+    (Right tGot, Right tExpect') -> on (@?=) zeroTypeIDs tGot tExpect'
 
 smartSynthKindGives :: HasCallStack => TypecheckTestM Type -> TypecheckTestM Type -> Assertion
 smartSynthKindGives tIn tExpect =

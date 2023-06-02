@@ -16,6 +16,7 @@ module Primer.Typecheck (
   synthKind,
   checkKind,
   checkTypeDefs,
+  checkADTTypeDef,
   checkValidContext,
   CheckEverythingRequest (..),
   checkEverything,
@@ -351,7 +352,7 @@ checkTypeDefs tds = do
         (distinct $ map (unLocalName . fst) params)
         "Duplicate parameter names in one tydef"
       traverseOf #_TypeDefAST (checkADTTypeDef tc) td
-    checkADTTypeDef tc td = do
+checkADTTypeDef tc td = do
       let params = astTypeDefParameters td
       let cons = astTypeDefConstructors td
       assert
