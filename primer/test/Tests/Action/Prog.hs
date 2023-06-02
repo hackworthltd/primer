@@ -1247,14 +1247,13 @@ unit_tmp =
                                                        }
       en = "a1"
       et = tEmptyHole
-      ee = lAM "x" $ (case_ (((let_ "x" emptyHole emptyHole) `ann` (tforall "x" KType tEmptyHole)) `aPP` tvar "x") [] `ann` tEmptyHole) `ann` tEmptyHole
+      ee = lAM "x" $ case_ (emptyHole `aPP` tvar "x") []
       ed = DefAST <$> (ASTDef <$> ee <*> et)
       m = (\ed' -> Module mn (Map.singleton tn td) (Map.singleton en ed')) <$> ed
       p = do
-        bm <- builtinModule
         m' <- m
         pure Prog {
-          progImports = [bm]
+          progImports = []
           , progModules = [m']
           ,progSelection = Nothing
           ,progSmartHoles = SmartHoles
