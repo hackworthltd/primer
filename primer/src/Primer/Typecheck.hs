@@ -410,13 +410,13 @@ checkEverything sh CheckEverything{trusted, toCheck} =
         let newTypes = foldMap' moduleTypesQualified toCheck
         checkTypeDefs newTypes
         local (extendTypeDefCxt newTypes) $ do
-          -- Kind check and update (for smartholes) all the types.
+          -- Kind check and update (for smartholes) all the type signatures.
           -- Note that this may give ill-typed definitions if the type changes
           -- since we have not checked the expressions against the new types.
-          updatedTypes <- traverseOf (traverseDefs % #_DefAST % #astDefType) (fmap typeTtoType . checkKind' KType) toCheck
+          updatedSigs <- traverseOf (traverseDefs % #_DefAST % #astDefType) (fmap typeTtoType . checkKind' KType) toCheck
           -- Now extend the context with the new types
-          let defsUpdatedTypes = itoListOf foldDefTypesWithName updatedTypes
-          local (extendGlobalCxt defsUpdatedTypes) $
+          let defsUpdatedSigs = itoListOf foldDefTypesWithName updatedSigs
+          local (extendGlobalCxt defsUpdatedSigs) $
             -- Check the body (of AST definitions) against the new type
             traverseOf
               (traverseDefs % #_DefAST)
@@ -424,7 +424,7 @@ checkEverything sh CheckEverything{trusted, toCheck} =
                   e <- check (forgetTypeMetadata $ astDefType def) (astDefExpr def)
                   pure $ def{astDefExpr = exprTtoExpr e}
               )
-              updatedTypes
+              updatedSigs
   where
     -- The first argument of traverseDefs' is intended to either
     -- - be equality, giving a traveral
