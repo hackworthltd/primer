@@ -13,7 +13,8 @@ import Data.Map.Strict qualified as Map
 import Optics
 import Primer.Action (
   Action (
-    ConstructAnn,
+      SetCursor,
+      ConstructAnn,
     ConstructApp,
     ConstructArrowL,
     ConstructCase,
@@ -105,6 +106,7 @@ import Primer.Core.DSL (
   create,
   create',
   emptyHole,
+  thole,
   gvar,
   hole,
   lAM,
@@ -1232,24 +1234,27 @@ unit_AddConField =
 unit_tmp :: Assertion
 unit_tmp =
   let mn = ModuleName { unModuleName = "M" :| [ "0" ] }
-      tn = "a10"
-      vn = "a"
-      td = TypeDefAST
+      tn = "T"
+      vn = "C"
+      (i,td) = create' $ do
+        fld <- thole tEmptyHole
+        pure (getID fld,TypeDefAST
                                                      ASTTypeDef
                                                        { astTypeDefParameters = []
                                                        , astTypeDefConstructors =
                                                            [ ValCon
                                                                { valConName = qualifyName mn vn
-                                                               , valConArgs = []
+                                                               , valConArgs = [fld]
                                                                }
                                                            ]
                                                        , astTypeDefNameHints = []
                                                        }
+               )
       en = "a1"
       et = tEmptyHole
       ee = lAM "x" $ case_ (emptyHole `aPP` tvar "x") []
       ed = DefAST <$> (ASTDef <$> ee <*> et)
-      m = (\ed' -> Module mn (Map.singleton tn td) (Map.singleton en ed')) <$> ed
+      m = (\td' ed' -> Module mn (Map.singleton tn td') (Map.singleton en ed')) <$> pure td <*> ed
       p = do
         m' <- m
         pure Prog {
@@ -1260,8 +1265,8 @@ unit_tmp =
           ,progLog = mempty
           ,redoLog = mempty
                   }
-    in progActionTest p [AddConField (qualifyName mn tn) (qualifyName mn vn) 0 $ TEmptyHole ()] $
-       expectSuccess $ \_ _ -> pure ()
+    in progActionTest p [ConFieldAction (qualifyName mn tn) (qualifyName mn vn) 0 [SetCursor i, ConstructArrowL]]
+       $ expectSuccess $ \_ _ -> pure ()
 
 unit_AddConField_case_ann :: Assertion
 unit_AddConField_case_ann =

@@ -402,6 +402,7 @@ tasty_available_actions_accepted = withTests 500 $
               progActs <-
                 either (\e -> annotateShow e >> failure) pure $
                   toProgActionNoInput (map snd $ progAllDefs $ appProg a) def loc act'
+              annotateShow progActs
               actionSucceeds (handleEditRequest progActs) a
             Available.Input act' -> do
               Available.Options{Available.opts, Available.free} <-
@@ -427,6 +428,7 @@ tasty_available_actions_accepted = withTests 500 $
                   opt <- forAllT $ Gen.choice options
                   footnoteShow opt
                   progActs <- either (\e -> annotateShow e >> failure) pure $ toProgActionInput def loc (snd opt) act'
+                  annotateShow progActs
                   actionSucceedsOrCapture (fst opt) (handleEditRequest progActs) a
   where
     runEditAppMLogs ::

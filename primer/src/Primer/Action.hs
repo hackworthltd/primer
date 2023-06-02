@@ -165,6 +165,7 @@ import Primer.Zipper (
   _target,
  )
 import Primer.ZipperCxt (localVariablesInScopeExpr)
+import Protolude.Error (error)
 
 -- | Given a definition name and a program, return a unique variant of
 -- that name (within the specified module). Note that if no definition
@@ -437,7 +438,12 @@ applyAction' a = case a of
   ExitType -> \case
     InType zt -> pure $ InExpr $ unfocusType zt
     _ -> throwError $ CustomFailure ExitType "cannot exit type - not in type"
-  ConstructArrowL -> typeAction constructArrowL "cannot construct arrow - not in type"
+  ConstructArrowL -> \l -> do
+   case l of
+    InExpr ez -> throwError $ CustomFailure a $ "InExpr, " <> show (target ez)
+    InType tz -> pure ()
+    InBind _ -> error "InBind"
+   typeAction constructArrowL "cannot construct arrow - not in type" l
   ConstructArrowR -> typeAction constructArrowR "cannot construct arrow - not in type"
   ConstructTCon c -> typeAction (constructTCon c) "cannot construct tcon in expr"
   ConstructTVar v -> typeAction (constructTVar v) "cannot construct tvar in expr"
