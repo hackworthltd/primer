@@ -361,7 +361,7 @@ checkADTTypeDef tc td = do
               qualifiedModule tc : fmap (qualifiedModule . valConName) cons
         )
         "Module name of type and all constructors must be the same"
-      local (noSmartHoles . extendLocalCxtTys params) $
+      local (extendLocalCxtTys params) $
         traverseOf astTypeDefConArgs (checkKind' KType) td
 
 astTypeDefConArgs :: Traversal (ASTTypeDef a) (ASTTypeDef b) (Type' a) (Type' b)
