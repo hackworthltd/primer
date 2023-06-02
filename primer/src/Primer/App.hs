@@ -132,6 +132,7 @@ import Primer.Core (
   GVarName,
   GlobalName (baseName, qualifiedModule),
   ID (..),
+  Kind (KType),
   LocalName (LocalName, unLocalName),
   Meta (..),
   ModuleName (ModuleName),
@@ -216,6 +217,7 @@ import Primer.Typecheck (
   checkEverything,
   checkTypeDefs,
  )
+import Primer.Typecheck qualified as TC
 import Primer.Zipper (
   ExprZ,
   Loc' (InBind, InExpr, InType),
@@ -805,19 +807,23 @@ applyProgAction prog = \case
         )
     where
       updateTypeDef =
-        alterTypeDef
-          ( traverseOf #astTypeDefConstructors $
-              maybe (throwError $ ConNotFound con) pure
-                <=< findAndAdjustA
-                  ((== con) . valConName)
-                  ( traverseOf
-                      #valConArgs
-                      ( maybe (throwError $ IndexOutOfRange index) pure
-                          <=< liftA2 (insertAt index) (generateTypeIDs new) . pure
+        let new' =
+              runReaderT
+                (liftError (ActionError . TypeError) $ fmap TC.typeTtoType $ TC.checkKind KType =<< generateTypeIDs new)
+                (progCxt prog)
+         in alterTypeDef
+              ( traverseOf #astTypeDefConstructors $
+                  maybe (throwError $ ConNotFound con) pure
+                    <=< findAndAdjustA
+                      ((== con) . valConName)
+                      ( traverseOf
+                          #valConArgs
+                          ( maybe (throwError $ IndexOutOfRange index) pure
+                              <=< liftA2 (insertAt index) new' . pure
+                          )
                       )
-                  )
-          )
-          type_
+              )
+              type_
       -- NB: we must updateDecons first, as transformCaseBranches may do
       -- synthesis of the scrutinee's type, using the old typedef. Thus we must
       -- not update the scrutinee before this happens.
