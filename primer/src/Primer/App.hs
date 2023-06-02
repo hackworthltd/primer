@@ -155,6 +155,7 @@ import Primer.Core (
   _chkedAt,
   _exprMeta,
   _exprMetaLens,
+  _synthed,
   _type,
   _typeMetaLens,
  )
@@ -214,7 +215,6 @@ import Primer.Typecheck (
   buildTypingContextFromModules,
   checkEverything,
   checkTypeDefs,
-  synth,
  )
 import Primer.Zipper (
   ExprZ,
@@ -757,7 +757,7 @@ applyProgAction prog = \case
         , Just $ SelectionTypeDef $ TypeDefSelection type_ $ Just $ TypeDefConsNodeSelection $ TypeDefConsSelection con Nothing
         )
     where
-      updateDefs allCons = transformNamedCaseBranches prog type_ $ \t' bs -> do
+      updateDefs allCons = transformNamedCaseBranches type_ $ \t' bs -> do
         m' <- DSL.meta' $ (\t'' -> TCEmb $ TCBoth{tcChkedAt = t'', tcSynthed = TEmptyHole ()}) <$> t'
         pure $ insertSubseqBy caseBranchName (CaseBranch (PatCon con) [] (EmptyHole m')) (PatCon . valConName <$> allCons) bs
       updateTypeDef =
@@ -825,7 +825,7 @@ applyProgAction prog = \case
             Just args' -> pure $ Con m con' args'
             Nothing -> throwError $ ConNotSaturated con
         e -> pure e
-      updateDecons = transformNamedCaseBranch prog type_ con . const $
+      updateDecons = transformNamedCaseBranch type_ con . const $
         \(CaseBranch vc binds e) -> do
           m' <- DSL.meta' $ Just (TCChkedAt (TEmptyHole ()))
           newName <- LocalName <$> freshName (freeVars e)
@@ -1685,18 +1685,16 @@ alterTypeDef f type_ m = do
 -- The transformation function gets the type the case was checked at as well as all the branches.
 transformCaseBranches ::
   MonadEdit m ProgError =>
-  Prog ->
   TyConName ->
   (Maybe (Type' ()) -> ([CaseBranch], CaseFallback) -> m ([CaseBranch], CaseFallback)) ->
   Expr ->
   m Expr
-transformCaseBranches prog type_ f = transformM $ \case
+transformCaseBranches type_ f = transformM $ \case
   Case m scrut bs fb -> do
-    scrutType <-
-      fst
-        <$> runReaderT
-          (liftError (ActionError . TypeError) $ synth scrut)
-          (progCxt prog)
+    let scrutType' = scrut ^? _exprMetaLens % _type % _Just % _synthed
+    scrutType <- case scrutType' of
+      Nothing -> throwError' $ InternalFailure "transformCaseBranches: scrutinees did not have a cached synthesised type"
+      Just t -> pure t
     (bs', fb') <-
       if fst (unfoldTApp scrutType) == TCon () type_
         then f (m ^? _type % _Just % _chkedAt) (bs, fb)
@@ -1708,25 +1706,23 @@ transformCaseBranches prog type_ f = transformM $ \case
 -- expressions on the given type, leaving any fallback branch untouched.
 transformNamedCaseBranches ::
   MonadEdit m ProgError =>
-  Prog ->
   TyConName ->
   (Maybe (Type' ()) -> [CaseBranch] -> m [CaseBranch]) ->
   Expr ->
   m Expr
-transformNamedCaseBranches prog type_ f = transformCaseBranches prog type_ (\m (bs, fb) -> (,fb) <$> f m bs)
+transformNamedCaseBranches type_ f = transformCaseBranches type_ (\m (bs, fb) -> (,fb) <$> f m bs)
 
 -- | Apply a bottom-up transformation to non-fallback case branches matching the
 -- given (type and) constructor.
 transformNamedCaseBranch ::
   MonadEdit m ProgError =>
-  Prog ->
   TyConName ->
   ValConName ->
   -- This only supports ADT case branches, since we cannot edit primitives
   (Maybe (Type' ()) -> CaseBranch -> m CaseBranch) ->
   Expr ->
   m Expr
-transformNamedCaseBranch prog type_ con f = transformNamedCaseBranches prog type_ $ \m ->
+transformNamedCaseBranch type_ con f = transformNamedCaseBranches type_ $ \m ->
   traverse $
     \cb -> if caseBranchName cb == PatCon con then f m cb else pure cb
 
