@@ -1236,7 +1236,7 @@ unit_tmp =
   let mn = ModuleName { unModuleName = "M" :| [ "0" ] }
       tn = "T"
       vn = "C"
-      (i,td) = create' $ do
+      itd = do
         fld <- thole tEmptyHole
         pure (getID fld,TypeDefAST
                                                      ASTTypeDef
@@ -1254,19 +1254,26 @@ unit_tmp =
       et = tEmptyHole
       ee = lAM "x" $ case_ (emptyHole `aPP` tvar "x") []
       ed = DefAST <$> (ASTDef <$> ee <*> et)
-      m = (\td' ed' -> Module mn (Map.singleton tn td') (Map.singleton en ed')) <$> pure td <*> ed
-      p = do
-        m' <- m
-        pure Prog {
+      --im = (\(i,td') ed' -> (i,Module mn (Map.singleton tn td') (Map.singleton en ed'))) <$> itd <*> ed
+      im = (\(i,td') ed' -> (i,Module mn (Map.singleton tn td') mempty)) <$> itd <*> ed
+      (i,p) = create' $ do
+        (i,m') <- im
+        pure (i,Prog {
           progImports = []
           , progModules = [m']
           ,progSelection = Nothing
           ,progSmartHoles = SmartHoles
           ,progLog = mempty
           ,redoLog = mempty
-                  }
-    in progActionTest p [ConFieldAction (qualifyName mn tn) (qualifyName mn vn) 0 [SetCursor i, ConstructArrowL]]
-       $ expectSuccess $ \_ _ -> pure ()
+                  })
+    in progActionTest (pure p) [ConFieldAction (qualifyName mn tn) (qualifyName mn vn) 0 [SetCursor i]] --, ConstructArrowL]]
+       $ expectSuccess $ \p0 p1 -> do
+           p0 @?= p
+           print $ progSelection p
+           print $ progModules p
+           print i
+           (moduleTypes <$> progModules p1) @?= (moduleTypes <$> progModules p0)
+
 
 unit_AddConField_case_ann :: Assertion
 unit_AddConField_case_ann =
