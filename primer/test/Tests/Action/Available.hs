@@ -72,7 +72,7 @@ import Primer.App (
   progImports,
   progModules,
   progSmartHoles,
-  runEditAppM,
+  runEditAppM, handleEvalFullRequest, EvalFullReq (EvalFullReq),
  )
 import Primer.Builtins (builtinModuleName, cCons, tBool, tList, tNat)
 import Primer.Core (
@@ -158,6 +158,7 @@ import Tests.Typecheck (
   runTypecheckTestMIn,
  )
 import Text.Pretty.Simple (pShowNoColor)
+import Primer.EvalFull (Dir(Chk))
 
 -- | Comprehensive DSL test.
 test_1 :: TestTree
@@ -466,6 +467,7 @@ runRandomAvailableAction l a = do
 data Act
   = AddTm
   | AddTy
+  | Ev
   | Un
   | Re
   | Avail
@@ -514,6 +516,7 @@ tasty_undo_redo = withTests 500 $
             second pure
               <$> [ (2, AddTm)
                   , (1, AddTy)
+                  , (1, Ev)
                   , (if null $ unlog $ progLog $ appProg a then 0 else 1, Un) -- TODO: expose a "log-is-null" helper from App?
                   , (if null $ unlog $ redoLog $ appProg a then 0 else 1, Re) -- TODO: expose a "log-is-null" helper from App?
                   , (5, Avail)
@@ -529,6 +532,10 @@ tasty_undo_redo = withTests 500 $
           let n' = local (extendCxtByModules $ progModules $ appProg a) freshNameForCxt
           n <- qualifyName m <$> forAllT n'
           runEditAppMLogs (handleMutationRequest $ Edit [AddTypeDef n $ ASTTypeDef [] [] []]) a
+        Ev -> do
+          g <- forAllT $ Gen.element $ foldMap' (M.keys . moduleDefsQualified) $ progModules $ appProg a
+          tld <- gvar g
+          runEditAppMLogs (handleEvalFullRequest $ EvalFullReq tld Chk 100) a
         Un -> runEditAppMLogs (handleMutationRequest Undo) a
         Re -> runEditAppMLogs (handleMutationRequest Redo) a
         Avail -> fromMaybe a <$> runRandomAvailableAction l a
