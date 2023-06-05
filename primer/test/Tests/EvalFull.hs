@@ -42,6 +42,7 @@ import Primer.Core.DSL
 import Primer.Core.Utils (
   exprIDs,
   forgetMetadata,
+  generateIDs,
  )
 import Primer.Def (DefMap)
 import Primer.Eval
@@ -51,7 +52,7 @@ import Primer.Examples qualified as Examples (
   map',
   odd,
  )
-import Primer.Gen.Core.Typed (WT, forAllT, isolateWT, propertyWT)
+import Primer.Gen.Core.Typed (WT, forAllT, genChk, isolateWT, propertyWT)
 import Primer.Log (runPureLogT)
 import Primer.Module (
   Module (Module, moduleDefs, moduleName, moduleTypes),
@@ -120,7 +121,7 @@ import Tasty (
  )
 import Test.Tasty.HUnit (Assertion, assertBool, assertFailure, (@?=))
 import Tests.Action.Prog (readerToState)
-import Tests.Eval.Utils (genDirTm, hasTypeLets, testModules, (~=))
+import Tests.Eval.Utils (genDirTm, hasHoles, hasTypeLets, testModules, (~=))
 import Tests.Gen.Core.Typed (checkTest)
 import Tests.Typecheck (runTypecheckTestM, runTypecheckTestMWithPrims)
 
@@ -566,6 +567,235 @@ unit_tlet_self_capture = do
         r <~==> expect
    in mapM_ test (zip [0 ..] expected)
 
+-- When doing closed eval (i.e. don't go under binders), pushing a @let@
+-- through a binder is not considered to be "under" that binder, else
+-- @(let x=t1 in λy.t2 : S -> T) t3@ would be stuck.
+unit_closed_let_beta :: Assertion
+unit_closed_let_beta =
+  let ((expr, expected), maxID) = create $ do
+        e0 <-
+          let_
+            "x"
+            (con0 cFalse `ann` tcon tBool)
+            ( lam "y" (con cCons [lvar "x", lvar "y"])
+                `ann` (tcon tBool `tfun` (tcon tList `tapp` tcon tBool))
+            )
+            `app` con0 cTrue
+        e1 <-
+          let_
+            "x"
+            (con0 cFalse `ann` tcon tBool)
+            ( lam
+                "y"
+                (con cCons [lvar "x", lvar "y"])
+            )
+            `ann` (tcon tBool `tfun` (tcon tList `tapp` tcon tBool))
+            `app` con0 cTrue
+        e2 <-
+          lam
+            "y"
+            ( let_
+                "x"
+                (con0 cFalse `ann` tcon tBool)
+                (con cCons [lvar "x", lvar "y"])
+            )
+            `ann` (tcon tBool `tfun` (tcon tList `tapp` tcon tBool))
+            `app` con0 cTrue
+        e3 <-
+          let_
+            "y"
+            (con0 cTrue `ann` tcon tBool)
+            ( let_
+                "x"
+                (con0 cFalse `ann` tcon tBool)
+                (con cCons [lvar "x", lvar "y"])
+            )
+            `ann` (tcon tList `tapp` tcon tBool)
+        e4 <-
+          con
+            cCons
+            [ let_
+                "x"
+                (con0 cFalse `ann` tcon tBool)
+                (lvar "x")
+            , let_
+                "y"
+                (con0 cTrue `ann` tcon tBool)
+                (lvar "y")
+            ]
+            `ann` (tcon tList `tapp` tcon tBool)
+        e5 <-
+          con
+            cCons
+            [ con0 cFalse `ann` tcon tBool
+            , let_
+                "y"
+                (con0 cTrue `ann` tcon tBool)
+                (lvar "y")
+            ]
+            `ann` (tcon tList `tapp` tcon tBool)
+        e6 <-
+          con
+            cCons
+            [ con0 cFalse
+            , let_
+                "y"
+                (con0 cTrue `ann` tcon tBool)
+                (lvar "y")
+            ]
+            `ann` (tcon tList `tapp` tcon tBool)
+        e7 <-
+          con
+            cCons
+            [ con0 cFalse
+            , con0 cTrue `ann` tcon tBool
+            ]
+            `ann` (tcon tList `tapp` tcon tBool)
+        e8 <-
+          con
+            cCons
+            [ con0 cFalse
+            , con0 cTrue
+            ]
+            `ann` (tcon tList `tapp` tcon tBool)
+        pure (e0, map (Left . TimedOut) [e0, e1, e2, e3, e4, e5, e6, e7, e8] ++ [Right e8])
+      test (n, expect) = do
+        r <- evalFullTestClosed GroupedLets maxID mempty mempty n Syn expr
+        r <~==> expect
+   in mapM_ test (zip [0 ..] expected)
+
+-- Closed eval and handling groups of @let@s singlely work together
+unit_closed_single_lets :: Assertion
+unit_closed_single_lets =
+  let ((expr, expected), maxID) = create $ do
+        e0 <-
+          let_ "x" (con0 cFalse) $
+            let_ "y" (con0 cTrue) $
+              con
+                cMakePair
+                [ lvar "x"
+                , lvar "y"
+                ]
+        e1 <-
+          let_ "x" (con0 cFalse) $
+            con
+              cMakePair
+              [ lvar "x"
+              , let_ "y" (con0 cTrue) $ lvar "y"
+              ]
+        e2 <-
+          con
+            cMakePair
+            [ let_ "x" (con0 cFalse) $ lvar "x"
+            , let_ "y" (con0 cTrue) $ lvar "y"
+            ]
+        e3 <-
+          con
+            cMakePair
+            [ con0 cFalse
+            , let_ "y" (con0 cTrue) $ lvar "y"
+            ]
+        e4 <-
+          con
+            cMakePair
+            [ con0 cFalse
+            , con0 cTrue
+            ]
+        pure (e0, map (Left . TimedOut) [e0, e1, e2, e3, e4] ++ [Right e4])
+      test (n, expect) = do
+        r <- evalFullTestClosed SingleLets maxID mempty mempty n Syn expr
+        r <~==> expect
+   in mapM_ test (zip [0 ..] expected)
+
+-- One reason for not evaluating under binders is to avoid a size blowup when
+-- evaluating a recursive definition. For example, the unsaturated
+-- `map @Bool @Bool not` would keep unrolling the recursive mentions of `map`.
+-- (If it were applied to a concrete list, the beta redexes would be reduced instead.)
+-- Since top-level definitions and recursive lets are essentially the same, one may
+-- worry that we have the same issue with @letrec@. This test shows that closed eval
+-- handles that case also.
+unit_closed_letrec_binder :: Assertion
+unit_closed_letrec_binder =
+  let ((expr, expected), maxID) = create $ do
+        e0 <-
+          letrec "x" (list_ [lvar "x", lvar "x"]) (tcon tBool) $
+            lam "y" $
+              lvar "x"
+        e1 <-
+          lam "y" $
+            letrec "x" (list_ [lvar "x", lvar "x"]) (tcon tBool) $
+              lvar "x"
+        pure (e0, map (Left . TimedOut) [e0, e1] ++ [Right e1])
+      test (n, expect) = do
+        r <- evalFullTestClosed GroupedLets maxID mempty mempty n Syn expr
+        r <~==> expect
+   in mapM_ test (zip [0 ..] expected)
+
+-- closed eval stops at binders
+unit_closed_binders :: Assertion
+unit_closed_binders = do
+  let isNormalIffClosed e = do
+        let (e', i) = create e
+        evalFullTestClosed GroupedLets i mempty mempty 1 Syn e' >>= \case
+          Left (TimedOut _) -> assertFailure $ "not normal form, for closed eval, grouped lets: " <> show e'
+          Right _ -> pure ()
+        evalFullTestClosed SingleLets i mempty mempty 1 Syn e' >>= \case
+          Left (TimedOut _) -> assertFailure $ "not normal form, for closed eval, single lets: " <> show e'
+          Right _ -> pure ()
+        evalFullTest i mempty mempty 1 Syn e' >>= \case
+          Left (TimedOut _) -> pure ()
+          Right _ -> assertFailure $ "unexpectedly a normal form, for open eval: " <> show e'
+      r = let_ "x" emptyHole $ lvar "x"
+  isNormalIffClosed $ lam "x" r
+  isNormalIffClosed $ lAM "a" r
+  isNormalIffClosed $ case_ emptyHole [branch cTrue [("x", Nothing)] r]
+  -- For consistency, we also do not reduce inside case branches even if they do not bind
+  isNormalIffClosed $ case_ emptyHole [branch cTrue [] r]
+
+-- closed eval still pushes lets through binders
+unit_closed_subst :: Assertion
+unit_closed_subst = do
+  let isReducible e = do
+        let (e', i) = create e
+        evalFullTestClosed GroupedLets i mempty mempty 1 Syn e' >>= \case
+          Left (TimedOut _) -> pure ()
+          Right _ -> assertFailure $ "unexpectedly a normal form: " <> show e'
+      l = let_ "x" emptyHole
+      v = lvar "x"
+  isReducible $ l $ lam "y" v
+  isReducible $ l $ lAM "a" v
+  isReducible $ l $ case_ emptyHole [branch cTrue [("x", Nothing)] v]
+  isReducible $ l $ case_ emptyHole [branch cTrue [] v]
+
+-- For (closed, hole free) terms of base types, open and closed evaluation
+-- agree.  We require hole-free-ness, as holes create stuck terms similar to
+-- free variables. Note that we get the same reduction sequence, not only that
+-- they reduce to the same value.
+tasty_open_closed_agree_base_types :: Property
+tasty_open_closed_agree_base_types = withDiscards 1000 $
+  propertyWT testModules $ do
+    let optsV = ViewRedexOptions{groupedLets = True, aggressiveElision = True}
+    let optsR = RunRedexOptions{pushAndElide = True}
+    ty <- forAllT $ Gen.element @[] [tBool, tNat, tInt]
+    tm' <- forAllT $ genChk $ TCon () ty
+    tm <- generateIDs tm'
+    when (hasHoles tm) discard
+    tds <- asks typeDefs
+    let globs = foldMap' moduleDefsQualified $ create' $ sequence testModules
+    let reductionSequence closed expr n =
+          (expr :)
+            <$> if n <= (0 :: Integer)
+              then pure []
+              else
+                evalFull @EvalLog closed optsV optsR tds globs 1 Chk expr >>= \case
+                  Left (TimedOut expr') -> reductionSequence closed expr' (n - 1)
+                  Right _ -> pure []
+    (openSeq, openLogs) <- lift $ isolateWT $ runPureLogT $ reductionSequence UnderBinders tm 100
+    testNoSevereLogs openLogs
+    (closedSeq, closedLogs) <- lift $ isolateWT $ runPureLogT $ reductionSequence StopAtBinders tm 100
+    testNoSevereLogs closedLogs
+    openSeq === closedSeq
+
 -- TODO: examples with holes
 
 -- TODO: most of these property tests could benefit from generating an
@@ -588,7 +818,7 @@ resumeTest mods dir t = do
   let globs = foldMap' moduleDefsQualified mods
   tds <- asks typeDefs
   n <- forAllT $ Gen.integral $ Range.linear 2 1000 -- Arbitrary limit here
-  closed <- forAllT $ Gen.element @[] [UnderBinders]
+  closed <- forAllT $ Gen.frequency [(10, pure UnderBinders), (1, pure StopAtBinders)]
   -- NB: We need to run this first reduction in an isolated context
   -- as we need to avoid it changing the fresh-name-generator state
   -- for the next run (sMid and sTotal). This is because reduction may need
@@ -1016,7 +1246,7 @@ tasty_type_preservation = withTests 1000 $
                 s' <- checkTest ty s
                 forgetMetadata s === forgetMetadata s' -- check no smart holes happened
       maxSteps <- forAllT $ Gen.integral $ Range.linear 1 1000 -- Arbitrary limit here
-      closed <- forAllT $ Gen.element @[] [UnderBinders]
+      closed <- forAllT $ Gen.frequency [(10, pure UnderBinders), (1, pure StopAtBinders)]
       (steps, s) <- failWhenSevereLogs $ evalFullStepCount @EvalLog closed optsV optsR tds globs maxSteps dir t
       annotateShow steps
       annotateShow s
@@ -1543,7 +1773,7 @@ tasty_unique_ids = withTests 1000 $
       let globs = foldMap' moduleDefsQualified $ create' $ sequence testModules
       tds <- asks typeDefs
       (dir, t1, _) <- genDirTm
-      closed <- forAllT $ Gen.element @[] [UnderBinders]
+      closed <- forAllT $ Gen.frequency [(10, pure UnderBinders), (1, pure StopAtBinders)]
       let go n t
             | n == (0 :: Int) = pure ()
             | otherwise = do
@@ -1633,6 +1863,21 @@ evalFullTestExactSteps id_ tydefs globals n d e = do
       case t of
         Left t' -> assertFailure $ "Unexpected timeout: " <> show t'
         Right t' -> pure t'
+
+data GroupedLets = GroupedLets | SingleLets
+
+evalFullTestClosed :: GroupedLets -> ID -> TypeDefMap -> DefMap -> TerminationBound -> Dir -> Expr -> IO (Either EvalFullError Expr)
+evalFullTestClosed gl id_ tydefs globals n d e = do
+  let optsN = StopAtBinders
+  let gl' = case gl of
+        GroupedLets -> True
+        SingleLets -> False
+  let optsV = ViewRedexOptions{groupedLets = gl', aggressiveElision = True}
+  let optsR = RunRedexOptions{pushAndElide = True}
+  let (r, logs) = evalTestM id_ $ runPureLogT $ evalFull @EvalLog optsN optsV optsR tydefs globals n d e
+  assertNoSevereLogs logs
+  distinctIDs r
+  pure r
 
 evalFullTasty :: MonadTest m => ID -> TypeDefMap -> DefMap -> TerminationBound -> Dir -> Expr -> m (Either EvalFullError Expr)
 evalFullTasty id_ tydefs globals n d e = do

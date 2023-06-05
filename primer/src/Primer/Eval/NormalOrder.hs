@@ -22,11 +22,14 @@ import Primer.Core (
     App,
     Case,
     Hole,
+    LAM,
+    Lam,
     Let,
     LetType,
     Letrec
   ),
   Type' (
+    TForall,
     TLet
   ),
  )
@@ -94,6 +97,7 @@ viewLet dez@(_, ez) = case (target ez, exprChildren UnderBinders dez) of
 
 data NormalOrderOptions
   = UnderBinders
+  | StopAtBinders
   deriving stock (Eq, Show, Read, Generic)
   deriving (FromJSON, ToJSON) via PrimerJSON NormalOrderOptions
 
@@ -118,7 +122,9 @@ data NormalOrderOptions
 -- We can optionally stop when we find a binder (e.g. to implement closed
 -- evaluation -- do not compute under binders), although for consistency we
 -- treat all case branches as being binders, even those that do not actually
--- bind a variable.
+-- bind a variable. Note that (for the case where we reduce a stack of @let@s
+-- one-by-one inside-out) we need to go under let bindings, but stop when we
+-- find a non-@let@.
 foldMapExpr :: forall f a. MonadPlus f => NormalOrderOptions -> FMExpr (f a) -> Dir -> Expr -> f a
 foldMapExpr opts extract topDir = go mempty . (topDir,) . focus
   where
@@ -137,9 +143,12 @@ foldMapExpr opts extract topDir = go mempty . (topDir,) . focus
           -- its type annotation, we can handle them all uniformly
           -- Since this node is not a let, the context is reset
           _ ->
-            msum $
-              (goType mempty =<< focusType' ez) -- NB: no binders in term scope over a type child
-                : map (go mempty) (exprChildren opts dez)
+            case (opts, lets) of
+              (StopAtBinders, Cxt (_ : _)) -> mzero
+              _ ->
+                msum $
+                  (goType mempty =<< focusType' ez) -- NB: no binders in term scope over a type child
+                    : map (go mempty) (exprChildren opts dez)
     goType :: Cxt -> TypeZ -> f a
     goType lets tz =
       extract.ty tz lets
@@ -202,13 +211,30 @@ exprChildren' (d, ez) =
           _ -> Chk
     (d', c)
 
+-- Extract the children of the current focus, except those under an binder.
+-- This is used to restrict our evaluation to "closed evaluation".
+-- NB: for consistency we skip all case branches, not just those that bind a variable.
+exprChildrenClosed :: (Dir, ExprZ) -> [(Dir, ExprZ)]
+exprChildrenClosed (d, ez) = case target ez of
+  Lam{} -> []
+  LAM{} -> []
+  Let{} -> take 1 $ exprChildren' (d, ez) -- just the binding
+  LetType{} -> []
+  Letrec{} -> []
+  Case{} -> take 1 $ exprChildren' (d, ez) -- just the scrutinee
+  _ -> exprChildren' (d, ez)
+
 exprChildren :: NormalOrderOptions -> (Dir, ExprZ) -> [(Dir, ExprZ)]
 exprChildren = \case
   UnderBinders -> exprChildren'
+  StopAtBinders -> exprChildrenClosed
 
 typeChildren :: NormalOrderOptions -> TypeZ -> [TypeZ]
 typeChildren = \case
   UnderBinders -> children'
+  StopAtBinders -> \tz -> case target tz of
+    TForall{} -> []
+    _ -> children' tz
 
 singletonCxt :: LetBinding -> Cxt
 singletonCxt l = Cxt [l]
