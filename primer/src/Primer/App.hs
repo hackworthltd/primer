@@ -103,6 +103,7 @@ import Primer.Action (
   applyActionsToBody,
   applyActionsToField,
   applyActionsToTypeSig,
+  insertSubseqBy,
  )
 import Primer.Action.ProgError (ProgError (..))
 import Primer.App.Base (
@@ -123,6 +124,7 @@ import Primer.Core (
   Bind' (Bind),
   CaseBranch,
   CaseBranch' (CaseBranch),
+  CaseFallback,
   Expr,
   Expr' (Case, Con, EmptyHole, Var),
   GVarName,
@@ -131,12 +133,14 @@ import Primer.Core (
   LocalName (LocalName, unLocalName),
   Meta (..),
   ModuleName (ModuleName),
+  Pattern (PatCon),
   TmVarRef (GlobalVarRef, LocalVarRef),
   TyConName,
   Type,
   Type' (..),
   TypeMeta,
   ValConName,
+  caseBranchName,
   getID,
   mkSimpleModuleName,
   qualifyName,
@@ -693,7 +697,7 @@ applyProgAction prog = \case
         over (traversed % #_DefAST % #astDefExpr) $
           transform $
             over (#_Con % _2) updateName
-              . over (#_Case % _3 % traversed % #_CaseBranch % _1) updateName
+              . over (#_Case % _3 % traversed % #_CaseBranch % _1 % #_PatCon) updateName
       updateName n = if n == old then new else n
   RenameTypeParam type_ old (unsafeMkLocalName -> new) ->
     editModule (qualifiedModule type_) prog $ \m -> do
@@ -732,19 +736,21 @@ applyProgAction prog = \case
     editModuleCross (qualifiedModule type_) prog $ \(m, ms) -> do
       when (con `elem` allValConNames prog) $ throwError $ ConAlreadyExists con
       m' <- updateType m
+      newTy <- maybe (throwError $ TypeDefNotFound type_) pure $ moduleTypesQualified m' Map.!? type_
+      allCons <- maybe (throwError $ TypeDefIsPrim type_) (pure . astTypeDefConstructors) $ typeDefAST newTy
       ms' <-
         traverseOf
           (traversed % #moduleDefs % traversed % #_DefAST % #astDefExpr)
-          updateDefs
+          (updateDefs allCons)
           $ m' : ms
       pure
         ( ms'
         , Just $ SelectionTypeDef $ TypeDefSelection type_ $ Just $ TypeDefConsNodeSelection $ TypeDefConsSelection con Nothing
         )
     where
-      updateDefs = transformCaseBranches prog type_ $ \bs -> do
+      updateDefs allCons = transformNamedCaseBranches prog type_ $ \bs -> do
         m' <- DSL.meta
-        maybe (throwError $ IndexOutOfRange index) pure $ insertAt index (CaseBranch con [] (EmptyHole m')) bs
+        pure $ insertSubseqBy caseBranchName (CaseBranch (PatCon con) [] (EmptyHole m')) (PatCon . valConName <$> allCons) bs
       updateType =
         alterTypeDef
           ( traverseOf
@@ -792,15 +798,12 @@ applyProgAction prog = \case
             Just args' -> pure $ Con m con' args'
             Nothing -> throwError $ ConNotSaturated con
         e -> pure e
-      updateDecons = transformCaseBranches prog type_ $
-        traverse $ \cb@(CaseBranch vc binds e) ->
-          if vc == con
-            then do
-              m' <- DSL.meta
-              newName <- LocalName <$> freshName (freeVars e)
-              binds' <- maybe (throwError $ IndexOutOfRange index) pure $ insertAt index (Bind m' newName) binds
-              pure $ CaseBranch vc binds' e
-            else pure cb
+      updateDecons = transformNamedCaseBranch prog type_ con $
+        \(CaseBranch vc binds e) -> do
+          m' <- DSL.meta
+          newName <- LocalName <$> freshName (freeVars e)
+          binds' <- maybe (throwError $ IndexOutOfRange index) pure $ insertAt index (Bind m' newName) binds
+          pure $ CaseBranch vc binds' e
   BodyAction actions -> editModuleOf mdefName prog $ \m defName def -> do
     let smartHoles = progSmartHoles prog
     res <- applyActionsToBody smartHoles (progAllModules prog) def actions
@@ -1586,21 +1589,48 @@ transformCaseBranches ::
   MonadEdit m ProgError =>
   Prog ->
   TyConName ->
-  ([CaseBranch] -> m [CaseBranch]) ->
+  (([CaseBranch], CaseFallback) -> m ([CaseBranch], CaseFallback)) ->
   Expr ->
   m Expr
 transformCaseBranches prog type_ f = transformM $ \case
-  Case m scrut bs -> do
+  Case m scrut bs fb -> do
     scrutType <-
       fst
         <$> runReaderT
           (liftError (ActionError . TypeError) $ synth scrut)
           (progCxt prog)
-    Case m scrut
-      <$> if fst (unfoldTApp scrutType) == TCon () type_
-        then f bs
-        else pure bs
+    (bs', fb') <-
+      if fst (unfoldTApp scrutType) == TCon () type_
+        then f (bs, fb)
+        else pure (bs, fb)
+    pure $ Case m scrut bs' fb'
   e -> pure e
+
+-- | Apply a bottom-up transformation to all non-fallback branches of case
+-- expressions on the given type, leaving any fallback branch untouched.
+transformNamedCaseBranches ::
+  MonadEdit m ProgError =>
+  Prog ->
+  TyConName ->
+  ([CaseBranch] -> m [CaseBranch]) ->
+  Expr ->
+  m Expr
+transformNamedCaseBranches prog type_ f = transformCaseBranches prog type_ (\(bs, fb) -> (,fb) <$> f bs)
+
+-- | Apply a bottom-up transformation to non-fallback case branches matching the
+-- given (type and) constructor.
+transformNamedCaseBranch ::
+  MonadEdit m ProgError =>
+  Prog ->
+  TyConName ->
+  ValConName ->
+  -- This only supports ADT case branches, since we cannot edit primitives
+  (CaseBranch -> m CaseBranch) ->
+  Expr ->
+  m Expr
+transformNamedCaseBranch prog type_ con f = transformNamedCaseBranches prog type_ $
+  traverse $
+    \cb -> if caseBranchName cb == PatCon con then f cb else pure cb
 
 progCxt :: Prog -> Cxt
 progCxt p = buildTypingContextFromModules (progAllModules p) (progSmartHoles p)

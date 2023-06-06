@@ -418,7 +418,7 @@ getBoundHere' e prev = case e of
       else mempty
   Letrec _ v rhs t _ -> letBind $ LetrecBind v rhs t
   LetType _ v t _ -> letBind $ LetTyBind $ LetTypeBind v t
-  Case _ _ bs ->
+  Case _ _ bs _ ->
     let binderss = map (\(CaseBranch _ ns rhs) -> (rhs, map (unLocalName . bindName) ns)) bs
      in case prev of
           Nothing -> concatMap (fmap Left . snd) binderss

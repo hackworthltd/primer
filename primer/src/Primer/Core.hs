@@ -10,6 +10,10 @@ module Primer.Core (
   Bind' (..),
   CaseBranch,
   CaseBranch' (..),
+  CaseFallback,
+  CaseFallback' (..),
+  caseBranchName,
+  traverseFallback,
   module Primer.Core.Meta,
   module Primer.Core.Type,
   TypeCache (..),
@@ -54,6 +58,8 @@ import Primer.Core.Meta (
   LocalNameKind (..),
   Meta (Meta),
   ModuleName (ModuleName, unModuleName),
+  Pattern (..),
+  PrimCon (..),
   TmVarRef (..),
   TyConName,
   TyVarName,
@@ -178,7 +184,7 @@ data Expr' a b
       (Type' b)
       -- | body of the let; binding scopes over this
       (Expr' a b)
-  | Case a (Expr' a b) [CaseBranch' a b] -- See Note [Case]
+  | Case a (Expr' a b) [CaseBranch' a b] (CaseFallback' a b) -- See Note [Case]
   | PrimCon a PrimCon
   deriving stock (Eq, Show, Read, Data, Generic)
   deriving (FromJSON, ToJSON) via PrimerJSON (Expr' a b)
@@ -281,7 +287,8 @@ data Expr' a b
 -- This is enforced in the typechecker. The purpose of this invariant is
 -- twofold: having a canonical/normalised AST and making the typechecker a bit
 -- simpler as we don't have to worry about looking up constructors and whether
--- we have got exactly one branch per constructor.
+-- we have got exactly one branch per (mentioned) constructor (and a fallback
+-- branch if we don't mention all constructors).
 
 -- | A traversal over the metadata of an expression.
 _exprMeta :: forall a b c. Traversal (Expr' a b) (Expr' c b) a c
@@ -302,7 +309,7 @@ type CaseBranch = CaseBranch' ExprMeta TypeMeta
 data CaseBranch' a b
   = CaseBranch
       -- | constructor
-      ValConName
+      Pattern
       -- | constructor parameters.
       -- Ideally this would be '[Bind' (Meta TypeCache)]' since we always know the types of branch
       -- bindings. Unfortunately that breaks generic traversals like '_exprMeta'.
@@ -312,6 +319,23 @@ data CaseBranch' a b
   deriving stock (Eq, Show, Read, Data, Generic)
   deriving (FromJSON, ToJSON) via PrimerJSON (CaseBranch' a b)
   deriving anyclass (NFData)
+
+caseBranchName :: CaseBranch' a b -> Pattern
+caseBranchName (CaseBranch n _ _) = n
+
+type CaseFallback = CaseFallback' ExprMeta TypeMeta
+
+data CaseFallback' a b
+  = CaseExhaustive
+  | CaseFallback (Expr' a b)
+  deriving stock (Eq, Show, Read, Data, Generic)
+  deriving (FromJSON, ToJSON) via PrimerJSON (CaseFallback' a b)
+  deriving anyclass (NFData)
+
+traverseFallback :: Applicative f => (Expr' a b -> f (Expr' a' b')) -> CaseFallback' a b -> f (CaseFallback' a' b')
+traverseFallback f = \case
+  CaseExhaustive -> pure CaseExhaustive
+  CaseFallback e -> CaseFallback <$> f e
 
 -- | Variable bindings
 -- These are used in case branches to represent the binding of a variable.
@@ -350,10 +374,3 @@ instance HasMetadata (Expr' ExprMeta b) where
 
 instance HasMetadata (Bind' ExprMeta) where
   _metadata = position @1 % typed @(Maybe Value)
-
-data PrimCon
-  = PrimChar Char
-  | PrimInt Integer
-  deriving stock (Eq, Show, Read, Data, Generic)
-  deriving (FromJSON, ToJSON) via PrimerJSON PrimCon
-  deriving anyclass (NFData)

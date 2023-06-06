@@ -193,6 +193,12 @@
                     "MakeLetRec",
                     "MakeLam",
                     "MakeLAM",
+                    "AddBranch",
+                    "AddBranchInt",
+                    "AddBranchChar",
+                    "DeleteBranch",
+                    "DeleteBranchInt",
+                    "DeleteBranchChar",
                     "RenamePattern",
                     "RenameLet",
                     "RenameLam",
@@ -401,13 +407,15 @@
                     "TEmptyHole",
                     "THole",
                     "TFun",
-                    "TApp"
+                    "TApp",
+                    "PatternWildcard"
                 ],
                 "type": "string"
             },
             "NodeFlavorPrimBody": {
                 "enum": [
-                    "PrimCon"
+                    "PrimCon",
+                    "PrimPattern"
                 ],
                 "type": "string"
             },
@@ -1251,6 +1259,12 @@
                                 "MakeLetRec",
                                 "MakeLam",
                                 "MakeLAM",
+                                "AddBranch",
+                                "AddBranchInt",
+                                "AddBranchChar",
+                                "DeleteBranch",
+                                "DeleteBranchInt",
+                                "DeleteBranchChar",
                                 "RenamePattern",
                                 "RenameLet",
                                 "RenameLam",

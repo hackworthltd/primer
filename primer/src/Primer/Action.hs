@@ -7,6 +7,7 @@ module Primer.Action (
   Action (..),
   ActionError (..),
   Movement (..),
+  BranchMove (..),
   ProgAction (..),
   applyActionsToBody,
   applyActionsToTypeSig,
@@ -20,6 +21,7 @@ module Primer.Action (
   toProgActionInput,
   toProgActionNoInput,
   applyActionsToField,
+  insertSubseqBy,
 ) where
 
 import Foreword hiding (mod)
@@ -30,15 +32,15 @@ import Data.Bifunctor.Swap qualified as Swap
 import Data.Bitraversable (bisequence)
 import Data.Functor.Compose (Compose (..))
 import Data.Generics.Product (typed)
-import Data.List (findIndex)
+import Data.List (delete, findIndex, insertBy)
 import Data.List.NonEmpty qualified as NE
 import Data.Map (insert)
 import Data.Map.Strict qualified as Map
 import Data.Set qualified as Set
 import Data.Text qualified as T
 import Data.Tuple.Extra ((&&&))
-import Optics (over, set, (%), (?~), (^.), (^?), _Just)
-import Primer.Action.Actions (Action (..), Movement (..), QualifiedText)
+import Optics (over, set, traverseOf, (%), (?~), (^.), (^?), _Just)
+import Primer.Action.Actions (Action (..), BranchMove (Fallback, Pattern), Movement (..), QualifiedText)
 import Primer.Action.Available qualified as Available
 import Primer.Action.Errors (ActionError (..))
 import Primer.Action.ProgAction (ProgAction (..))
@@ -53,6 +55,8 @@ import Primer.App.Base (
   TypeDefSelection (..),
  )
 import Primer.Core (
+  CaseBranch' (CaseBranch),
+  CaseFallback' (CaseExhaustive, CaseFallback),
   Expr,
   Expr' (..),
   GVarName,
@@ -61,6 +65,7 @@ import Primer.Core (
   ID,
   LVarName,
   LocalName (LocalName, unLocalName),
+  Pattern (PatCon, PatPrim),
   PrimCon (PrimChar, PrimInt),
   TmVarRef (..),
   TyVarName,
@@ -72,6 +77,7 @@ import Primer.Core (
   ValConName,
   baseName,
   bindName,
+  caseBranchName,
   getID,
   qualifiedModule,
   unsafeMkGlobalName,
@@ -87,6 +93,8 @@ import Primer.Core.DSL (
   app,
   apps',
   branch,
+  branchPrim,
+  caseFB_,
   case_,
   con,
   emptyHole,
@@ -105,7 +113,7 @@ import Primer.Core.DSL (
   var,
  )
 import Primer.Core.Transform (renameLocalVar, renameTyVar, renameTyVarExpr, unfoldFun)
-import Primer.Core.Utils (forgetTypeMetadata, generateTypeIDs)
+import Primer.Core.Utils (forgetTypeMetadata, generateTypeIDs, regenerateExprIDs, _freeTmVars)
 import Primer.Def (
   ASTDef (..),
   Def (..),
@@ -119,6 +127,7 @@ import Primer.Name.Fresh (
   mkFreshName,
   mkFreshNameTy,
  )
+import Primer.Primitives (primConName)
 import Primer.Questions (uniquify)
 import Primer.Refine (Inst (InstAPP, InstApp, InstUnconstrainedAPP), refine)
 import Primer.TypeDef (ASTTypeDef (..), TypeDef (..), ValCon (..), valConType)
@@ -437,6 +446,10 @@ applyAction' a = case a of
   ConstructLetrec x -> termAction (constructLetrec x) "cannot construct letrec in type"
   ConvertLetToLetrec -> termAction convertLetToLetrec "cannot convert type to letrec"
   ConstructCase -> termAction constructCase "cannot construct case in type"
+  AddCaseBranch c -> termAction (addCaseBranch $ Left c) "cannot add a case branch in type"
+  AddCaseBranchPrim c -> termAction (addCaseBranch $ Right c) "cannot add a case branch in type"
+  DeleteCaseBranch c -> termAction (deleteCaseBranch $ Left c) "cannot delete a case branch in type"
+  DeleteCaseBranchPrim c -> termAction (deleteCaseBranch $ Right c) "cannot delete a case branch in type"
   RenameLam x -> termAction (renameLam x) "cannot rename lam in type"
   RenameLAM x -> termAction (renameLAM x) "cannot rename LAM in type"
   RenameLet x -> termAction (renameLet x) "cannot rename let in type"
@@ -471,14 +484,23 @@ setCursor i e = case focusOn i (unfocusExpr e) of
 
 -- | Apply a movement to a zipper
 moveExpr :: MonadError ActionError m => Movement -> ExprZ -> m ExprZ
-moveExpr m@(Branch c) z | Case _ _ brs <- target z =
-  case findIndex (\(C.CaseBranch n _ _) -> c == n) brs of
-    Nothing -> throwError $ CustomFailure (Move m) "Move-to-branch failed: no such branch"
-    -- 'down' moves into the scrutinee, 'right' then steps through branch
-    -- rhss
-    Just i -> case foldr (\_ z' -> right =<< z') (down z) [0 .. i] of
-      Just z' -> pure z'
-      Nothing -> throwError $ CustomFailure (Move m) "internal error: movement failed, even though branch exists"
+moveExpr m@(Branch b) z | Case _ _ brs fb <- target z =
+  case b of
+    Pattern c ->
+      case findIndex ((c ==) . caseBranchName) brs of
+        Nothing -> throwError $ CustomFailure (Move m) "Move-to-branch failed: no such branch"
+        -- 'down' moves into the scrutinee, 'right' then steps through branch
+        -- rhss
+        Just i -> case foldr (\_ z' -> right =<< z') (down z) [0 .. i] of
+          Just z' -> pure z'
+          Nothing -> throwError $ CustomFailure (Move m) "internal error: movement failed, even though branch exists"
+    Fallback -> case fb of
+      CaseExhaustive -> throwError $ CustomFailure (Move m) "Move-to-branch failed: no fallback branch"
+      -- 'down' moves into the scrutinee, 'right' then steps through branch
+      -- rhss, and then finally into the fallback branch
+      CaseFallback _ -> case foldr (\_ z' -> right =<< z') (down z) [0 .. length brs] of
+        Just z' -> pure z'
+        Nothing -> throwError $ CustomFailure (Move m) "internal error: movement to fallback branch failed, even though branch exists"
 moveExpr m@(Branch _) _ = throwError $ CustomFailure (Move m) "Move-to-branch failed: this is not a case expression"
 moveExpr m@(ConChild n) z | Con{} <- target z =
   -- 'down' moves into the first argument, 'right' steps through the various arguments
@@ -752,28 +774,32 @@ convertLetToLetrec ze = case target ze of
     pure $ replace (Letrec m x e1 t1 e2) ze
   _ -> throwError $ CustomFailure ConvertLetToLetrec "can only convert let to letrec"
 
+-- NB: the errors given by getFocusType assume it is being used on the scrutinee of a case
+getFocusType :: ActionM m => ExprZ -> m TypeCache
+getFocusType ze = case maybeTypeOf $ target ze of
+  Just t -> pure t
+  -- If there is no cached type, we would like to synthesise one
+  -- but unfortunately it is awkward to do the context-wrangling
+  -- needed via the zipper, so we simply call 'synthZ', which
+  -- unfocuses to top-level before synthesising, and then searches
+  -- for the correct focus afterwards.
+  Nothing ->
+    let handler _ = throwError $ CustomFailure ConstructCase "failed to synthesise the type of the scrutinee"
+     in synthZ (InExpr ze) `catchError` handler >>= \case
+          Nothing -> throwError $ CustomFailure ConstructCase "internal error when synthesising the type of the scruntinee: focused expression went missing after typechecking"
+          Just (InType _) -> throwError $ CustomFailure ConstructCase "internal error when synthesising the type of the scruntinee: focused expression changed into a type after typechecking"
+          Just (InBind _) -> throwError $ CustomFailure ConstructCase "internal error: scrutinee became a binding after synthesis"
+          Just (InExpr ze') -> case maybeTypeOf $ target ze' of
+            Nothing -> throwError $ CustomFailure ConstructCase "internal error: synthZ always returns 'Just', never 'Nothing'"
+            Just t -> pure t
+
 constructCase :: ActionM m => ExprZ -> m ExprZ
 constructCase ze = do
-  ty' <- case maybeTypeOf $ target ze of
-    Just t -> pure t
-    -- If there is no cached type, we would like to synthesise one
-    -- but unfortunately it is awkward to do the context-wrangling
-    -- needed via the zipper, so we simply call 'synthZ', which
-    -- unfocuses to top-level before synthesising, and then searches
-    -- for the correct focus afterwards.
-    Nothing ->
-      let handler _ = throwError $ CustomFailure ConstructCase "failed to synthesise the type of the scrutinee"
-       in synthZ (InExpr ze) `catchError` handler >>= \case
-            Nothing -> throwError $ CustomFailure ConstructCase "internal error when synthesising the type of the scruntinee: focused expression went missing after typechecking"
-            Just (InType _) -> throwError $ CustomFailure ConstructCase "internal error when synthesising the type of the scruntinee: focused expression changed into a type after typechecking"
-            Just (InBind _) -> throwError $ CustomFailure ConstructCase "internal error: scrutinee became a binding after synthesis"
-            Just (InExpr ze') -> case maybeTypeOf $ target ze' of
-              Nothing -> throwError $ CustomFailure ConstructCase "internal error: synthZ always returns 'Just', never 'Nothing'"
-              Just t -> pure t
-  ty <- case ty' of
-    TCSynthed t -> pure t
-    TCChkedAt _ -> throwError $ CustomFailure ConstructCase "can't take a case on a checkable-only term"
-    TCEmb TCBoth{tcSynthed = t} -> pure t
+  ty <-
+    getFocusType ze >>= \case
+      TCSynthed t -> pure t
+      TCChkedAt _ -> throwError $ CustomFailure ConstructCase "can't take a case on a checkable-only term"
+      TCEmb TCBoth{tcSynthed = t} -> pure t
   -- Construct the branches of the case using the type information of the scrutinee
   getTypeDefInfo ty >>= \case
     -- If it's a fully-saturated ADT type, create a branch for each of its constructors.
@@ -791,6 +817,9 @@ constructCase ze = do
             branch (valConName c) ns (pure freshHole)
           brs = map f $ astTypeDefConstructors tydef
        in flip replace ze <$> case_ (pure $ target ze) brs
+    -- If it's a primitive type, only create a wildcard branch
+    Right (TC.TypeDefInfo _ _ TypeDefPrim{}) ->
+      flip replace ze <$> caseFB_ (pure $ target ze) [] emptyHole
     Left TC.TDIHoleType ->
       asks TC.smartHoles >>= \case
         -- There is a potential mismatch: one can have different SmartHoles
@@ -798,6 +827,104 @@ constructCase ze = do
         TC.NoSmartHoles -> throwError $ CustomFailure ConstructCase "can only construct case on a term with hole type when using the \"smart\" TC"
         TC.SmartHoles -> flip replace ze <$> case_ (pure $ target ze) []
     _ -> throwError $ CustomFailure ConstructCase ("can only construct case on expression with type a exactly saturated ADT, not " <> show ty)
+
+addCaseBranch :: ActionM m => Either QualifiedText PrimCon -> ExprZ -> m ExprZ
+addCaseBranch rawCon ze = case target ze of
+  Case _ _ _ CaseExhaustive -> throwError CaseAlreadyExhaustive
+  Case m scrut branches (CaseFallback fallbackBranch) -> do
+    let newCon = either (PatCon . unsafeMkGlobalName) PatPrim rawCon
+        branchName (CaseBranch n _ _) = n
+        branchNames = branchName <$> branches
+    when (newCon `elem` branchNames) $ throwError $ CaseBranchAlreadyExists newCon
+    ty <-
+      move Child1 ze >>= getFocusType >>= \case
+        TCSynthed t -> pure t
+        TCChkedAt _ -> throwError $ InternalFailure "scrutinees are synthesisable but only had TCChkedAt"
+        TCEmb TCBoth{tcSynthed = t} -> pure t
+    case newCon of
+      PatCon c -> do
+        allowedBranches <-
+          getTypeDefInfo ty <&> \case
+            Right (TC.TypeDefInfo _ _ (TypeDefAST tydef)) -> astTypeDefConstructors tydef
+            _ -> []
+        newBranch <- case find ((== c) . valConName) allowedBranches of
+          Nothing -> throwError $ CaseBranchNotCon newCon ty
+          Just vc -> do
+            -- make a temporary approximation to the final result, from which we
+            -- calculate some names for the new binders
+            tmpBranch <- branch c [] $ pure fallbackBranch
+            let tmpCase = Case m scrut (tmpBranch : branches) (CaseFallback fallbackBranch)
+            binders <- replicateM (length $ valConArgs vc) . mkFreshName =<< moveExpr (Branch $ Pattern newCon) (replace tmpCase ze)
+            branch c ((,Nothing) <$> binders) $ regenerateExprIDs fallbackBranch
+        -- If we are adding the last constructor, we delete the fallback branch
+        let fb =
+              if length allowedBranches == length branchNames + 1
+                then CaseExhaustive
+                else CaseFallback fallbackBranch
+        let branches' = insertSubseqBy branchName newBranch (PatCon . valConName <$> allowedBranches) branches
+        pure $ replace (Case m scrut branches' fb) ze
+      PatPrim c -> do
+        unless (TCon () (primConName c) == ty) $ throwError $ CaseBranchNotCon newCon ty
+        newBranch <- branchPrim c $ regenerateExprIDs fallbackBranch
+        let cmp (PatPrim (PrimInt x)) (PatPrim (PrimInt y)) = compare x y
+            cmp (PatPrim (PrimChar x)) (PatPrim (PrimChar y)) = compare x y
+            -- We assume the input is well-typed, so all branches are of same
+            -- form, and this last case cannot happen
+            cmp _ _ = EQ
+            branches' = insertBy (cmp `on` caseBranchName) newBranch branches
+        pure $ replace (Case m scrut branches' $ CaseFallback fallbackBranch) ze
+  _ ->
+    throwError $ CustomFailure act "the focused expression is not a case"
+  where
+    act = either AddCaseBranch AddCaseBranchPrim rawCon
+
+deleteCaseBranch ::
+  (MonadFresh ID m, MonadError ActionError m) =>
+  Either QualifiedText PrimCon ->
+  ExprZ ->
+  m ExprZ
+deleteCaseBranch c ze = case target ze of
+  -- We put the action on the `Case` node, as we cannot currently select the pattern
+  -- (we cannot put the action on binders, since nullary constructors have no binders)
+  Case m scrut branches fallbackBranch ->
+    case find ((c' ==) . caseBranchName) branches of
+      Nothing -> throwError $ CaseBranchNotExist c'
+      Just br@(CaseBranch _ binds rhs) ->
+        let newBranches = delete br branches
+            -- If there was no fallback branch, we create a new one whose RHS is
+            -- the RHS of the deleted branch, with the now unbound variables
+            -- replaced with holes
+            bound = bindName <$> binds
+            removeBound (m', n) =
+              if n `elem` bound
+                then emptyHole
+                else pure $ Var m' $ LocalVarRef n
+         in do
+              newFallback <- case fallbackBranch of
+                CaseExhaustive -> CaseFallback <$> traverseOf _freeTmVars removeBound rhs
+                CaseFallback _ -> pure fallbackBranch
+              pure $ replace (Case m scrut newBranches newFallback) ze
+  _ ->
+    throwError $ CustomFailure act "the focused expression is not a case"
+  where
+    c' = either (PatCon . unsafeMkGlobalName) PatPrim c
+    act = either DeleteCaseBranch DeleteCaseBranchPrim c
+
+-- | Given a sequence @ks@ and @vs@ such that @map f vs@ is a subsequence of
+-- @ks@ (this precondition is not checked), @insertSubseqBy f x ks vs@ inserts
+-- @x@ at the appropriate position in @vs@.
+-- Thus we have
+-- - @insertSubseqBy f x ks vs \\ x == vs@
+-- - @map f (insertSubseqBy f x ks vs) `isSubsequenceOf` ks@
+insertSubseqBy :: Eq k => (v -> k) -> v -> [k] -> [v] -> [v]
+insertSubseqBy f x = go
+  where
+    tgt = f x
+    go (k : ks) vvs@(v : vs)
+      | k == tgt = x : vvs
+      | k == f v = v : go ks vs
+      | otherwise = go ks vvs
+    go _ _ = [x]
 
 -- | Replace @x@ with @y@ in @λx. e@
 renameLam :: MonadError ActionError m => Text -> ExprZ -> m ExprZ
@@ -1048,14 +1175,11 @@ toProgActionInput def0 sel0 opt0 = \case
     opt <- optGlobal
     toProg [ConstructSaturatedCon opt]
   Available.MakeInt -> do
-    opt <- optNoCxt
-    n <- maybeToEither (NeedInt opt0) $ readMaybe opt
+    n <- optInt
     toProg [ConstructPrim $ PrimInt n]
   Available.MakeChar -> do
-    opt <- optNoCxt
-    case T.uncons opt of
-      Just (c, r) | T.null r -> toProg [ConstructPrim $ PrimChar c]
-      _ -> Left $ NeedChar opt0
+    c <- optChar
+    toProg [ConstructPrim $ PrimChar c]
   Available.MakeVar ->
     toProg [ConstructVar optVar]
   Available.MakeVarSat -> do
@@ -1073,6 +1197,24 @@ toProgActionInput def0 sel0 opt0 = \case
   Available.MakeLAM -> do
     opt <- optNoCxt
     toProg [ConstructLAM $ Just opt]
+  Available.AddBranch -> do
+    opt <- optGlobal
+    toProg [AddCaseBranch opt]
+  Available.AddBranchInt -> do
+    n <- optInt
+    toProg [AddCaseBranchPrim $ PrimInt n]
+  Available.AddBranchChar -> do
+    c <- optChar
+    toProg [AddCaseBranchPrim $ PrimChar c]
+  Available.DeleteBranch -> do
+    opt <- optGlobal
+    toProg [DeleteCaseBranch opt]
+  Available.DeleteBranchInt -> do
+    n <- optInt
+    toProg [DeleteCaseBranchPrim $ PrimInt n]
+  Available.DeleteBranchChar -> do
+    c <- optChar
+    toProg [DeleteCaseBranchPrim $ PrimChar c]
   Available.RenamePattern -> do
     opt <- optNoCxt
     toProg [RenameCaseBinding opt]
@@ -1157,6 +1299,14 @@ toProgActionInput def0 sel0 opt0 = \case
     conFieldSel = do
       (ty, s) <- conSel
       maybe (Left NeedTypeDefConsFieldSelection) (pure . (ty,s.con,)) s.field
+    optInt = do
+      opt <- optNoCxt
+      maybeToEither (NeedInt opt0) $ readMaybe opt
+    optChar = do
+      opt <- optNoCxt
+      case T.uncons opt of
+        Just (c, r) | T.null r -> pure c
+        _ -> Left $ NeedChar opt0
     toProg actions = do
       case sel0 of
         SelectionDef sel -> toProg' actions sel.def <$> maybeToEither NoNodeSelection sel.node

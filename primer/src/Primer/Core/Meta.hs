@@ -27,6 +27,8 @@ module Primer.Core.Meta (
   Meta (Meta),
   trivialMeta,
   _type,
+  PrimCon (..),
+  Pattern (..),
 ) where
 
 import Foreword
@@ -190,3 +192,22 @@ class HasMetadata a where
 
 instance HasMetadata (Meta a) where
   _metadata = position @3
+
+-- PrimCon is not really "Meta", but is placed here to keep the module graph shallower
+data PrimCon
+  = PrimChar Char
+  | PrimInt Integer
+  deriving stock (Eq, Show, Read, Data, Generic)
+  deriving (FromJSON, ToJSON) via PrimerJSON PrimCon
+  deriving anyclass (NFData)
+
+-- | @Pattern@s are what case branches match on. We only support shallow
+-- matches, so these record the constructor name (arguments are bound by the
+-- @Case@ node, rather than the pattern).
+data Pattern
+  = -- Pattern is not really "Meta", but is placed here to keep the module graph shallower
+    PatCon ValConName
+  | PatPrim PrimCon
+  deriving stock (Eq, Show, Read, Data, Generic)
+  deriving (FromJSON, ToJSON) via PrimerJSON Pattern
+  deriving anyclass (NFData)

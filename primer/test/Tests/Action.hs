@@ -14,6 +14,7 @@ import Hedgehog hiding (
 import Primer.Action (
   Action (..),
   ActionError (CaseBindsClash, NameCapture),
+  BranchMove (..),
   Movement (..),
   applyActionsToExpr,
  )
@@ -25,6 +26,7 @@ import Primer.Core (
   HasID,
   ID (..),
   Kind (KType),
+  Pattern (PatCon, PatPrim),
   PrimCon (PrimChar),
   TmVarRef (LocalVarRef),
   getID,
@@ -41,6 +43,7 @@ import Primer.Test.Util (
   clearMeta,
   constructSaturatedCon,
   constructTCon,
+  toQualText,
  )
 import Primer.Typecheck (SmartHoles (NoSmartHoles, SmartHoles))
 import Primer.Zipper (
@@ -477,7 +480,7 @@ unit_case_create =
     , EnterHole
     , ConstructVar $ LocalVarRef "x"
     , ConstructCase
-    , Move (Branch cTrue)
+    , Move (Branch $ Pattern $ PatCon cTrue)
     , constructSaturatedCon cZero
     ]
     ( ann
@@ -535,10 +538,10 @@ unit_case_move_branch_1 =
     , Move Child1
     , Move Child1
     , Move Child1
-    , Move (Branch cZero)
+    , Move (Branch $ Pattern $ PatCon cZero)
     , constructSaturatedCon cZero
     , Move Parent
-    , Move (Branch cSucc)
+    , Move (Branch $ Pattern $ PatCon cSucc)
     , ConstructVar $ LocalVarRef "n"
     ]
     ( ann
@@ -569,10 +572,10 @@ unit_case_move_branch_2 =
     )
     [ Move Child1
     , Move Child1
-    , Move (Branch cZero)
+    , Move (Branch $ Pattern $ PatCon cZero)
     , constructSaturatedCon cZero
     , Move Parent
-    , Move (Branch cSucc)
+    , Move (Branch $ Pattern $ PatCon cSucc)
     , ConstructVar $ LocalVarRef "n"
     ]
     ( ann
@@ -754,7 +757,7 @@ unit_case_create_smart_on_term =
     , Move Child1
     , ConstructVar $ LocalVarRef "x"
     , ConstructCase
-    , Move (Branch cTrue)
+    , Move (Branch $ Pattern $ PatCon cTrue)
     , constructSaturatedCon cZero
     ]
     ( ann
@@ -782,15 +785,17 @@ unit_case_create_smart_on_hole =
     , Move Child1
     , ConstructVar $ LocalVarRef "x"
     , Move Parent
-    , Move (Branch cTrue)
+    , AddCaseBranch $ toQualText cTrue
+    , Move (Branch $ Pattern $ PatCon cTrue)
     , constructSaturatedCon cZero
     ]
     ( ann
         ( lam
             "x"
-            ( case_
+            ( caseFB_
                 (lvar "x")
-                [branch cTrue [] (con0 cZero), branch cFalse [] emptyHole]
+                [branch cTrue [] (con0 cZero)]
+                emptyHole
             )
         )
         (tfun (tcon tBool) (tcon tNat))
@@ -815,9 +820,10 @@ unit_case_change_smart_scrutinee_type =
     , constructTCon tNat
     ]
     ( ann
-        ( case_
+        ( caseFB_
             (emptyHole `ann` tcon tNat)
-            [branch cZero [] emptyHole, branch cSucc [("a25", Nothing)] emptyHole] -- fragile names here
+            [] -- since an intermediate stage is scrutinee type is hole, we remove all branches
+            emptyHole -- then when we set type is Nat, we only create a fallback branch
         )
         (tcon tNat)
     )
@@ -875,6 +881,162 @@ unit_rename_case_bind_clash =
         `ann` tcon tNat
     )
     [SetCursor 8, RenameCaseBinding "b"]
+
+unit_case_branches :: Assertion
+unit_case_branches =
+  let e cse = ann cse (tcon tBool)
+      n = "a18"
+      e0 =
+        e $
+          caseFB_
+            (emptyHole `ann` tcon tNat)
+            []
+            (con0 cTrue)
+      e1 =
+        e $
+          caseFB_
+            (emptyHole `ann` tcon tNat)
+            [branch cSucc [(n, Nothing)] $ con0 cTrue]
+            (con0 cTrue)
+      e2 =
+        e $
+          case_
+            (emptyHole `ann` tcon tNat)
+            [ branch cZero [] $ con0 cFalse
+            , branch cSucc [(n, Nothing)] $ con0 cTrue
+            ]
+      e3 =
+        e $
+          caseFB_
+            (emptyHole `ann` tcon tNat)
+            [branch cSucc [(n, Nothing)] $ con0 cTrue]
+            (con0 cFalse)
+      e4 =
+        e $
+          caseFB_
+            (emptyHole `ann` tcon tNat)
+            []
+            (con0 cFalse)
+      e' cse = ann cse (tcon tMaybe `tapp` tcon tNat)
+      e5 =
+        e' $
+          case_
+            (emptyHole `ann` tcon tNat)
+            [ branch cZero [] $ con0 cNothing
+            , branch cSucc [("n", Nothing)] $ con1 cJust $ lvar "n"
+            ]
+      e6 =
+        e' $
+          caseFB_
+            (emptyHole `ann` tcon tNat)
+            [branch cZero [] $ con0 cNothing]
+            (con1 cJust emptyHole)
+      e7 =
+        e' $
+          caseFB_
+            (emptyHole `ann` tcon tNat)
+            [branch cZero [] $ con0 cNothing]
+            (con1 cJust $ con0 cZero)
+   in do
+        actionTest
+          SmartHoles
+          e0
+          [ Move Child1
+          , AddCaseBranch $ toQualText cSucc
+          ]
+          e1
+        actionTest
+          SmartHoles
+          e1
+          [ Move Child1
+          , AddCaseBranch $ toQualText cZero
+          , Move (Branch $ Pattern $ PatCon cZero)
+          , Delete
+          , constructSaturatedCon cFalse
+          ]
+          e2
+        actionTest
+          SmartHoles
+          e2
+          [ Move Child1
+          , DeleteCaseBranch $ toQualText cZero
+          ]
+          e3
+        actionTest
+          SmartHoles
+          e3
+          [ Move Child1
+          , DeleteCaseBranch $ toQualText cSucc
+          ]
+          e4
+        actionTest
+          SmartHoles
+          e5
+          [ Move Child1
+          , DeleteCaseBranch $ toQualText cSucc
+          ]
+          e6
+        actionTest
+          SmartHoles
+          e6
+          [ Move Child1
+          , Move (Branch Fallback)
+          , Move (ConChild 0)
+          , constructSaturatedCon cZero
+          ]
+          e7
+
+unit_case_prim :: Assertion
+unit_case_prim =
+  let e cse = ann cse (tcon tBool)
+      e0 =
+        e $
+          caseFB_
+            (emptyHole `ann` tcon tChar)
+            []
+            (con0 cTrue)
+      e1 =
+        e $
+          caseFB_
+            (emptyHole `ann` tcon tChar)
+            [branchPrim (PrimChar 'x') $ con0 cTrue]
+            (con0 cTrue)
+      e2 =
+        e $
+          caseFB_
+            (emptyHole `ann` tcon tChar)
+            [branchPrim (PrimChar 'x') $ con0 cFalse]
+            (con0 cTrue)
+      e3 =
+        e $
+          caseFB_
+            (emptyHole `ann` tcon tChar)
+            []
+            (con0 cTrue)
+   in do
+        actionTest
+          SmartHoles
+          e0
+          [ Move Child1
+          , AddCaseBranchPrim $ PrimChar 'x'
+          ]
+          e1
+        actionTest
+          SmartHoles
+          e1
+          [ Move Child1
+          , Move $ Branch $ Pattern $ PatPrim $ PrimChar 'x'
+          , Delete
+          , constructSaturatedCon cFalse
+          ]
+          e2
+        actionTest
+          SmartHoles
+          e2
+          [ Move Child1
+          , DeleteCaseBranchPrim $ PrimChar 'x'
+          ]
+          e3
 
 unit_constructAPP :: Assertion
 unit_constructAPP =

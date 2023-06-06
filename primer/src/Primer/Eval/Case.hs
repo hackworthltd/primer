@@ -1,15 +1,31 @@
 {-# LANGUAGE DuplicateRecordFields #-}
 
-module Primer.Eval.Case (CaseReductionDetail (..)) where
+module Primer.Eval.Case (
+  CaseReductionTrivialDetail (..),
+  CaseReductionDetail (..),
+) where
 
 import Foreword
 
 import Primer.Core (
   Expr,
   ID,
-  ValConName,
  )
+import Primer.Core.Meta (Pattern)
 import Primer.JSON (CustomJSON (CustomJSON), FromJSON, PrimerJSON, ToJSON)
+
+data CaseReductionTrivialDetail = CaseReductionTrivialDetail
+  { before :: Expr
+  -- ^ the case expression before reduction
+  , after :: Expr
+  -- ^ the resulting expression after reduction
+  , targetID :: ID
+  -- ^ the ID of the target (the whole scrutinee)
+  , branchRhsID :: ID
+  -- ^ the right hand side of the fallback case branch
+  }
+  deriving stock (Eq, Show, Read, Generic)
+  deriving (FromJSON, ToJSON) via PrimerJSON CaseReductionTrivialDetail
 
 data CaseReductionDetail = CaseReductionDetail
   { before :: Expr
@@ -24,7 +40,7 @@ data CaseReductionDetail = CaseReductionDetail
   -- scrutinee was @Succ n : Nat@, then the @targetID@ is the root of
   -- this subtree (the annotation node), but the @targetCtorID@ is the
   -- @Succ@ node)
-  , ctorName :: ValConName
+  , ctorName :: Pattern
   -- ^ the name of the matching constructor
   , targetArgIDs :: [ID]
   -- ^ the arguments to the constructor in the target

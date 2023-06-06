@@ -53,6 +53,7 @@ lookupConstructor tyDefs c =
 
 data TypeDefError
   = TDIHoleType -- a type hole
+  | TDIPrim TyConName -- a primitive type does not have valcons
   | TDINotADT -- e.g. a function type etc
   | TDIUnknown TyConName -- not in scope
   | TDINotSaturated -- e.g. @List@ or @List a b@ rather than @List a@
@@ -112,7 +113,7 @@ instantiateValCons' ::
 instantiateValCons' tyDefs t =
   getTypeDefInfo' tyDefs t
     >>= \(TypeDefInfo params tc def) -> case def of
-      TypeDefPrim _ -> Left TDINotADT
+      TypeDefPrim _ -> Left $ TDIPrim tc
       TypeDefAST tda -> do
         let defparams = map fst $ astTypeDefParameters tda
             f :: ValCon () -> (ValConName, forall m. MonadFresh NameCounter m => [m (Type' ())])

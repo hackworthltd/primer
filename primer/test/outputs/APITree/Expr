@@ -394,43 +394,16 @@ Tree
                                                                     , childTrees =
                                                                         [ Tree
                                                                             { nodeId = "39"
-                                                                            , body = NoBody App
+                                                                            , body = NoBody Case
                                                                             , childTrees =
                                                                                 [ Tree
                                                                                     { nodeId = "40"
-                                                                                    , body = NoBody App
-                                                                                    , childTrees =
-                                                                                        [ Tree
-                                                                                            { nodeId = "41"
-                                                                                            , body = NoBody EmptyHole
-                                                                                            , childTrees = []
-                                                                                            , rightChild = Nothing
-                                                                                            }
-                                                                                        , Tree
-                                                                                            { nodeId = "42"
-                                                                                            , body = TextBody
-                                                                                                ( RecordPair
-                                                                                                    { fst = LocalVar
-                                                                                                    , snd = Name
-                                                                                                        { qualifiedModule = Nothing
-                                                                                                        , baseName = "x"
-                                                                                                        }
-                                                                                                    }
-                                                                                                )
-                                                                                            , childTrees = []
-                                                                                            , rightChild = Nothing
-                                                                                            }
-                                                                                        ]
-                                                                                    , rightChild = Nothing
-                                                                                    }
-                                                                                , Tree
-                                                                                    { nodeId = "43"
                                                                                     , body = TextBody
                                                                                         ( RecordPair
                                                                                             { fst = LocalVar
                                                                                             , snd = Name
                                                                                                 { qualifiedModule = Nothing
-                                                                                                , baseName = "y"
+                                                                                                , baseName = "n"
                                                                                                 }
                                                                                             }
                                                                                         )
@@ -438,7 +411,108 @@ Tree
                                                                                     , rightChild = Nothing
                                                                                     }
                                                                                 ]
-                                                                            , rightChild = Nothing
+                                                                            , rightChild = Just
+                                                                                ( Tree
+                                                                                    { nodeId = "39P0"
+                                                                                    , body = BoxBody
+                                                                                        ( RecordPair
+                                                                                            { fst = Pattern
+                                                                                            , snd = Tree
+                                                                                                { nodeId = "39P0B"
+                                                                                                , body = TextBody
+                                                                                                    ( RecordPair
+                                                                                                        { fst = PatternCon
+                                                                                                        , snd = Name
+                                                                                                            { qualifiedModule = Just
+                                                                                                                ( ModuleName
+                                                                                                                    { unModuleName = "Builtins" :| [] }
+                                                                                                                )
+                                                                                                            , baseName = "Zero"
+                                                                                                            }
+                                                                                                        }
+                                                                                                    )
+                                                                                                , childTrees = []
+                                                                                                , rightChild = Nothing
+                                                                                                }
+                                                                                            }
+                                                                                        )
+                                                                                    , childTrees =
+                                                                                        [ Tree
+                                                                                            { nodeId = "41"
+                                                                                            , body = NoBody App
+                                                                                            , childTrees =
+                                                                                                [ Tree
+                                                                                                    { nodeId = "42"
+                                                                                                    , body = NoBody App
+                                                                                                    , childTrees =
+                                                                                                        [ Tree
+                                                                                                            { nodeId = "43"
+                                                                                                            , body = NoBody EmptyHole
+                                                                                                            , childTrees = []
+                                                                                                            , rightChild = Nothing
+                                                                                                            }
+                                                                                                        , Tree
+                                                                                                            { nodeId = "44"
+                                                                                                            , body = TextBody
+                                                                                                                ( RecordPair
+                                                                                                                    { fst = LocalVar
+                                                                                                                    , snd = Name
+                                                                                                                        { qualifiedModule = Nothing
+                                                                                                                        , baseName = "x"
+                                                                                                                        }
+                                                                                                                    }
+                                                                                                                )
+                                                                                                            , childTrees = []
+                                                                                                            , rightChild = Nothing
+                                                                                                            }
+                                                                                                        ]
+                                                                                                    , rightChild = Nothing
+                                                                                                    }
+                                                                                                , Tree
+                                                                                                    { nodeId = "45"
+                                                                                                    , body = TextBody
+                                                                                                        ( RecordPair
+                                                                                                            { fst = LocalVar
+                                                                                                            , snd = Name
+                                                                                                                { qualifiedModule = Nothing
+                                                                                                                , baseName = "y"
+                                                                                                                }
+                                                                                                            }
+                                                                                                        )
+                                                                                                    , childTrees = []
+                                                                                                    , rightChild = Nothing
+                                                                                                    }
+                                                                                                ]
+                                                                                            , rightChild = Nothing
+                                                                                            }
+                                                                                        ]
+                                                                                    , rightChild = Just
+                                                                                        ( Tree
+                                                                                            { nodeId = "39Pwild"
+                                                                                            , body = BoxBody
+                                                                                                ( RecordPair
+                                                                                                    { fst = Pattern
+                                                                                                    , snd = Tree
+                                                                                                        { nodeId = "39PwildB"
+                                                                                                        , body = NoBody PatternWildcard
+                                                                                                        , childTrees = []
+                                                                                                        , rightChild = Nothing
+                                                                                                        }
+                                                                                                    }
+                                                                                                )
+                                                                                            , childTrees =
+                                                                                                [ Tree
+                                                                                                    { nodeId = "46"
+                                                                                                    , body = NoBody EmptyHole
+                                                                                                    , childTrees = []
+                                                                                                    , rightChild = Nothing
+                                                                                                    }
+                                                                                                ]
+                                                                                            , rightChild = Nothing
+                                                                                            }
+                                                                                        )
+                                                                                    }
+                                                                                )
                                                                             }
                                                                         ]
                                                                     , rightChild = Nothing
@@ -457,11 +531,11 @@ Tree
                             , rightChild = Nothing
                             }
                         , Tree
-                            { nodeId = "44"
+                            { nodeId = "47"
                             , body = NoBody TFun
                             , childTrees =
                                 [ Tree
-                                    { nodeId = "45"
+                                    { nodeId = "48"
                                     , body = TextBody
                                         ( RecordPair
                                             { fst = TCon
@@ -478,7 +552,7 @@ Tree
                                     , rightChild = Nothing
                                     }
                                 , Tree
-                                    { nodeId = "46"
+                                    { nodeId = "49"
                                     , body = TextBody
                                         ( RecordPair
                                             { fst = TForall
@@ -490,15 +564,15 @@ Tree
                                         )
                                     , childTrees =
                                         [ Tree
-                                            { nodeId = "47"
+                                            { nodeId = "50"
                                             , body = NoBody TApp
                                             , childTrees =
                                                 [ Tree
-                                                    { nodeId = "48"
+                                                    { nodeId = "51"
                                                     , body = NoBody TApp
                                                     , childTrees =
                                                         [ Tree
-                                                            { nodeId = "49"
+                                                            { nodeId = "52"
                                                             , body = TextBody
                                                                 ( RecordPair
                                                                     { fst = TCon
@@ -515,7 +589,7 @@ Tree
                                                             , rightChild = Nothing
                                                             }
                                                         , Tree
-                                                            { nodeId = "50"
+                                                            { nodeId = "53"
                                                             , body = TextBody
                                                                 ( RecordPair
                                                                     { fst = TCon
@@ -535,7 +609,7 @@ Tree
                                                     , rightChild = Nothing
                                                     }
                                                 , Tree
-                                                    { nodeId = "51"
+                                                    { nodeId = "54"
                                                     , body = TextBody
                                                         ( RecordPair
                                                             { fst = TVar

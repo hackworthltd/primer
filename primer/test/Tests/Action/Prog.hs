@@ -26,6 +26,7 @@ import Primer.Action (
     RemoveAnn
   ),
   ActionError (ImportNameClash),
+  BranchMove (Pattern),
   Movement (
     Branch,
     Child1,
@@ -86,6 +87,7 @@ import Primer.Core (
   Kind (KType),
   Meta (..),
   ModuleName (ModuleName, unModuleName),
+  Pattern (PatCon),
   TmVarRef (..),
   TyConName,
   Type,
@@ -98,6 +100,7 @@ import Primer.Core.DSL (
   S,
   ann,
   branch,
+  caseFB_,
   case_,
   con,
   con0,
@@ -670,7 +673,7 @@ unit_copy_paste_expr_1 = do
           , newProg' & #progModules % _head % #moduleDefs .~ Map.fromList [(mainName', DefAST expected)]
           )
   let a = mkTestApp pInitial
-      actions = [MoveToDef mainName, CopyPasteBody (mainName, srcID) [Move Child1, Move Child1, Move (Branch cNil)]]
+      actions = [MoveToDef mainName, CopyPasteBody (mainName, srcID) [Move Child1, Move Child1, Move (Branch $ Pattern $ PatCon cNil)]]
   do
     (result, _) <- runAppTestM maxID a $ (,) <$> tcWholeProg pExpected <*> handleEditRequest actions
     case result of
@@ -1020,6 +1023,41 @@ unit_AddCon =
                 ]
           )
 
+unit_AddCon_sparse :: Assertion
+unit_AddCon_sparse =
+  progActionTest
+    ( defaultProgEditableTypeDefs $
+        sequence
+          [ do
+              x <-
+                caseFB_
+                  (emptyHole `ann` (tcon tT `tapp` tcon (tcn "Bool") `tapp` tcon (tcn "Int")))
+                  [branch cB [("s", Nothing), ("t", Nothing)] emptyHole]
+                  emptyHole
+              astDef "def" x <$> tEmptyHole
+          ]
+    )
+    [AddCon tT 2 "C"]
+    $ expectSuccess
+    $ \_ prog' -> do
+      td <- findTypeDef tT prog'
+      astTypeDefConstructors td
+        @?= [ ValCon cA [TCon () (tcn "Bool"), TCon () (tcn "Bool"), TCon () (tcn "Bool")]
+            , ValCon cB [TApp () (TApp () (TCon () tT) (TVar () "b")) (TVar () "a"), TVar () "b"]
+            , ValCon (vcn "C") []
+            ]
+      def <- findDef (gvn "def") prog'
+      forgetMetadata (astDefExpr def)
+        @?= forgetMetadata
+          ( create' $
+              caseFB_
+                (emptyHole `ann` (tcon tT `tapp` tcon (tcn "Bool") `tapp` tcon (tcn "Int")))
+                [ branch cB [("s", Nothing), ("t", Nothing)] emptyHole
+                , branch (vcn "C") [] emptyHole
+                ]
+                emptyHole
+          )
+
 unit_AddConField :: Assertion
 unit_AddConField =
   progActionTest
@@ -1242,7 +1280,7 @@ unit_cross_module_actions =
               , Move Parent
               , Move Parent
               , ConstructCase
-              , Move (Branch (qualifyM "C"))
+              , Move (Branch $ Pattern $ PatCon (qualifyM "C"))
               , constructSaturatedCon (qualifyM "C")
               , Move $ ConChild 0
               , constructSaturatedCon cSucc

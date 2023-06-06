@@ -99,6 +99,7 @@ import Optics.Traversal (traversed)
 import Primer.Core (
   Bind' (..),
   CaseBranch' (..),
+  CaseFallback' (CaseExhaustive, CaseFallback),
   Expr,
   Expr' (..),
   ExprMeta,
@@ -109,7 +110,8 @@ import Primer.Core (
   LVarName,
   LocalName (LocalName),
   Meta (..),
-  PrimCon,
+  Pattern (PatCon, PatPrim),
+  PrimCon (PrimChar, PrimInt),
   TmVarRef (..),
   TyConName,
   TyVarName,
@@ -119,6 +121,7 @@ import Primer.Core (
   TypeMeta,
   ValConName,
   bindName,
+  caseBranchName,
   qualifyName,
   unLocalName,
   _bindMeta,
@@ -152,7 +155,7 @@ import Primer.Module (
   moduleTypesQualified,
  )
 import Primer.Name (Name, NameCounter)
-import Primer.Primitives (primConName)
+import Primer.Primitives (primConName, tChar, tInt)
 import Primer.Subst (substTy)
 import Primer.TypeDef (
   ASTTypeDef (astTypeDefConstructors, astTypeDefParameters),
@@ -178,7 +181,7 @@ import Primer.Typecheck.Kindcheck (
 import Primer.Typecheck.SmartHoles (SmartHoles (..))
 import Primer.Typecheck.TypeError (TypeError (..))
 import Primer.Typecheck.Utils (
-  TypeDefError (TDIHoleType, TDINotADT, TDINotSaturated, TDIUnknown),
+  TypeDefError (TDIHoleType, TDINotADT, TDINotSaturated, TDIPrim, TDIUnknown),
   TypeDefInfo (TypeDefInfo),
   getGlobalBaseNames,
   getGlobalNames,
@@ -637,6 +640,7 @@ check t = \case
       Left TDIHoleType -> throwError' $ InternalError "t' is not a hole, as we refined to parent type of c"
       Left TDIUnknown{} -> throwError' $ InternalError "input type to check is not in scope"
       Left TDINotADT -> recoverSH $ ConstructorNotFullAppADT t' c
+      Left TDIPrim{} -> recoverSH $ ConstructorNotFullAppADT t' c
       Left TDINotSaturated -> recoverSH $ ConstructorNotFullAppADT t' c
       -- If the input type @t@ is a fully-applied ADT constructor 'T As'
       -- And 'C' is a constructor of 'T' (writing 'T's parameters as 'ps' with kinds 'ks')
@@ -694,25 +698,25 @@ check t = \case
     -- NB here: if b were synthesisable, we bubble that information up to the
     -- let, saying @typeOf b'@ rather than @TCChkedAt t@ (consistently with Let)
     pure $ Letrec (annotate (typeOf b') i) x a' tA' b'
-  Case i e brs -> do
+  Case i e brs fb -> do
     (eT, e') <- synth e
     let caseMeta = annotate (TCChkedAt t) i
     instantiateValCons eT >>= \case
       -- we allow 'case' on a thing of type TEmptyHole iff we have zero branches
       Left TDIHoleType ->
-        if null brs
-          then pure $ Case caseMeta e' []
+        if null brs && fb == CaseExhaustive
+          then pure $ Case caseMeta e' [] CaseExhaustive
           else
             asks smartHoles >>= \case
               NoSmartHoles -> throwError' CaseOfHoleNeedsEmptyBranches
-              SmartHoles -> pure $ Case caseMeta e' []
+              SmartHoles -> pure $ Case caseMeta e' [] CaseExhaustive
       Left TDINotADT ->
         asks smartHoles >>= \case
           NoSmartHoles -> throwError' $ CannotCaseNonADT eT
           SmartHoles -> do
             -- NB: we wrap the scrutinee in a hole and DELETE the branches
             scrutWrap <- Hole <$> meta' (TCSynthed (TEmptyHole ())) <*> pure (addChkMetaT (TEmptyHole ()) e')
-            pure $ Case caseMeta scrutWrap []
+            pure $ Case caseMeta scrutWrap [] CaseExhaustive
       Left (TDIUnknown ty) -> throwError' $ InternalError $ "We somehow synthesised the unknown type " <> show ty <> " for the scrutinee of a case"
       Left TDINotSaturated ->
         asks smartHoles >>= \case
@@ -720,19 +724,55 @@ check t = \case
           SmartHoles -> do
             -- NB: we wrap the scrutinee in a hole and DELETE the branches
             scrutWrap <- Hole <$> meta' (TCSynthed (TEmptyHole ())) <*> pure (addChkMetaT (TEmptyHole ()) e')
-            pure $ Case caseMeta scrutWrap []
+            pure $ Case caseMeta scrutWrap [] CaseExhaustive
+      Left (TDIPrim tc) -> do
+        unless (tc == tInt || tc == tChar) $ throwError' $ InternalError $ "Unknown primitive type: " <> show tc
+        let f b = case caseBranchName b of
+              PatCon _ -> Nothing
+              PatPrim pc -> case pc of
+                PrimInt p | tc == tInt -> Just $ Left (p, b)
+                PrimChar p | tc == tChar -> Just $ Right (p, b)
+                _ -> Nothing
+        -- all branches right sort & order
+        sh <- asks smartHoles
+        brs' <- case partitionEithers <$> traverse f brs of
+          Just ([], chs) | isSorted (fst <$> chs) -> pure $ snd <$> chs
+          Just (is, []) | isSorted (fst <$> is) -> pure $ snd <$> is
+          _ | NoSmartHoles <- sh -> throwError' $ WrongCaseBranches tc (caseBranchName <$> brs) (fb /= CaseExhaustive)
+          _ | SmartHoles <- sh -> pure []
+        -- no params, check the rhs
+        brs'' <- for brs' $ \(CaseBranch c ps rhs) -> do
+          case (ps, sh) of
+            ([], _) -> CaseBranch c [] <$> check t rhs
+            (_ : _, NoSmartHoles) -> throwError' CaseBranchWrongNumberPatterns
+            -- if the branch is nonsense, replace it with a sensible pattern and an empty hole
+            (_ : _, SmartHoles) -> fmap (CaseBranch c []) . check t =<< emptyHole
+        -- has fb
+        fb' <- case (fb, sh) of
+          (CaseExhaustive, NoSmartHoles) -> throwError' $ WrongCaseBranches tc (caseBranchName <$> brs) (fb /= CaseExhaustive)
+          (CaseExhaustive, SmartHoles) -> fmap CaseFallback . check t =<< emptyHole
+          (CaseFallback rhs, _) -> CaseFallback <$> check t rhs
+        pure $ Case caseMeta e' brs'' fb'
       Right (tc, _, expected) -> do
-        let branchNames = map (\(CaseBranch n _ _) -> n) brs
+        let branchNames = map caseBranchName brs
         let conNames = map fst expected
         sh <- asks smartHoles
-        brs' <- case (branchNames == conNames, sh) of
-          (False, NoSmartHoles) -> throwError' $ WrongCaseBranches tc branchNames
+        brs' <- case (extractSubsequenceBy (\n (m, _) -> n == PatCon m) branchNames expected, sh) of
+          (Nothing, NoSmartHoles) -> throwError' $ WrongCaseBranches tc branchNames (fb /= CaseExhaustive)
           -- create branches with the correct name but wrong parameters,
           -- they will be fixed up in checkBranch later
-          (False, SmartHoles) -> traverse (\c -> branch c [] emptyHole) conNames
-          (True, _) -> pure brs
-        brs'' <- zipWithM (checkBranch t) expected brs'
-        pure $ Case caseMeta e' brs''
+          (Nothing, SmartHoles) -> traverse (\(c, ct) -> ((c, ct),) <$> branch c [] emptyHole) expected
+          (Just ctys, _) -> pure $ zip ctys brs
+        brs'' <- mapM (uncurry $ checkBranch t) brs'
+        let branchNames' = map caseBranchName brs''
+        fb' <- case (branchNames' == map PatCon conNames, fb, sh) of
+          (True, CaseExhaustive, _) -> pure CaseExhaustive
+          (True, CaseFallback _, NoSmartHoles) -> throwError' $ WrongCaseBranches tc branchNames True
+          (True, CaseFallback _, SmartHoles) -> pure CaseExhaustive
+          (False, CaseExhaustive, NoSmartHoles) -> throwError' $ WrongCaseBranches tc branchNames False
+          (False, CaseExhaustive, SmartHoles) -> fmap CaseFallback . check t =<< emptyHole
+          (False, CaseFallback r, _) -> CaseFallback <$> check t r
+        pure $ Case caseMeta e' brs'' fb'
   e -> do
     sh <- asks smartHoles
     let default_ = do
@@ -773,6 +813,25 @@ check t = \case
             Hole{} -> default_ -- Don't let the recursive call mint a hole.
             e'' -> pure e''
       _ -> default_
+
+-- | As 'isSubsequenceOf', except:
+-- - uses a user-specified predicate instead of '(==)'
+-- - returns the matching subsequence instead of just a 'Bool'
+-- We have that @'isSubsequenceOf' xs ys@ is equivalent to
+-- @'isJust' 'extractSubsequenceBy' '(==)' xs ys@.
+extractSubsequenceBy :: (a -> b -> Bool) -> [a] -> [b] -> Maybe [b]
+extractSubsequenceBy _ [] _ = Just []
+extractSubsequenceBy _ _ [] = Nothing
+extractSubsequenceBy f xxs@(x : xs) (y : ys) =
+  if f x y
+    then (y :) <$> extractSubsequenceBy f xs ys
+    else extractSubsequenceBy f xxs ys
+
+-- | Test if a list is sorted. Equivalent to @xs == sort xs@, assuming the @Ord@
+-- instance is a total order.
+isSorted :: Ord a => [a] -> Bool
+isSorted [] = True
+isSorted xxs@(_ : xs) = and $ zipWith (<=) xxs xs
 
 addChkMetaT :: Type' () -> ExprT -> ExprT
 addChkMetaT = addChkMeta' equality
@@ -859,7 +918,7 @@ checkBranch t (vc, args) (CaseBranch nb patterns rhs) =
       bind <- Bind <$> meta' (TCChkedAt ty) <*> pure name
       pure (bind, ty)
     assertCorrectCon =
-      assert (vc == nb) $
+      assert (PatCon vc == nb) $
         "checkBranch: expected a branch on "
           <> show vc
           <> " but found branch on "

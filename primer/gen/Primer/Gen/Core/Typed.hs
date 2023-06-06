@@ -35,6 +35,7 @@ import Foreword hiding (mod)
 import Control.Monad.Fresh (MonadFresh, fresh)
 import Control.Monad.Morph (hoist)
 import Control.Monad.Reader (mapReaderT)
+import Data.List.Extra (nubSortOn)
 import Data.Map qualified as M
 import Hedgehog (
   GenT,
@@ -47,6 +48,7 @@ import Hedgehog.Range qualified as Range
 import Primer.Core (
   Bind' (Bind),
   CaseBranch' (CaseBranch),
+  CaseFallback' (..),
   Expr' (..),
   GVarName,
   GlobalName (qualifiedModule),
@@ -55,6 +57,7 @@ import Primer.Core (
   LVarName,
   LocalName (LocalName, unLocalName),
   ModuleName (),
+  Pattern (PatCon, PatPrim),
   PrimCon (..),
   TmVarRef (..),
   TyConName,
@@ -436,24 +439,59 @@ genChk ty = do
             -}
         ]
     case_ :: WT (Maybe (GenT WT ExprG))
-    case_ =
+    case_ = (\ca cp -> Gen.frequency [(5, ca), (1, cp)]) <<$>> caseADT <<*>> casePrim
+    caseADT :: WT (Maybe (GenT WT ExprG))
+    caseADT =
       asks (M.assocs . typeDefs) <&> \adts ->
         if null adts
           then Nothing
           else Just $ do
             (tc, td) <- Gen.element adts
             let t = mkTAppCon tc (TEmptyHole () <$ typeDefParameters td)
-            (e, brs) <- Gen.justT $ do
+            (e, (brs, fb)) <- Gen.justT $ do
               (e, eTy) <- genSyns t -- NB: this could return something only consistent with t, e.g. if t=List ?, could get eT=? Nat
               vcs' <- instantiateValCons eTy
               fmap (e,) <$> case vcs' of
-                Left TDIHoleType -> pure $ Just []
+                Left TDIHoleType -> pure $ Just ([], CaseExhaustive)
                 Left _err -> pure Nothing -- if we didn't get an instance of t, try again; TODO: this is rather inefficient, and discards a lot...
-                Right (_, _, vcs) -> fmap Just . for vcs $ \(c, params) -> do
-                  ns <- for params $ \nt -> (,nt) <$> genLVarNameAvoiding [ty, nt]
-                  let binds = map (Bind () . fst) ns
-                  CaseBranch c binds <$> local (extendLocalCxts ns) (genChk ty)
-            pure $ Case () e brs
+                Right (_, _, allVcs) -> case nonEmpty allVcs of
+                  Nothing -> pure $ Just ([], CaseExhaustive)
+                  Just allVcs' -> do
+                    (vcs, fb) <-
+                      Gen.frequency
+                        [ (3, pure (allVcs, CaseExhaustive))
+                        , (1, (,) <$> genStrictSubsequence allVcs' <*> fmap CaseFallback (genChk ty))
+                        ]
+                    fmap (Just . (,fb)) . for vcs $ \(c, params) -> do
+                      ns <- for params $ \nt -> (,nt) <$> genLVarNameAvoiding [ty, nt]
+                      let binds = map (Bind () . fst) ns
+                      CaseBranch (PatCon c) binds <$> local (extendLocalCxts ns) (genChk ty)
+            pure $ Case () e brs fb
+    casePrim :: WT (Maybe (GenT WT ExprG))
+    casePrim = do
+      primGens <- genPrimCon
+      pure $
+        if null primGens
+          then Nothing
+          else Just $ do
+            (pg, scrutTy0) <- Gen.element primGens
+            let scrutTy = TCon () scrutTy0
+            (e0, scrutTy') <- genSyns scrutTy
+            let e = if scrutTy == scrutTy' then e0 else Ann () e0 scrutTy
+            brs0 <- Gen.list (Range.linear 0 5) $ do
+              p <- pg
+              (p,) . CaseBranch (PatPrim p) [] <$> genChk ty
+            let brs = nubSortOn ((\case PrimInt n -> Left n; PrimChar c -> Right c) . fst) brs0
+            fb <- genChk ty
+            pure $ Case () e (snd <$> brs) (CaseFallback fb)
+
+genStrictSubsequence :: MonadGen m => NonEmpty a -> m [a]
+genStrictSubsequence xs = Gen.justT $ do
+  s <- Gen.subsequence $ toList xs
+  pure $
+    if length s == length xs
+      then Nothing
+      else Just s
 
 -- | Generates types which infer kinds consistent with the argument
 -- I.e. @genWTType k@ will generate types @ty@ such that @synthKind ty = k'@

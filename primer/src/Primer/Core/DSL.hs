@@ -18,7 +18,9 @@ module Primer.Core.DSL (
   letrec,
   letType,
   case_,
+  caseFB_,
   branch,
+  branchPrim,
   prim,
   char,
   int,
@@ -54,12 +56,14 @@ import Primer.Core (
   Bind' (..),
   CaseBranch,
   CaseBranch' (..),
+  CaseFallback' (CaseExhaustive, CaseFallback),
   Expr,
   Expr' (..),
   GVarName,
   ID,
   LVarName,
   ModuleName (ModuleName),
+  Pattern (..),
   PrimCon (..),
   TmVarRef (..),
   TyVarName,
@@ -154,13 +158,24 @@ letrec v a tA b = Letrec <$> meta <*> pure v <*> a <*> tA <*> b
 letType :: MonadFresh ID m => TyVarName -> m Type -> m Expr -> m Expr
 letType v t e = LetType <$> meta <*> pure v <*> t <*> e
 
+-- | An exhaustive case
 case_ :: MonadFresh ID m => m Expr -> [m CaseBranch] -> m Expr
-case_ e brs = Case <$> meta <*> e <*> sequence brs
+case_ e brs = Case <$> meta <*> e <*> sequence brs <*> pure CaseExhaustive
 
-branch :: MonadFresh ID m => ValConName -> [(LVarName, Maybe TypeCache)] -> m Expr -> m CaseBranch
-branch c vs e = CaseBranch c <$> mapM binding vs <*> e
+-- | A non-exhaustive case
+caseFB_ :: MonadFresh ID m => m Expr -> [m CaseBranch] -> m Expr -> m Expr
+caseFB_ e brs fb = Case <$> meta <*> e <*> sequence brs <*> (CaseFallback <$> fb)
+
+branchPat :: MonadFresh ID m => Pattern -> [(LVarName, Maybe TypeCache)] -> m Expr -> m CaseBranch
+branchPat c vs e = CaseBranch c <$> mapM binding vs <*> e
   where
     binding (name, ty) = Bind <$> meta' ty <*> pure name
+
+branch :: MonadFresh ID m => ValConName -> [(LVarName, Maybe TypeCache)] -> m Expr -> m CaseBranch
+branch = branchPat . PatCon
+
+branchPrim :: MonadFresh ID m => PrimCon -> m Expr -> m CaseBranch
+branchPrim c = branchPat (PatPrim c) []
 
 prim :: MonadFresh ID m => PrimCon -> m Expr
 prim p = PrimCon <$> meta <*> pure p

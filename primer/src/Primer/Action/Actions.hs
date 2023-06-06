@@ -1,13 +1,14 @@
 module Primer.Action.Actions (
   Action (..),
   Movement (..),
+  BranchMove (..),
   QualifiedText,
 ) where
 
 import Foreword
 
 import Data.Aeson (FromJSON (..), ToJSON (..), Value)
-import Primer.Action.Movement (Movement (..))
+import Primer.Action.Movement (BranchMove (..), Movement (..))
 import Primer.Core (PrimCon)
 import Primer.Core.Meta (ID, TmVarRef)
 import Primer.JSON (CustomJSON (..), PrimerJSON)
@@ -70,6 +71,14 @@ data Action
     ConvertLetToLetrec
   | -- | Scrutinise the expression under the cursor with a @case@
     ConstructCase
+  | -- | Add a branch to a case expression
+    AddCaseBranch QualifiedText
+  | -- | Add a primitive branch to a case expression
+    AddCaseBranchPrim PrimCon
+  | -- | Remove a branch from a case expression
+    DeleteCaseBranch QualifiedText
+  | -- | Remove a primitive branch from a case expression
+    DeleteCaseBranchPrim PrimCon
   | -- | Rename a lambda binding
     RenameLam Text
   | -- | Rename a big lambda binding

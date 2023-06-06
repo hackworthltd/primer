@@ -28,7 +28,7 @@ import Hedgehog.Gen qualified as Gen
 import Hedgehog.Internal.Property (forAllWithT)
 import Optics (ix, toListOf, (%), (.~), (^..), _head)
 import Primer.Action (
-  ActionError (CaseBindsClash, NameCapture),
+  ActionError (CaseBindsClash, CaseBranchAlreadyExists, NameCapture),
   Movement (Child1, Child2),
   enterType,
   move,
@@ -75,6 +75,7 @@ import Primer.Core (
   ID,
   Kind (KFun, KType),
   ModuleName (ModuleName, unModuleName),
+  Pattern (PatPrim),
   Type,
   getID,
   mkSimpleModuleName,
@@ -87,7 +88,9 @@ import Primer.Core.DSL (
   ann,
   app,
   branch,
+  caseFB_,
   case_,
+  char,
   con,
   create',
   emptyHole,
@@ -359,6 +362,9 @@ tasty_available_actions_accepted = withTests 500 $
         (StudentProvided, (Left DefAlreadyExists{}, _)) -> do
           label "rename def name clash with entered name"
           annotate "ignoring def already exists error as was generated name, not offered one"
+        (StudentProvided, (Left (ActionError (CaseBranchAlreadyExists (PatPrim _))), _)) -> do
+          label "add duplicate primitive case branch"
+          annotate "ignoring CaseBranchAlreadyExistsPrim error as was generated constructor"
         (_, (Left err, _)) -> annotateShow err >> failure
         (_, (Right _, a'')) -> ensureSHNormal a''
     ensureSHNormal a = case checkAppWellFormed a of
@@ -469,6 +475,16 @@ unit_case_let = do
   -- testNotOffered (letType "a" tEmptyHole $ lam "y" $ lvar "y") -- TODO: add this test when the typechecker supports letType
   testNotOffered (letrec "x" emptyHole tEmptyHole $ lam "y" $ lvar "y")
 
+unit_case_prim :: Assertion
+unit_case_prim =
+  offeredActionTest
+    SmartHoles
+    Intermediate
+    (char 'a')
+    (InExpr [])
+    (Left MakeCase)
+    (caseFB_ (char 'a') [] emptyHole)
+
 data MovementListBody
   = InExpr [Movement]
   | InType [Movement] [Movement]
@@ -557,7 +573,7 @@ offeredActionTest' ::
   IO (Either OAT ASTDef)
 offeredActionTest' sh l inputDef position action = do
   let progRaw = create' $ do
-        ms <- sequence [builtinModule]
+        ms <- sequence [builtinModule, pure primitiveModule]
         prog0 <- defaultEmptyProg
         d <- inputDef
         pure $

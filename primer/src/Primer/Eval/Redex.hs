@@ -53,6 +53,8 @@ import Primer.Core (
   Bind' (Bind),
   CaseBranch,
   CaseBranch' (CaseBranch),
+  CaseFallback,
+  CaseFallback' (CaseExhaustive, CaseFallback),
   Expr,
   Expr' (
     APP,
@@ -65,6 +67,7 @@ import Primer.Core (
     Let,
     LetType,
     Letrec,
+    PrimCon,
     Var
   ),
   ExprMeta,
@@ -73,11 +76,14 @@ import Primer.Core (
   Kind,
   LVarName,
   LocalName (unLocalName),
+  Pattern (PatCon, PatPrim),
+  PrimCon,
   TmVarRef (..),
   TyConName,
   TyVarName,
   Type,
   Type' (
+    TCon,
     TForall,
     TFun,
     TLet,
@@ -86,6 +92,7 @@ import Primer.Core (
   TypeMeta,
   ValConName,
   bindName,
+  caseBranchName,
   getID,
  )
 import Primer.Core.DSL (ann, letType, let_, letrec, lvar, tlet, tvar)
@@ -114,11 +121,13 @@ import Primer.Eval.Detail (
   BetaReductionDetail (BetaReductionDetail),
   BindRenameDetail (BindRenameDetail),
   CaseReductionDetail (CaseReductionDetail),
+  CaseReductionTrivialDetail (CaseReductionTrivialDetail),
   EvalDetail (
     BETAReduction,
     BetaReduction,
     BindRename,
     CaseReduction,
+    CaseReductionTrivial,
     GlobalVarInline,
     LetRemoval,
     LocalTypeVarInline,
@@ -139,6 +148,7 @@ import Primer.Eval.Prim (tryPrimFun)
 import Primer.JSON (CustomJSON (CustomJSON), FromJSON, PrimerJSON, ToJSON)
 import Primer.Log (ConvertLogMessage (convert), logWarning)
 import Primer.Name (Name, NameCounter)
+import Primer.Primitives (primConName)
 import Primer.TypeDef (
   TypeDefMap,
   ValCon (valConArgs),
@@ -168,7 +178,7 @@ data EvalLog
   | -- | Found something that may have been a case redex,
     -- but there is no branch matching the constructor at the head of the scrutinee.
     -- This should not happen if the expression is type correct.
-    CaseRedexMissingBranch ValConName
+    CaseRedexMissingBranch Pattern
   | -- | Found something that may have been a case redex,
     -- but the scrutinee's type is not in scope
     -- This should not happen if the expression is type correct.
@@ -180,12 +190,12 @@ data EvalLog
   | -- | Found something that may have been a case redex,
     -- but the scrutinee's head (value) constructor does not construct a member of the scrutinee's type.
     -- This should not happen if the expression is type correct.
-    CaseRedexCtorMismatch TyConName ValConName
+    CaseRedexCtorMismatch TyConName (Either ValConName PrimCon)
   | -- | Found something that may have been a case redex,
     -- but the number of arguments in the scrutinee differs from the number of bindings in the corresponding branch.
     -- (Or the number of arguments expected from the scrutinee's type differs from either of these.)
     -- This should not happen if the expression is type correct.
-    CaseRedexWrongArgNum ValConName [Expr] [Type' ()] [LVarName]
+    CaseRedexWrongArgNum Pattern [Expr] [Type' ()] [LVarName]
   | InvariantFailure Text
   deriving stock (Show, Eq, Data, Generic)
   deriving anyclass (NFData)
@@ -272,12 +282,21 @@ data Redex
       , lamID :: ID
       -- ^ Where was @var@ bound (used for details)
       }
+  | -- case e of _ -> t  ~>  t
+    CaseRedexTrivial
+      { rhs :: Expr
+      -- ^ The rhs of the wildcard branch
+      , orig :: Expr
+      -- ^ The original redex (used for details)
+      , scrutID :: ID
+      -- ^ The ID of the whole scrutinee (used for details)
+      }
   | -- case C as : T A of ... ; C xs -> e ; ...   ~>  let xs=as:(lettype p=A in S) in e for data T p = C S
     -- Since constructors are checkable and scrutinees must be synthesisable,
     -- there must be an annotation if the term is well-typed
     -- (i.e. we do not need to consider @case C as of ...@).
     CaseRedex
-      { con :: ValConName
+      { con :: Pattern
       -- ^ The head of the scrutinee
       , args :: [Expr]
       -- ^ The arguments of the scrutinee
@@ -287,8 +306,8 @@ data Redex
       , params :: [(TyVarName, Type' ())]
       -- ^ The parameters of the constructor's datatype, and their
       -- instantiations from inspecting the type annotation on the scrutinee.
-      , binders :: [Bind]
-      -- ^ The binders of the matching branch
+      , binders :: Maybe [Bind]
+      -- ^ The binders of the matching branch. 'Nothing' denotes the matching branch was the fallback branch.
       , rhs :: Expr
       -- ^ The rhs of the matching branch
       , orig :: Expr
@@ -346,6 +365,7 @@ data Redex
       -- ^ The scrutinised expression
       , branches :: [CaseBranch]
       -- ^ The branches of the @case@
+      , fallbackBranch :: CaseFallback
       , avoid :: S.Set Name
       -- ^ What names to avoid when renaming
       , orig :: Expr
@@ -483,6 +503,10 @@ viewCaseRedex ::
   Expr ->
   MaybeT m Redex
 viewCaseRedex tydefs = \case
+  orig@(Case _ scrut [] (CaseFallback rhs)) -> do
+    -- If we have @case e of _ -> t@, then this reduces to @t@ without inspecting @e@
+    -- i.e. a @case@ which does not actually discriminate is lazy
+    pure $ CaseRedexTrivial rhs orig (getID scrut)
   -- Note that constructors are checkable, but scrutinees are synthesisable,
   -- thus we only have terms such as @case (C @a' x y : T a) of ...@. Thus we
   -- know the type of the scrutinee syntactically.
@@ -493,7 +517,7 @@ viewCaseRedex tydefs = \case
   -- variables. This is especially important, as we do not (yet?) take care of
   -- metadata correctly in this evaluator (for instance, substituting when we
   -- do a BETA reduction)!
-  orig@(Case mCase scrut@(Ann _ (Con mCon c args) annotation) brs) -> do
+  orig@(Case mCase scrut@(Ann _ (Con mCon c args) annotation) brs fb) -> do
     (abstractArgTys, params) <- case lookupConstructor tydefs c of
       Nothing -> do
         logWarning $ CaseRedexUnknownCtor c
@@ -514,17 +538,31 @@ viewCaseRedex tydefs = \case
               CaseRedexNotSaturated $
                 forgetTypeMetadata annotation
           pure $ zip params tyargsFromAnn
-        (patterns, br) <- extractBranch c brs
-        renameBindings mCase scrut brs patterns orig
-          <|> pure (formCaseRedex c abstractArgTys tyargs args patterns br (orig, scrut, getID mCon))
+        (patterns, br) <- extractBranch (PatCon c) brs fb
+        renameBindings mCase scrut brs fb patterns orig
+          <|> pure (formCaseRedex (PatCon c) abstractArgTys tyargs args patterns br (orig, scrut, getID mCon))
+  orig@(Case _ scrut@(Ann _ (PrimCon mCon c) (TCon _ ty)) brs fb) ->
+    if primConName c == ty
+      then do
+        (bindings, br) <- extractBranch (PatPrim c) brs fb
+        pure $ formCaseRedex (PatPrim c) [] [] [] bindings br (orig, scrut, getID mCon)
+      else do
+        logWarning $ CaseRedexCtorMismatch ty $ Right c
+        mzero
+  -- literals (primitive constructors) are actually synthesisable, so may come
+  -- without annotations
+  orig@(Case _ scrut@(PrimCon mCon c) brs fb) -> do
+    (bindings, br) <- extractBranch (PatPrim c) brs fb
+    pure $ formCaseRedex (PatPrim c) [] [] [] bindings br (orig, scrut, getID mCon)
   _ -> mzero
   where
-    extractBranch c brs =
-      case find (\(CaseBranch n _ _) -> n == c) brs of
-        Nothing -> do
+    extractBranch c brs fb =
+      case (find ((c ==) . caseBranchName) brs, fb) of
+        (Nothing, CaseExhaustive) -> do
           logWarning $ CaseRedexMissingBranch c
           mzero
-        Just (CaseBranch _ xs e) -> pure (xs, e)
+        (Nothing, CaseFallback e) -> pure (Nothing, e)
+        (Just (CaseBranch _ xs e), _) -> pure (Just xs, e)
 
     {- Note [Case reduction and variable capture]
        There is a subtlety here around variable capture.
@@ -551,19 +589,19 @@ viewCaseRedex tydefs = \case
        argument, the second needs to avoid all but the first two args, ...,
        the last doesn't need any renaming.)
     -}
-    renameBindings meta scrutinee branches patterns orig =
+    renameBindings meta scrutinee branches fallbackBranch patterns orig =
       let avoid = freeVars scrutinee
-          binders = S.fromList $ map (unLocalName . bindName) patterns
+          binders = maybe mempty (S.fromList . map (unLocalName . bindName)) patterns
        in hoistMaybe $
             if S.disjoint avoid binders
               then Nothing
-              else Just $ RenameBindingsCase{meta, scrutinee, branches, avoid, orig}
+              else Just $ RenameBindingsCase{meta, scrutinee, branches, fallbackBranch, avoid, orig}
     formCaseRedex ::
-      ValConName ->
+      Pattern ->
       [Type' ()] ->
       [(TyVarName, Type' ())] ->
       [Expr] ->
-      [Bind] ->
+      Maybe [Bind] ->
       Expr ->
       (Expr, Expr, ID) ->
       Redex
@@ -687,7 +725,7 @@ viewRedex tydefs globals dir = \case
         , lamID = getID m
         }
   APP{} -> mzero
-  e@(Case meta scrutinee branches) -> do
+  e@(Case meta scrutinee branches fallbackBranch) -> do
     fvcxt <- fvCxt $ freeVars e
     -- TODO: we arbitrarily decide that renaming takes priority over reducing the case
     -- This is good for evalfull, but bad for interactive use.
@@ -695,7 +733,7 @@ viewRedex tydefs globals dir = \case
     -- https://github.com/hackworthltd/primer/issues/734
     if getBoundHereDn e `S.disjoint` fvcxt
       then lift $ viewCaseRedex tydefs e
-      else pure $ RenameBindingsCase{meta, scrutinee, branches, avoid = fvcxt, orig = e}
+      else pure $ RenameBindingsCase{meta, scrutinee, branches, fallbackBranch, avoid = fvcxt, orig = e}
   orig@(Ann _ expr ty) | Chk <- dir, concreteTy ty -> pure $ Upsilon{expr, ann = ty, orig}
   _ -> mzero
 
@@ -842,6 +880,20 @@ runRedex = \case
             , types = (forallKind, tgtTy)
             }
     pure (expr', BETAReduction details)
+  -- case e of _ -> t   ~>  t
+  CaseRedexTrivial
+    { rhs
+    , orig
+    , scrutID
+    } ->
+      let details =
+            CaseReductionTrivialDetail
+              { before = orig
+              , after = rhs
+              , targetID = scrutID
+              , branchRhsID = getID rhs
+              }
+       in pure (rhs, CaseReductionTrivial details)
   -- case C as : T A of ... ; C xs -> e ; ...   ~>  let xs=as:(lettype p=A in S) in e for data T p = C S
   -- Note that when forming the CaseRedex we checked that the variables @xs@ were fresh for @as@ and @As@,
   -- so this will not capture any variables.
@@ -856,8 +908,8 @@ runRedex = \case
     , scrutID
     , conID
     } -> do
-      let binderNames = map bindName binders
-      unless (length args == length argTys && length args == length binderNames) $
+      let binderNames = maybe mempty (map bindName) binders
+      unless (isNothing binders || (length args == length argTys && length args == length binderNames)) $
         logWarning $
           CaseRedexWrongArgNum con args argTys binderNames
       let freshLocalNameLike n avoid =
@@ -903,7 +955,7 @@ runRedex = \case
               , targetCtorID = conID
               , ctorName = con
               , targetArgIDs = getID <$> args
-              , branchBindingIDs = getID <$> binders
+              , branchBindingIDs = maybe mempty (fmap getID) binders
               , branchRhsID = getID rhs
               , letIDs
               }
@@ -952,7 +1004,7 @@ runRedex = \case
             , bodyID = getID body
             }
     pure (expr', BindRename details)
-  RenameBindingsCase{meta, scrutinee, branches, avoid, orig}
+  RenameBindingsCase{meta, scrutinee, branches, fallbackBranch, avoid, orig}
     | (brs0, CaseBranch ctor binds rhs : brs1) <- break (\(CaseBranch _ bs _) -> any ((`S.member` avoid) . unLocalName . bindName) bs) branches ->
         let bns = map bindName binds
             avoid' = avoid <> freeVars rhs <> S.fromList (map unLocalName bns)
@@ -968,7 +1020,7 @@ runRedex = \case
                   )
                   ([], rhs)
                   $ rights rn
-              let expr' = Case meta scrutinee $ brs0 ++ CaseBranch ctor binds' rhs' : brs1
+              let expr' = Case meta scrutinee (brs0 ++ CaseBranch ctor binds' rhs' : brs1) fallbackBranch
               let details =
                     BindRenameDetail
                       { before = orig

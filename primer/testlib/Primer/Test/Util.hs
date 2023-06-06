@@ -6,6 +6,7 @@ module Primer.Test.Util (
   primDefs,
   constructTCon,
   constructSaturatedCon,
+  toQualText,
   tcn,
   vcn,
   gvn,

@@ -35,11 +35,13 @@ import Prettyprinter.Render.Terminal (
 import Primer.Core (
   Bind' (Bind),
   CaseBranch' (CaseBranch),
+  CaseFallback' (CaseExhaustive, CaseFallback),
   Expr,
   Expr' (..),
   GlobalName (baseName, qualifiedModule),
   LocalName (unLocalName),
   ModuleName (unModuleName),
+  Pattern (PatCon, PatPrim),
   PrimCon (..),
   TmVarRef (GlobalVarRef, LocalVarRef),
   Type,
@@ -109,7 +111,7 @@ prettyExpr opts = \case
           <> line
           <> indent' 2 (pE e)
       )
-  Case _ e bs ->
+  Case _ e bs fallback ->
     col Yellow "match" <+> pE e <+> col Yellow "with" <> hardline <> indent 2 printCases
     where
       -- Cases split into two parts for printing: (Value, "→" + Expression)
@@ -117,7 +119,7 @@ prettyExpr opts = \case
       caseParts =
         map
           ( \(CaseBranch n bs' e') ->
-              ( col Green (gname opts n)
+              ( col Green (pat n)
                   <> mconcat
                     ( intersperse'
                         space
@@ -131,9 +133,16 @@ prettyExpr opts = \case
               )
           )
           bs
+          <> case fallback of
+            CaseExhaustive -> []
+            CaseFallback e' -> [("_", col Yellow "→" <+> pE e')]
       intersperse' x = foldr (\y z -> x : y : z) [x]
 
       printCases = mconcat . intersperse hardline $ casesAligned
+
+      pat = \case
+        PatCon n -> gname opts n
+        PatPrim pc -> prim pc
 
       casesAligned :: [Doc AnsiStyle]
       casesAligned = map (\(f, s) -> fill caseWidth f <> s) caseParts
@@ -169,12 +178,13 @@ prettyExpr opts = \case
         <> col Yellow "in"
         <> line
         <> indent' 2 (pE e')
-  PrimCon _ p -> case p of
-    PrimChar c -> "Char" <+> pretty @Text (show c)
-    PrimInt n -> "Int" <+> pretty @Text (show n)
+  PrimCon _ p -> prim p
   where
     pT = prettyType opts
     pE = prettyExpr opts
+    prim = \case
+      PrimChar c -> "Char" <+> pretty @Text (show c)
+      PrimInt n -> "Int" <+> pretty @Text (show n)
     typeann e t = brac Round Yellow (pE e) <+> col Yellow "::" <> line <> brac Round Yellow (pT t)
 
 -- When grouped: " x "

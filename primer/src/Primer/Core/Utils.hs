@@ -59,6 +59,7 @@ import Primer.Core (
   TyVarName,
   Type' (..),
   bindName,
+  traverseFallback,
   trivialMeta,
   _exprMeta,
   _exprTypeMeta,
@@ -136,7 +137,7 @@ _freeTmVars = traversalVL $ go mempty
         -- A well scoped term will not refer to tv as a term
         -- variable, so we do not need to add it to the bound set
         LetType m tv ty <$> go bound f e
-      Case m e bs -> Case m <$> go bound f e <*> traverse freeVarsBr bs
+      Case m e bs fb -> Case m <$> go bound f e <*> traverse freeVarsBr bs <*> traverseFallback (go bound f) fb
       t@PrimCon{} -> pure t
       where
         freeVarsBr (CaseBranch c binds e) = CaseBranch c binds <$> go (S.union bound $ S.fromList $ map bindName binds) f e
@@ -167,7 +168,7 @@ _freeTyVars = traversalVL $ go mempty
         -- variable, so we do not need to add it to the bound set
         Letrec m v <$> go bound f e <*> traverseFreeVarsTy bound f ty <*> go bound f b
       LetType m v ty e -> LetType m v <$> traverseFreeVarsTy bound f ty <*> go (S.insert v bound) f e
-      Case m e bs -> Case m <$> go bound f e <*> traverse freeVarsBr bs
+      Case m e bs fb -> Case m <$> go bound f e <*> traverse freeVarsBr bs <*> traverseFallback (go bound f) fb
       t@PrimCon{} -> pure t
       where
         freeVarsBr (CaseBranch c binds e) = CaseBranch c binds <$> go bound f e -- case branches only bind term variables

@@ -143,6 +143,7 @@ import Primer.App.Base (TypeDefNodeSelection (..))
 import Primer.Core (
   Bind' (..),
   CaseBranch' (..),
+  CaseFallback' (CaseExhaustive, CaseFallback),
   Expr,
   Expr' (..),
   GVarName,
@@ -167,7 +168,7 @@ import Primer.Core (
   _typeMetaLens,
  )
 import Primer.Core.DSL qualified as DSL
-import Primer.Core.Meta (LocalName)
+import Primer.Core.Meta (LocalName, Pattern (PatCon, PatPrim))
 import Primer.Core.Meta qualified as Core
 import Primer.Database (
   OffsetLimit,
@@ -822,7 +823,7 @@ viewTreeExpr e0 = case e0 of
       , childTrees = [viewTreeExpr e1, viewTreeType t, viewTreeExpr e2]
       , rightChild = Nothing
       }
-  Case _ e bs ->
+  Case _ e bs fb ->
     Tree
       { nodeId
       , body = NoBody Flavor.Case
@@ -837,10 +838,10 @@ viewTreeExpr e0 = case e0 of
           --  which should only happen when matching on `Void`
           ifoldr
             (\i b next -> Just $ (viewCaseBranch i b){rightChild = next})
-            Nothing
+            viewFallback
             bs
         )
-      viewCaseBranch i (CaseBranch con binds rhs) =
+      viewCaseBranch i (CaseBranch p binds rhs) =
         let
           -- these IDs will not clash with any others in the tree,
           -- since node IDs in the input expression are unique,
@@ -854,7 +855,7 @@ viewTreeExpr e0 = case e0 of
                 BoxBody . RecordPair Flavor.Pattern $
                   ( Tree
                       { nodeId = patternRootId
-                      , body = TextBody $ RecordPair Flavor.PatternCon $ globalName con
+                      , body = pat p
                       , childTrees =
                           map
                             ( \(Bind m v) ->
@@ -872,6 +873,34 @@ viewTreeExpr e0 = case e0 of
             , childTrees = [viewTreeExpr rhs]
             , rightChild = Nothing
             }
+      viewFallback = case fb of
+        CaseExhaustive -> Nothing
+        CaseFallback rhs ->
+          let
+            -- these IDs will not clash with any others in the tree,
+            -- since node IDs in the input expression are unique,
+            -- and don't contain non-numerical characters
+            boxId = nodeId <> "Pwild"
+            patternRootId = boxId <> "B"
+           in
+            Just $
+              Tree
+                { nodeId = boxId
+                , body =
+                    BoxBody . RecordPair Flavor.Pattern $
+                      ( Tree
+                          { nodeId = patternRootId
+                          , body = NoBody Flavor.PatternWildcard
+                          , childTrees = []
+                          , rightChild = Nothing
+                          }
+                      )
+                , childTrees = [viewTreeExpr rhs]
+                , rightChild = Nothing
+                }
+      pat = \case
+        PatCon n -> TextBody $ RecordPair Flavor.PatternCon $ globalName n
+        PatPrim pc -> PrimBody $ RecordPair Flavor.PrimPattern pc
   PrimCon _ pc ->
     Tree
       { nodeId

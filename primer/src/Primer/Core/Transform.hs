@@ -26,6 +26,7 @@ import Primer.Core (
   TyVarName,
   Type' (..),
   bindName,
+  traverseFallback,
   typesInExpr,
  )
 import Primer.Core.Meta (TyConName)
@@ -69,7 +70,7 @@ renameVar x y expr = case expr of
     | sameVarRef v x -> whenNotFreeIn y expr
     | sameVarRef v y -> Nothing
     | otherwise -> substAllChildren
-  Case m scrut branches -> Case m <$> renameVar x y scrut <*> mapM renameBranch branches
+  Case m scrut branches fallback -> Case m <$> renameVar x y scrut <*> mapM renameBranch branches <*> traverseFallback (renameVar x y) fallback
     where
       renameBranch b@(CaseBranch con termargs rhs)
         | any (`sameVarRef` y) $ bindingNames b = Nothing
@@ -179,7 +180,7 @@ renameTyVarExpr x y expr = case expr of
     | sameVar v x -> Letrec m v e1 <$> renameTyVar x y ty <*> pure e2
     | sameVar v y -> Nothing
     | otherwise -> substAllChildren
-  Case m scrut branches -> Case m <$> renameTyVarExpr x y scrut <*> mapM renameBranch branches
+  Case m scrut branches fallback -> Case m <$> renameTyVarExpr x y scrut <*> mapM renameBranch branches <*> traverseFallback (renameTyVarExpr x y) fallback
     where
       renameBranch b@(CaseBranch con termargs rhs)
         | any (sameVar x) $ bindingNames b = pure b

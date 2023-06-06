@@ -75,6 +75,7 @@ import Primer.Core.DSL (
   ann,
   app,
   branch,
+  caseFB_,
   case_,
   con,
   con0,
@@ -298,13 +299,17 @@ comprehensive' typeable modName = do
                                     , Nothing
                                     )
                                   ]
-                                  ( app
-                                      ( app
-                                          emptyHole
-                                          (lvar "x")
-                                      )
-                                      (lvar "y")
-                                  )
+                                  $ caseFB_
+                                    (lvar "n")
+                                    [ branch B.cZero [] $
+                                        app
+                                          ( app
+                                              emptyHole
+                                              (lvar "x")
+                                          )
+                                          (lvar "y")
+                                    ]
+                                    emptyHole
                               ]
                           )
                       )
