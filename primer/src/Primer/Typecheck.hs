@@ -58,6 +58,7 @@ module Primer.Typecheck (
   localTmVars,
   localTyVars,
   enhole,
+  eqType,
 ) where
 
 import Foreword

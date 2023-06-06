@@ -19,18 +19,22 @@ Output
                             [ Option
                                 { option = "j"
                                 , context = Nothing
+                                , matchesType = False
                                 }
                             , Option
                                 { option = "m"
                                 , context = Nothing
+                                , matchesType = False
                                 }
                             , Option
                                 { option = "i1"
                                 , context = Nothing
+                                , matchesType = False
                                 }
                             , Option
                                 { option = "n1"
                                 , context = Nothing
+                                , matchesType = False
                                 }
                             ]
                         , free = FreeVarName
@@ -44,10 +48,12 @@ Output
                             [ Option
                                 { option = "p"
                                 , context = Nothing
+                                , matchesType = False
                                 }
                             , Option
                                 { option = "q"
                                 , context = Nothing
+                                , matchesType = False
                                 }
                             ]
                         , free = FreeVarName
@@ -65,14 +71,17 @@ Output
                             [ Option
                                 { option = "x"
                                 , context = Nothing
+                                , matchesType = False
                                 }
                             , Option
                                 { option = "y"
                                 , context = Nothing
+                                , matchesType = False
                                 }
                             , Option
                                 { option = "z"
                                 , context = Nothing
+                                , matchesType = False
                                 }
                             ]
                         , free = FreeVarName
@@ -93,14 +102,17 @@ Output
                             [ Option
                                 { option = "x"
                                 , context = Nothing
+                                , matchesType = False
                                 }
                             , Option
                                 { option = "y"
                                 , context = Nothing
+                                , matchesType = False
                                 }
                             , Option
                                 { option = "z"
                                 , context = Nothing
+                                , matchesType = False
                                 }
                             ]
                         , free = FreeVarName
@@ -120,18 +132,22 @@ Output
                             [ Option
                                 { option = "j"
                                 , context = Nothing
+                                , matchesType = False
                                 }
                             , Option
                                 { option = "m"
                                 , context = Nothing
+                                , matchesType = False
                                 }
                             , Option
                                 { option = "i1"
                                 , context = Nothing
+                                , matchesType = False
                                 }
                             , Option
                                 { option = "n1"
                                 , context = Nothing
+                                , matchesType = False
                                 }
                             ]
                         , free = FreeVarName
@@ -144,14 +160,17 @@ Output
                             [ Option
                                 { option = "z"
                                 , context = Nothing
+                                , matchesType = False
                                 }
                             , Option
                                 { option = "x1"
                                 , context = Nothing
+                                , matchesType = False
                                 }
                             , Option
                                 { option = "y1"
                                 , context = Nothing
+                                , matchesType = False
                                 }
                             ]
                         , free = FreeVarName
@@ -170,14 +189,17 @@ Output
                             [ Option
                                 { option = "z"
                                 , context = Nothing
+                                , matchesType = False
                                 }
                             , Option
                                 { option = "x1"
                                 , context = Nothing
+                                , matchesType = False
                                 }
                             , Option
                                 { option = "y1"
                                 , context = Nothing
+                                , matchesType = False
                                 }
                             ]
                         , free = FreeVarName
@@ -198,14 +220,17 @@ Output
                             [ Option
                                 { option = "z"
                                 , context = Nothing
+                                , matchesType = False
                                 }
                             , Option
                                 { option = "x1"
                                 , context = Nothing
+                                , matchesType = False
                                 }
                             , Option
                                 { option = "y1"
                                 , context = Nothing
+                                , matchesType = False
                                 }
                             ]
                         , free = FreeVarName
@@ -227,14 +252,17 @@ Output
                             [ Option
                                 { option = "z"
                                 , context = Nothing
+                                , matchesType = False
                                 }
                             , Option
                                 { option = "x1"
                                 , context = Nothing
+                                , matchesType = False
                                 }
                             , Option
                                 { option = "y1"
                                 , context = Nothing
+                                , matchesType = False
                                 }
                             ]
                         , free = FreeVarName
@@ -254,14 +282,17 @@ Output
                             [ Option
                                 { option = "z"
                                 , context = Nothing
+                                , matchesType = False
                                 }
                             , Option
                                 { option = "x1"
                                 , context = Nothing
+                                , matchesType = False
                                 }
                             , Option
                                 { option = "y1"
                                 , context = Nothing
+                                , matchesType = False
                                 }
                             ]
                         , free = FreeVarName
@@ -281,14 +312,17 @@ Output
                             [ Option
                                 { option = "z"
                                 , context = Nothing
+                                , matchesType = False
                                 }
                             , Option
                                 { option = "x1"
                                 , context = Nothing
+                                , matchesType = False
                                 }
                             , Option
                                 { option = "y1"
                                 , context = Nothing
+                                , matchesType = False
                                 }
                             ]
                         , free = FreeVarName
@@ -300,15 +334,18 @@ Output
                             [ Option
                                 { option = "x"
                                 , context = Nothing
+                                , matchesType = False
                                 }
                             , Option
                                 { option = "y"
                                 , context = Nothing
+                                , matchesType = False
                                 }
                             , Option
                                 { option = "comprehensive"
                                 , context = Just
                                     ( "M" :| [] )
+                                , matchesType = False
                                 }
                             ]
                         , free = FreeNone
@@ -322,56 +359,67 @@ Output
                                 { option = "True"
                                 , context = Just
                                     ( "Builtins" :| [] )
+                                , matchesType = False
                                 }
                             , Option
                                 { option = "False"
                                 , context = Just
                                     ( "Builtins" :| [] )
+                                , matchesType = False
                                 }
                             , Option
                                 { option = "Left"
                                 , context = Just
                                     ( "Builtins" :| [] )
+                                , matchesType = False
                                 }
                             , Option
                                 { option = "Right"
                                 , context = Just
                                     ( "Builtins" :| [] )
+                                , matchesType = False
                                 }
                             , Option
                                 { option = "Nil"
                                 , context = Just
                                     ( "Builtins" :| [] )
+                                , matchesType = False
                                 }
                             , Option
                                 { option = "Cons"
                                 , context = Just
                                     ( "Builtins" :| [] )
+                                , matchesType = False
                                 }
                             , Option
                                 { option = "Nothing"
                                 , context = Just
                                     ( "Builtins" :| [] )
+                                , matchesType = False
                                 }
                             , Option
                                 { option = "Just"
                                 , context = Just
                                     ( "Builtins" :| [] )
+                                , matchesType = False
                                 }
                             , Option
                                 { option = "Zero"
                                 , context = Just
                                     ( "Builtins" :| [] )
+                                , matchesType = False
                                 }
                             , Option
                                 { option = "Succ"
                                 , context = Just
                                     ( "Builtins" :| [] )
+                                , matchesType = False
                                 }
                             , Option
                                 { option = "MakePair"
                                 , context = Just
                                     ( "Builtins" :| [] )
+                                , matchesType = False
                                 }
                             ]
                         , free = FreeNone
@@ -384,6 +432,7 @@ Output
                                 { option = "comprehensive"
                                 , context = Just
                                     ( "M" :| [] )
+                                , matchesType = False
                                 }
                             ]
                         , free = FreeNone
@@ -407,14 +456,17 @@ Output
                             [ Option
                                 { option = "z"
                                 , context = Nothing
+                                , matchesType = False
                                 }
                             , Option
                                 { option = "x1"
                                 , context = Nothing
+                                , matchesType = False
                                 }
                             , Option
                                 { option = "y1"
                                 , context = Nothing
+                                , matchesType = False
                                 }
                             ]
                         , free = FreeVarName
@@ -426,14 +478,17 @@ Output
                             [ Option
                                 { option = "z"
                                 , context = Nothing
+                                , matchesType = False
                                 }
                             , Option
                                 { option = "x1"
                                 , context = Nothing
+                                , matchesType = False
                                 }
                             , Option
                                 { option = "y1"
                                 , context = Nothing
+                                , matchesType = False
                                 }
                             ]
                         , free = FreeVarName
@@ -453,14 +508,17 @@ Output
                             [ Option
                                 { option = "z"
                                 , context = Nothing
+                                , matchesType = False
                                 }
                             , Option
                                 { option = "x1"
                                 , context = Nothing
+                                , matchesType = False
                                 }
                             , Option
                                 { option = "y1"
                                 , context = Nothing
+                                , matchesType = False
                                 }
                             ]
                         , free = FreeVarName
@@ -472,15 +530,18 @@ Output
                             [ Option
                                 { option = "x"
                                 , context = Nothing
+                                , matchesType = False
                                 }
                             , Option
                                 { option = "y"
                                 , context = Nothing
+                                , matchesType = False
                                 }
                             , Option
                                 { option = "comprehensive"
                                 , context = Just
                                     ( "M" :| [] )
+                                , matchesType = False
                                 }
                             ]
                         , free = FreeNone
@@ -494,56 +555,67 @@ Output
                                 { option = "True"
                                 , context = Just
                                     ( "Builtins" :| [] )
+                                , matchesType = False
                                 }
                             , Option
                                 { option = "False"
                                 , context = Just
                                     ( "Builtins" :| [] )
+                                , matchesType = False
                                 }
                             , Option
                                 { option = "Left"
                                 , context = Just
                                     ( "Builtins" :| [] )
+                                , matchesType = False
                                 }
                             , Option
                                 { option = "Right"
                                 , context = Just
                                     ( "Builtins" :| [] )
+                                , matchesType = False
                                 }
                             , Option
                                 { option = "Nil"
                                 , context = Just
                                     ( "Builtins" :| [] )
+                                , matchesType = False
                                 }
                             , Option
                                 { option = "Cons"
                                 , context = Just
                                     ( "Builtins" :| [] )
+                                , matchesType = False
                                 }
                             , Option
                                 { option = "Nothing"
                                 , context = Just
                                     ( "Builtins" :| [] )
+                                , matchesType = False
                                 }
                             , Option
                                 { option = "Just"
                                 , context = Just
                                     ( "Builtins" :| [] )
+                                , matchesType = False
                                 }
                             , Option
                                 { option = "Zero"
                                 , context = Just
                                     ( "Builtins" :| [] )
+                                , matchesType = False
                                 }
                             , Option
                                 { option = "Succ"
                                 , context = Just
                                     ( "Builtins" :| [] )
+                                , matchesType = False
                                 }
                             , Option
                                 { option = "MakePair"
                                 , context = Just
                                     ( "Builtins" :| [] )
+                                , matchesType = False
                                 }
                             ]
                         , free = FreeNone
@@ -556,6 +628,7 @@ Output
                                 { option = "comprehensive"
                                 , context = Just
                                     ( "M" :| [] )
+                                , matchesType = False
                                 }
                             ]
                         , free = FreeNone
@@ -579,14 +652,17 @@ Output
                             [ Option
                                 { option = "z"
                                 , context = Nothing
+                                , matchesType = False
                                 }
                             , Option
                                 { option = "x1"
                                 , context = Nothing
+                                , matchesType = False
                                 }
                             , Option
                                 { option = "y1"
                                 , context = Nothing
+                                , matchesType = False
                                 }
                             ]
                         , free = FreeVarName
@@ -598,14 +674,17 @@ Output
                             [ Option
                                 { option = "z"
                                 , context = Nothing
+                                , matchesType = False
                                 }
                             , Option
                                 { option = "x1"
                                 , context = Nothing
+                                , matchesType = False
                                 }
                             , Option
                                 { option = "y1"
                                 , context = Nothing
+                                , matchesType = False
                                 }
                             ]
                         , free = FreeVarName
@@ -625,18 +704,22 @@ Output
                             [ Option
                                 { option = "j"
                                 , context = Nothing
+                                , matchesType = False
                                 }
                             , Option
                                 { option = "m"
                                 , context = Nothing
+                                , matchesType = False
                                 }
                             , Option
                                 { option = "i1"
                                 , context = Nothing
+                                , matchesType = False
                                 }
                             , Option
                                 { option = "n1"
                                 , context = Nothing
+                                , matchesType = False
                                 }
                             ]
                         , free = FreeVarName
@@ -656,18 +739,22 @@ Output
                             [ Option
                                 { option = "j"
                                 , context = Nothing
+                                , matchesType = False
                                 }
                             , Option
                                 { option = "m"
                                 , context = Nothing
+                                , matchesType = False
                                 }
                             , Option
                                 { option = "i1"
                                 , context = Nothing
+                                , matchesType = False
                                 }
                             , Option
                                 { option = "n1"
                                 , context = Nothing
+                                , matchesType = False
                                 }
                             ]
                         , free = FreeVarName
@@ -680,18 +767,22 @@ Output
                             [ Option
                                 { option = "j"
                                 , context = Nothing
+                                , matchesType = False
                                 }
                             , Option
                                 { option = "m"
                                 , context = Nothing
+                                , matchesType = False
                                 }
                             , Option
                                 { option = "i1"
                                 , context = Nothing
+                                , matchesType = False
                                 }
                             , Option
                                 { option = "n1"
                                 , context = Nothing
+                                , matchesType = False
                                 }
                             ]
                         , free = FreeVarName
@@ -710,14 +801,17 @@ Output
                             [ Option
                                 { option = "z"
                                 , context = Nothing
+                                , matchesType = False
                                 }
                             , Option
                                 { option = "x1"
                                 , context = Nothing
+                                , matchesType = False
                                 }
                             , Option
                                 { option = "y1"
                                 , context = Nothing
+                                , matchesType = False
                                 }
                             ]
                         , free = FreeVarName
@@ -737,14 +831,17 @@ Output
                             [ Option
                                 { option = "z"
                                 , context = Nothing
+                                , matchesType = False
                                 }
                             , Option
                                 { option = "x1"
                                 , context = Nothing
+                                , matchesType = False
                                 }
                             , Option
                                 { option = "y1"
                                 , context = Nothing
+                                , matchesType = False
                                 }
                             ]
                         , free = FreeVarName
@@ -765,14 +862,17 @@ Output
                             [ Option
                                 { option = "z"
                                 , context = Nothing
+                                , matchesType = False
                                 }
                             , Option
                                 { option = "x1"
                                 , context = Nothing
+                                , matchesType = False
                                 }
                             , Option
                                 { option = "y1"
                                 , context = Nothing
+                                , matchesType = False
                                 }
                             ]
                         , free = FreeVarName
@@ -792,14 +892,17 @@ Output
                             [ Option
                                 { option = "z"
                                 , context = Nothing
+                                , matchesType = False
                                 }
                             , Option
                                 { option = "x1"
                                 , context = Nothing
+                                , matchesType = False
                                 }
                             , Option
                                 { option = "y1"
                                 , context = Nothing
+                                , matchesType = False
                                 }
                             ]
                         , free = FreeVarName
@@ -819,14 +922,17 @@ Output
                             [ Option
                                 { option = "z"
                                 , context = Nothing
+                                , matchesType = False
                                 }
                             , Option
                                 { option = "x1"
                                 , context = Nothing
+                                , matchesType = False
                                 }
                             , Option
                                 { option = "y1"
                                 , context = Nothing
+                                , matchesType = False
                                 }
                             ]
                         , free = FreeVarName
@@ -846,10 +952,12 @@ Output
                             [ Option
                                 { option = "p"
                                 , context = Nothing
+                                , matchesType = False
                                 }
                             , Option
                                 { option = "q"
                                 , context = Nothing
+                                , matchesType = False
                                 }
                             ]
                         , free = FreeVarName
@@ -862,10 +970,12 @@ Output
                             [ Option
                                 { option = "p"
                                 , context = Nothing
+                                , matchesType = False
                                 }
                             , Option
                                 { option = "q"
                                 , context = Nothing
+                                , matchesType = False
                                 }
                             ]
                         , free = FreeVarName
@@ -884,14 +994,17 @@ Output
                             [ Option
                                 { option = "z"
                                 , context = Nothing
+                                , matchesType = False
                                 }
                             , Option
                                 { option = "x1"
                                 , context = Nothing
+                                , matchesType = False
                                 }
                             , Option
                                 { option = "y1"
                                 , context = Nothing
+                                , matchesType = False
                                 }
                             ]
                         , free = FreeVarName
@@ -911,14 +1024,17 @@ Output
                             [ Option
                                 { option = "z"
                                 , context = Nothing
+                                , matchesType = False
                                 }
                             , Option
                                 { option = "x1"
                                 , context = Nothing
+                                , matchesType = False
                                 }
                             , Option
                                 { option = "y1"
                                 , context = Nothing
+                                , matchesType = False
                                 }
                             ]
                         , free = FreeVarName
@@ -939,14 +1055,17 @@ Output
                             [ Option
                                 { option = "z"
                                 , context = Nothing
+                                , matchesType = False
                                 }
                             , Option
                                 { option = "x1"
                                 , context = Nothing
+                                , matchesType = False
                                 }
                             , Option
                                 { option = "y1"
                                 , context = Nothing
+                                , matchesType = False
                                 }
                             ]
                         , free = FreeVarName
@@ -959,11 +1078,13 @@ Output
                                 { option = "Zero"
                                 , context = Just
                                     ( "Builtins" :| [] )
+                                , matchesType = False
                                 }
                             , Option
                                 { option = "Succ"
                                 , context = Just
                                     ( "Builtins" :| [] )
+                                , matchesType = False
                                 }
                             ]
                         , free = FreeNone
@@ -983,14 +1104,17 @@ Output
                             [ Option
                                 { option = "z"
                                 , context = Nothing
+                                , matchesType = False
                                 }
                             , Option
                                 { option = "x1"
                                 , context = Nothing
+                                , matchesType = False
                                 }
                             , Option
                                 { option = "y1"
                                 , context = Nothing
+                                , matchesType = False
                                 }
                             ]
                         , free = FreeVarName
@@ -1011,14 +1135,17 @@ Output
                             [ Option
                                 { option = "z"
                                 , context = Nothing
+                                , matchesType = False
                                 }
                             , Option
                                 { option = "x1"
                                 , context = Nothing
+                                , matchesType = False
                                 }
                             , Option
                                 { option = "y1"
                                 , context = Nothing
+                                , matchesType = False
                                 }
                             ]
                         , free = FreeVarName
@@ -1038,18 +1165,22 @@ Output
                             [ Option
                                 { option = "j"
                                 , context = Nothing
+                                , matchesType = False
                                 }
                             , Option
                                 { option = "m"
                                 , context = Nothing
+                                , matchesType = False
                                 }
                             , Option
                                 { option = "i1"
                                 , context = Nothing
+                                , matchesType = False
                                 }
                             , Option
                                 { option = "n1"
                                 , context = Nothing
+                                , matchesType = False
                                 }
                             ]
                         , free = FreeVarName
@@ -1066,14 +1197,17 @@ Output
                             [ Option
                                 { option = "z"
                                 , context = Nothing
+                                , matchesType = False
                                 }
                             , Option
                                 { option = "x1"
                                 , context = Nothing
+                                , matchesType = False
                                 }
                             , Option
                                 { option = "y1"
                                 , context = Nothing
+                                , matchesType = False
                                 }
                             ]
                         , free = FreeVarName
@@ -1086,6 +1220,7 @@ Output
                                 { option = "Succ"
                                 , context = Just
                                     ( "Builtins" :| [] )
+                                , matchesType = False
                                 }
                             ]
                         , free = FreeNone
@@ -1098,6 +1233,7 @@ Output
                                 { option = "Zero"
                                 , context = Just
                                     ( "Builtins" :| [] )
+                                , matchesType = False
                                 }
                             ]
                         , free = FreeNone
@@ -1117,14 +1253,17 @@ Output
                             [ Option
                                 { option = "z"
                                 , context = Nothing
+                                , matchesType = False
                                 }
                             , Option
                                 { option = "x1"
                                 , context = Nothing
+                                , matchesType = False
                                 }
                             , Option
                                 { option = "y1"
                                 , context = Nothing
+                                , matchesType = False
                                 }
                             ]
                         , free = FreeVarName
@@ -1145,14 +1284,17 @@ Output
                             [ Option
                                 { option = "z"
                                 , context = Nothing
+                                , matchesType = False
                                 }
                             , Option
                                 { option = "x1"
                                 , context = Nothing
+                                , matchesType = False
                                 }
                             , Option
                                 { option = "y1"
                                 , context = Nothing
+                                , matchesType = False
                                 }
                             ]
                         , free = FreeVarName
@@ -1173,14 +1315,17 @@ Output
                             [ Option
                                 { option = "z"
                                 , context = Nothing
+                                , matchesType = False
                                 }
                             , Option
                                 { option = "x1"
                                 , context = Nothing
+                                , matchesType = False
                                 }
                             , Option
                                 { option = "y1"
                                 , context = Nothing
+                                , matchesType = False
                                 }
                             ]
                         , free = FreeVarName
@@ -1201,14 +1346,17 @@ Output
                             [ Option
                                 { option = "z"
                                 , context = Nothing
+                                , matchesType = False
                                 }
                             , Option
                                 { option = "x1"
                                 , context = Nothing
+                                , matchesType = False
                                 }
                             , Option
                                 { option = "y1"
                                 , context = Nothing
+                                , matchesType = False
                                 }
                             ]
                         , free = FreeVarName
@@ -1220,23 +1368,28 @@ Output
                             [ Option
                                 { option = "x"
                                 , context = Nothing
+                                , matchesType = False
                                 }
                             , Option
                                 { option = "y"
                                 , context = Nothing
+                                , matchesType = False
                                 }
                             , Option
                                 { option = "i"
                                 , context = Nothing
+                                , matchesType = False
                                 }
                             , Option
                                 { option = "n"
                                 , context = Nothing
+                                , matchesType = False
                                 }
                             , Option
                                 { option = "comprehensive"
                                 , context = Just
                                     ( "M" :| [] )
+                                , matchesType = False
                                 }
                             ]
                         , free = FreeNone
@@ -1250,56 +1403,67 @@ Output
                                 { option = "True"
                                 , context = Just
                                     ( "Builtins" :| [] )
+                                , matchesType = False
                                 }
                             , Option
                                 { option = "False"
                                 , context = Just
                                     ( "Builtins" :| [] )
+                                , matchesType = False
                                 }
                             , Option
                                 { option = "Left"
                                 , context = Just
                                     ( "Builtins" :| [] )
+                                , matchesType = False
                                 }
                             , Option
                                 { option = "Right"
                                 , context = Just
                                     ( "Builtins" :| [] )
+                                , matchesType = False
                                 }
                             , Option
                                 { option = "Nil"
                                 , context = Just
                                     ( "Builtins" :| [] )
+                                , matchesType = False
                                 }
                             , Option
                                 { option = "Cons"
                                 , context = Just
                                     ( "Builtins" :| [] )
+                                , matchesType = False
                                 }
                             , Option
                                 { option = "Nothing"
                                 , context = Just
                                     ( "Builtins" :| [] )
+                                , matchesType = False
                                 }
                             , Option
                                 { option = "Just"
                                 , context = Just
                                     ( "Builtins" :| [] )
+                                , matchesType = False
                                 }
                             , Option
                                 { option = "Zero"
                                 , context = Just
                                     ( "Builtins" :| [] )
+                                , matchesType = False
                                 }
                             , Option
                                 { option = "Succ"
                                 , context = Just
                                     ( "Builtins" :| [] )
+                                , matchesType = False
                                 }
                             , Option
                                 { option = "MakePair"
                                 , context = Just
                                     ( "Builtins" :| [] )
+                                , matchesType = False
                                 }
                             ]
                         , free = FreeNone
@@ -1312,6 +1476,7 @@ Output
                                 { option = "comprehensive"
                                 , context = Just
                                     ( "M" :| [] )
+                                , matchesType = False
                                 }
                             ]
                         , free = FreeNone
@@ -1335,14 +1500,17 @@ Output
                             [ Option
                                 { option = "z"
                                 , context = Nothing
+                                , matchesType = False
                                 }
                             , Option
                                 { option = "x1"
                                 , context = Nothing
+                                , matchesType = False
                                 }
                             , Option
                                 { option = "y1"
                                 , context = Nothing
+                                , matchesType = False
                                 }
                             ]
                         , free = FreeVarName
@@ -1354,14 +1522,17 @@ Output
                             [ Option
                                 { option = "z"
                                 , context = Nothing
+                                , matchesType = False
                                 }
                             , Option
                                 { option = "x1"
                                 , context = Nothing
+                                , matchesType = False
                                 }
                             , Option
                                 { option = "y1"
                                 , context = Nothing
+                                , matchesType = False
                                 }
                             ]
                         , free = FreeVarName
@@ -1381,14 +1552,17 @@ Output
                             [ Option
                                 { option = "z"
                                 , context = Nothing
+                                , matchesType = False
                                 }
                             , Option
                                 { option = "x1"
                                 , context = Nothing
+                                , matchesType = False
                                 }
                             , Option
                                 { option = "y1"
                                 , context = Nothing
+                                , matchesType = False
                                 }
                             ]
                         , free = FreeVarName
@@ -1409,14 +1583,17 @@ Output
                             [ Option
                                 { option = "z"
                                 , context = Nothing
+                                , matchesType = False
                                 }
                             , Option
                                 { option = "x1"
                                 , context = Nothing
+                                , matchesType = False
                                 }
                             , Option
                                 { option = "y1"
                                 , context = Nothing
+                                , matchesType = False
                                 }
                             ]
                         , free = FreeVarName
@@ -1437,14 +1614,17 @@ Output
                             [ Option
                                 { option = "z"
                                 , context = Nothing
+                                , matchesType = False
                                 }
                             , Option
                                 { option = "x1"
                                 , context = Nothing
+                                , matchesType = False
                                 }
                             , Option
                                 { option = "y1"
                                 , context = Nothing
+                                , matchesType = False
                                 }
                             ]
                         , free = FreeVarName
@@ -1456,23 +1636,28 @@ Output
                             [ Option
                                 { option = "x"
                                 , context = Nothing
+                                , matchesType = True
                                 }
                             , Option
                                 { option = "y"
                                 , context = Nothing
+                                , matchesType = False
                                 }
                             , Option
                                 { option = "i"
                                 , context = Nothing
+                                , matchesType = False
                                 }
                             , Option
                                 { option = "n"
                                 , context = Nothing
+                                , matchesType = False
                                 }
                             , Option
                                 { option = "comprehensive"
                                 , context = Just
                                     ( "M" :| [] )
+                                , matchesType = False
                                 }
                             ]
                         , free = FreeNone
@@ -1486,56 +1671,67 @@ Output
                                 { option = "True"
                                 , context = Just
                                     ( "Builtins" :| [] )
+                                , matchesType = False
                                 }
                             , Option
                                 { option = "False"
                                 , context = Just
                                     ( "Builtins" :| [] )
+                                , matchesType = False
                                 }
                             , Option
                                 { option = "Left"
                                 , context = Just
                                     ( "Builtins" :| [] )
+                                , matchesType = False
                                 }
                             , Option
                                 { option = "Right"
                                 , context = Just
                                     ( "Builtins" :| [] )
+                                , matchesType = False
                                 }
                             , Option
                                 { option = "Nil"
                                 , context = Just
                                     ( "Builtins" :| [] )
+                                , matchesType = False
                                 }
                             , Option
                                 { option = "Cons"
                                 , context = Just
                                     ( "Builtins" :| [] )
+                                , matchesType = False
                                 }
                             , Option
                                 { option = "Nothing"
                                 , context = Just
                                     ( "Builtins" :| [] )
+                                , matchesType = False
                                 }
                             , Option
                                 { option = "Just"
                                 , context = Just
                                     ( "Builtins" :| [] )
+                                , matchesType = False
                                 }
                             , Option
                                 { option = "Zero"
                                 , context = Just
                                     ( "Builtins" :| [] )
+                                , matchesType = False
                                 }
                             , Option
                                 { option = "Succ"
                                 , context = Just
                                     ( "Builtins" :| [] )
+                                , matchesType = False
                                 }
                             , Option
                                 { option = "MakePair"
                                 , context = Just
                                     ( "Builtins" :| [] )
+                                , matchesType = False
                                 }
                             ]
                         , free = FreeNone
@@ -1548,6 +1744,7 @@ Output
                                 { option = "comprehensive"
                                 , context = Just
                                     ( "M" :| [] )
+                                , matchesType = False
                                 }
                             ]
                         , free = FreeNone
@@ -1571,14 +1768,17 @@ Output
                             [ Option
                                 { option = "z"
                                 , context = Nothing
+                                , matchesType = False
                                 }
                             , Option
                                 { option = "x1"
                                 , context = Nothing
+                                , matchesType = False
                                 }
                             , Option
                                 { option = "y1"
                                 , context = Nothing
+                                , matchesType = False
                                 }
                             ]
                         , free = FreeVarName
@@ -1590,14 +1790,17 @@ Output
                             [ Option
                                 { option = "z"
                                 , context = Nothing
+                                , matchesType = False
                                 }
                             , Option
                                 { option = "x1"
                                 , context = Nothing
+                                , matchesType = False
                                 }
                             , Option
                                 { option = "y1"
                                 , context = Nothing
+                                , matchesType = False
                                 }
                             ]
                         , free = FreeVarName
@@ -1641,41 +1844,49 @@ Output
                                 { option = "Bool"
                                 , context = Just
                                     ( "Builtins" :| [] )
+                                , matchesType = False
                                 }
                             , Option
                                 { option = "Either"
                                 , context = Just
                                     ( "Builtins" :| [] )
+                                , matchesType = False
                                 }
                             , Option
                                 { option = "List"
                                 , context = Just
                                     ( "Builtins" :| [] )
+                                , matchesType = False
                                 }
                             , Option
                                 { option = "Maybe"
                                 , context = Just
                                     ( "Builtins" :| [] )
+                                , matchesType = False
                                 }
                             , Option
                                 { option = "Nat"
                                 , context = Just
                                     ( "Builtins" :| [] )
+                                , matchesType = False
                                 }
                             , Option
                                 { option = "Pair"
                                 , context = Just
                                     ( "Builtins" :| [] )
+                                , matchesType = False
                                 }
                             , Option
                                 { option = "Char"
                                 , context = Just
                                     ( "Primitives" :| [] )
+                                , matchesType = False
                                 }
                             , Option
                                 { option = "Int"
                                 , context = Just
                                     ( "Primitives" :| [] )
+                                , matchesType = False
                                 }
                             ]
                         , free = FreeNone
@@ -1903,41 +2114,49 @@ Output
                                 { option = "Bool"
                                 , context = Just
                                     ( "Builtins" :| [] )
+                                , matchesType = False
                                 }
                             , Option
                                 { option = "Either"
                                 , context = Just
                                     ( "Builtins" :| [] )
+                                , matchesType = False
                                 }
                             , Option
                                 { option = "List"
                                 , context = Just
                                     ( "Builtins" :| [] )
+                                , matchesType = False
                                 }
                             , Option
                                 { option = "Maybe"
                                 , context = Just
                                     ( "Builtins" :| [] )
+                                , matchesType = False
                                 }
                             , Option
                                 { option = "Nat"
                                 , context = Just
                                     ( "Builtins" :| [] )
+                                , matchesType = False
                                 }
                             , Option
                                 { option = "Pair"
                                 , context = Just
                                     ( "Builtins" :| [] )
+                                , matchesType = False
                                 }
                             , Option
                                 { option = "Char"
                                 , context = Just
                                     ( "Primitives" :| [] )
+                                , matchesType = False
                                 }
                             , Option
                                 { option = "Int"
                                 , context = Just
                                     ( "Primitives" :| [] )
+                                , matchesType = False
                                 }
                             ]
                         , free = FreeNone

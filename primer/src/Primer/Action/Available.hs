@@ -31,6 +31,7 @@ import Data.Set qualified as Set
 import Data.Text qualified as T
 import Data.Tuple.Extra (fst3)
 import Optics (
+  afailing,
   to,
   (%),
   (^.),
@@ -103,6 +104,7 @@ import Primer.Typecheck (
   Cxt,
   TypeDefError (TDIHoleType),
   TypeDefInfo (TypeDefInfo),
+  eqType,
   getTypeDefInfo',
   instantiateValCons',
  )
@@ -382,6 +384,7 @@ forTypeDefConsFieldNode l Editable def con index id =
 data Option = Option
   { option :: Text
   , context :: Maybe (NonEmpty Text)
+  , matchesType :: Bool
   }
   deriving stock (Eq, Show, Read, Generic)
   deriving (FromJSON, ToJSON) via PrimerJSON Option
@@ -467,13 +470,13 @@ options typeDefs defs cxt level def0 sel0 = \case
     findNode >>= \case
       ExprNode (Case _ _ brs _) ->
         let exist = mapMaybe ((\case (PatPrim (PrimInt i)) -> Just i; _ -> Nothing) . caseBranchName) brs
-         in pure $ noFree $ (\i -> Option (show i) Nothing) <$> exist
+         in pure $ noFree $ (\i -> Option (show i) Nothing False) <$> exist
       _ -> Nothing
   DeleteBranchChar ->
     findNode >>= \case
       ExprNode (Case _ _ brs _) ->
         let exist = mapMaybe ((\case (PatPrim (PrimChar c)) -> Just c; _ -> Nothing) . caseBranchName) brs
-         in pure $ noFree $ (\c -> Option (T.singleton c) Nothing) <$> exist
+         in pure $ noFree $ (\c -> Option (T.singleton c) Nothing False) <$> exist
       _ -> Nothing
   RenamePattern -> do
     CaseBindNode b <- findNode
@@ -514,17 +517,32 @@ options typeDefs defs cxt level def0 sel0 = \case
   where
     freeVar opts = Options{opts, free = FreeVarName}
     noFree opts = Options{opts, free = FreeNone}
-    localOpt = flip Option Nothing . unName
-    globalOpt n =
+    localOpt = localOpt' False
+    localOpt' matchesType x =
+      Option
+        { option = unName x
+        , context = Nothing
+        , matchesType
+        }
+    globalOpt = globalOpt' False
+    globalOpt' matchesType n =
       Option
         { option = unName $ baseName n
         , context = Just $ map unName $ unModuleName $ qualifiedModule n
+        , matchesType
         }
     varOpts = do
       (_, locals, globals) <- varsInScope
-      pure $
-        (first (localOpt . unLocalName) <$> locals)
-          <> (first globalOpt <$> globals)
+      findNode >>= \case
+        ExprNode e
+          | Just t <- (e ^? _exprMetaLens % _type % _Just % (_chkedAt `afailing` _synthed)) -> do
+              pure $
+                (locals <&> \(ln, t') -> (localOpt' (t `eqType` t') $ unLocalName ln, t'))
+                  <> (globals <&> \(gn, t') -> (globalOpt' (t `eqType` t') gn, t'))
+        _ ->
+          pure $
+            (first (localOpt . unLocalName) <$> locals)
+              <> (first globalOpt <$> globals)
     findNode = case sel0 of
       SelectionDef sel -> do
         nodeSel <- sel.node

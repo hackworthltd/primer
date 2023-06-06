@@ -471,12 +471,16 @@
                         "minItems": 1,
                         "type": "array"
                     },
+                    "matchesType": {
+                        "type": "boolean"
+                    },
                     "option": {
                         "type": "string"
                     }
                 },
                 "required": [
-                    "option"
+                    "option",
+                    "matchesType"
                 ],
                 "type": "object"
             },
