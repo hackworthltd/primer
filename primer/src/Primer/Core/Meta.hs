@@ -64,7 +64,7 @@ newtype ID = ID {unID :: Int}
   deriving anyclass (NFData)
 
 data Meta a = Meta ID a (Maybe Value)
-  deriving stock (Generic, Eq, Show, Read, Data, Functor)
+  deriving stock (Generic, Eq, Ord, Show, Read, Data, Functor)
   deriving (FromJSON, ToJSON) via PrimerJSON (Meta a)
   deriving anyclass (NFData)
 

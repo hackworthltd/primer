@@ -99,7 +99,7 @@ data TypeCache
   = TCSynthed (Type' ())
   | TCChkedAt (Type' ())
   | TCEmb TypeCacheBoth
-  deriving stock (Eq, Show, Read, Generic, Data)
+  deriving stock (Eq, Ord, Show, Read, Generic, Data)
   deriving (FromJSON, ToJSON) via PrimerJSON TypeCache
   deriving anyclass (NFData)
 
@@ -108,7 +108,7 @@ data TypeCache
 -- functions from tcChkedAt and tcSynthed. We really want to name these fields
 -- though, to make it clear what each one is!
 data TypeCacheBoth = TCBoth {tcChkedAt :: Type' (), tcSynthed :: Type' ()}
-  deriving stock (Eq, Show, Read, Generic, Data)
+  deriving stock (Eq, Ord, Show, Read, Generic, Data)
   deriving (FromJSON, ToJSON) via PrimerJSON TypeCacheBoth
   deriving anyclass (NFData)
 

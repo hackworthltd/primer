@@ -56,7 +56,7 @@ data Type' a
       (Type' a)
       -- | body of the let; binding scopes over this
       (Type' a)
-  deriving stock (Eq, Show, Read, Data, Generic)
+  deriving stock (Eq, Ord, Show, Read, Data, Generic)
   deriving (FromJSON, ToJSON) via PrimerJSON (Type' a)
   deriving anyclass (NFData)
 
@@ -72,7 +72,7 @@ _typeMetaLens = position @1
 
 -- | Core kinds.
 data Kind = KHole | KType | KFun Kind Kind
-  deriving stock (Eq, Show, Read, Data, Generic)
+  deriving stock (Eq, Ord, Show, Read, Data, Generic)
   deriving (FromJSON, ToJSON) via PrimerJSON Kind
   deriving anyclass (NFData)
 
