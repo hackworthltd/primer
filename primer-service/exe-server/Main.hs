@@ -385,6 +385,7 @@ instance ConvertLogMessage PrimerErr LogMsg where
   convert (UndoError e) = LogMsg $ show e
   convert (RedoError e) = LogMsg $ show e
   convert (SetSelectionError sel e) = LogMsg $ show (sel, e)
+  convert (SetSelectionNothing sel) = LogMsg $ show sel
 
 instance ConvertLogMessage APILog LogMsg where
   convert = LogMsg . show

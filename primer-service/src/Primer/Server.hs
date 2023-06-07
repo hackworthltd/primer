@@ -180,7 +180,7 @@ openAPISessionServer sid =
     , OpenAPI.getProgram = API.getProgram' sid
     , OpenAPI.getSessionName = API.getSessionName sid
     , OpenAPI.setSessionName = renameSession sid
-    , OpenAPI.setSelection = API.setSelection sid
+    , OpenAPI.setSelection = API.setSelection' sid
     , OpenAPI.createDefinition = createDefinition sid
     , OpenAPI.typeDef = openAPITypeDefServer sid
     , OpenAPI.actions = openAPIActionServer sid
@@ -427,5 +427,6 @@ serve ss q v port origins logger = do
         UndoError pe -> err500{errBody = "Undo failed: " <> show pe}
         RedoError pe -> err500{errBody = "Redo failed: " <> show pe}
         SetSelectionError sel pe -> err400{errBody = "Error while setting selection (" <> show sel <> "): " <> show pe}
+        SetSelectionNothing sel -> err400{errBody = "Error while setting selection (" <> show sel <> "): setSelection returned Nothing"}
       where
         encode = LT.encodeUtf8 . LT.fromStrict

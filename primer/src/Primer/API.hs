@@ -72,6 +72,7 @@ module Primer.API (
   Name (..),
   TypeOrKind (..),
   setSelection,
+  setSelection',
 ) where
 
 import Foreword
@@ -272,6 +273,7 @@ data PrimerErr
   | UndoError ProgError
   | RedoError ProgError
   | SetSelectionError Selection ProgError
+  | SetSelectionNothing Selection
   deriving stock (Show)
 
 instance Exception PrimerErr
@@ -1246,3 +1248,20 @@ setSelection = curry $ logAPI (noError SetSelection) $ \(sid, sel) ->
     viewTypeKind = Kind . fromMaybe trivialTree . viewTypeKind'
     viewTypeKind' :: TypeMeta -> Maybe Tree
     viewTypeKind' = preview $ _type % _Just % to viewTreeKind
+
+-- | Strip 'Maybe' off of 'setSelection''s return type.
+--
+-- For technical reasons owing to our typechecker's design,
+-- 'setSelection' returns a 'Maybe TypeOrKind', but that curently
+-- causes problems with our OpenAPI adapter due to the OpenAPI 3.0
+-- specification not properly supporting nullable results. To work
+-- around this, we strip 'setSelection''s return type down to
+-- 'TypeOrKind' in normal operation, and throw an error otherwise. In
+-- practice, this error should never occur (though 'setSelection' may
+-- of course fail for other reasons; e.g., the client attempts to
+-- select invalid ID).
+--
+-- When we can update to OpenAPI 3.1, or our adapter otherwise adds
+-- support for nullable results, we may drop this method.
+setSelection' :: (MonadIO m, MonadThrow m, MonadAPILog l m) => SessionId -> Selection -> PrimerM m TypeOrKind
+setSelection' sid sel = setSelection sid sel >>= maybe (throwM $ SetSelectionNothing sel) pure

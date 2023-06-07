@@ -104,7 +104,7 @@ data SessionAPI mode = SessionAPI
           :> Summary "Set the current selection, and obtain the type of the selected node"
           :> OperationId "setSelection"
           :> ReqBody '[JSON] Selection
-          :> Post '[JSON] (Maybe TypeOrKind)
+          :> Post '[JSON] TypeOrKind
   , createDefinition ::
       mode
         :- "def"
