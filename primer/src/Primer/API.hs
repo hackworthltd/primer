@@ -69,6 +69,8 @@ module Primer.API (
   undoAvailable,
   redoAvailable,
   Name (..),
+  TypeOrKind (..),
+  getSelectionTypeOrKind,
 ) where
 
 import Foreword
@@ -95,11 +97,12 @@ import Control.Monad.Writer (MonadWriter)
 import Control.Monad.Zip (MonadZip)
 import Data.Map qualified as Map
 import Data.Tuple.Extra (curry3)
-import Optics (ifoldr, over, traverseOf, view, (^.))
+import Optics (ifoldr, over, preview, to, traverseOf, view, (%), (^.), _Just)
 import Primer.API.NodeFlavor qualified as Flavor
 import Primer.API.RecordPair (RecordPair (RecordPair))
 import Primer.Action (ActionError, ProgAction, toProgActionInput, toProgActionNoInput)
 import Primer.Action.Available qualified as Available
+import Primer.Action.ProgError (ProgError (NodeIDNotFound, ParamNotFound))
 import Primer.App (
   App,
   DefSelection (..),
@@ -112,7 +115,6 @@ import Primer.App (
   MutationRequest,
   NodeSelection (..),
   NodeType (..),
-  ProgError,
   QueryAppM,
   Question (GenerateName),
   Selection' (..),
@@ -146,6 +148,7 @@ import Primer.Core (
   CaseFallback' (CaseExhaustive, CaseFallback),
   Expr,
   Expr' (..),
+  ExprMeta,
   GVarName,
   GlobalName (..),
   HasID (..),
@@ -164,12 +167,18 @@ import Primer.Core (
   getID,
   unLocalName,
   unsafeMkLocalName,
+  _bindMeta,
+  _exprMetaLens,
+  _synthed,
+  _type,
   _typeMeta,
   _typeMetaLens,
  )
+import Primer.Core.DSL (create')
 import Primer.Core.DSL qualified as DSL
 import Primer.Core.Meta (LocalName, Pattern (PatCon, PatPrim))
 import Primer.Core.Meta qualified as Core
+import Primer.Core.Utils (generateTypeIDs)
 import Primer.Database (
   OffsetLimit,
   OpStatus,
@@ -221,8 +230,9 @@ import Primer.Log (
 import Primer.Module (moduleDefsQualified, moduleName, moduleTypesQualifiedMeta)
 import Primer.Name qualified as Name
 import Primer.Primitives (primDefType)
-import Primer.TypeDef (ASTTypeDef (..), forgetTypeDefMetadata, typeDefNameHints, typeDefParameters)
+import Primer.TypeDef (ASTTypeDef (..), forgetTypeDefMetadata, typeDefKind, typeDefNameHints, typeDefParameters)
 import Primer.TypeDef qualified as TypeDef
+import Primer.Zipper (SomeNode (..), findNodeWithParent, findType)
 import StmContainers.Map qualified as StmMap
 
 -- | The API environment.
@@ -274,6 +284,7 @@ data PrimerErr
   | ApplyActionError [ProgAction] ProgError
   | UndoError ProgError
   | RedoError ProgError
+  | GetTypeOrKindError Selection ProgError
   deriving stock (Show)
 
 instance Exception PrimerErr
@@ -399,6 +410,7 @@ data APILog
   | ApplyActionInput (ReqResp (SessionId, ApplyActionBody, Available.InputAction) Prog)
   | Undo (ReqResp SessionId Prog)
   | Redo (ReqResp SessionId Prog)
+  | GetTypeOrKind (ReqResp (SessionId, Selection) TypeOrKind)
   deriving stock (Show, Read)
 
 type MonadAPILog l m = (MonadLog (WithSeverity l) m, ConvertLogMessage APILog l)
@@ -985,6 +997,42 @@ viewTreeType' t0 = case t0 of
   where
     nodeId = t0 ^. _typeMetaLens
 
+-- | Like 'viewTreeType', but for kinds. This generates ids
+viewTreeKind :: Kind -> Tree
+viewTreeKind = flip evalState (0 :: Integer) . go
+  where
+    go k = do
+      id' <- get
+      let nodeId = "kind" <> show id'
+      modify succ
+      case k of
+        KType ->
+          pure $
+            Tree
+              { nodeId
+              , body = NoBody Flavor.KType
+              , childTrees = []
+              , rightChild = Nothing
+              }
+        KHole ->
+          pure $
+            Tree
+              { nodeId
+              , body = NoBody Flavor.KHole
+              , childTrees = []
+              , rightChild = Nothing
+              }
+        KFun k1 k2 -> do
+          k1tree <- go k1
+          k2tree <- go k2
+          pure $
+            Tree
+              { nodeId
+              , body = NoBody Flavor.KFun
+              , childTrees = [k1tree, k2tree]
+              , rightChild = Nothing
+              }
+
 globalName :: GlobalName k -> Name
 globalName n = Name{qualifiedModule = Just $ Core.qualifiedModule n, baseName = Core.baseName n}
 
@@ -1228,3 +1276,61 @@ redo =
 
 -- | 'App.Selection' without any node metadata.
 type Selection = App.Selection' ID
+
+data TypeOrKind = Type Tree | Kind Tree
+  deriving stock (Eq, Show, Read, Generic)
+  deriving (FromJSON, ToJSON) via PrimerJSON TypeOrKind
+  deriving anyclass (NFData)
+
+getSelectionTypeOrKind ::
+  (MonadIO m, MonadThrow m, MonadAPILog l m) =>
+  SessionId ->
+  Selection ->
+  PrimerM m TypeOrKind
+getSelectionTypeOrKind = curry $ logAPI (noError GetTypeOrKind) $ \(sid, sel0) -> do
+  prog <- getProgram sid
+  let allDefs = progAllDefs prog
+      allTypeDefs = progAllTypeDefsMeta prog
+  case sel0 of
+    SelectionDef sel -> do
+      def <- snd <$> findASTDef allDefs sel.def
+      case sel.node of
+        -- definition itself selected - return its declared type
+        Nothing -> pure $ Type $ viewTreeType $ astDefType def
+        Just NodeSelection{meta = id, nodeType} -> case nodeType of
+          -- body node selected - get type/kind from metadata
+          BodyNode ->
+            maybe (throwM noID) (pure . fst) (findNodeWithParent id $ astDefExpr def) <&> \case
+              ExprNode e -> viewExprType $ e ^. _exprMetaLens
+              TypeNode t -> viewTypeKind $ t ^. _typeMetaLens
+              CaseBindNode b -> viewExprType $ b ^. _bindMeta
+          -- sig node selected - get kind from metadata
+          SigNode -> maybe (throwM noID) pure (findType id $ astDefType def) <&> \t -> viewTypeKind $ t ^. _typeMetaLens
+          where
+            noID = GetTypeOrKindError sel0 $ NodeIDNotFound id
+    SelectionTypeDef sel -> do
+      def <- snd <$> findASTTypeDef allTypeDefs sel.def
+      case sel.node of
+        -- type def itself selected - return its kind
+        Nothing -> pure $ Kind $ viewTreeKind $ typeDefKind $ TypeDef.TypeDefAST def
+        -- param node selected - return its kind
+        Just (TypeDefParamNodeSelection p) ->
+          maybe (throwM $ GetTypeOrKindError sel0 $ ParamNotFound p) (pure . Kind . viewTreeKind . snd) $
+            find ((== p) . fst) (astTypeDefParameters def)
+        -- constructor node selected - return the type to which it belongs
+        Just (TypeDefConsNodeSelection _) ->
+          pure . Type . viewTreeType' . mkIds $
+            foldl' (\t -> TApp () t . TVar ()) (TCon () sel.def) (map fst $ astTypeDefParameters def)
+  where
+    trivialTree = Tree{nodeId = "seltype-0", childTrees = [], rightChild = Nothing, body = NoBody Flavor.EmptyHole}
+    viewExprType :: ExprMeta -> TypeOrKind
+    viewExprType = Type . fromMaybe trivialTree . viewExprType'
+    viewExprType' :: ExprMeta -> Maybe Tree
+    viewExprType' = preview $ _type % _Just % _synthed % to (viewTreeType' . mkIds)
+    -- We prefix ids to keep them unique from other ids in the emitted program
+    mkIds :: Type' () -> Type' Text
+    mkIds = over _typeMeta (("seltype-" <>) . show . getID) . create' . generateTypeIDs
+    viewTypeKind :: TypeMeta -> TypeOrKind
+    viewTypeKind = Kind . fromMaybe trivialTree . viewTypeKind'
+    viewTypeKind' :: TypeMeta -> Maybe Tree
+    viewTypeKind' = preview $ _type % _Just % to viewTreeKind

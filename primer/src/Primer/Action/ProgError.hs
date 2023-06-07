@@ -4,7 +4,7 @@ import Foreword
 
 import Data.Aeson (FromJSON (..), ToJSON (..))
 import Primer.Action.Errors (ActionError)
-import Primer.Core.Meta (GVarName, ModuleName, TyConName, TyVarName, ValConName)
+import Primer.Core.Meta (GVarName, ID, ModuleName, TyConName, TyVarName, ValConName)
 import Primer.Eval.EvalError (EvalError)
 import Primer.JSON (CustomJSON (..), PrimerJSON)
 import Primer.Name (Name)
@@ -25,6 +25,7 @@ data ProgError
     ConNotSaturated ValConName
   | ParamNotFound TyVarName
   | ParamAlreadyExists TyVarName
+  | NodeIDNotFound ID
   | TyConParamClash Name
   | ValConParamClash Name
   | ActionError ActionError
