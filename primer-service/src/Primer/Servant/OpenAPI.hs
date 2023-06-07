@@ -16,7 +16,7 @@ module Primer.Servant.OpenAPI (
 import Foreword
 
 import Data.OpenApi (OpenApi, ToSchema)
-import Primer.API (ApplyActionBody, EvalFullResp, Prog, Selection)
+import Primer.API (ApplyActionBody, EvalFullResp, Prog, Selection, TypeOrKind)
 import Primer.Action.Available qualified as Available
 import Primer.App (Level)
 import Primer.Core (GVarName, ModuleName)
@@ -98,6 +98,13 @@ data SessionAPI mode = SessionAPI
           :> Get '[JSON] Prog
   , getSessionName :: GetSessionName mode
   , setSessionName :: SetSessionName mode
+  , getTypeOrKind ::
+      mode
+        :- "selection"
+          :> Summary "Get the type/kind of a particular node"
+          :> OperationId "getTypeOrKind"
+          :> ReqBody '[JSON] Selection
+          :> Get '[JSON] TypeOrKind
   , createDefinition ::
       mode
         :- "def"
