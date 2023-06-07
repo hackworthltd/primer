@@ -408,7 +408,10 @@
                     "THole",
                     "TFun",
                     "TApp",
-                    "PatternWildcard"
+                    "PatternWildcard",
+                    "KType",
+                    "KHole",
+                    "KFun"
                 ],
                 "type": "string"
             },
@@ -890,6 +893,46 @@
                     "def"
                 ],
                 "type": "object"
+            },
+            "TypeOrKind": {
+                "oneOf": [
+                    {
+                        "properties": {
+                            "contents": {
+                                "$ref": "#/components/schemas/Tree"
+                            },
+                            "tag": {
+                                "enum": [
+                                    "Type"
+                                ],
+                                "type": "string"
+                            }
+                        },
+                        "required": [
+                            "tag",
+                            "contents"
+                        ],
+                        "type": "object"
+                    },
+                    {
+                        "properties": {
+                            "contents": {
+                                "$ref": "#/components/schemas/Tree"
+                            },
+                            "tag": {
+                                "enum": [
+                                    "Kind"
+                                ],
+                                "type": "string"
+                            }
+                        },
+                        "required": [
+                            "tag",
+                            "contents"
+                        ],
+                        "type": "object"
+                    }
+                ]
             },
             "UUID": {
                 "example": "00000000-0000-0000-0000-000000000000",
@@ -1572,6 +1615,51 @@
                     }
                 },
                 "summary": "Redo the last undo"
+            }
+        },
+        "/openapi/sessions/{sessionId}/selection": {
+            "get": {
+                "operationId": "getTypeOrKind",
+                "parameters": [
+                    {
+                        "description": "The session ID",
+                        "in": "path",
+                        "name": "sessionId",
+                        "required": true,
+                        "schema": {
+                            "format": "uuid",
+                            "type": "string"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json;charset=utf-8": {
+                            "schema": {
+                                "$ref": "#/components/schemas/Selection"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json;charset=utf-8": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/TypeOrKind"
+                                }
+                            }
+                        },
+                        "description": ""
+                    },
+                    "400": {
+                        "description": "Invalid `body`"
+                    },
+                    "404": {
+                        "description": "`sessionId` not found"
+                    }
+                },
+                "summary": "Get the type/kind of a particular node"
             }
         },
         "/openapi/sessions/{sessionId}/typedef": {

@@ -386,6 +386,7 @@ instance ConvertLogMessage PrimerErr LogMsg where
   convert (ApplyActionError as e) = LogMsg $ show (as, e)
   convert (UndoError e) = LogMsg $ show e
   convert (RedoError e) = LogMsg $ show e
+  convert (GetTypeOrKindError sel e) = LogMsg $ show (sel, e)
 
 instance ConvertLogMessage APILog LogMsg where
   convert = LogMsg . show
