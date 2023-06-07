@@ -1618,7 +1618,7 @@
             }
         },
         "/openapi/sessions/{sessionId}/selection": {
-            "get": {
+            "post": {
                 "operationId": "getTypeOrKind",
                 "parameters": [
                     {
