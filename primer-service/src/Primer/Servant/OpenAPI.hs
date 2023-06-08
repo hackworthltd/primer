@@ -104,7 +104,7 @@ data SessionAPI mode = SessionAPI
           :> Summary "Get the type/kind of a particular node"
           :> OperationId "getTypeOrKind"
           :> ReqBody '[JSON] Selection
-          :> Get '[JSON] TypeOrKind
+          :> Post '[JSON] TypeOrKind
   , createDefinition ::
       mode
         :- "def"
