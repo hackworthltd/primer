@@ -33,6 +33,7 @@ import Data.Tuple.Extra (fst3)
 import Optics (
   afailing,
   to,
+  view,
   (%),
   (^.),
   (^..),
@@ -59,10 +60,12 @@ import Primer.Core (
   Expr' (..),
   GVarName,
   GlobalName (baseName, qualifiedModule),
+  HasID (_id),
   ID,
   ModuleName (unModuleName),
   Pattern (PatCon, PatPrim),
   PrimCon (PrimChar, PrimInt),
+  TyConName,
   Type,
   Type' (..),
   TypeMeta,
@@ -82,7 +85,7 @@ import Primer.Def (
   ASTDef (..),
   DefMap,
  )
-import Primer.Def.Utils (globalInUse)
+import Primer.Def.Utils (globalInUse, typeInUse)
 import Primer.JSON (CustomJSON (..), FromJSON, PrimerJSON, ToJSON)
 import Primer.Name (unName)
 import Primer.Primitives (tChar, tInt)
@@ -144,7 +147,11 @@ data NoInputAction
   | DeleteType
   | DuplicateDef
   | DeleteDef
+  | DeleteTypeDef
+  | DeleteCon
   | AddConField
+  | DeleteConField
+  | DeleteTypeParam
   deriving stock (Eq, Ord, Show, Read, Enum, Bounded, Generic)
   deriving (ToJSON, FromJSON) via PrimerJSON NoInputAction
 
@@ -178,6 +185,7 @@ data InputAction
   | RenameCon
   | RenameTypeParam
   | AddCon
+  | AddTypeParam
   deriving stock (Eq, Ord, Show, Read, Enum, Bounded, Generic)
   deriving (ToJSON, FromJSON) via PrimerJSON InputAction
 
@@ -335,50 +343,76 @@ forType l type_ =
 forTypeDef ::
   Level ->
   Editable ->
+  TypeDefMap ->
+  DefMap ->
+  TyConName ->
+  ASTTypeDef TypeMeta ->
   [Action]
-forTypeDef _ NonEditable = mempty
-forTypeDef l Editable =
-  sortByPriority
-    l
+forTypeDef _ NonEditable _ _ _ _ = mempty
+forTypeDef l Editable tydefs defs tdName td =
+  sortByPriority l $
     [ Input RenameType
     , Input AddCon
     ]
+      <> mwhen
+        (not $ typeInUse tdName td tydefs defs)
+        ( [NoInput DeleteTypeDef]
+            <> mwhen
+              (l == Expert)
+              [Input AddTypeParam]
+        )
 
 forTypeDefParamNode ::
   Level ->
   Editable ->
+  TypeDefMap ->
+  DefMap ->
+  TyConName ->
+  ASTTypeDef TypeMeta ->
   [Action]
-forTypeDefParamNode _ NonEditable = mempty
-forTypeDefParamNode l Editable =
-  sortByPriority
-    l
+forTypeDefParamNode _ NonEditable _ _ _ _ = mempty
+forTypeDefParamNode l Editable tydefs defs tdName td =
+  sortByPriority l $
     [ Input RenameTypeParam
     ]
+      <> mwhen
+        (l == Expert && not (typeInUse tdName td tydefs defs))
+        [NoInput DeleteTypeParam]
 
 forTypeDefConsNode ::
   Level ->
   Editable ->
+  TypeDefMap ->
+  DefMap ->
+  TyConName ->
+  ASTTypeDef TypeMeta ->
   [Action]
-forTypeDefConsNode _ NonEditable = mempty
-forTypeDefConsNode l Editable =
-  sortByPriority
-    l
+forTypeDefConsNode _ NonEditable _ _ _ _ = mempty
+forTypeDefConsNode l Editable tydefs defs tdName td =
+  sortByPriority l $
     [ NoInput AddConField
     , Input RenameCon
     ]
+      <> mwhen (not $ typeInUse tdName td tydefs defs) [NoInput DeleteCon]
 
 forTypeDefConsFieldNode ::
-  Level ->
-  Editable ->
-  ASTTypeDef TypeMeta ->
   ValConName ->
   Int ->
   ID ->
+  Level ->
+  Editable ->
+  TypeDefMap ->
+  DefMap ->
+  TyConName ->
+  ASTTypeDef TypeMeta ->
   [Action]
-forTypeDefConsFieldNode _ NonEditable _ _ _ _ = mempty
-forTypeDefConsFieldNode l Editable def con index id =
-  maybe mempty (sortByPriority l . forType l) $
-    findType id =<< getTypeDefConFieldType def con index
+forTypeDefConsFieldNode _ _ _ _ NonEditable _ _ _ _ = mempty
+forTypeDefConsFieldNode con index id l Editable tydefs defs tdName td =
+  sortByPriority l $
+    maybe mempty (forType l) (findType id =<< fieldType)
+      <> mwhen ((view _id <$> fieldType) == Just id && not (typeInUse tdName td tydefs defs)) [NoInput DeleteConField]
+  where
+    fieldType = getTypeDefConFieldType td con index
 
 -- | An input for an 'InputAction'.
 data Option = Option
@@ -514,6 +548,8 @@ options typeDefs defs cxt level def0 sel0 = \case
     pure $ freeVar []
   AddCon ->
     pure $ freeVar []
+  AddTypeParam ->
+    pure $ freeVar []
   where
     freeVar opts = Options{opts, free = FreeVarName}
     noFree opts = Options{opts, free = FreeNone}
@@ -627,7 +663,11 @@ sortByPriority l =
         DeleteType -> P.delete
         DuplicateDef -> P.duplicate
         DeleteDef -> P.delete
+        DeleteTypeDef -> P.delete
+        DeleteCon -> P.delete
         AddConField -> P.addConField
+        DeleteConField -> P.delete
+        DeleteTypeParam -> P.delete
       Input a -> case a of
         MakeCon -> P.useSaturatedValueCon
         MakeInt -> P.makeInt
@@ -657,3 +697,4 @@ sortByPriority l =
         AddCon -> P.addCon
         RenameCon -> P.rename
         RenameTypeParam -> P.rename
+        AddTypeParam -> P.addTypeParam

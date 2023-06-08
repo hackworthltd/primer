@@ -18,6 +18,8 @@ data ProgError
   | TypeDefIsPrim TyConName
   | TypeDefNotFound TyConName
   | TypeDefAlreadyExists TyConName
+  | TypeDefInUse TyConName
+  | TypeParamInUse TyConName TyVarName
   | ConNotFound ValConName
   | ConAlreadyExists ValConName
   | -- | We expected to see more arguments to a constructor than actually existed

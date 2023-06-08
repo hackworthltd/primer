@@ -1163,22 +1163,25 @@ availableActions = curry3 $ logAPI (noError AvailableActions) $ \(sid, level, se
   prog <- getProgram sid
   let allDefs = progAllDefs prog
       allTypeDefs = progAllTypeDefsMeta prog
+      allDefs' = snd <$> allDefs
+      allTypeDefs' = forgetTypeDefMetadata . snd <$> allTypeDefs
   case selection of
     SelectionDef sel -> do
       (editable, ASTDef{astDefType = type_, astDefExpr = expr}) <- findASTDef allDefs sel.def
       pure $ case sel.node of
-        Nothing -> Available.forDef (snd <$> allDefs) level editable sel.def
+        Nothing -> Available.forDef allDefs' level editable sel.def
         Just NodeSelection{..} -> case nodeType of
           SigNode -> Available.forSig level editable type_ meta
-          BodyNode -> Available.forBody (forgetTypeDefMetadata . snd <$> allTypeDefs) level editable expr meta
+          BodyNode -> Available.forBody allTypeDefs' level editable expr meta
     SelectionTypeDef sel -> do
       (editable, def) <- findASTTypeDef allTypeDefs sel.def
-      pure $ case sel.node of
-        Nothing -> Available.forTypeDef level editable
-        Just (TypeDefParamNodeSelection _) -> Available.forTypeDefParamNode level editable
-        Just (TypeDefConsNodeSelection s) -> case s.field of
-          Nothing -> Available.forTypeDefConsNode level editable
-          Just field -> Available.forTypeDefConsFieldNode level editable def s.con field.index field.meta
+      let getActions = case sel.node of
+            Nothing -> Available.forTypeDef
+            Just (TypeDefParamNodeSelection _) -> Available.forTypeDefParamNode
+            Just (TypeDefConsNodeSelection s) -> case s.field of
+              Nothing -> Available.forTypeDefConsNode
+              Just field -> Available.forTypeDefConsFieldNode s.con field.index field.meta
+      pure $ getActions level editable allTypeDefs' allDefs' sel.def def
 
 actionOptions ::
   (MonadIO m, MonadThrow m, MonadAPILog l m) =>

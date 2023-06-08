@@ -211,7 +211,8 @@
                     "RenameType",
                     "RenameCon",
                     "RenameTypeParam",
-                    "AddCon"
+                    "AddCon",
+                    "AddTypeParam"
                 ],
                 "type": "string"
             },
@@ -309,7 +310,11 @@
                     "DeleteType",
                     "DuplicateDef",
                     "DeleteDef",
-                    "AddConField"
+                    "DeleteTypeDef",
+                    "DeleteCon",
+                    "AddConField",
+                    "DeleteConField",
+                    "DeleteTypeParam"
                 ],
                 "type": "string"
             },
@@ -1324,7 +1329,8 @@
                                 "RenameType",
                                 "RenameCon",
                                 "RenameTypeParam",
-                                "AddCon"
+                                "AddCon",
+                                "AddTypeParam"
                             ],
                             "type": "string"
                         }

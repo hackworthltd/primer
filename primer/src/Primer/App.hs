@@ -154,14 +154,14 @@ import Primer.Core (
 import Primer.Core.DSL (S, create, emptyHole, tEmptyHole, tvar)
 import Primer.Core.DSL qualified as DSL
 import Primer.Core.Transform (renameVar, unfoldTApp)
-import Primer.Core.Utils (freeVars, generateTypeIDs, regenerateExprIDs, regenerateTypeIDs, _freeTmVars, _freeTyVars, _freeVarsTy)
+import Primer.Core.Utils (freeVars, freeVarsTy, generateTypeIDs, regenerateExprIDs, regenerateTypeIDs, _freeTmVars, _freeTyVars, _freeVarsTy)
 import Primer.Def (
   ASTDef (..),
   Def (..),
   DefMap,
   defAST,
  )
-import Primer.Def.Utils (globalInUse)
+import Primer.Def.Utils (globalInUse, typeInUse)
 import Primer.Eval qualified as Eval
 import Primer.Eval.Detail (EvalDetail)
 import Primer.Eval.Redex (EvalLog)
@@ -639,6 +639,14 @@ applyProgAction prog = \case
       ( m{moduleTypes = tydefs'}
       , Just $ SelectionTypeDef $ TypeDefSelection tc Nothing
       )
+  DeleteTypeDef d -> editModuleCross (qualifiedModule d) prog $ \(m, ms) ->
+    case moduleTypesQualified m Map.!? d of
+      Nothing -> throwError $ TypeDefNotFound d
+      Just (TypeDefPrim _) -> throwError $ TypeDefIsPrim d
+      Just (TypeDefAST td) -> do
+        checkTypeNotInUse d td $ m : ms
+        let m' = m{moduleTypes = Map.delete (baseName d) (moduleTypes m)}
+        pure (m' : ms, Nothing)
   RenameType old (unsafeMkName -> nameRaw) -> editModuleCross (qualifiedModule old) prog $ \(m, ms) -> do
     when (new `elem` allTyConNames prog) $ throwError $ TypeDefAlreadyExists new
     m' <- traverseOf #moduleTypes updateType m
@@ -758,6 +766,24 @@ applyProgAction prog = \case
               (maybe (throwError $ IndexOutOfRange index) pure . insertAt index (ValCon con []))
           )
           type_
+  DeleteCon tdName vcName -> editModuleCross (qualifiedModule tdName) prog $ \(m, ms) -> do
+    m' <-
+      alterTypeDef
+        ( \td -> do
+            checkTypeNotInUse tdName td $ m : ms
+            traverseOf
+              #astTypeDefConstructors
+              ( \cons -> do
+                  when
+                    (vcName `notElem` map valConName cons)
+                    (throwError $ ConNotFound vcName)
+                  pure $ filter ((/= vcName) . valConName) cons
+              )
+              td
+        )
+        tdName
+        m
+    pure (m' : ms, Just $ SelectionTypeDef $ TypeDefSelection tdName Nothing)
   AddConField type_ con index new ->
     editModuleCross (qualifiedModule type_) prog $ \(m, ms) -> do
       m' <- updateType m
@@ -804,6 +830,72 @@ applyProgAction prog = \case
           newName <- LocalName <$> freshName (freeVars e)
           binds' <- maybe (throwError $ IndexOutOfRange index) pure $ insertAt index (Bind m' newName) binds
           pure $ CaseBranch vc binds' e
+  DeleteConField tdName vcName index -> editModuleCross (qualifiedModule tdName) prog $ \(m, ms) -> do
+    m' <-
+      alterTypeDef
+        ( \td -> do
+            checkTypeNotInUse tdName td $ m : ms
+            traverseOf
+              #astTypeDefConstructors
+              ( maybe (throwError $ ConNotFound vcName) pure
+                  <=< findAndAdjustA
+                    ((== vcName) . valConName)
+                    (traverseOf #valConArgs $ maybe (throwError $ IndexOutOfRange index) pure . deleteAt index)
+              )
+              td
+        )
+        tdName
+        m
+    pure
+      ( m' : ms
+      , Just
+          . SelectionTypeDef
+          . TypeDefSelection tdName
+          . Just
+          . TypeDefConsNodeSelection
+          $ TypeDefConsSelection vcName Nothing
+      )
+  AddTypeParam tdName index paramName0 k -> editModuleCross (qualifiedModule tdName) prog $ \(m, ms) -> do
+    let paramName = unsafeMkLocalName paramName0
+    m' <-
+      alterTypeDef
+        ( \td -> do
+            checkTypeNotInUse tdName td $ m : ms
+            traverseOf
+              #astTypeDefParameters
+              ( \ps -> do
+                  when
+                    (paramName `elem` map fst ps)
+                    (throwError $ ParamAlreadyExists paramName)
+                  maybe (throwError $ IndexOutOfRange index) pure $ insertAt index (paramName, k) ps
+              )
+              td
+        )
+        tdName
+        m
+    pure (m' : ms, Just $ SelectionTypeDef $ TypeDefSelection tdName $ Just $ TypeDefParamNodeSelection paramName)
+  DeleteTypeParam tdName paramName -> editModuleCross (qualifiedModule tdName) prog $ \(m, ms) -> do
+    m' <-
+      alterTypeDef
+        ( \td -> do
+            checkTypeNotInUse tdName td $ m : ms
+            when
+              (any (elem paramName . freeVarsTy) $ concatMap valConArgs $ astTypeDefConstructors td)
+              (throwError $ TypeParamInUse tdName paramName)
+            traverseOf
+              #astTypeDefParameters
+              ( \ps -> do
+                  when
+                    (paramName `notElem` map fst ps)
+                    (throwError $ ParamNotFound paramName)
+                  pure $ filter ((/= paramName) . fst) ps
+              )
+              td
+        )
+        tdName
+        m
+    pure
+      (m' : ms, Just $ SelectionTypeDef $ TypeDefSelection tdName Nothing)
   BodyAction actions -> editModuleOf mdefName prog $ \m defName def -> do
     let smartHoles = progSmartHoles prog
     res <- applyActionsToBody smartHoles (progAllModules prog) def actions
@@ -897,6 +989,10 @@ applyProgAction prog = \case
                     ActionError $
                       InternalFailure "RenameModule: imported modules were edited by renaming"
   where
+    checkTypeNotInUse tdName td ms =
+      when
+        (typeInUse tdName td (foldMap' moduleTypes ms) (foldMap' moduleDefs ms))
+        (throwError $ TypeDefInUse tdName)
     mdefName = case progSelection prog of
       Just (SelectionDef s) -> Just s.def
       _ -> Nothing

@@ -59,6 +59,7 @@ module Primer.Action.Priorities (
 
   -- * Type def actions.
   addCon,
+  addTypeParam,
   addConField,
 
   -- * Generic actions.
@@ -161,6 +162,9 @@ delete _ = maxBound
 
 addCon :: Level -> Int
 addCon _ = 10
+
+addTypeParam :: Level -> Int
+addTypeParam _ = 8
 
 addConField :: Level -> Int
 addConField _ = 10
