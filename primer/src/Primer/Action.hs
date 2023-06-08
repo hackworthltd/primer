@@ -1124,6 +1124,12 @@ toProgActionNoInput defs def0 sel0 = \case
   Available.DeleteDef -> do
     sel <- termSel
     pure [DeleteDef sel.def]
+  Available.DeleteTypeDef -> do
+    sel <- typeSel
+    pure [DeleteTypeDef sel.def]
+  Available.DeleteCon -> do
+    (t, sel) <- conSel
+    pure [DeleteCon t sel.con]
   Available.AddConField -> do
     (defName, sel) <- conSel
     d <- typeDef
@@ -1133,6 +1139,12 @@ toProgActionNoInput defs def0 sel0 = \case
         $ astTypeDefConstructors d
     let index = length $ valConArgs vc -- for now, we always add on to the end
     pure [AddConField defName sel.con index $ TEmptyHole ()]
+  Available.DeleteConField -> do
+    (t, c, sel) <- conFieldSel
+    pure [DeleteConField t c sel.index]
+  Available.DeleteTypeParam -> do
+    (t, p) <- typeParamSel
+    pure [DeleteTypeParam t p]
   where
     termSel = case sel0 of
       SelectionDef s -> pure s
@@ -1150,6 +1162,10 @@ toProgActionNoInput defs def0 sel0 = \case
       typeNodeSel >>= \case
         (s0, TypeDefConsNodeSelection s) -> pure (s0, s)
         _ -> Left NeedTypeDefConsSelection
+    typeParamSel =
+      typeNodeSel >>= \case
+        (s0, TypeDefParamNodeSelection s) -> pure (s0, s)
+        _ -> Left NeedTypeDefParamSelection
     conFieldSel = do
       (ty, s) <- conSel
       maybe (Left NeedTypeDefConsFieldSelection) (pure . (ty,s.con,)) s.field
@@ -1261,6 +1277,11 @@ toProgActionInput def0 sel0 opt0 = \case
     d <- typeDef
     let index = length $ astTypeDefConstructors d -- for now, we always add on the end
     pure [AddCon sel.def index opt]
+  Available.AddTypeParam -> do
+    opt <- optNoCxt
+    sel <- typeSel
+    index <- length . astTypeDefParameters <$> typeDef -- for now, we always add on to the end
+    pure [AddTypeParam sel.def index opt C.KType]
   where
     termSel = case sel0 of
       SelectionDef s -> pure s

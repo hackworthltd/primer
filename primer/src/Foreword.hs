@@ -19,6 +19,7 @@ module Foreword (
 
   -- * Helper functions
   insertAt,
+  deleteAt,
   adjustAt,
   adjustAtA,
   findAndAdjust,
@@ -118,6 +119,13 @@ insertAt n y xs =
     else Nothing
   where
     (a, b) = splitAt n xs
+
+-- | Delete an element at some index, returning 'Nothing' if it is out
+-- of bounds.
+deleteAt :: Int -> [a] -> Maybe [a]
+deleteAt n xs = case splitAt n xs of
+  (a, _ : b) -> Just $ a ++ b
+  _ -> Nothing
 
 -- | Apply a function to the element at some index, returning
 -- 'Nothing' if it is out of bounds.
