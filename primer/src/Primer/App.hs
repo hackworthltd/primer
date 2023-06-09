@@ -91,9 +91,10 @@ import Optics (
   (.~),
   (?~),
   (^.),
+  (^?),
   _Just,
   _Left,
-  _Right, (^?),
+  _Right,
  )
 import Optics.State.Operators ((<<%=))
 import Primer.Action (
@@ -121,8 +122,6 @@ import Primer.App.Base (
   getTypeDefConFieldType,
  )
 import Primer.Core (
-  _chkedAt,
-  _synthed,
   Bind' (Bind),
   CaseBranch,
   CaseBranch' (CaseBranch),
@@ -131,6 +130,7 @@ import Primer.Core (
   GVarName,
   GlobalName (baseName, qualifiedModule),
   ID (..),
+  Kind (KType),
   LocalName (LocalName, unLocalName),
   Meta (..),
   ModuleName (ModuleName),
@@ -149,10 +149,12 @@ import Primer.Core (
   unModuleName,
   unsafeMkGlobalName,
   unsafeMkLocalName,
+  _chkedAt,
   _exprMeta,
   _exprMetaLens,
+  _synthed,
   _type,
-  _typeMetaLens, Kind (KType),
+  _typeMetaLens,
  )
 import Primer.Core.DSL (S, create, emptyHole, tEmptyHole)
 import Primer.Core.DSL qualified as DSL
@@ -753,7 +755,7 @@ applyProgAction prog mdefName = \case
         )
     where
       updateDefs = transformCaseBranches prog type_ $ \t' bs -> do
-        m' <- DSL.meta' $ (\t'' -> TCEmb $ TCBoth {tcChkedAt=t'', tcSynthed=TEmptyHole ()}) <$> t'
+        m' <- DSL.meta' $ (\t'' -> TCEmb $ TCBoth{tcChkedAt = t'', tcSynthed = TEmptyHole ()}) <$> t'
         maybe (throwError $ IndexOutOfRange index) pure $ insertAt index (CaseBranch con [] (EmptyHole m')) bs
       updateType =
         alterTypeDef
@@ -806,24 +808,25 @@ applyProgAction prog mdefName = \case
                   Just args' -> pure $ Con m con' args'
                   Nothing -> throwError $ ConNotSaturated con
               e -> pure e
-      updateDecons = transformCaseBranches prog type_ $ const $
-        traverse $ \cb@(CaseBranch vc binds e) ->
-          if vc == con
-            then do
-              Bind _ v <- maybe (throwError $ IndexOutOfRange index) pure $ binds !? index
-              CaseBranch vc binds
-                <$>
-                -- TODO a custom traversal could be more efficient - reusing `_freeTmVars` means that we continue in
-                -- to parts of the tree where `v` is shadowed, and thus where the traversal will never have any effect
-                traverseOf
-                  _freeTmVars
-                  ( \(m, v') ->
-                      if v' == v
-                        then Hole <$> DSL.meta <*> pure (Var m $ LocalVarRef v')
-                        else pure (Var m $ LocalVarRef v')
-                  )
-                  e
-            else pure cb
+      updateDecons = transformCaseBranches prog type_ $
+        const $
+          traverse $ \cb@(CaseBranch vc binds e) ->
+            if vc == con
+              then do
+                Bind _ v <- maybe (throwError $ IndexOutOfRange index) pure $ binds !? index
+                CaseBranch vc binds
+                  <$>
+                  -- TODO a custom traversal could be more efficient - reusing `_freeTmVars` means that we continue in
+                  -- to parts of the tree where `v` is shadowed, and thus where the traversal will never have any effect
+                  traverseOf
+                    _freeTmVars
+                    ( \(m, v') ->
+                        if v' == v
+                          then Hole <$> DSL.meta <*> pure (Var m $ LocalVarRef v')
+                          else pure (Var m $ LocalVarRef v')
+                    )
+                    e
+              else pure cb
   AddConField type_ con index new ->
     editModuleCross (qualifiedModule type_) prog $ \(m, ms) -> do
       m' <- updateType m
@@ -839,22 +842,24 @@ applyProgAction prog mdefName = \case
             $ Nothing
         )
     where
-      updateType  =
-        let new' = runReaderT (liftError (ActionError . TypeError) $ fmap TC.typeTtoType $ TC.checkKind KType =<< generateTypeIDs new)
-                         (progCxt prog)
-        in alterTypeDef
-          ( traverseOf #astTypeDefConstructors $
-              maybe (throwError $ ConNotFound con) pure
-                <=< findAndAdjustA
-                  ((== con) . valConName)
-                  ( traverseOf
-                      #valConArgs
-                      ( maybe (throwError $ IndexOutOfRange index) pure
-                          <=< liftA2 (insertAt index) new' . pure
+      updateType =
+        let new' =
+              runReaderT
+                (liftError (ActionError . TypeError) $ fmap TC.typeTtoType $ TC.checkKind KType =<< generateTypeIDs new)
+                (progCxt prog)
+         in alterTypeDef
+              ( traverseOf #astTypeDefConstructors $
+                  maybe (throwError $ ConNotFound con) pure
+                    <=< findAndAdjustA
+                      ((== con) . valConName)
+                      ( traverseOf
+                          #valConArgs
+                          ( maybe (throwError $ IndexOutOfRange index) pure
+                              <=< liftA2 (insertAt index) new' . pure
+                          )
                       )
-                  )
-          )
-          type_
+              )
+              type_
       -- NB: we must updateDecons first, as transformCaseBranches may do
       -- synthesis of the scrutinee's type, using the old typedef. Thus we must
       -- not update the scrutinee before this happens.
@@ -867,16 +872,17 @@ applyProgAction prog mdefName = \case
             Just args' -> pure $ Con m con' args'
             Nothing -> throwError $ ConNotSaturated con
         e -> pure e
-      updateDecons = transformCaseBranches prog type_ $ const $
-        traverse $ \cb@(CaseBranch vc binds e) ->
-          if vc == con
-            then do
-              id <- fresh
-              let m' = Meta id (Just (TCChkedAt (TEmptyHole ()))) Nothing
-              newName <- LocalName <$> freshName (freeVars e)
-              binds' <- maybe (throwError $ IndexOutOfRange index) pure $ insertAt index (Bind m' newName) binds
-              pure $ CaseBranch vc binds' e
-            else pure cb
+      updateDecons = transformCaseBranches prog type_ $
+        const $
+          traverse $ \cb@(CaseBranch vc binds e) ->
+            if vc == con
+              then do
+                id <- fresh
+                let m' = Meta id (Just (TCChkedAt (TEmptyHole ()))) Nothing
+                newName <- LocalName <$> freshName (freeVars e)
+                binds' <- maybe (throwError $ IndexOutOfRange index) pure $ insertAt index (Bind m' newName) binds
+                pure $ CaseBranch vc binds' e
+              else pure cb
   BodyAction actions -> editModuleOf mdefName prog $ \m defName def -> do
     let smartHoles = progSmartHoles prog
     res <- applyActionsToBody smartHoles (progAllModules prog) def actions
@@ -1665,7 +1671,7 @@ transformCaseBranches ::
   MonadEdit m ProgError =>
   Prog ->
   TyConName ->
-  (Maybe (Type'()) -> [CaseBranch] -> m [CaseBranch]) ->
+  (Maybe (Type' ()) -> [CaseBranch] -> m [CaseBranch]) ->
   Expr ->
   m Expr
 transformCaseBranches prog type_ f = transformM $ \case

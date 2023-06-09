@@ -69,8 +69,6 @@ import Data.Map qualified as M
 import Data.Map.Strict qualified as Map
 import Data.Set qualified as S
 import Optics (
-  (.~),
-  (%~),
   A_Prism,
   A_Setter,
   A_Traversal,
@@ -81,6 +79,7 @@ import Optics (
   JoinKinds,
   NoIx,
   Optic',
+  Traversal,
   WithIx,
   castOptic,
   equality,
@@ -93,10 +92,13 @@ import Optics (
   selfIndex,
   to,
   traverseOf,
+  traversed,
   (%),
+  (%~),
+  (.~),
   (^?),
-  _Just, Traversal,
- traversed)
+  _Just,
+ )
 import Primer.Core (
   Bind' (..),
   CaseBranch' (..),
@@ -119,6 +121,7 @@ import Primer.Core (
   TypeCacheBoth (..),
   TypeMeta,
   ValConName,
+  baseName,
   bindName,
   qualifyName,
   unLocalName,
@@ -126,7 +129,7 @@ import Primer.Core (
   _exprMeta,
   _exprTypeMeta,
   _synthed,
-  _typeMeta, baseName,
+  _typeMeta,
  )
 import Primer.Core.DSL (S, branch, create', emptyHole, meta, meta')
 import Primer.Core.Transform (decomposeTAppCon, mkTAppCon, unfoldTApp)
@@ -147,10 +150,12 @@ import Primer.Def (
 import Primer.Module (
   Module (
     moduleDefs,
-    moduleName, moduleTypes
+    moduleName,
+    moduleTypes
   ),
   moduleDefsQualified,
-  moduleTypesQualified, moduleTypesQualifiedMeta,
+  moduleTypesQualified,
+  moduleTypesQualifiedMeta,
  )
 import Primer.Name (Name, NameCounter)
 import Primer.Primitives (primConName)
@@ -160,7 +165,10 @@ import Primer.TypeDef (
   TypeDef (..),
   TypeDefMap,
   ValCon (valConArgs, valConName),
-  typeDefAST, forgetTypeDefMetadata, typeDefParameters, generateTypeDefIDs,
+  forgetTypeDefMetadata,
+  generateTypeDefIDs,
+  typeDefAST,
+  typeDefParameters,
  )
 import Primer.Typecheck.Cxt (Cxt (Cxt, globalCxt, localCxt, smartHoles, typeDefs))
 import Primer.Typecheck.Kindcheck (
@@ -404,7 +412,7 @@ checkEverything sh CheckEverything{trusted, toCheck} =
         -- Kind check all the type definitions, and update (with smartholes)
         updatedTypes <- checkTypeDefs newTypes
         let typeDefTtoTypeDef = (#_TypeDefAST % astTypeDefConArgs) %~ typeTtoType
-        let toCheck' = toCheck <&> \m -> m & #moduleTypes .~ M.fromList [(baseName n,typeDefTtoTypeDef d) | (n,d) <-M.toList updatedTypes, qualifiedModule n == moduleName m]
+        let toCheck' = toCheck <&> \m -> m & #moduleTypes .~ M.fromList [(baseName n, typeDefTtoTypeDef d) | (n, d) <- M.toList updatedTypes, qualifiedModule n == moduleName m]
         local (extendTypeDefCxt $ forgetTypeDefMetadata <$> updatedTypes) $ do
           -- Kind check and update (for smartholes) all the type signatures.
           -- Note that this may give ill-typed definitions if the type changes
