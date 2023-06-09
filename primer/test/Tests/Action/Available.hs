@@ -146,7 +146,7 @@ import Primer.Module (
 import Primer.Name (Name (unName))
 import Primer.Test.TestM (evalTestM)
 import Primer.Test.Util (clearMeta, clearTypeMeta, testNoSevereLogs)
-import Primer.TypeDef (ASTTypeDef (astTypeDefConstructors), TypeDef (TypeDefAST, TypeDefPrim), ValCon (..), astTypeDefParameters, typeDefAST)
+import Primer.TypeDef (ASTTypeDef (astTypeDefConstructors), TypeDef (TypeDefAST, TypeDefPrim), ValCon (..), astTypeDefParameters, forgetTypeDefMetadata, typeDefAST)
 import Primer.Typecheck (
   CheckEverythingRequest (CheckEverything, toCheck, trusted),
   SmartHoles (NoSmartHoles, SmartHoles),
@@ -282,7 +282,9 @@ tasty_available_actions_accepted = withTests 500 $
       -- mode - NoSmartHoles is only used for internal sanity testing etc)
       a <- forAllT $ genApp SmartHoles cxt
       let allTypes = progAllTypeDefsMeta $ appProg a
+          allTypes' = forgetTypeDefMetadata . snd <$> allTypes
       let allDefs = progAllDefs $ appProg a
+          allDefs' = snd <$> allDefs
       let isMutable = \case
             Editable -> True
             NonEditable -> False
@@ -318,7 +320,7 @@ tasty_available_actions_accepted = withTests 500 $
             Nothing -> Gen.discard
             Just def' ->
               let typeDefSel = SelectionTypeDef . TypeDefSelection defName
-                  forTypeDef = ("forTypeDef", (typeDefSel Nothing, Available.forTypeDef l defMut))
+                  forTypeDef = ("forTypeDef", (typeDefSel Nothing, Available.forTypeDef l defMut allTypes' allDefs' defName def'))
                in Gen.frequency
                     [ (1, pure forTypeDef)
                     ,
@@ -331,7 +333,7 @@ tasty_available_actions_accepted = withTests 500 $
                               ( "forTypeDefParamNode"
                               ,
                                 ( typeDefSel $ Just $ TypeDefParamNodeSelection p
-                                , Available.forTypeDefParamNode l defMut
+                                , Available.forTypeDefParamNode l defMut allTypes' allDefs' defName def'
                                 )
                               )
                       )
@@ -342,7 +344,7 @@ tasty_available_actions_accepted = withTests 500 $
                           cs -> do
                             ValCon{valConName, valConArgs} <- Gen.element cs
                             let typeDefConsNodeSel = typeDefSel . Just . TypeDefConsNodeSelection . TypeDefConsSelection valConName
-                                forTypeDefConsNode = ("forTypeDefConsNode", (typeDefConsNodeSel Nothing, Available.forTypeDefConsNode l defMut))
+                                forTypeDefConsNode = ("forTypeDefConsNode", (typeDefConsNodeSel Nothing, Available.forTypeDefConsNode l defMut allTypes' allDefs' defName def'))
                             case valConArgs of
                               [] -> pure forTypeDefConsNode
                               as ->
@@ -357,7 +359,7 @@ tasty_available_actions_accepted = withTests 500 $
                                           ( "forTypeDefConsFieldNode"
                                           ,
                                             ( typeDefConsNodeSel . Just $ TypeDefConsFieldSelection n i
-                                            , Available.forTypeDefConsFieldNode l defMut def' valConName n i
+                                            , Available.forTypeDefConsFieldNode valConName n i l defMut allTypes' allDefs' defName def'
                                             )
                                           )
                                     )
