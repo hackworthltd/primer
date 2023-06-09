@@ -212,7 +212,6 @@ import Primer.Typecheck (
   buildTypingContextFromModules,
   checkEverything,
   checkTypeDefs,
-  synth,
  )
 import Primer.Typecheck qualified as TC
 import Primer.Zipper (
@@ -636,19 +635,20 @@ applyProgAction prog mdefName = \case
   AddTypeDef tc td -> editModule (qualifiedModule tc) prog $ \m -> do
     td' <- generateTypeDefIDs $ TypeDefAST td
     let tydefs' = moduleTypes m <> Map.singleton (baseName tc) td'
-    liftError
-      -- The frontend should never let this error case happen,
-      -- so we just dump out a raw string for debugging/logging purposes
-      -- (This is not currently true! We should synchronise the frontend with
-      -- the typechecker rules. For instance, the form allows to create
-      --   data T (T : *) = T
-      -- but the TC rejects it.
-      -- see https://github.com/hackworthltd/primer/issues/3)
-      (TypeDefError . show @TypeError)
-      ( runReaderT
-          (checkTypeDefs $ Map.singleton tc td')
-          (buildTypingContextFromModules (progAllModules prog) NoSmartHoles)
-      )
+    void $
+      liftError
+        -- The frontend should never let this error case happen,
+        -- so we just dump out a raw string for debugging/logging purposes
+        -- (This is not currently true! We should synchronise the frontend with
+        -- the typechecker rules. For instance, the form allows to create
+        --   data T (T : *) = T
+        -- but the TC rejects it.
+        -- see https://github.com/hackworthltd/primer/issues/3)
+        (TypeDefError . show @TypeError)
+        ( runReaderT
+            (checkTypeDefs $ Map.singleton tc td')
+            (buildTypingContextFromModules (progAllModules prog) NoSmartHoles)
+        )
     pure
       ( m{moduleTypes = tydefs'}
       , Just $ SelectionTypeDef $ TypeDefSelection tc Nothing
@@ -1674,7 +1674,7 @@ transformCaseBranches ::
   (Maybe (Type' ()) -> [CaseBranch] -> m [CaseBranch]) ->
   Expr ->
   m Expr
-transformCaseBranches prog type_ f = transformM $ \case
+transformCaseBranches _ type_ f = transformM $ \case
   Case m scrut bs -> do
     let scrutType' = scrut ^? _exprMetaLens % _type % _Just % _synthed
     scrutType <- case scrutType' of

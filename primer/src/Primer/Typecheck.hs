@@ -250,9 +250,6 @@ extendTypeDefCxt typedefs cxt = cxt{typeDefs = typedefs <> typeDefs cxt}
 localTmVars :: Cxt -> Map LVarName Type
 localTmVars = M.mapKeys LocalName . M.mapMaybe (\case T t -> Just t; K _ -> Nothing) . localCxt
 
-noSmartHoles :: Cxt -> Cxt
-noSmartHoles cxt = cxt{smartHoles = NoSmartHoles}
-
 -- An empty typing context
 initialCxt :: SmartHoles -> Cxt
 initialCxt sh =
