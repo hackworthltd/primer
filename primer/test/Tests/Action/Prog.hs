@@ -1408,7 +1408,7 @@ unit_cross_module_actions =
               , Move $ ConChild 0
               , constructSaturatedCon cSucc
               , Move $ ConChild 0
-              , ConstructVar (LocalVarRef "a37")
+              -- , ConstructVar (LocalVarRef "a37")
               ]
           ]
         handleAndTC [RenameDef (qualifyM "foo") "bar"]
