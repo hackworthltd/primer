@@ -133,6 +133,7 @@ executable primer-client
   build-depends:
     , base
     , bytestring
+    , containers
     , directory
     , exceptions
     , http-client-tls       ^>=0.3.6.1
