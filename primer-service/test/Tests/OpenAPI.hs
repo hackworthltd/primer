@@ -374,6 +374,6 @@ instance Arbitrary EvalFullResp where
 instance Arbitrary CreateTypeDefBody where
   arbitrary = CreateTypeDefBody <$> arbitrary <*> arbitrary <*> arbitrary
 instance Arbitrary NewSessionReq where
-  arbitrary = NewSessionReq <$> arbitrary
+  arbitrary = NewSessionReq <$> arbitrary <*> arbitrary
 instance Arbitrary TypeOrKind where
   arbitrary = hedgehog $ G.choice [Type <$> genTree, Kind <$> genTree]

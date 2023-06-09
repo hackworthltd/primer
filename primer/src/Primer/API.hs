@@ -127,6 +127,7 @@ import Primer.App (
   handleMutationRequest,
   handleQuestion,
   newApp,
+  newEmptyApp,
   progAllDefs,
   progAllTypeDefs,
   progAllTypeDefsMeta,
@@ -445,6 +446,9 @@ data NewSessionReq = NewSessionReq
   -- ^ The name of the new session. Note that this field is just a
   -- hint: the API may choose a different name if the given name is
   -- invalid.
+  , importPrelude :: Bool
+  -- ^ If 'True', the new session will import the entire Prelude
+  -- automatically.
   }
   deriving stock (Show, Read, Eq, Generic)
   deriving (FromJSON, ToJSON) via PrimerJSON NewSessionReq
@@ -458,7 +462,9 @@ data NewSessionReq = NewSessionReq
 -- when this occurs. Query the returned session ID to determine the
 -- actual session name that was assigned.
 newSession :: (MonadIO m, MonadAPILog l m) => NewSessionReq -> PrimerM m SessionId
-newSession = logAPI (noError NewSession) $ \(NewSessionReq n) -> addSession n newApp
+newSession = logAPI (noError NewSession) $ \(NewSessionReq n p) -> addSession n $ app p
+  where
+    app p = if p then newApp else newEmptyApp
 
 -- | Given an 'App' and a proposed session name as 'Text', create a
 -- new session with the given app and name, and return the session ID.
