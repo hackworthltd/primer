@@ -7,9 +7,10 @@ import Foreword
 
 import Optics (mapped, (%), (%~), (.~))
 import Primer.App (Prog (..))
-import Primer.Core (_exprMeta, _exprTypeMeta, _type, _typeMeta)
+import Primer.Core (TypeMeta, _exprMeta, _exprTypeMeta, _type, _typeMeta)
 import Primer.Def (ASTDef (..))
 import Primer.Module (Module (..))
+import Primer.TypeDef (ASTTypeDef (..), ValCon (..))
 
 forgetProgTypecache :: Prog -> Prog
 forgetProgTypecache =
@@ -17,9 +18,13 @@ forgetProgTypecache =
     . (#progModules % mapped %~ forgetMod)
   where
     forgetMod :: Module -> Module
-    forgetMod = #moduleDefs % mapped % #_DefAST %~ forgetASTDef
+    forgetMod =
+      (#moduleDefs % mapped % #_DefAST %~ forgetASTDef)
+        . (#moduleTypes % mapped % #_TypeDefAST %~ forgetASTTypeDef)
     forgetASTDef :: ASTDef -> ASTDef
     forgetASTDef =
       (#astDefExpr % _exprMeta % _type .~ Nothing)
         . (#astDefExpr % _exprTypeMeta % _type .~ Nothing)
         . (#astDefType % _typeMeta % _type .~ Nothing)
+    forgetASTTypeDef :: ASTTypeDef TypeMeta -> ASTTypeDef TypeMeta
+    forgetASTTypeDef = #astTypeDefConstructors % mapped % #valConArgs % mapped % _typeMeta % _type .~ Nothing
