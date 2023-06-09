@@ -132,6 +132,7 @@ import Primer.Core (
   GVarName,
   GlobalName (baseName, qualifiedModule),
   ID (..),
+  Kind (KType),
   LocalName (LocalName, unLocalName),
   Meta (..),
   ModuleName (ModuleName),
@@ -157,7 +158,7 @@ import Primer.Core (
   _exprMetaLens,
   _synthed,
   _type,
-  _typeMetaLens, Kind (KType),
+  _typeMetaLens,
  )
 import Primer.Core.DSL (S, create, emptyHole, tEmptyHole)
 import Primer.Core.DSL qualified as DSL
@@ -216,6 +217,7 @@ import Primer.Typecheck (
   checkEverything,
   checkTypeDefs,
  )
+import Primer.Typecheck qualified as TC
 import Primer.Zipper (
   ExprZ,
   Loc' (InBind, InExpr, InType),
@@ -639,7 +641,7 @@ applyProgAction prog = \case
       -- see https://github.com/hackworthltd/primer/issues/3)
       (TypeDefError . show @TypeError)
       ( runReaderT
-          (checkTypeDefs $ Map.singleton tc td')
+          (void $ checkTypeDefs $ Map.singleton tc td')
           (buildTypingContextFromModules (progAllModules prog) NoSmartHoles)
       )
     pure
@@ -800,22 +802,24 @@ applyProgAction prog = \case
             $ Nothing
         )
     where
-      updateType  =
-        let new' = runReaderT (liftError (ActionError . TypeError) $ fmap TC.typeTtoType $ TC.checkKind KType =<< generateTypeIDs new)
-                         (progCxt prog)
-        in alterTypeDef
-          ( traverseOf #astTypeDefConstructors $
-              maybe (throwError $ ConNotFound con) pure
-                <=< findAndAdjustA
-                  ((== con) . valConName)
-                  ( traverseOf
-                      #valConArgs
-                      ( maybe (throwError $ IndexOutOfRange index) pure
-                          <=< liftA2 (insertAt index) new' . pure
+      updateType =
+        let new' =
+              runReaderT
+                (liftError (ActionError . TypeError) $ fmap TC.typeTtoType $ TC.checkKind KType =<< generateTypeIDs new)
+                (progCxt prog)
+         in alterTypeDef
+              ( traverseOf #astTypeDefConstructors $
+                  maybe (throwError $ ConNotFound con) pure
+                    <=< findAndAdjustA
+                      ((== con) . valConName)
+                      ( traverseOf
+                          #valConArgs
+                          ( maybe (throwError $ IndexOutOfRange index) pure
+                              <=< liftA2 (insertAt index) new' . pure
+                          )
                       )
-                  )
-          )
-          type_
+              )
+              type_
       -- NB: we must updateDecons first, as transformCaseBranches may do
       -- synthesis of the scrutinee's type, using the old typedef. Thus we must
       -- not update the scrutinee before this happens.
