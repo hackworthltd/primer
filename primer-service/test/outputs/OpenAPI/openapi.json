@@ -282,12 +282,16 @@
             },
             "NewSessionReq": {
                 "properties": {
+                    "importPrelude": {
+                        "type": "boolean"
+                    },
                     "name": {
                         "type": "string"
                     }
                 },
                 "required": [
-                    "name"
+                    "name",
+                    "importPrelude"
                 ],
                 "type": "object"
             },
