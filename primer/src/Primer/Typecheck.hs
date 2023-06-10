@@ -37,6 +37,7 @@ module Primer.Typecheck (
   TypeDefError (..),
   getTypeDefInfo,
   getTypeDefInfo',
+  allNonPrimValCons,
   lookupConstructor,
   instantiateValCons,
   instantiateValCons',
@@ -184,6 +185,7 @@ import Primer.Typecheck.TypeError (TypeError (..))
 import Primer.Typecheck.Utils (
   TypeDefError (TDIHoleType, TDINotADT, TDINotSaturated, TDIPrim, TDIUnknown),
   TypeDefInfo (TypeDefInfo),
+  allNonPrimValCons,
   getGlobalBaseNames,
   getGlobalNames,
   getTypeDefInfo,

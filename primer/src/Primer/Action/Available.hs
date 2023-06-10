@@ -29,7 +29,10 @@ import Data.List ((\\))
 import Data.Map qualified as Map
 import Data.Set qualified as Set
 import Data.Text qualified as T
-import Data.Tuple.Extra (fst3)
+import Data.Tuple.Extra (
+  fst3,
+  uncurry3,
+ )
 import Optics (
   afailing,
   to,
@@ -100,13 +103,13 @@ import Primer.TypeDef (
   ASTTypeDef (..),
   TypeDefMap,
   ValCon (valConArgs),
-  typeDefAST,
   valConName,
  )
 import Primer.Typecheck (
   Cxt,
   TypeDefError (TDIHoleType),
   TypeDefInfo (TypeDefInfo),
+  allNonPrimValCons,
   eqType,
   getTypeDefInfo',
   instantiateValCons',
@@ -459,11 +462,9 @@ options typeDefs defs cxt level def0 sel0 = \case
   MakeCon ->
     pure
       . noFree
-      . map (globalOpt . valConName . snd)
-      . filter (not . (&& level == Beginner) . uncurry hasArgsCon)
-      . concatMap (\td -> (td,) <$> astTypeDefConstructors td)
-      . mapMaybe (typeDefAST . snd)
-      $ Map.toList typeDefs
+      . map (globalOpt . valConName . fst3)
+      . filter (not . (&& level == Beginner) . uncurry3 hasArgsCon)
+      $ allNonPrimValCons typeDefs
   MakeInt -> pure Options{opts = [], free = FreeInt}
   MakeChar -> pure Options{opts = [], free = FreeChar}
   MakeVar ->
@@ -630,7 +631,7 @@ options typeDefs defs cxt level def0 sel0 = \case
       TForall _ _ k _ -> Just k
       _ -> Nothing
     -- Constructor has either type or value arguments
-    hasArgsCon td vc =
+    hasArgsCon vc _ td =
       not (null (astTypeDefParameters td)) || not (null (valConArgs vc))
     -- Variable can be applied to something i.e. is a function or a polymorphic value
     hasArgsVar = \case
