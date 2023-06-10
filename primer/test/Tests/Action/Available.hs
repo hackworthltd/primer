@@ -333,7 +333,7 @@ tasty_available_actions_accepted = withTests 500 $
                               ( "forTypeDefParamNode"
                               ,
                                 ( typeDefSel $ Just $ TypeDefParamNodeSelection p
-                                , Available.forTypeDefParamNode l defMut allTypes' allDefs' defName def'
+                                , Available.forTypeDefParamNode p l defMut allTypes' allDefs' defName def'
                                 )
                               )
                       )
