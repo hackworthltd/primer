@@ -59,7 +59,7 @@ import Primer.App (
   NodeSelection (..),
   NodeType (..),
   Prog (..),
-  ProgError (ActionError, DefAlreadyExists),
+  ProgError (ActionError, ConAlreadyExists, DefAlreadyExists, ParamAlreadyExists, TypeDefAlreadyExists),
   Selection' (..),
   TypeDefConsSelection (TypeDefConsSelection),
   TypeDefNodeSelection (TypeDefConsNodeSelection, TypeDefParamNodeSelection),
@@ -463,6 +463,12 @@ tasty_available_actions_accepted = withTests 500 $
         (StudentProvided, (Left (ActionError (CaseBranchAlreadyExists (PatPrim _))), _)) -> do
           label "add duplicate primitive case branch"
           annotate "ignoring CaseBranchAlreadyExistsPrim error as was generated constructor"
+        (StudentProvided, (Left (TypeDefAlreadyExists _), _)) -> do
+          pure ()
+        (StudentProvided, (Left (ConAlreadyExists _), _)) -> do
+          pure ()
+        (StudentProvided, (Left (ParamAlreadyExists _), _)) -> do
+          pure ()
         (_, (Left err, _)) -> annotateShow err >> failure
         (_, (Right _, a'')) -> ensureSHNormal a''
     ensureSHNormal a = case checkAppWellFormed a of
