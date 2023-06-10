@@ -69,6 +69,7 @@ import Primer.Core (
   Pattern (PatCon, PatPrim),
   PrimCon (PrimChar, PrimInt),
   TyConName,
+  TyVarName,
   Type,
   Type' (..),
   TypeMeta,
@@ -84,7 +85,7 @@ import Primer.Core (
   _typeMetaLens,
  )
 import Primer.Core.Transform (decomposeTAppCon)
-import Primer.Core.Utils (forgetTypeMetadata, freeVars)
+import Primer.Core.Utils (forgetTypeMetadata, freeVars, freeVarsTy)
 import Primer.Def (
   ASTDef (..),
   DefMap,
@@ -367,6 +368,7 @@ forTypeDef l Editable tydefs defs tdName td =
         )
 
 forTypeDefParamNode ::
+  TyVarName ->
   Level ->
   Editable ->
   TypeDefMap ->
@@ -374,13 +376,18 @@ forTypeDefParamNode ::
   TyConName ->
   ASTTypeDef TypeMeta ->
   [Action]
-forTypeDefParamNode _ NonEditable _ _ _ _ = mempty
-forTypeDefParamNode l Editable tydefs defs tdName td =
+forTypeDefParamNode _ _ NonEditable _ _ _ _ = mempty
+forTypeDefParamNode paramName l Editable tydefs defs tdName td =
   sortByPriority l $
     [ Input RenameTypeParam
     ]
       <> mwhen
-        (l == Expert && not (typeInUse tdName td tydefs defs))
+        ( l == Expert
+            && not
+              ( typeInUse tdName td tydefs defs
+                  || any (elem paramName . freeVarsTy) (concatMap valConArgs $ astTypeDefConstructors td)
+              )
+        )
         [NoInput DeleteTypeParam]
 
 forTypeDefConsNode ::
