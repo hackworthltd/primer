@@ -1183,7 +1183,7 @@ availableActions = curry3 $ logAPI (noError AvailableActions) $ \(sid, level, se
       (editable, def) <- findASTTypeDef allTypeDefs sel.def
       let getActions = case sel.node of
             Nothing -> Available.forTypeDef
-            Just (TypeDefParamNodeSelection _) -> Available.forTypeDefParamNode
+            Just (TypeDefParamNodeSelection p) -> Available.forTypeDefParamNode p
             Just (TypeDefConsNodeSelection s) -> case s.field of
               Nothing -> Available.forTypeDefConsNode
               Just field -> Available.forTypeDefConsFieldNode s.con field.index field.meta
