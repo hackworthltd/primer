@@ -83,6 +83,9 @@ import Primer.Core (
   _type,
   _typeMetaLens,
  )
+import Primer.Core.Transform (
+  mkTAppCon,
+ )
 import Primer.Core.Utils (forgetTypeMetadata, freeVars)
 import Primer.Def (
   ASTDef (..),
@@ -104,7 +107,6 @@ import Primer.TypeDef (
   TypeDefMap,
   ValCon (valConArgs),
   valConName,
-  valConType,
  )
 import Primer.Typecheck (
   Cxt,
@@ -586,7 +588,14 @@ options typeDefs defs cxt level def0 sel0 = \case
                 | Just t <- exprType e -> do
                     pure $
                       vcs <&> \vc@(vc', tc, td) ->
-                        (globalOpt' (t `eqType` valConType tc td vc') (valConName vc'), vc)
+                        -- Here we ignore the arity of the constructor
+                        -- and consider only the type to which the
+                        -- constructor belongs. This matches, e.g.,
+                        -- both @Zero@ and @Succ i@ to a node whose
+                        -- type is @Nat@; whereas using 'valConType',
+                        -- which eta-expands the value constructor's
+                        -- type, would only match @Zero@.
+                        (globalOpt' (t `eqType` mkTAppCon tc (TVar () . fst <$> astTypeDefParameters td)) (valConName vc'), vc)
               _ ->
                 pure $ vcs <&> \vc@(vc', _, _) -> (globalOpt . valConName $ vc', vc)
     exprType e = e ^? _exprMetaLens % _type % _Just % (_chkedAt `afailing` _synthed)
