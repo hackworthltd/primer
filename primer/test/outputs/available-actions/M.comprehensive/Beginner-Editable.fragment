@@ -1299,13 +1299,13 @@ Output
                                 { option = "True"
                                 , context = Just
                                     ( "Builtins" :| [] )
-                                , matchesType = False
+                                , matchesType = True
                                 }
                             , Option
                                 { option = "False"
                                 , context = Just
                                     ( "Builtins" :| [] )
-                                , matchesType = False
+                                , matchesType = True
                                 }
                             , Option
                                 { option = "Zero"

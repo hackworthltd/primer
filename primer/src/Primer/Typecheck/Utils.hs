@@ -13,6 +13,7 @@ module Primer.Typecheck.Utils (
   _typecache,
   getGlobalNames,
   getGlobalBaseNames,
+  allNonPrimValCons,
 ) where
 
 import Foreword
@@ -42,14 +43,18 @@ import Primer.TypeDef (
  )
 import Primer.Typecheck.Cxt (Cxt, globalCxt, typeDefs)
 
+-- | Given a 'TypeDefMap', for each value constructor of a
+-- non-primitive typedef in the map, tuple the value constructor up
+-- with its type constructor name and its corresponding AST.
+allNonPrimValCons :: TypeDefMap -> [(ValCon (), TyConName, ASTTypeDef ())]
+allNonPrimValCons tydefs = do
+  (tc, TypeDefAST td) <- M.assocs tydefs
+  vc <- astTypeDefConstructors td
+  pure (vc, tc, td)
+
 -- We assume that constructor names are unique, returning the first one we find
 lookupConstructor :: TypeDefMap -> ValConName -> Maybe (ValCon (), TyConName, ASTTypeDef ())
-lookupConstructor tyDefs c =
-  let allCons = do
-        (tc, TypeDefAST td) <- M.assocs tyDefs
-        vc <- astTypeDefConstructors td
-        pure (vc, tc, td)
-   in find ((== c) . valConName . fst3) allCons
+lookupConstructor tyDefs c = find ((== c) . valConName . fst3) $ allNonPrimValCons tyDefs
 
 data TypeDefError
   = TDIHoleType -- a type hole
