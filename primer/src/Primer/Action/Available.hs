@@ -104,6 +104,7 @@ import Primer.TypeDef (
   TypeDefMap,
   ValCon (valConArgs),
   valConName,
+  valConType,
  )
 import Primer.Typecheck (
   Cxt,
@@ -460,11 +461,8 @@ options ::
   Maybe Options
 options typeDefs defs cxt level def0 sel0 = \case
   MakeCon ->
-    pure
-      . noFree
-      . map (globalOpt . valConName . fst3)
-      . filter (not . (&& level == Beginner) . uncurry3 hasArgsCon)
-      $ allNonPrimValCons typeDefs
+    valConOpts
+      <&> noFree . map fst . filter (not . (&& level == Beginner) . uncurry3 hasArgsCon . snd)
   MakeInt -> pure Options{opts = [], free = FreeInt}
   MakeChar -> pure Options{opts = [], free = FreeChar}
   MakeVar ->
@@ -572,7 +570,7 @@ options typeDefs defs cxt level def0 sel0 = \case
       (_, locals, globals) <- varsInScope
       findNode >>= \case
         ExprNode e
-          | Just t <- (e ^? _exprMetaLens % _type % _Just % (_chkedAt `afailing` _synthed)) -> do
+          | Just t <- exprType e -> do
               pure $
                 (locals <&> \(ln, t') -> (localOpt' (t `eqType` t') $ unLocalName ln, t'))
                   <> (globals <&> \(gn, t') -> (globalOpt' (t `eqType` t') gn, t'))
@@ -580,6 +578,18 @@ options typeDefs defs cxt level def0 sel0 = \case
           pure $
             (first (localOpt . unLocalName) <$> locals)
               <> (first globalOpt <$> globals)
+    valConOpts =
+      let vcs = allNonPrimValCons typeDefs
+       in do
+            findNode >>= \case
+              ExprNode e
+                | Just t <- exprType e -> do
+                    pure $
+                      vcs <&> \vc@(vc', tc, td) ->
+                        (globalOpt' (t `eqType` valConType tc td vc') (valConName vc'), vc)
+              _ ->
+                pure $ vcs <&> \vc@(vc', _, _) -> (globalOpt . valConName $ vc', vc)
+    exprType e = e ^? _exprMetaLens % _type % _Just % (_chkedAt `afailing` _synthed)
     findNode = case sel0 of
       SelectionDef sel -> do
         nodeSel <- sel.node
