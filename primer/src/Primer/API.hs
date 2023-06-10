@@ -97,7 +97,7 @@ import Control.Monad.Writer (MonadWriter)
 import Control.Monad.Zip (MonadZip)
 import Data.Map qualified as Map
 import Data.Tuple.Extra (curry3)
-import Optics (afailing, ifoldr, over, preview, to, traverseOf, view, (%), (^.), _Just)
+import Optics (ifoldr, over, preview, to, traverseOf, view, (%), (^.), _Just)
 import Primer.API.NodeFlavor qualified as Flavor
 import Primer.API.RecordPair (RecordPair (RecordPair))
 import Primer.Action (ActionError, ProgAction, toProgActionInput, toProgActionNoInput)
@@ -163,15 +163,15 @@ import Primer.Core (
   TyVarName,
   Type,
   Type' (..),
+  TypeCache (TCChkedAt, TCEmb, TCSynthed),
+  TypeCacheBoth (TCBoth, tcChkedAt, tcSynthed),
   TypeMeta,
   ValConName,
   getID,
   unLocalName,
   unsafeMkLocalName,
   _bindMeta,
-  _chkedAt,
   _exprMetaLens,
-  _synthed,
   _type,
   _typeMeta,
   _typeMetaLens,
@@ -1336,7 +1336,23 @@ getSelectionTypeOrKind = curry $ logAPI (noError GetTypeOrKind) $ \(sid, sel0) -
     viewExprType :: ExprMeta -> TypeOrKind
     viewExprType = Type . fromMaybe trivialTree . viewExprType'
     viewExprType' :: ExprMeta -> Maybe Tree
-    viewExprType' = preview $ _type % _Just % (_synthed `afailing` _chkedAt) % to (viewTreeType' . mkIds)
+    viewExprType' = preview $ _type % _Just % to (viewTreeType' . mkIds . getAPIType)
+    isHole :: Type' a -> Bool
+    isHole = \case
+      THole{} -> True
+      TEmptyHole{} -> True
+      _ -> False
+    getAPIType :: TypeCache -> Type' ()
+    getAPIType = \case
+      TCSynthed t -> t
+      TCChkedAt t -> t
+      TCEmb (TCBoth{tcSynthed, tcChkedAt})
+        -- If this node is an embedding, we have a choice of two types to report.
+        -- We choose the one that is not a hole;
+        | isHole tcSynthed -> tcChkedAt
+        | isHole tcChkedAt -> tcSynthed
+        -- if neither is a hole (in which case the two are consistent), we choose the synthed type
+        | otherwise -> tcSynthed
     -- We prefix ids to keep them unique from other ids in the emitted program
     mkIds :: Type' () -> Type' Text
     mkIds = over _typeMeta (("seltype-" <>) . show . getID) . create' . generateTypeIDs
