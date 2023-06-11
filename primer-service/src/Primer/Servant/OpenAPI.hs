@@ -85,7 +85,7 @@ data SessionsAPI mode = SessionsAPI
   deriving stock (Generic)
 
 -- | A static bound on the maximum requested timeout for evaluation endpoint
-type EvalFullStepLimit = 100
+type EvalFullStepLimit = 300
 
 -- | The session-specific bits of the API.
 data SessionAPI mode = SessionAPI
