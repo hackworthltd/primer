@@ -85,7 +85,7 @@ import Primer.Core (
   _typeMetaLens,
  )
 import Primer.Core.Transform (decomposeTAppCon)
-import Primer.Core.Utils (forgetTypeMetadata, freeVars)
+import Primer.Core.Utils (forgetTypeMetadata, freeVars, freeVarsTy)
 import Primer.Def (
   ASTDef (..),
   DefMap,
