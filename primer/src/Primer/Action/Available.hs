@@ -83,6 +83,7 @@ import Primer.Core (
   _type,
   _typeMetaLens,
  )
+import Primer.Core.Transform (decomposeTAppCon)
 import Primer.Core.Utils (forgetTypeMetadata, freeVars)
 import Primer.Def (
   ASTDef (..),
@@ -104,7 +105,6 @@ import Primer.TypeDef (
   TypeDefMap,
   ValCon (valConArgs),
   valConName,
-  valConType,
  )
 import Primer.Typecheck (
   Cxt,
@@ -585,8 +585,14 @@ options typeDefs defs cxt level def0 sel0 = \case
               ExprNode e
                 | Just t <- exprType e -> do
                     pure $
-                      vcs <&> \vc@(vc', tc, td) ->
-                        (globalOpt' (t `eqType` valConType tc td vc') (valConName vc'), vc)
+                      vcs <&> \vc@(vc', tc, _) ->
+                        -- Since all datatypes are regular ADTs (not GADTs), the only things needed for
+                        -- a value constructor to be a correct fit for a hole are
+                        -- - the hole's type is "a type constructor applied to a bunch of things"
+                        -- - the hole's type is a satuarated application (this is guaranteed by
+                        --     the program being well-typed, and that types of expressions are of kind KType)
+                        -- - the head of the type (the type constructor) is the parent of the value constructor
+                        (globalOpt' ((Just tc ==) $ fst <$> decomposeTAppCon t) (valConName vc'), vc)
               _ ->
                 pure $ vcs <&> \vc@(vc', _, _) -> (globalOpt . valConName $ vc', vc)
     exprType e = e ^? _exprMetaLens % _type % _Just % (_chkedAt `afailing` _synthed)
