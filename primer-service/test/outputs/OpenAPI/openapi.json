@@ -1448,7 +1448,7 @@
                         "schema": {
                             "exclusiveMaximum": false,
                             "exclusiveMinimum": false,
-                            "maximum": 100,
+                            "maximum": 300,
                             "minimum": 0,
                             "type": "integer"
                         }
