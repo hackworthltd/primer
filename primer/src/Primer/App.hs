@@ -9,6 +9,7 @@
 
 module Primer.App (
   module Primer.App.Base,
+  MonadEditApp,
   Log (..),
   defaultLog,
   App,
@@ -35,6 +36,8 @@ module Primer.App (
   progAllDefs,
   progAllTypeDefs,
   progAllTypeDefsMeta,
+  allDefs,
+  allTypes,
   allValConNames,
   allTyConNames,
   progCxt,
@@ -48,14 +51,8 @@ module Primer.App (
   handleGetProgramRequest,
   handleMutationRequest,
   handleEditRequest,
-  handleEvalRequest,
-  handleEvalFullRequest,
   importModules,
   MutationRequest (..),
-  EvalReq (..),
-  EvalResp (..),
-  EvalFullReq (..),
-  EvalFullResp (..),
   lookupASTDef,
   liftError,
 ) where
@@ -64,7 +61,7 @@ import Foreword hiding (mod)
 
 import Control.Monad.Fresh (MonadFresh (..))
 import Control.Monad.Log (MonadLog, WithSeverity)
-import Control.Monad.NestedError (MonadNestedError, throwError')
+import Control.Monad.NestedError (MonadNestedError)
 import Data.Generics.Uniplate.Operations (transform, transformM)
 import Data.Generics.Uniplate.Zipper (
   fromZipper,
@@ -162,12 +159,7 @@ import Primer.Def (
   defAST,
  )
 import Primer.Def.Utils (globalInUse, typeInUse)
-import Primer.Eval qualified as Eval
-import Primer.Eval.Detail (EvalDetail)
-import Primer.Eval.Redex (EvalLog)
-import Primer.EvalFull (Dir (Syn), EvalFullError (TimedOut), TerminationBound, evalFull)
 import Primer.JSON
-import Primer.Log (ConvertLogMessage)
 import Primer.Module (
   Module (Module, moduleDefs, moduleName, moduleTypes),
   builtinModule,
@@ -445,36 +437,6 @@ data MutationRequest
   deriving (FromJSON, ToJSON) via PrimerJSON MutationRequest
   deriving anyclass (NFData)
 
-data EvalReq = EvalReq
-  { evalReqExpr :: Expr
-  , evalReqRedex :: ID
-  }
-  deriving stock (Eq, Show, Read, Generic)
-  deriving (FromJSON, ToJSON) via PrimerJSON EvalReq
-
-data EvalResp = EvalResp
-  { evalRespExpr :: Expr
-  , evalRespRedexes :: [ID]
-  , evalRespDetail :: EvalDetail
-  }
-  deriving stock (Eq, Show, Read, Generic)
-  deriving (FromJSON, ToJSON) via PrimerJSON EvalResp
-
-data EvalFullReq = EvalFullReq
-  { evalFullReqExpr :: Expr
-  , evalFullCxtDir :: Dir -- is this expression in a syn/chk context, so we can tell if is an embedding.
-  , evalFullMaxSteps :: TerminationBound
-  }
-  deriving stock (Eq, Show, Read, Generic)
-  deriving (FromJSON, ToJSON) via PrimerJSON EvalFullReq
-
--- If we time out, we still return however far we got
-data EvalFullResp
-  = EvalFullRespTimedOut Expr
-  | EvalFullRespNormal Expr
-  deriving stock (Eq, Show, Read, Generic)
-  deriving (FromJSON, ToJSON) via PrimerJSON EvalFullResp
-
 -- * Request handlers
 
 -- | Handle a question
@@ -542,37 +504,6 @@ handleEditRequest actions = do
   let prog' = prog{progLog = push actions l, redoLog = defaultLog}
   modify (\s -> s & #currentState % #prog .~ prog')
   pure prog'
-
--- | Handle an eval request (we assume that all such requests are implicitly in a synthesisable context)
-handleEvalRequest ::
-  ( MonadEditApp l e m
-  , MonadNestedError Eval.EvalError e m
-  , ConvertLogMessage EvalLog l
-  ) =>
-  EvalReq ->
-  m EvalResp
-handleEvalRequest req = do
-  prog <- gets appProg
-  result <- Eval.step (allTypes prog) (allDefs prog) (evalReqExpr req) Syn (evalReqRedex req)
-  case result of
-    Left err -> throwError' err
-    Right (expr, detail) -> do
-      redexes <- Eval.redexes (allTypes prog) (allDefs prog) Syn expr
-      pure
-        EvalResp
-          { evalRespExpr = expr
-          , evalRespRedexes = redexes
-          , evalRespDetail = detail
-          }
-
--- | Handle an eval-to-normal-form request
-handleEvalFullRequest :: (MonadEditApp l e m, ConvertLogMessage EvalLog l) => EvalFullReq -> m EvalFullResp
-handleEvalFullRequest (EvalFullReq{evalFullReqExpr, evalFullCxtDir, evalFullMaxSteps}) = do
-  prog <- gets appProg
-  result <- evalFull (allTypes prog) (allDefs prog) evalFullMaxSteps evalFullCxtDir evalFullReqExpr
-  pure $ case result of
-    Left (TimedOut e) -> EvalFullRespTimedOut e
-    Right nf -> EvalFullRespNormal nf
 
 -- | Handle a 'ProgAction'
 applyProgAction :: MonadEdit m ProgError => Prog -> ProgAction -> m Prog

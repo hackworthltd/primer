@@ -14,6 +14,7 @@ import Data.String (String)
 import Primer.Action (Action (Move, SetCursor), ActionError (IDNotFound), Movement (Child1))
 import Primer.App (
   DefSelection (..),
+  EvalResp (EvalResp, evalRespDetail, evalRespExpr, evalRespRedexes),
   Log (..),
   NodeSelection (..),
   NodeType (..),
@@ -45,6 +46,20 @@ import Primer.Def (
   ASTDef (..),
   Def (..),
  )
+import Primer.Eval (
+  BetaReductionDetail (
+    BetaReductionDetail,
+    after,
+    argID,
+    before,
+    bindingName,
+    bodyID,
+    lambdaID,
+    letID,
+    types
+  ),
+  EvalDetail (BetaReduction),
+ )
 import Primer.Module (Module (Module, moduleDefs, moduleTypes), moduleName)
 import Primer.Name (Name, unsafeMkName)
 import Primer.Test.Util (gvn, vcn)
@@ -59,25 +74,6 @@ import Test.Tasty hiding (after)
 import Test.Tasty.Golden
 import Test.Tasty.HUnit
 
--- | Check that encoding the value produces the file.
-test_encode :: TestTree
-test_encode =
-  testGroup "encode" $
-    fixtures <&> \(Fixture x path) ->
-      goldenVsString (takeBaseName path) path (pure $ encodePretty x)
-  where
-    -- TODO: put this in Foreword. See:
-    -- https://github.com/hackworthltd/primer/issues/139#issuecomment-944906914
-    encodePretty :: ToJSON a => a -> BL.ByteString
-    encodePretty = encodePretty' $ defConfig{confCompare = compare}
-
--- | Check that decoding the file produces the value.
-test_decode :: TestTree
-test_decode =
-  testGroup "decode" $
-    fixtures <&> \(Fixture x path) ->
-      testCase (takeBaseName path) $ either assertFailure (x @=?) =<< eitherDecodeFileStrict path
-
 -- | A fixture holds some value which is JSON serializable and path to a
 -- fixture file which should contain a JSON representation of that value.
 data Fixture = forall a. (Eq a, Show a, FromJSON a, ToJSON a) => Fixture a FilePath
@@ -85,9 +81,7 @@ data Fixture = forall a. (Eq a, Show a, FromJSON a, ToJSON a) => Fixture a FileP
 mkFixture :: (Eq a, Show a, ToJSON a, FromJSON a) => String -> a -> Fixture
 mkFixture name x = Fixture x ("test/outputs/serialization/" <> name <> ".json")
 
--- | A list of fixtures we will test.
--- When you add a new type to the API, add the corresponding fixture here.
--- (You can generate the fixture file via the frontend - see the README).
+-- | A list of eval fixtures we will test.
 fixtures :: [Fixture]
 fixtures =
   let id0 = ID 0
@@ -145,27 +139,25 @@ fixtures =
                 { nodeType = BodyNode
                 , meta = Left exprMeta
                 }
-   in [ mkFixture "id" id0
-      , mkFixture "name" (unsafeMkName "x")
-      , mkFixture "movement" Child1
-      , mkFixture "action" (SetCursor id0)
-      , mkFixture "actionerror" actionError
-      , mkFixture "type" (TEmptyHole typeMeta)
-      , mkFixture "typecache" (TCSynthed $ TEmptyHole ())
-      , mkFixture "typecacheboth" (TCBoth (TEmptyHole ()) (TEmptyHole ()))
-      , mkFixture "expr" expr
-      , mkFixture "kind" KType
-      , mkFixture "log" log
-      , mkFixture "def" def
-      , mkFixture "typeDef" typeDef
-      , mkFixture "prog" prog
-      , mkFixture "progaction" progaction
-      , mkFixture "progerror" progerror
-      , mkFixture "selection" selection
-      , mkFixture
-          "edit_response_1"
-          (Left actionError :: Either ActionError Prog)
-      , mkFixture "edit_response_2" (Right prog :: Either ActionError Prog)
-      , mkFixture "prim_char" $ PrimCon @() @() () $ PrimChar 'a'
-      , mkFixture "prim_int" $ PrimCon @() @() () $ PrimInt 42
+      reductionDetail :: EvalDetail
+      reductionDetail =
+        BetaReduction $
+          BetaReductionDetail
+            { before = expr
+            , after = expr
+            , bindingName = "x"
+            , lambdaID = id0
+            , letID = id0
+            , argID = id0
+            , bodyID = id0
+            , types = (TEmptyHole typeMeta, TEmptyHole typeMeta)
+            }
+   in [ mkFixture
+          "eval_response"
+          ( EvalResp
+              { evalRespExpr = expr
+              , evalRespRedexes = [id0, ID 1]
+              , evalRespDetail = reductionDetail
+              }
+          )
       ]

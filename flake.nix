@@ -224,6 +224,7 @@
 
                 excludes = [
                   "primer/test/outputs"
+                  "primer-eval/test/outputs"
                   "primer-service/test/outputs"
                   ".buildkite/"
                 ];
@@ -418,6 +419,10 @@
                           ghcOptions = [ "-Werror" ];
                           preCheck = preCheckTasty;
                         };
+                        primer-eval = {
+                          ghcOptions = [ "-Werror" ];
+                          preCheck = preCheckTasty;
+                        };
                         primer-rel8 = {
                           ghcOptions = [ "-Werror" ];
                           preCheck = preCheckTasty;
@@ -459,6 +464,7 @@
                   {
                     #TODO This shouldn't be necessary - see the commented-out `build-tool-depends` in primer.cabal.
                     packages.primer.components.tests.primer-test.build-tools = [ (final.haskell-nix.tool ghcVersion "tasty-discover" { }) ];
+                    packages.primer-eval.components.tests.primer-eval-test.build-tools = [ (final.haskell-nix.tool ghcVersion "tasty-discover" { }) ];
                     packages.primer-rel8.components.tests.primer-rel8-test.build-tools = [
                       (final.haskell-nix.tool ghcVersion "tasty-discover" { })
                       final.postgresql
@@ -484,6 +490,7 @@
                     in
                     {
                       packages.primer.components.tests.primer-test.testFlags = hide-successes ++ size-cutoff;
+                      packages.primer-eval.components.tests.primer-eval-test.testFlags = hide-successes ++ size-cutoff;
                       packages.primer-service.components.tests.service-test.testFlags = hide-successes ++ size-cutoff;
                       packages.primer-rel8.components.tests.primer-rel8-test.testFlags = hide-successes;
                       packages.primer-selda.components.tests.primer-selda-test.testFlags = hide-successes;

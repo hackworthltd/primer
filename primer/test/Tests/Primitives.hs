@@ -1,5 +1,5 @@
 -- | Tests specific to primitives.
--- Note that there are other primitives-related tests in 'Primer.Typecheck', 'Primer.Eval' etc.
+-- Note that there are other primitives-related tests in 'Primer.Typecheck', etc.
 module Tests.Primitives where
 
 import Foreword

@@ -2,6 +2,7 @@ index-state: 2023-05-20T00:00:00Z
 
 packages:
   primer
+  primer-eval
   primer-rel8
   primer-selda
   primer-service
@@ -14,6 +15,9 @@ package *
   benchmarks: True
 
 package primer
+  test-options: "--size-cutoff=32768"
+
+package primer-eval
   test-options: "--size-cutoff=32768"
 
 package primer-service

@@ -39,7 +39,6 @@ import Tasty (Property, property)
 import Test.Tasty.HUnit (
   Assertion,
  )
-import Tests.EvalFull ((<~==>))
 import Tests.Prelude.Utils (functionOutput', (<===>))
 
 tasty_id_prop :: Property
@@ -133,15 +132,3 @@ tasty_foldr_right_assoc = property $ do
     [Right $ tcon tInt, Right $ tcon tInt, Left subtract', Left $ int 0, Left $ list_ $ map int ns]
     1000
     <===> Right (create' $ int (foldr (-) 0 ns))
-
--- Ensure that @foldr@ terminates early when the folding function
--- short-circuits. If this does not hold, this test will time out.
-unit_foldr_short_circuit :: Assertion
-unit_foldr_short_circuit =
-  let bs = replicate 100 False
-   in do
-        functionOutput'
-          P.foldr
-          [Right $ tcon tBool, Right $ tcon tBool, Left (gvar L.and), Left $ bool_ True, Left $ list_ $ map bool_ bs]
-          100
-          <~==> Right (create' $ bool_ False)

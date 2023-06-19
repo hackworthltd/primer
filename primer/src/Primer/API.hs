@@ -8,7 +8,7 @@
 -- | The Primer API.
 --
 -- This module defines the Primer API, which is collection of
--- methods for creating, editing, and evaluating Primer programs.
+-- methods for creating and editing Primer programs.
 --
 -- While this Primer implementation *may* work for multiple students
 -- concurrently editing the same program, at the moment we only
@@ -45,12 +45,9 @@ module Primer.API (
   getSessionName,
   renameSession,
   edit,
+  liftEditAppM,
   variablesInScope,
   generateNames,
-  evalStep,
-  evalFull,
-  EvalFullResp (..),
-  evalFull',
   flushSessions,
   createDefinition,
   createTypeDef,
@@ -108,9 +105,6 @@ import Primer.App (
   DefSelection (..),
   EditAppM,
   Editable,
-  EvalFullReq (..),
-  EvalReq (..),
-  EvalResp (..),
   Level,
   MutationRequest,
   NodeSelection (..),
@@ -121,8 +115,6 @@ import Primer.App (
   TypeDefConsSelection (..),
   TypeDefSelection (..),
   appProg,
-  handleEvalFullRequest,
-  handleEvalRequest,
   handleGetProgramRequest,
   handleMutationRequest,
   handleQuestion,
@@ -177,7 +169,6 @@ import Primer.Core (
   _typeMetaLens,
  )
 import Primer.Core.DSL (create')
-import Primer.Core.DSL qualified as DSL
 import Primer.Core.Meta (LocalName, Pattern (PatCon, PatPrim))
 import Primer.Core.Meta qualified as Core
 import Primer.Core.Utils (generateTypeIDs)
@@ -216,8 +207,6 @@ import Primer.Def (
   defAST,
  )
 import Primer.Def qualified as Def
-import Primer.Eval.Redex (Dir (Chk), EvalLog)
-import Primer.EvalFull (TerminationBound)
 import Primer.JSON (
   CustomJSON (..),
   FromJSON,
@@ -400,9 +389,6 @@ data APILog
   | Edit (ReqResp (SessionId, MutationRequest) (Either ProgError App.Prog))
   | VariablesInScope (ReqResp (SessionId, (GVarName, ID)) (Either ProgError (([(TyVarName, Kind)], [(LVarName, Type' ())]), [(GVarName, Type' ())])))
   | GenerateNames (ReqResp (SessionId, ((GVarName, ID), Either (Maybe (Type' ())) (Maybe Kind))) (Either ProgError [Name.Name]))
-  | EvalStep (ReqResp (SessionId, EvalReq) (Either ProgError EvalResp))
-  | EvalFull (ReqResp (SessionId, EvalFullReq) (Either ProgError App.EvalFullResp))
-  | EvalFull' (ReqResp (SessionId, Maybe TerminationBound, GVarName) EvalFullResp)
   | FlushSessions (ReqResp () ())
   | CreateDef (ReqResp (SessionId, ModuleName, Maybe Text) Prog)
   | CreateTypeDef (ReqResp (SessionId, TyConName, [ValConName]) Prog)
@@ -1068,65 +1054,6 @@ generateNames ::
   PrimerM m (Either ProgError [Name.Name])
 generateNames = curry $ logAPI (leftResultError GenerateNames) $ \(sid, ((defname, exprid), tk)) ->
   liftQueryAppM (handleQuestion $ GenerateName defname exprid tk) sid
-
-evalStep ::
-  (MonadIO m, MonadThrow m, MonadAPILog l m, ConvertLogMessage EvalLog l) =>
-  SessionId ->
-  EvalReq ->
-  PrimerM m (Either ProgError EvalResp)
-evalStep = curry $ logAPI (leftResultError EvalStep) $ \(sid, req) ->
-  liftEditAppM (handleEvalRequest req) sid
-
-evalFull ::
-  (MonadIO m, MonadThrow m, MonadAPILog l m, ConvertLogMessage EvalLog l) =>
-  SessionId ->
-  EvalFullReq ->
-  PrimerM m (Either ProgError App.EvalFullResp)
-evalFull = curry $ logAPI (leftResultError EvalFull) $ \(sid, req) ->
-  liftEditAppM (handleEvalFullRequest req) sid
-
--- | This type is the API's view of a 'App.EvalFullResp
--- (this is expected to evolve as we flesh out the API)
-data EvalFullResp
-  = EvalFullRespTimedOut Tree
-  | EvalFullRespNormal Tree
-  deriving stock (Show, Read, Generic)
-  deriving (ToJSON, FromJSON) via PrimerJSON EvalFullResp
-
--- | Evaluate some top level definition in a program.
---
--- Note that this is a simplified version of 'evalFull',
--- intended for non-Haskell clients
-evalFull' ::
-  forall m l.
-  (MonadIO m, MonadThrow m, MonadAPILog l m, ConvertLogMessage EvalLog l) =>
-  SessionId ->
-  Maybe TerminationBound ->
-  GVarName ->
-  PrimerM m EvalFullResp
-evalFull' = curry3 $ logAPI (noError EvalFull') $ \(sid, lim, d) ->
-  noErr <$> liftEditAppM (q lim d) sid
-  where
-    q ::
-      Maybe TerminationBound ->
-      GVarName ->
-      EditAppM (PureLog (WithSeverity l)) Void EvalFullResp
-    q lim d = do
-      e <- DSL.gvar d
-      x <-
-        handleEvalFullRequest $
-          EvalFullReq
-            { evalFullReqExpr = e
-            , evalFullCxtDir = Chk
-            , evalFullMaxSteps = fromMaybe 10 lim
-            }
-      pure $ case x of
-        App.EvalFullRespTimedOut e' -> EvalFullRespTimedOut $ viewTreeExpr e'
-        App.EvalFullRespNormal e' -> EvalFullRespNormal $ viewTreeExpr e'
-    noErr :: Either Void a -> a
-    noErr = \case
-      Right a -> a
-      Left v -> absurd v
 
 flushSessions :: (MonadIO m, MonadAPILog l m) => PrimerM m ()
 flushSessions = logAPI' FlushSessions $ do

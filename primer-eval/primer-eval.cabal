@@ -1,5 +1,5 @@
 cabal-version: 3.0
-name:          primer
+name:          primer-eval
 version:       0.7.2.0
 license:       AGPL-3.0-or-later
 license-file:  COPYING
@@ -7,76 +7,28 @@ copyright:     (c) 2023 Hackworth Ltd
 maintainer:    src@hackworthltd.com
 author:        Hackworth Ltd <src@hackworthltd.com>
 stability:     experimental
-synopsis:      A framework for structured editing.
-category:      Editor
+synopsis:      Evaluators for Primer programs
 
 library
   exposed-modules:
-    Control.Monad.Fresh
-    Control.Monad.NestedError
-    Foreword
-    Primer.Action
-    Primer.Action.Available
-    Primer.Action.Priorities
-    Primer.Action.ProgError
-    Primer.API
-    Primer.API.NodeFlavor
-    Primer.API.RecordPair
-    Primer.App
-    Primer.App.Base
-    Primer.App.Utils
-    Primer.Builtins
-    Primer.Builtins.DSL
-    Primer.Core
-    Primer.Core.DSL
-    Primer.Core.Meta
-    Primer.Core.Transform
-    Primer.Core.Type
-    Primer.Core.Utils
-    Primer.Database
-    Primer.Def
-    Primer.Def.Utils
-    Primer.Examples
-    Primer.JSON
-    Primer.Log
-    Primer.Module
-    Primer.Name
-    Primer.Name.Fresh
-    Primer.Prelude
-    Primer.Prelude.Integer
-    Primer.Prelude.Logic
-    Primer.Prelude.Polymorphism
-    Primer.Prelude.Utils
-    Primer.Pretty
-    Primer.Primitives
-    Primer.Primitives.DSL
-    Primer.Questions
-    Primer.Refine
-    Primer.Subst
-    Primer.Typecheck
-    Primer.Typecheck.Utils
-    Primer.TypeDef
-    Primer.Unification
-    Primer.Zipper
-    Primer.Zipper.Type
-    Primer.ZipperCxt
+    Primer.Eval
+    Primer.Eval.API
+    Primer.Eval.App
+    Primer.EvalFull
 
   hs-source-dirs:     src
   other-modules:
-    Primer.Action.Actions
-    Primer.Action.Errors
-    Primer.Action.Movement
-    Primer.Action.ProgAction
-    Primer.Core.DSL.Meta
-    Primer.Core.DSL.Type
-    Primer.Core.Fresh
-    Primer.Core.Type.Utils
-    Primer.Primitives.PrimDef
-    Primer.Typecheck.Cxt
-    Primer.Typecheck.Kindcheck
-    Primer.Typecheck.KindError
-    Primer.Typecheck.SmartHoles
-    Primer.Typecheck.TypeError
+    Primer.Eval.Ann
+    Primer.Eval.Beta
+    Primer.Eval.Bind
+    Primer.Eval.Case
+    Primer.Eval.Detail
+    Primer.Eval.EvalError
+    Primer.Eval.Inline
+    Primer.Eval.Let
+    Primer.Eval.NormalOrder
+    Primer.Eval.Prim
+    Primer.Eval.Redex
 
   default-language:   GHC2021
   default-extensions:
@@ -111,6 +63,7 @@ library
     , optics                       >=0.4      && <0.5.0
     , prettyprinter                >=1.7.1    && <1.8.0
     , prettyprinter-ansi-terminal  >=1.1.3    && <1.2.0
+    , primer                       ^>=0.7.2
     , protolude                    >=0.3.1    && <0.4.0
     , recursion-schemes            >=5.1.3    && <5.3.0
     , semigroups                   >=0.20     && <0.21.0
@@ -122,114 +75,18 @@ library
     , uniplate                     >=1.6      && <1.7.0
     , uuid                         ^>=1.3.15
 
-library primer-hedgehog
-  visibility:         public
-  exposed-modules:
-    Primer.Gen.API
-    Primer.Gen.App
-    Primer.Gen.Core.Raw
-    Primer.Gen.Core.Typed
-    Tasty
-
-  other-modules:
-  hs-source-dirs:     gen
-  default-language:   GHC2021
-  default-extensions:
-    NoImplicitPrelude
-    DataKinds
-    DerivingStrategies
-    DerivingVia
-    LambdaCase
-    OverloadedStrings
-
-  ghc-options:
-    -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
-    -Wcompat -Widentities -Wredundant-constraints
-    -Wmissing-deriving-strategies -fhide-source-paths
-
-  build-depends:
-    , base
-    , containers
-    , extra
-    , hedgehog        ^>=1.1
-    , mmorph          ^>=1.2.0
-    , mtl
-    , primer
-    , primer-testlib
-    , tasty-discover  ^>=5.0
-    , tasty-hedgehog  ^>=1.3
-
-library primer-testlib
-  visibility:         public
-  exposed-modules:
-    Primer.Test.App
-    Primer.Test.Expected
-    Primer.Test.TestM
-    Primer.Test.Util
-
-  other-modules:
-  hs-source-dirs:     testlib
-  default-language:   GHC2021
-  default-extensions:
-    NoImplicitPrelude
-    DataKinds
-    DeriveAnyClass
-    DerivingStrategies
-    DerivingVia
-    LambdaCase
-    OverloadedStrings
-
-  ghc-options:
-    -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
-    -Wcompat -Widentities -Wredundant-constraints
-    -Wmissing-deriving-strategies -fhide-source-paths
-
-  build-depends:
-    , base
-    , containers
-    , exceptions
-    , hedgehog
-    , logging-effect
-    , optics
-    , primer
-    , stm
-    , stm-containers
-    , tasty-hunit     ^>=0.10.0
-
-test-suite primer-test
+test-suite primer-eval-test
   type:               exitcode-stdio-1.0
   main-is:            Test.hs
   hs-source-dirs:     test
   other-modules:
-    Tests.Action
-    Tests.Action.Available
-    Tests.Action.Capture
-    Tests.Action.Prog
-    Tests.AlphaEquality
-    Tests.API
-    Tests.App
-    Tests.Database
-    Tests.Examples
-    Tests.FreeVars
-    Tests.Gen.App
-    Tests.Gen.Core.Typed
-    Tests.Module
-    Tests.NullDb
-    Tests.Prelude.TypeCheck
-    Tests.Pretty
-    Tests.Primitives
-    Tests.Prog
-    Tests.Questions
-    Tests.Refine
-    Tests.Serialization
-    Tests.Subst
-    Tests.Transform
-    Tests.Typecheck
-    Tests.Undo
-    Tests.Unification
-    Tests.Utils
-    Tests.Zipper
-    Tests.Zipper.BindersAbove
+    Tests.Eval
+    Tests.Eval.Utils
+    Tests.EvalFull
+    Tests.Prelude.Integer
+    Tests.Prelude.Logic
+    Tests.Prelude.Polymorphism
+    Tests.Prelude.Utils
 
   default-language:   GHC2021
   default-extensions:
@@ -274,8 +131,6 @@ test-suite primer-test
       , prettyprinter
       , prettyprinter-ansi-terminal
       , primer
-      , primer-hedgehog
-      , primer-testlib
       , protolude
       , stm
       , stm-containers

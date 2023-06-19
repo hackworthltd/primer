@@ -1395,6 +1395,18 @@ unit_case_prim =
         s4 <- evalFullTest maxID4 mempty mempty 6 Syn e4
         s4 <~==> Right expect4
 
+-- Ensure that @foldr@ terminates early when the folding function
+-- short-circuits. If this does not hold, this test will time out.
+unit_foldr_short_circuit :: Assertion
+unit_foldr_short_circuit =
+  let bs = replicate 100 False
+   in do
+        functionOutput'
+          P.foldr
+          [Right $ tcon tBool, Right $ tcon tBool, Left (gvar L.and), Left $ bool_ True, Left $ list_ $ map bool_ bs]
+          100
+          <~==> Right (create' $ bool_ False)
+
 -- * Utilities
 
 evalFullTest :: ID -> TypeDefMap -> DefMap -> TerminationBound -> Dir -> Expr -> IO (Either EvalFullError Expr)
