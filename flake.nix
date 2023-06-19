@@ -264,7 +264,7 @@
           // primerFlake.packages;
 
           checks = {
-            inherit openapi-validate;
+            inherit weeder openapi-validate;
             inherit primer-sqitch-test-sqlite;
           }
           // (pkgs.lib.optionalAttrs (system == "x86_64-linux")
@@ -511,8 +511,7 @@
                     cabal = "latest";
                     hlint = "latest";
 
-                    # Broken.
-                    #weeder = weederVersion;
+                    weeder = weederVersion;
 
                     fourmolu = fourmoluVersion;
 

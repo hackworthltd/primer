@@ -58,7 +58,6 @@ module Primer.Typecheck (
   extendTypeDefCxt,
   localTmVars,
   localTyVars,
-  enhole,
   eqType,
 ) where
 
@@ -95,7 +94,6 @@ import Optics (
   traverseOf,
   (%),
   (^?),
-  _Just,
  )
 import Optics.Traversal (traversed)
 import Primer.Core (
@@ -871,11 +869,7 @@ addChkMeta' set t e =
 enholeT :: MonadFresh ID m => Type' () -> ExprT -> m ExprT
 enholeT = enhole' equality
 
--- | As 'enholeT', but works on 'Expr'
-enhole :: MonadFresh ID m => Type' () -> Expr -> m Expr
-enhole = enhole' _Just
-
--- | A generic helper for 'enholeT' and 'enhole'
+-- | A generic helper for 'enholeT' and (a hypothetical) @enhole = enhole' _Just@
 enhole' :: (Is k A_Prism, MonadFresh ID m) => Optic' k NoIx a TypeCache -> Type' () -> Expr' (Meta a) b -> m (Expr' (Meta a) b)
 enhole' p' t e =
   let p = castOptic @A_Prism p'
