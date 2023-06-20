@@ -651,7 +651,7 @@ applyProgAction prog = \case
         pure (m' : ms, Nothing)
   RenameType old (unsafeMkName -> nameRaw) -> editModuleCross (qualifiedModule old) prog $ \(m, ms) -> do
     when (new /= old && new `elem` allTyConNames prog) $ throwError $ TypeDefAlreadyExists new
-    m' <- traverseOf #moduleTypes updateType m
+    m' <- traverseOf #moduleTypes updateTypeDef m
     let renamedInTypes = over (traversed % #moduleTypes) updateRefsInTypes $ m' : ms
     pure
       ( over (traversed % #moduleDefs % traversed % #_DefAST) (updateDefBody . updateDefType) renamedInTypes
@@ -659,7 +659,7 @@ applyProgAction prog = \case
       )
     where
       new = qualifyName (qualifiedModule old) nameRaw
-      updateType m = do
+      updateTypeDef m = do
         d0 <-
           -- NB We do not allow primitive types to be renamed.
           -- To relax this, we'd have to be careful about how it interacts with type-checking of primitive literals.
@@ -688,13 +688,13 @@ applyProgAction prog = \case
   RenameCon type_ old (unsafeMkGlobalName . (fmap unName (unModuleName (qualifiedModule type_)),) -> new) ->
     editModuleCross (qualifiedModule type_) prog $ \(m, ms) -> do
       when (new `elem` allValConNames prog) $ throwError $ ConAlreadyExists new
-      m' <- updateType m
+      m' <- updateTypeDef m
       pure
         ( over (mapped % #moduleDefs) updateDefs (m' : ms)
         , Just $ SelectionTypeDef $ TypeDefSelection type_ $ Just $ TypeDefConsNodeSelection $ TypeDefConsSelection new Nothing
         )
     where
-      updateType =
+      updateTypeDef =
         alterTypeDef
           ( traverseOf
               #astTypeDefConstructors
@@ -711,13 +711,13 @@ applyProgAction prog = \case
       updateName n = if n == old then new else n
   RenameTypeParam type_ old (unsafeMkLocalName -> new) ->
     editModule (qualifiedModule type_) prog $ \m -> do
-      m' <- updateType m
+      m' <- updateTypeDef m
       pure
         ( m'
         , Just $ SelectionTypeDef $ TypeDefSelection type_ $ Just $ TypeDefParamNodeSelection new
         )
     where
-      updateType =
+      updateTypeDef =
         alterTypeDef
           (updateConstructors <=< updateParam)
           type_
@@ -745,7 +745,7 @@ applyProgAction prog = \case
   AddCon type_ index (unsafeMkGlobalName . (fmap unName (unModuleName (qualifiedModule type_)),) -> con) ->
     editModuleCross (qualifiedModule type_) prog $ \(m, ms) -> do
       when (con `elem` allValConNames prog) $ throwError $ ConAlreadyExists con
-      m' <- updateType m
+      m' <- updateTypeDef m
       newTy <- maybe (throwError $ TypeDefNotFound type_) pure $ moduleTypesQualified m' Map.!? type_
       allCons <- maybe (throwError $ TypeDefIsPrim type_) (pure . astTypeDefConstructors) $ typeDefAST newTy
       ms' <-
@@ -761,7 +761,7 @@ applyProgAction prog = \case
       updateDefs allCons = transformNamedCaseBranches prog type_ $ \bs -> do
         m' <- DSL.meta
         pure $ insertSubseqBy caseBranchName (CaseBranch (PatCon con) [] (EmptyHole m')) (PatCon . valConName <$> allCons) bs
-      updateType =
+      updateTypeDef =
         alterTypeDef
           ( traverseOf
               #astTypeDefConstructors
@@ -788,7 +788,7 @@ applyProgAction prog = \case
     pure (m' : ms, Just $ SelectionTypeDef $ TypeDefSelection tdName Nothing)
   AddConField type_ con index new ->
     editModuleCross (qualifiedModule type_) prog $ \(m, ms) -> do
-      m' <- updateType m
+      m' <- updateTypeDef m
       ms' <- traverseOf (traversed % #moduleDefs) updateDefs (m' : ms)
       pure
         ( ms'
@@ -801,7 +801,7 @@ applyProgAction prog = \case
             $ Nothing
         )
     where
-      updateType =
+      updateTypeDef =
         alterTypeDef
           ( traverseOf #astTypeDefConstructors $
               maybe (throwError $ ConNotFound con) pure
