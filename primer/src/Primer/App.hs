@@ -1529,7 +1529,11 @@ tcWholeProg p = do
                 -- This is similar to what we do when selection is in a term, above.
                 td <- Map.lookup s.def $ allTypesMeta p
                 tda <- typeDefAST td
-                getTypeDefConFieldType tda conSel.con fieldSel.index
+                ty <- getTypeDefConFieldType tda conSel.con fieldSel.index
+                id <- case fieldSel.meta of
+                  Left _ -> Nothing -- Any selection in a typedef should have TypeMeta, not ExprMeta
+                  Right m -> pure $ getID m
+                target <$> focusOnTy id ty
   pure $ p'{progSelection = newSel}
 
 -- | Do a full check of a 'Prog', both the imports and the local modules
