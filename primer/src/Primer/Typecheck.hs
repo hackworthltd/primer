@@ -357,6 +357,9 @@ checkTypeDefs tds = do
     checkTypeDef tc td = do
       let params = typeDefParameters td
       assert
+        (distinct $ map (unLocalName . fst) params)
+        "Duplicate parameter names in one tydef"
+      assert
         (notElem (baseName tc) $ map (unLocalName . fst) params)
         "Duplicate names in one tydef: between type-def-name and parameter-names"
       traverseOf #_TypeDefAST (checkADTTypeDef tc) td

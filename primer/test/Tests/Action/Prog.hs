@@ -425,7 +425,7 @@ unit_create_typedef_bad_5 =
           , astTypeDefNameHints = []
           }
    in progActionTest defaultEmptyProg [AddTypeDef (tcn "T") td] $
-        expectError (@?= TypeDefError "InternalError \"Duplicate names in one tydef: between parameter-names and constructor-names\"")
+        expectError (@?= TypeDefError "InternalError \"Duplicate parameter names in one tydef\"")
 
 -- Forbid clash between type name and parameter name
 unit_create_typedef_bad_6 :: Assertion
