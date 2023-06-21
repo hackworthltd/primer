@@ -56,7 +56,13 @@ import Primer.App (
   NodeSelection (..),
   NodeType (..),
   Prog (..),
-  ProgError (ActionError, ConAlreadyExists, DefAlreadyExists, ParamAlreadyExists, TypeDefAlreadyExists),
+  ProgError (
+    ActionError,
+    ConAlreadyExists,
+    DefAlreadyExists,
+    TypeDefAlreadyExists,
+    TypeDefModifyNameClash
+  ),
   Selection' (..),
   TypeDefConsSelection (TypeDefConsSelection),
   TypeDefNodeSelection (TypeDefConsNodeSelection, TypeDefParamNodeSelection),
@@ -455,7 +461,7 @@ tasty_available_actions_accepted = withTests 500 $
           pure ()
         (StudentProvided, (Left (ConAlreadyExists _), _)) -> do
           pure ()
-        (StudentProvided, (Left (ParamAlreadyExists _), _)) -> do
+        (StudentProvided, (Left (TypeDefModifyNameClash _), _)) -> do
           pure ()
         (_, (Left err, _)) -> annotateShow err >> failure
         (_, (Right _, a'')) -> ensureSHNormal a''

@@ -985,7 +985,7 @@ unit_RenameTypeParam_clash =
   progActionTest
     (defaultProgEditableTypeDefs $ pure [])
     [RenameTypeParam tT "a" "b"]
-    $ expectError (@?= ParamAlreadyExists "b")
+    $ expectError (@?= TypeDefModifyNameClash "b")
 
 unit_AddCon :: Assertion
 unit_AddCon =

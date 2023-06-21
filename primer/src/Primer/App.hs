@@ -78,11 +78,16 @@ import Optics (
   Field1 (_1),
   Field2 (_2),
   Field3 (_3),
+  Fold,
   ReversibleOptic (re),
+  elemOf,
+  folded,
   ifoldMap,
   mapped,
   over,
   set,
+  summing,
+  to,
   traverseOf,
   traversed,
   view,
@@ -672,7 +677,7 @@ applyProgAction prog = \case
           -- To relax this, we'd have to be careful about how it interacts with type-checking of primitive literals.
           maybe (throwError $ TypeDefIsPrim old) pure . typeDefAST
             =<< maybe (throwError $ TypeDefNotFound old) pure (Map.lookup (baseName old) m)
-        when (nameRaw `elem` map (unLocalName . fst) (astTypeDefParameters d0)) $ throwError $ TyConParamClash nameRaw
+        assertFreshNameForTypeDef nameRaw (old, d0)
         pure $ Map.insert nameRaw (TypeDefAST d0) $ Map.delete (baseName old) m
       updateRefsInTypes =
         over
@@ -703,11 +708,14 @@ applyProgAction prog = \case
     where
       updateTypeDef =
         alterTypeDef
-          ( traverseOf
-              #astTypeDefConstructors
-              ( maybe (throwError $ ConNotFound old) pure
-                  . findAndAdjust ((== old) . valConName) (#valConName .~ new)
-              )
+          ( \td -> do
+              when (old /= new) $ assertFreshNameForTypeDef (baseName new) (type_, td)
+              traverseOf
+                #astTypeDefConstructors
+                ( maybe (throwError $ ConNotFound old) pure
+                    . findAndAdjust ((== old) . valConName) (#valConName .~ new)
+                )
+                td
           )
           type_
       updateDefs =
@@ -726,12 +734,10 @@ applyProgAction prog = \case
     where
       updateTypeDef =
         alterTypeDef
-          (updateConstructors <=< updateParam)
+          (updateConstructors <=< updateParam <=< \td -> td <$ when (old /= new) (assertFreshNameForTypeDef (unLocalName new) (type_, td)))
           type_
       updateParam def = do
-        when (new `elem` map fst (astTypeDefParameters def)) $ throwError $ ParamAlreadyExists new
         let nameRaw = unLocalName new
-        when (nameRaw == baseName type_) $ throwError $ TyConParamClash nameRaw
         when (nameRaw `elem` map (baseName . valConName) (astTypeDefConstructors def)) $ throwError $ ValConParamClash nameRaw
         def
           & traverseOf
@@ -768,9 +774,12 @@ applyProgAction prog = \case
         pure $ insertSubseqBy caseBranchName (CaseBranch (PatCon con) [] (EmptyHole m')) (PatCon . valConName <$> allCons) bs
       updateTypeDef =
         alterTypeDef
-          ( traverseOf
-              #astTypeDefConstructors
-              (maybe (throwError $ IndexOutOfRange index) pure . insertAt index (ValCon con []))
+          ( \td -> do
+              assertFreshNameForTypeDef (baseName con) (type_, td)
+              traverseOf
+                #astTypeDefConstructors
+                (maybe (throwError $ IndexOutOfRange index) pure . insertAt index (ValCon con []))
+                td
           )
           type_
   DeleteCon tdName vcName -> editModuleCross (qualifiedModule tdName) prog $ \(m, ms) -> do
@@ -872,12 +881,10 @@ applyProgAction prog = \case
       alterTypeDef
         ( \td -> do
             checkTypeNotInUse tdName td $ m : ms
+            assertFreshNameForTypeDef (unLocalName paramName) (tdName, td)
             traverseOf
               #astTypeDefParameters
               ( \ps -> do
-                  when
-                    (paramName `elem` map fst ps)
-                    (throwError $ ParamAlreadyExists paramName)
                   maybe (throwError $ IndexOutOfRange index) pure $ insertAt index (paramName, k) ps
               )
               td
@@ -1007,6 +1014,13 @@ applyProgAction prog = \case
     mdefName = case progSelection prog of
       Just (SelectionDef s) -> Just s.def
       _ -> Nothing
+    typeDefNames :: Fold (TyConName, ASTTypeDef a) Name
+    typeDefNames =
+      (_1 % to baseName)
+        `summing` (_2 % #astTypeDefParameters % folded % _1 % to unLocalName)
+        `summing` (_2 % #astTypeDefConstructors % folded % #valConName % to baseName)
+    assertFreshNameForTypeDef n tydef =
+      when (elemOf typeDefNames n tydef) $ throwError $ TypeDefModifyNameClash n
 
 -- Helper for RenameModule action
 data RenameMods a = RM {imported :: [a], editable :: [a]}
