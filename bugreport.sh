@@ -41,7 +41,7 @@ if [ "$#" -ne 0 ]; then
     exit 1
 fi
 
-if ! [ -d .git ] || ! [ -d primer-service ] || ! [ -d sqitch ]; then
+if ! [ -e .git ] || ! [ -d primer-service ] || ! [ -d sqitch ]; then
     echo "Please run this script from the root of the Primer repository." >&2
     exit 2
 fi
