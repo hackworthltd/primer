@@ -42,7 +42,7 @@ import Test.Tasty.HUnit (
   assertFailure,
   (@?=),
  )
-import Tests.Action.Prog (runAppTestM)
+import Tests.Action.Prog (AppTestM, runAppTestM)
 import Prelude (error)
 
 mainModuleName :: App.Prog -> ModuleName
@@ -62,6 +62,9 @@ undoFailed e = assertFailure $ "Expected successful undo, but got " <> show e
 redoFailed :: ProgError -> Assertion
 redoFailed e = assertFailure $ "Expected successful redo, but got " <> show e
 
+run :: App -> AppTestM a -> IO (Either ProgError a, App)
+run app = runAppTestM (appIdCounter app) app
+
 compareAfterUndo :: App.Prog -> App.Prog -> App.Log -> Assertion
 compareAfterUndo orig undone expectedRedoLog =
   (orig & #redoLog .~ expectedRedoLog) @?= undone
@@ -76,7 +79,7 @@ unit_undo_available =
       scope = mainModuleName $ appProg app
       action = handleEditRequest [CreateDef scope $ Just "newDef"]
    in do
-        (result, newApp) <- runAppTestM (appIdCounter app) app action
+        (result, newApp) <- run app action
         case result of
           Left e -> actionFailed e
           Right _ -> assertBool "Expected undo to be available" $ undoAvailable $ getProg newApp
@@ -89,8 +92,8 @@ unit_undo_test1 =
       edit = handleEditRequest action
       undo = handleMutationRequest App.Undo
    in do
-        (_, newApp) <- runAppTestM (appIdCounter originalApp) originalApp edit
-        (result, undoneApp) <- runAppTestM (appIdCounter newApp) newApp undo
+        (_, newApp) <- run originalApp edit
+        (result, undoneApp) <- run newApp undo
         case result of
           Left e -> undoFailed e
           Right _ -> do
@@ -107,9 +110,9 @@ unit_undo_test2 =
       edit = handleEditRequest action
       undo = handleMutationRequest App.Undo
    in do
-        (_, newApp1) <- runAppTestM (appIdCounter originalApp) originalApp edit
-        (_, undoneApp) <- runAppTestM (appIdCounter newApp1) newApp1 undo
-        (result, newApp2) <- runAppTestM (appIdCounter undoneApp) undoneApp edit
+        (_, newApp1) <- run originalApp edit
+        (_, undoneApp) <- run newApp1 undo
+        (result, newApp2) <- run undoneApp edit
         case result of
           Left e -> undoFailed e
           Right _ -> do
@@ -128,7 +131,7 @@ unit_no_redo_available_after_edit =
       scope = mainModuleName $ appProg app
       action = handleEditRequest [CreateDef scope $ Just "newDef"]
    in do
-        (result, newApp) <- runAppTestM (appIdCounter app) app action
+        (result, newApp) <- run app action
         case result of
           Left e -> actionFailed e
           Right _ -> assertBool "Expected no redo available" $ not $ redoAvailable $ getProg newApp
@@ -142,9 +145,9 @@ unit_redo_test1 =
       undo = handleMutationRequest App.Undo
       redo = handleMutationRequest App.Redo
    in do
-        (_, newApp) <- runAppTestM (appIdCounter originalApp) originalApp edit
-        (_, undoneApp) <- runAppTestM (appIdCounter newApp) newApp undo
-        (result, redoneApp) <- runAppTestM (appIdCounter undoneApp) undoneApp redo
+        (_, newApp) <- run originalApp edit
+        (_, undoneApp) <- run newApp undo
+        (result, redoneApp) <- run undoneApp redo
         case result of
           Left e -> redoFailed e
           Right _ -> do
