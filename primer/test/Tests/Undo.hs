@@ -62,6 +62,11 @@ undoFailed e = assertFailure $ "Expected successful undo, but got " <> show e
 redoFailed :: ProgError -> Assertion
 redoFailed e = assertFailure $ "Expected successful redo, but got " <> show e
 
+expectSuccess :: (Either ProgError a, b) -> IO (a, b)
+expectSuccess = \case
+  (Left e, _) -> assertFailure $ "action unexpectedly failed: " <> show e
+  (Right x, y) -> pure (x, y)
+
 run :: App -> AppTestM a -> IO (Either ProgError a, App)
 run app = runAppTestM (appIdCounter app) app
 
@@ -92,7 +97,7 @@ unit_undo_test1 =
       edit = handleEditRequest action
       undo = handleMutationRequest App.Undo
    in do
-        (_, newApp) <- run originalApp edit
+        (_, newApp) <- expectSuccess =<< run originalApp edit
         (result, undoneApp) <- run newApp undo
         case result of
           Left e -> undoFailed e
@@ -110,8 +115,8 @@ unit_undo_test2 =
       edit = handleEditRequest action
       undo = handleMutationRequest App.Undo
    in do
-        (_, newApp1) <- run originalApp edit
-        (_, undoneApp) <- run newApp1 undo
+        (_, newApp1) <- expectSuccess =<< run originalApp edit
+        (_, undoneApp) <- expectSuccess =<< run newApp1 undo
         (result, newApp2) <- run undoneApp edit
         case result of
           Left e -> undoFailed e
@@ -145,8 +150,8 @@ unit_redo_test1 =
       undo = handleMutationRequest App.Undo
       redo = handleMutationRequest App.Redo
    in do
-        (_, newApp) <- run originalApp edit
-        (_, undoneApp) <- run newApp undo
+        (_, newApp) <- expectSuccess =<< run originalApp edit
+        (_, undoneApp) <- expectSuccess =<< run newApp undo
         (result, redoneApp) <- run undoneApp redo
         case result of
           Left e -> redoFailed e
