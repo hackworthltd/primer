@@ -16,7 +16,6 @@ import Optics
 import Primer.App (
   EvalFullReq (EvalFullReq, evalFullCxtDir, evalFullMaxSteps, evalFullReqExpr),
   EvalFullResp (EvalFullRespNormal, EvalFullRespTimedOut),
-  appIdCounter,
   handleEvalFullRequest,
   importModules,
   newEmptyApp,
@@ -1284,7 +1283,7 @@ unit_eval_full_modules =
           EvalFullRespTimedOut _ -> assertFailure "EvalFull timed out"
           EvalFullRespNormal e -> e ~= expect
       a = newEmptyApp
-   in runAppTestM (appIdCounter a) a test <&> fst >>= \case
+   in runAppTestM a test <&> fst >>= \case
         Left err -> assertFailure $ show err
         Right assertion -> assertion
 
@@ -1306,7 +1305,7 @@ unit_eval_full_modules_scrutinize_imported_type =
           EvalFullRespTimedOut _ -> assertFailure "EvalFull timed out"
           EvalFullRespNormal e -> e ~= expect
       a = newEmptyApp
-   in runAppTestM (appIdCounter a) a test <&> fst >>= \case
+   in runAppTestM a test <&> fst >>= \case
         Left err -> assertFailure $ show err
         Right assertion -> assertion
   where

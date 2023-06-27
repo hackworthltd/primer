@@ -14,7 +14,6 @@ import Optics (elemOf, (^.))
 import Primer.App (
   EvalReq (EvalReq, evalReqExpr, evalReqRedex),
   EvalResp (EvalResp, evalRespExpr),
-  appIdCounter,
   handleEvalRequest,
   importModules,
   newEmptyApp,
@@ -1380,7 +1379,7 @@ unit_eval_modules =
         expect <- char 'A'
         pure $ e ~= expect
       a = newEmptyApp
-   in runAppTestM (appIdCounter a) a test <&> fst >>= \case
+   in runAppTestM a test <&> fst >>= \case
         Left err -> assertFailure $ show err
         Right assertion -> assertion
 
@@ -1400,7 +1399,7 @@ unit_eval_modules_scrutinize_imported_type =
         expect <- con0 cFalse
         pure $ e ~= expect
       a = newEmptyApp
-   in runAppTestM (appIdCounter a) a test <&> fst >>= \case
+   in runAppTestM a test <&> fst >>= \case
         Left err -> assertFailure $ show err
         Right assertion -> assertion
   where
