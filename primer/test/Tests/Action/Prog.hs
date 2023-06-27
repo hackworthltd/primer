@@ -763,8 +763,7 @@ unit_import_vars =
         importModules [builtinModule', primitiveModule]
         gets (fmap (Map.assocs . moduleDefsQualified) . progModules . appProg) >>= \case
           [[(i, DefAST d)]] -> do
-            a' <- get
-            (_, vs) <- runReaderT (handleQuestion (VariablesInScope i $ getID $ astDefExpr d)) a'
+            (_, vs) <- readerToState (handleQuestion (VariablesInScope i $ getID $ astDefExpr d))
             pure $
               assertBool "VariablesInScope did not report the imported Int.+" $
                 any ((== primitiveGVar IntAdd) . fst) vs
@@ -1182,11 +1181,9 @@ unit_generate_names_import =
         importModules [builtinModule']
         gets (fmap (Map.assocs . moduleDefsQualified) . progModules . appProg) >>= \case
           [[(i, DefAST d)]] -> do
-            a' <- get
             ns <-
-              runReaderT
+              readerToState
                 (handleQuestion (GenerateName i (getID $ astDefExpr d) $ Left $ Just $ TCon () tBool))
-                a'
             pure $ ns @?= ["p", "q"]
           _ -> pure $ assertFailure "Expected one def 'main' from newEmptyApp"
       a = newEmptyApp
@@ -1644,3 +1641,6 @@ globalVarRef = GlobalVarRef . gvn
 
 tcWholeProg :: Prog -> AppTestM Prog
 tcWholeProg = App.liftError ActionError . App.tcWholeProg
+
+readerToState :: MonadState r m => ReaderT r m a -> m a
+readerToState m = runReaderT m =<< get
