@@ -38,6 +38,7 @@ import Primer.Action (
 import Primer.App (
   App,
   DefSelection (..),
+  FreshViaApp (FreshViaApp),
   Log (..),
   NodeSelection (..),
   NodeType (..),
@@ -121,11 +122,10 @@ import Primer.Core.DSL (
  )
 import Primer.Core.Utils (forgetMetadata)
 import Primer.Def (ASTDef (..), Def (..), DefMap, defAST)
-import Primer.Log (PureLogT, runPureLogT)
+import Primer.Log (PureLog, runPureLog)
 import Primer.Module (Module (Module, moduleDefs, moduleName, moduleTypes), builtinModule, moduleDefsQualified, moduleTypesQualified, primitiveModule)
 import Primer.Name
 import Primer.Primitives (PrimDef (IntAdd, ToUpper), primitiveGVar, tChar)
-import Primer.Test.TestM (TestM, evalTestM)
 import Primer.Test.Util (LogMsg, assertNoSevereLogs, constructSaturatedCon, constructTCon, zeroIDs, zeroTypeIDs)
 import Primer.Test.Util qualified as Util
 import Primer.TypeDef (ASTTypeDef (..), TypeDef (..), ValCon (..), forgetTypeDefMetadata, typeDefAST)
@@ -1101,7 +1101,7 @@ unit_AddConField =
                     ]
                     `ann` (tcon tT `tapp` tEmptyHole `tapp` tEmptyHole)
                 )
-                [ branch cA [("p", Nothing), ("a44", Nothing), ("q", Nothing), ("p1", Nothing)] emptyHole
+                [ branch cA [("p", Nothing), ("a", Nothing), ("q", Nothing), ("p1", Nothing)] emptyHole
                 , branch cB [("r", Nothing), ("x", Nothing)] emptyHole
                 ]
           )
@@ -1134,7 +1134,7 @@ unit_AddConField_case_ann =
                 (emptyHole `ann` (tcon tT `tapp` tEmptyHole `tapp` tEmptyHole))
                 [ branch
                     cA
-                    [("x", Nothing), ("y", Nothing), ("a41", Nothing), ("z", Nothing)]
+                    [("x", Nothing), ("y", Nothing), ("a", Nothing), ("z", Nothing)]
                     (lvar "y")
                 , branch cB [("s", Nothing), ("t", Nothing)] emptyHole
                 ]
@@ -1285,7 +1285,7 @@ unit_cross_module_actions =
               , Move $ ConChild 0
               , constructSaturatedCon cSucc
               , Move $ ConChild 0
-              , ConstructVar (LocalVarRef "a26")
+              , ConstructVar (LocalVarRef "a")
               ]
           ]
         handleAndTC [RenameDef (qualifyM "foo") "bar"]
@@ -1564,7 +1564,7 @@ newtype AppTestM a = AppTestM
           App
           ( ExceptT
               ProgError
-              (PureLogT (WithSeverity LogMsg) TestM)
+              (PureLog (WithSeverity LogMsg))
           )
       )
         a
@@ -1573,12 +1573,15 @@ newtype AppTestM a = AppTestM
     ( Functor
     , Applicative
     , Monad
-    , MonadFresh ID
-    , MonadFresh NameCounter
     , MonadLog (WithSeverity LogMsg)
     , MonadState App
     , MonadError ProgError
     )
+  deriving
+    ( MonadFresh ID
+    , MonadFresh NameCounter
+    )
+    via FreshViaApp AppTestM
 
 -- Recall that Assertion = IO ()
 -- This is in IO as it asserts that there were no severe log messages
@@ -1588,8 +1591,8 @@ runAppTestM i a m =
    in assertNoSevereLogs logs $> r
 
 runAppTestM' :: ID -> App -> AppTestM a -> ((Either ProgError a, App), Seq (WithSeverity LogMsg))
-runAppTestM' startID a m =
-  case evalTestM startID $ runPureLogT $ runExceptT $ flip runStateT a $ unAppTestM m of
+runAppTestM' _startID a m =
+  case runPureLog $ runExceptT $ flip runStateT a $ unAppTestM m of
     (Left err, logs) -> ((Left err, a), logs)
     (Right (res, app'), logs) -> ((Right res, app'), logs)
 

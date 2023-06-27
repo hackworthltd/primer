@@ -24,6 +24,7 @@ module Primer.App (
   checkProgWellFormed,
   EditAppM,
   QueryAppM,
+  FreshViaApp (FreshViaApp),
   runEditAppM,
   runQueryAppM,
   Prog (..),
@@ -1182,6 +1183,16 @@ replay = mapM_ handleEditRequest
 --
 -- Note we do not want @MonadFresh Name m@, as @fresh :: m Name@ has
 -- no way of avoiding student-specified names. Instead, use 'freshName'.
+--
+-- Note that we have both a @MonadState App m@ and a @MonadFresh ID m@
+-- constraint (also a @MonadFresh NameCounter m@, to which similar comments
+-- apply). Note that an @App@ stores a fresh ID state. The @MonadFresh@
+-- instance should update this state; to achieve this behaviour for a custom
+-- monad with @MonadState App M@, use
+-- > deriving via FreshViaApp M instance MonadFresh ID M
+-- (This essentially mimics (pointwise) the effect of providing a @instance
+-- MonadState App m => MonadFresh ID m@, without having an orphan instance, or
+-- bad resolution behaviour.)
 type MonadEditApp l e m = (MonadLog (WithSeverity l) m, MonadEdit m e, MonadState App m)
 
 -- | A shorthand for constraints needed when doing low-level mutation
@@ -1400,20 +1411,26 @@ newType = do
   id_ <- fresh
   pure $ TEmptyHole (Meta id_ Nothing Nothing)
 
+newtype FreshViaApp m a = FreshViaApp (m a)
+  deriving newtype (Functor, Applicative, Monad)
+
 -- | Support for generating fresh IDs
-instance Monad m => MonadFresh ID (EditAppM m e) where
-  fresh = do
+instance MonadState App m => MonadFresh ID (FreshViaApp m) where
+  fresh = FreshViaApp $ do
     id_ <- gets appIdCounter
     modify (\s -> s & #currentState % #idCounter .~ id_ + 1)
     pure id_
 
 -- | Support for generating names. Basically just a counter so we don't
 -- generate the same automatic name twice.
-instance Monad m => MonadFresh NameCounter (EditAppM m e) where
-  fresh = do
+instance MonadState App m => MonadFresh NameCounter (FreshViaApp m) where
+  fresh = FreshViaApp $ do
     nc <- gets appNameCounter
     modify (\s -> s & #currentState % #nameCounter .~ succ nc)
     pure nc
+
+deriving via FreshViaApp (EditAppM m e) instance Monad m => MonadFresh ID (EditAppM m e)
+deriving via FreshViaApp (EditAppM m e) instance Monad m => MonadFresh NameCounter (EditAppM m e)
 
 copyPasteSig :: MonadEdit m ProgError => Prog -> (GVarName, ID) -> GVarName -> [Action] -> m Prog
 copyPasteSig p (fromDefName, fromTyId) toDefName setup = do
