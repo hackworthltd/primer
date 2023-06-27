@@ -3,6 +3,7 @@ module Tests.API where
 import Foreword
 
 import Data.ByteString.Lazy qualified as BSL
+import Data.Map qualified as M
 import Data.Text qualified as Text
 import Data.Text.Lazy qualified as TL
 import Data.UUID.V4 (nextRandom)
@@ -13,18 +14,27 @@ import Primer.API (
   addSession,
   copySession,
   deleteSession,
+  edit,
+  evalFull',
   findSessions,
   flushSessions,
   getApp,
+  getProgram,
   getSessionName,
   getVersion,
   listSessions,
   newSession,
+  redo,
   renameSession,
+  undo,
   viewTreeExpr,
   viewTreeType,
  )
+import Primer.Action (Action (ConstructPrim, InsertSaturatedVar, SetCursor))
 import Primer.App (
+  MutationRequest (Edit),
+  Prog (progModules),
+  ProgAction (BodyAction, MoveToDef),
   newApp,
  )
 import Primer.Core
@@ -42,6 +52,8 @@ import Primer.Examples (
   even3App,
  )
 import Primer.Gen.Core.Raw (evalExprGen, genExpr, genType)
+import Primer.Module (moduleDefsQualified)
+import Primer.Prelude.Integer qualified as Integer
 import Primer.Test.Util (
   ExceptionPredicate,
   assertException,
@@ -436,3 +448,67 @@ test_renameSession_too_long =
       name <- renameSession sid $ toS $ replicate 65 'a'
       step "it should be truncated at 64 characters"
       name @?= toS (replicate 64 'a')
+
+test_eval_undo :: TestTree
+test_eval_undo =
+  testCaseSteps "eval plays nicely with undo/redo" $ \step' -> do
+    runAPI $ do
+      let step = liftIO . step'
+      let expectSuccess m =
+            m >>= \case
+              Left err -> liftIO $ assertFailure $ show err
+              Right x -> pure x
+      step "create session"
+      sid <- newSession $ NewSessionReq "a new session" True
+      let scope = mkSimpleModuleName "Main"
+      step "eval"
+      void $ evalFull' sid (Just 100) $ qualifyName scope "main"
+      step "insert λ"
+      let getMain = do
+            p <- getProgram sid
+            pure $ fmap astDefExpr . defAST =<< foldMap' moduleDefsQualified (progModules p) M.!? qualifyName scope "main"
+      i1 <-
+        getMain >>= \case
+          Just e@EmptyHole{} -> pure $ getID e
+          _ -> liftIO $ assertFailure "unexpected form of main"
+      _ <-
+        expectSuccess $
+          edit sid $
+            Edit
+              [ MoveToDef $ qualifyName scope "main"
+              , BodyAction
+                  [ SetCursor i1
+                  , InsertSaturatedVar $ GlobalVarRef Integer.even
+                  ]
+              ]
+      step "insert 4"
+      i2 <-
+        getMain >>= \case
+          Just (App _ _ e) -> pure $ getID e
+          _ -> liftIO $ assertFailure "unexpected form of main"
+      _ <-
+        expectSuccess $
+          edit sid $
+            Edit
+              [ MoveToDef $ qualifyName scope "main"
+              , BodyAction
+                  [ SetCursor i2
+                  , ConstructPrim $ PrimInt 4
+                  ]
+              ]
+      step "get edited App"
+      app0 <- getApp sid
+      step "undo"
+      _ <- undo sid
+      step "redo"
+      _ <- redo sid
+      step "undo *2"
+      _ <- undo sid >> undo sid
+      step "redo"
+      _ <- redo sid
+      step "redo"
+      _ <- redo sid
+      step "get final App"
+      app1 <- getApp sid
+      step "edited and redone progAllModules identical"
+      app1 @?= app0

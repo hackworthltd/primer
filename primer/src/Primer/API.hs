@@ -1109,23 +1109,26 @@ evalFull' ::
   GVarName ->
   PrimerM m EvalFullResp
 evalFull' = curry3 $ logAPI (noError EvalFull') $ \(sid, lim, d) ->
-  noErr <$> liftEditAppM (q lim d) sid
+  noErr <$> liftQueryAppM (q lim d) sid
   where
     q ::
       Maybe TerminationBound ->
       GVarName ->
-      EditAppM (PureLog (WithSeverity l)) Void EvalFullResp
+      QueryAppM (PureLog (WithSeverity l)) Void EvalFullResp
     q lim d = do
-      e <- DSL.gvar d
-      a <- get
+      -- We don't care about uniqueness of this ID, and we do not want to
+      -- disturb any FreshID state, since that could break undo/redo.
+      -- The reason we don't care about uniqueness is that this node will never
+      -- exist alongside anything else that it may clash with, as the first
+      -- evaluation step will be to inline this definition, removing the node.
+      let e = create' $ DSL.gvar d
       x <-
-        flip runReaderT a $
-          handleEvalFullRequest $
-            EvalFullReq
-              { evalFullReqExpr = e
-              , evalFullCxtDir = Chk
-              , evalFullMaxSteps = fromMaybe 10 lim
-              }
+        handleEvalFullRequest $
+          EvalFullReq
+            { evalFullReqExpr = e
+            , evalFullCxtDir = Chk
+            , evalFullMaxSteps = fromMaybe 10 lim
+            }
       pure $ case x of
         App.EvalFullRespTimedOut e' -> EvalFullRespTimedOut $ viewTreeExpr e'
         App.EvalFullRespNormal e' -> EvalFullRespNormal $ viewTreeExpr e'
