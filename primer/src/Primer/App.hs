@@ -1226,14 +1226,12 @@ runEditAppM (EditAppM m) appState =
 --
 -- Actions run in this monad cannot modify the 'App'. We use 'ExceptT'
 -- here for compatibility with 'EditApp'.
-newtype QueryAppM a = QueryAppM (ReaderT App (Except ProgError) a)
-  deriving newtype (Functor, Applicative, Monad, MonadReader App, MonadError ProgError)
+newtype QueryAppM m a = QueryAppM (ReaderT App (ExceptT ProgError m) a)
+  deriving newtype (Functor, Applicative, Monad, MonadReader App, MonadError ProgError, MonadLog l)
 
 -- | Run a 'QueryAppM' action, returning a result.
-runQueryAppM :: QueryAppM a -> App -> Either ProgError a
-runQueryAppM (QueryAppM m) appState = case runExcept (runReaderT m appState) of
-  Left err -> Left err
-  Right res -> Right res
+runQueryAppM :: QueryAppM m a -> App -> m (Either ProgError a)
+runQueryAppM (QueryAppM m) appState = runExceptT (runReaderT m appState)
 
 -- | The student's application's state.
 --

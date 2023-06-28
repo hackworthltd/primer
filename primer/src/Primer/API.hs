@@ -299,7 +299,7 @@ sessionsTransaction f = do
 
 data SessionOp l a where
   EditApp :: (App -> PureLog l (a, App)) -> SessionOp l a
-  QueryApp :: (App -> a) -> SessionOp l a
+  QueryApp :: (App -> PureLog l a) -> SessionOp l a
   OpGetSessionName :: SessionOp l Text
   GetSessionData :: SessionOp l SessionData
   OpRenameSession :: Text -> SessionOp l Text
@@ -346,7 +346,7 @@ withSession' sid op = do
             writeTBQueue q $ Database.UpdateApp sid appl' now
             -- We return an action which, when run, will log the messages
             pure $ Right (res, traverse_ logMessage logs)
-          QueryApp f -> pure $ Right (f appl, pure ())
+          QueryApp f -> pure $ Right $ second (traverse_ logMessage) $ runPureLog $ f appl
           OpGetSessionName -> pure $ Right (fromSessionName n, pure ())
           GetSessionData -> pure $ Right (s, pure ())
           OpRenameSession n' ->
@@ -582,7 +582,11 @@ liftEditAppM h sid = withSession' sid (EditApp $ runEditAppM h)
 
 -- Run a 'QueryAppM' action, using the given session ID to look up and
 -- pass in the app state for that session.
-liftQueryAppM :: (MonadIO m, MonadThrow m, MonadLog l m) => QueryAppM a -> SessionId -> PrimerM m (Either ProgError a)
+liftQueryAppM ::
+  (MonadIO m, MonadThrow m, MonadLog l m) =>
+  QueryAppM (PureLog l) a ->
+  SessionId ->
+  PrimerM m (Either ProgError a)
 liftQueryAppM h sid = withSession' sid (QueryApp $ runQueryAppM h)
 
 -- | Given a 'SessionId', return the session's 'App'.
@@ -591,7 +595,7 @@ liftQueryAppM h sid = withSession' sid (QueryApp $ runQueryAppM h)
 -- expect typical API clients to use it. Its primary use is for
 -- testing.
 getApp :: (MonadIO m, MonadThrow m, MonadAPILog l m) => SessionId -> PrimerM m App
-getApp = logAPI (noError GetApp) $ \sid -> withSession' sid $ QueryApp identity
+getApp = logAPI (noError GetApp) $ \sid -> withSession' sid $ QueryApp pure
 
 -- | Given a 'SessionId', return the session's 'Prog'.
 --
@@ -602,7 +606,7 @@ getProgram' = logAPI (noError GetProgram') (fmap viewProg . getProgram)
 
 -- | Given a 'SessionId', return the session's 'App.Prog'.
 getProgram :: (MonadIO m, MonadThrow m, MonadAPILog l m) => SessionId -> PrimerM m App.Prog
-getProgram = logAPI (noError GetProgram) $ \sid -> withSession' sid $ QueryApp handleGetProgramRequest
+getProgram = logAPI (noError GetProgram) $ \sid -> withSession' sid $ QueryApp $ pure . handleGetProgramRequest
 
 -- | A frontend will be mostly concerned with rendering, and does not need the
 -- full complexity of our AST for that task. 'Tree' is a simplified view with
