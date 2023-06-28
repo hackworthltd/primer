@@ -496,7 +496,7 @@ data EvalFullResp
 -- Note that these only consider the non-imported module as a location of which
 -- to ask a question. However, they will return variables which are in scope by
 -- dint of being imported.
-handleQuestion :: MonadQueryApp m => Question a -> m a
+handleQuestion :: MonadQueryApp m ProgError => Question a -> m a
 handleQuestion = \case
   VariablesInScope defid exprid -> do
     node <- focusNode' defid exprid
@@ -1203,7 +1203,7 @@ type MonadEdit m e = (MonadFresh ID m, MonadFresh NameCounter m, MonadError e m)
 
 -- | A shorthand for the constraints we need when performing read-only
 -- operations on the application.
-type MonadQueryApp m = (Monad m, MonadReader App m, MonadError ProgError m)
+type MonadQueryApp m e = (Monad m, MonadReader App m, MonadError e m)
 
 -- | The 'EditApp' monad.
 --
@@ -1226,11 +1226,11 @@ runEditAppM (EditAppM m) appState =
 --
 -- Actions run in this monad cannot modify the 'App'. We use 'ExceptT'
 -- here for compatibility with 'EditApp'.
-newtype QueryAppM m a = QueryAppM (ReaderT App (ExceptT ProgError m) a)
-  deriving newtype (Functor, Applicative, Monad, MonadReader App, MonadError ProgError, MonadLog l)
+newtype QueryAppM m e a = QueryAppM (ReaderT App (ExceptT e m) a)
+  deriving newtype (Functor, Applicative, Monad, MonadReader App, MonadError e, MonadLog l)
 
 -- | Run a 'QueryAppM' action, returning a result.
-runQueryAppM :: QueryAppM m a -> App -> m (Either ProgError a)
+runQueryAppM :: QueryAppM m e a -> App -> m (Either e a)
 runQueryAppM (QueryAppM m) appState = runExceptT (runReaderT m appState)
 
 -- | The student's application's state.

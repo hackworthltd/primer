@@ -584,9 +584,9 @@ liftEditAppM h sid = withSession' sid (EditApp $ runEditAppM h)
 -- pass in the app state for that session.
 liftQueryAppM ::
   (MonadIO m, MonadThrow m, MonadLog l m) =>
-  QueryAppM (PureLog l) a ->
+  QueryAppM (PureLog l) e a ->
   SessionId ->
-  PrimerM m (Either ProgError a)
+  PrimerM m (Either e a)
 liftQueryAppM h sid = withSession' sid (QueryApp $ runQueryAppM h)
 
 -- | Given a 'SessionId', return the session's 'App'.
