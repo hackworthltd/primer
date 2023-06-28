@@ -1593,10 +1593,6 @@ runAppTestM' startID a m =
     (Left err, logs) -> ((Left err, a), logs)
     (Right (res, app'), logs) -> ((Right res, app'), logs)
 
---  case evalTestM startID $ runExceptT $ flip runStateT a $ unAppTestM m of
---    Left err -> (Left err, a)
---    Right (res, app') -> (Right res, app')
-
 -- Looks up a definition in the main module
 -- Useful in these tests so we don't have to specify
 -- the name of the module all the time
