@@ -574,8 +574,8 @@ renameSession = curry $ logAPI (noError RenameSession) $ \(sid, n) -> withSessio
 -- pass in the app state for that session.
 liftEditAppM ::
   forall m l e a.
-  (MonadIO m, MonadThrow m, MonadLog (WithSeverity l) m) =>
-  EditAppM (PureLog (WithSeverity l)) e a ->
+  (MonadIO m, MonadThrow m, MonadLog l m) =>
+  EditAppM (PureLog l) e a ->
   SessionId ->
   PrimerM m (Either e a)
 liftEditAppM h sid = withSession' sid (EditApp $ runEditAppM h)
