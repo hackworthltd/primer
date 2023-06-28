@@ -425,7 +425,7 @@ unit_create_typedef_bad_5 =
           , astTypeDefNameHints = []
           }
    in progActionTest defaultEmptyProg [AddTypeDef (tcn "T") td] $
-        expectError (@?= TypeDefError "InternalError \"Duplicate names in one tydef: between parameter-names and constructor-names\"")
+        expectError (@?= TypeDefError "InternalError \"Duplicate parameter names in one tydef\"")
 
 -- Forbid clash between type name and parameter name
 unit_create_typedef_bad_6 :: Assertion
@@ -985,7 +985,7 @@ unit_RenameTypeParam_clash =
   progActionTest
     (defaultProgEditableTypeDefs $ pure [])
     [RenameTypeParam tT "a" "b"]
-    $ expectError (@?= ParamAlreadyExists "b")
+    $ expectError (@?= TypeDefModifyNameClash "b")
 
 unit_AddCon :: Assertion
 unit_AddCon =
@@ -1285,7 +1285,7 @@ unit_cross_module_actions =
               , Move $ ConChild 0
               , constructSaturatedCon cSucc
               , Move $ ConChild 0
-              , ConstructVar (LocalVarRef "a37")
+              , ConstructVar (LocalVarRef "a26")
               ]
           ]
         handleAndTC [RenameDef (qualifyM "foo") "bar"]

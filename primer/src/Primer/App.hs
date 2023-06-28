@@ -65,6 +65,7 @@ import Foreword hiding (mod)
 import Control.Monad.Fresh (MonadFresh (..))
 import Control.Monad.Log (MonadLog, WithSeverity)
 import Control.Monad.NestedError (MonadNestedError, throwError')
+import Data.Data (Data)
 import Data.Generics.Uniplate.Operations (transform, transformM)
 import Data.Generics.Uniplate.Zipper (
   fromZipper,
@@ -77,11 +78,16 @@ import Optics (
   Field1 (_1),
   Field2 (_2),
   Field3 (_3),
+  Fold,
   ReversibleOptic (re),
+  elemOf,
+  folded,
   ifoldMap,
   mapped,
   over,
   set,
+  summing,
+  to,
   traverseOf,
   traversed,
   view,
@@ -90,6 +96,7 @@ import Optics (
   (.~),
   (?~),
   (^.),
+  (^?),
   _Just,
   _Left,
   _Right,
@@ -130,6 +137,7 @@ import Primer.Core (
   GVarName,
   GlobalName (baseName, qualifiedModule),
   ID (..),
+  Kind (KType),
   LocalName (LocalName, unLocalName),
   Meta (..),
   ModuleName (ModuleName),
@@ -138,6 +146,8 @@ import Primer.Core (
   TyConName,
   Type,
   Type' (..),
+  TypeCache (..),
+  TypeCacheBoth (..),
   TypeMeta,
   ValConName,
   caseBranchName,
@@ -148,12 +158,16 @@ import Primer.Core (
   unModuleName,
   unsafeMkGlobalName,
   unsafeMkLocalName,
+  _chkedAt,
+  _exprMeta,
   _exprMetaLens,
+  _synthed,
+  _type,
   _typeMetaLens,
  )
-import Primer.Core.DSL (S, create, emptyHole, tEmptyHole, tvar)
+import Primer.Core.DSL (S, create, emptyHole, tEmptyHole)
 import Primer.Core.DSL qualified as DSL
-import Primer.Core.Transform (renameVar, unfoldTApp)
+import Primer.Core.Transform (renameTyVar, renameVar, unfoldTApp)
 import Primer.Core.Utils (freeVars, freeVarsTy, generateTypeIDs, regenerateExprIDs, regenerateTypeIDs, _freeTmVars, _freeTyVars, _freeVarsTy)
 import Primer.Def (
   ASTDef (..),
@@ -207,8 +221,8 @@ import Primer.Typecheck (
   buildTypingContextFromModules,
   checkEverything,
   checkTypeDefs,
-  synth,
  )
+import Primer.Typecheck qualified as TC
 import Primer.Zipper (
   ExprZ,
   Loc' (InBind, InExpr, InType),
@@ -632,7 +646,7 @@ applyProgAction prog = \case
       -- see https://github.com/hackworthltd/primer/issues/3)
       (TypeDefError . show @TypeError)
       ( runReaderT
-          (checkTypeDefs $ Map.singleton tc (TypeDefAST td))
+          (void $ checkTypeDefs $ Map.singleton tc td')
           (buildTypingContextFromModules (progAllModules prog) NoSmartHoles)
       )
     pure
@@ -648,8 +662,8 @@ applyProgAction prog = \case
         let m' = m{moduleTypes = Map.delete (baseName d) (moduleTypes m)}
         pure (m' : ms, Nothing)
   RenameType old (unsafeMkName -> nameRaw) -> editModuleCross (qualifiedModule old) prog $ \(m, ms) -> do
-    when (new `elem` allTyConNames prog) $ throwError $ TypeDefAlreadyExists new
-    m' <- traverseOf #moduleTypes updateType m
+    when (new /= old && new `elem` allTyConNames prog) $ throwError $ TypeDefAlreadyExists new
+    m' <- traverseOf #moduleTypes updateTypeDef m
     let renamedInTypes = over (traversed % #moduleTypes) updateRefsInTypes $ m' : ms
     pure
       ( over (traversed % #moduleDefs % traversed % #_DefAST) (updateDefBody . updateDefType) renamedInTypes
@@ -657,48 +671,51 @@ applyProgAction prog = \case
       )
     where
       new = qualifyName (qualifiedModule old) nameRaw
-      updateType m = do
+      updateTypeDef m = do
         d0 <-
           -- NB We do not allow primitive types to be renamed.
           -- To relax this, we'd have to be careful about how it interacts with type-checking of primitive literals.
           maybe (throwError $ TypeDefIsPrim old) pure . typeDefAST
             =<< maybe (throwError $ TypeDefNotFound old) pure (Map.lookup (baseName old) m)
-        when (nameRaw `elem` map (unLocalName . fst) (astTypeDefParameters d0)) $ throwError $ TyConParamClash nameRaw
+        assertFreshNameForTypeDef nameRaw (old, d0)
         pure $ Map.insert nameRaw (TypeDefAST d0) $ Map.delete (baseName old) m
       updateRefsInTypes =
         over
           (traversed % #_TypeDefAST % #astTypeDefConstructors % traversed % #valConArgs % traversed)
-          $ transform
-          $ over (#_TCon % _2) updateName
-      updateDefType =
-        over
-          #astDefType
-          $ transform
-          $ over (#_TCon % _2) updateName
+          updateType
+      updateDefType = over #astDefType updateType
       updateDefBody =
         over
           #astDefExpr
           $ transform
-          $ over typesInExpr
-          $ transform
-          $ over (#_TCon % _2) updateName
+            ( over typesInExpr updateType
+                . over (_exprMeta % _type % _Just) \case
+                  TCSynthed t -> TCSynthed $ updateType t
+                  TCChkedAt t -> TCChkedAt $ updateType t
+                  TCEmb (TCBoth t1 t2) -> TCEmb (TCBoth (updateType t1) (updateType t2))
+            )
       updateName n = if n == old then new else n
+      updateType :: Data a => Type' a -> Type' a
+      updateType = transform $ over (#_TCon % _2) updateName
   RenameCon type_ old (unsafeMkGlobalName . (fmap unName (unModuleName (qualifiedModule type_)),) -> new) ->
     editModuleCross (qualifiedModule type_) prog $ \(m, ms) -> do
       when (new `elem` allValConNames prog) $ throwError $ ConAlreadyExists new
-      m' <- updateType m
+      m' <- updateTypeDef m
       pure
         ( over (mapped % #moduleDefs) updateDefs (m' : ms)
         , Just $ SelectionTypeDef $ TypeDefSelection type_ $ Just $ TypeDefConsNodeSelection $ TypeDefConsSelection new Nothing
         )
     where
-      updateType =
+      updateTypeDef =
         alterTypeDef
-          ( traverseOf
-              #astTypeDefConstructors
-              ( maybe (throwError $ ConNotFound old) pure
-                  . findAndAdjust ((== old) . valConName) (#valConName .~ new)
-              )
+          ( \td -> do
+              when (old /= new) $ assertFreshNameForTypeDef (baseName new) (type_, td)
+              traverseOf
+                #astTypeDefConstructors
+                ( maybe (throwError $ ConNotFound old) pure
+                    . findAndAdjust ((== old) . valConName) (#valConName .~ new)
+                )
+                td
           )
           type_
       updateDefs =
@@ -709,20 +726,18 @@ applyProgAction prog = \case
       updateName n = if n == old then new else n
   RenameTypeParam type_ old (unsafeMkLocalName -> new) ->
     editModule (qualifiedModule type_) prog $ \m -> do
-      m' <- updateType m
+      m' <- updateTypeDef m
       pure
         ( m'
         , Just $ SelectionTypeDef $ TypeDefSelection type_ $ Just $ TypeDefParamNodeSelection new
         )
     where
-      updateType =
+      updateTypeDef =
         alterTypeDef
-          (updateConstructors <=< updateParam)
+          (updateConstructors <=< updateParam <=< \td -> td <$ when (old /= new) (assertFreshNameForTypeDef (unLocalName new) (type_, td)))
           type_
       updateParam def = do
-        when (new `elem` map fst (astTypeDefParameters def)) $ throwError $ ParamAlreadyExists new
         let nameRaw = unLocalName new
-        when (nameRaw == baseName type_) $ throwError $ TyConParamClash nameRaw
         when (nameRaw `elem` map (baseName . valConName) (astTypeDefConstructors def)) $ throwError $ ValConParamClash nameRaw
         def
           & traverseOf
@@ -737,13 +752,11 @@ applyProgAction prog = \case
               % #valConArgs
               % traversed
           )
-          $ traverseOf _freeVarsTy
-          $ \(_, v) -> tvar $ updateName v
-      updateName n = if n == old then new else n
+          $ maybe (throwError $ ActionError NameCapture) pure . renameTyVar old new
   AddCon type_ index (unsafeMkGlobalName . (fmap unName (unModuleName (qualifiedModule type_)),) -> con) ->
     editModuleCross (qualifiedModule type_) prog $ \(m, ms) -> do
       when (con `elem` allValConNames prog) $ throwError $ ConAlreadyExists con
-      m' <- updateType m
+      m' <- updateTypeDef m
       newTy <- maybe (throwError $ TypeDefNotFound type_) pure $ moduleTypesQualified m' Map.!? type_
       allCons <- maybe (throwError $ TypeDefIsPrim type_) (pure . astTypeDefConstructors) $ typeDefAST newTy
       ms' <-
@@ -756,14 +769,17 @@ applyProgAction prog = \case
         , Just $ SelectionTypeDef $ TypeDefSelection type_ $ Just $ TypeDefConsNodeSelection $ TypeDefConsSelection con Nothing
         )
     where
-      updateDefs allCons = transformNamedCaseBranches prog type_ $ \bs -> do
-        m' <- DSL.meta
+      updateDefs allCons = transformNamedCaseBranches type_ $ \t' bs -> do
+        m' <- DSL.meta' $ (\t'' -> TCEmb $ TCBoth{tcChkedAt = t'', tcSynthed = TEmptyHole ()}) <$> t'
         pure $ insertSubseqBy caseBranchName (CaseBranch (PatCon con) [] (EmptyHole m')) (PatCon . valConName <$> allCons) bs
-      updateType =
+      updateTypeDef =
         alterTypeDef
-          ( traverseOf
-              #astTypeDefConstructors
-              (maybe (throwError $ IndexOutOfRange index) pure . insertAt index (ValCon con []))
+          ( \td -> do
+              assertFreshNameForTypeDef (baseName con) (type_, td)
+              traverseOf
+                #astTypeDefConstructors
+                (maybe (throwError $ IndexOutOfRange index) pure . insertAt index (ValCon con []))
+                td
           )
           type_
   DeleteCon tdName vcName -> editModuleCross (qualifiedModule tdName) prog $ \(m, ms) -> do
@@ -786,7 +802,7 @@ applyProgAction prog = \case
     pure (m' : ms, Just $ SelectionTypeDef $ TypeDefSelection tdName Nothing)
   AddConField type_ con index new ->
     editModuleCross (qualifiedModule type_) prog $ \(m, ms) -> do
-      m' <- updateType m
+      m' <- updateTypeDef m
       ms' <- traverseOf (traversed % #moduleDefs) updateDefs (m' : ms)
       pure
         ( ms'
@@ -799,34 +815,38 @@ applyProgAction prog = \case
             $ Nothing
         )
     where
-      updateType =
-        alterTypeDef
-          ( traverseOf #astTypeDefConstructors $
-              maybe (throwError $ ConNotFound con) pure
-                <=< findAndAdjustA
-                  ((== con) . valConName)
-                  ( traverseOf
-                      #valConArgs
-                      ( maybe (throwError $ IndexOutOfRange index) pure
-                          <=< liftA2 (insertAt index) (generateTypeIDs new) . pure
+      updateTypeDef =
+        let new' =
+              runReaderT
+                (liftError (ActionError . TypeError) $ fmap TC.typeTtoType $ TC.checkKind KType =<< generateTypeIDs new)
+                (progCxt prog)
+         in alterTypeDef
+              ( traverseOf #astTypeDefConstructors $
+                  maybe (throwError $ ConNotFound con) pure
+                    <=< findAndAdjustA
+                      ((== con) . valConName)
+                      ( traverseOf
+                          #valConArgs
+                          ( maybe (throwError $ IndexOutOfRange index) pure
+                              <=< liftA2 (insertAt index) new' . pure
+                          )
                       )
-                  )
-          )
-          type_
+              )
+              type_
       -- NB: we must updateDecons first, as transformCaseBranches may do
       -- synthesis of the scrutinee's type, using the old typedef. Thus we must
       -- not update the scrutinee before this happens.
       updateDefs = traverseOf (traversed % #_DefAST % #astDefExpr) (updateCons <=< updateDecons)
       updateCons = transformM $ \case
         Con m con' tms | con' == con -> do
-          m' <- DSL.meta
+          m' <- DSL.meta' $ Just (TCEmb $ TCBoth (TEmptyHole ()) (TEmptyHole ()))
           case insertAt index (EmptyHole m') tms of
             Just args' -> pure $ Con m con' args'
             Nothing -> throwError $ ConNotSaturated con
         e -> pure e
-      updateDecons = transformNamedCaseBranch prog type_ con $
+      updateDecons = transformNamedCaseBranch type_ con . const $
         \(CaseBranch vc binds e) -> do
-          m' <- DSL.meta
+          m' <- DSL.meta' $ Just (TCChkedAt (TEmptyHole ()))
           newName <- LocalName <$> freshName (freeVars e)
           binds' <- maybe (throwError $ IndexOutOfRange index) pure $ insertAt index (Bind m' newName) binds
           pure $ CaseBranch vc binds' e
@@ -861,12 +881,10 @@ applyProgAction prog = \case
       alterTypeDef
         ( \td -> do
             checkTypeNotInUse tdName td $ m : ms
+            assertFreshNameForTypeDef (unLocalName paramName) (tdName, td)
             traverseOf
               #astTypeDefParameters
               ( \ps -> do
-                  when
-                    (paramName `elem` map fst ps)
-                    (throwError $ ParamAlreadyExists paramName)
                   maybe (throwError $ IndexOutOfRange index) pure $ insertAt index (paramName, k) ps
               )
               td
@@ -996,6 +1014,13 @@ applyProgAction prog = \case
     mdefName = case progSelection prog of
       Just (SelectionDef s) -> Just s.def
       _ -> Nothing
+    typeDefNames :: Fold (TyConName, ASTTypeDef a) Name
+    typeDefNames =
+      (_1 % to baseName)
+        `summing` (_2 % #astTypeDefParameters % folded % _1 % to unLocalName)
+        `summing` (_2 % #astTypeDefConstructors % folded % #valConName % to baseName)
+    assertFreshNameForTypeDef n tydef =
+      when (elemOf typeDefNames n tydef) $ throwError $ TypeDefModifyNameClash n
 
 -- Helper for RenameModule action
 data RenameMods a = RM {imported :: [a], editable :: [a]}
@@ -1522,7 +1547,11 @@ tcWholeProg p = do
                 -- This is similar to what we do when selection is in a term, above.
                 td <- Map.lookup s.def $ allTypesMeta p
                 tda <- typeDefAST td
-                getTypeDefConFieldType tda conSel.con fieldSel.index
+                ty <- getTypeDefConFieldType tda conSel.con fieldSel.index
+                id <- case fieldSel.meta of
+                  Left _ -> Nothing -- Any selection in a typedef should have TypeMeta, not ExprMeta
+                  Right m -> pure $ getID m
+                target <$> focusOnTy id ty
   pure $ p'{progSelection = newSel}
 
 -- | Do a full check of a 'Prog', both the imports and the local modules
@@ -1681,23 +1710,22 @@ alterTypeDef f type_ m = do
     m
 
 -- | Apply a bottom-up transformation to all branches of case expressions on the given type.
+-- The transformation function gets the type the case was checked at as well as all the branches.
 transformCaseBranches ::
   MonadEdit m ProgError =>
-  Prog ->
   TyConName ->
-  (([CaseBranch], CaseFallback) -> m ([CaseBranch], CaseFallback)) ->
+  (Maybe (Type' ()) -> ([CaseBranch], CaseFallback) -> m ([CaseBranch], CaseFallback)) ->
   Expr ->
   m Expr
-transformCaseBranches prog type_ f = transformM $ \case
+transformCaseBranches type_ f = transformM $ \case
   Case m scrut bs fb -> do
-    scrutType <-
-      fst
-        <$> runReaderT
-          (liftError (ActionError . TypeError) $ synth scrut)
-          (progCxt prog)
+    let scrutType' = scrut ^? _exprMetaLens % _type % _Just % _synthed
+    scrutType <- case scrutType' of
+      Nothing -> throwError' $ InternalFailure "transformCaseBranches: scrutinees did not have a cached synthesised type"
+      Just t -> pure t
     (bs', fb') <-
       if fst (unfoldTApp scrutType) == TCon () type_
-        then f (bs, fb)
+        then f (m ^? _type % _Just % _chkedAt) (bs, fb)
         else pure (bs, fb)
     pure $ Case m scrut bs' fb'
   e -> pure e
@@ -1706,27 +1734,25 @@ transformCaseBranches prog type_ f = transformM $ \case
 -- expressions on the given type, leaving any fallback branch untouched.
 transformNamedCaseBranches ::
   MonadEdit m ProgError =>
-  Prog ->
   TyConName ->
-  ([CaseBranch] -> m [CaseBranch]) ->
+  (Maybe (Type' ()) -> [CaseBranch] -> m [CaseBranch]) ->
   Expr ->
   m Expr
-transformNamedCaseBranches prog type_ f = transformCaseBranches prog type_ (\(bs, fb) -> (,fb) <$> f bs)
+transformNamedCaseBranches type_ f = transformCaseBranches type_ (\m (bs, fb) -> (,fb) <$> f m bs)
 
 -- | Apply a bottom-up transformation to non-fallback case branches matching the
 -- given (type and) constructor.
 transformNamedCaseBranch ::
   MonadEdit m ProgError =>
-  Prog ->
   TyConName ->
   ValConName ->
   -- This only supports ADT case branches, since we cannot edit primitives
-  (CaseBranch -> m CaseBranch) ->
+  (Maybe (Type' ()) -> CaseBranch -> m CaseBranch) ->
   Expr ->
   m Expr
-transformNamedCaseBranch prog type_ con f = transformNamedCaseBranches prog type_ $
+transformNamedCaseBranch type_ con f = transformNamedCaseBranches type_ $ \m ->
   traverse $
-    \cb -> if caseBranchName cb == PatCon con then f cb else pure cb
+    \cb -> if caseBranchName cb == PatCon con then f m cb else pure cb
 
 progCxt :: Prog -> Cxt
 progCxt p = buildTypingContextFromModules (progAllModules p) (progSmartHoles p)

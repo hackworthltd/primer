@@ -19,6 +19,14 @@ data ProgError
   | TypeDefNotFound TyConName
   | TypeDefAlreadyExists TyConName
   | TypeDefInUse TyConName
+  | -- | Cannot use a name twice in a type definition.
+    -- This includes
+    -- - clash between the type itself and a constructor
+    -- - clash between the type itself and a parameter
+    -- - clash between two constructors
+    -- - clash between two parameters
+    -- - clash between parameter and constructor
+    TypeDefModifyNameClash Name
   | TypeParamInUse TyConName TyVarName
   | ConNotFound ValConName
   | ConAlreadyExists ValConName
@@ -26,9 +34,7 @@ data ProgError
     -- (this should never happen in a well-typed program)
     ConNotSaturated ValConName
   | ParamNotFound TyVarName
-  | ParamAlreadyExists TyVarName
   | NodeIDNotFound ID
-  | TyConParamClash Name
   | ValConParamClash Name
   | ActionError ActionError
   | EvalError EvalError
