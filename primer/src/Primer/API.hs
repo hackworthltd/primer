@@ -1079,7 +1079,7 @@ evalStep ::
   EvalReq ->
   PrimerM m (Either ProgError EvalResp)
 evalStep = curry $ logAPI (leftResultError EvalStep) $ \(sid, req) ->
-  liftEditAppM (handleEvalRequest req) sid
+  liftQueryAppM (handleEvalRequest req) sid
 
 evalFull ::
   (MonadIO m, MonadThrow m, MonadAPILog l m, ConvertLogMessage EvalLog l) =>
@@ -1087,7 +1087,7 @@ evalFull ::
   EvalFullReq ->
   PrimerM m (Either ProgError App.EvalFullResp)
 evalFull = curry $ logAPI (leftResultError EvalFull) $ \(sid, req) ->
-  liftEditAppM (handleEvalFullRequest req) sid
+  liftQueryAppM (handleEvalFullRequest req) sid
 
 -- | This type is the API's view of a 'App.EvalFullResp
 -- (this is expected to evolve as we flesh out the API)
@@ -1117,13 +1117,15 @@ evalFull' = curry3 $ logAPI (noError EvalFull') $ \(sid, lim, d) ->
       EditAppM (PureLog (WithSeverity l)) Void EvalFullResp
     q lim d = do
       e <- DSL.gvar d
+      a <- get
       x <-
-        handleEvalFullRequest $
-          EvalFullReq
-            { evalFullReqExpr = e
-            , evalFullCxtDir = Chk
-            , evalFullMaxSteps = fromMaybe 10 lim
-            }
+        flip runReaderT a $
+          handleEvalFullRequest $
+            EvalFullReq
+              { evalFullReqExpr = e
+              , evalFullCxtDir = Chk
+              , evalFullMaxSteps = fromMaybe 10 lim
+              }
       pure $ case x of
         App.EvalFullRespTimedOut e' -> EvalFullRespTimedOut $ viewTreeExpr e'
         App.EvalFullRespNormal e' -> EvalFullRespNormal $ viewTreeExpr e'

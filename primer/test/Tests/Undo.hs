@@ -4,6 +4,7 @@ module Tests.Undo where
 
 import Foreword
 
+import Data.Map qualified as M
 import Optics (
   (.~),
  )
@@ -13,25 +14,37 @@ import Primer.API (
   undoAvailable,
   viewProg,
  )
+import Primer.Action (Action (ConstructPrim, InsertSaturatedVar, SetCursor))
 import Primer.App (
   App,
   Log (..),
-  ProgAction (CreateDef),
+  ProgAction (BodyAction, CreateDef, MoveToDef),
   ProgError,
   appProg,
   defaultLog,
   handleEditRequest,
+  handleEvalFullRequest,
   handleMutationRequest,
   progModules,
   redoLog,
  )
 import Primer.App qualified as App
 import Primer.Core (
+  Expr' (App, Var),
+  Meta (Meta),
   ModuleName,
+  PrimCon (PrimInt),
+  TmVarRef (GlobalVarRef),
+  getID,
+  qualifyName,
  )
+import Primer.Def (astDefExpr, defAST)
+import Primer.Eval (Dir (Syn))
 import Primer.Module (
+  moduleDefsQualified,
   moduleName,
  )
+import Primer.Prelude.Integer qualified as Integer
 import Primer.Test.App (
   comprehensive,
  )
@@ -41,7 +54,7 @@ import Test.Tasty.HUnit (
   assertFailure,
   (@?=),
  )
-import Tests.Action.Prog (runAppTestM)
+import Tests.Action.Prog (readerToState, runAppTestM)
 import Prelude (error)
 
 mainModuleName :: App.Prog -> ModuleName
@@ -155,3 +168,47 @@ unit_redo_test1 =
             compareAfterUndo (appProg newApp) (appProg redoneApp) defaultLog
             assertBool "Expected undo available" $ undoAvailable $ getProg redoneApp
             assertBool "Expected no redo available" $ not $ redoAvailable $ getProg redoneApp
+
+unit_redo_eval :: Assertion
+unit_redo_eval =
+  let originalApp = App.newApp
+      scope = mainModuleName $ appProg originalApp
+      action1 =
+        [ MoveToDef $ qualifyName scope "main"
+        , BodyAction [InsertSaturatedVar $ GlobalVarRef Integer.even]
+        ]
+      action2 i =
+        [ MoveToDef $ qualifyName scope "main"
+        , BodyAction
+            [ SetCursor i
+            , ConstructPrim $ PrimInt 4
+            ]
+        ]
+      eval =
+        readerToState $
+          handleEvalFullRequest
+            App.EvalFullReq
+              { App.evalFullReqExpr = Var (Meta 0 Nothing Nothing) (GlobalVarRef $ qualifyName scope "main")
+              , App.evalFullCxtDir = Syn
+              , App.evalFullMaxSteps = 10
+              }
+      edit1 = handleEditRequest action1
+      edit2 = handleEditRequest . action2
+      undo = handleMutationRequest App.Undo
+      redo = handleMutationRequest App.Redo
+      run' act app = fmap snd . expectSuccess =<< runAppTestM app act
+   in do
+        originalApp' <- run' eval originalApp
+        newApp1 <- run' edit1 originalApp'
+        i <- case fmap astDefExpr . defAST =<< foldMap' moduleDefsQualified (progModules $ appProg newApp1) M.!? qualifyName scope "main" of
+          Just (App _ _ e) -> pure $ getID e
+          _ -> liftIO $ assertFailure "unexpected form of main"
+        newApp <- run' (edit2 i) newApp1
+        a3 <- run' undo newApp
+        a4 <- run' redo a3
+        a5 <- run' undo a4
+        a6 <- run' undo a5
+        a7 <- run' redo a6
+        a8 <- run' redo a7
+        finalApp <- run' eval a8
+        finalApp @?= newApp

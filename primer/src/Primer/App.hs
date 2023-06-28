@@ -3,6 +3,7 @@
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE OverloadedLabels #-}
 {-# LANGUAGE OverloadedRecordDot #-}
+{-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE ViewPatterns #-}
 
 -- This module defines the high level application functions.
@@ -66,6 +67,7 @@ import Foreword hiding (mod)
 import Control.Monad.Fresh (MonadFresh (..))
 import Control.Monad.Log (MonadLog, WithSeverity)
 import Control.Monad.NestedError (MonadNestedError, throwError')
+import Control.Monad.Trans (MonadTrans)
 import Data.Data (Data)
 import Data.Generics.Uniplate.Operations (transform, transformM)
 import Data.Generics.Uniplate.Zipper (
@@ -560,15 +562,17 @@ handleEditRequest actions = do
 
 -- | Handle an eval request (we assume that all such requests are implicitly in a synthesisable context)
 handleEvalRequest ::
-  ( MonadEditApp l e m
+  ( MonadQueryApp m e
+  , MonadLog (WithSeverity l) m
   , MonadNestedError Eval.EvalError e m
   , ConvertLogMessage EvalLog l
   ) =>
   EvalReq ->
   m EvalResp
 handleEvalRequest req = do
-  prog <- gets appProg
-  result <- Eval.step (allTypes prog) (allDefs prog) (evalReqExpr req) Syn (evalReqRedex req)
+  app <- ask
+  let prog = appProg app
+  result <- runFreshM app $ Eval.step (allTypes prog) (allDefs prog) (evalReqExpr req) Syn (evalReqRedex req)
   case result of
     Left err -> throwError' err
     Right (expr, detail) -> do
@@ -581,10 +585,14 @@ handleEvalRequest req = do
           }
 
 -- | Handle an eval-to-normal-form request
-handleEvalFullRequest :: (MonadEditApp l e m, ConvertLogMessage EvalLog l) => EvalFullReq -> m EvalFullResp
+handleEvalFullRequest ::
+  (MonadQueryApp m e, MonadLog (WithSeverity l) m, ConvertLogMessage EvalLog l) =>
+  EvalFullReq ->
+  m EvalFullResp
 handleEvalFullRequest (EvalFullReq{evalFullReqExpr, evalFullCxtDir, evalFullMaxSteps}) = do
-  prog <- gets appProg
-  result <- evalFull (allTypes prog) (allDefs prog) evalFullMaxSteps evalFullCxtDir evalFullReqExpr
+  app <- ask
+  let prog = appProg app
+  result <- runFreshM app $ evalFull (allTypes prog) (allDefs prog) evalFullMaxSteps evalFullCxtDir evalFullReqExpr
   pure $ case result of
     Left (TimedOut e) -> EvalFullRespTimedOut e
     Right nf -> EvalFullRespNormal nf
@@ -1376,6 +1384,16 @@ instance MonadFresh NameCounter (M e) where
   fresh = M $ _2 <<%= succ
 runTC :: App -> M e a -> Either e a
 runTC a = runExcept . flip evalStateT (appIdCounter a, appNameCounter a) . unM
+
+newtype FreshM m a = FreshM {unFreshM :: StateT (ID, NameCounter) m a}
+  deriving newtype (Functor, Applicative, Monad, MonadError e, MonadTrans)
+instance Monad m => MonadFresh ID (FreshM m) where
+  fresh = FreshM $ _1 <<%= succ
+instance Monad m => MonadFresh NameCounter (FreshM m) where
+  fresh = FreshM $ _2 <<%= succ
+instance MonadLog l m => MonadLog l (FreshM m)
+runFreshM :: Monad m => App -> FreshM m a -> m a
+runFreshM a = flip evalStateT (appIdCounter a, appNameCounter a) . unFreshM
 
 checkProgWellFormed ::
   ( MonadFresh ID m

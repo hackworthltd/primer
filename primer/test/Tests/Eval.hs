@@ -94,7 +94,7 @@ import Primer.Zipper (
  )
 import Tasty (Property, withDiscards, withTests)
 import Test.Tasty.HUnit (Assertion, assertBool, assertFailure, (@?=))
-import Tests.Action.Prog (runAppTestM)
+import Tests.Action.Prog (readerToState, runAppTestM)
 import Tests.Eval.Utils (genDirTm, hasTypeLets, (~=), (~~=))
 import Tests.Gen.Core.Typed (checkTest)
 
@@ -1374,8 +1374,9 @@ unit_eval_modules =
         importModules [primitiveModule, builtinModule']
         foo <- pfun ToUpper `app` char 'a'
         EvalResp{evalRespExpr = e} <-
-          handleEvalRequest
-            EvalReq{evalReqExpr = foo, evalReqRedex = getID foo}
+          readerToState $
+            handleEvalRequest
+              EvalReq{evalReqExpr = foo, evalReqRedex = getID foo}
         expect <- char 'A'
         pure $ e ~= expect
       a = newEmptyApp
@@ -1394,8 +1395,9 @@ unit_eval_modules_scrutinize_imported_type =
             (con0 cTrue `ann` tcon tBool)
             [branch cTrue [] $ con0 cFalse, branch cFalse [] $ con0 cTrue]
         EvalResp{evalRespExpr = e} <-
-          handleEvalRequest
-            EvalReq{evalReqExpr = foo, evalReqRedex = getID foo}
+          readerToState $
+            handleEvalRequest
+              EvalReq{evalReqExpr = foo, evalReqRedex = getID foo}
         expect <- con0 cFalse
         pure $ e ~= expect
       a = newEmptyApp
