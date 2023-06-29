@@ -3,6 +3,7 @@
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE OverloadedLabels #-}
 {-# LANGUAGE OverloadedRecordDot #-}
+{-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE ViewPatterns #-}
 
 -- This module defines the high level application functions.
@@ -24,6 +25,7 @@ module Primer.App (
   checkProgWellFormed,
   EditAppM,
   QueryAppM,
+  FreshViaApp (FreshViaApp),
   runEditAppM,
   runQueryAppM,
   Prog (..),
@@ -65,6 +67,7 @@ import Foreword hiding (mod)
 import Control.Monad.Fresh (MonadFresh (..))
 import Control.Monad.Log (MonadLog, WithSeverity)
 import Control.Monad.NestedError (MonadNestedError, throwError')
+import Control.Monad.Trans (MonadTrans)
 import Data.Data (Data)
 import Data.Generics.Uniplate.Operations (transform, transformM)
 import Data.Generics.Uniplate.Zipper (
@@ -495,7 +498,7 @@ data EvalFullResp
 -- Note that these only consider the non-imported module as a location of which
 -- to ask a question. However, they will return variables which are in scope by
 -- dint of being imported.
-handleQuestion :: MonadQueryApp m => Question a -> m a
+handleQuestion :: MonadQueryApp m ProgError => Question a -> m a
 handleQuestion = \case
   VariablesInScope defid exprid -> do
     node <- focusNode' defid exprid
@@ -559,15 +562,17 @@ handleEditRequest actions = do
 
 -- | Handle an eval request (we assume that all such requests are implicitly in a synthesisable context)
 handleEvalRequest ::
-  ( MonadEditApp l e m
+  ( MonadQueryApp m e
+  , MonadLog (WithSeverity l) m
   , MonadNestedError Eval.EvalError e m
   , ConvertLogMessage EvalLog l
   ) =>
   EvalReq ->
   m EvalResp
 handleEvalRequest req = do
-  prog <- gets appProg
-  result <- Eval.step (allTypes prog) (allDefs prog) (evalReqExpr req) Syn (evalReqRedex req)
+  app <- ask
+  let prog = appProg app
+  result <- runFreshM app $ Eval.step (allTypes prog) (allDefs prog) (evalReqExpr req) Syn (evalReqRedex req)
   case result of
     Left err -> throwError' err
     Right (expr, detail) -> do
@@ -580,10 +585,14 @@ handleEvalRequest req = do
           }
 
 -- | Handle an eval-to-normal-form request
-handleEvalFullRequest :: (MonadEditApp l e m, ConvertLogMessage EvalLog l) => EvalFullReq -> m EvalFullResp
+handleEvalFullRequest ::
+  (MonadQueryApp m e, MonadLog (WithSeverity l) m, ConvertLogMessage EvalLog l) =>
+  EvalFullReq ->
+  m EvalFullResp
 handleEvalFullRequest (EvalFullReq{evalFullReqExpr, evalFullCxtDir, evalFullMaxSteps}) = do
-  prog <- gets appProg
-  result <- evalFull (allTypes prog) (allDefs prog) evalFullMaxSteps evalFullCxtDir evalFullReqExpr
+  app <- ask
+  let prog = appProg app
+  result <- runFreshM app $ evalFull (allTypes prog) (allDefs prog) evalFullMaxSteps evalFullCxtDir evalFullReqExpr
   pure $ case result of
     Left (TimedOut e) -> EvalFullRespTimedOut e
     Right nf -> EvalFullRespNormal nf
@@ -1182,6 +1191,16 @@ replay = mapM_ handleEditRequest
 --
 -- Note we do not want @MonadFresh Name m@, as @fresh :: m Name@ has
 -- no way of avoiding student-specified names. Instead, use 'freshName'.
+--
+-- Note that we have both a @MonadState App m@ and a @MonadFresh ID m@
+-- constraint (also a @MonadFresh NameCounter m@, to which similar comments
+-- apply). Note that an @App@ stores a fresh ID state. The @MonadFresh@
+-- instance should update this state; to achieve this behaviour for a custom
+-- monad with @MonadState App M@, use
+-- > deriving via FreshViaApp M instance MonadFresh ID M
+-- (This essentially mimics (pointwise) the effect of providing a @instance
+-- MonadState App m => MonadFresh ID m@, without having an orphan instance, or
+-- bad resolution behaviour.)
 type MonadEditApp l e m = (MonadLog (WithSeverity l) m, MonadEdit m e, MonadState App m)
 
 -- | A shorthand for constraints needed when doing low-level mutation
@@ -1192,7 +1211,7 @@ type MonadEdit m e = (MonadFresh ID m, MonadFresh NameCounter m, MonadError e m)
 
 -- | A shorthand for the constraints we need when performing read-only
 -- operations on the application.
-type MonadQueryApp m = (Monad m, MonadReader App m, MonadError ProgError m)
+type MonadQueryApp m e = (Monad m, MonadReader App m, MonadError e m)
 
 -- | The 'EditApp' monad.
 --
@@ -1215,14 +1234,12 @@ runEditAppM (EditAppM m) appState =
 --
 -- Actions run in this monad cannot modify the 'App'. We use 'ExceptT'
 -- here for compatibility with 'EditApp'.
-newtype QueryAppM a = QueryAppM (ReaderT App (Except ProgError) a)
-  deriving newtype (Functor, Applicative, Monad, MonadReader App, MonadError ProgError)
+newtype QueryAppM m e a = QueryAppM (ReaderT App (ExceptT e m) a)
+  deriving newtype (Functor, Applicative, Monad, MonadReader App, MonadError e, MonadLog l)
 
 -- | Run a 'QueryAppM' action, returning a result.
-runQueryAppM :: QueryAppM a -> App -> Either ProgError a
-runQueryAppM (QueryAppM m) appState = case runExcept (runReaderT m appState) of
-  Left err -> Left err
-  Right res -> Right res
+runQueryAppM :: QueryAppM m e a -> App -> m (Either e a)
+runQueryAppM (QueryAppM m) appState = runExceptT (runReaderT m appState)
 
 -- | The student's application's state.
 --
@@ -1368,6 +1385,16 @@ instance MonadFresh NameCounter (M e) where
 runTC :: App -> M e a -> Either e a
 runTC a = runExcept . flip evalStateT (appIdCounter a, appNameCounter a) . unM
 
+newtype FreshM m a = FreshM {unFreshM :: StateT (ID, NameCounter) m a}
+  deriving newtype (Functor, Applicative, Monad, MonadError e, MonadTrans)
+instance Monad m => MonadFresh ID (FreshM m) where
+  fresh = FreshM $ _1 <<%= succ
+instance Monad m => MonadFresh NameCounter (FreshM m) where
+  fresh = FreshM $ _2 <<%= succ
+instance MonadLog l m => MonadLog l (FreshM m)
+runFreshM :: Monad m => App -> FreshM m a -> m a
+runFreshM a = flip evalStateT (appIdCounter a, appNameCounter a) . unFreshM
+
 checkProgWellFormed ::
   ( MonadFresh ID m
   , MonadFresh NameCounter m
@@ -1400,20 +1427,26 @@ newType = do
   id_ <- fresh
   pure $ TEmptyHole (Meta id_ Nothing Nothing)
 
+newtype FreshViaApp m a = FreshViaApp (m a)
+  deriving newtype (Functor, Applicative, Monad)
+
 -- | Support for generating fresh IDs
-instance Monad m => MonadFresh ID (EditAppM m e) where
-  fresh = do
+instance MonadState App m => MonadFresh ID (FreshViaApp m) where
+  fresh = FreshViaApp $ do
     id_ <- gets appIdCounter
     modify (\s -> s & #currentState % #idCounter .~ id_ + 1)
     pure id_
 
 -- | Support for generating names. Basically just a counter so we don't
 -- generate the same automatic name twice.
-instance Monad m => MonadFresh NameCounter (EditAppM m e) where
-  fresh = do
+instance MonadState App m => MonadFresh NameCounter (FreshViaApp m) where
+  fresh = FreshViaApp $ do
     nc <- gets appNameCounter
     modify (\s -> s & #currentState % #nameCounter .~ succ nc)
     pure nc
+
+deriving via FreshViaApp (EditAppM m e) instance Monad m => MonadFresh ID (EditAppM m e)
+deriving via FreshViaApp (EditAppM m e) instance Monad m => MonadFresh NameCounter (EditAppM m e)
 
 copyPasteSig :: MonadEdit m ProgError => Prog -> (GVarName, ID) -> GVarName -> [Action] -> m Prog
 copyPasteSig p (fromDefName, fromTyId) toDefName setup = do

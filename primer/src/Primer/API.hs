@@ -299,7 +299,7 @@ sessionsTransaction f = do
 
 data SessionOp l a where
   EditApp :: (App -> PureLog l (a, App)) -> SessionOp l a
-  QueryApp :: (App -> a) -> SessionOp l a
+  QueryApp :: (App -> PureLog l a) -> SessionOp l a
   OpGetSessionName :: SessionOp l Text
   GetSessionData :: SessionOp l SessionData
   OpRenameSession :: Text -> SessionOp l Text
@@ -346,7 +346,7 @@ withSession' sid op = do
             writeTBQueue q $ Database.UpdateApp sid appl' now
             -- We return an action which, when run, will log the messages
             pure $ Right (res, traverse_ logMessage logs)
-          QueryApp f -> pure $ Right (f appl, pure ())
+          QueryApp f -> pure $ Right $ second (traverse_ logMessage) $ runPureLog $ f appl
           OpGetSessionName -> pure $ Right (fromSessionName n, pure ())
           GetSessionData -> pure $ Right (s, pure ())
           OpRenameSession n' ->
@@ -574,15 +574,19 @@ renameSession = curry $ logAPI (noError RenameSession) $ \(sid, n) -> withSessio
 -- pass in the app state for that session.
 liftEditAppM ::
   forall m l e a.
-  (MonadIO m, MonadThrow m, MonadLog (WithSeverity l) m) =>
-  EditAppM (PureLog (WithSeverity l)) e a ->
+  (MonadIO m, MonadThrow m, MonadLog l m) =>
+  EditAppM (PureLog l) e a ->
   SessionId ->
   PrimerM m (Either e a)
 liftEditAppM h sid = withSession' sid (EditApp $ runEditAppM h)
 
 -- Run a 'QueryAppM' action, using the given session ID to look up and
 -- pass in the app state for that session.
-liftQueryAppM :: (MonadIO m, MonadThrow m, MonadLog l m) => QueryAppM a -> SessionId -> PrimerM m (Either ProgError a)
+liftQueryAppM ::
+  (MonadIO m, MonadThrow m, MonadLog l m) =>
+  QueryAppM (PureLog l) e a ->
+  SessionId ->
+  PrimerM m (Either e a)
 liftQueryAppM h sid = withSession' sid (QueryApp $ runQueryAppM h)
 
 -- | Given a 'SessionId', return the session's 'App'.
@@ -591,7 +595,7 @@ liftQueryAppM h sid = withSession' sid (QueryApp $ runQueryAppM h)
 -- expect typical API clients to use it. Its primary use is for
 -- testing.
 getApp :: (MonadIO m, MonadThrow m, MonadAPILog l m) => SessionId -> PrimerM m App
-getApp = logAPI (noError GetApp) $ \sid -> withSession' sid $ QueryApp identity
+getApp = logAPI (noError GetApp) $ \sid -> withSession' sid $ QueryApp pure
 
 -- | Given a 'SessionId', return the session's 'Prog'.
 --
@@ -602,7 +606,7 @@ getProgram' = logAPI (noError GetProgram') (fmap viewProg . getProgram)
 
 -- | Given a 'SessionId', return the session's 'App.Prog'.
 getProgram :: (MonadIO m, MonadThrow m, MonadAPILog l m) => SessionId -> PrimerM m App.Prog
-getProgram = logAPI (noError GetProgram) $ \sid -> withSession' sid $ QueryApp handleGetProgramRequest
+getProgram = logAPI (noError GetProgram) $ \sid -> withSession' sid $ QueryApp $ pure . handleGetProgramRequest
 
 -- | A frontend will be mostly concerned with rendering, and does not need the
 -- full complexity of our AST for that task. 'Tree' is a simplified view with
@@ -1075,7 +1079,7 @@ evalStep ::
   EvalReq ->
   PrimerM m (Either ProgError EvalResp)
 evalStep = curry $ logAPI (leftResultError EvalStep) $ \(sid, req) ->
-  liftEditAppM (handleEvalRequest req) sid
+  liftQueryAppM (handleEvalRequest req) sid
 
 evalFull ::
   (MonadIO m, MonadThrow m, MonadAPILog l m, ConvertLogMessage EvalLog l) =>
@@ -1083,7 +1087,7 @@ evalFull ::
   EvalFullReq ->
   PrimerM m (Either ProgError App.EvalFullResp)
 evalFull = curry $ logAPI (leftResultError EvalFull) $ \(sid, req) ->
-  liftEditAppM (handleEvalFullRequest req) sid
+  liftQueryAppM (handleEvalFullRequest req) sid
 
 -- | This type is the API's view of a 'App.EvalFullResp
 -- (this is expected to evolve as we flesh out the API)
@@ -1105,14 +1109,19 @@ evalFull' ::
   GVarName ->
   PrimerM m EvalFullResp
 evalFull' = curry3 $ logAPI (noError EvalFull') $ \(sid, lim, d) ->
-  noErr <$> liftEditAppM (q lim d) sid
+  noErr <$> liftQueryAppM (q lim d) sid
   where
     q ::
       Maybe TerminationBound ->
       GVarName ->
-      EditAppM (PureLog (WithSeverity l)) Void EvalFullResp
+      QueryAppM (PureLog (WithSeverity l)) Void EvalFullResp
     q lim d = do
-      e <- DSL.gvar d
+      -- We don't care about uniqueness of this ID, and we do not want to
+      -- disturb any FreshID state, since that could break undo/redo.
+      -- The reason we don't care about uniqueness is that this node will never
+      -- exist alongside anything else that it may clash with, as the first
+      -- evaluation step will be to inline this definition, removing the node.
+      let e = create' $ DSL.gvar d
       x <-
         handleEvalFullRequest $
           EvalFullReq

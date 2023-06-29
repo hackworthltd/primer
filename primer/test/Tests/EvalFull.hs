@@ -16,7 +16,6 @@ import Optics
 import Primer.App (
   EvalFullReq (EvalFullReq, evalFullCxtDir, evalFullMaxSteps, evalFullReqExpr),
   EvalFullResp (EvalFullRespNormal, EvalFullRespTimedOut),
-  appIdCounter,
   handleEvalFullRequest,
   importModules,
   newEmptyApp,
@@ -115,7 +114,7 @@ import Tasty (
   withTests,
  )
 import Test.Tasty.HUnit (Assertion, assertBool, assertFailure, (@?=))
-import Tests.Action.Prog (runAppTestM)
+import Tests.Action.Prog (readerToState, runAppTestM)
 import Tests.Eval.Utils (genDirTm, hasTypeLets, testModules, (~=))
 import Tests.Gen.Core.Typed (checkTest)
 import Tests.Typecheck (runTypecheckTestM, runTypecheckTestMWithPrims)
@@ -1273,18 +1272,19 @@ unit_eval_full_modules =
         importModules [primitiveModule, builtinModule']
         foo <- pfun ToUpper `app` char 'a'
         resp <-
-          handleEvalFullRequest
-            EvalFullReq
-              { evalFullReqExpr = foo
-              , evalFullCxtDir = Chk
-              , evalFullMaxSteps = 2
-              }
+          readerToState $
+            handleEvalFullRequest
+              EvalFullReq
+                { evalFullReqExpr = foo
+                , evalFullCxtDir = Chk
+                , evalFullMaxSteps = 2
+                }
         expect <- char 'A'
         pure $ case resp of
           EvalFullRespTimedOut _ -> assertFailure "EvalFull timed out"
           EvalFullRespNormal e -> e ~= expect
       a = newEmptyApp
-   in runAppTestM (appIdCounter a) a test <&> fst >>= \case
+   in runAppTestM a test <&> fst >>= \case
         Left err -> assertFailure $ show err
         Right assertion -> assertion
 
@@ -1299,14 +1299,15 @@ unit_eval_full_modules_scrutinize_imported_type =
             (con0 cTrue `ann` tcon tBool)
             [branch cTrue [] $ con0 cFalse, branch cFalse [] $ con0 cTrue]
         resp <-
-          handleEvalFullRequest
-            EvalFullReq{evalFullReqExpr = foo, evalFullCxtDir = Chk, evalFullMaxSteps = 2}
+          readerToState $
+            handleEvalFullRequest
+              EvalFullReq{evalFullReqExpr = foo, evalFullCxtDir = Chk, evalFullMaxSteps = 2}
         expect <- con0 cFalse
         pure $ case resp of
           EvalFullRespTimedOut _ -> assertFailure "EvalFull timed out"
           EvalFullRespNormal e -> e ~= expect
       a = newEmptyApp
-   in runAppTestM (appIdCounter a) a test <&> fst >>= \case
+   in runAppTestM a test <&> fst >>= \case
         Left err -> assertFailure $ show err
         Right assertion -> assertion
   where

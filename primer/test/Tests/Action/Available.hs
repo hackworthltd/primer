@@ -734,7 +734,7 @@ offeredActionTest' sh l inputDef position action = do
   x <- for action'' $ \action''' -> do
     let result = defAST <=< flip findGlobalByName exprDefName
     let assertJust = maybe (assertFailure "Lost 'main' after action") pure
-    (res, _) <- runAppTestM (nextProgID prog) (mkEmptyTestApp prog) (handleEditRequest action''')
+    (res, _) <- runAppTestM (mkEmptyTestApp prog) (handleEditRequest action''')
     rr <- traverse (assertJust . result) res
     pure $ first ErrorRunningAction rr
   pure $ join x

@@ -38,6 +38,7 @@ import Primer.Action (
 import Primer.App (
   App,
   DefSelection (..),
+  FreshViaApp (FreshViaApp),
   Log (..),
   NodeSelection (..),
   NodeType (..),
@@ -46,7 +47,6 @@ import Primer.App (
   ProgError (..),
   Question (GenerateName, VariablesInScope),
   Selection' (..),
-  appIdCounter,
   appNameCounter,
   appProg,
   checkAppWellFormed,
@@ -104,7 +104,6 @@ import Primer.Core.DSL (
   case_,
   con,
   con0,
-  create,
   create',
   emptyHole,
   gvar,
@@ -121,11 +120,10 @@ import Primer.Core.DSL (
  )
 import Primer.Core.Utils (forgetMetadata)
 import Primer.Def (ASTDef (..), Def (..), DefMap, defAST)
-import Primer.Log (PureLogT, runPureLogT)
+import Primer.Log (PureLog, runPureLog)
 import Primer.Module (Module (Module, moduleDefs, moduleName, moduleTypes), builtinModule, moduleDefsQualified, moduleTypesQualified, primitiveModule)
 import Primer.Name
 import Primer.Primitives (PrimDef (IntAdd, ToUpper), primitiveGVar, tChar)
-import Primer.Test.TestM (TestM, evalTestM)
 import Primer.Test.Util (LogMsg, assertNoSevereLogs, constructSaturatedCon, constructTCon, zeroIDs, zeroTypeIDs)
 import Primer.Test.Util qualified as Util
 import Primer.TypeDef (ASTTypeDef (..), TypeDef (..), ValCon (..), forgetTypeDefMetadata, typeDefAST)
@@ -322,7 +320,7 @@ unit_create_def_imported_module =
         handleEditRequest [CreateDef builtins $ Just "newDef"]
       a = newEmptyApp
    in do
-        runAppTestM (appIdCounter a) a test <&> fst >>= \case
+        runAppTestM a test <&> fst >>= \case
           Left err -> err @?= ModuleReadonly builtins
           Right _ -> assertFailure "Expected CreateDef to complain about module being read-only"
 
@@ -542,7 +540,7 @@ unit_copy_paste_duplicate :: Assertion
 unit_copy_paste_duplicate = do
   let fromDef = gvn "main"
       toDef = gvn "blank"
-      ((p, fromType, fromExpr, _toType, _toExpr), maxID) = create $ do
+      (p, fromType, fromExpr, _toType, _toExpr) = create' $ do
         mainType <- tforall "a" KType (tvar "a" `tfun` (tcon tMaybe `tapp` tEmptyHole))
         mainExpr <- lAM "b" $ lam "x" $ con cJust [lvar "x"]
         let mainDef = ASTDef mainExpr mainType
@@ -558,7 +556,7 @@ unit_copy_paste_duplicate = do
   let a = mkTestApp p
       actions = [MoveToDef toDef, CopyPasteSig (fromDef, fromType) [], CopyPasteBody (fromDef, fromExpr) []]
   do
-    (result, _) <- runAppTestM maxID a $ (,) <$> tcWholeProg p <*> handleEditRequest actions
+    (result, _) <- runAppTestM a $ (,) <$> tcWholeProg p <*> handleEditRequest actions
     case result of
       Left e -> assertFailure $ show e
       Right (tcp, r) ->
@@ -589,7 +587,7 @@ unit_copy_paste_duplicate = do
 unit_copy_paste_type_scoping :: Assertion
 unit_copy_paste_type_scoping = do
   let mainName = gvn "main"
-      ((pInitial, srcID, pExpected), maxID) = create $ do
+      (pInitial, srcID, pExpected) = create' $ do
         toCopy <- tvar "a" `tfun` tvar "b" `tfun` tforall "e" KType (tvar "c" `tfun` tvar "d" `tfun` tvar "e" `tfun` tvar "f")
         let skel r =
               tforall "a" KType $
@@ -608,7 +606,7 @@ unit_copy_paste_type_scoping = do
   let a = mkEmptyTestApp pInitial
       actions = [MoveToDef mainName, CopyPasteSig (mainName, srcID) [Move Child1, Move Child1, Move Child1, Move Child2, Move Child1, Move Child1]]
   do
-    (result, _) <- runAppTestM maxID a $ (,) <$> tcWholeProg pExpected <*> handleEditRequest actions
+    (result, _) <- runAppTestM a $ (,) <$> tcWholeProg pExpected <*> handleEditRequest actions
     case result of
       Left e -> assertFailure $ show e
       Right (tcpExpected, r) ->
@@ -621,7 +619,7 @@ unit_raise :: Assertion
 unit_raise = do
   let mainName' = "main"
       mainName = gvn mainName'
-      ((pInitial, srcID, pExpected), maxID) = create $ do
+      (pInitial, srcID, pExpected) = create' $ do
         toCopy <- tvar "a"
         defInitial <- ASTDef <$> emptyHole <*> tforall "a" KType (tforall "b" KType $ pure toCopy)
         expected <- ASTDef <$> emptyHole <*> tforall "a" KType (tvar "a")
@@ -633,7 +631,7 @@ unit_raise = do
   let a = mkEmptyTestApp pInitial
       actions = [MoveToDef mainName, CopyPasteSig (mainName, srcID) [Move Child1, Delete]]
   do
-    (result, _) <- runAppTestM maxID a $ (,) <$> tcWholeProg pExpected <*> handleEditRequest actions
+    (result, _) <- runAppTestM a $ (,) <$> tcWholeProg pExpected <*> handleEditRequest actions
     case result of
       Left e -> assertFailure $ show e
       Right (tcpExpected, r) ->
@@ -649,7 +647,7 @@ unit_copy_paste_expr_1 :: Assertion
 unit_copy_paste_expr_1 = do
   let mainName' = "main"
       mainName = gvn mainName'
-      ((pInitial, srcID, pExpected), maxID) = create $ do
+      (pInitial, srcID, pExpected) = create' $ do
         ty <- tforall "a" KType $ (tcon tList `tapp` tvar "a") `tfun` tforall "b" KType (tvar "b" `tfun` (tcon tPair `tapp` tvar "a" `tapp` tvar "b"))
         let toCopy' = con cMakePair [lvar "y" `ann` tvar "a", lvar "z" `ann` tvar "b"] -- want different IDs for the two occurences in expected
         toCopy <- toCopy'
@@ -675,7 +673,7 @@ unit_copy_paste_expr_1 = do
   let a = mkTestApp pInitial
       actions = [MoveToDef mainName, CopyPasteBody (mainName, srcID) [Move Child1, Move Child1, Move (Branch $ Pattern $ PatCon cNil)]]
   do
-    (result, _) <- runAppTestM maxID a $ (,) <$> tcWholeProg pExpected <*> handleEditRequest actions
+    (result, _) <- runAppTestM a $ (,) <$> tcWholeProg pExpected <*> handleEditRequest actions
     case result of
       Left e -> assertFailure $ show e
       Right (tcpExpected, r) ->
@@ -689,7 +687,7 @@ unit_copy_paste_ann = do
       fromDef = gvn fromDef'
       toDef' = "blank"
       toDef = gvn toDef'
-      ((p, fromAnn), maxID) = create $ do
+      (p, fromAnn) = create' $ do
         toCopy <- tcon tBool
         mainDef <- ASTDef <$> emptyHole `ann` pure toCopy <*> tEmptyHole
         blankDef <- ASTDef <$> emptyHole `ann` tEmptyHole <*> tEmptyHole
@@ -700,7 +698,7 @@ unit_copy_paste_ann = do
   let a = mkTestApp p
       actions = [MoveToDef toDef, CopyPasteBody (fromDef, fromAnn) [EnterType]]
   do
-    (result, _) <- runAppTestM maxID a $ (,) <$> tcWholeProg p <*> handleEditRequest actions
+    (result, _) <- runAppTestM a $ (,) <$> tcWholeProg p <*> handleEditRequest actions
     case result of
       Left e -> assertFailure $ show e
       Right (tcp, r) ->
@@ -715,7 +713,7 @@ unit_copy_paste_ann = do
 
 unit_copy_paste_ann2sig :: Assertion
 unit_copy_paste_ann2sig = do
-  let ((pInitial, srcID, pExpected), maxID) = create $ do
+  let (pInitial, srcID, pExpected) = create' $ do
         toCopy <- tcon tBool
         defInitial <- ASTDef <$> emptyHole `ann` pure toCopy <*> tEmptyHole
         expected <- ASTDef <$> emptyHole `ann` pure toCopy <*> tcon tBool
@@ -727,7 +725,7 @@ unit_copy_paste_ann2sig = do
   let a = mkTestApp pInitial
       actions = [moveToDef "main", copyPasteSig ("main", srcID) []]
   do
-    (result, _) <- runAppTestM maxID a $ (,) <$> tcWholeProg pExpected <*> handleEditRequest actions
+    (result, _) <- runAppTestM a $ (,) <$> tcWholeProg pExpected <*> handleEditRequest actions
     case result of
       Left e -> assertFailure $ show e
       Right (tcpExpected, r) ->
@@ -737,7 +735,7 @@ unit_copy_paste_ann2sig = do
 
 unit_copy_paste_sig2ann :: Assertion
 unit_copy_paste_sig2ann = do
-  let ((pInitial, srcID, pExpected), maxID) = create $ do
+  let (pInitial, srcID, pExpected) = create' $ do
         toCopy <- tcon tBool
         defInitial <- ASTDef <$> emptyHole <*> pure toCopy
         expected <- ASTDef <$> emptyHole `ann` tcon tBool <*> pure toCopy
@@ -749,7 +747,7 @@ unit_copy_paste_sig2ann = do
   let a = mkTestApp pInitial
       actions = [moveToDef "main", copyPasteBody ("main", srcID) [ConstructAnn, EnterType]]
   do
-    (result, _) <- runAppTestM maxID a $ (,) <$> tcWholeProg pExpected <*> handleEditRequest actions
+    (result, _) <- runAppTestM a $ (,) <$> tcWholeProg pExpected <*> handleEditRequest actions
     case result of
       Left e -> assertFailure $ show e
       Right (tcpExpected, r) ->
@@ -765,14 +763,13 @@ unit_import_vars =
         importModules [builtinModule', primitiveModule]
         gets (fmap (Map.assocs . moduleDefsQualified) . progModules . appProg) >>= \case
           [[(i, DefAST d)]] -> do
-            a' <- get
-            (_, vs) <- runReaderT (handleQuestion (VariablesInScope i $ getID $ astDefExpr d)) a'
+            (_, vs) <- readerToState (handleQuestion (VariablesInScope i $ getID $ astDefExpr d))
             pure $
               assertBool "VariablesInScope did not report the imported Int.+" $
                 any ((== primitiveGVar IntAdd) . fst) vs
           _ -> pure $ assertFailure "Expected one def 'main' from newEmptyApp"
       a = newEmptyApp
-   in runAppTestM (appIdCounter a) a test <&> fst >>= \case
+   in runAppTestM a test <&> fst >>= \case
         Left err -> assertFailure $ show err
         Right assertion -> assertion
 
@@ -795,7 +792,7 @@ unit_import_reference =
           (Nothing, _) -> pure $ assertFailure "Could not find the imported toUpper"
           (Just _, _) -> pure $ assertFailure "Expected one def 'main' from newEmptyApp"
       a = newEmptyApp
-   in runAppTestM (appIdCounter a) a test <&> fst >>= \case
+   in runAppTestM a test <&> fst >>= \case
         Left err -> assertFailure $ show err
         Right assertion -> assertion
 
@@ -806,7 +803,7 @@ unit_import_twice_1 =
         importModules [builtinModule']
         importModules [builtinModule']
       a = newEmptyApp
-   in runAppTestM (appIdCounter a) a test <&> fst >>= \case
+   in runAppTestM a test <&> fst >>= \case
         Left err -> err @?= ActionError (ImportNameClash [moduleName $ create' builtinModule])
         Right _ -> assertFailure "Expected importModules to error, since module names clash with prior import"
 
@@ -816,7 +813,7 @@ unit_import_twice_2 =
         builtinModule' <- builtinModule
         importModules [builtinModule', builtinModule']
       a = newEmptyApp
-   in runAppTestM (appIdCounter a) a test <&> fst >>= \case
+   in runAppTestM a test <&> fst >>= \case
         Left err -> err @?= ActionError (ImportNameClash [moduleName $ create' builtinModule])
         Right _ -> assertFailure "Expected importModules to error, since module names clash within one import"
 
@@ -852,7 +849,7 @@ unit_copy_paste_import =
           (Nothing, _) -> pure $ assertFailure "Could not find the imported 'foo'"
           (Just _, _) -> pure $ assertFailure "Expected one def 'main' from newEmptyApp"
       a = newEmptyApp
-   in runAppTestM (appIdCounter a) a test <&> fst >>= \case
+   in runAppTestM a test <&> fst >>= \case
         Left err -> assertFailure $ show err
         Right assertion -> assertion
 
@@ -1101,7 +1098,7 @@ unit_AddConField =
                     ]
                     `ann` (tcon tT `tapp` tEmptyHole `tapp` tEmptyHole)
                 )
-                [ branch cA [("p", Nothing), ("a44", Nothing), ("q", Nothing), ("p1", Nothing)] emptyHole
+                [ branch cA [("p", Nothing), ("a", Nothing), ("q", Nothing), ("p1", Nothing)] emptyHole
                 , branch cB [("r", Nothing), ("x", Nothing)] emptyHole
                 ]
           )
@@ -1134,7 +1131,7 @@ unit_AddConField_case_ann =
                 (emptyHole `ann` (tcon tT `tapp` tEmptyHole `tapp` tEmptyHole))
                 [ branch
                     cA
-                    [("x", Nothing), ("y", Nothing), ("a41", Nothing), ("z", Nothing)]
+                    [("x", Nothing), ("y", Nothing), ("a", Nothing), ("z", Nothing)]
                     (lvar "y")
                 , branch cB [("s", Nothing), ("t", Nothing)] emptyHole
                 ]
@@ -1184,15 +1181,13 @@ unit_generate_names_import =
         importModules [builtinModule']
         gets (fmap (Map.assocs . moduleDefsQualified) . progModules . appProg) >>= \case
           [[(i, DefAST d)]] -> do
-            a' <- get
             ns <-
-              runReaderT
+              readerToState
                 (handleQuestion (GenerateName i (getID $ astDefExpr d) $ Left $ Just $ TCon () tBool))
-                a'
             pure $ ns @?= ["p", "q"]
           _ -> pure $ assertFailure "Expected one def 'main' from newEmptyApp"
       a = newEmptyApp
-   in runAppTestM (appIdCounter a) a test <&> fst >>= \case
+   in runAppTestM a test <&> fst >>= \case
         Left err -> assertFailure $ show err
         Right assertion -> assertion
 
@@ -1208,7 +1203,7 @@ unit_rename_module =
           , RenameModule mainModuleName ["Module2"]
           ]
       a = newEmptyApp
-   in runAppTestM (appIdCounter a) a test <&> fst >>= \case
+   in runAppTestM a test <&> fst >>= \case
         Left err -> assertFailure $ show err
         Right p -> do
           fmap (unModuleName . moduleName) (progModules p) @?= [["Module2"]]
@@ -1235,7 +1230,7 @@ unit_rename_module_clash =
       a = newEmptyApp
    in do
         unModuleName (moduleName $ create' builtinModule) @?= ["Builtins"]
-        runAppTestM (appIdCounter a) a test <&> fst >>= \case
+        runAppTestM a test <&> fst >>= \case
           Left err -> err @?= RenameModuleNameClash
           Right _ -> assertFailure "Expected RenameModule to error, since module names clash with prior import"
 
@@ -1254,7 +1249,7 @@ unit_rename_module_imported =
         handleEditRequest [RenameModule builtins ["NewModule"]]
       a = newEmptyApp
    in do
-        runAppTestM (appIdCounter a) a test <&> fst >>= \case
+        runAppTestM a test <&> fst >>= \case
           Left err -> err @?= ModuleReadonly builtins
           Right _ -> assertFailure "Expected RenameModule to complain about module being read-only"
 
@@ -1285,7 +1280,7 @@ unit_cross_module_actions =
               , Move $ ConChild 0
               , constructSaturatedCon cSucc
               , Move $ ConChild 0
-              , ConstructVar (LocalVarRef "a26")
+              , ConstructVar (LocalVarRef "a")
               ]
           ]
         handleAndTC [RenameDef (qualifyM "foo") "bar"]
@@ -1374,7 +1369,7 @@ unit_cross_module_actions =
       p = newEmptyProg' & #progModules %~ (m :) & #progSmartHoles .~ NoSmartHoles
       a = mkEmptyTestApp p
    in do
-        runAppTestM (appIdCounter a) a test <&> fst >>= \case
+        runAppTestM a test <&> fst >>= \case
           Left err -> assertFailure $ show err
           Right _ -> pure ()
 
@@ -1550,12 +1545,12 @@ expectError f _ = \case
 -- Run the given ProgActions against the given Prog, and pass the result to the given test function
 progActionTest :: S Prog -> [ProgAction] -> (Prog -> Either ProgError Prog -> Assertion) -> Assertion
 progActionTest inputProg actions testOutput = do
-  let (prog, maxID) = create inputProg
+  let prog = create' inputProg
   let a = mkEmptyTestApp prog
   a' <- case checkAppWellFormed a of
     Left err -> assertFailure $ "checkAppWellFormed failed: " <> show err
     Right a' -> pure a'
-  (r, _) <- runAppTestM maxID a' (handleEditRequest actions)
+  (r, _) <- runAppTestM a' (handleEditRequest actions)
   testOutput (appProg a') r
 
 newtype AppTestM a = AppTestM
@@ -1564,7 +1559,7 @@ newtype AppTestM a = AppTestM
           App
           ( ExceptT
               ProgError
-              (PureLogT (WithSeverity LogMsg) TestM)
+              (PureLog (WithSeverity LogMsg))
           )
       )
         a
@@ -1573,23 +1568,26 @@ newtype AppTestM a = AppTestM
     ( Functor
     , Applicative
     , Monad
-    , MonadFresh ID
-    , MonadFresh NameCounter
     , MonadLog (WithSeverity LogMsg)
     , MonadState App
     , MonadError ProgError
     )
+  deriving
+    ( MonadFresh ID
+    , MonadFresh NameCounter
+    )
+    via FreshViaApp AppTestM
 
 -- Recall that Assertion = IO ()
 -- This is in IO as it asserts that there were no severe log messages
-runAppTestM :: ID -> App -> AppTestM a -> IO (Either ProgError a, App)
-runAppTestM i a m =
-  let (r, logs) = runAppTestM' i a m
+runAppTestM :: App -> AppTestM a -> IO (Either ProgError a, App)
+runAppTestM a m =
+  let (r, logs) = runAppTestM' a m
    in assertNoSevereLogs logs $> r
 
-runAppTestM' :: ID -> App -> AppTestM a -> ((Either ProgError a, App), Seq (WithSeverity LogMsg))
-runAppTestM' startID a m =
-  case evalTestM startID $ runPureLogT $ runExceptT $ flip runStateT a $ unAppTestM m of
+runAppTestM' :: App -> AppTestM a -> ((Either ProgError a, App), Seq (WithSeverity LogMsg))
+runAppTestM' a m =
+  case runPureLog $ runExceptT $ flip runStateT a $ unAppTestM m of
     (Left err, logs) -> ((Left err, a), logs)
     (Right (res, app'), logs) -> ((Right res, app'), logs)
 
@@ -1643,3 +1641,6 @@ globalVarRef = GlobalVarRef . gvn
 
 tcWholeProg :: Prog -> AppTestM Prog
 tcWholeProg = App.liftError ActionError . App.tcWholeProg
+
+readerToState :: MonadState r m => ReaderT r m a -> m a
+readerToState m = runReaderT m =<< get
