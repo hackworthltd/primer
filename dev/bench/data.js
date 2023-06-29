@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1687966076363,
+  "lastUpdate": 1688046249587,
   "repoUrl": "https://github.com/hackworthltd/primer",
   "entries": {
     "Primer benchmarks": [
@@ -77975,6 +77975,380 @@ window.BENCHMARK_DATA = {
             "value": 9943181.273322947,
             "unit": "allocated/iter",
             "extra": "R²: 0.9999999999522342"
+          },
+          {
+            "name": "typecheck/mapOddPrim 100: numGcs",
+            "value": 2.392372892972845,
+            "unit": "numGcs/iter",
+            "extra": "R²: 0.9999699279646259"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "ben@hackworthltd.com",
+            "name": "Ben Price",
+            "username": "brprice"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": false,
+          "id": "50c45a419efa312c20089d3b1fbe176f9c32810a",
+          "message": "fix: an eval&undo/redo \"lost ID\" bug (#1086)",
+          "timestamp": "2023-06-29T13:34:09Z",
+          "tree_id": "2c02e03577a6ca8eb1f61d80d2695ddc1945096b",
+          "url": "https://github.com/hackworthltd/primer/commit/50c45a419efa312c20089d3b1fbe176f9c32810a"
+        },
+        "date": 1688046248681,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "evalTestM/pure logs/mapEven 1: mean time",
+            "value": 0.005690721548883981,
+            "unit": "mean time",
+            "range": 0.00018511399729646786
+          },
+          {
+            "name": "evalTestM/pure logs/mapEven 1: outlier variance",
+            "value": 0.14488456820658022,
+            "unit": "outlier variance"
+          },
+          {
+            "name": "evalTestM/pure logs/mapEven 1: time",
+            "value": 0.005611423389079436,
+            "unit": "time/iter",
+            "extra": "R²: 0.9985899437322381"
+          },
+          {
+            "name": "evalTestM/pure logs/mapEven 1: cpuTime",
+            "value": 0.006268593846312217,
+            "unit": "cpuTime/iter",
+            "extra": "R²: 0.9988211903184738"
+          },
+          {
+            "name": "evalTestM/pure logs/mapEven 1: allocated",
+            "value": 15973797.968517082,
+            "unit": "allocated/iter",
+            "extra": "R²: 0.9999999999637622"
+          },
+          {
+            "name": "evalTestM/pure logs/mapEven 1: numGcs",
+            "value": 3.8336455588947893,
+            "unit": "numGcs/iter",
+            "extra": "R²: 0.9999732328952725"
+          },
+          {
+            "name": "evalTestM/pure logs/mapEven 10: mean time",
+            "value": 0.140708785483829,
+            "unit": "mean time",
+            "range": 0.0064368562475058365
+          },
+          {
+            "name": "evalTestM/pure logs/mapEven 10: outlier variance",
+            "value": 0.12244897959183672,
+            "unit": "outlier variance"
+          },
+          {
+            "name": "evalTestM/pure logs/mapEven 10: time",
+            "value": 0.14238547560359746,
+            "unit": "time/iter",
+            "extra": "R²: 0.9903826671224466"
+          },
+          {
+            "name": "evalTestM/pure logs/mapEven 10: cpuTime",
+            "value": 0.16118050124999986,
+            "unit": "cpuTime/iter",
+            "extra": "R²: 0.9920108681122757"
+          },
+          {
+            "name": "evalTestM/pure logs/mapEven 10: allocated",
+            "value": 429307679.99999994,
+            "unit": "allocated/iter",
+            "extra": "R²: 0.9999999999977498"
+          },
+          {
+            "name": "evalTestM/pure logs/mapEven 10: numGcs",
+            "value": 102.99999999999996,
+            "unit": "numGcs/iter",
+            "extra": "R²: 1"
+          },
+          {
+            "name": "evalTestM/discard logs/mapEven 1: mean time",
+            "value": 0.004982535223215637,
+            "unit": "mean time",
+            "range": 0.0001579817316926289
+          },
+          {
+            "name": "evalTestM/discard logs/mapEven 1: outlier variance",
+            "value": 0.13822329658674123,
+            "unit": "outlier variance"
+          },
+          {
+            "name": "evalTestM/discard logs/mapEven 1: time",
+            "value": 0.00518188890053616,
+            "unit": "time/iter",
+            "extra": "R²: 0.9944592045947503"
+          },
+          {
+            "name": "evalTestM/discard logs/mapEven 1: cpuTime",
+            "value": 0.005792648142789442,
+            "unit": "cpuTime/iter",
+            "extra": "R²: 0.9955028918408907"
+          },
+          {
+            "name": "evalTestM/discard logs/mapEven 1: allocated",
+            "value": 14319043.953604525,
+            "unit": "allocated/iter",
+            "extra": "R²: 0.9999999999720891"
+          },
+          {
+            "name": "evalTestM/discard logs/mapEven 1: numGcs",
+            "value": 3.4363222214544473,
+            "unit": "numGcs/iter",
+            "extra": "R²: 0.9999751467965668"
+          },
+          {
+            "name": "evalTestM/discard logs/mapEven 10: mean time",
+            "value": 0.13115777052173924,
+            "unit": "mean time",
+            "range": 0.009981776335413311
+          },
+          {
+            "name": "evalTestM/discard logs/mapEven 10: outlier variance",
+            "value": 0.22892427907189744,
+            "unit": "outlier variance"
+          },
+          {
+            "name": "evalTestM/discard logs/mapEven 10: time",
+            "value": 0.14019281151039245,
+            "unit": "time/iter",
+            "extra": "R²: 0.986261625501527"
+          },
+          {
+            "name": "evalTestM/discard logs/mapEven 10: cpuTime",
+            "value": 0.15785196388095238,
+            "unit": "cpuTime/iter",
+            "extra": "R²: 0.9888071403718385"
+          },
+          {
+            "name": "evalTestM/discard logs/mapEven 10: allocated",
+            "value": 386158239.99999964,
+            "unit": "allocated/iter",
+            "extra": "R²: 0.9999999999970335"
+          },
+          {
+            "name": "evalTestM/discard logs/mapEven 10: numGcs",
+            "value": 92.595238095238,
+            "unit": "numGcs/iter",
+            "extra": "R²: 0.9999982809175166"
+          },
+          {
+            "name": "typecheck/mapOdd 1: mean time",
+            "value": 0.000668902926529168,
+            "unit": "mean time",
+            "range": 0.000018971943043791876
+          },
+          {
+            "name": "typecheck/mapOdd 1: outlier variance",
+            "value": 0.19244652057519954,
+            "unit": "outlier variance"
+          },
+          {
+            "name": "typecheck/mapOdd 1: time",
+            "value": 0.0006667816513285307,
+            "unit": "time/iter",
+            "extra": "R²: 0.9987704191212566"
+          },
+          {
+            "name": "typecheck/mapOdd 1: cpuTime",
+            "value": 0.0007421812368427965,
+            "unit": "cpuTime/iter",
+            "extra": "R²: 0.9990843060679424"
+          },
+          {
+            "name": "typecheck/mapOdd 1: allocated",
+            "value": 1944079.5962059926,
+            "unit": "allocated/iter",
+            "extra": "R²: 0.9999999999354876"
+          },
+          {
+            "name": "typecheck/mapOdd 1: numGcs",
+            "value": 0.4667759958300762,
+            "unit": "numGcs/iter",
+            "extra": "R²: 0.9999625198394966"
+          },
+          {
+            "name": "typecheck/mapOdd 10: mean time",
+            "value": 0.0013749299742392244,
+            "unit": "mean time",
+            "range": 0.000002147696266067191
+          },
+          {
+            "name": "typecheck/mapOdd 10: outlier variance",
+            "value": 0.015380859375,
+            "unit": "outlier variance"
+          },
+          {
+            "name": "typecheck/mapOdd 10: time",
+            "value": 0.0013751140423505575,
+            "unit": "time/iter",
+            "extra": "R²: 0.9999924539570137"
+          },
+          {
+            "name": "typecheck/mapOdd 10: cpuTime",
+            "value": 0.001539596296071458,
+            "unit": "cpuTime/iter",
+            "extra": "R²: 0.9999811448687599"
+          },
+          {
+            "name": "typecheck/mapOdd 10: allocated",
+            "value": 4563369.265212271,
+            "unit": "allocated/iter",
+            "extra": "R²: 0.9999999999457839"
+          },
+          {
+            "name": "typecheck/mapOdd 10: numGcs",
+            "value": 1.094589478997252,
+            "unit": "numGcs/iter",
+            "extra": "R²: 0.9999699169369058"
+          },
+          {
+            "name": "typecheck/mapOdd 100: mean time",
+            "value": 0.16097732789713107,
+            "unit": "mean time",
+            "range": 0.008409779699845408
+          },
+          {
+            "name": "typecheck/mapOdd 100: outlier variance",
+            "value": 0.12616599917484506,
+            "unit": "outlier variance"
+          },
+          {
+            "name": "typecheck/mapOdd 100: time",
+            "value": 0.15108690344329387,
+            "unit": "time/iter",
+            "extra": "R²: 0.996036908683203"
+          },
+          {
+            "name": "typecheck/mapOdd 100: cpuTime",
+            "value": 0.2130471949642857,
+            "unit": "cpuTime/iter",
+            "extra": "R²: 0.9976873715111505"
+          },
+          {
+            "name": "typecheck/mapOdd 100: allocated",
+            "value": 208658874.2857142,
+            "unit": "allocated/iter",
+            "extra": "R²: 0.9999999999913602"
+          },
+          {
+            "name": "typecheck/mapOdd 100: numGcs",
+            "value": 49.64285714285714,
+            "unit": "numGcs/iter",
+            "extra": "R²: 0.9999937891799233"
+          },
+          {
+            "name": "typecheck/mapOddPrim 1: mean time",
+            "value": 0.0006549664828373308,
+            "unit": "mean time",
+            "range": 0.0000024680410443536013
+          },
+          {
+            "name": "typecheck/mapOddPrim 1: outlier variance",
+            "value": 0.01249799711584682,
+            "unit": "outlier variance"
+          },
+          {
+            "name": "typecheck/mapOddPrim 1: time",
+            "value": 0.0006573008484351897,
+            "unit": "time/iter",
+            "extra": "R²: 0.9999778044041399"
+          },
+          {
+            "name": "typecheck/mapOddPrim 1: cpuTime",
+            "value": 0.0007323438415451415,
+            "unit": "cpuTime/iter",
+            "extra": "R²: 0.9999593188207989"
+          },
+          {
+            "name": "typecheck/mapOddPrim 1: allocated",
+            "value": 1878247.5962059924,
+            "unit": "allocated/iter",
+            "extra": "R²: 0.9999999999308861"
+          },
+          {
+            "name": "typecheck/mapOddPrim 1: numGcs",
+            "value": 0.4505090083321604,
+            "unit": "numGcs/iter",
+            "extra": "R²: 0.9999530842074039"
+          },
+          {
+            "name": "typecheck/mapOddPrim 10: mean time",
+            "value": 0.0008223954137423361,
+            "unit": "mean time",
+            "range": 0.000003599532418601819
+          },
+          {
+            "name": "typecheck/mapOddPrim 10: outlier variance",
+            "value": 0.013330898466033603,
+            "unit": "outlier variance"
+          },
+          {
+            "name": "typecheck/mapOddPrim 10: time",
+            "value": 0.0008266419676687869,
+            "unit": "time/iter",
+            "extra": "R²: 0.9999597098712677"
+          },
+          {
+            "name": "typecheck/mapOddPrim 10: cpuTime",
+            "value": 0.0009315775379946055,
+            "unit": "cpuTime/iter",
+            "extra": "R²: 0.9999308042952814"
+          },
+          {
+            "name": "typecheck/mapOddPrim 10: allocated",
+            "value": 2611424.782146558,
+            "unit": "allocated/iter",
+            "extra": "R²: 0.9999999999368028"
+          },
+          {
+            "name": "typecheck/mapOddPrim 10: numGcs",
+            "value": 0.6278993587833411,
+            "unit": "numGcs/iter",
+            "extra": "R²: 0.9999693740756922"
+          },
+          {
+            "name": "typecheck/mapOddPrim 100: mean time",
+            "value": 0.0033232615840584124,
+            "unit": "mean time",
+            "range": 0.00025793133168588094
+          },
+          {
+            "name": "typecheck/mapOddPrim 100: outlier variance",
+            "value": 0.525811753655208,
+            "unit": "outlier variance"
+          },
+          {
+            "name": "typecheck/mapOddPrim 100: time",
+            "value": 0.0033355387338031635,
+            "unit": "time/iter",
+            "extra": "R²: 0.987605080645958"
+          },
+          {
+            "name": "typecheck/mapOddPrim 100: cpuTime",
+            "value": 0.003803076540566893,
+            "unit": "cpuTime/iter",
+            "extra": "R²: 0.9902139619283182"
+          },
+          {
+            "name": "typecheck/mapOddPrim 100: allocated",
+            "value": 9943178.838482806,
+            "unit": "allocated/iter",
+            "extra": "R²: 0.9999999999480783"
           },
           {
             "name": "typecheck/mapOddPrim 100: numGcs",
