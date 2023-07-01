@@ -54,6 +54,7 @@ library
     , openapi3                   >=3.2      && <3.3.0
     , optics                     >=0.4      && <0.5.0
     , primer                     ^>=0.7.2
+    , primer-api                 ^>=0.7.2
     , refined                    ^>=0.8
     , servant                    >=0.18     && <0.20.0
     , servant-client             >=0.18     && <0.20.0
@@ -101,6 +102,7 @@ executable primer-service
     , logging-effect          ^>=1.4
     , optparse-applicative    ^>=0.17
     , primer
+    , primer-api
     , primer-rel8             ^>=0.7.2
     , primer-selda            ^>=0.7.2
     , primer-service
@@ -200,6 +202,7 @@ test-suite service-test
     , openapi3
     , postgres-options                                  ^>=0.2
     , pretty-simple                                     ^>=4.1
+    , primer-api:{primer-api, primer-api-hedgehog}
     , primer-rel8:{primer-rel8, primer-rel8-testlib}
     , primer-service
     , primer:{primer, primer-hedgehog, primer-testlib}

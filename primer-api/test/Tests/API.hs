@@ -30,6 +30,7 @@ import Primer.API (
   viewTreeExpr,
   viewTreeType,
  )
+import Primer.API.Test.Util (runAPI)
 import Primer.Action (Action (ConstructPrim, InsertSaturatedVar, SetCursor))
 import Primer.App (
   MutationRequest (Edit),
@@ -57,7 +58,6 @@ import Primer.Prelude.Integer qualified as Integer
 import Primer.Test.Util (
   ExceptionPredicate,
   assertException,
-  runAPI,
   (@?=),
  )
 import Protolude.Unsafe (unsafeFromJust)

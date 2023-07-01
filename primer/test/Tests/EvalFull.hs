@@ -85,6 +85,9 @@ import Primer.Primitives (
   tInt,
  )
 import Primer.Primitives.DSL (pfun)
+import Primer.Test.App (
+  runAppTestM,
+ )
 import Primer.Test.Expected (
   Expected (defMap, expectedResult, expr, maxID),
   mapEven,
@@ -114,7 +117,7 @@ import Tasty (
   withTests,
  )
 import Test.Tasty.HUnit (Assertion, assertBool, assertFailure, (@?=))
-import Tests.Action.Prog (readerToState, runAppTestM)
+import Tests.Action.Prog (readerToState)
 import Tests.Eval.Utils (genDirTm, hasTypeLets, testModules, (~=))
 import Tests.Gen.Core.Typed (checkTest)
 import Tests.Typecheck (runTypecheckTestM, runTypecheckTestMWithPrims)

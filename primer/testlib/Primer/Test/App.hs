@@ -1,13 +1,24 @@
 module Primer.Test.App (
+  AppTestM,
+  runAppTestM,
   comprehensive,
 ) where
 
 import Foreword
 
+import Control.Monad.Fresh (
+  MonadFresh,
+ )
+import Control.Monad.Log (
+  MonadLog,
+  WithSeverity,
+ )
 import Data.Map.Strict qualified as Map
 import Primer.App (
   App,
+  FreshViaApp (..),
   Prog (..),
+  ProgError (..),
   defaultProg,
   mkApp,
  )
@@ -16,7 +27,14 @@ import Primer.Core (
   mkSimpleModuleName,
  )
 import Primer.Core.DSL (create)
+import Primer.Core.Meta (
+  ID,
+ )
 import Primer.Examples qualified as Examples
+import Primer.Log (
+  PureLog,
+  runPureLog,
+ )
 import Primer.Module (
   Module (
     Module,
@@ -27,6 +45,51 @@ import Primer.Module (
   builtinModule,
   primitiveModule,
  )
+import Primer.Name (
+  NameCounter,
+ )
+import Primer.Test.Util (
+  LogMsg,
+  assertNoSevereLogs,
+ )
+
+newtype AppTestM a = AppTestM
+  { unAppTestM ::
+      ( StateT
+          App
+          ( ExceptT
+              ProgError
+              (PureLog (WithSeverity LogMsg))
+          )
+      )
+        a
+  }
+  deriving newtype
+    ( Functor
+    , Applicative
+    , Monad
+    , MonadLog (WithSeverity LogMsg)
+    , MonadState App
+    , MonadError ProgError
+    )
+  deriving
+    ( MonadFresh ID
+    , MonadFresh NameCounter
+    )
+    via FreshViaApp AppTestM
+
+-- Recall that Assertion = IO ()
+-- This is in IO as it asserts that there were no severe log messages
+runAppTestM :: App -> AppTestM a -> IO (Either ProgError a, App)
+runAppTestM a m =
+  let (r, logs) = runAppTestM' a m
+   in assertNoSevereLogs logs $> r
+
+runAppTestM' :: App -> AppTestM a -> ((Either ProgError a, App), Seq (WithSeverity LogMsg))
+runAppTestM' a m =
+  case runPureLog $ runExceptT $ flip runStateT a $ unAppTestM m of
+    (Left err, logs) -> ((Left err, a), logs)
+    (Right (res, app'), logs) -> ((Right res, app'), logs)
 
 -- | An initial test 'App' instance that contains all default type
 -- definitions (including primitive types), all primitive functions,

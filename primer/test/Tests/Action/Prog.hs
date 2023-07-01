@@ -6,7 +6,6 @@ module Tests.Action.Prog where
 import Foreword
 
 import Control.Monad.Fresh
-import Control.Monad.Log (MonadLog, WithSeverity)
 import Data.Generics.Uniplate.Data (transformBi)
 import Data.List.Extra (anySame)
 import Data.Map.Strict qualified as Map
@@ -38,7 +37,6 @@ import Primer.Action (
 import Primer.App (
   App,
   DefSelection (..),
-  FreshViaApp (FreshViaApp),
   Log (..),
   NodeSelection (..),
   NodeType (..),
@@ -120,11 +118,14 @@ import Primer.Core.DSL (
  )
 import Primer.Core.Utils (forgetMetadata)
 import Primer.Def (ASTDef (..), Def (..), DefMap, defAST)
-import Primer.Log (PureLog, runPureLog)
 import Primer.Module (Module (Module, moduleDefs, moduleName, moduleTypes), builtinModule, moduleDefsQualified, moduleTypesQualified, primitiveModule)
 import Primer.Name
 import Primer.Primitives (PrimDef (IntAdd, ToUpper), primitiveGVar, tChar)
-import Primer.Test.Util (LogMsg, assertNoSevereLogs, constructSaturatedCon, constructTCon, zeroIDs, zeroTypeIDs)
+import Primer.Test.App (
+  AppTestM,
+  runAppTestM,
+ )
+import Primer.Test.Util (constructSaturatedCon, constructTCon, zeroIDs, zeroTypeIDs)
 import Primer.Test.Util qualified as Util
 import Primer.TypeDef (ASTTypeDef (..), TypeDef (..), ValCon (..), forgetTypeDefMetadata, typeDefAST)
 import Primer.Typecheck (
@@ -1552,44 +1553,6 @@ progActionTest inputProg actions testOutput = do
     Right a' -> pure a'
   (r, _) <- runAppTestM a' (handleEditRequest actions)
   testOutput (appProg a') r
-
-newtype AppTestM a = AppTestM
-  { unAppTestM ::
-      ( StateT
-          App
-          ( ExceptT
-              ProgError
-              (PureLog (WithSeverity LogMsg))
-          )
-      )
-        a
-  }
-  deriving newtype
-    ( Functor
-    , Applicative
-    , Monad
-    , MonadLog (WithSeverity LogMsg)
-    , MonadState App
-    , MonadError ProgError
-    )
-  deriving
-    ( MonadFresh ID
-    , MonadFresh NameCounter
-    )
-    via FreshViaApp AppTestM
-
--- Recall that Assertion = IO ()
--- This is in IO as it asserts that there were no severe log messages
-runAppTestM :: App -> AppTestM a -> IO (Either ProgError a, App)
-runAppTestM a m =
-  let (r, logs) = runAppTestM' a m
-   in assertNoSevereLogs logs $> r
-
-runAppTestM' :: App -> AppTestM a -> ((Either ProgError a, App), Seq (WithSeverity LogMsg))
-runAppTestM' a m =
-  case runPureLog $ runExceptT $ flip runStateT a $ unAppTestM m of
-    (Left err, logs) -> ((Left err, a), logs)
-    (Right (res, app'), logs) -> ((Right res, app'), logs)
 
 -- Looks up a definition in the main module
 -- Useful in these tests so we don't have to specify

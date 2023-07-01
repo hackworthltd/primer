@@ -62,6 +62,7 @@ body:
       label: Which package(s) or aspect(s) of the project are the source of the issue?
       options:
         - primer
+        - primer-api
         - primer-service
         - primer-rel8
         - primer-selda

@@ -1,5 +1,5 @@
 cabal-version: 3.0
-name:          primer
+name:          primer-api
 version:       0.7.2.0
 license:       AGPL-3.0-or-later
 license-file:  COPYING
@@ -7,87 +7,16 @@ copyright:     (c) 2023 Hackworth Ltd
 maintainer:    src@hackworthltd.com
 author:        Hackworth Ltd <src@hackworthltd.com>
 stability:     experimental
-synopsis:      A framework for structured editing.
-category:      Editor
+synopsis:      An API for Primer
+category:      API
 
 library
   exposed-modules:
-    Control.Monad.Fresh
-    Foreword
-    Primer.Action
-    Primer.Action.Available
-    Primer.Action.Priorities
-    Primer.Action.ProgError
-    Primer.App
-    Primer.App.Base
-    Primer.App.Utils
-    Primer.Builtins
-    Primer.Builtins.DSL
-    Primer.Core
-    Primer.Core.DSL
-    Primer.Core.Meta
-    Primer.Core.Transform
-    Primer.Core.Utils
-    Primer.Database
-    Primer.Def
-    Primer.Def.Utils
-    Primer.Eval
-    Primer.Eval.Redex
-    Primer.EvalFull
-    Primer.Examples
-    Primer.JSON
-    Primer.Log
-    Primer.Module
-    Primer.Name
-    Primer.Name.Fresh
-    Primer.Prelude
-    Primer.Prelude.Integer
-    Primer.Prelude.Logic
-    Primer.Prelude.Polymorphism
-    Primer.Prelude.Utils
-    Primer.Pretty
-    Primer.Primitives
-    Primer.Primitives.DSL
-    Primer.Questions
-    Primer.Refine
-    Primer.Subst
-    Primer.Typecheck
-    Primer.TypeDef
-    Primer.Unification
-    Primer.Zipper
-    Primer.ZipperCxt
+    Primer.API
+    Primer.API.NodeFlavor
+    Primer.API.RecordPair
 
   hs-source-dirs:     src
-  other-modules:
-    Control.Monad.NestedError
-    Primer.Action.Actions
-    Primer.Action.Errors
-    Primer.Action.Movement
-    Primer.Action.ProgAction
-    Primer.Core.DSL.Meta
-    Primer.Core.DSL.Type
-    Primer.Core.Fresh
-    Primer.Core.Type
-    Primer.Core.Type.Utils
-    Primer.Eval.Ann
-    Primer.Eval.Beta
-    Primer.Eval.Bind
-    Primer.Eval.Case
-    Primer.Eval.Detail
-    Primer.Eval.EvalError
-    Primer.Eval.Inline
-    Primer.Eval.Let
-    Primer.Eval.NormalOrder
-    Primer.Eval.Prim
-    Primer.Primitives.PrimDef
-    Primer.Typecheck.Cxt
-    Primer.Typecheck.Kindcheck
-    Primer.Typecheck.KindError
-    Primer.Typecheck.SmartHoles
-    Primer.Typecheck.TypeError
-    Primer.Typecheck.Utils
-    Primer.Zipper.Type
-
   default-language:   GHC2021
   default-extensions:
     NoImplicitPrelude
@@ -121,6 +50,7 @@ library
     , optics                       >=0.4      && <0.5.0
     , prettyprinter                >=1.7.1    && <1.8.0
     , prettyprinter-ansi-terminal  >=1.1.3    && <1.2.0
+    , primer                       ^>=0.7.2
     , protolude                    >=0.3.1    && <0.4.0
     , recursion-schemes            >=5.1.3    && <5.3.0
     , semigroups                   >=0.20     && <0.21.0
@@ -132,14 +62,9 @@ library
     , uniplate                     >=1.6      && <1.7.0
     , uuid                         ^>=1.3.15
 
-library primer-hedgehog
+library primer-api-hedgehog
   visibility:         public
-  exposed-modules:
-    Primer.Gen.App
-    Primer.Gen.Core.Raw
-    Primer.Gen.Core.Typed
-    Tasty
-
+  exposed-modules:    Primer.Gen.API
   other-modules:
   hs-source-dirs:     gen
   default-language:   GHC2021
@@ -160,22 +85,17 @@ library primer-hedgehog
     , base
     , containers
     , extra
-    , hedgehog        ^>=1.1
-    , mmorph          ^>=1.2.0
+    , hedgehog                                          ^>=1.1
+    , mmorph                                            ^>=1.2.0
     , mtl
-    , primer
-    , primer-testlib
-    , tasty-discover  ^>=5.0
-    , tasty-hedgehog  ^>=1.3
+    , primer-api
+    , primer:{primer, primer-hedgehog, primer-testlib}
+    , tasty-discover                                    ^>=5.0
+    , tasty-hedgehog                                    ^>=1.3
 
-library primer-testlib
+library primer-api-testlib
   visibility:         public
-  exposed-modules:
-    Primer.Test.App
-    Primer.Test.Expected
-    Primer.Test.TestM
-    Primer.Test.Util
-
+  exposed-modules:    Primer.API.Test.Util
   other-modules:
   hs-source-dirs:     testlib
   default-language:   GHC2021
@@ -200,51 +120,20 @@ library primer-testlib
     , hedgehog
     , logging-effect
     , optics
-    , primer
+    , primer-api
+    , primer:{primer, primer-testlib}
     , stm
     , stm-containers
-    , tasty-hunit     ^>=0.10.0
+    , tasty-hunit                      ^>=0.10.0
 
-test-suite primer-test
+test-suite primer-api-test
   type:               exitcode-stdio-1.0
   main-is:            Test.hs
   hs-source-dirs:     test
   other-modules:
-    Tests.Action
-    Tests.Action.Available
-    Tests.Action.Capture
-    Tests.Action.Prog
-    Tests.AlphaEquality
-    Tests.App
+    Tests.API
     Tests.Database
-    Tests.Eval
-    Tests.Eval.Utils
-    Tests.EvalFull
-    Tests.Examples
-    Tests.FreeVars
-    Tests.Gen.App
-    Tests.Gen.Core.Typed
-    Tests.Module
-    Tests.NullDb
-    Tests.Prelude.Integer
-    Tests.Prelude.Logic
-    Tests.Prelude.Polymorphism
-    Tests.Prelude.TypeCheck
-    Tests.Prelude.Utils
-    Tests.Pretty
-    Tests.Primitives
-    Tests.Prog
-    Tests.Questions
-    Tests.Refine
-    Tests.Serialization
-    Tests.Subst
-    Tests.Transform
-    Tests.Typecheck
     Tests.Undo
-    Tests.Unification
-    Tests.Utils
-    Tests.Zipper
-    Tests.Zipper.BindersAbove
 
   default-language:   GHC2021
   default-extensions:
@@ -268,8 +157,8 @@ test-suite primer-test
   else
     build-depends:
       , aeson
-      , aeson-pretty                 ^>=0.8.9
-      , async                        ^>=2.2.4
+      , aeson-pretty                                      ^>=0.8.9
+      , async                                             ^>=2.2.4
       , base
       , bytestring
       , containers
@@ -278,25 +167,25 @@ test-suite primer-test
       , filepath
       , generic-optics
       , hedgehog
-      , hedgehog-classes             ^>=0.2.5.3
-      , hspec                        ^>=2.10
-      , hspec-megaparsec             ^>=2.2.0
+      , hedgehog-classes                                  ^>=0.2.5.3
+      , hspec                                             ^>=2.10
+      , hspec-megaparsec                                  ^>=2.2.0
       , logging-effect
       , mmorph
       , mtl
       , optics
-      , pretty-simple                ^>=4.1
+      , pretty-simple                                     ^>=4.1
       , prettyprinter
       , prettyprinter-ansi-terminal
-      , primer
-      , primer-hedgehog
-      , primer-testlib
+      , primer-api
+      , primer-api-testlib
+      , primer:{primer, primer-hedgehog, primer-testlib}
       , protolude
       , stm
       , stm-containers
-      , tasty                        ^>=1.4.2.1
+      , tasty                                             ^>=1.4.2.1
       , tasty-discover
-      , tasty-golden                 ^>=2.3.5
+      , tasty-golden                                      ^>=2.3.5
       , tasty-hedgehog
       , tasty-hunit
       , text
