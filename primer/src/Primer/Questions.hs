@@ -1,7 +1,6 @@
 {-# LANGUAGE GADTs #-}
 
--- Logic for answering API questions
-
+-- | Logic for answering questions about the program.
 module Primer.Questions (
   Question (..),
   variablesInScopeExpr,

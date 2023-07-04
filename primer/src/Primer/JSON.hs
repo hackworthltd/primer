@@ -15,7 +15,7 @@ import Data.Aeson (
  )
 import Deriving.Aeson (CustomJSON (..), OmitNothingFields)
 
--- | A type for Primer API JSON encodings.
+-- | A type for Primer JSON encodings.
 --
 -- Note: at the moment, this makes no changes to the default
 -- 'FromJSON' and 'ToJSON' encodings. We keep it a) to get the more

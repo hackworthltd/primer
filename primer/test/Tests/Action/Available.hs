@@ -146,6 +146,9 @@ import Primer.Module (
   primitiveModule,
  )
 import Primer.Name (Name (unName))
+import Primer.Test.App (
+  runAppTestM,
+ )
 import Primer.Test.TestM (evalTestM)
 import Primer.Test.Util (clearMeta, clearTypeMeta, testNoSevereLogs)
 import Primer.TypeDef (ASTTypeDef (astTypeDefConstructors), TypeDef (TypeDefAST, TypeDefPrim), ValCon (..), astTypeDefParameters, forgetTypeDefMetadata, typeDefAST)
@@ -162,7 +165,7 @@ import Tasty (Property, withDiscards, withTests)
 import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.Golden (goldenVsString)
 import Test.Tasty.HUnit (Assertion, assertFailure, (@?=))
-import Tests.Action.Prog (defaultEmptyProg, findGlobalByName, mkEmptyTestApp, runAppTestM)
+import Tests.Action.Prog (defaultEmptyProg, findGlobalByName, mkEmptyTestApp)
 import Tests.Typecheck (
   TypeCacheAlpha (TypeCacheAlpha),
   runTypecheckTestM,

@@ -14,7 +14,6 @@ module Primer.Test.Util (
   zeroTypeIDs,
   clearMeta,
   clearTypeMeta,
-  runAPI,
   LogMsg,
   isSevereLog,
   assertNoSevereLogs,
@@ -24,9 +23,6 @@ module Primer.Test.Util (
 
 import Foreword
 
-import Control.Concurrent.STM (
-  newTBQueueIO,
- )
 import Control.Monad.Log (Severity (Informational), WithSeverity (msgSeverity))
 import Data.Map qualified as Map
 import Data.Sequence qualified as Seq
@@ -34,11 +30,6 @@ import Data.String (String)
 import Data.Typeable (typeOf)
 import Hedgehog (MonadTest, (===))
 import Optics (over, set, view)
-import Primer.API (
-  Env (..),
-  PrimerM,
-  runPrimerM,
- )
 import Primer.Action (
   Action (ConstructSaturatedCon, ConstructTCon),
  )
@@ -62,17 +53,11 @@ import Primer.Core (
   _typeMeta,
  )
 import Primer.Core.Utils (exprIDs)
-import Primer.Database (
-  ServiceCfg (..),
-  runNullDb',
-  serve,
- )
 import Primer.Def (DefMap)
 import Primer.Log (ConvertLogMessage (convert), PureLogT, runPureLogT)
 import Primer.Module (Module (moduleDefs), primitiveModule)
 import Primer.Name (Name (unName))
 import Primer.Primitives (primitive)
-import StmContainers.Map qualified as StmMap
 import Test.Tasty.HUnit (
   Assertion,
   assertBool,
@@ -162,28 +147,4 @@ failWhenSevereLogs :: (HasCallStack, MonadTest m, Eq l, Show l) => PureLogT (Wit
 failWhenSevereLogs m = do
   (r, logs) <- runPureLogT m
   testNoSevereLogs logs
-  pure r
-
--- Run 2 threads: one that serves a 'NullDb', and one that runs Primer
--- API actions. This allows us to simulate a database and API service.
---
--- We run the database thread on the fork, because it will need to run
--- until it's terminated. The Primer API action will run on the main
--- thread and terminate the database thread when the API action runs
--- to completion or throws.
-runAPI :: PrimerM (PureLogT (WithSeverity LogMsg) IO) a -> IO a
-runAPI action = do
-  -- This is completely arbitrary and just for testing. In production,
-  -- this value will be provided by the production environment and
-  -- will likely come from the git rev used to build the production
-  -- service.
-  let version = "git123"
-  dbOpQueue <- newTBQueueIO 1
-  initialSessions <- StmMap.newIO
-  (r, logs) <-
-    withAsync (runNullDb' $ serve (ServiceCfg dbOpQueue version)) $
-      const $
-        runPureLogT . runPrimerM action $
-          Env initialSessions dbOpQueue version
-  assertNoSevereLogs logs
   pure r

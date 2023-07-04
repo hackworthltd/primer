@@ -1,0 +1,156 @@
+cabal-version: 3.0
+name:          primer-api
+version:       0.7.2.0
+license:       AGPL-3.0-or-later
+license-file:  COPYING
+copyright:     (c) 2023 Hackworth Ltd
+maintainer:    src@hackworthltd.com
+author:        Hackworth Ltd <src@hackworthltd.com>
+stability:     experimental
+synopsis:      An API for Primer
+category:      API
+
+library
+  exposed-modules:
+    Primer.API
+    Primer.API.NodeFlavor
+    Primer.API.RecordPair
+
+  hs-source-dirs:     src
+  default-language:   GHC2021
+  default-extensions:
+    NoImplicitPrelude
+    DataKinds
+    DeriveAnyClass
+    DerivingStrategies
+    DerivingVia
+    LambdaCase
+    OverloadedStrings
+
+  ghc-options:
+    -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
+    -Wcompat -Widentities -Wredundant-constraints
+    -Wmissing-deriving-strategies -fhide-source-paths
+
+  build-depends:
+    , base            >=4.12    && <4.18
+    , containers      >=0.6.0.1 && <0.7.0
+    , deriving-aeson  >=0.2     && <0.3.0
+    , extra           >=1.7.10  && <1.8.0
+    , logging-effect  ^>=1.4
+    , mtl             >=2.2.2   && <2.4.0
+    , optics          >=0.4     && <0.5.0
+    , primer          ^>=0.7.2
+    , protolude       >=0.3.1   && <0.4.0
+    , stm             >=2.5     && <2.6.0
+    , stm-containers  >=1.1     && <1.3.0
+    , transformers    >=0.5.6.2 && <0.7.0
+
+library primer-api-hedgehog
+  visibility:         public
+  exposed-modules:    Primer.Gen.API
+  other-modules:
+  hs-source-dirs:     gen
+  default-language:   GHC2021
+  default-extensions:
+    NoImplicitPrelude
+    DataKinds
+    DerivingStrategies
+    DerivingVia
+    LambdaCase
+    OverloadedStrings
+
+  ghc-options:
+    -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
+    -Wcompat -Widentities -Wredundant-constraints
+    -Wmissing-deriving-strategies -fhide-source-paths
+
+  build-depends:
+    , base
+    , hedgehog                                          ^>=1.1
+    , primer-api
+    , primer:{primer, primer-hedgehog, primer-testlib}
+
+library primer-api-testlib
+  visibility:         public
+  exposed-modules:    Primer.API.Test.Util
+  other-modules:
+  hs-source-dirs:     testlib
+  default-language:   GHC2021
+  default-extensions:
+    NoImplicitPrelude
+    DataKinds
+    DeriveAnyClass
+    DerivingStrategies
+    DerivingVia
+    LambdaCase
+    OverloadedStrings
+
+  ghc-options:
+    -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
+    -Wcompat -Widentities -Wredundant-constraints
+    -Wmissing-deriving-strategies -fhide-source-paths
+
+  build-depends:
+    , base
+    , logging-effect
+    , primer-api
+    , primer:{primer, primer-testlib}
+    , stm
+    , stm-containers
+
+test-suite primer-api-test
+  type:               exitcode-stdio-1.0
+  main-is:            Test.hs
+  hs-source-dirs:     test
+  other-modules:
+    Tests.API
+    Tests.Database
+    Tests.Undo
+
+  default-language:   GHC2021
+  default-extensions:
+    NoImplicitPrelude
+    DataKinds
+    DerivingStrategies
+    DerivingVia
+    LambdaCase
+    OverloadedLists
+    OverloadedStrings
+
+  ghc-options:
+    -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
+    -Wcompat -Widentities -Wredundant-constraints
+    -Wmissing-deriving-strategies -fhide-source-paths -threaded
+    -rtsopts -with-rtsopts=-N
+
+  if impl(ghcjs)
+    buildable: False
+
+  else
+    build-depends:
+      , base
+      , bytestring
+      , containers
+      , hedgehog
+      , logging-effect
+      , mtl
+      , optics
+      , pretty-simple                                     ^>=4.1
+      , primer-api
+      , primer-api-testlib
+      , primer:{primer, primer-hedgehog, primer-testlib}
+      , protolude
+      , stm
+      , stm-containers
+      , tasty                                             ^>=1.4.2.1
+      , tasty-discover
+      , tasty-golden                                      ^>=2.3.5
+      , tasty-hunit
+      , text
+      , transformers
+      , uuid
+
+--TODO This currently breaks with haskell.nix, so we manually add it to `flake.nix` instead.
+-- See: https://github.com/input-output-hk/haskell.nix/issues/839
+-- build-tool-depends: tasty-discover:tasty-discover ^>=5.0

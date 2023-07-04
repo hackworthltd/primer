@@ -205,8 +205,6 @@ data OpStatus
 -- implements the proper in-order/FIFO semantics of the database
 -- operation queue, but relies on implementations of the 'MonadDb'
 -- type class to implement the persistent database semantics.
--- 'Primer.API.withSession'' implements the in-memory database and
--- database operation queue invariants, unless otherwise specified.
 --
 -- Note that operations which modify or create sessions must provide a
 -- modification/creation timestamp. For typical operations, generating
