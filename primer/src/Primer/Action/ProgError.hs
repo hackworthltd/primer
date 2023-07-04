@@ -35,6 +35,7 @@ data ProgError
     ConNotSaturated ValConName
   | ParamNotFound TyVarName
   | NodeIDNotFound ID
+  | TypeDefConFieldNotFound TyConName ValConName Int
   | ValConParamClash Name
   | ActionError ActionError
   | EvalError EvalError
