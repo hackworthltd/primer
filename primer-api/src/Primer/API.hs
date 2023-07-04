@@ -102,7 +102,7 @@ import Primer.API.NodeFlavor qualified as Flavor
 import Primer.API.RecordPair (RecordPair (RecordPair))
 import Primer.Action (ActionError, ProgAction, toProgActionInput, toProgActionNoInput)
 import Primer.Action.Available qualified as Available
-import Primer.Action.ProgError (ProgError (NodeIDNotFound, ParamNotFound))
+import Primer.Action.ProgError (ProgError (NodeIDNotFound, ParamNotFound, TypeDefConFieldNotFound))
 import Primer.App (
   App,
   DefSelection (..),
@@ -142,7 +142,7 @@ import Primer.App (
   unlog,
  )
 import Primer.App qualified as App
-import Primer.App.Base (TypeDefNodeSelection (..))
+import Primer.App.Base (TypeDefNodeSelection (..), getTypeDefConFieldType)
 import Primer.Core (
   Bind' (..),
   CaseBranch' (..),
@@ -1337,9 +1337,14 @@ getSelectionTypeOrKind = curry $ logAPI (noError GetTypeOrKind) $ \(sid, sel0) -
           maybe (throwM $ GetTypeOrKindError sel0 $ ParamNotFound p) (pure . Kind . viewTreeKind . snd) $
             find ((== p) . fst) (astTypeDefParameters def)
         -- constructor node selected - return the type to which it belongs
-        Just (TypeDefConsNodeSelection _) ->
+        Just (TypeDefConsNodeSelection (TypeDefConsSelection _ Nothing)) ->
           pure . Type . viewTreeType' . mkIds $
             foldl' (\t -> TApp () t . TVar ()) (TCon () sel.def) (map fst $ astTypeDefParameters def)
+        -- field node selected - return its kind
+        Just (TypeDefConsNodeSelection (TypeDefConsSelection c (Just s))) -> do
+          t0 <- maybe (throwM $ GetTypeOrKindError sel0 $ TypeDefConFieldNotFound sel.def c s.index) pure $ getTypeDefConFieldType def c s.index
+          t <- maybe (throwM $ GetTypeOrKindError sel0 $ NodeIDNotFound s.meta) pure $ findType s.meta t0
+          pure $ viewTypeKind $ t ^. _typeMetaLens
   where
     trivialTree = Tree{nodeId = "seltype-0", childTrees = [], rightChild = Nothing, body = NoBody Flavor.EmptyHole}
     viewExprType :: ExprMeta -> TypeOrKind
