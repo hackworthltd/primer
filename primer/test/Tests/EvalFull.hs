@@ -207,10 +207,10 @@ unit_8 =
   let n = 10
       e = mapEven n
    in do
-        evalFullTest (maxID e) builtinTypes (defMap e) 1000 Syn (expr e) >>= \case
+        evalFullTest (maxID e) builtinTypes (defMap e) 500 Syn (expr e) >>= \case
           Left (TimedOut _) -> pure ()
           x -> assertFailure $ show x
-        s <- evalFullTest (maxID e) builtinTypes (defMap e) 2000 Syn (expr e)
+        s <- evalFullTest (maxID e) builtinTypes (defMap e) 1000 Syn (expr e)
         s <~==> Right (expectedResult e)
 
 -- A worker/wrapper'd map
