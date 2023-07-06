@@ -60,6 +60,10 @@ data PrettyOptions = PrettyOptions
   -- ^ Attempt to print λs and Λs on one line
   , inlineForAll :: Bool
   -- ^ Attempt to print @for all@ and associated type sig on one line
+  , inlineCon :: Bool
+  -- ^ Attempt to print constructors and all arguments on one line
+  , inlineAnn :: Bool
+  -- ^ Attempt to print annotations on one line
   }
 
 -- | Default PrettyOptions - makes no attempt to group text
@@ -71,6 +75,8 @@ sparse =
     , inlineLet = False
     , inlineLambda = False
     , inlineForAll = False
+    , inlineCon = False
+    , inlineAnn = False
     }
 
 -- | Groups whenever possible
@@ -82,6 +88,8 @@ compact =
     , inlineLet = True
     , inlineLambda = True
     , inlineForAll = True
+    , inlineCon = True
+    , inlineAnn = True
     }
 
 -- | Pretty prints @Expr'@ using Prettyprinter library
@@ -91,7 +99,7 @@ prettyExpr opts = \case
   EmptyHole _ -> col Red "?"
   Con _ n tms ->
     let prettyTms = brac Round White . pE <$> tms
-     in vsep $ col Green (gname opts n) : prettyTms
+     in (if inlineCon opts then group else identity) $ vsep $ col Green (gname opts n) : prettyTms
   Var _ v -> case v of
     GlobalVarRef n -> col Blue (gname opts n)
     LocalVarRef n -> lname n
@@ -185,7 +193,7 @@ prettyExpr opts = \case
     prim = \case
       PrimChar c -> "Char" <+> pretty @Text (show c)
       PrimInt n -> "Int" <+> pretty @Text (show n)
-    typeann e t = brac Round Yellow (pE e) <+> col Yellow "::" <> line <> brac Round Yellow (pT t)
+    typeann e t = brac Round Yellow (pE e) <+> (if inlineAnn opts then group else identity) (col Yellow "::" <> line <> brac Round Yellow (pT t))
 
 -- When grouped: " x "
 -- When ungrouped: "\n\tx\n"
@@ -226,10 +234,15 @@ rBrac Curly = "?}"
 
 -- Adds brackets of type b around "doc" with color c
 brac :: BracketType -> Color -> Doc AnsiStyle -> Doc AnsiStyle
-brac b c doc = col c (lBrac b) <> line' <> flatAlt (indent 2 doc) doc <> line' <> col c (rBrac b)
+--brac b c doc = col c (lBrac b) <> line' <> flatAlt (indent 2 doc) doc <> line' <> col c (rBrac b)
+brac b c doc = if 1 == length (T.words $ show doc) -- TODO: hack to avoid superfluous brackets
+  then doc
+  else col c (lBrac b) <> line' <> flatAlt (indent 2 doc) doc <> line' <> col c (rBrac b)
 
 col :: Color -> Doc AnsiStyle -> Doc AnsiStyle
-col = annotate . color
+col = \case
+  White -> identity -- TODO: hack! we use "White" to mean "terminal default"
+  c -> annotate $ color c
 
 -- | Pretty prints @Type'@ using Prettyprinter library
 prettyType :: PrettyOptions -> Type' b -> Doc AnsiStyle
