@@ -12,6 +12,7 @@ module Primer.Eval.Redex (
   runRedexTy,
   Dir (Syn, Chk),
   Cxt (Cxt),
+  cxtAddLet,
   _freeVarsLetBinding,
   EvalLog (..),
   MonadEval,
@@ -616,6 +617,7 @@ viewCaseRedex tydefs = \case
     formCaseRedex con argTys params args binders rhs (orig, scrut, conID) =
       CaseRedex{con, args, argTys, params, binders, rhs, orig, scrutID = getID scrut, conID}
 
+-- TODO: don't need to record nearly so much anymore -- a list of directly-enclosing let bindings would be good enough
 -- We record each binder, along with its let-bound RHS (if any)
 -- and its original binding location and  context (to be able to detect capture)
 -- Invariant: lookup x c == Just (Just l,_,_) ==> letBindingName l == x
@@ -623,6 +625,9 @@ newtype Cxt = Cxt (M.Map Name (Maybe LetBinding, ID, Cxt))
   -- We want right-biased mappend, as we will use this with 'Accum'
   -- and want later 'add's to overwrite earlier (more-global) context entries
   deriving (Semigroup, Monoid) via Dual (M.Map Name (Maybe LetBinding, ID, Cxt))
+
+cxtAddLet :: LetBinding -> Cxt -> Cxt
+cxtAddLet l (Cxt c) = Cxt $ M.insert (letBindingName l) (Just l, 0, mempty) c -- TODO: the 0, mempty are LIES, but we never care about these positions...
 
 lookup :: Name -> Cxt -> Maybe (Maybe LetBinding, ID, Cxt)
 lookup n (Cxt cxt) = M.lookup n cxt
