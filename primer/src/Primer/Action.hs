@@ -737,7 +737,7 @@ conInfo ::
   m (Either Text (TC.Type, Int))
 conInfo c =
   asks (flip lookupConstructor c . TC.typeDefs) <&> \case
-    Just (vc, tc, td) -> Right (valConType tc td vc, length $ vc.valConArgs)
+    Just (vc, tc, td) -> Right (valConType tc td vc, length vc.valConArgs)
     Nothing -> Left $ "Could not find constructor " <> show c
 
 getTypeCache :: MonadError ActionError m => Expr -> m TypeCache

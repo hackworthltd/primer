@@ -85,6 +85,7 @@ import Optics (
   ReversibleOptic (re),
   elemOf,
   folded,
+  getting,
   ifoldMap,
   mapped,
   over,
@@ -171,7 +172,7 @@ import Primer.Core (
 import Primer.Core.DSL (S, create, emptyHole, tEmptyHole)
 import Primer.Core.DSL qualified as DSL
 import Primer.Core.Transform (renameTyVar, renameVar, unfoldTApp)
-import Primer.Core.Utils (freeVars, freeVarsTy, generateTypeIDs, regenerateExprIDs, regenerateTypeIDs, _freeTmVars, _freeTyVars, _freeVarsTy)
+import Primer.Core.Utils (freeVars, generateTypeIDs, regenerateExprIDs, regenerateTypeIDs, _freeTmVars, _freeTyVars, _freeVarsTy)
 import Primer.Def (
   ASTDef (..),
   Def (..),
@@ -799,8 +800,8 @@ applyProgAction prog = \case
             traverseOf
               #astTypeDefConstructors
               ( \cons -> do
-                  when
-                    (vcName `notElem` map valConName cons)
+                  unless
+                    (vcName `elem` map valConName cons)
                     (throwError $ ConNotFound vcName)
                   pure $ filter ((/= vcName) . valConName) cons
               )
@@ -907,13 +908,17 @@ applyProgAction prog = \case
         ( \td -> do
             checkTypeNotInUse tdName td $ m : ms
             when
-              (any (elem paramName . freeVarsTy) $ concatMap valConArgs $ astTypeDefConstructors td)
+              ( elemOf
+                  (to astTypeDefConstructors % folded % to valConArgs % folded % getting _freeVarsTy % _2)
+                  paramName
+                  td
+              )
               (throwError $ TypeParamInUse tdName paramName)
             traverseOf
               #astTypeDefParameters
               ( \ps -> do
-                  when
-                    (paramName `notElem` map fst ps)
+                  unless
+                    (paramName `elem` map fst ps)
                     (throwError $ ParamNotFound paramName)
                   pure $ filter ((/= paramName) . fst) ps
               )

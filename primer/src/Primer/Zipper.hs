@@ -342,7 +342,7 @@ focusOn' i = fmap snd . search matchesID
       -- If the target has an embedded type, search the type for a match.
       -- If the target is a case expression with bindings, search each binding for a match.
       | otherwise =
-          let inType = focusType z >>= search (guarded (== i) . getID . target) <&> fst <&> InType
+          let inType = focusType z >>= search (guarded (== i) . getID . target) <&> InType . fst
               inCaseBinds = findInCaseBinds i z
            in inType <|> inCaseBinds
 
