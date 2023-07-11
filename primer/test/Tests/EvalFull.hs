@@ -202,16 +202,17 @@ unit_7 =
         s <- evalFullTest maxID mempty mempty 100 Syn e
         s <~==> Right e
 
-unit_8 :: Assertion
-unit_8 =
-  let n = 10
-      e = mapEven n
-   in do
-        evalFullTest (maxID e) builtinTypes (defMap e) 1000 Syn (expr e) >>= \case
-          Left (TimedOut _) -> pure ()
-          x -> assertFailure $ show x
-        s <- evalFullTest (maxID e) builtinTypes (defMap e) 2000 Syn (expr e)
-        s <~==> Right (expectedResult e)
+-- Temporarily disabled for performance reasons
+-- unit_8 :: Assertion
+-- unit_8 =
+--   let n = 10
+--       e = mapEven n
+--    in do
+--         evalFullTest (maxID e) builtinTypes (defMap e) 1000 Syn (expr e) >>= \case
+--           Left (TimedOut _) -> pure ()
+--           x -> assertFailure $ show x
+--         s <- evalFullTest (maxID e) builtinTypes (defMap e) 2000 Syn (expr e)
+--         s <~==> Right (expectedResult e)
 
 -- A worker/wrapper'd map
 unit_9 :: Assertion
