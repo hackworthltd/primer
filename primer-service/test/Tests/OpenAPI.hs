@@ -35,8 +35,10 @@ import Primer.API (
   Tree,
   TypeDef (..),
   TypeOrKind (..),
+  TypeParam (..),
   ValCon (..),
   viewTreeExpr,
+  viewTreeKind,
   viewTreeType,
  )
 import Primer.API.NodeFlavor (
@@ -72,6 +74,7 @@ import Primer.Gen.Core.Raw (
   genExpr,
   genGVarName,
   genID,
+  genKind,
   genLVarName,
   genModuleName,
   genName,
@@ -186,6 +189,9 @@ genExprTree = viewTreeExpr <$> genExpr
 genTypeTree :: ExprGen Tree
 genTypeTree = viewTreeType <$> genType
 
+genKindTree :: ExprGen Tree
+genKindTree = viewTreeKind <$> genKind
+
 tasty_NodeBody :: Property
 tasty_NodeBody =
   testToJSON $
@@ -224,7 +230,7 @@ genTypeDef :: ExprGen TypeDef
 genTypeDef =
   TypeDef
     <$> genTyConName
-    <*> G.list (R.linear 0 3) genTyVarName
+    <*> G.list (R.linear 0 3) (TypeParam <$> genTyVarName <*> genKindTree)
     <*> G.list (R.linear 0 3) genName
     <*> G.maybe
       ( G.list

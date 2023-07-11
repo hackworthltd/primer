@@ -54,6 +54,7 @@ import Primer.API (
   Tree,
   TypeDef,
   TypeOrKind,
+  TypeParam,
   ValCon,
  )
 import Primer.API qualified as API
@@ -156,6 +157,7 @@ deriving via PrimerJSON NodeFlavorPrimBody instance ToSchema NodeFlavorPrimBody
 deriving via PrimerJSON NodeFlavorBoxBody instance ToSchema NodeFlavorBoxBody
 deriving via PrimerJSON NodeFlavorNoBody instance ToSchema NodeFlavorNoBody
 deriving via PrimerJSON TypeDef instance ToSchema TypeDef
+deriving via PrimerJSON TypeParam instance ToSchema TypeParam
 deriving via PrimerJSON ValCon instance ToSchema ValCon
 deriving via PrimerJSON Def instance ToSchema Def
 deriving via NonEmpty Name instance ToSchema ModuleName

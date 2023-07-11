@@ -38,6 +38,7 @@ module Primer.API (
   Prog (Prog),
   Module (Module),
   TypeDef (TypeDef),
+  TypeParam (TypeParam),
   ValCon (ValCon),
   Def (Def),
   getProgram,
@@ -64,6 +65,7 @@ module Primer.API (
   -- The following are exported only for testing.
   viewTreeType,
   viewTreeExpr,
+  viewTreeKind,
   getApp,
   Selection,
   undoAvailable,
@@ -680,13 +682,21 @@ data Module = Module
 
 data TypeDef = TypeDef
   { name :: TyConName
-  , params :: [TyVarName]
+  , params :: [TypeParam]
   , nameHints :: [Name.Name]
   , constructors :: Maybe [ValCon]
   -- ^ a `Nothing` here indicates a primitive type (whereas `Just []` is `Void`)
   }
   deriving stock (Generic, Show, Read)
   deriving (ToJSON, FromJSON) via PrimerJSON TypeDef
+  deriving anyclass (NFData)
+
+data TypeParam = TypeParam
+  { name :: TyVarName
+  , kind :: Tree
+  }
+  deriving stock (Generic, Show, Read)
+  deriving (ToJSON, FromJSON) via PrimerJSON TypeParam
   deriving anyclass (NFData)
 
 data ValCon = ValCon
@@ -726,7 +736,7 @@ viewProg p =
             ( \(name, d) ->
                 TypeDef
                   { name
-                  , params = fst <$> typeDefParameters d
+                  , params = uncurry TypeParam . second viewTreeKind <$> typeDefParameters d
                   , nameHints = typeDefNameHints d
                   , constructors = case d of
                       TypeDef.TypeDefPrim _ -> Nothing

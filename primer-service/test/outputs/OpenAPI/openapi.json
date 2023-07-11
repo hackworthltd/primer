@@ -804,7 +804,7 @@
                     },
                     "params": {
                         "items": {
-                            "type": "string"
+                            "$ref": "#/components/schemas/TypeParam"
                         },
                         "type": "array"
                     }
@@ -942,6 +942,21 @@
                         "type": "object"
                     }
                 ]
+            },
+            "TypeParam": {
+                "properties": {
+                    "kind": {
+                        "$ref": "#/components/schemas/Tree"
+                    },
+                    "name": {
+                        "type": "string"
+                    }
+                },
+                "required": [
+                    "name",
+                    "kind"
+                ],
+                "type": "object"
             },
             "UUID": {
                 "example": "00000000-0000-0000-0000-000000000000",
