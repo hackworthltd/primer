@@ -286,11 +286,11 @@ unit_tryReduce_lettype = do
       detail.bodyID @?= 2
     _ -> assertFailure $ show result
 
--- let type x = x in ? :: x ==> ? :: (tlet x = x in x)
+-- let type x = x in ? :: x ==> (let type x = x in ?) :: (tlet x = x in x)
 unit_tryReduce_lettype_self_capture :: Assertion
 unit_tryReduce_lettype_self_capture = do
   let (expr, i) = create $ letType "x" (tvar "x") (emptyHole `ann` tvar "x")
-      expectedResult = create' $ emptyHole `ann` tlet "x" (tvar "x") (tvar "x")
+      expectedResult = create' $ letType "x" (tvar "x") emptyHole `ann` tlet "x" (tvar "x") (tvar "x")
   result <- runTryReduce tydefs mempty mempty (expr, i)
   case result of
     Right (expr', PushLetDown detail) -> do
@@ -1128,7 +1128,12 @@ unit_redexes_let_capture =
 unit_redexes_lettype_capture :: Assertion
 unit_redexes_lettype_capture = do
   -- We can push the letType down once
-  redexesOf (letType "x" (tvar "y") (emptyHole `ann` tforall "y" KType (tvar "x"))) <@?=> Set.singleton 0 -- TODO: we don't want the "forall y" to be a redex, do we? It is only a rename, and not blocking anything yet...
+ -- TODO: we don't really want the "forall y" to be a redex -- it is only a
+ -- rename, and not blocking anything yet. It would be preferable to only
+ -- consider renaming binders when they are immediately under the corresponding
+ -- @let@ (actually, immediately under a group of @let@s containing the
+ -- corresponding one).
+  redexesOf (letType "x" (tvar "y") (emptyHole `ann` tforall "y" KType (tvar "x"))) <@?=> Set.fromList [0,4]
   -- But now we should rename the forall and not push the tlet further
   redexesOf (emptyHole `ann` tlet "x" (tvar "y") (tforall "y" KType (tvar "x"))) <@?=> Set.singleton 4
 
