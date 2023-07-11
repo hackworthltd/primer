@@ -842,7 +842,6 @@ unit_findNodeByID_1 = do
     Just (locals, Left (_, z)) -> do
       case lookupNonCaptured "x" locals of
         Just (i, LetBind _ e) -> do
-          i @?= 2
           e ~= c
         Just _ -> assertFailure "expected to find 'x' let-bound, but found some other flavor of let"
         Nothing -> assertFailure "expected to find 'x' bound, but did not"
@@ -874,11 +873,8 @@ unit_findNodeByID_2 = do
   case findNodeByID 0 Syn expr of
     Just (locals, Right z) -> do
       case lookupNonCaptured "x" locals of
-        Just (i, LetTyBind (LetTypeBind _ e)) -> do
-          i @?= 2
-          e ~~= t
-        Just _ -> assertFailure "expected to find a type 'x' bound, but found a term"
-        Nothing -> assertFailure "expected to find 'x' bound, but did not"
+        Nothing -> pure ()
+        Just _ -> assertFailure "expected 'x' to not be bound by an immediately enclosing let, but it was"
       target z ~~= x
     _ -> assertFailure "node 0 not found"
 
@@ -896,7 +892,6 @@ unit_findNodeByID_tlet = do
     Just (locals, Right z) -> do
       case lookupNonCaptured "x" locals of
         Just (i, LetTyBind (LetTypeBind _ e)) -> do
-          i @?= 4
           e ~~= t
         Just _ -> assertFailure "expected to find a type 'x' bound, but found a term"
         Nothing -> assertFailure "expected to find 'x' bound, but did not"
@@ -908,9 +903,9 @@ unit_findNodeByID_scoping_1 = do
   let expr = create' $ let_ "x" (con0' ["M"] "C") $ lam "x" $ lvar "x"
   case findNodeByID 3 Syn expr of
     Just (Cxt locals, Left _)
-      | Just (Nothing, _, _) <- Map.lookup "x" locals ->
+      | Nothing <- Map.lookup "x" locals ->
           pure ()
-      | otherwise -> assertFailure "Expected 'x' to be in scope but not have a substitution"
+      | otherwise -> assertFailure "expected 'x' to not be bound by an immediately enclosing let, but it was"
     _ -> assertFailure "Expected to find the lvar 'x'"
 
 unit_findNodeByID_scoping_2 :: Assertion
@@ -922,7 +917,7 @@ unit_findNodeByID_scoping_2 = do
   case findNodeByID 4 Syn expr of
     Just (locals@(Cxt locals'), Left _)
       | Map.size locals' == 1
-      , lookupNonCaptured "x" locals == Just (3, LetBind "x" bind) ->
+      , (snd <$> lookupNonCaptured "x" locals) == Just (LetBind "x" bind) ->
           pure ()
     Just (_, Left _) -> assertFailure "Expected to have inner let binding of 'x' reported"
     _ -> assertFailure "Expected to find the lvar 'x'"
@@ -940,10 +935,10 @@ unit_findNodeByID_capture =
    in do
         case findNodeByID varOcc Syn expr of
           Just (locals@(Cxt locals'), Left _)
-            | Map.size locals' == 2
-            , Just (1, LetrecBind{}) <- lookupCaptured "x" locals ->
+            | Map.size locals' == 0
+            , Nothing <- lookupCaptured "x" locals ->
                 pure ()
-          Just (_, Left _) -> assertFailure "Expected let binding of 'x' to be reported as captured-if-inlined"
+            | otherwise -> assertFailure "expected 'x' to not be bound by an immediately enclosing let, but it was"
           _ -> assertFailure "Expected to find the lvar 'x'"
         reduct <- runStep maxID mempty mempty (expr, varOcc)
         case reduct of
@@ -959,11 +954,11 @@ unit_findNodeByID_capture_type =
    in do
         case findNodeByID varOcc Syn expr of
           Just (locals@(Cxt locals'), Right _)
-            | Map.size locals' == 3
-            , Just (1, LetTyBind _) <- lookupCaptured "x" locals
-            , Just (5, LetTyBind _) <- lookupCaptured "z" locals ->
+            | Map.size locals' == 0
+            , Nothing <- lookupCaptured "x" locals
+            , Nothing <- lookupCaptured "z" locals ->
                 pure ()
-          Just (_, Right _) -> assertFailure "Expected lettype binding of 'x' and the tlet binding of 'z' to be reported as captured-if-inlined" -- TODO: can probably remove all the "captured-if-inlined" stuff as don't do inlining like that now
+            | otherwise -> assertFailure "expected 'x' to not be bound by an immediately enclosing let, but it was"
           _ -> assertFailure "Expected to find the lvar 'x'"
         reduct <- runStep maxID mempty mempty (expr, varOcc)
         case reduct of
