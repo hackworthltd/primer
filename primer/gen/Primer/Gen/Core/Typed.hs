@@ -272,7 +272,10 @@ genSyns ty = do
           Just . (APP () s aTy,) <$> substTy a aTy instTy
         _ -> pure Nothing
     genPrimCon' = do
-      genPrimCon <&> map (bimap (fmap $ PrimCon ()) (TCon ())) <&> filter (consistentTypes ty . snd) <&> \case
+      consistentCons <-
+        filter (consistentTypes ty . snd) . map (bimap (fmap $ PrimCon ()) (TCon ()))
+          <$> genPrimCon
+      pure $ case consistentCons of
         [] -> Nothing
         gens -> Just $ Gen.choice $ (\(g, t) -> (,t) <$> g) <$> gens
     genLet =

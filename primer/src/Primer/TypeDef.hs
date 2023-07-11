@@ -86,7 +86,7 @@ data ValCon b = ValCon
 valConType :: TyConName -> ASTTypeDef () -> ValCon () -> Type' ()
 valConType tc td vc =
   let ret = mkTAppCon tc (TVar () . fst <$> astTypeDefParameters td)
-      args = foldr (TFun ()) ret (forgetTypeMetadata <$> valConArgs vc)
+      args = foldr (TFun () . forgetTypeMetadata) ret (valConArgs vc)
       foralls = foldr (\(n, k) t -> TForall () n k t) args (astTypeDefParameters td)
    in foralls
 

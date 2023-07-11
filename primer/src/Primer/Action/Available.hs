@@ -34,7 +34,11 @@ import Data.Tuple.Extra (
   uncurry3,
  )
 import Optics (
+  Field2 (_2),
   afailing,
+  elemOf,
+  folded,
+  getting,
   to,
   view,
   (%),
@@ -85,7 +89,7 @@ import Primer.Core (
   _typeMetaLens,
  )
 import Primer.Core.Transform (decomposeTAppCon)
-import Primer.Core.Utils (forgetTypeMetadata, freeVars, freeVarsTy)
+import Primer.Core.Utils (forgetTypeMetadata, freeVars, _freeVarsTy)
 import Primer.Def (
   ASTDef (..),
   DefMap,
@@ -385,7 +389,10 @@ forTypeDefParamNode paramName l Editable tydefs defs tdName td =
         ( l == Expert
             && not
               ( typeInUse tdName td tydefs defs
-                  || any (elem paramName . freeVarsTy) (concatMap valConArgs $ astTypeDefConstructors td)
+                  || elemOf
+                    (to astTypeDefConstructors % folded % to valConArgs % folded % getting _freeVarsTy % _2)
+                    paramName
+                    td
               )
         )
         [NoInput DeleteTypeParam]
