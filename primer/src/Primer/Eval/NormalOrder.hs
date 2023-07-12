@@ -25,8 +25,6 @@ import Primer.Core (
     LetType,
     Letrec
   ),
-  TyVarName,
-  Type,
   Type' (
     TLet
   ),
@@ -115,11 +113,10 @@ foldMapExpr extract topDir = go mempty . (topDir,) . focus
     go :: Cxt -> (Dir, ExprZ) -> f a
     go lets dez@(d, ez) =
       extract.expr ez d lets
-        <|> case (extract.subst, viewLet dez) of
-          (Just goSubst, Just (ViewLet{bindingVL, bodyVL = (d', b)})) -> goSubst bindingVL b d' $ cxtAddLet bindingVL lets
+        <|> case viewLet dez of
           -- Prefer to compute inside the body of a let, but otherwise compute in the binding
           -- NB: we never push lets into lets, so the Cxt is reset for non-body children
-          (Nothing, Just (ViewLet{bindingVL, bodyVL, typeChildrenVL, termChildrenVL})) ->
+          Just (ViewLet{bindingVL, bodyVL, typeChildrenVL, termChildrenVL}) ->
             msum $
               go (cxtAddLet bindingVL lets) bodyVL
                 : map (goType mempty) typeChildrenVL
@@ -134,10 +131,8 @@ foldMapExpr extract topDir = go mempty . (topDir,) . focus
     goType :: Cxt -> TypeZ -> f a
     goType lets tz =
       extract.ty tz lets
-        <|> case (extract.substTy, target tz) of
-          (Just goSubstTy, TLet _ a t _body)
-            | [_, bz] <- typeChildren tz -> goSubstTy a t bz lets
-          (Nothing, TLet _ a t _body)
+        <|> case target tz of
+          TLet _ a t _body
             -- Prefer to compute inside the body of a let, but otherwise compute in the binding
             | [tz', bz] <- typeChildren tz -> goType (cxtAddLet (LetTyBind $ LetTypeBind a t) lets) bz <|> goType mempty tz'
           _ -> msum $ map (goType mempty) $ typeChildren tz
@@ -145,8 +140,6 @@ foldMapExpr extract topDir = go mempty . (topDir,) . focus
 data FMExpr m = FMExpr
   { expr :: ExprZ -> Dir -> Cxt -> m
   , ty :: TypeZ -> Cxt -> m
-  , subst :: Maybe (LetBinding -> ExprZ {- The body of the let-} -> Dir -> Cxt -> m)
-  , substTy :: Maybe (TyVarName -> Type -> TypeZ -> Cxt -> m)
   }
 
 focusType' :: MonadPlus m => ExprZ -> m TypeZ
@@ -167,8 +160,6 @@ findRedex opts tydefs globals =
     ( FMExpr
         { expr = \ez d -> runReaderT (RExpr ez <$> viewRedex opts tydefs globals d (target ez))
         , ty = \tz -> hoistMaybe . runReader (RType tz <<$>> viewRedexType opts (target tz))
-        , subst = Nothing
-        , substTy = Nothing
         }
     )
 
