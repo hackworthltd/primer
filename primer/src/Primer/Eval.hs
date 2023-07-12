@@ -54,7 +54,7 @@ import Primer.Eval.Detail (
  )
 import Primer.Eval.EvalError (EvalError (..))
 import Primer.Eval.NormalOrder (
-  FMExpr (FMExpr, expr, subst, substTy, ty),
+  FMExpr (FMExpr, expr, ty),
   foldMapExpr,
   singletonCxt,
  )
@@ -113,8 +113,6 @@ findNodeByID i =
     FMExpr
       { expr = \ez d c -> if getID ez == i then Just (c, Left (d, ez)) else Nothing
       , ty = \tz c -> if getID tz == i then Just (c, Right tz) else Nothing
-      , subst = Nothing
-      , substTy = Nothing
       }
 
 -- | Return the IDs of nodes which are reducible.
@@ -135,8 +133,6 @@ redexes tydefs globals =
       FMExpr
         { expr = \ez d -> liftMaybeT . runReaderT (getID ez <$ viewRedex tydefs globals d (target ez))
         , ty = \tz -> runReader (whenJust (getID tz) <$> viewRedexType (target tz))
-        , subst = Nothing
-        , substTy = Nothing
         }
   where
     liftMaybeT :: Monad m' => MaybeT m' a -> ListT m' a
