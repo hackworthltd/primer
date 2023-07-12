@@ -142,11 +142,11 @@ unit_3 :: Assertion
 unit_3 =
   let ((expr, expected), maxID) = create $ do
         e <- letType "a" (tvar "b") $ emptyHole `ann` (tcon' ["M"] "T" `tapp` tvar "a" `tapp` tforall "a" KType (tvar "a") `tapp` tforall "b" KType (tcon' ["M"] "S" `tapp` tvar "a" `tapp` tvar "b"))
-        let b' = "a48" -- NB: fragile name
+        let b' = "a42" -- NB: fragile name
         expect <- emptyHole `ann` (tcon' ["M"] "T" `tapp` tvar "b" `tapp` tforall "a" KType (tvar "a") `tapp` tforall b' KType (tcon' ["M"] "S" `tapp` tvar "b" `tapp` tvar b'))
         pure (e, expect)
    in do
-        s <- evalFullTest maxID mempty mempty 18 Syn expr
+        s <- evalFullTest maxID mempty mempty 12 Syn expr
         s <~==> Right expected
 
 -- Check we don't have shadowing issues in terms
@@ -154,11 +154,11 @@ unit_4 :: Assertion
 unit_4 =
   let ((expr, expected), maxID) = create $ do
         e <- let_ "a" (lvar "b") $ con' ["M"] "C" [lvar "a", lam "a" (lvar "a"), lam "b" (con' ["M"] "D" [lvar "a", lvar "b"])]
-        let b' = "a24" -- NB: fragile name
+        let b' = "a22" -- NB: fragile name
         expect <- con' ["M"] "C" [lvar "b", lam "a" (lvar "a"), lam b' (con' ["M"] "D" [lvar "b", lvar b'])]
         pure (e, expect)
    in do
-        s <- evalFullTest maxID mempty mempty 11 Syn expr
+        s <- evalFullTest maxID mempty mempty 8 Syn expr
         s <~==> Right expected
 
 -- This test is slightly unfortunate.
@@ -209,10 +209,10 @@ unit_8 =
   let n = 10
       e = mapEven n
    in do
-        evalFullTest (maxID e) builtinTypes (defMap e) 1000 Syn (expr e) >>= \case
+        evalFullTest (maxID e) builtinTypes (defMap e) 500 Syn (expr e) >>= \case
           Left (TimedOut _) -> pure ()
           x -> assertFailure $ show x
-        s <- evalFullTest (maxID e) builtinTypes (defMap e) 2000 Syn (expr e)
+        s <- evalFullTest (maxID e) builtinTypes (defMap e) 1000 Syn (expr e)
         s <~==> Right (expectedResult e)
 
 -- A worker/wrapper'd map
@@ -230,10 +230,10 @@ unit_9 =
         expect <- list_ (take n $ cycle [con0 cTrue, con0 cFalse]) `ann` (tcon tList `tapp` tcon tBool)
         pure (globs, expr, expect)
    in do
-        evalFullTest maxID builtinTypes (M.fromList globals) 1000 Syn e >>= \case
+        evalFullTest maxID builtinTypes (M.fromList globals) 500 Syn e >>= \case
           Left (TimedOut _) -> pure ()
           x -> assertFailure $ show x
-        s <- evalFullTest maxID builtinTypes (M.fromList globals) 2000 Syn e
+        s <- evalFullTest maxID builtinTypes (M.fromList globals) 1000 Syn e
         s <~==> Right expected
 
 -- A case redex must have an scrutinee which is an annotated constructor.
@@ -328,9 +328,7 @@ unit_14 =
 --   let x = y in λy.C x y
 --   let x = y in λz. let y = z in C x y
 --   λz. let x = y in let y = z in C x y
---   λz. C (let x = y in let y = z in x) (let x = y in let y = z in y)
---   λz. C (let x = y in x) (let x = y in let y = z in y)
---   λz. C y (let x = y in let y = z in y)
+--   λz. C (let x = y in x) (let y = z in y)
 --   λz. C y (let y = z in y)
 --   λz. C y z
 unit_15 :: Assertion
@@ -339,16 +337,14 @@ unit_15 =
         let l = let_ "x" (lvar "y")
         let c a b = con' ["M"] "C" [a, b]
         e0 <- l $ lam "y" $ c (lvar "x") (lvar "y")
-        let y' = "a62"
+        let y' = "a40"
         let rny = let_ "y" (lvar y')
         e1 <- l $ lam y' $ rny $ c (lvar "x") (lvar "y")
         e2 <- lam y' $ l $ rny $ c (lvar "x") (lvar "y")
-        e3 <- lam y' $ c (l $ rny $ lvar "x") (l $ rny $ lvar "y")
-        e4 <- lam y' $ c (l $ lvar "x") (l $ rny $ lvar "y")
-        e5 <- lam y' $ c (lvar "y") (l $ rny $ lvar "y")
-        e6 <- lam y' $ c (lvar "y") (rny $ lvar "y")
-        e7 <- lam y' $ c (lvar "y") (lvar y')
-        pure (e0, [e0, e1, e2, e3, e4, e5, e6, e7], e7)
+        e3 <- lam y' $ c (l $ lvar "x") (rny $ lvar "y")
+        e4 <- lam y' $ c (lvar "y") (rny $ lvar "y")
+        e5 <- lam y' $ c (lvar "y") (lvar y')
+        pure (e0, [e0, e1, e2, e3, e4, e5], e5)
    in do
         si <- traverse (\i -> evalFullTest maxID builtinTypes mempty i Syn expr) [0 .. fromIntegral $ length steps - 1]
         zipWithM_ (\s e -> s <~==> Left (TimedOut e)) si steps
@@ -368,8 +364,8 @@ unit_case_let_capture :: Assertion
 unit_case_let_capture =
   let ((expr, steps, expected), maxID) = create $ do
         let l = let_ "x" (lvar "y")
-        let w = "a96"
-        let z = "a99"
+        let w = "a66"
+        let z = "a69"
         let rnx = let_ "x" (lvar w)
         let rny = let_ "y" (lvar z)
         e0 <-
@@ -395,41 +391,29 @@ unit_case_let_capture =
               ]
         e3 <-
           case_
-            (l emptyHole)
-            [ branch' (["M"], "C") [(w, Nothing)] (l $ rnx $ lvar "x")
+            emptyHole
+            [ branch' (["M"], "C") [(w, Nothing)] (rnx $ lvar "x")
             , branch' (["M"], "D") [(z, Nothing)] (l $ rny $ lvar "x")
             ]
         e4 <-
           case_
             emptyHole
-            [ branch' (["M"], "C") [(w, Nothing)] (l $ rnx $ lvar "x")
+            [ branch' (["M"], "C") [(w, Nothing)] (lvar w)
             , branch' (["M"], "D") [(z, Nothing)] (l $ rny $ lvar "x")
             ]
         e5 <-
           case_
             emptyHole
-            [ branch' (["M"], "C") [(w, Nothing)] (rnx $ lvar "x")
-            , branch' (["M"], "D") [(z, Nothing)] (l $ rny $ lvar "x")
+            [ branch' (["M"], "C") [(w, Nothing)] (lvar w)
+            , branch' (["M"], "D") [(z, Nothing)] (l $ lvar "x")
             ]
         e6 <-
           case_
             emptyHole
             [ branch' (["M"], "C") [(w, Nothing)] (lvar w)
-            , branch' (["M"], "D") [(z, Nothing)] (l $ rny $ lvar "x")
-            ]
-        e7 <-
-          case_
-            emptyHole
-            [ branch' (["M"], "C") [(w, Nothing)] (lvar w)
-            , branch' (["M"], "D") [(z, Nothing)] (l $ lvar "x")
-            ]
-        e8 <-
-          case_
-            emptyHole
-            [ branch' (["M"], "C") [(w, Nothing)] (lvar w)
             , branch' (["M"], "D") [(z, Nothing)] (lvar "y")
             ]
-        pure (e0, [e0, e1, e2, e3, e4, e5, e6, e7, e8], e8)
+        pure (e0, [e0, e1, e2, e3, e4, e5, e6], e6)
    in do
         si <- traverse (\i -> evalFullTest maxID builtinTypes mempty i Syn expr) [0 .. fromIntegral $ length steps - 1]
         zipWithM_ (\s e -> s <~==> Left (TimedOut e)) si steps
@@ -452,7 +436,7 @@ unit_letrec_body_first =
       (expr, maxID) = create $ ls (lvar "xs")
       expected1 = create' $ ls $ con cCons [lvar "x", lvar "xs"] `ann` (tcon tList `tapp` tEmptyHole)
       expected2 = create' $ ls (con cCons [lvar "x", lvar "xs"]) `ann` (tcon tList `tapp` tEmptyHole)
-      expected3 = create' $ con cCons [ls $ lvar "x", ls $ lvar "xs"] `ann` (tcon tList `tapp` tEmptyHole)
+      expected3 = create' $ con cCons [lx $ lvar "x", ls $ lvar "xs"] `ann` (tcon tList `tapp` tEmptyHole)
    in do
         e1 <- evalFullTest maxID builtinTypes mempty 1 Syn expr
         e1 <~==> Left (TimedOut expected1)
@@ -465,8 +449,6 @@ unit_letrec_body_first =
 --   ==>
 -- (tlet x = C in D x) (tlet x = C in x)
 --   ==>
--- (tlet x = C in D) (tlet x = C in x) (tlet x = C in x)
---   ==>
 -- D (tlet x = C in x) (tlet x = C in x)
 --   ==>
 -- D C (tlet x = C in x)
@@ -477,11 +459,10 @@ unit_tlet =
   let ((expr, expected), maxID) = create $ do
         e0 <- ann emptyHole $ tlet "x" (tcon' ["M"] "C") (tcon' ["M"] "D" `tapp` tvar "x" `tapp` tvar "x")
         e1 <- ann emptyHole $ tlet "x" (tcon' ["M"] "C") (tcon' ["M"] "D" `tapp` tvar "x") `tapp` tlet "x" (tcon' ["M"] "C") (tvar "x")
-        e2 <- ann emptyHole $ tlet "x" (tcon' ["M"] "C") (tcon' ["M"] "D") `tapp` tlet "x" (tcon' ["M"] "C") (tvar "x") `tapp` tlet "x" (tcon' ["M"] "C") (tvar "x")
-        e3 <- ann emptyHole $ tcon' ["M"] "D" `tapp` tlet "x" (tcon' ["M"] "C") (tvar "x") `tapp` tlet "x" (tcon' ["M"] "C") (tvar "x")
-        e4 <- ann emptyHole $ tcon' ["M"] "D" `tapp` tcon' ["M"] "C" `tapp` tlet "x" (tcon' ["M"] "C") (tvar "x")
-        e5 <- ann emptyHole $ tcon' ["M"] "D" `tapp` tcon' ["M"] "C" `tapp` tcon' ["M"] "C"
-        pure (e0, map (Left . TimedOut) [e0, e1, e2, e3, e4, e5] ++ [Right e5])
+        e2 <- ann emptyHole $ tcon' ["M"] "D" `tapp` tlet "x" (tcon' ["M"] "C") (tvar "x") `tapp` tlet "x" (tcon' ["M"] "C") (tvar "x")
+        e3 <- ann emptyHole $ tcon' ["M"] "D" `tapp` tcon' ["M"] "C" `tapp` tlet "x" (tcon' ["M"] "C") (tvar "x")
+        e4 <- ann emptyHole $ tcon' ["M"] "D" `tapp` tcon' ["M"] "C" `tapp` tcon' ["M"] "C"
+        pure (e0, map (Left . TimedOut) [e0, e1, e2, e3, e4] ++ [Right e4])
       test (n, expect) = do
         r <- evalFullTest maxID mempty mempty n Syn expr
         r <~==> expect
@@ -681,17 +662,8 @@ unit_type_preservation_BETA_regression =
         -- NB: the point of the ... `app` lvar x is to make the annotated term be in SYN position
         -- so we reduce the type, rather than taking an upsilon step
         -- Push the let b
-        -- Λb. λx. ((lettype a = b Bool in λc (? : a)) : ((let b = b Bool in Nat) -> (let b = b Bool in b))) x
-        expectA2 <-
-          lAM "b" $
-            lam "x" $
-              ( letType "a" (tvar "b" `tapp` tcon tBool) (lam "c" $ emptyHole `ann` tvar "a")
-                  `ann` (tlet "b" (tvar "b" `tapp` tcon tBool) (tcon tNat) `tfun` tlet "b" (tvar "b" `tapp` tcon tBool) (tvar "b"))
-              )
-                `app` lvar "x"
-        -- Elide a let
         -- Λb. λx. ((lettype a = b Bool in λc (? : a)) : (Nat -> (let b = b Bool in b))) x
-        expectA3 <-
+        expectA2 <-
           lAM "b" $
             lam "x" $
               ( letType "a" (tvar "b" `tapp` tcon tBool) (lam "c" $ emptyHole `ann` tvar "a")
@@ -700,7 +672,7 @@ unit_type_preservation_BETA_regression =
                 `app` lvar "x"
         -- Inline the let
         -- Λb. λx. ((lettype a = b Bool in λc (? : a)) : (Nat -> b Bool)) x
-        expectA4 <-
+        expectA3 <-
           lAM "b" $
             lam "x" $
               ( letType "a" (tvar "b" `tapp` tcon tBool) (lam "c" $ emptyHole `ann` tvar "a")
@@ -709,7 +681,7 @@ unit_type_preservation_BETA_regression =
                 `app` lvar "x"
         -- Push the let
         -- Λb. λx. (λc (lettype a = b Bool in (? : a)) : (Nat -> b Bool)) x
-        expectA5 <-
+        expectA4 <-
           lAM "b" $
             lam "x" $
               ( lam "c" (letType "a" (tvar "b" `tapp` tcon tBool) (emptyHole `ann` tvar "a"))
@@ -718,44 +690,33 @@ unit_type_preservation_BETA_regression =
                 `app` lvar "x"
         -- Do the beta step
         -- Λb. λx. (let c = (x : Nat) in (lettype a = b Bool in (? : a)) : (b Bool))
-        expectA6 <-
+        expectA5 <-
           lAM "b" $
             lam "x" $
               let_ "c" (lvar "x" `ann` tcon tNat) (letType "a" (tvar "b" `tapp` tcon tBool) (emptyHole `ann` tvar "a"))
                 `ann` (tvar "b" `tapp` tcon tBool)
         -- Elide a let
         -- Λb. λx. ((lettype a = b Bool in (? : a)) : (b Bool))
-        expectA7 <-
+        expectA6 <-
           lAM "b" $
             lam "x" $
               letType "a" (tvar "b" `tapp` tcon tBool) (emptyHole `ann` tvar "a")
                 `ann` (tvar "b" `tapp` tcon tBool)
-        -- Push the let
-        -- Λb. λx. (((lettype a = b Bool in ?) : (lettype a = b Bool in a)) : (b Bool))
+        -- Push the lets, eliding those that are redundant
+        -- Λb. λx. ((? : lettype a = b Bool in a) : (b Bool))
+        expectA7 <-
+          lAM "b" $
+            lam "x" $
+              emptyHole
+                `ann` tlet "a" (tvar "b" `tapp` tcon tBool) (tvar "a")
+                `ann` (tvar "b" `tapp` tcon tBool)
+        -- Inline the let
+        -- Λb. λx. ((? : b Bool) : (b Bool))
         expectA8 <-
           lAM "b" $
             lam "x" $
-              ( letType "a" (tvar "b" `tapp` tcon tBool) emptyHole
-                  `ann` tlet "a" (tvar "b" `tapp` tcon tBool) (tvar "a")
-              )
+              emptyHole
                 `ann` (tvar "b" `tapp` tcon tBool)
-        -- Inline a let
-        -- Λb. λx. (((lettype a = b Bool in ?) : (b Bool)) : (b Bool))
-        expectA9 <-
-          lAM "b" $
-            lam "x" $
-              ( letType "a" (tvar "b" `tapp` tcon tBool) emptyHole
-                  `ann` (tvar "b" `tapp` tcon tBool)
-              )
-                `ann` (tvar "b" `tapp` tcon tBool)
-        -- Elide a pointless let
-        -- Λb. λx. ((? : (b Bool)) : (b Bool))
-        expectA10 <-
-          lAM "b" $
-            lam "x" $
-              ( emptyHole
-                  `ann` (tvar "b" `tapp` tcon tBool)
-              )
                 `ann` (tvar "b" `tapp` tcon tBool)
         -- The 'B' sequence previously captured in the term "t" above
         -- Λb. (Λa (foo @(b Bool) : ∀b.Nat) @Char
@@ -781,19 +742,16 @@ unit_type_preservation_BETA_regression =
         pure
           (
             ( eA
-            , NE.zip
-                [1 ..]
-                [ expectA1
-                , expectA2
-                , expectA3
-                , expectA4
-                , expectA5
-                , expectA6
-                , expectA7
-                , expectA8
-                , expectA9
-                , expectA10
-                ]
+            ,
+              [ (1, expectA1)
+              , (2, expectA2)
+              , (3, expectA3)
+              , (4, expectA4)
+              , (5, expectA5)
+              , (6, expectA6)
+              , (7, expectA7)
+              , (8, expectA8)
+              ]
             )
           , (eB, [(1, expectB1), (3, expectB3)])
           )
@@ -832,12 +790,10 @@ unit_let_self_capture =
           , expr3
           , expected3a
           , expected3b
-          , expected3c
           , expr4
           , expected4a
           , expected4b
           , expected4c
-          , expected4d
           )
         , maxID
         ) = create $ do
@@ -846,9 +802,8 @@ unit_let_self_capture =
           e2 <- lam "x" $ let_ "x" (lvar "x") (lvar "x")
           expect2 <- lam "x" $ lvar "x"
           e3 <- lAM "x" $ letType "x" (tvar "x") (emptyHole `ann` tvar "x")
-          expect3a <- lAM "x" $ letType "x" (tvar "x") emptyHole `ann` tlet "x" (tvar "x") (tvar "x")
-          expect3b <- lAM "x" $ letType "x" (tvar "x") emptyHole `ann` tvar "x"
-          expect3c <- lAM "x" $ emptyHole `ann` tvar "x"
+          expect3a <- lAM "x" $ emptyHole `ann` tlet "x" (tvar "x") (tvar "x")
+          expect3b <- lAM "x" $ emptyHole `ann` tvar "x"
           -- We do not need to do anything special for letrec
           e4 <- lAM "a" $ lam "f" $ lam "x" $ letrec "x" (lvar "f" `app` lvar "x") (tvar "a") (lvar "x")
           expect4a <-
@@ -866,14 +821,6 @@ unit_let_self_capture =
             lAM "a" $
               lam "f" $
                 lam "x" $
-                  ( letrec "x" (lvar "f" `app` lvar "x") (tvar "a") (lvar "f")
-                      `app` letrec "x" (lvar "f" `app` lvar "x") (tvar "a") (lvar "x")
-                  )
-                    `ann` tvar "a"
-          expect4d <-
-            lAM "a" $
-              lam "f" $
-                lam "x" $
                   (lvar "f" `app` letrec "x" (lvar "f" `app` lvar "x") (tvar "a") (lvar "x")) `ann` tvar "a"
           pure
             ( e1
@@ -883,12 +830,10 @@ unit_let_self_capture =
             , e3
             , expect3a
             , expect3b
-            , expect3c
             , e4
             , expect4a
             , expect4b
             , expect4c
-            , expect4d
             )
       s1 n = evalFullTest maxID mempty mempty n Chk expr1
       s2 n = evalFullTest maxID mempty mempty n Chk expr2
@@ -909,12 +854,10 @@ unit_let_self_capture =
         s2 2 >>= (<~==> Right expected2)
         s3 1 >>= (<~==> Left (TimedOut expected3a))
         s3 2 >>= (<~==> Left (TimedOut expected3b))
-        s3 3 >>= (<~==> Left (TimedOut expected3c))
-        s3 4 >>= (<~==> Right expected3c)
+        s3 3 >>= (<~==> Right expected3b)
         s4 1 >>= (<~==> Left (TimedOut expected4a))
         s4 2 >>= (<~==> Left (TimedOut expected4b))
         s4 3 >>= (<~==> Left (TimedOut expected4c))
-        s4 4 >>= (<~==> Left (TimedOut expected4d))
 
 -- | @spanM p mxs@ returns a tuple where the first component is the
 -- values coming from the longest prefix of @mxs@ all of which satisfy
@@ -953,28 +896,13 @@ unit_regression_self_capture_let_let = do
               lvar "y" `app` lvar "x"
       f =
         lAM "y" $
-          let_
-            "x"
-            (emptyHole `ann` tvar "y")
-            ( let_ "y" (emptyHole `ann` tvar "y") $
-                lvar "y"
-            )
-            `app` let_
-              "x"
-              (emptyHole `ann` tvar "y")
-              ( let_ "y" (emptyHole `ann` tvar "y") $
-                  lvar "x"
-              )
-      g =
-        lAM "y" $
-          (emptyHole `ann` tvar "y")
+          let_ "y" (emptyHole `ann` tvar "y") (lvar "y")
             `app` let_ "x" (emptyHole `ann` tvar "y") (lvar "x")
       (e', i) = create e
       ev n = evalFullTest i mempty mempty n Chk e'
       x ~ y = x >>= (<~==> Left (TimedOut (create' y)))
   ev 0 ~ e
   ev 1 ~ f
-  ev 4 ~ g
 
 -- | Evaluation preserves types
 -- (assuming we don't end with a 'LetType' in the term, as the typechecker
@@ -1449,7 +1377,7 @@ unit_prim_partial_map =
         --     and then in two steps (expand @go@, push stack of let+letrec)
         --        @λxs. let α=Char, β=Char, f=toUpper in (letrec go : List α -> List β; go = λxs.RHS in RHS : List α -> List β)
         --     we carry around the subst for α,β and f, using α,β inside annotation and f in RHS each time expand the letrec
-        s <- evalFullTest maxID builtinTypes (gs <> primDefs) 169 Syn e
+        s <- evalFullTest maxID builtinTypes (gs <> primDefs) 91 Syn e
         s <~==> Right r
 
 -- Test that handleEvalFullRequest will reduce imported terms

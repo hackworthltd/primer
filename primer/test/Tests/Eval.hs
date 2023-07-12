@@ -291,11 +291,11 @@ unit_tryReduce_lettype = do
       detail.bodyID @?= 2
     _ -> assertFailure $ show result
 
--- let type x = x in ? :: x ==> (let type x = x in ?) :: (tlet x = x in x)
+-- let type x = x in ? :: x ==> ? :: (tlet x = x in x)
 unit_tryReduce_lettype_self_capture :: Assertion
 unit_tryReduce_lettype_self_capture = do
   let (expr, i) = create $ letType "x" (tvar "x") (emptyHole `ann` tvar "x")
-      expectedResult = create' $ letType "x" (tvar "x") emptyHole `ann` tlet "x" (tvar "x") (tvar "x")
+      expectedResult = create' $ emptyHole `ann` tlet "x" (tvar "x") (tvar "x")
   result <- runTryReduce tydefs mempty mempty (expr, i)
   case result of
     Right (expr', PushLetDown detail) -> do
@@ -723,6 +723,42 @@ unit_tryReduce_prim_fail_unreduced_args = do
             `app` (pfun ToUpper `app` char 'a')
   result <- runTryReduce tydefs primDefs mempty (expr, i)
   result @?= Left NotRedex
+
+-- we should not elide @let x = ...@ here, as it is required for @let y@ which is not elided
+unit_tryReduce_push_elide_1 :: Assertion
+unit_tryReduce_push_elide_1 = do
+  let (expr, i) =
+        create $ let_ "x" (con0 cTrue) $ let_ "y" (lvar "x") $ lam "z" $ lvar "y"
+  result <- runTryReduce tydefs mempty mempty (expr, i)
+  case result of
+    Right (expr', _) -> expr' ~= create' (lam "z" $ let_ "x" (con0 cTrue) $ let_ "y" (lvar "x") $ lvar "y")
+    _ -> assertFailure $ show result
+
+-- we should elide the outer @let x = ...@ in one branch, and the inner in the other
+unit_tryReduce_push_elide_2 :: Assertion
+unit_tryReduce_push_elide_2 = do
+  let (expr, i) =
+        create $ let_ "x" (con0 cTrue) $ let_ "y" (lvar "x") $ let_ "x" (con0 cFalse) $ app (lvar "x") (lvar "y")
+  result <- runTryReduce tydefs mempty mempty (expr, i)
+  case result of
+    Right (expr', _) ->
+      expr'
+        ~= create'
+          ( app
+              (let_ "x" (con0 cFalse) $ lvar "x")
+              (let_ "x" (con0 cTrue) $ let_ "y" (lvar "x") $ lvar "y")
+          )
+    _ -> assertFailure $ show result
+
+-- we should not elide the outer @let x = ...@ here
+unit_tryReduce_push_elide_3 :: Assertion
+unit_tryReduce_push_elide_3 = do
+  let (expr, i) =
+        create $ let_ "x" (con0 cTrue) $ let_ "x" (lvar "x") $ lam "z" $ lvar "x"
+  result <- runTryReduce tydefs mempty mempty (expr, i)
+  case result of
+    Right (expr', _) -> expr' ~= create' (lam "z" $ let_ "x" (con0 cTrue) $ let_ "x" (lvar "x") $ lvar "x")
+    _ -> assertFailure $ show result
 
 runStep :: ID -> TypeDefMap -> DefMap -> (Expr, ID) -> IO (Either EvalError (Expr, EvalDetail))
 runStep i' tys globals (e, i) = do
