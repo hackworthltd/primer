@@ -22,7 +22,7 @@ module Primer.Eval (
   -- Only exported for testing
   Cxt (Cxt),
   singletonCxt,
-  getNonCapturedLocal,
+  lookupEnclosingLet,
   tryReduceExpr,
   tryReduceType,
   findNodeByID,
@@ -67,7 +67,7 @@ import Primer.Eval.Redex (
   MonadEval,
   RunRedexOptions (RunRedexOptions, pushAndElide),
   ViewRedexOptions (ViewRedexOptions, aggressiveElision, groupedLets),
-  getNonCapturedLocal,
+  lookupEnclosingLet,
   runRedex,
   runRedexTy,
   viewRedex,

@@ -20,7 +20,7 @@ module Primer.Eval.Redex (
   EvalLog (..),
   MonadEval,
   -- Exported for testing
-  getNonCapturedLocal,
+  lookupEnclosingLet,
 ) where
 
 import Foreword
@@ -34,13 +34,11 @@ import Data.List (zip3)
 import Data.Map qualified as M
 import Data.Set qualified as S
 import Data.Set.Optics (setOf)
-import Data.Tuple.Extra (snd3)
 import GHC.Err (error)
 import Optics (
   AffineFold,
   Fold,
   afolding,
-  allOf,
   folded,
   getting,
   ifiltered,
@@ -641,21 +639,15 @@ viewCaseRedex tydefs = \case
 -- TODO: don't need to record nearly so much anymore (a list of directly-enclosing let bindings would be good enough)
 --       This will be addressed in the next two commits
 -- We record each directly-enclosing let binder, along with its let-bound RHS (wrapped in @Just@ for historical reasons)
--- and its original binding location and  context (to be able to detect capture)
--- Invariant: lookup x c == Just (Just l,_,_) ==> letBindingName l == x
+-- Invariant: lookup x c == Just (Just l) ==> letBindingName l == x
 -- By "directly enclosing" we mean "those which may be pushed into this term"
-newtype Cxt = Cxt (M.Map Name (Maybe LetBinding, ID, Cxt))
+newtype Cxt = Cxt (M.Map Name (Maybe LetBinding))
   -- We want right-biased mappend, as we will use this with 'Accum'
   -- and want later 'add's to overwrite earlier (more-global) context entries
-  deriving (Semigroup, Monoid) via Dual (M.Map Name (Maybe LetBinding, ID, Cxt))
+  deriving (Semigroup, Monoid) via Dual (M.Map Name (Maybe LetBinding))
 
 cxtAddLet :: LetBinding -> Cxt -> Cxt
--- TODO: the 0, mempty are LIES, but we never care about these positions.
--- This will be addressed in the next commit
-cxtAddLet l (Cxt c) = Cxt $ M.insert (letBindingName l) (Just l, 0, mempty) c
-
-lookup :: Name -> Cxt -> Maybe (Maybe LetBinding, ID, Cxt)
-lookup n (Cxt cxt) = M.lookup n cxt
+cxtAddLet l (Cxt c) = Cxt $ M.insert (letBindingName l) (Just l) c
 
 -- This notices all redexes
 -- Note that if a term is not a redex, but stuck on some sub-term,
@@ -927,32 +919,20 @@ viewRedexType opts = \case
     isLeaf = null . children
     letTypeBindingName' (LetTypeBind n _) = n
 
--- Get the let-bound definition of this variable, if some such exists
--- and is substitutible in the current context. (We also return the
--- id of the binding site.)
-getNonCapturedLocal :: MonadReader Cxt m => LocalName k -> MaybeT m (ID, LetBinding)
-getNonCapturedLocal v = do
-  def <- asks (lookup $ unLocalName v)
-  curCxt <- ask
-  hoistMaybe $ do
-    (def', origID, origCxt) <- def
-    def'' <- def'
-    let uncaptured x = ((==) `on` fmap snd3 . lookup x) origCxt curCxt
-    if allOf _freeVarsLetBinding uncaptured def''
-      then Just (origID, def'')
-      else Nothing
+lookupEnclosingLet :: Name -> Cxt -> Maybe LetBinding
+lookupEnclosingLet n (Cxt cxt) = join $ M.lookup n cxt
 
 -- We may want to push some let bindings (some subset of the Cxt) under a
 -- binder; what variable names must the binder avoid for this to be valid?
 cxtToAvoid :: MonadReader Cxt m => m (S.Set Name)
 cxtToAvoid = do
   Cxt cxt <- ask
-  pure $ foldMap' (setOf (_1 % _Just % (to letBindingName `summing` _freeVarsLetBinding))) cxt
+  pure $ foldMap' (setOf (_Just % (to letBindingName `summing` _freeVarsLetBinding))) cxt
 
 cxtToAvoidTy :: MonadReader Cxt m => m (S.Set TyVarName)
 cxtToAvoidTy = do
   Cxt cxt <- ask
-  pure $ foldMap' (setOf (_1 % _Just % _LetTyBind % _LetTypeBind % (_1 `summing` _2 % getting _freeVarsTy % _2))) cxt
+  pure $ foldMap' (setOf (_Just % _LetTyBind % _LetTypeBind % (_1 `summing` _2 % getting _freeVarsTy % _2))) cxt
 
 -- TODO: deal with metadata. https://github.com/hackworthltd/primer/issues/6
 runRedex :: forall l m. MonadEval l m => RunRedexOptions -> Redex -> m (Expr, EvalDetail)

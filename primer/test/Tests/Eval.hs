@@ -4,7 +4,6 @@ module Tests.Eval where
 
 import Foreword
 
-import Control.Monad.Trans.Maybe (runMaybeT)
 import Data.List (delete)
 import Data.Map.Strict qualified as Map
 import Data.Set qualified as Set
@@ -33,13 +32,11 @@ import Primer.Core (
   GlobalName (baseName, qualifiedModule),
   ID,
   Kind' (KFun, KType),
-  LocalName,
   Pattern (PatCon, PatPrim),
   PrimCon (PrimChar),
   Type,
   Type' (TCon, TEmptyHole, TFun, TVar),
   getID,
-  unLocalName,
   unsafeMkGlobalName,
   _id,
  )
@@ -62,7 +59,7 @@ import Primer.Eval (
   LocalVarInlineDetail (..),
   PushLetDetail (..),
   findNodeByID,
-  getNonCapturedLocal,
+  lookupEnclosingLet,
   redexes,
   singletonCxt,
   step,
@@ -93,7 +90,6 @@ import Primer.TypeDef (
  )
 import Primer.Typecheck (typeDefs)
 import Primer.Zipper (
-  LetBinding,
   LetBinding' (LetBind, LetTyBind, LetrecBind),
   LetTypeBinding' (LetTypeBind),
   target,
@@ -767,16 +763,6 @@ unit_step_non_redex =
 
 -- * 'findNodeByID' tests
 
-lookupNonCaptured :: LocalName k -> Cxt -> Maybe (ID, LetBinding)
-lookupNonCaptured = runReader . runMaybeT . getNonCapturedLocal
-
-lookupCaptured :: LocalName k -> Cxt -> Maybe (ID, LetBinding)
-lookupCaptured n c@(Cxt c')
-  | Nothing <- lookupNonCaptured n c
-  , Just (Just r, i, _) <- Map.lookup (unLocalName n) c' =
-      pure (i, r)
-  | otherwise = Nothing
-
 unit_findNodeByID_letrec :: Assertion
 unit_findNodeByID_letrec = do
   let expr = create' $ letrec "x" (lvar "x") (tcon' ["M"] "T") (lvar "x")
@@ -800,9 +786,9 @@ unit_findNodeByID_letrec = do
   case findNodeByID 3 Syn expr of
     Just (locals, Left (_, z)) -> do
       target z ~= x
-      case lookupNonCaptured "x" locals of
-        Just (0, LetrecBind _ e _) -> e ~= x
-        r -> assertFailure $ "expected to find 'x' bound at id 0, with rhs = 'x', but found " <> show r
+      case lookupEnclosingLet "x" locals of
+        Just (LetrecBind _ e _) -> e ~= x
+        r -> assertFailure $ "expected to find 'x' let-bound, with rhs = 'x', but found " <> show r
     _ -> assertFailure "node 3 not found"
 
 unit_findNodeByID_1 :: Assertion
@@ -817,8 +803,8 @@ unit_findNodeByID_1 = do
         pure (x_, c_, e)
   case findNodeByID 0 Syn expr of
     Just (locals, Left (_, z)) -> do
-      case lookupNonCaptured "x" locals of
-        Just (_, LetBind _ e) -> do
+      case lookupEnclosingLet "x" locals of
+        Just (LetBind _ e) -> do
           e ~= c
         Just _ -> assertFailure "expected to find 'x' let-bound, but found some other flavor of let"
         Nothing -> assertFailure "expected to find 'x' bound, but did not"
@@ -849,7 +835,7 @@ unit_findNodeByID_2 = do
         pure (x_, t_, e)
   case findNodeByID 0 Syn expr of
     Just (locals, Right z) -> do
-      case lookupNonCaptured "x" locals of
+      case lookupEnclosingLet "x" locals of
         Nothing -> pure ()
         Just _ -> assertFailure "expected 'x' to not be bound by an immediately enclosing let, but it was"
       target z ~~= x
@@ -867,8 +853,8 @@ unit_findNodeByID_tlet = do
         pure (x_, t_, e)
   case findNodeByID 0 Syn expr of
     Just (locals, Right z) -> do
-      case lookupNonCaptured "x" locals of
-        Just (_, LetTyBind (LetTypeBind _ e)) -> do
+      case lookupEnclosingLet "x" locals of
+        Just (LetTyBind (LetTypeBind _ e)) -> do
           e ~~= t
         Just _ -> assertFailure "expected to find a type 'x' bound, but found a term"
         Nothing -> assertFailure "expected to find 'x' bound, but did not"
@@ -894,7 +880,7 @@ unit_findNodeByID_scoping_2 = do
   case findNodeByID 4 Syn expr of
     Just (locals@(Cxt locals'), Left _)
       | Map.size locals' == 1
-      , (snd <$> lookupNonCaptured "x" locals) == Just (LetBind "x" bind) ->
+      , lookupEnclosingLet "x" locals == Just (LetBind "x" bind) ->
           pure ()
     Just (_, Left _) -> assertFailure "Expected to have inner let binding of 'x' reported"
     _ -> assertFailure "Expected to find the lvar 'x'"
@@ -913,7 +899,7 @@ unit_findNodeByID_capture =
         case findNodeByID varOcc Syn expr of
           Just (locals@(Cxt locals'), Left _)
             | Map.size locals' == 0
-            , Nothing <- lookupCaptured "x" locals ->
+            , Nothing <- lookupEnclosingLet "x" locals ->
                 pure ()
             | otherwise -> assertFailure "expected 'x' to not be bound by an immediately enclosing let, but it was"
           _ -> assertFailure "Expected to find the lvar 'x'"
@@ -932,8 +918,8 @@ unit_findNodeByID_capture_type =
         case findNodeByID varOcc Syn expr of
           Just (locals@(Cxt locals'), Right _)
             | Map.size locals' == 0
-            , Nothing <- lookupCaptured "x" locals
-            , Nothing <- lookupCaptured "z" locals ->
+            , Nothing <- lookupEnclosingLet "x" locals
+            , Nothing <- lookupEnclosingLet "z" locals ->
                 pure ()
             | otherwise -> assertFailure "expected 'x' to not be bound by an immediately enclosing let, but it was"
           _ -> assertFailure "Expected to find the lvar 'x'"

@@ -17,7 +17,6 @@ import Control.Monad.Trans.Accum (
   Accum,
   add,
   execAccum,
-  look,
  )
 import Control.Monad.Trans.Maybe (MaybeT)
 import Data.Map qualified as M
@@ -32,13 +31,11 @@ import Primer.Core (
     LetType,
     Letrec
   ),
-  HasID,
   TyVarName,
   Type,
   Type' (
     TLet
   ),
-  getID,
  )
 import Primer.Def (
   DefMap,
@@ -211,16 +208,14 @@ exprChildren (d, ez) =
 typeChildren :: TypeZ -> [TypeZ]
 typeChildren = children'
 
-addBinds :: HasID i => i -> [Either Name LetBinding] -> Accum Cxt ()
-addBinds i' bs = do
-  let i = getID i'
-  cxt <- look
+addBinds :: i -> [Either Name LetBinding] -> Accum Cxt ()
+addBinds _ bs = do
   add $
     Cxt $
       M.fromList $
         bs <&> \case
-          Left n -> (n, (Nothing, i, cxt))
-          Right l -> (letBindingName l, (Just l, i, cxt))
+          Left n -> (n, Nothing)
+          Right l -> (letBindingName l, Just l)
 
-singletonCxt :: HasID i => i -> LetBinding -> Cxt
+singletonCxt :: i -> LetBinding -> Cxt
 singletonCxt i l = addBinds i [Right l] `execAccum` mempty
