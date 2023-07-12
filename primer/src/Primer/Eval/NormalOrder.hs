@@ -11,18 +11,13 @@ module Primer.Eval.NormalOrder (
 ) where
 
 import Foreword hiding (hoistAccum)
-import Foreword qualified
 
 import Control.Monad.Log (MonadLog, WithSeverity)
-import Control.Monad.Morph (generalize)
 import Control.Monad.Trans.Accum (
   Accum,
-  AccumT,
   add,
-  evalAccumT,
   execAccum,
   look,
-  readerToAccumT,
  )
 import Control.Monad.Trans.Maybe (MaybeT)
 import Data.Map qualified as M
@@ -38,7 +33,6 @@ import Primer.Core (
     Letrec
   ),
   HasID,
-  LocalName (unLocalName),
   TyVarName,
   Type,
   Type' (
@@ -55,6 +49,7 @@ import Primer.Eval.Redex (
   EvalLog,
   Redex,
   RedexType,
+  cxtAddLet,
   viewRedex,
   viewRedexType,
  )
@@ -72,14 +67,12 @@ import Primer.Zipper (
   down,
   focus,
   focusType,
-  getBoundHere',
   letBindingName,
   right,
   target,
  )
 import Primer.Zipper.Type (
   LetTypeBinding' (LetTypeBind),
-  getBoundHereTy',
  )
 
 -- We don't really want a zipper here, but a one-hole context, but it is easier
@@ -92,11 +85,11 @@ data RedexWithContext
 data ViewLet = ViewLet
   { bindingVL :: LetBinding
   -- ^ the binding itself
-  , bodyVL :: Accum Cxt (Dir, ExprZ)
+  , bodyVL :: (Dir, ExprZ)
   -- ^ the body (i.e. after the `in`)
-  , typeChildrenVL :: [Accum Cxt TypeZ]
+  , typeChildrenVL :: [TypeZ]
   -- ^ any non-body type children
-  , termChildrenVL :: [Accum Cxt (Dir, ExprZ)]
+  , termChildrenVL :: [(Dir, ExprZ)]
   -- ^ any non-body term children (i.e. rhs of the binding)
   }
 viewLet :: (Dir, ExprZ) -> Maybe ViewLet
@@ -106,14 +99,14 @@ viewLet dez@(_, ez) = case (target ez, exprChildren dez) of
   (LetType _ a ty _b, [bz]) -> bz `seq` Just (ViewLet (LetTyBind $ LetTypeBind a ty) bz tz [])
   _ -> Nothing
   where
-    tz :: [Accum Cxt TypeZ]
-    -- as with focusType', we don't need to bind anything here
-    tz = maybe [] ((: []) . pure) $ focusType ez
+    tz :: [TypeZ]
+    tz = maybeToList $ focusType ez
 
 -- | This is similar to 'foldMap', with a few differences:
 -- - 'Expr' is not foldable
 -- - We target every subexpression and also every (nested) subtype (e.g. in an annotation)
 -- - We keep track of context and directionality (necessitating an extra 'Dir' argument, for "what directional context this whole expression is in")
+--   (the "context" is just of the immediately-enclosing lets, which are the only ones that may "cross a binder")
 -- - We handle @let@s specially, since we need to handle them differently when finding the normal order redex.
 --   (When we hit the body of a @let@ (of any flavor), we use the provided 'subst' or 'substTy' argument, if provided, and do no further recursion.
 --   If the corresponding argument is 'Nothing', then we recurse as normal.)
@@ -127,35 +120,37 @@ viewLet dez@(_, ez) = case (target ez, exprChildren dez) of
 -- both reducing type annotations more than needed, and reducing type applications when not needed.
 -- Since computation in types is strongly normalising, this will not cause us to fail to find any normal forms.
 foldMapExpr :: forall f a. MonadPlus f => FMExpr (f a) -> Dir -> Expr -> f a
-foldMapExpr extract topDir = flip evalAccumT mempty . go . (topDir,) . focus
+foldMapExpr extract topDir = go mempty . (topDir,) . focus
   where
-    go :: (Dir, ExprZ) -> AccumT Cxt f a
-    go dez@(d, ez) =
-      readerToAccumT (ReaderT $ extract.expr ez d)
+    go :: Cxt -> (Dir, ExprZ) -> f a
+    go lets dez@(d, ez) =
+      extract.expr ez d lets
         <|> case (extract.subst, viewLet dez) of
-          (Just goSubst, Just (ViewLet{bindingVL, bodyVL})) -> (readerToAccumT . ReaderT . (\(d', b) -> goSubst bindingVL b d')) =<< hoistAccum bodyVL
+          (Just goSubst, Just (ViewLet{bindingVL, bodyVL = (d', b)})) -> goSubst bindingVL b d' $ cxtAddLet bindingVL lets
           -- Prefer to compute inside the body of a let, but otherwise compute in the binding
-          (Nothing, Just (ViewLet{bodyVL, typeChildrenVL, termChildrenVL})) ->
+          -- NB: we never push lets into lets, so the Cxt is reset for non-body children
+          (Nothing, Just (ViewLet{bindingVL, bodyVL, typeChildrenVL, termChildrenVL})) ->
             msum $
-              (go =<< hoistAccum bodyVL)
-                : map (goType <=< hoistAccum) typeChildrenVL
-                  <> map (go <=< hoistAccum) termChildrenVL
+              go (cxtAddLet bindingVL lets) bodyVL
+                : map (goType mempty) typeChildrenVL
+                  <> map (go mempty) termChildrenVL
           -- Since stuck things other than lets are stuck on the first child or
           -- its type annotation, we can handle them all uniformly
+          -- Since this node is not a let, the context is reset
           _ ->
             msum $
-              (goType =<< focusType' ez)
-                : map (go <=< hoistAccum) (exprChildren dez)
-    goType :: TypeZ -> AccumT Cxt f a
-    goType tz =
-      readerToAccumT (ReaderT $ extract.ty tz)
+              (goType mempty =<< focusType' ez)
+                : map (go mempty) (exprChildren dez)
+    goType :: Cxt -> TypeZ -> f a
+    goType lets tz =
+      extract.ty tz lets
         <|> case (extract.substTy, target tz) of
           (Just goSubstTy, TLet _ a t _body)
-            | [_, bz] <- typeChildren tz -> (readerToAccumT . ReaderT . goSubstTy a t) =<< hoistAccum bz
-          (Nothing, TLet _ _ _t _body)
+            | [_, bz] <- typeChildren tz -> goSubstTy a t bz lets
+          (Nothing, TLet _ a t _body)
             -- Prefer to compute inside the body of a let, but otherwise compute in the binding
-            | [tz', bz] <- typeChildren tz -> (goType =<< hoistAccum bz) <|> (goType =<< hoistAccum tz')
-          _ -> msum $ map (goType <=< hoistAccum) $ typeChildren tz
+            | [tz', bz] <- typeChildren tz -> goType (cxtAddLet (LetTyBind $ LetTypeBind a t) lets) bz <|> goType mempty tz'
+          _ -> msum $ map (goType mempty) $ typeChildren tz
 
 data FMExpr m = FMExpr
   { expr :: ExprZ -> Dir -> Cxt -> m
@@ -164,13 +159,8 @@ data FMExpr m = FMExpr
   , substTy :: Maybe (TyVarName -> Type -> TypeZ -> Cxt -> m)
   }
 
-focusType' :: MonadPlus m => ExprZ -> AccumT Cxt m TypeZ
--- Note that nothing in Expr binds a variable which scopes over a type child
--- so we don't need to 'add' anything
+focusType' :: MonadPlus m => ExprZ -> m TypeZ
 focusType' = maybe empty pure . focusType
-
-hoistAccum :: Monad m => Accum Cxt b -> AccumT Cxt m b
-hoistAccum = Foreword.hoistAccum generalize
 
 -- We find the normal-order redex.
 findRedex ::
@@ -196,10 +186,9 @@ children' z = case down z of
   Nothing -> mempty
   Just z' -> z' : unfoldr (fmap (\x -> (x, x)) . right) z'
 
-exprChildren :: (Dir, ExprZ) -> [Accum Cxt (Dir, ExprZ)]
+exprChildren :: (Dir, ExprZ) -> [(Dir, ExprZ)]
 exprChildren (d, ez) =
   children' ez <&> \c -> do
-    let bs = getBoundHere' (target ez) (Just $ target c)
     let d' = case target ez of
           App _ f _ | f == target c -> Syn
           APP _ f _ | f == target c -> Syn
@@ -215,15 +204,10 @@ exprChildren (d, ez) =
             | e == target c -> Chk
             | otherwise -> d
           _ -> Chk
-    addBinds ez bs
-    pure (d', c)
+    (d', c)
 
-typeChildren :: TypeZ -> [Accum Cxt TypeZ]
-typeChildren tz =
-  children' tz <&> \c -> do
-    let bs = getBoundHereTy' (target tz) (Just $ target c)
-    addBinds tz $ bimap unLocalName LetTyBind <$> bs
-    pure c
+typeChildren :: TypeZ -> [TypeZ]
+typeChildren = children'
 
 addBinds :: HasID i => i -> [Either Name LetBinding] -> Accum Cxt ()
 addBinds i' bs = do
