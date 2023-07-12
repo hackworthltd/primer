@@ -105,8 +105,8 @@ step tydefs globals expr d i = runExceptT $ do
       pure (expr', detail)
 
 -- | Search for the given node by its ID.
--- Collect all local bindings in scope and return them
--- (with their local definition, if applicable)
+-- Collect all immediately-surrounding let bindings and return them
+-- (these are the ones we may push into this node)
 -- along with the focused node.
 -- Returns Nothing if the node is a binding, (note that no reduction rules can apply there).
 findNodeByID :: ID -> Dir -> Expr -> Maybe (Cxt, Either (Dir, ExprZ) TypeZ)

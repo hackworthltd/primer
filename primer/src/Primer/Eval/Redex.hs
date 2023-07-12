@@ -15,6 +15,7 @@ module Primer.Eval.Redex (
   runRedexTy,
   Dir (Syn, Chk),
   Cxt (Cxt),
+  cxtAddLet,
   _freeVarsLetBinding,
   EvalLog (..),
   MonadEval,
@@ -628,13 +629,21 @@ viewCaseRedex tydefs = \case
     formCaseRedex con argTys params args binders rhs (orig, scrut, conID) =
       CaseRedex{con, args, argTys, params, binders, rhs, orig, scrutID = getID scrut, conID}
 
--- We record each binder, along with its let-bound RHS (if any)
+-- TODO: don't need to record nearly so much anymore (a list of directly-enclosing let bindings would be good enough)
+--       This will be addressed in the next two commits
+-- We record each directly-enclosing let binder, along with its let-bound RHS (wrapped in @Just@ for historical reasons)
 -- and its original binding location and  context (to be able to detect capture)
 -- Invariant: lookup x c == Just (Just l,_,_) ==> letBindingName l == x
+-- By "directly enclosing" we mean "those which may be pushed into this term"
 newtype Cxt = Cxt (M.Map Name (Maybe LetBinding, ID, Cxt))
   -- We want right-biased mappend, as we will use this with 'Accum'
   -- and want later 'add's to overwrite earlier (more-global) context entries
   deriving (Semigroup, Monoid) via Dual (M.Map Name (Maybe LetBinding, ID, Cxt))
+
+cxtAddLet :: LetBinding -> Cxt -> Cxt
+-- TODO: the 0, mempty are LIES, but we never care about these positions.
+-- This will be addressed in the next commit
+cxtAddLet l (Cxt c) = Cxt $ M.insert (letBindingName l) (Just l, 0, mempty) c
 
 lookup :: Name -> Cxt -> Maybe (Maybe LetBinding, ID, Cxt)
 lookup n (Cxt cxt) = M.lookup n cxt
@@ -941,8 +950,6 @@ getNonCapturedLocal v = do
 
 -- We may want to push some let bindings (some subset of the Cxt) under a
 -- binder; what variable names must the binder avoid for this to be valid?
--- TODO: unfortunately, our 'Cxt' makes it hard to know precisely what bindings
--- we might push, so for now we are pessimistic. This will be improved shortly.
 cxtToAvoid :: MonadReader Cxt m => m (S.Set Name)
 cxtToAvoid = do
   Cxt cxt <- ask

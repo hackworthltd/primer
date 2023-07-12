@@ -819,20 +819,18 @@ unit_findNodeByID_letrec = do
       t = create' $ tcon' ["M"] "T"
   case findNodeByID 0 Syn expr of
     Just (Cxt locals, Left (_, z)) -> do
-      assertBool "no locals in scope at node 0" $ Map.null locals
+      assertBool "no enclosing lets at node 0" $ Map.null locals
       target z ~= expr
     _ -> assertFailure "node 0 not found"
   case findNodeByID 1 Syn expr of
-    Just (locals, Left (_, z)) -> do
+    Just (Cxt locals, Left (_, z)) -> do
       target z ~= x
-      case lookupNonCaptured "x" locals of
-        Just (0, LetrecBind _ e _) -> e ~= x
-        r -> assertFailure $ "expected to find 'x' bound at id 0, with rhs = 'x', but found " <> show r
+      assertBool "no enclosing lets at node 1" $ Map.null locals
     _ -> assertFailure "node 1 not found"
   case findNodeByID 2 Syn expr of
     Just (Cxt locals, Right z) -> do
       target z ~~= t
-      assertBool "no locals in scope at node 2" $ Map.null locals
+      assertBool "no enclosing lets at node 2" $ Map.null locals
     _ -> assertFailure "node 2 not found"
   case findNodeByID 3 Syn expr of
     Just (locals, Left (_, z)) -> do
@@ -855,8 +853,7 @@ unit_findNodeByID_1 = do
   case findNodeByID 0 Syn expr of
     Just (locals, Left (_, z)) -> do
       case lookupNonCaptured "x" locals of
-        Just (i, LetBind _ e) -> do
-          i @?= 2
+        Just (_, LetBind _ e) -> do
           e ~= c
         Just _ -> assertFailure "expected to find 'x' let-bound, but found some other flavor of let"
         Nothing -> assertFailure "expected to find 'x' bound, but did not"
@@ -877,7 +874,7 @@ unit_findNodeByID_1 = do
 
 unit_findNodeByID_2 :: Assertion
 unit_findNodeByID_2 = do
-  let (x, t, expr) = create' $ do
+  let (x, _, expr) = create' $ do
         -- id 0
         x_ <- tvar "x"
         -- id 1
@@ -888,11 +885,8 @@ unit_findNodeByID_2 = do
   case findNodeByID 0 Syn expr of
     Just (locals, Right z) -> do
       case lookupNonCaptured "x" locals of
-        Just (i, LetTyBind (LetTypeBind _ e)) -> do
-          i @?= 2
-          e ~~= t
-        Just _ -> assertFailure "expected to find a type 'x' bound, but found a term"
-        Nothing -> assertFailure "expected to find 'x' bound, but did not"
+        Nothing -> pure ()
+        Just _ -> assertFailure "expected 'x' to not be bound by an immediately enclosing let, but it was"
       target z ~~= x
     _ -> assertFailure "node 0 not found"
 
@@ -909,8 +903,7 @@ unit_findNodeByID_tlet = do
   case findNodeByID 0 Syn expr of
     Just (locals, Right z) -> do
       case lookupNonCaptured "x" locals of
-        Just (i, LetTyBind (LetTypeBind _ e)) -> do
-          i @?= 4
+        Just (_, LetTyBind (LetTypeBind _ e)) -> do
           e ~~= t
         Just _ -> assertFailure "expected to find a type 'x' bound, but found a term"
         Nothing -> assertFailure "expected to find 'x' bound, but did not"
@@ -922,9 +915,9 @@ unit_findNodeByID_scoping_1 = do
   let expr = create' $ let_ "x" (con0' ["M"] "C") $ lam "x" $ lvar "x"
   case findNodeByID 3 Syn expr of
     Just (Cxt locals, Left _)
-      | Just (Nothing, _, _) <- Map.lookup "x" locals ->
+      | Nothing <- Map.lookup "x" locals ->
           pure ()
-      | otherwise -> assertFailure "Expected 'x' to be in scope but not have a substitution"
+      | otherwise -> assertFailure "expected 'x' to not be bound by an immediately enclosing let, but it was"
     _ -> assertFailure "Expected to find the lvar 'x'"
 
 unit_findNodeByID_scoping_2 :: Assertion
@@ -936,7 +929,7 @@ unit_findNodeByID_scoping_2 = do
   case findNodeByID 4 Syn expr of
     Just (locals@(Cxt locals'), Left _)
       | Map.size locals' == 1
-      , lookupNonCaptured "x" locals == Just (3, LetBind "x" bind) ->
+      , (snd <$> lookupNonCaptured "x" locals) == Just (LetBind "x" bind) ->
           pure ()
     Just (_, Left _) -> assertFailure "Expected to have inner let binding of 'x' reported"
     _ -> assertFailure "Expected to find the lvar 'x'"
@@ -954,10 +947,10 @@ unit_findNodeByID_capture =
    in do
         case findNodeByID varOcc Syn expr of
           Just (locals@(Cxt locals'), Left _)
-            | Map.size locals' == 2
-            , Just (1, LetrecBind{}) <- lookupCaptured "x" locals ->
+            | Map.size locals' == 0
+            , Nothing <- lookupCaptured "x" locals ->
                 pure ()
-          Just (_, Left _) -> assertFailure "Expected let binding of 'x' to be reported as captured-if-inlined"
+            | otherwise -> assertFailure "expected 'x' to not be bound by an immediately enclosing let, but it was"
           _ -> assertFailure "Expected to find the lvar 'x'"
         reduct <- runStep maxID mempty mempty (expr, varOcc)
         case reduct of
@@ -973,11 +966,11 @@ unit_findNodeByID_capture_type =
    in do
         case findNodeByID varOcc Syn expr of
           Just (locals@(Cxt locals'), Right _)
-            | Map.size locals' == 3
-            , Just (1, LetTyBind _) <- lookupCaptured "x" locals
-            , Just (5, LetTyBind _) <- lookupCaptured "z" locals ->
+            | Map.size locals' == 0
+            , Nothing <- lookupCaptured "x" locals
+            , Nothing <- lookupCaptured "z" locals ->
                 pure ()
-          Just (_, Right _) -> assertFailure "Expected lettype binding of 'x' and the tlet binding of 'z' to be reported as captured-if-inlined" -- TODO: can probably remove all the "captured-if-inlined" stuff as don't do inlining like that now
+            | otherwise -> assertFailure "expected 'x' to not be bound by an immediately enclosing let, but it was"
           _ -> assertFailure "Expected to find the lvar 'x'"
         reduct <- runStep maxID mempty mempty (expr, varOcc)
         case reduct of
@@ -1175,12 +1168,7 @@ unit_redexes_let_capture =
 unit_redexes_lettype_capture :: Assertion
 unit_redexes_lettype_capture = do
   -- We can push the letType down once
-  -- TODO: we don't really want the "forall y" to be a redex -- it is only a
-  -- rename, and not blocking anything yet. It would be preferable to only
-  -- consider renaming binders when they are immediately under the corresponding
-  -- @let@ (actually, immediately under a group of @let@s containing the
-  -- corresponding one).
-  redexesOf (letType "x" (tvar "y") (emptyHole `ann` tforall "y" (KType ()) (tvar "x"))) <@?=> Set.fromList [0, 4]
+  redexesOf (letType "x" (tvar "y") (emptyHole `ann` tforall "y" (KType ()) (tvar "x"))) <@?=> Set.singleton 0
   -- But now we should rename the forall and not push the tlet further
   redexesOf (emptyHole `ann` tlet "x" (tvar "y") (tforall "y" (KType ()) (tvar "x"))) <@?=> Set.singleton 4
 
@@ -1365,24 +1353,19 @@ unit_redexes_case_prim = do
 unit_redexes_let_upsilon :: Assertion
 unit_redexes_let_upsilon = do
   let t = tforall "a" (KType ()) (tvar "a")
-  redexesOf (let_ "x" (lam "x" emptyHole `ann` t) $ lam "x" emptyHole `ann` t) <@?=> Set.fromList [0, 7]
+  redexesOf (let_ "x" (lam "x" emptyHole `ann` t) $ lam "x" emptyHole `ann` t) <@?=> Set.fromList [0]
   redexesOf (lam "x" $ let_ "x" (lam "x" emptyHole `ann` t) $ emptyHole `ann` t) <@?=> Set.fromList [1, 7]
-  redexesOf (letType "x" t $ lam "x" emptyHole `ann` t) <@?=> Set.fromList [0, 4]
+  redexesOf (letType "x" t $ lam "x" emptyHole `ann` t) <@?=> Set.fromList [0]
   redexesOf (lam "x" $ letType "x" t $ emptyHole `ann` t) <@?=> Set.fromList [1, 4]
-  -- TODO: the lam-inside-the-letrec shouldn't really be offered for
-  -- renaming, as we will never push a let into here this is a consequence of
-  -- our current poor handling of Cxt, which will be fixed shortly
-  redexesOf (letrec "x" (lam "x" emptyHole `ann` t) t $ lam "x" emptyHole `ann` t) <@?=> Set.fromList [0, 1, 2, 9]
-  redexesOf (lam "x" $ letrec "x" (lam "x" emptyHole `ann` t) t $ emptyHole `ann` t) <@?=> Set.fromList [1, 2, 3, 9]
+  redexesOf (letrec "x" (lam "x" emptyHole `ann` t) t $ lam "x" emptyHole `ann` t) <@?=> Set.fromList [0, 1]
+  redexesOf (lam "x" $ letrec "x" (lam "x" emptyHole `ann` t) t $ emptyHole `ann` t) <@?=> Set.fromList [1, 2, 9]
 
 unit_redexes_push_let :: Assertion
 unit_redexes_push_let = do
-  -- TODO: we shouldn't offer to rename the lam/forall-inside-the-let-bindings
-  -- for similar reasons to unit_redexes_let_upsilon
-  redexesOf (letrec "x" (lam "x" emptyHole) tEmptyHole $ lam "x" emptyHole) <@?=> Set.fromList [0, 1, 4]
-  redexesOf (letType "x" tEmptyHole $ let_ "y" (lam "x" emptyHole) $ lam "x" emptyHole) <@?=> Set.fromList [0, 2, 3, 5]
-  redexesOf (letType "x" tEmptyHole $ letrec "y" (lam "x" emptyHole) tEmptyHole $ lam "x" emptyHole) <@?=> Set.fromList [0, 2, 3, 6]
-  redexesOf (letType "x" tEmptyHole $ letType "y" (tforall "x" (KType ()) tEmptyHole) $ lam "x" emptyHole) <@?=> Set.fromList [0, 2, 3, 5]
+  redexesOf (letrec "x" (lam "x" emptyHole) tEmptyHole $ lam "x" emptyHole) <@?=> Set.fromList [0, 4]
+  redexesOf (letType "x" tEmptyHole $ let_ "y" (lam "x" emptyHole) $ lam "x" emptyHole) <@?=> Set.fromList [0, 2, 5]
+  redexesOf (letType "x" tEmptyHole $ letrec "y" (lam "x" emptyHole) tEmptyHole $ lam "x" emptyHole) <@?=> Set.fromList [0, 2, 6]
+  redexesOf (letType "x" tEmptyHole $ letType "y" (tforall "x" (KType ()) tEmptyHole) $ lam "x" emptyHole) <@?=> Set.fromList [0, 2, 5]
 
 unit_redexes_prim_1 :: Assertion
 unit_redexes_prim_1 =
