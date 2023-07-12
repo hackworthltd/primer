@@ -653,10 +653,26 @@ viewRedex tydefs globals dir = \case
         pure $
           InlineGlobal{gvar, def, orig}
   orig@(viewLets -> Just (bindings, expr))
-    | S.disjoint
+    | letBinders <- foldMap' (S.singleton . letBindingName . snd) bindings
+    , S.disjoint
         (getBoundHereDn expr)
-        (foldMap' (S.singleton . letBindingName . snd) bindings <> setOf (folded % _2 % _freeVarsLetBinding) bindings) ->
+        (letBinders <> setOf (folded % _2 % _freeVarsLetBinding) bindings)
+    , -- prefer to elide if possible
+      allLetsUsed (fmap snd bindings) expr ->
         pure $ PushLet{bindings, expr, orig}
+    where
+      -- Fold right-to-left calculating free var set and whether each
+      -- binder has been referenced
+      allLetsUsed ls b =
+        snd $
+          foldr
+            ( \l (fvs, allUsed) ->
+                let n = letBindingName l
+                    rhs = setOf _freeVarsLetBinding l
+                 in (S.delete n fvs `S.union` rhs, allUsed && n `S.member` fvs)
+            )
+            (freeVars b, True)
+            ls
   orig@(Let _ var rhs body)
     | Var _ (LocalVarRef var') <- body
     , var == var' ->
@@ -791,10 +807,26 @@ viewRedexType = \case
   origTy
     | Just (bindingsWithID, intoTy) <- viewLetsTy origTy
     , (bindings, bindingIDs) <- NonEmpty.unzip bindingsWithID
+    , letBinders <- foldMap' (S.singleton . letTypeBindingName) bindings
+    , -- prefer to elide if possible
+      allLetsUsed bindings intoTy
     , S.disjoint
         (S.map unLocalName $ getBoundHereDnTy intoTy)
-        (foldMap' (S.singleton . letTypeBindingName) bindings <> setOf (folded % _freeVarsLetTypeBinding) bindings) ->
+        (letBinders <> setOf (folded % _freeVarsLetTypeBinding) bindings) ->
         purer $ PushLetType{bindings, intoTy, origTy, bindingIDs}
+    where
+      -- Fold right-to-left calculating free var set and whether each
+      -- binder has been referenced
+      allLetsUsed ls b =
+        snd $
+          foldr
+            ( \l (fvs, allUsed) ->
+                let n = letTypeBindingName l
+                    rhs = setOf _freeVarsLetTypeBinding l
+                 in (S.delete n fvs `S.union` rhs, allUsed && n `S.member` fvs)
+            )
+            (S.map unLocalName $ freeVarsTy b, True)
+            ls
   orig@(TLet _ v s body)
     | TVar _ var <- body
     , v == var ->

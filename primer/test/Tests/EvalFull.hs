@@ -89,6 +89,10 @@ import Primer.Primitives.DSL (pfun)
 import Primer.Test.App (
   runAppTestM,
  )
+import Primer.Test.Expected (
+  Expected (defMap, expectedResult, expr, maxID),
+  mapEven,
+ )
 import Primer.Test.TestM (
   evalTestM,
  )
@@ -142,7 +146,7 @@ unit_3 =
         expect <- emptyHole `ann` (tcon' ["M"] "T" `tapp` tvar "b" `tapp` tforall "a" KType (tvar "a") `tapp` tforall b' KType (tcon' ["M"] "S" `tapp` tvar "b" `tapp` tvar b'))
         pure (e, expect)
    in do
-        s <- evalFullTest maxID mempty mempty 19 Syn expr
+        s <- evalFullTest maxID mempty mempty 18 Syn expr
         s <~==> Right expected
 
 -- Check we don't have shadowing issues in terms
@@ -200,17 +204,16 @@ unit_7 =
         s <- evalFullTest maxID mempty mempty 100 Syn e
         s <~==> Right e
 
--- Temporarily disabled for performance reasons
--- unit_8 :: Assertion
--- unit_8 =
---   let n = 10
---       e = mapEven n
---    in do
---         evalFullTest (maxID e) builtinTypes (defMap e) 1000 Syn (expr e) >>= \case
---           Left (TimedOut _) -> pure ()
---           x -> assertFailure $ show x
---         s <- evalFullTest (maxID e) builtinTypes (defMap e) 2000 Syn (expr e)
---         s <~==> Right (expectedResult e)
+unit_8 :: Assertion
+unit_8 =
+  let n = 10
+      e = mapEven n
+   in do
+        evalFullTest (maxID e) builtinTypes (defMap e) 1000 Syn (expr e) >>= \case
+          Left (TimedOut _) -> pure ()
+          x -> assertFailure $ show x
+        s <- evalFullTest (maxID e) builtinTypes (defMap e) 2000 Syn (expr e)
+        s <~==> Right (expectedResult e)
 
 -- A worker/wrapper'd map
 unit_9 :: Assertion
@@ -720,25 +723,23 @@ unit_type_preservation_BETA_regression =
             lam "x" $
               let_ "c" (lvar "x" `ann` tcon tNat) (letType "a" (tvar "b" `tapp` tcon tBool) (emptyHole `ann` tvar "a"))
                 `ann` (tvar "b" `tapp` tcon tBool)
-        -- Push the lets
-        -- Λb. λx. (((let c = (x : Nat) in (lettype a = b Bool in ?)) : (lettype a = b Bool in a)) : (b Bool))
+        -- Elide a let
+        -- Λb. λx. ((lettype a = b Bool in (? : a)) : (b Bool))
         expectA7 <-
           lAM "b" $
             lam "x" $
-              ( let_ "c" (lvar "x" `ann` tcon tNat) (letType "a" (tvar "b" `tapp` tcon tBool) emptyHole)
+              letType "a" (tvar "b" `tapp` tcon tBool) (emptyHole `ann` tvar "a")
+                `ann` (tvar "b" `tapp` tcon tBool)
+        -- Push the let
+        -- Λb. λx. (((lettype a = b Bool in ?) : (lettype a = b Bool in a)) : (b Bool))
+        expectA8 <-
+          lAM "b" $
+            lam "x" $
+              ( letType "a" (tvar "b" `tapp` tcon tBool) emptyHole
                   `ann` tlet "a" (tvar "b" `tapp` tcon tBool) (tvar "a")
               )
                 `ann` (tvar "b" `tapp` tcon tBool)
         -- Inline a let
-        -- Λb. λx. (((let c = (x : Nat) in (lettype a = b Bool in ?)) : (b Bool)) : (b Bool))
-        expectA8 <-
-          lAM "b" $
-            lam "x" $
-              ( let_ "c" (lvar "x" `ann` tcon tNat) (letType "a" (tvar "b" `tapp` tcon tBool) emptyHole)
-                  `ann` (tvar "b" `tapp` tcon tBool)
-              )
-                `ann` (tvar "b" `tapp` tcon tBool)
-        -- Elide a pointless let
         -- Λb. λx. (((lettype a = b Bool in ?) : (b Bool)) : (b Bool))
         expectA9 <-
           lAM "b" $
@@ -770,9 +771,9 @@ unit_type_preservation_BETA_regression =
           lAM "b" $
             letType "a" (tcon tChar) (gvar foo `aPP` (tvar "b" `tapp` tcon tBool))
               `ann` tlet "b" (tcon tChar) (tcon tNat)
-        -- Drop annotation, push lettype to leaves and then elide all lettypes
+        -- Drop annotation and elide lettype
         -- Λb. foo @(b Bool)
-        expectB7 <- lAM "b" $ gvar foo `aPP` (tvar "b" `tapp` tcon tBool)
+        expectB3 <- lAM "b" $ gvar foo `aPP` (tvar "b" `tapp` tcon tBool)
         -- Note that the reduction of eA and eB take slightly
         -- different paths: we do not remove the annotation in eA
         -- because it has an occurrence of a type variable and is thus
@@ -794,7 +795,7 @@ unit_type_preservation_BETA_regression =
                 , expectA10
                 ]
             )
-          , (eB, [(1, expectB1), (7, expectB7)])
+          , (eB, [(1, expectB1), (3, expectB3)])
           )
       sA n = evalFullTest maxID builtinTypes mempty n Chk exprA
       sB n = evalFullTest maxID builtinTypes mempty n Chk exprB
@@ -1448,7 +1449,7 @@ unit_prim_partial_map =
         --     and then in two steps (expand @go@, push stack of let+letrec)
         --        @λxs. let α=Char, β=Char, f=toUpper in (letrec go : List α -> List β; go = λxs.RHS in RHS : List α -> List β)
         --     we carry around the subst for α,β and f, using α,β inside annotation and f in RHS each time expand the letrec
-        s <- evalFullTest maxID builtinTypes (gs <> primDefs) 203 Syn e
+        s <- evalFullTest maxID builtinTypes (gs <> primDefs) 169 Syn e
         s <~==> Right r
 
 -- Test that handleEvalFullRequest will reduce imported terms
