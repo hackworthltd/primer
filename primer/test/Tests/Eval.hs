@@ -936,7 +936,7 @@ unit_findNodeByID_capture_type =
             , Just (1, LetTyBind _) <- lookupCaptured "x" locals
             , Just (5, LetTyBind _) <- lookupCaptured "z" locals ->
                 pure ()
-          Just (_, Right _) -> assertFailure "Expected lettype binding of 'x' and the tlet binding of 'z' to be reported as captured-if-inlined"
+          Just (_, Right _) -> assertFailure "Expected lettype binding of 'x' and the tlet binding of 'z' to be reported as captured-if-inlined" -- TODO: can probably remove all the "captured-if-inlined" stuff as don't do inlining like that now
           _ -> assertFailure "Expected to find the lvar 'x'"
         reduct <- runStep maxID mempty mempty (expr, varOcc)
         case reduct of

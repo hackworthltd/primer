@@ -222,7 +222,7 @@ data Redex
       -- ^ What is its definition
       }
   | -- let x = e in x  ~>  e
-    InlineLet
+    InlineLet -- TODO/REVIEW: don't know if I want to change this def for push-down-lets, as only inline an immediate usage
       { var :: LVarName
       -- ^ What variable are we inlining
       , expr :: Expr
@@ -233,7 +233,7 @@ data Redex
       -- ^ Where was the occurrence (used for details)
       }
   | -- letrec x = t : T in x  ~>  letrec x = t : T in t : T
-    InlineLetrec
+    InlineLetrec -- TODO/REVIEW: don't know if I want to change this def for push-down-lets, as only inline an immediate usage
       { var :: LVarName
       -- ^ What variable are we inlining
       , expr :: Expr
@@ -412,6 +412,7 @@ data RedexType
       -- ^ What is its definition (used for reduction)
       , letID :: ID
       -- ^ Where was the binding (used for details)
+      -- TODO/REVIEW: it seems a bit silly recording both these IDs, since they'll be right next to each other...
       , varID :: ID
       -- ^ Where was the occurrence (used for details)
       }

@@ -1442,6 +1442,12 @@ unit_prim_partial_map =
             `ann` (tcon tList `tapp` tcon tChar)
             <*> pure (M.singleton mapName mapDef)
    in do
+        -- TODO/REVIEW:
+        -- note that ww/map is somewhat pointless when push down lets -- maybe we should push lets inside letrecs (maybe just inside type?)?
+        --     nb, get something like @let α=Char, β=Char, f=toUpper in (letrec go : List α -> List β; go = λxs.RHS in go)
+        --     and then in two steps (expand @go@, push stack of let+letrec)
+        --        @λxs. let α=Char, β=Char, f=toUpper in (letrec go : List α -> List β; go = λxs.RHS in RHS : List α -> List β)
+        --     we carry around the subst for α,β and f, using α,β inside annotation and f in RHS each time expand the letrec
         s <- evalFullTest maxID builtinTypes (gs <> primDefs) 203 Syn e
         s <~==> Right r
 
