@@ -367,6 +367,55 @@ unit_hole_ann_case =
         t <- evalFullTest maxID builtinTypes mempty 1 Chk tm
         t @?= Right tm
 
+-- Check we don't have variable capture in
+-- let x = y in case ? of C x -> x ; D y -> x
+unit_case_let_capture :: Assertion
+unit_case_let_capture =
+  let ((expr, steps, expected), maxID) = create $ do
+        let l = let_ "x" (lvar "y")
+        let z = "a40"
+        let rny = let_ "y" (lvar z)
+        e0 <-
+          l $
+            case_
+              emptyHole
+              [ branch' (["M"], "C") [("x", Nothing)] (lvar "x")
+              , branch' (["M"], "D") [("y", Nothing)] (lvar "x")
+              ]
+        e1 <-
+          l $
+            case_
+              emptyHole
+              [ branch' (["M"], "C") [("x", Nothing)] (lvar "x")
+              , branch' (["M"], "D") [(z, Nothing)] (rny $ lvar "x")
+              ]
+        e2 <-
+          l $
+            case_
+              emptyHole
+              [ branch' (["M"], "C") [("x", Nothing)] (lvar "x")
+              , branch' (["M"], "D") [(z, Nothing)] (lvar "x")
+              ]
+        e3 <-
+          l $
+            case_
+              emptyHole
+              [ branch' (["M"], "C") [("x", Nothing)] (lvar "x")
+              , branch' (["M"], "D") [(z, Nothing)] (lvar "y")
+              ]
+        e4 <-
+          case_
+            emptyHole
+            [ branch' (["M"], "C") [("x", Nothing)] (lvar "x")
+            , branch' (["M"], "D") [(z, Nothing)] (lvar "y")
+            ]
+        pure (e0, [e0, e1, e2, e3, e4], e4)
+   in do
+        si <- traverse (\i -> evalFullTest maxID builtinTypes mempty i Syn expr) [0 .. fromIntegral $ length steps - 1]
+        zipWithM_ (\s e -> s <~==> Left (TimedOut e)) si steps
+        s <- evalFullTest maxID builtinTypes mempty (fromIntegral $ length steps) Syn expr
+        s <~==> Right expected
+
 -- tlet x = C in D x x
 --   ==>
 -- tlet x = C in D C x

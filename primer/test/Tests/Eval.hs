@@ -1315,6 +1315,20 @@ unit_redexes_case_5 :: Assertion
 unit_redexes_case_5 =
   redexesOf (let_ "x" (con0' ["M"] "C") (case_ (lvar "x") [])) <@?=> Set.fromList [3]
 
+-- The variable x in the rhs cannot be substituted, as the 'y' would be captured.
+unit_redexes_case_6 :: Assertion
+unit_redexes_case_6 =
+  redexesOf
+    ( let_
+        "x"
+        (lvar "y")
+        ( case_
+            (con0' ["M"] "C" `ann` tcon' ["M"] "C")
+            [branch' (["M"], "C") [("y", Nothing)] (lvar "x")]
+        )
+    )
+    <@?=> Set.fromList [2]
+
 unit_redexes_case_fallback_1 :: Assertion
 unit_redexes_case_fallback_1 =
   redexesOf (caseFB_ (ann (con0' ["M"] "C") (tcon' ["M"] "C")) [branch' (["M"], "C") [] (con0' ["M"] "D")] emptyHole)
