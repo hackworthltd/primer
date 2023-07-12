@@ -574,7 +574,7 @@ unit_type_preservation_BETA_regression :: Assertion
 unit_type_preservation_BETA_regression =
   let (((exprA, expectedAs), (exprB, expectedBs)), maxID) = create $ do
         -- The 'A' sequence previously captured in the type "S" above
-        -- Λb x. (Λa λc (_ : a) : ∀b.(Nat -> b)) @(b -> Bool) x
+        -- Λb x. (Λa λc (? : a) : ∀b.(Nat -> b)) @(b Bool) x
         eA <-
           lAM "b" $
             lam "x" $
@@ -584,7 +584,7 @@ unit_type_preservation_BETA_regression =
                 `aPP` (tvar "b" `tapp` tcon tBool)
                 `app` lvar "x"
         -- Do the BETA step
-        -- Λb x. ((lettype a = b Bool in λc (_ : a)) : (let b = b Bool in Nat -> b)) x
+        -- Λb x. ((lettype a = b Bool in λc (? : a)) : (let b = b Bool in Nat -> b)) x
         expectA1 <-
           lAM "b" $
             lam "x" $
@@ -595,7 +595,7 @@ unit_type_preservation_BETA_regression =
         -- NB: the point of the ... `app` lvar x is to make the annotated term be in SYN position
         -- so we reduce the type, rather than taking an upsilon step
         -- Rename the let b
-        -- Λb. λx. ((lettype a = b Bool in λc (_ : a)) : (let c = b Bool in let b = c in Nat -> b)) x
+        -- Λb. λx. ((lettype a = b Bool in λc (? : a)) : (let c = b Bool in let b = c in Nat -> b)) x
         let b' = "a132"
         expectA2 <-
           lAM "b" $
@@ -605,7 +605,7 @@ unit_type_preservation_BETA_regression =
               )
                 `app` lvar "x"
         -- Resolve the renaming
-        -- Λb. λx. ((lettype a = b Bool in λc (_ : a)) : (let c = b Bool in Nat -> c)) x
+        -- Λb. λx. ((lettype a = b Bool in λc (? : a)) : (let c = b Bool in Nat -> c)) x
         expectA4 <-
           lAM "b" $
             lam "x" $
@@ -614,7 +614,7 @@ unit_type_preservation_BETA_regression =
               )
                 `app` lvar "x"
         -- Resolve all the letTypes
-        -- Λb. λx. ((λc (_ : b Bool)) : (Nat -> b Bool)) x
+        -- Λb. λx. ((λc (? : b Bool)) : (Nat -> b Bool)) x
         expectA8 <-
           lAM "b" $
             lam "x" $
