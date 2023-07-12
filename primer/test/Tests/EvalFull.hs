@@ -237,6 +237,82 @@ unit_7 =
 --        s <- evalFullTest maxID builtinTypes (M.fromList globals) 8000 Syn e
 --        s <~==> Right expected
 
+{- Note [Pushing down lets and the static argument transformation]
+Our strategy of "pushing down lets" (which is effectively an explicit
+substitution semantics, where the substitution is interspersed with
+other reduction steps) has different performance characteristics than
+our previous strategy of eagerly fully inlining `let` bindings. In
+particular, it makes the transformation of unit_8 into unit_9 is not
+effective.
+
+To explain why, let us first recap what this transformation is.
+The static argument transformation is a technique of optimising
+a recursive function of multiple arguments by splitting the lambda
+bindings into two: the ones that do not change in a recursive call, and
+those that do. Then the changing ones are handled by a local (recursive)
+function. For example, changing the following definition of `map`
+  map :: (a -> b) -> [a] -> [b]
+  map f xs = case xs of
+               [] -> []
+               y : ys -> f y : map f ys
+into
+  mapSAT f = let go xs = case xs of
+                           [] -> []
+                           y : ys -> f y : go ys
+             in go
+
+When reducing by naively applying rewrite rules and doing "long-range"
+substitution, the latter can be more efficient, since we effectively
+specialise the recursive loop for a particular `f`, rather than passing
+it around each iteration. (Note that passing it around causes an extra
+beta step on each recursive call, and thus more substitution.) That is
+to say, calling `mapSAT foo [1,2,3]` will result in
+  let go xs = case xs of
+                [] -> []
+                y : ys -> foo y : go ys
+  in go [1,2,3]
+
+However, that is assuming that beta reductions (and `let`s, since we
+reduce betas to let bindings) result in "eager substitution":
+  let f = foo in
+    let go = c (...) (...) (... f ... go ...) in
+      go
+should reduce by inlining the `f` inside the recursive let binding.
+
+When we lazily push an explicit substitution down the tree this does not
+happen (at least, in our implementation, since we treat the recusive let
+as a substition and never push substitutions into each other). Indeed,
+we would reduce the above by inlining the `go`
+  let f = foo in
+    let go = c (...) (...) (... f ... go ...) in
+      ... f ... go ...
+and then pushing the `let`s (i.e. explicit substitutions) down, resulting in
+  c (...)
+    (...)
+    (let f = foo in
+       let go = c (...) (...) (... f ... go ...) in
+         ... f ... go ...)
+(Here we have taken the optimization of not pushing the substition into
+branches where those variables are unused.) Notice the recursive structure
+here will hold on to the substitution, pushing it down into each expansion
+of the recursive let, which is no better than the original definition
+without the static argument translation's local worker.
+
+It may be possible to avoid this by treating recursive bindings
+differently to explicit substitutions, so we could push the substitution
+of `f` into the definition of `go`. However, I have not thought about
+this enough (from any of a theoretical, implementation or pedagogy
+standpoint) to have a good idea of whether it would work and be worth
+it. In particular, for a simple language aimed at learning, do we
+want to treat non-recursive and recursive lets so differently (or
+maybe even user-written lets vs explicit substitutions caused by beta
+reduction)? Alternatively, it may also be possible to cause explicit
+substitutions to interact with let bindings (i.e. push the outer let
+rather than the inner let, and not special-case any particular lets),
+but a naive version of this would cause infinite loops continually
+swapping two lets! See https://github.com/hackworthltd/primer/issues/1112.
+-}
+
 -- A case redex must have an scrutinee which is an annotated constructor.
 -- Plain constructors are not well-typed here, for bidirectionality reasons,
 -- although they just fail to reduce rather than the evaluator throwing a type error.
