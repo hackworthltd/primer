@@ -49,7 +49,6 @@ import Optics (
   (<%),
   _1,
   _2,
-  _Just,
  )
 import Primer.Core (
   Bind,
@@ -610,18 +609,14 @@ viewCaseRedex tydefs = \case
     formCaseRedex con argTys params args binders rhs (orig, scrut, conID) =
       CaseRedex{con, args, argTys, params, binders, rhs, orig, scrutID = getID scrut, conID}
 
--- TODO: don't need to record nearly so much anymore (a list of directly-enclosing let bindings would be good enough)
---       This will be addressed in the next two commits
--- We record each directly-enclosing let binder, along with its let-bound RHS (wrapped in @Just@ for historical reasons)
--- Invariant: lookup x c == Just (Just l) ==> letBindingName l == x
+-- We record each directly-enclosing let binding
 -- By "directly enclosing" we mean "those which may be pushed into this term"
-newtype Cxt = Cxt (M.Map Name (Maybe LetBinding))
-  -- We want right-biased mappend, as we will use this with 'Accum'
-  -- and want later 'add's to overwrite earlier (more-global) context entries
-  deriving (Semigroup, Monoid) via Dual (M.Map Name (Maybe LetBinding))
+-- NB: we do not care about ordering
+newtype Cxt = Cxt [LetBinding]
+  deriving newtype (Semigroup, Monoid)
 
 cxtAddLet :: LetBinding -> Cxt -> Cxt
-cxtAddLet l (Cxt c) = Cxt $ M.insert (letBindingName l) (Just l) c
+cxtAddLet l (Cxt c) = Cxt $ l : c
 
 -- This notices all redexes
 -- Note that if a term is not a redex, but stuck on some sub-term,
@@ -864,19 +859,19 @@ viewRedexType = \case
   _ -> pure Nothing
 
 lookupEnclosingLet :: Name -> Cxt -> Maybe LetBinding
-lookupEnclosingLet n (Cxt cxt) = join $ M.lookup n cxt
+lookupEnclosingLet n (Cxt cxt) = find ((== n) . letBindingName) cxt
 
--- We may want to push some let bindings (some subset of the Cxt) under a
+-- We may want to push some let bindings (the Cxt) under a
 -- binder; what variable names must the binder avoid for this to be valid?
 cxtToAvoid :: MonadReader Cxt m => m (S.Set Name)
 cxtToAvoid = do
   Cxt cxt <- ask
-  pure $ foldMap' (setOf (_Just % (to letBindingName `summing` _freeVarsLetBinding))) cxt
+  pure $ foldMap' (setOf (to letBindingName `summing` _freeVarsLetBinding)) cxt
 
 cxtToAvoidTy :: MonadReader Cxt m => m (S.Set TyVarName)
 cxtToAvoidTy = do
   Cxt cxt <- ask
-  pure $ foldMap' (setOf (_Just % _LetTyBind % _LetTypeBind % (_1 `summing` _2 % getting _freeVarsTy % _2))) cxt
+  pure $ foldMap' (setOf (_LetTyBind % _LetTypeBind % (_1 `summing` _2 % getting _freeVarsTy % _2))) cxt
 
 -- TODO: deal with metadata. https://github.com/hackworthltd/primer/issues/6
 runRedex :: forall l m. MonadEval l m => Redex -> m (Expr, EvalDetail)
