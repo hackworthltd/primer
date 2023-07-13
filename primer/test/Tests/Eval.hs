@@ -203,17 +203,17 @@ unit_tryReduce_BETA = do
 
 unit_tryReduce_local_term_var :: Assertion
 unit_tryReduce_local_term_var = do
-  -- We assume we're inside a larger expression (e.g. a let) where the node that binds x has ID 5.
+  -- We assume we're immediately inside a 'let x'
   let ((expr, val), i) = create $ (,) <$> lvar "x" <*> con0' ["M"] "C"
-      locals = singletonCxt @ID 5 $ LetBind "x" val
+      locals = singletonCxt $ LetBind "x" val
   result <- runTryReduce tydefs mempty locals (expr, i)
   result @?= Left NotRedex
 
 unit_tryReduce_local_type_var :: Assertion
 unit_tryReduce_local_type_var = do
-  -- We assume we're inside a larger expression (e.g. a let type) where the node that binds x has ID 5.
+  -- We assume we're immediately inside a 'let x'
   let ((tyvar, val), i) = create $ (,) <$> tvar "x" <*> tcon' ["M"] "C"
-      locals = singletonCxt @ID 5 $ LetTyBind $ LetTypeBind "x" val
+      locals = singletonCxt $ LetTyBind $ LetTypeBind "x" val
   result <- runTryReduceType mempty locals (tyvar, i)
   result @?= Left NotRedex
 
@@ -770,18 +770,18 @@ unit_findNodeByID_letrec = do
       t = create' $ tcon' ["M"] "T"
   case findNodeByID 0 Syn expr of
     Just (Cxt locals, Left (_, z)) -> do
-      assertBool "no enclosing lets at node 0" $ Map.null locals
+      assertBool "no enclosing lets at node 0" $ null locals
       target z ~= expr
     _ -> assertFailure "node 0 not found"
   case findNodeByID 1 Syn expr of
     Just (Cxt locals, Left (_, z)) -> do
       target z ~= x
-      assertBool "no enclosing lets at node 1" $ Map.null locals
+      assertBool "no enclosing lets at node 1" $ null locals
     _ -> assertFailure "node 1 not found"
   case findNodeByID 2 Syn expr of
     Just (Cxt locals, Right z) -> do
       target z ~~= t
-      assertBool "no enclosing lets at node 2" $ Map.null locals
+      assertBool "no enclosing lets at node 2" $ null locals
     _ -> assertFailure "node 2 not found"
   case findNodeByID 3 Syn expr of
     Just (locals, Left (_, z)) -> do
@@ -813,13 +813,13 @@ unit_findNodeByID_1 = do
 
   case findNodeByID 1 Syn expr of
     Just (Cxt locals, Left (_, z)) -> do
-      assertBool "expected nothing in scope" $ Map.null locals
+      assertBool "expected nothing in scope" $ null locals
       target z ~= c
     _ -> assertFailure "node 1 not found"
 
   case findNodeByID 2 Syn expr of
     Just (Cxt locals, Left (_, z)) -> do
-      assertBool "expected nothing in scope" $ Map.null locals
+      assertBool "expected nothing in scope" $ null locals
       target z ~= expr
     _ -> assertFailure "node 2 not found"
 
@@ -865,8 +865,8 @@ unit_findNodeByID_scoping_1 :: Assertion
 unit_findNodeByID_scoping_1 = do
   let expr = create' $ let_ "x" (con0' ["M"] "C") $ lam "x" $ lvar "x"
   case findNodeByID 3 Syn expr of
-    Just (Cxt locals, Left _)
-      | Nothing <- Map.lookup "x" locals ->
+    Just (locals, Left _)
+      | Nothing <- lookupEnclosingLet "x" locals ->
           pure ()
       | otherwise -> assertFailure "expected 'x' to not be bound by an immediately enclosing let, but it was"
     _ -> assertFailure "Expected to find the lvar 'x'"
@@ -879,7 +879,7 @@ unit_findNodeByID_scoping_2 = do
         pure (b, e)
   case findNodeByID 4 Syn expr of
     Just (locals@(Cxt locals'), Left _)
-      | Map.size locals' == 1
+      | length locals' == 2
       , lookupEnclosingLet "x" locals == Just (LetBind "x" bind) ->
           pure ()
     Just (_, Left _) -> assertFailure "Expected to have inner let binding of 'x' reported"
@@ -898,7 +898,7 @@ unit_findNodeByID_capture =
    in do
         case findNodeByID varOcc Syn expr of
           Just (locals@(Cxt locals'), Left _)
-            | Map.size locals' == 0
+            | null locals'
             , Nothing <- lookupEnclosingLet "x" locals ->
                 pure ()
             | otherwise -> assertFailure "expected 'x' to not be bound by an immediately enclosing let, but it was"
@@ -917,7 +917,7 @@ unit_findNodeByID_capture_type =
    in do
         case findNodeByID varOcc Syn expr of
           Just (locals@(Cxt locals'), Right _)
-            | Map.size locals' == 0
+            | null locals'
             , Nothing <- lookupEnclosingLet "x" locals
             , Nothing <- lookupEnclosingLet "z" locals ->
                 pure ()

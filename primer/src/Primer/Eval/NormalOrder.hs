@@ -13,13 +13,7 @@ module Primer.Eval.NormalOrder (
 import Foreword hiding (hoistAccum)
 
 import Control.Monad.Log (MonadLog, WithSeverity)
-import Control.Monad.Trans.Accum (
-  Accum,
-  add,
-  execAccum,
- )
 import Control.Monad.Trans.Maybe (MaybeT)
-import Data.Map qualified as M
 import Primer.Core (
   Expr,
   Expr' (
@@ -52,7 +46,6 @@ import Primer.Eval.Redex (
   viewRedexType,
  )
 import Primer.Log (ConvertLogMessage)
-import Primer.Name (Name)
 import Primer.TypeDef (
   TypeDefMap,
  )
@@ -65,7 +58,6 @@ import Primer.Zipper (
   down,
   focus,
   focusType,
-  letBindingName,
   right,
   target,
  )
@@ -208,14 +200,5 @@ exprChildren (d, ez) =
 typeChildren :: TypeZ -> [TypeZ]
 typeChildren = children'
 
-addBinds :: i -> [Either Name LetBinding] -> Accum Cxt ()
-addBinds _ bs = do
-  add $
-    Cxt $
-      M.fromList $
-        bs <&> \case
-          Left n -> (n, Nothing)
-          Right l -> (letBindingName l, Just l)
-
-singletonCxt :: i -> LetBinding -> Cxt
-singletonCxt i l = addBinds i [Right l] `execAccum` mempty
+singletonCxt :: LetBinding -> Cxt
+singletonCxt l = Cxt [l]
