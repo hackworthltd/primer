@@ -27,7 +27,7 @@ jobs:
           fetch-depth: 0
 
       - name: Import secrets from Vault
-        uses: hashicorp/vault-action@v2.7.2
+        uses: hashicorp/vault-action@v2.7.3
         id: secrets
         with:
           url: https://secrets.hackworth-corp.com
