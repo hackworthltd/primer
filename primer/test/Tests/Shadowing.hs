@@ -129,6 +129,66 @@ checkShadowing t = if fst $ foldTree f t
                   shadowing = any (\(bs, (s, bs')) -> s || not (Set.disjoint bs bs')) xs
               in (shadowing, allBinds)
 
+
+-- TODO: We check that all advertised API calls never introduce shadowing
+-- - actionsForDef,
+-- - actionsForDefBody,
+-- - actionsForDefSig,
+-- - eval
+
+{-
+-- TODO: this actually just tests actions work -- should be moved!
+--tasty_shadow_action :: Property
+--tasty_shadow_action = withTests 500 $
+  withDiscards 2000 $
+    propertyWT [] $ do
+      l <- forAllT $ Gen.element enumerate
+      a <- forAllT $ genAppSH [] -- [builtinModule, primitiveModule]
+      (m,(defName, def')) <- forAllT $ Gen.justT $ do
+        m' <- Gen.element $ progModules $ appProg a
+        let ds = Map.toList $ moduleDefsQualified m'
+        traverse (fmap (m',) . element) $ nonEmpty ds
+      def <- case def' of
+        DefAST d -> pure d
+        _ -> discard
+      -- TODO: other sorts of action...
+      act <- forAllWithT name' $ Gen.element $ actionsForDef l (moduleDefsQualified m) (defName, def)
+      case input act of
+--        InputRequired a' -> _
+        NoInputRequired act' -> annotateShow act' >> actionSucceeds (handleEditRequest act') a
+--        AskQuestion q a' -> _
+        _ -> discard
+      {-
+      let globs = foldMap moduleDefsQualified testModules
+      tds <- asks typeDefs
+      (dir, t, ty) <- genDirTm
+      unless (noShadowing t == ShadowingNotExists) discard
+      unless (noShadowingTy ty == ShadowingNotExists) discard
+      annotateShow t
+      n <- forAllT (qualifyName <$> genModuleName <*> genName)
+      l <- forAllT $ Gen.element enumerate
+      i <- forAllT $ Gen.element $ t ^.. exprIDs
+      a <- forAllWithT name' $ Gen.element $ actionsForDefBody l n i t
+      case input a of
+--        InputRequired a' -> _
+        NoInputRequired a' -> case a' of
+--          [MoveToDef m , BodyAction as'] | n == m -> do
+--             _
+          [] -> footnote "actionsForDefBody always returns a MoveToDef as first action, and rest of actions are wrapped in BodyAction" >> failure
+--        AskQuestion q a' -> _
+        _ -> discard
+-}
+  where
+    name' a = toS $ case name a of
+      Code t -> t
+      Prose t -> t
+    actionSucceeds :: HasCallStack => EditAppM a -> App.App -> PropertyT WT ()
+    actionSucceeds m a = case runEditAppM m a of
+      (Left err, _) -> annotateShow err >> failure
+      (Right _, _) -> pure ()
+    element = Gen.element . toList
+-}
+
 -- Check evaluation does not introduce shadowing, except in some known cases
 tasty_eval_shadow :: Property
 tasty_eval_shadow = withTests 500 $
