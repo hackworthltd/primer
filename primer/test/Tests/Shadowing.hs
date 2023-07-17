@@ -40,7 +40,7 @@ import Primer.Def
 import Primer.TypeDef
 import Primer.Test.App (runAppTestM)
 import Test.Tasty.HUnit ((@?=))
-import Primer.Test.Util (vcn, tcn)
+import Primer.Test.Util (vcn, tcn, gvn)
 
 
 -- The 'a' parameter (node labels) are only needed for implementation of 'binderTree'
@@ -126,6 +126,26 @@ checkShadowing t = if fst $ foldTree f t
                   allBinds = bindsHere <> allSubtreeBinds
                   shadowing = any (\(bs, (s, bs')) -> s || not (Set.disjoint bs bs')) xs
               in (shadowing, allBinds)
+
+-- Inlining a global can shadow
+-- We simply need to alpha-convert first, but the term may be big, and we need to do a full substitution
+-- NB: this is essentially the same problem as case-of-known-ctor!
+unit_global_shadow :: Assertion
+unit_global_shadow =
+  let globalName = gvn ["M"] "x"
+      ((def, expr, expected), maxID) = create $ do
+        dt <- tcon tBool `tfun` tcon tBool
+        de <- lam "y" $ lvar "y"
+        let d = DefAST $ ASTDef {
+                 astDefType = dt
+                , astDefExpr = de}
+        e <-  lam "y" $ gvar globalName
+        expect <- lam "y" $ (lam "y" $ lvar "y") `ann` (tcon tBool `tfun` tcon tBool)
+        pure (d,e, expect)
+   in do
+        s <- evalFullTest maxID mempty (Map.singleton globalName def) 1 Chk expr
+        s <~==> Left (TimedOut expected)
+        noShadowing expected @?= ShadowingNotExists
 
 unit_known_case_shadow :: Assertion
 unit_known_case_shadow =
