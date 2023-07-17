@@ -30,17 +30,19 @@ import Primer.Action.Available -- (actionsForDefBody, actionsForDef) -- TODO: ma
 import qualified Hedgehog.Gen as Gen
 import Data.List.Extra (enumerate)
 import Hedgehog.Internal.Property (forAllWithT)
+import Hedgehog.Range qualified as Range
 import Primer.Action
 import qualified Data.Text as T
 import Primer.App (appProg, Prog (..), handleEditRequest, runEditAppM, EditAppM)
 import qualified Primer.App as App
 import Primer.Test.TestM (evalTestM)
-import Tasty (Property)
+import Tasty (Property, withTests, withDiscards)
 import Primer.Def
 import Primer.TypeDef
 import Primer.Test.App (runAppTestM)
 import Test.Tasty.HUnit ((@?=))
-import Primer.Test.Util (vcn, tcn, gvn)
+import Primer.Test.Util (vcn, tcn, gvn, failWhenSevereLogs)
+import Tests.Eval.Utils (genDirTm, testModules)
 
 
 -- The 'a' parameter (node labels) are only needed for implementation of 'binderTree'
@@ -126,6 +128,55 @@ checkShadowing t = if fst $ foldTree f t
                   allBinds = bindsHere <> allSubtreeBinds
                   shadowing = any (\(bs, (s, bs')) -> s || not (Set.disjoint bs bs')) xs
               in (shadowing, allBinds)
+
+-- Check evaluation does not introduce shadowing, except in some known cases
+tasty_eval_shadow :: Property
+tasty_eval_shadow = withTests 500 $
+  withDiscards 2000 $
+    propertyWT testModules $ do
+      testModules' <- sequence testModules
+      let globs = foldMap' moduleDefsQualified testModules'
+      tds <- asks typeDefs
+      (dir, t, ty) <- genDirTm
+      unless (noShadowing t == ShadowingNotExists) discard
+      unless (noShadowingTy ty == ShadowingNotExists) discard
+      when (any isKnownShadow $ U.universe t) discard
+      steps <- forAll $ Gen.integral $ Range.linear 1 10
+      (_steps, s) <- failWhenSevereLogs $ evalFullStepCount @EvalLog tds globs steps dir t
+      annotateShow s
+      noShadowing (getEvalResultExpr s) === ShadowingNotExists
+  where
+    -- There are a few cases where evaluation may cause shadowing
+    -- currently
+    isKnownShadow e = {-isLet e || isHetroAPP e ||-} False --isKnownCase e -- TODO: aim is to remove this!
+    -- Since we inline let bindings underneath the let (without
+    -- simultaneously removing the let binding), this can easily
+    -- cause shadowing. If we implement a "push down let bindings"
+    -- explicit-substitution style rule, then this check can be
+    -- removed. See https://github.com/hackworthltd/primer/issues/44
+    isLet = \case
+      Let{} -> True
+      Letrec{} -> True
+      LetType{} -> True
+      _ -> False
+    -- Since the rule here is (because we do not have the ability
+    -- to put a `lettype` inside a type)
+    -- (Λa.e : ∀b.T) S ~> lettype b=S in (lettype a = S in e) : T
+    -- it could happen that the `lettype b` may shadow something in `e`
+    isHetroAPP = \case
+      APP _ (Ann _ (LAM _ x _) (TForall _ y _ _)) _ -> x /= y
+      _ -> False
+    -- Since we introduce a let bindings per argument, and annotate
+    -- these with the type from the type declaration, we could
+    -- introduce a shadowed binder. For instance, if we have
+    --   λx. case (C a : D) of C t -> t
+    -- it will evaluate to
+    --   λx. let t = a : A in t
+    -- where 'A' is read from the declaration of 'D', and thus may
+    -- contain a ∀ x. ...
+    isKnownCase = \case
+      --Case _ e _ | (h,_) <- unfoldApp e, (Con{},_) <- unfoldAPP h -> True
+      _ -> False
 
 -- Inlining a global can shadow
 -- We simply need to alpha-convert first, but the term may be big, and we need to do a full substitution
