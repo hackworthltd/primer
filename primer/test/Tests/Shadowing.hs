@@ -168,6 +168,20 @@ unit_known_case_shadow_2 =
         s <~==> Left (TimedOut expected)
         noShadowing expected @?= ShadowingNotExists
 
+-- Consider @let x = λy._ in λy._@, when we push, we get @λy.let x = λy._ in _@, which shadows!
+-- We simply need to alpha-convert first (which we already do if there would be capture)
+-- but this will build up bigger substitutions, which seems problematic
+unit_push_let_shadow :: Assertion
+unit_push_let_shadow =
+  let ((expr, expected), maxID) = create $ do
+        e <- let_ "x" (lam "y" emptyHole) $ lam "y" $ lvar "x"
+        expect <- lam "y" $ let_ "x" (lam "y" emptyHole) $ lvar "x"
+        pure (e, expect)
+   in do
+        s <- evalFullTest maxID mempty mempty 1 Chk expr
+        s <~==> Left (TimedOut expected)
+        noShadowing expected @?= ShadowingNotExists
+
 getEvalResultExpr :: Either EvalFullError Expr -> Expr
 getEvalResultExpr = \case
   Left (TimedOut e) -> e
