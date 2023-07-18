@@ -14,7 +14,7 @@ import Hedgehog.Internal.Property (LabelName (unLabelName))
 import Hedgehog.Range qualified as Range
 import Optics
 import Primer.App (
-  EvalFullReq (EvalFullReq, evalFullCxtDir, evalFullMaxSteps, evalFullReqExpr),
+  EvalFullReq (EvalFullReq, evalFullCxtDir, evalFullMaxSteps, evalFullOptions, evalFullReqExpr),
   EvalFullResp (EvalFullRespNormal, EvalFullRespTimedOut),
   handleEvalFullRequest,
   importModules,
@@ -588,6 +588,7 @@ resumeTest mods dir t = do
   let globs = foldMap' moduleDefsQualified mods
   tds <- asks typeDefs
   n <- forAllT $ Gen.integral $ Range.linear 2 1000 -- Arbitrary limit here
+  closed <- forAllT $ Gen.element @[] [UnderBinders]
   -- NB: We need to run this first reduction in an isolated context
   -- as we need to avoid it changing the fresh-name-generator state
   -- for the next run (sMid and sTotal). This is because reduction may need
@@ -595,19 +596,19 @@ resumeTest mods dir t = do
   -- exactly the same as "reducing n steps and then further reducing m
   -- steps" (including generated names). (A happy consequence of this is that
   -- it is precisely the same including ids in metadata.)
-  ((stepsFinal', sFinal), logs) <- lift $ isolateWT $ runPureLogT $ evalFullStepCount @EvalLog optsV optsR tds globs n dir t
+  ((stepsFinal', sFinal), logs) <- lift $ isolateWT $ runPureLogT $ evalFullStepCount @EvalLog closed optsV optsR tds globs n dir t
   testNoSevereLogs logs
   when (stepsFinal' < 2) discard
   let stepsFinal = case sFinal of Left _ -> stepsFinal'; Right _ -> 1 + stepsFinal'
   m <- forAllT $ Gen.integral $ Range.constant 1 (stepsFinal - 1)
-  (stepsMid, sMid') <- failWhenSevereLogs $ evalFullStepCount @EvalLog optsV optsR tds globs m dir t
+  (stepsMid, sMid') <- failWhenSevereLogs $ evalFullStepCount @EvalLog closed optsV optsR tds globs m dir t
   stepsMid === m
   sMid <- case sMid' of
     Left (TimedOut e) -> pure e
     -- This should never happen: we know we are not taking enough steps to
     -- hit a normal form (as m < stepsFinal)
     Right e -> assert False >> pure e
-  (stepsTotal, sTotal) <- failWhenSevereLogs $ evalFullStepCount @EvalLog optsV optsR tds globs (stepsFinal - m) dir sMid
+  (stepsTotal, sTotal) <- failWhenSevereLogs $ evalFullStepCount @EvalLog closed optsV optsR tds globs (stepsFinal - m) dir sMid
   stepsMid + stepsTotal === stepsFinal'
   sFinal === sTotal
 
@@ -1015,7 +1016,8 @@ tasty_type_preservation = withTests 1000 $
                 s' <- checkTest ty s
                 forgetMetadata s === forgetMetadata s' -- check no smart holes happened
       maxSteps <- forAllT $ Gen.integral $ Range.linear 1 1000 -- Arbitrary limit here
-      (steps, s) <- failWhenSevereLogs $ evalFullStepCount @EvalLog optsV optsR tds globs maxSteps dir t
+      closed <- forAllT $ Gen.element @[] [UnderBinders]
+      (steps, s) <- failWhenSevereLogs $ evalFullStepCount @EvalLog closed optsV optsR tds globs maxSteps dir t
       annotateShow steps
       annotateShow s
       -- s is often reduced to normal form
@@ -1025,7 +1027,7 @@ tasty_type_preservation = withTests 1000 $
         then label "generated a normal form"
         else do
           midSteps <- forAllT $ Gen.integral $ Range.linear 1 (steps - 1)
-          (_, s') <- failWhenSevereLogs $ evalFullStepCount @EvalLog optsV optsR tds globs midSteps dir t
+          (_, s') <- failWhenSevereLogs $ evalFullStepCount @EvalLog closed optsV optsR tds globs midSteps dir t
           test "mid " s'
 
 -- Unsaturated primitives are stuck terms
@@ -1483,6 +1485,7 @@ unit_eval_full_modules =
                 { evalFullReqExpr = foo
                 , evalFullCxtDir = Chk
                 , evalFullMaxSteps = 2
+                , evalFullOptions = UnderBinders
                 }
         expect <- char 'A'
         pure $ case resp of
@@ -1505,8 +1508,13 @@ unit_eval_full_modules_scrutinize_imported_type =
             [branch cTrue [] $ con0 cFalse, branch cFalse [] $ con0 cTrue]
         resp <-
           readerToState $
-            handleEvalFullRequest
-              EvalFullReq{evalFullReqExpr = foo, evalFullCxtDir = Chk, evalFullMaxSteps = 2}
+            handleEvalFullRequest $
+              EvalFullReq
+                { evalFullReqExpr = foo
+                , evalFullCxtDir = Chk
+                , evalFullMaxSteps = 2
+                , evalFullOptions = UnderBinders
+                }
         expect <- con0 cFalse
         pure $ case resp of
           EvalFullRespTimedOut _ -> assertFailure "EvalFull timed out"
@@ -1535,10 +1543,11 @@ tasty_unique_ids = withTests 1000 $
       let globs = foldMap' moduleDefsQualified $ create' $ sequence testModules
       tds <- asks typeDefs
       (dir, t1, _) <- genDirTm
+      closed <- forAllT $ Gen.element @[] [UnderBinders]
       let go n t
             | n == (0 :: Int) = pure ()
             | otherwise = do
-                t' <- failWhenSevereLogs $ evalFull @EvalLog optsV optsR tds globs 1 dir t
+                t' <- failWhenSevereLogs $ evalFull @EvalLog closed optsV optsR tds globs 1 dir t
                 case t' of
                   Left (TimedOut e) -> uniqueIDs e >> go (n - 1) e
                   Right e -> uniqueIDs e
@@ -1606,9 +1615,10 @@ unit_case_prim =
 
 evalFullTest :: HasCallStack => ID -> TypeDefMap -> DefMap -> TerminationBound -> Dir -> Expr -> IO (Either EvalFullError Expr)
 evalFullTest id_ tydefs globals n d e = do
+  let optsN = UnderBinders
   let optsV = ViewRedexOptions{groupedLets = True, aggressiveElision = True}
   let optsR = RunRedexOptions{pushAndElide = True}
-  let (r, logs) = evalTestM id_ $ runPureLogT $ evalFull @EvalLog optsV optsR tydefs globals n d e
+  let (r, logs) = evalTestM id_ $ runPureLogT $ evalFull @EvalLog optsN optsV optsR tydefs globals n d e
   assertNoSevereLogs logs
   distinctIDs r
   pure r
@@ -1626,9 +1636,10 @@ evalFullTestExactSteps id_ tydefs globals n d e = do
 
 evalFullTasty :: MonadTest m => ID -> TypeDefMap -> DefMap -> TerminationBound -> Dir -> Expr -> m (Either EvalFullError Expr)
 evalFullTasty id_ tydefs globals n d e = do
+  let optsN = UnderBinders
   let optsV = ViewRedexOptions{groupedLets = True, aggressiveElision = True}
   let optsR = RunRedexOptions{pushAndElide = True}
-  let (r, logs) = evalTestM id_ $ runPureLogT $ evalFull @EvalLog optsV optsR tydefs globals n d e
+  let (r, logs) = evalTestM id_ $ runPureLogT $ evalFull @EvalLog optsN optsV optsR tydefs globals n d e
   testNoSevereLogs logs
   let ids = r ^.. evalResultExpr % exprIDs
   ids === ordNub ids

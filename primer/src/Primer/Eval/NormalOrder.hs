@@ -6,6 +6,7 @@ module Primer.Eval.NormalOrder (
   findRedex,
   foldMapExpr,
   FMExpr (..),
+  NormalOrderOptions (..),
   -- Exported for testing
   singletonCxt,
 ) where
@@ -43,6 +44,7 @@ import Primer.Eval.Redex (
   viewRedex,
   viewRedexType,
  )
+import Primer.JSON (CustomJSON (CustomJSON), FromJSON, PrimerJSON, ToJSON)
 import Primer.Log (ConvertLogMessage)
 import Primer.TypeDef (
   TypeDefMap,
@@ -81,7 +83,7 @@ data ViewLet = ViewLet
   -- ^ any non-body term children (i.e. rhs of the binding)
   }
 viewLet :: (Dir, ExprZ) -> Maybe ViewLet
-viewLet dez@(_, ez) = case (target ez, exprChildren dez) of
+viewLet dez@(_, ez) = case (target ez, exprChildren UnderBinders dez) of
   (Let _ x e _b, [ez', bz]) -> Just (ViewLet (LetBind x e) bz [] [ez'])
   (Letrec _ x e ty _b, [ez', bz]) -> Just (ViewLet (LetrecBind x e ty) bz tz [ez'])
   (LetType _ a ty _b, [bz]) -> bz `seq` Just (ViewLet (LetTyBind $ LetTypeBind a ty) bz tz [])
@@ -89,6 +91,11 @@ viewLet dez@(_, ez) = case (target ez, exprChildren dez) of
   where
     tz :: [TypeZ]
     tz = maybeToList $ focusType ez
+
+data NormalOrderOptions
+  = UnderBinders
+  deriving stock (Eq, Show, Read, Generic)
+  deriving (FromJSON, ToJSON) via PrimerJSON NormalOrderOptions
 
 -- | This is similar to 'foldMap', with a few differences:
 -- - 'Expr' is not foldable
@@ -107,8 +114,13 @@ viewLet dez@(_, ez) = case (target ez, exprChildren dez) of
 -- However, we may reduce type children to normal form more eagerly than necessary,
 -- both reducing type annotations more than needed, and reducing type applications when not needed.
 -- Since computation in types is strongly normalising, this will not cause us to fail to find any normal forms.
-foldMapExpr :: forall f a. MonadPlus f => FMExpr (f a) -> Dir -> Expr -> f a
-foldMapExpr extract topDir = go mempty . (topDir,) . focus
+--
+-- We can optionally stop when we find a binder (e.g. to implement closed
+-- evaluation -- do not compute under binders), although for consistency we
+-- treat all case branches as being binders, even those that do not actually
+-- bind a variable.
+foldMapExpr :: forall f a. MonadPlus f => NormalOrderOptions -> FMExpr (f a) -> Dir -> Expr -> f a
+foldMapExpr opts extract topDir = go mempty . (topDir,) . focus
   where
     go :: Cxt -> (Dir, ExprZ) -> f a
     go lets dez@(d, ez) =
@@ -126,16 +138,16 @@ foldMapExpr extract topDir = go mempty . (topDir,) . focus
           -- Since this node is not a let, the context is reset
           _ ->
             msum $
-              (goType mempty =<< focusType' ez)
-                : map (go mempty) (exprChildren dez)
+              (goType mempty =<< focusType' ez) -- NB: no binders in term scope over a type child
+                : map (go mempty) (exprChildren opts dez)
     goType :: Cxt -> TypeZ -> f a
     goType lets tz =
       extract.ty tz lets
         <|> case target tz of
           TLet _ a t _body
             -- Prefer to compute inside the body of a let, but otherwise compute in the binding
-            | [tz', bz] <- typeChildren tz -> goType (cxtAddLet (LetTyBind $ LetTypeBind a t) lets) bz <|> goType mempty tz'
-          _ -> msum $ map (goType mempty) $ typeChildren tz
+            | [tz', bz] <- typeChildren UnderBinders tz -> goType (cxtAddLet (LetTyBind $ LetTypeBind a t) lets) bz <|> goType mempty tz'
+          _ -> msum $ map (goType mempty) $ typeChildren opts tz
 
 data FMExpr m = FMExpr
   { expr :: ExprZ -> Dir -> Cxt -> m
@@ -149,17 +161,19 @@ focusType' = maybe empty pure . focusType
 findRedex ::
   forall l m.
   (MonadLog (WithSeverity l) m, ConvertLogMessage EvalLog l) =>
+  NormalOrderOptions ->
   ViewRedexOptions ->
   TypeDefMap ->
   DefMap ->
   Dir ->
   Expr ->
   MaybeT m RedexWithContext
-findRedex opts tydefs globals =
+findRedex optsN optsV tydefs globals =
   foldMapExpr
+    optsN
     ( FMExpr
-        { expr = \ez d -> runReaderT (RExpr ez <$> viewRedex opts tydefs globals d (target ez))
-        , ty = \tz -> hoistMaybe . runReader (RType tz <<$>> viewRedexType opts (target tz))
+        { expr = \ez d -> runReaderT (RExpr ez <$> viewRedex optsV tydefs globals d (target ez))
+        , ty = \tz -> hoistMaybe . runReader (RType tz <<$>> viewRedexType optsV (target tz))
         }
     )
 
@@ -168,8 +182,8 @@ children' z = case down z of
   Nothing -> mempty
   Just z' -> z' : unfoldr (fmap (\x -> (x, x)) . right) z'
 
-exprChildren :: (Dir, ExprZ) -> [(Dir, ExprZ)]
-exprChildren (d, ez) =
+exprChildren' :: (Dir, ExprZ) -> [(Dir, ExprZ)]
+exprChildren' (d, ez) =
   children' ez <&> \c -> do
     let d' = case target ez of
           App _ f _ | f == target c -> Syn
@@ -188,8 +202,13 @@ exprChildren (d, ez) =
           _ -> Chk
     (d', c)
 
-typeChildren :: TypeZ -> [TypeZ]
-typeChildren = children'
+exprChildren :: NormalOrderOptions -> (Dir, ExprZ) -> [(Dir, ExprZ)]
+exprChildren = \case
+  UnderBinders -> exprChildren'
+
+typeChildren :: NormalOrderOptions -> TypeZ -> [TypeZ]
+typeChildren = \case
+  UnderBinders -> children'
 
 singletonCxt :: LetBinding -> Cxt
 singletonCxt l = Cxt [l]

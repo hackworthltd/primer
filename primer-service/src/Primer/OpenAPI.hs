@@ -82,6 +82,7 @@ import Primer.Database (
   Session,
   SessionName,
  )
+import Primer.Eval (NormalOrderOptions)
 import Primer.JSON (CustomJSON (CustomJSON), PrimerJSON)
 import Primer.Name (Name)
 import Servant.API (FromHttpApiData (parseQueryParam), ToHttpApiData (toQueryParam))
@@ -197,6 +198,11 @@ deriving anyclass instance ToParamSchema Level
 instance FromHttpApiData Level where
   parseQueryParam = parseQueryParamRead "level"
 instance ToHttpApiData Level where
+  toQueryParam = show
+deriving anyclass instance ToParamSchema NormalOrderOptions
+instance FromHttpApiData NormalOrderOptions where
+  parseQueryParam = parseQueryParamRead "NormalOrderOptions"
+instance ToHttpApiData NormalOrderOptions where
   toQueryParam = show
 parseQueryParamRead :: Read a => Text -> Text -> Either Text a
 parseQueryParamRead m t = maybeToEither ("unknown " <> m <> ": " <> t) $ readMaybe t

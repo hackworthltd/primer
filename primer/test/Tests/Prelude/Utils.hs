@@ -8,6 +8,7 @@ import Optics (over)
 import Primer.Core (Expr, GVarName, Type)
 import Primer.Core.DSL (apps', create', gvar)
 import Primer.Eval (
+  NormalOrderOptions (UnderBinders),
   RunRedexOptions (RunRedexOptions, pushAndElide),
   ViewRedexOptions (ViewRedexOptions, aggressiveElision, groupedLets),
  )
@@ -53,11 +54,12 @@ functionOutput f args = functionOutput' f (map Left args)
 -- Tests a prelude function with a combination of Expr/Type arguments to be applied
 functionOutput' :: GVarName -> [Either (TestM Expr) (TestM Type)] -> TerminationBound -> Either EvalFullError Expr
 functionOutput' f args depth =
-  let optsV = ViewRedexOptions{groupedLets = True, aggressiveElision = True}
+  let optsN = UnderBinders
+      optsV = ViewRedexOptions{groupedLets = True, aggressiveElision = True}
       optsR = RunRedexOptions{pushAndElide = True}
       (r, logs) = evalTestM 0 $ runPureLogT $ do
         e <- apps' (gvar f) $ bimap lift lift <$> args
-        evalFull @EvalLog optsV optsR ty def n d e
+        evalFull @EvalLog optsN optsV optsR ty def n d e
       severe = Seq.filter isSevereLog logs
    in if null severe
         then r

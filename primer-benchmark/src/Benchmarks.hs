@@ -21,6 +21,7 @@ import Primer.App (
  )
 import Primer.App.Utils (forgetProgTypecache)
 import Primer.Eval (
+  NormalOrderOptions (UnderBinders),
   RunRedexOptions (RunRedexOptions, pushAndElide),
   ViewRedexOptions (ViewRedexOptions, aggressiveElision, groupedLets),
  )
@@ -102,16 +103,17 @@ benchmarks =
       ]
   ]
   where
+    evalOptionsN = UnderBinders
     evalOptionsV = ViewRedexOptions{groupedLets = True, aggressiveElision = True}
     evalOptionsR = RunRedexOptions{pushAndElide = True}
     evalTestMPureLogs e maxEvals =
       evalTestM (maxID e) $
         runPureLogT $
-          evalFull @EvalLog evalOptionsV evalOptionsR builtinTypes (defMap e) maxEvals Syn (expr e)
+          evalFull @EvalLog evalOptionsN evalOptionsV evalOptionsR builtinTypes (defMap e) maxEvals Syn (expr e)
     evalTestMDiscardLogs e maxEvals =
       evalTestM (maxID e) $
         runDiscardLogT $
-          evalFull @EvalLog evalOptionsV evalOptionsR builtinTypes (defMap e) maxEvals Syn (expr e)
+          evalFull @EvalLog evalOptionsN evalOptionsV evalOptionsR builtinTypes (defMap e) maxEvals Syn (expr e)
 
     benchExpected f g e n b = EnvBench e n $ \e' ->
       NF

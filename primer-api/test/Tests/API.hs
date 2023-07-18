@@ -48,6 +48,7 @@ import Primer.Database (
   fromSessionName,
  )
 import Primer.Def (astDefExpr, astDefType, defAST)
+import Primer.Eval (NormalOrderOptions (UnderBinders))
 import Primer.Examples (
   comprehensive,
   even3App,
@@ -462,7 +463,7 @@ test_eval_undo =
       sid <- newSession $ NewSessionReq "a new session" True
       let scope = mkSimpleModuleName "Main"
       step "eval"
-      void $ evalFull' sid (Just 100) $ qualifyName scope "main"
+      void $ evalFull' sid (Just 100) (Just UnderBinders) $ qualifyName scope "main"
       step "insert λ"
       let getMain = do
             p <- getProgram sid
