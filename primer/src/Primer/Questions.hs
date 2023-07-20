@@ -20,7 +20,7 @@ import Data.Set qualified as Set
 import Primer.Core (
   GVarName,
   ID,
-  Kind (KFun, KType),
+  Kind' (KFun, KType),
   LVarName,
   TyVarName,
   Type' (..),
@@ -57,7 +57,7 @@ data Question a where
     GVarName ->
     ID ->
     Question
-      ( ( [(TyVarName, Kind)]
+      ( ( [(TyVarName, Kind' ())]
         , [(LVarName, Type' ())]
         )
       , [(GVarName, Type' ())]
@@ -65,7 +65,7 @@ data Question a where
   GenerateName ::
     GVarName ->
     ID ->
-    Either (Maybe (Type' ())) (Maybe Kind) ->
+    Either (Maybe (Type' ())) (Maybe (Kind' ())) ->
     Question [Name]
 
 -- | Collect the typing context for the focused node.
@@ -77,7 +77,7 @@ data Question a where
 variablesInScopeExpr ::
   DefMap ->
   Either ExprZ TypeZ ->
-  ([(TyVarName, Kind)], [(LVarName, Type' ())], [(GVarName, Type' ())])
+  ([(TyVarName, Kind' ())], [(LVarName, Type' ())], [(GVarName, Type' ())])
 variablesInScopeExpr defs exprOrTy =
   let locals = either extractLocalsExprZ extractLocalsTypeZ exprOrTy
       globals = Map.assocs $ fmap defType defs
@@ -86,7 +86,7 @@ variablesInScopeExpr defs exprOrTy =
 
 generateNameExpr ::
   MonadReader Cxt m =>
-  Either (Maybe (Type' ())) (Maybe Kind) ->
+  Either (Maybe (Type' ())) (Maybe (Kind' ())) ->
   Either ExprZ TypeZ ->
   m [Name]
 -- NB: it makes perfect sense to ask for a type variable (first Either is Right)
@@ -97,7 +97,7 @@ generateNameExpr tk z = uniquifyMany <$> getAvoidSet z <*> baseNames tk
 
 generateNameTy ::
   MonadReader Cxt m =>
-  Either (Maybe (Type' ())) (Maybe Kind) ->
+  Either (Maybe (Type' ())) (Maybe (Kind' ())) ->
   TypeZip ->
   m [Name]
 generateNameTy = generateNameTyAvoiding []
@@ -105,7 +105,7 @@ generateNameTy = generateNameTyAvoiding []
 generateNameTyAvoiding ::
   MonadReader Cxt m =>
   [Name] ->
-  Either (Maybe (Type' ())) (Maybe Kind) ->
+  Either (Maybe (Type' ())) (Maybe (Kind' ())) ->
   TypeZip ->
   m [Name]
 -- It doesn't really make sense to ask for a term variable (Left) here, but
@@ -115,7 +115,7 @@ generateNameTyAvoiding avoiding tk z =
 
 baseNames ::
   MonadReader Cxt m =>
-  Either (Maybe (Type' ())) (Maybe Kind) ->
+  Either (Maybe (Type' ())) (Maybe (Kind' ())) ->
   m [Name]
 baseNames tk = do
   tys <- asks typeDefs
@@ -126,8 +126,8 @@ baseNames tk = do
           hints
     Left (Just TFun{}) -> ["f", "g", "h"]
     Left _ -> ["x", "y", "z"]
-    Right (Just KType) -> ["α", "β", "γ"]
-    Right (Just (KFun _ _)) -> ["f", "m", "t"]
+    Right (Just (KType{})) -> ["α", "β", "γ"]
+    Right (Just (KFun{})) -> ["f", "m", "t"]
     Right _ -> ["α", "β", "γ"]
   where
     headCon = fmap fst . decomposeTAppCon

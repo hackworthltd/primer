@@ -26,7 +26,7 @@ import Primer.App (
   mkApp,
   tcWholeProgWithImports,
  )
-import Primer.Core (GlobalName (baseName), Kind (KType), ModuleName (ModuleName), qualifyName)
+import Primer.Core (GlobalName (baseName), Kind' (KType), ModuleName (ModuleName), qualifyName)
 import Primer.Core.Utils (forgetTypeMetadata, generateIDs, generateTypeIDs)
 import Primer.Def (ASTDef (ASTDef), Def (DefAST), defType)
 import Primer.Module (Module (Module, moduleDefs, moduleName, moduleTypes), moduleDefsQualified, moduleTypesQualified)
@@ -108,7 +108,7 @@ genProg sh initialImports = local (extendCxtByModules initialImports) $ do
 -- Generate a mutually-recursive group of term definitions
 genASTDefGroup :: ModuleName -> GenT WT (Map Name Def)
 genASTDefGroup mod = do
-  nts <- genList 5 $ (\n t -> (qualifyName mod n, t)) <$> freshNameForCxt <*> genWTType KType
+  nts <- genList 5 $ (\n t -> (qualifyName mod n, t)) <$> freshNameForCxt <*> genWTType (KType ())
   nTyTms <- local (extendGlobalCxt nts) $ for nts $ \(n, ty) -> (n,ty,) <$> genChk ty
   fmap M.fromList . for nTyTms $ \(n, ty, tm) -> do
     tm' <- generateIDs tm

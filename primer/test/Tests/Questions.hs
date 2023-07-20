@@ -13,7 +13,7 @@ import Primer.Core (
   Expr,
   GVarName,
   GlobalName (baseName),
-  Kind (KFun, KType),
+  Kind' (KFun, KType),
   LVarName,
   LocalName (LocalName, unLocalName),
   ModuleName (ModuleName),
@@ -23,7 +23,7 @@ import Primer.Core (
   qualifyName,
  )
 import Primer.Core.DSL
-import Primer.Core.Utils (forgetTypeMetadata)
+import Primer.Core.Utils (forgetKindMetadata, forgetTypeMetadata)
 import Primer.Gen.Core.Raw (evalExprGen, genKind, genName, genTyVarName, genType)
 import Primer.Module (builtinModule)
 import Primer.Name
@@ -93,8 +93,8 @@ tasty_shadow_monoid_types = property $ do
 
 -- Generates data that could be contained in a ShadowedVarsTy, except
 -- it may have duplicated names
-genSTV' :: Gen [(TyVarName, Kind)]
-genSTV' = evalExprGen 0 $ Gen.list (Range.linear 0 20) $ (,) <$> genTyVarName <*> genKind
+genSTV' :: Gen [(TyVarName, Kind' ())]
+genSTV' = evalExprGen 0 $ Gen.list (Range.linear 0 20) $ (,) <$> genTyVarName <*> (forgetKindMetadata <$> genKind)
 
 genSTV :: Gen ShadowedVarsTy
 genSTV = N . nubOrdOn fst <$> genSTV'
@@ -127,7 +127,7 @@ tasty_shadow_monoid_expr = property $ do
   assert $ sort nonShNames == nubSort (map nameSTE' ns)
 
 data STE'
-  = TyVar (TyVarName, Kind)
+  = TyVar (TyVarName, Kind' ())
   | TmVar (LVarName, Type' ())
   | Global (GVarName, Type' ())
   deriving stock (Show)
@@ -143,7 +143,7 @@ nameSTE' = \case
 -- but jumbled together
 genSTE' :: Gen [STE']
 genSTE' =
-  let g = Gen.either_ genKind $ (,) <$> fmap forgetTypeMetadata genType <*> Gen.bool
+  let g = Gen.either_ (forgetKindMetadata <$> genKind) $ (,) <$> fmap forgetTypeMetadata genType <*> Gen.bool
       toSTE' m n = \case
         Left k -> TyVar (LocalName n, k)
         Right (ty, False) -> TmVar (LocalName n, ty)
@@ -218,29 +218,29 @@ unit_variablesInScope_case = do
 
 unit_variablesInScope_type :: Assertion
 unit_variablesInScope_type = do
-  let ty = tforall "a" KType $ tfun (tvar "a") (tapp tEmptyHole tEmptyHole)
+  let ty = tforall "a" (KType ()) $ tfun (tvar "a") (tapp tEmptyHole tEmptyHole)
   hasVariablesType ty pure []
-  hasVariablesType ty down [("a", KType)]
-  hasVariablesType ty (down >=> down) [("a", KType)]
+  hasVariablesType ty down [("a", KType ())]
+  hasVariablesType ty (down >=> down) [("a", KType ())]
 
 -- * Tests that we do not report shadowed vars
 
 unit_variablesInScope_shadowed :: Assertion
 unit_variablesInScope_shadowed = do
-  let ty = tforall "a" (KFun KType KType) $ tforall "b" KType $ tcon tNat `tfun` tforall "a" KType (tcon tBool `tfun` (tcon tList `tapp` tvar "b"))
+  let ty = tforall "a" (KFun () (KType ()) (KType ())) $ tforall "b" (KType ()) $ tcon tNat `tfun` tforall "a" (KType ()) (tcon tBool `tfun` (tcon tList `tapp` tvar "b"))
       expr' = lAM "c" $ lAM "d" $ lam "c" $ lAM "c" $ lam "c" $ emptyHole `ann` (tcon tList `tapp` tvar "d")
       expr = ann expr' ty
   hasVariablesType ty pure []
-  hasVariablesType ty down [("a", KFun KType KType)]
-  hasVariablesType ty (down >=> down) [("a", KFun KType KType), ("b", KType)]
-  hasVariablesType ty (down >=> down >=> down >=> right >=> down) [("b", KType), ("a", KType)]
-  hasVariablesType ty (down >=> down >=> down >=> right >=> down >=> down >=> right >=> down >=> right) [("b", KType), ("a", KType)]
+  hasVariablesType ty down [("a", KFun () (KType ()) (KType ()))]
+  hasVariablesType ty (down >=> down) [("a", KFun () (KType ()) (KType ())), ("b", KType ())]
+  hasVariablesType ty (down >=> down >=> down >=> right >=> down) [("b", KType ()), ("a", KType ())]
+  hasVariablesType ty (down >=> down >=> down >=> right >=> down >=> down >=> right >=> down >=> right) [("b", KType ()), ("a", KType ())]
   hasVariablesTyTm expr pure [] []
-  hasVariablesTyTm expr (down >=> down) [("c", KFun KType KType)] []
-  hasVariablesTyTm expr (down >=> down >=> down) [("c", KFun KType KType), ("d", KType)] []
-  hasVariablesTyTm expr (down >=> down >=> down >=> down) [("d", KType)] [("c", TCon () tNat)]
-  hasVariablesTyTm expr (down >=> down >=> down >=> down >=> down) [("d", KType), ("c", KType)] []
-  hasVariablesTyTm expr (down >=> down >=> down >=> down >=> down >=> down) [("d", KType)] [("c", TCon () tBool)]
+  hasVariablesTyTm expr (down >=> down) [("c", KFun () (KType ()) (KType ()))] []
+  hasVariablesTyTm expr (down >=> down >=> down) [("c", KFun () (KType ()) (KType ())), ("d", KType ())] []
+  hasVariablesTyTm expr (down >=> down >=> down >=> down) [("d", KType ())] [("c", TCon () tNat)]
+  hasVariablesTyTm expr (down >=> down >=> down >=> down >=> down) [("d", KType ()), ("c", KType ())] []
+  hasVariablesTyTm expr (down >=> down >=> down >=> down >=> down >=> down) [("d", KType ())] [("c", TCon () tBool)]
 
 -- | Test that if we walk 'path' to some node in 'expr', that node will have
 -- 'expected' in-scope variables.
@@ -255,7 +255,7 @@ hasVariables expr path expected = do
       Nothing -> assertFailure ""
 
 -- | Like 'hasVariables' but for type variables inside terms also
-hasVariablesTyTm :: S Expr -> (ExprZ -> Maybe ExprZ) -> [(TyVarName, Kind)] -> [(LVarName, Type' ())] -> Assertion
+hasVariablesTyTm :: S Expr -> (ExprZ -> Maybe ExprZ) -> [(TyVarName, Kind' ())] -> [(LVarName, Type' ())] -> Assertion
 hasVariablesTyTm expr path expectedTy expectedTm = do
   let e = create' expr
   case runTypecheckTestM NoSmartHoles (synth e) of
@@ -268,7 +268,7 @@ hasVariablesTyTm expr path expectedTy expectedTm = do
       Nothing -> assertFailure ""
 
 -- | Like 'hasVariables' but for types
-hasVariablesType :: S Type -> (TypeZip -> Maybe TypeZip) -> [(TyVarName, Kind)] -> Assertion
+hasVariablesType :: S Type -> (TypeZip -> Maybe TypeZip) -> [(TyVarName, Kind' ())] -> Assertion
 hasVariablesType ty path expected = do
   let t = create' ty
   case path $ focus t of
@@ -291,12 +291,12 @@ unit_hasGeneratedNames_1 = do
 unit_hasGeneratedNames_2 :: Assertion
 unit_hasGeneratedNames_2 = do
   hasGeneratedNamesTy tEmptyHole Nothing pure ["α", "β", "γ"]
-  hasGeneratedNamesTy tEmptyHole (Just KType) pure ["α", "β", "γ"]
-  hasGeneratedNamesTy tEmptyHole (Just $ KFun KType KType) pure ["f", "m", "t"]
-  let ty = tforall "α" KType tEmptyHole
+  hasGeneratedNamesTy tEmptyHole (Just (KType ())) pure ["α", "β", "γ"]
+  hasGeneratedNamesTy tEmptyHole (Just $ KFun () (KType ()) (KType ())) pure ["f", "m", "t"]
+  let ty = tforall "α" (KType ()) tEmptyHole
   hasGeneratedNamesTy ty Nothing pure ["β", "γ", "α1"]
-  hasGeneratedNamesTy ty (Just KType) pure ["β", "γ", "α1"]
-  hasGeneratedNamesTy ty (Just $ KFun KType KType) pure ["f", "m", "t"]
+  hasGeneratedNamesTy ty (Just (KType ())) pure ["β", "γ", "α1"]
+  hasGeneratedNamesTy ty (Just $ KFun () (KType ()) (KType ())) pure ["f", "m", "t"]
 
 -- test uniqueness works correctly wrt branching
 unit_hasGeneratedNames_3 :: Assertion
@@ -317,7 +317,7 @@ hasGeneratedNamesExpr expr ty path expected = do
     Just z -> runReader (generateNameExpr (Left $ fmap forgetTypeMetadata t) (Left z)) defCxt @?= expected
     Nothing -> assertFailure ""
 
-hasGeneratedNamesTy :: S Type -> Maybe Kind -> (TypeZip -> Maybe TypeZip) -> [Name] -> Assertion
+hasGeneratedNamesTy :: S Type -> Maybe (Kind' ()) -> (TypeZip -> Maybe TypeZip) -> [Name] -> Assertion
 hasGeneratedNamesTy ty k path expected = do
   let t = create' ty
   case path $ focus t of

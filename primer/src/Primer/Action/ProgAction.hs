@@ -13,7 +13,7 @@ import Foreword
 import Data.Aeson (FromJSON (..), ToJSON (..))
 import Primer.Action.Actions (Action)
 import Primer.Core.Meta (GVarName, ID, ModuleName, TyConName, TyVarName, ValConName)
-import Primer.Core.Type (Kind, Type')
+import Primer.Core.Type (Kind', Type')
 import Primer.JSON (CustomJSON (..), PrimerJSON)
 import Primer.TypeDef (ASTTypeDef)
 import Primer.Typecheck.SmartHoles (SmartHoles)
@@ -30,7 +30,7 @@ data ProgAction
   | -- | Delete a new definition
     DeleteDef GVarName
   | -- | Add a new type definition
-    AddTypeDef TyConName (ASTTypeDef ())
+    AddTypeDef TyConName (ASTTypeDef () ())
   | -- | Delete a type definition
     DeleteTypeDef TyConName
   | -- | Rename the type definition with the given name, and its type constructor
@@ -48,7 +48,7 @@ data ProgAction
   | -- | Delete the field at the given index of the given value constructor, in the given type
     DeleteConField TyConName ValConName Int
   | -- | Add a parameter at the given position, with the given name and kind, in the given type
-    AddTypeParam TyConName Int Text Kind
+    AddTypeParam TyConName Int Text (Kind' ())
   | -- | Remove the parameter with the given name, from the given type
     DeleteTypeParam TyConName TyVarName
   | -- | Execute a sequence of actions on the body of the definition

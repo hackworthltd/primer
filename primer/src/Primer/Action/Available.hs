@@ -69,6 +69,7 @@ import Primer.Core (
   GlobalName (baseName, qualifiedModule),
   HasID (_id),
   ID,
+  KindMeta,
   ModuleName (unModuleName),
   Pattern (PatCon, PatPrim),
   PrimCon (PrimChar, PrimInt),
@@ -89,7 +90,7 @@ import Primer.Core (
   _typeMetaLens,
  )
 import Primer.Core.Transform (decomposeTAppCon)
-import Primer.Core.Utils (forgetTypeMetadata, freeVars, _freeVarsTy)
+import Primer.Core.Utils (forgetKindMetadata, forgetTypeMetadata, freeVars, _freeVarsTy)
 import Primer.Def (
   ASTDef (..),
   DefMap,
@@ -355,7 +356,7 @@ forTypeDef ::
   TypeDefMap ->
   DefMap ->
   TyConName ->
-  ASTTypeDef TypeMeta ->
+  ASTTypeDef TypeMeta KindMeta ->
   [Action]
 forTypeDef _ NonEditable _ _ _ _ = mempty
 forTypeDef l Editable tydefs defs tdName td =
@@ -378,7 +379,7 @@ forTypeDefParamNode ::
   TypeDefMap ->
   DefMap ->
   TyConName ->
-  ASTTypeDef TypeMeta ->
+  ASTTypeDef TypeMeta KindMeta ->
   [Action]
 forTypeDefParamNode _ _ NonEditable _ _ _ _ = mempty
 forTypeDefParamNode paramName l Editable tydefs defs tdName td =
@@ -403,7 +404,7 @@ forTypeDefConsNode ::
   TypeDefMap ->
   DefMap ->
   TyConName ->
-  ASTTypeDef TypeMeta ->
+  ASTTypeDef TypeMeta KindMeta ->
   [Action]
 forTypeDefConsNode _ NonEditable _ _ _ _ = mempty
 forTypeDefConsNode l Editable tydefs defs tdName td =
@@ -422,7 +423,7 @@ forTypeDefConsFieldNode ::
   TypeDefMap ->
   DefMap ->
   TyConName ->
-  ASTTypeDef TypeMeta ->
+  ASTTypeDef TypeMeta KindMeta ->
   [Action]
 forTypeDefConsFieldNode _ _ _ _ NonEditable _ _ _ _ = mempty
 forTypeDefConsFieldNode con index id l Editable tydefs defs tdName td =
@@ -467,7 +468,7 @@ options ::
   DefMap ->
   Cxt ->
   Level ->
-  Either (ASTTypeDef TypeMeta) ASTDef ->
+  Either (ASTTypeDef TypeMeta KindMeta) ASTDef ->
   Selection' ID ->
   InputAction ->
   -- | Returns 'Nothing' if an ID was required but not passed, passed but not found in the tree,
@@ -638,7 +639,7 @@ options typeDefs defs cxt level def0 sel0 = \case
           Right zT -> (variablesInScopeTy zT, [], [])
       SelectionTypeDef sel -> do
         (def, zT) <- conField sel
-        pure (astTypeDefParameters def <> variablesInScopeTy zT, [], [])
+        pure (map (second forgetKindMetadata) (astTypeDefParameters def) <> variablesInScopeTy zT, [], [])
     focusNode nodeSel = do
       def <- eitherToMaybe def0
       case nodeSel.nodeType of

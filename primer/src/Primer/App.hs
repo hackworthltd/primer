@@ -141,7 +141,8 @@ import Primer.Core (
   GVarName,
   GlobalName (baseName, qualifiedModule),
   ID (..),
-  Kind (KType),
+  Kind' (KType),
+  KindMeta,
   LocalName (LocalName, unLocalName),
   Meta (..),
   ModuleName (ModuleName),
@@ -172,7 +173,7 @@ import Primer.Core (
 import Primer.Core.DSL (S, create, emptyHole, tEmptyHole)
 import Primer.Core.DSL qualified as DSL
 import Primer.Core.Transform (renameTyVar, renameVar, unfoldTApp)
-import Primer.Core.Utils (freeVars, generateTypeIDs, regenerateExprIDs, regenerateTypeIDs, _freeTmVars, _freeTyVars, _freeVarsTy)
+import Primer.Core.Utils (freeVars, generateKindIDs, generateTypeIDs, regenerateExprIDs, regenerateTypeIDs, _freeTmVars, _freeTyVars, _freeVarsTy)
 import Primer.Def (
   ASTDef (..),
   Def (..),
@@ -298,12 +299,12 @@ defaultProg = Prog mempty mempty Nothing SmartHoles defaultLog defaultLog
 progAllModules :: Prog -> [Module]
 progAllModules p = progModules p <> progImports p
 
-progAllTypeDefs :: Prog -> Map TyConName (Editable, TypeDef ())
+progAllTypeDefs :: Prog -> Map TyConName (Editable, TypeDef () ())
 progAllTypeDefs p =
   foldMap' (fmap (Editable,) . moduleTypesQualified) (progModules p)
     <> foldMap' (fmap (NonEditable,) . moduleTypesQualified) (progImports p)
 
-progAllTypeDefsMeta :: Prog -> Map TyConName (Editable, TypeDef TypeMeta)
+progAllTypeDefsMeta :: Prog -> Map TyConName (Editable, TypeDef TypeMeta KindMeta)
 progAllTypeDefsMeta p =
   foldMap' (fmap (Editable,) . moduleTypesQualifiedMeta) (progModules p)
     <> foldMap' (fmap (NonEditable,) . moduleTypesQualifiedMeta) (progImports p)
@@ -393,7 +394,7 @@ newProg =
         newEmptyProgImporting
           [ prelude
           , builtinModule
-          , pure primitiveModule
+          , primitiveModule
           ]
    in ( p
       , nextID
@@ -432,7 +433,7 @@ importModules ms = do
 allTypes :: Prog -> TypeDefMap
 allTypes = fmap snd . progAllTypeDefs
 
-allTypesMeta :: Prog -> Map TyConName (TypeDef TypeMeta)
+allTypesMeta :: Prog -> Map TyConName (TypeDef TypeMeta KindMeta)
 allTypesMeta = fmap snd . progAllTypeDefsMeta
 
 -- | Get all definitions from all modules (including imports)
@@ -828,7 +829,7 @@ applyProgAction prog = \case
       updateTypeDef =
         let new' =
               runReaderT
-                (liftError (ActionError . TypeError) $ fmap TC.typeTtoType $ TC.checkKind KType =<< generateTypeIDs new)
+                (liftError (ActionError . TypeError) $ fmap TC.typeTtoType $ TC.checkKind (KType ()) =<< generateTypeIDs new)
                 (progCxt prog)
          in alterTypeDef
               ( traverseOf #astTypeDefConstructors $
@@ -892,10 +893,11 @@ applyProgAction prog = \case
         ( \td -> do
             checkTypeNotInUse tdName td $ m : ms
             assertFreshNameForTypeDef (unLocalName paramName) (tdName, td)
+            k' <- generateKindIDs k
             traverseOf
               #astTypeDefParameters
               ( \ps -> do
-                  maybe (throwError $ IndexOutOfRange index) pure $ insertAt index (paramName, k) ps
+                  maybe (throwError $ IndexOutOfRange index) pure $ insertAt index (paramName, k') ps
               )
               td
         )
@@ -1028,7 +1030,7 @@ applyProgAction prog = \case
     mdefName = case progSelection prog of
       Just (SelectionDef s) -> Just s.def
       _ -> Nothing
-    typeDefNames :: Fold (TyConName, ASTTypeDef a) Name
+    typeDefNames :: Fold (TyConName, ASTTypeDef a b) Name
     typeDefNames =
       (_1 % to baseName)
         `summing` (_2 % #astTypeDefParameters % folded % _1 % to unLocalName)
@@ -1127,7 +1129,7 @@ editModuleOfCrossType ::
   MonadError ProgError m =>
   Maybe TyConName ->
   Prog ->
-  ((Module, [Module]) -> Name -> ASTTypeDef TypeMeta -> m ([Module], Maybe Selection)) ->
+  ((Module, [Module]) -> Name -> ASTTypeDef TypeMeta KindMeta -> m ([Module], Maybe Selection)) ->
   m Prog
 editModuleOfCrossType mdefName prog f = case mdefName of
   Nothing -> throwError NoTypeDefSelected
@@ -1726,7 +1728,7 @@ lookupASTDef name = defAST <=< Map.lookup name
 
 alterTypeDef ::
   MonadError ProgError m =>
-  (ASTTypeDef TypeMeta -> m (ASTTypeDef TypeMeta)) ->
+  (ASTTypeDef TypeMeta KindMeta -> m (ASTTypeDef TypeMeta KindMeta)) ->
   TyConName ->
   Module ->
   m Module

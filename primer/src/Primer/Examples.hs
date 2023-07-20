@@ -65,7 +65,7 @@ import Primer.Builtins.DSL (
 import Primer.Core (
   GVarName,
   ID,
-  Kind (KType),
+  Kind' (KType),
   ModuleName (unModuleName),
   mkSimpleModuleName,
   qualifyName,
@@ -138,7 +138,7 @@ map :: MonadFresh ID m => ModuleName -> m (GVarName, Def)
 map modName =
   let this = qualifyName modName "map"
    in do
-        type_ <- tforall "a" KType $ tforall "b" KType $ (tvar "a" `tfun` tvar "b") `tfun` ((tcon B.tList `tapp` tvar "a") `tfun` (tcon B.tList `tapp` tvar "b"))
+        type_ <- tforall "a" (KType ()) $ tforall "b" (KType ()) $ (tvar "a" `tfun` tvar "b") `tfun` ((tcon B.tList `tapp` tvar "a") `tfun` (tcon B.tList `tapp` tvar "b"))
         term <-
           lAM "a" $
             lAM "b" $
@@ -157,7 +157,7 @@ map modName =
 -- 'listDef'), implemented using a worker.
 map' :: MonadFresh ID m => ModuleName -> m (GVarName, Def)
 map' modName = do
-  type_ <- tforall "a" KType $ tforall "b" KType $ (tvar "a" `tfun` tvar "b") `tfun` ((tcon B.tList `tapp` tvar "a") `tfun` (tcon B.tList `tapp` tvar "b"))
+  type_ <- tforall "a" (KType ()) $ tforall "b" (KType ()) $ (tvar "a" `tfun` tvar "b") `tfun` ((tcon B.tList `tapp` tvar "a") `tfun` (tcon B.tList `tapp` tvar "b"))
   let worker =
         lam "xs" $
           case_
@@ -235,7 +235,7 @@ comprehensive' typeable modName = do
       (tcon B.tNat)
       ( tforall
           "a"
-          KType
+          (KType ())
           ( tapp
               ( thole
                   ( tapp
@@ -274,7 +274,7 @@ comprehensive' typeable modName = do
                                     lAM "b" (lam "x" $ con B.cLeft [lvar "x"])
                                       `ann` tforall
                                         "b"
-                                        KType
+                                        (KType ())
                                         ( tcon B.tBool
                                             `tfun` (tcon B.tEither `tapp` tcon B.tBool `tapp` tvar "b")
                                         )
@@ -319,7 +319,7 @@ comprehensive' typeable modName = do
                   (tcon B.tNat)
                   ( tforall
                       "α"
-                      KType
+                      (KType ())
                       ( tapp
                           ( tapp
                               (tcon B.tEither)
@@ -423,8 +423,9 @@ mapOddProg len =
 mapOddPrimProg :: Int -> (Prog, ID, NameCounter)
 mapOddPrimProg len =
   let modName = mkSimpleModuleName "MapOdd"
-      ((builtinMod, defs), nextID) = create $ do
+      ((builtinMod, primitiveMod, defs), nextID) = create $ do
         builtinModule' <- builtinModule
+        primitiveModule' <- primitiveModule
         let oddName = qualifyName modName "odd"
         oddDef <- do
           type_ <- tcon P.tInt `tfun` tcon B.tBool
@@ -443,9 +444,9 @@ mapOddPrimProg len =
           term <- gvar mapName `aPP` tcon P.tInt `aPP` tcon B.tBool `app` gvar oddName `app` lst
           pure $ DefAST $ ASTDef term type_
         let globs = [("odd", oddDef), ("map", mapDef), ("mapOdd", mapOddDef)]
-        pure (builtinModule', globs)
+        pure (builtinModule', primitiveModule', globs)
    in ( defaultProg
-          { progImports = [builtinMod, primitiveModule]
+          { progImports = [builtinMod, primitiveMod]
           , progModules =
               [ Module
                   { moduleName = modName

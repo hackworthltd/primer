@@ -23,7 +23,8 @@ tasty_genProg_well_formed = withTests 500 $
   withDiscards 2000 $
     propertyWT [] $ do
       builtinModule' <- builtinModule
-      p <- forAllT $ genProg NoSmartHoles [builtinModule', primitiveModule]
+      primitiveModule' <- primitiveModule
+      p <- forAllT $ genProg NoSmartHoles [builtinModule', primitiveModule']
       c <- runExceptT @TypeError $ checkProgWellFormed p
       case c of
         Left err -> annotateShow err >> failure

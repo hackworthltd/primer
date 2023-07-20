@@ -41,6 +41,7 @@
                                 "contents": [
                                     0,
                                     {
+                                        "contents": [],
                                         "tag": "KType"
                                     },
                                     null
@@ -122,6 +123,11 @@
                                 [
                                     "a",
                                     {
+                                        "contents": [
+                                            4,
+                                            [],
+                                            null
+                                        ],
                                         "tag": "KType"
                                     }
                                 ],
@@ -129,10 +135,25 @@
                                     "b",
                                     {
                                         "contents": [
+                                            [
+                                                5,
+                                                [],
+                                                null
+                                            ],
                                             {
+                                                "contents": [
+                                                    6,
+                                                    [],
+                                                    null
+                                                ],
                                                 "tag": "KType"
                                             },
                                             {
+                                                "contents": [
+                                                    7,
+                                                    [],
+                                                    null
+                                                ],
                                                 "tag": "KType"
                                             }
                                         ],

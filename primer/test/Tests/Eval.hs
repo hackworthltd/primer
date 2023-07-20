@@ -30,7 +30,7 @@ import Primer.Core (
   Expr,
   GlobalName (baseName, qualifiedModule),
   ID,
-  Kind (KFun, KType),
+  Kind' (KFun, KType),
   LocalName,
   Pattern (PatCon, PatPrim),
   PrimCon (PrimChar),
@@ -183,7 +183,7 @@ unit_tryReduce_BETA = do
           b <- con cNil []
           l <- lAM "x" (pure b)
           a <- tcon tBool
-          let k_ = KFun KType KType
+          let k_ = KFun () (KType ()) (KType ())
           ty_ <- tEmptyHole
           i <- aPP (pure l `ann` tforall "a" k_ (pure ty_)) (pure a)
           r <- letType "x" (pure a) (pure b) `ann` tlet "a" (pure a) (pure ty_)
@@ -465,7 +465,7 @@ unit_tryReduce_case_3 = do
         Map.singleton (unsafeMkGlobalName (["M"], "T")) $
           TypeDefAST $
             ASTTypeDef
-              { astTypeDefParameters = [("a", KType)]
+              { astTypeDefParameters = [("a", KType ())]
               , astTypeDefConstructors =
                   [ ValCon (unsafeMkGlobalName (["M"], "B")) [TEmptyHole ()]
                   , ValCon (unsafeMkGlobalName (["M"], "C")) [TFun () (TVar () "a") (TVar () "a")]
@@ -503,7 +503,7 @@ unit_tryReduce_case_fallback_1 = do
         Map.singleton (unsafeMkGlobalName (["M"], "T")) $
           TypeDefAST $
             ASTTypeDef
-              { astTypeDefParameters = [("a", KType)]
+              { astTypeDefParameters = [("a", KType ())]
               , astTypeDefConstructors =
                   [ ValCon (unsafeMkGlobalName (["M"], "B")) [TEmptyHole ()]
                   , ValCon (unsafeMkGlobalName (["M"], "C")) [TFun () (TVar () "a") (TVar () "a")]
@@ -541,7 +541,7 @@ unit_tryReduce_case_fallback_2 = do
         Map.singleton (unsafeMkGlobalName (["M"], "T")) $
           TypeDefAST $
             ASTTypeDef
-              { astTypeDefParameters = [("a", KType)]
+              { astTypeDefParameters = [("a", KType ())]
               , astTypeDefConstructors =
                   [ ValCon (unsafeMkGlobalName (["M"], "B")) [TEmptyHole ()]
                   , ValCon (unsafeMkGlobalName (["M"], "C")) [TFun () (TVar () "a") (TVar () "a")]
@@ -579,7 +579,7 @@ unit_tryReduce_case_fallback_3 = do
         Map.singleton (unsafeMkGlobalName (["M"], "T")) $
           TypeDefAST $
             ASTTypeDef
-              { astTypeDefParameters = [("a", KType)]
+              { astTypeDefParameters = [("a", KType ())]
               , astTypeDefConstructors =
                   [ ValCon (unsafeMkGlobalName (["M"], "B")) [TEmptyHole ()]
                   , ValCon (unsafeMkGlobalName (["M"], "C")) [TFun () (TVar () "a") (TVar () "a")]
@@ -652,7 +652,7 @@ unit_tryReduce_case_prim_1 = do
         Map.singleton (unsafeMkGlobalName (["M"], "T")) $
           TypeDefAST $
             ASTTypeDef
-              { astTypeDefParameters = [("a", KType)]
+              { astTypeDefParameters = [("a", KType ())]
               , astTypeDefConstructors =
                   [ ValCon (unsafeMkGlobalName (["M"], "B")) [TEmptyHole ()]
                   , ValCon (unsafeMkGlobalName (["M"], "C")) [TFun () (TVar () "a") (TVar () "a")]
@@ -688,7 +688,7 @@ unit_tryReduce_case_prim_2 = do
         Map.singleton (unsafeMkGlobalName (["M"], "T")) $
           TypeDefAST $
             ASTTypeDef
-              { astTypeDefParameters = [("a", KType)]
+              { astTypeDefParameters = [("a", KType ())]
               , astTypeDefConstructors =
                   [ ValCon (unsafeMkGlobalName (["M"], "B")) [TEmptyHole ()]
                   , ValCon (unsafeMkGlobalName (["M"], "C")) [TFun () (TVar () "a") (TVar () "a")]
@@ -714,15 +714,16 @@ unit_tryReduce_case_prim_2 = do
 
 unit_tryReduce_prim :: Assertion
 unit_tryReduce_prim = do
-  let ((expr, expectedResult), i) =
+  let ((expr, expectedResult, prims), i) =
         create $
-          (,)
+          (,,)
             <$> pfun EqChar
             `app` char 'a'
             `app` char 'a'
             <*> con0 cTrue
             `ann` tcon tBool
-  result <- runTryReduce tydefs primDefs mempty (expr, i)
+            <*> primDefs
+  result <- runTryReduce tydefs prims mempty (expr, i)
   case result of
     Right (expr', ApplyPrimFun detail) -> do
       expr' ~= expectedResult
@@ -735,21 +736,25 @@ unit_tryReduce_prim = do
 
 unit_tryReduce_prim_fail_unsaturated :: Assertion
 unit_tryReduce_prim_fail_unsaturated = do
-  let (expr, i) =
+  let ((expr, prims), i) =
         create $
-          pfun EqChar
+          (,)
+            <$> pfun EqChar
             `app` char 'a'
-  result <- runTryReduce tydefs primDefs mempty (expr, i)
+            <*> primDefs
+  result <- runTryReduce tydefs prims mempty (expr, i)
   result @?= Left NotRedex
 
 unit_tryReduce_prim_fail_unreduced_args :: Assertion
 unit_tryReduce_prim_fail_unreduced_args = do
-  let (expr, i) =
+  let ((expr, prims), i) =
         create $
-          pfun EqChar
+          (,)
+            <$> pfun EqChar
             `app` char 'a'
             `app` (pfun ToUpper `app` char 'a')
-  result <- runTryReduce tydefs primDefs mempty (expr, i)
+            <*> primDefs
+  result <- runTryReduce tydefs prims mempty (expr, i)
   result @?= Left NotRedex
 
 runStep :: ID -> TypeDefMap -> DefMap -> (Expr, ID) -> IO (Either EvalError (Expr, EvalDetail))
@@ -955,7 +960,7 @@ unit_findNodeByID_capture_type :: Assertion
 unit_findNodeByID_capture_type =
   let ((expr, varOcc), maxID) = create $ do
         v <- tvar "x"
-        e <- letType "x" (tvar "y") (emptyHole `ann` tlet "z" (tvar "y") (tforall "y" KType (pure v)))
+        e <- letType "x" (tvar "y") (emptyHole `ann` tlet "z" (tvar "y") (tforall "y" (KType ()) (pure v)))
         pure (e, getID v)
    in do
         case findNodeByID varOcc Syn expr of
@@ -994,7 +999,9 @@ redexesOf = redexes' tydefs mempty Syn . create'
 
 -- | A variation of 'redexesOf' for when the expression tested requires primitives to be in scope.
 redexesOfWithPrims :: S Expr -> IO (Set ID)
-redexesOfWithPrims = redexes' tydefs primDefs Syn . create'
+redexesOfWithPrims e = redexes' tydefs prims Syn e'
+  where
+    (e', prims) = create' $ (,) <$> e <*> primDefs
 
 tydefs :: TypeDefMap
 tydefs = c <> d
@@ -1098,7 +1105,7 @@ unit_redexes_LAM_2 :: Assertion
 unit_redexes_LAM_2 =
   let e mkAnn =
         aPP
-          (lAM "a" (con0' ["M"] "C") `mkAnn` tforall "a" KType (tcon' ["M"] "C"))
+          (lAM "a" (con0' ["M"] "C") `mkAnn` tforall "a" (KType ()) (tcon' ["M"] "C"))
           (tcon' ["M"] "A")
    in do
         redexesOf (e noAnn) <@?=> mempty
@@ -1110,7 +1117,7 @@ unit_redexes_LAM_3 =
         lAM
           "a"
           ( aPP
-              (lAM "b" (con0' ["M"] "X") `mkAnn` tforall "a" KType (tcon' ["M"] "C"))
+              (lAM "b" (con0' ["M"] "X") `mkAnn` tforall "a" (KType ()) (tcon' ["M"] "C"))
               (tcon' ["M"] "T")
           )
    in do
@@ -1127,7 +1134,7 @@ unit_redexes_LAM_4 =
               "a"
               ( aPP
                   ( lAM "b" (lvar "x")
-                      `mkAnn` tforall "a" KType (tcon' ["M"] "C")
+                      `mkAnn` tforall "a" (KType ()) (tcon' ["M"] "C")
                   )
                   (tcon' ["M"] "T")
               )
@@ -1165,7 +1172,7 @@ unit_redexes_let_capture =
 unit_redexes_lettype_capture :: Assertion
 unit_redexes_lettype_capture =
   -- We should rename the forall and not inline the variable
-  redexesOf (letType "x" (tvar "y") (emptyHole `ann` tforall "y" KType (tvar "x"))) <@?=> Set.singleton 4
+  redexesOf (letType "x" (tvar "y") (emptyHole `ann` tforall "y" (KType ()) (tvar "x"))) <@?=> Set.singleton 4
 
 unit_redexes_letrec_1 :: Assertion
 unit_redexes_letrec_1 =
@@ -1212,7 +1219,7 @@ unit_redexes_letrec_APP_1 =
               "e"
               (con0' ["M"] "C")
               (tcon' ["M"] "T")
-              (lAM "x" (lvar "e") `mkAnn` tforall "a" KType (tcon' ["M"] "T"))
+              (lAM "x" (lvar "e") `mkAnn` tforall "a" (KType ()) (tcon' ["M"] "T"))
           )
           (tcon' ["M"] "D")
    in do
@@ -1340,7 +1347,7 @@ unit_redexes_case_prim = do
 -- The body of a let has the same directionality as the let itself
 unit_redexes_let_upsilon :: Assertion
 unit_redexes_let_upsilon = do
-  let t = tforall "a" KType (tvar "a")
+  let t = tforall "a" (KType ()) (tvar "a")
   redexesOf (let_ "x" (lam "x" emptyHole `ann` t) $ lam "x" emptyHole `ann` t) <@?=> Set.fromList [0]
   redexesOf (lam "x" $ let_ "x" (lam "x" emptyHole `ann` t) $ emptyHole `ann` t) <@?=> Set.fromList [1, 7]
   redexesOf (letType "x" t $ lam "x" emptyHole `ann` t) <@?=> Set.fromList [0]
@@ -1374,7 +1381,8 @@ unit_eval_modules :: Assertion
 unit_eval_modules =
   let test = do
         builtinModule' <- builtinModule
-        importModules [primitiveModule, builtinModule']
+        primitiveModule' <- primitiveModule
+        importModules [primitiveModule', builtinModule']
         foo <- pfun ToUpper `app` char 'a'
         EvalResp{evalRespExpr = e} <-
           readerToState $
@@ -1422,7 +1430,7 @@ unit_eval_modules_scrutinize_imported_type =
 -- cannot currently deal with those)
 tasty_type_preservation :: Property
 tasty_type_preservation =
-  let testModules = [builtinModule, pure primitiveModule]
+  let testModules = [builtinModule, primitiveModule]
    in withTests 200 $
         withDiscards 2000 $
           propertyWT testModules $ do
@@ -1448,7 +1456,7 @@ tasty_type_preservation =
 -- unless @j@ no longer exists in @e'@ or @j@ was a rename-binding which is no longer required
 tasty_redex_independent :: Property
 tasty_redex_independent =
-  let testModules = [builtinModule, pure primitiveModule]
+  let testModules = [builtinModule, primitiveModule]
    in withTests 200 $
         withDiscards 2000 $
           propertyWT testModules $ do

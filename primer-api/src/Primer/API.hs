@@ -154,7 +154,9 @@ import Primer.Core (
   GlobalName (..),
   HasID (..),
   ID,
-  Kind (..),
+  Kind,
+  Kind' (..),
+  KindMeta,
   LVarName,
   ModuleName,
   PrimCon (..),
@@ -172,6 +174,7 @@ import Primer.Core (
   unsafeMkLocalName,
   _bindMeta,
   _exprMetaLens,
+  _kindMeta,
   _type,
   _typeMeta,
   _typeMetaLens,
@@ -180,7 +183,7 @@ import Primer.Core.DSL (create')
 import Primer.Core.DSL qualified as DSL
 import Primer.Core.Meta (LocalName, Pattern (PatCon, PatPrim))
 import Primer.Core.Meta qualified as Core
-import Primer.Core.Utils (generateTypeIDs)
+import Primer.Core.Utils (generateKindIDs, generateTypeIDs)
 import Primer.Database (
   OffsetLimit,
   OpStatus,
@@ -398,8 +401,8 @@ data APILog
   | GetProgram' (ReqResp SessionId Prog)
   | GetProgram (ReqResp SessionId App.Prog)
   | Edit (ReqResp (SessionId, MutationRequest) (Either ProgError App.Prog))
-  | VariablesInScope (ReqResp (SessionId, (GVarName, ID)) (Either ProgError (([(TyVarName, Kind)], [(LVarName, Type' ())]), [(GVarName, Type' ())])))
-  | GenerateNames (ReqResp (SessionId, ((GVarName, ID), Either (Maybe (Type' ())) (Maybe Kind))) (Either ProgError [Name.Name]))
+  | VariablesInScope (ReqResp (SessionId, (GVarName, ID)) (Either ProgError (([(TyVarName, Kind' ())], [(LVarName, Type' ())]), [(GVarName, Type' ())])))
+  | GenerateNames (ReqResp (SessionId, ((GVarName, ID), Either (Maybe (Type' ())) (Maybe (Kind' ())))) (Either ProgError [Name.Name]))
   | EvalStep (ReqResp (SessionId, EvalReq) (Either ProgError EvalResp))
   | EvalFull (ReqResp (SessionId, EvalFullReq) (Either ProgError App.EvalFullResp))
   | EvalFull' (ReqResp (SessionId, Maybe TerminationBound, GVarName) EvalFullResp)
@@ -996,7 +999,7 @@ viewTreeType' t0 = case t0 of
       -- for now we expect all kinds in student programs to be `KType`
       -- but we show something for other kinds, in order to keep rendering injective
       withKindAnn = case k of
-        KType -> identity
+        KType _ -> identity
         _ -> (<> (" :: " <> show k))
   TLet _ n t b ->
     Tree
@@ -1008,41 +1011,34 @@ viewTreeType' t0 = case t0 of
   where
     nodeId = t0 ^. _typeMetaLens
 
--- | Like 'viewTreeType', but for kinds. This generates ids
+-- | Like 'viewTreeType', but for kinds.
 viewTreeKind :: Kind -> Tree
-viewTreeKind = flip evalState (0 :: Integer) . go
-  where
-    go k = do
-      id' <- get
-      let nodeId = "kind" <> show id'
-      modify succ
-      case k of
-        KType ->
-          pure $
-            Tree
-              { nodeId
-              , body = NoBody Flavor.KType
-              , childTrees = []
-              , rightChild = Nothing
-              }
-        KHole ->
-          pure $
-            Tree
-              { nodeId
-              , body = NoBody Flavor.KHole
-              , childTrees = []
-              , rightChild = Nothing
-              }
-        KFun k1 k2 -> do
-          k1tree <- go k1
-          k2tree <- go k2
-          pure $
-            Tree
-              { nodeId
-              , body = NoBody Flavor.KFun
-              , childTrees = [k1tree, k2tree]
-              , rightChild = Nothing
-              }
+viewTreeKind = viewTreeKind' . over _kindMeta (show . view _id)
+
+-- | Like 'viewTreeType'', but for kinds.
+viewTreeKind' :: Kind' Text -> Tree
+viewTreeKind' = \case
+  KType nodeId ->
+    Tree
+      { nodeId
+      , body = NoBody Flavor.KType
+      , childTrees = []
+      , rightChild = Nothing
+      }
+  KHole nodeId ->
+    Tree
+      { nodeId
+      , body = NoBody Flavor.KHole
+      , childTrees = []
+      , rightChild = Nothing
+      }
+  KFun nodeId k1 k2 ->
+    Tree
+      { nodeId
+      , body = NoBody Flavor.KFun
+      , childTrees = [viewTreeKind' k1, viewTreeKind' k2]
+      , rightChild = Nothing
+      }
 
 globalName :: GlobalName k -> Name
 globalName n = Name{qualifiedModule = Just $ Core.qualifiedModule n, baseName = Core.baseName n}
@@ -1061,14 +1057,14 @@ variablesInScope ::
   (MonadIO m, MonadThrow m, MonadAPILog l m) =>
   SessionId ->
   (GVarName, ID) ->
-  PrimerM m (Either ProgError (([(TyVarName, Kind)], [(LVarName, Type' ())]), [(GVarName, Type' ())]))
+  PrimerM m (Either ProgError (([(TyVarName, Kind' ())], [(LVarName, Type' ())]), [(GVarName, Type' ())]))
 variablesInScope = curry $ logAPI (leftResultError VariablesInScope) $ \(sid, (defname, exprid)) ->
   liftQueryAppM (handleQuestion (App.VariablesInScope defname exprid)) sid
 
 generateNames ::
   (MonadIO m, MonadThrow m, MonadAPILog l m) =>
   SessionId ->
-  ((GVarName, ID), Either (Maybe (Type' ())) (Maybe Kind)) ->
+  ((GVarName, ID), Either (Maybe (Type' ())) (Maybe (Kind' ()))) ->
   PrimerM m (Either ProgError [Name.Name])
 generateNames = curry $ logAPI (leftResultError GenerateNames) $ \(sid, ((defname, exprid), tk)) ->
   liftQueryAppM (handleQuestion $ GenerateName defname exprid tk) sid
@@ -1220,13 +1216,13 @@ findASTDef allDefs def = case allDefs Map.!? def of
   Just (_, Def.DefPrim _) -> throwM $ UnexpectedPrimDef def
   Just (editable, Def.DefAST d) -> pure (editable, d)
 
-findASTTypeDef :: MonadThrow m => Map TyConName (Editable, TypeDef.TypeDef a) -> TyConName -> m (Editable, ASTTypeDef a)
+findASTTypeDef :: MonadThrow m => Map TyConName (Editable, TypeDef.TypeDef a b) -> TyConName -> m (Editable, ASTTypeDef a b)
 findASTTypeDef allTypeDefs def = case allTypeDefs Map.!? def of
   Nothing -> throwM $ UnknownTypeDef def
   Just (_, TypeDef.TypeDefPrim _) -> throwM $ UnexpectedPrimTypeDef def
   Just (editable, TypeDef.TypeDefAST d) -> pure (editable, d)
 
-findASTTypeOrTermDef :: MonadThrow f => App.Prog -> Selection -> f (Editable, Either (ASTTypeDef TypeMeta) ASTDef)
+findASTTypeOrTermDef :: MonadThrow f => App.Prog -> Selection -> f (Editable, Either (ASTTypeDef TypeMeta KindMeta) ASTDef)
 findASTTypeOrTermDef prog = \case
   App.SelectionTypeDef sel ->
     Left <<$>> findASTTypeDef (progAllTypeDefsMeta prog) sel.def
@@ -1334,7 +1330,7 @@ getSelectionTypeOrKind = curry $ logAPI (noError GetTypeOrKind) $ \(sid, sel0) -
       def <- snd <$> findASTTypeDef allTypeDefs sel.def
       case sel.node of
         -- type def itself selected - return its kind
-        Nothing -> pure $ Kind $ viewTreeKind $ typeDefKind $ TypeDef.TypeDefAST def
+        Nothing -> pure $ Kind $ viewTreeKind' $ mkIdsK $ typeDefKind $ forgetTypeDefMetadata $ TypeDef.TypeDefAST def
         -- param node selected - return its kind
         Just (TypeDefParamNodeSelection p) ->
           maybe (throw' $ ParamNotFound p) (pure . Kind . viewTreeKind . snd) $
@@ -1373,7 +1369,9 @@ getSelectionTypeOrKind = curry $ logAPI (noError GetTypeOrKind) $ \(sid, sel0) -
     -- We prefix ids to keep them unique from other ids in the emitted program
     mkIds :: Type' () -> Type' Text
     mkIds = over _typeMeta (("seltype-" <>) . show . getID) . create' . generateTypeIDs
+    mkIdsK :: Kind' () -> Kind' Text
+    mkIdsK = over _kindMeta (("selkind-" <>) . show . getID) . create' . generateKindIDs
     viewTypeKind :: TypeMeta -> TypeOrKind
     viewTypeKind = Kind . fromMaybe trivialTree . viewTypeKind'
     viewTypeKind' :: TypeMeta -> Maybe Tree
-    viewTypeKind' = preview $ _type % _Just % to viewTreeKind
+    viewTypeKind' = preview $ _type % _Just % to (viewTreeKind' . mkIdsK)

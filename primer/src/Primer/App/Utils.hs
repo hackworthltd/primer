@@ -7,7 +7,7 @@ import Foreword
 
 import Optics (mapped, (%), (%~), (.~))
 import Primer.App (Prog (..))
-import Primer.Core (TypeMeta, _exprMeta, _exprTypeMeta, _type, _typeMeta)
+import Primer.Core (KindMeta, TypeMeta, _exprMeta, _exprTypeMeta, _type, _typeMeta)
 import Primer.Def (ASTDef (..))
 import Primer.Module (Module (..))
 import Primer.TypeDef (ASTTypeDef (..), ValCon (..))
@@ -26,5 +26,5 @@ forgetProgTypecache =
       (#astDefExpr % _exprMeta % _type .~ Nothing)
         . (#astDefExpr % _exprTypeMeta % _type .~ Nothing)
         . (#astDefType % _typeMeta % _type .~ Nothing)
-    forgetASTTypeDef :: ASTTypeDef TypeMeta -> ASTTypeDef TypeMeta
+    forgetASTTypeDef :: ASTTypeDef TypeMeta KindMeta -> ASTTypeDef TypeMeta KindMeta
     forgetASTTypeDef = #astTypeDefConstructors % mapped % #valConArgs % mapped % _typeMeta % _type .~ Nothing

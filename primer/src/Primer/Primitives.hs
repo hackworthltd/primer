@@ -88,7 +88,7 @@ primitiveGVar = primitive . primDefName
 
 -- | Primitive type definitions.
 -- There should be one entry here for each constructor of `PrimCon`.
-allPrimTypeDefs :: Map TyConName PrimTypeDef
+allPrimTypeDefs :: Map TyConName (PrimTypeDef ())
 allPrimTypeDefs =
   M.fromList
     [ let name = tChar

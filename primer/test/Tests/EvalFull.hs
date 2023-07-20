@@ -140,9 +140,9 @@ unit_2 =
 unit_3 :: Assertion
 unit_3 =
   let ((expr, expected), maxID) = create $ do
-        e <- letType "a" (tvar "b") $ emptyHole `ann` (tcon' ["M"] "T" `tapp` tvar "a" `tapp` tforall "a" KType (tvar "a") `tapp` tforall "b" KType (tcon' ["M"] "S" `tapp` tvar "a" `tapp` tvar "b"))
+        e <- letType "a" (tvar "b") $ emptyHole `ann` (tcon' ["M"] "T" `tapp` tvar "a" `tapp` tforall "a" (KType ()) (tvar "a") `tapp` tforall "b" (KType ()) (tcon' ["M"] "S" `tapp` tvar "a" `tapp` tvar "b"))
         let b' = "a33" -- NB: fragile name a33
-        expect <- emptyHole `ann` (tcon' ["M"] "T" `tapp` tvar "b" `tapp` tforall "a" KType (tvar "a") `tapp` tforall b' KType (tcon' ["M"] "S" `tapp` tvar "b" `tapp` tvar b'))
+        expect <- emptyHole `ann` (tcon' ["M"] "T" `tapp` tvar "b" `tapp` tforall "a" (KType ()) (tvar "a") `tapp` tforall b' (KType ()) (tcon' ["M"] "S" `tapp` tvar "b" `tapp` tvar b'))
         pure (e, expect)
    in do
         s <- evalFullTest maxID mempty mempty 7 Syn expr
@@ -579,7 +579,7 @@ unit_type_preservation_BETA_regression =
           lAM "b" $
             lam "x" $
               ( lAM "a" (lam "c" $ emptyHole `ann` tvar "a")
-                  `ann` tforall "b" KType (tcon tNat `tfun` tvar "b")
+                  `ann` tforall "b" (KType ()) (tcon tNat `tfun` tvar "b")
               )
                 `aPP` (tvar "b" `tapp` tcon tBool)
                 `app` lvar "x"
@@ -627,7 +627,7 @@ unit_type_preservation_BETA_regression =
         eB <-
           lAM "b" $
             ( lAM "a" (gvar foo `aPP` (tvar "b" `tapp` tcon tBool))
-                `ann` tforall "b" KType (tcon tNat)
+                `ann` tforall "b" (KType ()) (tcon tNat)
             )
               `aPP` tcon tChar
         -- BETA step
@@ -649,10 +649,10 @@ unit_type_preservation_BETA_regression =
           )
       sA n = evalFullTest maxID builtinTypes mempty n Chk exprA
       sB n = evalFullTest maxID builtinTypes mempty n Chk exprB
-      tyA = TForall () "c" (KFun KType KType) $ TFun () (TCon () tNat) (TApp () (TVar () "c") (TCon () tBool))
-      tyB = TForall () "c" (KFun KType KType) $ TCon () tNat
+      tyA = TForall () "c" (KFun () (KType ()) (KType ())) $ TFun () (TCon () tNat) (TApp () (TVar () "c") (TCon () tBool))
+      tyB = TForall () "c" (KFun () (KType ()) (KType ())) $ TCon () tNat
       foo = qualifyName (ModuleName ["M"]) "foo"
-      fooTy = TForall () "d" KType $ TCon () tNat
+      fooTy = TForall () "d" (KType ()) $ TCon () tNat
       tmp ty e = case runTypecheckTestMWithPrims NoSmartHoles $
         local (extendGlobalCxt [(foo, fooTy)]) $
           check ty e of
@@ -689,7 +689,7 @@ unit_let_self_capture =
         , maxID
         ) = create $ do
           e1 <- lAM "x" $ let_ "x" (emptyHole `ann` tvar "x") (lvar "x")
-          let t1 = TForall () "a" KType $ TVar () "a"
+          let t1 = TForall () "a" (KType ()) $ TVar () "a"
           e2 <- lam "x" $ let_ "x" (lvar "x") (lvar "x")
           expect2a <- lam "x" $ let_ "a76" (lvar "x") (let_ "x" (lvar "a76") (lvar "x"))
           expect2b <- lam "x" $ lvar "x"
@@ -836,9 +836,9 @@ tasty_type_preservation = withTests 1000 $
 -- Unsaturated primitives are stuck terms
 unit_prim_stuck :: Assertion
 unit_prim_stuck =
-  let (f, maxID) = create $ pfun ToUpper
+  let ((f, prims), maxID) = create $ (,) <$> pfun ToUpper <*> primDefs
    in do
-        s <- evalFullTest maxID mempty primDefs 1 Syn f
+        s <- evalFullTest maxID mempty prims 1 Syn f
         s <~==> Right f
 
 unit_prim_toUpper :: Assertion
@@ -866,11 +866,11 @@ tasty_prim_hex_nat :: Property
 tasty_prim_hex_nat = withTests 20 . property $ do
   n <- forAllT $ Gen.integral $ Range.constant 0 50
   let ne = nat n
-      ((e, r), maxID) =
+      ((e, r, prims), maxID) =
         create $
           if n <= 15
             then
-              (,)
+              (,,)
                 <$> case_
                   ( pfun NatToHex
                       `app` ne
@@ -888,13 +888,15 @@ tasty_prim_hex_nat = withTests 20 . property $ do
                   ]
                 <*> con cJust [ne]
                   `ann` (tcon tMaybe `tapp` tcon tNat)
+                <*> primDefs
             else
-              (,)
+              (,,)
                 <$> pfun NatToHex
                 `app` ne
                 <*> con cNothing []
                 `ann` (tcon tMaybe `tapp` tcon tChar)
-  s <- evalFullTasty maxID builtinTypes primDefs 7 Syn e
+                <*> primDefs
+  s <- evalFullTasty maxID builtinTypes prims 7 Syn e
   over evalResultExpr zeroIDs s === Right (zeroIDs r)
 
 unit_prim_char_eq_1 :: Assertion
@@ -915,12 +917,14 @@ unit_prim_char_eq_2 =
 
 unit_prim_char_partial :: Assertion
 unit_prim_char_partial =
-  let (e, maxID) =
+  let ((e, prims), maxID) =
         create $
-          pfun EqChar
+          (,)
+            <$> pfun EqChar
             `app` char 'a'
+            <*> primDefs
    in do
-        s <- evalFullTest maxID mempty primDefs 1 Syn e
+        s <- evalFullTest maxID mempty prims 1 Syn e
         s <~==> Right e
 
 unit_prim_int_add :: Assertion
@@ -1228,25 +1232,26 @@ unit_prim_int_fromNat =
 
 unit_prim_ann :: Assertion
 unit_prim_ann =
-  let ((e, r), maxID) =
+  let ((e, r, prims), maxID) =
         create $
-          (,)
+          (,,)
             <$> ( pfun ToUpper
                     `ann` (tcon tChar `tfun` tcon tChar)
                 )
             `app` (char 'a' `ann` tcon tChar)
             <*> char 'A'
+            <*> primDefs
    in do
-        s <- evalFullTest maxID builtinTypes primDefs 2 Syn e
+        s <- evalFullTest maxID builtinTypes prims 2 Syn e
         s <~==> Right r
 
 unit_prim_partial_map :: Assertion
 unit_prim_partial_map =
   let modName = mkSimpleModuleName "TestModule"
-      ((e, r, gs), maxID) =
+      ((e, r, gs, prims), maxID) =
         create $ do
           (mapName, mapDef) <- Examples.map' modName
-          (,,)
+          (,,,)
             <$> gvar mapName
             `aPP` tcon tChar
             `aPP` tcon tChar
@@ -1263,8 +1268,9 @@ unit_prim_partial_map =
               ]
             `ann` (tcon tList `tapp` tcon tChar)
             <*> pure (M.singleton mapName mapDef)
+            <*> primDefs
    in do
-        s <- evalFullTest maxID builtinTypes (gs <> primDefs) 67 Syn e
+        s <- evalFullTest maxID builtinTypes (gs <> prims) 67 Syn e
         s <~==> Right r
 
 -- Test that handleEvalFullRequest will reduce imported terms
@@ -1272,7 +1278,8 @@ unit_eval_full_modules :: Assertion
 unit_eval_full_modules =
   let test = do
         builtinModule' <- builtinModule
-        importModules [primitiveModule, builtinModule']
+        primitiveModule' <- primitiveModule
+        importModules [primitiveModule', builtinModule']
         foo <- pfun ToUpper `app` char 'a'
         resp <-
           readerToState $
@@ -1418,26 +1425,28 @@ evalFullTasty id_ tydefs globals n d e = do
 
 unaryPrimTest :: HasCallStack => PrimDef -> S Expr -> S Expr -> Assertion
 unaryPrimTest f x y =
-  let ((e, r), maxID) =
+  let ((e, r, prims), maxID) =
         create $
-          (,)
+          (,,)
             <$> pfun f
             `app` x
             <*> y
+            <*> primDefs
    in do
-        s <- evalFullTest maxID mempty primDefs 2 Syn e
+        s <- evalFullTest maxID mempty prims 2 Syn e
         s <~==> Right r
 binaryPrimTest :: HasCallStack => PrimDef -> S Expr -> S Expr -> S Expr -> Assertion
 binaryPrimTest f x y z =
-  let ((e, r), maxID) =
+  let ((e, r, prims), maxID) =
         create $
-          (,)
+          (,,)
             <$> pfun f
             `app` x
             `app` y
             <*> z
+            <*> primDefs
    in do
-        s <- evalFullTest maxID mempty primDefs 2 Syn e
+        s <- evalFullTest maxID mempty prims 2 Syn e
         s <~==> Right r
 
 evalResultExpr :: Traversal' (Either EvalFullError Expr) Expr

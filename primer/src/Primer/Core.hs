@@ -77,10 +77,13 @@ import Primer.Core.Meta (
   _type,
  )
 import Primer.Core.Type (
-  Kind (..),
+  Kind,
+  Kind' (..),
+  KindMeta,
   Type,
   Type' (..),
   TypeMeta,
+  _kindMeta,
   _typeMeta,
   _typeMetaLens,
  )

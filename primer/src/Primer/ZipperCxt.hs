@@ -18,7 +18,7 @@ import Primer.Core (
   Expr' (..),
   GVarName,
   GlobalName (baseName),
-  Kind (KHole),
+  Kind' (KHole),
   LVarName,
   LocalName (unLocalName),
   Meta (Meta),
@@ -52,7 +52,7 @@ import Primer.Zipper (
 data ShadowedVarsExpr
   = M
       -- | Local type variables
-      [(TyVarName, Kind)]
+      [(TyVarName, Kind' ())]
       -- | Local term variables
       [(LVarName, Type' ())]
       -- | Global variables
@@ -81,7 +81,7 @@ instance Monoid ShadowedVarsExpr where
 -- Note that type/kind information is extracted from the TypeCache.
 localVariablesInScopeExpr ::
   Either ExprZ TypeZ ->
-  ([(TyVarName, Kind)], [(LVarName, Type' ())])
+  ([(TyVarName, Kind' ())], [(LVarName, Type' ())])
 localVariablesInScopeExpr exprOrTy =
   let M tyvars tmvars _globs = either extractLocalsExprZ extractLocalsTypeZ exprOrTy
    in (reverse tyvars, reverse tmvars) -- keep most-global first
@@ -109,7 +109,7 @@ extractLocalsExprZ = foldAbove getBoundHere
       LAM m n _ ->
         let k = case typeOrHole m of
               TForall _ _ a _ -> a
-              _ -> KHole
+              _ -> KHole ()
          in M [(n, k)] [] []
       Let _ x e1 _
         | prior e == e1 -> mempty
@@ -136,12 +136,12 @@ extractLocalsExprZ = foldAbove getBoundHere
     uncache (TCEmb TCBoth{tcSynthed = t}) = t
 
 -- If a type has no cached kind we report it has kind KHole
-kindOrHoleOf :: Type -> Kind
-kindOrHoleOf t = fromMaybe KHole $ t ^. _typeMetaLens % _type
+kindOrHoleOf :: Type -> Kind' ()
+kindOrHoleOf t = fromMaybe (KHole ()) $ t ^. _typeMetaLens % _type
 
 -- Helper for variablesInScopeTy: collect variables, most local first, eliding
 -- shadowed vars, as with 'ShadowedVarsExpr'
-newtype ShadowedVarsTy = N [(TyVarName, Kind)]
+newtype ShadowedVarsTy = N [(TyVarName, Kind' ())]
   deriving stock (Eq, Show)
 
 instance Semigroup ShadowedVarsTy where
@@ -156,7 +156,7 @@ instance Monoid ShadowedVarsTy where
 -- | As for 'variablesInScopeExpr', but when you are focussed somewhere inside
 -- a type, rather than somewhere inside an expr
 -- Note that kind information is extracted from the cached kind (for 'TLet')
-variablesInScopeTy :: TypeZip -> [(TyVarName, Kind)]
+variablesInScopeTy :: TypeZip -> [(TyVarName, Kind' ())]
 variablesInScopeTy e =
   let N vs = foldAbove getBoundHere e
    in reverse vs -- keep most-global first

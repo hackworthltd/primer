@@ -17,7 +17,7 @@ import Primer.Core (
   Expr,
   Expr' (LetType),
   ID,
-  Kind (KType),
+  Kind' (KType),
   ModuleName (ModuleName),
   Type,
   Type' (TLet),
@@ -51,7 +51,7 @@ genDirTm = do
   dir <- forAllT $ Gen.element [Chk, Syn]
   (t', ty) <- case dir of
     Chk -> do
-      ty' <- forAllT $ genWTType KType
+      ty' <- forAllT $ genWTType $ KType ()
       t' <- forAllT $ genChk ty'
       pure (t', ty')
     Syn -> forAllT genSyn
@@ -62,7 +62,7 @@ genDirTm = do
 -- Currently: an AST identity function on Char and all builtins and
 -- primitives
 testModules :: MonadFresh ID m => [m Module]
-testModules = [builtinModule, pure primitiveModule, pure testModule]
+testModules = [builtinModule, primitiveModule, pure testModule]
 
 testModule :: Module
 testModule =
