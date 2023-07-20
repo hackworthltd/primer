@@ -8,6 +8,7 @@
 -- polymorphism.
 module Primer.Typecheck (
   Type,
+  Kind,
   Expr,
   ExprT,
   SmartHoles (..),
@@ -175,7 +176,7 @@ import Primer.TypeDef (
   typeDefAST,
   typeDefParameters,
  )
-import Primer.Typecheck.Cxt (Cxt (Cxt, globalCxt, localCxt, smartHoles, typeDefs))
+import Primer.Typecheck.Cxt (Cxt (Cxt, globalCxt, localCxt, smartHoles, typeDefs), Kind)
 import Primer.Typecheck.Kindcheck (
   KindError (..),
   KindOrType (K, T),

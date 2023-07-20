@@ -1,5 +1,6 @@
 module Primer.Typecheck.Cxt (
   Type,
+  Kind,
   KindOrType (..),
   Cxt (..),
 ) where
@@ -14,7 +15,9 @@ import Primer.Typecheck.SmartHoles (SmartHoles)
 
 type Type = Type' ()
 
-data KindOrType = K (Kind' ()) | T Type
+type Kind = Kind' ()
+
+data KindOrType = K Kind | T Type
   deriving stock (Show, Eq)
 
 data Cxt = Cxt

@@ -45,6 +45,7 @@ import Primer.Test.Util (tcn)
 import Primer.TypeDef (ASTTypeDef (ASTTypeDef, astTypeDefConstructors, astTypeDefNameHints, astTypeDefParameters), TypeDef (TypeDefAST))
 import Primer.Typecheck (
   Cxt,
+  Kind,
   SmartHoles (NoSmartHoles),
   Type,
   buildTypingContextFromModules',
@@ -408,7 +409,7 @@ unit_unify_shadow = do
 
 -- Generate an extension of the base context (from the reader monad) with more
 -- local term and type vars, some of which are unif vars.
-genCxtExtendingLocalUVs :: GenT WT (Cxt, M.Map TyVarName (Kind' ()))
+genCxtExtendingLocalUVs :: GenT WT (Cxt, M.Map TyVarName Kind)
 genCxtExtendingLocalUVs = do
   n <- Gen.int $ Range.linear 0 20
   go n mempty
@@ -425,7 +426,7 @@ genCxtExtendingLocalUVs = do
 
 -- Run a property in a context extended with typedefs, globals and locals. Some
 -- of the locals (mentioned in the Set) are considered unification variables.
-propertyWTInExtendedUVCxt' :: [S Module] -> (M.Map TyVarName (Kind' ()) -> PropertyT WT ()) -> Property
+propertyWTInExtendedUVCxt' :: [S Module] -> (M.Map TyVarName Kind -> PropertyT WT ()) -> Property
 propertyWTInExtendedUVCxt' mods p = propertyWT mods $ do
   cxtG <- forAllT genCxtExtendingGlobal
   local (const cxtG) $ do

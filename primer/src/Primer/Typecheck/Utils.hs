@@ -26,7 +26,7 @@ import Data.Map qualified as Map
 import Data.Set qualified as S
 import Data.Tuple.Extra (fst3)
 import Optics (Lens', view, (%))
-import Primer.Core (Expr, Expr', GlobalName (baseName, qualifiedModule), Kind', ModuleName, TypeCache, _exprMetaLens)
+import Primer.Core (Expr, Expr', GlobalName (baseName, qualifiedModule), ModuleName, TypeCache, _exprMetaLens)
 import Primer.Core.Meta (Meta, TyConName, ValConName, _type)
 import Primer.Core.Transform (decomposeTAppCon)
 import Primer.Core.Type (Type' (TEmptyHole, THole))
@@ -41,7 +41,7 @@ import Primer.TypeDef (
   typeDefAST,
   typeDefParameters,
  )
-import Primer.Typecheck.Cxt (Cxt, globalCxt, typeDefs)
+import Primer.Typecheck.Cxt (Cxt, Kind, globalCxt, typeDefs)
 
 -- | Given a 'TypeDefMap', for each value constructor of a
 -- non-primitive typedef in the map, tuple the value constructor up
@@ -136,7 +136,7 @@ _typecache :: Lens' (Expr' (Meta a) b) a
 _typecache = _exprMetaLens % _type
 
 -- | Get the type of an 'ExprT'
-typeOf :: Expr' (Meta TypeCache) (Meta (Kind' ())) -> TypeCache
+typeOf :: Expr' (Meta TypeCache) (Meta Kind) -> TypeCache
 typeOf = view _typecache
 
 -- Helper to create fresh names

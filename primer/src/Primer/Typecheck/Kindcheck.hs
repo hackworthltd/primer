@@ -3,6 +3,7 @@ module Primer.Typecheck.Kindcheck (
   checkKind,
   synthKind,
   Type,
+  Kind,
   TypeT,
   KindOrType (..),
   extendLocalCxtTy,
@@ -26,7 +27,7 @@ import Primer.Core.Type (
  )
 import Primer.Name (NameCounter)
 import Primer.TypeDef (typeDefKind)
-import Primer.Typecheck.Cxt (Cxt (localCxt, smartHoles, typeDefs), KindOrType (K, T), Type)
+import Primer.Typecheck.Cxt (Cxt (localCxt, smartHoles, typeDefs), Kind, KindOrType (K, T), Type)
 import Primer.Typecheck.KindError (
   KindError (
     InconsistentKinds,
@@ -49,21 +50,21 @@ type KindM e m =
   , MonadNestedError KindError e m -- can throw kind errors
   )
 
-type TypeT = Type' (Meta (Kind' ()))
+type TypeT = Type' (Meta Kind)
 
-lookupLocalTy :: TyVarName -> Cxt -> Either KindError (Kind' ())
+lookupLocalTy :: TyVarName -> Cxt -> Either KindError Kind
 lookupLocalTy v cxt = case Map.lookup (unLocalName v) $ localCxt cxt of
   Just (K k) -> Right k
   Just (T _) -> Left $ TyVarWrongSort (unLocalName v)
   Nothing -> Left $ UnknownTypeVariable v
 
-localTyVars :: Cxt -> Map TyVarName (Kind' ())
+localTyVars :: Cxt -> Map TyVarName Kind
 localTyVars = Map.mapKeys LocalName . Map.mapMaybe (\case K k -> Just k; T _ -> Nothing) . localCxt
 
-extendLocalCxtTy :: (TyVarName, Kind' ()) -> Cxt -> Cxt
+extendLocalCxtTy :: (TyVarName, Kind) -> Cxt -> Cxt
 extendLocalCxtTy (name, k) cxt = cxt{localCxt = Map.insert (unLocalName name) (K k) (localCxt cxt)}
 
-extendLocalCxtTys :: [(TyVarName, Kind' ())] -> Cxt -> Cxt
+extendLocalCxtTys :: [(TyVarName, Kind)] -> Cxt -> Cxt
 extendLocalCxtTys x cxt = cxt{localCxt = Map.fromList (bimap unLocalName K <$> x) <> localCxt cxt}
 
 -- Synthesise a kind for the given type
@@ -82,7 +83,7 @@ extendLocalCxtTys x cxt = cxt{localCxt = Map.fromList (bimap unLocalName K <$> x
 -- A similar thing would happen with
 --   synthKind $ TApp 0 (TCon 1 List) (THole 2 (TCon 3 List))
 -- because we do not have checkKind KType List
-synthKind :: KindM e m => Type' (Meta a) -> m (Kind' (), TypeT)
+synthKind :: KindM e m => Type' (Meta a) -> m (Kind, TypeT)
 synthKind = \case
   TEmptyHole m -> pure (KHole (), TEmptyHole (annotate (KHole ()) m))
   THole m t -> do
@@ -129,7 +130,7 @@ synthKind = \case
     pure (KType (), TForall (annotate (KType ()) m) n k t')
   TLet{} -> throwError' TLetUnsupported
 
-checkKind :: KindM e m => Kind' () -> Type' (Meta a) -> m TypeT
+checkKind :: KindM e m => Kind -> Type' (Meta a) -> m TypeT
 checkKind k (THole m t) = do
   -- If we didn't have this special case, we might remove this hole (in a
   -- recursive call), only to reintroduce it again with a different ID
@@ -153,12 +154,12 @@ checkKind k t = do
 annotate :: b -> Meta a -> Meta b
 annotate t (Meta i _ v) = Meta i t v
 
-matchArrowKind :: Kind' () -> Maybe (Kind' (), Kind' ())
+matchArrowKind :: Kind -> Maybe (Kind, Kind)
 matchArrowKind (KHole ()) = pure (KHole (), KHole ())
 matchArrowKind (KType ()) = Nothing
 matchArrowKind (KFun () k1 k2) = pure (k1, k2)
 
-consistentKinds :: Kind' () -> Kind' () -> Bool
+consistentKinds :: Kind -> Kind -> Bool
 consistentKinds (KHole ()) _ = True
 consistentKinds _ (KHole ()) = True
 consistentKinds (KType ()) (KType ()) = True
