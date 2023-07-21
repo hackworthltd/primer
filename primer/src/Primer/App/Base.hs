@@ -29,6 +29,7 @@ import Primer.Core (
   ExprMeta,
   GVarName,
   HasID (..),
+  KindMeta,
   TyConName,
   TyVarName,
   Type',
@@ -70,7 +71,7 @@ data NodeType = BodyNode | SigNode
 -- | Describes which element of a (type or term) definition the student has selected.
 -- We have the following invariant: when this contains a `NodeSelection` with @nodeType = SigNode@,
 -- or any `TypeDefConsFieldSelection`, then they will always have @meta = Right _@.
-type Selection = Selection' (Either ExprMeta TypeMeta)
+type Selection = Selection' (Either ExprMeta (Either TypeMeta KindMeta))
 
 data Selection' a
   = SelectionDef (DefSelection a)

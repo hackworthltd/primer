@@ -811,6 +811,8 @@ instance Eq (TypeCacheAlpha TypeCache) where
   _ == _ = False
 tcaFunctorial :: (Functor f, Eq (f (TypeCacheAlpha a))) => TypeCacheAlpha (f a) -> TypeCacheAlpha (f a) -> Bool
 tcaFunctorial = (==) `on` fmap TypeCacheAlpha . unTypeCacheAlpha
+instance Eq (TypeCacheAlpha ()) where
+  TypeCacheAlpha () == TypeCacheAlpha () = True
 instance Eq (TypeCacheAlpha a) => Eq (TypeCacheAlpha (Maybe a)) where
   (==) = tcaFunctorial
 instance (Eq (TypeCacheAlpha a), Eq (TypeCacheAlpha b)) => Eq (TypeCacheAlpha (Either a b)) where
@@ -836,9 +838,11 @@ instance Eq (TypeCacheAlpha ExprMeta) where
   (==) = tcaFunctorial
 instance Eq (TypeCacheAlpha TypeMeta) where
   (==) = tcaFunctorial
+instance Eq (TypeCacheAlpha KindMeta) where
+  (==) = tcaFunctorial
 instance Eq (TypeCacheAlpha (Kind' ())) where
   TypeCacheAlpha k1 == TypeCacheAlpha k2 = k1 == k2
-instance Eq (TypeCacheAlpha (App.NodeSelection (Either ExprMeta TypeMeta))) where
+instance Eq (TypeCacheAlpha (App.NodeSelection (Either ExprMeta (Either TypeMeta KindMeta)))) where
   TypeCacheAlpha (App.NodeSelection t1 m1) == TypeCacheAlpha (App.NodeSelection t2 m2) =
     t1 == t2 && ((==) `on` first TypeCacheAlpha) m1 m2
 instance Eq (TypeCacheAlpha App.Selection) where
