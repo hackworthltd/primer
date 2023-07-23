@@ -226,7 +226,7 @@ import Primer.Def (
   defAST,
  )
 import Primer.Def qualified as Def
-import Primer.Eval (NormalOrderOptions (UnderBinders))
+import Primer.Eval (NormalOrderOptions (StopAtBinders))
 import Primer.Eval.Redex (Dir (Chk), EvalLog)
 import Primer.EvalFull (TerminationBound)
 import Primer.JSON (
@@ -1142,7 +1142,7 @@ evalFull' = curry4 $ logAPI (noError EvalFull') $ \(sid, lim, closed, d) ->
             { evalFullReqExpr = e
             , evalFullCxtDir = Chk
             , evalFullMaxSteps = fromMaybe 10 lim
-            , evalFullOptions = fromMaybe UnderBinders closed
+            , evalFullOptions = fromMaybe StopAtBinders closed
             }
       pure $ case x of
         App.EvalFullRespTimedOut e' -> EvalFullRespTimedOut $ viewTreeExpr e'
