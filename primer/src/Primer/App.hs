@@ -104,7 +104,7 @@ import Optics (
  )
 import Optics.State.Operators ((<<%=))
 import Primer.Action (
-  Action,
+  Action (..),
   ActionError (..),
   ProgAction (..),
   applyAction',
@@ -139,7 +139,7 @@ import Primer.Core (
   GVarName,
   GlobalName (baseName, qualifiedModule),
   ID (..),
-  Kind' (KType),
+  Kind' (..),
   KindMeta,
   LocalName (LocalName, unLocalName),
   Meta (..),
@@ -168,7 +168,7 @@ import Primer.Core (
   _type,
   _typeMetaLens,
  )
-import Primer.Core.DSL (S, create, emptyHole, tEmptyHole)
+import Primer.Core.DSL (S, create, emptyHole, kfun, khole, ktype, tEmptyHole)
 import Primer.Core.DSL qualified as DSL
 import Primer.Core.Transform (renameTyVar, renameVar, unfoldTApp)
 import Primer.Core.Utils (freeVars, generateKindIDs, generateTypeIDs, regenerateExprIDs, regenerateTypeIDs, _freeTmVars, _freeTyVars, _freeVarsTy)
@@ -988,6 +988,44 @@ applyProgAction prog = \case
                             }
                   }
           )
+  ParamKindAction tyName paramName id actions -> editModuleOfCrossType (Just tyName) prog $ \(mod, mods) defName def -> do
+    def' <-
+      def
+        & traverseOf
+          #astTypeDefParameters
+          ( maybe (throwError $ ParamNotFound paramName) pure
+              <=< findAndAdjustA
+                ((== paramName) . fst)
+                ( traverseOf _2 $
+                    flip
+                      ( foldlM $ flip \case
+                          ConstructKType -> modifyKind $ const ktype
+                          ConstructKFun -> modifyKind \k -> ktype `kfun` pure k
+                          Delete -> modifyKind $ const khole
+                          a -> const $ throwError $ ActionError $ CustomFailure a "unexpected non-kind action"
+                      )
+                      actions
+                )
+          )
+    let mod' = mod & over #moduleTypes (Map.insert defName $ TypeDefAST def')
+        imports = progImports prog
+        smartHoles = progSmartHoles prog
+    mods' <-
+      runExceptT
+        ( runReaderT
+            (checkEverything smartHoles (CheckEverything{trusted = imports, toCheck = mod' : mods}))
+            (buildTypingContextFromModules (mod : mods <> imports) smartHoles)
+        )
+        >>= either (throwError . ActionError) pure
+    pure (mods', Nothing)
+    where
+      modifyKind f k =
+        if getID k == id
+          then f k
+          else case k of
+            KHole _ -> pure k
+            KType _ -> pure k
+            KFun m k1 k2 -> KFun m <$> modifyKind f k1 <*> modifyKind f k2
   SetSmartHoles smartHoles ->
     pure $ prog & #progSmartHoles .~ smartHoles
   CopyPasteSig fromIds setup -> case mdefName of

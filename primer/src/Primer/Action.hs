@@ -471,6 +471,8 @@ applyAction' a = case a of
   RenameCaseBinding x -> \case
     InBind (BindCase z) -> InBind . BindCase <$> renameCaseBinding x z
     _ -> throwError $ CustomFailure a "cannot rename this node - not a case binding"
+  ConstructKType -> const $ throwError $ CustomFailure ConstructKType "kind edits currently only allowed in typedefs"
+  ConstructKFun -> const $ throwError $ CustomFailure ConstructKFun "kind edits currently only allowed in typedefs"
   where
     termAction f s = \case
       InExpr ze -> InExpr <$> f ze

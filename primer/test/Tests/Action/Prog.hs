@@ -16,6 +16,8 @@ import Primer.Action (
     ConstructApp,
     ConstructArrowL,
     ConstructCase,
+    ConstructKFun,
+    ConstructKType,
     ConstructLet,
     ConstructTCon,
     ConstructVar,
@@ -82,12 +84,13 @@ import Primer.Core (
   GVarName,
   GlobalName (baseName),
   ID,
-  Kind' (KType),
+  Kind' (..),
   Meta (..),
   ModuleName (ModuleName, unModuleName),
   Pattern (PatCon),
   TmVarRef (..),
   TyConName,
+  TyVarName,
   Type,
   Type' (..),
   ValConName,
@@ -1175,6 +1178,51 @@ unit_ConFieldAction =
                   ]
           )
 
+unit_ParamKindAction_1 :: Assertion
+unit_ParamKindAction_1 =
+  progActionTest
+    ( defaultProgEditableTypeDefs (pure [])
+    )
+    [ParamKindAction tT pB 30 [ConstructKFun]]
+    $ expectSuccess
+    $ \_ prog' -> do
+      td <- findTypeDef tT prog'
+      astTypeDefParameters td
+        @?= [ ("a", KType ())
+            , ("b", KFun () (KType ()) (KType ()))
+            ]
+
+unit_ParamKindAction_2 :: Assertion
+unit_ParamKindAction_2 =
+  progActionTest
+    ( defaultProgEditableTypeDefs (pure [])
+    )
+    [ ParamKindAction tT pB 30 [ConstructKFun]
+    , ParamKindAction tT pB 5 [ConstructKType]
+    ]
+    $ expectSuccess
+    $ \_ prog' -> do
+      td <- findTypeDef tT prog'
+      astTypeDefParameters td
+        @?= [ ("a", KType ())
+            , ("b", KFun () (KType ()) (KType ()))
+            ]
+
+unit_ParamKindAction_3 :: Assertion
+unit_ParamKindAction_3 =
+  progActionTest
+    ( defaultProgEditableTypeDefs (pure [])
+    )
+    [ ParamKindAction tT pA 29 [Delete]
+    ]
+    $ expectSuccess
+    $ \_ prog' -> do
+      td <- findTypeDef tT prog'
+      astTypeDefParameters td
+        @?= [ ("a", KHole ())
+            , ("b", KType ())
+            ]
+
 -- Check that we see name hints from imported modules
 -- (This differs from the tests in Tests.Question by testing the actual action,
 -- rather than the underlying functionality)
@@ -1482,7 +1530,8 @@ findDef d p = maybe (assertFailure "couldn't find def") pure $ defAST =<< findGl
 
 -- We use the same type definition for all tests related to editing type definitions
 -- (This is added to `defaultFullProg`)
--- The qualified name for this is recorded in 'tT', and its constructors are 'cA' and 'cB'
+-- The qualified name for this is recorded in 'tT', its constructors are 'cA' and 'cB',
+-- and its parameters in `pA` and `pB`.
 defaultProgEditableTypeDefs :: MonadFresh ID f => f [(Name, ASTDef)] -> f Prog
 defaultProgEditableTypeDefs ds = do
   p <- defaultFullProg
@@ -1495,11 +1544,10 @@ defaultProgEditableTypeDefs ds = do
     pure $
       TypeDefAST
         ASTTypeDef
-          { astTypeDefParameters = [("a", ka), ("b", kb)]
+          { astTypeDefParameters = [(pA, ka), (pB, kb)]
           , astTypeDefConstructors = [ValCon cA fieldsA, ValCon cB fieldsB]
           , astTypeDefNameHints = []
           }
-
   pure $
     p
       & (#progModules % _head % #moduleTypes) %~ (Map.singleton (baseName tT) td <>)
@@ -1513,6 +1561,12 @@ cA = vcn "A"
 
 cB :: ValConName
 cB = vcn "B"
+
+pA :: TyVarName
+pA = "a"
+
+pB :: TyVarName
+pB = "b"
 
 unit_good_defaultFullProg :: Assertion
 unit_good_defaultFullProg = checkProgWellFormed defaultFullProg

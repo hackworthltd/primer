@@ -57,6 +57,8 @@ data ProgAction
     SigAction [Action]
   | -- | Execute a sequence of actions on the type of a field of a constructor in a typedef
     ConFieldAction TyConName ValConName Int [Action]
+  | -- | Execute a sequence of actions on the kind of a parameter in a typedef
+    ParamKindAction TyConName TyVarName ID [Action]
   | SetSmartHoles SmartHoles
   | -- | CopyPaste (d,i) as
     --   remembers the tree in def d, node i
