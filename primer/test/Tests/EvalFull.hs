@@ -1393,12 +1393,14 @@ unit_prim_partial_map =
    in do
         s <- evalFullTestExactSteps maxID builtinTypes (gs <> prims) 91 Syn e
         s ~== r
+
 -- TODO/REVIEW:
 -- I NEED TO WRITE A [note] about this!
 -- note that ww/map is somewhat pointless when push down lets -- maybe we should push lets inside letrecs (maybe just inside type?)?
---     nb, get something like @let α=Char, β=Char, f=toUpper in (letrec go : List α -> List β; go = λxs.RHS in go)
+-- note that ww/map is somewhat pointless when push down lets -- maybe we should push lets inside letrecs (maybe just inside type?)?
+--     nb, get something like @let α=Char, β=Char, f=toUpper in (letrec go : List α -> List β; go = λxs.RHS in go)@
 --     and then in two steps (expand @go@, push stack of let+letrec)
---        @λxs. let α=Char, β=Char, f=toUpper in (letrec go : List α -> List β; go = λxs.RHS in RHS : List α -> List β)
+--        @λxs. let α=Char, β=Char, f=toUpper in (letrec go : List α -> List β; go = λxs.RHS in RHS : List α -> List β)@
 --     we carry around the subst for α,β and f, using α,β inside annotation and f in RHS each time expand the letrec
 
 -- Test that handleEvalFullRequest will reduce imported terms
