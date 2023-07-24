@@ -18,6 +18,7 @@ module Primer.Action.Available (
   options,
   forTypeDef,
   forTypeDefParamNode,
+  forTypeDefParamKindNode,
   forTypeDefConsNode,
   forTypeDefConsFieldNode,
 ) where
@@ -397,6 +398,18 @@ forTypeDefParamNode paramName l Editable tydefs defs tdName td =
               )
         )
         [NoInput DeleteTypeParam]
+
+forTypeDefParamKindNode ::
+  TyVarName ->
+  ID ->
+  Level ->
+  Editable ->
+  TypeDefMap ->
+  DefMap ->
+  TyConName ->
+  ASTTypeDef TypeMeta KindMeta ->
+  [Action]
+forTypeDefParamKindNode _ _ _ _ _ _ _ _ = mempty
 
 forTypeDefConsNode ::
   Level ->

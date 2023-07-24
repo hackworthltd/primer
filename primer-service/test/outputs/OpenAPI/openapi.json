@@ -854,7 +854,7 @@
                     {
                         "properties": {
                             "contents": {
-                                "type": "string"
+                                "$ref": "#/components/schemas/TypeDefParamSelection"
                             },
                             "tag": {
                                 "enum": [
@@ -888,6 +888,22 @@
                         "type": "object"
                     }
                 ]
+            },
+            "TypeDefParamSelection": {
+                "properties": {
+                    "kindMeta": {
+                        "maximum": 9223372036854775807,
+                        "minimum": -9223372036854775808,
+                        "type": "integer"
+                    },
+                    "param": {
+                        "type": "string"
+                    }
+                },
+                "required": [
+                    "param"
+                ],
+                "type": "object"
             },
             "TypeDefSelection": {
                 "properties": {

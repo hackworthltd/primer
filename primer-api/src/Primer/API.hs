@@ -121,6 +121,7 @@ import Primer.App (
   Question (GenerateName),
   Selection' (..),
   TypeDefConsSelection (..),
+  TypeDefParamSelection (..),
   TypeDefSelection (..),
   appProg,
   handleEvalFullRequest,
@@ -1198,7 +1199,9 @@ availableActions = curry3 $ logAPI (noError AvailableActions) $ \(sid, level, se
       (editable, def) <- findASTTypeDef allTypeDefs sel.def
       let getActions = case sel.node of
             Nothing -> Available.forTypeDef
-            Just (TypeDefParamNodeSelection p) -> Available.forTypeDefParamNode p
+            Just (TypeDefParamNodeSelection s) -> case s.kindMeta of
+              Nothing -> Available.forTypeDefParamNode s.param
+              Just kind -> Available.forTypeDefParamKindNode s.param kind
             Just (TypeDefConsNodeSelection s) -> case s.field of
               Nothing -> Available.forTypeDefConsNode
               Just field -> Available.forTypeDefConsFieldNode s.con field.index field.meta
@@ -1341,10 +1344,18 @@ getSelectionTypeOrKind = curry $ logAPI (noError GetTypeOrKind) $ \(sid, sel0) -
       case sel.node of
         -- type def itself selected - return its kind
         Nothing -> pure $ Kind $ viewTreeKind' $ mkIdsK $ typeDefKind $ forgetTypeDefMetadata $ TypeDef.TypeDefAST def
-        -- param node selected - return its kind
-        Just (TypeDefParamNodeSelection p) ->
+        -- param name node selected - return its kind
+        Just (TypeDefParamNodeSelection (TypeDefParamSelection p Nothing)) ->
           maybe (throw' $ ParamNotFound p) (pure . Kind . viewTreeKind . snd) $
             find ((== p) . fst) (astTypeDefParameters def)
+        -- param kind node selected - just return `KType`
+        -- This is a slight lie, effectively reporting that kinds are types,
+        -- when this isn't true in Primer (as it is in Haskell with modern GHC's `TypeInType`).
+        -- But Primer also doesn't (explicitly) have an Agda-style infinite hierarchy of types
+        -- `True : Bool : Type0 : Type1 : Type2 : ...` (we don't go beyond `Type0` i.e. `KType`),
+        -- so this is the best that we can easily do.
+        Just (TypeDefParamNodeSelection (TypeDefParamSelection _ (Just _))) ->
+          pure $ Kind $ viewTreeKind' $ KType "kind"
         -- constructor node selected - return the type to which it belongs
         Just (TypeDefConsNodeSelection (TypeDefConsSelection _ Nothing)) ->
           pure . Type . viewTreeType' . mkIds $

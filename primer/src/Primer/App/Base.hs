@@ -14,6 +14,7 @@ module Primer.App.Base (
   Selection' (..),
   TypeDefSelection (..),
   TypeDefNodeSelection (..),
+  TypeDefParamSelection (..),
   TypeDefConsSelection (..),
   TypeDefConsFieldSelection (..),
   DefSelection (..),
@@ -91,10 +92,20 @@ data TypeDefSelection a = TypeDefSelection
 
 -- | Some element in a type definition, other than simply the definition itself.
 data TypeDefNodeSelection a
-  = TypeDefParamNodeSelection TyVarName
+  = TypeDefParamNodeSelection (TypeDefParamSelection a)
   | TypeDefConsNodeSelection (TypeDefConsSelection a)
   deriving stock (Eq, Show, Read, Functor, Generic, Data)
   deriving (FromJSON, ToJSON) via PrimerJSON (TypeDefNodeSelection a)
+  deriving anyclass (NFData)
+
+-- | Some element of a definition of a type parameter.
+data TypeDefParamSelection a = TypeDefParamSelection
+  { param :: TyVarName
+  , kindMeta :: Maybe a
+  -- ^ `Nothing` indicates that the parameter name is selected, `Just` means a node in its kind.
+  }
+  deriving stock (Eq, Show, Read, Functor, Generic, Data)
+  deriving (FromJSON, ToJSON) via PrimerJSON (TypeDefParamSelection a)
   deriving anyclass (NFData)
 
 -- | Some element of a definition of a constructor.

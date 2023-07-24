@@ -52,6 +52,7 @@ import Primer.App.Base (
   TypeDefConsFieldSelection (..),
   TypeDefConsSelection (..),
   TypeDefNodeSelection (..),
+  TypeDefParamSelection (..),
   TypeDefSelection (..),
  )
 import Primer.Core (
@@ -1154,7 +1155,7 @@ toProgActionNoInput defs def0 sel0 = \case
     pure [DeleteConField t c sel.index]
   Available.DeleteTypeParam -> do
     (t, p) <- typeParamSel
-    pure [DeleteTypeParam t p]
+    pure [DeleteTypeParam t p.param]
   where
     termSel = case sel0 of
       SelectionDef s -> pure s
@@ -1280,7 +1281,7 @@ toProgActionInput def0 sel0 opt0 = \case
   Available.RenameTypeParam -> do
     opt <- optNoCxt
     (defName, sel) <- typeParamSel
-    pure [RenameTypeParam defName sel opt]
+    pure [RenameTypeParam defName sel.param opt]
   Available.AddCon -> do
     opt <- optNoCxt
     sel <- typeSel

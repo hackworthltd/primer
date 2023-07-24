@@ -125,6 +125,7 @@ import Primer.App.Base (
   TypeDefConsFieldSelection (..),
   TypeDefConsSelection (..),
   TypeDefNodeSelection (..),
+  TypeDefParamSelection (..),
   TypeDefSelection (..),
   getTypeDefConFieldType,
  )
@@ -737,7 +738,7 @@ applyProgAction prog = \case
       m' <- updateTypeDef m
       pure
         ( m'
-        , Just $ SelectionTypeDef $ TypeDefSelection type_ $ Just $ TypeDefParamNodeSelection new
+        , Just $ SelectionTypeDef $ TypeDefSelection type_ $ Just $ TypeDefParamNodeSelection $ TypeDefParamSelection new Nothing
         )
     where
       updateTypeDef =
@@ -900,7 +901,7 @@ applyProgAction prog = \case
         )
         tdName
         m
-    pure (m' : ms, Just $ SelectionTypeDef $ TypeDefSelection tdName $ Just $ TypeDefParamNodeSelection paramName)
+    pure (m' : ms, Just $ SelectionTypeDef $ TypeDefSelection tdName $ Just $ TypeDefParamNodeSelection $ TypeDefParamSelection paramName Nothing)
   DeleteTypeParam tdName paramName -> editModuleCross (qualifiedModule tdName) prog $ \(m, ms) -> do
     m' <-
       alterTypeDef

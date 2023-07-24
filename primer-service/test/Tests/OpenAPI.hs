@@ -57,9 +57,10 @@ import Primer.App (
   Selection' (..),
   TypeDefConsFieldSelection (TypeDefConsFieldSelection),
   TypeDefConsSelection (..),
+  TypeDefNodeSelection (..),
+  TypeDefParamSelection (..),
   TypeDefSelection (..),
  )
-import Primer.App.Base (TypeDefNodeSelection (..))
 import Primer.Core (GVarName, ID (ID), ModuleName, PrimCon (PrimChar, PrimInt))
 import Primer.Database (
   LastModified (..),
@@ -267,7 +268,11 @@ genTypeDefSelection =
     <$> genTyConName
     <*> G.maybe
       ( G.choice
-          [ TypeDefParamNodeSelection <$> genTyVarName
+          [ TypeDefParamNodeSelection
+              <$> ( TypeDefParamSelection
+                      <$> genTyVarName
+                      <*> G.maybe genID
+                  )
           , TypeDefConsNodeSelection
               <$> ( TypeDefConsSelection
                       <$> genValConName
