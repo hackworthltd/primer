@@ -49,6 +49,7 @@ import Primer.Eval
 import Primer.EvalFull
 import Primer.Examples qualified as Examples (
   even,
+  map,
   map',
   odd,
  )
@@ -425,6 +426,25 @@ unit_15 =
         zipWithM_ (\s e -> s <~==> Left (TimedOut e)) si steps
         s <- evalFullTest maxID builtinTypes mempty (fromIntegral $ length steps) Syn expr
         s <~==> Right expected
+
+unit_map_hole :: Assertion
+unit_map_hole =
+  let n = 3
+      modName = mkSimpleModuleName "TestModule"
+      ((globals, expr, expected), maxID) = create $ do
+        (mapName, mapDef) <- Examples.map modName
+        let lst = list_ $ take n $ iterate (con1 cSucc) (con0 cZero)
+        e <- gvar mapName `aPP` tcon tNat `aPP` tcon tBool `app` emptyHole `app` lst
+        let globs = [(mapName, mapDef)]
+        expect <- list_ (take n $ ((emptyHole `ann` (tcon tNat `tfun` tcon tBool)) `app`) <$> iterate (con1 cSucc) (con0 cZero)) `ann` (tcon tList `tapp` tcon tBool)
+        pure (M.fromList globs, e, expect)
+   in do
+        sO <- evalFullTest maxID builtinTypes globals 200 Syn expr
+        sO <~==> Right expected
+        sCG <- evalFullTestClosed GroupedLets maxID builtinTypes globals 200 Syn expr
+        sCG <~==> Right expected
+        sCS <- evalFullTestClosed SingleLets maxID builtinTypes globals 300 Syn expr
+        sCS <~==> Right expected
 
 unit_hole_ann_case :: Assertion
 unit_hole_ann_case =
