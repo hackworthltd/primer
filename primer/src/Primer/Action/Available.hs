@@ -206,12 +206,12 @@ forDef ::
   [Action]
 forDef _ _ NonEditable _ = mempty
 forDef defs l Editable defName =
-  sortByPriority l $
-    [Input RenameDef, NoInput DuplicateDef]
-      <> mwhen
-        -- ensure the definition is not in use, otherwise the action will not succeed
-        (not $ globalInUse defName $ Map.delete defName defs)
-        [NoInput DeleteDef]
+  sortByPriority l
+    $ [Input RenameDef, NoInput DuplicateDef]
+    <> mwhen
+      -- ensure the definition is not in use, otherwise the action will not succeed
+      (not $ globalInUse defName $ Map.delete defName defs)
+      [NoInput DeleteDef]
 
 forBody ::
   TypeDefMap ->
@@ -359,17 +359,17 @@ forTypeDef ::
   [Action]
 forTypeDef _ NonEditable _ _ _ _ = mempty
 forTypeDef l Editable tydefs defs tdName td =
-  sortByPriority l $
-    [ Input RenameType
-    , Input AddCon
-    ]
-      <> mwhen
-        (not $ typeInUse tdName td tydefs defs)
-        ( [NoInput DeleteTypeDef]
-            <> mwhen
-              (l == Expert)
-              [Input AddTypeParam]
-        )
+  sortByPriority l
+    $ [ Input RenameType
+      , Input AddCon
+      ]
+    <> mwhen
+      (not $ typeInUse tdName td tydefs defs)
+      ( [NoInput DeleteTypeDef]
+          <> mwhen
+            (l == Expert)
+            [Input AddTypeParam]
+      )
 
 forTypeDefParamNode ::
   TyVarName ->
@@ -382,20 +382,21 @@ forTypeDefParamNode ::
   [Action]
 forTypeDefParamNode _ _ NonEditable _ _ _ _ = mempty
 forTypeDefParamNode paramName l Editable tydefs defs tdName td =
-  sortByPriority l $
-    [ Input RenameTypeParam
-    ]
-      <> mwhen
-        ( l == Expert
-            && not
-              ( typeInUse tdName td tydefs defs
-                  || elemOf
-                    (to astTypeDefConstructors % folded % to valConArgs % folded % getting _freeVarsTy % _2)
-                    paramName
-                    td
-              )
-        )
-        [NoInput DeleteTypeParam]
+  sortByPriority l
+    $ [ Input RenameTypeParam
+      ]
+    <> mwhen
+      ( l
+          == Expert
+          && not
+            ( typeInUse tdName td tydefs defs
+                || elemOf
+                  (to astTypeDefConstructors % folded % to valConArgs % folded % getting _freeVarsTy % _2)
+                  paramName
+                  td
+            )
+      )
+      [NoInput DeleteTypeParam]
 
 forTypeDefConsNode ::
   Level ->
@@ -407,11 +408,11 @@ forTypeDefConsNode ::
   [Action]
 forTypeDefConsNode _ NonEditable _ _ _ _ = mempty
 forTypeDefConsNode l Editable tydefs defs tdName td =
-  sortByPriority l $
-    [ NoInput AddConField
-    , Input RenameCon
-    ]
-      <> mwhen (not $ typeInUse tdName td tydefs defs) [NoInput DeleteCon]
+  sortByPriority l
+    $ [ NoInput AddConField
+      , Input RenameCon
+      ]
+    <> mwhen (not $ typeInUse tdName td tydefs defs) [NoInput DeleteCon]
 
 forTypeDefConsFieldNode ::
   ValConName ->
@@ -426,9 +427,9 @@ forTypeDefConsFieldNode ::
   [Action]
 forTypeDefConsFieldNode _ _ _ _ NonEditable _ _ _ _ = mempty
 forTypeDefConsFieldNode con index id l Editable tydefs defs tdName td =
-  sortByPriority l $
-    maybe mempty (forType l) (findType id =<< fieldType)
-      <> mwhen ((view _id <$> fieldType) == Just id && not (typeInUse tdName td tydefs defs)) [NoInput DeleteConField]
+  sortByPriority l
+    $ maybe mempty (forType l) (findType id =<< fieldType)
+    <> mwhen ((view _id <$> fieldType) == Just id && not (typeInUse tdName td tydefs defs)) [NoInput DeleteConField]
   where
     fieldType = getTypeDefConFieldType td con index
 
@@ -476,15 +477,21 @@ options ::
 options typeDefs defs cxt level def0 sel0 = \case
   MakeCon ->
     valConOpts
-      <&> noFree . map fst . filter (not . (&& level == Beginner) . uncurry3 hasArgsCon . snd)
+      <&> noFree
+      . map fst
+      . filter (not . (&& level == Beginner) . uncurry3 hasArgsCon . snd)
   MakeInt -> pure Options{opts = [], free = FreeInt}
   MakeChar -> pure Options{opts = [], free = FreeChar}
   MakeVar ->
     varOpts
-      <&> noFree . map fst . filter (not . (&& level == Beginner) . hasArgsVar . snd)
+      <&> noFree
+      . map fst
+      . filter (not . (&& level == Beginner) . hasArgsVar . snd)
   MakeVarSat ->
     varOpts
-      <&> noFree . map fst . filter (hasArgsVar . snd)
+      <&> noFree
+      . map fst
+      . filter (hasArgsVar . snd)
   MakeLet ->
     freeVar <$> genNames (Left Nothing)
   MakeLetRec ->
@@ -585,21 +592,22 @@ options typeDefs defs cxt level def0 sel0 = \case
       findNode >>= \case
         ExprNode e
           | Just t <- exprType e -> do
-              pure $
-                (locals <&> \(ln, t') -> (localOpt' (t `eqType` t') $ unLocalName ln, t'))
-                  <> (globals <&> \(gn, t') -> (globalOpt' (t `eqType` t') gn, t'))
+              pure
+                $ (locals <&> \(ln, t') -> (localOpt' (t `eqType` t') $ unLocalName ln, t'))
+                <> (globals <&> \(gn, t') -> (globalOpt' (t `eqType` t') gn, t'))
         _ ->
-          pure $
-            (first (localOpt . unLocalName) <$> locals)
-              <> (first globalOpt <$> globals)
+          pure
+            $ (first (localOpt . unLocalName) <$> locals)
+            <> (first globalOpt <$> globals)
     valConOpts =
       let vcs = allNonPrimValCons typeDefs
        in do
             findNode >>= \case
               ExprNode e
                 | Just t <- exprType e -> do
-                    pure $
-                      vcs <&> \vc@(vc', tc, _) ->
+                    pure
+                      $ vcs
+                      <&> \vc@(vc', tc, _) ->
                         -- Since all datatypes are regular ADTs (not GADTs), the only things needed for
                         -- a value constructor to be a correct fit for a hole are
                         -- - the hole's type is "a type constructor applied to a bunch of things"
@@ -674,8 +682,9 @@ sortByPriority ::
   [Action] ->
   [Action]
 sortByPriority l =
-  sortOn $
-    ($ l) . \case
+  sortOn
+    $ ($ l)
+    . \case
       NoInput a -> case a of
         MakeCase -> P.makeCase
         MakeApp -> P.applyFunction

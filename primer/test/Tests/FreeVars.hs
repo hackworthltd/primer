@@ -20,8 +20,8 @@ unit_2 =
     t =
       ann
         ( app
-            ( lam "x" $
-                case_
+            ( lam "x"
+                $ case_
                   (lvar "x")
                   [ branch cZero [] $ con0 cTrue
                   , branch cSucc [("n", Nothing)] (app (lvar "f") (lvar "n"))

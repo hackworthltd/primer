@@ -439,8 +439,8 @@ findNodeWithParent id x = do
     InExpr ez -> (ExprNode $ target ez, ExprNode . target <$> up ez)
     InType tz ->
       ( TypeNode $ target tz
-      , Just $
-          maybe
+      , Just
+          $ maybe
             (ExprNode $ target $ unfocusType tz)
             (TypeNode . target)
             (up tz)

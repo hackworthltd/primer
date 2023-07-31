@@ -55,5 +55,5 @@ instance
   toOpenApi _ =
     toOpenApi (Proxy @api)
       & traversalVL allOperations
-        % #operationId
-        %~ (Just (pack (symbolVal (Proxy @id))) <>)
+      % #operationId
+      %~ (Just (pack (symbolVal (Proxy @id))) <>)

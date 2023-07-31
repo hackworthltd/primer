@@ -533,10 +533,10 @@ viewCaseRedex tydefs = \case
       Nothing -> mzero
       Just tyargsFromAnn -> do
         tyargs <- do
-          unless (length params == length tyargsFromAnn) $
-            logWarning $
-              CaseRedexNotSaturated $
-                forgetTypeMetadata annotation
+          unless (length params == length tyargsFromAnn)
+            $ logWarning
+            $ CaseRedexNotSaturated
+            $ forgetTypeMetadata annotation
           pure $ zip params tyargsFromAnn
         (patterns, br) <- extractBranch (PatCon c) brs fb
         renameBindings mCase scrut brs fb patterns orig
@@ -592,8 +592,8 @@ viewCaseRedex tydefs = \case
     renameBindings meta scrutinee branches fallbackBranch patterns orig =
       let avoid = freeVars scrutinee
           binders = maybe mempty (S.fromList . map (unLocalName . bindName)) patterns
-       in hoistMaybe $
-            if S.disjoint avoid binders
+       in hoistMaybe
+            $ if S.disjoint avoid binders
               then Nothing
               else Just $ RenameBindingsCase{meta, scrutinee, branches, fallbackBranch, avoid, orig}
     formCaseRedex ::
@@ -644,8 +644,8 @@ viewRedex ::
 viewRedex tydefs globals dir = \case
   orig@(Var _ (GlobalVarRef gvar))
     | Just (DefAST def) <- gvar `M.lookup` globals ->
-        pure $
-          InlineGlobal{gvar, def, orig}
+        pure
+          $ InlineGlobal{gvar, def, orig}
   Var m (LocalVarRef var) -> do
     let varID = getID m
     runMaybeT (getNonCapturedLocal var) >>= \x -> do
@@ -658,8 +658,8 @@ viewRedex tydefs globals dir = \case
     -- This could be optimised in the future. See
     -- https://github.com/hackworthltd/primer/issues/733
     | unLocalName var `S.notMember` freeVars body ->
-        pure $
-          ElideLet
+        pure
+          $ ElideLet
             { letBinding = LetBind var rhs
             , body
             , orig
@@ -668,8 +668,8 @@ viewRedex tydefs globals dir = \case
     | otherwise -> mzero
   orig@(LetType _ var trhs body)
     | unLocalName var `S.notMember` freeVars body ->
-        pure $
-          ElideLet
+        pure
+          $ ElideLet
             { letBinding = LetTyBind $ LetTypeBind var trhs
             , body
             , orig
@@ -678,8 +678,8 @@ viewRedex tydefs globals dir = \case
     | otherwise -> mzero
   orig@(Letrec _ v e1 t body)
     | unLocalName v `S.notMember` freeVars body ->
-        pure $
-          ElideLet
+        pure
+          $ ElideLet
             { letBinding = LetrecBind v e1 t
             , body
             , orig
@@ -696,8 +696,8 @@ viewRedex tydefs globals dir = \case
       then pure $ RenameBindingsLAM{tyvar = v, meta, body, avoid = fvcxt, orig = l}
       else mzero
   orig@(App _ (Ann _ (Lam m var body) (TFun _ srcTy tgtTy)) app) ->
-    pure $
-      Beta
+    pure
+      $ Beta
         { var
         , body
         , srcTy
@@ -707,14 +707,15 @@ viewRedex tydefs globals dir = \case
         , lamID = getID m
         }
   e@App{} ->
-    lift $
-      hoistMaybe $
-        tryPrimFun (M.mapMaybe defPrim globals) e >>= \(primFun, args, result) ->
-          pure ApplyPrimFun{result, primFun, args, orig = e}
+    lift
+      $ hoistMaybe
+      $ tryPrimFun (M.mapMaybe defPrim globals) e
+      >>= \(primFun, args, result) ->
+        pure ApplyPrimFun{result, primFun, args, orig = e}
   -- (Λa.t : ∀b.T) S  ~> (letType a = S in t) : (letType b = S in T)
   orig@(APP _ (Ann _ (LAM m a body) (TForall _ forallVar forallKind tgtTy)) argTy) ->
-    pure $
-      BETA
+    pure
+      $ BETA
         { tyvar = a
         , body
         , forallVar
@@ -748,15 +749,15 @@ viewRedexType = \case
     -- This could be optimised in the future. See
     -- https://github.com/hackworthltd/primer/issues/733
     | notElemOf (getting _freeVarsTy % _2) v body ->
-        purer $
-          ElideLetInType
+        purer
+          $ ElideLetInType
             { letBinding = LetTypeBind v s
             , body
             , orig
             }
     | elemOf (getting _freeVarsTy % _2) v s ->
-        purer $
-          RenameSelfLetInType
+        purer
+          $ RenameSelfLetInType
             { letBinding = LetTypeBind v s
             , body
             , orig
@@ -764,10 +765,11 @@ viewRedexType = \case
     | otherwise -> pure Nothing
   orig@(TForall meta origBinder kind body) -> do
     fvcxt <- fvCxtTy $ freeVarsTy orig
-    pure $
-      if origBinder `S.member` fvcxt
+    pure
+      $ if origBinder `S.member` fvcxt
         then
-          pure $
+          pure
+            $
             -- If anything we may substitute would cause capture, we should rename this binder
             RenameForall
               { meta
@@ -909,9 +911,9 @@ runRedex = \case
     , conID
     } -> do
       let binderNames = maybe mempty (map bindName) binders
-      unless (isNothing binders || (length args == length argTys && length args == length binderNames)) $
-        logWarning $
-          CaseRedexWrongArgNum con args argTys binderNames
+      unless (isNothing binders || (length args == length argTys && length args == length binderNames))
+        $ logWarning
+        $ CaseRedexWrongArgNum con args argTys binderNames
       let freshLocalNameLike n avoid =
             if S.member n avoid
               then freshLocalName avoid

@@ -143,8 +143,8 @@ builtinModule = do
   maybeDef' <- traverseOf _typedefFields generateTypeIDs $ TypeDefAST maybeDef
   pairDef' <- traverseOf _typedefFields generateTypeIDs $ TypeDefAST pairDef
   eitherDef' <- traverseOf _typedefFields generateTypeIDs $ TypeDefAST eitherDef
-  pure $
-    Module
+  pure
+    $ Module
       { moduleName = builtinModuleName
       , moduleTypes =
           M.fromList

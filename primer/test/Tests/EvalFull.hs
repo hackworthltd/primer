@@ -275,9 +275,9 @@ unit_11 =
         (oddName, oddDef) <- Examples.odd modName
         let ty = tcon tNat `tfun` (tcon tPair `tapp` tcon tBool `tapp` tcon tNat)
         let expr1 =
-              let_ "x" (con0 cZero) $
-                lam "n" (con cMakePair [gvar evenName `app` lvar "n", lvar "x"])
-                  `ann` ty
+              let_ "x" (con0 cZero)
+                $ lam "n" (con cMakePair [gvar evenName `app` lvar "n", lvar "x"])
+                `ann` ty
         expr <- expr1 `app` con0 cZero
         let globs = [(evenName, evenDef), (oddName, oddDef)]
         expect <-
@@ -299,8 +299,8 @@ unit_12 =
   let ((e, expected), maxID) = create $ do
         -- 'f' is a bit silly here, but could just as well be a definition of 'even'
         let f =
-              lam "x" $
-                case_
+              lam "x"
+                $ case_
                   (lvar "x")
                   [ branch cZero [] $ con0 cTrue
                   , branch cSucc [("i", Nothing)] $ lvar "f" `app` lvar "i"
@@ -434,8 +434,9 @@ unit_tlet_self_capture = do
 
 -- | Resuming evaluation is the same as running it for longer in the first place
 tasty_resume :: Property
-tasty_resume = withDiscards 2000 $
-  propertyWT testModules $ do
+tasty_resume = withDiscards 2000
+  $ propertyWT testModules
+  $ do
     (dir, t, _) <- genDirTm
     testModules' <- sequence testModules
     resumeTest testModules' dir t
@@ -502,25 +503,25 @@ unit_type_preservation_case_regression_tm :: Assertion
 unit_type_preservation_case_regression_tm =
   let ((expr, expected1, expected2), maxID) = create $ do
         e <-
-          lam "x" $
-            case_
+          lam "x"
+            $ case_
               ( con cMakePair [emptyHole, lvar "x"]
                   `ann` ((tcon tPair `tapp` tcon tNat) `tapp` tcon tBool)
               )
               [branch cMakePair [("x", Nothing), ("y", Nothing)] emptyHole]
         let x' = "a46" -- NB fragile name
         expect1 <-
-          lam "x" $
-            case_
+          lam "x"
+            $ case_
               ( con cMakePair [emptyHole, lvar "x"]
                   `ann` ((tcon tPair `tapp` tcon tNat) `tapp` tcon tBool)
               )
               [branch cMakePair [(x', Nothing), ("y", Nothing)] $ let_ "x" (lvar x') emptyHole]
         expect2 <-
-          lam "x" $
-            let_ x' (emptyHole `ann` tlet "a" (tcon tNat) (tvar "a")) $
-              let_ "y" (lvar "x" `ann` tlet "b" (tcon tBool) (tvar "b")) $
-                let_ "x" (lvar x') emptyHole
+          lam "x"
+            $ let_ x' (emptyHole `ann` tlet "a" (tcon tNat) (tvar "a"))
+            $ let_ "y" (lvar "x" `ann` tlet "b" (tcon tBool) (tvar "b"))
+            $ let_ "x" (lvar x') emptyHole
         pure (e, expect1, expect2)
    in do
         s1 <- evalFullTest maxID builtinTypes mempty 1 Chk expr
@@ -540,25 +541,25 @@ unit_type_preservation_case_regression_ty :: Assertion
 unit_type_preservation_case_regression_ty =
   let ((expr, expected1, expected2), maxID) = create $ do
         e <-
-          lAM "x" $
-            case_
+          lAM "x"
+            $ case_
               ( con cMakePair [emptyHole, emptyHole]
                   `ann` (tcon tPair `tapp` tEmptyHole `tapp` tvar "x")
               )
               [branch cMakePair [("x", Nothing), ("y", Nothing)] emptyHole]
         let x' = "a46" -- NB fragile name
         expect1 <-
-          lAM "x" $
-            case_
+          lAM "x"
+            $ case_
               ( con cMakePair [emptyHole, emptyHole]
                   `ann` (tcon tPair `tapp` tEmptyHole `tapp` tvar "x")
               )
               [branch cMakePair [(x', Nothing), ("y", Nothing)] $ let_ "x" (lvar x') emptyHole]
         expect2 <-
-          lAM "x" $
-            let_ x' (emptyHole `ann` tlet "a" tEmptyHole (tvar "a")) $
-              let_ "y" (emptyHole `ann` tlet "b" (tvar "x") (tvar "b")) $
-                let_ "x" (lvar x') emptyHole
+          lAM "x"
+            $ let_ x' (emptyHole `ann` tlet "a" tEmptyHole (tvar "a"))
+            $ let_ "y" (emptyHole `ann` tlet "b" (tvar "x") (tvar "b"))
+            $ let_ "x" (lvar x') emptyHole
         pure (e, expect1, expect2)
    in do
         s1 <- evalFullTest maxID builtinTypes mempty 1 Chk expr
@@ -576,66 +577,66 @@ unit_type_preservation_BETA_regression =
         -- The 'A' sequence previously captured in the type "S" above
         -- Λb x. (Λa λc (? : a) : ∀b.(Nat -> b)) @(b Bool) x
         eA <-
-          lAM "b" $
-            lam "x" $
-              ( lAM "a" (lam "c" $ emptyHole `ann` tvar "a")
+          lAM "b"
+            $ lam "x"
+            $ ( lAM "a" (lam "c" $ emptyHole `ann` tvar "a")
                   `ann` tforall "b" KType (tcon tNat `tfun` tvar "b")
               )
-                `aPP` (tvar "b" `tapp` tcon tBool)
-                `app` lvar "x"
+            `aPP` (tvar "b" `tapp` tcon tBool)
+            `app` lvar "x"
         -- Do the BETA step
         -- Λb x. ((lettype a = b Bool in λc (? : a)) : (let b = b Bool in Nat -> b)) x
         expectA1 <-
-          lAM "b" $
-            lam "x" $
-              ( letType "a" (tvar "b" `tapp` tcon tBool) (lam "c" $ emptyHole `ann` tvar "a")
+          lAM "b"
+            $ lam "x"
+            $ ( letType "a" (tvar "b" `tapp` tcon tBool) (lam "c" $ emptyHole `ann` tvar "a")
                   `ann` tlet "b" (tvar "b" `tapp` tcon tBool) (tcon tNat `tfun` tvar "b")
               )
-                `app` lvar "x"
+            `app` lvar "x"
         -- NB: the point of the ... `app` lvar x is to make the annotated term be in SYN position
         -- so we reduce the type, rather than taking an upsilon step
         -- Rename the let b
         -- Λb. λx. ((lettype a = b Bool in λc (? : a)) : (let c = b Bool in let b = c in Nat -> b)) x
         let b' = "a132"
         expectA2 <-
-          lAM "b" $
-            lam "x" $
-              ( letType "a" (tvar "b" `tapp` tcon tBool) (lam "c" $ emptyHole `ann` tvar "a")
+          lAM "b"
+            $ lam "x"
+            $ ( letType "a" (tvar "b" `tapp` tcon tBool) (lam "c" $ emptyHole `ann` tvar "a")
                   `ann` tlet b' (tvar "b" `tapp` tcon tBool) (tlet "b" (tvar b') $ tcon tNat `tfun` tvar "b")
               )
-                `app` lvar "x"
+            `app` lvar "x"
         -- Resolve the renaming
         -- Λb. λx. ((lettype a = b Bool in λc (? : a)) : (let c = b Bool in Nat -> c)) x
         expectA4 <-
-          lAM "b" $
-            lam "x" $
-              ( letType "a" (tvar "b" `tapp` tcon tBool) (lam "c" $ emptyHole `ann` tvar "a")
+          lAM "b"
+            $ lam "x"
+            $ ( letType "a" (tvar "b" `tapp` tcon tBool) (lam "c" $ emptyHole `ann` tvar "a")
                   `ann` tlet b' (tvar "b" `tapp` tcon tBool) (tcon tNat `tfun` tvar b')
               )
-                `app` lvar "x"
+            `app` lvar "x"
         -- Resolve all the letTypes
         -- Λb. λx. ((λc (? : b Bool)) : (Nat -> b Bool)) x
         expectA8 <-
-          lAM "b" $
-            lam "x" $
-              ( lam "c" (emptyHole `ann` (tvar "b" `tapp` tcon tBool))
+          lAM "b"
+            $ lam "x"
+            $ ( lam "c" (emptyHole `ann` (tvar "b" `tapp` tcon tBool))
                   `ann` (tcon tNat `tfun` (tvar "b" `tapp` tcon tBool))
               )
-                `app` lvar "x"
+            `app` lvar "x"
         -- The 'B' sequence previously captured in the term "t" above
         -- Λb. (Λa (foo @(b Bool) : ∀b.Nat) @Char
         eB <-
-          lAM "b" $
-            ( lAM "a" (gvar foo `aPP` (tvar "b" `tapp` tcon tBool))
-                `ann` tforall "b" KType (tcon tNat)
-            )
-              `aPP` tcon tChar
+          lAM "b"
+            $ ( lAM "a" (gvar foo `aPP` (tvar "b" `tapp` tcon tBool))
+                  `ann` tforall "b" KType (tcon tNat)
+              )
+            `aPP` tcon tChar
         -- BETA step
         -- Λb. (lettype a = Char in foo @(b Bool)) : (let b = Char in Nat)
         expectB1 <-
-          lAM "b" $
-            letType "a" (tcon tChar) (gvar foo `aPP` (tvar "b" `tapp` tcon tBool))
-              `ann` tlet "b" (tcon tChar) (tcon tNat)
+          lAM "b"
+            $ letType "a" (tcon tChar) (gvar foo `aPP` (tvar "b" `tapp` tcon tBool))
+            `ann` tlet "b" (tcon tChar) (tcon tNat)
         -- Drop annotation and elide lettype
         -- Λb. foo @(b Bool)
         expectB3 <- lAM "b" $ gvar foo `aPP` (tvar "b" `tapp` tcon tBool)
@@ -653,9 +654,9 @@ unit_type_preservation_BETA_regression =
       tyB = TForall () "c" (KFun KType KType) $ TCon () tNat
       foo = qualifyName (ModuleName ["M"]) "foo"
       fooTy = TForall () "d" KType $ TCon () tNat
-      tmp ty e = case runTypecheckTestMWithPrims NoSmartHoles $
-        local (extendGlobalCxt [(foo, fooTy)]) $
-          check ty e of
+      tmp ty e = case runTypecheckTestMWithPrims NoSmartHoles
+        $ local (extendGlobalCxt [(foo, fooTy)])
+        $ check ty e of
         Left err -> assertFailure $ show err
         Right _ -> pure ()
    in do
@@ -699,20 +700,20 @@ unit_let_self_capture =
           -- We do not need to do anything special for letrec
           e4 <- lAM "a" $ lam "f" $ lam "x" $ letrec "x" (lvar "f" `app` lvar "x") (tvar "a") (lvar "x")
           expect4a <-
-            lAM "a" $
-              lam "f" $
-                lam "x" $
-                  letrec "x" (lvar "f" `app` lvar "x") (tvar "a") $
-                    letrec "x" (lvar "f" `app` lvar "x") (tvar "a") ((lvar "f" `app` lvar "x") `ann` tvar "a")
+            lAM "a"
+              $ lam "f"
+              $ lam "x"
+              $ letrec "x" (lvar "f" `app` lvar "x") (tvar "a")
+              $ letrec "x" (lvar "f" `app` lvar "x") (tvar "a") ((lvar "f" `app` lvar "x") `ann` tvar "a")
           expect4b <-
-            lAM "a" $
-              lam "f" $
-                lam "x" $
-                  letrec
-                    "x"
-                    (lvar "f" `app` lvar "x")
-                    (tvar "a")
-                    ((lvar "f" `app` lvar "x") `ann` tvar "a")
+            lAM "a"
+              $ lam "f"
+              $ lam "x"
+              $ letrec
+                "x"
+                (lvar "f" `app` lvar "x")
+                (tvar "a")
+                ((lvar "f" `app` lvar "x") `ann` tvar "a")
           pure
             ( e1
             , t1
@@ -780,17 +781,19 @@ spanM f (x : xs) = do
 unit_regression_self_capture_let_let :: Assertion
 unit_regression_self_capture_let_let = do
   let e =
-        lAM "y" $
-          let_ "x" (emptyHole `ann` tvar "y") $
-            let_ "y" (emptyHole `ann` tvar "y") $
-              lvar "y" `app` lvar "x"
+        lAM "y"
+          $ let_ "x" (emptyHole `ann` tvar "y")
+          $ let_ "y" (emptyHole `ann` tvar "y")
+          $ lvar "y"
+          `app` lvar "x"
       z = "a12"
       f =
-        lAM "y" $
-          let_ "x" (emptyHole `ann` tvar "y") $
-            let_ z (emptyHole `ann` tvar "y") $
-              let_ "y" (lvar z) $
-                lvar "y" `app` lvar "x"
+        lAM "y"
+          $ let_ "x" (emptyHole `ann` tvar "y")
+          $ let_ z (emptyHole `ann` tvar "y")
+          $ let_ "y" (lvar z)
+          $ lvar "y"
+          `app` lvar "x"
       (e', i) = create e
       ev n = evalFullTest i mempty mempty n Chk e'
       x ~ y = x >>= (<~==> Left (TimedOut (create' y)))
@@ -801,37 +804,38 @@ unit_regression_self_capture_let_let = do
 -- (assuming we don't end with a 'LetType' in the term, as the typechecker
 -- cannot currently deal with those)
 tasty_type_preservation :: Property
-tasty_type_preservation = withTests 1000 $
-  withDiscards 2000 $
-    propertyWT testModules $ do
-      let globs = foldMap' moduleDefsQualified $ create' $ sequence testModules
-      tds <- asks typeDefs
-      (dir, t, ty) <- genDirTm
-      let test msg e = do
-            annotateShow $ unLabelName msg
-            annotateShow e
-            s <- case e of
-              Left (TimedOut s') -> label (msg <> "TimedOut") >> pure s'
-              Right s' -> label (msg <> "NF") >> pure s'
-            if hasTypeLets s
-              then label (msg <> "skipped due to LetType") >> success
-              else do
-                annotateShow s
-                s' <- checkTest ty s
-                forgetMetadata s === forgetMetadata s' -- check no smart holes happened
-      maxSteps <- forAllT $ Gen.integral $ Range.linear 1 1000 -- Arbitrary limit here
-      (steps, s) <- failWhenSevereLogs $ evalFullStepCount @EvalLog tds globs maxSteps dir t
-      annotateShow steps
-      annotateShow s
-      -- s is often reduced to normal form
-      test "long " s
-      -- also test an intermediate point
-      if steps <= 1
-        then label "generated a normal form"
-        else do
-          midSteps <- forAllT $ Gen.integral $ Range.linear 1 (steps - 1)
-          (_, s') <- failWhenSevereLogs $ evalFullStepCount @EvalLog tds globs midSteps dir t
-          test "mid " s'
+tasty_type_preservation = withTests 1000
+  $ withDiscards 2000
+  $ propertyWT testModules
+  $ do
+    let globs = foldMap' moduleDefsQualified $ create' $ sequence testModules
+    tds <- asks typeDefs
+    (dir, t, ty) <- genDirTm
+    let test msg e = do
+          annotateShow $ unLabelName msg
+          annotateShow e
+          s <- case e of
+            Left (TimedOut s') -> label (msg <> "TimedOut") >> pure s'
+            Right s' -> label (msg <> "NF") >> pure s'
+          if hasTypeLets s
+            then label (msg <> "skipped due to LetType") >> success
+            else do
+              annotateShow s
+              s' <- checkTest ty s
+              forgetMetadata s === forgetMetadata s' -- check no smart holes happened
+    maxSteps <- forAllT $ Gen.integral $ Range.linear 1 1000 -- Arbitrary limit here
+    (steps, s) <- failWhenSevereLogs $ evalFullStepCount @EvalLog tds globs maxSteps dir t
+    annotateShow steps
+    annotateShow s
+    -- s is often reduced to normal form
+    test "long " s
+    -- also test an intermediate point
+    if steps <= 1
+      then label "generated a normal form"
+      else do
+        midSteps <- forAllT $ Gen.integral $ Range.linear 1 (steps - 1)
+        (_, s') <- failWhenSevereLogs $ evalFullStepCount @EvalLog tds globs midSteps dir t
+        test "mid " s'
 
 -- Unsaturated primitives are stuck terms
 unit_prim_stuck :: Assertion
@@ -867,8 +871,8 @@ tasty_prim_hex_nat = withTests 20 . property $ do
   n <- forAllT $ Gen.integral $ Range.constant 0 50
   let ne = nat n
       ((e, r), maxID) =
-        create $
-          if n <= 15
+        create
+          $ if n <= 15
             then
               (,)
                 <$> case_
@@ -887,7 +891,7 @@ tasty_prim_hex_nat = withTests 20 . property $ do
                       )
                   ]
                 <*> con cJust [ne]
-                  `ann` (tcon tMaybe `tapp` tcon tNat)
+                `ann` (tcon tMaybe `tapp` tcon tNat)
             else
               (,)
                 <$> pfun NatToHex
@@ -916,9 +920,9 @@ unit_prim_char_eq_2 =
 unit_prim_char_partial :: Assertion
 unit_prim_char_partial =
   let (e, maxID) =
-        create $
-          pfun EqChar
-            `app` char 'a'
+        create
+          $ pfun EqChar
+          `app` char 'a'
    in do
         s <- evalFullTest maxID mempty primDefs 1 Syn e
         s <~==> Right e
@@ -1229,13 +1233,13 @@ unit_prim_int_fromNat =
 unit_prim_ann :: Assertion
 unit_prim_ann =
   let ((e, r), maxID) =
-        create $
-          (,)
-            <$> ( pfun ToUpper
-                    `ann` (tcon tChar `tfun` tcon tChar)
-                )
-            `app` (char 'a' `ann` tcon tChar)
-            <*> char 'A'
+        create
+          $ (,)
+          <$> ( pfun ToUpper
+                  `ann` (tcon tChar `tfun` tcon tChar)
+              )
+          `app` (char 'a' `ann` tcon tChar)
+          <*> char 'A'
    in do
         s <- evalFullTest maxID builtinTypes primDefs 2 Syn e
         s <~==> Right r
@@ -1275,8 +1279,8 @@ unit_eval_full_modules =
         importModules [primitiveModule, builtinModule']
         foo <- pfun ToUpper `app` char 'a'
         resp <-
-          readerToState $
-            handleEvalFullRequest
+          readerToState
+            $ handleEvalFullRequest
               EvalFullReq
                 { evalFullReqExpr = foo
                 , evalFullCxtDir = Chk
@@ -1302,8 +1306,8 @@ unit_eval_full_modules_scrutinize_imported_type =
             (con0 cTrue `ann` tcon tBool)
             [branch cTrue [] $ con0 cFalse, branch cFalse [] $ con0 cTrue]
         resp <-
-          readerToState $
-            handleEvalFullRequest
+          readerToState
+            $ handleEvalFullRequest
               EvalFullReq{evalFullReqExpr = foo, evalFullCxtDir = Chk, evalFullMaxSteps = 2}
         expect <- con0 cFalse
         pure $ case resp of
@@ -1316,8 +1320,8 @@ unit_eval_full_modules_scrutinize_imported_type =
   where
     m = do
       boolDef' <- generateTypeDefIDs $ TypeDefAST boolDef
-      pure $
-        Module
+      pure
+        $ Module
           { moduleName = qualifiedModule tBool
           , moduleTypes = Map.singleton (baseName tBool) boolDef'
           , moduleDefs = mempty
@@ -1325,20 +1329,21 @@ unit_eval_full_modules_scrutinize_imported_type =
 
 -- Test that evaluation does not duplicate node IDs
 tasty_unique_ids :: Property
-tasty_unique_ids = withTests 1000 $
-  withDiscards 2000 $
-    propertyWT testModules $ do
-      let globs = foldMap' moduleDefsQualified $ create' $ sequence testModules
-      tds <- asks typeDefs
-      (dir, t1, _) <- genDirTm
-      let go n t
-            | n == (0 :: Int) = pure ()
-            | otherwise = do
-                t' <- failWhenSevereLogs $ evalFull @EvalLog tds globs 1 dir t
-                case t' of
-                  Left (TimedOut e) -> uniqueIDs e >> go (n - 1) e
-                  Right e -> uniqueIDs e
-      go 20 t1 -- we need some bound since not all terms terminate
+tasty_unique_ids = withTests 1000
+  $ withDiscards 2000
+  $ propertyWT testModules
+  $ do
+    let globs = foldMap' moduleDefsQualified $ create' $ sequence testModules
+    tds <- asks typeDefs
+    (dir, t1, _) <- genDirTm
+    let go n t
+          | n == (0 :: Int) = pure ()
+          | otherwise = do
+              t' <- failWhenSevereLogs $ evalFull @EvalLog tds globs 1 dir t
+              case t' of
+                Left (TimedOut e) -> uniqueIDs e >> go (n - 1) e
+                Right e -> uniqueIDs e
+    go 20 t1 -- we need some bound since not all terms terminate
   where
     uniqueIDs e =
       let ids = e ^.. exprIDs
@@ -1352,8 +1357,8 @@ unit_wildcard =
       (eDiverge, maxIDDiverge) = create $ caseFB_ loop [branch cZero [] $ con0 cFalse] (con0 cTrue)
       -- This has an annotation within the body of the letrec for the same reason as unit_5
       expectDiverge =
-        create' $
-          caseFB_
+        create'
+          $ caseFB_
             ( letrec "x" (lvar "x") (tcon tNat) (lvar "x" `ann` tcon tNat)
                 `ann` tcon tNat
             )
@@ -1372,8 +1377,8 @@ unit_case_prim =
       (e2, maxID2) = create $ caseFB_ (char 'a') [branchPrim (PrimChar 'a') $ con0 cFalse] (con0 cTrue)
       expect2 = create' $ con0 cFalse
       (e3, maxID3) =
-        create $
-          caseFB_
+        create
+          $ caseFB_
             (char 'b')
             [ branchPrim (PrimChar 'a') $ con0 cTrue
             , branchPrim (PrimChar 'b') $ con0 cFalse
@@ -1381,8 +1386,8 @@ unit_case_prim =
             (con0 cTrue)
       expect3 = create' $ con0 cFalse
       (e4, maxID4) =
-        create $
-          caseFB_
+        create
+          $ caseFB_
             ( (lam "x" (lvar "x") `ann` (tcon tChar `tfun` tcon tChar))
                 `app` char 'a'
             )
@@ -1419,23 +1424,23 @@ evalFullTasty id_ tydefs globals n d e = do
 unaryPrimTest :: HasCallStack => PrimDef -> S Expr -> S Expr -> Assertion
 unaryPrimTest f x y =
   let ((e, r), maxID) =
-        create $
-          (,)
-            <$> pfun f
-            `app` x
-            <*> y
+        create
+          $ (,)
+          <$> pfun f
+          `app` x
+          <*> y
    in do
         s <- evalFullTest maxID mempty primDefs 2 Syn e
         s <~==> Right r
 binaryPrimTest :: HasCallStack => PrimDef -> S Expr -> S Expr -> S Expr -> Assertion
 binaryPrimTest f x y z =
   let ((e, r), maxID) =
-        create $
-          (,)
-            <$> pfun f
-            `app` x
-            `app` y
-            <*> z
+        create
+          $ (,)
+          <$> pfun f
+          `app` x
+          `app` y
+          <*> z
    in do
         s <- evalFullTest maxID mempty primDefs 2 Syn e
         s <~==> Right r

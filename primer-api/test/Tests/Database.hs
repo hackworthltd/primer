@@ -156,8 +156,9 @@ testSessionName testName t expected =
     [ testCase "unsafe" $ case mkSessionName t of
         Nothing -> assertFailure "name is invalid"
         Just sn -> fromSessionName sn @?= expected
-    , testCase "safe" $
-        fromSessionName (safeMkSessionName t) @?= expected
+    , testCase "safe"
+        $ fromSessionName (safeMkSessionName t)
+        @?= expected
     ]
 emptyQHarness :: Text -> PrimerM (PureLogT (WithSeverity LogMsg) IO) () -> TestTree
 emptyQHarness desc test = testCaseSteps (toS desc) $ \step' -> do

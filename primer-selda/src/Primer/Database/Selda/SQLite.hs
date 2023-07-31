@@ -113,8 +113,9 @@ runSeldaSQLiteDbT db m =
   -- that is handled by this 'handleSeldaDbException' call must have
   -- occurred in 'withSQLite' itself (e.g., SQLite file not found);
   -- hence, we use 'ConnectionFailed' here.
-  convertSeldaDbException ConnectionFailed $
-    withSQLite db $ do
+  convertSeldaDbException ConnectionFailed
+    $ withSQLite db
+    $ do
       -- By default, SQLite has a case-insensitive @LIKE@
       -- implementation. See:
       -- https://www.sqlite.org/pragma.html#pragma_case_sensitive_like
@@ -207,8 +208,8 @@ type MonadSeldaSQLiteDb m l = (ConvertLogMessage SeldaDbLogMessage l, MonadCatch
 instance MonadSeldaSQLiteDb m l => MonadDb (SeldaSQLiteDbT m) where
   insertSession v s a n t = do
     nr <-
-      convertSeldaDbException (InsertError s) $
-        insert sessions [SessionRow s v (Aeson.encode a) (fromSessionName n) (utcTime t)]
+      convertSeldaDbException (InsertError s)
+        $ insert sessions [SessionRow s v (Aeson.encode a) (fromSessionName n) (utcTime t)]
     -- This operation should affect exactly one row.
     case nr of
       0 -> throwM $ InsertZeroRowsAffected s
@@ -217,8 +218,8 @@ instance MonadSeldaSQLiteDb m l => MonadDb (SeldaSQLiteDbT m) where
 
   updateSessionApp v s a t = do
     nr <-
-      convertSeldaDbException (UpdateAppError s) $
-        update
+      convertSeldaDbException (UpdateAppError s)
+        $ update
           sessions
           (\session -> session ! #uuid .== literal s)
           (\session -> session `with` [#gitversion := literal v, #app := literal (Aeson.encode a), #lastmodified := literal (utcTime t)])
@@ -230,8 +231,8 @@ instance MonadSeldaSQLiteDb m l => MonadDb (SeldaSQLiteDbT m) where
 
   updateSessionName v s n t = do
     nr <-
-      convertSeldaDbException (UpdateNameError s) $
-        update
+      convertSeldaDbException (UpdateNameError s)
+        $ update
           sessions
           (\session -> session ! #uuid .== literal s)
           (\session -> session `with` [#gitversion := literal v, #name := literal (fromSessionName n), #lastmodified := literal (utcTime t)])
@@ -242,8 +243,9 @@ instance MonadSeldaSQLiteDb m l => MonadDb (SeldaSQLiteDbT m) where
       _ -> throwM $ UpdateNameConsistencyError s
 
   listSessions ol = convertSeldaDbException ListSessionsError $ do
-    n' <- query $
-      Selda.aggregate $ do
+    n' <- query
+      $ Selda.aggregate
+      $ do
         session <- allSessions
         pure $ Selda.count $ session ! #uuid
     n <- case n' of
@@ -259,8 +261,9 @@ instance MonadSeldaSQLiteDb m l => MonadDb (SeldaSQLiteDbT m) where
     -- require some refactoring. See:
     --
     -- https://github.com/hackworthltd/primer/issues/1037
-    n' <- query $
-      Selda.aggregate $ do
+    n' <- query
+      $ Selda.aggregate
+      $ do
         session <- sessionByNameSubstr substr
         pure $ Selda.count $ session ! #uuid
     n <- case n' of
@@ -287,9 +290,9 @@ instance MonadSeldaSQLiteDb m l => MonadDb (SeldaSQLiteDbT m) where
             -- 'safeMkSessionName' here.
             let sessionName = safeMkSessionName n
                 lastModified = LastModified t
-            when (fromSessionName sessionName /= n) $
-              logError $
-                IllegalSessionName sid n
+            when (fromSessionName sessionName /= n)
+              $ logError
+              $ IllegalSessionName sid n
             pure $ Right (SessionData decodedApp sessionName lastModified)
 
   deleteSession sid = convertSeldaDbException (DeleteSessionError sid) $ do

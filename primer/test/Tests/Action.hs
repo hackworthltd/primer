@@ -69,8 +69,8 @@ tasty_ConstructVar_succeeds_on_hole_when_in_scope = property $ do
   let expr = create' $ ann (lam "x" emptyHole) (tfun tEmptyHole tEmptyHole)
   annotateShow expr
   expr' <-
-    either (\err -> footnoteShow err >> failure) pure $
-      runTestActions
+    either (\err -> footnoteShow err >> failure) pure
+      $ runTestActions
         NoSmartHoles
         (maxID expr)
         expr
@@ -484,11 +484,11 @@ unit_case_create =
     , constructSaturatedCon cZero
     ]
     ( ann
-        ( lam "x" $
-            hole $
-              case_
-                (lvar "x")
-                [branch cTrue [] (con0 cZero), branch cFalse [] emptyHole]
+        ( lam "x"
+            $ hole
+            $ case_
+              (lvar "x")
+              [branch cTrue [] (con0 cZero), branch cFalse [] emptyHole]
         )
         (tfun (tcon tBool) (tcon tNat))
     )
@@ -499,18 +499,18 @@ unit_case_tidy =
   actionTest
     NoSmartHoles
     ( ann
-        ( lam "x" $
-            hole $
-              case_
-                (lvar "x")
-                [branch cTrue [] (con0 cZero), branch cFalse [] emptyHole]
+        ( lam "x"
+            $ hole
+            $ case_
+              (lvar "x")
+              [branch cTrue [] (con0 cZero), branch cFalse [] emptyHole]
         )
         (tfun (tcon tBool) (tcon tNat))
     )
     [Move Child1, Move Child1, FinishHole]
     ( ann
-        ( lam "x" $
-            case_
+        ( lam "x"
+            $ case_
               (lvar "x")
               [branch cTrue [] (con0 cZero), branch cFalse [] emptyHole]
         )
@@ -523,14 +523,14 @@ unit_case_move_branch_1 =
   actionTest
     NoSmartHoles
     ( ann
-        ( lam "x" $
-            hole $
-              ann
-                ( case_
-                    (lvar "x")
-                    [branch cZero [] emptyHole, branch cSucc [("n", Nothing)] emptyHole]
-                )
-                tEmptyHole
+        ( lam "x"
+            $ hole
+            $ ann
+              ( case_
+                  (lvar "x")
+                  [branch cZero [] emptyHole, branch cSucc [("n", Nothing)] emptyHole]
+              )
+              tEmptyHole
         )
         (tfun (tcon tNat) (tcon tNat))
     )
@@ -545,14 +545,14 @@ unit_case_move_branch_1 =
     , ConstructVar $ LocalVarRef "n"
     ]
     ( ann
-        ( lam "x" $
-            hole $
-              ann
-                ( case_
-                    (lvar "x")
-                    [branch cZero [] (con0 cZero), branch cSucc [("n", Nothing)] (lvar "n")]
-                )
-                tEmptyHole
+        ( lam "x"
+            $ hole
+            $ ann
+              ( case_
+                  (lvar "x")
+                  [branch cZero [] (con0 cZero), branch cSucc [("n", Nothing)] (lvar "n")]
+              )
+              tEmptyHole
         )
         (tfun (tcon tNat) (tcon tNat))
     )
@@ -563,8 +563,8 @@ unit_case_move_branch_2 =
   actionTest
     NoSmartHoles
     ( ann
-        ( lam "x" $
-            case_
+        ( lam "x"
+            $ case_
               (lvar "x")
               [branch cZero [] emptyHole, branch cSucc [("n", Nothing)] emptyHole]
         )
@@ -579,8 +579,8 @@ unit_case_move_branch_2 =
     , ConstructVar $ LocalVarRef "n"
     ]
     ( ann
-        ( lam "x" $
-            case_
+        ( lam "x"
+            $ case_
               (lvar "x")
               [branch cZero [] (con0 cZero), branch cSucc [("n", Nothing)] (lvar "n")]
         )
@@ -593,14 +593,14 @@ unit_case_move_scrutinee_1 =
   actionTest
     NoSmartHoles
     ( ann
-        ( lam "x" $
-            hole $
-              ann
-                ( case_
-                    (lvar "x")
-                    [branch cZero [] emptyHole, branch cSucc [("n", Nothing)] emptyHole]
-                )
-                tEmptyHole
+        ( lam "x"
+            $ hole
+            $ ann
+              ( case_
+                  (lvar "x")
+                  [branch cZero [] emptyHole, branch cSucc [("n", Nothing)] emptyHole]
+              )
+              tEmptyHole
         )
         (tfun (tcon tNat) (tcon tNat))
     )
@@ -612,14 +612,14 @@ unit_case_move_scrutinee_1 =
     , SetMetadata "meta"
     ]
     ( ann
-        ( lam "x" $
-            hole $
-              ann
-                ( case_
-                    (setMeta "meta" $ lvar "x")
-                    [branch cZero [] emptyHole, branch cSucc [("n", Nothing)] emptyHole]
-                )
-                tEmptyHole
+        ( lam "x"
+            $ hole
+            $ ann
+              ( case_
+                  (setMeta "meta" $ lvar "x")
+                  [branch cZero [] emptyHole, branch cSucc [("n", Nothing)] emptyHole]
+              )
+              tEmptyHole
         )
         (tfun (tcon tNat) (tcon tNat))
     )
@@ -630,8 +630,8 @@ unit_case_move_scrutinee_2 =
   actionTest
     NoSmartHoles
     ( ann
-        ( lam "x" $
-            case_
+        ( lam "x"
+            $ case_
               (lvar "x")
               [branch cZero [] emptyHole, branch cSucc [("n", Nothing)] emptyHole]
         )
@@ -639,8 +639,8 @@ unit_case_move_scrutinee_2 =
     )
     [Move Child1, Move Child1, Move Child1, SetMetadata "meta"]
     ( ann
-        ( lam "x" $
-            case_
+        ( lam "x"
+            $ case_
               (setMeta "meta" $ lvar "x")
               [branch cZero [] emptyHole, branch cSucc [("n", Nothing)] emptyHole]
         )
@@ -672,14 +672,14 @@ unit_bad_case_3 =
     (const True)
     NoSmartHoles
     ( ann
-        ( lam "x" $
-            hole $
-              ann
-                ( case_
-                    (lvar "x")
-                    [branch cTrue [] emptyHole, branch cFalse [] emptyHole]
-                )
-                tEmptyHole
+        ( lam "x"
+            $ hole
+            $ ann
+              ( case_
+                  (lvar "x")
+                  [branch cTrue [] emptyHole, branch cFalse [] emptyHole]
+              )
+              tEmptyHole
         )
         (tfun (tcon tBool) (tcon tNat))
     )
@@ -706,8 +706,8 @@ unit_case_on_hole =
     , ConstructCase
     ]
     ( ann
-        ( lam "x" $
-            case_
+        ( lam "x"
+            $ case_
               (ann emptyHole $ tcon tNat)
               [branch cZero [] emptyHole, branch cSucc [("a23", Nothing)] emptyHole] -- NB: fragile names here
         )
@@ -720,8 +720,8 @@ unit_case_fill_hole_scrut =
   actionTest
     NoSmartHoles
     ( ann
-        ( lam "x" $
-            case_
+        ( lam "x"
+            $ case_
               (ann emptyHole $ tcon tNat)
               [branch cZero [] emptyHole, branch cSucc [("n", Nothing)] emptyHole]
         )
@@ -736,8 +736,8 @@ unit_case_fill_hole_scrut =
     , RemoveAnn
     ]
     ( ann
-        ( lam "x" $
-            case_
+        ( lam "x"
+            $ case_
               (lvar "x")
               [branch cZero [] emptyHole, branch cSucc [("n", Nothing)] emptyHole]
         )
@@ -887,53 +887,53 @@ unit_case_branches =
   let e cse = ann cse (tcon tBool)
       n = "a18"
       e0 =
-        e $
-          caseFB_
+        e
+          $ caseFB_
             (emptyHole `ann` tcon tNat)
             []
             (con0 cTrue)
       e1 =
-        e $
-          caseFB_
+        e
+          $ caseFB_
             (emptyHole `ann` tcon tNat)
             [branch cSucc [(n, Nothing)] $ con0 cTrue]
             (con0 cTrue)
       e2 =
-        e $
-          case_
+        e
+          $ case_
             (emptyHole `ann` tcon tNat)
             [ branch cZero [] $ con0 cFalse
             , branch cSucc [(n, Nothing)] $ con0 cTrue
             ]
       e3 =
-        e $
-          caseFB_
+        e
+          $ caseFB_
             (emptyHole `ann` tcon tNat)
             [branch cSucc [(n, Nothing)] $ con0 cTrue]
             (con0 cFalse)
       e4 =
-        e $
-          caseFB_
+        e
+          $ caseFB_
             (emptyHole `ann` tcon tNat)
             []
             (con0 cFalse)
       e' cse = ann cse (tcon tMaybe `tapp` tcon tNat)
       e5 =
-        e' $
-          case_
+        e'
+          $ case_
             (emptyHole `ann` tcon tNat)
             [ branch cZero [] $ con0 cNothing
             , branch cSucc [("n", Nothing)] $ con1 cJust $ lvar "n"
             ]
       e6 =
-        e' $
-          caseFB_
+        e'
+          $ caseFB_
             (emptyHole `ann` tcon tNat)
             [branch cZero [] $ con0 cNothing]
             (con1 cJust emptyHole)
       e7 =
-        e' $
-          caseFB_
+        e'
+          $ caseFB_
             (emptyHole `ann` tcon tNat)
             [branch cZero [] $ con0 cNothing]
             (con1 cJust $ con0 cZero)
@@ -990,26 +990,26 @@ unit_case_prim :: Assertion
 unit_case_prim =
   let e cse = ann cse (tcon tBool)
       e0 =
-        e $
-          caseFB_
+        e
+          $ caseFB_
             (emptyHole `ann` tcon tChar)
             []
             (con0 cTrue)
       e1 =
-        e $
-          caseFB_
+        e
+          $ caseFB_
             (emptyHole `ann` tcon tChar)
             [branchPrim (PrimChar 'x') $ con0 cTrue]
             (con0 cTrue)
       e2 =
-        e $
-          caseFB_
+        e
+          $ caseFB_
             (emptyHole `ann` tcon tChar)
             [branchPrim (PrimChar 'x') $ con0 cFalse]
             (con0 cTrue)
       e3 =
-        e $
-          caseFB_
+        e
+          $ caseFB_
             (emptyHole `ann` tcon tChar)
             []
             (con0 cTrue)
@@ -1133,8 +1133,8 @@ unit_poly_1 =
     , Move Child2
     , ConstructVar $ LocalVarRef "id"
     ]
-    ( let_ "id" (ann (lAM "a" $ lam "x" $ lvar "x") (tforall "a" KType $ tfun (tvar "a") (tvar "a"))) $
-        app (aPP (lvar "id") (tforall "b" KType $ tfun (tvar "b") (tvar "b"))) (lvar "id")
+    ( let_ "id" (ann (lAM "a" $ lam "x" $ lvar "x") (tforall "a" KType $ tfun (tvar "a") (tvar "a")))
+        $ app (aPP (lvar "id") (tforall "b" KType $ tfun (tvar "b") (tvar "b"))) (lvar "id")
     )
 
 unit_constructTApp :: Assertion
@@ -1210,7 +1210,8 @@ unit_refine_mismatch_var =
                          )
               )
         )
-        $ emptyHole `ann` tcon tBool
+        $ emptyHole
+        `ann` tcon tBool
     )
     [Move Child2, Move Child1, InsertRefinedVar $ LocalVarRef "cons"]
     ( let_
@@ -1225,7 +1226,8 @@ unit_refine_mismatch_var =
                          )
               )
         )
-        $ hole (lvar "cons" `aPP` tEmptyHole `app` emptyHole `app` emptyHole) `ann` tcon tBool
+        $ hole (lvar "cons" `aPP` tEmptyHole `app` emptyHole `app` emptyHole)
+        `ann` tcon tBool
     )
 
 unit_primitive_1 :: Assertion

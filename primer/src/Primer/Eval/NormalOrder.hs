@@ -162,9 +162,9 @@ foldMapExpr extract topDir = flip evalAccumT mempty . go . (topDir,) . focus
           -- Since stuck things other than lets are stuck on the first child or
           -- its type annotation, we can handle them all uniformly
           _ ->
-            msum $
-              (goType =<< focusType' ez)
-                : map (go <=< hoistAccum) (exprChildren dez)
+            msum
+              $ (goType =<< focusType' ez)
+              : map (go <=< hoistAccum) (exprChildren dez)
     goType :: TypeZ -> AccumT Cxt f a
     goType tz =
       readerToAccumT (ReaderT $ extract.ty tz)
@@ -253,9 +253,9 @@ findRedex tydefs globals =
                 substTyChild c = case l of
                   LetTyBind (LetTypeBind v t) -> goSubstTy v t c
                   _ -> mzero
-             in msum @[] $
-                  Foreword.hoistAccum hoistMaybe (substTyChild =<< focusType' ez)
-                    : map (substChild <=< hoistAccum) (exprChildren (d, ez))
+             in msum @[]
+                  $ Foreword.hoistAccum hoistMaybe (substTyChild =<< focusType' ez)
+                  : map (substChild <=< hoistAccum) (exprChildren (d, ez))
        in here <|> innerLet <|> dive
     goSubstTy :: TyVarName -> Type -> TypeZ -> AccumT Cxt Maybe RedexWithContext
     goSubstTy v t tz =
@@ -279,10 +279,10 @@ findRedex tydefs globals =
               -- We should not go under 'v' binders, but otherwise substitute in each child
               _ ->
                 let substChild c = do
-                      guard $
-                        S.notMember (unLocalName v) $
-                          S.map unLocalName $
-                            getBoundHereTy (target tz) (Just $ target c)
+                      guard
+                        $ S.notMember (unLocalName v)
+                        $ S.map unLocalName
+                        $ getBoundHereTy (target tz) (Just $ target c)
                       goSubstTy v t c
                  in msum $ map (substChild <=< hoistAccum) (typeChildren tz)
 
@@ -324,12 +324,13 @@ addBinds :: HasID i => i -> [Either Name LetBinding] -> Accum Cxt ()
 addBinds i' bs = do
   let i = getID i'
   cxt <- look
-  add $
-    Cxt $
-      M.fromList $
-        bs <&> \case
-          Left n -> (n, (Nothing, i, cxt))
-          Right l -> (letBindingName l, (Just l, i, cxt))
+  add
+    $ Cxt
+    $ M.fromList
+    $ bs
+    <&> \case
+      Left n -> (n, (Nothing, i, cxt))
+      Right l -> (letBindingName l, (Just l, i, cxt))
 
 singletonCxt :: HasID i => i -> LetBinding -> Cxt
 singletonCxt i l = addBinds i [Right l] `execAccum` mempty

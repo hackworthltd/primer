@@ -173,8 +173,8 @@ safeMkSession (s, n, t) = Session s (safeMkSessionName n) (LastModified t)
 instance MonadRel8Db m l => MonadDb (Rel8DbT m) where
   insertSession v s a n t = do
     nr <-
-      runStatement (InsertError s) $
-        insert
+      runStatement (InsertError s)
+        $ insert
           Insert
             { into = Schema.sessionRowSchema
             , rows =
@@ -199,8 +199,8 @@ instance MonadRel8Db m l => MonadDb (Rel8DbT m) where
 
   updateSessionApp v s a t = do
     nr <-
-      runStatement (UpdateAppError s) $
-        update
+      runStatement (UpdateAppError s)
+        $ update
           Update
             { target = Schema.sessionRowSchema
             , from = allSessions
@@ -222,8 +222,8 @@ instance MonadRel8Db m l => MonadDb (Rel8DbT m) where
 
   updateSessionName v s n t = do
     nr <-
-      runStatement (UpdateNameError s) $
-        update
+      runStatement (UpdateNameError s)
+        $ update
           Update
             { target = Schema.sessionRowSchema
             , from = allSessions
@@ -257,9 +257,9 @@ instance MonadRel8Db m l => MonadDb (Rel8DbT m) where
       -- https://hackage.haskell.org/package/rel8-1.3.1.0/docs/Rel8.html#v:countRows
       _ -> throwM ListSessionsRel8Error
     ss :: [(UUID, Text, UTCTime)] <-
-      runStatement ListSessionsError $
-        select $
-          paginatedSessionMeta ol (sessionMeta <$> allSessions)
+      runStatement ListSessionsError
+        $ select
+        $ paginatedSessionMeta ol (sessionMeta <$> allSessions)
     pure $ Page{total = n, pageContents = safeMkSession <$> ss}
 
   findSessions substr ol = do
@@ -276,9 +276,9 @@ instance MonadRel8Db m l => MonadDb (Rel8DbT m) where
       -- This case should never occur, see note in 'listSessions'.
       _ -> throwM FindSessionsRel8Error
     ss :: [(UUID, Text, UTCTime)] <-
-      runStatement FindSessionsError $
-        select $
-          paginatedSessionMeta ol (sessionMeta <$> sessionByNameSubstr substr)
+      runStatement FindSessionsError
+        $ select
+        $ paginatedSessionMeta ol (sessionMeta <$> sessionByNameSubstr substr)
     pure $ Page{total = n, pageContents = safeMkSession <$> ss}
 
   querySessionId sid = do
@@ -291,15 +291,15 @@ instance MonadRel8Db m l => MonadDb (Rel8DbT m) where
         let dbSessionName = Schema.name s
             sessionName = safeMkSessionName dbSessionName
             lastModified = LastModified $ Schema.lastmodified s
-        when (fromSessionName sessionName /= dbSessionName) $
-          logError $
-            IllegalSessionName sid dbSessionName
+        when (fromSessionName sessionName /= dbSessionName)
+          $ logError
+          $ IllegalSessionName sid dbSessionName
         pure $ Right (SessionData (Schema.app s) sessionName lastModified)
 
   deleteSession sid = do
     nr <-
-      runStatement (DeleteSessionError sid) $
-        delete
+      runStatement (DeleteSessionError sid)
+        $ delete
           Delete
             { from = Schema.sessionRowSchema
             , using = pure ()
@@ -466,5 +466,5 @@ sessionMeta s = (Schema.uuid s, Schema.name s, Schema.lastmodified s)
 -- last-modified (secondary, newest to oldest).
 paginatedSessionMeta :: OffsetLimit -> Query SessionMeta -> Query SessionMeta
 paginatedSessionMeta ol sm =
-  paginate ol $
-    orderBy (mconcat [view _2 >$< asc, view _3 >$< desc]) sm
+  paginate ol
+    $ orderBy (mconcat [view _2 >$< asc, view _3 >$< desc]) sm

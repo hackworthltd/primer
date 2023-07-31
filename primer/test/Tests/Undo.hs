@@ -67,8 +67,8 @@ unit_redo_eval =
             ]
         ]
       eval =
-        readerToState $
-          handleEvalFullRequest
+        readerToState
+          $ handleEvalFullRequest
             App.EvalFullReq
               { App.evalFullReqExpr = Var (Meta 0 Nothing Nothing) (GlobalVarRef $ qualifyName scope "main")
               , App.evalFullCxtDir = Syn

@@ -367,16 +367,18 @@ checkTypeDefs tds = do
       let params = astTypeDefParameters td
       let cons = astTypeDefConstructors td
       assert
-        ( (1 ==) . S.size $
-            S.fromList $
-              qualifiedModule tc : fmap (qualifiedModule . valConName) cons
+        ( (1 ==)
+            . S.size
+            $ S.fromList
+            $ qualifiedModule tc
+            : fmap (qualifiedModule . valConName) cons
         )
         "Module name of type and all constructors must be the same"
       assert
         (distinct $ map (unLocalName . fst) params <> map (baseName . valConName) cons)
         "Duplicate names in one tydef: between parameter-names and constructor-names"
-      local (extendLocalCxtTys params) $
-        traverseOf astTypeDefConArgs (checkKind' KType) td
+      local (extendLocalCxtTys params)
+        $ traverseOf astTypeDefConArgs (checkKind' KType) td
 
 astTypeDefConArgs :: Traversal (ASTTypeDef a) (ASTTypeDef b) (Type' a) (Type' b)
 astTypeDefConArgs = #astTypeDefConstructors % traversed % #valConArgs % traversed
@@ -427,7 +429,8 @@ checkEverything sh CheckEverything{trusted, toCheck} =
           updatedSigs <- traverseOf (traverseDefs % #_DefAST % #astDefType) (fmap typeTtoType . checkKind' KType) toCheck'
           -- Now extend the context with the new types
           let defsUpdatedSigs = itoListOf foldDefTypesWithName updatedSigs
-          local (extendGlobalCxt defsUpdatedSigs) $
+          local (extendGlobalCxt defsUpdatedSigs)
+            $
             -- Check the body (of AST definitions) against the new type
             traverseOf
               (traverseDefs % #_DefAST)
@@ -452,10 +455,10 @@ checkEverything sh CheckEverything{trusted, toCheck} =
     traverseDefs = traverseDefs' equality
     foldDefTypesWithName :: IxFold GVarName [Module] Type
     foldDefTypesWithName =
-      icompose qualifyName $
-        traverseDefs' (reindexed moduleName selfIndex)
-          % to defType
-          % to forgetTypeMetadata
+      icompose qualifyName
+        $ traverseDefs' (reindexed moduleName selfIndex)
+        % to defType
+        % to forgetTypeMetadata
 
 {- HLINT ignore synth "Avoid lambda using `infix`" -}
 -- Note [Let expressions]
@@ -806,8 +809,9 @@ check t = \case
         -- We do want to remove (e.g.) {? λx.x : ? ?} to get λx.x,
         -- if that typechecks. (But only a simple hole annotation, as we do
         -- not wish to delete any interesting annotations.)
-        flip catchError (const default_) $
-          check t e' >>= \case
+        flip catchError (const default_)
+          $ check t e'
+          >>= \case
             Hole{} -> default_ -- Don't let the recursive call mint a hole.
             e'' -> pure e''
       (Hole _ (Ann _ _ ty), SmartHoles)
@@ -820,8 +824,9 @@ check t = \case
             -- cannot typecheck, e.g. Bool ∋ λx.t returns {? λx.t : ? ?}
             default_
       (Hole _ e', SmartHoles) ->
-        flip catchError (const default_) $
-          check t e' >>= \case
+        flip catchError (const default_)
+          $ check t e'
+          >>= \case
             Hole{} -> default_ -- Don't let the recursive call mint a hole.
             e'' -> pure e''
       _ -> default_
@@ -926,11 +931,11 @@ checkBranch t (vc, args) (CaseBranch nb patterns rhs) =
       bind <- Bind <$> meta' (TCChkedAt ty) <*> pure name
       pure (bind, ty)
     assertCorrectCon =
-      assert (PatCon vc == nb) $
-        "checkBranch: expected a branch on "
-          <> show vc
-          <> " but found branch on "
-          <> show nb
+      assert (PatCon vc == nb)
+        $ "checkBranch: expected a branch on "
+        <> show vc
+        <> " but found branch on "
+        <> show nb
 
 -- | Checks if a type can be unified with a function (arrow) type. Returns the
 -- arrowised version - i.e. if it's a hole then it returns an arrow type with

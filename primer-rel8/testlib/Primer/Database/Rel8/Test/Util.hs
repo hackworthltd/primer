@@ -152,19 +152,19 @@ runTmpDbWithPool tests =
 -- the type system. This is useful for testing purposes.
 insertSessionRow :: Schema.SessionRow Expr -> Pool -> IO ()
 insertSessionRow row pool =
-  void $
-    use pool $
-      statement () $
-        insert
-          Insert
-            { into = Schema.sessionRowSchema
-            , rows =
-                values
-                  [ row
-                  ]
-            , onConflict = Abort
-            , returning = NumberOfRowsAffected
-            }
+  void
+    $ use pool
+    $ statement ()
+    $ insert
+      Insert
+        { into = Schema.sessionRowSchema
+        , rows =
+            values
+              [ row
+              ]
+        , onConflict = Abort
+        , returning = NumberOfRowsAffected
+        }
 
 -- | PostgreSQL's timestamp type has a precision of 1 microsecond, but
 -- 'getCurrentTime' has a precision of 1 picosecond. In order to
@@ -186,8 +186,8 @@ mkSessionRow :: Int -> IO (SessionRow Result)
 mkSessionRow n = do
   u <- nextRandom
   now <- lowPrecisionCurrentTime
-  pure $
-    SessionRow
+  pure
+    $ SessionRow
       { uuid = u
       , gitversion = "test-version"
       , app = newApp
@@ -200,8 +200,8 @@ mkSessionRow' :: (Int -> Text) -> Int -> IO (SessionRow Result)
 mkSessionRow' mkName n = do
   u <- nextRandom
   now <- lowPrecisionCurrentTime
-  pure $
-    SessionRow
+  pure
+    $ SessionRow
       { uuid = u
       , gitversion = "test-version"
       , app = newApp

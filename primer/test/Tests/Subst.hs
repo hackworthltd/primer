@@ -55,8 +55,8 @@ tasty_subst_non_free_id = propertyWT [] $ do
   let free = freeVarsTy t
   let bound = boundVarsTy t
   a <-
-    forAllT $
-      frequency
+    forAllT
+      $ frequency
         [ (1, Just genTyVarName)
         , (1, element bound)
         ]
@@ -64,8 +64,8 @@ tasty_subst_non_free_id = propertyWT [] $ do
   -- We frequently try substituting @a@ with some variable occuring in @t@
   -- as (terms containing) those are more likely to flush out bugs in substitution
   s <-
-    forAllT $
-      frequency
+    forAllT
+      $ frequency
         [ (1, Just $ genWTType =<< genWTKind)
         , (1, TVar () <<$>> element free)
         , (1, TVar () <<$>> element bound)
@@ -86,8 +86,8 @@ tasty_subst_remove_free = withDiscards 300 $ propertyWT [] $ inExtendedLocalCxt 
   -- We frequently try substituting @a@ with some variable occuring in @t@
   -- as (terms containing) those are more likely to flush out bugs in substitution
   s <-
-    forAllT $
-      frequency
+    forAllT
+      $ frequency
         [ (1, Just $ genWTType =<< genWTKind)
         , (1, TVar () <<$>> element free')
         , (1, TVar () <<$>> element (boundVarsTy t))
@@ -105,8 +105,8 @@ tasty_subst_counter_indep = withDiscards 300 $ propertyWT [] $ inExtendedLocalCx
   -- We frequently try substituting @a@ with some variable occuring in @t@
   -- as (terms containing) those are more likely to flush out bugs in substitution
   s <-
-    forAllT $
-      frequency
+    forAllT
+      $ frequency
         [ (1, Just $ genWTType =<< genWTKind)
         , (1, TVar () <<$>> element free)
         , (1, TVar () <<$>> element (boundVarsTy t))

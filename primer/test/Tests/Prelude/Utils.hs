@@ -26,8 +26,8 @@ x <===> y = withFrozenCallStack $ on compareExpr (over evalResultExpr zeroIDs) x
       if ok
         then success
         else do
-          annotate $
-            unlines
+          annotate
+            $ unlines
               [ "Pretty Printed Output:"
               , "LHS____________________________________________________"
               , prettyWrap a

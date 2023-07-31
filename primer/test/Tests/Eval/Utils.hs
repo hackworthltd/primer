@@ -71,8 +71,8 @@ testModule =
         { moduleName = ModuleName ["M"]
         , moduleTypes = mempty
         , moduleDefs =
-            Map.singleton "idChar" $
-              DefAST
+            Map.singleton "idChar"
+              $ DefAST
                 ASTDef
                   { astDefType = ty
                   , astDefExpr = expr
@@ -95,6 +95,6 @@ x ~~= y = forgetTypeMetadata x @?= forgetTypeMetadata y
 -- or a 'TLet' in an embedded type.
 hasTypeLets :: Expr -> Bool
 hasTypeLets e =
-  not $
-    null [() | LetType{} <- universe e]
-      && null [() | TLet{} <- universeBi @_ @Type e]
+  not
+    $ null [() | LetType{} <- universe e]
+    && null [() | TLet{} <- universeBi @_ @Type e]

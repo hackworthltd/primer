@@ -137,5 +137,6 @@ instance HasID a => HasID (NodeSelection a) where
 
 getTypeDefConFieldType :: ASTTypeDef a -> ValConName -> Int -> Maybe (Type' a)
 getTypeDefConFieldType def con index =
-  flip atMay index . valConArgs
+  flip atMay index
+    . valConArgs
     =<< find ((== con) . valConName) (astTypeDefConstructors def)

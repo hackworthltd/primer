@@ -400,8 +400,8 @@ unit_tryReduce_case_1 = do
 unit_tryReduce_case_2 :: Assertion
 unit_tryReduce_case_2 = do
   let (expr, i) =
-        create $
-          case_
+        create
+          $ case_
             (con' ["M"] "C" [lam "x" (lvar "x"), lvar "y", lvar "z"] `ann` tcon' ["M"] "T")
             [ branch' (["M"], "B") [("b", Nothing)] (con0' ["M"] "D")
             , branch' (["M"], "C") [("c", Nothing), ("d", Nothing), ("e", Nothing)] (con0' ["M"] "E")
@@ -410,19 +410,19 @@ unit_tryReduce_case_2 = do
       y = unsafeMkGlobalName (["M"], "Y")
       z = unsafeMkGlobalName (["M"], "Z")
       tydef =
-        Map.singleton (unsafeMkGlobalName (["M"], "T")) $
-          TypeDefAST $
-            ASTTypeDef
-              { astTypeDefParameters = []
-              , astTypeDefConstructors =
-                  [ ValCon (unsafeMkGlobalName (["M"], "B")) [TEmptyHole ()]
-                  , ValCon (unsafeMkGlobalName (["M"], "C")) [TCon () x, TCon () y, TCon () z]
-                  ]
-              , astTypeDefNameHints = []
-              }
+        Map.singleton (unsafeMkGlobalName (["M"], "T"))
+          $ TypeDefAST
+          $ ASTTypeDef
+            { astTypeDefParameters = []
+            , astTypeDefConstructors =
+                [ ValCon (unsafeMkGlobalName (["M"], "B")) [TEmptyHole ()]
+                , ValCon (unsafeMkGlobalName (["M"], "C")) [TCon () x, TCon () y, TCon () z]
+                ]
+            , astTypeDefNameHints = []
+            }
       expectedResult =
-        create' $
-          let_
+        create'
+          $ let_
             "c"
             (lam "x" (lvar "x") `ann` tcon x)
             ( let_
@@ -453,8 +453,8 @@ unit_tryReduce_case_2 = do
 unit_tryReduce_case_3 :: Assertion
 unit_tryReduce_case_3 = do
   let (expr, i) =
-        create $
-          case_
+        create
+          $ case_
             ( con' ["M"] "C" [con0' ["M"] "E"]
                 `ann` (tcon' ["M"] "T" `tapp` tcon' ["M"] "D")
             )
@@ -462,16 +462,16 @@ unit_tryReduce_case_3 = do
             , branch' (["M"], "C") [("c", Nothing)] (con0' ["M"] "F")
             ]
       tydef =
-        Map.singleton (unsafeMkGlobalName (["M"], "T")) $
-          TypeDefAST $
-            ASTTypeDef
-              { astTypeDefParameters = [("a", KType)]
-              , astTypeDefConstructors =
-                  [ ValCon (unsafeMkGlobalName (["M"], "B")) [TEmptyHole ()]
-                  , ValCon (unsafeMkGlobalName (["M"], "C")) [TFun () (TVar () "a") (TVar () "a")]
-                  ]
-              , astTypeDefNameHints = []
-              }
+        Map.singleton (unsafeMkGlobalName (["M"], "T"))
+          $ TypeDefAST
+          $ ASTTypeDef
+            { astTypeDefParameters = [("a", KType)]
+            , astTypeDefConstructors =
+                [ ValCon (unsafeMkGlobalName (["M"], "B")) [TEmptyHole ()]
+                , ValCon (unsafeMkGlobalName (["M"], "C")) [TFun () (TVar () "a") (TVar () "a")]
+                ]
+            , astTypeDefNameHints = []
+            }
       expectedResult = create' $ let_ "c" (con0' ["M"] "E" `ann` tlet "a" (tcon' ["M"] "D") (tvar "a" `tfun` tvar "a")) (con0' ["M"] "F")
   result <- runTryReduce tydef mempty mempty (expr, i)
   case result of
@@ -492,24 +492,24 @@ unit_tryReduce_case_3 = do
 unit_tryReduce_case_fallback_1 :: Assertion
 unit_tryReduce_case_fallback_1 = do
   let (expr, i) =
-        create $
-          caseFB_
+        create
+          $ caseFB_
             ( con' ["M"] "C" [con0' ["M"] "E"]
                 `ann` (tcon' ["M"] "T" `tapp` tcon' ["M"] "D")
             )
             [branch' (["M"], "B") [("b", Nothing)] (con0' ["M"] "D")]
             (con0' ["M"] "F")
       tydef =
-        Map.singleton (unsafeMkGlobalName (["M"], "T")) $
-          TypeDefAST $
-            ASTTypeDef
-              { astTypeDefParameters = [("a", KType)]
-              , astTypeDefConstructors =
-                  [ ValCon (unsafeMkGlobalName (["M"], "B")) [TEmptyHole ()]
-                  , ValCon (unsafeMkGlobalName (["M"], "C")) [TFun () (TVar () "a") (TVar () "a")]
-                  ]
-              , astTypeDefNameHints = []
-              }
+        Map.singleton (unsafeMkGlobalName (["M"], "T"))
+          $ TypeDefAST
+          $ ASTTypeDef
+            { astTypeDefParameters = [("a", KType)]
+            , astTypeDefConstructors =
+                [ ValCon (unsafeMkGlobalName (["M"], "B")) [TEmptyHole ()]
+                , ValCon (unsafeMkGlobalName (["M"], "C")) [TFun () (TVar () "a") (TVar () "a")]
+                ]
+            , astTypeDefNameHints = []
+            }
       expectedResult = create' (con0' ["M"] "F")
   result <- runTryReduce tydef mempty mempty (expr, i)
   case result of
@@ -530,24 +530,24 @@ unit_tryReduce_case_fallback_1 = do
 unit_tryReduce_case_fallback_2 :: Assertion
 unit_tryReduce_case_fallback_2 = do
   let (expr, i) =
-        create $
-          caseFB_
+        create
+          $ caseFB_
             ( con' ["M"] "C" [con0' ["M"] "E"]
                 `ann` (tcon' ["M"] "T" `tapp` tcon' ["M"] "D")
             )
             [branch' (["M"], "C") [("c", Nothing)] (con0' ["M"] "F")]
             (con0' ["M"] "D")
       tydef =
-        Map.singleton (unsafeMkGlobalName (["M"], "T")) $
-          TypeDefAST $
-            ASTTypeDef
-              { astTypeDefParameters = [("a", KType)]
-              , astTypeDefConstructors =
-                  [ ValCon (unsafeMkGlobalName (["M"], "B")) [TEmptyHole ()]
-                  , ValCon (unsafeMkGlobalName (["M"], "C")) [TFun () (TVar () "a") (TVar () "a")]
-                  ]
-              , astTypeDefNameHints = []
-              }
+        Map.singleton (unsafeMkGlobalName (["M"], "T"))
+          $ TypeDefAST
+          $ ASTTypeDef
+            { astTypeDefParameters = [("a", KType)]
+            , astTypeDefConstructors =
+                [ ValCon (unsafeMkGlobalName (["M"], "B")) [TEmptyHole ()]
+                , ValCon (unsafeMkGlobalName (["M"], "C")) [TFun () (TVar () "a") (TVar () "a")]
+                ]
+            , astTypeDefNameHints = []
+            }
       expectedResult = create' $ let_ "c" (con0' ["M"] "E" `ann` tlet "a" (tcon' ["M"] "D") (tvar "a" `tfun` tvar "a")) (con0' ["M"] "F")
   result <- runTryReduce tydef mempty mempty (expr, i)
   case result of
@@ -568,24 +568,24 @@ unit_tryReduce_case_fallback_2 = do
 unit_tryReduce_case_fallback_3 :: Assertion
 unit_tryReduce_case_fallback_3 = do
   let (expr, i) =
-        create $
-          caseFB_
+        create
+          $ caseFB_
             ( con' ["M"] "C" [con0' ["M"] "E"]
                 `ann` (tcon' ["M"] "T" `tapp` tcon' ["M"] "D")
             )
             []
             (con0' ["M"] "D")
       tydef =
-        Map.singleton (unsafeMkGlobalName (["M"], "T")) $
-          TypeDefAST $
-            ASTTypeDef
-              { astTypeDefParameters = [("a", KType)]
-              , astTypeDefConstructors =
-                  [ ValCon (unsafeMkGlobalName (["M"], "B")) [TEmptyHole ()]
-                  , ValCon (unsafeMkGlobalName (["M"], "C")) [TFun () (TVar () "a") (TVar () "a")]
-                  ]
-              , astTypeDefNameHints = []
-              }
+        Map.singleton (unsafeMkGlobalName (["M"], "T"))
+          $ TypeDefAST
+          $ ASTTypeDef
+            { astTypeDefParameters = [("a", KType)]
+            , astTypeDefConstructors =
+                [ ValCon (unsafeMkGlobalName (["M"], "B")) [TEmptyHole ()]
+                , ValCon (unsafeMkGlobalName (["M"], "C")) [TFun () (TVar () "a") (TVar () "a")]
+                ]
+            , astTypeDefNameHints = []
+            }
       expectedResult = create' $ con0' ["M"] "D"
   result <- runTryReduce tydef mempty mempty (expr, i)
   case result of
@@ -601,21 +601,21 @@ unit_tryReduce_case_fallback_3 = do
 unit_tryReduce_case_name_clash :: Assertion
 unit_tryReduce_case_name_clash = do
   let (expr, i) =
-        create $
-          case_
+        create
+          $ case_
             (con' ["M"] "C" [emptyHole, lvar "x"] `ann` tcon' ["M"] "T")
             [branch' (["M"], "C") [("x", Nothing), ("y", Nothing)] emptyHole]
       tydef =
-        Map.singleton (unsafeMkGlobalName (["M"], "T")) $
-          TypeDefAST $
-            ASTTypeDef
-              { astTypeDefParameters = []
-              , astTypeDefConstructors = [ValCon (unsafeMkGlobalName (["M"], "C")) [TEmptyHole (), TEmptyHole ()]]
-              , astTypeDefNameHints = []
-              }
+        Map.singleton (unsafeMkGlobalName (["M"], "T"))
+          $ TypeDefAST
+          $ ASTTypeDef
+            { astTypeDefParameters = []
+            , astTypeDefConstructors = [ValCon (unsafeMkGlobalName (["M"], "C")) [TEmptyHole (), TEmptyHole ()]]
+            , astTypeDefNameHints = []
+            }
       expectedResult =
-        create' $
-          case_
+        create'
+          $ case_
             (con' ["M"] "C" [emptyHole, lvar "x"] `ann` tcon' ["M"] "T")
             [branch' (["M"], "C") [("a9", Nothing), ("y", Nothing)] $ let_ "x" (lvar "a9") emptyHole]
   result <- runTryReduce tydef mempty mempty (expr, i)
@@ -643,22 +643,22 @@ unit_tryReduce_case_scrutinee_not_redex = do
 unit_tryReduce_case_prim_1 :: Assertion
 unit_tryReduce_case_prim_1 = do
   let (expr, i) =
-        create $
-          caseFB_
+        create
+          $ caseFB_
             (char 'b')
             [branchPrim (PrimChar 'b') (con0' ["M"] "F")]
             (con0' ["M"] "D")
       tydef =
-        Map.singleton (unsafeMkGlobalName (["M"], "T")) $
-          TypeDefAST $
-            ASTTypeDef
-              { astTypeDefParameters = [("a", KType)]
-              , astTypeDefConstructors =
-                  [ ValCon (unsafeMkGlobalName (["M"], "B")) [TEmptyHole ()]
-                  , ValCon (unsafeMkGlobalName (["M"], "C")) [TFun () (TVar () "a") (TVar () "a")]
-                  ]
-              , astTypeDefNameHints = []
-              }
+        Map.singleton (unsafeMkGlobalName (["M"], "T"))
+          $ TypeDefAST
+          $ ASTTypeDef
+            { astTypeDefParameters = [("a", KType)]
+            , astTypeDefConstructors =
+                [ ValCon (unsafeMkGlobalName (["M"], "B")) [TEmptyHole ()]
+                , ValCon (unsafeMkGlobalName (["M"], "C")) [TFun () (TVar () "a") (TVar () "a")]
+                ]
+            , astTypeDefNameHints = []
+            }
       expectedResult = create' $ con0' ["M"] "F"
   result <- runTryReduce tydef mempty mempty (expr, i)
   case result of
@@ -679,22 +679,22 @@ unit_tryReduce_case_prim_1 = do
 unit_tryReduce_case_prim_2 :: Assertion
 unit_tryReduce_case_prim_2 = do
   let (expr, i) =
-        create $
-          caseFB_
+        create
+          $ caseFB_
             (char 'b')
             [branchPrim (PrimChar 'c') (con0' ["M"] "F")] -- not b
             (con0' ["M"] "D")
       tydef =
-        Map.singleton (unsafeMkGlobalName (["M"], "T")) $
-          TypeDefAST $
-            ASTTypeDef
-              { astTypeDefParameters = [("a", KType)]
-              , astTypeDefConstructors =
-                  [ ValCon (unsafeMkGlobalName (["M"], "B")) [TEmptyHole ()]
-                  , ValCon (unsafeMkGlobalName (["M"], "C")) [TFun () (TVar () "a") (TVar () "a")]
-                  ]
-              , astTypeDefNameHints = []
-              }
+        Map.singleton (unsafeMkGlobalName (["M"], "T"))
+          $ TypeDefAST
+          $ ASTTypeDef
+            { astTypeDefParameters = [("a", KType)]
+            , astTypeDefConstructors =
+                [ ValCon (unsafeMkGlobalName (["M"], "B")) [TEmptyHole ()]
+                , ValCon (unsafeMkGlobalName (["M"], "C")) [TFun () (TVar () "a") (TVar () "a")]
+                ]
+            , astTypeDefNameHints = []
+            }
       expectedResult = create' $ con0' ["M"] "D"
   result <- runTryReduce tydef mempty mempty (expr, i)
   case result of
@@ -715,13 +715,13 @@ unit_tryReduce_case_prim_2 = do
 unit_tryReduce_prim :: Assertion
 unit_tryReduce_prim = do
   let ((expr, expectedResult), i) =
-        create $
-          (,)
-            <$> pfun EqChar
-            `app` char 'a'
-            `app` char 'a'
-            <*> con0 cTrue
-            `ann` tcon tBool
+        create
+          $ (,)
+          <$> pfun EqChar
+          `app` char 'a'
+          `app` char 'a'
+          <*> con0 cTrue
+          `ann` tcon tBool
   result <- runTryReduce tydefs primDefs mempty (expr, i)
   case result of
     Right (expr', ApplyPrimFun detail) -> do
@@ -736,19 +736,19 @@ unit_tryReduce_prim = do
 unit_tryReduce_prim_fail_unsaturated :: Assertion
 unit_tryReduce_prim_fail_unsaturated = do
   let (expr, i) =
-        create $
-          pfun EqChar
-            `app` char 'a'
+        create
+          $ pfun EqChar
+          `app` char 'a'
   result <- runTryReduce tydefs primDefs mempty (expr, i)
   result @?= Left NotRedex
 
 unit_tryReduce_prim_fail_unreduced_args :: Assertion
 unit_tryReduce_prim_fail_unreduced_args = do
   let (expr, i) =
-        create $
-          pfun EqChar
-            `app` char 'a'
-            `app` (pfun ToUpper `app` char 'a')
+        create
+          $ pfun EqChar
+          `app` char 'a'
+          `app` (pfun ToUpper `app` char 'a')
   result <- runTryReduce tydefs primDefs mempty (expr, i)
   result @?= Left NotRedex
 
@@ -1000,21 +1000,21 @@ tydefs :: TypeDefMap
 tydefs = c <> d
   where
     c =
-      Map.singleton (unsafeMkGlobalName (["M"], "C")) $
-        TypeDefAST $
-          ASTTypeDef
-            { astTypeDefParameters = []
-            , astTypeDefConstructors = [ValCon (unsafeMkGlobalName (["M"], "C")) []]
-            , astTypeDefNameHints = []
-            }
+      Map.singleton (unsafeMkGlobalName (["M"], "C"))
+        $ TypeDefAST
+        $ ASTTypeDef
+          { astTypeDefParameters = []
+          , astTypeDefConstructors = [ValCon (unsafeMkGlobalName (["M"], "C")) []]
+          , astTypeDefNameHints = []
+          }
     d =
-      Map.singleton (unsafeMkGlobalName (["M"], "D")) $
-        TypeDefAST $
-          ASTTypeDef
-            { astTypeDefParameters = []
-            , astTypeDefConstructors = [ValCon (unsafeMkGlobalName (["M"], "D")) []]
-            , astTypeDefNameHints = []
-            }
+      Map.singleton (unsafeMkGlobalName (["M"], "D"))
+        $ TypeDefAST
+        $ ASTTypeDef
+          { astTypeDefParameters = []
+          , astTypeDefConstructors = [ValCon (unsafeMkGlobalName (["M"], "D")) []]
+          , astTypeDefNameHints = []
+          }
 
 unit_redexes_con :: Assertion
 unit_redexes_con = redexesOf (con0' ["M"] "C") <@?=> mempty
@@ -1377,8 +1377,8 @@ unit_eval_modules =
         importModules [primitiveModule, builtinModule']
         foo <- pfun ToUpper `app` char 'a'
         EvalResp{evalRespExpr = e} <-
-          readerToState $
-            handleEvalRequest
+          readerToState
+            $ handleEvalRequest
               EvalReq{evalReqExpr = foo, evalReqRedex = getID foo}
         expect <- char 'A'
         pure $ e ~= expect
@@ -1398,8 +1398,8 @@ unit_eval_modules_scrutinize_imported_type =
             (con0 cTrue `ann` tcon tBool)
             [branch cTrue [] $ con0 cFalse, branch cFalse [] $ con0 cTrue]
         EvalResp{evalRespExpr = e} <-
-          readerToState $
-            handleEvalRequest
+          readerToState
+            $ handleEvalRequest
               EvalReq{evalReqExpr = foo, evalReqRedex = getID foo}
         expect <- con0 cFalse
         pure $ e ~= expect
@@ -1410,8 +1410,8 @@ unit_eval_modules_scrutinize_imported_type =
   where
     m = do
       boolDef' <- generateTypeDefIDs $ TypeDefAST boolDef
-      pure $
-        Module
+      pure
+        $ Module
           { moduleName = qualifiedModule tBool
           , moduleTypes = Map.singleton (baseName tBool) boolDef'
           , moduleDefs = mempty
@@ -1423,24 +1423,25 @@ unit_eval_modules_scrutinize_imported_type =
 tasty_type_preservation :: Property
 tasty_type_preservation =
   let testModules = [builtinModule, pure primitiveModule]
-   in withTests 200 $
-        withDiscards 2000 $
-          propertyWT testModules $ do
-            let globs = foldMap' moduleDefsQualified $ create' $ sequence testModules
-            tds <- asks typeDefs
-            (dir, t, ty) <- genDirTm
-            rs <- failWhenSevereLogs $ redexes @EvalLog tds globs dir t
-            when (null rs) discard
-            r <- forAllT $ Gen.element rs
-            s <- failWhenSevereLogs $ step @EvalLog tds globs t dir r
-            case s of
-              Left err -> annotateShow err >> failure
-              Right (s', _) ->
-                if hasTypeLets s'
-                  then label "skipped due to LetType" >> success
-                  else do
-                    s'' <- checkTest ty s'
-                    forgetMetadata s' === forgetMetadata s'' -- check no smart holes happened
+   in withTests 200
+        $ withDiscards 2000
+        $ propertyWT testModules
+        $ do
+          let globs = foldMap' moduleDefsQualified $ create' $ sequence testModules
+          tds <- asks typeDefs
+          (dir, t, ty) <- genDirTm
+          rs <- failWhenSevereLogs $ redexes @EvalLog tds globs dir t
+          when (null rs) discard
+          r <- forAllT $ Gen.element rs
+          s <- failWhenSevereLogs $ step @EvalLog tds globs t dir r
+          case s of
+            Left err -> annotateShow err >> failure
+            Right (s', _) ->
+              if hasTypeLets s'
+                then label "skipped due to LetType" >> success
+                else do
+                  s'' <- checkTest ty s'
+                  forgetMetadata s' === forgetMetadata s'' -- check no smart holes happened
 
 -- | Reductions do not interfere with each other
 -- if @i,j ∈ redexes e@  (and @i /= j@), and @e@ reduces to @e'@ via redex @i@
@@ -1449,27 +1450,28 @@ tasty_type_preservation =
 tasty_redex_independent :: Property
 tasty_redex_independent =
   let testModules = [builtinModule, pure primitiveModule]
-   in withTests 200 $
-        withDiscards 2000 $
-          propertyWT testModules $ do
-            let globs = foldMap' moduleDefsQualified $ create' $ sequence testModules
-            tds <- asks typeDefs
-            (dir, t, _) <- genDirTm
-            annotateShow dir
-            annotateShow t
-            rs <- failWhenSevereLogs $ redexes @EvalLog tds globs dir t
-            when (length rs <= 1) discard
-            i <- forAllT $ Gen.element rs
-            j <- forAllT $ Gen.element $ delete i rs
-            s <- failWhenSevereLogs $ step @EvalLog tds globs t dir i
-            case s of
-              Left err -> annotateShow err >> failure
-              Right (s', _) -> do
-                annotateShow s'
-                if elemOf exprIDs j s'
-                  then do
-                    sj <- failWhenSevereLogs $ step @EvalLog tds globs t dir j
-                    case sj of
-                      Right (_, BindRename{}) -> success
-                      _ -> assert . elem j =<< failWhenSevereLogs (redexes @EvalLog tds globs dir s')
-                  else success
+   in withTests 200
+        $ withDiscards 2000
+        $ propertyWT testModules
+        $ do
+          let globs = foldMap' moduleDefsQualified $ create' $ sequence testModules
+          tds <- asks typeDefs
+          (dir, t, _) <- genDirTm
+          annotateShow dir
+          annotateShow t
+          rs <- failWhenSevereLogs $ redexes @EvalLog tds globs dir t
+          when (length rs <= 1) discard
+          i <- forAllT $ Gen.element rs
+          j <- forAllT $ Gen.element $ delete i rs
+          s <- failWhenSevereLogs $ step @EvalLog tds globs t dir i
+          case s of
+            Left err -> annotateShow err >> failure
+            Right (s', _) -> do
+              annotateShow s'
+              if elemOf exprIDs j s'
+                then do
+                  sj <- failWhenSevereLogs $ step @EvalLog tds globs t dir j
+                  case sj of
+                    Right (_, BindRename{}) -> success
+                    _ -> assert . elem j =<< failWhenSevereLogs (redexes @EvalLog tds globs dir s')
+                else success

@@ -140,17 +140,17 @@ map modName =
    in do
         type_ <- tforall "a" KType $ tforall "b" KType $ (tvar "a" `tfun` tvar "b") `tfun` ((tcon B.tList `tapp` tvar "a") `tfun` (tcon B.tList `tapp` tvar "b"))
         term <-
-          lAM "a" $
-            lAM "b" $
-              lam "f" $
-                lam "xs" $
-                  case_
-                    (lvar "xs")
-                    [ branch B.cNil [] $
-                        con B.cNil []
-                    , branch B.cCons [("y", Nothing), ("ys", Nothing)] $
-                        con B.cCons [lvar "f" `app` lvar "y", gvar this `aPP` tvar "a" `aPP` tvar "b" `app` lvar "f" `app` lvar "ys"]
-                    ]
+          lAM "a"
+            $ lAM "b"
+            $ lam "f"
+            $ lam "xs"
+            $ case_
+              (lvar "xs")
+              [ branch B.cNil []
+                  $ con B.cNil []
+              , branch B.cCons [("y", Nothing), ("ys", Nothing)]
+                  $ con B.cCons [lvar "f" `app` lvar "y", gvar this `aPP` tvar "a" `aPP` tvar "b" `app` lvar "f" `app` lvar "ys"]
+              ]
         pure (this, DefAST $ ASTDef term type_)
 
 -- | The polymorphic function @map@ (over @List a@ as defined by
@@ -159,19 +159,19 @@ map' :: MonadFresh ID m => ModuleName -> m (GVarName, Def)
 map' modName = do
   type_ <- tforall "a" KType $ tforall "b" KType $ (tvar "a" `tfun` tvar "b") `tfun` ((tcon B.tList `tapp` tvar "a") `tfun` (tcon B.tList `tapp` tvar "b"))
   let worker =
-        lam "xs" $
-          case_
+        lam "xs"
+          $ case_
             (lvar "xs")
             [ branch B.cNil [] $ con B.cNil []
-            , branch B.cCons [("y", Nothing), ("ys", Nothing)] $
-                con B.cCons [lvar "f" `app` lvar "y", lvar "go" `app` lvar "ys"]
+            , branch B.cCons [("y", Nothing), ("ys", Nothing)]
+                $ con B.cCons [lvar "f" `app` lvar "y", lvar "go" `app` lvar "ys"]
             ]
   term <-
-    lAM "a" $
-      lAM "b" $
-        lam "f" $
-          letrec "go" worker ((tcon B.tList `tapp` tvar "a") `tfun` (tcon B.tList `tapp` tvar "b")) $
-            lvar "go"
+    lAM "a"
+      $ lAM "b"
+      $ lam "f"
+      $ letrec "go" worker ((tcon B.tList `tapp` tvar "a") `tfun` (tcon B.tList `tapp` tvar "b"))
+      $ lvar "go"
   pure (qualifyName modName "map", DefAST $ ASTDef term type_)
 
 -- | The function @odd@, defined over the inductive natural number
@@ -182,8 +182,8 @@ odd :: MonadFresh ID m => ModuleName -> m (GVarName, Def)
 odd modName = do
   type_ <- tcon B.tNat `tfun` tcon B.tBool
   term <-
-    lam "x" $
-      case_
+    lam "x"
+      $ case_
         (lvar "x")
         [ branch B.cZero [] $ con0 B.cFalse
         , branch B.cSucc [("n", Nothing)] $ gvar (qualifyName modName "even") `app` lvar "n"
@@ -198,8 +198,8 @@ even :: MonadFresh ID m => ModuleName -> m (GVarName, Def)
 even modName = do
   type_ <- tcon B.tNat `tfun` tcon B.tBool
   term <-
-    lam "x" $
-      case_
+    lam "x"
+      $ case_
         (lvar "x")
         [ branch B.cZero [] $ con0 B.cTrue
         , branch B.cSucc [("n", Nothing)] $ gvar (qualifyName modName "odd") `app` lvar "n"
@@ -301,8 +301,8 @@ comprehensive' typeable modName = do
                                   ]
                                   $ caseFB_
                                     (lvar "n")
-                                    [ branch B.cZero [] $
-                                        app
+                                    [ branch B.cZero []
+                                        $ app
                                           ( app
                                               emptyHole
                                               (lvar "x")
@@ -429,8 +429,8 @@ mapOddPrimProg len =
         oddDef <- do
           type_ <- tcon P.tInt `tfun` tcon B.tBool
           term <-
-            lam "x" $
-              case_
+            lam "x"
+              $ case_
                 (pfun P.IntRemainder `app` lvar "x" `app` int 2)
                 [ branch B.cNothing [] $ con0 B.cTrue -- this should be impossible (since denominator is obviously non-zero)
                 , branch B.cJust [("r", Nothing)] $ pfun P.IntEq `app` lvar "r" `app` int 1
