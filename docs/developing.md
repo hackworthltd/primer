@@ -138,12 +138,3 @@ yourself. `primer-service` doesn't know how to deploy or migrate the
 database on its own. See the
 [`primer-service-entrypoint.sh`](../nix/pkgs/scripts/primer-service-entrypoint.sh)
 shell script for the commands that the Docker entrypoint runs.
-
-## Local development with PostgreSQL
-
-In addition to SQLite, `primer-service` also supports PostgreSQL for
-its program store. Though we recommend using SQLite for local
-development due to its much simpler setup, we do provide a collection
-of Nix-based tooling to make local PostgreSQL development as easy as
-we can. See the [PostgreSQL development documentation](postgresql.md)
-for details.

@@ -112,9 +112,6 @@
 
           # This should go in `primer-sqitch.passthru.tests`, but
           # those don't work well with flakes.
-          #
-          # Note that the equivalent PostgreSQL tests need some tear
-          # up/tear down, so we test that backend using NixOS tests.
           primer-sqitch-test-sqlite = pkgs.runCommand "primer-sqitch-sqlite-test" { } ''
             ${pkgs.primer-sqitch}/bin/primer-sqitch deploy --verify db:sqlite:primer.db
             ${pkgs.primer-sqitch}/bin/primer-sqitch revert db:sqlite:primer.db
@@ -235,29 +232,10 @@
             inherit (pkgs) primer-service primer-client primer-openapi-spec;
             inherit (pkgs) primer-benchmark;
             inherit (pkgs)
-              run-primer-postgresql
               run-primer-sqlite
               primer-service-entrypoint
-
-              create-local-db
-              deploy-local-db
-              verify-local-db
-              revert-local-db
-              status-local-db
-              log-local-db
-              delete-local-db
-              dump-local-db
-              restore-local-db
-              connect-local-db
-              delete-all-local-sessions
-
               sqitch
-              primer-sqitch
-              primer-pg-prove
-
-              deploy-postgresql-container
-              start-postgresql-container
-              stop-postgresql-container;
+              primer-sqitch;
           }
           // (pkgs.lib.optionalAttrs (system == "x86_64-linux") {
             inherit (pkgs) primer-service-docker-image;
@@ -313,27 +291,10 @@
               inherit (pkgs) primer-benchmark;
 
               inherit (pkgs)
-                run-primer-postgresql
                 run-primer-sqlite
                 primer-service-entrypoint
 
-                create-local-db
-                deploy-local-db
-                verify-local-db
-                revert-local-db
-                status-local-db
-                log-local-db
-                delete-local-db
-                dump-local-db
-                restore-local-db
-                connect-local-db
-                delete-all-local-sessions
-
-                primer-sqitch
-
-                deploy-postgresql-container
-                start-postgresql-container
-                stop-postgresql-container;
+                primer-sqitch;
             })
             // primerFlake.apps;
 
@@ -382,12 +343,7 @@
         {
           overlays.default = (final: prev:
             let
-              postgres-dev-password = "primer-dev";
-              postgres-dev-base-url = "postgres://postgres:${postgres-dev-password}@localhost:5432";
-              postgres-dev-primer-url = "${postgres-dev-base-url}/primer";
-
               sqitch = final.callPackage ./nix/pkgs/sqitch {
-                postgresqlSupport = true;
                 sqliteSupport = true;
               };
 
@@ -423,17 +379,9 @@
                           ghcOptions = [ "-Werror" ];
                           preCheck = preCheckTasty;
                         };
-                        primer-rel8 = {
-                          ghcOptions = [ "-Werror" ];
-                          preCheck = preCheckTasty;
-                        };
                         primer-service = {
                           ghcOptions = [ "-Werror" ];
-
-                          # The tests need PostgreSQL binaries.
-                          preCheck = ''
-                            export PATH="${final.postgresql}/bin:${"$PATH"}"
-                          '' + preCheckTasty;
+                          preCheck = preCheckTasty;
                         };
                         primer-benchmark = {
                           ghcOptions = [ "-Werror" ];
@@ -465,18 +413,12 @@
                     #TODO This shouldn't be necessary - see the commented-out `build-tool-depends` in primer.cabal.
                     packages.primer.components.tests.primer-test.build-tools = [ (final.haskell-nix.tool ghcVersion "tasty-discover" { }) ];
                     packages.primer-api.components.tests.primer-api-test.build-tools = [ (final.haskell-nix.tool ghcVersion "tasty-discover" { }) ];
-                    packages.primer-rel8.components.tests.primer-rel8-test.build-tools = [
-                      (final.haskell-nix.tool ghcVersion "tasty-discover" { })
-                      final.postgresql
-                      final.primer-sqitch
-                    ];
                     packages.primer-selda.components.tests.primer-selda-test.build-tools = [
                       (final.haskell-nix.tool ghcVersion "tasty-discover" { })
                       final.primer-sqitch
                     ];
                     packages.primer-service.components.tests.service-test.build-tools = [
                       (final.haskell-nix.tool ghcVersion "tasty-discover" { })
-                      final.postgresql
                       final.primer-sqitch
                     ];
                   }
@@ -492,7 +434,6 @@
                       packages.primer.components.tests.primer-test.testFlags = hide-successes ++ size-cutoff;
                       packages.primer-api.components.tests.primer-api-test.testFlags = hide-successes ++ size-cutoff;
                       packages.primer-service.components.tests.service-test.testFlags = hide-successes ++ size-cutoff;
-                      packages.primer-rel8.components.tests.primer-rel8-test.testFlags = hide-successes;
                       packages.primer-selda.components.tests.primer-selda-test.testFlags = hide-successes;
                       packages.primer-benchmark.components.tests.primer-benchmark-test.testFlags = hide-successes;
                     }
@@ -530,14 +471,8 @@
 
                   buildInputs = (with final; [
                     nixpkgs-fmt
-                    postgresql
                     sqlite
                     openapi-generator-cli
-
-                    # For Docker support.
-                    docker
-                    lima
-                    colima
 
                     # For Language Server support.
                     nodejs-18_x
@@ -546,20 +481,6 @@
                     nix-generate-from-cpan
                     sqitch
                     primer-sqitch
-                    primer-pg-prove
-
-                    # Local scripts.
-                    create-local-db
-                    deploy-local-db
-                    verify-local-db
-                    revert-local-db
-                    status-local-db
-                    log-local-db
-                    delete-local-db
-                    dump-local-db
-                    restore-local-db
-                    connect-local-db
-                    delete-all-local-sessions
                   ]);
 
                   shellHook = ''
@@ -627,8 +548,9 @@
                       # entrypoint with reasonable default values.
                       #
                       # Note that we do not provide default values or
-                      # otherwise set either DATABASE_URL or
-                      # SQLITE_DB.
+                      # otherwise set SQLITE_DB, which is required by
+                      # the entrypoint script, so you must set this
+                      # yourself in the container environment.
                       "SERVICE_PORT=${toString port}"
                       "PRIMER_VERSION=${version}"
 
@@ -642,11 +564,6 @@
                     ];
                   };
               };
-
-              # The version used in haskell.nix nixpkgs is broken, so we
-              # override it until that's fixed.
-              colima = final.callPackage ./nix/pkgs/colima { };
-
 
               # Note: these benchmarks should only be run (in CI) on a
               # "benchmark" machine. This is enforced for our CI system
@@ -680,32 +597,13 @@
                 primer = (prev.lib.primer or { }) // {
                   defaultServicePort = 8081;
                   inherit version;
-                  inherit postgres-dev-password;
-                  inherit postgres-dev-base-url;
-                  inherit postgres-dev-primer-url;
                 };
               };
 
               inherit sqitch;
 
               inherit (scripts)
-                deploy-postgresql-container
-                start-postgresql-container
-                stop-postgresql-container
-                create-local-db
-                deploy-local-db
-                verify-local-db
-                revert-local-db
-                status-local-db
-                log-local-db
-                delete-local-db
-                dump-local-db
-                restore-local-db
                 primer-sqitch
-                primer-pg-prove
-                connect-local-db
-                delete-all-local-sessions
-                run-primer-postgresql
                 run-primer-sqlite
                 primer-service-entrypoint;
 
@@ -719,8 +617,6 @@
               inherit primer-service-docker-image;
 
               inherit primer-openapi-spec;
-
-              inherit colima;
 
               # Note to the reader: these derivations run benchmarks
               # and collect the results in various formats. They're

@@ -1,23 +1,9 @@
 # Database ops
 
 We use [Sqitch](https://sqitch.org/about/) to manage our database
-schemas, both for PostgreSQL and SQLite. Because these database
-engines are quite different, we require separate schemas for each. For
-general help on how to use Sqitch and a bit about how it works, see
-[the `sqitch` PostgreSQL
-tutorial](https://sqitch.org/docs/manual/sqitchtutorial/).
-
-Note: we do not use Sqitch for any PostgreSQL user or group
-permissions, nor any database-wide security settings in general. The
-reason for this is because we assume that for some
-PostgreSQL-compatible cloud database offerings, user provisioning and
-security settings may be managed out of band using the cloud
-provider's own APIs. Therefore, our Sqitch scripts assume that the
-PostgreSQL user who's running the scripts has all the permissions
-required to perform any operations included in those scripts, and that
-a [secure schema usage
-pattern](https://www.postgresql.org/docs/current/ddl-schemas.html#DDL-SCHEMAS-PATTERNS)
-has been configured out-of-band.
+schemas. For general help on how to use Sqitch and a bit about how it
+works, see [the `sqitch` SQLite
+tutorial](https://sqitch.org/docs/manual/sqitchtutorial-sqlite/).
 
 The following guide assumes you're running `sqitch` and the
 `primer-sqitch` helper script from the `nix develop` shell.

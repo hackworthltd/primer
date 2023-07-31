@@ -64,7 +64,6 @@ body:
         - primer
         - primer-api
         - primer-service
-        - primer-rel8
         - primer-selda
         - primer-benchmark
         - Primer language prelude

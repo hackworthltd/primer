@@ -61,10 +61,8 @@ together implement a Primer language service:
   the two evaluators, and an API that exposes these features to other
   Haskell programs.
 
-* `primer-rel8` and `primer-selda` implement, respectively,
-  [PostgreSQL](https://www.postgresql.org) and
-  [SQLite](https://www.sqlite.org/) database bindings for the Primer
-  language server's program store.
+* `primer-selda` implements [SQLite](https://www.sqlite.org/) database
+  bindings for the Primer language server's program store.
 
 * `primer-service` adapts the `primer` Haskell API to an HTTP API
   (actually, [two different HTTP API's](http-apis.md)), so that it can

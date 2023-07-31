@@ -244,26 +244,4 @@ else
 fi
 echo ""
 
-PSQL_COMMAND="$(command -v psql)"
-echo "PostgreSQL:"
-if ! [ -x "$PSQL_COMMAND" ]; then
-    echo "psql is not in the PATH."
-else
-    echo "psql path is: " "$PSQL_COMMAND"
-    PSQL_VERSION=$(psql --version)
-    echo "psql version is: " "$PSQL_VERSION"
-fi
-echo ""
-
-COLIMA_COMMAND="$(command -v colima)"
-echo "Colima:"
-if ! [ -x "$COLIMA_COMMAND" ]; then
-    echo "colima is not in the PATH."
-else
-    echo "colima path is: " "$COLIMA_COMMAND"
-    COLIMA_VERSION=$(colima version)
-    echo "colima version is: " "$COLIMA_VERSION"
-fi
-
-
 exit 0
