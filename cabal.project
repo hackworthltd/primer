@@ -3,7 +3,6 @@ index-state: 2023-05-20T00:00:00Z
 packages:
   primer
   primer-api
-  primer-rel8
   primer-selda
   primer-service
   primer-benchmark

@@ -25,6 +25,5 @@ the various packages' Haddocks.
 ## Advanced or specialized topics
 
 * [Primitives](primitives.md)
-* [Developing Primer with PostgreSQL](postgresql.md)
 * [Database ops](database.md)
 * [Benchmarking](benchmarking.md)

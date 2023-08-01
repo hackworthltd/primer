@@ -13,8 +13,10 @@ import Primer.Database (
   listSessions,
   safeMkSessionName,
  )
-import Primer.Database.Rel8 (SessionRow (..))
-import Primer.Database.Rel8.Test.Util (
+import Primer.Database.Selda.SQLite (
+  SessionRow (..),
+ )
+import Primer.Database.Selda.Test.Util (
   mkSessionRow,
   runTmpDb,
  )

@@ -8,7 +8,6 @@ targets = build configure check test bench generate-fixtures docs clean realclea
 $(targets):
 	$(MAKE) -C primer $@
 	$(MAKE) -C primer-api $@
-	$(MAKE) -C primer-rel8 $@
 	$(MAKE) -C primer-selda $@
 	$(MAKE) -C primer-service $@
 	$(MAKE) -C primer-benchmark $@

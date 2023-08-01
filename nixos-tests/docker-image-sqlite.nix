@@ -95,16 +95,6 @@ in
       };
   };
 
-  # Note: one major difference between this test and the equivalent
-  # PostgreSQL test is that when the container is running against a
-  # PostgreSQL database, it does not perform the database deployment
-  # automatically, deployments/migrations are not atomic, and we don't
-  # want to depend on container rollout synchronization to guarantee
-  # that.
-  #
-  # However, when running against a SQLite database, the container
-  # *can* safely do a deployment/migration, because no other container
-  # will be (or should be, anyway) mounting the same database volume.
   testScript = { nodes, ... }:
     ''
       primer.start();
