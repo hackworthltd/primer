@@ -169,7 +169,7 @@ prettyExpr opts = \case
         <> inlineblock opts (pE e)
         <> col Yellow "in"
         <> line
-        <> indent' 2 (pE e')
+        <> indent' 2 (brac Round White $ pE e')
   LetType _ v t e ->
     col Yellow "let type"
       <+> lname v
@@ -177,7 +177,7 @@ prettyExpr opts = \case
         <> inlineblock opts (pT t)
         <> col Yellow "in"
         <> line
-        <> indent' 2 (pE e)
+        <> indent' 2 (brac Round White $ pE e)
   Letrec _ v e t e' ->
     col Yellow "let rec"
       <+> lname v
@@ -185,7 +185,7 @@ prettyExpr opts = \case
         <> inlineblock opts (typeann e t)
         <> col Yellow "in"
         <> line
-        <> indent' 2 (pE e')
+        <> indent' 2 (brac Round White $ pE e')
   PrimCon _ p -> prim p
   where
     pT = prettyType opts
@@ -267,7 +267,7 @@ prettyType opts typ = case typ of
         <> inlineblock opts (pT t)
         <> col Yellow "in"
         <> line
-        <> indent' 2 (pT b)
+        <> indent' 2 (brac Round White $ pT b)
   where
     pT = prettyType opts
 
