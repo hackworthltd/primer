@@ -70,6 +70,7 @@ import Primer.Core (
   GlobalName (baseName, qualifiedModule),
   HasID (_id),
   ID,
+  Kind' (..),
   KindMeta,
   ModuleName (unModuleName),
   Pattern (PatCon, PatPrim),
@@ -163,6 +164,9 @@ data NoInputAction
   | AddConField
   | DeleteConField
   | DeleteTypeParam
+  | MakeKType
+  | MakeKFun
+  | DeleteKind
   deriving stock (Eq, Ord, Show, Read, Enum, Bounded, Generic)
   deriving (ToJSON, FromJSON) via PrimerJSON NoInputAction
 
@@ -409,7 +413,23 @@ forTypeDefParamKindNode ::
   TyConName ->
   ASTTypeDef TypeMeta KindMeta ->
   [Action]
-forTypeDefParamKindNode _ _ _ _ _ _ _ _ = mempty
+forTypeDefParamKindNode _ _ _ NonEditable _ _ _ _ = mempty
+forTypeDefParamKindNode paramName id l Editable tydefs defs tdName td =
+  sortByPriority
+    l
+    $ mwhen (not $ typeInUse tdName td tydefs defs)
+    $ [NoInput MakeKFun] <> case findKind id . snd =<< find ((== paramName) . fst) (astTypeDefParameters td) of
+      Nothing -> []
+      Just (KHole _) -> [NoInput MakeKType]
+      Just _ -> [NoInput DeleteKind]
+  where
+    findKind i k =
+      if getID k == i
+        then Just k
+        else case k of
+          KHole _ -> Nothing
+          KType _ -> Nothing
+          KFun _ k1 k2 -> findKind i k1 <|> findKind i k2
 
 forTypeDefConsNode ::
   Level ->
@@ -713,6 +733,9 @@ sortByPriority l =
         AddConField -> P.addConField
         DeleteConField -> P.delete
         DeleteTypeParam -> P.delete
+        MakeKType -> P.ktype
+        MakeKFun -> P.kfun
+        DeleteKind -> P.delete
       Input a -> case a of
         MakeCon -> P.useSaturatedValueCon
         MakeInt -> P.makeInt

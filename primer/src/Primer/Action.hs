@@ -1158,6 +1158,12 @@ toProgActionNoInput defs def0 sel0 = \case
   Available.DeleteTypeParam -> do
     (t, p) <- typeParamSel
     pure [DeleteTypeParam t p.param]
+  Available.MakeKType -> do
+    toProgAction [ConstructKType]
+  Available.MakeKFun -> do
+    toProgAction [ConstructKFun]
+  Available.DeleteKind -> do
+    toProgAction [Delete]
   where
     termSel = case sel0 of
       SelectionDef s -> pure s
@@ -1179,15 +1185,24 @@ toProgActionNoInput defs def0 sel0 = \case
       typeNodeSel >>= \case
         (s0, TypeDefParamNodeSelection s) -> pure (s0, s)
         _ -> Left NeedTypeDefParamSelection
+    typeParamKindSel =
+      typeParamSel >>= \case
+        (t, TypeDefParamSelection p (Just id)) -> pure (t, p, id)
+        _ -> Left NeedTypeDefParamKindSelection
     conFieldSel = do
       (ty, s) <- conSel
       maybe (Left NeedTypeDefConsFieldSelection) (pure . (ty,s.con,)) s.field
     toProgAction actions = do
       case sel0 of
         SelectionDef sel -> toProg' actions sel.def <$> maybeToEither NoNodeSelection sel.node
-        SelectionTypeDef _ -> do
-          (t, c, f) <- conFieldSel
-          pure [ConFieldAction t c f.index $ SetCursor f.meta : actions]
+        SelectionTypeDef sel -> case sel.node of
+          Just (TypeDefParamNodeSelection _) -> do
+            (t, p, id) <- typeParamKindSel
+            pure [ParamKindAction t p id actions]
+          Just (TypeDefConsNodeSelection _) -> do
+            (t, c, f) <- conFieldSel
+            pure [ConFieldAction t c f.index $ SetCursor f.meta : actions]
+          Nothing -> Left NeedTypeDefNodeSelection
     termDef = first (const NeedTermDef) def0
     typeDef = either Right (Left . const NeedTypeDef) def0
 

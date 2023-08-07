@@ -318,7 +318,10 @@
                     "DeleteCon",
                     "AddConField",
                     "DeleteConField",
-                    "DeleteTypeParam"
+                    "DeleteTypeParam",
+                    "MakeKType",
+                    "MakeKFun",
+                    "DeleteKind"
                 ],
                 "type": "string"
             },

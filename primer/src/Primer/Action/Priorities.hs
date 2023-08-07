@@ -57,6 +57,10 @@ module Primer.Action.Priorities (
   constructTypeApp,
   constructForall,
 
+  -- * Kind actions.
+  ktype,
+  kfun,
+
   -- * Type def actions.
   addCon,
   addTypeParam,
@@ -168,3 +172,9 @@ addTypeParam _ = 8
 
 addConField :: Level -> Int
 addConField _ = 10
+
+ktype :: Level -> Int
+ktype _ = 10
+
+kfun :: Level -> Int
+kfun _ = 20
